@@ -4,6 +4,7 @@ import { useRef, type ElementType, type ReactNode } from "react";
 import { prefersReducedMotion } from "@/lib/motion/useReducedMotion";
 import { useIsomorphicLayoutEffect } from "@/lib/motion/useIsomorphicLayoutEffect";
 import { EASE_OUT, REVEAL_S, STAGGER_S } from "@/lib/motion/tokens";
+import { jaEstaAVista } from "@/lib/motion/primeiro-ecra";
 
 type Variant = "rise" | "fade" | "mask" | "zoom";
 
@@ -123,6 +124,9 @@ export default function Reveal({
   useIsomorphicLayoutEffect(() => {
     const el = ref.current;
     if (!el || prefersReducedMotion()) return;
+    // Already on screen when the page arrives: it enters with the page, not
+    // after it (see @/lib/motion/primeiro-ecra).
+    if (jaEstaAVista(el)) return;
 
     const targets: HTMLElement[] = stagger ? (Array.from(el.children) as HTMLElement[]) : [el];
     if (targets.length === 0) return;
