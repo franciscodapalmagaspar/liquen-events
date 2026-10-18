@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useIsomorphicLayoutEffect } from "@/lib/motion/useIsomorphicLayoutEffect";
 import { prefersReducedMotion } from "@/lib/motion/useReducedMotion";
 import { EASE_OUT, REVEAL_S } from "@/lib/motion/tokens";
+import { jaEstaAVista } from "@/lib/motion/primeiro-ecra";
 
 interface Props {
   children: React.ReactNode;
@@ -78,6 +79,9 @@ export default function AnimateIn({ children, className = "", delay = 0, from = 
     const el = ref.current;
     if (!el) return;
     if (prefersReducedMotion()) return; // leave visible, no reveal
+    // Already on screen when the page arrives: don't hide it only to bring it
+    // back — it enters with the page (see @/lib/motion/primeiro-ecra).
+    if (jaEstaAVista(el)) return;
 
     const isClip = from === "clip";
     // Curva e duração vêm da ficha partilhada (@/lib/motion/tokens) — eram aqui
