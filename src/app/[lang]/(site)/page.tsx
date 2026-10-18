@@ -75,39 +75,57 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
         {/* WebGL layer over the static hero image (fades in when ready; absent
             under reduced motion / no-WebGL). */}
         <HeroWebGL src={FOTO_DA_ENTRADA} className="absolute inset-0 h-full w-full" />
-        {/* Two hero veils merged into one layer (multiple backgrounds paint
-            first-listed on top, so the former upper div is listed first): same
-            pixels, one paint/composite pass instead of two. */}
+        {/* O véu do ecrã inteiro ficou só o lateral, e mais leve (0,3 → 0,15).
+            O escuro de baixo passou para trás da legenda (já a seguir), para
+            acompanhar o texto em vez de subir até meio do ecrã. Pedido dela a
+            18/10, com capturas do iPhone: «continua escuro esta parte da
+            floresta». Medido no mesmo fotograma: o vídeo chega claro (o iPhone
+            e o Chromium dão a mesma luz); era este véu que a escurecia. */}
         <div
           className="absolute inset-0"
-          style={{
-            backgroundImage:
-              "linear-gradient(to right, rgba(0,0,0,0.3), transparent), linear-gradient(to top, rgba(8,8,8,0.92), rgba(8,8,8,0.25), transparent)",
-          }}
+          style={{ backgroundImage: "linear-gradient(to right, rgba(0,0,0,0.15), transparent)" }}
         />
 
         {/* Full-SpaceX hero caption: small and tucked at the bottom-left so the
             photograph owns the first screen. Still the page's single <h1>. */}
-        <div className="relative z-10 max-w-7xl mx-auto w-full px-6 lg:px-16 pb-14 lg:pb-20">
-          <AnimateIn>
-            <div className="max-w-2xl">
-              {/* The site's emotional promise, in the SpaceX display lettering:
+        {/* O escuro atrás da legenda: a toda a largura, da base até 9rem acima
+            do título — vai onde o texto for (também com o recuo do aviso de
+            cookies). O escuro forte acaba exactamente no topo do título (os
+            9rem do `pt-36` são só o esbatido): por baixo do texto o alfa é
+            0,68 ou mais, e o mínimo que o título (texto grande, 3:1) pede
+            sobre branco é 0,43; os botões (4,5:1) pedem 0,56. */}
+        <div
+          className="relative z-10 w-full pt-36"
+          style={{
+            backgroundImage:
+              "linear-gradient(to top, rgba(8,8,8,0.92) 0%, rgba(8,8,8,0.68) calc(100% - 9rem), transparent 100%)",
+            // O herói guarda em baixo o lugar do aviso de cookies (`recuo-
+            // consentimento`, um padding). O escuro desce por esse lugar até ao
+            // fundo do ecrã, e o texto fica onde estava.
+            marginBottom: "calc(-1 * var(--reserva-consentimento, 0px))",
+            paddingBottom: "var(--reserva-consentimento, 0px)",
+          }}
+        >
+          <div className="max-w-7xl mx-auto w-full px-6 lg:px-16 pb-14 lg:pb-20">
+            <AnimateIn>
+              <div className="max-w-2xl">
+                {/* The site's emotional promise, in the SpaceX display lettering:
                   big uppercase sans with tight (tracking-display) spacing. The
                   moss highlight on the closing word (flagged in the dictionary)
                   is honoured here. Kept bottom-left and photo-first so the SpaceX
                   composition still holds. */}
-              <h1
-                className="text-white font-bold uppercase tracking-display leading-[0.95]"
-                style={{ fontSize: "clamp(40px, 7vw, 88px)" }}
-              >
-                {t.home.heroLines.map((l, i) => (
-                  <span key={i} className={`block ${l.moss ? "text-moss" : ""}`}>
-                    {l.words.join(" ")}
-                  </span>
-                ))}
-              </h1>
-              <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2">
-                {/* Primary hero actions. Small 9px label on phones (the py-2
+                <h1
+                  className="text-white font-bold uppercase tracking-display leading-[0.95]"
+                  style={{ fontSize: "clamp(40px, 7vw, 88px)" }}
+                >
+                  {t.home.heroLines.map((l, i) => (
+                    <span key={i} className={`block ${l.moss ? "text-moss" : ""}`}>
+                      {l.words.join(" ")}
+                    </span>
+                  ))}
+                </h1>
+                <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2">
+                  {/* Primary hero actions. Small 9px label on phones (the py-2
                     still keeps a ≥40px tap target and the underline keeps the
                     minimal look); 10px from sm up.
                     ── O comentário acima estava optimista, e foi MEDIDO ──
@@ -122,26 +140,27 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                     embrulho, a caixa cresce e o filete continua colado à
                     palavra. O `group-hover` substitui o `hover` porque quem
                     recebe o rato agora é o link, não o span. */}
-                <TrackedLink
-                  href={localizeHref("/orcamento", locale)}
-                  trackProps={{ source: "hero" }}
-                  className="alvo-toque group inline-flex items-center text-white/85 text-[9px] sm:text-[10px] tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
-                >
-                  <span className="inline-flex items-center gap-1.5 border-b border-white/30 transition-colors group-hover:border-white">
-                    {t.common.pedirOrcamento} <span aria-hidden>→</span>
-                  </span>
-                </TrackedLink>
-                <Link
-                  href={localizeHref("/galeria", locale)}
-                  className="alvo-toque group inline-flex items-center text-white/85 text-[9px] sm:text-[10px] tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
-                >
-                  <span className="inline-flex items-center gap-1.5 border-b border-white/30 transition-colors group-hover:border-white">
-                    {t.common.verGaleria} <span aria-hidden>→</span>
-                  </span>
-                </Link>
+                  <TrackedLink
+                    href={localizeHref("/orcamento", locale)}
+                    trackProps={{ source: "hero" }}
+                    className="alvo-toque group inline-flex items-center text-white/85 text-[9px] sm:text-[10px] tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
+                  >
+                    <span className="inline-flex items-center gap-1.5 border-b border-white/30 transition-colors group-hover:border-white">
+                      {t.common.pedirOrcamento} <span aria-hidden>→</span>
+                    </span>
+                  </TrackedLink>
+                  <Link
+                    href={localizeHref("/galeria", locale)}
+                    className="alvo-toque group inline-flex items-center text-white/85 text-[9px] sm:text-[10px] tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
+                  >
+                    <span className="inline-flex items-center gap-1.5 border-b border-white/30 transition-colors group-hover:border-white">
+                      {t.common.verGaleria} <span aria-hidden>→</span>
+                    </span>
+                  </Link>
+                </div>
               </div>
-            </div>
-          </AnimateIn>
+            </AnimateIn>
+          </div>
         </div>
       </section>
 
