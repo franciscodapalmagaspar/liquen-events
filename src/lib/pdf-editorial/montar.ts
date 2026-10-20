@@ -25,7 +25,7 @@ import { SITE } from "@/lib/site";
 import { aoMeio, paginarColunasFixas, paginarCorrido, repartir, type Peca } from "./colunas";
 import { bytesDaFoto, embedImagem } from "./embutir";
 import { Album, comMedida, medir, type Foto } from "./fotos";
-import { capitulos as capitulosDaInspiracao } from "./grupos";
+import { capitulos as capitulosDaInspiracao, eDasMesas } from "./grupos";
 import { eCasamento } from "../proposal-evento";
 import { logotipoNaCor } from "./imagens";
 import type { Contexto } from "./moldura";
@@ -456,11 +456,33 @@ async function motor(
   // ── Paleta e ambiente ──
   if (inspiracao.length) {
     const pagina = proxima();
-    // A fila: a primeira fotografia de cada tema, e depois as outras.
-    const primeiras = comConteudo.map((x) => x.fotos[0]).filter((f): f is Foto => Boolean(f));
-    const fila = [...new Set([...primeiras, ...inspiracao])].slice(0, 6);
-    const painel =
-      album.escolher(pagina, "alta", 1, inspiracao, new Set(fila.map((f) => f.id)))[0] ?? null;
+    // As cores e as fotografias desta página vêm das MESAS (jantar, buffet,
+    // centros) — não da cerimónia, que vem primeiro e as dominava. Pedido
+    // dela a 20/10; ver `eDasMesas`. Sem nenhum tema das mesas, ficam todas.
+    // Só os que têm fotografias: um tema «Mesas» só com texto não dá cor.
+    const dasMesas = comConteudo.filter(
+      (x) => x.fotos.length && eDasMesas(x.pt.title ?? "", x.pt.subtitulo ?? ""),
+    );
+    const daPaleta = dasMesas.length ? dasMesas.flatMap((x) => x.fotos) : inspiracao;
+    // A primeira fotografia de cada tema, depois as outras.
+    const primeiras = (dasMesas.length ? dasMesas : comConteudo)
+      .map((x) => x.fotos[0])
+      .filter((f): f is Foto => Boolean(f));
+    let fila: Foto[];
+    let painel: Foto | null;
+    if (dasMesas.length) {
+      // O painel (a fotografia grande) primeiro, das mesas; a fila com as
+      // outras das mesas, e só se não chegarem a seis, as restantes.
+      painel = album.escolher(pagina, "alta", 1, daPaleta)[0] ?? null;
+      fila = [...new Set([...primeiras, ...daPaleta, ...inspiracao])]
+        .filter((f) => f !== painel)
+        .slice(0, 6);
+    } else {
+      // Sem tema das mesas: exactamente como antes.
+      fila = [...new Set([...primeiras, ...inspiracao])].slice(0, 6);
+      painel =
+        album.escolher(pagina, "alta", 1, inspiracao, new Set(fila.map((f) => f.id)))[0] ?? null;
+    }
     plano.push({
       chave: chaves.nova("ambiente"),
       // A fila nos seis primeiros lugares, o painel no sétimo.
@@ -468,7 +490,7 @@ async function motor(
       desenhar: async (numero) =>
         ambiente(ctx, {
           // A paleta lê os bytes: só quando se desenha (o plano não os tem).
-          cores: await paletaDasFotos(inspiracao.slice(0, 40).map((f) => f.bytes)),
+          cores: await paletaDasFotos(daPaleta.slice(0, 40).map((f) => f.bytes)),
           fotos: fila,
           painel,
           pagina: numero,

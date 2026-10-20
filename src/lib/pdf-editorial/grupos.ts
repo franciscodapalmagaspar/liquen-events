@@ -76,6 +76,32 @@ export function grupoDoTema(titulo: string, subtitulo = ""): Grupo {
 }
 
 /**
+ * ── O TEMA É DAS MESAS? (a paleta e o ambiente) ─────────────────────────────
+ *
+ * Pedido dela a 20/10, pela colaboradora que faz as propostas: as cinco cores
+ * da página «A paleta e o ambiente» saíam sobretudo da cerimónia (o primeiro
+ * capítulo), e «muitas vezes as cores que se colocam na cerimónia não são as
+ * cores depois do jantar… foca-te nas paletas de cor das mesas de jantar». As
+ * mesas de buffet contam também — ela nomeou-as.
+ *
+ * É o grupo «jantar» do `grupoDoTema` (mesa, centro, jantar, banquete, bolo…),
+ * mais qualquer tema com «buffet» que não seja da cerimónia — «Buffet do
+ * cocktail» é uma mesa de buffet. Os capítulos do PDF NÃO mudam: isto só
+ * escolhe de onde vêm as cores e as fotografias dessa página.
+ */
+const DAS_MESAS_SEMPRE = ["buffet", "bufete", "bufet"];
+
+export function eDasMesas(titulo: string, subtitulo = ""): boolean {
+  const grupo = grupoDoTema(titulo, subtitulo);
+  if (grupo === "cerimonia") return false;
+  const palavras = semAcentos(`${titulo} ${subtitulo}`)
+    .split(/[^a-z0-9-]+/)
+    .filter(Boolean);
+  if (palavras.some((p) => DAS_MESAS_SEMPRE.some((c) => eAPalavra(p, c)))) return true;
+  return grupo === "jantar";
+}
+
+/**
  * Agrupa itens pela ordem do dia, mantendo a ordem relativa de cada grupo.
  * Grupos vazios não aparecem.
  */

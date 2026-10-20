@@ -47,6 +47,16 @@ do prompt aqui em baixo é o atualizado, que acompanha o exemplo novo.
 - **Grupos de inspiração: «Pelo nome do tema».** O sistema não guarda o grupo
   de cada tema; lê-se das palavras do título (`grupos.ts`). Nenhum campo novo.
   O que não encaixa vai para «Ambiente».
+- **A paleta e o ambiente vêm das mesas (20/10).** A colaboradora viu que as
+  cinco cores batiam com a cerimónia e não com as mesas: as cores saíam das 40
+  primeiras fotografias, e a cerimónia vem primeiro. Ela: «muitas vezes as
+  cores que se colocam na cerimónia não são as cores depois do jantar… foca-te
+  nas paletas de cor das mesas de jantar». Agora as cores, a fila de seis e a
+  fotografia grande dessa página saem dos temas das mesas — o grupo «jantar»
+  (mesa, centro, jantar, banquete, bolo) e qualquer «buffet» fora da cerimónia
+  (`eDasMesas` em `grupos.ts`). Ela escolheu que as fotografias acompanham as
+  cores. Sem nenhum tema das mesas com fotografias, fica como antes. Os
+  capítulos do PDF não mudam.
 - **Fora dos casamentos, cada mood board é um capítulo (13/10).** Com uma
   proposta para um restaurante no Halloween, o PDF punha «Noivos» e arrumava
   «Bar» em «Cocktail» e «Arco de abóboras» em «Cerimónia». Ela escolheu: os
