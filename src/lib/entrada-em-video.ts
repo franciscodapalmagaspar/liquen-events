@@ -14,7 +14,7 @@
  *   · que versão se pede para este ecrã;
  *   · que formato este aparelho toca melhor sem travar (AV1, HEVC, H.264, VP9).
  *
- * ── OS FICHEIROS (`public/videos/entrada/v5/`) ──────────────────────────────
+ * ── OS FICHEIROS (`public/videos/entrada/v6/`) ──────────────────────────────
  *   · SEM AS TIRAS PRETAS. Os vídeos vêm gravados em formato de cinema (2:1),
  *     com 60 px pretos em cima e em baixo (120 px no 4K). Cortam-se, e o
  *     `object-cover` faz o resto: o vídeo enche a entrada sem nada à volta;
@@ -52,11 +52,20 @@
  *     leve HEVC com tecto de 1,75 Mbit/s e o VP9 a CRF 36. Medido contra a
  *     versão clara mais fiel (HEVC CRF 20): SSIM 0,9875 no HEVC ao alto.
  *
- * A pasta tem versão (`v5`) porque os vídeos são servidos com cache de um ano:
- * um vídeo novo vai para `v6`, nunca por cima.
+ *   · AO ALTO MAIS LEVE, desde 21/10 (`v6`). O telemóvel é quem mais sofre
+ *     com o peso, e o vídeo 1 ao alto pesava 14 MB em H.264 (Android) e
+ *     9,6 MB em HEVC (iPhone). Refeitas só as versões `retrato`, com tecto de
+ *     débito: H.264 CRF 23 até 3 Mbit/s, HEVC CRF 26 até 2,2, AV1 CRF 38 até
+ *     1,6, VP9 a 1,2 e as leves a 1,4 (H.264) e 1,0 (HEVC). O vídeo 1 ao alto
+ *     fica em 7,0 MB (H.264) e 5,0 MB (HEVC) — metade —, com SSIM 0,977
+ *     contra o de antes: no ecrã de um telemóvel não se distingue. A
+ *     `paisagem` e a `grande` são os mesmos ficheiros, só mudaram de pasta.
+ *
+ * A pasta tem versão (`v6`) porque os vídeos são servidos com cache de um ano:
+ * um vídeo novo vai para `v7`, nunca por cima.
  */
 
-export const PASTA_DOS_VIDEOS = "/videos/entrada/v5";
+export const PASTA_DOS_VIDEOS = "/videos/entrada/v6";
 
 /** Quantos vídeos há. */
 export const NUMERO_DE_VIDEOS = 3;
@@ -117,7 +126,7 @@ export function formatoQueToca(podeTocar: (tipo: string) => string): Formato | n
 /** As medidas de cada versão, para perguntar ao aparelho se as toca bem. */
 export const MEDIDAS: Record<Variante, { largura: number; altura: number; debito: number }> = {
   paisagem: { largura: 1920, altura: 960, debito: 6_000_000 },
-  retrato: { largura: 1080, altura: 1920, debito: 6_000_000 },
+  retrato: { largura: 1080, altura: 1920, debito: 3_000_000 },
   grande: { largura: 2560, altura: 1280, debito: 8_000_000 },
 };
 export const FOTOGRAMAS_POR_SEGUNDO = 25;

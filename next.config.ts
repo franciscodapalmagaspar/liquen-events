@@ -593,32 +593,44 @@ const nextConfig: NextConfig = {
     // O resto da política — object-src, base-uri, frame-ancestors, form-action,
     // connect-src apertado — está fechado, e é aí que está o valor real.
     // 'unsafe-eval' é só de desenvolvimento (React refresh).
-    const csp = [
-      "default-src 'self'",
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${plausible}${gaScript}${metaScript}`,
-      "style-src 'self' 'unsafe-inline'",
-      `img-src 'self' data: blob:${imgExtra}${gaImg}${metaImg}`,
-      "font-src 'self' data:",
-      // Os vídeos da entrada: cada take seguinte é descarregado inteiro e tocado
-      // da memória (`blob:`), para a rede não o fazer parar a meio — pedido dela
-      // a 16/10, num iPhone em 4G. Ver `EntradaEmVideo.tsx`. Sem esta linha, o
-      // `default-src 'self'` recusava o `blob:` e o vídeo voltava a tocar da rede.
-      "media-src 'self' blob:",
-      connectSrc,
-      "worker-src 'self'",
-      "manifest-src 'self'",
-      `frame-src 'self' ${gaFrame}`,
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'self'",
-      "upgrade-insecure-requests",
-      // report-to is the modern reporting directive (Reporting API v1); report-uri
-      // is kept as the fallback for browsers that don't yet honour report-to. Both
-      // point at the same collector endpoint.
-      "report-to csp-endpoint",
-      "report-uri /api/security/csp-report",
-    ].join("; ");
+    //
+    // `frame-ancestors`: quem pode mostrar este sítio dentro de um <iframe>.
+    // Além do próprio, só o site do estúdio que o fez (palumen.com), que mostra
+    // a Líquen a funcionar dentro de um portátil no caso de estudo — com
+    // autorização da dona, a 21/10. Só as páginas públicas: o back office e a
+    // API ficam com 'self' (regra `cspFechada`, mais abaixo). Os cookies de
+    // sessão são `SameSite=Lax`, por isso num iframe de outro domínio nem há
+    // sessão. O `X-Frame-Options: SAMEORIGIN` fica para browsers antigos; os
+    // actuais ignoram-no quando há `frame-ancestors`.
+    const politica = (ancestrais: string) =>
+      [
+        "default-src 'self'",
+        `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${plausible}${gaScript}${metaScript}`,
+        "style-src 'self' 'unsafe-inline'",
+        `img-src 'self' data: blob:${imgExtra}${gaImg}${metaImg}`,
+        "font-src 'self' data:",
+        // Os vídeos da entrada: cada take seguinte é descarregado inteiro e tocado
+        // da memória (`blob:`), para a rede não o fazer parar a meio — pedido dela
+        // a 16/10, num iPhone em 4G. Ver `EntradaEmVideo.tsx`. Sem esta linha, o
+        // `default-src 'self'` recusava o `blob:` e o vídeo voltava a tocar da rede.
+        "media-src 'self' blob:",
+        connectSrc,
+        "worker-src 'self'",
+        "manifest-src 'self'",
+        `frame-src 'self' ${gaFrame}`,
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        `frame-ancestors ${ancestrais}`,
+        "upgrade-insecure-requests",
+        // report-to is the modern reporting directive (Reporting API v1); report-uri
+        // is kept as the fallback for browsers that don't yet honour report-to. Both
+        // point at the same collector endpoint.
+        "report-to csp-endpoint",
+        "report-uri /api/security/csp-report",
+      ].join("; ");
+    const csp = politica("'self' https://palumen.com https://www.palumen.com");
+    const cspFechada = politica("'self'");
 
     const securityHeaders = [
       { key: "Content-Security-Policy", value: csp },
@@ -706,13 +718,26 @@ const nextConfig: NextConfig = {
 
     return [
       { source: "/:path*", headers: securityHeaders },
+      // O back office e a API não se mostram num iframe de fora. Esta regra vem
+      // depois da geral, por isso a CSP daqui substitui a de cima.
+      ...[
+        "/admin",
+        "/orcamento/admin",
+        "/orcamento/admin/:path*",
+        "/:lang/orcamento/admin",
+        "/:lang/orcamento/admin/:path*",
+        "/api/:path*",
+      ].map((source) => ({
+        source,
+        headers: [{ key: "Content-Security-Policy", value: cspFechada }],
+      })),
       {
         source: "/imagens/:path*",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
       {
-        // Os vídeos da entrada (public/videos/entrada/v5). A pasta tem versão:
-        // um vídeo novo vai para `v6`, nunca por cima, portanto um ano é seguro.
+        // Os vídeos da entrada (public/videos/entrada/v6). A pasta tem versão:
+        // um vídeo novo vai para `v7`, nunca por cima, portanto um ano é seguro.
         // Sem isto eram servidos com `max-age=0` e o browser revalidava-os em
         // cada visita — ~14 MB a pedir licença outra vez.
         source: "/videos/:path*",
