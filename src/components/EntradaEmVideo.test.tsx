@@ -160,7 +160,7 @@ describe("EntradaEmVideo", () => {
       expect(vs[0].autoplay).toBe(true);
       expect(
         vs[0].querySelector('source[media="(orientation: portrait)"]')?.getAttribute("src"),
-      ).toBe("/videos/entrada/v5/entrada-1-retrato-hevc.mp4");
+      ).toBe("/videos/entrada/v6/entrada-1-retrato-hevc.mp4");
       expect(vs[1].querySelector("source")).toBeNull();
       expect(play).toHaveBeenCalled();
     });
@@ -331,15 +331,15 @@ describe("EntradaEmVideo", () => {
       ligacao = { effectiveType: "4g", downlink: 2.5 };
       const v = entrarSemCortina();
       expect(fontes(v)).toEqual([
-        "/videos/entrada/v5/entrada-1-retrato-leve-hevc.mp4",
-        "/videos/entrada/v5/entrada-1-retrato-leve.mp4",
+        "/videos/entrada/v6/entrada-1-retrato-leve-hevc.mp4",
+        "/videos/entrada/v6/entrada-1-retrato-leve.mp4",
       ]);
       expect(v.hasAttribute("data-leve")).toBe(true);
     });
 
     it("o iPhone não diz: mede-se 1,2 s, e se a rede não chega passa à leve antes de se ver", () => {
       const v = entrarSemCortina();
-      expect(fontes(v)[0]).toBe("/videos/entrada/v5/entrada-1-retrato-hevc.mp4");
+      expect(fontes(v)[0]).toBe("/videos/entrada/v6/entrada-1-retrato-hevc.mp4");
       // Em 1,2 s chegou 0,6 s de vídeo: a versão normal pararia.
       Object.defineProperty(v, "buffered", {
         configurable: true,
@@ -348,7 +348,7 @@ describe("EntradaEmVideo", () => {
       play.mockClear();
       vi.advanceTimersByTime(1200);
       expect(v.hasAttribute("data-leve")).toBe(true);
-      expect(fontes(v)[0]).toBe("/videos/entrada/v5/entrada-1-retrato-leve-hevc.mp4");
+      expect(fontes(v)[0]).toBe("/videos/entrada/v6/entrada-1-retrato-leve-hevc.mp4");
       expect(play).toHaveBeenCalled();
       expect(v.hasAttribute("data-a-espera")).toBe(true); // ainda escondido
     });
@@ -361,7 +361,7 @@ describe("EntradaEmVideo", () => {
       });
       vi.advanceTimersByTime(1200);
       expect(v.hasAttribute("data-leve")).toBe(false);
-      expect(fontes(v)[0]).toBe("/videos/entrada/v5/entrada-1-retrato-hevc.mp4");
+      expect(fontes(v)[0]).toBe("/videos/entrada/v6/entrada-1-retrato-hevc.mp4");
     });
 
     it("um browser que só toca WebM nunca passa à leve (ficava sem vídeo)", () => {
@@ -397,7 +397,7 @@ describe("EntradaEmVideo", () => {
 
     comecar(a);
     expect(a.style.opacity).toBe("1");
-    expect(b.getAttribute("src")).toBe("/videos/entrada/v5/entrada-2-paisagem.mp4");
+    expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-paisagem.mp4");
   });
 
   it("no telemóvel ao alto, os seguintes vêm na versão vertical", async () => {
@@ -592,7 +592,7 @@ describe("EntradaEmVideo", () => {
       const { container } = await montar();
       expect(videos(container).every((v) => v.style.opacity === "0")).toBe(true);
       const img = container.querySelector<HTMLImageElement>("img[data-entrada-imagem]");
-      expect(img?.getAttribute("src")).toBe("/videos/entrada/v5/entrada-1-paisagem.mp4");
+      expect(img?.getAttribute("src")).toBe("/videos/entrada/v6/entrada-1-paisagem.mp4");
       expect(img?.getAttribute("aria-hidden")).toBe("true");
       expect(img?.style.opacity).toBe("0");
       act(() => void img!.dispatchEvent(new Event("load")));
@@ -606,7 +606,7 @@ describe("EntradaEmVideo", () => {
       recusar();
       const { container } = await montar();
       expect(container.querySelector("img[data-entrada-imagem]")?.getAttribute("src")).toBe(
-        "/videos/entrada/v5/entrada-1-retrato-leve.mp4",
+        "/videos/entrada/v6/entrada-1-retrato-leve.mp4",
       );
     });
 
@@ -615,7 +615,7 @@ describe("EntradaEmVideo", () => {
       recusar();
       const { container } = await montar();
       expect(container.querySelector("img[data-entrada-imagem]")?.getAttribute("src")).toBe(
-        "/videos/entrada/v5/entrada-1-paisagem-animada.webp",
+        "/videos/entrada/v6/entrada-1-paisagem-animada.webp",
       );
       expect(videos(container).every((v) => v.style.opacity === "0")).toBe(true);
     });
@@ -628,7 +628,7 @@ describe("EntradaEmVideo", () => {
       const { container } = await montar();
       const img = container.querySelector<HTMLImageElement>("img[data-entrada-imagem]")!;
       act(() => void img.dispatchEvent(new Event("error")));
-      expect(img.getAttribute("src")).toBe("/videos/entrada/v5/entrada-1-retrato-animada.webp");
+      expect(img.getAttribute("src")).toBe("/videos/entrada/v6/entrada-1-retrato-animada.webp");
       expect(img.isConnected).toBe(true);
       act(() => void img.dispatchEvent(new Event("error")));
       expect(img.isConnected).toBe(false);
@@ -646,7 +646,7 @@ describe("EntradaEmVideo", () => {
         });
         const imgs = document.querySelectorAll<HTMLImageElement>("img[data-entrada-imagem]");
         expect(imgs).toHaveLength(1);
-        expect(imgs[0].getAttribute("src")).toBe("/videos/entrada/v5/entrada-1-paisagem.mp4");
+        expect(imgs[0].getAttribute("src")).toBe("/videos/entrada/v6/entrada-1-paisagem.mp4");
         // Quem vier depois (o motor) reconhece-a em vez de pôr outra.
         const raiz = document.querySelector("[data-entrada]")!;
         expect(porImagemAnimada(raiz, imagensAnimadas(0), false, 800)).toBe(imgs[0]);
@@ -780,7 +780,7 @@ describe("EntradaEmVideo", () => {
       Object.defineProperty(a, "duration", { configurable: true, value: 18 });
       Object.defineProperty(a, "currentTime", { configurable: true, value: 2, writable: true });
       comecar(a);
-      expect(pedidos).toEqual(["/videos/entrada/v5/entrada-2-paisagem.mp4"]);
+      expect(pedidos).toEqual(["/videos/entrada/v6/entrada-2-paisagem.mp4"]);
       responder(true);
       await esperar();
       // Já está na memória, mas ainda faltam 16 s: não se põe a descodificar.
@@ -789,7 +789,7 @@ describe("EntradaEmVideo", () => {
       act(() => void a.dispatchEvent(new Event("timeupdate")));
       expect(b.getAttribute("src")).toBe("blob:take-1");
       // E o seguinte da fila começa a descarregar quando este chegou.
-      expect(pedidos[1]).toBe("/videos/entrada/v5/entrada-3-paisagem.mp4");
+      expect(pedidos[1]).toBe("/videos/entrada/v6/entrada-3-paisagem.mp4");
     });
 
     it("o take de abertura também vai para a memória, depois dos outros, e troca fora da vista", async () => {
@@ -804,9 +804,9 @@ describe("EntradaEmVideo", () => {
       await esperar();
       // Os outros já estão: agora a cópia do de abertura (o mesmo ficheiro).
       expect(pedidos).toEqual([
-        "/videos/entrada/v5/entrada-2-paisagem.mp4",
-        "/videos/entrada/v5/entrada-3-paisagem.mp4",
-        "/videos/entrada/v5/entrada-1-paisagem.mp4",
+        "/videos/entrada/v6/entrada-2-paisagem.mp4",
+        "/videos/entrada/v6/entrada-3-paisagem.mp4",
+        "/videos/entrada/v6/entrada-1-paisagem.mp4",
       ]);
       responder(true);
       await esperar();
@@ -842,7 +842,7 @@ describe("EntradaEmVideo", () => {
       expect(b.getAttribute("src")).toBe("blob:take-1");
       act(() => void b.dispatchEvent(new Event("error")));
       expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:take-1");
-      expect(b.getAttribute("src")).toBe("/videos/entrada/v5/entrada-2-paisagem.mp4");
+      expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-paisagem.mp4");
     });
 
     it("depois de cada passagem, o que saiu FICA carregado (largá-lo prendia a imagem no iPhone)", async () => {
@@ -899,7 +899,7 @@ describe("EntradaEmVideo", () => {
       comecar(a);
       responder(false);
       await esperar();
-      expect(b.getAttribute("src")).toBe("/videos/entrada/v5/entrada-2-paisagem.mp4");
+      expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-paisagem.mp4");
     });
 
     it("não divide a rede com o take de entrada enquanto ele não chegou inteiro", async () => {

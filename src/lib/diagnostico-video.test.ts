@@ -158,9 +158,9 @@ describe("o registo anónimo do vídeo", () => {
   });
 
   it("o formato pelo endereço", () => {
-    expect(formatoDoSrc("/videos/entrada/v5/entrada-1-retrato-hevc.mp4")).toBe("hevc");
-    expect(formatoDoSrc("/videos/entrada/v5/entrada-2-paisagem.mp4")).toBe("mp4");
-    expect(formatoDoSrc("/videos/entrada/v5/entrada-2-paisagem.webm")).toBe("webm");
+    expect(formatoDoSrc("/videos/entrada/v6/entrada-1-retrato-hevc.mp4")).toBe("hevc");
+    expect(formatoDoSrc("/videos/entrada/v6/entrada-2-paisagem.mp4")).toBe("mp4");
+    expect(formatoDoSrc("/videos/entrada/v6/entrada-2-paisagem.webm")).toBe("webm");
     expect(formatoDoSrc("blob:https://x/1")).toBe("blob");
     expect(formatoDoSrc("")).toBeNull();
   });

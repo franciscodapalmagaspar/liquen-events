@@ -88,10 +88,10 @@ describe("os vídeos da entrada — as regras", () => {
 
   it("o HEVC e o AV1 são MP4 com o codec no nome, e têm versão grande", () => {
     expect(enderecoDoVideo(0, "paisagem", "hevc")).toBe(
-      "/videos/entrada/v5/entrada-1-paisagem-hevc.mp4",
+      "/videos/entrada/v6/entrada-1-paisagem-hevc.mp4",
     );
-    expect(enderecoDoVideo(1, "grande", "av1")).toBe("/videos/entrada/v5/entrada-2-grande-av1.mp4");
-    expect(formatoDoEndereco("https://x/videos/entrada/v5/entrada-1-retrato-hevc.mp4")).toBe(
+    expect(enderecoDoVideo(1, "grande", "av1")).toBe("/videos/entrada/v6/entrada-2-grande-av1.mp4");
+    expect(formatoDoEndereco("https://x/videos/entrada/v6/entrada-1-retrato-hevc.mp4")).toBe(
       "hevc",
     );
     expect(formatoDoEndereco("/v/entrada-1-retrato-av1.mp4")).toBe("av1");
@@ -180,15 +180,15 @@ describe("os vídeos da entrada — as regras", () => {
   });
 
   it("a floresta como imagem animada: o MP4 no <img> e o WebP, ao alto e deitado", () => {
-    expect(enderecoAnimada(0, "retrato")).toBe("/videos/entrada/v5/entrada-1-retrato-animada.webp");
+    expect(enderecoAnimada(0, "retrato")).toBe("/videos/entrada/v6/entrada-1-retrato-animada.webp");
     expect(imagensAnimadas(TAKE_DE_ENTRADA)).toEqual({
       mp4: [
-        "/videos/entrada/v5/entrada-1-retrato-leve.mp4",
-        "/videos/entrada/v5/entrada-1-paisagem.mp4",
+        "/videos/entrada/v6/entrada-1-retrato-leve.mp4",
+        "/videos/entrada/v6/entrada-1-paisagem.mp4",
       ],
       webp: [
-        "/videos/entrada/v5/entrada-1-retrato-animada.webp",
-        "/videos/entrada/v5/entrada-1-paisagem-animada.webp",
+        "/videos/entrada/v6/entrada-1-retrato-animada.webp",
+        "/videos/entrada/v6/entrada-1-paisagem-animada.webp",
       ],
     });
     // Os WebP existem e não passam do tecto (é o que se descarrega quando o
@@ -200,8 +200,8 @@ describe("os vídeos da entrada — as regras", () => {
   });
 
   it("a versão leve: só ao alto, em HEVC ou H.264", () => {
-    expect(enderecoLeve(0, "hevc")).toBe("/videos/entrada/v5/entrada-1-retrato-leve-hevc.mp4");
-    expect(enderecoLeve(2, "mp4")).toBe("/videos/entrada/v5/entrada-3-retrato-leve.mp4");
+    expect(enderecoLeve(0, "hevc")).toBe("/videos/entrada/v6/entrada-1-retrato-leve-hevc.mp4");
+    expect(enderecoLeve(2, "mp4")).toBe("/videos/entrada/v6/entrada-3-retrato-leve.mp4");
     expect(formatoDoEndereco(enderecoLeve(1, "hevc"))).toBe("hevc");
   });
 
