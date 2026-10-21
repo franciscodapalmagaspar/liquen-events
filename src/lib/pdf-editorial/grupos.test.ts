@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agrupar, capitulos, grupoDoTema } from "./grupos";
+import { agrupar, capitulos, eDasMesas, grupoDoTema } from "./grupos";
 import { primeirosNomes } from "./textos";
 
 describe("o grupo lê-se do nome do tema", () => {
@@ -66,5 +66,28 @@ describe("os capítulos: casamento pelo dia, o resto pelo mood board", () => {
   it("num casamento, continuam os capítulos do dia", () => {
     const c = capitulos(temas, (t) => t, true);
     expect(c.map((x) => x.grupo)).toEqual(["cerimonia", "cocktail", "jantar"]);
+  });
+});
+
+describe("o tema é das mesas? (a paleta e o ambiente, pedido dela a 20/10)", () => {
+  it.each([
+    ["Decoração e Decor Floral Mesas Jantar", true],
+    ["Centro de mesa", true],
+    ["Mesa do Bolo", true],
+    ["Buffet", true],
+    ["Buffet do cocktail", true],
+    ["Dinner tables", true],
+    ["Decoração Cerimónia", false],
+    ["Mesa da cerimónia", false],
+    ["Buffet da cerimónia", false],
+    ["Bar", false],
+    ["Ramo da noiva", false],
+    ["Luzes e Lounge", false],
+  ])("«%s» → %s", (titulo, sim) => {
+    expect(eDasMesas(titulo)).toBe(sim);
+  });
+
+  it("o subtítulo conta, como no grupo", () => {
+    expect(eDasMesas("Proposta B", "Mesas de jantar")).toBe(true);
   });
 });
