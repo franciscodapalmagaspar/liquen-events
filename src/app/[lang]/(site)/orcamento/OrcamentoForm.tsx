@@ -216,7 +216,7 @@ function EscolhaUnica({
                 onStart();
                 onChange(active ? "" : o.id);
               }}
-              className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
+              className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] escolha-mola ${
                 active
                   ? "bg-moss border-moss text-white shadow-sm shadow-moss/20"
                   : "border-foreground/12 text-foreground/70 hover:border-moss/40 hover:text-foreground/85"
@@ -1021,7 +1021,7 @@ export default function OrcamentoForm({
                       aria-checked={active}
                       tabIndex={focusable ? 0 : -1}
                       onClick={() => setEventType(o.label)}
-                      className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
+                      className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] escolha-mola ${
                         active
                           ? "bg-moss border-moss text-white shadow-sm shadow-moss/20"
                           : "border-foreground/12 text-foreground/70 hover:border-moss/40 hover:text-foreground/85"
@@ -1087,7 +1087,7 @@ export default function OrcamentoForm({
                           markStart();
                           alternarDecor(p.id);
                         }}
-                        className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
+                        className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] escolha-mola ${
                           active
                             ? "bg-moss border-moss text-white shadow-sm shadow-moss/20"
                             : "border-foreground/12 text-foreground/70 hover:border-moss/40 hover:text-foreground/85"

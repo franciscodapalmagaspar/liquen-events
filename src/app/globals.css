@@ -3475,6 +3475,29 @@ body:has([data-orcamento-mode]) .scroll-progress {
   }
 }
 
+/* ── A escolha assenta com mola (as pastilhas do orçamento) ──
+   Pedido dela, a 22/10: «dar vida» ao pedido de orçamento. Os campos já
+   entravam a subir (`.orc-reveal`, aqui em cima) e o ✓ da confirmação já se
+   desenhava (`.confirm-check`); faltava a resposta ao escolher. Uma pastilha
+   que passa a escolhida (tipo de evento, cerimónia, pontos de decoração)
+   assenta com a mola da casa — a mesma `--bo-mola-chegada` de 240 ms: cresce
+   de 0,92, passa ligeiramente e fica. Só `scale` (composto), uma vez por
+   escolha, e nada com movimento reduzido. Tirar a escolha não anima. */
+@media (prefers-reduced-motion: no-preference) {
+  .escolha-mola[aria-pressed="true"],
+  .escolha-mola[aria-checked="true"] {
+    animation: escolha-assenta var(--bo-mola-chegada-ms) var(--bo-mola-chegada);
+  }
+  @keyframes escolha-assenta {
+    from {
+      scale: 0.92;
+    }
+    to {
+      scale: 1;
+    }
+  }
+}
+
 /* ── Hero parallax drift, driven on the compositor ──
    Opt-in via <Parallax drift>. Where scroll-driven animations exist (and motion
    is welcome), the hero layer drifts as its section scrolls through the viewport
