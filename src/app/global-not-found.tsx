@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
-import { getDictionary, htmlLang, localizeHref, type Locale } from "@/lib/i18n";
+import { getDictionary, htmlLang, localizeHref, LANG_COOKIE, type Locale } from "@/lib/i18n";
 import { CABECALHO_DA_LINGUA } from "@/lib/lingua-do-pedido";
 import { waHref } from "@/data";
 import NotFoundConteudo from "./[lang]/(site)/NotFoundConteudo";
@@ -34,8 +34,7 @@ import NotFoundConteudo from "./[lang]/(site)/NotFoundConteudo";
  * Como não passa pelo layout, traz o que precisa: a folha global, as duas
  * fontes do primeiro ecrã, o logótipo a levar ao início, o corpo de sempre do
  * 404 (`NotFoundConteudo`) e o WhatsApp. A língua não vem de parâmetros (não
- * há): vem do cabeçalho que o `proxy` escreve em cada pedido de página
- * (`CABECALHO_DA_LINGUA`) — `/en/…` responde em inglês, o resto em português.
+ * há) — ver `lingua()`, logo abaixo.
  *
  * ── SEM COMPONENTES CLIENTE, E É DE PROPÓSITO ─────────────────────────────
  * A primeira versão punha à volta o cromado inteiro do sítio (menu, rodapé,
@@ -72,8 +71,33 @@ const playfair = Playfair_Display({
   fallback: ["Georgia", "Times New Roman", "Times", "serif"],
 });
 
+/**
+ * A língua do 404: o cabeçalho do proxy primeiro, o cookie depois.
+ *
+ * ERA SÓ O CABEÇALHO, porque o proxy corria em todos os pedidos de página e
+ * escrevia-o sempre: `en` em `/en/…`, e no caminho nu a língua do cookie
+ * (o mesmo cookie que o reescrevia para `/en/…` ou `/pt/…`).
+ *
+ * O caminho nu deixou de passar pelo proxy — a reescrita é agora um
+ * `rewrites()` do next.config, que não sabe pôr cabeçalhos no pedido (ver
+ * `src/lib/rotas-da-lingua.ts`). Sem esta segunda linha, quem escolheu inglês
+ * e abre um endereço partido (`/pagina-que-nao-existe`, um link antigo com uma
+ * gralha) passava a receber o 404 em português. O cookie é a MESMA fonte que a
+ * reescrita usa, portanto a resposta é a mesma de antes. Ler o cookie não
+ * custa nada: esta página já é dinâmica por ler o cabeçalho.
+ *
+ * A diferença que fica, e só em endereços-lixo: os que o proxy deixava passar
+ * sem cabeçalho nenhum — com «extensão» (`/backup.zip`, `/wp-login.php`,
+ * `/servicos/x.jpg`, `/en/x.jpg`) ou dentro das pastas de ficheiros
+ * (`/imagens/…`, `/_img/…`) — respondiam SEMPRE em português, e para quem tem
+ * o cookie `en` passam a responder em inglês. Para um caminho nu com
+ * extensão (`/backup.zip`) é até a consequência directa da reescrita: ele
+ * agora é reescrito para `/en/backup.zip`, como qualquer outro.
+ */
 async function lingua(): Promise<Locale> {
-  return (await headers()).get(CABECALHO_DA_LINGUA) === "en" ? "en" : "pt";
+  const doProxy = (await headers()).get(CABECALHO_DA_LINGUA);
+  if (doProxy) return doProxy === "en" ? "en" : "pt";
+  return (await cookies()).get(LANG_COOKIE)?.value === "en" ? "en" : "pt";
 }
 
 /**

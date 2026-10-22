@@ -8,21 +8,45 @@ import { CABECALHO_DA_LINGUA } from "@/lib/lingua-do-pedido";
  * (`/pt/*`, `/en/*`) so they can be **statically prerendered** — the locale
  * comes from the route, not a runtime header/cookie. The public URL scheme is
  * unchanged: Portuguese is canonical at the bare path (`/`, `/servicos`, …) and
- * English lives at `/en/*` (shareable & crawlable). This proxy maps public URLs
- * onto the internal segments:
+ * English lives at `/en/*` (shareable & crawlable).
  *
- *  1. `/en`, `/en/*` — already the `[lang=en]` segment; served as-is. A sticky
- *     `liquen-lang` cookie records the choice on real document navigations.
- *  2. `/pt`, `/pt/*` — the internal Portuguese prefix must never be public;
- *     redirect it to the canonical bare URL (avoids duplicate content).
- *  3. Bare canonical paths — rewritten onto `/{lang}/…` (URL stays bare); the
- *     language follows the sticky cookie, defaulting to Portuguese. Rewrites
- *     don't re-enter the proxy, so there's no loop and the `/pt/*` redirect
- *     above only ever fires for genuinely external `/pt` requests.
+ * ── O QUE SAIU DAQUI, E PORQUÊ ──────────────────────────────────────────────
  *
+ * Este ficheiro corria à frente de TODOS os pedidos de página, sobretudo para
+ * reescrever o caminho nu (`/servicos` → `/pt/servicos`). No Vercel o proxy é
+ * uma função, e uma página que está pronta no CDN passava a esperar por uma
+ * invocação só para mudar o caminho — MEDIDO de fora, na produção: 0,27–0,6 s
+ * ao primeiro byte numa página estática contra 0,17–0,24 s num ficheiro
+ * simples. Duas coisas passaram para o next.config, onde são declarativas e
+ * não invocam nada (o porquê de cada escolha está em
+ * `src/lib/rotas-da-lingua.ts`):
+ *
+ *   · a reescrita do caminho nu para `/{lang}/…` pelo cookie → `rewrites()`,
+ *     em `afterFiles`;
+ *   · o `/pt`, `/pt/*` → endereço nu (308) → `redirects()`.
+ *
+ * ── O QUE FICA, E PORQUÊ ────────────────────────────────────────────────────
+ *
+ *  1. `/en`, `/en/*` — já são o segmento `[lang=en]`; o proxy só escreve o
+ *     cookie pegajoso `liquen-lang` nas navegações de documento verdadeiras
+ *     (a lógica do `sec-fetch-dest`/`rsc` não se diz em configuração: um
+ *     `headers()` não sabe pôr um Set-Cookie condicional) e o cabeçalho da
+ *     língua para o `app/global-not-found.tsx`.
+ *  2. `/` — a reescrita da RAIZ fica aqui, de propósito: no Vercel o pedido
+ *     RSC da raiz chega às reescritas como `/index.rsc`, normalizado pelo
+ *     construtor de uma forma que não se prova sem um deploy (ver
+ *     `rotas-da-lingua.ts`). É um só caminho, e é o mesmo código de sempre.
+ *  3. `/admin` → `/orcamento/admin` (307). Num `redirects()` a query passava a
+ *     seguir para o destino (redirects.md: «any query values provided in the
+ *     request will be passed through»), e aqui não segue — `/admin?x=1` dá
+ *     `/orcamento/admin` limpo. Mudar isso não era o que este trabalho
+ *     pedia, e o atalho só é usado pela equipa: o custo da invocação é nulo.
  *  4. CSRF defence in depth (state-changing /api): a present-but-mismatched
  *     Origin is rejected; same-origin and server-to-server callers pass.
  *  5. Request-ID injection on /api for correlating errors with logs.
+ *
+ * O `matcher` lá em baixo é a lista exacta destes caminhos: qualquer outro
+ * pedido não acorda a função.
  */
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const LANG_COOKIE = "liquen-lang";
@@ -44,6 +68,11 @@ const LANG_COOKIE = "liquen-lang";
  * rotas nenhumas: a extensão mais comprida de `public/` é `gitkeep` (7), e uma
  * assinatura tem sempre 43. Nomear `/proposta` e `/portal` resolvia o caso de
  * hoje e voltava a partir-se na próxima rota com token.
+ *
+ * Hoje só decide dentro de `/en/…` (e da raiz, que não tem ponto): o caminho
+ * nu passou para o next.config, onde a regra NÃO olha para pontos nenhuns —
+ * o porquê está em `src/lib/rotas-da-lingua.ts`. Um `/en/x.jpg` continua a
+ * passar sem cookie nem cabeçalho de língua, como passava.
  */
 const EXTENSAO_DE_FICHEIRO = /\.[a-zA-Z0-9]{1,8}$/;
 
@@ -115,12 +144,8 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL("/orcamento/admin", req.url), 307);
   }
 
-  // ── Internal Portuguese prefix leaked to a public URL → canonicalise ──
-  if (pathname === "/pt" || pathname.startsWith("/pt/")) {
-    const url = req.nextUrl.clone();
-    url.pathname = pathname.slice(3) || "/";
-    return NextResponse.redirect(url, 308);
-  }
+  // (O `/pt`, `/pt/*` → endereço nu é um `redirects()` do next.config, que
+  // corre ANTES do proxy: um pedido desses já nem chega aqui.)
 
   // ── English mirror: already the [lang=en] segment; stick the choice ──
   if (pathname === "/en" || pathname.startsWith("/en/")) {
@@ -141,6 +166,10 @@ export function proxy(req: NextRequest) {
   }
 
   // ── Bare canonical path → rewrite onto the internal /{lang} segment ──
+  // Pelo `matcher`, só a raiz `/` chega aqui; os outros caminhos nus são
+  // reescritos pelo next.config com a MESMA regra (cookie `en` → `/en/…`, o
+  // resto → `/pt/…`). O código fica geral para as duas não poderem divergir
+  // no dia em que alguém acrescentar um caminho ao `matcher`.
   const lang = req.cookies.get(LANG_COOKIE)?.value === "en" ? "en" : "pt";
   const url = req.nextUrl.clone();
   url.pathname = `/${lang}${pathname === "/" ? "" : pathname}`;
@@ -152,8 +181,10 @@ export function proxy(req: NextRequest) {
  *
  * Esse ficheiro serve os endereços que não existem (auditoria externa, S5/C3)
  * e não recebe parâmetros nenhuns — não vê o `[lang]` do caminho. Sem isto, um
- * `/en/qualquer-coisa` partido respondia em português. Escreve-se SEMPRE por
- * cima do que o cliente tenha mandado: o valor é nosso.
+ * `/en/qualquer-coisa` partido respondia em português. Nos caminhos em que o
+ * proxy corre escreve-se SEMPRE por cima do que o cliente tenha mandado: o
+ * valor é nosso. Nos caminhos nus, que já não passam por aqui, o 404 lê o
+ * cookie — ver a função `lingua()` do `global-not-found.tsx`.
  */
 function comLingua(req: NextRequest, lang: "pt" | "en"): Headers {
   const h = new Headers(req.headers);
@@ -162,20 +193,14 @@ function comLingua(req: NextRequest, lang: "pt" | "en"): Headers {
 }
 
 export const config = {
-  // Run on everything except Next's static output AND the public static assets
-  // this function would only ever no-op anyway (see isNonLocalized). Excluding
-  // the high-volume asset folders (event photos, logos) and the root metadata
-  // files from the matcher means each such request skips the Node proxy
-  // invocation entirely and is served straight from the static layer — the
-  // response is byte-for-byte identical to the previous NextResponse.next().
-  // `_img/` estava a faltar nesta lista, e é a pasta com mais tráfego de todas:
-  // são as miniaturas pré-geradas da galeria (5 570 ficheiros) e os heróis. Uma
-  // travessia da galeria invocava esta função ~428 vezes para ela percorrer o
-  // `isNonLocalized` e devolver `next()` — exactamente o desperdício que a
-  // exclusão do `imagens/` aqui ao lado existe para evitar. Não é um descuido
-  // de raciocínio: é de sequência — o `/_img` nasceu com o pré-gerador, depois
-  // de esta linha estar escrita.
-  matcher: [
-    "/((?!_next/static|_next/image|_img/|imagens/|videos/|logos/|favicon\\.ico|icon\\.png|apple-icon\\.png|manifest\\.webmanifest|sitemap\\.xml|robots\\.txt).*)",
-  ],
+  // SÓ os caminhos em que o proxy ainda faz alguma coisa (ver o cabeçalho deste
+  // ficheiro). Era `/((?!_next/static|…).*)` — tudo menos os estáticos —, e
+  // isso punha uma invocação à frente de cada página pré-renderizada só para a
+  // reescrever. Os caminhos que saíram daqui são servidos pela tabela de
+  // encaminhamento (o `rewrites()`/`redirects()` do next.config), sem função.
+  //
+  // `/api/:path+` e não `:path*`: o `*` também apanha o `/api` sozinho, que
+  // nunca foi da API (o proxy reescrevia-o para `/pt/api`, como qualquer
+  // caminho nu, e é o next.config que o faz agora).
+  matcher: ["/", "/admin", "/en", "/en/:path*", "/api/:path+"],
 };
