@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import Script from "next/script";
 import { usePathname } from "next/navigation";
 import { TOKEN_PATH_PATTERN, TOKEN_PLACEHOLDER, semAnaliticos } from "@/lib/safe-path";
 
@@ -13,6 +12,9 @@ import { TOKEN_PATH_PATTERN, TOKEN_PLACEHOLDER, semAnaliticos } from "@/lib/safe
 // imported into Ads as the "Pedido de orçamento" conversion.
 export const GOOGLE_ADS_ID = "AW-16724349653";
 export const GA4_ID = "G-29CZZ76H6F";
+
+/** A biblioteca. Um só endereço: o `id` é o do GA4, e serve os dois destinos. */
+export const GTAG_SRC = `https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`;
 
 // Consent Mode v2 bootstrap. Emitted as a PLAIN inline <script> (not
 // next/script beforeInteractive) so it executes synchronously in document
@@ -107,8 +109,8 @@ export function bootstrapGtag(): void {
  * the choice is restored from localStorage before the tag loads, so consent
  * persists. Under "denied", gtag still sends cookieless pings so Google can
  * model conversions — but sets no cookies, which keeps us compliant without
- * re-asking on every page. The library loads `afterInteractive` so it never
- * competes with first paint.
+ * re-asking on every page. The library loads after hydration (ver
+ * `carregarGtag`, em baixo) so it never competes with first paint.
  *
  * NÃO é montado nas rotas com token (/portal/<token>, /proposta/<token>) nem no
  * back office (/orcamento/admin). E a razão é precisamente aquela em que o
@@ -138,22 +140,43 @@ export default function GoogleTag() {
   useEffect(() => {
     if (suppressed) return;
     bootstrapGtag();
+    carregarGtag();
   }, [suppressed, pathname]);
 
   if (suppressed) return null;
 
-  return (
-    <>
-      <script dangerouslySetInnerHTML={{ __html: CONSENT_BOOTSTRAP }} />
-      {/* afterInteractive — the standard, reliable strategy for an analytics
-          tag: loads right after the page is interactive so hits actually send.
-          lazyOnload could stall on image-heavy pages and never flush the queued
-          page_view / conversion (GA4 showed no data). The Consent Mode default
-          above is set inline, synchronously, so consent ordering is unaffected. */}
-      <Script
-        src={`https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`}
-        strategy="afterInteractive"
-      />
-    </>
-  );
+  return <script dangerouslySetInnerHTML={{ __html: CONSENT_BOOTSTRAP }} />;
+}
+
+/**
+ * ── A BIBLIOTECA ENTRA DEPOIS DA HIDRATAÇÃO — E SEM AVISO NO `<head>` ──────
+ *
+ * Era um `<Script strategy="afterInteractive">`. A hora estava certa; o que
+ * vinha com ela é que não: no App Router o `next/script` chama
+ * `ReactDOM.preload()` no servidor para todo o `afterInteractive`, e isso
+ * escreve um `<link rel="preload" as="script">` do gtag.js no `<head>` de
+ * cada página. O browser pede-o logo ao ler o `<head>` — ~160 KB em brotli,
+ * medidos na auditoria a 390×844 — à mesma hora que a fotografia do topo, que
+ * é o LCP. O `afterInteractive` adiava a EXECUÇÃO; a descarga, não.
+ *
+ * Aqui a hora é a mesma de antes, à letra: o `next/script` também acrescentava
+ * o elemento num `useEffect`, ou seja, depois de a árvore hidratar. Só deixa
+ * de haver o aviso adiantado.
+ *
+ * E NÃO vai mais tarde do que isto, de propósito. Já se tentou `lazyOnload`
+ * (68f03f51): nas páginas cheias de imagens o `load` demora, a biblioteca não
+ * chegava a tempo de esvaziar a fila, e o GA4 ficou sem dados (570b86d7 voltou
+ * atrás). O `consent default` continua a ir no script inline, síncrono, antes
+ * de tudo — a ordem do consentimento não muda.
+ *
+ * Idempotente: o tag vive no layout e o efeito corre a cada mudança de
+ * caminho; procura-se o elemento antes de o criar, que é o que a cache do
+ * `next/script` fazia pelo `src`.
+ */
+export function carregarGtag(): void {
+  if (document.querySelector(`script[src="${GTAG_SRC}"]`)) return;
+  const s = document.createElement("script");
+  s.src = GTAG_SRC;
+  s.async = true;
+  document.body.appendChild(s);
 }

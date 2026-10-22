@@ -101,7 +101,11 @@ describe("o cabeçalho acompanha a troca de vista", () => {
    */
   it("entra à distância de um rótulo, e cala-se com movimento reduzido", async () => {
     const { readFileSync } = await import("node:fs");
-    const css = readFileSync("src/app/globals.css", "utf8");
+    // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+    // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+    // o browser os aplica no back office.
+    const css =
+      readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8");
     expect(css).toMatch(
       /@keyframes bo-entrada[\s\S]{0,1600}?translateY\(var\(--bo-entrada-y, calc\(-1 \* var\(--bo-percurso-rotulo\)\)\)\)/,
     );

@@ -82,8 +82,13 @@
  */
 
 import type { ImageLoaderProps } from "next/image";
-import { galleryImageUrl, galleryKey } from "@/app/[lang]/(site)/galeria/gallery-image-loader";
-import { heroImageUrl, isHeroSrc } from "@/lib/hero-image-loader";
+import {
+  galleryImageUrl,
+  galleryKey,
+  snapGalleryWidth,
+} from "@/app/[lang]/(site)/galeria/gallery-image-loader";
+import { ficheiroDaGaleria } from "@/app/[lang]/(site)/galeria/gallery-srcset";
+import { heroAvifUrl, heroImageUrl, isHeroSrc } from "@/lib/hero-image-loader";
 
 /**
  * O saneador de nomes é UM SÓ em todo o projecto — reutilizado do
@@ -165,4 +170,59 @@ export default function siteImageLoader({ src, width }: ImageLoaderProps): strin
   // `/_next/image` responde 404 enquanto este ficheiro for o carregador global,
   // por isso mandar para lá seria trocar "imagem grande" por "imagem nenhuma".
   return src;
+}
+
+/**
+ * As fotografias de /imagens/ a que o `pregen-gallery.mjs` escreve SEMPRE o par
+ * WebP + AVIF em todas as larguras da escada. É o que o pré-gerador percorre
+ * (tudo o que está em public/imagens/, recursivo, com estas extensões) MENOS a
+ * bandeja `_intake/`, que ele salta de propósito. E é um contrato que se
+ * defende sozinho: o script confere a saída ficheiro a ficheiro, nos dois
+ * formatos, e FALHA O BUILD se faltar um — portanto um deploy com esta regra a
+ * dizer «há AVIF» e o ficheiro em falta não chega a existir.
+ *
+ * Uma origem com `?` (um anti-cache, um parâmetro qualquer) não passa: o
+ * pré-gerador nunca escreveu nada para ela, e o `$` da expressão recusa-a.
+ */
+const FOTO_COM_AVIF = /^\/imagens\/(?!_intake\/)[^?#\0]+\.(jpe?g|png|webp)$/i;
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O GÉMEO AVIF DO QUE ESTE CARREGADOR SERVE — ou `null` se não houver
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O AVIF já existia em `/_img/` para quase todas as fotografias do sítio — a
+ * galeria gera-o desde o início e os heróis desde o `HeroImage` com
+ * `<picture>` —, mas só os heróis o usavam. Tudo o que passava pelo
+ * `SafeImage` (fundos de secção, portefólios, a grelha das páginas) ia em WebP.
+ * MEDIDO pela auditoria num `next start`, bytes de imagem depois de percorrer
+ * a página toda, tudo em WebP contra tudo em AVIF: /servicos 2163 contra 1114
+ * KB, /sobre 1396 contra 752, /contacto 1175 contra 630, / 1023 contra 507,
+ * /clientes ~1000–1186 contra 528–668. Metade dos bytes, nas mesmas larguras.
+ * (O que esta mudança poupou de facto, antes e depois, está no `SafeImage`.)
+ *
+ * É o espelho dos ramos do `siteImageLoader` lá em cima, ramo a ramo, e só
+ * dos que TÊM gémeo:
+ *   · as fotografias de largura total → a escada dos heróis, `-<w>.avif` ao
+ *     lado de cada `-<w>.webp` (`pregen-heroes.mjs` escreve os dois);
+ *   · as outras fotografias de /imagens/ → `/_img/g/<chave>-<w>.avif`, a mesma
+ *     escada e o mesmo arredondamento do WebP (`snapGalleryWidth`);
+ *   · os logótipos NÃO: o `pregen-logos.mjs` só escreve WebP, de propósito (o
+ *     canal alfa — ver lá). Pôr-lhes um `<source>` AVIF era apontar para
+ *     ficheiros que não existem: cada logótipo falhava primeiro e só aparecia
+ *     depois, pela rede do `SafeImage` — um 404 por logótipo, em todas as
+ *     páginas (o do Navbar está em todas).
+ *
+ * A decisão vive AQUI, por origem, e não numa lista de ficheiros: pela mesma
+ * razão que o carregador não tem manifesto (ver «CUSTO EM BYTES» lá em cima).
+ * E a raiz de `/_img/` tem WebP de heróis antigos SEM gémeo AVIF (o
+ * `EW1_1427`, o `J_A-242`, …): uma regra do tipo «troca `.webp` por `.avif` no
+ * URL» acertaria hoje por acaso e partiria no dia em que alguma coisa voltasse
+ * a apontar para eles. Esta só diz que há AVIF onde um pré-gerador garante que
+ * há.
+ */
+export function siteImageAvifUrl(src: string, width: number): string | null {
+  if (isHeroSrc(src)) return heroAvifUrl(src, width);
+  if (FOTO_COM_AVIF.test(src)) return ficheiroDaGaleria(src, snapGalleryWidth(width), "avif");
+  return null;
 }

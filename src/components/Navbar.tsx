@@ -102,6 +102,37 @@ const MobileMenu = memo(function MobileMenu({
   }
   const aoTocar = (href: string) => () => setDestino(href);
 
+  /**
+   * ── O MENU FECHADO NÃO PRÉ-CARREGA NADA ────────────────────────────────
+   * Fechado, o painel é só `opacity-0 invisible` — e tem de continuar a sê-lo:
+   * é isso que deixa a abertura e o fecho animarem (um `display: none` não
+   * transita) e que o põe a responder no primeiro fotograma do toque. Só que
+   * o observador de visibilidade do `<Link>` mede a CAIXA, não a visibilidade,
+   * e um painel `fixed` do tamanho do ecrã está sempre «à vista». Os sete
+   * links contavam como visíveis em todas as páginas, num telemóvel que nunca
+   * abriu o menu.
+   *
+   * MEDIDO (`next start`, 390×844 com toque, primeira visita, bytes na
+   * linha): com o `prefetch` forçado que aqui estava, 383 KB de pré-carga em
+   * `/` e 421 KB em `/galeria` — cada rota inteira, ~45 KB, e cada uma a
+   * reenviar o segmento do layout `[lang]` com o CSS embutido. Com isto e a
+   * omissão nos links do computador: 93 KB e 68 KB. Abrir o menu pede 66 KB.
+   *
+   * Por isso: `false` com o menu fechado, e a pré-carga POR OMISSÃO com ele
+   * aberto. O `<Link>` refaz o observador quando o `prefetch` muda (está nas
+   * dependências do ref dele), e o painel aberto entra logo à vista — portanto
+   * a pré-carga arranca no toque que abre o menu, enquanto a cascata de
+   * entrada (80 ms + 60 por item, 600 ms cada) ainda está a correr. Quando o
+   * dedo chega a um item, a página já está cá, como a nota do toque, aqui em
+   * cima, conta com ela. MEDIDO: menu aberto 1,2 s, toque em «Sobre», zero
+   * pedidos depois do toque, e o `<h1>` novo a 155 ms (mediana de 7) contra
+   * 152 ms antes — a mesma coisa.
+   *
+   * E porque é a por omissão e não `true`: ver a nota dos links do
+   * computador, mais abaixo.
+   */
+  const preCarga = isOpen ? undefined : false;
+
   // Staggered reveal for the overlay's blocks — a single source of truth so the
   // eyebrow, each link and the footer share the same cascade + easing. Under
   // prefers-reduced-motion everything simply cross-fades in place (no travel).
@@ -273,7 +304,7 @@ const MobileMenu = memo(function MobileMenu({
               <Link
                 key={link.href}
                 href={localizeHref(link.href, locale)}
-                prefetch
+                prefetch={preCarga}
                 transitionTypes={navTypes(link.href)}
                 onClick={aoTocar(link.href)}
                 aria-current={isActive(link.href) ? "page" : undefined}
@@ -327,7 +358,7 @@ const MobileMenu = memo(function MobileMenu({
               <Link
                 key={s.href}
                 href={localizeHref(s.href, locale)}
-                prefetch
+                prefetch={preCarga}
                 transitionTypes={navTypes(s.href)}
                 onClick={aoTocar(s.href)}
                 className={`group flex items-center gap-4 border-b border-white/12 py-3 transition-opacity duration-150 ${
@@ -682,10 +713,18 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={localizeHref(link.href, locale)}
-                // Full prefetch (not the default "up to the loading boundary"):
-                // the public pages are static, so this warms the ENTIRE page so a
-                // click swaps instantly — no fetch pause, no loading-screen flash.
-                prefetch
+                // ── A PRÉ-CARGA POR OMISSÃO, E NÃO A FORÇADA ─────────────────
+                // Aqui esteve `prefetch` (a48305fc), para a página inteira já
+                // estar cá ao clicar — sem pausa e sem o ecrã de `loading.tsx`.
+                // A intenção fica; o meio deixou de ser preciso. Na 16 a
+                // omissão, numa rota ESTÁTICA (e as públicas são-no todas),
+                // já pré-carrega a rota inteira (`node_modules/next/dist/docs`,
+                // link.md, `prefetch`). A diferença está no transporte: o
+                // `true` pede cada rota de uma vez, e cada pedido reenviava o
+                // segmento do layout `[lang]` com o CSS embutido; a omissão
+                // pede por segmento, e o layout comum vem uma vez só. MEDIDO
+                // (`next start`, bytes na linha): ~45 KB por rota com `true`,
+                // 7 a 10 KB pela omissão.
                 transitionTypes={navTypes(link.href)}
                 aria-current={isActive(link.href) ? "page" : undefined}
                 // ── A BARRA DE `lg` PARA CIMA TAMBÉM SE TOCA ────────────────

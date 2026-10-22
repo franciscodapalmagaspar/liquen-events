@@ -91,16 +91,20 @@ function montar() {
     skipWaiting: () => {},
     location: { origin: ORIGEM },
     clients: { claim: async () => {}, matchAll: async () => [], openWindow: async () => {} },
-    registration: { showNotification: async () => {} },
+    registration: {
+      showNotification: async () => {},
+      navigationPreload: { enable: vi.fn(async () => {}) },
+    },
   };
   new Function("self", "caches", "fetch", FONTE)(self, caches.api, rede);
 
   /** Despacha uma navegação e devolve o que o service worker respondeu. */
-  async function navegar(caminho: string) {
+  async function navegar(caminho: string, preloadResponse?: Promise<RespostaFalsa | undefined>) {
     const pedido = { method: "GET", url: `${ORIGEM}${caminho}`, mode: "navigate" };
     let respondida: Promise<RespostaFalsa> | undefined;
     ouvintes.get("fetch")!({
       request: pedido,
+      preloadResponse,
       respondWith: (p: Promise<RespostaFalsa>) => {
         respondida = p;
       },
@@ -120,7 +124,14 @@ function montar() {
     return undefined;
   };
 
-  return { navegar, guardado, rede };
+  /** Corre o `activate` e espera por ele. */
+  async function activar() {
+    let espera: Promise<unknown> | undefined;
+    ouvintes.get("activate")!({ waitUntil: (p: Promise<unknown>) => void (espera = p) });
+    await espera;
+  }
+
+  return { navegar, guardado, rede, activar, self };
 }
 
 let sw: ReturnType<typeof montar>;
@@ -184,5 +195,27 @@ describe("service worker — o que uma navegação deixa na cache", () => {
     // O `install` não correu neste mundo, portanto não há `offline.html`
     // precacheado: o que interessa é não rebentar e não devolver lixo.
     expect(res).toBeUndefined();
+  });
+});
+
+describe("service worker — a página parte enquanto o guião acorda", () => {
+  it("o `activate` liga a pré-carga das navegações", async () => {
+    await sw.activar();
+    expect(sw.self.registration.navigationPreload.enable).toHaveBeenCalled();
+  });
+
+  it("usa a resposta que o browser já pediu, e não pede outra vez", async () => {
+    const pre = resposta({ status: 200, corpo: "já vinha a caminho" });
+    const res = await sw.navegar("/", Promise.resolve(pre));
+    expect(res?.corpo).toBe("já vinha a caminho");
+    expect(sw.rede).not.toHaveBeenCalled();
+    // E continua a ficar guardada para quando não houver rede.
+    expect(sw.guardado("/")).toBeDefined();
+  });
+
+  it("sem pré-carga (ou se ela falhar) vai à rede como sempre", async () => {
+    sw.rede.mockResolvedValue(resposta({ status: 200, corpo: "da rede" }));
+    expect((await sw.navegar("/", Promise.resolve(undefined)))?.corpo).toBe("da rede");
+    expect((await sw.navegar("/", Promise.reject(new Error("abortada"))))?.corpo).toBe("da rede");
   });
 });

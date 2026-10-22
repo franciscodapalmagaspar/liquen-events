@@ -35,7 +35,12 @@ import path from "node:path";
  * degraus medidos e o seu próprio teste (`contraste-do-texto.test.ts`).
  */
 
-const CSS = fs.readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8");
+// O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+// todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+// o browser os aplica no back office.
+const CSS =
+  fs.readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8") +
+  fs.readFileSync(path.join(process.cwd(), "src/app/admin.css"), "utf8");
 const RAIZ = path.join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin");
 
 /**

@@ -96,7 +96,7 @@ vi.mock("next/script", () => ({
   default: (props: Record<string, unknown>) => <script data-testid="next-script" {...props} />,
 }));
 
-import GoogleTag from "./GoogleTag";
+import GoogleTag, { GTAG_SRC } from "./GoogleTag";
 import Analytics from "./Analytics";
 import ConsentBanner from "./ConsentBanner";
 import { isBackOfficeRoute, semAnaliticos, BACK_OFFICE_PATH_PATTERN } from "@/lib/safe-path";
@@ -135,8 +135,13 @@ describe("a fronteira do back office", () => {
 });
 
 describe("GoogleTag — nada de gtag dentro do back office", () => {
+  // O gtag.js entra pelo efeito do componente, no `<body>`, e não no que ele
+  // desenha (ver `carregarGtag`). Procura-se no documento, e limpa-se entre
+  // rotas para cada uma responder por si.
+  const gtagNoDocumento = () => document.querySelector(`script[src="${GTAG_SRC}"]`);
   beforeEach(() => {
     pathname.value = "/galeria";
+    gtagNoDocumento()?.remove();
   });
 
   it("não renderiza NADA em nenhuma rota do back office", () => {
@@ -144,6 +149,7 @@ describe("GoogleTag — nada de gtag dentro do back office", () => {
       pathname.value = p;
       const { container } = render(<GoogleTag />);
       expect(container.innerHTML, `o gtag montou em ${p}`).toBe("");
+      expect(gtagNoDocumento(), `o gtag.js entrou em ${p}`).toBeNull();
     }
   });
 
@@ -152,10 +158,10 @@ describe("GoogleTag — nada de gtag dentro do back office", () => {
     // montar em lado nenhum — e a fronteira que interessa mesmo.
     for (const p of MEDIDOS) {
       pathname.value = p;
-      const { container } = render(<GoogleTag />);
-      expect(container.innerHTML, `o gtag deixou de medir ${p}`).toContain(
-        "googletagmanager.com/gtag/js",
-      );
+      render(<GoogleTag />);
+      expect(gtagNoDocumento(), `o gtag deixou de medir ${p}`).not.toBeNull();
+      cleanup();
+      gtagNoDocumento()?.remove();
     }
   });
 });

@@ -86,9 +86,15 @@ describe("FazerProposta — a página apresenta-se", () => {
    * uma animação que já não existe, e ninguém dava por isso.
    */
   it("a `.bo-cena` existe, está na banda de apresentação e cala-se com movimento reduzido", () => {
-    const css = readFileSync("src/app/globals.css", "utf8");
+    // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+    // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+    // o browser os aplica no back office.
+    const css =
+      readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8");
     expect(css).toMatch(/@keyframes bo-cena/);
     expect(css).toMatch(/\.bo-cena\s*\{[^}]*animation:\s*bo-cena\s+600ms/);
-    expect(css).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]{0,400}?\.bo-cena\s*\{\s*animation:\s*none/);
+    expect(css).toMatch(
+      /prefers-reduced-motion:\s*reduce[\s\S]{0,400}?\.bo-cena\s*\{\s*animation:\s*none/,
+    );
   });
 });

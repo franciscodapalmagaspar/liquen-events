@@ -63,10 +63,15 @@ const semComentarios = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "");
  * `admin.css` o poder referir sem herdar o `@source not` do `globals.css` —
  * essa exclusão é absoluta e punha o back office sem estilos nenhuns. Ver o
  * cabeçalho do `tema.css`.
+ *
+ * E o `admin.css`: o CSS do back office escrito à mão saiu do `globals.css`
+ * (que vai embutido em todas as páginas públicas) para lá, e uma regra não
+ * deixa de ter de ser fluida por ter mudado de ficheiro.
  */
 const css = semComentarios(
   readFileSync(join(RAIZ, "src/app/globals.css"), "utf8") +
-    readFileSync(join(RAIZ, "src/app/tema.css"), "utf8"),
+    readFileSync(join(RAIZ, "src/app/tema.css"), "utf8") +
+    readFileSync(join(RAIZ, "src/app/admin.css"), "utf8"),
 );
 
 /** Propriedades cuja animação OBRIGA a recalcular geometria. */

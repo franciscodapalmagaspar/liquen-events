@@ -111,7 +111,11 @@ describe("o fundo vem com a caixa que ele traz", () => {
    * com movimento reduzido — que é a herança da `.bo-entrada`.
    */
   it("a `.bo-entrada-fundo` existe, não desloca nada, e cala-se com movimento reduzido", () => {
-    const css = readFileSync("src/app/globals.css", "utf8");
+    // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+    // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+    // o browser os aplica no back office.
+    const css =
+      readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8");
     expect(css).toMatch(/\.bo-entrada-fundo\s*\{[^}]*--bo-entrada-y:\s*0px/);
     expect(css).toMatch(/\.bo-entrada\s*\{\s*animation:\s*bo-entrada\s+240ms/);
     expect(css).toMatch(

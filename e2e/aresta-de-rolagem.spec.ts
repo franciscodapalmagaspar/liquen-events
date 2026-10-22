@@ -37,11 +37,12 @@ import { readFileSync } from "node:fs";
  * `aresta-de-rolagem.test.ts` guarda, do outro lado.
  */
 
-/** A regra verdadeira, lida do `globals.css` — não uma cópia que envelhece. */
+/** A regra verdadeira, lida do `admin.css` — não uma cópia que envelhece. (Vivia
+ *  no `globals.css`; saiu com o resto do CSS do back office escrito à mão.) */
 function regraDaCasa(): string {
-  const css = readFileSync("src/app/globals.css", "utf8");
+  const css = readFileSync("src/app/admin.css", "utf8");
   const i = css.indexOf(".bo-ha-mais-abaixo {");
-  if (i === -1) throw new Error("a regra `.bo-ha-mais-abaixo` não está no globals.css");
+  if (i === -1) throw new Error("a regra `.bo-ha-mais-abaixo` não está no admin.css");
   return css.slice(i, css.indexOf("\n}", i) + 2);
 }
 
