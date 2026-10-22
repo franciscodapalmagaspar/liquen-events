@@ -33,10 +33,13 @@ import { textosDaPagina } from "./textos-da-pagina";
  * 409 no clique; e o `expired` fica preso ao dia da primeira visita, portanto o
  * aviso de validade nunca chega a aparecer.
  *
- * `force-dynamic` também é o que põe `Cache-Control: private, no-store` na
- * resposta. Numa página cujo URL é a própria credencial, isso não é acessório:
- * é o que impede um cache partilhado (CDN, proxy da empresa) de guardar a
- * proposta de um cliente e servi-la a quem pedir o mesmo caminho.
+ * `force-dynamic` também punha `Cache-Control: private, no-store` na
+ * resposta. Numa página cujo URL é a própria credencial, o `private` não é
+ * acessório: é o que impede um cache partilhado (CDN, proxy da empresa) de
+ * guardar a proposta de um cliente e servi-la a quem pedir o mesmo caminho.
+ * Desde 22/10 o cabeçalho é `private, no-cache` (ver `next.config.ts`): fica a
+ * protecção, e o `no-store` que tirava a proposta da cache de «voltar atrás»
+ * do browser sai.
  */
 export const dynamic = "force-dynamic";
 

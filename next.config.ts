@@ -757,6 +757,28 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Content-Security-Policy", value: cspFechada }],
       })),
       {
+        /**
+         * ── A PROPOSTA DO CASAL: «VOLTAR» INSTANTÂNEO, SEM CACHE PARTILHADO ──
+         *
+         * A página é `force-dynamic`, e por isso saía com `no-store` — que
+         * tirava a proposta da cache de «voltar atrás» do browser (MEDIDO na
+         * auditoria de 22/10: `MainResourceHasCacheControlNoStore`). Carregar
+         * em Voltar recarregava a proposta inteira.
+         *
+         * `private` mantém o que interessa (o URL é a credencial: nenhum CDN
+         * nem proxy de empresa a guarda); `no-cache` obriga o browser a
+         * confirmar com o servidor antes de reusar. MEDIDO no Chromium com
+         * `next start`: a proposta volta da cache de Voltar (`persisted`), e o
+         * cabeçalho final é este — o Next não o sobrepõe.
+         */
+        source: "/proposta/:token",
+        headers: [{ key: "Cache-Control", value: "private, no-cache" }],
+      },
+      {
+        source: "/:lang(pt|en)/proposta/:token",
+        headers: [{ key: "Cache-Control", value: "private, no-cache" }],
+      },
+      {
         source: "/imagens/:path*",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },

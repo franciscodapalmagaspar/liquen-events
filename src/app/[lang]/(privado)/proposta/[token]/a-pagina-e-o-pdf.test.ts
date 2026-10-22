@@ -65,3 +65,15 @@ describe("a proposta online é o próprio PDF", () => {
     expect(visor).toMatch(/disableAutoFetch: true/);
   });
 });
+
+describe("voltar atrás à proposta é instantâneo, e continua privada", () => {
+  const config = readFileSync(join(process.cwd(), "next.config.ts"), "utf8");
+  it("as duas formas do endereço levam `private, no-cache` (nunca `public`, nunca `no-store`)", () => {
+    for (const fonte of ['"/proposta/:token"', '"/:lang(pt|en)/proposta/:token"']) {
+      const i = config.indexOf(`source: ${fonte}`);
+      expect(i, `falta a regra de ${fonte}`).toBeGreaterThan(-1);
+      const regra = config.slice(i, config.indexOf("}", config.indexOf("headers:", i)) + 1);
+      expect(regra).toMatch(/"Cache-Control", value: "private, no-cache"/);
+    }
+  });
+});
