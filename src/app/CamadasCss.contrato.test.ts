@@ -41,6 +41,10 @@ import { join } from "node:path";
  */
 
 const CSS = join(process.cwd(), "src/app/globals.css");
+// O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+// todas as páginas públicas) para o `admin.css`. A armadilha das camadas vale
+// nas duas folhas, por isso lê-se o par, pela ordem em que o browser os aplica.
+const CSS_DO_BACK_OFFICE = join(process.cwd(), "src/app/admin.css");
 const RAIZ = join(process.cwd(), "src");
 
 /** `width`, mas não `min-width` nem `max-width` — essas não colidem com `w-*`
@@ -121,7 +125,7 @@ function ficheirosTsx(dir: string, acc: string[] = []): string[] {
 const UTILITARIO_LARGURA = /(?<![\w-])(?:[a-z-]+:)*w-[\w./[\]%-]+/;
 
 describe("camadas do CSS — o que se escreve à mão não pode calar o Tailwind", () => {
-  const css = readFileSync(CSS, "utf-8");
+  const css = readFileSync(CSS, "utf-8") + readFileSync(CSS_DO_BACK_OFFICE, "utf-8");
   const regras = lerRegras(css);
 
   const classesQueDecidemLargura = new Set<string>();

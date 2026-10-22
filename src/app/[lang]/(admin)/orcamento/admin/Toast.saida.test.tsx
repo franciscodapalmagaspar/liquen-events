@@ -213,7 +213,13 @@ describe("os `pointer-events` largam-se no primeiro fotograma da saída", () => 
   });
 
   it("a classe da casa traz a mesma regra, para quem a usar noutro sítio", () => {
-    const css = semComentarios(readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8"));
+    // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+    // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+    // o browser os aplica no back office.
+    const css = semComentarios(
+      readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8") +
+        readFileSync(join(process.cwd(), "src/app/admin.css"), "utf8"),
+    );
     const regra = /\.bo-saida\s*\{([^}]*)\}/.exec(css);
     expect(regra, "a regra `.bo-saida` desapareceu do globals.css").not.toBeNull();
     expect(regra![1]).toMatch(/pointer-events:\s*none/);
@@ -229,7 +235,13 @@ describe("os `pointer-events` largam-se no primeiro fotograma da saída", () => 
  * mesma rede que o `duracoes-da-casa.test.ts` já põe à entrada.
  */
 describe("a `.bo-saida` é vocabulário da casa", () => {
-  const css = semComentarios(readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8"));
+  // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+  // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+  // o browser os aplica no back office.
+  const css = semComentarios(
+    readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8") +
+      readFileSync(join(process.cwd(), "src/app/admin.css"), "utf8"),
+  );
 
   it("dura o que o `SAIDA_MS` diz, e menos do que a entrada", () => {
     const saida = /\.bo-saida\s*\{\s*animation:\s*bo-saida (\d+)ms/.exec(css);

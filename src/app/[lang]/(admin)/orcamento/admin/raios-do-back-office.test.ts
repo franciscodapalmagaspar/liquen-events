@@ -60,7 +60,10 @@ const SELECTOR_ADMIN = "body:is(.admin-mode, :has([data-admin-mode]))";
  * fecha é a das SUPERFÍCIES e dos CONTROLOS.
  */
 
-const CSS = readFileSync("src/app/globals.css", "utf8");
+// O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+// todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+// o browser os aplica no back office.
+const CSS = readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8");
 const RAIZ = "src/app/[lang]/(admin)/orcamento/admin/";
 
 /**
@@ -155,7 +158,11 @@ describe("os raios do back office", () => {
    * silêncio, e o canto fica a 90° sem ninguém perceber porquê.
    */
   it("tem o filho concêntrico, com o chão a zero", () => {
-    const css = readFileSync("src/app/globals.css", "utf8");
+    // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+    // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+    // o browser os aplica no back office.
+    const css =
+      readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8");
     const m = css.match(/\.bo-concentrico\s*\{([^}]*)\}/);
     expect(m, "a classe `.bo-concentrico` desapareceu").not.toBeNull();
     const corpo = m![1];

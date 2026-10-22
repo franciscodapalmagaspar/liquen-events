@@ -43,7 +43,12 @@ import { join } from "node:path";
  * var(--bo-hairline-strong)` fora de camadas comia essa troca sem deixar rasto.
  */
 
-const CSS = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+// O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+// todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+// o browser os aplica no back office.
+const CSS =
+  readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8") +
+  readFileSync(join(process.cwd(), "src/app/admin.css"), "utf8");
 const ADMIN = readFileSync(
   join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin/AdminClient.tsx"),
   "utf8",
@@ -148,7 +153,10 @@ describe("a faixa do cabeçalho", () => {
     const linha = ADMIN.split("\n").find(
       (l) => l.includes("sticky top-0") && l.includes("border-b") && l.includes("pt-safe"),
     );
-    expect(linha, "não encontrei a barra de topo — o selector desta busca envelheceu").toBeDefined();
+    expect(
+      linha,
+      "não encontrei a barra de topo — o selector desta busca envelheceu",
+    ).toBeDefined();
     expect(linha, "a barra de topo deixou de levar a faixa").toContain("bo-material-faixa");
     expect(linha, "a faixa sem desfoque não é vidro, é uma cor mais clara").toContain(
       "bo-material-desfoque",

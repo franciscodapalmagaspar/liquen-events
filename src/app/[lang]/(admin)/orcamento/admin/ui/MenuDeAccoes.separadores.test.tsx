@@ -228,7 +228,12 @@ describe("o que a captura mostrou", () => {
 });
 
 describe("a entrada dos menus no CSS", () => {
-  const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+  // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+  // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+  // o browser os aplica no back office.
+  const css =
+    readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8") +
+    readFileSync(join(process.cwd(), "src/app/admin.css"), "utf8");
   it("é a `.bo-entrada` com a duração, a curva e a escala dos tokens — nenhum número novo", () => {
     const regra = /\.bo-entrada-menu\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
     expect(regra).toContain("var(--transition-duration-quick)");

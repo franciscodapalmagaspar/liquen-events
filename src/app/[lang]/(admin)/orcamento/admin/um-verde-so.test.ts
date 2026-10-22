@@ -35,7 +35,12 @@ import { join } from "node:path";
  */
 
 const RAIZ = process.cwd();
-const GLOBAIS = readFileSync(join(RAIZ, "src/app/globals.css"), "utf8");
+// O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+// todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+// o browser os aplica no back office.
+const GLOBAIS =
+  readFileSync(join(RAIZ, "src/app/globals.css"), "utf8") +
+  readFileSync(join(RAIZ, "src/app/admin.css"), "utf8");
 const TEMA = readFileSync(join(RAIZ, "src/app/tema.css"), "utf8");
 
 /** Os ficheiros de PRODUTO — sem testes, que podem nomear o verde antigo. */

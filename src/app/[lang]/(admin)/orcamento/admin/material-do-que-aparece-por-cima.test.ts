@@ -49,7 +49,12 @@ import { achatar, racioDeContraste, luminanciaRelativa } from "./contraste-do-te
  */
 
 const RAIZ = join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin");
-const CSS = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+// O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+// todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+// o browser os aplica no back office.
+const CSS =
+  readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8") +
+  readFileSync(join(process.cwd(), "src/app/admin.css"), "utf8");
 
 /** WCAG 2.1 §1.4.3 — texto normal, nível AA. */
 const AA = 4.5;
@@ -111,7 +116,8 @@ function corComAlpha(valor: string): { cor: RGB; alpha: number } {
   const comCanal = valor.match(/rgba?\(\s*var\(\s*(--[a-z0-9-]+)\s*\)\s*\/\s*([\d.]+)\s*\)/i);
   if (comCanal) {
     const nums = token(comCanal[1]).match(/\d+/g);
-    if (!nums || nums.length < 3) throw new Error(`o canal ${comCanal[1]} não tem três componentes`);
+    if (!nums || nums.length < 3)
+      throw new Error(`o canal ${comCanal[1]} não tem três componentes`);
     const [r, g, b] = nums.slice(0, 3).map(Number);
     return { cor: [r, g, b], alpha: parseFloat(comCanal[2]) };
   }
