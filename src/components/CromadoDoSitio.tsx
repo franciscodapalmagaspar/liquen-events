@@ -11,6 +11,7 @@ import PageTransition from "@/components/PageTransition";
 import HeroWarm from "@/components/HeroWarm";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import SmoothScroll from "@/components/motion/SmoothScroll";
+import MolaAoLargar from "@/components/motion/MolaAoLargar";
 import type { Locale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n";
 
@@ -126,6 +127,9 @@ export default function CromadoDoSitio({
       {/* «Não quero estes quadrados à volta do menu» e «se há anéis desses
           pelo site, retira» — o porquê está no `AnelSoDoTeclado.tsx`. */}
       <AnelSoDoTeclado />
+      {/* «Botões e cartões com mola» (22/10): o botão volta com mola ao
+          largar o dedo — o porquê está no `MolaAoLargar.tsx`. */}
+      <MolaAoLargar />
       <StickyCTA />
       <Navbar />
       {/* tabIndex=-1 so the skip link actually MOVES keyboard focus into
