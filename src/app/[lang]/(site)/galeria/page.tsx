@@ -25,6 +25,7 @@ import {
 } from "./gallery-srcset";
 import TILE_COLORS from "./tile-colors.json";
 import GALLERY_META from "./gallery-meta.json";
+import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 
 // Resolved server-side (from blur-map.json / image-dims.json / tile-colors.json)
 // so those JSON maps never reach the gallery's client bundle — GaleriaClient
@@ -276,7 +277,7 @@ export default async function GaleriaPage({ params }: { params: Promise<{ lang: 
                 {t.galeria.headerLabel}
               </p>
               <h1 className="text-white font-semibold uppercase tracking-display text-[18px] sm:text-[21px] leading-snug">
-                {t.galeria.headerTitle}
+                <TituloPalavraAPalavra texto={t.galeria.headerTitle} />
               </h1>
               <p className="mt-3 text-white/75 text-[12.5px] leading-[1.6] max-w-sm">
                 {t.galeria.headerDesc}
