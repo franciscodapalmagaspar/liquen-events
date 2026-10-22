@@ -16,6 +16,7 @@ import { waHref } from "@/data";
 import { SITE } from "@/lib/site";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
+import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 
 export async function generateMetadata({
   params,
@@ -89,7 +90,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                 {tf.heroEyebrow}
               </p>
               <h1 className="text-white font-semibold uppercase tracking-display text-[18px] sm:text-[21px] leading-snug">
-                {tf.heroTitleLine1} {tf.heroTitleMoss}
+                <TituloPalavraAPalavra texto={`${tf.heroTitleLine1} ${tf.heroTitleMoss}`} />
               </h1>
               <div className="mt-4">
                 <RatingBadge

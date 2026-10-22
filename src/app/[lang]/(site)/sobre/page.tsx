@@ -14,6 +14,7 @@ import { BreadcrumbJsonLd } from "@/components/JsonLd";
 import { pageMetadata } from "@/lib/page-metadata";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
+import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 
 export async function generateMetadata({
   params,
@@ -85,7 +86,7 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
               {/* SpaceX display tracking (.tracking-display, -0.02em) replaces the
                   airy caption tracking so the caps pull together on the h1. */}
               <h1 className="text-white font-semibold uppercase tracking-display text-[18px] sm:text-[21px] leading-snug">
-                {`${t.sobre.heroTitlePre}${t.sobre.heroTitleMoss}`}
+                <TituloPalavraAPalavra texto={`${t.sobre.heroTitlePre}${t.sobre.heroTitleMoss}`} />
               </h1>
             </div>
           </AnimateIn>
