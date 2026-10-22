@@ -10,6 +10,8 @@ import {
   MEDIR_REDE_MS,
   NUMERO_DE_VIDEOS,
   DEIXAR_ACABAR_S,
+  OCIOSO_MAX_MS,
+  SEGUINTES_DEPOIS_DE_S,
   IMAGEM_PRESA_MS,
   SALTO_DE_DESTRAVAR_S,
   PASSAGEM_MS,
@@ -22,6 +24,7 @@ import {
   enderecoDoVideo,
   enderecoLeve,
   imagensAnimadas,
+  ligacaoLenta,
   type Animadas,
   formatoDoEndereco,
   formatoQueToca,
@@ -29,6 +32,7 @@ import {
   melhorFormato,
   novaVolta,
   perguntaDoNavegador,
+  prazoDosSeguintesMs,
   primeiraVolta,
   tipoDoFormato,
   varianteParaOEcra,
@@ -89,9 +93,10 @@ import {
  * Ela (16/10), num iPhone em 4G pelo Instagram: «o vídeo está a travar aqui».
  * Os takes seguintes eram tocados directamente da rede: em 4G com pouco sinal
  * a imagem podia ficar sem dados a meio e parar. Agora cada take seguinte é
- * DESCARREGADO INTEIRO (um de cada vez, a começar quando o de entrada já tem
- * dados para seguir) e só depois tocado — da memória do telemóvel, onde a
- * rede já não o pode fazer parar. Quando falta `AQUECER_ANTES_S` para o fim
+ * DESCARREGADO INTEIRO (um de cada vez, a começar quando o de entrada já
+ * chegou inteiro E já andou uns segundos à vista — ver «os seguintes esperam»,
+ * mais abaixo) e só depois tocado — da memória do telemóvel, onde a rede já
+ * não o pode fazer parar. Quando falta `AQUECER_ANTES_S` para o fim
  * do take à vista, o seguinte descodifica o 1.º fotograma escondido (é o
  * único jeito de o iPhone o preparar), e na passagem só falta arrancar.
  * Fazê-lo só então, e não logo, poupa ter dois vídeos a descodificar durante
@@ -881,7 +886,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
 
   /** Prepara o primeiro da fila que ainda não foi pedido (um de cada vez). */
   function prepararOQueVem() {
-    if (!decidido || !inicioAssente) return;
+    if (!decidido || !inicioAssente || !seguintesLivres) return;
     for (const i of fila) {
       if (i === abertura) continue; // tem o seu caminho (`guardarAbertura`)
       if (!pedido[i]) {
@@ -1184,6 +1189,80 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   // nunca chega inteiro antes do fim, o take repete-se (sem parar) e o
   // seguinte prepara-se nessa volta — porque, tocado até ao fim, chegou todo.
   let inicioAssente = false;
+
+  // ── OS SEGUINTES ESPERAM QUE O DE ENTRADA ANDE (decisão dela, 22/10) ─────
+  // Chegado inteiro não chegava: numa rede boa o de entrada está todo cá ao
+  // fim de 1 a 2 s, e os seguintes (~2,4 MB ao alto) eram pedidos logo a
+  // seguir — MEDIDO no Chromium a 12 Mbit/s, 390×844: aos 4,1–5,2 s, com o de
+  // entrada à vista há dois ou três segundos e a página ainda a montar-se.
+  // Agora, além de inteiro, o de entrada tem de ter andado
+  // `SEGUINTES_DEPOIS_DE_S` À VISTA (o tempo do vídeo: se encravar, a conta
+  // pára com ele), e o pedido sai num instante em que o browser esteja livre
+  // (`requestIdleCallback`, no máximo `OCIOSO_MAX_MS`). Aconteça o que
+  // acontecer, há um PRAZO (`prazoDosSeguintesMs`), contado do instante em que
+  // o de entrada ficou à vista: a floresta (18,4 s) espera no máximo 6,4 s; os
+  // takes curtos não esperam nada. MEDIDO depois, nas mesmas condições: os
+  // seguintes pedidos aos 7,0–7,1 s (nada deles nos primeiros 5 s, contra
+  // até 0,6 MB antes; aos 10 s já cá estão os 2,4 MB, como antes), e as
+  // passagens sem imagem parada: em duas voltas de 65 s, seis passagens cada,
+  // nenhum intervalo entre fotogramas acima de 150 ms. O prazo é de relógio,
+  // e não do vídeo, de
+  // propósito: com a página fora do ecrã o vídeo pára, mas os downloads
+  // continuam (ver `ligado`), para estarem prontos quando ela voltar.
+  //
+  // Esta espera só ACRESCENTA a condição de cima (inteiro e à vista): numa
+  // rede lenta, em que o de entrada chega tarde, não se começa mais cedo do
+  // que antes. E fica fora dela, como estava, quem já anda no limite: a
+  // versão leve (rede fraca medida no arranque), a ligação que se diz lenta
+  // ou com «Poupar dados» (`ligacaoLenta`), e o «reduzir movimento» — nesses o
+  // seguinte começa a descarregar quando o de entrada chegou inteiro, como
+  // até 22/10.
+  //
+  // O que esta espera nunca atrasa: uma passagem que chega e o seguinte ainda
+  // não pedido (o `passar` pede-o logo, e o que está à vista repete-se).
+  let seguintesLivres = false;
+  let esperaArmada = false;
+  let ociosoPedido = false;
+  const libertarSeguintes = () => {
+    if (!vivo || seguintesLivres) return;
+    seguintesLivres = true;
+    prepararOQueVem();
+  };
+  /** Quem anda no limite da rede não espera (ver acima): fica como antes de 22/10. */
+  const semEsperaDosSeguintes = () =>
+    primeiro.hasAttribute("data-leve") ||
+    ligacaoLenta((navigator as ComLigacao).connection) ||
+    (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  /** Pede `fn` para um instante em que o browser esteja livre (o Safari não tem o pedido: logo a seguir). */
+  const quandoLivre = (fn: () => void) => {
+    if (typeof requestIdleCallback === "function") {
+      const id = requestIdleCallback(
+        () => {
+          if (vivo) fn();
+        },
+        { timeout: OCIOSO_MAX_MS },
+      );
+      limpar.push(() => cancelIdleCallback(id));
+    } else {
+      depois(0, fn);
+    }
+  };
+  /** O de entrada já andou o bastante à vista: os seguintes saem no próximo instante livre. */
+  const verFolga = () => {
+    if (!esperaArmada || seguintesLivres || ociosoPedido) return;
+    if (!(primeiro.currentTime >= SEGUINTES_DEPOIS_DE_S)) return;
+    ociosoPedido = true;
+    quandoLivre(libertarSeguintes);
+  };
+  /** O de entrada acabou de ficar à vista a andar: começa a contar a espera, e o prazo. */
+  const armarSeguintes = () => {
+    if (esperaArmada) return;
+    esperaArmada = true;
+    const prazo = semEsperaDosSeguintes() ? 0 : prazoDosSeguintesMs(primeiro.duration);
+    if (prazo <= 0) libertarSeguintes();
+    else depois(prazo, libertarSeguintes);
+  };
+
   const assentar = () => {
     if (!vivo || inicioAssente) return;
     inicioAssente = true;
@@ -1199,7 +1278,10 @@ function criarMotor(raiz: HTMLElement): Motor | null {
     return false;
   };
   const verSeChegou = () => {
-    if (mostrado && chegouInteiro()) assentar();
+    if (!mostrado) return;
+    armarSeguintes();
+    verFolga();
+    if (chegouInteiro()) assentar();
   };
   const mostrarPrimeiro = () => {
     if (!vivo || mostrado) return;
