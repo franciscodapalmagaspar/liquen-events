@@ -21,11 +21,19 @@ import { hifenizar } from "@/lib/hifenizar";
 /**
  * A secção de portefólio sorteia as fotos a cada desenho, por isso a página é
  * regenerada de tempos a tempos em vez de ficar congelada na compilação: quem
- * volta encontra fotografias diferentes. Trinta segundos mantém o HTML em cache
- * (o site continua a servir-se da borda, sem render por visita) e ainda assim
- * troca as fotos entre visitas com minutos de intervalo.
+ * volta encontra fotografias diferentes.
+ *
+ * ── UMA VEZ POR DIA, E NÃO DE 30 EM 30 SEGUNDOS (22/10) ────────────────────
+ *
+ * Eram 30 s. Cada regeneração reescreve o HTML, o RSC e os segmentos da
+ * página, em cada serviço e nas duas línguas — e foi isto que levou a conta
+ * grátis da Vercel aos 258 mil «ISR Writes» de 200 mil (era a ÚNICA rota com
+ * `revalidate`). Passado o limite, a Vercel BLOQUEOU todas as publicações do
+ * site: nada do que entrou no `main` chegava ao ar. Ela escolheu «ficar no
+ * grátis e emagrecer». Um dia mantém o baralhar (as fotos mudam de um dia
+ * para o outro) com ~2 880 vezes menos escritas.
  */
-export const revalidate = 30;
+export const revalidate = 86400;
 
 export function generateStaticParams() {
   return SERVICES.map((s) => ({ slug: s.slug }));
