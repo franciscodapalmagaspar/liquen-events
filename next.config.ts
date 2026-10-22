@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import bundleAnalyzer from "@next/bundle-analyzer";
 import { origensDeImagem } from "./src/lib/csp-imagens";
+import { REDIRECCIONAMENTOS_DA_LINGUA, REESCRITAS_DA_LINGUA } from "./src/lib/rotas-da-lingua";
 
 const nextConfig: NextConfig = {
   // O SELO DE DESENVOLVIMENTO DO NEXT TAPA A NAVEGAÇÃO DO TELEMÓVEL.
@@ -805,7 +806,21 @@ const nextConfig: NextConfig = {
         destination: `${APEX}/:path*`,
         permanent: true,
       },
+      // `/pt`, `/pt/*` → o endereço nu. Era o proxy; ver src/lib/rotas-da-lingua.ts.
+      // Depois do `www`, para um `www.…/pt/x` ir direito ao apex e só lá
+      // perder o prefixo — a mesma ordem que tinha quando o proxy corria depois
+      // destes redireccionamentos todos.
+      ...REDIRECCIONAMENTOS_DA_LINGUA,
     ];
+  },
+
+  async rewrites() {
+    // O caminho nu → o segmento interno `[lang]`, pelo cookie `liquen-lang`.
+    // Era o proxy, em todos os pedidos de página; o porquê de cada pormenor
+    // (afterFiles, o que fica de fora, a raiz que ficou no proxy) está em
+    // src/lib/rotas-da-lingua.ts, e o teste que o prende ao comportamento de
+    // antes em src/lib/rotas-da-lingua.test.ts.
+    return { beforeFiles: [], afterFiles: REESCRITAS_DA_LINGUA, fallback: [] };
   },
 };
 
