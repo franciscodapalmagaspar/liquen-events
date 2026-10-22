@@ -8,8 +8,12 @@ import { getDictionary, htmlLang, normalizeLocale, type Locale } from "@/lib/i18
 import { idiomaDaProposta } from "@/lib/proposta-idioma";
 import { fotosDaProposta } from "@/lib/proposta-fotos";
 import { getQuote } from "@/lib/quotes-store";
+import { chaveDasPaginas, versaoDaChave } from "@/lib/paginas-da-proposta";
+import { paginasDoPlano } from "@/lib/pdf-editorial/plano";
 import { log } from "@/lib/logger";
-import Documento from "./Documento";
+import PaginasDoPdf from "./PaginasDoPdf";
+import EscolhasDoDocumento from "./EscolhasDoDocumento";
+import { textosDaPagina } from "./textos-da-pagina";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -29,10 +33,13 @@ import Documento from "./Documento";
  * 409 no clique; e o `expired` fica preso ao dia da primeira visita, portanto o
  * aviso de validade nunca chega a aparecer.
  *
- * `force-dynamic` também é o que põe `Cache-Control: private, no-store` na
- * resposta. Numa página cujo URL é a própria credencial, isso não é acessório:
- * é o que impede um cache partilhado (CDN, proxy da empresa) de guardar a
- * proposta de um cliente e servi-la a quem pedir o mesmo caminho.
+ * `force-dynamic` também punha `Cache-Control: private, no-store` na
+ * resposta. Numa página cujo URL é a própria credencial, o `private` não é
+ * acessório: é o que impede um cache partilhado (CDN, proxy da empresa) de
+ * guardar a proposta de um cliente e servi-la a quem pedir o mesmo caminho.
+ * Desde 22/10 o cabeçalho é `private, no-cache` (ver `next.config.ts`): fica a
+ * protecção, e o `no-store` que tirava a proposta da cache de «voltar atrás»
+ * do browser sai.
  */
 export const dynamic = "force-dynamic";
 
@@ -390,7 +397,19 @@ export default async function ProposalPage({
         })
       : Promise.resolve(null);
 
-  const fotos = proposal.doc ? await fotosDaProposta(proposal.doc) : [];
+  /**
+   * ── SÓ AS FOTOGRAFIAS DAS ALTERNATIVAS ─────────────────────────────────────
+   * Desde 22/10 a página mostra o PDF tal e qual (`PaginasDoPdf.tsx`): as
+   * fotografias dos mood boards e da capa vêm DENTRO do PDF. A única coisa
+   * desenhada em HTML são as escolhas, e só essas precisam de endereços
+   * assinados. Assinar as outras dezenas era trabalho a atrasar a abertura —
+   * «quero que tornes extremamente rápido» — para fotografias que já não se
+   * desenham aqui.
+   */
+  const fotos =
+    proposal.doc && (proposal.doc.escolhas ?? []).length > 0
+      ? await fotosDaProposta({ coverImages: [], moodBoards: [], escolhas: proposal.doc.escolhas })
+      : [];
 
   /**
    * O QUE O CASAL JÁ ESCOLHEU — lido do PEDIDO, e não da proposta.
@@ -525,27 +544,37 @@ export default async function ProposalPage({
            * lê como uma mensagem. */}
         </header>
 
-        {/* ── O DOCUMENTO INTEIRO, QUANDO ELE EXISTE ──────────────────────
-            Palavras dela: «46 fotos de mood board comprimidas em páginas A4
-            ficam pequenas, quando o trabalho é visual e merece ecrã inteiro.»
+        {/* ══════════════════════════════════════════════════════════════
+            A PROPOSTA ONLINE É O PRÓPRIO PDF (22/10)
+            ══════════════════════════════════════════════════════════════
 
-            Esta página mostrava um total, um IVA e um botão para descarregar o
-            PDF. O documento está guardado (`proposals.doc`) desde que o estúdio
-            passou a gravá-lo, e passa a ser desenhado aqui — os serviços, os
-            mood boards em ecrã inteiro, o orçamento e as condições. O PDF FICA
-            exactamente como está, e o botão para ele também: um casal que só
-            queira o PDF nunca precisa de rolar esta página.
+            Palavras dela: «a proposta online não tem nada a ver com a
+            proposta PDF que nós fazemos agora… quero que esteja ao mesmo
+            nível». Escolheu que a página mostre o PDF tal e qual, e que abra
+            «extremamente rápido». Aqui ficava o `Documento` — um segundo
+            desenho da proposta em HTML, que deixou de acompanhar o PDF
+            editorial. As páginas passam a ser as do PDF que segue em anexo
+            no email (ver `PaginasDoPdf.tsx`), e por baixo ficam as escolhas,
+            que são a única coisa que o casal FAZ nesta página.
 
             Sem documento — as propostas anteriores à coluna e as de linhas do
             back office — desenha-se o quadro de sempre, sem uma diferença. */}
         {proposal.doc ? (
-          <Documento
-            doc={proposal.doc}
-            idioma={locale}
-            fotos={fotos}
-            token={token}
-            escolhido={escolhido}
-          />
+          <>
+            <PaginasDoPdf
+              base={`/api/proposta/${encodeURIComponent(token)}`}
+              v={versaoDaChave(chaveDasPaginas(proposal.id, proposal.doc, locale))}
+              previstas={paginasDoPlano(proposal.doc)}
+              textos={textosDaPagina(locale)}
+            />
+            <EscolhasDoDocumento
+              doc={proposal.doc}
+              idioma={locale}
+              fotos={fotos}
+              token={token}
+              escolhido={escolhido}
+            />
+          </>
         ) : (
           <>
             {/* Line items */}

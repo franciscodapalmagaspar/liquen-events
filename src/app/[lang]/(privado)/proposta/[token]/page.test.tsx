@@ -175,8 +175,9 @@ describe("página pública da proposta — o botão do PDF", () => {
  *   · a validade (`expired`) é calculada uma única vez, no dia da primeira
  *     visita, e fica congelada nesse dia.
  *
- * `force-dynamic` também é o que põe `Cache-Control: private, no-store` na
- * resposta — numa página cujo URL é a própria credencial, não é detalhe.
+ * O cabeçalho é `private, no-cache` desde 22/10 (`next.config.ts`): o
+ * `private` — o que importa numa página cujo URL é a própria credencial —
+ * fica, e o `no-store` que tirava a proposta da cache de «voltar atrás» sai.
  */
 describe("página pública da proposta — nunca servida de um cache", () => {
   it("é renderizada a pedido, a cada visita", () => {

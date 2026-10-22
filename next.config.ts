@@ -266,6 +266,28 @@ const nextConfig: NextConfig = {
       "./node_modules/@img/sharp-linux-x64/**/*",
       "./node_modules/@img/sharp-libvips-linux-x64/**/*",
     ],
+    /**
+     * As páginas do PDF da proposta, desenhadas no servidor (ver
+     * `src/lib/paginas-do-pdf.ts`). O pdf.js abre o `@napi-rs/canvas` com um
+     * `require` feito em tempo de execução, que o rastreador não vê — a mesma
+     * avaria do `sharp` acima. Só nesta rota: o binário são 33 MB, e as
+     * outras não o usam. (As letras-padrão o rastreador já apanha sozinho,
+     * pelo caminho escrito no código.)
+     *
+     * E o `pdf.worker.mjs`: em Node o pdf.js lê o ficheiro com um `import()`
+     * de um endereço guardado numa variável — também invisível. MEDIDO no
+     * rastreio do build: sem esta linha não ia.
+     *
+     * `*` e não `[token]`: a chave é um padrão, e `[token]` quer dizer «uma
+     * destas letras» — MEDIDO, a primeira versão não casava e o binário ficava
+     * de fora.
+     */
+    "/api/proposta/*/pagina/*": [
+      "./node_modules/@napi-rs/canvas/**/*",
+      "./node_modules/@napi-rs/canvas-linux-x64-gnu/**/*",
+      "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+    ],
+    "/api/proposta/*/paginas": ["./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"],
   },
 
   /**
@@ -367,6 +389,9 @@ const nextConfig: NextConfig = {
       "./node_modules/@img/sharp-wasm32/**/*",
       "./node_modules/@img/sharp-linuxmusl-x64/**/*",
       "./node_modules/@img/sharp-libvips-linuxmusl-x64/**/*",
+      // O desenhador das páginas da proposta traz o mesmo par: o `gnu` é o
+      // do Vercel, o `musl` não corre lá (29 MB).
+      "./node_modules/@napi-rs/canvas-linux-x64-musl/**/*",
     ],
   },
 
@@ -731,6 +756,28 @@ const nextConfig: NextConfig = {
         source,
         headers: [{ key: "Content-Security-Policy", value: cspFechada }],
       })),
+      {
+        /**
+         * ── A PROPOSTA DO CASAL: «VOLTAR» INSTANTÂNEO, SEM CACHE PARTILHADO ──
+         *
+         * A página é `force-dynamic`, e por isso saía com `no-store` — que
+         * tirava a proposta da cache de «voltar atrás» do browser (MEDIDO na
+         * auditoria de 22/10: `MainResourceHasCacheControlNoStore`). Carregar
+         * em Voltar recarregava a proposta inteira.
+         *
+         * `private` mantém o que interessa (o URL é a credencial: nenhum CDN
+         * nem proxy de empresa a guarda); `no-cache` obriga o browser a
+         * confirmar com o servidor antes de reusar. MEDIDO no Chromium com
+         * `next start`: a proposta volta da cache de Voltar (`persisted`), e o
+         * cabeçalho final é este — o Next não o sobrepõe.
+         */
+        source: "/proposta/:token",
+        headers: [{ key: "Cache-Control", value: "private, no-cache" }],
+      },
+      {
+        source: "/:lang(pt|en)/proposta/:token",
+        headers: [{ key: "Cache-Control", value: "private, no-cache" }],
+      },
       {
         source: "/imagens/:path*",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],

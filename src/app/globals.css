@@ -3736,8 +3736,13 @@ body:has(.barra-consentimento) footer {
      24 px e não 18: a escala da casa tem «secção 14 px, página 32 px», e isto
      é a página a chegar — mas vista só a partir do meio, portanto fica no
      degrau entre as duas. */
+  /* ── E DEPOIS A CORTINA SAIU DA PROPOSTA (22/10) ───────────────────────
+     Ela escolheu «Sai só na proposta». Sem pano, esperar por `--cortina-sobe`
+     era deixar a página 2 s deslocada à vista e mexê-la quando já se lia —
+     o que o briefing proíbe. A entrada arranca logo, com o invólucro, no
+     primeiro jacto; se o documento chegar depois dela, aparece no sítio. */
   .prop-abertura {
-    animation: prop-entrada 620ms var(--ease-out) calc(var(--cortina-sobe) + 130ms) backwards;
+    animation: prop-entrada 620ms var(--ease-out) backwards;
   }
 }
 

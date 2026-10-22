@@ -181,7 +181,12 @@ for (const { nome, dir, tecto } of ROTAS) {
  */
 const NATIVO = "@img/sharp-linux-x64/lib/";
 const LIBVIPS = "@img/sharp-libvips-linux-x64/lib/libvips-cpp.so";
-const FORASTEIRAS = ["sharp-wasm32", "sharp-linuxmusl-x64", "sharp-libvips-linuxmusl-x64"];
+const FORASTEIRAS = [
+  "sharp-wasm32",
+  "sharp-linuxmusl-x64",
+  "sharp-libvips-linuxmusl-x64",
+  "canvas-linux-x64-musl",
+];
 
 /** Todos os rastreios que o build escreveu, um por rota. */
 function rastreios(dir = path.join(".next", "server", "app"), fora = []) {

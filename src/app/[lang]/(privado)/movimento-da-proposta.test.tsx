@@ -279,9 +279,10 @@ describe("o movimento da proposta", () => {
     revelar();
     fotograma();
 
-    expect(abaixo.classList.contains("por-subir"), "o que está abaixo da dobra tinha de armar").toBe(
-      true,
-    );
+    expect(
+      abaixo.classList.contains("por-subir"),
+      "o que está abaixo da dobra tinha de armar",
+    ).toBe(true);
     expect(acima.classList.contains("por-subir"), "o que já se via continua quieto").toBe(false);
     expect(observados).toEqual([abaixo]);
   });
@@ -382,7 +383,7 @@ describe("o movimento da proposta", () => {
     );
   });
 
-  it("a entrada espera pelo instante em que o pano sobe — e não por um sinal do guião", () => {
+  it("a entrada não espera por pano nenhum — nem por um sinal do guião", () => {
     /**
      * ── ISTO JÁ ESTEVE AGARRADO A UM ATRIBUTO ─────────────────────────────
      *
@@ -401,8 +402,10 @@ describe("o movimento da proposta", () => {
      * escrito uma vez no `:root`. E ganha a propriedade que o `hero-settle` já
      * tinha: num dia em que o JavaScript não corra, isto continua a acontecer.
      */
-    expect(BLOCO, "a entrada deixou de esperar pelo instante da subida").toMatch(
-      /\.prop-abertura \{[\s\S]*?var\(--cortina-sobe\)/,
+    // Desde 22/10 a proposta não tem cortina («Sai só na proposta»): a
+    // entrada arranca logo, e continua a não depender do guião.
+    expect(BLOCO, "a entrada voltou a esperar por uma cortina que já não existe").not.toMatch(
+      /\.prop-abertura \{[^}]*--cortina/,
     );
     expect(
       BLOCO.replace(/\/\*[\s\S]*?\*\//g, ""),
@@ -550,9 +553,10 @@ describe("as fotografias, que saíram da escada", () => {
         escala!,
         `«${papel}» começa a ${escala} — acima de 1 passa por cima da vizinha do lado`,
       ).toBeLessThan(1);
-      expect(escala!, `«${papel}» a ${escala} já é um salto, não uma chegada`).toBeGreaterThanOrEqual(
-        0.9,
-      );
+      expect(
+        escala!,
+        `«${papel}» a ${escala} já é um salto, não uma chegada`,
+      ).toBeGreaterThanOrEqual(0.9);
     }
   });
 
@@ -562,9 +566,10 @@ describe("as fotografias, que saíram da escada", () => {
     const f = gesto("foto");
     const r = gesto("respiro");
     expect(r.sobe, "o respiro deixou de ser o separador mais forte").toBeGreaterThan(f.sobe);
-    expect(r.escala!, "a sangria inteira a crescer tanto como uma célula dá um salto").toBeGreaterThan(
-      f.escala!,
-    );
+    expect(
+      r.escala!,
+      "a sangria inteira a crescer tanto como uma célula dá um salto",
+    ).toBeGreaterThan(f.escala!);
   });
 
   it("e demoram mais do que o texto — a regra vem DEPOIS da largada, ou não vale", () => {
@@ -578,16 +583,19 @@ describe("as fotografias, que saíram da escada", () => {
     const propria = BLOCO.indexOf('[data-sobe="foto"].por-subir.subiu');
     expect(largada, "a regra da largada desapareceu").toBeGreaterThan(-1);
     expect(propria, "os papéis fotográficos ficaram sem duração própria").toBeGreaterThan(-1);
-    expect(propria, "a duração própria subiu para antes da largada e deixou de valer").toBeGreaterThan(
-      largada,
-    );
+    expect(
+      propria,
+      "a duração própria subiu para antes da largada e deixou de valer",
+    ).toBeGreaterThan(largada);
 
-    const curta = /\[data-sobe\]\.por-subir\.subiu \{[^}]*?transition: transform (\d+)ms/.exec(BLOCO);
-    const longa = /\[data-sobe="foto"\]\.por-subir\.subiu[^{]*\{[^}]*?transition-duration: (\d+)ms/.exec(
+    const curta = /\[data-sobe\]\.por-subir\.subiu \{[^}]*?transition: transform (\d+)ms/.exec(
       BLOCO,
     );
-    expect(Number(longa?.[1]), "um gesto maior feito no mesmo tempo lê-se como um salto").toBeGreaterThan(
-      Number(curta?.[1]),
-    );
+    const longa =
+      /\[data-sobe="foto"\]\.por-subir\.subiu[^{]*\{[^}]*?transition-duration: (\d+)ms/.exec(BLOCO);
+    expect(
+      Number(longa?.[1]),
+      "um gesto maior feito no mesmo tempo lê-se como um salto",
+    ).toBeGreaterThan(Number(curta?.[1]));
   });
 });

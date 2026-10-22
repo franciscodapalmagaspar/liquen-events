@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { normalizeLocale } from "@/lib/i18n";
-import { Cortina } from "@/components/Cortina";
 import { MovimentoDaProposta } from "./MovimentoDaProposta";
 
 /**
@@ -74,50 +72,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function LayoutPrivado({
-  children,
-  params,
-}: {
-  children: React.ReactNode;
-  params: Promise<{ lang: string }>;
-}) {
-  const { lang } = await params;
-
+export default function LayoutPrivado({ children }: { children: React.ReactNode }) {
   // Sem `<main>` com o `pt-24` do sítio: aqui não há barra de navegação por
   // cima, e a página começa onde a página começa.
   return (
     <main id="conteudo" className="flex-1">
       {/*
-        ── E PORQUE É QUE ELA TEM CHAVE DE SESSÃO ─────────────────────────
+        ── SEM CORTINA (22/10) ─────────────────────────────────────────────
 
-        Palavras dela: «se eu volto para trás no browser aquilo fica assim um
-        bocado coiso».
+        A cortina verde do sítio também abria a proposta, e tapava-a ~2 s na
+        primeira visita. Ela pediu a proposta a «aparecer logo» e, posta a
+        escolha à frente, respondeu «Sai só na proposta»: no sítio fica, aqui
+        sai. Com as páginas a chegarem em ~1,5 s num 4G (ver `PaginasDoPdf`),
+        o pano era a parte maior da espera.
 
-        Fica, e a razão é concreta: esta página é `force-dynamic`, portanto sai
-        com `no-store` — e uma página `no-store` NÃO entra na cache de
-        histórico do browser. Carregar em Voltar não é voltar: é carregar a
-        página toda de novo. Sem chave, a cortina de um segundo tocava outra
-        vez, e outra, a cada Voltar.
-
-        Com a chave, o casal vê a cortina UMA vez — a primeira, que é a que
-        interessa — e o Voltar devolve-lhes a proposta de imediato. Uma
-        proposta DIFERENTE no mesmo separador continua a ter a sua primeira
-        vez, porque é outro documento noutro separador ou noutra visita.
-
-        A CORTINA VEM DAQUI, E NÃO DO `loading.tsx`, POR UMA RAZÃO SÓ: a
-        língua. O `loading.tsx` não recebe parâmetros — está nos documentos do
-        Next à letra, e é por isso que ele não tem uma única frase escrita. Um
-        layout recebe, e o lema tem de chegar na língua do casal.
-
-        E chega ANTES do resto: o layout é das primeiras coisas que o servidor
-        entrega, portanto a cortina está no ecrã enquanto a proposta ainda vem
-        a caminho — que é o trabalho dela. O esqueleto do `loading.tsx` fica
-        por baixo, e continua a ser ele a nomear a espera para quem ouve o
-        ecrã e para quem pediu menos movimento.
+        O esqueleto do `loading.tsx` passa a ser o que se vê enquanto a
+        proposta chega — o logótipo e a forma, no mesmo sítio da página real.
       */}
-      <Cortina locale={normalizeLocale(lang)} />
       {/*
-        ── O RELÓGIO DA ABERTURA VIVE AQUI, AO PÉ DA CORTINA ──────────────
+        ── O RELÓGIO DA ABERTURA VIVE AQUI, NO LAYOUT ─────────────────────
 
         A entrada do documento estava declarada na `page.tsx`. Parece
         arrumação; não é. Um `animation-delay` conta-se a partir do instante
@@ -130,8 +103,9 @@ export default async function LayoutPrivado({
         casal já a ler — é que ela desliza para o lugar. Uma coisa a mexer-se
         debaixo do polegar de quem lê é exactamente o que o briefing proíbe.
 
-        Aqui o invólucro sai no MESMO jacto que a cortina. Quando o documento
-        chega tarde, a animação já acabou e ele aparece simplesmente no sítio.
+        Aqui o invólucro sai no primeiro jacto, e a entrada arranca logo (já
+        não espera pelo pano). Quando o documento chega tarde, a animação já
+        acabou e ele aparece simplesmente no sítio.
 
         `backwards` e NUNCA `forwards`: isto é agora o pai de tudo o que está
         no ramo privado, e um `transform` pendurado no fim faria dele o bloco

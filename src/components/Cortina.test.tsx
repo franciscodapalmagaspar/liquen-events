@@ -73,8 +73,9 @@ describe("a saída não depende de ninguém", () => {
 
   it("o instante da subida é o mesmo em toda a casa, e escrito uma vez", () => {
     /**
-     * `--cortina-sobe` é 88% de `--cortina-total`, e é por ele que esperam o
-     * zoom da capa do sítio e a folha da proposta. Dois números que se
+     * `--cortina-sobe` é 88% de `--cortina-total`, e é por ele que espera o
+     * zoom da capa do sítio (a proposta deixou de ter cortina a 22/10 — ver
+     * «a mesma cortina em toda a casa», em baixo). Dois números que se
      * separassem punham o que está por baixo a entrar antes ou depois do pano
      * — duas coisas em vez de um gesto.
      */
@@ -87,7 +88,6 @@ describe("a saída não depende de ninguém", () => {
 
     for (const [quem, regra] of [
       ["o zoom da capa", /html:not\(\[data-navigated\]\) \.hero-settle \{[\s\S]*?\n {2}\}/],
-      ["a abertura da proposta", /\.prop-abertura \{[\s\S]*?\n {2}\}/],
     ] as const) {
       const m = regra.exec(CSS)?.[0];
       expect(m, `desapareceu ${quem}`).toBeDefined();
@@ -437,18 +437,21 @@ describe("a cortina no documento", () => {
   });
 });
 
-describe("a mesma cortina em toda a casa", () => {
+describe("a mesma cortina em toda a casa — menos na proposta", () => {
   /**
-   * Palavras dela: «quando carrego em ver proposta online, a animação está
-   * muito rápida — eu quero igual ao que está no site». Já era o mesmo
-   * componente; o que ela viu foi a trava de sessão a escondê-la. Mas a
-   * pergunta era a certa, e nada garantia que os dois ficassem iguais.
+   * Palavras dela, primeiro: «quando carrego em ver proposta online, a
+   * animação está muito rápida — eu quero igual ao que está no site». Ficou
+   * igual, e este bloco prendia isso.
+   *
+   * Depois (22/10), a pedir a proposta a «aparecer logo», com a escolha à
+   * frente: «Sai só na proposta». A cortina tapava ~2 s uma página que já
+   * chegava em ~1,5 s. No sítio fica tal e qual; na proposta não há cortina.
    */
   const MONTAGENS = {
     sítio: readFileSync("src/components/CromadoDoSitio.tsx", "utf8"),
-    proposta: readFileSync("src/app/[lang]/(privado)/layout.tsx", "utf8"),
     "back office": readFileSync("src/app/[lang]/(admin)/layout.tsx", "utf8"),
   };
+  const PROPOSTA = readFileSync("src/app/[lang]/(privado)/layout.tsx", "utf8");
 
   function montagem(fonte: string): string {
     const m = /<Cortina\b[^>]*\/>/.exec(fonte);
@@ -456,15 +459,13 @@ describe("a mesma cortina em toda a casa", () => {
     return m![0];
   }
 
-  it("o sítio e a proposta recebem a cortina EXACTAMENTE igual", () => {
-    const semLocale = (m: string) => m.replace(/locale=\{[^}]*\}/, "locale={…}");
-    expect(semLocale(montagem(MONTAGENS.sítio))).toBe(semLocale(montagem(MONTAGENS.proposta)));
+  it("a proposta não leva cortina (22/10, «Sai só na proposta»)", () => {
+    const codigo = PROPOSTA.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(codigo).not.toMatch(/<Cortina\b/);
   });
 
-  it("nem o sítio nem a proposta levam trava de sessão — vêem-se SEMPRE", () => {
-    for (const onde of ["sítio", "proposta"] as const) {
-      expect(montagem(MONTAGENS[onde]), `a trava voltou ao ${onde}`).not.toContain("chaveDeSessao");
-    }
+  it("o sítio não leva trava de sessão — vê-se SEMPRE", () => {
+    expect(montagem(MONTAGENS.sítio), "a trava voltou ao sítio").not.toContain("chaveDeSessao");
   });
 
   it("o back office continua a levá-la — e é o único", () => {
