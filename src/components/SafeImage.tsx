@@ -1,7 +1,9 @@
 "use client";
 
-import Image, { type ImageLoaderProps, type ImageProps } from "next/image";
+import Image, { getImageProps, type ImageLoaderProps, type ImageProps } from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ReactDOM from "react-dom";
+import siteImageLoader, { siteImageAvifUrl } from "@/lib/site-image-loader";
 
 /**
  * Uma imagem do sítio que não fica partida por causa de UM erro de rede.
@@ -205,6 +207,130 @@ export type SafeImageProps = Omit<ImageProps, "src" | "loader" | "onError" | "on
   aparecer?: boolean;
 };
 
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O AVIF À FRENTE, O WEBP POR BAIXO — o mesmo `<picture>` do herói, para todas
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Até aqui só o `HeroImage` servia AVIF; o resto do sítio passava por este
+ * componente e recebia WebP, apesar de o gémeo AVIF de cada fotografia já
+ * estar em `/_img/` (os pré-geradores escrevem os dois). O `<picture>` e o
+ * pré-carregamento que o herói tinha passaram para AQUI em vez de se escrever
+ * um segundo mecanismo ao lado: o `HeroImage` ficou só com o seu carregador.
+ *
+ * MEDIDO em `next start` (Chromium, cache fria, um contexto por página), KB de
+ * imagem depois de percorrer a página toda, antes → depois desta mudança:
+ *
+ *                 390×844 a 3x            1440×900
+ *   /             940 →  772  (−18 %)    1518 →  960  (−37 %)
+ *   /servicos     862 →  601  (−30 %)    1340 → 1022  (−24 %)
+ *   /sobre       1438 →  960  (−33 %)    1166 → 1007  (−14 %)
+ *   /contacto    1096 →  783  (−29 %)    1479 →  727  (−51 %)
+ *   /clientes     638 →  591  ( −7 %)    1642 →  524  (−68 %)
+ *
+ * Os dois lados levam os mesmos ~396 KB que já eram AVIF — os heróis de outras
+ * páginas que o `HeroWarm` aquece —, e o que fica em WebP depois são só os
+ * logótipos. Zero imagens partidas e CLS 0 nos vinte casos, antes e depois.
+ *
+ * ── PORQUE É QUE O `srcset` AVIF SAI DO `getImageProps` ───────────────────
+ *
+ * Um `<source>` que casa DESLIGA o `srcset` do `<img>` ao lado — o browser
+ * escolhe o candidato só pela lista da `<source>`. Se a lista AVIF tivesse
+ * outros degraus, ou outro `sizes`, a fotografia mudava de resolução ao mudar
+ * de formato (é a conta do `portao-do-avif.test.ts` da proposta, que paga 5x
+ * os bytes quando a oferta AVIF tem menos degraus do que a WebP). Por isso a
+ * lista NÃO é escrita à mão: parte da do próprio `next/image`, com os MESMOS
+ * `src`/`width`/`height`/`fill`/`sizes`, só com o carregador trocado — os
+ * mesmos degraus, o mesmo `sizes`, cada ficheiro AVIF gémeo de um WebP da
+ * lista do `<img>`. (Os descritores são depois acertados à largura real de
+ * cada ficheiro — ver o fim de `fonteAvif`.)
+ *
+ * ── O PORTÃO: SÓ HÁ `<source>` QUANDO HÁ GÉMEO EM TODAS AS LARGURAS ───────
+ *
+ * Um browser escolhe a `<source>` pelo `type`, não por o ficheiro existir.
+ * Um AVIF em falta num único degrau era uma imagem partida nesse ecrã. Por
+ * isso, para cada candidato, exige-se duas coisas:
+ *   · que haja AVIF para aquela origem (`siteImageAvifUrl`, que só diz que sim
+ *     onde um pré-gerador garante o ficheiro e falha o build se faltar);
+ *   · que esse AVIF seja o gémeo EXACTO do WebP que o `<img>` vai pedir — mesmo
+ *     caminho, mesma largura, só a extensão diferente. É isto que torna seguro
+ *     um `initialLoader` (o do herói): se um dia um carregador servir outro
+ *     ficheiro, a comparação falha e a fotografia fica-se pelo WebP, inteira.
+ * Basta UM candidato falhar para não haver `<source>` nenhuma.
+ *
+ * ── O CUSTO, QUE NÃO É ZERO ───────────────────────────────────────────────
+ *
+ * O AVIF poupa bytes mas custa processador a descodificar — num telemóvel
+ * fraco, mais do que o WebP do mesmo tamanho. Aceita-se aqui porque o que se
+ * poupa é rede (metade dos bytes, que num 4G é o que demora) e porque o
+ * `loading="lazy"` continua a espalhar as descodificações pelo scroll. Se um
+ * dia se medir a descodificação a pesar num aparelho real, o sítio para cortar
+ * é este portão — o WebP continua por baixo, intacto.
+ */
+type FonteAvif = { srcSet: string; sizes?: string; maior: string };
+
+/** As duas caixas do `<picture>` — ver o porquê junto do `return`. Fora do
+    componente para não criar um objecto novo por render. */
+const PICTURE_FILL = { position: "absolute", inset: 0 } as const;
+const PICTURE_SEM_CAIXA = { display: "contents" } as const;
+
+function fonteAvif(
+  p: Pick<SafeImageProps, "src" | "width" | "height" | "fill" | "sizes" | "quality" | "unoptimized">,
+  primeiro: (p: ImageLoaderProps) => string,
+): FonteAvif | null {
+  if (p.unoptimized) return null;
+  // Pergunta barata antes da conta inteira: a maior parte das origens que não
+  // têm AVIF (os logótipos) sai aqui, sem chamar o `getImageProps`.
+  if (siteImageAvifUrl(p.src, 640) === null) return null;
+  let gemeos = true;
+  const { props } = getImageProps({
+    src: p.src,
+    alt: "",
+    width: p.width,
+    height: p.height,
+    fill: p.fill,
+    sizes: p.sizes,
+    quality: p.quality,
+    loader: (q) => {
+      const avif = siteImageAvifUrl(q.src, q.width);
+      if (avif === null || avif.replace(/\.avif$/, ".webp") !== primeiro(q)) gemeos = false;
+      return avif ?? q.src;
+    },
+  });
+  if (!gemeos || !props.srcSet || typeof props.src !== "string") return null;
+
+  /**
+   * Descritores `w`: cada candidato passa a dizer a largura VERDADEIRA do seu
+   * ficheiro, e os repetidos saem. O `next/image` escreve `/…-1536.avif 1280w`
+   * (pediu 1280, a escada arredondou para 1536) — com o descritor mentiroso, o
+   * browser julga que o ficheiro é mais pequeno do que é e sobe um degrau a
+   * mais quando a caixa cai entre os dois. Com o descritor certo escolhe o
+   * ficheiro mais pequeno que ainda cobre a caixa: nunca abaixo do que a caixa
+   * pede, nunca acima do que o WebP daria, e IGUAL ao WebP na escada da
+   * galeria, que é um subconjunto das larguras do Next (o 1024 entrou nela por
+   * isso — ver `GALLERY_WIDTHS`). Só a escada dos heróis tem degraus fora
+   * dessa lista (1080, 2048), e é aí que o descritor certo poupa um degrau. Para um herói a `100vw` a lista
+   * que sai é, letra a letra, a escada fixa que o `HeroImage` escrevia à mão.
+   *
+   * Descritores `x` (largura fixa, sem `sizes`) ficam como vêm: aí a escolha é
+   * pela densidade do ecrã e o candidato AVIF é o gémeo do WebP na mesma
+   * posição.
+   */
+  const candidatos = props.srcSet.split(", ").map((c) => c.split(" "));
+  let srcSet = props.srcSet;
+  if (candidatos.every(([, d]) => d?.endsWith("w"))) {
+    const porFicheiro = new Map<string, string>();
+    for (const [url] of candidatos) {
+      const largura = /-(\d+)\.avif$/.exec(url)?.[1];
+      if (!largura) return null;
+      porFicheiro.set(url, `${url} ${largura}w`);
+    }
+    srcSet = [...porFicheiro.values()].join(", ");
+  }
+  // `src` é o candidato mais largo — o mesmo papel do `src` do `<img>`.
+  return { srcSet, sizes: props.sizes, maior: props.src };
+}
+
 export default function SafeImage({
   src,
   alt,
@@ -216,6 +342,13 @@ export default function SafeImage({
   fill,
   width,
   height,
+  sizes,
+  quality,
+  unoptimized,
+  priority,
+  preload,
+  loading,
+  fetchPriority,
   ...rest
 }: SafeImageProps) {
   const aparecer = aparecerPedido ?? Boolean(fill && blurDataURL);
@@ -371,6 +504,52 @@ export default function SafeImage({
   );
 
   /**
+   * A `<source>` AVIF (ver `fonteAvif`, lá em cima). Só na PRIMEIRA tentativa:
+   * mal se passa ao ficheiro original, ela sai — se ficasse, o browser
+   * continuava a escolhê-la pelo `type` e cada re-tentativa da escada voltava
+   * a pedir o mesmo AVIF que acabou de falhar, com o anti-cache só no `<img>`.
+   * Era o buraco do `<picture>` do herói, que embrulhava este componente por
+   * fora e por isso não sabia quando a rede tinha entrado em acção.
+   */
+  const avif = useMemo(
+    () =>
+      original
+        ? null
+        : fonteAvif(
+            { src, width, height, fill, sizes, quality, unoptimized },
+            initialLoader ?? siteImageLoader,
+          ),
+    [original, src, width, height, fill, sizes, quality, unoptimized, initialLoader],
+  );
+
+  /**
+   * O PRÉ-CARREGAMENTO TEM DE SER DO FORMATO QUE O `<picture>` ESCOLHE.
+   *
+   * Veio do `HeroImage`, com a medição que lá ficou: o `priority`/`preload` do
+   * `next/image` pré-carrega o `srcset` do `<img>`, que é WebP, e um browser
+   * com AVIF escolhia depois a `<source>` — dois downloads da maior imagem da
+   * página. Por isso, havendo AVIF, o do Next é desligado e substituído por um
+   * nosso com `type="image/avif"` e a MESMA lista da `<source>` (é ela que o
+   * browser vai usar, e uma lista diferente era um pré-carregamento de um
+   * ficheiro que ninguém pede). `ReactDOM.preload` e não um `<link>` em JSX:
+   * o `HeroImage` mediu que o `<link>` aterrava no byte 31 982 do documento,
+   * dentro do corpo; o `preload` vai para o `<head>`, deduplicado pelo `href`.
+   *
+   * Hoje isto apanha os heróis E o `<SafeImage priority>` das capas de
+   * /servicos/[slug], que pré-carregava o WebP e passava a usar o AVIF.
+   */
+  const precarregar = avif !== null && Boolean(priority || preload);
+  if (precarregar) {
+    ReactDOM.preload(avif.maior, {
+      as: "image",
+      type: "image/avif",
+      imageSrcSet: avif.srcSet,
+      imageSizes: avif.sizes,
+      fetchPriority: "high",
+    });
+  }
+
+  /**
    * A superfície que ocupa a caixa da imagem quando não há `<img>` real: entre
    * tentativas (`waiting`) e depois de esgotadas (`exhausted`). É a mesma nos
    * dois casos DE PROPÓSITO — mesma `className` e mesmas dimensões que a
@@ -411,28 +590,64 @@ export default function SafeImage({
     />
   );
 
+  const imagem = !exhausted && !waiting && (
+    <Image
+      // A `key` inclui o nº da tentativa: garante um `<img>` NOVO por
+      // tentativa em vez de uma troca de atributo num elemento em erro.
+      key={bust}
+      src={src}
+      alt={alt}
+      className={className}
+      fill={fill}
+      width={width}
+      height={height}
+      sizes={sizes}
+      quality={quality}
+      unoptimized={unoptimized}
+      // Com AVIF e prioridade: o pré-carregamento do Next sai (apontaria para
+      // o WebP que o `<picture>` não vai usar) e fica o que ele fazia de útil
+      // ao `<img>` — `eager` e prioridade alta. Sem AVIF, tudo passa como veio.
+      priority={precarregar ? false : priority}
+      preload={precarregar ? false : preload}
+      loading={precarregar ? "eager" : loading}
+      fetchPriority={precarregar ? (fetchPriority ?? "high") : fetchPriority}
+      blurDataURL={blurDataURL}
+      loader={loader}
+      onLoad={handleLoad}
+      // NÃO passar `onError` aqui. Ver a nota grande acima: é ele que faz o
+      // next/image reatribuir `img.src = img.src` na montagem e abortar o
+      // pedido em voo. O erro é ouvido pela `ref`, que cobre o mesmo caso.
+      ref={ligarImg}
+      {...rest}
+    />
+  );
+
   return (
     <>
-      {!exhausted && !waiting && (
-        <Image
-          // A `key` inclui o nº da tentativa: garante um `<img>` NOVO por
-          // tentativa em vez de uma troca de atributo num elemento em erro.
-          key={bust}
-          src={src}
-          alt={alt}
-          className={className}
-          fill={fill}
-          width={width}
-          height={height}
-          blurDataURL={blurDataURL}
-          loader={loader}
-          onLoad={handleLoad}
-          // NÃO passar `onError` aqui. Ver a nota grande acima: é ele que faz o
-          // next/image reatribuir `img.src = img.src` na montagem e abortar o
-          // pedido em voo. O erro é ouvido pela `ref`, que cobre o mesmo caso.
-          ref={ligarImg}
-          {...rest}
-        />
+      {avif && imagem ? (
+        /**
+         * ── A CAIXA DO `<picture>` TEM DE SER A MESMA QUE A DO `<img>` ──────
+         *
+         * Com `fill`: `absolute inset-0`, como o `HeroImage` já fazia, e pela
+         * razão que lá ficou medida — uma imagem `fill` cola-se ao antepassado
+         * POSICIONADO mais próximo, e um `<picture>` estático no meio passava
+         * esse papel para cima (o next/image queixa-se na consola: «parent
+         * element with invalid "position"»). Posicionado e a cobrir o pai de
+         * bordo a bordo, é a mesma caixa, os mesmos pixels.
+         *
+         * Sem `fill`: `display: contents` — o `<picture>` não gera caixa
+         * nenhuma e o `<img>` fica, para o desenho, filho directo do pai como
+         * sempre foi. Um `<picture>` em linha mudava pouco, mas mudava: num pai
+         * `flex` passava a ser ele o item, e um `space-y-*` deixava de dar
+         * margem ao `<img>`. A escolha da `<source>` é feita pela árvore do
+         * DOM, não pelo desenho, por isso `contents` não lhe tira nada.
+         */
+        <picture style={fill ? PICTURE_FILL : PICTURE_SEM_CAIXA}>
+          <source type="image/avif" srcSet={avif.srcSet} sizes={avif.sizes} />
+          {imagem}
+        </picture>
+      ) : (
+        imagem
       )}
       {fill && veu !== "nenhum" && !exhausted && (
         /* eslint-disable-next-line @next/next/no-img-element */
