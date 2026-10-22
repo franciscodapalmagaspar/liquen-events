@@ -12,6 +12,7 @@ import { BreadcrumbJsonLd, ServiceJsonLd } from "@/components/JsonLd";
 import { pageMetadata } from "@/lib/page-metadata";
 import { getDictionary, normalizeLocale, localizeHref, type Locale } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
+import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 
 export async function generateMetadata({
   params,
@@ -234,7 +235,7 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
                 {ts.heroEyebrow}
               </p>
               <h1 className="text-white font-semibold uppercase tracking-display text-[18px] sm:text-[21px] leading-snug">
-                {ts.heroTitle.join(" ")}
+                <TituloPalavraAPalavra texto={ts.heroTitle.join(" ")} />
               </h1>
               <p className="mt-3 text-white/70 text-[12.5px] leading-[1.6] max-w-xs">
                 {ts.heroLead}

@@ -16,6 +16,7 @@ import { clientLogos } from "@/data";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
 import RotatingPhotoGrid from "@/components/RotatingPhotoGrid";
+import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 
 export async function generateMetadata({
   params,
@@ -165,7 +166,9 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
                 {t.clientes.heroEyebrow}
               </p>
               <h1 className="text-white font-semibold uppercase tracking-display text-[18px] sm:text-[21px] leading-snug">
-                {`${t.clientes.heroTitleLine1} ${t.clientes.heroTitleMoss}`}
+                <TituloPalavraAPalavra
+                  texto={`${t.clientes.heroTitleLine1} ${t.clientes.heroTitleMoss}`}
+                />
               </h1>
               <p className="mt-3 text-white/70 text-[12.5px] leading-[1.6] max-w-xs">
                 {t.clientes.heroLead}

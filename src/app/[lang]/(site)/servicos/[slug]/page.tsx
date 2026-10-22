@@ -15,6 +15,7 @@ import { SERVICES, getService, quoteTipoForSlug } from "@/lib/services-data";
 import { pickServiceGallery } from "@/lib/service-gallery";
 import { getDictionary, localizeHref, normalizeLocale } from "@/lib/i18n";
 import { PRIMARY_BUTTON_CLASS, OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
+import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 
 /**
  * A secção de portefólio sorteia as fotos a cada desenho, por isso a página é
@@ -218,7 +219,7 @@ export default async function ServiceDetailPage({
                 </p>
               ) : null}
               <h1 className="text-white font-semibold uppercase tracking-display text-[18px] sm:text-[21px] leading-snug">
-                {svc.title}
+                <TituloPalavraAPalavra texto={svc.title} />
               </h1>
             </div>
           </AnimateIn>

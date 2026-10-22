@@ -3681,6 +3681,26 @@ body[data-menu-open] .whatsapp-fixed {
   animation: word-rise 0.85s cubic-bezier(0.16, 1, 0.3, 1) var(--word-delay, 0ms) both;
 }
 
+/* ── Os títulos de topo, palavra a palavra (`TituloPalavraAPalavra.tsx`) ──
+   Pedido dela, a 22/10: «Títulos palavra a palavra». É o MESMO gesto do
+   `.word-rise` (a mesma subida e a mesma curva), mas arranca pelo CSS e não
+   pelo JavaScript — o porquê está no componente.
+
+   Na primeira visita espera pela cortina, como o `.hero-settle` e pela mesma
+   razão (ver o comentário dele): sem esperar, as palavras subiam por baixo do
+   pano. Depois da primeira navegação (`html[data-navigated]`) a página nova
+   já não tem cortina, e as palavras sobem logo. O `backwards` segura cada
+   palavra escondida durante a espera; quando a animação acaba fica o estado
+   normal — o título visível —, mesmo que o JavaScript nunca corra. */
+@media (prefers-reduced-motion: no-preference) {
+  .palavra-sobe {
+    animation: word-rise 0.85s var(--ease-out) var(--word-delay, 0ms) backwards;
+  }
+  html:not([data-navigated]) .palavra-sobe {
+    animation-delay: calc(var(--cortina-sobe) + var(--word-delay, 0ms));
+  }
+}
+
 /* ── Route transition — the ONLY page-change animation (View Transitions API is
    off; see PageTransition.tsx). A single opacity fade on the incoming page:
    OPACITY-ONLY (no translateY) so there's zero transform — nothing to create a

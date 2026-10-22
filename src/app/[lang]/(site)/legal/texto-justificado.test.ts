@@ -7,12 +7,13 @@ import { join } from "node:path";
  * bocado» (a ajuda por baixo da mensagem em /orcamento) e «na política de
  * privacidade também justifica o texto». Como nas páginas de serviços
  * (`servicos/texto-justificado.test.ts`): justificado e com hífen, para o
- * telemóvel não esticar os espaços. Os Termos ficam como estavam.
+ * telemóvel não esticar os espaços. E a 22/10: «sim, justifica também os
+ * termos e condições».
  */
 const site = join(process.cwd(), "src/app/[lang]/(site)");
 const ler = (f: string) => readFileSync(join(site, f), "utf8");
 
-describe("texto corrido justificado — orçamento e privacidade", () => {
+describe("texto corrido justificado — orçamento, privacidade e termos", () => {
   it("a ajuda da mensagem do orçamento", () => {
     expect(ler("orcamento/OrcamentoForm.tsx")).toMatch(
       /id="of-mensagem-hint"\s+className="[^"]*text-justify[^"]*hyphens-auto[^"]*"/,
@@ -23,8 +24,8 @@ describe("texto corrido justificado — orçamento e privacidade", () => {
     expect(ler("privacidade/page.tsx")).toMatch(/<LegalDocView doc=\{privacy\} justificado \/>/);
   });
 
-  it("os termos não", () => {
-    expect(ler("termos/page.tsx")).not.toMatch(/justificado/);
+  it("os termos também", () => {
+    expect(ler("termos/page.tsx")).toMatch(/<LegalDocView doc=\{terms\} justificado \/>/);
   });
 
   it("o justificado da vista legal leva o hífen", () => {
