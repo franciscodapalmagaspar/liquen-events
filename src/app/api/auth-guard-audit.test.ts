@@ -825,6 +825,10 @@ describe("a auditoria cobre TODAS as rotas de src/app/api", () => {
       // `doc` que o token abre. Uma rota que aceitasse caminhos serviria, com
       // o token de um casal, qualquer ficheiro da Biblioteca de Temas.
       "./proposta/[token]/foto/[id]/route",
+      // As páginas do PDF como imagens, e a sua contagem. Mesmo modelo de
+      // confiança do PDF: são o MESMO ficheiro, aos bocados.
+      "./proposta/[token]/pagina/[n]/route",
+      "./proposta/[token]/paginas/route",
       "./proposta/route",
       "./cron/reminders/route",
       // A cópia de segurança automática. Mesmo guarda das irmãs (Bearer com
@@ -963,6 +967,19 @@ describe("TOKEN-guarded routes deny a bad token", () => {
     const res = await fn(req("GET"), ctx());
     expect(res.status).toBe(404);
     expect(calls).toEqual([]); // nunca chegou à proposta nem ao gerador
+  });
+
+  it("GET /api/proposta/[token]/pagina/[n] e /paginas → 404 on a bad token", async () => {
+    // As páginas do PDF como imagens: um token forjado não abre nem desenha nada.
+    for (const rota of [
+      "./proposta/[token]/pagina/[n]/route",
+      "./proposta/[token]/paginas/route",
+    ]) {
+      const fn = await handler(rota, "GET");
+      const res = await fn(req("GET"), { params: Promise.resolve({ token: "bad-token", n: "1" }) });
+      expect(res.status).toBe(404);
+    }
+    expect(calls).toEqual([]);
   });
 
   it("GET /api/proposta/[token]/fotos → 404 on a bad token, e não assina nada", async () => {

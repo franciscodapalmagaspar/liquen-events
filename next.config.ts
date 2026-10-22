@@ -266,6 +266,28 @@ const nextConfig: NextConfig = {
       "./node_modules/@img/sharp-linux-x64/**/*",
       "./node_modules/@img/sharp-libvips-linux-x64/**/*",
     ],
+    /**
+     * As páginas do PDF da proposta, desenhadas no servidor (ver
+     * `src/lib/paginas-do-pdf.ts`). O pdf.js abre o `@napi-rs/canvas` com um
+     * `require` feito em tempo de execução, que o rastreador não vê — a mesma
+     * avaria do `sharp` acima. Só nesta rota: o binário são 33 MB, e as
+     * outras não o usam. (As letras-padrão o rastreador já apanha sozinho,
+     * pelo caminho escrito no código.)
+     *
+     * E o `pdf.worker.mjs`: em Node o pdf.js lê o ficheiro com um `import()`
+     * de um endereço guardado numa variável — também invisível. MEDIDO no
+     * rastreio do build: sem esta linha não ia.
+     *
+     * `*` e não `[token]`: a chave é um padrão, e `[token]` quer dizer «uma
+     * destas letras» — MEDIDO, a primeira versão não casava e o binário ficava
+     * de fora.
+     */
+    "/api/proposta/*/pagina/*": [
+      "./node_modules/@napi-rs/canvas/**/*",
+      "./node_modules/@napi-rs/canvas-linux-x64-gnu/**/*",
+      "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+    ],
+    "/api/proposta/*/paginas": ["./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"],
   },
 
   /**
@@ -367,6 +389,9 @@ const nextConfig: NextConfig = {
       "./node_modules/@img/sharp-wasm32/**/*",
       "./node_modules/@img/sharp-linuxmusl-x64/**/*",
       "./node_modules/@img/sharp-libvips-linuxmusl-x64/**/*",
+      // O desenhador das páginas da proposta traz o mesmo par: o `gnu` é o
+      // do Vercel, o `musl` não corre lá (29 MB).
+      "./node_modules/@napi-rs/canvas-linux-x64-musl/**/*",
     ],
   },
 

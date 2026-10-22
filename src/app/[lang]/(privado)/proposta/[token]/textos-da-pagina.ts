@@ -58,6 +58,14 @@ export interface TextosDaPagina {
   /** O aviso de que a galeria não abriu — sem fotografias não há nada a fazer. */
   semFotos: string;
 
+  /* ── O PDF NA PÁGINA (22/10) ──────────────────────────────────────────── */
+  /** Enquanto a primeira página do PDF chega. */
+  aAbrirAProposta: string;
+  /** O nome de cada página desenhada, para quem lê o ecrã: «Página {i} de {n}». */
+  paginaDe: string;
+  /** Quando o browser não conseguiu desenhar o PDF — fica o botão para o abrir. */
+  pdfNaoAbriu: string;
+
   /* ── AS ESCOLHAS DO CASAL (Fase 3) ─────────────────────────────────────── */
   /** O título da secção onde ela deixou alternativas. */
   escolhas: string;
@@ -176,6 +184,9 @@ const PT: TextosDaPagina = {
   nestaPagina: "Nesta página",
   inspiracao: "Inspiração",
   semFotos: "As fotografias desta secção não estão disponíveis neste momento.",
+  aAbrirAProposta: "A abrir a proposta…",
+  paginaDe: "Página {i} de {n}",
+  pdfNaoAbriu: "Não deu para mostrar a proposta aqui. Pode abri-la em PDF no botão abaixo.",
   escolhas: "À vossa escolha",
   escolhasIntro:
     "Deixámos aqui algumas alternativas. Escolham a que preferirem: podem mudar de ideias, e falamos sobre isso na mesma.",
@@ -214,6 +225,10 @@ const EN: TextosDaPagina = {
   nestaPagina: "On this page",
   inspiracao: "Inspiration",
   semFotos: "The photos in this section are not available right now.",
+  aAbrirAProposta: "Opening the proposal…",
+  paginaDe: "Page {i} of {n}",
+  pdfNaoAbriu:
+    "The proposal could not be shown here. You can open it as a PDF with the button below.",
   escolhas: "Yours to choose",
   escolhasIntro:
     "We have left a few alternatives here. Pick the one you prefer: you can change your mind, and we will talk it through anyway.",
