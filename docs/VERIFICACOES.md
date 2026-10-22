@@ -142,3 +142,23 @@ essa fila não existe.
 `decidir` olha para o PR inteiro, e este PR mexe no `.github/` — por isso todos
 os commits dele correm tudo. Mede-se no primeiro PR depois de este entrar, e o
 número fica aqui.
+
+## As pré-visualizações da Vercel só se constroem quando se pedem (22/10)
+
+A conta da Vercel é a grátis (Hobby). A 22/10 passou os limites — 17,35 GB de
+publicações guardadas (o limite são 10 GB) e 258 mil «ISR Writes» (o limite são
+200 mil) — e a Vercel **bloqueou todas as publicações de produção**: nada do que
+entrava no `main` chegava ao site, durante mais de um dia, sem aviso nenhum do
+lado do GitHub. Ela escolheu «ficar no grátis e emagrecer».
+
+- Cada push a um ramo de PR criava uma pré-visualização de centenas de MB. Agora
+  o `vercel.json` tem `ignoreCommand: node scripts/vercel-construir.mjs`:
+  **produção constrói sempre; uma pré-visualização só se constrói num ramo
+  `preview/…` ou com `[preview]` na mensagem do commit.**
+- Para pedir uma pré-visualização de um PR: um commit com `[preview]` na
+  mensagem, ou empurrar o mesmo commit também para `preview/<nome>`.
+- A página de cada serviço (`servicos/[slug]`) regenerava-se de 30 em 30 s — era a
+  origem das escritas ISR. Passou a uma vez por dia, e um teste impede outra rota
+  de ganhar `revalidate` sem se dizer.
+- **Antes de dizer «está no site»:** confirmar de fora. O `age` da resposta da
+  página inicial tem de ser pequeno e o HTML tem de trazer a mudança.
