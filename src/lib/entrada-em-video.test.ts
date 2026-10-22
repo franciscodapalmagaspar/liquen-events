@@ -3,7 +3,11 @@ import { execFileSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import {
   ANIMADA_MAX_BYTES,
+  AQUECER_ANTES_S,
   ARRANQUE_S,
+  MARGEM_DOS_SEGUINTES_S,
+  SEGUINTES_DEPOIS_DE_S,
+  prazoDosSeguintesMs,
   TAKE_DE_ENTRADA,
   MEDIR_REDE_MS,
   NUMERO_DE_VIDEOS,
@@ -213,6 +217,29 @@ describe("os vídeos da entrada — as regras", () => {
     expect(ligacaoLenta({ effectiveType: "slow-2g" })).toBe(true);
     expect(ligacaoLenta({ saveData: true })).toBe(true);
     expect(ligacaoLenta({ downlink: 0 })).toBe(false); // 0 = não sabe
+  });
+
+  /**
+   * Decisão dela (22/10): os seguintes esperam que o de entrada ande, mas
+   * com um prazo que deixa ao seguinte tempo de sobra para chegar inteiro.
+   */
+  it("o prazo dos seguintes: a duração do de entrada menos a margem, e 0 nos takes curtos", () => {
+    // A floresta (18,4 s): no máximo 6,4 s depois de ficar à vista.
+    expect(prazoDosSeguintesMs(18.4)).toBe(6400);
+    // Os takes de 11,6 s e de 4,2 s não esperam: começam logo, como antes.
+    expect(prazoDosSeguintesMs(11.6)).toBe(0);
+    expect(prazoDosSeguintesMs(4.24)).toBe(0);
+    // Sem duração conhecida: o comportamento de antes.
+    expect(prazoDosSeguintesMs(NaN)).toBe(0);
+    expect(prazoDosSeguintesMs(Infinity)).toBe(0);
+    expect(prazoDosSeguintesMs(0)).toBe(0);
+    // A espera normal (o de entrada a andar) acaba antes do prazo, e o prazo
+    // deixa ao seguinte pelo menos 7 s até ser preparado — o tempo de o
+    // descarregar inteiro numa rede razoável.
+    expect(SEGUINTES_DEPOIS_DE_S * 1000).toBeLessThan(prazoDosSeguintesMs(18.4));
+    expect(
+      MARGEM_DOS_SEGUINTES_S - AQUECER_ANTES_S - PASSAGEM_MS / 1000 - ARRANQUE_S,
+    ).toBeGreaterThanOrEqual(7);
   });
 
   it("a rede medida no arranque: menos de 1,3 s de vídeo por segundo de espera é lenta", () => {

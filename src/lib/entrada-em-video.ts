@@ -310,6 +310,61 @@ export function escolherPrimeiro(
  */
 export const AQUECER_ANTES_S = 3;
 
+/**
+ * ── OS SEGUINTES ESPERAM QUE O DE ENTRADA ANDE (decisão dela, 22/10) ───────
+ * A auditoria de 22/10, num telemóvel ao alto: nos primeiros 10 s a entrada
+ * descarregava ~5,8 MB de vídeo — 3,4 MB do take de entrada e ~2,4 MB dos
+ * seguintes, pedidos inteiros para a memória (`blob:`) logo que o de entrada
+ * chegava. MEDIDO no Chromium a 12 Mbit/s (390×844): o de entrada fica à
+ * vista aos ~2,0 s e os seguintes eram pedidos aos 4,1–5,2 s, ainda com o de
+ * entrada nos primeiros dois ou três segundos e a página a acabar de se
+ * montar (a fotografia, as letras, o JavaScript). Ela aceitou: «quero fazer
+ * isso tudo».
+ *
+ * O download inteiro antes da vez fica — foi o pedido dela de 16/10, para o
+ * vídeo nunca parar. Muda só QUANDO começa: depois de o de entrada ter andado
+ * `SEGUINTES_DEPOIS_DE_S` à vista (o tempo do próprio vídeo, não o do
+ * relógio: se ele encravar, a conta pára com ele), e num instante em que o
+ * browser esteja desocupado (`requestIdleCallback`, no máximo `OCIOSO_MAX_MS`).
+ *
+ * 5 s porque a passagem para o seguinte começa a 1,5 s do fim e o seguinte é
+ * preparado (o 1.º fotograma descodificado) a `AQUECER_ANTES_S` do fim: no take
+ * da floresta (18,4 s) ficam 10,4 s para o seguinte (o 2 ou o 3) chegar
+ * inteiro — ao alto, 0,6 ou 1,8 MB em WebM, 1,1 ou 3,4 MB em HEVC, 1,8 ou
+ * 4,6 MB em H.264. A 4 Mbit/s o maior leva ~9 s; a 12 Mbit/s, ~3 s. Uma rede
+ * mais lenta do que isso não passa por esta espera (ver `criarMotor`): é a
+ * versão leve, ou o aparelho diz que a ligação é lenta, e fica tudo como era.
+ * E se, ainda assim, o seguinte não chegar a tempo, o de entrada REPETE-SE
+ * (ver `passar`) — nunca pára.
+ */
+export const SEGUINTES_DEPOIS_DE_S = 5;
+
+/** O máximo que se espera por um instante desocupado do browser (o `timeout` do `requestIdleCallback`). */
+export const OCIOSO_MAX_MS = 1000;
+
+/**
+ * A margem que o prazo deixa ao seguinte: do fim do take de entrada para
+ * trás, o tempo de o descarregar inteiro numa rede razoável (~7 s), mais
+ * `AQUECER_ANTES_S` e o 1,5 s da passagem, arredondado para cima.
+ */
+export const MARGEM_DOS_SEGUINTES_S = 12;
+
+/**
+ * O PRAZO dos seguintes, em ms, contado de quando o take de entrada fica à
+ * vista a andar: aconteça o que acontecer (o de entrada encravado, a página
+ * fora do ecrã e o vídeo parado, um browser sem `requestIdleCallback` que
+ * nunca fica livre), os seguintes começam a descarregar no máximo aqui.
+ *
+ * É a duração do de entrada menos `MARGEM_DOS_SEGUINTES_S`: a floresta
+ * (18,4 s) dá 6,4 s; os takes de 11,6 s e de 4,2 s dão 0 — esses são curtos
+ * de mais para esperar, e começam logo, como antes de 22/10. Sem duração
+ * conhecida, 0 também: na dúvida, o comportamento de antes.
+ */
+export function prazoDosSeguintesMs(duracaoDoDeEntrada: number): number {
+  if (!Number.isFinite(duracaoDoDeEntrada) || duracaoDoDeEntrada <= 0) return 0;
+  return Math.max(0, Math.round((duracaoDoDeEntrada - MARGEM_DOS_SEGUINTES_S) * 1000));
+}
+
 /** O máximo que a cortina espera pelo vídeo, além do seu próprio tempo. */
 export const CORTINA_ESPERA_MAX_MS = 2500;
 

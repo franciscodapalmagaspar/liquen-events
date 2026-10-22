@@ -1,8 +1,7 @@
 "use client";
 
-import ReactDOM from "react-dom";
 import SafeImage, { type SafeImageProps } from "@/components/SafeImage";
-import { heroImageLoader, heroAvifSrcSet } from "@/lib/hero-image-loader";
+import { heroImageLoader } from "@/lib/hero-image-loader";
 
 /**
  * Thin wrapper around next/image for the full-bleed page heroes. It injects the
@@ -74,86 +73,42 @@ import { heroImageLoader, heroAvifSrcSet } from "@/lib/hero-image-loader";
  * e a rede de recuperação do `SafeImage` ficava do lado de lá a olhar, porque
  * ela vive no `<img>` e o `<img>` nem chegaria a ser escolhido.
  */
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O `<picture>` E O PRÉ-CARREGAMENTO MUDARAM-SE PARA O `SafeImage`
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Tudo o que está escrito acima continua a valer — só mudou de casa. O resto
+ * do sítio passou a querer o mesmo AVIF (os fundos de secção e os portefólios
+ * também têm gémeo em `/_img/`, e eram servidos em WebP), e escrever um
+ * segundo `<picture>` ao lado deste era a família paralela que o sistema de
+ * design manda não criar. Ficou UM mecanismo, no `SafeImage`, e este
+ * componente voltou a ser o que o nome diz: o `SafeImage` com a escada dos
+ * heróis até 2048 px.
+ *
+ * O que se manteve, para quem venha conferir:
+ *   · a salvaguarda — só há `<source>` quando há AVIF garantido para a origem
+ *     (agora em `siteImageAvifUrl`, que para um herói é o mesmo
+ *     `heroAvifUrl`), e o `SafeImage` confere ainda, candidato a candidato,
+ *     que o AVIF é o gémeo exacto do WebP que ESTE carregador serve;
+ *   · o pré-carregamento escrito à mão, com `ReactDOM.preload`, tipo AVIF, e o
+ *     do Next desligado — só quando há prioridade E AVIF;
+ *   · o `<picture>` posicionado com `fill`, sem caixa sem ele.
+ *
+ * A lista AVIF deixou de ser escrita à mão com `heroAvifSrcSet` e passou a
+ * sair da do próprio `<img>` (ver `fonteAvif` no `SafeImage`); para um herói a
+ * `sizes="100vw"`, que são todos, o resultado é a mesma escada de sempre —
+ * 640/1080/1536/2048 com esses descritores —, e o pré-carregamento leva a
+ * mesma lista que a `<source>`.
+ *
+ * E uma correcção que vem de graça: este `<picture>` embrulhava o `SafeImage`
+ * por fora, portanto a `<source>` ficava lá quando a rede passava ao ficheiro
+ * original — o browser continuava a escolhê-la pelo `type` e cada re-tentativa
+ * voltava a pedir o AVIF que tinha falhado. Agora a `<source>` sai na primeira
+ * falha, com o resto da escada.
+ */
 export default function HeroImage(props: Omit<SafeImageProps, "initialLoader">) {
-  const { priority, sizes, src, fill, ...resto } = props;
-  const avif = typeof src === "string" ? heroAvifSrcSet(src) : null;
-
-  // Declarado durante o render, que é como esta API se usa. O `href` é o maior
-  // degrau: serve de chave de deduplicação e de recurso para quem não perceba
-  // `imageSrcSet` — quem perceber escolhe pelo srcset e ignora-o.
-  if (avif && priority) {
-    const maior = avif.split(", ").pop()?.split(" ")[0] ?? "";
-    ReactDOM.preload(maior, {
-      as: "image",
-      type: "image/avif",
-      imageSrcSet: avif,
-      imageSizes: sizes,
-      fetchPriority: "high",
-    });
-  }
-
-  const imagem = (
-    // O `eslint-disable` do `jsx-a11y/alt-text` que aqui estava deixou de ser
-    // preciso: a regra só olha para `next/image`, e isto agora é o SafeImage.
-    <SafeImage
-      initialLoader={heroImageLoader}
-      src={src}
-      sizes={sizes}
-      fill={fill}
-      /**
-       * SÓ O HERÓI DE PRIORIDADE TROCA DE MECANISMO.
-       *
-       * A primeira versão disto aplicava `loading="eager"` a QUALQUER herói com
-       * AVIF, tivesse ele prioridade ou não. Hoje isso não muda nada em página
-       * nenhuma — contadas uma a uma, as 10 utilizações do `<HeroImage>` passam
-       * todas `priority`, porque um herói está sempre no topo da sua página. É
-       * uma armadilha, não um defeito à vista: o primeiro herói que alguém puser
-       * abaixo da dobra sem `priority` seria descarregado já, a roubar a ligação
-       * ao que está mesmo à frente dos olhos, e nada o denunciaria.
-       *
-       * (Foi assim que apareceu: fui verificar o HTML servido à procura de outra
-       * coisa. Ao escrever isto como "há heróis abaixo da dobra" estava a
-       * descrever um risco como se fosse um sintoma — não era, e fica corrigido.)
-       *
-       * Sem prioridade: nada muda, o `priority` do Next passa como sempre
-       * passou (`false`) e o `lazy` continua a decidir.
-       * Com prioridade e AVIF: o preload do Next é desligado — apontaria para o
-       * WebP que o `<picture>` não vai usar — e substituído pelo nosso, mais o
-       * `eager`/`high` que é o que o `priority` fazia de útil.
-       */
-      {...(avif && priority
-        ? { priority: false, loading: "eager" as const, fetchPriority: "high" as const }
-        : { priority })}
-      {...resto}
-    />
-  );
-
-  if (!avif) return imagem;
-
-  /**
-   * ── O `<picture>` TEM DE ESTAR POSICIONADO QUANDO A IMAGEM É `fill` ──────
-   *
-   * Uma imagem `fill` é `position: absolute; inset: 0`, logo cola-se ao
-   * antepassado POSICIONADO mais próximo. Este `<picture>` — que só existe por
-   * causa do AVIF — entrava no meio em `position: static` e passava esse papel
-   * para cima, para lá de si. O next/image dá pelo desvio e escreve-o na
-   * consola em todas as páginas com capa: «has "fill" and parent element with
-   * invalid "position". Provided "static"».
-   *
-   * Hoje as dez capas do sítio vivem todas dentro de uma caixa `absolute
-   * inset-0`, portanto a caixa a que a fotografia se agarrava media o mesmo
-   * que a certa e ninguém via nada — mas por acidente, não por desenho. Com
-   * `absolute inset-0` aqui, o `<picture>` volta a ser a caixa da imagem
-   * (mesmos pixels: cobre o pai de bordo a bordo) e sai do fluxo, onde, sendo
-   * um elemento em linha, ainda gerava uma linha de texto vazia.
-   *
-   * Só com `fill`: sem ele a imagem tem largura e altura próprias e ocupa
-   * lugar no fluxo — arrancá-la de lá encolheria a caixa que a segura.
-   */
-  return (
-    <picture className={fill ? "absolute inset-0" : undefined}>
-      <source type="image/avif" srcSet={avif} sizes={sizes} />
-      {imagem}
-    </picture>
-  );
+  // O `eslint-disable` do `jsx-a11y/alt-text` que aqui esteve deixou de ser
+  // preciso: a regra só olha para `next/image`, e isto é o SafeImage.
+  return <SafeImage initialLoader={heroImageLoader} {...props} />;
 }

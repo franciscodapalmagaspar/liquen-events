@@ -10,12 +10,14 @@ import EntradaEmVideo, {
   esquecerMotorDaSessao,
   porImagemAnimada,
 } from "./EntradaEmVideo";
-import { imagensAnimadas } from "@/lib/entrada-em-video";
+import { OCIOSO_MAX_MS, SEGUINTES_DEPOIS_DE_S, imagensAnimadas } from "@/lib/entrada-em-video";
 
 let play: ReturnType<typeof vi.fn>;
 let pausa: ReturnType<typeof vi.fn>;
 let tiposQueToca: string[];
 let vista: ((e: Array<{ isIntersecting: boolean }>) => void) | null;
+/** Os pedidos de «quando o browser estiver livre» ainda por atender (`requestIdleCallback`). */
+let ociosos: Array<{ cb: () => void; timeout?: number }>;
 
 beforeEach(() => {
   // A ordem dos vídeos é sorteada; aqui fixa-se em 1 → 2 → 3 (0,99 não troca
@@ -30,6 +32,14 @@ beforeEach(() => {
   // perguntar (`melhorFormato`), e o jsdom diz-se «Apple».
   Object.defineProperty(navigator, "vendor", { configurable: true, value: "" });
   vista = null;
+  // O `requestIdleCallback` do Chrome, com os pedidos guardados: o teste diz
+  // quando o browser fica livre (`ficarLivre`).
+  ociosos = [];
+  vi.stubGlobal("requestIdleCallback", (cb: () => void, o?: { timeout?: number }) => {
+    ociosos.push({ cb, timeout: o?.timeout });
+    return ociosos.length;
+  });
+  vi.stubGlobal("cancelIdleCallback", () => undefined);
   play = vi.fn(() => Promise.resolve());
   pausa = vi.fn();
   Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });
@@ -82,18 +92,31 @@ function descarregado(el: HTMLVideoElement, ate: number, dur = 18) {
   });
 }
 
+/** O browser ficou livre: atende os `requestIdleCallback` pendentes. */
+function ficarLivre() {
+  for (const { cb } of ociosos.splice(0)) act(() => cb());
+}
+
 /**
  * O take de entrada começa a tocar e já chegou inteiro. A ANDAR de verdade
  * (`paused` falso): o motor só põe à vista um vídeo que anda — um parado à
  * vista é onde o iPhone desenha o botão ▶.
+ *
+ * E, salvo `andou: false`, anda os `SEGUINTES_DEPOIS_DE_S` à vista e o browser
+ * fica livre — é a partir daí que os seguintes se preparam (decisão dela,
+ * 22/10). Os testes da espera em si usam `andou: false`.
  */
-function comecar(el: HTMLVideoElement) {
+function comecar(el: HTMLVideoElement, { andou = true }: { andou?: boolean } = {}) {
   descarregado(el, el.duration || 18);
   Object.defineProperty(el, "paused", { configurable: true, value: false });
   act(() => void el.dispatchEvent(new Event("playing")));
   act(() => void el.dispatchEvent(new Event("canplaythrough")));
   // Largado (tem reserva): volta a andar, e o browser avisa outra vez.
   act(() => void el.dispatchEvent(new Event("playing")));
+  if (!andou) return;
+  if (!(el.currentTime >= SEGUINTES_DEPOIS_DE_S)) el.currentTime = SEGUINTES_DEPOIS_DE_S;
+  act(() => void el.dispatchEvent(new Event("timeupdate")));
+  ficarLivre();
 }
 
 describe("EntradaEmVideo", () => {
@@ -912,9 +935,157 @@ describe("EntradaEmVideo", () => {
       act(() => void a.dispatchEvent(new Event("playing"))); // largado: anda
       act(() => void a.dispatchEvent(new Event("progress")));
       expect(pedidos).toEqual([]); // tem dados para seguir, mas ainda não todos
+      // Já andou o bastante à vista, e o browser está livre (22/10) — mas
+      // inteiro é que ainda não chegou: a espera nova só ACRESCENTA.
+      a.currentTime = SEGUINTES_DEPOIS_DE_S + 0.5;
+      act(() => void a.dispatchEvent(new Event("timeupdate")));
+      ficarLivre();
+      expect(pedidos).toEqual([]);
       descarregado(a, 18);
       act(() => void a.dispatchEvent(new Event("progress")));
       expect(pedidos).toHaveLength(1);
+    });
+
+    /**
+     * Decisão dela (22/10), da auditoria: nos primeiros 10 s a entrada
+     * descarregava ~5,8 MB — o take de entrada e, logo atrás, os seguintes,
+     * ainda com a página a montar-se. Os seguintes passam a esperar que o de
+     * entrada ande uns segundos à vista (e que o browser esteja livre), com um
+     * prazo que lhes deixa tempo de sobra para chegarem inteiros antes da vez.
+     */
+    describe("os seguintes esperam que o de entrada ande (22/10)", () => {
+      beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      });
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      /** A floresta (18,4 s), inteira, à vista a andar no seu 1.º instante. */
+      async function floresta() {
+        const r = await montar();
+        const [a, b, c] = videos(r.container);
+        Object.defineProperty(a, "duration", { configurable: true, value: 18.4 });
+        comecar(a, { andou: false });
+        return { ...r, a, b, c };
+      }
+      const anda = (a: HTMLVideoElement, t: number) => {
+        a.currentTime = t;
+        act(() => void a.dispatchEvent(new Event("timeupdate")));
+      };
+
+      it("nos primeiros instantes do de entrada, nenhum seguinte é pedido", async () => {
+        const { a } = await floresta();
+        expect(pedidos).toEqual([]);
+        anda(a, 1);
+        act(() => void vi.advanceTimersByTime(1000));
+        anda(a, 2.5);
+        act(() => void vi.advanceTimersByTime(1500));
+        anda(a, 4.9);
+        ficarLivre();
+        expect(pedidos).toEqual([]);
+        // Nem sequer se pediu ainda o instante livre: a espera é o vídeo andar.
+        expect(ociosos).toEqual([]);
+      });
+
+      it("andou os segundos à vista: pede-os no 1.º instante livre do browser (com tecto)", async () => {
+        const { a } = await floresta();
+        anda(a, SEGUINTES_DEPOIS_DE_S);
+        expect(pedidos).toEqual([]); // ainda à espera do instante livre…
+        expect(ociosos).toHaveLength(1);
+        expect(ociosos[0].timeout).toBe(OCIOSO_MAX_MS); // …que o browser não pode adiar mais do que isto
+        ficarLivre();
+        expect(pedidos).toEqual(["/videos/entrada/v6/entrada-2-paisagem.mp4"]);
+        // E um só pedido de instante livre, por muitos `timeupdate` que venham.
+        anda(a, SEGUINTES_DEPOIS_DE_S + 0.3);
+        expect(ociosos).toEqual([]);
+      });
+
+      it("no Safari (sem `requestIdleCallback`), andou: pede-os logo a seguir", async () => {
+        vi.stubGlobal("requestIdleCallback", undefined);
+        const { a } = await floresta();
+        anda(a, SEGUINTES_DEPOIS_DE_S);
+        expect(pedidos).toEqual([]);
+        act(() => void vi.advanceTimersByTime(0));
+        expect(pedidos).toHaveLength(1);
+      });
+
+      it("o prazo: parado (fora do ecrã, encravado), pede-os na mesma aos 6,4 s", async () => {
+        const { a } = await floresta();
+        // O de entrada não sai do 0 — a página foi rolada, ou o descodificador encravou.
+        act(() => void vi.advanceTimersByTime(6399));
+        expect(pedidos).toEqual([]);
+        act(() => void vi.advanceTimersByTime(1));
+        expect(pedidos).toEqual(["/videos/entrada/v6/entrada-2-paisagem.mp4"]);
+        expect(a.currentTime).toBe(0);
+      });
+
+      it("os takes curtos (11,6 s e 4,2 s) não esperam: pedem logo, como antes", async () => {
+        for (const d of [11.6, 4.24]) {
+          // Um separador novo, na 1.ª visita (o take de entrada é a floresta).
+          pedidos.length = 0;
+          esquecerMotorDaSessao();
+          cleanup();
+          localStorage.clear();
+          const { container } = await montar();
+          const [a] = videos(container);
+          Object.defineProperty(a, "duration", { configurable: true, value: d });
+          comecar(a, { andou: false });
+          expect(pedidos).toHaveLength(1);
+        }
+      });
+
+      it("a versão leve (rede fraca medida no arranque) não espera", async () => {
+        const { container } = await montar();
+        const [a] = videos(container);
+        Object.defineProperty(a, "duration", { configurable: true, value: 18.4 });
+        a.setAttribute("data-leve", "");
+        comecar(a, { andou: false });
+        expect(pedidos).toHaveLength(1);
+      });
+
+      it("com «Poupar dados», ou uma ligação que se diz lenta, não espera", async () => {
+        Object.defineProperty(navigator, "connection", {
+          configurable: true,
+          value: { saveData: true },
+        });
+        try {
+          await floresta();
+          expect(pedidos).toHaveLength(1);
+        } finally {
+          Reflect.deleteProperty(navigator, "connection");
+        }
+      });
+
+      it("com «reduzir movimento», não espera", async () => {
+        vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduced-motion") }));
+        await floresta();
+        expect(pedidos).toHaveLength(1);
+      });
+
+      it("pedido no prazo, chega inteiro à memória e a passagem faz-se dele, normalmente", async () => {
+        const { a, b } = await floresta();
+        act(() => void vi.advanceTimersByTime(6400));
+        expect(pedidos).toHaveLength(1);
+        responder(true);
+        await esperar();
+        // Na memória, mas ainda longe do fim: não se descodifica já.
+        anda(a, 10);
+        expect(b.getAttribute("src")).toBeNull();
+        // Perto do fim, aquece-se da memória…
+        anda(a, 15.5);
+        expect(b.getAttribute("src")).toBe("blob:take-1");
+        act(() => void b.dispatchEvent(new Event("canplaythrough")));
+        // …e a 1,5 s do fim arranca, e sobe por cima quando já anda.
+        play.mockClear();
+        anda(a, 16.9);
+        expect(play.mock.contexts).toContain(b);
+        act(() => void b.dispatchEvent(new Event("playing")));
+        act(() => void vi.advanceTimersByTime(1000));
+        expect(b.style.opacity).toBe("1");
+        expect(Number(b.style.zIndex)).toBeGreaterThan(Number(a.style.zIndex));
+        expect(a.loop).toBe(false);
+      });
     });
   });
 
