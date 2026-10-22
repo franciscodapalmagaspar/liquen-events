@@ -1436,7 +1436,7 @@ export default function OrcamentoForm({
               </FloatingField>
               <p
                 id="of-mensagem-hint"
-                className="mt-2.5 whitespace-pre-line text-justify hyphens-auto text-[12px] leading-relaxed text-foreground/70"
+                className="mt-2.5 whitespace-pre-line text-left text-pretty sm:text-justify hyphens-auto text-[12px] leading-relaxed text-foreground/70"
               >
                 {to.hintMensagem}
               </p>

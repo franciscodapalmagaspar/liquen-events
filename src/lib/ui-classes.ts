@@ -35,5 +35,10 @@ export const PRIMARY_BUTTON_DARK_CLASS = `${PRIMARY_BUTTON_BASE} shadow-xl shado
 // border colours and lifts the button 2 px (`translate`, composited) — the
 // lift is «Botões e cartões com mola», 22/10.
 // `ease-expo` (globals.css) is SpaceX's signature cubic-bezier(0.19,1,0.22,1).
+// No telemóvel, mais fino e mais pequeno — palavras dela (22/10): «coloca o
+// pedir orçamento mais fino e mais pequeno». Menos ar à volta, letra e
+// espaçamento um degrau abaixo; do `sm` para cima fica como estava. A caixa
+// desenhada fica com ~39 px de altura e o `after` invisível estende o toque
+// 3 px para cima e para baixo, para o dedo continuar a ter os 44 px.
 export const OUTLINE_LIGHT_BUTTON_CLASS =
-  "toque inline-flex items-center gap-3 px-8 py-3.5 border border-white/70 text-white text-[11px] tracking-[0.3em] uppercase hover:bg-white hover:text-[#0c0e0b] hover:border-white motion-safe:hover:-translate-y-0.5 transition-[color,background-color,border-color,translate] duration-300 ease-expo focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80";
+  "toque relative inline-flex items-center gap-3 px-6 py-3 sm:px-8 sm:py-3.5 border border-white/70 text-white text-[10px] sm:text-[11px] tracking-[0.24em] sm:tracking-[0.3em] uppercase after:absolute after:inset-x-0 after:-inset-y-[3px] after:content-[''] hover:bg-white hover:text-[#0c0e0b] hover:border-white motion-safe:hover:-translate-y-0.5 transition-[color,background-color,border-color,translate] duration-300 ease-expo focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80";
