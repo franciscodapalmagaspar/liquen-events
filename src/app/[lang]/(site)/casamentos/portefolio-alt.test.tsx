@@ -31,7 +31,11 @@ import { renderToStaticMarkup } from "react-dom/server";
  * outras — como já acontece na galeria de `/servicos/[slug]`.
  */
 
-vi.mock("next/image", () => ({
+vi.mock("next/image", async (importOriginal) => ({
+  // O `getImageProps` é o verdadeiro: o `SafeImage` usa-o para escrever a
+  // `<source>` AVIF das fotografias (ver `fonteAvif`), e não há nada nele para
+  // fingir — é uma conta pura sobre as props.
+  getImageProps: (await importOriginal<typeof import("next/image")>()).getImageProps,
   // Passthrough simples: o que importa aqui é o `alt` que chega ao `<img>`,
   // não o comportamento de optimização do next/image. Descarta as props que
   // o next/image entende mas o DOM não (só ruído nos avisos do teste).

@@ -174,6 +174,17 @@ self.addEventListener("activate", (event) => {
       await Promise.all(
         keys.filter((k) => k !== CACHE && k !== CACHE_FOTOS).map((k) => caches.delete(k)),
       );
+      // ── O PEDIDO DA PÁGINA PARTE ENQUANTO ESTE GUIÃO ACORDA (22/10) ──────
+      // Sem isto, abrir uma página com o service worker a dormir esperava que
+      // ele arrancasse (50–250 ms num Android, estimado pela auditoria) e só
+      // DEPOIS pedia a página à rede. Com a pré-carga das navegações, o
+      // browser pede-a logo, em paralelo, e o ramo das navegações (em baixo)
+      // usa essa resposta. Onde não existe (Safari antigo), nada muda.
+      try {
+        await self.registration?.navigationPreload?.enable();
+      } catch {
+        /* sem pré-carga: o ramo das navegações faz o `fetch` como sempre */
+      }
       await self.clients.claim();
     })()
   );
@@ -291,7 +302,12 @@ self.addEventListener("fetch", (event) => {
   // Navigations: network-first with a cached fallback, then the offline shell.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
+      // A resposta que o browser já pediu enquanto o guião acordava (ver o
+      // `activate`), ou a rede como sempre. Uma pré-carga que falhou cai no
+      // `fetch` — e só depois no que está guardado.
+      Promise.resolve(event.preloadResponse)
+        .catch(() => undefined)
+        .then((pre) => pre || fetch(request))
         .then((res) => {
           if (vaiParaOInvolucro(res)) {
             const copy = res.clone();
