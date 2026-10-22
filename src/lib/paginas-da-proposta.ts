@@ -15,9 +15,43 @@ import type { ProposalDoc } from "@/lib/proposal-doc";
  *
  * `null` para tudo o que não tenha documento: o link não revela se existe.
  */
-export async function pdfDoLink(
-  token: string,
-): Promise<{ chave: string; obterBytes: () => Promise<Uint8Array> } | null> {
+type PdfDoLink = { chave: string; obterBytes: () => Promise<Uint8Array> } | null;
+
+/**
+ * ── UMA LEITURA POR LINK, E NÃO UMA POR PÁGINA ─────────────────────────────
+ *
+ * Cada página é um pedido próprio, e cada pedido resolvia o link de novo — 2–3
+ * idas à base de dados, incluindo a lista das revisões do pedido. Uma proposta
+ * de 14 páginas eram ~45 consultas por abertura. Guarda-se a resposta durante
+ * um minuto, por processo.
+ *
+ * O preço, e porque é aceitável: um link cortado ou uma revisão nova levam até
+ * um minuto a chegar às IMAGENS. A página em si e o botão do PDF continuam a
+ * resolver o link a cada pedido, como sempre.
+ */
+const VALIDADE_MS = 60_000;
+const lidos = new Map<string, { ate: number; valor: Promise<PdfDoLink> }>();
+
+export function pdfDoLink(token: string): Promise<PdfDoLink> {
+  const agora = Date.now();
+  const ja = lidos.get(token);
+  if (ja && ja.ate > agora) return ja.valor;
+  const valor = lerPdfDoLink(token);
+  lidos.set(token, { ate: agora + VALIDADE_MS, valor });
+  // Uma leitura que falhou não fica guardada.
+  valor.catch(() => lidos.delete(token));
+  if (lidos.size > 200) {
+    for (const [t, l] of lidos) if (l.ate <= agora) lidos.delete(t);
+  }
+  return valor;
+}
+
+/** Só para os testes. */
+export function esquecerLinksLidos(): void {
+  lidos.clear();
+}
+
+async function lerPdfDoLink(token: string): Promise<PdfDoLink> {
   const proposta = (await propostaDoLink(token))?.proposta;
   if (!proposta?.doc) return null;
   const doc = proposta.doc;

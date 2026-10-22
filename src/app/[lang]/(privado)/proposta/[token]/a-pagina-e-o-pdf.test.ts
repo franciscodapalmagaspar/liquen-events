@@ -47,6 +47,16 @@ describe("a proposta online é o próprio PDF", () => {
     expect(visor).toMatch(/dynamic\(\(\) => import\("\.\/PaginasNoBrowser"\), \{ ssr: false \}\)/);
   });
 
+  it("todas as páginas vêm no HTML com o lugar reservado — nada empurra as escolhas", () => {
+    // MEDIDO antes: CLS 0,29 em 4G lento, porque as páginas 2+ só nasciam
+    // depois de o React perguntar quantas eram.
+    expect(pagina).toMatch(/previstas=\{paginasDoPlano\(proposal\.doc\)\}/);
+    const visor = semComentarios(ler("PaginasDoPdf.tsx"));
+    expect(visor).toMatch(/paginas\?\.length \?\? Math\.max\(1, previstas\)/);
+    // Uma página a mais na previsão (404) não manda a proposta inteira para o pdf.js.
+    expect(visor).toMatch(/onError=\{i === 1 \? \(\) => setNoBrowser\(true\) : undefined\}/);
+  });
+
   it("a rede (o pdf.js no browser) é a versão legacy, aos pedaços", () => {
     const visor = semComentarios(ler("PaginasNoBrowser.tsx"));
     expect(visor).toMatch(/import\("pdfjs-dist\/legacy\/build\/pdf\.mjs"\)/);

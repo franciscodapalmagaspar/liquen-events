@@ -9,6 +9,7 @@ import { idiomaDaProposta } from "@/lib/proposta-idioma";
 import { fotosDaProposta } from "@/lib/proposta-fotos";
 import { getQuote } from "@/lib/quotes-store";
 import { chaveDasPaginas, versaoDaChave } from "@/lib/paginas-da-proposta";
+import { paginasDoPlano } from "@/lib/pdf-editorial/plano";
 import { log } from "@/lib/logger";
 import PaginasDoPdf from "./PaginasDoPdf";
 import EscolhasDoDocumento from "./EscolhasDoDocumento";
@@ -560,6 +561,7 @@ export default async function ProposalPage({
             <PaginasDoPdf
               base={`/api/proposta/${encodeURIComponent(token)}`}
               v={versaoDaChave(chaveDasPaginas(proposal.id, proposal.doc, locale))}
+              previstas={paginasDoPlano(proposal.doc)}
               textos={textosDaPagina(locale)}
             />
             <EscolhasDoDocumento

@@ -20,10 +20,15 @@ import { contar } from "./textos-da-pagina";
  * imagens, e a primeira está no HTML desde o primeiro byte: o browser pede-a
  * antes de o JavaScript da página sequer chegar.
  *
- *   · A primeira página não espera por nada (nem pelo React): `<img>` com a
- *     prioridade alta, no tamanho de uma folha, para nada saltar quando chega.
- *   · As outras chegam com a contagem (`/paginas`) e pedem-se quando se
- *     aproximam do ecrã (`loading="lazy"`).
+ *   · Todas as páginas vêm no HTML, com o lugar já reservado: o servidor conta-as
+ *     pelo `planoDaProposta` (o mesmo que o estúdio usa, preso ao PDF por um
+ *     teste). MEDIDO antes disto (4G lento): as páginas 2 em diante só nasciam
+ *     depois de o React acordar e perguntar quantas eram, e empurravam as
+ *     escolhas para baixo — CLS 0,29, acima do 0,1 que conta como «mau».
+ *   · A primeira não espera por nada (prioridade alta); as outras pedem-se
+ *     quando se aproximam do ecrã (`loading="lazy"`), também antes do React.
+ *   · A contagem verdadeira (`/paginas`) chega depois e corrige a prevista se
+ *     for diferente — uma proposta antiga, desenhada por outro gerador.
  *   · O `srcset` deixa o browser escolher a largura que o ecrã precisa.
  *   · O texto de cada página fica para o leitor de ecrã — a imagem é só imagem.
  *
@@ -48,12 +53,15 @@ type Pagina = { proporcao: number; texto: string };
 export default function PaginasDoPdf({
   base,
   v,
+  previstas,
   textos,
 }: {
   /** `/api/proposta/<token>` */
   base: string;
   /** A versão do conteúdo, para as imagens se guardarem no telemóvel. */
   v: string;
+  /** Quantas páginas o servidor prevê (`planoDaProposta`), para as reservar já. */
+  previstas: number;
   textos: { aAbrirAProposta: string; paginaDe: string; pdfNaoAbriu: string };
 }) {
   const [paginas, setPaginas] = useState<Pagina[] | null>(null);
@@ -81,7 +89,7 @@ export default function PaginasDoPdf({
     return <PaginasNoBrowser url={`${base}/pdf`} textos={textos} />;
   }
 
-  const n = paginas?.length ?? 0;
+  const n = paginas?.length ?? Math.max(1, previstas);
   const imagem = (i: number) => {
     const src = (w: number) => `${base}/pagina/${i}?w=${w}&v=${v}`;
     return { src: src(1200), srcSet: LARGURAS.map((w) => `${src(w)} ${w}w`).join(", ") };
@@ -89,7 +97,7 @@ export default function PaginasDoPdf({
 
   return (
     <div className="flex flex-col gap-3 sm:gap-5">
-      {[0, ...(paginas ? paginas.slice(1).map((_, k) => k + 1) : [])].map((k) => {
+      {Array.from({ length: n }, (_, k) => {
         const i = k + 1;
         const p = paginas?.[k];
         return (
@@ -103,11 +111,14 @@ export default function PaginasDoPdf({
               ref={i === 1 ? primeira : undefined}
               {...imagem(i)}
               sizes={TAMANHOS}
-              alt={n ? contar(textos.paginaDe, i, n) : textos.aAbrirAProposta}
+              alt={contar(textos.paginaDe, i, n)}
               loading={i === 1 ? "eager" : "lazy"}
               fetchPriority={i === 1 ? "high" : "auto"}
               decoding="async"
-              onError={() => setNoBrowser(true)}
+              // Só a primeira manda desenhar no browser: uma página a mais na
+              // contagem prevista dá 404 e não pode deitar abaixo as outras —
+              // a contagem verdadeira tira-a logo a seguir.
+              onError={i === 1 ? () => setNoBrowser(true) : undefined}
               className="absolute inset-0 block h-full w-full"
             />
             {p?.texto ? <figcaption className="sr-only">{p.texto}</figcaption> : null}
