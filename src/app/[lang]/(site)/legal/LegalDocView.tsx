@@ -1,6 +1,7 @@
 import AnimateIn from "@/components/AnimateIn";
 import { staggerMs } from "@/lib/motion/tokens";
 import type { LegalDoc } from "./legal-content";
+import { hifenizar } from "@/lib/hifenizar";
 
 // Shared, elegant renderer for a legal document (privacy / terms). Editorial
 // column, Playfair headings, AA-contrast body — consistent with the rest of the
@@ -12,11 +13,20 @@ import type { LegalDoc } from "./legal-content";
 export default function LegalDocView({
   doc,
   justificado = false,
+  idioma = "pt",
 }: {
   doc: LegalDoc;
   justificado?: boolean;
+  /** A língua do texto, para as sílabas se partirem pelas regras certas. */
+  idioma?: string;
 }) {
-  const corrido = justificado ? " text-justify hyphens-auto" : "";
+  // No telemóvel à esquerda (`text-pretty` equilibra a margem), justificado só
+  // a partir do `sm`: palavras dela a 22/10, com a captura do iPhone — «o
+  // texto está espaçado… tem que estar normal». Numa coluna de 340 px o
+  // justificado abre buracos mesmo com as sílabas marcadas.
+  const corrido = justificado ? " text-left text-pretty sm:text-justify hyphens-auto" : "";
+  // Justificado sem sílabas marcadas abre buracos no iPhone — ver `hifenizar`.
+  const texto = (t: string) => (justificado ? hifenizar(t, idioma) : t);
   return (
     <section className="bg-surface">
       <div className="max-w-3xl mx-auto px-6 lg:px-8 pt-40 pb-24 lg:pb-32">
@@ -33,7 +43,7 @@ export default function LegalDocView({
           <p
             className={`text-foreground/72 text-base leading-[1.85] border-t border-foreground/10 pt-8${corrido}`}
           >
-            {doc.intro}
+            {texto(doc.intro)}
           </p>
         </AnimateIn>
 
@@ -53,7 +63,7 @@ export default function LegalDocView({
                       key={j}
                       className={`text-foreground/72 text-[15px] leading-[1.85]${corrido}`}
                     >
-                      {p}
+                      {texto(p)}
                     </p>
                   ))}
                 </div>

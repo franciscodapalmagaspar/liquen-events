@@ -13,6 +13,7 @@ import { pageMetadata } from "@/lib/page-metadata";
 import { getDictionary, normalizeLocale, localizeHref, type Locale } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
+import { hifenizar } from "@/lib/hifenizar";
 
 export async function generateMetadata({
   params,
@@ -333,8 +334,8 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
               >
                 {ts.seoTitle}
               </h2>
-              <p className="text-cream/75 text-sm lg:text-base leading-[1.8] max-w-xl text-justify hyphens-auto">
-                {ts.seoText}
+              <p className="text-cream/75 text-sm lg:text-base leading-[1.8] max-w-xl text-left text-pretty sm:text-justify hyphens-auto">
+                {hifenizar(ts.seoText, locale)}
               </p>
             </AnimateIn>
           </div>

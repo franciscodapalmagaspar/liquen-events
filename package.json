@@ -59,6 +59,7 @@
     "@supabase/supabase-js": "^2.106.2",
     "@types/nodemailer": "^8.0.0",
     "bcryptjs": "^3.0.3",
+    "hyphen": "^1.14.1",
     "next": "16.3.8",
     "nodemailer": "^10.0.13",
     "ogl": "^1.0.11",
