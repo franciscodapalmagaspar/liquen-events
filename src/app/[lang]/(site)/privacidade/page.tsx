@@ -36,7 +36,7 @@ export default async function PrivacidadePage({ params }: { params: Promise<{ la
         homeName={t.nav.inicio}
         items={[{ name: privacy.title, path: "/privacidade" }]}
       />
-      <LegalDocView doc={privacy} justificado />
+      <LegalDocView doc={privacy} justificado idioma={locale} />
     </>
   );
 }

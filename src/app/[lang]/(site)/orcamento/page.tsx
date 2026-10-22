@@ -4,6 +4,7 @@ import { BreadcrumbJsonLd } from "@/components/JsonLd";
 import { pageMetadata } from "@/lib/page-metadata";
 import { blurFor } from "@/lib/blur";
 import { getDictionary, normalizeLocale } from "@/lib/i18n";
+import { hifenizar } from "@/lib/hifenizar";
 
 // The form's decorative left-panel image. Its blur placeholder is resolved here
 // (server-side) so the blur-map JSON never ships to the client with the form.
@@ -36,7 +37,14 @@ export default async function OrcamentoPage({ params }: { params: Promise<{ lang
         homeName={t.nav.inicio}
         items={[{ name: t.nav.orcamento, path: "/orcamento" }]}
       />
-      <OrcamentoForm panelBlur={blurFor(PANEL_IMG).blurDataURL} orcamento={t.orcamento} />
+      <OrcamentoForm
+        panelBlur={blurFor(PANEL_IMG).blurDataURL}
+        orcamento={{
+          ...t.orcamento,
+          // Justificado: as sílabas marcam-se aqui, no servidor — ver `hifenizar`.
+          hintMensagem: hifenizar(t.orcamento.hintMensagem, locale),
+        }}
+      />
     </>
   );
 }

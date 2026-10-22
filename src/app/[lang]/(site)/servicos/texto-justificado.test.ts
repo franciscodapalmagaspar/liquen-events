@@ -25,11 +25,15 @@ describe("páginas de serviços — texto corrido justificado", () => {
   });
 
   it("as respostas das perguntas frequentes", () => {
-    expect(servico).toMatch(/<p className="[^"]*text-justify[^"]*">\s*\{f\.a\}\s*<\/p>/);
+    expect(servico).toMatch(
+      /<p className="[^"]*text-justify[^"]*">\s*\{hifenizar\(f\.a, locale\)\}\s*<\/p>/,
+    );
   });
 
   it("o texto do bloco de SEO da lista", () => {
-    expect(lista).toMatch(/<p className="[^"]*text-justify[^"]*">\s*\{ts\.seoText\}/);
+    expect(lista).toMatch(
+      /<p className="[^"]*text-justify[^"]*">\s*\{hifenizar\(ts\.seoText, locale\)\}/,
+    );
   });
 
   it("todo o texto justificado parte as palavras com hífen", () => {
@@ -38,6 +42,24 @@ describe("páginas de serviços — texto corrido justificado", () => {
       expect(classes.length).toBeGreaterThan(0);
       for (const c of classes) expect(c).toContain("hyphens-auto");
     }
+  });
+
+  it("no telemóvel à esquerda, justificado só a partir do `sm`", () => {
+    // «O texto está espaçado… tem que estar normal» (22/10): numa coluna de
+    // telemóvel o justificado abre buracos mesmo com as sílabas marcadas.
+    for (const ficheiro of [servico, lista]) {
+      const classes = ficheiro.match(/className="[^"]*text-justify[^"]*"/g) ?? [];
+      for (const c of classes) {
+        expect(c).toContain("text-left text-pretty sm:text-justify");
+        expect(c).not.toMatch(/(^|[" ])text-justify/);
+      }
+    }
+  });
+
+  it("e as sílabas vêm marcadas do servidor — o iPhone não parte português sozinho", () => {
+    // A introdução passa pelo `emphasize`, que hifeniza cada pedaço.
+    expect(servico).toMatch(/emphasize\(p, locale\)/);
+    expect(servico).toMatch(/hifenizar\(part, locale\)/);
   });
 
   it("o fecho centrado continua centrado", () => {

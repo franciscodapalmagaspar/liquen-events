@@ -21,14 +21,27 @@ describe("texto corrido justificado — orçamento, privacidade e termos", () =>
   });
 
   it("a política de privacidade pede o texto justificado", () => {
-    expect(ler("privacidade/page.tsx")).toMatch(/<LegalDocView doc=\{privacy\} justificado \/>/);
+    expect(ler("privacidade/page.tsx")).toMatch(
+      /<LegalDocView doc=\{privacy\} justificado idioma=\{locale\} \/>/,
+    );
   });
 
   it("os termos também", () => {
-    expect(ler("termos/page.tsx")).toMatch(/<LegalDocView doc=\{terms\} justificado \/>/);
+    expect(ler("termos/page.tsx")).toMatch(
+      /<LegalDocView doc=\{terms\} justificado idioma=\{locale\} \/>/,
+    );
+  });
+
+  it("a vista legal e a ajuda do orçamento levam as sílabas marcadas do servidor", () => {
+    expect(ler("legal/LegalDocView.tsx")).toMatch(/justificado \? hifenizar\(t, idioma\) : t/);
+    expect(ler("orcamento/page.tsx")).toMatch(
+      /hintMensagem: hifenizar\(t\.orcamento\.hintMensagem, locale\)/,
+    );
   });
 
   it("o justificado da vista legal leva o hífen", () => {
-    expect(ler("legal/LegalDocView.tsx")).toMatch(/"\s*text-justify hyphens-auto"/);
+    expect(ler("legal/LegalDocView.tsx")).toMatch(
+      /"\s*text-left text-pretty sm:text-justify hyphens-auto"/,
+    );
   });
 });

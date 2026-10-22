@@ -16,6 +16,7 @@ import { pickServiceGallery } from "@/lib/service-gallery";
 import { getDictionary, localizeHref, normalizeLocale } from "@/lib/i18n";
 import { PRIMARY_BUTTON_CLASS, OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
+import { hifenizar } from "@/lib/hifenizar";
 
 /**
  * A secção de portefólio sorteia as fotos a cada desenho, por isso a página é
@@ -51,14 +52,16 @@ const GALLERY_SPANS = [
 // alternativa morta numa expressão regular é uma armadilha para quem lá
 // mexer a seguir.
 const EMPHASIS = /(Líquen Events)/g;
-function emphasize(text: string) {
+function emphasize(text: string, locale: string) {
+  // Cada pedaço é hifenizado DEPOIS do corte: as frases a destacar procuram-se
+  // no texto limpo, e um hífen invisível pelo meio fazia-as falhar.
   return text.split(EMPHASIS).map((part, i) =>
     i % 2 === 1 ? (
       <strong key={i} className="text-foreground/75 font-medium">
-        {part}
+        {hifenizar(part, locale)}
       </strong>
     ) : (
-      part
+      hifenizar(part, locale)
     ),
   );
 }
@@ -230,12 +233,12 @@ export default async function ServiceDetailPage({
       <section className="py-20 lg:py-28 bg-surface">
         <div className="max-w-7xl mx-auto px-6 lg:px-16 grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-16">
           <AnimateIn>
-            <div className="flex flex-col gap-6 text-foreground/72 text-[16px] leading-[1.8] text-justify hyphens-auto">
+            <div className="flex flex-col gap-6 text-foreground/72 text-[16px] leading-[1.8] text-left text-pretty sm:text-justify hyphens-auto">
               {/* Todos os parágrafos com o mesmo corpo e a mesma cor: o primeiro
                   vinha maior e mais escuro, e a mudança de tamanho a meio do
                   texto lia-se como se fossem duas coisas diferentes. */}
               {svc.intro.map((p, i) => (
-                <p key={i}>{emphasize(p)}</p>
+                <p key={i}>{emphasize(p, locale)}</p>
               ))}
               <TrackedLink
                 href={orcamentoHref}
@@ -438,8 +441,8 @@ export default async function ServiceDetailPage({
                   <h3 className="text-white text-base font-bold uppercase tracking-display mb-3">
                     {f.q}
                   </h3>
-                  <p className="text-white/80 text-sm leading-[1.9] text-justify hyphens-auto">
-                    {f.a}
+                  <p className="text-white/80 text-sm leading-[1.9] text-left text-pretty sm:text-justify hyphens-auto">
+                    {hifenizar(f.a, locale)}
                   </p>
                 </div>
               ))}
