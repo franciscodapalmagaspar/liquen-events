@@ -36,7 +36,7 @@ export default async function TermosPage({ params }: { params: Promise<{ lang: s
         homeName={t.nav.inicio}
         items={[{ name: terms.title, path: "/termos" }]}
       />
-      <LegalDocView doc={terms} />
+      <LegalDocView doc={terms} justificado />
     </>
   );
 }
