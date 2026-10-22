@@ -44,33 +44,24 @@ const CSS = readFileSync("src/app/globals.css", "utf8");
 const semComentarios = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
 describe("a abertura da proposta", () => {
-  it("o relógio dela sai no MESMO jacto que a cortina, e não com o documento", () => {
+  it("o relógio dela sai no primeiro jacto, no layout, e não com o documento", () => {
     const codigo = semComentarios(LAYOUT);
     expect(codigo, "o invólucro da abertura saiu do layout").toContain('className="prop-abertura"');
     expect(
-      codigo.indexOf("prop-abertura"),
-      "o invólucro tem de vir DEPOIS da cortina — os dois no mesmo jacto",
-    ).toBeGreaterThan(codigo.indexOf("<Cortina"));
-    expect(
       semComentarios(PAGINA),
-      "a entrada voltou para a página, que chega num jacto posterior ao da cortina",
+      "a entrada voltou para a página, que chega num jacto posterior",
     ).not.toMatch(/\bprop-folha\b/);
   });
 
-  it("não gasta o gesto debaixo do pano", () => {
+  it("sem cortina na proposta, a entrada não espera por ela (22/10, «Sai só na proposta»)", () => {
     /**
-     * O atraso extra não é um gosto: é a diferença entre o instante em que o
-     * pano começa a subir e o instante em que a página já está a ser vista.
-     * Abaixo de 100 ms o gesto volta a acontecer às escondidas; acima de 135
-     * começa depois de a faixa dos nomes já ter sido descoberta, e perde-se a
-     * ligação entre uma coisa e a outra.
+     * Esperar por `--cortina-sobe` sem pano à frente era a página ficar 2 s
+     * deslocada à vista e mexer-se quando o casal já lia.
      */
+    expect(semComentarios(LAYOUT), "a cortina voltou à proposta").not.toMatch(/<Cortina\b/);
     const regra = /\.prop-abertura \{[\s\S]*?\n {2}\}/.exec(CSS)?.[0] ?? "";
     expect(regra, "desapareceu a regra da abertura").not.toBe("");
-    const extra = /--cortina-sobe\)\s*\+\s*(\d+)ms/.exec(regra)?.[1];
-    expect(extra, "a abertura voltou a arrancar no mesmo instante que o pano").toBeDefined();
-    expect(Number(extra)).toBeGreaterThanOrEqual(100);
-    expect(Number(extra)).toBeLessThanOrEqual(135);
+    expect(regra).not.toMatch(/--cortina/);
   });
 
   it("`backwards` e nunca `forwards` — não fica um bloco de contenção montado", () => {

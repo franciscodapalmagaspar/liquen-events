@@ -86,6 +86,11 @@ export default function ADescarregarAProposta() {
          * Quem nomeia a espera é o `aria-busy` lá em cima e, para os olhos, a
          * cortina. Não faz falta um segundo movimento por baixo de uma coisa
          * opaca.
+         *
+         * Desde 22/10 a proposta já não tem cortina («Sai só na proposta»), e
+         * este esqueleto passa a ver-se. Fica quieto na mesma: a espera dura
+         * pouco (a página e a primeira folha chegam juntas), e uma forma
+         * parada no sítio da página real não pisca quando ela chega.
          */
         className="w-full max-w-5xl flex flex-col items-center"
       >
