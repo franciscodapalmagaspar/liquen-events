@@ -34,7 +34,12 @@ import { achatar, racioDeContraste } from "./contraste-do-texto.test";
  */
 
 const RAIZ = join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin");
-const CSS = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+// O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+// todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+// o browser os aplica no back office.
+const CSS =
+  readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8") +
+  readFileSync(join(process.cwd(), "src/app/admin.css"), "utf8");
 
 const AA = 4.5;
 type RGB = [number, number, number];

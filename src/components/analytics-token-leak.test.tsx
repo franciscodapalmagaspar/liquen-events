@@ -41,22 +41,39 @@ const pathname = vi.hoisted(() => ({ value: "/galeria" }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathname.value }));
 
 // next/script é um componente cliente com agendamento próprio; para este teste
-// só interessa SE é renderizado e com que src.
+// só interessa SE é renderizado e com que src. (Já só o `Analytics` passa por
+// ele — o `GoogleTag` acrescenta a biblioteca por conta própria.)
 vi.mock("next/script", () => ({
   default: (props: Record<string, unknown>) => <script data-testid="next-script" {...props} />,
 }));
 
-import GoogleTag, { bootstrapGtag, safeLocationHref, GA4_ID, GOOGLE_ADS_ID } from "./GoogleTag";
+import GoogleTag, {
+  bootstrapGtag,
+  safeLocationHref,
+  GA4_ID,
+  GOOGLE_ADS_ID,
+  GTAG_SRC,
+} from "./GoogleTag";
 import Analytics from "./Analytics";
+
+/**
+ * A biblioteca deixou de ser desenhada pelo `next/script` (que punha um
+ * `<link rel="preload">` no `<head>` — ver `carregarGtag`): é o efeito do
+ * componente que a acrescenta ao `<body>`, depois da hidratação. Por isso
+ * procura-se no DOCUMENTO, e não no `container` do componente. A pergunta é a
+ * mesma de sempre: o gtag.js entrou nesta rota, ou não?
+ */
+const gtagNoDocumento = () => document.querySelector(`script[src="${GTAG_SRC}"]`);
 
 describe("GoogleTag — não é montado nas rotas com token", () => {
   beforeEach(() => {
     pathname.value = "/galeria";
+    gtagNoDocumento()?.remove();
   });
 
   it("monta normalmente numa rota pública", () => {
     const { container } = render(<GoogleTag />);
-    expect(container.innerHTML).toContain("googletagmanager.com/gtag/js");
+    expect(gtagNoDocumento()).not.toBeNull();
     expect(container.innerHTML).toContain("consent");
   });
 
@@ -66,18 +83,20 @@ describe("GoogleTag — não é montado nas rotas com token", () => {
     expect(container.innerHTML).toBe("");
     expect(container.innerHTML).not.toContain(PORTAL_TOKEN);
     expect(container.innerHTML).not.toContain("googletagmanager");
+    expect(gtagNoDocumento()).toBeNull();
   });
 
   it("não renderiza NADA em /proposta/<token>, nem com prefixo de idioma", () => {
     pathname.value = `/en/proposta/${PROPOSAL_TOKEN}`;
     const { container } = render(<GoogleTag />);
     expect(container.innerHTML).toBe("");
+    expect(gtagNoDocumento()).toBeNull();
   });
 
   it("continua montado após a reescrita do proxy numa rota normal (/pt/galeria)", () => {
     pathname.value = "/pt/galeria";
-    const { container } = render(<GoogleTag />);
-    expect(container.innerHTML).toContain("googletagmanager.com/gtag/js");
+    render(<GoogleTag />);
+    expect(gtagNoDocumento()).not.toBeNull();
   });
 
   it("o bootstrap sanitiza o page_location em vez de mandar o href inteiro", () => {

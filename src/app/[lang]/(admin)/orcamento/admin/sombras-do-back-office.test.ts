@@ -116,7 +116,12 @@ describe("as sombras do back office", () => {
   });
 
   it("define as sombras com nome, e mais nenhuma, em globals.css", () => {
-    const css = semComentarios(readFileSync("src/app/globals.css", "utf8"));
+    // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+    // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+    // o browser os aplica no back office.
+    const css = semComentarios(
+      readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8"),
+    );
     expect(css).toContain("--bo-sombra-suspensa:");
     expect(css).toContain("--bo-sombra-modal:");
     // As do cartão são feitas das MESMAS tintas: é isso que lhes dá o modo
@@ -137,7 +142,12 @@ describe("as sombras do back office", () => {
   });
 
   it("deixa `.bo-card` e `.bo-input` sem sombra — a moldura é que os desenha", () => {
-    const css = semComentarios(readFileSync("src/app/globals.css", "utf8"));
+    // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+    // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+    // o browser os aplica no back office.
+    const css = semComentarios(
+      readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8"),
+    );
     for (const nome of [".bo-card", ".bo-input"]) {
       // O bloco da regra, do nome até à chaveta que a fecha.
       const inicio = css.indexOf(`${nome} {`);
@@ -165,7 +175,11 @@ describe("as sombras do back office", () => {
    * que este caso sempre teve medo: branco sobre branco sem nada a separar.
    */
   it("com o chão branco, é o fio que separa — e por isso não pode ser fraco", () => {
-    const css = readFileSync("src/app/globals.css", "utf8");
+    // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+    // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+    // o browser os aplica no back office.
+    const css =
+      readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8");
 
     // O fio de omissão, que serve molduras e separadores.
     const fio = css.match(/--bo-hairline:\s*var\(--bo-tinta-(\d+)\)/);

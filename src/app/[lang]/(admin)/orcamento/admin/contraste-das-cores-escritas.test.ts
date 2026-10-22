@@ -117,7 +117,11 @@ function contraste(a: string, b: string): number {
  * desaparecer do ecrã sem ninguém dar por isso.
  */
 function declaracoes(): Map<string, string> {
-  const css = readFileSync("src/app/globals.css", "utf8");
+  // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+  // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+  // o browser os aplica no back office.
+  const css =
+    readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8");
   const mapa = new Map<string, string>();
   // A PRIMEIRA definição de cada token é a do modo claro; o bloco
   // `light-dark()` vem depois. É o modo claro que este teste mede, porque as

@@ -55,7 +55,10 @@ import type { Quote } from "@/lib/orcamento/types";
 
 const ler = (f: string) => readFileSync(`src/app/[lang]/(admin)/orcamento/admin/${f}`, "utf8");
 
-const CSS = readFileSync("src/app/globals.css", "utf8");
+// O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+// todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+// o browser os aplica no back office.
+const CSS = readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8");
 
 /**
  * Os cinco avisos, cada um com o pedaço de `className` por onde se reconhece.

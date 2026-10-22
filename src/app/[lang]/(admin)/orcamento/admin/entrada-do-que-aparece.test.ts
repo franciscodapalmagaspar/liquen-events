@@ -72,7 +72,10 @@ import { readFileSync } from "node:fs";
  * `prefers-reduced-motion` desliga tudo.
  */
 
-const CSS = readFileSync("src/app/globals.css", "utf8");
+// O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
+// todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
+// o browser os aplica no back office.
+const CSS = readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8");
 const RAIZ = "src/app/[lang]/(admin)/orcamento/admin/";
 
 /** Os nove que aparecem por cima da página. Um décimo entra aqui à mão. */
