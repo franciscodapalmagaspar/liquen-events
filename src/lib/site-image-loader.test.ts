@@ -7,6 +7,7 @@ import siteImageLoader, {
   snapLogoWidth,
   logoImageUrl,
   isLogoSrc,
+  siteImageAvifUrl,
 } from "./site-image-loader";
 import {
   GALLERY_WIDTHS,
@@ -315,3 +316,69 @@ function listarLogos(dir: string, base = path.join(ROOT, "public"), out: string[
   }
   return out;
 }
+
+describe("site-image-loader: o gémeo AVIF (a <source> do SafeImage)", () => {
+  /**
+   * O `SafeImage` só põe uma `<source type="image/avif">` quando esta função
+   * diz que há AVIF em TODAS as larguras. Um «sim» a mais é uma imagem partida
+   * (o browser escolhe a `<source>` pelo `type`, não pela existência); por
+   * isso cada ramo é conferido contra o WebP que o carregador serve e, havendo
+   * build, contra o disco.
+   */
+  const LARGURAS = [16, 64, 256, 360, 384, 640, 768, 1024, 1080, 1280, 1536, 1920, 3840];
+
+  it("é o WebP do carregador com outra extensão, largura a largura, nos dois ramos com gémeo", () => {
+    for (const src of ["/imagens/EW1_1100.jpg", "/imagens/M&F0678.jpg", "/imagens/hd-edited.jpg"]) {
+      for (const w of LARGURAS) {
+        const avif = siteImageAvifUrl(src, w);
+        expect(avif, `${src} @${w}`).not.toBeNull();
+        expect(avif!.replace(/\.avif$/, ".webp")).toBe(siteImageLoader({ src, width: w }));
+      }
+    }
+  });
+
+  it("os logótipos, a bandeja _intake/ e o que vem de fora NÃO têm gémeo", () => {
+    for (const src of [
+      "/logo-liquen.png",
+      "/logos/deloitte.png",
+      "/imagens/_intake/nova.jpg",
+      "/imagens/foto.jpg?v=2",
+      "/imagens/animacao.gif",
+      "https://exemplo.pt/imagens/foto.jpg",
+      "data:image/webp;base64,AAAA",
+    ]) {
+      expect(siteImageAvifUrl(src, 640), src).toBeNull();
+    }
+  });
+
+  it("todas as fotografias de largura total têm o AVIF gerado em cada degrau", () => {
+    const dir = path.join(ROOT, "public", "_img");
+    if (!existsSync(dir)) return; // árvore acabada de clonar, sem build
+    const faltam: string[] = [];
+    for (const src of HERO_SOURCES) {
+      for (const w of HERO_WIDTHS) {
+        const f = path.join(ROOT, "public", siteImageAvifUrl(src, w)!);
+        if (!existsSync(f)) faltam.push(path.basename(f));
+      }
+    }
+    expect(faltam).toEqual([]);
+  });
+
+  it("as fotografias de /imagens/ têm o AVIF gerado em cada degrau da galeria", () => {
+    // `/_img/g/` não é versionado: só existe depois de `npm run pregen`/build.
+    if (!existsSync(path.join(ROOT, "public", "_img", "g"))) return;
+    const fotos = readdirSync(path.join(ROOT, "public", "imagens")).filter((n) =>
+      /\.(jpe?g|png|webp)$/i.test(n),
+    );
+    const faltam: string[] = [];
+    for (const n of fotos) {
+      const src = `/imagens/${n}`;
+      if (HERO_SOURCES.has(src)) continue;
+      for (const w of GALLERY_WIDTHS) {
+        const f = path.join(ROOT, "public", siteImageAvifUrl(src, w)!);
+        if (!existsSync(f)) faltam.push(path.basename(f));
+      }
+    }
+    expect(faltam).toEqual([]);
+  });
+});
