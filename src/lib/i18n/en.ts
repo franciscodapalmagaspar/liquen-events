@@ -128,10 +128,10 @@ export const en: Dict = {
     ogLocale: "en_GB",
     homeTitle: "Wedding & Event Decoration | Líquen Events",
     homeDescription:
-      "Líquen Events decorates and coordinates weddings, company events and private celebrations. Over 100 events since 2018.",
+      "Líquen Events decorates and coordinates weddings, company events and private celebrations, in the Alentejo and across Portugal.",
     sobreTitle: "Event Decoration & Coordination Company",
     sobreDescription:
-      "Líquen Events, an event decoration and coordination company. Over 100 weddings and celebrations decorated since 2018.",
+      "Líquen Events, an event decoration and coordination company: weddings, company events and private celebrations, in the Alentejo and across Portugal.",
     servicosTitle: "Event Decoration & Production Services",
     servicosDescription:
       "Wedding decoration and coordination, plus decoration of corporate events, gala dinners and private parties.",
@@ -523,8 +523,6 @@ export const en: Dict = {
     heroLead:
       "Weddings, company events and private celebrations. We design the decoration around what you have in mind and the budget you are working with.",
     nav: ["Celebrations", "Companies"],
-    interludeEyebrow: "Líquen Events",
-    interludeTitle: "Over 100 events since 2018.",
     verMais: "View more",
     verDetalhes: "View details",
     philoEyebrow: "Our signature",

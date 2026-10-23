@@ -128,10 +128,10 @@ export const pt = {
     ogLocale: "pt_PT",
     homeTitle: "Decoração de Casamentos e Eventos | Líquen Events",
     homeDescription:
-      "A Líquen Events decora e coordena casamentos, eventos de empresa e celebrações privadas. Mais de 100 eventos desde 2018.",
+      "A Líquen Events decora e coordena casamentos, eventos de empresa e celebrações privadas, no Alentejo e em todo o país.",
     sobreTitle: "Empresa de Decoração e Coordenação de Eventos",
     sobreDescription:
-      "Líquen Events, empresa de decoração e coordenação de eventos. Mais de 100 casamentos e celebrações decorados desde 2018.",
+      "Líquen Events, empresa de decoração e coordenação de eventos: casamentos, eventos de empresa e celebrações privadas, no Alentejo e em todo o país.",
     servicosTitle: "Serviços de Decoração e Produção de Eventos",
     servicosDescription:
       "Decoração e coordenação de casamentos e decoração de eventos corporativos, jantares de gala e festas privadas.",
@@ -593,8 +593,6 @@ export const pt = {
     heroLead:
       "Casamentos, eventos empresariais e celebrações privadas. Desenvolvemos cada projeto de decoração de forma personalizada, tendo em consideração a sua visão, as suas necessidades e o orçamento disponível.",
     nav: ["Celebrações", "Empresas"],
-    interludeEyebrow: "Líquen Events",
-    interludeTitle: "Mais de 100 eventos desde 2018.",
     verMais: "Ver mais",
     verDetalhes: "Ver detalhes",
     philoEyebrow: "A nossa assinatura",
