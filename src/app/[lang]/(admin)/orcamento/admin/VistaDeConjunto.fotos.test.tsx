@@ -78,12 +78,14 @@ const imagensDa = (n: number) =>
 describe("a miniatura mostra as fotografias que o PDF lá põe", () => {
   it("o separador mostra as do PDF, e não as duas primeiras do capítulo", () => {
     desenhar({ [chaveSep]: [{ ref: "TESTE/e.jpg" }, { ref: "TESTE/c.jpg" }] });
-    expect(imagensDa(iSep)).toEqual(["/mini/e.jpg", "/mini/c.jpg"]);
+    // Como no PDF de 23/10: a segunda é o fundo arrastado (desenhado
+    // primeiro), a primeira é a nítida, emoldurada por cima.
+    expect(imagensDa(iSep)).toEqual(["/mini/c.jpg", "/mini/e.jpg"]);
   });
 
-  it("com UMA fotografia, o separador é a página inteira (como no PDF)", () => {
+  it("com UMA fotografia, o separador usa-a no fundo e emoldurada (como no PDF)", () => {
     desenhar({ [chaveSep]: [{ ref: "TESTE/x.jpg" }] });
-    expect(imagensDa(iSep)).toEqual(["/mini/x.jpg"]);
+    expect(imagensDa(iSep)).toEqual(["/mini/x.jpg", "/mini/x.jpg"]);
   });
 
   it("enquanto o PDF não respondeu, nenhuma fotografia adivinhada nos painéis", () => {

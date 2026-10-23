@@ -1,51 +1,51 @@
 import "server-only";
 import type { PDFPage } from "pdf-lib";
 import type { Foto } from "../fotos";
-import { LADO_PAGINA, type Tratamento } from "../imagens";
+import { BRILHO, LADO_PAGINA, LEITURA, TECTO } from "../imagens";
 import {
   FOLHA,
   FUNDO_DO_CONTEUDO,
+  blocoDeTitulo,
+  cabecalho,
+  estiloRotulo,
+  estiloSobretitulo,
+  estiloTitulo,
+  fotoDeLeitura,
   fotoNaCaixa,
-  logotipoNaLinha,
+  fundoArrastado,
+  logotipoNoCanto,
+  moldura,
+  nota,
   novaPagina,
   rectangulo,
   rodape,
-  sobretitulo,
+  ZONA_DO_BLOCO,
   type CaixaPx,
   type Contexto,
 } from "../moldura";
-import { composicao, type Disposicao } from "../mosaico";
-import { COR, FOLHA_PX_H, FOLHA_PX_W, LETRA, MARGEM, fio, px } from "../paleta";
-import {
-  baseDaLinha,
-  bloco,
-  caber,
-  escrever,
-  escreverADireita,
-  yDoTopo,
-  type Estilo,
-} from "../texto";
-import { DE_BAIXO } from "./fotografia";
+import { composicao, levaBloco, type Disposicao } from "../mosaico";
+import { COR, FOLHA_PX_W, LETRA, MARGEM, px } from "../paleta";
+import { caber, escrever, maiusculas, minusculas, quebrar, yDoTopo } from "../texto";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * AS PÁGINAS DOS TEMAS DE INSPIRAÇÃO
+ * AS PÁGINAS DOS TEMAS DE INSPIRAÇÃO (§6.6b)
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * A parte principal da proposta. Cada tema que ela tem no back office gera a
- * sua página (ou duas, acima de doze fotografias), com TODAS as fotografias,
- * o título, o subtítulo e a nota que ela escreveu. A composição é a que ela
- * escolheu para o tema, ou a automática pelo número de fotografias — ver
- * `mosaico.ts`.
- *
- * As páginas de mosaico não têm o rodapé normal: o mosaico de texto leva em
- * baixo o logótipo da Líquen e o número da página.
+ * Mosaico de ponta a ponta, sem margens e sem rodapé, com 6 px entre as
+ * fotografias e o fundo Tinta à vista. O texto do tema vive numa CÉLULA do
+ * mosaico (fundo Tinta, 346 px de largura, metade da altura): sobretítulo em
+ * minúsculas, título em maiúsculas, a nota no Linho. A composição é a
+ * que ela escolheu para o tema, ou a automática pelo número de fotografias —
+ * ver `mosaico.ts`.
  */
 
 export interface DadosDoTema {
-  /** A vez do tema na proposta: 1, 2, 3… — o número grande do mosaico. */
+  /** A vez do tema na proposta: 1, 2, 3… — decide o lado da célula. */
   numero: number;
-  /** «Cerimónia». */
+  /** O número do capítulo («inspiração · 01»). */
+  capitulo: number;
+  /** Num casamento, o nome do capítulo («Jantar»); fora dele, vazio. */
   grupo: string;
   titulo: string;
   subtitulo: string;
@@ -54,19 +54,16 @@ export interface DadosDoTema {
   fotos: readonly Foto[];
   /** O número desta página no documento. */
   pagina: number;
-  /**
-   * Só para um tema SEM fotografias: uma fotografia de outro tema do capítulo
-   * para o painel da esquerda — «nenhuma página é só texto sobre fundo liso».
-   */
+  /** A primeira página do tema (as seguintes de um tema longo não repetem o bloco). */
+  primeira: boolean;
+  /** Só para um tema SEM fotografias: uma fotografia de outro tema do capítulo. */
   painel?: Foto | null;
   /** A disposição que ela escolheu para o tema; sem ela, a automática. */
   disposicao?: Disposicao | null;
 }
 
-const doisAlgarismos = (n: number) => String(n).padStart(2, "0");
-
-/** O cinzento do número grande: branco a 9% sobre o fundo, já misturado. */
-const NUMERO_APAGADO = fio(0.09);
+const sobretituloDoTema = (ctx: Contexto, d: DadosDoTema) =>
+  `${ctx.te.inspiracao} · ${String(d.capitulo).padStart(2, "0")}`;
 
 export async function tema(ctx: Contexto, d: DadosDoTema): Promise<PDFPage> {
   const p = novaPagina(ctx);
@@ -75,238 +72,172 @@ export async function tema(ctx: Contexto, d: DadosDoTema): Promise<PDFPage> {
     d.numero % 2 === 0,
     d.disposicao,
   );
-  const sobre = d.grupo ? `${ctx.te.inspiracao} · ${d.grupo}` : ctx.te.inspiracao;
+  const sobre = sobretituloDoTema(ctx, d);
 
   if (c.tipo === "texto") {
-    const x0 = d.painel ? PAINEL_DO_TEXTO.w + 56 : MARGEM;
-    if (d.painel) await fotoNaCaixa(ctx, p, d.painel, PAINEL_DO_TEXTO, {}, LADO_PAGINA);
-    paginaDeTexto(ctx, p, d, sobre, x0);
-    rodape(ctx, p, d.pagina, x0);
+    await paginaDeTexto(ctx, p, d, sobre);
     return p;
   }
 
   if (c.tipo === "inteira") {
-    const t: Tratamento = { degrades: [DE_BAIXO], qualidade: 74 };
-    await fotoNaCaixa(ctx, p, d.fotos[0], FOLHA, t, LADO_PAGINA);
-    tituloEmBaixo(ctx, p, d, sobre, FOLHA_PX_W - 2 * MARGEM - 120);
-    rodape(ctx, p, d.pagina);
+    await fotoDeLeitura(ctx, p, d.fotos[0], FOLHA, LADO_PAGINA);
+    logotipoNoCanto(ctx, p);
+    const fim = blocoDeTitulo(ctx, p, {
+      sobretitulo: sobre,
+      titulo: d.titulo,
+      linha: d.subtitulo,
+    });
+    if (d.primeira && d.nota) {
+      nota(ctx, p, {
+        texto: d.nota,
+        x: MARGEM,
+        topo: fim + 10,
+        largura: 640,
+        maxLinhas: 2,
+        onde: `Tema «${d.titulo}» · nota`,
+      });
+    }
     return p;
   }
 
-  await Promise.all(c.celulas.map((caixa, i) => fotoNaCaixa(ctx, p, d.fotos[i] ?? null, caixa)));
-
-  if (c.tipo === "desalinhadas") {
-    // O número grande, apagado, em baixo à direita; o título em baixo à esquerda.
-    const num: Estilo = {
-      letra: ctx.letras.titulo,
-      tam: LETRA.mosaicoNumero.tam,
-      cor: NUMERO_APAGADO,
-    };
-    escreverADireita(
-      p,
-      num,
-      doisAlgarismos(d.numero),
-      px(FOLHA_PX_W - MARGEM),
-      yDoTopo(FUNDO_DO_CONTEUDO),
-    );
-    tituloEmBaixo(ctx, p, d, sobre, 640);
-    rodape(ctx, p, d.pagina);
-    return p;
+  const comBloco = levaBloco(c.tipo, d.primeira, Boolean(d.grupo));
+  await Promise.all(
+    c.celulas.map((caixa, i) =>
+      comBloco && c.tipo !== "desalinhadas"
+        ? fotoNaCaixa(ctx, p, d.fotos[i] ?? null, caixa, {
+            degrades: LEITURA,
+            tecto: { lum: TECTO.foto, desde: ZONA_DO_BLOCO.desde },
+          })
+        : fotoNaCaixa(ctx, p, d.fotos[i] ?? null, caixa),
+    ),
+  );
+  if (comBloco) {
+    const fim = blocoDeTitulo(ctx, p, { sobretitulo: sobre, titulo: d.titulo, linha: d.subtitulo });
+    if (d.nota) {
+      nota(ctx, p, {
+        texto: d.nota,
+        x: MARGEM,
+        topo: fim + 10,
+        largura: 640,
+        maxLinhas: 2,
+        onde: `Tema «${d.titulo}» · nota`,
+      });
+    }
   }
-
-  mosaicoDeTexto(ctx, p, c.mosaico, d, sobre);
+  if ("mosaico" in c) celulaDeTexto(ctx, p, c.mosaico, d, sobre);
   return p;
 }
 
-/* ── O mosaico de texto ──────────────────────────────────────────────────── */
-
-/** O enchimento do mosaico: `padding: 34px 30px 22px 34px`. */
-const DENTRO = { topo: 34, dir: 30, baixo: 22, esq: 34 };
+/* ── A célula de texto ───────────────────────────────────────────────────── */
 
 /**
- * O mosaico de texto, dentro da composição: o número grande apagado no canto,
- * o sobretítulo, o título, o subtítulo, a nota, e em baixo a marca e o número
- * da página.
+ * A célula de texto: fundo Tinta, o sobretítulo em minúsculas, o título em
+ * maiúsculas espaçadas (Jost 24, nunca a partir palavras), o subtítulo como
+ * rótulo, e a nota no Linho. Medido no modelo: 48 px de margem, o
+ * sobretítulo assente a 75 px do topo, o título 34 px depois.
  *
- * A nota é a parte que ela escreve, e pode ser longa: a letra desce até a nota
- * caber (dos 16,5 px aos 11). Só se nem assim couber é que se corta, com «…»,
- * e o corte vai para o relatório que ela lê antes de enviar.
+ * A nota encolhe até caber na célula; só se nem assim couber é que se corta,
+ * com «…», e o corte vai para o relatório que ela lê antes de enviar.
  */
-function mosaicoDeTexto(ctx: Contexto, p: PDFPage, cx: CaixaPx, d: DadosDoTema, sobre: string) {
-  rectangulo(p, cx, COR.fundo);
-  const x = cx.x + DENTRO.esq;
-  const largo = cx.w - DENTRO.esq - DENTRO.dir;
-  const num: Estilo = {
-    letra: ctx.letras.titulo,
-    tam: LETRA.mosaicoNumero.tam,
-    cor: NUMERO_APAGADO,
-  };
-  escreverADireita(
-    p,
-    num,
-    doisAlgarismos(d.numero),
-    px(cx.x + cx.w - 20),
-    yDoTopo(cx.y + 4) - baseDaLinha(num, 1),
-  );
+function celulaDeTexto(ctx: Contexto, p: PDFPage, cx: CaixaPx, d: DadosDoTema, sobre: string) {
+  rectangulo(p, cx, COR.tinta);
+  const x = cx.x + 48;
+  const largo = cx.w - 48 - 30;
+  const S = LETRA.sobretitulo;
+  const baseSobre = cx.y + 75;
+  escrever(p, estiloSobretitulo(ctx, S.tam), minusculas(sobre), px(x), yDoTopo(baseSobre));
 
-  const topo =
-    sobretitulo(ctx, p, sobre, x, cx.y + DENTRO.topo, COR.acento, LETRA.mosaicoSobre.tam) + 12;
-  textoDoTema(
-    ctx,
-    p,
-    d,
-    x,
-    topo,
-    largo,
-    cx.y + cx.h - DENTRO.baixo - LETRA.mosaicoPe.tam * 1.21 - 14,
-  );
-
-  // O pé do mosaico: a marca e o número da página.
-  const pe: Estilo = {
-    letra: ctx.letras.corpo,
-    tam: LETRA.mosaicoPe.tam,
-    cor: COR.textoBaixo,
-    espaco: LETRA.mosaicoPe.espaco,
-  };
-  const topoPe = cx.y + cx.h - DENTRO.baixo - pe.tam * 1.21;
-  const yPe = yDoTopo(topoPe) - baseDaLinha(pe, 1.21);
-  // O logótipo, como no rodapé das outras páginas (o pedido dela).
-  if (!logotipoNaLinha(ctx, p, x, yPe, 26)) {
-    escrever(p, pe, "LÍQUEN EVENTS", px(x), yPe);
-  }
-  escreverADireita(p, pe, doisAlgarismos(d.pagina), px(x + largo), yPe);
-}
-
-/**
- * O título, o subtítulo e a nota de um tema, a partir de `topo`, sem passar de
- * `fundo`. Devolve onde acabou. É o mesmo texto no mosaico, na página de uma
- * só fotografia e na página sem fotografias.
- */
-function textoDoTema(
-  ctx: Contexto,
-  p: PDFPage,
-  d: DadosDoTema,
-  x: number,
-  topo: number,
-  largo: number,
-  fundo: number,
-  escala = 1,
-): number {
-  const T = LETRA.mosaicoTitulo;
-  const tit = caber(
-    { letra: ctx.letras.titulo, tam: T.tam * escala, cor: COR.texto, espaco: -0.01 },
-    d.titulo,
-    px(largo),
-    3,
-    22,
-  );
+  const T = LETRA.tituloDoTema;
+  const tit = caberSemPartir(ctx, maiusculas(d.titulo || ctx.te.inspiracao), px(largo));
   if (tit.cortado) {
     ctx.cortes.push({ where: `Tema «${d.titulo}» · título`, dropped: tit.cortado, unit: "linhas" });
   }
-  topo = bloco(p, tit.estilo, tit.linhas, x, topo, T.entrelinha);
+  const passo = tit.estilo.tam * T.entrelinha;
+  let base = baseSobre + 34;
+  tit.linhas.forEach((l, i) => escrever(p, tit.estilo, l, px(x), yDoTopo(base + i * passo)));
+  base += (tit.linhas.length - 1) * passo;
 
-  if (d.subtitulo.trim()) {
-    const sub: Estilo = {
-      letra: ctx.letras.tituloItalico,
-      tam: LETRA.mosaicoSub.tam * escala,
-      cor: COR.textoSuave,
-    };
-    const s = caber(sub, d.subtitulo, px(largo), 2, 15);
-    topo = bloco(p, s.estilo, s.linhas, x, topo + 6, 1.2);
+  // O subtítulo só num casamento: fora dele o capítulo é o próprio tema, e o
+  // separador que vem antes já o diz na linha pequena (o modelo não o repete).
+  const sub = !d.primeira ? ctx.te.maisIdeias : d.grupo ? d.subtitulo.trim() : "";
+  if (sub) {
+    const r = estiloRotulo(ctx);
+    const linhas = quebrar(r, maiusculas(sub), px(largo)).slice(0, 2);
+    base += 30;
+    linhas.forEach((l, i) => escrever(p, r, l, px(x), yDoTopo(base + i * 16)));
+    base += (linhas.length - 1) * 16;
   }
 
-  const nota = d.nota.trim();
-  if (nota) {
-    const N = LETRA.mosaicoNota;
-    topo += 16;
-    const cabem = (tam: number) => Math.max(1, Math.floor((fundo - topo) / (tam * N.entrelinha)));
-    let tam = N.tam * escala;
-    let r = caber(
-      { letra: ctx.letras.tituloItalico, tam, cor: COR.textoSuave },
-      nota,
-      px(largo),
-      cabem(tam),
-      tam,
-    );
-    while (r.cortado && tam > N.minimo) {
-      tam -= 0.5;
-      r = caber(
-        { letra: ctx.letras.tituloItalico, tam, cor: COR.textoSuave },
-        nota,
-        px(largo),
-        cabem(tam),
-        tam,
-      );
-    }
-    if (r.cortado) {
-      ctx.cortes.push({ where: `Tema «${d.titulo}» · nota`, dropped: r.cortado, unit: "linhas" });
-    }
-    topo = bloco(p, r.estilo, r.linhas, x, topo, N.entrelinha);
+  const texto = d.primeira ? d.nota.trim() : "";
+  if (texto) {
+    const topo = base + 52;
+    const fundo = cx.y + cx.h - 28;
+    nota(ctx, p, {
+      texto,
+      x,
+      topo,
+      largura: largo,
+      maxLinhas: Math.floor((fundo - topo) / (LETRA.nota.tam * LETRA.nota.entrelinha)),
+      onde: `Tema «${d.titulo}» · nota`,
+    });
   }
-  return topo;
-}
-
-/** O título em baixo à esquerda (uma fotografia, ou as cinco desalinhadas). */
-function tituloEmBaixo(ctx: Contexto, p: PDFPage, d: DadosDoTema, sobre: string, largo: number) {
-  // Mede-se primeiro: o texto assenta por cima do rodapé, e só se sabe a
-  // altura depois de partir as linhas.
-  const fundo = FUNDO_DO_CONTEUDO - 20;
-  const altura = alturaDoTexto(ctx, d, largo, 1.3);
-  const topo = Math.max(420, fundo - altura);
-  const t = sobretitulo(ctx, p, sobre, MARGEM, topo) + 10;
-  textoDoTema(ctx, p, d, MARGEM, t, largo, fundo, 1.3);
-}
-
-/** A altura que o texto de um tema vai ocupar (sobretítulo incluído), sem desenhar. */
-function alturaDoTexto(ctx: Contexto, d: DadosDoTema, largo: number, escala: number): number {
-  const T = LETRA.mosaicoTitulo;
-  const tit = caber(
-    { letra: ctx.letras.titulo, tam: T.tam * escala, cor: COR.texto },
-    d.titulo,
-    px(largo),
-    3,
-    22,
-  );
-  let h = LETRA.sobretitulo.tam * 1.21 + 10 + tit.linhas.length * tit.estilo.tam * T.entrelinha;
-  if (d.subtitulo.trim()) h += 6 + LETRA.mosaicoSub.tam * escala * 1.2;
-  if (d.nota.trim()) {
-    const N = LETRA.mosaicoNota;
-    const n = caber(
-      { letra: ctx.letras.tituloItalico, tam: N.tam * escala, cor: COR.textoSuave },
-      d.nota.trim(),
-      px(largo),
-      4,
-      N.tam * escala,
-    );
-    h += 16 + n.linhas.length * n.estilo.tam * N.entrelinha;
-  }
-  return h;
 }
 
 /**
- * Um tema sem fotografias: o texto, sem caixas vazias — e, à esquerda, um
- * painel de fotografia nítida de outro tema do capítulo, como o índice. A
- * regra dela: nenhuma página é só texto sobre fundo liso. Sem fotografia
- * nenhuma na proposta, o texto fica sozinho na página.
+ * O título do tema em até três linhas, sem nunca partir uma palavra: se a
+ * palavra mais comprida não cabe na largura, a letra desce até caber.
  */
-const PAINEL_DO_TEXTO = { x: 0, y: 0, w: 440, h: FOLHA_PX_H };
+function caberSemPartir(ctx: Contexto, texto: string, max: number) {
+  const T = LETRA.tituloDoTema;
+  let e = estiloTitulo(ctx, T.tam, T.espaco);
+  const palavras = texto.split(/\s+/).filter(Boolean);
+  while (
+    e.tam > T.minimo &&
+    palavras.some((w) => quebrar(e, w, max).length > 1 || caber(e, w, max, 1, e.tam).cortado)
+  ) {
+    e = { ...e, tam: e.tam - 0.5 };
+  }
+  return caber(e, texto, max, 3, T.minimo);
+}
 
-function paginaDeTexto(ctx: Contexto, p: PDFPage, d: DadosDoTema, sobre: string, x0: number) {
-  const largo = Math.min(640, FOLHA_PX_W - MARGEM - x0);
-  const num: Estilo = {
-    letra: ctx.letras.titulo,
-    tam: LETRA.mosaicoNumero.tam * 2,
-    cor: NUMERO_APAGADO,
-  };
-  escreverADireita(
-    p,
-    num,
-    doisAlgarismos(d.numero),
-    px(FOLHA_PX_W - MARGEM),
-    yDoTopo(FUNDO_DO_CONTEUDO),
-  );
-  const altura = alturaDoTexto(ctx, d, largo, 1.4);
-  const topo = Math.max(60, (FUNDO_DO_CONTEUDO - altura) / 2);
-  const t = sobretitulo(ctx, p, sobre, x0, topo) + 10;
-  textoDoTema(ctx, p, d, x0, t, largo, FUNDO_DO_CONTEUDO - 20, 1.4);
+/* ── Um tema sem fotografias ─────────────────────────────────────────────── */
+
+/** A fotografia emoldurada, no mesmo sítio da de «A proposta». */
+const FOTO_DO_TEXTO: CaixaPx = { x: 797, y: 96, w: 288, h: 374 };
+
+/**
+ * Um tema só com texto: o fundo arrastado de outra fotografia do capítulo (o
+ * painel), essa fotografia emoldurada à direita, e o texto à esquerda, com o
+ * rodapé. Sem fotografia nenhuma na proposta, fica a Tinta de recurso.
+ */
+async function paginaDeTexto(ctx: Contexto, p: PDFPage, d: DadosDoTema, sobre: string) {
+  const painel = d.painel ?? null;
+  await fundoArrastado(ctx, p, painel, d.pagina, BRILHO.texto);
+  const temFoto = await fotoNaCaixa(ctx, p, painel, FOTO_DO_TEXTO);
+  if (temFoto) moldura(p, FOTO_DO_TEXTO);
+  const largo = (temFoto ? FOTO_DO_TEXTO.x - 13 - 40 : FOLHA_PX_W - MARGEM) - MARGEM;
+  let base = cabecalho(ctx, p, {
+    sobretitulo: sobre,
+    titulo: d.titulo || ctx.te.inspiracao,
+    x: MARGEM,
+    largura: largo,
+  });
+  if (d.subtitulo.trim()) {
+    base += 44;
+    escrever(p, estiloRotulo(ctx), maiusculas(d.subtitulo), px(MARGEM), yDoTopo(base));
+  }
+  if (d.nota.trim()) {
+    const topo = base + 50;
+    nota(ctx, p, {
+      texto: d.nota,
+      x: MARGEM,
+      topo,
+      largura: Math.min(560, largo),
+      maxLinhas: Math.floor(
+        (FUNDO_DO_CONTEUDO - 20 - topo) / (LETRA.nota.tam * LETRA.nota.entrelinha),
+      ),
+      onde: `Tema «${d.titulo}» · nota`,
+    });
+  }
+  rodape(ctx, p, d.pagina);
 }

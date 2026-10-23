@@ -61,11 +61,12 @@ export type PaginaDoPlano =
   | { tipo: "servicos"; servicos: readonly string[]; primeiro: number; continuacao: boolean }
   | { tipo: "ambiente" }
   | { tipo: "cronograma"; continuacao: boolean }
-  /** O separador de um capítulo de inspiração, ou o do investimento. */
   /**
-   * O separador de um capítulo de inspiração, ou o do investimento (`grupo`
-   * a `null`). O `grupo` é a CHAVE do capítulo — o grupo do dia num casamento
-   * («cocktail»), `tema-<n>` fora dele (ver `capitulos`, em `grupos.ts`).
+   * O separador de um capítulo de inspiração. O `grupo` é a CHAVE do capítulo
+   * — o grupo do dia num casamento («cocktail»), `tema-<n>` fora dele (ver
+   * `capitulos`, em `grupos.ts`). O desenho de 23/10 deixou de ter o separador
+   * do investimento (`grupo` a `null`); o tipo guarda-o para as propostas
+   * gravadas com fotografias escolhidas para ele, que deixam de ter onde ir.
    */
   | { tipo: "separador"; titulo: string; grupo: string | null; numero: number }
   | {
@@ -145,8 +146,30 @@ export function servicosDoDocumento(original: ProposalDoc, doc: ProposalDoc = or
   return lista;
 }
 
-/** Quantos cartões de serviço cabem numa página (`CARTOES_POR_PAGINA`). */
-const CARTOES_POR_PAGINA = 6;
+/**
+ * Quantos cartões de serviço cabem numa página: três, lado a lado (§6.4 —
+ * «2 cartões: 486 × 504; 3 cartões: dividir igual»). O desenho importa-o
+ * daqui, para o plano e o PDF nunca discordarem.
+ */
+export const CARTOES_POR_PAGINA = 3;
+
+/**
+ * Os cartões repartidos pelas páginas, por igual: quatro serviços são duas
+ * páginas de dois (486 × 504, o tamanho do documento), e não três e um — um
+ * cartão sozinho a toda a largura. Devolve o primeiro índice e quantos leva
+ * cada página.
+ */
+export function cartoesPorPagina(n: number): { de: number; quantos: number }[] {
+  const paginas = Math.ceil(n / CARTOES_POR_PAGINA);
+  const saida: { de: number; quantos: number }[] = [];
+  let de = 0;
+  for (let k = 0; k < paginas; k++) {
+    const quantos = Math.ceil((n - de) / (paginas - k));
+    saida.push({ de, quantos });
+    de += quantos;
+  }
+  return saida;
+}
 
 /** As fotografias de um tema que contam: as que têm referência. */
 const fotosDoTema = (b: MoodBoard) => ordemDoDesenho(b).filter((i) => temTexto(b.images[i]));
@@ -173,72 +196,119 @@ export function temasComPagina(doc: ProposalDoc): number[] {
 
 /**
  * As medidas das colunas do gerador (`paginas/condicoes.ts`, `colunas.ts`), em
- * píxeis do exemplo. A largura média de um carácter de Inter a 12,5 px mede
- * ~6,2 px no texto das condições; arredonda-se para cima, porque a quebra de
- * linha por palavras gasta mais do que a conta por letras.
+ * píxeis da grelha. A largura média de um carácter da Jost a 14 px mede ~7 px
+ * no texto das condições; arredonda-se para cima, porque a quebra de linha por
+ * palavras gasta mais do que a conta por letras.
  */
 const COLUNAS = {
-  /** `FUNDO_DO_CONTEUDO` − o cabeçalho com o título numa linha − o ar. */
-  altura: 716 - (48 + 11.5 * 1.21 + 10 + 40 * 1.06) - 20,
-  /** `LARGURA_DO_TEXTO` = 1123 − (230 + 56) − 98. */
-  largura: 739,
-  carater: 6.6,
-  item: { tam: 12.5, entrelinha: 1.5, enchimento: 7 },
-  h3: { tam: 15.5, entrelinha: 1.3, antes: 20, depois: 10, carater: 8.4 },
+  /** Do topo das colunas (o título numa linha a ~141 px + 60) até 716. */
+  altura: 716 - (141 + 60),
+  /** A faixa dos contactos do pagamento: as colunas param 30 px acima dos 627. */
+  alturaComContactos: 627 - 30 - (141 + 60),
+  /** `LARGURA_DO_TEXTO` = 705 − 72. */
+  largura: 633,
+  vao: 29,
+  /** A largura média de um carácter a 14 px; a outro tamanho, na proporção. */
+  carater: 7.4,
+  item: { tam: 14, entrelinha: 1.15, entreItens: 10 },
+  /** O texto encolhe até aqui antes de passar à página seguinte (`colunas.TAM_MINIMO`). */
+  minimo: 12.5,
+  h3: { tam: 12.5, entrelinha: 1.3, antes: 24, depois: 20, carater: 11.3 },
 };
 
 const linhasDe = (texto: string, larguraPx: number, carater: number) =>
   Math.max(1, Math.ceil(texto.length / Math.max(1, Math.floor(larguraPx / carater))));
 
-type PecaDeTexto = { h3: true; texto: string } | { h3: false; texto: string };
+type PecaDeTexto = { h3: boolean; texto: string };
 
-function alturaDaPeca(p: PecaDeTexto, larguraPx: number, primeira: boolean): number {
+function alturaDaPeca(
+  p: PecaDeTexto,
+  larguraPx: number,
+  anterior: PecaDeTexto | null,
+  tam: number,
+): number {
   if (p.h3) {
     const H = COLUNAS.h3;
     return (
-      (primeira ? 0 : H.antes) +
+      (anterior ? H.antes : 0) +
       linhasDe(p.texto, larguraPx, H.carater) * H.tam * H.entrelinha +
       H.depois
     );
   }
   const I = COLUNAS.item;
-  return (
-    2 * I.enchimento + linhasDe(p.texto, larguraPx, COLUNAS.carater) * I.tam * I.entrelinha + 1
-  );
+  const carater = (COLUNAS.carater * tam) / I.tam;
+  return linhasDe(p.texto, larguraPx, carater) * tam * I.entrelinha + I.entreItens;
 }
 
 /** Quantos pedaços de `altura` leva uma coluna de peças (como `colunas.repartir`). */
-function pedacosDaColuna(pecas: readonly PecaDeTexto[], larguraPx: number): number {
+function pedacosDaColuna(
+  pecas: readonly PecaDeTexto[],
+  larguraPx: number,
+  altura: number,
+  tam: number,
+): number {
   let pedacos = 0;
   let usado = 0;
-  let noPedaco = 0;
+  let anterior: PecaDeTexto | null = null;
+  const I = COLUNAS.item;
+  const linha = tam * I.entrelinha;
   for (const p of pecas) {
-    const h = alturaDaPeca(p, larguraPx, noPedaco === 0);
-    if (noPedaco && usado + h > COLUNAS.altura) {
+    let h = alturaDaPeca(p, larguraPx, anterior, tam);
+    if (anterior && usado + h > altura) {
+      // Um ponto comprido parte-se entre colunas, com duas linhas antes do
+      // corte (`colunas.partirItem`).
+      const n = p.h3 ? 0 : linhasDe(p.texto, larguraPx, (COLUNAS.carater * tam) / I.tam);
+      const cabem = Math.floor((altura - usado - I.entreItens) / linha);
       pedacos++;
       usado = 0;
-      noPedaco = 0;
+      anterior = null;
+      if (!p.h3 && cabem >= 2 && n > cabem) {
+        usado = (n - cabem) * linha + I.entreItens;
+        anterior = p;
+        continue;
+      }
+      h = alturaDaPeca(p, larguraPx, null, tam);
     }
-    usado += alturaDaPeca(p, larguraPx, noPedaco === 0);
-    noPedaco++;
+    usado += h;
+    anterior = p;
   }
-  return pedacos + (noPedaco ? 1 : 0);
+  return pedacos + (anterior ? 1 : 0);
 }
 
-const larguraDaColuna = (n: number, vao: number) => (COLUNAS.largura - vao * (n - 1)) / n;
+const larguraDaColuna = (n: number) => (COLUNAS.largura - COLUNAS.vao * (n - 1)) / n;
+
+/**
+ * As páginas de uma secção, com a regra do gerador (`montar.numaPagina`): se
+ * não couber numa a 14 px, a letra desce meio píxel de cada vez até ao mínimo;
+ * se nem assim, fica nos 14 e continua.
+ */
+function numaPagina(paginas: (tam: number) => number): number {
+  for (let tam = COLUNAS.item.tam; tam >= COLUNAS.minimo; tam -= 0.5) {
+    const n = paginas(tam);
+    if (n <= 1) return n;
+  }
+  return paginas(COLUNAS.item.tam);
+}
 
 /** Colunas fixas: cada uma continua na mesma coluna da página seguinte. */
-function paginasDeColunasFixas(colunas: readonly (readonly PecaDeTexto[])[], vao: number): number {
+function paginasDeColunasFixas(
+  colunas: readonly (readonly PecaDeTexto[])[],
+  altura: number = COLUNAS.altura,
+): number {
   const cols = colunas.filter((c) => c.length);
   if (!cols.length) return 0;
-  const largura = larguraDaColuna(cols.length, vao);
-  return Math.max(...cols.map((c) => pedacosDaColuna(c, largura)));
+  const largura = larguraDaColuna(cols.length);
+  return numaPagina((tam) =>
+    Math.max(...cols.map((c) => pedacosDaColuna(c, largura, altura, tam))),
+  );
 }
 
-/** Uma lista corrida em duas colunas. */
-function paginasDeColunasCorridas(pecas: readonly PecaDeTexto[]): number {
+/** Uma lista corrida em `n` colunas. */
+function paginasDeColunasCorridas(pecas: readonly PecaDeTexto[], n = 2): number {
   if (!pecas.length) return 0;
-  return Math.max(1, Math.ceil(pedacosDaColuna(pecas, larguraDaColuna(2, 50)) / 2));
+  return numaPagina((tam) =>
+    Math.max(1, Math.ceil(pedacosDaColuna(pecas, larguraDaColuna(n), COLUNAS.altura, tam) / n)),
+  );
 }
 
 const lista = (titulo: string, itens: readonly string[]): PecaDeTexto[] =>
@@ -247,16 +317,17 @@ const lista = (titulo: string, itens: readonly string[]): PecaDeTexto[] =>
     : [];
 
 /**
- * As linhas do quadro do orçamento numa página: ~11 de uma linha só, menos
- * quando o nome parte (`paginas/orcamento.ts`, ~55 caracteres por linha).
+ * As linhas do quadro do orçamento numa página (`paginas/orcamento.ts`): linhas
+ * de 43 px a partir do primeiro fio, a 235 px, até 700 — onze de uma linha
+ * só, menos quando o nome parte (~75 caracteres por linha).
  */
 function paginasDoOrcamento(nomes: readonly string[]): number[] {
-  const cabe = 716 - 48 - (11.5 * 1.21 + 10 + 40 * 1.06 + 4 + 17 * 1.25 + 26);
+  const cabe = 716 - 16 - 235;
   const paginas: number[] = [];
   let usado = 0;
   let nestaPagina = 0;
   for (const nome of nomes) {
-    const h = 30 + linhasDe(nome, 425, 7.8) * 16 * 1.21 + 1;
+    const h = 43 + (linhasDe(nome, 590, 7.9) - 1) * 16 * 1.3;
     if (nestaPagina && usado + h > cabe) {
       paginas.push(nestaPagina);
       usado = 0;
@@ -291,10 +362,10 @@ export function planoDaProposta(doc: ProposalDoc): EntradaDoPlano[] {
 
   // ── O que propomos ──
   const servicos = servicosDoDocumento(doc);
-  for (let i = 0; i < servicos.length; i += CARTOES_POR_PAGINA) {
+  for (const { de: i, quantos } of cartoesPorPagina(servicos.length)) {
     paginas.push({
       tipo: "servicos",
-      servicos: servicos.slice(i, i + CARTOES_POR_PAGINA).map((s) => s.nome),
+      servicos: servicos.slice(i, i + quantos).map((s) => s.nome),
       primeiro: i + 1,
       continuacao: i > 0,
       nome: i ? `${t.sobretituloServicos} ${te.continuacao}` : t.sobretituloServicos,
@@ -328,10 +399,9 @@ export function planoDaProposta(doc: ProposalDoc): EntradaDoPlano[] {
 
   // ── Os capítulos de inspiração ──
   const capitulos = capitulosDaInspiracao(comPagina, (bi) => boards[bi], eCasamento(doc.eventType));
-  const meio = Math.ceil(capitulos.length / 2);
   let vez = 0;
   let separadores = 0;
-  capitulos.forEach((c, ci) => {
+  capitulos.forEach((c) => {
     const nome = c.grupo
       ? te.grupos[c.grupo]
       : (boards[c.itens[0]].title ?? "").trim() || te.inspiracao;
@@ -370,10 +440,11 @@ export function planoDaProposta(doc: ProposalDoc): EntradaDoPlano[] {
         feitas += quantas;
       });
     }
-    if (ci + 1 === meio && haFotos) {
-      paginas.push({ tipo: "citacao", nome: "Citação", seccao: "moodboards" });
-    }
   });
+  // A citação, depois da inspiração (§6.7).
+  if (capitulos.length && haFotos) {
+    paginas.push({ tipo: "citacao", nome: "Citação", seccao: "moodboards" });
+  }
 
   // ── Investimento ──
   const totais = totaisDaProposta(doc, depositPercentOf(doc));
@@ -385,15 +456,8 @@ export function planoDaProposta(doc: ProposalDoc): EntradaDoPlano[] {
         .map((i) => doc.budgetItems[i] ?? "")
         .filter((s) => s.trim());
   if (nomes.length > 0 || totais.aPagar > 0 || totalStr.trim()) {
-    separadores++;
-    paginas.push({
-      tipo: "separador",
-      titulo: te.investimento,
-      grupo: null,
-      numero: separadores,
-      nome: te.investimento,
-      seccao: "orcamento",
-    });
+    // O total primeiro — é a página «Investimento» do índice (§6.8).
+    paginas.push({ tipo: "total", nome: te.investimento, seccao: "total" });
     paginasDoOrcamento(nomes).forEach((linhas, k) => {
       paginas.push({
         tipo: "orcamento",
@@ -403,11 +467,10 @@ export function planoDaProposta(doc: ProposalDoc): EntradaDoPlano[] {
         seccao: "orcamento",
       });
     });
-    paginas.push({ tipo: "total", nome: "Total", seccao: "total" });
   }
 
   // ── Condições — sempre ──
-  const notas = paginasDeColunasFixas(
+  const notas = paginasDeColunasCorridas(
     [
       [
         ...lista(t.notasImportantes, fixos.notasImportantes ?? []),
@@ -418,8 +481,8 @@ export function planoDaProposta(doc: ProposalDoc): EntradaDoPlano[] {
         ...lista(t.naoIncluidoNoOrcamento, fixos.naoIncluido ?? []),
       ],
       lista(t.observacoesGerais, fixos.observacoesGerais ?? []),
-    ],
-    28,
+    ].flat(),
+    3,
   );
   const gerais = paginasDeColunasCorridas(
     (fixos.condicoesGerais ?? []).map((texto) => ({ h3: false as const, texto })),
@@ -437,13 +500,10 @@ export function planoDaProposta(doc: ProposalDoc): EntradaDoPlano[] {
                 { h3: false as const, texto: t.baseDoCalculo("0,00 €") },
               ]
             : []),
-          { h3: true as const, texto: t.contactos },
-          { h3: false as const, texto: "email" },
-          { h3: false as const, texto: "telefone" },
         ],
         lista(t.cancelamento, fixos.cancelamento ?? []),
       ],
-      50,
+      COLUNAS.alturaComContactos,
     ),
   );
   const condicoes: [PaginaDoPlano & { tipo: "condicoes" }, number, string][] = [
@@ -571,13 +631,13 @@ export function composicaoEmPalavras(n: number, disposicao?: Disposicao | null):
   }
   if (n <= 0) return "Só texto, com uma fotografia de outro tema ao lado";
   if (n === 1) return "Uma fotografia a página inteira";
-  if (n <= 3) return "Uma fila a toda a altura, com o texto ao lado";
-  if (n === 4) return "Duas filas em tijolo";
-  if (n === 5) return "Cinco ao alto, desalinhadas";
+  if (n === 2) return "Duas metades a toda a altura";
+  if (n === 3) return "Tríptico a toda a altura";
+  if (n <= 5) return "O texto num canto e as fotografias em duas filas";
   const paginas = repartirFotos(n).length;
   return paginas > 1
-    ? `Mosaico de ponta a ponta, em ${paginas} páginas`
-    : "Mosaico de ponta a ponta";
+    ? `Mosaico e tríptico alternados, em ${paginas} páginas`
+    : "Mosaico de duas filas, com o texto num canto";
 }
 
 /**

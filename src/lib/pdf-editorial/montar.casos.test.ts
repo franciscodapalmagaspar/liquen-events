@@ -118,6 +118,14 @@ async function desenhar(
   const addPage = PDFDocument.prototype.addPage;
   const drawText = PDFPage.prototype.drawText;
   const drawImage = PDFPage.prototype.drawImage;
+  const embedPng = PDFDocument.prototype.embedPng;
+  // O logótipo é o único PNG (tem transparência); as fotografias são JPEG.
+  const logos = new Set<unknown>();
+  PDFDocument.prototype.embedPng = async function (...a: Parameters<typeof embedPng>) {
+    const img = await embedPng.apply(this, a);
+    logos.add(img);
+    return img;
+  };
   PDFDocument.prototype.addPage = function (...a: Parameters<typeof addPage>) {
     const p = addPage.apply(this, a) as PDFPage;
     paginas.push(p);
@@ -137,9 +145,8 @@ async function desenhar(
     return drawText.call(this, texto, o);
   };
   PDFPage.prototype.drawImage = function (...a: Parameters<typeof drawImage>) {
-    // Só as FOTOGRAFIAS contam: o logótipo do rodapé (32 px ≈ 24 pt de
-    // altura) e o do mosaico (26 px) não são fotografias do tema.
-    if ((a[1]?.height ?? 0) > 30) imagens[paginas.indexOf(this)]++;
+    // Só as FOTOGRAFIAS contam, e não o logótipo.
+    if (!logos.has(a[0])) imagens[paginas.indexOf(this)]++;
     return drawImage.apply(this, a);
   };
   try {
@@ -149,6 +156,7 @@ async function desenhar(
     PDFDocument.prototype.addPage = addPage;
     PDFPage.prototype.drawText = drawText;
     PDFPage.prototype.drawImage = drawImage;
+    PDFDocument.prototype.embedPng = embedPng;
   }
 }
 
@@ -170,28 +178,30 @@ describe("a sequência do exemplo, pela mesma ordem", () => {
     const { paginas, escritas } = await desenhar(docDeTeste());
     const t = textosDaProposta("pt");
     const te = textosEditoriais("pt");
+    const M = (s: string) => s.toLocaleUpperCase("pt-PT");
+    // O documento de 23/10 (§6): a citação depois dos capítulos, e o
+    // investimento sem separador — o total primeiro, o quadro a seguir.
     const esperado: [number, string][] = [
-      [1, "PROPOSTA · DECORAÇÃO"],
-      [2, te.tituloIndice],
-      [3, "Uma decoração pensada para o dia de TESTE e TESTE"],
-      [4, "Três serviços de decoração floral e decoração"],
-      [5, te.tituloAmbiente],
-      [6, "02 · INSPIRAÇÃO Cerimónia"],
-      [7, "Decoração Cerimónia"],
-      [8, "03 · INSPIRAÇÃO Cocktail"],
-      [9, "Decor Cocktail"],
-      [10, "eternizamos memórias.»"],
-      [11, "04 · INSPIRAÇÃO Jantar"],
-      [12, "TESTE nota do jantar."],
-      [13, "05 Investimento"],
-      [14, te.tituloOrcamento],
-      [15, "4.501,80 €"],
-      [16, te.tituloNotas],
-      [17, te.tituloCondicoesGerais],
-      [18, te.tituloPagamento],
-      [19, t.obrigada],
+      [1, "proposta de casamento"],
+      [2, M(te.tituloIndice)],
+      [3, "UMA DECORAÇÃO PENSADA PARA O DIA DE TESTE E TESTE"],
+      [4, "TRÊS SERVIÇOS DE DECORAÇÃO FLORAL E DECORAÇÃO"],
+      [5, M(te.tituloAmbiente)],
+      [6, "CERIMÓNIA inspiração · 01"],
+      [7, "DECORAÇÃO CERIMÓNIA"],
+      [8, "COCKTAIL inspiração · 02"],
+      [9, "DECOR COCKTAIL"],
+      [10, "JANTAR inspiração · 03"],
+      [11, "TESTE nota do jantar."],
+      [12, "ETERNIZAMOS MEMÓRIAS"],
+      [13, "4.501,80 €"],
+      [14, M(te.tituloOrcamento)],
+      [15, M(te.tituloNotas)],
+      [16, M(te.tituloCondicoesGerais)],
+      [17, M(te.tituloPagamento)],
+      [18, t.obrigada.toLocaleLowerCase("pt-PT")],
     ];
-    expect(paginas).toBe(19);
+    expect(paginas).toBe(18);
     for (const [n, texto] of esperado)
       expect(naPagina(escritas, n), `página ${n}`).toContain(texto);
   });
@@ -208,9 +218,9 @@ describe("a sequência do exemplo, pela mesma ordem", () => {
     expect(paginaDe("A proposta")).toBe("03");
     expect(paginaDe("Inspiração · Cerimónia")).toBe("06");
     expect(paginaDe("Inspiração · Cocktail")).toBe("08");
-    expect(paginaDe("Inspiração · Jantar")).toBe("11");
+    expect(paginaDe("Inspiração · Jantar")).toBe("10");
     expect(paginaDe("Investimento")).toBe("13");
-    expect(paginaDe("Condições")).toBe("16");
+    expect(paginaDe("Condições")).toBe("15");
   });
 });
 
@@ -255,7 +265,7 @@ describe("fora dos casamentos, a proposta adapta-se ao que se escreve", () => {
       "dia de",
     ])
       expect(texto, palavra).not.toContain(palavra);
-    expect(texto).toContain("Uma decoração pensada para TESTE Restaurante Lua");
+    expect(texto).toContain("UMA DECORAÇÃO PENSADA PARA TESTE RESTAURANTE LUA");
     expect(texto).toContain("Halloween");
   });
 
@@ -269,8 +279,8 @@ describe("fora dos casamentos, a proposta adapta-se ao que se escreve", () => {
       "Inspiração · Mesas",
     ]);
     const texto = tudo(escritas);
-    expect(texto).toMatch(/INSPIRAÇÃO Bar/);
-    expect(texto).toMatch(/INSPIRAÇÃO Arco de abóboras/);
+    expect(texto).toMatch(/BAR inspiração · 01/);
+    expect(texto).toMatch(/ARCO DE ABÓBORAS inspiração · 02/);
   });
 
   it("em inglês também: «Client», «your event», e nada de «Bridal»", async () => {
@@ -292,7 +302,7 @@ describe("fora dos casamentos, a proposta adapta-se ao que se escreve", () => {
     const { escritas } = await desenhar(
       docDeTeste({ clientNames: "", eventType: "Festa", moodBoards: [] }),
     );
-    expect(tudo(escritas)).toContain("Uma decoração pensada para o vosso evento");
+    expect(tudo(escritas)).toContain("UMA DECORAÇÃO PENSADA PARA O VOSSO EVENTO");
   });
 });
 
@@ -302,7 +312,7 @@ describe("os temas: todas as fotografias, o título e a nota", () => {
       moodBoards: [{ title: "Corredor", images: fotos(n), annotation: "TESTE nota" }],
     });
     const { escritas, imagens } = await desenhar(doc);
-    const pagina = escritas.find((e) => e.texto === "Corredor")!.pagina;
+    const pagina = escritas.find((e) => e.texto === "CORREDOR")!.pagina;
     // A página do tema leva exactamente as suas fotografias.
     expect(imagens[pagina - 1]).toBe(n);
     expect(naPagina(escritas, pagina)).toContain("TESTE nota");
@@ -316,8 +326,9 @@ describe("os temas: todas as fotografias, o título e a nota", () => {
       ],
     });
     const { escritas, imagens } = await desenhar(doc);
-    const pagina = escritas.find((e) => e.texto === "Altar")!.pagina;
-    expect(imagens[pagina - 1]).toBe(1);
+    const pagina = escritas.find((e) => e.texto === "ALTAR")!.pagina;
+    // A mesma fotografia duas vezes: arrastada no fundo e nítida, emoldurada.
+    expect(imagens[pagina - 1]).toBe(2);
     expect(naPagina(escritas, pagina)).toContain("TESTE só texto");
   });
 
@@ -325,11 +336,11 @@ describe("os temas: todas as fotografias, o título e a nota", () => {
     const doc = docDeTeste({ moodBoards: [{ title: "Corredor", images: fotos(13) }] });
     const { escritas, imagens } = await desenhar(doc);
     const paginas = [
-      ...new Set(escritas.filter((e) => e.texto === "Corredor").map((e) => e.pagina)),
+      ...new Set(escritas.filter((e) => e.texto === "CORREDOR").map((e) => e.pagina)),
     ];
     expect(paginas).toHaveLength(2);
     expect(paginas.reduce((s, p) => s + imagens[p - 1], 0)).toBe(13);
-    expect(naPagina(escritas, paginas[1])).toContain("Mais ideias…");
+    expect(naPagina(escritas, paginas[1])).toContain("MAIS IDEIAS…");
   });
 
   it("uma nota muito longa encolhe e não passa do mosaico", async () => {
@@ -338,8 +349,8 @@ describe("os temas: todas as fotografias, o título e a nota", () => {
       moodBoards: [{ title: "Corredor", images: fotos(8), annotation: longa }],
     });
     const { escritas } = await desenhar(doc);
-    const pagina = escritas.find((e) => e.texto === "Corredor")!.pagina;
-    // O mosaico ocupa a metade de cima (395 px) — nada da nota passa abaixo dela.
+    const pagina = escritas.find((e) => e.texto === "CORREDOR")!.pagina;
+    // A célula de texto ocupa a metade de cima (394 px) — nada da nota passa abaixo dela.
     const fundoDoMosaico = PAGINA_H - (395 * PAGINA_W) / 1123;
     for (const e of escritas.filter((x) => x.pagina === pagina)) {
       expect(e.y, e.texto).toBeGreaterThan(fundoDoMosaico);
@@ -404,8 +415,8 @@ describe("o rodapé", () => {
     const comRodape = escritas
       .filter((e) => e.y < 45 && e.texto.startsWith("Proposta de decoração · TESTE"))
       .map((e) => e.pagina);
-    // Índice, proposta, serviços, paleta, orçamento, total, três de condições.
-    expect(comRodape).toEqual(expect.arrayContaining([2, 3, 4, 5, 14, 15, 16, 17, 18]));
+    // Índice, proposta, serviços, paleta, total, orçamento, três de condições.
+    expect(comRodape).toEqual(expect.arrayContaining([2, 3, 4, 5, 13, 14, 15, 16, 17]));
     // A marca é o logótipo (uma imagem), já não o texto «LÍQUEN EVENTS».
     expect(escritas.some((e) => e.texto === "LÍQUEN EVENTS" && e.y < 45)).toBe(false);
   });
@@ -417,19 +428,27 @@ describe("os textos da casa", () => {
     const doc = docDeTeste();
     const { escritas, paginas } = await desenhar(doc);
     const contracapa = naPagina(escritas, paginas);
-    expect(contracapa).toContain(t.obrigada);
-    expect(contracapa).toContain(t.agradecimento);
-    expect(contracapa).toContain(SITE.slogan);
-    expect(contracapa).toContain(t.passoValidade(t.data(resolveValidUntil(doc))));
+    // O desenho de 23/10 (§6.10): «obrigada» em itálico, o agradecimento em
+    // maiúsculas, e a linha pequena com o e-mail, o telefone e a validade.
+    const M = (s: string) => s.toLocaleUpperCase("pt-PT");
+    expect(contracapa).toContain(t.obrigada.toLocaleLowerCase("pt-PT"));
+    expect(contracapa).toContain(M(t.agradecimento.replace(/[.!]+$/u, "")));
+    const [a, m, d] = resolveValidUntil(doc).split("-");
+    expect(contracapa).toContain(`VÁLIDA ATÉ ${d}.${m}.${a}`);
+    expect(contracapa).toContain(M(SITE.email));
+    // O lema passou para a citação (§6.7).
+    expect(tudo(escritas)).toContain(M(SITE.slogan.replace(/[.!]+$/u, "")));
   });
 
   it("em inglês, os rótulos do desenho são os ingleses", async () => {
     const te = textosEditoriais("en");
     const { escritas } = await desenhar(docDeTeste(), "en");
     const texto = tudo(escritas);
-    expect(texto).toContain(te.tituloIndice);
+    const M = (s: string) => s.toLocaleUpperCase("en");
+    expect(texto).toContain(M(te.tituloIndice));
     expect(texto).toContain("Inspiration · Ceremony");
-    expect(texto).toContain(te.tituloPagamento);
+    expect(texto).toContain(M(te.tituloPagamento));
+    expect(texto).toContain("the proposal");
     expect(texto).not.toContain("Conteúdo da proposta");
   });
 });
@@ -476,6 +495,50 @@ describe("sem transparência por cima das fotografias", () => {
     }
     expect(comMascara).toBe(1);
     expect(opacidades).toBe(0);
+  });
+
+  /**
+   * O pedido dela de 23/10: «não aparecem todas as fotografias… pelo menos
+   * aqui no telemóvel». Os leitores de PDF do iOS são os mais esquisitos com
+   * JPEG: todas as fotografias saem em JPEG «baseline» (SOF0, e não o
+   * progressivo SOF2), RGB de 8 bits, e nenhuma passa de 1 800 px.
+   */
+  it("todas as fotografias são JPEG baseline, RGB, ≤ 1 800 px", async () => {
+    const { bytes } = await desenhar(docDeTeste());
+    const pdf = await PDFDocument.load(bytes);
+    let jpegs = 0;
+    const objectos = pdf.context.enumerateIndirectObjects();
+    // O logótipo (o único PNG) e a máscara dele ficam de fora.
+    const mascaras = new Set(
+      objectos.flatMap(([, o]) =>
+        o instanceof PDFRawStream && o.dict.has(PDFName.of("SMask"))
+          ? [String(o.dict.get(PDFName.of("SMask")))]
+          : [],
+      ),
+    );
+    for (const [ref, obj] of objectos) {
+      if (!(obj instanceof PDFRawStream)) continue;
+      const d = obj.dict;
+      if (d.get(PDFName.of("Subtype")) !== PDFName.of("Image")) continue;
+      if (d.has(PDFName.of("SMask")) || mascaras.has(String(ref))) continue;
+      jpegs++;
+      expect(d.get(PDFName.of("Filter"))).toBe(PDFName.of("DCTDecode"));
+      expect(d.get(PDFName.of("ColorSpace"))).toBe(PDFName.of("DeviceRGB"));
+      expect((d.get(PDFName.of("BitsPerComponent")) as PDFNumber).asNumber()).toBe(8);
+      const w = (d.get(PDFName.of("Width")) as PDFNumber).asNumber();
+      const h = (d.get(PDFName.of("Height")) as PDFNumber).asNumber();
+      expect(Math.max(w, h)).toBeLessThanOrEqual(1800);
+      const b = obj.getContents();
+      let sof = -1;
+      for (let i = 0; i + 1 < b.length; i++) {
+        if (b[i] === 0xff && (b[i + 1] === 0xc0 || b[i + 1] === 0xc2)) {
+          sof = b[i + 1];
+          break;
+        }
+      }
+      expect(sof, "SOF0 (baseline), e não SOF2 (progressivo)").toBe(0xc0);
+    }
+    expect(jpegs).toBeGreaterThan(10);
   });
 });
 

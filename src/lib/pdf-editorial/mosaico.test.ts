@@ -19,10 +19,10 @@ describe("as composições pelo número de fotografias", () => {
   it.each([
     [0, "texto"],
     [1, "inteira"],
-    [2, "fila"],
-    [3, "fila"],
+    [2, "metades"],
+    [3, "triptico"],
     [4, "tijolo"],
-    [5, "desalinhadas"],
+    [5, "tijolo"],
     [6, "mosaico"],
     [12, "mosaico"],
   ])("%i fotografias → %s", (n, tipo) => {
@@ -49,19 +49,21 @@ describe("as composições pelo número de fotografias", () => {
     },
   );
 
-  it("o mosaico de texto alterna de lado nos temas pares, e o tijolo não", () => {
-    const impar = composicao(aspectos(8), false);
-    const par = composicao(aspectos(8), true);
-    expect("mosaico" in impar && impar.mosaico.x).toBe(0);
-    expect("mosaico" in par && par.mosaico.x).toBeGreaterThan(0);
-    const tijolo = composicao(aspectos(4), true);
-    expect("mosaico" in tijolo && tijolo.mosaico).toMatchObject({ x: 0, y: 0 });
+  it("a célula de texto (346 px, meia altura) alterna entre o canto de cima à esquerda e o da direita", () => {
+    for (const n of [4, 5, 8, 12]) {
+      const impar = composicao(aspectos(n), false);
+      const par = composicao(aspectos(n), true);
+      expect("mosaico" in impar && impar.mosaico).toMatchObject({ x: 0, y: 0, w: 346 });
+      expect("mosaico" in par && par.mosaico).toMatchObject({ x: 1123 - 346, y: 0, w: 346 });
+      expect("mosaico" in par && par.mosaico.h).toBeCloseTo((794 - 6) / 2);
+    }
   });
 
-  it("acima de doze, reparte o mais por igual possível", () => {
+  it("acima de doze, alterna mosaico (9) e tríptico (3), e o resto fecha", () => {
     expect(repartir(12)).toEqual([12]);
-    expect(repartir(13)).toEqual([7, 6]);
-    expect(repartir(25)).toEqual([9, 8, 8]);
+    expect(repartir(13)).toEqual([9, 4]);
+    expect(repartir(16)).toEqual([9, 7]);
+    expect(repartir(25)).toEqual([9, 3, 9, 4]);
   });
 });
 
@@ -115,11 +117,11 @@ describe("a disposição à escolha (o pedido dela de 15/10)", () => {
 
   it("abaixo do mínimo, a página fica com a automática", () => {
     expect(composicao(aspectos(1), false, "soltas").tipo).toBe("inteira");
-    expect(composicao(aspectos(5), false, "tres-filas").tipo).toBe("desalinhadas");
+    expect(composicao(aspectos(5), false, "tres-filas").tipo).toBe("tijolo");
   });
 
-  it("sem escolha, as cinco soltas são as do exemplo, tal e qual", () => {
-    const c = composicao(aspectos(5), false);
+  it("as cinco soltas são as do exemplo antigo, tal e qual", () => {
+    const c = composicao(aspectos(5), false, "soltas");
     expect(c.tipo === "desalinhadas" && c.celulas).toEqual(
       [40, 96, 10, 120, 60].map((y, i) => ({ x: 98 + i * 188, y, w: 174, h: 270 })),
     );

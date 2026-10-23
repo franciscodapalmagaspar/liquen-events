@@ -1,24 +1,26 @@
 import "server-only";
 import type { PDFPage } from "pdf-lib";
 import type { Foto } from "../fotos";
-import { LADO_PAGINA } from "../imagens";
-import { cabecalho, fotoNaCaixa, novaPagina, rectangulo, rodape, type Contexto } from "../moldura";
+import { BRILHO, CARTAO, LADO_PAGINA, TECTO } from "../imagens";
 import {
-  COR,
-  FOLHA_PX_H,
-  FOLHA_PX_W,
-  LETRA,
-  MARGEM,
-  fio,
-  hexParaRgb,
-  misturaNoFundo,
-  px,
-} from "../paleta";
-import { bloco, caber, escrever, maiusculas, yDoTopo, baseDaLinha, type Estilo } from "../texto";
+  FUNDO_DO_CONTEUDO,
+  cabecalho,
+  fotoNaCaixa,
+  fundoArrastado,
+  novaPagina,
+  rectangulo,
+  rodape,
+  type Contexto,
+} from "../moldura";
+import { COR, FOLHA_PX_H, FOLHA_PX_W, LETRA, MARGEM, hexParaRgb, px } from "../paleta";
+import { CARTOES_POR_PAGINA } from "../plano";
+import { caber, escrever, maiusculas, yDoTopo, type Estilo } from "../texto";
+
+export { CARTOES_POR_PAGINA };
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * «O QUE PROPOMOS» E «A PALETA E O AMBIENTE DO EVENTO»
+ * «O QUE PROPOMOS» (§6.4) E «A PALETA E O AMBIENTE» (§6.5)
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
@@ -35,104 +37,81 @@ export interface Servico {
 export interface DadosDosServicos {
   sobretitulo: string;
   titulo: string;
-  /** Os serviços DESTA página (até seis). */
+  /** Os serviços DESTA página (até {@link CARTOES_POR_PAGINA}). */
   servicos: readonly Servico[];
-  /** O número do primeiro cartão desta página (1, 7, 13…). */
+  /** O número do primeiro cartão desta página (1, 4, 7…). */
   primeiro: number;
   pagina: number;
 }
 
-/** Quantos cartões cabem numa página: duas filas de três. */
-export const CARTOES_POR_PAGINA = 6;
-
-const COLUNAS = 3;
-const VAO = 20;
-const ALTURA_DA_FOTO = 150;
-/** O fundo do cartão: `rgba(18,18,20,.75)` sobre o fundo da página, já misturado. */
-const FUNDO_DO_CARTAO = hexParaRgb(misturaNoFundo("#121214", 0.75));
+const TOPO_DOS_CARTOES = 211;
+const VAO = 7;
 
 /**
- * Um cartão por serviço, com a fotografia, o número e o nome — e a descrição,
- * quando ela a escreveu (o gerador antigo mostra-a, e não se perde).
- *
- * O fundo da página é o escuro liso. O exemplo tem aqui uma fotografia
- * desfocada; a regra dela é que nenhuma página tem fundo desfocado, e a regra
- * ganha ao exemplo.
+ * Os cartões lado a lado a toda a largura útil, de 211 px até ao rodapé — dois
+ * cartões são 486 × 504 com 7 px entre eles, três dividem por igual. Cada um é
+ * a fotografia do serviço, com o gradiente no terço de baixo (fundido na
+ * imagem), e POR CIMA dela, em baixo: o número no Linho, o nome em
+ * maiúsculas e a descrição. Fundo Tinta, sem bordas.
  */
 export async function servicos(ctx: Contexto, d: DadosDosServicos): Promise<PDFPage> {
   const p = novaPagina(ctx);
   const largo = FOLHA_PX_W - 2 * MARGEM;
-  let topo = cabecalho(ctx, p, {
-    sobretitulo: d.sobretitulo,
-    titulo: d.titulo,
-    x: MARGEM,
-    topo: 52,
-    largura: largo,
-  });
-  topo += 28;
+  cabecalho(ctx, p, { sobretitulo: d.sobretitulo, titulo: d.titulo, x: MARGEM, largura: largo });
 
-  const col = (largo - VAO * (COLUNAS - 1)) / COLUNAS;
+  const n = Math.max(1, d.servicos.length);
+  const w = (largo - VAO * (n - 1)) / n;
+  const h = FUNDO_DO_CONTEUDO - TOPO_DOS_CARTOES;
   const num: Estilo = {
-    letra: ctx.letras.corpo,
+    letra: ctx.letras.jost,
     tam: LETRA.cartaoNumero.tam,
-    cor: COR.acento,
-    espaco: LETRA.cartaoNumero.espaco,
+    cor: COR.linho,
   };
-  const nome: Estilo = { letra: ctx.letras.corpoForte, tam: LETRA.cartaoNome.tam, cor: COR.texto };
-  const desc: Estilo = {
-    letra: ctx.letras.corpo,
-    tam: LETRA.cartaoDescricao.tam,
-    cor: COR.textoSuave,
+  const nome: Estilo = {
+    letra: ctx.letras.jost,
+    tam: LETRA.cartaoNome.tam,
+    cor: COR.cal,
+    espaco: LETRA.cartaoNome.espaco,
   };
-  const temFoto = d.servicos.some((s) => s.foto);
-  const larguraTexto = px(col - 28);
+  const desc: Estilo = { letra: ctx.letras.jost, tam: LETRA.cartaoDescricao.tam, cor: COR.linho };
 
-  const cartoes = d.servicos.map((s) => {
-    const n = caber(nome, s.nome, larguraTexto, 3, 11);
-    const ds = s.descricao.trim() ? caber(desc, s.descricao, larguraTexto, 4, desc.tam) : null;
+  for (const [i, s] of d.servicos.entries()) {
+    const x = MARGEM + i * (w + VAO);
+    const caixa = { x, y: TOPO_DOS_CARTOES, w, h };
+    // O nome e a descrição em baixo: o terço de baixo escurece até ao tecto
+    // de texto (a Cal e o Linho a ≥ 4,5:1).
+    await fotoNaCaixa(
+      ctx,
+      p,
+      s.foto,
+      caixa,
+      { degrades: CARTAO, tecto: { lum: TECTO.texto, desde: 0.7 } },
+      LADO_PAGINA,
+      1.4,
+    );
+    // O texto, de baixo para cima: a descrição, o nome, e o número ao lado.
+    const xTexto = x + 80;
+    const largura = px(w - 80 - 28);
+    const ds = s.descricao.trim() ? caber(desc, s.descricao, largura, 4, 11) : null;
     if (ds?.cortado) {
       ctx.cortes.push({ where: `O que propomos · ${s.nome}`, dropped: ds.cortado, unit: "linhas" });
     }
-    const altura =
-      (temFoto ? ALTURA_DA_FOTO : 0) +
-      12 +
-      num.tam * 1.21 +
-      4 +
-      n.linhas.length * n.estilo.tam * LETRA.cartaoNome.entrelinha +
-      (ds ? 6 + ds.linhas.length * desc.tam * LETRA.cartaoDescricao.entrelinha : 0) +
-      14;
-    return { s, n, ds, altura };
-  });
-
-  for (let i = 0; i < cartoes.length; i += COLUNAS) {
-    const fila = cartoes.slice(i, i + COLUNAS);
-    const altFila = Math.max(...fila.map((c) => c.altura));
-    for (const [j, c] of fila.entries()) {
-      const x = MARGEM + j * (col + VAO);
-      rectangulo(p, { x, y: topo, w: col, h: altFila }, FUNDO_DO_CARTAO, fio(0.22));
-      let t = topo;
-      if (temFoto) {
-        await fotoNaCaixa(ctx, p, c.s.foto, {
-          x: x + 1,
-          y: topo + 1,
-          w: col - 2,
-          h: ALTURA_DA_FOTO - 1,
-        });
-        t += ALTURA_DA_FOTO;
-      }
-      t += 12;
-      escrever(
-        p,
-        num,
-        String(d.primeiro + i + j).padStart(2, "0"),
-        px(x + 14),
-        yDoTopo(t) - baseDaLinha(num, 1.21),
+    const nm = caber(nome, maiusculas(s.nome), largura, 3, 10);
+    let base = TOPO_DOS_CARTOES + h - 46;
+    if (ds) {
+      const passo = ds.estilo.tam * LETRA.cartaoDescricao.entrelinha;
+      const primeira = base - (ds.linhas.length - 1) * passo;
+      ds.linhas.forEach((l, k) =>
+        escrever(p, ds.estilo, l, px(xTexto), yDoTopo(primeira + k * passo)),
       );
-      t += num.tam * 1.21 + 4;
-      t = bloco(p, c.n.estilo, c.n.linhas, x + 14, t, LETRA.cartaoNome.entrelinha);
-      if (c.ds) bloco(p, desc, c.ds.linhas, x + 14, t + 6, LETRA.cartaoDescricao.entrelinha);
+      base = primeira - 30;
     }
-    topo += altFila + VAO;
+    const passoNome = nm.estilo.tam * LETRA.cartaoNome.entrelinha;
+    const primeiraNome = base - (nm.linhas.length - 1) * passoNome;
+    nm.linhas.forEach((l, k) =>
+      escrever(p, nm.estilo, l, px(xTexto), yDoTopo(primeiraNome + k * passoNome)),
+    );
+    escrever(p, num, String(d.primeiro + i).padStart(2, "0"), px(x + 28), yDoTopo(primeiraNome));
   }
   rodape(ctx, p, d.pagina);
   return p;
@@ -143,48 +122,53 @@ export async function servicos(ctx: Contexto, d: DadosDosServicos): Promise<PDFP
 export interface DadosDoAmbiente {
   /** As cinco cores, `#RRGGBB`. */
   cores: readonly string[];
-  /** Até seis fotografias para a fila de baixo. */
+  /** Até cinco fotografias para a fila de baixo. */
   fotos: readonly Foto[];
-  /** A fotografia do painel da direita. */
+  /** A fotografia a toda a altura, à esquerda. */
   painel: Foto | null;
   pagina: number;
 }
 
-/** O painel da direita: 360 px; o texto acaba a 416 da borda. */
-const PAINEL_DO_AMBIENTE = { x: FOLHA_PX_W - 360, y: 0, w: 360, h: FOLHA_PX_H };
-const FIM_DO_AMBIENTE = FOLHA_PX_W - 416;
+/** A fotografia a toda a altura, à esquerda (442 px). */
+const PAINEL = { x: 0, y: 0, w: 442, h: FOLHA_PX_H };
+const X0 = 504;
+const LADO = 103;
+const ENTRE = 8;
 
 export async function ambiente(ctx: Contexto, d: DadosDoAmbiente): Promise<PDFPage> {
   const p = novaPagina(ctx);
-  await fotoNaCaixa(ctx, p, d.painel, PAINEL_DO_AMBIENTE, {}, LADO_PAGINA);
-  const largo = FIM_DO_AMBIENTE - MARGEM;
-  let topo = cabecalho(ctx, p, {
+  const direita = { x: PAINEL.w, y: 0, w: FOLHA_PX_W - PAINEL.w, h: FOLHA_PX_H };
+  await fundoArrastado(ctx, p, d.painel, d.pagina, BRILHO.texto, direita);
+  await fotoNaCaixa(ctx, p, d.painel, PAINEL, {}, LADO_PAGINA);
+
+  const fim = cabecalho(ctx, p, {
     sobretitulo: ctx.te.sobretituloAmbiente,
     titulo: ctx.te.tituloAmbiente,
-    subtitulo: ctx.te.subtituloAmbiente,
-    x: MARGEM,
-    topo: 70,
-    largura: largo,
+    x: X0,
+    largura: FOLHA_PX_W - MARGEM - X0,
   });
-  topo += 30;
+  const frase: Estilo = { letra: ctx.letras.jost, tam: 13, cor: COR.linho };
+  escrever(p, frase, ctx.te.subtituloAmbiente, px(X0), yDoTopo(fim + 34));
 
-  const n = Math.max(1, d.cores.length);
-  const vao = 10;
-  const larguraCor = (largo - vao * (n - 1)) / n;
-  const hex: Estilo = { letra: ctx.letras.corpo, tam: 11, cor: COR.textoBaixo, espaco: 0.08 };
-  for (const [i, cor] of d.cores.entries()) {
-    const x = MARGEM + i * (larguraCor + vao);
-    rectangulo(p, { x, y: topo, w: larguraCor, h: 190 }, hexParaRgb(cor as `#${string}`));
-    escrever(p, hex, maiusculas(cor), px(x), yDoTopo(topo + 190 + 8) - baseDaLinha(hex, 1.21));
+  const topoCores = 243;
+  const hex: Estilo = {
+    letra: ctx.letras.jost,
+    tam: LETRA.hex.tam,
+    cor: COR.linho,
+    espaco: LETRA.hex.espaco,
+  };
+  for (const [i, cor] of d.cores.slice(0, 5).entries()) {
+    const x = X0 + i * (LADO + ENTRE);
+    rectangulo(p, { x, y: topoCores, w: LADO, h: 211 }, hexParaRgb(cor as `#${string}`), COR.pedra);
+    escrever(p, hex, maiusculas(cor), px(x), yDoTopo(topoCores + 211 + 20));
   }
-  topo += 190 + 8 + 11 * 1.21 + 22;
-
-  // A fila das fotografias: 92 × 134, com 8 px entre elas.
   await Promise.all(
     d.fotos
-      .slice(0, 6)
-      .map((f, i) => fotoNaCaixa(ctx, p, f, { x: MARGEM + i * (92 + 8), y: topo, w: 92, h: 134 })),
+      .slice(0, 5)
+      .map((f, i) =>
+        fotoNaCaixa(ctx, p, f, { x: X0 + i * (LADO + ENTRE), y: 527, w: LADO, h: LADO }),
+      ),
   );
-  rodape(ctx, p, d.pagina, MARGEM, FIM_DO_AMBIENTE);
+  rodape(ctx, p, d.pagina, { x0: X0 });
   return p;
 }

@@ -55,6 +55,13 @@ export interface TextosEditoriais {
    *  grupo de serviços quando há um só, já em minúsculas. */
   tituloServicos: (quantos: number, grupo: string | null) => string;
 
+  /** O sobretítulo da capa (§6.1): «proposta de decoração», «proposta de casamento». */
+  sobretituloCapa: (organizacao: boolean, casamento: boolean) => string;
+  /** O sobretítulo da citação (§6.7). */
+  formaDeVer: string;
+  /** «VÁLIDA ATÉ 03.11.2026», na linha pequena da contracapa (§6.10). */
+  validaAte: string;
+
   // ── Paleta e ambiente ──
   sobretituloAmbiente: string;
   tituloAmbiente: string;
@@ -62,6 +69,8 @@ export interface TextosEditoriais {
 
   // ── Investimento ──
   investimento: string;
+  /** O sobretítulo das páginas do investimento. */
+  sobretituloInvestimento: string;
   tituloOrcamento: string;
   /** «Seis serviços» — o subtítulo do quadro. */
   quantosServicos: (quantos: number) => string;
@@ -129,7 +138,7 @@ const porExtenso = (n: number, tabela: readonly string[]) =>
 
 const PT: TextosEditoriais = {
   indice: "Índice",
-  tituloIndice: "Conteúdo da proposta",
+  tituloIndice: "O que vai encontrar",
   aProposta: "A proposta",
   tituloDaProposta: (nomes, org, casamento = true) => {
     const oQue = org ? "Uma organização pensada" : "Uma decoração pensada";
@@ -165,17 +174,23 @@ const PT: TextosEditoriais = {
     return grupo ? `${base} de ${grupo}` : base;
   },
 
+  sobretituloCapa: (org, casamento) =>
+    org ? "Proposta de organização" : casamento ? "Proposta de casamento" : "Proposta de decoração",
+  formaDeVer: "A nossa forma de ver",
+  validaAte: "Válida até",
+
   sobretituloAmbiente: "Ambiente",
-  tituloAmbiente: "A paleta e o ambiente do evento",
-  subtituloAmbiente: "Cores retiradas das fotografias de inspiração desta proposta",
+  tituloAmbiente: "A paleta do evento",
+  subtituloAmbiente: "Cores retiradas das fotografias de inspiração desta proposta.",
 
   investimento: "Investimento",
+  sobretituloInvestimento: "O investimento",
   tituloOrcamento: "Orçamento proposto",
   quantosServicos: (n) => (n === 1 ? "Um serviço" : `${porExtenso(n, EXTENSO_PT)} serviços`),
   comIvaIncluido: "Com IVA incluído.",
 
   condicoes: "Condições",
-  tituloNotas: "Notas, condições de reserva e próximos passos",
+  tituloNotas: "Notas e próximos passos",
   tituloCondicoesGerais: "Condições gerais",
   tituloPagamento: "Pagamento e cancelamento",
   continuacao: "(cont.)",
@@ -183,7 +198,7 @@ const PT: TextosEditoriais = {
 
 const EN: TextosEditoriais = {
   indice: "Contents",
-  tituloIndice: "In this proposal",
+  tituloIndice: "What you will find",
   aProposta: "The proposal",
   tituloDaProposta: (nomes, org, casamento = true) => {
     if (!casamento) {
@@ -220,17 +235,23 @@ const EN: TextosEditoriais = {
   // quantos são, que é o que se lê sem tradução.
   tituloServicos: (n) => (n === 1 ? "One service" : `${porExtenso(n, EXTENSO_EN)} services`),
 
+  sobretituloCapa: (org, casamento) =>
+    org ? "Planning proposal" : casamento ? "Wedding proposal" : "Decoration proposal",
+  formaDeVer: "The way we see it",
+  validaAte: "Valid until",
+
   sobretituloAmbiente: "Atmosphere",
-  tituloAmbiente: "The palette and mood of the event",
-  subtituloAmbiente: "Colours taken from the inspiration photographs in this proposal",
+  tituloAmbiente: "The event palette",
+  subtituloAmbiente: "Colours taken from the inspiration photographs in this proposal.",
 
   investimento: "Investment",
+  sobretituloInvestimento: "The investment",
   tituloOrcamento: "Quotation",
   quantosServicos: (n) => (n === 1 ? "One service" : `${porExtenso(n, EXTENSO_EN)} services`),
   comIvaIncluido: "VAT included.",
 
   condicoes: "Conditions",
-  tituloNotas: "Notes, booking conditions and next steps",
+  tituloNotas: "Notes and next steps",
   tituloCondicoesGerais: "General conditions",
   tituloPagamento: "Payment and cancellation",
   continuacao: "(cont.)",
@@ -257,4 +278,13 @@ export function primeirosNomes(nomes: string, idioma: IdiomaDaProposta): string 
   if (partes.length !== 2) return null;
   const [a, b] = partes.map((p) => p.split(/\s+/)[0]);
   return `${a} ${idioma === "en" ? "and" : "e"} ${b}`;
+}
+
+/**
+ * Uma data ISO (`2026-12-11`) como o documento a escreve na linha pequena da
+ * capa e da contracapa: «11.12.2026». Sem data que se leia, `null`.
+ */
+export function dataCurta(iso: string | null | undefined): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec((iso ?? "").trim());
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : null;
 }

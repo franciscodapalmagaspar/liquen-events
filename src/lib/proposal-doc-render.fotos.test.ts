@@ -106,12 +106,12 @@ describe("as miniaturas e o PDF que segue: as mesmas fotografias", () => {
     const d = doc({
       fotosDasPaginas: {
         "separador:cocktail": { fotos: [ref(11)] },
-        investimento: { fotos: [ref(1), ref(9)] },
+        total: { fotos: [ref(9)] },
       },
     });
     const pdf = await renderStoredEditorialPdfWithReport(d, "pt");
     const plano = await fotosDoEditorialDoDocumento(d, "pt");
     expect(plano).toEqual(pdf.fotos);
-    expect(pdf.fotos.investimento.map((f) => f.ref)).toEqual([ref(1), ref(9)]);
+    expect(pdf.fotos.total.map((f) => f.ref)).toEqual([ref(9)]);
   });
 });

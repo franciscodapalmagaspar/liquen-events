@@ -14,8 +14,17 @@ function contraste(a: string, b: string): number {
   return (x + 0.05) / (y + 0.05);
 }
 
-describe("todas as cores de texto leem-se no fundo", () => {
-  it.each(Object.entries(HEX).filter(([k]) => k !== "fundo"))("%s ≥ 4,5:1", (_nome, cor) => {
-    expect(contraste(cor, HEX.fundo)).toBeGreaterThanOrEqual(4.5);
+/**
+ * Sobre o fundo de recurso (a Tinta), as três cores de texto leem-se. A Pedra
+ * é só para fios de 1 px, e não entra. Sobre as fotografias, o contraste
+ * garante-se escurecendo-as (`imagens.BRILHO`), não com cor (§2 do documento).
+ */
+describe("as cores de texto leem-se na Tinta", () => {
+  it.each([
+    ["cal", HEX.cal],
+    ["papel", HEX.papel],
+    ["linho", HEX.linho],
+  ])("%s ≥ 4,5:1", (_nome, cor) => {
+    expect(contraste(cor, HEX.tinta)).toBeGreaterThanOrEqual(4.5);
   });
 });

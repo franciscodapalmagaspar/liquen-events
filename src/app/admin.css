@@ -1203,10 +1203,10 @@ body:is(.admin-mode, :has([data-admin-mode])) {
      casal recebe, e a folha é escura nos dois temas do back office: estes
      valores NÃO invertem. São os do PDF (`HEX`, em `pdf-editorial/paleta.ts`),
      e um teste prende uns aos outros. */
-  --bo-papel-pdf: #1f2022;
-  --bo-papel-pdf-texto: #f3f0ea;
-  --bo-papel-pdf-baixo: #d2cdc3;
-  --bo-papel-pdf-acento: #d8bd5a;
+  --bo-papel-pdf: #2a2620;
+  --bo-papel-pdf-texto: #fbfaf6;
+  --bo-papel-pdf-baixo: #d8d0c2;
+  --bo-papel-pdf-fio: #8c877c;
   --bo-sobre-seleccao: #ffffff;
 
   /* O verde da marca (`sage-500`). Nunca como texto sobre branco — dá 4,6:1 e

@@ -19,9 +19,175 @@ texto, e o dourado sai.
 
 ## Parte −1 — o que está feito e onde a execução se afasta do texto
 
+Feito a 23/10 no PR `feat/pdf-design-novo` (#273). **Ela aprovou-o a 23/10:
+«Sim, põe no site».**
+
+**E escolheu «letra simples» para os sobretítulos e as notas (23/10).** Tudo o
+que o documento pedia em Bodoni itálica — os sobretítulos («o investimento»,
+«a proposta», «inspiração · 01», «obrigada»…), as notas descritivas e os
+números do índice e dos serviços — passou à **Jost 400**. Os sobretítulos
+ficam em minúsculas, no mesmo tamanho e no mesmo lugar, e a hierarquia faz-se
+com a cor: o **Linho** nas páginas de texto e o **Papel** sobre as fotografias
+(sobre a fotografia, no tecto de luz 0,12, o Linho não chegava aos 4,5:1). As
+notas passaram de 17 para 15 px, porque a Jost é mais larga e mais alta do
+que a Bodoni itálica ao mesmo corpo. O «&» da capa deixou de ser itálico. **A
+Bodoni fica só no preço total** (opsz 6, peso 500), e a itálica saiu do
+`letras.ts`: o PDF leva duas letras, e não três.
+O código está em `src/lib/pdf-editorial/`; os dados e a lógica (o plano das
+páginas, a escolha das fotografias, as disposições, os capítulos, a paleta das
+mesas, PT/EN, o rascunho, as contas e os textos legais) não mudaram.
+
+Verificado com PDF de TESTE (dados inventados, fotografias da galeria pública
+do site), um casamento e um jantar de empresa, em português e em inglês, postos
+lado a lado com o modelo página a página. O jantar de empresa sai com as mesmas
+18 páginas do modelo. Peso com 65 fotografias: 3,9 MB (galeria) e 4,6 MB
+(fotografias fabricadas com grão) — o tecto é 8 MB.
+
+**O feedback dela de 23/10 (16h), sobre o modelo:**
+
+- **«não aparecem todas as fotografias… pelo menos aqui no telemóvel».** Todas
+  as fotografias do nosso PDF saem em JPEG simples — *baseline* (não
+  progressivo: o `mozjpeg` do sharp liga os varrimentos progressivos, e
+  desligou-se), RGB de 8 bits, sem perfil de cor nem máscara, nenhuma acima de
+  1 800 px. O logótipo é a única imagem com transparência (PNG). Um teste
+  prende isto (`montar.casos.test.ts`, «todas as fotografias são JPEG
+  baseline»). Verificado em dois motores: o pdf.js (Firefox) e o PDFium
+  (Chrome) descodificam todas as imagens dos quatro PDF de teste e do de 65
+  fotografias, sem nenhuma falha. **Num iPhone não foi verificado** — não há
+  um aqui; o JPEG baseline em RGB é o formato que o leitor do iOS lê sempre.
+- **«a paleta de cores vai buscar cores que não são… os castanhos».** A
+  extracção (`paleta-das-fotos.ts`) passou a pesar cada pixel pela cor que tem:
+  um vermelho ou um bordeaux pesa até sete vezes um neutro, um castanho escuro
+  e baço (mesa, sala, sombra) quase nada, e os neutros claros (toalha creme,
+  velas) o normal. O corte faz-se pelos pesos. Um castanho só entra se
+  dominar. As cores continuam a vir das MESAS, como ela decidiu. Um teste com
+  fotografias fabricadas (fundo castanho escuro, toalha creme, flores
+  vermelhas e bordeaux) exige vermelho, bordeaux e creme na paleta.
+- **A decisão dela sobre a paleta (23/10): «as paletas de cores é de acordo
+  com as cores usadas nas mesas de jantar, em cima das mesas, e de acordo com
+  o material de decoração utilizado / flores».** As cores saem do que está
+  POUSADO nas mesas — flores, velas, castiçais, toalhas, louça, tecidos —, e
+  não da sala, do chão, das paredes nem do céu. Em cada fotografia (das mesas,
+  como antes): o recorte de «atenção» do sharp, e dentro dele o terço central e
+  de baixo pesa por inteiro e o topo e os bordos quase nada; uma cor que vive
+  no alto das fotografias (a parede) perde o peso. Tons quase iguais juntam-se.
+  Um teste: uma sala de parede azul viva, e em cima da mesa flores vermelhas,
+  toalha creme e castiçais dourados — a paleta dá vermelho, creme e dourado, e
+  nenhum azul. Num PDF de teste com mesas fabricadas a paleta saiu creme,
+  creme, terracota, vermelho e bordeaux.
+- **«estes números não dá para perceber nada»** (a página do total, aberta no
+  iPhone). No tamanho óptico 96 do documento, o traço fino da Bodoni mede
+  0,2 % do corpo: a página inteira num iPhone tem ~390 px de largura, e o traço
+  fino do preço de 85 px ficava com 0,06 px de ecrã; o «€» e as vírgulas
+  desapareciam. Medido (o horizontal do «0» e a barra do «H», a 390 px):
+
+  | Letra | traço fino | preço 85 px | marcos 32 px | sobretítulo 29 px | 24 px | 17 px |
+  |---|---|---|---|---|---|---|
+  | Bodoni opsz 96 (o documento) | 0,2 % | 0,06 px | 0,02 | 0,02 | 0,02 | 0,01 |
+  | Bodoni opsz 28 | 0,7 % | 0,21 | 0,08 | 0,07 | 0,06 | 0,04 |
+  | Bodoni opsz 11 | 1,8 % | 0,53 | 0,20 | 0,18 | 0,15 | 0,11 |
+  | **Bodoni opsz 6** (agora) | 3,4–3,6 % | **1,00** | 0,38 | 0,36 | 0,30 | 0,21 |
+  | Jost 400 | 8 % | 2,36 | **0,89** | 0,81 | 0,67 | 0,47 |
+
+  O peso 500 engrossa as hastes, não o traço fino (medido igual). Por isso:
+  1. **a Bodoni passa ao tamanho óptico 6 (o mínimo do eixo), peso 500**, no
+     preço e no itálico — o preço grande fica com 1 px de ecrã;
+  2. **os valores pequenos passam à Jost**: os marcos (sinal e saldo, Jost
+     28) e os valores do quadro do orçamento (Jost 16), como já estava a
+     tabela do total. Só o preço grande fica na Bodoni;
+  3. **os sobretítulos, as notas e os números do índice e dos serviços**
+     ficaram primeiro na Bodoni itálica no opsz 6 (traço fino de 0,3–0,4 px,
+     abaixo dos 0,6); ela decidiu, no mesmo dia, «letra simples»: passaram à
+     Jost (0,7–0,9 px de traço fino a 390 px) — ver no topo desta Parte.
+- **O fundo arrastado claro por trás dos números.** O brilho ×0,42 é uma
+  média: numa fotografia de amarelos e vermelhos vivos o fundo continuava
+  claro. Agora, nas páginas de texto, o fundo perde saturação (×0,6) e leva
+  um **tecto de luz medido**: o 98.º percentil da luminância do fundo, já com o
+  grão, não passa de 0,07 (a Cal a ≥ 7:1, o Linho a ≥ 4,5:1); se passar, a
+  zona escurece até lá. Nas páginas de fotografia (capa, separadores,
+  citação, fecho, os temas com bloco de título) o mesmo na zona do bloco, com
+  o tecto 0,12; nos cartões de «O que propomos», no terço de baixo. Medido
+  contra a ZONA REAL por trás de cada bloco (o texto e os fios tirados da
+  página, desenhada a 1 123 px) nos dois PDF de teste: tudo ≥ 4,5:1, e os
+  números da tabela do total a 7,7:1 e 9,5:1.
+
 | O quê | Estado |
 |---|---|
-| Tudo | por fazer — começa a 23/10 |
+| §2 Cores (Tinta, Cal, Papel, Linho, Pedra) | feito — `paleta.ts`; sem dourado; um teste mede o contraste na Tinta |
+| §3 Letras (Jost 400, Bodoni Moda 400 normal e itálico, opsz 96) | feito — `letras.ts`, gerado por `scripts/gerar-letras-do-pdf.py`, com as licenças OFL em `src/lib/fonts/` |
+| §3 Tamanhos | feito, com os desvios abaixo (entrelinhas) |
+| §4 Bloco de título, moldura afastada, logótipo creme, rodapé | feito — `moldura.ts` |
+| §5 Edição quente, grão, arrastado (−8° a −24°, 8 %, gaussiano 5 px), brilhos, escurecimentos | feito — `imagens.ts`, tudo fundido na JPEG; o logótipo é a única transparência (há um teste) |
+| §6.1 Capa | feito |
+| §6.2 Índice | feito |
+| §6.3 A proposta | feito |
+| §6.4 O que propomos | feito — até 3 cartões por página, repartidos por igual |
+| §6.5 Paleta e ambiente | feito — 5 cores, 5 quadradas e o painel |
+| §6.6a Separadores | feito |
+| §6.6b Temas em mosaico (1, 2, 3, 4–5, 6–12, >12) e as disposições à mão | feito — `mosaico.ts` |
+| §6.7 Citação | feito |
+| §6.8 Investimento | feito — o total e, a seguir, o quadro das linhas no mesmo desenho |
+| §6.9 Condições (3 páginas) | feito — com os textos da casa cabem nas três (ver abaixo) |
+| §6.10 Contracapa | feito |
+| §7 PT/EN, sobretítulos traduzidos | feito — `textos.ts` |
+| Miniaturas do estúdio (`PaginaEditorial.tsx`) | feito na estrutura: as mesmas caixas, molduras, blocos e fotografias; as cores da paleta e o desfoque direccional são só aproximados |
+
+**Onde a execução se afasta do texto, e porquê:**
+
+0. **A Bodoni no tamanho óptico 6, e não 96, e só no preço total; tudo o resto
+   na Jost** — os marcos e os valores do quadro (a legibilidade no telemóvel)
+   e os sobretítulos, as notas e os números (a escolha dela, «letra
+   simples»). Ver em cima.
+1. **Entrelinha das notas em Bodoni: 1,45, e não 1,2.** Medido no modelo: as
+   linhas de 17 px vão de 25 em 25 px. A 1,2 o itálico encavalita-se.
+2. **Entrelinha dos itens das condições: 1,15, como o texto — e não os ~1,36
+   do modelo.** Os textos da casa são bem mais compridos do que os do modelo; a
+   1,36 as condições passavam para 4 ou 5 páginas. E se nem a 1,15 couberem, a
+   letra desce meio píxel de cada vez até 12,5 px (o «encolhe até caber» das
+   notas, aplicado a texto que não pode perder uma palavra); só abaixo disso é
+   que continua na página seguinte.
+3. **As condições: as notas correm pelas três colunas**, em vez de uma secção
+   por coluna, e um ponto comprido pode partir-se entre colunas. Pelo mesmo
+   motivo: com uma secção por coluna, uma coluna transbordava e as outras
+   ficavam meio vazias. Do título às colunas ficam 60 px, e não 75.
+4. **Os contactos ficam lado a lado numa faixa por baixo das colunas** do
+   pagamento (como os dados de «A proposta», que é o que o texto diz), e não
+   empilhados na primeira coluna como no modelo — empilhados não cabiam ao
+   lado do faseamento e do cancelamento da casa.
+5. **Não há separador do investimento** (o modelo não o tem); a página do
+   total é a entrada «Investimento» do índice, e **o quadro das linhas do
+   orçamento vem a seguir**, no mesmo desenho — tirá-lo era perder dados. Os
+   valores do quadro vão em Bodoni itálico (o texto); os da tabela do total
+   em Jost (o modelo).
+6. **A citação vem depois de todos os capítulos** (a ordem do §6), e não a
+   meio deles.
+7. **O título do bloco de fotografia vai até 680 px**, e não à largura toda:
+   é o que o modelo faz («DECORAÇÃO E DECOR / FLORAL DO JANTAR») e o que
+   impede o título do separador de passar por baixo da fotografia emoldurada.
+8. **O logótipo do rodapé fica a 18 px da borda direita** (o modelo), e não
+   na margem de 72; nas condições não aparece, porque cairia em cima da
+   fotografia da direita.
+9. **Num casamento, as metades e o tríptico levam o bloco de título** na
+   primeira página do tema: o separador diz o capítulo («Jantar») e o nome do
+   tema perdia-se. Fora de um casamento ficam sem texto, como o texto pede, e
+   **a nota desse tema passa para o separador**, que é o próprio tema — senão
+   perdia-se.
+10. **O subtítulo do tema só aparece na célula de texto num casamento**; fora
+    dele já está na linha pequena do separador (o modelo não o repete).
+11. **Um tema com uma fotografia** sai a página inteira com o bloco de título,
+    como o texto pede — e por isso repete o título do separador que o abre.
+12. **O separador evita as fotografias da página que vem logo a seguir** (a
+    regra «nunca a mesma fotografia em páginas vizinhas»): se o capítulo não
+    tiver outras, vêm de outro capítulo.
+13. **O grão é sempre o mesmo para a mesma fotografia** (ruído com semente):
+    o mesmo PDF gerado duas vezes dá os mesmos bytes.
+14. **A nota de «A proposta»** é a primeira nota que ela escreveu nos temas: o
+    documento não tem um campo para ela.
+15. **A paleta tem 6 lugares** (5 quadradas e o painel, no fim). O PR paralelo
+    `feat/pdf-paleta-e-enquadrar` faz destes lugares escolhas dela; quem juntar
+    o segundo resolve o conflito.
+16. **A data curta** (DD.MM.AAAA) lê-se da data dela; se não se ler, vai a data
+    como está escrita.
 
 ---
 

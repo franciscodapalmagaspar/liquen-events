@@ -1559,7 +1559,8 @@ describe("a composição de cada tema", () => {
     seedDraft(5);
     renderStudio();
     const linha = (await screen.findAllByText(/^Capítulo:/))[0].closest("p")!;
-    expect(linha.textContent).toMatch(/Cinco ao alto/);
+    // Cinco fotografias: a célula de texto num canto e duas filas (§6.6b).
+    expect(linha.textContent).toMatch(/O texto num canto e as fotografias em duas filas/);
   });
 
   it("escolher uma disposição grava-a no tema, e a linha di-lo", async () => {

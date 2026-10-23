@@ -7,6 +7,7 @@ import {
   blocosFixosNaLingua,
   camposDoEventoNaLingua,
   IDIOMA_POR_OMISSAO,
+  isoDaDataPorExtenso,
   rotuloDoTotalNaLingua,
   textosDaProposta,
   type IdiomaDaProposta,
@@ -22,18 +23,25 @@ import {
 import { opcionaisDe, totaisDasVersoes } from "@/lib/orcamento/versoes-da-proposta";
 import { LOGO_WHITE_PNG_B64 } from "@/lib/proposal-assets";
 import { SITE } from "@/lib/site";
-import { aoMeio, paginarColunasFixas, paginarCorrido, repartir, type Peca } from "./colunas";
+import {
+  TAM_MINIMO,
+  aoMeio,
+  paginarColunasFixas,
+  paginarCorrido,
+  repartir,
+  type Peca,
+} from "./colunas";
 import { bytesDaFoto, embedImagem } from "./embutir";
 import { Album, comMedida, medir, type Foto } from "./fotos";
 import { capitulos as capitulosDaInspiracao, eDasMesas } from "./grupos";
 import { eCasamento } from "../proposal-evento";
 import { logotipoNaCor } from "./imagens";
 import type { Contexto } from "./moldura";
-import { disposicaoDoTema, repartir as repartirFotos } from "./mosaico";
+import { disposicaoDoTema, repartir as repartirFotos, temaDizONome } from "./mosaico";
 import { HEX } from "./paleta";
 import { paletaDasFotos } from "./paleta-das-fotos";
 import { capa, contracapa } from "./paginas/capa";
-import { Chaves, ordemDoDesenho, servicosDoDocumento } from "./plano";
+import { Chaves, cartoesPorPagina, ordemDoDesenho, servicosDoDocumento } from "./plano";
 import type { FotosDoPdf, Medida } from "./fotos-do-pdf";
 
 export type { FotoNaPagina, FotosDoPdf, Medida } from "./fotos-do-pdf";
@@ -46,15 +54,15 @@ import {
 } from "./paginas/condicoes";
 import { citacao, separador } from "./paginas/fotografia";
 import { orcamento, repartirLinhas, total, type LinhaDoOrcamento } from "./paginas/orcamento";
-import { ambiente, CARTOES_POR_PAGINA, servicos, type Servico } from "./paginas/servicos";
+import { ambiente, servicos, type Servico } from "./paginas/servicos";
 import { tema } from "./paginas/tema";
 import { apresentacao, indice, type EntradaDoIndice } from "./paginas/texto";
-import { primeirosNomes, textosEditoriais } from "./textos";
+import { dataCurta, primeirosNomes, textosEditoriais } from "./textos";
 import { embutirLetras } from "./texto";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * O PDF EDITORIAL — a proposta no desenho do exemplo «Mafalda & João»
+ * O PDF EDITORIAL — a proposta no desenho de 23/10 (`docs/PDF-DESIGN-NOVO.md`)
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * Só muda o ASPECTO e a paginação. Os dados, as contas, os textos legais, os
@@ -67,12 +75,12 @@ import { embutirLetras } from "./texto";
  * A mesma sequência, sem desenhar, está em `plano.ts` — é o que o estúdio
  * conta e mostra. Um teste prende as duas uma à outra.
  *
- * A sequência é a do exemplo novo (26 páginas):
+ * A sequência é a do documento de 23/10 (§6):
  *
  *   capa · índice · a proposta · o que propomos · paleta e ambiente
  *   · por cada capítulo de inspiração: separador + as páginas dos temas
- *     (a citação a meio dos capítulos)
- *   · investimento: separador + quadro + total            (se houver orçamento)
+ *   · citação
+ *   · investimento: total + quadro                          (se houver orçamento)
  *   · condições: notas · condições gerais · pagamento      (SEMPRE)
  *   · contracapa
  *
@@ -324,9 +332,6 @@ async function motor(
   // álbum não repetir uma fotografia em duas páginas seguidas.
   const plano: Passo[] = [];
   const proxima = () => plano.length + 1;
-  /** O número de uma secção no índice (01, 02…), pela página onde começa. */
-  const numeroNoIndice = (entradas: readonly EntradaDoIndice[], pagina: number) =>
-    String(entradas.findIndex((e) => e.pagina === pagina) + 1).padStart(2, "0");
 
   // ── Capa ──
   // A fotografia que ela escolheu, se servir para a página inteira (deitada e
@@ -347,13 +352,18 @@ async function motor(
     fotos: [fundoDaCapa],
     desenhar: () =>
       capa(ctx, {
-        sobretitulo: org ? t.capaOrganizacao : t.capaDecoracao,
+        sobretitulo: te.sobretituloCapa(org, casamento),
         nomes: doc.clientNames,
-        faixa: [
-          { rotulo: te.factos.evento, valor: evento.eventType ?? "" },
-          { rotulo: te.factos.data, valor: evento.eventDate ?? "" },
-          { rotulo: te.factos.local, valor: doc.location ?? "" },
-        ],
+        // «JANTAR DE EMPRESA · 11.12.2026 · PALÁCIO PESTANA» — a data curta
+        // lê-se da data dela (em português); sem ela, a data como está escrita.
+        linha: [
+          evento.eventType ?? "",
+          dataCurta(isoDaDataPorExtenso(original.eventDate ?? "")) ?? evento.eventDate ?? "",
+          doc.location ?? "",
+        ]
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .join(" · "),
         fundo: fundoDaCapa,
       }),
   });
@@ -414,6 +424,9 @@ async function motor(
             casamento,
           ),
           factos,
+          // O documento não tem um campo para esta nota: é a primeira que ela
+          // escreveu nos temas, que é onde descreve a decoração.
+          nota: comConteudo.find((x) => x.nota)?.nota ?? "",
           foto,
           numero,
         }),
@@ -429,9 +442,9 @@ async function motor(
         lista.length,
         grupos.length === 1 ? grupos[0].title.trim().toLocaleLowerCase("pt-PT") : null,
       );
-      for (let i = 0; i < lista.length; i += CARTOES_POR_PAGINA) {
+      for (const { de: i, quantos } of cartoesPorPagina(lista.length)) {
         const pagina = proxima();
-        const desta: Servico[] = lista.slice(i, i + CARTOES_POR_PAGINA).map((s) => {
+        const desta: Servico[] = lista.slice(i, i + quantos).map((s) => {
           const casado = temaDoServico(s.chave, comConteudo);
           const foto = casado?.fotos[0] ?? album.escolher(pagina, "deitada")[0] ?? null;
           if (foto) album.usar(foto, pagina);
@@ -472,21 +485,21 @@ async function motor(
     let painel: Foto | null;
     if (dasMesas.length) {
       // O painel (a fotografia grande) primeiro, das mesas; a fila com as
-      // outras das mesas, e só se não chegarem a seis, as restantes.
+      // outras das mesas, e só se não chegarem a cinco, as restantes.
       painel = album.escolher(pagina, "alta", 1, daPaleta)[0] ?? null;
       fila = [...new Set([...primeiras, ...daPaleta, ...inspiracao])]
         .filter((f) => f !== painel)
-        .slice(0, 6);
+        .slice(0, 5);
     } else {
-      // Sem tema das mesas: exactamente como antes.
-      fila = [...new Set([...primeiras, ...inspiracao])].slice(0, 6);
+      // Sem tema das mesas: as primeiras de cada tema, e o painel à parte.
+      fila = [...new Set([...primeiras, ...inspiracao])].slice(0, 5);
       painel =
         album.escolher(pagina, "alta", 1, inspiracao, new Set(fila.map((f) => f.id)))[0] ?? null;
     }
     plano.push({
       chave: chaves.nova("ambiente"),
-      // A fila nos seis primeiros lugares, o painel no sétimo.
-      fotos: [...fila, ...Array<null>(6 - fila.length).fill(null), painel],
+      // A fila nos cinco primeiros lugares, o painel no sexto.
+      fotos: [...fila, ...Array<null>(5 - fila.length).fill(null), painel],
       desenhar: async (numero) =>
         ambiente(ctx, {
           // A paleta lê os bytes: só quando se desenha (o plano não os tem).
@@ -512,6 +525,7 @@ async function motor(
         t.sobretituloCronograma,
         t.tituloCronograma,
         pecas,
+        2,
         t.tituloCronograma,
       );
     }
@@ -519,7 +533,6 @@ async function motor(
 
   // ── Os capítulos de inspiração ──
   const capitulos = capitulosDaInspiracao(comConteudo, (x) => x.pt, casamento);
-  const meio = Math.ceil(capitulos.length / 2);
   let vezDoTema = 0;
   capitulos.forEach((c, ci) => {
     // Num casamento, o nome do dia («Cocktail»); fora dele, o título do próprio
@@ -531,27 +544,55 @@ async function motor(
     // preferência fora do primeiro tema, que vem logo a seguir.
     const paginaDoSeparador = proxima();
     const chaveDoSeparador = chaves.nova(`separador:${c.chave}`);
-    const evitar = new Set(c.itens.length > 1 ? c.itens[0].fotos.map((f) => f.id) : []);
-    // Um capítulo sem fotografias (um mood board só com texto) leva as da
-    // proposta. As que ela escolheu mandam: uma (a página inteira) ou duas.
+    // «Nunca a mesma fotografia em páginas vizinhas» (§5): fora as da página
+    // que vem logo a seguir — a primeira do primeiro tema. Se o capítulo não
+    // tem mais nenhuma (um tema só, numa página), vêm de outro capítulo; e só
+    // sem nenhuma outra na proposta é que se repete.
+    const primeiro = c.itens[0];
+    const logoASeguir = primeiro.fotos.slice(
+      0,
+      primeiro.fotos.length ? repartirFotos(primeiro.fotos.length, primeiro.disposicao)[0] : 0,
+    );
+    const evitar = new Set(logoASeguir.map((f) => f.id));
+    const fora = (l: readonly Foto[]) => l.filter((f) => !evitar.has(f.id));
+    const daqui = fora(doCapitulo).length
+      ? doCapitulo
+      : fora(inspiracao).length
+        ? inspiracao
+        : doCapitulo.length
+          ? doCapitulo
+          : inspiracao;
+    // As que ela escolheu mandam: uma (o fundo é a mesma) ou duas.
     const fotosDoSeparador =
       escolhidas(chaveDoSeparador, paginaDoSeparador)?.slice(0, 2) ??
-      album.escolher(
-        paginaDoSeparador,
-        "qualquer",
-        2,
-        doCapitulo.length ? doCapitulo : inspiracao,
-        evitar,
-      );
+      album.escolher(paginaDoSeparador, "qualquer", 2, daqui, evitar);
+    // Fora de um casamento, um tema em metades ou tríptico não tem texto na
+    // página: a nota dele vai no separador, para não se perder.
+    const notaDoSeparador =
+      !c.grupo &&
+      logoASeguir.length &&
+      !temaDizONome(
+        logoASeguir.map((f) => f.aspecto),
+        vezDoTema + 1,
+        primeiro.disposicao,
+        false,
+      )
+        ? primeiro.nota
+        : "";
     plano.push({
       entrada: `${te.inspiracao} · ${nome}`,
       chave: chaveDoSeparador,
       fotos: fotosDoSeparador,
-      desenhar: (numero, entradas) =>
+      desenhar: (numero) =>
         separador(ctx, {
-          sobretitulo: `${numeroNoIndice(entradas, numero)} · ${te.inspiracao}`,
+          sobretitulo: `${te.inspiracao} · ${String(ci + 1).padStart(2, "0")}`,
           titulo: nome,
+          // A linha pequena: o subtítulo do primeiro tema do capítulo que o tem
+          // («COMPOSIÇÕES FLORAIS, VELAS E CASTIÇAIS»).
+          linha: c.itens.find((x) => x.subtitulo)?.subtitulo ?? "",
+          nota: notaDoSeparador,
           fotos: fotosDoSeparador,
+          numero,
         }),
     });
 
@@ -580,39 +621,41 @@ async function motor(
           desenhar: (n) =>
             tema(ctx, {
               numero,
+              capitulo: ci + 1,
               // Um capítulo que é o próprio mood board não repete o título no topo.
               grupo: c.grupo ? nome : "",
               titulo: x.titulo,
-              subtitulo: k ? te.maisIdeias : x.subtitulo,
-              nota: k ? "" : x.nota,
+              subtitulo: x.subtitulo,
+              nota: x.nota,
               fotos,
               pagina: n,
+              primeira: k === 0,
               painel,
               disposicao: x.disposicao,
             }),
         });
       });
     }
-
-    // A citação, a meio da inspiração: a fotografia horizontal de maior
-    // resolução da proposta (que não esteja numa página vizinha).
-    if (ci + 1 === meio) {
-      const foto = escolhidas("citacao", proxima())?.[0] ?? album.escolher(proxima(), "deitada")[0];
-      if (foto) {
-        plano.push({
-          chave: chaves.nova("citacao"),
-          fotos: [foto],
-          desenhar: () =>
-            citacao(ctx, {
-              frase: t.slogan ?? SITE.slogan,
-              aspas: idioma === "en" ? ["“", "”"] : ["«", "»"],
-              assinatura: SITE.name,
-              foto,
-            }),
-        });
-      }
-    }
   });
+
+  // ── A citação, depois da inspiração (§6.7): a fotografia horizontal de
+  // maior resolução da proposta que não esteja numa página vizinha.
+  if (capitulos.length) {
+    const foto = escolhidas("citacao", proxima())?.[0] ?? album.escolher(proxima(), "deitada")[0];
+    if (foto) {
+      plano.push({
+        chave: chaves.nova("citacao"),
+        fotos: [foto],
+        desenhar: () =>
+          citacao(ctx, {
+            sobretitulo: te.formaDeVer,
+            frase: t.slogan ?? SITE.slogan,
+            assinatura: SITE.name,
+            foto,
+          }),
+      });
+    }
+  }
 
   // ── Investimento ──
   {
@@ -636,21 +679,16 @@ async function motor(
         })();
     const temOrcamento = linhas.length > 0 || totais.aPagar > 0 || Boolean(totalStr.trim());
     if (temOrcamento) {
-      const paginaDoSeparador = proxima();
-      const chaveDoSeparador = chaves.nova("investimento");
-      const fotosDoSeparador =
-        escolhidas(chaveDoSeparador, paginaDoSeparador)?.slice(0, 2) ??
-        album.escolher(paginaDoSeparador, "qualquer", 2);
+      // O total primeiro (é a página «Investimento» do índice, §6.8); o
+      // quadro das linhas a seguir, no mesmo desenho.
+      const chaveDoTotal = chaves.nova("total");
+      const fotoDoTotal =
+        escolhidas(chaveDoTotal, proxima())?.[0] ?? album.escolher(proxima(), "deitada")[0] ?? null;
       plano.push({
         entrada: te.investimento,
-        chave: chaveDoSeparador,
-        fotos: fotosDoSeparador,
-        desenhar: (numero, entradas) =>
-          separador(ctx, {
-            sobretitulo: numeroNoIndice(entradas, numero),
-            titulo: te.investimento,
-            fotos: fotosDoSeparador,
-          }),
+        chave: chaveDoTotal,
+        fotos: [fotoDoTotal],
+        desenhar: (numero) => total(ctx, { ...dadosDoTotal(), foto: fotoDoTotal, pagina: numero }),
       });
 
       let primeiro = 1;
@@ -675,15 +713,6 @@ async function motor(
             }),
         });
       }
-
-      const chaveDoTotal = chaves.nova("total");
-      const fotoDoTotal =
-        escolhidas(chaveDoTotal, proxima())?.[0] ?? album.escolher(proxima(), "deitada")[0] ?? null;
-      plano.push({
-        chave: chaveDoTotal,
-        fotos: [fotoDoTotal],
-        desenhar: (numero) => total(ctx, { ...dadosDoTotal(), foto: fotoDoTotal, pagina: numero }),
-      });
 
       // O total e a escada que o explica — os mesmos rótulos e números do
       // gerador antigo (ver o bloco «Orçamento» de `proposal-doc-pdf.ts`).
@@ -774,7 +803,17 @@ async function motor(
       ],
       lista(t.observacoesGerais, fixos.observacoesGerais),
     ].filter((c) => c.length);
-    paginasDeColunasFixas("condicoes:notas", te.condicoes, te.tituloNotas, notas, 28, te.condicoes);
+    // Corridas pelas três colunas (e não uma secção por coluna, como no
+    // modelo): os textos da casa são mais compridos do que os dele, e uma
+    // coluna fixa deixava as outras vazias e passava para uma 4.ª página.
+    paginasDeColunasCorridas(
+      "condicoes:notas",
+      te.condicoes,
+      te.tituloNotas,
+      notas.flat(),
+      3,
+      te.condicoes,
+    );
 
     // 2. Condições gerais — duas colunas corridas.
     const gerais: Peca[] = fixos.condicoesGerais.map((texto) => ({ tipo: "item", texto }));
@@ -784,6 +823,7 @@ async function motor(
         t.sobretituloCondicoes,
         te.tituloCondicoesGerais,
         gerais,
+        2,
       );
 
     // 3. Pagamento e cancelamento — o faseamento com os valores, os contactos.
@@ -812,9 +852,6 @@ async function motor(
           : marcos.length
             ? [{ tipo: "h3" as const, texto: comoTitulo(t.faseamentoDoPagamento) }, ...marcos]
             : []),
-        { tipo: "h3" as const, texto: comoTitulo(t.contactos) },
-        { tipo: "contacto" as const, rotulo: t.email, valor: SITE.email },
-        { tipo: "contacto" as const, rotulo: t.telefone, valor: SITE.phoneDisplay },
       ],
       lista(t.cancelamento, fixos.cancelamento),
     ].filter((c) => c.length);
@@ -823,7 +860,13 @@ async function motor(
       t.sobretituloCondicoes,
       te.tituloPagamento,
       pagamento,
-      50,
+      undefined,
+      // Os contactos numa faixa por baixo das colunas, sem h3: o rótulo de
+      // cada linha já diz o que é (o modelo).
+      [
+        { rotulo: t.email, valor: SITE.email },
+        { rotulo: t.telefone, valor: SITE.phoneDisplay },
+      ],
     );
   }
 
@@ -838,8 +881,12 @@ async function motor(
       contracapa(ctx, {
         sobretitulo: t.obrigada,
         agradecimento: t.agradecimento,
-        lema: t.slogan ?? SITE.slogan,
-        validade: t.passoValidade(t.data(resolveValidUntil(doc))),
+        // «E-MAIL · TELEFONE · VÁLIDA ATÉ 03.11.2026».
+        linha: [
+          SITE.email,
+          SITE.phoneDisplay,
+          `${te.validaAte} ${dataCurta(resolveValidUntil(doc)) ?? t.data(resolveValidUntil(doc))}`,
+        ].join(" · "),
         fundo: fundoDaContracapa,
       }),
   });
@@ -857,12 +904,15 @@ async function motor(
     sobre: string,
     titulo: string,
     colunas: readonly (readonly Peca[])[],
-    vao: number,
     entrada?: string,
+    contactos?: readonly { rotulo: string; valor: string }[],
   ) {
     if (!colunas.length) return;
-    const largura = larguraDaColuna(colunas.length, vao);
-    const paginas = paginarColunasFixas(ctx, colunas, largura, alturaDasColunas(ctx, titulo));
+    const largura = larguraDaColuna(colunas.length);
+    const altura = alturaDasColunas(ctx, titulo, Boolean(contactos?.length));
+    const { paginas, tam } = numaPagina((tam) =>
+      paginarColunasFixas(ctx, colunas, largura, altura, tam),
+    );
     paginas.forEach((cols, k) => {
       const chave = chaves.nova(base);
       const faixa =
@@ -876,7 +926,9 @@ async function motor(
             sobretitulo: sobre,
             titulo: k ? `${titulo} ${te.continuacao}` : titulo,
             colunas: cols,
-            vao,
+            numeroDeColunas: colunas.length,
+            tam,
+            contactos: k === paginas.length - 1 ? contactos : undefined,
             faixa,
             pagina: numero,
           }),
@@ -884,23 +936,40 @@ async function motor(
     });
   }
 
-  /** Uma lista corrida em duas colunas, equilibradas quando cabe numa página. */
+  /**
+   * O texto das condições não se corta: se não couber numa página ao tamanho
+   * do documento (14 px), a letra desce meio píxel de cada vez até
+   * {@link TAM_MINIMO}; se nem assim, fica nos 14 e continua na página
+   * seguinte. É o «encolhe até caber» das notas, aplicado a texto que não
+   * pode perder uma palavra.
+   */
+  function numaPagina(paginar: (tam: number) => Peca[][][]) {
+    for (let tam = 14; tam >= TAM_MINIMO; tam -= 0.5) {
+      const paginas = paginar(tam);
+      if (paginas.length <= 1) return { paginas, tam };
+    }
+    return { paginas: paginar(14), tam: 14 };
+  }
+
+  /** Uma lista corrida em `n` colunas, equilibradas quando cabe numa página. */
   function paginasDeColunasCorridas(
     base: string,
     sobre: string,
     titulo: string,
     pecas: readonly Peca[],
+    n: number,
     entrada?: string,
   ) {
-    const vao = 50;
-    const largura = larguraDaColuna(2, vao);
+    const largura = larguraDaColuna(n);
     const altura = alturaDasColunas(ctx, titulo);
-    let paginas = paginarCorrido(ctx, pecas, 2, largura, altura);
-    if (paginas.length === 1) {
-      const k = aoMeio(ctx, pecas, largura);
+    const escolha = numaPagina((tam) => paginarCorrido(ctx, pecas, n, largura, altura, tam));
+    const { tam } = escolha;
+    let { paginas } = escolha;
+    if (paginas.length === 1 && n === 2) {
+      const k = aoMeio(ctx, pecas, largura, tam);
       const equilibradas = [pecas.slice(0, k), pecas.slice(k)];
       // Só se as duas metades couberem mesmo — senão fica a repartição corrida.
-      if (equilibradas.every((c) => repartir(ctx, c, largura, altura).length <= 1)) {
+      if (equilibradas.every((c) => repartir(ctx, c, largura, altura, 1, tam).length <= 1)) {
         paginas = [equilibradas.filter((c) => c.length)];
       }
     }
@@ -917,7 +986,8 @@ async function motor(
             sobretitulo: sobre,
             titulo: k ? `${titulo} ${te.continuacao}` : titulo,
             colunas: cols,
-            vao,
+            numeroDeColunas: n,
+            tam,
             faixa,
             pagina: numero,
           }),
@@ -960,6 +1030,6 @@ const percentagemDoIva = (taxa: number): string =>
   `${new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 2 }).format(round2(taxa * 100))}%`;
 
 async function logotipo(pdf: PDFDocument): Promise<PDFImage | null> {
-  const png = await logotipoNaCor(Buffer.from(LOGO_WHITE_PNG_B64, "base64"), HEX.texto);
+  const png = await logotipoNaCor(Buffer.from(LOGO_WHITE_PNG_B64, "base64"), HEX.cal);
   return embedImagem(pdf, png);
 }

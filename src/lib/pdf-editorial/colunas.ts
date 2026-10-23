@@ -1,8 +1,17 @@
 import "server-only";
 import type { PDFPage } from "pdf-lib";
-import { linha, sobretitulo, type Contexto } from "./moldura";
+import type { Contexto } from "./moldura";
 import { COR, LETRA, px } from "./paleta";
-import { baseDaLinha, escrever, largura, limpo, quebrar, yDoTopo, type Estilo } from "./texto";
+import {
+  baseDaLinha,
+  escrever,
+  largura,
+  limpo,
+  maiusculas,
+  quebrar,
+  yDoTopo,
+  type Estilo,
+} from "./texto";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -14,34 +23,46 @@ import { baseDaLinha, escrever, largura, limpo, quebrar, yDoTopo, type Estilo } 
  * passa para a página seguinte, com o título da secção repetido e «(cont.)».
  *
  * Uma página é um conjunto de colunas; cada coluna é uma lista de peças
- * (títulos `h3`, pontos `li`, contactos). As peças medem-se antes de se
+ * (títulos `h3` e pontos `li`). As peças medem-se antes de se
  * desenhar, para a repartição ser decidida inteira — um título nunca fica
  * sozinho no fundo de uma coluna sem o primeiro ponto por baixo.
+ *
+ * O desenho é o do documento de 23/10 (§6.9): os h3 em maiúsculas espaçadas
+ * no Linho, e os pontos em Jost 14 SEM fios entre eles (10 px de ar). Os
+ * contactos não são peças: são uma faixa por baixo das colunas
+ * (`paginas/condicoes.ts`).
  */
 
 export type Peca =
   | { tipo: "h3"; texto: string }
-  /** Um ponto da lista; `forte` é o princípio a negro («Sinal 30% · 1.350,54 €»). */
-  | { tipo: "item"; texto: string; forte?: string }
-  | { tipo: "contacto"; rotulo: string; valor: string };
+  /** Um ponto da lista; `forte` é o princípio («Sinal 30% · 1.350,54 €»), na Cal. */
+  | { tipo: "item"; texto: string; forte?: string };
 
 const ITEM = LETRA.item;
 const H3 = LETRA.h3;
-/** `li { padding: 7px 0 }` e o fio de baixo. */
-const ENCHIMENTO = 7;
-const AR_ANTES_DO_H3 = 20;
-const AR_DEPOIS_DO_H3 = 10;
+/**
+ * Medido no modelo: do último ponto ao h3 seguinte, 51 px de base a base; do
+ * h3 ao primeiro ponto, 39.
+ */
+const AR_ANTES_DO_H3 = 24;
+const AR_DEPOIS_DO_H3 = 20;
 
-const estilos = (ctx: Contexto) => ({
-  h3: { letra: ctx.letras.corpoForte, tam: H3.tam, cor: COR.texto } satisfies Estilo,
-  item: { letra: ctx.letras.corpo, tam: ITEM.tam, cor: COR.textoLead } satisfies Estilo,
-  forte: { letra: ctx.letras.corpoForte, tam: ITEM.tam, cor: COR.texto } satisfies Estilo,
-  rotulo: {
-    letra: ctx.letras.corpoForte,
-    tam: 10,
-    cor: COR.acento,
-    espaco: LETRA.sobretitulo.espaco,
+/**
+ * O texto das condições é contratual: não se corta — encolhe. Quem pagina
+ * experimenta o tamanho do documento (14) e, só se o texto não couber nas
+ * páginas dele, um pouco menos, até {@link TAM_MINIMO} (`montar.ts`).
+ */
+export const TAM_MINIMO = 12.5;
+
+const estilos = (ctx: Contexto, tam: number = ITEM.tam) => ({
+  h3: {
+    letra: ctx.letras.jost,
+    tam: H3.tam,
+    cor: COR.linho,
+    espaco: H3.espaco,
   } satisfies Estilo,
+  item: { letra: ctx.letras.jost, tam, cor: COR.papel } satisfies Estilo,
+  forte: { letra: ctx.letras.jost, tam, cor: COR.cal } satisfies Estilo,
 });
 
 /** Uma linha de texto feita de corridas em letras diferentes. */
@@ -51,8 +72,13 @@ type Corrida = { texto: string; estilo: Estilo };
  * Parte um ponto com princípio a negro em linhas, palavra a palavra, sem
  * perder qual palavra vai a negro.
  */
-function linhasDoItem(ctx: Contexto, p: Extract<Peca, { tipo: "item" }>, max: number): Corrida[][] {
-  const e = estilos(ctx);
+function linhasDoItem(
+  ctx: Contexto,
+  p: Extract<Peca, { tipo: "item" }>,
+  max: number,
+  tam: number,
+): Corrida[][] {
+  const e = estilos(ctx, tam);
   const palavras: Corrida[] = [
     ...(p.forte ?? "")
       .split(/\s+/)
@@ -82,16 +108,25 @@ function linhasDoItem(ctx: Contexto, p: Extract<Peca, { tipo: "item" }>, max: nu
   return linhas;
 }
 
-/** A altura de uma peça, em píxeis do exemplo. */
-export function alturaDaPeca(ctx: Contexto, p: Peca, larguraPx: number, primeira: boolean): number {
-  const e = estilos(ctx);
+/**
+ * A altura de uma peça, em píxeis da grelha. `anterior` é a peça de cima na
+ * mesma coluna (`null` no topo): o ar antes de um h3 só conta a meio da
+ * coluna.
+ */
+export function alturaDaPeca(
+  ctx: Contexto,
+  p: Peca,
+  larguraPx: number,
+  anterior: Peca | null,
+  tam: number = ITEM.tam,
+): number {
+  const e = estilos(ctx, tam);
   if (p.tipo === "h3") {
-    const n = quebrar(e.h3, p.texto, px(larguraPx)).length;
-    return (primeira ? 0 : AR_ANTES_DO_H3) + n * H3.tam * H3.entrelinha + AR_DEPOIS_DO_H3;
+    const n = quebrar(e.h3, maiusculas(p.texto), px(larguraPx)).length;
+    return (anterior ? AR_ANTES_DO_H3 : 0) + n * H3.tam * H3.entrelinha + AR_DEPOIS_DO_H3;
   }
-  if (p.tipo === "contacto") return 2 * ENCHIMENTO + ITEM.tam * ITEM.entrelinha + 1;
-  const n = linhasDoItem(ctx, p, px(larguraPx)).length;
-  return 2 * ENCHIMENTO + n * ITEM.tam * ITEM.entrelinha + 1;
+  const n = linhasDoItem(ctx, p, px(larguraPx), tam).length;
+  return n * tam * ITEM.entrelinha + ITEM.entreItens;
 }
 
 /**
@@ -106,6 +141,9 @@ export function repartir(
   pecas: readonly Peca[],
   larguraPx: number,
   altura: number,
+  /** Quantos pedaços vão numa página: o «(cont.)» só abre uma página nova. */
+  porPagina = 1,
+  tam: number = ITEM.tam,
 ): Peca[][] {
   const pedacos: Peca[][] = [];
   let atual: Peca[] = [];
@@ -116,30 +154,72 @@ export function repartir(
     atual = [];
     usado = 0;
   };
-  for (let i = 0; i < pecas.length; i++) {
-    const p = pecas[i];
+  const fila = [...pecas];
+  for (let i = 0; i < fila.length; i++) {
+    let p = fila[i];
     if (p.tipo === "h3") tituloAtual = p.texto;
-    let h = alturaDaPeca(ctx, p, larguraPx, atual.length === 0);
+    let h = alturaDaPeca(ctx, p, larguraPx, atual[atual.length - 1] ?? null, tam);
     // Um título leva consigo o primeiro ponto.
-    const seguinte = pecas[i + 1];
+    const seguinte = fila[i + 1];
     const precisa =
       p.tipo === "h3" && seguinte && seguinte.tipo !== "h3"
-        ? h + alturaDaPeca(ctx, seguinte, larguraPx, false)
+        ? h + alturaDaPeca(ctx, seguinte, larguraPx, p, tam)
         : h;
     if (atual.length && usado + precisa > altura) {
+      // Um ponto comprido parte-se entre linhas, palavra a palavra, em vez de
+      // passar inteiro e deixar o fundo da coluna vazio — com pelo menos duas
+      // linhas antes do corte. Nenhuma palavra se perde.
+      const partes = p.tipo === "item" ? partirItem(ctx, p, larguraPx, altura - usado, tam) : null;
+      if (partes) {
+        atual.push(partes[0]);
+        p = partes[1];
+        fila[i] = p;
+      }
       fecha();
-      if (p.tipo !== "h3" && tituloAtual) {
+      if (p.tipo !== "h3" && tituloAtual && pedacos.length % porPagina === 0) {
         const cont: Peca = { tipo: "h3", texto: `${tituloAtual} ${ctx.te.continuacao}` };
         atual.push(cont);
-        usado += alturaDaPeca(ctx, cont, larguraPx, true);
+        usado += alturaDaPeca(ctx, cont, larguraPx, null, tam);
       }
-      h = alturaDaPeca(ctx, p, larguraPx, atual.length === 0);
+      h = alturaDaPeca(ctx, p, larguraPx, atual[atual.length - 1] ?? null, tam);
     }
     atual.push(p);
     usado += h;
   }
   if (atual.length) pedacos.push(atual);
   return pedacos;
+}
+
+/**
+ * Parte um ponto em dois: as linhas que cabem em `livre` px e o resto — ou
+ * `null`, se não cabem duas linhas. O corte é entre palavras, e cada metade
+ * guarda o seu texto tal como estava escrito.
+ */
+function partirItem(
+  ctx: Contexto,
+  p: Extract<Peca, { tipo: "item" }>,
+  larguraPx: number,
+  livre: number,
+  tam: number,
+): [Extract<Peca, { tipo: "item" }>, Extract<Peca, { tipo: "item" }>] | null {
+  const linhas = linhasDoItem(ctx, p, px(larguraPx), tam);
+  const cabem = Math.floor((livre - ITEM.entreItens) / (tam * ITEM.entrelinha));
+  if (cabem < 2 || linhas.length <= cabem) return null;
+  const palavras = linhas
+    .slice(0, cabem)
+    .flat()
+    .reduce((n, c) => n + c.texto.split(/\s+/).filter(Boolean).length, 0);
+  const forte = (p.forte ?? "").split(/\s+/).filter(Boolean);
+  if (palavras <= forte.length) return null;
+  const depois = palavras - forte.length;
+  // O índice, no texto original, onde acaba a `depois`-ésima palavra.
+  const fim = [...p.texto.matchAll(/\S+/g)][depois - 1];
+  if (!fim || fim.index === undefined) return null;
+  const corte = fim.index + fim[0].length;
+  return [
+    { ...p, texto: p.texto.slice(0, corte).trimEnd() },
+    { tipo: "item", texto: p.texto.slice(corte).trimStart() },
+  ];
 }
 
 /**
@@ -151,8 +231,9 @@ export function paginarColunasFixas(
   colunas: readonly (readonly Peca[])[],
   larguraPx: number,
   altura: number,
+  tam: number = ITEM.tam,
 ): Peca[][][] {
-  const pedacos = colunas.map((c) => repartir(ctx, c, larguraPx, altura));
+  const pedacos = colunas.map((c) => repartir(ctx, c, larguraPx, altura, 1, tam));
   const paginas = Math.max(1, ...pedacos.map((p) => p.length));
   return Array.from({ length: paginas }, (_, i) => pedacos.map((p) => p[i] ?? []));
 }
@@ -167,8 +248,9 @@ export function paginarCorrido(
   n: number,
   larguraPx: number,
   altura: number,
+  tam: number = ITEM.tam,
 ): Peca[][][] {
-  const pedacos = repartir(ctx, pecas, larguraPx, altura);
+  const pedacos = repartir(ctx, pecas, larguraPx, altura, n, tam);
   const paginas: Peca[][][] = [];
   for (let i = 0; i < pedacos.length; i += n) paginas.push(pedacos.slice(i, i + n));
   return paginas.length ? paginas : [[]];
@@ -179,8 +261,13 @@ export function paginarCorrido(
  * pela ALTURA, e não pela contagem — a coluna da direita não fica com metade
  * dos pontos e um terço do texto.
  */
-export function aoMeio(ctx: Contexto, pecas: readonly Peca[], larguraPx: number): number {
-  const alturas = pecas.map((p, i) => alturaDaPeca(ctx, p, larguraPx, i === 0));
+export function aoMeio(
+  ctx: Contexto,
+  pecas: readonly Peca[],
+  larguraPx: number,
+  tam: number = ITEM.tam,
+): number {
+  const alturas = pecas.map((p, i) => alturaDaPeca(ctx, p, larguraPx, pecas[i - 1] ?? null, tam));
   const total = alturas.reduce((s, h) => s + h, 0);
   let acc = 0;
   for (let i = 0; i < alturas.length; i++) {
@@ -198,52 +285,30 @@ export function desenharColuna(
   x: number,
   topo: number,
   larguraPx: number,
+  tam: number = ITEM.tam,
 ): number {
-  const e = estilos(ctx);
+  const e = estilos(ctx, tam);
   for (const [i, p] of pecas.entries()) {
     if (p.tipo === "h3") {
       if (i > 0) topo += AR_ANTES_DO_H3;
-      for (const l of quebrar(e.h3, p.texto, px(larguraPx))) {
+      for (const l of quebrar(e.h3, maiusculas(p.texto), px(larguraPx))) {
         escrever(pagina, e.h3, l, px(x), yDoTopo(topo) - baseDaLinha(e.h3, H3.entrelinha));
         topo += H3.tam * H3.entrelinha;
       }
       topo += AR_DEPOIS_DO_H3;
       continue;
     }
-    topo += ENCHIMENTO;
-    if (p.tipo === "contacto") {
+    for (const corridas of linhasDoItem(ctx, p, px(larguraPx), tam)) {
       const y = yDoTopo(topo) - baseDaLinha(e.item, ITEM.entrelinha);
-      sobretituloEmLinha(ctx, pagina, p.rotulo, x, topo);
-      escrever(pagina, { ...e.item, cor: COR.texto }, p.valor, px(x + 74), y);
-      topo += ITEM.tam * ITEM.entrelinha;
-    } else {
-      for (const corridas of linhasDoItem(ctx, p, px(larguraPx))) {
-        const y = yDoTopo(topo) - baseDaLinha(e.item, ITEM.entrelinha);
-        let cx = px(x);
-        for (const [k, c] of corridas.entries()) {
-          if (k) cx += largura(c.estilo, " ");
-          escrever(pagina, c.estilo, c.texto, cx, y);
-          cx += largura(c.estilo, limpo(c.estilo.letra, c.texto));
-        }
-        topo += ITEM.tam * ITEM.entrelinha;
+      let cx = px(x);
+      for (const [k, c] of corridas.entries()) {
+        if (k) cx += largura(c.estilo, " ");
+        escrever(pagina, c.estilo, c.texto, cx, y);
+        cx += largura(c.estilo, limpo(c.estilo.letra, c.texto));
       }
+      topo += tam * ITEM.entrelinha;
     }
-    topo += ENCHIMENTO;
-    linha(pagina, x, x + larguraPx, topo, 0.16);
-    topo += 1;
+    topo += ITEM.entreItens;
   }
   return topo;
-}
-
-/** O rótulo dourado de um contacto («EMAIL»), alinhado com o valor. */
-function sobretituloEmLinha(
-  ctx: Contexto,
-  pagina: PDFPage,
-  texto: string,
-  x: number,
-  topo: number,
-) {
-  // A linha do item é de 12,5 × 1,5; o rótulo de 10 px centra-se nela.
-  const desce = (ITEM.tam * ITEM.entrelinha - 10 * 1.21) / 2;
-  sobretitulo(ctx, pagina, texto, x, topo + desce, COR.acento, 10);
 }
