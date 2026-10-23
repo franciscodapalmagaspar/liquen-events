@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/proposal-doc-render", () => ({ conteudoWebDoDocumento: vi.fn() }));
+// O que se guarda (`guardado.ts`) não toca no `data/` da máquina nos testes.
+vi.mock("@/lib/app-state", () => ({
+  getState: vi.fn(async () => null),
+  setState: vi.fn(async () => ({ gravado: true })),
+}));
 vi.mock("@/lib/proposta-fotos", async () => {
   const real = await vi.importActual<typeof import("@/lib/proposta-fotos")>("@/lib/proposta-fotos");
   return { ...real, fotosDaProposta: vi.fn() };

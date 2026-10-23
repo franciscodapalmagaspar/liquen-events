@@ -14,6 +14,7 @@ import { SITE } from "@/lib/site";
 import { log } from "@/lib/logger";
 import { mosaicoDoCapitulo, type FormaDaCelula } from "./mosaico";
 import { textosWeb, type TextosWeb } from "./textos-web";
+import { chaveDoGuardado, guardadoOuCalculado } from "./guardado";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -157,40 +158,70 @@ function blocosDasCondicoes(seccoes: { titulo: string; pecas: PecaWeb[] }[]) {
   return blocos.filter((b) => b.itens.length);
 }
 
-/** As cores da paleta: das mesas, pelas miniaturas (leves), guardadas por proposta. */
-const coresGuardadas = new Map<string, Promise<string[]>>();
-async function coresDaPaleta(
-  chave: string,
+/**
+ * As cores da paleta: das mesas, pelas miniaturas (leves). Calculadas uma vez
+ * por proposta e guardadas (`guardado.ts`) — doze descargas e o `sharp` não
+ * podem repetir-se a cada visita.
+ */
+function coresDaPaleta(
+  proposalId: string,
   refs: readonly string[],
   porRef: ReadonlyMap<string, FotoDaProposta>,
 ): Promise<string[]> {
-  const ja = coresGuardadas.get(chave);
-  if (ja) return ja;
-  const feito = (async () => {
-    const bytes = await Promise.all(
-      refs.slice(0, 12).map(async (ref) => {
-        const f = porRef.get(ref);
-        const url = f?.miniatura ?? f?.media ?? f?.original;
-        if (!url) return null;
-        try {
-          if (url.startsWith("data:")) return Buffer.from(url.split(",")[1] ?? "", "base64");
-          const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
-          return r.ok ? Buffer.from(await r.arrayBuffer()) : null;
-        } catch {
-          return null;
-        }
-      }),
-    );
-    const validos: Buffer[] = [];
-    for (const b of bytes) if (b && b.length > 0) validos.push(b);
-    return validos.length ? paletaDasFotos(validos) : [];
-  })().catch((e) => {
+  const doze = refs.slice(0, 12);
+  return guardadoOuCalculado(
+    chaveDoGuardado("cores", proposalId, ...doze),
+    async () => {
+      const bytes = await Promise.all(
+        doze.map(async (ref) => {
+          const f = porRef.get(ref);
+          const url = f?.miniatura ?? f?.media ?? f?.original;
+          if (!url) return null;
+          try {
+            if (url.startsWith("data:")) return Buffer.from(url.split(",")[1] ?? "", "base64");
+            const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
+            return r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      const validos: Buffer[] = [];
+      for (const b of bytes) if (b && b.length > 0) validos.push(b);
+      return validos.length ? paletaDasFotos(validos) : [];
+    },
+    (cores) => cores.length > 0,
+  ).catch((e) => {
     log.warn("proposta online: a paleta não se deixou calcular", { erro: e });
     return [] as string[];
   });
-  coresGuardadas.set(chave, feito);
-  if (coresGuardadas.size > 50) coresGuardadas.delete(coresGuardadas.keys().next().value!);
-  return feito;
+}
+
+/**
+ * O conteúdo do documento (o motor do PDF, sem desenhar), calculado uma vez
+ * por proposta e língua e guardado — é a parte cara de abrir a página.
+ */
+export function conteudoGuardado(
+  proposta: { id: string; doc: ProposalDoc },
+  idioma: IdiomaDaProposta,
+): Promise<ConteudoWeb> {
+  return guardadoOuCalculado(
+    chaveDoGuardado("conteudo", proposta.id, idioma, JSON.stringify(proposta.doc)),
+    () => conteudoWebDoDocumento(proposta.doc, idioma),
+  );
+}
+
+/**
+ * Deixa a página pronta logo no envio: o conteúdo e as cores ficam guardados,
+ * e o primeiro clique do casal no email já não espera por eles. Lê a proposta
+ * tal como ficou gravada — a chave tem de ser a mesma que a página vai pedir.
+ */
+export async function aquecerPropostaWeb(proposalId: string): Promise<void> {
+  const { getProposal } = await import("@/lib/proposals-store");
+  const { idiomaDaProposta } = await import("@/lib/proposta-idioma");
+  const p = await getProposal(proposalId);
+  if (!p?.doc) return;
+  await propostaWeb({ id: p.id, doc: p.doc }, "aquecer", idiomaDaProposta(p));
 }
 
 export async function propostaWeb(
@@ -200,7 +231,7 @@ export async function propostaWeb(
 ): Promise<PropostaWeb> {
   const t = textosWeb(idioma);
   const [conteudo, assinadas] = await Promise.all([
-    conteudoWebDoDocumento(proposta.doc, idioma),
+    conteudoGuardado(proposta, idioma),
     fotosDaProposta(proposta.doc),
   ]);
   return montarPropostaWeb(conteudo, proposta, token, idioma, t, assinadas);
@@ -288,13 +319,7 @@ export async function montarPropostaWeb(
     ? {
         titulo: c.ambiente.titulo,
         subtitulo: c.ambiente.subtitulo,
-        cores: (
-          await coresDaPaleta(
-            `${proposta.id}|${c.ambiente.daPaleta.slice(0, 12).join("|")}`,
-            c.ambiente.daPaleta,
-            porRef,
-          )
-        ).slice(0, 5),
+        cores: (await coresDaPaleta(proposta.id, c.ambiente.daPaleta, porRef)).slice(0, 5),
         fotos: [c.ambiente.painel, c.ambiente.fila[0], c.ambiente.fila[1]]
           .map(imagem)
           .filter((i): i is ImagemWeb => i !== null),
