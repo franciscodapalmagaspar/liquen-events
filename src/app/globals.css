@@ -849,6 +849,84 @@ body {
 .text-veil-shadow {
   text-shadow: 0 1px 24px rgba(8, 8, 8, 0.6);
 }
+
+/* ── O ESCURO SÓ ONDE ESTÁ O TEXTO (23/10) ─────────────────────────────────
+   Pedido dela, com uma captura do iPhone da secção «Vamos dar vida ao seu
+   evento?»: «está muito escuro… e eu sinto que todo o site no telemóvel está
+   muito escuro… coloca mais brilho».
+
+   Os painéis de fotografia escureciam a foto INTEIRA (um véu de 42–50 % por
+   cima de tudo, mais degradés em cima e em baixo), para o texto se ler onde
+   quer que caísse. É o mesmo remédio do #253 na entrada: o escuro passa para
+   TRÁS DO TEXTO e vai onde ele for; o resto da fotografia fica com a luz dela,
+   só com um esbatido fino nas pontas (`VEU_DAS_PONTAS`, ui-classes.ts) para os
+   painéis não se cortarem uns aos outros.
+
+   `.veu-texto` põe-se no bloco do texto. Desenha uma faixa da largura do ecrã,
+   da altura do bloco mais `--veu-folga` para cima e para baixo, a esbater-se
+   nessas folgas. A força (`--veu-alfa`) é a que o texto mais fraco do bloco
+   pede SOBRE UMA FOTOGRAFIA BRANCA (o pior caso), medida no browser:
+   branco puro em letra pequena pede 0,56; branco a 70 % (os sobretítulos)
+   pede 0,7; o verde claro dos títulos (`text-moss-light`, texto grande) pede
+   0,76. No computador a faixa esbate-se também para os lados
+   (`--esquerda`, `--centro`), porque lá o texto não ocupa a largura toda.
+
+   Vai no contentor CENTRADO do texto (o `max-w-7xl mx-auto`): a faixa centra-
+   -se nele para cobrir o ecrã de ponta a ponta. Quando esse contentor tem
+   padding em cima ou em baixo, `--veu-recuo-cima` / `--veu-recuo-baixo` tiram-
+   -no à faixa — o escuro fica no texto e não no espaço à volta dele. */
+.veu-texto {
+  position: relative;
+  isolation: isolate;
+  --veu-folga: 3.5rem;
+}
+.veu-texto::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  top: calc(var(--veu-recuo-cima, 0px) - var(--veu-folga));
+  bottom: calc(var(--veu-recuo-baixo, 0px) - var(--veu-folga));
+  /* De ponta a ponta do ecrã, a partir do contentor centrado. Sem `width`: uma
+     largura fora de camada calaria o `w-full` do contentor
+     (`CamadasCss.contrato.test.ts`). */
+  left: calc(50% - 50vw);
+  right: calc(50% - 50vw);
+  background: rgb(8 8 8 / var(--veu-alfa, 0.7));
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--veu-folga),
+    #000 calc(100% - var(--veu-folga)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--veu-folga),
+    #000 calc(100% - var(--veu-folga)),
+    transparent
+  );
+}
+@media (min-width: 1024px) {
+  .veu-texto--esquerda::before {
+    background: linear-gradient(
+      to right,
+      rgb(8 8 8 / var(--veu-alfa, 0.7)) 0%,
+      rgb(8 8 8 / var(--veu-alfa, 0.7)) 52%,
+      rgb(8 8 8 / 0) 88%
+    );
+  }
+  .veu-texto--centro::before {
+    background: linear-gradient(
+      to right,
+      rgb(8 8 8 / 0) 4%,
+      rgb(8 8 8 / var(--veu-alfa, 0.7)) 26%,
+      rgb(8 8 8 / var(--veu-alfa, 0.7)) 74%,
+      rgb(8 8 8 / 0) 96%
+    );
+  }
+}
 /* Safety net: never allow accidental horizontal scroll on small screens */
 body {
   overflow-x: clip;

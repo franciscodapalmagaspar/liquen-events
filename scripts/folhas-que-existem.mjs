@@ -166,4 +166,30 @@ if (vazias.length > 0) {
   process.exit(1);
 }
 
-console.log(`✓ ${folhas.length} folhas de estilos, todas com regras.`);
+/**
+ * ── A FOLHA DO BACK OFFICE TEM DE TRAZER OS SEUS TOKENS (23/10) ────────────
+ *
+ * Não vazia não chega: a 23/10 a folha do back office saiu com regras — mas
+ * eram as de uma construção ANTERIOR (cache do compilador), sem os tokens e
+ * os cartões que o #267 lhe tinha passado. O painel abriu «todo estranho» e
+ * nada se queixou. Os tokens vivem em `body:is(.admin-mode, :has([data-admin-mode]))`
+ * e definem `--bo-surface`; se nenhuma folha os tiver, a construção pára.
+ * Ver `sem-cache-do-compilador.mjs`.
+ */
+const comTokens = caminhos.filter((caminho) => {
+  const css = readFileSync(caminho, "utf8");
+  return css.includes("data-admin-mode") && css.includes("--bo-surface:");
+});
+if (comTokens.length === 0) {
+  console.error(
+    "\n✗ nenhuma folha de estilos traz os tokens do back office\n" +
+      "  (`[data-admin-mode]` com `--bo-surface:`). O painel abriria sem cores,\n" +
+      "  cartões nem campos. Causa vista a 23/10: a cache do compilador devolveu\n" +
+      "  a folha de uma construção anterior — ver sem-cache-do-compilador.mjs.",
+  );
+  process.exit(1);
+}
+
+console.log(
+  `✓ ${folhas.length} folhas de estilos, todas com regras; os tokens do back office estão lá.`,
+);

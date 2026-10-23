@@ -15,7 +15,7 @@ import HeroWebGL from "@/components/motion/HeroWebGL";
 import { waHref } from "@/data";
 import { SITE } from "@/lib/site";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
-import { OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
+import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 
 export async function generateMetadata({
@@ -470,17 +470,15 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
           quality={75}
           className="object-cover"
         />
-        {/* Text lives in the left column, so darken only the left and let the
-            photo read on the right (SpaceX-style — image breathes). */}
-        {/* Wash + gradient merged (gradient listed first = on top). Same look. */}
+        {/* Só as pontas: o escuro que o texto pede está atrás do próprio texto
+            (`.veu-texto`, globals.css). Pedido dela, 23/10: «coloca mais brilho». */}
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage:
-              "linear-gradient(to right, rgba(8,8,8,0.85), rgba(8,8,8,0.35), transparent), linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.2))",
+            backgroundImage: VEU_DAS_PONTAS,
           }}
         />
-        <div className="max-w-7xl mx-auto px-6 lg:px-16 relative">
+        <div className="veu-texto veu-texto--esquerda [--veu-alfa:0.78] max-w-7xl mx-auto px-6 lg:px-16 relative">
           <AnimateIn>
             <p className="text-cream/80 text-[10px] tracking-[0.5em] uppercase mb-10 flex items-center gap-3">
               <span className="w-5 h-px bg-cream/45 flex-shrink-0" />

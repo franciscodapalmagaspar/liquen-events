@@ -126,6 +126,16 @@ destaque, nenhum fundo desfocado, capa só com a fotografia de fundo, logótipo 
 rodapé). A
 referência que conta é o exemplo NOVO, de 26 páginas.
 
+# E o design NOVO do PDF, de 23/10
+
+`docs/PDF-DESIGN-NOVO.md` é o documento dela que SUBSTITUI o desenho do
+`docs/PDF-EDITORIAL.md`: fotográfico, com fundos «arrastados» nas páginas de
+texto, Jost + Bodoni Moda, sem dourado. O que o PDF-EDITORIAL decidiu sobre
+dados e lógica (capítulos, casamento/não casamento, escolha das fotos e das
+disposições, paleta das mesas) continua a valer; onde os dois se contradizem
+no desenho, ganha o novo. O modelo (`Modelo-Proposta-Liquen.pdf`) está em
+`referencia/`, fora do git. Mexe no PDF: nada se junta sem a aprovação dela.
+
 # E o plano do site e da galeria, também
 
 `docs/PLANO-SITE-E-GALERIA.md` junta quatro análises de 11/10 (galeria, site
