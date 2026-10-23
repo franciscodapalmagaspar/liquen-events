@@ -42,3 +42,15 @@ export const PRIMARY_BUTTON_DARK_CLASS = `${PRIMARY_BUTTON_BASE} shadow-xl shado
 // fica mais fino e o toque continua a cumprir o mínimo.
 export const OUTLINE_LIGHT_BUTTON_CLASS =
   "toque alvo-toque relative inline-flex items-center gap-3 px-6 py-3 sm:px-8 sm:py-3.5 border border-white/70 text-white text-[10px] sm:text-[11px] tracking-[0.24em] sm:tracking-[0.3em] uppercase hover:bg-white hover:text-[#0c0e0b] hover:border-white motion-safe:hover:-translate-y-0.5 transition-[color,background-color,border-color,translate] duration-300 ease-expo focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80";
+
+/**
+ * O véu de um painel de fotografia — SÓ AS PONTAS (23/10).
+ *
+ * Pedido dela: «todo o site no telemóvel está muito escuro… coloca mais
+ * brilho». Os painéis tinham 42–50 % de preto por cima da fotografia inteira;
+ * o escuro que o texto precisa passou para trás do próprio texto
+ * (`.veu-texto`, globals.css). Aqui fica só o esbatido de cima e de baixo, para
+ * cada painel se fundir com o vizinho em vez de se cortar numa linha.
+ */
+export const VEU_DAS_PONTAS =
+  "linear-gradient(to bottom, rgba(8,8,8,0.42) 0%, rgba(8,8,8,0) 18%, rgba(8,8,8,0) 78%, rgba(8,8,8,0.62) 100%)";

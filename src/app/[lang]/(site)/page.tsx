@@ -12,7 +12,7 @@ import { blurFor } from "@/lib/blur";
 import ClientMarquee from "@/components/ClientMarquee";
 import HeroWebGL from "@/components/motion/HeroWebGL";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
-import { OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
+import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 
 // Each tile links to a distinct destination that matches its label
 // (Corporativos / Casamentos / Privados) — the first two deep-link to their
@@ -287,17 +287,16 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
           className="object-cover object-center"
           {...blurFor("/imagens/JOAO_E_PEDRO_1Y1A4463.jpg")}
         />
-        {/* Wash + gradient merged into one layer (gradient listed first = on
-            top, matching the former div order). Same look, one paint pass. */}
+        {/* Só as pontas: o escuro que o texto pede está atrás do próprio texto
+            (`.veu-texto`, globals.css). Pedido dela, 23/10: «coloca mais brilho». */}
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage:
-              "linear-gradient(to top, rgba(8,8,8,0.9), transparent, rgba(8,8,8,0.5)), linear-gradient(rgba(0,0,0,0.48), rgba(0,0,0,0.48))",
+            backgroundImage: VEU_DAS_PONTAS,
           }}
         />
 
-        <div className="text-veil-shadow relative z-10 max-w-7xl mx-auto px-6 lg:px-16 py-28 lg:py-40 flex flex-col items-center text-center">
+        <div className="text-veil-shadow veu-texto veu-texto--centro [--veu-alfa:0.76] [--veu-recuo-cima:7rem] [--veu-recuo-baixo:7rem] lg:[--veu-recuo-cima:10rem] lg:[--veu-recuo-baixo:10rem] relative z-10 max-w-7xl mx-auto px-6 lg:px-16 py-28 lg:py-40 flex flex-col items-center text-center">
           <AnimateIn>
             <p className="text-white/70 text-[10px] tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
               <span className="w-8 h-px bg-gold" />
@@ -313,7 +312,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
               style={{ fontSize: "clamp(32px, 5.5vw, 78px)" }}
             >
               <span className="block">{t.home.ctaTitleLine1}</span>
-              <span className="block text-moss">{t.home.ctaTitleLine2}</span>
+              <span className="block text-moss-light">{t.home.ctaTitleLine2}</span>
             </h2>
           </AnimateIn>
           <AnimateIn delay={staggerMs(1)}>

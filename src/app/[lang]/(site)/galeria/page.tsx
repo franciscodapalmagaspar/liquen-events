@@ -13,7 +13,7 @@ import { BreadcrumbJsonLd, JsonLd } from "@/components/JsonLd";
 import { SITE } from "@/lib/site";
 import { pageMetadata } from "@/lib/page-metadata";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
-import { OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
+import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import { PHOTOS } from "./photos-data";
 import { interleaveByCollection, razaoDe } from "./interleave";
 import {
@@ -306,15 +306,15 @@ export default async function GaleriaPage({ params }: { params: Promise<{ lang: 
           className="object-cover object-center"
           {...blurFor("/imagens/DaniGui_Adois_61.jpg")}
         />
-        {/* Wash + gradient merged (gradient listed first = on top). Same look. */}
+        {/* Só as pontas: o escuro que o texto pede está atrás do próprio texto
+            (`.veu-texto`, globals.css). Pedido dela, 23/10: «coloca mais brilho». */}
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage:
-              "linear-gradient(to right, rgba(8,8,8,0.85), rgba(8,8,8,0.35), transparent), linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.2))",
+            backgroundImage: VEU_DAS_PONTAS,
           }}
         />
-        <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-16 py-20 lg:py-28">
+        <div className="veu-texto veu-texto--esquerda [--veu-recuo-cima:5rem] [--veu-recuo-baixo:5rem] lg:[--veu-recuo-cima:7rem] lg:[--veu-recuo-baixo:7rem] relative z-10 max-w-7xl mx-auto px-6 lg:px-16 py-20 lg:py-28">
           <AnimateIn>
             <p className="text-white/70 text-[10px] tracking-[0.48em] uppercase mb-8 flex items-center gap-3">
               <span className="w-5 h-px bg-gold flex-shrink-0" />
