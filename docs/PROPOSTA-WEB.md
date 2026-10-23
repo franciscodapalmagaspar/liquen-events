@@ -62,6 +62,9 @@ Isto **desfaz a decisão de 22/10** («a proposta online não tem nada a ver com
   - o «Copiado» aparece;
   - nenhum erro na consola.
 
+11. **«Quero avançar» saiu** (23/10, «retira o quero avançar e coloca o logo da liquen a meio»): na barra fica o logótipo ao meio, com as âncoras dos dois lados. O fecho continua com «Responder por WhatsApp» e por email. A mensagem do WhatsApp passa a ser a dela: «Olá Catarina! Vi a proposta e gostámos muito daquilo que nos apresentou!».
+12. **Texto comido** (23/10): a célula de texto do mosaico tinha a altura de uma fotografia, e um título comprido subia por baixo da fotografia de cima. As linhas do mosaico passam a crescer com o texto; no telemóvel o título tem menos espaço entre letras. E a página pede ao Safari do iPhone que não aumente o texto sozinho (`text-size-adjust`). Verificado com uma proposta TESTE de títulos e notas compridos, a 320, 390, 768, 1024, 1440 e 2000 px: nenhum texto cortado nem tapado (antes eram 11).
+
 ## A rapidez (23/10)
 
 Palavras dela: «quero que melhores mesmo muito a resposta e a rapidez e fluidez da proposta online e de quando carregamos no email para ver e ela demora tempo até aparecer».

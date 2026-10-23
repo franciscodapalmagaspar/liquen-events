@@ -205,7 +205,6 @@ export default function PropostaWeb({
     <div className={`pw ${fontes}`} lang={lang} data-pw-raiz="">
       <PropostaWebViva
         t={{
-          queroAvancar: t.queroAvancar,
           fechar: t.fechar,
           anterior: t.anterior,
           seguinte: t.seguinte,
@@ -213,7 +212,6 @@ export default function PropostaWeb({
           copiado: t.copiado,
         }}
         ancoras={ancoras}
-        queroAvancar="#avancar"
         fontes={fontes}
         lang={lang}
       />
@@ -442,9 +440,6 @@ export default function PropostaWeb({
                 </p>
               ))}
               <div style={{ marginTop: 34, display: "flex", flexWrap: "wrap", gap: 12 }}>
-                <a className="pw-btn pw-solid" href="#avancar">
-                  {t.queroAvancar}
-                </a>
                 <a className="pw-btn" href="#condicoes">
                   {t.verCondicoes}
                 </a>

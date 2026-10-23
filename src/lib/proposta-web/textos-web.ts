@@ -7,8 +7,8 @@ import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
  * daqui, para a página e o PDF não poderem dizer coisas diferentes.
  *
  * Regra que continua (`nada-de-aceitar-por-botao.test.ts`): nada aqui convida a
- * aceitar online. «Quero avançar» leva ao fecho, onde se responde por WhatsApp
- * ou por email — uma conversa, como ela pediu.
+ * aceitar online. O fecho tem «Responder por WhatsApp» e por email — uma
+ * conversa, como ela pediu. O «Quero avançar» saiu a 23/10, a pedido dela.
  */
 export interface TextosWeb {
   capa: (organizacao: boolean) => string;
@@ -22,7 +22,6 @@ export interface TextosWeb {
     investimento: string;
     condicoes: string;
   };
-  queroAvancar: string;
   verCondicoes: string;
   oQuePropomos: string;
   textoDosServicos: string;
@@ -61,7 +60,6 @@ const PT: TextosWeb = {
     investimento: "Investimento",
     condicoes: "Condições",
   },
-  queroAvancar: "Quero avançar",
   verCondicoes: "Ver condições",
   oQuePropomos: "o que propomos",
   textoDosServicos:
@@ -77,8 +75,10 @@ const PT: TextosWeb = {
   copiado: "Copiado",
   responderWhatsApp: "Responder por WhatsApp",
   responderEmail: "Responder por email",
-  mensagemWhatsApp: (nomes) =>
-    `Olá! Vimos a proposta${nomes ? ` para ${nomes}` : ""} e queremos avançar.`,
+  // As palavras dela (23/10). A mensagem é do casal para ela, por isso o nome
+  // é o dela, e não o do casal.
+  mensagemWhatsApp: () =>
+    "Olá Catarina! Vi a proposta e gostámos muito daquilo que nos apresentou!",
   assuntoEmail: (nomes) => `Proposta${nomes ? ` — ${nomes}` : ""}: queremos avançar`,
   validaAte: (d) => `Válida até ${d}`,
   emitidaA: (d) => `Emitida a ${d}`,
@@ -103,7 +103,6 @@ const EN: TextosWeb = {
     investimento: "Investment",
     condicoes: "Conditions",
   },
-  queroAvancar: "I want to go ahead",
   verCondicoes: "See conditions",
   oQuePropomos: "what we propose",
   textoDosServicos: "Each service was designed to work with the others: they tell the same story.",
@@ -117,8 +116,8 @@ const EN: TextosWeb = {
   copiado: "Copied",
   responderWhatsApp: "Reply on WhatsApp",
   responderEmail: "Reply by email",
-  mensagemWhatsApp: (nomes) =>
-    `Hello! We saw the proposal${nomes ? ` for ${nomes}` : ""} and would like to go ahead.`,
+  mensagemWhatsApp: () =>
+    "Hello Catarina! I saw the proposal and we really loved what you presented!",
   assuntoEmail: (nomes) => `Proposal${nomes ? ` — ${nomes}` : ""}: we would like to go ahead`,
   validaAte: (d) => `Valid until ${d}`,
   emitidaA: (d) => `Issued on ${d}`,
