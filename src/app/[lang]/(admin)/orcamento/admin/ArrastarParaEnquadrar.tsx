@@ -41,7 +41,10 @@ export function ArrastarParaEnquadrar({
   activo,
   onFoco,
   children,
+  nome = "da capa",
 }: {
+  /** De quê, para o leitor de ecrã («da capa», «do lugar 3 de Paleta»). */
+  nome?: string;
   /** Largura ÷ altura da fotografia. Sem ela não se sabe quanto sobra. */
   aspeto?: number;
   /** Largura ÷ altura da caixa (a folha deitada da capa). */
@@ -124,7 +127,7 @@ export function ArrastarParaEnquadrar({
         role={podeMexer ? "group" : undefined}
         aria-label={
           podeMexer
-            ? `Enquadramento da capa. Arrasta a fotografia ${eixo}, ou usa as setas.`
+            ? `Enquadramento ${nome}. Arrasta a fotografia ${eixo}, ou usa as setas.`
             : undefined
         }
         className={`relative rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sage-600 ${

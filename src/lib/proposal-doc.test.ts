@@ -528,6 +528,23 @@ describe("proposal-doc — marcadores provisórios de foto", () => {
     expect(stripPendingImages(doc).moodBoards[1]).toBe(doc.moodBoards[1]);
   });
 
+  it("numa página escolhida, a foto a caminho deixa o SEU lugar vazio (o 6.º da paleta é o painel)", () => {
+    const comPagina = {
+      fotosDasPaginas: {
+        ambiente: {
+          fotos: ["pending:x", "a.jpg", "", "", "", "painel.jpg"],
+          focos: [null, { x: 0.2, y: 0.3 }, null, null, null, null],
+        },
+        indice: { fotos: ["pending:y"] },
+      },
+    };
+    const limpo = stripPendingImages(comPagina).fotosDasPaginas!;
+    expect(limpo.ambiente.fotos).toEqual(["", "a.jpg", "", "", "", "painel.jpg"]);
+    expect(limpo.ambiente.focos?.[1]).toEqual({ x: 0.2, y: 0.3 });
+    // Uma página que só tinha a que vem a caminho volta ao automático.
+    expect(limpo.indice).toBeUndefined();
+  });
+
   it("devolve o MESMO objeto quando não há nada a filtrar", () => {
     const limpo = { coverImages: ["a", "b"], moodBoards: [{ title: "t", images: ["c"] }] };
     expect(stripPendingImages(limpo)).toBe(limpo);

@@ -58,6 +58,8 @@ const caixa = (c: Caixa): CSSProperties => ({
 export interface FotoDaFolha {
   url?: string;
   original?: string;
+  /** O enquadramento escolhido (fracções, o `object-position`). */
+  foco?: { x: number; y: number };
 }
 
 /**
@@ -97,6 +99,8 @@ function Foto({
             src={foto.url}
             planoB={foto.original}
             className="h-full w-full object-cover"
+            // O enquadramento que ela arrastou (o mesmo número recorta o PDF).
+            posicao={foto.foco ? `${foto.foco.x * 100}% ${foto.foco.y * 100}%` : undefined}
           />
         </span>
       )}
@@ -655,6 +659,10 @@ export function fontesDasFolhas(
   return {
     capa: daRef(doPdf?.capa?.[0]?.ref ?? capaRef),
     fotosDoTema: (bi: number, k: number) => daRef(doc.moodBoards[bi]?.images?.[k]),
-    outrasDa: (i: number) => (n: number) => daRef(doPdf?.[chaves[i]]?.[n]?.ref),
+    outrasDa: (i: number) => (n: number) => {
+      const f = doPdf?.[chaves[i]]?.[n];
+      const d = daRef(f?.ref);
+      return d && f?.foco ? { ...d, foco: f.foco } : d;
+    },
   };
 }

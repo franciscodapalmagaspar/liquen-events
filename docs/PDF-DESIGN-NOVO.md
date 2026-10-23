@@ -122,7 +122,8 @@ lado a lado com o modelo página a página. O jantar de empresa sai com as mesma
 | §6.2 Índice | feito |
 | §6.3 A proposta | feito |
 | §6.4 O que propomos | feito — até 3 cartões por página, repartidos por igual |
-| §6.5 Paleta e ambiente | feito — 5 cores, 5 quadradas e o painel |
+| §6.5 Paleta e ambiente | feito — 5 cores, 5 quadradas e o painel. **Desde 23/10 escolhem-se as fotografias** («sim, retoma a paleta e o enquadrar»): 6 lugares no estúdio (os 5 quadrados e o painel grande, no 6.º); um lugar sem escolha fica automático. As cores continuam a vir das mesas |
+| Enquadrar (23/10) | feito — em qualquer página com fotografia, o seletor da página mostra o lugar escolhido na forma da caixa onde sai nítido (`formasDosLugares`) e deixa arrastá-lo, como a capa. Grava `fotosDasPaginas[chave].focos[lugar]`; trocar a foto apaga o enquadramento desse lugar. As regras estão em `lugares-escolhidos.ts` |
 | §6.6a Separadores | feito |
 | §6.6b Temas em mosaico (1, 2, 3, 4–5, 6–12, >12) e as disposições à mão | feito — `mosaico.ts` |
 | §6.7 Citação | feito |

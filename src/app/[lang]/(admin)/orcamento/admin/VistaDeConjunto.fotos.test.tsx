@@ -102,7 +102,10 @@ describe("«Mudar fotografia» nas miniaturas", () => {
     fireEvent.click(
       screen.getByRole("button", { name: new RegExp(`Mudar a fotografia da página ${iSep + 1},`) }),
     );
-    expect(onMudarFoto).toHaveBeenCalledWith(chaveSep, plano[iSep].nome, 2);
+    expect(onMudarFoto).toHaveBeenCalledWith(chaveSep, plano[iSep].nome, 2, [
+      346 / 430,
+      1123 / 794,
+    ]);
     const iTema = plano.findIndex((p) => p.tipo === "tema");
     expect(
       screen.queryByRole("button", {
@@ -155,5 +158,66 @@ describe("a folha de escolher a fotografia", () => {
     rerender(<EscolherFotoDaPagina {...base} escolhida onAutomatico={onAutomatico} />);
     fireEvent.click(screen.getByRole("button", { name: "Voltar ao automático" }));
     expect(onAutomatico).toHaveBeenCalled();
+  });
+});
+
+/** A paleta escolhível e o enquadrar em qualquer página (pedido dela, 23/10). */
+describe("a paleta e o enquadrar", () => {
+  const seis = ["a", "b", "c", "d", "e", "x"].map((k) => ({
+    ref: `TESTE/${k}.jpg`,
+    url: `/mini/${k}.jpg`,
+  }));
+  const paleta = {
+    aberto: true,
+    nome: "Paleta e ambiente",
+    max: 6,
+    lugares: seis,
+    escolhida: false,
+    lugar: 5,
+    formas: [1, 1, 1, 1, 1, 442 / 794],
+    fotosDaProposta: seis,
+    carregar: null,
+    onLugar: vi.fn(),
+    onEscolher: vi.fn(),
+    onQuantas: vi.fn(),
+    onAutomatico: vi.fn(),
+    onBiblioteca: vi.fn(),
+    onFechar: vi.fn(),
+  };
+
+  it("a paleta mostra os seis lugares, o sexto é o painel grande, e não pergunta «uma ou duas»", () => {
+    render(<EscolherFotoDaPagina {...paleta} />);
+    const lugares = within(screen.getByRole("radiogroup", { name: "Que lugar trocar" }));
+    expect(lugares.getAllByRole("radio")).toHaveLength(6);
+    expect(lugares.getByRole("radio", { name: "Painel grande" })).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: "Uma (página inteira)" })).toBeNull();
+  });
+
+  it("o lugar activo enquadra-se com o teclado, na forma da caixa do PDF", () => {
+    const onFoco = vi.fn();
+    render(
+      <EscolherFotoDaPagina
+        {...paleta}
+        onFoco={onFoco}
+        focos={[null, null, null, null, null, { x: 0.5, y: 0.5 }]}
+        aspetos={{ "TESTE/x.jpg": 1.5 }}
+      />,
+    );
+    const caixa = screen.getByRole("group", {
+      name: /Enquadramento de «Paleta e ambiente», painel grande/,
+    });
+    fireEvent.keyDown(caixa, { key: "ArrowRight" });
+    expect(onFoco).toHaveBeenCalled();
+    const f = onFoco.mock.calls[0][0];
+    expect(f.x).toBeGreaterThan(0.5);
+  });
+
+  it("«Enquadramento automático» só com um enquadramento dela, e devolve-o ao PDF", () => {
+    const onFoco = vi.fn();
+    const { rerender } = render(<EscolherFotoDaPagina {...paleta} onFoco={onFoco} />);
+    expect(screen.queryByRole("button", { name: "Enquadramento automático" })).toBeNull();
+    rerender(<EscolherFotoDaPagina {...paleta} onFoco={onFoco} focoDela />);
+    fireEvent.click(screen.getByRole("button", { name: "Enquadramento automático" }));
+    expect(onFoco).toHaveBeenCalledWith(null);
   });
 });

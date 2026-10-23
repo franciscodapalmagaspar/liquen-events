@@ -4,7 +4,14 @@ import sharp from "sharp";
 import { withProposalDefaults, type ProposalDoc } from "@/lib/proposal-doc";
 import { renderEditorialPdf } from "./montar";
 import { composicao } from "./mosaico";
-import { listasQueNaoSaem, ordemDoDesenho, planoDaProposta, servicosDoDocumento } from "./plano";
+import {
+  formasDosLugares,
+  listasQueNaoSaem,
+  lugaresDaPagina,
+  ordemDoDesenho,
+  planoDaProposta,
+  servicosDoDocumento,
+} from "./plano";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -273,5 +280,26 @@ describe("um grupo só com título (o «b)» de 14/10)", () => {
       ],
     } as never);
     expect(servicosDoDocumento(doc).map((s) => s.nome)).toEqual(["Arco", "Montagem", "Transporte"]);
+  });
+});
+
+describe("os lugares de cada página (escolher e enquadrar)", () => {
+  it("a paleta tem seis lugares; os serviços nenhum", () => {
+    expect(lugaresDaPagina({ tipo: "ambiente" })).toEqual({ min: 1, max: 6 });
+    expect(
+      lugaresDaPagina({ tipo: "servicos", servicos: [], primeiro: 1, continuacao: false }),
+    ).toBeNull();
+  });
+
+  it("a forma de cada lugar é a da caixa onde a fotografia sai nítida", async () => {
+    const { FOTO_DO_SEPARADOR } = await import("./paginas/fotografia");
+    const { FOTO_DAS_CONDICOES } = await import("./paginas/condicoes");
+    const sep = formasDosLugares({ tipo: "separador", titulo: "x", grupo: null, numero: 1 });
+    expect(sep[0]).toBeCloseTo(FOTO_DO_SEPARADOR.w / FOTO_DO_SEPARADOR.h);
+    expect(
+      formasDosLugares({ tipo: "condicoes", qual: "gerais", continuacao: false })[0],
+    ).toBeCloseTo(FOTO_DAS_CONDICOES.w / FOTO_DAS_CONDICOES.h);
+    expect(formasDosLugares({ tipo: "ambiente" })).toEqual([1, 1, 1, 1, 1, 442 / 794]);
+    expect(formasDosLugares({ tipo: "capa" })).toEqual([1123 / 794]);
   });
 });

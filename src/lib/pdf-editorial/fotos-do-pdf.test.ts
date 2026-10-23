@@ -182,3 +182,43 @@ describe("a fotografia que ela escolhe é a que sai", () => {
     expect(com.indice).toEqual(sem.indice);
   });
 });
+
+/**
+ * A paleta escolhível (pedido dela de 23/10): seis lugares — a fila de cinco
+ * quadrados e o painel grande, no sexto. Um lugar vazio (`""`) fica para o
+ * automático, e cada escolhida fica no SEU lugar.
+ */
+describe("a paleta: cada fotografia no seu lugar", () => {
+  it("o painel e um quadrado escolhidos; os outros lugares automáticos, sem as repetir", async () => {
+    const d = comCaminhos({
+      fotosDasPaginas: {
+        ambiente: {
+          fotos: ["", ref(15), "", "", "", ref(0)],
+          focos: [null, { x: 0.1, y: 0.9 }, null, null, null, null],
+        },
+      },
+    });
+    const { desenhado, plano } = await asDuas(d);
+    const pal = desenhado.ambiente;
+    expect(pal).toHaveLength(6);
+    expect(pal[1]).toEqual({ ref: ref(15), foco: { x: 0.1, y: 0.9 } });
+    expect(pal[5]).toEqual({ ref: ref(0) });
+    // Os automáticos não repetem as escolhidas.
+    const auto = [pal[0], pal[2], pal[3], pal[4]].map((f) => f.ref);
+    expect(auto).not.toContain(ref(15));
+    expect(auto).not.toContain(ref(0));
+    expect(auto.every((r) => r && r.startsWith("TESTE/"))).toBe(true);
+    expect(plano).toEqual(desenhado);
+  });
+
+  it("uma escolhida que não chega deixa o SEU lugar automático — não puxa as seguintes", async () => {
+    const d = comCaminhos({
+      fotosDasPaginas: {
+        ambiente: { fotos: ["TESTE/apagada.jpg", "", "", "", "", ref(0)] },
+      },
+    });
+    const { desenhado } = await asDuas(d);
+    expect(desenhado.ambiente[5]).toEqual({ ref: ref(0) });
+    expect(desenhado.ambiente[0].ref).toMatch(/^TESTE\/foto-/);
+  });
+});

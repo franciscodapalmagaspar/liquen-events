@@ -173,7 +173,8 @@ import {
   ASPETO_DA_FOLHA,
 } from "@/lib/pdf-editorial/regra-da-capa";
 import { useTamanhoDoOriginal } from "./tamanhoDoOriginal";
-import { ArrastarParaEnquadrar } from "./ArrastarParaEnquadrar";
+import { ArrastarParaEnquadrar, type Foco } from "./ArrastarParaEnquadrar";
+import { enquadrarNoLugar, trocarNoLugar } from "@/lib/pdf-editorial/lugares-escolhidos";
 import { LogotipoEmail, LogotipoWhatsApp } from "./LogotiposDosCanais";
 import { tecladoAberto } from "@/lib/orcamento/barra-de-destinos";
 import type { ProposalDoc } from "@/lib/proposal-doc";
@@ -3974,21 +3975,78 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
     chave: string;
     nome: string;
     max: number;
+    /** A forma da caixa de cada lugar (`formasDosLugares`), para o enquadrar. */
+    formas?: readonly number[];
   } | null>(null);
   const [lugarDaFoto, setLugarDaFoto] = useState(0);
-  /** O que está AGORA em cada lugar de uma página: a escolha dela, ou a do PDF. */
-  const lugaresDaPagina = (chave: string): (string | null)[] =>
-    chave === "capa"
-      ? [caminhoDaCapa ?? fotosDoPdf?.capa?.[0]?.ref ?? null]
-      : (doc.fotosDasPaginas?.[chave]?.fotos ?? (fotosDoPdf?.[chave] ?? []).map((f) => f.ref));
-  /** Grava a escolha de uma página (ou apaga-a, com `null`), com «Anular». */
-  function gravarFotosDaPagina(chave: string, fotos: string[] | null, frase: string) {
+  /**
+   * O que está AGORA em cada lugar de uma página: a escolha dela, ou a do PDF.
+   * Um lugar que ela deixou vazio (`""`, a paleta) mostra o que o PDF lá põe.
+   */
+  const lugaresDaPagina = (chave: string): (string | null)[] => {
+    if (chave === "capa") return [caminhoDaCapa ?? fotosDoPdf?.capa?.[0]?.ref ?? null];
+    const auto = (fotosDoPdf?.[chave] ?? []).map((f) => f.ref);
+    const dela = doc.fotosDasPaginas?.[chave]?.fotos;
+    if (!dela) return auto;
+    return dela.map((r, k) => (r && r.trim() ? r : (auto[k] ?? null)));
+  };
+  /** O enquadramento que se VÊ em cada lugar: o dela, ou o que o PDF escolheu. */
+  const focosDaPagina = (chave: string): (Foco | null)[] => {
+    if (chave === "capa") return [doc.focoDaCapa ?? fotosDoPdf?.capa?.[0]?.foco ?? null];
+    const dela = doc.fotosDasPaginas?.[chave];
+    return (fotosDoPdf?.[chave] ?? []).map((f, k) =>
+      dela?.fotos[k]?.trim() ? (dela.focos?.[k] ?? f.foco ?? null) : (f.foco ?? null),
+    );
+  };
+  /**
+   * Grava a escolha de uma página (ou apaga-a, com `null`), com «Anular». Os
+   * focos vão com as fotos, lugar a lugar; sem `focos`, ficam os que havia.
+   */
+  function gravarFotosDaPagina(
+    chave: string,
+    fotos: string[] | null,
+    frase: string,
+    focos?: (Foco | null)[],
+  ) {
     const antes = doc.fotosDasPaginas;
     const seguintes = { ...(antes ?? {}) };
-    if (fotos && fotos.length) seguintes[chave] = { fotos };
-    else delete seguintes[chave];
+    if (fotos && fotos.some((f) => f && f.trim())) {
+      const f = (focos ?? antes?.[chave]?.focos ?? []).slice(0, fotos.length);
+      seguintes[chave] = { fotos, ...(f.some(Boolean) ? { focos: f } : {}) };
+    } else delete seguintes[chave];
     patch({ fotosDasPaginas: seguintes });
     anular(frase, () => patch({ fotosDasPaginas: antes }));
+  }
+  /**
+   * O enquadramento de um lugar (ou o automático, com `null`), com «Anular».
+   * Pedido dela de 23/10: «ajustar a posição da foto» em qualquer página.
+   * Enquadrar uma foto que o sistema escolheu fixa-a nesse lugar — senão o
+   * enquadramento ficava preso a uma foto que o PDF podia trocar.
+   */
+  function enquadrarNaPagina(chave: string, nome: string, lugar: number, foco: Foco | null) {
+    if (chave === "capa") {
+      // A capa tem o seu campo de sempre (o mesmo do «Enquadrar» da capa).
+      const antes = doc.focoDaCapa;
+      patch({ focoDaCapa: foco ?? undefined });
+      anular(
+        foco ? "Enquadramento da capa mudado." : "A capa volta ao enquadramento automático.",
+        () => patch({ focoDaCapa: antes }),
+      );
+      return;
+    }
+    const novo = enquadrarNoLugar(
+      doc.fotosDasPaginas?.[chave],
+      lugaresDaPagina(chave),
+      lugar,
+      foco,
+    );
+    if (!novo) return;
+    gravarFotosDaPagina(
+      chave,
+      novo.fotos,
+      foco ? `Enquadramento de «${nome}» mudado.` : `«${nome}» volta ao enquadramento automático.`,
+      novo.focos ?? [],
+    );
   }
   /**
    * A disposição das fotografias de um tema (ou a automática, com `null`), com
@@ -4021,14 +4079,18 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
       setCoverAt(idxDaCapa, ref);
       return;
     }
-    const agora = lugaresDaPagina(chave).slice(0, max);
-    const fotos = [...agora];
-    fotos[Math.min(lugar, max - 1)] = ref;
-    gravarFotosDaPagina(
-      chave,
-      fotos.filter((f): f is string => !!f),
-      `Fotografia de «${nome}» trocada.`,
+    // Cada lugar fica no SEU sítio (na paleta, o 6.º é o painel grande): na
+    // paleta os outros lugares continuam automáticos; nas outras páginas fica
+    // o que lá estava, como sempre foi. Ver `lugares-escolhidos.ts`.
+    const novo = trocarNoLugar(
+      doc.fotosDasPaginas?.[chave],
+      lugaresDaPagina(chave),
+      lugar,
+      ref,
+      max,
+      chave.startsWith("ambiente"),
     );
+    gravarFotosDaPagina(chave, novo.fotos, `Fotografia de «${nome}» trocada.`, novo.focos ?? []);
   }
   /** Uma ou duas no separador. */
   function quantasNaPagina(chave: string, nome: string, n: 1 | 2) {
@@ -11154,9 +11216,9 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
               <VistaDeConjunto
                 doc={doc as ProposalDoc}
                 fotosDoPdf={fotosDoPdf}
-                onMudarFoto={(chave, nome, max) => {
+                onMudarFoto={(chave, nome, max, formas) => {
                   setLugarDaFoto(0);
-                  setPaginaDaFoto({ chave, nome, max });
+                  setPaginaDaFoto({ chave, nome, max, formas });
                 }}
                 ordem={ordemDosBoards}
                 idioma={idiomaDoPdf}
@@ -12731,6 +12793,15 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
           escolhida={paginaDaFoto.chave === "capa" || !!doc.fotosDasPaginas?.[paginaDaFoto.chave]}
           podeVoltarAoAutomatico={paginaDaFoto.chave !== "capa"}
           lugar={lugarDaFoto}
+          formas={paginaDaFoto.formas}
+          focos={focosDaPagina(paginaDaFoto.chave)}
+          focoDela={
+            paginaDaFoto.chave === "capa"
+              ? !!doc.focoDaCapa
+              : !!doc.fotosDasPaginas?.[paginaDaFoto.chave]?.focos?.[lugarDaFoto]
+          }
+          aspetos={aspetosDasFotos}
+          onFoco={(f) => enquadrarNaPagina(paginaDaFoto.chave, paginaDaFoto.nome, lugarDaFoto, f)}
           fotosDaProposta={fotosDaProposta}
           carregar={
             <UploadArea

@@ -5,6 +5,7 @@ import type { ProposalDoc } from "@/lib/proposal-doc";
 import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import {
   chavesDasPaginas,
+  formasDosLugares,
   lugaresDaPagina,
   planoDaProposta,
   type EntradaDoPlano,
@@ -67,7 +68,7 @@ export default function VistaDeConjunto({
    * Abrir a escolha da fotografia de uma página (`fotosDasPaginas`) — pedido
    * dela de 15/10. Sem isto, a vista só mostra.
    */
-  onMudarFoto?: (chave: string, nome: string, max: number) => void;
+  onMudarFoto?: (chave: string, nome: string, max: number, formas: number[]) => void;
   /** Índices reais dos boards, pela ordem em que as páginas saem. */
   ordem: readonly number[];
   idioma?: IdiomaDaProposta;
@@ -205,7 +206,9 @@ export default function VistaDeConjunto({
                     return (
                       <button
                         type="button"
-                        onClick={() => onMudarFoto(chaves[i], pagina.nome, lugares.max)}
+                        onClick={() =>
+                          onMudarFoto(chaves[i], pagina.nome, lugares.max, formasDosLugares(pagina))
+                        }
                         aria-label={`Mudar a fotografia da página ${i + 1}, ${pagina.nome}`}
                         className={`alvo-toque mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-[var(--bo-accent)] ${ESTADO} ${PRESSAO}`}
                       >

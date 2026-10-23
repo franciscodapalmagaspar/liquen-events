@@ -516,8 +516,12 @@ async function resolveImages(
   const refsDasPaginas: Record<string, (string | null)[]> = {};
   if (opcoes.originais) {
     for (const [chave, e] of Object.entries(doc.fotosDasPaginas ?? {})) {
-      const lista = (e?.fotos ?? []).filter((r) => r && r.trim());
-      const obtidas = await mapLimit(lista, FETCH_CONCURRENCY, (ref) => buscarComTecto(ref, null));
+      // Os lugares vazios (`""`, «automático») FICAM: a posição é o lugar na
+      // página (na paleta, o 6.º é o painel) e o foco de cada uma é o dela.
+      const lista = e?.fotos ?? [];
+      const obtidas = await mapLimit(lista, FETCH_CONCURRENCY, (ref) =>
+        ref && ref.trim() ? buscarComTecto(ref, null) : Promise.resolve(null),
+      );
       paginas[chave] = { ...e, fotos: obtidas.map((r) => (r ? r.bytes.toString("base64") : "")) };
       refsDasPaginas[chave] = lista.map((ref, k) => (obtidas[k] ? ref : null));
     }
