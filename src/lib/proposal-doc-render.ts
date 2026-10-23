@@ -38,12 +38,14 @@ import { TECTO_DA_ROTA_MS } from "@/lib/custo-do-pdf";
 import { log } from "@/lib/logger";
 import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import {
+  conteudoDoEditorial,
   fotosDoEditorial,
   renderEditorialPdf,
   type FontesDasFotos,
   type FotosDoPdf,
   type Medida,
 } from "@/lib/pdf-editorial/montar";
+import type { ConteudoWeb } from "@/lib/pdf-editorial/conteudo-web";
 import { formasDeCaminhos } from "@/lib/biblioteca-fotos-store";
 import { focoAutomatico, LADO_PAGINA, pixeisDaCaixa, type Foco } from "@/lib/pdf-editorial/imagens";
 import { FOLHA } from "@/lib/pdf-editorial/moldura";
@@ -827,6 +829,26 @@ export async function fotosDoEditorialDoDocumento(
   idioma: IdiomaDaProposta = IDIOMA_POR_OMISSAO,
 ): Promise<FotosDoPdf> {
   const withDefaults = withProposalDefaults(doc);
+  return fotosDoEditorial(withDefaults, idioma, await medidasDoDocumento(withDefaults));
+}
+
+/**
+ * O conteúdo de cada secção, com as fotografias que o PDF escolhe — o que a
+ * proposta online (`proposta/[token]`) desenha. Ver `conteudoDoEditorial`.
+ */
+export async function conteudoWebDoDocumento(
+  doc: ProposalDoc,
+  idioma: IdiomaDaProposta = IDIOMA_POR_OMISSAO,
+): Promise<ConteudoWeb> {
+  const withDefaults = withProposalDefaults(doc);
+  return conteudoDoEditorial(withDefaults, idioma, await medidasDoDocumento(withDefaults));
+}
+
+/**
+ * As medidas de todas as fotografias do documento: as da biblioteca, e as
+ * que lá não estão lidas do próprio ficheiro — as mesmas que o desenho usa.
+ */
+async function medidasDoDocumento(withDefaults: ProposalDoc): Promise<Map<string, Medida>> {
   const caminhos = caminhosDoDocumento(withDefaults);
   const medidas = await medidasDaBiblioteca(caminhos);
   const faltam = caminhos.filter((r) => !medidas.has(r));
@@ -840,7 +862,7 @@ export async function fotosDoEditorialDoDocumento(
       /* não se deixa ler: fica sem medida, como o desenho a deixaria */
     }
   });
-  return fotosDoEditorial(withDefaults, idioma, medidas);
+  return medidas;
 }
 
 /**

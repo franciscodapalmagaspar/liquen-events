@@ -157,3 +157,12 @@ de segurança enquanto o repositório estiver público.
 tabela do que está feito. As regras vivem num sítio só,
 `src/lib/orcamento/mapa-de-mesas.ts`, e o ecrã e o PDF lêem as mesmas funções:
 não se desenha uma cadeira noutro sítio.
+
+# E a proposta online também
+
+`docs/PROPOSTA-WEB.md` regista o pedido dela de 23/10: `/proposta/[token]` deixa
+de mostrar as páginas do PDF e passa a ser uma página web própria, desenhada pelo
+protótipo dela (que NÃO está no repositório: tem fotografias de uma cliente). O
+conteúdo vem de `conteudoDoEditorial` — o MESMO motor do PDF, sem desenhar —, por
+isso a página e o PDF não podem dizer coisas diferentes. Lê a Parte −1 antes de
+mexer em `proposta/[token]`: lá estão as respostas dela e os desvios ao protótipo.

@@ -825,6 +825,10 @@ describe("a auditoria cobre TODAS as rotas de src/app/api", () => {
       // `doc` que o token abre. Uma rota que aceitasse caminhos serviria, com
       // o token de um casal, qualquer ficheiro da Biblioteca de Temas.
       "./proposta/[token]/foto/[id]/route",
+      // O fundo «arrastado» das secções da proposta online (23/10): a mesma
+      // porta e o mesmo inventário da rota da foto — um id opaco, nunca um
+      // caminho.
+      "./proposta/[token]/fundo/[id]/route",
       // As páginas do PDF como imagens, e a sua contagem. Mesmo modelo de
       // confiança do PDF: são o MESMO ficheiro, aos bocados.
       "./proposta/[token]/pagina/[n]/route",
@@ -994,6 +998,13 @@ describe("TOKEN-guarded routes deny a bad token", () => {
     const res = await fn(req("GET"), ctx());
     expect(res.status).toBe(404);
     expect(calls).toEqual([]); // nunca chegou à proposta nem ao Storage
+  });
+
+  it("GET /api/proposta/[token]/fundo/[id] → 404 on a bad token, e não toca no Storage", async () => {
+    const fn = await handler("./proposta/[token]/fundo/[id]/route", "GET");
+    const res = await fn(req("GET"), ctx());
+    expect(res.status).toBe(404);
+    expect(calls).toEqual([]);
   });
 
   it("GET /api/proposta/[token]/foto/[id] → 404 on a bad token, e não toca no Storage", async () => {
