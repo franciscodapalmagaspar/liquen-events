@@ -10019,6 +10019,86 @@ describe("ver o PDF final antes de enviar", () => {
     );
   });
 
+  /**
+   * No telemóvel (ponteiro de dedo), o PDF final abre DENTRO do estúdio em vez
+   * de se descarregar: descarregá-lo tirava-a da página, e voltar recarregava o
+   * estúdio e perdia o «já vi» (23/10, «No "Ver o PDF final"»).
+   */
+  function fingirTelemovel() {
+    vi.stubGlobal(
+      "matchMedia",
+      (q: string) =>
+        ({
+          matches: q.includes("pointer: coarse"),
+          media: q,
+          addEventListener() {},
+          removeEventListener() {},
+          addListener() {},
+          removeListener() {},
+        }) as unknown as MediaQueryList,
+    );
+  }
+
+  it("no telemóvel, «Ver o PDF final» abre o PDF no ecrã e «Está certo — enviar» segue para a pergunta", async () => {
+    fingirTelemovel();
+    const clicar = vi.spyOn(HTMLAnchorElement.prototype, "click");
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
+
+    await user.click(await screen.findByRole("button", { name: "Ver o PDF final" }));
+    const folha = await screen.findByRole("dialog", { name: "O PDF final" });
+    // Não se descarregou nada: o PDF está no ecrã.
+    expect(clicar).not.toHaveBeenCalled();
+    expect(within(folha).getByRole("button", { name: "Descarregar" })).toBeInTheDocument();
+
+    await user.click(within(folha).getByRole("button", { name: /Está certo — enviar/ }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "O PDF final" })).toBeNull());
+    await waitFor(() =>
+      expect(corpos(`/api/orcamento/${quote.id}`, "PATCH").join("\n")).toContain(
+        "proposal_reviewed",
+      ),
+    );
+    await confirmarEnvio(user);
+    await waitFor(() =>
+      expect(
+        corpos("proposta-doc", "POST").some((c) => c.includes('"pdfVisto":"chave-de-teste"')),
+      ).toBe(true),
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("no telemóvel, «Descarregar» na folha guarda o ficheiro", async () => {
+    fingirTelemovel();
+    const clicar = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
+    await user.click(await screen.findByRole("button", { name: "Ver o PDF final" }));
+    const folha = await screen.findByRole("dialog", { name: "O PDF final" });
+    await user.click(within(folha).getByRole("button", { name: "Descarregar" }));
+    expect(clicar).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
+  it("o «já vi o PDF» sobrevive a voltar a abrir o estúdio (recarregar no telemóvel)", async () => {
+    seedDraft(2);
+    const { unmount } = renderStudio();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
+    await user.click(await screen.findByRole("button", { name: "Ver o PDF final" }));
+    await screen.findByRole("button", { name: /Está certo — enviar/ });
+
+    unmount();
+    renderStudio();
+    await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
+    // O mesmo documento, já visto nesta aba: não pede para ver outra vez.
+    expect(await screen.findByRole("button", { name: /Está certo — enviar/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ver o PDF final" })).toBeNull();
+  });
+
   it("no ecrã largo, a falta do PDF salta para a caixa «Antes de enviar»", async () => {
     seedDraft(2);
     renderStudio();

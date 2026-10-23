@@ -68,8 +68,8 @@ export function VerOPdfNoEcra({
     if (!aberto || !blob) return;
     let cancelado = false;
     let destruir: (() => void) | null = null;
-    setPdf(null);
-    setFalhou(false);
+    // Um PDF novo é um componente novo (quem abre dá-lhe `key`): não há
+    // estado de um PDF anterior a limpar aqui.
     void (async () => {
       try {
         const [pdfjs, bytes] = await Promise.all([carregarPdfjs(), blob.arrayBuffer()]);

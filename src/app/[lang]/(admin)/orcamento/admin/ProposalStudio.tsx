@@ -2069,6 +2069,7 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
    * de o descarregar. Ver o comentário desse ficheiro.
    */
   const [pdfNoEcra, setPdfNoEcra] = useState<{
+    id: number;
     blob: Blob;
     nome: string;
     rascunho: boolean;
@@ -6935,7 +6936,7 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
       // tirava-a da página, e voltar recarregava o estúdio. No computador
       // continua a ir para as transferências, como sempre.
       const noEcra = verPdfNoEcra(barraCompacta);
-      if (noEcra) setPdfNoEcra({ blob, nome: nomeFinal, rascunho });
+      if (noEcra) setPdfNoEcra({ id: Date.now(), blob, nome: nomeFinal, rascunho });
       else guardarNoDisco(blob, nomeFinal);
       setPdfSaiu(true);
       // O gerador SALTA a foto que não consegue ir buscar E CORTA o que não
@@ -6958,15 +6959,13 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
             : `PDF gerado sem ${fotosPorConfirmar} fotos que ainda estão a entrar na proposta. Gera outra vez daqui a pouco.`,
           "info",
         );
-      } else {
+      } else if (!noEcra) {
+        // No telemóvel a folha com o PDF já diz o que aconteceu; um aviso por
+        // cima tapava a primeira página.
         toast(
-          noEcra
-            ? rascunho
-              ? "Rascunho aberto (marcado como rascunho)"
-              : "PDF final aberto — percorre as páginas"
-            : rascunho
-              ? "Rascunho gerado (PDF descarregado, marcado como rascunho)"
-              : "Pré-visualização gerada (PDF descarregado)",
+          rascunho
+            ? "Rascunho gerado (PDF descarregado, marcado como rascunho)"
+            : "Pré-visualização gerada (PDF descarregado)",
           "success",
         );
       }
@@ -12675,6 +12674,7 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
 
       {pdfNoEcra && (
         <VerOPdfNoEcra
+          key={pdfNoEcra.id}
           aberto
           blob={pdfNoEcra.blob}
           titulo={pdfNoEcra.rascunho ? "Rascunho da proposta" : "O PDF final"}

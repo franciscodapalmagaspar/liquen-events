@@ -50,3 +50,21 @@ if (typeof globalThis.ResizeObserver === "undefined") {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
 }
+
+/**
+ * A `sessionStorage` de cada teste começa vazia.
+ *
+ * O estúdio guarda nela o «já vi o PDF final» de cada pedido (ver `pdfVisto`
+ * em `ProposalStudio.tsx`), e o jsdom mantém-na entre os testes do mesmo
+ * ficheiro: um teste que confirma o PDF deixava o seguinte a começar com o
+ * PDF já visto. Os ficheiros já limpam a `localStorage` à mão; esta limpa-se
+ * aqui, para nenhum ter de se lembrar.
+ */
+import { beforeEach } from "vitest";
+beforeEach(() => {
+  try {
+    globalThis.sessionStorage?.clear();
+  } catch {
+    /* ambiente `node`, sem armazenamento */
+  }
+});
