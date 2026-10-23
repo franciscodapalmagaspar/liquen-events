@@ -162,3 +162,22 @@ lado do GitHub. Ela escolheu «ficar no grátis e emagrecer».
   de ganhar `revalidate` sem se dizer.
 - **Antes de dizer «está no site»:** confirmar de fora. O `age` da resposta da
   página inicial tem de ser pequeno e o HTML tem de trazer a mudança.
+
+### A causa verdadeira do bloqueio (23/10): o autor que a Vercel deixou de reconhecer
+
+O «Redeploy» da produção mostrou a razão: «The deployment was blocked because
+the commit author doesn't have permission to create deployments for this
+project. Hobby teams do not support collaboration.» Não eram os limites.
+
+- Todos os commits do `main` vêm da mesma conta do GitHub (id 302690961). A
+  20/10 essa conta mudou de nome («Liquen Events» → «franciscodapalmagaspar») e
+  o repositório passou a responder por `franciscodapalmagaspar/liquen-events`.
+  O último deploy de produção que passou é de 21/10, ~13h; desde aí, «Blocked».
+- O remédio, feito por ela a 23/10: na Vercel, Account Settings →
+  Authentication → voltar a ligar o GitHub, e no projecto, Settings → Git,
+  confirmar o repositório. Um deploy bloqueado não se volta a publicar pelo
+  «Redeploy» (no Hobby só oferece «Upgrade to Pro»): é preciso um commit novo no
+  `main`.
+- **Se voltar a acontecer** (todos os deploys de produção «Blocked» com o mesmo
+  aviso): ver se a conta do GitHub mudou de nome ou de dono antes de olhar para
+  os limites.
