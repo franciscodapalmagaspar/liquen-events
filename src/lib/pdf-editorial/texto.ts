@@ -10,16 +10,16 @@ import {
 import fontkit from "@pdf-lib/fontkit";
 import { textoParaFonte } from "@/lib/pdf-text";
 import { PAGINA_H } from "@/lib/proposal-geometria";
-import { BODONI_400_ITALICO_TTF_B64, BODONI_400_TTF_B64, JOST_400_TTF_B64 } from "./letras";
+import { BODONI_ITALICO_TTF_B64, BODONI_PRECO_TTF_B64, JOST_400_TTF_B64 } from "./letras";
 import { px } from "./paleta";
 
 /** As três letras do desenho (`docs/PDF-DESIGN-NOVO.md` §3). */
 export interface Letras {
-  /** Jost 400 — títulos (em maiúsculas), corpo, rótulos, rodapé. */
+  /** Jost 400 — títulos (em maiúsculas), corpo, rótulos, valores, rodapé. */
   jost: PDFFont;
-  /** Bodoni Moda 400 normal — só o preço total e os marcos de pagamento. */
+  /** Bodoni Moda normal — só o preço total (os marcos passaram à Jost: Parte −1). */
   bodoni: PDFFont;
-  /** Bodoni Moda 400 itálico — sobretítulos, números, notas, valores. */
+  /** Bodoni Moda itálico — sobretítulos, notas, números do índice e dos serviços. */
   bodoniItalico: PDFFont;
 }
 
@@ -29,8 +29,8 @@ export async function embutirLetras(pdf: PDFDocument): Promise<Letras> {
   const embutir = (b64: string) => pdf.embedFont(Buffer.from(b64, "base64"), { subset: true });
   const [jost, bodoni, bodoniItalico] = await Promise.all([
     embutir(JOST_400_TTF_B64),
-    embutir(BODONI_400_TTF_B64),
-    embutir(BODONI_400_ITALICO_TTF_B64),
+    embutir(BODONI_PRECO_TTF_B64),
+    embutir(BODONI_ITALICO_TTF_B64),
   ]);
   return { jost, bodoni, bodoniItalico };
 }

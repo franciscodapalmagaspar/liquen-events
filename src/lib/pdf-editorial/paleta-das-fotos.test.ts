@@ -70,4 +70,40 @@ describe("a paleta dá as cores que se vêem nas mesas, e não os castanhos do f
     expect(r).toBeGreaterThan(g);
     expect(g).toBeGreaterThan(b);
   });
+
+  /**
+   * A decisão dela de 23/10: «as paletas de cores é de acordo com as cores
+   * usadas nas mesas de jantar, em cima das mesas, e de acordo com o material
+   * de decoração utilizado / flores». Uma sala de parede azul viva a encher o
+   * topo e os lados, e em cima da mesa flores vermelhas, toalha creme e
+   * castiçais dourados: a paleta é a da mesa, e não a da parede.
+   */
+  it("as cores saem do que está em cima da mesa, e não da parede da sala", async () => {
+    const bloco = async (w: number, h: number, cor: string) =>
+      sharp({ create: { width: w, height: h, channels: 3, background: cor } })
+        .png()
+        .toBuffer();
+    const sala = async (v: number) =>
+      sharp({ create: { width: 900, height: 600, channels: 3, background: "#1f5fbf" } })
+        .composite([
+          // A mesa: a toalha creme do meio para baixo, sem chegar aos lados.
+          { input: await bloco(700, 300, "#ede3cf"), top: 300, left: 100 },
+          // As flores vermelhas e os castiçais dourados, em cima dela.
+          { input: await bloco(170, 110, "#c41e2a"), top: 320, left: 220 + v * 30 },
+          { input: await bloco(130, 100, "#b8191f"), top: 330, left: 520 },
+          { input: await bloco(36, 150, "#c9a24a"), top: 300, left: 430 },
+          { input: await bloco(36, 150, "#c9a24a"), top: 300, left: 660 - v * 10 },
+        ])
+        .jpeg({ quality: 90 })
+        .toBuffer();
+    const cores = (await paletaDasFotos(await Promise.all([0, 1, 2].map(sala)))).map(hex);
+    const vermelho = cores.some(([r, g, b]) => r > 150 && r - g > 100 && r - b > 90);
+    const creme = cores.some(([r, g, b]) => r > 205 && g > 195 && b > 175 && r >= b);
+    const dourado = cores.some(([r, g, b]) => r > 150 && g > 110 && b < 120 && r - b > 60);
+    const azul = cores.filter(([r, g, b]) => b - r > 60 && b - g > 30);
+    expect(vermelho, "o vermelho das flores").toBe(true);
+    expect(creme, "o creme da toalha").toBe(true);
+    expect(dourado, "o dourado dos castiçais").toBe(true);
+    expect(azul, "o azul da parede").toHaveLength(0);
+  });
 });

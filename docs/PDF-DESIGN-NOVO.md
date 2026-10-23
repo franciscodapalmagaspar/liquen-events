@@ -27,7 +27,7 @@ mesas, PT/EN, o rascunho, as contas e os textos legais) não mudaram.
 Verificado com PDF de TESTE (dados inventados, fotografias da galeria pública
 do site), um casamento e um jantar de empresa, em português e em inglês, postos
 lado a lado com o modelo página a página. O jantar de empresa sai com as mesmas
-18 páginas do modelo. Peso com 65 fotografias: 3,9 MB (galeria) e 4,7 MB
+18 páginas do modelo. Peso com 65 fotografias: 3,9 MB (galeria) e 4,6 MB
 (fotografias fabricadas com grão) — o tecto é 8 MB.
 
 **O feedback dela de 23/10 (16h), sobre o modelo:**
@@ -50,6 +50,54 @@ lado a lado com o modelo página a página. O jantar de empresa sai com as mesma
   dominar. As cores continuam a vir das MESAS, como ela decidiu. Um teste com
   fotografias fabricadas (fundo castanho escuro, toalha creme, flores
   vermelhas e bordeaux) exige vermelho, bordeaux e creme na paleta.
+- **A decisão dela sobre a paleta (23/10): «as paletas de cores é de acordo
+  com as cores usadas nas mesas de jantar, em cima das mesas, e de acordo com
+  o material de decoração utilizado / flores».** As cores saem do que está
+  POUSADO nas mesas — flores, velas, castiçais, toalhas, louça, tecidos —, e
+  não da sala, do chão, das paredes nem do céu. Em cada fotografia (das mesas,
+  como antes): o recorte de «atenção» do sharp, e dentro dele o terço central e
+  de baixo pesa por inteiro e o topo e os bordos quase nada; uma cor que vive
+  no alto das fotografias (a parede) perde o peso. Tons quase iguais juntam-se.
+  Um teste: uma sala de parede azul viva, e em cima da mesa flores vermelhas,
+  toalha creme e castiçais dourados — a paleta dá vermelho, creme e dourado, e
+  nenhum azul. Num PDF de teste com mesas fabricadas a paleta saiu creme,
+  creme, terracota, vermelho e bordeaux.
+- **«estes números não dá para perceber nada»** (a página do total, aberta no
+  iPhone). No tamanho óptico 96 do documento, o traço fino da Bodoni mede
+  0,2 % do corpo: a página inteira num iPhone tem ~390 px de largura, e o traço
+  fino do preço de 85 px ficava com 0,06 px de ecrã; o «€» e as vírgulas
+  desapareciam. Medido (o horizontal do «0» e a barra do «H», a 390 px):
+
+  | Letra | traço fino | preço 85 px | marcos 32 px | sobretítulo 29 px | 24 px | 17 px |
+  |---|---|---|---|---|---|---|
+  | Bodoni opsz 96 (o documento) | 0,2 % | 0,06 px | 0,02 | 0,02 | 0,02 | 0,01 |
+  | Bodoni opsz 28 | 0,7 % | 0,21 | 0,08 | 0,07 | 0,06 | 0,04 |
+  | Bodoni opsz 11 | 1,8 % | 0,53 | 0,20 | 0,18 | 0,15 | 0,11 |
+  | **Bodoni opsz 6** (agora) | 3,4–3,6 % | **1,00** | 0,38 | 0,36 | 0,30 | 0,21 |
+  | Jost 400 | 8 % | 2,36 | **0,89** | 0,81 | 0,67 | 0,47 |
+
+  O peso 500 engrossa as hastes, não o traço fino (medido igual). Por isso:
+  1. **a Bodoni passa ao tamanho óptico 6 (o mínimo do eixo), peso 500**, no
+     preço e no itálico — o preço grande fica com 1 px de ecrã;
+  2. **os valores pequenos passam à Jost**: os marcos (sinal e saldo, Jost
+     28) e os valores do quadro do orçamento (Jost 16), como já estava a
+     tabela do total. Só o preço grande fica na Bodoni;
+  3. **os sobretítulos, as notas e os números do índice e dos serviços ficam
+     na Bodoni itálica, no opsz 6**: o traço fino passa de 0,02 para 0,3–0,4 px
+     de ecrã — não chega aos 0,6, que nenhuma Bodoni dá abaixo dos 32 px, mas
+     estes textos lêem-se pelas hastes, e a Jost tirava ao desenho a
+     assinatura do itálico. Fica dito para ela decidir.
+- **O fundo arrastado claro por trás dos números.** O brilho ×0,42 é uma
+  média: numa fotografia de amarelos e vermelhos vivos o fundo continuava
+  claro. Agora, nas páginas de texto, o fundo perde saturação (×0,6) e leva
+  um **tecto de luz medido**: o 98.º percentil da luminância do fundo, já com o
+  grão, não passa de 0,07 (a Cal a ≥ 7:1, o Linho a ≥ 4,5:1); se passar, a
+  zona escurece até lá. Nas páginas de fotografia (capa, separadores,
+  citação, fecho, os temas com bloco de título) o mesmo na zona do bloco, com
+  o tecto 0,12; nos cartões de «O que propomos», no terço de baixo. Medido
+  contra a ZONA REAL por trás de cada bloco (o texto e os fios tirados da
+  página, desenhada a 1 123 px) nos dois PDF de teste: tudo ≥ 4,5:1, e os
+  números da tabela do total a 7,7:1 e 9,5:1.
 
 | O quê | Estado |
 |---|---|
@@ -74,6 +122,9 @@ lado a lado com o modelo página a página. O jantar de empresa sai com as mesma
 
 **Onde a execução se afasta do texto, e porquê:**
 
+0. **A Bodoni no tamanho óptico 6, e não 96; os marcos e os valores do
+   quadro na Jost, e não na Bodoni** — ver «estes números não dá para perceber
+   nada», em cima.
 1. **Entrelinha das notas em Bodoni: 1,45, e não 1,2.** Medido no modelo: as
    linhas de 17 px vão de 25 em 25 px. A 1,2 o itálico encavalita-se.
 2. **Entrelinha dos itens das condições: 1,15, como o texto — e não os ~1,36

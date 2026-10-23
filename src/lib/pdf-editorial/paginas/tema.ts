@@ -1,7 +1,7 @@
 import "server-only";
 import type { PDFPage } from "pdf-lib";
 import type { Foto } from "../fotos";
-import { BRILHO, LADO_PAGINA, LEITURA } from "../imagens";
+import { BRILHO, LADO_PAGINA, LEITURA, TECTO } from "../imagens";
 import {
   FOLHA,
   FUNDO_DO_CONTEUDO,
@@ -19,6 +19,7 @@ import {
   novaPagina,
   rectangulo,
   rodape,
+  ZONA_DO_BLOCO,
   type CaixaPx,
   type Contexto,
 } from "../moldura";
@@ -103,7 +104,10 @@ export async function tema(ctx: Contexto, d: DadosDoTema): Promise<PDFPage> {
   await Promise.all(
     c.celulas.map((caixa, i) =>
       comBloco && c.tipo !== "desalinhadas"
-        ? fotoNaCaixa(ctx, p, d.fotos[i] ?? null, caixa, { degrades: LEITURA })
+        ? fotoNaCaixa(ctx, p, d.fotos[i] ?? null, caixa, {
+            degrades: LEITURA,
+            tecto: { lum: TECTO.foto, desde: ZONA_DO_BLOCO.desde },
+          })
         : fotoNaCaixa(ctx, p, d.fotos[i] ?? null, caixa),
     ),
   );

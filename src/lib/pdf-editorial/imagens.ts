@@ -68,6 +68,16 @@ export interface Tratamento {
   arrastado?: { angulo: number };
   /** Multiplicador do brilho (1 = como está). Os fundos: 0,80, 0,42, 0,30. */
   brilho?: number;
+  /** Multiplicador da saturação: os fundos arrastados das páginas de texto, 0,6. */
+  saturacao?: number;
+  /**
+   * O tecto de luz por trás do texto — ver {@link TECTO}. Mede-se na imagem
+   * JÁ tratada, na zona onde o texto cai (de `desde` até ao fundo, e da
+   * esquerda até `ate` da largura, em fracções), e se o 98.º percentil da
+   * luminância passar de `lum`, essa zona escurece até lá, com um degradé
+   * suave por cima.
+   */
+  tecto?: { lum: number; desde?: number; ate?: number };
   degrades?: readonly Degrade[];
   qualidade?: number;
 }
@@ -112,6 +122,67 @@ export const CARTAO: readonly Degrade[] = [
 
 /** O brilho dos fundos arrastados: separadores, páginas de texto, condições. */
 export const BRILHO = { separador: 0.8, texto: 0.42, condicoes: 0.3 } as const;
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * O TECTO DE LUZ — o contraste medido, e não suposto
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * O brilho ×0,42 do documento é uma média: numa fotografia de amarelos e
+ * vermelhos vivos, o fundo arrastado continuava claro por trás dos números
+ * (o pedido dela de 23/10, com o PDF no iPhone). Por isso mede-se a luz da
+ * zona real por trás do texto e, se passar do tecto, escurece-se até ele.
+ *
+ * O tecto é a luminância relativa (WCAG) do fundo que ainda dá o contraste
+ * pedido com a letra mais escura dessa página:
+ *   · `texto` (0,07): a Cal a ≥ 7:1 (os números da tabela) e o Linho dos
+ *     rótulos a ≥ 4,5:1;
+ *   · `foto` (0,12): o bloco de título das páginas de fotografia — a Cal e o
+ *     Papel a ≥ 4,5:1.
+ *
+ * Os dois têm folga sobre a conta exacta (0,093 e 0,15): a página inteira
+ * mede-se num percentil, e um canto da zona pode ser mais claro do que ela.
+ */
+export const TECTO = { texto: 0.07, foto: 0.12 } as const;
+
+/** A luminância relativa (WCAG) de um valor sRGB de 0 a 255. */
+const linear = (v: number) => {
+  const c = v / 255;
+  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+};
+const LINEAR = Array.from({ length: 256 }, (_, v) => linear(v));
+
+/**
+ * Escurece a zona do texto até o 98.º percentil da luminância ficar no tecto.
+ * Multiplica os valores sRGB (a luminância desce com a potência 2,2 do fator),
+ * com 8 % da altura de transição por cima da zona.
+ */
+function aplicarTecto(px: Buffer, W: number, H: number, t: NonNullable<Tratamento["tecto"]>) {
+  const y0 = Math.round((t.desde ?? 0) * H);
+  const x1 = Math.round((t.ate ?? 1) * W);
+  const lums: number[] = [];
+  for (let y = y0; y < H; y += 2) {
+    for (let x = 0; x < x1; x += 2) {
+      const i = (y * W + x) * 3;
+      lums.push(0.2126 * LINEAR[px[i]] + 0.7152 * LINEAR[px[i + 1]] + 0.0722 * LINEAR[px[i + 2]]);
+    }
+  }
+  if (!lums.length) return;
+  lums.sort((a, b) => a - b);
+  const p98 = lums[Math.floor(lums.length * 0.98)];
+  if (p98 <= t.lum) return;
+  const f = (t.lum / p98) ** (1 / 2.2);
+  const suave = Math.round(0.08 * H);
+  for (let y = Math.max(0, y0 - suave); y < H; y++) {
+    const k = y >= y0 ? f : 1 - ((1 - f) * (y - (y0 - suave))) / suave;
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 3;
+      px[i] = Math.round(px[i] * k);
+      px[i + 1] = Math.round(px[i + 1] * k);
+      px[i + 2] = Math.round(px[i + 2] * k);
+    }
+  }
+}
 
 const svgDegrades = (w: number, h: number, degrades: readonly Degrade[]) => {
   const defs = degrades
@@ -245,7 +316,9 @@ export async function preparar(
     }
 
     img = img.linear(QUENTE.a, QUENTE.b);
-    if (t.brilho && t.brilho !== 1) img = img.modulate({ brightness: t.brilho });
+    if ((t.brilho && t.brilho !== 1) || t.saturacao) {
+      img = img.modulate({ brightness: t.brilho ?? 1, saturation: t.saturacao ?? 1 });
+    }
     // O `composite` corre DEPOIS do brilho só se a imagem for materializada
     // primeiro: o sharp aplica as operações numa ordem fixa, e o degradé tem
     // de cair sobre a foto já escurecida.
@@ -254,7 +327,10 @@ export async function preparar(
       img = sharp(base).composite([{ input: svgDegrades(W, H, t.degrades) }]);
     }
     const { data, info } = await img.removeAlpha().raw().toBuffer({ resolveWithObject: true });
-    return await sharp(comGrao(data), {
+    // O tecto mede-se DEPOIS do grão, que é o que fica na página.
+    const comOGrao = comGrao(data);
+    if (t.tecto) aplicarTecto(comOGrao, info.width, info.height, t.tecto);
+    return await sharp(comOGrao, {
       raw: { width: info.width, height: info.height, channels: 3 },
     })
       // JPEG SIMPLES: «baseline», RGB de 8 bits, sem perfil nem metadados.

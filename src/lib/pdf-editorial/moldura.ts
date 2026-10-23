@@ -6,9 +6,11 @@ import { PAGINA_H, PAGINA_W } from "@/lib/proposal-geometria";
 import { embedImagem } from "./embutir";
 import type { Foto } from "./fotos";
 import {
+  BRILHO,
   LADO_CELULA,
   LADO_FUNDO,
   LEITURA,
+  TECTO,
   pixeisDaCaixa,
   preparar,
   type Tratamento,
@@ -149,6 +151,12 @@ export const anguloDaPagina = (numero: number) => -8 - ((numero * 7) % 17);
 /**
  * O fundo «arrastado» de uma página: a fotografia em movimento, escurecida
  * com o brilho pedido. Sem fotografia, fica a Tinta de recurso.
+ *
+ * Nas páginas de texto (brilho abaixo do dos separadores), o fundo perde
+ * também saturação (×0,6) e leva o {@link TECTO} de luz na página toda: uma
+ * fotografia de amarelos e vermelhos vivos ficava clara por trás dos números
+ * mesmo a ×0,42 (o pedido dela de 23/10). Nos separadores, o escurecimento de
+ * leitura e o tecto da zona do bloco de título.
  */
 export function fundoArrastado(
   ctx: Contexto,
@@ -163,7 +171,21 @@ export function fundoArrastado(
     pagina,
     foto,
     caixa,
-    { arrastado: { angulo: anguloDaPagina(numero) }, brilho, qualidade: 70 },
+    brilho < BRILHO.separador
+      ? {
+          arrastado: { angulo: anguloDaPagina(numero) },
+          brilho,
+          saturacao: 0.6,
+          tecto: { lum: TECTO.texto },
+          qualidade: 70,
+        }
+      : {
+          arrastado: { angulo: anguloDaPagina(numero) },
+          brilho,
+          degrades: LEITURA,
+          tecto: ZONA_DO_BLOCO,
+          qualidade: 70,
+        },
     LADO_FUNDO,
     1,
   );
@@ -177,8 +199,22 @@ export function fotoDeLeitura(
   caixa: CaixaPx,
   lado: number,
 ): Promise<boolean> {
-  return fotoNaCaixa(ctx, pagina, foto, caixa, { degrades: LEITURA, qualidade: 74 }, lado);
+  return fotoNaCaixa(
+    ctx,
+    pagina,
+    foto,
+    caixa,
+    { degrades: LEITURA, tecto: ZONA_DO_BLOCO, qualidade: 74 },
+    lado,
+  );
 }
+
+/**
+ * A zona do bloco de título (§4) nas páginas de fotografia: do sobretítulo de
+ * um título em duas linhas (~62 % da altura) até ao fundo, e da margem até
+ * 80 % da largura. É aí que se mede o contraste.
+ */
+export const ZONA_DO_BLOCO = { lum: TECTO.foto, desde: 0.62, ate: 0.8 } as const;
 
 /** Um rectângulo chapado, em píxeis da grelha. */
 export function rectangulo(pagina: PDFPage, c: CaixaPx, cor: RGB, borda?: RGB): void {

@@ -86,7 +86,15 @@ export async function total(ctx: Contexto, d: DadosDoTotal): Promise<PDFPage> {
     LETRA.preco.minimo,
   );
   const lin: Estilo = { letra: ctx.letras.jost, tam: LETRA.linhaOrcamento.tam, cor: COR.cal };
-  const marco: Estilo = { letra: ctx.letras.bodoni, tam: LETRA.marco.tam, cor: COR.cal };
+  // Os marcos na Jost, e não na Bodoni do documento: a 32 px, no ecrã de um
+  // telemóvel, o traço fino da Bodoni (e o «€» e as vírgulas) somem-se —
+  // o pedido dela de 23/10. Só o preço grande fica na Bodoni.
+  const marco: Estilo = {
+    letra: ctx.letras.jost,
+    tam: LETRA.marco.tam,
+    cor: COR.cal,
+    espaco: LETRA.marco.espaco,
+  };
   const M = LETRA.marcoTexto;
   const marcoT: Estilo = { letra: ctx.letras.jost, tam: M.tam, cor: COR.linho };
   const N = LETRA.notaPequena;
@@ -173,8 +181,8 @@ export interface DadosDoOrcamento {
 /**
  * O quadro: a mesma tabela do total (fios Pedra, linhas de 43 px), mais larga
  * porque os nomes dos serviços são compridos. O número em Bodoni itálico como
- * no índice, o nome na Jost, e o valor ou a marca «extra» à direita em Bodoni
- * itálico (o documento: «preços e valores do orçamento»).
+ * no índice, o nome na Jost, e o valor ou a marca «extra» à direita, também na
+ * Jost (o documento pedia Bodoni itálico; ver a Parte −1).
  */
 const QUADRO = 760;
 const NUMERO = 58;
@@ -187,9 +195,11 @@ const estiloDoNome = (ctx: Contexto): Estilo => ({
   tam: LETRA.linhaOrcamento.tam,
   cor: COR.cal,
 });
+// Os valores na Jost, como os da tabela do total: em Bodoni itálico, a 18 px,
+// os traços finos somem-se num telemóvel (o pedido dela de 23/10).
 const estiloDoValor = (ctx: Contexto, marca: boolean): Estilo => ({
-  letra: ctx.letras.bodoniItalico,
-  tam: 18,
+  letra: ctx.letras.jost,
+  tam: LETRA.linhaOrcamento.tam,
   cor: marca ? COR.linho : COR.cal,
 });
 

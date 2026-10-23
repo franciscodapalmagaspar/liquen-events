@@ -1,7 +1,7 @@
 import "server-only";
 import type { PDFPage } from "pdf-lib";
 import type { Foto } from "../fotos";
-import { BRILHO, CARTAO, LADO_PAGINA } from "../imagens";
+import { BRILHO, CARTAO, LADO_PAGINA, TECTO } from "../imagens";
 import {
   FUNDO_DO_CONTEUDO,
   cabecalho,
@@ -78,7 +78,17 @@ export async function servicos(ctx: Contexto, d: DadosDosServicos): Promise<PDFP
   for (const [i, s] of d.servicos.entries()) {
     const x = MARGEM + i * (w + VAO);
     const caixa = { x, y: TOPO_DOS_CARTOES, w, h };
-    await fotoNaCaixa(ctx, p, s.foto, caixa, { degrades: CARTAO }, LADO_PAGINA, 1.4);
+    // O nome e a descrição em baixo: o terço de baixo escurece até ao tecto
+    // de texto (a Cal e o Linho a ≥ 4,5:1).
+    await fotoNaCaixa(
+      ctx,
+      p,
+      s.foto,
+      caixa,
+      { degrades: CARTAO, tecto: { lum: TECTO.texto, desde: 0.7 } },
+      LADO_PAGINA,
+      1.4,
+    );
     // O texto, de baixo para cima: a descrição, o nome, e o número ao lado.
     const xTexto = x + 80;
     const largura = px(w - 80 - 28);

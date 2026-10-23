@@ -112,7 +112,8 @@ export const LETRA = {
   /** Investimento. */
   preco: { tam: 85, minimo: 44 },
   linhaOrcamento: { tam: 16 },
-  marco: { tam: 32 },
+  /** Os marcos (sinal e saldo): Jost, e não Bodoni — Parte −1. */
+  marco: { tam: 28, espaco: 0.02 },
   marcoTexto: { tam: 13, entrelinha: 1.2 },
   /** «Com IVA incluído.» e as notas do total. */
   notaPequena: { tam: 13, entrelinha: 1.5 },

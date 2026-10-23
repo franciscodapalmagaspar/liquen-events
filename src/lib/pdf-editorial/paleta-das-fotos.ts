@@ -10,9 +10,20 @@ import sharp from "sharp";
  * inspiração dessa proposta (quantização das imagens, descartando os tons
  * quase pretos e quase brancos e as cores demasiado parecidas entre si)».
  *
+ * De ONDE se tiram (a decisão dela de 23/10): «as paletas de cores é de
+ * acordo com as cores usadas nas mesas de jantar, em cima das mesas, e de
+ * acordo com o material de decoração utilizado / flores». As cores são as do
+ * que está POUSADO nas mesas — flores, velas, castiçais, toalhas, louça,
+ * tecidos — e não da sala, do chão, das paredes nem do céu. As fotografias são
+ * as dos temas das mesas (`grupos.eDasMesas`, escolha dela de 20/10), e dentro
+ * de cada uma conta sobretudo a zona da decoração.
+ *
  * Como se faz:
- *   1. cada fotografia é reduzida a 48 × 48 pixéis (chega para a cor e custa
- *      milissegundos), e juntam-se os pixéis de todas;
+ *   1. cada fotografia é recortada pela «atenção» do sharp (a zona que salta à
+ *      vista, que numa foto de mesa é a decoração) e reduzida a 48 × 48
+ *      pixéis; dentro do recorte, o terço central e de baixo — onde costuma
+ *      estar a mesa — pesa por inteiro, e o topo e os bordos (paredes, tecto,
+ *      céu) pouco;
  *   2. descartam-se os quase pretos e os quase brancos;
  *   3. cada pixel PESA pela cor que tem (o pedido dela de 23/10: «vai buscar
  *      cores que não são… os castanhos»): um pixel saturado — o vermelho e o
@@ -34,6 +45,12 @@ import sharp from "sharp";
  */
 
 type Rgb = readonly [number, number, number];
+/**
+ * Um pixel: a cor, o peso do sítio onde está (1 no centro e em baixo; menos
+ * no topo e nos bordos) e a altura a que está no recorte (0 em cima, 1 em
+ * baixo).
+ */
+type Pixel = readonly [number, number, number, number?, number?];
 
 const LADO = 48;
 const CAIXAS = 16;
@@ -49,10 +66,23 @@ const croma = ([r, g, b]: Rgb) => (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
  * O peso de um pixel (passo 3): sobe com a intensidade da cor; um escuro e
  * baço — castanho de madeira, sombra, sala — quase não conta.
  */
-export function pesoDoPixel(c: Rgb): number {
+export function pesoDoPixel(p: Pixel): number {
+  const c: Rgb = [p[0], p[1], p[2]];
   const k = croma(c);
-  const peso = 1 + 6 * Math.min(1, k / 0.5);
+  const peso = (1 + 6 * Math.min(1, k / 0.5)) * (p[3] ?? 1);
   return luz(c) < 95 && k < 0.22 ? peso * 0.12 : peso;
+}
+
+/**
+ * O peso do sítio (passo 1): a mesa e a decoração costumam estar no terço
+ * central e de baixo do recorte. Uma elipse centrada um pouco abaixo do meio
+ * pesa 1 no centro e desce até 0,04 nos cantos de cima — a parede e o céu
+ * quase não contam, a não ser que encham a fotografia toda.
+ */
+export function pesoDoSitio(x: number, y: number): number {
+  const dx = (x - 0.5) / 0.4;
+  const dy = (y - 0.66) / 0.36;
+  return Math.max(0.04, Math.min(1, 1.2 - (dx * dx + dy * dy)));
 }
 
 /** Distância entre duas cores (euclidiana pesada pelo olho). */
@@ -61,19 +91,22 @@ const distancia = (a: Rgb, b: Rgb) =>
 
 /** As cores, em `#RRGGBB`, da mais clara para a mais escura. Vazio se não houver fotos. */
 export async function paletaDasFotos(fotos: readonly Buffer[]): Promise<string[]> {
-  const pixeis: Rgb[] = [];
+  const pixeis: Pixel[] = [];
   for (const b of fotos) {
     try {
       const { data } = await sharp(b, { failOn: "none" })
         .rotate()
-        .resize(LADO, LADO, { fit: "cover" })
+        .resize(LADO, LADO, { fit: "cover", position: sharp.strategy.attention })
         .removeAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
       for (let i = 0; i + 2 < data.length; i += 3) {
         const c: Rgb = [data[i], data[i + 1], data[i + 2]];
         const l = luz(c);
-        if (l > 28 && l < 242) pixeis.push(c);
+        const k = i / 3;
+        const sitio = pesoDoSitio(((k % LADO) + 0.5) / LADO, (Math.floor(k / LADO) + 0.5) / LADO);
+        const y = (Math.floor(k / LADO) + 0.5) / LADO;
+        if (l > 28 && l < 242) pixeis.push([c[0], c[1], c[2], sitio, y]);
       }
     } catch {
       // Uma foto que não se lê não tem cor para dar; as outras chegam.
@@ -83,10 +116,10 @@ export async function paletaDasFotos(fotos: readonly Buffer[]): Promise<string[]
 }
 
 /** O corte pela mediana e a escolha — separado para se poder testar sem imagens. */
-export function escolher(pixeis: readonly Rgb[]): string[] {
+export function escolher(pixeis: readonly Pixel[]): string[] {
   if (!pixeis.length) return [];
-  type Caixa = { pixeis: Rgb[]; peso: number };
-  const somar = (l: readonly Rgb[]) => l.reduce((s, p) => s + pesoDoPixel(p), 0);
+  type Caixa = { pixeis: Pixel[]; peso: number };
+  const somar = (l: readonly Pixel[]) => l.reduce((s, p) => s + pesoDoPixel(p), 0);
   let caixas: Caixa[] = [{ pixeis: [...pixeis], peso: somar(pixeis) }];
   while (caixas.length < CAIXAS) {
     // Parte-se a caixa mais PESADA que ainda tenha mais de um pixel.
@@ -125,12 +158,17 @@ export function escolher(pixeis: readonly Rgb[]): string[] {
   }
   const cores = caixas
     .filter((c) => c.pixeis.length)
-    .map((c) => ({
-      cor: [0, 1, 2].map((k) =>
-        Math.round(c.pixeis.reduce((s, p) => s + p[k] * pesoDoPixel(p), 0) / c.peso),
-      ) as unknown as Rgb,
-      peso: c.peso,
-    }))
+    .map((c) => {
+      // Uma cor que vive no ALTO das fotografias (a parede, o tecto, o céu)
+      // não é da mesa: o seu peso desce com a altura média a que está.
+      const alto = c.pixeis.reduce((s, p) => s + (p[4] ?? 0.66) * pesoDoPixel(p), 0) / c.peso;
+      return {
+        cor: ([0, 1, 2] as const).map((k) =>
+          Math.round(c.pixeis.reduce((s, p) => s + p[k] * pesoDoPixel(p), 0) / c.peso),
+        ) as unknown as Rgb,
+        peso: c.peso * Math.min(1, Math.max(0.08, (alto - 0.3) / 0.3)),
+      };
+    })
     .sort((a, b) => b.peso - a.peso);
 
   const escolhidas: Rgb[] = [];
