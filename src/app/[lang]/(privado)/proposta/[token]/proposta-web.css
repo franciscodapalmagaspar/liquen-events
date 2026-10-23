@@ -11,6 +11,10 @@
  * Ver `docs/PROPOSTA-WEB.md`.
  */
 .pw {
+  /* O Safari do iPhone aumenta sozinho o texto que acha pequeno, e o texto
+     a mais sai das caixas. As medidas daqui já são as do telemóvel. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   --tinta: #2a2620;
   --cal: #fbfaf6;
   --papel: #f4efe6;
@@ -142,9 +146,10 @@ html:has(.pw) {
   position: fixed;
   inset: 0 0 auto 0;
   z-index: 40;
-  display: flex;
+  /* O logótipo ao meio, as âncoras dos dois lados (ela, 23/10). */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   padding: 12px var(--gr) 12px var(--g);
   padding-top: max(12px, env(safe-area-inset-top));
@@ -167,6 +172,12 @@ html:has(.pw) {
   display: none;
   list-style: none;
   gap: 26px;
+}
+.pw-nav .pw-nav-r {
+  justify-content: flex-end;
+}
+.pw-nav img {
+  grid-column: 2;
 }
 .pw-nav ul a {
   text-decoration: none;
@@ -604,12 +615,16 @@ html:has(.pw) {
   grid-template-columns: repeat(2, 1fr);
   gap: 4px;
   grid-auto-flow: dense;
-  grid-auto-rows: 46vw;
+  /* Ela, 23/10: «há textos na proposta que ficam comidos». A célula de texto
+     tinha a altura de uma fotografia e o texto a mais subia por baixo da de
+     cima. A linha passa a crescer com o texto (as fotografias da mesma linha
+     acompanham, recortadas como sempre). */
+  grid-auto-rows: minmax(46vw, auto);
 }
 @media (min-width: 800px) {
   .pw-mos {
     grid-template-columns: repeat(4, 1fr);
-    grid-auto-rows: 25vw;
+    grid-auto-rows: minmax(25vw, auto);
   }
 }
 .pw-mos figure {
@@ -662,6 +677,9 @@ html:has(.pw) {
   flex-direction: column;
   justify-content: flex-end;
   padding: 22px;
+  overflow: visible;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 .pw-mos .pw-txt .pw-k {
   font-size: 20px;
@@ -679,6 +697,15 @@ html:has(.pw) {
   font-size: 13px;
   color: var(--muted);
   margin-top: 10px;
+}
+/* No telemóvel, menos espaço entre letras: palavras compridas cabem na célula. */
+@media (max-width: 799.98px) {
+  .pw-mos .pw-txt {
+    padding: 16px;
+  }
+  .pw-mos .pw-txt b {
+    letter-spacing: 0.12em;
+  }
 }
 
 /* quote */

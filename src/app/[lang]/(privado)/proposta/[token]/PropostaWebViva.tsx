@@ -10,9 +10,8 @@ import { createPortal } from "react-dom";
  *
  * O mesmo que o protótipo faz, e nada mais:
  *   · as entradas `.pw-rv` (opacidade e 28 px), ao chegarem ao ecrã;
- *   · a barra escura que aparece depois da capa, com as âncoras e «Quero
- *     avançar» (que leva ao fecho — responder por WhatsApp ou email, nunca
- *     aceitar com um clique: `nada-de-aceitar-por-botao.test.ts`);
+ *   · a barra escura que aparece depois da capa: o logótipo ao meio e as
+ *     âncoras dos dois lados (o «Quero avançar» saiu a 23/10, a pedido dela);
  *   · a lupa do mosaico: setas, Esc, deslizar;
  *   · «Copiar» o email e o telefone, com o aviso «Copiado».
  *
@@ -51,7 +50,6 @@ function salvarImagem(img: HTMLImageElement) {
 export default function PropostaWebViva({
   t,
   ancoras,
-  queroAvancar,
   fontes = "",
   lang,
 }: {
@@ -59,7 +57,6 @@ export default function PropostaWebViva({
   lang: string;
   /** Só os textos de que isto precisa — um componente cliente não recebe funções. */
   t: {
-    queroAvancar: string;
     fechar: string;
     anterior: string;
     seguinte: string;
@@ -67,7 +64,6 @@ export default function PropostaWebViva({
     copiado: string;
   };
   ancoras: { href: string; nome: string }[];
-  queroAvancar: string;
 }) {
   const marca = useRef<HTMLSpanElement>(null);
   const [montado, setMontado] = useState(false);
@@ -215,18 +211,24 @@ export default function PropostaWebViva({
         createPortal(
           <div className={`pw pw-camada ${fontes}`} lang={lang}>
             <nav className={`pw-nav${barra ? " pw-on" : ""}`} aria-hidden={!barra} inert={!barra}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- o logótipo, servido pelo site */}
-              <img src="/logo-liquen-proposta.png" alt="Líquen Events" />
-              <ul>
-                {ancoras.map((a) => (
+              {/* O logótipo ao meio e as âncoras dos dois lados (ela, 23/10:
+                  «retira o quero avançar e coloca o logo da liquen a meio»). */}
+              <ul className="pw-nav-l">
+                {ancoras.slice(0, Math.ceil(ancoras.length / 2)).map((a) => (
                   <li key={a.href}>
                     <a href={a.href}>{a.nome}</a>
                   </li>
                 ))}
               </ul>
-              <a className="pw-btn pw-solid" href={queroAvancar}>
-                {t.queroAvancar}
-              </a>
+              {/* eslint-disable-next-line @next/next/no-img-element -- o logótipo, servido pelo site */}
+              <img src="/logo-liquen-proposta.png" alt="Líquen Events" />
+              <ul className="pw-nav-r">
+                {ancoras.slice(Math.ceil(ancoras.length / 2)).map((a) => (
+                  <li key={a.href}>
+                    <a href={a.href}>{a.nome}</a>
+                  </li>
+                ))}
+              </ul>
             </nav>
             <div
               className={`pw-lb${lupa ? " pw-on" : ""}`}
