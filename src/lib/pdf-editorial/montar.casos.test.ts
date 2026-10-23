@@ -496,6 +496,50 @@ describe("sem transparência por cima das fotografias", () => {
     expect(comMascara).toBe(1);
     expect(opacidades).toBe(0);
   });
+
+  /**
+   * O pedido dela de 23/10: «não aparecem todas as fotografias… pelo menos
+   * aqui no telemóvel». Os leitores de PDF do iOS são os mais esquisitos com
+   * JPEG: todas as fotografias saem em JPEG «baseline» (SOF0, e não o
+   * progressivo SOF2), RGB de 8 bits, e nenhuma passa de 1 800 px.
+   */
+  it("todas as fotografias são JPEG baseline, RGB, ≤ 1 800 px", async () => {
+    const { bytes } = await desenhar(docDeTeste());
+    const pdf = await PDFDocument.load(bytes);
+    let jpegs = 0;
+    const objectos = pdf.context.enumerateIndirectObjects();
+    // O logótipo (o único PNG) e a máscara dele ficam de fora.
+    const mascaras = new Set(
+      objectos.flatMap(([, o]) =>
+        o instanceof PDFRawStream && o.dict.has(PDFName.of("SMask"))
+          ? [String(o.dict.get(PDFName.of("SMask")))]
+          : [],
+      ),
+    );
+    for (const [ref, obj] of objectos) {
+      if (!(obj instanceof PDFRawStream)) continue;
+      const d = obj.dict;
+      if (d.get(PDFName.of("Subtype")) !== PDFName.of("Image")) continue;
+      if (d.has(PDFName.of("SMask")) || mascaras.has(String(ref))) continue;
+      jpegs++;
+      expect(d.get(PDFName.of("Filter"))).toBe(PDFName.of("DCTDecode"));
+      expect(d.get(PDFName.of("ColorSpace"))).toBe(PDFName.of("DeviceRGB"));
+      expect((d.get(PDFName.of("BitsPerComponent")) as PDFNumber).asNumber()).toBe(8);
+      const w = (d.get(PDFName.of("Width")) as PDFNumber).asNumber();
+      const h = (d.get(PDFName.of("Height")) as PDFNumber).asNumber();
+      expect(Math.max(w, h)).toBeLessThanOrEqual(1800);
+      const b = obj.getContents();
+      let sof = -1;
+      for (let i = 0; i + 1 < b.length; i++) {
+        if (b[i] === 0xff && (b[i + 1] === 0xc0 || b[i + 1] === 0xc2)) {
+          sof = b[i + 1];
+          break;
+        }
+      }
+      expect(sof, "SOF0 (baseline), e não SOF2 (progressivo)").toBe(0xc0);
+    }
+    expect(jpegs).toBeGreaterThan(10);
+  });
 });
 
 /**

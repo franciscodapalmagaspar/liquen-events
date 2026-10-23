@@ -257,7 +257,22 @@ export async function preparar(
     return await sharp(comGrao(data), {
       raw: { width: info.width, height: info.height, channels: 3 },
     })
-      .jpeg({ quality: t.qualidade ?? QUALIDADE, mozjpeg: true, chromaSubsampling: "4:2:0" })
+      // JPEG SIMPLES: «baseline», RGB de 8 bits, sem perfil nem metadados.
+      // O pedido dela de 23/10 — «não aparecem todas as fotografias… aqui no
+      // telemóvel» — era sobre o modelo aberto no iPhone; os leitores de PDF
+      // do iOS são os mais esquisitos com JPEG, e este é o que todos lêem. As
+      // afinações do mozjpeg sim, mas não o `optimiseScans`, que obriga a
+      // JPEG progressivo (o que `mozjpeg: true` liga).
+      .jpeg({
+        quality: t.qualidade ?? QUALIDADE,
+        progressive: false,
+        optimiseScans: false,
+        optimiseCoding: true,
+        trellisQuantisation: true,
+        overshootDeringing: true,
+        quantisationTable: 3,
+        chromaSubsampling: "4:2:0",
+      })
       .toBuffer();
   } catch {
     return null;

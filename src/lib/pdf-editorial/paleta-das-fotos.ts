@@ -135,7 +135,7 @@ export function escolher(pixeis: readonly Rgb[]): string[] {
 
   const escolhidas: Rgb[] = [];
   for (const { cor } of cores) {
-    if (escolhidas.every((e) => distancia(e, cor) > 60)) escolhidas.push(cor);
+    if (escolhidas.every((e) => distancia(e, cor) > 80)) escolhidas.push(cor);
     if (escolhidas.length === QUANTAS) break;
   }
   return escolhidas

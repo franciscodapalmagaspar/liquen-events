@@ -27,8 +27,29 @@ mesas, PT/EN, o rascunho, as contas e os textos legais) não mudaram.
 Verificado com PDF de TESTE (dados inventados, fotografias da galeria pública
 do site), um casamento e um jantar de empresa, em português e em inglês, postos
 lado a lado com o modelo página a página. O jantar de empresa sai com as mesmas
-18 páginas do modelo. Peso com 65 fotografias: 3,9 MB (galeria) e 4,5 MB
+18 páginas do modelo. Peso com 65 fotografias: 3,9 MB (galeria) e 4,7 MB
 (fotografias fabricadas com grão) — o tecto é 8 MB.
+
+**O feedback dela de 23/10 (16h), sobre o modelo:**
+
+- **«não aparecem todas as fotografias… pelo menos aqui no telemóvel».** Todas
+  as fotografias do nosso PDF saem em JPEG simples — *baseline* (não
+  progressivo: o `mozjpeg` do sharp liga os varrimentos progressivos, e
+  desligou-se), RGB de 8 bits, sem perfil de cor nem máscara, nenhuma acima de
+  1 800 px. O logótipo é a única imagem com transparência (PNG). Um teste
+  prende isto (`montar.casos.test.ts`, «todas as fotografias são JPEG
+  baseline»). Verificado em dois motores: o pdf.js (Firefox) e o PDFium
+  (Chrome) descodificam todas as imagens dos quatro PDF de teste e do de 65
+  fotografias, sem nenhuma falha. **Num iPhone não foi verificado** — não há
+  um aqui; o JPEG baseline em RGB é o formato que o leitor do iOS lê sempre.
+- **«a paleta de cores vai buscar cores que não são… os castanhos».** A
+  extracção (`paleta-das-fotos.ts`) passou a pesar cada pixel pela cor que tem:
+  um vermelho ou um bordeaux pesa até sete vezes um neutro, um castanho escuro
+  e baço (mesa, sala, sombra) quase nada, e os neutros claros (toalha creme,
+  velas) o normal. O corte faz-se pelos pesos. Um castanho só entra se
+  dominar. As cores continuam a vir das MESAS, como ela decidiu. Um teste com
+  fotografias fabricadas (fundo castanho escuro, toalha creme, flores
+  vermelhas e bordeaux) exige vermelho, bordeaux e creme na paleta.
 
 | O quê | Estado |
 |---|---|
