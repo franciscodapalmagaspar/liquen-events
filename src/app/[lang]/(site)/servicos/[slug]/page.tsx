@@ -14,7 +14,7 @@ import { pageMetadata } from "@/lib/page-metadata";
 import { SERVICES, getService, quoteTipoForSlug } from "@/lib/services-data";
 import { pickServiceGallery } from "@/lib/service-gallery";
 import { getDictionary, localizeHref, normalizeLocale } from "@/lib/i18n";
-import { PRIMARY_BUTTON_CLASS, OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
+import { PRIMARY_BUTTON_CLASS, OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 import { hifenizar } from "@/lib/hifenizar";
 
@@ -517,15 +517,15 @@ export default async function ServiceDetailPage({
           className="object-cover object-bottom"
           {...blurFor(ctaImg)}
         />
-        {/* Wash + gradient merged (gradient listed first = on top). Same look. */}
+        {/* Só as pontas: o escuro que o texto pede está atrás do próprio texto
+            (`.veu-texto`, globals.css). Pedido dela, 23/10: «coloca mais brilho». */}
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage:
-              "linear-gradient(to top, rgba(8,8,8,0.9), transparent, rgba(8,8,8,0.5)), linear-gradient(rgba(0,0,0,0.48), rgba(0,0,0,0.48))",
+            backgroundImage: VEU_DAS_PONTAS,
           }}
         />
-        <div className="text-veil-shadow relative z-10 w-full max-w-7xl mx-auto px-6 lg:px-16">
+        <div className="text-veil-shadow veu-texto veu-texto--esquerda [--veu-alfa:0.6] relative z-10 w-full max-w-7xl mx-auto px-6 lg:px-16">
           <AnimateIn>
             <h2
               className="text-white font-bold uppercase tracking-display leading-[0.95] mb-12 max-w-2xl"
