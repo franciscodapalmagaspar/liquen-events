@@ -44,7 +44,7 @@ Isto **desfaz a decisão de 22/10** («a proposta online não tem nada a ver com
 6. **Os fundos** são uma fotografia da proposta diferente da que está na moldura, sempre que haja outra. O brilho segue o `prep_imagens.py`: 0,42 na proposta, 0,62 nos capítulos, 0,38 no investimento e 0,32 no fecho.
 7. **As cores da paleta** saem das miniaturas das fotografias das mesas (as mesmas que o PDF usa), e ficam guardadas em memória por proposta. Se falharem, a paleta aparece sem amostras.
 8. **A rede:** se a página não se deixar montar (o armazenamento em baixo, por exemplo), fica o visor das páginas do PDF de antes. O casal nunca fica sem proposta.
-9. **A introdução** («Pensámos cada pormenor…») é um texto da casa e não um campo. A 10/10 ela tirou o campo de intenção («não quero o campo, ponto final»), e não volta sem o «sim» dela. **Por confirmar com ela:** se quer este parágrafo.
+9. **A introdução** («Pensámos cada pormenor…») é um texto da casa e não um campo. A 10/10 ela tirou o campo de intenção («não quero o campo, ponto final»), e não volta sem o «sim» dela. **Confirmado por ela (23/10):** «sim, a frase fica». E sobre a página, ao lado do protótipo: «está ótimo».
 
 ## Verificação
 
