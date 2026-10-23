@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "npm run pregen && next dev",
     "pregen": "node scripts/pregen-heroes.mjs && node scripts/pregen-gallery.mjs && node scripts/pregen-logos.mjs",
-    "build": "node scripts/pregen-heroes.mjs && node scripts/pregen-gallery.mjs && node scripts/pregen-logos.mjs && next build && node scripts/folhas-que-existem.mjs",
+    "build": "node scripts/sem-cache-do-compilador.mjs && node scripts/pregen-heroes.mjs && node scripts/pregen-gallery.mjs && node scripts/pregen-logos.mjs && next build && node scripts/folhas-que-existem.mjs",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
