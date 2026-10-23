@@ -3,42 +3,33 @@
  * AS COMPOSIÇÕES DOS TEMAS — ESCOLHIDAS PELO NÚMERO DE FOTOGRAFIAS
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * O quadro do documento dela, tal e qual:
+ * O quadro do documento dela de 23/10 (`docs/PDF-DESIGN-NOVO.md` §6.6b),
+ * mosaico de ponta a ponta, sem margens, com 6 px de intervalo:
  *
- *   0       uma página só de texto, sem caixas vazias
- *   1       uma fotografia a página inteira, título em baixo à esquerda
- *   2 ou 3  uma só fila a toda a altura: o mosaico de texto e as fotografias
- *   4       duas filas em «tijolo»: o mosaico e duas em cima, duas em baixo
- *   5       cinco ao alto, lado a lado, desalinhadas em altura
- *   6+      mosaico de ponta a ponta em duas filas de altura igual; uma leva
- *           o mosaico de texto e ~40% das fotografias, a outra o resto
- *   > 12    reparte por duas páginas (a segunda diz «Mais ideias…»)
+ *   0       uma página só de texto
+ *   1       uma fotografia a página inteira, com o bloco de título
+ *   2       duas metades verticais
+ *   3       três colunas a toda a altura (tríptico)
+ *   4–5     a célula de texto + as fotografias em duas filas
+ *   6–12    a célula de texto + mosaico de duas filas
+ *   > 12    várias páginas, a alternar mosaico e tríptico
  *
- * Tudo em píxeis do exemplo (1123 × 794), com 4 px de intervalo. Dentro de uma
- * fila cada fotografia cresce em largura NA PROPORÇÃO DO SEU FORMATO — é o
- * `flex: <aspecto>` do exemplo —, por isso cada célula tem quase a forma da
- * sua fotografia: o recorte é mínimo e nada fica deformado nem vazio.
- *
- * O mosaico de texto alterna de lado: nos temas ímpares fica em cima à
- * esquerda, nos pares em baixo à direita (na fila de 2–3 fotografias, à
- * esquerda ou à direita). O tijolo de quatro fica sempre em cima à esquerda.
+ * A CÉLULA DE TEXTO é uma célula do mosaico com o fundo Tinta: 346 px de
+ * largura, metade da altura, no canto de CIMA — à esquerda nos temas ímpares,
+ * à direita nos pares. Dentro de uma fila cada fotografia cresce em largura
+ * na proporção do seu formato (o `flex: <aspecto>`), por isso cada célula tem
+ * quase a forma da sua fotografia; nas de 4–5, a grelha é a do modelo, com as
+ * colunas de baixo alinhadas com as de cima.
  *
  * Este ficheiro não sabe nada de PDF: recebe formas e devolve caixas, para se
- * poder testar sem desenhar.
+ * poder testar sem desenhar — e o estúdio desenha as miniaturas com ele.
  *
  * ── A DISPOSIÇÃO À ESCOLHA (15/10) ──────────────────────────────────────────
- * O quadro de cima é a AUTOMÁTICA. Ela pediu de volta o que o PDF antigo
- * tinha — escolher a disposição das fotografias de cada tema — «com o mesmo
- * design que está agora no PDF». As disposições de `DISPOSICOES` são esse
- * pedido: as quatro que lhe propus (uma fila, duas filas, soltas, destaque) e
- * as do PDF antigo refeitas nesta folha (três filas, grelha, texto e imagem).
- * Todas usam as mesmas peças — o mosaico de texto de 330 px, o intervalo de
- * 4 px, a largura de cada fotografia na proporção da sua forma.
- *
- * Cada uma aceita um intervalo de fotografias POR PÁGINA. Acima do máximo, o
- * tema reparte-se por mais páginas (`repartir(n, d)`, o MESMO para o PDF e para
- * o plano das miniaturas); uma página que fique abaixo do mínimo usa a
- * automática.
+ * O quadro de cima é a AUTOMÁTICA. As disposições de `DISPOSICOES` são as que
+ * ela pode escolher num tema; seguem as mesmas regras de intervalo e de célula
+ * (§6.6b). As que têm a coluna de texto a toda a altura (uma fila, três filas,
+ * destaque, grelha, texto e imagem) mantêm-na: partir essa coluna ao meio
+ * deixava um buraco por baixo da célula — está dito na Parte −1.
  */
 
 export interface Caixa {
@@ -51,16 +42,18 @@ export interface Caixa {
 /** Largura e altura da folha do exemplo. */
 const W = 1123;
 const H = 794;
-/** O intervalo entre células. */
-export const VAO = 4;
-/** A largura fixa do mosaico de texto. */
-export const LARGURA_DO_MOSAICO = 330;
+/** O intervalo entre células (§4). */
+export const VAO = 6;
+/** A largura da célula de texto (§6.6b). */
+export const LARGURA_DO_MOSAICO = 346;
 /** O máximo de fotografias numa página de tema. */
 export const MAXIMO_POR_PAGINA = 12;
 
 export type Composicao =
   | { tipo: "texto" }
   | { tipo: "inteira"; celulas: Caixa[] }
+  | { tipo: "metades"; celulas: Caixa[] }
+  | { tipo: "triptico"; celulas: Caixa[] }
   | { tipo: "fila"; mosaico: Caixa; celulas: Caixa[] }
   | { tipo: "tijolo"; mosaico: Caixa; celulas: Caixa[] }
   | { tipo: "desalinhadas"; celulas: Caixa[] }
@@ -151,17 +144,32 @@ export function fila(
 /**
  * Quantas páginas leva um tema, e quantas fotografias em cada uma.
  *
- * Até doze, uma. Acima disso reparte-se o mais por igual possível — 13 dá
- * 7 + 6 e não 12 + 1, que seria uma página com uma fotografia só a fazer de
- * «Mais ideias».
+ * Na automática, até doze, uma; acima disso, páginas que ALTERNAM entre o
+ * mosaico (nove) e o tríptico (três), como o documento dela pede — 13 dá
+ * 9 + 4, 25 dá 9 + 3 + 9 + 4. Numa disposição escolhida, reparte-se o mais
+ * por igual possível pelo máximo dela.
  */
 export function repartir(n: number, d?: Disposicao | null): number[] {
-  const maximo = d && disposicaoServe(d, n) ? FOTOS_DA_DISPOSICAO[d].max : MAXIMO_POR_PAGINA;
-  if (n <= maximo) return [n];
-  const paginas = Math.ceil(n / maximo);
-  const base = Math.floor(n / paginas);
-  const resto = n % paginas;
-  return Array.from({ length: paginas }, (_, i) => base + (i < resto ? 1 : 0));
+  if (d && disposicaoServe(d, n)) {
+    const maximo = FOTOS_DA_DISPOSICAO[d].max;
+    if (n <= maximo) return [n];
+    const paginas = Math.ceil(n / maximo);
+    const base = Math.floor(n / paginas);
+    const resto = n % paginas;
+    return Array.from({ length: paginas }, (_, i) => base + (i < resto ? 1 : 0));
+  }
+  if (n <= MAXIMO_POR_PAGINA) return [n];
+  const paginas: number[] = [];
+  let falta = n;
+  let mosaico = true;
+  while (falta > MAXIMO_POR_PAGINA) {
+    const leva = mosaico ? 9 : 3;
+    paginas.push(leva);
+    falta -= leva;
+    mosaico = !mosaico;
+  }
+  paginas.push(falta);
+  return paginas;
 }
 
 /**
@@ -196,9 +204,63 @@ export function composicao(
 
   if (n === 0) return { tipo: "texto" };
   if (n === 1) return { tipo: "inteira", celulas: [{ x: 0, y: 0, w: W, h: H }] };
-  if (n <= 3) return umaFila(aspectos, vezPar);
-  if (n === 5) return soltas(5);
+  if (n === 2) return { tipo: "metades", celulas: colunasIguais(2) };
+  if (n === 3) return { tipo: "triptico", celulas: colunasIguais(3) };
+  if (n <= 5) return tijolo(n, vezPar);
   return duasFilas(aspectos, vezPar);
+}
+
+/** `n` colunas de largura igual, a toda a altura (as metades, o tríptico). */
+function colunasIguais(n: number): Caixa[] {
+  const w = (W - VAO * (n - 1)) / n;
+  return Array.from({ length: n }, (_, i) => ({ x: i * (w + VAO), y: 0, w, h: H }));
+}
+
+/** A célula de texto: metade da altura, no canto de cima do lado da vez. */
+const celulaDeTexto = (par: boolean): Caixa => ({
+  x: par ? W - LARGURA_DO_MOSAICO : 0,
+  y: 0,
+  w: LARGURA_DO_MOSAICO,
+  h: (H - VAO) / 2,
+});
+
+/**
+ * Quatro ou cinco fotografias: a célula de texto, duas fotografias ao lado
+ * dela, e as restantes na fila de baixo — com cinco, as três colunas de baixo
+ * alinham com as de cima, como no modelo dela.
+ */
+function tijolo(n: number, par: boolean): Composicao {
+  const hFila = (H - VAO) / 2;
+  const mosaico = celulaDeTexto(par);
+  const wCima = (W - LARGURA_DO_MOSAICO - 2 * VAO) / 2;
+  const xCima = par ? 0 : LARGURA_DO_MOSAICO + VAO;
+  const cima: Caixa[] = [0, 1].map((i) => ({
+    x: xCima + i * (wCima + VAO),
+    y: 0,
+    w: wCima,
+    h: hFila,
+  }));
+  const yBaixo = hFila + VAO;
+  const baixo: Caixa[] =
+    n - 2 === 3
+      ? par
+        ? [
+            { x: 0, y: yBaixo, w: wCima, h: hFila },
+            { x: wCima + VAO, y: yBaixo, w: wCima, h: hFila },
+            { x: W - LARGURA_DO_MOSAICO, y: yBaixo, w: LARGURA_DO_MOSAICO, h: hFila },
+          ]
+        : [
+            { x: 0, y: yBaixo, w: LARGURA_DO_MOSAICO, h: hFila },
+            { x: LARGURA_DO_MOSAICO + VAO, y: yBaixo, w: wCima, h: hFila },
+            { x: LARGURA_DO_MOSAICO + 2 * VAO + wCima, y: yBaixo, w: wCima, h: hFila },
+          ]
+      : [0, 1].map((i) => ({
+          x: i * ((W - VAO) / 2 + VAO),
+          y: yBaixo,
+          w: (W - VAO) / 2,
+          h: hFila,
+        }));
+  return { tipo: "tijolo", mosaico, celulas: [...cima, ...baixo] };
 }
 
 /** A largura que sobra ao lado do mosaico de texto. */
@@ -371,41 +433,47 @@ function textoEImagem(n: number, par: boolean): Composicao {
 }
 
 /**
- * Duas filas de altura igual, o mosaico de texto numa delas — o mosaico
- * automático de 4 e de 6 a 12 fotografias.
+ * Duas filas de altura igual, a célula de texto no canto de cima do lado da
+ * vez — o mosaico automático de 6 a 12 fotografias, e a disposição «duas
+ * filas». A fila de cima (ao lado da célula) leva ~40% das fotografias.
  */
-function duasFilas(aspectos: readonly number[], vezPar: boolean): Composicao {
-  let par = vezPar;
+function duasFilas(aspectos: readonly number[], par: boolean): Composicao {
   const n = aspectos.length;
   const alturaFila = (H - VAO) / 2;
-  // 4, e 6 a 12: duas filas de altura igual, o mosaico numa delas.
-  // O tijolo (4) tem o mosaico sempre em cima à esquerda, como nas duas páginas
-  // de quatro fotografias do exemplo; só o mosaico de ponta a ponta alterna.
-  if (n === 4) par = false;
-  // No tijolo (4) a fila do mosaico leva duas; no mosaico, ~40% das fotos.
-  const naFilaDoMosaico = n === 4 ? 2 : Math.max(1, Math.min(n - 1, Math.round(n * 0.4)));
-  const comMosaico = par ? aspectos.slice(n - naFilaDoMosaico) : aspectos.slice(0, naFilaDoMosaico);
-  const semMosaico = par ? aspectos.slice(0, n - naFilaDoMosaico) : aspectos.slice(naFilaDoMosaico);
-  const yMosaico = par ? alturaFila + VAO : 0;
-  const ySem = par ? 0 : alturaFila + VAO;
-  const mosaico = {
-    x: par ? W - LARGURA_DO_MOSAICO : 0,
-    y: yMosaico,
-    w: LARGURA_DO_MOSAICO,
-    h: alturaFila,
-  };
-  const larguraAoLado = W - LARGURA_DO_MOSAICO - VAO;
-  const celulasComMosaico = fila(
-    comMosaico,
+  const naFilaDoMosaico = Math.max(1, Math.min(n - 1, Math.round(n * 0.4)));
+  const mosaico = celulaDeTexto(par);
+  const cima = fila(
+    aspectos.slice(0, naFilaDoMosaico),
     par ? 0 : LARGURA_DO_MOSAICO + VAO,
-    yMosaico,
-    larguraAoLado,
+    0,
+    W - LARGURA_DO_MOSAICO - VAO,
     alturaFila,
   );
-  const celulasSem = fila(semMosaico, 0, ySem, W, alturaFila);
-  // De volta à ordem das fotografias.
-  const celulas = par
-    ? [...celulasSem, ...celulasComMosaico]
-    : [...celulasComMosaico, ...celulasSem];
-  return { tipo: n === 4 ? "tijolo" : "mosaico", mosaico, celulas };
+  const baixo = fila(aspectos.slice(naFilaDoMosaico), 0, alturaFila + VAO, W, alturaFila);
+  return { tipo: "mosaico", mosaico, celulas: [...cima, ...baixo] };
+}
+
+/**
+ * As metades e o tríptico não têm texto (§6.6b). Num casamento, a primeira
+ * página do tema leva o bloco de título por cima — senão o nome do tema
+ * perdia-se, porque o separador diz o do capítulo («Jantar»); fora dele, o
+ * separador que vem antes é o próprio tema (`montar.ts` põe lá a nota). As
+ * soltas levam-no sempre na primeira página: não têm célula de texto.
+ */
+export function levaBloco(tipo: string, primeira: boolean, casamento: boolean): boolean {
+  if (!primeira) return false;
+  if (tipo === "desalinhadas") return true;
+  return (tipo === "metades" || tipo === "triptico") && casamento;
+}
+
+/** A primeira página de um tema diz o título e a nota dele? */
+export function temaDizONome(
+  aspectos: readonly number[],
+  numero: number,
+  disposicao: Disposicao | null | undefined,
+  casamento: boolean,
+): boolean {
+  const c = composicao(aspectos, numero % 2 === 0, disposicao);
+  if (c.tipo === "metades" || c.tipo === "triptico") return levaBloco(c.tipo, true, casamento);
+  return true;
 }

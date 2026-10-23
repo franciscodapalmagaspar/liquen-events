@@ -3,6 +3,7 @@ import { PDFDocument, PDFPage } from "pdf-lib";
 import sharp from "sharp";
 import { withProposalDefaults, type ProposalDoc } from "@/lib/proposal-doc";
 import { renderEditorialPdf } from "./montar";
+import { composicao } from "./mosaico";
 import { listasQueNaoSaem, ordemDoDesenho, planoDaProposta, servicosDoDocumento } from "./plano";
 
 /**
@@ -99,8 +100,22 @@ async function batem(d: ProposalDoc, folga = 0) {
   const ate = plano.findIndex((p) => p.tipo === "condicoes");
   for (let i = 0; i < ate; i++) {
     const p = plano[i];
-    if (p.tipo === "separador") expect(pdf[i], `página ${i + 1}`).toContain(p.titulo);
-    if (p.tipo === "tema" && p.titulo) expect(pdf[i], `página ${i + 1}`).toContain(p.titulo);
+    // Os títulos saem em maiúsculas (o desenho de 23/10).
+    const M = (t: string) => t.toLocaleUpperCase("pt-PT");
+    if (p.tipo === "separador") expect(M(pdf[i]), `página ${i + 1}`).toContain(M(p.titulo));
+    if (p.tipo === "tema" && p.titulo) {
+      // As metades, o tríptico e as soltas que continuam não levam texto
+      // (§6.6b); o resto leva o título.
+      if (pdf[i].trim()) expect(M(pdf[i]), `página ${i + 1}`).toContain(M(p.titulo));
+      else {
+        const c = composicao(
+          p.fotos.map(() => 1),
+          false,
+          p.disposicao,
+        );
+        expect(c.tipo, `página ${i + 1} sem texto`).toMatch(/^(metades|triptico|desalinhadas)$/);
+      }
+    }
   }
   expect(plano[0].tipo).toBe("capa");
   expect(plano[plano.length - 1].tipo).toBe("contracapa");
@@ -137,13 +152,13 @@ describe("o plano das páginas é o do PDF", () => {
     expect(plano.filter((p) => p.tipo === "condicoes").length).toBeGreaterThanOrEqual(3);
   });
 
-  it("um tema com mais de 12 fotografias ocupa duas páginas", async () => {
+  it("um tema com mais de 12 fotografias ocupa duas páginas (um mosaico de 9 e o resto)", async () => {
     const { plano } = await batem(
       doc({ moodBoards: [{ title: "Mesas de Jantar", images: fotos(20) }] }),
     );
     const temas = plano.filter((p) => p.tipo === "tema");
     expect(temas).toHaveLength(2);
-    expect(temas.map((t) => (t.tipo === "tema" ? t.fotos.length : 0))).toEqual([10, 10]);
+    expect(temas.map((t) => (t.tipo === "tema" ? t.fotos.length : 0))).toEqual([9, 11]);
   });
 
   it("a disposição escolhida reparte o tema como o PDF (uma fila de 7 = 4 + 3)", async () => {
@@ -188,10 +203,11 @@ describe("o plano das páginas é o do PDF", () => {
     expect(plano.some((p) => p.tipo === "ambiente" || p.tipo === "citacao")).toBe(false);
   });
 
-  it("muitos serviços partem em páginas de seis cartões", async () => {
-    const items = Array.from({ length: 13 }, (_, i) => ({ label: `TESTE serviço ${i + 1}` }));
+  it("os serviços vão até três cartões por página, repartidos por igual", async () => {
+    const items = Array.from({ length: 7 }, (_, i) => ({ label: `TESTE serviço ${i + 1}` }));
     const { plano } = await batem(doc({ serviceGroups: [{ letter: "a)", title: "D", items }] }));
-    expect(plano.filter((p) => p.tipo === "servicos")).toHaveLength(3);
+    const paginas = plano.filter((p) => p.tipo === "servicos");
+    expect(paginas.map((p) => (p.tipo === "servicos" ? p.servicos.length : 0))).toEqual([3, 2, 2]);
   });
 
   it("um orçamento comprido parte o quadro", async () => {

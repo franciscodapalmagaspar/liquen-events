@@ -135,8 +135,10 @@ describe("VistaDeConjunto: o documento inteiro", () => {
    */
   it("clicar numa folha de texto abre a secção que a escreve", () => {
     const { onIrParaSeccao } = desenhar([board({ title: "Mesas de jantar" })]);
+    // O «Investimento» é a página do total (o documento de 23/10 já não tem
+    // separador do investimento): abre a secção do total.
     fireEvent.click(screen.getByLabelText(/, Investimento$/));
-    expect(onIrParaSeccao).toHaveBeenCalledWith("orcamento");
+    expect(onIrParaSeccao).toHaveBeenCalledWith("total");
   });
 
   it("clicar numa página de tema vai ao board, e não só à secção", () => {

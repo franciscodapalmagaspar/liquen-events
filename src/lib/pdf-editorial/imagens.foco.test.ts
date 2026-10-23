@@ -47,7 +47,9 @@ describe("o enquadramento da capa", () => {
       (await preparar(foto, W, H, W, { foco: { x: 0.5, y: 0 } }))!,
     );
     expect(rBaixo - gBaixo, "em baixo está a faixa vermelha").toBeGreaterThan(20);
-    expect(Math.abs(rCima - gCima), "em cima é só cinzento").toBeLessThan(5);
+    // A edição quente (§5: vermelho × 1,03) puxa o cinzento uns 4 pontos para
+    // o vermelho; a faixa vermelha dá dezenas.
+    expect(Math.abs(rCima - gCima), "em cima é só cinzento").toBeLessThan(10);
   });
 
   it("o foco automático é o mesmo recorte que o PDF faz sozinho", async () => {

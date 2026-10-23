@@ -19,9 +19,90 @@ texto, e o dourado sai.
 
 ## Parte −1 — o que está feito e onde a execução se afasta do texto
 
+Feito a 23/10 no PR `feat/pdf-design-novo`, **em rascunho até ela o aprovar**.
+O código está em `src/lib/pdf-editorial/`; os dados e a lógica (o plano das
+páginas, a escolha das fotografias, as disposições, os capítulos, a paleta das
+mesas, PT/EN, o rascunho, as contas e os textos legais) não mudaram.
+
+Verificado com PDF de TESTE (dados inventados, fotografias da galeria pública
+do site), um casamento e um jantar de empresa, em português e em inglês, postos
+lado a lado com o modelo página a página. O jantar de empresa sai com as mesmas
+18 páginas do modelo. Peso com 65 fotografias: 3,9 MB (galeria) e 4,5 MB
+(fotografias fabricadas com grão) — o tecto é 8 MB.
+
 | O quê | Estado |
 |---|---|
-| Tudo | por fazer — começa a 23/10 |
+| §2 Cores (Tinta, Cal, Papel, Linho, Pedra) | feito — `paleta.ts`; sem dourado; um teste mede o contraste na Tinta |
+| §3 Letras (Jost 400, Bodoni Moda 400 normal e itálico, opsz 96) | feito — `letras.ts`, gerado por `scripts/gerar-letras-do-pdf.py`, com as licenças OFL em `src/lib/fonts/` |
+| §3 Tamanhos | feito, com os desvios abaixo (entrelinhas) |
+| §4 Bloco de título, moldura afastada, logótipo creme, rodapé | feito — `moldura.ts` |
+| §5 Edição quente, grão, arrastado (−8° a −24°, 8 %, gaussiano 5 px), brilhos, escurecimentos | feito — `imagens.ts`, tudo fundido na JPEG; o logótipo é a única transparência (há um teste) |
+| §6.1 Capa | feito |
+| §6.2 Índice | feito |
+| §6.3 A proposta | feito |
+| §6.4 O que propomos | feito — até 3 cartões por página, repartidos por igual |
+| §6.5 Paleta e ambiente | feito — 5 cores, 5 quadradas e o painel |
+| §6.6a Separadores | feito |
+| §6.6b Temas em mosaico (1, 2, 3, 4–5, 6–12, >12) e as disposições à mão | feito — `mosaico.ts` |
+| §6.7 Citação | feito |
+| §6.8 Investimento | feito — o total e, a seguir, o quadro das linhas no mesmo desenho |
+| §6.9 Condições (3 páginas) | feito — com os textos da casa cabem nas três (ver abaixo) |
+| §6.10 Contracapa | feito |
+| §7 PT/EN, sobretítulos traduzidos | feito — `textos.ts` |
+| Miniaturas do estúdio (`PaginaEditorial.tsx`) | feito na estrutura: as mesmas caixas, molduras, blocos e fotografias; as cores da paleta e o desfoque direccional são só aproximados |
+
+**Onde a execução se afasta do texto, e porquê:**
+
+1. **Entrelinha das notas em Bodoni: 1,45, e não 1,2.** Medido no modelo: as
+   linhas de 17 px vão de 25 em 25 px. A 1,2 o itálico encavalita-se.
+2. **Entrelinha dos itens das condições: 1,15, como o texto — e não os ~1,36
+   do modelo.** Os textos da casa são bem mais compridos do que os do modelo; a
+   1,36 as condições passavam para 4 ou 5 páginas. E se nem a 1,15 couberem, a
+   letra desce meio píxel de cada vez até 12,5 px (o «encolhe até caber» das
+   notas, aplicado a texto que não pode perder uma palavra); só abaixo disso é
+   que continua na página seguinte.
+3. **As condições: as notas correm pelas três colunas**, em vez de uma secção
+   por coluna, e um ponto comprido pode partir-se entre colunas. Pelo mesmo
+   motivo: com uma secção por coluna, uma coluna transbordava e as outras
+   ficavam meio vazias. Do título às colunas ficam 60 px, e não 75.
+4. **Os contactos ficam lado a lado numa faixa por baixo das colunas** do
+   pagamento (como os dados de «A proposta», que é o que o texto diz), e não
+   empilhados na primeira coluna como no modelo — empilhados não cabiam ao
+   lado do faseamento e do cancelamento da casa.
+5. **Não há separador do investimento** (o modelo não o tem); a página do
+   total é a entrada «Investimento» do índice, e **o quadro das linhas do
+   orçamento vem a seguir**, no mesmo desenho — tirá-lo era perder dados. Os
+   valores do quadro vão em Bodoni itálico (o texto); os da tabela do total
+   em Jost (o modelo).
+6. **A citação vem depois de todos os capítulos** (a ordem do §6), e não a
+   meio deles.
+7. **O título do bloco de fotografia vai até 680 px**, e não à largura toda:
+   é o que o modelo faz («DECORAÇÃO E DECOR / FLORAL DO JANTAR») e o que
+   impede o título do separador de passar por baixo da fotografia emoldurada.
+8. **O logótipo do rodapé fica a 18 px da borda direita** (o modelo), e não
+   na margem de 72; nas condições não aparece, porque cairia em cima da
+   fotografia da direita.
+9. **Num casamento, as metades e o tríptico levam o bloco de título** na
+   primeira página do tema: o separador diz o capítulo («Jantar») e o nome do
+   tema perdia-se. Fora de um casamento ficam sem texto, como o texto pede, e
+   **a nota desse tema passa para o separador**, que é o próprio tema — senão
+   perdia-se.
+10. **O subtítulo do tema só aparece na célula de texto num casamento**; fora
+    dele já está na linha pequena do separador (o modelo não o repete).
+11. **Um tema com uma fotografia** sai a página inteira com o bloco de título,
+    como o texto pede — e por isso repete o título do separador que o abre.
+12. **O separador evita as fotografias da página que vem logo a seguir** (a
+    regra «nunca a mesma fotografia em páginas vizinhas»): se o capítulo não
+    tiver outras, vêm de outro capítulo.
+13. **O grão é sempre o mesmo para a mesma fotografia** (ruído com semente):
+    o mesmo PDF gerado duas vezes dá os mesmos bytes.
+14. **A nota de «A proposta»** é a primeira nota que ela escreveu nos temas: o
+    documento não tem um campo para ela.
+15. **A paleta tem 6 lugares** (5 quadradas e o painel, no fim). O PR paralelo
+    `feat/pdf-paleta-e-enquadrar` faz destes lugares escolhas dela; quem juntar
+    o segundo resolve o conflito.
+16. **A data curta** (DD.MM.AAAA) lê-se da data dela; se não se ler, vai a data
+    como está escrita.
 
 ---
 

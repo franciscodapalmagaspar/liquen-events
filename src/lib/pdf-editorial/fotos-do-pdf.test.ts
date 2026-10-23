@@ -130,7 +130,9 @@ describe("as fotografias de cada página: o plano é o PDF", () => {
     expect(plano).toEqual(desenhado);
     // E há fotografia nos lugares que a pedem.
     expect(desenhado.indice[0].ref).toMatch(/^TESTE\//);
-    expect(desenhado.investimento.length).toBe(2);
+    expect(desenhado.total.length).toBe(1);
+    // A paleta: cinco quadradas e o painel, no sexto lugar.
+    expect(desenhado.ambiente.length).toBe(6);
   });
 
   it("as chaves das páginas são as do plano do estúdio, pela mesma ordem", async () => {
@@ -149,7 +151,7 @@ describe("as fotografias de cada página: o plano é o PDF", () => {
 });
 
 describe("a fotografia que ela escolhe é a que sai", () => {
-  it("o separador com UMA foto escolhida: a página inteira, essa", async () => {
+  it("o separador com UMA foto escolhida: a emoldurada e o fundo, essa", async () => {
     const d0 = comCaminhos();
     const chave = chavesDasPaginas(planoDaProposta(d0)).find((k) => k.startsWith("separador:"))!;
     const d = comCaminhos({ fotosDasPaginas: { [chave]: { fotos: [ref(13)] } } });
@@ -158,15 +160,17 @@ describe("a fotografia que ela escolhe é a que sai", () => {
     expect(plano).toEqual(desenhado);
   });
 
-  it("o investimento com DUAS escolhidas, e uma foto que não está em tema nenhum", async () => {
+  it("um separador com DUAS escolhidas, e uma foto que não está em tema nenhum", async () => {
+    const d0 = comCaminhos();
+    const chave = chavesDasPaginas(planoDaProposta(d0)).find((k) => k.startsWith("separador:"))!;
     const d = comCaminhos({
       fotosDasPaginas: {
-        investimento: { fotos: [ref(0), ref(15)] },
+        [chave]: { fotos: [ref(0), ref(15)] },
         indice: { fotos: [ref(0)], focos: [{ x: 0.2, y: 0.8 }] },
       },
     });
     const { desenhado, plano } = await asDuas(d);
-    expect(desenhado.investimento.map((f) => f.ref)).toEqual([ref(0), ref(15)]);
+    expect(desenhado[chave].map((f) => f.ref)).toEqual([ref(0), ref(15)]);
     expect(desenhado.indice).toEqual([{ ref: ref(0), foco: { x: 0.2, y: 0.8 } }]);
     expect(plano).toEqual(desenhado);
   });

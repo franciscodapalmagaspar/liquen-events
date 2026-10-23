@@ -10,37 +10,29 @@ import {
 import fontkit from "@pdf-lib/fontkit";
 import { textoParaFonte } from "@/lib/pdf-text";
 import { PAGINA_H } from "@/lib/proposal-geometria";
-import {
-  CORMORANT_500_ITALICO_TTF_B64,
-  CORMORANT_500_TTF_B64,
-  INTER_400_TTF_B64,
-  INTER_600_TTF_B64,
-} from "./letras";
+import { BODONI_400_ITALICO_TTF_B64, BODONI_400_TTF_B64, JOST_400_TTF_B64 } from "./letras";
 import { px } from "./paleta";
 
-/** As quatro letras do desenho. */
+/** As três letras do desenho (`docs/PDF-DESIGN-NOVO.md` §3). */
 export interface Letras {
-  /** Cormorant Garamond 500 — títulos. */
-  titulo: PDFFont;
-  /** Cormorant Garamond 500 itálico — o «&», a citação, o agradecimento. */
-  tituloItalico: PDFFont;
-  /** Inter 400 — corpo. */
-  corpo: PDFFont;
-  /** Inter 600 — sobretítulos, valores, ênfase. */
-  corpoForte: PDFFont;
+  /** Jost 400 — títulos (em maiúsculas), corpo, rótulos, rodapé. */
+  jost: PDFFont;
+  /** Bodoni Moda 400 normal — só o preço total e os marcos de pagamento. */
+  bodoni: PDFFont;
+  /** Bodoni Moda 400 itálico — sobretítulos, números, notas, valores. */
+  bodoniItalico: PDFFont;
 }
 
-/** Embute as quatro letras, em subconjunto (só os glifos desenhados entram). */
+/** Embute as três letras, em subconjunto (só os glifos desenhados entram). */
 export async function embutirLetras(pdf: PDFDocument): Promise<Letras> {
   pdf.registerFontkit(fontkit);
   const embutir = (b64: string) => pdf.embedFont(Buffer.from(b64, "base64"), { subset: true });
-  const [titulo, tituloItalico, corpo, corpoForte] = await Promise.all([
-    embutir(CORMORANT_500_TTF_B64),
-    embutir(CORMORANT_500_ITALICO_TTF_B64),
-    embutir(INTER_400_TTF_B64),
-    embutir(INTER_600_TTF_B64),
+  const [jost, bodoni, bodoniItalico] = await Promise.all([
+    embutir(JOST_400_TTF_B64),
+    embutir(BODONI_400_TTF_B64),
+    embutir(BODONI_400_ITALICO_TTF_B64),
   ]);
-  return { titulo, tituloItalico, corpo, corpoForte };
+  return { jost, bodoni, bodoniItalico };
 }
 
 /**
@@ -225,3 +217,6 @@ export function bloco(
 
 /** Maiúsculas como o `text-transform: uppercase` — com as regras do português. */
 export const maiusculas = (texto: string) => texto.toLocaleUpperCase("pt-PT");
+
+/** Minúsculas, para os sobretítulos em itálico («a proposta», «inspiração · 01»). */
+export const minusculas = (texto: string) => texto.toLocaleLowerCase("pt-PT");

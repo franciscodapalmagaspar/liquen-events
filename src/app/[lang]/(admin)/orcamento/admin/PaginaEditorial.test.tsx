@@ -26,10 +26,11 @@ describe("o papel do PDF no estúdio", () => {
       readFileSync("src/app/globals.css", "utf8") + readFileSync("src/app/admin.css", "utf8");
     const token = (nome: string) =>
       new RegExp(`--${nome}:\\s*(#[0-9a-f]{6})`, "i").exec(css)?.[1]?.toLowerCase();
-    expect(token("bo-papel-pdf")).toBe(HEX.fundo);
-    expect(token("bo-papel-pdf-texto")).toBe(HEX.texto);
-    expect(token("bo-papel-pdf-baixo")).toBe(HEX.textoBaixo);
-    expect(token("bo-papel-pdf-acento")).toBe(HEX.acento);
+    // A Tinta, a Cal, o Linho e a Pedra do documento de 23/10.
+    expect(token("bo-papel-pdf")).toBe(HEX.tinta.toLowerCase());
+    expect(token("bo-papel-pdf-texto")).toBe(HEX.cal.toLowerCase());
+    expect(token("bo-papel-pdf-baixo")).toBe(HEX.linho.toLowerCase());
+    expect(token("bo-papel-pdf-fio")).toBe(HEX.pedra.toLowerCase());
   });
 });
 
