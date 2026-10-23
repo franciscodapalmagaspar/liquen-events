@@ -13,7 +13,7 @@ import { PHOTO_REVEAL_LARGE_S, staggerMs, wordCascadeEndMs } from "@/lib/motion/
 import { BreadcrumbJsonLd } from "@/components/JsonLd";
 import { pageMetadata } from "@/lib/page-metadata";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
-import { OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
+import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 
 export async function generateMetadata({
@@ -168,16 +168,16 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
             {...blurFor("/imagens/M&F0497.jpg")}
           />
         </Parallax>
-        {/* Wash + gradient merged (gradient listed first = on top). Same look. */}
+        {/* Só as pontas: o escuro que o texto pede está atrás do próprio texto
+            (`.veu-texto`, globals.css). Pedido dela, 23/10: «coloca mais brilho». */}
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage:
-              "linear-gradient(to top, rgb(8,8,8), transparent, rgba(8,8,8,0.5)), linear-gradient(rgba(0,0,0,0.42), rgba(0,0,0,0.42))",
+            backgroundImage: VEU_DAS_PONTAS,
           }}
         />
         <div className="text-veil-shadow relative z-10 h-full flex items-center">
-          <div className="max-w-7xl mx-auto px-6 lg:px-16 w-full py-20 lg:py-28">
+          <div className="veu-texto [--veu-recuo-cima:5rem] [--veu-recuo-baixo:5rem] lg:[--veu-recuo-cima:7rem] lg:[--veu-recuo-baixo:7rem] max-w-7xl mx-auto px-6 lg:px-16 w-full py-20 lg:py-28">
             <p
               className="text-cream font-bold uppercase tracking-display leading-[1.12] max-w-4xl"
               style={{ fontSize: "clamp(26px, 4.5vw, 64px)" }}
@@ -287,16 +287,16 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
           className="object-cover object-center"
           {...blurFor("/imagens/DaniGui_Adois_61.jpg")}
         />
-        {/* Wash + gradient merged (gradient listed first = on top). Same look. */}
+        {/* Só as pontas: o escuro que o texto pede está atrás do próprio texto
+            (`.veu-texto`, globals.css). Pedido dela, 23/10: «coloca mais brilho». */}
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage:
-              "linear-gradient(to top, rgba(8,8,8,0.9), transparent, rgba(8,8,8,0.5)), linear-gradient(rgba(0,0,0,0.48), rgba(0,0,0,0.48))",
+            backgroundImage: VEU_DAS_PONTAS,
           }}
         />
 
-        <div className="text-veil-shadow relative z-10 max-w-7xl mx-auto px-6 lg:px-16 flex flex-col items-center text-center">
+        <div className="text-veil-shadow veu-texto veu-texto--centro [--veu-alfa:0.76] relative z-10 max-w-7xl mx-auto px-6 lg:px-16 flex flex-col items-center text-center">
           <AnimateIn>
             <p className="text-white/70 text-[10px] tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
               <span className="w-8 h-px bg-gold" />
@@ -308,7 +308,7 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
             >
               {t.sobre.ctaTitleLine1}
               <br />
-              <span className="text-moss">{t.sobre.ctaTitleMoss}</span>
+              <span className="text-moss-light">{t.sobre.ctaTitleMoss}</span>
             </h2>
           </AnimateIn>
           <AnimateIn delay={staggerMs(1)}>
