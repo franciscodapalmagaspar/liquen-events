@@ -13,6 +13,28 @@ import { paginasDoPlano } from "@/lib/pdf-editorial/plano";
 import { log } from "@/lib/logger";
 import PaginasDoPdf from "./PaginasDoPdf";
 import EscolhasDoDocumento from "./EscolhasDoDocumento";
+import PropostaWeb from "./PropostaWeb";
+import { Bodoni_Moda, Jost } from "next/font/google";
+import "./proposta-web.css";
+
+/**
+ * As letras do protótipo (Bodoni Moda itálico e Jost), servidas por esta casa
+ * pelo `next/font` — nada de pedidos ao Google em cada visita
+ * (`zero-rastreio.test.ts`). Só esta página as carrega.
+ */
+const LETRA_BODONI = Bodoni_Moda({
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  weight: ["400"],
+  variable: "--pw-bodoni",
+  display: "swap",
+});
+const LETRA_JOST = Jost({
+  subsets: ["latin"],
+  weight: ["300", "400", "500"],
+  variable: "--pw-jost",
+  display: "swap",
+});
 import { textosDaPagina } from "./textos-da-pagina";
 
 /**
@@ -485,6 +507,93 @@ export default async function ProposalPage({
         year: "numeric",
       })
     : null;
+
+  /**
+   * ══════════════════════════════════════════════════════════════════════
+   * A PROPOSTA ONLINE É UMA PÁGINA WEB PRÓPRIA (23/10)
+   * ══════════════════════════════════════════════════════════════════════
+   *
+   * Pedido dela, com o protótipo aprovado («Proposta-Online-Liquen»): a
+   * página deixa de mostrar as páginas do PDF como imagens numa coluna
+   * estreita e passa a ser uma página web a ecrã inteiro, «gerada a partir
+   * dos MESMOS dados do editor». Desfaz a decisão de 22/10 («a online não
+   * tem nada a ver com a PDF»): a resposta, agora, é a página nova ter o
+   * conteúdo DO PDF — os textos, os valores e as fotografias vêm do mesmo
+   * motor (`conteudoDoEditorial`), e o PDF fica num botão. Ver
+   * `docs/PROPOSTA-WEB.md`.
+   *
+   * Vale para todos os links, também os que já seguiram (escolha dela): muda
+   * só a apresentação; o documento guardado e o PDF não mudam.
+   *
+   * Se a página não se deixar montar (o armazenamento em baixo, por
+   * exemplo), fica o visor das páginas do PDF de antes — o casal nunca fica
+   * sem proposta.
+   */
+  if (proposal.doc) {
+    // Carregado só aqui: o modelo puxa o motor do PDF e o `sharp`, que não
+    // podem abrir no arranque da página (`sharp-fora-do-arranque.test.ts`).
+    const { propostaWeb } = await import("@/lib/proposta-web/modelo");
+    const dados = await propostaWeb(
+      {
+        id: proposal.id,
+        doc: proposal.doc,
+        sentAt: proposal.sentAt,
+        createdAt: proposal.createdAt,
+      },
+      token,
+      locale,
+    ).catch((e) => {
+      log.error("proposta online: a página web não se deixou montar", e, {
+        proposalId: proposal.id,
+      });
+      return null;
+    });
+    if (dados) {
+      const datas = [
+        validLabel ? `${t.validoAte} ${validLabel}` : "",
+        emitidaLabel ? `${t.emitidaEm} ${emitidaLabel}` : "",
+        !!doLink?.versao && doLink.versao > 1 ? `${t.versaoNumero} ${doLink.versao}` : "",
+        !!doLink?.versao && doLink.versao > 1 && atualizadaLabel && atualizadaLabel !== emitidaLabel
+          ? `${t.atualizadaEm} ${atualizadaLabel}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return (
+        <PropostaWeb
+          dados={dados}
+          lang={htmlLang(locale)}
+          fontes={`${LETRA_BODONI.variable} ${LETRA_JOST.variable}`}
+          escolhas={
+            (proposal.doc.escolhas ?? []).length > 0 ? (
+              <EscolhasDoDocumento
+                doc={proposal.doc}
+                idioma={locale}
+                fotos={fotos}
+                token={token}
+                escolhido={escolhido}
+              />
+            ) : undefined
+          }
+          avisos={
+            <>
+              {doLink?.estado === "revista" && (
+                <p role="note" className="pw-aviso">
+                  {t.revistaDepoisDeAceite}
+                </p>
+              )}
+              {expired && (
+                <p role="note" className="pw-aviso">
+                  {t.respostaExpirada}
+                </p>
+              )}
+            </>
+          }
+          datas={datas}
+        />
+      );
+    }
+  }
 
   return (
     <Shell lang={htmlLang(locale)}>

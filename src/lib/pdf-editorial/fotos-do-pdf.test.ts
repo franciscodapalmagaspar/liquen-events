@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import { withProposalDefaults, type ProposalDoc } from "@/lib/proposal-doc";
-import { fotosDoEditorial, renderEditorialPdf, type Medida } from "./montar";
+import { conteudoDoEditorial, fotosDoEditorial, renderEditorialPdf, type Medida } from "./montar";
 import { chavesDasPaginas, planoDaProposta } from "./plano";
 
 /**
@@ -220,5 +220,46 @@ describe("a paleta: cada fotografia no seu lugar", () => {
     const { desenhado } = await asDuas(d);
     expect(desenhado.ambiente[5]).toEqual({ ref: ref(0) });
     expect(desenhado.ambiente[0].ref).toMatch(/^TESTE\/foto-/);
+  });
+});
+
+/**
+ * A proposta online (23/10) desenha-se com o conteúdo do MESMO motor: as
+ * fotografias de cada secção têm de ser as do PDF.
+ */
+describe("o conteúdo da proposta online: as fotografias do PDF", () => {
+  it("capa, «A proposta», separadores, citação e paleta batem com o plano", async () => {
+    const d = comCaminhos();
+    const plano = await fotosDoEditorial(d, "pt", medidas);
+    const web = await conteudoDoEditorial(d, "pt", medidas);
+    expect(web.capa.fundo?.ref).toBe(plano.capa[0].ref);
+    expect(web.proposta.foto?.ref).toBe(plano.proposta[0].ref);
+    const separadores = Object.keys(plano).filter((k) => k.startsWith("separador:"));
+    expect(web.capitulos.map((c) => c.fotos.map((f) => f.ref))).toEqual(
+      separadores.map((k) => plano[k].map((f) => f.ref).filter(Boolean)),
+    );
+    expect(web.citacao?.foto.ref).toBe(plano.citacao[0].ref);
+    expect(web.ambiente?.painel?.ref).toBe(plano.ambiente[5].ref);
+  });
+
+  it("os textos e os valores são os do PDF: factos, capítulos, investimento, condições", async () => {
+    const web = await conteudoDoEditorial(comCaminhos(), "pt", medidas);
+    expect(web.casamento).toBe(true);
+    expect(web.proposta.factos.map((f) => f.rotulo)).toContain("Noivos");
+    expect(web.capitulos.map((c) => c.nome)).toEqual(["Cerimónia", "Cocktail", "Jantar"]);
+    // 3.200 € + 23 % = 3.936 €, com o sinal e o saldo das contas de sempre.
+    expect(web.investimento?.valor).toMatch(/3\.936,00/);
+    expect(web.investimento?.marcos.map((m) => m.percentagem)).toEqual([30, 70]);
+    expect(web.condicoes.length).toBeGreaterThanOrEqual(3);
+    expect(web.fecho.validade).toMatch(/2026/);
+  });
+
+  it("sem orçamento, não há investimento", async () => {
+    const web = await conteudoDoEditorial(
+      comCaminhos({ totalAmount: 0, totalText: "", budgetItems: [] }),
+      "pt",
+      medidas,
+    );
+    expect(web.investimento).toBeNull();
   });
 });

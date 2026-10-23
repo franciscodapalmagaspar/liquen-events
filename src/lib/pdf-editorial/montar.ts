@@ -43,6 +43,7 @@ import { paletaDasFotos } from "./paleta-das-fotos";
 import { capa, contracapa } from "./paginas/capa";
 import { Chaves, cartoesPorPagina, ordemDoDesenho, servicosDoDocumento } from "./plano";
 import type { FotosDoPdf, Medida } from "./fotos-do-pdf";
+import type { ConteudoWeb, FotoWeb } from "./conteudo-web";
 
 export type { FotoNaPagina, FotosDoPdf, Medida } from "./fotos-do-pdf";
 import { problemaDaCapa } from "./regra-da-capa";
@@ -139,6 +140,25 @@ export async function fotosDoEditorial(
 ): Promise<FotosDoPdf> {
   const m = await motor(original, idioma, {}, { semBytes: true, medidas });
   return fotosDoPlano(m.plano);
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O CONTEÚDO DE CADA SECÇÃO, PARA A PROPOSTA ONLINE (23/10)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * A página web do casal desenha-se a partir DISTO: o mesmo motor do PDF, sem
+ * desenhar, com os textos, os valores e as fotografias que o álbum escolheu
+ * para cada sítio (as escolhas e os enquadramentos dela incluídos). Ver
+ * `conteudo-web.ts`.
+ */
+export async function conteudoDoEditorial(
+  original: ProposalDoc,
+  idioma: IdiomaDaProposta,
+  medidas: ReadonlyMap<string, Medida>,
+): Promise<ConteudoWeb> {
+  const m = await motor(original, idioma, {}, { semBytes: true, medidas });
+  return m.web;
 }
 
 /**
@@ -348,6 +368,28 @@ async function motor(
   const plano: Passo[] = [];
   const proxima = () => plano.length + 1;
 
+  // ── O mesmo conteúdo, para a proposta online (`conteudoDoEditorial`) ──
+  const fw = (f: Foto | null | undefined): FotoWeb | null =>
+    f?.ref ? { ref: f.ref, aspecto: f.aspecto, ...(f.foco ? { foco: f.foco } : {}) } : null;
+  const fws = (l: readonly (Foto | null | undefined)[]): FotoWeb[] =>
+    l.map(fw).filter((f): f is FotoWeb => f !== null);
+  const web: ConteudoWeb = {
+    casamento,
+    lema: t.slogan ?? SITE.slogan,
+    organizacao: org,
+    capa: { sobretitulo: "", nomes: "", partes: [], fundo: null },
+    proposta: { sobretitulo: "", titulo: "", factos: [], nota: "", foto: null },
+    servicos: null,
+    ambiente: null,
+    capitulos: [],
+    citacao: null,
+    investimento: null,
+    cronograma: null,
+    condicoes: [],
+    fotoDasCondicoes: null,
+    fecho: { sobretitulo: "", agradecimento: "", validade: "", fundo: null },
+  };
+
   // ── Capa ──
   // A fotografia que ela escolheu, se servir para a página inteira (deitada e
   // com pixéis para isso — `regra-da-capa.ts`, a mesma regra do aviso do
@@ -362,23 +404,29 @@ async function motor(
         ? { ...fotoDaCapa, foco: doc.focoDaCapa }
         : fotoDaCapa
       : (album.escolher(1, "deitada")[0] ?? fotoDaCapa ?? null);
+  // «JANTAR DE EMPRESA · 11.12.2026 · PALÁCIO PESTANA» — a data curta
+  // lê-se da data dela (em português); sem ela, a data como está escrita.
+  const partesDaCapa = [
+    evento.eventType ?? "",
+    dataCurta(isoDaDataPorExtenso(original.eventDate ?? "")) ?? evento.eventDate ?? "",
+    doc.location ?? "",
+  ]
+    .map((s) => s.trim())
+    .filter(Boolean);
+  web.capa = {
+    sobretitulo: te.sobretituloCapa(org, casamento),
+    nomes: doc.clientNames ?? "",
+    partes: partesDaCapa,
+    fundo: fw(fundoDaCapa),
+  };
   plano.push({
     chave: chaves.nova("capa"),
     fotos: [fundoDaCapa],
     desenhar: () =>
       capa(ctx, {
-        sobretitulo: te.sobretituloCapa(org, casamento),
+        sobretitulo: web.capa.sobretitulo,
         nomes: doc.clientNames,
-        // «JANTAR DE EMPRESA · 11.12.2026 · PALÁCIO PESTANA» — a data curta
-        // lê-se da data dela (em português); sem ela, a data como está escrita.
-        linha: [
-          evento.eventType ?? "",
-          dataCurta(isoDaDataPorExtenso(original.eventDate ?? "")) ?? evento.eventDate ?? "",
-          doc.location ?? "",
-        ]
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .join(" · "),
+        linha: partesDaCapa.join(" · "),
         fundo: fundoDaCapa,
       }),
   });
@@ -424,6 +472,15 @@ async function motor(
             { rotulo: te.factos.hora, valor: evento.time ?? "" },
           ]),
     ].filter((f) => f.valor.trim());
+    const titulo = te.tituloDaProposta(
+      casamento ? primeirosNomes(doc.clientNames, idioma) : (doc.clientNames ?? "").trim() || null,
+      org,
+      casamento,
+    );
+    // O documento não tem um campo para esta nota: é a primeira que ela
+    // escreveu nos temas, que é onde descreve a decoração.
+    const nota = comConteudo.find((x) => x.nota)?.nota ?? "";
+    web.proposta = { sobretitulo: t.sobretituloApresentacao, titulo, factos, nota, foto: fw(foto) };
     plano.push({
       entrada: te.aProposta,
       chave,
@@ -431,17 +488,9 @@ async function motor(
       desenhar: (numero) =>
         apresentacao(ctx, {
           sobretitulo: t.sobretituloApresentacao,
-          titulo: te.tituloDaProposta(
-            casamento
-              ? primeirosNomes(doc.clientNames, idioma)
-              : (doc.clientNames ?? "").trim() || null,
-            org,
-            casamento,
-          ),
+          titulo,
           factos,
-          // O documento não tem um campo para esta nota: é a primeira que ela
-          // escreveu nos temas, que é onde descreve a decoração.
-          nota: comConteudo.find((x) => x.nota)?.nota ?? "",
+          nota,
           foto,
           numero,
         }),
@@ -457,6 +506,7 @@ async function motor(
         lista.length,
         grupos.length === 1 ? grupos[0].title.trim().toLocaleLowerCase("pt-PT") : null,
       );
+      web.servicos = { titulo, itens: [] };
       for (const { de: i, quantos } of cartoesPorPagina(lista.length)) {
         const pagina = proxima();
         const desta: Servico[] = lista.slice(i, i + quantos).map((s) => {
@@ -465,6 +515,8 @@ async function motor(
           if (foto) album.usar(foto, pagina);
           return { nome: s.nome, descricao: s.descricao, foto };
         });
+        for (const d of desta)
+          web.servicos.itens.push({ nome: d.nome, descricao: d.descricao ?? "", foto: fw(d.foto) });
         plano.push({
           chave: chaves.nova("servicos"),
           fotos: desta.map((d) => d.foto),
@@ -536,6 +588,14 @@ async function motor(
       const posta = f ?? filaAuto[a++];
       if (posta) fila.push(posta);
     }
+    web.ambiente = {
+      sobretitulo: te.sobretituloAmbiente,
+      titulo: te.tituloAmbiente,
+      subtitulo: te.subtituloAmbiente,
+      fila: fws(fila),
+      painel: fw(painel),
+      daPaleta: daPaleta.flatMap((f) => (f.ref ? [f.ref] : [])),
+    };
     plano.push({
       chave,
       // A fila nos cinco primeiros lugares, o painel no sexto.
@@ -560,6 +620,7 @@ async function motor(
         ...f.items.filter((i) => i.trim()).map((i) => ({ tipo: "item" as const, texto: i })),
       ]);
     if (pecas.length) {
+      web.cronograma = { titulo: t.tituloCronograma, pecas };
       paginasDeColunasCorridas(
         "cronograma",
         t.sobretituloCronograma,
@@ -619,6 +680,19 @@ async function motor(
       )
         ? primeiro.nota
         : "";
+    web.capitulos.push({
+      numero: ci + 1,
+      nome,
+      linha: c.itens.find((x) => x.subtitulo)?.subtitulo ?? "",
+      nota: c.itens.find((x) => x.nota)?.nota ?? "",
+      fotos: fws(fotosDoSeparador),
+      temas: c.itens.map((x) => ({
+        titulo: x.titulo,
+        subtitulo: x.subtitulo,
+        nota: x.nota,
+        fotos: fws(x.fotos),
+      })),
+    });
     plano.push({
       entrada: `${te.inspiracao} · ${nome}`,
       chave: chaveDoSeparador,
@@ -683,6 +757,14 @@ async function motor(
   if (capitulos.length) {
     const foto = escolhidas("citacao", proxima())?.[0] ?? album.escolher(proxima(), "deitada")[0];
     if (foto) {
+      const fotoWeb = fw(foto);
+      if (fotoWeb)
+        web.citacao = {
+          sobretitulo: te.formaDeVer,
+          frase: t.slogan ?? SITE.slogan,
+          assinatura: SITE.name,
+          foto: fotoWeb,
+        };
       plano.push({
         chave: chaves.nova("citacao"),
         fotos: [foto],
@@ -724,6 +806,28 @@ async function motor(
       const chaveDoTotal = chaves.nova("total");
       const fotoDoTotal =
         escolhidas(chaveDoTotal, proxima())?.[0] ?? album.escolher(proxima(), "deitada")[0] ?? null;
+      {
+        const d = dadosDoTotal();
+        const pct = totais.percentagemSinal;
+        web.investimento = {
+          rotulo: d.rotulo,
+          valor: d.valor,
+          ...(d.nota ? { nota: d.nota } : {}),
+          linhas: d.linhas,
+          marcos: d.marcos.map((m, i) => ({
+            percentagem: i === 0 ? pct : 100 - pct,
+            valor: m.valor,
+            texto: m.texto,
+          })),
+          rodape: d.rodapeDoTotal,
+          servicos: linhas.map((l) => ({
+            nome: l.nome,
+            ...(l.marca ? { marca: l.marca } : {}),
+            ...(l.preco ? { preco: l.preco } : {}),
+          })),
+          foto: fw(fotoDoTotal),
+        };
+      }
       plano.push({
         entrada: te.investimento,
         chave: chaveDoTotal,
@@ -846,6 +950,7 @@ async function motor(
     // Corridas pelas três colunas (e não uma secção por coluna, como no
     // modelo): os textos da casa são mais compridos do que os dele, e uma
     // coluna fixa deixava as outras vazias e passava para uma 4.ª página.
+    web.condicoes.push({ titulo: te.tituloNotas, pecas: notas.flat() });
     paginasDeColunasCorridas(
       "condicoes:notas",
       te.condicoes,
@@ -857,6 +962,7 @@ async function motor(
 
     // 2. Condições gerais — duas colunas corridas.
     const gerais: Peca[] = fixos.condicoesGerais.map((texto) => ({ tipo: "item", texto }));
+    if (gerais.length) web.condicoes.push({ titulo: te.tituloCondicoesGerais, pecas: gerais });
     if (gerais.length)
       paginasDeColunasCorridas(
         "condicoes:gerais",
@@ -895,6 +1001,8 @@ async function motor(
       ],
       lista(t.cancelamento, fixos.cancelamento),
     ].filter((c) => c.length);
+    if (pagamento.length)
+      web.condicoes.push({ titulo: te.tituloPagamento, pecas: pagamento.flat() });
     paginasDeColunasFixas(
       "condicoes:pagamento",
       t.sobretituloCondicoes,
@@ -914,6 +1022,12 @@ async function motor(
   // A da capa, ou a que ela escolheu só para aqui.
   const chaveDaContracapa = chaves.nova("contracapa");
   const fundoDaContracapa = escolhidas(chaveDaContracapa, proxima())?.[0] ?? fundoDaCapa;
+  web.fecho = {
+    sobretitulo: t.obrigada,
+    agradecimento: t.agradecimento,
+    validade: t.data(resolveValidUntil(doc)),
+    fundo: fw(fundoDaContracapa),
+  };
   plano.push({
     chave: chaveDaContracapa,
     fotos: [fundoDaContracapa],
@@ -934,7 +1048,9 @@ async function motor(
   const entradas: EntradaDoIndice[] = plano.flatMap((p, i) =>
     p.entrada ? [{ titulo: p.entrada, pagina: i + 1 }] : [],
   );
-  return { pdf, ctx, plano, entradas };
+  // A faixa das condições: a da primeira página delas no PDF.
+  web.fotoDasCondicoes = fw(plano.find((p) => p.chave.startsWith("condicoes"))?.fotos[0]) ?? null;
+  return { pdf, ctx, plano, entradas, web };
 
   /* ── As páginas de colunas, repartidas antes de se desenharem ────────── */
 

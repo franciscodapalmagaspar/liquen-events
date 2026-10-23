@@ -184,7 +184,8 @@ export function marcaDaRef(ref: string): string {
  * que o ficheiro lá esteja — devolve um URL bem formado para um 404.
  */
 export function inventarioDeFotos(
-  doc: Pick<ProposalDoc, "coverImages" | "moodBoards" | "escolhas">,
+  doc: Pick<ProposalDoc, "coverImages" | "moodBoards" | "escolhas"> &
+    Partial<Pick<ProposalDoc, "fotosDasPaginas">>,
 ): Entrada[] {
   const out: Entrada[] = [];
   const juntar = (id: string, ref: unknown) => {
@@ -204,6 +205,12 @@ export function inventarioDeFotos(
   (doc.escolhas ?? []).forEach((escolha, e) =>
     (escolha?.opcoes ?? []).forEach((opcao, o) => juntar(`e${e}o${o}`, opcao?.imagem)),
   );
+  // As que ela escolheu para as páginas do PDF (`fotosDasPaginas`) — a
+  // proposta online (23/10) mostra as mesmas fotografias que o PDF, e algumas
+  // vêm da biblioteca sem estarem em tema nenhum. O `id` diz a página pela
+  // marca da chave (sem o nome dela) e o lugar.
+  for (const [chave, e] of Object.entries(doc.fotosDasPaginas ?? {}))
+    (e?.fotos ?? []).forEach((ref, i) => juntar(`p${marcaDaRef(chave).slice(0, 8)}f${i}`, ref));
   return out;
 }
 
@@ -224,7 +231,8 @@ export function inventarioDeFotos(
  * por fotografia.
  */
 export async function fotosDaProposta(
-  doc: Pick<ProposalDoc, "coverImages" | "moodBoards" | "escolhas">,
+  doc: Pick<ProposalDoc, "coverImages" | "moodBoards" | "escolhas"> &
+    Partial<Pick<ProposalDoc, "fotosDasPaginas">>,
 ): Promise<FotoDaProposta[]> {
   const inventario = inventarioDeFotos(doc);
   if (inventario.length === 0) return [];

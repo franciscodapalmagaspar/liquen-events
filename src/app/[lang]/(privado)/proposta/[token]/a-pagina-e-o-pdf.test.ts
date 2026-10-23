@@ -3,37 +3,63 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * «A proposta online não tem nada a ver com a proposta PDF… quero que esteja
- * ao mesmo nível» e «quero que tornes extremamente rápido» (22/10).
+ * A decisão de 23/10, que desfaz a de 22/10.
  *
- * Prende-se a decisão: a página desenha AS PÁGINAS DO PDF (o mesmo ficheiro e
- * a mesma rota do botão), e não um segundo desenho em HTML; as escolhas ficam
- * por baixo; as páginas chegam como imagens desenhadas no servidor, com a
- * primeira no HTML; e a rede (o pdf.js no browser) é a versão «legacy», sem a
- * qual o iPhone mostrava páginas em branco.
+ * A 22/10 ela disse «a proposta online não tem nada a ver com a proposta PDF…
+ * quero que esteja ao mesmo nível», e a página passou a desenhar AS PÁGINAS DO
+ * PDF. A 23/10 mandou o protótipo de uma página web própria («substituir a
+ * página pública… por uma página web própria, a ecrã inteiro, gerada a partir
+ * dos MESMOS dados do editor… o PDF continua igual e fica acessível por um
+ * botão»), e escolheu: vale a página web, para todos os links.
+ *
+ * O que se prende: a página web é a que se desenha quando há documento; o
+ * conteúdo vem do motor do PDF (`propostaWeb` → `conteudoDoEditorial`) e não
+ * de um segundo desenho com regras próprias; o PDF está num botão; e o visor
+ * das páginas do PDF fica SÓ como rede, se a página web não se deixar montar.
  */
 const aqui = join(process.cwd(), "src/app/[lang]/(privado)/proposta/[token]");
 const ler = (f: string) => readFileSync(join(aqui, f), "utf8");
 const semComentarios = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
-describe("a proposta online é o próprio PDF", () => {
+describe("a proposta online é uma página web feita com o conteúdo do PDF (23/10)", () => {
   const pagina = semComentarios(ler("page.tsx"));
 
-  it("a página desenha as páginas do PDF pela rota do botão, e as escolhas por baixo", () => {
-    expect(pagina).toMatch(
-      /<PaginasDoPdf\s+base=\{`\/api\/proposta\/\$\{encodeURIComponent\(token\)\}`\}/,
-    );
-    expect(pagina.indexOf("<PaginasDoPdf")).toBeLessThan(pagina.indexOf("<EscolhasDoDocumento"));
+  it("com documento, desenha-se a página web, montada pelo motor do PDF", () => {
+    expect(pagina).toMatch(/await propostaWeb\(/);
+    expect(pagina).toMatch(/<PropostaWeb\b/);
+    expect(pagina.indexOf("<PropostaWeb")).toBeLessThan(pagina.indexOf("<PaginasDoPdf"));
+    const modelo = readFileSync(join(process.cwd(), "src/lib/proposta-web/modelo.ts"), "utf8");
+    expect(modelo).toMatch(/conteudoWebDoDocumento\(/);
   });
 
-  it("o segundo desenho em HTML (`Documento`) já não é montado", () => {
+  it("o PDF fica num botão, com a rota de sempre", () => {
+    const web = semComentarios(ler("PropostaWeb.tsx"));
+    expect(web).toMatch(/href=\{d\.pdf\}/);
+    const modelo = readFileSync(join(process.cwd(), "src/lib/proposta-web/modelo.ts"), "utf8");
+    expect(modelo).toMatch(/pdf: `\$\{base\}\/pdf`/);
+  });
+
+  it("o segundo desenho antigo em HTML (`Documento`) continua fora", () => {
     expect(pagina).not.toMatch(/<Documento\b/);
     expect(pagina).not.toMatch(/from "\.\/Documento"/);
   });
 
-  it("só se assinam as fotografias das alternativas — as outras vêm dentro do PDF", () => {
+  it("as letras vêm desta casa (next/font), nunca de um pedido ao Google", () => {
+    expect(pagina).toMatch(/from "next\/font\/google"/);
+    const css = ler("proposta-web.css");
+    expect(css).not.toMatch(/fonts\.googleapis|fonts\.gstatic/);
+  });
+});
+
+describe("a rede: se a página web não se montar, ficam as páginas do PDF", () => {
+  const pagina = semComentarios(ler("page.tsx"));
+
+  it("as escolhas continuam por baixo das páginas", () => {
     expect(pagina).toMatch(
-      /fotosDaProposta\(\{\s*coverImages: \[\],\s*moodBoards: \[\],\s*escolhas: proposal\.doc\.escolhas\s*\}\)/,
+      /<PaginasDoPdf\s+base=\{`\/api\/proposta\/\$\{encodeURIComponent\(token\)\}`\}/,
+    );
+    expect(pagina.indexOf("<PaginasDoPdf")).toBeLessThan(
+      pagina.lastIndexOf("<EscolhasDoDocumento"),
     );
   });
 

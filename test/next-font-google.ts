@@ -67,3 +67,5 @@ export const Playfair_Display = letra("Playfair_Display");
 export const Archivo = letra("Archivo");
 export const Geist = letra("Geist");
 export const Geist_Mono = letra("Geist_Mono");
+export const Bodoni_Moda = letra("Bodoni_Moda");
+export const Jost = letra("Jost");
