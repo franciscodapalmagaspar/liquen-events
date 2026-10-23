@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { propostaDoLink } from "@/lib/proposta-do-link";
 import { inventarioDeFotos, marcaDaRef } from "@/lib/proposta-fotos";
-import { derivadaMediaAPedido } from "@/lib/derivadas";
+import { derivadaMediaAPedido, miniaturaAPedido } from "@/lib/derivadas";
 import { fetchProposalImageBytes } from "@/lib/proposal-storage";
 import { preparar } from "@/lib/pdf-editorial/imagens";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
@@ -21,6 +21,14 @@ import { log } from "@/lib/logger";
  *
  * Mesma porta que a rota da fotografia: só uma fotografia do inventário do
  * documento deste link, nunca um caminho vindo de fora.
+ *
+ * ── PORQUE PARTE DA MINIATURA (23/10, «melhora mesmo muito a rapidez») ────
+ *
+ * O `preparar` desfoca a 480 px de largura e só depois amplia: partir da
+ * derivada de 1200 px era descarregar e descodificar quase dez vezes mais
+ * píxeis para os deitar fora. A miniatura (400 px) dá o mesmo fundo, e chega
+ * e descodifica-se num instante. Fica guardada no navegador um ano: o endereço
+ * muda com a fotografia (`v`), nunca serve uma velha.
  */
 
 export const runtime = "nodejs";
@@ -60,10 +68,11 @@ export async function GET(
     let feito = guardados.get(chave);
     if (!feito) {
       feito = (async () => {
-        const deStorage =
-          entrada.ref.startsWith("data:") || /^https?:\/\//i.test(entrada.ref)
-            ? null
-            : (await derivadaMediaAPedido(entrada.ref)).bytes;
+        const doStorage = !entrada.ref.startsWith("data:") && !/^https?:\/\//i.test(entrada.ref);
+        const deStorage = doStorage
+          ? ((await miniaturaAPedido(entrada.ref)) ??
+            (await derivadaMediaAPedido(entrada.ref)).bytes)
+          : null;
         const bytes = deStorage ?? (await fetchProposalImageBytes(entrada.ref));
         if (!bytes) return null;
         const m = await sharp(bytes, { failOn: "none" }).rotate().metadata();
@@ -91,7 +100,7 @@ export async function GET(
         "Content-Type": "image/jpeg",
         "Content-Length": String(jpeg.length),
         "Cache-Control": identifica
-          ? "private, max-age=86400, must-revalidate"
+          ? "private, max-age=31536000, immutable"
           : "private, max-age=300, must-revalidate",
       },
     });

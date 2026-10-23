@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createHash, randomUUID } from "node:crypto";
 import type { Proposal } from "@/lib/orcamento/types";
 import {
@@ -1838,6 +1838,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     } catch (e) {
       log.warn("proposta-doc: o PDF não ficou guardado", { erro: String(e) });
+    }
+
+    // A proposta online fica pronta já, depois da resposta: o primeiro clique
+    // do casal no email não espera pelo motor (`proposta-web/guardado.ts`).
+    // Nunca pode estragar um envio: se não houver onde o deixar a correr, a
+    // primeira visita faz o trabalho, como antes.
+    try {
+      after(async () => {
+        try {
+          const { aquecerPropostaWeb } = await import("@/lib/proposta-web/modelo");
+          await aquecerPropostaWeb(proposal.id);
+        } catch (e) {
+          log.warn("proposta-doc: a página online não ficou preparada", { erro: String(e) });
+        }
+      });
+    } catch {
+      /* sem contexto de pedido: fica para a primeira visita */
     }
 
     // `truncations` viaja pelo mesmo motivo e pelo mesmo caminho: é a mesma

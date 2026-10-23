@@ -61,3 +61,21 @@ Isto **desfaz a decisão de 22/10** («a proposta online não tem nada a ver com
   - a lupa abre, anda com as setas e fecha com Esc;
   - o «Copiado» aparece;
   - nenhum erro na consola.
+
+## A rapidez (23/10)
+
+Palavras dela: «quero que melhores mesmo muito a resposta e a rapidez e fluidez da proposta online e de quando carregamos no email para ver e ela demora tempo até aparecer».
+
+O que custava, a cada visita, numa função acabada de acordar:
+
+| O quê | Antes | Agora |
+|---|---|---|
+| O conteúdo (medidas das fotografias, álbum, textos) | refeito a cada visita; as fotografias que a biblioteca não conhecia eram descarregadas e passadas pelo `sharp` | calculado **uma vez** por proposta e língua, guardado em memória e no `app_state` (`proposta-web/guardado.ts`) |
+| As cores da paleta | doze miniaturas descarregadas e analisadas por instância | calculadas uma vez e guardadas da mesma maneira |
+| Quando se calcula | na primeira visita do casal | **logo no envio**, depois da resposta (`after`, no `proposta-doc`); os links que já seguiram calculam na primeira visita e ficam |
+| A ordem | a página web só começava depois das escolhas do casal | começa ao mesmo tempo que elas |
+| Os fundos arrastados | descarregados da derivada de 1200 px; ficavam no browser um dia | partem da miniatura (o desfoque é feito a 480 px de qualquer maneira); ficam no browser um ano (o endereço muda com a fotografia) |
+
+A chave do que se guarda é o próprio documento: um documento diferente é outra chave. Ficar igual ao PDF que seguiu é o objectivo — esse PDF também ficou guardado no envio.
+
+**Não verificado:** o tempo em produção, com uma proposta verdadeira — não se abrem propostas de clientes. Mede-se aqui com uma proposta TESTE.

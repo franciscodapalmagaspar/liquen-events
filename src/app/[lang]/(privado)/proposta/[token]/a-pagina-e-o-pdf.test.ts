@@ -25,7 +25,9 @@ describe("a proposta online é uma página web feita com o conteúdo do PDF (23/
   const pagina = semComentarios(ler("page.tsx"));
 
   it("com documento, desenha-se a página web, montada pelo motor do PDF", () => {
-    expect(pagina).toMatch(/await propostaWeb\(/);
+    // Começa cedo, em paralelo com as escolhas, e espera-se antes de desenhar.
+    expect(pagina).toMatch(/propostaWeb\(/);
+    expect(pagina).toMatch(/await paginaWeb/);
     expect(pagina).toMatch(/<PropostaWeb\b/);
     expect(pagina.indexOf("<PropostaWeb")).toBeLessThan(pagina.indexOf("<PaginasDoPdf"));
     const modelo = readFileSync(join(process.cwd(), "src/lib/proposta-web/modelo.ts"), "utf8");

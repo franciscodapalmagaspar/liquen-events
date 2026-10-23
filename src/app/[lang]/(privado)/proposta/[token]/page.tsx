@@ -420,6 +420,35 @@ export default async function ProposalPage({
       : Promise.resolve(null);
 
   /**
+   * A página web começa AQUI, ao mesmo tempo que as escolhas e as fotografias
+   * delas — e não depois de tudo o resto (23/10, «melhora mesmo muito a
+   * rapidez»). O `.catch` nasce com a promessa, pela razão do parágrafo de
+   * cima. Carregado só aqui: o modelo puxa o motor do PDF e o `sharp`, que não
+   * podem abrir no arranque da página (`sharp-fora-do-arranque.test.ts`).
+   */
+  const paginaWeb = proposal.doc
+    ? import("@/lib/proposta-web/modelo")
+        .then(({ propostaWeb }) =>
+          propostaWeb(
+            {
+              id: proposal.id,
+              doc: proposal.doc!,
+              sentAt: proposal.sentAt,
+              createdAt: proposal.createdAt,
+            },
+            token,
+            locale,
+          ),
+        )
+        .catch((e) => {
+          log.error("proposta online: a página web não se deixou montar", e, {
+            proposalId: proposal.id,
+          });
+          return null;
+        })
+    : Promise.resolve(null);
+
+  /**
    * ── SÓ AS FOTOGRAFIAS DAS ALTERNATIVAS ─────────────────────────────────────
    * Desde 22/10 a página mostra o PDF tal e qual (`PaginasDoPdf.tsx`): as
    * fotografias dos mood boards e da capa vêm DENTRO do PDF. A única coisa
@@ -530,24 +559,7 @@ export default async function ProposalPage({
    * sem proposta.
    */
   if (proposal.doc) {
-    // Carregado só aqui: o modelo puxa o motor do PDF e o `sharp`, que não
-    // podem abrir no arranque da página (`sharp-fora-do-arranque.test.ts`).
-    const { propostaWeb } = await import("@/lib/proposta-web/modelo");
-    const dados = await propostaWeb(
-      {
-        id: proposal.id,
-        doc: proposal.doc,
-        sentAt: proposal.sentAt,
-        createdAt: proposal.createdAt,
-      },
-      token,
-      locale,
-    ).catch((e) => {
-      log.error("proposta online: a página web não se deixou montar", e, {
-        proposalId: proposal.id,
-      });
-      return null;
-    });
+    const dados = await paginaWeb;
     if (dados) {
       const datas = [
         validLabel ? `${t.validoAte} ${validLabel}` : "",
