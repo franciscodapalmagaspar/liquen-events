@@ -88,6 +88,7 @@ import EscolherDisposicao from "./EscolherDisposicao";
 import PaginaEditorial, { fontesDasFolhas } from "./PaginaEditorial";
 import { useFotosDoPdf } from "./useFotosDoPdf";
 import EscolherFotoDaPagina from "./EscolherFotoDaPagina";
+import { VerOPdfNoEcra } from "./VerOPdfNoEcra";
 import { useAnular } from "./ui/anular";
 import LupaDeFotos from "./LupaDeFotos";
 import {
@@ -2052,6 +2053,26 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
     chave: string;
     retrato: string;
     confirmado: boolean;
+  } | null>(() => lerPdfVisto(quote.id));
+  /**
+   * Fica guardado nesta aba (`sessionStorage`), por pedido. Num telemóvel, o
+   * PDF aberto por cima do back office e o «voltar» recarregavam o estúdio, e
+   * o «já vi» perdia-se — o botão voltava a «Ver o PDF», sem fim (23/10). A
+   * regra continua a mesma: só vale para o documento EXACTO que foi visto
+   * (`retrato`), e o servidor confere a `chave`.
+   */
+  useEffect(() => {
+    guardarPdfVisto(quote.id, pdfVisto);
+  }, [quote.id, pdfVisto]);
+  /**
+   * O PDF aberto DENTRO do estúdio (`VerOPdfNoEcra`) — no telemóvel, em vez
+   * de o descarregar. Ver o comentário desse ficheiro.
+   */
+  const [pdfNoEcra, setPdfNoEcra] = useState<{
+    id: number;
+    blob: Blob;
+    nome: string;
+    rascunho: boolean;
   } | null>(null);
   /**
    * O PDF FINAL da versão que está no ecrã, pedido antes de ela carregar no
@@ -6910,7 +6931,13 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
         },
         idiomaDoPdf,
       );
-      guardarNoDisco(blob, rascunho ? nome.replace(/\.pdf$/i, " (rascunho).pdf") : nome);
+      const nomeFinal = rascunho ? nome.replace(/\.pdf$/i, " (rascunho).pdf") : nome;
+      // No telemóvel o PDF abre DENTRO do estúdio (23/10): descarregá-lo
+      // tirava-a da página, e voltar recarregava o estúdio. No computador
+      // continua a ir para as transferências, como sempre.
+      const noEcra = verPdfNoEcra(barraCompacta);
+      if (noEcra) setPdfNoEcra({ id: Date.now(), blob, nome: nomeFinal, rascunho });
+      else guardarNoDisco(blob, nomeFinal);
       setPdfSaiu(true);
       // O gerador SALTA a foto que não consegue ir buscar E CORTA o que não
       // cabe no desenho, por isso um PDF incompleto sai na mesma, com ar de
@@ -6932,7 +6959,9 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
             : `PDF gerado sem ${fotosPorConfirmar} fotos que ainda estão a entrar na proposta. Gera outra vez daqui a pouco.`,
           "info",
         );
-      } else {
+      } else if (!noEcra) {
+        // No telemóvel a folha com o PDF já diz o que aconteceu; um aviso por
+        // cima tapava a primeira página.
         toast(
           rascunho
             ? "Rascunho gerado (PDF descarregado, marcado como rascunho)"
@@ -12643,6 +12672,48 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
         />
       )}
 
+      {pdfNoEcra && (
+        <VerOPdfNoEcra
+          key={pdfNoEcra.id}
+          aberto
+          blob={pdfNoEcra.blob}
+          titulo={pdfNoEcra.rascunho ? "Rascunho da proposta" : "O PDF final"}
+          onFechar={() => setPdfNoEcra(null)}
+          accoes={
+            <>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => guardarNoDisco(pdfNoEcra.blob, pdfNoEcra.nome)}
+                iconRight={<span aria-hidden="true">↓</span>}
+              >
+                Descarregar
+              </Button>
+              {!pdfNoEcra.rascunho && pdfVistoAgora && !pdfVisto?.confirmado && (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={busy !== null}
+                  onClick={() => {
+                    confirmarPdfVisto(true);
+                    setPdfNoEcra(null);
+                    // Quando ver o PDF era a ÚNICA coisa que faltava, segue
+                    // logo para a pergunta de sempre — como o botão da barra.
+                    if (soFaltaVerOPdf) {
+                      perguntaDoEnvioDesde.current = performance.now();
+                      setConfirmSend(true);
+                    }
+                  }}
+                  iconRight={<span aria-hidden="true">→</span>}
+                >
+                  {soFaltaVerOPdf ? "Está certo — enviar" : "Está certo"}
+                </Button>
+              )}
+            </>
+          }
+        />
+      )}
+
       {paginaDaFoto && (
         <EscolherFotoDaPagina
           aberto={paginaDaFoto !== null && picker === null}
@@ -15018,6 +15089,47 @@ function guardarNoDisco(blob: Blob, nome: string): void {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/**
+ * O PDF abre dentro do estúdio (`VerOPdfNoEcra`) em vez de se descarregar?
+ * Num telemóvel, sim: a barra está compacta, ou o ponteiro é o dedo.
+ */
+function verPdfNoEcra(barraCompacta: boolean): boolean {
+  if (barraCompacta) return true;
+  try {
+    return window.matchMedia?.("(pointer: coarse)").matches ?? false;
+  } catch {
+    return false;
+  }
+}
+
+const CHAVE_DO_PDF_VISTO = (quoteId: string) => `liquen-pdf-visto:${quoteId}`;
+
+/** O «já vi o PDF final» desta aba, se houver (ver `pdfVisto`). */
+function lerPdfVisto(
+  quoteId: string,
+): { chave: string; retrato: string; confirmado: boolean } | null {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(CHAVE_DO_PDF_VISTO(quoteId)) ?? "null");
+    return v && typeof v.chave === "string" && typeof v.retrato === "string"
+      ? { chave: v.chave, retrato: v.retrato, confirmado: v.confirmado === true }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function guardarPdfVisto(
+  quoteId: string,
+  v: { chave: string; retrato: string; confirmado: boolean } | null,
+): void {
+  try {
+    if (v) sessionStorage.setItem(CHAVE_DO_PDF_VISTO(quoteId), JSON.stringify(v));
+    else sessionStorage.removeItem(CHAVE_DO_PDF_VISTO(quoteId));
+  } catch {
+    /* sem armazenamento (modo privado cheio): vale só nesta página, como antes */
+  }
 }
 
 function retratoDoPdf(doc: unknown, idioma: string): string {
