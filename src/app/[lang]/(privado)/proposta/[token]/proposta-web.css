@@ -160,7 +160,7 @@ html:has(.pw) {
 }
 .pw-nav img {
   /* Ela, 23/10: «coloca o logo da liquen muito maior». */
-  height: 38px;
+  height: 32px;
   width: auto;
 }
 .pw-nav ul {
@@ -265,8 +265,9 @@ html:has(.pw) {
   top: max(26px, env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
-  /* Ela, 23/10: «muito maior» (era 44 px). */
-  height: clamp(84px, 9vw, 140px);
+  /* Ela, 23/10: «muito maior» (era 44 px) e depois «demasiado grande, um
+     pouco mais pequeno» (era 84–140 px). */
+  height: clamp(66px, 6.5vw, 104px);
   width: auto;
 }
 .pw-hero .pw-blk {
@@ -955,7 +956,7 @@ html:has(.pw) {
   letter-spacing: 0.14em;
 }
 .pw-foot img {
-  height: 44px;
+  height: 36px;
   width: auto;
 }
 
