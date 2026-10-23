@@ -143,7 +143,6 @@ function Texto({
   w,
   tam,
   children,
-  italico = false,
   baixo = false,
   espaco = 0,
   linhas = 1,
@@ -153,8 +152,6 @@ function Texto({
   w: number;
   tam: number;
   children: ReactNode;
-  /** O sobretítulo e as notas: itálico serifado, em minúsculas no sobretítulo. */
-  italico?: boolean;
   /** Linho, o texto secundário. */
   baixo?: boolean;
   /** O espaçamento entre letras, em `em` — os títulos em maiúsculas (0,10). */
@@ -163,7 +160,7 @@ function Texto({
 }) {
   return (
     <p
-      className={`absolute m-0 overflow-hidden ${italico ? "font-display-italico" : "font-normal"}`}
+      className="absolute m-0 overflow-hidden font-normal"
       style={{
         left: pct(x, W),
         top: pct(y, H),
@@ -201,7 +198,7 @@ function Cabecalho({
 }) {
   return (
     <>
-      <Texto x={x} y={y} w={w} tam={24} italico>
+      <Texto x={x} y={y} w={w} tam={24} baixo>
         {minusculas(sobre)}
       </Texto>
       <Texto x={x} y={y + 40} w={w} tam={37} espaco={0.1} linhas={2}>
@@ -226,7 +223,7 @@ function BlocoDeTitulo({
 }) {
   return (
     <>
-      <Texto x={MARGEM} y={540} w={680} tam={29} italico>
+      <Texto x={MARGEM} y={540} w={680} tam={29} baixo>
         {minusculas(sobre)}
       </Texto>
       <Texto x={MARGEM} y={582} w={680} tam={48} espaco={0.08} linhas={2}>
@@ -497,7 +494,7 @@ export default function PaginaEditorial({
                 y={mosaico.y + 52}
                 w={LARGURA_DO_MOSAICO - 78}
                 tam={24}
-                italico
+                baixo
               >
                 {minusculas(te.inspiracao)}
               </Texto>

@@ -19,7 +19,20 @@ texto, e o dourado sai.
 
 ## Parte −1 — o que está feito e onde a execução se afasta do texto
 
-Feito a 23/10 no PR `feat/pdf-design-novo`, **em rascunho até ela o aprovar**.
+Feito a 23/10 no PR `feat/pdf-design-novo` (#273). **Ela aprovou-o a 23/10:
+«Sim, põe no site».**
+
+**E escolheu «letra simples» para os sobretítulos e as notas (23/10).** Tudo o
+que o documento pedia em Bodoni itálica — os sobretítulos («o investimento»,
+«a proposta», «inspiração · 01», «obrigada»…), as notas descritivas e os
+números do índice e dos serviços — passou à **Jost 400**. Os sobretítulos
+ficam em minúsculas, no mesmo tamanho e no mesmo lugar, e a hierarquia faz-se
+com a cor: o **Linho** nas páginas de texto e o **Papel** sobre as fotografias
+(sobre a fotografia, no tecto de luz 0,12, o Linho não chegava aos 4,5:1). As
+notas passaram de 17 para 15 px, porque a Jost é mais larga e mais alta do
+que a Bodoni itálica ao mesmo corpo. O «&» da capa deixou de ser itálico. **A
+Bodoni fica só no preço total** (opsz 6, peso 500), e a itálica saiu do
+`letras.ts`: o PDF leva duas letras, e não três.
 O código está em `src/lib/pdf-editorial/`; os dados e a lógica (o plano das
 páginas, a escolha das fotografias, as disposições, os capítulos, a paleta das
 mesas, PT/EN, o rascunho, as contas e os textos legais) não mudaram.
@@ -82,11 +95,10 @@ lado a lado com o modelo página a página. O jantar de empresa sai com as mesma
   2. **os valores pequenos passam à Jost**: os marcos (sinal e saldo, Jost
      28) e os valores do quadro do orçamento (Jost 16), como já estava a
      tabela do total. Só o preço grande fica na Bodoni;
-  3. **os sobretítulos, as notas e os números do índice e dos serviços ficam
-     na Bodoni itálica, no opsz 6**: o traço fino passa de 0,02 para 0,3–0,4 px
-     de ecrã — não chega aos 0,6, que nenhuma Bodoni dá abaixo dos 32 px, mas
-     estes textos lêem-se pelas hastes, e a Jost tirava ao desenho a
-     assinatura do itálico. Fica dito para ela decidir.
+  3. **os sobretítulos, as notas e os números do índice e dos serviços**
+     ficaram primeiro na Bodoni itálica no opsz 6 (traço fino de 0,3–0,4 px,
+     abaixo dos 0,6); ela decidiu, no mesmo dia, «letra simples»: passaram à
+     Jost (0,7–0,9 px de traço fino a 390 px) — ver no topo desta Parte.
 - **O fundo arrastado claro por trás dos números.** O brilho ×0,42 é uma
   média: numa fotografia de amarelos e vermelhos vivos o fundo continuava
   claro. Agora, nas páginas de texto, o fundo perde saturação (×0,6) e leva
@@ -122,9 +134,10 @@ lado a lado com o modelo página a página. O jantar de empresa sai com as mesma
 
 **Onde a execução se afasta do texto, e porquê:**
 
-0. **A Bodoni no tamanho óptico 6, e não 96; os marcos e os valores do
-   quadro na Jost, e não na Bodoni** — ver «estes números não dá para perceber
-   nada», em cima.
+0. **A Bodoni no tamanho óptico 6, e não 96, e só no preço total; tudo o resto
+   na Jost** — os marcos e os valores do quadro (a legibilidade no telemóvel)
+   e os sobretítulos, as notas e os números (a escolha dela, «letra
+   simples»). Ver em cima.
 1. **Entrelinha das notas em Bodoni: 1,45, e não 1,2.** Medido no modelo: as
    linhas de 17 px vão de 25 em 25 px. A 1,2 o itálico encavalita-se.
 2. **Entrelinha dos itens das condições: 1,15, como o texto — e não os ~1,36

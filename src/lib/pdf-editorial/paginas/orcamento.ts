@@ -180,7 +180,7 @@ export interface DadosDoOrcamento {
 
 /**
  * O quadro: a mesma tabela do total (fios Pedra, linhas de 43 px), mais larga
- * porque os nomes dos serviços são compridos. O número em Bodoni itálico como
+ * porque os nomes dos serviços são compridos. O número no Linho, como
  * no índice, o nome na Jost, e o valor ou a marca «extra» à direita, também na
  * Jost (o documento pedia Bodoni itálico; ver a Parte −1).
  */
@@ -253,7 +253,7 @@ export async function orcamento(ctx: Contexto, d: DadosDoOrcamento): Promise<PDF
 
   const nome = estiloDoNome(ctx);
   const num: Estilo = {
-    letra: ctx.letras.bodoniItalico,
+    letra: ctx.letras.jost,
     tam: LETRA.indiceNumero.tam,
     cor: COR.linho,
   };

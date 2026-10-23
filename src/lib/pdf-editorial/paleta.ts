@@ -83,7 +83,7 @@ export const COR = {
  * nos itens das condições (≈1,4, e não 1,15). Está dito na Parte −1.
  */
 export const LETRA = {
-  /** Sobretítulo das páginas de texto — Bodoni itálico, minúsculas. */
+  /** Sobretítulo das páginas de texto — Jost, minúsculas, Linho («letra simples», 23/10). */
   sobretitulo: { tam: 24, entrelinha: 1.2, abaixo: 8 },
   /** Sobretítulo das páginas de fotografia (capa, separadores, citação, fecho). */
   sobretituloFoto: { tam: 29, entrelinha: 1.2 },
@@ -101,8 +101,8 @@ export const LETRA = {
   indiceNumero: { tam: 21 },
   indiceItem: { tam: 17 },
   indicePagina: { tam: 13 },
-  /** Nota descritiva (temas, «a proposta») — Bodoni itálico, Linho. */
-  nota: { tam: 17, entrelinha: 1.45, minimo: 12 },
+  /** Nota descritiva (temas, «a proposta») — Jost, Linho («letra simples», 23/10). */
+  nota: { tam: 15, entrelinha: 1.45, minimo: 11 },
   /** O título do mosaico de texto dos temas. */
   tituloDoTema: { tam: 24, espaco: 0.1, entrelinha: 1.2, minimo: 16 },
   /** Cartões de serviço. */

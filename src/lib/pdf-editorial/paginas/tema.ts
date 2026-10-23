@@ -35,7 +35,7 @@ import { caber, escrever, maiusculas, minusculas, quebrar, yDoTopo } from "../te
  * Mosaico de ponta a ponta, sem margens e sem rodapé, com 6 px entre as
  * fotografias e o fundo Tinta à vista. O texto do tema vive numa CÉLULA do
  * mosaico (fundo Tinta, 346 px de largura, metade da altura): sobretítulo em
- * itálico, título em maiúsculas, a nota em Bodoni itálico. A composição é a
+ * minúsculas, título em maiúsculas, a nota no Linho. A composição é a
  * que ela escolheu para o tema, ou a automática pelo número de fotografias —
  * ver `mosaico.ts`.
  */
@@ -131,9 +131,9 @@ export async function tema(ctx: Contexto, d: DadosDoTema): Promise<PDFPage> {
 /* ── A célula de texto ───────────────────────────────────────────────────── */
 
 /**
- * A célula de texto: fundo Tinta, o sobretítulo em itálico, o título em
+ * A célula de texto: fundo Tinta, o sobretítulo em minúsculas, o título em
  * maiúsculas espaçadas (Jost 24, nunca a partir palavras), o subtítulo como
- * rótulo, e a nota em Bodoni itálico. Medido no modelo: 48 px de margem, o
+ * rótulo, e a nota no Linho. Medido no modelo: 48 px de margem, o
  * sobretítulo assente a 75 px do topo, o título 34 px depois.
  *
  * A nota encolhe até caber na célula; só se nem assim couber é que se corta,

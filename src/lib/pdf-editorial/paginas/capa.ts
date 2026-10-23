@@ -18,7 +18,7 @@ import {
  *
  * A fotografia com o escurecimento de leitura (fundido na JPEG), o logótipo no
  * canto de cima e o bloco de título em baixo à esquerda. A capa abre com o
- * cliente — ou «NOME & NOME», com o «&» em Bodoni itálico —; a contracapa
+ * cliente — ou «NOME & NOME» —; a contracapa
  * fecha com o agradecimento e os contactos.
  *
  * A fotografia é a que ela escolheu se servir para a página inteira (≥ 1 200 px
@@ -44,7 +44,6 @@ export async function capa(ctx: Contexto, d: DadosDaCapa): Promise<PDFPage> {
     sobretitulo: d.sobretitulo,
     titulo: d.nomes,
     linha: d.linha,
-    eComercial: true,
   });
   return p;
 }

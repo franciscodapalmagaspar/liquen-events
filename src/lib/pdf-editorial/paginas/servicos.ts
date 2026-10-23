@@ -51,7 +51,7 @@ const VAO = 7;
  * Os cartões lado a lado a toda a largura útil, de 211 px até ao rodapé — dois
  * cartões são 486 × 504 com 7 px entre eles, três dividem por igual. Cada um é
  * a fotografia do serviço, com o gradiente no terço de baixo (fundido na
- * imagem), e POR CIMA dela, em baixo: o número em itálico, o nome em
+ * imagem), e POR CIMA dela, em baixo: o número no Linho, o nome em
  * maiúsculas e a descrição. Fundo Tinta, sem bordas.
  */
 export async function servicos(ctx: Contexto, d: DadosDosServicos): Promise<PDFPage> {
@@ -63,7 +63,7 @@ export async function servicos(ctx: Contexto, d: DadosDosServicos): Promise<PDFP
   const w = (largo - VAO * (n - 1)) / n;
   const h = FUNDO_DO_CONTEUDO - TOPO_DOS_CARTOES;
   const num: Estilo = {
-    letra: ctx.letras.bodoniItalico,
+    letra: ctx.letras.jost,
     tam: LETRA.cartaoNumero.tam,
     cor: COR.linho,
   };

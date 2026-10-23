@@ -64,7 +64,7 @@ export async function indice(ctx: Contexto, d: DadosDoIndice): Promise<PDFPage> 
   });
 
   const num: Estilo = {
-    letra: ctx.letras.bodoniItalico,
+    letra: ctx.letras.jost,
     tam: LETRA.indiceNumero.tam,
     cor: COR.linho,
   };
@@ -102,7 +102,7 @@ export interface DadosDaApresentacao {
   titulo: string;
   /** Os factos, já sem os vazios, pela ordem em que aparecem. */
   factos: readonly { rotulo: string; valor: string }[];
-  /** A nota em itálico por baixo da fotografia. */
+  /** A nota no Linho por baixo da fotografia. */
   nota: string;
   foto: Foto | null;
   numero: number;

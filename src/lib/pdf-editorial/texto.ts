@@ -10,29 +10,30 @@ import {
 import fontkit from "@pdf-lib/fontkit";
 import { textoParaFonte } from "@/lib/pdf-text";
 import { PAGINA_H } from "@/lib/proposal-geometria";
-import { BODONI_ITALICO_TTF_B64, BODONI_PRECO_TTF_B64, JOST_400_TTF_B64 } from "./letras";
+import { BODONI_PRECO_TTF_B64, JOST_400_TTF_B64 } from "./letras";
 import { px } from "./paleta";
 
-/** As três letras do desenho (`docs/PDF-DESIGN-NOVO.md` §3). */
+/** As duas letras do desenho (`docs/PDF-DESIGN-NOVO.md` §3 e Parte −1). */
 export interface Letras {
-  /** Jost 400 — títulos (em maiúsculas), corpo, rótulos, valores, rodapé. */
+  /**
+   * Jost 400 — tudo menos o preço: títulos (em maiúsculas), sobretítulos,
+   * notas, números, valores, rótulos, rodapé. Ela escolheu «letra simples»
+   * para os sobretítulos e as notas (23/10).
+   */
   jost: PDFFont;
-  /** Bodoni Moda normal — só o preço total (os marcos passaram à Jost: Parte −1). */
+  /** Bodoni Moda (opsz 6, peso 500) — só o preço total. */
   bodoni: PDFFont;
-  /** Bodoni Moda itálico — sobretítulos, notas, números do índice e dos serviços. */
-  bodoniItalico: PDFFont;
 }
 
-/** Embute as três letras, em subconjunto (só os glifos desenhados entram). */
+/** Embute as duas letras, em subconjunto (só os glifos desenhados entram). */
 export async function embutirLetras(pdf: PDFDocument): Promise<Letras> {
   pdf.registerFontkit(fontkit);
   const embutir = (b64: string) => pdf.embedFont(Buffer.from(b64, "base64"), { subset: true });
-  const [jost, bodoni, bodoniItalico] = await Promise.all([
+  const [jost, bodoni] = await Promise.all([
     embutir(JOST_400_TTF_B64),
     embutir(BODONI_PRECO_TTF_B64),
-    embutir(BODONI_ITALICO_TTF_B64),
   ]);
-  return { jost, bodoni, bodoniItalico };
+  return { jost, bodoni };
 }
 
 /**
@@ -218,5 +219,5 @@ export function bloco(
 /** Maiúsculas como o `text-transform: uppercase` — com as regras do português. */
 export const maiusculas = (texto: string) => texto.toLocaleUpperCase("pt-PT");
 
-/** Minúsculas, para os sobretítulos em itálico («a proposta», «inspiração · 01»). */
+/** Minúsculas, para os sobretítulos («a proposta», «inspiração · 01»). */
 export const minusculas = (texto: string) => texto.toLocaleLowerCase("pt-PT");

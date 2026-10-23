@@ -35,7 +35,7 @@ import {
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * O documento dela (`docs/PDF-DESIGN-NOVO.md`) tem duas assinaturas: o «bloco
- * de título» das páginas de fotografia — sobretítulo em itálico, título em
+ * de título» das páginas de fotografia — sobretítulo em minúsculas, título em
  * maiúsculas espaçadas, filete e linha pequena, ancorado em baixo à esquerda —
  * e a «moldura afastada» à volta das fotografias nítidas pousadas sobre um
  * fundo arrastado. Estão aqui, uma vez, com o cabeçalho das páginas de texto e
@@ -256,9 +256,14 @@ export function fio(pagina: PDFPage, x0: number, x1: number, y: number, cor = CO
 
 /* ── O texto que se repete ──────────────────────────────────────────────── */
 
-/** O sobretítulo em itálico (§3): Bodoni, minúsculas, na Cal. */
-export function estiloSobretitulo(ctx: Contexto, tam: number): Estilo {
-  return { letra: ctx.letras.bodoniItalico, tam, cor: COR.cal };
+/**
+ * O sobretítulo (§3): minúsculas, por cima do título. O documento pedia-o em
+ * Bodoni itálico; ela escolheu, a 23/10, «letra simples»: Jost, e a
+ * hierarquia faz-se com a cor — o Linho nas páginas de texto, o Papel sobre
+ * as fotografias (onde o Linho não chegava aos 4,5:1 no tecto de luz).
+ */
+export function estiloSobretitulo(ctx: Contexto, tam: number, sobreFoto = false): Estilo {
+  return { letra: ctx.letras.jost, tam, cor: sobreFoto ? COR.papel : COR.linho };
 }
 
 /** Um título em maiúsculas espaçadas, na Jost. */
@@ -281,7 +286,7 @@ const MAIUSCULA_JOST = 0.7;
 const TOPO_A_BASE_JOST = 0.94;
 
 /**
- * O cabeçalho das páginas de texto (§3, §4): o sobretítulo em itálico por
+ * O cabeçalho das páginas de texto (§3, §4): o sobretítulo em minúsculas por
  * cima, encostado à esquerda, e o título em maiúsculas espaçadas 8 px abaixo.
  * O título encolhe até caber em DUAS linhas. Devolve a linha de base da última
  * linha do título, em píxeis da grelha.
@@ -366,8 +371,6 @@ export function blocoDeTitulo(
      * da fotografia emoldurada.
      */
     largura?: number;
-    /** O «&» de «NOME & NOME» em Bodoni itálico (a capa). */
-    eComercial?: boolean;
   },
 ): number {
   const T = LETRA.tituloFoto;
@@ -383,8 +386,7 @@ export function blocoDeTitulo(
   const primeira = ultima - (c.linhas.length - 1) * passo;
   c.linhas.forEach((l, i) => {
     const y = yDoTopo(primeira + i * passo);
-    if (o.eComercial && l.includes("&")) linhaComEComercial(ctx, pagina, c.estilo, l, x, y);
-    else escrever(pagina, c.estilo, l, px(x), y);
+    escrever(pagina, c.estilo, l, px(x), y);
   });
 
   const S = LETRA.sobretituloFoto;
@@ -392,7 +394,7 @@ export function blocoDeTitulo(
   const baseSobre = primeira - c.estilo.tam * 0.7 - 31;
   escrever(
     pagina,
-    estiloSobretitulo(ctx, S.tam),
+    estiloSobretitulo(ctx, S.tam, true),
     minusculas(o.sobretitulo),
     px(x),
     yDoTopo(baseSobre),
@@ -412,30 +414,6 @@ export function blocoDeTitulo(
     fim = base + 6;
   }
   return fim;
-}
-
-/** «NOME & NOME»: os nomes na Jost, o «&» em Bodoni itálico (§6.1). */
-function linhaComEComercial(
-  ctx: Contexto,
-  pagina: PDFPage,
-  e: Estilo,
-  linha: string,
-  xPx: number,
-  y: number,
-) {
-  const amp: Estilo = { letra: ctx.letras.bodoniItalico, tam: e.tam * 1.1, cor: e.cor };
-  let x = px(xPx);
-  const partes = linha.split("&");
-  partes.forEach((parte, i) => {
-    if (i) {
-      escrever(pagina, amp, "&", x, y);
-      x += largura(amp, "&");
-    }
-    if (parte) {
-      escrever(pagina, e, parte, x, y);
-      x += largura(e, parte) + px(e.tam * (e.espaco ?? 0));
-    }
-  });
 }
 
 /** O logótipo no canto superior esquerdo das páginas de fotografia (§4). */
@@ -541,7 +519,8 @@ export function rotuloEValor(
 }
 
 /**
- * Uma nota em Bodoni itálico, no Linho (§3) — os temas, «a proposta». Encolhe
+ * Uma nota na Jost, no Linho (§3 pedia Bodoni itálico; ela escolheu «letra
+ * simples» a 23/10) — os temas, «a proposta». Encolhe
  * até caber em `maxLinhas`; só então corta, e o corte vai para o relatório.
  * Devolve o fundo, em píxeis da grelha.
  */
@@ -554,7 +533,7 @@ export function nota(
   const texto = o.texto.trim();
   if (!texto) return o.topo;
   const c = caber(
-    { letra: ctx.letras.bodoniItalico, tam: N.tam, cor: COR.linho },
+    { letra: ctx.letras.jost, tam: N.tam, cor: COR.linho },
     texto,
     px(o.largura),
     Math.max(1, o.maxLinhas),

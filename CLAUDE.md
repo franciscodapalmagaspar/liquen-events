@@ -135,7 +135,8 @@ dados e lógica (capítulos, casamento/não casamento, escolha das fotos e das
 disposições, paleta das mesas) continua a valer; onde os dois se contradizem
 no desenho, ganha o novo. O modelo (`Modelo-Proposta-Liquen.pdf`) está em
 `referencia/`, fora do git. Mexe no PDF: nada se junta sem a aprovação dela.
-O desenho está feito em `src/lib/pdf-editorial/` (PR `feat/pdf-design-novo`);
+O desenho está feito em `src/lib/pdf-editorial/` e ela aprovou-o a 23/10 (PR #273),
+com «letra simples» nos sobretítulos e nas notas: a Bodoni fica só no preço total;
 a **Parte −1** tem a tabela do que está feito e os dezasseis sítios onde a
 execução se afastou do texto — as entrelinhas, as condições que encolhem em vez
 de passarem a uma 4.ª página, os contactos lado a lado, o quadro do orçamento
