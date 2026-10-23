@@ -42,8 +42,14 @@ export default function ImagemComPlanoB({
   planoB,
   lqip,
   className,
+  posicao,
+  onMedida,
 }: {
   src: string;
+  /** Largura ÷ altura da fotografia, quando ela chega (o enquadrar precisa). */
+  onMedida?: (aspeto: number) => void;
+  /** O `object-position` (o enquadramento que ela arrastou), se houver. */
+  posicao?: string;
   /**
    * ── A OFERTA QUE SÓ ALGUNS NAVEGADORES ACEITAM ──────────────────────────
    *
@@ -143,9 +149,16 @@ export default function ImagemComPlanoB({
          a ser obrigatória aqui a partir do momento em que a passagem deixa de
          ser condicional. */
       ref={(img) => {
-        if (img?.complete && img.naturalWidth > 0) setPintada(true);
+        if (img?.complete && img.naturalWidth > 0) {
+          setPintada(true);
+          onMedida?.(img.naturalWidth / img.naturalHeight);
+        }
       }}
-      onLoad={() => setPintada(true)}
+      onLoad={(e) => {
+        setPintada(true);
+        const img = e.currentTarget;
+        if (img.naturalWidth > 0) onMedida?.(img.naturalWidth / img.naturalHeight);
+      }}
       onError={() => {
         if (planoB && actual !== planoB) setActual(planoB);
         // Se nem o plano B abriu, o borrão fica — mas sem o `<img>` partido
@@ -153,7 +166,7 @@ export default function ImagemComPlanoB({
         // diz de que cor era a fotografia.
         else setFalhou(true);
       }}
-      style={borrao}
+      style={posicao ? { ...borrao, objectPosition: posicao } : borrao}
       /* ── E A FOTOGRAFIA ASSENTA SEMPRE, TENHA OU NÃO BORRÃO ──────────────
          Era `pintada || !lqip`: sem `lqip` a célula nascia a 100 e a fotografia
          APARECIA num fotograma, por cima do fundo neutro. Com borrão havia

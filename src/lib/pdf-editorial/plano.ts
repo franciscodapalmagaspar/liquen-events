@@ -607,11 +607,44 @@ export function lugaresDaPagina(p: PaginaDoPlano): { min: number; max: number } 
       return { min: 1, max: 2 };
     case "tema":
       return p.fotos.length ? null : { min: 1, max: 1 };
-    case "servicos":
     case "ambiente":
+      // Pedido dela de 23/10: a fila de cinco quadrados e o painel grande (o
+      // 6.º lugar). As cores continuam a vir das mesas.
+      return { min: 1, max: 6 };
+    case "servicos":
       return null;
     default:
       return { min: 1, max: 1 };
+  }
+}
+
+/** A folha deitada (1123 × 794). */
+const FOLHA = 1123 / 794;
+
+/**
+ * A forma (largura ÷ altura) da caixa onde cada lugar da página sai NÍTIDO —
+ * é a que o «enquadrar» do estúdio mostra, para o que ela arrasta ser o
+ * recorte que sai. Os números são os das `paginas/*.ts` (um teste prende-os).
+ * Uma página só com fundo (total, orçamento, citação, capa) é a folha.
+ */
+export function formasDosLugares(p: PaginaDoPlano): number[] {
+  switch (p.tipo) {
+    case "indice":
+      return [322 / 442];
+    case "proposta":
+    case "tema":
+      return [288 / 374];
+    case "separador":
+      // A primeira nítida na moldura; a segunda é o fundo da página.
+      return [346 / 430, FOLHA];
+    case "ambiente":
+      return [1, 1, 1, 1, 1, 442 / 794];
+    case "condicoes":
+    case "cronograma":
+      // A faixa à direita (`FOTO_DAS_CONDICOES`, também no cronograma).
+      return [374 / 794];
+    default:
+      return [FOLHA];
   }
 }
 

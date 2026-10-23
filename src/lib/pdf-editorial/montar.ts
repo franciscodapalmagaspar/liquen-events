@@ -305,25 +305,40 @@ async function motor(
   // automático deixa de a pôr na página ao lado. Uma da biblioteca ou carregada
   // só para aqui entra como foto nova. Uma que não se deixe buscar cai — e a
   // página volta a escolher sozinha.
-  const escolhas = new Map<string, Foto[]>();
+  //
+  // CADA UMA NO SEU LUGAR (23/10): na paleta, o 6.º lugar é o painel grande e
+  // os outros cinco são a fila. Um lugar vazio (`""`) é «automático»; uma foto
+  // que não chegou deixa o SEU lugar vazio — não puxa as seguintes, e o foco
+  // de cada uma continua a ser o dela.
+  const porLugar = new Map<string, (Foto | null)[]>();
   for (const [chave, e] of Object.entries(original.fotosDasPaginas ?? {})) {
-    const lista: Foto[] = [];
+    const lugares: (Foto | null)[] = [];
     for (const [k, dado] of (e?.fotos ?? []).entries()) {
+      if (!dado || !dado.trim()) {
+        lugares.push(null);
+        continue;
+      }
       const ref = fontes.semBytes ? dado : fontes.refs?.paginas[chave]?.[k];
       const ja = ref ? inspiracao.find((f) => f.ref === ref) : undefined;
       const f = ja ?? (await medida(dado, `Página «${chave}» · foto ${k + 1}`, null, ref));
-      if (!f) continue;
       const foco = e.focos?.[k];
-      lista.push(foco ? { ...f, foco } : f);
+      lugares.push(f ? (foco ? { ...f, foco } : f) : null);
     }
-    if (lista.length) escolhas.set(chave, lista);
+    if (lugares.some(Boolean)) porLugar.set(chave, lugares);
   }
   const chaves = new Chaves();
   /** As que ela escolheu para a página `chave`, já registadas no álbum. */
   const escolhidas = (chave: string, pagina: number): Foto[] | null => {
-    const e = escolhas.get(chave);
-    if (!e) return null;
+    const e = porLugar.get(chave)?.filter((f): f is Foto => f !== null);
+    if (!e?.length) return null;
     for (const f of e) album.usar(f, pagina);
+    return e;
+  };
+  /** O mesmo, lugar a lugar (`null` = o automático escolhe esse). */
+  const escolhidasPorLugar = (chave: string, pagina: number): (Foto | null)[] | null => {
+    const e = porLugar.get(chave);
+    if (!e) return null;
+    for (const f of e) if (f) album.usar(f, pagina);
     return e;
   };
 
@@ -469,6 +484,7 @@ async function motor(
   // ── Paleta e ambiente ──
   if (inspiracao.length) {
     const pagina = proxima();
+    const chave = chaves.nova("ambiente");
     // As cores e as fotografias desta página vêm das MESAS (jantar, buffet,
     // centros) — não da cerimónia, que vem primeiro e as dominava. Pedido
     // dela a 20/10; ver `eDasMesas`. Sem nenhum tema das mesas, ficam todas.
@@ -477,27 +493,51 @@ async function motor(
       (x) => x.fotos.length && eDasMesas(x.pt.title ?? "", x.pt.subtitulo ?? ""),
     );
     const daPaleta = dasMesas.length ? dasMesas.flatMap((x) => x.fotos) : inspiracao;
+    // As que ELA escolheu (23/10): lugares 0–4 a fila, o 5 o painel. Só as
+    // fotografias — as cores continuam a ser as das mesas.
+    const minhas = escolhidasPorLugar(chave, pagina) ?? [];
+    const filaDela = Array.from({ length: 5 }, (_, i) => minhas[i] ?? null);
+    const painelDela = minhas[5] ?? null;
+    const dela = new Set(minhas.filter((f): f is Foto => !!f).map((f) => f.id));
     // A primeira fotografia de cada tema, depois as outras.
     const primeiras = (dasMesas.length ? dasMesas : comConteudo)
       .map((x) => x.fotos[0])
       .filter((f): f is Foto => Boolean(f));
-    let fila: Foto[];
+    let filaAuto: Foto[];
     let painel: Foto | null;
+    const quantasAuto = filaDela.filter((f) => !f).length;
     if (dasMesas.length) {
       // O painel (a fotografia grande) primeiro, das mesas; a fila com as
       // outras das mesas, e só se não chegarem a cinco, as restantes.
-      painel = album.escolher(pagina, "alta", 1, daPaleta)[0] ?? null;
-      fila = [...new Set([...primeiras, ...daPaleta, ...inspiracao])]
-        .filter((f) => f !== painel)
-        .slice(0, 5);
+      painel = painelDela ?? album.escolher(pagina, "alta", 1, daPaleta, dela)[0] ?? null;
+      filaAuto = [...new Set([...primeiras, ...daPaleta, ...inspiracao])]
+        .filter((f) => f !== painel && !dela.has(f.id))
+        .slice(0, quantasAuto);
     } else {
       // Sem tema das mesas: as primeiras de cada tema, e o painel à parte.
-      fila = [...new Set([...primeiras, ...inspiracao])].slice(0, 5);
+      filaAuto = [...new Set([...primeiras, ...inspiracao])]
+        .filter((f) => !dela.has(f.id) && f !== painelDela)
+        .slice(0, quantasAuto);
       painel =
-        album.escolher(pagina, "alta", 1, inspiracao, new Set(fila.map((f) => f.id)))[0] ?? null;
+        painelDela ??
+        album.escolher(
+          pagina,
+          "alta",
+          1,
+          inspiracao,
+          new Set([...dela, ...filaAuto.map((f) => f.id)]),
+        )[0] ??
+        null;
+    }
+    // Cada lugar vazio da fila leva a seguinte das automáticas.
+    const fila: Foto[] = [];
+    let a = 0;
+    for (const f of filaDela) {
+      const posta = f ?? filaAuto[a++];
+      if (posta) fila.push(posta);
     }
     plano.push({
-      chave: chaves.nova("ambiente"),
+      chave,
       // A fila nos cinco primeiros lugares, o painel no sexto.
       fotos: [...fila, ...Array<null>(5 - fila.length).fill(null), painel],
       desenhar: async (numero) =>

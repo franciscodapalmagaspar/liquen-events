@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { ArrastarParaEnquadrar, type Foco } from "./ArrastarParaEnquadrar";
 import ImagemComPlanoB from "./ImagemComPlanoB";
 import { Button, FolhaOuDialogo, Segmented } from "./ui";
 import { ESTADO, PRESSAO } from "./ui/movimento";
@@ -26,7 +27,15 @@ export interface FotoParaEscolher {
  *
  * Cada toque aplica-se logo (a miniatura muda com ele) e tem «Anular» — não há
  * «Guardar» para esquecer. «Voltar ao automático» devolve a página ao sistema.
+ *
+ * ── E O ENQUADRAR (23/10) ─────────────────────────────────────────────────
+ * «ajustar a posição da foto quando escolhemos uma foto para um slide»: o lugar
+ * escolhido mostra-se com a forma da caixa onde sai NÍTIDO no PDF
+ * (`formasDosLugares`), e arrasta-se como a capa. O que ela larga é o recorte
+ * que sai. A paleta tem seis lugares — a fila de cinco e o painel grande.
  */
+const FOLHA = 1123 / 794;
+const posicaoDe = (f?: Foco | null) => (f ? `${f.x * 100}% ${f.y * 100}%` : undefined);
 export default function EscolherFotoDaPagina({
   aberto,
   nome,
@@ -35,9 +44,14 @@ export default function EscolherFotoDaPagina({
   escolhida,
   podeVoltarAoAutomatico = true,
   lugar,
+  formas,
+  focos = [],
+  focoDela = false,
+  aspetos = {},
   fotosDaProposta,
   carregar,
   onLugar,
+  onFoco,
   onEscolher,
   onQuantas,
   onAutomatico,
@@ -57,17 +71,36 @@ export default function EscolherFotoDaPagina({
   podeVoltarAoAutomatico?: boolean;
   /** O lugar que um toque numa fotografia vai trocar. */
   lugar: number;
+  /** A forma (largura ÷ altura) da caixa de cada lugar no PDF. */
+  formas?: readonly number[];
+  /** O enquadramento que se vê em cada lugar (o dela, ou o do PDF). */
+  focos?: readonly (Foco | null)[];
+  /** O lugar activo tem um enquadramento escolhido por ela. */
+  focoDela?: boolean;
+  /** Largura ÷ altura de cada fotografia, pela referência. */
+  aspetos?: Readonly<Record<string, number>>;
   fotosDaProposta: readonly FotoParaEscolher[];
   /** A caixa de carregar uma fotografia nova (a do estúdio). */
   carregar: ReactNode;
   onLugar: (lugar: number) => void;
+  /** Enquadrar o lugar activo (`null` = o automático). */
+  onFoco?: (foco: Foco | null) => void;
   onEscolher: (ref: string) => void;
   onQuantas: (n: 1 | 2) => void;
   onAutomatico: () => void;
   onBiblioteca: () => void;
   onFechar: () => void;
 }) {
-  const quantas = Math.min(max, Math.max(1, lugares.length)) as 1 | 2;
+  // Com mais de dois lugares (a paleta) estão sempre todos; no separador, o
+  // número é o que ela escolheu (uma ou duas).
+  const quantas = max > 2 ? max : Math.min(max, Math.max(1, lugares.length));
+  const forma = (i: number) => formas?.[i] ?? FOLHA;
+  const nomeDoLugar = (i: number) => (max === 6 && i === 5 ? "Painel grande" : `Lugar ${i + 1}`);
+  const activa = lugares[lugar] ?? null;
+  // A forma da fotografia: a que o estúdio já mediu, ou a que se mede aqui,
+  // quando ela chega — sem ela não se sabe para que lado se pode arrastar.
+  const [medidas, setMedidas] = useState<Record<string, number>>({});
+  const aspetoDe = (ref: string) => aspetos[ref] ?? medidas[ref];
   return (
     <FolhaOuDialogo
       aberto={aberto}
@@ -95,10 +128,10 @@ export default function EscolherFotoDaPagina({
       }
     >
       <div className="flex flex-col gap-4">
-        {max > 1 && (
+        {max === 2 && (
           <Segmented
             ariaLabel="Quantas fotografias no separador"
-            value={String(quantas) as "1" | "2"}
+            value={String(Math.min(quantas, 2)) as "1" | "2"}
             onChange={(v) => onQuantas(v === "1" ? 1 : 2)}
             options={[
               { value: "1", label: "Uma (página inteira)" },
@@ -111,7 +144,9 @@ export default function EscolherFotoDaPagina({
         <div
           role="radiogroup"
           aria-label="Que lugar trocar"
-          className={`grid gap-2 ${quantas > 1 ? "grid-cols-2" : "grid-cols-1"}`}
+          className={`grid items-start gap-2 ${
+            quantas > 2 ? "grid-cols-3" : quantas > 1 ? "grid-cols-2" : "grid-cols-1"
+          }`}
         >
           {Array.from({ length: quantas }, (_, i) => {
             const f = lugares[i] ?? null;
@@ -124,11 +159,12 @@ export default function EscolherFotoDaPagina({
                 aria-checked={activo}
                 aria-label={
                   quantas > 1
-                    ? `Lugar ${i + 1}${f ? "" : ", sem fotografia"}`
+                    ? `${nomeDoLugar(i)}${f ? "" : ", sem fotografia"}`
                     : "A fotografia da página"
                 }
                 onClick={() => onLugar(i)}
-                className={`relative aspect-[1123/794] overflow-hidden rounded-lg bg-[var(--bo-tinta-10)] ${
+                style={{ aspectRatio: String(forma(i)) }}
+                className={`relative overflow-hidden rounded-lg bg-[var(--bo-tinta-10)] ${
                   activo && quantas > 1
                     ? "ring-2 ring-[var(--bo-accent)] ring-offset-2 ring-offset-[var(--bo-surface)]"
                     : ""
@@ -138,6 +174,7 @@ export default function EscolherFotoDaPagina({
                   <ImagemComPlanoB
                     src={f.url}
                     planoB={f.original}
+                    posicao={posicaoDe(focos[i])}
                     className="h-full w-full object-cover"
                   />
                 )}
@@ -150,6 +187,57 @@ export default function EscolherFotoDaPagina({
             );
           })}
         </div>
+
+        {/* O enquadrar do lugar activo, na forma da caixa onde sai no PDF. */}
+        {onFoco && activa?.url && (
+          <div>
+            <p className="bo-eyebrow mb-2">
+              Enquadrar{quantas > 1 ? ` · ${nomeDoLugar(lugar).toLowerCase()}` : ""}
+            </p>
+            <div
+              style={{ maxWidth: `min(100%, ${Math.round(240 * Math.max(1, forma(lugar)))}px)` }}
+            >
+              <ArrastarParaEnquadrar
+                aspeto={aspetoDe(activa.ref)}
+                aspetoDaCaixa={forma(lugar)}
+                foco={focos[lugar] ?? { x: 0.5, y: 0.5 }}
+                activo
+                nome={`de «${nome}»${quantas > 1 ? `, ${nomeDoLugar(lugar).toLowerCase()}` : ""}`}
+                onFoco={onFoco}
+              >
+                {(posicao) => (
+                  <div
+                    className="relative w-full overflow-hidden rounded-lg bg-[var(--bo-tinta-10)]"
+                    style={{ aspectRatio: String(forma(lugar)) }}
+                  >
+                    <ImagemComPlanoB
+                      src={activa.url ?? ""}
+                      planoB={activa.original}
+                      posicao={posicao}
+                      onMedida={(a) =>
+                        setMedidas((m) =>
+                          Math.abs((m[activa.ref] ?? 0) - a) < 0.001
+                            ? m
+                            : { ...m, [activa.ref]: a },
+                        )
+                      }
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                )}
+              </ArrastarParaEnquadrar>
+            </div>
+            {focoDela && (
+              <button
+                type="button"
+                onClick={() => onFoco(null)}
+                className={`alvo-toque relative mt-1 text-caption font-medium text-[var(--bo-accent)] underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
+              >
+                Enquadramento automático
+              </button>
+            )}
+          </div>
+        )}
 
         <div>
           <p className="bo-eyebrow mb-2">Desta proposta</p>

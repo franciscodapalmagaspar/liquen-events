@@ -1206,12 +1206,11 @@ export function stripPendingImages<
     // até ela chegar.
     const paginas: NonNullable<ProposalDoc["fotosDasPaginas"]> = {};
     for (const [chave, e] of Object.entries(doc.fotosDasPaginas)) {
-      const ficam = (e?.fotos ?? []).flatMap((p, k) => (isPendingImage(p) ? [] : [k]));
-      if (!ficam.length) continue;
-      paginas[chave] = {
-        fotos: ficam.map((k) => e.fotos[k]),
-        ...(e.focos ? { focos: ficam.map((k) => e.focos?.[k] ?? null) } : {}),
-      };
+      // Cada uma fica no seu LUGAR (a posição conta: na paleta o 6.º é o
+      // painel). A que vem a caminho deixa o lugar vazio — automático.
+      const fotos = (e?.fotos ?? []).map((p) => (isPendingImage(p) ? "" : p));
+      if (!fotos.some((p) => p && p.trim())) continue;
+      paginas[chave] = { ...e, fotos };
     }
     out.fotosDasPaginas = paginas;
   }
