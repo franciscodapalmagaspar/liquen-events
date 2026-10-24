@@ -70,3 +70,25 @@ describe("SafeImage — o desfoque esbate-se quando a foto chega (A6)", () => {
     expect(veu(container)).toBeNull();
   });
 });
+
+describe("SafeImage — o véu escuro dos heróis (ela, 24/10: «um flash branco»)", () => {
+  it("com `veuEscuro` o véu leva metade da luz; sem ele fica como era", () => {
+    const escuro = render(
+      <div style={{ position: "relative", width: 200, height: 200 }}>
+        <SafeImage
+          src={SRC}
+          alt="Foto"
+          fill
+          sizes="200px"
+          blurDataURL={BLUR}
+          placeholder="blur"
+          veuEscuro
+        />
+      </div>,
+    );
+    expect(veu(escuro.container)!.className).toContain("brightness-50");
+    cleanup();
+    const { container } = montar(true);
+    expect(veu(container)!.className).not.toContain("brightness-50");
+  });
+});

@@ -59,8 +59,67 @@ const HERO_BY_ROUTE: Record<string, string> = {
   "/clientes": "/imagens/EW1_1393.jpg",
 };
 
+/**
+ * O caminho público de um `href` interno, sem a língua (`/en/servicos` →
+ * `/servicos`). `null` para tudo o que não é deste sítio.
+ */
+export function rotaDoHref(href: string, origem: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(href, origem);
+  } catch {
+    return null;
+  }
+  if (url.origin !== origem) return null;
+  const sem = url.pathname.replace(/^\/en(?=\/|$)/, "") || "/";
+  return sem.length > 1 ? sem.replace(/\/$/, "") : sem;
+}
+
+/**
+ * As fotografias já descodificadas, guardadas para o browser não as largar
+ * antes de a página nova as pedir. Seis no máximo (uma por página com herói).
+ */
+const prontas = new Map<string, HTMLImageElement>();
+
+/**
+ * ── NO TOQUE, A FOTOGRAFIA DO DESTINO COMEÇA LOGO A FICAR PRONTA ─────────
+ *
+ * Ela, 24/10: «quando carrego para ir para alguma cena… fica um bocadinho
+ * branco do nada». O aquecimento em `onIdle` (em baixo) já punha o ficheiro
+ * em cache, mas ter o ficheiro não chega: um AVIF de 1536 px ainda tem de ser
+ * DESCODIFICADO, e até isso acabar a página nova mostrava o desfoque. Aqui,
+ * no instante do toque — centenas de milissegundos antes de a página mudar —
+ * pede-se o mesmo ficheiro e chama-se `decode()`. Quando a página monta, a
+ * fotografia já está pronta a pintar e o véu nem chega a pôr-se.
+ */
+export function prepararHeroiDe(href: string): void {
+  const rota = rotaDoHref(href, window.location.origin);
+  const src = rota ? HERO_BY_ROUTE[rota] : undefined;
+  if (!src) return;
+  void browserTemAvif().then((avif) => {
+    const alvo = window.innerWidth * (window.devicePixelRatio || 1);
+    const url = (avif && heroAvifUrl(src, alvo)) || heroImageUrl(src, alvo);
+    if (prontas.has(url)) return;
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    prontas.set(url, img);
+    if (prontas.size > 6) prontas.delete(prontas.keys().next().value as string);
+    img.decode().catch(() => {});
+  });
+}
+
 export default function HeroWarm() {
   const pathname = usePublicPathname();
+
+  useEffect(() => {
+    const noToque = (e: Event) => {
+      const a = (e.target as Element | null)?.closest?.("a[href]");
+      if (a) prepararHeroiDe(a.getAttribute("href") ?? "");
+    };
+    document.addEventListener("pointerdown", noToque, { capture: true, passive: true });
+    return () => document.removeEventListener("pointerdown", noToque, { capture: true });
+  }, []);
 
   useEffect(() => {
     // Don't warm on the back office / quote flow, or the current page.

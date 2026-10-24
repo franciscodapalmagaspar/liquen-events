@@ -110,5 +110,7 @@ import { heroImageLoader } from "@/lib/hero-image-loader";
 export default function HeroImage(props: Omit<SafeImageProps, "initialLoader">) {
   // O `eslint-disable` do `jsx-a11y/alt-text` que aqui esteve deixou de ser
   // preciso: a regra só olha para `next/image`, e isto é o SafeImage.
-  return <SafeImage initialLoader={heroImageLoader} {...props} />;
+  // O véu do desfoque é escuro nos heróis: é a primeira coisa que se vê ao
+  // mudar de página, e um desfoque claro lia-se como um clarão branco (24/10).
+  return <SafeImage initialLoader={heroImageLoader} veuEscuro {...props} />;
 }
