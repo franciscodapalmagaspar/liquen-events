@@ -4,14 +4,21 @@ import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import { useImageErrorRef } from "./SafeImage";
 import { clientLogos } from "@/data";
-import { logoHeight, logoDimsFor, logoSizes } from "@/lib/logo";
+import { caixaNaParede, logoDimsFor, logoSizes } from "@/lib/logo";
 import { prefersReducedMotion } from "@/lib/motion/useReducedMotion";
 import { useTranslations } from "./LocaleProvider";
 
 /**
- * Scrolling band of client logos on the homepage. Logos are balanced optically
- * by area (see logoHeight) and width-capped so no wordmark runs away. Rendered
- * white over the dark band; a missing logo falls back to the client name.
+ * Scrolling band of client logos on the homepage. Each logo is drawn with the
+ * SAME box it has on the /clientes wall (`caixaNaParede`), scaled down by one
+ * number for the whole band (`--fita-escala`). A missing logo falls back to
+ * the client name.
+ *
+ * Ela, 24/10, com a captura da fita: «a questão do tamanho dos logos ainda não
+ * resolveste». A fita tinha uma conta própria e um tecto de 34 px de altura e
+ * 170 de largura, que punha quase todos à mesma altura: a Deloitte, a Mainova e
+ * a Pérez-Llorca enormes, a EDIA e a Universidade pequeninas. A parede já tinha
+ * o peso certo (#246); a fita passa a ser a parede em ponto pequeno.
  *
  * The list is duplicated for a seamless loop — the second copy is `aria-hidden`
  * so a screen reader reads each client once, not twice.
@@ -39,14 +46,11 @@ function Mark({
     );
   }
 
-  const h = logoHeight(logo);
   const d = logoDimsFor(logo);
+  const caixa = caixaNaParede(logo);
 
   return (
-    <div
-      className="me-12 flex h-8 flex-shrink-0 items-center justify-center sm:me-16 sm:h-10"
-      {...hidden}
-    >
+    <div className="me-12 flex flex-shrink-0 items-center justify-center sm:me-16" {...hidden}>
       <Image
         src={logo}
         alt={duplicate ? "" : name}
@@ -63,11 +67,13 @@ function Mark({
         // Rendered as flat black silhouettes (brightness-0), so encoder quality
         // is imperceptible — 50 just trims the bytes of every logo in the strip.
         quality={50}
-        style={{ height: `${h}px` }}
-        // Slimmer strip on every breakpoint: cap the logo height (max-h) so the
-        // whole band reads as a fine line — 22px on a phone, 34px from sm+ (was
-        // uncapped, which let the band grow much taller on desktop).
-        className="w-auto max-h-[22px] sm:max-h-[34px] max-w-[120px] sm:max-w-[170px] object-contain opacity-100 transition-opacity duration-300 brightness-0"
+        // A caixa da parede, à escala da fita. Sem `max-h` nem `max-w`: eram
+        // essas travas que punham todos à mesma altura.
+        style={{
+          width: `calc(${caixa.largura}px * var(--fita-escala))`,
+          height: `calc(${caixa.altura}px * var(--fita-escala))`,
+        }}
+        className="object-contain opacity-100 transition-opacity duration-300 brightness-0"
         // O erro é ouvido pela `ref` e NÃO pelo `onError` do next/image.
         // Passar `onError` faz o next/image reatribuir `img.src = img.src` na
         // montagem (image-component.js:140) para ressuscitar um erro anterior à
@@ -193,7 +199,11 @@ export default function ClientMarquee() {
   }, []);
 
   return (
-    <div className="relative py-3.5 sm:py-4 border-y border-foreground/8 overflow-hidden">
+    /**
+     * `--fita-escala`: a parede de /clientes em ponto pequeno. Os mesmos três
+     * números estão em `ESCALA_DA_FITA` (logo.ts), e um teste prende-os.
+     */
+    <div className="relative min-h-16 py-3 [--fita-escala:0.5] sm:min-h-[4.5rem] sm:[--fita-escala:0.62] lg:[--fita-escala:0.72] border-y border-foreground/8 overflow-hidden flex items-center">
       {/* sr-only heading so heading-navigation users find the client band. */}
       <h2 className="sr-only">{t.nav.clientes}</h2>
       <div className="absolute inset-y-0 left-0 w-16 sm:w-24 bg-gradient-to-r from-surface to-transparent z-10 pointer-events-none" />
@@ -211,7 +221,7 @@ export default function ClientMarquee() {
          * exacta e não uma cópia mais meio intervalo. O porquê inteiro está
          * no `globals.css`, ao pé do `@keyframes marquee`.
          */
-        className="animate-marquee flex w-max items-center whitespace-nowrap"
+        className="animate-marquee flex w-max shrink-0 items-center whitespace-nowrap"
         style={userPaused ? { animationPlayState: "paused" } : undefined}
       >
         {/*
