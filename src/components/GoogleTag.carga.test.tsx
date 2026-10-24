@@ -21,14 +21,15 @@ import { renderToString } from "react-dom/server";
  *
  *   · o HTML do servidor não leva a biblioteca de forma nenhuma — nem
  *     `<script src>`, nem `<link rel="preload">`;
- *   · depois da hidratação ela entra, uma vez só, assíncrona. Não mais tarde:
- *     o `lazyOnload` já custou dados ao GA4 (ver o comentário do componente).
+ *   · depois da hidratação ela entra, uma vez só, assíncrona — no primeiro
+ *     gesto ou num prazo de relógio (24/10). Nunca à espera do `load`: o
+ *     `lazyOnload` já custou dados ao GA4 (ver o comentário do componente).
  */
 
 const pathname = vi.hoisted(() => ({ value: "/galeria" }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathname.value }));
 
-import GoogleTag, { GTAG_SRC } from "./GoogleTag";
+import GoogleTag, { GTAG_ESPERA_MS, GTAG_SRC } from "./GoogleTag";
 
 const gtagsNoDocumento = () => document.querySelectorAll(`script[src="${GTAG_SRC}"]`);
 
@@ -60,16 +61,31 @@ describe("GoogleTag — a biblioteca não compete com a primeira pintura", () =>
     expect(fonte).not.toMatch(/from\s+["']next\/script["']/);
   });
 
-  it("depois da hidratação o gtag.js entra — assíncrono, no documento", () => {
+  it("depois da hidratação o gtag.js NÃO entra logo: espera por um gesto", () => {
     render(<GoogleTag />);
+    expect(gtagsNoDocumento()).toHaveLength(0);
+    window.dispatchEvent(new Event("pointerdown"));
     const scripts = gtagsNoDocumento();
     expect(scripts).toHaveLength(1);
     expect((scripts[0] as HTMLScriptElement).async).toBe(true);
   });
 
+  it("e, se ninguém mexer, entra no prazo — a página vista conta na mesma", () => {
+    vi.useFakeTimers();
+    try {
+      render(<GoogleTag />);
+      expect(gtagsNoDocumento()).toHaveLength(0);
+      vi.advanceTimersByTime(GTAG_ESPERA_MS);
+      expect(gtagsNoDocumento()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("e entra UMA vez, por muitas páginas que se percorram", () => {
     // O tag vive no layout e o efeito corre a cada mudança de caminho.
     const { rerender } = render(<GoogleTag />);
+    window.dispatchEvent(new Event("scroll"));
     pathname.value = "/sobre";
     rerender(<GoogleTag />);
     pathname.value = "/pt/contacto";

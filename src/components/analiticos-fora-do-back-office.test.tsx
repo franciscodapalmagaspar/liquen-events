@@ -148,6 +148,9 @@ describe("GoogleTag — nada de gtag dentro do back office", () => {
     for (const p of CALADOS) {
       pathname.value = p;
       const { container } = render(<GoogleTag />);
+      // O gtag.js espera pelo primeiro gesto (24/10): faz-se um, para o
+      // teste medir o que mede.
+      window.dispatchEvent(new Event("pointerdown"));
       expect(container.innerHTML, `o gtag montou em ${p}`).toBe("");
       expect(gtagNoDocumento(), `o gtag.js entrou em ${p}`).toBeNull();
     }
@@ -159,6 +162,9 @@ describe("GoogleTag — nada de gtag dentro do back office", () => {
     for (const p of MEDIDOS) {
       pathname.value = p;
       render(<GoogleTag />);
+      // O gtag.js espera pelo primeiro gesto (24/10): faz-se um, para o
+      // teste medir o que mede.
+      window.dispatchEvent(new Event("pointerdown"));
       expect(gtagNoDocumento(), `o gtag deixou de medir ${p}`).not.toBeNull();
       cleanup();
       gtagNoDocumento()?.remove();
