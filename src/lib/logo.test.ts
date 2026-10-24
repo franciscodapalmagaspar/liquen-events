@@ -1,8 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { logoDimsFor, logoHeight, logoCssWidth, logoSizes } from "./logo";
+import {
+  caixaNaParede,
+  ESCALA_DA_FITA,
+  logoDimsFor,
+  logoHeight,
+  logoCssWidth,
+  logoSizes,
+} from "./logo";
 import logoDims from "./logo-dims.json";
+import { clientLogos } from "@/data";
 import { LOGO_WIDTHS, snapLogoWidth } from "./site-image-loader";
 
 const WIDE = "/logos/clientes/aernnova.avif"; // [304, 36] — thin wordmark
@@ -90,14 +98,40 @@ describe("logoCssWidth / logoSizes", () => {
   it("nunca declara menos do que a fita ou a parede desenham", () => {
     for (const src of Object.keys(logoDims)) {
       const declarada = logoCssWidth(src);
-      // Fita, nos dois lados do breakpoint sm.
-      expect(declarada, src).toBeGreaterThanOrEqual(desenhada(src, 1600, 26, 46, 34, 170));
-      expect(declarada, src).toBeGreaterThanOrEqual(desenhada(src, 1600, 26, 46, 22, 120));
+      // Fita: a caixa da parede à maior das escalas (24/10).
+      const maior = Math.max(...Object.values(ESCALA_DA_FITA));
+      expect(declarada, src).toBeGreaterThanOrEqual(caixaNaParede(src).largura * maior);
       // Parede: a célula mais larga (3 colunas a 1023px) e a mais estreita
       // (5 colunas dentro de max-w-7xl) — o `max-w-[68%]` de cada uma.
       expect(declarada, src).toBeGreaterThanOrEqual(desenhada(src, 3000, 22, 72, Infinity, 194));
       expect(declarada, src).toBeGreaterThanOrEqual(desenhada(src, 3000, 22, 72, Infinity, 129));
     }
+  });
+
+  it("a fita é a parede em ponto pequeno: a mesma proporção entre quaisquer dois (ela, 24/10)", () => {
+    // A queixa: na fita a Deloitte e a Pérez-Llorca eram enormes e a EDIA e a
+    // Universidade pequeninas. A razão de áreas entre dois logótipos tem de
+    // ser a mesma na fita e na parede, e nenhuma escala passa de 1 (senão o
+    // \`sizes\` mentia para menos).
+    for (const e of Object.values(ESCALA_DA_FITA)) expect(e).toBeLessThan(1);
+    const caixa = (nome: string) => {
+      const c = clientLogos.find((x) => x.name === nome);
+      if (!c) throw new Error(`cliente em falta: ${nome}`);
+      return caixaNaParede(c.logo);
+    };
+    // Os wordmarks carregados (a Deloitte, a Pérez-Llorca) não ficam mais
+    // altos do que os logótipos finos que ela viu pequeninos.
+    for (const pesado of ["Deloitte", "Pérez-Llorca", "Mainova", "Aernnova"])
+      for (const fino of [
+        "Universidade de Évora",
+        "Clínica Dentária Santa Madalena",
+        "Hilton Garden Inn",
+        "EDIA",
+      ])
+        expect(caixa(pesado).altura, `${pesado} vs ${fino}`).toBeLessThan(caixa(fino).altura);
+    // E nenhum wordmark passa do dobro da largura da Universidade.
+    for (const pesado of ["Deloitte", "Pérez-Llorca", "Mainova", "Aernnova"])
+      expect(caixa(pesado).largura).toBeLessThanOrEqual(2 * caixa("Universidade de Évora").largura);
   });
 
   it("declara a largura real, não a do logótipo mais largo de todos", () => {
@@ -139,9 +173,10 @@ describe("logoCssWidth / logoSizes", () => {
   it("as travas de CSS que a conta assume ainda estão nos componentes", () => {
     // Se alguém mexer nestas classes sem mexer em CONTEXTOS (logo.ts), o
     // `sizes` passa a mentir — para menos, e os logótipos desfocam.
-    expect(FITA).toContain("max-h-[22px] sm:max-h-[34px]");
-    expect(FITA).toContain("max-w-[120px] sm:max-w-[170px]");
-    expect(FITA).toContain("logoHeight(logo)");
+    expect(FITA).toContain("caixaNaParede(logo)");
+    expect(FITA).toContain(`[--fita-escala:${ESCALA_DA_FITA.telemovel}]`);
+    expect(FITA).toContain(`sm:[--fita-escala:${ESCALA_DA_FITA.sm}]`);
+    expect(FITA).toContain(`lg:[--fita-escala:${ESCALA_DA_FITA.lg}]`);
     expect(PAREDE).toContain("max-w-[68%]");
     expect(PAREDE).toContain("logoHeight(client.logo, 3000, 22, 72)");
   });

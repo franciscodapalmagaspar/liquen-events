@@ -24,6 +24,46 @@ const DENSIDADE_DE_REFERENCIA = 0.28;
 /** Quanto a tinta pesa na altura: 0 ignora-a, 0,5 compensa-a por inteiro. */
 const PESO_DA_TINTA = 0.4;
 
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * A REGRA DA PAREDE DE /clientes — A MESMA PARA A FITA (ela, 17/10 e 23/10)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Em /clientes cada logótipo tem o mesmo peso à vista (área + tinta, entre 22 e
+ * 72 px de altura, e a largura travada pela célula). A 23/10 ela reparou que a
+ * fita da página inicial «continua como estava antigamente»: a fita tinha a sua
+ * própria conta (área 1600, 26–46 px) e por cima um tecto de 34 px de altura e
+ * 170 de largura, que achatava tudo à mesma altura — o Convento ficava a 28 px
+ * de largura e a Deloitte a 137, o contrário da parede.
+ *
+ * A fita passa a ser a PAREDE EM PONTO PEQUENO: a mesma caixa de cada logótipo
+ * (`caixaNaParede`), multiplicada por uma escala só (`--fita-escala` no CSS da
+ * banda: 0,5 no telemóvel, 0,62 a partir de `sm`, 0,72 a partir de `lg`). A proporção entre quaisquer
+ * dois logótipos é a mesma nos dois sítios.
+ */
+export const PAREDE = { area: 3000, min: 22, max: 72, larguraMax: 194 } as const;
+
+/** A altura de um logótipo na parede, antes da trava de largura da célula. */
+export function alturaNaParede(src: string): number {
+  return logoHeight(src, PAREDE.area, PAREDE.min, PAREDE.max);
+}
+
+/**
+ * A caixa de um logótipo na célula mais larga da parede: a altura que fica
+ * depois de a largura ser travada (um `max-width` num `<img>` encolhe também a
+ * altura). É esta caixa que a fita desenha, à escala.
+ */
+export function caixaNaParede(src: string): { largura: number; altura: number } {
+  const [w, h] = logoDimsFor(src);
+  const ratio = w / h;
+  const altura = alturaNaParede(src);
+  const largura = Math.min(PAREDE.larguraMax, altura * ratio);
+  return { largura, altura: Math.round((largura / ratio) * 10) / 10 };
+}
+
+/** As escalas da fita (a parede em ponto pequeno). Estão também no CSS da banda. */
+export const ESCALA_DA_FITA = { telemovel: 0.5, sm: 0.62, lg: 0.72 } as const;
+
 export function logoDimsFor(src: string): number[] {
   const d = DIMS[src];
   return d ? [d[0], d[1]] : [400, 120];
@@ -88,29 +128,24 @@ export function logoHeight(src: string, targetArea = 1600, min = 26, max = 46): 
  */
 const CONTEXTOS = [
   {
-    // ClientMarquee: altura de `logoHeight(src)` cortada pelo `max-h-[34px]`,
-    // largura travada pelo `max-w-[170px]`. Abaixo de sm são 22px/120px — menor
-    // em ambos os eixos, logo nunca é este o caso que manda.
-    area: 1600,
-    min: 26,
-    max: 46,
-    alturaMax: 34,
-    larguraMax: 170,
-  },
-  {
-    // ClientLogoGrid: altura de `logoHeight(src, 3000, 22, 72)` (célula mais
-    // alta, sem `max-h`), largura travada pelo `max-w-[68%]` da célula.
+    // ClientLogoGrid: altura de `alturaNaParede(src)` (célula mais alta, sem
+    // `max-h`), largura travada pelo `max-w-[68%]` da célula.
     //
     // 194px = 68% da célula MAIS LARGA que a grelha alguma vez tem: 3 colunas a
     // 1023px de viewport, dentro de `max-w-7xl px-6`, cada célula com `px-5`
     // (já sem borda, desde 17/10) — (1023−48)/3 − 40 = 285px de conteúdo. Nos ecrãs grandes a
     // célula é MENOR (5 colunas dentro de 1280px ⇒ ~189px, medido), por isso
     // 194 cobre toda a escala de viewports com um número só.
-    area: 3000,
-    min: 22,
-    max: 72,
+    //
+    // A fita (ClientMarquee) NÃO tem contexto próprio desde 23/10: desenha a
+    // mesma caixa a 0,5, 0,62 ou 0,72 dela, sempre MENOR do que aqui — e por isso o
+    // mesmo `sizes` serve as duas e os três `<img>` do mesmo cliente em
+    // /clientes continuam a pedir um só URL.
+    area: PAREDE.area,
+    min: PAREDE.min,
+    max: PAREDE.max,
     alturaMax: Infinity,
-    larguraMax: 194,
+    larguraMax: PAREDE.larguraMax,
   },
 ];
 
