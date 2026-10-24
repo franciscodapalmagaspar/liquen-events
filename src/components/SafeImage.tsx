@@ -205,6 +205,18 @@ export type SafeImageProps = Omit<ImageProps, "src" | "loader" | "onError" | "on
    * substituía o desfoque num salto. `aparecer={false}` desliga-o.
    */
   aparecer?: boolean;
+  /**
+   * O véu de cima passa a ESCURO (metade da luz do desfoque).
+   *
+   * Ela, 24/10: «quando carrego para ir para alguma cena, o sistema fica a
+   * pensar e fica um bocadinho branco do nada… parece um flash branco». Filmado
+   * no telemóvel: ao mudar de página pelo menu, entre o verde do menu e a
+   * fotografia do topo via-se o desfoque dela — e o desfoque de uma fotografia
+   * com céu é claro (o de /clientes mede 181 em 255, quase branco). Escuro, a
+   * passagem é verde → escuro → fotografia, como num corte de cinema. É uma
+   * cor fixa na cópia do desfoque; o que anima continua a ser só a opacidade.
+   */
+  veuEscuro?: boolean;
 };
 
 /**
@@ -275,7 +287,10 @@ const PICTURE_FILL = { position: "absolute", inset: 0 } as const;
 const PICTURE_SEM_CAIXA = { display: "contents" } as const;
 
 function fonteAvif(
-  p: Pick<SafeImageProps, "src" | "width" | "height" | "fill" | "sizes" | "quality" | "unoptimized">,
+  p: Pick<
+    SafeImageProps,
+    "src" | "width" | "height" | "fill" | "sizes" | "quality" | "unoptimized"
+  >,
   primeiro: (p: ImageLoaderProps) => string,
 ): FonteAvif | null {
   if (p.unoptimized) return null;
@@ -339,6 +354,7 @@ export default function SafeImage({
   unavailableLabel,
   initialLoader,
   aparecer: aparecerPedido,
+  veuEscuro = false,
   fill,
   width,
   height,
@@ -658,7 +674,7 @@ export default function SafeImage({
           // A mesma `className` da fotografia (enquadramento, escala de
           // repouso…) para o desfoque ficar exactamente por cima dela; a
           // opacidade vai no `style`, para nenhuma classe a contrariar.
-          className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-foto-chega ${className ?? ""}`}
+          className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-foto-chega ${veuEscuro ? "brightness-50" : ""} ${className ?? ""}`}
           style={{ opacity: veu === "saida" ? 0 : 1 }}
           onTransitionEnd={() => setVeu("nenhum")}
         />

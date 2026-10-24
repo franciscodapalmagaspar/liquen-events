@@ -1771,6 +1771,24 @@ body[data-menu-open] .whatsapp-fixed {
      block lingers for any fixed child. */
   animation: route-fade 0.4s var(--ease-out) backwards;
 }
+/* ── O ECRÃ DE ESPERA NÃO PODE FICAR PRESO DENTRO DO «ASSENTAR» ──────────────
+   Ela, 24/10: «quando carrego para ir para alguma cena… fica um bocadinho
+   branco do nada… parece um flash branco». Filmado no telemóvel, em 4G, ao
+   tocar num serviço a partir de /servicos: ~0,45 s de página BRANCA e vazia,
+   depois o ecrã escuro de espera, depois a página.
+
+   A causa: o ecrã de espera (`loading.tsx`) é `fixed inset-0` e nasce DENTRO
+   deste contentor. Enquanto o `route-fade` corre, o contentor tem `transform`,
+   e um `transform` passa a ser o bloco de referência de qualquer `fixed` lá
+   dentro — o ecrã escuro media o contentor (medido: 0 px de altura, a 96 px
+   do topo), não o ecrã. O que se via era o fundo claro da página.
+
+   Enquanto o ecrã de espera lá está, não há animação; quando a página
+   verdadeira o substitui, a regra deixa de casar e o `route-fade` arranca
+   NESSE instante — o «assentar» passa a acompanhar a chegada da página. */
+.route-fade:has(.ecra-de-espera) {
+  animation: none;
+}
 
 /* ── View Transitions (rotas + morph da galeria) ──
    .vt-page / .vt-page-fwd / .vt-page-bwd  todas as navegações usam UM cross-fade
