@@ -27,6 +27,25 @@
    Uma regra nova só do back office vai para lá, não para aqui.
    ════════════════════════════════════════════════════════════════════════ */
 @source not "./[lang]/(admin)";
+/* Ela (24/10): «se não está no topo do telemóvel e no computador, temos que
+   colocar». O Tailwind lia o projecto inteiro e gerava classes para tudo o que
+   parecia uma: os documentos, os testes, os guiões de medição. Nada disso chega
+   a um visitante, e cada classe ia para a folha de TODAS as páginas (que viaja
+   no próprio HTML, `inlineCss`). Só se lê o código que se desenha. */
+@source not "../../docs";
+@source not "../../e2e";
+@source not "../../test";
+@source not "../../scripts";
+@source not "../../remotion";
+@source not "../../meta-ads";
+@source not "../../ads-output";
+@source not "../../auditoria";
+@source not "../../medicao";
+@source not "../../db";
+@source not "../../data";
+@source not "../../*.md";
+@source not "../**/*.test.ts";
+@source not "../**/*.test.tsx";
 
 @import "./tema.css";
 

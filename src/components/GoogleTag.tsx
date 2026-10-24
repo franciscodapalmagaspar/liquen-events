@@ -140,7 +140,7 @@ export default function GoogleTag() {
   useEffect(() => {
     if (suppressed) return;
     bootstrapGtag();
-    carregarGtag();
+    return agendarGtag();
   }, [suppressed, pathname]);
 
   if (suppressed) return null;
@@ -179,4 +179,44 @@ export function carregarGtag(): void {
   s.src = GTAG_SRC;
   s.async = true;
   document.body.appendChild(s);
+}
+
+/**
+ * ── E SÓ ENTRA QUANDO HÁ ALGUÉM, OU QUANDO O TELEMÓVEL JÁ ESTÁ LIVRE ───────
+ *
+ * Ela (24/10): «se não está no topo do telemóvel e no computador, temos que
+ * colocar». Medido no Lighthouse móvel: os dois scripts do Google (Analytics e
+ * Ads, ~360 KB) eram o maior bloqueio de terceiros — ~350 ms do processador de
+ * um telemóvel, logo a seguir à hidratação, quando a página ainda está a
+ * responder ao primeiro toque.
+ *
+ * Agora a biblioteca entra no primeiro gesto (tocar, rolar, carregar numa
+ * tecla) ou, se ninguém mexer, `GTAG_ESPERA_MS` depois da hidratação. Nada se
+ * perde do que fica na fila: o `dataLayer` já tem o consentimento e o `config`
+ * (o bootstrap em linha corre antes de tudo) e a biblioteca, quando chega,
+ * esvazia-a — a página vista conta na mesma. O que se troca, dito: quem sai
+ * em menos de `GTAG_ESPERA_MS` sem tocar em nada não chega a ser contado.
+ * Uma conversão (o formulário) é sempre precedida de gestos, por isso nunca
+ * se perde. Não é o `lazyOnload` de antes (que esperava pelo `load` de uma
+ * página cheia de imagens, às vezes nunca): aqui há um prazo de relógio.
+ */
+export const GTAG_ESPERA_MS = 6000;
+const GESTOS = ["pointerdown", "keydown", "touchstart", "wheel", "scroll"] as const;
+
+export function agendarGtag(): () => void {
+  if (document.querySelector(`script[src="${GTAG_SRC}"]`)) return () => {};
+  let feito = false;
+  const agora = () => {
+    if (feito) return;
+    feito = true;
+    limpar();
+    carregarGtag();
+  };
+  const prazo = window.setTimeout(agora, GTAG_ESPERA_MS);
+  const limpar = () => {
+    window.clearTimeout(prazo);
+    for (const g of GESTOS) window.removeEventListener(g, agora);
+  };
+  for (const g of GESTOS) window.addEventListener(g, agora, { passive: true, once: true });
+  return limpar;
 }
