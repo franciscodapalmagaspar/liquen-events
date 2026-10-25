@@ -47,7 +47,13 @@ rules:
       obter TEXTO, itera até estabilizar e diz no comentário que não é um
       sanitizador.
     patterns:
-      - pattern-regex: '<\\?/\(script\|style\)>'
+      # A expressão antiga (`<\\?/\(script\|style\)>`) procurava LITERALMENTE
+      # o texto «(script|style)», e por isso nunca disparou sobre nada. Esta
+      # apanha `</script>` só dentro de uma expressão regular (`/…<\/script>…/`)
+      # — num comentário ou num texto, `</script>` é só texto. Corrigida na base
+      # de sites, onde se provou que dispara com um ficheiro de prova; aqui deu
+      # 0 achados no `src` todo.
+      - pattern-regex: '/[^/\n]*<\\{1,2}/(script|style)>[^/\n]*/[dgimsuy]*'
 
   - id: chave-de-tecto-com-endereco-quando-devia-ser-por-conta
     languages: [typescript, javascript]
