@@ -2157,6 +2157,27 @@ body:has([data-orcamento-mode]) .eyebrow {
   background-color: var(--cv-bg, var(--color-noite));
 }
 
+/* ── PÁGINAS FEITAS DE PAINÉIS ESCUROS: SEM FRESTAS BRANCAS ──────────────────
+   Ela, 25/10, com duas capturas de /servicos: «retira estas linhas… está assim
+   mas nos outros não… deixa tudo sem». Eram linhas finas claras entre os
+   painéis e nas bordas do ecrã.
+
+   Não há borda nenhuma. Num ecrã com escala fracionária (o Windows a 110 % ou
+   125 %), a página acaba a meio de um píxel e a fronteira entre dois painéis
+   também: esse píxel mistura a fotografia com o que está por trás — o fundo
+   do `body`, que é branco. Medido a 110 %: a última coluna à direita sai com
+   o dobro do brilho das vizinhas. Em /servicos nota-se porque a página é
+   SÓ painéis escuros colados, de ponta a ponta; nas outras há secções claras
+   e a fresta não tem com que contrastar.
+
+   Por trás destas páginas o fundo passa a ser o mesmo verde-quase-preto dos
+   painéis (`.cv-panel`), e a fresta deixa de se ver. Quem o pede é a própria
+   página, com `data-paineis-escuros`. */
+html:has([data-paineis-escuros]),
+body:has([data-paineis-escuros]) {
+  background-color: var(--color-noite);
+}
+
 /* ── O aviso de cookies de quem já respondeu ──
    A barra vem SEMPRE no HTML do servidor (a razão está no `[lang]/layout.tsx`:
    ela era o elemento de LCP e só nascia na hidratação, aos ~2 s). Quem já
