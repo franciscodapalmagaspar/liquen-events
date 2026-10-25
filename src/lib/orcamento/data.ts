@@ -869,6 +869,26 @@ export function spaceTypeLabel(id: unknown, locale = "pt"): string {
   return locale.startsWith("en") ? s.en : s.label;
 }
 
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * A COORDENAÇÃO DO DIA — pedido dela, 25/10
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * «No pedido de orçamento eu gostava de colocar lá a opção de coordenação do
+ * dia.» Uma pastilha só, em TODOS os eventos: quem a marca quer que a equipa
+ * trate dos horários, dos fornecedores e dos imprevistos no dia. É uma escolha
+ * de sim/nada — desmarcar é não ter dito.
+ */
+export const COORDENACAO_DO_DIA: { id: string; label: string; en: string }[] = [
+  { id: "sim", label: "Coordenação do dia", en: "Day-of coordination" },
+];
+
+/** «Sim»/«Yes» quando a pediram, vazio quando não disseram nada. */
+export function coordenacaoLabel(v: unknown, locale = "pt"): string {
+  if (v !== true) return "";
+  return locale.startsWith("en") ? "Yes" : "Sim";
+}
+
 export const BUDGET_RANGES: { id: string; label: string }[] = [
   { id: "ate_5k", label: "Até €5.000" },
   { id: "5k_15k", label: "€5.000 – €15.000" },

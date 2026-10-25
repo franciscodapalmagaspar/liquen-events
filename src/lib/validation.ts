@@ -133,6 +133,9 @@ export const quoteFormSchema = z
     // uma opção ao catálogo do formulário nunca exige mexer neste ficheiro.
     ceremonyType: trimmed(30).optional().default(""),
     spaceType: trimmed(30).optional().default(""),
+    // A coordenação do dia (pedido dela, 25/10). Declarada pela mesma razão
+    // dos outros: o `.strip()` deitava-a fora em silêncio.
+    dayCoordination: z.boolean().optional().default(false),
     budgetRange: trimmed(30).nullish(),
     urgency: trimmed(30).optional(),
     referralSource: trimmed(200).optional().default(""),

@@ -60,7 +60,12 @@ import PerguntaDeDesfecho from "./PerguntaDeDesfecho";
 import PainelGeracaoAoGanhar from "./PainelGeracaoAoGanhar";
 import { CATEGORIES, EVENT_TYPES_BY_CATEGORY, PACKAGES } from "@/lib/orcamento/data";
 import { rotularPontos } from "@/lib/orcamento/decoracao";
-import { guestRangeLabel, ceremonyTypeLabel, spaceTypeLabel } from "@/lib/orcamento/data";
+import {
+  guestRangeLabel,
+  ceremonyTypeLabel,
+  spaceTypeLabel,
+  coordenacaoLabel,
+} from "@/lib/orcamento/data";
 import { useToast } from "./Toast";
 import CommandPalette, { type Command } from "./CommandPalette";
 import ShortcutsModal from "./ShortcutsModal";
@@ -7597,6 +7602,12 @@ export default function AdminClient({
                                     // são dois sítios para montar num só dia.
                                     l: "Cerimónia",
                                     v: ceremonyTypeLabel(selected.ceremonyType) || null,
+                                  },
+                                  {
+                                    // Pedido dela, 25/10: se também querem
+                                    // que a equipa coordene o dia.
+                                    l: "Coordenação do dia",
+                                    v: coordenacaoLabel(selected.dayCoordination) || null,
                                   },
                                   {
                                     // O que o casal marcou no pedido. Aparece
