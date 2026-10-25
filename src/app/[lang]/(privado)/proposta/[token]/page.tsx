@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { readProposalToken } from "@/lib/proposal-token";
 import { propostaDoLink } from "@/lib/proposta-do-link";
-import { pareceCodigoCurto } from "@/lib/proposta-link-curto";
+import { codigoDoEndereco } from "@/lib/proposta-link-curto";
 import { SITE } from "@/lib/site";
 import { getDictionary, htmlLang, normalizeLocale, type Locale } from "@/lib/i18n";
 import { idiomaDaProposta } from "@/lib/proposta-idioma";
@@ -89,7 +89,14 @@ export const dynamic = "force-dynamic";
  * bare, o proxy devolvia-o a `/en/…`, sem fim. O `lang` no elemento é o que
  * resolve a parte que interessa a quem lê com um leitor de ecrã.
  */
-function tituloDoSeparador(locale: Locale): string {
+/**
+ * O título do separador. Com os nomes do casal (pedido dela, 25/10: «gostava que
+ * aqui ficasse o nome dos noivos»): «Ana & João · Líquen Events». Sem nomes, o
+ * de sempre.
+ */
+function tituloDoSeparador(locale: Locale, nomes?: string): string {
+  const n = (nomes ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+  if (n) return `${n} · Líquen Events`;
   return locale === "en" ? "Your proposal | Líquen Events" : "A sua proposta | Líquen Events";
 }
 
@@ -106,12 +113,16 @@ export async function generateMetadata({
   // a de quem está a olhar. Uma leitura que falhe também não pode deitar abaixo
   // o título da página: cai-se no visitante, como sempre foi.
   let locale = normalizeLocale(lang);
+  let nomes = "";
   try {
     // A MESMA proposta que a página resolve (o link segue o pedido, não a
     // linha — ver `proposta-do-link.ts`). Duas escadas diferentes davam um
     // separador português por cima de uma revisão inglesa.
     const proposal = (await propostaDoLink(token))?.proposta ?? null;
-    if (proposal) locale = idiomaDaProposta(proposal);
+    if (proposal) {
+      locale = idiomaDaProposta(proposal);
+      nomes = proposal.doc?.clientNames ?? "";
+    }
   } catch {
     /* fica a língua do visitante */
   }
@@ -133,7 +144,7 @@ export async function generateMetadata({
      * voltar a ela, e a marca escrita duas vezes lê-se como descuido logo à
      * entrada do documento que pede uma assinatura.
      */
-    title: { absolute: tituloDoSeparador(locale) },
+    title: { absolute: tituloDoSeparador(locale, nomes) },
     robots: { index: false, follow: false },
     /**
      * ═══════════════════════════════════════════════════════════════════════
@@ -304,7 +315,7 @@ export default async function ProposalPage({
      * nenhuma é um link partido pelo caminho.
      */
     const t = getDictionary(doVisitante).proposta;
-    const formaConhecida = pareceCodigoCurto(token) || readProposalToken(token) !== null;
+    const formaConhecida = codigoDoEndereco(token) !== null || readProposalToken(token) !== null;
     return formaConhecida ? (
       <Message title={t.notFoundTitle} body={t.notFoundBody} lang={htmlLang(doVisitante)} />
     ) : (

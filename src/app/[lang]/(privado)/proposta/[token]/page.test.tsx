@@ -273,6 +273,19 @@ describe("página pública da proposta — o título do separador", () => {
     expect(meta.robots).toEqual({ index: false, follow: false });
   });
 
+  it("com os nomes do casal, o separador diz quem é (pedido dela, 25/10)", async () => {
+    db.proposal = proposta({ idioma: "pt" });
+    db.proposal.doc = { ...(db.proposal.doc ?? {}), clientNames: "Ana  &  João" };
+    const meta = await pagina.generateMetadata({
+      params: Promise.resolve({ lang: "pt", token: "bom" }),
+    });
+    expect(meta.title).toEqual({ absolute: "Ana & João · Líquen Events" });
+    // As etiquetas de partilha ficam sem nomes: um link reencaminhado não
+    // espalha quem se casa para a pré-visualização de outra aplicação.
+    expect(JSON.stringify(meta.openGraph)).not.toContain("Ana");
+    expect(JSON.stringify(meta.twitter)).not.toContain("Ana");
+  });
+
   it("sem proposta, cai na língua do visitante", async () => {
     db.proposal = null;
     const meta = await pagina.generateMetadata({
