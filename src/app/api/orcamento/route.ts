@@ -11,7 +11,12 @@ import {
 } from "@/lib/orcamento/data";
 import { sendMail, MAIL_TO } from "@/lib/mail";
 import { rotularPontos } from "@/lib/orcamento/decoracao";
-import { guestRangeLabel, ceremonyTypeLabel, spaceTypeLabel } from "@/lib/orcamento/data";
+import {
+  guestRangeLabel,
+  ceremonyTypeLabel,
+  spaceTypeLabel,
+  coordenacaoLabel,
+} from "@/lib/orcamento/data";
 import { EMAIL_LOGO_CID, emailLogoAttachment } from "@/lib/email-logo";
 import { buildClientConfirmation } from "@/lib/client-confirmation";
 import { htmlDoPedidoParaAEquipa, type LinhaDoCartao } from "@/lib/email-pedido-equipa";
@@ -429,6 +434,9 @@ function buildEmail(id: string, form: QuoteFormData, breakdown?: PriceBreakdown)
   // montagens são e se é preciso um plano para o caso de chover.
   const cerimonia = ceremonyTypeLabel(form.ceremonyType);
   const espaco = spaceTypeLabel(form.spaceType);
+  // A coordenação do dia (pedido dela, 25/10): é trabalho a mais no dia, e por
+  // isso vai no mesmo bloco de decisão.
+  const coordenacao = coordenacaoLabel(form.dayCoordination);
   // As linhas que ficam: uma linha sem valor não se desenha (era o que o
   // `row()` fazia, e é o que este `filter` faz).
   const linhasDoPedido: LinhaDoCartao[] = [
@@ -436,6 +444,7 @@ function buildEmail(id: string, form: QuoteFormData, breakdown?: PriceBreakdown)
     { rotulo: "Local", valor: local },
     { rotulo: "Espaço", valor: espaco },
     { rotulo: "Cerimónia", valor: cerimonia },
+    { rotulo: "Coordenação do dia", valor: coordenacao },
     // "Casal" e não "Noivos": o formulário deixou de presumir que são um homem
     // e uma mulher, e o email que ela lê a seguir não pode voltar a presumi-lo.
     { rotulo: "Casal", valor: noivos },
@@ -537,6 +546,7 @@ function buildEmail(id: string, form: QuoteFormData, breakdown?: PriceBreakdown)
     local ? `Local: ${local}` : null,
     espaco ? `Espaço: ${espaco}` : null,
     cerimonia ? `Cerimónia: ${cerimonia}` : null,
+    coordenacao ? `Coordenação do dia: ${coordenacao}` : null,
     decor ? `Decoração: ${decor}` : null,
     budgetLabel ? `Orçamento: ${budgetLabel}` : null,
     urgencyLabel ? `Antecedência: ${urgencyLabel}` : null,
@@ -613,6 +623,7 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
         // Na língua do email, como tudo o resto deste resumo.
         ceremony: ceremonyTypeLabel(form.ceremonyType, locale),
         space: spaceTypeLabel(form.spaceType, locale),
+        dayCoordination: coordenacaoLabel(form.dayCoordination, locale),
       },
     });
     // Per-recipient daily cap: this email goes to a user-SUPPLIED address, so

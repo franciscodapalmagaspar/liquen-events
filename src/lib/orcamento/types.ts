@@ -111,6 +111,13 @@ export interface QuoteFormData {
    * anteriores a este campo.
    */
   spaceType?: string;
+  /**
+   * Se pediram também a coordenação do dia (pedido dela, 25/10: «no pedido de
+   * orçamento eu gostava de colocar lá a opção de coordenação do dia»). Aplica-se
+   * a QUALQUER evento, é opcional, e não existe nos pedidos anteriores a este
+   * campo — ausente quer dizer «não disse», nunca «não quer».
+   */
+  dayCoordination?: boolean;
   budgetRange: BudgetRange | null;
   urgency: Urgency;
   notes: string;

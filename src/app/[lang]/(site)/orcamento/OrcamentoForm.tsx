@@ -18,6 +18,7 @@ import {
   GUEST_RANGES,
   CEREMONY_TYPES,
   SPACE_TYPES,
+  COORDENACAO_DO_DIA,
 } from "@/lib/orcamento/data";
 import { PONTOS_DECORACAO } from "@/lib/orcamento/decoracao";
 // O identificador de idempotência vive num módulo partilhado: os formulários
@@ -291,6 +292,8 @@ export default function OrcamentoForm({
    */
   const [cerimonia, setCerimonia] = useState("");
   const [espaco, setEspaco] = useState("");
+  // A coordenação do dia: "sim" ou nada (pedido dela, 25/10).
+  const [coordenacao, setCoordenacao] = useState("");
   const alternarDecor = (id: string) =>
     setDecor((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]));
   const [website, setWebsite] = useState(""); // honeypot — fica vazio
@@ -370,6 +373,7 @@ export default function OrcamentoForm({
       if (d.pessoasAprox) setPessoasAprox(d.pessoasAprox);
       if (d.cerimonia) setCerimonia(d.cerimonia);
       if (d.espaco) setEspaco(d.espaco);
+      if (d.coordenacao) setCoordenacao(d.coordenacao);
       // Os nomes do casal são gravados como todos os outros: quem sai daqui
       // para ler a política de privacidade e volta não pode voltar a um
       // formulário que se lembra de tudo menos de quem se vai casar.
@@ -427,6 +431,7 @@ export default function OrcamentoForm({
       pessoasAprox,
       cerimonia,
       espaco,
+      coordenacao,
       noivo,
       noiva,
     };
@@ -445,6 +450,7 @@ export default function OrcamentoForm({
     pessoasAprox,
     cerimonia,
     espaco,
+    coordenacao,
     noivo,
     noiva,
   ]);
@@ -484,6 +490,7 @@ export default function OrcamentoForm({
     pessoasAprox,
     cerimonia,
     espaco,
+    coordenacao,
     noivo,
     noiva,
     flushDraft,
@@ -712,6 +719,8 @@ export default function OrcamentoForm({
       // válida em todos os tipos de evento, e é a mesma pergunta em todos.
       ceremonyType: opt?.eventType === "casamentos" ? cerimonia : "",
       spaceType: espaco,
+      // A coordenação do dia vale para qualquer evento, como o espaço.
+      dayCoordination: coordenacao === "sim",
       // Só quando NÃO há número: os dois nunca convivem, e é o número que
       // manda. Enviar os dois deixava a equipa sem saber qual acreditar.
       guestsRange: guestsFlexible ? pessoasAprox : "",
@@ -828,6 +837,10 @@ export default function OrcamentoForm({
       );
     } else if (pessoas) lines.push(`${to.labelPessoas}: ${pessoas}`);
     if (local.trim()) lines.push(`${to.labelLocal}: ${local.trim()}`);
+    if (coordenacao === "sim") {
+      const c = COORDENACAO_DO_DIA[0];
+      if (c) lines.push(locale.startsWith("en") ? c.en : c.label);
+    }
     if (nome.trim()) lines.push(`${to.labelNome}: ${nome.trim()}`);
     return lines.join("\n");
   }
@@ -840,7 +853,19 @@ export default function OrcamentoForm({
     // marcava "ainda a definir" e escolhia a seguir a ordem de grandeza levava
     // para o WhatsApp um "Ainda a definir" que já não era verdade.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [eventType, dateFlexible, data, pessoas, guestsFlexible, pessoasAprox, local, nome, to, t],
+    [
+      eventType,
+      dateFlexible,
+      data,
+      pessoas,
+      guestsFlexible,
+      pessoasAprox,
+      local,
+      coordenacao,
+      nome,
+      to,
+      t,
+    ],
   );
 
   // Arrow-key navigation for the event-type radiogroup (WAI-ARIA radio pattern).
@@ -1106,6 +1131,21 @@ export default function OrcamentoForm({
                 </div>
               </fieldset>
             )}
+
+            {/* Coordenação do dia — pedido dela, 25/10. Logo a seguir à
+                decoração, porque é a outra metade do que a casa faz: a
+                decoração diz ONDE, isto diz se também estamos lá no dia. Em
+                TODOS os tipos de evento, e opcional. */}
+            <EscolhaUnica
+              legendId="of-coordenacao-legend"
+              legend={to.labelCoordenacao}
+              hint={to.hintCoordenacao}
+              options={COORDENACAO_DO_DIA}
+              value={coordenacao}
+              onChange={setCoordenacao}
+              english={locale.startsWith("en")}
+              onStart={markStart}
+            />
 
             {/* Data + Nº de pessoas */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-9">

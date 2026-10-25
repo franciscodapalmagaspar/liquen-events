@@ -480,6 +480,9 @@ export const pt = {
     // Aparece em todos os tipos de evento.
     labelEspaco: "O espaço é interior ou exterior?",
     hintEspaco: "Diga-nos apenas se vai ser num espaço interior ou ao ar livre.",
+    labelCoordenacao: "Também querem coordenação do dia?",
+    hintCoordenacao:
+      "Tratamos dos horários, dos fornecedores e dos imprevistos no dia, para só o viverem.",
     labelData: "Data do evento",
     dateFlexibleLabel: "Data ainda a definir",
     guestsFlexibleLabel: "Ainda a definir",
@@ -696,6 +699,7 @@ export const pt = {
     local: "Local",
     cerimonia: "Cerimónia",
     espaco: "Espaço",
+    coordenacao: "Coordenação do dia",
     decoracao: "Decoração",
     mensagem: "Mensagem",
     adicionais: "Serviços Adicionais",

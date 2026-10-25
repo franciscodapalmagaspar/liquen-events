@@ -605,3 +605,54 @@ describe("OrcamentoForm — alvos de toque no telemóvel", () => {
     expect(link.className).toMatch(/\balvo-toque\b/);
   });
 });
+
+/**
+ * A COORDENAÇÃO DO DIA (pedido dela, 25/10): uma pastilha só, em TODOS os tipos
+ * de evento, que viaja como `dayCoordination` e se pode desmarcar.
+ */
+describe("OrcamentoForm — a coordenação do dia", () => {
+  const pastilha = () => screen.getByRole("button", { name: "Coordenação do dia" });
+  async function enviado() {
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    return (
+      JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string) as {
+        form: { dayCoordination?: boolean };
+      }
+    ).form;
+  }
+
+  it("aparece no casamento e num evento que não é casamento", async () => {
+    montar();
+    await userEvent.click(screen.getByRole("radio", { name: to.eventTypeLabels[0] }));
+    expect(pastilha()).toBeTruthy();
+    await userEvent.click(screen.getByRole("radio", { name: to.eventTypeLabels[5] }));
+    expect(pastilha()).toBeTruthy();
+    expect(screen.getByText(to.labelCoordenacao)).toBeTruthy();
+  });
+
+  it("marcada, o pedido leva `dayCoordination: true`", async () => {
+    await preencherPedido();
+    await userEvent.click(pastilha());
+    expect(pastilha().getAttribute("aria-pressed")).toBe("true");
+    enviar();
+    expect((await enviado()).dayCoordination).toBe(true);
+  });
+
+  it("desmarcada (ou nunca tocada), leva `false`", async () => {
+    await preencherPedido();
+    await userEvent.click(pastilha());
+    await userEvent.click(pastilha());
+    expect(pastilha().getAttribute("aria-pressed")).toBe("false");
+    enviar();
+    expect((await enviado()).dayCoordination).toBe(false);
+  });
+
+  it("o esquema do servidor aceita-a", () => {
+    const r = quoteFormSchema.safeParse({
+      name: "Ana",
+      email: "ana@exemplo.pt",
+      dayCoordination: true,
+    });
+    expect(r.success && r.data.dayCoordination).toBe(true);
+  });
+});

@@ -126,6 +126,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // da equipa — e isto não é nenhuma dessas coisas.
       ceremonyType: quote.ceremonyType ?? "",
       spaceType: quote.spaceType ?? "",
+      dayCoordination: quote.dayCoordination === true,
     };
     return NextResponse.json(safe);
   } catch (err) {

@@ -429,6 +429,43 @@ describe("POST /api/orcamento", () => {
     });
   });
 
+  /**
+   * A COORDENAÇÃO DO DIA (pedido dela, 25/10). O mesmo caminho do espaço: o que
+   * o cliente marca chega ao pedido gravado, ao email da equipa e de volta ao
+   * próprio cliente; quem não marcou não ganha linha nenhuma.
+   */
+  describe("coordenação do dia", () => {
+    const comCoordenacao = { ...validForm, dayCoordination: true };
+
+    it("chega ao pedido gravado", async () => {
+      await enviarTudo({ form: comCoordenacao });
+      const [gravado] = store.create.mock.calls[0] as unknown as [{ dayCoordination?: boolean }];
+      expect(gravado.dayCoordination).toBe(true);
+    });
+
+    it("aparece no email à equipa e no do cliente", async () => {
+      await enviarTudo({ form: comCoordenacao });
+      expect(sendMailMock.mock.calls[0][0].text ?? "").toContain("Coordenação do dia: Sim");
+      expect(sendMailMock.mock.calls[1][0].text ?? "").toContain("Coordenação do dia: Sim");
+      expect(sendMailMock.mock.calls[1][0].html).toContain("Coordenação do dia");
+    });
+
+    it("quem não a marcou não ganha linha", async () => {
+      await enviarTudo({ form: validForm });
+      const [gravado] = store.create.mock.calls[0] as unknown as [{ dayCoordination?: boolean }];
+      expect(gravado.dayCoordination).toBe(false);
+      for (const [args] of sendMailMock.mock.calls) {
+        expect(args.text ?? "").not.toContain("Coordenação do dia");
+        expect(args.html).not.toContain("Coordenação do dia");
+      }
+    });
+
+    it("um valor que não é sim/não é recusado pelo esquema, não gravado", async () => {
+      const r = await POST(req("POST", { form: { ...validForm, dayCoordination: "<script>" } }));
+      expect(r.status).toBe(400);
+    });
+  });
+
   it("não mete o 'Como nos conheceu' no email", async () => {
     // Ela fotografou a linha `Como nos conheceu  ref:www.google.com` e pediu
     // para a tirar. O campo não é escrito por ninguém — é apanhado pelo

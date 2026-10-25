@@ -84,6 +84,8 @@ export interface DadosDoPedidoRecebido {
     espaco: string;
     /** Já com o rótulo na língua do email («Religiosa», «Religious»). */
     cerimonia?: string;
+    /** «Sim»/«Yes» quando pediram a coordenação do dia. */
+    coordenacao?: string;
   };
   casa: {
     nome: string;
@@ -166,6 +168,7 @@ const TEXTOS = {
       convidados: "Convidados",
       espaco: "Espaço",
       cerimonia: "Cerimónia",
+      coordenacao: "Coordenação do dia",
       referencia: "Referência",
     },
     aDefinir: "Ainda a definir",
@@ -203,6 +206,7 @@ const TEXTOS = {
       convidados: "Guests",
       espaco: "Space",
       cerimonia: "Ceremony",
+      coordenacao: "Day-of coordination",
       referencia: "Reference",
     },
     aDefinir: "Still to be decided",
@@ -338,12 +342,13 @@ export function emailPedidoRecebido(d: DadosDoPedidoRecebido): {
     convidados: convidados ? t.previsao(convidados) : "",
     espaco: d.pedido.espaco.trim(),
     cerimonia: (d.pedido.cerimonia ?? "").trim(),
+    coordenacao: (d.pedido.coordenacao ?? "").trim(),
     referencia: d.referencia.trim(),
   };
   // Uma linha só fica de fora se chegar vazia — um rótulo com nada à frente
   // lê-se como avaria.
   const presentes = (
-    ["data", "local", "convidados", "espaco", "cerimonia", "referencia"] as const
+    ["data", "local", "convidados", "espaco", "cerimonia", "coordenacao", "referencia"] as const
   ).filter((k) => valores[k] !== "");
   const linhas = presentes
     .map((k, i) =>

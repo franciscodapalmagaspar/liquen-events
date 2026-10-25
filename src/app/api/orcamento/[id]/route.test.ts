@@ -222,6 +222,9 @@ describe("GET /api/orcamento/[id] — PII protection", () => {
         // esta linha aparecer num diff sem uma razão dessas, é uma fuga.
         "spaceType",
         "ceremonyType",
+        // A coordenação do dia (pedido dela, 25/10): também é uma resposta
+        // que a pessoa deu, e a confirmação mostra-a de volta.
+        "dayCoordination",
       ].sort(),
     );
     expect(json.status).toBe("pendente");
