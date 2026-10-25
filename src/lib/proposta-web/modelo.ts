@@ -118,6 +118,8 @@ export interface PropostaWeb {
     mailto: string;
     validade: string;
   };
+  /** As redes do rodapé (pedido dela, 25/10). O LinkedIn só existe se houver endereço. */
+  redes: { instagram: string; linkedin?: string };
   pdf: string;
 }
 
@@ -393,6 +395,7 @@ export async function montarPropostaWeb(
     idioma,
     t,
     casamento: c.casamento,
+    redes: { instagram: SITE.instagram, linkedin: SITE.linkedin || undefined },
     lema: c.lema,
     capa,
     saudacao,
