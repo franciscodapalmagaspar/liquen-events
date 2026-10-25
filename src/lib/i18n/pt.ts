@@ -481,8 +481,7 @@ export const pt = {
     labelEspaco: "O espaço é interior ou exterior?",
     hintEspaco: "Diga-nos apenas se vai ser num espaço interior ou ao ar livre.",
     labelCoordenacao: "Também querem coordenação do dia?",
-    hintCoordenacao:
-      "Tratamos dos horários, dos fornecedores e dos imprevistos no dia, para só o viverem.",
+    hintCoordenacao: "Tratamos dos horários, dos fornecedores e dos imprevistos no dia.",
     labelData: "Data do evento",
     dateFlexibleLabel: "Data ainda a definir",
     guestsFlexibleLabel: "Ainda a definir",

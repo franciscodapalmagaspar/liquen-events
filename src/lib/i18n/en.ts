@@ -466,8 +466,7 @@ export const en: Dict = {
     labelEspaco: "Is the space indoors or outdoors?",
     hintEspaco: "Just tell us whether it will be indoors or outdoors.",
     labelCoordenacao: "Would you also like day-of coordination?",
-    hintCoordenacao:
-      "We look after the timings, the suppliers and anything unexpected on the day, so you can simply enjoy it.",
+    hintCoordenacao: "We look after the timings, the suppliers and anything unexpected on the day.",
     labelData: "Event date",
     dateFlexibleLabel: "Date still to be decided",
     guestsFlexibleLabel: "Still to be decided",
