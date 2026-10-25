@@ -178,4 +178,20 @@ describe("a proposta online pronta a desenhar", () => {
     expect(p.fecho.whatsapp).toMatch(/^https:\/\/wa\.me\/\d+\?text=/);
     expect(p.fecho.mailto).toMatch(/^mailto:/);
   });
+
+  it("o rodapé leva o Instagram e o LinkedIn da casa (pedido dela, 25/10)", async () => {
+    const { SITE } = await import("@/lib/site");
+    const p = await montarPropostaWeb(
+      conteudo,
+      { id: "p1", doc },
+      "TOKEN",
+      "pt",
+      textosWeb("pt"),
+      assinadas,
+    );
+    expect(p.redes.instagram).toBe(SITE.instagram);
+    expect(p.redes.linkedin).toBe(SITE.linkedin);
+    expect(textosWeb("pt").redes.instagram).toMatch(/Instagram/);
+    expect(textosWeb("en").redes.linkedin).toMatch(/LinkedIn/);
+  });
 });

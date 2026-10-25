@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { ImagemWeb, PropostaWeb as Dados } from "@/lib/proposta-web/modelo";
 import PropostaWebViva from "./PropostaWebViva";
+import { IconeInstagram, IconeLinkedIn } from "@/components/IconesDasRedes";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -542,10 +543,35 @@ export default function PropostaWeb({
           </div>
         </div>
       </section>
+      {/* O fecho da página (pedido dela, 25/10: «mais bonito… o Instagram, o
+          LinkedIn, como logo, como está no site… o logo ao meio»). Tudo ao
+          centro, como o fecho logo acima: o logótipo, o lema, um traço, e as
+          redes com o mesmo desenho do rodapé do site. */}
       <footer className="pw-foot">
         {/* eslint-disable-next-line @next/next/no-img-element -- o logótipo, servido pelo site */}
         <img src="/logo-liquen-proposta.png" alt="Líquen Events" />
-        <span>{d.lema}</span>
+        <p className="pw-foot-lema">{d.lema}</p>
+        <div className="pw-rule" />
+        <div className="pw-redes">
+          <a
+            href={d.redes.instagram}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t.redes.instagram}
+          >
+            <IconeInstagram tamanho={20} />
+          </a>
+          {d.redes.linkedin ? (
+            <a
+              href={d.redes.linkedin}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t.redes.linkedin}
+            >
+              <IconeLinkedIn tamanho={20} />
+            </a>
+          ) : null}
+        </div>
       </footer>
     </div>
   );

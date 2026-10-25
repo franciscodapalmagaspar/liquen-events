@@ -40,6 +40,8 @@ export interface TextosWeb {
   validaAte: (data: string) => string;
   emitidaA: (data: string) => string;
   verPdf: string;
+  /** O nome das ligações às redes, no rodapé (para o leitor de ecrã). */
+  redes: { instagram: string; linkedin: string };
   fechar: string;
   anterior: string;
   seguinte: string;
@@ -83,6 +85,10 @@ const PT: TextosWeb = {
   validaAte: (d) => `Válida até ${d}`,
   emitidaA: (d) => `Emitida a ${d}`,
   verPdf: "Ver a proposta em PDF",
+  redes: {
+    instagram: "Instagram da Líquen Events (abre numa janela nova)",
+    linkedin: "LinkedIn da Líquen Events (abre numa janela nova)",
+  },
   fechar: "Fechar",
   anterior: "Anterior",
   seguinte: "Seguinte",
@@ -122,6 +128,10 @@ const EN: TextosWeb = {
   validaAte: (d) => `Valid until ${d}`,
   emitidaA: (d) => `Issued on ${d}`,
   verPdf: "See the proposal as a PDF",
+  redes: {
+    instagram: "Líquen Events on Instagram (opens in a new window)",
+    linkedin: "Líquen Events on LinkedIn (opens in a new window)",
+  },
   fechar: "Close",
   anterior: "Previous",
   seguinte: "Next",
