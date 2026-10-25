@@ -788,6 +788,11 @@ describe("a auditoria cobre TODAS as rotas de src/app/api", () => {
       // visita, sem sessão. O que o protege: esquema fechado, 8 KB, 20 por
       // minuto por IP, e desliga-se sozinho no fim do prazo.
       "./diagnostico-video/route",
+      // Os erros do browser do site PÚBLICO (o irmão de admin/erro-do-cliente).
+      // Quem manda é o browser de quem visita, sem sessão. O que a protege:
+      // cinco campos de texto cortados, 4 KB, dez por minuto por IP, o caminho
+      // sem o segmento-token, e 204 sempre.
+      "./erro-do-site/route",
       "./orcamento/route", // POST público + GET admin (ambos acima)
       // A medição da Meta. É PÚBLICA de propósito: recebe os eventos que o
       // browser acabou de mandar ao pixel, e o browser não tem sessão nenhuma.
@@ -908,6 +913,13 @@ describe("PUBLIC routes stay reachable without a session", () => {
     const fn = await handler("./diagnostico-video/route", "POST");
     const res = await fn(req("POST", "/api/diagnostico-video", { v: 1 }), ctx());
     // Público (o browser manda): 204 sempre, mesmo quando recusa o corpo.
+    expect(res.status).toBe(204);
+  });
+
+  it("POST /api/erro-do-site accepts a browser error report unauthenticated", async () => {
+    const fn = await handler("./erro-do-site/route", "POST");
+    const res = await fn(req("POST", "/api/erro-do-site", { mensagem: "x", onde: "/" }), ctx());
+    // Público (o browser manda): 204 sempre, também acima do tecto.
     expect(res.status).toBe(204);
   });
 

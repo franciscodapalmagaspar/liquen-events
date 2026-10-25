@@ -28,7 +28,11 @@ export async function POST(req: NextRequest) {
   sweep();
   // A page can send up to ~5 metrics; allow a comfortable burst per client.
   if (!(await rateLimit(`vitals:${clientIp(req)}`, 40, 60_000)).ok) {
-    return new NextResponse(null, { status: 429 });
+    // 204 e não 429: acima do tecto deita-se fora em silêncio. Um 429 aparecia
+    // a vermelho na consola da página do visitante (e o Lighthouse desconta-o
+    // nas boas práticas), por uma coisa que ele não pediu. Medido na base de
+    // sites, onde as boas práticas desciam a 93–96 por isto.
+    return new NextResponse(null, { status: 204 });
   }
   try {
     const parsed = VitalSchema.safeParse(await req.json().catch(() => null));

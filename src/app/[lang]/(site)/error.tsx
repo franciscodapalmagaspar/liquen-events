@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { log } from "@/lib/logger";
+import { relatarErroPara } from "@/lib/relatar-erro";
 import { useTranslations } from "@/components/LocaleProvider";
 import { localizeHref } from "@/lib/i18n/config";
 
@@ -17,6 +18,8 @@ export default function Error({
 
   useEffect(() => {
     log.error("erro renderizado no boundary de página", error);
+    // O `log.error` do browser morre na consola do telemóvel; isto chega ao registo.
+    relatarErroPara("/api/erro-do-site", error, error.digest ?? "ecra-de-erro");
   }, [error]);
 
   return (
