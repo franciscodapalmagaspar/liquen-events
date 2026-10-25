@@ -3,6 +3,8 @@ import { randomInt } from "node:crypto";
 import { getState, setState } from "./app-state";
 import { createProposalToken, validadeDeUmLinkNovo } from "./proposal-token";
 import { SITE } from "./site";
+import { getProposal } from "./proposals-store";
+import { rateLimit } from "./rate-limit";
 import { log } from "./logger";
 
 /**
@@ -88,8 +90,32 @@ const PREFIXO_INVERSO = "ligacao-de-proposta:";
 /** Crockford base32, minúsculas: sem `i`, `l`, `o` nem `u`. */
 const ALFABETO = "0123456789abcdefghjkmnpqrstvwxyz";
 
-/** Quantos símbolos tem um código. 16 × 5 bits = 80 bits. */
-export const COMPRIMENTO_DO_CODIGO = 16;
+/**
+ * Quantos símbolos tem um código NOVO: 8 × 5 bits = 40 bits.
+ *
+ * ── PORQUE É QUE PASSOU DE 16 A 8 (pedido dela, 25/10) ────────────────────
+ *
+ * «Gostava que aqui ficasse o nome dos noivos e não estas palavras todas
+ * manhosas.» O endereço passa a `/proposta/ana-e-joao-k7m2q9xd`: os nomes à
+ * frente (só para o olho — não abrem nada) e o código no fim, que continua a
+ * ser a chave. Ela escolheu isto depois de lhe dizer que só os nomes deixavam
+ * qualquer pessoa abrir a proposta de um casal adivinhando-os.
+ *
+ * Quarenta bits sozinhos adivinham-se com paciência; por isso os códigos de 8
+ * têm um tecto de tentativas por IP (`TENTATIVAS_POR_MINUTO`) que os de 16 não
+ * precisam. Com esse tecto, adivinhar fica fora do alcance de qualquer pessoa.
+ */
+export const COMPRIMENTO_DO_CODIGO = 8;
+
+/** Os códigos emitidos antes de 25/10 têm 16 símbolos (80 bits) e continuam a abrir. */
+export const COMPRIMENTO_ANTIGO = 16;
+
+/**
+ * Quantas leituras de códigos de 8 um IP pode fazer por minuto. A página, o PDF
+ * e as fotografias de UMA visita fazem perto de 60; isto deixa folga para
+ * várias visitas seguidas, e deixa um adivinhador a 5 tentativas por segundo.
+ */
+const TENTATIVAS_POR_MINUTO = 300;
 
 /**
  * O que fica guardado por trás de um código.
@@ -146,7 +172,63 @@ export function codigoNovo(): string {
 /** Isto tem a forma de um código curto? Serve para distinguir do token, que é
  *  muito mais comprido e traz pontos. */
 export function pareceCodigoCurto(valor: unknown): boolean {
-  return new RegExp(`^[0-9a-z]{${COMPRIMENTO_DO_CODIGO}}$`).test(String(valor ?? ""));
+  const v = String(valor ?? "");
+  return (
+    (v.length === COMPRIMENTO_DO_CODIGO || v.length === COMPRIMENTO_ANTIGO) && /^[0-9a-z]+$/.test(v)
+  );
+}
+
+/**
+ * O código dentro de um segmento de endereço, ou `null`.
+ *
+ *   `ana-e-joao-k7m2q9xd`  → `k7m2q9xd`  (o formato novo: nomes + código)
+ *   `njwwrj4m7tyz6x62`     → o próprio   (os 16 de antes, sem nomes)
+ *
+ * O código é o que vem depois do ÚLTIMO hífen; os nomes não contam para nada,
+ * e por isso um link continua a abrir se os nomes da proposta mudarem depois.
+ * Um token assinado tem pontos, maiúsculas e `_`, e nunca passa por aqui.
+ */
+export function codigoDoEndereco(segmento: unknown): string | null {
+  const s = String(segmento ?? "");
+  if (!/^[0-9a-z]+(?:-[0-9a-z]+)*$/.test(s)) return null;
+  const codigo = s.slice(s.lastIndexOf("-") + 1);
+  return pareceCodigoCurto(codigo) ? codigo : null;
+}
+
+/**
+ * Os nomes para o endereço: «Ana & João» → `ana-e-joao`. Sem acentos (um
+ * endereço com «ã» copiado para certos clientes de email parte-se), minúsculas,
+ * e no máximo ~40 caracteres, cortados num hífen. Sem nomes, `proposta`.
+ */
+export function nomesNoEndereco(nomes: unknown): string {
+  const base = String(nomes ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/&/g, " e ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (!base) return "proposta";
+  if (base.length <= 40) return base;
+  const corte = base.slice(0, 41);
+  const ultimo = corte.lastIndexOf("-");
+  return (ultimo > 10 ? corte.slice(0, ultimo) : base.slice(0, 40)).replace(/-+$/g, "");
+}
+
+/** O IP de quem está a pedir, quando há pedido (fora de um pedido, `null`). */
+async function ipDoPedido(): Promise<string | null> {
+  try {
+    const { headers } = await import("next/headers");
+    const h = await headers();
+    return (
+      h.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() ||
+      h.get("x-real-ip")?.trim() ||
+      h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      null
+    );
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -162,7 +244,14 @@ export async function criarLigacaoCurta(
   pedidoId: string,
   validaAte: Date,
 ): Promise<string | null> {
-  const codigo = codigoNovo();
+  // Com 8 símbolos, uma repetição é improvável mas possível: confirma-se que a
+  // gaveta está livre antes de a usar (e tenta-se outra, até cinco vezes).
+  let codigo = codigoNovo();
+  for (let i = 0; i < 5; i += 1) {
+    const ocupada = await getState<LigacaoCurta>(chave(codigo)).catch(() => null);
+    if (!ocupada) break;
+    codigo = codigoNovo();
+  }
   const ligacao: LigacaoCurta = {
     propostaId: String(propostaId ?? "").trim(),
     pedidoId: String(pedidoId ?? "").trim(),
@@ -211,6 +300,14 @@ export async function lerLigacaoCurta(
   codigo: string,
 ): Promise<{ propostaId: string; criadaEm: string } | null> {
   if (!pareceCodigoCurto(codigo)) return null;
+  // O tecto de tentativas, só para os códigos de 8 (ver `COMPRIMENTO_DO_CODIGO`).
+  // Fora de um pedido (um teste, um aquecimento) não há IP, e não se conta.
+  if (codigo.length === COMPRIMENTO_DO_CODIGO) {
+    const ip = await ipDoPedido();
+    if (ip && !(await rateLimit(`proposta-codigo:${ip}`, TENTATIVAS_POR_MINUTO, 60_000)).ok) {
+      return null;
+    }
+  }
   try {
     const g = await getState<LigacaoCurta>(chave(codigo));
     if (!g?.propostaId) return null;
@@ -287,5 +384,18 @@ export async function enderecoDaProposta(propostaId: string, pedidoId: string): 
     ? ((await codigoJaEmitido(id)) ??
       (await criarLigacaoCurta(id, pedidoId, validadeDeUmLinkNovo())))
     : null;
-  return `${SITE.url}/proposta/${curto ?? createProposalToken(propostaId)}`;
+  if (!curto) return `${SITE.url}/proposta/${createProposalToken(propostaId)}`;
+  // Os de 16 (emitidos antes de 25/10) ficam exactamente como foram enviados:
+  // o casal não pode ficar com dois endereços diferentes para a mesma proposta.
+  if (curto.length !== COMPRIMENTO_DO_CODIGO) return `${SITE.url}/proposta/${curto}`;
+  return `${SITE.url}/proposta/${nomesNoEndereco(await nomesDaProposta(id))}-${curto}`;
+}
+
+/** Os nomes da proposta (`clientNames`), ou vazio se a leitura falhar. */
+async function nomesDaProposta(propostaId: string): Promise<string> {
+  try {
+    return (await getProposal(propostaId))?.doc?.clientNames ?? "";
+  } catch {
+    return "";
+  }
 }

@@ -4,7 +4,7 @@ import type { Proposal } from "@/lib/orcamento/types";
 import { getProposal, listProposalsForQuote } from "@/lib/proposals-store";
 import { getAcceptedContractByQuote } from "@/lib/contracts-store";
 import { readProposalToken } from "@/lib/proposal-token";
-import { lerLigacaoCurta, pareceCodigoCurto } from "@/lib/proposta-link-curto";
+import { codigoDoEndereco, lerLigacaoCurta } from "@/lib/proposta-link-curto";
 import { aindaAbre, linksCortadosEm } from "@/lib/links-cortados";
 import { estadoDaVersao, seloDoConteudo, type EstadoDaVersao } from "@/lib/proposta-versao";
 import { log } from "@/lib/logger";
@@ -132,7 +132,10 @@ export const propostaDoLink = cache(async function propostaDoLink(
    * O código curto é tentado primeiro porque é uma comparação de forma, barata,
    * e falha de imediato para tudo o que seja um token.
    */
-  const codigo = pareceCodigoCurto(token) ? await lerLigacaoCurta(String(token)) : null;
+  // O formato novo traz os nomes à frente (`ana-e-joao-k7m2q9xd`); quem conta é
+  // só o código do fim (`codigoDoEndereco`). Os de 16 continuam a passar.
+  const doEndereco = codigoDoEndereco(token);
+  const codigo = doEndereco ? await lerLigacaoCurta(doEndereco) : null;
   const doTokenAssinado = codigo ? null : readProposalToken(token);
   const propostaId = codigo?.propostaId ?? doTokenAssinado?.proposalId;
   if (!propostaId) return null;
