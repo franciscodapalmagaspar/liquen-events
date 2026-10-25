@@ -12,6 +12,7 @@ import { localizeHref, type Locale } from "@/lib/i18n/config";
 import type { ChromeDict } from "@/lib/i18n";
 import { track } from "@/lib/track";
 import { EASE_OUT } from "@/lib/motion/tokens";
+import { useIsomorphicLayoutEffect } from "@/lib/motion/useIsomorphicLayoutEffect";
 
 // A desaceleração de assinatura, LIDA DA FICHA em vez de copiada. Era a quarta
 // cópia à mão da curva (o próprio `tokens.ts` a nomeia), e uma cópia é um sítio
@@ -523,6 +524,53 @@ export default function Navbar() {
     setIsOpen(false);
   }, [pathname]);
 
+  /*
+   * ── AO MUDAR DE PÁGINA, A BARRA NÃO SE ESBATE: PASSA LOGO AO ESTADO CERTO ──
+   *
+   * Medido a 25/10 no site publicado, no telemóvel, de /servicos (descida até
+   * ao cartão) para /servicos/casamentos: a barra vinha no estado descido —
+   * fundo claro — e, com a página nova já no topo, levava os 500 ms da
+   * transição a esbater-se para transparente por cima da fotografia escura.
+   * Era metade do clarão de que ela se queixou («principalmente na parte de
+   * serviços e carrego para ver um serviço específico»).
+   *
+   * Numa página nova (não «voltar atrás», que repõe o scroll) a barra começa
+   * transparente no mesmo fotograma, e durante dois fotogramas não há
+   * transições na barra; depois lê-se o scroll verdadeiro, já com a página no
+   * sítio. O primeiro carregamento não passa por aqui.
+   */
+  const [aTrocar, setATrocar] = useState(false);
+  const voltouAtras = useRef(false);
+  useEffect(() => {
+    const aoVoltar = () => {
+      voltouAtras.current = true;
+    };
+    window.addEventListener("popstate", aoVoltar);
+    return () => window.removeEventListener("popstate", aoVoltar);
+  }, []);
+  const primeiraPagina = useRef(true);
+  useIsomorphicLayoutEffect(() => {
+    if (primeiraPagina.current) {
+      primeiraPagina.current = false;
+      return;
+    }
+    setATrocar(true);
+    if (!voltouAtras.current) setScrolled(false);
+    voltouAtras.current = false;
+    let um = 0;
+    let dois = 0;
+    um = requestAnimationFrame(() => {
+      dois = requestAnimationFrame(() => {
+        setScrolled(window.scrollY > 30);
+        setATrocar(false);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(um);
+      cancelAnimationFrame(dois);
+    };
+  }, [pathname]);
+
   // Fechar o menu se o viewport crescer até ao breakpoint de desktop (lg,
   // 1024px). Caso contrário `isOpen` fica preso a true: o overlay é escondido
   // por CSS (`lg:hidden`), mas o scroll-lock (body overflow:hidden +
@@ -580,7 +628,10 @@ export default function Navbar() {
       // `transitionrun` num passo de scroll que cruza o limiar dos 30 px: 23
       // transições a arrancar ao mesmo tempo, das quais 3 eram estas. Ficam 20,
       // e o aspecto é o mesmo — uma borda de largura zero não se vê.
+      data-a-trocar={aTrocar || undefined}
       className={`fixed top-0 left-0 right-0 z-50 pt-safe transition-[background-color,border-bottom-color,box-shadow] duration-500 ease-expo ${
+        aTrocar ? "!transition-none [&_*]:!transition-none " : ""
+      }${
         // Barra CLARA sólida ao fazer scroll (fundo surface a 95% + filete ténue
         // + sombra suave). SEM backdrop-blur de propósito — um backdrop-filter num
         // elemento fixo cria um containing-block que prenderia o overlay

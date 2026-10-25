@@ -46,6 +46,20 @@ describe("primeiro ecrã", () => {
     expect(jaEstaAVista(el)).toBe(false);
   });
 
+  it("numa navegação, mede no documento: o scroll da página anterior não esconde o primeiro ecrã", () => {
+    // A página nova monta com o scroll ainda na página de onde se veio (aqui,
+    // 1500 px abaixo); o router só a leva ao topo depois. Um elemento a 600 px
+    // do topo do documento mede -900 px no ecrã — e está no primeiro ecrã.
+    const el = document.createElement("div");
+    const espia = vi.spyOn(el, "getBoundingClientRect");
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(1500);
+    espia.mockReturnValue(caixa(600 - 1500));
+    expect(jaEstaAVista(el)).toBe(true);
+    // O que está abaixo do primeiro ecrã do documento continua escondido.
+    espia.mockReturnValue(caixa(window.innerHeight + 300 - 1500));
+    expect(jaEstaAVista(el)).toBe(false);
+  });
+
   for (const [nome, Comp] of [
     ["AnimateIn", AnimateIn],
     ["Reveal", Reveal],
