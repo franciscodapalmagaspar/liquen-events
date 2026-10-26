@@ -26,7 +26,7 @@ describe("a proposta online é uma página web feita com o conteúdo do PDF (23/
 
   it("com documento, desenha-se a página web, montada pelo motor do PDF", () => {
     // Começa cedo, em paralelo com as escolhas, e espera-se antes de desenhar.
-    expect(pagina).toMatch(/propostaWeb\(/);
+    expect(pagina).toMatch(/retratoDaPropostaWeb\(/);
     expect(pagina).toMatch(/await paginaWeb/);
     expect(pagina).toMatch(/<PropostaWeb\b/);
     expect(pagina.indexOf("<PropostaWeb")).toBeLessThan(pagina.indexOf("<PaginasDoPdf"));
