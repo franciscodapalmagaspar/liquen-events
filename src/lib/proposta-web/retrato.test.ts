@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -108,5 +110,17 @@ describe("o retrato da proposta online", () => {
     else process.env.VERCEL_GIT_COMMIT_SHA = antes;
     expect(k1).not.toBe(k2);
     expect(k1).toMatch(/^proposta-web:retrato:p1:[0-9a-f]{24}$/);
+  });
+
+  // O retrato guarda-se em texto (JSON): uma FUNÇÃO lá dentro desaparece sem
+  // erro nenhum. Os textos com funções (`t.ola(…)`, `t.capa(…)`) são usados
+  // pelo modelo ao montar — a página só pode ler frases já feitas.
+  it("a página nunca chama uma função dos textos: no retrato elas não sobrevivem", () => {
+    const pagina = readFileSync(
+      join(process.cwd(), "src/app/[lang]/(privado)/proposta/[token]/PropostaWeb.tsx"),
+      "utf8",
+    );
+    expect(pagina).not.toMatch(/\bt\.\w+\(/);
+    expect(pagina).not.toMatch(/\bd\.t\.\w+\(/);
   });
 });
