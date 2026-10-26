@@ -96,7 +96,7 @@ vi.mock("next/script", () => ({
   default: (props: Record<string, unknown>) => <script data-testid="next-script" {...props} />,
 }));
 
-import GoogleTag, { GTAG_SRC } from "./GoogleTag";
+import GoogleTag, { GTAG_SOSSEGO_MS, GTAG_SRC } from "./GoogleTag";
 import Analytics from "./Analytics";
 import ConsentBanner from "./ConsentBanner";
 import { isBackOfficeRoute, semAnaliticos, BACK_OFFICE_PATH_PATTERN } from "@/lib/safe-path";
@@ -134,6 +134,17 @@ describe("a fronteira do back office", () => {
   });
 });
 
+/** Um gesto e o sossego que o gtag.js espera antes de entrar (26/10). */
+function gestoESossego() {
+  vi.useFakeTimers();
+  try {
+    window.dispatchEvent(new Event("pointerdown"));
+    vi.advanceTimersByTime(GTAG_SOSSEGO_MS);
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
 describe("GoogleTag — nada de gtag dentro do back office", () => {
   // O gtag.js entra pelo efeito do componente, no `<body>`, e não no que ele
   // desenha (ver `carregarGtag`). Procura-se no documento, e limpa-se entre
@@ -148,9 +159,10 @@ describe("GoogleTag — nada de gtag dentro do back office", () => {
     for (const p of CALADOS) {
       pathname.value = p;
       const { container } = render(<GoogleTag />);
-      // O gtag.js espera pelo primeiro gesto (24/10): faz-se um, para o
-      // teste medir o que mede.
-      window.dispatchEvent(new Event("pointerdown"));
+      // O gtag.js espera pelo primeiro gesto (24/10) e que a página
+      // sossegue (26/10): faz-se um e deixa-se assentar, para o teste medir o
+      // que mede.
+      gestoESossego();
       expect(container.innerHTML, `o gtag montou em ${p}`).toBe("");
       expect(gtagNoDocumento(), `o gtag.js entrou em ${p}`).toBeNull();
     }
@@ -162,9 +174,10 @@ describe("GoogleTag — nada de gtag dentro do back office", () => {
     for (const p of MEDIDOS) {
       pathname.value = p;
       render(<GoogleTag />);
-      // O gtag.js espera pelo primeiro gesto (24/10): faz-se um, para o
-      // teste medir o que mede.
-      window.dispatchEvent(new Event("pointerdown"));
+      // O gtag.js espera pelo primeiro gesto (24/10) e que a página
+      // sossegue (26/10): faz-se um e deixa-se assentar, para o teste medir o
+      // que mede.
+      gestoESossego();
       expect(gtagNoDocumento(), `o gtag deixou de medir ${p}`).not.toBeNull();
       cleanup();
       gtagNoDocumento()?.remove();
