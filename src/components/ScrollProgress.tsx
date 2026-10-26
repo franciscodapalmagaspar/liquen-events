@@ -20,6 +20,11 @@ export default function ScrollProgress() {
     const bar = barRef.current;
     if (!bar) return;
 
+    // No telemóvel não há barra (26/10, ela no iPhone: «ao fazer scroll está a
+    // travar»): o CSS esconde-a em `(pointer: coarse)`, e aqui não se liga
+    // nada — nem o ouvinte do deslize, nem o `ResizeObserver` do `<body>`.
+    if (window.matchMedia?.("(pointer: coarse)").matches) return;
+
     // Fast path: where scroll-driven animations exist, let CSS drive the bar
     // off the main thread (see .scroll-progress-bar in globals.css). We just
     // flip the attribute that arms that rule and attach NO scroll/resize/rAF

@@ -52,6 +52,7 @@ import GoogleTag, {
   safeLocationHref,
   GA4_ID,
   GOOGLE_ADS_ID,
+  GTAG_SOSSEGO_MS,
   GTAG_SRC,
 } from "./GoogleTag";
 import Analytics from "./Analytics";
@@ -65,6 +66,17 @@ import Analytics from "./Analytics";
  */
 const gtagNoDocumento = () => document.querySelector(`script[src="${GTAG_SRC}"]`);
 
+/** Um gesto e o sossego que o gtag.js espera antes de entrar (26/10). */
+function gestoESossego() {
+  vi.useFakeTimers();
+  try {
+    window.dispatchEvent(new Event("pointerdown"));
+    vi.advanceTimersByTime(GTAG_SOSSEGO_MS);
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
 describe("GoogleTag — não é montado nas rotas com token", () => {
   beforeEach(() => {
     pathname.value = "/galeria";
@@ -73,9 +85,9 @@ describe("GoogleTag — não é montado nas rotas com token", () => {
 
   it("monta normalmente numa rota pública", () => {
     const { container } = render(<GoogleTag />);
-    // O gtag.js espera pelo primeiro gesto (24/10): faz-se um, para o
-    // teste medir o que mede.
-    window.dispatchEvent(new Event("pointerdown"));
+    // O gtag.js espera pelo primeiro gesto (24/10) e que a página sossegue
+    // (26/10): faz-se um e deixa-se assentar, para o teste medir o que mede.
+    gestoESossego();
     expect(gtagNoDocumento()).not.toBeNull();
     expect(container.innerHTML).toContain("consent");
   });
@@ -83,9 +95,9 @@ describe("GoogleTag — não é montado nas rotas com token", () => {
   it("não renderiza NADA em /portal/<token>", () => {
     pathname.value = `/portal/${PORTAL_TOKEN}`;
     const { container } = render(<GoogleTag />);
-    // O gtag.js espera pelo primeiro gesto (24/10): faz-se um, para o
-    // teste medir o que mede.
-    window.dispatchEvent(new Event("pointerdown"));
+    // O gtag.js espera pelo primeiro gesto (24/10) e que a página sossegue
+    // (26/10): faz-se um e deixa-se assentar, para o teste medir o que mede.
+    gestoESossego();
     expect(container.innerHTML).toBe("");
     expect(container.innerHTML).not.toContain(PORTAL_TOKEN);
     expect(container.innerHTML).not.toContain("googletagmanager");
@@ -95,9 +107,9 @@ describe("GoogleTag — não é montado nas rotas com token", () => {
   it("não renderiza NADA em /proposta/<token>, nem com prefixo de idioma", () => {
     pathname.value = `/en/proposta/${PROPOSAL_TOKEN}`;
     const { container } = render(<GoogleTag />);
-    // O gtag.js espera pelo primeiro gesto (24/10): faz-se um, para o
-    // teste medir o que mede.
-    window.dispatchEvent(new Event("pointerdown"));
+    // O gtag.js espera pelo primeiro gesto (24/10) e que a página sossegue
+    // (26/10): faz-se um e deixa-se assentar, para o teste medir o que mede.
+    gestoESossego();
     expect(container.innerHTML).toBe("");
     expect(gtagNoDocumento()).toBeNull();
   });
@@ -105,17 +117,17 @@ describe("GoogleTag — não é montado nas rotas com token", () => {
   it("continua montado após a reescrita do proxy numa rota normal (/pt/galeria)", () => {
     pathname.value = "/pt/galeria";
     render(<GoogleTag />);
-    // O gtag.js espera pelo primeiro gesto (24/10): faz-se um, para o
-    // teste medir o que mede.
-    window.dispatchEvent(new Event("pointerdown"));
+    // O gtag.js espera pelo primeiro gesto (24/10) e que a página sossegue
+    // (26/10): faz-se um e deixa-se assentar, para o teste medir o que mede.
+    gestoESossego();
     expect(gtagNoDocumento()).not.toBeNull();
   });
 
   it("o bootstrap sanitiza o page_location em vez de mandar o href inteiro", () => {
     const { container } = render(<GoogleTag />);
-    // O gtag.js espera pelo primeiro gesto (24/10): faz-se um, para o
-    // teste medir o que mede.
-    window.dispatchEvent(new Event("pointerdown"));
+    // O gtag.js espera pelo primeiro gesto (24/10) e que a página sossegue
+    // (26/10): faz-se um e deixa-se assentar, para o teste medir o que mede.
+    gestoESossego();
     const html = container.innerHTML;
     // A defesa em profundidade: mesmo que o tag alguma vez corra numa rota com
     // token, o que é reportado à Google já vai sem o segredo.

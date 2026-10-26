@@ -729,6 +729,18 @@ body {
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
 }
+/* ── NO IPHONE, «NO TOPO, PUXA E VOLTA» ─────────────────────────────────────
+   Ela (26/10, iPhone, Safari e pelo Instagram/WhatsApp): «ao fazer scroll está
+   a travar e tipo a voltar para baixo» — e, perguntada, «no topo, puxa e
+   volta». É o elástico da página.
+
+   A regra de cima estava SÓ no `body`. Quem desliza a página é o documento, e
+   o comportamento nas pontas do documento lê-se no elemento raiz: no `body`
+   não chega. Fica nos dois — o `body` continua a valer onde o browser o
+   propague, e o `html` é quem manda no Safari. */
+html {
+  overscroll-behavior-y: none;
+}
 /* Impede o Safari do iOS de AMPLIAR a página quando um campo recebe o foco —
    coisa que ele faz sempre que a letra do campo é menor que 16px, e que depois
    não desfaz: fica-se com o ecrã descentrado a meio de preencher um
@@ -1580,7 +1592,21 @@ body:has([data-orcamento-mode]) .scroll-progress {
    resolve against that non-scrolling ancestor and never advance. scroll(root)
    binds to the document scroller directly; every page's hero is its first
    section, so a 0 → 100vh range covers the hero's passage on all of them. */
-@media (prefers-reduced-motion: no-preference) {
+/* ── E NO TELEMÓVEL, NADA PRESO AO DESLIZE ──────────────────────────────────
+   Ela (26/10, iPhone): «pára no meio do gesto». Uma animação presa ao scroll
+   (`animation-timeline: scroll()`) é desenhada a cada fotograma do deslize — e
+   o Safari do iPhone, que só as ganhou no iOS 26, corre-as fora da via rápida
+   do compositor. A deriva da capa era de ±2,4 %: num ecrã de telemóvel quase
+   não se via, e o deslize é o que se sente. Por isso as duas regras de baixo
+   (a deriva e a barra de progresso) só existem com rato — `(pointer: fine)`.
+   O `scroll-progress` esconde-se de todo no toque (a barra parada a zero era
+   um risco sem sentido). */
+@media (pointer: coarse) {
+  .scroll-progress {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (pointer: fine) {
   @supports (animation-timeline: scroll()) {
     .parallax-drift {
       transform: scale(1.06);
@@ -1606,20 +1632,22 @@ body:has([data-orcamento-mode]) .scroll-progress {
    runs on the compositor. ScrollProgress.tsx feature-detects support, sets
    data-css-driven, and skips its JS path entirely. Unsupported browsers keep
    that JS fallback (transform written once per rAF). */
-@supports (animation-timeline: scroll()) {
-  .scroll-progress-bar[data-css-driven="true"] {
-    transform: scaleX(0);
-    transform-origin: left;
-    transition: none;
-    animation: scroll-progress-grow linear both;
-    animation-timeline: scroll(root block);
-  }
-  @keyframes scroll-progress-grow {
-    from {
+@media (pointer: fine) {
+  @supports (animation-timeline: scroll()) {
+    .scroll-progress-bar[data-css-driven="true"] {
       transform: scaleX(0);
+      transform-origin: left;
+      transition: none;
+      animation: scroll-progress-grow linear both;
+      animation-timeline: scroll(root block);
     }
-    to {
-      transform: scaleX(1);
+    @keyframes scroll-progress-grow {
+      from {
+        transform: scaleX(0);
+      }
+      to {
+        transform: scaleX(1);
+      }
     }
   }
 }
@@ -2156,6 +2184,31 @@ body:has([data-orcamento-mode]) .eyebrow {
      fundo claro sobrepõe com `[--cv-bg:…]`, como já faz com `--cv-h`. */
   background-color: var(--cv-bg, var(--color-noite));
 }
+/* ── NO IPHONE, OS PAINÉIS DESENHAM-SE TODOS ────────────────────────────────
+   Ela (26/10, iPhone): «encrava e salta para baixo», «em todas» as páginas.
+
+   O `--cv-h` é uma ESTIMATIVA da altura, e o painel só se mede a sério quando
+   se aproxima do ecrã. Num Chromium a diferença não se vê: a âncora de scroll
+   corrige a posição sozinha (medido em seis páginas, a 390 px com o processador
+   ÷4: zero recuos, zero mudanças de altura). O Safari do iPhone NÃO TEM âncora
+   — está escrito aqui em cima, e é ele que ela usa, também por dentro do
+   Instagram e do WhatsApp, que são o mesmo motor. Basta um painel acima do dedo
+   medir diferente da estimativa (outra letra, outra quebra de linha, um título
+   que ocupa mais uma linha) e a página inteira anda por baixo do polegar.
+
+   Não se consegue garantir que a estimativa acerta ao píxel em todos os
+   iPhones; consegue-se tirar a estimativa do caminho. No iOS — e só lá:
+   `-webkit-touch-callout` é uma propriedade que só o WebKit do iOS entende — os
+   painéis desenham-se todos desde o início, cada um com a sua altura
+   verdadeira, e nada muda de tamanho enquanto se desliza. Custa desenhar umas
+   dezenas de painéis a mais ao abrir; o computador e o Android ficam como
+   estavam. As grelhas de fotografias (o mosaico da galeria e as fotos adiáveis da proposta) não entram:
+   lá a altura vem do `aspect-ratio` e é exacta. */
+@supports (-webkit-touch-callout: none) {
+  .cv-panel {
+    content-visibility: visible;
+  }
+}
 
 /* ── PÁGINAS FEITAS DE PAINÉIS ESCUROS: SEM FRESTAS BRANCAS ──────────────────
    Ela, 25/10, com duas capturas de /servicos: «retira estas linhas… está assim
@@ -2197,6 +2250,29 @@ html.consentimento-decidido .barra-consentimento {
    gesto de arrastar. Volta ao fechar, com a escolha ainda por fazer. */
 html.lightbox-aberta .barra-consentimento {
   display: none;
+}
+
+/* ── NO TOQUE, O AVISO NÃO DESFOCA O QUE PASSA POR TRÁS ─────────────────────
+   Ela (26/10, iPhone, pelo Instagram/WhatsApp): «ao fazer scroll está a
+   travar». Quem chega de lá chega pela primeira vez — e é exactamente a quem o
+   aviso de cookies aparece, encostado ao fundo, quase da largura do ecrã.
+
+   O desfoque saiu daqui uma vez, medido como a melhor troca de uma sessão
+   inteira (o comentário está no `ConsentBanner.tsx`: esta barra sozinha
+   explicava quase todos os solavancos do deslize — um `backdrop-filter` num
+   elemento `fixed` volta a ler e a desfocar o que passa por baixo em cada
+   fotograma). Voltou com o pedido «pequeno, num canto, translúcido» — e no
+   computador é mesmo pequeno e num canto. No telemóvel não: ocupa a largura.
+
+   Nos ecrãs de toque fica o mesmo verde, mais opaco (95 % em vez de 85 %, que
+   é o que o desfoque fazia pela leitura), sem desfoque. O computador fica como
+   ela o pediu. */
+@media (pointer: coarse) {
+  .barra-consentimento {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: color-mix(in oklab, var(--color-sage-700) 95%, transparent);
+  }
 }
 
 /* E a barra espera pelas fontes — não pelo JavaScript da aplicação.

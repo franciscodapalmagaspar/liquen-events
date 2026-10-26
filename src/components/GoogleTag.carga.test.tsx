@@ -29,7 +29,7 @@ import { renderToString } from "react-dom/server";
 const pathname = vi.hoisted(() => ({ value: "/galeria" }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathname.value }));
 
-import GoogleTag, { GTAG_ESPERA_MS, GTAG_SRC } from "./GoogleTag";
+import GoogleTag, { GTAG_ESPERA_MS, GTAG_SOSSEGO_MS, GTAG_SRC } from "./GoogleTag";
 
 const gtagsNoDocumento = () => document.querySelectorAll(`script[src="${GTAG_SRC}"]`);
 
@@ -62,12 +62,38 @@ describe("GoogleTag — a biblioteca não compete com a primeira pintura", () =>
   });
 
   it("depois da hidratação o gtag.js NÃO entra logo: espera por um gesto", () => {
-    render(<GoogleTag />);
-    expect(gtagsNoDocumento()).toHaveLength(0);
-    window.dispatchEvent(new Event("pointerdown"));
-    const scripts = gtagsNoDocumento();
-    expect(scripts).toHaveLength(1);
-    expect((scripts[0] as HTMLScriptElement).async).toBe(true);
+    vi.useFakeTimers();
+    try {
+      render(<GoogleTag />);
+      expect(gtagsNoDocumento()).toHaveLength(0);
+      window.dispatchEvent(new Event("pointerdown"));
+      vi.advanceTimersByTime(GTAG_SOSSEGO_MS);
+      const scripts = gtagsNoDocumento();
+      expect(scripts).toHaveLength(1);
+      expect((scripts[0] as HTMLScriptElement).async).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Ela (26/10, iPhone): «ao fazer scroll está a travar». O primeiro gesto no
+  // telemóvel é o polegar a deslizar — e era nesse instante que os ~360 KB do
+  // Google começavam a correr. Enquanto a página se mexe, não entra.
+  it("e nunca a meio de um deslize: espera que a página sossegue", () => {
+    vi.useFakeTimers();
+    try {
+      render(<GoogleTag />);
+      window.dispatchEvent(new Event("touchstart"));
+      for (let i = 0; i < 10; i++) {
+        vi.advanceTimersByTime(GTAG_SOSSEGO_MS / 2);
+        window.dispatchEvent(new Event("scroll"));
+        expect(gtagsNoDocumento()).toHaveLength(0);
+      }
+      vi.advanceTimersByTime(GTAG_SOSSEGO_MS);
+      expect(gtagsNoDocumento()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("e, se ninguém mexer, entra no prazo — a página vista conta na mesma", () => {
@@ -75,7 +101,7 @@ describe("GoogleTag — a biblioteca não compete com a primeira pintura", () =>
     try {
       render(<GoogleTag />);
       expect(gtagsNoDocumento()).toHaveLength(0);
-      vi.advanceTimersByTime(GTAG_ESPERA_MS);
+      vi.advanceTimersByTime(GTAG_ESPERA_MS + GTAG_SOSSEGO_MS);
       expect(gtagsNoDocumento()).toHaveLength(1);
     } finally {
       vi.useRealTimers();
@@ -83,14 +109,21 @@ describe("GoogleTag — a biblioteca não compete com a primeira pintura", () =>
   });
 
   it("e entra UMA vez, por muitas páginas que se percorram", () => {
-    // O tag vive no layout e o efeito corre a cada mudança de caminho.
-    const { rerender } = render(<GoogleTag />);
-    window.dispatchEvent(new Event("scroll"));
-    pathname.value = "/sobre";
-    rerender(<GoogleTag />);
-    pathname.value = "/pt/contacto";
-    rerender(<GoogleTag />);
-    expect(gtagsNoDocumento()).toHaveLength(1);
+    vi.useFakeTimers();
+    try {
+      // O tag vive no layout e o efeito corre a cada mudança de caminho.
+      const { rerender } = render(<GoogleTag />);
+      window.dispatchEvent(new Event("scroll"));
+      vi.advanceTimersByTime(GTAG_SOSSEGO_MS);
+      pathname.value = "/sobre";
+      rerender(<GoogleTag />);
+      pathname.value = "/pt/contacto";
+      rerender(<GoogleTag />);
+      vi.advanceTimersByTime(GTAG_ESPERA_MS + GTAG_SOSSEGO_MS);
+      expect(gtagsNoDocumento()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("e nas rotas caladas não entra de todo", () => {

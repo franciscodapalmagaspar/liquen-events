@@ -64,3 +64,24 @@ Os medidores ficaram no scratchpad da sessão, não no repositório:
 
 O mais barato de refazer é o Lighthouse com `--blocked-url-patterns` para
 isolar uma peça de cada vez, como acima.
+
+## O deslize no iPhone (26/10)
+
+Ela: «o site no telemóvel ao fazer scroll está a travar e tipo a voltar para
+baixo». No iPhone (Safari e por dentro do Instagram/WhatsApp), em todas as
+páginas: «encrava e salta para baixo», «pára no meio do gesto», «no topo, puxa
+e volta».
+
+Num Chromium a 390 px com o processador ÷4 não se reproduz (seis páginas, zero
+recuos, CLS 0). As causas são as diferenças do WebKit do iPhone, e cada uma tem
+a sua correcção, presa por `src/app/scroll-no-iphone.contrato.test.ts`:
+
+| O que ela via | Causa | O que mudou |
+|---|---|---|
+| No topo, puxa e volta | o elástico lê-se no `html`; a regra só estava no `body` | `overscroll-behavior-y: none` também no `html` |
+| Salta para baixo | o Safari não tem âncora de scroll, e os `.cv-panel` reservam uma altura estimada | no iOS (`@supports (-webkit-touch-callout: none)`) os painéis desenham-se todos desde o início |
+| Pára no meio do gesto | a deriva da capa e a barra de progresso andam presas ao scroll | só com rato (`pointer: fine`); no toque a barra não existe |
+| Encrava (quem chega do Instagram) | o aviso de cookies, à largura do ecrã, desfocava o que lhe passava por trás em cada fotograma | no toque, o mesmo verde a 95 %, sem desfoque |
+| Encrava no primeiro deslize | os ~360 KB do Google começavam a correr no primeiro toque, que é o polegar a deslizar | o Google espera que a página sossegue (`GTAG_SOSSEGO_MS`) |
+
+Não verificado num iPhone: não há WebKit aqui.

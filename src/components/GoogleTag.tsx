@@ -190,8 +190,9 @@ export function carregarGtag(): void {
  * um telemóvel, logo a seguir à hidratação, quando a página ainda está a
  * responder ao primeiro toque.
  *
- * Agora a biblioteca entra no primeiro gesto (tocar, rolar, carregar numa
- * tecla) ou, se ninguém mexer, `GTAG_ESPERA_MS` depois da hidratação. Nada se
+ * Agora a biblioteca entra depois do primeiro gesto (tocar, rolar, carregar
+ * numa tecla), quando a página sossega (ver em baixo), ou, se ninguém mexer,
+ * `GTAG_ESPERA_MS` depois da hidratação. Nada se
  * perde do que fica na fila: o `dataLayer` já tem o consentimento e o `config`
  * (o bootstrap em linha corre antes de tudo) e a biblioteca, quando chega,
  * esvazia-a — a página vista conta na mesma. O que se troca, dito: quem sai
@@ -201,22 +202,56 @@ export function carregarGtag(): void {
  * página cheia de imagens, às vezes nunca): aqui há um prazo de relógio.
  */
 export const GTAG_ESPERA_MS = 6000;
+/**
+ * ── E NUNCA A MEIO DE UM DESLIZE ───────────────────────────────────────────
+ *
+ * Ela (26/10, iPhone, Safari e pelo Instagram/WhatsApp): «ao fazer scroll está
+ * a travar» — «encrava», «pára no meio do gesto». O primeiro gesto num
+ * telemóvel é quase sempre o polegar a começar a deslizar, e era EXACTAMENTE
+ * nesse instante que os ~360 KB do Google começavam a ser lidos e corridos: o
+ * trabalho mais pesado da página caía em cima do primeiro deslize.
+ *
+ * Agora o gesto só ARMA a carga, e ela espera que a página sossegue —
+ * `GTAG_SOSSEGO_MS` sem nenhum evento de deslize. O prazo de relógio também
+ * passa por esta espera. A conversão do formulário não: essa chama o
+ * `carregarGtag` directamente (`ads-conversion.ts`) e não pode esperar.
+ */
+export const GTAG_SOSSEGO_MS = 700;
 const GESTOS = ["pointerdown", "keydown", "touchstart", "wheel", "scroll"] as const;
+const DESLIZE = ["scroll", "touchmove", "wheel"] as const;
 
 export function agendarGtag(): () => void {
   if (document.querySelector(`script[src="${GTAG_SRC}"]`)) return () => {};
+  let armado = false;
   let feito = false;
-  const agora = () => {
+  let sossego = 0;
+  const carregar = () => {
     if (feito) return;
     feito = true;
     limpar();
     carregarGtag();
   };
-  const prazo = window.setTimeout(agora, GTAG_ESPERA_MS);
+  // Cada deslize volta a pôr o relógio do sossego a zero.
+  const aindaAMexer = () => {
+    if (!armado || feito) return;
+    window.clearTimeout(sossego);
+    sossego = window.setTimeout(carregar, GTAG_SOSSEGO_MS);
+  };
+  const armar = () => {
+    if (armado || feito) return;
+    armado = true;
+    window.clearTimeout(prazo);
+    for (const g of GESTOS) window.removeEventListener(g, armar);
+    for (const d of DESLIZE) window.addEventListener(d, aindaAMexer, { passive: true });
+    aindaAMexer();
+  };
+  const prazo = window.setTimeout(armar, GTAG_ESPERA_MS);
   const limpar = () => {
     window.clearTimeout(prazo);
-    for (const g of GESTOS) window.removeEventListener(g, agora);
+    window.clearTimeout(sossego);
+    for (const g of GESTOS) window.removeEventListener(g, armar);
+    for (const d of DESLIZE) window.removeEventListener(d, aindaAMexer);
   };
-  for (const g of GESTOS) window.addEventListener(g, agora, { passive: true, once: true });
+  for (const g of GESTOS) window.addEventListener(g, armar, { passive: true });
   return limpar;
 }
