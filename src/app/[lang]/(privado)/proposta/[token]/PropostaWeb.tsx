@@ -29,7 +29,10 @@ const SIZES = {
   condicoes: "(min-width: 900px) 40vw, 100vw",
 } as const;
 
-function Foto({
+/** A partir de onde a capa leva a AVIF grande (ver `capa-web.ts`). */
+const ECRA_LARGO = "(min-width: 900px)";
+
+export function Foto({
   img,
   sizes,
   alt = "",
@@ -66,10 +69,13 @@ function Foto({
       data-grande={img.grande}
     />
   );
-  if (!img.avif) return imagem;
+  if (!img.avif && !img.avifGrande) return imagem;
   return (
     <picture style={{ display: "contents" }}>
-      <source srcSet={img.avif} type="image/avif" sizes={sizes} />
+      {/* Só a capa (27/10, «Mais rápida»): a grande no ecrã largo; no
+          telemóvel, a de 1200 — os mesmos pixéis de antes, metade do peso. */}
+      {img.avifGrande && <source media={ECRA_LARGO} srcSet={img.avifGrande} type="image/avif" />}
+      {img.avif && <source srcSet={img.avif} type="image/avif" sizes={sizes} />}
       {imagem}
     </picture>
   );

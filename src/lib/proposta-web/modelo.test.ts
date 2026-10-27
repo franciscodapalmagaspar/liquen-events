@@ -106,6 +106,39 @@ const assinadas = inventarioDeFotos(doc).map((e, i) => ({
 }));
 
 describe("a proposta online pronta a desenhar", () => {
+  it("a capa leva as suas AVIF (27/10, «Mais rápida») — e só a capa", async () => {
+    const p = await montarPropostaWeb(
+      conteudo,
+      { id: "p1", doc },
+      "TOKEN",
+      "pt",
+      textosWeb("pt"),
+      assinadas,
+      {
+        avif: "https://cdn.teste/capa-1200.avif?token=x",
+        grande: "https://cdn.teste/capa-2000.avif?token=x",
+      },
+    );
+    expect(p.capa.fundo?.avif).toBe("https://cdn.teste/capa-1200.avif?token=x");
+    expect(p.capa.fundo?.avifGrande).toBe("https://cdn.teste/capa-2000.avif?token=x");
+    // A mesma fotografia no fecho continua sem a grande.
+    expect(p.fecho.foto?.avifGrande ?? p.citacao?.foto.avifGrande).toBeUndefined();
+    expect(JSON.stringify(p).match(/capa-2000/g)).toHaveLength(1);
+  });
+
+  it("sem AVIF da capa, a capa fica como estava", async () => {
+    const p = await montarPropostaWeb(
+      conteudo,
+      { id: "p1", doc },
+      "TOKEN",
+      "pt",
+      textosWeb("pt"),
+      assinadas,
+    );
+    expect(p.capa.fundo?.avif).toBeUndefined();
+    expect(p.capa.fundo?.avifGrande).toBeUndefined();
+  });
+
   it("nenhum caminho do armazenamento sai para a página — só endereços assinados e rotas do link", async () => {
     const p = await montarPropostaWeb(
       conteudo,
