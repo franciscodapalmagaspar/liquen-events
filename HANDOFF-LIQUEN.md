@@ -43,7 +43,6 @@ Site bilingue **PT/EN**. Segmento premium / boutique.
 - `npx tsc --noEmit` — verificar tipos (0 erros é o objetivo)
 - `npm test` — testes
 - `npm run gallery:sync` — adicionar fotos novas à galeria (ver abaixo)
-- `npm run gen:og` — regenerar a imagem de partilha social (`public/og-liquen.jpg`)
 - `npm run gen:blur` / `npm run gen:dims` — regenerar blur/dimensões das imagens
 
 ---
@@ -93,7 +92,7 @@ automaticamente a partir de categoria + casal — nada a escrever à mão.
 ## Estado de acessibilidade (já tratado)
 - Botão primário: `bg-moss text-white` (contraste 4.70:1, AA).
 - `.eyebrow`, foco visível e outras cores ajustadas para contraste AA.
-- Imagem Open Graph (`/og-liquen.jpg`) gerada com marca.
+- Imagem Open Graph (`/og-liquen-2026.jpg`), feita por ela (27/10), sem «Évora · Alentejo».
 
 ---
 

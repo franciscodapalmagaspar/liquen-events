@@ -821,7 +821,7 @@ const nextConfig: NextConfig = {
         // image. With output:standalone (self-hosted, no platform CDN backfill)
         // these otherwise revalidate on every request. Hashless filenames, but
         // they only change on a deploy, so a long immutable TTL is safe.
-        source: "/:file(og-liquen.jpg|icon-192.png|icon-512.png|icon-maskable-512.png)",
+        source: "/:file(og-liquen-2026.jpg|icon-192.png|icon-512.png|icon-maskable-512.png)",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
     ];

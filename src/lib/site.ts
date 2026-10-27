@@ -63,11 +63,15 @@ export const SITE = {
   // Google Business Profile (share link) — powers local pack/Maps ranking and
   // lets Google reconcile the site with the profile (sameAs + hasMap).
   googleBusiness: "https://share.google/4Qcuop16TDkYaowsU",
-  // Branded 1200×630 social-share card (public/og-liquen.jpg) — the white
-  // wordmark on a darkened signature venue photo. Regenerate via
-  // `node scripts/gen-og.mjs`. Not in image-dims.json, so page-metadata falls
-  // back to the correct OG-standard 1200×630.
-  ogImage: "/og-liquen.jpg",
+  // A imagem de partilha (1200×630) — a que aparece quando o site é
+  // partilhado no WhatsApp, Facebook, LinkedIn… Feita por ela e enviada a
+  // 27/10 («a Líquen trabalha em todo o país»: sai o «ÉVORA · ALENTEJO ·
+  // PORTUGAL» do cartão antigo, que era gerado pelo `scripts/gen-og.mjs`,
+  // também retirado). O NOME mudou de propósito: o ficheiro é servido com
+  // cache de um ano («immutable», `next.config.ts`), e um ficheiro novo com o
+  // nome velho ficava preso nos browsers e nas pré-visualizações já
+  // guardadas. Não está no image-dims.json: o page-metadata cai nos 1200×630.
+  ogImage: "/og-liquen-2026.jpg",
 } as const;
 
 /**

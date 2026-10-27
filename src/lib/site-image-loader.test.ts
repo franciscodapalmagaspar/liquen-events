@@ -76,7 +76,7 @@ describe("site-image-loader: o ramo de recurso", () => {
    */
   it("qualquer outra origem devolve o `src` INTACTO — e nunca o optimizador", () => {
     for (const src of [
-      "/og-liquen.jpg",
+      "/og-liquen-2026.jpg",
       "/icon-512.png",
       "https://xxxx.supabase.co/storage/v1/object/sign/propostas/capa.jpg?token=abc",
       "https://cdn.exemplo.pt/foto.png",

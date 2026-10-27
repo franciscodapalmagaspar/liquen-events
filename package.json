@@ -27,7 +27,6 @@
     "lh:mobile": "lhci autorun --config=lighthouserc.mobile.json",
     "gen:blur": "node scripts/gen-blur.mjs",
     "gen:dims": "node scripts/gen-image-dims.mjs",
-    "gen:og": "node scripts/gen-og.mjs",
     "gen:favicons": "node scripts/gen-favicons.mjs",
     "gallery:sync": "node scripts/gallery-sync.mjs",
     "gen:totp": "node scripts/gen-totp.mjs",
