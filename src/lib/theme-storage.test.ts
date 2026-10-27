@@ -404,6 +404,29 @@ describe("ensureBucket", () => {
     expect((await listThemeFiles("t-1")).ok).toBe(true);
   });
 
+  /**
+   * Ela (27/10): «sim, avança com a capa em AVIF» — e a capa não saía em AVIF
+   * porque isto apertava os buckets das DERIVADAS com a lista dos originais,
+   * tirando-lhes o `image/avif`. Nenhuma fotografia tinha a versão AVIF.
+   */
+  it("um bucket de derivadas que já existe continua a aceitar AVIF", async () => {
+    st.bucket.exists = true;
+    const { garantirBucketDeDerivadas } = await load();
+    expect(await garantirBucketDeDerivadas("theme-avif-medias")).toBe(true);
+    const [nome, opcoes] = st.updateBucket.mock.calls.at(-1)!;
+    expect(nome).toBe("theme-avif-medias");
+    expect(opcoes.allowedMimeTypes).toContain("image/avif");
+  });
+
+  it("o bucket dos ORIGINAIS fica com a lista estreita — sem AVIF", async () => {
+    st.bucket.exists = true;
+    const { listThemeFiles } = await load();
+    await listThemeFiles("t-1");
+    const [nome, opcoes] = st.updateBucket.mock.calls.at(-1)!;
+    expect(nome).toBe("theme-assets");
+    expect(opcoes.allowedMimeTypes).toEqual(["image/jpeg", "image/png", "image/webp"]);
+  });
+
   it("verifica o bucket UMA vez, mesmo com listagens em paralelo", async () => {
     const { listThemeFiles } = await load();
     await Promise.all([listThemeFiles("t-1"), listThemeFiles("t-2"), listThemeFiles("t-3")]);

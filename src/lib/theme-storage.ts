@@ -179,7 +179,19 @@ export function isAlreadyExists(err: unknown): boolean {
  * carregamento roubado (formatos aceites + tamanho máximo). Melhor esforço
  * declarado: um Storage sem `updateBucket` deixa o bucket como está — que é
  * exatamente como está hoje —, nunca faz falhar um carregamento.
+ *
+ * ── A MESMA LISTA COM QUE O BUCKET NASCE ──────────────────────────────────
+ * Isto escrevia a lista estreita dos ORIGINAIS em todos os buckets, os das
+ * derivadas incluídos — e tirava-lhes o `image/avif` com que o `ensureBucket`
+ * os cria. Era por isso que nenhuma fotografia tinha a sua versão AVIF: a
+ * geração «falhava em silêncio», exactamente como o comentário do
+ * `ensureBucket` avisa. Encontrado ao pôr a capa da proposta online em AVIF
+ * (ela, 27/10: «sim, avança com a capa em AVIF»; e «Sim, corrige»).
  */
+export function formatosDoBucket(bucket: string): string[] {
+  return bucket === THEME_BUCKET ? UPLOAD_MIME_TYPES : DERIVADA_MIME_TYPES;
+}
+
 async function hardenBucket(bucket: string): Promise<void> {
   const sb = getSupabase();
   if (!sb || typeof sb.storage.updateBucket !== "function") return;
@@ -187,7 +199,7 @@ async function hardenBucket(bucket: string): Promise<void> {
     const { error } = await sb.storage.updateBucket(bucket, {
       public: false,
       fileSizeLimit: BUCKET_FILE_SIZE_LIMIT,
-      allowedMimeTypes: UPLOAD_MIME_TYPES,
+      allowedMimeTypes: formatosDoBucket(bucket),
     });
     if (error) {
       log.warn("theme-storage: limites do bucket não aplicados", {
@@ -237,7 +249,7 @@ async function ensureBucket(bucket: string): Promise<boolean> {
         // único que fica com a lista estreita. Os das derivadas têm de aceitar
         // o que nós fabricamos — sem `image/avif` a geração falhava em
         // silêncio, com o contador a dizer «geradas 0» sem dizer porquê.
-        allowedMimeTypes: bucket === THEME_BUCKET ? UPLOAD_MIME_TYPES : DERIVADA_MIME_TYPES,
+        allowedMimeTypes: formatosDoBucket(bucket),
       });
       // Ignora corridas "already exists"; qualquer outro erro é reportado.
       if (createError && !/exist/i.test(createError.message)) {
