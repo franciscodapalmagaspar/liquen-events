@@ -214,16 +214,20 @@ export function conteudoGuardado(
 }
 
 /**
- * Deixa a página pronta logo no envio: o conteúdo e as cores ficam guardados,
- * e o primeiro clique do casal no email já não espera por eles. Lê a proposta
+ * Deixa a página pronta logo no envio: o conteúdo, as cores e o retrato da
+ * página inteira ficam guardados, e o primeiro clique do casal no email já não
+ * espera por eles. Lê a proposta
  * tal como ficou gravada — a chave tem de ser a mesma que a página vai pedir.
  */
 export async function aquecerPropostaWeb(proposalId: string): Promise<void> {
   const { getProposal } = await import("@/lib/proposals-store");
   const { idiomaDaProposta } = await import("@/lib/proposta-idioma");
+  const { retratoDaPropostaWeb } = await import("./retrato");
   const p = await getProposal(proposalId);
   if (!p?.doc) return;
-  await propostaWeb({ id: p.id, doc: p.doc }, "aquecer", idiomaDaProposta(p));
+  // O retrato (`retrato.ts`): a página inteira fica pronta, e o primeiro
+  // clique do casal é uma leitura. O código do link não entra nele.
+  await retratoDaPropostaWeb({ id: p.id, doc: p.doc }, "aquecer", idiomaDaProposta(p));
 }
 
 export async function propostaWeb(

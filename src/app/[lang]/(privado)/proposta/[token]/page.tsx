@@ -434,13 +434,17 @@ export default async function ProposalPage({
    * A página web começa AQUI, ao mesmo tempo que as escolhas e as fotografias
    * delas — e não depois de tudo o resto (23/10, «melhora mesmo muito a
    * rapidez»). O `.catch` nasce com a promessa, pela razão do parágrafo de
-   * cima. Carregado só aqui: o modelo puxa o motor do PDF e o `sharp`, que não
-   * podem abrir no arranque da página (`sharp-fora-do-arranque.test.ts`).
+   * cima.
+   *
+   * Vem do RETRATO (25/10, «melhores drasticamente a velocidade»): a página
+   * já montada, numa leitura só. O modelo — que puxa o motor do PDF e o
+   * `sharp`, e que não pode abrir no arranque (`sharp-fora-do-arranque.test`)
+   * — só se carrega quando o retrato falta. Ver `proposta-web/retrato.ts`.
    */
   const paginaWeb = proposal.doc
-    ? import("@/lib/proposta-web/modelo")
-        .then(({ propostaWeb }) =>
-          propostaWeb(
+    ? import("@/lib/proposta-web/retrato")
+        .then(({ retratoDaPropostaWeb }) =>
+          retratoDaPropostaWeb(
             {
               id: proposal.id,
               doc: proposal.doc!,
