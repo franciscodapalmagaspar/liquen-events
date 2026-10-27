@@ -82,7 +82,7 @@ describe("proxy — ligações com token assinado", () => {
       "/sw.js",
       "/offline.html",
       "/llms.txt",
-      "/og-liquen.jpg",
+      "/og-liquen-2026.jpg",
       "/email/cabecalho.png",
       "/_img/g/foto-640.webp",
       "/imagens/EW1_1330.jpg",

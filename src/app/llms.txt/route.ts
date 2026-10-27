@@ -22,11 +22,11 @@ export function textoDoLlms(): string {
   const instagram = SITE.instagram.replace(/^https?:\/\//, "https://");
   return `# ${SITE.name}
 
-> ${SITE.name} is a Portuguese event-planning company based in the Alentejo, organizing weddings, corporate events and private celebrations across Portugal since ${SITE.founded}. Tagline: "${SITE.slogan}" (${sloganEn.charAt(0).toUpperCase()}${sloganEn.slice(1)}) Rated ${SITE.reviews.rating.toFixed(1)} from ${SITE.reviews.count} reviews.
+> ${SITE.name} is a Portuguese event-planning company organizing weddings, corporate events and private celebrations across Portugal since ${SITE.founded}. Tagline: "${SITE.slogan}" (${sloganEn.charAt(0).toUpperCase()}${sloganEn.slice(1)}) Rated ${SITE.reviews.rating.toFixed(1)} from ${SITE.reviews.count} reviews.
 
 The site is Portuguese-first, with a full English mirror under \`/en/\`. Visitors can browse services, a photo gallery of past events, client testimonials, and request a tailored quote.
 
-- Company: ${SITE.name} (founded ${SITE.founded}), Alentejo, Portugal
+- Company: ${SITE.name} (founded ${SITE.founded}), Portugal
 - Contact: ${SITE.email} · ${SITE.phoneDisplay}
 - Instagram: ${instagram}
 
@@ -34,7 +34,7 @@ The site is Portuguese-first, with a full English mirror under \`/en/\`. Visitor
 
 - [Início / Home](${u("/")}): Overview of ${SITE.name}, hero, featured services and testimonials.
 - [Serviços](${u("/servicos")}): Weddings, corporate events and private celebrations, with dedicated pages per service.
-- [Casamentos](${u("/servicos/casamentos")}): Wedding planning and coordination in the Alentejo and across Portugal.
+- [Casamentos](${u("/servicos/casamentos")}): Wedding planning and coordination across Portugal.
 - [Eventos Corporativos](${u("/servicos/eventos-corporativos")}): Corporate events, conferences and company celebrations.
 - [Festas e Aniversários](${u("/servicos/festas-e-aniversarios")}): Private parties, birthdays and celebrations.
 - [Galeria](${u("/galeria")}): Photo gallery of real events organized by ${SITE.name}.
