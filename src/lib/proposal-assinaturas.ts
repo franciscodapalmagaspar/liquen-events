@@ -183,3 +183,50 @@ export async function signProposalMids(paths: string[]): Promise<Map<string, str
 export async function signProposalMidsAvif(paths: string[]): Promise<Map<string, string>> {
   return assinarRefs(paths, PROPOSAL_AVIF_MID_BUCKET, THEME_AVIF_MID_BUCKET, true);
 }
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * A CAPA DA PROPOSTA ONLINE NO COMPUTADOR, EM AVIF
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Ela (27/10): «sim, avança com a capa em AVIF», e escolheu «Mais rápida». No
+ * telemóvel a capa passa à AVIF de 1200 (a de cima, os mesmos pixéis de hoje
+ * em metade do peso); no ecrã grande, a de 1200 esticada a 1440 ficava
+ * esbatida, e por isso a capa tem uma segunda, com o lado maior até 2000.
+ *
+ * Vive no MESMO bucket da AVIF de 1200, ao lado do ficheiro dela, com a chave
+ * `<caminho>.capa.avif`. Sem bucket novo; e o sufixo não é um caminho de
+ * fotografia válido (`isThemePath`), por isso nada a confunde com uma.
+ *
+ * Só a capa a tem, e só a fabrica quem monta a página (`capa-web.ts`).
+ */
+export const SUFIXO_DA_CAPA_WEB = ".capa.avif";
+
+/** A chave da AVIF grande da capa, ao lado da AVIF de 1200 do mesmo caminho. */
+export function chaveDaCapaWeb(caminho: string): string {
+  return `${caminho}${SUFIXO_DA_CAPA_WEB}`;
+}
+
+/** As AVIF grandes das capas, por referência. Silencioso: a falta é normal. */
+export async function signCapasWebAvif(refs: string[]): Promise<Map<string, string>> {
+  const { daBiblioteca, daProposta } = separarRefs(refs);
+  const [proprias, deTema] = await Promise.all([
+    assinarLote(PROPOSAL_AVIF_MID_BUCKET, daProposta.map(chaveDaCapaWeb), true, SIGNED_TTL),
+    assinarLote(
+      THEME_AVIF_MID_BUCKET,
+      daBiblioteca.map((r) => chaveDaCapaWeb(caminhoDoRefDeTema(r))),
+      true,
+      THEME_SIGNED_TTL,
+    ),
+  ]);
+  const out = new Map<string, string>();
+  for (const r of daProposta) {
+    const url = proprias.get(chaveDaCapaWeb(r));
+    if (url) out.set(r, url);
+  }
+  for (const r of daBiblioteca) {
+    const url = deTema.get(chaveDaCapaWeb(caminhoDoRefDeTema(r)));
+    if (url) out.set(r, url);
+  }
+  return out;
+}

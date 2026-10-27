@@ -25,6 +25,7 @@ import {
 import { garantirBucketDeDerivadas } from "@/lib/theme-storage";
 import { log } from "@/lib/logger";
 import { MEDIA_LADO, MEDIA_QUALIDADE, MINIATURA } from "@/lib/derivadas-medidas";
+import { chaveDaCapaWeb } from "@/lib/proposal-assinaturas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -1132,6 +1133,77 @@ export async function aquecerDerivadasDaCapa(
     }
     return feitas.filter((f) => f.motivo === "ok").length;
   } catch {
+    return 0;
+  }
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * A CAPA DA PROPOSTA ONLINE EM AVIF — AS DUAS, DE UMA VEZ
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Ela (27/10): «sim, avança com a capa em AVIF», e escolheu «Mais rápida».
+ * Medido na proposta TESTE: o telemóvel recebia a de 1200 em JPEG (800×1200,
+ * 247 KB); a mesma em AVIF, à qualidade da casa, são ~125 KB. E o computador
+ * recebia essa mesma de 800 de largura esticada a 1440.
+ *
+ * Fabrica, das que faltarem:
+ *   · a AVIF de 1200, na chave normal do seu bucket — é a derivada «leve» que
+ *     o lote já fabricaria, e que o `fotosDaProposta` passa a encontrar;
+ *   · a AVIF grande da capa (lado maior até {@link CAPA_WEB_LADO}), no mesmo
+ *     bucket, em `chaveDaCapaWeb(caminho)`.
+ *
+ * Um download do original para as duas. NUNCA LANÇA: devolve quantas ficaram
+ * guardadas, e sem elas a página serve o que servia. Só a chama quem monta a
+ * página (no envio, ou quando o retrato falta) — nunca uma visita normal.
+ */
+export const CAPA_WEB_LADO = 2000;
+
+export async function fabricarCapaWebEmAvif(
+  ref: string,
+  falta: { media: boolean; grande: boolean },
+): Promise<number> {
+  const sb = getSupabase();
+  if (!sb || !ref || ref.startsWith("data:") || /^https?:\/\//i.test(ref)) return 0;
+  const daBiblioteca = ehRefDeTema(ref);
+  const origem = daBiblioteca ? THEME_BUCKET : PROPOSAL_BUCKET;
+  const bucket = daBiblioteca ? THEME_AVIF_MID_BUCKET : PROPOSAL_AVIF_MID_BUCKET;
+  const chave = daBiblioteca ? caminhoDoRefDeTema(ref) : ref;
+  if (!chave || chave.includes("..")) return 0;
+
+  const alvos = [
+    ...(falta.media ? [{ caminho: chave, lado: MEDIA.lado }] : []),
+    ...(falta.grande ? [{ caminho: chaveDaCapaWeb(chave), lado: CAPA_WEB_LADO }] : []),
+  ];
+  if (alvos.length === 0) return 0;
+
+  try {
+    if (!(await garantirBucketDeDerivadas(bucket).catch(() => false))) return 0;
+    const { data, error } = await sb.storage.from(origem).download(chave);
+    if (error || !data) return 0;
+    const bytes = Buffer.from(await data.arrayBuffer());
+    const sharp = await oSharp();
+    const feitas = await Promise.all(
+      alvos.map(async (alvo) => {
+        try {
+          const pipeline = sharp(bytes)
+            .rotate()
+            .resize(alvo.lado, alvo.lado, { fit: "inside", withoutEnlargement: true });
+          const avif = await codificar(pipeline, MEDIA.qualidade, true).toBuffer();
+          const { error: erroSubida } = await sb.storage
+            .from(bucket)
+            .upload(alvo.caminho, avif, opcoesDeCarregamento(tipoDe(true)));
+          return !erroSubida || /exist/i.test(erroSubida.message);
+        } catch {
+          return false;
+        }
+      }),
+    );
+    return feitas.filter(Boolean).length;
+  } catch (e) {
+    log.warn("derivadas: a capa em AVIF não se fez", {
+      erro: e instanceof Error ? e.message : String(e),
+    });
     return 0;
   }
 }

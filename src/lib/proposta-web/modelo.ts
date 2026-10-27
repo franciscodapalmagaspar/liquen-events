@@ -15,6 +15,7 @@ import { log } from "@/lib/logger";
 import { mosaicoDoCapitulo, type FormaDaCelula } from "./mosaico";
 import { textosWeb, type TextosWeb } from "./textos-web";
 import { chaveDoGuardado, guardadoOuCalculado } from "./guardado";
+import { capaWebEmAvif, type CapaWeb } from "./capa-web";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -37,6 +38,11 @@ export interface ImagemWeb {
   src: string;
   srcSet?: string;
   avif?: string;
+  /**
+   * Só a capa: a AVIF grande, para o ecrã largo (ver `capa-web.ts`). No
+   * telemóvel a capa fica com a `avif` de 1200 — a escolha dela, «Mais rápida».
+   */
+  avifGrande?: string;
   /** O ficheiro grande — é o que a lupa abre. */
   grande: string;
   lqip?: string;
@@ -137,6 +143,16 @@ function aQuemSeFala(nomes: string, casamento: boolean, idioma: IdiomaDaProposta
   const primeiro = (s: string) => s.trim().split(/\s+/)[0] ?? "";
   if (n.outro) return `${primeiro(n.um)} ${idioma === "en" ? "and" : "e"} ${primeiro(n.outro)}`;
   return casamento ? n.um : primeiro(n.um);
+}
+
+/** A capa com as suas AVIF (`capa-web.ts`), quando existem. */
+function comACapaWeb(img: ImagemWeb | null, capa: CapaWeb | undefined): ImagemWeb | null {
+  if (!img || !capa) return img;
+  return {
+    ...img,
+    ...(capa.avif ? { avif: capa.avif } : {}),
+    ...(capa.grande ? { avifGrande: capa.grande } : {}),
+  };
 }
 
 /** Pontos de condições → blocos, um por título (o protótipo: um `<details>` cada). */
@@ -240,7 +256,15 @@ export async function propostaWeb(
     conteudoGuardado(proposta, idioma),
     fotosDaProposta(proposta.doc),
   ]);
-  return montarPropostaWeb(conteudo, proposta, token, idioma, t, assinadas);
+  // A capa em AVIF (27/10): fabricada aqui uma vez por fotografia, porque
+  // isto só corre quando a página é montada — no envio, ou sem retrato.
+  const refDaCapa = conteudo.capa.fundo?.ref;
+  let capa: CapaWeb | undefined;
+  if (refDaCapa) {
+    const i = inventarioDeFotos(proposta.doc).findIndex((e) => e.ref === refDaCapa);
+    capa = await capaWebEmAvif(refDaCapa, i >= 0 ? assinadas[i]?.mediaAvif : undefined);
+  }
+  return montarPropostaWeb(conteudo, proposta, token, idioma, t, assinadas, capa);
 }
 
 /** A parte sem idas à rede — testável. */
@@ -251,6 +275,7 @@ export async function montarPropostaWeb(
   idioma: IdiomaDaProposta,
   t: TextosWeb,
   assinadas: readonly FotoDaProposta[],
+  capaWeb?: CapaWeb,
 ): Promise<PropostaWeb> {
   const base = `/api/proposta/${encodeURIComponent(token)}`;
   // O inventário e as assinadas estão pela mesma ordem.
@@ -299,7 +324,7 @@ export async function montarPropostaWeb(
     sobre: t.capa(c.organizacao),
     nomes,
     partes: c.capa.partes,
-    fundo: imagem(c.capa.fundo),
+    fundo: comACapaWeb(imagem(c.capa.fundo), capaWeb),
   };
   const saudacao = t.ola(aQuemSeFala(c.capa.nomes, c.casamento, idioma));
 

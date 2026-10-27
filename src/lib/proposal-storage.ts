@@ -19,6 +19,7 @@ import {
   PROPOSAL_THUMB_BUCKET,
   SIGNED_TTL,
   assinarLote,
+  chaveDaCapaWeb,
   signProposalThumbs,
 } from "./proposal-assinaturas";
 
@@ -646,6 +647,18 @@ export async function apagarPastaDoPedido(quoteId: string): Promise<boolean> {
       } catch {
         /* derivada órfã: lixo invisível, não decide nada */
       }
+    }
+  }
+  // E a capa grande da proposta online (`chaveDaCapaWeb`), que vive ao lado
+  // da AVIF de 1200 com outro nome.
+  const capasWeb = paths.map(chaveDaCapaWeb);
+  for (let i = 0; i < capasWeb.length; i += PAGINA_DA_LISTAGEM) {
+    try {
+      await sb.storage
+        .from(PROPOSAL_AVIF_MID_BUCKET)
+        .remove(capasWeb.slice(i, i + PAGINA_DA_LISTAGEM));
+    } catch {
+      /* idem */
     }
   }
   return true;
