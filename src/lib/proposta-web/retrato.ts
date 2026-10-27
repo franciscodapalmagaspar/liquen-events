@@ -32,10 +32,14 @@ import { chaveDoGuardado } from "./guardado";
  *
  *   · outro documento ou outra língua → outra chave (a impressão do documento
  *     entra nela, como no `guardado.ts`);
- *   · outra versão do código → outra chave (`VERCEL_GIT_COMMIT_SHA`). Uma
- *     página desenhada por um código com o retrato de outro código é o tipo
- *     de erro que só se vê no telemóvel do casal; por isso não se arrisca, e
- *     o primeiro clique depois de uma publicação volta a montar;
+ *   · outra maneira de montar a página → outra chave (`VERSAO_DO_RETRATO`).
+ *     Uma página desenhada por um código com o retrato de outro código é o
+ *     tipo de erro que só se vê no telemóvel do casal. NÃO é a versão
+ *     publicada (o `VERCEL_GIT_COMMIT_SHA`): o site publica-se várias vezes
+ *     por dia, e cada publicação deitava fora todos os retratos — o casal que
+ *     abrisse o email depois dela voltava a esperar os segundos todos. A
+ *     versão sobe só quando muda o que entra no retrato, e quem o lembra é o
+ *     `retrato.test.ts`, que prende a impressão dos ficheiros que o montam;
  *   · os endereços assinados que leva lá dentro → o retrato deixa de servir
  *     antes do primeiro deles expirar. As fotografias da proposta assinam-se
  *     por dez anos, mas as da biblioteca de temas só por seis horas (ver
@@ -69,12 +73,19 @@ const MAXIMO_EM_MEMORIA = 40;
 
 type PropostaParaORetrato = { id: string; doc: ProposalDoc; sentAt?: string; createdAt?: string };
 
-/** `proposta-web:retrato:<proposta>:<impressão>` — com a versão do código. */
+/**
+ * Sobe quando muda o que o retrato leva — a forma da `PropostaWeb` ou a
+ * maneira de a montar (`modelo.ts`, `mosaico.ts`, `textos-web.ts`). O
+ * `retrato.test.ts` falha se um desses ficheiros mudar sem isto subir.
+ */
+export const VERSAO_DO_RETRATO = 1;
+
+/** `proposta-web:retrato:<proposta>:<impressão>` — com a versão do retrato. */
 export function chaveDoRetrato(proposta: PropostaParaORetrato, idioma: IdiomaDaProposta): string {
   return chaveDoGuardado(
     "retrato",
     proposta.id,
-    process.env.VERCEL_GIT_COMMIT_SHA ?? "local",
+    `v${VERSAO_DO_RETRATO}`,
     idioma,
     JSON.stringify(proposta.doc),
   );

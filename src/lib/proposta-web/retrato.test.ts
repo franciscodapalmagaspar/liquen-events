@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -37,6 +38,7 @@ import {
   LUGAR_DO_CODIGO,
   retratoDaPropostaWeb,
   validadeDoRetrato,
+  VERSAO_DO_RETRATO,
 } from "./retrato";
 
 const proposta = { id: "p1", doc: { clientNames: "TESTE Ana & TESTE Rui" } as never };
@@ -97,10 +99,12 @@ describe("o retrato da proposta online", () => {
     expect(propostaWeb).toHaveBeenCalledTimes(2);
   });
 
-  it("outro documento, outra língua ou outro código publicado: outra chave", () => {
+  it("outro documento ou outra língua: outra chave — e uma publicação do site NÃO", () => {
     const outra = { id: "p1", doc: { clientNames: "TESTE Rita" } as never };
     expect(chaveDoRetrato(proposta, "pt")).not.toBe(chaveDoRetrato(outra, "pt"));
     expect(chaveDoRetrato(proposta, "pt")).not.toBe(chaveDoRetrato(proposta, "en"));
+    // O site publica-se várias vezes por dia: se cada publicação mudasse a
+    // chave, o casal que abrisse o email a seguir esperava os segundos todos.
     const antes = process.env.VERCEL_GIT_COMMIT_SHA;
     process.env.VERCEL_GIT_COMMIT_SHA = "aaaa";
     const k1 = chaveDoRetrato(proposta, "pt");
@@ -108,8 +112,34 @@ describe("o retrato da proposta online", () => {
     const k2 = chaveDoRetrato(proposta, "pt");
     if (antes === undefined) delete process.env.VERCEL_GIT_COMMIT_SHA;
     else process.env.VERCEL_GIT_COMMIT_SHA = antes;
-    expect(k1).not.toBe(k2);
+    expect(k1).toBe(k2);
     expect(k1).toMatch(/^proposta-web:retrato:p1:[0-9a-f]{24}$/);
+  });
+
+  /**
+   * ── QUEM MUDA A PÁGINA SOBE A VERSÃO ──────────────────────────────────────
+   * O retrato é a página já montada. Se um destes ficheiros mudar (a forma da
+   * página ou a maneira de a montar) e a versão não subir, os casais leem o
+   * retrato velho até ele caducar. Este teste falha nesse caso: actualiza a
+   * impressão aqui E sobe `VERSAO_DO_RETRATO` no `retrato.ts`, no mesmo commit.
+   */
+  it("os ficheiros que montam a página estão presos à versão do retrato", () => {
+    const impressao = (f: string) =>
+      createHash("sha256")
+        .update(readFileSync(join(process.cwd(), f)))
+        .digest("hex")
+        .slice(0, 16);
+    expect({
+      versao: VERSAO_DO_RETRATO,
+      modelo: impressao("src/lib/proposta-web/modelo.ts"),
+      mosaico: impressao("src/lib/proposta-web/mosaico.ts"),
+      textos: impressao("src/lib/proposta-web/textos-web.ts"),
+    }).toEqual({
+      versao: 1,
+      modelo: "29db205a64e49914",
+      mosaico: "25d811bd1021f446",
+      textos: "71448f103c1b0275",
+    });
   });
 
   // O retrato guarda-se em texto (JSON): uma FUNÇÃO lá dentro desaparece sem
