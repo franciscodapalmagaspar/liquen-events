@@ -353,3 +353,36 @@ describe("quoteFormSchema — a data do evento", () => {
     expect(com(ontem).success).toBe(true);
   });
 });
+
+describe("quoteFormSchema — o formulário completo pede o email; o telemóvel é opcional (28/10)", () => {
+  const base = { name: "Ana Silva", origem: "completo" as const };
+  it("aceita com email e um telemóvel completo", () => {
+    expect(
+      quoteFormSchema.safeParse({ ...base, email: "ana@exemplo.pt", phone: "+351 912 345 678" })
+        .success,
+    ).toBe(true);
+  });
+  it.each([
+    [{ email: "", phone: "912345678" }, "email"],
+    [{ email: "ana@exemplo.pt", phone: "91234567" }, "phone"],
+    [{ email: "ana@exemplo.pt", phone: "812345678" }, "phone"],
+  ])("recusa %o no campo %s", (contacto, campo) => {
+    const r = quoteFormSchema.safeParse({ ...base, ...contacto });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0].path).toEqual([campo]);
+  });
+  it("aceita sem telemóvel", () => {
+    expect(quoteFormSchema.safeParse({ ...base, email: "ana@exemplo.pt", phone: "" }).success).toBe(
+      true,
+    );
+  });
+  it("a ficha rápida (sem origem) continua a aceitar só o telemóvel", () => {
+    expect(quoteFormSchema.safeParse({ name: "Ana Silva", phone: "912345678" }).success).toBe(true);
+  });
+  it("uma origem desconhecida é recusada (não liga regras ao calhas)", () => {
+    expect(
+      quoteFormSchema.safeParse({ ...base, origem: "outra", email: "a@b.pt", phone: "912345678" })
+        .success,
+    ).toBe(false);
+  });
+});

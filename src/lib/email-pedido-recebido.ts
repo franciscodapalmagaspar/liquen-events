@@ -35,8 +35,9 @@ import { saudacaoDaCarta } from "./tratamento";
  *     (plural, «Casamentos») nem o que o cliente escreveu (um título, «Casamento
  *     da Ana e do João»): esse vai para o assunto e para o título, que são
  *     etiquetas.
- *   · «na Quinta da Melhorada» — a preposição depende do sítio («no Convento»,
- *     «em Évora»); ver `noSitio`.
+ *   · «no local indicado» — o sítio NÃO se repete nas frases (decisão dela,
+ *     28/10): fica uma vez, no resumo, tal como a pessoa o escreveu. A
+ *     preposição adivinhada (`noSitio`) dava «em Rampa beach club».
  *   · sem data, ou sem local, a frase encurta — nunca fica uma vírgula a
  *     separar coisa nenhuma.
  *
@@ -172,6 +173,7 @@ const TEXTOS = {
       referencia: "Referência",
     },
     aDefinir: "Ainda a definir",
+    noLocalIndicado: "no local indicado",
     previsao: (v: string) => `${v} (previsão)`,
     preheader: (quando: string, onde: string) =>
       `Confirmamos a receção do vosso pedido${quando ? ` para ${quando}` : ""}${onde ? `, ${onde}` : ""}.`,
@@ -210,6 +212,7 @@ const TEXTOS = {
       referencia: "Reference",
     },
     aDefinir: "Still to be decided",
+    noLocalIndicado: "at the venue you mentioned",
     previsao: (v: string) => `${v} (estimate)`,
     preheader: (quando: string, onde: string) =>
       `We confirm receipt of your request${quando ? ` for ${quando}` : ""}${onde ? `, ${onde}` : ""}.`,
@@ -322,7 +325,16 @@ export function emailPedidoRecebido(d: DadosDoPedidoRecebido): {
   const evento = d.pedido.evento.trim();
   const dataLonga = d.pedido.data ? longDate(d.pedido.data, d.locale) : "";
   const local = d.pedido.local.trim();
-  const onde = local ? noSitio(local, d.locale) : "";
+  /**
+   * «no local indicado», e não o sítio escrito outra vez.
+   *
+   * Ela (28/10): o local aparecia três vezes — no resumo, na frase de abertura
+   * e na pré-visualização da caixa de correio — e, nas duas frases, com a
+   * preposição adivinhada pela primeira palavra («em Rampa beach club»). O
+   * sítio fica UMA vez, no resumo, tal e qual a pessoa o escreveu; as frases
+   * dizem só que é lá.
+   */
+  const onde = local ? t.noLocalIndicado : "";
 
   // «Pedido de Proposta – Casamento | 10 de junho de 2028», e sem o que faltar.
   const subject = `${t.assunto}${evento ? ` – ${evento}` : ""}${dataLonga ? ` | ${dataLonga}` : ""}`;

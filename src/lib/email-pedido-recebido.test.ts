@@ -163,7 +163,7 @@ describe("o que muda de pedido para pedido", () => {
   it("o tipo entra na frase com o género certo", () => {
     const { html } = comPedido({ evento: "Conferência", tipo: "conferencias", local: "Évora" });
     expect(html).toContain(
-      "para a organização da vossa conferência, prevista para o dia 10 de junho de 2028, em Évora.",
+      "para a organização da vossa conferência, prevista para o dia 10 de junho de 2028, no local indicado.",
     );
   });
 
@@ -174,12 +174,20 @@ describe("o que muda de pedido para pedido", () => {
 
   it("sem data: a frase encurta, o resumo diz «Ainda a definir», e o assunto perde o «|»", () => {
     const { html, subject, text } = comPedido({ data: "" });
-    expect(html).toContain("do vosso casamento, na Quinta da Melhorada.</p>");
+    expect(html).toContain("do vosso casamento, no local indicado.</p>");
     expect(html).toContain(">Ainda a definir</td>");
     expect(html).toContain(">Casamento</p>");
     expect(subject).toBe("Pedido de Proposta – Casamento");
     expect(text).toContain("Data: Ainda a definir");
-    expect(html).toContain("Confirmamos a receção do vosso pedido, na Quinta da Melhorada.");
+    expect(html).toContain("Confirmamos a receção do vosso pedido, no local indicado.");
+  });
+
+  it("o local aparece UMA vez, no resumo, tal como foi escrito (28/10)", () => {
+    const { html, text } = comPedido({ local: "Rampa beach club" });
+    expect(html.match(/Rampa beach club/g)).toHaveLength(1);
+    expect(html).toContain(">Rampa beach club</td>");
+    expect(html).not.toContain("em Rampa");
+    expect(text.match(/Rampa beach club/g)).toHaveLength(1);
   });
 
   it("sem local: não fica vírgula pendurada", () => {
@@ -264,7 +272,7 @@ describe("e em inglês, com o mesmo desenho", () => {
     expect(html).toContain('<html lang="en"');
     expect(html).toContain(">Dear Diana,</p>");
     expect(html).toContain(
-      "for the organisation of your wedding, planned for 10 June 2028, at Quinta da Melhorada.",
+      "for the organisation of your wedding, planned for 10 June 2028, at the venue you mentioned.",
     );
     expect(html).toContain(">200 (estimate)</td>");
     for (const pt of [

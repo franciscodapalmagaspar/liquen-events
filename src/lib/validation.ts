@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizarTelefone } from "./contacto-do-pedido";
 
 /**
  * Server-side validation schemas (zod). The public forms are the front door
@@ -155,6 +156,15 @@ export const quoteFormSchema = z
     leadEventId: trimmed(64).optional().default(""),
     acceptTerms: z.boolean().optional(),
     acceptMarketing: z.boolean().optional(),
+    // De onde vem o pedido. Só o formulário completo (`OrcamentoForm`) manda
+    // «completo», e é isso que liga a regra dos dois contactos lá em baixo.
+    // Não fica gravado no pedido: a rota tira-o antes de guardar.
+    origem: z.literal("completo").optional(),
+    // A língua em que a pessoa preencheu o formulário. Antes só se lia do
+    // cookie, e uma navegação directa para /en podia não o pôr: o email de
+    // confirmação saía em português a quem escreveu em inglês. Também não
+    // fica gravado como está — é o `locale` do pedido.
+    idioma: z.enum(["pt", "en"]).optional(),
   })
   // .strip() (the default) — every QuoteFormData field is declared and bounded
   // above, so unknown keys are dropped rather than persisted. Previously
@@ -162,18 +172,49 @@ export const quoteFormSchema = z
   // the stored quote (data-integrity / storage abuse); a genuinely new field
   // should be added here explicitly instead.
   .strip()
-  // A invariante que substitui o "email obrigatório": tem de haver PELO MENOS
-  // UMA forma de responder. Um pedido sem email e sem telefone é um pedido que
-  // ninguém consegue atender, e gravá-lo seria pior do que recusá-lo — ficava
-  // na lista a parecer trabalho por fazer, para sempre.
-  //
-  // O telefone é validado por comprimento e não por forma: os números chegam
-  // escritos de todas as maneiras (+351, 00351, com espaços, com pontos) e uma
-  // expressão regular apertada aqui recusaria leads verdadeiros. Nove dígitos
-  // é o mínimo de um número português.
-  .refine((f) => Boolean(f.email) || f.phone.replace(/\D/g, "").length >= 9, {
-    message: "Indique um email ou um telemóvel para lhe podermos responder.",
-    path: ["email"],
+  // Os contactos: as duas regras (o formulário completo e as fichas rápidas).
+  .superRefine((f, ctx) => {
+    // ── O FORMULÁRIO COMPLETO: O EMAIL É OBRIGATÓRIO ──────────────────────
+    // Ela (28/10): um pedido chegou com o email mal escrito e não havia mais
+    // por onde responder. No formulário completo (`origem: "completo"`) o
+    // email passa a ser obrigatório; o telemóvel NÃO («o email é obrigatório
+    // mas o telemóvel não é»), mas quando vem tem de parecer completo
+    // (`normalizarTelefone`, a MESMA regra que o browser usa). As fichas
+    // rápidas dos anúncios não mandam `origem` e continuam com a regra de
+    // baixo — ela decidiu que ficam como estão.
+    if (f.origem === "completo") {
+      if (!f.email)
+        ctx.addIssue({
+          code: "custom",
+          path: ["email"],
+          message: "Indique o seu email.",
+          params: { regra: "email-obrigatorio" },
+        });
+      if (f.phone && !normalizarTelefone(f.phone))
+        ctx.addIssue({
+          code: "custom",
+          path: ["phone"],
+          message: "Indique um telemóvel completo.",
+          params: { regra: "telefone" },
+        });
+      return;
+    }
+    // A invariante das fichas rápidas: tem de haver PELO MENOS UMA forma de
+    // responder. Um pedido sem email e sem telefone é um pedido que ninguém
+    // consegue atender, e gravá-lo seria pior do que recusá-lo — ficava na
+    // lista a parecer trabalho por fazer, para sempre.
+    //
+    // Aqui o telefone é validado por comprimento e não por forma: o número
+    // chega escrito de todas as maneiras (+351, 00351, com espaços, com
+    // pontos) num campo único que também aceita email, e nove dígitos é o
+    // mínimo de um número português.
+    if (!f.email && f.phone.replace(/\D/g, "").length < 9)
+      ctx.addIssue({
+        code: "custom",
+        path: ["email"],
+        message: "Indique um email ou um telemóvel para lhe podermos responder.",
+        params: { regra: "contacto" },
+      });
   });
 
 // Price breakdown — computed client-side, so validate the shape before it is

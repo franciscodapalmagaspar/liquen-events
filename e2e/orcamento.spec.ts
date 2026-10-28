@@ -38,6 +38,18 @@ async function fillAll(page: Page, name = "Ana Teste") {
     .fill("Algo natural, com flores do campo e tons de branco e verde.");
 }
 
+/**
+ * Enviar, e confirmar os contactos no painel que aparece (28/10: antes de
+ * sair, o formulário mostra o email e o telemóvel para ela confirmar — o
+ * envio a sério é o «Está certo, enviar»).
+ */
+async function enviarEConfirmar(page: Page) {
+  await page.getByRole("button", { name: /Enviar pedido/ }).click();
+  const painel = page.getByRole("region", { name: "Confirme os seus contactos" });
+  await expect(painel).toBeVisible();
+  await painel.getByRole("button", { name: /Está certo, enviar/ }).click();
+}
+
 test.describe("Pedido de orçamento", () => {
   test("submete o formulário e chega à confirmação com a referência", async ({ page }) => {
     await page.route("**/api/orcamento", (route) =>
@@ -50,7 +62,7 @@ test.describe("Pedido de orçamento", () => {
 
     await page.goto("/orcamento");
     await fillAll(page);
-    await page.getByRole("button", { name: /Enviar pedido/ }).click();
+    await enviarEConfirmar(page);
 
     // Hand-off lands on the confirmation page showing the reference id.
     await expect(page).toHaveURL(/\/orcamento\/confirmacao\/LIQ-E2E-TEST$/);
@@ -92,7 +104,7 @@ test.describe("Pedido de orçamento", () => {
     await fillAll(page, "Rita Aberta");
     // Neither a date nor a headcount was typed — both checkboxes carry them.
     await expect(page.getByLabel("Data ainda a definir")).toBeChecked();
-    await page.getByRole("button", { name: /Enviar pedido/ }).click();
+    await enviarEConfirmar(page);
     await expect(page).toHaveURL(/\/orcamento\/confirmacao\/LIQ-E2E-OPEN$/);
   });
 
@@ -135,7 +147,7 @@ test.describe("Pedido de orçamento", () => {
     await page
       .getByPlaceholder("Estilo, cores, ambiente, inspirações que guardou…")
       .fill("Simples e com muita luz.");
-    await page.getByRole("button", { name: /Enviar pedido/ }).click();
+    await enviarEConfirmar(page);
     await expect(page).toHaveURL(/\/orcamento\/confirmacao\/LIQ-E2E-EST$/);
     expect(enviado?.form?.guestsRange).toBe("");
   });

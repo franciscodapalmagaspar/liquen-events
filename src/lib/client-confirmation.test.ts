@@ -80,7 +80,7 @@ describe("buildClientConfirmation", () => {
       },
     });
     expect(html).toContain(
-      "organização do vosso casamento, previsto para o dia 23 de fevereiro de 2027, na Quinta do Vale.",
+      "organização do vosso casamento, previsto para o dia 23 de fevereiro de 2027, no local indicado.",
     );
     expect(text).toContain("Agradecemos o seu contacto");
   });
