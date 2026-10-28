@@ -74,6 +74,12 @@ html:has(.pw) {
   display: block;
   max-width: 100%;
 }
+/* A foto com AVIF vem num <picture> com `display: contents`: o <img> passa a
+   ser filho da grelha, mas as <source> também — e o Chromium dá-lhes uma
+   célula. Escondidas, a grelha só vê a fotografia (28/10, a paleta partida). */
+.pw picture > source {
+  display: none;
+}
 :where(.pw a) {
   color: inherit;
 }

@@ -37,4 +37,10 @@ describe("a paleta não depende da posição do <img>", () => {
     expect(html).toMatch(/<img[^>]*class="pw-pal-grande"/);
     expect(CSS).toMatch(/\.pw-pal \.pw-pics \.pw-pal-grande\s*\{\s*grid-row: span 2;/);
   });
+
+  it("as <source> do <picture> não ocupam células da grelha", () => {
+    // `display: contents` no <picture> faz das <source> filhas da grelha; o
+    // Chromium dá-lhes uma célula e empurra as fotografias (medido a 1440).
+    expect(CSS).toMatch(/\.pw picture > source\s*\{\s*display: none;/);
+  });
 });
