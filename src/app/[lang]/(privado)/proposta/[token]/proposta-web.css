@@ -74,6 +74,12 @@ html:has(.pw) {
   display: block;
   max-width: 100%;
 }
+/* A foto com AVIF vem num <picture> com `display: contents`: o <img> passa a
+   ser filho da grelha, mas as <source> também — e o Chromium dá-lhes uma
+   célula. Escondidas, a grelha só vê a fotografia (28/10, a paleta partida). */
+.pw picture > source {
+  display: none;
+}
 :where(.pw a) {
   color: inherit;
 }
@@ -559,7 +565,10 @@ html:has(.pw) {
   min-height: 0;
   object-fit: cover;
 }
-.pw-pal .pw-pics img:first-child {
+/* A primeira ocupa as duas linhas. Por classe e não pela posição do <img>:
+   com AVIF a foto vem dentro de um `<picture>` (`display: contents`), a seguir
+   às `<source>`, e deixa de ser o primeiro filho — a grelha partia-se (28/10). */
+.pw-pal .pw-pics .pw-pal-grande {
   grid-row: span 2;
 }
 
