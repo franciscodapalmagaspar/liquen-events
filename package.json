@@ -59,8 +59,8 @@
     "@types/nodemailer": "^8.0.0",
     "bcryptjs": "^3.0.3",
     "hyphen": "^1.14.1",
-    "next": "16.3.8",
-    "nodemailer": "^10.0.13",
+    "next": "16.4.3",
+    "nodemailer": "^10.2.1",
     "ogl": "^1.0.11",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.2.108",
@@ -69,7 +69,7 @@
     "sharp": "^0.35.4",
     "web-push": "^3.6.7",
     "web-vitals": "^4.2.4",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
