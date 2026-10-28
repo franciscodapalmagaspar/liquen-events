@@ -164,10 +164,6 @@
     "d": 1,
     "f": "0,50"
   },
-  "/imagens/EW1_0580.jpg": {
-    "d": 1,
-    "f": "0,50"
-  },
   "/imagens/EW1_0689.jpg": {
     "d": 1,
     "f": "0,50"
@@ -178,10 +174,6 @@
   },
   "/imagens/EW1_0699.jpg": {
     "f": "50,100"
-  },
-  "/imagens/EW1_1100.jpg": {
-    "d": 1,
-    "f": "78,50"
   },
   "/imagens/EW1_1330.jpg": {
     "d": 1,
@@ -230,12 +222,7 @@
     "f": "100,50"
   },
   "/imagens/EW1_1408.jpg": {
-    "c": "c1",
     "f": "50,100"
-  },
-  "/imagens/EW1_1410.jpg": {
-    "c": "c1",
-    "f": "50,40"
   },
   "/imagens/EW1_1414.jpg": {
     "f": "50,96"
@@ -334,9 +321,6 @@
     "f": "50,100"
   },
   "/imagens/J&A-73.jpg": {
-    "f": "50,100"
-  },
-  "/imagens/J&A-76.jpg": {
     "f": "50,100"
   },
   "/imagens/J&A-8.jpg": {
@@ -746,13 +730,7 @@
     "f": "50,59"
   },
   "/imagens/Sophia&Artur_MAINOVA-122.jpg": {
-    "c": "c2",
     "f": "50,13"
-  },
-  "/imagens/Sophia&Artur_MAINOVA-123.jpg": {
-    "c": "c2",
-    "pb": 1,
-    "f": "50,69"
   },
   "/imagens/Sophia&Artur_MAINOVA-128.jpg": {
     "f": "50,22"
@@ -850,7 +828,6 @@
     "f": "50,0"
   },
   "/imagens/WhatsApp Image 2026-05-21 at 11.53.11.jpeg": {
-    "c": "c3",
     "f": "50,22"
   },
   "/imagens/WhatsApp Image 2026-05-21 at 11.53.13.jpeg": {
@@ -865,10 +842,6 @@
   },
   "/imagens/WhatsApp Image 2026-05-21 at 11.53.18.jpeg": {
     "f": "50,0"
-  },
-  "/imagens/WhatsApp Image 2026-05-21 at 11.53.20.jpeg": {
-    "c": "c3",
-    "f": "50,13"
   },
   "/imagens/WhatsApp Image 2026-05-21 at 11.53.21 (1).jpeg": {
     "f": "50,100"
@@ -909,12 +882,7 @@
     "f": "50,69"
   },
   "/imagens/WhatsApp Image 2026-05-21 at 11.53.33 (2).jpeg": {
-    "c": "c4",
     "f": "50,97"
-  },
-  "/imagens/WhatsApp Image 2026-05-21 at 11.53.33.jpeg": {
-    "c": "c4",
-    "f": "50,88"
   },
   "/imagens/WhatsApp Image 2026-05-21 at 11.53.34 (1).jpeg": {
     "d": 1,
@@ -1000,10 +968,6 @@
   },
   "/imagens/galeria-instagram-15-02.jpg": {
     "f": "50,100"
-  },
-  "/imagens/galeria-instagram-15-05.jpg": {
-    "pb": 1,
-    "f": "50,0"
   },
   "/imagens/galeria-instagram-16-01.jpg": {
     "f": "50,100"
@@ -1217,9 +1181,6 @@
   "/imagens/galeria-instagram-33-08.jpg": {
     "f": "50,0"
   },
-  "/imagens/galeria-instagram-33-09.jpg": {
-    "f": "50,25"
-  },
   "/imagens/galeria-instagram-33-10.jpg": {
     "f": "50,100"
   },
@@ -1231,9 +1192,6 @@
   },
   "/imagens/galeria-instagram-36-02.jpg": {
     "f": "50,0"
-  },
-  "/imagens/galeria-instagram-36-03.jpg": {
-    "f": "50,81"
   },
   "/imagens/galeria-instagram-36-04.jpg": {
     "f": "50,100"
@@ -1262,38 +1220,14 @@
   "/imagens/galeria-instagram-37-05.jpg": {
     "f": "50,100"
   },
-  "/imagens/galeria-instagram-38-01.jpg": {
-    "f": "50,0"
-  },
-  "/imagens/galeria-instagram-38-02.jpg": {
-    "f": "50,0"
-  },
-  "/imagens/galeria-instagram-38-03.jpg": {
-    "f": "50,0"
-  },
-  "/imagens/galeria-instagram-38-04.jpg": {
-    "f": "50,0"
-  },
   "/imagens/galeria-instagram-38-05.jpg": {
     "f": "50,3"
-  },
-  "/imagens/galeria-instagram-38-06.jpg": {
-    "f": "50,0"
-  },
-  "/imagens/galeria-instagram-38-07.jpg": {
-    "f": "50,66"
   },
   "/imagens/galeria-instagram-42-01.jpg": {
     "f": "50,100"
   },
   "/imagens/galeria-instagram-42-02.jpg": {
     "f": "50,100"
-  },
-  "/imagens/galeria-instagram-42-09.jpg": {
-    "f": "50,100"
-  },
-  "/imagens/galeria-instagram-42-13.jpg": {
-    "f": "88,50"
   },
   "/imagens/galeria-instagram-42-14.jpg": {
     "f": "50,0"
@@ -1334,30 +1268,11 @@
   "/imagens/galeria-instagram-47-03.jpg": {
     "f": "50,75"
   },
-  "/imagens/galeria-instagram-48-01.jpg": {
-    "f": "50,0"
-  },
-  "/imagens/galeria-instagram-48-02.jpg": {
-    "pb": 1,
-    "f": "50,0"
-  },
   "/imagens/galeria-instagram-48-03.jpg": {
-    "f": "50,0"
-  },
-  "/imagens/galeria-instagram-48-04.jpg": {
-    "f": "50,0"
-  },
-  "/imagens/galeria-instagram-48-06.jpg": {
-    "f": "50,0"
-  },
-  "/imagens/galeria-instagram-48-07.jpg": {
     "f": "50,0"
   },
   "/imagens/galeria-instagram-48-08.jpg": {
     "f": "50,0"
-  },
-  "/imagens/galeria-instagram-48-09.jpg": {
-    "f": "50,75"
   },
   "/imagens/galeria-instagram-48-10.jpg": {
     "f": "50,75"
@@ -1417,13 +1332,6 @@
   "/imagens/galeria-instagram-53-04.jpg": {
     "f": "50,88"
   },
-  "/imagens/galeria-instagram-53-06.jpg": {
-    "f": "50,13"
-  },
-  "/imagens/galeria-instagram-53-07.jpg": {
-    "pb": 1,
-    "f": "50,100"
-  },
   "/imagens/galeria-instagram-53-08.jpg": {
     "pb": 1,
     "f": "50,0"
@@ -1461,18 +1369,6 @@
   "/imagens/galeria-instagram-55-11.jpg": {
     "pb": 1,
     "f": "50,100"
-  },
-  "/imagens/galeria-instagram-55-13.jpg": {
-    "pb": 1,
-    "f": "50,0"
-  },
-  "/imagens/galeria-instagram-55-17.jpg": {
-    "pb": 1,
-    "f": "50,100"
-  },
-  "/imagens/galeria-instagram-55-18.jpg": {
-    "pb": 1,
-    "f": "50,87"
   },
   "/imagens/galeria-instagram-56-01.jpg": {
     "f": "50,100"
@@ -1562,9 +1458,6 @@
   "/imagens/galeria-instagram-62-01.jpg": {
     "f": "50,0"
   },
-  "/imagens/galeria-instagram-62-03.jpg": {
-    "f": "50,100"
-  },
   "/imagens/galeria-instagram-62-04.jpg": {
     "f": "50,0"
   },
@@ -1614,9 +1507,6 @@
     "f": "50,0"
   },
   "/imagens/galeria-instagram-65-02.jpg": {
-    "f": "50,100"
-  },
-  "/imagens/galeria-instagram-65-03.jpg": {
     "f": "50,100"
   },
   "/imagens/galeria-instagram-65-04.jpg": {
@@ -1761,9 +1651,6 @@
   "/imagens/galeria-instagram-77-01.jpg": {
     "f": "50,0"
   },
-  "/imagens/galeria-instagram-77-02.jpg": {
-    "f": "50,97"
-  },
   "/imagens/galeria-instagram-77-03.jpg": {
     "f": "50,100"
   },
@@ -1836,14 +1723,6 @@
     "d": 1,
     "f": "22,50"
   },
-  "/imagens/galeria-instagram-80-08.jpg": {
-    "d": 1,
-    "f": "88,50"
-  },
-  "/imagens/galeria-instagram-80-10.jpg": {
-    "d": 1,
-    "f": "13,50"
-  },
   "/imagens/galeria-instagram-81-02.jpg": {
     "f": "50,3"
   },
@@ -1895,9 +1774,6 @@
   "/imagens/galeria-instagram-85-01.jpg": {
     "f": "50,0"
   },
-  "/imagens/galeria-instagram-85-02.jpg": {
-    "f": "50,100"
-  },
   "/imagens/galeria-instagram-85-03.jpg": {
     "f": "50,2"
   },
@@ -1906,9 +1782,6 @@
   },
   "/imagens/galeria-instagram-85-07.jpg": {
     "f": "50,0"
-  },
-  "/imagens/galeria-instagram-85-08.jpg": {
-    "f": "50,100"
   },
   "/imagens/galeria-instagram-85-09.jpg": {
     "f": "50,0"
@@ -2061,10 +1934,6 @@
     "d": 1,
     "f": "100,50"
   },
-  "/imagens/galeria-instagram-99-02.jpg": {
-    "d": 1,
-    "f": "100,50"
-  },
   "/imagens/galeria-instagram-99-04.jpg": {
     "d": 1,
     "f": "0,50"
@@ -2076,6 +1945,102 @@
   "/imagens/galeria-instagram-99-10.jpg": {
     "d": 1,
     "f": "13,50"
+  },
+  "/imagens/galeria-jun26-01.jpg": {
+    "f": "50,22"
+  },
+  "/imagens/galeria-jun26-02.jpg": {
+    "f": "50,68"
+  },
+  "/imagens/galeria-jun26-03.jpg": {
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/galeria-jun26-04.jpg": {
+    "f": "50,78"
+  },
+  "/imagens/galeria-jun26-05.jpg": {
+    "f": "50,12"
+  },
+  "/imagens/galeria-jun26-06.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-07.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-08.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-09.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/galeria-jun26-10.jpg": {
+    "d": 1,
+    "f": "100,50"
+  },
+  "/imagens/galeria-jun26-11.jpg": {
+    "f": "31,50"
+  },
+  "/imagens/galeria-jun26-12.jpg": {
+    "d": 1,
+    "f": "31,50"
+  },
+  "/imagens/galeria-jun26-13.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/galeria-jun26-14.jpg": {
+    "f": "50,12"
+  },
+  "/imagens/galeria-jun26-15.jpg": {
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/galeria-jun26-16.jpg": {
+    "d": 1
+  },
+  "/imagens/galeria-jun26-17.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-18.jpg": {
+    "d": 1,
+    "f": "59,50"
+  },
+  "/imagens/galeria-jun26-19.jpg": {
+    "f": "100,50"
+  },
+  "/imagens/galeria-jun26-20.jpg": {
+    "f": "50,40"
+  },
+  "/imagens/galeria-jun26-21.jpg": {
+    "pb": 1,
+    "f": "50,3"
+  },
+  "/imagens/galeria-jun26-22.jpg": {
+    "f": "50,96"
+  },
+  "/imagens/galeria-jun26-23.jpg": {
+    "f": "50,96"
+  },
+  "/imagens/galeria-jun26-24.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-25.jpg": {
+    "pb": 1
+  },
+  "/imagens/galeria-jun26-26.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-27.jpg": {
+    "f": "0,50"
+  },
+  "/imagens/galeria-jun26-28.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/galeria-jun26-29.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/galeria-jun26-30.jpg": {
+    "f": "31,50"
   },
   "/imagens/galeria-outubro-01.jpg": {
     "f": "50,100"
@@ -2100,7 +2065,6 @@
     "f": "50,100"
   },
   "/imagens/galeria-outubro-09.jpg": {
-    "d": 1,
     "f": "69,50"
   },
   "/imagens/galeria-outubro-10.jpg": {
@@ -2156,7 +2120,6 @@
     "f": "100,50"
   },
   "/imagens/galeria-outubro-26.jpg": {
-    "c": "c5",
     "f": "0,50"
   },
   "/imagens/galeria-outubro-27.jpg": {
@@ -2267,10 +2230,6 @@
   "/imagens/galeria-outubro-54.jpg": {
     "f": "50,100"
   },
-  "/imagens/galeria-outubro-55.jpg": {
-    "c": "c5",
-    "f": "13,50"
-  },
   "/imagens/hd-edited.jpg": {
     "f": "41,50"
   },
@@ -2352,11 +2311,6 @@
     "f": "50,0"
   },
   "/imagens/ines-goncalo-509.jpg": {
-    "c": "c6",
-    "f": "50,0"
-  },
-  "/imagens/ines-goncalo-510.jpg": {
-    "c": "c6",
     "f": "50,0"
   },
   "/imagens/matilde-e-tomas0654-1.jpg": {
@@ -2378,10 +2332,6 @@
   },
   "/imagens/matilde-tomas-36.jpg": {
     "f": "50,100"
-  },
-  "/imagens/mom-0961.jpg": {
-    "d": 1,
-    "f": "41,50"
   },
   "/imagens/stephanie-mizio-152.jpg": {
     "f": "50,59"
@@ -2482,7 +2432,6 @@
     "f": "50,100"
   },
   "/imagens/stephanie-mizio-564.jpg": {
-    "d": 1,
     "f": "0,50"
   },
   "/imagens/stephanie-mizio-565.jpg": {
@@ -2544,22 +2493,7 @@
     "f": "50,97"
   },
   "/imagens/stephanie-mizio-586.jpg": {
-    "c": "c7",
     "f": "50,59"
-  },
-  "/imagens/stephanie-mizio-587.jpg": {
-    "c": "c7",
-    "f": "50,41"
-  },
-  "/imagens/stephanie-mizio-588.jpg": {
-    "f": "69,50"
-  },
-  "/imagens/stephanie-mizio-591.jpg": {
-    "pb": 1,
-    "f": "0,50"
-  },
-  "/imagens/stephanie-mizio-596.jpg": {
-    "c": "c7"
   },
   "/imagens/stephanie-mizio-597.jpg": {
     "f": "50,100"
@@ -2575,23 +2509,12 @@
     "f": "88,50"
   },
   "/imagens/stephanie-mizio-688.jpg": {
-    "c": "c8",
     "f": "50,0"
-  },
-  "/imagens/stephanie-mizio-689.jpg": {
-    "c": "c8",
-    "f": "50,0"
-  },
-  "/imagens/stephanie-mizio-7.jpg": {
-    "f": "31,50"
   },
   "/imagens/stephanie-mizio-714.jpg": {
     "f": "50,100"
   },
   "/imagens/stephanie-mizio-719.jpg": {
-    "f": "50,0"
-  },
-  "/imagens/stephanie-mizio-757.jpg": {
     "f": "50,0"
   },
   "/imagens/stephanie-mizio-759.jpg": {
@@ -2604,23 +2527,9 @@
     "f": "50,0"
   },
   "/imagens/stephanie-mizio-767.jpg": {
-    "c": "c9",
-    "f": "50,0"
-  },
-  "/imagens/stephanie-mizio-770.jpg": {
-    "c": "c9",
-    "f": "50,0"
-  },
-  "/imagens/stephanie-mizio-781.jpg": {
-    "f": "50,100"
-  },
-  "/imagens/stephanie-mizio-803.jpg": {
     "f": "50,0"
   },
   "/imagens/stephanie-mizio-805.jpg": {
-    "f": "50,0"
-  },
-  "/imagens/stephanie-mizio-808.jpg": {
     "f": "50,0"
   },
   "/imagens/stephanie-mizio-810.jpg": {
@@ -2630,10 +2539,6 @@
     "f": "50,0"
   },
   "/imagens/stephanie-mizio-813.jpg": {
-    "f": "13,50"
-  },
-  "/imagens/stephanie-mizio-814.jpg": {
-    "pb": 1,
     "f": "13,50"
   },
   "/imagens/stephanie-mizio-833.jpg": {
