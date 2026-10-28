@@ -82,6 +82,8 @@ interface Photo {
   path: string;
   url: string;
   thumbUrl?: string;
+  largura?: number;
+  altura?: number;
 }
 
 /** A pasta do lado do servidor. Cada teste dimensiona-a antes de renderizar. */
@@ -121,11 +123,13 @@ function Host({
   usedThemePaths,
   usadasNoutras,
   paginaEmConstrucao,
+  lugar,
 }: {
   multiple: boolean;
   usedThemePaths?: string[];
   usadasNoutras?: Record<string, string>;
   paginaEmConstrucao?: ComponentProps<typeof ThemePicker>["paginaEmConstrucao"];
+  lugar?: ComponentProps<typeof ThemePicker>["lugar"];
 }) {
   const [open, setOpen] = useState(true);
   if (!open) return null;
@@ -136,6 +140,7 @@ function Host({
       usedThemePaths={usedThemePaths}
       usadasNoutras={usadasNoutras}
       paginaEmConstrucao={paginaEmConstrucao}
+      lugar={lugar}
       onClose={() => {
         onClose();
         setOpen(false);
@@ -2203,5 +2208,65 @@ describe("o nome acessível da folha", () => {
     for (const pedaco of ["Escolher fotos da biblioteca de temas", THEME.name]) {
       expect(within(folha).getAllByText(pedaco).length).toBeGreaterThan(0);
     }
+  });
+});
+
+/** O aviso do rodapé (há outras regiões `alert` no ecrã: os avisos). */
+function avisoDeQualidade() {
+  const a = screen.getAllByRole("alert").find((e) => /má qualidade/.test(e.textContent ?? ""));
+  if (!a) throw new Error("sem o aviso de qualidade");
+  return a;
+}
+
+describe("a qualidade de cada foto, antes de a escolher (ela, 28/10)", () => {
+  it("uma foto do Pinterest leva o sinal, e adicioná-la pergunta primeiro", async () => {
+    photos = folder(3).map((p, i) =>
+      i === 1 ? { ...p, largura: 736, altura: 1104 } : { ...p, largura: 2200, altura: 1467 },
+    );
+    render(
+      <ToastProvider>
+        <Host multiple lugar="tema" />
+      </ToastProvider>,
+    );
+    await screen.findByRole("button", { name: "Foto 2 de 3 (má qualidade)" });
+    expect(screen.getByRole("button", { name: "Foto 1 de 3" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Foto 1 de 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Foto 2 de 3 (má qualidade)" }));
+    fireEvent.click(addAndClose(2));
+    // Não adicionou: perguntou.
+    expect(onReserve).not.toHaveBeenCalled();
+    const alerta = avisoDeQualidade();
+    expect(alerta).toHaveTextContent("Esta foto vai ficar com má qualidade");
+    expect(alerta).toHaveTextContent(/Pinterest/);
+
+    // «Tirar esta» deixa a boa escolhida, e o botão volta a dizer 1.
+    fireEvent.click(within(alerta).getByRole("button", { name: "Tirar esta" }));
+    fireEvent.click(addAndClose(1));
+    await waitFor(() => expect(onReserve).toHaveBeenCalled());
+    expect(reservados().map((r) => r.sourcePath)).toEqual(["t1/foto-1.jpg"]);
+  });
+
+  it("«Usar na mesma» segue com todas", async () => {
+    photos = folder(2).map((p) => ({ ...p, largura: 600, altura: 400 }));
+    render(
+      <ToastProvider>
+        <Host multiple lugar="tema" />
+      </ToastProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Foto 1 de 2 (má qualidade)" }));
+    fireEvent.click(addAndClose(1));
+    fireEvent.click(within(avisoDeQualidade()).getByRole("button", { name: "Usar na mesma" }));
+    await waitFor(() => expect(onReserve).toHaveBeenCalled());
+  });
+
+  it("sem saber para onde vai, não se avisa nada", async () => {
+    photos = folder(2).map((p) => ({ ...p, largura: 600, altura: 400 }));
+    render(
+      <ToastProvider>
+        <Host multiple />
+      </ToastProvider>,
+    );
+    await screen.findByRole("button", { name: "Foto 1 de 2" });
   });
 });

@@ -107,6 +107,13 @@ export interface ThemeImage {
    * simplesmente não entra em nenhum dos dois.
    */
   cor?: string;
+  /**
+   * As medidas do ficheiro guardado, em pixéis (`biblioteca_fotos`). É o que
+   * deixa o seletor dizer ANTES de escolher que uma foto vai ficar com má
+   * qualidade (ela, 28/10). Ausentes nas fotos anteriores a estas colunas.
+   */
+  largura?: number;
+  altura?: number;
 }
 
 /** O que `GET /api/temas/[id]/imagens?offset=&limit=` devolve. */

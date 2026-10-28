@@ -1155,8 +1155,12 @@ export async function listThemeImagePage(
   // A COR vem na mesma consulta do borrão (é a mesma linha): é ela que deixa
   // a capa escolhida AQUI chegar ao cartão com a cor do lugar — ver
   // `capa-do-cartao.ts` e `ThemeSummary.coverCor`. Não custa ida nenhuma.
-  const nenhum = { lqips: new Map<string, string>(), cores: new Map<string, string>() };
-  const [urls, thumbs, { lqips, cores }] = await Promise.all([
+  const nenhum = {
+    lqips: new Map<string, string>(),
+    cores: new Map<string, string>(),
+    formas: new Map<string, { largura: number; altura: number }>(),
+  };
+  const [urls, thumbs, { lqips, cores, formas }] = await Promise.all([
     signThemePaths(paths),
     paths.length > 0 ? signThemeThumbs(paths) : Promise.resolve(new Map<string, string>()),
     paths.length > 0 ? lqipsECoresDeCaminhos(paths) : Promise.resolve(nenhum),
@@ -1166,12 +1170,14 @@ export async function listThemeImagePage(
       const thumbUrl = thumbs.get(path);
       const lqip = lqips.get(path);
       const cor = cores.get(path);
+      const forma = formas.get(path);
       return {
         path,
         url: urls.get(path) ?? "",
         ...(thumbUrl ? { thumbUrl } : {}),
         ...(lqip ? { lqip } : {}),
         ...(cor ? { cor } : {}),
+        ...(forma ? { largura: forma.largura, altura: forma.altura } : {}),
       };
     })
     .filter((im) => im.url);

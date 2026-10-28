@@ -5,11 +5,10 @@ import { THEME_BUCKET, ehRefDeTema, caminhoDoRefDeTema } from "./theme-ref";
 import { isPendingImage, type ProposalDoc } from "./proposal-doc";
 import { formasDeCaminhos } from "./biblioteca-fotos-store";
 import { LARGURAS_DE_PARTILHA, type FotoSuspeita } from "./proposta-fotos-verificacao-tipos";
+import { avaliarFoto, type LugarDaFoto } from "./qualidade-da-foto";
+import { marcaDaRef } from "./proposta-fotos";
 import { log } from "./logger";
-import type {
-  FotoEmFalta,
-  VerificacaoDeFotos,
-} from "./proposta-fotos-verificacao-tipos";
+import type { FotoEmFalta, VerificacaoDeFotos } from "./proposta-fotos-verificacao-tipos";
 
 export type {
   MotivoDeFalta,
@@ -17,20 +16,6 @@ export type {
   VerificacaoDeFotos,
 } from "./proposta-fotos-verificacao-tipos";
 export { PORQUE_FALTA, PORQUE_SUSPEITA } from "./proposta-fotos-verificacao-tipos";
-
-/**
- * Abaixo desta largura (ou altura), uma fotografia é esticada onde é desenhada.
- *
- * A grelha da página pede fotografias de 1200 píxeis (ver a derivada `MEDIA` e
- * o `srcset` da `Inspiracao`), e a célula em destaque do PDF pede ~713. Mil é a
- * linha abaixo da qual a foto é esticada mais de vinte por cento na página —
- * que é onde a moleza começa a ver-se — e já não sobra nada para o papel.
- *
- * Um número redondo e não uma conta de geometria de propósito: a conta exacta
- * mudaria com a disposição de cada board e obrigava este módulo a importar o
- * motor de desenho para responder «esta foto é pequena».
- */
-const MINIMO_UTIL = 1000;
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -65,14 +50,13 @@ const MINIMO_UTIL = 1000;
  * pergunta faz-se aqui, do lado de cá, antes de o link existir.
  */
 
-
-
-
 /** Uma fotografia do documento, com o sítio onde ela vive escrito para uma pessoa. */
 interface Entrada {
   id: string;
   ref: string;
   onde: string;
+  /** Para onde vai — a mesma régua do aviso ao pôr a foto (`qualidade-da-foto.ts`). */
+  lugar: LugarDaFoto;
 }
 
 /**
@@ -89,12 +73,12 @@ interface Entrada {
  */
 function inventarioComSitio(doc: Partial<ProposalDoc>): Entrada[] {
   const out: Entrada[] = [];
-  const juntar = (id: string, onde: string, ref: unknown) => {
+  const juntar = (id: string, onde: string, ref: unknown, lugar: LugarDaFoto = "tema") => {
     if (typeof ref !== "string" || !ref.trim()) return;
-    out.push({ id, ref, onde });
+    out.push({ id, ref, onde, lugar });
   };
   (doc.coverImages ?? []).forEach((ref, i) =>
-    juntar(`c${i}`, `Capa · ${i === 0 ? "esquerda" : "direita"}`, ref),
+    juntar(`c${i}`, `Capa · ${i === 0 ? "esquerda" : "direita"}`, ref, "capa"),
   );
   (doc.moodBoards ?? []).forEach((board, b) => {
     // Com título, cita-se («Lapelas»); sem ele, nomeia-se pela posição. Um
@@ -111,6 +95,18 @@ function inventarioComSitio(doc: Partial<ProposalDoc>): Entrada[] {
       juntar(`e${e}o${o}`, `Escolha ${nome} · ${rotulo}`, opcao?.imagem);
     });
   });
+  // As que ela escolheu para as páginas do PDF — com o MESMO `id` do
+  // `inventarioDeFotos` (28/10: ficavam de fora desta conferência).
+  Object.entries(doc.fotosDasPaginas ?? {}).forEach(([chave, e], n) =>
+    (e?.fotos ?? []).forEach((ref, i) =>
+      juntar(
+        `p${marcaDaRef(chave).slice(0, 8)}f${i}`,
+        `Página escolhida ${n + 1} · foto ${i + 1}`,
+        ref,
+        "pagina",
+      ),
+    ),
+  );
   return out;
 }
 
@@ -217,7 +213,10 @@ export async function verificarFotosDaProposta(
 
     // UMA ida ao Storage por pasta, e todas ao mesmo tempo.
     const listagens = await Promise.all(
-      [...porPasta.values()].map(async (g) => ({ ...g, nomes: await nomesNaPasta(g.bucket, g.pasta) })),
+      [...porPasta.values()].map(async (g) => ({
+        ...g,
+        nomes: await nomesNaPasta(g.bucket, g.pasta),
+      })),
     );
 
     for (const g of listagens) {
@@ -256,14 +255,16 @@ export async function verificarFotosDaProposta(
       const forma = caminho ? formas.get(caminho) : undefined;
       if (!forma) continue;
       const { largura, altura } = forma;
-      // A medida de partilha vem PRIMEIRO: uma foto do Pinterest é quase
-      // sempre pequena também, e das duas frases é esta que diz o que fazer.
+      // A régua é a do aviso ao pôr a foto (28/10): as duas perguntas dão a
+      // mesma resposta. A medida de partilha vem PRIMEIRO: uma foto do
+      // Pinterest é quase sempre pequena também, e das duas frases é esta que
+      // diz o que fazer.
+      const avaliacao = avaliarFoto(largura, altura, e.lugar);
+      if (avaliacao.nivel !== "ma") continue;
       const motivo = LARGURAS_DE_PARTILHA.includes(largura)
         ? "medida-de-partilha"
-        : Math.max(largura, altura) < MINIMO_UTIL
-          ? "pequena-demais"
-          : null;
-      if (motivo) suspeitas.push({ id: e.id, onde: e.onde, motivo, largura, altura });
+        : "pequena-demais";
+      suspeitas.push({ id: e.id, onde: e.onde, motivo, largura, altura });
     }
 
     return { total: entradas.length, emFalta, suspeitas, naoVerificaveis, verificou: true };
@@ -272,4 +273,3 @@ export async function verificarFotosDaProposta(
     return vazio;
   }
 }
-

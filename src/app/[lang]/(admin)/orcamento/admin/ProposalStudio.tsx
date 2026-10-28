@@ -243,6 +243,8 @@ import {
 } from "@/lib/preco-do-pedido";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { useEnvioAdiado } from "./ui/envio-adiado";
+import { useAvisoDeQualidade } from "./AvisoDeQualidade";
+import { lugarDaChave } from "@/lib/qualidade-da-foto";
 
 /**
  * Visual editor for the studio's multi-page proposal PDF. Produces a
@@ -1401,6 +1403,7 @@ interface Props {
 
 export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }: Props) {
   const { toast } = useToast();
+  const avisoDeQualidade = useAvisoDeQualidade();
   const DRAFT_KEY = `liquen-proposal-studio-${quote.id}`;
   const SIDE_KEY = `${DRAFT_KEY}:meta`;
 
@@ -5277,7 +5280,12 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
     return im;
   }
 
-  async function handleUpload(key: string, files: File[], onPaths: (paths: string[]) => void) {
+  async function handleUpload(key: string, todas: File[], onPaths: (paths: string[]) => void) {
+    if (todas.length === 0) return;
+    // Ela (28/10): «que avise mesmo, não coloque esta foto porque vai ficar
+    // com uma qualidade péssima». As más ficam de fora, a não ser que ela diga
+    // «Usar na mesma» (`AvisoDeQualidade`).
+    const files = await avisoDeQualidade.filtrarFicheiros(todas, lugarDaChave(key));
     if (files.length === 0) return;
     setUploading((u) => ({ ...u, [key]: { feito: 0, total: files.length } }));
     /**
@@ -12848,6 +12856,7 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
         />
       )}
 
+      {avisoDeQualidade.dialogo}
       {pickerNoEcra && (
         <ThemePicker
           aberto={picker !== null}
@@ -12861,6 +12870,13 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
           onPicked={onPickedFromLibrary}
           onReserve={onReservedFromLibrary}
           onDropped={onDroppedFromLibrary}
+          lugar={
+            pickerNoEcra.kind === "board"
+              ? "tema"
+              : pickerNoEcra.kind === "cover"
+                ? "capa"
+                : "pagina"
+          }
           /* ── A PÁGINA QUE SE ESTÁ A COMPOR ─────────────────────────────
              Só para os mood boards: um mood board É uma página do PDF, com
              `MAXIMO_POR_PAGINA` fotos por página (acima disso, duas). As

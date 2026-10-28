@@ -186,12 +186,16 @@ export async function coresDeCaminhos(paths: readonly string[]): Promise<Map<str
  * Mesmas promessas dos gémeos: uma foto sem linha (ou sem a coluna) não entra
  * no mapa, e nunca lança — os dois são acessórios.
  */
-export async function lqipsECoresDeCaminhos(
-  paths: readonly string[],
-): Promise<{ lqips: Map<string, string>; cores: Map<string, string> }> {
+export async function lqipsECoresDeCaminhos(paths: readonly string[]): Promise<{
+  lqips: Map<string, string>;
+  cores: Map<string, string>;
+  /** As medidas, da mesma linha — o aviso de qualidade do seletor (28/10). */
+  formas: Map<string, FormaDaFoto>;
+}> {
   const lqips = new Map<string, string>();
   const cores = new Map<string, string>();
-  if (paths.length === 0) return { lqips, cores };
+  const formas = new Map<string, FormaDaFoto>();
+  if (paths.length === 0) return { lqips, cores, formas };
   const pastas = new Set(paths.map((p) => p.split("/")[0]).filter(Boolean));
   const querido = new Set(paths);
   try {
@@ -202,11 +206,12 @@ export async function lqipsECoresDeCaminhos(
       if (!querido.has(f.path)) continue;
       if (f.lqip) lqips.set(f.path, f.lqip);
       if (f.cor) cores.set(f.path, f.cor);
+      if (f.largura && f.altura) formas.set(f.path, { largura: f.largura, altura: f.altura });
     }
   } catch {
     /* sem borrões nem cores — os cartões desenham-se na mesma */
   }
-  return { lqips, cores };
+  return { lqips, cores, formas };
 }
 
 /** A forma de uma fotografia, em pixels do ficheiro guardado. */
