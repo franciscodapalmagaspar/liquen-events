@@ -15,8 +15,15 @@ import { signCapasWebAvif, signProposalMidsAvif } from "@/lib/proposal-assinatur
  * quando o retrato falta (`retrato.ts`) —, nunca numa visita normal, que lê o
  * retrato já com os endereços lá dentro.
  *
- * Sem elas (armazenamento em baixo, tecto passado), a capa fica como estava:
- * o `<picture>` só oferece o que existe.
+ * ── A PÁGINA NÃO ESPERA PELA FABRICAÇÃO (28/10) ──────────────────────────
+ *
+ * A 1.ª versão esperava até 4 s e seguia sem ela. Medido depois de publicada:
+ * codificar a de 1200 leva ~4,5 s e a grande ~9 s — perdia SEMPRE, e numa
+ * função do servidor o que fica a correr depois da resposta é cortado. Nenhuma
+ * AVIF chegou a ficar guardada. Agora a montagem leva o que já existe (a capa
+ * de sempre, se ainda não houver nada) e devolve a fabricação em `porFazer`:
+ * quem monta (`retrato.ts`) segura-a com o `after()` e, quando acaba, volta a
+ * montar a página — a visita seguinte já recebe a capa em AVIF.
  */
 
 export interface CapaWeb {
@@ -26,42 +33,33 @@ export interface CapaWeb {
   grande?: string;
 }
 
-/**
- * O mais que a montagem espera pela fabricação; a seguir segue sem ela. Curto
- * de propósito: numa proposta antiga isto acontece na 1.ª visita depois de
- * publicar, com o casal à espera. A fabricação não é cancelada — acaba sozinha,
- * e a próxima montagem já a encontra.
- */
-const TECTO_MS = 4000;
+export interface CapaWebAgora {
+  /** O que já existe e está assinado — o que esta montagem leva. */
+  capa: CapaWeb;
+  /**
+   * A fabricação do que falta, a correr: resolve com quantas ficaram feitas
+   * (0 se nada se fez). Nunca rejeita.
+   */
+  porFazer?: Promise<number>;
+}
 
-export async function capaWebEmAvif(ref: string, avifJaAssinada?: string): Promise<CapaWeb> {
-  if (!ref || ref.startsWith("data:") || /^https?:\/\//i.test(ref)) {
-    return avifJaAssinada ? { avif: avifJaAssinada } : {};
-  }
-
-  const assinar = async (): Promise<CapaWeb> => {
-    const [grandes, medias] = await Promise.all([
-      signCapasWebAvif([ref]),
-      avifJaAssinada ? Promise.resolve(new Map<string, string>()) : signProposalMidsAvif([ref]),
-    ]);
-    const avif = avifJaAssinada ?? medias.get(ref);
-    const grande = grandes.get(ref);
-    return { ...(avif ? { avif } : {}), ...(grande ? { grande } : {}) };
-  };
-
+export async function capaWebEmAvif(ref: string, avifJaAssinada?: string): Promise<CapaWebAgora> {
   const semNada: CapaWeb = avifJaAssinada ? { avif: avifJaAssinada } : {};
-  let capa = await assinar().catch(() => semNada);
-  if (capa.avif && capa.grande) return capa;
+  if (!ref || ref.startsWith("data:") || /^https?:\/\//i.test(ref)) return { capa: semNada };
 
-  const { fabricarCapaWebEmAvif } = await import("@/lib/derivadas");
-  let relogio: ReturnType<typeof setTimeout> | undefined;
-  const feitas = await Promise.race([
-    fabricarCapaWebEmAvif(ref, { media: !capa.avif, grande: !capa.grande }).catch(() => 0),
-    new Promise<number>((r) => {
-      relogio = setTimeout(() => r(0), TECTO_MS);
-    }),
-  ]);
-  clearTimeout(relogio);
-  if (feitas > 0) capa = await assinar().catch(() => capa);
-  return capa;
+  const [grandes, medias] = await Promise.all([
+    signCapasWebAvif([ref]),
+    avifJaAssinada ? Promise.resolve(new Map<string, string>()) : signProposalMidsAvif([ref]),
+  ]).catch(() => [new Map<string, string>(), new Map<string, string>()] as const);
+  const avif = avifJaAssinada ?? medias.get(ref);
+  const grande = grandes.get(ref);
+  const capa: CapaWeb = { ...(avif ? { avif } : {}), ...(grande ? { grande } : {}) };
+  if (capa.avif && capa.grande) return { capa };
+
+  const porFazer = import("@/lib/derivadas")
+    .then(({ fabricarCapaWebEmAvif }) =>
+      fabricarCapaWebEmAvif(ref, { media: !capa.avif, grande: !capa.grande }),
+    )
+    .catch(() => 0);
+  return { capa, porFazer };
 }

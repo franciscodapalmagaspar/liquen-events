@@ -42,47 +42,48 @@ beforeEach(() => {
 describe("a capa da proposta online em AVIF", () => {
   it("quando as duas já existem, só as assina — não fabrica nada", async () => {
     H.existem.add(`media:${REF}`).add(`grande:${REF}`);
-    expect(await capaWebEmAvif(REF)).toEqual({
+    const r = await capaWebEmAvif(REF);
+    expect(r.capa).toEqual({
       avif: `https://cdn/media/${REF}`,
       grande: `https://cdn/grande/${REF}`,
     });
+    expect(r.porFazer).toBeUndefined();
     expect(H.fabricar).not.toHaveBeenCalled();
   });
 
-  it("fabrica só a que falta, e devolve-a assinada", async () => {
-    const capa = await capaWebEmAvif(REF, "https://ja/assinada.avif");
+  it("fabrica só a que falta, e a montagem leva já o que existe", async () => {
+    const r = await capaWebEmAvif(REF, "https://ja/assinada.avif");
+    expect(r.capa).toEqual({ avif: "https://ja/assinada.avif" });
+    expect(await r.porFazer).toBe(1);
     expect(H.fabricar).toHaveBeenCalledWith(REF, { media: false, grande: true });
-    expect(capa).toEqual({ avif: "https://ja/assinada.avif", grande: `https://cdn/grande/${REF}` });
   });
 
   it("sem nenhuma, fabrica as duas de uma vez", async () => {
-    const capa = await capaWebEmAvif(REF);
+    const r = await capaWebEmAvif(REF);
+    expect(r.capa).toEqual({});
+    expect(await r.porFazer).toBe(2);
     expect(H.fabricar).toHaveBeenCalledTimes(1);
     expect(H.fabricar).toHaveBeenCalledWith(REF, { media: true, grande: true });
-    expect(capa.avif).toBeTruthy();
-    expect(capa.grande).toBeTruthy();
   });
 
-  it("se a fabricação falhar, a capa fica como estava (nunca lança)", async () => {
+  it("se a fabricação falhar, a capa fica como estava e o trabalho dá 0 (nunca rejeita)", async () => {
     H.fabricar.mockRejectedValue(new Error("storage em baixo"));
-    expect(await capaWebEmAvif(REF)).toEqual({});
+    const r = await capaWebEmAvif(REF);
+    expect(r.capa).toEqual({});
+    expect(await r.porFazer).toBe(0);
   });
 
-  it("um armazenamento pendurado não segura a montagem da página", async () => {
-    vi.useFakeTimers();
-    try {
-      H.fabricar.mockImplementation(() => new Promise(() => {}));
-      const p = capaWebEmAvif(REF);
-      await vi.advanceTimersByTimeAsync(4001);
-      expect(await p).toEqual({});
-    } finally {
-      vi.useRealTimers();
-    }
+  it("a montagem não espera pela fabricação — medido a 28/10: ~4,5 s e ~9 s", async () => {
+    // Uma fabricação que nunca acaba não segura a resposta.
+    H.fabricar.mockImplementation(() => new Promise(() => {}));
+    const r = await capaWebEmAvif(REF);
+    expect(r.capa).toEqual({});
+    expect(r.porFazer).toBeInstanceOf(Promise);
   });
 
   it("uma fotografia embutida ou de fora não tem derivadas", async () => {
-    expect(await capaWebEmAvif("data:image/jpeg;base64,AAAA")).toEqual({});
-    expect(await capaWebEmAvif("https://exemplo/x.jpg")).toEqual({});
+    expect(await capaWebEmAvif("data:image/jpeg;base64,AAAA")).toEqual({ capa: {} });
+    expect(await capaWebEmAvif("https://exemplo/x.jpg")).toEqual({ capa: {} });
     expect(H.fabricar).not.toHaveBeenCalled();
   });
 });

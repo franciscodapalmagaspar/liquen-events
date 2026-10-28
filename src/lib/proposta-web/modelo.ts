@@ -250,19 +250,24 @@ export async function propostaWeb(
   proposta: { id: string; doc: ProposalDoc; sentAt?: string; createdAt?: string },
   token: string,
   idioma: IdiomaDaProposta,
+  /** Recebe a fabricação da capa em AVIF quando ainda falta (`capa-web.ts`). */
+  aoFicarACapaPorFazer?: (porFazer: Promise<number>) => void,
 ): Promise<PropostaWeb> {
   const t = textosWeb(idioma);
   const [conteudo, assinadas] = await Promise.all([
     conteudoGuardado(proposta, idioma),
     fotosDaProposta(proposta.doc),
   ]);
-  // A capa em AVIF (27/10): fabricada aqui uma vez por fotografia, porque
-  // isto só corre quando a página é montada — no envio, ou sem retrato.
+  // A capa em AVIF (27/10): fabricada uma vez por fotografia, porque isto só
+  // corre quando a página é montada — no envio, ou sem retrato. A montagem não
+  // espera por ela (28/10): leva o que já existe e passa o resto a quem monta.
   const refDaCapa = conteudo.capa.fundo?.ref;
   let capa: CapaWeb | undefined;
   if (refDaCapa) {
     const i = inventarioDeFotos(proposta.doc).findIndex((e) => e.ref === refDaCapa);
-    capa = await capaWebEmAvif(refDaCapa, i >= 0 ? assinadas[i]?.mediaAvif : undefined);
+    const agora = await capaWebEmAvif(refDaCapa, i >= 0 ? assinadas[i]?.mediaAvif : undefined);
+    capa = agora.capa;
+    if (agora.porFazer) aoFicarACapaPorFazer?.(agora.porFazer);
   }
   return montarPropostaWeb(conteudo, proposta, token, idioma, t, assinadas, capa);
 }

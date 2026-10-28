@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { getState, setState } from "@/lib/app-state";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
@@ -79,7 +80,7 @@ type PropostaParaORetrato = { id: string; doc: ProposalDoc; sentAt?: string; cre
  * `capa-web.ts`). O
  * `retrato.test.ts` falha se um desses ficheiros mudar sem isto subir.
  */
-export const VERSAO_DO_RETRATO = 2;
+export const VERSAO_DO_RETRATO = 3;
 
 /** `proposta-web:retrato:<proposta>:<impressão>` — com a versão do retrato. */
 export function chaveDoRetrato(proposta: PropostaParaORetrato, idioma: IdiomaDaProposta): string {
@@ -126,17 +127,43 @@ function lembrar(chave: string, r: Retrato) {
 
 const aMontar = new Map<string, Promise<Retrato>>();
 
-/** Monta (pelo `modelo.ts`, só agora carregado) e guarda. */
+/**
+ * Segura um trabalho depois da resposta: numa função do servidor, o que fica a
+ * correr quando a página sai é cortado, a não ser que vá pelo `after()`. Fora
+ * de um pedido (os testes, um guião) o `after()` recusa — e aí o trabalho corre
+ * sozinho, que é o que se quer.
+ */
+function segurarDepoisDaResposta(trabalho: Promise<unknown>): void {
+  try {
+    after(() => trabalho);
+  } catch {
+    /* fora de um pedido */
+  }
+}
+
+/**
+ * Monta (pelo `modelo.ts`, só agora carregado) e guarda.
+ *
+ * Se a capa em AVIF ainda estava por fazer (`capa-web.ts`), a página sai com a
+ * capa de sempre e a fabricação continua depois da resposta; quando acaba, a
+ * página volta a montar-se UMA vez — já com a AVIF — e o retrato novo fica no
+ * lugar do outro. Sem isto o retrato sem AVIF servia horas, e a AVIF só se via
+ * quando ele expirasse.
+ */
 function montar(
   chave: string,
   proposta: PropostaParaORetrato,
   idioma: IdiomaDaProposta,
+  refazerDepoisDaCapa = true,
 ): Promise<Retrato> {
   const ja = aMontar.get(chave);
   if (ja) return ja;
   const feito = (async () => {
     const { propostaWeb } = await import("./modelo");
-    const dados = await propostaWeb(proposta, LUGAR_DO_CODIGO, idioma);
+    let capaPorFazer: Promise<number> | undefined;
+    const dados = await propostaWeb(proposta, LUGAR_DO_CODIGO, idioma, (p) => {
+      capaPorFazer = p;
+    });
     const json = JSON.stringify(dados);
     const r: Retrato = { validoAte: validadeDoRetrato(json), json };
     lembrar(chave, r);
@@ -145,6 +172,20 @@ function montar(
     // sai — e é ela que poupa a próxima instância.
     const g = await setState(chave, r).catch(() => null);
     if (!g?.gravado) log.warn("proposta online: o retrato não ficou guardado", { chave });
+    if (capaPorFazer) {
+      segurarDepoisDaResposta(
+        capaPorFazer
+          .then((feitas) => {
+            if (feitas > 0 && refazerDepoisDaCapa) {
+              // Esta montagem já acabou; não é ela que a seguinte reaproveita.
+              if (aMontar.get(chave) === feito) aMontar.delete(chave);
+              return montar(chave, proposta, idioma, false);
+            }
+            if (feitas === 0) log.warn("proposta online: a capa em AVIF não se fez", { chave });
+          })
+          .catch(() => {}),
+      );
+    }
     return r;
   })();
   aMontar.set(chave, feito);
