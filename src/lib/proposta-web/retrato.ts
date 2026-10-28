@@ -83,10 +83,10 @@ type PropostaParaORetrato = { id: string; doc: ProposalDoc; sentAt?: string; cre
 /**
  * Sobe quando muda o que o retrato leva — a forma da `PropostaWeb` ou a
  * maneira de a montar (`modelo.ts`, `mosaico.ts`, `textos-web.ts`,
- * `capa-web.ts`). O
+ * `capa-web.ts`, `tamanhos.ts`, `ponto-de-interesse.ts`). O
  * `retrato.test.ts` falha se um desses ficheiros mudar sem isto subir.
  */
-export const VERSAO_DO_RETRATO = 5;
+export const VERSAO_DO_RETRATO = 6;
 
 /** `proposta-web:retrato:<proposta>:<impressão>` — com a versão do retrato. */
 export function chaveDoRetrato(proposta: PropostaParaORetrato, idioma: IdiomaDaProposta): string {

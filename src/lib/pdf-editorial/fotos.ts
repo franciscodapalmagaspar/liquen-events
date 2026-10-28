@@ -81,6 +81,15 @@ export type Forma = "alta" | "deitada" | "qualquer";
 const serve = (f: Foto, forma: Forma) =>
   forma === "alta" ? f.aspecto < 0.95 : forma === "deitada" ? f.aspecto > 1.2 : true;
 
+/**
+ * Abaixo disto (lado maior, em pixéis do ficheiro), uma fotografia fica
+ * esticada numa página inteira — o mesmo número da capa (`LADO_MINIMO_DA_CAPA`)
+ * e da régua do aviso (`qualidade-da-foto.ts`). Ela (28/10): «não sei se o
+ * sistema consegue ser inteligente o suficiente para perceber onde é que deve
+ * colocar a foto relativamente à resolução».
+ */
+const LADO_QUE_CHEGA = 1200;
+
 export class Album {
   private readonly usos = new Map<number, number[]>();
 
@@ -104,7 +113,8 @@ export class Album {
    *
    * Por ordem: nunca numa página vizinha; fora das que quem chama quer evitar;
    * da forma pedida (uma foto deitada num painel alto perde dois terços);
-   * ainda não usada; e, entre essas, a de mais pixéis.
+   * com pixéis que cheguem (28/10: uma pequena por usar já não ganha a uma
+   * grande que já apareceu); ainda não usada; e, entre essas, a de mais pixéis.
    * Se não chegarem as que cumprem tudo, larga-se primeiro a forma, depois a
    * vizinhança — uma página com fotografia repetida é melhor do que sem
    * fotografia. As escolhidas ficam registadas nessa página.
@@ -123,6 +133,7 @@ export class Album {
         e.vizinha ? 0 : 1,
         evitar.has(f.id) ? 0 : 1,
         serve(f, forma) ? 1 : 0,
+        Math.max(f.w, f.h) >= LADO_QUE_CHEGA ? 1 : 0,
         e.vezes === 0 ? 1 : 0,
         f.pixeis,
       ];

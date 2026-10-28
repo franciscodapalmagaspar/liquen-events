@@ -37,4 +37,21 @@ describe("o álbum escolhe as fotografias dos painéis e separadores", () => {
     const fotos = [foto(1, 3000, 2000), foto(2, 800, 1200)];
     expect(new Album(fotos).escolher(2, "alta")[0].id).toBe(2);
   });
+
+  it("uma pequena por usar já não ganha a uma grande que já apareceu (28/10)", () => {
+    // Ela: «perceber onde é que deve colocar a foto relativamente à resolução».
+    // A de 736 (a medida do Pinterest) ficava com a página inteira só por ser
+    // nova; agora a de 2200, já usada três páginas antes, é a que serve.
+    const fotos = [foto(1, 2200, 1467), foto(2, 736, 490)];
+    const album = new Album(fotos);
+    expect(album.escolher(2, "deitada")[0].id).toBe(1);
+    expect(album.escolher(5, "deitada")[0].id).toBe(1);
+  });
+
+  it("entre duas que chegam, a ainda não usada continua a ganhar", () => {
+    const fotos = [foto(1, 2200, 1467), foto(2, 1600, 1067)];
+    const album = new Album(fotos);
+    expect(album.escolher(2, "deitada")[0].id).toBe(1);
+    expect(album.escolher(5, "deitada")[0].id).toBe(2);
+  });
 });
