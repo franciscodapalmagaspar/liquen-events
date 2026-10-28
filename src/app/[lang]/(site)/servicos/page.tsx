@@ -47,6 +47,11 @@ type ServiceCard = {
   slug: string;
   desc: string;
   image: string;
+  /** Onde recortar a fotografia — uma classe `object-[x_y]` escrita por
+   *  extenso (o Tailwind só gera o que lê no código), quando o centro corta o
+   *  que importa. Sem isto, `object-center`. Vai na `className` e não no
+   *  `style` para o desfocado de espera ficar com o mesmo recorte. */
+  foco?: string;
 };
 
 type Category = {
@@ -69,7 +74,9 @@ const categoryMeta = [
     layout: "mosaic-left" as const,
     band: "/imagens/DaniGui_Preview20.jpg",
     services: [
-      { slug: "casamentos", image: "/imagens/stephanie-mizio-760.jpg" },
+      // As caras dos noivos estão a ~25 % da altura; a faixa larga cortava-as
+      // pelo centro (ela, 28/10: «vamos colocar os noivos a verem-se»).
+      { slug: "casamentos", image: "/imagens/stephanie-mizio-760.jpg", foco: "object-[50%_18%]" },
       { slug: "batizados-e-comunhoes", image: "/imagens/DaniGui_JantarFesta_26.jpg" },
       { slug: "festas-e-aniversarios", image: "/imagens/JOAO_E_PEDRO_1Y1A5248.jpg" },
       { slug: "aluguer-de-viaturas-classicas", image: "/imagens/viaturas-classicas.jpg" },
@@ -122,7 +129,7 @@ function ServiceBand({
           fill
           sizes="100vw"
           quality={75}
-          className="object-cover object-center"
+          className={`object-cover ${service.foco ?? "object-center"}`}
           {...blurFor(service.image)}
         />
       </Parallax>
@@ -178,6 +185,7 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
       services: m.services.map((s, si) => ({
         slug: s.slug,
         image: s.image,
+        foco: "foco" in s ? s.foco : undefined,
         title: ct.services[si].title,
         desc: ct.services[si].desc,
       })),
