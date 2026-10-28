@@ -51,3 +51,10 @@ export const MEDIA_QUALIDADE = 80;
  * repete o 400/78 à mão, com a origem escrita ao lado.
  */
 export const MINIATURA = { lado: 400, qualidade: 78 } as const;
+
+/**
+ * O lado maior da AVIF grande da capa da proposta online (`derivadas.ts`,
+ * `fabricarCapaWebEmAvif`). Aqui, e não lá, para a página saber a largura real
+ * dela sem importar o `sharp` (`proposta-web/modelo.ts`).
+ */
+export const CAPA_WEB_LADO = 2000;

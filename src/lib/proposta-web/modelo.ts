@@ -16,6 +16,8 @@ import { mosaicoDoCapitulo, type FormaDaCelula } from "./mosaico";
 import { textosWeb, type TextosWeb } from "./textos-web";
 import { chaveDoGuardado, guardadoOuCalculado } from "./guardado";
 import { capaWebEmAvif, type CapaWeb } from "./capa-web";
+import { larguraDaDerivada, srcSetComLarguras } from "./tamanhos";
+import { CAPA_WEB_LADO, MEDIA_LADO, MINIATURA } from "@/lib/derivadas-medidas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -36,13 +38,16 @@ import { capaWebEmAvif, type CapaWeb } from "./capa-web";
 export interface ImagemWeb {
   /** A de 1200 px (ou a rota que a fabrica); o original, quando é a única. */
   src: string;
+  /** Com as larguras REAIS de cada ficheiro (`tamanhos.ts`). */
   srcSet?: string;
+  /** O `srcset` em AVIF, também com as larguras reais: a de 1200 e, só na capa, a grande. */
   avif?: string;
   /**
-   * Só a capa: a AVIF grande, para o ecrã largo (ver `capa-web.ts`). No
-   * telemóvel a capa fica com a `avif` de 1200 — a escolha dela, «Mais rápida».
+   * A AVIF chega para um espaço grande: tem a grande (`capa-web.ts`). Sem ela,
+   * num espaço grande a página não oferece AVIF nenhuma — a de 1200 seria
+   * escolhida sempre, e esticada (28/10, «as fotos parecem comidas»).
    */
-  avifGrande?: string;
+  avifGrande?: true;
   /** O ficheiro grande — é o que a lupa abre. */
   grande: string;
   lqip?: string;
@@ -143,16 +148,6 @@ function aQuemSeFala(nomes: string, casamento: boolean, idioma: IdiomaDaProposta
   const primeiro = (s: string) => s.trim().split(/\s+/)[0] ?? "";
   if (n.outro) return `${primeiro(n.um)} ${idioma === "en" ? "and" : "e"} ${primeiro(n.outro)}`;
   return casamento ? n.um : primeiro(n.um);
-}
-
-/** A capa com as suas AVIF (`capa-web.ts`), quando existem. */
-function comACapaWeb(img: ImagemWeb | null, capa: CapaWeb | undefined): ImagemWeb | null {
-  if (!img || !capa) return img;
-  return {
-    ...img,
-    ...(capa.avif ? { avif: capa.avif } : {}),
-    ...(capa.grande ? { avifGrande: capa.grande } : {}),
-  };
 }
 
 /** Pontos de condições → blocos, um por título (o protótipo: um `<details>` cada). */
@@ -291,7 +286,7 @@ export async function montarPropostaWeb(
     if (f && !porRef.has(e.ref)) porRef.set(e.ref, f);
   });
 
-  const imagem = (f: FotoWeb | null | undefined): ImagemWeb | null => {
+  const imagem = (f: FotoWeb | null | undefined, capaWebDela?: CapaWeb): ImagemWeb | null => {
     if (!f) return null;
     const a = porRef.get(f.ref);
     if (!a) return null;
@@ -299,15 +294,29 @@ export async function montarPropostaWeb(
     const media = a.media ?? (a.miniatura || !a.original?.startsWith("data:") ? rota : undefined);
     const grande = a.original ?? media ?? rota;
     const src = media ?? grande;
-    const passos = [
-      a.miniatura ? `${a.miniatura} 400w` : "",
-      media ? `${media} 1200w` : "",
-      a.original && !a.original.startsWith("data:") ? `${a.original} ${a.largura ?? 2000}w` : "",
-    ].filter(Boolean);
+    // As larguras de verdade (28/10): «400»/«1200» são o LADO MAIOR, e numa
+    // fotografia ao alto a «1200w» tem 800 de largura. Sem as medidas, fica o
+    // que estava.
+    const w = (lado: number) => larguraDaDerivada(a.largura, a.altura, lado);
+    const srcSet = srcSetComLarguras([
+      { url: a.miniatura, largura: w(MINIATURA.lado) },
+      { url: media, largura: w(MEDIA_LADO) },
+      {
+        url: a.original && !a.original.startsWith("data:") ? a.original : undefined,
+        largura: a.largura ?? 2000,
+      },
+    ]);
+    const avif1200 = capaWebDela?.avif ?? a.mediaAvif;
+    const avifGrande = capaWebDela?.grande;
+    const avif = srcSetComLarguras([
+      { url: avif1200, largura: w(MEDIA_LADO) },
+      { url: avifGrande, largura: w(CAPA_WEB_LADO) },
+    ]);
     return {
       src,
-      ...(passos.length > 1 ? { srcSet: passos.join(", ") } : {}),
-      ...(a.mediaAvif ? { avif: a.mediaAvif } : {}),
+      ...(srcSet.includes(",") ? { srcSet } : {}),
+      ...(avif ? { avif } : {}),
+      ...(avifGrande ? { avifGrande: true as const } : {}),
       grande,
       ...(a.lqip ? { lqip: a.lqip } : {}),
       ...(f.foco ? { posicao: `${f.foco.x * 100}% ${f.foco.y * 100}%` } : {}),
@@ -329,7 +338,7 @@ export async function montarPropostaWeb(
     sobre: t.capa(c.organizacao),
     nomes,
     partes: c.capa.partes,
-    fundo: comACapaWeb(imagem(c.capa.fundo), capaWeb),
+    fundo: imagem(c.capa.fundo, capaWeb),
   };
   const saudacao = t.ola(aQuemSeFala(c.capa.nomes, c.casamento, idioma));
 
@@ -357,7 +366,7 @@ export async function montarPropostaWeb(
         subtitulo: c.ambiente.subtitulo,
         cores: (await coresDaPaleta(proposta.id, c.ambiente.daPaleta, porRef)).slice(0, 5),
         fotos: [c.ambiente.painel, c.ambiente.fila[0], c.ambiente.fila[1]]
-          .map(imagem)
+          .map((f) => imagem(f))
           .filter((i): i is ImagemWeb => i !== null),
       }
     : null;
