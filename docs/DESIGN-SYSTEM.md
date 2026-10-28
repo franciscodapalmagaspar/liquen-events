@@ -49,6 +49,14 @@ de cada proposta enviada a um casal. O `@theme` partilhado vive em `tema.css`; o
 `source("./[lang]/(admin)")`. **Um token novo vai ao `tema.css`**; uma classe
 nova usada só no back office só é gerada se o `admin.css` a varrer.
 
+E um token de movimento vai ao **`@theme static`** do fim do `tema.css`, não ao
+`@theme` normal: este poda as variáveis que o site público não usa, e uma que só
+o back office lê fica com a classe e sem o valor. Aconteceu às durações e, a
+28/10, a seis das curvas (`smooth`, `default`, `reposition`, `nav`, `sheet`,
+`bouncy`, que caíam na curva `ease` do browser). Desde então as durações e as
+curvas vivem todas no `static`, e o passeio
+`e2e/o-movimento-chega-ao-elemento.spec.ts` exige que cheguem ao `:root`.
+
 **4. O que já existe não se reescreve por gosto.**
 O back office já tem uma família de material (`.bo-material`, `.bo-material-faixa`,
 `.bo-material-desfoque`), tokens de acento, sombra e fio, e testes que os medem —
