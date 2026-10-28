@@ -222,7 +222,6 @@
     "f": "100,50"
   },
   "/imagens/EW1_1408.jpg": {
-    "c": "c1",
     "f": "50,100"
   },
   "/imagens/EW1_1414.jpg": {
@@ -731,7 +730,6 @@
     "f": "50,59"
   },
   "/imagens/Sophia&Artur_MAINOVA-122.jpg": {
-    "c": "c2",
     "f": "50,13"
   },
   "/imagens/Sophia&Artur_MAINOVA-128.jpg": {
@@ -830,7 +828,6 @@
     "f": "50,0"
   },
   "/imagens/WhatsApp Image 2026-05-21 at 11.53.11.jpeg": {
-    "c": "c3",
     "f": "50,22"
   },
   "/imagens/WhatsApp Image 2026-05-21 at 11.53.13.jpeg": {
@@ -885,7 +882,6 @@
     "f": "50,69"
   },
   "/imagens/WhatsApp Image 2026-05-21 at 11.53.33 (2).jpeg": {
-    "c": "c4",
     "f": "50,97"
   },
   "/imagens/WhatsApp Image 2026-05-21 at 11.53.34 (1).jpeg": {
@@ -1185,9 +1181,6 @@
   "/imagens/galeria-instagram-33-08.jpg": {
     "f": "50,0"
   },
-  "/imagens/galeria-instagram-33-09.jpg": {
-    "f": "50,25"
-  },
   "/imagens/galeria-instagram-33-10.jpg": {
     "f": "50,100"
   },
@@ -1226,12 +1219,6 @@
   },
   "/imagens/galeria-instagram-37-05.jpg": {
     "f": "50,100"
-  },
-  "/imagens/galeria-instagram-38-01.jpg": {
-    "f": "50,0"
-  },
-  "/imagens/galeria-instagram-38-03.jpg": {
-    "f": "50,0"
   },
   "/imagens/galeria-instagram-38-05.jpg": {
     "f": "50,3"
@@ -1959,6 +1946,102 @@
     "d": 1,
     "f": "13,50"
   },
+  "/imagens/galeria-jun26-01.jpg": {
+    "f": "50,22"
+  },
+  "/imagens/galeria-jun26-02.jpg": {
+    "f": "50,68"
+  },
+  "/imagens/galeria-jun26-03.jpg": {
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/galeria-jun26-04.jpg": {
+    "f": "50,78"
+  },
+  "/imagens/galeria-jun26-05.jpg": {
+    "f": "50,12"
+  },
+  "/imagens/galeria-jun26-06.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-07.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-08.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-09.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/galeria-jun26-10.jpg": {
+    "d": 1,
+    "f": "100,50"
+  },
+  "/imagens/galeria-jun26-11.jpg": {
+    "f": "31,50"
+  },
+  "/imagens/galeria-jun26-12.jpg": {
+    "d": 1,
+    "f": "31,50"
+  },
+  "/imagens/galeria-jun26-13.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/galeria-jun26-14.jpg": {
+    "f": "50,12"
+  },
+  "/imagens/galeria-jun26-15.jpg": {
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/galeria-jun26-16.jpg": {
+    "d": 1
+  },
+  "/imagens/galeria-jun26-17.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-18.jpg": {
+    "d": 1,
+    "f": "59,50"
+  },
+  "/imagens/galeria-jun26-19.jpg": {
+    "f": "100,50"
+  },
+  "/imagens/galeria-jun26-20.jpg": {
+    "f": "50,40"
+  },
+  "/imagens/galeria-jun26-21.jpg": {
+    "pb": 1,
+    "f": "50,3"
+  },
+  "/imagens/galeria-jun26-22.jpg": {
+    "f": "50,96"
+  },
+  "/imagens/galeria-jun26-23.jpg": {
+    "f": "50,96"
+  },
+  "/imagens/galeria-jun26-24.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-25.jpg": {
+    "pb": 1
+  },
+  "/imagens/galeria-jun26-26.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/galeria-jun26-27.jpg": {
+    "f": "0,50"
+  },
+  "/imagens/galeria-jun26-28.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/galeria-jun26-29.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/galeria-jun26-30.jpg": {
+    "f": "31,50"
+  },
   "/imagens/galeria-outubro-01.jpg": {
     "f": "50,100"
   },
@@ -1982,7 +2065,6 @@
     "f": "50,100"
   },
   "/imagens/galeria-outubro-09.jpg": {
-    "d": 1,
     "f": "69,50"
   },
   "/imagens/galeria-outubro-10.jpg": {
@@ -2038,7 +2120,6 @@
     "f": "100,50"
   },
   "/imagens/galeria-outubro-26.jpg": {
-    "c": "c5",
     "f": "0,50"
   },
   "/imagens/galeria-outubro-27.jpg": {
@@ -2230,7 +2311,6 @@
     "f": "50,0"
   },
   "/imagens/ines-goncalo-509.jpg": {
-    "c": "c6",
     "f": "50,0"
   },
   "/imagens/matilde-e-tomas0654-1.jpg": {
@@ -2352,7 +2432,6 @@
     "f": "50,100"
   },
   "/imagens/stephanie-mizio-564.jpg": {
-    "d": 1,
     "f": "0,50"
   },
   "/imagens/stephanie-mizio-565.jpg": {
@@ -2414,7 +2493,6 @@
     "f": "50,97"
   },
   "/imagens/stephanie-mizio-586.jpg": {
-    "c": "c7",
     "f": "50,59"
   },
   "/imagens/stephanie-mizio-597.jpg": {
@@ -2431,7 +2509,6 @@
     "f": "88,50"
   },
   "/imagens/stephanie-mizio-688.jpg": {
-    "c": "c8",
     "f": "50,0"
   },
   "/imagens/stephanie-mizio-714.jpg": {
@@ -2450,7 +2527,6 @@
     "f": "50,0"
   },
   "/imagens/stephanie-mizio-767.jpg": {
-    "c": "c9",
     "f": "50,0"
   },
   "/imagens/stephanie-mizio-805.jpg": {

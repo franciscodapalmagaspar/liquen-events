@@ -111,7 +111,11 @@ describe("com as 918 fotografias verdadeiras", () => {
   it("o gallery-meta.json cobre fotos que existem na galeria, e nada a mais", () => {
     const daGaleria = new Set(PHOTOS.map((p) => p.src));
     for (const src of Object.keys(VISTO)) expect(daGaleria.has(src), src).toBe(true);
-    expect(Object.values(VISTO).some((v) => v.c)).toBe(true);
+    // A análise está viva: há fotos a P&B e fotos que servem o destaque. Já
+    // não se exige uma cena repetida — a 28/10 ela pediu para apagar as
+    // fotos repetidas, e a galeria ficou sem nenhuma.
+    expect(Object.values(VISTO).some((v) => v.pb)).toBe(true);
+    expect(Object.values(VISTO).some((v) => v.d)).toBe(true);
   });
 
   it.each(SEMENTES)("semente %s: as cenas afastadas, nenhuma P&B seguida", (seed) => {
