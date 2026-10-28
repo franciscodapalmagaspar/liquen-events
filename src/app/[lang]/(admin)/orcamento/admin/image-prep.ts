@@ -101,8 +101,11 @@ export const COVER_QUALITY = 0.9;
 const PRESETS: Record<ImageKind, { maxEdge: number; quality: number; keepBytes: number }> = {
   // Covers: bigger + higher quality (printed large, the document's hero image).
   cover: { maxEdge: COVER_MAX_EDGE, quality: COVER_QUALITY, keepBytes: 1_500_000 },
-  // Mood boards: rendered as small cells → a tighter cap keeps boards snappy.
-  board: { maxEdge: 1600, quality: 0.82, keepBytes: 1_000_000 },
+  // Mood boards: o mesmo lado da capa (28/10). Com 1600 a célula grande do
+  // mosaico da proposta online (~720 pontos, ~1440 pixéis num ecrã retina)
+  // ficava esticada numa foto ao alto — eram as fotos «comidas» dela. A
+  // qualidade fica mais baixa do que a da capa: as células são mais pequenas.
+  board: { maxEdge: COVER_MAX_EDGE, quality: 0.82, keepBytes: 1_000_000 },
 };
 
 /**

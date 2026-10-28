@@ -445,7 +445,7 @@ export async function GET(request: NextRequest) {
         lqipsECoresDeCaminhos(todos),
       ]),
       limite - Date.now(),
-      [vazio(), vazio(), vazio(), { lqips: vazio(), cores: vazio() }],
+      [vazio(), vazio(), vazio(), { lqips: vazio(), cores: vazio(), formas: new Map() }],
       "assinatura das capas",
     );
     /** O melhor que existe para a capa do cartão (~128 px). */

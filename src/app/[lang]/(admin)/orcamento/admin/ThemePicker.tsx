@@ -27,6 +27,7 @@ import { ESTADO, PRESSAO, PROGRESSO } from "./ui/movimento";
 import { rolarAteVer } from "@/lib/motion/rolar";
 import { CuradoriaDeFotos } from "./CuradoriaDeFotos";
 import { PaginaEmConstrucao, type FotoDaPagina } from "./PaginaEmConstrucao";
+import { avaliarFoto, type LugarDaFoto } from "@/lib/qualidade-da-foto";
 import {
   type PaginaTema,
   buscarPrimeiraPagina,
@@ -971,7 +972,9 @@ function ImportChip({ job }: { job: ImportJob }) {
       role="group"
       aria-label="Fotos a caminho da proposta"
       className={`pointer-events-auto rounded-xl border bg-[var(--bo-surface)] px-4 py-3 shadow-[var(--bo-sombra-suspensa)] ${
-        settled && failed > 0 ? "border-[var(--bo-perigo)]/25" : "border-[var(--bo-hairline-strong)]"
+        settled && failed > 0
+          ? "border-[var(--bo-perigo)]/25"
+          : "border-[var(--bo-hairline-strong)]"
       }`}
     >
       <div className="flex items-center gap-3">
@@ -1115,6 +1118,11 @@ interface Props {
    * Opcional de propósito: nas capas é uma foto por espaço e não há conjunto
    * nenhum a compor, portanto o canto não aparece.
    */
+  /**
+   * Para onde vai a foto — é o que deixa dizer, ANTES de a escolher, que vai
+   * ficar com má qualidade (ela, 28/10). Sem isto não se avisa nada.
+   */
+  lugar?: LugarDaFoto;
   paginaEmConstrucao?: {
     titulo?: string;
     /** As que a página JÁ tem, na ordem em que lá estão. */
@@ -1134,6 +1142,7 @@ export default function ThemePicker({
   onReserve,
   onDropped,
   paginaEmConstrucao,
+  lugar,
   aberto = true,
 }: Props) {
   const { toast } = useToast();
@@ -1999,8 +2008,28 @@ export default function ThemePicker({
    * cada foto no documento: quando o diálogo desaparece do ecrã, as fotos já lá
    * estão.
    */
-  function submit(close: boolean) {
+  /** A avaliação desta foto para o sítio para onde vai (`qualidade-da-foto.ts`). */
+  function qualidadeDe(im: ThemeImage) {
+    return lugar && im.largura && im.altura ? avaliarFoto(im.largura, im.altura, lugar) : null;
+  }
+
+  /**
+   * Ela (28/10): «que avise mesmo, não coloque esta foto». Com fotos más na
+   * seleção, o primeiro clique não adiciona: pergunta, no rodapé, com o porquê.
+   * «Tirar estas» deixa as outras escolhidas; «Usar na mesma» segue.
+   */
+  const [emDuvida, setEmDuvida] = useState<{ close: boolean; paths: string[] } | null>(null);
+
+  function submit(close: boolean, mesmoAssim = false) {
     if (selected.length === 0) return;
+    if (!mesmoAssim) {
+      const mas = selected.filter((p) => qualidadeDe(imageFor(p))?.nivel === "ma");
+      if (mas.length > 0) {
+        setEmDuvida({ close, paths: mas });
+        return;
+      }
+    }
+    setEmDuvida(null);
     startImport({
       quoteId,
       images: selected.map(imageFor),
@@ -2080,6 +2109,37 @@ export default function ThemePicker({
           </p>
         )}
       </div>
+      {emDuvida && emDuvida.paths.some((p) => selected.includes(p)) && (
+        <div
+          role="alert"
+          className="w-full rounded-[var(--bo-raio-controlo)] border border-[var(--bo-perigo)]/40 bg-[var(--bo-perigo)]/8 p-3 text-sm"
+        >
+          <p className="font-medium text-[var(--bo-perigo)]">
+            {emDuvida.paths.length === 1
+              ? "Esta foto vai ficar com má qualidade"
+              : `${emDuvida.paths.length} destas fotos vão ficar com má qualidade`}
+          </p>
+          <p className="bo-text-muted mt-1 text-xs">
+            {qualidadeDe(imageFor(emDuvida.paths[0]))?.motivo}
+          </p>
+          <div className="mt-2 flex flex-wrap justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => submit(emDuvida.close, true)}>
+              Usar na mesma
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => {
+                const fora = new Set(emDuvida.paths);
+                setSelected((s) => s.filter((p) => !fora.has(p)));
+                setEmDuvida(null);
+              }}
+            >
+              {emDuvida.paths.length === 1 ? "Tirar esta" : "Tirar estas"}
+            </Button>
+          </div>
+        </div>
+      )}
       {/* E os botões idem: `sm:w-auto sm:flex-nowrap` desfazia a quebra que a
           linha de cima acabara de conquistar. */}
       <div className="flex w-full flex-wrap items-center justify-end gap-2">
@@ -2663,6 +2723,8 @@ export default function ThemePicker({
                           // continua alcançável pelo teclado). O mesmo para as que já
                           // vão a caminho.
                           const blocked = (atLimit && !on) || going;
+                          const qualidade = qualidadeDe(im);
+                          const ma = qualidade?.nivel === "ma";
                           return (
                             // `aspect-square` PASSOU PARA AQUI, do botão para o
                             // invólucro. É o que torna a altura da célula independente
@@ -2690,7 +2752,7 @@ export default function ThemePicker({
                                       : noutra
                                         ? ` (já usada em ${noutra})`
                                         : ""
-                                }${failed ? " (não entrou)" : ""}`}
+                                }${failed ? " (não entrou)" : ""}${ma ? " (má qualidade)" : ""}`}
                                 onClick={(e) => toggleAt(i, e.shiftKey)}
                                 onFocus={() => setFocusIndex(i)}
                                 /* `h-full w-full` e não `aspect-square`: quem é
@@ -2706,6 +2768,19 @@ export default function ThemePicker({
                                 } ${blocked ? "opacity-50" : ""}`}
                               >
                                 <Photo image={im} priority={i < ABOVE_FOLD} />
+                                {ma && (
+                                  // O sinal vermelho, ANTES de escolher (28/10).
+                                  // À esquerda do visto, para não o tapar.
+                                  <span
+                                    aria-hidden
+                                    title={qualidade?.motivo ?? undefined}
+                                    className={`absolute top-1 flex h-5 items-center rounded-full bg-[var(--bo-perigo)] px-1.5 text-[10px] font-medium text-white ${
+                                      on ? "right-7" : "right-1"
+                                    }`}
+                                  >
+                                    Má qualidade
+                                  </span>
+                                )}
                                 {on && (
                                   <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-sage-600 text-white">
                                     <svg

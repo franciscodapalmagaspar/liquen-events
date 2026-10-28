@@ -92,7 +92,13 @@ describe("o que está lá, está", () => {
 
   it("um documento sem fotos nenhumas responde sim, e sem ir ao Storage", async () => {
     const r = await verificarFotosDaProposta(doc());
-    expect(r).toEqual({ total: 0, emFalta: [], suspeitas: [], naoVerificaveis: 0, verificou: true });
+    expect(r).toEqual({
+      total: 0,
+      emFalta: [],
+      suspeitas: [],
+      naoVerificaveis: 0,
+      verificou: true,
+    });
     expect(H.listagens).toEqual([]);
   });
 });
@@ -110,7 +116,11 @@ describe("o que falta é nomeado pelo sítio, não pelo caminho", () => {
       }),
     );
     expect(r.emFalta).toEqual([
-      { id: "b0f0", onde: "Mood board «Decoração Seating Plan» · foto 1", motivo: "nao-esta-no-bucket" },
+      {
+        id: "b0f0",
+        onde: "Mood board «Decoração Seating Plan» · foto 1",
+        motivo: "nao-esta-no-bucket",
+      },
     ]);
   });
 
@@ -292,6 +302,28 @@ describe("as fotografias que vão sair pior do que deviam", () => {
   it("uma foto pequena demais para o sítio onde é desenhada é apanhada", async () => {
     const r = await comFoto(640, 480);
     expect(r.suspeitas[0].motivo).toBe("pequena-demais");
+  });
+
+  it("a régua é a do aviso ao pôr a foto: uma «fraca» não é acusada (28/10)", async () => {
+    // 1000 × 1500 num mood board: serve nas células pequenas. O aviso ao pôr
+    // a foto também não pergunta nada — as duas perguntas dão a mesma resposta.
+    const r = await comFoto(1000, 1500);
+    expect(r.suspeitas).toEqual([]);
+  });
+
+  it("as fotos escolhidas para as páginas também se conferem, com a régua da página", async () => {
+    naPastaDoPedido("LIQ-9", ["pag.jpg"]);
+    // 1100 de lado maior: chegava para um mood board, não para uma página inteira.
+    H.formas.set("LIQ-9/pag.jpg", { largura: 1100, altura: 733 });
+    const r = await verificarFotosDaProposta(
+      doc({ fotosDasPaginas: { "separador:Cerimónia": { fotos: ["LIQ-9/pag.jpg"] } } }),
+    );
+    expect(r.suspeitas).toHaveLength(1);
+    expect(r.suspeitas[0]).toMatchObject({
+      onde: "Página escolhida 1 · foto 1",
+      motivo: "pequena-demais",
+    });
+    expect(r.suspeitas[0].id).toMatch(/^p[0-9a-z]{1,8}f0$/);
   });
 
   it("uma fotografia grande passa sem uma palavra", async () => {
