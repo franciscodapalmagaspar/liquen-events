@@ -1,0 +1,38 @@
+name: Publicar na Vercel
+
+# O GitHub do dono está ligado à conta da Palumen na Vercel, não à da Líquen.
+# No plano Hobby, a Vercel bloqueia as publicações automáticas de commits cujo
+# autor não é o dono da conta («blocked»). Um Deploy Hook não passa por essa
+# verificação: cada push para main chama o hook e a Vercel publica a main.
+#
+# O link do hook vive no segredo VERCEL_DEPLOY_HOOK (Vercel → projeto
+# liquen-events → Settings → Git → Deploy Hooks, ramo main). Sem o segredo,
+# o job não faz nada e não falha.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publicar-vercel
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Chamar o Deploy Hook
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "Sem o segredo VERCEL_DEPLOY_HOOK: nada a publicar."
+            exit 0
+          fi
+          curl --fail --silent --show-error -X POST "$HOOK" > /dev/null
+          echo "Publicação pedida à Vercel."
