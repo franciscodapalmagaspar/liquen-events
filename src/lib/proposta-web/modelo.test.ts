@@ -119,11 +119,30 @@ describe("a proposta online pronta a desenhar", () => {
         grande: "https://cdn.teste/capa-2000.avif?token=x",
       },
     );
-    expect(p.capa.fundo?.avif).toBe("https://cdn.teste/capa-1200.avif?token=x");
-    expect(p.capa.fundo?.avifGrande).toBe("https://cdn.teste/capa-2000.avif?token=x");
+    // Um só `srcset` em AVIF, com as duas e as larguras (28/10).
+    expect(p.capa.fundo?.avif).toMatch(
+      /^https:\/\/cdn\.teste\/capa-1200\.avif\?token=x \d+w, https:\/\/cdn\.teste\/capa-2000\.avif\?token=x \d+w$/,
+    );
+    expect(p.capa.fundo?.avifGrande).toBe(true);
     // A mesma fotografia no fecho continua sem a grande.
     expect(p.fecho.foto?.avifGrande ?? p.citacao?.foto.avifGrande).toBeUndefined();
     expect(JSON.stringify(p).match(/capa-2000/g)).toHaveLength(1);
+  });
+
+  it("o srcset diz a largura REAL de cada ficheiro, também ao alto (28/10)", async () => {
+    const aoAlto = assinadas.map((a) => ({ ...a, largura: 1600, altura: 2400 }));
+    const p = await montarPropostaWeb(
+      conteudo,
+      { id: "p1", doc },
+      "TOKEN",
+      "pt",
+      textosWeb("pt"),
+      aoAlto,
+    );
+    // A «1200» de uma foto ao alto tem 800 de largura; a «400», 267.
+    expect(p.capa.fundo?.srcSet).toMatch(
+      /mini-0\.webp\?token=x 267w, .*media-0\.webp\?token=x 800w, .* 1600w$/,
+    );
   });
 
   it("sem AVIF da capa, a capa fica como estava", async () => {

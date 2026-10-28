@@ -270,12 +270,14 @@ describe("o retrato da proposta online", () => {
       mosaico: impressao("src/lib/proposta-web/mosaico.ts"),
       textos: impressao("src/lib/proposta-web/textos-web.ts"),
       capa: impressao("src/lib/proposta-web/capa-web.ts"),
+      tamanhos: impressao("src/lib/proposta-web/tamanhos.ts"),
     }).toEqual({
-      versao: 4,
-      modelo: "cd00138ebb595e40",
+      versao: 5,
+      modelo: "d4e85cae93188e60",
       mosaico: "25d811bd1021f446",
       textos: "71448f103c1b0275",
       capa: "2717fc2f91e2ede7",
+      tamanhos: "6fc5168faee42f00",
     });
   });
 

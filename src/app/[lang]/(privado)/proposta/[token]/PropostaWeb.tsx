@@ -1,7 +1,9 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { ImagemWeb, PropostaWeb as Dados } from "@/lib/proposta-web/modelo";
+import type { FormaDaCelula } from "@/lib/proposta-web/mosaico";
 import PropostaWebViva from "./PropostaWebViva";
 import { IconeInstagram, IconeLinkedIn } from "@/components/IconesDasRedes";
+import { fatorParaCobrir, sizesParaCobrir } from "@/lib/proposta-web/tamanhos";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -18,19 +20,59 @@ import { IconeInstagram, IconeLinkedIn } from "@/components/IconesDasRedes";
  * `PropostaWebViva.tsx`, e a página lê-se inteira sem ele.
  */
 
-/** Os `sizes` de cada sítio: o browser escolhe do `srcset` só o que precisa. */
+/**
+ * Os `sizes` de cada sítio, a contar com o recorte (`tamanhos.ts`): numa
+ * caixa mais alta do que a fotografia é a ALTURA que manda, e o browser tem
+ * de pedir um ficheiro mais largo do que a caixa. Os números são os do CSS
+ * (`proposta-web.css`) — a altura de cada secção e as colunas de cada grelha.
+ */
 const SIZES = {
-  capa: "100vw",
-  moldura: "(min-width: 900px) 470px, 90vw",
-  tile: "(min-width: 800px) 50vw, 100vw",
-  paleta: "(min-width: 900px) 25vw, 50vw",
-  mosaico: "(min-width: 800px) 25vw, 50vw",
-  mosaicoLargo: "(min-width: 800px) 50vw, 100vw",
-  condicoes: "(min-width: 900px) 40vw, 100vw",
+  // A capa cresce 9% ao entrar (`kb`).
+  capa: (a: number) => sizesParaCobrir(a, [{ vw: 1, vh: 1 }], 1.09),
+  citacao: (a: number) => sizesParaCobrir(a, [{ vw: 1, vh: 0.92 }]),
+  tile: (a: number, sozinho: boolean) =>
+    sizesParaCobrir(
+      a,
+      sozinho
+        ? [{ vw: 1, vh: 0.82 }]
+        : [
+            { desde: 800, vw: 0.5, vh: 0.82 },
+            { vw: 1, vh: 0.82 },
+          ],
+    ),
+  paletaGrande: (a: number) =>
+    sizesParaCobrir(a, [
+      { desde: 900, vw: 0.25, vh: 1 },
+      { vw: 0.5, vh: 0.7 },
+    ]),
+  paleta: (a: number) =>
+    sizesParaCobrir(a, [
+      { desde: 900, vw: 0.25, vh: 0.5 },
+      { vw: 0.5, vh: 0.35 },
+    ]),
+  condicoes: (a: number) =>
+    sizesParaCobrir(a, [
+      { desde: 900, vw: 0.4, vh: 1 },
+      { vw: 1, vh: 0.56 },
+    ]),
+  /** As molduras: «A proposta» e o fecho (4:5), os capítulos (3:4). */
+  moldura: (a: number, forma: number, max: number) => {
+    const f = fatorParaCobrir(a, forma);
+    return `(min-width: 900px) ${Math.round(max * f)}px, ${Math.round(90 * f)}vw`;
+  },
+  /** O mosaico: 4 colunas de 25vw no computador, 2 de 50vw (linhas de 46vw) no telemóvel. */
+  mosaico: (a: number, forma: FormaDaCelula, formaMovel: FormaDaCelula) => {
+    const LARGO = { normal: [1, 1], alta: [1, 0.5], larga: [2, 2], grande: [2, 1] } as const;
+    const [colunas, celula] = LARGO[forma];
+    const [colunasM, celulaM] = LARGO[formaMovel];
+    const pc = Math.round(25 * colunas * fatorParaCobrir(a, celula));
+    const tm = Math.round(50 * colunasM * fatorParaCobrir(a, (celulaM * 50) / 46));
+    return `(min-width: 800px) ${pc}vw, ${tm}vw`;
+  },
 } as const;
 
-/** A partir de onde a capa leva a AVIF grande (ver `capa-web.ts`). */
-const ECRA_LARGO = "(min-width: 900px)";
+/** As células do mosaico que pedem mais do que a AVIF de 1200 (ver `Foto`). */
+const MOSAICO_GRANDE: ReadonlySet<FormaDaCelula> = new Set(["alta", "larga", "grande"]);
 
 export function Foto({
   img,
@@ -39,6 +81,7 @@ export function Foto({
   className,
   prioridade = false,
   estilo,
+  espacoGrande = false,
 }: {
   img: ImagemWeb;
   sizes: string;
@@ -46,6 +89,14 @@ export function Foto({
   className?: string;
   prioridade?: boolean;
   estilo?: CSSProperties;
+  /**
+   * O espaço pede mais pixéis do que a AVIF de 1200 tem (a capa, a citação,
+   * os cartões, a paleta, as células grandes). Aí a AVIF só entra quando há a
+   * grande — o browser escolhe o `<source>` pelo FORMATO, nunca pelo tamanho,
+   * e esticaria a de 1200 (28/10). Sem ela, o `srcset` em JPEG, que vai até
+   * ao original, escolhe pelo tamanho.
+   */
+  espacoGrande?: boolean;
 }) {
   const style: CSSProperties = {
     ...(img.posicao ? { objectPosition: img.posicao } : {}),
@@ -69,13 +120,12 @@ export function Foto({
       data-grande={img.grande}
     />
   );
-  if (!img.avif && !img.avifGrande) return imagem;
+  if (!img.avif || (espacoGrande && !img.avifGrande)) return imagem;
   return (
     <picture style={{ display: "contents" }}>
-      {/* Só a capa (27/10, «Mais rápida»): a grande no ecrã largo; no
-          telemóvel, a de 1200 — os mesmos pixéis de antes, metade do peso. */}
-      {img.avifGrande && <source media={ECRA_LARGO} srcSet={img.avifGrande} type="image/avif" />}
-      {img.avif && <source srcSet={img.avif} type="image/avif" sizes={sizes} />}
+      {/* As larguras reais vão no `srcset`: o browser escolhe a de 1200 ou a
+          grande pelo `sizes`, como no JPEG. */}
+      <source srcSet={img.avif} type="image/avif" sizes={sizes} />
       {imagem}
     </picture>
   );
@@ -143,7 +193,7 @@ export default function PropostaWeb({
     );
     const moldura = k.foto ? (
       <div className="pw-frame pw-rv">
-        <Foto img={k.foto} sizes={SIZES.moldura} alt={k.nome} />
+        <Foto img={k.foto} sizes={SIZES.moldura(k.foto.aspecto, 0.75, 430)} alt={k.nome} />
       </div>
     ) : null;
     return (
@@ -193,10 +243,9 @@ export default function PropostaWeb({
                 >
                   <Foto
                     img={cel.imagem}
-                    sizes={
-                      cel.forma === "larga" || cel.forma === "grande"
-                        ? SIZES.mosaicoLargo
-                        : SIZES.mosaico
+                    sizes={SIZES.mosaico(cel.imagem.aspecto, cel.forma, cel.formaMovel)}
+                    espacoGrande={
+                      MOSAICO_GRANDE.has(cel.forma) || MOSAICO_GRANDE.has(cel.formaMovel)
                     }
                   />
                 </figure>
@@ -226,7 +275,13 @@ export default function PropostaWeb({
       {/* ── Capa ── */}
       <header className="pw-hero" id="top">
         {d.capa.fundo && (
-          <Foto img={d.capa.fundo} sizes={SIZES.capa} className="pw-bg" prioridade />
+          <Foto
+            img={d.capa.fundo}
+            sizes={SIZES.capa(d.capa.fundo.aspecto)}
+            className="pw-bg"
+            prioridade
+            espacoGrande
+          />
         )}
         {/* eslint-disable-next-line @next/next/no-img-element -- o logótipo, servido pelo site */}
         <img className="pw-logo" src="/logo-liquen-proposta.png" alt="Líquen Events" />
@@ -286,7 +341,10 @@ export default function PropostaWeb({
           </div>
           {d.proposta.foto && (
             <div className="pw-frame pw-rv">
-              <Foto img={d.proposta.foto} sizes={SIZES.moldura} />
+              <Foto
+                img={d.proposta.foto}
+                sizes={SIZES.moldura(d.proposta.foto.aspecto, 0.8, 470)}
+              />
             </div>
           )}
         </div>
@@ -314,7 +372,17 @@ export default function PropostaWeb({
                     : undefined
                 }
               >
-                {s.foto && <Foto img={s.foto} sizes={SIZES.tile} alt={s.nome} />}
+                {s.foto && (
+                  <Foto
+                    img={s.foto}
+                    sizes={SIZES.tile(
+                      s.foto.aspecto,
+                      i === d.servicos!.itens.length - 1 && d.servicos!.itens.length % 2 === 1,
+                    )}
+                    alt={s.nome}
+                    espacoGrande
+                  />
+                )}
                 <div className="pw-in pw-rv">
                   <div className="pw-n">{s.numero}</div>
                   <h3 className="pw-t">{s.nome}</h3>
@@ -363,7 +431,8 @@ export default function PropostaWeb({
                 <Foto
                   key={i}
                   img={f}
-                  sizes={SIZES.paleta}
+                  sizes={i === 0 ? SIZES.paletaGrande(f.aspecto) : SIZES.paleta(f.aspecto)}
+                  espacoGrande
                   className={i === 0 ? "pw-pal-grande" : undefined}
                 />
               ))}
@@ -377,7 +446,7 @@ export default function PropostaWeb({
       {capitulosAntes.map(capitulo)}
       {d.citacao && (
         <section className="pw-quote">
-          <Foto img={d.citacao.foto} sizes={SIZES.capa} />
+          <Foto img={d.citacao.foto} sizes={SIZES.citacao(d.citacao.foto.aspecto)} espacoGrande />
           <div>
             <blockquote className="pw-rv">{d.citacao.frase}</blockquote>
             <span className="pw-s pw-rv">{d.citacao.assinatura}</span>
@@ -464,7 +533,13 @@ export default function PropostaWeb({
       {/* ── Condições ── */}
       <section className="pw-cond" id="condicoes">
         <div className="pw-ph">
-          {d.condicoes.foto && <Foto img={d.condicoes.foto} sizes={SIZES.condicoes} />}
+          {d.condicoes.foto && (
+            <Foto
+              img={d.condicoes.foto}
+              sizes={SIZES.condicoes(d.condicoes.foto.aspecto)}
+              espacoGrande
+            />
+          )}
         </div>
         <div className="pw-txt">
           <div
@@ -506,7 +581,7 @@ export default function PropostaWeb({
         <div className="pw-wrap">
           {d.fecho.foto && (
             <div className="pw-frame pw-rv">
-              <Foto img={d.fecho.foto} sizes={SIZES.moldura} />
+              <Foto img={d.fecho.foto} sizes={SIZES.moldura(d.fecho.foto.aspecto, 0.8, 360)} />
             </div>
           )}
           <div className="pw-k pw-rv">{d.fecho.obrigado}</div>

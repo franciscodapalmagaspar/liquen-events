@@ -24,7 +24,7 @@ import {
 } from "@/lib/theme-ref";
 import { garantirBucketDeDerivadas } from "@/lib/theme-storage";
 import { log } from "@/lib/logger";
-import { MEDIA_LADO, MEDIA_QUALIDADE, MINIATURA } from "@/lib/derivadas-medidas";
+import { CAPA_WEB_LADO, MEDIA_LADO, MEDIA_QUALIDADE, MINIATURA } from "@/lib/derivadas-medidas";
 import { chaveDaCapaWeb } from "@/lib/proposal-assinaturas";
 
 /**
@@ -1157,7 +1157,7 @@ export async function aquecerDerivadasDaCapa(
  * guardadas, e sem elas a página serve o que servia. Só a chama quem monta a
  * página (no envio, ou quando o retrato falta) — nunca uma visita normal.
  */
-export const CAPA_WEB_LADO = 2000;
+export { CAPA_WEB_LADO };
 
 export async function fabricarCapaWebEmAvif(
   ref: string,
