@@ -26,6 +26,7 @@ import { PONTOS_DECORACAO } from "@/lib/orcamento/decoracao";
 // como se acaba com duas regras diferentes.
 import { clearSubmissionId, ensureSubmissionId } from "@/lib/orcamento/submission-id";
 import { assentarComMola } from "@/lib/motion/assentar";
+import CalendarioDaData from "./CalendarioDaData";
 import { normalizarTelefone, sugestaoDeEmail } from "@/lib/contacto-do-pedido";
 
 /**
@@ -117,6 +118,7 @@ const EVENT_TYPES = QUOTE_EVENT_OPTIONS;
 // state for the native date input, whose :placeholder-shown is unreliable.
 function FloatingField({
   htmlFor,
+  labelId,
   label,
   required,
   floatAlways,
@@ -126,6 +128,8 @@ function FloatingField({
   children,
 }: {
   htmlFor: string;
+  /** Para um controlo que se nomeia a si próprio com o rótulo (o calendário). */
+  labelId?: string;
   label: string;
   required?: boolean;
   floatAlways?: boolean;
@@ -139,7 +143,7 @@ function FloatingField({
       className={`ff group${floatAlways ? " ff--float" : ""}${className ? ` ${className}` : ""}`}
     >
       {children}
-      <label htmlFor={htmlFor} className="ff-label font-normal">
+      <label id={labelId} htmlFor={htmlFor} className="ff-label font-normal">
         {label}
         {required && (
           <span aria-hidden className="text-gold-text">
@@ -336,6 +340,7 @@ export default function OrcamentoForm({
   const emailRef = useRef<HTMLInputElement>(null);
   const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const dataRef = useRef<HTMLInputElement>(null);
+  const dataBotaoRef = useRef<HTMLButtonElement>(null);
   const pessoasRef = useRef<HTMLInputElement>(null);
   const localRef = useRef<HTMLInputElement>(null);
   const telefoneRef = useRef<HTMLInputElement>(null);
@@ -355,6 +360,23 @@ export default function OrcamentoForm({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMinDate(hojeNoFusoDela());
+  }, []);
+
+  // O calendário da data: o nosso (ao estilo da Apple) com rato, o do sistema
+  // com o dedo. Pedido dela, 28/10, com a captura do calendário do Chrome:
+  // «quero melhorar isto para ficar ao estilo da apple». No telemóvel fica o
+  // `<input type="date">`, que no iPhone abre a roda da própria Apple — e é
+  // também o que vem no HTML pré-gerado, para o campo funcionar antes do
+  // JavaScript e sem ele. Decide-se pelo ponteiro e não pela largura: um
+  // portátil com ecrã táctil estreito continua a ter rato.
+  const [calendarioProprio, setCalendarioProprio] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(hover: hover) and (pointer: fine)");
+    if (!mq) return;
+    const ver = () => setCalendarioProprio(mq.matches);
+    ver();
+    mq.addEventListener?.("change", ver);
+    return () => mq.removeEventListener?.("change", ver);
   }, []);
 
   // Restaura o rascunho guardado (uma vez, após montar — evita mismatch de SSR).
@@ -642,7 +664,7 @@ export default function OrcamentoForm({
       // screen (WCAG 3.3.1 error identification + 2.4.3 focus order).
       const first: [boolean, { focus: () => void } | null][] = [
         [okTipo, radioRefs.current[0]],
-        [okData, dataRef.current],
+        [okData, dataRef.current ?? dataBotaoRef.current],
         [okPessoas, pessoasRef.current],
         [okLocal, localRef.current],
         [okNome, nomeRef.current],
@@ -1157,24 +1179,42 @@ export default function OrcamentoForm({
               <div>
                 <FloatingField
                   htmlFor="of-data"
+                  labelId="of-data-rotulo"
                   label={to.labelData}
                   floatAlways
                   error={dataErr}
                   errorId="of-data-err"
                 >
-                  <input
-                    id="of-data"
-                    ref={dataRef}
-                    type="date"
-                    min={minDate || undefined}
-                    value={data}
-                    disabled={dateFlexible}
-                    onBlur={() => markTouched("data")}
-                    aria-invalid={dataErr ? true : undefined}
-                    aria-describedby={dataErr ? "of-data-err" : undefined}
-                    onChange={(e) => setData(e.target.value)}
-                    className={`${ffInputCls} [color-scheme:light] ${dateFlexible ? "opacity-40" : ""}`}
-                  />
+                  {calendarioProprio ? (
+                    <CalendarioDaData
+                      id="of-data"
+                      rotuloId="of-data-rotulo"
+                      botaoRef={dataBotaoRef}
+                      valor={data}
+                      minimo={minDate}
+                      desligado={dateFlexible}
+                      descritoPor={dataErr ? "of-data-err" : undefined}
+                      locale={locale.startsWith("en") ? "en-GB" : "pt-PT"}
+                      textos={to.calendario}
+                      aoMudar={setData}
+                      aoFechar={() => markTouched("data")}
+                      className={`${ffInputCls} ${dateFlexible ? "opacity-40" : ""}`}
+                    />
+                  ) : (
+                    <input
+                      id="of-data"
+                      ref={dataRef}
+                      type="date"
+                      min={minDate || undefined}
+                      value={data}
+                      disabled={dateFlexible}
+                      onBlur={() => markTouched("data")}
+                      aria-invalid={dataErr ? true : undefined}
+                      aria-describedby={dataErr ? "of-data-err" : undefined}
+                      onChange={(e) => setData(e.target.value)}
+                      className={`${ffInputCls} [color-scheme:light] ${dateFlexible ? "opacity-40" : ""}`}
+                    />
+                  )}
                 </FloatingField>
                 {/* `alvo-toque`: MEDIDO a 375 px com toque emulado, 132×29 px —
                     falha a altura mínima. É o rótulo, não a caixa de 16 px lá

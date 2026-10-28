@@ -468,6 +468,17 @@ export const en: Dict = {
     labelCoordenacao: "Would you like to include coordination on the day of the event?",
     hintCoordenacao: "We look after the timings, the suppliers and anything unexpected on the day.",
     labelData: "Event date",
+    calendario: {
+      escolher: "Choose a date",
+      calendario: "Calendar",
+      mesAnterior: "Previous month",
+      mesSeguinte: "Next month",
+      anoAnterior: "Previous year",
+      anoSeguinte: "Next year",
+      escolherMes: "Choose the month",
+      hoje: "today",
+      passou: "already past",
+    },
     dateFlexibleLabel: "Date still to be decided",
     guestsFlexibleLabel: "Still to be decided",
     hintPessoasAprox:
