@@ -360,7 +360,12 @@ export default function PropostaWeb({
           {d.paleta.fotos.length > 0 && (
             <div className="pw-pics">
               {d.paleta.fotos.map((f, i) => (
-                <Foto key={i} img={f} sizes={SIZES.paleta} />
+                <Foto
+                  key={i}
+                  img={f}
+                  sizes={SIZES.paleta}
+                  className={i === 0 ? "pw-pal-grande" : undefined}
+                />
               ))}
             </div>
           )}
