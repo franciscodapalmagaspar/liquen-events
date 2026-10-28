@@ -21,8 +21,22 @@ vi.mock("@/lib/app-state", () => ({
 /** Um JWT com o `exp` dado, como os do Supabase. */
 const jwt = (expSeg: number) =>
   `aaa.${Buffer.from(JSON.stringify({ exp: expSeg })).toString("base64url")}.ccc`;
-const assinada = (expSeg: number) =>
-  `https://x.supabase.co/storage/v1/object/sign/theme-assets/a.jpg?token=${jwt(expSeg)}`;
+const assinada = (expSeg: number, bucket = bucketDaFoto) =>
+  `https://x.supabase.co/storage/v1/object/sign/${bucket}/a.jpg?token=${jwt(expSeg)}`;
+
+/** As fotos de tema voltam a assinar-se ao ler: aqui, por seis horas. */
+const assinaturas = { falhar: false, chamadas: 0 };
+vi.mock("@/lib/proposal-assinaturas", () => ({
+  assinarLote: vi.fn(async (bucket: string, caminhos: string[], _s: boolean, ttl: number) => {
+    assinaturas.chamadas++;
+    const m = new Map<string, string>();
+    if (assinaturas.falhar) return m;
+    const exp = Math.floor(Date.now() / 1000) + ttl;
+    for (const c of caminhos)
+      m.set(c, `https://x.supabase.co/storage/v1/object/sign/${bucket}/${c}?token=${jwt(exp)}`);
+    return m;
+  }),
+}));
 
 /** O que ficou seguro para depois da resposta (`after()`). */
 const segurados: Promise<unknown>[] = [];
@@ -33,6 +47,8 @@ vi.mock("next/server", () => ({
 }));
 
 let expDaFoto = Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 3600;
+/** As fotos da biblioteca (seis horas) ou do próprio pedido (dez anos). */
+let bucketDaFoto = "theme-assets";
 /** A capa em AVIF por fazer na próxima montagem (`capa-web.ts`), se houver. */
 let capaPorFazer: (() => Promise<number>) | null = null;
 let comAvif = false;
@@ -68,6 +84,67 @@ beforeEach(() => {
   capaPorFazer = null;
   comAvif = false;
   segurados.length = 0;
+  bucketDaFoto = "theme-assets";
+  assinaturas.falhar = false;
+  assinaturas.chamadas = 0;
+});
+
+describe("as fotos de tema assinam-se ao ler, não ficam no retrato (28/10)", () => {
+  it("o retrato guardado não leva endereços de tema; a página sai com eles assinados", async () => {
+    expDaFoto = Math.floor(Date.now() / 1000) + 6 * 3600;
+    await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    const guardado = JSON.stringify([...estado.values()]);
+    expect(guardado).not.toContain("/object/sign/theme-assets/");
+    expect(guardado).toContain("~LIQUEN-TEMA[theme-assets|a.jpg]~");
+
+    esquecerRetratos();
+    const pagina = await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    expect(JSON.stringify(pagina)).toMatch(/\/object\/sign\/theme-assets\/a\.jpg\?token=/);
+    expect(propostaWeb).toHaveBeenCalledTimes(1);
+  });
+
+  it("um retrato só com fotos de tema vive dias, e não seis horas", async () => {
+    expDaFoto = Math.floor(Date.now() / 1000) + 6 * 3600;
+    await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    const r = [...estado.values()][0] as { validoAte: number };
+    expect(r.validoAte - Date.now()).toBeGreaterThan(6 * 24 * 3600 * 1000);
+  });
+
+  it("a visita seguinte não volta a assinar: fica em memória até perto do fim", async () => {
+    await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    esquecerRetratos();
+    await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    const depoisDaPrimeira = assinaturas.chamadas;
+    await retratoDaPropostaWeb(proposta, "outro", "pt");
+    expect(assinaturas.chamadas).toBe(depoisDaPrimeira);
+  });
+
+  it("se o armazenamento não assinar, a página monta-se como antes — nunca um endereço morto", async () => {
+    await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    esquecerRetratos();
+    assinaturas.falhar = true;
+    const pagina = await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    expect(JSON.stringify(pagina)).not.toContain("~LIQUEN-TEMA[");
+    expect(propostaWeb).toHaveBeenCalledTimes(2);
+  });
+
+  it("as fotos do próprio pedido (dez anos) ficam no retrato tal como estão", async () => {
+    bucketDaFoto = "proposal-assets";
+    await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    expect(JSON.stringify([...estado.values()])).toContain("/object/sign/proposal-assets/a.jpg");
+  });
+
+  it("perto do fim, serve o retrato e monta o novo depois da resposta", async () => {
+    // Um retrato a dez horas do fim (a foto do pedido expira daqui a 10 h + a margem).
+    bucketDaFoto = "proposal-assets";
+    expDaFoto = Math.floor(Date.now() / 1000) + 10 * 3600 + 30 * 60;
+    await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    expect(propostaWeb).toHaveBeenCalledTimes(1);
+    await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    expect(segurados.length).toBeGreaterThan(0);
+    await Promise.all(segurados);
+    expect(propostaWeb).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("a capa em AVIF que ainda falta (28/10)", () => {
@@ -150,6 +227,7 @@ describe("o retrato da proposta online", () => {
   });
 
   it("um retrato caducado volta a montar", async () => {
+    bucketDaFoto = "proposal-assets"; // as de tema já não mandam na validade
     expDaFoto = Math.floor(Date.now() / 1000) + 60; // já dentro da margem
     await retratoDaPropostaWeb(proposta, "abc123", "pt");
     await retratoDaPropostaWeb(proposta, "abc123", "pt");
@@ -193,7 +271,7 @@ describe("o retrato da proposta online", () => {
       textos: impressao("src/lib/proposta-web/textos-web.ts"),
       capa: impressao("src/lib/proposta-web/capa-web.ts"),
     }).toEqual({
-      versao: 3,
+      versao: 4,
       modelo: "cd00138ebb595e40",
       mosaico: "25d811bd1021f446",
       textos: "71448f103c1b0275",
