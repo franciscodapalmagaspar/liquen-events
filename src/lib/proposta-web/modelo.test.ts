@@ -145,6 +145,72 @@ describe("a proposta online pronta a desenhar", () => {
     );
   });
 
+  it("as molduras ao alto levam uma foto ao alto quando a do PDF é deitada (28/10)", async () => {
+    // Ela: «devia estar na vertical ou na horizontal». A moldura de «A
+    // proposta» é 4:5 e o PDF escolhe-lhe uma deitada (f(1), 1.5).
+    const p = await montarPropostaWeb(
+      conteudo,
+      { id: "p1", doc },
+      "TOKEN",
+      "pt",
+      textosWeb("pt"),
+      assinadas,
+    );
+    expect(p.proposta.foto?.aspecto).toBeLessThan(0.9);
+    // O fecho (a foto da capa, deitada) também, e não a mesma de «A proposta».
+    expect(p.fecho.foto?.aspecto).toBeLessThan(0.9);
+    // O separador do 1.º capítulo leva a ao alto desse capítulo.
+    expect(p.capitulos[0].foto?.aspecto).toBe(0.7);
+    // O fundo desfocado continua a ser OUTRA foto.
+    expect(p.proposta.fundo).not.toBe(null);
+  });
+
+  it("a foto que ELA escolheu para a página fica, mesmo deitada", async () => {
+    const comEscolha = {
+      ...doc,
+      fotosDasPaginas: { proposta: { fotos: [C(1)] } },
+    } as unknown as ProposalDoc;
+    const p = await montarPropostaWeb(
+      conteudo,
+      { id: "p1", doc: comEscolha },
+      "TOKEN",
+      "pt",
+      textosWeb("pt"),
+      assinadas,
+    );
+    expect(p.proposta.foto?.aspecto).toBe(1.5);
+  });
+
+  it("sem foco dela, a foto recorta pelo ponto de interesse; com foco, pelo dela", async () => {
+    const pontos = new Map([[C(0), { x: 0.2, y: 0.4 }]]);
+    const p = await montarPropostaWeb(
+      conteudo,
+      { id: "p1", doc },
+      "TOKEN",
+      "pt",
+      textosWeb("pt"),
+      assinadas,
+      undefined,
+      pontos,
+    );
+    expect(p.capa.fundo?.posicao).toBe("20% 40%");
+    const comFoco = {
+      ...conteudo,
+      capa: { ...conteudo.capa, fundo: { ...f(0), foco: { x: 0.9, y: 0.1 } } },
+    };
+    const q = await montarPropostaWeb(
+      comFoco,
+      { id: "p1", doc },
+      "TOKEN",
+      "pt",
+      textosWeb("pt"),
+      assinadas,
+      undefined,
+      pontos,
+    );
+    expect(q.capa.fundo?.posicao).toBe("90% 10%");
+  });
+
   it("sem AVIF da capa, a capa fica como estava", async () => {
     const p = await montarPropostaWeb(
       conteudo,

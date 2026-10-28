@@ -16,6 +16,7 @@ import { mosaicoDoCapitulo, type FormaDaCelula } from "./mosaico";
 import { textosWeb, type TextosWeb } from "./textos-web";
 import { chaveDoGuardado, guardadoOuCalculado } from "./guardado";
 import { capaWebEmAvif, type CapaWeb } from "./capa-web";
+import { pontosDeInteresse, type PontoDeInteresse } from "./ponto-de-interesse";
 import { larguraDaDerivada, srcSetComLarguras } from "./tamanhos";
 import { CAPA_WEB_LADO, MEDIA_LADO, MINIATURA } from "@/lib/derivadas-medidas";
 
@@ -264,7 +265,17 @@ export async function propostaWeb(
     capa = agora.capa;
     if (agora.porFazer) aoFicarACapaPorFazer?.(agora.porFazer);
   }
-  return montarPropostaWeb(conteudo, proposta, token, idioma, t, assinadas, capa);
+  // Onde recortar as fotos que ela não enquadrou (`ponto-de-interesse.ts`):
+  // pela miniatura, uma vez por proposta.
+  const inventario = inventarioDeFotos(proposta.doc);
+  const pontos = await pontosDeInteresse(
+    proposta.id,
+    inventario.flatMap((e, i) => {
+      const url = assinadas[i]?.miniatura;
+      return url ? [{ ref: e.ref, url }] : [];
+    }),
+  );
+  return montarPropostaWeb(conteudo, proposta, token, idioma, t, assinadas, capa, pontos);
 }
 
 /** A parte sem idas à rede — testável. */
@@ -276,6 +287,8 @@ export async function montarPropostaWeb(
   t: TextosWeb,
   assinadas: readonly FotoDaProposta[],
   capaWeb?: CapaWeb,
+  /** Onde recortar as fotos sem foco dela (`ponto-de-interesse.ts`). */
+  pontos?: ReadonlyMap<string, PontoDeInteresse>,
 ): Promise<PropostaWeb> {
   const base = `/api/proposta/${encodeURIComponent(token)}`;
   // O inventário e as assinadas estão pela mesma ordem.
@@ -286,6 +299,7 @@ export async function montarPropostaWeb(
     if (f && !porRef.has(e.ref)) porRef.set(e.ref, f);
   });
 
+  const pct = (v: number) => Math.round(v * 1000) / 10;
   const imagem = (f: FotoWeb | null | undefined, capaWebDela?: CapaWeb): ImagemWeb | null => {
     if (!f) return null;
     const a = porRef.get(f.ref);
@@ -312,6 +326,8 @@ export async function montarPropostaWeb(
       { url: avif1200, largura: w(MEDIA_LADO) },
       { url: avifGrande, largura: w(CAPA_WEB_LADO) },
     ]);
+    // O enquadramento dela; sem ele, o ponto de interesse (`ponto-de-interesse.ts`).
+    const ponto = f.foco ?? pontos?.get(f.ref);
     return {
       src,
       ...(srcSet.includes(",") ? { srcSet } : {}),
@@ -319,7 +335,7 @@ export async function montarPropostaWeb(
       ...(avifGrande ? { avifGrande: true as const } : {}),
       grande,
       ...(a.lqip ? { lqip: a.lqip } : {}),
-      ...(f.foco ? { posicao: `${f.foco.x * 100}% ${f.foco.y * 100}%` } : {}),
+      ...(ponto ? { posicao: `${pct(ponto.x)}% ${pct(ponto.y)}%` } : {}),
       aspecto: f.aspecto,
     };
   };
@@ -331,6 +347,37 @@ export async function montarPropostaWeb(
   };
   const outraQue = (evitar: FotoWeb | null, ...candidatas: (FotoWeb | null | undefined)[]) =>
     candidatas.find((f) => f && f.ref !== evitar?.ref) ?? evitar;
+
+  /**
+   * As molduras da página são AO ALTO (4:5 em «A proposta» e no fecho, 3:4
+   * nos capítulos), e o motor do PDF escolhe para uma folha DEITADA: uma foto
+   * deitada perdia ali metade da largura. Ela (28/10): «devia estar na
+   * vertical ou na horizontal». Se a do PDF é deitada, a página leva uma ao
+   * alto das candidatas — a de mais pixéis, que não esteja já à vista na
+   * secção vizinha. As que ELA escolheu para uma página (`fotosDasPaginas`)
+   * ficam sempre: a escolha dela manda. O PDF não muda.
+   */
+  const fixas = new Set(
+    Object.values(proposta.doc.fotosDasPaginas ?? {}).flatMap((e) => e?.fotos ?? []),
+  );
+  const pixeis = (f: FotoWeb) => {
+    const a = porRef.get(f.ref);
+    return (a?.largura ?? 0) * (a?.altura ?? 0);
+  };
+  const paraMoldura = (
+    preferida: FotoWeb | null | undefined,
+    candidatas: readonly (FotoWeb | null | undefined)[],
+    evitar: ReadonlySet<string> = new Set(),
+  ): FotoWeb | null => {
+    if (!preferida) return null;
+    if (preferida.aspecto <= 1.1 || fixas.has(preferida.ref)) return preferida;
+    const aoAlto = candidatas
+      .filter(
+        (f): f is FotoWeb => !!f && f.aspecto < 0.9 && !evitar.has(f.ref) && porRef.has(f.ref),
+      )
+      .sort((a, b) => pixeis(b) - pixeis(a));
+    return aoAlto[0] ?? preferida;
+  };
 
   // ── Capa e saudação ──
   const nomes = nomesDaCapa(c.capa.nomes, c.casamento);
@@ -344,7 +391,18 @@ export async function montarPropostaWeb(
 
   // ── A proposta, sobre o fundo de OUTRA fotografia ──
   const todasDosCapitulos = c.capitulos.flatMap((k) => k.temas.flatMap((x) => x.fotos));
-  const fundoDaProposta = outraQue(c.proposta.foto, c.capa.fundo, ...todasDosCapitulos);
+  const fotoDaProposta = paraMoldura(
+    c.proposta.foto,
+    todasDosCapitulos,
+    new Set([c.capa.fundo?.ref].filter((r): r is string => !!r)),
+  );
+  // O fundo desfocado é sempre OUTRA foto — também a que a moldura não levou.
+  const fundoDaProposta = outraQue(
+    fotoDaProposta,
+    c.proposta.foto,
+    c.capa.fundo,
+    ...todasDosCapitulos,
+  );
 
   // ── Serviços ──
   const servicos = c.servicos?.itens.length
@@ -374,16 +432,30 @@ export async function montarPropostaWeb(
   // ── Capítulos: o ecrã de abertura e o mosaico ──
   const capitulos: CapituloPronto[] = c.capitulos.map((k, ci) => {
     const fotos = k.temas.flatMap((x) => x.fotos);
-    const celulas = fotos.length ? mosaicoDoCapitulo(fotos.map((f) => f.aspecto)) : [];
+    const celulas = fotos.length
+      ? mosaicoDoCapitulo(
+          fotos.map((f) => f.aspecto),
+          true,
+          fotos.map((f) => {
+            const a = porRef.get(f.ref);
+            return a?.largura && a?.altura ? Math.min(a.largura, a.altura) : undefined;
+          }),
+        )
+      : [];
     const abre = k.temas.find((x) => x.titulo) ?? k.temas[0];
+    const molduraDoCapitulo = paraMoldura(k.fotos[0], [...k.fotos, ...fotos]);
     return {
       id: `cap${ci + 1}`,
       numero: String(k.numero).padStart(2, "0"),
       nome: k.nome,
       linha: k.linha,
       nota: k.nota,
-      foto: imagem(k.fotos[0]),
-      fundo: fundo(k.fotos[1] ?? k.fotos[0] ?? fotos[0], 0.62, [-14, -24, -8][ci % 3]),
+      foto: imagem(molduraDoCapitulo),
+      fundo: fundo(
+        outraQue(molduraDoCapitulo, k.fotos[1], k.fotos[0], ...fotos) ?? fotos[0],
+        0.62,
+        [-14, -24, -8][ci % 3],
+      ),
       // O lado alterna: par → fotografia à esquerda (o protótipo).
       fotoAEsquerda: (ci + 1) % 2 === 0,
       mosaico: celulas.map((cel) =>
@@ -420,12 +492,21 @@ export async function montarPropostaWeb(
   const blocos = blocosDasCondicoes([...(c.cronograma ? [c.cronograma] : []), ...c.condicoes]);
 
   // ── Fecho ──
+  const fotoDoFecho = paraMoldura(
+    c.fecho.fundo,
+    todasDosCapitulos,
+    new Set(
+      [c.capa.fundo?.ref, c.fotoDasCondicoes?.ref, fotoDaProposta?.ref].filter(
+        (r): r is string => !!r,
+      ),
+    ),
+  );
   const primeiro = aQuemSeFala(c.capa.nomes, c.casamento, idioma);
   const mensagem = t.mensagemWhatsApp(primeiro);
   const fecho = {
     obrigado: t.obrigado(primeiro),
-    foto: imagem(c.fecho.fundo),
-    fundo: fundo(outraQue(c.fecho.fundo, c.fotoDasCondicoes, c.capa.fundo), 0.32),
+    foto: imagem(fotoDoFecho),
+    fundo: fundo(outraQue(fotoDoFecho, c.fecho.fundo, c.fotoDasCondicoes, c.capa.fundo), 0.32),
     email: SITE.email,
     telefone: SITE.phone,
     telefoneDisplay: SITE.phoneDisplay,
@@ -447,7 +528,7 @@ export async function montarPropostaWeb(
       titulo: c.proposta.titulo,
       factos: c.proposta.factos,
       nota: c.proposta.nota,
-      foto: imagem(c.proposta.foto),
+      foto: imagem(fotoDaProposta),
       fundo: fundo(fundoDaProposta, 0.42),
     },
     servicos,

@@ -80,3 +80,66 @@ describe("o mosaico não tem buracos", () => {
     ).toBe(0);
   });
 });
+
+/**
+ * Ela (28/10): «há aqui muitas fotos… que nem dá para ver… porque devia estar
+ * na vertical ou na horizontal». O acerto da última linha punha uma ao alto
+ * numa célula «larga» (2:1) e uma deitada numa «alta» (1:2).
+ */
+describe("cada foto numa célula da sua forma", () => {
+  const AO_ALTO = 0.85;
+  const DEITADA = 1.3;
+  const contraForma = (aspectos: number[], m: ReturnType<typeof mosaicoDoCapitulo>) => {
+    let erradas = 0;
+    for (const c of m) {
+      if (c.indice === undefined) continue;
+      const a = aspectos[c.indice];
+      for (const f of [c.forma, c.formaMovel]) {
+        if (a < AO_ALTO && f === "larga") erradas++;
+        if (a > DEITADA && f === "alta") erradas++;
+      }
+    }
+    return erradas;
+  };
+
+  it("em 300 capítulos ao acaso, quase nunca uma foto contra a sua forma — e sem buracos", () => {
+    let erradas = 0;
+    let fotos = 0;
+    for (let s = 1; s <= 300; s++) {
+      const aspectos = formas(1 + (s % 13), s);
+      const m = mosaicoDoCapitulo(aspectos);
+      expect(buracos(m, 4)).toBe(0);
+      expect(
+        buracos(
+          m.map((c) => ({ ...c, forma: c.formaMovel })),
+          2,
+        ),
+      ).toBe(0);
+      erradas += contraForma(aspectos, m);
+      fotos += aspectos.length;
+    }
+    // O último recurso (crescer como antes, para não deixar um buraco) ainda
+    // existe; mede-se para não voltar a ser a regra.
+    expect(erradas / fotos).toBeLessThan(0.02);
+  });
+
+  it("a célula de texto cresce primeiro, antes de qualquer fotografia", () => {
+    // Três ao alto + texto: falta fechar a linha de 4.
+    const m = mosaicoDoCapitulo([0.66, 0.66, 0.66, 1.0, 1.0]);
+    const texto = m.find((c) => c.tipo === "texto")!;
+    expect(contraForma([0.66, 0.66, 0.66, 1.0, 1.0], m)).toBe(0);
+    expect(buracos(m, 4)).toBe(0);
+    expect(texto).toBeDefined();
+  });
+
+  it("a «grande» só leva fotografias com pixéis para ela", () => {
+    for (let s = 1; s <= 200; s++) {
+      const aspectos = formas(2 + (s % 9), s);
+      const curtos = aspectos.map((_, i) => (i % 2 === 0 ? 736 : 2000));
+      const m = mosaicoDoCapitulo(aspectos, true, curtos);
+      for (const c of m)
+        if (c.forma === "grande" && c.indice !== undefined)
+          expect(curtos[c.indice], `s=${s}`).toBeGreaterThanOrEqual(1100);
+    }
+  });
+});
