@@ -60,13 +60,19 @@ const SIZES = {
     const f = fatorParaCobrir(a, forma);
     return `(min-width: 900px) ${Math.round(max * f)}px, ${Math.round(90 * f)}vw`;
   },
-  /** O mosaico: 4 colunas de 25vw no computador, 2 de 50vw (linhas de 46vw) no telemóvel. */
+  /**
+   * O mosaico: 4 colunas de 25vw no computador, 2 de 50vw (linhas de 46vw) no
+   * telemóvel. As linhas CRESCEM com o texto da célula de texto (`grid-auto-
+   * rows: minmax(…, auto)`), por isso a célula pode ser mais alta do que a
+   * conta: medido na proposta TESTE a 390@3, até ~1,3× (28/10). A folga cobre-o.
+   */
   mosaico: (a: number, forma: FormaDaCelula, formaMovel: FormaDaCelula) => {
     const LARGO = { normal: [1, 1], alta: [1, 0.5], larga: [2, 2], grande: [2, 1] } as const;
+    const FOLGA = 1.35;
     const [colunas, celula] = LARGO[forma];
     const [colunasM, celulaM] = LARGO[formaMovel];
-    const pc = Math.round(25 * colunas * fatorParaCobrir(a, celula));
-    const tm = Math.round(50 * colunasM * fatorParaCobrir(a, (celulaM * 50) / 46));
+    const pc = Math.round(25 * colunas * fatorParaCobrir(a, celula / FOLGA));
+    const tm = Math.round(50 * colunasM * fatorParaCobrir(a, (celulaM * 50) / 46 / FOLGA));
     return `(min-width: 800px) ${pc}vw, ${tm}vw`;
   },
 } as const;
