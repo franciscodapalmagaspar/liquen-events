@@ -24,11 +24,27 @@ const jwt = (expSeg: number) =>
 const assinada = (expSeg: number) =>
   `https://x.supabase.co/storage/v1/object/sign/theme-assets/a.jpg?token=${jwt(expSeg)}`;
 
-let expDaFoto = Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 3600;
-const propostaWeb = vi.fn(async (_p: unknown, codigo: string) => ({
-  pdf: `/api/proposta/${encodeURIComponent(codigo)}/pdf`,
-  capa: { fundo: { src: assinada(expDaFoto) } },
+/** O que ficou seguro para depois da resposta (`after()`). */
+const segurados: Promise<unknown>[] = [];
+vi.mock("next/server", () => ({
+  after: vi.fn((cb: () => Promise<unknown>) => {
+    segurados.push(cb());
+  }),
 }));
+
+let expDaFoto = Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 3600;
+/** A capa em AVIF por fazer na próxima montagem (`capa-web.ts`), se houver. */
+let capaPorFazer: (() => Promise<number>) | null = null;
+let comAvif = false;
+const propostaWeb = vi.fn(
+  async (_p: unknown, codigo: string, _i: unknown, aoFicar?: (p: Promise<number>) => void) => {
+    if (capaPorFazer && aoFicar) aoFicar(capaPorFazer());
+    return {
+      pdf: `/api/proposta/${encodeURIComponent(codigo)}/pdf`,
+      capa: { fundo: { src: assinada(expDaFoto), ...(comAvif ? { avif: "c.avif" } : {}) } },
+    };
+  },
+);
 vi.mock("./modelo", () => ({ propostaWeb }));
 
 import { setState } from "@/lib/app-state";
@@ -49,6 +65,47 @@ beforeEach(() => {
   propostaWeb.mockClear();
   vi.mocked(setState).mockClear();
   expDaFoto = Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 3600;
+  capaPorFazer = null;
+  comAvif = false;
+  segurados.length = 0;
+});
+
+describe("a capa em AVIF que ainda falta (28/10)", () => {
+  it("a página sai sem esperar; quando a AVIF fica feita, o retrato monta-se outra vez — já com ela", async () => {
+    let acabar!: (n: number) => void;
+    capaPorFazer = () => new Promise<number>((r) => (acabar = r));
+    const primeira = await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    expect(JSON.stringify(primeira)).not.toContain("c.avif");
+    // Seguro com o `after()`, para a função não o cortar depois da resposta.
+    expect(segurados).toHaveLength(1);
+
+    capaPorFazer = null;
+    comAvif = true;
+    acabar(2);
+    await Promise.all(segurados);
+    expect(propostaWeb).toHaveBeenCalledTimes(2);
+
+    // A visita seguinte (outra instância, sem memória) lê o retrato novo.
+    esquecerRetratos();
+    const seguinte = await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    expect(JSON.stringify(seguinte)).toContain("c.avif");
+    expect(propostaWeb).toHaveBeenCalledTimes(2);
+  });
+
+  it("refaz UMA vez só — uma fabricação que se repete não vira um ciclo", async () => {
+    capaPorFazer = async () => 1;
+    await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    await Promise.all(segurados);
+    await Promise.all(segurados);
+    expect(propostaWeb).toHaveBeenCalledTimes(2);
+  });
+
+  it("se nada se fez, o retrato fica como estava", async () => {
+    capaPorFazer = async () => 0;
+    await retratoDaPropostaWeb(proposta, "abc123", "pt");
+    await Promise.all(segurados);
+    expect(propostaWeb).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("o retrato da proposta online", () => {
@@ -136,11 +193,11 @@ describe("o retrato da proposta online", () => {
       textos: impressao("src/lib/proposta-web/textos-web.ts"),
       capa: impressao("src/lib/proposta-web/capa-web.ts"),
     }).toEqual({
-      versao: 2,
-      modelo: "145640ce26d0b8d6",
+      versao: 3,
+      modelo: "cd00138ebb595e40",
       mosaico: "25d811bd1021f446",
       textos: "71448f103c1b0275",
-      capa: "1d030649c4752bf4",
+      capa: "2717fc2f91e2ede7",
     });
   });
 
