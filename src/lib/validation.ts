@@ -174,13 +174,14 @@ export const quoteFormSchema = z
   .strip()
   // Os contactos: as duas regras (o formulário completo e as fichas rápidas).
   .superRefine((f, ctx) => {
-    // ── O FORMULÁRIO COMPLETO: OS DOIS CONTACTOS ──────────────────────────
+    // ── O FORMULÁRIO COMPLETO: O EMAIL É OBRIGATÓRIO ──────────────────────
     // Ela (28/10): um pedido chegou com o email mal escrito e não havia mais
     // por onde responder. No formulário completo (`origem: "completo"`) o
-    // email e o telemóvel passam a ser os dois obrigatórios, e o telemóvel
-    // tem de parecer completo (`normalizarTelefone`, a MESMA regra que o
-    // browser usa). As fichas rápidas dos anúncios não mandam `origem` e
-    // continuam com a regra de baixo — ela decidiu que ficam como estão.
+    // email passa a ser obrigatório; o telemóvel NÃO («o email é obrigatório
+    // mas o telemóvel não é»), mas quando vem tem de parecer completo
+    // (`normalizarTelefone`, a MESMA regra que o browser usa). As fichas
+    // rápidas dos anúncios não mandam `origem` e continuam com a regra de
+    // baixo — ela decidiu que ficam como estão.
     if (f.origem === "completo") {
       if (!f.email)
         ctx.addIssue({
@@ -189,12 +190,12 @@ export const quoteFormSchema = z
           message: "Indique o seu email.",
           params: { regra: "email-obrigatorio" },
         });
-      if (!normalizarTelefone(f.phone))
+      if (f.phone && !normalizarTelefone(f.phone))
         ctx.addIssue({
           code: "custom",
           path: ["phone"],
           message: "Indique um telemóvel completo.",
-          params: { regra: f.phone ? "telefone" : "telefone-obrigatorio" },
+          params: { regra: "telefone" },
         });
       return;
     }

@@ -899,8 +899,8 @@ describe("POST /api/orcamento — o gémeo que chega ao mesmo tempo", () => {
 });
 
 /**
- * O FORMULÁRIO COMPLETO (decisão dela, 28/10): o email e o telemóvel são os
- * dois obrigatórios, o telemóvel grava-se em E.164, um domínio que não recebe
+ * O FORMULÁRIO COMPLETO (decisão dela, 28/10): o email é obrigatório e o
+ * telemóvel não; quando vem, o telemóvel grava-se em E.164, um domínio que não recebe
  * correio é recusado com a frase do campo, e a língua do formulário ganha ao
  * cookie. As fichas rápidas (sem `origem`) ficam como estavam — os testes de
  * cima continuam a prendê-las.
@@ -924,11 +924,11 @@ describe("POST /api/orcamento — o formulário completo", () => {
     expect(gravado).not.toHaveProperty("idioma");
   });
 
-  it("sem telemóvel, recusa com a frase do formulário", async () => {
-    const res = await POST(req("POST", { form: { ...completo, phone: "" } }));
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe(to.errTelefoneObrigatorio);
-    expect(store.create).not.toHaveBeenCalled();
+  it("sem telemóvel, aceita — o telemóvel não é obrigatório", async () => {
+    const res = await enviarTudo({ form: { ...completo, phone: "" } });
+    expect(res.status).toBe(200);
+    const gravado = (store.create.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(gravado.phone).toBe("");
   });
 
   it("com um telemóvel incompleto, recusa com a frase do formulário", async () => {
@@ -960,9 +960,9 @@ describe("POST /api/orcamento — o formulário completo", () => {
 
   it("a língua do formulário ganha ao cookie", async () => {
     const res = await POST(
-      pedidoNaLingua({ form: { ...completo, phone: "", idioma: "en" } }, "pt"),
+      pedidoNaLingua({ form: { ...completo, email: "", idioma: "en" } }, "pt"),
     );
-    expect((await res.json()).error).toBe(getDictionary("en").orcamento.errTelefoneObrigatorio);
+    expect((await res.json()).error).toBe(getDictionary("en").orcamento.errEmailObrigatorio);
     await enviarTudo({ form: { ...completo, idioma: "en" } });
     const gravado = (store.create.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
     expect(gravado.locale).toBe("en");

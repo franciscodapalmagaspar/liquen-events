@@ -536,24 +536,24 @@ export default function OrcamentoForm({
   const ehCasamento = EVENT_TYPES.find((o) => o.label === eventType)?.eventType === "casamentos";
   const okNome = nome.trim().length >= 2;
   /**
-   * ── O CONTACTO: EMAIL **E** TELEMÓVEL (decisão dela, 28/10) ──────────────
+   * ── O CONTACTO: O EMAIL É OBRIGATÓRIO (decisão dela, 28/10) ─────────────
    *
-   * Até aqui bastava um dos dois. Chegou um pedido com o email mal escrito e
-   * sem telemóvel: a confirmação não chegou a ninguém e não havia por onde
-   * responder. Ela decidiu que, neste formulário, os dois passam a ser
-   * obrigatórios (as fichas rápidas dos anúncios ficam como estão).
+   * Até aqui bastava o email ou o telemóvel. Chegou um pedido com o email mal
+   * escrito e sem telemóvel: a confirmação não chegou a ninguém e não havia
+   * por onde responder. Ela decidiu: «o email é obrigatório mas o telemóvel
+   * não é» (as fichas rápidas dos anúncios ficam como estão).
    *
    * A regra é a MESMA do servidor (`quoteFormSchema` com `origem: "completo"`):
    *  - o email com a `EMAIL_RE` (a do zod) e, no servidor, o domínio a receber
    *    correio;
-   *  - o telemóvel pela `normalizarTelefone` (src/lib/contacto-do-pedido.ts),
-   *    que é partilhada — um número português de 9 dígitos, ou o indicativo do
-   *    país à frente.
+   *  - o telemóvel, quando vem, pela `normalizarTelefone`
+   *    (src/lib/contacto-do-pedido.ts), que é partilhada — um número português
+   *    de 9 dígitos, ou o indicativo do país à frente.
    */
   const temEmail = email.trim() !== "";
   const temTelefone = telefone.trim() !== "";
   const okEmail = temEmail && EMAIL_RE.test(email.trim());
-  const okTelefone = normalizarTelefone(telefone) !== null;
+  const okTelefone = !temTelefone || normalizarTelefone(telefone) !== null;
   /** «Quis dizer ana@gmail.com?», quando o domínio se parece com um conhecido. */
   const emailSugerido = okEmail ? sugestaoDeEmail(email) : null;
   // "Ainda a definir" IS an answer — the field is satisfied either way.
@@ -602,13 +602,7 @@ export default function OrcamentoForm({
         ? to.errEmail
         : ""
     : "";
-  const telefoneErr = show(touched.telefone)
-    ? !temTelefone
-      ? to.errTelefoneObrigatorio
-      : !okTelefone
-        ? to.errTelefone
-        : ""
-    : "";
+  const telefoneErr = show(touched.telefone) && !okTelefone ? to.errTelefone : "";
   const dataErr = show(touched.data) && !okData ? to.errData : "";
   const pessoasErr = show(touched.pessoas) && !okPessoas ? to.errPessoas : "";
   const localErr = show(touched.local) && !okLocal ? to.errLocal : "";
@@ -1462,7 +1456,6 @@ export default function OrcamentoForm({
             <FloatingField
               htmlFor="of-telefone"
               label={to.labelTelefone}
-              required
               error={telefoneErr}
               errorId="of-telefone-err"
             >
@@ -1474,12 +1467,11 @@ export default function OrcamentoForm({
                 autoComplete="tel"
                 value={telefone}
                 onBlur={() => markTouched("telefone")}
-                aria-required="true"
                 aria-invalid={telefoneErr ? true : undefined}
                 aria-describedby={telefoneErr ? "of-telefone-err" : undefined}
                 onChange={(e) => mudarContacto(setTelefone, e.target.value)}
                 className={`${ffInputCls} ${
-                  telefoneErr ? "border-gold/60" : okTelefone ? "border-moss/50" : ""
+                  telefoneErr ? "border-gold/60" : temTelefone && okTelefone ? "border-moss/50" : ""
                 }`}
                 placeholder={to.phTelefone}
               />
@@ -1546,14 +1538,18 @@ export default function OrcamentoForm({
                 <dl className="mt-4 grid gap-3">
                   <div>
                     <dt className="text-[11px] text-foreground/68">{to.confirmarEmail}</dt>
-                    <dd className="mt-0.5 text-lg text-foreground [overflow-wrap:anywhere]">{email.trim()}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] text-foreground/68">{to.confirmarTelefone}</dt>
-                    <dd className="mt-0.5 text-lg text-foreground tabular-nums">
-                      {telefone.trim()}
+                    <dd className="mt-0.5 text-lg text-foreground [overflow-wrap:anywhere]">
+                      {email.trim()}
                     </dd>
                   </div>
+                  {temTelefone && (
+                    <div>
+                      <dt className="text-[11px] text-foreground/68">{to.confirmarTelefone}</dt>
+                      <dd className="mt-0.5 text-lg text-foreground tabular-nums">
+                        {telefone.trim()}
+                      </dd>
+                    </div>
+                  )}
                 </dl>
                 <p className="mt-4 max-w-md text-[12px] leading-relaxed text-foreground/78">
                   {to.confirmarTexto}

@@ -480,7 +480,8 @@ export const pt = {
     // Aparece em todos os tipos de evento.
     labelEspaco: "O espaço é interior ou exterior?",
     hintEspaco: "Diga-nos apenas se vai ser num espaço interior ou ao ar livre.",
-    labelCoordenacao: "Também querem coordenação do dia?",
+    // 28/10: ela pediu a pergunta «mais elegante e de empresa».
+    labelCoordenacao: "Deseja incluir a coordenação do dia do evento?",
     hintCoordenacao: "Tratamos dos horários, dos fornecedores e dos imprevistos no dia.",
     labelData: "Data do evento",
     dateFlexibleLabel: "Data ainda a definir",
@@ -538,9 +539,10 @@ export const pt = {
      * genérica lá em cima, porque é ali que a decisão se toma.
      */
     /**
-     * 28/10: o email e o telemóvel passam a ser os dois obrigatórios (decisão
-     * dela, depois de um pedido chegar com o email mal escrito e mais nenhum
-     * contacto). A dica diz porque é que importa escrevê-lo bem.
+     * 28/10: o email passa a ser obrigatório (decisão dela, depois de um
+     * pedido chegar com o email mal escrito e mais nenhum contacto; o
+     * telemóvel continua opcional). A dica diz porque é que importa
+     * escrevê-lo bem.
      */
     hintEmail: "É para aqui que enviamos a confirmação e a proposta. Confira se está bem escrito.",
     phTelefone: "+351 9XX XXX XXX",
@@ -569,7 +571,6 @@ export const pt = {
     errLocal: "Indique o local ou a região.",
     errTelefone:
       "Este número parece incompleto. Confira os dígitos (de fora de Portugal, comece pelo indicativo, ex.: +44).",
-    errTelefoneObrigatorio: "Indique o seu telemóvel.",
     errEmailObrigatorio: "Indique o seu email.",
     /** O domínio (o que vem depois do @) não recebe correio — `dominioRecebeEmail`. */
     errDominioDoEmail:
@@ -596,11 +597,11 @@ export const pt = {
     ouWhatsApp: "ou pelo WhatsApp",
     error: "Não foi possível enviar. Tente novamente ou fale connosco pelo WhatsApp.",
     /**
-     * Voltou a ser verdade a 28/10: o email e o telemóvel passaram os dois a
-     * obrigatórios (decisão dela). Uma chave que mente é pior do que não
-     * existir — por isso muda junto com a regra.
+     * 28/10: o email passou a obrigatório e o telemóvel continua opcional
+     * (decisão dela). Uma chave que mente é pior do que não existir — por
+     * isso muda junto com a regra.
      */
-    requiredNote: "Todos os campos são obrigatórios.",
+    requiredNote: "Todos os campos são obrigatórios, exceto o telemóvel.",
     submitReassure: "Uma proposta à medida, pensada ao detalhe.",
     privacyPre: "Ao enviar, aceita a nossa ",
     privacyLinkLabel: "Política de Privacidade",

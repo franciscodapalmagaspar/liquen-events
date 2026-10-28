@@ -465,7 +465,7 @@ export const en: Dict = {
     hintCerimonia: "A church ceremony means a second space to decorate, on top of the reception.",
     labelEspaco: "Is the space indoors or outdoors?",
     hintEspaco: "Just tell us whether it will be indoors or outdoors.",
-    labelCoordenacao: "Would you also like day-of coordination?",
+    labelCoordenacao: "Would you like to include coordination on the day of the event?",
     hintCoordenacao: "We look after the timings, the suppliers and anything unexpected on the day.",
     labelData: "Event date",
     dateFlexibleLabel: "Date still to be decided",
@@ -506,7 +506,6 @@ export const en: Dict = {
     errLocal: "Add the venue or the region.",
     errTelefone:
       "This number looks incomplete. Please check the digits (outside Portugal, start with the country code, e.g. +44).",
-    errTelefoneObrigatorio: "Please enter your mobile number.",
     errEmailObrigatorio: "Please enter your email.",
     errDominioDoEmail:
       "This email doesn't seem to exist: please check what comes after the @ (for example, gmail.com).",
@@ -526,7 +525,7 @@ export const en: Dict = {
     ouWhatsApp: "or via WhatsApp",
     error: "Your request did not go through. Please try again or reach us on WhatsApp.",
     // Ver `pt.ts` para o porquê.
-    requiredNote: "All fields are required.",
+    requiredNote: "All fields are required, except the mobile number.",
     submitReassure: "A tailored proposal, crafted in detail.",
     privacyPre: "By submitting, you accept our ",
     privacyLinkLabel: "Privacy Policy",

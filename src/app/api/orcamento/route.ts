@@ -119,7 +119,6 @@ function mensagemDeValidacao(err: ZodError, locale: Locale): string {
     // pede os dois; as fichas rápidas, pelo menos um.
     const regra = (issue as { params?: { regra?: string } }).params?.regra;
     if (regra === "email-obrigatorio") return to.errEmailObrigatorio;
-    if (regra === "telefone-obrigatorio") return to.errTelefoneObrigatorio;
     if (regra === "telefone") return to.errTelefone;
     return to.errContacto;
   }
@@ -736,10 +735,10 @@ export async function POST(request: NextRequest) {
     const form: QuoteFormData = formLido;
 
     if (origem === "completo") {
-      // O telemóvel guarda-se já em E.164 (+351912345678): é a forma que o
-      // WhatsApp, a Meta e o Google Ads esperam, e o esquema já garantiu que
-      // se consegue normalizar.
-      form.phone = normalizarTelefone(form.phone) ?? form.phone;
+      // O telemóvel (opcional) guarda-se já em E.164 (+351912345678): é a
+      // forma que o WhatsApp, a Meta e o Google Ads esperam, e o esquema já
+      // garantiu que, vindo, se consegue normalizar.
+      if (form.phone) form.phone = normalizarTelefone(form.phone) ?? form.phone;
       // Um domínio que não recebe correio («gmial.con») é o engano depois do
       // @ que se consegue apanhar. Recusa-se com a frase do campo — e só
       // quando o DNS diz mesmo que não (ver `dominioRecebeEmail`).
