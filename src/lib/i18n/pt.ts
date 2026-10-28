@@ -484,6 +484,18 @@ export const pt = {
     labelCoordenacao: "Deseja incluir a coordenação do dia do evento?",
     hintCoordenacao: "Tratamos dos horários, dos fornecedores e dos imprevistos no dia.",
     labelData: "Data do evento",
+    // O calendário da data, no computador (28/10: «ao estilo da apple»).
+    calendario: {
+      escolher: "Escolher a data",
+      calendario: "Calendário",
+      mesAnterior: "Mês anterior",
+      mesSeguinte: "Mês seguinte",
+      anoAnterior: "Ano anterior",
+      anoSeguinte: "Ano seguinte",
+      escolherMes: "Escolher o mês",
+      hoje: "hoje",
+      passou: "já passou",
+    },
     dateFlexibleLabel: "Data ainda a definir",
     guestsFlexibleLabel: "Ainda a definir",
     hintPessoasAprox:
