@@ -284,6 +284,89 @@
      As durações entram como `--transition-duration-*` pela razão que este
      ficheiro já explica em cima. Os nomes de CLASSE são os do documento. */
 
+  /* As seis formas e os dez nomes vivem no `@theme static` do fim do
+     ficheiro, ao lado das durações — a razão está escrita lá. */
+
+  /* As dez durações do documento mudaram-se para o `@theme static` lá em
+     baixo. A razão está escrita lá, e é uma armadilha desta casa. */
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   AS DURAÇÕES VIVEM NUM `@theme static`, E ISSO NÃO É ARRUMAÇÃO
+   ══════════════════════════════════════════════════════════════════════════
+
+   MEDIDO no CSS enviado ao browser, e é uma armadilha só desta casa.
+
+   O `@theme` normal do Tailwind v4 é PODADO: só chegam ao `:root` as
+   variáveis que ele vê alguém usar. E quem decide o que é «alguém» é o
+   `@source` — ora o `globals.css`, que é a ÚNICA folha que emite `:root`
+   nesta casa, diz `@source not "./[lang]/(admin)"`. O `admin.css` refere o
+   tema com `@reference`, e um `@reference` não emite variável nenhuma, de
+   propósito.
+
+   Junta-se assim: uma variável que só o BACK OFFICE usa não é vista por
+   ninguém que emita, e desaparece do `:root` — mas as classes que a lêem
+   continuam a ser geradas. O CSS fica com a regra e sem o valor.
+
+   Foi exactamente o que aconteceu com a `--transition-duration-interactive`.
+   Contado no `chunk` de produção: `press`, `quick`, `elemento`, `micro`,
+   `vista`, `nav` e `snappy` chegavam ao `:root`; `interactive`, `smooth`,
+   `bouncy`, `default`, `sheet` e `reposition` apareciam ZERO vezes. Medido
+   num botão real, no browser, com o servidor de produção a correr:
+
+       transition-property:        background-color, …, scale   ✓
+       transition-timing-function: linear(…) ×6                 ✓
+       transition-duration:        0s                           ✗
+
+   Uma `var()` sem valor invalida a declaração e a duração cai a zero. Ou
+   seja: as curvas certas a correr em tempo nenhum — um corte seco com uma
+   mola escrita ao lado. Nada disto dá erro, aviso do lint ou teste vermelho.
+
+   O `static` desliga a poda: as variáveis deste bloco vão para o `:root` quer
+   alguém as use, quer não. Custa as seis declarações que faltavam — umas
+   dezenas de bytes — e paga o único sítio onde a divisão entre as duas folhas
+   de estilos falha em silêncio.
+
+   As curvas vieram para aqui a 28/10. Até lá ficaram no `@theme` normal,
+   com a nota «não precisam do mesmo remédio HOJE… ter metade dele protegido
+   e a outra metade à sorte é ter a armadilha à espera do próximo token». A
+   armadilha fechou-se: seis delas (`smooth`, `default`, `reposition`, `nav`,
+   `sheet`, `bouncy`) deixaram de chegar ao `:root`, e as classes que as lêem
+   caíam na curva `ease` do browser em vez da mola. Apanhou-o o passeio
+   `e2e/o-movimento-chega-ao-elemento.spec.ts`, mal as verificações do GitHub
+   voltaram a correr. Agora o sistema de movimento inteiro é `static`.
+   ══════════════════════════════════════════════════════════════════════════ */
+@theme static {
+  /* Os degraus antigos da casa. O nome da CLASSE é o de sempre
+     (`duration-micro`); o prefixo `--transition-duration-*` é o único espaço
+     de nomes de onde o Tailwind v4 gera utilitários `duration-*`. */
+  --transition-duration-micro: 120ms;
+  --transition-duration-elemento: 250ms;
+  --transition-duration-vista: 350ms;
+  /* O toque: 20 ms, e só para o `:active`. Ver `ui/movimento.ts`. */
+  --transition-duration-toque: 20ms;
+  /* O zoom das fotografias ao passar o rato (auditoria externa, A4): eram
+     0,7 a 1,1 s, com quatro escalas diferentes (1.04, 1.05, 1.06) — lia-se
+     lento. Ela pediu 400 ms e no máximo 1.03, com a curva da casa. */
+  --transition-duration-foto-zoom: 400ms;
+  /* O desfoque a dar lugar à fotografia nas grelhas dos serviços (A6). */
+  --transition-duration-foto-chega: 300ms;
+  /* O botão a ceder ao toque no sítio público (A8). O back office tem o seu,
+     o `toque` de 20 ms aqui em cima, com a mola do `ui/movimento.ts`. */
+  --transition-duration-carregar: 100ms;
+
+  /* E as dez do documento — o tempo real até assentar a 0,5% do valor final. */
+  --transition-duration-smooth: 590ms;
+  --transition-duration-snappy: 540ms;
+  --transition-duration-bouncy: 555ms;
+  --transition-duration-default: 650ms;
+  --transition-duration-interactive: 150ms;
+  --transition-duration-quick: 325ms;
+  --transition-duration-press: 260ms;
+  --transition-duration-sheet: 345ms;
+  --transition-duration-reposition: 475ms;
+  --transition-duration-nav: 515ms;
+
   /* As seis formas, pelo amortecimento. */
   --ease-mola-100: linear(
     0,
@@ -459,82 +542,6 @@
   --ease-quick: var(--ease-mola-85);
   --ease-sheet: var(--ease-mola-80);
   --ease-bouncy: var(--ease-mola-70);
-
-  /* As dez durações do documento mudaram-se para o `@theme static` lá em
-     baixo. A razão está escrita lá, e é uma armadilha desta casa. */
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   AS DURAÇÕES VIVEM NUM `@theme static`, E ISSO NÃO É ARRUMAÇÃO
-   ══════════════════════════════════════════════════════════════════════════
-
-   MEDIDO no CSS enviado ao browser, e é uma armadilha só desta casa.
-
-   O `@theme` normal do Tailwind v4 é PODADO: só chegam ao `:root` as
-   variáveis que ele vê alguém usar. E quem decide o que é «alguém» é o
-   `@source` — ora o `globals.css`, que é a ÚNICA folha que emite `:root`
-   nesta casa, diz `@source not "./[lang]/(admin)"`. O `admin.css` refere o
-   tema com `@reference`, e um `@reference` não emite variável nenhuma, de
-   propósito.
-
-   Junta-se assim: uma variável que só o BACK OFFICE usa não é vista por
-   ninguém que emita, e desaparece do `:root` — mas as classes que a lêem
-   continuam a ser geradas. O CSS fica com a regra e sem o valor.
-
-   Foi exactamente o que aconteceu com a `--transition-duration-interactive`.
-   Contado no `chunk` de produção: `press`, `quick`, `elemento`, `micro`,
-   `vista`, `nav` e `snappy` chegavam ao `:root`; `interactive`, `smooth`,
-   `bouncy`, `default`, `sheet` e `reposition` apareciam ZERO vezes. Medido
-   num botão real, no browser, com o servidor de produção a correr:
-
-       transition-property:        background-color, …, scale   ✓
-       transition-timing-function: linear(…) ×6                 ✓
-       transition-duration:        0s                           ✗
-
-   Uma `var()` sem valor invalida a declaração e a duração cai a zero. Ou
-   seja: as curvas certas a correr em tempo nenhum — um corte seco com uma
-   mola escrita ao lado. Nada disto dá erro, aviso do lint ou teste vermelho.
-
-   O `static` desliga a poda: as variáveis deste bloco vão para o `:root` quer
-   alguém as use, quer não. Custa as seis declarações que faltavam — umas
-   dezenas de bytes — e paga o único sítio onde a divisão entre as duas folhas
-   de estilos falha em silêncio.
-
-   As curvas não precisam do mesmo remédio HOJE (contadas uma a uma no
-   `chunk`: as dezasseis lá estão), mas estão aqui pela mesma razão que as
-   durações — são o mesmo sistema, e ter metade dele protegido e a outra
-   metade à sorte é ter a armadilha à espera do próximo token.
-   ══════════════════════════════════════════════════════════════════════════ */
-@theme static {
-  /* Os degraus antigos da casa. O nome da CLASSE é o de sempre
-     (`duration-micro`); o prefixo `--transition-duration-*` é o único espaço
-     de nomes de onde o Tailwind v4 gera utilitários `duration-*`. */
-  --transition-duration-micro: 120ms;
-  --transition-duration-elemento: 250ms;
-  --transition-duration-vista: 350ms;
-  /* O toque: 20 ms, e só para o `:active`. Ver `ui/movimento.ts`. */
-  --transition-duration-toque: 20ms;
-  /* O zoom das fotografias ao passar o rato (auditoria externa, A4): eram
-     0,7 a 1,1 s, com quatro escalas diferentes (1.04, 1.05, 1.06) — lia-se
-     lento. Ela pediu 400 ms e no máximo 1.03, com a curva da casa. */
-  --transition-duration-foto-zoom: 400ms;
-  /* O desfoque a dar lugar à fotografia nas grelhas dos serviços (A6). */
-  --transition-duration-foto-chega: 300ms;
-  /* O botão a ceder ao toque no sítio público (A8). O back office tem o seu,
-     o `toque` de 20 ms aqui em cima, com a mola do `ui/movimento.ts`. */
-  --transition-duration-carregar: 100ms;
-
-  /* E as dez do documento — o tempo real até assentar a 0,5% do valor final. */
-  --transition-duration-smooth: 590ms;
-  --transition-duration-snappy: 540ms;
-  --transition-duration-bouncy: 555ms;
-  --transition-duration-default: 650ms;
-  --transition-duration-interactive: 150ms;
-  --transition-duration-quick: 325ms;
-  --transition-duration-press: 260ms;
-  --transition-duration-sheet: 345ms;
-  --transition-duration-reposition: 475ms;
-  --transition-duration-nav: 515ms;
 }
 
 /* ── A MOLA DE MARCAR UMA TAREFA ────────────────────────────────────────────
