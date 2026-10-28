@@ -77,7 +77,16 @@ async function preencherPedido() {
   );
 }
 
-const enviar = () => fireEvent.submit(document.querySelector("form")!);
+/**
+ * Carregar em Enviar — e, se o formulário estiver pronto, confirmar os
+ * contactos no painel que aparece (28/10: o envio a sério é o «Está certo,
+ * enviar»). Sem o painel (pedido incompleto) fica só a primeira parte.
+ */
+const enviar = () => {
+  fireEvent.submit(document.querySelector("form")!);
+  const ok = screen.queryByRole("button", { name: new RegExp(to.confirmarEnviar, "i") });
+  if (ok) fireEvent.click(ok);
+};
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -429,38 +438,24 @@ describe("OrcamentoForm — a escolha viaja como tipo, não como nome", () => {
 });
 
 /**
- * ══════════════════════════════════════════════════════════════════════════
- * O FORMULÁRIO RECUSAVA PEDIDOS QUE A CASA ACEITA
- * ══════════════════════════════════════════════════════════════════════════
+ * ── O CONTACTO: EMAIL **E** TELEMÓVEL (decisão dela, 28/10) ────────────────
  *
- * A regra do negócio está escrita no servidor (`quoteFormSchema`, em
- * src/lib/validation.ts) e é "email OU telemóvel": um pedido com telemóvel e
- * sem email PASSA a validação, é gravado, e a equipa responde por WhatsApp.
- * O back office tem código e comentários inteiros sobre pedidos nascidos de um
- * telefonema, e a rota da confirmação já sabe que pode não haver para onde
- * mandar email (`NadaParaConfirmar`).
- *
- * O formulário do site não sabia nada disso: sem email dava «E-mail inválido»,
- * levava o foco ao campo e o pedido não chegava a sair. Quem só queria deixar o
- * telemóvel não conseguia pedir orçamento, e o site perdia o lead inteiro em
- * silêncio, na única página que paga a casa.
- *
- * O que muda é só isto: a AUSÊNCIA de email passa a ser aceite quando há
- * telemóvel. Um email MAL ESCRITO continua a ser recusado no próprio campo,
- * e o telemóvel segue a mesma regra pelo mesmo motivo: o que se aceita é não
- * o ter, não é tê-lo escrito pela metade.
+ * Chegou um pedido com o email mal escrito e sem telemóvel: a confirmação não
+ * chegou a ninguém e não havia por onde responder. No formulário completo os
+ * dois passam a ser obrigatórios, o telemóvel tem de parecer completo, e antes
+ * de sair mostram-se os dois para confirmar. O oráculo continua a ser o
+ * servidor (`quoteFormSchema` com `origem: "completo"`).
  */
-describe("OrcamentoForm — o contacto é email OU telemóvel, como no servidor", () => {
-  /** O resto do pedido, para o servidor poder julgar só o par de contactos. */
-  const semContacto = { name: "Ana Dias", location: "Sintra", notes: "Um jardim." };
+describe("OrcamentoForm — o contacto é email E telemóvel, como no servidor", () => {
+  const semContacto = {
+    name: "Ana Dias",
+    location: "Sintra",
+    notes: "Um jardim.",
+    origem: "completo",
+  };
   const servidorAceita = (contacto: { email: string; phone: string }) =>
     quoteFormSchema.safeParse({ ...semContacto, ...contacto }).success;
 
-  /**
-   * Um pedido completo com o contacto à escolha. Os dois campos são sempre
-   * VISITADOS, mesmo quando ficam vazios: é assim que se atravessa um
-   * formulário na vida real, e é o que faz aparecer (ou não) cada aviso.
-   */
   async function preencherComContacto(contacto: { email?: string; telefone?: string }) {
     montar();
     await userEvent.click(screen.getByRole("radio", { name: to.eventTypeLabels[0] }));
@@ -482,7 +477,6 @@ describe("OrcamentoForm — o contacto é email OU telemóvel, como no servidor"
     );
   }
 
-  /** O `form` que saiu no corpo do POST. */
   async function formEnviado() {
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     return (
@@ -492,52 +486,52 @@ describe("OrcamentoForm — o contacto é email OU telemóvel, como no servidor"
     ).form;
   }
 
-  it("só com telemóvel, o pedido sai — e o servidor aceita-o", async () => {
-    // O oráculo é o servidor, não uma expectativa escrita à mão.
-    expect(servidorAceita({ email: "", phone: "912345678" })).toBe(true);
+  it("com os dois, mostra-os para confirmar ANTES de enviar — e só sai no «Está certo»", async () => {
+    expect(servidorAceita({ email: "ana@exemplo.pt", phone: "912345678" })).toBe(true);
+    await preencherComContacto({ email: "ana@exemplo.pt", telefone: "912 345 678" });
 
+    fireEvent.submit(document.querySelector("form")!);
+    const painel = await screen.findByRole("region", { name: to.confirmarTitulo });
+    expect(painel).toHaveTextContent("ana@exemplo.pt");
+    expect(painel).toHaveTextContent("912 345 678");
+    expect(fetch).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(to.confirmarEnviar, "i") }));
+    const form = await formEnviado();
+    expect(form.origem).toBe("completo");
+    expect(form.idioma).toBe("pt");
+    expect(quoteFormSchema.safeParse(form).success).toBe(true);
+  });
+
+  it("«Corrigir» fecha o painel, não envia, e leva ao email", async () => {
+    await preencherComContacto({ email: "ana@exemplo.pt", telefone: "912345678" });
+    fireEvent.submit(document.querySelector("form")!);
+    fireEvent.click(
+      await screen.findByRole("button", { name: new RegExp(`^${to.confirmarCorrigir}$`, "i") }),
+    );
+    expect(screen.queryByRole("region", { name: to.confirmarTitulo })).toBeNull();
+    expect(screen.getByLabelText(new RegExp(to.labelEmail, "i"))).toHaveFocus();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("só com telemóvel, recusa — falta o email", async () => {
+    expect(servidorAceita({ email: "", phone: "912345678" })).toBe(false);
     await preencherComContacto({ telefone: "912345678" });
-    expect(screen.queryByText(to.errEmail)).toBeNull();
-    expect(screen.queryByText(to.errContacto)).toBeNull();
-
     enviar();
-    const form = await formEnviado();
-    expect(form.email).toBe("");
-    expect(form.phone).toBe("912345678");
-    expect(quoteFormSchema.safeParse(form).success).toBe(true);
+    expect(await screen.findByText(to.errEmailObrigatorio)).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("só com email, o pedido sai — e o servidor aceita-o", async () => {
-    expect(servidorAceita({ email: "ana@exemplo.pt", phone: "" })).toBe(true);
-
+  it("só com email, recusa — falta o telemóvel", async () => {
+    expect(servidorAceita({ email: "ana@exemplo.pt", phone: "" })).toBe(false);
     await preencherComContacto({ email: "ana@exemplo.pt" });
-    expect(screen.queryByText(to.errTelefone)).toBeNull();
-    expect(screen.queryByText(to.errContacto)).toBeNull();
-
     enviar();
-    const form = await formEnviado();
-    expect(form.email).toBe("ana@exemplo.pt");
-    expect(form.phone).toBe("");
-    expect(quoteFormSchema.safeParse(form).success).toBe(true);
-  });
-
-  it("sem nenhum dos dois, recusa — e com a frase que o servidor usa", async () => {
-    expect(servidorAceita({ email: "", phone: "" })).toBe(false);
-
-    await preencherComContacto({});
-    enviar();
-
-    // Uma frase, e a mesma que a rota devolveria: diz o que falta e porquê.
-    expect(await screen.findByText(to.errContacto)).toBeInTheDocument();
-    // E não a acusação errada, que era dizer que o email estava mal escrito
-    // quando o que se passava é que não havia nenhum.
-    expect(screen.queryByText(to.errEmail)).toBeNull();
+    expect(await screen.findByText(to.errTelefoneObrigatorio)).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
   });
 
   it("um email mal escrito continua a ser recusado, mesmo com o telemóvel bom", async () => {
     await preencherComContacto({ email: "ana@exemplo.p", telefone: "912345678" });
-
     expect(await screen.findByText(to.errEmail)).toBeInTheDocument();
     expect(screen.getByLabelText(new RegExp(to.labelEmail, "i"))).toHaveAttribute(
       "aria-invalid",
@@ -547,34 +541,58 @@ describe("OrcamentoForm — o contacto é email OU telemóvel, como no servidor"
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("um telemóvel curto de mais e sem email é recusado", async () => {
-    // O servidor também o recusa: sem email, o telefone tem de ter 9 dígitos.
-    expect(servidorAceita({ email: "", phone: "91234" })).toBe(false);
+  it.each(["91234", "8123456789", "1234567890"])(
+    "um telemóvel que não parece completo (%s) é recusado — como no servidor",
+    async (numero) => {
+      expect(servidorAceita({ email: "ana@exemplo.pt", phone: numero })).toBe(false);
+      await preencherComContacto({ email: "ana@exemplo.pt", telefone: numero });
+      enviar();
+      expect(await screen.findByText(to.errTelefone)).toBeInTheDocument();
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
 
-    await preencherComContacto({ telefone: "91234" });
+  it("um número estrangeiro com indicativo passa", async () => {
+    expect(servidorAceita({ email: "ana@exemplo.pt", phone: "+44 7700 900123" })).toBe(true);
+    await preencherComContacto({ email: "ana@exemplo.pt", telefone: "+44 7700 900123" });
     enviar();
-
-    expect(await screen.findByText(to.errTelefone)).toBeInTheDocument();
-    expect(fetch).not.toHaveBeenCalled();
+    expect((await formEnviado()).phone).toBe("+44 7700 900123");
   });
 
-  it("o email não deixa de ser pedido: a dica continua ao lado do campo", async () => {
+  it("um domínio mal escrito leva uma sugestão, que se aceita com um toque", async () => {
+    await preencherComContacto({ email: "ana@gmial.com", telefone: "912345678" });
+    expect(screen.getByText("ana@gmail.com")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: to.sugestaoEmailUsar }));
+    expect(screen.getByLabelText(new RegExp(to.labelEmail, "i"))).toHaveValue("ana@gmail.com");
+  });
+
+  it("os dois campos dizem que são obrigatórios, e a chave do topo também", () => {
     montar();
+    expect(screen.getByLabelText(new RegExp(to.labelEmail, "i"))).toHaveAttribute(
+      "aria-required",
+      "true",
+    );
+    expect(screen.getByLabelText(new RegExp(to.labelTelefone, "i"))).toHaveAttribute(
+      "aria-required",
+      "true",
+    );
     expect(screen.getByText(to.hintEmail)).toBeInTheDocument();
-    // E a chave dos campos obrigatórios deixa de dizer o que já não é verdade.
     expect(screen.getByText(to.requiredNote)).toBeInTheDocument();
   });
 
-  it("quem vai enviar sem email é avisado de que não recebe a confirmação", async () => {
-    // Antes de enviar, e não depois: a confirmação automática vai por email, e
-    // sem email não vai a lado nenhum.
-    await preencherComContacto({ telefone: "912345678" });
-    expect(await screen.findByText(to.avisoSemEmail)).toBeInTheDocument();
-  });
-
-  it("e quem deixa email não lê um aviso que não lhe diz respeito", async () => {
-    await preencherComContacto({ email: "ana@exemplo.pt", telefone: "912345678" });
-    expect(screen.queryByText(to.avisoSemEmail)).toBeNull();
+  it("o servidor recusa o domínio: a frase aparece e o foco volta ao email", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: to.errDominioDoEmail, campo: "email" }),
+      })),
+    );
+    await preencherComContacto({ email: "ana@naoexiste.pt", telefone: "912345678" });
+    enviar();
+    expect(await screen.findByText(to.errDominioDoEmail)).toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(to.labelEmail, "i"))).toHaveFocus();
   });
 });
 

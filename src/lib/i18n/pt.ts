@@ -494,7 +494,7 @@ export const pt = {
     // pôs a Maria em grande). Ver `lib/orcamento/quem-pede.ts`.
     labelNome: "O seu nome",
     labelEmail: "E-mail",
-    labelTelefone: "Telefone",
+    labelTelefone: "Telemóvel",
     // The one field that decides whether the proposal can be designed or only
     // priced. Asked as a question, not a form label.
     labelMensagem: "Como imagina o seu evento?",
@@ -537,7 +537,12 @@ export const pt = {
      * se perde ao não o deixar. Fica debaixo do campo, e não numa nota
      * genérica lá em cima, porque é ali que a decisão se toma.
      */
-    hintEmail: "Preferimos o email: é por lá que segue a confirmação do pedido.",
+    /**
+     * 28/10: o email e o telemóvel passam a ser os dois obrigatórios (decisão
+     * dela, depois de um pedido chegar com o email mal escrito e mais nenhum
+     * contacto). A dica diz porque é que importa escrevê-lo bem.
+     */
+    hintEmail: "É para aqui que enviamos a confirmação e a proposta. Confira se está bem escrito.",
     phTelefone: "+351 9XX XXX XXX",
     phMensagem: "Estilo, cores, ambiente, inspirações que guardou…",
     // O texto é dela (17/10), palavra por palavra. O `\n\n` separa os dois
@@ -562,27 +567,40 @@ export const pt = {
     errData: "Indique a data, ou marque \u201cData ainda a definir\u201d.",
     errPessoas: "Indique quantas pessoas, ou marque \u201cAinda a definir\u201d.",
     errLocal: "Indique o local ou a região.",
-    errTelefone: "Indique um telefone com 9 dígitos.",
+    errTelefone:
+      "Este número parece incompleto. Confira os dígitos (de fora de Portugal, comece pelo indicativo, ex.: +44).",
+    errTelefoneObrigatorio: "Indique o seu telemóvel.",
+    errEmailObrigatorio: "Indique o seu email.",
+    /** O domínio (o que vem depois do @) não recebe correio — `dominioRecebeEmail`. */
+    errDominioDoEmail:
+      "Este email não parece existir: confira o que está depois do @ (por exemplo, gmail.com).",
+    /** «Quis dizer ana@gmail.com?» — o domínio parecido com um conhecido. */
+    sugestaoEmailPre: "Quis dizer ",
+    sugestaoEmailPos: "?",
+    sugestaoEmailUsar: "Usar este",
+    /**
+     * A confirmação dos contactos, ANTES de enviar. É o que apanha o engano
+     * antes do @ («candmcasmento…»), que nenhuma máquina consegue apanhar:
+     * mostrar-lhe o que escreveu, em grande, e perguntar se está certo.
+     */
+    confirmarTitulo: "Confirme os seus contactos",
+    confirmarTexto:
+      "É para aqui que enviamos a confirmação e a proposta. Um engano numa letra e não lhe chega nada.",
+    confirmarEmail: "Email",
+    confirmarTelefone: "Telemóvel",
+    confirmarEnviar: "Está certo, enviar",
+    confirmarCorrigir: "Corrigir",
     errMensagem: "Conte-nos como imagina o evento. É o que nos permite preparar a proposta.",
     enviar: "Enviar pedido",
     enviando: "A enviar…",
     ouWhatsApp: "ou pelo WhatsApp",
     error: "Não foi possível enviar. Tente novamente ou fale connosco pelo WhatsApp.",
     /**
-     * Dizia «Todos os campos são obrigatórios.» e passou a ser falso no dia em
-     * que o contacto deixou de exigir os dois. Uma chave de campos obrigatórios
-     * que mente é pior do que não existir: manda preencher o que não é preciso,
-     * e quem só tem telemóvel para dar lê ali que não pode enviar.
+     * Voltou a ser verdade a 28/10: o email e o telemóvel passaram os dois a
+     * obrigatórios (decisão dela). Uma chave que mente é pior do que não
+     * existir — por isso muda junto com a regra.
      */
-    requiredNote: "Todos os campos são obrigatórios, exceto o contacto: basta um dos dois.",
-    /**
-     * O que acontece A SEGUIR a quem envia sem email, dito ANTES de enviar.
-     * A confirmação automática vai por email; sem email não vai a lado nenhum,
-     * e deixar a pessoa à espera de uma coisa que nunca chega é o mesmo que
-     * lhe mentir devagar.
-     */
-    avisoSemEmail:
-      "Sem email não recebe a confirmação por escrito. Respondemos-lhe pelo telemóvel que nos deixar.",
+    requiredNote: "Todos os campos são obrigatórios.",
     submitReassure: "Uma proposta à medida, pensada ao detalhe.",
     privacyPre: "Ao enviar, aceita a nossa ",
     privacyLinkLabel: "Política de Privacidade",
@@ -719,6 +737,10 @@ export const pt = {
      * a lista de passos promete uma proposta "por email", e a pessoa fica a
      * vigiar uma caixa de correio onde nunca chega nada.
      */
+    /** Para onde foi a confirmação (28/10): o endereço por extenso, para um engano se ver logo. */
+    enviadoParaPre: "Enviámos a confirmação para ",
+    enviadoParaPos:
+      ". Não chegou dentro de alguns minutos? Veja na pasta de spam, ou fale connosco pelo WhatsApp: se o endereço tiver um engano, corrigimos.",
     semEmailNota:
       "Não nos deixou um email, por isso não recebe esta confirmação por escrito. Guarde a referência acima: respondemos-lhe pelo telemóvel que nos deixou.",
     semEmailNotaPlural:

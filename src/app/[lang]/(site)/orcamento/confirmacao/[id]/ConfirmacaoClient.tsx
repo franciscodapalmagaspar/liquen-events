@@ -466,6 +466,20 @@ export default function ConfirmacaoClient({
             </AnimateIn>
           )}
 
+          {/* Para onde foi a confirmação, escrito por extenso (28/10). Um
+              email mal escrito só se descobre aqui, enquanto a pessoa ainda
+              está na página: se o endereço não é o dela, diz-lho e mostra o
+              WhatsApp, em vez de a deixar à espera de um email que não vem. */}
+          {!!quote?.email && (
+            <AnimateIn from="bottom" delay={200}>
+              <p className="mt-6 max-w-[34rem] text-foreground/75 text-[14px] leading-[1.75]">
+                {tc.enviadoParaPre}
+                <strong className="font-medium text-foreground [overflow-wrap:anywhere]">{quote.email}</strong>
+                {tc.enviadoParaPos}
+              </p>
+            </AnimateIn>
+          )}
+
           {/* Perspective: two working days is nothing against 300 days of
               planning. Shown only when there IS a date to count towards. */}
           {(countdown !== null || (highSeason && !!eventDate)) && (

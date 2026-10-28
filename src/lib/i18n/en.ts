@@ -476,7 +476,7 @@ export const en: Dict = {
     labelLocal: "Location / region",
     labelNome: "Your name",
     labelEmail: "Email",
-    labelTelefone: "Phone",
+    labelTelefone: "Mobile",
     labelMensagem: "How do you picture your event?",
     phPessoas: "e.g. 120",
     // Ver `pt.ts` para o porquê: dois campos iguais, sem presumir quem são.
@@ -489,7 +489,8 @@ export const en: Dict = {
     phLocal: "e.g. city or venue…",
     phNome: "Your name",
     phEmail: "email@example.com",
-    hintEmail: "Email is our preferred channel: that is where the confirmation goes.",
+    hintEmail:
+      "This is where we send the confirmation and the proposal. Please check the spelling.",
     phTelefone: "+351 9XX XXX XXX",
     phMensagem: "Style, colours, atmosphere, inspiration you've saved…",
     hintMensagem:
@@ -503,16 +504,29 @@ export const en: Dict = {
     errData: "Add the date, or tick \u201cDate still to be decided\u201d.",
     errPessoas: "Add how many people, or tick \u201cStill to be decided\u201d.",
     errLocal: "Add the venue or the region.",
-    errTelefone: "Please enter a 9-digit phone number.",
+    errTelefone:
+      "This number looks incomplete. Please check the digits (outside Portugal, start with the country code, e.g. +44).",
+    errTelefoneObrigatorio: "Please enter your mobile number.",
+    errEmailObrigatorio: "Please enter your email.",
+    errDominioDoEmail:
+      "This email doesn't seem to exist: please check what comes after the @ (for example, gmail.com).",
+    sugestaoEmailPre: "Did you mean ",
+    sugestaoEmailPos: "?",
+    sugestaoEmailUsar: "Use this",
+    confirmarTitulo: "Please confirm your contact details",
+    confirmarTexto:
+      "This is where we send the confirmation and the proposal. One wrong letter and nothing reaches you.",
+    confirmarEmail: "Email",
+    confirmarTelefone: "Mobile",
+    confirmarEnviar: "That's right, send",
+    confirmarCorrigir: "Edit",
     errMensagem: "Tell us how you picture the event. It's what lets us prepare the proposal.",
     enviar: "Send request",
     enviando: "Sending…",
     ouWhatsApp: "or via WhatsApp",
     error: "Your request did not go through. Please try again or reach us on WhatsApp.",
-    // Ver `pt.ts` para o porquê destas duas.
-    requiredNote: "All fields are required, except the contact: either one will do.",
-    avisoSemEmail:
-      "Without an email you won't get a written confirmation. We'll reply on the phone number you leave us.",
+    // Ver `pt.ts` para o porquê.
+    requiredNote: "All fields are required.",
     submitReassure: "A tailored proposal, crafted in detail.",
     privacyPre: "By submitting, you accept our ",
     privacyLinkLabel: "Privacy Policy",
@@ -642,6 +656,9 @@ export const en: Dict = {
     footerNote: "A formal proposal is sent after our team reviews your request.",
     // Ver `pt.ts`: sem email não há confirmação escrita, e quem enviou tem de o
     // saber aqui em vez de ficar à espera dela.
+    enviadoParaPre: "We sent the confirmation to ",
+    enviadoParaPos:
+      ". Nothing within a few minutes? Check your spam folder, or message us on WhatsApp: if the address has a typo, we'll fix it.",
     semEmailNota:
       "You didn't leave us an email, so you won't get this confirmation in writing. Save the reference above: we'll reply on the phone number you left us.",
     semEmailNotaPlural:

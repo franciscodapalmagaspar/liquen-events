@@ -26,6 +26,7 @@ import { PONTOS_DECORACAO } from "@/lib/orcamento/decoracao";
 // como se acaba com duas regras diferentes.
 import { clearSubmissionId, ensureSubmissionId } from "@/lib/orcamento/submission-id";
 import { assentarComMola } from "@/lib/motion/assentar";
+import { normalizarTelefone, sugestaoDeEmail } from "@/lib/contacto-do-pedido";
 
 /**
  * Pedido de orçamento — formulário simples e direto.
@@ -299,6 +300,19 @@ export default function OrcamentoForm({
   const [website, setWebsite] = useState(""); // honeypot — fica vazio
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * A confirmação dos contactos está aberta: o formulário está pronto e falta
+   * só ela dizer que o email e o telemóvel estão bem escritos. Ver o painel
+   * «Confirme os seus contactos», junto do botão de enviar.
+   */
+  const [aConfirmar, setAConfirmar] = useState(false);
+  const confirmarRef = useRef<HTMLHeadingElement | null>(null);
+  /** Mexer no email ou no telemóvel com a confirmação aberta fecha-a: o que lá
+   *  estava escrito deixou de ser o que vai seguir. */
+  const mudarContacto = (mudar: (v: string) => void, valor: string) => {
+    mudar(valor);
+    setAConfirmar(false);
+  };
   // Every field is required, so every field needs its own "has the visitor
   // been here yet" flag — errors must appear after leaving a field, never while
   // it's still being typed into for the first time.
@@ -522,41 +536,26 @@ export default function OrcamentoForm({
   const ehCasamento = EVENT_TYPES.find((o) => o.label === eventType)?.eventType === "casamentos";
   const okNome = nome.trim().length >= 2;
   /**
-   * ── O CONTACTO: EMAIL **OU** TELEMÓVEL, QUE É O QUE O SERVIDOR ACEITA ────
+   * ── O CONTACTO: EMAIL **E** TELEMÓVEL (decisão dela, 28/10) ──────────────
    *
-   * A regra do negócio está escrita uma única vez, em `quoteFormSchema`
-   * (src/lib/validation.ts): tem de haver PELO MENOS UMA forma de responder.
-   * Este formulário exigia as duas, e por isso recusava pedidos que a casa
-   * aceita: quem só queria deixar o telemóvel levava com «E-mail inválido» e
-   * não conseguia enviar. O lead perdia-se inteiro, em silêncio, na página que
-   * paga a casa.
+   * Até aqui bastava um dos dois. Chegou um pedido com o email mal escrito e
+   * sem telemóvel: a confirmação não chegou a ninguém e não havia por onde
+   * responder. Ela decidiu que, neste formulário, os dois passam a ser
+   * obrigatórios (as fichas rápidas dos anúncios ficam como estão).
    *
-   * O que muda é só a AUSÊNCIA. Um campo preenchido continua a ser julgado
-   * exactamente como antes:
-   *  - um email mal escrito é recusado no próprio campo (a mesma `EMAIL_RE` do
-   *    servidor). O que se aceita é não o ter, não é tê-lo pela metade;
-   *  - o telemóvel segue a mesma lógica, pelo mesmo motivo. É ligeiramente mais
-   *    apertado do que o servidor (que só lhe mede o comprimento quando não há
-   *    email), e de propósito: um número truncado é um engano de dedo, e
-   *    apanhá-lo aqui custa uma correcção, enquanto deixá-lo passar custa a
-   *    resposta a este pedido.
-   *
-   * O email NÃO deixou de ser pedido: é o canal preferido, é por lá que segue a
-   * confirmação automática, e a dica ao lado do campo diz isso. Deixou só de ser
-   * exigido a quem já nos deu o telemóvel.
+   * A regra é a MESMA do servidor (`quoteFormSchema` com `origem: "completo"`):
+   *  - o email com a `EMAIL_RE` (a do zod) e, no servidor, o domínio a receber
+   *    correio;
+   *  - o telemóvel pela `normalizarTelefone` (src/lib/contacto-do-pedido.ts),
+   *    que é partilhada — um número português de 9 dígitos, ou o indicativo do
+   *    país à frente.
    */
   const temEmail = email.trim() !== "";
   const temTelefone = telefone.trim() !== "";
-  // A MESMA regra do servidor, e não uma parecida — ver `EMAIL_RE`. Sobre o
-  // valor aparado, porque é aparado que ele viaja no envio.
-  const okEmail = !temEmail || EMAIL_RE.test(email.trim());
-  // 9 digits is the Portuguese national number; an international one arrives
-  // longer, so accept anything from 9 digits up.
-  const okTelefone = !temTelefone || telefone.replace(/\D/g, "").length >= 9;
-  /** Há por onde responder a esta pessoa? É a invariante do servidor, dita aqui. */
-  const okContacto = (temEmail && okEmail) || (temTelefone && okTelefone);
-  /** Nem um nem outro: é o único caso em que a frase a mostrar não é de um campo. */
-  const nenhumContacto = !temEmail && !temTelefone;
+  const okEmail = temEmail && EMAIL_RE.test(email.trim());
+  const okTelefone = normalizarTelefone(telefone) !== null;
+  /** «Quis dizer ana@gmail.com?», quando o domínio se parece com um conhecido. */
+  const emailSugerido = okEmail ? sugestaoDeEmail(email) : null;
   // "Ainda a definir" IS an answer — the field is satisfied either way.
   // A data passada é recusada AQUI e não só pelo `min` do campo: o `min` é uma
   // sugestão que se contorna a escrever no teclado, e um pedido para o mês
@@ -596,42 +595,33 @@ export default function OrcamentoForm({
 
   const show = (t: boolean | undefined) => Boolean(t) || attemptedSubmit;
   const nomeErr = show(touched.nome) && !okNome ? to.errNome : "";
-  /**
-   * A frase de «falta um contacto» só aparece quando OS DOIS campos já foram
-   * deixados para trás (ou no envio, que é o que o `show` acrescenta). Acusá-la
-   * ao sair do email seria acusar quem ia escrever o telemóvel a seguir, que é
-   * o campo logo abaixo.
-   *
-   * Vive no campo do email porque é lá que o servidor a põe (`path: ["email"]`),
-   * e porque o email é o canal preferido: se só se pode pedir uma coisa a quem
-   * ainda não deu nenhuma, pede-se essa.
-   */
-  const contactoErr =
-    nenhumContacto && show(touched.email) && show(touched.telefone) ? to.errContacto : "";
-  const emailErr = temEmail ? (show(touched.email) && !okEmail ? to.errEmail : "") : contactoErr;
-  const telefoneErr = show(touched.telefone) && !okTelefone ? to.errTelefone : "";
+  const emailErr = show(touched.email)
+    ? !temEmail
+      ? to.errEmailObrigatorio
+      : !okEmail
+        ? to.errEmail
+        : ""
+    : "";
+  const telefoneErr = show(touched.telefone)
+    ? !temTelefone
+      ? to.errTelefoneObrigatorio
+      : !okTelefone
+        ? to.errTelefone
+        : ""
+    : "";
   const dataErr = show(touched.data) && !okData ? to.errData : "";
   const pessoasErr = show(touched.pessoas) && !okPessoas ? to.errPessoas : "";
   const localErr = show(touched.local) && !okLocal ? to.errLocal : "";
   const mensagemErr = show(touched.mensagem) && !okMensagem ? to.errMensagem : "";
   const tipoErr = attemptedSubmit && !okTipo ? to.errTipo : "";
   const ready =
-    okTipo &&
-    okNome &&
-    okEmail &&
-    okTelefone &&
-    okContacto &&
-    okData &&
-    okPessoas &&
-    okLocal &&
-    okMensagem;
-  /**
-   * Vai enviar-se um pedido a que não se pode responder por escrito.
-   *
-   * Só quando o pedido está pronto a sair: dizer isto a meio do preenchimento
-   * seria dizê-lo a toda a gente, porque toda a gente começa sem email.
-   */
-  const semEmailParaConfirmar = ready && !temEmail;
+    okTipo && okNome && okEmail && okTelefone && okData && okPessoas && okLocal && okMensagem;
+
+  // Ao abrir, o foco vai para o título do painel — quem usa leitor de ecrã
+  // ouve logo o que se lhe pede; quem vê, vê o painel no sítio do botão.
+  useEffect(() => {
+    if (aConfirmar) confirmarRef.current?.focus();
+  }, [aConfirmar]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -662,16 +652,24 @@ export default function OrcamentoForm({
         [okPessoas, pessoasRef.current],
         [okLocal, localRef.current],
         [okNome, nomeRef.current],
-        // O campo do email leva o foco por duas razões: quando o email está mal
-        // escrito, e quando não há contacto nenhum — que é onde a frase de
-        // «falta um contacto» está escrita, e onde o servidor a põe também.
-        [okEmail && !nenhumContacto, emailRef.current],
+        [okEmail, emailRef.current],
         [okTelefone, telefoneRef.current],
         [okMensagem, mensagemRef.current],
       ];
       first.find(([ok]) => !ok)?.[1]?.focus();
       return;
     }
+    // Pronto: antes de sair, mostra os contactos para os confirmar (ver
+    // `aConfirmar`). O envio a sério é o botão «Está certo, enviar».
+    if (!aConfirmar) {
+      setAConfirmar(true);
+      return;
+    }
+    await enviar();
+  }
+
+  async function enviar() {
+    if (sending) return;
     setSending(true);
     setError(null);
 
@@ -680,6 +678,12 @@ export default function OrcamentoForm({
       name: nome.trim(),
       email: email.trim(),
       phone: telefone.trim(),
+      // Liga, no servidor, a regra dos dois contactos e a verificação do
+      // domínio do email (as fichas rápidas não mandam isto).
+      origem: "completo" as const,
+      // A língua em que preencheu: ganha ao cookie, que uma navegação directa
+      // para /en pode não ter posto.
+      idioma: locale.startsWith("en") ? ("en" as const) : ("pt" as const),
       category: opt?.category ?? null,
       eventType: opt?.eventType ?? null,
       /**
@@ -777,6 +781,12 @@ export default function OrcamentoForm({
         const doServidor = typeof json?.error === "string" ? json.error.trim() : "";
         setError(doServidor || to.error);
         setSending(false);
+        // Volta o botão de sempre: tentar outra vez volta a mostrar os
+        // contactos para confirmar.
+        setAConfirmar(false);
+        // O servidor recusou o email (o domínio não recebe correio): volta ao
+        // campo, que é onde se corrige.
+        if (json?.campo === "email") emailRef.current?.focus();
         return;
       }
 
@@ -814,6 +824,7 @@ export default function OrcamentoForm({
       // frase do site é que diz o que fazer a seguir, e diz que há WhatsApp.
       setError(to.error);
       setSending(false);
+      setAConfirmar(false);
     } finally {
       clearTimeout(timeout);
     }
@@ -1335,16 +1346,14 @@ export default function OrcamentoForm({
                   placeholder={to.phNome}
                 />
               </FloatingField>
-              {/* O email é PEDIDO, não exigido: quem deixar o telemóvel pode
-                  seguir sem ele (é a regra do servidor, ver `okContacto`). Por
-                  isso não leva `aria-required` fixo — anunciá-lo como
-                  obrigatório a quem ouve o formulário seria dizer-lhe que não
-                  pode enviar sem ele, que é precisamente o engano que se está a
-                  desfazer. A dica por baixo diz porque é que vale a pena dá-lo. */}
+              {/* O email é obrigatório (decisão dela, 28/10). A dica por
+                  baixo diz porque é que importa escrevê-lo bem; a sugestão
+                  apanha o domínio mal escrito («gmial.com»). */}
               <div>
                 <FloatingField
                   htmlFor="of-email"
                   label={to.labelEmail}
+                  required
                   error={emailErr}
                   errorId="of-email-err"
                 >
@@ -1354,8 +1363,9 @@ export default function OrcamentoForm({
                     type="email"
                     autoComplete="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => mudarContacto(setEmail, e.target.value)}
                     onBlur={() => markTouched("email")}
+                    aria-required="true"
                     aria-invalid={!!emailErr}
                     aria-describedby={emailErr ? "of-email-err of-email-hint" : "of-email-hint"}
                     className={`${ffInputCls} ${
@@ -1370,6 +1380,28 @@ export default function OrcamentoForm({
                 >
                   {to.hintEmail}
                 </p>
+                {emailSugerido && (
+                  <p
+                    role="status"
+                    className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[12px] text-foreground/78"
+                  >
+                    <span>
+                      {to.sugestaoEmailPre}
+                      <strong className="font-medium text-foreground">{emailSugerido}</strong>
+                      {to.sugestaoEmailPos}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        mudarContacto(setEmail, emailSugerido);
+                        emailRef.current?.focus();
+                      }}
+                      className="alvo-toque underline underline-offset-2 hover:text-moss transition-colors"
+                    >
+                      {to.sugestaoEmailUsar}
+                    </button>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1430,6 +1462,7 @@ export default function OrcamentoForm({
             <FloatingField
               htmlFor="of-telefone"
               label={to.labelTelefone}
+              required
               error={telefoneErr}
               errorId="of-telefone-err"
             >
@@ -1441,10 +1474,13 @@ export default function OrcamentoForm({
                 autoComplete="tel"
                 value={telefone}
                 onBlur={() => markTouched("telefone")}
+                aria-required="true"
                 aria-invalid={telefoneErr ? true : undefined}
                 aria-describedby={telefoneErr ? "of-telefone-err" : undefined}
-                onChange={(e) => setTelefone(e.target.value)}
-                className={ffInputCls}
+                onChange={(e) => mudarContacto(setTelefone, e.target.value)}
+                className={`${ffInputCls} ${
+                  telefoneErr ? "border-gold/60" : okTelefone ? "border-moss/50" : ""
+                }`}
                 placeholder={to.phTelefone}
               />
             </FloatingField>
@@ -1488,8 +1524,67 @@ export default function OrcamentoForm({
               </p>
             </div>
 
+            {/* ── CONFIRME OS SEUS CONTACTOS ─────────────────────────────────
+                Ela (28/10): o pedido que se perdeu tinha o email mal escrito
+                ANTES do @ — nenhuma verificação o apanha, só os olhos de quem
+                o escreveu. Por isso, antes de enviar, mostram-se os dois
+                contactos em grande e pergunta-se se estão certos. Ocupa o
+                lugar do botão de enviar (o envio a sério é o «Está certo»). */}
+            {aConfirmar && !sending && (
+              <section
+                aria-labelledby="of-confirmar-titulo"
+                className="border-l-2 border-moss/60 bg-moss/[0.05] px-5 py-5 sm:px-6"
+              >
+                <h3
+                  id="of-confirmar-titulo"
+                  ref={confirmarRef}
+                  tabIndex={-1}
+                  className="text-[11px] tracking-[0.18em] uppercase text-foreground/78 outline-none"
+                >
+                  {to.confirmarTitulo}
+                </h3>
+                <dl className="mt-4 grid gap-3">
+                  <div>
+                    <dt className="text-[11px] text-foreground/68">{to.confirmarEmail}</dt>
+                    <dd className="mt-0.5 text-lg text-foreground [overflow-wrap:anywhere]">{email.trim()}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] text-foreground/68">{to.confirmarTelefone}</dt>
+                    <dd className="mt-0.5 text-lg text-foreground tabular-nums">
+                      {telefone.trim()}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="mt-4 max-w-md text-[12px] leading-relaxed text-foreground/78">
+                  {to.confirmarTexto}
+                </p>
+                <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-4">
+                  <button
+                    type="button"
+                    onClick={() => void enviar()}
+                    className={PRIMARY_BUTTON_CLASS}
+                  >
+                    {to.confirmarEnviar} <span aria-hidden>→</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAConfirmar(false);
+                      emailRef.current?.focus();
+                    }}
+                    className="alvo-toque pointer-fine:py-1 pointer-fine:-my-1 text-[11px] tracking-[0.22em] uppercase text-foreground/68 hover:text-moss transition-colors"
+                  >
+                    {to.confirmarCorrigir}
+                  </button>
+                </div>
+              </section>
+            )}
+
             {/* Ações */}
-            <div className="flex flex-wrap items-center gap-x-7 gap-y-4 pt-1">
+            <div
+              className="flex flex-wrap items-center gap-x-7 gap-y-4 pt-1"
+              hidden={aConfirmar && !sending}
+            >
               {/* aria-disabled (not `disabled`) so activating it while sending
                   doesn't yank focus off the button to <body> — the handler
                   already no-ops on re-entry. */}
@@ -1528,22 +1623,6 @@ export default function OrcamentoForm({
                 <span className="sr-only"> ({t.common.newWindow})</span>
               </a>
             </div>
-
-            {/* O que acontece A SEGUIR a quem envia sem email, dito ANTES de
-                enviar e ao lado do botão que o vai fazer.
-                A confirmação automática vai por email; sem email não vai a
-                lado nenhum, e deixar a pessoa a vigiar uma caixa de correio
-                onde nunca chega nada é o pior fim possível para um pedido que
-                correu bem. `role="status"` e não `alert`: isto não é uma
-                recusa, é o preço de uma escolha legítima. */}
-            {semEmailParaConfirmar && (
-              <p
-                role="status"
-                className="-mt-2 flex items-start gap-3 border-l-2 border-gold/70 pl-4 text-[12px] leading-relaxed text-foreground/78 max-w-md"
-              >
-                {to.avisoSemEmail}
-              </p>
-            )}
 
             {/* Reassurance + privacy at the point of decision — the moment
                 hesitation peaks. Reuses facts already shown up top. */}

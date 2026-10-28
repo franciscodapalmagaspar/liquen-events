@@ -32,6 +32,11 @@ vi.mock("@/lib/mail", () => ({
   MAIL_TO: "equipa@liquen-events.test",
 }));
 vi.mock("@/lib/push", () => ({ sendPushToAll: vi.fn(async () => ({ sent: 0 })) }));
+// O DNS não se pergunta nos testes: o que se prende é a decisão da rota.
+const dominio = vi.hoisted(() => ({ recebe: true }));
+vi.mock("@/lib/dominio-do-email", () => ({
+  dominioRecebeEmail: vi.fn(async () => dominio.recebe),
+}));
 vi.mock("@/lib/meta/capi", () => ({
   enviarEventos: vi.fn(async () => ({ enviado: true, recebidos: 1 })),
   ipDoPedido: () => "1.2.3.4",
@@ -116,6 +121,7 @@ beforeEach(() => {
   depois.tarefas = [];
   depois.semContexto = false;
   store.get.mockResolvedValue(null);
+  dominio.recebe = true;
   vi.clearAllMocks();
 });
 
@@ -889,5 +895,76 @@ describe("POST /api/orcamento — o gémeo que chega ao mesmo tempo", () => {
     const res = await enviarTudo({ form: validForm, submissionId: "abcdefgh13" });
     expect(res.status).toBe(200);
     expect(sendMailMock).toHaveBeenCalled();
+  });
+});
+
+/**
+ * O FORMULÁRIO COMPLETO (decisão dela, 28/10): o email e o telemóvel são os
+ * dois obrigatórios, o telemóvel grava-se em E.164, um domínio que não recebe
+ * correio é recusado com a frase do campo, e a língua do formulário ganha ao
+ * cookie. As fichas rápidas (sem `origem`) ficam como estavam — os testes de
+ * cima continuam a prendê-las.
+ */
+describe("POST /api/orcamento — o formulário completo", () => {
+  const completo = {
+    name: "Ana Silva",
+    email: "ana@example.com",
+    phone: "912 345 678",
+    guests: 50,
+    origem: "completo",
+  };
+  const to = getDictionary("pt").orcamento;
+
+  it("aceita, e grava o telemóvel em E.164 — sem `origem` nem `idioma` no pedido", async () => {
+    const res = await enviarTudo({ form: completo });
+    expect(res.status).toBe(200);
+    const gravado = (store.create.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(gravado.phone).toBe("+351912345678");
+    expect(gravado).not.toHaveProperty("origem");
+    expect(gravado).not.toHaveProperty("idioma");
+  });
+
+  it("sem telemóvel, recusa com a frase do formulário", async () => {
+    const res = await POST(req("POST", { form: { ...completo, phone: "" } }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(to.errTelefoneObrigatorio);
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it("com um telemóvel incompleto, recusa com a frase do formulário", async () => {
+    const res = await POST(req("POST", { form: { ...completo, phone: "91234567" } }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(to.errTelefone);
+  });
+
+  it("sem email, recusa — mesmo com o telemóvel", async () => {
+    const res = await POST(req("POST", { form: { ...completo, email: "" } }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(to.errEmailObrigatorio);
+  });
+
+  it("um domínio que não recebe correio é recusado, e diz qual é o campo", async () => {
+    dominio.recebe = false;
+    const res = await POST(req("POST", { form: { ...completo, email: "ana@gmail.con" } }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: to.errDominioDoEmail, campo: "email" });
+    expect(store.create).not.toHaveBeenCalled();
+    expect(sendMailMock).not.toHaveBeenCalled();
+  });
+
+  it("a ficha rápida (sem `origem`) não passa pelo DNS", async () => {
+    dominio.recebe = false;
+    const res = await enviarTudo({ form: { ...completo, origem: undefined, phone: "" } });
+    expect(res.status).toBe(200);
+  });
+
+  it("a língua do formulário ganha ao cookie", async () => {
+    const res = await POST(
+      pedidoNaLingua({ form: { ...completo, phone: "", idioma: "en" } }, "pt"),
+    );
+    expect((await res.json()).error).toBe(getDictionary("en").orcamento.errTelefoneObrigatorio);
+    await enviarTudo({ form: { ...completo, idioma: "en" } });
+    const gravado = (store.create.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(gravado.locale).toBe("en");
   });
 });

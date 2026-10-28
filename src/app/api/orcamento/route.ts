@@ -36,6 +36,8 @@ import { jsonWithEtag } from "@/lib/api-cache";
 import { sendPushToAll } from "@/lib/push";
 import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
 import { quotePayloadSchema } from "@/lib/validation";
+import { normalizarTelefone } from "@/lib/contacto-do-pedido";
+import { dominioRecebeEmail } from "@/lib/dominio-do-email";
 import { log } from "@/lib/logger";
 import { eur0 as eur } from "@/lib/money";
 import { enviarEventos, ipDoPedido } from "@/lib/meta/capi";
@@ -112,7 +114,15 @@ function mensagemDeValidacao(err: ZodError, locale: Locale): string {
   // em OrcamentoForm.tsx). Estava aqui escrita à mão nas duas línguas, e duas
   // cópias da mesma frase é como se acaba com duas frases diferentes para a
   // mesma recusa.
-  if (issue?.code === "custom") return to.errContacto;
+  if (issue?.code === "custom") {
+    // As regras dos contactos (`superRefine` do esquema): o formulário completo
+    // pede os dois; as fichas rápidas, pelo menos um.
+    const regra = (issue as { params?: { regra?: string } }).params?.regra;
+    if (regra === "email-obrigatorio") return to.errEmailObrigatorio;
+    if (regra === "telefone-obrigatorio") return to.errTelefoneObrigatorio;
+    if (regra === "telefone") return to.errTelefone;
+    return to.errContacto;
+  }
 
   if (issue?.code === "too_big" && typeof issue.maximum === "number") {
     const max = issue.maximum;
@@ -677,7 +687,9 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
 export async function POST(request: NextRequest) {
   // A língua em que esta pessoa está a ler, lida ANTES de tudo o resto: é a
   // língua de todas as respostas desta rota, incluindo as que recusam o pedido.
-  const locale = normalizeLocale(request.cookies?.get?.(LANG_COOKIE)?.value);
+  // (Pode mudar já a seguir: o formulário completo diz a língua em que foi
+  // preenchido, e essa ganha ao cookie — ver o `idioma` no esquema.)
+  let locale = normalizeLocale(request.cookies?.get?.(LANG_COOKIE)?.value);
   try {
     sweep();
     const limited = await rateLimit(`orcamento:${clientIp(request)}`, 5, 60_000);
@@ -705,6 +717,8 @@ export async function POST(request: NextRequest) {
       });
       return NextResponse.json({ id: generateQuoteId(), status: "ok" });
     }
+    const idiomaDoForm = (body as { form?: { idioma?: unknown } } | null)?.form?.idioma;
+    if (idiomaDoForm === "pt" || idiomaDoForm === "en") locale = idiomaDoForm;
     const parsed = quotePayloadSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -712,10 +726,30 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const { form, breakdown } = parsed.data as unknown as {
-      form: QuoteFormData;
+    const {
+      form: { origem, idioma: _idioma, ...formLido },
+      breakdown,
+    } = parsed.data as unknown as {
+      form: QuoteFormData & { origem?: "completo"; idioma?: string };
       breakdown: PriceBreakdown;
     };
+    const form: QuoteFormData = formLido;
+
+    if (origem === "completo") {
+      // O telemóvel guarda-se já em E.164 (+351912345678): é a forma que o
+      // WhatsApp, a Meta e o Google Ads esperam, e o esquema já garantiu que
+      // se consegue normalizar.
+      form.phone = normalizarTelefone(form.phone) ?? form.phone;
+      // Um domínio que não recebe correio («gmial.con») é o engano depois do
+      // @ que se consegue apanhar. Recusa-se com a frase do campo — e só
+      // quando o DNS diz mesmo que não (ver `dominioRecebeEmail`).
+      if (form.email && !(await dominioRecebeEmail(form.email))) {
+        return NextResponse.json(
+          { error: getDictionary(locale).orcamento.errDominioDoEmail, campo: "email" },
+          { status: 400 },
+        );
+      }
+    }
 
     // Idempotency: the client sends a stable submissionId (persisted across a
     // reload for the same unsent enquiry). Deriving a deterministic id from it
