@@ -206,6 +206,22 @@ describe("EntradaEmVideo", () => {
       expect(vistos.size).toBe(3);
     });
 
+    it("um computador que não aguentou a normal entra já na leve deitada (29/10)", () => {
+      localStorage.setItem("liquen-entrada-leve", String(Date.now() - 60_000));
+      const { vs, n } = entrar();
+      expect(vs[n].hasAttribute("data-aliviado")).toBe(true);
+      expect(vs[n].querySelector("source")?.getAttribute("src")).toBe(
+        "/videos/entrada/v6/entrada-1-paisagem-leve.mp4",
+      );
+    });
+
+    it("passada uma semana, volta a experimentar a normal", () => {
+      localStorage.setItem("liquen-entrada-leve", String(Date.now() - 8 * 24 * 3600 * 1000));
+      const { vs, n } = entrar();
+      expect(vs[n].hasAttribute("data-aliviado")).toBe(false);
+      expect(vs[n].innerHTML).not.toContain("paisagem-leve");
+    });
+
     it("sem armazenamento (janela privada), entra na floresta", () => {
       vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
         throw new Error("bloqueado");
@@ -1324,6 +1340,72 @@ describe("EntradaEmVideo", () => {
     });
     afterEach(() => {
       vi.useRealTimers();
+    });
+
+    describe("o computador não aguenta a normal: a leve, como o YouTube (29/10)", () => {
+      /** O take à vista anda `segundos` e o browser conta os fotogramas. */
+      function anda(
+        el: HTMLVideoElement,
+        q: { total: number; perdidos: number },
+        segundos: number,
+        perdeUm: number,
+      ) {
+        Object.defineProperty(el, "getVideoPlaybackQuality", {
+          configurable: true,
+          value: () => ({ totalVideoFrames: q.total, droppedVideoFrames: q.perdidos }),
+        });
+        for (let k = 0; k < segundos; k++) {
+          q.total += 25;
+          q.perdidos += perdeUm;
+          el.currentTime += 1;
+          act(() => void vi.advanceTimersByTime(1000));
+        }
+      }
+      function aVer(el: HTMLVideoElement) {
+        Object.defineProperty(el, "duration", { configurable: true, value: 60 });
+        Object.defineProperty(el, "currentTime", { configurable: true, value: 1, writable: true });
+      }
+
+      it("a perder um em cada quatro: os seguintes e o que está à vista passam à leve, e fica guardado", async () => {
+        const { container } = await montar();
+        const [a, b] = videos(container);
+        aVer(a);
+        comecar(a);
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-paisagem.mp4");
+        anda(a, { total: 0, perdidos: 0 }, 14, 7);
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-paisagem-leve.mp4");
+        expect(a.getAttribute("src")).toBe("/videos/entrada/v6/entrada-1-paisagem-leve.mp4");
+        expect(Number(localStorage.getItem("liquen-entrada-leve"))).toBeGreaterThan(0);
+      });
+
+      it("a perder um em cada oito: os seguintes passam à leve, o que está à vista acaba na normal", async () => {
+        const { container } = await montar();
+        const [a, b] = videos(container);
+        aVer(a);
+        comecar(a);
+        anda(a, { total: 0, perdidos: 0 }, 14, 3);
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-paisagem-leve.mp4");
+        expect(a.getAttribute("src")).toBeNull();
+      });
+
+      it("a perder pouco (um computador capaz): fica tudo na normal", async () => {
+        const { container } = await montar();
+        const [a, b] = videos(container);
+        aVer(a);
+        comecar(a);
+        anda(a, { total: 0, perdidos: 0 }, 14, 1);
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-paisagem.mp4");
+        expect(localStorage.getItem("liquen-entrada-leve")).toBeNull();
+      });
+
+      it("os primeiros segundos não contam (a página ainda se monta)", async () => {
+        const { container } = await montar();
+        const [a, b] = videos(container);
+        aVer(a);
+        comecar(a);
+        anda(a, { total: 0, perdidos: 0 }, 5, 12);
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-paisagem.mp4");
+      });
     });
 
     it("se o browser parar o vídeo à vista, volta a tocá-lo", async () => {
