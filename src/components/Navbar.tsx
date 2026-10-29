@@ -23,7 +23,11 @@ const MENU_EASE = EASE_OUT;
 // item mais à frente desliza para a esquerda (avançar), voltar atrás desliza
 // para a direita. Ver PageTransition + .vt-page-fwd/bwd em globals.css.
 /**
- * A CAIXA DOS DOIS BOTÕES DA BARRA — E PORQUE É QUE VIVE NUMA CONSTANTE.
+ * A CAIXA DOS BOTÕES DA BARRA — E PORQUE É QUE VIVE NUMA CONSTANTE.
+ *
+ * (29/10: a barra ficou com UM botão, o «Pedir orçamento» — o «Contacto»
+ * passou para os links. A constante fica: se ela preferir a variante B, os
+ * dois botões voltam e têm de medir o mesmo, pela razão abaixo.)
  *
  * «Contacto» e «Pedir orçamento» são o mesmo objecto com pesos diferentes: o
  * mesmo tamanho de letra, o mesmo enchimento, o mesmo filete. Escritos em dois
@@ -445,11 +449,14 @@ export default function Navbar() {
   const { locale, t } = useTranslations();
   const reduce = useReducedMotion();
 
+  // «Contacto» passou a ser um link como os outros (29/10): a barra fica com um
+  // só botão, «Pedir orçamento». Ver a nota junto da CTA.
   const links = [
     { href: "/sobre", label: t.nav.sobre },
     { href: "/servicos", label: t.nav.servicos },
     { href: "/galeria", label: t.nav.galeria },
     { href: "/clientes", label: t.nav.clientes },
+    { href: "/contacto", label: t.nav.contacto },
   ];
 
   // A section stays "current" while the visitor is on any page beneath it, so a
@@ -715,26 +722,39 @@ export default function Navbar() {
                 O de abrir o menu continua a ser uma troca de altura, mas sem
                 transição: acontece uma vez, num toque, e não a cada fotograma
                 de scroll. */}
+            {/* RECORTADOS (29/10). O `logo-liquen.png` tem ~40 % de margem
+                vazia à volta (3747×2238, e o desenho ocupa 2146×1084): a
+                barra descida, com 58 px de altura de imagem, mostrava uma
+                marca de ~28 px. Ela: «como é que podemos tornar isto melhor e
+                mais profissional?». Os recortados têm só o desenho, e as
+                alturas abaixo são as do DESENHO: em repouso o mesmo tamanho à
+                vista de antes; descida, a marca passa de ~28 para 44 px.
+                E sobre o vídeo vai a versão BRANCA — a dourada sobre a
+                floresta lia-se mal (a variante C que ela escolheu). */}
             <SafeImage
-              src="/logo-liquen.png"
+              src={
+                light && !isOpen
+                  ? "/logo-liquen-branco-recortado.png"
+                  : "/logo-liquen-recortado.png"
+              }
               alt="Líquen Events"
               width={300}
-              height={179}
+              height={152}
               priority
               className={`object-contain w-auto lg:origin-left transition-[opacity,scale] duration-500 motion-reduce:transition-none ${
-                isOpen ? "h-[104px] sm:h-[120px]" : "h-[128px] sm:h-[148px]"
-              } ${compacto ? "opacity-0 scale-[calc(52/128)] sm:scale-[calc(58/148)]" : "opacity-100 scale-100"}`}
+                isOpen ? "h-[50px] sm:h-[58px]" : "h-[62px] sm:h-[72px]"
+              } ${compacto ? "opacity-0 scale-[calc(40/62)] sm:scale-[calc(44/72)]" : "opacity-100 scale-100"}`}
             />
             <SafeImage
-              src="/logo-liquen.png"
+              src="/logo-liquen-recortado.png"
               alt=""
               aria-hidden
               width={300}
-              height={179}
-              className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:left-0 lg:translate-x-0 lg:origin-left object-contain w-auto max-w-none h-[52px] sm:h-[58px] transition-[opacity,scale] duration-500 motion-reduce:transition-none ${
+              height={152}
+              className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:left-0 lg:translate-x-0 lg:origin-left object-contain w-auto max-w-none h-[40px] sm:h-[44px] transition-[opacity,scale] duration-500 motion-reduce:transition-none ${
                 compacto
                   ? "opacity-100 scale-100"
-                  : "opacity-0 scale-[calc(128/52)] sm:scale-[calc(148/58)]"
+                  : "opacity-0 scale-[calc(62/40)] sm:scale-[calc(72/44)]"
               }`}
             />
           </Link>
@@ -757,7 +777,7 @@ export default function Navbar() {
 
           <div
             className={`hidden lg:flex items-center gap-5 xl:gap-9 transition-[translate] duration-500 motion-reduce:transition-none ${
-              scrolled ? "-translate-x-[calc((148px-58px)*3747/2238/2)]" : "translate-x-0"
+              scrolled ? "-translate-x-[calc((72px-44px)*2146/1084/2)]" : "translate-x-0"
             }`}
           >
             {links.map((link) => (
@@ -806,27 +826,14 @@ export default function Navbar() {
 
           <div className="hidden lg:flex items-center gap-3">
             <LanguageToggle light={light} />
-            <span
-              className={`h-3 w-px ${light ? "bg-white/20" : "bg-foreground/15"}`}
-              aria-hidden
-            />
-            <Link
-              href={localizeHref("/contacto", locale)}
-              transitionTypes={navTypes("/contacto")}
-              className={`${BOTAO_DA_BARRA} transition-[color,background-color,border-color] duration-300 ${
-                light
-                  ? "border-white/50 text-white/90 hover:border-white/80 hover:bg-white/10"
-                  : "border-moss/60 text-moss hover:border-moss/80 hover:bg-moss/10"
-              }`}
-            >
-              {t.nav.contacto}
-            </Link>
-            {/* CTA primária no idioma SpaceX — filete quadrado que enche no
-                hover em vez do bloco sólido moss. Sobre o hero (light) o traço
-                é branco e enche a branco (texto inverte para #0c0e0b); nas
-                páginas de topo claro o traço é moss e enche a moss (texto a
-                branco). Continua a ação principal: contorno mais firme que o
-                "Contacto" e enche por completo. */}
+            {/* A ÚNICA ACÇÃO DA BARRA (29/10, a variante C que ela escolheu
+                depois de ver as maquetas). Antes eram dois botões em caixa,
+                «Contacto» e «Pedir orçamento →», com o mesmo peso — duas
+                acções a competir. O «Contacto» passou para os links. Sobre o
+                vídeo (light) fica o contorno branco, que enche a branco ao
+                passar o rato; na barra clara é verde cheio. Se ela não gostar,
+                a segunda escolha dela é a B: os dois botões de volta, com o
+                «Pedir orçamento» cheio. */}
             <Magnetic strength={0.3}>
               <Link
                 href={localizeHref("/orcamento", locale)}
@@ -834,10 +841,10 @@ export default function Navbar() {
                 className={`${BOTAO_DA_BARRA} transition-colors duration-300 ease-expo ${
                   light
                     ? "border-white/70 text-white hover:bg-white hover:text-[#0c0e0b] hover:border-white"
-                    : "border-moss text-moss hover:bg-moss hover:text-white hover:border-moss"
+                    : "border-moss-dark bg-moss-dark text-white hover:bg-moss hover:border-moss"
                 }`}
               >
-                {t.nav.pedirOrcamento} <span aria-hidden>→</span>
+                {t.nav.pedirOrcamento}
               </Link>
             </Magnetic>
           </div>

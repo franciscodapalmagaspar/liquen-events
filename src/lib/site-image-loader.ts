@@ -128,7 +128,13 @@ export const LOGO_WIDTHS = [64, 128, 256, 384, 512] as const;
  * páginas, que "o carregador não implementa width". A marca é a imagem que
  * aparece em TODOS os ecrãs do back office — é o pior sítio para pagar isto.
  */
-const ROOT_LOGOS = ["/logo-liquen.png", "/logo-liquen-branco.png", "/logo-liquen-marca.png"];
+const ROOT_LOGOS = [
+  "/logo-liquen.png",
+  "/logo-liquen-branco.png",
+  "/logo-liquen-marca.png",
+  "/logo-liquen-recortado.png",
+  "/logo-liquen-branco-recortado.png",
+];
 
 /** Arredonda para cima até à largura pré-gerada mais próxima (satura no topo). */
 export function snapLogoWidth(width: number): number {

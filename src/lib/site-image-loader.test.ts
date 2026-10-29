@@ -205,8 +205,10 @@ describe("site-image-loader: contrato com o resto do sistema", () => {
     const doScript = roots![1].match(/"([^"]+)"/g)!.map((s) => s.slice(1, -1));
     expect(doScript.every(isLogoSrc), `${doScript} não são todos reconhecidos`).toBe(true);
     expect(doScript.sort()).toEqual([
+      "/logo-liquen-branco-recortado.png",
       "/logo-liquen-branco.png",
       "/logo-liquen-marca.png",
+      "/logo-liquen-recortado.png",
       "/logo-liquen.png",
     ]);
   });
