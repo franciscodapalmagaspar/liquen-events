@@ -845,6 +845,34 @@ describe("EntradaEmVideo", () => {
     });
   });
 
+  describe("o ecrã roda (29/10, «modo telemóvel» e depois «modo PC»)", () => {
+    it("cada take passa à versão do ecrã novo — o que está à vista, no mesmo ponto", async () => {
+      const ouvintes: Array<() => void> = [];
+      vi.stubGlobal("matchMedia", (q: string) => ({
+        matches: q.includes("portrait") ? window.innerHeight > window.innerWidth : false,
+        addEventListener: (_: string, f: () => void) => ouvintes.push(f),
+        removeEventListener: () => undefined,
+      }));
+      const { container } = await montar();
+      const [a, b] = videos(container);
+      Object.defineProperty(a, "currentSrc", {
+        configurable: true,
+        value: "http://localhost/videos/entrada/v6/entrada-1-paisagem.mp4",
+      });
+      comecar(a);
+      expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-paisagem.mp4");
+      // Roda para ao alto.
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 });
+      await act(async () => {
+        for (const f of ouvintes) f();
+        await new Promise((r) => setTimeout(r, 350));
+      });
+      expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-retrato.mp4");
+      expect(a.getAttribute("src")).toBe("/videos/entrada/v6/entrada-1-retrato.mp4");
+    });
+  });
+
   describe("no computador: um take à frente, da rede, sem cópias na memória (29/10)", () => {
     beforeEach(() => {
       vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("pointer: fine") }));
@@ -1396,6 +1424,30 @@ describe("EntradaEmVideo", () => {
         anda(a, { total: 0, perdidos: 0 }, 14, 1);
         expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-paisagem.mp4");
         expect(localStorage.getItem("liquen-entrada-leve")).toBeNull();
+      });
+
+      it("num ecrã grande, primeiro sai a versão de 2560; só depois a leve", async () => {
+        Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 });
+        Object.defineProperty(navigator, "mediaCapabilities", {
+          configurable: true,
+          value: {
+            decodingInfo: () =>
+              Promise.resolve({ supported: true, smooth: true, powerEfficient: true }),
+          },
+        });
+        try {
+          const { container } = await montar();
+          const [a, b] = videos(container);
+          aVer(a);
+          comecar(a);
+          expect(b.getAttribute("src")).toMatch(/entrada-2-grande(-av1)?\.mp4$/);
+          anda(a, { total: 0, perdidos: 0 }, 14, 7);
+          expect(b.getAttribute("src")).toMatch(/entrada-2-paisagem(-av1)?\.mp4$/);
+          expect(Number(localStorage.getItem("liquen-entrada-sem-grande"))).toBeGreaterThan(0);
+          expect(localStorage.getItem("liquen-entrada-leve")).toBeNull();
+        } finally {
+          Reflect.deleteProperty(navigator, "mediaCapabilities");
+        }
       });
 
       it("os primeiros segundos não contam (a página ainda se monta)", async () => {

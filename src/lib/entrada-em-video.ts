@@ -581,6 +581,8 @@ export function deveAliviar(fotogramas: number, perdidos: number): boolean {
  * Vale uma semana: depois volta-se a experimentar a normal.
  */
 export const CHAVE_DO_ALIVIO = "liquen-entrada-leve";
+/** O degrau de cima: sem a grande (2560), na de 1920 (ver `aliviar` no motor). */
+export const CHAVE_SEM_GRANDE = "liquen-entrada-sem-grande";
 export const ALIVIO_DURA_MS = 7 * 24 * 60 * 60 * 1000;
 export function alivioGuardado(valor: string | null, agora: number): boolean {
   const t = Number(valor);
