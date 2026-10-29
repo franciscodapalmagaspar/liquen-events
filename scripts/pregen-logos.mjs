@@ -100,7 +100,13 @@ const IMAGE_EXT = /\.(avif|png|jpe?g|webp)$/i;
 // Tem de ser igual ao `ROOT_LOGOS` de src/lib/site-image-loader.ts — um
 // `.mjs` não importa TS, por isso quem verifica a sincronia é
 // src/lib/site-image-loader.test.ts.
-const ROOT_LOGOS = ["/logo-liquen.png", "/logo-liquen-branco.png", "/logo-liquen-marca.png"];
+const ROOT_LOGOS = [
+  "/logo-liquen.png",
+  "/logo-liquen-branco.png",
+  "/logo-liquen-marca.png",
+  "/logo-liquen-recortado.png",
+  "/logo-liquen-branco-recortado.png",
+];
 
 /** Mesma regra de chave que galleryKey() em scripts/pregen-gallery.mjs e que o
     carregador: basename sem extensão, tudo fora de [A-Za-z0-9_-] em "_". */

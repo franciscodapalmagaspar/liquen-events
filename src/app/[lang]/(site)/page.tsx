@@ -96,13 +96,19 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
             do título — vai onde o texto for (também com o recuo do aviso de
             cookies). O escuro forte acaba exactamente no topo do título (os
             9rem do `pt-36` são só o esbatido): por baixo do texto o alfa é
-            0,68 ou mais, e o mínimo que o título (texto grande, 3:1) pede
-            sobre branco é 0,43; os botões (4,5:1) pedem 0,56. */}
+            0,5 ou mais, e o mínimo que o título (texto grande, 3:1) pede
+            sobre branco é 0,43.
+            29/10, ela: «essa faixa em baixo que fica a preto está super
+            preta». Era 0,92 → 0,68: uma faixa preta a toda a largura. Desceu
+            para 0,7 → 0,5. Os botões (texto pequeno, 4,5:1 pediria 0,56 sobre
+            BRANCO) ficam sobre o fundo de 0,6–0,7 e com uma sombra suave por
+            trás das letras; a floresta não tem branco nenhum — o contraste
+            medido sobre os fotogramas está no PR. */}
         <div
           className="relative z-10 w-full pt-36"
           style={{
             backgroundImage:
-              "linear-gradient(to top, rgba(8,8,8,0.92) 0%, rgba(8,8,8,0.68) calc(100% - 9rem), transparent 100%)",
+              "linear-gradient(to top, rgba(8,8,8,0.7) 0%, rgba(8,8,8,0.5) calc(100% - 9rem), transparent 100%)",
             // O herói guarda em baixo o lugar do aviso de cookies (`recuo-
             // consentimento`, um padding). O escuro desce por esse lugar até ao
             // fundo do ecrã, e o texto fica onde estava.
@@ -112,7 +118,9 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
         >
           <div className="max-w-7xl mx-auto w-full px-6 lg:px-16 pb-14 lg:pb-20">
             <AnimateIn>
-              <div className="max-w-2xl">
+              {/* A sombra por trás das letras é o que deixa o véu ser mais leve
+                  (29/10): o texto não depende só do escuro do fundo. */}
+              <div className="max-w-2xl [text-shadow:0_1px_14px_rgba(0,0,0,0.35)]">
                 {/* The site's emotional promise, in the SpaceX display lettering:
                   big uppercase sans with tight (tracking-display) spacing. The
                   moss highlight on the closing word (flagged in the dictionary)
