@@ -31,10 +31,13 @@ import {
   type Formato,
   melhorFormato,
   novaVolta,
+  eComputador,
+  grandeVale,
   perguntaDoNavegador,
   prazoDosSeguintesMs,
   primeiraVolta,
   tipoDoFormato,
+  varianteConfirmada,
   varianteParaOEcra,
 } from "@/lib/entrada-em-video";
 import {
@@ -162,16 +165,25 @@ const AO_ALTO = `media="(orientation: portrait)"`;
 
 /**
  * As `<source>` do take `i` quando é o de entrada: ao alto a versão vertical,
- * deitado a larga; em cada uma HEVC, H.264, VP9 — o browser fica com a
- * primeira que sabe tocar. O HEVC vem primeiro porque só o dizem tocar os
- * aparelhos que o descodificam no chip (todos os da Apple, e Windows e Android
- * com o chip para isso); os outros passam ao H.264. O AV1 não entra aqui: o
- * Chrome di-lo tocar mesmo sem chip, e num telemóvel travava. Esse escolhe-o o
- * JavaScript para os takes seguintes, depois de perguntar ao aparelho.
+ * deitado a larga — o browser fica com a primeira que sabe tocar.
+ *
+ * Ao alto (o telemóvel): HEVC, H.264, VP9. O HEVC vem primeiro porque é o da
+ * casa da Apple, descodificado no chip em todos os iPhones.
+ *
+ * Deitado (o computador): **H.264 primeiro**, HEVC, VP9. Ela (29/10): «no PC
+ * está a travar mesmo imenso, principalmente na parte do vídeo». O `<source>`
+ * não pergunta ao aparelho se descodifica no chip: o Safari de um Mac Intel
+ * diz que toca HEVC e descodifica-o no processador. O H.264 é descodificado no
+ * chip em todos os computadores; o HEVC e o AV1 entram nos takes seguintes,
+ * só depois de o aparelho dizer que os toca no chip (`melhorFormato`).
  */
 export function fontesDeEntrada(i: number): string {
+  const ordem = {
+    retrato: ["hevc", "mp4", "webm"],
+    paisagem: ["mp4", "hevc", "webm"],
+  } as const;
   const de = (variante: "retrato" | "paisagem", media: string) =>
-    (["hevc", "mp4", "webm"] as const)
+    ordem[variante]
       .map(
         (f) =>
           `<source ${media}src="${enderecoDoVideo(i, variante, f)}" type='${tipoDoFormato(f, variante)}'>`,
@@ -572,7 +584,14 @@ function criarMotor(raiz: HTMLElement): Motor | null {
     }, ms);
     limpar.push(() => window.clearTimeout(t));
   };
+  // No computador: um take à frente, da rede (a cache do browser), sem cópias
+  // inteiras na memória — ver `eComputador`.
+  const computador = eComputador(
+    typeof matchMedia === "function" && matchMedia("(hover: hover) and (pointer: fine)").matches,
+    window.innerWidth,
+  );
   const podeDescarregar =
+    !computador &&
     typeof fetch === "function" &&
     typeof URL !== "undefined" &&
     typeof URL.createObjectURL === "function";
@@ -598,6 +617,10 @@ function criarMotor(raiz: HTMLElement): Motor | null {
     altura: window.innerHeight,
     densidade: window.devicePixelRatio || 1,
   });
+  // A versão grande (2560) só depois de o aparelho a confirmar no chip — ver
+  // `grandeVale`. Até lá, e se ele não responder, os takes vão na de 1920.
+  let grandeConfirmada = false;
+  const variante = (i: number) => varianteConfirmada(ecraDeAgora(), i, grandeConfirmada);
 
   // ── O REGISTO ANÓNIMO (ver `src/lib/diagnostico-video.ts`) ─────────────
   // Só observa: nada do que o motor faz depende dele.
@@ -803,7 +826,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   function preparar(i: number) {
     if (i >= NUMERO_DE_VIDEOS || pedido[i]) return;
     pedido[i] = true;
-    const endereco = enderecoDoVideo(i, varianteParaOEcra(ecraDeAgora(), i), formato);
+    const endereco = enderecoDoVideo(i, variante(i), formato);
     const daRede = () => {
       if (!vivo) return;
       fonte[i] = endereco;
@@ -852,7 +875,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   function guardarAbertura() {
     if (aberturaPedida || !podeDescarregar) return;
     aberturaPedida = true;
-    const endereco = enderecoDoVideo(abertura, varianteParaOEcra(ecraDeAgora(), abertura), formato);
+    const endereco = enderecoDoVideo(abertura, variante(abertura), formato);
     const corte = new AbortController();
     limpar.push(() => corte.abort());
     fetch(endereco, { signal: corte.signal })
@@ -887,7 +910,9 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   /** Prepara o primeiro da fila que ainda não foi pedido (um de cada vez). */
   function prepararOQueVem() {
     if (!decidido || !inicioAssente || !seguintesLivres) return;
-    for (const i of fila) {
+    // No computador só o que vem a seguir; o depois desse prepara-se na
+    // passagem (o `subir` volta a chamar isto).
+    for (const i of computador ? fila.slice(0, 1) : fila) {
       if (i === abertura) continue; // tem o seu caminho (`guardarAbertura`)
       if (!pedido[i]) {
         preparar(i);
@@ -919,7 +944,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   const ESPERA_MAX_S = PASSAGEM_MS / 1000 + ARRANQUE_S;
 
   /** A fonte da rede do take `i` (quando a da memória não serve). */
-  const daRedeDe = (i: number) => enderecoDoVideo(i, varianteParaOEcra(ecraDeAgora(), i), formato);
+  const daRedeDe = (i: number) => enderecoDoVideo(i, variante(i), formato);
 
   /**
    * Refaz o take `i` do zero: larga o que tinha carregado e volta a ser
@@ -1321,19 +1346,27 @@ function criarMotor(raiz: HTMLElement): Motor | null {
 
   // O aparelho é perguntado que formato descodifica no chip, para os vídeos
   // seguintes (o de entrada já vai no que o browser escolheu das `<source>`).
-  const decidir = (f: Formato | null) => {
+  const decidir = (f: Formato | null, grande = false) => {
     if (!vivo || decidido) return;
     if (f) formato = f;
+    grandeConfirmada = grande;
     decidido = true;
     prepararOQueVem();
   };
+  const pergunta = perguntaDoNavegador();
+  const querGrande = varianteParaOEcra(ecraDeAgora(), 1) === "grande";
   melhorFormato(
     podeTocarTipo,
-    perguntaDoNavegador(),
+    pergunta,
     varianteParaOEcra(ecraDeAgora(), 1),
-    typeof navigator !== "undefined" && /Apple/.test(navigator.vendor || ""),
+    // O HEVC sem perguntar é para o iPhone; o Safari de um Mac pergunta, como
+    // os outros computadores (um Mac Intel descodifica-o no processador).
+    !computador && typeof navigator !== "undefined" && /Apple/.test(navigator.vendor || ""),
   )
-    .then(decidir)
+    .then(async (f) => {
+      const grande = querGrande && (await grandeVale(pergunta, f ?? formato));
+      decidir(f, grande);
+    })
     .catch(() => decidir(null));
   depois(1000, () => decidir(null));
 
@@ -1413,8 +1446,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
     marcar("recarregar", atual);
     if (el === primeiro && !fonte[atual]) el.load();
     else {
-      el.src =
-        fonte[atual] ?? enderecoDoVideo(atual, varianteParaOEcra(ecraDeAgora(), atual), formato);
+      el.src = fonte[atual] ?? enderecoDoVideo(atual, variante(atual), formato);
       el.load();
     }
     ouvir(el, "loadedmetadata", () => void (el.currentTime = t), true);

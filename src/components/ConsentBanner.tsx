@@ -190,6 +190,12 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
       // `barra-consentimento` é a alça do CSS que esconde isto a quem já
       // escolheu, antes da primeira pintura. Ver o script no `<head>`.
       /**
+       * SEM desfoque também no computador (29/10). Ela: «o site no PC está a
+       * travar mesmo imenso, principalmente na parte do vídeo». O aviso
+       * aparece por cima do vídeo da entrada, e aí o `backdrop-filter` volta a
+       * desfocar o vídeo a CADA fotograma dele, mesmo sem rolar. O verde fica
+       * a 95 %, como já estava nos ecrãs de toque (globals.css).
+       *
        * SEM `backdrop-blur-sm`, e é a melhor troca desta sessão inteira: custa
        * 5 % de um pixel e rende metade dos solavancos do scroll.
        *
@@ -251,7 +257,7 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
        * `--reserva-consentimento` em globals.css) foi medida outra vez para
        * esta forma.
        */
-      className="barra-consentimento fixed inset-x-3 z-[70] rounded-2xl border border-white/12 bg-sage-700/85 px-4 py-3.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] backdrop-blur-xl backdrop-saturate-150 sm:inset-x-auto sm:left-5 sm:w-[22rem]"
+      className="barra-consentimento fixed inset-x-3 z-[70] rounded-2xl border border-white/12 bg-sage-700/95 px-4 py-3.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] sm:inset-x-auto sm:left-5 sm:w-[22rem]"
       style={{
         // Fora das rotas sociais nada muda: `bottom: 0` (da classe) e o
         // preenchimento a respeitar a zona segura do iPhone.
