@@ -539,6 +539,57 @@ export function enderecoLeve(i: number, formato: "hevc" | "mp4"): string {
 }
 
 /**
+ * ── DEITADO, A VERSÃO MAIS LEVE: PARA O COMPUTADOR QUE NÃO AGUENTA A NORMAL ─
+ * Ela (29/10, Windows e Chrome): «o vídeo está a travar por todos os lados».
+ * O registo anónimo do vídeo mostrou o computador dela (ecrã 2195×1100 a
+ * 180 %) a perder 20 a 30 % dos fotogramas, com o vídeo já todo na memória e
+ * dezenas de `waiting` — o descodificador a não dar conta, não a rede. Na
+ * véspera, no mesmo computador, perdia 4 %. É o que acontece quando o Chrome
+ * fica sem a aceleração da placa gráfica e descodifica no processador.
+ *
+ * É o que o YouTube resolve baixando a qualidade sozinho: aqui, `paisagem-leve`
+ * — 1280×640, H.264 (o mais leve de descodificar), ~3 Mbit/s, SSIM 0,965
+ * contra a de 1920. Só entra num computador que não aguenta a normal (ver
+ * {@link deveAliviar}); os outros ficam como estão.
+ */
+export function enderecoLeveDeitado(i: number): string {
+  const n = i % NUMERO_DE_VIDEOS;
+  return `${PASTA_DOS_VIDEOS}/entrada-${n + 1}-paisagem-leve.mp4`;
+}
+
+/** Perder mais do que isto dos fotogramas é ver o vídeo «aos soluços». */
+export const ALIVIAR_PERDIDOS = 0.1;
+/** E só se decide com fotogramas que cheguem (5 s a 25 por segundo). */
+export const ALIVIAR_MIN_FOTOGRAMAS = 125;
+/** Nem nos primeiros segundos, em que a página ainda se monta. */
+export const ALIVIAR_DEPOIS_DE_MS = 6000;
+/** Tão mau que vale a pena trocar já o take à vista, e não só os seguintes. */
+export const ALIVIAR_JA = 0.2;
+
+/**
+ * Pelos fotogramas MEDIDOS (`getVideoPlaybackQuality`, desde a última conta):
+ * este aparelho não está a aguentar a versão normal?
+ */
+export function deveAliviar(fotogramas: number, perdidos: number): boolean {
+  if (!(fotogramas >= ALIVIAR_MIN_FOTOGRAMAS)) return false;
+  return perdidos / fotogramas > ALIVIAR_PERDIDOS;
+}
+
+/**
+ * Onde o browser guarda que este aparelho precisa da leve, para a próxima
+ * entrada já começar nela (e não perder os primeiros segundos a soluçar).
+ * Vale uma semana: depois volta-se a experimentar a normal.
+ */
+export const CHAVE_DO_ALIVIO = "liquen-entrada-leve";
+/** O degrau de cima: sem a grande (2560), na de 1920 (ver `aliviar` no motor). */
+export const CHAVE_SEM_GRANDE = "liquen-entrada-sem-grande";
+export const ALIVIO_DURA_MS = 7 * 24 * 60 * 60 * 1000;
+export function alivioGuardado(valor: string | null, agora: number): boolean {
+  const t = Number(valor);
+  return !!valor && Number.isFinite(t) && t <= agora && agora - t < ALIVIO_DURA_MS;
+}
+
+/**
  * ── A FLORESTA COMO IMAGEM ANIMADA (QUANDO O APARELHO RECUSA O VÍDEO) ─────
  * Ela (16/10), num iPhone com a poupança de energia ligada: «quero que mal
  * entremos no site o vídeo corra… sem aparecer botões… nem essas fotos no

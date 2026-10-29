@@ -29,7 +29,10 @@ import {
   primeiraVolta,
   proximoVideo,
   varianteParaOEcra,
+  alivioGuardado,
+  deveAliviar,
   eComputador,
+  enderecoLeveDeitado,
   grandeVale,
   varianteConfirmada,
 } from "./entrada-em-video";
@@ -360,5 +363,30 @@ describe("no computador (29/10, «no PC está a travar mesmo imenso»)", () => {
     expect(eComputador(true, 1440)).toBe(true);
     expect(eComputador(true, 900)).toBe(false);
     expect(eComputador(false, 1366)).toBe(false);
+  });
+});
+
+describe("a leve deitada, para o computador que não aguenta a normal (29/10)", () => {
+  it("existe, para os três takes, em H.264 e leve", () => {
+    for (let i = 0; i < 3; i++) {
+      const p = `public${enderecoLeveDeitado(i)}`;
+      expect(existsSync(p), p).toBe(true);
+      expect(statSync(p).size).toBeLessThan(8_000_000);
+      expect(formatoDoEndereco(enderecoLeveDeitado(i))).toBe("mp4");
+    }
+  });
+
+  it("só alivia com fotogramas que cheguem e mais de 10 % perdidos", () => {
+    expect(deveAliviar(150, 40)).toBe(true);
+    expect(deveAliviar(150, 10)).toBe(false);
+    expect(deveAliviar(50, 40)).toBe(false);
+  });
+
+  it("o alívio guardado vale uma semana", () => {
+    const agora = Date.parse("2026-10-29T12:00:00Z");
+    expect(alivioGuardado(String(agora - 3600_000), agora)).toBe(true);
+    expect(alivioGuardado(String(agora - 8 * 24 * 3600_000), agora)).toBe(false);
+    expect(alivioGuardado(null, agora)).toBe(false);
+    expect(alivioGuardado("lixo", agora)).toBe(false);
   });
 });

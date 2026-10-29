@@ -31,7 +31,16 @@ import {
   type Formato,
   melhorFormato,
   novaVolta,
+  ALIVIAR_JA,
+  ALIVIAR_DEPOIS_DE_MS,
+  ALIVIAR_MIN_FOTOGRAMAS,
+  CHAVE_DO_ALIVIO,
+  CHAVE_SEM_GRANDE,
+  ALIVIO_DURA_MS,
+  alivioGuardado,
+  deveAliviar,
   eComputador,
+  enderecoLeveDeitado,
   grandeVale,
   perguntaDoNavegador,
   prazoDosSeguintesMs,
@@ -202,6 +211,14 @@ export function fontesLeves(i: number): string {
     .join("");
 }
 
+/**
+ * A `<source>` da versão leve deitada do take `i` (ver `enderecoLeveDeitado`):
+ * só H.264, o mais leve de descodificar.
+ */
+export function fonteLeveDeitada(i: number): string {
+  return `<source src="${enderecoLeveDeitado(i)}" type='${tipoDoFormato("mp4")}'>`;
+}
+
 type ComPrerender = Document & { prerendering?: boolean };
 
 /**
@@ -269,6 +286,9 @@ export function arrancarEntrada(
   animadas?: Animadas,
   porImagem?: typeof porImagemAnimada,
   passagemMs = 800,
+  levesDeitado: string[] = [],
+  chaveAlivio = "",
+  alivioMs = 0,
 ): void {
   const doc = document as ComPrerender;
   const guiao = doc.currentScript;
@@ -320,7 +340,24 @@ export function arrancarEntrada(
     v.insertAdjacentHTML("beforeend", leves[n]);
     v.setAttribute("data-leve", "");
   };
-  if (aoAlto && levePode && lenta) porLeve();
+  // ── DEITADO, NUM COMPUTADOR QUE NÃO AGUENTOU A NORMAL ──────────────────
+  // (ver `enderecoLeveDeitado`). O motor guardou-o da última vez; a mesma
+  // conta de `alivioGuardado`, escrita aqui porque este guião não importa nada.
+  let aliviado = false;
+  if (!aoAlto && chaveAlivio && levesDeitado[n]) {
+    try {
+      const t = Number(localStorage.getItem(chaveAlivio));
+      const agora = Date.now();
+      aliviado = t > 0 && t <= agora && agora - t < alivioMs;
+    } catch {
+      // armazenamento bloqueado: começa na normal, e o motor mede
+    }
+    if (aliviado && !v.canPlayType("video/mp4")) aliviado = false;
+  }
+  if (aliviado) {
+    v.insertAdjacentHTML("beforeend", levesDeitado[n]);
+    v.setAttribute("data-aliviado", "");
+  } else if (aoAlto && levePode && lenta) porLeve();
   else v.insertAdjacentHTML("beforeend", fontes[n]);
   // Um browser que não sabe tocar nenhuma das fontes fica com a fotografia.
   const fs = v.querySelectorAll("source");
@@ -474,12 +511,13 @@ export function arrancarEntrada(
 const FONTES = Array.from({ length: NUMERO_DE_VIDEOS }, (_, i) => fontesDeEntrada(i));
 /** E as da versão leve (ao alto, numa rede fraca). */
 const LEVES = Array.from({ length: NUMERO_DE_VIDEOS }, (_, i) => fontesLeves(i));
+const LEVES_DEITADO = Array.from({ length: NUMERO_DE_VIDEOS }, (_, i) => fonteLeveDeitada(i));
 
 /** As imagens animadas do take de entrada, para quando o aparelho recusa o vídeo. */
 const ANIMADAS = imagensAnimadas(TAKE_DE_ENTRADA);
 
 /** O guião como texto, para ir no HTML (ver `arrancarEntrada`). */
-export const GUIAO_DA_ENTRADA = `(${arrancarEntrada.toString()})(${JSON.stringify(FONTES)},${JSON.stringify(CHAVE_DO_ULTIMO)},${CORTINA_ESPERA_MAX_MS},${JSON.stringify(LEVES)},${MEDIR_REDE_MS},${JSON.stringify(ANIMADAS)},${porImagemAnimada.toString()},${PASSAGEM_MS});`;
+export const GUIAO_DA_ENTRADA = `(${arrancarEntrada.toString()})(${JSON.stringify(FONTES)},${JSON.stringify(CHAVE_DO_ULTIMO)},${CORTINA_ESPERA_MAX_MS},${JSON.stringify(LEVES)},${MEDIR_REDE_MS},${JSON.stringify(ANIMADAS)},${porImagemAnimada.toString()},${PASSAGEM_MS},${JSON.stringify(LEVES_DEITADO)},${JSON.stringify(CHAVE_DO_ALIVIO)},${ALIVIO_DURA_MS});`;
 
 /**
  * O HTML dos três vídeos, igual no servidor e no browser: os três vazios, e o
@@ -574,6 +612,8 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   const aquecido = videos.map((_, i) => i === atual);
   const aAquecer = new Set<HTMLVideoElement>();
   const naMemoria: string[] = [];
+  /** De que endereço veio cada cópia na memória (`blob:` não diz se é ao alto). */
+  const origemDoBlob = new Map<string, string>();
   // Os `pause()` feitos por nós. Uma paragem que não esteja aqui foi o
   // sistema (uma notificação, o aviso da bateria) — e o vídeo volta logo.
   const pausadoPorNos = new WeakSet<HTMLVideoElement>();
@@ -621,6 +661,22 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   // `grandeVale`. Até lá, e se ele não responder, os takes vão na de 1920.
   let grandeConfirmada = false;
   const variante = (i: number) => varianteConfirmada(ecraDeAgora(), i, grandeConfirmada);
+  // Deitado, num aparelho que não aguenta a versão escolhida, desce-se por
+  // degraus (ver `aliviar`): 0 é a de sempre (a grande, se o ecrã a pede),
+  // 1 é sem a grande (a de 1920), 2 é a leve (1280). Começa no degrau que
+  // ficou guardado da última vez — o 2 já o escolheu o guião do HTML.
+  let nivel = primeiro.hasAttribute("data-aliviado") ? 2 : 0;
+  if (nivel === 0) {
+    try {
+      if (alivioGuardado(localStorage.getItem(CHAVE_SEM_GRANDE), Date.now())) nivel = 1;
+    } catch {
+      // armazenamento bloqueado: começa no 0, e mede-se
+    }
+  }
+  const enderecoDe = (i: number) =>
+    nivel >= 2 && variante(i) !== "retrato"
+      ? enderecoLeveDeitado(i)
+      : enderecoDoVideo(i, variante(i), formato);
 
   // ── O REGISTO ANÓNIMO (ver `src/lib/diagnostico-video.ts`) ─────────────
   // Só observa: nada do que o motor faz depende dele.
@@ -826,7 +882,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   function preparar(i: number) {
     if (i >= NUMERO_DE_VIDEOS || pedido[i]) return;
     pedido[i] = true;
-    const endereco = enderecoDoVideo(i, variante(i), formato);
+    const endereco = enderecoDe(i);
     const daRede = () => {
       if (!vivo) return;
       fonte[i] = endereco;
@@ -848,6 +904,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
         if (!vivo) return;
         const u = URL.createObjectURL(b);
         naMemoria.push(u);
+        origemDoBlob.set(u, endereco);
         fonte[i] = u;
         daMemoria[i] = true;
         aquecerSeForHora();
@@ -875,7 +932,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   function guardarAbertura() {
     if (aberturaPedida || !podeDescarregar) return;
     aberturaPedida = true;
-    const endereco = enderecoDoVideo(abertura, variante(abertura), formato);
+    const endereco = enderecoDe(abertura);
     const corte = new AbortController();
     limpar.push(() => corte.abort());
     fetch(endereco, { signal: corte.signal })
@@ -887,6 +944,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
         if (!vivo) return;
         const u = URL.createObjectURL(b);
         naMemoria.push(u);
+        origemDoBlob.set(u, endereco);
         fonte[abertura] = u;
         daMemoria[abertura] = true;
         passarAberturaParaAMemoria();
@@ -944,7 +1002,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   const ESPERA_MAX_S = PASSAGEM_MS / 1000 + ARRANQUE_S;
 
   /** A fonte da rede do take `i` (quando a da memória não serve). */
-  const daRedeDe = (i: number) => enderecoDoVideo(i, variante(i), formato);
+  const daRedeDe = (i: number) => enderecoDe(i);
 
   /**
    * Refaz o take `i` do zero: larga o que tinha carregado e volta a ser
@@ -1349,7 +1407,8 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   const decidir = (f: Formato | null, grande = false) => {
     if (!vivo || decidido) return;
     if (f) formato = f;
-    grandeConfirmada = grande;
+    if (nivel >= 2) formato = "mp4";
+    grandeConfirmada = grande && nivel === 0;
     decidido = true;
     prepararOQueVem();
   };
@@ -1369,6 +1428,137 @@ function criarMotor(raiz: HTMLElement): Motor | null {
     })
     .catch(() => decidir(null));
   depois(1000, () => decidir(null));
+
+  /**
+   * ── O APARELHO NÃO AGUENTA: UM DEGRAU ABAIXO, COMO O YOUTUBE ────────────
+   * Ver `enderecoLeveDeitado`. Primeiro sai a grande (2560), se era ela; se a
+   * de 1920 também perde fotogramas, a leve (1280). Os takes ainda por tocar
+   * descem já; o que está à vista também, mas só se estiver mesmo mau (`ja`)
+   * — trocá-lo custa um instante parado no mesmo ponto, e isso só compensa a
+   * quem está a perder um em cada cinco fotogramas. O degrau fica guardado
+   * no browser uma semana, para a próxima entrada já começar nele.
+   */
+  let semMedirAte = -1; // o take que estava à vista quando se desceu sem o trocar
+  function aliviar(motivo: string, ja: boolean) {
+    if (nivel >= 2 || !vivo) return;
+    const novo = nivel === 0 && grandeConfirmada ? 1 : 2;
+    if (novo === 2 && !podeTocarTipo(tipoDoFormato("mp4"))) return; // a leve é só H.264
+    nivel = novo;
+    grandeConfirmada = false;
+    if (nivel === 2) formato = "mp4";
+    marcar(`aliviar-${nivel}`, atual);
+    try {
+      localStorage.setItem(nivel === 2 ? CHAVE_DO_ALIVIO : CHAVE_SEM_GRANDE, String(Date.now()));
+    } catch {
+      // janela privada: fica só para esta visita
+    }
+    for (let i = 0; i < videos.length; i++) {
+      if (variante(i) === "retrato" || i === atual) continue;
+      reapontar(i);
+    }
+    if (ja && !aPassar && variante(atual) !== "retrato") {
+      reapontar(atual);
+      medirDesde = performance.now() + ALIVIAR_DEPOIS_DE_MS;
+    } else {
+      semMedirAte = atual;
+    }
+    aquecerSeForHora();
+  }
+
+  /**
+   * Põe o take `i` no endereço que lhe cabe agora (`enderecoDe`): a versão do
+   * ecrã e o degrau de agora. O que está à vista troca no mesmo ponto; os
+   * outros são refeitos e voltam a ser preparados na sua vez. Um take ainda
+   * não pedido não precisa de nada: já sai no endereço certo.
+   */
+  function reapontar(i: number) {
+    const el = videos[i];
+    if (aPassar && i === proximo()) return; // a meio da subida: fica para a próxima
+    if (!pedido[i] && !fonte[i] && !el.querySelector("source")) return;
+    if (daMemoria[i] && fonte[i]) URL.revokeObjectURL(fonte[i]!);
+    fonte[i] = enderecoDe(i);
+    daMemoria[i] = false;
+    pedido[i] = true;
+    if (i === atual) {
+      if (aPassar) return;
+      const t = el.currentTime;
+      for (const f of [...el.querySelectorAll("source")]) f.remove();
+      el.removeAttribute("data-leve");
+      el.src = fonte[i]!;
+      el.load();
+      ouvir(el, "loadedmetadata", () => void (el.currentTime = t), true);
+      tocar(el);
+      return;
+    }
+    if (el.getAttribute("src") || el.querySelector("source")) refazer(i);
+  }
+
+  /**
+   * ── O ECRÃ RODOU: CADA TAKE NA VERSÃO DO ECRÃ NOVO ──────────────────────
+   * Ela (29/10): pôs o computador em «modo telemóvel» e voltou ao «modo PC» —
+   * e o vídeo ficou «ampliado, super desfocado». Era a versão AO ALTO (1080 de
+   * largura, para um ecrã de telemóvel) esticada a um ecrã deitado: a escolha
+   * fazia-se uma vez, ao preparar cada take, e nunca mais. O mesmo acontece a
+   * quem roda um tablet ou um telemóvel. Agora, quando o ecrã passa de ao alto
+   * a deitado (ou o contrário), cada take que já tinha fonte troca para a
+   * versão certa — o que está à vista, no mesmo ponto.
+   */
+  const aoAltoDoEndereco = (src: string) => /-retrato/.test(origemDoBlob.get(src) ?? src);
+  function reorientar() {
+    if (!vivo) return;
+    for (let i = 0; i < videos.length; i++) {
+      const el = videos[i];
+      const src = fonte[i] ?? el.currentSrc;
+      if (!src) continue;
+      const querAoAlto = variante(i) === "retrato";
+      if (aoAltoDoEndereco(src) !== querAoAlto) reapontar(i);
+    }
+    aquecerSeForHora();
+  }
+  if (typeof matchMedia === "function") {
+    const mq = matchMedia("(orientation: portrait)");
+    if (mq && typeof mq.addEventListener === "function") {
+      let espera = 0;
+      const aoRodar = () => {
+        window.clearTimeout(espera);
+        // Espera que o redimensionar assente (o rodar dispara vários).
+        espera = window.setTimeout(reorientar, 300);
+      };
+      mq.addEventListener("change", aoRodar);
+      limpar.push(() => {
+        mq.removeEventListener("change", aoRodar);
+        window.clearTimeout(espera);
+      });
+    }
+  }
+
+  /** Os fotogramas do take à vista desde a última conta (ver `deveAliviar`). */
+  const contados = new WeakMap<HTMLVideoElement, { total: number; perdidos: number }>();
+  let janela = { total: 0, perdidos: 0 };
+  // Os primeiros segundos não contam: a página ainda se está a montar, e um
+  // computador capaz também perde fotogramas aí.
+  let medirDesde = performance.now() + ALIVIAR_DEPOIS_DE_MS;
+  function medirFotogramas(el: HTMLVideoElement) {
+    if (nivel >= 2 || aPassar || el.paused || typeof el.getVideoPlaybackQuality !== "function")
+      return;
+    if (variante(atual) === "retrato" || performance.now() < medirDesde) return;
+    // Desceu-se sem trocar o que está à vista: só conta o take seguinte, que
+    // já vem no degrau novo.
+    if (atual === semMedirAte) return;
+    const q = el.getVideoPlaybackQuality();
+    const antes = contados.get(el);
+    contados.set(el, { total: q.totalVideoFrames, perdidos: q.droppedVideoFrames });
+    if (!antes || q.totalVideoFrames < antes.total) return; // outro ficheiro: recomeça
+    janela = {
+      total: janela.total + q.totalVideoFrames - antes.total,
+      perdidos: janela.perdidos + q.droppedVideoFrames - antes.perdidos,
+    };
+    if (janela.total < ALIVIAR_MIN_FOTOGRAMAS) return;
+    if (deveAliviar(janela.total, janela.perdidos)) {
+      aliviar("perdidos", janela.perdidos / janela.total > ALIVIAR_JA);
+    }
+    janela = { total: 0, perdidos: 0 };
+  }
 
   // ── O vigia ─────────────────────────────────────────────────────────────
   let ultimaTentativa = 0;
@@ -1394,6 +1584,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
       paradoDesde = 0;
       return;
     }
+    medirFotogramas(el);
     // Parado pelo browser (não por nós): volta a tocar.
     if (el.paused && !el.ended) tocar(el);
     // A andar mas escondido (depois de uma recusa que afinal não parou nada):
@@ -1446,7 +1637,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
     marcar("recarregar", atual);
     if (el === primeiro && !fonte[atual]) el.load();
     else {
-      el.src = fonte[atual] ?? enderecoDoVideo(atual, variante(atual), formato);
+      el.src = fonte[atual] ?? enderecoDe(atual);
       el.load();
     }
     ouvir(el, "loadedmetadata", () => void (el.currentTime = t), true);
