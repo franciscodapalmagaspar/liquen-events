@@ -729,14 +729,11 @@ export default function Navbar() {
                 mais profissional?». Os recortados têm só o desenho, e as
                 alturas abaixo são as do DESENHO: em repouso o mesmo tamanho à
                 vista de antes; descida, a marca passa de ~28 para 44 px.
-                E sobre o vídeo vai a versão BRANCA — a dourada sobre a
-                floresta lia-se mal (a variante C que ela escolheu). */}
+                Sempre A CORES, também sobre o vídeo. A variante C pôs-lhe a
+                versão branca por cima da floresta, e ela (29/10): «eu quero o
+                logo da Líquen como estava, com cores». */}
             <SafeImage
-              src={
-                light && !isOpen
-                  ? "/logo-liquen-branco-recortado.png"
-                  : "/logo-liquen-recortado.png"
-              }
+              src="/logo-liquen-recortado.png"
               alt="Líquen Events"
               width={300}
               height={152}
