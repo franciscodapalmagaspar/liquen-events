@@ -120,10 +120,12 @@ export default function StickyCTA() {
           em cápsula, com um fio claro. Branco a 90 % por cima dá perto de 5:1
           mesmo sobre uma página branca.
 
-          O desfoque tinha saído daqui por custo — um `backdrop-filter` num
-          elemento fixo volta a desfocar o que passa por trás a cada frame de
-          scroll. Volta, mas `md` e não `xl`, e sobre uma pílula de ~170 × 44:
-          é o tamanho que o torna barato, não a ausência. */}
+          SEM desfoque, outra vez — e agora de vez. Ela (29/10): «o site no PC
+          está a travar mesmo imenso, principalmente na parte do vídeo». Por
+          cima do vídeo da entrada, um `backdrop-filter` não volta a desfocar só
+          quando se rola: volta a desfocar a CADA fotograma do vídeo, o tempo
+          todo, mesmo parada. O verde fica mais cheio (92 %), que é o que o
+          desfoque fazia pela leitura. */}
       {/* MEDIDO a 375 px com toque emulado: 163×38 px — e só se vê ao rolar,
           o que é precisamente a razão por que passou despercebido tanto tempo.
           Uma medição feita no topo da página não o encontra, e este chip é, no
@@ -133,7 +135,7 @@ export default function StickyCTA() {
       <Link
         href={localizeHref("/orcamento", locale)}
         onClick={() => track("CTAClick", { source: "sticky" })}
-        className="toque alvo-toque group flex items-center gap-2 sm:gap-3 rounded-full px-4 py-2.5 sm:px-6 sm:py-3 bg-sage-700/85 backdrop-blur-md backdrop-saturate-150 border border-white/20 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] hover:bg-white hover:border-white transition-colors duration-300 ease-expo"
+        className="toque alvo-toque group flex items-center gap-2 sm:gap-3 rounded-full px-4 py-2.5 sm:px-6 sm:py-3 bg-sage-700/92 border border-white/20 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] hover:bg-white hover:border-white transition-colors duration-300 ease-expo"
       >
         <span className="text-[9px] sm:text-[10px] tracking-[0.18em] sm:tracking-[0.28em] uppercase text-white/90 group-hover:text-sage-800 transition-colors duration-300 ease-expo">
           {t.footer.pedirOrcamento}

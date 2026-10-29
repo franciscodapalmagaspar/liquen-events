@@ -146,15 +146,16 @@ describe("EntradaEmVideo", () => {
       expect(t).not.toMatch(/\bautoplay\b/);
     }
     expect(html).toContain(`<script>${GUIAO_DA_ENTRADA}</script>`);
-    // Cada take de entrada: ao alto a vertical, deitado a larga; HEVC antes do
-    // H.264, e nunca AV1 (o Chrome di-lo tocar mesmo sem chip).
+    // Cada take de entrada: ao alto a vertical (HEVC antes do H.264: o iPhone),
+    // deitado a larga (H.264 antes do HEVC: o computador, 29/10), e nunca AV1
+    // (o Chrome di-lo tocar mesmo sem chip).
     for (let n = 1; n <= 3; n++) {
       expect(GUIAO_DA_ENTRADA).toContain(`entrada-${n}-retrato-hevc.mp4`);
       expect(GUIAO_DA_ENTRADA.indexOf(`entrada-${n}-retrato-hevc.mp4`)).toBeLessThan(
         GUIAO_DA_ENTRADA.indexOf(`entrada-${n}-retrato.mp4`),
       );
-      expect(GUIAO_DA_ENTRADA.indexOf(`entrada-${n}-paisagem-hevc.mp4`)).toBeLessThan(
-        GUIAO_DA_ENTRADA.indexOf(`entrada-${n}-paisagem.mp4`),
+      expect(GUIAO_DA_ENTRADA.indexOf(`entrada-${n}-paisagem.mp4`)).toBeLessThan(
+        GUIAO_DA_ENTRADA.indexOf(`entrada-${n}-paisagem-hevc.mp4`),
       );
     }
     expect(GUIAO_DA_ENTRADA).toContain('codecs=\\"hvc1.');
@@ -432,12 +433,23 @@ describe("EntradaEmVideo", () => {
     expect(b.getAttribute("src")).toMatch(/entrada-2-retrato\.mp4$/);
   });
 
-  it("num ecrã denso, o vídeo com fonte 4K vem na versão grande", async () => {
+  it("num ecrã denso, o vídeo com fonte 4K vem na versão grande — se o aparelho a confirmar no chip", async () => {
     Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 });
-    const { container } = await montar();
-    const [a, b] = videos(container);
-    comecar(a);
-    expect(b.getAttribute("src")).toMatch(/entrada-2-grande\.mp4$/);
+    Object.defineProperty(navigator, "mediaCapabilities", {
+      configurable: true,
+      value: {
+        decodingInfo: () =>
+          Promise.resolve({ supported: true, smooth: true, powerEfficient: true }),
+      },
+    });
+    try {
+      const { container } = await montar();
+      const [a, b] = videos(container);
+      comecar(a);
+      expect(b.getAttribute("src")).toMatch(/entrada-2-grande(-av1)?\.mp4$/);
+    } finally {
+      Reflect.deleteProperty(navigator, "mediaCapabilities");
+    }
   });
 
   it("a ordem vai mudando: com outro sorteio, depois da floresta vem o 3", async () => {
@@ -764,6 +776,94 @@ describe("EntradaEmVideo", () => {
     it("H.264 quando nenhum dos dois é no chip", async () => {
       aparelho(SEM_CHIP, SEM_CHIP);
       expect(await srcDoSegundo()).toMatch(/entrada-2-paisagem\.mp4$/);
+    });
+
+    describe("a versão grande só com o chip a confirmá-la (29/10, «no PC trava»)", () => {
+      beforeEach(() => {
+        // Um portátil retina: 1440 × 2 = 2880 píxeis reais.
+        Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 });
+      });
+      function perguntas(grande: Resp) {
+        const feitas: string[] = [];
+        Object.defineProperty(navigator, "mediaCapabilities", {
+          configurable: true,
+          value: {
+            decodingInfo: (c: { video: { contentType: string; width: number } }) => {
+              feitas.push(`${c.video.contentType}@${c.video.width}`);
+              if (!c.video.contentType.includes("avc1")) return Promise.resolve(SEM_CHIP);
+              return Promise.resolve(c.video.width > 1920 ? grande : SIM);
+            },
+          },
+        });
+        return feitas;
+      }
+
+      it("o aparelho diz que a toca no chip: vai a grande", async () => {
+        perguntas(SIM);
+        expect(await srcDoSegundo()).toMatch(/entrada-2-grande\.mp4$/);
+      });
+
+      it("a grande seria no processador: fica a de 1920", async () => {
+        perguntas(SEM_CHIP);
+        expect(await srcDoSegundo()).toMatch(/entrada-2-paisagem\.mp4$/);
+      });
+
+      it("sem a pergunta (browser antigo): fica a de 1920", async () => {
+        Reflect.deleteProperty(navigator, "mediaCapabilities");
+        expect(await srcDoSegundo()).toMatch(/entrada-2-paisagem\.mp4$/);
+      });
+    });
+
+    it("no Safari do computador pergunta-se, como nos outros (um Mac Intel faz HEVC no processador)", async () => {
+      Object.defineProperty(navigator, "vendor", {
+        configurable: true,
+        value: "Apple Computer, Inc.",
+      });
+      vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("pointer: fine") }));
+      try {
+        aparelho(SEM_CHIP, SEM_CHIP);
+        expect(await srcDoSegundo()).toMatch(/entrada-2-paisagem\.mp4$/);
+      } finally {
+        Reflect.deleteProperty(navigator, "vendor");
+      }
+    });
+  });
+
+  describe("no computador: um take à frente, da rede, sem cópias na memória (29/10)", () => {
+    beforeEach(() => {
+      vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("pointer: fine") }));
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() => Promise.reject(new Error("não devia descarregar"))),
+      );
+    });
+
+    it("o seguinte toca da rede, e o depois desse só se prepara na passagem", async () => {
+      const { container } = await montar();
+      const [a, b, c] = videos(container);
+      comecar(a);
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(b.getAttribute("src")).toBe("/videos/entrada/v6/entrada-2-paisagem.mp4");
+      // O 2 já está pronto, mas o 3 não se prepara antes de o 2 ser o próximo.
+      act(() => void b.dispatchEvent(new Event("canplaythrough")));
+      Object.defineProperty(b, "readyState", { configurable: true, value: 4 });
+      expect(c.getAttribute("src")).toBeNull();
+    });
+
+    it("num tablet (dedo) continua o caminho do iPhone: descarrega para a memória", async () => {
+      vi.stubGlobal("matchMedia", () => ({ matches: false }));
+      const pedidos: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((url: string) => {
+          pedidos.push(url);
+          return new Promise(() => undefined);
+        }),
+      );
+      Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn() });
+      const { container } = await montar();
+      comecar(videos(container)[0]);
+      expect(pedidos).toEqual(["/videos/entrada/v6/entrada-2-paisagem.mp4"]);
     });
   });
 

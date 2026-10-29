@@ -29,6 +29,9 @@ import {
   primeiraVolta,
   proximoVideo,
   varianteParaOEcra,
+  eComputador,
+  grandeVale,
+  varianteConfirmada,
 } from "./entrada-em-video";
 
 const TELEMOVEL = { largura: 390, altura: 844, densidade: 3 };
@@ -323,3 +326,39 @@ const b=require("fs").readFileSync(process.argv[1]);
 let i=b.indexOf("tkhd");
 while(i>0){const v=b[i+4];const off=i+4+(v===1?88:76);const w=b.readUInt32BE(off)>>>16,h=b.readUInt32BE(off+4)>>>16;if(w&&h){console.log(w+"x"+h);break}i=b.indexOf("tkhd",i+4)}
 `;
+
+describe("no computador (29/10, «no PC está a travar mesmo imenso»)", () => {
+  const r = (supported: boolean, smooth: boolean, powerEfficient: boolean) => ({
+    supported,
+    smooth,
+    powerEfficient,
+  });
+
+  it("a grande só se o aparelho a toca no chip e sem perder fotogramas", async () => {
+    expect(await grandeVale(async () => r(true, true, true), "mp4")).toBe(true);
+    expect(await grandeVale(async () => r(true, true, false), "mp4")).toBe(false);
+    expect(await grandeVale(async () => r(true, false, true), "av1")).toBe(false);
+    expect(await grandeVale(null, "mp4")).toBe(false);
+    expect(await grandeVale(async () => r(true, true, true), "webm")).toBe(false);
+    expect(
+      await grandeVale(async () => {
+        throw new Error("x");
+      }, "hevc"),
+    ).toBe(false);
+  });
+
+  it("sem a confirmação, a grande passa a paisagem; o resto não muda", () => {
+    expect(varianteConfirmada(RETINA, 1, false)).toBe("paisagem");
+    expect(varianteConfirmada(RETINA, 1, true)).toBe("grande");
+    expect(varianteConfirmada(PORTATIL, 1, true)).toBe("paisagem");
+    expect(varianteConfirmada({ largura: 390, altura: 844, densidade: 3 }, 1, false)).toBe(
+      "retrato",
+    );
+  });
+
+  it("computador é rato e ecrã largo; um tablet com o dedo não é", () => {
+    expect(eComputador(true, 1440)).toBe(true);
+    expect(eComputador(true, 900)).toBe(false);
+    expect(eComputador(false, 1366)).toBe(false);
+  });
+});

@@ -182,6 +182,55 @@ export async function melhorFormato(
   return base;
 }
 
+/**
+ * ── A VERSÃO GRANDE SÓ SE O CHIP A TOCA ─────────────────────────────────────
+ * Ela (29/10): «o site no PC está a travar mesmo imenso, principalmente na
+ * parte do vídeo». Num ecrã com muitos píxeis reais (um portátil retina, um
+ * monitor 4K) o {@link varianteParaOEcra} escolhe a versão de 2560 px — mais
+ * 70 % de píxeis por fotograma do que a de 1920. Um computador que a descodifica
+ * no processador, e não no chip, perde fotogramas: é o «travar».
+ *
+ * Por isso a grande só entra quando o próprio aparelho diz, para o formato já
+ * escolhido, que a toca **no chip e sem perder fotogramas**. Sem resposta (um
+ * browser sem a pergunta, ou uma resposta que não chega), fica a de 1920: a
+ * nitidez a mais nunca vale um fotograma perdido.
+ */
+export async function grandeVale(
+  perguntar: PerguntarAoAparelho | null,
+  formato: Formato,
+): Promise<boolean> {
+  if (!perguntar || formato === "webm") return false; // o WebM não tem grande
+  try {
+    const c = await perguntar(formato, "grande");
+    return c.supported && c.smooth && c.powerEfficient;
+  } catch {
+    return false;
+  }
+}
+
+/** {@link varianteParaOEcra}, mas a grande passa a paisagem se o aparelho não a confirmou. */
+export function varianteConfirmada(e: Ecra, i: number, grandeConfirmada: boolean): Variante {
+  const v = varianteParaOEcra(e, i);
+  return v === "grande" && !grandeConfirmada ? "paisagem" : v;
+}
+
+/**
+ * ── NO COMPUTADOR, UM TAKE À FRENTE E SEM CÓPIAS NA MEMÓRIA ─────────────────
+ * O que o iPhone precisa (o ficheiro inteiro na memória, `blob:`, os três
+ * takes carregados — ver o cabeçalho de `EntradaEmVideo`) custa caro num
+ * computador, e não lhe resolve nada: lá a rede é estável e o ficheiro tem
+ * cache de um ano. MEDIDO (29/10, 1920×1080, o site publicado): ler os vídeos
+ * para a memória gastou ~0,6 s no fio principal — o mesmo que desenha a
+ * página —, com três vídeos de 1920 carregados ao mesmo tempo.
+ *
+ * No computador o seguinte toca da rede (a cache do browser) e só se prepara
+ * um de cada vez, o que vem a seguir. «Computador» é rato (ou trackpad) e um
+ * ecrã largo: um iPad com teclado continua no caminho do iPhone.
+ */
+export function eComputador(ponteiroFino: boolean, largura: number): boolean {
+  return ponteiroFino && largura >= 1024;
+}
+
 /** A pergunta ao aparelho, feita com o `navigator.mediaCapabilities`. */
 export function perguntaDoNavegador(): PerguntarAoAparelho | null {
   const mc = typeof navigator !== "undefined" ? navigator.mediaCapabilities : undefined;
