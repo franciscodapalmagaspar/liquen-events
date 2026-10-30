@@ -1411,6 +1411,34 @@ body:has([data-orcamento-mode]) .scroll-progress {
   .field-line:disabled {
     cursor: not-allowed;
   }
+
+  /* ── A DATA NO IPHONE ──
+     Ela (30/10), com uma captura do Safari do iPhone: «o espaço data não está
+     bem». O `<input type="date">` do iOS tem uma largura mínima PRÓPRIA (ignora
+     o `w-full` e saía pela direita do ecrã), uma altura própria (ficava mais
+     alto do que as caixas ao lado) e centra o valor. Sem a aparência do
+     sistema, passa a ser uma caixa como as outras; a roda da Apple continua a
+     abrir ao tocar. A altura é a das caixas vizinhas, MEDIDA no browser —
+     `.ff-input` no /orcamento (52,4 px com rato, 55,2 px no toque) e a caixa
+     dos anúncios (50 px). */
+  .field-line[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    height: calc(3rem + 2px);
+  }
+  /* O enchimento da `.ff-input` (1,9 rem), uma linha do `text-sm` (1,4286 da
+     letra: 20 px a 14 px, 22,9 px a 16 px — o tamanho que o toque impõe) e o
+     contorno. */
+  .field-line.ff-input[type="date"] {
+    height: calc(1.9rem + 1.4286em + 2px);
+  }
+  .field-line[type="date"]::-webkit-date-and-time-value {
+    margin: 0;
+    text-align: left;
+  }
 }
 /* ══════════════════════════════════════════════════════════════════════════
    E O ANEL GENÉRICO SAI DAQUI — PORQUE ESTE CAMPO JÁ TEM O SEU

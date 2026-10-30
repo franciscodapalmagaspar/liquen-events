@@ -1197,19 +1197,36 @@ export default function OrcamentoForm({
                       className={`${ffInputCls} ${dateFlexible ? "opacity-40" : ""}`}
                     />
                   ) : (
-                    <input
-                      id="of-data"
-                      ref={dataRef}
-                      type="date"
-                      min={minDate || undefined}
-                      value={data}
-                      disabled={dateFlexible}
-                      onBlur={() => markTouched("data")}
-                      aria-invalid={dataErr ? true : undefined}
-                      aria-describedby={dataErr ? "of-data-err" : undefined}
-                      onChange={(e) => setData(e.target.value)}
-                      className={`${ffInputCls} [color-scheme:light] ${dateFlexible ? "opacity-40" : ""}`}
-                    />
+                    // O iPhone não escreve nada numa data vazia (nem o
+                    // «dd/mm/aaaa» do Chrome): era uma caixa em branco. Vazia
+                    // e no toque, a data diz «Escolher a data» — o mesmo do
+                    // calendário do computador. Só no toque: no computador
+                    // escreve-se a data à mão e os números têm de se ver.
+                    <div className={`relative ${dateFlexible ? "opacity-40" : ""}`}>
+                      <input
+                        id="of-data"
+                        ref={dataRef}
+                        type="date"
+                        min={minDate || undefined}
+                        value={data}
+                        disabled={dateFlexible}
+                        onBlur={() => markTouched("data")}
+                        aria-invalid={dataErr ? true : undefined}
+                        aria-describedby={dataErr ? "of-data-err" : undefined}
+                        onChange={(e) => setData(e.target.value)}
+                        className={`${ffInputCls} [color-scheme:light] ${
+                          data ? "" : "pointer-coarse:text-transparent"
+                        }`}
+                      />
+                      {!data && (
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute bottom-[calc(0.45rem+1px)] left-[calc(0.875rem+1px)] hidden text-sm leading-5 text-[var(--fg-tertiary)] pointer-coarse:block"
+                        >
+                          {to.calendario.escolher}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </FloatingField>
                 {/* `alvo-toque`: MEDIDO a 375 px com toque emulado, 132×29 px —
