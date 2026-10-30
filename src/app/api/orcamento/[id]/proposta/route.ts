@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 import { randomUUID } from "node:crypto";
 import type { Proposal } from "@/lib/orcamento/types";
 import { CATEGORIES, EVENT_TYPES_BY_CATEGORY } from "@/lib/orcamento/data";
@@ -103,6 +104,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         { error: "A proposta precisa de pelo menos uma linha válida." },
         { status: 400 },
       );
+    }
+
+    /**
+     * O domínio do email do cliente tem de receber correio (pedido dela,
+     * 30/10: «não deixe enviar emails que não existem»). Recusa-se ANTES de
+     * gravar e de mandar seja o que for — ver `email-do-cliente.ts`.
+     */
+    const semDominio = await porqueOEmailNaoSegue(quote.email);
+    if (semDominio) {
+      return NextResponse.json({ error: semDominio, campo: "email" }, { status: 422 });
     }
 
     const vatRate = parsed.data.vatRate ?? 0.23;

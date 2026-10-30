@@ -154,3 +154,22 @@ describe("POST /api/mesas/[id]/enviar", () => {
     expect(historico.gravar).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * O DOMÍNIO DO ENDEREÇO TEM DE RECEBER CORREIO (pedido dela, 30/10). O mapa
+ * que ela julga ter mandado à quinta e que morreu no servidor de correio é o
+ * que se descobre na manhã do casamento.
+ */
+describe("POST /api/mesas/[id]/enviar — o domínio do endereço", () => {
+  it("um domínio que não recebe correio dá 422 com a frase, e nada segue nem fica no histórico", async () => {
+    const r = await enviar({ ...corpo, para: "quinta@nao-existe.invalid" });
+    expect(r.status).toBe(422);
+    expect(await r.json()).toEqual({
+      error:
+        "O email «quinta@nao-existe.invalid» não parece existir (o domínio «nao-existe.invalid» não recebe email). Confira-o antes de enviar.",
+      campo: "para",
+    });
+    expect(correio.enviar).not.toHaveBeenCalled();
+    expect(historico.gravar).not.toHaveBeenCalled();
+  });
+});

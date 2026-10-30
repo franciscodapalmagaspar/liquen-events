@@ -62,6 +62,7 @@ vi.mock("@/lib/email-templates-store", async (original) => {
 });
 
 import { POST } from "./route";
+import { dominioRecebeEmail } from "@/lib/dominio-do-email";
 
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 const req = (corpo: unknown): NextRequest =>
@@ -368,5 +369,27 @@ describe("POST /api/orcamento/[id]/modelo — o {link} sem portal", () => {
     const html = String((mail.send.mock.calls.at(-1)?.[0] as { html?: string })?.html ?? "");
     expect(html).toContain("https://liquen.test/proposta/p-nova");
     expect(html).not.toContain("/portal/");
+  });
+});
+
+/**
+ * O DOMÍNIO DO EMAIL DO CLIENTE (pedido dela, 30/10). Só no envio: a
+ * pré-visualização não manda nada e não pergunta ao DNS.
+ */
+describe("POST /api/orcamento/[id]/modelo — o domínio do email", () => {
+  it("no envio, um domínio que não recebe correio dá 422 com a frase e não envia nada", async () => {
+    authed.ok = true;
+    vi.mocked(dominioRecebeEmail).mockResolvedValue(false);
+    try {
+      const res = await POST(req({ chave: "agradecimento", enviar: true }), ctx("LIQ-1"));
+      expect(res.status).toBe(422);
+      expect((await res.json()).error).toContain("o domínio «x.pt» não recebe email");
+      expect(mail.send).not.toHaveBeenCalled();
+
+      const pre = await POST(req({ chave: "agradecimento" }), ctx("LIQ-1"));
+      expect(pre.status).toBe(200);
+    } finally {
+      vi.mocked(dominioRecebeEmail).mockImplementation(async () => true);
+    }
   });
 });

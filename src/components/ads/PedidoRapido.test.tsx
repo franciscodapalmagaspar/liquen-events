@@ -156,3 +156,38 @@ describe("PedidoRapido — o campo-armadilha e a repetição", () => {
     expect(localStorage.getItem("liquen-orcamento-sid")).toBeNull();
   });
 });
+
+/**
+ * O TELEMÓVEL COM A BANDEIRA (pedido dela, 30/10: «números de telefone seja
+ * qual país for»). Um número que não existe no país da bandeira não chega ao
+ * servidor; um que existe segue em E.164.
+ */
+describe("PedidoRapido — o telemóvel", () => {
+  const telefone = () => screen.getByLabelText(/^telemóvel/i);
+
+  it("um número que não existe fica no campo, com o erro, e não há pedido", async () => {
+    const { container } = montar();
+    fireEvent.focus(telefone());
+    fireEvent.change(telefone(), { target: { value: "91234" } });
+    preencherESubmeter(container);
+    expect(
+      await screen.findByText("Este número não é válido para Portugal (+351)."),
+    ).toBeInTheDocument();
+    expect(telefone()).toHaveAttribute("aria-invalid", "true");
+    expect(pedidos).toHaveLength(0);
+  });
+
+  it("um número estrangeiro colado com o indicativo segue em E.164", async () => {
+    const { container } = montar();
+    fireEvent.focus(telefone());
+    fireEvent.change(telefone(), { target: { value: "+55 11 91234-5678" } });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /país do número/i })).toHaveAccessibleName(
+        "País do número: Brasil (+55)",
+      ),
+    );
+    preencherESubmeter(container);
+    await waitFor(() => expect(pedidos).toHaveLength(1));
+    expect((pedidos[0].form as { phone: string }).phone).toBe("+5511912345678");
+  });
+});

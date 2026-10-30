@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Supplier } from "@/lib/orcamento/types";
 import { isAuthed } from "@/lib/admin-auth";
 import { enviarParaAReciclagem, quemApagou } from "@/lib/reciclagem";
-import { updateSupplier } from "@/lib/suppliers-store";
+import { obterFornecedor, updateSupplier } from "@/lib/suppliers-store";
 import { supplierUpdateSchema, firstError } from "@/lib/validation";
 import { respostaDeConflito, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
 import { log } from "@/lib/logger";
+import { normalizarTelefone } from "@/lib/contacto-do-pedido";
 
 export const runtime = "nodejs";
 
@@ -41,7 +42,34 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!parsed.success) {
       return NextResponse.json({ error: firstError(parsed.error) }, { status: 400 });
     }
-    const updated = await updateSupplier(id, parsed.data as Partial<Supplier>);
+    const updates = parsed.data as Partial<Supplier>;
+    /**
+     * O telefone confere-se SÓ QUANDO MUDA, como no PATCH dos pedidos: o ecrã
+     * dos Fornecedores manda a ficha inteira em cada gravação, e um fornecedor
+     * antigo com o telefone escrito à moda antiga deixava de se poder corrigir
+     * a nota. Quando muda, tem de existir (as regras do país) e grava-se em
+     * E.164.
+     */
+    const novo = (updates.phone ?? "").trim();
+    if ("phone" in updates && novo) {
+      const actual = await obterFornecedor(id);
+      if (!actual) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+      if (novo !== (actual.phone ?? "").trim()) {
+        const e164 = normalizarTelefone(novo);
+        if (!e164) {
+          return NextResponse.json(
+            {
+              error:
+                "Este número de telefone não é válido. Confira os dígitos e o país (de fora de Portugal, com o indicativo à frente, ex.: +44).",
+              campo: "telefone",
+            },
+            { status: 400 },
+          );
+        }
+        updates.phone = e164;
+      }
+    }
+    const updated = await updateSupplier(id, updates);
     if (!updated) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
     return NextResponse.json(updated);
   } catch (err) {

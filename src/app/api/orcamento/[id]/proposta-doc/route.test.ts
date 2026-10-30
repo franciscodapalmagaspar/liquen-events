@@ -173,6 +173,7 @@ vi.mock("@/lib/envios-de-proposta", () => ({
 
 import { GET, POST } from "./route";
 import { sendMail } from "@/lib/mail";
+import { dominioRecebeEmail } from "@/lib/dominio-do-email";
 import { renderStoredEditorialPdfWithReport } from "@/lib/proposal-doc-render";
 import { esvaziarPdfsFinais } from "@/lib/proposal-preview-cache";
 import { createProposal, updateProposal } from "@/lib/proposals-store";
@@ -2680,5 +2681,38 @@ describe("POST /api/orcamento/[id]/proposta-doc — o PDF final da mesma versão
     const segunda = await POST(previewReq(doc), { params });
     expect(segunda.headers.get("X-Pdf-Da-Memoria")).toBeNull();
     expect(renderStoredEditorialPdfWithReport).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * O DOMÍNIO DO EMAIL DO CLIENTE (pedido dela, 30/10: «não deixe enviar
+ * emails que não existem»). Recusa-se ANTES de desenhar, de gravar e de
+ * mandar; a pré-visualização e o envio pelo WhatsApp não perguntam ao DNS.
+ */
+describe("o domínio do email do cliente", () => {
+  it("um domínio que não recebe correio dá 422 com a frase — nada desenhado, gravado ou enviado", async () => {
+    vi.mocked(dominioRecebeEmail).mockResolvedValueOnce(false);
+    const res = await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({
+      error:
+        "O email do cliente não parece existir (o domínio «example.com» não recebe email). Corrija-o no pedido antes de enviar.",
+      campo: "email",
+    });
+    expect(renderStoredEditorialPdfWithReport).not.toHaveBeenCalled();
+    expect(createProposal).not.toHaveBeenCalled();
+    expect(sendMail).not.toHaveBeenCalled();
+  });
+
+  it("a pré-visualização não pergunta ao DNS", async () => {
+    vi.mocked(dominioRecebeEmail).mockClear();
+    await POST(previewReq(baseDoc({ totalAmount: 3000 })), { params });
+    expect(dominioRecebeEmail).not.toHaveBeenCalled();
+  });
+
+  it("o envio só pelo WhatsApp também não", async () => {
+    vi.mocked(dominioRecebeEmail).mockClear();
+    await POST(sendReq(baseDoc({ totalAmount: 3000 }), { porEmail: false }), { params });
+    expect(dominioRecebeEmail).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,10 @@ const authed = vi.hoisted(() => ({ ok: false }));
 const store = vi.hoisted(() => ({
   update: vi.fn(async (id: string, patch: Record<string, unknown>) => ({ id, ...patch })),
   del: vi.fn(async (id: string) => id),
+  /** A ficha GRAVADA — o telefone confere-se contra ela (só quando muda). */
+  get: vi.fn(async (id: string) =>
+    id === "s1" ? { id: "s1", name: "Catering Sol", phone: "266 00 00 0 (escritório)" } : null,
+  ),
 }));
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => authed.ok }));
 // Apagar passa pela Reciclagem (R3, `src/lib/reciclagem.ts`, com testes
@@ -19,6 +23,7 @@ vi.mock("@/lib/reciclagem", () => ({
 vi.mock("@/lib/suppliers-store", () => ({
   updateSupplier: store.update,
   deleteSupplier: store.del,
+  obterFornecedor: store.get,
 }));
 
 import { PATCH, DELETE } from "./route";
@@ -88,5 +93,40 @@ describe("/api/fornecedores/[id]", () => {
       expect(res.status, corpo).toBe(400);
     }
     expect(store.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * O TELEFONE DE UM FORNECEDOR (pedido dela, 30/10: «números de telefone seja
+ * qual país for»). Conferido só quando muda — o ecrã manda a ficha inteira em
+ * cada gravação, e um telefone antigo de outro feitio não pode impedir de
+ * corrigir a nota.
+ */
+describe("PATCH /api/fornecedores/[id] — o telefone", () => {
+  it("um telefone novo que não existe é recusado, com o campo", async () => {
+    authed.ok = true;
+    const res = await PATCH(req("PATCH", { phone: "91234" }), ctx("s1"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).campo).toBe("telefone");
+    expect(store.update).not.toHaveBeenCalled();
+  });
+
+  it("um telefone novo válido grava-se em E.164", async () => {
+    authed.ok = true;
+    await PATCH(req("PATCH", { phone: "+34 612 345 678" }), ctx("s1"));
+    expect(store.update).toHaveBeenCalledWith("s1", { phone: "+34612345678" });
+  });
+
+  it("o telefone antigo, que volta igual com a nota, passa sem ser conferido", async () => {
+    authed.ok = true;
+    const res = await PATCH(
+      req("PATCH", { phone: "266 00 00 0 (escritório)", notes: "Pagar a 30 dias" }),
+      ctx("s1"),
+    );
+    expect(res.status).toBe(200);
+    expect(store.update).toHaveBeenCalledWith("s1", {
+      phone: "266 00 00 0 (escritório)",
+      notes: "Pagar a 30 dias",
+    });
   });
 });

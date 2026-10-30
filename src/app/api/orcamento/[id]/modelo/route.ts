@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 import type { QuoteMessage } from "@/lib/orcamento/types";
 import { getQuote, updateQuote } from "@/lib/quotes-store";
 import { sendMail, MAIL_TO } from "@/lib/mail";
@@ -182,6 +183,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           "Este pedido não tem email de cliente — não foi enviado nada. Acrescenta o email do " +
           "cliente no pedido e volta a tentar.",
       });
+    }
+
+    /**
+     * O domínio do email do cliente tem de receber correio (pedido dela,
+     * 30/10: «não deixe enviar emails que não existem»). Só no envio — a
+     * pré-visualização saiu lá em cima e não manda nada. Ver
+     * `email-do-cliente.ts`.
+     */
+    const semDominio = await porqueOEmailNaoSegue(quote.email);
+    if (semDominio) {
+      return NextResponse.json({ error: semDominio, campo: "email" }, { status: 422 });
     }
 
     /**

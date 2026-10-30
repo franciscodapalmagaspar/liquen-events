@@ -4,6 +4,7 @@ import type { Quote, ActivityEntry } from "@/lib/orcamento/types";
 import { CATEGORIES, EVENT_TYPES_BY_CATEGORY, PACKAGES } from "@/lib/orcamento/data";
 import { ActivityLog } from "../../lazy";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
+import { linkDaConversa } from "@/lib/whatsapp";
 
 /**
  * Coluna lateral do Dossier — Contacto (só leitura) + factos do Evento,
@@ -34,7 +35,8 @@ export default function DossierAside({ quote, actor, onAddEntry }: Props) {
     { l: "Local", v: quote.location || null },
   ];
 
-  const wa = quote.phone ? quote.phone.replace(/[^\d]/g, "") : "";
+  // Um número antigo sem +351 dava um link partido — ver `linkDaConversa`.
+  const wa = linkDaConversa(quote.phone);
 
   return (
     /* ── TRÊS MOLDURAS A SEGUIR A TRÊS MOLDURAS ───────────────────────────────
@@ -83,7 +85,7 @@ export default function DossierAside({ quote, actor, onAddEntry }: Props) {
                 {quote.phone}
               </a>
               <a
-                href={`https://wa.me/${wa}`}
+                href={wa}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`alvo-toque !justify-start inline-flex items-center gap-1 text-sage-600 text-[10px] tracking-[0.08em] uppercase hover:opacity-80 ${ESTADO} ${PRESSAO}`}

@@ -203,3 +203,24 @@ describe("Mensageiro do cliente — dez segundos para cancelar", () => {
     }
   });
 });
+
+/**
+ * O DOMÍNIO DO EMAIL QUE NÃO RECEBE CORREIO (pedido dela, 30/10). A rota
+ * recusa com 422 e não regista nada: a frase dela aparece, e o que ela
+ * escreveu fica na caixa para seguir quando o email estiver corrigido.
+ */
+describe("Mensageiro do cliente — o domínio do email não existe", () => {
+  it("mostra a frase do servidor e não apaga o que ela escreveu", async () => {
+    const frase =
+      "O email do cliente não parece existir (o domínio «gmial.con» não recebe email). Corrija-o no pedido antes de enviar.";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => reply(422, { error: frase, campo: "email" })),
+    );
+    const user = userEvent.setup();
+    render(<ClientMessenger quote={{ ...QUOTE, email: "ana@gmial.con" } as Quote} />);
+    await escreverEEnviar(user);
+    await waitFor(() => expect(screen.getByText(frase)).toBeTruthy());
+    expect(screen.getByLabelText("Mensagem ao cliente")).toHaveValue("Olá");
+  });
+});

@@ -24,6 +24,7 @@ import {
 } from "@/lib/orcamento/dinheiro-dos-pedidos";
 import { metaFor, tintaDoRotulo } from "./status-meta";
 import { ESTADO, PRESSAO } from "./ui/movimento";
+import { linkDaConversa } from "@/lib/whatsapp";
 
 // Unified status vocabulary (Novo / Aguardar resposta / Proposta enviada / Ganho / Perdido).
 const STATUS_META: Record<QuoteStatus, { label: string; color: string }> = {
@@ -736,7 +737,9 @@ function colunasDeClientes(aberto: string | null, alternar: (c: Client) => void)
 function FichaDoCliente({ c, onOpen }: { c: Client; onOpen: (q: Quote) => void }) {
   const decided = c.wonCount + c.rejectedCount;
   const convRate = conversao(c);
-  const waPhone = c.phone?.replace(/[^\d+]/g, "");
+  // O número que o `wa.me` entende — um antigo «912…» ganha o 351 (ver
+  // `numeroParaWhatsApp`).
+  const waLink = linkDaConversa(c.phone);
 
   return (
     <>
@@ -799,9 +802,9 @@ function FichaDoCliente({ c, onOpen }: { c: Client; onOpen: (q: Quote) => void }
             {c.email}
           </a>
         )}
-        {waPhone && (
+        {waLink && (
           <a
-            href={`https://wa.me/${waPhone.replace("+", "")}`}
+            href={waLink}
             target="_blank"
             rel="noopener noreferrer"
             className={`alvo-toque text-sage-600 text-[10px] tracking-[0.08em] uppercase hover:opacity-75 flex items-center gap-1 ${ESTADO} ${PRESSAO}`}

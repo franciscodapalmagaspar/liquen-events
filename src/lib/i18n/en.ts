@@ -122,6 +122,13 @@ export const en: Dict = {
       boaTarde: "Good afternoon",
       boaNoite: "Good evening",
     },
+    // Ver `pt.ts`: o campo do telefone com a bandeira.
+    campoTelefone: {
+      pais: "Country of the number",
+      procurar: "Search country or dialling code",
+      semResultados: "No country by that name.",
+      invalido: "This number isn't valid for {pais} (+{codigo}).",
+    },
   },
 
   meta: {
@@ -502,7 +509,8 @@ export const en: Dict = {
     phEmail: "email@example.com",
     hintEmail:
       "This is where we send the confirmation and the proposal. Please check the spelling.",
-    phTelefone: "+351 9XX XXX XXX",
+    // Só o número: o indicativo está na bandeira ao lado (30/10).
+    phTelefone: "912 345 678",
     phMensagem: "Style, colours, atmosphere, inspiration you've saved…",
     hintMensagem:
       "The more you can tell us about the style you have in mind, the colour palette, the atmosphere you want and the references you've chosen, the better we can tailor the proposal to your expectations.\n\nThese are the elements we start from to develop your personalised proposal.",
@@ -516,7 +524,7 @@ export const en: Dict = {
     errPessoas: "Add how many people, or tick \u201cStill to be decided\u201d.",
     errLocal: "Add the venue or the region.",
     errTelefone:
-      "This number looks incomplete. Please check the digits (outside Portugal, start with the country code, e.g. +44).",
+      "This phone number isn't valid. Please check the digits and the country (outside Portugal, pick the flag or start with the country code, e.g. +44).",
     errEmailObrigatorio: "Please enter your email.",
     errDominioDoEmail:
       "This email doesn't seem to exist: please check what comes after the @ (for example, gmail.com).",

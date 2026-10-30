@@ -18,6 +18,9 @@ import { quoteUpdateSchema, firstError } from "@/lib/validation";
 import { eur } from "@/lib/money";
 import { log } from "@/lib/logger";
 import { canonizar } from "@/lib/proposta-versao";
+import { normalizarTelefone } from "@/lib/contacto-do-pedido";
+import { dominioRecebeEmail } from "@/lib/dominio-do-email";
+import { getDictionary } from "@/lib/i18n";
 
 // The store is server-only and reaches for node:crypto — pin the Node runtime.
 export const runtime = "nodejs";
@@ -319,7 +322,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const querAppend = !!activityLogAppend && activityLogAppend.length > 0;
     const podeMudarEstado =
       !estadoEscolhidoAMao && ("payments" in picked || "contractRef" in picked);
-    const precisaDoActual = querAppend || podeMudarEstado || aConferir.length > 0;
+    // Os contactos conferem-se contra o que está gravado (ver lá em baixo).
+    const mexeNosContactos = "phone" in updates || "email" in updates;
+    const precisaDoActual =
+      querAppend || podeMudarEstado || aConferir.length > 0 || mexeNosContactos;
     const current = precisaDoActual ? await getQuote(id) : null;
     if (precisaDoActual && !current) {
       return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
@@ -356,6 +362,50 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           },
           { status: 409 },
         );
+      }
+    }
+
+    /**
+     * ── O EMAIL E O TELEFONE, SÓ QUANDO MUDAM ─────────────────────────────
+     *
+     * Ela (30/10): «não deixe enviar emails que não existem ou números de
+     * telefone seja qual país for». Corrigir o contacto na gaveta passa pela
+     * mesma regra do site: o telefone com as regras do país
+     * (`normalizarTelefone`, gravado em E.164) e o domínio do email a receber
+     * correio (`dominioRecebeEmail`, que na dúvida deixa passar).
+     *
+     * SÓ QUANDO MUDAM, e é de propósito: há pedidos antigos com telefones de
+     * todos os feitios («91 234 56 78», um fixo com extensão), e não se
+     * reescrevem dados. Conferir sempre impedia a equipa de mudar a data ou o
+     * local de um pedido desses, por causa de um campo em que ninguém tocou.
+     */
+    if (current && mexeNosContactos) {
+      if ("phone" in updates) {
+        const novo = (updates.phone ?? "").trim();
+        if (novo && novo !== (current.phone ?? "").trim()) {
+          const e164 = normalizarTelefone(novo);
+          if (!e164) {
+            return NextResponse.json(
+              {
+                error:
+                  "Este número de telefone não é válido. Confira os dígitos e o país (de fora de Portugal, com o indicativo à frente, ex.: +44).",
+                campo: "telefone",
+              },
+              { status: 400 },
+            );
+          }
+          updates.phone = e164;
+        }
+      }
+      if ("email" in updates) {
+        const novo = (updates.email ?? "").trim();
+        const antes = (current.email ?? "").trim().toLowerCase();
+        if (novo && novo.toLowerCase() !== antes && !(await dominioRecebeEmail(novo))) {
+          return NextResponse.json(
+            { error: getDictionary("pt").orcamento.errDominioDoEmail, campo: "email" },
+            { status: 400 },
+          );
+        }
       }
     }
 

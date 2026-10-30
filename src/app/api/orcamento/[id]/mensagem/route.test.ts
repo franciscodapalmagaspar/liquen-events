@@ -49,6 +49,7 @@ vi.mock("@/lib/mail", () => ({
 }));
 
 import { POST } from "./route";
+import { dominioRecebeEmail } from "@/lib/dominio-do-email";
 
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 function req(body?: unknown): NextRequest {
@@ -520,5 +521,26 @@ describe("POST /api/orcamento/[id]/mensagem — quem assina", () => {
     await POST(pedidoComSessao("Olá!"), ctx("LIQ-1"));
     expect(enviado().html).toContain("Catarina Gaspar");
     expect(enviado().html).not.toMatch(/>ana {2}silva</i);
+  });
+});
+
+/**
+ * O DOMÍNIO DO EMAIL TEM DE RECEBER CORREIO (pedido dela, 30/10: «não deixe
+ * enviar emails que não existem»). Um pedido gravado com «gmial.con» seguia
+ * para o servidor de correio e morria lá; o ecrã dizia «enviado».
+ */
+describe("POST /api/orcamento/[id]/mensagem — o domínio do email", () => {
+  it("um domínio que não recebe correio dá 422 com a frase, e não envia nem regista nada", async () => {
+    authed.ok = true;
+    vi.mocked(dominioRecebeEmail).mockResolvedValueOnce(false);
+    const res = await POST(req({ message: "Olá" }), ctx("LIQ-1"));
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({
+      error:
+        "O email do cliente não parece existir (o domínio «x.pt» não recebe email). Corrija-o no pedido antes de enviar.",
+      campo: "email",
+    });
+    expect(mail.send).not.toHaveBeenCalled();
+    expect(store.update).not.toHaveBeenCalled();
   });
 });

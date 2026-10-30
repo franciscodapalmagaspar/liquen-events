@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, after } from "next/server";
+import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 import { createHash, randomUUID } from "node:crypto";
 import type { Proposal } from "@/lib/orcamento/types";
 import {
@@ -432,6 +433,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           },
           { status: 422 },
         );
+      }
+      /**
+       * O domínio do email do cliente tem de receber correio (pedido dela,
+       * 30/10: «não deixe enviar emails que não existem»). Recusa-se ANTES de
+       * gravar e de mandar seja o que for — ver `email-do-cliente.ts`.
+       */
+      if (body?.porEmail !== false) {
+        const semDominio = await porqueOEmailNaoSegue(quote.email);
+        if (semDominio) {
+          log.warn("proposta-doc: envio recusado, o domínio do email não recebe correio", { id });
+          return NextResponse.json({ error: semDominio, campo: "email" }, { status: 422 });
+        }
       }
     }
 

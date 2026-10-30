@@ -10,6 +10,12 @@ import { lerIdentificadores, serializar as serializarMeta } from "@/lib/meta/cli
 import { LEAD_SOURCE_KEY } from "@/components/LeadSourceCapture";
 import { localizeHref, type Locale } from "@/lib/i18n/config";
 import { clearSubmissionId, ensureSubmissionId } from "@/lib/orcamento/submission-id";
+import { useTranslationsSeHouver } from "@/components/LocaleProvider";
+import {
+  TEXTOS_DE_RECURSO,
+  carregarTelefones,
+  fraseDoTelefoneInvalido,
+} from "@/lib/telefone-no-browser";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -173,6 +179,7 @@ export default function PedidoRelampago({
   // carregar no botão para sempre, sem saber que campo corrigir.
   const [erro, setErro] = useState("");
   const comecouRef = useRef(false);
+  const textosDoTelefone = useTranslationsSeHouver()?.t.common.campoTelefone ?? TEXTOS_DE_RECURSO;
 
   function aoTocar() {
     if (comecouRef.current) return;
@@ -192,6 +199,35 @@ export default function PedidoRelampago({
     if (!contacto) {
       setErro(textos.erroContacto);
       return;
+    }
+    /**
+     * ── O TELEMÓVEL TEM DE EXISTIR (pedido dela, 30/10) ───────────────────
+     *
+     * O campo continua a ser um só, «telemóvel ou email» — é o desenho do
+     * anúncio, e não leva bandeira. Por isso a regra é a do servidor quando
+     * não há bandeira: um número sem «+» é português; com «+», é do país do
+     * indicativo, e conferido com as regras de lá. Recusado aqui, com o país
+     * na frase, antes de a Meta contar um `Lead` que não serve para nada.
+     * Sem as regras (sem rede para as trazer), quem confere é o servidor.
+     */
+    if (contacto.telefone) {
+      const regras = await carregarTelefones().catch(() => null);
+      if (regras) {
+        const e164 = regras.normalizarTelefone(contacto.telefone);
+        if (!e164) {
+          const pais = regras.paisDoNumero(contacto.telefone)?.pais ?? regras.PAIS_POR_OMISSAO;
+          setErro(
+            fraseDoTelefoneInvalido(
+              textosDoTelefone.invalido,
+              pais,
+              regras.indicativoDe(pais),
+              locale,
+            ),
+          );
+          return;
+        }
+        contacto.telefone = e164;
+      }
     }
     setErro("");
     setAEnviar(true);

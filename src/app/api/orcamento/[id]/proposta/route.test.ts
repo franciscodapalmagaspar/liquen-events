@@ -104,6 +104,7 @@ vi.mock("@/lib/proposal-pdf", () => ({
 }));
 
 import { GET, POST } from "./route";
+import { dominioRecebeEmail } from "@/lib/dominio-do-email";
 
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 function req(method: "GET" | "POST", body?: unknown): NextRequest {
@@ -954,5 +955,22 @@ describe("POST /api/orcamento/[id]/proposta — o reenvio não duplica", () => {
     const res = await POST(req("POST", validItems), ctx("LIQ-1"));
     expect(res.status).toBe(200);
     expect(proposals.create).toHaveBeenCalled();
+  });
+});
+
+/**
+ * O DOMÍNIO DO EMAIL DO CLIENTE (pedido dela, 30/10). Recusa-se ANTES de
+ * gravar a proposta: uma proposta gravada e não enviada é uma proposta
+ * fantasma.
+ */
+describe("POST /api/orcamento/[id]/proposta — o domínio do email", () => {
+  it("um domínio que não recebe correio dá 422 com a frase; nada gravado nem enviado", async () => {
+    authed.ok = true;
+    vi.mocked(dominioRecebeEmail).mockResolvedValueOnce(false);
+    const res = await POST(req("POST", validItems), ctx("LIQ-1"));
+    expect(res.status).toBe(422);
+    expect((await res.json()).campo).toBe("email");
+    expect(proposals.create).not.toHaveBeenCalled();
+    expect(mail.send).not.toHaveBeenCalled();
   });
 });

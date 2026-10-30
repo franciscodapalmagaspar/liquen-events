@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { CATEGORIES, EVENT_TYPES_BY_CATEGORY } from "@/lib/orcamento/data";
 import type { Quote, EventCategory } from "@/lib/orcamento/types";
 import { useToast } from "./Toast";
 import { Button, Field, FolhaOuDialogo } from "./ui";
 import { porqueFalhou } from "@/lib/erro-do-servidor";
+import CampoTelefone from "@/components/CampoTelefone";
+import { carregarTelefones } from "@/lib/telefone-no-browser";
+import { APARENCIA_DO_BACK_OFFICE, TELEFONE_SUBLINHADO } from "./ui/aparencia-do-telefone";
 
 interface Props {
   open: boolean;
@@ -51,11 +54,33 @@ export default function NewQuoteModal({ open, onClose, onCreated, existingQuotes
    */
   const [faltaNome, setFaltaNome] = useState(false);
 
+  /**
+   * ── O EMAIL E O TELEFONE TAMBÉM TÊM DE EXISTIR ─────────────────────────
+   *
+   * Ela (30/10): «não deixe enviar emails que não existem ou números de
+   * telefone seja qual país for» — e em todo o lado. O telefone confere-se
+   * aqui, com a bandeira (o mesmo `CampoTelefone` do site); o domínio do email
+   * só o servidor sabe perguntar ao DNS, e a recusa dele vem com o `campo` e
+   * aparece debaixo do campo certo, além do aviso.
+   */
+  const idTelefone = useId();
+  const telefoneRef = useRef<HTMLInputElement>(null);
+  const [mostrarErroDoTelefone, setMostrarErroDoTelefone] = useState(false);
+  const [recusa, setRecusa] = useState<{ campo: "email" | "telefone"; texto: string } | null>(null);
+
   async function submit() {
     if (saving) return;
     if (!f.name.trim()) {
       setFaltaNome(true);
       return;
+    }
+    if (f.phone.trim()) {
+      const regras = await carregarTelefones().catch(() => null);
+      if (regras && !regras.normalizarTelefone(f.phone)) {
+        setMostrarErroDoTelefone(true);
+        telefoneRef.current?.focus();
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -69,10 +94,17 @@ export default function NewQuoteModal({ open, onClose, onCreated, existingQuotes
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro");
+      if (!res.ok) {
+        if (data?.campo === "email" || data?.campo === "telefone") {
+          setRecusa({ campo: data.campo, texto: String(data.error ?? "") });
+        }
+        throw new Error(data.error || "Erro");
+      }
       toast("Pedido criado", "success");
       onCreated(data.quote);
       setF({ ...EMPTY });
+      setMostrarErroDoTelefone(false);
+      setRecusa(null);
       onClose();
     } catch (e) {
       // A mesma medição das Definições, feita aqui: com a ligação em baixo, o
@@ -188,17 +220,44 @@ export default function NewQuoteModal({ open, onClose, onCreated, existingQuotes
             label="E-mail"
             type="email"
             value={f.email}
-            onChange={(e) => set("email", e.target.value)}
+            onChange={(e) => {
+              set("email", e.target.value);
+              if (recusa?.campo === "email") setRecusa(null);
+            }}
+            error={recusa?.campo === "email" ? recusa.texto : undefined}
             placeholder="email@exemplo.com"
           />
-          <Field
-            variant="underline"
-            label="Telefone"
-            type="tel"
-            value={f.phone}
-            onChange={(e) => set("phone", e.target.value)}
-            placeholder="+351 …"
-          />
+          {/* O telefone com a bandeira. O rótulo é o mesmo do `Field` (o
+              `text-footnote` a 13 px), escrito à mão porque o controlo não é
+              um `<input>` só. */}
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor={idTelefone}
+              className="text-footnote font-semibold text-[var(--bo-text-muted)]"
+            >
+              Telefone
+            </label>
+            <CampoTelefone
+              id={idTelefone}
+              inputRef={telefoneRef}
+              value={f.phone}
+              onChange={(v) => {
+                set("phone", v);
+                if (recusa?.campo === "telefone") setRecusa(null);
+              }}
+              mostrarErro={mostrarErroDoTelefone}
+              erro={recusa?.campo === "telefone" ? recusa.texto : undefined}
+              aparencia={APARENCIA_DO_BACK_OFFICE}
+              classeDoBotao={TELEFONE_SUBLINHADO.botao}
+              classeDoNumero={`${TELEFONE_SUBLINHADO.numero} ${
+                recusa?.campo === "telefone" || mostrarErroDoTelefone
+                  ? TELEFONE_SUBLINHADO.numeroComErro
+                  : TELEFONE_SUBLINHADO.numeroBom
+              }`}
+              placeholder="912 345 678"
+              locale="pt"
+            />
+          </div>
           <Field
             variant="underline"
             label="Empresa"

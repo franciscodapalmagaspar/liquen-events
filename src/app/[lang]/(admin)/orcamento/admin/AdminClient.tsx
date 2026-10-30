@@ -199,6 +199,9 @@ import {
   EventTasks,
 } from "./lazy";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
+import { linkDaConversa } from "@/lib/whatsapp";
+import CampoTelefone from "@/components/CampoTelefone";
+import { APARENCIA_DO_BACK_OFFICE, TELEFONE_EM_CAIXA } from "./ui/aparencia-do-telefone";
 
 // Quantos pedidos a lista renderiza de cada vez ("Mostrar mais" carrega o resto).
 const LIST_PAGE_SIZE = 50;
@@ -7896,15 +7899,20 @@ export default function AdminClient({
                                   >
                                     Telefone
                                   </label>
-                                  <input
+                                  {/* A bandeira e o número (pedido dela, 30/10:
+                                    «números de telefone seja qual país for»).
+                                    O que segue é o E.164; um número antigo
+                                    abre como estava e só é conferido se ela
+                                    lhe mexer — a mesma regra do servidor. */}
+                                  <CampoTelefone
                                     id="pedido-telefone"
-                                    type="tel"
-                                    inputMode="tel"
-                                    autoComplete="off"
                                     value={editTelefone}
-                                    onChange={(e) => setEditTelefone(e.target.value)}
-                                    placeholder="+351…"
-                                    className="bo-input px-3 py-2 text-sm text-[var(--bo-text)] w-full"
+                                    onChange={setEditTelefone}
+                                    aparencia={APARENCIA_DO_BACK_OFFICE}
+                                    classeDoBotao={TELEFONE_EM_CAIXA.botao}
+                                    classeDoNumero={TELEFONE_EM_CAIXA.numero}
+                                    placeholder="912 345 678"
+                                    locale="pt"
                                   />
                                 </div>
                               </div>
@@ -8072,9 +8080,11 @@ export default function AdminClient({
                               >
                                 {selected.phone}
                               </a>
-                              {selected.phone && (
+                              {linkDaConversa(selected.phone) && (
                                 <a
-                                  href={`https://wa.me/${selected.phone.replace(/[^\d]/g, "")}`}
+                                  // Um número antigo sem +351 dava um link
+                                  // partido — ver `linkDaConversa`.
+                                  href={linkDaConversa(selected.phone)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className={`alvo-toque shrink-0 gap-1 text-[10px] uppercase tracking-[0.08em] text-sage-600 ${ESTADO} ${PRESSAO} hover:opacity-80 inline-flex items-center`}

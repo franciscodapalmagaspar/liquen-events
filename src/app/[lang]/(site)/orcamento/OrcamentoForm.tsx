@@ -27,7 +27,9 @@ import { PONTOS_DECORACAO } from "@/lib/orcamento/decoracao";
 import { clearSubmissionId, ensureSubmissionId } from "@/lib/orcamento/submission-id";
 import { assentarComMola } from "@/lib/motion/assentar";
 import CalendarioDaData from "./CalendarioDaData";
-import { normalizarTelefone, sugestaoDeEmail } from "@/lib/contacto-do-pedido";
+import { sugestaoDeEmail } from "@/lib/sugestao-de-email";
+import CampoTelefone from "@/components/CampoTelefone";
+import { telefonesJaCarregados, useEstadoDoTelefone } from "@/lib/telefone-no-browser";
 
 /**
  * Pedido de orçamento — formulário simples e direto.
@@ -569,13 +571,16 @@ export default function OrcamentoForm({
    *  - o email com a `EMAIL_RE` (a do zod) e, no servidor, o domínio a receber
    *    correio;
    *  - o telemóvel, quando vem, pela `normalizarTelefone`
-   *    (src/lib/contacto-do-pedido.ts), que é partilhada — um número português
-   *    de 9 dígitos, ou o indicativo do país à frente.
+   *    (src/lib/contacto-do-pedido.ts), que é partilhada — e desde 30/10 com
+   *    as regras do país da bandeira (`CampoTelefone`). As regras chegam ao
+   *    browser quando ela toca no campo; até lá («a verificar») não se acusa
+   *    nada, e o servidor confere na mesma.
    */
   const temEmail = email.trim() !== "";
   const temTelefone = telefone.trim() !== "";
   const okEmail = temEmail && EMAIL_RE.test(email.trim());
-  const okTelefone = !temTelefone || normalizarTelefone(telefone) !== null;
+  const estadoDoTelefone = useEstadoDoTelefone(telefone);
+  const okTelefone = estadoDoTelefone !== "invalido";
   /** «Quis dizer ana@gmail.com?», quando o domínio se parece com um conhecido. */
   const emailSugerido = okEmail ? sugestaoDeEmail(email) : null;
   // "Ainda a definir" IS an answer — the field is satisfied either way.
@@ -624,7 +629,9 @@ export default function OrcamentoForm({
         ? to.errEmail
         : ""
     : "";
-  const telefoneErr = show(touched.telefone) && !okTelefone ? to.errTelefone : "";
+  // O erro do telefone é o próprio campo que o escreve, com o país da bandeira
+  // («… não é válido para Reino Unido (+44)»): aqui só se diz QUANDO mostrar.
+  const mostrarErroDoTelefone = show(touched.telefone);
   const dataErr = show(touched.data) && !okData ? to.errData : "";
   const pessoasErr = show(touched.pessoas) && !okPessoas ? to.errPessoas : "";
   const localErr = show(touched.local) && !okLocal ? to.errLocal : "";
@@ -803,6 +810,7 @@ export default function OrcamentoForm({
         // O servidor recusou o email (o domínio não recebe correio): volta ao
         // campo, que é onde se corrige.
         if (json?.campo === "email") emailRef.current?.focus();
+        if (json?.campo === "telefone") telefoneRef.current?.focus();
         return;
       }
 
@@ -1492,26 +1500,38 @@ export default function OrcamentoForm({
               </div>
             )}
 
-            {/* Telefone */}
+            {/* Telefone — a bandeira e o número (pedido dela, 30/10). A
+                etiqueta fica sempre em cima (`floatAlways`): em repouso ela
+                deitava-se por cima da bandeira. O erro é o campo que o
+                escreve, porque é ele que sabe o país.
+
+                O `z-10` é para a lista dos países: cada campo deste
+                formulário entra com uma subida (`.orc-reveal`, um `transform`
+                que fica), e cada um é por isso uma camada própria — a do campo
+                de baixo pintava-se POR CIMA da lista aberta e comia-lhe os
+                cliques. MEDIDO no browser, a escolher o Reino Unido. */}
             <FloatingField
               htmlFor="of-telefone"
               label={to.labelTelefone}
-              error={telefoneErr}
-              errorId="of-telefone-err"
+              floatAlways
+              className="z-10"
             >
-              <input
+              <CampoTelefone
                 id="of-telefone"
-                ref={telefoneRef}
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
+                inputRef={telefoneRef}
                 value={telefone}
                 onBlur={() => markTouched("telefone")}
-                aria-invalid={telefoneErr ? true : undefined}
-                aria-describedby={telefoneErr ? "of-telefone-err" : undefined}
-                onChange={(e) => mudarContacto(setTelefone, e.target.value)}
-                className={`${ffInputCls} ${
-                  telefoneErr ? "border-gold/60" : temTelefone && okTelefone ? "border-moss/50" : ""
+                onChange={(v) => mudarContacto(setTelefone, v)}
+                mostrarErro={mostrarErroDoTelefone}
+                classeDoBotao={`ff-input border-b ${
+                  mostrarErroDoTelefone && !okTelefone ? "border-gold/60" : "border-foreground/45"
+                } text-sm`}
+                classeDoNumero={`${ffInputCls} ${
+                  mostrarErroDoTelefone && !okTelefone
+                    ? "border-gold/60"
+                    : estadoDoTelefone === "valido"
+                      ? "border-moss/50"
+                      : ""
                 }`}
                 placeholder={to.phTelefone}
               />
@@ -1586,7 +1606,8 @@ export default function OrcamentoForm({
                     <div>
                       <dt className="text-[11px] text-foreground/68">{to.confirmarTelefone}</dt>
                       <dd className="mt-0.5 text-lg text-foreground tabular-nums">
-                        {telefone.trim()}
+                        {/* Gravado em E.164, mostrado como se lê («+351 912 345 678»). */}
+                        {telefonesJaCarregados()?.telefoneParaLer(telefone) ?? telefone.trim()}
                       </dd>
                     </div>
                   )}

@@ -68,3 +68,23 @@ beforeEach(() => {
     /* ambiente `node`, sem armazenamento */
   }
 });
+
+/**
+ * O DNS fica de fora dos testes.
+ *
+ * Desde 30/10 o domínio do email é conferido em todos os pedidos e à porta de
+ * cada envio (`dominioRecebeEmail`, que pergunta ao DNS). Sem este duplo, cada
+ * teste de rota que manda um email para «ana@exemplo.pt» perguntava a sério à
+ * rede — lento, e com a resposta a depender da máquina: o `exemplo.pt` não
+ * tem correio, e o teste passava a falhar por uma razão que não é dele.
+ *
+ * O duplo diz que sim a tudo, menos ao TLD `.invalid` (RFC 2606, reservado
+ * para isto mesmo): um teste que quer o «não» escreve `x@nao-existe.invalid`,
+ * ou troca a resposta com `vi.mocked(dominioRecebeEmail)`. Quem testa o DNS a
+ * sério (`dominio-do-email.test.ts`) desfaz o duplo com `vi.unmock`.
+ */
+import { vi } from "vitest";
+vi.mock("@/lib/dominio-do-email", () => ({
+  dominioRecebeEmail: vi.fn(async (email: string) => !/\.invalid\s*$/i.test(email ?? "")),
+  esquecerDominiosVistos: () => {},
+}));

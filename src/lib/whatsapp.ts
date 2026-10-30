@@ -102,3 +102,40 @@ export function timelineParaWhatsApp(folha: FolhaParaWhatsApp): string {
   linhas.push(`${SITE.name} · ${SITE.phoneDisplay}`);
   return linhas.join("\n");
 }
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * ABRIR A CONVERSA COM O CLIENTE — o número que o `wa.me` entende
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O `wa.me` só aceita o número internacional em dígitos (`351912345678`). Os
+ * links da gaveta, dos Clientes e do dossier eram feitos com o telefone CRU,
+ * tirando-lhe o que não era dígito — e um pedido antigo com «912 345 678»,
+ * sem o +351, dava `wa.me/912345678`: o WhatsApp abria e dizia que o número
+ * não existe.
+ *
+ * Desde 30/10 os telefones novos gravam-se em E.164 (`contacto-do-pedido.ts`),
+ * e esses passam tal e qual. Os antigos não mudam na base de dados (não se
+ * reescrevem dados), por isso a correcção é aqui, na leitura: um número sem
+ * indicativo é português, como o servidor sempre o tratou.
+ *
+ * Fica sem a `libphonenumber-js` de propósito: estes links estão em ecrãs que
+ * abrem a toda a hora, e para pôr o 351 à frente de nove dígitos não é preciso
+ * trazer as regras de 245 países. Validar o número é trabalho de quem o grava.
+ */
+export function numeroParaWhatsApp(telefone: string | null | undefined): string {
+  const t = (telefone ?? "").trim();
+  if (!t) return "";
+  const digitos = t.replace(/\D/g, "");
+  if (/^\(?\s*\+/.test(t)) return digitos;
+  if (digitos.startsWith("00")) return digitos.slice(2);
+  // Nove dígitos a começar por 9, 2 ou 3: um número português sem o 351.
+  if (/^[239]\d{8}$/.test(digitos)) return `351${digitos}`;
+  return digitos;
+}
+
+/** O link que abre a conversa com este telefone, ou `""` se não houver número. */
+export function linkDaConversa(telefone: string | null | undefined): string {
+  const n = numeroParaWhatsApp(telefone);
+  return n ? `https://wa.me/${n}` : "";
+}

@@ -1,3 +1,13 @@
+import {
+  AsYouType,
+  Metadata,
+  getCountries,
+  getCountryCallingCode,
+  isSupportedCountry,
+  parsePhoneNumberFromString,
+  type CountryCode,
+} from "libphonenumber-js/max";
+
 /**
  * ════════════════════════════════════════════════════════════════════════════
  * O CONTACTO DE QUEM PEDE UM ORÇAMENTO — a regra, num sítio só
@@ -5,111 +15,190 @@
  *
  * Ela (28/10): chegou um pedido com o email mal escrito («candmcasmento…» em
  * vez do que a pessoa queria), a confirmação nunca chegou, e não havia mais
- * por onde lhe responder. Decidiu: no formulário completo, **email e telemóvel
- * passam a ser os dois obrigatórios** — as fichas rápidas dos anúncios ficam
- * como estão (um campo só).
+ * por onde lhe responder. Decidiu: no formulário completo, o email passa a ser
+ * obrigatório.
  *
- * Puro e sem dependências: o formulário pergunta isto no browser (sem trazer o
- * zod) e o servidor faz a MESMA pergunta (`quoteFormSchema`). Duas regras
- * parecidas acabavam a discordar — e o pior caso é o browser dizer «está bem»
- * e o servidor recusar depois do clique.
+ * Ela (30/10): «quero que o sistema detete e não deixe enviar emails que não
+ * existem ou números de telefone seja qual país for». Para o telefone pediu a
+ * bandeira e o número, com Portugal já escolhido, e conferido com as regras do
+ * país escolhido; e em todo o lado, no site e no back office.
  *
- * ── O TELEMÓVEL ─────────────────────────────────────────────────────────────
+ * ── O TELEFONE, DE QUALQUER PAÍS ────────────────────────────────────────────
  *
- * Os números chegam escritos de todas as maneiras (+351, 00351, com espaços,
- * pontos, parênteses). Normaliza-se para E.164 (`+351912345678`), que é a
- * forma que o WhatsApp, a Meta e o Google Ads já aceitam.
+ * Até aqui a regra era caseira: rigorosa para Portugal (9 dígitos a começar
+ * por 9, 2 ou 3) e, para os outros, «8 a 15 dígitos» — que deixava passar um
+ * número espanhol com um dígito a menos ou um brasileiro sem o 9 do móvel.
  *
- *   · sem indicativo: tem de ser um número português — 9 dígitos a começar por
- *     9 (móvel) ou por 2/3 (fixo). Um estrangeiro escreve o «+» do país;
- *   · com «+» ou «00»: o indicativo e o número, de 8 a 15 dígitos (o máximo do
- *     E.164). Com +351, outra vez exactamente 9 dígitos a começar por 9, 2 ou 3.
+ * Passa a ser a `libphonenumber-js`, a versão em JavaScript das regras que o
+ * Google mantém para todos os países (prefixos, quantos dígitos, móvel ou
+ * fixo). Com os metadados COMPLETOS (`/max`): os pequenos só contam dígitos, e
+ * contar dígitos é a regra caseira outra vez.
  *
- * Não se tenta adivinhar mais do que isto: uma regra apertada por país recusa
- * números verdadeiros, e o que se quer apanhar é o dedo que escorregou (um
- * dígito a menos, a mais, ou um número que não é português sem indicativo).
+ *   · com «+» ou «00», o país vem do próprio número;
+ *   · sem eles, conta o país escolhido na bandeira (Portugal por omissão — é o
+ *     que o servidor assume quando um pedido chega sem «+»).
+ *
+ * O que se grava é sempre E.164 (`+351912345678`): é a forma que o WhatsApp, a
+ * Meta e o Google Ads já aceitam, e a que diz o país sem mais nada ao lado.
+ *
+ * ── O MESMO FICHEIRO NO BROWSER E NO SERVIDOR ───────────────────────────────
+ *
+ * O servidor importa isto directamente (`validation.ts`, as rotas). O browser
+ * NÃO: as regras pesam ~150 KB e o formulário abre sem elas — o
+ * `telefone-no-browser.ts` carrega ESTE módulo com `import()` quando a pessoa
+ * toca no campo. É de propósito o mesmo ficheiro: duas regras parecidas
+ * acabavam a discordar, e o pior caso é o browser dizer «está bem» e o
+ * servidor recusar depois do clique.
+ *
+ * O `sugestaoDeEmail` mudou-se para `sugestao-de-email.ts` pela mesma razão (o
+ * formulário precisa dele logo, sem os telefones atrás), e continua a sair
+ * daqui para quem já o importava deste sítio.
  */
 
-/** O número em E.164 (`+351912345678`), ou `null` se não parecer completo. */
-export function normalizarTelefone(bruto: string): string | null {
-  const limpo = (bruto ?? "").trim().replace(/[\s.\-()/]/g, "");
-  if (!limpo) return null;
-  let internacional: string | null = null;
-  if (limpo.startsWith("+")) internacional = limpo.slice(1);
-  else if (limpo.startsWith("00")) internacional = limpo.slice(2);
-  if (internacional !== null) {
-    if (!/^\d+$/.test(internacional)) return null;
-    if (internacional.startsWith("351")) {
-      const nacional = internacional.slice(3);
-      return /^[239]\d{8}$/.test(nacional) ? `+351${nacional}` : null;
-    }
-    // O primeiro dígito de um indicativo nunca é 0.
-    return /^[1-9]\d{7,14}$/.test(internacional) ? `+${internacional}` : null;
-  }
-  if (!/^\d+$/.test(limpo)) return null;
-  return /^[239]\d{8}$/.test(limpo) ? `+351${limpo}` : null;
+export { sugestaoDeEmail } from "./sugestao-de-email";
+
+export type Pais = CountryCode;
+
+/** O país que se assume quando o número vem sem «+». */
+export const PAIS_POR_OMISSAO: Pais = "PT";
+
+/**
+ * Os separadores que se aceitam no meio de um número. Tudo o resto (letras, um
+ * `@`, «ext. 2») recusa o número inteiro: a biblioteca é generosa e lê
+ * «912345678a» como um número válido, e um telefone com uma letra lá dentro é
+ * um engano que se quer apanhar, não arrumar.
+ */
+const SO_NUMERO = /^[+\d\s.\-()/]+$/;
+const SEPARADORES = /[\s.\-()/]/g;
+
+/** O texto sem separadores, com o «00» internacional escrito como «+». */
+function compactar(bruto: string): string | null {
+  const limpo = (bruto ?? "").trim();
+  if (!limpo || !SO_NUMERO.test(limpo)) return null;
+  let c = limpo.replace(SEPARADORES, "");
+  if (c.startsWith("00")) c = `+${c.slice(2)}`;
+  // Um «+» que não está à frente não é um indicativo: é um engano.
+  if (c.lastIndexOf("+") > 0) return null;
+  return c || null;
 }
 
-// ── O EMAIL: domínios mal escritos ─────────────────────────────────────────
-//
-// O engano que chegou estava ANTES do @ — isso nenhuma máquina apanha, e é por
-// isso que o formulário mostra os contactos para confirmar antes de enviar.
-// Mas o outro engano comum é DEPOIS do @ («gmial.com», «hotmal.com»), e esse
-// apanha-se: sugere-se o domínio certo, sem o trocar sozinho.
-
-const DOMINIOS = [
-  "gmail.com",
-  "hotmail.com",
-  "hotmail.pt",
-  "outlook.com",
-  "outlook.pt",
-  "live.com.pt",
-  "live.com",
-  "icloud.com",
-  "me.com",
-  "yahoo.com",
-  "sapo.pt",
-  "netcabo.pt",
-  "msn.com",
-  "protonmail.com",
-] as const;
-
-/** Distância de edição (inserir, apagar, trocar uma letra, ou trocar duas vizinhas). */
-function distancia(a: string, b: string): number {
-  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) =>
-    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
-  );
-  for (let i = 1; i <= a.length; i++)
-    for (let j = 1; j <= b.length; j++) {
-      const custo = a[i - 1] === b[j - 1] ? 0 : 1;
-      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + custo);
-      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
-        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
-    }
-  return d[a.length][b.length];
+function paisOuOmissao(pais: string | undefined): Pais {
+  return pais && isSupportedCountry(pais) ? (pais as Pais) : PAIS_POR_OMISSAO;
 }
 
 /**
- * O email com o domínio corrigido («ana@gmail.com» para «ana@gmial.com»), ou
- * `null` quando o domínio já é um dos conhecidos ou não se parece com nenhum.
+ * O número em E.164 (`+351912345678`), ou `null` se não for um número que
+ * exista com as regras do país.
+ *
+ * `pais` é o país escolhido na bandeira; só conta quando o número vem sem «+».
  */
-export function sugestaoDeEmail(email: string): string | null {
-  const e = (email ?? "").trim();
-  const arroba = e.lastIndexOf("@");
-  if (arroba < 1) return null;
-  const local = e.slice(0, arroba);
-  const dominio = e.slice(arroba + 1).toLowerCase();
-  if (!dominio || (DOMINIOS as readonly string[]).includes(dominio)) return null;
-  let melhor: string | null = null;
-  let menor = Infinity;
-  for (const d of DOMINIOS) {
-    const n = distancia(dominio, d);
-    if (n < menor) {
-      menor = n;
-      melhor = d;
-    }
+export function normalizarTelefone(bruto: string, pais: string = PAIS_POR_OMISSAO): string | null {
+  const c = compactar(bruto);
+  if (!c) return null;
+  const lido = parsePhoneNumberFromString(c, paisOuOmissao(pais));
+  return lido?.isValid() ? lido.number : null;
+}
+
+/** O indicativo do país, sem o «+» («351»). */
+export function indicativoDe(pais: string): string {
+  return getCountryCallingCode(paisOuOmissao(pais));
+}
+
+/** Todos os países que a biblioteca conhece, com o indicativo. */
+export function paisesComIndicativo(): { pais: Pais; indicativo: string }[] {
+  return getCountries().map((pais) => ({ pais, indicativo: getCountryCallingCode(pais) }));
+}
+
+/**
+ * O país PRINCIPAL de um indicativo partilhado: o +1 é dos EUA (e do Canadá, e
+ * de vinte ilhas), o +44 é do Reino Unido (e de Guernsey, Jersey, Man). São os
+ * metadados que dizem qual é o principal; o método existe, só não vem nas
+ * declarações de tipos da biblioteca.
+ */
+function paisPrincipalDe(indicativo: string): Pais | undefined {
+  const m = new Metadata() as unknown as {
+    getCountryCodeForCallingCode?: (c: string) => Pais | undefined;
+  };
+  return m.getCountryCodeForCallingCode?.(indicativo);
+}
+
+/**
+ * Tira o indicativo da frente do texto como a pessoa o escreveu («+55 11
+ * 91234-5678» → «11 91234-5678»), sem lhe mexer no resto. Os separadores entre
+ * os dígitos do indicativo saltam-se.
+ */
+function semIndicativo(texto: string, indicativo: string): string {
+  const t = texto.trim();
+  const inicio = /^\(?\s*(?:\+|00)/.exec(t);
+  if (!inicio) return t;
+  let i = inicio[0].length;
+  let falta = indicativo.length;
+  while (i < t.length && falta > 0) {
+    if (/\d/.test(t[i])) falta--;
+    i++;
   }
-  // Até 2 enganos num domínio comprido; 1 num curto (evita «me.com» → «msn.com»).
-  const limite = dominio.length >= 8 ? 2 : 1;
-  return melhor && menor > 0 && menor <= limite ? `${local}@${melhor}` : null;
+  return t.slice(i).replace(/^[\s).\-/]+/, "");
+}
+
+/**
+ * De que país é um número escrito com «+» ou «00»?
+ *
+ * É o que deixa a bandeira mudar sozinha quando a pessoa cola «+44 …»: devolve
+ * o país e o resto do número já sem o indicativo, para o campo ficar com a
+ * bandeira certa e o número nacional ao lado. `null` enquanto o indicativo
+ * ainda não está completo («+3» pode ser meia Europa), ou quando não é de país
+ * nenhum (+800, os números internacionais gratuitos).
+ */
+export function paisDoNumero(texto: string): { pais: Pais; numero: string } | null {
+  const c = compactar(texto);
+  if (!c || !c.startsWith("+")) return null;
+  const lido = parsePhoneNumberFromString(c);
+  if (lido?.isValid() && lido.country) {
+    return { pais: lido.country, numero: lido.formatNational() };
+  }
+  const aEscrever = new AsYouType();
+  aEscrever.input(c);
+  const indicativo = aEscrever.getCallingCode();
+  if (!indicativo) return null;
+  const pais = aEscrever.getCountry() ?? paisPrincipalDe(indicativo);
+  if (!pais) return null;
+  return { pais, numero: semIndicativo(texto, indicativo) };
+}
+
+/**
+ * Um telefone GRAVADO, partido em bandeira e número, para o campo o mostrar.
+ *
+ * Um E.164 válido sai com o país dele e o número no formato do país («912 345
+ * 678»). Um número antigo sem «+» fica português e como estava escrito — os
+ * pedidos antigos não mudam de forma só por se abrirem.
+ */
+export function separarTelefone(valor: string): { pais: Pais; numero: string } {
+  const t = (valor ?? "").trim();
+  if (!t) return { pais: PAIS_POR_OMISSAO, numero: "" };
+  const doNumero = paisDoNumero(t);
+  if (doNumero) return doNumero;
+  const lido = parsePhoneNumberFromString(compactar(t) ?? "", PAIS_POR_OMISSAO);
+  if (lido?.isValid() && lido.country) return { pais: lido.country, numero: lido.formatNational() };
+  return { pais: PAIS_POR_OMISSAO, numero: t };
+}
+
+/**
+ * O país de um número já em E.164, quando é válido. Serve para acertar a
+ * bandeira nos indicativos partilhados: escolhe-se o +1 e aparecem os EUA, mas
+ * um 416… é de Toronto.
+ */
+export function paisDoE164(e164: string): Pais | null {
+  const lido = parsePhoneNumberFromString(e164);
+  return lido?.isValid() && lido.country ? lido.country : null;
+}
+
+/**
+ * Um telefone para LER («+351 912 345 678»): o E.164 junta os dígitos todos,
+ * e é assim que se grava, mas não é assim que uma pessoa confere um número.
+ * O que não é válido sai como está.
+ */
+export function telefoneParaLer(valor: string): string {
+  const c = compactar(valor);
+  const lido = c ? parsePhoneNumberFromString(c, PAIS_POR_OMISSAO) : undefined;
+  return lido?.isValid() ? lido.formatInternational() : (valor ?? "").trim();
 }

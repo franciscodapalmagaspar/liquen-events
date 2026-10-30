@@ -178,37 +178,36 @@ export const quoteFormSchema = z
     // Ela (28/10): um pedido chegou com o email mal escrito e não havia mais
     // por onde responder. No formulário completo (`origem: "completo"`) o
     // email passa a ser obrigatório; o telemóvel NÃO («o email é obrigatório
-    // mas o telemóvel não é»), mas quando vem tem de parecer completo
-    // (`normalizarTelefone`, a MESMA regra que o browser usa). As fichas
-    // rápidas dos anúncios não mandam `origem` e continuam com a regra de
-    // baixo — ela decidiu que ficam como estão.
-    if (f.origem === "completo") {
-      if (!f.email)
-        ctx.addIssue({
-          code: "custom",
-          path: ["email"],
-          message: "Indique o seu email.",
-          params: { regra: "email-obrigatorio" },
-        });
-      if (f.phone && !normalizarTelefone(f.phone))
-        ctx.addIssue({
-          code: "custom",
-          path: ["phone"],
-          message: "Indique um telemóvel completo.",
-          params: { regra: "telefone" },
-        });
-      return;
-    }
+    // mas o telemóvel não é»). As fichas rápidas dos anúncios não mandam
+    // `origem` e continuam com a regra de «pelo menos um», lá em baixo.
+    if (f.origem === "completo" && !f.email)
+      ctx.addIssue({
+        code: "custom",
+        path: ["email"],
+        message: "Indique o seu email.",
+        params: { regra: "email-obrigatorio" },
+      });
+    // ── O TELEFONE, QUANDO VEM, TEM DE EXISTIR — EM TODOS OS FORMULÁRIOS ──
+    // Ela (30/10): «quero que o sistema detete e não deixe enviar […] números
+    // de telefone seja qual país for». Até aqui só o formulário completo
+    // conferia o número; as fichas rápidas contavam nove dígitos, e
+    // «123456789» passava. Agora é a MESMA regra em todos
+    // (`normalizarTelefone`, as regras do país): com «+» o país vem do
+    // número, sem ele é Portugal — é o que o `CampoTelefone` manda, porque
+    // escreve o indicativo à frente sempre que a bandeira não é a portuguesa.
+    if (f.phone && !normalizarTelefone(f.phone))
+      ctx.addIssue({
+        code: "custom",
+        path: ["phone"],
+        message: "Este número de telefone não é válido.",
+        params: { regra: "telefone" },
+      });
+    if (f.origem === "completo") return;
     // A invariante das fichas rápidas: tem de haver PELO MENOS UMA forma de
     // responder. Um pedido sem email e sem telefone é um pedido que ninguém
     // consegue atender, e gravá-lo seria pior do que recusá-lo — ficava na
     // lista a parecer trabalho por fazer, para sempre.
-    //
-    // Aqui o telefone é validado por comprimento e não por forma: o número
-    // chega escrito de todas as maneiras (+351, 00351, com espaços, com
-    // pontos) num campo único que também aceita email, e nove dígitos é o
-    // mínimo de um número português.
-    if (!f.email && f.phone.replace(/\D/g, "").length < 9)
+    if (!f.email && !f.phone)
       ctx.addIssue({
         code: "custom",
         path: ["email"],

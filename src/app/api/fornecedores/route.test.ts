@@ -70,3 +70,27 @@ describe("/api/fornecedores", () => {
     expect(store.create).not.toHaveBeenCalled();
   });
 });
+
+/** O telefone de um fornecedor novo também tem de existir (30/10), em E.164. */
+describe("POST /api/fornecedores — o telefone", () => {
+  it("um telefone que não existe é recusado, com o campo", async () => {
+    authed.ok = true;
+    const res = await POST(req("POST", { name: "Flores Lda", phone: "123456789" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).campo).toBe("telefone");
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it("um número francês sem indicativo não é português, e é recusado", async () => {
+    authed.ok = true;
+    const res = await POST(req("POST", { name: "Flores Lda", phone: "06 12 34 56 78" }));
+    expect(res.status).toBe(400);
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it("com o indicativo, grava-se em E.164", async () => {
+    authed.ok = true;
+    await POST(req("POST", { name: "Flores Lda", phone: "+33 6 12 34 56 78" }));
+    expect(store.create).toHaveBeenCalledWith(expect.objectContaining({ phone: "+33612345678" }));
+  });
+});

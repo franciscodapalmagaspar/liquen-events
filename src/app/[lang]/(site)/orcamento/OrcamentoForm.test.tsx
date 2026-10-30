@@ -553,16 +553,22 @@ describe("OrcamentoForm — o email é obrigatório, o telemóvel não", () => {
       expect(servidorAceita({ email: "ana@exemplo.pt", phone: numero })).toBe(false);
       await preencherComContacto({ email: "ana@exemplo.pt", telefone: numero });
       enviar();
-      expect(await screen.findByText(to.errTelefone)).toBeInTheDocument();
+      // A frase é a do campo, que sabe o país da bandeira (30/10).
+      expect(
+        await screen.findByText("Este número não é válido para Portugal (+351)."),
+      ).toBeInTheDocument();
       expect(fetch).not.toHaveBeenCalled();
     },
   );
 
-  it("um número estrangeiro com indicativo passa", async () => {
-    expect(servidorAceita({ email: "ana@exemplo.pt", phone: "+44 7700 900123" })).toBe(true);
-    await preencherComContacto({ email: "ana@exemplo.pt", telefone: "+44 7700 900123" });
+  // Desde 30/10 o «+44» muda a bandeira e o número segue as regras de lá; o
+  // que vai para o servidor é o E.164. (O exemplo era «+44 7700 900123», que é
+  // da gama de números de FICÇÃO do Reino Unido — e as regras novas sabem-no.)
+  it("um número estrangeiro com indicativo passa, em E.164", async () => {
+    expect(servidorAceita({ email: "ana@exemplo.pt", phone: "+44 20 7946 0958" })).toBe(true);
+    await preencherComContacto({ email: "ana@exemplo.pt", telefone: "+44 20 7946 0958" });
     enviar();
-    expect((await formEnviado()).phone).toBe("+44 7700 900123");
+    expect((await formEnviado()).phone).toBe("+442079460958");
   });
 
   it("um domínio mal escrito leva uma sugestão, que se aceita com um toque", async () => {

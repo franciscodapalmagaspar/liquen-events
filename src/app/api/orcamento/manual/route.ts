@@ -3,6 +3,10 @@ import type { Quote } from "@/lib/orcamento/types";
 import { createQuote, generateQuoteId } from "@/lib/quotes-store";
 import { isAuthed } from "@/lib/admin-auth";
 import { log } from "@/lib/logger";
+import { z } from "zod";
+import { normalizarTelefone } from "@/lib/contacto-do-pedido";
+import { dominioRecebeEmail } from "@/lib/dominio-do-email";
+import { getDictionary } from "@/lib/i18n";
 
 export const runtime = "nodejs";
 
@@ -59,6 +63,55 @@ export async function POST(request: NextRequest) {
     ];
     const status: Quote["status"] = STATUSES.includes(b.status) ? b.status : "em_revisao";
 
+    /**
+     * ── OS CONTACTOS QUE ENTRAM À MÃO TAMBÉM TÊM DE EXISTIR ────────────────
+     *
+     * Ela (30/10): «quero que o sistema detete e não deixe enviar emails que
+     * não existem ou números de telefone seja qual país for», e «em todo o
+     * lado». Este era o sítio mais solto de todos: o email não era conferido
+     * de forma nenhuma («ana@» gravava), e o telefone eram quarenta
+     * caracteres quaisquer.
+     *
+     * As regras são as do formulário do site — a forma do email (a do zod), o
+     * domínio a receber correio (`dominioRecebeEmail`, que na dúvida deixa
+     * passar) e o telefone com as regras do país (`normalizarTelefone`,
+     * Portugal quando vem sem «+»). Os dois continuam OPCIONAIS: um pedido de
+     * um telefonema pode não ter email, e é legítimo. O `campo` diz ao diálogo
+     * onde pôr a frase.
+     */
+    const email = strLine(b.email, 200);
+    if (email && !z.email().safeParse(email).success) {
+      return NextResponse.json(
+        {
+          error: "Este email não está bem escrito. Confira-o (por exemplo, nome@gmail.com).",
+          campo: "email",
+        },
+        { status: 400 },
+      );
+    }
+    if (email && !(await dominioRecebeEmail(email))) {
+      return NextResponse.json(
+        {
+          // A mesma frase do formulário do site (o back office é em português).
+          error: getDictionary("pt").orcamento.errDominioDoEmail,
+          campo: "email",
+        },
+        { status: 400 },
+      );
+    }
+    const telefoneEscrito = str(b.phone, 40).trim();
+    const telefone = telefoneEscrito ? normalizarTelefone(telefoneEscrito) : "";
+    if (telefone === null) {
+      return NextResponse.json(
+        {
+          error:
+            "Este número de telefone não é válido. Confira os dígitos e o país (de fora de Portugal, com o indicativo à frente, ex.: +44).",
+          campo: "telefone",
+        },
+        { status: 400 },
+      );
+    }
+
     const id = generateQuoteId();
     const quote: Quote = {
       // QuoteFormData defaults
@@ -85,8 +138,9 @@ export async function POST(request: NextRequest) {
       notes: str(b.notes, 5000),
       referralSource: str(b.referralSource, 120) || "Contacto direto",
       name,
-      email: strLine(b.email, 200),
-      phone: str(b.phone, 40),
+      email,
+      // Em E.164 (+351912345678), como os do site.
+      phone: telefone,
       company: str(b.company, 160),
       nif: "",
       acceptTerms: true,

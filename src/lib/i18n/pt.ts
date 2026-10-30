@@ -122,6 +122,24 @@ export const pt = {
       boaTarde: "Boa tarde",
       boaNoite: "Boa noite",
     },
+    /**
+     * O campo do telefone com a bandeira (`components/CampoTelefone.tsx`).
+     *
+     * Ela (30/10): bandeira e número, com Portugal já escolhido, e conferido
+     * com as regras do país escolhido — no site e no back office. Vive em
+     * `common` porque o campo está em sítios de todo o lado (o formulário, as
+     * páginas dos anúncios, o back office) e este é o pedaço do dicionário que
+     * chega a todos. Os nomes dos países não estão aqui: vêm do próprio
+     * browser (`Intl.DisplayNames`), na língua de quem lê.
+     *
+     * `{pais}` e `{codigo}` enchem-se no campo («Portugal», «351»).
+     */
+    campoTelefone: {
+      pais: "País do número",
+      procurar: "Procurar país ou indicativo",
+      semResultados: "Nenhum país com esse nome.",
+      invalido: "Este número não é válido para {pais} (+{codigo}).",
+    },
   },
 
   meta: {
@@ -557,7 +575,8 @@ export const pt = {
      * escrevê-lo bem.
      */
     hintEmail: "É para aqui que enviamos a confirmação e a proposta. Confira se está bem escrito.",
-    phTelefone: "+351 9XX XXX XXX",
+    // Só o número: o indicativo está na bandeira ao lado (30/10).
+    phTelefone: "912 345 678",
     phMensagem: "Estilo, cores, ambiente, inspirações que guardou…",
     // O texto é dela (17/10), palavra por palavra. O `\n\n` separa os dois
     // parágrafos; o formulário desenha-o com `whitespace-pre-line`.
@@ -581,8 +600,13 @@ export const pt = {
     errData: "Indique a data, ou marque \u201cData ainda a definir\u201d.",
     errPessoas: "Indique quantas pessoas, ou marque \u201cAinda a definir\u201d.",
     errLocal: "Indique o local ou a região.",
+    /**
+     * A recusa do SERVIDOR, que não sabe que bandeira estava escolhida (o
+     * campo diz o país no ecrã: `common.campoTelefone.invalido`). Desde 30/10
+     * o número é conferido com as regras do país, e já não só pelos dígitos.
+     */
     errTelefone:
-      "Este número parece incompleto. Confira os dígitos (de fora de Portugal, comece pelo indicativo, ex.: +44).",
+      "Este número de telefone não é válido. Confira os dígitos e o país (de fora de Portugal, escolha a bandeira ou comece pelo indicativo, ex.: +44).",
     errEmailObrigatorio: "Indique o seu email.",
     /** O domínio (o que vem depois do @) não recebe correio — `dominioRecebeEmail`. */
     errDominioDoEmail:

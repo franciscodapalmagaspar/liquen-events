@@ -93,6 +93,15 @@ function rotuloDoCampo(caminho: PropertyKey[], locale: Locale): string | null {
   return rotulos[campo] ?? null;
 }
 
+/** O contacto que a recusa nomeia, para o formulário levar lá o cursor. */
+function campoDaRecusa(err: ZodError): { campo?: "email" | "telefone" } {
+  const caminho = err.issues[0]?.path ?? [];
+  const campo = String(caminho[caminho.length - 1] ?? "");
+  if (campo === "phone") return { campo: "telefone" };
+  if (campo === "email") return { campo: "email" };
+  return {};
+}
+
 function mensagemDeValidacao(err: ZodError, locale: Locale): string {
   const to = getDictionary(locale).orcamento;
   const en = locale === "en";
@@ -721,12 +730,17 @@ export async function POST(request: NextRequest) {
     const parsed = quotePayloadSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: mensagemDeValidacao(parsed.error, locale) },
+        {
+          error: mensagemDeValidacao(parsed.error, locale),
+          // O campo, para o formulário levar lá o cursor (só os dois contactos
+          // — os outros o formulário já confere antes de enviar).
+          ...campoDaRecusa(parsed.error),
+        },
         { status: 400 },
       );
     }
     const {
-      form: { origem, idioma: _idioma, ...formLido },
+      form: { origem: _origem, idioma: _idioma, ...formLido },
       breakdown,
     } = parsed.data as unknown as {
       form: QuoteFormData & { origem?: "completo"; idioma?: string };
@@ -734,20 +748,22 @@ export async function POST(request: NextRequest) {
     };
     const form: QuoteFormData = formLido;
 
-    if (origem === "completo") {
-      // O telemóvel (opcional) guarda-se já em E.164 (+351912345678): é a
-      // forma que o WhatsApp, a Meta e o Google Ads esperam, e o esquema já
-      // garantiu que, vindo, se consegue normalizar.
-      if (form.phone) form.phone = normalizarTelefone(form.phone) ?? form.phone;
-      // Um domínio que não recebe correio («gmial.con») é o engano depois do
-      // @ que se consegue apanhar. Recusa-se com a frase do campo — e só
-      // quando o DNS diz mesmo que não (ver `dominioRecebeEmail`).
-      if (form.email && !(await dominioRecebeEmail(form.email))) {
-        return NextResponse.json(
-          { error: getDictionary(locale).orcamento.errDominioDoEmail, campo: "email" },
-          { status: 400 },
-        );
-      }
+    // O telefone guarda-se já em E.164 (+351912345678): é a forma que o
+    // WhatsApp, a Meta e o Google Ads esperam, e o esquema já garantiu que,
+    // vindo, é um número que existe (`normalizarTelefone`). Em TODOS os
+    // formulários — até 30/10 era só no completo, e as fichas dos anúncios
+    // gravavam o número como vinha.
+    if (form.phone) form.phone = normalizarTelefone(form.phone) ?? form.phone;
+    // Um domínio que não recebe correio («gmial.con») é o engano depois do @
+    // que se consegue apanhar. Recusa-se com a frase do campo — e só quando o
+    // DNS diz mesmo que não (ver `dominioRecebeEmail`). Também em todos os
+    // formulários, pedido dela (30/10): «não deixe enviar emails que não
+    // existem». O `origem` só liga a regra do email obrigatório, no esquema.
+    if (form.email && !(await dominioRecebeEmail(form.email))) {
+      return NextResponse.json(
+        { error: getDictionary(locale).orcamento.errDominioDoEmail, campo: "email" },
+        { status: 400 },
+      );
     }
 
     // Idempotency: the client sends a stable submissionId (persisted across a
