@@ -456,6 +456,18 @@ export const en: Dict = {
     titleMoss: "your idea",
     lead: "We listen to your vision and reply with a tailored proposal for your event.",
     processHint: "Request → Proposal → Meeting",
+    passoEvento: "The event",
+    passoContacto: "Your details",
+    continuar: "Continue",
+    voltar: "Back",
+    passoDe: "Step {n} of 2",
+    // The English the site already uses for the same three claims
+    // (`PedidoRapido` and `lib/ads/polos.ts`).
+    garantias: [
+      "We reply within two working days.",
+      "Our own team and stock.",
+      "A technical visit before anything is ordered.",
+    ],
     eventTypeLabels: [
       "Wedding",
       "Corporate",

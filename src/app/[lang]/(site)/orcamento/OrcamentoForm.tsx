@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import WhatsAppIcon from "@/components/WhatsAppIcon";
-import { waHref } from "@/data";
+import { clientLogos, waHref } from "@/data";
 import { useTranslations } from "@/components/LocaleProvider";
 import { localizeHref } from "@/lib/i18n/config";
 import type { Dict } from "@/lib/i18n";
@@ -28,7 +28,8 @@ import { assentarComMola } from "@/lib/motion/assentar";
 import CalendarioDaData from "./CalendarioDaData";
 import { sugestaoDeEmail } from "@/lib/sugestao-de-email";
 import CampoTelefone from "@/components/CampoTelefone";
-import { BOTAO_APPLE, ROTULO_DENTRO_DO_TELEFONE, TELEFONE_APPLE } from "@/lib/formulario-apple";
+import { BOTAO_APPLE, CAMPO_APPLE, TELEFONE_APPLE } from "@/lib/formulario-apple";
+import { caixaNaParede, logoDimsFor, logoSizes } from "@/lib/logo";
 import { telefonesJaCarregados, useEstadoDoTelefone } from "@/lib/telefone-no-browser";
 
 /**
@@ -114,16 +115,17 @@ const MAX_NOTAS = 4000;
 // same option index (and therefore the same localized label).
 const EVENT_TYPES = QUOTE_EVENT_OPTIONS;
 
-// Floating-label field wrapper. The control is passed as children (keeping all
-// its own attrs/refs/aria); the label overlays it and floats up on focus/value
-// via CSS (.ff / .ff-label in globals.css). `floatAlways` forces the floated
-// state for the native date input, whose :placeholder-shown is unreliable.
-function FloatingField({
+/**
+ * UM CAMPO COM O RÓTULO POR CIMA, como na ElevenLabs (ela, 30/10: «gosto mais
+ * do design da ElevenLabs, adaptado à Líquen, para a página do pedir
+ * orçamento»). Era um rótulo a flutuar dentro da caixa; passa a estar por
+ * cima, em letra normal, e a caixa fica livre para o que se escreve.
+ */
+function CampoComRotulo({
   htmlFor,
   labelId,
   label,
   required,
-  floatAlways,
   error,
   errorId,
   className,
@@ -134,18 +136,14 @@ function FloatingField({
   labelId?: string;
   label: string;
   required?: boolean;
-  floatAlways?: boolean;
   error?: string;
   errorId?: string;
   className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className={`ff group${floatAlways ? " ff--float" : ""}${className ? ` ${className}` : ""}`}
-    >
-      {children}
-      <label id={labelId} htmlFor={htmlFor} className="ff-label font-normal">
+    <div className={className}>
+      <label id={labelId} htmlFor={htmlFor} className={rotuloCls}>
         {label}
         {required && (
           <span aria-hidden className="text-gold-text">
@@ -153,6 +151,7 @@ function FloatingField({
           </span>
         )}
       </label>
+      {children}
       {error && errorId && (
         <p id={errorId} role="alert" className="mt-2 text-[12px] text-gold-text">
           {error}
@@ -161,6 +160,9 @@ function FloatingField({
     </div>
   );
 }
+
+/** O rótulo por cima do campo: 14 px, letra normal, como na ElevenLabs. */
+const rotuloCls = "mb-1.5 block text-[14px] font-medium text-[var(--fg-primary)]";
 
 /** A legenda de uma secção do formulário. Ao nível do módulo (e já não dentro
  *  do componente) para que `EscolhaUnica`, aqui abaixo, use exactamente a mesma
@@ -180,10 +182,10 @@ const ajudaCls = "text-[13px] leading-relaxed text-[var(--fg-secondary)]";
  * eram três cópias do mesmo texto de classes, e a quarta já tinha divergido.
  */
 function pastilhaCls(active: boolean): string {
-  return `px-4 py-2 pointer-coarse:min-h-11 rounded-full text-sm transition-[background-color,color,transform] duration-200 active:scale-[0.97] motion-reduce:transition-none ${
+  return `px-4 py-2 pointer-coarse:min-h-11 rounded-full border text-sm transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.97] motion-reduce:transition-none ${
     active
-      ? "bg-[var(--accent)] text-white"
-      : "bg-[var(--bg-subtle)] text-[var(--fg-primary)] hover:bg-[var(--accent-subtle)]"
+      ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+      : "border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg-primary)] hover:border-[var(--fg-tertiary)]"
   }`;
 }
 
@@ -939,10 +941,10 @@ export default function OrcamentoForm({
     radioRefs.current[next]?.focus();
   };
 
-  // A caixa redonda (`.field-line`) e o rótulo lá dentro (`.ff-input`), os
-  // dois no globals.css — o foco, o erro e o enchimento vivem lá.
-  const ffInputCls =
-    "ff-input field-line w-full text-sm text-[var(--fg-primary)] focus:outline-none";
+  // A caixa (`.field-line`, no globals.css: o foco, o erro e o desenho vivem
+  // lá), na variante clara da página do orçamento — branca, de contorno fino,
+  // como as da ElevenLabs. Os anúncios ficam com a cinzenta da Apple.
+  const ffInputCls = `${CAMPO_APPLE} field-line--claro`;
   const hintCls = "mt-2 text-[12px] text-gold-text";
 
   // lg:pt-20 clears the tall at-rest navbar (≈164px logo lockup vs the global
@@ -1173,11 +1175,10 @@ export default function OrcamentoForm({
             {/* Data + Nº de pessoas */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-9">
               <div>
-                <FloatingField
+                <CampoComRotulo
                   htmlFor="of-data"
                   labelId="of-data-rotulo"
                   label={to.labelData}
-                  floatAlways
                   error={dataErr}
                   errorId="of-data-err"
                 >
@@ -1221,14 +1222,14 @@ export default function OrcamentoForm({
                       {!data && (
                         <span
                           aria-hidden
-                          className="pointer-events-none absolute bottom-[calc(0.45rem+1px)] left-[calc(0.875rem+1px)] hidden text-sm leading-5 text-[var(--fg-tertiary)] pointer-coarse:block"
+                          className="pointer-events-none absolute inset-y-0 left-[calc(0.875rem+1px)] hidden items-center text-[16px] text-[var(--fg-tertiary)] pointer-coarse:flex"
                         >
                           {to.calendario.escolher}
                         </span>
                       )}
                     </div>
                   )}
-                </FloatingField>
+                </CampoComRotulo>
                 {/* `alvo-toque`: MEDIDO a 375 px com toque emulado, 132×29 px —
                     falha a altura mínima. É o rótulo, não a caixa de 16 px lá
                     dentro, que faz de alvo (mesmo mecanismo do back office). */}
@@ -1250,7 +1251,7 @@ export default function OrcamentoForm({
                   the lead or invite a made-up one — which is worse, because the
                   proposal would then be built on it. */}
               <div>
-                <FloatingField
+                <CampoComRotulo
                   htmlFor="of-pessoas"
                   label={to.labelPessoas}
                   error={pessoasErr}
@@ -1272,7 +1273,7 @@ export default function OrcamentoForm({
                     className={`${ffInputCls} ${guestsFlexible ? "opacity-40" : ""}`}
                     placeholder={to.phPessoas}
                   />
-                </FloatingField>
+                </CampoComRotulo>
                 {/* `alvo-toque`: MEDIDO a 375 px com toque emulado, 105×29 px —
                     mesma falha e mesma correcção do rótulo da data acima. */}
                 <label className="alvo-toque mt-2.5 inline-flex items-center gap-2.5 py-1.5 min-h-[24px] cursor-pointer text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] transition-colors">
@@ -1325,7 +1326,7 @@ export default function OrcamentoForm({
             </div>
 
             {/* Local / região */}
-            <FloatingField
+            <CampoComRotulo
               htmlFor="of-local"
               label={to.labelLocal}
               error={localErr}
@@ -1344,7 +1345,7 @@ export default function OrcamentoForm({
                 className={ffInputCls}
                 placeholder={to.phLocal}
               />
-            </FloatingField>
+            </CampoComRotulo>
 
             {/* Interior ou exterior — logo a seguir ao local, porque é a mesma
                 pergunta continuada: onde é, e como é esse onde. Aparece em
@@ -1364,7 +1365,7 @@ export default function OrcamentoForm({
 
             {/* Nome + Email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-9">
-              <FloatingField
+              <CampoComRotulo
                 htmlFor="of-nome"
                 label={to.labelNome}
                 error={nomeErr}
@@ -1384,12 +1385,12 @@ export default function OrcamentoForm({
                   className={`${ffInputCls} ${nomeErr ? "border-gold/60" : ""}`}
                   placeholder={to.phNome}
                 />
-              </FloatingField>
+              </CampoComRotulo>
               {/* O email é obrigatório (decisão dela, 28/10). A dica por
                   baixo diz porque é que importa escrevê-lo bem; a sugestão
                   apanha o domínio mal escrito («gmial.com»). */}
               <div>
-                <FloatingField
+                <CampoComRotulo
                   htmlFor="of-email"
                   label={to.labelEmail}
                   required
@@ -1410,7 +1411,7 @@ export default function OrcamentoForm({
                     className={`${ffInputCls} ${emailErr ? "border-gold/60" : ""}`}
                     placeholder={to.phEmail}
                   />
-                </FloatingField>
+                </CampoComRotulo>
                 <p
                   id="of-email-hint"
                   className="mt-2 text-[12px] leading-relaxed text-[var(--fg-secondary)]"
@@ -1462,7 +1463,7 @@ export default function OrcamentoForm({
                     quem OUVE o formulário, dois campos "Nome" seguidos seriam
                     indistinguíveis, e é aí que a diferença faz falta.
                   */}
-                  <FloatingField htmlFor="of-noivo" label={to.phNoivo}>
+                  <CampoComRotulo htmlFor="of-noivo" label={to.phNoivo}>
                     <input
                       id="of-noivo"
                       type="text"
@@ -1474,8 +1475,8 @@ export default function OrcamentoForm({
                       placeholder={to.phNoivo}
                       aria-label={to.ariaNoivoA}
                     />
-                  </FloatingField>
-                  <FloatingField htmlFor="of-noiva" label={to.phNoiva}>
+                  </CampoComRotulo>
+                  <CampoComRotulo htmlFor="of-noiva" label={to.phNoiva}>
                     <input
                       id="of-noiva"
                       type="text"
@@ -1487,16 +1488,14 @@ export default function OrcamentoForm({
                       placeholder={to.phNoiva}
                       aria-label={to.ariaNoivoB}
                     />
-                  </FloatingField>
+                  </CampoComRotulo>
                 </div>
                 <p className="mt-2 text-[12px] text-[var(--fg-secondary)]">{to.hintNoivos}</p>
               </div>
             )}
 
-            {/* Telefone — a bandeira e o número (pedido dela, 30/10). Nas
-                caixas redondas, a etiqueta vive DENTRO da caixa do número
-                (`ROTULO_DENTRO_DO_TELEFONE` diz-lhe onde começar, depois da caixa da
-                bandeira) e sobe como as outras. O erro é o campo que o
+            {/* Telefone — a bandeira e o número (pedido dela, 30/10). O rótulo
+                fica por cima, como nos outros campos. O erro é o campo que o
                 escreve, porque é ele que sabe o país.
 
                 O `z-10` é para a lista dos países: cada campo deste
@@ -1504,10 +1503,10 @@ export default function OrcamentoForm({
                 que fica), e cada um é por isso uma camada própria — a do campo
                 de baixo pintava-se POR CIMA da lista aberta e comia-lhe os
                 cliques. MEDIDO no browser, a escolher o Reino Unido. */}
-            <FloatingField
+            <CampoComRotulo
               htmlFor="of-telefone"
               label={to.labelTelefone}
-              className={`z-10 ${ROTULO_DENTRO_DO_TELEFONE}`}
+              className="z-10"
             >
               <CampoTelefone
                 id="of-telefone"
@@ -1523,7 +1522,7 @@ export default function OrcamentoForm({
                 }`}
                 placeholder={to.phTelefone}
               />
-            </FloatingField>
+            </CampoComRotulo>
 
             {/* Mensagem — the field the proposal is actually built from.
                 A quote can be priced from the date and the headcount; it can
@@ -1534,7 +1533,7 @@ export default function OrcamentoForm({
                 enough to look like somewhere to write — and required, like
                 every other field, so no proposal ever starts from nothing. */}
             <div>
-              <FloatingField
+              <CampoComRotulo
                 htmlFor="of-mensagem"
                 label={to.labelMensagem}
                 error={mensagemErr}
@@ -1555,7 +1554,7 @@ export default function OrcamentoForm({
                   className={`${ffInputCls} resize-y min-h-[132px]`}
                   placeholder={to.phMensagem}
                 />
-              </FloatingField>
+              </CampoComRotulo>
               <p
                 id="of-mensagem-hint"
                 className="mt-2.5 whitespace-pre-line text-left text-pretty sm:text-justify hyphens-auto text-[12px] leading-relaxed text-[var(--fg-secondary)]"

@@ -477,6 +477,25 @@ export const pt = {
     titleMoss: "a sua ideia",
     lead: "Ouvimos a sua visão e respondemos com uma proposta à medida para o seu evento.",
     processHint: "Pedido → Proposta → Reunião",
+    // Os dois passos do formulário (ela, 30/10: o pedir orçamento ao estilo
+    // da ElevenLabs, em dois passos).
+    passoEvento: "O evento",
+    passoContacto: "O contacto",
+    continuar: "Continuar",
+    voltar: "Voltar",
+    /** «Passo 1 de 2» — só para o leitor de ecrã; quem vê, vê os tracinhos. */
+    passoDe: "Passo {n} de 2",
+    /**
+     * As três garantias do painel. Palavra por palavra o que o sítio JÁ afirma
+     * noutros lados — nada novo: o «48 horas úteis» é o do formulário das
+     * páginas do Google (`PedidoRapido`), e as outras duas são das páginas das
+     * regiões (`lib/ads/polos.ts`).
+     */
+    garantias: [
+      "Respondemos em 48 horas úteis.",
+      "Equipa e material próprios.",
+      "Visita técnica antes de qualquer encomenda.",
+    ],
     eventTypeLabels: [
       "Casamento",
       "Corporativo",
