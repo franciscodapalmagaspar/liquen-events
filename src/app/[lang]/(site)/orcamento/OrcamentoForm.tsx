@@ -27,10 +27,8 @@ import { clearSubmissionId, ensureSubmissionId } from "@/lib/orcamento/submissio
 import { assentarComMola } from "@/lib/motion/assentar";
 import CalendarioDaData from "./CalendarioDaData";
 import { sugestaoDeEmail } from "@/lib/sugestao-de-email";
-import CampoTelefone, {
-  APARENCIA_DO_SITE,
-  type AparenciaDoTelefone,
-} from "@/components/CampoTelefone";
+import CampoTelefone from "@/components/CampoTelefone";
+import { BOTAO_APPLE, ROTULO_DENTRO_DO_TELEFONE, TELEFONE_APPLE } from "@/lib/formulario-apple";
 import { telefonesJaCarregados, useEstadoDoTelefone } from "@/lib/telefone-no-browser";
 
 /**
@@ -189,35 +187,9 @@ function pastilhaCls(active: boolean): string {
   }`;
 }
 
-/**
- * O BOTÃO DE ENVIAR, à Apple: uma cápsula verde em letra normal, sem seta. É
- * daqui e não do `PRIMARY_BUTTON_CLASS`, que é o das outras páginas do sítio e
- * fica como está.
- */
-const BOTAO_APPLE =
-  "inline-flex items-center justify-center gap-2.5 rounded-full bg-[var(--accent)] px-7 py-3 text-[15px] font-medium text-white transition-[background-color,transform] duration-200 hover:bg-[var(--accent-hover)] active:scale-[0.98] motion-reduce:transition-none pointer-coarse:min-h-11";
-
 /** As ligações secundárias (o WhatsApp, o «Corrigir»): verdes, em letra normal. */
 const LIGACAO_APPLE =
   "alvo-toque pointer-fine:py-1 pointer-fine:-my-1 inline-flex items-center gap-2 text-[15px] text-[var(--accent)] hover:text-[var(--accent-hover)] hover:underline underline-offset-4 transition-colors";
-
-/**
- * O TELEMÓVEL NAS CAIXAS REDONDAS. O botão da bandeira é uma caixa igual à do
- * número — a mesma altura, o mesmo contorno, o mesmo foco (branca, contorno
- * escuro de 2 px) —, e o rótulo «Telemóvel» vive dentro da caixa do número.
- *
- * A largura do botão é FIXA para o rótulo saber onde começar: 6,5 rem chegam
- * para a bandeira, o indicativo mais comprido (três algarismos) e a seta. O
- * rótulo começa a 6,5 + 0,5 (o espaço) + 0,875 (o enchimento da caixa) rem —
- * é o `ROTULO_DO_TELEFONE`, em baixo.
- */
-const TELEFONE_DO_ORCAMENTO: AparenciaDoTelefone = {
-  ...APARENCIA_DO_SITE,
-  caixa: "relative flex items-stretch gap-2",
-  botao:
-    "inline-flex w-[6.5rem] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-sm text-[var(--fg-primary)] transition-[background-color,border-color,box-shadow] duration-200 hover:border-[var(--fg-tertiary)] aria-expanded:border-[var(--fg-secondary)] aria-expanded:bg-[var(--bg-elevated)] aria-expanded:shadow-[inset_0_0_0_1px_var(--fg-secondary)] motion-reduce:transition-none",
-};
-const ROTULO_DO_TELEFONE = "[--ff-rotulo-x:7.875rem]";
 
 /**
  * Grupo de escolha ÚNICA e OPCIONAL, em pastilhas — o mesmo desenho das outras
@@ -974,97 +946,81 @@ export default function OrcamentoForm({
   const hintCls = "mt-2 text-[12px] text-gold-text";
 
   // lg:pt-20 clears the tall at-rest navbar (≈164px logo lockup vs the global
-  // main pt-24=96px), so the left image panel starts BELOW the header instead of
-  // the logo sitting on top of the photo.
+  // main pt-24=96px), so the photo starts BELOW the header instead of the logo
+  // sitting on top of it.
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] lg:pt-20">
-      {/* ── Painel imagem (esquerda) ──
-          Palavras dela, com três capturas a descer a página: «isto não está
-          bom assim...». O painel esticava à altura da coluna do formulário
-          (~1600 px a 1440), e o título «Conte-nos a sua ideia», encostado ao
-          fundo dele, só aparecia quando se chegava ao botão de enviar — quem
-          entrava via só árvores escuras ao lado de um formulário.
+    <div className="relative min-h-screen lg:pt-20">
+      {/* ── A FOTOGRAFIA A TODA A LARGURA, E O FORMULÁRIO NUM CARTÃO ──
+          Ela (30/10), com uma captura num ecrã grande: «eu gostava de
+          melhorar imenso esta parte aqui em termos de design mas eu não sei
+          como […] isto assim não está muito bonito». Era meia página de
+          fotografia muito escura à esquerda e, à direita, o formulário
+          pequenino numa coluna de 576 px no meio de um grande vazio branco.
 
-          Passa a ter a altura do ecrã e a ficar preso (`sticky`) enquanto o
-          formulário desce. O `top` é a altura da barra do sítio já encolhida
-          (76 px, `Navbar.tsx`), que é fixa e nunca se esconde; a altura é o
-          ecrã menos essa barra, para o painel acabar no fundo do ecrã. O título
-          deixa de estar no fundo e vai para o meio (`my-auto`): à chegada, com
-          a barra ainda alta, o fundo do painel fica um pouco abaixo da dobra,
-          e o título no meio fica à vista na mesma. */}
-      <aside className="relative hidden lg:block overflow-hidden lg:sticky lg:top-[76px] lg:h-[calc(100svh-76px)] lg:self-start">
-        <Image
-          src="/imagens/DaniGui_JantarFesta_1.jpg"
-          placeholder="blur"
-          blurDataURL={panelBlur}
-          alt={t.common.imageAlt.orcamentoPanel}
-          fill
-          sizes="(max-width: 1024px) 0vw, 45vw"
-          quality={75}
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#080808] via-[#080808]/35 to-[#080808]/55" />
-        <div className="absolute inset-0 flex flex-col p-12 xl:p-16">
-          <Link
-            href={localizeHref("/", locale)}
-            // `alvo-toque`: MEDIDO a 375 px com toque emulado, 72×17 px — falha
-            // a altura mínima por mais de metade. É o único caminho de volta
-            // ao sítio a partir do painel de imagem num tablet de toque.
-            className="alvo-toque pointer-fine:py-1 pointer-fine:-my-1 text-cream/70 text-[11px] tracking-[0.3em] uppercase hover:text-cream transition-colors inline-flex items-center gap-2 w-fit"
-          >
-            ← {to.back}
-          </Link>
-          <div className="my-auto">
-            <p className="text-cream/70 text-[10px] tracking-[0.5em] uppercase mb-7 flex items-center gap-3">
-              <span className="w-6 h-px bg-gold/60 flex-shrink-0" />
-              {to.eyebrow}
-            </p>
-            {/* Decorative panel heading — the page's real <h1> lives in the
-                form column (present at every breakpoint). aria-hidden so AT
-                doesn't read the title twice on desktop. */}
-            <p
-              aria-hidden
-              className="text-cream font-bold uppercase tracking-display leading-[0.92] mb-8"
-              style={{ fontSize: "clamp(40px, 4vw, 68px)" }}
-            >
-              {to.titleLine1}
-              <br />
-              <span className="text-moss-light">{to.titleMoss}</span>
-            </p>
-            <p className="text-cream/75 text-sm leading-[1.8] max-w-xs">{to.lead}</p>
-            <p className="mt-5 text-cream/55 text-[10px] tracking-[0.28em] uppercase">
-              {to.processHint}
-            </p>
+          Passa a ser: a fotografia por trás da página inteira, mais clara (só
+          escurece do lado do título, para a letra se ler), presa enquanto se
+          desce; o título à esquerda, por cima dela; e o formulário num cartão
+          branco de cantos redondos à direita, como as folhas da Apple. Mais
+          vazio branco nenhum.
+
+          No telemóvel fica como estava — sem fotografia, o formulário é a
+          página —, e é por isso que a imagem pede `0vw` abaixo de 1024 px: o
+          telemóvel não a descarrega. */}
+      <div className="absolute inset-x-0 bottom-0 top-20 hidden lg:block">
+        <div className="sticky top-[76px] h-[calc(100svh-76px)] overflow-hidden">
+          {/* O `fill` pede um pai `relative`/`absolute` — um `sticky` dá
+              aviso —, daí esta caixa a ocupar o painel preso. */}
+          <div className="absolute inset-0">
+            <Image
+              src="/imagens/DaniGui_JantarFesta_1.jpg"
+              placeholder="blur"
+              blurDataURL={panelBlur}
+              alt={t.common.imageAlt.orcamentoPanel}
+              fill
+              sizes="(max-width: 1024px) 0vw, 100vw"
+              quality={75}
+              className="object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#080808]/70 via-[#080808]/35 to-[#080808]/10" />
           </div>
         </div>
-      </aside>
+      </div>
 
-      {/* ── Formulário (direita) ── */}
-      {/* Not a <main>: the root layout already provides the page's single <main>
-          landmark, so this stays a plain <div> to avoid a nested/duplicate one. */}
-      <div className="flex flex-col justify-center px-6 sm:px-10 lg:px-16 xl:px-24 py-16 lg:py-20">
-        <div className="w-full max-w-xl mx-auto">
-          {/* Back link — mobile only; the desktop panel has its own.
-              `alvo-toque`: MEDIDO a 375 px com toque emulado, 72×17 px (65×17
+      <div className="relative mx-auto grid max-w-[90rem] grid-cols-1 gap-8 px-6 py-16 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,34rem)] lg:px-16 lg:py-20 xl:grid-cols-[minmax(0,1fr)_minmax(0,40rem)] xl:gap-20">
+        {/* ── O título: por cima da fotografia no computador, preso enquanto o
+            cartão desce; no telemóvel, por cima do formulário. É o único <h1>
+            da página, em todos os tamanhos. */}
+        <div className="lg:sticky lg:top-[calc(76px+4rem)] lg:self-start lg:pt-4">
+          {/* `alvo-toque`: MEDIDO a 375 px com toque emulado, 72×17 px (65×17
               em inglês) — falha a altura mínima por mais de metade, e é o
               único caminho de volta ao sítio a partir do formulário no
               telemóvel. */}
-          <Link
-            href={localizeHref("/", locale)}
-            className="alvo-toque lg:hidden text-foreground/68 text-[11px] tracking-[0.3em] uppercase hover:text-moss transition-colors inline-flex items-center gap-2 mb-8"
-          >
-            ← {to.back}
-          </Link>
-          {/* The page's single <h1>: visible + styled on mobile, sr-only on
-              desktop (where the left panel shows the display title). Always in
-              the a11y tree, so heading navigation works at every breakpoint. */}
-          <h1
-            className="lg:sr-only text-foreground font-bold uppercase tracking-display leading-[0.95] mb-6"
-            style={{ fontSize: "clamp(34px, 9vw, 52px)" }}
-          >
-            {to.titleLine1} <span className="text-moss">{to.titleMoss}</span>
+          <div className="mb-8 lg:mb-14">
+            <Link
+              href={localizeHref("/", locale)}
+              className="alvo-toque pointer-fine:py-1 pointer-fine:-my-1 inline-flex w-fit items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-foreground/68 transition-colors hover:text-moss lg:text-cream/80 lg:hover:text-cream"
+            >
+              ← {to.back}
+            </Link>
+          </div>
+          <p className="mb-7 hidden items-center gap-3 text-[10px] uppercase tracking-[0.5em] text-cream/75 lg:flex">
+            <span className="h-px w-6 flex-shrink-0 bg-gold/60" />
+            {to.eyebrow}
+          </p>
+          <h1 className="text-[clamp(34px,9vw,52px)] font-bold uppercase leading-[0.95] tracking-display text-foreground lg:mb-8 lg:text-[clamp(40px,4vw,68px)] lg:leading-[0.92] lg:text-cream">
+            {to.titleLine1}{" "}
+            <span className="text-moss lg:block lg:text-moss-light">{to.titleMoss}</span>
           </h1>
+          <p className="hidden max-w-xs text-sm leading-[1.8] text-cream/85 lg:block">{to.lead}</p>
+          <p className="mt-5 hidden text-[10px] uppercase tracking-[0.28em] text-cream/70 lg:block">
+            {to.processHint}
+          </p>
+        </div>
 
+        {/* ── O cartão do formulário ──
+            Not a <main>: the root layout already provides the page's single
+            <main> landmark, so this stays a plain <div>. */}
+        <div className="lg:rounded-[28px] lg:bg-[var(--bg-elevated)] lg:p-10 lg:shadow-[0_30px_80px_-24px_rgb(8_8_8/0.55)] xl:p-12">
           <form
             onSubmit={submit}
             onFocusCapture={markStart}
@@ -1522,7 +1478,7 @@ export default function OrcamentoForm({
 
             {/* Telefone — a bandeira e o número (pedido dela, 30/10). Nas
                 caixas redondas, a etiqueta vive DENTRO da caixa do número
-                (`ROTULO_DO_TELEFONE` diz-lhe onde começar, depois da caixa da
+                (`ROTULO_DENTRO_DO_TELEFONE` diz-lhe onde começar, depois da caixa da
                 bandeira) e sobe como as outras. O erro é o campo que o
                 escreve, porque é ele que sabe o país.
 
@@ -1534,7 +1490,7 @@ export default function OrcamentoForm({
             <FloatingField
               htmlFor="of-telefone"
               label={to.labelTelefone}
-              className={`z-10 ${ROTULO_DO_TELEFONE}`}
+              className={`z-10 ${ROTULO_DENTRO_DO_TELEFONE}`}
             >
               <CampoTelefone
                 id="of-telefone"
@@ -1543,7 +1499,7 @@ export default function OrcamentoForm({
                 onBlur={() => markTouched("telefone")}
                 onChange={(v) => mudarContacto(setTelefone, v)}
                 mostrarErro={mostrarErroDoTelefone}
-                aparencia={TELEFONE_DO_ORCAMENTO}
+                aparencia={TELEFONE_APPLE}
                 classeDoBotao={mostrarErroDoTelefone && !okTelefone ? "border-gold/60!" : ""}
                 classeDoNumero={`${ffInputCls} ${
                   mostrarErroDoTelefone && !okTelefone ? "border-gold/60" : ""

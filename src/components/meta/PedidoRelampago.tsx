@@ -16,6 +16,7 @@ import {
   carregarTelefones,
   fraseDoTelefoneInvalido,
 } from "@/lib/telefone-no-browser";
+import { BOTAO_APPLE, CAMPO_APPLE, ROTULO_APPLE } from "@/lib/formulario-apple";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -132,9 +133,8 @@ export function repartirContacto(v: string): { email: string; telefone: string }
   return null;
 }
 
-const CAMPO =
-  "w-full bg-transparent border-b border-foreground/25 py-3 text-[16px] " +
-  "focus:outline-none focus:border-moss transition-colors placeholder:text-foreground/35";
+/** O campo: a caixa redonda da Apple (ela, 30/10 — ver `lib/formulario-apple.ts`). */
+const CAMPO = CAMPO_APPLE;
 /**
  * O RÓTULO DE CADA CAMPO — E PORQUE É QUE PASSOU DE `/50` PARA `/70`
  *
@@ -158,7 +158,7 @@ const CAMPO =
  * nove endereços e nenhum deles é `/s/*` nem `/orcamento`. Era por isso que
  * isto estava invisível.
  */
-const ROTULO = "block text-[10px] tracking-[0.25em] uppercase text-foreground/70 mb-1";
+const ROTULO = ROTULO_APPLE;
 
 export default function PedidoRelampago({
   locale,
@@ -377,12 +377,12 @@ export default function PedidoRelampago({
       // nativa marca o campo errado e leva lá o cursor, que é o que falta aqui.
       // O «contacto» continua a ser `type="text"` — quem o valida é o
       // `repartirContacto`, porque o campo aceita telemóvel OU email.
-      className="bg-surface px-5 py-8 sm:px-8 sm:py-10"
+      className="bg-[var(--bg-elevated)] px-5 py-8 sm:rounded-[28px] sm:px-8 sm:py-10"
     >
-      <h2 className="text-[22px] font-bold uppercase leading-tight tracking-display">
+      <h2 className="text-[24px] font-semibold leading-tight text-[var(--fg-primary)] sm:text-[26px]">
         {textos.titulo}
       </h2>
-      <p className="mt-1.5 text-[13px] text-foreground/60">{textos.subtitulo}</p>
+      <p className="mt-1.5 text-[14px] text-[var(--fg-secondary)]">{textos.subtitulo}</p>
 
       <div className="mt-7 space-y-5">
         <div>
@@ -482,7 +482,7 @@ export default function PedidoRelampago({
             explica que serve tanto um telemóvel como um email, e é a que
             desfaz a hesitação em frente ao único campo de contacto da página.
           */}
-          <p id={`${id}-contacto-ajuda`} className="mt-1.5 text-[11px] text-foreground/68">
+          <p id={`${id}-contacto-ajuda`} className="mt-1.5 text-[12px] text-[var(--fg-secondary)]">
             {textos.contactoAjuda}
           </p>
         </div>
@@ -513,11 +513,7 @@ export default function PedidoRelampago({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={aEnviar}
-        className="mt-7 w-full bg-moss px-6 py-4 text-[12px] uppercase tracking-[0.28em] text-white transition-colors hover:bg-moss-dark disabled:cursor-not-allowed disabled:opacity-40"
-      >
+      <button type="submit" disabled={aEnviar} className={`${BOTAO_APPLE} mt-7 w-full`}>
         {aEnviar ? textos.aSubmeter : textos.submeter}
       </button>
 
