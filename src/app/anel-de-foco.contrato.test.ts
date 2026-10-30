@@ -32,7 +32,8 @@ import { join } from "node:path";
  *
  *   1. que a excepção existe só no `.field-line` — a classe do formulário de
  *      orçamento, e de mais lado nenhum;
- *   2. que o SUBSTITUTO continua lá (o filete de 2 px a toda a largura);
+ *   2. que o SUBSTITUTO continua lá (desde 30/10, a caixa redonda que fica
+ *      branca e escurece o contorno; antes, o filete de 2 px);
  *   3. que o anel global continua a valer para o resto do sítio inteiro;
  *   4. que o modo de contraste forçado repõe um `outline` do sistema.
  *
@@ -62,16 +63,27 @@ describe("o anel de foco", () => {
 
   /**
    * A regra que interessa, e a razão de este ficheiro não ser só cosmético:
-   * a excepção só é legítima porque há substituto. Se alguém apagar o filete,
-   * a excepção passa a ser um `outline: none` nu — o que a Parte 18 proíbe.
+   * a excepção só é legítima porque há substituto. Se alguém o apagar, a
+   * excepção passa a ser um `outline: none` nu — o que a Parte 18 proíbe.
+   *
+   * O substituto mudou a 30/10 («coloca tudo do formulário em design de
+   * apple»): era um filete moss de 2 px que se desenhava por baixo; passou a
+   * ser a caixa redonda a ficar branca, com o contorno a escurecer e a
+   * engrossar. E continua a NÃO ser verde — foi o verde à volta que ela pediu
+   * para tirar.
    */
   it("e só porque o campo tem indicador PRÓPRIO, que continua lá", () => {
+    const foco = codigo.match(/\.field-line:focus\s*\{([^}]*)\}/)?.[1] ?? "";
     expect(
-      /\.field-line:focus\s*\{\s*background-size:\s*100%\s+2px/.test(codigo),
-      "o filete de foco do campo desapareceu — a excepção ao anel ficou sem substituto",
+      /border-color:\s*var\(--fg-secondary\)/.test(foco),
+      "o campo focado deixou de escurecer o contorno — a excepção ao anel ficou sem substituto",
     ).toBe(true);
-    // E o filete é moss, não uma cor qualquer que se perca no fundo.
-    expect(/\.field-line\s*\{[^}]*linear-gradient\(var\(--color-moss\)/.test(codigo)).toBe(true);
+    expect(
+      /box-shadow:\s*inset/.test(foco),
+      "o contorno do campo focado deixou de engrossar (a sombra interior)",
+    ).toBe(true);
+    expect(/background-color:\s*var\(--bg-elevated\)/.test(foco)).toBe(true);
+    expect(/moss|--accent/.test(foco), "o foco do campo voltou a ser verde").toBe(false);
   });
 
   it("e o contraste forçado repõe um anel do sistema, também no campo", () => {

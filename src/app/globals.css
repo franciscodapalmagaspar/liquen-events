@@ -1374,24 +1374,43 @@ body:has([data-orcamento-mode]) .scroll-progress {
   display: none !important;
 }
 
-/* ── Orçamento form: refined, ultra-minimal field + entrance details ──
-   A hairline moss underline that DRAWS IN left→right on focus (over the resting
-   border), and a subtle staggered fade/rise for the fields on load. Motion is
-   opacity/transform + a 2px background line only — no layout shift, negligible
-   cost — and the entrance is gated behind prefers-reduced-motion. */
-.field-line {
-  background-image: linear-gradient(var(--color-moss), var(--color-moss));
-  background-repeat: no-repeat;
-  background-position: left bottom;
-  background-size: 0% 2px;
-  /* Mesma avaria do `.lift`: o filete desenhava-se na assinatura e a borda
-     acompanhava em `ease`. Duas curvas no mesmo gesto de focar um campo. */
-  transition:
-    background-size 0.4s var(--ease-out),
-    border-color 0.3s var(--ease-out);
-}
-.field-line:focus {
-  background-size: 100% 2px;
+/* ── Os campos do orçamento: CAIXAS REDONDAS, à Apple ──
+   Ela (30/10): «coloca tudo do formulário em design de apple», e escolheu as
+   caixas redondas do apple.com (a da Conta Apple, a do checkout): cada campo é
+   uma caixa cinzenta-clara de cantos redondos, com o rótulo lá dentro, que
+   sobe e encolhe quando se escreve. Era um sublinhado com um filete moss que
+   se desenhava da esquerda para a direita ao focar.
+
+   O FOCO continua a ter indicador próprio — é o que deixa o anel genérico
+   sair daqui (ver logo abaixo) —, e continua a não ser verde: a caixa passa a
+   branca e o contorno escurece e engrossa para 2 px (o segundo píxel é uma
+   sombra INTERIOR, para nada mudar de sítio). Contorno #c3ccc3 → #596959 e
+   fundo #eef1ee → #fff: o campo focado lê-se de longe, sem halo à volta.
+
+   Numa camada, de propósito: o erro (`border-gold/60`) é um utilitário e
+   tem de ganhar à caixa. O `outline: none` lá de baixo é que fica SEM camada,
+   porque tem de ganhar ao `:focus-visible` global, que também não tem. */
+@layer components {
+  .field-line {
+    border: 1px solid var(--border-strong);
+    border-radius: 0.75rem;
+    background-color: var(--bg-subtle);
+    transition:
+      background-color 0.2s var(--ease-out),
+      border-color 0.2s var(--ease-out),
+      box-shadow 0.2s var(--ease-out);
+  }
+  .field-line:hover {
+    border-color: var(--fg-tertiary);
+  }
+  .field-line:focus {
+    background-color: var(--bg-elevated);
+    border-color: var(--fg-secondary);
+    box-shadow: inset 0 0 0 1px var(--fg-secondary);
+  }
+  .field-line:disabled {
+    cursor: not-allowed;
+  }
 }
 /* ══════════════════════════════════════════════════════════════════════════
    E O ANEL GENÉRICO SAI DAQUI — PORQUE ESTE CAMPO JÁ TEM O SEU
@@ -1430,10 +1449,10 @@ body:has([data-orcamento-mode]) .scroll-progress {
    a Parte 18 do `docs/DESIGN-SYSTEM.md` exige — um substituto —, e é mais
    forte do que o anel que sai:
 
-     · o filete de 2px em moss a toda a largura do campo (`.field-line:focus`,
-       logo acima, cujo próprio comentário diz «é um indicador de foco e nunca
-       pode desaparecer (WCAG 2.4.7)»);
-     · a borda de baixo a passar de `foreground/45` para moss sólido;
+     · (desde 30/10, com as caixas redondas) a caixa a passar de cinzenta a
+       branca, com o contorno a escurecer e a engrossar para 2 px
+       (`.field-line:focus`, logo acima) — é um indicador de foco e nunca pode
+       desaparecer (WCAG 2.4.7);
      · a etiqueta flutuante a subir.
 
    Três sinais, e nenhum deles é o quadrado de que ela se queixa.
@@ -1456,40 +1475,75 @@ body:has([data-orcamento-mode]) .scroll-progress {
     outline-offset: 2px;
   }
 }
-/* Movimento reduzido: o filete continua a APARECER a toda a largura — é um
-   indicador de foco e nunca pode desaparecer (WCAG 2.4.7) —, só deixa de se
-   desenhar da esquerda para a direita. */
+/* Movimento reduzido: a caixa continua a MUDAR ao focar — é um indicador de
+   foco e nunca pode desaparecer (WCAG 2.4.7) —, só deixa de o fazer devagar. */
 @media (prefers-reduced-motion: reduce) {
   .field-line {
     transition: none;
   }
 }
 
-/* ── Floating labels (orçamento) ──
-   The label rests inside the field like a placeholder, then floats up + shrinks
-   to the small uppercase micro-label on focus or once the field has a value
-   (detected with :placeholder-shown via :has). The real example placeholder is
-   hidden until focus so it never collides with the resting label. `.ff--float`
-   forces the floated state for controls where :placeholder-shown is unreliable
-   (the native date input). Transform/opacity only — cheap, no layout shift. */
+/* ── A caixa de marcar (orçamento): o quadrado redondo da Apple ──
+   «Data ainda a definir», «Ainda a definir». Continua a ser um `checkbox` (o
+   leitor de ecrã e os passeios não mudam); só o desenho é nosso: um quadrado
+   de 18 px de cantos redondos, contorno de 3:1, e marcado fica verde com o ✓
+   branco. O alvo de toque é o rótulo inteiro (`alvo-toque`), não o quadrado. */
+.caixa-de-marcar {
+  appearance: none;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1.5px solid var(--fg-tertiary);
+  border-radius: 5px;
+  background: var(--bg-elevated) center / 12px 12px no-repeat;
+  cursor: pointer;
+  transition:
+    background-color 0.15s var(--ease-out),
+    border-color 0.15s var(--ease-out);
+}
+.caixa-de-marcar:checked {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.25 5 8.75l4.5-5.5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+@media (forced-colors: active) {
+  .caixa-de-marcar {
+    appearance: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .caixa-de-marcar {
+    transition: none;
+  }
+}
+
+/* ── O rótulo dentro da caixa (orçamento) ──
+   Em repouso, o rótulo está ao meio da caixa como um texto de exemplo; ao
+   focar, ou quando já há valor (`:placeholder-shown` pelo `:has`), sobe para
+   o canto de cima e encolhe — em letra normal, como no apple.com (era em
+   maiúsculas espaçadas). O exemplo verdadeiro só aparece ao focar, para não
+   chocar com o rótulo. `.ff--float` força o estado de cima nos controlos em
+   que o `:placeholder-shown` não serve (a data). Só `transform` e cor.
+
+   `--ff-rotulo-x` é onde o rótulo começa: o enchimento da caixa, ou, no
+   telemóvel, depois do botão da bandeira (o rótulo vive na caixa do número). */
 .ff {
   position: relative;
 }
 .ff-input {
-  padding-top: 1.3rem;
-  padding-bottom: 0.35rem;
+  padding: 1.45rem 0.875rem 0.45rem;
 }
 .ff-label {
   position: absolute;
-  left: 0;
-  top: 1.3rem;
+  left: var(--ff-rotulo-x, 0.875rem);
+  top: 1.2rem;
   font-size: 0.875rem;
   line-height: 1;
-  color: color-mix(in srgb, var(--color-foreground) 42%, transparent);
+  color: var(--fg-secondary);
   pointer-events: none;
   transform-origin: left center;
   white-space: nowrap;
-  /* A etiqueta sobe na assinatura; a cor acompanhava em `ease`. Convergidas. */
   transition:
     transform 0.3s var(--ease-out),
     color 0.3s var(--ease-out);
@@ -1497,19 +1551,14 @@ body:has([data-orcamento-mode]) .scroll-progress {
 .ff:has(.ff-input:focus) .ff-label,
 .ff:has(.ff-input:not(:placeholder-shown)) .ff-label,
 .ff--float .ff-label {
-  /* Small, quiet, gray micro-label (Apple-like) — the moss accent stays on the
-     underline, not the label. */
-  transform: translateY(-1.3rem) scale(0.7);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-foreground) 50%, transparent);
+  transform: translateY(-0.7rem) scale(0.75);
 }
-/* Hide the example placeholder until focus so only the resting label shows. */
+/* O exemplo só aparece ao focar, para nunca chocar com o rótulo em repouso. */
 .ff-input::placeholder {
   color: transparent;
 }
 .ff-input:focus::placeholder {
-  color: color-mix(in srgb, var(--color-foreground) 40%, transparent);
+  color: var(--fg-placeholder);
 }
 @media (prefers-reduced-motion: reduce) {
   .ff-label {

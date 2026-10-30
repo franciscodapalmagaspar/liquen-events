@@ -6,10 +6,16 @@ import { track } from "@/lib/track";
 import { lerClique, serializar } from "@/lib/ads/click-id";
 import { LEAD_SOURCE_KEY } from "@/components/LeadSourceCapture";
 import { localizeHref, type Locale } from "@/lib/i18n/config";
-import { PRIMARY_BUTTON_CLASS } from "@/lib/ui-classes";
 import { clearSubmissionId, ensureSubmissionId } from "@/lib/orcamento/submission-id";
 import CampoTelefone from "@/components/CampoTelefone";
 import { carregarTelefones } from "@/lib/telefone-no-browser";
+import {
+  BOTAO_APPLE,
+  CAMPO_APPLE,
+  CARTAO_APPLE,
+  ROTULO_APPLE,
+  TELEFONE_APPLE,
+} from "@/lib/formulario-apple";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -113,9 +119,8 @@ function lerOrigem(): string {
   }
 }
 
-const CAMPO =
-  "w-full bg-transparent border-b border-foreground/20 py-2.5 text-[15px] " +
-  "focus:outline-none focus:border-moss transition-colors placeholder:text-foreground/35";
+/** O campo: a caixa redonda da Apple (ela, 30/10 — ver `lib/formulario-apple.ts`). */
+const CAMPO = CAMPO_APPLE;
 /**
  * O RÓTULO DE CADA CAMPO — E PORQUE É QUE PASSOU DE `/50` PARA `/70`
  *
@@ -139,7 +144,7 @@ const CAMPO =
  * nove endereços e nenhum deles é `/s/*` nem `/orcamento`. Era por isso que
  * isto estava invisível.
  */
-const ROTULO = "block text-[10px] tracking-[0.25em] uppercase text-foreground/70 mb-1";
+const ROTULO = ROTULO_APPLE;
 
 export default function PedidoRapido({
   locale,
@@ -301,12 +306,12 @@ export default function PedidoRapido({
       // desligar a do browser deixava o email sem TLD ou o nome vazio irem até
       // ao servidor para voltarem como um erro genérico no fundo do ecrã. A
       // nativa marca o campo errado e leva lá o cursor, que é o que falta aqui.
-      className={`bg-surface/95 backdrop-blur-sm p-6 sm:p-8 shadow-xl shadow-black/10 ${className}`}
+      className={`${CARTAO_APPLE} p-6 sm:p-8 ${className}`}
     >
-      <h2 className="text-[22px] sm:text-[26px] font-bold tracking-display uppercase leading-tight">
+      <h2 className="text-[24px] font-semibold leading-tight text-[var(--fg-primary)] sm:text-[26px]">
         {textos.titulo}
       </h2>
-      <p className="mt-1.5 text-[13px] text-foreground/60">{textos.subtitulo}</p>
+      <p className="mt-1.5 text-[14px] text-[var(--fg-secondary)]">{textos.subtitulo}</p>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
         <div>
@@ -374,7 +379,9 @@ export default function PedidoRapido({
             className={CAMPO}
           />
         </div>
-        <div>
+        {/* O email e o telemóvel numa linha cada um: a caixa da bandeira tem
+            largura fixa, e a meia coluna deixava o número com 76 px. */}
+        <div className="sm:col-span-2">
           <label className={ROTULO} htmlFor={`${id}-email`}>
             {textos.email}
           </label>
@@ -387,10 +394,10 @@ export default function PedidoRapido({
             className={CAMPO}
           />
         </div>
-        <div>
+        <div className="sm:col-span-2">
           <label className={ROTULO} htmlFor={`${id}-telefone`}>
             {textos.telefone}{" "}
-            <span className="normal-case tracking-normal text-foreground/35">
+            <span className="font-normal text-[var(--fg-tertiary)]">
               ({textos.telefoneOpcional})
             </span>
           </label>
@@ -401,7 +408,7 @@ export default function PedidoRapido({
             value={telefone}
             onChange={setTelefone}
             mostrarErro={mostrarErroDoTelefone}
-            classeDoBotao="border-b border-foreground/20 py-2.5 text-[15px]"
+            aparencia={TELEFONE_APPLE}
             classeDoNumero={CAMPO}
             locale={locale}
           />
@@ -434,11 +441,7 @@ export default function PedidoRapido({
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={aEnviar}
-        className={`${PRIMARY_BUTTON_CLASS} mt-6 w-full justify-center`}
-      >
+      <button type="submit" disabled={aEnviar} className={`${BOTAO_APPLE} mt-6 w-full`}>
         {aEnviar ? textos.aSubmeter : textos.submeter}
       </button>
 

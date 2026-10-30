@@ -247,7 +247,10 @@ test.describe("o formulário de quatro campos", () => {
     await page.waitForURL(/orcamento\/confirmacao/);
 
     const form = (corpo as unknown as { form: Record<string, string> }).form;
-    expect(form.phone).toBe("919 259 820");
+    // Desde o #315 (30/10) o número segue no formato internacional (E.164):
+    // é conferido com as regras de Portugal antes de sair, e é assim que fica
+    // gravado.
+    expect(form.phone).toBe("+351919259820");
     expect(form.email).toBe("");
     expect(form.eventType).toBe("casamentos");
     expect(form.location).toBe("Herdade de teste");
