@@ -59,6 +59,8 @@ import { BOTAO_APPLE, CAMPO_APPLE, ROTULO_APPLE } from "@/lib/formulario-apple";
  */
 
 export interface TextosRelampago {
+  /** O que a data vazia diz no toque (o iPhone não escreve nada lá dentro). */
+  escolherData: string;
   titulo: string;
   subtitulo: string;
   data: string;
@@ -80,6 +82,7 @@ export const RELAMPAGO_PT: TextosRelampago = {
   titulo: "Pedir orçamento",
   subtitulo: "Quatro campos. Respondemos em 48 horas úteis.",
   data: "Data do casamento",
+  escolherData: "Escolher a data",
   local: "Onde",
   localPlaceholder: "Quinta, herdade ou localidade",
   contacto: "Contacto",
@@ -98,6 +101,7 @@ export const RELAMPAGO_EN: TextosRelampago = {
   titulo: "Request a quote",
   subtitulo: "Four fields. We reply within two working days.",
   data: "Wedding date",
+  escolherData: "Choose a date",
   local: "Where",
   localPlaceholder: "Venue, estate or town",
   contacto: "Contact",
@@ -178,6 +182,8 @@ export default function PedidoRelampago({
   // quem escrevia um email sem TLD lia «Não foi possível enviar» e voltava a
   // carregar no botão para sempre, sem saber que campo corrigir.
   const [erro, setErro] = useState("");
+  // A data vazia diz «Escolher a data» no toque (ver o campo, lá em baixo).
+  const [temData, setTemData] = useState(false);
   const comecouRef = useRef(false);
   const textosDoTelefone = useTranslationsSeHouver()?.t.common.campoTelefone ?? TEXTOS_DE_RECURSO;
 
@@ -389,23 +395,37 @@ export default function PedidoRelampago({
           <label className={ROTULO} htmlFor={`${id}-data`}>
             {textos.data}
           </label>
-          <input
-            id={`${id}-data`}
-            name="data"
-            type="date"
-            required
-            className={CAMPO}
-            // Achado n.º 12: sem `min`, aceitava datas passadas. Posto ao
-            // tocar no campo e não no desenho: a página é pré-gerada, e um
-            // `min` do servidor seria o dia da compilação. É o dia DE QUEM
-            // PREENCHE, como no formulário do site.
-            onFocus={(e) => {
-              const agora = new Date();
-              const mes = String(agora.getMonth() + 1).padStart(2, "0");
-              const dia = String(agora.getDate()).padStart(2, "0");
-              e.currentTarget.min = `${agora.getFullYear()}-${mes}-${dia}`;
-            }}
-          />
+          {/* O iPhone não escreve nada numa data vazia: era uma caixa em
+              branco. Vazia e no toque, diz «Escolher a data». Só no toque: no
+              computador escreve-se a data à mão e os números têm de se ver. */}
+          <div className="relative">
+            <input
+              id={`${id}-data`}
+              name="data"
+              type="date"
+              required
+              className={`${CAMPO} ${temData ? "" : "pointer-coarse:text-transparent"}`}
+              onChange={(e) => setTemData(e.currentTarget.value !== "")}
+              // Achado n.º 12: sem `min`, aceitava datas passadas. Posto ao
+              // tocar no campo e não no desenho: a página é pré-gerada, e um
+              // `min` do servidor seria o dia da compilação. É o dia DE QUEM
+              // PREENCHE, como no formulário do site.
+              onFocus={(e) => {
+                const agora = new Date();
+                const mes = String(agora.getMonth() + 1).padStart(2, "0");
+                const dia = String(agora.getDate()).padStart(2, "0");
+                e.currentTarget.min = `${agora.getFullYear()}-${mes}-${dia}`;
+              }}
+            />
+            {!temData && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 left-[calc(0.875rem+1px)] hidden items-center text-[16px] text-[var(--fg-tertiary)] pointer-coarse:flex"
+              >
+                {textos.escolherData}
+              </span>
+            )}
+          </div>
         </div>
         <div>
           <label className={ROTULO} htmlFor={`${id}-local`}>
