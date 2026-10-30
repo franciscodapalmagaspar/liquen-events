@@ -1,0 +1,163 @@
+{
+  "url": "https://liquen-events.com/",
+  "quando": "2026-10-30T23:46:17.807Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 10
+    },
+    "maquina_benchmarkIndex": 2980
+  },
+  "notas": {
+    "performance": 75,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 1332.029,
+    "largest-contentful-paint": 2876.029,
+    "speed-index": 4769.218774067083,
+    "total-blocking-time": 670,
+    "cumulative-layout-shift": 0,
+    "interactive": 3630.529,
+    "total-byte-weight": 8275487,
+    "mainthread-work-breakdown": 5723.320000000018,
+    "bootup-time": 2058.2900000000036
+  },
+  "elementoLCP": "<span class=\"block \">",
+  "maioresPedidos": [
+    {
+      "url": "https://liquen-events.com/videos/entrada/v6/entrada-1-retrato.mp4",
+      "kB": 7013
+    },
+    {
+      "url": "https://liquen-events.com/_img/EW1_1332-1080.avif",
+      "kB": 72
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/2jqd0dpb7brv_.js",
+      "kB": 66
+    },
+    {
+      "url": "https://liquen-events.com/",
+      "kB": 64
+    },
+    {
+      "url": "https://liquen-events.com/_img/DJI_20250913190635_0120_D-1080.avif",
+      "kB": 64
+    },
+    {
+      "url": "https://liquen-events.com/_img/JOAO_E_PEDRO_1Y1A4472-1080.avif",
+      "kB": 51
+    },
+    {
+      "url": "https://liquen-events.com/_img/EW1_1330-1080.avif",
+      "kB": 48
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/media/07c7676b89ed2778.p.45535valc9rzk.woff2",
+      "kB": 48
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/01msv9ym379u0.js",
+      "kB": 44
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/media/9d036f80216c14ee.p.2r-cuu_7locvx.woff2",
+      "kB": 39
+    }
+  ],
+  "falhas": [
+    {
+      "id": "largest-contentful-paint",
+      "titulo": "Largest Contentful Paint",
+      "nota": 0.81,
+      "valor": "2.9 s"
+    },
+    {
+      "id": "speed-index",
+      "titulo": "Speed Index",
+      "nota": 0.67,
+      "valor": "4.8 s"
+    },
+    {
+      "id": "total-blocking-time",
+      "titulo": "Total Blocking Time",
+      "nota": 0.44,
+      "valor": "670 ms"
+    },
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.05,
+      "valor": "570 ms"
+    },
+    {
+      "id": "mainthread-work-breakdown",
+      "titulo": "Minimize main-thread work",
+      "nota": 0,
+      "valor": "5.7 s"
+    },
+    {
+      "id": "bootup-time",
+      "titulo": "Reduce JavaScript execution time",
+      "nota": 0,
+      "valor": "2.1 s"
+    },
+    {
+      "id": "largest-contentful-paint-element",
+      "titulo": "Largest Contentful Paint element",
+      "nota": 0,
+      "valor": "2,880 ms"
+    },
+    {
+      "id": "total-byte-weight",
+      "titulo": "Avoid enormous network payloads",
+      "nota": 0.5,
+      "valor": "Total size was 8,082 KiB"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0,
+      "valor": "Est savings of 25 KiB"
+    },
+    {
+      "id": "uses-responsive-images",
+      "titulo": "Properly size images",
+      "nota": 0.5,
+      "valor": "Est savings of 80 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 14 KiB"
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0,
+      "valor": "Est savings of 232 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 14 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}
