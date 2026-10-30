@@ -126,6 +126,10 @@ export interface AparenciaDoTelefone {
   botao: string;
   /** A caixa que se abre por baixo. */
   lista: string;
+  /** A caixa à volta da procura (onde se senta a lupa). */
+  procuraCaixa: string;
+  /** A lupa, à esquerda, dentro da procura. */
+  lupa: string;
   procura: string;
   opcoes: string;
   opcao: string;
@@ -133,30 +137,56 @@ export interface AparenciaDoTelefone {
   opcaoInactiva: string;
   indicativo: string;
   indicativoActivo: string;
+  /** O ✓ do país escolhido, no lugar do negrito (o menu da Apple faz assim). */
+  visto: string;
+  vistoActivo: string;
+  /** O fio entre os mais usados e o resto do mundo. */
+  separador: string;
   semResultados: string;
   erro: string;
 }
 
 /**
- * O site: sublinhado, sem caixa, com os tokens do site. As cores dos textos
- * secundários estão a `/70` pela conta que o `PedidoRapido` já fez (`/50` dava
- * 3,09:1 sobre branco; `/70` dá 5,4:1).
+ * O site, com o desenho de um menu da Apple (pedido dela, 30/10: «coloca em
+ * design de apple», com a lista aberta à frente): um cartão de cantos
+ * redondos que flutua com sombra, a procura numa pastilha cinzenta com a
+ * lupa, linhas redondas com o realce suave do iOS, e o ✓ no país escolhido
+ * em vez do negrito.
+ *
+ * As cores são os tokens de função do `globals.css` (`--bg-*`, `--fg-*`,
+ * `--accent*`, `--shadow-overlay`) — nenhuma família nova. O texto de apoio é
+ * `--fg-secondary` (5,9:1 sobre branco; 5,2:1 sobre `--bg-subtle`).
+ *
+ * Opaco e sem desfoque, de propósito: um `backdrop-filter` por cima de um
+ * formulário que sobe é trabalho para a placa gráfica a cada fotograma, e o
+ * pedido anterior dela foi o site fluido.
  */
 export const APARENCIA_DO_SITE: AparenciaDoTelefone = {
   caixa: "relative flex items-end gap-3",
   botao:
     "inline-flex shrink-0 cursor-pointer items-center gap-1.5 bg-transparent text-foreground transition-colors hover:border-moss focus:border-moss",
   lista:
-    "absolute left-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw_-_2rem)] border border-foreground/15 bg-surface shadow-xl shadow-black/10",
+    "absolute left-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw_-_2rem)] origin-top-left " +
+    "rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-1.5 " +
+    "shadow-[var(--shadow-overlay)] motion-safe:animate-[fade-in_160ms_var(--ease-out)]",
+  procuraCaixa: "relative mb-1.5",
+  lupa: "pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--fg-secondary)]",
   procura:
-    "w-full border-b border-foreground/15 bg-transparent px-3 py-2.5 text-base text-foreground placeholder:text-foreground/70 focus:outline-none sm:text-sm",
-  opcoes: "max-h-64 overflow-y-auto overscroll-contain py-1",
-  opcao: "flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm",
-  opcaoActiva: "bg-moss/10 text-foreground",
-  opcaoInactiva: "text-foreground",
-  indicativo: "ml-auto pl-2 tabular-nums text-foreground/70",
-  indicativoActivo: "ml-auto pl-2 tabular-nums text-foreground",
-  semResultados: "px-3 py-3 text-sm text-foreground/70",
+    "w-full rounded-lg border-0 bg-[var(--bg-subtle)] py-2 pl-8 pr-3 text-base text-[var(--fg-primary)] " +
+    "placeholder:text-[var(--fg-secondary)] focus:outline-none focus-visible:ring-2 " +
+    "focus-visible:ring-[var(--focus-ring)]/40 sm:text-sm",
+  opcoes: "max-h-72 overflow-y-auto overscroll-contain",
+  opcao:
+    "flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm pointer-coarse:min-h-11",
+  opcaoActiva: "bg-[var(--accent-subtle)] text-[var(--fg-primary)]",
+  opcaoInactiva: "text-[var(--fg-primary)]",
+  indicativo: "ml-auto pl-2 tabular-nums text-[var(--fg-secondary)]",
+  indicativoActivo: "ml-auto pl-2 tabular-nums text-[var(--fg-secondary)]",
+  visto: "text-[var(--accent)]",
+  vistoActivo: "text-[var(--accent)]",
+  separador:
+    "relative mt-2 before:absolute before:inset-x-2.5 before:-top-1 before:h-px before:bg-[var(--border)]",
+  semResultados: "px-2.5 py-3 text-sm text-[var(--fg-secondary)]",
   erro: "mt-2 text-[11px] tracking-wide text-gold-text",
 };
 
@@ -561,28 +591,52 @@ export default function CampoTelefone({
 
         {aberto && (
           <div className={aparencia.lista}>
-            <input
-              ref={procuraRef}
-              type="text"
-              role="combobox"
-              aria-expanded="true"
-              aria-controls={idDaLista}
-              aria-autocomplete="list"
-              aria-activedescendant={
-                opcoes[activaSegura] ? `${id}-pais-${opcoes[activaSegura].pais}` : undefined
-              }
-              aria-label={textos.procurar}
-              placeholder={textos.procurar}
-              autoComplete="off"
-              spellCheck={false}
-              value={procura}
-              onChange={(e) => {
-                setProcura(e.target.value);
-                setActiva(0);
-              }}
-              onKeyDown={teclaNaProcura}
-              className={aparencia.procura}
-            />
+            <div className={aparencia.procuraCaixa}>
+              <svg
+                aria-hidden="true"
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                className={aparencia.lupa}
+              >
+                <circle
+                  cx="6"
+                  cy="6"
+                  r="4.25"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+                <path
+                  d="m9.25 9.25 3 3"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <input
+                ref={procuraRef}
+                type="text"
+                role="combobox"
+                aria-expanded="true"
+                aria-controls={idDaLista}
+                aria-autocomplete="list"
+                aria-activedescendant={
+                  opcoes[activaSegura] ? `${id}-pais-${opcoes[activaSegura].pais}` : undefined
+                }
+                aria-label={textos.procurar}
+                placeholder={textos.procurar}
+                autoComplete="off"
+                spellCheck={false}
+                value={procura}
+                onChange={(e) => {
+                  setProcura(e.target.value);
+                  setActiva(0);
+                }}
+                onKeyDown={teclaNaProcura}
+                className={aparencia.procura}
+              />
+            </div>
             <ul
               ref={listaRef}
               id={idDaLista}
@@ -608,8 +662,8 @@ export default function CampoTelefone({
                       activaAqui ? aparencia.opcaoActiva : aparencia.opcaoInactiva
                     } ${
                       // O fio entre os mais usados e o resto do mundo.
-                      !procura && i === PAISES_FIXADOS.length ? "border-t border-foreground/10" : ""
-                    } ${o.pais === campo.pais ? "font-semibold" : ""}`}
+                      !procura && i === PAISES_FIXADOS.length ? aparencia.separador : ""
+                    }`}
                   >
                     {src ? (
                       // eslint-disable-next-line @next/next/no-img-element -- ver o botão
@@ -629,6 +683,29 @@ export default function CampoTelefone({
                       className={activaAqui ? aparencia.indicativoActivo : aparencia.indicativo}
                     >
                       +{o.indicativo}
+                    </span>
+                    {/* O ✓ do escolhido, numa coluna fixa para os indicativos
+                        ficarem alinhados (o `aria-selected` diz o mesmo ao
+                        leitor de ecrã). */}
+                    <span aria-hidden="true" className="flex w-4 shrink-0 justify-end">
+                      {o.pais === campo.pais && (
+                        <svg
+                          data-visto=""
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                          className={activaAqui ? aparencia.vistoActivo : aparencia.visto}
+                        >
+                          <path
+                            d="M2.5 6.25 5 8.75l4.5-5.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
                     </span>
                   </li>
                 );

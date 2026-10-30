@@ -187,6 +187,18 @@ describe("CampoTelefone — a lista, ao teclado", () => {
     expect(botao()).toHaveAccessibleName("País do número: Suíça (+41)");
   });
 
+  it("o escolhido leva o ✓ (o desenho da Apple), e só ele", async () => {
+    render(<Pai />);
+    fireEvent.click(botao());
+    await screen.findByRole("combobox");
+    const vistos = screen
+      .getAllByRole("option")
+      .filter((o) => o.querySelector("[data-visto]") !== null);
+    expect(vistos).toHaveLength(1);
+    expect(vistos[0]).toHaveTextContent("Portugal");
+    expect(vistos[0]).toHaveAttribute("aria-selected", "true");
+  });
+
   it("procura pelo indicativo", async () => {
     render(<Pai />);
     fireEvent.click(botao());
