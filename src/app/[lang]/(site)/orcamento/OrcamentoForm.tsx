@@ -9,7 +9,6 @@ import { waHref } from "@/data";
 import { useTranslations } from "@/components/LocaleProvider";
 import { localizeHref } from "@/lib/i18n/config";
 import type { Dict } from "@/lib/i18n";
-import { PRIMARY_BUTTON_CLASS } from "@/lib/ui-classes";
 import { track } from "@/lib/track";
 import { LEAD_SOURCE_KEY } from "@/components/LeadSourceCapture";
 import { lerClique, serializar } from "@/lib/ads/click-id";
@@ -28,7 +27,10 @@ import { clearSubmissionId, ensureSubmissionId } from "@/lib/orcamento/submissio
 import { assentarComMola } from "@/lib/motion/assentar";
 import CalendarioDaData from "./CalendarioDaData";
 import { sugestaoDeEmail } from "@/lib/sugestao-de-email";
-import CampoTelefone from "@/components/CampoTelefone";
+import CampoTelefone, {
+  APARENCIA_DO_SITE,
+  type AparenciaDoTelefone,
+} from "@/components/CampoTelefone";
 import { telefonesJaCarregados, useEstadoDoTelefone } from "@/lib/telefone-no-browser";
 
 /**
@@ -154,7 +156,7 @@ function FloatingField({
         )}
       </label>
       {error && errorId && (
-        <p id={errorId} role="alert" className="mt-2 text-[11px] tracking-wide text-gold-text">
+        <p id={errorId} role="alert" className="mt-2 text-[12px] text-gold-text">
           {error}
         </p>
       )}
@@ -164,9 +166,58 @@ function FloatingField({
 
 /** A legenda de uma secção do formulário. Ao nível do módulo (e já não dentro
  *  do componente) para que `EscolhaUnica`, aqui abaixo, use exactamente a mesma
- *  — duas legendas parecidas mas diferentes notam-se logo. */
-const labelCls =
-  "block text-[10.5px] font-medium text-foreground/70 tracking-[0.16em] uppercase mb-3 transition-colors duration-300 group-focus-within:text-moss-dark";
+ *  — duas legendas parecidas mas diferentes notam-se logo.
+ *
+ *  Em letra normal e a negrito, como os títulos de secção da Apple (ela, 30/10:
+ *  «coloca tudo do formulário em design de apple»). Eram maiúsculas pequenas e
+ *  espaçadas. */
+const labelCls = "block text-[15px] font-semibold text-[var(--fg-primary)] mb-3";
+
+/** As ajudas por baixo de um título ou de um campo. */
+const ajudaCls = "text-[13px] leading-relaxed text-[var(--fg-secondary)]";
+
+/**
+ * AS PASTILHAS, à Apple: cápsulas cinzentas em letra normal; a escolhida, verde
+ * com letra branca (6,2:1). Um desenho só para as quatro filas do formulário —
+ * eram três cópias do mesmo texto de classes, e a quarta já tinha divergido.
+ */
+function pastilhaCls(active: boolean): string {
+  return `px-4 py-2 pointer-coarse:min-h-11 rounded-full text-sm transition-[background-color,color,transform] duration-200 active:scale-[0.97] motion-reduce:transition-none ${
+    active
+      ? "bg-[var(--accent)] text-white"
+      : "bg-[var(--bg-subtle)] text-[var(--fg-primary)] hover:bg-[var(--accent-subtle)]"
+  }`;
+}
+
+/**
+ * O BOTÃO DE ENVIAR, à Apple: uma cápsula verde em letra normal, sem seta. É
+ * daqui e não do `PRIMARY_BUTTON_CLASS`, que é o das outras páginas do sítio e
+ * fica como está.
+ */
+const BOTAO_APPLE =
+  "inline-flex items-center justify-center gap-2.5 rounded-full bg-[var(--accent)] px-7 py-3 text-[15px] font-medium text-white transition-[background-color,transform] duration-200 hover:bg-[var(--accent-hover)] active:scale-[0.98] motion-reduce:transition-none pointer-coarse:min-h-11";
+
+/** As ligações secundárias (o WhatsApp, o «Corrigir»): verdes, em letra normal. */
+const LIGACAO_APPLE =
+  "alvo-toque pointer-fine:py-1 pointer-fine:-my-1 inline-flex items-center gap-2 text-[15px] text-[var(--accent)] hover:text-[var(--accent-hover)] hover:underline underline-offset-4 transition-colors";
+
+/**
+ * O TELEMÓVEL NAS CAIXAS REDONDAS. O botão da bandeira é uma caixa igual à do
+ * número — a mesma altura, o mesmo contorno, o mesmo foco (branca, contorno
+ * escuro de 2 px) —, e o rótulo «Telemóvel» vive dentro da caixa do número.
+ *
+ * A largura do botão é FIXA para o rótulo saber onde começar: 6,5 rem chegam
+ * para a bandeira, o indicativo mais comprido (três algarismos) e a seta. O
+ * rótulo começa a 6,5 + 0,5 (o espaço) + 0,875 (o enchimento da caixa) rem —
+ * é o `ROTULO_DO_TELEFONE`, em baixo.
+ */
+const TELEFONE_DO_ORCAMENTO: AparenciaDoTelefone = {
+  ...APARENCIA_DO_SITE,
+  caixa: "relative flex items-stretch gap-2",
+  botao:
+    "inline-flex w-[6.5rem] shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-sm text-[var(--fg-primary)] transition-[background-color,border-color,box-shadow] duration-200 hover:border-[var(--fg-tertiary)] aria-expanded:border-[var(--fg-secondary)] aria-expanded:bg-[var(--bg-elevated)] aria-expanded:shadow-[inset_0_0_0_1px_var(--fg-secondary)] motion-reduce:transition-none",
+};
+const ROTULO_DO_TELEFONE = "[--ff-rotulo-x:7.875rem]";
 
 /**
  * Grupo de escolha ÚNICA e OPCIONAL, em pastilhas — o mesmo desenho das outras
@@ -208,7 +259,7 @@ function EscolhaUnica({
       <legend id={legendId} className={labelCls}>
         {legend}
       </legend>
-      {hint && <p className="mt-2 mb-4 text-[12px] leading-relaxed text-foreground/70">{hint}</p>}
+      {hint && <p className={`-mt-1 mb-4 ${ajudaCls}`}>{hint}</p>}
       <div
         role="group"
         aria-labelledby={legendId}
@@ -226,11 +277,7 @@ function EscolhaUnica({
                 if (!active) assentarComMola(e.currentTarget);
                 onChange(active ? "" : o.id);
               }}
-              className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
-                active
-                  ? "bg-moss border-moss text-white shadow-sm shadow-moss/20"
-                  : "border-foreground/12 text-foreground/70 hover:border-moss/40 hover:text-foreground/85"
-              }`}
+              className={pastilhaCls(active)}
             >
               {english ? o.en : o.label}
             </button>
@@ -920,14 +967,11 @@ export default function OrcamentoForm({
     radioRefs.current[next]?.focus();
   };
 
-  // Floating-label input: `.ff-input` (globals.css) owns the vertical padding so
-  // the label has room to float, and the placeholder colour is handled there
-  // (hidden until focus). `field-line` draws the hairline moss underline in on
-  // focus; border-b at /55 clears the 3:1 non-text-contrast floor (WCAG 1.4.11)
-  // and focus switches it to solid moss.
+  // A caixa redonda (`.field-line`) e o rótulo lá dentro (`.ff-input`), os
+  // dois no globals.css — o foco, o erro e o enchimento vivem lá.
   const ffInputCls =
-    "ff-input field-line w-full bg-transparent border-b border-foreground/45 text-sm text-foreground focus:outline-none focus:border-moss";
-  const hintCls = "mt-2 text-[11px] tracking-wide text-gold-text";
+    "ff-input field-line w-full text-sm text-[var(--fg-primary)] focus:outline-none";
+  const hintCls = "mt-2 text-[12px] text-gold-text";
 
   // lg:pt-20 clears the tall at-rest navbar (≈164px logo lockup vs the global
   // main pt-24=96px), so the left image panel starts BELOW the header instead of
@@ -1030,9 +1074,7 @@ export default function OrcamentoForm({
           >
             {/* Required-fields key, before the fields so the '*' is explained
                 first (WCAG 3.3.2 Labels or Instructions). */}
-            <p className="text-foreground/68 text-[11px] leading-relaxed -mb-4">
-              {to.requiredNote}
-            </p>
+            <p className={`-mb-4 ${ajudaCls}`}>{to.requiredNote}</p>
             {/* Honeypot — a bot fills it, a human never sees it. The data-*ignore
                 hints stop password managers (1Password / LastPass) from
                 autofilling it, which was silently dropping real submissions. */}
@@ -1086,11 +1128,7 @@ export default function OrcamentoForm({
                         if (!active) assentarComMola(e.currentTarget);
                         setEventType(o.label);
                       }}
-                      className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
-                        active
-                          ? "bg-moss border-moss text-white shadow-sm shadow-moss/20"
-                          : "border-foreground/12 text-foreground/70 hover:border-moss/40 hover:text-foreground/85"
-                      }`}
+                      className={pastilhaCls(active)}
                     >
                       {to.eventTypeLabels[i] ?? o.label}
                     </button>
@@ -1133,9 +1171,7 @@ export default function OrcamentoForm({
                 <legend id="of-decor-legend" className={labelCls}>
                   {to.labelDecor}
                 </legend>
-                <p className="mt-2 mb-4 text-[12px] leading-relaxed text-foreground/70">
-                  {to.hintDecor}
-                </p>
+                <p className={`-mt-1 mb-4 ${ajudaCls}`}>{to.hintDecor}</p>
                 <div
                   role="group"
                   aria-labelledby="of-decor-legend"
@@ -1153,11 +1189,7 @@ export default function OrcamentoForm({
                           if (!active) assentarComMola(e.currentTarget);
                           alternarDecor(p.id);
                         }}
-                        className={`px-4 py-2 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.12em] uppercase border transition-[background-color,border-color,color,box-shadow,transform] duration-200 active:scale-[0.97] ${
-                          active
-                            ? "bg-moss border-moss text-white shadow-sm shadow-moss/20"
-                            : "border-foreground/12 text-foreground/70 hover:border-moss/40 hover:text-foreground/85"
-                        }`}
+                        className={pastilhaCls(active)}
                       >
                         {locale.startsWith("en") ? p.en : p.pt}
                       </button>
@@ -1227,7 +1259,7 @@ export default function OrcamentoForm({
                 {/* `alvo-toque`: MEDIDO a 375 px com toque emulado, 132×29 px —
                     falha a altura mínima. É o rótulo, não a caixa de 16 px lá
                     dentro, que faz de alvo (mesmo mecanismo do back office). */}
-                <label className="alvo-toque mt-2 inline-flex items-center gap-2.5 py-1.5 min-h-[24px] cursor-pointer text-foreground/68 hover:text-foreground/85 transition-colors">
+                <label className="alvo-toque mt-2.5 inline-flex items-center gap-2.5 py-1.5 min-h-[24px] cursor-pointer text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] transition-colors">
                   <input
                     type="checkbox"
                     checked={dateFlexible}
@@ -1235,9 +1267,9 @@ export default function OrcamentoForm({
                       setDateFlexible(e.target.checked);
                       markTouched("data");
                     }}
-                    className="w-4 h-4 accent-moss cursor-pointer"
+                    className="caixa-de-marcar"
                   />
-                  <span className="text-[11px] tracking-wide">{to.dateFlexibleLabel}</span>
+                  <span className="text-[13px]">{to.dateFlexibleLabel}</span>
                 </label>
               </div>
               {/* Same escape hatch as the date: "how many" is often the last
@@ -1270,7 +1302,7 @@ export default function OrcamentoForm({
                 </FloatingField>
                 {/* `alvo-toque`: MEDIDO a 375 px com toque emulado, 105×29 px —
                     mesma falha e mesma correcção do rótulo da data acima. */}
-                <label className="alvo-toque mt-2 inline-flex items-center gap-2.5 py-1.5 min-h-[24px] cursor-pointer text-foreground/68 hover:text-foreground/85 transition-colors">
+                <label className="alvo-toque mt-2.5 inline-flex items-center gap-2.5 py-1.5 min-h-[24px] cursor-pointer text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] transition-colors">
                   <input
                     type="checkbox"
                     checked={guestsFlexible}
@@ -1278,18 +1310,16 @@ export default function OrcamentoForm({
                       setGuestsFlexible(e.target.checked);
                       markTouched("pessoas");
                     }}
-                    className="w-4 h-4 accent-moss cursor-pointer"
+                    className="caixa-de-marcar"
                   />
-                  <span className="text-[11px] tracking-wide">{to.guestsFlexibleLabel}</span>
+                  <span className="text-[13px]">{to.guestsFlexibleLabel}</span>
                 </label>
                 {/* A ordem de grandeza. Só aparece depois de ela dizer que não
                     sabe o número — antes disso seria uma pergunta a mais num
                     formulário cuja força é ser curto. */}
                 {guestsFlexible && (
                   <div className="mt-2">
-                    <p className="mb-2 text-[11px] leading-relaxed text-foreground/70">
-                      {to.hintPessoasAprox}
-                    </p>
+                    <p className={`mb-2 ${ajudaCls}`}>{to.hintPessoasAprox}</p>
                     <div
                       role="group"
                       aria-label={to.hintPessoasAprox}
@@ -1309,11 +1339,7 @@ export default function OrcamentoForm({
                               // página para a tirar seria absurdo.
                               setPessoasAprox(active ? "" : r.id);
                             }}
-                            className={`px-3 py-1.5 pointer-coarse:min-h-11 rounded-full text-[10px] tracking-[0.1em] uppercase border transition-[background-color,border-color,color] duration-200 ${
-                              active
-                                ? "bg-moss border-moss text-white"
-                                : "border-foreground/12 text-foreground/70 hover:border-moss/40 hover:text-foreground/85"
-                            }`}
+                            className={pastilhaCls(active)}
                           >
                             {locale.startsWith("en") ? r.en : r.label}
                           </button>
@@ -1382,9 +1408,7 @@ export default function OrcamentoForm({
                   onBlur={() => markTouched("nome")}
                   aria-invalid={!!nomeErr}
                   aria-describedby={nomeErr ? "of-nome-err" : undefined}
-                  className={`${ffInputCls} ${
-                    nomeErr ? "border-gold/60" : nome.trim().length >= 2 ? "border-moss/50" : ""
-                  }`}
+                  className={`${ffInputCls} ${nomeErr ? "border-gold/60" : ""}`}
                   placeholder={to.phNome}
                 />
               </FloatingField>
@@ -1410,22 +1434,20 @@ export default function OrcamentoForm({
                     aria-required="true"
                     aria-invalid={!!emailErr}
                     aria-describedby={emailErr ? "of-email-err of-email-hint" : "of-email-hint"}
-                    className={`${ffInputCls} ${
-                      emailErr ? "border-gold/60" : temEmail && okEmail ? "border-moss/50" : ""
-                    }`}
+                    className={`${ffInputCls} ${emailErr ? "border-gold/60" : ""}`}
                     placeholder={to.phEmail}
                   />
                 </FloatingField>
                 <p
                   id="of-email-hint"
-                  className="mt-2 text-[11px] leading-relaxed text-foreground/68"
+                  className="mt-2 text-[12px] leading-relaxed text-[var(--fg-secondary)]"
                 >
                   {to.hintEmail}
                 </p>
                 {emailSugerido && (
                   <p
                     role="status"
-                    className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[12px] text-foreground/78"
+                    className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px] text-[var(--fg-secondary)]"
                   >
                     <span>
                       {to.sugestaoEmailPre}
@@ -1454,9 +1476,7 @@ export default function OrcamentoForm({
                 coisa que se pergunta depois numa frase. */}
             {ehCasamento && nome.trim().length > 0 && (
               <div>
-                <p className="mb-3 text-[11px] tracking-[0.14em] uppercase text-foreground/70">
-                  {to.labelNoivos}
-                </p>
+                <p className={labelCls}>{to.labelNoivos}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-9">
                   {/*
                     OS DOIS CAMPOS SÃO IGUAIS, e é isso que os torna certos.
@@ -1496,13 +1516,14 @@ export default function OrcamentoForm({
                     />
                   </FloatingField>
                 </div>
-                <p className="mt-2 text-[11px] text-foreground/70">{to.hintNoivos}</p>
+                <p className="mt-2 text-[12px] text-[var(--fg-secondary)]">{to.hintNoivos}</p>
               </div>
             )}
 
-            {/* Telefone — a bandeira e o número (pedido dela, 30/10). A
-                etiqueta fica sempre em cima (`floatAlways`): em repouso ela
-                deitava-se por cima da bandeira. O erro é o campo que o
+            {/* Telefone — a bandeira e o número (pedido dela, 30/10). Nas
+                caixas redondas, a etiqueta vive DENTRO da caixa do número
+                (`ROTULO_DO_TELEFONE` diz-lhe onde começar, depois da caixa da
+                bandeira) e sobe como as outras. O erro é o campo que o
                 escreve, porque é ele que sabe o país.
 
                 O `z-10` é para a lista dos países: cada campo deste
@@ -1513,8 +1534,7 @@ export default function OrcamentoForm({
             <FloatingField
               htmlFor="of-telefone"
               label={to.labelTelefone}
-              floatAlways
-              className="z-10"
+              className={`z-10 ${ROTULO_DO_TELEFONE}`}
             >
               <CampoTelefone
                 id="of-telefone"
@@ -1523,15 +1543,10 @@ export default function OrcamentoForm({
                 onBlur={() => markTouched("telefone")}
                 onChange={(v) => mudarContacto(setTelefone, v)}
                 mostrarErro={mostrarErroDoTelefone}
-                classeDoBotao={`text-sm ${
-                  mostrarErroDoTelefone && !okTelefone ? "ring-1 ring-gold/60" : ""
-                }`}
+                aparencia={TELEFONE_DO_ORCAMENTO}
+                classeDoBotao={mostrarErroDoTelefone && !okTelefone ? "border-gold/60!" : ""}
                 classeDoNumero={`${ffInputCls} ${
-                  mostrarErroDoTelefone && !okTelefone
-                    ? "border-gold/60"
-                    : estadoDoTelefone === "valido"
-                      ? "border-moss/50"
-                      : ""
+                  mostrarErroDoTelefone && !okTelefone ? "border-gold/60" : ""
                 }`}
                 placeholder={to.phTelefone}
               />
@@ -1570,7 +1585,7 @@ export default function OrcamentoForm({
               </FloatingField>
               <p
                 id="of-mensagem-hint"
-                className="mt-2.5 whitespace-pre-line text-left text-pretty sm:text-justify hyphens-auto text-[12px] leading-relaxed text-foreground/70"
+                className="mt-2.5 whitespace-pre-line text-left text-pretty sm:text-justify hyphens-auto text-[12px] leading-relaxed text-[var(--fg-secondary)]"
               >
                 {to.hintMensagem}
               </p>
@@ -1591,20 +1606,22 @@ export default function OrcamentoForm({
                   id="of-confirmar-titulo"
                   ref={confirmarRef}
                   tabIndex={-1}
-                  className="text-[11px] tracking-[0.18em] uppercase text-foreground/78 outline-none"
+                  className="text-[15px] font-semibold text-[var(--fg-primary)] outline-none"
                 >
                   {to.confirmarTitulo}
                 </h3>
                 <dl className="mt-4 grid gap-3">
                   <div>
-                    <dt className="text-[11px] text-foreground/68">{to.confirmarEmail}</dt>
+                    <dt className="text-[12px] text-[var(--fg-secondary)]">{to.confirmarEmail}</dt>
                     <dd className="mt-0.5 text-lg text-foreground [overflow-wrap:anywhere]">
                       {email.trim()}
                     </dd>
                   </div>
                   {temTelefone && (
                     <div>
-                      <dt className="text-[11px] text-foreground/68">{to.confirmarTelefone}</dt>
+                      <dt className="text-[12px] text-[var(--fg-secondary)]">
+                        {to.confirmarTelefone}
+                      </dt>
                       <dd className="mt-0.5 text-lg text-foreground tabular-nums">
                         {/* Gravado em E.164, mostrado como se lê («+351 912 345 678»). */}
                         {telefonesJaCarregados()?.telefoneParaLer(telefone) ?? telefone.trim()}
@@ -1612,16 +1629,12 @@ export default function OrcamentoForm({
                     </div>
                   )}
                 </dl>
-                <p className="mt-4 max-w-md text-[12px] leading-relaxed text-foreground/78">
+                <p className="mt-4 max-w-md text-[13px] leading-relaxed text-[var(--fg-secondary)]">
                   {to.confirmarTexto}
                 </p>
                 <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-4">
-                  <button
-                    type="button"
-                    onClick={() => void enviar()}
-                    className={PRIMARY_BUTTON_CLASS}
-                  >
-                    {to.confirmarEnviar} <span aria-hidden>→</span>
+                  <button type="button" onClick={() => void enviar()} className={BOTAO_APPLE}>
+                    {to.confirmarEnviar}
                   </button>
                   <button
                     type="button"
@@ -1629,7 +1642,7 @@ export default function OrcamentoForm({
                       setAConfirmar(false);
                       emailRef.current?.focus();
                     }}
-                    className="alvo-toque pointer-fine:py-1 pointer-fine:-my-1 text-[11px] tracking-[0.22em] uppercase text-foreground/68 hover:text-moss transition-colors"
+                    className={LIGACAO_APPLE}
                   >
                     {to.confirmarCorrigir}
                   </button>
@@ -1648,7 +1661,7 @@ export default function OrcamentoForm({
               <button
                 type="submit"
                 aria-disabled={sending}
-                className={`${PRIMARY_BUTTON_CLASS} ${sending ? "opacity-30 cursor-wait" : ""}`}
+                className={`${BOTAO_APPLE} ${sending ? "opacity-30 cursor-wait" : ""}`}
               >
                 {sending ? (
                   <>
@@ -1659,9 +1672,7 @@ export default function OrcamentoForm({
                     {to.enviando}
                   </>
                 ) : (
-                  <>
-                    {to.enviar} <span aria-hidden>→</span>
-                  </>
+                  to.enviar
                 )}
               </button>
               <a
@@ -1673,17 +1684,20 @@ export default function OrcamentoForm({
                 // (164×17 em inglês) — falha a altura mínima por mais de
                 // metade, ao lado do botão de enviar, a acção alternativa a
                 // quem prefere WhatsApp.
-                className="alvo-toque pointer-fine:py-1 pointer-fine:-my-1 inline-flex items-center gap-2.5 text-[11px] tracking-[0.22em] uppercase text-foreground/68 hover:text-moss transition-colors"
+                className={LIGACAO_APPLE}
               >
                 <WhatsAppIcon className="w-4 h-4 flex-shrink-0" />
-                {to.ouWhatsApp}
+                {/* «ou pelo WhatsApp» vem em minúsculas da tradução (era
+                    escrito em maiúsculas pelo CSS); a primeira letra sobe aqui. */}
+                <span className="inline-block first-letter:uppercase">{to.ouWhatsApp}</span>
+                <span aria-hidden>›</span>
                 <span className="sr-only"> ({t.common.newWindow})</span>
               </a>
             </div>
 
             {/* Reassurance + privacy at the point of decision — the moment
                 hesitation peaks. Reuses facts already shown up top. */}
-            <p className="mt-6 text-[11px] leading-relaxed text-foreground/70 max-w-md">
+            <p className="mt-6 text-[12px] leading-relaxed text-[var(--fg-secondary)] max-w-md">
               {to.submitReassure}
               <br />
               {to.privacyPre}
