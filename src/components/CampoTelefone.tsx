@@ -124,6 +124,13 @@ export interface AparenciaDoTelefone {
   caixa: string;
   /** O botão da bandeira (o pai junta a borda e o enchimento do contexto). */
   botao: string;
+  /**
+   * A seta do botão. `vira` é a do `ui/Escolha` do back office (uma seta para
+   * baixo que se vira ao abrir); `dupla` é a do botão de escolha da Apple
+   * (`chevron.up.chevron.down`), que não se mexe: diz «isto escolhe-se», não
+   * «isto está aberto».
+   */
+  seta: "vira" | "dupla";
   /** A caixa que se abre por baixo. */
   lista: string;
   /** A caixa à volta da procura (onde se senta a lupa). */
@@ -163,8 +170,25 @@ export interface AparenciaDoTelefone {
  */
 export const APARENCIA_DO_SITE: AparenciaDoTelefone = {
   caixa: "relative flex items-end gap-3",
+  /* O botão também à Apple (ela, 30/10: «coloca o botão da bandeira também em
+     design de apple»): uma pastilha cinzenta de cantos redondos, sem
+     sublinhado, com a seta dupla do botão de escolha; ganha o verde-claro da
+     linha activa da lista ao passar o rato e enquanto a lista está aberta, e
+     encolhe um nada ao carregar.
+
+     Desenhada com 32 px e não com os 44 do dedo: com 44 subia para cima do
+     rótulo «Telemóvel» (MEDIDO a 390 px). Os 44 ficam no alvo, num `before`
+     invisível que cresce 6 px para cima e para baixo — no dedo toca-se num
+     botão de 44 px, e o que se vê é a pastilha. */
   botao:
-    "inline-flex shrink-0 cursor-pointer items-center gap-1.5 bg-transparent text-foreground transition-colors hover:border-moss focus:border-moss",
+    "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[var(--bg-subtle)] " +
+    "px-2.5 py-1.5 text-[var(--fg-primary)] transition-[background-color,scale] duration-150 " +
+    "ease-out hover:bg-[var(--accent-subtle)] active:scale-[0.97] " +
+    "aria-expanded:bg-[var(--accent-subtle)] motion-reduce:transition-none relative " +
+    "pointer-coarse:before:absolute pointer-coarse:before:inset-x-0 pointer-coarse:before:-inset-y-1.5 " +
+    "pointer-coarse:before:content-[''] " +
+    "disabled:cursor-not-allowed disabled:opacity-50",
+  seta: "dupla",
   lista:
     "absolute left-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw_-_2rem)] origin-top-left " +
     "rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-1.5 " +
@@ -545,22 +569,41 @@ export default function CampoTelefone({
             </span>
           )}
           <span className="tabular-nums">+{codigo}</span>
-          <svg
-            aria-hidden="true"
-            width="10"
-            height="10"
-            viewBox="0 0 10 10"
-            className={`shrink-0 opacity-60 transition-transform ${aberto ? "-scale-y-100" : ""}`}
-          >
-            <path
-              d="M2 3.5 5 6.5 8 3.5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          {aparencia.seta === "dupla" ? (
+            <svg
+              aria-hidden="true"
+              width="8"
+              height="12"
+              viewBox="0 0 8 12"
+              className="ml-0.5 shrink-0 text-[var(--fg-secondary)]"
+            >
+              <path
+                d="M1.5 4.25 4 1.75l2.5 2.5M1.5 7.75 4 10.25l2.5-2.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : (
+            <svg
+              aria-hidden="true"
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              className={`shrink-0 opacity-60 transition-transform ${aberto ? "-scale-y-100" : ""}`}
+            >
+              <path
+                d="M2 3.5 5 6.5 8 3.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
         </button>
 
         <input

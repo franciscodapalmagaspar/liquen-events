@@ -401,7 +401,7 @@ export default function PedidoRapido({
             value={telefone}
             onChange={setTelefone}
             mostrarErro={mostrarErroDoTelefone}
-            classeDoBotao="border-b border-foreground/20 py-2.5 text-[15px]"
+            classeDoBotao="text-[15px]"
             classeDoNumero={CAMPO}
             locale={locale}
           />

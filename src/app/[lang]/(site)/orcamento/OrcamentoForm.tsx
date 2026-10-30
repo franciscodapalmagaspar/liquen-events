@@ -1523,9 +1523,9 @@ export default function OrcamentoForm({
                 onBlur={() => markTouched("telefone")}
                 onChange={(v) => mudarContacto(setTelefone, v)}
                 mostrarErro={mostrarErroDoTelefone}
-                classeDoBotao={`ff-input border-b ${
-                  mostrarErroDoTelefone && !okTelefone ? "border-gold/60" : "border-foreground/45"
-                } text-sm`}
+                classeDoBotao={`text-sm ${
+                  mostrarErroDoTelefone && !okTelefone ? "ring-1 ring-gold/60" : ""
+                }`}
                 classeDoNumero={`${ffInputCls} ${
                   mostrarErroDoTelefone && !okTelefone
                     ? "border-gold/60"

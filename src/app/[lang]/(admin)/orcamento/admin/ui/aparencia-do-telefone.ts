@@ -27,6 +27,7 @@ export const APARENCIA_DO_BACK_OFFICE: AparenciaDoTelefone = {
     "inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-sm text-[var(--bo-text)] " +
     "disabled:cursor-not-allowed disabled:opacity-50 " +
     ESTADO,
+  seta: "vira",
   lista:
     "bo-material bo-material-desfoque bo-entrada absolute left-0 top-full z-[100] mt-1 " +
     "w-80 max-w-[calc(100vw_-_2rem)] p-[var(--bo-material-folga)] " +
