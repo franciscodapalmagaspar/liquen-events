@@ -128,7 +128,9 @@ describe("os contactos do dossier", () => {
   it.each([
     ["href={`mailto:${quote.email}`}", "o email"],
     ["href={`tel:${quote.phone}`}", "o telefone"],
-    ["href={`https://wa.me/${wa}`}", "o WhatsApp"],
+    // Desde 30/10 o endereço vem pronto do `linkDaConversa` (o número antigo
+    // sem +351 ganha o indicativo), e o atributo passou a ser só a variável.
+    ["href={wa}", "o WhatsApp"],
   ])("dá 44 px de altura ao link %s (%s)", (atributo) => {
     const bloco = blocoQueContem(LATERAL, atributo);
     expect(bloco).toContain("alvo-toque");

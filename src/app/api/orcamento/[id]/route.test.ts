@@ -313,10 +313,75 @@ describe("PATCH /api/orcamento/[id]", () => {
       req("PATCH", { name: "Maria Silva", email: "maria@example.pt", phone: "+351 912 345 678" }),
       ctx("LIQ-1"),
     );
+    // O telefone que MUDOU grava-se em E.164, como os do site (30/10).
     expect(store.update).toHaveBeenCalledWith("LIQ-1", {
       name: "Maria Silva",
       email: "maria@example.pt",
-      phone: "+351 912 345 678",
+      phone: "+351912345678",
+    });
+  });
+
+  /**
+   * OS CONTACTOS SÓ SE CONFEREM QUANDO MUDAM (pedido dela, 30/10: «não deixe
+   * enviar emails que não existem ou números de telefone seja qual país
+   * for»). Um pedido antigo com um telefone de outro feitio continua a poder
+   * ser mexido nos outros campos — e mandar o mesmo valor de volta não é
+   * mudá-lo.
+   */
+  describe("o email e o telefone, conferidos só quando mudam", () => {
+    it("um telefone novo que não existe é recusado, com o campo", async () => {
+      authed.ok = true;
+      const res = await PATCH(req("PATCH", { phone: "+44 7911 12" }), ctx("LIQ-1"));
+      expect(res.status).toBe(400);
+      expect((await res.json()).campo).toBe("telefone");
+      expect(store.update).not.toHaveBeenCalled();
+    });
+
+    it("o telefone antigo, de outro feitio, volta tal e qual sem ser conferido", async () => {
+      authed.ok = true;
+      store.override = { phone: "91 234 56 78 ext. 3" };
+      try {
+        const res = await PATCH(
+          req("PATCH", { phone: "91 234 56 78 ext. 3", location: "Évora" }),
+          ctx("LIQ-1"),
+        );
+        expect(res.status).toBe(200);
+        expect(store.update).toHaveBeenCalledWith("LIQ-1", {
+          phone: "91 234 56 78 ext. 3",
+          location: "Évora",
+        });
+      } finally {
+        store.override = {};
+      }
+    });
+
+    it("apagar o telefone continua a valer", async () => {
+      authed.ok = true;
+      const res = await PATCH(req("PATCH", { phone: "" }), ctx("LIQ-1"));
+      expect(res.status).toBe(200);
+      expect(store.update).toHaveBeenCalledWith("LIQ-1", { phone: "" });
+    });
+
+    it("um email novo com um domínio que não recebe correio é recusado, com o campo", async () => {
+      authed.ok = true;
+      const res = await PATCH(req("PATCH", { email: "ana@nao-existe.invalid" }), ctx("LIQ-1"));
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ campo: "email" });
+      expect(store.update).not.toHaveBeenCalled();
+    });
+
+    it("o email que já lá estava não volta a perguntar ao DNS", async () => {
+      authed.ok = true;
+      store.override = { email: "antigo@nao-existe.invalid" };
+      try {
+        const res = await PATCH(
+          req("PATCH", { email: "antigo@nao-existe.invalid", guests: 80 }),
+          ctx("LIQ-1"),
+        );
+        expect(res.status).toBe(200);
+      } finally {
+        store.override = {};
+      }
     });
   });
 

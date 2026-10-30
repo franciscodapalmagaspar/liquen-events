@@ -8,6 +8,7 @@ import { assinaturaDeQuemEnvia } from "@/lib/email-quem-assina";
 import { pdfDoMapa } from "@/lib/orcamento/mapa-de-mesas-pdf";
 import type { ActivityEntry } from "@/lib/orcamento/types";
 import { log } from "@/lib/logger";
+import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,6 +51,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
   const { para, assunto, mensagem } = lido.data;
+  /**
+   * O endereço é escrito na hora (a quinta, o catering), e o domínio dele tem
+   * de receber correio — pedido dela, 30/10: «não deixe enviar emails que não
+   * existem». Um mapa que ela julga ter mandado e que morreu no servidor de
+   * correio é o que se descobre na manhã do casamento. Ver
+   * `email-do-cliente.ts`.
+   */
+  const semDominio = await porqueOEmailNaoSegue(para, "para");
+  if (semDominio) {
+    return NextResponse.json({ error: semDominio, campo: "para" }, { status: 422 });
+  }
 
   try {
     const q = await getQuote(id);

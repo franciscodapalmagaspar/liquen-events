@@ -4,6 +4,7 @@ import { listSuppliers, createSupplier } from "@/lib/suppliers-store";
 import { jsonWithEtag } from "@/lib/api-cache";
 import { supplierUpdateSchema, firstError } from "@/lib/validation";
 import { log } from "@/lib/logger";
+import { normalizarTelefone } from "@/lib/contacto-do-pedido";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,11 +37,26 @@ export async function POST(request: NextRequest) {
     }
     const name = (parsed.data.name ?? "").trim();
     if (!name) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
+    // O telefone de um fornecedor também tem de existir (pedido dela, 30/10:
+    // «números de telefone seja qual país for»), e grava-se em E.164 como os
+    // dos pedidos. Continua opcional.
+    const telefoneEscrito = (parsed.data.phone ?? "").trim();
+    const phone = telefoneEscrito ? normalizarTelefone(telefoneEscrito) : "";
+    if (phone === null) {
+      return NextResponse.json(
+        {
+          error:
+            "Este número de telefone não é válido. Confira os dígitos e o país (de fora de Portugal, com o indicativo à frente, ex.: +44).",
+          campo: "telefone",
+        },
+        { status: 400 },
+      );
+    }
     const supplier = await createSupplier({
       name,
       category: parsed.data.category || "Outro",
       email: parsed.data.email || undefined,
-      phone: parsed.data.phone || undefined,
+      phone: phone || undefined,
       location: parsed.data.location || undefined,
       notes: parsed.data.notes || undefined,
     });

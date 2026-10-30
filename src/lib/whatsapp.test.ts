@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { linkDoWhatsApp, timelineParaWhatsApp } from "./whatsapp";
+import {
+  linkDaConversa,
+  linkDoWhatsApp,
+  numeroParaWhatsApp,
+  timelineParaWhatsApp,
+} from "./whatsapp";
 import type { TimelineItem } from "./orcamento/types";
 
 /**
@@ -82,5 +87,30 @@ describe("o endereço que abre o WhatsApp", () => {
     );
     const url = linkDoWhatsApp(timelineParaWhatsApp({ titulo: "Dia longo", momentos: comprido }));
     expect(decodeURIComponent(url)).toContain("A timeline completa vai no PDF");
+  });
+});
+
+/**
+ * O NÚMERO QUE O `wa.me` ENTENDE (30/10). Os links da gaveta, dos Clientes e
+ * do dossier eram feitos com o telefone cru: um pedido antigo com «912 345
+ * 678», sem o +351, dava um link que o WhatsApp diz não existir.
+ */
+describe("numeroParaWhatsApp / linkDaConversa", () => {
+  it.each([
+    ["+351912345678", "351912345678"],
+    ["+351 912 345 678", "351912345678"],
+    ["912 345 678", "351912345678"],
+    ["266123456", "351266123456"],
+    ["00447911123456", "447911123456"],
+    ["+44 7911 123456", "447911123456"],
+    ["(+351) 912-345-678", "351912345678"],
+  ])("%s → %s", (telefone, numero) => {
+    expect(numeroParaWhatsApp(telefone)).toBe(numero);
+  });
+
+  it("sem telefone, não há link", () => {
+    expect(linkDaConversa("")).toBe("");
+    expect(linkDaConversa(undefined)).toBe("");
+    expect(linkDaConversa("+5511912345678")).toBe("https://wa.me/5511912345678");
   });
 });

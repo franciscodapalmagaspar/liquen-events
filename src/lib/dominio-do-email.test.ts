@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// O duplo de todos os testes (`vitest.setup.ts`) sai: aqui mede-se o verdadeiro.
+vi.unmock("./dominio-do-email");
 const dns = vi.hoisted(() => ({
   resolveMx: vi.fn(),
   resolve4: vi.fn(),

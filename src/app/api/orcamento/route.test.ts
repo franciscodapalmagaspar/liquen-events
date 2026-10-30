@@ -861,10 +861,62 @@ describe("pedido sem email e sem telemóvel", () => {
     expect((await res.json()).error).toBe(getDictionary("en").orcamento.errContacto);
   });
 
-  it("um telemóvel curto de mais não conta como contacto", async () => {
+  // Desde 30/10 um telemóvel que não existe é recusado POR SER INVÁLIDO, com
+  // a frase do telefone e o campo — e já não por «não haver contacto».
+  it("um telemóvel curto de mais é recusado como telefone, e diz qual é o campo", async () => {
     const res = await POST(req("POST", { form: { name: "Ana Silva", email: "", phone: "91234" } }));
     expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe(getDictionary("pt").orcamento.errContacto);
+    expect(await res.json()).toEqual({
+      error: getDictionary("pt").orcamento.errTelefone,
+      campo: "telefone",
+    });
+  });
+});
+
+/**
+ * AS FICHAS RÁPIDAS DOS ANÚNCIOS PASSAM PELAS MESMAS REGRAS (30/10).
+ *
+ * Ela: «quero que o sistema detete e não deixe enviar emails que não existem
+ * ou números de telefone seja qual país for». Até aqui as fichas sem `origem`
+ * contavam nove dígitos e não perguntavam nada ao DNS.
+ */
+describe("POST /api/orcamento — as fichas rápidas também conferem os contactos", () => {
+  const rapida = { name: "Ana Silva", email: "", phone: "", guests: 0 };
+
+  it("um email com um domínio que não existe é recusado, com o campo", async () => {
+    dominio.recebe = false;
+    const res = await POST(
+      req("POST", { form: { ...rapida, email: "ana@dominio-que-nao-existe-123.pt" } }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: getDictionary("pt").orcamento.errDominioDoEmail,
+      campo: "email",
+    });
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["+44 7911 12345", "Reino Unido com um dígito a menos"],
+    ["+34 51234567", "Espanha com um dígito a menos"],
+    ["+55 11 1234-567", "Brasil curto"],
+    ["123456789", "nove dígitos que não são um número português"],
+  ])("um telefone que não existe (%s, %s) é recusado", async (phone) => {
+    const res = await POST(req("POST", { form: { ...rapida, phone } }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).campo).toBe("telefone");
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["+55 11 91234-5678", "+5511912345678"],
+    ["0044 7911 123456", "+447911123456"],
+    ["912 345 678", "+351912345678"],
+  ])("um telefone válido (%s) grava-se em E.164 (%s)", async (phone, e164) => {
+    const res = await enviarTudo({ form: { ...rapida, phone } });
+    expect(res.status).toBe(200);
+    const gravado = (store.create.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(gravado.phone).toBe(e164);
   });
 });
 
@@ -902,8 +954,8 @@ describe("POST /api/orcamento — o gémeo que chega ao mesmo tempo", () => {
  * O FORMULÁRIO COMPLETO (decisão dela, 28/10): o email é obrigatório e o
  * telemóvel não; quando vem, o telemóvel grava-se em E.164, um domínio que não recebe
  * correio é recusado com a frase do campo, e a língua do formulário ganha ao
- * cookie. As fichas rápidas (sem `origem`) ficam como estavam — os testes de
- * cima continuam a prendê-las.
+ * cookie. As fichas rápidas (sem `origem`) não têm o email obrigatório, mas
+ * desde 30/10 passam pelo mesmo telefone e pelo mesmo DNS — ver lá em cima.
  */
 describe("POST /api/orcamento — o formulário completo", () => {
   const completo = {
@@ -952,10 +1004,12 @@ describe("POST /api/orcamento — o formulário completo", () => {
     expect(sendMailMock).not.toHaveBeenCalled();
   });
 
-  it("a ficha rápida (sem `origem`) não passa pelo DNS", async () => {
+  // Até 30/10 a ficha rápida não perguntava ao DNS. Pedido dela: em todo o lado.
+  it("a ficha rápida (sem `origem`) também passa pelo DNS", async () => {
     dominio.recebe = false;
-    const res = await enviarTudo({ form: { ...completo, origem: undefined, phone: "" } });
-    expect(res.status).toBe(200);
+    const res = await POST(req("POST", { form: { ...completo, origem: undefined, phone: "" } }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).campo).toBe("email");
   });
 
   it("a língua do formulário ganha ao cookie", async () => {

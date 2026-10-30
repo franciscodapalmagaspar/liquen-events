@@ -165,3 +165,33 @@ describe("PedidoRelampago — o Lead só segue para a Meta com consentimento", (
     expect((pedidos[0].form as Record<string, unknown>).leadEventId).toBe("evt-1");
   });
 });
+
+/**
+ * O CAMPO ÚNICO TAMBÉM CONFERE O TELEMÓVEL (pedido dela, 30/10). Sem bandeira
+ * (é o desenho do anúncio): sem «+» é português, com «+» é do país do
+ * indicativo.
+ */
+describe("PedidoRelampago — o telemóvel no campo único", () => {
+  it("um número português que não existe é recusado aqui, sem pedido", async () => {
+    const { container } = montar();
+    preencherESubmeter(container, "812 345 678");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Este número não é válido para Portugal (+351).",
+    );
+    expect(pedidos).toHaveLength(0);
+  });
+
+  it("com «+44», é conferido no Reino Unido — e a frase diz qual", async () => {
+    const { container } = montar();
+    preencherESubmeter(container, "+44 7911 1234");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/não é válido para .+ \(\+44\)/);
+    expect(pedidos).toHaveLength(0);
+  });
+
+  it("um número válido segue em E.164", async () => {
+    const { container } = montar();
+    preencherESubmeter(container, "912 345 678");
+    await waitFor(() => expect(pedidos).toHaveLength(1));
+    expect((pedidos[0].form as { phone: string }).phone).toBe("+351912345678");
+  });
+});

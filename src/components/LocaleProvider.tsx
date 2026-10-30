@@ -50,3 +50,18 @@ export function useTranslations(): { locale: Locale; t: ChromeDict } {
   const { locale, dict } = useLocaleContext();
   return { locale, t: dict };
 }
+
+/**
+ * O mesmo que `useTranslations`, mas `null` em vez de rebentar quando não há
+ * `<LocaleProvider>` por cima.
+ *
+ * Existe para os componentes PARTILHADOS entre o site e o back office (o
+ * `CampoTelefone`): na aplicação há sempre fornecedor — o `[lang]/layout.tsx`
+ * embrulha as duas metades —, mas um ecrã do back office montado sozinho num
+ * teste não tem, e o campo não pode deitar o ecrã abaixo por causa de três
+ * frases. Quem usa isto decide o que fazer sem dicionário.
+ */
+export function useTranslationsSeHouver(): { locale: Locale; t: ChromeDict } | null {
+  const ctx = useContext(LocaleContext);
+  return ctx ? { locale: ctx.locale, t: ctx.dict } : null;
+}

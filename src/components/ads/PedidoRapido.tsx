@@ -8,6 +8,8 @@ import { LEAD_SOURCE_KEY } from "@/components/LeadSourceCapture";
 import { localizeHref, type Locale } from "@/lib/i18n/config";
 import { PRIMARY_BUTTON_CLASS } from "@/lib/ui-classes";
 import { clearSubmissionId, ensureSubmissionId } from "@/lib/orcamento/submission-id";
+import CampoTelefone from "@/components/CampoTelefone";
+import { carregarTelefones } from "@/lib/telefone-no-browser";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -165,6 +167,15 @@ export default function PedidoRapido({
   // carregar no botão para sempre, sem nunca saber que campo corrigir.
   const [erro, setErro] = useState("");
   const comecouRef = useRef(false);
+  /**
+   * O telemóvel, com a bandeira (pedido dela, 30/10: «números de telefone
+   * seja qual país for»). É o único campo deste formulário com estado: o
+   * `CampoTelefone` entrega o E.164, e é esse que segue (pelo `name`, num
+   * campo escondido). Os outros continuam a ser lidos do `FormData`.
+   */
+  const [telefone, setTelefone] = useState("");
+  const [mostrarErroDoTelefone, setMostrarErroDoTelefone] = useState(false);
+  const telefoneRef = useRef<HTMLInputElement>(null);
 
   // "Começou a preencher" é o sinal intermédio que falta na maioria das contas:
   // separa "a página não convence" de "a página convence mas o formulário
@@ -178,10 +189,23 @@ export default function PedidoRapido({
   async function submeter(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (aEnviar) return;
+    const formulario = e.currentTarget;
+    // Um telemóvel escrito tem de existir no país da bandeira — conferido AQUI
+    // com a mesma regra do servidor, para o erro aparecer debaixo do campo e
+    // não como uma frase no fundo do formulário. As regras já chegaram quando
+    // ela tocou no campo; se não (sem rede), quem decide é o servidor.
+    if (telefone.trim()) {
+      const regras = await carregarTelefones().catch(() => null);
+      if (regras && !regras.normalizarTelefone(telefone)) {
+        setMostrarErroDoTelefone(true);
+        telefoneRef.current?.focus();
+        return;
+      }
+    }
     setErro("");
     setAEnviar(true);
 
-    const dados = new FormData(e.currentTarget);
+    const dados = new FormData(formulario);
     const s = (k: string) => String(dados.get(k) ?? "").trim();
 
     const form = {
@@ -370,13 +394,16 @@ export default function PedidoRapido({
               ({textos.telefoneOpcional})
             </span>
           </label>
-          <input
+          <CampoTelefone
             id={`${id}-telefone`}
             name="telefone"
-            type="tel"
-            autoComplete="tel"
-            inputMode="tel"
-            className={CAMPO}
+            inputRef={telefoneRef}
+            value={telefone}
+            onChange={setTelefone}
+            mostrarErro={mostrarErroDoTelefone}
+            classeDoBotao="border-b border-foreground/20 py-2.5 text-[15px]"
+            classeDoNumero={CAMPO}
+            locale={locale}
           />
         </div>
       </div>

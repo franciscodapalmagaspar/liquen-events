@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 import type { QuoteMessage } from "@/lib/orcamento/types";
 import { transicaoDoPedido } from "@/lib/orcamento/estado-do-pedido";
 import { getQuote, updateQuote } from "@/lib/quotes-store";
@@ -60,6 +61,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const escrita = String(body.message ?? "").trim();
     if (!escrita) {
       return NextResponse.json({ error: "Mensagem vazia." }, { status: 400 });
+    }
+    /**
+     * O domínio do email do cliente tem de receber correio (pedido dela,
+     * 30/10: «não deixe enviar emails que não existem»). Recusa-se ANTES de
+     * registar e de mandar: a mensagem fica na caixa
+     * dela, e volta a seguir quando o email estiver certo — ver `email-do-cliente.ts`.
+     */
+    const semDominio = await porqueOEmailNaoSegue(quote.email);
+    if (semDominio) {
+      return NextResponse.json({ error: semDominio, campo: "email" }, { status: 422 });
     }
 
     /**

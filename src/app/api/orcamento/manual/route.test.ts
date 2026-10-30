@@ -150,3 +150,55 @@ describe("POST /api/orcamento/manual", () => {
     expect(json.quote.eventType).toBeNull();
   });
 });
+
+/**
+ * OS CONTACTOS ESCRITOS À MÃO TAMBÉM TÊM DE EXISTIR (pedido dela, 30/10).
+ * Até aqui o email não era conferido de forma nenhuma, e o telefone eram
+ * quarenta caracteres quaisquer. Os dois continuam opcionais.
+ */
+describe("POST /api/orcamento/manual — o email e o telefone", () => {
+  it("um email sem forma de email é recusado, com o campo", async () => {
+    authed.ok = true;
+    const res = await POST(req({ name: "Ana", email: "ana@" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).campo).toBe("email");
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it("um email com um domínio que não recebe correio é recusado, com a frase do site", async () => {
+    authed.ok = true;
+    const res = await POST(req({ name: "Ana", email: "ana@nao-existe.invalid" }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error:
+        "Este email não parece existir: confira o que está depois do @ (por exemplo, gmail.com).",
+      campo: "email",
+    });
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it.each(["91234", "+44 7911 12", "123456789"])(
+    "um telefone que não existe (%s) é recusado, com o campo",
+    async (phone) => {
+      authed.ok = true;
+      const res = await POST(req({ name: "Ana", phone }));
+      expect(res.status).toBe(400);
+      expect((await res.json()).campo).toBe("telefone");
+      expect(store.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it("um telefone válido de qualquer país grava-se em E.164", async () => {
+    authed.ok = true;
+    const json = await (await POST(req({ name: "Ana", phone: "+55 11 91234-5678" }))).json();
+    expect(json.quote.phone).toBe("+5511912345678");
+    const nacional = await (await POST(req({ name: "Rui", phone: "912 345 678" }))).json();
+    expect(nacional.quote.phone).toBe("+351912345678");
+  });
+
+  it("sem email nem telefone continua a valer (um telefonema)", async () => {
+    authed.ok = true;
+    const json = await (await POST(req({ name: "Ana" }))).json();
+    expect(json.quote).toMatchObject({ email: "", phone: "" });
+  });
+});

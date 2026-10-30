@@ -22,6 +22,8 @@ import { useToast } from "./Toast";
 import { useAnular } from "./ui/anular";
 import { useDepoisDeApagar } from "./ui/depois-de-apagar";
 import { ESTADO, PRESSAO } from "./ui/movimento";
+import CampoTelefone from "@/components/CampoTelefone";
+import { APARENCIA_DO_BACK_OFFICE, TELEFONE_EM_CAIXA } from "./ui/aparencia-do-telefone";
 
 const CATEGORIES = [
   "Catering",
@@ -498,12 +500,27 @@ export default function Fornecedores() {
                 </option>
               ))}
             </Field>
-            <Field
-              label="Telefone"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              placeholder="Telefone"
-            />
+            {/* A bandeira e o número, como nos pedidos (pedido dela, 30/10).
+                O rótulo é o do `Field`, escrito à mão porque o controlo não é
+                um `<input>` só. */}
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="fornecedor-novo-telefone"
+                className="text-footnote font-semibold text-[var(--bo-text-muted)]"
+              >
+                Telefone
+              </label>
+              <CampoTelefone
+                id="fornecedor-novo-telefone"
+                value={form.phone}
+                onChange={(phone) => setForm({ ...form, phone })}
+                aparencia={APARENCIA_DO_BACK_OFFICE}
+                classeDoBotao={TELEFONE_EM_CAIXA.botao}
+                classeDoNumero={TELEFONE_EM_CAIXA.numero}
+                placeholder="912 345 678"
+                locale="pt"
+              />
+            </div>
             <Field
               label="E-mail"
               value={form.email}
@@ -636,12 +653,16 @@ export default function Fornecedores() {
                       </option>
                     ))}
                   </Field>
-                  <Field
-                    label="Telefone"
-                    hideLabel
+                  <CampoTelefone
+                    id={`fornecedor-${s.id}-telefone`}
+                    ariaLabel="Telefone"
                     value={editForm.phone}
-                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                    placeholder="Telefone"
+                    onChange={(phone) => setEditForm({ ...editForm, phone })}
+                    aparencia={APARENCIA_DO_BACK_OFFICE}
+                    classeDoBotao={TELEFONE_EM_CAIXA.botao}
+                    classeDoNumero={TELEFONE_EM_CAIXA.numero}
+                    placeholder="912 345 678"
+                    locale="pt"
                   />
                   <Field
                     label="E-mail"
