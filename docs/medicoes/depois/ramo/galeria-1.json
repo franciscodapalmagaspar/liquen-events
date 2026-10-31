@@ -1,0 +1,121 @@
+{
+  "url": "http://localhost:3101/galeria",
+  "quando": "2026-10-31T13:23:08.838Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3349
+  },
+  "notas": {
+    "performance": 99,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 976.281,
+    "largest-contentful-paint": 1926.692,
+    "speed-index": 1340,
+    "total-blocking-time": 90.76899999999932,
+    "cumulative-layout-shift": 0,
+    "interactive": 4170.217000000954,
+    "total-byte-weight": 725783,
+    "mainthread-work-breakdown": 3453.9469999999474,
+    "bootup-time": 1186.7849999999771
+  },
+  "elementoLCP": "<p class=\"text-[12.5px] leading-relaxed text-white\">",
+  "maioresPedidos": [
+    {
+      "url": "http://localhost:3101/galeria",
+      "kB": 97
+    },
+    {
+      "url": "http://localhost:3101/_img/g/stephanie-mizio-584-768.avif",
+      "kB": 71
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3101/_img/blur-galeria.json",
+      "kB": 65
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3101/_img/g/galeria-instagram-46-04-768.avif",
+      "kB": 47
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3101/?_rsc=nrexV-HNkfNsxnuo",
+      "kB": 32
+    },
+    {
+      "url": "http://localhost:3101/_img/g/PJ-3666-768.avif",
+      "kB": 28
+    },
+    {
+      "url": "http://localhost:3101/_img/DaniGui_Preview20-1080.avif",
+      "kB": 24
+    }
+  ],
+  "falhas": [
+    {
+      "id": "interactive",
+      "titulo": "Time to Interactive",
+      "nota": 0.86,
+      "valor": "4.2 s"
+    },
+    {
+      "id": "mainthread-work-breakdown",
+      "titulo": "Minimize main-thread work",
+      "nota": 0,
+      "valor": "3.5 s"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 24 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 102 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}
