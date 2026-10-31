@@ -1,0 +1,127 @@
+{
+  "url": "http://localhost:3101/galeria",
+  "quando": "2026-10-31T00:39:07.859Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 2970.5
+  },
+  "notas": {
+    "performance": 86,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 1173.7811000000002,
+    "largest-contentful-paint": 4077.843300000001,
+    "speed-index": 1561.1274356840272,
+    "total-blocking-time": 66.5,
+    "cumulative-layout-shift": 0,
+    "interactive": 4401.822905000002,
+    "total-byte-weight": 799788,
+    "mainthread-work-breakdown": 1757.504,
+    "bootup-time": 622.3400000000013
+  },
+  "elementoLCP": "<p class=\"text-[12.5px] leading-relaxed text-white\">",
+  "maioresPedidos": [
+    {
+      "url": "http://localhost:3101/galeria",
+      "kB": 97
+    },
+    {
+      "url": "http://localhost:3101/_img/g/DaniGui_Adois_66-768.avif",
+      "kB": 69
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3101/_img/blur-galeria.json",
+      "kB": 61
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/9d036f80216c14ee.p.3u4lli0-axodc.woff2",
+      "kB": 40
+    },
+    {
+      "url": "http://localhost:3101/_img/g/galeria-instagram-82-05-768.avif",
+      "kB": 36
+    },
+    {
+      "url": "http://localhost:3101/_img/g/galeria-instagram-80-04-768.avif",
+      "kB": 36
+    },
+    {
+      "url": "http://localhost:3101/?_rsc=nrexV-HNkfNsxnuo",
+      "kB": 33
+    }
+  ],
+  "falhas": [
+    {
+      "id": "largest-contentful-paint",
+      "titulo": "Largest Contentful Paint",
+      "nota": 0.47,
+      "valor": "4.1 s"
+    },
+    {
+      "id": "interactive",
+      "titulo": "Time to Interactive",
+      "nota": 0.83,
+      "valor": "4.4 s"
+    },
+    {
+      "id": "largest-contentful-paint-element",
+      "titulo": "Largest Contentful Paint element",
+      "nota": 0,
+      "valor": "4,080 ms"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0,
+      "valor": "Est savings of 25 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 100 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

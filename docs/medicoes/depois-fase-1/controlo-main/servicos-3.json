@@ -1,0 +1,151 @@
+{
+  "url": "http://localhost:3102/servicos",
+  "quando": "2026-10-31T00:46:23.265Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3057
+  },
+  "notas": {
+    "performance": 84,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 1173.43395,
+    "largest-contentful-paint": 4084.7358000000004,
+    "speed-index": 4192.06377222084,
+    "total-blocking-time": 114,
+    "cumulative-layout-shift": 0,
+    "interactive": 4625.2905225,
+    "total-byte-weight": 920349,
+    "mainthread-work-breakdown": 1753.7960000000035,
+    "bootup-time": 620.720000000002
+  },
+  "elementoLCP": "<p class=\"mt-3 text-white/70 text-[12.5px] leading-[1.6] max-w-xs\">",
+  "maioresPedidos": [
+    {
+      "url": "http://localhost:3102/servicos",
+      "kB": 82
+    },
+    {
+      "url": "http://localhost:3102/_img/DaniGui_JantarFesta_26-1080.avif",
+      "kB": 77
+    },
+    {
+      "url": "http://localhost:3102/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3102/_img/DJI_20250913190635_0120_D-1080.avif",
+      "kB": 64
+    },
+    {
+      "url": "http://localhost:3102/_img/EW1_1330-1080.avif",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3102/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3102/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3102/_img/stephanie-mizio-760-1080.avif",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3102/_next/static/media/9d036f80216c14ee.p.3u4lli0-axodc.woff2",
+      "kB": 40
+    },
+    {
+      "url": "http://localhost:3102/_img/entrada-floresta-clara-1080.avif",
+      "kB": 37
+    }
+  ],
+  "falhas": [
+    {
+      "id": "largest-contentful-paint",
+      "titulo": "Largest Contentful Paint",
+      "nota": 0.47,
+      "valor": "4.1 s"
+    },
+    {
+      "id": "speed-index",
+      "titulo": "Speed Index",
+      "nota": 0.78,
+      "valor": "4.2 s"
+    },
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.89,
+      "valor": "130 ms"
+    },
+    {
+      "id": "interactive",
+      "titulo": "Time to Interactive",
+      "nota": 0.81,
+      "valor": "4.6 s"
+    },
+    {
+      "id": "largest-contentful-paint-element",
+      "titulo": "Largest Contentful Paint element",
+      "nota": 0,
+      "valor": "4,080 ms"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0,
+      "valor": "Est savings of 25 KiB"
+    },
+    {
+      "id": "uses-responsive-images",
+      "titulo": "Properly size images",
+      "nota": 0.5,
+      "valor": "Est savings of 66 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "forced-reflow-insight",
+      "titulo": "Forced reflow",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 102 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}
