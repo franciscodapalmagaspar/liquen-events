@@ -16,6 +16,7 @@ import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import RotatingPhotoGrid from "@/components/RotatingPhotoGrid";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
+import RevealText from "@/components/motion/RevealText";
 
 export async function generateMetadata({
   params,
@@ -222,12 +223,12 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
                 <span className="w-5 h-px bg-gold/50 flex-shrink-0" />
                 {t.clientes.logosEyebrow}
               </p>
-              <h2
+              <RevealText
                 className="text-foreground font-bold uppercase tracking-display leading-[1.05]"
                 style={{ fontSize: "clamp(28px, 3.4vw, 44px)" }}
               >
                 {t.clientes.logosTitle}
-              </h2>
+              </RevealText>
             </AnimateIn>
           </div>
           <AnimateIn delay={staggerMs(2)}>
@@ -257,12 +258,12 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
         />
         <div className="text-veil-shadow relative z-10 max-w-7xl mx-auto px-6 lg:px-16">
           <AnimateIn className="mb-14">
-            <h2
+            <RevealText
               className="text-white font-bold uppercase tracking-display leading-[1.05]"
               style={{ fontSize: "clamp(28px, 3.4vw, 44px)" }}
             >
               {t.clientes.gridTitle}
-            </h2>
+            </RevealText>
           </AnimateIn>
 
           {/* Testemunhos planos — texto branco directamente sobre a foto+véu,
@@ -377,14 +378,14 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
               <span className="w-8 h-px bg-gold" />
               {t.clientes.ctaEyebrow}
             </p>
-            <h2
+            <RevealText
               className="text-white font-bold uppercase tracking-display leading-[0.88] mb-6"
               style={{ fontSize: "clamp(34px, 6vw, 84px)" }}
             >
               {t.clientes.ctaTitleLine1}
               <br />
               {t.clientes.ctaTitleLine2}
-            </h2>
+            </RevealText>
           </AnimateIn>
           <AnimateIn delay={staggerMs(1)}>
             <p className="text-white/70 text-base leading-relaxed max-w-sm mb-14">

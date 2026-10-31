@@ -16,6 +16,7 @@ import { getDictionary, localizeHref, normalizeLocale } from "@/lib/i18n";
 import { PRIMARY_BUTTON_CLASS, OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 import { hifenizar } from "@/lib/hifenizar";
+import RevealText from "@/components/motion/RevealText";
 
 /**
  * A secção de portefólio sorteia as fotos a cada desenho, por isso a página é
@@ -335,12 +336,12 @@ export default async function ServiceDetailPage({
             </p>
           </AnimateIn>
           <AnimateIn delay={staggerMs(1)}>
-            <h2
+            <RevealText
               className="text-foreground font-bold uppercase tracking-display leading-[1.05] mt-5"
               style={{ fontSize: "clamp(28px, 3.8vw, 52px)" }}
             >
               {t.servicoDetalhe.galleryTitle}
-            </h2>
+            </RevealText>
           </AnimateIn>
         </div>
         {/* Full-bleed mosaic (no horizontal padding): the photos run edge to

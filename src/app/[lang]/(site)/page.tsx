@@ -12,6 +12,7 @@ import { blurFor } from "@/lib/blur";
 import ClientMarquee from "@/components/ClientMarquee";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
+import RevealText from "@/components/motion/RevealText";
 
 // Each tile links to a distinct destination that matches its label
 // (Corporativos / Casamentos / Privados) — the first two deep-link to their
@@ -314,13 +315,13 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
               headline dialect as the hero and chapters, so the journey resolves
               calmly instead of escalating into a fussy per-word reveal at the end. */}
           <AnimateIn>
-            <h2
+            <RevealText
               className="text-white font-bold uppercase tracking-display leading-[0.9] mb-6"
               style={{ fontSize: "clamp(32px, 5.5vw, 78px)" }}
             >
               <span className="block">{t.home.ctaTitleLine1}</span>
               <span className="block text-moss-light">{t.home.ctaTitleLine2}</span>
-            </h2>
+            </RevealText>
           </AnimateIn>
           <AnimateIn delay={staggerMs(1)}>
             <p className="text-white/70 text-base leading-relaxed max-w-md mb-12">

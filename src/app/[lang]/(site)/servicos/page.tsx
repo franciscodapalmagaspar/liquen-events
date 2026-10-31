@@ -13,6 +13,7 @@ import { getDictionary, normalizeLocale, localizeHref, type Locale } from "@/lib
 import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 import { hifenizar } from "@/lib/hifenizar";
+import RevealText from "@/components/motion/RevealText";
 
 export async function generateMetadata({
   params,
@@ -337,12 +338,12 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
                 <span className="w-6 h-px bg-gold flex-shrink-0" />
                 {ts.seoEyebrow}
               </p>
-              <h2
+              <RevealText
                 className="text-cream font-bold uppercase tracking-display leading-[1.06] mb-6 max-w-3xl"
                 style={{ fontSize: "clamp(26px, 3.6vw, 52px)" }}
               >
                 {ts.seoTitle}
-              </h2>
+              </RevealText>
               <p className="text-cream/75 text-sm lg:text-base leading-[1.8] max-w-xl text-left text-pretty sm:text-justify hyphens-auto">
                 {hifenizar(ts.seoText, locale)}
               </p>
@@ -384,14 +385,14 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
               <span className="w-8 h-px bg-gold" />
               {ts.ctaEyebrow}
             </p>
-            <h2
+            <RevealText
               className="text-white font-bold uppercase tracking-display leading-[0.9] mb-6"
               style={{ fontSize: "clamp(32px, 5.5vw, 74px)" }}
             >
               {ts.ctaTitleLine1}
               <br />
               <span className="text-moss-light">{ts.ctaTitleMoss}</span>
-            </h2>
+            </RevealText>
           </AnimateIn>
           <AnimateIn delay={staggerMs(1)}>
             <p className="text-white/75 text-base leading-relaxed max-w-md mb-12">{ts.ctaText}</p>
