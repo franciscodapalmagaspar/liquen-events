@@ -32,7 +32,7 @@ async function fillAll(page: Page, name = "Ana Teste") {
     .catch(() => {});
   await page.getByPlaceholder("O seu nome").fill(name);
   await page.getByPlaceholder("email@exemplo.com").fill("ana@exemplo.pt");
-  await page.getByPlaceholder("912 345 678").fill("912345678");
+  await page.getByPlaceholder("+351 9XX XXX XXX").fill("912345678");
   await page
     .getByPlaceholder("Estilo, cores, ambiente, inspirações que guardou…")
     .fill("Algo natural, com flores do campo e tons de branco e verde.");
@@ -143,7 +143,7 @@ test.describe("Pedido de orçamento", () => {
     await page.getByPlaceholder("Ex.: cidade ou espaço do evento…").fill("Évora");
     await page.getByPlaceholder("O seu nome").fill("Rita Sem Numero");
     await page.getByPlaceholder("email@exemplo.com").fill("rita@exemplo.pt");
-    await page.getByPlaceholder("912 345 678").fill("912345678");
+    await page.getByPlaceholder("+351 9XX XXX XXX").fill("912345678");
     await page
       .getByPlaceholder("Estilo, cores, ambiente, inspirações que guardou…")
       .fill("Simples e com muita luz.");

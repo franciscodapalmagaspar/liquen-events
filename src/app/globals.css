@@ -1374,71 +1374,24 @@ body:has([data-orcamento-mode]) .scroll-progress {
   display: none !important;
 }
 
-/* ── Os campos do orçamento: CAIXAS REDONDAS, à Apple ──
-   Ela (30/10): «coloca tudo do formulário em design de apple», e escolheu as
-   caixas redondas do apple.com (a da Conta Apple, a do checkout): cada campo é
-   uma caixa cinzenta-clara de cantos redondos, com o rótulo lá dentro, que
-   sobe e encolhe quando se escreve. Era um sublinhado com um filete moss que
-   se desenhava da esquerda para a direita ao focar.
-
-   O FOCO continua a ter indicador próprio — é o que deixa o anel genérico
-   sair daqui (ver logo abaixo) —, e continua a não ser verde: a caixa passa a
-   branca e o contorno escurece e engrossa para 2 px (o segundo píxel é uma
-   sombra INTERIOR, para nada mudar de sítio). Contorno #c3ccc3 → #596959 e
-   fundo #eef1ee → #fff: o campo focado lê-se de longe, sem halo à volta.
-
-   Numa camada, de propósito: o erro (`border-gold/60`) é um utilitário e
-   tem de ganhar à caixa. O `outline: none` lá de baixo é que fica SEM camada,
-   porque tem de ganhar ao `:focus-visible` global, que também não tem. */
-@layer components {
-  .field-line {
-    border: 1px solid var(--border-strong);
-    border-radius: 0.75rem;
-    background-color: var(--bg-subtle);
-    transition:
-      background-color 0.2s var(--ease-out),
-      border-color 0.2s var(--ease-out),
-      box-shadow 0.2s var(--ease-out);
-  }
-  .field-line:hover {
-    border-color: var(--fg-tertiary);
-  }
-  .field-line:focus {
-    background-color: var(--bg-elevated);
-    border-color: var(--fg-secondary);
-    box-shadow: inset 0 0 0 1px var(--fg-secondary);
-  }
-  .field-line:disabled {
-    cursor: not-allowed;
-  }
-
-  /* ── A DATA NO IPHONE ──
-     Ela (30/10), com uma captura do Safari do iPhone: «o espaço data não está
-     bem». O `<input type="date">` do iOS tem uma largura mínima PRÓPRIA (ignora
-     o `w-full` e saía pela direita do ecrã), uma altura própria (ficava mais
-     alto do que as caixas ao lado) e centra o valor. Sem a aparência do
-     sistema, passa a ser uma caixa como as outras; a roda da Apple continua a
-     abrir ao tocar. A altura é a das caixas vizinhas, MEDIDA no browser —
-     `.ff-input` no /orcamento (52,4 px com rato, 55,2 px no toque) e a caixa
-     dos anúncios (50 px). */
-  .field-line[type="date"] {
-    -webkit-appearance: none;
-    appearance: none;
-    display: block;
-    min-width: 0;
-    max-width: 100%;
-    height: calc(3rem + 2px);
-  }
-  /* O enchimento da `.ff-input` (1,9 rem), uma linha do `text-sm` (1,4286 da
-     letra: 20 px a 14 px, 22,9 px a 16 px — o tamanho que o toque impõe) e o
-     contorno. */
-  .field-line.ff-input[type="date"] {
-    height: calc(1.9rem + 1.4286em + 2px);
-  }
-  .field-line[type="date"]::-webkit-date-and-time-value {
-    margin: 0;
-    text-align: left;
-  }
+/* ── Orçamento form: refined, ultra-minimal field + entrance details ──
+   A hairline moss underline that DRAWS IN left→right on focus (over the resting
+   border), and a subtle staggered fade/rise for the fields on load. Motion is
+   opacity/transform + a 2px background line only — no layout shift, negligible
+   cost — and the entrance is gated behind prefers-reduced-motion. */
+.field-line {
+  background-image: linear-gradient(var(--color-moss), var(--color-moss));
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 0% 2px;
+  /* Mesma avaria do `.lift`: o filete desenhava-se na assinatura e a borda
+     acompanhava em `ease`. Duas curvas no mesmo gesto de focar um campo. */
+  transition:
+    background-size 0.4s var(--ease-out),
+    border-color 0.3s var(--ease-out);
+}
+.field-line:focus {
+  background-size: 100% 2px;
 }
 /* ══════════════════════════════════════════════════════════════════════════
    E O ANEL GENÉRICO SAI DAQUI — PORQUE ESTE CAMPO JÁ TEM O SEU
@@ -1477,10 +1430,10 @@ body:has([data-orcamento-mode]) .scroll-progress {
    a Parte 18 do `docs/DESIGN-SYSTEM.md` exige — um substituto —, e é mais
    forte do que o anel que sai:
 
-     · (desde 30/10, com as caixas redondas) a caixa a passar de cinzenta a
-       branca, com o contorno a escurecer e a engrossar para 2 px
-       (`.field-line:focus`, logo acima) — é um indicador de foco e nunca pode
-       desaparecer (WCAG 2.4.7);
+     · o filete de 2px em moss a toda a largura do campo (`.field-line:focus`,
+       logo acima, cujo próprio comentário diz «é um indicador de foco e nunca
+       pode desaparecer (WCAG 2.4.7)»);
+     · a borda de baixo a passar de `foreground/45` para moss sólido;
      · a etiqueta flutuante a subir.
 
    Três sinais, e nenhum deles é o quadrado de que ela se queixa.
@@ -1489,89 +1442,58 @@ body:has([data-orcamento-mode]) .scroll-progress {
 
    O anel global fica para o resto do sítio inteiro. Isto é uma excepção
    NOMEADA, e só onde há substituto provado: `.field-line`, que existe apenas
-   no formulário de orçamento. Um campo novo que nasça sem esta classe continua
+   no formulário de orçamento, e `.campo-apple`, a caixa dos formulários dos
+   anúncios (o substituto dela está no seu próprio bloco, mais abaixo: a caixa
+   a ficar branca com o contorno escuro de 2 px). Um campo novo que nasça sem esta classe continua
    a receber o anel, que é o comportamento certo para quem não desenhou o seu.
 
    O `forced-colors` mais abaixo continua a repor um `outline` do sistema em
    toda a gente — quem usa contraste forçado não perde nada aqui. */
-.field-line:focus-visible {
+.field-line:focus-visible,
+.campo-apple:focus-visible {
   outline: none;
 }
 @media (forced-colors: active) {
-  .field-line:focus-visible {
+  .field-line:focus-visible,
+  .campo-apple:focus-visible {
     outline: 2px solid CanvasText;
     outline-offset: 2px;
   }
 }
-/* Movimento reduzido: a caixa continua a MUDAR ao focar — é um indicador de
-   foco e nunca pode desaparecer (WCAG 2.4.7) —, só deixa de o fazer devagar. */
+/* Movimento reduzido: o filete continua a APARECER a toda a largura — é um
+   indicador de foco e nunca pode desaparecer (WCAG 2.4.7) —, só deixa de se
+   desenhar da esquerda para a direita. */
 @media (prefers-reduced-motion: reduce) {
   .field-line {
     transition: none;
   }
 }
 
-/* ── A caixa de marcar (orçamento): o quadrado redondo da Apple ──
-   «Data ainda a definir», «Ainda a definir». Continua a ser um `checkbox` (o
-   leitor de ecrã e os passeios não mudam); só o desenho é nosso: um quadrado
-   de 18 px de cantos redondos, contorno de 3:1, e marcado fica verde com o ✓
-   branco. O alvo de toque é o rótulo inteiro (`alvo-toque`), não o quadrado. */
-.caixa-de-marcar {
-  appearance: none;
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  border: 1.5px solid var(--fg-tertiary);
-  border-radius: 5px;
-  background: var(--bg-elevated) center / 12px 12px no-repeat;
-  cursor: pointer;
-  transition:
-    background-color 0.15s var(--ease-out),
-    border-color 0.15s var(--ease-out);
-}
-.caixa-de-marcar:checked {
-  border-color: var(--accent);
-  background-color: var(--accent);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.25 5 8.75l4.5-5.5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-}
-@media (forced-colors: active) {
-  .caixa-de-marcar {
-    appearance: auto;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .caixa-de-marcar {
-    transition: none;
-  }
-}
-
-/* ── O rótulo dentro da caixa (orçamento) ──
-   Em repouso, o rótulo está ao meio da caixa como um texto de exemplo; ao
-   focar, ou quando já há valor (`:placeholder-shown` pelo `:has`), sobe para
-   o canto de cima e encolhe — em letra normal, como no apple.com (era em
-   maiúsculas espaçadas). O exemplo verdadeiro só aparece ao focar, para não
-   chocar com o rótulo. `.ff--float` força o estado de cima nos controlos em
-   que o `:placeholder-shown` não serve (a data). Só `transform` e cor.
-
-   `--ff-rotulo-x` é onde o rótulo começa: o enchimento da caixa, ou, no
-   telemóvel, depois do botão da bandeira (o rótulo vive na caixa do número). */
+/* ── Floating labels (orçamento) ──
+   The label rests inside the field like a placeholder, then floats up + shrinks
+   to the small uppercase micro-label on focus or once the field has a value
+   (detected with :placeholder-shown via :has). The real example placeholder is
+   hidden until focus so it never collides with the resting label. `.ff--float`
+   forces the floated state for controls where :placeholder-shown is unreliable
+   (the native date input). Transform/opacity only — cheap, no layout shift. */
 .ff {
   position: relative;
 }
 .ff-input {
-  padding: 1.45rem 0.875rem 0.45rem;
+  padding-top: 1.3rem;
+  padding-bottom: 0.35rem;
 }
 .ff-label {
   position: absolute;
-  left: var(--ff-rotulo-x, 0.875rem);
-  top: 1.2rem;
+  left: 0;
+  top: 1.3rem;
   font-size: 0.875rem;
   line-height: 1;
-  color: var(--fg-secondary);
+  color: color-mix(in srgb, var(--color-foreground) 42%, transparent);
   pointer-events: none;
   transform-origin: left center;
   white-space: nowrap;
+  /* A etiqueta sobe na assinatura; a cor acompanhava em `ease`. Convergidas. */
   transition:
     transform 0.3s var(--ease-out),
     color 0.3s var(--ease-out);
@@ -1579,17 +1501,81 @@ body:has([data-orcamento-mode]) .scroll-progress {
 .ff:has(.ff-input:focus) .ff-label,
 .ff:has(.ff-input:not(:placeholder-shown)) .ff-label,
 .ff--float .ff-label {
-  transform: translateY(-0.7rem) scale(0.75);
+  /* Small, quiet, gray micro-label (Apple-like) — the moss accent stays on the
+     underline, not the label. */
+  transform: translateY(-1.3rem) scale(0.7);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-foreground) 50%, transparent);
 }
-/* O exemplo só aparece ao focar, para nunca chocar com o rótulo em repouso. */
+/* Hide the example placeholder until focus so only the resting label shows. */
 .ff-input::placeholder {
   color: transparent;
 }
 .ff-input:focus::placeholder {
-  color: var(--fg-placeholder);
+  color: color-mix(in srgb, var(--color-foreground) 40%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
   .ff-label {
+    transition: none;
+  }
+}
+
+/* ── Os campos dos ANÚNCIOS: caixas redondas, à Apple ──
+   Ela (30/10): «coloca tudo do formulário em design de apple», com as caixas
+   redondas do apple.com: cada campo é uma caixa cinzenta-clara de cantos
+   redondos. A 31/10 pediu a página do orçamento «como estava antes do design
+   da apple» — só essa página («Só a página do orçamento») —, e por isso a
+   caixa tem nome próprio: a `.field-line` voltou a ser o sublinhado do
+   orçamento, e esta é a dos dois formulários dos anúncios (`CAMPO_APPLE`, em
+   lib/formulario-apple.ts).
+
+   O FOCO tem indicador próprio e não é verde: a caixa passa a branca e o
+   contorno escurece e engrossa para 2 px (o segundo píxel é uma sombra
+   INTERIOR, para nada mudar de sítio). Numa camada, de propósito: o erro
+   (`border-gold/60`) é um utilitário e tem de ganhar à caixa.
+
+   A DATA NO IPHONE (30/10, «o espaço data não está bem»): o `<input
+   type="date">` do iOS tem largura e altura próprias e centra o valor; sem a
+   aparência do sistema passa a ser uma caixa como as outras (50 px, a altura
+   medida das vizinhas), e a roda da Apple continua a abrir ao tocar. */
+@layer components {
+  .campo-apple {
+    border: 1px solid var(--border-strong);
+    border-radius: 0.75rem;
+    background-color: var(--bg-subtle);
+    transition:
+      background-color 0.2s var(--ease-out),
+      border-color 0.2s var(--ease-out),
+      box-shadow 0.2s var(--ease-out);
+  }
+  .campo-apple:hover {
+    border-color: var(--fg-tertiary);
+  }
+  .campo-apple:focus {
+    background-color: var(--bg-elevated);
+    border-color: var(--fg-secondary);
+    box-shadow: inset 0 0 0 1px var(--fg-secondary);
+  }
+  .campo-apple:disabled {
+    cursor: not-allowed;
+  }
+
+  .campo-apple[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    height: calc(3rem + 2px);
+  }
+  .campo-apple[type="date"]::-webkit-date-and-time-value {
+    margin: 0;
+    text-align: left;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .campo-apple {
     transition: none;
   }
 }
