@@ -57,6 +57,24 @@ O passo «Performance / A11y / SEO budgets (telemóvel)» corre o Lighthouse 3 v
 
 O CI também mede em `localhost`, por isso o LCP sai inflacionado do mesmo modo. A acessibilidade do `/contacto` dá 96 nos dois: é um problema que já existia, e fica para a Fase 3.
 
+## A medição que decide: com a rede travada A SÉRIO (31/10)
+As duas séries acima simulam a rede (o Lighthouse «lantern»): em `localhost` toda a JavaScript chega antes do LCP e entra na conta, e o LCP sai ~4 s em todas as páginas, até nas que não mudaram. Por isso a medição que decide é a outra que o Lighthouse tem: `--throttling-method=devtools`, com a rede e o processador travados de verdade (4G lento, CPU ÷4) e o que o browser passa medido, e não estimado. O guião está em `scratchpad/lh/medir-devtools.sh`; os relatórios em `rede-real/` (o `main` de 31/10 de madrugada, com o #318, em `rede-real/controlo-main/`).
+
+O ramo já com tudo da Fase 1: os vídeos v8 a 50 fps, a capa primeiro e sem cortina, a Google só ao primeiro toque, e o `main` com o #320 e o #321. 3 corridas, mediana:
+
+| Página | `main` | ramo | LCP (s) | Speed Index (s) | TBT (s) | Peso (MB) |
+|---|---|---|---|---|---|---|
+| inicio | 78 | **93** | 1,0 → 1,0 | 7,4 → 4,0 | 0,58 → 0,25 | 4,4 → 2,5 |
+| servicos | 93 | **94** | 1,0 → 1,0 | 3,2 → 1,4 | 0,30 → 0,28 | 1,0 → 0,7 |
+| galeria | — | **98** | 2,1 | 1,4 | 0,10 | 0,7 |
+| orcamento | — | **100** | 1,0 | 1,7 | 0,07 | 0,5 |
+
+**A Fase 1 chega aos 90 nas quatro páginas.** O que levou a página inicial dos 88 aos 93 foi a Google passar a entrar só ao primeiro toque (ela escolheu, 31/10): eram ~265 ms dos ~440 ms de tempo bloqueado.
+
+A acessibilidade do `/orcamento` dá 96: a página voltou ao desenho de antes (#321), e o rótulo «Telemóvel» em repouso tem 3,06:1 (precisa de 4,5:1); e o botão da bandeira diz ao leitor de ecrã um nome que não começa pelo texto que se vê. Tratados à parte, porque são da página que está no ar.
+
+O ecrã «loading» (`(site)/loading.tsx`) foi posto à prova: sem ele a página inicial deu 85, com ele 88 — ruído entre corridas. Fica.
+
 ## O que estes números dizem, e o que não dizem
 - **Dizem:**
   - a página inicial ficou muito mais leve: 8 MB passaram a 2,6 MB;
