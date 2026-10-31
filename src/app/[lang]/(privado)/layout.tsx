@@ -1,5 +1,22 @@
 import type { Metadata } from "next";
+import { Playfair_Display } from "next/font/google";
 import { MovimentoDaProposta } from "./MovimentoDaProposta";
+
+/**
+ * O Playfair da proposta, PRÉ-CARREGADO só aqui. O sítio público deixou de o
+ * pré-carregar (ver a nota «O PLAYFAIR ROMANO…» em `[lang]/layout.tsx`), mas
+ * aqui o título do primeiro ecrã é Playfair. Esta instância redefine o
+ * `--font-playfair` dentro do `<main>`, e a proposta fica como estava: o
+ * ficheiro pedido em alta prioridade logo no `<head>`.
+ */
+const PLAYFAIR_DA_PROPOSTA = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  style: ["normal"],
+  display: "swap",
+  adjustFontFallback: true,
+  fallback: ["Georgia", "Times New Roman", "Times", "serif"],
+});
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -76,7 +93,7 @@ export default function LayoutPrivado({ children }: { children: React.ReactNode 
   // Sem `<main>` com o `pt-24` do sítio: aqui não há barra de navegação por
   // cima, e a página começa onde a página começa.
   return (
-    <main id="conteudo" className="flex-1">
+    <main id="conteudo" className={`flex-1 ${PLAYFAIR_DA_PROPOSTA.variable}`}>
       {/*
         ── SEM CORTINA (22/10) ─────────────────────────────────────────────
 
