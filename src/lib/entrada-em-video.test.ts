@@ -87,13 +87,13 @@ describe("os vídeos da entrada — as regras", () => {
 
   it("o HEVC e o AV1 seriam MP4 com o codec no nome (os registos antigos ainda os nomeiam)", () => {
     expect(enderecoDoVideo(0, "paisagem", "hevc")).toBe(
-      "/videos/entrada/v7/entrada-1-paisagem-hevc.mp4",
+      "/videos/entrada/v8/entrada-1-paisagem-hevc.mp4",
     );
     // Sem grande na v7: a grande cai para a paisagem.
     expect(enderecoDoVideo(1, "grande", "av1")).toBe(
-      "/videos/entrada/v7/entrada-2-paisagem-av1.mp4",
+      "/videos/entrada/v8/entrada-2-paisagem-av1.mp4",
     );
-    expect(formatoDoEndereco("https://x/videos/entrada/v7/entrada-1-retrato-hevc.mp4")).toBe(
+    expect(formatoDoEndereco("https://x/videos/entrada/v8/entrada-1-retrato-hevc.mp4")).toBe(
       "hevc",
     );
     expect(formatoDoEndereco("/v/entrada-1-retrato-av1.mp4")).toBe("av1");
@@ -139,15 +139,15 @@ describe("os vídeos da entrada — as regras", () => {
   });
 
   it("a floresta como imagem animada: o MP4 no <img> e o WebP, ao alto e deitado", () => {
-    expect(enderecoAnimada(0, "retrato")).toBe("/videos/entrada/v7/entrada-1-retrato-animada.webp");
+    expect(enderecoAnimada(0, "retrato")).toBe("/videos/entrada/v8/entrada-1-retrato-animada.webp");
     expect(imagensAnimadas(TAKE_DE_ENTRADA)).toEqual({
       mp4: [
-        "/videos/entrada/v7/entrada-1-retrato.mp4",
-        "/videos/entrada/v7/entrada-1-paisagem.mp4",
+        "/videos/entrada/v8/entrada-1-retrato.mp4",
+        "/videos/entrada/v8/entrada-1-paisagem.mp4",
       ],
       webp: [
-        "/videos/entrada/v7/entrada-1-retrato-animada.webp",
-        "/videos/entrada/v7/entrada-1-paisagem-animada.webp",
+        "/videos/entrada/v8/entrada-1-retrato-animada.webp",
+        "/videos/entrada/v8/entrada-1-paisagem-animada.webp",
       ],
     });
     // Os WebP existem e não passam do tecto (é o que se descarrega quando o
@@ -159,8 +159,8 @@ describe("os vídeos da entrada — as regras", () => {
   });
 
   it("a versão leve ao alto é, desde a v7, a própria vertical (720 px, ~1 MB)", () => {
-    expect(enderecoLeve(0, "hevc")).toBe("/videos/entrada/v7/entrada-1-retrato.mp4");
-    expect(enderecoLeve(2, "mp4")).toBe("/videos/entrada/v7/entrada-3-retrato.mp4");
+    expect(enderecoLeve(0, "hevc")).toBe("/videos/entrada/v8/entrada-1-retrato.mp4");
+    expect(enderecoLeve(2, "mp4")).toBe("/videos/entrada/v8/entrada-3-retrato.mp4");
   });
 
   it("a ligação diz-se lenta: poupar dados, 2G/3G, ou menos de 5 Mbit/s", () => {
@@ -326,9 +326,10 @@ describe("a leve deitada, para o computador que não aguenta a normal (29/10)", 
   });
 
   it("só alivia com fotogramas que cheguem e mais de 10 % perdidos", () => {
-    expect(deveAliviar(150, 40)).toBe(true);
-    expect(deveAliviar(150, 10)).toBe(false);
-    expect(deveAliviar(50, 40)).toBe(false);
+    // Desde a v8 (50 fps), 5 s são 250 fotogramas.
+    expect(deveAliviar(300, 80)).toBe(true);
+    expect(deveAliviar(300, 20)).toBe(false);
+    expect(deveAliviar(150, 80)).toBe(false);
   });
 
   it("o alívio guardado vale uma semana", () => {

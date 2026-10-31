@@ -25,7 +25,7 @@ test.describe("@movimento a entrada em vídeo", () => {
   test("o take de entrada entra por cima da fotografia e toca", async ({ page }) => {
     test.setTimeout(60_000);
     const seguinte = page.waitForRequest(
-      (r) => /\/videos\/entrada\/v7\/entrada-[23]-/.test(r.url()),
+      (r) => /\/videos\/entrada\/v8\/entrada-[23]-/.test(r.url()),
       {
         timeout: 30_000,
       },
@@ -36,7 +36,7 @@ test.describe("@movimento a entrada em vídeo", () => {
     await expect(primeiro).toHaveAttribute("data-entrada-video", "0");
     await expect(primeiro).toHaveCSS("opacity", "1", { timeout: 25_000 });
     expect(await primeiro.evaluate((v: HTMLVideoElement) => v.currentSrc)).toMatch(
-      /\/videos\/entrada\/v7\/entrada-1-(paisagem|retrato)/,
+      /\/videos\/entrada\/v8\/entrada-1-(paisagem|retrato)/,
     );
 
     const t1 = await primeiro.evaluate((v: HTMLVideoElement) => v.currentTime);

@@ -77,11 +77,20 @@
  *     passou de 237 MB para uns 25 MB, e nenhum aparelho recebe mais do que
  *     o tecto dela. As medidas de cada ficheiro estão no PR.
  *
- * A pasta tem versão (`v7`) porque os vídeos são servidos com cache de um ano:
- * um vídeo novo vai para `v8`, nunca por cima.
+ *   · A 50 IMAGENS POR SEGUNDO, desde 31/10 (`v8`). Ela, no computador: o
+ *     vídeo «anda aos soluços». Os originais 4K (que ela passou pelo Drive)
+ *     são de 25 fps, e 25 num ecrã de 60 Hz mostra umas imagens 2 vezes e
+ *     outras 3. As imagens intermédias foram inventadas (`minterpolate`, por
+ *     compensação de movimento) até 50 fps; ela viu o teste da floresta a 25
+ *     e a 50 e escolheu «a de 50», e «não faz os 25» — a leve também é a 50.
+ *     Feitos agora a partir dos ORIGINAIS 4K (e não da `v6`), com os mesmos
+ *     cortes, medidas e tectos da `v7`.
+ *
+ * A pasta tem versão (`v8`) porque os vídeos são servidos com cache de um ano:
+ * um vídeo novo vai para `v9`, nunca por cima.
  */
 
-export const PASTA_DOS_VIDEOS = "/videos/entrada/v7";
+export const PASTA_DOS_VIDEOS = "/videos/entrada/v8";
 
 /** Quantos vídeos há. */
 export const NUMERO_DE_VIDEOS = 3;
@@ -148,7 +157,7 @@ export const MEDIDAS: Record<Variante, { largura: number; altura: number; debito
   retrato: { largura: 720, altura: 1280, debito: 900_000 },
   grande: { largura: 1920, altura: 960, debito: 2_400_000 },
 };
-export const FOTOGRAMAS_POR_SEGUNDO = 25;
+export const FOTOGRAMAS_POR_SEGUNDO = 50;
 
 /** A resposta do `navigator.mediaCapabilities.decodingInfo`, só o que conta. */
 export interface Capacidade {
@@ -570,8 +579,8 @@ export function enderecoLeveDeitado(i: number): string {
 
 /** Perder mais do que isto dos fotogramas é ver o vídeo «aos soluços». */
 export const ALIVIAR_PERDIDOS = 0.1;
-/** E só se decide com fotogramas que cheguem (5 s a 25 por segundo). */
-export const ALIVIAR_MIN_FOTOGRAMAS = 125;
+/** E só se decide com fotogramas que cheguem (5 s a 50 por segundo). */
+export const ALIVIAR_MIN_FOTOGRAMAS = 250;
 /** Nem nos primeiros segundos, em que a página ainda se monta. */
 export const ALIVIAR_DEPOIS_DE_MS = 6000;
 /** Tão mau que vale a pena trocar já o take à vista, e não só os seguintes. */
