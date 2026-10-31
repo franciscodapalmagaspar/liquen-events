@@ -1,77 +1,46 @@
 "use client";
 
-import { createContext, useContext, useEffect } from "react";
+import { useEffect } from "react";
 import { prefersReducedMotion } from "@/lib/motion/useReducedMotion";
-import { inerciaDesejada, ligarInerciaDaRoda } from "@/lib/motion/inercia-roda";
+import { haCamadaPorCima, inerciaDesejada, temScrollProprio } from "@/lib/motion/inercia-roda";
+import { depoisDeCarregar } from "@/lib/depois-de-carregar";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
- * O SCROLL DO SÍTIO — nativo em todo o lado, com um interruptor para a roda
+ * O SCROLL DO SÍTIO — suave na roda do computador, nativo no dedo
  * ════════════════════════════════════════════════════════════════════════════
  *
- * O QUE JÁ CÁ ESTAVA, E PORQUÊ. Este sítio TEVE scroll com inércia por
- * JavaScript (Lenis) e foi tirado de propósito em 7d047fe, com esta razão
- * escrita: depois das correcções de compositing o sítio continuava a parecer
- * "pouco rápido na resposta", e a culpa era da interpolação — a página deslizava
- * em vez de seguir a roda/dedo a 1:1, o que se lê como atraso na resposta, e o
- * deslize de ~1 s depois de cada gesto mantinha o herói WebGL a redesenhar todo
- * esse tempo. A dependência caiu a seguir (90553fb).
+ * O QUE JÁ CÁ ESTEVE. O sítio teve o Lenis e ele foi tirado de propósito
+ * (7d047fe): a página deslizava em vez de seguir a roda a 1:1, o que se lia
+ * como «pouco rápido na resposta», e o deslize mantinha o herói WebGL a
+ * redesenhar. O herói WebGL já não existe (30/10).
  *
- * DUAS COISAS MUDARAM DESDE ENTÃO, e ambas contam para quem reabrir isto:
+ * O QUE MUDOU (30/10, o pedido «nível estúdio»): ela pediu o Lenis de volta,
+ * nos termos do B7.3 do `docs/PADRAO-PALUMEN.md` — só rato e trackpad. Volta
+ * mais PRONTO do que era: `lerp` 0,16 (o predefinido é 0,1), ou seja, ~16 % do
+ * caminho em cada fotograma — a página apanha a roda em ~1/4 de segundo em vez
+ * de ~1/2. Se mesmo assim se ler como atraso, é a linha `INERCIA_NA_RODA` a
+ * desligar, e mais nada.
  *
- *   1. O QUE O LENIS TINHA ERA `syncTouch: false`. Ou seja: o TELEMÓVEL nunca
- *      teve inércia por JavaScript, nem antes nem depois. O que foi tirado em
- *      7d047fe foi a inércia DA RODA, no computador. Qualquer conversa sobre
- *      "voltar a pôr o Lenis" tem de começar por aqui, ou fala do que não era.
- *   2. AS DUAS COISAS QUE O DESLIZE ENCARECIA JÁ NÃO EXISTEM. O herói WebGL
- *      (HeroWebGL.heavyEffectsWelcome) e o parallax (Parallax.parallaxWanted)
- *      estão hoje desligados em TODOS os dispositivos. Metade da razão registada
- *      em 7d047fe — "mantinha o herói WebGL a redesenhar" — caducou. A outra
- *      metade (não seguir a roda a 1:1) é gosto, e é da dona, não nossa.
+ * O TELEMÓVEL FICA DE FORA, como sempre esteve (o Lenis já tinha
+ * `syncTouch: false`): o scroll de toque nativo corre no compositor, fora da
+ * linha principal, e uma emulação por JavaScript transformava cada engasgo
+ * dessa linha numa paragem debaixo do dedo — a queixa original dela.
  *
- * O INTERRUPTOR (`INERCIA_NA_RODA`, mesmo aqui em baixo) está DESLIGADO. Ligado,
- * acende inércia SÓ EM PONTEIRO FINO — rato e trackpad. Nunca no telemóvel.
+ * E NUNCA LUTA COM O QUE JÁ MANDA NO SCROLL:
+ *   · o menu e a galeria aberta trancam o corpo (`overflow: hidden`, ou um
+ *     diálogo modal): o Lenis pára enquanto durarem (`haCamadaPorCima`);
+ *   · uma caixa com scroll próprio debaixo do rato fica com a roda dela
+ *     (`temScrollProprio`, o mesmo teste da inércia antiga);
+ *   · com «reduzir movimento» não se monta.
  *
- * PORQUE É QUE O TELEMÓVEL FICA DE FORA, e não é por prudência vaga. O scroll
- * nativo de toque corre no COMPOSITOR, fora da linha principal: com a linha
- * principal entupida, a página continua a deslizar debaixo do dedo. Uma inércia
- * por JavaScript substitui isso por uma emulação que escreve a posição do scroll
- * a partir de um `requestAnimationFrame` NA linha principal — e a partir daí
- * cada engasgo dessa linha é a página a parar debaixo do dedo. A queixa original
- * da dona do sítio foi exactamente essa, no telemóvel dela. Ligar inércia no
- * toque é arriscar agravar a queixa que deu origem a tudo isto.
- *
- * O QUE NÃO SE PERDE COM O NATIVO: os reveals são CSS + IntersectionObserver, o
- * Parallax tem o seu próprio ouvinte passivo, e os saltos de âncora continuam
- * suaves pelo `scroll-behavior: smooth` do globals.css (que só afecta scrolls
- * programáticos, nunca a roda/dedo de quem lá está).
+ * O Lenis só se descarrega DEPOIS do `load`, no primeiro instante livre
+ * (`depoisDeCarregar`): não entra no primeiro ecrã nem no LCP.
  */
+const INERCIA_NA_RODA = true;
 
-// ── O INTERRUPTOR ──
-// `false` = o sítio inteiro em scroll nativo, como está hoje.
-// `true`  = inércia na roda do rato, só em ponteiro fino (o telemóvel não muda).
-// Segue o estilo dos outros interruptores de movimento do sítio
-// (Parallax.parallaxWanted, HeroWebGL.heavyEffectsWelcome): uma constante que se
-// vira à mão, sem plumbing de configuração para uma decisão que é de gosto.
-const INERCIA_NA_RODA = false;
-
-/**
- * Sobra do Lenis: zero consumidores hoje (verificado por procura em todo o
- * `src/`). Fica como no-op estável para não partir nada que venha a importá-lo,
- * e porque removê-lo é uma limpeza à parte desta decisão.
- */
-const LenisContext = createContext<null>(null);
-
-/** Sempre null — não há instância de scroll suave para partilhar. */
-export function useLenis(): null {
-  return useContext(LenisContext);
-}
-
-export default function SmoothScroll({ children }: { children: React.ReactNode }) {
+export default function SmoothScroll() {
   useEffect(() => {
-    // A decisão é tomada depois de montar, porque `matchMedia` é só do cliente.
-    // Com o interruptor desligado isto sai na primeira linha e não regista
-    // ouvinte nenhum — nem sequer o `matchMedia` chega a ser chamado.
     if (
       !inerciaDesejada({
         ligada: INERCIA_NA_RODA,
@@ -81,8 +50,45 @@ export default function SmoothScroll({ children }: { children: React.ReactNode }
     ) {
       return;
     }
-    return ligarInerciaDaRoda(window);
+    let vivo = true;
+    let desligar = () => {};
+    const cancelar = depoisDeCarregar(() => {
+      void import("lenis").then(({ default: Lenis }) => {
+        if (!vivo) return;
+        const lenis = new Lenis({
+          lerp: 0.16,
+          smoothWheel: true,
+          syncTouch: false,
+          autoRaf: true,
+          // Uma caixa com scroll próprio fica com a roda dela.
+          prevent: (no: HTMLElement) => temScrollProprio(no, document.documentElement),
+        });
+        // O menu e a galeria aberta trancam o corpo: pára enquanto durarem.
+        const vigiar = () => {
+          const trancado = document.body.style.overflow === "hidden" || haCamadaPorCima(document);
+          if (trancado) lenis.stop();
+          else lenis.start();
+        };
+        const obs = new MutationObserver(vigiar);
+        obs.observe(document.body, {
+          attributes: true,
+          attributeFilter: ["style", "data-menu-open"],
+          subtree: false,
+        });
+        obs.observe(document.body, { childList: true });
+        vigiar();
+        desligar = () => {
+          obs.disconnect();
+          lenis.destroy();
+        };
+      });
+    });
+    return () => {
+      vivo = false;
+      cancelar();
+      desligar();
+    };
   }, []);
 
-  return <LenisContext.Provider value={null}>{children}</LenisContext.Provider>;
+  return null;
 }

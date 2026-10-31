@@ -10,6 +10,7 @@ import PageTransition from "@/components/PageTransition";
 import HeroWarm from "@/components/HeroWarm";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import MolaAoLargar from "@/components/motion/MolaAoLargar";
+import SmoothScroll from "@/components/motion/SmoothScroll";
 import ErrosDoSite from "@/components/ErrosDoSite";
 import type { Locale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n";
@@ -83,13 +84,12 @@ export default function CromadoDoSitio({
   // O `locale` desce para o rodapé e para o aviso de carregamento. Fica na
   // assinatura para quem monta o cromado ter de o fornecer, em vez de cada um
   // deles o ir buscar por sua conta a um contexto que pode não existir.
-  // Sem o `<SmoothScroll>` que aqui estava (30/10, «nível estúdio»): com a
-  // inércia da roda desligada (`INERCIA_NA_RODA = false`), era um componente de
-  // cliente em TODAS as páginas que não fazia nada — o contexto valia sempre
-  // `null` e ninguém o lia. O scroll suave volta na Fase 2, com o Lenis, só
-  // para rato e trackpad.
+  // O scroll suave (Fase 2 do «nível estúdio»): o Lenis, só com rato e
+  // trackpad, descarregado depois do `load`. Já não embrulha a página — é um
+  // vizinho que não desenha nada. Ver `motion/SmoothScroll.tsx`.
   return (
     <>
+      <SmoothScroll />
       <SpeculationRules />
       <HeroWarm />
       <ServiceWorkerRegister />

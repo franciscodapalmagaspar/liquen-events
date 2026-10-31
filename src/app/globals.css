@@ -1521,6 +1521,25 @@ body:has([data-orcamento-mode]) .scroll-progress {
   }
 }
 
+/* ── O Lenis (o scroll suave da roda, só no computador) ──
+   As regras que o próprio Lenis pede (lenis/dist/lenis.css), escritas aqui
+   para não acrescentar um pedido de folha: enquanto ele manda, nenhum
+   `scroll-behavior` do sítio o duplica; parado (menu, galeria aberta), corta o
+   scroll; e as caixas com scroll próprio guardam o deslize para si. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+
 /* ── Os campos dos ANÚNCIOS: caixas redondas, à Apple ──
    Ela (30/10): «coloca tudo do formulário em design de apple», com as caixas
    redondas do apple.com: cada campo é uma caixa cinzenta-clara de cantos
