@@ -158,20 +158,16 @@ describe("EntradaEmVideo", () => {
     expect(GUIAO_DA_ENTRADA).not.toContain("grande");
   });
 
-  describe("só a capa, sem vídeo (30/10)", () => {
+  describe("só a capa, sem vídeo: com «Poupar dados» (30/10)", () => {
     afterEach(() => {
       Reflect.deleteProperty(navigator, "connection");
     });
-    it("com «reduzir movimento» nenhum vídeo é pedido nem tocado", async () => {
+    it("com «reduzir movimento» o vídeo toca na mesma (ela, 31/10: «O vídeo toca sempre»)", async () => {
       vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduced-motion") }));
-      const { container } = await montar();
-      expect(play).not.toHaveBeenCalled();
-      expect(
-        videos(container).every((v) => !v.querySelector("source") && !v.getAttribute("src")),
-      ).toBe(true);
-      expect(ociosos).toEqual([]);
+      await montar();
+      expect(play).toHaveBeenCalled();
     });
-    it("com «Poupar dados» também", async () => {
+    it("com «Poupar dados» fica só a capa", async () => {
       Object.defineProperty(navigator, "connection", {
         configurable: true,
         value: { saveData: true },
@@ -1208,6 +1204,12 @@ describe("EntradaEmVideo", () => {
         } finally {
           Reflect.deleteProperty(navigator, "connection");
         }
+      });
+
+      it("com «reduzir movimento», não espera", async () => {
+        vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduced-motion") }));
+        await floresta();
+        expect(pedidos).toHaveLength(1);
       });
 
       it("pedido no prazo, chega inteiro à memória e a passagem faz-se dele, normalmente", async () => {

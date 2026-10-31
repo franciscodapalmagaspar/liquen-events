@@ -12,8 +12,8 @@ import { test, expect } from "@playwright/test";
  *   · a fotografia continua por baixo — é o LCP, e é o que fica sem vídeo;
  *   · nenhum vídeo se pede antes do `load`: a capa é a primeira coisa no ecrã
  *     (o pedido «nível estúdio», 30/10, que também tirou a cortina do sítio);
- *   · com movimento reduzido fica só a capa (o mesmo pedido, que substitui a
- *     decisão de 16/10 de o vídeo tocar na mesma);
+ *   · com movimento reduzido o vídeo toca na mesma (decisão dela, 16/10, e
+ *     outra vez a 31/10: «O vídeo toca sempre»);
  *   · cada entrada abre num take diferente.
  *
  * O Chromium dos testes não tem H.264, por isso toca a rede em WebM — o mesmo
@@ -88,20 +88,16 @@ test.describe("@movimento a entrada em vídeo", () => {
     for (const v of videos) expect(v.inicio, v.url).toBeGreaterThanOrEqual(load);
   });
 
-  test("com movimento reduzido fica só a capa, sem vídeo", async ({ browser }) => {
+  test("com movimento reduzido o vídeo toca na mesma", async ({ browser }) => {
     test.setTimeout(60_000);
     const ctx = await browser.newContext({ reducedMotion: "reduce" });
     const page = await ctx.newPage();
-    const pedidos: string[] = [];
-    page.on("request", (r) => {
-      if (/\/videos\/entrada\//.test(r.url())) pedidos.push(r.url());
-    });
     await page.goto("/");
-    await page.waitForLoadState("load");
-    await page.waitForTimeout(2500);
-    expect(pedidos).toEqual([]);
-    await expect(page.locator("video[data-primeiro]")).toHaveCount(0);
-    await expect(page.locator("section img.hero-settle")).toHaveCount(1);
+    const primeiro = page.locator("video[data-primeiro]");
+    await expect(primeiro).toHaveCSS("opacity", "1", { timeout: 25_000 });
+    const t1 = await primeiro.evaluate((v: HTMLVideoElement) => v.currentTime);
+    await page.waitForTimeout(800);
+    expect(await primeiro.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(t1);
     await ctx.close();
   });
 });

@@ -1888,14 +1888,15 @@ function criarMotor(raiz: HTMLElement): Motor | null {
 }
 
 /**
- * Fica só a fotografia da capa, sem vídeo nenhum: com «reduzir movimento» ou
- * com «poupar dados» (pedido dela, 30/10). Até aqui o vídeo tocava mesmo com
- * o movimento reduzido, por uma decisão dela de 28/10; o pedido «nível
- * estúdio» é posterior e diz o contrário, e é ele que vale.
+ * Fica só a fotografia da capa, sem vídeo nenhum: com «poupar dados».
+ *
+ * O pedido «nível estúdio» (30/10) também tirava o vídeo com «reduzir
+ * movimento». Ela viu o link de teste no computador — «está apenas uma foto
+ * de capa» — e, posta a escolha, respondeu «O vídeo toca sempre» (31/10), como
+ * já tinha decidido a 16/10. No Windows, «Mostrar animações» desligado conta
+ * como movimento reduzido: era por isso que lá não havia vídeo.
  */
 export function soACapa(): boolean {
-  if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches)
-    return true;
   const lig = (navigator as ComLigacao).connection;
   return !!lig?.saveData;
 }

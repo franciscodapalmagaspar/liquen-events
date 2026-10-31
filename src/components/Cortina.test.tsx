@@ -449,8 +449,9 @@ describe("a mesma cortina em toda a casa — menos na proposta", () => {
    *
    * E depois (30/10, o pedido «nível estúdio», com a escolha à frente: «Tirar
    * em todo o site»): a fotografia da capa tem de ser a PRIMEIRA coisa no ecrã,
-   * sem nada por cima — é ela o LCP. A cortina sai do sítio público; a frase
-   * dela passa para cima da capa. Fica só no back office.
+   * sem nada por cima — é ela o LCP. A cortina sai do sítio público e fica só no
+   * back office. (A frase chegou a ir para cima da capa; ela viu-a no link de
+   * teste e pediu «deixa estar como estava», 31/10: saiu.)
    */
   const SITIO = readFileSync("src/components/CromadoDoSitio.tsx", "utf8");
   const MONTAGENS = {

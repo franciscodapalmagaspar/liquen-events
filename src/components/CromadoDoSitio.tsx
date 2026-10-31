@@ -104,13 +104,14 @@ export default function CromadoDoSitio({
         A CORTINA SAIU DO SÍTIO PÚBLICO (30/10). Ela, no pedido «nível
         estúdio»: «a primeira coisa a aparecer é a imagem de capa […] sem
         animação de entrada à frente e sem ecrã branco». Posta a escolha,
-        escolheu tirá-la de TODO o sítio («Tirar em todo o site») e deixar a
-        frase escrita por cima da capa da página inicial («Frase por cima da
-        capa»). A cortina tapava todas as páginas pelo menos 1 s e atrasava a
-        primeira imagem de todas.
+        escolheu tirá-la de TODO o sítio («Tirar em todo o site»). A frase da
+        cortina chegou a ir para cima da capa; ao ver o link de teste, ela
+        pediu «deixa estar como estava» (31/10), e a capa ficou só com o título.
+        A cortina tapava todas as páginas pelo menos 1 s e atrasava a primeira
+        imagem de todas.
 
-        A peça continua viva onde ela a quis e onde este pedido não toca: na
-        proposta online e no back office (`Cortina.tsx`, o mesmo CSS).
+        A peça continua viva onde este pedido não toca: no back office
+        (`Cortina.tsx`, o mesmo CSS). A proposta online já não a tinha (22/10).
       */}
       <ScrollProgress />
       {/*
