@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { GET, textoDoLlms } from "./route";
 import sitemap from "../sitemap";
 import { SITE } from "@/lib/site";
+import { SERVICES } from "@/lib/services-data";
 
 describe("/llms.txt", () => {
   const texto = textoDoLlms();
@@ -28,5 +29,13 @@ describe("/llms.txt", () => {
     const r = GET();
     expect(r.headers.get("content-type")).toBe("text/plain; charset=utf-8");
     expect(await r.text()).toBe(texto);
+  });
+
+  it("lista todos os serviços (nenhum fica de fora quando nasce um novo)", () => {
+    for (const s of SERVICES) expect(links, s.slug).toContain(`${SITE.url}/servicos/${s.slug}`);
+  });
+
+  it("não lista as landing pages de anúncios (a geografia que ela tirou do site)", () => {
+    expect(texto).not.toMatch(/\/casamentos\//);
   });
 });
