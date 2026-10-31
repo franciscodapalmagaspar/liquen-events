@@ -115,7 +115,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
           <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr]">
             {/* ── Esquerda — canais diretos ── */}
             <div className="border-b border-foreground/8 lg:border-b-0 lg:border-r py-14 lg:py-24 lg:pr-20">
-              <p className="text-foreground/60 text-[10px] tracking-[0.5em] uppercase mb-12 flex items-center gap-3">
+              <p className="text-foreground/70 text-[10px] tracking-[0.5em] uppercase mb-12 flex items-center gap-3">
                 <span className="w-6 h-px bg-gold flex-shrink-0" />
                 {tf.infoEyebrow}
               </p>
@@ -188,7 +188,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                 <span className="text-moss flex-shrink-0">
                   <WhatsAppIcon className="w-4 h-4" />
                 </span>
-                <span className="text-[11px] tracking-[0.25em] uppercase text-foreground/60 group-hover:text-foreground transition-colors">
+                <span className="text-[11px] tracking-[0.25em] uppercase text-foreground/70 group-hover:text-foreground transition-colors">
                   {tf.whatsappLink}
                   <span className="sr-only"> ({t.common.newWindow})</span>
                 </span>
@@ -228,7 +228,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                     />
                   </svg>
                 </span>
-                <span className="text-[11px] tracking-[0.25em] uppercase text-foreground/60 group-hover:text-foreground transition-colors">
+                <span className="text-[11px] tracking-[0.25em] uppercase text-foreground/70 group-hover:text-foreground transition-colors">
                   {tf.googleLink}
                   <span className="sr-only"> ({t.common.newWindow})</span>
                 </span>
@@ -261,7 +261,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                       href={s.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="alvo-toque group inline-flex items-center py-1.5 text-[11px] tracking-[0.25em] uppercase text-foreground/60 hover:text-foreground transition-colors"
+                      className="alvo-toque group inline-flex items-center py-1.5 text-[11px] tracking-[0.25em] uppercase text-foreground/70 hover:text-foreground transition-colors"
                     >
                       <span className="border-b border-foreground/15 transition-colors group-hover:border-foreground/40">
                         {s.label}
