@@ -1,0 +1,151 @@
+{
+  "url": "http://localhost:3101/proposta/local",
+  "quando": "2026-10-31T14:16:53.954Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3133.5
+  },
+  "notas": {
+    "performance": 98,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 69
+  },
+  "metricas": {
+    "first-contentful-paint": 1070.405,
+    "largest-contentful-paint": 1070.405,
+    "speed-index": 3629,
+    "total-blocking-time": 76.3739999999998,
+    "cumulative-layout-shift": 0.045882180147174184,
+    "interactive": 4537.085000001907,
+    "total-byte-weight": 955685,
+    "mainthread-work-breakdown": 2536.2979999999484,
+    "bootup-time": 526.0489999999944
+  },
+  "elementoLCP": "<h1 class=\"pw-t\">",
+  "maioresPedidos": [
+    {
+      "url": "http://localhost:3101/_img/g/DaniGui_Adois_25-1280.avif",
+      "kB": 134
+    },
+    {
+      "url": "http://localhost:3101/_img/g/DaniGui_Adois_61-1280.avif",
+      "kB": 126
+    },
+    {
+      "url": "http://localhost:3101/_img/g/DaniGui_Adois_27-1280.avif",
+      "kB": 108
+    },
+    {
+      "url": "http://localhost:3101/_img/g/DaniGui_Adois_58-1280.avif",
+      "kB": 91
+    },
+    {
+      "url": "http://localhost:3101/proposta/local",
+      "kB": 83
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3101/logo-liquen-proposta.png",
+      "kB": 52
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/9d036f80216c14ee.p.3u4lli0-axodc.woff2",
+      "kB": 40
+    }
+  ],
+  "falhas": [
+    {
+      "id": "speed-index",
+      "titulo": "Speed Index",
+      "nota": 0.86,
+      "valor": "3.6 s"
+    },
+    {
+      "id": "interactive",
+      "titulo": "Time to Interactive",
+      "nota": 0.82,
+      "valor": "4.5 s"
+    },
+    {
+      "id": "mainthread-work-breakdown",
+      "titulo": "Minimize main-thread work",
+      "nota": 0,
+      "valor": "2.5 s"
+    },
+    {
+      "id": "unsized-images",
+      "titulo": "Image elements do not have explicit `width` and `height`",
+      "nota": 0.5,
+      "valor": null
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 49 KiB"
+    },
+    {
+      "id": "modern-image-formats",
+      "titulo": "Serve images in next-gen formats",
+      "nota": 0.5,
+      "valor": "Est savings of 27 KiB"
+    },
+    {
+      "id": "uses-responsive-images",
+      "titulo": "Properly size images",
+      "nota": 0.5,
+      "valor": "Est savings of 308 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "is-crawlable",
+      "titulo": "Page is blocked from indexing",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 369 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

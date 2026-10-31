@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import type { ImagemWeb, PropostaWeb as Dados } from "@/lib/proposta-web/modelo";
 import type { FormaDaCelula } from "@/lib/proposta-web/mosaico";
 import PropostaWebViva from "./PropostaWebViva";
+import RevealText from "@/components/motion/RevealText";
 import { IconeInstagram, IconeLinkedIn } from "@/components/IconesDasRedes";
 import { fatorParaCobrir, sizesParaCobrir } from "@/lib/proposta-web/tamanhos";
 
@@ -192,7 +193,7 @@ export default function PropostaWeb({
       <div>
         <div className="pw-num pw-rv">{k.numero}</div>
         <div className="pw-k pw-rv">{t.ancoras.inspiracao.toLocaleLowerCase(lang)}</div>
-        <h2 className="pw-t pw-rv">{k.nome}</h2>
+        <RevealText className="pw-t">{k.nome}</RevealText>
         <div className="pw-rule pw-rv" />
         {(k.nota || k.linha) && <p className="pw-rv">{k.nota || k.linha}</p>}
       </div>
@@ -327,7 +328,7 @@ export default function PropostaWeb({
             <div className="pw-k pw-rv" style={{ fontSize: "clamp(20px,2.2vw,28px)" }}>
               {d.proposta.sobre.toLocaleLowerCase(lang)}
             </div>
-            <h2 className="pw-t pw-rv">{d.proposta.titulo}</h2>
+            <RevealText className="pw-t">{d.proposta.titulo}</RevealText>
             <dl className="pw-facts pw-rv">
               {d.proposta.factos.map((f, i) => (
                 <div
@@ -362,7 +363,7 @@ export default function PropostaWeb({
           <div className="pw-wrap pw-sec-head" id="servicos">
             <div>
               <div className="pw-k pw-rv">{t.oQuePropomos}</div>
-              <h2 className="pw-t pw-rv">{d.servicos.titulo}</h2>
+              <RevealText className="pw-t">{d.servicos.titulo}</RevealText>
             </div>
             <p className="pw-rv">{t.textoDosServicos}</p>
           </div>
@@ -411,12 +412,12 @@ export default function PropostaWeb({
             >
               {t.paleta}
             </div>
-            <h2
-              className="pw-t pw-rv"
+            <RevealText
+              className="pw-t"
               style={{ fontSize: "clamp(28px,3.6vw,48px)", fontWeight: 400 }}
             >
               {d.paleta.titulo}
-            </h2>
+            </RevealText>
             <div className="pw-rule pw-rv" />
             <p className="pw-rv" style={{ maxWidth: 460, color: "var(--muted)" }}>
               {d.paleta.subtitulo}
@@ -554,12 +555,12 @@ export default function PropostaWeb({
           >
             {t.condicoesSobre}
           </div>
-          <h2
-            className="pw-t pw-rv"
+          <RevealText
+            className="pw-t"
             style={{ fontSize: "clamp(28px,3.6vw,48px)", fontWeight: 400 }}
           >
             {t.ancoras.condicoes}
-          </h2>
+          </RevealText>
           <div className="pw-rule pw-rv" />
           <div className="pw-rv">
             {d.condicoes.blocos.map((b, i) => (
@@ -591,7 +592,7 @@ export default function PropostaWeb({
             </div>
           )}
           <div className="pw-k pw-rv">{d.fecho.obrigado}</div>
-          <h2 className="pw-t pw-rv">{t.tituloDoFecho}</h2>
+          <RevealText className="pw-t">{t.tituloDoFecho}</RevealText>
           <div className="pw-rule pw-rv" style={{ margin: "22px auto" }} />
           <p
             className="pw-rv"
