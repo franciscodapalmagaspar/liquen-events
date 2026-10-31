@@ -31,7 +31,6 @@ O inventário foi lido no código, com `ls`, `grep`, `wc` e `ffprobe`. Dois pont
 | hyphen | ^1.14.1 |
 | libphonenumber-js | 1.13.15 |
 | nodemailer | ^10.2.1 |
-| ogl | ^1.0.11 (sem nenhum `import` em `src/` nem `scripts/`; só citado num comentário de `src/lib/motion/webgl.ts`) |
 | pdf-lib | ^1.17.1 |
 | pdfjs-dist | ^6.2.108 |
 | sharp | ^0.35.4 (instalado 0.35.5) |
@@ -193,7 +192,6 @@ Pastas: `src/components/motion/`, `src/components/`, `src/lib/motion/`. Regra ge
 | `ClientMarquee` | `src/components/ClientMarquee.tsx` | Fita de logótipos em movimento, pausada fora do ecrã. | Início, Clientes. |
 | `RotatingPhotoGrid` | `src/components/RotatingPhotoGrid.tsx` | Mosaico de fotografias que roda. | Clientes. |
 | Zoom de hover | `.hero-settle`, `ZOOM_CLASS` na galeria (`scale 1.03`, 400 ms) | Capa em repouso a `scale(1.06)`; zoom das miniaturas desligado em movimento reduzido. | — |
-| Sem uso | `KineticHeading.tsx`, `motion/TiltCard.tsx`, `motion/PhotoWall.tsx`, `TestimonialsCarousel.tsx` | Existem mas nenhum ficheiro os importa (verificado por `grep`). | — |
 
 - **Liquid Glass**: o motor `src/lib/liquid-glass.ts` e a ponte `src/app/[lang]/(admin)/orcamento/admin/ui/Glass.tsx` só são importados no back office. **Não é usado no sítio público.** Os tokens `--glass-*` existem em `:root`.
 - **Movimento reduzido**: >20 blocos `@media (prefers-reduced-motion: reduce)` em `globals.css`; os componentes acima verificam-no em JS. Excepção deliberada: os vídeos da entrada **tocam mesmo com movimento reduzido** (decisão da dona, 16/10 e 31/10).
@@ -419,10 +417,10 @@ Existe um back office em `/orcamento/admin` (grupo `src/app/[lang]/(admin)/`, co
 - **View Transitions nas rotas**: desligadas (`USE_VIEW_TRANSITIONS = false` em `src/components/PageTransition.tsx`).
 - **Modo escuro activo**: o bloco `.dark` existe mas nada põe a classe; nenhum `prefers-color-scheme` activo; `colorScheme: "light"` no viewport.
 - **Liquid Glass no sítio público**: `liquid-glass.ts`/`Glass.tsx` só importados no back office.
-- **Biblioteca de animação React** (framer-motion/motion), three.js / react-three-fiber: ausentes do `package.json`. `ogl` está instalado mas não é importado.
+- **Biblioteca de animação React** (framer-motion/motion), three.js / react-three-fiber: ausentes do `package.json`. (O `ogl`, instalado sem uso, saiu a 31/10.)
 - **Vercel Analytics / Speed Insights**: ausentes do `package.json` e de `node_modules/@vercel`.
 - **Biblioteca de i18n** (next-intl, i18next): ausente; o i18n é próprio.
-- **Carrossel** (swiper, embla): ausente do `package.json`; `TestimonialsCarousel.tsx` existe mas não é usado.
+- **Carrossel** (swiper, embla): ausente do `package.json`. (O `TestimonialsCarousel.tsx`, sem uso, saiu a 31/10, com o `KineticHeading`, o `TiltCard` e o `PhotoWall`.)
 - **Imagem OG gerada por código** (`opengraph-image.tsx`): nenhum ficheiro (`find`); é uma imagem estática.
 - **`LocalBusiness`, `areaServed`, `aggregateRating`, `address`, `geo`, `SearchAction`** no JSON-LD: ausentes (grep em `StructuredData.tsx` e `JsonLd.tsx`); as três primeiras de propósito (§8).
 - **Slideshow na galeria**: retirado (teste `GaleriaClient.sem-slideshow.test.tsx`).
