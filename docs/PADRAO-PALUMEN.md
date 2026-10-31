@@ -19,6 +19,11 @@ O que fica igual ao que já está decidido nesta casa:
 - **O foco nos campos do orçamento** não leva o contorno verde do B14. A regra dela («não quero o quadrado verde») é anterior a este documento, é sobre este site e continua a valer.
 - **Bibliotecas novas** só entram com autorização dela (B0). O pedido «nível estúdio» autoriza o `gsap`, o `@gsap/react` e o `lenis`, e só na Fase 2.
 
+**Na Fase 2 (o movimento, B7), o que se fez e o que ficou como estava** — cada um com a razão, que é sempre uma decisão já tomada nesta casa:
+- **Feito:** o `gsap`, o `@gsap/react` e o `lenis` instalados (versões fixas); `lib/motion/gsap.ts` com os tokens do B7.2 ligados aos que já existiam (o `expo.out` é o `--ease-out`); o Lenis só com rato e trackpad, mais pronto (`lerp` 0,16) do que o que foi tirado em 7d047fe, e parado com o menu e a galeria; o parallax de volta só no computador; o `<RevealText>` (SplitText, linhas com máscara) nos títulos grandes das páginas principais, nunca no `<h1>` da capa.
+- **`<ImageReveal>` com `clip-path`: não.** O sítio já abre as fotografias com um «zoom» (escala e opacidade) — e passou a fazê-lo porque o `clip-path` repintava e engasgava ao rolar (o comentário está em `page.tsx`, `sobre/page.tsx` e `servicos/[slug]/page.tsx`). O efeito que o B7.4 pede (a imagem a abrir-se ao chegar ao ecrã) já existe, sem o engasgo.
+- **View Transitions entre páginas: ficam como estavam.** O `PageTransition.tsx` explica-o: a captura da página inteira chocava com a hidratação e a descodificação das fotografias grandes, e a passagem engasgava. A «base» do B7.5 (um fade curto) é o que lá está; a imagem partilhada já existe na galeria.
+
 O pedido «nível estúdio» manda ler «a Parte B e a Parte D2» deste padrão. O que chegou pelo chat tem as secções **B0 a B23**. **Nenhuma Parte D2 chegou**, por isso não está aqui. Se existir, falta guardá-la.
 
 ---
