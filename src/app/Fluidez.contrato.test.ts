@@ -117,10 +117,10 @@ const eLayout = (prop: string) => {
  * existir e saiu da lista abaixo — a rede passa a apanhar quem a puser de volta.
  */
 const PERDOADAS_NO_CSS = new Set<string>([
-  // (Vazia desde 30/10. O `background-size` do filete de foco do orçamento
-  // estava aqui; o campo passou a caixa redonda, que só transiciona cor,
-  // contorno e uma sombra interior, e a excepção saiu — a rede volta a apanhar
-  // quem a puser de volta.)
+  // `.field-line` desenha o filete de foco do formulário de orçamento com
+  // background-size — é PINTURA, não layout, mas o nome `size` cai na rede.
+  // Corre uma vez ao focar um campo, num elemento de ~40 px de altura.
+  "background-size",
 ]);
 
 /** Ficheiros que estão SEMPRE montados e no ecrã enquanto se faz scroll. */

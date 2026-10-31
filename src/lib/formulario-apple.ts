@@ -9,15 +9,13 @@ import { APARENCIA_DO_SITE, type AparenciaDoTelefone } from "@/components/CampoT
  * formulário dos anúncios também». Escolheu as caixas redondas do apple.com:
  * cada campo é uma caixa cinzenta-clara de cantos redondos.
  *
- * As peças vivem AQUI para os três formulários do sítio serem o mesmo desenho
- * — o pedido completo (`/orcamento`), o curto das páginas do Google
- * (`PedidoRapido`, em `/casamentos/…`) e o de quatro campos das páginas da
- * Meta (`PedidoRelampago`, em `/s/…`). A caixa em si (contorno, fundo, foco
- * sem verde) é a `.field-line` do `globals.css`, e é uma só.
- *
- * Fora daqui fica o que não se partilha: o rótulo que flutua DENTRO da caixa
- * é só do `/orcamento` (`.ff`); os dos anúncios ficam por cima, que é o que
- * se lê melhor num telemóvel na rua.
+ * Desde 31/10 é só dos DOIS formulários dos anúncios — o curto das páginas do
+ * Google (`PedidoRapido`, em `/casamentos/…`) e o de quatro campos das páginas
+ * da Meta (`PedidoRelampago`, em `/s/…`). A página do orçamento voltou ao
+ * desenho de antes, a pedido dela («quero deixar como estava antes do design
+ * da apple»; posta a escolha, «Só a página do orçamento»), com o sublinhado
+ * da `.field-line`. Por isso a caixa daqui tem nome próprio, `.campo-apple`
+ * no `globals.css`: mexer numa não muda a outra.
  */
 
 /**
@@ -26,7 +24,7 @@ import { APARENCIA_DO_SITE, type AparenciaDoTelefone } from "@/components/CampoT
  * focar. O exemplo a `--fg-tertiary` (4,2:1 sobre o cinzento da caixa).
  */
 export const CAMPO_APPLE =
-  "field-line w-full px-3.5 py-3 text-[16px] text-[var(--fg-primary)] " +
+  "campo-apple w-full px-3.5 py-3 text-[16px] text-[var(--fg-primary)] " +
   "placeholder:text-[var(--fg-tertiary)] focus:outline-none sm:text-[15px]";
 
 /** O rótulo por cima do campo: letra normal, e não maiúsculas espaçadas. */
@@ -52,11 +50,8 @@ export const CARTAO_APPLE =
  * número — a mesma altura, o mesmo contorno, o mesmo foco (branca, contorno
  * escuro de 2 px) — e abre a mesma lista dos países.
  *
- * A largura do botão é FIXA para o rótulo do `/orcamento`, que vive dentro da
- * caixa do número, saber onde começar: 6,5 rem chegam para a bandeira, o
- * indicativo mais comprido (três algarismos) e a seta. O rótulo começa a
- * 6,5 + 0,5 (o espaço) + 0,875 (o enchimento da caixa) rem —
- * `ROTULO_DENTRO_DO_TELEFONE`.
+ * A largura do botão é fixa: 6,5 rem chegam para a bandeira, o indicativo mais
+ * comprido (três algarismos) e a seta dupla do botão de escolha da Apple.
  */
 export const TELEFONE_APPLE: AparenciaDoTelefone = {
   ...APARENCIA_DO_SITE,
@@ -67,5 +62,5 @@ export const TELEFONE_APPLE: AparenciaDoTelefone = {
     "transition-[background-color,border-color,box-shadow] duration-200 hover:border-[var(--fg-tertiary)] " +
     "aria-expanded:border-[var(--fg-secondary)] aria-expanded:bg-[var(--bg-elevated)] " +
     "aria-expanded:shadow-[inset_0_0_0_1px_var(--fg-secondary)] motion-reduce:transition-none",
+  seta: "dupla",
 };
-export const ROTULO_DENTRO_DO_TELEFONE = "[--ff-rotulo-x:7.875rem]";
