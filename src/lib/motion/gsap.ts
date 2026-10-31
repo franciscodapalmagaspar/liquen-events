@@ -1,9 +1,7 @@
 "use client";
 
 import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
-import { useGSAP } from "@gsap/react";
 import { PHOTO_REVEAL_FULL_S, REVEAL_S, STAGGER_S } from "./tokens";
 
 /**
@@ -24,9 +22,16 @@ import { PHOTO_REVEAL_FULL_S, REVEAL_S, STAGGER_S } from "./tokens";
  *
  * Só se importa daqui no cliente, e só nos componentes de movimento: o GSAP
  * não entra no primeiro ecrã (ver `RevealText`, que o pede por `import()`).
+ *
+ * SEM `ScrollTrigger` nem `@gsap/react` (31/10). O único uso era saber quando
+ * um título chega ao ecrã, e o `IntersectionObserver` do browser faz isso de
+ * graça. Medido na proposta com a rede travada: o pacote do GSAP era avaliado
+ * logo depois do `load` e custava ~0,15 s de tempo bloqueado. E o `refresh()`
+ * do ScrollTrigger repõe a posição do scroll, o que interrompe o Lenis a meio
+ * de um deslize.
  */
 
-gsap.registerPlugin(ScrollTrigger, SplitText, useGSAP);
+gsap.registerPlugin(SplitText);
 
 export const ease = {
   out: "expo.out",
@@ -42,4 +47,4 @@ export const dur = {
 
 export const stagger = { linhas: STAGGER_S } as const;
 
-export { gsap, ScrollTrigger, SplitText, useGSAP };
+export { gsap, SplitText };

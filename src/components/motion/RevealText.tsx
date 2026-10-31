@@ -64,24 +64,47 @@ export default function RevealText({
       void import("@/lib/motion/gsap").then(({ gsap, SplitText, ease, dur, stagger }) => {
         if (!vivo || !ref.current) return;
         if (el.getBoundingClientRect().top < window.innerHeight) return;
+        // Quando o título chega ao ecrã (88 % da altura), as linhas sobem. Um
+        // `IntersectionObserver`, e não o ScrollTrigger: ver `lib/motion/gsap.ts`.
+        let vigia: IntersectionObserver | null = null;
+        let entrou = false;
         const ctx = gsap.context(() => {
           SplitText.create(el, {
             type: "lines",
             mask: "lines",
             linesClass: "rt-linha",
             autoSplit: true,
-            onSplit: (self) =>
-              gsap.from(self.lines, {
+            onSplit: (self) => {
+              const tween = gsap.from(self.lines, {
                 yPercent: 110,
                 duration: dur.reveal * 1.6,
                 ease: ease.out,
                 stagger: stagger.linhas,
                 delay: atraso,
-                scrollTrigger: { trigger: el, start: "top 88%", once: true },
-              }),
+                paused: true,
+              });
+              // O `autoSplit` volta a partir as linhas (a letra que chega, a
+              // largura que muda): um título que já entrou fica no sítio.
+              if (entrou) return tween.progress(1);
+              vigia?.disconnect();
+              vigia = new IntersectionObserver(
+                (es) => {
+                  if (!es.some((e) => e.isIntersecting)) return;
+                  vigia?.disconnect();
+                  entrou = true;
+                  tween.play();
+                },
+                { rootMargin: "0px 0px -12% 0px" },
+              );
+              vigia.observe(el);
+              return tween;
+            },
           });
         }, el);
-        desfazer = () => ctx.revert();
+        desfazer = () => {
+          vigia?.disconnect();
+          ctx.revert();
+        };
       });
     const cancelar = depoisDeCarregar(() => {
       if (!vivo) return;

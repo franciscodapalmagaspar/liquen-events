@@ -19,7 +19,6 @@ O inventário foi lido no código, com `ls`, `grep`, `wc` e `ffprobe`. Dois pont
 | next | 16.4.3 |
 | react / react-dom | 19.2.4 |
 | gsap | 3.15.0 |
-| @gsap/react | 2.1.2 |
 | lenis | 1.3.27 |
 | @dnd-kit/core · /modifiers · /sortable · /utilities | ^6.3.1 · ^9.0.0 · ^10.0.0 · ^3.2.2 |
 | @pdf-lib/fontkit | ^1.1.1 |

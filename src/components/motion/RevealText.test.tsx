@@ -7,7 +7,10 @@ const carregado = vi.fn();
 vi.mock("@/lib/motion/gsap", () => {
   carregado();
   return {
-    gsap: { context: (fn: () => void) => (fn(), { revert: () => undefined }), from: vi.fn() },
+    gsap: {
+      context: (fn: () => void) => (fn(), { revert: () => undefined }),
+      from: vi.fn(() => ({ play: vi.fn(), progress: vi.fn() })),
+    },
     SplitText: { create: vi.fn() },
     ease: { out: "expo.out" },
     dur: { reveal: 0.75 },

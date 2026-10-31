@@ -1547,6 +1547,10 @@ html.lenis body {
 .rt-linha-mask {
   padding-block: 0.18em;
   margin-block: -0.18em;
+  /* E dos lados: o itálico da Bodoni (os títulos da proposta) inclina-se para
+     fora da caixa, e a máscara cortava-lhe a ponta da última letra. */
+  padding-inline: 0.12em;
+  margin-inline: -0.12em;
 }
 
 /* ── Os campos dos ANÚNCIOS: caixas redondas, à Apple ──
