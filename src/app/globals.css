@@ -1489,7 +1489,10 @@ body:has([data-orcamento-mode]) .scroll-progress {
   top: 1.3rem;
   font-size: 0.875rem;
   line-height: 1;
-  color: color-mix(in srgb, var(--color-foreground) 42%, transparent);
+  /* 68 % e não 42 %: a 42 % o rótulo em repouso tinha 2,5:1 sobre o branco, e
+     o Lighthouse/axe marca-o (31/10, quando a página voltou ao desenho de
+     antes). A 68 % são ~5:1 — o mesmo cinzento neutro, um pouco mais escuro. */
+  color: color-mix(in srgb, var(--color-foreground) 68%, transparent);
   pointer-events: none;
   transform-origin: left center;
   white-space: nowrap;
@@ -1506,7 +1509,8 @@ body:has([data-orcamento-mode]) .scroll-progress {
   transform: translateY(-1.3rem) scale(0.7);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-foreground) 50%, transparent);
+  /* O mesmo: a 50 % e a 70 % do tamanho, o rótulo de cima tinha 3:1. */
+  color: color-mix(in srgb, var(--color-foreground) 68%, transparent);
 }
 /* Hide the example placeholder until focus so only the resting label shows. */
 .ff-input::placeholder {
