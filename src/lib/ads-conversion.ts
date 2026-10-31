@@ -86,7 +86,7 @@ export function reportLeadConversion(dedupeKey?: string, user?: LeadUserData): v
   // quote reported from a second tab, a forwarded link or another device counts
   // once. The local sessionStorage guard above only covers the current tab.
   gtag("event", "generate_lead", dedupeKey ? { transaction_id: dedupeKey } : {});
-  // A biblioteca só entra no primeiro gesto ou passado um prazo (24/10, ver
+  // A biblioteca só entra no primeiro gesto (24/10 e 31/10, ver
   // `agendarGtag`). Uma conversão não pode ficar à espera disso: quem fecha a
   // página de confirmação sem lhe tocar levava-a consigo. Entra já, e esvazia
   // a fila com o `generate_lead` lá dentro.

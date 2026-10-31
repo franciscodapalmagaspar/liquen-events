@@ -24,11 +24,16 @@ import { prefersReducedMotion } from "@/lib/motion/useReducedMotion";
  * NB: the parent needs `overflow-hidden`, and the child some scale headroom
  * (e.g. `hero-settle` or `scale-110`), so the drift never exposes edges.
  */
-// Master switch for the parallax drift. Currently OFF everywhere so desktop
-// scrolls as fluidly as mobile; return the capability check (e.g. pointer:fine
-// && !reduced-motion) here to bring the effect back.
+// O interruptor do parallax. Esteve desligado em todo o lado, para o
+// computador deslizar tão liso como o telemóvel. O pedido «nível estúdio»
+// (30/10) pede-o de volta só no computador (o B7.4 do PADRAO-PALUMEN): rato ou
+// trackpad e sem «reduzir movimento». No dedo a fotografia fica parada.
 function parallaxWanted(): boolean {
-  return false;
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia("(pointer: fine)").matches &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 }
 
 interface Item {

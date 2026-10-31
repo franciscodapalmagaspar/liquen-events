@@ -149,8 +149,8 @@ export function staggerMs(i: number): number {
  *
  * 50 ms é o valor que o sítio usa em produção (`/sobre`). O `TitleReveal` tinha
  * um valor por omissão diferente (60 ms) que nunca chegou a ser usado, e o
- * `KineticHeading` — componente órfão, zero utilizações — trazia um terceiro
- * (90 ms). Três valores por omissão para o mesmo gesto, um só em uso.
+ * `KineticHeading` — componente órfão, zero utilizações, apagado a 31/10 —
+ * trazia um terceiro (90 ms). Três valores por omissão para o mesmo gesto, um só em uso.
  */
 export const WORD_STAGGER_MS = 50;
 

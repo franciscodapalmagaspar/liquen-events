@@ -22,7 +22,6 @@ import {
   duracaoDaSubida,
   eHoraDePassar,
   enderecoDoVideo,
-  enderecoLeve,
   imagensAnimadas,
   ligacaoLenta,
   type Animadas,
@@ -49,6 +48,7 @@ import {
   varianteConfirmada,
   varianteParaOEcra,
 } from "@/lib/entrada-em-video";
+import { depoisDeCarregar } from "@/lib/depois-de-carregar";
 import {
   ROTA_DO_DIAGNOSTICO,
   RegistoDoVideo,
@@ -187,9 +187,11 @@ const AO_ALTO = `media="(orientation: portrait)"`;
  * só depois de o aparelho dizer que os toca no chip (`melhorFormato`).
  */
 export function fontesDeEntrada(i: number): string {
+  // Desde 30/10 (`v7`): H.264 primeiro (o chip descodifica-o em todos), e o
+  // VP9 para os poucos browsers sem H.264. O HEVC e o AV1 saíram.
   const ordem = {
-    retrato: ["hevc", "mp4", "webm"],
-    paisagem: ["mp4", "hevc", "webm"],
+    retrato: ["mp4", "webm"],
+    paisagem: ["mp4", "webm"],
   } as const;
   const de = (variante: "retrato" | "paisagem", media: string) =>
     ordem[variante]
@@ -202,13 +204,14 @@ export function fontesDeEntrada(i: number): string {
 }
 
 /**
- * As `<source>` da versão leve do take `i` (só ao alto): HEVC e H.264, sem
- * `media` — só se põem quando o ecrã já está ao alto. Ver `enderecoLeve`.
+ * As `<source>` da versão leve do take `i` (só ao alto). Desde a `v7` não há
+ * nenhuma: o `retrato` normal (720 px, ~1 MB) já é mais leve do que era a
+ * leve, e trocar pelo mesmo ficheiro só recomeçava o download. Sem fontes, o
+ * guião nunca passa à leve (`levePode` fica falso).
  */
 export function fontesLeves(i: number): string {
-  return (["hevc", "mp4"] as const)
-    .map((f) => `<source src="${enderecoLeve(i, f)}" type='${tipoDoFormato(f, "retrato")}'>`)
-    .join("");
+  void i;
+  return "";
 }
 
 /**
@@ -520,15 +523,22 @@ const ANIMADAS = imagensAnimadas(TAKE_DE_ENTRADA);
 export const GUIAO_DA_ENTRADA = `(${arrancarEntrada.toString()})(${JSON.stringify(FONTES)},${JSON.stringify(CHAVE_DO_ULTIMO)},${CORTINA_ESPERA_MAX_MS},${JSON.stringify(LEVES)},${MEDIR_REDE_MS},${JSON.stringify(ANIMADAS)},${porImagemAnimada.toString()},${PASSAGEM_MS},${JSON.stringify(LEVES_DEITADO)},${JSON.stringify(CHAVE_DO_ALIVIO)},${ALIVIO_DURA_MS});`;
 
 /**
- * O HTML dos três vídeos, igual no servidor e no browser: os três vazios, e o
- * guião que escolhe o take de entrada e o põe a tocar.
+ * O HTML dos três vídeos, igual no servidor e no browser: os três vazios.
+ *
+ * SEM O GUIÃO, desde 30/10 («nível estúdio»). Ele corria escrito no HTML,
+ * enquanto o browser lia a página, e punha o take de entrada a descarregar
+ * logo — 3,3 a 6,9 MB a disputar a rede com a fotografia da capa, e um guião
+ * de vários KB a correr no processador antes de tudo (MEDIDO na Fase 0: o
+ * próprio documento gastava 1,6 a 2,6 s de processador num telemóvel lento).
+ * O pedido dela: «o vídeo só começa a carregar depois de a página carregar
+ * (evento `load` ou `requestIdleCallback`), e só o primeiro dos três». Agora
+ * é o componente que o arranca, nesse instante (ver `depoisDeCarregar`). O
+ * `GUIAO_DA_ENTRADA` continua exportado para os testes que o lêem.
  */
-export const HTML_DOS_VIDEOS =
-  Array.from(
-    { length: NUMERO_DE_VIDEOS },
-    (_, k) =>
-      `<video data-entrada-video="${k}" preload="none" ${COMUNS} style="${ESTILO}"></video>`,
-  ).join("") + `<script>${GUIAO_DA_ENTRADA}</script>`;
+export const HTML_DOS_VIDEOS = Array.from(
+  { length: NUMERO_DE_VIDEOS },
+  (_, k) => `<video data-entrada-video="${k}" preload="none" ${COMUNS} style="${ESTILO}"></video>`,
+).join("");
 
 /**
  * O que toca os vídeos, e que SOBREVIVE a sair da página inicial.
@@ -968,9 +978,10 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   /** Prepara o primeiro da fila que ainda não foi pedido (um de cada vez). */
   function prepararOQueVem() {
     if (!decidido || !inicioAssente || !seguintesLivres) return;
-    // No computador só o que vem a seguir; o depois desse prepara-se na
-    // passagem (o `subir` volta a chamar isto).
-    for (const i of computador ? fila.slice(0, 1) : fila) {
+    // Só o que vem a seguir — no computador e, desde 30/10, também no
+    // telemóvel («os outros carregam quando forem precisos»). O depois desse
+    // prepara-se na passagem (o `subir` volta a chamar isto).
+    for (const i of fila.slice(0, 1)) {
       if (i === abertura) continue; // tem o seu caminho (`guardarAbertura`)
       if (!pedido[i]) {
         preparar(i);
@@ -981,7 +992,11 @@ function criarMotor(raiz: HTMLElement): Motor | null {
       if (!fonte[i]) return;
       if (!daMemoria[i] && !pronto[i] && videos[i].readyState < 4) return;
     }
-    // Os outros já estão (ou estão a chegar da memória): agora a abertura.
+    // Os outros já estão (ou estão a chegar da memória): agora a abertura —
+    // mas só depois de ela sair do ecrã. Só se volta a precisar dela no fim
+    // da volta, e o arranque não gasta mais um take inteiro (30/10, «os outros
+    // carregam quando forem precisos»).
+    if (atual === abertura) return;
     guardarAbertura();
   }
 
@@ -1873,12 +1888,30 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   };
 }
 
+/**
+ * Fica só a fotografia da capa, sem vídeo nenhum: com «poupar dados».
+ *
+ * O pedido «nível estúdio» (30/10) também tirava o vídeo com «reduzir
+ * movimento». Ela viu o link de teste no computador — «está apenas uma foto
+ * de capa» — e, posta a escolha, respondeu «O vídeo toca sempre» (31/10), como
+ * já tinha decidido a 16/10. No Windows, «Mostrar animações» desligado conta
+ * como movimento reduzido: era por isso que lá não havia vídeo.
+ */
+export function soACapa(): boolean {
+  const lig = (navigator as ComLigacao).connection;
+  return !!lig?.saveData;
+}
+
+/** Ver `lib/depois-de-carregar.ts` (partilhado com o scroll suave). */
+export { depoisDeCarregar };
+
 export default function EntradaEmVideo() {
   const caixa = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const raiz = caixa.current;
     if (!raiz) return;
+    if (soACapa()) return;
     // Voltou à página inicial sem recarregar: os mesmos vídeos, a continuar.
     if (motorDaSessao) {
       const m = motorDaSessao;
@@ -1886,24 +1919,32 @@ export default function EntradaEmVideo() {
       m.ligar(raiz);
       return () => m.desligar();
     }
-    // Numa navegação dentro do sítio o guião do HTML não correu: corre-se aqui.
-    if (!raiz.querySelector("[data-primeiro]")) {
-      arrancarEntrada(
-        FONTES,
-        CHAVE_DO_ULTIMO,
-        CORTINA_ESPERA_MAX_MS,
-        LEVES,
-        MEDIR_REDE_MS,
-        ANIMADAS,
-        porImagemAnimada,
-        PASSAGEM_MS,
-      );
-    }
-    const m = criarMotor(raiz);
-    if (!m) return;
-    motorDaSessao = m;
-    m.ligar(raiz);
-    return () => m.desligar();
+    // O take de entrada arranca depois de a página carregar (ver
+    // `HTML_DOS_VIDEOS`): até lá, vê-se a fotografia da capa.
+    let m: Motor | null = null;
+    const cancelar = depoisDeCarregar(() => {
+      if (!raiz.isConnected) return;
+      if (!raiz.querySelector("[data-primeiro]")) {
+        arrancarEntrada(
+          FONTES,
+          CHAVE_DO_ULTIMO,
+          CORTINA_ESPERA_MAX_MS,
+          LEVES,
+          MEDIR_REDE_MS,
+          ANIMADAS,
+          porImagemAnimada,
+          PASSAGEM_MS,
+        );
+      }
+      m = criarMotor(raiz);
+      if (!m) return;
+      motorDaSessao = m;
+      m.ligar(raiz);
+    });
+    return () => {
+      cancelar();
+      m?.desligar();
+    };
   }, []);
 
   return (

@@ -7,13 +7,13 @@ import { blurFor } from "@/lib/blur";
 import AnimateIn from "@/components/AnimateIn";
 import { staggerMs } from "@/lib/motion/tokens";
 import Parallax from "@/components/Parallax";
-import HeroWebGL from "@/components/motion/HeroWebGL";
 import { BreadcrumbJsonLd, ServiceJsonLd } from "@/components/JsonLd";
 import { pageMetadata } from "@/lib/page-metadata";
 import { getDictionary, normalizeLocale, localizeHref, type Locale } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 import { hifenizar } from "@/lib/hifenizar";
+import RevealText from "@/components/motion/RevealText";
 
 export async function generateMetadata({
   params,
@@ -227,9 +227,6 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
             {...blurFor("/imagens/EW1_1330.jpg")}
           />
         </Parallax>
-        {/* WebGL layer over the static hero (fades in when ready; absent under
-            reduced motion / no-WebGL). */}
-        <HeroWebGL src="/imagens/EW1_1330.jpg" className="absolute inset-0 h-full w-full" />
         {/* Two hero veils merged into one layer (former upper div first, as
             multiple backgrounds paint first-listed on top). Same pixels. */}
         <div
@@ -341,12 +338,12 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
                 <span className="w-6 h-px bg-gold flex-shrink-0" />
                 {ts.seoEyebrow}
               </p>
-              <h2
+              <RevealText
                 className="text-cream font-bold uppercase tracking-display leading-[1.06] mb-6 max-w-3xl"
                 style={{ fontSize: "clamp(26px, 3.6vw, 52px)" }}
               >
                 {ts.seoTitle}
-              </h2>
+              </RevealText>
               <p className="text-cream/75 text-sm lg:text-base leading-[1.8] max-w-xl text-left text-pretty sm:text-justify hyphens-auto">
                 {hifenizar(ts.seoText, locale)}
               </p>
@@ -388,14 +385,14 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
               <span className="w-8 h-px bg-gold" />
               {ts.ctaEyebrow}
             </p>
-            <h2
+            <RevealText
               className="text-white font-bold uppercase tracking-display leading-[0.9] mb-6"
               style={{ fontSize: "clamp(32px, 5.5vw, 74px)" }}
             >
               {ts.ctaTitleLine1}
               <br />
               <span className="text-moss-light">{ts.ctaTitleMoss}</span>
-            </h2>
+            </RevealText>
           </AnimateIn>
           <AnimateIn delay={staggerMs(1)}>
             <p className="text-white/75 text-base leading-relaxed max-w-md mb-12">{ts.ctaText}</p>

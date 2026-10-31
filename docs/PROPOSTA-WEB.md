@@ -8,6 +8,19 @@ O protótipo **não** está no repositório: as fotografias dele são de uma cli
 
 ## Parte −1 — as decisões dela e onde a execução se afasta do texto
 
+### O que ela respondeu (31/10): o movimento de estúdio também aqui
+
+Depois do pedido «nível estúdio» no site, ela perguntou se o mesmo dava para a proposta e para o back office. Posta a escolha à frente:
+- **Proposta online — «Sim, com o movimento»**:
+  - os títulos dos capítulos entram linha a linha, como os do site (`RevealText`, o mesmo componente);
+  - o scroll suave só com rato ou trackpad (o Lenis do site, nunca no toque);
+  - a rapidez e a acessibilidade medidas com a mesma régua do site (rede travada a sério, axe).
+
+  Muda o que o casal vê, por isso **nada se junta sem ela ver no link de teste**.
+- **Back office — «rapidez e acessibilidade»**: sem movimento novo e sem mudar o desenho.
+
+As medições usam propostas e pedidos TESTE num servidor local, como os testes já fazem: nada em produção, nenhum email.
+
 ### O que ela respondeu (23/10)
 
 - **«Qual vale?»** — a página web nova. O «só o PDF», que ela tinha pedido minutos antes, ficou de lado; o email e o WhatsApp continuam com o link.

@@ -7,7 +7,6 @@ import { blurFor } from "@/lib/blur";
 import AnimateIn from "@/components/AnimateIn";
 import Parallax from "@/components/Parallax";
 import TitleReveal from "@/components/TitleReveal";
-import HeroWebGL from "@/components/motion/HeroWebGL";
 import Reveal from "@/components/motion/Reveal";
 import { PHOTO_REVEAL_LARGE_S, staggerMs, wordCascadeEndMs } from "@/lib/motion/tokens";
 import { BreadcrumbJsonLd } from "@/components/JsonLd";
@@ -15,6 +14,7 @@ import { pageMetadata } from "@/lib/page-metadata";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
+import RevealText from "@/components/motion/RevealText";
 
 export async function generateMetadata({
   params,
@@ -66,9 +66,6 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
             {...blurFor("/imagens/hd-edited.jpg")}
           />
         </Parallax>
-        {/* WebGL layer over the static hero (fades in when ready; absent under
-            reduced motion / no-WebGL). */}
-        <HeroWebGL src="/imagens/hd-edited.jpg" className="absolute inset-0 h-full w-full" />
         {/* SpaceX scrim: single bottom-anchored gradient so the photograph reads
             full at the top; no heavy flat veil. */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#080808]/90 via-[#080808]/20 to-transparent" />
@@ -120,14 +117,14 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
               <span className="w-5 h-px bg-gold/50 flex-shrink-0" />
               {t.sobre.manifestoEyebrow}
             </p>
-            <h2
+            <RevealText
               className="text-white font-bold uppercase tracking-display leading-[1.05]"
               style={{ fontSize: "clamp(32px, 5vw, 68px)" }}
             >
               {t.sobre.manifestoTitleLine1}
               <br />
               <span className="text-moss">{t.sobre.manifestoTitleLine2}</span>
-            </h2>
+            </RevealText>
           </AnimateIn>
         </div>
         {/* Right — full-height photo, covering the centre of the backdrop (the
@@ -302,14 +299,14 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
               <span className="w-8 h-px bg-gold" />
               {t.sobre.ctaEyebrow}
             </p>
-            <h2
+            <RevealText
               className="text-white font-bold uppercase tracking-display leading-[0.9] mb-6"
               style={{ fontSize: "clamp(30px, 5vw, 66px)" }}
             >
               {t.sobre.ctaTitleLine1}
               <br />
               <span className="text-moss-light">{t.sobre.ctaTitleMoss}</span>
-            </h2>
+            </RevealText>
           </AnimateIn>
           <AnimateIn delay={staggerMs(1)}>
             <p className="text-white/70 text-base leading-relaxed max-w-md mb-12">

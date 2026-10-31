@@ -1521,6 +1521,38 @@ body:has([data-orcamento-mode]) .scroll-progress {
   }
 }
 
+/* ── O Lenis (o scroll suave da roda, só no computador) ──
+   As regras que o próprio Lenis pede (lenis/dist/lenis.css), escritas aqui
+   para não acrescentar um pedido de folha: enquanto ele manda, nenhum
+   `scroll-behavior` do sítio o duplica; parado (menu, galeria aberta), corta o
+   scroll; e as caixas com scroll próprio guardam o deslize para si. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: clip;
+}
+
+/* O título linha a linha (`RevealText`): a máscara de cada linha corta o que
+   sai da caixa da linha — e os acentos das maiúsculas (o «À» de «À SUA
+   IDEIA?») e as descendentes saem. Folga por cima e por baixo, devolvida na
+   margem, para a linha ficar onde estava. */
+.rt-linha-mask {
+  padding-block: 0.18em;
+  margin-block: -0.18em;
+  /* E dos lados: o itálico da Bodoni (os títulos da proposta) inclina-se para
+     fora da caixa, e a máscara cortava-lhe a ponta da última letra. */
+  padding-inline: 0.12em;
+  margin-inline: -0.12em;
+}
+
 /* ── Os campos dos ANÚNCIOS: caixas redondas, à Apple ──
    Ela (30/10): «coloca tudo do formulário em design de apple», com as caixas
    redondas do apple.com: cada campo é uma caixa cinzenta-clara de cantos

@@ -783,8 +783,8 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
       {
-        // Os vídeos da entrada (public/videos/entrada/v6). A pasta tem versão:
-        // um vídeo novo vai para `v7`, nunca por cima, portanto um ano é seguro.
+        // Os vídeos da entrada (public/videos/entrada/v8). A pasta tem versão:
+        // um vídeo novo vai para `v9`, nunca por cima, portanto um ano é seguro.
         // Sem isto eram servidos com `max-age=0` e o browser revalidava-os em
         // cada visita — ~14 MB a pedir licença outra vez.
         source: "/videos/:path*",

@@ -7,7 +7,6 @@ import { blurFor } from "@/lib/blur";
 import AnimateIn from "@/components/AnimateIn";
 import { staggerMs } from "@/lib/motion/tokens";
 import Parallax from "@/components/Parallax";
-import HeroWebGL from "@/components/motion/HeroWebGL";
 import Reveal from "@/components/motion/Reveal";
 import { BreadcrumbJsonLd, ServiceJsonLd, FaqJsonLd } from "@/components/JsonLd";
 import { pageMetadata } from "@/lib/page-metadata";
@@ -17,6 +16,7 @@ import { getDictionary, localizeHref, normalizeLocale } from "@/lib/i18n";
 import { PRIMARY_BUTTON_CLASS, OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 import { hifenizar } from "@/lib/hifenizar";
+import RevealText from "@/components/motion/RevealText";
 
 /**
  * A secção de portefólio sorteia as fotos a cada desenho, por isso a página é
@@ -167,9 +167,6 @@ export default async function ServiceDetailPage({
             className="object-cover hero-settle"
           />
         </Parallax>
-        {/* WebGL layer over the static hero (fades in when ready; absent under
-            reduced motion / no-WebGL). */}
-        <HeroWebGL src={svc.hero} className="absolute inset-0 h-full w-full" />
         {/* Image-first (SpaceX-style): only the bottom darkens enough to keep the
             white caption legible — no heavy full-panel veil. */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#080808]/90 via-[#080808]/20 to-transparent" />
@@ -339,12 +336,12 @@ export default async function ServiceDetailPage({
             </p>
           </AnimateIn>
           <AnimateIn delay={staggerMs(1)}>
-            <h2
+            <RevealText
               className="text-foreground font-bold uppercase tracking-display leading-[1.05] mt-5"
               style={{ fontSize: "clamp(28px, 3.8vw, 52px)" }}
             >
               {t.servicoDetalhe.galleryTitle}
-            </h2>
+            </RevealText>
           </AnimateIn>
         </div>
         {/* Full-bleed mosaic (no horizontal padding): the photos run edge to

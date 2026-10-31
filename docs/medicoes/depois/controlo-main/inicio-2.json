@@ -1,0 +1,169 @@
+{
+  "url": "http://localhost:3102/",
+  "quando": "2026-10-31T12:57:13.144Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3223.5
+  },
+  "notas": {
+    "performance": 80,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 1006.15,
+    "largest-contentful-paint": 1006.15,
+    "speed-index": 7484,
+    "total-blocking-time": 520.4609999999998,
+    "cumulative-layout-shift": 0,
+    "interactive": 16721.507,
+    "total-byte-weight": 4665931,
+    "mainthread-work-breakdown": 5652.3750000000455,
+    "bootup-time": 1963.4519999999748
+  },
+  "elementoLCP": "<span class=\"block \">",
+  "maioresPedidos": [
+    {
+      "url": "http://localhost:3102/videos/entrada/v6/entrada-1-retrato-leve.mp4",
+      "kB": 3289
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-29CZZ76H6F",
+      "kB": 192
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=AW-16724349653&cx=c&gtm=4e6as1",
+      "kB": 165
+    },
+    {
+      "url": "http://localhost:3102/",
+      "kB": 83
+    },
+    {
+      "url": "http://localhost:3102/_img/EW1_1332-1080.avif",
+      "kB": 73
+    },
+    {
+      "url": "http://localhost:3102/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3102/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3102/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3102/_next/static/media/9d036f80216c14ee.p.3u4lli0-axodc.woff2",
+      "kB": 40
+    },
+    {
+      "url": "http://localhost:3102/_img/entrada-floresta-clara-1080.avif",
+      "kB": 37
+    }
+  ],
+  "falhas": [
+    {
+      "id": "speed-index",
+      "titulo": "Speed Index",
+      "nota": 0.27,
+      "valor": "7.5 s"
+    },
+    {
+      "id": "total-blocking-time",
+      "titulo": "Total Blocking Time",
+      "nota": 0.56,
+      "valor": "520 ms"
+    },
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.47,
+      "valor": "260 ms"
+    },
+    {
+      "id": "interactive",
+      "titulo": "Time to Interactive",
+      "nota": 0.05,
+      "valor": "16.7 s"
+    },
+    {
+      "id": "mainthread-work-breakdown",
+      "titulo": "Minimize main-thread work",
+      "nota": 0,
+      "valor": "5.7 s"
+    },
+    {
+      "id": "bootup-time",
+      "titulo": "Reduce JavaScript execution time",
+      "nota": 0,
+      "valor": "2.0 s"
+    },
+    {
+      "id": "third-party-summary",
+      "titulo": "Reduce the impact of third-party code",
+      "nota": 0,
+      "valor": "Third-party code blocked the main thread for 300 ms"
+    },
+    {
+      "id": "total-byte-weight",
+      "titulo": "Avoid enormous network payloads",
+      "nota": 0.5,
+      "valor": "Total size was 4,557 KiB"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 23 KiB"
+    },
+    {
+      "id": "uses-responsive-images",
+      "titulo": "Properly size images",
+      "nota": 0.5,
+      "valor": "Est savings of 80 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "forced-reflow-insight",
+      "titulo": "Forced reflow",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 214 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}
