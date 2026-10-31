@@ -5,12 +5,10 @@ import StickyCTA from "@/components/StickyCTA";
 import ScrollProgress from "@/components/ScrollProgress";
 import { LinhaDeCarregamento } from "@/components/LinhaDeCarregamento";
 import { AnelSoDoTeclado } from "@/components/AnelSoDoTeclado";
-import { Cortina } from "@/components/Cortina";
 import SpeculationRules from "@/components/SpeculationRules";
 import PageTransition from "@/components/PageTransition";
 import HeroWarm from "@/components/HeroWarm";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
-import SmoothScroll from "@/components/motion/SmoothScroll";
 import MolaAoLargar from "@/components/motion/MolaAoLargar";
 import ErrosDoSite from "@/components/ErrosDoSite";
 import type { Locale } from "@/lib/i18n/config";
@@ -85,8 +83,13 @@ export default function CromadoDoSitio({
   // O `locale` desce para o rodapé e para o aviso de carregamento. Fica na
   // assinatura para quem monta o cromado ter de o fornecer, em vez de cada um
   // deles o ir buscar por sua conta a um contexto que pode não existir.
+  // Sem o `<SmoothScroll>` que aqui estava (30/10, «nível estúdio»): com a
+  // inércia da roda desligada (`INERCIA_NA_RODA = false`), era um componente de
+  // cliente em TODAS as páginas que não fazia nada — o contexto valia sempre
+  // `null` e ninguém o lia. O scroll suave volta na Fase 2, com o Lenis, só
+  // para rato e trackpad.
   return (
-    <SmoothScroll>
+    <>
       <SpeculationRules />
       <HeroWarm />
       <ServiceWorkerRegister />
@@ -98,22 +101,17 @@ export default function CromadoDoSitio({
         {skipLabel}
       </a>
       {/*
-        O ARRANQUE DO SÍTIO, COM O LOGÓTIPO A RESPIRAR.
+        A CORTINA SAIU DO SÍTIO PÚBLICO (30/10). Ela, no pedido «nível
+        estúdio»: «a primeira coisa a aparecer é a imagem de capa […] sem
+        animação de entrada à frente e sem ecrã branco». Posta a escolha,
+        escolheu tirá-la de TODO o sítio («Tirar em todo o site») e deixar a
+        frase escrita por cima da capa da página inicial («Frase por cima da
+        capa»). A cortina tapava todas as páginas pelo menos 1 s e atrasava a
+        primeira imagem de todas.
 
-        Palavras dela, com o segundo exemplo: «é isto que eu quero quando
-        carrega, mas para a Líquen com a animação».
-
-        É a MESMA peça da proposta e do back office, com a MESMA frase. Cheguei
-        a pô-la aqui com o logótipo a respirar; ela viu e disse o que queria:
-        «no site online não quero aquilo do logo — quero a frase a dizer
-        eternizamos memórias, organizamos eventos, com o mesmo cor de fundo do
-        site, aquele a verde clarinho».
-
-        Muda só o fundo: o verde do menu e da barra, em vez do verde-quase-preto
-        da proposta. No sítio a cortina não abre um documento — abre a casa, e a
-        casa tem uma cor.
+        A peça continua viva onde ela a quis e onde este pedido não toca: na
+        proposta online e no back office (`Cortina.tsx`, o mesmo CSS).
       */}
-      <Cortina locale={locale} />
       <ScrollProgress />
       {/*
         A linha fina no topo quando uma página demora a abrir. Palavras dela, a
@@ -137,11 +135,14 @@ export default function CromadoDoSitio({
       {/* tabIndex=-1 so the skip link actually MOVES keyboard focus into
           the content (an <a href="#conteudo"> only scrolls to a non-
           focusable target — focus would stay on the skip link). */}
-      <main id="conteudo" tabIndex={-1} className="flex-1 pt-24 outline-none">
+      {/* `--cortina-sobe: 0ms`: a fotografia da entrada (`.hero-settle`) e os
+          títulos palavra a palavra (`.palavra-sobe`) esperavam pelo pano da
+          cortina na primeira visita. No sítio já não há pano, e esperam zero. */}
+      <main id="conteudo" tabIndex={-1} className="flex-1 pt-24 outline-none [--cortina-sobe:0ms]">
         <PageTransition>{children}</PageTransition>
       </main>
       <Footer locale={locale} />
       <WhatsAppButton />
-    </SmoothScroll>
+    </>
   );
 }

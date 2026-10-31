@@ -11,7 +11,6 @@ import { BreadcrumbJsonLd, FaqJsonLd } from "@/components/JsonLd";
 import WhatsAppIcon from "@/components/WhatsAppIcon";
 import Parallax from "@/components/Parallax";
 import RatingBadge from "@/components/RatingBadge";
-import HeroWebGL from "@/components/motion/HeroWebGL";
 import { waHref } from "@/data";
 import { SITE } from "@/lib/site";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
@@ -77,9 +76,6 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
             className="object-cover hero-settle"
           />
         </Parallax>
-        {/* WebGL layer over the static hero (fades in when ready; absent under
-            reduced motion / no-WebGL). */}
-        <HeroWebGL src={heroImg} className="absolute inset-0 h-full w-full" />
         {/* SpaceX-style: photo breathes; a small caption tucked bottom-left. */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#080808]/90 via-[#080808]/20 to-transparent" />
         <div className="absolute inset-0 flex flex-col justify-end px-6 lg:px-16 pb-14 lg:pb-20">

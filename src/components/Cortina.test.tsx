@@ -446,9 +446,14 @@ describe("a mesma cortina em toda a casa — menos na proposta", () => {
    * Depois (22/10), a pedir a proposta a «aparecer logo», com a escolha à
    * frente: «Sai só na proposta». A cortina tapava ~2 s uma página que já
    * chegava em ~1,5 s. No sítio fica tal e qual; na proposta não há cortina.
+   *
+   * E depois (30/10, o pedido «nível estúdio», com a escolha à frente: «Tirar
+   * em todo o site»): a fotografia da capa tem de ser a PRIMEIRA coisa no ecrã,
+   * sem nada por cima — é ela o LCP. A cortina sai do sítio público; a frase
+   * dela passa para cima da capa. Fica só no back office.
    */
+  const SITIO = readFileSync("src/components/CromadoDoSitio.tsx", "utf8");
   const MONTAGENS = {
-    sítio: readFileSync("src/components/CromadoDoSitio.tsx", "utf8"),
     "back office": readFileSync("src/app/[lang]/(admin)/layout.tsx", "utf8"),
   };
   const PROPOSTA = readFileSync("src/app/[lang]/(privado)/layout.tsx", "utf8");
@@ -464,8 +469,9 @@ describe("a mesma cortina em toda a casa — menos na proposta", () => {
     expect(codigo).not.toMatch(/<Cortina\b/);
   });
 
-  it("o sítio não leva trava de sessão — vê-se SEMPRE", () => {
-    expect(montagem(MONTAGENS.sítio), "a trava voltou ao sítio").not.toContain("chaveDeSessao");
+  it("o sítio público não leva cortina (30/10, «Tirar em todo o site»)", () => {
+    const codigo = SITIO.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(codigo).not.toMatch(/<Cortina\b/);
   });
 
   it("o back office continua a levá-la — e é o único", () => {

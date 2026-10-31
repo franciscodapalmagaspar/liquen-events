@@ -7,7 +7,6 @@ import { blurFor } from "@/lib/blur";
 import AnimateIn from "@/components/AnimateIn";
 import { staggerMs } from "@/lib/motion/tokens";
 import Parallax from "@/components/Parallax";
-import HeroWebGL from "@/components/motion/HeroWebGL";
 import ClientLogoGrid from "@/components/ClientLogoGrid";
 import ClientMarquee from "@/components/ClientMarquee";
 import { BreadcrumbJsonLd } from "@/components/JsonLd";
@@ -142,9 +141,6 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
             {...blurFor("/imagens/EW1_1393.jpg")}
           />
         </Parallax>
-        {/* WebGL layer over the static hero (fades in when ready; absent under
-            reduced motion / no-WebGL). */}
-        <HeroWebGL src="/imagens/EW1_1393.jpg" className="absolute inset-0 h-full w-full" />
         {/* Two hero veils merged into one layer (former upper div listed first,
             since multiple backgrounds paint first-listed on top). Same pixels,
             one paint/composite pass. */}

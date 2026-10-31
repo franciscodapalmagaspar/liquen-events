@@ -10,7 +10,6 @@ import Reveal from "@/components/motion/Reveal";
 import { PHOTO_REVEAL_FULL_S, staggerMs } from "@/lib/motion/tokens";
 import { blurFor } from "@/lib/blur";
 import ClientMarquee from "@/components/ClientMarquee";
-import HeroWebGL from "@/components/motion/HeroWebGL";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 
@@ -58,7 +57,10 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
           vale 0 px quando não há aviso; a fotografia continua a ocupar o ecrã
           inteiro, porque o que se mexe é o conteúdo dentro da caixa, não a
           caixa. Ver `--reserva-consentimento` em globals.css. */}
-      <section className="recuo-consentimento relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden">
+      {/* `bg-[#080808]`: enquanto a fotografia chega, o ecrã é escuro, e não
+          branco (30/10, «nível estúdio»: «sobre fundo escuro […] sem ecrã
+          branco»). É o mesmo preto do véu. */}
+      <section className="recuo-consentimento relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden bg-[#080808]">
         <Parallax speed={0.14} drift className="absolute inset-0">
           {/* A fotografia é o 1.º fotograma do vídeo 1: é o LCP (AVIF,
               pré-carregada) e é por cima dela que os vídeos entram sem salto.
@@ -76,9 +78,6 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
           {/* Os três vídeos dela, por cima da fotografia e por baixo do véu. */}
           <EntradaEmVideo />
         </Parallax>
-        {/* WebGL layer over the static hero image (fades in when ready; absent
-            under reduced motion / no-WebGL). */}
-        <HeroWebGL src={FOTO_DA_ENTRADA} className="absolute inset-0 h-full w-full" />
         {/* O véu do ecrã inteiro ficou só o lateral, e mais leve (0,3 → 0,15).
             O escuro de baixo passou para trás da legenda (já a seguir), para
             acompanhar o texto em vez de subir até meio do ecrã. Pedido dela a
@@ -126,6 +125,14 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                   moss highlight on the closing word (flagged in the dictionary)
                   is honoured here. Kept bottom-left and photo-first so the SpaceX
                   composition still holds. */}
+                {/* A frase da Líquen, por cima da capa e parada (30/10): era a
+                    cortina que a dizia, antes de a página aparecer. Ela, posta
+                    a escolha: «Frase por cima da capa». A primeira metade
+                    vem aqui; a segunda é o próprio título. O texto é o do
+                    rodapé — não há frase nova. */}
+                <p className="mb-3 text-white/90 text-[clamp(16px,1.9vw,24px)] leading-snug">
+                  {t.footer.sloganLine1}
+                </p>
                 <h1
                   className="text-white font-bold uppercase tracking-display leading-[0.95]"
                   style={{ fontSize: "clamp(40px, 7vw, 88px)" }}

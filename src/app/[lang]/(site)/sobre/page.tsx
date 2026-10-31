@@ -7,7 +7,6 @@ import { blurFor } from "@/lib/blur";
 import AnimateIn from "@/components/AnimateIn";
 import Parallax from "@/components/Parallax";
 import TitleReveal from "@/components/TitleReveal";
-import HeroWebGL from "@/components/motion/HeroWebGL";
 import Reveal from "@/components/motion/Reveal";
 import { PHOTO_REVEAL_LARGE_S, staggerMs, wordCascadeEndMs } from "@/lib/motion/tokens";
 import { BreadcrumbJsonLd } from "@/components/JsonLd";
@@ -66,9 +65,6 @@ export default async function SobrePage({ params }: { params: Promise<{ lang: st
             {...blurFor("/imagens/hd-edited.jpg")}
           />
         </Parallax>
-        {/* WebGL layer over the static hero (fades in when ready; absent under
-            reduced motion / no-WebGL). */}
-        <HeroWebGL src="/imagens/hd-edited.jpg" className="absolute inset-0 h-full w-full" />
         {/* SpaceX scrim: single bottom-anchored gradient so the photograph reads
             full at the top; no heavy flat veil. */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#080808]/90 via-[#080808]/20 to-transparent" />
