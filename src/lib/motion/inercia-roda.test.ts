@@ -122,6 +122,13 @@ describe("o que não é nosso: scroll próprio e camadas por cima", () => {
     expect(haCamadaPorCima(document)).toBe(true);
   });
 
+  it("um diálogo modal ESCONDIDO não conta (a lupa da proposta vive sempre no HTML)", () => {
+    document.body.innerHTML = `<div class="pw-lb" role="dialog" aria-modal="true" hidden></div>`;
+    expect(haCamadaPorCima(document)).toBe(false);
+    document.body.innerHTML = `<div hidden><div aria-modal="true"></div></div>`;
+    expect(haCamadaPorCima(document)).toBe(false);
+  });
+
   it("sem menu nem diálogo, a roda é nossa", () => {
     expect(haCamadaPorCima(document)).toBe(false);
   });

@@ -32,12 +32,32 @@ import { depoisDeCarregar } from "@/lib/depois-de-carregar";
  *     diálogo modal): o Lenis pára enquanto durarem (`haCamadaPorCima`);
  *   · uma caixa com scroll próprio debaixo do rato fica com a roda dela
  *     (`temScrollProprio`, o mesmo teste da inércia antiga);
- *   · com «reduzir movimento» não se monta.
+ *   · com «reduzir movimento» não se monta;
+ *   · as ÂNCORAS da própria página (a barra da proposta: «Serviços»,
+ *     «Condições»…) deslizam com o Lenis, e não aos saltos: com ele activo o
+ *     `scroll-behavior: smooth` do CSS fica desligado (é o que o Lenis manda),
+ *     e a opção `anchors` dele NÃO cancela o salto nativo — os dois puxavam a
+ *     página ao mesmo tempo. Aqui o clique é tratado por inteiro: desliza, põe
+ *     o `#` no endereço e passa o foco ao destino (sem o mover outra vez), como
+ *     o browser faria. A ligação «saltar para o conteúdo» (`#conteudo`) fica
+ *     nativa: é de teclado, e tem de ser imediata.
  *
  * O Lenis só se descarrega DEPOIS do `load`, no primeiro instante livre
  * (`depoisDeCarregar`): não entra no primeiro ecrã nem no LCP.
  */
 const INERCIA_NA_RODA = true;
+
+/**
+ * O elemento para onde aponta uma âncora DESTA página (`<a href="#id">`), ou
+ * `null`: não é uma âncora, é a ligação de saltar (`#conteudo`), ou o destino
+ * não existe (aí o browser faz o que sempre fez).
+ */
+export function destinoDaAncora(origem: EventTarget | null): HTMLElement | null {
+  const a = origem instanceof Element ? origem.closest("a[href^='#']") : null;
+  const id = a ? decodeURIComponent((a.getAttribute("href") ?? "").slice(1)) : "";
+  if (!id || id === "conteudo") return null;
+  return document.getElementById(id);
+}
 
 export default function SmoothScroll() {
   useEffect(() => {
@@ -70,14 +90,39 @@ export default function SmoothScroll() {
           else lenis.start();
         };
         const obs = new MutationObserver(vigiar);
+        // UMA chamada só: um segundo `observe()` no mesmo nó, com o mesmo
+        // observador, SUBSTITUI as opções do primeiro. Eram duas, e a segunda
+        // (`childList`) apagava a vigia do `style` e do `data-menu-open` —
+        // medido a 31/10: com a lupa da proposta aberta (`overflow: hidden`)
+        // a página continuava a rolar por baixo da fotografia.
         obs.observe(document.body, {
           attributes: true,
           attributeFilter: ["style", "data-menu-open"],
-          subtree: false,
+          childList: true,
         });
-        obs.observe(document.body, { childList: true });
         vigiar();
+        const aoClicar = (e: MouseEvent) => {
+          if (e.defaultPrevented || e.button !== 0) return;
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          const alvo = destinoDaAncora(e.target);
+          if (!alvo || lenis.isStopped) return;
+          e.preventDefault();
+          // A posição de partida é a VERDADEIRA, não a que o Lenis guardou: um
+          // salto que ele não viu (o teclado, o «Procurar» do browser, um leitor
+          // de ecrã) deixava-o a calcular o destino a partir de onde a página
+          // já não estava — medido: o clique no fim da proposta parava a 1722 px
+          // em vez de 14 005.
+          const y = window.scrollY;
+          lenis.scrollTo(y, { immediate: true });
+          const margem = Number.parseFloat(getComputedStyle(alvo).scrollMarginTop) || 0;
+          lenis.scrollTo(alvo.getBoundingClientRect().top + y - margem);
+          history.pushState(null, "", `#${alvo.id}`);
+          if (!alvo.hasAttribute("tabindex")) alvo.setAttribute("tabindex", "-1");
+          alvo.focus({ preventScroll: true });
+        };
+        document.addEventListener("click", aoClicar);
         desligar = () => {
+          document.removeEventListener("click", aoClicar);
           obs.disconnect();
           lenis.destroy();
         };

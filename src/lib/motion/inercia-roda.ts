@@ -74,7 +74,18 @@ export function temScrollProprio(alvo: Element | null, raiz: Element): boolean {
  */
 export function haCamadaPorCima(documento: Document): boolean {
   if (documento.body?.dataset.menuOpen === "true") return true;
-  return documento.querySelector('[aria-modal="true"]') !== null;
+  /*
+   * Só conta um diálogo que ESTÁ ABERTO. A lupa da proposta vive sempre no
+   * HTML, escondida (`hidden`), com `aria-modal="true"`. Medido a 31/10: o
+   * Lenis via-a como camada aberta, ficava parado desde o primeiro instante, e
+   * parado tranca o `<html>` (`overflow: clip`) — com o rato, a proposta não
+   * rolava de todo. Um diálogo escondido (ele ou um antepassado com `hidden`)
+   * não está por cima de nada.
+   */
+  for (const d of documento.querySelectorAll<HTMLElement>('[aria-modal="true"]')) {
+    if (!d.closest("[hidden]")) return true;
+  }
+  return false;
 }
 
 /**
