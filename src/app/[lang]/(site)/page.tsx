@@ -125,14 +125,6 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                   moss highlight on the closing word (flagged in the dictionary)
                   is honoured here. Kept bottom-left and photo-first so the SpaceX
                   composition still holds. */}
-                {/* A frase da Líquen, por cima da capa e parada (30/10): era a
-                    cortina que a dizia, antes de a página aparecer. Ela, posta
-                    a escolha: «Frase por cima da capa». A primeira metade
-                    vem aqui; a segunda é o próprio título. O texto é o do
-                    rodapé — não há frase nova. */}
-                <p className="mb-3 text-white/90 text-[clamp(16px,1.9vw,24px)] leading-snug">
-                  {t.footer.sloganLine1}
-                </p>
                 <h1
                   className="text-white font-bold uppercase tracking-display leading-[0.95]"
                   style={{ fontSize: "clamp(40px, 7vw, 88px)" }}
