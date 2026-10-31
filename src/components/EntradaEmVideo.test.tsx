@@ -958,12 +958,12 @@ describe("EntradaEmVideo", () => {
       a.currentTime = 15.5;
       act(() => void a.dispatchEvent(new Event("timeupdate")));
       expect(b.getAttribute("src")).toBe("blob:take-1");
-      // Um take à frente: o 3 só se pede na passagem; entretanto vai a cópia
-      // do de abertura (o mesmo ficheiro, já na cache do browser).
-      expect(pedidos[1]).toBe("/videos/entrada/v7/entrada-1-paisagem.mp4");
+      // Um take à frente: o 3 só se pede na passagem, e a cópia do de
+      // abertura só quando ele sair do ecrã.
+      expect(pedidos).toHaveLength(1);
     });
 
-    it("o take de abertura também vai para a memória, depois do seguinte, e troca fora da vista", async () => {
+    it("o take de abertura também vai para a memória, só depois de sair do ecrã, e troca fora da vista", async () => {
       const { container } = await montar();
       const [a, b] = videos(container);
       Object.defineProperty(a, "duration", { configurable: true, value: 18 });
@@ -971,17 +971,11 @@ describe("EntradaEmVideo", () => {
       comecar(a);
       responder(true); // o 2
       await esperar();
-      // O seguinte já está: agora a cópia do de abertura (o mesmo ficheiro).
-      expect(pedidos).toEqual([
-        "/videos/entrada/v7/entrada-2-paisagem.mp4",
-        "/videos/entrada/v7/entrada-1-paisagem.mp4",
-      ]);
-      responder(true);
-      await esperar();
-      // Está à vista: não se lhe mexe a meio.
-      expect(a.querySelectorAll("source").length).toBeGreaterThan(0);
+      // O de abertura está à vista: ainda não se pede a cópia dele (só volta
+      // a ser preciso no fim da volta).
+      expect(pedidos).toEqual(["/videos/entrada/v7/entrada-2-paisagem.mp4"]);
 
-      // A passagem para o 2: quando acaba, o de abertura passa à cópia.
+      // A passagem para o 2.
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       try {
         a.currentTime = 16.5;
@@ -994,6 +988,18 @@ describe("EntradaEmVideo", () => {
         vi.useRealTimers();
       }
       expect(b.style.opacity).toBe("1");
+      // Agora o 3 (o seguinte), e depois dele a cópia do de abertura.
+      expect(pedidos.at(-1)).toBe("/videos/entrada/v7/entrada-3-paisagem.mp4");
+      responder(true);
+      await esperar();
+      expect(pedidos).toEqual([
+        "/videos/entrada/v7/entrada-2-paisagem.mp4",
+        "/videos/entrada/v7/entrada-3-paisagem.mp4",
+        "/videos/entrada/v7/entrada-1-paisagem.mp4",
+      ]);
+      responder(true);
+      await esperar();
+      // Fora da vista, o de abertura passa à cópia.
       expect(a.querySelectorAll("source")).toHaveLength(0);
     });
 
@@ -1048,7 +1054,7 @@ describe("EntradaEmVideo", () => {
           writable: true,
         });
         act(() => void b.dispatchEvent(new Event("timeupdate")));
-        expect(c.getAttribute("src")).toBe("blob:take-3");
+        expect(c.getAttribute("src")).toBe("blob:take-2");
         act(() => void c.dispatchEvent(new Event("canplaythrough")));
         act(() => void b.dispatchEvent(new Event("timeupdate")));
         act(() => void c.dispatchEvent(new Event("playing")));

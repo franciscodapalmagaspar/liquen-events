@@ -991,7 +991,11 @@ function criarMotor(raiz: HTMLElement): Motor | null {
       if (!fonte[i]) return;
       if (!daMemoria[i] && !pronto[i] && videos[i].readyState < 4) return;
     }
-    // Os outros já estão (ou estão a chegar da memória): agora a abertura.
+    // Os outros já estão (ou estão a chegar da memória): agora a abertura —
+    // mas só depois de ela sair do ecrã. Só se volta a precisar dela no fim
+    // da volta, e o arranque não gasta mais um take inteiro (30/10, «os outros
+    // carregam quando forem precisos»).
+    if (atual === abertura) return;
     guardarAbertura();
   }
 
