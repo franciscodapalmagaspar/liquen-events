@@ -14,7 +14,7 @@
  *   · que versão se pede para este ecrã;
  *   · que formato este aparelho toca melhor sem travar (AV1, HEVC, H.264, VP9).
  *
- * ── OS FICHEIROS (`public/videos/entrada/v6/`) ──────────────────────────────
+ * ── OS FICHEIROS (`public/videos/entrada/v7/`; a história vem da v6) ──────────────────────────────
  *   · SEM AS TIRAS PRETAS. Os vídeos vêm gravados em formato de cinema (2:1),
  *     com 60 px pretos em cima e em baixo (120 px no 4K). Cortam-se, e o
  *     `object-cover` faz o resto: o vídeo enche a entrada sem nada à volta;
@@ -61,17 +61,36 @@
  *     contra o de antes: no ecrã de um telemóvel não se distingue. A
  *     `paisagem` e a `grande` são os mesmos ficheiros, só mudaram de pasta.
  *
- * A pasta tem versão (`v6`) porque os vídeos são servidos com cache de um ano:
- * um vídeo novo vai para `v7`, nunca por cima.
+ *   · MAIS CURTOS E MUITO MAIS LEVES, desde 30/10 (`v7`, pedido «nível
+ *     estúdio»): «telemóvel 720 px de largura, 6–10 s, máximo 1,2 MB (WebM
+ *     VP9 + MP4 H.264 de reserva); computador 1080p, máximo 3 MB». Feitos a
+ *     partir dos ficheiros da `v6` (a curva do vídeo 1 e o corte das tiras
+ *     já lá vinham):
+ *       – os vídeos 1 e 3 CORTADOS AOS 10 s, a contar do início (o 1.º
+ *         fotograma continua a ser a fotografia da entrada); o 2 tem 4,24 s e
+ *         fica inteiro — não há como esticá-lo até aos 6;
+ *       – `retrato` 720×1280, H.264 e VP9 a duas passagens, ~0,8 Mbit/s;
+ *       – `paisagem` 1920×960, H.264 e VP9 a duas passagens, ~2,2 Mbit/s;
+ *       – `paisagem-leve` 1280×640 (o computador que não aguenta a normal);
+ *       – e as duas imagens animadas (12 fps), para quem recusa o vídeo.
+ *     SAÍRAM a `grande` (2560), o HEVC, o AV1 e o `retrato-leve`: a pasta
+ *     passou de 237 MB para uns 25 MB, e nenhum aparelho recebe mais do que
+ *     o tecto dela. As medidas de cada ficheiro estão no PR.
+ *
+ * A pasta tem versão (`v7`) porque os vídeos são servidos com cache de um ano:
+ * um vídeo novo vai para `v8`, nunca por cima.
  */
 
-export const PASTA_DOS_VIDEOS = "/videos/entrada/v6";
+export const PASTA_DOS_VIDEOS = "/videos/entrada/v7";
 
 /** Quantos vídeos há. */
 export const NUMERO_DE_VIDEOS = 3;
 
-/** Que vídeos têm versão `grande` (as fontes em 4K). Desde 16/10: os três. */
-export const TEM_GRANDE: readonly boolean[] = [true, true, true];
+/**
+ * Que vídeos têm versão `grande`. Desde 30/10 (`v7`), nenhum: o tecto dela
+ * para o computador é 1080p e 3 MB, e a `grande` passa a ser a `paisagem`.
+ */
+export const TEM_GRANDE: readonly boolean[] = [false, false, false];
 
 export type Variante = "paisagem" | "retrato" | "grande";
 /**
@@ -125,9 +144,9 @@ export function formatoQueToca(podeTocar: (tipo: string) => string): Formato | n
 
 /** As medidas de cada versão, para perguntar ao aparelho se as toca bem. */
 export const MEDIDAS: Record<Variante, { largura: number; altura: number; debito: number }> = {
-  paisagem: { largura: 1920, altura: 960, debito: 6_000_000 },
-  retrato: { largura: 1080, altura: 1920, debito: 3_000_000 },
-  grande: { largura: 2560, altura: 1280, debito: 8_000_000 },
+  paisagem: { largura: 1920, altura: 960, debito: 2_400_000 },
+  retrato: { largura: 720, altura: 1280, debito: 900_000 },
+  grande: { largura: 1920, altura: 960, debito: 2_400_000 },
 };
 export const FOTOGRAMAS_POR_SEGUNDO = 25;
 
@@ -163,23 +182,13 @@ export async function melhorFormato(
   variante: Variante,
   webkit = false,
 ): Promise<Formato | null> {
-  const base = formatoQueToca(podeTocar);
-  // No WebKit (iPhone, Safari, o Instagram) é o HEVC, sem perguntar: é o
-  // formato da casa da Apple, descodificado no chip em todos os iPhones; o
-  // AV1 no WebKit é recente. O registo do iPhone dela (17/10) mostrou que a
-  // pergunta deixava passar o AV1 — e as imagens presas apareceram com ele.
-  if (webkit && podeTocar(tipoDoFormato("hevc", variante))) return "hevc";
-  if (!perguntar) return base;
-  for (const f of ["av1", "hevc"] as const) {
-    if (!podeTocar(tipoDoFormato(f, variante))) continue;
-    try {
-      const c = await perguntar(f, variante);
-      if (c.supported && c.smooth && c.powerEfficient) return f;
-    } catch {
-      // O aparelho não soube responder: não se arrisca.
-    }
-  }
-  return base;
+  // Desde 30/10 (`v7`) só há H.264 e VP9: o HEVC e o AV1 saíram com o
+  // tecto de peso dela, e já não há nada a perguntar ao aparelho. A
+  // assinatura fica, para quem chama não mudar.
+  void perguntar;
+  void variante;
+  void webkit;
+  return formatoQueToca(podeTocar);
 }
 
 /**
@@ -534,8 +543,10 @@ export const TENTAR_DE_NOVO_MS = 3000;
  * a volta seguinte toca a normal, da memória.
  */
 export function enderecoLeve(i: number, formato: "hevc" | "mp4"): string {
-  const n = i % NUMERO_DE_VIDEOS;
-  return `${PASTA_DOS_VIDEOS}/entrada-${n + 1}-retrato-leve${formato === "hevc" ? "-hevc" : ""}.mp4`;
+  // Desde 30/10 (`v7`) o `retrato` já é o leve (720 px, ~0,8 Mbit/s): a
+  // versão leve é ele, em H.264.
+  void formato;
+  return enderecoDoVideo(i, "retrato", "mp4");
 }
 
 /**
