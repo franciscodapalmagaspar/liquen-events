@@ -349,7 +349,7 @@ export default function PedidoRapido({
             {!temData && (
               <span
                 aria-hidden
-                className="pointer-events-none absolute inset-y-0 left-[calc(0.875rem+1px)] hidden items-center text-[16px] text-[var(--fg-tertiary)] pointer-coarse:flex"
+                className="pointer-events-none absolute inset-y-0 left-[calc(0.875rem+1px)] hidden items-center text-[16px] text-[var(--fg-secondary)] pointer-coarse:flex"
               >
                 {textos.escolherData}
               </span>

@@ -1221,7 +1221,7 @@ export default function OrcamentoForm({
                       {!data && (
                         <span
                           aria-hidden
-                          className="pointer-events-none absolute bottom-[calc(0.45rem+1px)] left-[calc(0.875rem+1px)] hidden text-sm leading-5 text-[var(--fg-tertiary)] pointer-coarse:block"
+                          className="pointer-events-none absolute bottom-[calc(0.45rem+1px)] left-[calc(0.875rem+1px)] hidden text-sm leading-5 text-[var(--fg-secondary)] pointer-coarse:block"
                         >
                           {to.calendario.escolher}
                         </span>
