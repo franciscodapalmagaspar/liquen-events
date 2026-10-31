@@ -183,7 +183,7 @@ describe("PedidoRapido — o telemóvel", () => {
     fireEvent.change(telefone(), { target: { value: "+55 11 91234-5678" } });
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /país do número/i })).toHaveAccessibleName(
-        "+55, Brasil — País do número",
+        "+55, Brasil. País do número",
       ),
     );
     preencherESubmeter(container);

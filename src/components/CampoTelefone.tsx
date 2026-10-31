@@ -539,7 +539,7 @@ export default function CampoTelefone({
           // cinquenta e um»), e o WCAG 2.5.3 pede que o nome o contenha. Antes
           // era «País do número: Portugal (+351)» — o axe (e o Lighthouse do
           // /orcamento, 96) apontava-o como `label-content-name-mismatch`.
-          aria-label={`+${codigo}, ${nomeDoPaisEscolhido} — ${textos.pais}`}
+          aria-label={`+${codigo}, ${nomeDoPaisEscolhido}. ${textos.pais}`}
           title={`${nomeDoPaisEscolhido} (+${codigo})`}
           onClick={() => (aberto ? fechar(false) : abrir())}
           onKeyDown={teclaNoBotao}

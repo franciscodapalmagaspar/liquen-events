@@ -69,7 +69,7 @@ async function escrever(texto: string) {
 describe("CampoTelefone — a bandeira e o número", () => {
   it("abre com Portugal e o +351, e o número nacional sai em E.164", async () => {
     render(<Pai />);
-    expect(botao()).toHaveAccessibleName("+351, Portugal — País do número");
+    expect(botao()).toHaveAccessibleName("+351, Portugal. País do número");
     expect(numero()).toHaveAttribute("type", "tel");
     expect(numero()).toHaveAttribute("inputmode", "tel");
     await escrever("912 345 678");
@@ -84,7 +84,7 @@ describe("CampoTelefone — a bandeira e o número", () => {
     fireEvent.change(procura, { target: { value: "reino" } });
     fireEvent.click(await screen.findByRole("option", { name: /Reino Unido/ }));
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
-    expect(botao()).toHaveAccessibleName("+44, Reino Unido — País do número");
+    expect(botao()).toHaveAccessibleName("+44, Reino Unido. País do número");
     expect(numero()).toHaveFocus();
 
     fireEvent.change(numero(), { target: { value: "020 7946 0958" } });
@@ -110,7 +110,7 @@ describe("CampoTelefone — a bandeira e o número", () => {
   it("colar um «+44 …» muda a bandeira sozinha, e o número fica nacional", async () => {
     render(<Pai />);
     await escrever("+44 20 7946 0958");
-    await waitFor(() => expect(botao()).toHaveAccessibleName("+44, Reino Unido — País do número"));
+    await waitFor(() => expect(botao()).toHaveAccessibleName("+44, Reino Unido. País do número"));
     expect(numero().value).toBe("020 7946 0958");
     expect(valor()).toBe("+442079460958");
   });
@@ -118,7 +118,7 @@ describe("CampoTelefone — a bandeira e o número", () => {
   it("colar o número do Brasil muda para o Brasil, e é válido", async () => {
     render(<Pai />);
     await escrever("+55 11 91234-5678");
-    await waitFor(() => expect(botao()).toHaveAccessibleName("+55, Brasil — País do número"));
+    await waitFor(() => expect(botao()).toHaveAccessibleName("+55, Brasil. País do número"));
     expect(valor()).toBe("+5511912345678");
     fireEvent.blur(numero());
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -127,14 +127,14 @@ describe("CampoTelefone — a bandeira e o número", () => {
   it("o «00» conta como «+»", async () => {
     render(<Pai />);
     await escrever("0033 6 12 34 56 78");
-    await waitFor(() => expect(botao()).toHaveAccessibleName("+33, França — País do número"));
+    await waitFor(() => expect(botao()).toHaveAccessibleName("+33, França. País do número"));
     expect(valor()).toBe("+33612345678");
   });
 
   it("um valor gravado abre com a bandeira dele e o número no formato do país", async () => {
     render(<Pai inicial="+442079460958" />);
     await waitFor(() => expect(numero().value).toBe("020 7946 0958"));
-    expect(botao()).toHaveAccessibleName("+44, Reino Unido — País do número");
+    expect(botao()).toHaveAccessibleName("+44, Reino Unido. País do número");
   });
 
   it("um número antigo, que não se percebe, fica como estava e não é reescrito", async () => {
@@ -184,7 +184,7 @@ describe("CampoTelefone — a lista, ao teclado", () => {
     await waitFor(() => expect(procura.getAttribute("aria-activedescendant")).toBe("t-pais-CH"));
     fireEvent.keyDown(procura, { key: "Enter" });
     expect(enviar).not.toHaveBeenCalled();
-    expect(botao()).toHaveAccessibleName("+41, Suíça — País do número");
+    expect(botao()).toHaveAccessibleName("+41, Suíça. País do número");
   });
 
   it("o escolhido leva o ✓ (o desenho da Apple), e só ele", async () => {
@@ -234,7 +234,7 @@ describe("CampoTelefone — a lista, ao teclado", () => {
       />,
     );
     expect(screen.getByRole("button")).toHaveAccessibleName(
-      "+351, Portugal — Country of the number",
+      "+351, Portugal. Country of the number",
     );
     fireEvent.click(screen.getByRole("button"));
     expect(await screen.findByRole("option", { name: /United Kingdom/ })).toBeInTheDocument();
