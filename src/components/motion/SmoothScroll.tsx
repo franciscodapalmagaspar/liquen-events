@@ -116,7 +116,8 @@ export default function SmoothScroll() {
           lenis.scrollTo(y, { immediate: true });
           const margem = Number.parseFloat(getComputedStyle(alvo).scrollMarginTop) || 0;
           lenis.scrollTo(alvo.getBoundingClientRect().top + y - margem);
-          history.pushState(null, "", `#${alvo.id}`);
+          // O `id` vem do HTML: vai codificado para o endereço, nunca cru.
+          history.pushState(null, "", `#${encodeURIComponent(alvo.id)}`);
           if (!alvo.hasAttribute("tabindex")) alvo.setAttribute("tabindex", "-1");
           alvo.focus({ preventScroll: true });
         };
