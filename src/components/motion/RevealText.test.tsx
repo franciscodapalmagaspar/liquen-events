@@ -22,7 +22,9 @@ vi.mock("@/lib/motion/useReducedMotion", () => ({ prefersReducedMotion: () => re
 
 import RevealText from "./RevealText";
 
-afterEach(() => {
+afterEach(async () => {
+  const { SplitText } = await import("@/lib/motion/gsap");
+  (SplitText.create as ReturnType<typeof vi.fn>).mockClear();
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -30,10 +32,11 @@ afterEach(() => {
   reduzido = false;
 });
 
-/** O `import()` do GSAP resolve noutra volta do ciclo: espera-se por ela. */
+/** O GSAP só se pede depois do `load` e num instante livre (no jsdom, um
+ * `setTimeout` de 200 ms), e o `import()` resolve noutra volta: espera-se. */
 const esperar = () =>
   act(async () => {
-    await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 300));
   });
 
 describe("RevealText — o título linha a linha", () => {
@@ -92,5 +95,64 @@ describe("RevealText — o título linha a linha", () => {
     expect(SplitText.create).toHaveBeenCalledTimes(1);
     const [, opcoes] = (SplitText.create as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(opcoes).toMatchObject({ type: "lines", mask: "lines", autoSplit: true });
+  });
+
+  it("se o título subiu ao ecrã antes de o GSAP chegar (rolou-se depressa), fica como está", async () => {
+    const caixa = (top: number) => ({
+      top,
+      bottom: top + 60,
+      height: 60,
+      width: 300,
+      left: 0,
+      right: 300,
+      x: 0,
+      y: top,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValueOnce(caixa(5000))
+      .mockReturnValue(caixa(100));
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(4900);
+    render(<RevealText>Título</RevealText>);
+    await esperar();
+    const { SplitText } = await import("@/lib/motion/gsap");
+    expect(SplitText.create).not.toHaveBeenCalled();
+  });
+
+  it("só pede o GSAP quando o título fica a um ecrã de chegar (quem não desce não o descarrega)", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      top: 5000,
+      bottom: 5060,
+      height: 60,
+      width: 300,
+      left: 0,
+      right: 300,
+      x: 0,
+      y: 5000,
+      toJSON: () => ({}),
+    });
+    let avisar: (e: Partial<IntersectionObserverEntry>[]) => void = () => {};
+    const opcoes: IntersectionObserverInit[] = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(cb: typeof avisar, o: IntersectionObserverInit) {
+          avisar = cb;
+          opcoes.push(o);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    render(<RevealText>Título</RevealText>);
+    await esperar();
+    const { SplitText } = await import("@/lib/motion/gsap");
+    expect(opcoes[0]).toMatchObject({ rootMargin: "0px 0px 100% 0px" });
+    expect(SplitText.create).not.toHaveBeenCalled();
+    await act(async () => {
+      avisar([{ isIntersecting: true }]);
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(SplitText.create).toHaveBeenCalledTimes(1);
   });
 });

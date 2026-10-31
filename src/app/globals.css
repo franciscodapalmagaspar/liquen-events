@@ -1540,6 +1540,15 @@ html.lenis body {
   overflow: clip;
 }
 
+/* O título linha a linha (`RevealText`): a máscara de cada linha corta o que
+   sai da caixa da linha — e os acentos das maiúsculas (o «À» de «À SUA
+   IDEIA?») e as descendentes saem. Folga por cima e por baixo, devolvida na
+   margem, para a linha ficar onde estava. */
+.rt-linha-mask {
+  padding-block: 0.18em;
+  margin-block: -0.18em;
+}
+
 /* ── Os campos dos ANÚNCIOS: caixas redondas, à Apple ──
    Ela (30/10): «coloca tudo do formulário em design de apple», com as caixas
    redondas do apple.com: cada campo é uma caixa cinzenta-clara de cantos

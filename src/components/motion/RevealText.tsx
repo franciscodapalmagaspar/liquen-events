@@ -3,6 +3,7 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { prefersReducedMotion } from "@/lib/motion/useReducedMotion";
 import { jaEstaAVista } from "@/lib/motion/primeiro-ecra";
+import { depoisDeCarregar } from "@/lib/depois-de-carregar";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -22,8 +23,15 @@ import { jaEstaAVista } from "@/lib/motion/primeiro-ecra";
  *     (`jaEstaAVista`, a mesma regra do `AnimateIn`): esconder o que se está a
  *     ler é o clarão de que ela se queixou. Só anima o que vem mais abaixo.
  *   · Com «reduzir movimento», nada.
- *   · O GSAP chega por `import()`, depois de montar: não entra no primeiro
- *     ecrã nem no LCP. Nunca se usa no `<h1>` da capa (é o LCP).
+ *   · O GSAP só se pede quando o título fica a UM ECRÃ de chegar (um
+ *     `IntersectionObserver` com um ecrã de margem por baixo), e nunca antes do
+ *     `load` (`depoisDeCarregar`, o mesmo do Lenis). Quem não desce não o
+ *     descarrega, e ele não entra no primeiro ecrã, no LCP, nem no tempo
+ *     bloqueado do arranque. Medido a 31/10 com a rede travada: pedido ao montar,
+ *     ou no primeiro instante livre, o `/servicos` passava de 0,28 s a 0,40 s de
+ *     TBT (94 → 90). Nunca se usa no `<h1>` da capa (é o LCP).
+ *   · Se, quando o GSAP chega, o título JÁ subiu ao ecrã (rolou-se depressa),
+ *     fica como está: não se esconde o que já se está a ler.
  *   · Ao sair da página, o título volta ao texto original (`revert`).
  */
 type Tag = "h2" | "h3" | "p";
@@ -51,28 +59,47 @@ export default function RevealText({
     if (jaEstaAVista(el)) return;
     let vivo = true;
     let desfazer = () => {};
-    void import("@/lib/motion/gsap").then(({ gsap, SplitText, ease, dur, stagger }) => {
-      if (!vivo || !ref.current) return;
-      const ctx = gsap.context(() => {
-        SplitText.create(el, {
-          type: "lines",
-          mask: "lines",
-          autoSplit: true,
-          onSplit: (self) =>
-            gsap.from(self.lines, {
-              yPercent: 110,
-              duration: dur.reveal * 1.6,
-              ease: ease.out,
-              stagger: stagger.linhas,
-              delay: atraso,
-              scrollTrigger: { trigger: el, start: "top 88%", once: true },
-            }),
-        });
-      }, el);
-      desfazer = () => ctx.revert();
+    let obs: IntersectionObserver | null = null;
+    const animar = () =>
+      void import("@/lib/motion/gsap").then(({ gsap, SplitText, ease, dur, stagger }) => {
+        if (!vivo || !ref.current) return;
+        if (el.getBoundingClientRect().top < window.innerHeight) return;
+        const ctx = gsap.context(() => {
+          SplitText.create(el, {
+            type: "lines",
+            mask: "lines",
+            linesClass: "rt-linha",
+            autoSplit: true,
+            onSplit: (self) =>
+              gsap.from(self.lines, {
+                yPercent: 110,
+                duration: dur.reveal * 1.6,
+                ease: ease.out,
+                stagger: stagger.linhas,
+                delay: atraso,
+                scrollTrigger: { trigger: el, start: "top 88%", once: true },
+              }),
+          });
+        }, el);
+        desfazer = () => ctx.revert();
+      });
+    const cancelar = depoisDeCarregar(() => {
+      if (!vivo) return;
+      if (typeof IntersectionObserver !== "function") return animar();
+      obs = new IntersectionObserver(
+        (entradas) => {
+          if (!entradas.some((e) => e.isIntersecting)) return;
+          obs?.disconnect();
+          animar();
+        },
+        { rootMargin: "0px 0px 100% 0px" },
+      );
+      obs.observe(el);
     });
     return () => {
       vivo = false;
+      cancelar();
+      obs?.disconnect();
       desfazer();
     };
   }, [atraso]);
