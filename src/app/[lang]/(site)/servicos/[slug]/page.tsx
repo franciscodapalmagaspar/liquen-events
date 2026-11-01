@@ -11,7 +11,8 @@ import Reveal from "@/components/motion/Reveal";
 import { BreadcrumbJsonLd, ServiceJsonLd, FaqJsonLd } from "@/components/JsonLd";
 import { pageMetadata } from "@/lib/page-metadata";
 import { SERVICES, getService, quoteTipoForSlug } from "@/lib/services-data";
-import { pickServiceGallery } from "@/lib/service-gallery";
+import { pickServiceGalleryPool } from "@/lib/service-gallery";
+import GaleriaDoServico from "./GaleriaDoServico";
 import { getDictionary, localizeHref, normalizeLocale } from "@/lib/i18n";
 import { PRIMARY_BUTTON_CLASS, OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
@@ -123,9 +124,11 @@ export default async function ServiceDetailPage({
   // to the hero) so the final call-to-action stays on-topic and cinematic.
   const ctaImg = svc.gallery.at(-1) ?? svc.hero;
 
-  // Seis do conjunto deste serviço, sorteadas agora; a lista escolhida à mão
-  // fica como recurso para os serviços que ainda não têm conjunto próprio.
-  const gallery = pickServiceGallery(svc.slug) ?? svc.gallery;
+  // Até 18 do conjunto deste serviço, sorteadas agora: as seis primeiras abrem
+  // a grelha e as outras vão entrando uma de cada vez (GaleriaDoServico). A
+  // lista escolhida à mão fica como recurso para os serviços que ainda não têm
+  // conjunto próprio — com seis só, a grelha fica parada e a lupa abre na mesma.
+  const gallery = pickServiceGalleryPool(svc.slug) ?? svc.gallery;
 
   // Deep-link the quote CTAs with the matching event type so a visitor arriving
   // from this service page lands with it pre-selected (see OrcamentoForm).
@@ -352,59 +355,22 @@ export default async function ServiceDetailPage({
             decoded full-bleed photos as you scrolled in — the clearest remaining
             scroll stutter on the service pages. zoom is the same "settle in"
             reveal the home/service bands already use, with zero repaint. */}
-        <Reveal
-          as="div"
-          variant="zoom"
-          stagger
-          // 340 e não 300 nas filas grandes: com 300, o mosaico de quatro
-          // colunas num ecrã de 1440 media 960 x 300, ou seja 3,2:1, e mesmo
-          // uma fotografia deitada perdia 53% da altura. A 340 são 2,8:1 e a
-          // perda cai para 44%. Mais do que isto e as filas passam a empurrar
-          // a secção seguinte para fora do ecrã sem se ganhar enquadramento.
-          //
-          // `overflow-x-clip` (auditoria externa, C1): o `zoom` de entrada
-          // começa cada mosaico ampliado, e os da borda passavam o ecrã — a
-          // página ganhava scroll horizontal (MEDIDO: 38 px a 1440, 34 a 1280,
-          // 27 a 1024). `clip` e não `hidden`: corta só na horizontal e não faz
-          // da grelha um contentor de scroll.
-          className="grid grid-cols-2 lg:grid-cols-6 gap-px auto-rows-[160px] sm:auto-rows-[220px] lg:auto-rows-[340px] overflow-x-clip"
-        >
-          {gallery.map((src, i) => {
-            // Match the real column span (grid is 6-col at lg) so the wide
-            // feature tiles aren't served a 33vw candidate and upscaled.
-            const span = GALLERY_SPANS[i % GALLERY_SPANS.length];
-            const dvw = span.includes("col-span-4")
-              ? "67vw"
-              : span.includes("col-span-3")
-                ? "50vw"
-                : "33vw";
-            return (
-              <div key={i} className={`relative overflow-hidden group ${span}`}>
-                <SafeImage
-                  src={src}
-                  {...blurFor(src)}
-                  // Distinct alt per photo (base phrase + service + index) so
-                  // screen-reader users can tell the portfolio images apart
-                  // instead of hearing one identical string repeated.
-                  alt={`${t.servicoDetalhe.galleryAlt}: ${svc.title} ${i + 1}`}
-                  // ÚNICO sítio desta página com legenda de último recurso: são
-                  // as fotos do portefólio, o conteúdo que o visitante veio ver
-                  // (e é aqui que a dona fotografou o texto alternativo à vista
-                  // por cima do ícone partido). Cada mosaico é grande o
-                  // suficiente para a legenda caber com dignidade. A mesma
-                  // frase que a galeria já usa, nos dois idiomas.
-                  unavailableLabel={t.galeria.photoUnavailable}
-                  fill
-                  sizes={`(max-width: 1024px) 50vw, ${dvw}`}
-                  quality={75}
-                  // A6: o desfoque esbate-se em 300 ms quando a foto chega.
-                  aparecer
-                  className="object-cover transition-transform duration-foto-zoom group-hover:scale-[1.03]"
-                />
-              </div>
-            );
-          })}
-        </Reveal>
+        {/* A grelha que vai trocando, e a lupa (1/11). As medidas da grelha
+            (filas de 340 e não 300; o `overflow-x-clip`, auditoria C1), o
+            `sizes` por coluna e a legenda de último recurso vivem lá. */}
+        <GaleriaDoServico
+          fotos={gallery.map((src) => ({ src, blur: blurFor(src).blurDataURL }))}
+          spans={GALLERY_SPANS}
+          alt={`${t.servicoDetalhe.galleryAlt}: ${svc.title}`}
+          textos={{
+            galeria: t.galeria.lbGallery,
+            fechar: t.galeria.lbClose,
+            anterior: t.galeria.lbPrev,
+            seguinte: t.galeria.lbNext,
+            de: t.galeria.lbOf,
+            indisponivel: t.galeria.photoUnavailable,
+          }}
+        />
       </section>
 
       {/* ── FAQ (image-backed, SpaceX-style: light text over a photo + veil) ── */}
