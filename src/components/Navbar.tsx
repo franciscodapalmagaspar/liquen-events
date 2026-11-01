@@ -499,7 +499,8 @@ export default function Navbar() {
   // `logo-liquen-recortado.png` (2146×1084): as letras de LÍQUEN vão da linha
   // 672 à 1083, com o meio a 81% da altura; o meio da caixa é 50%. Descem
   // portanto 31% da altura a que o logótipo está desenhado (62/72 px em
-  // repouso, 40/44 px na barra descida), e acompanham-no na mesma transição.
+  // repouso, 40/44 px na barra descida). SEM transição (1/11, à noite): no
+  // iPhone o site ficou «travado», e isto é uma coisa a menos a mexer ao rolar.
   // Com o menu aberto o selector não existe e o «fechar» fica onde está.
   const aoNivelDaPalavra = isOpen
     ? "translate-y-0"
@@ -789,9 +790,7 @@ export default function Navbar() {
               375 e 390 px no topo da página: o «EN» recebia 0 de 25 toques —
               iam todos para o início. Por cima do logótipo, o selector recebe
               os seus. */}
-          <div
-            className={`lg:hidden relative z-10 flex items-center transition-[translate] duration-500 motion-reduce:transition-none ${aoNivelDaPalavra}`}
-          >
+          <div className={`lg:hidden relative z-10 flex items-center ${aoNivelDaPalavra}`}>
             {!isOpen && <LanguageToggle light={light} />}
           </div>
 
@@ -872,9 +871,7 @@ export default function Navbar() {
           {/* Mobile: hamburger on the RIGHT (balances the left PT/EN toggle
               around the centred logo). Por cima do logótipo pela mesma razão
               do selector de idioma, à esquerda. */}
-          <div
-            className={`lg:hidden relative z-10 flex items-center transition-[translate] duration-500 motion-reduce:transition-none ${aoNivelDaPalavra}`}
-          >
+          <div className={`lg:hidden relative z-10 flex items-center ${aoNivelDaPalavra}`}>
             {/* `alvo-toque` porque este botão media 46×43 px com toque emulado
                 — falha o mínimo por UM pixel de altura, e é a única forma de
                 abrir a navegação num telemóvel em todas as páginas do sítio.

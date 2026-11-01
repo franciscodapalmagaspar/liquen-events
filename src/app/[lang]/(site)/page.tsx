@@ -58,10 +58,14 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
           vale 0 px quando não há aviso; a fotografia continua a ocupar o ecrã
           inteiro, porque o que se mexe é o conteúdo dentro da caixa, não a
           caixa. Ver `--reserva-consentimento` em globals.css. */}
-      {/* `bg-[#080808]`: enquanto a fotografia chega, o ecrã é escuro, e não
-          branco (30/10, «nível estúdio»: «sobre fundo escuro […] sem ecrã
-          branco»). É o mesmo preto do véu. */}
-      <section className="recuo-consentimento relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden bg-[#080808]">
+      {/* Enquanto a fotografia chega, o fundo é a PRÓPRIA capa desfocada (o
+          mesmo `blurDataURL` de ~100 bytes que já vai no HTML), por cima do
+          preto do véu. Até 1/11 era só o preto (30/10, «nível estúdio»: «sem
+          ecrã branco»), e ela via-o: «ficou tudo preto». */}
+      <section
+        className="recuo-consentimento relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden bg-[#080808] bg-cover bg-center"
+        style={{ backgroundImage: `url("${blurFor(FOTO_DA_ENTRADA).blurDataURL}")` }}
+      >
         <Parallax speed={0.14} drift className="absolute inset-0">
           {/* A fotografia é o 1.º fotograma do vídeo 1: é o LCP (AVIF,
               pré-carregada) e é por cima dela que os vídeos entram sem salto.

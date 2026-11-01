@@ -73,12 +73,6 @@ afterEach(() => {
 
 async function montar() {
   const r = render(<EntradaEmVideo />);
-  // O take de entrada só arranca depois do `load`, no 1.º instante livre do
-  // browser (`depoisDeCarregar`): o jsdom já carregou, e o browser fica livre.
-  const arranque = ociosos.shift();
-  if (arranque) act(() => arranque.cb());
-  // Sem `requestIdleCallback` (Safari) é um `setTimeout` curto.
-  else if (vi.isFakeTimers()) act(() => void vi.advanceTimersByTime(200));
   await act(async () => {
     for (let k = 0; k < 4; k++) await Promise.resolve();
   });
@@ -176,11 +170,8 @@ describe("EntradaEmVideo", () => {
       expect(play).not.toHaveBeenCalled();
       expect(videos(container).every((v) => !v.querySelector("source"))).toBe(true);
     });
-    it("de resto, o take de entrada só arranca depois do `load`, no 1.º instante livre", async () => {
+    it("de resto, o take de entrada arranca ao montar, sem esperar pelo `load`", () => {
       render(<EntradaEmVideo />);
-      expect(play).not.toHaveBeenCalled();
-      expect(ociosos).toHaveLength(1);
-      ficarLivre();
       expect(play).toHaveBeenCalled();
     });
   });

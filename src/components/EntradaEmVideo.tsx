@@ -1919,32 +1919,30 @@ export default function EntradaEmVideo() {
       m.ligar(raiz);
       return () => m.desligar();
     }
-    // O take de entrada arranca depois de a página carregar (ver
-    // `HTML_DOS_VIDEOS`): até lá, vê-se a fotografia da capa.
-    let m: Motor | null = null;
-    const cancelar = depoisDeCarregar(() => {
-      if (!raiz.isConnected) return;
-      if (!raiz.querySelector("[data-primeiro]")) {
-        arrancarEntrada(
-          FONTES,
-          CHAVE_DO_ULTIMO,
-          CORTINA_ESPERA_MAX_MS,
-          LEVES,
-          MEDIR_REDE_MS,
-          ANIMADAS,
-          porImagemAnimada,
-          PASSAGEM_MS,
-        );
-      }
-      m = criarMotor(raiz);
-      if (!m) return;
-      motorDaSessao = m;
-      m.ligar(raiz);
-    });
-    return () => {
-      cancelar();
-      m?.desligar();
-    };
+    // O take de entrada arranca AO MONTAR (1/11, à noite). Ela: «o vídeo
+    // quando entro não começa logo… fica tipo capa». Desde 30/10 esperava pelo
+    // `load` e por um instante livre (`depoisDeCarregar`), e via-se a capa
+    // parada. Também não volta o guião escrito no HTML: com ele no site, o
+    // iPhone ficou «todo bugado e travado». Arranca quando o React hidrata —
+    // mais cedo do que esperar pelo `load`, e sem nada a correr enquanto o
+    // browser ainda lê a página.
+    if (!raiz.querySelector("[data-primeiro]")) {
+      arrancarEntrada(
+        FONTES,
+        CHAVE_DO_ULTIMO,
+        CORTINA_ESPERA_MAX_MS,
+        LEVES,
+        MEDIR_REDE_MS,
+        ANIMADAS,
+        porImagemAnimada,
+        PASSAGEM_MS,
+      );
+    }
+    const m = criarMotor(raiz);
+    if (!m) return;
+    motorDaSessao = m;
+    m.ligar(raiz);
+    return () => m.desligar();
   }, []);
 
   return (
