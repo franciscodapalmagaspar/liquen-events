@@ -28,7 +28,7 @@ permissions:
 jobs:
   semgrep:
     name: semgrep
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     # A imagem traz o semgrep instalado — evita depender de pip no runner.
     container:

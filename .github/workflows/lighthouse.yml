@@ -16,7 +16,7 @@ concurrency:
 jobs:
   lighthouse:
     name: Performance / A11y / SEO budgets (${{ matrix.modo }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Informational: surfaces scores on every PR without blocking the merge.
     continue-on-error: true
     # Era 15, e o job passou a bater nele: duas tentativas seguidas no mesmo

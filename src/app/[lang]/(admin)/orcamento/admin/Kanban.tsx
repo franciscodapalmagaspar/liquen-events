@@ -706,7 +706,16 @@ export default function Kanban({
           </Card>
         ))}
 
-      <div className="flex gap-3.5 overflow-x-auto pb-4 scroll-hide">
+      {/* A faixa das colunas rola de lado. Com colunas vazias não há cartão
+          nenhum por onde o teclado entre, e as da direita ficavam fora de
+          alcance (axe: scrollable-region-focusable, 31/10). Com nome e um lugar
+          na ordem do teclado, as setas fazem-na andar. */}
+      <div
+        role="region"
+        aria-label="Colunas do quadro"
+        tabIndex={0}
+        className="flex gap-3.5 overflow-x-auto pb-4 scroll-hide"
+      >
         {COLUMNS.map((col, colIndex) => {
           const items = byStatus[col.id] ?? [];
           // Mesma cascata do resumo acima — total da coluna COM IVA, não o
