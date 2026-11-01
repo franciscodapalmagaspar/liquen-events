@@ -309,7 +309,13 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
           }}
         />
 
-        <div className="text-veil-shadow veu-texto veu-texto--centro [--veu-alfa:0.76] [--veu-recuo-cima:7rem] [--veu-recuo-baixo:7rem] lg:[--veu-recuo-cima:10rem] lg:[--veu-recuo-baixo:10rem] relative z-10 max-w-7xl mx-auto px-6 lg:px-16 py-28 lg:py-40 flex flex-col items-center text-center">
+        {/* O véu atrás do texto MEDIDO NESTA FOTOGRAFIA (1/11), e não no pior caso
+            de uma fotografia branca (0,76, que é o que o verde de «em mente?»
+            pede sobre branco). Ela: «isto está assim escuro». Medido no
+            percentil 98 do brilho por trás de cada linha: o sobretítulo (4,5:1)
+            e o verde do título (3:1, texto grande) pedem 0,62 no telemóvel e
+            0,50 no computador. Ficam 0,64 e 0,52, com folga. */}
+        <div className="text-veil-shadow veu-texto veu-texto--centro [--veu-alfa:0.64] lg:[--veu-alfa:0.52] [--veu-recuo-cima:7rem] [--veu-recuo-baixo:7rem] lg:[--veu-recuo-cima:10rem] lg:[--veu-recuo-baixo:10rem] relative z-10 max-w-7xl mx-auto px-6 lg:px-16 py-28 lg:py-40 flex flex-col items-center text-center">
           <AnimateIn>
             <p className="text-white/70 text-[10px] tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
               <span className="w-8 h-px bg-gold" />
