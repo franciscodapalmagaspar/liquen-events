@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Playfair_Display } from "next/font/google";
 import { MovimentoDaProposta } from "./MovimentoDaProposta";
+import SmoothScroll from "@/components/motion/SmoothScroll";
 
 /**
  * O Playfair da proposta, PRÉ-CARREGADO só aqui. O sítio público deixou de o
@@ -129,6 +130,14 @@ export default function LayoutPrivado({ children }: { children: React.ReactNode 
         de contenção de qualquer `position: fixed` lá dentro — a lupa das
         fotografias, medida a 3202 px num ecrã de 780 quando isso aconteceu.
       */}
+      {/*
+        ── O SCROLL SUAVE, COMO NO SÍTIO (31/10) ─────────────────────────
+        Ela escolheu o movimento de estúdio também na proposta: o mesmo
+        Lenis do sítio, só com rato ou trackpad, nunca no toque nem com
+        «reduzir movimento», parado enquanto a lupa está aberta, e com as
+        âncoras da barra a deslizar (ver `SmoothScroll.tsx`).
+      */}
+      <SmoothScroll />
       <div className="prop-abertura">{children}</div>
       {/*
         O guião que põe o documento a mexer. Depois dos filhos, de propósito:

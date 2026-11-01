@@ -95,3 +95,20 @@ O que custava, a cada visita, numa função acabada de acordar:
 A chave do que se guarda é o próprio documento: um documento diferente é outra chave. Ficar igual ao PDF que seguiu é o objectivo — esse PDF também ficou guardado no envio.
 
 **Não verificado:** o tempo em produção, com uma proposta verdadeira — não se abrem propostas de clientes. Mede-se aqui com uma proposta TESTE.
+
+## O movimento de estúdio (31/10)
+
+Ela escolheu «Sim, com o movimento» (Parte −1). Feito:
+
+| Peça | Onde | Nota |
+|---|---|---|
+| Os títulos linha a linha | `PropostaWeb.tsx` | Os seis títulos de secção (`.pw-t`) passam a `<RevealText>`, o mesmo componente do sítio: cada linha sobe de trás de uma máscara quando o título chega ao ecrã. Perdem a entrada antiga (`.pw-rv`), para não haver duas. O resto das entradas fica como estava. |
+| O scroll suave | `(privado)/layout.tsx` → `SmoothScroll` | O Lenis do sítio. Só com rato ou trackpad; nunca no toque nem com «reduzir movimento». Pára enquanto a lupa está aberta. |
+| As âncoras da barra | `SmoothScroll.tsx` (`destinoDaAncora`) | Deslizam com o Lenis, põem o `#` no endereço e passam o foco ao destino, como o browser faria. |
+
+**Três defeitos encontrados no browser, todos corrigidos e com teste:**
+- A lupa vive sempre no HTML, escondida, com `aria-modal="true"`. O Lenis via-a como uma camada aberta e ficava parado desde o início; parado, tranca o `<html>`, e com o rato a proposta não rolava. Agora um diálogo escondido não conta (`haCamadaPorCima`).
+- O observador do `<body>` era chamado duas vezes, e a segunda chamada apagava a vigia do `style`. Com a lupa aberta a página rolava por baixo da fotografia; o mesmo acontecia no sítio com o menu.
+- Um salto que o Lenis não viu deixava a âncora a meio: no fim da proposta, parava aos 1722 px em vez dos 14 005. O destino passa a contar a partir da posição verdadeira.
+
+**Medido:** 98 → 95 no telemóvel, com a acessibilidade a 100. Ver `docs/medicoes/proposta/LEIA-ME.md`.
