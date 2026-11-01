@@ -476,6 +476,8 @@ export const quoteUpdateSchema = z
     followUpAt: shortDate.nullish(),
     guestList: z.array(guestSchema).max(5000),
     mapaDeMesas: mapaDeMesasSchema,
+    /* «Não são o mesmo» (D1): os ids dos pedidos que ela separou deste. */
+    naoDuplicados: z.array(entityId).max(200),
     activityLog: z.array(activityEntrySchema).max(5000),
     // Append-only variant: the server merges these onto the STORED log, so two
     // tools writing at once can't overwrite each other's entries.
