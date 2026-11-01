@@ -940,10 +940,11 @@ export default function AdminLogin() {
               React: abre sem JavaScript, é focável e anunciável por omissão, e
               o browser trata do resto. */}
           {temPasskeys && (
-            <details
-              className="group mt-5 border-t border-[var(--bo-hairline-strong)] pt-4"
-              onToggle={gaveta.aoAlternar}
-            >
+            /* SEM o filete por cima (LOGIN.md, ponto 3): «um cartão com
+               cinco grupos separados por linhas não tem hierarquia, tem
+               fatias». O «ou» já tinha saído; este era o segundo. O espaço
+               (`mt-6`) separa sem cortar. */
+            <details className="group mt-6" onToggle={gaveta.aoAlternar}>
               {/* `alvo-toque`: MEDIDO a 375×667 com toque emulado, este resumo
                   dava 293×16 px. Dezasseis píxeis de altura — a altura da
                   própria letra — e é o único caminho para o que está lá dentro,

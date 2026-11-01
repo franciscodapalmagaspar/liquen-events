@@ -15,7 +15,7 @@ Registado aqui para o próximo leitor não refazer nem duvidar.
 |---|---|---|
 | 1 | Dois botões primários a competir | **feito** — a palavra-passe é um link |
 | 2 | Falta divulgação progressiva | **feito** — dois estados, com animação de altura |
-| 3 | Separadores dentro do painel | **parcial** — o «ou» saiu; falta tirar o de baixo |
+| 3 | Separadores dentro do painel | **feito** (1/11) — o «ou» saiu, e o filete por cima de «Mudei de aparelho» também (fica o espaço, `mt-6`) |
 | 9 | Asteriscos vermelhos | **feito** — e o botão desactiva-se com `title` |
 | 10 | Pontinhos como placeholder | **feito** |
 | 11 | A seta «→» no botão | **feito** |
