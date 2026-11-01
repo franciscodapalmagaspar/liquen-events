@@ -9,7 +9,7 @@ describe("/llms.txt", () => {
   const links = [...texto.matchAll(/\]\((https?:\/\/[^)]+)\)/g)].map((m) => m[1]!);
 
   it("aponta para o domínio canónico, nunca para o www (que responde 308)", () => {
-    expect(texto).not.toMatch(/www\.liquen-events\.com/);
+    expect(texto).not.toContain("www.liquen-events.com");
     expect(links.length).toBeGreaterThan(10);
     for (const l of links) expect(l.startsWith(SITE.url), l).toBe(true);
   });
