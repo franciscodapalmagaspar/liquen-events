@@ -73,12 +73,6 @@ afterEach(() => {
 
 async function montar() {
   const r = render(<EntradaEmVideo />);
-  // O take de entrada só arranca depois do `load`, no 1.º instante livre do
-  // browser (`depoisDeCarregar`): o jsdom já carregou, e o browser fica livre.
-  const arranque = ociosos.shift();
-  if (arranque) act(() => arranque.cb());
-  // Sem `requestIdleCallback` (Safari) é um `setTimeout` curto.
-  else if (vi.isFakeTimers()) act(() => void vi.advanceTimersByTime(200));
   await act(async () => {
     for (let k = 0; k < 4; k++) await Promise.resolve();
   });
@@ -127,12 +121,14 @@ function comecar(el: HTMLVideoElement, { andou = true }: { andou?: boolean } = {
 
 describe("EntradaEmVideo", () => {
   /**
-   * O pedido «nível estúdio» (30/10): a fotografia da capa é a primeira coisa
-   * no ecrã e é ela o LCP. O HTML do servidor traz os três vídeos mudos e
-   * VAZIOS — nenhum guião a arrancar o take de entrada antes do `load` (ver
-   * `depoisDeCarregar`).
+   * O pedido dela: «mal entremos no site, o vídeo comece logo a correr» (16/10),
+   * e outra vez a 1/11, com o site publicado: «eu quero que ele comece logo».
+   * A prova é o HTML que vem do servidor: os três vídeos mudos e, logo a
+   * seguir, o guião que escolhe o take de entrada e o põe a tocar — antes de
+   * qualquer JavaScript do sítio (o pedido «nível estúdio» tinha-o adiado para
+   * depois do `load`, e via-se a capa parada).
    */
-  it("o HTML do servidor traz os vídeos mudos e vazios, sem guião a arrancá-los", () => {
+  it("o HTML do servidor traz os vídeos mudos e o guião que arranca o take de entrada", () => {
     const html = renderToStaticMarkup(<EntradaEmVideo />);
     const tags = html.match(/<video [^>]*>/g) ?? [];
     expect(tags).toHaveLength(3);
@@ -142,11 +138,15 @@ describe("EntradaEmVideo", () => {
       expect(t).toMatch(/aria-hidden="true"/);
       expect(t).toMatch(/tabindex="-1"/);
       expect(t).not.toMatch(/\bcontrols\b/);
+      // Nenhum descarrega nada sozinho: é o guião que escolhe qual.
       expect(t).toMatch(/preload="none"/);
       expect(t).not.toMatch(/\bautoplay\b/);
     }
-    expect(html).not.toContain("<script");
-    expect(html).not.toContain("<source");
+    expect(html).toContain(GUIAO_DA_ENTRADA);
+    // Com «Poupar dados», o guião não corre (fica só a capa).
+    expect(html).toMatch(/<script>try\{var c=navigator\.connection;if\(!\(c&&c\.saveData\)\)\{/);
+    // Os vídeos saem vazios: as `<source>` só existem no texto do guião.
+    expect(html.slice(0, html.indexOf("<script>"))).not.toContain("<source");
     // Cada take de entrada: ao alto a vertical, deitado a larga — só H.264 e
     // WebM (a `v7` não tem HEVC, AV1 nem a «grande»).
     for (let n = 1; n <= 3; n++) {
@@ -176,11 +176,8 @@ describe("EntradaEmVideo", () => {
       expect(play).not.toHaveBeenCalled();
       expect(videos(container).every((v) => !v.querySelector("source"))).toBe(true);
     });
-    it("de resto, o take de entrada só arranca depois do `load`, no 1.º instante livre", async () => {
+    it("de resto, o take de entrada arranca logo, sem esperar pelo `load`", () => {
       render(<EntradaEmVideo />);
-      expect(play).not.toHaveBeenCalled();
-      expect(ociosos).toHaveLength(1);
-      ficarLivre();
       expect(play).toHaveBeenCalled();
     });
   });
