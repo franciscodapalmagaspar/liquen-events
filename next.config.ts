@@ -493,11 +493,22 @@ const nextConfig: NextConfig = {
     // beacon endpoints (google-analytics + doubleclick + googleadservices), and
     // the conversion-linker iframe (td.doubleclick.net). Kept as tight as the
     // ad stack allows — no wildcards beyond the analytics beacon regions.
-    const gaScript = " https://www.googletagmanager.com";
+    // ── AS DUAS PORTAS QUE FALTAVAM ÀS CONVERSÕES (1/11) ─────────────────
+    // Visto na consola do site publicado, em todas as páginas, depois do
+    // primeiro gesto (quando o Google tag carrega): a política recusava
+    //   · o script `googleads.g.doubleclick.net/pagead/viewthroughconversion/…`
+    //     — o que o próprio gtag.js injecta para contar a conversão do anúncio;
+    //   · o `fetch` para `ad.doubleclick.net/ccm/s/collect` — o envio dessa
+    //     conversão.
+    // Ou seja: o anúncio pago chegava ao site e a conversão não chegava ao
+    // Google Ads. Acrescentam-se esses dois hosts exactos, e mais nenhum: são
+    // os da lista da Google para as conversões do Ads, e só os que se viram
+    // recusados.
+    const gaScript = " https://www.googletagmanager.com https://googleads.g.doubleclick.net";
     const gaImg =
       " https://www.googletagmanager.com https://www.google.com https://www.google.pt https://googleads.g.doubleclick.net https://pagead2.googlesyndication.com";
     const gaConnect =
-      " https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com https://googleads.g.doubleclick.net https://www.googleadservices.com https://www.google.com https://pagead2.googlesyndication.com";
+      " https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com https://googleads.g.doubleclick.net https://ad.doubleclick.net https://www.googleadservices.com https://www.google.com https://pagead2.googlesyndication.com";
     const gaFrame = "https://td.doubleclick.net https://www.googletagmanager.com";
 
     // ── Meta (Instagram/Facebook) ────────────────────────────────────────
