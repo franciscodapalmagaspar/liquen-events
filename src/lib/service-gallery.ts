@@ -92,23 +92,60 @@ function serve(src: string, larguraMinima: number): boolean {
  * lista escolhida à mão, que é melhor do que uma grelha com buracos.
  */
 export function pickServiceGallery(slug: string, n = SERVICE_GALLERY_SIZE): string[] | null {
+  const pool = conjuntoDoServico(slug, n);
+  if (!pool || pool.length < n) return null;
+  return baralhar(pool, n);
+}
+
+/**
+ * QUANTAS FOTOGRAFIAS ANDAM A RODAR NA GRELHA (1/11).
+ *
+ * Ela: «temos que alternar as fotos aqui», e, posta a escolha, «irem trocando
+ * sozinhas». A grelha continua com seis posições, mas recebe até 18: as seis
+ * que se vêem ao abrir e as que vão entrando uma de cada vez. São também as que
+ * a lupa percorre quando se toca numa («quero que as pessoas, se quiserem ver
+ * essas fotos, consigam carregar»).
+ */
+export const SERVICE_GALLERY_ROTATION = 18;
+
+/**
+ * Até `max` fotografias do serviço, ao acaso e sem repetições, todas do MESMO
+ * degrau da escada de `conjuntoDoServico` — as que servem a moldura. Num
+ * conjunto com menos de `max` deitadas (os eventos têm 14) vêm só essas: rodar
+ * entre 14 boas é melhor do que meter verticais na grelha para chegar às 18.
+ */
+export function pickServiceGalleryPool(
+  slug: string,
+  max = SERVICE_GALLERY_ROTATION,
+): string[] | null {
+  const pool = conjuntoDoServico(slug, SERVICE_GALLERY_SIZE);
+  if (!pool || pool.length < SERVICE_GALLERY_SIZE) return null;
+  return baralhar(pool, Math.min(max, pool.length));
+}
+
+/**
+ * O conjunto mais exigente que ainda enche `n` posições: deitada e grande,
+ * depois só deitada, e por fim todas. Cada degrau só se desce quando o de cima
+ * não enche a grelha, portanto na prática nenhum serviço desce nenhum — mas o
+ * dia em que alguém acrescentar um serviço com poucas fotografias não parte a
+ * página.
+ */
+function conjuntoDoServico(slug: string, n: number): string[] | null {
   const labels = POOLS[slug];
   if (!labels) return null;
-
   const todas = PHOTOS.filter((p) => labels.includes(p.label)).map((p) => p.src);
-
-  // Da mais exigente para a menos: deitada e grande, depois só deitada, e por
-  // fim o conjunto todo. Cada degrau só se desce quando o de cima não enche a
-  // grelha, portanto na prática nenhum serviço desce nenhum — mas o dia em que
-  // alguém acrescentar um serviço com poucas fotografias não parte a página.
-  const pool =
+  return (
     [todas.filter((s) => serve(s, LARGURA_MINIMA)), todas.filter((s) => serve(s, 0)), todas].find(
       (c) => c.length >= n,
-    ) ?? [];
-  if (pool.length < n) return null;
+    ) ?? []
+  );
+}
 
-  // Fisher-Yates parcial: baralha só as `n` primeiras posições, que é tudo o
-  // que se lê. Numa lista de 333 evita baralhar 333 para usar 6.
+/**
+ * Fisher-Yates parcial: baralha só as `n` primeiras posições, que é tudo o
+ * que se lê. Numa lista de 333 evita baralhar 333 para usar 6.
+ */
+function baralhar(pool: string[], n: number): string[] {
   const copy = pool.slice();
   for (let i = 0; i < n; i++) {
     const j = i + Math.floor(Math.random() * (copy.length - i));

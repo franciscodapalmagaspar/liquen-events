@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { pickServiceGallery, SERVICE_GALLERY_SIZE } from "./service-gallery";
+import {
+  pickServiceGallery,
+  pickServiceGalleryPool,
+  SERVICE_GALLERY_ROTATION,
+  SERVICE_GALLERY_SIZE,
+} from "./service-gallery";
 import { PHOTOS } from "@/app/[lang]/(site)/galeria/photos-data";
 import { SERVICES } from "./services-data";
 import dims from "./image-dims.json";
@@ -128,5 +133,33 @@ describe("pickServiceGallery", () => {
       const g = pickServiceGallery(svc.slug) ?? svc.gallery;
       expect(g.length, `${svc.slug} ficou com ${g.length}`).toBe(SERVICE_GALLERY_SIZE);
     }
+  });
+});
+
+describe("pickServiceGalleryPool (a grelha que vai trocando, 1/11)", () => {
+  it("dá até 18, sem repetir, todas do conjunto do serviço e todas deitadas", () => {
+    const g = pickServiceGalleryPool("casamentos")!;
+    expect(g).toHaveLength(SERVICE_GALLERY_ROTATION);
+    expect(new Set(g).size).toBe(g.length);
+    const casamentos = srcOf(["Casamento"]);
+    for (const src of g) {
+      expect(casamentos.has(src)).toBe(true);
+      const [w, h] = DIMENSOES[src];
+      expect(w / h).toBeGreaterThanOrEqual(1.4);
+    }
+  });
+
+  it("com menos de 18 deitadas, fica com as que há (nunca mete verticais para encher)", () => {
+    const g = pickServiceGalleryPool("festas-e-aniversarios")!;
+    expect(g.length).toBeGreaterThanOrEqual(SERVICE_GALLERY_SIZE);
+    expect(g.length).toBeLessThanOrEqual(SERVICE_GALLERY_ROTATION);
+    for (const src of g) {
+      const [w, h] = DIMENSOES[src];
+      expect(w / h).toBeGreaterThanOrEqual(1.4);
+    }
+  });
+
+  it("um serviço sem conjunto próprio devolve null (fica a lista escolhida à mão)", () => {
+    expect(pickServiceGalleryPool("aluguer-de-viaturas-classicas")).toBeNull();
   });
 });
