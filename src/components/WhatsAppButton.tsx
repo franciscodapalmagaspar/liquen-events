@@ -21,9 +21,21 @@ function onIdle(cb: () => void): () => void {
   return () => clearTimeout(id);
 }
 
+/**
+ * ── JÁ APARECEU NESTA VISITA: NÃO VOLTA A ESPERAR ─────────────────────────
+ * A troca de idioma (/pt → /en) muda o layout de topo, e o React monta de novo
+ * tudo o que lá está — este botão também. Com a espera de 1,5 s, o botão
+ * desaparecia ~1 s a cada troca (ela, no iPhone). Fica a lembrança no
+ * MÓDULO, que sobrevive às navegações sem recarregar: na segunda montagem
+ * nasce já à vista. Numa carga nova da página o módulo é novo e a entrada
+ * volta a ser a de sempre — e nunca na hidratação, que tem de desenhar o
+ * mesmo que o servidor (nada).
+ */
+let jaApareceu = false;
+
 export default function WhatsAppButton() {
-  const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const [mounted, setMounted] = useState(() => jaApareceu);
+  const [visible, setVisible] = useState(() => jaApareceu);
   const [atFooter, setAtFooter] = useState(false);
   const { t } = useTranslations();
   const pathname = usePublicPathname();
@@ -35,10 +47,13 @@ export default function WhatsAppButton() {
   useEffect(() => onIdle(() => setMounted(true)), []);
 
   useEffect(() => {
-    if (!mounted) return;
-    const id = setTimeout(() => setVisible(true), 1500);
+    if (!mounted || visible) return;
+    const id = setTimeout(() => {
+      jaApareceu = true;
+      setVisible(true);
+    }, 1500);
     return () => clearTimeout(id);
-  }, [mounted]);
+  }, [mounted, visible]);
 
   // Retract once the footer is in view so the pill never covers the footer's
   // links / legal text on mobile (mirrors StickyCTA's behaviour).
