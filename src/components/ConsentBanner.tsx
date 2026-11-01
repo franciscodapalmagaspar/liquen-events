@@ -221,8 +221,9 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
       /**
        * ── A GEOMETRIA, QUE ERA O DEFEITO ────────────────────────────────
        * Esta barra é `fixed` e continua a sê-lo: pô-la no fluxo faria a
-       * página refluir no instante em que ela aparece (ela espera pelas
-       * fontes, ver `fontes-por-assentar`), e esse refluxo é CLS medido.
+       * página refluir no instante em que ela some (ao escolher), e esse
+       * refluxo é CLS medido. (Desde 1/11 fala na letra do sistema e
+       * aparece na primeira pintura — ver `.barra-consentimento` no CSS.)
        *
        * O que mudou é que o espaço que ela ocupa passou a ser RESERVADO
        * pelo resto do sítio, através de `--reserva-consentimento`

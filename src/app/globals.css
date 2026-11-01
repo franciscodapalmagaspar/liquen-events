@@ -2374,17 +2374,27 @@ html.lightbox-aberta .barra-consentimento {
   }
 }
 
-/* E a barra espera pelas fontes — não pelo JavaScript da aplicação.
-   MEDIDO: com o tipo de letra de recurso o texto ocupa 5 linhas (181 px) e com
-   o Inter ocupa 4 (161 px). Ancorada em baixo, essa diferença faz o topo saltar
-   20 px e vale um CLS de 0,0605 no telemóvel. Aparecer 200 ms mais tarde, já na
-   forma final, custa zero no LCP (ele estava a ser marcado exactamente no
-   instante da troca de tipo de letra) e devolve o CLS a zero.
+/* ── A BARRA FALA NA LETRA DO SISTEMA (1/11) ─────────────────────────────────
+   Esperava pelo Inter (`fontes-por-assentar`, o temporizador de 2,5 s) para
+   não saltar quando a letra trocasse: com a de recurso eram 5 linhas, com o
+   Inter 4, e ancorada em baixo o topo saltava 20 px (CLS 0,06). Só que o seu
+   texto é o maior bloco do primeiro ecrã da galeria — o LCP — e o Inter, que
+   no sítio publicado disputa a rede com os scripts, chegava aos ~3,4 s.
+   MEDIDO (Lighthouse telemóvel, rede travada a sério): LCP da galeria 3,5 s.
 
-   A marca é sempre retirada — pelas fontes ou por um temporizador de 2,5 s —
-   porque um aviso de cookies que não aparece é pior do que um que salta. */
-html.fontes-por-assentar .barra-consentimento {
-  display: none;
+   Na letra do sistema (a SF no iPhone e no Mac, a Segoe no Windows) não há
+   troca nenhuma: aparece na primeira pintura, já na forma final, sem salto e
+   sem esperar por nada. É um aviso, não um título — e a SF e o Inter, a
+   12,5 px, quase não se distinguem. */
+.barra-consentimento {
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

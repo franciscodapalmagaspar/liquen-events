@@ -297,8 +297,7 @@ export default async function RootLayout({
       /**
        * O `className` desta etiqueta é escrito por NÓS no servidor e mexido por
        * um script ANTES da hidratação — o do `<head>` aqui abaixo, que
-       * acrescenta `com-javascript`, `consentimento-decidido` e
-       * `fontes-por-assentar`. Quando o React hidrata, encontra um `class`
+       * acrescenta `com-javascript` e `consentimento-decidido`. Quando o React hidrata, encontra um `class`
        * diferente do que serviu e acusa: «some attributes of the server
        * rendered HTML didn't match the client properties».
        *
@@ -400,11 +399,7 @@ export default async function RootLayout({
               "var d=document.documentElement;" +
               "d.classList.add('com-javascript');" +
               "try{if(localStorage.getItem('liquen-consent'))d.classList.add('consentimento-decidido')}" +
-              "catch(e){d.classList.add('consentimento-decidido')}" +
-              "d.classList.add('fontes-por-assentar');" +
-              "var s=function(){d.classList.remove('fontes-por-assentar')};" +
-              "try{document.fonts.ready.then(s)}catch(e){s()}" +
-              "setTimeout(s,2500);",
+              "catch(e){d.classList.add('consentimento-decidido')}",
           }}
         />
         {/* O aperto de mão com o Storage começa aqui, e não quando o primeiro
