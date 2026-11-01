@@ -81,6 +81,9 @@ export interface EntradaDeHoras {
   onAbrir: () => void;
   /** O menu do botão direito desta entrada, quando o há. */
   onMenu?: (x: number, y: number) => void;
+  /** `Delete` com o foco na etiqueta faz o mesmo que o clique (só nas
+   *  marcações, cujo clique é a pergunta de remover — ver `ChipDoDia`). */
+  apagavel?: boolean;
   /** Rasura ao passar o rato — as marcações abrem a pergunta de remover. */
   riscarNoHover?: boolean;
 }
@@ -222,6 +225,7 @@ function Bloco({ entrada }: { entrada: DiaDisposto["comHora"][number] }) {
         rotulo={entrada.rotulo}
         dica={entrada.dica}
         onMenu={entrada.onMenu}
+        onApagar={entrada.apagavel ? entrada.onAbrir : undefined}
         onClick={(e) => {
           e.stopPropagation();
           entrada.onAbrir();
@@ -453,6 +457,7 @@ export function VistaDeHoras({
                         rotulo={e.rotulo}
                         dica={e.dica}
                         onMenu={e.onMenu}
+                        onApagar={e.apagavel ? e.onAbrir : undefined}
                         onClick={(ev) => {
                           ev.stopPropagation();
                           e.onAbrir();

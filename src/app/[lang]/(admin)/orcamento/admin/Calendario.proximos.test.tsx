@@ -89,18 +89,55 @@ describe("os próximos eventos", () => {
     expect(within(painel).getByText("Margarida Serra")).toBeTruthy();
   });
 
-  it("o ano aparece quando não é este — que é o que fazia a lista parecer desordenada", async () => {
+  it("o ano aparece quando não é este — no cabeçalho do mês (fase 05)", async () => {
     const painel = await montar([
       pedido({ id: "LIQ-4", name: "Casamento deste ano", date: "2026-10-24" }),
       pedido({ id: "LIQ-5", name: "Casamento do ano seguinte", date: "2027-05-22" }),
     ]);
-    // «Mai» sozinho lia-se antes de «Out» e parecia fora de ordem. E «Mai 27»
-    // lia-se «27 de Maio»: o apóstrofo diz que é o ano (achado n.º 30).
-    expect(within(painel).getByText("’27")).toBeTruthy();
+    // «Mai» sozinho lia-se antes de «Out» e parecia fora de ordem. Agora o
+    // salto de sete meses vê-se à primeira: «Outubro» · «Maio 2027».
+    expect(within(painel).getByRole("group", { name: "Maio 2027" })).toBeTruthy();
+    expect(within(painel).getByRole("group", { name: "Outubro" })).toBeTruthy();
   });
 
   it("e não aparece no ano corrente — escrevê-lo em todas as linhas é ruído", async () => {
     const painel = await montar([pedido({ id: "LIQ-6", date: "2026-10-24" })]);
+    expect(within(painel).queryByRole("group", { name: /2026/ })).toBeNull();
     expect(within(painel).queryByText("’26")).toBeNull();
+  });
+
+  it("agrupados por mês, pela ordem das datas (ponto 22)", async () => {
+    const painel = await montar([
+      pedido({ id: "A", name: "Um", date: "2026-09-26" }),
+      pedido({ id: "B", name: "Dois", date: "2026-10-03" }),
+      pedido({ id: "C", name: "Três", date: "2027-05-29" }),
+    ]);
+    const grupos = within(painel)
+      .getAllByRole("group")
+      .map((g) => g.getAttribute("aria-label"));
+    expect(grupos).toEqual(["Setembro", "Outubro", "Maio 2027"]);
+  });
+
+  it("zero convidados é dado em falta, não um zero (ponto 24)", async () => {
+    const painel = await montar([pedido({ id: "Z", guests: 0 })]);
+    expect(within(painel).getByText(/Convidados por confirmar/)).toBeTruthy();
+    expect(within(painel).queryByText(/0 convidados/)).toBeNull();
+  });
+
+  it("passar por um próximo realça o dia dele na grelha (ponto 25)", async () => {
+    const painel = await montar([pedido({ id: "H", name: "Realçado", date: "2026-08-28" })]);
+    const linha = within(painel).getByText("Realçado").closest("button")!;
+    linha.focus();
+    await waitFor(() =>
+      expect(document.querySelector('[data-dia="2026-08-28"]')?.hasAttribute("data-realcado")).toBe(
+        true,
+      ),
+    );
+    linha.blur();
+    await waitFor(() =>
+      expect(document.querySelector('[data-dia="2026-08-28"]')?.hasAttribute("data-realcado")).toBe(
+        false,
+      ),
+    );
   });
 });
