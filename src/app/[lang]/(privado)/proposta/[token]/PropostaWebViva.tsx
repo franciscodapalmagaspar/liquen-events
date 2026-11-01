@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import LupaDoMosaico, { type FotoDaLupa } from "./LupaDoMosaico";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -12,7 +13,8 @@ import { createPortal } from "react-dom";
  *   · as entradas `.pw-rv` (opacidade e 28 px), ao chegarem ao ecrã;
  *   · a barra escura que aparece depois da capa: o logótipo ao meio e as
  *     âncoras dos dois lados (o «Quero avançar» saiu a 23/10, a pedido dela);
- *   · a lupa do mosaico: setas, Esc, deslizar;
+ *   · a lupa do mosaico (`LupaDoMosaico.tsx`): uma fita que segue o dedo,
+ *     setas, Esc, e arrastar para baixo para fechar;
  *   · «Copiar» o email e o telefone, com o aviso «Copiado».
  *
  * E duas guardas que o protótipo não tinha:
@@ -68,9 +70,8 @@ export default function PropostaWebViva({
   const marca = useRef<HTMLSpanElement>(null);
   const [montado, setMontado] = useState(false);
   const [barra, setBarra] = useState(false);
-  const [lupa, setLupa] = useState<{ lista: string[]; i: number } | null>(null);
+  const [lupa, setLupa] = useState<{ lista: FotoDaLupa[]; i: number } | null>(null);
   const [aviso, setAviso] = useState(false);
-  const fechar = useRef<HTMLButtonElement>(null);
   const deOnde = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -151,7 +152,14 @@ export default function PropostaWebViva({
       const todas = Array.from(
         raiz.querySelectorAll<HTMLImageElement>("[data-g] figure:not(.pw-txt) img"),
       );
-      const lista = todas.map((i) => i.dataset.grande || i.currentSrc || i.src);
+      // A pequena é a que JÁ está no ecrã (e na cache): aparece no mesmo
+      // instante do toque, e a grande assenta por cima quando chegar.
+      const lista = todas.map((i) => {
+        const pequena = i.currentSrc || i.src;
+        const forma =
+          i.naturalWidth && i.naturalHeight ? i.naturalWidth / i.naturalHeight : undefined;
+        return { grande: i.dataset.grande || pequena, pequena, forma };
+      });
       deOnde.current = figura;
       setLupa({ lista, i: Math.max(0, todas.indexOf(img)) });
     };
@@ -174,35 +182,10 @@ export default function PropostaWebViva({
     };
   }, []);
 
-  const mover = useCallback(
-    (passo: number) =>
-      setLupa((l) => (l ? { ...l, i: (l.i + passo + l.lista.length) % l.lista.length } : l)),
-    [],
-  );
   const fecharLupa = useCallback(() => {
     setLupa(null);
     deOnde.current?.focus?.();
   }, []);
-
-  // A lupa aberta: teclado, o corpo sem rolar, o foco no «Fechar».
-  useEffect(() => {
-    if (!lupa) return;
-    const antes = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    fechar.current?.focus();
-    const aoTeclar = (e: KeyboardEvent) => {
-      if (e.key === "Escape") fecharLupa();
-      if (e.key === "ArrowRight") mover(1);
-      if (e.key === "ArrowLeft") mover(-1);
-    };
-    document.addEventListener("keydown", aoTeclar);
-    return () => {
-      document.body.style.overflow = antes;
-      document.removeEventListener("keydown", aoTeclar);
-    };
-  }, [lupa, mover, fecharLupa]);
-
-  const inicio = useRef(0);
 
   return (
     <>
@@ -230,53 +213,7 @@ export default function PropostaWebViva({
                 ))}
               </ul>
             </nav>
-            <div
-              className={`pw-lb${lupa ? " pw-on" : ""}`}
-              role="dialog"
-              aria-modal="true"
-              aria-label={t.fotografia}
-              hidden={!lupa}
-              onClick={(e) => {
-                if (e.target === e.currentTarget) fecharLupa();
-              }}
-              onTouchStart={(e) => {
-                inicio.current = e.touches[0].clientX;
-              }}
-              onTouchEnd={(e) => {
-                const d = e.changedTouches[0].clientX - inicio.current;
-                if (Math.abs(d) > 50) mover(d < 0 ? 1 : -1);
-              }}
-            >
-              <button ref={fechar} type="button" className="pw-x" onClick={fecharLupa}>
-                {t.fechar}
-              </button>
-              <button
-                type="button"
-                className="pw-p"
-                aria-label={t.anterior}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  mover(-1);
-                }}
-              >
-                ‹
-              </button>
-              {lupa && (
-                // eslint-disable-next-line @next/next/no-img-element -- o ficheiro grande, assinado
-                <img src={lupa.lista[lupa.i]} alt="" />
-              )}
-              <button
-                type="button"
-                className="pw-nx"
-                aria-label={t.seguinte}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  mover(1);
-                }}
-              >
-                ›
-              </button>
-            </div>
+            <LupaDoMosaico aberta={lupa} t={t} aoFechar={fecharLupa} />
             <div className={`pw-toast${aviso ? " pw-on" : ""}`} role="status">
               {aviso ? t.copiado : ""}
             </div>

@@ -1032,31 +1032,108 @@ html:has(.pw) {
   opacity: 1;
 }
 
-/* lightbox */
+/* lightbox — a fita que segue o dedo (ver `LupaDoMosaico.tsx`) */
 .pw-lb {
   position: fixed;
   inset: 0;
   z-index: 60;
-  background: rgba(18, 16, 13, 0.96);
   display: none;
-  align-items: center;
-  justify-content: center;
-  padding: max(56px, env(safe-area-inset-top)) var(--gr) max(56px, env(safe-area-inset-bottom))
-    var(--g);
 }
 .pw-lb.pw-on {
-  display: flex;
+  display: block;
 }
-.pw-lb img {
-  max-height: 100%;
-  max-width: 100%;
+/* O fundo é opaco: por trás de uma fotografia em grande não se vê a página. */
+.pw-lb-veu {
+  position: absolute;
+  inset: 0;
+  background: var(--dark);
+  animation: pw-lb-entra var(--transition-duration-vista) var(--ease-out) both;
+}
+.pw-lb-fita {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  touch-action: pan-x pinch-zoom;
+  animation: pw-lb-cresce var(--transition-duration-vista) var(--ease-out) both;
+}
+.pw-lb-fita::-webkit-scrollbar {
+  display: none;
+}
+.pw-lb-folha {
+  flex: 0 0 100%;
+  height: 100%;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container-type: size;
+  padding: max(64px, env(safe-area-inset-top)) var(--gr) max(56px, env(safe-area-inset-bottom))
+    var(--g);
+}
+.pw-lb-quadro {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+}
+/* Com a forma conhecida, a caixa é a da fotografia: um toque ao lado fecha. */
+.pw-lb-quadro.pw-lb-medido {
+  width: min(100cqw, 100cqh * var(--pw-lb-r));
+  height: auto;
+  aspect-ratio: var(--pw-lb-r);
+}
+.pw-lb-quadro img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.pw-lb-grande {
+  opacity: 0;
+  transition: opacity var(--transition-duration-foto-chega) var(--ease-out);
+}
+.pw-lb-grande.pw-on {
+  opacity: 1;
+}
+.pw-lb-quadro.pw-lb-volta {
+  transition: transform var(--transition-duration-vista) var(--ease-out);
+}
+.pw-lb-topo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(8px, env(safe-area-inset-top)) var(--gr) 0 var(--g);
+  color: var(--on-dark-2);
+  pointer-events: none;
+  animation: pw-lb-entra var(--transition-duration-vista) var(--ease-out) both;
+}
+.pw-lb-topo > * {
+  pointer-events: auto;
+}
+.pw-lb-n {
+  font: 300 13px/1 var(--sans);
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
 }
 .pw-lb button {
-  position: absolute;
   background: none;
   border: 0;
-  color: #fff;
+  color: var(--on-dark);
   font: 300 15px/1 var(--sans);
   letter-spacing: 0.24em;
   text-transform: uppercase;
@@ -1064,21 +1141,53 @@ html:has(.pw) {
   min-height: 48px;
   cursor: pointer;
 }
-.pw-lb .pw-x {
-  top: max(10px, env(safe-area-inset-top));
-  right: var(--gr);
+.pw-lb .pw-p,
+.pw-lb .pw-nx {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 30px;
+  transition: opacity var(--transition-duration-foto-chega) var(--ease-out);
+  animation: pw-lb-entra var(--transition-duration-vista) var(--ease-out) both;
 }
 .pw-lb .pw-p {
   left: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 30px;
 }
 .pw-lb .pw-nx {
   right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 30px;
+}
+.pw-lb .pw-p:disabled,
+.pw-lb .pw-nx:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+.pw-lb button:focus-visible {
+  outline: 2px solid var(--on-dark);
+  outline-offset: -6px;
+}
+@keyframes pw-lb-entra {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pw-lb-cresce {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pw-lb-veu,
+  .pw-lb-fita,
+  .pw-lb-topo,
+  .pw-lb .pw-p,
+  .pw-lb .pw-nx {
+    animation: none;
+  }
+  .pw-lb-grande,
+  .pw-lb-quadro.pw-lb-volta {
+    transition: none;
+  }
 }
 .pw-toast {
   position: fixed;
