@@ -186,6 +186,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     // O mapa de mesas (ecrã «Mapa de mesas»). Declarado também no
     // `quoteUpdateSchema` — sem os dois, gravava em silêncio coisa nenhuma.
     "mapaDeMesas",
+    // «Não são o mesmo» (D1, `pedidos-duplicados.ts`). Também no esquema.
+    "naoDuplicados",
   ];
   const picked: Record<string, unknown> = {};
   for (const key of allowed) {

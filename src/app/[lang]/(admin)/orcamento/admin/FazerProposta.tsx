@@ -1,7 +1,7 @@
 "use client";
 
 import { casaComAProcura } from "@/lib/procura";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
 import { CATEGORIES, EVENT_TYPES_BY_CATEGORY } from "@/lib/orcamento/data";
 import { Button, Card, EmptyState } from "./ui";
@@ -12,6 +12,8 @@ import { ESTADO as MOV_ESTADO, PRESSAO } from "./ui/movimento";
 import { ProposalStudio } from "./lazy";
 import AvisoDataOcupada from "./AvisoDataOcupada";
 import { choquesDeData, gravidade } from "@/lib/orcamento/choque-de-datas";
+import { possiveisDuplicados, porqueParece, separar } from "@/lib/orcamento/pedidos-duplicados";
+import { useToast } from "./Toast";
 
 /**
  * FAZER PROPOSTA — um ecrã com um trabalho só.
@@ -189,6 +191,43 @@ export default function FazerProposta({
     };
   }, [quotes, procuraAdiada]);
   const { aAguardar, comProposta: jaComProposta } = foraDaLista;
+
+  /**
+   * ── D1: «POSSÍVEL DUPLICADO» ──────────────────────────────────────────────
+   * Sobre TODOS os pedidos e não só sobre a lista: o gémeo de um «Novo» pode
+   * estar em «Aguardar resposta» (era assim o da Ana), e é precisamente esse
+   * que ela não está a ver. Só aponta — juntar é sempre dela.
+   */
+  const duplicados = useMemo(() => possiveisDuplicados(quotes), [quotes]);
+  const { toast } = useToast();
+  const [aSeparar, setASeparar] = useState<string | null>(null);
+  const naoSaoOMesmo = useCallback(
+    async (a: Quote, b: Quote) => {
+      setASeparar(a.id);
+      try {
+        const gravar = async (q: Quote, outro: string) => {
+          const res = await fetch(`/api/orcamento/${q.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ naoDuplicados: separar(q, outro) }),
+          });
+          if (!res.ok) throw new Error(String(res.status));
+          return (await res.json()) as Quote;
+        };
+        // Nos dois: a etiqueta tem de sair dos dois cartões, e um «não» dito
+        // num lado não pode voltar a acender pelo outro.
+        const [na, nb] = await Promise.all([gravar(a, b.id), gravar(b, a.id)]);
+        onQuoteUpdated(na);
+        onQuoteUpdated(nb);
+        toast("Fica registado: não são o mesmo pedido.");
+      } catch {
+        toast("Não foi possível guardar. Tenta outra vez daqui a pouco.", "error");
+      } finally {
+        setASeparar(null);
+      }
+    },
+    [onQuoteUpdated, toast],
+  );
 
   const porFazer = useMemo(
     () => quotes.filter((q) => !q.archived && q.status === POR_FAZER).length,
@@ -405,6 +444,9 @@ export default function FazerProposta({
         <ul className="flex flex-col gap-2">
           {lista.map((q) => {
             const choque = comChoque.get(q.id);
+            const gemeos = (duplicados.get(q.id) ?? [])
+              .map((d) => ({ ...d, quote: quotes.find((x) => x.id === d.id) }))
+              .filter((d): d is typeof d & { quote: Quote } => Boolean(d.quote));
             const e = ESTADO[q.status] ?? {
               // Um estado que não conheçamos mostra-se cru e em cinzento, em vez
               // de rebentar o ecrã inteiro — a razão está em `status-meta.ts`.
@@ -443,6 +485,11 @@ export default function FazerProposta({
                           Data ocupada
                         </span>
                       )}
+                      {gemeos.length > 0 && (
+                        <span className="rounded-full bg-[var(--bo-aviso-tom)]/12 px-2.5 py-1 text-[10px] font-semibold tracking-[0.08em] text-[var(--bo-aviso)] uppercase ring-1 ring-[var(--bo-aviso-tom)]/45 ring-inset">
+                          Possível duplicado
+                        </span>
+                      )}
                       <span
                         className={`rounded-full px-2.5 py-1 text-[10px] font-medium tracking-[0.08em] uppercase ${e.classe}`}
                       >
@@ -460,6 +507,34 @@ export default function FazerProposta({
                     </span>
                   </span>
                 </button>
+                {/* Fora do botão do cartão: um botão dentro de outro não se
+                    carrega com o teclado nem se lê bem com o leitor de ecrã. */}
+                {gemeos.map((g) => (
+                  <div
+                    key={g.id}
+                    className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 text-xs text-[var(--bo-tinta-72)]"
+                  >
+                    <span className="min-w-0">
+                      Parece o mesmo pedido que{" "}
+                      <strong className="font-medium">{g.quote.name}</strong> (
+                      {ESTADO[g.quote.status]?.label ?? g.quote.status}, {dataLegivel(g.quote.date)}
+                      ) — {porqueParece(g.motivo)}.
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <Button variant="secondary" size="sm" onClick={() => onAbrirPedido(g.quote)}>
+                        Abrir esse
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={aSeparar === q.id}
+                        onClick={() => void naoSaoOMesmo(q, g.quote)}
+                      >
+                        Não são o mesmo
+                      </Button>
+                    </span>
+                  </div>
+                ))}
               </li>
             );
           })}

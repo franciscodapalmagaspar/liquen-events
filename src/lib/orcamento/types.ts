@@ -479,6 +479,12 @@ export interface Quote extends QuoteFormData {
       As regras vivem em `mapa-de-mesas.ts`; as pessoas vêm da `guestList`. */
   mapaDeMesas?: MapaDeMesas;
   /**
+   * Os pedidos que ELA disse que «não são o mesmo» que este (D1, ver
+   * `pedidos-duplicados.ts`). Guarda-se nos dois, e a etiqueta «Possível
+   * duplicado» deixa de aparecer para esse par e não volta.
+   */
+  naoDuplicados?: string[];
+  /**
    * ════════════════════════════════════════════════════════════════════════
    * O QUE O CASAL ESCOLHEU NA PÁGINA DA PROPOSTA
    * ════════════════════════════════════════════════════════════════════════
