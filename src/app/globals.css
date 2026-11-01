@@ -1968,20 +1968,14 @@ body[data-menu-open] .whatsapp-fixed {
   }
 }
 
-/* ── ENTRE DOCUMENTOS: A PÁGINA VELHA FICA ATÉ A NOVA ESTAR PRONTA (1/11) ──
-   As navegações do próprio sítio não recarregam (ver o PageTransition), mas
-   algumas ainda recarregam a página inteira: o recurso da troca de idioma,
-   um endereço escrito à mão dentro do sítio, o voltar de uma página de fora.
-   Sem isto, o browser mostra o ecrã vazio entre as duas — branco, e a seguir o
-   fundo da capa. Ela viu-o ao trocar de idioma: «ficou tudo bugado, tudo
-   preto». Com `navigation: auto`, a página que sai fica à vista até a que
-   entra desenhar o primeiro ecrã, e as duas fundem-se (o fundido curto que o
-   browser já traz, só opacidade). Onde o browser não sabe, fica como estava. */
-@media (prefers-reduced-motion: no-preference) {
-  @view-transition {
-    navigation: auto;
-  }
-}
+/* ── SEM TRANSIÇÃO ENTRE DOCUMENTOS (1/11, à noite) ────────────────────────
+   Esteve aqui um `@view-transition { navigation: auto }` durante umas horas,
+   para fundir a página que sai com a que entra nas navegações inteiras. Saiu:
+   ela, no iPhone, logo a seguir — «o site no geral está todo bugado e
+   travado». O Safari aplica-o (desde o 18.2), e a captura da página inteira
+   é a mesma que o `PageTransition.tsx` já documenta como causa de
+   encravamento neste sítio. A troca de idioma deixou de precisar dele (não
+   recarrega); e a capa já começa com o próprio desfoque em vez do preto. */
 
 /* ── Magnetic / hover lift used across CTAs ── */
 .lift {
