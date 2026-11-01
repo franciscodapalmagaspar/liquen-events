@@ -20,7 +20,7 @@ permissions:
 jobs:
   gitleaks:
     name: gitleaks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # ── VINTE, E COM O NÚMERO AO LADO ────────────────────────────────────────
     #
     # Eram dez, e eu escrevi no commit do clone parcial que NÃO os subia —
