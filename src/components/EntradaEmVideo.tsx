@@ -39,6 +39,7 @@ import {
   alivioGuardado,
   deveAliviar,
   eComputador,
+  precisaDeTocarParaAquecer,
   enderecoLeveDeitado,
   grandeVale,
   perguntaDoNavegador,
@@ -640,6 +641,11 @@ function criarMotor(raiz: HTMLElement): Motor | null {
     typeof matchMedia === "function" && matchMedia("(hover: hover) and (pointer: fine)").matches,
     window.innerWidth,
   );
+  /** O iPhone e o iPad ignoram o `preload`: só eles aquecem a tocar (ver `aquecer`). */
+  const tocaParaAquecer = precisaDeTocarParaAquecer(
+    typeof navigator !== "undefined" ? navigator.userAgent : "",
+    typeof navigator !== "undefined" ? navigator.maxTouchPoints : 0,
+  );
   const podeDescarregar =
     !computador &&
     typeof fetch === "function" &&
@@ -850,6 +856,16 @@ function criarMotor(raiz: HTMLElement): Motor | null {
    * Aquece o clip `i`: põe-lhe a fonte e toca-o escondido até ter o 1.º
    * fotograma pronto, e pára-o no início. É o único jeito de o iPhone o
    * preparar — ignora o `preload` de um vídeo que ninguém mandou tocar.
+   *
+   * ── SÓ O IPHONE E O IPAD TOCAM ESCONDIDO (1/11) ─────────────────────────
+   * Ela, no Chrome do computador: «o vídeo está a travar», «o tempo todo».
+   * O registo anónimo dela mostrou-o: TODAS as paragens vinham num `aquecer`
+   * — com o take à vista já com 9,5 s carregados à frente, portanto não era
+   * a rede. Tocar o seguinte escondido enquanto o da vista passa para outro
+   * eram TRÊS vídeos de 1920 a 50 fps a descodificar ao mesmo tempo, e o
+   * Chrome perdia fotogramas (119 em 992 numa das aberturas dela).
+   * Fora do iPhone e do iPad o `preload="auto"` chega: o browser descarrega
+   * e tem o 1.º fotograma pronto sem descodificar mais nenhum.
    */
   function aquecer(i: number) {
     const src = fonte[i];
@@ -871,6 +887,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
       prepararOQueVem();
     };
     ouvir(el, "canplaythrough", ficaPronto, true);
+    if (!tocaParaAquecer) return;
     aAquecer.add(el);
     el.play()?.catch(() => undefined);
   }

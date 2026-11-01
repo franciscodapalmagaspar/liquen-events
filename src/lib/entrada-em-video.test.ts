@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import {
+  precisaDeTocarParaAquecer,
   ANIMADA_MAX_BYTES,
   AQUECER_ANTES_S,
   ARRANQUE_S,
@@ -338,5 +339,33 @@ describe("a leve deitada, para o computador que não aguenta a normal (29/10)", 
     expect(alivioGuardado(String(agora - 8 * 24 * 3600_000), agora)).toBe(false);
     expect(alivioGuardado(null, agora)).toBe(false);
     expect(alivioGuardado("lixo", agora)).toBe(false);
+  });
+});
+
+describe("precisaDeTocarParaAquecer (1/11: fora do iPhone, tocar escondido fazia travar)", () => {
+  it("o iPhone e o iPad (também o que se diz «Macintosh») tocam para aquecer", () => {
+    expect(
+      precisaDeTocarParaAquecer("Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X)", 5),
+    ).toBe(true);
+    expect(precisaDeTocarParaAquecer("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)", 5)).toBe(
+      true,
+    );
+    expect(
+      precisaDeTocarParaAquecer(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
+        5,
+      ),
+    ).toBe(true);
+  });
+  it("o Chrome e o Safari do computador e o Android não", () => {
+    const chromeMac =
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130.0 Safari/537.36";
+    expect(precisaDeTocarParaAquecer(chromeMac, 0)).toBe(false);
+    expect(
+      precisaDeTocarParaAquecer("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0", 0),
+    ).toBe(false);
+    expect(
+      precisaDeTocarParaAquecer("Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/130.0 Mobile", 5),
+    ).toBe(false);
   });
 });

@@ -574,16 +574,42 @@ describe("EntradaEmVideo", () => {
     expect(b.style.opacity).toBe("1");
   });
 
-  it("preparar um vídeo é tocá-lo escondido até estar pronto (o iPhone só descarrega assim)", async () => {
+  it("no iPhone, preparar um vídeo é tocá-lo escondido até estar pronto (só descarrega assim)", async () => {
+    const ua = vi
+      .spyOn(navigator, "userAgent", "get")
+      .mockReturnValue(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15",
+      );
+    try {
+      const { container } = await montar();
+      const [a, b] = videos(container);
+      play.mockClear();
+      comecar(a);
+      expect(play.mock.contexts).toContain(b); // o 2, escondido
+      expect(b.style.opacity).toBe("0");
+      pausa.mockClear();
+      act(() => void b.dispatchEvent(new Event("canplaythrough")));
+      expect(pausa).toHaveBeenCalled(); // pronto: pára e espera pela sua vez
+    } finally {
+      ua.mockRestore();
+    }
+  });
+
+  it("fora do iPhone, preparar NÃO toca escondido: descarrega e espera (1/11, «trava» no Chrome)", async () => {
     const { container } = await montar();
     const [a, b] = videos(container);
     play.mockClear();
     comecar(a);
-    expect(play.mock.contexts).toContain(b); // o 2, escondido
-    expect(b.style.opacity).toBe("0");
-    pausa.mockClear();
+    // Tocar o seguinte escondido eram três descodificadores ao mesmo tempo
+    // numa passagem — e o Chrome dela perdia fotogramas.
+    expect(play.mock.contexts).not.toContain(b);
+    expect(b.preload).toBe("auto");
+    expect(b.getAttribute("src")).toBeTruthy();
+    // E fica pronto na mesma: a passagem arranca-o quando for a vez dele.
     act(() => void b.dispatchEvent(new Event("canplaythrough")));
-    expect(pausa).toHaveBeenCalled(); // pronto: pára e espera pela sua vez
+    play.mockClear();
+    act(() => void a.dispatchEvent(new Event("ended")));
+    expect(play.mock.contexts).toContain(b);
   });
 
   it("pára quando a entrada sai do ecrã e retoma quando volta", async () => {

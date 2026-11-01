@@ -258,6 +258,22 @@ export function eComputador(ponteiroFino: boolean, largura: number): boolean {
   return ponteiroFino && largura >= 1024;
 }
 
+/**
+ * ── SÓ O IPHONE E O IPAD PRECISAM DE TOCAR UM VÍDEO PARA O PREPARAR ─────────
+ * O Safari do iPhone e do iPad ignora o `preload` de um vídeo que ninguém
+ * mandou tocar; os outros (o Chrome e o Safari do computador, o Android)
+ * descarregam-no e têm o 1.º fotograma pronto sem o tocar. Tocar escondido
+ * fora do iPhone custava um descodificador a mais — e, a meio de uma passagem,
+ * eram três vídeos a 50 fps ao mesmo tempo (ela, 1/11, Chrome: «trava»).
+ *
+ * O iPad com o iPadOS 13 ou mais diz-se «Macintosh»: distingue-se do Mac por
+ * ter ecrã táctil.
+ */
+export function precisaDeTocarParaAquecer(ua: string, pontosDeToque: number): boolean {
+  if (/iPhone|iPad|iPod/.test(ua)) return true;
+  return /Macintosh/.test(ua) && pontosDeToque > 1;
+}
+
 /** A pergunta ao aparelho, feita com o `navigator.mediaCapabilities`. */
 export function perguntaDoNavegador(): PerguntarAoAparelho | null {
   const mc = typeof navigator !== "undefined" ? navigator.mediaCapabilities : undefined;
