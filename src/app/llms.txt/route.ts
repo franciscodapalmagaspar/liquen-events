@@ -13,6 +13,16 @@ import { en } from "@/lib/i18n/en";
  * os mesmos valores do sitemap, dos metadados e do JSON-LD, e por isso não
  * voltam a desacertar. As frases que descrevem a casa ficaram como estavam.
  * (Veio da base de sites, onde nasceu pelo mesmo motivo.)
+ *
+ * ── TODOS OS SERVIÇOS, E NENHUMA LANDING DE ANÚNCIOS (31/10) ─────────────
+ *
+ * A Fase 3 do pedido «nível estúdio» completou a lista: faltavam dois dos cinco
+ * serviços (batizados e comunhões; viaturas clássicas) — um teste prende agora
+ * cada serviço de `SERVICES` a esta lista. As páginas de anúncios
+ * (`/casamentos/[polo]`, `/estilo/…`, `/destination`) ficam de FORA de
+ * propósito: são a geografia que ela tirou do site (ver a nota em `site.ts`), e
+ * aqui seria a mesma afirmação dita aos assistentes. Estão no sitemap, e é lá
+ * que um robô as encontra.
  */
 export const dynamic = "force-static";
 
@@ -37,6 +47,8 @@ The site is Portuguese-first, with a full English mirror under \`/en/\`. Visitor
 - [Casamentos](${u("/servicos/casamentos")}): Wedding planning and coordination across Portugal.
 - [Eventos Corporativos](${u("/servicos/eventos-corporativos")}): Corporate events, conferences and company celebrations.
 - [Festas e Aniversários](${u("/servicos/festas-e-aniversarios")}): Private parties, birthdays and celebrations.
+- [Batizados e Comunhões](${u("/servicos/batizados-e-comunhoes")}): Christening and communion decoration.
+- [Aluguer de Viaturas Clássicas](${u("/servicos/aluguer-de-viaturas-classicas")}): Classic car hire for weddings.
 - [Galeria](${u("/galeria")}): Photo gallery of real events organized by ${SITE.name}.
 - [Sobre](${u("/sobre")}): About the company, its founder and approach.
 - [Clientes](${u("/clientes")}): Clients and testimonials.

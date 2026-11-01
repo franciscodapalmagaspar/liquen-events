@@ -182,12 +182,7 @@ describe("as primitivas de movimento leem a ficha, não uma cópia", () => {
   // Todos os ficheiros que ESCREVEM movimento a partir de JS. Um literal
   // `cubic-bezier(...)` aqui dentro é uma cópia nova da curva de assinatura — a
   // avaria que estes testes existem para apanhar.
-  const primitivas = [
-    "../../components/motion/Reveal.tsx",
-    "../../components/motion/TiltCard.tsx",
-    "../../components/AnimateIn.tsx",
-    "../../components/TestimonialsCarousel.tsx",
-  ];
+  const primitivas = ["../../components/motion/Reveal.tsx", "../../components/AnimateIn.tsx"];
 
   it.each(primitivas)("%s não escreve nenhuma curva à mão", (ficheiro) => {
     const src = semComentarios(lerFonte(ficheiro));

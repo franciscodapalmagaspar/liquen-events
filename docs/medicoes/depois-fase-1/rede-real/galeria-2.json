@@ -1,0 +1,127 @@
+{
+  "url": "http://localhost:3101/galeria",
+  "quando": "2026-10-31T11:40:05.846Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3288.5
+  },
+  "notas": {
+    "performance": 98,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 974.882,
+    "largest-contentful-paint": 2107.202,
+    "speed-index": 1376,
+    "total-blocking-time": 111.61499999999933,
+    "cumulative-layout-shift": 0,
+    "interactive": 4199.03,
+    "total-byte-weight": 785569,
+    "mainthread-work-breakdown": 2937.96099999994,
+    "bootup-time": 1195.7329999999756
+  },
+  "elementoLCP": "<p class=\"text-[12.5px] leading-relaxed text-white\">",
+  "maioresPedidos": [
+    {
+      "url": "http://localhost:3101/galeria",
+      "kB": 97
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3101/_img/blur-galeria.json",
+      "kB": 65
+    },
+    {
+      "url": "http://localhost:3101/_img/g/galeria-instagram-58-07-768.avif",
+      "kB": 62
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3101/_img/g/galeria-instagram-70-04-768.avif",
+      "kB": 48
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/9d036f80216c14ee.p.3u4lli0-axodc.woff2",
+      "kB": 40
+    },
+    {
+      "url": "http://localhost:3101/_img/g/galeria-outubro-32-768.avif",
+      "kB": 38
+    },
+    {
+      "url": "http://localhost:3101/?_rsc=nrexV-HNkfNsxnuo",
+      "kB": 32
+    }
+  ],
+  "falhas": [
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.82,
+      "valor": "160 ms"
+    },
+    {
+      "id": "interactive",
+      "titulo": "Time to Interactive",
+      "nota": 0.85,
+      "valor": "4.2 s"
+    },
+    {
+      "id": "mainthread-work-breakdown",
+      "titulo": "Minimize main-thread work",
+      "nota": 0,
+      "valor": "2.9 s"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 23 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 102 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

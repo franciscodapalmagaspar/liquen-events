@@ -1,0 +1,157 @@
+{
+  "url": "https://liquen-events.com/galeria",
+  "quando": "2026-10-30T23:48:06.745Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 10
+    },
+    "maquina_benchmarkIndex": 3314
+  },
+  "notas": {
+    "performance": 74,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 1507,
+    "largest-contentful-paint": 3389,
+    "speed-index": 4707.286659217585,
+    "total-blocking-time": 552.5,
+    "cumulative-layout-shift": 0,
+    "interactive": 3615.75,
+    "total-byte-weight": 731774,
+    "mainthread-work-breakdown": 4179.080000000011,
+    "bootup-time": 1561.7699999999973
+  },
+  "elementoLCP": "<p class=\"text-[12.5px] leading-relaxed text-white\">",
+  "maioresPedidos": [
+    {
+      "url": "https://liquen-events.com/galeria",
+      "kB": 77
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/2jqd0dpb7brv_.js",
+      "kB": 65
+    },
+    {
+      "url": "https://liquen-events.com/_img/blur-galeria.json",
+      "kB": 60
+    },
+    {
+      "url": "https://liquen-events.com/_img/g/galeria-instagram-36-04-768.avif",
+      "kB": 58
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/media/07c7676b89ed2778.p.45535valc9rzk.woff2",
+      "kB": 48
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/01msv9ym379u0.js",
+      "kB": 45
+    },
+    {
+      "url": "https://liquen-events.com/_img/g/galeria-outubro-19-768.avif",
+      "kB": 43
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/media/9d036f80216c14ee.p.2r-cuu_7locvx.woff2",
+      "kB": 38
+    },
+    {
+      "url": "https://liquen-events.com/privacidade?_rsc=nrexV-HNkfNsxnuo",
+      "kB": 31
+    },
+    {
+      "url": "https://liquen-events.com/_img/g/stephanie-mizio-562-768.avif",
+      "kB": 30
+    }
+  ],
+  "falhas": [
+    {
+      "id": "largest-contentful-paint",
+      "titulo": "Largest Contentful Paint",
+      "nota": 0.67,
+      "valor": "3.4 s"
+    },
+    {
+      "id": "speed-index",
+      "titulo": "Speed Index",
+      "nota": 0.69,
+      "valor": "4.7 s"
+    },
+    {
+      "id": "total-blocking-time",
+      "titulo": "Total Blocking Time",
+      "nota": 0.53,
+      "valor": "550 ms"
+    },
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.08,
+      "valor": "510 ms"
+    },
+    {
+      "id": "mainthread-work-breakdown",
+      "titulo": "Minimize main-thread work",
+      "nota": 0,
+      "valor": "4.2 s"
+    },
+    {
+      "id": "bootup-time",
+      "titulo": "Reduce JavaScript execution time",
+      "nota": 0,
+      "valor": "1.6 s"
+    },
+    {
+      "id": "largest-contentful-paint-element",
+      "titulo": "Largest Contentful Paint element",
+      "nota": 0,
+      "valor": "3,390 ms"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0,
+      "valor": "Est savings of 25 KiB"
+    },
+    {
+      "id": "uses-responsive-images",
+      "titulo": "Properly size images",
+      "nota": 0,
+      "valor": "Est savings of 21 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0,
+      "valor": "Est savings of 14 KiB"
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0,
+      "valor": "Est savings of 114 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0,
+      "valor": "Est savings of 14 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

@@ -10,9 +10,9 @@ import Reveal from "@/components/motion/Reveal";
 import { PHOTO_REVEAL_FULL_S, staggerMs } from "@/lib/motion/tokens";
 import { blurFor } from "@/lib/blur";
 import ClientMarquee from "@/components/ClientMarquee";
-import HeroWebGL from "@/components/motion/HeroWebGL";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
+import RevealText from "@/components/motion/RevealText";
 
 // Each tile links to a distinct destination that matches its label
 // (Corporativos / Casamentos / Privados) — the first two deep-link to their
@@ -58,7 +58,10 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
           vale 0 px quando não há aviso; a fotografia continua a ocupar o ecrã
           inteiro, porque o que se mexe é o conteúdo dentro da caixa, não a
           caixa. Ver `--reserva-consentimento` em globals.css. */}
-      <section className="recuo-consentimento relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden">
+      {/* `bg-[#080808]`: enquanto a fotografia chega, o ecrã é escuro, e não
+          branco (30/10, «nível estúdio»: «sobre fundo escuro […] sem ecrã
+          branco»). É o mesmo preto do véu. */}
+      <section className="recuo-consentimento relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden bg-[#080808]">
         <Parallax speed={0.14} drift className="absolute inset-0">
           {/* A fotografia é o 1.º fotograma do vídeo 1: é o LCP (AVIF,
               pré-carregada) e é por cima dela que os vídeos entram sem salto.
@@ -76,9 +79,6 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
           {/* Os três vídeos dela, por cima da fotografia e por baixo do véu. */}
           <EntradaEmVideo />
         </Parallax>
-        {/* WebGL layer over the static hero image (fades in when ready; absent
-            under reduced motion / no-WebGL). */}
-        <HeroWebGL src={FOTO_DA_ENTRADA} className="absolute inset-0 h-full w-full" />
         {/* O véu do ecrã inteiro ficou só o lateral, e mais leve (0,3 → 0,15).
             O escuro de baixo passou para trás da legenda (já a seguir), para
             acompanhar o texto em vez de subir até meio do ecrã. Pedido dela a
@@ -315,13 +315,13 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
               headline dialect as the hero and chapters, so the journey resolves
               calmly instead of escalating into a fussy per-word reveal at the end. */}
           <AnimateIn>
-            <h2
+            <RevealText
               className="text-white font-bold uppercase tracking-display leading-[0.9] mb-6"
               style={{ fontSize: "clamp(32px, 5.5vw, 78px)" }}
             >
               <span className="block">{t.home.ctaTitleLine1}</span>
               <span className="block text-moss-light">{t.home.ctaTitleLine2}</span>
-            </h2>
+            </RevealText>
           </AnimateIn>
           <AnimateIn delay={staggerMs(1)}>
             <p className="text-white/70 text-base leading-relaxed max-w-md mb-12">

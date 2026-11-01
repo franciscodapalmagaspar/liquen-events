@@ -1,0 +1,127 @@
+{
+  "url": "http://localhost:3101/galeria",
+  "quando": "2026-10-31T12:37:17.263Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3363.5
+  },
+  "notas": {
+    "performance": 98,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 975.606,
+    "largest-contentful-paint": 2109.033,
+    "speed-index": 1380,
+    "total-blocking-time": 119.19700000000012,
+    "cumulative-layout-shift": 0,
+    "interactive": 4336.654,
+    "total-byte-weight": 704208,
+    "mainthread-work-breakdown": 2980.570999999919,
+    "bootup-time": 1266.6409999999855
+  },
+  "elementoLCP": "<p class=\"text-[12.5px] leading-relaxed text-white\">",
+  "maioresPedidos": [
+    {
+      "url": "http://localhost:3101/galeria",
+      "kB": 97
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3101/_img/blur-galeria.json",
+      "kB": 65
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/9d036f80216c14ee.p.3u4lli0-axodc.woff2",
+      "kB": 40
+    },
+    {
+      "url": "http://localhost:3101/_img/g/stephanie-mizio-570-768.avif",
+      "kB": 37
+    },
+    {
+      "url": "http://localhost:3101/_img/g/J_P-1Y1A2031-768.avif",
+      "kB": 33
+    },
+    {
+      "url": "http://localhost:3101/?_rsc=nrexV-HNkfNsxnuo",
+      "kB": 33
+    },
+    {
+      "url": "http://localhost:3101/_img/g/galeria-instagram-33-03-768.avif",
+      "kB": 32
+    }
+  ],
+  "falhas": [
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.79,
+      "valor": "170 ms"
+    },
+    {
+      "id": "interactive",
+      "titulo": "Time to Interactive",
+      "nota": 0.84,
+      "valor": "4.3 s"
+    },
+    {
+      "id": "mainthread-work-breakdown",
+      "titulo": "Minimize main-thread work",
+      "nota": 0,
+      "valor": "3.0 s"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 23 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 72 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

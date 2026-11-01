@@ -1,0 +1,157 @@
+{
+  "url": "http://localhost:3102/servicos",
+  "quando": "2026-10-31T12:59:22.945Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3361.5
+  },
+  "notas": {
+    "performance": 94,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 1002.967,
+    "largest-contentful-paint": 1002.967,
+    "speed-index": 3173,
+    "total-blocking-time": 279.54800000000023,
+    "cumulative-layout-shift": 0,
+    "interactive": 4451.995000000954,
+    "total-byte-weight": 1074184,
+    "mainthread-work-breakdown": 2834.4149999999267,
+    "bootup-time": 1544.0599999999815
+  },
+  "elementoLCP": "<p class=\"mt-3 text-white/70 text-[12.5px] leading-[1.6] max-w-xs\">",
+  "maioresPedidos": [
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-29CZZ76H6F",
+      "kB": 192
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=AW-16724349653&cx=c&gtm=4e6as1",
+      "kB": 165
+    },
+    {
+      "url": "http://localhost:3102/servicos",
+      "kB": 81
+    },
+    {
+      "url": "http://localhost:3102/_img/DaniGui_JantarFesta_26-1080.avif",
+      "kB": 77
+    },
+    {
+      "url": "http://localhost:3102/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3102/_img/EW1_1330-1080.avif",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3102/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3102/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3102/_img/stephanie-mizio-760-1080.avif",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3102/_next/static/media/9d036f80216c14ee.p.3u4lli0-axodc.woff2",
+      "kB": 40
+    }
+  ],
+  "falhas": [
+    {
+      "id": "total-blocking-time",
+      "titulo": "Total Blocking Time",
+      "nota": 0.81,
+      "valor": "280 ms"
+    },
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.51,
+      "valor": "240 ms"
+    },
+    {
+      "id": "interactive",
+      "titulo": "Time to Interactive",
+      "nota": 0.83,
+      "valor": "4.5 s"
+    },
+    {
+      "id": "mainthread-work-breakdown",
+      "titulo": "Minimize main-thread work",
+      "nota": 0,
+      "valor": "2.8 s"
+    },
+    {
+      "id": "bootup-time",
+      "titulo": "Reduce JavaScript execution time",
+      "nota": 0,
+      "valor": "1.5 s"
+    },
+    {
+      "id": "third-party-summary",
+      "titulo": "Reduce the impact of third-party code",
+      "nota": 0.5,
+      "valor": "Third-party code blocked the main thread for 270 ms"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 23 KiB"
+    },
+    {
+      "id": "uses-responsive-images",
+      "titulo": "Properly size images",
+      "nota": 0.5,
+      "valor": "Est savings of 66 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "forced-reflow-insight",
+      "titulo": "Forced reflow",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 102 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

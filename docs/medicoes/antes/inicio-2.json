@@ -1,0 +1,145 @@
+{
+  "url": "https://liquen-events.com/",
+  "quando": "2026-10-30T23:43:05.695Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3292
+  },
+  "notas": {
+    "performance": 93,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 1183,
+    "largest-contentful-paint": 2730,
+    "speed-index": 4637.765945634716,
+    "total-blocking-time": 83.5,
+    "cumulative-layout-shift": 0,
+    "interactive": 3242.5,
+    "total-byte-weight": 8275003,
+    "mainthread-work-breakdown": 2105.4039999999936,
+    "bootup-time": 621.8880000000006
+  },
+  "elementoLCP": "<span class=\"block \">",
+  "maioresPedidos": [
+    {
+      "url": "https://liquen-events.com/videos/entrada/v6/entrada-1-retrato.mp4",
+      "kB": 7013
+    },
+    {
+      "url": "https://liquen-events.com/_img/EW1_1332-1080.avif",
+      "kB": 73
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/2jqd0dpb7brv_.js",
+      "kB": 65
+    },
+    {
+      "url": "https://liquen-events.com/",
+      "kB": 64
+    },
+    {
+      "url": "https://liquen-events.com/_img/DJI_20250913190635_0120_D-1080.avif",
+      "kB": 64
+    },
+    {
+      "url": "https://liquen-events.com/_img/JOAO_E_PEDRO_1Y1A4472-1080.avif",
+      "kB": 52
+    },
+    {
+      "url": "https://liquen-events.com/_img/EW1_1330-1080.avif",
+      "kB": 48
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/media/07c7676b89ed2778.p.45535valc9rzk.woff2",
+      "kB": 48
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/01msv9ym379u0.js",
+      "kB": 44
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/media/9d036f80216c14ee.p.2r-cuu_7locvx.woff2",
+      "kB": 39
+    }
+  ],
+  "falhas": [
+    {
+      "id": "largest-contentful-paint",
+      "titulo": "Largest Contentful Paint",
+      "nota": 0.85,
+      "valor": "2.7 s"
+    },
+    {
+      "id": "speed-index",
+      "titulo": "Speed Index",
+      "nota": 0.7,
+      "valor": "4.6 s"
+    },
+    {
+      "id": "mainthread-work-breakdown",
+      "titulo": "Minimize main-thread work",
+      "nota": 0,
+      "valor": "2.1 s"
+    },
+    {
+      "id": "largest-contentful-paint-element",
+      "titulo": "Largest Contentful Paint element",
+      "nota": 0,
+      "valor": "2,730 ms"
+    },
+    {
+      "id": "total-byte-weight",
+      "titulo": "Avoid enormous network payloads",
+      "nota": 0.5,
+      "valor": "Total size was 8,081 KiB"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0,
+      "valor": "Est savings of 25 KiB"
+    },
+    {
+      "id": "uses-responsive-images",
+      "titulo": "Properly size images",
+      "nota": 0.5,
+      "valor": "Est savings of 80 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0,
+      "valor": "Est savings of 14 KiB"
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0,
+      "valor": "Est savings of 232 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0,
+      "valor": "Est savings of 14 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

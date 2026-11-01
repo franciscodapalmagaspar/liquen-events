@@ -1,0 +1,151 @@
+{
+  "url": "https://liquen-events.com/orcamento",
+  "quando": "2026-10-30T23:44:01.505Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3269.5
+  },
+  "notas": {
+    "performance": 95,
+    "accessibility": 96,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 1132.435,
+    "largest-contentful-paint": 2628.435,
+    "speed-index": 3912.769785391318,
+    "total-blocking-time": 51,
+    "cumulative-layout-shift": 0,
+    "interactive": 2765.735,
+    "total-byte-weight": 477832,
+    "mainthread-work-breakdown": 1198.336000000004,
+    "bootup-time": 475.0760000000002
+  },
+  "elementoLCP": "<h1 class=\"text-[clamp(34px,9vw,52px)] font-bold uppercase leading-[0.95] tracking-di…\">",
+  "maioresPedidos": [
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/2jqd0dpb7brv_.js",
+      "kB": 66
+    },
+    {
+      "url": "https://liquen-events.com/orcamento",
+      "kB": 61
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/media/07c7676b89ed2778.p.45535valc9rzk.woff2",
+      "kB": 48
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/01msv9ym379u0.js",
+      "kB": 44
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/media/9d036f80216c14ee.p.2r-cuu_7locvx.woff2",
+      "kB": 38
+    },
+    {
+      "url": "https://liquen-events.com/?_rsc=8tGUY60rehSu3Cat",
+      "kB": 31
+    },
+    {
+      "url": "https://liquen-events.com/_img/l/logo-liquen-recortado-512.webp",
+      "kB": 25
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/44-4-kjd_z05i.js",
+      "kB": 12
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/0ho9djar54u2a.js",
+      "kB": 11
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/1_xm44nv0768s.js",
+      "kB": 10
+    }
+  ],
+  "falhas": [
+    {
+      "id": "largest-contentful-paint",
+      "titulo": "Largest Contentful Paint",
+      "nota": 0.87,
+      "valor": "2.6 s"
+    },
+    {
+      "id": "speed-index",
+      "titulo": "Speed Index",
+      "nota": 0.82,
+      "valor": "3.9 s"
+    },
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.88,
+      "valor": "140 ms"
+    },
+    {
+      "id": "largest-contentful-paint-element",
+      "titulo": "Largest Contentful Paint element",
+      "nota": 0,
+      "valor": "2,630 ms"
+    },
+    {
+      "id": "color-contrast",
+      "titulo": "Background and foreground colors do not have a sufficient contrast ratio.",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "label-content-name-mismatch",
+      "titulo": "Elements with visible text labels do not have matching accessible names.",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 25 KiB"
+    },
+    {
+      "id": "uses-responsive-images",
+      "titulo": "Properly size images",
+      "nota": 0.5,
+      "valor": "Est savings of 21 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 14 KiB"
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 24 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 14 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

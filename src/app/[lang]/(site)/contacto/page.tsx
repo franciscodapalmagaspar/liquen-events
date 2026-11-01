@@ -11,12 +11,12 @@ import { BreadcrumbJsonLd, FaqJsonLd } from "@/components/JsonLd";
 import WhatsAppIcon from "@/components/WhatsAppIcon";
 import Parallax from "@/components/Parallax";
 import RatingBadge from "@/components/RatingBadge";
-import HeroWebGL from "@/components/motion/HeroWebGL";
 import { waHref } from "@/data";
 import { SITE } from "@/lib/site";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
 import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
+import RevealText from "@/components/motion/RevealText";
 
 export async function generateMetadata({
   params,
@@ -77,9 +77,6 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
             className="object-cover hero-settle"
           />
         </Parallax>
-        {/* WebGL layer over the static hero (fades in when ready; absent under
-            reduced motion / no-WebGL). */}
-        <HeroWebGL src={heroImg} className="absolute inset-0 h-full w-full" />
         {/* SpaceX-style: photo breathes; a small caption tucked bottom-left. */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#080808]/90 via-[#080808]/20 to-transparent" />
         <div className="absolute inset-0 flex flex-col justify-end px-6 lg:px-16 pb-14 lg:pb-20">
@@ -295,7 +292,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                     <span className="w-6 h-px bg-gold flex-shrink-0" />
                     {td.ctaEyebrow}
                   </p>
-                  <h2
+                  <RevealText
                     className="text-cream font-bold uppercase tracking-display leading-[0.95] mb-8"
                     style={{
                       fontSize: "clamp(34px, 4.5vw, 60px)",
@@ -304,7 +301,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                     {td.ctaTitleLine1}
                     <br />
                     <span className="text-gold">{td.ctaTitleMoss}</span>
-                  </h2>
+                  </RevealText>
                   <p className="text-cream/85 text-base leading-[1.85] max-w-md mb-12">
                     {td.ctaText}
                   </p>
@@ -438,11 +435,11 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                   <span className="w-6 h-px bg-gold flex-shrink-0" />
                   {t.contacto.faqEyebrow}
                 </p>
-                <h2 className="text-white text-4xl lg:text-5xl font-bold uppercase tracking-display leading-tight">
+                <RevealText className="text-white text-4xl lg:text-5xl font-bold uppercase tracking-display leading-tight">
                   {t.contacto.faqTitleLine1}
                   <br />
                   {t.contacto.faqTitleLine2}
-                </h2>
+                </RevealText>
                 <p className="text-white/65 text-sm leading-relaxed mt-6 max-w-xs">
                   {t.contacto.faqSub}
                 </p>
@@ -484,14 +481,14 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
               <span className="w-5 h-px bg-cream/45 flex-shrink-0" />
               {t.contacto.whatsappEyebrow}
             </p>
-            <h2
+            <RevealText
               className="text-cream font-bold uppercase tracking-display leading-tight mb-6"
               style={{ fontSize: "clamp(28px, 4.2vw, 52px)" }}
             >
               {t.contacto.whatsappTitleLine1}
               <br />
               {t.contacto.whatsappTitleLine2}
-            </h2>
+            </RevealText>
             <p className="text-cream/85 text-base leading-relaxed max-w-md mb-12">
               {t.contacto.whatsappText}
             </p>

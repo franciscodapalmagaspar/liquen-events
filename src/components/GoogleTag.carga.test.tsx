@@ -29,7 +29,7 @@ import { renderToString } from "react-dom/server";
 const pathname = vi.hoisted(() => ({ value: "/galeria" }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathname.value }));
 
-import GoogleTag, { GTAG_ESPERA_MS, GTAG_SOSSEGO_MS, GTAG_SRC } from "./GoogleTag";
+import GoogleTag, { GTAG_SOSSEGO_MS, GTAG_SRC } from "./GoogleTag";
 
 const gtagsNoDocumento = () => document.querySelectorAll(`script[src="${GTAG_SRC}"]`);
 
@@ -96,13 +96,12 @@ describe("GoogleTag — a biblioteca não compete com a primeira pintura", () =>
     }
   });
 
-  it("e, se ninguém mexer, entra no prazo — a página vista conta na mesma", () => {
+  it("e, se ninguém mexer, não entra — nem passado muito tempo (31/10, «Só ao 1.º toque»)", () => {
     vi.useFakeTimers();
     try {
       render(<GoogleTag />);
+      vi.advanceTimersByTime(60_000);
       expect(gtagsNoDocumento()).toHaveLength(0);
-      vi.advanceTimersByTime(GTAG_ESPERA_MS + GTAG_SOSSEGO_MS);
-      expect(gtagsNoDocumento()).toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }
@@ -119,7 +118,8 @@ describe("GoogleTag — a biblioteca não compete com a primeira pintura", () =>
       rerender(<GoogleTag />);
       pathname.value = "/pt/contacto";
       rerender(<GoogleTag />);
-      vi.advanceTimersByTime(GTAG_ESPERA_MS + GTAG_SOSSEGO_MS);
+      window.dispatchEvent(new Event("scroll"));
+      vi.advanceTimersByTime(60_000);
       expect(gtagsNoDocumento()).toHaveLength(1);
     } finally {
       vi.useRealTimers();

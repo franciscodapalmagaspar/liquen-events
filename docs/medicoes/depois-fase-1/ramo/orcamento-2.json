@@ -1,0 +1,145 @@
+{
+  "url": "http://localhost:3101/orcamento",
+  "quando": "2026-10-31T00:37:47.722Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3073.5
+  },
+  "notas": {
+    "performance": 89,
+    "accessibility": 96,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 1138.8066,
+    "largest-contentful-paint": 3655.9197999999997,
+    "speed-index": 1138.8066,
+    "total-blocking-time": 74,
+    "cumulative-layout-shift": 0,
+    "interactive": 4215.719799999999,
+    "total-byte-weight": 529326,
+    "mainthread-work-breakdown": 1342.3920000000032,
+    "bootup-time": 539.9960000000008
+  },
+  "elementoLCP": "<h1 class=\"text-[clamp(34px,9vw,52px)] font-bold uppercase leading-[0.95] tracking-di…\">",
+  "maioresPedidos": [
+    {
+      "url": "http://localhost:3101/orcamento",
+      "kB": 78
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/9d036f80216c14ee.p.3u4lli0-axodc.woff2",
+      "kB": 40
+    },
+    {
+      "url": "http://localhost:3101/?_rsc=8tGUY60rehSu3Cat",
+      "kB": 33
+    },
+    {
+      "url": "http://localhost:3101/_img/l/logo-liquen-recortado-256.webp",
+      "kB": 13
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/01ln50fp5tunl.js",
+      "kB": 12
+    },
+    {
+      "url": "http://localhost:3101/icon-192.png",
+      "kB": 12
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/1w4b8torv-cyt.js",
+      "kB": 11
+    }
+  ],
+  "falhas": [
+    {
+      "id": "largest-contentful-paint",
+      "titulo": "Largest Contentful Paint",
+      "nota": 0.59,
+      "valor": "3.7 s"
+    },
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.86,
+      "valor": "140 ms"
+    },
+    {
+      "id": "interactive",
+      "titulo": "Time to Interactive",
+      "nota": 0.85,
+      "valor": "4.2 s"
+    },
+    {
+      "id": "largest-contentful-paint-element",
+      "titulo": "Largest Contentful Paint element",
+      "nota": 0,
+      "valor": "3,660 ms"
+    },
+    {
+      "id": "color-contrast",
+      "titulo": "Background and foreground colors do not have a sufficient contrast ratio.",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "label-content-name-mismatch",
+      "titulo": "Elements with visible text labels do not have matching accessible names.",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0,
+      "valor": "Est savings of 24 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 5 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

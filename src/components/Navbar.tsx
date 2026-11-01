@@ -737,6 +737,12 @@ export default function Navbar() {
               alt="Líquen Events"
               width={300}
               height={152}
+              // A largura a que o desenho aparece (72 px de altura × 300/152;
+              // 62 no telemóvel). Sem `sizes`, o browser pedia o dobro de 300
+              // e vinha a de 512 px em todas as páginas — 21 KB a mais
+              // (Lighthouse, Fase 0 do «nível estúdio»). As duas imagens têm
+              // o MESMO `sizes`, para pedirem o mesmo ficheiro.
+              sizes="(min-width: 640px) 142px, 122px"
               priority
               className={`object-contain w-auto lg:origin-left transition-[opacity,scale] duration-500 motion-reduce:transition-none ${
                 isOpen ? "h-[50px] sm:h-[58px]" : "h-[62px] sm:h-[72px]"
@@ -748,6 +754,7 @@ export default function Navbar() {
               aria-hidden
               width={300}
               height={152}
+              sizes="(min-width: 640px) 142px, 122px"
               className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:left-0 lg:translate-x-0 lg:origin-left object-contain w-auto max-w-none h-[40px] sm:h-[44px] transition-[opacity,scale] duration-500 motion-reduce:transition-none ${
                 compacto
                   ? "opacity-100 scale-100"

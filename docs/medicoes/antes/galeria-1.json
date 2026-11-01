@@ -1,0 +1,139 @@
+{
+  "url": "https://liquen-events.com/galeria",
+  "quando": "2026-10-30T23:45:20.241Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3339
+  },
+  "notas": {
+    "performance": 91,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 1325,
+    "largest-contentful-paint": 3033,
+    "speed-index": 4812.08449562079,
+    "total-blocking-time": 56.5,
+    "cumulative-layout-shift": 0,
+    "interactive": 3161.8500000000004,
+    "total-byte-weight": 733330,
+    "mainthread-work-breakdown": 1526.4680000000044,
+    "bootup-time": 559.7520000000027
+  },
+  "elementoLCP": "<p class=\"text-[12.5px] leading-relaxed text-white\">",
+  "maioresPedidos": [
+    {
+      "url": "https://liquen-events.com/galeria",
+      "kB": 77
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/2jqd0dpb7brv_.js",
+      "kB": 65
+    },
+    {
+      "url": "https://liquen-events.com/_img/blur-galeria.json",
+      "kB": 60
+    },
+    {
+      "url": "https://liquen-events.com/_img/g/galeria-instagram-36-04-768.avif",
+      "kB": 59
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/media/07c7676b89ed2778.p.45535valc9rzk.woff2",
+      "kB": 48
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/chunks/01msv9ym379u0.js",
+      "kB": 44
+    },
+    {
+      "url": "https://liquen-events.com/_img/g/galeria-outubro-19-768.avif",
+      "kB": 43
+    },
+    {
+      "url": "https://liquen-events.com/_next/static/immutable/media/9d036f80216c14ee.p.2r-cuu_7locvx.woff2",
+      "kB": 39
+    },
+    {
+      "url": "https://liquen-events.com/_img/g/stephanie-mizio-562-768.avif",
+      "kB": 31
+    },
+    {
+      "url": "https://liquen-events.com/privacidade?_rsc=nrexV-HNkfNsxnuo",
+      "kB": 31
+    }
+  ],
+  "falhas": [
+    {
+      "id": "largest-contentful-paint",
+      "titulo": "Largest Contentful Paint",
+      "nota": 0.77,
+      "valor": "3.0 s"
+    },
+    {
+      "id": "speed-index",
+      "titulo": "Speed Index",
+      "nota": 0.67,
+      "valor": "4.8 s"
+    },
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.83,
+      "valor": "150 ms"
+    },
+    {
+      "id": "largest-contentful-paint-element",
+      "titulo": "Largest Contentful Paint element",
+      "nota": 0,
+      "valor": "3,030 ms"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0,
+      "valor": "Est savings of 25 KiB"
+    },
+    {
+      "id": "uses-responsive-images",
+      "titulo": "Properly size images",
+      "nota": 0,
+      "valor": "Est savings of 21 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 14 KiB"
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0,
+      "valor": "Est savings of 114 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 14 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

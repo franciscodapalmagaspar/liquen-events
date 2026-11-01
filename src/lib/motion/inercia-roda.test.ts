@@ -51,18 +51,21 @@ describe("a guarda: quando é que a inércia pode sequer acender", () => {
   });
 });
 
-describe("o interruptor que vai no repositório está desligado", () => {
-  it("SmoothScroll.tsx entrega o sítio em scroll nativo", async () => {
-    // Não é gosto: é o contrato com quem revê. Esta funcionalidade entra
-    // desligada e só a dona do sítio a liga, depois de ver os números. Se
-    // alguém a ligar por engano num commit, isto fica vermelho.
+describe("o interruptor que vai no repositório", () => {
+  it("está ligado porque ELA o pediu (30/10, «nível estúdio»: o Lenis, só rato e trackpad)", async () => {
+    // O contrato era: entra desligado e só a dona do sítio o liga. Ligou-o no
+    // pedido «nível estúdio» (o B7.3 do PADRAO-PALUMEN), e vê-o no link de
+    // teste antes de ir para o sítio. Desligá-lo é esta linha voltar a `false`
+    // — e este teste com ela.
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     const fonte = readFileSync(
       join(process.cwd(), "src/components/motion/SmoothScroll.tsx"),
       "utf8",
     );
-    expect(fonte).toMatch(/const INERCIA_NA_RODA = false;/);
+    expect(fonte).toMatch(/const INERCIA_NA_RODA = true;/);
+    // E nunca no dedo: a decisão continua a passar pelo ponteiro fino.
+    expect(fonte).toMatch(/ponteiroFino: window\.matchMedia\("\(pointer: fine\)"\)\.matches/);
   });
 });
 
@@ -117,6 +120,13 @@ describe("o que não é nosso: scroll próprio e camadas por cima", () => {
   it("um diálogo modal (a lightbox da galeria) tranca a roda", () => {
     document.body.innerHTML = `<div aria-modal="true"></div>`;
     expect(haCamadaPorCima(document)).toBe(true);
+  });
+
+  it("um diálogo modal ESCONDIDO não conta (a lupa da proposta vive sempre no HTML)", () => {
+    document.body.innerHTML = `<div class="pw-lb" role="dialog" aria-modal="true" hidden></div>`;
+    expect(haCamadaPorCima(document)).toBe(false);
+    document.body.innerHTML = `<div hidden><div aria-modal="true"></div></div>`;
+    expect(haCamadaPorCima(document)).toBe(false);
   });
 
   it("sem menu nem diálogo, a roda é nossa", () => {

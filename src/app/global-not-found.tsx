@@ -63,12 +63,17 @@ const inter = Inter({
   ],
 });
 
+// `preload: false`, como no layout de `[lang]`: o que este ficheiro declara
+// vai para o pacote de TODAS as rotas (ver acima), e um Playfair pré-carregado
+// aqui era pedido em alta prioridade em todas as páginas do sítio — onde o
+// primeiro ecrã não o usa. Ver a nota «O PLAYFAIR ROMANO…» em `[lang]/layout.tsx`.
 const playfair = Playfair_Display({
   variable: "--font-playfair",
   subsets: ["latin"],
   style: ["normal"],
   display: "swap",
   adjustFontFallback: true,
+  preload: false,
   fallback: ["Georgia", "Times New Roman", "Times", "serif"],
 });
 

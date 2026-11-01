@@ -1,0 +1,133 @@
+{
+  "url": "http://localhost:3101/orcamento",
+  "quando": "2026-10-31T12:38:22.360Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3405
+  },
+  "notas": {
+    "performance": 99,
+    "accessibility": 96,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 978.073,
+    "largest-contentful-paint": 978.073,
+    "speed-index": 1648,
+    "total-blocking-time": 117.40300000000025,
+    "cumulative-layout-shift": 0,
+    "interactive": 3382.664,
+    "total-byte-weight": 490975,
+    "mainthread-work-breakdown": 1694.8229999999603,
+    "bootup-time": 884.5189999999943
+  },
+  "elementoLCP": "<h1 class=\"lg:sr-only text-foreground font-bold uppercase tracking-display leading-[0…\" style=\"font-size:clamp(34px, 9vw, 52px)\">",
+  "maioresPedidos": [
+    {
+      "url": "http://localhost:3101/orcamento",
+      "kB": 78
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/9d036f80216c14ee.p.3u4lli0-axodc.woff2",
+      "kB": 40
+    },
+    {
+      "url": "http://localhost:3101/?_rsc=8tGUY60rehSu3Cat",
+      "kB": 33
+    },
+    {
+      "url": "http://localhost:3101/_img/l/logo-liquen-recortado-256.webp",
+      "kB": 13
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/4495hgf0d5x7l.js",
+      "kB": 12
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/1m89qg6ws8gz-.js",
+      "kB": 11
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/2asz32vty0cde.js",
+      "kB": 10
+    }
+  ],
+  "falhas": [
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.88,
+      "valor": "140 ms"
+    },
+    {
+      "id": "color-contrast",
+      "titulo": "Background and foreground colors do not have a sufficient contrast ratio.",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "label-content-name-mismatch",
+      "titulo": "Elements with visible text labels do not have matching accessible names.",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 23 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "forced-reflow-insight",
+      "titulo": "Forced reflow",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 5 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

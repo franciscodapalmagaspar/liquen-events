@@ -191,17 +191,20 @@ export function carregarGtag(): void {
  * responder ao primeiro toque.
  *
  * Agora a biblioteca entra depois do primeiro gesto (tocar, rolar, carregar
- * numa tecla), quando a página sossega (ver em baixo), ou, se ninguém mexer,
- * `GTAG_ESPERA_MS` depois da hidratação. Nada se
- * perde do que fica na fila: o `dataLayer` já tem o consentimento e o `config`
- * (o bootstrap em linha corre antes de tudo) e a biblioteca, quando chega,
- * esvazia-a — a página vista conta na mesma. O que se troca, dito: quem sai
- * em menos de `GTAG_ESPERA_MS` sem tocar em nada não chega a ser contado.
- * Uma conversão (o formulário) é sempre precedida de gestos, por isso nunca
- * se perde. Não é o `lazyOnload` de antes (que esperava pelo `load` de uma
- * página cheia de imagens, às vezes nunca): aqui há um prazo de relógio.
+ * numa tecla), quando a página sossega (ver em baixo). Nada se perde do que
+ * fica na fila: o `dataLayer` já tem o consentimento e o `config` (o bootstrap
+ * em linha corre antes de tudo) e a biblioteca, quando chega, esvazia-a — a
+ * página vista conta na mesma. Uma conversão (o formulário) é sempre
+ * precedida de gestos, por isso nunca se perde.
+ *
+ * ── E JÁ NÃO HÁ PRAZO DE RELÓGIO (31/10) ────────────────────────────────────
+ * Até aqui, se ninguém mexesse, entrava 6 s depois da hidratação — e era
+ * exactamente aí que o Lighthouse do telemóvel a apanhava: ~265 ms dos ~440 ms
+ * de tempo bloqueado da página inicial (medido com a rede travada a sério).
+ * Posta a escolha, ela respondeu «Só ao 1.º toque». O que se troca, dito:
+ * quem abre o sítio e sai sem tocar em nada, nem deslizar, deixa de ser
+ * contado no Analytics e no Google Ads.
  */
-export const GTAG_ESPERA_MS = 6000;
 /**
  * ── E NUNCA A MEIO DE UM DESLIZE ───────────────────────────────────────────
  *
@@ -212,8 +215,8 @@ export const GTAG_ESPERA_MS = 6000;
  * trabalho mais pesado da página caía em cima do primeiro deslize.
  *
  * Agora o gesto só ARMA a carga, e ela espera que a página sossegue —
- * `GTAG_SOSSEGO_MS` sem nenhum evento de deslize. O prazo de relógio também
- * passa por esta espera. A conversão do formulário não: essa chama o
+ * `GTAG_SOSSEGO_MS` sem nenhum evento de deslize. A conversão do formulário
+ * não: essa chama o
  * `carregarGtag` directamente (`ads-conversion.ts`) e não pode esperar.
  */
 export const GTAG_SOSSEGO_MS = 700;
@@ -240,14 +243,11 @@ export function agendarGtag(): () => void {
   const armar = () => {
     if (armado || feito) return;
     armado = true;
-    window.clearTimeout(prazo);
     for (const g of GESTOS) window.removeEventListener(g, armar);
     for (const d of DESLIZE) window.addEventListener(d, aindaAMexer, { passive: true });
     aindaAMexer();
   };
-  const prazo = window.setTimeout(armar, GTAG_ESPERA_MS);
   const limpar = () => {
-    window.clearTimeout(prazo);
     window.clearTimeout(sossego);
     for (const g of GESTOS) window.removeEventListener(g, armar);
     for (const d of DESLIZE) window.removeEventListener(d, aindaAMexer);

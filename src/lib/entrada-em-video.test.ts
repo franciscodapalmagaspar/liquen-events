@@ -48,41 +48,30 @@ describe("os vídeos da entrada — as regras", () => {
     expect(ordem).toEqual([0, 1, 2, 0, 1]);
   });
 
-  it("cada vídeo existe em todas as versões, e nenhum é pesado demais para o 4G", () => {
+  it("cada vídeo existe em H.264 e WebM, e nenhum passa do tecto (30/10, «nível estúdio»)", () => {
+    // O pedido: telemóvel 720 px até 1,2 MB; computador até 3 MB.
+    const TECTO = { retrato: 1.2 * 1024 * 1024, paisagem: 3 * 1024 * 1024 };
     for (let i = 0; i < NUMERO_DE_VIDEOS; i++) {
       for (const v of ["paisagem", "retrato"] as const) {
-        for (const f of ["mp4", "webm", "hevc", "av1"] as const) {
+        for (const f of ["mp4", "webm"] as const) {
           const p = `public${enderecoDoVideo(i, v, f)}`;
           expect(existsSync(p), p).toBe(true);
+          expect(statSync(p).size, p).toBeLessThan(TECTO[v]);
         }
-        // ~6 Mbit/s no máximo: acima disso o 4G deixava de o tocar sem parar.
-        expect(statSync(`public${enderecoDoVideo(i, v)}`).size).toBeLessThan(16 * 1024 * 1024);
-      }
-      // A versão leve, só ao alto (rede fraca): ~2 a 3 Mbit/s, metade da normal.
-      for (const f of ["hevc", "mp4"] as const) {
-        const p = `public${enderecoLeve(i, f)}`;
-        expect(existsSync(p), p).toBe(true);
-        expect(statSync(p).size, p).toBeLessThan(
-          statSync(`public${enderecoDoVideo(i, "retrato", f)}`).size * 0.6,
-        );
-      }
-      if (TEM_GRANDE[i]) {
-        for (const f of ["mp4", "hevc", "av1"] as const) {
-          const p = `public${enderecoDoVideo(i, "grande", f)}`;
-          expect(existsSync(p), p).toBe(true);
-          // A grande é para ecrãs largos e densos (8–10 Mbit/s de tecto).
-          expect(statSync(p).size).toBeLessThan(20 * 1024 * 1024);
+        // Nada de HEVC nem AV1: duplicavam o peso no servidor para nada.
+        for (const f of ["hevc", "av1"] as const) {
+          expect(existsSync(`public${enderecoDoVideo(i, v, f)}`)).toBe(false);
         }
       }
     }
+    expect(TEM_GRANDE.some(Boolean)).toBe(false);
   });
 
-  it("telemóvel ao alto → retrato; computador → paisagem; ecrã denso → grande (só com fonte 4K)", () => {
+  it("telemóvel ao alto → retrato; computador e ecrã denso → paisagem (não há grande)", () => {
     expect(varianteParaOEcra(TELEMOVEL, 0)).toBe("retrato");
     expect(varianteParaOEcra(PORTATIL, 1)).toBe("paisagem");
-    expect(varianteParaOEcra(RETINA, 1)).toBe("grande");
-    // O vídeo 1 ainda não tem fonte 4K: num ecrã denso fica a paisagem.
-    expect(varianteParaOEcra(RETINA, 0)).toBe(TEM_GRANDE[0] ? "grande" : "paisagem");
+    expect(varianteParaOEcra(RETINA, 1)).toBe("paisagem");
+    expect(varianteParaOEcra(RETINA, 0)).toBe("paisagem");
   });
 
   it("o WebM e os vídeos sem 4K caem da versão grande para a paisagem", () => {
@@ -96,12 +85,15 @@ describe("os vídeos da entrada — as regras", () => {
     expect(formatoQueToca(() => "")).toBeNull();
   });
 
-  it("o HEVC e o AV1 são MP4 com o codec no nome, e têm versão grande", () => {
+  it("o HEVC e o AV1 seriam MP4 com o codec no nome (os registos antigos ainda os nomeiam)", () => {
     expect(enderecoDoVideo(0, "paisagem", "hevc")).toBe(
-      "/videos/entrada/v6/entrada-1-paisagem-hevc.mp4",
+      "/videos/entrada/v8/entrada-1-paisagem-hevc.mp4",
     );
-    expect(enderecoDoVideo(1, "grande", "av1")).toBe("/videos/entrada/v6/entrada-2-grande-av1.mp4");
-    expect(formatoDoEndereco("https://x/videos/entrada/v6/entrada-1-retrato-hevc.mp4")).toBe(
+    // Sem grande na v7: a grande cai para a paisagem.
+    expect(enderecoDoVideo(1, "grande", "av1")).toBe(
+      "/videos/entrada/v8/entrada-2-paisagem-av1.mp4",
+    );
+    expect(formatoDoEndereco("https://x/videos/entrada/v8/entrada-1-retrato-hevc.mp4")).toBe(
       "hevc",
     );
     expect(formatoDoEndereco("/v/entrada-1-retrato-av1.mp4")).toBe("av1");
@@ -110,62 +102,19 @@ describe("os vídeos da entrada — as regras", () => {
     expect(formatoDoEndereco("")).toBeNull();
   });
 
-  describe("o melhor formato: qualidade, mas só o que o chip descodifica", () => {
+  describe("o melhor formato: desde a v7, só o que existe (H.264, ou WebM)", () => {
     const tudo = () => "probably";
-    const r = (supported: boolean, smooth: boolean, powerEfficient: boolean) => ({
-      supported,
-      smooth,
-      powerEfficient,
+    const sim = async () => ({ supported: true, smooth: true, powerEfficient: true });
+
+    it("mesmo com o AV1 e o HEVC no chip, é o H.264", async () => {
+      expect(await melhorFormato(tudo, sim, "paisagem")).toBe("mp4");
+      expect(await melhorFormato(tudo, sim, "retrato", true)).toBe("mp4");
     });
 
-    it("AV1 quando o chip o descodifica e corre liso", async () => {
-      expect(await melhorFormato(tudo, async () => r(true, true, true), "paisagem")).toBe("av1");
-    });
-
-    it("no WebKit (iPhone, Safari, Instagram) é o HEVC, sem perguntar ao aparelho", async () => {
-      const perguntas: string[] = [];
-      const soAv1 = async (f: string) => {
-        perguntas.push(f);
-        return r(true, true, f === "av1");
-      };
-      // O registo do iPhone dela (17/10): a pergunta deixava passar o AV1.
-      expect(await melhorFormato(tudo, soAv1, "paisagem", true)).toBe("hevc");
-      expect(perguntas).toEqual([]);
-      // Um WebKit que não toca HEVC: a pergunta, como nos outros.
-      const semHevc = (t: string) => (t.includes("hvc1") ? "" : "probably");
-      expect(await melhorFormato(semHevc, soAv1, "paisagem", true)).toBe("av1");
-    });
-
-    it("AV1 no processador (sem chip) ou a perder fotogramas não serve: HEVC", async () => {
-      const p = async (f: string) => (f === "av1" ? r(true, true, false) : r(true, true, true));
-      expect(await melhorFormato(tudo, p, "paisagem")).toBe("hevc");
-      const q = async (f: string) => (f === "av1" ? r(true, false, true) : r(true, true, true));
-      expect(await melhorFormato(tudo, q, "paisagem")).toBe("hevc");
-    });
-
-    it("nem um nem outro no chip: o H.264 de sempre", async () => {
-      expect(await melhorFormato(tudo, async () => r(true, true, false), "grande")).toBe("mp4");
-    });
-
-    it("sem a pergunta (browsers antigos), ou se ela falhar: só o canPlayType", async () => {
-      expect(await melhorFormato(tudo, null, "paisagem")).toBe("mp4");
-      const falha = async () => {
-        throw new Error("x");
-      };
-      expect(await melhorFormato(tudo, falha, "paisagem")).toBe("mp4");
+    it("sem H.264, o WebM; sem nenhum, nada", async () => {
       const soWebm = (t: string) => (t.includes("webm") ? "maybe" : "");
       expect(await melhorFormato(soWebm, null, "paisagem")).toBe("webm");
-    });
-
-    it("não se pergunta por um formato que o browser nem sabe ler", async () => {
-      const semAv1 = (t: string) => (t.includes("av01") ? "" : "probably");
-      const perguntas: string[] = [];
-      const p = async (f: string) => {
-        perguntas.push(f);
-        return r(true, true, true);
-      };
-      expect(await melhorFormato(semAv1, p, "paisagem")).toBe("hevc");
-      expect(perguntas).toEqual(["hevc"]);
+      expect(await melhorFormato(() => "", null, "paisagem")).toBeNull();
     });
   });
 
@@ -190,15 +139,15 @@ describe("os vídeos da entrada — as regras", () => {
   });
 
   it("a floresta como imagem animada: o MP4 no <img> e o WebP, ao alto e deitado", () => {
-    expect(enderecoAnimada(0, "retrato")).toBe("/videos/entrada/v6/entrada-1-retrato-animada.webp");
+    expect(enderecoAnimada(0, "retrato")).toBe("/videos/entrada/v8/entrada-1-retrato-animada.webp");
     expect(imagensAnimadas(TAKE_DE_ENTRADA)).toEqual({
       mp4: [
-        "/videos/entrada/v6/entrada-1-retrato-leve.mp4",
-        "/videos/entrada/v6/entrada-1-paisagem.mp4",
+        "/videos/entrada/v8/entrada-1-retrato.mp4",
+        "/videos/entrada/v8/entrada-1-paisagem.mp4",
       ],
       webp: [
-        "/videos/entrada/v6/entrada-1-retrato-animada.webp",
-        "/videos/entrada/v6/entrada-1-paisagem-animada.webp",
+        "/videos/entrada/v8/entrada-1-retrato-animada.webp",
+        "/videos/entrada/v8/entrada-1-paisagem-animada.webp",
       ],
     });
     // Os WebP existem e não passam do tecto (é o que se descarrega quando o
@@ -209,10 +158,9 @@ describe("os vídeos da entrada — as regras", () => {
     }
   });
 
-  it("a versão leve: só ao alto, em HEVC ou H.264", () => {
-    expect(enderecoLeve(0, "hevc")).toBe("/videos/entrada/v6/entrada-1-retrato-leve-hevc.mp4");
-    expect(enderecoLeve(2, "mp4")).toBe("/videos/entrada/v6/entrada-3-retrato-leve.mp4");
-    expect(formatoDoEndereco(enderecoLeve(1, "hevc"))).toBe("hevc");
+  it("a versão leve ao alto é, desde a v7, a própria vertical (720 px, ~1 MB)", () => {
+    expect(enderecoLeve(0, "hevc")).toBe("/videos/entrada/v8/entrada-1-retrato.mp4");
+    expect(enderecoLeve(2, "mp4")).toBe("/videos/entrada/v8/entrada-3-retrato.mp4");
   });
 
   it("a ligação diz-se lenta: poupar dados, 2G/3G, ou menos de 5 Mbit/s", () => {
@@ -352,7 +300,8 @@ describe("no computador (29/10, «no PC está a travar mesmo imenso»)", () => {
 
   it("sem a confirmação, a grande passa a paisagem; o resto não muda", () => {
     expect(varianteConfirmada(RETINA, 1, false)).toBe("paisagem");
-    expect(varianteConfirmada(RETINA, 1, true)).toBe("grande");
+    // Desde a v7 não há grande: nem com a confirmação.
+    expect(varianteConfirmada(RETINA, 1, true)).toBe("paisagem");
     expect(varianteConfirmada(PORTATIL, 1, true)).toBe("paisagem");
     expect(varianteConfirmada({ largura: 390, altura: 844, densidade: 3 }, 1, false)).toBe(
       "retrato",
@@ -377,9 +326,10 @@ describe("a leve deitada, para o computador que não aguenta a normal (29/10)", 
   });
 
   it("só alivia com fotogramas que cheguem e mais de 10 % perdidos", () => {
-    expect(deveAliviar(150, 40)).toBe(true);
-    expect(deveAliviar(150, 10)).toBe(false);
-    expect(deveAliviar(50, 40)).toBe(false);
+    // Desde a v8 (50 fps), 5 s são 250 fotogramas.
+    expect(deveAliviar(300, 80)).toBe(true);
+    expect(deveAliviar(300, 20)).toBe(false);
+    expect(deveAliviar(150, 80)).toBe(false);
   });
 
   it("o alívio guardado vale uma semana", () => {

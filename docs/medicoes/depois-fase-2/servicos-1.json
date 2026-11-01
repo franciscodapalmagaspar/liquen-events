@@ -1,0 +1,151 @@
+{
+  "url": "http://localhost:3101/servicos",
+  "quando": "2026-10-31T12:35:08.914Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3253.5
+  },
+  "notas": {
+    "performance": 94,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 972.145,
+    "largest-contentful-paint": 972.145,
+    "speed-index": 1436,
+    "total-blocking-time": 286.71100000000024,
+    "cumulative-layout-shift": 0,
+    "interactive": 4464.714,
+    "total-byte-weight": 691694,
+    "mainthread-work-breakdown": 2483.8489999999315,
+    "bootup-time": 1284.3669999999747
+  },
+  "elementoLCP": "<p class=\"mt-3 text-white/70 text-[12.5px] leading-[1.6] max-w-xs\">",
+  "maioresPedidos": [
+    {
+      "url": "http://localhost:3101/servicos",
+      "kB": 80
+    },
+    {
+      "url": "http://localhost:3101/_img/DaniGui_JantarFesta_26-1080.avif",
+      "kB": 77
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3101/_img/EW1_1330-1080.avif",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3101/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3101/_img/stephanie-mizio-760-1080.avif",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3101/_next/static/media/9d036f80216c14ee.p.3u4lli0-axodc.woff2",
+      "kB": 40
+    },
+    {
+      "url": "http://localhost:3101/?_rsc=mrND_nL-m9V-7O8M",
+      "kB": 33
+    },
+    {
+      "url": "http://localhost:3101/_img/DaniGui_Preview20-1080.avif",
+      "kB": 24
+    }
+  ],
+  "falhas": [
+    {
+      "id": "total-blocking-time",
+      "titulo": "Total Blocking Time",
+      "nota": 0.8,
+      "valor": "290 ms"
+    },
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.48,
+      "valor": "250 ms"
+    },
+    {
+      "id": "interactive",
+      "titulo": "Time to Interactive",
+      "nota": 0.83,
+      "valor": "4.5 s"
+    },
+    {
+      "id": "mainthread-work-breakdown",
+      "titulo": "Minimize main-thread work",
+      "nota": 0,
+      "valor": "2.5 s"
+    },
+    {
+      "id": "bootup-time",
+      "titulo": "Reduce JavaScript execution time",
+      "nota": 0,
+      "valor": "1.3 s"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 23 KiB"
+    },
+    {
+      "id": "uses-responsive-images",
+      "titulo": "Properly size images",
+      "nota": 0.5,
+      "valor": "Est savings of 45 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0.5,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "forced-reflow-insight",
+      "titulo": "Forced reflow",
+      "nota": 0,
+      "valor": null
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0.5,
+      "valor": "Est savings of 84 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0.5,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

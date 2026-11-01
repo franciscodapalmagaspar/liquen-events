@@ -53,12 +53,31 @@ const inter = Inter({
   ],
 });
 
+/**
+ * ── O PLAYFAIR ROMANO TAMBÉM SAI DO PRÉ-CARREGAMENTO (31/10) ──────────────
+ *
+ * O mesmo raciocínio do itálico, aqui em baixo, um passo mais longe. No sítio
+ * público o primeiro ecrã de TODAS as páginas principais é Inter (os títulos
+ * são em maiúsculas de pau). O Playfair romano só aparece nas legendas da
+ * galeria (ao passar o rato) e nas páginas de erro, legais e de confirmação.
+ *
+ * MEDIDO a 31/10 com a rede travada a sério (4G lento, CPU ÷4): os dois
+ * ficheiros, pré-carregados em alta prioridade, dividiam a rede e chegavam
+ * juntos aos ~2,05 s. A barra de cookies espera pelas fontes (ver
+ * `fontes-por-assentar`) e, na galeria, o texto dela é o LCP: 2,1 s, acima dos
+ * 2,0 s do orçamento B12. Sem o Playfair na fila, o Inter chega sozinho.
+ *
+ * A PROPOSTA do casal é a excepção: lá o título É Playfair, no primeiro ecrã.
+ * O layout de `(privado)` declara a sua própria instância, pré-carregada, e
+ * fica exactamente como estava.
+ */
 const playfair = Playfair_Display({
   variable: "--font-playfair",
   subsets: ["latin"],
   style: ["normal"],
   display: "swap",
   adjustFontFallback: true,
+  preload: false,
   fallback: ["Georgia", "Times New Roman", "Times", "serif"],
 });
 

@@ -1,0 +1,157 @@
+{
+  "url": "http://localhost:3102/",
+  "quando": "2026-10-31T00:44:05.620Z",
+  "lighthouse": "12.8.2",
+  "perfil": {
+    "ecra": "mobile",
+    "rede": {
+      "rttMs": 150,
+      "throughputKbps": 1638.4,
+      "requestLatencyMs": 562.5,
+      "downloadThroughputKbps": 1474.5600000000002,
+      "uploadThroughputKbps": 675,
+      "cpuSlowdownMultiplier": 4
+    },
+    "maquina_benchmarkIndex": 3131.5
+  },
+  "notas": {
+    "performance": 76,
+    "accessibility": 100,
+    "best-practices": 100,
+    "seo": 100
+  },
+  "metricas": {
+    "first-contentful-paint": 1139.136,
+    "largest-contentful-paint": 5726.156000000002,
+    "speed-index": 4353.960306507407,
+    "total-blocking-time": 82.5,
+    "cumulative-layout-shift": 0,
+    "interactive": 5837.490000000002,
+    "total-byte-weight": 8344138,
+    "mainthread-work-breakdown": 2288.3759999999993,
+    "bootup-time": 776.2480000000053
+  },
+  "elementoLCP": "<span class=\"block \">",
+  "maioresPedidos": [
+    {
+      "url": "http://localhost:3102/videos/entrada/v6/entrada-1-retrato.mp4",
+      "kB": 7009
+    },
+    {
+      "url": "http://localhost:3102/",
+      "kB": 84
+    },
+    {
+      "url": "http://localhost:3102/_img/EW1_1332-1080.avif",
+      "kB": 73
+    },
+    {
+      "url": "http://localhost:3102/_next/static/chunks/0i8eef_83jjb7.js",
+      "kB": 66
+    },
+    {
+      "url": "http://localhost:3102/_img/DJI_20250913190635_0120_D-1080.avif",
+      "kB": 64
+    },
+    {
+      "url": "http://localhost:3102/_img/JOAO_E_PEDRO_1Y1A4472-1080.avif",
+      "kB": 52
+    },
+    {
+      "url": "http://localhost:3102/_img/EW1_1330-1080.avif",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3102/_next/static/media/07c7676b89ed2778.p.2bn3s6zvc0dyp.woff2",
+      "kB": 49
+    },
+    {
+      "url": "http://localhost:3102/_next/static/chunks/1fkaya2t7r343.js",
+      "kB": 45
+    },
+    {
+      "url": "http://localhost:3102/_next/static/media/9d036f80216c14ee.p.3u4lli0-axodc.woff2",
+      "kB": 40
+    }
+  ],
+  "falhas": [
+    {
+      "id": "largest-contentful-paint",
+      "titulo": "Largest Contentful Paint",
+      "nota": 0.16,
+      "valor": "5.7 s"
+    },
+    {
+      "id": "speed-index",
+      "titulo": "Speed Index",
+      "nota": 0.75,
+      "valor": "4.4 s"
+    },
+    {
+      "id": "max-potential-fid",
+      "titulo": "Max Potential First Input Delay",
+      "nota": 0.88,
+      "valor": "140 ms"
+    },
+    {
+      "id": "interactive",
+      "titulo": "Time to Interactive",
+      "nota": 0.66,
+      "valor": "5.8 s"
+    },
+    {
+      "id": "mainthread-work-breakdown",
+      "titulo": "Minimize main-thread work",
+      "nota": 0,
+      "valor": "2.3 s"
+    },
+    {
+      "id": "largest-contentful-paint-element",
+      "titulo": "Largest Contentful Paint element",
+      "nota": 0,
+      "valor": "5,730 ms"
+    },
+    {
+      "id": "total-byte-weight",
+      "titulo": "Avoid enormous network payloads",
+      "nota": 0.5,
+      "valor": "Total size was 8,149 KiB"
+    },
+    {
+      "id": "unused-javascript",
+      "titulo": "Reduce unused JavaScript",
+      "nota": 0,
+      "valor": "Est savings of 24 KiB"
+    },
+    {
+      "id": "uses-responsive-images",
+      "titulo": "Properly size images",
+      "nota": 0.5,
+      "valor": "Est savings of 80 KiB"
+    },
+    {
+      "id": "legacy-javascript",
+      "titulo": "Avoid serving legacy JavaScript to modern browsers",
+      "nota": 0,
+      "valor": "Est savings of 13 KiB"
+    },
+    {
+      "id": "image-delivery-insight",
+      "titulo": "Improve image delivery",
+      "nota": 0,
+      "valor": "Est savings of 232 KiB"
+    },
+    {
+      "id": "legacy-javascript-insight",
+      "titulo": "Legacy JavaScript",
+      "nota": 0,
+      "valor": "Est savings of 17 KiB"
+    },
+    {
+      "id": "network-dependency-tree-insight",
+      "titulo": "Network dependency tree",
+      "nota": 0,
+      "valor": null
+    }
+  ]
+}

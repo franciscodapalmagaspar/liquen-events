@@ -166,3 +166,14 @@ protótipo dela (que NÃO está no repositório: tem fotografias de uma cliente)
 conteúdo vem de `conteudoDoEditorial` — o MESMO motor do PDF, sem desenhar —, por
 isso a página e o PDF não podem dizer coisas diferentes. Lê a Parte −1 antes de
 mexer em `proposta/[token]`: lá estão as respostas dela e os desvios ao protótipo.
+
+# E o padrão de qualidade da Palumen
+
+`docs/PADRAO-PALUMEN.md` é a fasquia dela, B0–B23: Awwwards, Lighthouse ≥ 90
+no telemóvel nas quatro categorias, nada inventado, português de Portugal. Foi
+escrito para começar sites novos; aqui aplica-se ao site que já existe, **sem o
+recomeçar** (palavras dela). A **Parte −1** diz como: o pedido «nível estúdio»
+(ramo `melhoria/nivel-estudio`, por fases, com o Lighthouse antes e depois de
+cada uma) não toca no back office, na base de dados nem nos formulários de
+orçamento, nem em textos, fotografias, cores ou identidade. As medições vivem
+em `docs/medicoes/`.
