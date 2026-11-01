@@ -12,6 +12,7 @@ import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import MolaAoLargar from "@/components/motion/MolaAoLargar";
 import SmoothScroll from "@/components/motion/SmoothScroll";
 import ErrosDoSite from "@/components/ErrosDoSite";
+import AnteciparFotos from "@/components/AnteciparFotos";
 import type { Locale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n";
 
@@ -94,6 +95,9 @@ export default function CromadoDoSitio({
       <HeroWarm />
       <ServiceWorkerRegister />
       <ErrosDoSite />
+      {/* As fotografias pedem-se dois ecrãs antes de chegarem (o Safari do
+          iPhone só as pedia quase à vista). Ver AnteciparFotos. */}
+      <AnteciparFotos />
       <a
         href="#conteudo"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:bg-moss focus:text-white focus:rounded-md focus:text-sm"
