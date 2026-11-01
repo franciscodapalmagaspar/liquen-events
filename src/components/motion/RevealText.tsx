@@ -4,6 +4,7 @@ import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { prefersReducedMotion } from "@/lib/motion/useReducedMotion";
 import { jaEstaAVista } from "@/lib/motion/primeiro-ecra";
 import { depoisDeCarregar } from "@/lib/depois-de-carregar";
+import { EASE_OUT, REVEAL_S } from "@/lib/motion/tokens";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -39,6 +40,42 @@ type Tag = "h2" | "h3" | "p";
 /** Um ecrã de toque, sem rato: o efeito não corre (ver o efeito). */
 const SEM_RATO = "(hover: none), (pointer: coarse)";
 
+/**
+ * A entrada do telemóvel: o título inteiro, `opacity` e 16 px de `transform`,
+ * com a curva e a duração dos blocos (`AnimateIn`, `@/lib/motion/tokens`).
+ * Esconde-se só o que está abaixo do ecrã (quem chama já o garantiu), e
+ * devolve a limpeza — ao sair, o título fica como o servidor o mandou.
+ */
+function entradaLeve(el: HTMLElement, atraso: number): () => void {
+  el.style.opacity = "0";
+  el.style.transform = "translateY(16px)";
+  const mostrar = () => {
+    const t = `${REVEAL_S}s ${EASE_OUT} ${atraso}s`;
+    el.style.transition = `opacity ${t}, transform ${t}`;
+    el.style.opacity = "";
+    el.style.transform = "";
+  };
+  if (typeof IntersectionObserver !== "function") {
+    mostrar();
+    return () => {};
+  }
+  const vigia = new IntersectionObserver(
+    (es) => {
+      if (!es.some((e) => e.isIntersecting)) return;
+      vigia.disconnect();
+      mostrar();
+    },
+    { threshold: 0.08, rootMargin: "0px 0px -40px 0px" },
+  );
+  vigia.observe(el);
+  return () => {
+    vigia.disconnect();
+    el.style.opacity = "";
+    el.style.transform = "";
+    el.style.transition = "";
+  };
+}
+
 export default function RevealText({
   as: Etiqueta = "h2",
   className,
@@ -67,7 +104,16 @@ export default function RevealText({
     // o DOM de um texto que o React também escreve) enquanto o polegar rola.
     // No telemóvel o título fica como era antes de 30/10, inteiro; o efeito
     // fica no computador, com rato ou trackpad, como o scroll suave e o parallax.
-    if (typeof window.matchMedia === "function" && window.matchMedia(SEM_RATO).matches) return;
+    //
+    // E no dedo volta uma entrada LEVE (1/11, depois de ela confirmar que o
+    // iPhone ficou fluido): o título inteiro sobe 16 px e aparece, como os
+    // blocos do `AnimateIn` — só `opacity` e `transform`, que o compositor faz
+    // sozinho. Sem GSAP, sem partir linhas, sem tocar no texto que o React
+    // escreve: o custo é um observador e dois estilos.
+    if (typeof window.matchMedia === "function" && window.matchMedia(SEM_RATO).matches) {
+      if (jaEstaAVista(el)) return;
+      return entradaLeve(el, atraso);
+    }
     if (jaEstaAVista(el)) return;
     let vivo = true;
     let desfazer = () => {};
