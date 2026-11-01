@@ -36,6 +36,9 @@ import { depoisDeCarregar } from "@/lib/depois-de-carregar";
  */
 type Tag = "h2" | "h3" | "p";
 
+/** Um ecrã de toque, sem rato: o efeito não corre (ver o efeito). */
+const SEM_RATO = "(hover: none), (pointer: coarse)";
+
 export default function RevealText({
   as: Etiqueta = "h2",
   className,
@@ -56,6 +59,15 @@ export default function RevealText({
     const el = ref.current;
     if (!el) return;
     if (prefersReducedMotion()) return;
+    // No DEDO, nada (1/11, à noite). Ela, no iPhone: «o site no geral está todo
+    // bugado e travado» — ao abrir, ao descer, ao mudar de página e de idioma
+    // — e continuou assim depois de sair tudo o que entrou nessa noite. O que o
+    // telemóvel passou a fazer a 30/10 e não fazia antes é isto: descarregar o
+    // GSAP a meio do deslize e partir cada título em linhas (medir, reescrever
+    // o DOM de um texto que o React também escreve) enquanto o polegar rola.
+    // No telemóvel o título fica como era antes de 30/10, inteiro; o efeito
+    // fica no computador, com rato ou trackpad, como o scroll suave e o parallax.
+    if (typeof window.matchMedia === "function" && window.matchMedia(SEM_RATO).matches) return;
     if (jaEstaAVista(el)) return;
     let vivo = true;
     let desfazer = () => {};
