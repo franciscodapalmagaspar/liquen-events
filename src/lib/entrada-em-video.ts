@@ -86,20 +86,11 @@
  *     Feitos agora a partir dos ORIGINAIS 4K (e não da `v6`), com os mesmos
  *     cortes, medidas e tectos da `v7`.
  *
- *   · SEM BARRAS PRETAS AO ALTO, desde 1/11 (`v9`). Os originais 4K trazem
- *     120 px de preto em cima e em baixo (a imagem é 3840×1920 dentro de
- *     3840×2160), e o corte 9:16 da `v8` levava-os consigo: no telemóvel o
- *     vídeo tinha uma faixa preta em cima e outra em baixo. Ela: «o vídeo está
- *     com barras pretas e eu quero que ocupe a página toda». O retrato corta
- *     primeiro a faixa da imagem e só depois enquadra a 9:16 (verificado com
- *     `cropdetect`: 720×1280 cheios). A paisagem já cortava 1920×960 e fica
- *     igual (são os mesmos ficheiros da `v8`).
- *
- * A pasta tem versão (`v9`) porque os vídeos são servidos com cache de um ano:
- * um vídeo novo vai para `v10`, nunca por cima.
+ * A pasta tem versão (`v8`) porque os vídeos são servidos com cache de um ano:
+ * um vídeo novo vai para `v9`, nunca por cima.
  */
 
-export const PASTA_DOS_VIDEOS = "/videos/entrada/v9";
+export const PASTA_DOS_VIDEOS = "/videos/entrada/v8";
 
 /** Quantos vídeos há. */
 export const NUMERO_DE_VIDEOS = 3;

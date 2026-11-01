@@ -73,6 +73,12 @@ afterEach(() => {
 
 async function montar() {
   const r = render(<EntradaEmVideo />);
+  // O take de entrada só arranca depois do `load`, no 1.º instante livre do
+  // browser (`depoisDeCarregar`): o jsdom já carregou, e o browser fica livre.
+  const arranque = ociosos.shift();
+  if (arranque) act(() => arranque.cb());
+  // Sem `requestIdleCallback` (Safari) é um `setTimeout` curto.
+  else if (vi.isFakeTimers()) act(() => void vi.advanceTimersByTime(200));
   await act(async () => {
     for (let k = 0; k < 4; k++) await Promise.resolve();
   });
@@ -121,14 +127,12 @@ function comecar(el: HTMLVideoElement, { andou = true }: { andou?: boolean } = {
 
 describe("EntradaEmVideo", () => {
   /**
-   * O pedido dela: «mal entremos no site, o vídeo comece logo a correr» (16/10),
-   * e outra vez a 1/11, com o site publicado: «eu quero que ele comece logo».
-   * A prova é o HTML que vem do servidor: os três vídeos mudos e, logo a
-   * seguir, o guião que escolhe o take de entrada e o põe a tocar — antes de
-   * qualquer JavaScript do sítio (o pedido «nível estúdio» tinha-o adiado para
-   * depois do `load`, e via-se a capa parada).
+   * O pedido «nível estúdio» (30/10): a fotografia da capa é a primeira coisa
+   * no ecrã e é ela o LCP. O HTML do servidor traz os três vídeos mudos e
+   * VAZIOS — nenhum guião a arrancar o take de entrada antes do `load` (ver
+   * `depoisDeCarregar`).
    */
-  it("o HTML do servidor traz os vídeos mudos e o guião que arranca o take de entrada", () => {
+  it("o HTML do servidor traz os vídeos mudos e vazios, sem guião a arrancá-los", () => {
     const html = renderToStaticMarkup(<EntradaEmVideo />);
     const tags = html.match(/<video [^>]*>/g) ?? [];
     expect(tags).toHaveLength(3);
@@ -138,15 +142,11 @@ describe("EntradaEmVideo", () => {
       expect(t).toMatch(/aria-hidden="true"/);
       expect(t).toMatch(/tabindex="-1"/);
       expect(t).not.toMatch(/\bcontrols\b/);
-      // Nenhum descarrega nada sozinho: é o guião que escolhe qual.
       expect(t).toMatch(/preload="none"/);
       expect(t).not.toMatch(/\bautoplay\b/);
     }
-    expect(html).toContain(GUIAO_DA_ENTRADA);
-    // Com «Poupar dados», o guião não corre (fica só a capa).
-    expect(html).toMatch(/<script>try\{var c=navigator\.connection;if\(!\(c&&c\.saveData\)\)\{/);
-    // Os vídeos saem vazios: as `<source>` só existem no texto do guião.
-    expect(html.slice(0, html.indexOf("<script>"))).not.toContain("<source");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<source");
     // Cada take de entrada: ao alto a vertical, deitado a larga — só H.264 e
     // WebM (a `v7` não tem HEVC, AV1 nem a «grande»).
     for (let n = 1; n <= 3; n++) {
@@ -176,8 +176,11 @@ describe("EntradaEmVideo", () => {
       expect(play).not.toHaveBeenCalled();
       expect(videos(container).every((v) => !v.querySelector("source"))).toBe(true);
     });
-    it("de resto, o take de entrada arranca logo, sem esperar pelo `load`", () => {
+    it("de resto, o take de entrada só arranca depois do `load`, no 1.º instante livre", async () => {
       render(<EntradaEmVideo />);
+      expect(play).not.toHaveBeenCalled();
+      expect(ociosos).toHaveLength(1);
+      ficarLivre();
       expect(play).toHaveBeenCalled();
     });
   });
@@ -204,7 +207,7 @@ describe("EntradaEmVideo", () => {
       expect(vs[0].autoplay).toBe(true);
       expect(
         vs[0].querySelector('source[media="(orientation: portrait)"]')?.getAttribute("src"),
-      ).toBe("/videos/entrada/v9/entrada-1-retrato.mp4");
+      ).toBe("/videos/entrada/v8/entrada-1-retrato.mp4");
       expect(vs[1].querySelector("source")).toBeNull();
       expect(play).toHaveBeenCalled();
     });
@@ -231,7 +234,7 @@ describe("EntradaEmVideo", () => {
       const { vs, n } = entrar();
       expect(vs[n].hasAttribute("data-aliviado")).toBe(true);
       expect(vs[n].querySelector("source")?.getAttribute("src")).toBe(
-        "/videos/entrada/v9/entrada-1-paisagem-leve.mp4",
+        "/videos/entrada/v8/entrada-1-paisagem-leve.mp4",
       );
     });
 
@@ -390,7 +393,7 @@ describe("EntradaEmVideo", () => {
     it("mesmo com a ligação a dizer-se lenta, não troca (a vertical já pesa ~1 MB)", () => {
       ligacao = { effectiveType: "4g", downlink: 2.5 };
       const v = entrarSemCortina();
-      expect(fontes(v)[0]).toBe("/videos/entrada/v9/entrada-1-retrato.mp4");
+      expect(fontes(v)[0]).toBe("/videos/entrada/v8/entrada-1-retrato.mp4");
       expect(v.hasAttribute("data-leve")).toBe(false);
     });
 
@@ -402,7 +405,7 @@ describe("EntradaEmVideo", () => {
       });
       vi.advanceTimersByTime(1200);
       expect(v.hasAttribute("data-leve")).toBe(false);
-      expect(fontes(v)[0]).toBe("/videos/entrada/v9/entrada-1-retrato.mp4");
+      expect(fontes(v)[0]).toBe("/videos/entrada/v8/entrada-1-retrato.mp4");
     });
 
     it("um browser que só toca WebM nunca passa à leve (ficava sem vídeo)", () => {
@@ -438,7 +441,7 @@ describe("EntradaEmVideo", () => {
 
     comecar(a);
     expect(a.style.opacity).toBe("1");
-    expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+    expect(b.getAttribute("src")).toBe("/videos/entrada/v8/entrada-2-paisagem.mp4");
   });
 
   it("no telemóvel ao alto, os seguintes vêm na versão vertical", async () => {
@@ -644,7 +647,7 @@ describe("EntradaEmVideo", () => {
       const { container } = await montar();
       expect(videos(container).every((v) => v.style.opacity === "0")).toBe(true);
       const img = container.querySelector<HTMLImageElement>("img[data-entrada-imagem]");
-      expect(img?.getAttribute("src")).toBe("/videos/entrada/v9/entrada-1-paisagem.mp4");
+      expect(img?.getAttribute("src")).toBe("/videos/entrada/v8/entrada-1-paisagem.mp4");
       expect(img?.getAttribute("aria-hidden")).toBe("true");
       expect(img?.style.opacity).toBe("0");
       act(() => void img!.dispatchEvent(new Event("load")));
@@ -658,7 +661,7 @@ describe("EntradaEmVideo", () => {
       recusar();
       const { container } = await montar();
       expect(container.querySelector("img[data-entrada-imagem]")?.getAttribute("src")).toBe(
-        "/videos/entrada/v9/entrada-1-retrato.mp4",
+        "/videos/entrada/v8/entrada-1-retrato.mp4",
       );
     });
 
@@ -667,7 +670,7 @@ describe("EntradaEmVideo", () => {
       recusar();
       const { container } = await montar();
       expect(container.querySelector("img[data-entrada-imagem]")?.getAttribute("src")).toBe(
-        "/videos/entrada/v9/entrada-1-paisagem-animada.webp",
+        "/videos/entrada/v8/entrada-1-paisagem-animada.webp",
       );
       expect(videos(container).every((v) => v.style.opacity === "0")).toBe(true);
     });
@@ -680,7 +683,7 @@ describe("EntradaEmVideo", () => {
       const { container } = await montar();
       const img = container.querySelector<HTMLImageElement>("img[data-entrada-imagem]")!;
       act(() => void img.dispatchEvent(new Event("error")));
-      expect(img.getAttribute("src")).toBe("/videos/entrada/v9/entrada-1-retrato-animada.webp");
+      expect(img.getAttribute("src")).toBe("/videos/entrada/v8/entrada-1-retrato-animada.webp");
       expect(img.isConnected).toBe(true);
       act(() => void img.dispatchEvent(new Event("error")));
       expect(img.isConnected).toBe(false);
@@ -698,7 +701,7 @@ describe("EntradaEmVideo", () => {
         });
         const imgs = document.querySelectorAll<HTMLImageElement>("img[data-entrada-imagem]");
         expect(imgs).toHaveLength(1);
-        expect(imgs[0].getAttribute("src")).toBe("/videos/entrada/v9/entrada-1-paisagem.mp4");
+        expect(imgs[0].getAttribute("src")).toBe("/videos/entrada/v8/entrada-1-paisagem.mp4");
         // Quem vier depois (o motor) reconhece-a em vez de pôr outra.
         const raiz = document.querySelector("[data-entrada]")!;
         expect(porImagemAnimada(raiz, imagensAnimadas(0), false, 800)).toBe(imgs[0]);
@@ -853,10 +856,10 @@ describe("EntradaEmVideo", () => {
       const [a, b] = videos(container);
       Object.defineProperty(a, "currentSrc", {
         configurable: true,
-        value: "http://localhost/videos/entrada/v9/entrada-1-paisagem.mp4",
+        value: "http://localhost/videos/entrada/v8/entrada-1-paisagem.mp4",
       });
       comecar(a);
-      expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+      expect(b.getAttribute("src")).toBe("/videos/entrada/v8/entrada-2-paisagem.mp4");
       // Roda para ao alto.
       Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
       Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 });
@@ -864,8 +867,8 @@ describe("EntradaEmVideo", () => {
         for (const f of ouvintes) f();
         await new Promise((r) => setTimeout(r, 350));
       });
-      expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-retrato.mp4");
-      expect(a.getAttribute("src")).toBe("/videos/entrada/v9/entrada-1-retrato.mp4");
+      expect(b.getAttribute("src")).toBe("/videos/entrada/v8/entrada-2-retrato.mp4");
+      expect(a.getAttribute("src")).toBe("/videos/entrada/v8/entrada-1-retrato.mp4");
     });
   });
 
@@ -883,7 +886,7 @@ describe("EntradaEmVideo", () => {
       const [a, b, c] = videos(container);
       comecar(a);
       expect(globalThis.fetch).not.toHaveBeenCalled();
-      expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+      expect(b.getAttribute("src")).toBe("/videos/entrada/v8/entrada-2-paisagem.mp4");
       // O 2 já está pronto, mas o 3 não se prepara antes de o 2 ser o próximo.
       act(() => void b.dispatchEvent(new Event("canplaythrough")));
       Object.defineProperty(b, "readyState", { configurable: true, value: 4 });
@@ -903,7 +906,7 @@ describe("EntradaEmVideo", () => {
       Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn() });
       const { container } = await montar();
       comecar(videos(container)[0]);
-      expect(pedidos).toEqual(["/videos/entrada/v9/entrada-2-paisagem.mp4"]);
+      expect(pedidos).toEqual(["/videos/entrada/v8/entrada-2-paisagem.mp4"]);
     });
   });
 
@@ -943,7 +946,7 @@ describe("EntradaEmVideo", () => {
       Object.defineProperty(a, "duration", { configurable: true, value: 18 });
       Object.defineProperty(a, "currentTime", { configurable: true, value: 2, writable: true });
       comecar(a);
-      expect(pedidos).toEqual(["/videos/entrada/v9/entrada-2-paisagem.mp4"]);
+      expect(pedidos).toEqual(["/videos/entrada/v8/entrada-2-paisagem.mp4"]);
       responder(true);
       await esperar();
       // Já está na memória, mas ainda faltam 16 s: não se põe a descodificar.
@@ -966,7 +969,7 @@ describe("EntradaEmVideo", () => {
       await esperar();
       // O de abertura está à vista: ainda não se pede a cópia dele (só volta
       // a ser preciso no fim da volta).
-      expect(pedidos).toEqual(["/videos/entrada/v9/entrada-2-paisagem.mp4"]);
+      expect(pedidos).toEqual(["/videos/entrada/v8/entrada-2-paisagem.mp4"]);
 
       // A passagem para o 2.
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -982,13 +985,13 @@ describe("EntradaEmVideo", () => {
       }
       expect(b.style.opacity).toBe("1");
       // Agora o 3 (o seguinte), e depois dele a cópia do de abertura.
-      expect(pedidos.at(-1)).toBe("/videos/entrada/v9/entrada-3-paisagem.mp4");
+      expect(pedidos.at(-1)).toBe("/videos/entrada/v8/entrada-3-paisagem.mp4");
       responder(true);
       await esperar();
       expect(pedidos).toEqual([
-        "/videos/entrada/v9/entrada-2-paisagem.mp4",
-        "/videos/entrada/v9/entrada-3-paisagem.mp4",
-        "/videos/entrada/v9/entrada-1-paisagem.mp4",
+        "/videos/entrada/v8/entrada-2-paisagem.mp4",
+        "/videos/entrada/v8/entrada-3-paisagem.mp4",
+        "/videos/entrada/v8/entrada-1-paisagem.mp4",
       ]);
       responder(true);
       await esperar();
@@ -1009,7 +1012,7 @@ describe("EntradaEmVideo", () => {
       expect(b.getAttribute("src")).toBe("blob:take-1");
       act(() => void b.dispatchEvent(new Event("error")));
       expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:take-1");
-      expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+      expect(b.getAttribute("src")).toBe("/videos/entrada/v8/entrada-2-paisagem.mp4");
     });
 
     it("depois de cada passagem, o que saiu FICA carregado (largá-lo prendia a imagem no iPhone)", async () => {
@@ -1036,7 +1039,7 @@ describe("EntradaEmVideo", () => {
         // registo do iPhone, 17/10: era aí que a imagem à vista prendia).
         expect(a.currentTime).toBe(16.5);
         // Na passagem pede-se o 3 (um take à frente), e chega.
-        expect(pedidos.at(-1)).toBe("/videos/entrada/v9/entrada-3-paisagem.mp4");
+        expect(pedidos.at(-1)).toBe("/videos/entrada/v8/entrada-3-paisagem.mp4");
         responder(true);
         await esperar();
         // 2 → 3: o 3 é aquecido da memória perto do fim do 2…
@@ -1068,7 +1071,7 @@ describe("EntradaEmVideo", () => {
       comecar(a);
       responder(false);
       await esperar();
-      expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+      expect(b.getAttribute("src")).toBe("/videos/entrada/v8/entrada-2-paisagem.mp4");
     });
 
     it("não divide a rede com o take de entrada enquanto ele não chegou inteiro", async () => {
@@ -1141,7 +1144,7 @@ describe("EntradaEmVideo", () => {
         expect(ociosos).toHaveLength(1);
         expect(ociosos[0].timeout).toBe(OCIOSO_MAX_MS); // …que o browser não pode adiar mais do que isto
         ficarLivre();
-        expect(pedidos).toEqual(["/videos/entrada/v9/entrada-2-paisagem.mp4"]);
+        expect(pedidos).toEqual(["/videos/entrada/v8/entrada-2-paisagem.mp4"]);
         // E um só pedido de instante livre, por muitos `timeupdate` que venham.
         anda(a, SEGUINTES_DEPOIS_DE_S + 0.3);
         expect(ociosos).toEqual([]);
@@ -1162,7 +1165,7 @@ describe("EntradaEmVideo", () => {
         act(() => void vi.advanceTimersByTime(6399));
         expect(pedidos).toEqual([]);
         act(() => void vi.advanceTimersByTime(1));
-        expect(pedidos).toEqual(["/videos/entrada/v9/entrada-2-paisagem.mp4"]);
+        expect(pedidos).toEqual(["/videos/entrada/v8/entrada-2-paisagem.mp4"]);
         expect(a.currentTime).toBe(0);
       });
 
@@ -1402,10 +1405,10 @@ describe("EntradaEmVideo", () => {
         const [a, b] = videos(container);
         aVer(a);
         comecar(a);
-        expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v8/entrada-2-paisagem.mp4");
         anda(a, { total: 0, perdidos: 0 }, 14, 7);
-        expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem-leve.mp4");
-        expect(a.getAttribute("src")).toBe("/videos/entrada/v9/entrada-1-paisagem-leve.mp4");
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v8/entrada-2-paisagem-leve.mp4");
+        expect(a.getAttribute("src")).toBe("/videos/entrada/v8/entrada-1-paisagem-leve.mp4");
         expect(Number(localStorage.getItem("liquen-entrada-leve"))).toBeGreaterThan(0);
       });
 
@@ -1415,7 +1418,7 @@ describe("EntradaEmVideo", () => {
         aVer(a);
         comecar(a);
         anda(a, { total: 0, perdidos: 0 }, 14, 3);
-        expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem-leve.mp4");
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v8/entrada-2-paisagem-leve.mp4");
         expect(a.getAttribute("src")).toBeNull();
       });
 
@@ -1425,7 +1428,7 @@ describe("EntradaEmVideo", () => {
         aVer(a);
         comecar(a);
         anda(a, { total: 0, perdidos: 0 }, 14, 1);
-        expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v8/entrada-2-paisagem.mp4");
         expect(localStorage.getItem("liquen-entrada-leve")).toBeNull();
       });
 
@@ -1435,7 +1438,7 @@ describe("EntradaEmVideo", () => {
         aVer(a);
         comecar(a);
         anda(a, { total: 0, perdidos: 0 }, 5, 12);
-        expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v8/entrada-2-paisagem.mp4");
       });
     });
 

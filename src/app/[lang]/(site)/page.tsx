@@ -58,15 +58,10 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
           vale 0 px quando não há aviso; a fotografia continua a ocupar o ecrã
           inteiro, porque o que se mexe é o conteúdo dentro da caixa, não a
           caixa. Ver `--reserva-consentimento` em globals.css. */}
-      {/* Enquanto a fotografia chega, o fundo é a PRÓPRIA capa desfocada (o
-          mesmo `blurDataURL` de ~100 bytes que já vai no HTML), por cima do
-          preto do véu. Até 1/11 era só o preto (30/10, «nível estúdio»: «sem
-          ecrã branco»), e ela viu-o ao trocar de idioma: «ficou tudo bugado,
-          tudo preto». Assim o primeiro instante já tem as cores da floresta. */}
-      <section
-        className="recuo-consentimento relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden bg-[#080808] bg-cover bg-center"
-        style={{ backgroundImage: `url("${blurFor(FOTO_DA_ENTRADA).blurDataURL}")` }}
-      >
+      {/* `bg-[#080808]`: enquanto a fotografia chega, o ecrã é escuro, e não
+          branco (30/10, «nível estúdio»: «sobre fundo escuro […] sem ecrã
+          branco»). É o mesmo preto do véu. */}
+      <section className="recuo-consentimento relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden bg-[#080808]">
         <Parallax speed={0.14} drift className="absolute inset-0">
           {/* A fotografia é o 1.º fotograma do vídeo 1: é o LCP (AVIF,
               pré-carregada) e é por cima dela que os vídeos entram sem salto.
@@ -309,13 +304,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
           }}
         />
 
-        {/* O véu atrás do texto MEDIDO NESTA FOTOGRAFIA (1/11), e não no pior caso
-            de uma fotografia branca (0,76, que é o que o verde de «em mente?»
-            pede sobre branco). Ela: «isto está assim escuro». Medido no
-            percentil 98 do brilho por trás de cada linha: o sobretítulo (4,5:1)
-            e o verde do título (3:1, texto grande) pedem 0,62 no telemóvel e
-            0,50 no computador. Ficam 0,64 e 0,52, com folga. */}
-        <div className="text-veil-shadow veu-texto veu-texto--centro [--veu-alfa:0.64] lg:[--veu-alfa:0.52] [--veu-recuo-cima:7rem] [--veu-recuo-baixo:7rem] lg:[--veu-recuo-cima:10rem] lg:[--veu-recuo-baixo:10rem] relative z-10 max-w-7xl mx-auto px-6 lg:px-16 py-28 lg:py-40 flex flex-col items-center text-center">
+        <div className="text-veil-shadow veu-texto veu-texto--centro [--veu-alfa:0.76] [--veu-recuo-cima:7rem] [--veu-recuo-baixo:7rem] lg:[--veu-recuo-cima:10rem] lg:[--veu-recuo-baixo:10rem] relative z-10 max-w-7xl mx-auto px-6 lg:px-16 py-28 lg:py-40 flex flex-col items-center text-center">
           <AnimateIn>
             <p className="text-white/70 text-[10px] tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
               <span className="w-8 h-px bg-gold" />
