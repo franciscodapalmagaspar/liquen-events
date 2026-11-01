@@ -195,10 +195,7 @@ function verificarArvore(raiz: ParentNode, ondeVem: string) {
    página inicial. Corrigidos uma vez, ficam corrigidos em toda a parte — e é
    por isso que a rede tem de estar aqui e não em cada página. */
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/sobre",
-  useRouter: () => ({ push: () => {}, replace: () => {}, prefetch: () => {} }),
-}));
+vi.mock("next/navigation", () => ({ usePathname: () => "/sobre" }));
 
 const dicionario = await getDictionary("pt");
 

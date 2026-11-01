@@ -48,6 +48,7 @@ import {
   varianteConfirmada,
   varianteParaOEcra,
 } from "@/lib/entrada-em-video";
+import { depoisDeCarregar } from "@/lib/depois-de-carregar";
 import {
   ROTA_DO_DIAGNOSTICO,
   RegistoDoVideo,
@@ -522,30 +523,22 @@ const ANIMADAS = imagensAnimadas(TAKE_DE_ENTRADA);
 export const GUIAO_DA_ENTRADA = `(${arrancarEntrada.toString()})(${JSON.stringify(FONTES)},${JSON.stringify(CHAVE_DO_ULTIMO)},${CORTINA_ESPERA_MAX_MS},${JSON.stringify(LEVES)},${MEDIR_REDE_MS},${JSON.stringify(ANIMADAS)},${porImagemAnimada.toString()},${PASSAGEM_MS},${JSON.stringify(LEVES_DEITADO)},${JSON.stringify(CHAVE_DO_ALIVIO)},${ALIVIO_DURA_MS});`;
 
 /**
- * O HTML dos três vídeos, igual no servidor e no browser: os três vazios, e o
- * guião que escolhe o take de entrada e o põe a tocar.
+ * O HTML dos três vídeos, igual no servidor e no browser: os três vazios.
  *
- * O GUIÃO VOLTOU AO HTML (1/11). O pedido «nível estúdio» (30/10) tinha-o
- * tirado daqui, para o vídeo só começar a descarregar depois do `load`: a
- * fotografia da capa ficava sozinha no ecrã durante o carregamento. Ela, no
- * iPhone, com o site publicado: «o vídeo quando entro não começa logo… fica
- * tipo capa e só depois é que começa, e eu não quero isso… eu quero que ele
- * comece logo». É a mesma frase de 16/10 («mal entremos no site, o vídeo
- * comece logo a correr»), e é ela que manda.
- *
- * O que o pedido de 30/10 pesava já não pesa assim: o take de entrada da `v8`
- * tem ~1,1 MB ao alto e ≤ 2,9 MB deitado (eram 3,3 a 6,9 MB), e os seguintes
- * continuam a esperar que este esteja a correr (`prepararOQueVem`).
- *
- * Com «Poupar dados» o guião não corre, e fica só a capa (`soACapa`).
+ * SEM O GUIÃO, desde 30/10 («nível estúdio»). Ele corria escrito no HTML,
+ * enquanto o browser lia a página, e punha o take de entrada a descarregar
+ * logo — 3,3 a 6,9 MB a disputar a rede com a fotografia da capa, e um guião
+ * de vários KB a correr no processador antes de tudo (MEDIDO na Fase 0: o
+ * próprio documento gastava 1,6 a 2,6 s de processador num telemóvel lento).
+ * O pedido dela: «o vídeo só começa a carregar depois de a página carregar
+ * (evento `load` ou `requestIdleCallback`), e só o primeiro dos três». Agora
+ * é o componente que o arranca, nesse instante (ver `depoisDeCarregar`). O
+ * `GUIAO_DA_ENTRADA` continua exportado para os testes que o lêem.
  */
-export const HTML_DOS_VIDEOS =
-  Array.from(
-    { length: NUMERO_DE_VIDEOS },
-    (_, k) =>
-      `<video data-entrada-video="${k}" preload="none" ${COMUNS} style="${ESTILO}"></video>`,
-  ).join("") +
-  `<script>try{var c=navigator.connection;if(!(c&&c.saveData)){${GUIAO_DA_ENTRADA}}}catch(e){}</script>`;
+export const HTML_DOS_VIDEOS = Array.from(
+  { length: NUMERO_DE_VIDEOS },
+  (_, k) => `<video data-entrada-video="${k}" preload="none" ${COMUNS} style="${ESTILO}"></video>`,
+).join("");
 
 /**
  * O que toca os vídeos, e que SOBREVIVE a sair da página inicial.
@@ -1909,6 +1902,9 @@ export function soACapa(): boolean {
   return !!lig?.saveData;
 }
 
+/** Ver `lib/depois-de-carregar.ts` (partilhado com o scroll suave). */
+export { depoisDeCarregar };
+
 export default function EntradaEmVideo() {
   const caixa = useRef<HTMLDivElement>(null);
 
@@ -1923,24 +1919,32 @@ export default function EntradaEmVideo() {
       m.ligar(raiz);
       return () => m.desligar();
     }
-    // Numa navegação dentro do sítio o guião do HTML não correu: corre-se aqui.
-    if (!raiz.querySelector("[data-primeiro]")) {
-      arrancarEntrada(
-        FONTES,
-        CHAVE_DO_ULTIMO,
-        CORTINA_ESPERA_MAX_MS,
-        LEVES,
-        MEDIR_REDE_MS,
-        ANIMADAS,
-        porImagemAnimada,
-        PASSAGEM_MS,
-      );
-    }
-    const m = criarMotor(raiz);
-    if (!m) return;
-    motorDaSessao = m;
-    m.ligar(raiz);
-    return () => m.desligar();
+    // O take de entrada arranca depois de a página carregar (ver
+    // `HTML_DOS_VIDEOS`): até lá, vê-se a fotografia da capa.
+    let m: Motor | null = null;
+    const cancelar = depoisDeCarregar(() => {
+      if (!raiz.isConnected) return;
+      if (!raiz.querySelector("[data-primeiro]")) {
+        arrancarEntrada(
+          FONTES,
+          CHAVE_DO_ULTIMO,
+          CORTINA_ESPERA_MAX_MS,
+          LEVES,
+          MEDIR_REDE_MS,
+          ANIMADAS,
+          porImagemAnimada,
+          PASSAGEM_MS,
+        );
+      }
+      m = criarMotor(raiz);
+      if (!m) return;
+      motorDaSessao = m;
+      m.ligar(raiz);
+    });
+    return () => {
+      cancelar();
+      m?.desligar();
+    };
   }, []);
 
   return (

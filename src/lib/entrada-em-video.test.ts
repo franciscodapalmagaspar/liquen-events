@@ -87,13 +87,13 @@ describe("os vídeos da entrada — as regras", () => {
 
   it("o HEVC e o AV1 seriam MP4 com o codec no nome (os registos antigos ainda os nomeiam)", () => {
     expect(enderecoDoVideo(0, "paisagem", "hevc")).toBe(
-      "/videos/entrada/v9/entrada-1-paisagem-hevc.mp4",
+      "/videos/entrada/v8/entrada-1-paisagem-hevc.mp4",
     );
     // Sem grande na v7: a grande cai para a paisagem.
     expect(enderecoDoVideo(1, "grande", "av1")).toBe(
-      "/videos/entrada/v9/entrada-2-paisagem-av1.mp4",
+      "/videos/entrada/v8/entrada-2-paisagem-av1.mp4",
     );
-    expect(formatoDoEndereco("https://x/videos/entrada/v9/entrada-1-retrato-hevc.mp4")).toBe(
+    expect(formatoDoEndereco("https://x/videos/entrada/v8/entrada-1-retrato-hevc.mp4")).toBe(
       "hevc",
     );
     expect(formatoDoEndereco("/v/entrada-1-retrato-av1.mp4")).toBe("av1");
@@ -139,15 +139,15 @@ describe("os vídeos da entrada — as regras", () => {
   });
 
   it("a floresta como imagem animada: o MP4 no <img> e o WebP, ao alto e deitado", () => {
-    expect(enderecoAnimada(0, "retrato")).toBe("/videos/entrada/v9/entrada-1-retrato-animada.webp");
+    expect(enderecoAnimada(0, "retrato")).toBe("/videos/entrada/v8/entrada-1-retrato-animada.webp");
     expect(imagensAnimadas(TAKE_DE_ENTRADA)).toEqual({
       mp4: [
-        "/videos/entrada/v9/entrada-1-retrato.mp4",
-        "/videos/entrada/v9/entrada-1-paisagem.mp4",
+        "/videos/entrada/v8/entrada-1-retrato.mp4",
+        "/videos/entrada/v8/entrada-1-paisagem.mp4",
       ],
       webp: [
-        "/videos/entrada/v9/entrada-1-retrato-animada.webp",
-        "/videos/entrada/v9/entrada-1-paisagem-animada.webp",
+        "/videos/entrada/v8/entrada-1-retrato-animada.webp",
+        "/videos/entrada/v8/entrada-1-paisagem-animada.webp",
       ],
     });
     // Os WebP existem e não passam do tecto (é o que se descarrega quando o
@@ -159,8 +159,8 @@ describe("os vídeos da entrada — as regras", () => {
   });
 
   it("a versão leve ao alto é, desde a v7, a própria vertical (720 px, ~1 MB)", () => {
-    expect(enderecoLeve(0, "hevc")).toBe("/videos/entrada/v9/entrada-1-retrato.mp4");
-    expect(enderecoLeve(2, "mp4")).toBe("/videos/entrada/v9/entrada-3-retrato.mp4");
+    expect(enderecoLeve(0, "hevc")).toBe("/videos/entrada/v8/entrada-1-retrato.mp4");
+    expect(enderecoLeve(2, "mp4")).toBe("/videos/entrada/v8/entrada-3-retrato.mp4");
   });
 
   it("a ligação diz-se lenta: poupar dados, 2G/3G, ou menos de 5 Mbit/s", () => {

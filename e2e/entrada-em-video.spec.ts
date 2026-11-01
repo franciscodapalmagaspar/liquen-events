@@ -10,9 +10,8 @@ import { test, expect } from "@playwright/test";
  * EntradaEmVideo.test.tsx); aqui prova-se o que só um browser mostra:
  *   · o vídeo chega a TOCAR (o tempo avança) e fica à vista por cima da foto;
  *   · a fotografia continua por baixo — é o LCP, e é o que fica sem vídeo;
- *   · o take de entrada pede-se LOGO, pelo guião do HTML, sem esperar pelo
- *     `load` (ela, 1/11: «quero que ele comece logo»); os outros dois só
- *     depois do `load` (o pedido «nível estúdio», 30/10);
+ *   · nenhum vídeo se pede antes do `load`: a capa é a primeira coisa no ecrã
+ *     (o pedido «nível estúdio», 30/10, que também tirou a cortina do sítio);
  *   · com movimento reduzido o vídeo toca na mesma (decisão dela, 16/10, e
  *     outra vez a 31/10: «O vídeo toca sempre»);
  *   · cada entrada abre num take diferente.
@@ -26,7 +25,7 @@ test.describe("@movimento a entrada em vídeo", () => {
   test("o take de entrada entra por cima da fotografia e toca", async ({ page }) => {
     test.setTimeout(60_000);
     const seguinte = page.waitForRequest(
-      (r) => /\/videos\/entrada\/v9\/entrada-[23]-/.test(r.url()),
+      (r) => /\/videos\/entrada\/v8\/entrada-[23]-/.test(r.url()),
       {
         timeout: 30_000,
       },
@@ -37,7 +36,7 @@ test.describe("@movimento a entrada em vídeo", () => {
     await expect(primeiro).toHaveAttribute("data-entrada-video", "0");
     await expect(primeiro).toHaveCSS("opacity", "1", { timeout: 25_000 });
     expect(await primeiro.evaluate((v: HTMLVideoElement) => v.currentSrc)).toMatch(
-      /\/videos\/entrada\/v9\/entrada-1-(paisagem|retrato)/,
+      /\/videos\/entrada\/v8\/entrada-1-(paisagem|retrato)/,
     );
 
     const t1 = await primeiro.evaluate((v: HTMLVideoElement) => v.currentTime);
@@ -69,15 +68,12 @@ test.describe("@movimento a entrada em vídeo", () => {
     expect(takes[2]).not.toBe(takes[1]);
   });
 
-  // Ela, 1/11, com o site publicado: «o vídeo quando entro não começa logo…
-  // fica tipo capa e só depois é que começa». O take de entrada volta a pedir-se
-  // enquanto a página carrega (o guião do HTML); os OUTROS dois continuam a
-  // esperar pelo `load` (o pedido «nível estúdio», 30/10: só o primeiro).
-  test("o take de entrada pede-se antes do load; os outros só depois", async ({ page }) => {
+  // O pedido «nível estúdio» (30/10): a fotografia da capa é o LCP, e o vídeo
+  // só se pede depois de a página carregar.
+  test("nenhum vídeo se pede antes do load da página", async ({ page }) => {
     test.setTimeout(60_000);
     await page.goto("/");
     await expect(page.locator("video[data-primeiro]")).toHaveCount(1, { timeout: 25_000 });
-    await page.waitForLoadState("load");
     // Os relógios do próprio browser: quando acabou o `load` e quando começou
     // cada pedido de vídeo.
     const { load, videos } = await page.evaluate(() => {
@@ -89,12 +85,7 @@ test.describe("@movimento a entrada em vídeo", () => {
       return { load: nav.loadEventStart, videos: vs };
     });
     expect(load).toBeGreaterThan(0);
-    const entrada = videos.filter((v) => /\/entrada-1-/.test(v.url));
-    expect(entrada.length, "o take de entrada não foi pedido").toBeGreaterThan(0);
-    expect(Math.min(...entrada.map((v) => v.inicio))).toBeLessThan(load);
-    for (const v of videos.filter((v) => /\/entrada-[23]-/.test(v.url))) {
-      expect(v.inicio, v.url).toBeGreaterThanOrEqual(load);
-    }
+    for (const v of videos) expect(v.inicio, v.url).toBeGreaterThanOrEqual(load);
   });
 
   test("com movimento reduzido o vídeo toca na mesma", async ({ browser }) => {
