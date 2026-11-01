@@ -61,8 +61,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
       {/* Enquanto a fotografia chega, o fundo é a PRÓPRIA capa desfocada (o
           mesmo `blurDataURL` de ~100 bytes que já vai no HTML), por cima do
           preto do véu. Até 1/11 era só o preto (30/10, «nível estúdio»: «sem
-          ecrã branco»), e ela viu-o ao trocar de idioma: «ficou tudo bugado,
-          tudo preto». Assim o primeiro instante já tem as cores da floresta. */}
+          ecrã branco»), e ela via-o: «ficou tudo preto». */}
       <section
         className="recuo-consentimento relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden bg-[#080808] bg-cover bg-center"
         style={{ backgroundImage: `url("${blurFor(FOTO_DA_ENTRADA).blurDataURL}")` }}

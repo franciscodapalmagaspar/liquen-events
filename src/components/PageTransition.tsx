@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { usePublicPathname } from "@/lib/use-public-pathname";
 import { useEffect, useState } from "react";
 import { useIsomorphicLayoutEffect } from "@/lib/motion/useIsomorphicLayoutEffect";
@@ -37,7 +38,16 @@ import { ViewTransition } from "./vt";
 const USE_VIEW_TRANSITIONS = false;
 export default function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePublicPathname();
+  // A CHAVE é o endereço COMPLETO, com o `/en` (1/11, à noite). Com o público
+  // (sem `/en`), trocar de idioma não refazia a página: o React ia remendar o
+  // texto antigo no sítio — e um título que o GSAP partiu em linhas já não tem
+  // o texto onde o React o deixou. Ela, no iPhone: «muda, mas fica partido».
+  // Com a chave completa, a página em inglês nasce de novo (com a mesma entrada
+  // suave de qualquer navegação); o vídeo da entrada continua, porque o motor
+  // vive fora da árvore (`motorDaSessao`, EntradaEmVideo).
+  const chave = usePathname();
   const [entryPath] = useState(pathname);
+  const [entryKey] = useState(chave);
 
   // Whether the BROWSER supports the View Transitions API. React's ViewTransition
   // export exists regardless of browser, so on Safari < 18 (export present, but
@@ -79,7 +89,7 @@ export default function PageTransition({ children }: { children: React.ReactNode
     // subtree so per-page state resets; non-prefetched routes still show the dark
     // loading.tsx.
     return (
-      <div key={pathname} className={isNavigation ? "route-fade" : undefined}>
+      <div key={chave} className={isNavigation || chave !== entryKey ? "route-fade" : undefined}>
         {children}
       </div>
     );
@@ -94,7 +104,7 @@ export default function PageTransition({ children }: { children: React.ReactNode
     default: "vt-page",
   };
   return (
-    <ViewTransition key={pathname} enter={typeMap} exit={typeMap} default="none">
+    <ViewTransition key={chave} enter={typeMap} exit={typeMap} default="none">
       {children}
     </ViewTransition>
   );

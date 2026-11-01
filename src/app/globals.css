@@ -1968,21 +1968,6 @@ body[data-menu-open] .whatsapp-fixed {
   }
 }
 
-/* ── ENTRE DOCUMENTOS: A PÁGINA VELHA FICA ATÉ A NOVA ESTAR PRONTA (1/11) ──
-   As navegações do próprio sítio não recarregam (ver o PageTransition), mas
-   algumas ainda recarregam a página inteira: o recurso da troca de idioma,
-   um endereço escrito à mão dentro do sítio, o voltar de uma página de fora.
-   Sem isto, o browser mostra o ecrã vazio entre as duas — branco, e a seguir o
-   fundo da capa. Ela viu-o ao trocar de idioma: «ficou tudo bugado, tudo
-   preto». Com `navigation: auto`, a página que sai fica à vista até a que
-   entra desenhar o primeiro ecrã, e as duas fundem-se (o fundido curto que o
-   browser já traz, só opacidade). Onde o browser não sabe, fica como estava. */
-@media (prefers-reduced-motion: no-preference) {
-  @view-transition {
-    navigation: auto;
-  }
-}
-
 /* ── Magnetic / hover lift used across CTAs ── */
 .lift {
   /* O `box-shadow` estava em `ease` enquanto o `transform` estava na

@@ -70,6 +70,13 @@ export default function LanguageToggle({ light = false }: { light?: boolean }) {
     }
     document.documentElement.lang = htmlLang(next);
     router.push(alvo, { scroll: false });
+    // A REDE (1/11, à noite). Ela: «o site online em inglês não funciona». No
+    // Chrome a troca chega em ~0,3 s; o Safari do iPhone não se consegue medir
+    // daqui. Se em 1,5 s o endereço ainda não é o pedido, a navegação do sítio
+    // não chegou: faz-se a inteira, que funciona sempre.
+    window.setTimeout(() => {
+      if (window.location.pathname !== dest) window.location.assign(alvo);
+    }, 1500);
   }
   // px/py enlarge the hit area to the 24×24 minimum (WCAG 2.5.8); the negative
   // vertical margin keeps the navbar's height unchanged.
