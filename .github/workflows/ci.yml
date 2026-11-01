@@ -47,7 +47,7 @@ jobs:
   # dúvida, tudo.
   decidir:
     name: O que verificar
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -77,7 +77,7 @@ jobs:
 
   estatico:
     name: Lint · Typecheck · Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # (Até 15/10 este job também corria os testes de unidade — ver `unitarios`.)
     # Este job faz install + audit + lint + typecheck + ~2900 testes + um build
     # completo do Next (que inclui a pré-geração de 172 imagens). Em 2026-08-05
@@ -159,7 +159,7 @@ jobs:
     name: Testes unitários (${{ matrix.parte }}/5)
     needs: decidir
     if: needs.decidir.outputs.unidade != 'nada'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -197,7 +197,7 @@ jobs:
     # ter passado) disse que a mudança não lhes chega.
     needs: [decidir, estatico, unitarios]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Todas as partes passaram?
@@ -221,7 +221,7 @@ jobs:
     needs: quality
     # Só ramos deste repositório: um fork não tem, nem pode ter, escrita.
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
@@ -265,7 +265,7 @@ jobs:
     name: E2E informativo (${{ matrix.parte }}/4)
     needs: decidir
     if: needs.decidir.outputs.e2e == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -300,7 +300,7 @@ jobs:
     name: E2E · imagens (${{ matrix.parte }}/3)
     needs: decidir
     if: needs.decidir.outputs.e2e == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -342,7 +342,7 @@ jobs:
     name: E2E · peso, galeria, molas, vidro, sem rede
     needs: decidir
     if: needs.decidir.outputs.e2e == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -491,7 +491,7 @@ jobs:
     name: E2E · dados (${{ matrix.parte }}/3)
     needs: decidir
     if: needs.decidir.outputs.back_office == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     # Em três partes: cada uma tem o seu runner, o seu servidor `dev` e os seus
     # dados — o `workers: 1` da config continua verdadeiro dentro de cada uma.
@@ -539,7 +539,7 @@ jobs:
     name: E2E · telemóvel, propostas, passkeys
     needs: decidir
     if: needs.decidir.outputs.back_office == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -616,7 +616,7 @@ jobs:
     # O nome de sempre: passa só se todos os passeios que bloqueiam passarem. O informativo fica de fora, como sempre ficou.
     needs: [decidir, e2e-imagens, e2e-producao, e2e-dados, e2e-gravam]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Todas as partes passaram?
