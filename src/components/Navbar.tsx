@@ -492,6 +492,20 @@ export default function Navbar() {
   const light = (!scrolled && overDarkHero) || isOpen;
   /** A barra no estado descido: o logótipo compacto (A2). O menu aberto manda. */
   const compacto = scrolled && !isOpen;
+  // ── OS IDIOMAS E O MENU À ALTURA DA PALAVRA «LÍQUEN» (1/11) ─────────────
+  // No telemóvel o selector e o hambúrguer ficavam ao meio da CAIXA do
+  // logótipo — e a caixa tem o símbolo em cima e a palavra em baixo. Ela: «os
+  // idiomas não estão ao mesmo nível que o logo». MEDIDO no
+  // `logo-liquen-recortado.png` (2146×1084): as letras de LÍQUEN vão da linha
+  // 672 à 1083, com o meio a 81% da altura; o meio da caixa é 50%. Descem
+  // portanto 31% da altura a que o logótipo está desenhado (62/72 px em
+  // repouso, 40/44 px na barra descida), e acompanham-no na mesma transição.
+  // Com o menu aberto o selector não existe e o «fechar» fica onde está.
+  const aoNivelDaPalavra = isOpen
+    ? "translate-y-0"
+    : compacto
+      ? "translate-y-[calc(40px*0.31)] sm:translate-y-[calc(44px*0.31)]"
+      : "translate-y-[calc(62px*0.31)] sm:translate-y-[calc(72px*0.31)]";
 
   const navTypes = (href: string) => [
     orderIdx(href) >= orderIdx(pathname) ? "nav-forward" : "nav-back",
@@ -775,7 +789,9 @@ export default function Navbar() {
               375 e 390 px no topo da página: o «EN» recebia 0 de 25 toques —
               iam todos para o início. Por cima do logótipo, o selector recebe
               os seus. */}
-          <div className="lg:hidden relative z-10 flex items-center">
+          <div
+            className={`lg:hidden relative z-10 flex items-center transition-[translate] duration-500 motion-reduce:transition-none ${aoNivelDaPalavra}`}
+          >
             {!isOpen && <LanguageToggle light={light} />}
           </div>
 
@@ -856,7 +872,9 @@ export default function Navbar() {
           {/* Mobile: hamburger on the RIGHT (balances the left PT/EN toggle
               around the centred logo). Por cima do logótipo pela mesma razão
               do selector de idioma, à esquerda. */}
-          <div className="lg:hidden relative z-10 flex items-center">
+          <div
+            className={`lg:hidden relative z-10 flex items-center transition-[translate] duration-500 motion-reduce:transition-none ${aoNivelDaPalavra}`}
+          >
             {/* `alvo-toque` porque este botão media 46×43 px com toque emulado
                 — falha o mínimo por UM pixel de altura, e é a única forma de
                 abrir a navegação num telemóvel em todas as páginas do sítio.
