@@ -13,6 +13,7 @@ import {
   Card,
   EmptyState,
   Field,
+  MenuDeAccoes,
   PerguntaDestrutiva,
   Segmented,
   cn,
@@ -591,6 +592,32 @@ function LinhasDoDia({
   );
 }
 
+/**
+ * Os próximos eventos agrupados por mês, pela ordem em que chegam (já vêm
+ * ordenados por data). O ano só entra no título quando não é o deste ano.
+ */
+export function agruparPorMes<T extends { date: string }>(
+  lista: readonly T[],
+  esteAno: number = new Date().getFullYear(),
+): { chave: string; titulo: string; pedidos: T[] }[] {
+  const grupos: { chave: string; titulo: string; pedidos: T[] }[] = [];
+  for (const q of lista) {
+    const chave = q.date.slice(0, 7);
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.chave === chave) {
+      ultimo.pedidos.push(q);
+      continue;
+    }
+    const [ano, mes] = chave.split("-").map(Number);
+    grupos.push({
+      chave,
+      titulo: `${MONTHS[mes - 1]}${ano !== esteAno ? ` ${ano}` : ""}`,
+      pedidos: [q],
+    });
+  }
+  return grupos;
+}
+
 export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
   const { toast } = useToast();
   const anular = useAnular();
@@ -619,6 +646,13 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
   /** O menu do botão direito, quando há um aberto. Fase 10, ponto 17. */
   const [menu, setMenu] = useState<PedidoDeMenu | null>(null);
   const fecharMenu = useCallback(() => setMenu(null), []);
+  /**
+   * O dia que um próximo evento aponta na grelha (fase 05, ponto 25): passar
+   * o rato — ou o foco do teclado — por uma linha realça o dia dela, se o mês
+   * estiver à vista. As duas listas deixam de ser duas listas que não se
+   * conhecem.
+   */
+  const [diaRealcado, setDiaRealcado] = useState<string | null>(null);
   /**
    * ── QUEM ABRIU O «NOVO NO CALENDÁRIO» ─────────────────────────────────────
    *
@@ -1112,6 +1146,19 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
   }, [quotes]);
 
   /**
+   * ── OS PRÓXIMOS, POR MÊS (fase 05, ponto 22) ─────────────────────────────
+   * «26 Set → 3 Out → 29 Mai 27»: sete meses de intervalo sem um separador, e
+   * o leitor tinha de descobrir sozinho que entre outubro e maio não há nada.
+   * Com um cabeçalho por mês o buraco vê-se à primeira — e é a informação
+   * mais valiosa do painel: sete meses livres é uma decisão comercial.
+   * O ano só aparece quando não é este («Maio 2027»).
+   */
+  // Sem `useMemo`: são no máximo seis linhas, e com ele o React Compiler
+  // desistia de optimizar o componente inteiro (o lint avisa-o).
+  const proximosPorMes = agruparPorMes(upcoming);
+  const exportarCalendario = () => exportIcs(quotes);
+
+  /**
    * Quantos eventos tem este mês — contados a partir do que a GRELHA desenha.
    *
    * Contava-se pela data de INÍCIO (`q.date.startsWith(mês)`), e um evento de
@@ -1306,6 +1353,8 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
             rotulo: `Remover ${TIPO_META[ev.kind].label}: ${ev.title}`,
             dica: `${TIPO_META[ev.kind].label}: ${ev.title} (clique para remover)`,
             onAbrir: () => pedirParaRemover(ev.id, ev.title),
+            // `Delete` faz o mesmo que o clique numa marcação: a pergunta.
+            apagavel: true,
             onMenu: (x: number, y: number) => setMenu(menuDaMarcacao(ev, x, y)),
             riscarNoHover: true,
           })),
@@ -1667,31 +1716,22 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                   { value: "ano", label: "Ano" },
                 ]}
               />
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => exportIcs(quotes)}
-                title="Exportar para calendário (.ics)"
-                /* `max-sm:hidden` e NÃO `hidden sm:inline-flex`.
-                   ────────────────────────────────────────────────────────
-                   O idioma habitual não esconde NADA aqui, e foi medido: a
-                   375 px este botão desenhava-se a 78x32 com a classe
-                   `hidden` posta. O `<Button>` traz `inline-flex` de origem,
-                   e na folha compilada o `.inline-flex` sai DEPOIS do
-                   `.hidden` — mesma especificidade, ganha o último. O
-                   `display: flex` que o browser relata é esse `inline-flex`
-                   transformado por o botão ser filho de um `flex`.
-
-                   O `max-sm:hidden` vive dentro de um `@media`, que é
-                   emitido depois das utilidades simples, e por isso ganha.
-
-                   A varredura que apanhou isto está no `admin-mobile.spec.ts`
-                   e é de uma linha: procurar `.hidden` com `display` que não
-                   seja `none`. Em seis vistas a 375 px, este era o único. */
+              {/* ── «EXPORTAR» VAI PARA O «⋯» (fase 01, ponto 21) ───────────
+                  Uma acção rara não tem o peso da navegação do mês. Fica fora
+                  do telemóvel como estava, e pela mesma razão: `max-sm:hidden`
+                  e não `hidden` (o `admin-mobile.spec.ts` explica porquê). */}
+              <MenuDeAccoes
+                sobre="o calendário"
+                sempreVisivel
                 className="max-sm:hidden"
-              >
-                Exportar
-              </Button>
+                accoes={[
+                  {
+                    id: "exportar",
+                    rotulo: "Exportar calendário…",
+                    onAccao: exportarCalendario,
+                  },
+                ]}
+              />
               <div
                 className="flex items-center rounded-xl border border-[var(--bo-hairline)] p-0.5"
                 role="group"
@@ -1990,12 +2030,15 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                          grelha (`minmax(--celula, 1fr)`), e dois mínimos a
                          decidir a mesma altura é como uma delas fica para
                          trás. */
+                          data-realcado={key === diaRealcado ? "" : undefined}
                           className={`group relative bg-[var(--bo-surface)] p-1 sm:p-1.5 ${ESTADO} ${PRESSAO} focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600/60 ${
                             isSelected
                               ? "ring-1 ring-inset ring-sage-600/45 bg-sage-600/[0.04]"
-                              : isToday
-                                ? "hover:bg-sage-600/[0.03]"
-                                : "hover:bg-sage-600/[0.025]"
+                              : key === diaRealcado
+                                ? "ring-1 ring-inset ring-sage-600/35 bg-sage-600/[0.06]"
+                                : isToday
+                                  ? "hover:bg-sage-600/[0.03]"
+                                  : "hover:bg-sage-600/[0.025]"
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -2070,6 +2113,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                                   rotulo={`Remover ${TIPO_META[ev.kind].label}: ${ev.title}`}
                                   dica={`${TIPO_META[ev.kind].label}: ${ev.title} (clique para remover)`}
                                   onMenu={(x, y) => setMenu(menuDaMarcacao(ev, x, y))}
+                                  onApagar={() => pedirParaRemover(ev.id, ev.title)}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     pedirParaRemover(ev.id, ev.title);
@@ -2294,54 +2338,72 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
           <Card
             padding="none"
             style={{ "--cena": 2 } as React.CSSProperties}
-            className="bo-cena overflow-hidden self-start"
+            className="bo-cena overflow-clip self-start"
           >
             <p className="bo-eyebrow px-5 sm:px-6 py-4 border-b border-[var(--bo-hairline)]">
               Próximos eventos
             </p>
-            <div className="divide-y divide-[var(--bo-hairline)]">
-              {upcoming.map((q) => (
-                <button
-                  key={q.id}
-                  /* A porta desta lista é «Fazer proposta» — ver `onFazerProposta`
-                   nas props. A queda para o `onOpen` é para nenhum toque ficar
-                   sem resposta se alguém montar isto sem a segunda porta. */
-                  onClick={() => (onFazerProposta ?? onOpen)(q)}
-                  className={`w-full text-left px-5 sm:px-6 py-3.5 hover:bg-[var(--bo-tinta-3)] ${ESTADO} ${PRESSAO}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="text-center shrink-0 w-10 py-1.5 rounded-lg bg-sage-600/[0.06]">
-                      <p className="text-sage-600 text-lg font-light leading-none">
-                        {new Date(q.date + "T12:00:00").getDate()}
-                      </p>
-                      {/* O ANO, quando não é este.
-                        A lista lia-se «10 Set · 24 Out · 22 Mai · 29 Mai» e
-                        parecia desordenada — está certa, são 2026 e 2027, e
-                        faltava a única coisa que o dizia. Só aparece quando é
-                        preciso: escrever «2026» em todas as linhas de uma
-                        agenda de 2026 é ruído que se aprende a saltar. */}
-                      <p className="text-foreground/40 text-[9px] uppercase mt-0.5">
-                        {MONTHS[new Date(q.date + "T12:00:00").getMonth()].slice(0, 3)}
-                        {new Date(q.date + "T12:00:00").getFullYear() !==
-                          new Date().getFullYear() && (
-                          // Era «Jun 27», que se lê «27 de Junho» (achado n.º 30).
-                          // O apóstrofo diz que é o ano.
-                          <span className="ml-0.5">
-                            ’{String(new Date(q.date + "T12:00:00").getFullYear()).slice(2)}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[var(--bo-tinta-72)] text-xs font-medium truncate">
-                        {q.name}
-                      </p>
-                      <p className="text-foreground/40 text-[11px] truncate">
-                        {eventTypeLabel(q)} · {q.guests} convidados
-                      </p>
-                    </div>
+            <div>
+              {proximosPorMes.map((g) => (
+                <div key={g.chave} role="group" aria-label={g.titulo}>
+                  {/* Cabeçalho do mês, colado ao topo enquanto a lista do mês
+                      passa. O cartão é `overflow-clip` e não `-hidden`: o
+                      `hidden` faz dele um contentor de scroll e o `sticky`
+                      deixava de colar. */}
+                  <p
+                    aria-hidden
+                    className="sticky top-0 z-[1] border-b border-[var(--bo-hairline)] bg-[var(--bo-surface)] px-5 sm:px-6 py-1.5 text-footnote font-semibold text-[var(--bo-text-muted)]"
+                  >
+                    {g.titulo}
+                  </p>
+                  <div className="divide-y divide-[var(--bo-hairline)]">
+                    {g.pedidos.map((q) => (
+                      <button
+                        key={q.id}
+                        /* A porta desta lista é «Fazer proposta» — ver `onFazerProposta`
+                         nas props. A queda para o `onOpen` é para nenhum toque ficar
+                         sem resposta se alguém montar isto sem a segunda porta. */
+                        onClick={() => (onFazerProposta ?? onOpen)(q)}
+                        onMouseEnter={() => setDiaRealcado(q.date)}
+                        onMouseLeave={() => setDiaRealcado(null)}
+                        onFocus={() => setDiaRealcado(q.date)}
+                        onBlur={() => setDiaRealcado(null)}
+                        className={`w-full text-left px-5 sm:px-6 py-3.5 hover:bg-[var(--bo-tinta-3)] ${ESTADO} ${PRESSAO}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="text-center shrink-0 w-10 py-1.5 rounded-lg bg-sage-600/[0.06]">
+                            <p className="text-sage-600 text-lg font-light leading-none">
+                              {new Date(q.date + "T12:00:00").getDate()}
+                            </p>
+                            {/* O ano saiu daqui: está no cabeçalho do mês
+                              («Maio 2027»), que é onde a Parte 7 o pede. */}
+                            <p className="text-foreground/40 text-[9px] uppercase mt-0.5">
+                              {MONTHS[new Date(q.date + "T12:00:00").getMonth()].slice(0, 3)}
+                            </p>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[var(--bo-tinta-72)] text-xs font-medium truncate">
+                              {q.name}
+                            </p>
+                            {/* O NÚMERO NUNCA SE CORTA (ponto 23): o tipo
+                              encolhe com reticências, a contagem fica inteira.
+                              E zero convidados é dado em falta, não um zero
+                              (ponto 24). */}
+                            <p className="flex min-w-0 text-foreground/40 text-[11px]">
+                              <span className="truncate">{eventTypeLabel(q)}</span>
+                              <span className="shrink-0 whitespace-pre">
+                                {" · "}
+                                {q.guests > 0
+                                  ? `${q.guests} convidados`
+                                  : "Convidados por confirmar"}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
                   </div>
-                </button>
+                </div>
               ))}
               {upcoming.length === 0 && (
                 <EmptyState

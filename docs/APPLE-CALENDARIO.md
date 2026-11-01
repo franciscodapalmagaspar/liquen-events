@@ -9,16 +9,16 @@ Auditado no código contra a tabela da **Parte 9** — `Calendario.tsx`,
 
 | # | Fase | Estado |
 |---|---|---|
-| 01 | Toolbar | **parcial** — o mês é o título, no degrau de display, com as setas e o «Hoje»; falta o menu `⋯` (o «Exportar» ainda é um botão ao nível da navegação) |
+| 01 | Toolbar | **feito** (1/11) — o mês é o título, no degrau de display, com as setas e o «Hoje»; o «Exportar» passou ao menu `⋯` («Exportar calendário…», o `MenuDeAccoes` da casa), fora do telemóvel como estava |
 | 02 | Grelha a toda a largura | **feito** — sem cartão, enche largura e altura, dias adjacentes esbatidos |
 | 03 | Chips | **feito** — cor por tipo, glifo, hora antes do título, truncatura, `+N mais` com popover |
 | 04 | Calendários filtráveis | **feito** — quatro caixas de marcar na barra lateral, com `⌥+clique` a isolar; filtram as QUATRO vistas |
-| 05 | Painel de próximos | **parcial** — há `sticky`, falta o agrupamento por mês e a ligação à grelha (pontos 22 e 25) |
+| 05 | Painel de próximos | **parcial** (1/11) — agrupado por mês com cabeçalhos `sticky` («Setembro · Outubro · Maio 2027», o ano só quando não é este); o número de convidados nunca se corta e «0» passa a «Convidados por confirmar» (pontos 23 e 24); passar o rato ou o foco por uma linha realça o dia na grelha (ponto 25, metade). Fica por fazer a outra metade do 25 — o clique selecionar o evento e ir ao mês dele —, porque o clique desta lista é hoje «Fazer proposta», que foi uma decisão anterior dela |
 | 06 | Vista de dia | **feito** — coluna 07:00–24:00 a 44 px/hora, linha do agora, sobreposição em pistas |
 | 07 | Vista de ano | **feito** — doze mini-meses com o resumo em palavras |
 | 08 | Vista de semana | **feito** — sete colunas na mesma escala, faixa de dia inteiro, coluna de hoje |
 | 09 | Arrastar | **por fazer** — e é ela que destranca o `Mudar de dia…` do menu de contexto (ver abaixo) |
-| 10 | Menus e teclado | **parcial** — menu de contexto no dia, no pedido e na marcação; `⌘1–4`, `⌘T` (e `T`), `⌘N`, `←/→` e `⌥←/→`. `Home`/`End` e `PageUp`/`PageDown` entraram com a fase 11; falta `Delete` |
+| 10 | Menus e teclado | **feito** — menu de contexto no dia, no pedido e na marcação; `⌘1–4`, `⌘T` (e `T`), `⌘N`, `←/→` e `⌥←/→`. `Home`/`End` e `PageUp`/`PageDown` entraram com a fase 11; `Delete` (e `⌫`) numa marcação com foco abre a pergunta de remover, com o «Anular» da casa (1/11, nas quatro vistas). **Feito** |
 | 11 | Acessibilidade | **feito** — a grelha do mês é um `role="grid"` de `row` (com `display: contents`, para não mexer na disposição) e `gridcell`; um só dia no fio do Tab (foco itinerante), `aria-selected`, `aria-current="date"` em hoje, e o nome do dia com o dia da semana («Quinta-feira, 15 de Janeiro de 2026…»). Setas, `Home`/`End` e `PageUp`/`PageDown` (`diaPelaTecla`, com teste). Era o achado n.º 24 da auditoria: controlos dentro de controlos, 31 por mês no axe — agora zero |
 
 **Duas coisas que o código não deixou fazer como está escrito**, e ficam aqui
