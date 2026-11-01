@@ -66,6 +66,12 @@ export interface ChipDoDiaProps {
    */
   onMenu?: (x: number, y: number) => void;
   /**
+   * `Delete` (ou `⌫`) com o foco na etiqueta — fase 10, ponto 18: «`Delete`
+   * com Anular». Só as marcações o recebem; um pedido não se apaga daqui. O
+   * pedido de confirmação e a Reciclagem são os da casa (`pedirParaRemover`).
+   */
+  onApagar?: () => void;
+  /**
    * A MESMA etiqueta, mas a encher a caixa em que está — as vistas de dia e de
    * semana (`VistasDeHoras.tsx`) posicionam-na em absoluto com a altura da
    * DURAÇÃO, e nessas a etiqueta tem de subir ao topo do bloco em vez de se
@@ -95,6 +101,7 @@ export function ChipDoDia({
   dica,
   onClick,
   onMenu,
+  onApagar,
   bloco,
   className,
 }: ChipDoDiaProps) {
@@ -104,6 +111,16 @@ export function ChipDoDia({
       aria-label={rotulo}
       title={dica}
       onClick={onClick}
+      onKeyDown={
+        onApagar
+          ? (e) => {
+              if (e.key !== "Delete" && e.key !== "Backspace") return;
+              e.preventDefault();
+              e.stopPropagation();
+              onApagar();
+            }
+          : undefined
+      }
       onContextMenu={
         onMenu
           ? (e) => {

@@ -84,7 +84,7 @@ e cada tabela é que manda, isto é só o mapa:
   · **Tarefas**: onze de onze. A 11 era percorrer a Parte 6 num browser, e está feita;
   · **Calendário**: as quatro vistas existem (dia, semana, mês, ano). Falta a
     09 (arrastar); a 11 (acessibilidade) ficou feita com o achado n.º 24 da
-    auditoria; a 01, a 05 e a 10 estão parciais;
+    auditoria; a 01 e a 10 ficaram feitas a 1/11, e a 05 está parcial;
   · **Temas**: a 03, a 04, a 05, a 06, a 07, a 08, a 09 e a 10 estão feitas
     (quatro delas só se viu a 1/11, ao reauditar); a 01 e a 02 parciais, a 11 por fazer.
 
