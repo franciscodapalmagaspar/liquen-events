@@ -55,3 +55,40 @@ describe("o álbum escolhe as fotografias dos painéis e separadores", () => {
     expect(album.escolher(5, "deitada")[0].id).toBe(2);
   });
 });
+
+describe("numa página inteira, a régua do aviso (A3, 2/11)", () => {
+  it("entre duas não vizinhas, a boa ganha à fraca — mesmo já usada", () => {
+    // 3000 px é boa numa página inteira; 1500 é fraca (abaixo dos 1800).
+    const fotos = [foto(1, 3000, 2000), foto(2, 1500, 1000)];
+    const album = new Album(fotos);
+    expect(album.paraAFolha(2, "deitada", "pagina")[0].id).toBe(1);
+    // Três páginas depois a boa já foi usada — e continua a ganhar.
+    expect(album.paraAFolha(5, "deitada", "pagina")[0].id).toBe(1);
+  });
+
+  it("sem `lugar` (painéis e faixas) o degrau é o de sempre: as duas chegam, ganha a por usar", () => {
+    const fotos = [foto(1, 3000, 2000), foto(2, 1500, 1000)];
+    const album = new Album(fotos);
+    expect(album.escolher(2, "deitada")[0].id).toBe(1);
+    expect(album.escolher(5, "deitada")[0].id).toBe(2);
+  });
+
+  it("nunca uma má quando há uma boa não vizinha — e a medida do Pinterest é má", () => {
+    // 736 px de largura é o ficheiro do site, não o original.
+    const fotos = [foto(1, 736, 1104), foto(2, 2400, 1600)];
+    expect(new Album(fotos).paraAFolha(3, "qualquer", "pagina")[0].id).toBe(2);
+  });
+
+  it("a decisão dela: uma boa VIZINHA não ganha a uma fraca que não é", () => {
+    // «Ganha não repetir»: a boa está na página ao lado; entra a fraca.
+    const fotos = [foto(1, 3000, 2000), foto(2, 1500, 1000)];
+    const album = new Album(fotos);
+    expect(album.paraAFolha(4, "deitada", "pagina")[0].id).toBe(1);
+    expect(album.paraAFolha(5, "deitada", "pagina")[0].id).toBe(2);
+  });
+
+  it("a capa usa a régua da capa", () => {
+    const fotos = [foto(1, 1100, 733), foto(2, 2600, 1733)];
+    expect(new Album(fotos).paraAFolha(1, "deitada", "capa")[0].id).toBe(2);
+  });
+});
