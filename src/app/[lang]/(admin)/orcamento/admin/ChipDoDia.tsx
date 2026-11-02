@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type DragEvent,
   type MouseEvent,
   type ReactNode,
 } from "react";
@@ -72,6 +73,13 @@ export interface ChipDoDiaProps {
    */
   onApagar?: () => void;
   /**
+   * Arrastar esta etiqueta para outro dia (fase 09). Só as MARCAÇÕES o
+   * recebem — um pedido não muda de data por um gesto de rato. Quem chama
+   * escreve a carga e sabe o que fazer à largada (ver `Calendario.tsx`).
+   */
+  onArrastarInicio?: (e: DragEvent<HTMLButtonElement>) => void;
+  onArrastarFim?: () => void;
+  /**
    * A MESMA etiqueta, mas a encher a caixa em que está — as vistas de dia e de
    * semana (`VistasDeHoras.tsx`) posicionam-na em absoluto com a altura da
    * DURAÇÃO, e nessas a etiqueta tem de subir ao topo do bloco em vez de se
@@ -102,6 +110,8 @@ export function ChipDoDia({
   onClick,
   onMenu,
   onApagar,
+  onArrastarInicio,
+  onArrastarFim,
   bloco,
   className,
 }: ChipDoDiaProps) {
@@ -111,6 +121,9 @@ export function ChipDoDia({
       aria-label={rotulo}
       title={dica}
       onClick={onClick}
+      draggable={onArrastarInicio ? true : undefined}
+      onDragStart={onArrastarInicio}
+      onDragEnd={onArrastarFim}
       onKeyDown={
         onApagar
           ? (e) => {

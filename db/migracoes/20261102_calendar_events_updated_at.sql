@@ -1,0 +1,21 @@
+-- ════════════════════════════════════════════════════════════════════════════
+-- Calendário, fase 09 (2/11) — arrastar uma marcação para outro dia
+-- ════════════════════════════════════════════════════════════════════════════
+--
+-- APLICADA a 2/11/2026, com a autorização dela («Aplica tu»), pela ferramenta
+-- de migrações do Supabase — o mesmo SQL, sem `begin`/`commit`. Fica na lista
+-- de migrações do projecto como `calendar_events_updated_at`. O mesmo bloco
+-- está em db/schema.sql, junto das outras `updated_at`.
+--
+-- O que muda: a tabela das marcações ganha a coluna `updated_at`, que o
+-- repositório usa para o compare-and-set (`touch: true` no mapper de
+-- `src/lib/calendar-store.ts`). É o que deixa MOVER uma marcação (PATCH) sem
+-- a apagar e criar outra — que lhe trocaria o id, perderia o `created_at` e,
+-- se a criação falhasse depois de apagar, perderia a marcação.
+--
+-- Não apaga nem muda nenhuma linha: as que já existem ficam com `null`, e o
+-- repositório trata o `null` como «ainda ninguém escreveu por cima».
+--
+-- `if not exists`: pode correr-se mais do que uma vez.
+
+alter table public.calendar_events add column if not exists updated_at timestamptz;

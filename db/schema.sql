@@ -1191,6 +1191,7 @@ alter table public.suppliers            add column if not exists updated_at time
 alter table public.material_list_items  add column if not exists updated_at timestamptz;
 alter table public.event_material_items add column if not exists updated_at timestamptz;
 alter table public.biblioteca_etiquetas add column if not exists updated_at timestamptz;
+alter table public.calendar_events      add column if not exists updated_at timestamptz;
 
 -- ── Segurança ───────────────────────────────────────────────────
 -- Ativamos RLS sem políticas públicas: só o servidor (service_role key,
