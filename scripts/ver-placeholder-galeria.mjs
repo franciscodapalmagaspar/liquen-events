@@ -5,6 +5,11 @@
  *
  *   node scripts/ver-placeholder-galeria.mjs [url-base]
  *
+ * DESDE 2/11 a grelha não tem desfocado nenhum (pedido dela): cada foto espera
+ * sobre a cor média do mosaico e entra com `g-foto`. Com isso, `temBlur` sai
+ * sempre falso e o que este guião ainda diz de útil é a opacidade e a cor de
+ * fundo de cada mosaico à espera.
+ *
  * Todas as sondas de placeholder desta pasta contam a MESMA coisa: quantos
  * <img> têm um 'background-image: url(data:image/...)' com o blur. Nenhuma
  * pergunta se esse blur chega aos olhos de alguém.

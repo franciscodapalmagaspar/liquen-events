@@ -26,7 +26,7 @@ test.describe("Contacto (direct-contact page)", () => {
     await page.goto("/contacto");
     // Two CTAs carry this label (the page's own panel + the footer); both point
     // to the one form. Assert on the first (the in-page panel CTA).
-    const cta = page.getByRole("link", { name: /Pedir orçamento/i }).first();
+    const cta = page.getByRole("link", { name: /Pedir proposta/i }).first();
     await expect(cta).toBeVisible();
     await expect(cta).toHaveAttribute("href", /\/orcamento/);
   });

@@ -139,6 +139,16 @@ export function esquecer(img: HTMLImageElement | null): void {
  * baixa que tinha (o `promoverQuandoAVista` sobe-a quando chega ao ecrã).
  * Um observador para a grelha inteira, como o de cima.
  */
+/**
+ * 2/11: TRÊS ecrãs abaixo (um e meio acima). Ela, no telemóvel em 4G, ainda
+ * via mosaicos à espera ao descer: numa coluna só, ecrã e meio são uma a duas
+ * fotografias de aviso, e um dedo rápido come-as. Três ecrãs são três a quatro
+ * fotos de ~50 kB — o que um 4G entrega a tempo sem roubar a que está à vista
+ * (essa sobe a `auto` por `promoverQuandoAVista`; estas partem `low`).
+ * Para cima, quem volta atrás encontra quase tudo já em cache.
+ */
+export const MARGEM_DE_ANTECIPACAO = "150% 0px 300% 0px";
+
 const aAntecipar = new WeakMap<Element, HTMLImageElement>();
 const ancoraAntecipada = new WeakMap<HTMLImageElement, Element>();
 let antecipador: IntersectionObserver | null = null;
@@ -162,7 +172,7 @@ function obterAntecipador(): IntersectionObserver | null {
         if (img && img.loading === "lazy" && !img.currentSrc) img.loading = "eager";
       }
     },
-    { rootMargin: "150% 0px" },
+    { rootMargin: MARGEM_DE_ANTECIPACAO },
   );
   return antecipador;
 }

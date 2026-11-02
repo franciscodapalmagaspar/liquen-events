@@ -248,13 +248,8 @@ export default async function ServiceDetailPage({
               {svc.intro.map((p, i) => (
                 <p key={i}>{emphasize(p, locale)}</p>
               ))}
-              <TrackedLink
-                href={orcamentoHref}
-                trackProps={{ source: "service-detail-intro", servico: slug }}
-                className={`${PRIMARY_BUTTON_CLASS} mt-6`}
-              >
-                {t.common.pedirOrcamento} <span aria-hidden>→</span>
-              </TrackedLink>
+              {/* O «Pedir proposta» a seguir à introdução saiu (ela, 2/11): um
+                  só por página, o do fim (`service-detail-cta`). */}
             </div>
           </AnimateIn>
           <AnimateIn delay={staggerMs(1)}>

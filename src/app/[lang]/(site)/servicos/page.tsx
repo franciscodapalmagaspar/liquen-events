@@ -251,13 +251,8 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
               <p className="mt-3 text-white/70 text-[12.5px] leading-[1.6] max-w-xs">
                 {ts.heroLead}
               </p>
-              <TrackedLink
-                href={localizeHref("/orcamento", locale)}
-                trackProps={{ source: "services-hero" }}
-                className={`mt-7 inline-flex items-center gap-3 ${OUTLINE_LIGHT_BUTTON_CLASS}`}
-              >
-                {t.common.pedirOrcamento} <span aria-hidden>→</span>
-              </TrackedLink>
+              {/* Sem «Pedir proposta» no primeiro ecrã (ela, 2/11): um só por
+                  página, o do fim (`services-cta`). */}
             </div>
           </AnimateIn>
         </div>

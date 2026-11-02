@@ -71,7 +71,7 @@ for (const largura of [1024, 1440]) {
       await expect(
         page
           .locator("nav")
-          .getByRole("link", { name: /pedir orçamento/i })
+          .getByRole("link", { name: /pedir proposta/i })
           .first(),
       ).toBeAttached();
     });

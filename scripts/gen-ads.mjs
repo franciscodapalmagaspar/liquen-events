@@ -229,7 +229,7 @@ async function main() {
             "/servicos/casamentos",
           ],
           ["About us", "A team based in Évora", "Producing across Portugal", "/sobre"],
-          ["Request a quote", "Four questions", "Answered within two days", "/orcamento"],
+          ["Request a proposal", "Four questions", "Answered within two days", "/orcamento"],
         ]
       : [
           ["Portefólio", "Casamentos que desenhámos", "Fotografias, não inspirações", "/galeria"],
@@ -240,7 +240,7 @@ async function main() {
             "/servicos/casamentos",
           ],
           ["Sobre nós", "Equipa com base em Évora", "Produção em todo o país", "/sobre"],
-          ["Pedir orçamento", "Quatro perguntas", "Resposta em 48 horas úteis", "/orcamento"],
+          ["Pedir proposta", "Quatro perguntas", "Resposta em 48 horas úteis", "/orcamento"],
         ];
     return links.map(([texto, d1, d2, caminho]) => [
       c.nome,

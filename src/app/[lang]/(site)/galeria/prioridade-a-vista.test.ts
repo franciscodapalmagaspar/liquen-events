@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MARGEM_DE_ANTECIPACAO } from "./prioridade-a-vista";
 
 /**
  * Ela (16/10): «à medida que fazemos scroll… ainda dá para ver a foto
@@ -39,11 +40,15 @@ function mosaico() {
 }
 
 describe("antecipar a fotografia da grelha", () => {
-  it("a um ecrã e meio de distância, a fotografia passa a eager", async () => {
+  it("começa três ecrãs abaixo e um e meio acima (2/11)", () => {
+    expect(MARGEM_DE_ANTECIPACAO).toBe("150% 0px 300% 0px");
+  });
+
+  it("perto do ecrã, a fotografia passa a eager", async () => {
     const { anteciparQuandoPerto } = await import("./prioridade-a-vista");
     const { ancora, img } = mosaico();
     anteciparQuandoPerto(ancora, img);
-    const obs = observadores.find((o) => o.margem === "150% 0px")!;
+    const obs = observadores.find((o) => o.margem === MARGEM_DE_ANTECIPACAO)!;
     expect(obs.alvos.has(ancora)).toBe(true);
     expect(img.loading).toBe("lazy");
     obs.cb([{ target: ancora, isIntersecting: true }]);
@@ -56,7 +61,7 @@ describe("antecipar a fotografia da grelha", () => {
     const { ancora, img } = mosaico();
     Object.defineProperty(img, "currentSrc", { value: "/_img/g/x-768.avif" });
     anteciparQuandoPerto(ancora, img);
-    const obs = observadores.find((o) => o.margem === "150% 0px")!;
+    const obs = observadores.find((o) => o.margem === MARGEM_DE_ANTECIPACAO)!;
     obs.cb([{ target: ancora, isIntersecting: true }]);
     expect(img.loading).toBe("lazy");
   });
@@ -65,7 +70,7 @@ describe("antecipar a fotografia da grelha", () => {
     const { anteciparQuandoPerto, esquecer } = await import("./prioridade-a-vista");
     const { ancora, img } = mosaico();
     anteciparQuandoPerto(ancora, img);
-    const obs = observadores.find((o) => o.margem === "150% 0px")!;
+    const obs = observadores.find((o) => o.margem === MARGEM_DE_ANTECIPACAO)!;
     esquecer(img);
     expect(obs.alvos.has(ancora)).toBe(false);
   });

@@ -53,7 +53,7 @@ The site is Portuguese-first, with a full English mirror under \`/en/\`. Visitor
 - [Sobre](${u("/sobre")}): About the company, its founder and approach.
 - [Clientes](${u("/clientes")}): Clients and testimonials.
 - [Contacto](${u("/contacto")}): Contact details and enquiry form.
-- [Pedir Orçamento](${u("/orcamento")}): Request a personalized quote for an event.
+- [Pedir Proposta](${u("/orcamento")}): Request a tailored proposal for an event.
 
 ## English mirror
 

@@ -2566,23 +2566,31 @@ body:has(.barra-consentimento) footer {
   background-position: center;
 }
 
-/* ── Do desfocado para o nítido, nunca um corte seco ──
-   A fotografia entra por cima do seu próprio blur com um esbatimento curto.
-   250 ms é o ponto em que se lê como "assentou" e não como "apareceu": abaixo
-   de ~180 ms o olho regista um estalo, acima de ~350 ms nota-se a esperar.
+/* ── A fotografia assenta sobre a sua cor, nunca um corte seco ──
+   Desde 2/11 a grelha da galeria não tem desfocado: por baixo de cada foto
+   está a cor média dela (o fundo do mosaico), e a foto entra por cima num
+   esbatimento — TODAS, e não só as que traziam desfocado.
 
-   `opacity` só — trabalho de compositor, nunca layout, portanto isto pode
-   correr no meio do scroll sem lhe tirar frames. E o estado de repouso é
-   `opacity: 1`, não 0: uma foto que nunca dispare o `load` (JavaScript
-   desligado, um erro) fica VISÍVEL em vez de invisível para sempre. O que a
-   classe faz é começar transparente só quando há blur por baixo de onde
-   esbater. */
+   `--transition-duration-foto-chega` (300 ms), o mesmo degrau das grelhas dos
+   serviços: lê-se como "assentou" e não como "apareceu". `opacity` só —
+   trabalho de compositor, nunca layout, portanto pode correr no meio do
+   scroll sem lhe tirar frames.
+
+   Uma foto já em cache que se monta de novo (voltar atrás, mudar de colecção)
+   recebe `g-foto-pronta` no mesmo commit em que nasce (`aoMontarImg`): nunca
+   foi pintada a 0, portanto não há transição — entra já lá. */
 .g-foto {
   opacity: 0;
 }
 .g-foto-pronta {
   opacity: 1;
-  transition: opacity 0.25s var(--ease-out);
+  transition: opacity var(--transition-duration-foto-chega) var(--ease-out);
+}
+/* Sem JavaScript ninguém põe `g-foto-pronta`: a foto não pode ficar a 0. */
+@media (scripting: none) {
+  .g-foto {
+    opacity: 1;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .g-foto {

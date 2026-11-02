@@ -21,7 +21,6 @@ import {
 } from "./gallery-srcset";
 import { snapGalleryWidth } from "./gallery-image-loader";
 import { useAntecipacao } from "./useAntecipacao";
-import { useBlurTardio } from "./useBlurTardio";
 import { fraccaoDaBarra } from "@/lib/fraccao-da-barra";
 import { DUR_ELEMENTO_MS, DUR_VISTA_MS, EASE_IN, EASE_OUT } from "@/lib/motion/tokens";
 import { assentar } from "@/lib/motion/mola";
@@ -334,7 +333,6 @@ const Tile = memo(function Tile({
   onKeyNav,
   onTileFocus,
   registerTile,
-  registarImg,
 }: {
   photo: Photo;
   idx: number;
@@ -354,8 +352,6 @@ const Tile = memo(function Tile({
   onKeyNav: (e: React.KeyboardEvent, idx: number) => void;
   onTileFocus: (idx: number) => void;
   registerTile: (el: HTMLDivElement | null) => void;
-  /** Ver `useBlurTardio`: o placeholder é aplicado no elemento, sem render. */
-  registarImg: (el: HTMLImageElement | null, src: string) => void;
 }) {
   const btnRef = useRef<HTMLButtonElement>(null);
   return (
@@ -407,12 +403,7 @@ const Tile = memo(function Tile({
           // `GalleryImage`: é ganho de ORDEM, não de bytes.
           longe={idx >= 12}
           anchorRef={btnRef}
-          // Sem arrow: o `src` viaja como argumento (ver `registarImg` no
-          // GalleryImage). Um arrow aqui era uma função nova por render, e
-          // trocava a identidade do `ref` do `<img>` de cada mosaico.
-          registarImg={registarImg}
           unavailableLabel={unavailableLabel}
-          blurDataURL={photo.blurDataURL}
         />
         <HoverOverlay caption={caption} sub={sub} />
         <FocusRing />
@@ -527,7 +518,6 @@ function FotoDaFila({
         priority={idx === 0}
         anchorRef={btnRef}
         unavailableLabel={unavailableLabel}
-        blurDataURL={photo.blurDataURL}
       />
       <HoverOverlay {...cap} />
       <FocusRing />
@@ -875,13 +865,6 @@ export default function GaleriaClient({
   // Quantos píxeis à frente do dedo é que os mosaicos seguintes entram no DOM.
   // Adapta-se à velocidade do scroll — ver `useAntecipacao`.
   const { margemPx: margemAntecipacao } = useAntecipacao();
-  /**
-   * O blur das 427, buscado depois da primeira pintura. Só as primeiras 48
-   * vêm no HTML (ver BLUR_WINDOW em page.tsx) — mandar todas custava ~63 KB e
-   * atrasava a PRIMEIRA fotografia em ~800 ms. As outras chegam por aqui,
-   * muito antes de alguém lá scrollar.
-   */
-  const blurTardio = useBlurTardio(true);
   useEffect(() => {
     setIoSupported(typeof window !== "undefined" && "IntersectionObserver" in window);
   }, []);
@@ -1391,7 +1374,6 @@ export default function GaleriaClient({
                       onKeyNav={onKeyNav}
                       onTileFocus={onTileFocus}
                       registerTile={registerTile}
-                      registarImg={blurTardio.registar}
                     />
                   );
                 })}
@@ -1473,9 +1455,11 @@ export default function GaleriaClient({
         />
       )}
 
-      {/* ── Voltar ao topo ── Empilhado por cima do botão de WhatsApp (canto
-          inferior direito); o canto esquerdo já tem o CTA "Pedir orçamento"
-          (StickyCTA). Escondido enquanto o lightbox está aberto. */}
+      {/* ── Voltar ao topo ── No canto inferior direito. Estava empilhado por
+          cima do WhatsApp (`bottom: 5rem`); desde 2/11 a galeria não tem
+          botões flutuantes (nem WhatsApp nem «Pedir proposta», pedido dela),
+          por isso desce para o canto. Escondido enquanto o lightbox está
+          aberto. */}
       <button
         onClick={scrollTop}
         aria-label={dict.backToTop}
@@ -1487,7 +1471,7 @@ export default function GaleriaClient({
             : "pointer-events-none translate-y-3 opacity-0"
         }`}
         style={{
-          bottom: "calc(5rem + env(safe-area-inset-bottom))",
+          bottom: "calc(1.25rem + env(safe-area-inset-bottom))",
           right: "calc(1.25rem + env(safe-area-inset-right))",
         }}
       >

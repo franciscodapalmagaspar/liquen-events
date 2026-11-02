@@ -5,6 +5,7 @@ import WhatsAppIcon from "./WhatsAppIcon";
 import { waHref } from "@/data";
 import { useTranslations } from "./LocaleProvider";
 import { usePublicPathname } from "@/lib/use-public-pathname";
+import { esconderNaGaleria } from "@/lib/flutuantes";
 import { track } from "@/lib/track";
 
 // Run `cb` when the browser is idle, falling back to a short timeout where
@@ -72,7 +73,8 @@ export default function WhatsAppButton() {
 
   // The quote form and its confirmation already offer WhatsApp/contact inline;
   // the floating pill there only overlaps the submit / action buttons on mobile.
-  if (pathname.startsWith("/orcamento") || !mounted) return null;
+  // Na galeria também sai (ela, 2/11): nada a flutuar por cima das fotografias.
+  if (pathname.startsWith("/orcamento") || esconderNaGaleria(pathname) || !mounted) return null;
 
   const show = visible && !atFooter;
 

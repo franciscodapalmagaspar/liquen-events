@@ -100,7 +100,6 @@ async function barraEReserva(page: Page) {
   });
 }
 
-const HEROI_ORCAMENTO = 'main section a[href$="/orcamento"]';
 const HEROI_GALERIA = 'main section a[href$="/galeria"]';
 const CTA_FIXO = 'div[class*="z-40"][class*="fixed"] a';
 const WHATSAPP = "a.whatsapp-fixed";
@@ -124,11 +123,10 @@ for (const medida of MEDIDAS) {
       // Os dois flutuantes só nascem em `requestIdleCallback` e a pílula de
       // WhatsApp espera ainda 1,5 s antes de se mostrar.
       await esperarQueApareca(page, WHATSAPP);
-      // E o herói tem de estar montado — é onde vivem dois dos quatro alvos.
-      // `.first()` porque «Pedir orçamento» aparece mais do que uma vez na
-      // página (o painel de fecho tem outro); o do herói é o primeiro no
-      // documento, e é o que o `querySelector` das medições apanha.
-      await expect(page.locator(HEROI_ORCAMENTO).first()).toBeVisible();
+      // E o herói tem de estar montado — é onde vive um dos alvos. Desde 2/11
+      // o herói tem só o «Ver galeria»: o «Pedir proposta» saiu (um só por
+      // página, no fim, pedido dela).
+      await expect(page.locator(HEROI_GALERIA).first()).toBeVisible();
     });
 
     test("a reserva declarada cobre a altura que a barra desenha", async ({ page }) => {
@@ -147,11 +145,8 @@ for (const medida of MEDIDAS) {
       expect(altura / alturaDaJanela).toBeLessThan(0.2);
     });
 
-    test("no centro dos dois CTA do herói está o próprio CTA", async ({ page }) => {
-      for (const [nome, seletor] of [
-        ["Pedir orçamento →", HEROI_ORCAMENTO],
-        ["Ver galeria →", HEROI_GALERIA],
-      ] as const) {
+    test("no centro do CTA do herói está o próprio CTA", async ({ page }) => {
+      for (const [nome, seletor] of [["Ver galeria →", HEROI_GALERIA]] as const) {
         const r = await quemEstaNoCentro(page, seletor);
         expect(r.existe, `não encontrei o «${nome}» do herói`).toBe(true);
         expect(
