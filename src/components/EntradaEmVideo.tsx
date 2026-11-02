@@ -38,6 +38,9 @@ import {
   ALIVIO_DURA_MS,
   alivioGuardado,
   deveAliviar,
+  deveAliviarPorParagens,
+  ALIVIAR_PARAGENS_A_FRENTE_S,
+  ALIVIAR_PARAGENS_JANELA_MS,
   eComputador,
   precisaDeTocarParaAquecer,
   enderecoLeveDeitado,
@@ -1233,6 +1236,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
     // descarregar e volta na sua vez.
     ouvir(el, "waiting", () => {
       if (el !== videos[atual] || !mostrado) return;
+      contarParagem(el);
       const t = el.currentTime;
       depois(SALTAR_SEM_DADOS_MS, () => {
         if (el !== videos[atual] || aPassar || !podeTocar() || aEsperarGesto) return;
@@ -1561,6 +1565,37 @@ function criarMotor(raiz: HTMLElement): Motor | null {
         mq.removeEventListener("change", aoRodar);
         window.clearTimeout(espera);
       });
+    }
+  }
+
+  /**
+   * ── PARAR COM O VÍDEO À FRENTE TAMBÉM DESCE O DEGRAU ───────────────────
+   * Ver `deveAliviarPorParagens`. Só o take à vista, deitado, fora das
+   * passagens e dos primeiros segundos — as mesmas portas da conta dos
+   * fotogramas, para os dois sinais medirem a mesma coisa.
+   */
+  let paragensComDados: number[] = [];
+  function contarParagem(el: HTMLVideoElement) {
+    if (nivel >= 2 || aPassar || !vivo) return;
+    if (variante(atual) === "retrato" || atual === semMedirAte) return;
+    const agora = performance.now();
+    if (agora < medirDesde) return;
+    const b = el.buffered;
+    let aFrente = 0;
+    for (let k = 0; b && k < b.length; k++) {
+      if (b.start(k) <= el.currentTime + 0.05 && b.end(k) >= el.currentTime) {
+        aFrente = b.end(k) - el.currentTime;
+      }
+    }
+    if (aFrente < ALIVIAR_PARAGENS_A_FRENTE_S) return; // é a rede: o «saltar» trata disso
+    paragensComDados = [
+      ...paragensComDados.filter((t) => agora - t <= ALIVIAR_PARAGENS_JANELA_MS),
+      agora,
+    ];
+    marcar("paragem-com-dados", atual);
+    if (deveAliviarPorParagens(paragensComDados, agora)) {
+      paragensComDados = [];
+      aliviar("paragens", true);
     }
   }
 
