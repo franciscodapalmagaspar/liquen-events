@@ -24,10 +24,15 @@ Registado aqui para o próximo leitor não refazer nem duvidar.
 | 20 | Aviso de Caps Lock | **já existia** |
 | 21 | Interface condicional de chaves de acesso | **já existia** |
 | — | Microcópia da Parte 9 | **feito** |
+| 4 | O cartão a vidro sobre a fotografia | **decidido de outra maneira** (reauditado a 1/11) — as duas hipóteses foram desenhadas e medidas: a fotografia ocupa METADE do ecrã (`EntradaComFotografia.tsx`), com o formulário no seu chão claro. Com o cartão a flutuar sobre a fotografia inteira, o véu para o texto branco chegar aos 4,5:1 teria de cobrir o ecrã todo (57–70 % de preto) — a «mancha morta» de que ela falou. O porquê está no cabeçalho desse ficheiro |
+| 5, 6 | Logótipo monocromático a 28 px | **não se faz — ela pediu o contrário**: olhou para a marca neste ecrã e disse «tem que ficar maior» (`h-32`, ver o comentário no `AdminLogin.tsx`). A cor fica |
+| 7 | A saudação | **feito** (reauditado a 1/11) — «Bom dia / Boa tarde / Boa noite» contados em Lisboa (`useSaudacao`, sem erro de hidratação), na faixa de baixo da fotografia |
+| 8 | O véu sob o texto da fotografia | **feito** (reauditado a 1/11) — `VEU_DO_TEXTO`, gradiente de 82 % a 0; o pior contraste medido é 10,88:1 |
+| 19 | O botão do olho | **feito** (reauditado a 1/11) — 40×40 (44 no dedo), `aria-label` que muda com o estado e `aria-pressed` |
 
-Por fazer: **4** (o cartão passar a vidro sobre a fotografia), **5** e **6** (o
-logótipo monocromático, a 28 px), **7** e **8** (a saudação e o scrim), **12**
-a **16**, **19**, **22**.
+Por fazer (reauditado a 1/11): **3** (falta tirar o segundo separador), **12**
+a **16**, **22**. Os 4, 5, 6, 7, 8 e 19 estão na tabela acima — feitos, ou
+decididos de outra maneira, com o porquê.
 
 ---
 

@@ -29,15 +29,19 @@ Auditado no `Temas.tsx` (4346 linhas) contra a tabela da **Parte 8**.
 |---|---|---|
 | 01 | Barra de topo | **parcial** — «Rever etiquetas» existe; falta a arrumação da Parte 8 |
 | 02 | Cartões | **parcial** — há `line-clamp`; falta a altura uniforme e a sombra. **14/10:** na grelha das fotografias de um tema, os três círculos escuros (↑, ⤢, ×) passaram a **um só «⋯» de vidro claro** (28 px à vista, 44 de alvo no dedo), que abre o mesmo menu do botão direito — critério 3 da Parte 8, escolhido por ela («tipo apple»). «Pôr no início» voltou ao menu, que é o caminho de dedo para isso. O círculo da selecção ficou à maneira da app Fotografias |
-| 03 | Menus | **parcial** — o `⋯` é um `MenuDeAccoes`; não há menu do botão direito |
-| 04 | Filtros | **por fazer** — há ordenação e a vista de arquivo, não os cinco filtros nomeados |
-| 05 | Seleção | **parcial** — clique e `Shift` funcionam, e a barra de seleção é a superfície de vidro; falta `⌘A` |
+| 03 | Menus | **feito** (reauditado a 1/11) — o botão direito abre o `MenuDeContexto` da casa no cartão do tema e na fotografia, com as mesmas acções do `⋯` («Mover para…», «Duplicar para…», favorito, arquivar) |
+| 04 | Filtros | **feito** (reauditado a 1/11) — os cinco âmbitos «Todos · Por usar · Usados este ano · Favoritos · Arquivados» (`lib/temas-filtros.ts`, `AMBITOS`; «Usados este ano» só aparece quando há datas de uso para o responder) e a ordenação com os quatro critérios «Nome · Mais recentes · Mais usados · Menos usados» |
+| 05 | Seleção | **feito** (reauditado a 1/11) — clique, `Shift`, `⌘`/`Ctrl` para somar, `⌘A` (fora dos campos e das janelas; a âncora fica na última), `Esc` limpa, e a barra de seleção é a superfície de vidro |
 | 06 | Split view | **feito** — `ListaDeTemas.tsx`: coluna de 16rem a partir de `lg`, com capa, contagem, estrela do fixado e `aria-current` na linha aberta. O corte é em `lg` (1024) e não nos 1200 px do documento, porque esta casa tem três larguras e o `Cortes.contrato.test.ts` prende-as — justificado por escrito no código. O «← Temas» ganhou `lg:hidden` e a saída passa a ser «Todos os temas», primeiro item da coluna |
 | 07 | Grelha de fotografias | **feito** — `aspect-[4/3]`, `gap-3` e `repeat(auto-fill,minmax(180px,1fr))` a partir de 24rem de contentor, com `grid-cols-2` por baixo: o `auto-fill` sozinho dá UMA coluna nos 309 px que um telemóvel de 375 dá a esta grelha. O tracejado passou a existir só durante o arrasto de ficheiros |
 | 08 | Arrasto | **feito** — carga própria (`application/x-liquen-fotos`), crachá do número no arrasto múltiplo, spring loading a 1 s, `role="status"` com a frase da Parte 4, e **Anular** que move de volta e RELÊ a pasta (os caminhos e os URLs assinados mudam no servidor; repor de memória dava imagens partidas). «Mover para…» entrou no menu da fotografia, que é a alternativa obrigatória sem rato |
 | 09 | Quick Look | **feito** — `Espaço` na célula abre, e o FLIP parte do rectângulo da miniatura com as curvas do `:root`. O `PhotoLightbox` foi ESTENDIDO (ganhou a prop `origem`), não substituído — as setas, o `Esc`, o trinco do scroll e a cascata do plano B já lá estavam. **Ressalva:** a ARIA manda o `Espaço` alternar uma `role="checkbox"` e o documento manda-o abrir o Quick Look; ficou o Quick Look, e o alternar não se perde porque o `Enter` num `<button>` dispara `click`. Fecha-se a sério na fase 11, quando a célula passar a `role="gridcell"` |
-| 10 | Estados | **parcial** — há `skeleton`; faltam os outros três |
+| 10 | Estados | **feito** (reauditado a 1/11) — `skeleton` com a geometria da grelha (`aspect-[4/3]`), «Ainda não há temas» com «Criar tema», «Nenhum tema corresponde a “…”» com «Limpar filtros» (mensagem diferente da biblioteca vazia), e o erro por imagem (`onError` → plano B, sem ícone partido) |
 | 11 | Teclado e acessibilidade | **por fazer** — sem `role="grid"` |
+
+**Reauditado a 1/11:** quatro linhas desta tabela (03, 04, 05, 10) estavam
+desactualizadas — o código já as tinha feito e a tabela não acompanhou. Ficam
+por fazer a 11 (`role="grid"`), e parciais a 01 e a 02.
 
 Nenhuma fase por acabar inteira, e nenhuma acabada: este ecrã já tinha muito
 feito ANTES do documento, e o documento pede outra coisa por cima. É o mais
