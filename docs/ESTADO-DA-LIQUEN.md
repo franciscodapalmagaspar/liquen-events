@@ -188,7 +188,7 @@ rede e CPU travadas, mediana de 3):
 
 ## 6. O que se fez na ronda de 1–2 de novembro
 
-Tudo com CI verde e junto, menos onde se diz o contrário.
+Tudo com CI verde e junto (estado a 2/11, 09h).
 
 **Site**
 - Vídeo da entrada deixou de travar no Chrome do computador (deixou de se
@@ -196,11 +196,13 @@ Tudo com CI verde e junto, menos onde se diz o contrário.
 - Fonte do aviso de cookies e LCP da galeria (#334); botão do WhatsApp sem
   piscar na troca de língua (#335); títulos com entrada leve no telemóvel (#340).
 - CSP: as conversões do Google Ads e as visitas do GA4 deixaram de ser
-  recusadas (#339, #343; o último host, `stats.g.doubleclick.net`, está no
-  **#347, em CI**).
-- **Em CI (#350):** o vídeo desce sozinho à versão leve também quando para com
-  o vídeo já descarregado — o registo anónimo de 2/11 mostrou 40 paragens em
-  15 s num computador que tinha 7–9 s de vídeo à frente.
+  recusadas (#339, #343, #347) — verificado na consola do sítio publicado:
+  zero erros, no iPhone e no computador.
+- Vídeo da entrada no computador: desce sozinho à versão leve quando pára com
+  o vídeo já descarregado (#350), e deixa de saltar de take nessas paragens
+  (#352) — o registo anónimo de 2/11 mostrou 40 paragens em 15 s e takes de
+  ~3 s num computador com 7–9 s de vídeo à frente. **Não verificado** ainda
+  numa visita real de Chrome no computador.
 
 **Proposta online**: o visualizador das fotografias refeito (#332).
 
@@ -208,13 +210,14 @@ Tudo com CI verde e junto, menos onde se diz o contrário.
 - Pedidos: «Possível duplicado» (#336).
 - Calendário: arrastar com «Anular», «Mudar de dia…», exportar, agrupado por
   mês, apagar pelo teclado (#337, #342, com migração `updated_at` aplicada).
-  **Em CI (#349):** tocar num cliente do Calendário passa a abrir a página do
-  pedido e não o painel antigo.
+- Todas as portas para um cliente (Visão Geral, Kanban, Calendário,
+  Propostas, ⌘K…) abrem a página da proposta; um evento ganho abre o Dossier;
+  o painel antigo só pelo «Abrir o pedido» (#349, #353).
 - Temas: a grelha das fotografias passa a `role="grid"` pelo teclado (#344).
 - Entrada: raios concêntricos (26/10), grelha de 4, entrada em dois tempos;
   o `LOGIN.md` fica sem nada por fazer (#341, #345).
 
-**Propostas — à espera da aprovação dela** (mexem no PDF):
+**Propostas — aprovadas por ela a 2/11** (mexem no PDF):
 - **#346 (A3):** quando ela não escolhe a foto de uma página inteira, o PDF
   escolhe pela régua de qualidade (boa > fraca > má), abaixo da regra «nunca a
   mesma foto em páginas seguidas» (decisão dela).
