@@ -85,14 +85,15 @@ e cada tabela é que manda, isto é só o mapa:
   · **Calendário**: as quatro vistas existem (dia, semana, mês, ano). Falta a
     09 (arrastar); a 11 (acessibilidade) ficou feita com o achado n.º 24 da
     auditoria; a 01 e a 10 ficaram feitas a 1/11, e a 05 está parcial;
-  · **Temas**: a 03, a 04, a 05, a 06, a 07, a 08, a 09 e a 10 estão feitas
-    (quatro delas só se viu a 1/11, ao reauditar); a 01 e a 02 parciais, a 11 por fazer.
+  · **Temas**: da 03 à 11 estão feitas (quatro delas só se viu a 1/11, ao
+    reauditar; a 11 a 2/11); a 01 e a 02 parciais.
 
 Repara que a 11 do Calendário e a dos Temas são a mesma peça: passar a grelha de
 `role="button"` a `role="grid"` com `gridcell`. A do Calendário está feita
-(`Calendario.tsx`, com o `diaPelaTecla`); a dos Temas segue o mesmo desenho e
-ficou por fazer — a grelha de fotografias tem arrasto, selecção múltipla e um
-número de colunas que muda com a largura, e não tinha erro no axe. (A das
+(`Calendario.tsx`, com o `diaPelaTecla`); a dos Temas segue o mesmo desenho
+(`lib/temas-grelha.ts`, `fotoPelaTecla`) e também está feita — mas com UMA só
+`role="row"` e a posição em `aria-rowindex`/`aria-colindex`: as colunas mudam
+com a largura, e linhas a sério desmontavam as células a cada mudança. (A das
 Tarefas NÃO era essa: a lista é `<ul>/<li>`, e a 11 foi percorrer a Parte 6 inteira.
 Este mapa dizia o contrário e estava errado: a tabela de cada documento é que manda.)
 
