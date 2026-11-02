@@ -1543,12 +1543,36 @@ describe("EntradaEmVideo", () => {
       act(() => void b.dispatchEvent(new Event("canplaythrough")));
       Object.defineProperty(a, "currentTime", { configurable: true, value: 4, writable: true });
       Object.defineProperty(a, "readyState", { configurable: true, value: 2 });
+      // SEM dados: a rede só entregou até um pouco à frente do ponto em que está.
+      // (O `comecar` dá-o todo descarregado — e com tudo descarregado a paragem
+      // não é da rede, ver o caso a seguir.)
+      descarregado(a, 4.3);
       play.mockClear();
       act(() => void a.dispatchEvent(new Event("waiting")));
       act(() => void vi.advanceTimersByTime(450));
       expect(play).toHaveBeenCalledTimes(1);
       act(() => void b.dispatchEvent(new Event("playing")));
       expect(b.style.opacity).toBe("1");
+    });
+
+    it("COM dados à frente (o descodificador, não a rede): fica no mesmo take (2/11)", async () => {
+      // Ela: «passa os mesmos vídeos bué vezes». O salto cortava cada take aos
+      // ~3 s num computador que tinha 7–9 s já descarregados.
+      const { container } = await montar();
+      const [a, b] = videos(container);
+      comecar(a);
+      act(() => void b.dispatchEvent(new Event("canplaythrough")));
+      Object.defineProperty(a, "currentTime", { configurable: true, value: 4, writable: true });
+      Object.defineProperty(a, "readyState", { configurable: true, value: 2 });
+      Object.defineProperty(a, "buffered", {
+        configurable: true,
+        value: { length: 1, start: () => 0, end: () => 12 },
+      });
+      play.mockClear();
+      act(() => void a.dispatchEvent(new Event("waiting")));
+      act(() => void vi.advanceTimersByTime(450));
+      expect(play).not.toHaveBeenCalled();
+      expect(b.style.opacity).toBe("0");
     });
 
     it("sem dados e sem para onde ir: espera (não há take na memória)", async () => {
