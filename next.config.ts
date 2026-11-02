@@ -509,11 +509,17 @@ const nextConfig: NextConfig = {
     // mostrava as primeiras recusas e esta ficava atrás): o `fetch` do GA4
     // para `analytics.google.com/g/collect`. Sem ele, as visitas não chegavam
     // às estatísticas. Entra em `connect-src`, o host exacto.
+    //
+    // E uma quarta, pelo mesmo caminho (2/11, com a terceira já aberta): o
+    // GA4 manda uma segunda cópia do `/g/collect` para
+    // `stats.g.doubleclick.net` — é a das audiências e dos dados demográficos
+    // (os «sinais da Google»). A consola do sítio publicado mostrava-a recusada
+    // em cada visita. Também só em `connect-src`, o host exacto.
     const gaScript = " https://www.googletagmanager.com https://googleads.g.doubleclick.net";
     const gaImg =
       " https://www.googletagmanager.com https://www.google.com https://www.google.pt https://googleads.g.doubleclick.net https://pagead2.googlesyndication.com";
     const gaConnect =
-      " https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://googleads.g.doubleclick.net https://ad.doubleclick.net https://www.googleadservices.com https://www.google.com https://pagead2.googlesyndication.com";
+      " https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://googleads.g.doubleclick.net https://ad.doubleclick.net https://www.googleadservices.com https://www.google.com https://pagead2.googlesyndication.com";
     const gaFrame = "https://td.doubleclick.net https://www.googletagmanager.com";
 
     // ── Meta (Instagram/Facebook) ────────────────────────────────────────
