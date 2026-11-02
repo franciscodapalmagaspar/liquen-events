@@ -279,13 +279,37 @@ describe("o botão direito", () => {
     expect(chamadas.some((c) => String(c[0]).includes("/api/calendario/ev-1"))).toBe(false);
   });
 
-  it("num pedido abre o menu do PEDIDO — abrir, fazer proposta, ver o dia", async () => {
+  it("num pedido abre o menu do PEDIDO — abrir e ver o dia (uma porta só, 2/11)", async () => {
     await montar();
     fireEvent.contextMenu(screen.getAllByLabelText(/Abrir pedido de Marta Nunes/)[0]);
 
     const menu = await screen.findByRole("menu");
     expect(menu).toHaveAttribute("aria-label", "Acções de Marta Nunes");
     expect(within(menu).getByRole("menuitem", { name: "Abrir pedido" })).toBeInTheDocument();
-    expect(within(menu).getByRole("menuitem", { name: "Fazer proposta" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Ver na vista de dia" })).toBeInTheDocument();
+    // «Fazer proposta» era a segunda porta para o mesmo sítio.
+    expect(within(menu).queryByRole("menuitem", { name: "Fazer proposta" })).toBeNull();
+  });
+});
+
+describe("tocar num cliente abre a PÁGINA do pedido, não o painel antigo (2/11)", () => {
+  it("na grelha do mês e no menu, é a porta de «Fazer proposta» que abre", async () => {
+    const onOpen = vi.fn();
+    const onFazerProposta = vi.fn();
+    render(
+      <ToastProvider>
+        <Calendario quotes={[CASAMENTO]} onOpen={onOpen} onFazerProposta={onFazerProposta} />
+      </ToastProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Setembro 2026")).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByLabelText(/Abrir pedido de Marta Nunes/)[0]);
+    expect(onFazerProposta).toHaveBeenCalledTimes(1);
+
+    fireEvent.contextMenu(screen.getAllByLabelText(/Abrir pedido de Marta Nunes/)[0]);
+    const menu = await screen.findByRole("menu");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Abrir pedido" }));
+    expect(onFazerProposta).toHaveBeenCalledTimes(2);
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });
