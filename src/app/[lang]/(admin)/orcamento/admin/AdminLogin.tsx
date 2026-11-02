@@ -467,11 +467,26 @@ export default function AdminLogin() {
             boiar no topo». A proporção é a do ficheiro (`w-auto`); isto é só
             escala.
           */
-          className="h-32 w-auto object-contain"
+          className="bo-cena h-32 w-auto object-contain"
         />
 
-        {/* Login card */}
-        <Card padding="lg" className="w-full">
+        {/* ── O CARTÃO, E A ENTRADA EM DOIS TEMPOS (`docs/LOGIN.md`, 12 e 16)
+            «Sem movimento nenhum. É o primeiro ecrã que ela vê todos os
+            dias.» A marca e depois o cartão, com a escada da casa (`.bo-cena`:
+            600 ms, a curva de saída, degraus de 20 ms) — a mesma da Visão
+            Geral, que é o ecrã que vem a seguir. Com «reduzir movimento» não
+            há escada nenhuma (`admin.css`).
+
+            `.bo-porta` dá-lhe o raio de folha (26) e os controlos a 10; o
+            padding é o dos 32 do documento a partir de `sm`, e 24 no
+            telemóvel: medido a 320 px, com 32 o botão da chave de acesso
+            fica com 222 px para uma frase de 224 (é `whitespace-nowrap`), e
+            a frase sai pela borda. */}
+        <Card
+          padding="none"
+          className="bo-porta bo-cena w-full p-6 sm:p-8"
+          style={{ "--cena": 1 } as React.CSSProperties}
+        >
           <div className="mb-5 text-center">
             <p className="bo-eyebrow mb-2">Área restrita</p>
             <h1 className="font-display text-2xl leading-tight text-[var(--bo-text)]">
@@ -497,7 +512,7 @@ export default function AdminLogin() {
           {sessaoExpirou && (
             <p
               role="status"
-              className="mb-5 rounded-xl bg-[var(--bo-aviso-lavagem)] px-3.5 py-3 text-sm leading-relaxed text-[var(--bo-aviso)]"
+              className="mb-5 rounded-xl bg-[var(--bo-aviso-lavagem)] px-4 py-3 text-sm leading-relaxed text-[var(--bo-aviso)]"
             >
               A tua sessão expirou. Entra outra vez — tudo o que já tinha sido guardado está
               guardado.
@@ -612,7 +627,7 @@ export default function AdminLogin() {
             <div className={formularioRecolhido ? "overflow-hidden" : ""}>
               <form
                 onSubmit={submit}
-                className="flex flex-col gap-3.5"
+                className="flex flex-col gap-4"
                 onFocus={aoFocarCampo}
                 onBlur={aoSairDoCampo}
               >
@@ -717,7 +732,7 @@ export default function AdminLogin() {
                   <p
                     id={capsId}
                     role="status"
-                    className="-mt-2 flex items-start gap-1.5 text-xs leading-relaxed text-[var(--bo-aviso)]"
+                    className="-mt-2 flex items-start gap-2 text-xs leading-relaxed text-[var(--bo-aviso)]"
                   >
                     <span aria-hidden="true">⇪</span>
                     <span>O Caps Lock está ligado.</span>
@@ -756,7 +771,7 @@ export default function AdminLogin() {
                 custavam 54 px que empurravam o botão de submeter para baixo da
                 dobra do telemóvel (medido a 390x844). Quem desliga vê logo o
                 que trocou. */}
-                <label className="alvo-toque flex items-start gap-2.5 text-left">
+                <label className="alvo-toque flex items-start gap-2 text-left">
                   <input
                     type="checkbox"
                     name="manterSessao"
@@ -882,7 +897,7 @@ export default function AdminLogin() {
                       className={
                         respostaRecuperacao.tipo === "ok"
                           ? "text-xs leading-relaxed text-[var(--bo-tinta-72)]"
-                          : "flex items-start gap-1.5 text-xs leading-relaxed text-[var(--bo-perigo)]"
+                          : "flex items-start gap-2 text-xs leading-relaxed text-[var(--bo-perigo)]"
                       }
                     >
                       {respostaRecuperacao.tipo === "erro" && <span aria-hidden="true">⚠</span>}
@@ -1017,7 +1032,7 @@ function AvisoDeRecusa({ texto, className = "" }: { texto: string; className?: s
          dentro do `prefers-reduced-motion` do `globals.css`, e o `aria-live`
          nunca dependeu da animação — para quem ouve o ecrã, isto lê-se na
          mesma, na mesma altura. */
-      className={`bo-entrada flex items-start gap-1.5 text-sm leading-relaxed text-[var(--bo-perigo)] ${className}`}
+      className={`bo-entrada flex items-start gap-2 text-sm leading-relaxed text-[var(--bo-perigo)] ${className}`}
     >
       <span aria-hidden="true">⚠</span>
       <span>{texto}</span>
