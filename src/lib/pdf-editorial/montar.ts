@@ -403,7 +403,7 @@ async function motor(
       ? doc.focoDaCapa
         ? { ...fotoDaCapa, foco: doc.focoDaCapa }
         : fotoDaCapa
-      : (album.escolher(1, "deitada")[0] ?? fotoDaCapa ?? null);
+      : (album.paraAFolha(1, "deitada", "capa")[0] ?? fotoDaCapa ?? null);
   // «JANTAR DE EMPRESA · 11.12.2026 · PALÁCIO PESTANA» — a data curta
   // lê-se da data dela (em português); sem ela, a data como está escrita.
   const partesDaCapa = [
@@ -448,7 +448,9 @@ async function motor(
   {
     const chave = chaves.nova("proposta");
     const foto =
-      escolhidas(chave, proxima())?.[0] ?? album.escolher(proxima(), "deitada")[0] ?? fundoDaCapa;
+      escolhidas(chave, proxima())?.[0] ??
+      album.paraAFolha(proxima(), "deitada", "pagina")[0] ??
+      fundoDaCapa;
     const factos = [
       // «Noivos» só num casamento: num restaurante, numa empresa, numa festa,
       // quem recebe a proposta é o cliente.
@@ -666,7 +668,7 @@ async function motor(
     // As que ela escolheu mandam: uma (o fundo é a mesma) ou duas.
     const fotosDoSeparador =
       escolhidas(chaveDoSeparador, paginaDoSeparador)?.slice(0, 2) ??
-      album.escolher(paginaDoSeparador, "qualquer", 2, daqui, evitar);
+      album.paraAFolha(paginaDoSeparador, "qualquer", "pagina", 2, daqui, evitar);
     // Fora de um casamento, um tema em metades ou tríptico não tem texto na
     // página: a nota dele vai no separador, para não se perder.
     const notaDoSeparador =
@@ -755,7 +757,8 @@ async function motor(
   // ── A citação, depois da inspiração (§6.7): a fotografia horizontal de
   // maior resolução da proposta que não esteja numa página vizinha.
   if (capitulos.length) {
-    const foto = escolhidas("citacao", proxima())?.[0] ?? album.escolher(proxima(), "deitada")[0];
+    const foto =
+      escolhidas("citacao", proxima())?.[0] ?? album.paraAFolha(proxima(), "deitada", "pagina")[0];
     if (foto) {
       const fotoWeb = fw(foto);
       if (fotoWeb)
@@ -805,7 +808,9 @@ async function motor(
       // quadro das linhas a seguir, no mesmo desenho.
       const chaveDoTotal = chaves.nova("total");
       const fotoDoTotal =
-        escolhidas(chaveDoTotal, proxima())?.[0] ?? album.escolher(proxima(), "deitada")[0] ?? null;
+        escolhidas(chaveDoTotal, proxima())?.[0] ??
+        album.paraAFolha(proxima(), "deitada", "pagina")[0] ??
+        null;
       {
         const d = dadosDoTotal();
         const pct = totais.percentagemSinal;
