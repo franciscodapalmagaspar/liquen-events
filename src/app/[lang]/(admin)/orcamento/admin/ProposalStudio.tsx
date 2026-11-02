@@ -11266,6 +11266,8 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
             doc={doc as ProposalDoc}
             onSaltar={(bi) => irParaAFalta("moodboards", `boardTitulo:${bi}`)}
             onEscolherFotos={(bi) => setPicker({ kind: "board", bi })}
+            quoteId={quote.id}
+            idioma={idiomaDoPdf}
           />
         </div>
       </div>

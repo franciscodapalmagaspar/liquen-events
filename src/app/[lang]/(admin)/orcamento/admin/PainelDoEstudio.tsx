@@ -14,6 +14,9 @@ import { eCasamento } from "@/lib/proposal-evento";
 import PaginaEditorial, { fontesDasFolhas } from "./PaginaEditorial";
 import { ESTADO, MARCA, PRESSAO } from "./ui/movimento";
 import { useMarcaQueAnda } from "./ui/useMarcaQueAnda";
+import { FolhaOuDialogo } from "./ui";
+import { usePaginaReal } from "./usePaginaReal";
+import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -118,6 +121,8 @@ export default function PainelDoEstudio({
   doc,
   onSaltar,
   onEscolherFotos,
+  quoteId,
+  idioma = IDIOMA_POR_OMISSAO,
 }: {
   /** As páginas com fotografias, pela ordem em que saem. */
   paginas: readonly PaginaParaOPainel[];
@@ -156,6 +161,13 @@ export default function PainelDoEstudio({
    * e aterrava numa caixa três vezes mais pequena.
    */
   cabe: boolean;
+  /**
+   * O pedido, para o painel pedir ao servidor a página REAL do rascunho (A1)
+   * — ver `usePaginaReal`. Sem ele, fica a aproximação de sempre.
+   */
+  quoteId?: string;
+  /** A língua em que o PDF vai sair — a da pré-visualização. */
+  idioma?: IdiomaDaProposta;
 }) {
   const [vista, setVista] = useState<"pagina" | "documento">("pagina");
 
@@ -229,6 +241,27 @@ export default function PainelDoEstudio({
   );
 
   const aVer = paginas.find((p) => p.bi === activa) ?? paginas[0];
+
+  /* ── A PÁGINA REAL (A1) ──────────────────────────────────────────────────
+     O número da página no PDF é o lugar dela no plano (`plano.ts` — o mesmo
+     que o estúdio conta, e que um teste prende ao PDF). A página real só se
+     pede quando o painel está à vista e na vista «Esta página»: na vista de
+     conjunto, e com o painel fechado, não há pedido nenhum. */
+  const nDaPagina = (() => {
+    if (!aVer) return null;
+    const i = plano.findIndex((e) => e.tipo === "tema" && e.bi === aVer.bi && e.parte === 0);
+    return i >= 0 ? i + 1 : null;
+  })();
+  const real = usePaginaReal({
+    quoteId: cabe && vista === "pagina" ? quoteId : undefined,
+    doc,
+    idioma,
+    n: nDaPagina,
+  });
+  // A imagem que chegou é desta página? Se ela mudou de página, a anterior
+  // seria a página ERRADA — fica a aproximação até a certa chegar.
+  const urlReal = real.url && real.n === nDaPagina ? real.url : null;
+  const [emGrande, setEmGrande] = useState(false);
 
   // Não cabe: não há painel nenhum, nem o custo de o desenhar. Ver
   // `useLarguraQueChega`.
@@ -345,8 +378,46 @@ export default function PainelDoEstudio({
               <div key={vista} className="view-in">
                 {vista === "pagina" && aVer ? (
                   <>
-                    {folha(aVer, paginas.indexOf(aVer))}
-                    <p className="mt-2 text-center text-[11px] text-foreground/45">
+                    {urlReal ? (
+                      /* A página real, desenhada pelo motor do PDF. Um toque
+                         abre-a em grande — a mesma imagem, sem outro pedido. */
+                      <button
+                        type="button"
+                        onClick={() => setEmGrande(true)}
+                        aria-label={`Ver a página ${nDaPagina} em grande`}
+                        className={`relative block w-full rounded-[3px] ${ESTADO} ${PRESSAO}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={urlReal}
+                          alt={`Página ${nDaPagina} do PDF, como vai sair`}
+                          className="block w-full rounded-[3px] border border-[var(--bo-hairline)]"
+                        />
+                        {real.aCarregar && (
+                          <span className="absolute right-2 top-2 rounded-full bg-[var(--bo-surface)] px-2 py-0.5 text-[10px] text-[var(--bo-text-muted)]">
+                            A atualizar…
+                          </span>
+                        )}
+                      </button>
+                    ) : (
+                      <div className="relative">
+                        {folha(aVer, paginas.indexOf(aVer))}
+                        {/* Dizer que é uma aproximação: a página real é a do
+                            PDF, e esta é o navegador a adivinhar. */}
+                        {quoteId && (
+                          <span className="absolute inset-x-2 bottom-2 rounded-md bg-[var(--bo-surface)] px-2 py-1 text-center text-[10px] text-[var(--bo-text-muted)]">
+                            {real.falhou
+                              ? "Aproximação — a página real não chegou agora"
+                              : "Aproximação — a página real está a chegar"}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <p
+                      className="mt-2 text-center text-[11px] text-foreground/45 tabular-nums"
+                      aria-live="polite"
+                    >
+                      {nDaPagina && real.paginas ? `Página ${nDaPagina} de ${real.paginas} · ` : ""}
                       Inspiração {paginas.findIndex((p) => p.bi === aVer.bi) + 1} de{" "}
                       {paginas.length}
                     </p>
@@ -393,6 +464,21 @@ export default function PainelDoEstudio({
           </>
         )}
       </div>
+      <FolhaOuDialogo
+        aberto={emGrande && !!urlReal}
+        onFechar={() => setEmGrande(false)}
+        titulo={nDaPagina ? `Página ${nDaPagina}` : "A página"}
+        largura="largo"
+      >
+        {urlReal && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={urlReal}
+            alt={`Página ${nDaPagina} do PDF, como vai sair`}
+            className="block w-full rounded-[3px] border border-[var(--bo-hairline)]"
+          />
+        )}
+      </FolhaOuDialogo>
     </aside>
   );
 }

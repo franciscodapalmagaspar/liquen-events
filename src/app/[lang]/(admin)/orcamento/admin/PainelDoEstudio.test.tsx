@@ -405,3 +405,101 @@ describe("a barra de separadores do painel", () => {
     );
   });
 });
+
+describe("A1 — a página REAL, pedida ao servidor", () => {
+  const doc = {
+    clientNames: "TESTE Ana & TESTE Rui",
+    eventType: "Casamento",
+    coverImages: [],
+    moodBoards: [board({ title: "Cerimónia" }), board({ title: "Jantar" })],
+  } as unknown as React.ComponentProps<typeof PainelDoEstudio>["doc"];
+
+  const respostaWebp = (ok = true) =>
+    vi.fn(async (_url: string, _init?: RequestInit) => ({
+      ok,
+      status: ok ? 200 : 500,
+      headers: new Headers({ "X-Paginas": "14" }),
+      blob: async () => new Blob(["WEBP"], { type: "image/webp" }),
+    }));
+
+  const comUrls = () => {
+    let k = 0;
+    vi.stubGlobal(
+      "URL",
+      Object.assign(URL, {
+        createObjectURL: () => `blob:pagina-${++k}`,
+        revokeObjectURL: () => {},
+      }),
+    );
+  };
+
+  it("sem pedido (`quoteId`), não pede nada — fica a aproximação de sempre", async () => {
+    vi.useFakeTimers();
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    desenhar({ doc, activa: 0 });
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(f).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Aproximação/)).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it("pede a página da inspiração activa DEPOIS de uma pausa, e mostra-a no lugar da aproximação", async () => {
+    vi.useFakeTimers();
+    comUrls();
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
+    // Antes da pausa: a aproximação, e dito que é uma.
+    expect(screen.getByText("Aproximação — a página real está a chegar")).toBeTruthy();
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(f).not.toHaveBeenCalled();
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(f).toHaveBeenCalledTimes(1);
+    const [url, init] = f.mock.calls[0];
+    expect(url).toBe("/api/orcamento/q1/pagina-do-rascunho");
+    const corpo = JSON.parse(String(init?.body));
+    // O número é o lugar da página no plano do PDF — e é a do «Jantar».
+    expect(corpo.n).toBeGreaterThan(1);
+    expect(corpo.idioma).toBe("pt");
+    const img = await vi.waitFor(() =>
+      screen.getByRole("img", { name: `Página ${corpo.n} do PDF, como vai sair` }),
+    );
+    expect(img.getAttribute("src")).toMatch(/^blob:pagina-/);
+    expect(screen.getByText(new RegExp(`Página ${corpo.n} de 14`))).toBeTruthy();
+    vi.useRealTimers();
+  });
+
+  it("se o servidor falha, fica a aproximação — e diz que a real não chegou", async () => {
+    vi.useFakeTimers();
+    comUrls();
+    vi.stubGlobal("fetch", respostaWebp(false));
+    desenhar({ doc, activa: 0, quoteId: "q1" });
+    await act(async () => {
+      vi.advanceTimersByTime(1300);
+    });
+    await vi.waitFor(() =>
+      expect(screen.getByText("Aproximação — a página real não chegou agora")).toBeTruthy(),
+    );
+    vi.useRealTimers();
+  });
+
+  it("na vista «Todas» não se pede página nenhuma", async () => {
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    desenhar({ doc, activa: 0, quoteId: "q1" });
+    await userEvent.click(screen.getByRole("tab", { name: "Todas" }));
+    vi.useFakeTimers();
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(f).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+});

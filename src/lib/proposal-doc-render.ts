@@ -754,24 +754,33 @@ async function reduzirParaEditorial(bytes: Buffer): Promise<Buffer> {
 export async function renderStoredEditorialPdfWithReport(
   doc: ProposalDoc,
   idioma: IdiomaDaProposta = IDIOMA_POR_OMISSAO,
-  opcoes: { rascunho?: boolean } = {},
+  /** `soPaginas`: só estas páginas — ver `renderEditorialPdf`. */
+  opcoes: { rascunho?: boolean; soPaginas?: readonly number[] } = {},
 ): Promise<{
   pdf: Buffer<ArrayBuffer>;
   missingImages: number;
   truncations: DocTruncation[];
   /** Que fotografia foi para cada página — o mesmo que `fotosDoEditorialDoDocumento`. */
   fotos: FotosDoPdf;
+  /** As páginas do PDF inteiro, mesmo com `soPaginas`. */
+  paginas: number;
 }> {
   const withDefaults = withProposalDefaults(doc);
   const { doc: resolved, missing, refs } = await resolveImages(withDefaults, { originais: true });
   const medidas = await medidasDaBiblioteca(caminhosDoDocumento(withDefaults));
-  const { bytes, truncations, undrawnImages, fotos } = await renderEditorialPdf(
+  const { bytes, truncations, undrawnImages, fotos, paginas } = await renderEditorialPdf(
     resolved,
     idioma,
     opcoes,
     { refs, medidas },
   );
-  return { pdf: Buffer.from(bytes), missingImages: missing + undrawnImages, truncations, fotos };
+  return {
+    pdf: Buffer.from(bytes),
+    missingImages: missing + undrawnImages,
+    truncations,
+    fotos,
+    paginas,
+  };
 }
 
 /**
