@@ -40,6 +40,8 @@ import {
 import { diasDaSemana, tituloDaSemana } from "@/lib/orcamento/dia-do-calendario";
 import { SAIDA, SAIDA_FUNDO, useSaidaDeUmSo } from "./ui/saida";
 import { useCachedList } from "./useCachedList";
+import { useArrastoDeMarcacoes } from "./useArrastoDeMarcacoes";
+import MudarDeDia from "./MudarDeDia";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { AvisoDeFalha } from "./AvisoDeFalha";
@@ -646,6 +648,13 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
   /** O menu do botão direito, quando há um aberto. Fase 10, ponto 17. */
   const [menu, setMenu] = useState<PedidoDeMenu | null>(null);
   const fecharMenu = useCallback(() => setMenu(null), []);
+  /**
+   * ── ARRASTAR (fase 09) ──────────────────────────────────────────────────
+   * A marcação que vai no ar (o id), o dia por baixo do rato (para o
+   * realce), a frase para o leitor de ecrã, e a marcação aberta no «Mudar de
+   * dia…» — a alternativa sem rato, que a Parte 5 manda haver sempre.
+   */
+  const [aMudarDeDia, setAMudarDeDia] = useState<CalendarEvent | null>(null);
   /**
    * O dia que um próximo evento aponta na grelha (fase 05, ponto 25): passar
    * o rato — ou o foco do teclado — por uma linha realça o dia dela, se o mês
@@ -1272,10 +1281,32 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
     });
   }
 
+  // Arrastar (fase 09): ver `useArrastoDeMarcacoes.ts`.
+  const arrasto = useArrastoDeMarcacoes({
+    events,
+    setEvents,
+    gravar,
+    anular,
+    duplicarPara: (ev, dia) =>
+      void createEvent({
+        title: ev.title,
+        kind: ev.kind,
+        time: ev.time ?? "",
+        note: ev.note ?? "",
+        date: dia,
+      }),
+  });
+
   function menuDaMarcacao(ev: CalendarEvent, x: number, y: number): PedidoDeMenu {
     const accoes: AccaoDeItem[] = [
       { id: "dia", rotulo: "Ver na vista de dia", onAccao: () => verNaVistaDeDia(ev.date) },
       { id: "duplicar", rotulo: "Duplicar", onAccao: () => void duplicarMarcacao(ev) },
+      {
+        id: "mudar",
+        rotulo: "Mudar de dia…",
+        separadorAntes: true,
+        onAccao: () => setAMudarDeDia(ev),
+      },
       {
         id: "remover",
         rotulo: "Remover",
@@ -2026,6 +2057,11 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                             e.preventDefault();
                             setMenu(menuDoDia(key, e.clientX, e.clientY));
                           }}
+                          /* A largada de uma marcação (fase 09). Só quando há
+                             uma no ar: arrastar ficheiros ou texto por cima
+                             do calendário não realça dia nenhum. `Alt`
+                             duplica, como no Finder — o cursor diz «copy». */
+                          {...arrasto.noDia(key)}
                           /* Sem `min-h` próprio: a altura da célula é a linha da
                          grelha (`minmax(--celula, 1fr)`), e dois mínimos a
                          decidir a mesma altura é como uma delas fica para
@@ -2034,11 +2070,13 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                           className={`group relative bg-[var(--bo-surface)] p-1 sm:p-1.5 ${ESTADO} ${PRESSAO} focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600/60 ${
                             isSelected
                               ? "ring-1 ring-inset ring-sage-600/45 bg-sage-600/[0.04]"
-                              : key === diaRealcado
-                                ? "ring-1 ring-inset ring-sage-600/35 bg-sage-600/[0.06]"
-                                : isToday
-                                  ? "hover:bg-sage-600/[0.03]"
-                                  : "hover:bg-sage-600/[0.025]"
+                              : key === arrasto.destino
+                                ? "ring-2 ring-inset ring-sage-600/60 bg-sage-600/[0.08]"
+                                : key === diaRealcado
+                                  ? "ring-1 ring-inset ring-sage-600/35 bg-sage-600/[0.06]"
+                                  : isToday
+                                    ? "hover:bg-sage-600/[0.03]"
+                                    : "hover:bg-sage-600/[0.025]"
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -2114,6 +2152,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                                   dica={`${TIPO_META[ev.kind].label}: ${ev.title} (clique para remover)`}
                                   onMenu={(x, y) => setMenu(menuDaMarcacao(ev, x, y))}
                                   onApagar={() => pedirParaRemover(ev.id, ev.title)}
+                                  {...arrasto.naEtiqueta(ev)}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     pedirParaRemover(ev.id, ev.title);
@@ -2450,6 +2489,20 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
       {/* O menu do botão direito — dos dias e das etiquetas, nas três vistas
           que têm dias desenhados. É o `MenuDeContexto` da casa. */}
       <MenuDeContexto pedido={menu} onFechar={fecharMenu} />
+
+      {/* O que o arrasto fez, dito ao leitor de ecrã (Parte 5): «Reunião com
+          a Daniela movido de 26 para 12 de setembro.» */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {arrasto.anuncio}
+      </p>
+
+      {/* «Mudar de dia…» — ver `MudarDeDia.tsx`. */}
+      <MudarDeDia
+        key={aMudarDeDia?.id ?? "nenhuma"}
+        marcacao={aMudarDeDia}
+        onFechar={() => setAMudarDeDia(null)}
+        onMudar={(ev, dia) => void arrasto.mover(ev, dia)}
+      />
 
       {/* ── A PERGUNTA É A DA CASA ──────────────────────────────────────────
           Folha inferior no telemóvel — ao pé do polegar, e não no topo do ecrã

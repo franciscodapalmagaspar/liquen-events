@@ -27,18 +27,21 @@ export const mapper: Mapper<CalendarEvent> = {
   order: { column: "event_date", ascending: true },
   fileCompare: (a, b) => a.date.localeCompare(b.date),
   /**
-   * SEM `touch`, e de propósito: esta tabela não tem caminho de actualização
-   * nenhum. O store expõe `listCalendarEvents`, `createCalendarEvent` e
-   * `deleteCalendarEvent`, a rota `/api/calendario/[id]` só tem `DELETE`, e uma
-   * entrada corrige-se apagando e voltando a criar. Não havendo `update`, o
-   * compare-and-set não protegeria escrita nenhuma — seria uma coluna a ser
-   * escrita por ninguém.
+   * COM `touch` desde 2/11 (fase 09 do `docs/APPLE-CALENDARIO.md`, arrastar).
    *
-   * QUEM ACRESCENTAR AQUI UM `updateCalendarEvent` tem de fazer as duas metades
-   * na mesma alteração: `alter table public.calendar_events add column if not
-   * exists updated_at timestamptz` em `db/schema.sql` E `touch: true` aqui. Uma
-   * sem a outra ou não protege nada, ou faz falhar todas as escritas.
+   * Até aqui uma marcação não se actualizava — corrigia-se apagando e voltando
+   * a criar, o que lhe trocava o `id`, perdia o `created_at` e, se a criação
+   * falhasse depois de apagar, perdia a marcação. Mover de dia precisa de um
+   * `update` a sério, e um `update` sem compare-and-set é uma escrita cega: a
+   * colega que mudou a hora no telemóvel enquanto ela arrastava no computador
+   * perdia a hora em silêncio.
+   *
+   * As duas metades estão feitas juntas, como esta nota pedia: a coluna
+   * `updated_at` em `db/schema.sql` (e em `db/migracoes/20261102_…`, aplicada
+   * com a autorização dela) e o `touch: true` aqui. O
+   * `bloqueio-optimista.test.ts` prende as duas.
    */
+  touch: true,
 };
 
 const repo = createRepository(mapper);
@@ -62,6 +65,21 @@ export async function createCalendarEvent(
 }
 
 export const deleteCalendarEvent = (id: string): Promise<void> => repo.remove(id);
+
+/**
+ * Mover uma marcação para outro dia (e, se vier, outra hora). Só o dia e a
+ * hora: o título, o tipo e a nota não se mexem daqui. Devolve `null` se a
+ * marcação já não existir; atira `ConflictError` se outra pessoa a mudou
+ * entretanto (o repositório tenta de novo antes de desistir).
+ */
+export const moverCalendarEvent = (
+  id: string,
+  patch: { date: string; time?: string | null },
+): Promise<CalendarEvent | null> =>
+  repo.update(id, {
+    date: patch.date,
+    ...(patch.time !== undefined ? { time: patch.time || undefined } : {}),
+  });
 
 /** Para a Reciclagem: ler uma marcação, e repô-la tal e qual — com o MESMO id. */
 export const obterEvento = (id: string): Promise<CalendarEvent | null> => repo.get(id);

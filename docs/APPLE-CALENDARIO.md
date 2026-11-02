@@ -17,15 +17,16 @@ Auditado no código contra a tabela da **Parte 9** — `Calendario.tsx`,
 | 06 | Vista de dia | **feito** — coluna 07:00–24:00 a 44 px/hora, linha do agora, sobreposição em pistas |
 | 07 | Vista de ano | **feito** — doze mini-meses com o resumo em palavras |
 | 08 | Vista de semana | **feito** — sete colunas na mesma escala, faixa de dia inteiro, coluna de hoje |
-| 09 | Arrastar | **por fazer** — e é ela que destranca o `Mudar de dia…` do menu de contexto (ver abaixo) |
+| 09 | Arrastar | **feito** (2/11) — arrastar uma marcação para outro dia MOVE-a (PATCH em `/api/calendario/[id]`, só a data, com o compare-and-set do `updated_at` — coluna acrescentada com a autorização dela); `Alt` duplica; o dia de destino realça-se; «Evento movido para 12 de setembro — Anular» move de volta; o leitor de ecrã ouve «… movido de … para …». E `Mudar de dia…` no menu da marcação, nas quatro vistas (a alternativa sem rato). Os pedidos não se arrastam. **Fica de fora**: largar nas colunas das vistas de dia e de semana (aí usa-se o menu) e criar por arrasto em espaço vazio |
 | 10 | Menus e teclado | **feito** — menu de contexto no dia, no pedido e na marcação; `⌘1–4`, `⌘T` (e `T`), `⌘N`, `←/→` e `⌥←/→`. `Home`/`End` e `PageUp`/`PageDown` entraram com a fase 11; `Delete` (e `⌫`) numa marcação com foco abre a pergunta de remover, com o «Anular» da casa (1/11, nas quatro vistas). **Feito** |
 | 11 | Acessibilidade | **feito** — a grelha do mês é um `role="grid"` de `row` (com `display: contents`, para não mexer na disposição) e `gridcell`; um só dia no fio do Tab (foco itinerante), `aria-selected`, `aria-current="date"` em hoje, e o nome do dia com o dia da semana («Quinta-feira, 15 de Janeiro de 2026…»). Setas, `Home`/`End` e `PageUp`/`PageDown` (`diaPelaTecla`, com teste). Era o achado n.º 24 da auditoria: controlos dentro de controlos, 31 por mês no axe — agora zero |
 
 **Duas coisas que o código não deixou fazer como está escrito**, e ficam aqui
 para quem vier a seguir não as procurar:
 
-  · o menu de contexto do evento pede `Mudar de dia…` e `Alterar tipo`, e o
-    `/api/calendario` tem POST e DELETE e **não tem PATCH**. Mudar uma marcação
+  · (RESOLVIDO a 2/11 para o `Mudar de dia…`: há PATCH e `updated_at`, ver a
+    09. O `Alterar tipo` continua por fazer.) O menu de contexto do evento pede `Mudar de dia…` e `Alterar tipo`, e o
+    `/api/calendario` tinha POST e DELETE e **não tinha PATCH**. Mudar uma marcação
     seria apagá-la e criar outra — troca-lhe o `id`, perde o `createdAt` e, se a
     criação falhar depois do apagar, perde a marcação. Sem Anular (fase 09) isso
     não se faz. Ficaram `Duplicar` (que é um POST), `Ver na vista de dia` e
