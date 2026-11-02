@@ -407,7 +407,7 @@ export function EntradaComFotografia({ children }: { children: ReactNode }) {
                 do telemóvel esta linha roubava espaço ao formulário, que é
                 quem manda ali. */}
             {foto.legenda && (
-              <p className="mt-1.5 hidden text-[11px] tracking-[0.14em] uppercase text-white/70 sm:block lg:mt-3 lg:text-xs">
+              <p className="mt-2 hidden text-[11px] tracking-[0.14em] uppercase text-white/70 sm:block lg:mt-3 lg:text-xs">
                 {foto.legenda}
               </p>
             )}
