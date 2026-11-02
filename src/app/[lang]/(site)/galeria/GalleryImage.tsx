@@ -101,21 +101,6 @@ export type GalleryImageProps = {
   /** Texto mostrado se, esgotadas as tentativas, a foto continuar sem vir. */
   unavailableLabel: string;
   onLoaded?: () => void;
-  /**
-   * Chamado com o `<img>` assim que ele existe. É por aqui que o blur tardio
-   * entra: um placeholder é pintura, não conteúdo, por isso é aplicado
-   * directamente no elemento em vez de obrigar a galeria a voltar a desenhar
-   * centenas de mosaicos no meio do scroll. Ver `useBlurTardio`.
-   */
-  /**
-   * Recebe o `src` como SEGUNDO argumento em vez de ser fechado num arrow lá
-   * fora. Parece um detalhe de estilo e não é: o arrow `(el) => registar(el,
-   * photo.src)` era criado de novo em cada render do mosaico, o que trocava a
-   * identidade do `ref` do `<img>` e obrigava o React a desligá-lo e a religá-lo
-   * — com um ouvinte de `load` novo de cada vez. Com o `src` a viajar como
-   * argumento, a função pode ser a MESMA para os 427 mosaicos.
-   */
-  registarImg?: (el: HTMLImageElement | null, src: string) => void;
 };
 
 export default function GalleryImage({
@@ -131,7 +116,6 @@ export default function GalleryImage({
   anchorRef,
   unavailableLabel,
   onLoaded,
-  registarImg,
 }: GalleryImageProps) {
   const releaseRef = useRef<(() => void) | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -295,7 +279,6 @@ export default function GalleryImage({
    */
   const aoMontarImg = useCallback(
     (el: HTMLImageElement | null) => {
-      registarImg?.(el, src);
       if (!el) {
         // A fotografia que ESTAVA aqui, guardada num ref nosso: quando o React
         // chama isto com `null`, o `anchorRef` do botão já foi anulado (ele
@@ -326,7 +309,7 @@ export default function GalleryImage({
       }
       el.addEventListener("load", revelar, { once: true });
     },
-    [registarImg, src, handleLoad, longe, priority, anchorRef],
+    [handleLoad, longe, priority, anchorRef],
   );
 
   const handleError = useCallback(() => {
@@ -491,12 +474,14 @@ export default function GalleryImage({
             alt={alt}
             width={Math.round(propW * 100)}
             height={Math.round(propH * 100)}
-            // `g-foto` faz o esbatimento do blur para a fotografia (250 ms) e
-            // só existe quando há blur por baixo — agora no `<picture>`: sem
-            // placeholder não há de onde esbater, e um `opacity: 0` inicial
-            // deixaria o mosaico VAZIO enquanto a foto não vem, o que é pior do
-            // que a cor média que lá está.
-            className={`absolute inset-0 h-full w-full ${blurDataURL ? "g-foto" : ""} ${
+            // `g-foto` em TODAS: a fotografia assenta por cima do que estiver
+            // por baixo — a cor média do mosaico na galeria — num esbatimento
+            // curto. Até 2/11 só esbatiam as que traziam desfocado, e da 49.ª
+            // em diante a foto aparecia de um fotograma para o outro (ela: «a
+            // forma como aparecem… está muito feia»). O `opacity: 0` não
+            // deixa o mosaico vazio: a cor dele continua lá; e sem JavaScript
+            // `(scripting: none)` em globals.css devolve-lhe a opacidade.
+            className={`absolute inset-0 h-full w-full g-foto ${
               carregada ? "g-foto-pronta" : ""
             } ${className}`}
             /**

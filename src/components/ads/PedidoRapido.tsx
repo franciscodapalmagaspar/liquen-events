@@ -69,7 +69,7 @@ export interface TextosPedidoRapido {
 }
 
 export const TEXTOS_PT: TextosPedidoRapido = {
-  titulo: "Pedir orçamento",
+  titulo: "Pedir proposta",
   subtitulo: "Quatro perguntas. Respondemos em 48 horas úteis.",
   data: "Data do casamento",
   escolherData: "Escolher a data",
@@ -89,7 +89,7 @@ export const TEXTOS_PT: TextosPedidoRapido = {
 };
 
 export const TEXTOS_EN: TextosPedidoRapido = {
-  titulo: "Request a quote",
+  titulo: "Request a proposal",
   subtitulo: "Four questions. We reply within two working days.",
   data: "Wedding date",
   escolherData: "Choose a date",

@@ -105,23 +105,23 @@ describe("ordem da galeria", () => {
     }
   });
 
-  it("todas as fotos montadas trazem placeholder (nenhum rectângulo liso)", () => {
-    // 405 das 427 fotos não tinham blur nenhum; medido num scroll rápido com a
-    // cache fria, 90,4% da área de mosaicos no ecrã era rectângulo liso. O
-    // servidor passou a mandar blur para TODAS (27KB comprimidos, ver
-    // galeria/page.tsx).
-    const comBlur = photos.map((p) => ({ ...p, blurDataURL: "data:image/webp;base64,AAAA" }));
-    render(<GaleriaClient photos={comBlur} dict={pt.galeria} orderSeed={SEED} />);
-    // O desfocado é pintado no `<picture>` e não no `<img>`: o `<img>` leva
-    // `g-foto`, que é `opacity: 0` até a fotografia carregar, e isso apagava
-    // também o fundo dele — o desfocado ia no HTML e não se via (ver
-    // GalleryImage.tsx). Este teste continua a perguntar o mesmo, ao elemento
-    // certo: todo o mosaico montado tem placeholder.
+  it("cada foto espera sobre a sua cor, sem mancha desfocada, e esbate ao chegar", () => {
+    // Ela (2/11), no telemóvel: «está assim desfocado e depois a forma como
+    // aparecem… está muito feia». O desfocado (10×12 px esticado ao mosaico)
+    // saiu da grelha: o lugar-reservado é a COR MÉDIA da própria foto, no
+    // fundo do mosaico, e a foto entra por cima com `g-foto` — todas, e não
+    // só as que traziam desfocado (da 49.ª em diante apareciam de repente).
+    const comCor = photos.map((p) => ({ ...p, color: "#6b5a4a" }));
+    render(<GaleriaClient photos={comCor} dict={pt.galeria} orderSeed={SEED} />);
     const molduras = [...document.querySelectorAll<HTMLElement>("[data-tile-idx] picture")];
     expect(molduras.length).toBeGreaterThan(0);
     for (const moldura of molduras) {
-      const src = moldura.querySelector("img")?.getAttribute("src") ?? "";
-      expect(moldura.style.backgroundImage, src).toContain("data:image/webp");
+      const img = moldura.querySelector("img")!;
+      const src = img.getAttribute("src") ?? "";
+      expect(moldura.style.backgroundImage, src).toBe("");
+      expect(img.classList.contains("g-foto"), src).toBe(true);
+      const tile = moldura.closest<HTMLElement>("[style*='background-color']");
+      expect(tile?.style.backgroundColor, src).toBe("rgb(107, 90, 74)");
     }
   });
 });

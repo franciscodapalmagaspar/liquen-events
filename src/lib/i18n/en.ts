@@ -52,8 +52,8 @@ export const en: Dict = {
     galeria: "Gallery",
     clientes: "Clients",
     contacto: "Contact",
-    orcamento: "Quote",
-    pedirOrcamento: "Request a quote",
+    orcamento: "Request a proposal",
+    pedirOrcamento: "Request a proposal",
   },
 
   common: {
@@ -66,7 +66,7 @@ export const en: Dict = {
      * bonito e não é um nome.
      */
     aAbrir: "Opening the page…",
-    pedirOrcamento: "Request a quote",
+    pedirOrcamento: "Request a proposal",
     verGaleria: "View gallery",
     verServicos: "View services",
     entrarContacto: "Get in touch",
@@ -148,12 +148,12 @@ export const en: Dict = {
     clientesTitle: "Companies and Institutions That Trust Us",
     clientesDescription:
       "Companies and institutions that trust Líquen Events: universities, city councils, José de Mello, Deloitte, Aernnova, Mainova and many more.",
-    contactoTitle: "Contact: Request Your Event Quote",
+    contactoTitle: "Contact: Request Your Event Proposal",
     contactoDescription:
       "Contact Líquen Events to decorate your event, wherever it takes place. Receive a tailored proposal.",
-    orcamentoTitle: "Request a Quote: Weddings & Events",
+    orcamentoTitle: "Request a Proposal: Weddings & Events",
     orcamentoDescription:
-      "Request your quote from Líquen Events. Tell us the event type, date and number of guests, and receive a tailored proposal.",
+      "Request your proposal from Líquen Events. Tell us the event type, date and number of guests, and we will tailor it to you.",
   },
 
   // JSON-LD structured data (StructuredData.tsx) — kept in the dictionary so
@@ -326,10 +326,10 @@ export const en: Dict = {
     direct: {
       ctaEyebrow: "Ready to begin?",
       ctaTitleLine1: "Request your",
-      ctaTitleMoss: "quote.",
+      ctaTitleMoss: "proposal.",
       ctaText:
-        "Tell us about your event and we reply with a tailored proposal. For a quick question, use one of the direct channels.",
-      ctaButton: "Request a quote",
+        "Tell us about your event and we will tailor it to you. For a quick question, use one of the direct channels.",
+      ctaButton: "Request a proposal",
     },
     testimonialsEyebrow: "What our clients say",
     nextEyebrow: "What happens next",
@@ -362,7 +362,7 @@ export const en: Dict = {
       locationLabel: "Location",
       locationValue: "Events · since 2018",
       locationSub: "In-person meetings available",
-      quoteLink: "Request a quote for your event",
+      quoteLink: "Request a proposal for your event",
       whatsappLink: "Chat on WhatsApp",
       googleLink: "See on Google · Leave a review",
       promise: "We reply to every request with a personalised proposal.",
@@ -451,7 +451,7 @@ export const en: Dict = {
 
   orcamento: {
     back: "Home",
-    eyebrow: "Quote request",
+    eyebrow: "Proposal request",
     titleLine1: "Tell us",
     titleMoss: "your idea",
     lead: "We listen to your vision and reply with a tailored proposal for your event.",
@@ -789,7 +789,7 @@ export const en: Dict = {
       "Christenings & Communions",
     ],
     contacto: "Contact",
-    pedirOrcamento: "Request a quote",
+    pedirOrcamento: "Request a proposal",
     rights: "All rights reserved",
     legal: "Legal",
     privacidade: "Privacy",

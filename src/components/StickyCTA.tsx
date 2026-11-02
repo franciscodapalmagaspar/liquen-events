@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { usePublicPathname } from "@/lib/use-public-pathname";
+import { esconderNaGaleria } from "@/lib/flutuantes";
 import { useTranslations } from "./LocaleProvider";
 import { localizeHref } from "@/lib/i18n/config";
 import { track } from "@/lib/track";
@@ -28,7 +29,13 @@ export default function StickyCTA() {
   const pathname = usePublicPathname();
   const { locale, t } = useTranslations();
 
-  const hidden = pathname.startsWith("/orcamento") || pathname.startsWith("/contacto");
+  // Na galeria também não (ela, 2/11): «quando se está a ver a galeria não é
+  // muito bom estar a aparecer isso». Quem está a ver fotografias não precisa
+  // de um botão por cima delas; o do fim da página e o do menu chegam.
+  const hidden =
+    pathname.startsWith("/orcamento") ||
+    pathname.startsWith("/contacto") ||
+    esconderNaGaleria(pathname);
 
   // Defer the whole island (DOM + listeners) past first paint: nothing renders
   // and no work runs until the browser is idle. Both SSR and the first client

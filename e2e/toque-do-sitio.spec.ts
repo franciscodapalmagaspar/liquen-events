@@ -12,7 +12,7 @@ import { test, expect } from "@playwright/test";
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
-test("o «Pedir orçamento» da barra encolhe para 0.97 enquanto se carrega", async ({ page }) => {
+test("o «Pedir proposta» da barra encolhe para 0.97 enquanto se carrega", async ({ page }) => {
   await page.goto("/");
   const botao = page.locator("nav a.toque").first();
   await expect(botao).toBeVisible();

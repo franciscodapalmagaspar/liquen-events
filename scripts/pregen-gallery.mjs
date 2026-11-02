@@ -741,51 +741,9 @@ console.log(
     ` · ${Object.values(meta).filter((m) => m.d).length} servem o destaque`,
 );
 
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * blur-galeria.json — O BLUR DAS 427, SEM O PAGAR NA PRIMEIRA PINTURA
- * ════════════════════════════════════════════════════════════════════════════
- *
- * O problema medido: só as primeiras 48 fotografias de 427 levavam blur. Da
- * quarta dobra em diante o visitante deixava de ver a fotografia a desenhar-se
- * e passava a ver rectângulos de cor lisa — 379 mosaicos.
- *
- * Porque é que não bastava mandar as 427 no HTML: custa ~63 KB (147 bytes cada,
- * e base64 não comprime), e medido num telemóvel a 1,6 Mbit/s isso atrasava a
- * PRIMEIRA fotografia de 3,4 s para 4,2 s. Pagar 800 ms de atraso no que se vê
- * já para melhorar o que só se vê daqui a dez segundos é o negócio ao contrário.
- *
- * A saída é separar os dois momentos. As primeiras vão no HTML (é o que a
- * `BLUR_WINDOW` de page.tsx faz, e continua a fazer); as outras vêm NESTE
- * ficheiro, que a galeria vai buscar depois da primeira pintura, em tempo
- * ocioso. Chega muito antes de alguém lá scrollar, e não disputa um único byte
- * com a fotografia que está a ser desenhada agora.
- *
- * Vai para `public/`, não para o código-fonte: é um ficheiro que o browser
- * busca, não um módulo que alguém importa — e assim não entra em bundle nenhum.
- */
-const BLUR_MAP_FILE = path.join(ROOT, "src", "lib", "blur-map.json");
-const BLUR_OUT = path.join(PUBLIC, "_img", "blur-galeria.json");
-try {
-  const blurMap = JSON.parse(await fs.readFile(BLUR_MAP_FILE, "utf8"));
-  const emFalta = [];
-  const saida = {};
-  for (const src of gallerySources.sort()) {
-    if (blurMap[src]) saida[src] = blurMap[src];
-    else emFalta.push(src);
-  }
-  await fs.writeFile(BLUR_OUT, JSON.stringify(saida), "utf8");
-  const kb = (JSON.stringify(saida).length / 1024).toFixed(1);
-  console.log(
-    `  blur-galeria.json: ${Object.keys(saida).length} de ${gallerySources.length} fotos (${kb} KB)` +
-      (emFalta.length ? ` — ${emFalta.length} sem blur (corra: npm run gen:blur)` : ""),
-  );
-} catch (err) {
-  // Melhor esforço de propósito: sem este ficheiro a galeria comporta-se como
-  // antes (blur na primeira janela, cor média no resto). Não vale falhar um
-  // build por causa de um placeholder.
-  console.warn(`  blur-galeria.json não foi escrito: ${err.message}`);
-}
+// (O `blur-galeria.json` — o desfocado das fotos fora da primeira janela —
+// deixou de ser escrito a 2/11: a grelha da galeria já não mostra desfocado
+// nenhum, só a cor média de cada foto. Ver a nota em `galeria/page.tsx`.)
 
 const seconds = (Date.now() - t0) / 1000;
 const totalBytes = Object.values(bytesByWidth).reduce((a, b) => a + b, 0);

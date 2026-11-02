@@ -52,8 +52,8 @@ export const pt = {
     galeria: "Galeria",
     clientes: "Clientes",
     contacto: "Contacto",
-    orcamento: "Orçamento",
-    pedirOrcamento: "Pedir orçamento",
+    orcamento: "Pedir proposta",
+    pedirOrcamento: "Pedir proposta",
   },
 
   common: {
@@ -66,7 +66,7 @@ export const pt = {
      * bonito e não é um nome.
      */
     aAbrir: "A abrir a página…",
-    pedirOrcamento: "Pedir orçamento",
+    pedirOrcamento: "Pedir proposta",
     verGaleria: "Ver galeria",
     verServicos: "Ver serviços",
     entrarContacto: "Entrar em contacto",
@@ -159,12 +159,12 @@ export const pt = {
     clientesTitle: "Empresas e Instituições que Confiam em Nós",
     clientesDescription:
       "Empresas e instituições que confiam na Líquen Events: universidades, câmaras municipais, José de Mello, Deloitte, Aernnova, Mainova e muitas mais.",
-    contactoTitle: "Contacto: Peça o Seu Orçamento de Evento",
+    contactoTitle: "Contacto: Peça a Sua Proposta de Evento",
     contactoDescription:
       "Contacte a Líquen Events para decorar o seu evento, onde quer que aconteça. Receba uma proposta à medida.",
-    orcamentoTitle: "Pedir Orçamento: Casamentos e Eventos",
+    orcamentoTitle: "Pedir Proposta: Casamentos e Eventos",
     orcamentoDescription:
-      "Peça o seu orçamento à Líquen Events. Diga-nos o tipo de evento, a data e o número de pessoas, e receba uma proposta à medida.",
+      "Peça a sua proposta à Líquen Events. Diga-nos o tipo de evento, a data e o número de pessoas, e preparamo-la à medida para si.",
   },
 
   // JSON-LD structured data (StructuredData.tsx) — kept in the dictionary so
@@ -346,11 +346,11 @@ export const pt = {
   contacto: {
     direct: {
       ctaEyebrow: "Pronto para começar?",
-      ctaTitleLine1: "Peça o seu",
-      ctaTitleMoss: "orçamento.",
+      ctaTitleLine1: "Peça a sua",
+      ctaTitleMoss: "proposta.",
       ctaText:
-        "Conte-nos sobre o seu evento e respondemos com uma proposta à medida. Para uma pergunta rápida, use um dos canais diretos.",
-      ctaButton: "Pedir orçamento",
+        "Conte-nos sobre o seu evento e preparamo-la à medida. Para uma pergunta rápida, use um dos canais diretos.",
+      ctaButton: "Pedir proposta",
     },
     testimonialsEyebrow: "O que dizem os nossos clientes",
     nextEyebrow: "O que acontece a seguir",
@@ -383,7 +383,7 @@ export const pt = {
       locationLabel: "Localização",
       locationValue: "Onde o seu evento acontecer",
       locationSub: "Reuniões presenciais disponíveis",
-      quoteLink: "Pedir orçamento para o seu evento",
+      quoteLink: "Pedir proposta para o seu evento",
       whatsappLink: "Falar pelo WhatsApp",
       googleLink: "Ver no Google · Deixar avaliação",
       promise: "Respondemos a todos os pedidos com uma proposta personalizada.",
@@ -472,7 +472,7 @@ export const pt = {
 
   orcamento: {
     back: "Início",
-    eyebrow: "Pedido de orçamento",
+    eyebrow: "Pedido de proposta",
     titleLine1: "Conte-nos",
     titleMoss: "a sua ideia",
     lead: "Ouvimos a sua visão e respondemos com uma proposta à medida para o seu evento.",
@@ -907,7 +907,7 @@ export const pt = {
       "Batizados e Comunhões",
     ],
     contacto: "Contacto",
-    pedirOrcamento: "Pedir orçamento",
+    pedirOrcamento: "Pedir proposta",
     rights: "Todos os direitos reservados",
     legal: "Legal",
     privacidade: "Privacidade",

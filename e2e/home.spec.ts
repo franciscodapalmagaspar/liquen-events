@@ -15,7 +15,7 @@ test.describe("Home", () => {
   test("contact page renders and routes to the quote form", async ({ page }) => {
     await page.goto("/contacto");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Pedir orçamento/i }).first()).toHaveAttribute(
+    await expect(page.getByRole("link", { name: /Pedir proposta/i }).first()).toHaveAttribute(
       "href",
       /\/orcamento/,
     );

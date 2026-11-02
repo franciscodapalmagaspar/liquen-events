@@ -47,25 +47,19 @@ import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 const ORDER_SEED = ":" + Math.floor(Math.random() * 0x7fffffff).toString(36);
 
 /**
- * NENHUM MOSAICO É UM RECTÂNGULO LISO. Duas camadas, cada uma pelo seu preço.
+ * NENHUM MOSAICO É UM RECTÂNGULO PRETO — e nenhum é uma mancha desfocada.
  *
- * (1) COR, para as 427. A cor média de cada foto (tile-colors.json, gerado no
- *     build por scripts/pregen-gallery.mjs) entra como fundo do mosaico. São
- *     ~7 caracteres por foto.
- * (2) BLUR, só para a primeira janela. O blur é bonito mas pesado: medido,
- *     mandar os 427 na carga da página custa +21,4 KB comprimidos (55,1 KB
- *     contra 33,7 KB) e atrasa a PRIMEIRA fotografia de 3,4 s para 4,2 s num
- *     telemóvel a 1,6 Mbit/s (3 corridas cada). Por isso vai só para as fotos
- *     que se vêem já.
+ * Cada mosaico tem por fundo a COR MÉDIA da sua fotografia (tile-colors.json,
+ * gerado no build por scripts/pregen-gallery.mjs; ~7 caracteres por foto), e é
+ * sobre essa cor que a fotografia assenta quando chega.
  *
- * Estavam 30 blurs e mais nada — e as 30 eram escolhidas na ordem POR DEFEITO
- * enquanto o cliente re-baralhava para outra, por isso 0 das 12 primeiras fotos
- * que o visitante via tinham placeholder e 405 das 427 não tinham nada. Num
- * scroll rápido com a cache fria isso media 90,4% da área de mosaicos no ecrã
- * em rectângulo liso. Agora a janela é calculada na MESMA ordem que o visitante
- * vai ver (ORDER_SEED), e o resto tem cor.
+ * Até 2/11 as primeiras 48 levavam também um desfocado (10×12 px esticado ao
+ * mosaico inteiro) e as outras recebiam-no mais tarde de um JSON de 65 kB.
+ * Ela, no telemóvel: «está assim desfocado e depois a forma como aparecem…
+ * está muito feia… nos estúdios de topo não aparece isto assim». Saiu da
+ * grelha: o tom calmo da própria foto é o lugar-reservado, como nesses
+ * estúdios, e os bytes ficam para as fotografias.
  */
-const BLUR_WINDOW = 48;
 
 /**
  * O que a galeria «vê» em cada foto (gallery-meta.json, gerado no build por
@@ -93,7 +87,6 @@ const withRatio = PHOTOS.map((p) => ({
   ...oQueSeVe(p.src),
 }));
 const ordemFinal = interleaveByCollection(withRatio, ORDER_SEED);
-const blurSrc = new Set(ordemFinal.slice(0, BLUR_WINDOW).map((p) => p.src));
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -134,9 +127,7 @@ const preloads = primeira
       srcSet: srcsetDaGaleria(primeira.src, v.escada, "avif"),
     }))
   : [];
-const galleryPhotos = withRatio.map((p) =>
-  blurSrc.has(p.src) ? { ...p, blurDataURL: blurFor(p.src).blurDataURL } : p,
-);
+const galleryPhotos = withRatio;
 
 export async function generateMetadata({
   params,

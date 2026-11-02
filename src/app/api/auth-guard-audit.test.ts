@@ -569,6 +569,8 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   { path: "./orcamento/[id]/proposta/route", methods: ["GET", "POST"] },
   { path: "./orcamento/[id]/email-rascunho/route", methods: ["POST"] },
   { path: "./orcamento/[id]/proposta-doc/route", methods: ["POST"] },
+  // A página real do estúdio (A1, #348): desenha uma página do rascunho.
+  { path: "./orcamento/[id]/pagina-do-rascunho/route", methods: ["POST"] },
   // A verificação das fotografias antes de o link seguir. Recebe o documento
   // que está no ecrã dela — preços, notas, caminhos de ficheiro — e lista as
   // pastas do Storage: ler isto de fora seria enumerar o armazenamento da casa.

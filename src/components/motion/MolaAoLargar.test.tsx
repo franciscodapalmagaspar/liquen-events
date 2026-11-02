@@ -33,7 +33,7 @@ function montar() {
   render(
     <>
       <MolaAoLargar />
-      <button className="toque">Pedir orçamento</button>
+      <button className="toque">Pedir proposta</button>
       <button>Outro</button>
     </>,
   );
@@ -42,7 +42,7 @@ function montar() {
 describe("o botão volta com mola ao largar", () => {
   it("carregar e largar no mesmo botão anima o scale com a mola da casa", () => {
     montar();
-    const b = screen.getByRole("button", { name: "Pedir orçamento" });
+    const b = screen.getByRole("button", { name: "Pedir proposta" });
     fireEvent.pointerDown(b);
     fireEvent.pointerUp(b);
     expect(animate).toHaveBeenCalledTimes(1);
@@ -53,7 +53,7 @@ describe("o botão volta com mola ao largar", () => {
 
   it("largar fora do botão que se carregou não anima", () => {
     montar();
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Pedir orçamento" }));
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Pedir proposta" }));
     fireEvent.pointerUp(screen.getByRole("button", { name: "Outro" }));
     expect(animate).not.toHaveBeenCalled();
   });
@@ -69,7 +69,7 @@ describe("o botão volta com mola ao largar", () => {
   it("com movimento reduzido não anima", () => {
     reduzido = true;
     montar();
-    const b = screen.getByRole("button", { name: "Pedir orçamento" });
+    const b = screen.getByRole("button", { name: "Pedir proposta" });
     fireEvent.pointerDown(b);
     fireEvent.pointerUp(b);
     expect(animate).not.toHaveBeenCalled();

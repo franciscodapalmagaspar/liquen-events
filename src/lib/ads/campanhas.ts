@@ -132,7 +132,7 @@ const TITULOS_BASE_PT = [
   "Coordenação no dia",
   "Equipa e material próprios",
   "Conceito à medida",
-  "Orçamento em 48 horas",
+  "Proposta em 48 horas",
   "Desde 2018",
   "Visita técnica ao espaço",
   "Produção em todo o país",
@@ -160,20 +160,20 @@ const TITULOS_BASE_EN = [
   "A team, not an agency",
   "No extras at the end",
   "Flowers in season",
-  "Four questions to a quote",
+  "Four questions to a proposal",
 ];
 
 const DESCRICOES_PT = [
   "Conceito, design floral, cenografia e coordenação do dia. Equipa e material próprios.",
   "Do primeiro desenho à última peça a sair. Orçamento claro, sem extras no fim.",
-  "Herdades, quintas e espaços privados. Pedido de orçamento em quatro perguntas.",
+  "Herdades, quintas e espaços privados. Pedido de proposta em quatro perguntas.",
   "Decoração e produção de casamentos em todo o país, com equipa e material próprios.",
 ];
 
 const DESCRICOES_EN = [
   "Concept, floral design, set design and day-of coordination. Our own team and stock.",
   "From the first drawing to the last piece coming down. Clear quote, no extras at the end.",
-  "Estates, quintas and private venues. Request a quote in four questions.",
+  "Estates, quintas and private venues. Request a proposal in four questions.",
   "Wedding design and production across all of Portugal, with our own team and stock.",
 ];
 

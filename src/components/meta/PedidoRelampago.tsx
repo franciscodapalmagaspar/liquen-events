@@ -79,7 +79,7 @@ export interface TextosRelampago {
 }
 
 export const RELAMPAGO_PT: TextosRelampago = {
-  titulo: "Pedir orçamento",
+  titulo: "Pedir proposta",
   subtitulo: "Quatro campos. Respondemos em 48 horas úteis.",
   data: "Data do casamento",
   escolherData: "Escolher a data",
@@ -98,7 +98,7 @@ export const RELAMPAGO_PT: TextosRelampago = {
 };
 
 export const RELAMPAGO_EN: TextosRelampago = {
-  titulo: "Request a quote",
+  titulo: "Request a proposal",
   subtitulo: "Four fields. We reply within two working days.",
   data: "Wedding date",
   escolherData: "Choose a date",
