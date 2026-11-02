@@ -46,7 +46,11 @@ afterEach(() => {
 });
 
 function desenhar(
-  over: { onAbrirPedido?: (q: Quote) => void; onQuoteUpdated?: (q: Quote) => void } = {},
+  over: {
+    onAbrirPedido?: (q: Quote) => void;
+    onAbrirOutro?: (q: Quote) => void;
+    onQuoteUpdated?: (q: Quote) => void;
+  } = {},
 ) {
   return render(
     <FazerProposta
@@ -57,6 +61,7 @@ function desenhar(
       onSent={() => {}}
       onQuoteUpdated={over.onQuoteUpdated ?? (() => {})}
       onAbrirPedido={over.onAbrirPedido ?? (() => {})}
+      onAbrirOutro={over.onAbrirOutro}
     />,
   );
 }
@@ -75,6 +80,15 @@ describe("pedidos duplicados", () => {
     desenhar({ onAbrirPedido });
     await userEvent.click(screen.getByRole("button", { name: "Abrir esse" }));
     expect(onAbrirPedido).toHaveBeenCalledWith(ana2);
+  });
+
+  it("com a porta de todos (`onAbrirOutro`), é por ela que o outro abre — não pelo painel", async () => {
+    const onAbrirPedido = vi.fn();
+    const onAbrirOutro = vi.fn();
+    desenhar({ onAbrirPedido, onAbrirOutro });
+    await userEvent.click(screen.getByRole("button", { name: "Abrir esse" }));
+    expect(onAbrirOutro).toHaveBeenCalledWith(ana2);
+    expect(onAbrirPedido).not.toHaveBeenCalled();
   });
 
   it("«Não são o mesmo» grava nos dois e actualiza os dois", async () => {

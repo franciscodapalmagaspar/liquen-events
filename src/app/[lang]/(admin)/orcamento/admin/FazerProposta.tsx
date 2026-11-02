@@ -138,6 +138,12 @@ interface Props {
    * voltas de distância para quem entrou por ali.
    */
   onAbrirPedido: (quote: Quote) => void;
+  /**
+   * «Abrir esse», no aviso de possível duplicado: abre o OUTRO pedido pela
+   * porta de todos (`abrirCliente`, no `AdminClient`) — a página dele, ou o
+   * Dossier se já foi ganho. Sem ela, cai no `onAbrirPedido`.
+   */
+  onAbrirOutro?: (quote: Quote) => void;
   /** Ir para «Propostas», onde vivem as que já foram feitas. Ver a procura. */
   onIrParaPropostas?: (procura?: string) => void;
 }
@@ -150,6 +156,7 @@ export default function FazerProposta({
   onSent,
   onQuoteUpdated,
   onAbrirPedido,
+  onAbrirOutro,
   onIrParaPropostas,
 }: Props) {
   const [procura, setProcura] = useState("");
@@ -521,7 +528,11 @@ export default function FazerProposta({
                       ) — {porqueParece(g.motivo)}.
                     </span>
                     <span className="flex items-center gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => onAbrirPedido(g.quote)}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => (onAbrirOutro ?? onAbrirPedido)(g.quote)}
+                      >
                         Abrir esse
                       </Button>
                       <Button

@@ -19,6 +19,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { localeDoCaminho, localizeHref } from "@/lib/i18n/config";
+import { navegarPara } from "./navegar";
 import { dataCurta } from "@/lib/data-curta";
 import { razaoDaRecusa, porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import type { LeituraFalhada } from "@/lib/porque-nao-leu";
@@ -3265,6 +3266,10 @@ export default function AdminClient({
    * não ser levado para dentro de um editor — por isso o `openQuote` fica como
    * está, e é só o caminho da lista que muda.
    *
+   * (2/11: isto deixou de valer. Ela desfez a decisão do Calendário e depois a
+   * das outras portas — todas passam pelo `abrirCliente`, aqui em baixo, e o
+   * painel fica só atrás do «Abrir o pedido».)
+   *
    * O painel continua a uma tecla de distância: a página tem «Abrir o pedido»
    * ao lado de «Trocar de cliente», e leva ao painel com Produção, Financeiro e
    * as mensagens.
@@ -3304,6 +3309,48 @@ export default function AdminClient({
     setView("fazer-proposta");
 
     void comPedidoInteiro(pedido);
+  }
+
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * TODAS AS PORTAS PARA UM CLIENTE PASSAM POR AQUI (2/11)
+   * ══════════════════════════════════════════════════════════════════════════
+   *
+   * Ela, com a captura do painel antigo aberto a partir do Calendário: «já
+   * não existe este formato no back office». E depois, perguntada: o painel
+   * fica SÓ atrás do «Abrir o pedido» da página da proposta, e um evento JÁ
+   * GANHO abre o Dossier do evento.
+   *
+   * Por isso a regra é uma e vive aqui:
+   *   · pedido ganho (`aceite`) → o Dossier (`/orcamento/admin/evento/<id>`,
+   *     o mesmo endereço do botão «Dossier» do painel) — é lá que vivem a
+   *     produção, os pagamentos, os convidados e o guião, o que se usa depois
+   *     de ganhar;
+   *   · os outros → a página de fazer a proposta, no ecrã todo
+   *     (`irFazerAProposta`).
+   *
+   * As portas: a Visão Geral (e os Lembretes e a Agenda lá dentro), o
+   * Kanban, os Clientes, o Calendário, as Propostas, o Acompanhamento, as
+   * Propostas Aceites, a paleta ⌘K e o «Novo pedido». A lista de Pedidos vai
+   * SEMPRE à página (ver `abrirDaListaRef`: é por ela que se chega ao painel
+   * de um pedido ganho). Fica de fora, de propósito, o «Abrir o pedido» da
+   * página — é ESSE o
+   * caminho para o painel (o `openQuote`), que guarda o que ainda só existe
+   * nele: a data, os convidados, o local, os contactos, o responsável, as notas
+   * internas, duplicar/arquivar/apagar.
+   */
+  function abrirCliente(pedido: Quote) {
+    if (pedido.status === "aceite") {
+      if (!discardGuard()) return;
+      lembrarRecente(pedido);
+      // Uma navegação inteira, e não o `useRouter`: o Dossier é outra rota
+      // (outra página, com o seu próprio carregamento), e o `useRouter` exige
+      // o router da app montado — o que os ~160 testes que montam este
+      // ficheiro sem ele não têm. Ver `navegar.ts`.
+      navegarPara(localizeHref(`/orcamento/admin/evento/${pedido.id}`, locale));
+      return;
+    }
+    void irFazerAProposta(pedido);
   }
 
   async function openQuote(pedido: Quote) {
@@ -3389,7 +3436,13 @@ export default function AdminClient({
   // while giving the row a callback whose identity never changes.
   //
   // O que está aqui dentro mudou de `openQuote` para `irFazerAProposta`: é ESTA
-  // a porta da lista de Pedidos, e as outras cinco continuam a abrir o painel.
+  // a porta da lista de Pedidos.
+  //
+  // E fica no `irFazerAProposta` mesmo para um pedido GANHO (o `abrirCliente`
+  // mandá-lo-ia ao Dossier): a página da proposta só deixa ESCOLHER pedidos por
+  // fazer, e o «Abrir o pedido» dela é o único caminho para o painel — onde se
+  // muda a data, os contactos, as notas, ou se corrige o estado. Se a lista
+  // também fosse ao Dossier, o painel de um pedido ganho ficava sem porta.
   const abrirDaListaRef = useRef(irFazerAProposta);
   // Keep the ref pointing at the latest closure (updated in an effect, not
   // during render). onOpen fires from a click, which is always after commit, so
@@ -4685,7 +4738,7 @@ export default function AdminClient({
           onClose={() => setPaletteOpen(false)}
           navCommands={paletteCommands}
           quotes={quotes}
-          onOpenQuote={openQuote}
+          onOpenQuote={abrirCliente}
           recentQuotes={recentQuotes}
         />
         <NewQuoteModal
@@ -4694,7 +4747,7 @@ export default function AdminClient({
           existingQuotes={quotes}
           onCreated={(q) => {
             setQuotes((prev) => [q, ...prev]);
-            openQuote(q);
+            abrirCliente(q);
           }}
         />
         {/* ── Sidebar ── */}
@@ -6140,7 +6193,7 @@ export default function AdminClient({
                     quotes={activeQuotes}
                     propostas={propostas}
                     userName={userName}
-                    onOpen={openQuote}
+                    onOpen={abrirCliente}
                     onGoStats={() => setView("estatisticas")}
                     onGo={(v) => setView(v)}
                     onNew={() => setNewQuoteOpen(true)}
@@ -6166,7 +6219,7 @@ export default function AdminClient({
                   <Kanban
                     quotes={activeQuotes}
                     propostas={propostas}
-                    onOpen={openQuote}
+                    onOpen={abrirCliente}
                     userName={userName}
                     onStatusChange={(id, status) => {
                       setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, status } : q)));
@@ -6191,7 +6244,7 @@ export default function AdminClient({
                   <Clientes
                     quotes={activeQuotes}
                     propostas={propostas}
-                    onOpen={openQuote}
+                    onOpen={abrirCliente}
                     /* Só quando a lista está mesmo vazia: com pedidos no ecrã, uma
                        falha da leitura INICIAL já não é o que se está a ver. */
                     falhaDeLeitura={quotes.length === 0 ? falhaDosPedidos : null}
@@ -6207,8 +6260,8 @@ export default function AdminClient({
             <div className={`${VIEW_WRAP} view-in`}>
               <Calendario
                 quotes={activeQuotes}
-                onOpen={openQuote}
-                onFazerProposta={irFazerAProposta}
+                onOpen={abrirCliente}
+                onFazerProposta={abrirCliente}
               />
             </div>
           )}
@@ -6224,6 +6277,9 @@ export default function AdminClient({
                 // Financeiro e as mensagens. O `openQuote` já muda a vista para
                 // Pedidos e trata da espera com nome.
                 onAbrirPedido={openQuote}
+                // «Abrir esse», no aviso de possível duplicado: o OUTRO pedido,
+                // pela mesma porta de todos (não o painel).
+                onAbrirOutro={abrirCliente}
                 // As propostas já feitas não estão nesta lista — estão lá.
                 onIrParaPropostas={(procura) => {
                   setProcuraEmPropostas(procura ?? "");
@@ -6256,7 +6312,7 @@ export default function AdminClient({
                 quotes={quotes}
                 userName={userName}
                 procuraInicial={procuraEmPropostas}
-                onOpenQuote={openQuote}
+                onOpenQuote={abrirCliente}
                 onQuoteUpdated={(q) => {
                   setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
                   setSelected((prev) => (prev?.id === q.id ? q : prev));
@@ -6291,7 +6347,7 @@ export default function AdminClient({
             <div className={`${VIEW_WRAP} view-in`}>
               <Acompanhamento
                 quotes={quotes}
-                onOpenQuote={openQuote}
+                onOpenQuote={abrirCliente}
                 onFazerProposta={() => setView("fazer-proposta")}
                 onQuoteAtualizado={(q) => {
                   setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
@@ -6414,7 +6470,7 @@ export default function AdminClient({
           {/* ── Contratos ── */}
           {view === "contratos" && (
             <div className={`${VIEW_WRAP} view-in`}>
-              <Contratos quotes={quotes} onOpenQuote={openQuote} />
+              <Contratos quotes={quotes} onOpenQuote={abrirCliente} />
             </div>
           )}
 

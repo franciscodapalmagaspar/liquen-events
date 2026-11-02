@@ -91,7 +91,7 @@ mostra todas as vistas; no telemóvel, quatro.
 | Vista | Para que serve |
 |---|---|
 | **Visão Geral** | o dia e os próximos sete dias, o que pede atenção |
-| **Pedidos** | a lista de pedidos de orçamento; tocar num cliente abre a proposta dele no ecrã todo; etiqueta «Possível duplicado» (mesmo email, telefone, ou nome e data) com «Não são o mesmo» |
+| **Pedidos** | a lista de pedidos de orçamento; tocar num cliente abre a proposta dele no ecrã todo (desde 2/11 é assim em TODAS as portas — Visão Geral, Kanban, Calendário, Propostas, ⌘K…; um evento já ganho abre o Dossier; o painel antigo do pedido só abre pelo «Abrir o pedido» da página); etiqueta «Possível duplicado» (mesmo email, telefone, ou nome e data) com «Não são o mesmo» |
 | **Fazer proposta** | o estúdio de propostas (§4) |
 | **Propostas** | as enviadas e os rascunhos |
 | **Calendário** | dia, semana, mês e ano; agrupado por mês; **arrastar uma marcação para outro dia com «Anular»** (e «Mudar de dia…» pelo teclado); exportar `.ics`; grelha `role="grid"` acessível |
