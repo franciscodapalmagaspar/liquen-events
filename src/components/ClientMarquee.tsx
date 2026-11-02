@@ -10,7 +10,8 @@ import { useTranslations } from "./LocaleProvider";
 
 /**
  * Scrolling band of client logos on the homepage. Each logo is drawn with the
- * SAME box it has on the /clientes wall (`caixaNaParede`), scaled down by one
+ * SAME box it has on the /clientes wall at the same screen width
+ * (`caixaNaParede` + the cell's cap, `--fita-largura`), scaled down by one
  * number for the whole band (`--fita-escala`). A missing logo falls back to
  * the client name.
  *
@@ -47,7 +48,10 @@ function Mark({
   }
 
   const d = logoDimsFor(logo);
-  const caixa = caixaNaParede(logo);
+  // A largura natural na parede, antes da trava da célula. A trava entra no
+  // CSS (`--fita-largura`, a da parede no mesmo degrau), e a altura sai da
+  // proporção do logótipo.
+  const natural = caixaNaParede(logo, Infinity).largura;
 
   return (
     <div className="me-12 flex flex-shrink-0 items-center justify-center sm:me-16" {...hidden}>
@@ -67,11 +71,14 @@ function Mark({
         // Rendered as flat black silhouettes (brightness-0), so encoder quality
         // is imperceptible — 50 just trims the bytes of every logo in the strip.
         quality={50}
-        // A caixa da parede, à escala da fita. Sem `max-h` nem `max-w`: eram
-        // essas travas que punham todos à mesma altura.
+        // A caixa da parede NO MESMO ECRÃ, à escala da fita: a largura natural
+        // travada como a célula da parede a trava (`--fita-largura`), e a
+        // altura pela proporção. Sem tecto de altura: era isso que, antes de
+        // #282, punha todos à mesma altura.
         style={{
-          width: `calc(${caixa.largura}px * var(--fita-escala))`,
-          height: `calc(${caixa.altura}px * var(--fita-escala))`,
+          width: `calc(min(${Math.round(natural * 10) / 10}px, var(--fita-largura)) * var(--fita-escala))`,
+          height: "auto",
+          aspectRatio: `${d[0]} / ${d[1]}`,
         }}
         className="object-contain opacity-100 transition-opacity duration-300 brightness-0"
         // O erro é ouvido pela `ref` e NÃO pelo `onError` do next/image.
@@ -200,10 +207,12 @@ export default function ClientMarquee() {
 
   return (
     /**
-     * `--fita-escala`: a parede de /clientes em ponto pequeno. Os mesmos três
-     * números estão em `ESCALA_DA_FITA` (logo.ts), e um teste prende-os.
+     * `--fita-escala`: a parede de /clientes em ponto pequeno. `--fita-largura`:
+     * a trava da célula da parede no mesmo degrau (2/11 — sem ela os wordmarks
+     * ficavam enormes e os outros pequeninos). Os números estão em
+     * `ESCALA_DA_FITA` e `travaEmCss` (logo.ts), e um teste prende-os.
      */
-    <div className="relative min-h-16 py-3 [--fita-escala:0.5] sm:min-h-[4.5rem] sm:[--fita-escala:0.62] lg:[--fita-escala:0.72] border-y border-foreground/8 overflow-hidden flex items-center">
+    <div className="relative min-h-16 py-3 [--fita-escala:0.75] [--fita-largura:calc(((100vw_-_48px)/2_-_32px)*0.68)] sm:min-h-[4.5rem] sm:[--fita-escala:0.8] sm:[--fita-largura:calc(((100vw_-_48px)/3_-_40px)*0.68)] lg:[--fita-escala:0.85] lg:[--fita-largura:calc(((100vw_-_128px)/4_-_40px)*0.68)] xl:[--fita-largura:calc(((min(100vw,1280px)_-_128px)/5_-_40px)*0.68)] border-y border-foreground/8 overflow-hidden flex items-center">
       {/* sr-only heading so heading-navigation users find the client band. */}
       <h2 className="sr-only">{t.nav.clientes}</h2>
       <div className="absolute inset-y-0 left-0 w-16 sm:w-24 bg-gradient-to-r from-surface to-transparent z-10 pointer-events-none" />

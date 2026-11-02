@@ -49,20 +49,72 @@ export function alturaNaParede(src: string): number {
 }
 
 /**
- * A caixa de um logótipo na célula mais larga da parede: a altura que fica
- * depois de a largura ser travada (um `max-width` num `<img>` encolhe também a
- * altura). É esta caixa que a fita desenha, à escala.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * A TRAVA QUE IGUALA A PAREDE — E QUE A FITA NÃO TINHA (ela, 2/11)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * «Os logos a andar ainda não estão todos ao mesmo nível como está na página
+ * de clientes.» MEDIDO a 390 px: na parede a Mainova, a Aernnova e a
+ * Pérez-Llorca têm todas 95 px de largura, ao lado do José de Mello (95), do
+ * Convento (60) e do PACT (58); na fita tinham 97, 93 e 80 ao lado de 62, 30
+ * e 29 — e 10 px de altura. A fita usava a trava de 194 px, que só vale na
+ * parede numa célula de um terço perto dos 1024 px; ao telemóvel a parede
+ * trava a 95, e é ESSA trava que põe os wordmarks ao nível dos outros.
+ *
+ * A célula da parede, degrau a degrau: o contentor (`max-w-7xl` = 1280 px,
+ * `px-6 lg:px-16`), as colunas (2/3/4/5), o recuo da célula (`px-4 sm:px-5`)
+ * e o tecto de 68 % do logótipo (`max-w-[68%]` no ClientLogoGrid). A fita
+ * leva a MESMA conta em CSS (`--fita-largura`, com `100vw`), para a trava
+ * acompanhar o ecrã como a da parede acompanha — um número fixo só acertava
+ * no ecrã mais estreito de cada degrau (a 430 px já errava 12 %).
  */
-export function caixaNaParede(src: string): { largura: number; altura: number } {
+export const CELULA_DA_PAREDE = {
+  telemovel: { margens: 48, colunas: 2, recuo: 32 },
+  sm: { margens: 48, colunas: 3, recuo: 40 },
+  lg: { margens: 128, colunas: 4, recuo: 40 },
+  xl: { margens: 128, colunas: 5, recuo: 40 },
+} as const;
+export const TECTO_NA_CELULA = 0.68;
+export const CONTENTOR_DA_PAREDE = 1280;
+
+/** A largura máxima de um logótipo na parede, num ecrã de `ecra` px. */
+export function travaNaParede(ecra: number): number {
+  const degrau = ecra >= 1280 ? "xl" : ecra >= 1024 ? "lg" : ecra >= 640 ? "sm" : "telemovel";
+  const c = CELULA_DA_PAREDE[degrau];
+  return (
+    ((Math.min(ecra, CONTENTOR_DA_PAREDE) - c.margens) / c.colunas - c.recuo) * TECTO_NA_CELULA
+  );
+}
+
+/** A mesma conta, escrita para o CSS da fita (uma classe por degrau). */
+export function travaEmCss(degrau: keyof typeof CELULA_DA_PAREDE): string {
+  const c = CELULA_DA_PAREDE[degrau];
+  const ecra = degrau === "xl" ? `min(100vw,${CONTENTOR_DA_PAREDE}px)` : "100vw";
+  return `calc(((${ecra}_-_${c.margens}px)/${c.colunas}_-_${c.recuo}px)*${TECTO_NA_CELULA})`;
+}
+
+/**
+ * A caixa de um logótipo numa célula da parede que o trava a `larguraMax`: a
+ * altura que fica depois de a largura ser travada (um `max-width` num `<img>`
+ * encolhe também a altura). Por omissão, a célula mais larga da parede.
+ */
+export function caixaNaParede(
+  src: string,
+  larguraMax: number = PAREDE.larguraMax,
+): { largura: number; altura: number } {
   const [w, h] = logoDimsFor(src);
   const ratio = w / h;
   const altura = alturaNaParede(src);
-  const largura = Math.min(PAREDE.larguraMax, altura * ratio);
+  const largura = Math.min(larguraMax, altura * ratio);
   return { largura, altura: Math.round((largura / ratio) * 10) / 10 };
 }
 
-/** As escalas da fita (a parede em ponto pequeno). Estão também no CSS da banda. */
-export const ESCALA_DA_FITA = { telemovel: 0.5, sm: 0.62, lg: 0.72 } as const;
+/**
+ * As escalas da fita (a parede em ponto pequeno). Estão também no CSS da banda.
+ * Subiram a 2/11 (eram 0,5 / 0,62 / 0,72): com a trava certa os wordmarks
+ * deixaram de ser os maiores, e a 0,5 ficavam com 11 px de altura.
+ */
+export const ESCALA_DA_FITA = { telemovel: 0.75, sm: 0.8, lg: 0.85 } as const;
 
 export function logoDimsFor(src: string): number[] {
   const d = DIMS[src];
