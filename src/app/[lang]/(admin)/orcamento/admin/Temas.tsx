@@ -60,6 +60,7 @@ import {
 import { porqueFalhou, porqueRebentou, type Falha } from "@/lib/porque-falhou";
 import { porqueNaoLeu, porqueNaoLeuDoErro, type LeituraFalhada } from "@/lib/porque-nao-leu";
 import ListaDeTemas from "./ListaDeTemas";
+import { fotoPelaTecla } from "@/lib/temas-grelha";
 import {
   escreverCarga,
   fotosQueViajam,
@@ -4344,6 +4345,30 @@ function ThemeFolder({
     anchor.current = null;
   }
 
+  /**
+   * `Shift` + setas: a selecção estende-se de `de` até `para`, como no Finder.
+   * Voltar para trás por cima do que já estava escolhido encolhe — tira a foto
+   * de onde se sai, e a de destino fica.
+   */
+  function estenderPeloTeclado(de: number, para: number) {
+    anchor.current = para;
+    setSelected((prev) => {
+      const caminho: string[] = [];
+      for (let k = Math.min(de, para); k <= Math.max(de, para); k++) {
+        const p = images[k]?.path;
+        if (p) caminho.push(p);
+      }
+      const destino = images[para]?.path;
+      const next = new Set(prev);
+      if (caminho.every((p) => prev.has(p))) {
+        for (const p of caminho) if (p !== destino) next.delete(p);
+      } else {
+        for (const p of caminho) next.add(p);
+      }
+      return next;
+    });
+  }
+
   /** Remove um conjunto de fotos. Uma só confirmação para o conjunto todo, e
    *  as que o servidor recusar voltam ao sítio onde estavam. */
   async function removeImages(targets: ThemeImage[], aoProgredir?: (feitas: number) => void) {
@@ -4927,6 +4952,42 @@ function ThemeFolder({
    * array com buracos é um array que engana quem o percorre.
    */
   const celulas = useRef(new Map<number, HTMLElement>());
+
+  /* ════════════════════════════════════════════════════════════════════════
+     A GRELHA PELO TECLADO — fase 11 (`docs/APPLE-TEMAS.md`, Parte 7)
+     ════════════════════════════════════════════════════════════════════════
+
+     O desenho do Calendário (`diaPelaTecla`): a grelha é UM sítio no fio do
+     Tab, e lá dentro as setas andam. Sessenta fotos eram sessenta paragens do
+     Tab — mais sessenta «⋯» — antes de se chegar ao que vem depois.
+
+     As colunas MEDEM-SE: o `GRELHA_DE_FOTOS` é `auto-fill`, e o número muda
+     com a largura da caixa (2 no telemóvel, 4 a 6 no computador). O browser
+     já fez a conta — o `grid-template-columns` calculado traz uma largura por
+     coluna —, e é essa conta que se lê. Sem `ResizeObserver` (jsdom) fica o 2
+     da base, que é o que a classe diz antes de qualquer `@container`. */
+  const grelha = useRef<HTMLDivElement | null>(null);
+  const [colunas, setColunas] = useState(2);
+  const [fotoComFoco, setFotoComFoco] = useState(0);
+  const semFotos = images.length === 0;
+  useEffect(() => {
+    const el = grelha.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const medir = () => {
+      // `none` é o que o jsdom (e uma caixa sem `display: grid`) responde: não
+      // é uma coluna, é a ausência de grelha — fica o que estava.
+      const v = getComputedStyle(el).gridTemplateColumns;
+      if (!v || v === "none") return;
+      const n = v.split(" ").filter(Boolean).length;
+      if (n > 0) setColunas(n);
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // A grelha só existe depois de carregar e com fotos: é quando ela aparece
+    // (e não a cada foto) que há uma caixa nova a medir.
+  }, [loading, semFotos]);
   const [origemDaLupa, setOrigemDaLupa] = useState<DOMRect | null>(null);
   const openZoom = useCallback((i: number) => {
     zoomOpener.current = document.activeElement as HTMLElement | null;
@@ -5188,6 +5249,328 @@ function ThemeFolder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [coverPath, openZoom, otherThemes.length],
   );
+
+  /* AS FOTOS QUE ELA ACABOU DE LARGAR, já à vista, ainda a caminho do
+     servidor. Não são selecionáveis nem removíveis (ainda não existem lá), e o
+     leitor de ecrã segue a barra de progresso — não 300 células a
+     anunciarem-se. Ocupam as primeiras casas da grelha, e é por isso que a
+     conta das linhas (e das setas) começa nelas. */
+  const pendentes = pending.map((p) => (
+    <div
+      key={p.id}
+      aria-hidden
+      title={`${p.name} — a carregar`}
+      className="relative aspect-[4/3] min-h-[104px] overflow-hidden rounded-lg border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-6)]"
+    >
+      {p.src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={p.src}
+          alt=""
+          decoding="async"
+          className="h-full w-full object-cover opacity-60"
+        />
+      ) : (
+        <div className="bo-skeleton h-full w-full" />
+      )}
+      <span className="absolute inset-x-1 bottom-1 rounded-md bg-black/55 px-1.5 py-0.5 text-center text-[10px] uppercase tracking-[0.06em] text-white">
+        A carregar
+      </span>
+    </div>
+  ));
+
+  /** Uma célula da grelha: a foto `i` de `images`. */
+  /** A foto que está no fio do Tab — uma só; as outras chegam-se pelas setas. */
+  const focoNaGrelha = Math.max(0, Math.min(fotoComFoco, images.length - 1));
+  const focarFoto = (k: number) => {
+    setFotoComFoco(k);
+    celulas.current.get(k)?.querySelector<HTMLElement>('[role="checkbox"]')?.focus();
+  };
+
+  const celulaDaFoto = (im: ThemeImage, i: number) => {
+    const isSelected = selected.has(im.path);
+    const isCover = im.path === coverPath;
+    return (
+      <div
+        key={im.path}
+        role="gridcell"
+        aria-selected={isSelected}
+        aria-rowindex={Math.floor((pending.length + i) / colunas) + 1}
+        aria-colindex={((pending.length + i) % colunas) + 1}
+        ref={(no) => {
+          if (no) celulas.current.set(i, no);
+          else celulas.current.delete(i);
+        }}
+        draggable
+        onDragStart={(e) => {
+          setDragFrom(i);
+          e.dataTransfer.effectAllowed = "move";
+          // Alguns navegadores só iniciam o arrasto com dados lá
+          // dentro; o valor não é usado por ninguém.
+          e.dataTransfer.setData("text/plain", String(i));
+          /* ── E O MESMO GESTO SERVE OS DOIS DESTINOS ─────────
+               «Dentro do mesmo tema REORDENA; para outro tema
+               MOVE.» [APPLE] É um arrasto só, com duas cargas: o
+               índice em `text/plain`, que é o que as células
+               vizinhas lêem para reordenar, e o lote de caminhos no
+               tipo próprio, que é o que a coluna da esquerda lê
+               para mover. Quem decide é o destino onde ele acaba.
+
+               E o lote é a SELECÇÃO quando se pega numa foto que
+               está nela — ver `fotosQueViajam`. */
+          const lote = fotosQueViajam(
+            im.path,
+            selected,
+            images.map((x) => x.path),
+          );
+          escreverCarga(e.dataTransfer, { origem: theme.id, paths: lote });
+          vestirOArrasto(e, lote.length);
+          aoArrastar?.(true);
+        }}
+        onDragEnd={(e) => {
+          // Ver a nota do `aRegressar`: `none` é a norma a dizer
+          // que isto não foi largado em destino nenhum.
+          const falhou = e.dataTransfer?.dropEffect === "none";
+          setDragFrom(null);
+          setDragOver(null);
+          aoArrastar?.(false);
+          setARegressar(falhou ? im.path : null);
+        }}
+        // O regresso acaba quando acaba — sem temporizador a
+        // repetir o número que já está no token. Deixá-lo aceso
+        // punha esta célula (e só ela) a responder ao rato em
+        // 475 ms para sempre.
+        onTransitionEnd={() => setARegressar((p) => (p === im.path ? null : p))}
+        onDragOver={(e) => {
+          if (dragFrom === null) return;
+          // Sem isto o browser recusa a largada.
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (dragOver !== i) setDragOver(i);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (dragFrom !== null) moveTo(dragFrom, i);
+          setDragFrom(null);
+          setDragOver(null);
+        }}
+        // `celula-saltavel`: fora do ecrã, o browser não desenha
+        // nem descodifica esta célula. A altura não depende disso
+        // (é `aspect-[4/3]` numa coluna de largura fixa), por
+        // isso a barra de deslocamento não mexe. Ver globals.css.
+        /* O botão direito abre as mesmas quatro acções que os
+             botões da célula — ver `accoesDaFoto`. O menu é `fixed`,
+             portanto o `overflow-hidden` desta célula (que a recorta
+             aos cantos redondos) não o corta. */
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenuDaFoto({
+            x: e.clientX,
+            y: e.clientY,
+            sobre: `foto ${i + 1} de ${images.length}`,
+            accoes: accoesDaFoto(im, i),
+          });
+        }}
+        className={`celula-saltavel group relative aspect-[4/3] min-h-[104px] overflow-hidden rounded-lg border bg-[var(--bo-tinta-6)] ${ESTADO} ${
+          isSelected
+            ? "border-sage-600 ring-2 ring-sage-600/40"
+            : "border-[var(--bo-hairline-strong)]"
+        } ${dragFrom === i ? "opacity-40" : ""} ${
+          dragOver === i && dragFrom !== null && dragFrom !== i ? "ring-2 ring-sage-600" : ""
+        } ${
+          // Os tokens do documento, lidos do `:root` — nem o
+          // número nem a curva se escrevem aqui.
+          aRegressar === im.path
+            ? "motion-safe:[transition-duration:var(--transition-duration-reposition)] motion-safe:[transition-timing-function:var(--ease-reposition)]"
+            : ""
+        }`}
+      >
+        {/* A célula já tem `aspect-[4/3]`, por isso adiar a foto
+              não salta nada. E o que se mostra é a MINIATURA: com o
+              original, uma página de 60 fotos puxava ~150 MB. As da
+              primeira dobra não esperam pela vez de ninguém. */}
+        <Photo image={im} alt="" priority={i < ABOVE_FOLD} localSrc={localSrc.get(im.path)} />
+        {/* A célula inteira é o alvo da seleção — um alvo pequeno
+              numa grelha de 60 fotos seria um exercício de pontaria. */}
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={isSelected}
+          tabIndex={i === focoNaGrelha ? 0 : -1}
+          onFocus={() => setFotoComFoco(i)}
+          aria-label={
+            escolherCapa
+              ? `Usar a foto ${i + 1} de ${images.length} como capa`
+              : `Selecionar foto ${i + 1} de ${images.length}`
+          }
+          onClick={(e) => {
+            // No modo «escolher a capa», o clique escolhe-a.
+            if (escolherCapa) {
+              setEscolherCapa(false);
+              void setAsCover(im);
+              return;
+            }
+            // `ctrlKey` ao lado do `metaKey` porque o back office
+            // também se abre em Windows e em Linux, onde o gesto
+            // de somar à selecção é o Ctrl.
+            toggleAt(i, { shift: e.shiftKey, somar: e.metaKey || e.ctrlKey });
+          }}
+          // ── `ESPAÇO` PRÉ-VISUALIZA ──────────────────────────
+          // «É o gesto que qualquer utilizador de Mac tenta
+          // primeiro» (ponto 23), e o critério 5 do documento.
+          // Anunciado, para não ser um segredo: um atalho que só
+          // quem leu o documento conhece não existe.
+          aria-keyshortcuts="Space"
+          onKeyDown={(e) => {
+            /* ── O `ESPAÇO` É DO QUICK LOOK, O `ENTER` ALTERNA ──────
+                 Fase 11 (`docs/APPLE-TEMAS.md`, Parte 7): a célula é
+                 um `role="gridcell"` com `aria-selected`, e numa
+                 grelha o `Espaço` não é de ninguém — fica para o
+                 Quick Look, como o documento manda duas vezes. Marcar
+                 e desmarcar é o `Enter`, que num `<button>` dispara o
+                 `click`. A caixa de seleção cá dentro continua (é o
+                 alvo do dedo e do rato, a célula inteira), e o
+                 `aria-checked` dela diz o mesmo que o `aria-selected`
+                 da célula. */
+            if (e.key === " " || e.key === "Spacebar") {
+              e.preventDefault();
+              openZoom(i);
+              return;
+            }
+            // Shift+F10 e a tecla de menu: o botão direito do
+            // teclado, ancorado ao canto de baixo da célula.
+            if (teclaDeMenu(e)) {
+              e.preventDefault();
+              const r = e.currentTarget.getBoundingClientRect();
+              setMenuDaFoto({
+                x: r.left,
+                y: r.bottom,
+                sobre: `foto ${i + 1} de ${images.length}`,
+                accoes: accoesDaFoto(im, i),
+              });
+              return;
+            }
+            // SEM o Alt, as setas andam entre as fotos (`fotoPelaTecla`),
+            // e o `Shift` leva a selecção com elas. As fotos a carregar
+            // ocupam as primeiras casas: entram na conta das linhas, mas
+            // o foco não pára nelas.
+            if (!e.altKey) {
+              const P = pending.length;
+              const v = fotoPelaTecla(
+                P + i,
+                e.key,
+                colunas,
+                P + images.length,
+                e.metaKey || e.ctrlKey,
+              );
+              if (v === null) return;
+              e.preventDefault();
+              const para = Math.max(P, v) - P;
+              if (para === i) return;
+              if (e.shiftKey && e.key.startsWith("Arrow")) estenderPeloTeclado(i, para);
+              focarFoto(para);
+              return;
+            }
+            // Alt + setas move a foto.
+            const to =
+              e.key === "ArrowLeft" || e.key === "ArrowUp"
+                ? i - 1
+                : e.key === "ArrowRight" || e.key === "ArrowDown"
+                  ? i + 1
+                  : e.key === "Home"
+                    ? 0
+                    : null;
+            if (to === null) return;
+            e.preventDefault();
+            const destino = Math.max(0, Math.min(images.length - 1, to));
+            // O foco vai com a foto (a célula é a mesma, pela `key`), e o
+            // fio do Tab também.
+            setFotoComFoco(destino);
+            moveTo(i, destino);
+          }}
+          className={`absolute inset-0 h-full w-full ${ESTADO} ${PRESSAO}`}
+        >
+          {/* O círculo da selecção, à maneira da app Fotografias:
+                um anel branco fino sobre um véu escuro leve (sem
+                sombra: esta casa não põe sombras em conteúdo — ver
+                `sombras-do-back-office.test.ts`), e cheio com o
+                visto quando está escolhida (14/10, «tipo apple»). */}
+          <span
+            aria-hidden
+            className={`absolute left-2 top-2 flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-white ${ESTADO} ${
+              isSelected
+                ? "bg-sage-600 text-white opacity-100"
+                : "bg-black/25 text-transparent opacity-100 com-rato:opacity-0 com-rato:group-hover:opacity-100 com-rato:group-focus-within:opacity-100"
+            }`}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12.5l4.5 4.5L19 7.5" />
+            </svg>
+          </span>
+        </button>
+        {isCover && (
+          <span className="bo-vidro-claro pointer-events-none absolute bottom-2 left-2 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-white">
+            Capa
+          </span>
+        )}
+        {/* ── UM SÓ «⋯», EM VIDRO CLARO ───────────────────────────
+              Eram três círculos escuros (↑, ⤢, ×) por cima de cada
+              fotografia. O documento dela manda um só, e ela
+              escolheu-o (14/10, «tipo apple»): «um botão discreto ⋯
+              no canto superior direito, em vidro claro, que abre o
+              mesmo menu do botão direito» (APPLE-TEMAS, ponto 9 e
+              critério 3). As acções passam a ter nome escrito.
+
+              O desenho é o do «⋯» do cartão de tema — 28 px à vista,
+              `.bo-vidro-claro`, glifo branco, sem desfoque (um por
+              foto eram centenas) — e o alvo cresce para os 44 no
+              dedo sem o disco crescer (`.alvo-invisivel`). O painel
+              é o `MenuDeContexto`, que é `fixed`: o do
+              `MenuDeAccoes` é `absolute` e esta célula é
+              `overflow-hidden`, portanto sairia cortado.
+
+              Continua tudo a um caminho de dedo: Pré-visualizar,
+              Pôr no início, Remover… estão no menu. Com rato, só
+              aparece por cima da foto ou com o foco lá dentro. */}
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={menuDaFoto?.de === im.path}
+          aria-label={`Acções da foto ${i + 1} de ${images.length}`}
+          tabIndex={i === focoNaGrelha ? 0 : -1}
+          onClick={(e) => {
+            e.stopPropagation();
+            const r = e.currentTarget.getBoundingClientRect();
+            setMenuDaFoto({
+              x: r.left,
+              y: r.bottom + 4,
+              de: im.path,
+              sobre: `foto ${i + 1} de ${images.length}`,
+              accoes: accoesDaFoto(im, i),
+            });
+          }}
+          className={`bo-vidro-claro alvo-invisivel absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full text-white opacity-100 com-rato:opacity-0 com-rato:group-hover:opacity-100 com-rato:group-focus-within:opacity-100 com-rato:focus-visible:opacity-100 ${
+            menuDaFoto?.de === im.path ? "com-rato:opacity-100" : ""
+          } ${ESTADO} ${PRESSAO}`}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <circle cx="5" cy="12" r="1.8" />
+            <circle cx="12" cy="12" r="1.8" />
+            <circle cx="19" cy="12" r="1.8" />
+          </svg>
+        </button>
+      </div>
+    );
+  };
 
   const aSairDaLupa = useSaidaDeUmSo(zoomAt !== null);
   const indiceDaLupa = useNoEcraAteSair(zoomAt !== null, aSairDaLupa, zoomAt);
@@ -5830,307 +6213,35 @@ function ThemeFolder({
           </div>
         ) : (
           <>
-            <div className={`select-none ${GRELHA_DE_FOTOS}`}>
-              {/* AS FOTOS QUE ELA ACABOU DE LARGAR, já à vista, ainda a
-                  caminho do servidor. Não são selecionáveis nem removíveis
-                  (ainda não existem lá), e o leitor de ecrã segue a barra de
-                  progresso — não 300 células a anunciarem-se. */}
-              {pending.map((p) => (
-                <div
-                  key={p.id}
-                  aria-hidden
-                  title={`${p.name} — a carregar`}
-                  className="relative aspect-[4/3] min-h-[104px] overflow-hidden rounded-lg border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-6)]"
-                >
-                  {p.src ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={p.src}
-                      alt=""
-                      decoding="async"
-                      className="h-full w-full object-cover opacity-60"
-                    />
-                  ) : (
-                    <div className="bo-skeleton h-full w-full" />
-                  )}
-                  <span className="absolute inset-x-1 bottom-1 rounded-md bg-black/55 px-1.5 py-0.5 text-center text-[10px] uppercase tracking-[0.06em] text-white">
-                    A carregar
-                  </span>
-                </div>
-              ))}
-              {images.map((im, i) => {
-                const isSelected = selected.has(im.path);
-                const isCover = im.path === coverPath;
-                return (
-                  <div
-                    key={im.path}
-                    ref={(no) => {
-                      if (no) celulas.current.set(i, no);
-                      else celulas.current.delete(i);
-                    }}
-                    draggable
-                    onDragStart={(e) => {
-                      setDragFrom(i);
-                      e.dataTransfer.effectAllowed = "move";
-                      // Alguns navegadores só iniciam o arrasto com dados lá
-                      // dentro; o valor não é usado por ninguém.
-                      e.dataTransfer.setData("text/plain", String(i));
-                      /* ── E O MESMO GESTO SERVE OS DOIS DESTINOS ─────────
-                         «Dentro do mesmo tema REORDENA; para outro tema
-                         MOVE.» [APPLE] É um arrasto só, com duas cargas: o
-                         índice em `text/plain`, que é o que as células
-                         vizinhas lêem para reordenar, e o lote de caminhos no
-                         tipo próprio, que é o que a coluna da esquerda lê
-                         para mover. Quem decide é o destino onde ele acaba.
+            {/* ── UMA SÓ `role="row"`, E A LINHA DITA EM CADA CÉLULA ──────
+                Agrupar as células em linhas a sério (um `<div role="row">`
+                por linha) era o óbvio, e foi o primeiro a ser feito. Partia
+                uma coisa: o número de colunas MEDE-SE, e muda — ao abrir (2
+                da classe → 5 medidas), ao alargar a janela, a cada foto que
+                sai e empurra as outras uma casa para trás. Uma célula que
+                muda de pai é, para o React, uma célula NOVA: desmontava-se, a
+                miniatura voltava a fazer o fade e o original perdia a vez na
+                fila dos descarregamentos (o teste «a foto que está no ecrã
+                não espera pelas que não estão» apanhou-o).
 
-                         E o lote é a SELECÇÃO quando se pega numa foto que
-                         está nela — ver `fotosQueViajam`. */
-                      const lote = fotosQueViajam(
-                        im.path,
-                        selected,
-                        images.map((x) => x.path),
-                      );
-                      escreverCarga(e.dataTransfer, { origem: theme.id, paths: lote });
-                      vestirOArrasto(e, lote.length);
-                      aoArrastar?.(true);
-                    }}
-                    onDragEnd={(e) => {
-                      // Ver a nota do `aRegressar`: `none` é a norma a dizer
-                      // que isto não foi largado em destino nenhum.
-                      const falhou = e.dataTransfer?.dropEffect === "none";
-                      setDragFrom(null);
-                      setDragOver(null);
-                      aoArrastar?.(false);
-                      setARegressar(falhou ? im.path : null);
-                    }}
-                    // O regresso acaba quando acaba — sem temporizador a
-                    // repetir o número que já está no token. Deixá-lo aceso
-                    // punha esta célula (e só ela) a responder ao rato em
-                    // 475 ms para sempre.
-                    onTransitionEnd={() => setARegressar((p) => (p === im.path ? null : p))}
-                    onDragOver={(e) => {
-                      if (dragFrom === null) return;
-                      // Sem isto o browser recusa a largada.
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                      if (dragOver !== i) setDragOver(i);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (dragFrom !== null) moveTo(dragFrom, i);
-                      setDragFrom(null);
-                      setDragOver(null);
-                    }}
-                    // `celula-saltavel`: fora do ecrã, o browser não desenha
-                    // nem descodifica esta célula. A altura não depende disso
-                    // (é `aspect-[4/3]` numa coluna de largura fixa), por
-                    // isso a barra de deslocamento não mexe. Ver globals.css.
-                    /* O botão direito abre as mesmas quatro acções que os
-                       botões da célula — ver `accoesDaFoto`. O menu é `fixed`,
-                       portanto o `overflow-hidden` desta célula (que a recorta
-                       aos cantos redondos) não o corta. */
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setMenuDaFoto({
-                        x: e.clientX,
-                        y: e.clientY,
-                        sobre: `foto ${i + 1} de ${images.length}`,
-                        accoes: accoesDaFoto(im, i),
-                      });
-                    }}
-                    className={`celula-saltavel group relative aspect-[4/3] min-h-[104px] overflow-hidden rounded-lg border bg-[var(--bo-tinta-6)] ${ESTADO} ${
-                      isSelected
-                        ? "border-sage-600 ring-2 ring-sage-600/40"
-                        : "border-[var(--bo-hairline-strong)]"
-                    } ${dragFrom === i ? "opacity-40" : ""} ${
-                      dragOver === i && dragFrom !== null && dragFrom !== i
-                        ? "ring-2 ring-sage-600"
-                        : ""
-                    } ${
-                      // Os tokens do documento, lidos do `:root` — nem o
-                      // número nem a curva se escrevem aqui.
-                      aRegressar === im.path
-                        ? "motion-safe:[transition-duration:var(--transition-duration-reposition)] motion-safe:[transition-timing-function:var(--ease-reposition)]"
-                        : ""
-                    }`}
-                  >
-                    {/* A célula já tem `aspect-[4/3]`, por isso adiar a foto
-                        não salta nada. E o que se mostra é a MINIATURA: com o
-                        original, uma página de 60 fotos puxava ~150 MB. As da
-                        primeira dobra não esperam pela vez de ninguém. */}
-                    <Photo
-                      image={im}
-                      alt=""
-                      priority={i < ABOVE_FOLD}
-                      localSrc={localSrc.get(im.path)}
-                    />
-                    {/* A célula inteira é o alvo da seleção — um alvo pequeno
-                        numa grelha de 60 fotos seria um exercício de pontaria. */}
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-checked={isSelected}
-                      aria-label={
-                        escolherCapa
-                          ? `Usar a foto ${i + 1} de ${images.length} como capa`
-                          : `Selecionar foto ${i + 1} de ${images.length}`
-                      }
-                      onClick={(e) => {
-                        // No modo «escolher a capa», o clique escolhe-a.
-                        if (escolherCapa) {
-                          setEscolherCapa(false);
-                          void setAsCover(im);
-                          return;
-                        }
-                        // `ctrlKey` ao lado do `metaKey` porque o back office
-                        // também se abre em Windows e em Linux, onde o gesto
-                        // de somar à selecção é o Ctrl.
-                        toggleAt(i, { shift: e.shiftKey, somar: e.metaKey || e.ctrlKey });
-                      }}
-                      // ── `ESPAÇO` PRÉ-VISUALIZA ──────────────────────────
-                      // «É o gesto que qualquer utilizador de Mac tenta
-                      // primeiro» (ponto 23), e o critério 5 do documento.
-                      // Anunciado, para não ser um segredo: um atalho que só
-                      // quem leu o documento conhece não existe.
-                      aria-keyshortcuts="Space"
-                      onKeyDown={(e) => {
-                        /* ── E O QUE ISTO CUSTA, ESCRITO POR EXTENSO ──────
-                           Esta célula é um `role="checkbox"`, e num checkbox o
-                           `Espaço` alterna. O documento manda o `Espaço` para
-                           o Quick Look — duas vezes, e é critério de
-                           aceitação. Fica o Quick Look, e o alternar NÃO se
-                           perde: um `<button>` dispara `click` com o `Enter`,
-                           portanto marcar e desmarcar continuam a ter caminho
-                           de teclado, mais o rato e o dedo.
-
-                           O que se troca é a tecla, não a função — e é a
-                           troca que a fase 11 vem fechar, quando a célula
-                           passar a `role="gridcell"` com `aria-selected` (é o
-                           que a Parte 7 pede) e o `Espaço` deixar de ser de
-                           ninguém. Até lá o comentário fica, para quem vier a
-                           seguir não desfazer isto a pensar que foi
-                           distracção. */
-                        if (e.key === " " || e.key === "Spacebar") {
-                          e.preventDefault();
-                          openZoom(i);
-                          return;
-                        }
-                        // Shift+F10 e a tecla de menu: o botão direito do
-                        // teclado, ancorado ao canto de baixo da célula.
-                        if (teclaDeMenu(e)) {
-                          e.preventDefault();
-                          const r = e.currentTarget.getBoundingClientRect();
-                          setMenuDaFoto({
-                            x: r.left,
-                            y: r.bottom,
-                            sobre: `foto ${i + 1} de ${images.length}`,
-                            accoes: accoesDaFoto(im, i),
-                          });
-                          return;
-                        }
-                        // Alt + setas move a foto. Sem o Alt, as setas continuam
-                        // a andar entre células, que é o que o teclado espera.
-                        if (!e.altKey) return;
-                        const to =
-                          e.key === "ArrowLeft" || e.key === "ArrowUp"
-                            ? i - 1
-                            : e.key === "ArrowRight" || e.key === "ArrowDown"
-                              ? i + 1
-                              : e.key === "Home"
-                                ? 0
-                                : null;
-                        if (to === null) return;
-                        e.preventDefault();
-                        moveTo(i, Math.max(0, Math.min(images.length - 1, to)));
-                      }}
-                      className={`absolute inset-0 h-full w-full ${ESTADO} ${PRESSAO}`}
-                    >
-                      {/* O círculo da selecção, à maneira da app Fotografias:
-                          um anel branco fino sobre um véu escuro leve (sem
-                          sombra: esta casa não põe sombras em conteúdo — ver
-                          `sombras-do-back-office.test.ts`), e cheio com o
-                          visto quando está escolhida (14/10, «tipo apple»). */}
-                      <span
-                        aria-hidden
-                        className={`absolute left-2 top-2 flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.5px] border-white ${ESTADO} ${
-                          isSelected
-                            ? "bg-sage-600 text-white opacity-100"
-                            : "bg-black/25 text-transparent opacity-100 com-rato:opacity-0 com-rato:group-hover:opacity-100 com-rato:group-focus-within:opacity-100"
-                        }`}
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M5 12.5l4.5 4.5L19 7.5" />
-                        </svg>
-                      </span>
-                    </button>
-                    {isCover && (
-                      <span className="bo-vidro-claro pointer-events-none absolute bottom-2 left-2 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-white">
-                        Capa
-                      </span>
-                    )}
-                    {/* ── UM SÓ «⋯», EM VIDRO CLARO ───────────────────────────
-                        Eram três círculos escuros (↑, ⤢, ×) por cima de cada
-                        fotografia. O documento dela manda um só, e ela
-                        escolheu-o (14/10, «tipo apple»): «um botão discreto ⋯
-                        no canto superior direito, em vidro claro, que abre o
-                        mesmo menu do botão direito» (APPLE-TEMAS, ponto 9 e
-                        critério 3). As acções passam a ter nome escrito.
-
-                        O desenho é o do «⋯» do cartão de tema — 28 px à vista,
-                        `.bo-vidro-claro`, glifo branco, sem desfoque (um por
-                        foto eram centenas) — e o alvo cresce para os 44 no
-                        dedo sem o disco crescer (`.alvo-invisivel`). O painel
-                        é o `MenuDeContexto`, que é `fixed`: o do
-                        `MenuDeAccoes` é `absolute` e esta célula é
-                        `overflow-hidden`, portanto sairia cortado.
-
-                        Continua tudo a um caminho de dedo: Pré-visualizar,
-                        Pôr no início, Remover… estão no menu. Com rato, só
-                        aparece por cima da foto ou com o foco lá dentro. */}
-                    <button
-                      type="button"
-                      aria-haspopup="menu"
-                      aria-expanded={menuDaFoto?.de === im.path}
-                      aria-label={`Acções da foto ${i + 1} de ${images.length}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const r = e.currentTarget.getBoundingClientRect();
-                        setMenuDaFoto({
-                          x: r.left,
-                          y: r.bottom + 4,
-                          de: im.path,
-                          sobre: `foto ${i + 1} de ${images.length}`,
-                          accoes: accoesDaFoto(im, i),
-                        });
-                      }}
-                      className={`bo-vidro-claro alvo-invisivel absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full text-white opacity-100 com-rato:opacity-0 com-rato:group-hover:opacity-100 com-rato:group-focus-within:opacity-100 com-rato:focus-visible:opacity-100 ${
-                        menuDaFoto?.de === im.path ? "com-rato:opacity-100" : ""
-                      } ${ESTADO} ${PRESSAO}`}
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        aria-hidden
-                      >
-                        <circle cx="5" cy="12" r="1.8" />
-                        <circle cx="12" cy="12" r="1.8" />
-                        <circle cx="19" cy="12" r="1.8" />
-                      </svg>
-                    </button>
-                  </div>
-                );
-              })}
+                Fica uma linha só, que não muda nunca, e a posição de cada
+                foto vai no `aria-rowindex` / `aria-colindex` dela — é o que
+                deixa o leitor de ecrã dizer «linha 3, coluna 2» sem a árvore
+                mexer. A geometria é a do `GRELHA_DE_FOTOS`: a linha é
+                `display: contents`, não ocupa caixa nenhuma. */}
+            <div
+              ref={grelha}
+              role="grid"
+              aria-multiselectable="true"
+              aria-label={`Fotografias de ${theme.name}`}
+              aria-rowcount={Math.ceil((pending.length + images.length) / colunas)}
+              aria-colcount={colunas}
+              className={`select-none ${GRELHA_DE_FOTOS}`}
+            >
+              <div role="row" className="contents">
+                {pendentes}
+                {images.map((im, i) => celulaDaFoto(im, i))}
+              </div>
             </div>
 
             {hasMore ? (
