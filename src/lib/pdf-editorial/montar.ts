@@ -96,7 +96,16 @@ export async function renderEditorialPdf(
    * dela). Sai igual, com «RASCUNHO» à frente do rodapé de cada página e no
    * título do ficheiro — nada mais muda no desenho.
    */
-  opcoes: { rascunho?: boolean } = {},
+  opcoes: {
+    rascunho?: boolean;
+    /**
+     * Só estas páginas (a contar de 1) — A1, a página real ao lado do
+     * formulário. O PLANO é o de sempre, inteiro: as fotografias, o índice e
+     * os números de página saem os mesmos do PDF; o que se salta é o DESENHO
+     * das outras. O PDF devolvido tem só as pedidas, pela ordem do documento.
+     */
+    soPaginas?: readonly number[];
+  } = {},
   fontes: FontesDasFotos = {},
 ): Promise<{
   bytes: Uint8Array;
@@ -104,15 +113,22 @@ export async function renderEditorialPdf(
   undrawnImages: number;
   /** Que fotografia foi para cada lugar de cada página — ver `fotosDoEditorial`. */
   fotos: FotosDoPdf;
+  /** Quantas páginas tem o PDF inteiro (com `soPaginas`, as que não se desenharam contam). */
+  paginas: number;
 }> {
   const m = await motor(original, idioma, opcoes, fontes);
-  for (const [i, passo] of m.plano.entries()) await passo.desenhar(i + 1, m.entradas);
+  const so = opcoes.soPaginas ? new Set(opcoes.soPaginas) : null;
+  for (const [i, passo] of m.plano.entries()) {
+    if (so && !so.has(i + 1)) continue;
+    await passo.desenhar(i + 1, m.entradas);
+  }
   const bytes = await m.pdf.save();
   return {
     bytes,
     truncations: m.ctx.cortes,
     undrawnImages: m.ctx.naoDesenhadas.size,
     fotos: fotosDoPlano(m.plano),
+    paginas: m.plano.length,
   };
 }
 
