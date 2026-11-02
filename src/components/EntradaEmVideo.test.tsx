@@ -1439,6 +1439,59 @@ describe("EntradaEmVideo", () => {
         expect(a.getAttribute("src")).toBeNull();
       });
 
+      /** O take à vista com `segundos` já descarregados à frente do ponto em que está. */
+      function comDadosAFrente(el: HTMLVideoElement, segundos: number) {
+        Object.defineProperty(el, "buffered", {
+          configurable: true,
+          value: { length: 1, start: () => 0, end: () => (el.currentTime ?? 0) + segundos },
+        });
+      }
+
+      it("parar três vezes em 8 s COM o vídeo já descarregado: desce à leve (2/11)", async () => {
+        // O registo dela: 40 paragens em 15 s, sempre com 7–9 s à frente — o
+        // descodificador, não a rede. Um vídeo parado não perde fotogramas.
+        const { container } = await montar();
+        const [a, b] = videos(container);
+        aVer(a);
+        comecar(a);
+        comDadosAFrente(a, 8);
+        act(() => void vi.advanceTimersByTime(6500)); // passados os primeiros segundos
+        for (let k = 0; k < 3; k++) {
+          act(() => void a.dispatchEvent(new Event("waiting")));
+          act(() => void vi.advanceTimersByTime(400));
+        }
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem-leve.mp4");
+        expect(a.getAttribute("src")).toBe("/videos/entrada/v9/entrada-1-paisagem-leve.mp4");
+      });
+
+      it("parar SEM dados à frente é a rede, não o computador: fica na normal", async () => {
+        const { container } = await montar();
+        const [a, b] = videos(container);
+        aVer(a);
+        comecar(a);
+        comDadosAFrente(a, 0.5);
+        act(() => void vi.advanceTimersByTime(6500));
+        for (let k = 0; k < 5; k++) {
+          act(() => void a.dispatchEvent(new Event("waiting")));
+          act(() => void vi.advanceTimersByTime(400));
+        }
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+      });
+
+      it("duas paragens com dados não chegam, nem três espalhadas por mais de 8 s", async () => {
+        const { container } = await montar();
+        const [a, b] = videos(container);
+        aVer(a);
+        comecar(a);
+        comDadosAFrente(a, 8);
+        act(() => void vi.advanceTimersByTime(6500));
+        for (let k = 0; k < 3; k++) {
+          act(() => void a.dispatchEvent(new Event("waiting")));
+          act(() => void vi.advanceTimersByTime(4500));
+        }
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+      });
+
       it("a perder pouco (um computador capaz): fica tudo na normal", async () => {
         const { container } = await montar();
         const [a, b] = videos(container);

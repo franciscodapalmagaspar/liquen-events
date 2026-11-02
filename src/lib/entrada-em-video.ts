@@ -621,6 +621,36 @@ export function deveAliviar(fotogramas: number, perdidos: number): boolean {
 }
 
 /**
+ * ── E O OUTRO SINAL: PARAR COM O VÍDEO JÁ DESCARREGADO (2/11) ─────────────
+ *
+ * Ela: «o vídeo do Chrome da página inicial está um bocado bugado… as
+ * passagens dos vídeos». O registo anónimo dessa visita (Chrome, computador,
+ * ecrã de 2195×1100 a 180 %) não perdeu fotogramas que chegassem para o
+ * {@link deveAliviar}: PAROU. Quarenta `waiting` em quinze segundos, de ~300 em
+ * ~300 ms, sempre com 7 a 9 segundos de vídeo já descarregados à frente e o
+ * `readyState` em 2 («só o fotograma de agora»). A rede tinha entregado tudo;
+ * quem não dava conta era o descodificador. Um vídeo parado não perde
+ * fotogramas — fica à espera deles —, por isso a conta dos perdidos nunca
+ * chegava aos 10 % e o degrau nunca descia.
+ *
+ * Este é esse sinal: `ALIVIAR_PARAGENS` paragens do take à vista, em
+ * `ALIVIAR_PARAGENS_JANELA_MS`, cada uma com pelo menos
+ * `ALIVIAR_PARAGENS_A_FRENTE_S` segundos já descarregados (a rede não é a
+ * culpada). Desce o mesmo degrau que os fotogramas perdidos fazem descer.
+ */
+export const ALIVIAR_PARAGENS = 3;
+export const ALIVIAR_PARAGENS_JANELA_MS = 8000;
+export const ALIVIAR_PARAGENS_A_FRENTE_S = 2;
+
+/** As paragens com dados (instantes, em ms) chegam para descer um degrau? */
+export function deveAliviarPorParagens(paragens: readonly number[], agora: number): boolean {
+  return (
+    paragens.filter((t) => t <= agora && agora - t <= ALIVIAR_PARAGENS_JANELA_MS).length >=
+    ALIVIAR_PARAGENS
+  );
+}
+
+/**
  * Onde o browser guarda que este aparelho precisa da leve, para a próxima
  * entrada já começar nela (e não perder os primeiros segundos a soluçar).
  * Vale uma semana: depois volta-se a experimentar a normal.
