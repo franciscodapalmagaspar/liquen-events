@@ -29,10 +29,15 @@ Registado aqui para o próximo leitor não refazer nem duvidar.
 | 7 | A saudação | **feito** (reauditado a 1/11) — «Bom dia / Boa tarde / Boa noite» contados em Lisboa (`useSaudacao`, sem erro de hidratação), na faixa de baixo da fotografia |
 | 8 | O véu sob o texto da fotografia | **feito** (reauditado a 1/11) — `VEU_DO_TEXTO`, gradiente de 82 % a 0; o pior contraste medido é 10,88:1 |
 | 19 | O botão do olho | **feito** (reauditado a 1/11) — 40×40 (44 no dedo), `aria-label` que muda com o estado e `aria-pressed` |
+| 12 | Raios sem relação | **feito** (2/11) — o cartão a 26 (`--bo-raio-folha`), os campos e os botões a 10 (`--bo-raio-controlo`), nenhuma cápsula: `.bo-porta` no `admin.css`, só neste ecrã (o `Button` da casa continua pílula nos outros 151 sítios). Padding 32 a partir de `sm`, 24 no telemóvel — medido a 320 px, com 32 o botão da chave de acesso ficava com 222 px para uma frase de 224 |
+| 13 | Ritmo vertical a olho | **feito** (2/11) — os `*.5` do `AdminLogin.tsx` e do `EntradaComFotografia.tsx` passaram à grelha de 4 (`gap-3.5`→`gap-4`, `px-3.5`→`px-4`, `gap-1.5`/`gap-2.5`→`gap-2`, `mt-1.5`→`mt-2`). Ficam dois de propósito: o `mt-0.5` da caixa «Manter sessão» (é alinhamento óptico de 16 px com uma linha de 19,5, não ritmo) e o `px-3.5` DENTRO do `Field`, que é o primitivo de todo o back office e não deste ecrã |
+| 14 | Anel de foco | **feito pelo anel da casa** (2/11) — já existe: 2 px, `outline-offset: 2px`, segue o raio, só ao teclado (`data-foco-do-rato`), e nos campos é a moldura que muda (o pedido dela, quatro vezes, «retira o anel»). Os 2 px estão dentro dos «2–3 px» do `docs/DESIGN-SYSTEM.md`; um anel de 3 px SÓ neste ecrã seria um segundo sistema de foco ao lado do primeiro |
+| 15 | Estados de pressão | **feito** — `PRESSAO` (`ui/movimento.ts`) em todos os controlos do ecrã |
+| 16 | Sem movimento nenhum | **feito** (2/11) — a marca e depois o cartão entram com a escada da casa (`.bo-cena`, `--cena` 0 e 1), a mesma da Visão Geral |
+| 22 | `prefers-reduced-motion` / `-transparency` | **feito** (2/11) — o movimento todo do ecrã é `motion-safe:` ou tem a regra de `reduce` (`.bo-cena`, a gaveta, a recusa); transparência não há a reduzir — o cartão é opaco e a fotografia não tem vidro por cima (ponto 4) |
 
-Por fazer (reauditado a 1/11): **3** (falta tirar o segundo separador), **12**
-a **16**, **22**. Os 4, 5, 6, 7, 8 e 19 estão na tabela acima — feitos, ou
-decididos de outra maneira, com o porquê.
+Por fazer: **nada** (2/11). Os 4, 5, 6, 7, 8, 14 e 19 estão na tabela acima —
+feitos, ou decididos de outra maneira, com o porquê.
 
 ---
 

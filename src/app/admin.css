@@ -3198,3 +3198,29 @@ body:has([data-admin-mode])
 body:has([data-admin-mode]) :is(:disabled, [aria-disabled="true"]) {
   cursor: not-allowed;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   A PORTA — OS RAIOS DO ECRÃ DE ENTRADA (`docs/LOGIN.md`, ponto 12)
+   ══════════════════════════════════════════════════════════════════════════
+
+   «Painel 26 → padding 32 → controlos a 10 px, rectângulo arredondado.
+   Nenhuma cápsula neste ecrã.» São os nomes de papel que já cá estavam —
+   `--bo-raio-folha` e `--bo-raio-controlo` —, sem um valor novo.
+
+   PORQUE É QUE É CSS E NÃO UMA CLASSE NO `Button`: o `Button` da casa é
+   `rounded-full` em 151 sítios, e a pílula continua a ser a acção no resto do
+   back office (ver o bloco dos raios, lá em cima). Este é o único ecrã que o
+   documento dela tira dessa regra; o `cn()` dos primitivos não funde classes,
+   e um `rounded-[…]` ao lado de um `rounded-full` decidia-se pela ordem em que
+   o Tailwind os escreve. Fora de `@layer`, este bloco ganha aos utilitários
+   sem depender dessa ordem, e só onde houver `.bo-porta`.
+
+   A caixa de selecção («Manter sessão») fica de fora: é um controlo nativo de
+   16 px, e a 10 px de raio passava a ser um círculo. */
+.bo-porta {
+  border-radius: var(--bo-raio-folha);
+}
+
+.bo-porta :is(button, input:not([type="checkbox"])) {
+  border-radius: var(--bo-raio-controlo);
+}

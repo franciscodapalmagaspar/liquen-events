@@ -1439,6 +1439,59 @@ describe("EntradaEmVideo", () => {
         expect(a.getAttribute("src")).toBeNull();
       });
 
+      /** O take à vista com `segundos` já descarregados à frente do ponto em que está. */
+      function comDadosAFrente(el: HTMLVideoElement, segundos: number) {
+        Object.defineProperty(el, "buffered", {
+          configurable: true,
+          value: { length: 1, start: () => 0, end: () => (el.currentTime ?? 0) + segundos },
+        });
+      }
+
+      it("parar três vezes em 8 s COM o vídeo já descarregado: desce à leve (2/11)", async () => {
+        // O registo dela: 40 paragens em 15 s, sempre com 7–9 s à frente — o
+        // descodificador, não a rede. Um vídeo parado não perde fotogramas.
+        const { container } = await montar();
+        const [a, b] = videos(container);
+        aVer(a);
+        comecar(a);
+        comDadosAFrente(a, 8);
+        act(() => void vi.advanceTimersByTime(6500)); // passados os primeiros segundos
+        for (let k = 0; k < 3; k++) {
+          act(() => void a.dispatchEvent(new Event("waiting")));
+          act(() => void vi.advanceTimersByTime(400));
+        }
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem-leve.mp4");
+        expect(a.getAttribute("src")).toBe("/videos/entrada/v9/entrada-1-paisagem-leve.mp4");
+      });
+
+      it("parar SEM dados à frente é a rede, não o computador: fica na normal", async () => {
+        const { container } = await montar();
+        const [a, b] = videos(container);
+        aVer(a);
+        comecar(a);
+        comDadosAFrente(a, 0.5);
+        act(() => void vi.advanceTimersByTime(6500));
+        for (let k = 0; k < 5; k++) {
+          act(() => void a.dispatchEvent(new Event("waiting")));
+          act(() => void vi.advanceTimersByTime(400));
+        }
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+      });
+
+      it("duas paragens com dados não chegam, nem três espalhadas por mais de 8 s", async () => {
+        const { container } = await montar();
+        const [a, b] = videos(container);
+        aVer(a);
+        comecar(a);
+        comDadosAFrente(a, 8);
+        act(() => void vi.advanceTimersByTime(6500));
+        for (let k = 0; k < 3; k++) {
+          act(() => void a.dispatchEvent(new Event("waiting")));
+          act(() => void vi.advanceTimersByTime(4500));
+        }
+        expect(b.getAttribute("src")).toBe("/videos/entrada/v9/entrada-2-paisagem.mp4");
+      });
+
       it("a perder pouco (um computador capaz): fica tudo na normal", async () => {
         const { container } = await montar();
         const [a, b] = videos(container);
@@ -1490,12 +1543,36 @@ describe("EntradaEmVideo", () => {
       act(() => void b.dispatchEvent(new Event("canplaythrough")));
       Object.defineProperty(a, "currentTime", { configurable: true, value: 4, writable: true });
       Object.defineProperty(a, "readyState", { configurable: true, value: 2 });
+      // SEM dados: a rede só entregou até um pouco à frente do ponto em que está.
+      // (O `comecar` dá-o todo descarregado — e com tudo descarregado a paragem
+      // não é da rede, ver o caso a seguir.)
+      descarregado(a, 4.3);
       play.mockClear();
       act(() => void a.dispatchEvent(new Event("waiting")));
       act(() => void vi.advanceTimersByTime(450));
       expect(play).toHaveBeenCalledTimes(1);
       act(() => void b.dispatchEvent(new Event("playing")));
       expect(b.style.opacity).toBe("1");
+    });
+
+    it("COM dados à frente (o descodificador, não a rede): fica no mesmo take (2/11)", async () => {
+      // Ela: «passa os mesmos vídeos bué vezes». O salto cortava cada take aos
+      // ~3 s num computador que tinha 7–9 s já descarregados.
+      const { container } = await montar();
+      const [a, b] = videos(container);
+      comecar(a);
+      act(() => void b.dispatchEvent(new Event("canplaythrough")));
+      Object.defineProperty(a, "currentTime", { configurable: true, value: 4, writable: true });
+      Object.defineProperty(a, "readyState", { configurable: true, value: 2 });
+      Object.defineProperty(a, "buffered", {
+        configurable: true,
+        value: { length: 1, start: () => 0, end: () => 12 },
+      });
+      play.mockClear();
+      act(() => void a.dispatchEvent(new Event("waiting")));
+      act(() => void vi.advanceTimersByTime(450));
+      expect(play).not.toHaveBeenCalled();
+      expect(b.style.opacity).toBe("0");
     });
 
     it("sem dados e sem para onde ir: espera (não há take na memória)", async () => {

@@ -488,3 +488,101 @@ describe("Fase 09 — Quick Look", () => {
     expect(celula(1, 2)).toHaveAttribute("aria-keyshortcuts", "Space");
   });
 });
+
+describe("Fase 11 — a grelha das fotografias pelo teclado", () => {
+  beforeEach(() => {
+    rota("GET /api/temas/t1/imagens", () =>
+      ok({ ok: true, images: [1, 2, 3, 4, 5].map((n) => foto("t1", n)), total: 5 }),
+    );
+  });
+
+  it('é um `role="grid"` com células `gridcell` que dizem se estão escolhidas', async () => {
+    desenhar();
+    await abrir(/Terracotta/);
+    const grelha = screen.getByRole("grid", { name: "Fotografias de Terracotta" });
+    expect(grelha).toHaveAttribute("aria-multiselectable", "true");
+    const celulas = within(grelha).getAllByRole("gridcell");
+    expect(celulas).toHaveLength(5);
+    // Duas colunas (a base da classe, que é o que o jsdom deixa medir): a
+    // terceira foto é a primeira da segunda linha.
+    expect(celulas[2]).toHaveAttribute("aria-rowindex", "2");
+    expect(celulas[2]).toHaveAttribute("aria-colindex", "1");
+    expect(celulas[0]).toHaveAttribute("aria-selected", "false");
+
+    await act(async () => {
+      fireEvent.click(celula(1, 5));
+    });
+    expect(celulas[0]).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("só uma foto está no fio do Tab, e as setas levam-no consigo", async () => {
+    desenhar();
+    await abrir(/Terracotta/);
+    const noTab = () =>
+      screen
+        .getAllByRole("checkbox", { name: /^Selecionar foto/ })
+        .filter((b) => b.tabIndex === 0)
+        .map((b) => b.getAttribute("aria-label"));
+    expect(noTab()).toEqual(["Selecionar foto 1 de 5"]);
+
+    celula(1, 5).focus();
+    await act(async () => {
+      fireEvent.keyDown(celula(1, 5), { key: "ArrowRight" });
+    });
+    expect(document.activeElement).toBe(celula(2, 5));
+    await act(async () => {
+      fireEvent.keyDown(celula(2, 5), { key: "ArrowDown" });
+    });
+    expect(document.activeElement).toBe(celula(4, 5));
+    expect(noTab()).toEqual(["Selecionar foto 4 de 5"]);
+
+    // ⌘/Ctrl+End vai à última; e na ponta a tecla não faz nada.
+    await act(async () => {
+      fireEvent.keyDown(celula(4, 5), { key: "End", ctrlKey: true });
+    });
+    expect(document.activeElement).toBe(celula(5, 5));
+    await act(async () => {
+      fireEvent.keyDown(celula(5, 5), { key: "ArrowRight" });
+    });
+    expect(document.activeElement).toBe(celula(5, 5));
+  });
+
+  it("andar com as setas não escolhe nada; com o `Shift`, a selecção vai atrás", async () => {
+    desenhar();
+    await abrir(/Terracotta/);
+    celula(1, 5).focus();
+    await act(async () => {
+      fireEvent.keyDown(celula(1, 5), { key: "ArrowRight" });
+    });
+    expect(screen.queryAllByRole("gridcell", { selected: true })).toHaveLength(0);
+
+    await act(async () => {
+      fireEvent.keyDown(celula(2, 5), { key: "ArrowDown", shiftKey: true });
+    });
+    // Da 2 à 4, como no Finder: o intervalo inteiro.
+    expect(celula(2, 5)).toHaveAttribute("aria-checked", "true");
+    expect(celula(3, 5)).toHaveAttribute("aria-checked", "true");
+    expect(celula(4, 5)).toHaveAttribute("aria-checked", "true");
+    expect(celula(1, 5)).toHaveAttribute("aria-checked", "false");
+
+    // Voltar para trás por cima do que está escolhido encolhe.
+    await act(async () => {
+      fireEvent.keyDown(celula(4, 5), { key: "ArrowLeft", shiftKey: true });
+    });
+    expect(celula(4, 5)).toHaveAttribute("aria-checked", "false");
+    expect(celula(3, 5)).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("o `Enter` alterna a escolha, e o «⋯» só está no Tab na foto com o foco", async () => {
+    desenhar();
+    await abrir(/Terracotta/);
+    const accoes = screen.getAllByRole("button", { name: /^Acções da foto/ });
+    expect(accoes.filter((b) => b.tabIndex === 0)).toHaveLength(1);
+    expect(accoes[0].tabIndex).toBe(0);
+    // O `Enter` num `<button>` é um `click` — o browser fá-lo; aqui encena-se.
+    await act(async () => {
+      fireEvent.click(celula(1, 5));
+    });
+    expect(celula(1, 5)).toHaveAttribute("aria-checked", "true");
+  });
+});

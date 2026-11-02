@@ -369,3 +369,16 @@ describe("precisaDeTocarParaAquecer (1/11: fora do iPhone, tocar escondido fazia
     ).toBe(false);
   });
 });
+
+describe("deveAliviarPorParagens (2/11)", () => {
+  it("três paragens em oito segundos descem o degrau; duas não", async () => {
+    const { deveAliviarPorParagens } = await import("./entrada-em-video");
+    expect(deveAliviarPorParagens([1000, 1400, 1800], 1800)).toBe(true);
+    expect(deveAliviarPorParagens([1000, 1400], 1400)).toBe(false);
+  });
+  it("as que ficaram fora da janela não contam", async () => {
+    const { deveAliviarPorParagens } = await import("./entrada-em-video");
+    expect(deveAliviarPorParagens([0, 5000, 9500], 9500)).toBe(false);
+    expect(deveAliviarPorParagens([2000, 5000, 9500], 9500)).toBe(true);
+  });
+});

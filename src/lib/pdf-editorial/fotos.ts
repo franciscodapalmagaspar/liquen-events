@@ -1,6 +1,7 @@
 import "server-only";
 import sharp from "sharp";
 import type { Foco } from "./imagens";
+import { avaliarFoto, type NivelDaFoto } from "../qualidade-da-foto";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -90,6 +91,27 @@ const serve = (f: Foto, forma: Forma) =>
  */
 const LADO_QUE_CHEGA = 1200;
 
+/**
+ * ── E NUMA PÁGINA INTEIRA, A RÉGUA DO AVISO (A3, 2/11) ────────────────────
+ *
+ * Ela (`docs/FAZER-PROPOSTA-MELHORIAS.md`, A3): «nunca uma foto fraca ou má
+ * numa página inteira quando há uma boa». Um só degrau (chega / não chega)
+ * não separava a fraca da boa: uma de 1500 px, por usar, ganhava a uma de
+ * 3000 que já tinha aparecido. Onde a fotografia cobre a folha — a capa, a
+ * proposta, os separadores, a citação, o total — quem chama diz o `lugar`, e
+ * o degrau passa a ser o do `avaliarFoto`: boa, fraca, má. É a MESMA régua do
+ * aviso do estúdio e da Conferência, portanto o PDF não escolhe sozinho uma
+ * foto que o estúdio lhe diria que fica má.
+ *
+ * E o que ela decidiu quando as duas regras chocam (2/11, «Ganha não
+ * repetir»): a qualidade fica ABAIXO de «nunca numa página vizinha». Uma foto
+ * fraca só entra se não houver outra boa diferente da que está ao lado.
+ *
+ * Os painéis e as faixas (meia página, ou menos) ficam com o degrau antigo:
+ * ali os 1800 px da página inteira pediam demais.
+ */
+const NOTA_DA_QUALIDADE: Record<NivelDaFoto, number> = { boa: 2, fraca: 1, ma: 0 };
+
 export class Album {
   private readonly usos = new Map<number, number[]>();
 
@@ -114,7 +136,8 @@ export class Album {
    * Por ordem: nunca numa página vizinha; fora das que quem chama quer evitar;
    * da forma pedida (uma foto deitada num painel alto perde dois terços);
    * com pixéis que cheguem (28/10: uma pequena por usar já não ganha a uma
-   * grande que já apareceu); ainda não usada; e, entre essas, a de mais pixéis.
+   * grande que já apareceu) — ou, com `lugar`, a melhor na régua do aviso
+   * (boa, fraca, má); ainda não usada; e, entre essas, a de mais pixéis.
    * Se não chegarem as que cumprem tudo, larga-se primeiro a forma, depois a
    * vizinhança — uma página com fotografia repetida é melhor do que sem
    * fotografia. As escolhidas ficam registadas nessa página.
@@ -125,7 +148,14 @@ export class Album {
     quantas = 1,
     de: readonly Foto[] = this.fotos,
     evitar: ReadonlySet<number> = new Set(),
+    lugar?: "capa" | "pagina",
   ): Foto[] {
+    const qualidade = (f: Foto) =>
+      lugar
+        ? NOTA_DA_QUALIDADE[avaliarFoto(f.w, f.h, lugar).nivel]
+        : Math.max(f.w, f.h) >= LADO_QUE_CHEGA
+          ? 1
+          : 0;
     // Comparação por degraus, do mais forte para o mais fraco.
     const nota = (f: Foto) => {
       const e = this.estado(f, pagina);
@@ -133,7 +163,7 @@ export class Album {
         e.vizinha ? 0 : 1,
         evitar.has(f.id) ? 0 : 1,
         serve(f, forma) ? 1 : 0,
-        Math.max(f.w, f.h) >= LADO_QUE_CHEGA ? 1 : 0,
+        qualidade(f),
         e.vezes === 0 ? 1 : 0,
         f.pixeis,
       ];
@@ -147,5 +177,18 @@ export class Album {
     const escolhidas = [...boas].sort(compara).slice(0, quantas);
     for (const f of escolhidas) this.usar(f, pagina);
     return escolhidas;
+  }
+
+  /** O `escolher` para um lugar que cobre a folha inteira — ver
+   *  `NOTA_DA_QUALIDADE`. */
+  paraAFolha(
+    pagina: number,
+    forma: Forma,
+    lugar: "capa" | "pagina",
+    quantas = 1,
+    de: readonly Foto[] = this.fotos,
+    evitar: ReadonlySet<number> = new Set(),
+  ): Foto[] {
+    return this.escolher(pagina, forma, quantas, de, evitar, lugar);
   }
 }

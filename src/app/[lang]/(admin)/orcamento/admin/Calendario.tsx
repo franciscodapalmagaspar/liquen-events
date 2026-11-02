@@ -252,6 +252,17 @@ interface Props {
    *
    * Por isso são duas portas e não uma. Quando esta não é dada, a lista cai no
    * `onOpen` — nunca fica sem porta nenhuma.
+   *
+   * ── E A GRELHA TAMBÉM, DESDE 2/11 ────────────────────────────────────────
+   *
+   * Ela, com uma captura do painel antigo aberto a partir de um dia do mês:
+   * «já não existe este formato no back office e reparei que ainda existe
+   * quando se carrega num cliente no calendário». A decisão de cima (na
+   * grelha, o painel do pedido) era minha e ficou desfeita por ela: TODOS os
+   * toques num cliente do Calendário — a grelha do mês, as vistas de dia e de
+   * semana, o «+N», a lista do dia e o menu — vão para a mesma página da lista
+   * de Pedidos (`abrir`, aqui em baixo). O painel continua a um toque de lá,
+   * no «Abrir o pedido» da página.
    */
   onFazerProposta?: (q: Quote) => void;
 }
@@ -621,6 +632,8 @@ export function agruparPorMes<T extends { date: string }>(
 }
 
 export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
+  /** A porta de TODOS os toques num cliente — ver `onFazerProposta`. */
+  const abrir = onFazerProposta ?? onOpen;
   const { toast } = useToast();
   const anular = useAnular();
   const depoisDeApagar = useDepoisDeApagar();
@@ -1321,14 +1334,10 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
 
   function menuDoPedido(q: Quote, data: string, x: number, y: number): PedidoDeMenu {
     const accoes: AccaoDeItem[] = [
-      { id: "abrir", rotulo: "Abrir pedido", onAccao: () => onOpen(q) },
-      {
-        id: "proposta",
-        rotulo: "Fazer proposta",
-        // A mesma porta da lista dos próximos eventos, e a mesma queda para o
-        // `onOpen` quando ela não é dada. Ver as `props`.
-        onAccao: () => (onFazerProposta ?? onOpen)(q),
-      },
+      // «Abrir pedido» e «Fazer proposta» eram duas portas; desde que a
+      // grelha também vai para a página do pedido (ver `onFazerProposta`),
+      // seriam dois nomes para o mesmo sítio. Fica uma.
+      { id: "abrir", rotulo: "Abrir pedido", onAccao: () => abrir(q) },
       { id: "dia", rotulo: "Ver na vista de dia", onAccao: () => verNaVistaDeDia(data) },
     ];
     return { x, y, sobre: q.name, accoes };
@@ -1372,7 +1381,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
             titulo: q.name,
             rotulo: `Abrir pedido de ${q.name} — ${eventTypeLabel(q)} — ${estadoEmPalavra(q.status)}`,
             dica: `${q.name} — ${eventTypeLabel(q)} — ${estadoEmPalavra(q.status)}`,
-            onAbrir: () => onOpen(q),
+            onAbrir: () => abrir(q),
             onMenu: (x: number, y: number) => setMenu(menuDoPedido(q, data, x, y)),
           })),
           ...(eventsByDay.get(data) ?? []).map((ev) => ({
@@ -1396,7 +1405,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
     // reescritas a cada desenho e não entram aqui: o que elas fecham é estado
     // e `props`, e ambos já estão na lista.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [diasDaVista, byDay, eventsByDay, onOpen],
+    [diasDaVista, byDay, eventsByDay, abrir],
   );
 
   /**
@@ -2138,7 +2147,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                                   onMenu={(x, y) => setMenu(menuDoPedido(q, key, x, y))}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onOpen(q);
+                                    abrir(q);
                                   }}
                                 />
                               ) : ev ? (
@@ -2174,7 +2183,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                                 <LinhasDoDia
                                   quotes={dayQuotes}
                                   marcacoes={dayEvents}
-                                  onAbrir={onOpen}
+                                  onAbrir={abrir}
                                   onRemover={pedirParaRemover}
                                 />
                               </MaisDoDia>
@@ -2307,7 +2316,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                   <LinhasDoDia
                     quotes={selectedQuotes}
                     marcacoes={selectedEvents}
-                    onAbrir={onOpen}
+                    onAbrir={abrir}
                     onRemover={pedirParaRemover}
                   />
                 </div>
@@ -2402,7 +2411,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                         /* A porta desta lista é «Fazer proposta» — ver `onFazerProposta`
                          nas props. A queda para o `onOpen` é para nenhum toque ficar
                          sem resposta se alguém montar isto sem a segunda porta. */
-                        onClick={() => (onFazerProposta ?? onOpen)(q)}
+                        onClick={() => abrir(q)}
                         onMouseEnter={() => setDiaRealcado(q.date)}
                         onMouseLeave={() => setDiaRealcado(null)}
                         onFocus={() => setDiaRealcado(q.date)}

@@ -38,6 +38,9 @@ import {
   ALIVIO_DURA_MS,
   alivioGuardado,
   deveAliviar,
+  deveAliviarPorParagens,
+  ALIVIAR_PARAGENS_A_FRENTE_S,
+  ALIVIAR_PARAGENS_JANELA_MS,
   eComputador,
   precisaDeTocarParaAquecer,
   enderecoLeveDeitado,
@@ -1233,10 +1236,19 @@ function criarMotor(raiz: HTMLElement): Motor | null {
     // descarregar e volta na sua vez.
     ouvir(el, "waiting", () => {
       if (el !== videos[atual] || !mostrado) return;
+      contarParagem(el);
       const t = el.currentTime;
       depois(SALTAR_SEM_DADOS_MS, () => {
         if (el !== videos[atual] || aPassar || !podeTocar() || aEsperarGesto) return;
         if (el.currentTime !== t || el.readyState >= 3) return; // já anda
+        // ── COM DADOS À FRENTE NÃO É A REDE, E SALTAR NÃO AJUDA (2/11) ────
+        // Ela: «passa os mesmos vídeos bué vezes… no telemóvel não aparece
+        // assim». No computador dela as paragens eram do DESCODIFICADOR, com
+        // 7–9 s já descarregados: o salto cortava cada take aos ~3 s (cinco
+        // passagens em 15 s) e os três vídeos rodavam depressa. O take
+        // seguinte parava igual. Aqui fica-se no mesmo take, e quem resolve é
+        // o degrau da versão leve (`contarParagem` → `aliviar`).
+        if (aFrenteDe(el) >= ALIVIAR_PARAGENS_A_FRENTE_S) return;
         if (seguintePronto()) passar();
       });
     });
@@ -1564,6 +1576,42 @@ function criarMotor(raiz: HTMLElement): Motor | null {
     }
   }
 
+  /**
+   * ── PARAR COM O VÍDEO À FRENTE TAMBÉM DESCE O DEGRAU ───────────────────
+   * Ver `deveAliviarPorParagens`. Só o take à vista, deitado, fora das
+   * passagens e dos primeiros segundos — as mesmas portas da conta dos
+   * fotogramas, para os dois sinais medirem a mesma coisa.
+   */
+  let paragensComDados: number[] = [];
+  /** Os segundos já descarregados à frente do ponto em que o vídeo está. */
+  function aFrenteDe(el: HTMLVideoElement): number {
+    const b = el.buffered;
+    let aFrente = 0;
+    for (let k = 0; b && k < b.length; k++) {
+      if (b.start(k) <= el.currentTime + 0.05 && b.end(k) >= el.currentTime) {
+        aFrente = b.end(k) - el.currentTime;
+      }
+    }
+    return aFrente;
+  }
+
+  function contarParagem(el: HTMLVideoElement) {
+    if (nivel >= 2 || aPassar || !vivo) return;
+    if (variante(atual) === "retrato" || atual === semMedirAte) return;
+    const agora = performance.now();
+    if (agora < medirDesde) return;
+    if (aFrenteDe(el) < ALIVIAR_PARAGENS_A_FRENTE_S) return; // é a rede: o «saltar» trata disso
+    paragensComDados = [
+      ...paragensComDados.filter((t) => agora - t <= ALIVIAR_PARAGENS_JANELA_MS),
+      agora,
+    ];
+    marcar("paragem-com-dados", atual);
+    if (deveAliviarPorParagens(paragensComDados, agora)) {
+      paragensComDados = [];
+      aliviar("paragens", true);
+    }
+  }
+
   /** Os fotogramas do take à vista desde a última conta (ver `deveAliviar`). */
   const contados = new WeakMap<HTMLVideoElement, { total: number; perdidos: number }>();
   let janela = { total: 0, perdidos: 0 };
@@ -1681,13 +1729,7 @@ function criarMotor(raiz: HTMLElement): Motor | null {
   const estadoDoVideo = (): EstadoDoVideo => {
     const el = videos[atual];
     const src = el.currentSrc || el.getAttribute("src") || "";
-    const b = el.buffered;
-    let aFrente = 0;
-    for (let k = 0; b && k < b.length; k++) {
-      if (b.start(k) <= el.currentTime + 0.05 && b.end(k) >= el.currentTime) {
-        aFrente = b.end(k) - el.currentTime;
-      }
-    }
+    const aFrente = aFrenteDe(el);
     const blob = src.startsWith("blob:");
     return {
       take: atual,
