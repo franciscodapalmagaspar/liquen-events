@@ -158,4 +158,62 @@ describe("RevealText — o título linha a linha", () => {
     });
     expect(SplitText.create).toHaveBeenCalledTimes(1);
   });
+
+  /**
+   * No DEDO (1/11): sem GSAP e sem partir linhas — foi isso que travava o
+   * iPhone —, mas com a entrada leve dos blocos: o título inteiro aparece e
+   * sobe 16 px quando chega ao ecrã. Ela confirmou o iPhone fluido antes.
+   */
+  it("no telemóvel, entrada leve: sem GSAP, o título inteiro aparece ao chegar", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: q.includes("pointer: coarse"),
+      media: q,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      top: 5000,
+      bottom: 5060,
+      height: 60,
+      width: 300,
+      left: 0,
+      right: 300,
+      x: 0,
+      y: 5000,
+      toJSON: () => ({}),
+    });
+    let avisar: (e: Partial<IntersectionObserverEntry>[]) => void = () => {};
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(cb: typeof avisar) {
+          avisar = cb;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const { container } = render(<RevealText>Título</RevealText>);
+    const h = container.querySelector("h2")!;
+    expect(h.style.opacity).toBe("0");
+    expect(h.style.transform).toBe("translateY(16px)");
+    act(() => avisar([{ isIntersecting: true }]));
+    expect(h.style.opacity).toBe("");
+    expect(h.style.transform).toBe("");
+    expect(h.style.transition).toMatch(/opacity .*transform/);
+    await esperar();
+    expect(carregado).not.toHaveBeenCalled();
+    expect(h.textContent).toBe("Título");
+  });
+
+  it("no telemóvel, o que já está à vista não se esconde", () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      matches: q.includes("pointer: coarse"),
+      media: q,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    const { container } = render(<RevealText>Título</RevealText>);
+    expect(container.querySelector("h2")!.style.opacity).toBe("");
+  });
 });
