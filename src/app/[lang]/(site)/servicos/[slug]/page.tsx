@@ -218,17 +218,8 @@ export default async function ServiceDetailPage({
               photograph owns the first screen. Still the page's single <h1>. */}
           <AnimateIn>
             <div className="max-w-md">
-              {/* A sobrancelha só é desenhada quando existe. Um serviço pode
-                  não a querer — o de casamentos não quer, porque "Decoração e
-                  Coordenação de Casamentos" por cima de "Decoração de
-                  Casamentos" era dizer a mesma coisa duas vezes. Sem esta
-                  guarda ficaria o traço dourado sozinho, suspenso sobre nada. */}
-              {svc.eyebrow ? (
-                <p className="text-white/70 text-[10px] tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
-                  <span className="w-6 h-px bg-gold flex-shrink-0" />
-                  {svc.eyebrow}
-                </p>
-              ) : null}
+              {/* Sem sobrancelha por cima do título (ela, 2/11: «retira estas
+                  coisas dos serviços, estes subtítulos»). O título chega. */}
               <h1 className="text-white font-semibold uppercase tracking-display text-[18px] sm:text-[21px] leading-snug">
                 <TituloPalavraAPalavra texto={svc.title} />
               </h1>
@@ -445,9 +436,6 @@ export default async function ServiceDetailPage({
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#080808]/90 via-[#080808]/20 to-transparent" />
                   <div className="absolute bottom-0 p-6">
-                    <p className="text-white/60 text-[10px] tracking-[0.35em] uppercase mb-1.5">
-                      {r.eyebrow}
-                    </p>
                     {/* Uppercase caption treatment (matches the hero / band
                         titles) — reads cleaner than serif at card size. */}
                     <h3 className="text-white font-semibold uppercase tracking-display text-[14px] sm:text-[15px] leading-snug">

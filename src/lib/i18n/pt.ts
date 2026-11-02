@@ -645,7 +645,6 @@ export const pt = {
   },
 
   servicos: {
-    heroEyebrow: "O que oferecemos",
     heroTitle: ["Cada evento,", "uma história", "por contar"],
     heroLead:
       "Casamentos, eventos empresariais e celebrações privadas. Desenvolvemos cada projeto de decoração de forma personalizada, tendo em consideração a sua visão, as suas necessidades e o orçamento disponível.",

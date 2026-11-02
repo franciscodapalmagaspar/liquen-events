@@ -552,7 +552,6 @@ export const en: Dict = {
   },
 
   servicos: {
-    heroEyebrow: "What we offer",
     heroTitle: ["Every event,", "a story", "to tell"],
     heroLead:
       "Weddings, company events and private celebrations. We design the decoration around what you have in mind and the budget you are working with.",
