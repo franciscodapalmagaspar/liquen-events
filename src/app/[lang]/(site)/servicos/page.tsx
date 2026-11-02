@@ -241,10 +241,7 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
         <div className="veu-texto veu-texto--esquerda [--veu-recuo-baixo:3.5rem] lg:[--veu-recuo-baixo:5rem] relative z-10 max-w-7xl mx-auto w-full px-6 lg:px-16 pb-14 lg:pb-20">
           <AnimateIn>
             <div className="max-w-md">
-              <p className="text-white/70 text-[10px] tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
-                <span className="w-6 h-px bg-gold flex-shrink-0" />
-                {ts.heroEyebrow}
-              </p>
+              {/* Sem subtítulo por cima do título (ela, 2/11). */}
               <h1 className="text-white font-semibold uppercase tracking-display text-[18px] sm:text-[21px] leading-snug">
                 <TituloPalavraAPalavra texto={ts.heroTitle.join(" ")} />
               </h1>

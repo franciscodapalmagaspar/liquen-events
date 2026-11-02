@@ -6,7 +6,6 @@
 
 export interface ServiceDetail {
   slug: string;
-  eyebrow: string;
   title: string; // H1 on the page
   metaTitle: string; // <title>
   metaDescription: string;
@@ -23,7 +22,6 @@ export interface ServiceDetail {
 export const SERVICES: ServiceDetail[] = [
   {
     slug: "casamentos",
-    eyebrow: "Decoração e Coordenação de Casamentos",
     title: "Decoração de Casamentos",
     metaTitle: "Decoração de Casamentos",
     metaDescription:
@@ -70,7 +68,6 @@ export const SERVICES: ServiceDetail[] = [
   },
   {
     slug: "aluguer-de-viaturas-classicas",
-    eyebrow: "Serviço Exclusivo",
     title: "Aluguer de Viaturas Clássicas para Casamentos",
     metaTitle: "Aluguer de Viaturas Clássicas para Casamentos",
     metaDescription:
@@ -115,7 +112,6 @@ export const SERVICES: ServiceDetail[] = [
   },
   {
     slug: "eventos-corporativos",
-    eyebrow: "Para Empresas",
     title: "Decoração de Eventos Corporativos",
     metaTitle: "Decoração de Eventos Corporativos",
     metaDescription:
@@ -166,7 +162,6 @@ export const SERVICES: ServiceDetail[] = [
   },
   {
     slug: "festas-e-aniversarios",
-    eyebrow: "Celebrações Privadas",
     title: "Decoração de Festas de Aniversário e Celebrações Privadas",
     metaTitle: "Decoração de Festas e Celebrações Privadas",
     metaDescription:
@@ -214,7 +209,6 @@ export const SERVICES: ServiceDetail[] = [
   },
   {
     slug: "batizados-e-comunhoes",
-    eyebrow: "Celebrações Familiares",
     title: "Decoração de Batizados e Comunhões",
     metaTitle: "Decoração de Batizados e Comunhões",
     metaDescription:
@@ -257,19 +251,18 @@ export const SERVICES: ServiceDetail[] = [
 ];
 
 /**
- * English overrides for the visible copy AND the page metadata (eyebrow, H1
+ * English overrides for the visible copy AND the page metadata (H1
  * title, intro, includes, FAQs, metaTitle, metaDescription). Only `keywords`
  * stays Portuguese — PT is the canonical, indexed language; getService() merges
  * the English copy for /en/servicos/*.
  */
 type ServiceCopy = Pick<
   ServiceDetail,
-  "eyebrow" | "title" | "intro" | "includes" | "faqs" | "metaTitle" | "metaDescription"
+  "title" | "intro" | "includes" | "faqs" | "metaTitle" | "metaDescription"
 >;
 
 const SERVICES_EN: Record<string, ServiceCopy> = {
   casamentos: {
-    eyebrow: "",
     title: "Wedding Decoration",
     metaTitle: "Wedding Decoration",
     metaDescription:
@@ -298,7 +291,6 @@ const SERVICES_EN: Record<string, ServiceCopy> = {
     ],
   },
   "aluguer-de-viaturas-classicas": {
-    eyebrow: "Exclusive Service",
     title: "Classic Car Hire for Weddings",
     metaTitle: "Classic Car Hire for Weddings",
     metaDescription:
@@ -326,7 +318,6 @@ const SERVICES_EN: Record<string, ServiceCopy> = {
     ],
   },
   "eventos-corporativos": {
-    eyebrow: "For Companies",
     title: "Corporate Event Decoration",
     metaTitle: "Corporate Event Decoration",
     metaDescription:
@@ -354,7 +345,6 @@ const SERVICES_EN: Record<string, ServiceCopy> = {
     ],
   },
   "festas-e-aniversarios": {
-    eyebrow: "Private Celebrations",
     title: "Decoration for Birthday Parties and Private Celebrations",
     metaTitle: "Party & Private Celebration Decoration",
     metaDescription:
@@ -383,7 +373,6 @@ const SERVICES_EN: Record<string, ServiceCopy> = {
     ],
   },
   "batizados-e-comunhoes": {
-    eyebrow: "Family Celebrations",
     title: "Christening & Communion Decoration",
     metaTitle: "Christening & Communion Decoration",
     metaDescription:
