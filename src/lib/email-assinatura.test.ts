@@ -9,6 +9,8 @@ import {
   ASSINATURA_NOME,
   ASSINATURA_CARGO,
   BANNER_EMAIL_CID,
+  BANNER_LARGURA,
+  BANNER_ALTURA,
 } from "./email-assinatura";
 import { log } from "./logger";
 import { SITE } from "./site";
@@ -320,6 +322,34 @@ describe("as imagens do correio estão no sítio", () => {
         `falta public/email/${nome}`,
       ).toBe(true);
     }
+  });
+
+  /**
+   * 3/11, com a captura dela do iPhone: um branco de ~265 pt entre a faixa e o
+   * anexo do PDF. O Gmail do iPhone guarda o lugar de cada imagem pelo
+   * tamanho do FICHEIRO (a faixa era 1120×336, aparecia a 345×104) e não o
+   * devolve. Por isso nenhuma imagem da assinatura pode ser maior do que o
+   * tamanho a que aparece — trocá-la por uma «mais nítida» volta a empurrar a
+   * proposta para baixo.
+   */
+  it("nenhuma imagem da assinatura é maior do que o tamanho a que aparece", async () => {
+    const { readFileSync } = await import("node:fs");
+    const path = await import("node:path");
+    const medidas = (nome: string) => {
+      const b = readFileSync(path.join(process.cwd(), "public", "email", nome));
+      // PNG: a largura e a altura estão no IHDR, nos bytes 16–23.
+      return { largura: b.readUInt32BE(16), altura: b.readUInt32BE(20) };
+    };
+    const faixa = medidas("banner-liquen-email.png");
+    expect(faixa.largura).toBeLessThanOrEqual(BANNER_LARGURA);
+    expect(faixa.altura).toBeLessThanOrEqual(BANNER_ALTURA);
+    for (const n of ["facebook", "instagram", "linkedin"]) {
+      const icone = medidas(`social-${n}.png`);
+      expect(icone.largura, `social-${n}.png`).toBeLessThanOrEqual(18);
+      expect(icone.altura, `social-${n}.png`).toBeLessThanOrEqual(18);
+    }
+    // E o desenho continua o mesmo: a faixa mantém a proporção 10:3.
+    expect(faixa.largura / faixa.altura).toBeCloseTo(10 / 3, 2);
   });
 });
 
