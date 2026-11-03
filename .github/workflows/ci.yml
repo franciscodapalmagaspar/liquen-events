@@ -60,7 +60,17 @@ jobs:
       e2e: ${{ steps.d.outputs.e2e }}
       ligados: ${{ steps.d.outputs.ligados }}
     steps:
+      # Só o código: este job só lê `scripts/ci` e confirma que os testes que
+      # escolhe existem (`src`, `e2e`, `test`). Com o repositório inteiro
+      # (fotografias e vídeos em `public/`) a descarga passou os 5 minutos e o
+      # job morreu duas vezes seguidas a meio do `git fetch` (3/11, #369).
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts
+            src
+            e2e
+            test
       - name: Os ficheiros que o PR muda
         if: github.event_name == 'pull_request'
         env:
