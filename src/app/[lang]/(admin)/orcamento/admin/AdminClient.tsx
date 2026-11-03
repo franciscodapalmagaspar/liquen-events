@@ -3557,7 +3557,7 @@ export default function AdminClient({
    *   • voltar ao separador (`visibilitychange`) — o caso comum, estar noutro
    *     lado e regressar depois de o telefone ter tocado;
    *   • devolver o foco à janela (`focus`) — o mesmo, sem trocar de separador;
-   *   • dois em dois minutos com a página à vista, para o pedido que entra pelo
+   *   • cinco em cinco minutos com a página à vista, para o pedido que entra pelo
    *     site enquanto a Catarina está a olhar para a lista.
    *
    * O relógio pára quando a página está escondida: revalidar um separador que
@@ -3569,9 +3569,12 @@ export default function AdminClient({
     const aoVoltar = () => {
       if (document.visibilityState === "visible") void revalidarPedidos();
     };
+    // Cinco minutos e não dois (3/11): cada volta lê os pedidos todos no
+    // servidor, e a conta da Vercel passou o limite de processador. Voltar ao
+    // separador (foco, visibilidade) continua a revalidar logo.
     const relogio = setInterval(() => {
       if (document.visibilityState === "visible") void revalidarPedidos();
-    }, 120_000);
+    }, 300_000);
     document.addEventListener("visibilitychange", aoVoltar);
     window.addEventListener("focus", aoVoltar);
     return () => {

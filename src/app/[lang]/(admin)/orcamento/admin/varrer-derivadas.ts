@@ -1,5 +1,7 @@
 "use client";
 
+import { esquecerVarreduraFeita, marcarVarreduraFeita, podeVarrer } from "./varredura-espacada";
+
 /**
  * ════════════════════════════════════════════════════════════════════════════
  * AS VERSÕES LEVES FAZEM-SE SOZINHAS, ENQUANTO ELA TRABALHA
@@ -115,6 +117,8 @@ async function umLote(retoma: unknown, sinal: AbortSignal): Promise<Lote | null>
  */
 export function varrerDerivadasEmFundo(): () => void {
   if (aCorrer || typeof window === "undefined") return () => {};
+  // Já viu tudo feito há menos de 12 h, neste navegador (`varredura-espacada.ts`).
+  if (!podeVarrer("derivadas")) return () => {};
   aCorrer = true;
   const controlo = new AbortController();
 
@@ -129,8 +133,10 @@ export function varrerDerivadasEmFundo(): () => void {
         const lote = await umLote(retoma, controlo.signal);
         if (!lote?.ok) return;
         // Regra 3: um lote que não fabricou nada não vai fabricar no seguinte.
-        if (!lote.fotografiasFeitas) return;
-        if (!lote.restantesEssenciais) return;
+        if (!lote.fotografiasFeitas || !lote.restantesEssenciais) {
+          marcarVarreduraFeita("derivadas");
+          return;
+        }
         retoma = lote.retoma ?? null;
         await dormir(RESPIRO_MS, controlo.signal);
       }
@@ -165,5 +171,6 @@ function dormir(ms: number, sinal: AbortSignal): Promise<void> {
 
 /** Só para os testes: esquecer que houve uma varredura nesta página. */
 export function esquecerVarredura(): void {
+  esquecerVarreduraFeita("derivadas");
   aCorrer = false;
 }

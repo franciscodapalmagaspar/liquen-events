@@ -70,6 +70,9 @@ beforeEach(() => {
   vi.spyOn(Storage.prototype, "setItem").mockImplementation((k: string) => {
     escritas.push(k);
   });
+  // A visita cai sempre dentro da amostra do `WebVitals` (1 em 10 desde 3/11):
+  // o que aqui se mede é a guarda das rotas privadas, não a amostragem.
+  vi.spyOn(Math, "random").mockReturnValue(0);
 });
 
 afterEach(() => {

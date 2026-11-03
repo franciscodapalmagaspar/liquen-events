@@ -6,7 +6,9 @@ import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import type { FotosDoPdf } from "@/lib/pdf-editorial/fotos-do-pdf";
 
 /** Quanto se espera depois do último gesto antes de perguntar. */
-const ESPERA_MS = 900;
+// 2,5 s e não 900 ms (3/11): cada pergunta pode descarregar e reduzir
+// fotografias no servidor, e a conta da Vercel passou o limite de processador.
+const ESPERA_MS = 2500;
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

@@ -7877,7 +7877,9 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
    * ── PREPARADO ANTES DE ELA CARREGAR ──────────────────────────────────────
    *
    * No passo «Rever e enviar», sem erros, o PDF final desta versão pede-se em
-   * segundo plano 1,5 s depois de ela parar de mexer — uma vez por versão.
+   * segundo plano 4 s depois de ela parar de mexer — uma vez por versão (era
+   * 1,5 s; subiu a 3/11, quando a conta da Vercel passou o limite de
+   * processador: cada pedido destes é um PDF inteiro).
    * Quando ela carrega em «Descarregar o PDF final», ou já está pronto, ou já
    * vai a meio; e o envio a seguir sai da memória do servidor em vez de o
    * desenhar outra vez. Uma falha aqui não diz nada a ninguém: o botão volta a
@@ -7887,6 +7889,9 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
     if (step !== "enviar" || sent || temErros || fotosPorConfirmar > 0 || busy !== null) return;
     if (!retratoAgora || pdfPreparado.current?.retrato === retratoAgora) return;
     const espera = setTimeout(() => {
+      // Um PDF inteiro é o trabalho mais caro do servidor: não se desenha para
+      // um separador que ninguém está a ver (3/11).
+      if (document.hidden) return;
       const desenhado = stripPendingImages(doc);
       const retrato = retratoDoPdf(desenhado, idiomaDoPdf);
       const promessa = pedirOPdfAgora.current(desenhado, false);
@@ -7894,7 +7899,7 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
       promessa.catch(() => {
         if (pdfPreparado.current?.promessa === promessa) pdfPreparado.current = null;
       });
-    }, 1500);
+    }, 4000);
     return () => clearTimeout(espera);
   }, [step, sent, temErros, fotosPorConfirmar, busy, retratoAgora, doc, idiomaDoPdf]);
   /**
