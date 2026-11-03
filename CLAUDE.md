@@ -178,3 +178,19 @@ recomeçar** (palavras dela). A **Parte −1** diz como: o pedido «nível estú
 cada uma) não toca no back office, na base de dados nem nos formulários de
 orçamento, nem em textos, fotografias, cores ou identidade. As medições vivem
 em `docs/medicoes/`.
+
+# E o custo, desde o início
+
+`docs/GASTAR-POUCO-DESDE-O-INICIO.md` nasceu a 2/11: a Vercel desligou o site
+por excesso de processador. Ela passou a Pro e quer **nunca passar dos 20**.
+Pediu que isto «já se preveja desde o início» em todos os projetos, e por
+isso o ficheiro é para copiar para cada projeto novo no primeiro dia.
+
+Aqui vale já. Antes de acrescentar uma rota, uma tarefa agendada, um polling
+ou uma varredura, responde no PR às três perguntas da regra 7:
+- quantas vezes corre;
+- quanto processador gasta;
+- se pode ser guardado, feito no build ou feito no navegador.
+
+O trabalho pesado guarda-se no armazenamento, porque a memória da função não
+conta. As rotas pesadas passam por `comCpu` (`src/lib/medir-cpu.ts`).

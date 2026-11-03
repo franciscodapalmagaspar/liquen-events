@@ -30,6 +30,8 @@ O que fica igual ao que já está decidido nesta casa:
 
 O AEO (robots, `llms.txt`, JSON-LD) não se aplica a nenhuma das duas: são páginas privadas, com `noindex`. As decisões estão em `docs/PROPOSTA-WEB.md` (Parte −1, 31/10).
 
+**O custo (3/11).** O padrão diz quão bom o site tem de ser, mas não diz quanto pode custar. A 2/11 a Vercel desligou este site por excesso de processador. Ela pediu que, nos projetos seguintes, isso «já se preveja desde o início». As regras estão em `docs/GASTAR-POUCO-DESDE-O-INICIO.md`, que se copia para cada projeto novo ao lado deste padrão, na Fase 1 (B1).
+
 O pedido «nível estúdio» manda ler «a Parte B e a Parte D2» deste padrão. O que chegou pelo chat tem as secções **B0 a B23**. **Nenhuma Parte D2 chegou**, por isso não está aqui. Se existir, falta guardá-la.
 
 ---
