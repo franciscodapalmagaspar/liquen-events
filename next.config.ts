@@ -593,9 +593,19 @@ const nextConfig: NextConfig = {
     // Web Push uses the ServiceWorker/PushManager (not fetch) and posts the
     // subscription same-origin. So production only needs 'self' plus Plausible's
     // event beacon (when enabled); dev keeps ws/https open for HMR.
+    //
+    // ── E O STORAGE DO SUPABASE, QUE ESTAVA DE FORA (3/11) ──────────────────
+    // O back office ADIANTA as miniaturas do último tema com `fetch()` (ver
+    // `theme-picker-cache.ts`), e um `fetch()` é `connect-src`, não `img-src`.
+    // Sem a origem do Storage aqui, cada miniatura era bloqueada e o browser
+    // mandava um relatório a `/api/security/csp-report` — medido nos registos
+    // da Vercel a 2/11: dezenas por abertura do «Fazer proposta», todos
+    // `connect-src` + `…supabase.co/storage/…`. A antecipação nunca funcionou,
+    // e cada bloqueio era uma chamada paga ao servidor. As origens são as
+    // MESMAS da `img-src` (`origensDeImagem`), já calculadas acima.
     const connectSrc = isDev
       ? "connect-src 'self' https: wss: ws:"
-      : `connect-src 'self'${plausible}${gaConnect}${metaConnect}`;
+      : `connect-src 'self'${plausible}${gaConnect}${metaConnect}${imgExtra}`;
 
     // Content-Security-Policy.
     //

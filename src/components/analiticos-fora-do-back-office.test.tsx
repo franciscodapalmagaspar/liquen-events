@@ -260,6 +260,9 @@ describe("WebVitals — o desempenho do site não se mede com as horas dela", ()
     vi.stubEnv("NODE_ENV", "production");
     beacon = vi.fn(() => true);
     Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true });
+    // A visita cai SEMPRE dentro da amostra (`AMOSTRA_DE_VITALS`): o que estes
+    // testes medem é a guarda das rotas privadas, não a amostragem.
+    vi.spyOn(Math, "random").mockReturnValue(0);
   });
   afterEach(() => {
     vi.unstubAllEnvs();
