@@ -49,9 +49,12 @@ describe("os vídeos da entrada — as regras", () => {
     expect(ordem).toEqual([0, 1, 2, 0, 1]);
   });
 
-  it("cada vídeo existe em H.264 e WebM, e nenhum passa do tecto (30/10, «nível estúdio»)", () => {
-    // O pedido: telemóvel 720 px até 1,2 MB; computador até 3 MB.
-    const TECTO = { retrato: 1.2 * 1024 * 1024, paisagem: 3 * 1024 * 1024 };
+  it("cada vídeo existe em H.264 e WebM, e nenhum passa do tecto (telemóvel 30/10, computador 3/11)", () => {
+    // O pedido «nível estúdio» (30/10): telemóvel 720 px até 1,2 MB, que fica;
+    // computador até 3 MB. A 3/11 ela viu-o num ecrã de 1920 — «o vídeo não
+    // tem tanta qualidade como tem no telemóvel» — e escolheu «mais
+    // qualidade» só no computador: ~6,5 Mbit/s, até ~8 MB por vídeo de 10 s.
+    const TECTO = { retrato: 1.2 * 1024 * 1024, paisagem: 8.5 * 1024 * 1024 };
     for (let i = 0; i < NUMERO_DE_VIDEOS; i++) {
       for (const v of ["paisagem", "retrato"] as const) {
         for (const f of ["mp4", "webm"] as const) {
@@ -88,13 +91,13 @@ describe("os vídeos da entrada — as regras", () => {
 
   it("o HEVC e o AV1 seriam MP4 com o codec no nome (os registos antigos ainda os nomeiam)", () => {
     expect(enderecoDoVideo(0, "paisagem", "hevc")).toBe(
-      "/videos/entrada/v9/entrada-1-paisagem-hevc.mp4",
+      "/videos/entrada/v10/entrada-1-paisagem-hevc.mp4",
     );
     // Sem grande na v7: a grande cai para a paisagem.
     expect(enderecoDoVideo(1, "grande", "av1")).toBe(
-      "/videos/entrada/v9/entrada-2-paisagem-av1.mp4",
+      "/videos/entrada/v10/entrada-2-paisagem-av1.mp4",
     );
-    expect(formatoDoEndereco("https://x/videos/entrada/v9/entrada-1-retrato-hevc.mp4")).toBe(
+    expect(formatoDoEndereco("https://x/videos/entrada/v10/entrada-1-retrato-hevc.mp4")).toBe(
       "hevc",
     );
     expect(formatoDoEndereco("/v/entrada-1-retrato-av1.mp4")).toBe("av1");
@@ -140,15 +143,15 @@ describe("os vídeos da entrada — as regras", () => {
   });
 
   it("a floresta como imagem animada: o MP4 no <img> e o WebP, ao alto e deitado", () => {
-    expect(enderecoAnimada(0, "retrato")).toBe("/videos/entrada/v9/entrada-1-retrato-animada.webp");
+    expect(enderecoAnimada(0, "retrato")).toBe("/videos/entrada/v10/entrada-1-retrato-animada.webp");
     expect(imagensAnimadas(TAKE_DE_ENTRADA)).toEqual({
       mp4: [
-        "/videos/entrada/v9/entrada-1-retrato.mp4",
-        "/videos/entrada/v9/entrada-1-paisagem.mp4",
+        "/videos/entrada/v10/entrada-1-retrato.mp4",
+        "/videos/entrada/v10/entrada-1-paisagem.mp4",
       ],
       webp: [
-        "/videos/entrada/v9/entrada-1-retrato-animada.webp",
-        "/videos/entrada/v9/entrada-1-paisagem-animada.webp",
+        "/videos/entrada/v10/entrada-1-retrato-animada.webp",
+        "/videos/entrada/v10/entrada-1-paisagem-animada.webp",
       ],
     });
     // Os WebP existem e não passam do tecto (é o que se descarrega quando o
@@ -160,8 +163,8 @@ describe("os vídeos da entrada — as regras", () => {
   });
 
   it("a versão leve ao alto é, desde a v7, a própria vertical (720 px, ~1 MB)", () => {
-    expect(enderecoLeve(0, "hevc")).toBe("/videos/entrada/v9/entrada-1-retrato.mp4");
-    expect(enderecoLeve(2, "mp4")).toBe("/videos/entrada/v9/entrada-3-retrato.mp4");
+    expect(enderecoLeve(0, "hevc")).toBe("/videos/entrada/v10/entrada-1-retrato.mp4");
+    expect(enderecoLeve(2, "mp4")).toBe("/videos/entrada/v10/entrada-3-retrato.mp4");
   });
 
   it("a ligação diz-se lenta: poupar dados, 2G/3G, ou menos de 5 Mbit/s", () => {
