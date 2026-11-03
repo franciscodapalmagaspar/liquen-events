@@ -39,7 +39,9 @@ import {
   alivioGuardado,
   deveAliviar,
   deveAliviarPorParagens,
+  deveAliviarPorRede,
   ALIVIAR_PARAGENS_A_FRENTE_S,
+  ALIVIAR_REDE_JANELA_MS,
   ALIVIAR_PARAGENS_JANELA_MS,
   eComputador,
   precisaDeTocarParaAquecer,
@@ -1249,6 +1251,9 @@ function criarMotor(raiz: HTMLElement): Motor | null {
         // seguinte parava igual. Aqui fica-se no mesmo take, e quem resolve é
         // o degrau da versão leve (`contarParagem` → `aliviar`).
         if (aFrenteDe(el) >= ALIVIAR_PARAGENS_A_FRENTE_S) return;
+        // Sem dados e ainda parado: é a rede. Conta para descer os takes
+        // seguintes para a leve (`contarParagemDeRede`, 3/11).
+        contarParagemDeRede();
         if (seguintePronto()) passar();
       });
     });
@@ -1490,7 +1495,8 @@ function criarMotor(raiz: HTMLElement): Motor | null {
     nivel = novo;
     grandeConfirmada = false;
     if (nivel === 2) formato = "mp4";
-    marcar(`aliviar-${nivel}`, atual);
+    // Sem algarismos: a rota do registo só aceita letras e hífens.
+    marcar(nivel === 2 ? `aliviar-${motivo}` : "sem-grande", atual);
     try {
       localStorage.setItem(nivel === 2 ? CHAVE_DO_ALIVIO : CHAVE_SEM_GRANDE, String(Date.now()));
     } catch {
@@ -1605,10 +1611,31 @@ function criarMotor(raiz: HTMLElement): Motor | null {
       ...paragensComDados.filter((t) => agora - t <= ALIVIAR_PARAGENS_JANELA_MS),
       agora,
     ];
-    marcar("paragem-com-dados", atual);
+    // Até 16 letras: a rota recusa o envio inteiro com um nome maior (o
+    // «paragem-com-dados», de 17, fez perder os registos de 2/11 a 3/11).
+    marcar("paragem-dados", atual);
     if (deveAliviarPorParagens(paragensComDados, agora)) {
       paragensComDados = [];
       aliviar("paragens", true);
+    }
+  }
+
+  /**
+   * Uma paragem SEM dados à frente que não se resolveu sozinha: a rede não
+   * está a dar a versão normal. Duas em `ALIVIAR_REDE_JANELA_MS` descem os
+   * takes seguintes para a leve (`deveAliviarPorRede`); o de agora fica, a
+   * acabar de descarregar.
+   */
+  let paragensDeRede: number[] = [];
+  function contarParagemDeRede() {
+    if (nivel >= 2 || !vivo) return;
+    if (variante(atual) === "retrato") return;
+    const agora = performance.now();
+    paragensDeRede = [...paragensDeRede.filter((t) => agora - t <= ALIVIAR_REDE_JANELA_MS), agora];
+    marcar("paragem-de-rede", atual);
+    if (deveAliviarPorRede(paragensDeRede, agora)) {
+      paragensDeRede = [];
+      aliviar("rede", false);
     }
   }
 

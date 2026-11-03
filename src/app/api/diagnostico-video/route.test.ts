@@ -15,7 +15,10 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/lib/app-state", () => estado);
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { POST } from "./route";
+import { RegistoDoVideo, aparelho, type EstadoDoVideo } from "@/lib/diagnostico-video";
 
 function post(corpo: unknown): NextRequest {
   return new Request("https://liquen.test/api/diagnostico-video", {
@@ -161,5 +164,67 @@ describe("POST /api/diagnostico-video", () => {
     vi.setSystemTime(new Date("2026-12-01T00:00:00Z"));
     await POST(post(CORPO));
     expect(estado.setState).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 3/11: as visitas com o vídeo a travar deixaram de chegar. Duas razões, as
+   * duas caladas (a rota devolve 204 e não grava): um nome de acontecimento
+   * que a rota não aceita («paragem-com-dados» tem 17 letras; «aliviar-2» tem
+   * um algarismo), e um corpo com muitas paragens maior do que 8 KB.
+   */
+  it("o pior registo que o browser faz (20 paragens, nomes do motor) é aceite", async () => {
+    let t = 0;
+    let enviado = "";
+    const r = new RegistoDoVideo({
+      agora: () => t,
+      enviar: (c) => void (enviado = c),
+      depois: () => {},
+      aparelho: aparelho(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+        { largura: 2195, altura: 1235, densidade: 1.75 },
+        "4g",
+      ),
+      sessao: "abcdefgh1234",
+      fotogramasFinos: true,
+    });
+    const estadoDoVideo: EstadoDoVideo = {
+      take: 2,
+      ct: 3.4567,
+      dur: 9.94,
+      rs: 2,
+      ns: 2,
+      paused: false,
+      ended: false,
+      fonte: "rede",
+      formato: "mp4",
+      leve: false,
+      aPassar: false,
+      aFrente: 0.123,
+    };
+    const nomes = ["paragem-com-dados", "aliviar-2", "destravar-passar", "waiting", "playing"];
+    for (let i = 0; i < 30; i++) {
+      for (const k of nomes) r.acontecimento(k, 2);
+      r.verificar(true, () => estadoDoVideo); // começa a contar
+      t += 5000;
+      r.verificar(true, () => estadoDoVideo); // abre uma paragem
+      t += 900;
+      r.fotograma(); // fecha-a
+      t += 100;
+    }
+    r.medirQualidade(9, 4400);
+    r.enviar("saida");
+    expect(enviado.length).toBeLessThanOrEqual(8 * 1024);
+    expect(JSON.parse(enviado).paragens.length).toBeGreaterThan(5);
+    await POST(post(enviado));
+    expect(estado.setState).toHaveBeenCalledTimes(1);
+  });
+
+  it("todos os nomes que o motor marca cabem no esquema da rota", () => {
+    const motor = readFileSync(join(process.cwd(), "src/components/EntradaEmVideo.tsx"), "utf8");
+    const nomes = [...motor.matchAll(/marcar\((?:"([^"]+)"|`([^`]+)`)/g)].map((m) =>
+      (m[1] ?? m[2]).replace(/\$\{motivo\}/, "perdidos"),
+    );
+    expect(nomes.length).toBeGreaterThan(5);
+    for (const k of nomes) expect(k, k).toMatch(/^[a-z-]{1,16}$/);
   });
 });

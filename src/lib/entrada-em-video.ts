@@ -107,11 +107,26 @@
  *     daqui. A `retrato`, a `paisagem-leve` e as imagens animadas são as da
  *     `v9`, tal e qual. Os vídeos são estáticos (CDN): não gastam processador.
  *
- * A pasta tem versão (`v10`) porque os vídeos são servidos com cache de um ano:
- * um vídeo novo vai para `v11`, nunca por cima.
+ *   · A 60 IMAGENS POR SEGUNDO NO COMPUTADOR, desde 3/11 (`v11`). Ela: «o
+ *     vídeo trava imenso» no Chrome do computador, e «antigamente também
+ *     estava com uma qualidade má… e o vídeo continuava a travar». O registo
+ *     dela no computador (1h43 aberto) mostrou 4400 imagens pintadas, 9
+ *     perdidas e NENHUMA paragem: o descodificador não falhava. O que se via
+ *     era o RITMO. Um ecrã de computador mostra 60 imagens por segundo; um
+ *     vídeo a 50 não cabe — em cada cinco imagens uma fica o dobro do tempo
+ *     no ecrã, dez soluços por segundo, e é nas passagens lentas da floresta
+ *     que se vêem. A 25 (antes da `v8`) era pior: 2-3-2-3. No iPhone (120 Hz)
+ *     o soluço tem metade do tamanho, e por isso lá estava «ótimo».
+ *     Refeitas a `paisagem`, a `paisagem-leve` e o WebM a 60 fps
+ *     (`minterpolate`, da mesma fonte da `v10`), e mais leves — escolha dela,
+ *     «meio-termo»: H.264 `veryslow`/`film` CRF 20 até 4 Mbit/s; a leve CRF 23
+ *     até 1,6; o VP9 a 3. A `retrato` e as imagens animadas são as da `v10`.
+ *
+ * A pasta tem versão (`v11`) porque os vídeos são servidos com cache de um ano:
+ * um vídeo novo vai para `v12`, nunca por cima.
  */
 
-export const PASTA_DOS_VIDEOS = "/videos/entrada/v10";
+export const PASTA_DOS_VIDEOS = "/videos/entrada/v11";
 
 /** Quantos vídeos há. */
 export const NUMERO_DE_VIDEOS = 3;
@@ -174,11 +189,12 @@ export function formatoQueToca(podeTocar: (tipo: string) => string): Formato | n
 
 /** As medidas de cada versão, para perguntar ao aparelho se as toca bem. */
 export const MEDIDAS: Record<Variante, { largura: number; altura: number; debito: number }> = {
-  paisagem: { largura: 1920, altura: 960, debito: 6_500_000 },
+  paisagem: { largura: 1920, altura: 960, debito: 4_000_000 },
   retrato: { largura: 720, altura: 1280, debito: 900_000 },
-  grande: { largura: 1920, altura: 960, debito: 6_500_000 },
+  grande: { largura: 1920, altura: 960, debito: 4_000_000 },
 };
-export const FOTOGRAMAS_POR_SEGUNDO = 50;
+/** A da `paisagem` (60, desde a `v11`); a `retrato` é a 50 e pergunta-se igual. */
+export const FOTOGRAMAS_POR_SEGUNDO = 60;
 
 /** A resposta do `navigator.mediaCapabilities.decodingInfo`, só o que conta. */
 export interface Capacidade {
@@ -616,8 +632,8 @@ export function enderecoLeveDeitado(i: number): string {
 
 /** Perder mais do que isto dos fotogramas é ver o vídeo «aos soluços». */
 export const ALIVIAR_PERDIDOS = 0.1;
-/** E só se decide com fotogramas que cheguem (5 s a 50 por segundo). */
-export const ALIVIAR_MIN_FOTOGRAMAS = 250;
+/** E só se decide com fotogramas que cheguem (5 s a 60 por segundo). */
+export const ALIVIAR_MIN_FOTOGRAMAS = 300;
 /** Nem nos primeiros segundos, em que a página ainda se monta. */
 export const ALIVIAR_DEPOIS_DE_MS = 6000;
 /** Tão mau que vale a pena trocar já o take à vista, e não só os seguintes. */
@@ -659,6 +675,30 @@ export function deveAliviarPorParagens(paragens: readonly number[], agora: numbe
   return (
     paragens.filter((t) => t <= agora && agora - t <= ALIVIAR_PARAGENS_JANELA_MS).length >=
     ALIVIAR_PARAGENS
+  );
+}
+
+/**
+ * ── E O TERCEIRO SINAL: PARAR POR FALTA DE REDE (3/11) ────────────────────
+ *
+ * Ela, no Chrome do computador: «trava imenso». As paragens com dados à
+ * frente descem pelo {@link deveAliviarPorParagens}; as SEM dados (a rede não
+ * entregou a tempo) só faziam saltar para um take já na memória — e quando
+ * nenhum estava, ficava-se parado à vista o tempo que a rede levasse, take
+ * após take, sempre na versão normal. Duas paragens dessas que não se
+ * resolvem em {@link SALTAR_SEM_DADOS_MS}, dentro de
+ * `ALIVIAR_REDE_JANELA_MS`, descem os takes SEGUINTES para a leve (~1/3 do
+ * peso): é o que o YouTube faz quando a ligação não chega. O de agora acaba
+ * de descarregar onde está.
+ */
+export const ALIVIAR_REDE_PARAGENS = 2;
+export const ALIVIAR_REDE_JANELA_MS = 20000;
+
+/** As paragens por falta de rede (instantes, em ms) chegam para descer um degrau? */
+export function deveAliviarPorRede(paragens: readonly number[], agora: number): boolean {
+  return (
+    paragens.filter((t) => t <= agora && agora - t <= ALIVIAR_REDE_JANELA_MS).length >=
+    ALIVIAR_REDE_PARAGENS
   );
 }
 

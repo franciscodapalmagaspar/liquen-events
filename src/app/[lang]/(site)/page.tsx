@@ -66,7 +66,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
         className="recuo-consentimento relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden bg-[#080808] bg-cover bg-center"
         style={{ backgroundImage: `url("${blurFor(FOTO_DA_ENTRADA).blurDataURL}")` }}
       >
-        <Parallax speed={0.14} drift className="absolute inset-0">
+        <Parallax speed={0.14} className="absolute inset-0">
           {/* A fotografia é o 1.º fotograma do vídeo 1: é o LCP (AVIF,
               pré-carregada) e é por cima dela que os vídeos entram sem salto.
               Ver EntradaEmVideo. */}

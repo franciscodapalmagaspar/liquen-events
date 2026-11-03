@@ -12,6 +12,7 @@ import {
   diagnosticoLigado,
   formatoDoSrc,
   novaSessao,
+  nomeQueARotaAceita,
   type EstadoDoVideo,
 } from "./diagnostico-video";
 
@@ -163,5 +164,14 @@ describe("o registo anónimo do vídeo", () => {
     expect(formatoDoSrc("/videos/entrada/v10/entrada-2-paisagem.webm")).toBe("webm");
     expect(formatoDoSrc("blob:https://x/1")).toBe("blob");
     expect(formatoDoSrc("")).toBeNull();
+  });
+});
+
+describe("nomeQueARotaAceita (3/11)", () => {
+  it("fica só com letras e hífens, até 16", () => {
+    expect(nomeQueARotaAceita("paragem-com-dados")).toBe("paragem-com-dado");
+    expect(nomeQueARotaAceita("aliviar-2")).toBe("aliviar-");
+    expect(nomeQueARotaAceita("Waiting")).toBe("waiting");
+    expect(nomeQueARotaAceita("123")).toBe("outro");
   });
 });
