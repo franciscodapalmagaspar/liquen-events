@@ -28,7 +28,14 @@ import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
  * que é uma aproximação. Um pedido que fica velho (o rascunho mudou outra vez)
  * é cancelado: só a resposta ao último rascunho conta.
  */
-export const ESPERA_MS = 1200;
+/**
+ * Subiu de 1,2 s para 3 s a 3/11. Cada pedido desenha uma página com o motor
+ * do PDF (meio segundo a vários segundos de processador), e a 2/11 a conta da
+ * Vercel passou o limite de processador. A meio de uma frase ninguém olha para
+ * a página; três segundos parada é «acabei de escrever». E com o separador
+ * escondido não se pede nada (ver o `document.hidden` em baixo).
+ */
+export const ESPERA_MS = 3000;
 
 export interface PaginaReal {
   /** URL de objeto da última página que chegou, ou `null`. */
@@ -79,6 +86,8 @@ export function usePaginaReal({
     if (!corpo || !quoteId) return;
     const controlo = new AbortController();
     const temporizador = window.setTimeout(async () => {
+      // Ninguém está a ver: o desenho fica para quando ela voltar e mexer.
+      if (typeof document !== "undefined" && document.hidden) return;
       setEstado((e) => ({ ...e, aCarregar: true, falhou: false }));
       try {
         const res = await fetch(`/api/orcamento/${quoteId}/pagina-do-rascunho`, {

@@ -43,6 +43,19 @@ import { semAnaliticos, sanitizeTelemetryPath } from "@/lib/safe-path";
  * depois de o casal já ter navegado para a proposta — o `onCLS`, por exemplo,
  * só fecha à saída da página.
  */
+/**
+ * ── SÓ UMA VISITA EM DEZ (3/11) ──────────────────────────────────────────
+ *
+ * Cada métrica é uma baliza, e cada baliza é uma chamada a uma função da
+ * Vercel — até cinco por página vista, para escrever uma linha num registo.
+ * A 2/11 a conta passou o limite de processador do plano e o site foi
+ * desligado; ela pôs um tecto de gasto e pediu que nada gastasse sem razão.
+ * Para saber se o site está rápido no terreno, uma amostra de 10 % das
+ * visitas chega e sobra; as outras 90 % não importam a biblioteca nem
+ * mandam nada.
+ */
+export const AMOSTRA_DE_VITALS = 0.1;
+
 export default function WebVitals() {
   const pathname = usePathname();
   const privada = semAnaliticos(pathname);
@@ -59,6 +72,7 @@ export default function WebVitals() {
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") return;
     if (privada) return;
+    if (Math.random() >= AMOSTRA_DE_VITALS) return;
 
     const conn = (navigator as Navigator & { connection?: { effectiveType?: string } }).connection
       ?.effectiveType;

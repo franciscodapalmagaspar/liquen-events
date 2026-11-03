@@ -10158,11 +10158,12 @@ describe("o PDF final preparado antes de ela carregar", () => {
     renderStudio();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
-    await waitFor(() => expect(descargas()).toHaveLength(1), { timeout: 4000 });
+    // A preparação arranca 4 s depois de ela parar (3/11; era 1,5 s).
+    await waitFor(() => expect(descargas()).toHaveLength(1), { timeout: 7000 });
     await user.click(screen.getByRole("button", { name: "Descarregar o PDF final" }));
     await screen.findByRole("checkbox", { name: "Vi a proposta e está tudo certo" });
     expect(descargas()).toHaveLength(1);
-  });
+  }, 15_000);
 
   it("depois de enviada, «Descarregar PDF» entrega o que seguiu sem o desenhar outra vez", async () => {
     seedDraft(2);

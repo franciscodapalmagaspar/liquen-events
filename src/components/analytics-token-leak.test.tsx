@@ -236,6 +236,9 @@ describe("WebVitals — nas rotas com token não se mede nada", () => {
     vi.stubEnv("NODE_ENV", "production");
     beacon = vi.fn(() => true);
     Object.defineProperty(navigator, "sendBeacon", { value: beacon, configurable: true });
+    // A visita cai SEMPRE dentro da amostra (`AMOSTRA_DE_VITALS`): o que estes
+    // testes medem é a guarda das rotas privadas, não a amostragem.
+    vi.spyOn(Math, "random").mockReturnValue(0);
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -275,6 +278,12 @@ describe("WebVitals — nas rotas com token não se mede nada", () => {
   it("não manda baliza nenhuma em /proposta/<token>", async () => {
     const bodies = await beaconedBodies(`/proposta/${PROPOSAL_TOKEN}`);
     expect(bodies, "mediu-se a abertura de uma página privada").toEqual([]);
+  });
+
+  it("fora da amostra (9 visitas em 10) não importa nem manda nada (3/11)", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const bodies = await beaconedBodies("/galeria");
+    expect(bodies, "a visita fora da amostra gastou uma chamada ao servidor").toEqual([]);
   });
 
   it("continua a medir — e a limpar o caminho — numa rota normal", async () => {

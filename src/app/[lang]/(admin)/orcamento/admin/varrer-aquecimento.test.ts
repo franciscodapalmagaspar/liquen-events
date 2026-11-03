@@ -162,3 +162,32 @@ describe("a varredura do aquecimento", () => {
     expect(fetchFalso.mock.calls.length).toBeLessThanOrEqual(20);
   });
 });
+
+describe("uma varredura que viu tudo feito espera 12 h (3/11)", () => {
+  /**
+   * A 2/11 a conta da Vercel passou o limite de processador. O primeiro lote
+   * de cada abertura do back office lia todas as propostas inteiras só para
+   * concluir que não faltava nada. Agora, se acabou com tudo feito, este
+   * navegador não volta a perguntar durante 12 h; se ficou trabalho, a
+   * abertura seguinte continua.
+   */
+  it("acabou com tudo aquecido: a abertura seguinte não pede nada", async () => {
+    const { chamadas } = respostas([{ ok: true, aquecidas: 0, restantes: 0 }]);
+    varrerAquecimentoEmFundo();
+    await deixarCorrer();
+    expect(chamadas).toHaveLength(1);
+    varrerAquecimentoEmFundo();
+    await deixarCorrer();
+    expect(chamadas, "voltou a ler as propostas todas logo a seguir").toHaveLength(1);
+  });
+
+  it("ficou trabalho (falha a meio): a abertura seguinte continua", async () => {
+    const { chamadas } = respostas(["falha-http", { ok: true, aquecidas: 2, restantes: 0 }]);
+    varrerAquecimentoEmFundo();
+    await deixarCorrer();
+    expect(chamadas).toHaveLength(1);
+    varrerAquecimentoEmFundo();
+    await deixarCorrer();
+    expect(chamadas).toHaveLength(2);
+  });
+});

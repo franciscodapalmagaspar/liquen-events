@@ -1,5 +1,7 @@
 "use client";
 
+import { esquecerVarreduraFeita, marcarVarreduraFeita, podeVarrer } from "./varredura-espacada";
+
 /**
  * ════════════════════════════════════════════════════════════════════════════
  * OS PDF DAS PROPOSTAS ANTIGAS AQUECEM ENQUANTO ELA TRABALHA
@@ -98,6 +100,9 @@ async function umLote(sinal: AbortSignal): Promise<Lote | null> {
  */
 export function varrerAquecimentoEmFundo(): () => void {
   if (aCorrer || typeof window === "undefined") return () => {};
+  // Já viu tudo aquecido há menos de 12 h, neste navegador: não volta a ler
+  // todas as propostas para chegar à mesma resposta (`varredura-espacada.ts`).
+  if (!podeVarrer("aquecimento")) return () => {};
   aCorrer = true;
   const controlo = new AbortController();
 
@@ -119,9 +124,15 @@ export function varrerAquecimentoEmFundo(): () => void {
          * mais precisam de ser aquecidas em vez de desenhadas à frente de um
          * casal.
          */
-        if (!lote.aquecidas && !lote.semTempo) return;
+        if (!lote.aquecidas && !lote.semTempo) {
+          marcarVarreduraFeita("aquecimento");
+          return;
+        }
         // Não falta nenhuma: acabou, e acabou bem.
-        if (!lote.restantes) return;
+        if (!lote.restantes) {
+          marcarVarreduraFeita("aquecimento");
+          return;
+        }
         await dormir(RESPIRO_MS, controlo.signal);
       }
     } catch {
@@ -162,4 +173,5 @@ function dormir(ms: number, sinal: AbortSignal): Promise<void> {
 /** Só para os testes: esquecer que houve uma varredura nesta página. */
 export function esquecerVarreduraDeAquecimento(): void {
   aCorrer = false;
+  esquecerVarreduraFeita("aquecimento");
 }

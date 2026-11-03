@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
    usa. O caminho é relativo porque o `@/` desta casa aponta para `src/`. */
 import { fingirDisposicao, reporDisposicao } from "../../../../../../test/disposicao-fingida";
 import PainelDoEstudio, { type PaginaParaOPainel } from "./PainelDoEstudio";
+import { ESPERA_MS } from "./usePaginaReal";
 import { CORTES } from "./ui/adaptativo";
 import type { MoodBoard } from "@/lib/proposal-doc";
 import { MARCA } from "./ui/movimento";
@@ -454,8 +455,9 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
     // Antes da pausa: a aproximação, e dito que é uma.
     expect(screen.getByText("Aproximação — a página real está a chegar")).toBeTruthy();
+    // A pausa é `ESPERA_MS` (3 s desde 3/11): antes dela não se pede nada.
     await act(async () => {
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(ESPERA_MS - 200);
     });
     expect(f).not.toHaveBeenCalled();
     await act(async () => {
@@ -482,7 +484,7 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.stubGlobal("fetch", respostaWebp(false));
     desenhar({ doc, activa: 0, quoteId: "q1" });
     await act(async () => {
-      vi.advanceTimersByTime(1300);
+      vi.advanceTimersByTime(ESPERA_MS + 100);
     });
     await vi.waitFor(() =>
       expect(screen.getByText("Aproximação — a página real não chegou agora")).toBeTruthy(),
