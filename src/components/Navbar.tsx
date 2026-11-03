@@ -790,7 +790,16 @@ export default function Navbar() {
               375 e 390 px no topo da página: o «EN» recebia 0 de 25 toques —
               iam todos para o início. Por cima do logótipo, o selector recebe
               os seus. */}
-          <div className={`lg:hidden relative z-10 flex items-center ${aoNivelDaPalavra}`}>
+          {/* Mais longe do logótipo (ela, 3/11: «torna o idioma mais afastado
+              do logo»). Ao toque cada botão tem 44 px (`alvo-toque`) com a
+              letra ao centro, e esses ~13 px vazios de cada lado empurravam o
+              «EN» até ~20 px do logótipo. O grupo encosta à margem pelo vazio
+              do «PT» (`-ml-3.5`, só ao toque: com rato não há vazio) e os
+              dois botões encostam-se (`gap-0` no LanguageToggle): o «EN» fica
+              a ~44 px do logótipo, e cada alvo continua com os seus 44 px. */}
+          <div
+            className={`lg:hidden relative z-10 flex items-center pointer-coarse:-ml-3.5 ${aoNivelDaPalavra}`}
+          >
             {!isOpen && <LanguageToggle light={light} />}
           </div>
 
