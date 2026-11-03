@@ -44,8 +44,15 @@ import { depoisDeCarregar } from "@/lib/depois-de-carregar";
  *
  * O Lenis só se descarrega DEPOIS do `load`, no primeiro instante livre
  * (`depoisDeCarregar`): não entra no primeiro ecrã nem no LCP.
+ *
+ * DESLIGADO A 3/11, por ela, com o Chrome do computador à frente: o sítio
+ * «trava por todos os lados. Não tem o mesmo scroll, a mesma fluidez» que no
+ * iPhone. O registo do vídeo dessa visita (1920×945) mostrava o vídeo liso
+ * (3800 imagens, 9 perdidas) — o que o computador tinha a mais era isto e o
+ * parallax. Escolheu «igual ao telemóvel»: o scroll do próprio computador,
+ * como o do dedo. O componente fica, desligado; voltar a ligá-lo é esta linha.
  */
-const INERCIA_NA_RODA = true;
+const INERCIA_NA_RODA = false;
 
 /**
  * O elemento para onde aponta uma âncora DESTA página (`<a href="#id">`), ou

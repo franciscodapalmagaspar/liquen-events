@@ -52,18 +52,17 @@ describe("a guarda: quando é que a inércia pode sequer acender", () => {
 });
 
 describe("o interruptor que vai no repositório", () => {
-  it("está ligado porque ELA o pediu (30/10, «nível estúdio»: o Lenis, só rato e trackpad)", async () => {
-    // O contrato era: entra desligado e só a dona do sítio o liga. Ligou-o no
-    // pedido «nível estúdio» (o B7.3 do PADRAO-PALUMEN), e vê-o no link de
-    // teste antes de ir para o sítio. Desligá-lo é esta linha voltar a `false`
-    // — e este teste com ela.
+  it("está DESLIGADO porque ela o pediu (3/11: «igual ao telemóvel» — o scroll do próprio computador)", async () => {
+    // Ligou-o no pedido «nível estúdio» (30/10, o B7.3 do PADRAO-PALUMEN) e
+    // desligou-o a 3/11: no Chrome do computador o sítio não tinha a fluidez do
+    // telemóvel. Voltar a ligá-lo é decisão dela — esta linha e este teste.
     const { readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     const fonte = readFileSync(
       join(process.cwd(), "src/components/motion/SmoothScroll.tsx"),
       "utf8",
     );
-    expect(fonte).toMatch(/const INERCIA_NA_RODA = true;/);
+    expect(fonte).toMatch(/const INERCIA_NA_RODA = false;/);
     // E nunca no dedo: a decisão continua a passar pelo ponteiro fino.
     expect(fonte).toMatch(/ponteiroFino: window\.matchMedia\("\(pointer: fine\)"\)\.matches/);
   });

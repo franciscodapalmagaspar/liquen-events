@@ -24,6 +24,8 @@ O que fica igual ao que já está decidido nesta casa:
 - **`<ImageReveal>` com `clip-path`: não.** O sítio já abre as fotografias com um «zoom» (escala e opacidade) — e passou a fazê-lo porque o `clip-path` repintava e engasgava ao rolar (o comentário está em `page.tsx`, `sobre/page.tsx` e `servicos/[slug]/page.tsx`). O efeito que o B7.4 pede (a imagem a abrir-se ao chegar ao ecrã) já existe, sem o engasgo.
 - **View Transitions entre páginas: ficam como estavam.** O `PageTransition.tsx` explica-o: a captura da página inteira chocava com a hidratação e a descodificação das fotografias grandes, e a passagem engasgava. A «base» do B7.5 (um fade curto) é o que lá está; a imagem partilhada já existe na galeria.
 
+**3/11 — o Lenis e o parallax saem do computador.** Ela, com o Chrome do computador à frente: o sítio «trava por todos os lados. Não tem o mesmo scroll, a mesma fluidez» que no iPhone. O registo do vídeo dessa visita mostrava o vídeo liso; o que o computador tinha a mais era o scroll suave do B7.3 e o parallax do B7.4. Escolheu **«igual ao telemóvel»**: os dois ficam desligados (`INERCIA_NA_RODA` em `SmoothScroll.tsx`, `PARALLAX_LIGADO` em `Parallax.tsx`), e o computador usa o scroll dele, como o dedo usa o do telemóvel. Os títulos linha a linha e o «zoom» das fotografias ficam. Voltar a ligar é uma linha em cada ficheiro, e só com a palavra dela.
+
 **Depois do site (31/10), a proposta e o back office.** Ela perguntou se o mesmo se aplicava a estas duas superfícies, e escolheu:
 - **a proposta online** com o movimento (títulos linha a linha e scroll suave no computador), mais a rapidez e a acessibilidade;
 - **o back office** só com a rapidez e a acessibilidade.

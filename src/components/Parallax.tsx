@@ -28,8 +28,14 @@ import { prefersReducedMotion } from "@/lib/motion/useReducedMotion";
 // computador deslizar tão liso como o telemóvel. O pedido «nível estúdio»
 // (30/10) pede-o de volta só no computador (o B7.4 do PADRAO-PALUMEN): rato ou
 // trackpad e sem «reduzir movimento». No dedo a fotografia fica parada.
+//
+// DESLIGADO OUTRA VEZ a 3/11, por ela: no Chrome do computador o sítio
+// «trava por todos os lados» e não tem a fluidez do telemóvel. Escolheu
+// «igual ao telemóvel» — sem o scroll suave (SmoothScroll.tsx) e sem isto.
+// Voltar a ligar é `PARALLAX_LIGADO` a `true`, e mais nada.
+const PARALLAX_LIGADO = false;
 function parallaxWanted(): boolean {
-  if (typeof window === "undefined") return false;
+  if (!PARALLAX_LIGADO || typeof window === "undefined") return false;
   return (
     window.matchMedia("(pointer: fine)").matches &&
     !window.matchMedia("(prefers-reduced-motion: reduce)").matches
