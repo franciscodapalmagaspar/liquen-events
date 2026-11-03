@@ -1,18 +1,67 @@
 [
-  { "name": "Daniela & Guilherme", "label": "Casamento", "match": ["danigui"] },
-  { "name": "João & Pedro", "label": "Casamento", "match": ["joao_e_pedro", "j&p-"] },
-  { "name": "Inês & Gonçalo", "label": "Casamento", "match": ["ines-goncalo"] },
+  {
+    "name": "Daniela & Guilherme",
+    "label": "Casamento",
+    "match": ["danigui"]
+  },
+  {
+    "name": "João & Pedro",
+    "label": "Casamento",
+    "match": ["joao_e_pedro", "j&p-"]
+  },
+  {
+    "name": "Inês & Gonçalo",
+    "label": "Casamento",
+    "match": ["ines-goncalo"]
+  },
   {
     "name": "Matilde & Tomás",
     "label": "Casamento",
     "match": ["matilde-tomas", "matilde-e-tomas"]
   },
-  { "name": "Teresinha & Zé", "label": "Casamento", "match": ["teresinhaeze"] },
-  { "name": "Matilde & Filipe", "label": "Casamento", "match": ["m&f"] },
-  { "name": "Natália & Jonathan", "label": "Casamento", "match": ["natalia e jonathan"] },
-  { "name": "Stephanie & Mizio", "label": "Casamento", "match": ["stephanie-mizio"] },
-  { "name": "Mia & João", "label": "Casamento", "match": ["miaejoao"] },
-  { "name": "J & A", "label": "Casamento", "match": ["j&a-"] },
-  { "name": "Sophia & Artur", "label": "Casamento", "match": ["sophia&artur"] },
-  { "name": "Ellie & Sam", "label": "Casamento", "match": ["albregts"] }
+  {
+    "name": "Teresinha & Zé",
+    "label": "Casamento",
+    "match": ["teresinhaeze"]
+  },
+  {
+    "name": "Matilde & Filipe",
+    "label": "Casamento",
+    "match": ["m&f"]
+  },
+  {
+    "name": "Natália & Jonathan",
+    "label": "Casamento",
+    "match": ["natalia e jonathan"]
+  },
+  {
+    "name": "Stephanie & Mizio",
+    "label": "Casamento",
+    "match": ["stephanie-mizio"]
+  },
+  {
+    "name": "Mia & João",
+    "label": "Casamento",
+    "match": ["miaejoao"]
+  },
+  {
+    "name": "J & A",
+    "label": "Casamento",
+    "match": ["j&a-"]
+  },
+  {
+    "name": "Sophia & Artur",
+    "label": "Casamento",
+    "match": ["sophia&artur"]
+  },
+  {
+    "name": "Ellie & Sam",
+    "label": "Casamento",
+    "match": ["albregts"]
+  },
+  {
+    "name": "Mariana & João",
+    "label": "Casamento",
+    "match": ["marianaejoao", "galeria-jun26"]
+  }
 ]
