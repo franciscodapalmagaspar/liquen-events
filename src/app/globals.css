@@ -1677,27 +1677,24 @@ html.lenis body {
   }
 }
 
-/* ── Hero parallax drift, driven on the compositor ──
-   Opt-in via <Parallax drift>. Where scroll-driven animations exist (and motion
-   is welcome), the hero layer drifts as its section scrolls through the viewport
-   — tied to the element's own view() timeline, so it runs on the compositor with
-   NO scroll listener and NO main-thread work (unlike the old JS parallax, which
-   is why that one was retired). A small scale(1.06) gives 3% headroom each side
-   so the ±2.4% drift never exposes an edge. Unsupported browsers / reduced-
-   motion show the static image.
-
-   Timeline is scroll(root) — NOT view() — on purpose: the hero sits inside an
-   overflow-hidden section, which is itself a scroll container, so view() would
-   resolve against that non-scrolling ancestor and never advance. scroll(root)
-   binds to the document scroller directly; every page's hero is its first
-   section, so a 0 → 100vh range covers the hero's passage on all of them. */
+/* ── A CAPA NÃO DERIVA (3/11) ──────────────────────────────────────────────
+   Até 3/11 a capa tinha uma deriva presa ao deslize (`.parallax-drift`:
+   scale(1.06) e ±2,4 %, `animation-timeline: scroll(root block)`), só com rato.
+   Saiu, e não volta sem ela pedir:
+     · ela escolheu (3/11) o computador «igual ao telemóvel» — e o telemóvel
+       nunca a teve; o #365 desligou o parallax em JavaScript e esta ficou;
+     · era a única camada animada à volta dos vídeos da entrada, e só no
+       computador — onde ela vê o vídeo travar e no telemóvel não. Um vídeo
+       dentro de uma camada ampliada e animada não pode ir directo ao ecrã
+       (o «overlay» do Windows/macOS): é recomposto pelo browser a cada imagem.
+   A barra de progresso (abaixo) continua: é uma risca de 2 px, longe do vídeo. */
 /* ── E NO TELEMÓVEL, NADA PRESO AO DESLIZE ──────────────────────────────────
    Ela (26/10, iPhone): «pára no meio do gesto». Uma animação presa ao scroll
    (`animation-timeline: scroll()`) é desenhada a cada fotograma do deslize — e
    o Safari do iPhone, que só as ganhou no iOS 26, corre-as fora da via rápida
    do compositor. A deriva da capa era de ±2,4 %: num ecrã de telemóvel quase
-   não se via, e o deslize é o que se sente. Por isso as duas regras de baixo
-   (a deriva e a barra de progresso) só existem com rato — `(pointer: fine)`.
+   não se via, e o deslize é o que se sente. Por isso a barra de progresso só
+   existe com rato — `(pointer: fine)` — e a deriva saiu de todo (3/11, acima).
    O `scroll-progress` esconde-se de todo no toque (a barra parada a zero era
    um risco sem sentido). */
 @media (pointer: coarse) {
@@ -1705,26 +1702,6 @@ html.lenis body {
     display: none;
   }
 }
-@media (prefers-reduced-motion: no-preference) and (pointer: fine) {
-  @supports (animation-timeline: scroll()) {
-    .parallax-drift {
-      transform: scale(1.06);
-      will-change: transform;
-      animation: parallax-drift-kf linear both;
-      animation-timeline: scroll(root block);
-      animation-range: 0 100vh;
-    }
-    @keyframes parallax-drift-kf {
-      from {
-        transform: scale(1.06) translateY(-2.4%);
-      }
-      to {
-        transform: scale(1.06) translateY(2.4%);
-      }
-    }
-  }
-}
-
 /* ── Scroll progress bar driven on the compositor ──
    Where scroll-driven animations exist, the bar's fill is tied straight to the
    document scroll timeline — no scroll listener, no rAF, no main-thread work; it

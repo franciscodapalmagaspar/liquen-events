@@ -61,15 +61,15 @@ describe("o scroll no iPhone", () => {
     expect(ios).toMatch(/\.cv-panel\s*\{[^}]*content-visibility:\s*visible/);
   });
 
-  it("3. a deriva da capa e a barra de progresso só existem com rato", () => {
+  it("3. a barra de progresso só existe com rato, e a capa não deriva (3/11)", () => {
     const comRato = blocos(/@media[^{]*\(pointer: fine\)/).join("\n");
-    expect(comRato).toMatch(/\.parallax-drift\s*\{[^}]*animation-timeline:\s*scroll/);
+    // A deriva da capa saiu (ver «A CAPA NÃO DERIVA» em globals.css).
+    expect(css).not.toMatch(/\.parallax-drift\s*\{/);
     expect(comRato).toMatch(/\.scroll-progress-bar\[data-css-driven="true"\]/);
 
     // E fora desses blocos nenhuma das duas volta a ganhar uma linha de tempo.
     let fora = css;
     for (const b of blocos(/@media[^{]*\(pointer: fine\)/)) fora = fora.replace(b, "");
-    expect(fora).not.toMatch(/\.parallax-drift\s*\{[^}]*animation-timeline/);
     expect(fora).not.toMatch(
       /\.scroll-progress-bar\[data-css-driven="true"\]\s*\{[^}]*animation-timeline/,
     );

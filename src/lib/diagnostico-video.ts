@@ -41,6 +41,29 @@ export const MAX_PARAGENS = 20;
 /** Acontecimentos guardados antes de cada paragem. */
 export const ACONTECIMENTOS_ANTES = 10;
 
+/**
+ * O tamanho máximo do que se envia. A rota aceita 8 KB; fica uma folga para os
+ * caracteres que o `TextEncoder` conta a dobrar (não há nenhum, mas não custa).
+ */
+export const CORPO_MAX_BYTES = 7500;
+
+/** Quantos nomes diferentes de contadores a rota aceita. */
+export const MAX_CONTADORES = 24;
+
+/**
+ * O nome de um acontecimento como a rota o aceita (`^[a-z-]{1,16}$`). Um nome
+ * fora disto fazia a rota recusar o envio INTEIRO, calada: foi o que aconteceu
+ * de 2/11 a 3/11 com «paragem-com-dados» (17 letras), e as visitas com
+ * paragens deixaram de chegar.
+ */
+export function nomeQueARotaAceita(nome: string): string {
+  const k = nome
+    .toLowerCase()
+    .replace(/[^a-z-]/g, "")
+    .slice(0, 16);
+  return k || "outro";
+}
+
 /** Espera depois de uma paragem antes de enviar (junta as que vierem seguidas). */
 export const ENVIO_DEPOIS_MS = 3000;
 
@@ -219,7 +242,8 @@ export class RegistoDoVideo {
   }
 
   /** Um acontecimento (fica só o fim da lista: o que importa é o que veio antes). */
-  acontecimento(k: string, v?: number) {
+  acontecimento(nome: string, v?: number) {
+    const k = nomeQueARotaAceita(nome);
     this.acontecimentos.push(v === undefined ? { t: this.rel(), k } : { t: this.rel(), k, v });
     if (this.acontecimentos.length > 40)
       this.acontecimentos.splice(0, this.acontecimentos.length - 40);
@@ -227,7 +251,11 @@ export class RegistoDoVideo {
   }
 
   contar(nome: string) {
-    this.contadores[nome] = (this.contadores[nome] ?? 0) + 1;
+    const k = nomeQueARotaAceita(nome);
+    // A rota recusa mais do que `MAX_CONTADORES` nomes: um nome novo a mais
+    // fica de fora, em vez de deitar fora o envio inteiro.
+    if (!(k in this.contadores) && Object.keys(this.contadores).length >= MAX_CONTADORES) return;
+    this.contadores[k] = (this.contadores[k] ?? 0) + 1;
   }
 
   /** Foi pintado um fotograma novo do vídeo à vista. Fecha a paragem aberta, se havia. */
@@ -295,7 +323,18 @@ export class RegistoDoVideo {
     };
   }
 
+  /**
+   * O corpo a enviar. Cabe sempre em `CORPO_MAX_BYTES`: se não couber, saem as
+   * paragens mais antigas (a rota deita fora, calada, um corpo maior do que
+   * 8 KB — e eram justamente as visitas com mais paragens que se perdiam).
+   */
   corpo(motivo: CorpoDoDiagnostico["motivo"]): CorpoDoDiagnostico {
+    const c = this.corpoInteiro(motivo);
+    while (c.paragens.length && JSON.stringify(c).length > CORPO_MAX_BYTES) c.paragens.shift();
+    return c;
+  }
+
+  private corpoInteiro(motivo: CorpoDoDiagnostico["motivo"]): CorpoDoDiagnostico {
     return {
       v: 1,
       sessao: this.o.sessao,
