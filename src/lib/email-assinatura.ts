@@ -60,10 +60,10 @@ import { log } from "./logger";
  * nenhuma delas manda: a assinatura é o rosto da casa e o desenho é dela.
  *
  * O que se fez para as pagar o mais barato possível:
- *   · os ícones são PNG de 18 px — exactamente o tamanho a que aparecem, com
- *     `width`/`height` no atributo, que é a única forma que o Outlook
- *     respeita. Foram de 32 px até 3/11; ver «O FICHEIRO TEM O TAMANHO A QUE
- *     APARECE», na faixa, para a razão de não voltarem a sê-lo;
+ *   · os ícones são PNG de 32 px (224, 537 e 317 bytes), desenhados em traço
+ *     cheio para o Outlook não ter nada que escalar mal, e apresentados a
+ *     18 px com `width`/`height` no atributo — que é a única forma que o
+ *     Outlook respeita;
  *   · cada um leva `alt` («Facebook», «Instagram», «LinkedIn»), portanto quem
  *     tem as imagens desligadas ou lê por leitor de ecrã continua a ler o nome
  *     da rede, que era a terceira objecção;
@@ -188,31 +188,30 @@ export function assinanteDoEmail(quem: QuemAssina = {}): { nome: string; cargo: 
  *
  * O ficheiro é `public/email/banner-liquen-email.png` e é a fonte de verdade:
  * substituí-lo troca a faixa em todos os emails, sem regenerar constantes.
+ * Medidas: 1120×336 no ficheiro (para os ecrãs de alta densidade), apresentado
+ * a 560×168, que é a largura do corpo destes emails.
  *
- * ── O FICHEIRO TEM O TAMANHO A QUE APARECE (3/11) ────────────────────────
+ * ── O BRANCO DEPOIS DA FAIXA NO GMAIL DO IPHONE NÃO É DELA (3/11) ────────
  *
- * Medidas: 400×120 no ficheiro e no ecrã. Até 3/11 era 1120×336 no ficheiro
- * («para os ecrãs de alta densidade»), apresentado a 560×168.
+ * Ela viu, no Gmail do iPhone, um grande branco entre a faixa e o anexo do
+ * PDF. A 3/11 a faixa foi reduzida a 400×120 (e os ícones a 18 px), com a
+ * ideia de que o Gmail guardava o lugar pelo tamanho do ficheiro. ERA ERRADO:
+ * o teste dela com a faixa pequena teve o mesmo branco (~250 pt), e um email
+ * curto de outra casa também acaba em branco. O Gmail do iPhone estica cada
+ * mensagem até encher o ecrã; quanto mais curto o texto, mais branco, e o
+ * anexo vem depois disso. O nosso HTML acaba a zero píxeis da faixa.
  *
- * Ela, com a captura do iPhone: «no e-mail há esse espaçamento entre o anexo
- * […] e o banner […] tenho medo que os clientes não consigam ver a proposta
- * porque está muito para baixo». O nosso HTML acaba na faixa — não há nada
- * depois dela. MEDIDO na captura (iPhone de 393 pt): o branco tinha ~265 pt; a
- * faixa aparecia com 345×104 sendo o ficheiro 336 de alto (232 pt a mais), e
- * os ícones a 18 sendo de 32 (14 a mais). 232 + 14 + a margem normal do
- * Gmail dá os 265: o Gmail do iPhone guarda o lugar de cada imagem pelo
- * tamanho do FICHEIRO e não o devolve quando o estilo a encolhe.
- *
- * Daí a regra: nenhum ficheiro desta pasta é maior do que o tamanho a que
- * aparece (um teste prende-a). A faixa a 400 foi a escolha dela, contra a de
- * 560 — que ainda deixava ~85 pt de branco no telemóvel. Troca-se um pouco de
- * nitidez num ecrã de alta densidade por o anexo vir logo a seguir.
+ * Por isso a faixa voltou ao tamanho de antes — mais nítida, e o branco não
+ * dependia dela. O que garante que o casal vê a proposta sem descer até ao
+ * anexo é o cartão com o link do PDF no CORPO, acima da assinatura
+ * (`cartaoDoPdf` em `proposta-doc/route.ts`). Não reduzas a faixa outra vez
+ * por causa deste branco.
  */
 export const BANNER_EMAIL_CID = "liquen-banner";
 
 const BANNER_FICHEIRO = "banner-liquen-email.png";
-export const BANNER_LARGURA = 400;
-export const BANNER_ALTURA = 120;
+const BANNER_LARGURA = 560;
+const BANNER_ALTURA = 168;
 
 /** Acima disto a faixa pesa mais do que tudo o resto da mensagem. */
 const BANNER_TECTO_BYTES = 200_000;
