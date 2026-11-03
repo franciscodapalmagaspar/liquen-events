@@ -7,6 +7,7 @@ import { fetchProposalImageBytes } from "@/lib/proposal-storage";
 import { preparar } from "@/lib/pdf-editorial/imagens";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 import { guardarFotoEditorial, lerFotoEditorialGuardada } from "@/lib/fotos-editoriais-guardadas";
 
 /**
@@ -45,7 +46,7 @@ function entre(v: string | null, min: number, max: number, omissao: number) {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : omissao;
 }
 
-export async function GET(
+async function GET_semMedida(
   request: Request,
   { params }: { params: Promise<{ token: string; id: string }> },
 ) {
@@ -124,3 +125,6 @@ export async function GET(
     return new NextResponse(null, { status: 500 });
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const GET = comCpu("proposta-fundo GET", GET_semMedida);

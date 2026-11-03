@@ -27,6 +27,7 @@ import { corNormalizada } from "@/lib/cor";
 import { idDaPaleta, paletaDaCor } from "@/lib/paleta-da-cor";
 import { etiquetar } from "@/lib/biblioteca-foto-etiquetas-store";
 import { garantirFoto, updateFoto } from "@/lib/biblioteca-fotos-store";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 // Igual aos anexos da proposta: sharp, armazenamento, miniatura e LQIP,
@@ -71,7 +72,10 @@ function num(raw: string | null, fallback: number): number {
  * `ok: false` (com 200) quer dizer "a pasta não pôde ser lida agora", que a UI
  * mostra como "Fotos indisponíveis" — nunca como um tema vazio.
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function GET_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const { id } = await params;
   try {
@@ -253,7 +257,10 @@ function pairHashes(files: File[], form: FormData): (string | null)[] {
  * `force: "1"` salta as duas verificações e guarda com `<resumo>-<4 hex>` — é o
  * "Adicionar mesmo assim", e a recuperação de qualquer modo de falha do índice.
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function POST_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   if (!isDatabaseConfigured()) {
     return NextResponse.json(
@@ -447,7 +454,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 /** Remove UMA foto do tema: `?path=<themeId>/<ficheiro>`. Vai 30 dias para a
  *  Reciclagem; sem ela, sai de vez com a miniatura (melhor esforço). */
-export async function DELETE(
+async function DELETE_semMedida(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -473,3 +480,8 @@ export async function DELETE(
     return failed("temas imagens DELETE falhou", err, id);
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const GET = comCpu("temas-imagens GET", GET_semMedida);
+export const POST = comCpu("temas-imagens POST", POST_semMedida);
+export const DELETE = comCpu("temas-imagens DELETE", DELETE_semMedida);

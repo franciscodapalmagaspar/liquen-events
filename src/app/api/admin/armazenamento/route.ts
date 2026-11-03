@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
 import { verificarArmazenamento } from "@/lib/estado-do-armazenamento";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export const dynamic = "force-dynamic";
  * `?forcar=1` salta a cache: é o botão «Verificar de novo» de quem acabou de
  * correr o `db/schema.sql` e não quer esperar um minuto para ver o aviso sair.
  */
-export async function GET(request: NextRequest) {
+async function GET_semMedida(request: NextRequest) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -59,3 +60,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Não consegui verificar o armazenamento." }, { status: 500 });
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const GET = comCpu("armazenamento GET", GET_semMedida);

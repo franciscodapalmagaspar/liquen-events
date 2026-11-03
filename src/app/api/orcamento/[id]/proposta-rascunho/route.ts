@@ -11,6 +11,7 @@ import {
 } from "@/lib/proposal-drafts";
 import { log } from "@/lib/logger";
 import { juntarRascunhos } from "@/lib/rascunho-juntar";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -103,7 +104,10 @@ function whoIsSaving(request: NextRequest): string | undefined {
 }
 
 /** O rascunho guardado no servidor para este pedido (null se não houver). */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function GET_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const { id } = await params;
   try {
@@ -138,7 +142,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
  * exactamente isso que o 503 diz. `permanente` diz ao estúdio se vale a pena
  * tentar outra vez (rede) ou se é a instalação que está incompleta.
  */
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function PUT_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const { id } = await params;
   try {
@@ -313,7 +320,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 /** Descarta o rascunho (proposta enviada, ou limpo à mão no estúdio). */
-export async function DELETE(
+async function DELETE_semMedida(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -336,3 +343,8 @@ export async function DELETE(
 }
 
 export type { StoredProposalDraft };
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const GET = comCpu("proposta-rascunho GET", GET_semMedida);
+export const PUT = comCpu("proposta-rascunho PUT", PUT_semMedida);
+export const DELETE = comCpu("proposta-rascunho DELETE", DELETE_semMedida);

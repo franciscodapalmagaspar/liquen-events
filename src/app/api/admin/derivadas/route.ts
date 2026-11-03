@@ -5,6 +5,7 @@ import { contarDerivadasEmFalta, gerarLoteDeDerivadas } from "@/lib/derivadas";
 import { nomesDasPastas, nomeDeReserva } from "@/lib/pastas-com-nome";
 import { THEME_BUCKET } from "@/lib/theme-ref";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 // `sharp` precisa do runtime de Node.
 export const runtime = "nodejs";
@@ -26,7 +27,7 @@ export const maxDuration = 60;
  * diferentes: ver o número tem de ser uma coisa que se faz sem medo, e um botão
  * que conta e gera ao mesmo tempo é um botão em que se hesita.
  */
-export async function GET(request: NextRequest) {
+async function GET_semMedida(request: NextRequest) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
  * lote é uma paragem segura: nada é substituído, portanto retomar é só chamar
  * outra vez.
  */
-export async function POST(request: NextRequest) {
+async function POST_semMedida(request: NextRequest) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -112,3 +113,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Não consegui gerar." }, { status: 500 });
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const GET = comCpu("derivadas GET", GET_semMedida);
+export const POST = comCpu("derivadas POST", POST_semMedida);

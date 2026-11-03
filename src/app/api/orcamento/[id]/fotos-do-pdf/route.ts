@@ -4,6 +4,7 @@ import type { ProposalDoc } from "@/lib/proposal-doc";
 import { ehIdiomaDaProposta, IDIOMA_POR_OMISSAO } from "@/lib/proposal-doc-textos";
 import { fotosDoEditorialDoDocumento } from "@/lib/proposal-doc-render";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 // O sharp precisa do runtime Node.
 export const runtime = "nodejs";
@@ -25,7 +26,10 @@ const MAXIMO_DO_CORPO = 2 * 1024 * 1024;
  *
  * Não grava nada: recebe o rascunho como o estúdio o tem, e responde.
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function POST_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const { id } = await params;
   const tamanho = Number(request.headers.get("content-length") ?? 0);
@@ -49,3 +53,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const POST = comCpu("fotos-do-pdf POST", POST_semMedida);

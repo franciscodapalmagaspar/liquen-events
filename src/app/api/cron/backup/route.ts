@@ -12,6 +12,7 @@ import { isMissingTable } from "@/lib/repository";
 import { listQuotes } from "@/lib/quotes-store";
 import { log } from "@/lib/logger";
 import type { aquecerPdfsEmFalta } from "@/lib/aquecimento-de-pdf";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -111,7 +112,7 @@ async function juntarManifesto(): Promise<{
   }
 }
 
-export async function GET(request: NextRequest) {
+async function GET_semMedida(request: NextRequest) {
   if (!authorized(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -382,3 +383,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const GET = comCpu("cron-backup GET", GET_semMedida);
