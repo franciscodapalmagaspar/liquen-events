@@ -95,11 +95,23 @@
  *     `cropdetect`: 720×1280 cheios). A paisagem já cortava 1920×960 e fica
  *     igual (são os mesmos ficheiros da `v8`).
  *
- * A pasta tem versão (`v9`) porque os vídeos são servidos com cache de um ano:
- * um vídeo novo vai para `v10`, nunca por cima.
+ *   · O COMPUTADOR COM MAIS QUALIDADE, desde 3/11 (`v10`). Ela, no Chrome do
+ *     computador: «o vídeo não tem tanta qualidade como tem no telemóvel». O
+ *     tecto de 3 MB da `v7` dava ~2,3 Mbit/s a 1920×960 — num ecrã de 1920
+ *     vêem-se os blocos nas luzes e nas faíscas; no telemóvel, 720 px num ecrã
+ *     pequeno, não. Ela escolheu «mais qualidade», só no computador. Refeita SÓ
+ *     a `paisagem` (H.264 CRF 19 até 6 Mbit/s; VP9 a 4,5 Mbit/s), com os
+ *     mesmos cortes e as mesmas 50 fps (`minterpolate`). A fonte é a `grande`
+ *     2560×1280 da `v6` (no histórico do git, já com a curva do vídeo 1),
+ *     porque os originais 4K do Drive pedem sessão e não se descarregam
+ *     daqui. A `retrato`, a `paisagem-leve` e as imagens animadas são as da
+ *     `v9`, tal e qual. Os vídeos são estáticos (CDN): não gastam processador.
+ *
+ * A pasta tem versão (`v10`) porque os vídeos são servidos com cache de um ano:
+ * um vídeo novo vai para `v11`, nunca por cima.
  */
 
-export const PASTA_DOS_VIDEOS = "/videos/entrada/v9";
+export const PASTA_DOS_VIDEOS = "/videos/entrada/v10";
 
 /** Quantos vídeos há. */
 export const NUMERO_DE_VIDEOS = 3;
@@ -162,9 +174,9 @@ export function formatoQueToca(podeTocar: (tipo: string) => string): Formato | n
 
 /** As medidas de cada versão, para perguntar ao aparelho se as toca bem. */
 export const MEDIDAS: Record<Variante, { largura: number; altura: number; debito: number }> = {
-  paisagem: { largura: 1920, altura: 960, debito: 2_400_000 },
+  paisagem: { largura: 1920, altura: 960, debito: 6_500_000 },
   retrato: { largura: 720, altura: 1280, debito: 900_000 },
-  grande: { largura: 1920, altura: 960, debito: 2_400_000 },
+  grande: { largura: 1920, altura: 960, debito: 6_500_000 },
 };
 export const FOTOGRAMAS_POR_SEGUNDO = 50;
 
