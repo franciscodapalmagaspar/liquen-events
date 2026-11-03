@@ -8,6 +8,7 @@ import { preparar } from "@/lib/pdf-editorial/imagens";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
+import { guardarFotoEditorial, lerFotoEditorialGuardada } from "@/lib/fotos-editoriais-guardadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -70,6 +71,18 @@ async function GET_semMedida(
     if (!feito) {
       feito = (async () => {
         const doStorage = !entrada.ref.startsWith("data:") && !/^https?:\/\//i.test(entrada.ref);
+        /**
+         * O fundo já feito, guardado fora da memória (3/11). A memória desta
+         * função perde-se a cada instância nova, e cada casal, cada telemóvel
+         * da família, voltava a pagar o `sharp` de cada capítulo — foi um dos
+         * sítios por onde a conta da Vercel passou o limite de processador. A
+         * receita (largura, brilho, ângulo, qualidade) entra na chave.
+         */
+        const receita = `fundo-v1-${LARGURA}-b${brilho}-a${angulo}-s0.85-q72`;
+        if (doStorage) {
+          const ja = await lerFotoEditorialGuardada(entrada.ref, receita);
+          if (ja) return ja;
+        }
         const deStorage = doStorage
           ? ((await miniaturaAPedido(entrada.ref)) ??
             (await derivadaMediaAPedido(entrada.ref)).bytes)
@@ -80,12 +93,14 @@ async function GET_semMedida(
         const w = m.autoOrient?.width ?? m.width ?? LARGURA;
         const h = m.autoOrient?.height ?? m.height ?? LARGURA;
         const H = Math.max(1, Math.round((LARGURA * h) / w));
-        return preparar(Buffer.from(bytes), LARGURA, H, LARGURA, {
+        const fundo = await preparar(Buffer.from(bytes), LARGURA, H, LARGURA, {
           arrastado: { angulo },
           brilho,
           saturacao: 0.85,
           qualidade: 72,
         });
+        if (doStorage && fundo) await guardarFotoEditorial(entrada.ref, receita, fundo);
+        return fundo;
       })();
       guardados.set(chave, feito);
       if (guardados.size > MAXIMO_GUARDADOS) guardados.delete(guardados.keys().next().value!);

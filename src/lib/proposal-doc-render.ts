@@ -1,6 +1,7 @@
 import "server-only";
 import sharp from "sharp";
 import { criarCachePorBytes } from "@/lib/cache-por-bytes";
+import { guardarFotoEditorial, lerFotoEditorialGuardada } from "@/lib/fotos-editoriais-guardadas";
 import {
   isPendingImage,
   MOOD_BOARD_MAX_IMAGES,
@@ -672,6 +673,13 @@ export async function renderStoredProposalDocPdfWithReport(
  * centenas de KB antes de o próximo chegar.
  */
 const LADO_EDITORIAL = 1800;
+/** A qualidade JPEG da redução editorial. */
+const QUALIDADE_EDITORIAL = 86;
+/**
+ * A receita da redução, que entra na chave da versão guardada: mudar o lado
+ * ou a qualidade gera chaves novas, e uma versão velha nunca é servida.
+ */
+const RECEITA_EDITORIAL = `editorial-${LADO_EDITORIAL}-q${QUALIDADE_EDITORIAL}-rot`;
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -710,13 +718,24 @@ async function fotoEditorial(
   if (guardar) {
     const ja = fotosEditoriais.ler(ref);
     if (ja) return ja;
+    // Fora da memória: a versão reduzida que uma instância anterior guardou
+    // no armazenamento (3/11 — ver `fotos-editoriais-guardadas.ts`). Os mesmos
+    // bytes, sem descarregar o original nem gastar processador a reduzi-lo.
+    const guardada = await lerFotoEditorialGuardada(ref, RECEITA_EDITORIAL);
+    if (guardada) {
+      fotosEditoriais.guardar(ref, guardada);
+      return guardada;
+    }
   }
   const bytes = await original(ref);
   if (!bytes) return null;
   const reduzida = await reduzirParaEditorial(bytes);
   // Só se guarda o que o `sharp` conseguiu reduzir: se falhou, `reduzirParaEditorial`
   // devolve os bytes como vieram, e esses podem ser de 10 MB.
-  if (guardar && reduzida !== bytes) fotosEditoriais.guardar(ref, reduzida);
+  if (guardar && reduzida !== bytes) {
+    fotosEditoriais.guardar(ref, reduzida);
+    await guardarFotoEditorial(ref, RECEITA_EDITORIAL, reduzida);
+  }
   return reduzida;
 }
 
@@ -730,7 +749,7 @@ async function reduzirParaEditorial(bytes: Buffer): Promise<Buffer> {
     return await sharp(bytes, { failOn: "none" })
       .rotate()
       .resize(LADO_EDITORIAL, LADO_EDITORIAL, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 86 })
+      .jpeg({ quality: QUALIDADE_EDITORIAL })
       .toBuffer();
   } catch {
     // O desenho volta a tentar ler estes bytes e, se falharem lá, conta a foto
