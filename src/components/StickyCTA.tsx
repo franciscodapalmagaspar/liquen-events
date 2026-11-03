@@ -120,6 +120,16 @@ export default function StickyCTA() {
         show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
       }`}
     >
+      {/* ── TRANSPARENTE, COM A LINHA BRANCA (3/11) ─────────────────────
+          Ela, com a captura do chip verde por cima de uma fotografia: «coloca
+          estes dois botões transparente e a linha a branco». Perguntada sobre
+          as partes brancas do site (onde letra branca num fundo transparente
+          quase desaparece), escolheu «sempre transparentes». Fica um véu
+          escuro leve (`black/20`) por baixo da letra, que é o que segura a
+          leitura em cima das fotografias claras; e continua SEM desfoque, pela
+          razão de 29/10 escrita a seguir. O WhatsApp leva o mesmo material.
+
+          O que estava antes: */}
       {/* ── VERDE, TRANSLÚCIDO, EM CÁPSULA ──────────────────────────────
           Palavras dela, com a captura do chip quadrado e preto: «coloca isto
           também transparente e verde com as bordas curvas». Passa ao mesmo
@@ -142,16 +152,16 @@ export default function StickyCTA() {
       <Link
         href={localizeHref("/orcamento", locale)}
         onClick={() => track("CTAClick", { source: "sticky" })}
-        className="toque alvo-toque group flex items-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-6 sm:py-3 bg-sage-700/92 border border-white/20 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] hover:bg-white hover:border-white transition-colors duration-300 ease-expo"
+        className="toque alvo-toque group flex items-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-6 sm:py-3 bg-black/20 border border-white shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] hover:bg-white hover:border-white transition-colors duration-300 ease-expo"
       >
-        <span className="text-[9px] sm:text-[10px] tracking-[0.18em] sm:tracking-[0.28em] uppercase text-white/90 group-hover:text-sage-800 transition-colors duration-300 ease-expo">
+        <span className="text-[9px] sm:text-[10px] tracking-[0.18em] sm:tracking-[0.28em] uppercase text-white group-hover:text-sage-800 transition-colors duration-300 ease-expo">
           {t.footer.pedirOrcamento}
         </span>
         <span
           // `motion-reduce`: a seta desliza meio píxel para a direita ao passar
           // o rato — é um transform, e é o mesmo remendo que a seta do PhotoWall
           // já leva. A cor continua a mudar (isso é informação, não movimento).
-          className="text-white/70 group-hover:text-sage-800 group-hover:translate-x-0.5 transition-all duration-300 ease-expo motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 text-xs sm:text-sm"
+          className="text-white group-hover:text-sage-800 group-hover:translate-x-0.5 transition-all duration-300 ease-expo motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 text-xs sm:text-sm"
           aria-hidden
         >
           →
