@@ -60,15 +60,22 @@ beforeEach(async () => {
     .toBuffer();
 });
 
+/**
+ * Só as fotografias REDUZIDAS (receita `editorial-…`). Desde 3/11 o mesmo
+ * armazenamento guarda também as imagens já tratadas para cada página
+ * (`preparadas-guardadas.ts`, receita `preparar-…`), que têm o seu teste.
+ */
+const reduzidas = () => [...guardadas.entries()].filter(([k]) => k.startsWith("editorial-"));
+
 describe("as fotografias reduzidas ficam guardadas fora da memória", () => {
   it("uma instância nova usa a versão guardada e não volta ao original", async () => {
     fetchProposalImageBytes.mockResolvedValue(foto);
     const d = doc(["proposal-assets/q1/a.jpg", "proposal-assets/q1/b.jpg"]);
     await renderStoredEditorialPdfWithReport(d, "pt");
     expect(fetchProposalImageBytes).toHaveBeenCalledTimes(2);
-    expect(guardadas.size, "a versão reduzida não ficou guardada").toBe(2);
+    expect(reduzidas().length, "a versão reduzida não ficou guardada").toBe(2);
     // Já reduzida: menor do que o original, e no máximo 1 800 px.
-    const reduzida = [...guardadas.values()][0];
+    const reduzida = reduzidas()[0][1];
     const m = await sharp(reduzida).metadata();
     expect(Math.max(m.width ?? 0, m.height ?? 0)).toBeLessThanOrEqual(1800);
 
@@ -83,6 +90,6 @@ describe("as fotografias reduzidas ficam guardadas fora da memória", () => {
     const embutida = `data:image/jpeg;base64,${foto.toString("base64")}`;
     const d = doc([embutida]);
     await renderStoredEditorialPdfWithReport(d, "pt");
-    expect(guardadas.size).toBe(0);
+    expect(reduzidas().length).toBe(0);
   });
 });
