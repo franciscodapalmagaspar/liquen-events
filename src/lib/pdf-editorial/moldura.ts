@@ -4,6 +4,7 @@ import type { DocTruncation } from "@/lib/proposal-doc-pdf";
 import type { IdiomaDaProposta, TextosDoDocumento } from "@/lib/proposal-doc-textos";
 import { PAGINA_H, PAGINA_W } from "@/lib/proposal-geometria";
 import { embedImagem } from "./embutir";
+import { prepararGuardado } from "./preparadas-guardadas";
 import type { Foto } from "./fotos";
 import {
   BRILHO,
@@ -12,7 +13,6 @@ import {
   LEITURA,
   TECTO,
   pixeisDaCaixa,
-  preparar,
   type Tratamento,
 } from "./imagens";
 import { COR, FOLHA_PX_H, FOLHA_PX_W, LETRA, MARGEM, RODAPE, TOPO_DO_TITULO, px } from "./paleta";
@@ -127,7 +127,7 @@ export async function fotoNaCaixa(
   const chave = `${foto.id}|${w}x${h}|${JSON.stringify(t)}`;
   let img = ctx.embutidas.get(chave);
   if (!img) {
-    img = preparar(foto.bytes, w, h, caixa.w, t).then((jpeg) =>
+    img = prepararGuardado(foto.bytes, w, h, caixa.w, t).then((jpeg) =>
       jpeg ? embedImagem(ctx.pdf, jpeg) : null,
     );
     ctx.embutidas.set(chave, img);
