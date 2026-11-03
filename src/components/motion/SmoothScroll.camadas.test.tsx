@@ -9,13 +9,6 @@ const lenis = {
   scrollTo: vi.fn(),
   isStopped: false,
 };
-vi.mock("lenis", () => ({
-  default: class {
-    constructor() {
-      return lenis;
-    }
-  },
-}));
 vi.mock("@/lib/depois-de-carregar", () => ({
   depoisDeCarregar: (fn: () => void) => (fn(), () => {}),
 }));
@@ -36,8 +29,26 @@ afterEach(() => {
   delete document.body.dataset.menuOpen;
 });
 
-describe("SmoothScroll — pára enquanto há uma camada por cima", () => {
-  it("o corpo trancado (a lupa da proposta, a galeria) pára o Lenis, e destrancado volta", async () => {
+/**
+ * Até 3/11 este ficheiro provava que o Lenis parava com uma camada por cima (a
+ * lupa da proposta, a galeria, o menu). A 3/11 ela desligou-o no computador
+ * («igual ao telemóvel»), portanto o que se prova agora é o contrário: com rato
+ * ou trackpad, o Lenis NUNCA chega a ser criado. A regra das camadas continua
+ * provada em `inercia-roda.test.ts` (`haCamadaPorCima`), para o dia em que se
+ * volte a ligar.
+ */
+const construido = vi.fn();
+vi.mock("lenis", () => ({
+  default: class {
+    constructor() {
+      construido();
+      return lenis;
+    }
+  },
+}));
+
+describe("SmoothScroll — desligado no computador (3/11)", () => {
+  it("com rato ou trackpad não cria o Lenis nem prende a roda", async () => {
     vi.stubGlobal("matchMedia", (q: string) => ({
       matches: q.includes("pointer: fine"),
       media: q,
@@ -46,28 +57,10 @@ describe("SmoothScroll — pára enquanto há uma camada por cima", () => {
     }));
     render(<SmoothScroll />);
     await esperar();
-    lenis.stop.mockClear();
-    lenis.start.mockClear();
     document.body.style.overflow = "hidden";
     await esperar();
-    expect(lenis.stop).toHaveBeenCalled();
-    document.body.style.overflow = "";
-    await esperar();
-    expect(lenis.start).toHaveBeenCalled();
-  });
-
-  it("o menu aberto (`data-menu-open`) também o pára", async () => {
-    vi.stubGlobal("matchMedia", (q: string) => ({
-      matches: q.includes("pointer: fine"),
-      media: q,
-      addEventListener() {},
-      removeEventListener() {},
-    }));
-    render(<SmoothScroll />);
-    await esperar();
-    lenis.stop.mockClear();
-    document.body.dataset.menuOpen = "true";
-    await esperar();
-    expect(lenis.stop).toHaveBeenCalled();
+    expect(construido).not.toHaveBeenCalled();
+    expect(lenis.stop).not.toHaveBeenCalled();
+    expect(lenis.start).not.toHaveBeenCalled();
   });
 });
