@@ -9,6 +9,7 @@ import { log } from "@/lib/logger";
 import { gerarLoteDeDerivadas } from "@/lib/derivadas";
 import { eur0 as eur } from "@/lib/money";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -122,7 +123,7 @@ async function apanharDerivadasEmAtraso(desdeMs: number): Promise<void> {
   }
 }
 
-export async function GET(request: NextRequest) {
+async function GET_semMedida(request: NextRequest) {
   if (!authorized(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -265,3 +266,6 @@ async function oResumoDeHoje(request: NextRequest) {
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const GET = comCpu("cron-reminders GET", GET_semMedida);

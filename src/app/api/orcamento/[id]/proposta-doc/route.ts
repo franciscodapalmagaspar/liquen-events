@@ -50,6 +50,7 @@ import { resolverLigacaoDaProposta } from "@/lib/email-ligacao-reservada";
 import { listarEnvios, registarEnvio } from "@/lib/envios-de-proposta";
 import { log } from "@/lib/logger";
 import { eCasamento } from "@/lib/proposal-evento";
+import { comCpu } from "@/lib/medir-cpu";
 
 /** Os erros do estúdio que a rota também recusa — ver «O QUE TRAVA NO ESTÚDIO». */
 const TRAVAM_NO_SERVIDOR: ReadonlySet<string> = new Set([
@@ -87,7 +88,10 @@ export const runtime = "nodejs";
  * estúdio para um pedido novo, por exemplo. O botão sabe ler isso: o resumo
  * sai sem o link em vez de sair com um link partido.
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function GET_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -167,7 +171,10 @@ const ORCAMENTO_MS = maxDuration * 1000;
  */
 const paragrafosDaMensagem = paragrafosDeTexto;
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function POST_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -1927,3 +1934,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const GET = comCpu("proposta-doc GET", GET_semMedida);
+export const POST = comCpu("proposta-doc POST", POST_semMedida);

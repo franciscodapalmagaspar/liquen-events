@@ -20,6 +20,7 @@ import { isDatabaseConfigured } from "@/lib/supabase";
 import { corNormalizada } from "@/lib/cor";
 import { coresDeCaminhos, garantirFoto, updateFoto } from "@/lib/biblioteca-fotos-store";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 // Carrega a foto, redimensiona-a com o sharp, guarda o original E a
@@ -215,7 +216,10 @@ async function mediasAssinadas(caminhos: string[]): Promise<Map<string, string>>
  * fotos que ficaram na pasta de outro pedido — numa lista só, porque o estúdio
  * guarda um mapa `caminho → URL` e não precisa de saber a diferença.
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function GET_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -268,7 +272,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
  * `path` + a signed `url` for each. Paths are persisted on the proposal doc so
  * the studio can re-open and re-edit a proposal without re-uploading.
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function POST_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -476,3 +483,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   return NextResponse.json({ ok: true, images: uploaded });
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const GET = comCpu("assets GET", GET_semMedida);
+export const POST = comCpu("assets POST", POST_semMedida);

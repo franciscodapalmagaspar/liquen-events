@@ -8,6 +8,7 @@ import {
   TECTO_POR_CHAMADA,
 } from "@/lib/aquecimento-de-pdf";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 // O desenho de um PDF traz o `pdf-lib` e o `sharp` atrás.
 export const runtime = "nodejs";
@@ -60,7 +61,7 @@ export const maxDuration = 60;
  * número que ele dá é um TECTO e porque é que enganar-se para cima é o lado
  * certo de se enganar.
  */
-export async function GET(request: NextRequest) {
+async function GET_semMedida(request: NextRequest) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
  * desapareceu do armazenamento não pode parar o aquecimento das outras
  * setenta e nove. O 500 fica para o que impede o trabalho INTEIRO.
  */
-export async function POST(request: NextRequest) {
+async function POST_semMedida(request: NextRequest) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -112,3 +113,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Não consegui aquecer as propostas." }, { status: 500 });
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const GET = comCpu("aquecimento-pdf GET", GET_semMedida);
+export const POST = comCpu("aquecimento-pdf POST", POST_semMedida);

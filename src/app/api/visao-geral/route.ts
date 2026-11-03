@@ -13,6 +13,7 @@ import {
 } from "@/lib/overview-settings-store";
 import { firstError } from "@/lib/validation";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,7 +54,7 @@ function goalError(value: string): string | null {
   return null;
 }
 
-export async function GET(request: NextRequest) {
+async function GET_semMedida(request: NextRequest) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   try {
     return jsonWithEtag(request, await readOverviewSettings());
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
+async function PUT_semMedida(request: NextRequest) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   try {
     const body = await request.json().catch(() => null);
@@ -105,3 +106,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const GET = comCpu("visao-geral GET", GET_semMedida);
+export const PUT = comCpu("visao-geral PUT", PUT_semMedida);

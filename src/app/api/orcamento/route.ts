@@ -45,6 +45,7 @@ import { EVENTOS as EVENTOS_META } from "@/lib/meta/eventos";
 import { desserializar as desserializarMeta } from "@/lib/meta/click-id";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
 import { quemPedeEOCasal } from "@/lib/orcamento/quem-pede";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const maxDuration = 30;
 
@@ -692,7 +693,7 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
   }
 }
 
-export async function POST(request: NextRequest) {
+async function POST_semMedida(request: NextRequest) {
   // A língua em que esta pessoa está a ler, lida ANTES de tudo o resto: é a
   // língua de todas as respostas desta rota, incluindo as que recusam o pedido.
   // (Pode mudar já a seguir: o formulário completo diz a língua em que foi
@@ -971,7 +972,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+async function GET_semMedida(request: NextRequest) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -995,3 +996,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const POST = comCpu("orcamento POST", POST_semMedida);
+export const GET = comCpu("orcamento GET", GET_semMedida);

@@ -13,6 +13,7 @@ import { BUCKET_FILE_SIZE_LIMIT, UPLOAD_MIME_TYPES } from "@/lib/proposal-storag
 import { getSupabase, isDatabaseConfigured } from "@/lib/supabase";
 import { MINIATURA } from "@/lib/derivadas-medidas";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -247,7 +248,10 @@ async function body(request: NextRequest): Promise<Record<string, unknown> | nul
  * A pasta é lida pela MESMA ordem da grelha (mais recentes primeiro), por isso
  * as primeiras miniaturas a aparecer são as das fotos que ela vê primeiro.
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function POST_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   if (!isDatabaseConfigured()) {
     return NextResponse.json({ error: "Armazenamento indisponível." }, { status: 503 });
@@ -336,3 +340,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const POST = comCpu("temas-miniaturas POST", POST_semMedida);

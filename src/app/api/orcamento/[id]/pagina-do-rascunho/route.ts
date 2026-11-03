@@ -11,6 +11,7 @@ import {
   type IdiomaDaProposta,
 } from "@/lib/proposal-doc-textos";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 // O `sharp`, o pdf-lib e o pdf.js precisam do runtime de Node.
 export const runtime = "nodejs";
@@ -51,7 +52,10 @@ export const maxDuration = 60;
  * página do mesmo rascunho (voltar atrás, abrir em ecrã inteiro) não desenha
  * nada: o `imagemDaPagina` guarda a imagem, com o seu tecto de memória.
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function POST_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -127,3 +131,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
 }
+
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+export const POST = comCpu("pagina-do-rascunho POST", POST_semMedida);
