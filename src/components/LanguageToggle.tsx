@@ -96,7 +96,7 @@ export default function LanguageToggle({ light = false }: { light?: boolean }) {
 
   return (
     <div
-      className={`flex items-center gap-1.5 ${pending ? "opacity-60" : ""}`}
+      className={`flex items-center gap-1.5 pointer-coarse:gap-0 ${pending ? "opacity-60" : ""}`}
       role="group"
       aria-label={t.langToggle.label}
     >
