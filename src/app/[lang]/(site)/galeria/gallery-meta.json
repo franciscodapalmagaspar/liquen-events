@@ -77,6 +77,7 @@
     "f": "50,100"
   },
   "/imagens/DaniGui_Adois_66.jpg": {
+    "c": "c1",
     "f": "50,0"
   },
   "/imagens/DaniGui_Adois_78.jpg": {
@@ -2175,6 +2176,7 @@
     "f": "50,0"
   },
   "/imagens/galeria-jun26-18.jpg": {
+    "d": 1,
     "f": "59,50"
   },
   "/imagens/galeria-jun26-19.jpg": {
@@ -2485,6 +2487,287 @@
   "/imagens/ines-goncalo-509.jpg": {
     "f": "50,0"
   },
+  "/imagens/marianaejoao-1075.jpg": {
+    "pb": 1,
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1080.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1081.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1082.jpg": {
+    "f": "50,3"
+  },
+  "/imagens/marianaejoao-1083.jpg": {
+    "f": "50,59"
+  },
+  "/imagens/marianaejoao-1084.jpg": {
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/marianaejoao-1085.jpg": {
+    "c": "c2",
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/marianaejoao-1088.jpg": {
+    "c": "c2",
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/marianaejoao-1094.jpg": {
+    "c": "c1",
+    "d": 1,
+    "f": "59,50"
+  },
+  "/imagens/marianaejoao-1098.jpg": {
+    "c": "c3",
+    "d": 1,
+    "f": "22,50"
+  },
+  "/imagens/marianaejoao-1099.jpg": {
+    "c": "c3",
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/marianaejoao-1101.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1102.jpg": {
+    "c": "c4",
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1103.jpg": {
+    "c": "c4",
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1104.jpg": {
+    "d": 1,
+    "f": "31,50"
+  },
+  "/imagens/marianaejoao-1106.jpg": {
+    "f": "0,50"
+  },
+  "/imagens/marianaejoao-1145.jpg": {
+    "f": "50,22"
+  },
+  "/imagens/marianaejoao-1148.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1149.jpg": {
+    "c": "c5",
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1152.jpg": {
+    "c": "c5",
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1153.jpg": {
+    "d": 1,
+    "f": "100,50"
+  },
+  "/imagens/marianaejoao-1160.jpg": {
+    "f": "50,13"
+  },
+  "/imagens/marianaejoao-1166.jpg": {
+    "c": "c6",
+    "d": 1,
+    "f": "100,50"
+  },
+  "/imagens/marianaejoao-1167.jpg": {
+    "c": "c6",
+    "d": 1,
+    "f": "100,50"
+  },
+  "/imagens/marianaejoao-1169.jpg": {
+    "d": 1,
+    "f": "100,50"
+  },
+  "/imagens/marianaejoao-1179.jpg": {
+    "d": 1,
+    "f": "97,50"
+  },
+  "/imagens/marianaejoao-1181.jpg": {
+    "f": "100,50"
+  },
+  "/imagens/marianaejoao-1184.jpg": {
+    "d": 1,
+    "f": "100,50"
+  },
+  "/imagens/marianaejoao-1188.jpg": {
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/marianaejoao-1197.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1201.jpg": {
+    "f": "0,50"
+  },
+  "/imagens/marianaejoao-1203.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1204.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1209.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1217.jpg": {
+    "d": 1,
+    "f": "88,50"
+  },
+  "/imagens/marianaejoao-1218.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1219.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1220.jpg": {
+    "f": "50,59"
+  },
+  "/imagens/marianaejoao-1221.jpg": {
+    "f": "50,41"
+  },
+  "/imagens/marianaejoao-1222.jpg": {
+    "f": "50,69"
+  },
+  "/imagens/marianaejoao-1247.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1328.jpg": {
+    "f": "50,3"
+  },
+  "/imagens/marianaejoao-1329.jpg": {
+    "pb": 1,
+    "f": "50,41"
+  },
+  "/imagens/marianaejoao-1330.jpg": {
+    "pb": 1,
+    "f": "50,13"
+  },
+  "/imagens/marianaejoao-1331.jpg": {
+    "pb": 1,
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1336.jpg": {
+    "pb": 1,
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1342.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1362.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1365.jpg": {
+    "f": "50,78"
+  },
+  "/imagens/marianaejoao-1404.jpg": {
+    "f": "50,22"
+  },
+  "/imagens/marianaejoao-1406.jpg": {
+    "pb": 1,
+    "f": "50,22"
+  },
+  "/imagens/marianaejoao-1431.jpg": {
+    "f": "50,22"
+  },
+  "/imagens/marianaejoao-1480.jpg": {
+    "f": "50,41"
+  },
+  "/imagens/marianaejoao-1481.jpg": {
+    "pb": 1,
+    "f": "50,59"
+  },
+  "/imagens/marianaejoao-1487.jpg": {
+    "pb": 1,
+    "f": "100,50"
+  },
+  "/imagens/marianaejoao-1489.jpg": {
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1491.jpg": {
+    "pb": 1,
+    "f": "50,0"
+  },
+  "/imagens/marianaejoao-1500.jpg": {
+    "pb": 1
+  },
+  "/imagens/marianaejoao-1578.jpg": {
+    "f": "50,69"
+  },
+  "/imagens/marianaejoao-1579.jpg": {
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/marianaejoao-1673.jpg": {
+    "d": 1,
+    "f": "100,50"
+  },
+  "/imagens/marianaejoao-1675.jpg": {
+    "f": "50,69"
+  },
+  "/imagens/marianaejoao-1676.jpg": {
+    "f": "50,78"
+  },
+  "/imagens/marianaejoao-1678.jpg": {
+    "d": 1,
+    "f": "100,50"
+  },
+  "/imagens/marianaejoao-1706.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1709.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1713.jpg": {
+    "f": "50,100"
+  },
+  "/imagens/marianaejoao-1720.jpg": {
+    "d": 1,
+    "f": "97,50"
+  },
+  "/imagens/marianaejoao-1733.jpg": {
+    "d": 1,
+    "f": "100,50"
+  },
+  "/imagens/marianaejoao-184.jpg": {
+    "f": "50,41"
+  },
+  "/imagens/marianaejoao-185.jpg": {
+    "f": "50,3"
+  },
+  "/imagens/marianaejoao-187.jpg": {
+    "f": "31,50"
+  },
+  "/imagens/marianaejoao-284.jpg": {
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/marianaejoao-286.jpg": {
+    "d": 1,
+    "f": "0,50"
+  },
+  "/imagens/marianaejoao-470.jpg": {
+    "c": "c7",
+    "f": "50,3"
+  },
+  "/imagens/marianaejoao-476.jpg": {
+    "c": "c7",
+    "f": "50,13"
+  },
+  "/imagens/marianaejoao-477.jpg": {
+    "f": "50,13"
+  },
+  "/imagens/marianaejoao-480.jpg": {
+    "f": "50,22"
+  },
+  "/imagens/marianaejoao-606.jpg": {
+    "f": "50,69"
+  },
   "/imagens/matilde-e-tomas0654-1.jpg": {
     "f": "50,22"
   },
@@ -2604,6 +2887,7 @@
     "f": "50,100"
   },
   "/imagens/stephanie-mizio-564.jpg": {
+    "d": 1,
     "f": "0,50"
   },
   "/imagens/stephanie-mizio-565.jpg": {

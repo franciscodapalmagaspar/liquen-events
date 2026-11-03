@@ -1,5 +1,20 @@
 import type { PhotoSrc } from "./photos-data";
 import { collectionFor } from "./collections";
+import EM_DESTAQUE_JSON from "./em-destaque.json";
+
+/**
+ * ── AS FOTOGRAFIAS EM DESTAQUE (3/11, pedido dela) ─────────────────────────
+ *
+ * Ela: «veem-se poucas fotos deste casamento na galeria». As 30 estavam lá,
+ * mas espalhadas pelas ~900 — uma em cada trinta. Escolheu «destacar no
+ * início»: as fotografias desta lista (`em-destaque.json`) ficam nas primeiras
+ * filas, nos {@link LUGARES_EM_DESTAQUE} — a 2.ª da fila do topo e depois de
+ * quatro em quatro, para nunca ficarem duas seguidas. A ordem ENTRE elas muda
+ * com a visita (a mesma semente do resto), e o resto da galeria fica como
+ * estava. Trocar as do destaque é editar o JSON.
+ */
+export const EM_DESTAQUE: readonly string[] = EM_DESTAQUE_JSON as string[];
+export const LUGARES_EM_DESTAQUE: readonly number[] = [1, 5, 9, 13];
 
 /**
  * Photo enriched server-side with its real aspect ratio and (for the tiles that
@@ -89,7 +104,42 @@ function hashUnit(s: string): number {
  * swaps in a random seed once mounted (see `orderSeed`), so each entry differs
  * while the order stays fixed for the whole visit (never reshuffles mid-scroll).
  */
-export function interleaveByCollection(list: Photo[], seed = ""): Photo[] {
+export function interleaveByCollection(
+  todas: Photo[],
+  seed = "",
+  emDestaque: readonly string[] = EM_DESTAQUE,
+): Photo[] {
+  const fixas = new Set(emDestaque);
+  const presas = todas
+    .filter((p) => fixas.has(p.src))
+    .sort((a, b) => hashUnit(a.src + seed) - hashUnit(b.src + seed))
+    .slice(0, LUGARES_EM_DESTAQUE.length);
+  if (!presas.length) return intercalar(todas, seed);
+  const usadas = new Set(presas.map((p) => p.src));
+  const ordem = intercalar(
+    todas.filter((p) => !usadas.has(p.src)),
+    seed,
+    new Set(presas.map(bucketKey)),
+  );
+  // Até onde as fixadas mandam: a última, mais a janela do evento. Nesse
+  // princípio não pode haver outra do MESMO evento (ficava ao lado de uma
+  // fixada); essas descem para logo a seguir.
+  const ate = LUGARES_EM_DESTAQUE[presas.length - 1] + JANELA_EVENTO + 1;
+  const eventos = new Set(presas.map(bucketKey));
+  const cabeca: Photo[] = [];
+  const afastadas: Photo[] = [];
+  let k = 0;
+  for (; k < ordem.length && cabeca.length + presas.length < ate; k++) {
+    (eventos.has(bucketKey(ordem[k])) ? afastadas : cabeca).push(ordem[k]);
+  }
+  const out = [...cabeca, ...afastadas, ...ordem.slice(k)];
+  presas.forEach((p, i) => out.splice(Math.min(LUGARES_EM_DESTAQUE[i], out.length), 0, p));
+  // Tirar e pôr mexe nos vizinhos: a mesma passagem de sempre volta a pôr a
+  // lista de acordo com as regras (as fixadas cumprem-nas, por isso ficam).
+  return deAdjacent(out, 1);
+}
+
+function intercalar(list: Photo[], seed: string, evitarNoTopo?: Set<string>): Photo[] {
   const buckets = new Map<string, Photo[]>();
   const order: string[] = [];
   for (const p of list) {
@@ -114,7 +164,7 @@ export function interleaveByCollection(list: Photo[], seed = ""): Photo[] {
     }
   }
   ranked.sort((a, b) => a.rank - b.rank || hashUnit(a.p.src + seed) - hashUnit(b.p.src + seed));
-  return comMosaico(deAdjacent(ranked.map((r) => r.p)));
+  return comMosaico(deAdjacent(ranked.map((r) => r.p)), evitarNoTopo);
 }
 
 /** Quantos lugares separam duas fotos do mesmo evento, e da mesma cena. */
@@ -205,16 +255,19 @@ const PROCURA_DESTAQUE = 24;
  *  · sem dados de análise (`destaque` em nenhuma), fica a mais deitada das
  *    primeiras `PROCURA_DESTAQUE`.
  */
-function comMosaico(list: Photo[]): Photo[] {
+function comMosaico(list: Photo[], evitar?: Set<string>): Photo[] {
   const limite = Math.min(list.length, PROCURA_DESTAQUE);
-  let iDestaque = list.slice(0, limite).findIndex((p) => p.destaque);
-  if (iDestaque < 0) iDestaque = list.findIndex((p) => p.destaque);
+  // O evento das fotografias em destaque não dá o mosaico grande: elas já
+  // estão no topo, e a 2.ª da fila é uma delas.
+  const podeSer = (p: Photo) => p.destaque && !evitar?.has(bucketKey(p));
+  let iDestaque = list.slice(0, limite).findIndex(podeSer);
+  if (iDestaque < 0) iDestaque = list.findIndex(podeSer);
   if (iDestaque < 0) iDestaque = maisDeitada(list.slice(0, limite));
   if (iDestaque < 0) return list;
   const resto = [...list];
   const [grande] = resto.splice(iDestaque, 1);
   const satelites: Photo[] = [];
-  const eventos = new Set([bucketKey(grande)]);
+  const eventos = new Set([bucketKey(grande), ...(evitar ?? [])]);
   const cenas = new Set(grande.cena ? [grande.cena] : []);
   let pb = grande.pb ? 1 : 0;
   for (let j = 0; j < resto.length && satelites.length < 4; ) {
