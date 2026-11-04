@@ -1826,6 +1826,19 @@ describe("EntradaEmVideo", () => {
     describe("o registo anónimo (ela autorizou, 16/10)", () => {
       let beacons: Blob[];
       beforeEach(() => {
+        // O registo desligou-se a 4/11 (`DIAGNOSTICO_ATE`); aqui prova-se como
+        // ele se porta enquanto está ligado, com o relógio dentro do prazo.
+        vi.useFakeTimers({
+          toFake: [
+            "setInterval",
+            "clearInterval",
+            "setTimeout",
+            "clearTimeout",
+            "performance",
+            "Date",
+          ],
+        });
+        vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
         beacons = [];
         Object.defineProperty(navigator, "sendBeacon", {
           configurable: true,

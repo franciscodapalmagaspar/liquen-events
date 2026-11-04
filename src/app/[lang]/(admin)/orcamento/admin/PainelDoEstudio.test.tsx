@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
    usa. O caminho é relativo porque o `@/` desta casa aponta para `src/`. */
 import { fingirDisposicao, reporDisposicao } from "../../../../../../test/disposicao-fingida";
 import PainelDoEstudio, { type PaginaParaOPainel } from "./PainelDoEstudio";
-import { ESPERA_MS } from "./usePaginaReal";
+import { ESPERA_MS, esquecerPaginasGuardadas } from "./usePaginaReal";
 import { CORTES } from "./ui/adaptativo";
 import type { MoodBoard } from "@/lib/proposal-doc";
 import { MARCA } from "./ui/movimento";
@@ -26,6 +26,7 @@ import { MARCA } from "./ui/movimento";
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  esquecerPaginasGuardadas();
 });
 
 /**
@@ -475,6 +476,34 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     );
     expect(img.getAttribute("src")).toMatch(/^blob:pagina-/);
     expect(screen.getByText(new RegExp(`Página ${corpo.n} de 14`))).toBeTruthy();
+    vi.useRealTimers();
+  });
+
+  it("a mesma página do mesmo rascunho não se pede duas vezes ao servidor (4/11)", async () => {
+    // Ela pediu menos processador na Vercel «mantendo tudo como está». Sair do
+    // painel e voltar (outro passo, outra vista) desmontava-o e desenhava a
+    // página outra vez no servidor, com o rascunho igual.
+    vi.useFakeTimers();
+    comUrls();
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
+    await act(async () => {
+      vi.advanceTimersByTime(ESPERA_MS + 100);
+    });
+    expect(f).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => screen.getByRole("img", { name: /como vai sair/ }));
+    cleanup();
+    // Volta ao mesmo sítio: a página aparece logo, sem pausa e sem pedido.
+    desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    expect(screen.getByRole("img", { name: /como vai sair/ })).toBeTruthy();
+    await act(async () => {
+      vi.advanceTimersByTime(ESPERA_MS + 100);
+    });
+    expect(f).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });
 

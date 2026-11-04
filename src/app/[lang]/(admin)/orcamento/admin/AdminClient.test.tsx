@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, within, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import type { Quote } from "@/lib/orcamento/types";
 import { ToastProvider } from "./Toast";
 import AdminClient from "./AdminClient";
@@ -449,6 +449,42 @@ describe("AdminClient shell", () => {
     );
     expect(pedidos).toHaveLength(1);
     expect(screen.queryByText("Gabriel Antigo")).not.toBeInTheDocument();
+  });
+
+  it("ninguém a mexer há mais de 15 minutos: o relógio deixa de perguntar, e o primeiro gesto pergunta logo (4/11)", async () => {
+    // Uma janela esquecida aberta continua «visível», e perguntava ao servidor
+    // de cinco em cinco minutos durante horas. Ela pediu menos processador na
+    // Vercel «mantendo tudo como está».
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        status: 304,
+        ok: true,
+        headers: { get: () => 'W/"1"' },
+        json: () => Promise.resolve([]),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const pedidos = () =>
+      fetchMock.mock.calls.filter(
+        (args) => (args as unknown as [string])[0] === "/api/orcamento?resumo=1",
+      ).length;
+    try {
+      renderAdmin([makeQuote()]);
+      navTo(/Pedidos/);
+      // Os primeiros quinze minutos ainda contam como «alguém a olhar».
+      act(() => void vi.advanceTimersByTime(16 * 60_000));
+      const antes = pedidos();
+      expect(antes).toBeGreaterThan(0);
+      // Mais meia hora sem um gesto: nenhuma pergunta.
+      act(() => void vi.advanceTimersByTime(30 * 60_000));
+      expect(pedidos()).toBe(antes);
+      // O primeiro gesto pergunta logo.
+      fireEvent.pointerDown(window);
+      expect(pedidos()).toBe(antes + 1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   /**

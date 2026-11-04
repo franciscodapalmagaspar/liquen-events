@@ -70,6 +70,10 @@ beforeEach(() => {
   rl.ok = true;
   vi.clearAllMocks();
   vi.useRealTimers();
+  // O registo desligou-se a 4/11 (`DIAGNOSTICO_ATE`). O que se prova aqui é
+  // como a rota se porta enquanto está ligado: o relógio fica dentro do prazo.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
 });
 
 describe("POST /api/diagnostico-video", () => {

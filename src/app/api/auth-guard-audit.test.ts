@@ -24,7 +24,7 @@ import { NextRequest } from "next/server";
  *
  *  3. TOKEN / SECRET — the proposal PDF + the proposal accept POST (signed token,
  *                      404/401 on a bad token), cron (CRON_SECRET, fails closed
- *                      in prod), devproposalpreview (dev-only, 404 in prod).
+ *                      in prod).
  *
  * The auth mock mirrors every existing route test: `@/lib/admin-auth` keeps its
  * real exports (cookie names, token signing) but `isAuthed()` returns a flag we
@@ -847,7 +847,6 @@ describe("a auditoria cobre TODAS as rotas de src/app/api", () => {
       // produção) — e sai daqui um ficheiro com TODOS os dados de clientes,
       // por isso é a rota desta lista onde a guarda mais tem de valer.
       "./cron/backup/route",
-      "./devproposalpreview/route",
       /**
        * O apanha-tudo da API. É PÚBLICO porque não pode ser outra coisa: só
        * recebe endereços que não existem, e responde 404 em JSON a todos os
@@ -1090,18 +1089,5 @@ describe("SECRET-guarded cron routes fail closed", () => {
     const fn = await handler("./cron/reminders/route", "GET");
     const res = await fn(req("GET"), ctx());
     expect(res.status).not.toBe(401);
-  });
-});
-
-describe("DEV-only preview is not exposed in production", () => {
-  afterEach(() => vi.unstubAllEnvs());
-
-  it("GET /api/devproposalpreview → 404 in production (never renders the sample)", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-    const fn = await handler("./devproposalpreview/route", "GET");
-    const url = new URL("https://liquen.test/api/devproposalpreview");
-    const res = await fn({ nextUrl: url, url: url.toString() } as unknown as NextRequest, ctx());
-    expect(res.status).toBe(404);
-    expect(calls).not.toContain("proposal-doc-pdf.renderProposalDocPdf");
   });
 });

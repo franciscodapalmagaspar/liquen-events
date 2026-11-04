@@ -23,8 +23,12 @@
  * entram por fora, para se testar sem browser.
  */
 
-/** Até quando o registo está ligado (dia, em UTC). Depois, nem envia nem grava. */
-export const DIAGNOSTICO_ATE = "2026-11-16";
+/**
+ * Até quando o registo está ligado (dia, em UTC). Depois, nem envia nem grava.
+ * Era 16/11; desligou-se a 4/11, a pedido dela, para não gastar processador
+ * na Vercel com o vídeo já resolvido.
+ */
+export const DIAGNOSTICO_ATE = "2026-11-04";
 
 /** Sem fotograma novo durante mais do que isto, com o vídeo à vista, é uma paragem. */
 export const PARAGEM_MS = 300;
