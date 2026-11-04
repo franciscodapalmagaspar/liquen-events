@@ -350,9 +350,70 @@ describe("EntradaEmVideo", () => {
       const v = document.querySelector<HTMLVideoElement>("[data-primeiro]")!;
       v.dispatchEvent(new Event("playing"));
       play.mockClear();
-      vi.advanceTimersByTime(2500);
+      // 4/11: o tecto sem cortina passou de 2,5 s para 0,4 s (a fotografia
+      // parada que ela via pelo Instagram).
+      vi.advanceTimersByTime(399);
+      expect(play).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
       expect(play).toHaveBeenCalledTimes(1);
       expect(v.hasAttribute("data-a-espera")).toBe(false);
+    });
+
+    it("sem cortina e com 1 s já descarregado, anda logo: não pára no 1.º fotograma (4/11)", () => {
+      document.body.innerHTML = `<div class="cortina cortina--fora"></div><div data-entrada="">${HTML_DOS_VIDEOS}</div>`;
+      arrancarEntrada(
+        [...Array(3)].map(() => "<source src='x.mp4' type='video/mp4'>"),
+        "liquen-entrada-ultimo",
+        2500,
+      );
+      const v = document.querySelector<HTMLVideoElement>("[data-primeiro]")!;
+      Object.defineProperty(v, "buffered", {
+        configurable: true,
+        value: { length: 1, start: () => 0, end: () => 1.5 },
+      });
+      pausa.mockClear();
+      v.dispatchEvent(new Event("playing"));
+      expect(pausa).not.toHaveBeenCalled();
+      expect(v.hasAttribute("data-a-espera")).toBe(false);
+    });
+
+    it("é o guião que o mostra, assim que anda, em 0,2 s — sem esperar pelo motor (4/11)", () => {
+      document.body.innerHTML = `<div class="cortina cortina--fora"></div><div data-entrada="">${HTML_DOS_VIDEOS}</div>`;
+      arrancarEntrada(
+        [...Array(3)].map(() => "<source src='x.mp4' type='video/mp4'>"),
+        "liquen-entrada-ultimo",
+        2500,
+        [],
+        1200,
+        undefined,
+        undefined,
+        800,
+      );
+      const v = document.querySelector<HTMLVideoElement>("[data-primeiro]")!;
+      Object.defineProperty(v, "buffered", {
+        configurable: true,
+        value: { length: 1, start: () => 0, end: () => 2 },
+      });
+      Object.defineProperty(v, "paused", { configurable: true, value: false });
+      v.dispatchEvent(new Event("playing"));
+      expect(v.style.opacity).toBe("1");
+      expect(v.style.transition).toContain("200ms");
+      vi.advanceTimersByTime(300);
+      // As passagens seguintes voltam aos 0,8 s.
+      expect(v.style.transition).toContain("800ms");
+    });
+
+    it("parado (recusado pelo aparelho) nunca se mostra: o iPhone desenharia o ▶", () => {
+      document.body.innerHTML = `<div class="cortina cortina--fora"></div><div data-entrada="">${HTML_DOS_VIDEOS}</div>`;
+      arrancarEntrada(
+        [...Array(3)].map(() => "<source src='x.mp4' type='video/mp4'>"),
+        "liquen-entrada-ultimo",
+        2500,
+      );
+      const v = document.querySelector<HTMLVideoElement>("[data-primeiro]")!;
+      v.dispatchEvent(new Event("playing"));
+      vi.advanceTimersByTime(500);
+      expect(v.style.opacity).not.toBe("1");
     });
   });
 

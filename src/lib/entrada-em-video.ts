@@ -147,6 +147,17 @@ export type Formato = "mp4" | "webm" | "hevc" | "av1";
 /** Quanto dura a passagem de um vídeo para o seguinte (só opacidade). */
 export const PASSAGEM_MS = 800;
 
+/**
+ * Sem cortina, o máximo que o take de entrada fica parado no 1.º fotograma à
+ * espera de reserva, quando ainda não tem 1 s descarregado à frente. Era o
+ * `CORTINA_ESPERA_MAX_MS` (2,5 s): ela, pelo Instagram (4/11), via a
+ * fotografia parada antes de o vídeo andar.
+ */
+export const ARRANQUE_SEM_CORTINA_MAX_MS = 400;
+
+/** O take de entrada sobe por cima da fotografia nisto (as passagens: `PASSAGEM_MS`). */
+export const ENTRADA_MS = 200;
+
 /** A partir de quantos píxeis reais de largura vale a pena a versão grande. */
 const LARGURA_DO_GRANDE = 2200;
 

@@ -157,7 +157,7 @@ export default async function ServiceDetailPage({
       {/* ── Hero ── */}
       {/* -mt-24 cancels the global <main> pt-24 so the hero runs full-bleed to
           the very top behind the transparent navbar (no white strip / hairline). */}
-      <section className="relative -mt-24 min-h-[70svh] flex items-end overflow-hidden">
+      <section className="relative -mt-24 min-h-[calc(var(--ecra)*0.7)] flex items-end overflow-hidden">
         <Parallax speed={0.14} className="absolute inset-0">
           <SafeImage
             src={svc.hero}

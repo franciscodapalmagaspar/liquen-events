@@ -376,6 +376,24 @@
   --cortina-sobe: 1980ms; /* 88% de 2250 */
 }
 
+/* ── A ALTURA DO ECRÃ NÃO MEXE COM O DESLIZE (4/11) ────────────────────────
+   Ela, pelo link do Instagram, no telemóvel: «quando estou a fazer scroll…
+   ele aumenta e diminui, faz tipo zoom, mas de forma travada». As capas e os
+   painéis grandes mediam-se em `svh`, e as fotografias e o vídeo lá dentro são
+   `object-cover`: se a caixa muda de altura, a imagem é reescalada. No Safari
+   o `svh` não muda; no navegador DENTRO de uma app (Instagram, Facebook) a
+   vista web inteira muda de tamanho quando a barra da app aparece e esconde
+   com o dedo — e aí todas as unidades de altura mudam com ela, aos saltos.
+
+   `--ecra` é a altura do ecrã tirada UMA vez, ao abrir, pelo guião do
+   `<head>` (`src/app/[lang]/layout.tsx`), e só volta a ser tirada quando a
+   LARGURA muda (rodar o telemóvel). Sem JavaScript fica o `100svh` de sempre.
+   Quem medir uma capa ou um painel do sítio pelo ecrã usa `var(--ecra)`
+   (`min-h-[var(--ecra)]`, `calc(var(--ecra)*0.86)`), e não `svh`/`vh`/`dvh`. */
+:root {
+  --ecra: 100svh;
+}
+
 /* Pedido de orçamento — clean white surface, matching the rest of the site.
    Stays full-screen/focused (footer, WhatsApp & scroll-progress hidden below),
    but the form itself is light. The left image panel keeps its own cream-on-

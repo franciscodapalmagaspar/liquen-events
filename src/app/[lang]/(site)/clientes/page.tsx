@@ -129,7 +129,7 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
       {/* ── HERO ── */}
       {/* -mt-24 cancels the global <main> pt-24 so the hero runs full-bleed to
           the very top behind the transparent navbar (no white strip / hairline). */}
-      <section className="relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden">
+      <section className="relative -mt-24 min-h-[var(--ecra)] flex flex-col justify-end overflow-hidden">
         <Parallax speed={0.14} className="absolute inset-0">
           <HeroImage
             src="/imagens/EW1_1393.jpg"

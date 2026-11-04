@@ -90,7 +90,7 @@ export default async function EstiloPage({
         items={[{ name: c.h1, path: `/casamentos/estilo/${estilo.slug}` }]}
       />
 
-      <section className="relative min-h-[92svh] flex items-center">
+      <section className="relative min-h-[calc(var(--ecra)*0.92)] flex items-center">
         <div className="absolute inset-0">
           {/* HeroImage e não SafeImage: só o HeroImage usa o `heroImageLoader`,
               que resolve a imagem para os WebP estáticos até 2048 px. Numa
