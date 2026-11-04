@@ -371,7 +371,7 @@ Pastas: `src/components/motion/`, `src/components/`, `src/lib/motion/`. Regra ge
   - `lighthouse.yml` (PR e push a `main`, `continue-on-error: true`, informativo): matriz computador (`lighthouserc.json`) e telemóvel (`lighthouserc.mobile.json`) sobre `/`, `/servicos`, `/contacto`, `/clientes`, `/galeria`, `/sobre`, 3 corridas em computador.
     - Computador: desempenho ≥ 0,8 (aviso), acessibilidade ≥ 0,9 (erro), boas práticas ≥ 0,9 (aviso), SEO ≥ 0,9 (erro), LCP ≤ 2 500 ms, CLS ≤ 0,1, TBT ≤ 200 ms, TTI ≤ 3 500 ms, Speed Index ≤ 3 400 ms (avisos).
     - Telemóvel: desempenho ≥ 0,6, LCP ≤ 4 000 ms, CLS ≤ 0,1, TBT ≤ 600 ms, TTI ≤ 7 000 ms, Speed Index ≤ 5 800 ms (todos avisos).
-  - `publicar-vercel.yml` (push a `main`), `container.yml` (imagem, SBOM, análise), `codeql.yml`, `semgrep.yml`, `gitleaks.yml`, `scorecard.yml` (OpenSSF).
+  - `publicar-vercel.yml` (só à mão: desde o Pro, a ligação do GitHub já publica cada push a `main`), `container.yml` (imagem, SBOM, análise), `codeql.yml`, `semgrep.yml`, `gitleaks.yml`, `scorecard.yml` (OpenSSF).
   - Descrição das verificações: `docs/VERIFICACOES.md`.
 
 ---
