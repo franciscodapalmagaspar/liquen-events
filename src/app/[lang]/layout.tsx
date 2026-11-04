@@ -399,7 +399,12 @@ export default async function RootLayout({
               "var d=document.documentElement;" +
               "d.classList.add('com-javascript');" +
               "try{if(localStorage.getItem('liquen-consent'))d.classList.add('consentimento-decidido')}" +
-              "catch(e){d.classList.add('consentimento-decidido')}",
+              "catch(e){d.classList.add('consentimento-decidido')}" +
+              // A altura do ecrã tirada uma vez (ver `--ecra` em globals.css):
+              // só volta a ser tirada quando a LARGURA muda (rodar), nunca
+              // quando é só a barra do Instagram a aparecer e a esconder.
+              ";var w=innerWidth,e=function(){d.style.setProperty('--ecra',innerHeight+'px')};e();" +
+              "addEventListener('resize',function(){if(innerWidth!==w){w=innerWidth;e()}})",
           }}
         />
         {/* O aperto de mão com o Storage começa aqui, e não quando o primeiro

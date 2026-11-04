@@ -190,7 +190,7 @@ export default async function PaginaSocial({
           browser que ainda não recolheu, e a frase ficava cortada). Uma
           fotografia, uma frase, um botão — o botão é a barra fixa, que já está
           desenhada no fundo deste mesmo ecrã. */}
-      <section className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden">
+      <section className="relative flex min-h-[var(--ecra)] flex-col justify-end overflow-hidden">
         <div className="absolute inset-0">
           <HeroImage
             src={variante.capa}

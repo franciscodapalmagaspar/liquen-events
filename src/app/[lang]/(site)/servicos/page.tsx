@@ -120,7 +120,7 @@ function ServiceBand({
       // à parte e o do telemóvel estava errado: a banda mede `46svh` (≈386 px)
       // e reservava `clamp(480px,60vh,680px)` (≈503 px), 117 px a mais vezes
       // oito bandas. A página encolhia debaixo do dedo na primeira descida.
-      className="cv-panel relative overflow-hidden flex items-end [--cv-h:46svh] lg:[--cv-h:clamp(480px,60vh,680px)]"
+      className="cv-panel relative overflow-hidden flex items-end [--cv-h:calc(var(--ecra)*0.46)] lg:[--cv-h:clamp(480px,60vh,680px)]"
     >
       <Parallax speed={0.12} className="absolute inset-0">
         <SafeImage
@@ -213,7 +213,7 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
           meio píxel entre painéis não mostrarem branco. */}
       <section
         data-paineis-escuros
-        className="relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden"
+        className="relative -mt-24 min-h-[var(--ecra)] flex flex-col justify-end overflow-hidden"
       >
         <Parallax speed={0.14} className="absolute inset-0">
           <HeroImage

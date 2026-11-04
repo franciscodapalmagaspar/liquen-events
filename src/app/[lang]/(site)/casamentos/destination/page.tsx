@@ -170,7 +170,7 @@ export default async function DestinationPage({ params }: { params: Promise<{ la
         items={[{ name: c.h1, path: CAMINHO }]}
       />
 
-      <section className="relative min-h-[92svh] flex items-center">
+      <section className="relative min-h-[calc(var(--ecra)*0.92)] flex items-center">
         <div className="absolute inset-0">
           {/* HeroImage e não SafeImage — ver a nota na página de polo. */}
           <HeroImage

@@ -15,6 +15,8 @@ import {
   IMAGEM_PRESA_MS,
   SALTO_DE_DESTRAVAR_S,
   PASSAGEM_MS,
+  ARRANQUE_SEM_CORTINA_MAX_MS,
+  ENTRADA_MS,
   PASSAGEM_PRESA_MS,
   SALTAR_SEM_DADOS_MS,
   TENTAR_DE_NOVO_MS,
@@ -298,6 +300,8 @@ export function arrancarEntrada(
   levesDeitado: string[] = [],
   chaveAlivio = "",
   alivioMs = 0,
+  arranqueMax = 400,
+  entradaMs = 200,
 ): void {
   const doc = document as ComPrerender;
   const guiao = doc.currentScript;
@@ -411,10 +415,28 @@ export function arrancarEntrada(
     };
     // Enquanto este atributo existir, o componente não toca neste vídeo.
     v.setAttribute("data-a-espera", "");
+    // ── E É O GUIÃO QUE O MOSTRA (4/11) ─────────────────────────────────
+    // Ela, pelo Instagram: «aparece com o vídeo parado e só depois é que
+    // começa… parece que tem uma print». O vídeo só subia por cima da
+    // fotografia quando o motor (React) chegava — no navegador do Instagram,
+    // segundos depois — e subia em 0,8 s. Agora, no instante em que ANDA,
+    // o próprio guião o mostra, em `entradaMs`. Parado nunca (o iPhone com a
+    // poupança de energia desenharia o ▶ por cima).
+    const revelar = () => {
+      if (v.paused) return;
+      v.style.transition = "opacity " + entradaMs + "ms ease";
+      v.style.zIndex = "2";
+      v.style.opacity = "1";
+      setTimeout(() => {
+        v.style.transition = "opacity " + passagemMs + "ms ease";
+      }, entradaMs + 50);
+    };
     const largar = () => {
       if (largou) return;
       largou = true;
       v.removeAttribute("data-a-espera");
+      if (!v.paused) revelar();
+      else v.addEventListener("playing", revelar, { once: true });
       const p = v.play();
       if (p) p.catch(() => undefined);
       if (segurou) {
@@ -433,6 +455,23 @@ export function arrancarEntrada(
         "playing",
         () => {
           if (largou) return;
+          // ── SEM CORTINA, NÃO SE ESPERA PELA RESERVA (4/11) ─────────────
+          // Ela: «quero que logo quando o site é aberto o vídeo comece logo,
+          // sem haver nenhuma foto parada». MEDIDO num iPhone emulado em 4G:
+          // a espera pelo `canplaythrough` deixava a fotografia parada ~1 s
+          // depois de o vídeo já ter imagem. Com 1 s descarregado à frente
+          // anda já; senão espera no máximo `arranqueMax`. A rede fraca
+          // ao alto continua a passar à leve (`medirMs`), e as paragens sem
+          // dados descem os takes seguintes (`deveAliviarPorRede`).
+          if (!pano) {
+            const b = v.buffered;
+            const aFrente = b && b.length ? b.end(b.length - 1) - v.currentTime : 0;
+            if (aFrente >= 1) {
+              pronto = true;
+              largar();
+              return;
+            }
+          }
           // O 1.º fotograma está pronto: pára nele e junta reserva.
           v.pause();
           try {
@@ -442,7 +481,7 @@ export function arrancarEntrada(
           }
           if (v.readyState >= 4) ficaPronto();
           else v.addEventListener("canplaythrough", ficaPronto, { once: true });
-          if (!pano) setTimeout(largar, esperaMax);
+          if (!pano) setTimeout(largar, arranqueMax);
         },
         { once: true },
       );
@@ -526,7 +565,7 @@ const LEVES_DEITADO = Array.from({ length: NUMERO_DE_VIDEOS }, (_, i) => fonteLe
 const ANIMADAS = imagensAnimadas(TAKE_DE_ENTRADA);
 
 /** O guião como texto, para ir no HTML (ver `arrancarEntrada`). */
-export const GUIAO_DA_ENTRADA = `(${arrancarEntrada.toString()})(${JSON.stringify(FONTES)},${JSON.stringify(CHAVE_DO_ULTIMO)},${CORTINA_ESPERA_MAX_MS},${JSON.stringify(LEVES)},${MEDIR_REDE_MS},${JSON.stringify(ANIMADAS)},${porImagemAnimada.toString()},${PASSAGEM_MS},${JSON.stringify(LEVES_DEITADO)},${JSON.stringify(CHAVE_DO_ALIVIO)},${ALIVIO_DURA_MS});`;
+export const GUIAO_DA_ENTRADA = `(${arrancarEntrada.toString()})(${JSON.stringify(FONTES)},${JSON.stringify(CHAVE_DO_ULTIMO)},${CORTINA_ESPERA_MAX_MS},${JSON.stringify(LEVES)},${MEDIR_REDE_MS},${JSON.stringify(ANIMADAS)},${porImagemAnimada.toString()},${PASSAGEM_MS},${JSON.stringify(LEVES_DEITADO)},${JSON.stringify(CHAVE_DO_ALIVIO)},${ALIVIO_DURA_MS},${ARRANQUE_SEM_CORTINA_MAX_MS},${ENTRADA_MS});`;
 
 /**
  * O HTML dos três vídeos, igual no servidor e no browser: os três vazios.

@@ -63,7 +63,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
           the very top behind the transparent navbar (no white strip / hairline). */}
       <section
         className="relative -mt-24 overflow-hidden"
-        style={{ height: "65svh", minHeight: "420px" }}
+        style={{ height: "calc(var(--ecra) * 0.65)", minHeight: "420px" }}
       >
         <Parallax speed={0.14} className="absolute inset-0">
           <HeroImage

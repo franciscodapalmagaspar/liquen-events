@@ -63,7 +63,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
           preto do véu. Até 1/11 era só o preto (30/10, «nível estúdio»: «sem
           ecrã branco»), e ela via-o: «ficou tudo preto». */}
       <section
-        className="recuo-consentimento relative -mt-24 min-h-[100svh] flex flex-col justify-end overflow-hidden bg-[#080808] bg-cover bg-center"
+        className="recuo-consentimento relative -mt-24 min-h-[var(--ecra)] flex flex-col justify-end overflow-hidden bg-[#080808] bg-cover bg-center"
         style={{ backgroundImage: `url("${blurFor(FOTO_DA_ENTRADA).blurDataURL}")` }}
       >
         <Parallax speed={0.14} className="absolute inset-0">
@@ -212,7 +212,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
           // perseguir, não custa nada visível (é 1 px do fundo de uma foto de
           // sangria inteira) e não mexe no espaço reservado do
           // `contain-intrinsic-size`, que é a caixa de conteúdo.
-          className="cv-panel relative -mb-px h-[var(--cv-h)] w-full overflow-hidden [--cv-h:max(86svh,560px)]"
+          className="cv-panel relative -mb-px h-[var(--cv-h)] w-full overflow-hidden [--cv-h:max(calc(var(--ecra)*0.86),560px)]"
         >
           {/* The photograph settles in as the chapter enters — a slow cinematic
               zoom-out (scale 1.08 → 1) with a fade. Pure transform + opacity, so
@@ -241,7 +241,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
               maiúscula legível sem depender de sombra no texto. */}
           <div aria-hidden className="absolute inset-0" style={{ backgroundImage: PANEL_VEIL }} />
           <div className="absolute inset-x-0 bottom-0">
-            <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 pb-[11svh] lg:pb-[13svh]">
+            <div className="max-w-7xl mx-auto px-6 sm:px-10 lg:px-16 pb-[calc(var(--ecra)*0.11)] lg:pb-[calc(var(--ecra)*0.13)]">
               {/* The caption composes itself in a 3-beat cadence (gold eyebrow →
                   title → CTA) rather than appearing as one block — a small
                   stagger reads as "authored" without feeling slow. */}
