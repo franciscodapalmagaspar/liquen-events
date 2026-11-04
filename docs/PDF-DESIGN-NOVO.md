@@ -182,8 +182,10 @@ lado a lado com o modelo página a página. O jantar de empresa sai com as mesma
     tiver outras, vêm de outro capítulo.
 13. **O grão é sempre o mesmo para a mesma fotografia** (ruído com semente):
     o mesmo PDF gerado duas vezes dá os mesmos bytes.
-14. **A nota de «A proposta»** é a primeira nota que ela escreveu nos temas: o
-    documento não tem um campo para ela.
+14. **«A proposta» não tem nota.** Ia buscar a primeira nota que ela escreveu
+    nos temas (o documento não tem um campo para esta página), e a frase da
+    «Decoração Cerimónia» aparecia também na página 3. Ela, a 4/11: «esse texto
+    é só para a decoração da cerimónia». A nota de cada tema fica só no tema.
 15. **A paleta tem 6 lugares** (5 quadradas e o painel, no fim). O PR paralelo
     `feat/pdf-paleta-e-enquadrar` faz destes lugares escolhas dela; quem juntar
     o segundo resolve o conflito.

@@ -495,9 +495,11 @@ async function motor(
       org,
       casamento,
     );
-    // O documento não tem um campo para esta nota: é a primeira que ela
-    // escreveu nos temas, que é onde descreve a decoração.
-    const nota = comConteudo.find((x) => x.nota)?.nota ?? "";
+    // Sem nota. Ia buscar a primeira que ela escreveu nos temas (o documento
+    // não tem um campo para esta página), mas essa nota é de UM tema: a frase
+    // da «Decoração Cerimónia» aparecia também aqui, na página 3. Ela (4/11):
+    // «esse texto é só para a decoração da cerimónia». Fica só no tema dele.
+    const nota = "";
     web.proposta = { sobretitulo: t.sobretituloApresentacao, titulo, factos, nota, foto: fw(foto) };
     plano.push({
       entrada: te.aProposta,

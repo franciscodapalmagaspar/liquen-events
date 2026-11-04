@@ -254,6 +254,22 @@ describe("o conteúdo da proposta online: as fotografias do PDF", () => {
     expect(web.fecho.validade).toMatch(/2026/);
   });
 
+  it("a nota de um tema fica no tema: «A proposta» não a repete (4/11)", async () => {
+    // Ela: a frase da decoração da cerimónia aparecia também na página 3 —
+    // «esse texto é só para a decoração da cerimónia».
+    const base = comCaminhos();
+    const d = {
+      ...base,
+      moodBoards: base.moodBoards.map((m, i) =>
+        i === 0 ? { ...m, annotation: "TESTE frase só da cerimónia." } : m,
+      ),
+    };
+    const web = await conteudoDoEditorial(d, "pt", medidas);
+    expect(web.proposta.nota).toBe("");
+    const temas = web.capitulos.flatMap((c) => c.temas);
+    expect(temas.filter((x) => x.nota === "TESTE frase só da cerimónia.")).toHaveLength(1);
+  });
+
   it("sem orçamento, não há investimento", async () => {
     const web = await conteudoDoEditorial(
       comCaminhos({ totalAmount: 0, totalText: "", budgetItems: [] }),
