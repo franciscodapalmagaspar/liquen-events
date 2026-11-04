@@ -101,6 +101,7 @@ async function barraEReserva(page: Page) {
 }
 
 const HEROI_GALERIA = 'main section a[href$="/galeria"]';
+const HEROI_PROPOSTA = 'main section a[href$="/orcamento"]';
 const CTA_FIXO = 'div[class*="z-40"][class*="fixed"] a';
 const WHATSAPP = "a.whatsapp-fixed";
 
@@ -123,9 +124,9 @@ for (const medida of MEDIDAS) {
       // Os dois flutuantes só nascem em `requestIdleCallback` e a pílula de
       // WhatsApp espera ainda 1,5 s antes de se mostrar.
       await esperarQueApareca(page, WHATSAPP);
-      // E o herói tem de estar montado — é onde vive um dos alvos. Desde 2/11
-      // o herói tem só o «Ver galeria»: o «Pedir proposta» saiu (um só por
-      // página, no fim, pedido dela).
+      // E o herói tem de estar montado — é onde vivem dois dos alvos. O
+      // «Pedir proposta» saiu a 2/11 e voltou a 4/11, ao lado do «Ver
+      // galeria» (pedido dela).
       await expect(page.locator(HEROI_GALERIA).first()).toBeVisible();
     });
 
@@ -146,7 +147,10 @@ for (const medida of MEDIDAS) {
     });
 
     test("no centro do CTA do herói está o próprio CTA", async ({ page }) => {
-      for (const [nome, seletor] of [["Ver galeria →", HEROI_GALERIA]] as const) {
+      for (const [nome, seletor] of [
+        ["Pedir proposta →", HEROI_PROPOSTA],
+        ["Ver galeria →", HEROI_GALERIA],
+      ] as const) {
         const r = await quemEstaNoCentro(page, seletor);
         expect(r.existe, `não encontrei o «${nome}» do herói`).toBe(true);
         expect(

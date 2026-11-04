@@ -156,10 +156,21 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                     embrulho, a caixa cresce e o filete continua colado à
                     palavra. O `group-hover` substitui o `hover` porque quem
                     recebe o rato agora é o link, não o span. */}
-                  {/* O «Pedir proposta» que vivia aqui saiu (ela, 2/11: «um
-                    estúdio de topo não precisa de estar sempre a dizer pedir
-                    orçamento»). Um só por página, no fim (`home-cta`), mais
-                    o do menu e o flutuante. */}
+                  {/* O «Pedir proposta» saiu daqui a 2/11 (ela: «um estúdio de
+                    topo não precisa de estar sempre a dizer pedir orçamento»)
+                    e VOLTOU a 4/11, pedido dela com a captura do primeiro
+                    ecrã: «coloca aqui pedir proposta ao lado de ver a galeria».
+                    O mesmo traço do «Ver galeria», e em primeiro, que é a
+                    acção que interessa. */}
+                  <TrackedLink
+                    href={localizeHref("/orcamento", locale)}
+                    trackProps={{ source: "home-hero" }}
+                    className="alvo-toque group inline-flex items-center text-white text-[9px] sm:text-[10px] tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
+                  >
+                    <span className="inline-flex items-center gap-1.5 border-b border-white/60 transition-colors group-hover:border-white">
+                      {t.common.pedirOrcamento} <span aria-hidden>→</span>
+                    </span>
+                  </TrackedLink>
                   <Link
                     href={localizeHref("/galeria", locale)}
                     className="alvo-toque group inline-flex items-center text-white/85 text-[9px] sm:text-[10px] tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
