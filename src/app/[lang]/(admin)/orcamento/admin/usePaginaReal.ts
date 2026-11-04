@@ -37,6 +37,42 @@ import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
  */
 export const ESPERA_MS = 3000;
 
+/**
+ * ── O QUE JÁ VEIO NÃO SE PEDE OUTRA VEZ (4/11) ──────────────────────────
+ *
+ * Ela pediu para cortar o processador da Vercel «mantendo tudo como está».
+ * Este é o pedido mais caro do back office: 1,5 s de processador por página,
+ * medido nos registos de 4/11. E repetia-se sem razão: trocar de página e
+ * voltar, mudar de passo ou de vista e regressar desmontava o painel, e a
+ * página voltava a ser desenhada no servidor, com o rascunho igual.
+ *
+ * Agora a resposta fica guardada no navegador, pela mesma chave que o servidor
+ * já usava (o rascunho inteiro, a língua, a página e a largura). Rascunho igual
+ * é imagem igual — o motor do PDF é o mesmo e não depende de mais nada —, por
+ * isso a página guardada é exactamente a que o servidor voltaria a desenhar.
+ * Basta mudar uma vírgula para a chave mudar e a página ser pedida de novo.
+ *
+ * Guardam-se as últimas `GUARDADAS_MAX`: umas 100 KB cada, uns 2–3 MB no
+ * total. Uma falha nunca se guarda.
+ */
+export const GUARDADAS_MAX = 24;
+const guardadas = new Map<string, { imagem: Blob; paginas: number | null }>();
+
+function guardar(chave: string, valor: { imagem: Blob; paginas: number | null }) {
+  guardadas.delete(chave);
+  guardadas.set(chave, valor);
+  while (guardadas.size > GUARDADAS_MAX) {
+    const maisVelha = guardadas.keys().next().value;
+    if (maisVelha === undefined) break;
+    guardadas.delete(maisVelha);
+  }
+}
+
+/** Para os testes: cada um começa sem páginas guardadas. */
+export function esquecerPaginasGuardadas() {
+  guardadas.clear();
+}
+
 export interface PaginaReal {
   /** URL de objeto da última página que chegou, ou `null`. */
   url: string | null;
@@ -84,6 +120,20 @@ export function usePaginaReal({
 
   useEffect(() => {
     if (!corpo || !quoteId) return;
+    const chave = `${quoteId}\u0000${corpo}`;
+    const mostrar = (imagem: Blob, paginas: number | null) => {
+      const url = URL.createObjectURL(imagem);
+      if (ultimaUrl.current) URL.revokeObjectURL(ultimaUrl.current);
+      ultimaUrl.current = url;
+      setEstado({ url, n: JSON.parse(corpo).n, aCarregar: false, falhou: false, paginas });
+    };
+    const ja = guardadas.get(chave);
+    if (ja) {
+      // Já veio: mostra-se logo, sem pausa e sem pedir nada ao servidor.
+      guardar(chave, ja);
+      const logo = window.setTimeout(() => mostrar(ja.imagem, ja.paginas), 0);
+      return () => window.clearTimeout(logo);
+    }
     const controlo = new AbortController();
     const temporizador = window.setTimeout(async () => {
       // Ninguém está a ver: o desenho fica para quando ela voltar e mexer.
@@ -98,14 +148,12 @@ export function usePaginaReal({
         });
         const paginas = Number(res.headers.get("X-Paginas")) || null;
         if (!res.ok) throw new Error(String(res.status));
-        const url = URL.createObjectURL(await res.blob());
-        if (controlo.signal.aborted) {
-          URL.revokeObjectURL(url);
-          return;
-        }
-        if (ultimaUrl.current) URL.revokeObjectURL(ultimaUrl.current);
-        ultimaUrl.current = url;
-        setEstado({ url, n: JSON.parse(corpo).n, aCarregar: false, falhou: false, paginas });
+        const imagem = await res.blob();
+        // Guarda-se mesmo que este pedido tenha ficado velho: a página está
+        // certa para AQUELE rascunho, e voltar a ele não a pede outra vez.
+        guardar(chave, { imagem, paginas });
+        if (controlo.signal.aborted) return;
+        mostrar(imagem, paginas);
       } catch {
         if (controlo.signal.aborted) return;
         setEstado((e) => ({ ...e, aCarregar: false, falhou: true }));
