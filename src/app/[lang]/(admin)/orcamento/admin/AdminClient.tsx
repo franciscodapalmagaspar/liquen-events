@@ -3569,16 +3569,41 @@ export default function AdminClient({
     const aoVoltar = () => {
       if (document.visibilityState === "visible") void revalidarPedidos();
     };
+    /**
+     * ── NINGUÉM A MEXER, NINGUÉM A PERGUNTAR (4/11) ──────────────────────
+     *
+     * «Visível» não quer dizer «alguém a olhar»: uma janela esquecida aberta
+     * atrás de outra continua visível, e os registos de 4/11 mostram o back
+     * office a perguntar de cinco em cinco minutos durante horas. Ela pediu
+     * para cortar o processador da Vercel «mantendo tudo como está».
+     *
+     * O relógio só pergunta se houve um gesto (rato, tecla, toque, rodinha) nos
+     * últimos `PARADO_MS`. Quem está a ler a lista sem mexer continua coberto
+     * durante esse tempo. E o primeiro gesto depois de uma paragem pergunta
+     * logo — o pedido que entrou entretanto aparece antes de ela dar por isso.
+     */
+    const PARADO_MS = 15 * 60_000;
+    let ultimoGesto = Date.now();
+    const aoGesto = () => {
+      const estavaParado = Date.now() - ultimoGesto > 300_000;
+      ultimoGesto = Date.now();
+      if (estavaParado && document.visibilityState === "visible") void revalidarPedidos();
+    };
     // Cinco minutos e não dois (3/11): cada volta lê os pedidos todos no
     // servidor, e a conta da Vercel passou o limite de processador. Voltar ao
     // separador (foco, visibilidade) continua a revalidar logo.
     const relogio = setInterval(() => {
-      if (document.visibilityState === "visible") void revalidarPedidos();
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - ultimoGesto > PARADO_MS) return;
+      void revalidarPedidos();
     }, 300_000);
+    const gestos = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
+    for (const g of gestos) window.addEventListener(g, aoGesto, { passive: true });
     document.addEventListener("visibilitychange", aoVoltar);
     window.addEventListener("focus", aoVoltar);
     return () => {
       clearInterval(relogio);
+      for (const g of gestos) window.removeEventListener(g, aoGesto);
       document.removeEventListener("visibilitychange", aoVoltar);
       window.removeEventListener("focus", aoVoltar);
     };
