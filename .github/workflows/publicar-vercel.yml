@@ -1,17 +1,20 @@
-name: Publicar na Vercel
+name: Publicar na Vercel (só à mão)
 
-# O GitHub do dono está ligado à conta da Palumen na Vercel, não à da Líquen.
-# No plano Hobby, a Vercel bloqueia as publicações automáticas de commits cujo
-# autor não é o dono da conta («blocked»). Um Deploy Hook não passa por essa
-# verificação: cada push para main chama o hook e a Vercel publica a main.
+# Nasceu a 28/10 (#298), com a conta no plano grátis (Hobby): a Vercel
+# bloqueava as publicações automáticas de commits cujo autor não era o dono da
+# conta («blocked»), e um Deploy Hook não passava por essa verificação.
 #
-# O link do hook vive no segredo VERCEL_DEPLOY_HOOK (Vercel → projeto
-# liquen-events → Settings → Git → Deploy Hooks, ramo main). Sem o segredo,
-# o job não faz nada e não falha.
+# Com a conta no Pro, a ligação normal do GitHub voltou a publicar cada push a
+# `main`. Com o hook a disparar também no push, CADA commit passou a ser
+# construído DUAS vezes em produção (vê-se desde 1/11; a 3/11 foram 26
+# construções para 14 commits) — o dobro dos minutos de construção e do
+# armazenamento, que são o grosso da conta.
+#
+# Fica só o botão manual (Actions → «Publicar na Vercel» → Run workflow), para
+# o dia em que a ligação normal falhe. O link do hook vive no segredo
+# VERCEL_DEPLOY_HOOK; sem ele, o job não faz nada e não falha.
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
