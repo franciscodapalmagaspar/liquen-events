@@ -82,6 +82,33 @@ Três perguntas, com a resposta escrita no PR:
 - **Ao dia 7 e ao dia 30:** lê-se a linha de processador por rota. O que estiver no topo sem razão corta-se, um PR por corte.
 - **Cada corte confirma-se nos números do dia seguinte:** a rota tem de descer.
 
+### 9. Publicar em lotes, e por um caminho só
+Cada publicação de produção constrói o site inteiro e guarda mais uma cópia
+dele. A 3/11 foram 26 construções (14 alterações, cada uma construída duas
+vezes): 1,47 $ de minutos de construção num dia, mais do que tudo o resto
+junto. Ela pediu a 4/11: **«passa a juntar as alterações em lotes»**.
+
+- **Um caminho só para publicar.** Ou a ligação do GitHub à Vercel, ou um
+  Deploy Hook — nunca os dois no mesmo push. Confirma-se em `list_deployments`:
+  um commit em `main`, um deployment.
+- **Cada pedido continua no seu PR**, com o CI dele e verde contra o `main`.
+  O que muda é juntar: **um PR verde não entra logo no `main`**, espera pelo
+  lote.
+- **O lote:**
+  1. um ramo `lote/AAAA-MM-DD` a partir do `main`;
+  2. cada PR pronto muda de base para esse ramo e entra nele em squash (um
+     ramo que não é o `main` não constrói produção, e as pré-visualizações já
+     estão desligadas no `vercel-construir.mjs`);
+  3. um PR `lote/…` → `main`, com a lista dos PRs que leva; com o CI verde,
+     entra em squash — **uma** construção para o lote inteiro.
+- **Quando se publica:** quando ela pede para ver no site («publica já», «já
+  está online?»), ou no fim de um bloco de trabalho. No máximo **duas ou três
+  vezes por dia**.
+- **Fora do lote, logo:** o site em baixo, uma falha de segurança, ou um erro
+  que um cliente está a ver neste momento.
+- **O que mexe no PDF continua a precisar da aprovação dela antes de entrar no
+  lote** — o lote não é atalho.
+
 ---
 
 ## Porque é que isto não baixa a qualidade
