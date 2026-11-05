@@ -105,6 +105,22 @@ describe("PaymentsPanel — linha única de registo", () => {
     expect(valor).toHaveValue("");
   });
 
+  it("os atalhos são 30/70 — nunca «50%» (a Catarina, 5/11: «é sempre 30-70 para todos»)", async () => {
+    const user = userEvent.setup();
+    renderPanel(makeQuote());
+    // Total c/ IVA = 1230 € → sinal 30% = 369 €, saldo 70% = 861 €.
+    expect(screen.queryByRole("button", { name: /^50%/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sinal 30%/ }).textContent).toMatch(/369,00/);
+    const saldo = screen.getByRole("button", { name: /Saldo 70%/ });
+    expect(saldo.textContent).toMatch(/861,00/);
+    await user.click(saldo);
+    expect(screen.getByLabelText("Valor em euros")).toHaveValue("861,00");
+    expect(screen.getByRole("radio", { name: "Saldo final" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
   it("um clique numa sugestão preenche o valor", async () => {
     const user = userEvent.setup();
     // 300 € já recebidos de 1230 € → em falta 930 €.
