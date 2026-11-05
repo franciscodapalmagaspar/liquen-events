@@ -1024,18 +1024,23 @@ export default function PaymentsPanel({ quote, onChange, onContractRef }: Props)
                 que faz o pedido passar a «Ganho» (ver o PATCH em
                 `api/orcamento/[id]/route.ts`). Cresce o RÓTULO, não o
                 quadrado; `alvo-toque` só age sob `(pointer: coarse)`. */}
-            <label className="alvo-toque !justify-start inline-flex select-none items-center gap-2 text-sm text-[var(--bo-tinta-72)]">
-              <input
-                type="checkbox"
-                checked={paidOnAdd}
-                onChange={(e) => setPaidOnAdd(e.target.checked)}
-                className="h-4 w-4 accent-sage-600"
-              />
-              Já pago
-              <span className="text-xs text-[var(--bo-text-faint)]">
-                {paidOnAdd ? "· o dinheiro já entrou" : "· fica previsto, por receber"}
+            {/* O rótulo diz só «Já pago» (o passeio do telemóvel mede-o pelo
+                texto exacto); a explicação fica ao lado, ligada à caixa. */}
+            <div className="flex flex-wrap items-center gap-x-2">
+              <label className="alvo-toque !justify-start inline-flex select-none items-center gap-2 text-sm text-[var(--bo-tinta-72)]">
+                <input
+                  type="checkbox"
+                  checked={paidOnAdd}
+                  onChange={(e) => setPaidOnAdd(e.target.checked)}
+                  aria-describedby="registar-pagamento-ja-pago"
+                  className="h-4 w-4 accent-sage-600"
+                />
+                Já pago
+              </label>
+              <span id="registar-pagamento-ja-pago" className="text-xs text-[var(--bo-text-faint)]">
+                {paidOnAdd ? "o dinheiro já entrou" : "fica previsto, por receber"}
               </span>
-            </label>
+            </div>
             {/* Nunca `disabled`: um botão apagado lê-se como avariado. Com o
                 valor em falta, carregar aponta o erro e devolve o foco. */}
             <Button type="submit" size="sm">
