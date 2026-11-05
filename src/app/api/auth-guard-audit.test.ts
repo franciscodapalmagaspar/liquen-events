@@ -573,7 +573,6 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // endereço dele lá dentro). Escreve para fora da casa — a barreira é a mesma
   // do mensageiro.
   { path: "./orcamento/[id]/modelo/route", methods: ["POST"] },
-  { path: "./orcamento/[id]/proposta/route", methods: ["GET", "POST"] },
   { path: "./orcamento/[id]/email-rascunho/route", methods: ["POST"] },
   { path: "./orcamento/[id]/proposta-doc/route", methods: ["POST"] },
   // A página real do estúdio (A1, #348): desenha uma página do rascunho.

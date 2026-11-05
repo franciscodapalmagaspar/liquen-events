@@ -88,7 +88,7 @@ A primeira versão punha um artigo em cada linha. Medido nas propostas aceites (
 
 ## O que fica por verificar
 
-- **A «tabela de preços simples»** (o construtor antigo, atrás de um link no painel do pedido, `ProposalBuilder`) ainda envia propostas com preço por linha mas **sem artigo do Moloni**. Nenhuma proposta na base veio de lá (verificado a 5/11, só leitura). Fica por decidir com ela se sai.
+- ~~A «tabela de preços simples»~~ — **saiu** (5/11, «sim, tira a tabela de preços antiga»): o `ProposalBuilder`, o seu interruptor «Rápida / Detalhada» no pedido e a rota `POST/GET /api/orcamento/[id]/proposta` que a enviava. A única maneira de fazer uma proposta passou a ser o estúdio.
 - **Se o Moloni aceita colar `2535,00`** (vírgula, sem milhares) no preço do artigo. É o formato português; **não verificado** no ecrã do Moloni.
 - **A ligação verdadeira.** Os testes falam com um Moloni de mentira, construído pela documentação oficial (`https://www.moloni.pt/dev/`). A primeira fatura verdadeira é a prova: abrir o rascunho no Moloni e conferir cliente, artigos, valores e IVA antes de o fechar.
 - **Revisão independente** (5/11): um revisor leu o código à procura de erros. As conclusões e o que se corrigiu estão no PR.

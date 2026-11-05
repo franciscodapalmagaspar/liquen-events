@@ -27,7 +27,6 @@ const ler = (f: string) => readFileSync(join(RAIZ, f), "utf8");
 
 const PAGAMENTOS = ler("PaymentsPanel.tsx");
 const CONTRATOS = ler("Contratos.tsx");
-const CONSTRUTOR = ler("ProposalBuilder.tsx");
 
 describe("o resumo do dinheiro dos pagamentos", () => {
   /**
@@ -141,34 +140,5 @@ describe("o link do PDF do contrato", () => {
   it("e as duas formas da lista usam-no — o cartão e a tabela", () => {
     const usos = CONTRATOS.match(/<PdfDoContrato\b/g) ?? [];
     expect(usos).toHaveLength(2);
-  });
-});
-
-describe("a tabela de preços da proposta rápida", () => {
-  /**
-   * MEDIDO a 375 px, com o painel a 292 px: as três colunas fixas (64 + 96 +
-   * 40) mais os intervalos comiam 224 px e deixavam 68 px à DESCRIÇÃO — quatro
-   * letras à vista no campo que manda na proposta. Depois: 292 px.
-   *
-   * O limiar é da largura do PAINEL e não da janela: medido, ele tem 292 px a
-   * 375, 469 px a 768, 661 px a 1024 e 444 px a 1280 — todos acima das 24 rem,
-   * portanto no computador a linha continua a ser uma só.
-   */
-  it("dá a linha inteira à descrição quando o painel não chega às 24 rem", () => {
-    expect(CONSTRUTOR).toMatch(/@container flex flex-col gap-2 mb-2/);
-    expect(CONSTRUTOR).toMatch(/w-full min-w-0 @min-\[24rem\]:w-auto @min-\[24rem\]:flex-1/);
-    expect(CONSTRUTOR).toMatch(/flex flex-wrap @min-\[24rem\]:flex-nowrap gap-2 items-center/);
-  });
-
-  it("esconde o cabeçalho das colunas quando elas deixam de estar em linha", () => {
-    // Uma fila de títulos por cima de campos que já não estão debaixo dela
-    // mente mais do que a ausência dela — é o que o `PaymentsPanel` já faz com
-    // o `@max-[36rem]:hidden`.
-    expect(CONSTRUTOR).toMatch(/hidden @min-\[24rem\]:flex gap-2 text-\[11px\]/);
-  });
-
-  it("dá 44 px de largura ao botão de remover a linha", () => {
-    // A altura já vinha do `ui/Button.tsx`; a largura ficava presa em 40 px.
-    expect(CONSTRUTOR).toMatch(/h-10 w-10 pointer-coarse:w-11 shrink-0/);
   });
 });

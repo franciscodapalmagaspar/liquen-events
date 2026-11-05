@@ -73,7 +73,6 @@ vi.mock("./lazy", () => {
     Contratos: stub("contratos"),
     Temas: stub("temas"),
     Inventario: stub("inventario"),
-    ProposalBuilder: stub("proposal-builder"),
     // O estúdio devolve o pedido gravado pelo `onQuoteUpdated` — é por aí que o
     // painel volta a ler o preço. O botão do duplo dá esse caminho a um teste
     // sem montar as 384 KB do estúdio a sério.

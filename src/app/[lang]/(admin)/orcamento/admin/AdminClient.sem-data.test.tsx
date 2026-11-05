@@ -42,7 +42,6 @@ vi.mock("./lazy", () => {
     Contratos: stub("contratos"),
     Temas: stub("temas"),
     Inventario: stub("inventario"),
-    ProposalBuilder: stub("proposal-builder"),
     ProposalStudio: stub("proposal-studio"),
     ProductionPlan: stub("production-plan"),
     ClientMessenger: stub("client-messenger"),
