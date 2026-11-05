@@ -160,13 +160,13 @@ export async function pedirToken(cfg: ConfigMoloni, buscar: Buscar = fetch): Pro
 
 async function chamar<T>(
   buscar: Buscar,
-  token: string,
+  acesso: string,
   metodo: string,
   params: Record<string, unknown>,
 ): Promise<T> {
   let res: Response;
   try {
-    res = await buscar(`${BASE}/${metodo}/?access_token=${encodeURIComponent(token)}`, {
+    res = await buscar(`${BASE}/${metodo}/?access_token=${encodeURIComponent(acesso)}`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: corpoDoFormulario(params).toString(),
@@ -231,7 +231,7 @@ export function ivaDoProduto(p: ProdutoMoloni): number {
  */
 export async function artigosNoMoloni(
   cfg: ConfigMoloni,
-  token: string,
+  acesso: string,
   buscar: Buscar = fetch,
   quais: readonly ArtigoId[] = ARTIGOS.map((a) => a.id),
 ): Promise<{
@@ -244,7 +244,7 @@ export async function artigosNoMoloni(
   await Promise.all(
     quais.map(async (id) => {
       const ref = ARTIGOS.find((a) => a.id === id)!.ref;
-      const resposta = await chamar<unknown>(buscar, token, "products/getBySearch", {
+      const resposta = await chamar<unknown>(buscar, acesso, "products/getBySearch", {
         company_id: cfg.companyId,
         search: ref,
       });
@@ -278,7 +278,7 @@ interface ClienteMoloni {
  */
 export async function clienteNoMoloni(
   cfg: ConfigMoloni,
-  token: string,
+  acesso: string,
   quem: { nif?: string; nome: string },
   buscar: Buscar = fetch,
 ): Promise<ClienteMoloni> {
@@ -286,7 +286,7 @@ export async function clienteNoMoloni(
   const procura = nif.length === 9 ? nif : quem.nome.trim();
   if (!procura)
     throw new ErroDoMoloni("O pedido não tem nome nem NIF para procurar no Moloni.", "cliente");
-  const resposta = await chamar<unknown>(buscar, token, "customers/getBySearch", {
+  const resposta = await chamar<unknown>(buscar, acesso, "customers/getBySearch", {
     company_id: cfg.companyId,
     search: procura,
   });
@@ -314,11 +314,11 @@ export async function clienteNoMoloni(
 /** A série das faturas: a das variáveis, ou a que o Moloni tem por omissão. */
 export async function serieDasFaturas(
   cfg: ConfigMoloni,
-  token: string,
+  acesso: string,
   buscar: Buscar = fetch,
 ): Promise<number> {
   if (cfg.documentSetId) return cfg.documentSetId;
-  const resposta = await chamar<unknown>(buscar, token, "documentSets/getAll", {
+  const resposta = await chamar<unknown>(buscar, acesso, "documentSets/getAll", {
     company_id: cfg.companyId,
   });
   const series = lista<{ document_set_id: number; active_by_default?: number }>(
@@ -362,16 +362,16 @@ export async function criarRascunhoDeFatura(
   if (pedido.partes.length === 0) {
     throw new ErroDoMoloni("Não há nada a faturar nesta fase.", "moloni");
   }
-  const token = await pedirToken(cfg, buscar);
+  const acesso = await pedirToken(cfg, buscar);
   const [{ encontrados, vistos }, cliente, serie] = await Promise.all([
     artigosNoMoloni(
       cfg,
-      token,
+      acesso,
       buscar,
       pedido.partes.map((p) => p.artigo),
     ),
-    clienteNoMoloni(cfg, token, pedido.cliente, buscar),
-    serieDasFaturas(cfg, token, buscar),
+    clienteNoMoloni(cfg, acesso, pedido.cliente, buscar),
+    serieDasFaturas(cfg, acesso, buscar),
   ]);
 
   const emFalta = pedido.partes.filter((p) => !encontrados.has(p.artigo));
@@ -412,7 +412,7 @@ export async function criarRascunhoDeFatura(
   const hoje = hojeNoEstudio(agora);
   const resposta = await chamar<{ valid?: number; document_id?: number }>(
     buscar,
-    token,
+    acesso,
     "invoices/insert",
     {
       company_id: cfg.companyId,
@@ -468,10 +468,10 @@ export async function estadoDaLigacao(
     vistos: string[];
   }[];
 }> {
-  const token = await pedirToken(cfg, buscar);
+  const acesso = await pedirToken(cfg, buscar);
   const [empresas, { encontrados, vistos }] = await Promise.all([
-    chamar<{ company_id: number; name: string }[]>(buscar, token, "companies/getAll", {}),
-    artigosNoMoloni(cfg, token, buscar),
+    chamar<{ company_id: number; name: string }[]>(buscar, acesso, "companies/getAll", {}),
+    artigosNoMoloni(cfg, acesso, buscar),
   ]);
   const empresa = Array.isArray(empresas)
     ? (empresas.find((e) => Number(e.company_id) === cfg.companyId)?.name ?? null)
