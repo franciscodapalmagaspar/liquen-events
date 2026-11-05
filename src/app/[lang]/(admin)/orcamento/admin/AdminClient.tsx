@@ -168,6 +168,7 @@ import {
   Clientes,
   Calendario,
   Propostas,
+  Pagamentos,
   Acompanhamento,
   DefinicoesProposta,
   Servicos,
@@ -4634,6 +4635,7 @@ export default function AdminClient({
     clientes: "Clientes",
     calendario: "Calendário",
     propostas: "Propostas",
+    pagamentos: "Pagamentos",
     acompanhamento: "Acompanhamento",
     definicoes: "Definições",
     servicos: "Biblioteca de serviços",
@@ -4681,6 +4683,7 @@ export default function AdminClient({
     clientes: "Histórico por cliente",
     calendario: "Os teus eventos no tempo",
     propostas: "Todas as propostas enviadas",
+    pagamentos: "O que cada cliente aceite já pagou, e o que falta",
     acompanhamento: "O que está à espera de resposta, por ordem de urgência",
     definicoes: "Os números com que o estúdio faz contas",
     servicos: "As palavras que vão nas propostas, escritas com tempo",
@@ -6340,6 +6343,20 @@ export default function AdminClient({
                 quotes={quotes}
                 userName={userName}
                 procuraInicial={procuraEmPropostas}
+                onOpenQuote={abrirCliente}
+                onQuoteUpdated={(q) => {
+                  setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
+                  setSelected((prev) => (prev?.id === q.id ? q : prev));
+                }}
+              />
+            </div>
+          )}
+
+          {view === "pagamentos" && (
+            <div className={`${VIEW_WRAP} view-in`}>
+              <Pagamentos
+                quotes={quotes}
+                userName={userName}
                 onOpenQuote={abrirCliente}
                 onQuoteUpdated={(q) => {
                   setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
