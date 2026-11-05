@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { Payment, Quote } from "./types";
 import {
   cobrancaDoPedido,
+  comORecebido,
+  diasDesdeOLembrete,
+  mesCurto,
+  precisaDeMim,
+  previsaoDeEntradas,
   mensagemDeLembrete,
   prazoDoSaldo,
   quadroDeCobrancas,
@@ -142,5 +147,112 @@ describe("prazoDoSaldo (mudou de casa, a regra é a mesma)", () => {
     expect(prazoDoSaldo("2027-06-12", "2026-10-08")).toBe("2027-05-12");
     expect(prazoDoSaldo("2027-03-31", "2026-10-08")).toBe("2027-02-28");
     expect(prazoDoSaldo("2026-10-29", "2026-10-08")).toBe("2026-10-08");
+  });
+});
+
+describe("o fluxo de trabalho", () => {
+  it("«precisa de mim»: em atraso ou a vencer nos próximos sete dias", () => {
+    const p = [aceite("a", 1000)];
+    const linha = (date: string): Payment => ({
+      id: "x",
+      kind: "sinal",
+      amount: 300,
+      date,
+      paid: false,
+    });
+    expect(precisaDeMim(cobrancaDoPedido(pedido("a", {}, [linha("2026-11-01")]), p, HOJE))).toBe(
+      true,
+    );
+    expect(precisaDeMim(cobrancaDoPedido(pedido("a", {}, [linha("2026-11-12")]), p, HOJE))).toBe(
+      true,
+    );
+    expect(precisaDeMim(cobrancaDoPedido(pedido("a", {}, [linha("2026-12-20")]), p, HOJE))).toBe(
+      false,
+    );
+    expect(precisaDeMim(cobrancaDoPedido(pedido("a", {}, [pago(1000)]), p, HOJE))).toBe(false);
+  });
+
+  it("o último lembrete conta-se pelo histórico, e só os de pagamento", () => {
+    const q = pedido("a", {
+      activityLog: [
+        {
+          id: "1",
+          at: "2026-10-20T10:00:00Z",
+          kind: "message_sent",
+          summary: "Lembrete de pagamento preparado (copiado): sinal",
+        },
+        {
+          id: "2",
+          at: "2026-11-03T10:00:00Z",
+          kind: "message_sent",
+          summary: "Email enviado ao cliente",
+        },
+        {
+          id: "3",
+          at: "2026-11-02T09:00:00Z",
+          kind: "message_sent",
+          summary: "Lembrete de pagamento preparado (WhatsApp): saldo",
+        },
+      ],
+    } as Partial<Quote>);
+    expect(diasDesdeOLembrete(q, HOJE)).toBe(3);
+    expect(diasDesdeOLembrete(pedido("b"), HOJE)).toBeNull();
+  });
+
+  it("«Recebido» passa a prevista a recebida — não deixa uma órfã ao lado", () => {
+    const prevista: Payment = {
+      id: "s1",
+      kind: "sinal",
+      amount: 300,
+      date: "2026-11-01",
+      paid: false,
+    };
+    const q = pedido("a", {}, [prevista]);
+    const c = cobrancaDoPedido(q, [aceite("a", 1000)], HOJE);
+    const lista = comORecebido(q, c, { valor: 300, dia: HOJE, meio: "MB Way", novoId: "n" });
+    expect(lista).toEqual([{ ...prevista, amount: 300, date: HOJE, paid: true, note: "MB Way" }]);
+  });
+
+  it("se entrou só uma parte, o resto continua previsto com o mesmo prazo", () => {
+    const prevista: Payment = {
+      id: "s1",
+      kind: "sinal",
+      amount: 300,
+      date: "2026-11-20",
+      paid: false,
+    };
+    const q = pedido("a", {}, [prevista]);
+    const c = cobrancaDoPedido(q, [aceite("a", 1000)], HOJE);
+    const lista = comORecebido(q, c, { valor: 100, dia: HOJE, novoId: "n" });
+    expect(lista).toEqual([
+      { ...prevista, amount: 100, date: HOJE, paid: true },
+      { ...prevista, id: "n", amount: 200 },
+    ]);
+  });
+
+  it("sem prevista, acrescenta uma linha recebida do tipo certo", () => {
+    const q = pedido("a", {}, [pago(300)]);
+    const c = cobrancaDoPedido(q, [aceite("a", 1000)], HOJE);
+    const lista = comORecebido(q, c, { valor: 700, dia: HOJE, novoId: "n" });
+    expect(lista).toHaveLength(2);
+    expect(lista[1]).toEqual({ id: "n", kind: "saldo", amount: 700, date: HOJE, paid: true });
+  });
+
+  it("a previsão: o atrasado conta já, o saldo entra no mês do seu prazo", () => {
+    const quadro = quadroDeCobrancas(
+      [
+        pedido("a", { date: "2027-02-20" }, [
+          { id: "x", kind: "sinal", amount: 300, date: "2026-10-01", paid: false },
+        ]),
+      ],
+      [aceite("a", 1000)],
+      HOJE,
+    );
+    const p = previsaoDeEntradas(quadro, HOJE, 4);
+    expect(p.map((m) => m.mes)).toEqual(["2026-11", "2026-12", "2027-01", "2027-02"]);
+    expect(p[0].valor).toBe(300); // o sinal em atraso
+    expect(p[2].valor).toBe(700); // o saldo: um mês antes de 20/02
+    expect(mesCurto("2027-01", HOJE)).toBe("jan 2027");
+    expect(mesCurto("2026-12", HOJE)).toBe("dez");
   });
 });

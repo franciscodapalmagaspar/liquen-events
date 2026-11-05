@@ -1,4 +1,4 @@
-import type { Proposal, Quote } from "./types";
+import type { Payment, Proposal, Quote } from "./types";
 import { contractedAmounts, paidTotal } from "./dossier";
 import { SINAL_POR_OMISSAO, eur, round2, splitSinal } from "@/lib/money";
 
@@ -310,4 +310,143 @@ export function mensagemDeLembrete(c: Cobranca, hoje: string): string | null {
     "Obrigada!",
     "Líquen Events",
   ].join("\n");
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// O FLUXO DE TRABALHO (5/11, segunda volta): «quero mesmo que isto esteja um
+// workflow, um design, uma forma de trabalhar incrível».
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Precisa de alguém agora: está em atraso, ou vence nos próximos sete dias. */
+export function precisaDeMim(c: Cobranca): boolean {
+  if (c.fase === "pago" || !c.proximo) return false;
+  return c.atraso || (c.diasParaOPrazo !== null && c.diasParaOPrazo <= 7);
+}
+
+/** O começo do resumo que o «Lembrar» escreve no histórico do pedido. */
+export const PREFIXO_DO_LEMBRETE = "Lembrete de pagamento preparado";
+
+/**
+ * Há quantos dias foi preparado o último lembrete deste pedido, ou `null` se
+ * nunca foi. É o que impede a mesma pessoa (ou outra) de lembrar o mesmo
+ * cliente duas vezes na mesma semana sem saber.
+ */
+export function diasDesdeOLembrete(q: Quote, hoje: string): number | null {
+  const datas = (q.activityLog ?? [])
+    .filter((e) => e.kind === "message_sent" && e.summary?.startsWith(PREFIXO_DO_LEMBRETE))
+    .map((e) => (typeof e.at === "string" ? e.at.slice(0, 10) : ""))
+    .filter((d) => DIA.test(d))
+    .sort();
+  const ultimo = datas[datas.length - 1];
+  return ultimo ? Math.max(0, diasEntre(ultimo, hoje)) : null;
+}
+
+/**
+ * A lista de pagamentos depois de «Recebido» no próximo pagamento do cartão.
+ *
+ * Se o «Ganho» deixou uma linha PREVISTA desse pagamento (por receber), é ela
+ * que passa a recebida — com o valor que falta, a data de hoje e o meio —, para
+ * não ficar uma prevista órfã ao lado de uma recebida. Sem linha prevista,
+ * acrescenta-se uma nova. Nunca se mexe nas outras linhas.
+ *
+ * Se entrou só uma PARTE da prevista, a diferença continua prevista, com o
+ * prazo que tinha: o resto não desaparece do quadro nem perde o dia.
+ */
+export function comORecebido(
+  q: Quote,
+  c: Cobranca,
+  o: { valor: number; dia: string; meio?: string; novoId: string },
+): Payment[] {
+  const lista = [...(q.payments ?? [])];
+  const tipo = c.proximo?.tipo ?? "pagamento";
+  const valor = round2(o.valor);
+  const meio = o.meio?.trim() || undefined;
+  const i = lista.findIndex((p) => !p.paid && p.kind === tipo);
+  if (i >= 0) {
+    const antes = lista[i];
+    const resto = round2(antes.amount - valor);
+    lista[i] = {
+      ...antes,
+      amount: valor,
+      date: o.dia,
+      paid: true,
+      ...(meio ? { note: meio } : {}),
+    };
+    if (resto > 0) lista.splice(i + 1, 0, { ...antes, id: o.novoId, amount: resto });
+    return lista;
+  }
+  lista.push({
+    id: o.novoId,
+    kind: tipo,
+    amount: valor,
+    date: o.dia,
+    paid: true,
+    ...(meio ? { note: meio } : {}),
+  });
+  return lista;
+}
+
+/** Um mês da previsão: «aaaa-mm» e o que se espera receber nele. */
+export interface MesDaPrevisao {
+  mes: string;
+  valor: number;
+}
+
+/**
+ * O que se espera receber em cada um dos próximos `meses` meses, pelo prazo de
+ * cada próximo pagamento. O que está em atraso ou sem prazo conta no mês de
+ * hoje — é dinheiro que já devia ter entrado. Depois do próximo pagamento de um
+ * cliente em fase de sinal, vem o saldo dele: entra no mês do seu prazo (um mês
+ * antes do evento), para a previsão não esquecer o dinheiro maior.
+ */
+export function previsaoDeEntradas(
+  quadro: QuadroDeCobrancas,
+  hoje: string,
+  meses = 6,
+): MesDaPrevisao[] {
+  const mesDeHoje = hoje.slice(0, 7);
+  const lista: MesDaPrevisao[] = [];
+  const [ano, mes] = mesDeHoje.split("-").map(Number);
+  for (let k = 0; k < meses; k++) {
+    const d = new Date(Date.UTC(ano, mes - 1 + k, 1));
+    lista.push({ mes: d.toISOString().slice(0, 7), valor: 0 });
+  }
+  const somar = (dia: string | null, valor: number) => {
+    if (valor <= 0) return;
+    const m = !dia || dia < hoje ? mesDeHoje : dia.slice(0, 7);
+    const alvo = lista.find((x) => x.mes === m);
+    if (alvo) alvo.valor = round2(alvo.valor + valor);
+  };
+  for (const c of [...quadro.sinal, ...quadro.saldo]) {
+    if (!c.proximo) continue;
+    somar(c.proximo.prazo, c.proximo.valor);
+    if (c.proximo.tipo === "sinal") {
+      const saldo = round2(c.emFalta - c.proximo.valor);
+      const prazo = c.dataDoEvento ? prazoDoSaldo(c.dataDoEvento, "0000-00-00") : null;
+      somar(prazo, saldo);
+    }
+  }
+  return lista;
+}
+
+const MESES_CURTOS = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
+];
+
+/** «nov» (ou «jan 2028» quando muda de ano face a `hoje`). */
+export function mesCurto(mes: string, hoje: string): string {
+  const [a, m] = mes.split("-").map(Number);
+  const nome = MESES_CURTOS[m - 1];
+  return String(a) === hoje.slice(0, 4) ? nome : `${nome} ${a}`;
 }
