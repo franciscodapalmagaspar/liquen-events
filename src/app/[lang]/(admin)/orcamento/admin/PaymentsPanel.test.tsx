@@ -275,7 +275,14 @@ describe("PaymentsPanel — o sinal sugerido é o da proposta", () => {
     const user = userEvent.setup();
     renderPanel(makeQuote());
     const mbway = screen.getByRole("button", { name: "MB Way" });
-    expect(mbway.querySelector('svg[data-meio="mbway"]')).not.toBeNull();
+    // MB WAY e Multibanco: o logótipo oficial da SIBS; os outros, o ícone.
+    expect(mbway.querySelector('[data-meio="mbway"][data-logo-oficial] svg')).not.toBeNull();
+    const multibanco = screen.getByRole("button", { name: "Multibanco" });
+    expect(multibanco.querySelector('[data-meio="multibanco"][data-logo-oficial]')).not.toBeNull();
+    // O logótipo é decorativo: o nome do botão continua a ser só a palavra.
+    expect(mbway.querySelector("[data-logo-oficial]")).toHaveAttribute("aria-hidden", "true");
+    const transf = screen.getByRole("button", { name: "Transferência" });
+    expect(transf.querySelector('svg[data-meio="transferencia"]')).not.toBeNull();
     await user.click(mbway);
     expect(screen.getByLabelText("Método ou nota (opcional)")).toHaveValue("MB Way");
     expect(mbway).toHaveAttribute("aria-pressed", "true");
