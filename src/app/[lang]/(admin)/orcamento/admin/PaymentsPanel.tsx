@@ -41,7 +41,7 @@ const METHOD_SUGGESTIONS = MEIOS_HABITUAIS.map((m) => m.nome);
 const ROTULO_CAMPO = "text-xs font-medium text-[var(--bo-text-muted)]";
 
 /**
- * Os atalhos que preenchem o formulário: «Sinal 30% · 450 €», «50% · …»,
+ * Os atalhos que preenchem o formulário: «Sinal 30% · 450 €», «Saldo 70% · …»,
  * «Hoje», «Ontem». Mostram-se carregados quando o campo já tem esse valor.
  *
  * O verde do texto é o `--bo-accent` e não `text-sage-600`: a regra que o
@@ -51,7 +51,7 @@ const ROTULO_CAMPO = "text-xs font-medium text-[var(--bo-text-muted)]";
  * MEDIDO a 375 px, na versão antiga: 45×28 e 56×28 — abaixo dos 44 das
  * guidelines. Errar o toque aqui não é inócuo: entre «Hoje» e «Ontem» está a
  * diferença entre datar um recebimento no dia certo e no dia errado, e entre
- * «Sinal» e «50%» está o dobro do valor. `alvo-toque` só cresce sob
+ * «Sinal» e «Saldo» está mais do dobro do valor. `alvo-toque` só cresce sob
  * `(pointer: coarse)`; com rato a fila mantém a densidade.
  */
 const ATALHO =
@@ -939,14 +939,17 @@ export default function PaymentsPanel({ quote, onChange, onContractRef }: Props)
                 >
                   Sinal {pctSinal}% · {eur2(split.sinal)}
                 </button>
+                {/* Era «50% · metade do total». A Catarina (CEO), a 5/11: «os
+                    pagamentos é 30-70%. Não há 30-50, é sempre 30-70 para
+                    todos». O atalho que sobra é o do saldo. */}
                 <button
                   type="button"
-                  onClick={() => suggest(Math.round(total * 50) / 100)}
-                  title="Preencher com metade do total"
-                  aria-pressed={mesmoValor(amount, Math.round(total * 50) / 100)}
+                  onClick={() => suggest(split.saldo, "saldo")}
+                  title={`Preencher com o saldo de ${100 - pctSinal}% do total`}
+                  aria-pressed={mesmoValor(amount, split.saldo)}
                   className={ATALHO}
                 >
-                  50% · {eur2(Math.round(total * 50) / 100)}
+                  Saldo {100 - pctSinal}% · {eur2(split.saldo)}
                 </button>
               </div>
             )}
