@@ -419,6 +419,12 @@ export interface BudgetExtra {
   labelEn?: string;
   /** Valor à direita como texto livre, e.g. "896,00 €" ou "895,00 € + IVA". */
   valueText: string;
+  /**
+   * O artigo do Moloni em que este valor se fatura (5/11). INTERNO: não sai no
+   * PDF nem na página, não conta para a versão aceite (`proposta-versao.ts`
+   * tira-o antes de selar) nem para a chave do PDF guardado.
+   */
+  artigo?: import("./orcamento/artigos-de-faturacao").ArtigoId;
 }
 
 export interface ProposalDoc {
@@ -726,6 +732,23 @@ export interface ProposalDoc {
    * total da base ser DERIVADO e não escrito.
    */
   budgetOpcional?: boolean[];
+  /**
+   * O artigo do Moloni de cada linha — mesmo array paralelo dos outros, e
+   * INTERNO como os preços por linha: não sai no PDF nem na página. Com o preço
+   * de cada linha, é o que faz a faturação por artigo sair FEITA da proposta
+   * (ela, 5/11: «já desde o início, quando se está a fazer a proposta, se tenha
+   * os valores para cada coisa»). Ver `orcamento/artigos-de-faturacao.ts`.
+   */
+  budgetArtigos?: (import("./orcamento/artigos-de-faturacao").ArtigoId | null)[];
+  /**
+   * O total sem IVA repartido pelos artigos do Moloni (Material, Flores e
+   * Elementos de Decoração, Serviço, Transporte, Alojamento, Wedding
+   * Coordinator) — pedido dela a 5/11.
+   * INTERNO: não sai no PDF nem na página, e não conta para a versão aceite
+   * (`NUNCA_NO_PDF`). Só fatura quando a soma dá o total sem IVA.
+   * Ver `src/lib/orcamento/artigos-de-faturacao.ts`.
+   */
+  repartoPorArtigo?: Partial<Record<import("./orcamento/artigos-de-faturacao").ArtigoId, number>>;
 
   /**
    * De que fotos da BIBLIOTECA saíram as fotos desta proposta.

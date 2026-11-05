@@ -562,6 +562,13 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   { path: "./orcamento/[id]/miniatura/route", methods: ["GET"] },
   { path: "./orcamento/[id]/assets/importar/route", methods: ["POST"] },
   { path: "./orcamento/[id]/mensagem/route", methods: ["POST"] },
+  // A faturação no Moloni (5/11): lê a proposta aceite e cria rascunhos de
+  // fatura no Moloni com as chaves da casa. Escreve para fora — a barreira é a
+  // mesma do mensageiro.
+  { path: "./orcamento/[id]/moloni/route", methods: ["GET", "POST"] },
+  { path: "./moloni/route", methods: ["GET"] },
+  // A repartição por artigo de uma proposta aceite — escreve no documento.
+  { path: "./propostas/[id]/reparto/route", methods: ["PATCH"] },
   // Manda um modelo de email ao cliente (e, sem `enviar`, pré-visualiza-o com o
   // endereço dele lá dentro). Escreve para fora da casa — a barreira é a mesma
   // do mensageiro.

@@ -186,6 +186,10 @@ export const NUNCA_NO_PDF: Readonly<Record<string, string>> = {
   budgetScales:
     "a escala de uma linha (por convidado, por mesa) é uma conta interna; o PDF só mostra o resultado.",
   convidadosPorMesa: "quantas pessoas por mesa não é impresso.",
+  budgetArtigos:
+    "o artigo do Moloni de cada linha é da faturação: o casal não tem nada que o ler.",
+  repartoPorArtigo:
+    "a repartição do total pelos artigos do Moloni é da faturação: diz em que artigo se fatura, e o casal não tem nada que a ler.",
   notasInternas: "as notas internas nunca são desenhadas — há um teste no gerador a garanti-lo.",
   notasPorSeccao: "as notas por secção nunca são desenhadas.",
   fotosDeBiblioteca: "a origem das fotos na biblioteca não é impressa.",

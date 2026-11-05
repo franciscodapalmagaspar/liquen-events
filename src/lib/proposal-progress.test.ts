@@ -30,8 +30,13 @@ const COMPLETO = {
   moodBoards: [{ title: "Cerimónia", images: ["a.jpg"] }],
   budgetItems: ["Decor Cerimónia", "Decor Jantar"],
   budgetAmounts: [900, 2350],
+  // O artigo do Moloni de cada linha passou a ser obrigatório (5/11).
+  budgetArtigos: ["flores", "flores"],
   coverImages: ["capa.jpg", ""],
   totalAmount: 3250,
+  // «+ IVA», como as propostas reais: com o modo calado lia-se «IVA incluído»,
+  // e as linhas (sempre sem IVA) deixavam de somar o total.
+  totalVatMode: "acrescer",
 } as unknown as ProposalDoc;
 
 describe("estadoDasSeccoes", () => {
@@ -90,7 +95,7 @@ describe("estadoDasSeccoes", () => {
     const s = estadoDasSeccoes(COMPLETO).find((x) => x.id === "orcamento");
     // O formato é o da casa, e é por isso que a afirmação passa por `eur`: o
     // que se prende é que o VALOR aparece, não como o pt-PT agrupa milhares.
-    expect(s?.resumo).toBe(`2 linhas · ${eur(3250)}`);
+    expect(s?.resumo).toBe(`2 linhas · ${eur(3997.5)}`);
     expect(s?.preenchida).toBe(true);
   });
 
@@ -105,7 +110,7 @@ describe("estadoDasSeccoes", () => {
     // «Definido» diz que existe um número sem dizer qual, e obrigava a ir lá
     // abaixo confirmar — que é exactamente o que um índice existe para evitar.
     const s = estadoDasSeccoes(COMPLETO).find((x) => x.id === "total");
-    expect(s?.resumo).toBe(eur(3250));
+    expect(s?.resumo).toBe(eur(3997.5));
     expect(estadoDasSeccoes(RECEM_ABERTO).find((x) => x.id === "total")?.resumo).toBe(
       "por definir",
     );
@@ -192,10 +197,45 @@ describe("oQueFaltaParaEnviar", () => {
     expect(podeEnviar(semBoards, 3997.5)).toBe(true);
   });
 
-  it("avisa quando o total não bate com a soma das linhas", () => {
+  it("avisa quando o total não bate com a soma das linhas — e passou a travar (5/11)", () => {
     const torto = { ...COMPLETO, totalAmount: 4000 } as unknown as ProposalDoc;
     const f = oQueFaltaParaEnviar(torto, 4920);
-    expect(f.some((x) => x.texto.includes("não bate"))).toBe(true);
+    expect(f.find((x) => x.texto.includes("não bate"))?.trava).toBe(true);
+  });
+
+  /**
+   * O PREÇO E O ARTIGO DO MOLONI DE CADA LINHA (5/11). Ela: «não deixar enviar
+   * as propostas sem estabelecer um valor para cada coisa … para depois no
+   * Moloni estar tudo registado». Só para a casa: o cliente não vê nada disto.
+   */
+  it("uma linha sem preço trava, e diz qual", () => {
+    const d = { ...COMPLETO, budgetAmounts: [900, null] } as unknown as ProposalDoc;
+    const f = oQueFaltaParaEnviar(d, 3997.5).find((x) => x.id === "precos-das-linhas");
+    expect(f).toMatchObject({ trava: true, seccao: "orcamento", campo: "budgetPreco:1" });
+    expect(f?.texto).toMatch(/«Decor Jantar» não tem preço/);
+    expect(podeEnviar(d, 3997.5)).toBe(false);
+  });
+
+  it("uma linha sem artigo do Moloni trava, e diz qual", () => {
+    const d = { ...COMPLETO, budgetArtigos: ["flores", null] } as unknown as ProposalDoc;
+    const f = oQueFaltaParaEnviar(d, 3997.5).find((x) => x.id === "artigos-moloni");
+    expect(f).toMatchObject({ trava: true, campo: "budgetArtigo:1" });
+    expect(f?.texto).toMatch(/«Decor Jantar» não tem artigo do Moloni/);
+  });
+
+  it("um valor adicional com número também precisa de artigo; um «a definir» não", () => {
+    const comNumero = {
+      ...COMPLETO,
+      budgetExtras: [{ label: "Deslocação", valueText: "150,00 € + IVA" }],
+      totalAmount: 3400,
+    } as unknown as ProposalDoc;
+    const f = oQueFaltaParaEnviar(comNumero, 4182).find((x) => x.id === "artigos-moloni");
+    expect(f).toMatchObject({ trava: true, campo: "extraArtigo:0" });
+    const aDefinir = {
+      ...COMPLETO,
+      budgetExtras: [{ label: "Alojamento", valueText: "a definir" }],
+    } as unknown as ProposalDoc;
+    expect(oQueFaltaParaEnviar(aDefinir, 3997.5).some((x) => x.id === "artigos-moloni")).toBe(false);
   });
 
   /**

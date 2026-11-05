@@ -124,6 +124,12 @@ export const listAllProposals = (): Promise<Proposal[]> => repo.list();
 export const getProposal = (id: string): Promise<Proposal | null> => repo.get(id);
 export const updateProposal = (id: string, patch: Partial<Proposal>): Promise<Proposal | null> =>
   repo.update(id, patch);
+/** Alteração feita sobre a proposta acabada de ler — não escreve por cima do
+    que outro gesto gravou entretanto (ver `updateWith` no repositório). */
+export const updateProposalWith = (
+  id: string,
+  mutate: (current: Proposal) => Proposal,
+): Promise<Proposal | null> => repo.updateWith(id, mutate);
 export const deleteProposal = (id: string): Promise<void> => repo.remove(id);
 /** Volta da Reciclagem com o MESMO id e a data em que foi criada. */
 export const reporProposta = (p: Proposal): Promise<void> =>

@@ -7369,6 +7369,9 @@ describe("o que falta para enviar, no passo de enviar", () => {
         serviceGroups: [{ letter: "a)", title: "Decoração Floral", items: [{ label: "Igreja" }] }],
         moodBoards: [],
         budgetItems: ["Decor"],
+        // O preço e o artigo do Moloni de cada linha travam desde 5/11.
+        budgetAmounts: [3000],
+        budgetArtigos: ["flores"],
         coverImages: ["", ""],
         totalAmount: 3000,
         totalVatMode: "acrescer",
