@@ -177,6 +177,8 @@ function seedDraftEmIngles(n: number, extra: Record<string, unknown> = {}) {
       // e é por isso que o envio a trava.
       totalLabel: "Valor Total Decoração",
       totalLabelEn: "Total Decoration Value",
+      // E a linha do orçamento, que também se lê no PDF.
+      budgetItemsEn: ["Ceremony decoration"],
     }),
   );
 }
@@ -201,7 +203,11 @@ function seedDraft(n: number, extra: Record<string, unknown> = {}) {
           ...extra,
         },
       ],
-      budgetItems: [],
+      // Uma proposta que pode sair tem cada serviço com valor e artigo do
+      // Moloni (5/11) — e o total é a soma deles.
+      budgetItems: ["Decoração da cerimónia"],
+      budgetAmounts: [3000],
+      budgetArtigos: ["flores"],
       coverImages: ["", ""],
       totalAmount: 3000,
       totalVatMode: "acrescer",
@@ -939,6 +945,57 @@ describe("total desalinhado da soma das linhas", () => {
    * caixas estão mesmo preenchidas —, que é a outra metade da resposta ao
    * `placeholder="900"`: tirar o número falso e dizer o número verdadeiro.
    */
+  /**
+   * ── O TOTAL É A SOMA (5/11) ─────────────────────────────────────────────
+   * Ela: «o sistema soma os valores todos, dos serviços todos, da deslocação e
+   * tudo mais, e dá o valor final». Escrever o preço de uma linha leva o total
+   * atrás; e o total, com serviços com preço, já não se escreve à mão.
+   */
+  it("escrever o preço de uma linha põe o total na soma, e o total deixa de se escrever", async () => {
+    seedComPrecos(3250);
+    renderStudio();
+    const user = userEvent.setup();
+    const preco = await screen.findByLabelText("Preço de Decor Jantar");
+    await user.clear(preco);
+    await user.type(preco, "3100");
+    await user.tab();
+    const valor = (await screen.findByLabelText(/^Valor \(sem IVA\)/)) as HTMLInputElement;
+    await waitFor(() => expect(valor.value.replace(/\D/g, "")).toMatch(/^4000(00)?$/));
+    expect(valor.readOnly).toBe(true);
+    expect(screen.getByText("Soma automática dos serviços.")).toBeTruthy();
+  });
+
+  it("os serviços da proposta vêm para o orçamento num gesto, com o artigo do Moloni", async () => {
+    seedComPrecos(3250);
+    renderStudio();
+    const user = userEvent.setup();
+    expect(
+      await screen.findByText("O serviço «Decoração» ainda não está no orçamento."),
+    ).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Pôr no orçamento", hidden: true }));
+    const nomes = screen.getAllByRole("textbox", {
+      name: "Item de orçamento",
+      hidden: true,
+    }) as HTMLInputElement[];
+    expect(nomes.map((n) => n.value)).toEqual(["Decor Cerimónia", "Decor Jantar", "Decoração"]);
+    const artigo = screen.getByRole("combobox", {
+      name: "Artigo do Moloni de Decoração",
+      hidden: true,
+    }) as HTMLSelectElement;
+    expect(artigo.value).toBe("flores");
+    expect(screen.queryByText(/ainda não está no orçamento/)).toBeNull();
+  });
+
+  it("abrir uma proposta antiga com o total à mão não o muda sozinho", async () => {
+    seedComPrecos(5000);
+    renderStudio();
+    const valor = (await screen.findByLabelText(/^Valor \(sem IVA\)/)) as HTMLInputElement;
+    expect(valor.value.replace(/\D/g, "")).toMatch(/^5000(00)?$/);
+    // Fica aberto, com o aviso e o gesto que o alinha.
+    expect(valor.readOnly).toBe(false);
+    expect(screen.getByText(/Escrito à mão — a soma dos serviços com preço é/)).toBeTruthy();
+  });
+
   it("conta quantas linhas têm preço, em vez de repetir a soma", async () => {
     seedComPrecos(3250);
     renderStudio();
@@ -9649,6 +9706,13 @@ describe("o esqueleto da miniatura", () => {
 describe("o que não é um valor diz-se, e não se grava", () => {
   it("«-500» e «0» dizem porquê e não mexem no total", async () => {
     seedDraft(1);
+    // Sem serviços com preço o total ainda se escreve à mão (propostas antigas):
+    // com eles, é a soma e o campo não se edita.
+    const semLinhas = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "{}");
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({ ...semLinhas, budgetItems: [], budgetAmounts: [], budgetArtigos: [] }),
+    );
     renderStudio();
     const user = userEvent.setup();
     const valor = await screen.findByLabelText(/^Valor \(sem IVA\)/);

@@ -4,6 +4,7 @@ import type { Proposal } from "@/lib/orcamento/types";
 import { splitThirtySeventy } from "@/lib/money";
 import { resolveValidUntil, type ProposalDoc } from "@/lib/proposal-doc";
 import { chaveDoPdf } from "@/lib/proposal-pdf-chave";
+import { desalinhamento, dinheiroDaProposta } from "@/lib/proposal-budget";
 import { ehIdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import fs from "node:fs";
 import path from "node:path";
@@ -182,6 +183,33 @@ import { textosDoEmailDaProposta } from "@/lib/email-proposta-textos";
 /** Minimal studio doc — only `ref` + `clientNames` are validated by the route;
  *  the money fields under test are added per-case. */
 function baseDoc(over: Record<string, unknown> = {}) {
+  const doc = baseDocSemLinhas(over);
+  if ("budgetItems" in over) return doc;
+  /**
+   * Desde 5/11 uma proposta só sai com cada serviço com valor e artigo do
+   * Moloni, e com as linhas a somar o total. A linha daqui vale o que o total
+   * de cada caso diz que os serviços valem — é a mesma conta da regra
+   * (`desalinhamento`), para nenhum caso de dinheiro mudar de número.
+   */
+  const umaLinha = {
+    ...doc,
+    budgetItems: ["Decoração"],
+    budgetAmounts: [1],
+    budgetArtigos: ["flores"],
+  };
+  const d = desalinhamento(
+    umaLinha as unknown as ProposalDoc,
+    dinheiroDaProposta(umaLinha as unknown as ProposalDoc).base,
+  );
+  if (d && d.total > 0) umaLinha.budgetAmounts = [d.total];
+  // Sem total nenhum no caso, a linha É o total — como no estúdio, onde o
+  // total passou a ser a soma das linhas.
+  else if (d && !("totalAmount" in over) && !("totalText" in over))
+    return { ...umaLinha, totalAmount: 1, totalVatMode: "acrescer" };
+  return umaLinha;
+}
+
+function baseDocSemLinhas(over: Record<string, unknown> = {}) {
   return {
     template: "decoracao",
     ref: "PO Decoração Teste",
@@ -2536,8 +2564,39 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o envio recusa uma propo
   });
 
   it("a pré-visualização não trava: é onde ela vê o que falta", async () => {
-    const res = await POST(previewReq(baseDoc({ totalAmount: 0, eventDate: "" })), { params });
+    const res = await POST(previewReq(baseDoc({ totalAmount: 3000, eventDate: "" })), { params });
     expect(res.status).toBe(200);
+  });
+
+  /**
+   * ── O PDF FINAL É OUTRA MANEIRA DE ENVIAR (5/11) ──────────────────────────
+   * Ela: «não quero que o sistema deixe enviar uma proposta sem colocar os
+   * valores todos». Descarregar o PDF final e mandá-lo por fora é enviar: sem o
+   * valor e o artigo de cada serviço, só sai o rascunho (marcado em cada página).
+   */
+  it("o PDF final não sai sem o valor de cada serviço — o rascunho sai", async () => {
+    const semPreco = baseDoc({
+      totalAmount: 3000,
+      budgetItems: ["Decoração", "Centros de mesa"],
+      budgetAmounts: [3000, null],
+      budgetArtigos: ["flores", "flores"],
+    });
+    const final = await POST(previewReq(semPreco), { params });
+    expect(final.status).toBe(422);
+    expect((await final.json()).error).toMatch(/«Centros de mesa» não tem preço/);
+    const rascunho = await POST(req({ mode: "preview", rascunho: true, doc: semPreco }), {
+      params,
+    });
+    expect(rascunho.status).toBe(200);
+  });
+
+  it("e um orçamento sem serviço nenhum também não dá PDF final", async () => {
+    const res = await POST(
+      previewReq(baseDoc({ totalAmount: 3000, budgetItems: [], budgetAmounts: [] })),
+      { params },
+    );
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toMatch(/não tem serviços/);
   });
 });
 

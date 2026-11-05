@@ -12,6 +12,9 @@ import {
   parcelasDaFatura,
   refDoArtigo,
   repartoDe,
+  servicosForaDoOrcamento,
+  sugerirArtigoDaLinha,
+  trazerServicosParaOOrcamento,
   sugestaoDeReparto,
   textoDaFatura,
   valorParaColar,
@@ -272,5 +275,45 @@ describe("passar ao Moloni à mão", () => {
     expect(t).toMatch(/EXE\.2 · Flores e Elementos de Decoração: 5\s?915,00\s€/);
     expect(t).toMatch(/EXE\.5 · Transporte: 1\s?085,00\s€/);
     expect(t).toMatch(/Total sem IVA: 7\s?000,00\s€/);
+  });
+});
+
+describe("os serviços da proposta no orçamento (5/11)", () => {
+  const comServicos = {
+    serviceGroups: [
+      { letter: "a)", title: "Decoração Floral", items: [] },
+      { letter: "b)", title: "Montagem e desmontagem", items: [] },
+      { letter: "c)", title: "  ", items: [] },
+      { letter: "d)", title: "Opção B", items: [] },
+    ],
+    budgetItems: ["decoracao floral"],
+    budgetAmounts: [5000],
+    budgetArtigos: ["flores"],
+  };
+
+  it("diz que serviços ainda não têm linha (sem contar acentos nem maiúsculas)", () => {
+    expect(servicosForaDoOrcamento(comServicos as never)).toEqual([
+      "Montagem e desmontagem",
+      "Opção B",
+    ]);
+  });
+
+  it("trá-los com o artigo que o nome sugere, e o preço por escrever", () => {
+    const d = trazerServicosParaOOrcamento(comServicos as never) as unknown as DocParaFaturar;
+    expect(d.budgetItems).toEqual(["decoracao floral", "Montagem e desmontagem", "Opção B"]);
+    expect(d.budgetAmounts).toEqual([5000, null, null]);
+    expect(d.budgetArtigos).toEqual(["flores", "servico", null]);
+    expect(servicosForaDoOrcamento(d as never)).toEqual([]);
+  });
+
+  it("o artigo pelo nome só entra onde ainda não há um", () => {
+    const d = {
+      budgetItems: ["Transporte de flores", "Centros"],
+      budgetArtigos: [null, "material"],
+    };
+    expect(sugerirArtigoDaLinha(d as never, 0)).toMatchObject({
+      budgetArtigos: ["transporte", "material"],
+    });
+    expect(sugerirArtigoDaLinha(d as never, 1)).toBe(d);
   });
 });

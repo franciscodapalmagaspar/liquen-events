@@ -1,5 +1,10 @@
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { dinheiroDaProposta, precosDe, somaDosExtrasSemIva } from "@/lib/proposal-budget";
+import {
+  adicionarLinha,
+  dinheiroDaProposta,
+  precosDe,
+  somaDosExtrasSemIva,
+} from "@/lib/proposal-budget";
 import { opcionaisDe, totaisDasVersoes, type VersaoEscolhida } from "./versoes-da-proposta";
 import { eur, round2 } from "@/lib/money";
 
@@ -340,6 +345,68 @@ export function definirArtigoDaLinha<T extends Pick<ProposalDoc, "budgetItems" |
   artigo: ArtigoId | null,
 ): T {
   return { ...doc, budgetArtigos: artigosDasLinhas(doc).map((v, j) => (j === i ? artigo : v)) };
+}
+
+/** Para comparar nomes: sem acentos, sem maiúsculas, sem espaços a mais. */
+function chaveDoNome(t: string): string {
+  return t
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Os serviços da proposta (os títulos dos grupos do passo «Serviços») que
+ * ainda não têm linha no orçamento. Ela (5/11): «serviço tal, valor tal,
+ * serviço tal, valor tal» — os serviços já estão escritos; o que falta é o
+ * valor à frente de cada um.
+ */
+export function servicosForaDoOrcamento(
+  doc: Pick<ProposalDoc, "serviceGroups" | "budgetItems">,
+): string[] {
+  const ja = new Set((doc.budgetItems ?? []).map((i) => chaveDoNome(i ?? "")));
+  const vistos = new Set<string>();
+  const fora: string[] = [];
+  for (const g of doc.serviceGroups ?? []) {
+    const titulo = (g?.title ?? "").trim();
+    const k = chaveDoNome(titulo);
+    if (!k || ja.has(k) || vistos.has(k)) continue;
+    vistos.add(k);
+    fora.push(titulo);
+  }
+  return fora;
+}
+
+/**
+ * Põe no orçamento uma linha por cada serviço que lá falta, com o artigo do
+ * Moloni que o nome sugere (e nenhum quando não é claro). O preço fica por
+ * escrever — é o único gesto que sobra.
+ */
+export function trazerServicosParaOOrcamento<
+  T extends Parameters<typeof adicionarLinha>[0] &
+    Pick<ProposalDoc, "serviceGroups" | "budgetArtigos">,
+>(doc: T): T {
+  let d = doc;
+  for (const nome of servicosForaDoOrcamento(doc)) {
+    d = adicionarLinha(d, nome);
+    d = definirArtigoDaLinha(d, (d.budgetItems?.length ?? 1) - 1, artigoSugerido(nome));
+  }
+  return d;
+}
+
+/**
+ * O artigo de uma linha que ainda não tem nenhum, pelo nome dela. Nunca troca
+ * um artigo já escolhido.
+ */
+export function sugerirArtigoDaLinha<T extends Pick<ProposalDoc, "budgetItems" | "budgetArtigos">>(
+  doc: T,
+  i: number,
+): T {
+  if (artigosDasLinhas(doc)[i]) return doc;
+  const sugerido = artigoSugerido((doc.budgetItems ?? [])[i] ?? "");
+  return sugerido ? definirArtigoDaLinha(doc, i, sugerido) : doc;
 }
 
 /** Escolhe (ou tira) o artigo de um valor adicional. */

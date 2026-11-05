@@ -26,6 +26,9 @@
 | 7 | **Com a API: «Criar rascunho no Moloni»** (sinal e saldo, um botão cada); «Ou passar à mão» continua lá | `POST /api/orcamento/[id]/moloni` → `src/lib/moloni.ts` |
 | 8 | O sinal (30%) e o saldo (70%) por artigo, sem IVA, a somar ao cêntimo | `parcelasDaFatura` |
 | 9 | **Propostas aceites ANTES disto** (sem preço por linha): o total reparte-se à mão pelos artigos no cartão, com «Sugerir» e «Pôr o resto em…» | `repartoPorArtigo`, `PATCH /api/propostas/[id]/reparto` |
+| 10 | **O total é a soma** (5/11, segundo pedido dela): escrever o valor de um serviço põe o total na soma dos serviços e dos adicionais (deslocação…); com serviços com valor, o campo do total já não se escreve à mão. Uma proposta antiga aberta não muda sozinha — fica o aviso e o «Usar …» | `somarOTotal` em `ProposalStudio.tsx` |
+| 11 | **Sem serviços no orçamento, não sai** — nem por email, nem pelo WhatsApp, nem como PDF final descarregado (só o rascunho, marcado em cada página) | `linhas-do-orcamento` em `oQueFaltaParaEnviar`; `TRAVAM_O_PDF_FINAL` na rota |
+| 12 | **«Pôr no orçamento»**: os serviços escritos no passo «Serviços» vêm para o orçamento num gesto, cada um com o artigo do Moloni que o nome sugere — só falta o valor à frente. E ao escrever o nome de uma linha, o artigo escolhe-se sozinho (quando o nome é claro) | `servicosForaDoOrcamento`, `trazerServicosParaOOrcamento`, `sugerirArtigoDaLinha` |
 
 ### Os artigos (respostas dela, 5/11)
 
@@ -85,6 +88,7 @@ A primeira versão punha um artigo em cada linha. Medido nas propostas aceites (
 
 ## O que fica por verificar
 
+- **A «tabela de preços simples»** (o construtor antigo, atrás de um link no painel do pedido, `ProposalBuilder`) ainda envia propostas com preço por linha mas **sem artigo do Moloni**. Nenhuma proposta na base veio de lá (verificado a 5/11, só leitura). Fica por decidir com ela se sai.
 - **Se o Moloni aceita colar `2535,00`** (vírgula, sem milhares) no preço do artigo. É o formato português; **não verificado** no ecrã do Moloni.
 - **A ligação verdadeira.** Os testes falam com um Moloni de mentira, construído pela documentação oficial (`https://www.moloni.pt/dev/`). A primeira fatura verdadeira é a prova: abrir o rascunho no Moloni e conferir cliente, artigos, valores e IVA antes de o fechar.
 - **Revisão independente** (5/11): um revisor leu o código à procura de erros. As conclusões e o que se corrigiu estão no PR.

@@ -148,7 +148,20 @@ describe("oQueFaltaParaEnviar", () => {
       "Falta o valor",
       "Falta a data do evento",
       "A secção Serviços está vazia",
+      "O orçamento não tem serviços: escreve cada serviço com o seu valor",
     ]);
+  });
+
+  it("sem nenhum serviço no orçamento não sai — só um total escrito não chega (5/11)", () => {
+    const d = {
+      ...COMPLETO,
+      budgetItems: [],
+      budgetAmounts: [],
+      budgetArtigos: [],
+    } as unknown as ProposalDoc;
+    const f = oQueFaltaParaEnviar(d, 3997.5).find((x) => x.id === "linhas-do-orcamento");
+    expect(f).toMatchObject({ trava: true, seccao: "orcamento" });
+    expect(podeEnviar(d, 3997.5)).toBe(false);
   });
 
   /**
@@ -235,7 +248,9 @@ describe("oQueFaltaParaEnviar", () => {
       ...COMPLETO,
       budgetExtras: [{ label: "Alojamento", valueText: "a definir" }],
     } as unknown as ProposalDoc;
-    expect(oQueFaltaParaEnviar(aDefinir, 3997.5).some((x) => x.id === "artigos-moloni")).toBe(false);
+    expect(oQueFaltaParaEnviar(aDefinir, 3997.5).some((x) => x.id === "artigos-moloni")).toBe(
+      false,
+    );
   });
 
   /**
