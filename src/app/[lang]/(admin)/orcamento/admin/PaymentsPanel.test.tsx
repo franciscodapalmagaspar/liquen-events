@@ -228,6 +228,59 @@ describe("PaymentsPanel — o sinal sugerido é o da proposta", () => {
         : okResponse(),
     );
 
+  /**
+   * ── O TOTAL É O DA PROPOSTA ACEITE (5/11) ─────────────────────────────────
+   * Ela: o cliente aceitou a proposta por 4.500 € e o painel dizia «5 €» a
+   * pagar. O painel fazia as contas pelo «Preço final (sem IVA)» do pedido, e
+   * num cliente esse campo tinha 4,323 € em vez de 4.323 €. O total que o
+   * cliente aceitou está na proposta, e é esse que manda.
+   */
+  it("com uma proposta aceite, o total é o dela — não o preço do pedido", async () => {
+    fetchMock = vi.fn(async (url: string) =>
+      String(url).startsWith("/api/propostas")
+        ? ({
+            ok: true,
+            status: 200,
+            headers: new Headers(),
+            json: async () => [
+              // Uma revisão mais nova, por aceitar, não passa à frente da aceite.
+              { id: "p2", quoteId: "q1", status: "enviada", total: 9071.25, subtotal: 7375 },
+              {
+                id: "p1",
+                quoteId: "q1",
+                status: "aceite",
+                total: 5317.29,
+                subtotal: 4323,
+                vatRate: 0.23,
+                pctSinal: 30,
+              },
+            ],
+          } as unknown as Response)
+        : okResponse(),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderPanel({
+      ...makeQuote(),
+      priceBreakdown: undefined,
+      quotedPrice: 4.323,
+    } as unknown as Quote);
+
+    await waitFor(() => expect(screen.getAllByText("5317,29 €").length).toBeGreaterThan(0));
+    expect(screen.queryByText("5,32 €")).not.toBeInTheDocument();
+    // O sinal de 30% sai do total aceite.
+    expect(screen.getByRole("button", { name: /Sinal 30%/ }).textContent).toMatch(/1595,19/);
+  });
+
+  it("os meios habituais aparecem com ícone, e um clique escreve o método", async () => {
+    const user = userEvent.setup();
+    renderPanel(makeQuote());
+    const mbway = screen.getByRole("button", { name: "MB Way" });
+    expect(mbway.querySelector('svg[data-meio="mbway"]')).not.toBeNull();
+    await user.click(mbway);
+    expect(screen.getByLabelText("Método ou nota (opcional)")).toHaveValue("MB Way");
+    expect(mbway).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("uma proposta de 50% sugere metade do total", async () => {
     fetchMock = comProposta(50);
     vi.stubGlobal("fetch", fetchMock);

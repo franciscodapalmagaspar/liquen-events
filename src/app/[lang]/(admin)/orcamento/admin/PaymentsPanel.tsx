@@ -9,10 +9,12 @@ import { useToast } from "./Toast";
 import { useAnular } from "./ui/anular";
 import type { Quote, Payment, PaymentKind } from "@/lib/orcamento/types";
 import { splitSinal } from "@/lib/money";
-import { usePercentagemDoSinal } from "./percentagem-do-sinal";
+import { useDinheiroAceite, usePercentagemDoSinal } from "./percentagem-do-sinal";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { computeEventMetrics, paidTotal, type DossierData } from "@/lib/orcamento/dossier";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
+import { MEIOS_HABITUAIS, meioDoTexto } from "@/lib/orcamento/meios-de-pagamento";
+import { IconeDoMeio } from "./ui/IconeDoMeio";
 
 const KIND_LABEL: Record<PaymentKind, string> = {
   sinal: "Sinal",
@@ -22,7 +24,7 @@ const KIND_LABEL: Record<PaymentKind, string> = {
 const KIND_ORDER: PaymentKind[] = ["sinal", "pagamento", "saldo"];
 
 /** Métodos habituais — juntam-se aos usados neste evento, que vêm primeiro. */
-const METHOD_SUGGESTIONS = ["MB Way", "Transferência", "Numerário", "Multibanco", "Cheque"];
+const METHOD_SUGGESTIONS = MEIOS_HABITUAIS.map((m) => m.nome);
 
 /**
  * Colunas partilhadas pelo cabeçalho, pela linha de registo e por cada linha de
@@ -153,9 +155,25 @@ export default function PaymentsPanel({ quote, onChange, onContractRef }: Props)
   // Dossier "sintético" só com o que as funções puras precisam; usa os
   // pagamentos *vivos* (state) para o topo reagir aos toggles sem esperar
   // pela gravação.
+  //
+  // A proposta ACEITE entra, quando há: é o total que o cliente aceitou que se
+  // cobra (ver `useDinheiroAceite`). Sem ela, as contas caem no «Preço final»
+  // do pedido, como sempre. Só os três números do dinheiro vão no objecto —
+  // `contractedAmounts` não lê mais nada da proposta.
+  const aceite = useDinheiroAceite(quote.id);
   const dossier: DossierData = useMemo(
-    () => ({ quote: { ...quote, payments }, proposal: null, contract: null }),
-    [quote, payments],
+    () => ({
+      quote: { ...quote, payments },
+      proposal: aceite
+        ? ({
+            total: aceite.total,
+            subtotal: aceite.subtotal,
+            vatRate: aceite.vatRate,
+          } as DossierData["proposal"])
+        : null,
+      contract: null,
+    }),
+    [quote, payments, aceite],
   );
   const metrics = useMemo(() => computeEventMetrics(dossier), [dossier]);
 
@@ -980,6 +998,24 @@ export default function PaymentsPanel({ quote, onChange, onContractRef }: Props)
         <button type="button" onClick={() => setDate(yesterday)} className={chip}>
           Ontem
         </button>
+        <span className="text-foreground/15" aria-hidden="true">
+          |
+        </span>
+        {/* Os meios habituais, com o ícone de cada um (pedido dela, 5/11): um
+            clique escreve o método no campo. O campo continua livre. */}
+        <span className="text-foreground/35 text-[9px] tracking-[0.15em] uppercase">Método</span>
+        {MEIOS_HABITUAIS.map(({ meio, nome }) => (
+          <button
+            key={meio}
+            type="button"
+            onClick={() => setNote(nome)}
+            aria-pressed={note.trim().toLowerCase() === nome.toLowerCase()}
+            className={`${chip} inline-flex items-center gap-1.5 aria-pressed:border-sage-600/50 aria-pressed:text-sage-600`}
+          >
+            <IconeDoMeio meio={meio} />
+            {nome}
+          </button>
+        ))}
       </div>
 
       {/* ── Pagamentos registados (registo interno do dia-a-dia) ── */}
@@ -1070,8 +1106,15 @@ export default function PaymentsPanel({ quote, onChange, onContractRef }: Props)
                 {overdue && " · atraso"}
               </span>
 
-              <span className="text-foreground/40 text-[11px] truncate" title={p.note}>
-                {p.note || "—"}
+              <span
+                className="text-foreground/40 text-[11px] inline-flex min-w-0 items-center gap-1.5"
+                title={p.note}
+              >
+                {(() => {
+                  const meio = meioDoTexto(p.note);
+                  return meio ? <IconeDoMeio meio={meio} /> : null;
+                })()}
+                <span className="truncate">{p.note || "—"}</span>
               </span>
 
               <button

@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ADMIN_COOKIE, readSession } from "@/lib/admin-auth";
 import { normalizeLocale } from "@/lib/i18n";
 import { getQuote } from "@/lib/quotes-store";
-import { getProposalByQuote } from "@/lib/proposals-store";
+import { listProposalsForQuote } from "@/lib/proposals-store";
 import { getContractByProposal, getAcceptedContractByQuote } from "@/lib/contracts-store";
 import type { DossierData } from "@/lib/orcamento/dossier";
 import DossierClient from "./DossierClient";
@@ -56,7 +56,14 @@ export default async function EventoDossierPage({
   // essa proposta não tem contrato e um lookup por ela perderia o cartão de
   // contrato e faria a fase regredir de `em_producao` para `sinal_pago`. Mantemos
   // o lookup por proposta como recurso (contratos antigos indexados só por ela).
-  const proposal = await getProposalByQuote(quote.id);
+  //
+  // E a proposta é a ACEITE, quando há (5/11): é o total que o cliente aceitou
+  // que se cobra, e uma revisão posterior não o pode substituir no topo do
+  // dossier. Sem aceite, a mais recente, como sempre — a lista chega da mais
+  // nova para a mais velha. É a mesma regra do painel de Pagamentos
+  // (`percentagem-do-sinal.ts`) e do link do casal.
+  const propostas = await listProposalsForQuote(quote.id);
+  const proposal = propostas.find((p) => p.status === "aceite") ?? propostas[0] ?? null;
   const [contractByQuote, contractByProposal] = await Promise.all([
     getAcceptedContractByQuote(quote.id),
     proposal ? getContractByProposal(proposal.id) : Promise.resolve(null),

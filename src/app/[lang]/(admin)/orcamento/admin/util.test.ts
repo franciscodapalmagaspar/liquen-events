@@ -235,6 +235,16 @@ describe("parseMoney", () => {
     expect(parseMoney("1.234.567")).toBe(1234567);
   });
 
+  it("BUG-GUARD (5/11): uma vírgula seguida de três algarismos é de milhares — '4,323' é 4323 €", () => {
+    // Um casamento aceite por 4.323 € + IVA ficou com 4,323 € no «valor
+    // combinado», e o painel de Pagamentos pedia 5,32 €.
+    expect(parseMoney("4,323")).toBe(4323);
+    expect(parseMoney("12,500")).toBe(12500);
+    expect(parseMoney("1,234,567")).toBe(1234567);
+    // Com um zero à frente continua a ser decimal.
+    expect(parseMoney("0,500")).toBe(0.5);
+  });
+
   it("accepts the pt-PT decimal comma", () => {
     expect(parseMoney("1500,50")).toBe(1500.5);
     expect(parseMoney("0,99")).toBe(0.99);
