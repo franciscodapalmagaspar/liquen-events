@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "./Toast";
 import { __resetListCache } from "./useCachedList";
@@ -90,7 +90,7 @@ describe("PaymentsPanel — linha única de registo", () => {
     expect(lastSavedPayments()[1]).toMatchObject({ amount: 250.5, note: "MB Way", paid: true });
   });
 
-  it("depois de registar, o foco volta ao primeiro campo e o valor fica limpo", async () => {
+  it("depois de registar, o foco volta ao valor e o valor fica limpo", async () => {
     const user = userEvent.setup();
     renderPanel(
       makeQuote([{ id: "p0", kind: "sinal", amount: 100, date: "2026-01-10", paid: true }]),
@@ -100,7 +100,8 @@ describe("PaymentsPanel — linha única de registo", () => {
     await user.type(valor, "300{Enter}");
 
     await waitFor(() => expect(lastSavedPayments()).toHaveLength(2));
-    expect(screen.getByLabelText("Tipo de pagamento")).toHaveFocus();
+    // O foco volta ao valor (o tipo, agora em botões à vista, fica escolhido).
+    expect(valor).toHaveFocus();
     expect(valor).toHaveValue("");
   });
 
@@ -286,6 +287,58 @@ describe("PaymentsPanel — o sinal sugerido é o da proposta", () => {
     await user.click(mbway);
     expect(screen.getByLabelText("Método ou nota (opcional)")).toHaveValue("MB Way");
     expect(mbway).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("o tipo escolhe-se em três botões, e o Saldo final traz o valor em falta", async () => {
+    const user = userEvent.setup();
+    // 300 € já recebidos de 1230 € → em falta 930 €.
+    renderPanel(
+      makeQuote([{ id: "p0", kind: "sinal", amount: 300, date: "2026-01-10", paid: true }]),
+    );
+    const tipo = screen.getByRole("radiogroup", { name: "Tipo de pagamento" });
+    expect(
+      within(tipo)
+        .getAllByRole("radio")
+        .map((r) => r.textContent),
+    ).toEqual(["Sinal", "Pagamento", "Saldo final"]);
+    await user.click(within(tipo).getByRole("radio", { name: "Saldo final" }));
+    expect(within(tipo).getByRole("radio", { name: "Saldo final" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByLabelText("Valor em euros")).toHaveValue("930,00");
+    // O atalho que corresponde ao valor escrito mostra-se carregado.
+    expect(screen.getByRole("button", { name: /Em falta/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /Sinal 30%/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  it("o meio escolhido mostra-se carregado, e tocar outra vez tira-o", async () => {
+    const user = userEvent.setup();
+    renderPanel(makeQuote());
+    const multibanco = screen.getByRole("button", { name: "Multibanco" });
+    await user.click(multibanco);
+    expect(multibanco).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Método ou nota (opcional)")).toHaveValue("Multibanco");
+    await user.click(multibanco);
+    expect(multibanco).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByLabelText("Método ou nota (opcional)")).toHaveValue("");
+  });
+
+  it("«Hoje» e «Ontem» dizem qual dos dois está no campo", async () => {
+    const user = userEvent.setup();
+    renderPanel(makeQuote());
+    const hoje = screen.getByRole("button", { name: "Hoje" });
+    const ontem = screen.getByRole("button", { name: "Ontem" });
+    expect(hoje).toHaveAttribute("aria-pressed", "true");
+    await user.click(ontem);
+    expect(ontem).toHaveAttribute("aria-pressed", "true");
+    expect(hoje).toHaveAttribute("aria-pressed", "false");
   });
 
   it("uma proposta de 50% sugere metade do total", async () => {

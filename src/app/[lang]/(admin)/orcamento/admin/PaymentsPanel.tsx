@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DesistirDaEdicao } from "./ui/DesistirDaEdicao";
 import type { FormEvent } from "react";
 import { parseMoney, randomId, eur2, todayKey, isDateKey } from "./util";
-import { Escolha, Button } from "./ui";
+import { Button } from "./ui";
+import { Segmented } from "./ui/Segmented";
 import { useToast } from "./Toast";
 import { useAnular } from "./ui/anular";
 import type { Quote, Payment, PaymentKind } from "@/lib/orcamento/types";
@@ -36,6 +37,42 @@ const METHOD_SUGGESTIONS = MEIOS_HABITUAIS.map((m) => m.nome);
  * query* (`@min-[36rem]`), não um breakpoint de ecrã: o que manda é a largura do
  * painel, não a da janela.
  */
+/** O rótulo visível de cada campo do «Registar pagamento». */
+const ROTULO_CAMPO = "text-xs font-medium text-[var(--bo-text-muted)]";
+
+/**
+ * Os atalhos que preenchem o formulário: «Sinal 30% · 450 €», «50% · …»,
+ * «Hoje», «Ontem». Mostram-se carregados quando o campo já tem esse valor.
+ *
+ * O verde do texto é o `--bo-accent` e não `text-sage-600`: a regra que o
+ * clareia no escuro (admin.css, «O VERDE DO TEXTO NO ESCURO») só apanha a
+ * classe simples, não a variante `aria-pressed:` — no escuro ficava a 2:1.
+ *
+ * MEDIDO a 375 px, na versão antiga: 45×28 e 56×28 — abaixo dos 44 das
+ * guidelines. Errar o toque aqui não é inócuo: entre «Hoje» e «Ontem» está a
+ * diferença entre datar um recebimento no dia certo e no dia errado, e entre
+ * «Sinal» e «50%» está o dobro do valor. `alvo-toque` só cresce sob
+ * `(pointer: coarse)`; com rato a fila mantém a densidade.
+ */
+const ATALHO =
+  "alvo-toque inline-flex items-center rounded-full border px-2.5 py-1 text-xs tabular-nums " +
+  "border-[var(--bo-hairline-strong)] text-[var(--bo-text-muted)] hover:border-sage-600/50 hover:text-[var(--bo-accent)] " +
+  "aria-pressed:border-sage-600 aria-pressed:bg-sage-600/10 aria-pressed:text-[var(--bo-accent)] " +
+  `${ESTADO} ${PRESSAO}`;
+
+/** Os botões dos meios — o mesmo desenho do «Recebido» da área Pagamentos. */
+const MEIO =
+  "alvo-toque inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs " +
+  "border-[var(--bo-hairline-strong)] text-[var(--bo-tinta-72)] hover:border-sage-600/50 " +
+  "aria-pressed:border-sage-600 aria-pressed:bg-sage-600/10 aria-pressed:text-[var(--bo-accent)] " +
+  `${ESTADO} ${PRESSAO}`;
+
+/** O campo do valor já diz este número? (para mostrar o atalho carregado) */
+function mesmoValor(campo: string, valor: number): boolean {
+  const n = parseMoney(campo);
+  return n !== undefined && Math.abs(n - valor) < 0.005;
+}
+
 const GRID =
   "grid items-center gap-x-2 gap-y-1.5 grid-cols-2 " +
   "@min-[36rem]:gap-y-0 " +
@@ -138,12 +175,9 @@ export default function PaymentsPanel({ quote, onChange, onContractRef }: Props)
   const [editValue, setEditValue] = useState("");
   const [failed, setFailed] = useState<FailedOp | null>(null);
 
-  // O foco volta sempre ao PRIMEIRO campo depois de registar — é isso que
-  // permite encadear pagamentos sem tocar no rato.
-  // `HTMLElement` e não `HTMLSelectElement`: o primeiro campo deixou de ser um
-  // `<select>` com rato (ver `ui/Escolha`) e passou a ser um botão. Quem leva o
-  // foco aqui não precisa de saber qual dos dois é hoje.
-  const firstFieldRef = useRef<HTMLElement>(null);
+  // Depois de registar, o foco volta ao VALOR: o tipo e o meio ficam, e o
+  // pagamento seguinte é escrever o número e carregar Enter (5/11 — com o tipo
+  // em três botões à vista, o primeiro campo a escrever passou a ser o valor).
   const amountRef = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
   // Evita que o `blur` provocado pelo Enter grave a mesma edição duas vezes.
@@ -277,12 +311,7 @@ export default function PaymentsPanel({ quote, onChange, onContractRef }: Props)
       ? Math.max(0, Math.min(100 - pct, (draft / total) * 100))
       : 0;
 
-  // O último tipo/método usados ficam à cabeça — é o que se repete no dia-a-dia.
-  const lastKind = payments.length > 0 ? payments[payments.length - 1].kind : null;
-  const kindOptions = useMemo(
-    () => (lastKind ? [lastKind, ...KIND_ORDER.filter((k) => k !== lastKind)] : KIND_ORDER),
-    [lastKind],
-  );
+  // Os métodos usados neste evento ficam à cabeça — é o que se repete no dia-a-dia.
   const methodOptions = useMemo(() => {
     const used: string[] = [];
     for (let i = payments.length - 1; i >= 0; i--) {
@@ -519,8 +548,8 @@ export default function PaymentsPanel({ quote, onChange, onContractRef }: Props)
     setAmount("");
     setNote("");
     setFormError(null);
-    // De volta ao início da linha, pronto para o pagamento seguinte.
-    firstFieldRef.current?.focus();
+    // De volta ao valor, pronto para o pagamento seguinte.
+    amountRef.current?.focus();
   }
 
   function togglePaid(p: Payment) {
@@ -615,23 +644,6 @@ export default function PaymentsPanel({ quote, onChange, onContractRef }: Props)
     }
   }
 
-  /**
-   * Os atalhos que preenchem o formulário: «Sinal 30% · 450 €», «50% · …»,
-   * «Hoje», «Ontem».
-   *
-   * MEDIDO a 375 px: 45×28 e 56×28 — abaixo dos 44 de altura das guidelines, e
-   * encostados uns aos outros numa fila. Errar o toque aqui não é inócuo: entre
-   * «Hoje» e «Ontem» está a diferença entre datar um recebimento no dia certo e
-   * no dia errado, e entre «Sinal» e «50%» está o dobro do valor.
-   *
-   * `alvo-toque` só cresce sob `(pointer: coarse)`; com rato a fila mantém a
-   * densidade que tem. O `inline-flex` que a classe traz é o que estes já são
-   * na prática, portanto o desenho não muda — cresce a caixa em que se toca.
-   */
-  const chip =
-    "alvo-toque rounded-full border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] px-2.5 py-1 " +
-    "text-[11px] tabular-nums text-[var(--bo-text-muted)] hover:border-sage-600/50 hover:text-sage-600 " +
-    `${ESTADO} ${PRESSAO}`;
   const ghostFailed = Boolean(failed?.ghost && !payments.some((p) => p.id === failed.id));
 
   return (
@@ -844,179 +856,212 @@ export default function PaymentsPanel({ quote, onChange, onContractRef }: Props)
         </div>
       )}
 
-      {/* ── Linha única de registo ──
-          Um <form> a sério: dá submissão implícita (Enter em qualquer campo) e o
-          comportamento de teclado certo, de graça. */}
-      <p className="text-foreground/45 text-[10px] tracking-[0.2em] uppercase mb-2">
-        Registar pagamento
-      </p>
+      {/* ── Registar pagamento (redesenhado a 5/11) ─────────────────────────
+          Ela, a olhar para a linha antiga: «temos que melhorar isto bastante».
+          Era uma linha só de campos sem rótulo (cabeçalhos de 9 px por cima) e,
+          por baixo, uma fila que misturava os atalhos do valor, da data e do
+          meio, separados por «|». Agora cada atalho vive DEBAIXO do campo que
+          preenche, o tipo são três botões à vista, e o meio escolhe-se pelos
+          logótipos — o mesmo desenho do «Recebido» da área Pagamentos, para a
+          equipa aprender um só.
 
-      {/* Cabeçalho das colunas — também serve de rótulo visível ao formulário.
-          Só aparece quando a linha única cabe. */}
-      <div
-        aria-hidden="true"
-        className={`${GRID} @max-[36rem]:hidden text-foreground/30 text-[9px] tracking-[0.12em] uppercase mb-1`}
+          Continua um <form> a sério: Enter em qualquer campo regista. */}
+      <section
+        aria-labelledby="registar-pagamento-titulo"
+        className="mb-5 rounded-2xl border border-[var(--bo-hairline)] bg-[var(--bo-surface)] p-[var(--bo-p-cartao)]"
       >
-        <span>Tipo</span>
-        <span className="text-right">Valor</span>
-        <span>Data</span>
-        <span>Método</span>
-        <span>Estado</span>
-        <span />
-      </div>
-
-      <form onSubmit={submit} aria-label="Registar pagamento" className={GRID}>
-        <Escolha
-          controloRef={firstFieldRef}
-          aria-label="Tipo de pagamento"
-          valor={kind}
-          aoMudar={(v) => pickKind(v as PaymentKind)}
-          className="px-2 py-2 text-xs text-[var(--bo-tinta-72)]"
-        >
-          {kindOptions.map((k) => (
-            <option key={k} value={k}>
-              {KIND_LABEL[k]}
-            </option>
-          ))}
-        </Escolha>
-        <input
-          ref={amountRef}
-          type="text"
-          inputMode="decimal"
-          aria-label="Valor em euros"
-          aria-invalid={formError ? true : undefined}
-          value={amount}
-          onChange={(e) => {
-            valorTocado.current = true;
-            setAmount(e.target.value);
-            if (formError) setFormError(null);
-          }}
-          placeholder="0,00"
-          className="bo-input px-2 py-2 text-xs text-right tabular-nums text-[var(--bo-text)]"
-        />
-        <input
-          type="date"
-          aria-label="Data do pagamento"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="bo-input px-2 py-2 text-xs text-[var(--bo-tinta-72)]"
-        />
-        <input
-          type="text"
-          aria-label="Método ou nota (opcional)"
-          list="payments-method-list"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="MB Way…"
-          className="bo-input px-2 py-2 text-xs text-[var(--bo-tinta-72)]"
-        />
-        {/* ── 163×18 NUM TELEMÓVEL ────────────────────────────────────────
-            MEDIDO a 375 px: o alvo deste interruptor era 163×18 — menos de
-            metade dos 44 de altura. E é o que decide se a linha que se está a
-            registar já entrou ou é só um plano: falhá-lo dá um pagamento
-            marcado por receber quando o dinheiro já cá está (ou o contrário),
-            e é essa marca que faz o pedido passar a «Ganho» (ver o PATCH em
-            `api/orcamento/[id]/route.ts`).
-
-            Cresce o RÓTULO, não o quadrado: o HTML manda o toque no rótulo
-            activar o controlo, e o desenho fica igual. `alvo-toque` só age sob
-            `(pointer: coarse)`. */}
-        <label className="alvo-toque !justify-start inline-flex select-none items-center gap-1.5 text-[11px] text-[var(--bo-text-muted)]">
-          <input
-            type="checkbox"
-            checked={paidOnAdd}
-            onChange={(e) => setPaidOnAdd(e.target.checked)}
-            className="h-3.5 w-3.5 accent-sage-600"
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 id="registar-pagamento-titulo" className="text-sm font-medium text-[var(--bo-text)]">
+            Registar pagamento
+          </h3>
+          <Segmented<PaymentKind>
+            ariaLabel="Tipo de pagamento"
+            size="sm"
+            value={kind}
+            onChange={pickKind}
+            options={KIND_ORDER.map((k) => ({ value: k, label: KIND_LABEL[k] }))}
           />
-          Já pago
-        </label>
-        {/* Nunca `disabled`: um botão apagado lê-se como avariado. Com o valor
-            em falta, carregar aponta o erro e devolve o foco ao campo. */}
-        <Button type="submit" size="sm" fullWidth>
-          Registar
-        </Button>
-      </form>
+        </div>
 
-      {/* Fora da grelha do formulário (é um elemento invisível, não uma coluna).
-          Últimos métodos usados primeiro, depois os habituais. */}
-      <datalist id="payments-method-list">
-        {methodOptions.map((m) => (
-          <option key={m} value={m} />
-        ))}
-      </datalist>
+        <form
+          onSubmit={submit}
+          aria-label="Registar pagamento"
+          className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 @min-[36rem]:grid-cols-2"
+        >
+          {/* Valor, e os atalhos do valor por baixo. */}
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className={ROTULO_CAMPO} aria-hidden="true">
+              Valor
+            </span>
+            <div className="relative">
+              <input
+                ref={amountRef}
+                type="text"
+                inputMode="decimal"
+                aria-label="Valor em euros"
+                aria-invalid={formError ? true : undefined}
+                aria-describedby={formError ? "registar-pagamento-erro" : undefined}
+                value={amount}
+                onChange={(e) => {
+                  valorTocado.current = true;
+                  setAmount(e.target.value);
+                  if (formError) setFormError(null);
+                }}
+                placeholder="0,00"
+                className="bo-input w-full py-2.5 pl-3 pr-8 text-right text-lg tabular-nums text-[var(--bo-text)]"
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--bo-text-muted)]"
+              >
+                €
+              </span>
+            </div>
+            {total > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {outstanding > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => suggest(outstanding, "saldo")}
+                    title="Preencher com o valor em falta"
+                    aria-pressed={mesmoValor(amount, outstanding)}
+                    className={ATALHO}
+                  >
+                    Em falta · {eur2(outstanding)}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => suggest(split.sinal, "sinal")}
+                  title={`Preencher com o sinal de ${pctSinal}% do total`}
+                  aria-pressed={mesmoValor(amount, split.sinal)}
+                  className={ATALHO}
+                >
+                  Sinal {pctSinal}% · {eur2(split.sinal)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => suggest(Math.round(total * 50) / 100)}
+                  title="Preencher com metade do total"
+                  aria-pressed={mesmoValor(amount, Math.round(total * 50) / 100)}
+                  className={ATALHO}
+                >
+                  50% · {eur2(Math.round(total * 50) / 100)}
+                </button>
+              </div>
+            )}
+          </div>
 
-      {/* Linha de altura fixa para o erro / atalho de teclado. */}
-      <p
-        className={`min-h-[1.1rem] leading-[1.1rem] text-[10px] mt-1.5 ${
-          formError ? "text-[var(--bo-perigo)]" : "text-foreground/35"
-        }`}
-        role={formError ? "alert" : undefined}
-      >
-        {formError ?? "Enter em qualquer campo regista e volta ao início da linha."}
-      </p>
-
-      {/* Sugestões: um clique preenche o valor (ou a data). */}
-      <div className="flex flex-wrap items-center gap-1.5 mt-1 mb-4">
-        {total > 0 && (
-          <>
-            <span className="text-foreground/35 text-[9px] tracking-[0.15em] uppercase">Valor</span>
-            {outstanding > 0 && (
+          {/* Data, e «Hoje»/«Ontem» por baixo. */}
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className={ROTULO_CAMPO} aria-hidden="true">
+              Data
+            </span>
+            <input
+              type="date"
+              aria-label="Data do pagamento"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="bo-input w-full px-3 py-2.5 text-sm text-[var(--bo-tinta-72)]"
+            />
+            <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
-                onClick={() => suggest(outstanding, "saldo")}
-                title="Preencher com o valor em falta"
-                className={chip}
+                onClick={() => setDate(today)}
+                aria-pressed={date === today}
+                className={ATALHO}
               >
-                Em falta · {eur2(outstanding)}
+                Hoje
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => suggest(split.sinal, "sinal")}
-              title={`Preencher com o sinal de ${pctSinal}% do total`}
-              className={chip}
+              <button
+                type="button"
+                onClick={() => setDate(yesterday)}
+                aria-pressed={date === yesterday}
+                className={ATALHO}
+              >
+                Ontem
+              </button>
+            </div>
+          </div>
+
+          {/* Como pagou: os logótipos primeiro (pedido dela, 5/11), e o campo
+              livre para o resto — outro meio, ou uma nota. */}
+          <fieldset className="flex min-w-0 flex-col gap-2 @min-[36rem]:col-span-2">
+            <legend className={`${ROTULO_CAMPO} mb-1.5`}>Como pagou</legend>
+            <div className="flex flex-wrap gap-2">
+              {MEIOS_HABITUAIS.map(({ meio, nome }) => {
+                const escolhido = note.trim().toLowerCase() === nome.toLowerCase();
+                return (
+                  <button
+                    key={meio}
+                    type="button"
+                    onClick={() => setNote(escolhido ? "" : nome)}
+                    aria-pressed={escolhido}
+                    className={MEIO}
+                  >
+                    <IconeDoMeio meio={meio} />
+                    {nome}
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              type="text"
+              aria-label="Método ou nota (opcional)"
+              list="payments-method-list"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Outro meio ou uma nota (opcional)"
+              className="bo-input w-full px-3 py-2 text-sm text-[var(--bo-tinta-72)]"
+            />
+          </fieldset>
+
+          {/* O fecho: já entrou ou é só previsto, e registar. */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--bo-hairline)] pt-4 @min-[36rem]:col-span-2">
+            {/* ── 163×18 NUM TELEMÓVEL ────────────────────────────────────
+                MEDIDO a 375 px: o alvo deste interruptor era 163×18. É o que
+                decide se a linha já entrou ou é só um plano — e é essa marca
+                que faz o pedido passar a «Ganho» (ver o PATCH em
+                `api/orcamento/[id]/route.ts`). Cresce o RÓTULO, não o
+                quadrado; `alvo-toque` só age sob `(pointer: coarse)`. */}
+            <label className="alvo-toque !justify-start inline-flex select-none items-center gap-2 text-sm text-[var(--bo-tinta-72)]">
+              <input
+                type="checkbox"
+                checked={paidOnAdd}
+                onChange={(e) => setPaidOnAdd(e.target.checked)}
+                className="h-4 w-4 accent-sage-600"
+              />
+              Já pago
+              <span className="text-xs text-[var(--bo-text-faint)]">
+                {paidOnAdd ? "· o dinheiro já entrou" : "· fica previsto, por receber"}
+              </span>
+            </label>
+            {/* Nunca `disabled`: um botão apagado lê-se como avariado. Com o
+                valor em falta, carregar aponta o erro e devolve o foco. */}
+            <Button type="submit" size="sm">
+              Registar
+            </Button>
+          </div>
+
+          {formError && (
+            <p
+              id="registar-pagamento-erro"
+              role="alert"
+              className="text-xs text-[var(--bo-perigo)] @min-[36rem]:col-span-2"
             >
-              Sinal {pctSinal}% · {eur2(split.sinal)}
-            </button>
-            <button
-              type="button"
-              onClick={() => suggest(Math.round(total * 50) / 100)}
-              title="Preencher com metade do total"
-              className={chip}
-            >
-              50% · {eur2(Math.round(total * 50) / 100)}
-            </button>
-            <span className="text-foreground/15" aria-hidden="true">
-              |
-            </span>
-          </>
-        )}
-        <span className="text-foreground/35 text-[9px] tracking-[0.15em] uppercase">Data</span>
-        <button type="button" onClick={() => setDate(today)} className={chip}>
-          Hoje
-        </button>
-        <button type="button" onClick={() => setDate(yesterday)} className={chip}>
-          Ontem
-        </button>
-        <span className="text-foreground/15" aria-hidden="true">
-          |
-        </span>
-        {/* Os meios habituais, com o ícone de cada um (pedido dela, 5/11): um
-            clique escreve o método no campo. O campo continua livre. */}
-        <span className="text-foreground/35 text-[9px] tracking-[0.15em] uppercase">Método</span>
-        {MEIOS_HABITUAIS.map(({ meio, nome }) => (
-          <button
-            key={meio}
-            type="button"
-            onClick={() => setNote(nome)}
-            aria-pressed={note.trim().toLowerCase() === nome.toLowerCase()}
-            className={`${chip} inline-flex items-center gap-1.5 aria-pressed:border-sage-600/50 aria-pressed:text-sage-600`}
-          >
-            <IconeDoMeio meio={meio} />
-            {nome}
-          </button>
-        ))}
-      </div>
+              {formError}
+            </p>
+          )}
+        </form>
+
+        {/* Fora do formulário (é um elemento invisível). Os métodos usados
+            neste evento primeiro, depois os habituais. */}
+        <datalist id="payments-method-list">
+          {methodOptions.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      </section>
 
       {/* ── Pagamentos registados (registo interno do dia-a-dia) ── */}
       <div className="flex items-baseline justify-between gap-3 mb-1.5">
