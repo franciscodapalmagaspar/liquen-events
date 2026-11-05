@@ -19,6 +19,7 @@ import { listItemsOfEvent, addEventItem, removeItemsOfEvent } from "./event-mate
 import { depositPercentOf, hojeNoEstudio } from "./proposal-doc";
 import { totaisDaProposta } from "./proposal-budget";
 import type { ChecklistItem, CalendarEventKind, Payment, Quote } from "./orcamento/types";
+import { prazoDoSaldo } from "./orcamento/cobrancas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -328,34 +329,9 @@ async function gerarMaterial(quote: Quote): Promise<{ linhas: number; preservada
  * partir daí. Nunca se marca nada como pago: `paid: false` sempre, porque
  * "entrou dinheiro" é um facto que só ela conhece.
  */
-/**
- * O último dia para liquidar o saldo: um mês de calendário antes do evento.
- *
- * Achado n.º 8 da auditoria: o saldo nascia com a data do PRÓPRIO dia do
- * casamento. A proposta diz «70% 1 mês antes» e o contrato «é liquidado até 1
- * mês antes da data do evento» — e o lembrete diário, que avisa a 7 dias,
- * chegava na semana do casamento.
- *
- * O dia do mês é o mesmo, e encosta ao fim do mês quando esse dia não existe
- * (31 de Março → 28 ou 29 de Fevereiro). Nunca antes do dia do sinal: um
- * casamento marcado a três semanas não tem um saldo «vencido» à nascença.
- * Sem data de evento (ou com uma ilegível), fica a que lá estava.
- */
-export function prazoDoSaldo(dataDoEvento: string, diaDoSinal: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dataDoEvento ?? "");
-  if (!m) return dataDoEvento;
-  let [ano, mes] = [Number(m[1]), Number(m[2]) - 1];
-  const dia = Number(m[3]);
-  if (mes === 0) {
-    ano -= 1;
-    mes = 11;
-  } else {
-    mes -= 1;
-  }
-  const ultimoDoMes = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
-  const prazo = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(Math.min(dia, ultimoDoMes)).padStart(2, "0")}`;
-  return prazo < diaDoSinal ? diaDoSinal : prazo;
-}
+// `prazoDoSaldo` vive em `orcamento/cobrancas.ts` (é puro e o ecrã dos
+// Pagamentos também o usa); fica exportado daqui para quem já o importava.
+export { prazoDoSaldo } from "./orcamento/cobrancas";
 
 async function pagamentosEmFalta(
   quote: Quote,

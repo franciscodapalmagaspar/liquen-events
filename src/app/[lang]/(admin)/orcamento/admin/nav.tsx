@@ -13,6 +13,7 @@ export type View =
   | "clientes"
   | "calendario"
   | "propostas"
+  | "pagamentos"
   | "acompanhamento"
   | "fazer-proposta"
   | "guioes"
@@ -60,6 +61,7 @@ const TODAS: Record<View, true> = {
   clientes: true,
   calendario: true,
   propostas: true,
+  pagamentos: true,
   acompanhamento: true,
   "fazer-proposta": true,
   guioes: true,
@@ -131,6 +133,9 @@ export const CORE_NAV: View[] = [
   "pedidos",
   "fazer-proposta",
   "propostas",
+  // Ao lado das propostas, como ela pediu (5/11): é o passo a seguir — a
+  // proposta foi aceite, e agora é receber o sinal e o saldo.
+  "pagamentos",
   "calendario",
   "tarefas",
 ];
@@ -313,6 +318,26 @@ export const NAV: { id: View; label: string; icon: ReactNode }[] = [
       >
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
         <path d="M14 2v6h6M9 13h6M9 17h6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    id: "pagamentos",
+    label: "Pagamentos",
+    // A carteira da Lucide (§8.1), no traço das outras entradas desta lista.
+    icon: (
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
+        <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
       </svg>
     ),
   },
