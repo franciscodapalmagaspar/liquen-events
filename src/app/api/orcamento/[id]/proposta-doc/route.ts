@@ -65,6 +65,22 @@ const TRAVAM_NO_SERVIDOR: ReadonlySet<string> = new Set([
   "visto",
   // O preço e o artigo do Moloni de cada linha, e as linhas a somar o total
   // (5/11): sem isto a faturação não sai feita da proposta.
+  "linhas-do-orcamento",
+  "precos-das-linhas",
+  "artigos-moloni",
+  "soma",
+]);
+
+/**
+ * O que trava também o PDF FINAL descarregado (5/11). Ela: «não quero que o
+ * sistema deixe enviar uma proposta sem colocar os valores todos». O PDF final
+ * descarregado é outra forma de a enviar (por email à mão, pelo WhatsApp), por
+ * isso sem o preço e o artigo de cada linha só sai o RASCUNHO, marcado como
+ * tal em cada página. O estúdio já não oferece o final nesse caso; isto é a
+ * mesma regra do lado do servidor, para um estúdio antigo noutra aba.
+ */
+const TRAVAM_O_PDF_FINAL: ReadonlySet<string> = new Set([
+  "linhas-do-orcamento",
   "precos-das-linhas",
   "artigos-moloni",
   "soma",
@@ -462,6 +478,27 @@ async function POST_semMedida(
 
     // O rascunho só existe na pré-visualização: um envio nunca sai marcado.
     const rascunho = mode === "preview" && body?.rascunho === true;
+    if (mode === "preview" && !rascunho) {
+      const travam = oQueFaltaParaEnviar(doc, dinheiroDaProposta(doc).gross, {
+        idioma,
+        canal: "email",
+        emailDoCliente: quote.email,
+        pdfVisto: false,
+      }).filter((f) => f.trava && TRAVAM_O_PDF_FINAL.has(f.id));
+      if (travam.length > 0) {
+        return NextResponse.json(
+          {
+            // Só a primeira letra desce: o resto leva os nomes dos serviços,
+            // que se escrevem como ela os escreveu.
+            error: `O PDF final só sai com os valores todos: ${travam
+              .map((f) => f.texto.charAt(0).toLowerCase() + f.texto.slice(1))
+              .join("; ")}. Até lá, descarrega o rascunho.`,
+            faltas: travam,
+          },
+          { status: 422 },
+        );
+      }
+    }
     /**
      * O PDF FINAL de uma versão desenha-se uma vez: o «Descarregar o PDF
      * final», o que o estúdio prepara em segundo plano e o envio a seguir são

@@ -117,7 +117,6 @@ import {
   EmCurso,
   PerguntaDestrutiva,
   SectionCard,
-  Segmented,
   TabelaOuCartoes,
   type Coluna,
 } from "./ui";
@@ -177,7 +176,6 @@ import {
   Fornecedores,
   StatsDashboard,
   FechosMeta,
-  ProposalBuilder,
   ProposalStudio,
   FazerProposta,
   ProductionPlan,
@@ -1443,9 +1441,6 @@ export default function AdminClient({
     setDetailTab(tab);
     setDetailTabsVisitados(new Set([tab]));
   }, []);
-  // Comunicação tab shows one proposal tool by default (ProposalStudio); the
-  // simpler price-table tool (ProposalBuilder) stays collapsed behind a link.
-  const [showBuilder, setShowBuilder] = useState(false);
   // Scroll targets for the "Próxima ação" shortcut: the always-visible
   // management form and the tools (tabs) section.
   const gestaoRef = useRef<HTMLDivElement>(null);
@@ -8581,125 +8576,64 @@ export default function AdminClient({
                             >
                               {detailTabsVisitados.has("comunicacao") && (
                                 <>
-                                  {/* Step 1 — the proposal. One tool at a time: the detailed
-                                  Studio by default, or the quick price-table Builder —
-                                  never both stacked on screen. The mode is an explicit,
-                                  calm segmented choice so a newcomer sees both exist. */}
-                                  <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <p className="bo-eyebrow text-foreground/45">1 · A proposta</p>
-                                    <Segmented
-                                      ariaLabel="Tipo de proposta"
-                                      size="sm"
-                                      value={showBuilder ? "rapida" : "detalhada"}
-                                      onChange={(v) => setShowBuilder(v === "rapida")}
-                                      options={[
-                                        { value: "detalhada", label: "Detalhada" },
-                                        { value: "rapida", label: "Rápida" },
-                                      ]}
+                                  {/* Passo 1 — a proposta. Uma ferramenta só, o estúdio:
+                                  a «tabela de preços simples» que havia ao lado saiu
+                                  a 5/11, a pedido dela — enviava propostas sem o
+                                  artigo do Moloni de cada serviço, e o estúdio já não
+                                  deixa. */}
+                                  <p className="bo-eyebrow text-foreground/45">1 · A proposta</p>
+                                  <>
+                                    <ProposalStudio
+                                      key={`studio-${selected.id}`}
+                                      quote={selected}
+                                      quotes={activeQuotes}
+                                      // O valor é um só: o estúdio grava-o no
+                                      // pedido, e o "Preço final" aqui ao lado tem
+                                      // de mostrar o mesmo número sem ser preciso
+                                      // recarregar nada.
+                                      onQuoteUpdated={(q) => {
+                                        setQuotes((prev) =>
+                                          prev.map((x) => (x.id === q.id ? q : x)),
+                                        );
+                                        setSelected((prev) => (prev?.id === q.id ? q : prev));
+                                        // `textoDoPreco` e não a verdade do valor:
+                                        // um total de ZERO é um preço escrito, e
+                                        // lido como «sem preço» deixava o campo
+                                        // vazio sobre um pedido que tem 0 — a barra
+                                        // a pedir para gravar o que o estúdio
+                                        // acabou de gravar.
+                                        setEditPrice(textoDoPreco(q));
+                                      }}
+                                      onSent={() => {
+                                        setQuotes((prev) =>
+                                          prev.map((q) =>
+                                            q.id === selected.id ? { ...q, status: "cotado" } : q,
+                                          ),
+                                        );
+                                        setSelected((prev) =>
+                                          prev ? { ...prev, status: "cotado" } : prev,
+                                        );
+                                        setEditStatus("cotado");
+                                        // A proposta JÁ seguiu — o que pode
+                                        // falhar aqui é a linha do histórico, e a
+                                        // frase tem de dizer isso e não o
+                                        // contrário.
+                                        void appendActivity(
+                                          selected.id,
+                                          [
+                                            {
+                                              id: randomId(),
+                                              at: new Date().toISOString(),
+                                              kind: "proposal_sent",
+                                              actor: userName,
+                                              summary: "Proposta enviada ao cliente (Studio)",
+                                            },
+                                          ],
+                                          "escrever no histórico que a proposta seguiu",
+                                        );
+                                      }}
                                     />
-                                  </div>
-                                  <p className="-mt-3 text-xs leading-relaxed text-foreground/45">
-                                    {showBuilder
-                                      ? "Rápida — uma tabela de preços simples, sem imagens nem PDF."
-                                      : "Detalhada — proposta completa em PDF, com capa, serviços e imagens."}
-                                  </p>
-                                  {!showBuilder ? (
-                                    <>
-                                      <ProposalStudio
-                                        key={`studio-${selected.id}`}
-                                        quote={selected}
-                                        quotes={activeQuotes}
-                                        // O valor é um só: o estúdio grava-o no
-                                        // pedido, e o "Preço final" aqui ao lado tem
-                                        // de mostrar o mesmo número sem ser preciso
-                                        // recarregar nada.
-                                        onQuoteUpdated={(q) => {
-                                          setQuotes((prev) =>
-                                            prev.map((x) => (x.id === q.id ? q : x)),
-                                          );
-                                          setSelected((prev) => (prev?.id === q.id ? q : prev));
-                                          // `textoDoPreco` e não a verdade do valor:
-                                          // um total de ZERO é um preço escrito, e
-                                          // lido como «sem preço» deixava o campo
-                                          // vazio sobre um pedido que tem 0 — a barra
-                                          // a pedir para gravar o que o estúdio
-                                          // acabou de gravar.
-                                          setEditPrice(textoDoPreco(q));
-                                        }}
-                                        onSent={() => {
-                                          setQuotes((prev) =>
-                                            prev.map((q) =>
-                                              q.id === selected.id ? { ...q, status: "cotado" } : q,
-                                            ),
-                                          );
-                                          setSelected((prev) =>
-                                            prev ? { ...prev, status: "cotado" } : prev,
-                                          );
-                                          setEditStatus("cotado");
-                                          // A proposta JÁ seguiu — o que pode
-                                          // falhar aqui é a linha do histórico, e a
-                                          // frase tem de dizer isso e não o
-                                          // contrário.
-                                          void appendActivity(
-                                            selected.id,
-                                            [
-                                              {
-                                                id: randomId(),
-                                                at: new Date().toISOString(),
-                                                kind: "proposal_sent",
-                                                actor: userName,
-                                                summary: "Proposta enviada ao cliente (Studio)",
-                                              },
-                                            ],
-                                            "escrever no histórico que a proposta seguiu",
-                                          );
-                                        }}
-                                      />
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ProposalBuilder
-                                        // A CHAVE, como todos os outros painéis do
-                                        // detalhe (`pay-`, `costs-`, `studio-`,
-                                        // `guests-`). Sem ela este era o único que
-                                        // NÃO remontava ao trocar de pedido: ficava
-                                        // com as linhas e os preços do cliente
-                                        // anterior e, 800 ms depois, a gravação
-                                        // automática escrevia-os no rascunho do
-                                        // cliente novo — que nunca os teve.
-                                        key={`builder-${selected.id}`}
-                                        quote={selected}
-                                        onSent={(total) => {
-                                          setQuotes((prev) =>
-                                            prev.map((q) =>
-                                              q.id === selected.id
-                                                ? { ...q, status: "cotado", quotedPrice: total }
-                                                : q,
-                                            ),
-                                          );
-                                          setSelected((prev) =>
-                                            prev
-                                              ? { ...prev, status: "cotado", quotedPrice: total }
-                                              : prev,
-                                          );
-                                          setEditStatus("cotado");
-                                          void appendActivity(
-                                            selected.id,
-                                            [
-                                              {
-                                                id: randomId(),
-                                                at: new Date().toISOString(),
-                                                kind: "proposal_sent",
-                                                actor: userName,
-                                                summary: `Proposta enviada — ${eur(total)}`,
-                                              },
-                                            ],
-                                            "escrever no histórico que a proposta seguiu",
-                                          );
-                                        }}
-                                      />
-                                    </>
-                                  )}
+                                  </>
 
                                   {/* Step 2 — talk to the client. */}
                                   <p className="bo-eyebrow border-t border-[var(--bo-hairline-strong)] pt-6 text-foreground/45">

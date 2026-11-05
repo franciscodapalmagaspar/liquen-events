@@ -98,11 +98,6 @@ const PESADAS: { rota: string; faz: string; minimo: number }[] = [
     faz: "lista os temas: uma listagem do Storage por tema + três assinaturas em bloco",
     minimo: 30,
   },
-  {
-    rota: "orcamento/[id]/proposta",
-    faz: "desenha o PDF da proposta e envia-o por email, em anexo",
-    minimo: 30,
-  },
   { rota: "cron/backup", faz: "a cópia de segurança diária", minimo: 60 },
   { rota: "cron/reminders", faz: "o resumo diário", minimo: 30 },
 ];

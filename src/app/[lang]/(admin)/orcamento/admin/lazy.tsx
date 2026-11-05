@@ -197,9 +197,6 @@ export const Guioes = guioes.View;
 export const MapaDeMesas = mesas.View;
 
 // ── Detail-panel tools (only needed once a quote is opened) ──
-export const ProposalBuilder = dynamic(() => import("./ProposalBuilder"), {
-  loading: PanelLoading,
-});
 export const ProposalStudio = dynamic(() => import("./ProposalStudio"), {
   loading: PanelLoading,
 });

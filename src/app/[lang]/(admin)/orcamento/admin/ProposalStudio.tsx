@@ -173,6 +173,9 @@ import {
   definirArtigoDaLinha,
   definirArtigoDoAdicional,
   eArtigo,
+  servicosForaDoOrcamento,
+  sugerirArtigoDaLinha,
+  trazerServicosParaOOrcamento,
   type ArtigoId,
 } from "@/lib/orcamento/artigos-de-faturacao";
 import { ASPETO_POR_OMISSAO, PERDA_QUE_SE_AVISA } from "@/lib/proposal-geometria";
@@ -3911,6 +3914,30 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
   // O desvio do total escrito à mão. Vive aqui em cima porque é lido em dois
   // sítios: na dica do campo e no aviso com o botão que o arruma.
   const desvio = desalinhamento(doc, money.base);
+
+  /**
+   * ── O TOTAL É A SOMA (5/11) ─────────────────────────────────────────────
+   * Ela: «a pessoa que está a fazer a proposta vai colocando os serviços e o
+   * valor. E depois, no final, o sistema soma os valores todos, dos serviços
+   * todos, da deslocação e tudo mais, e dá o valor final.»
+   *
+   * Quando ELA muda o preço de uma linha (escrever, apagar a linha, mudar a
+   * escala), o total passa a ser a soma — com os adicionais, que já entravam
+   * no total pelo `definirExtras`. Só nesses gestos, e nunca ao abrir: uma
+   * proposta antiga com o total escrito à mão não muda sozinha por ser aberta
+   * (fica o aviso e o «Usar …» de sempre).
+   */
+  const somarOTotal = useRef(false);
+  useEffect(() => {
+    if (!somarOTotal.current) return;
+    somarOTotal.current = false;
+    const d = desalinhamento(doc, dinheiroDaProposta(doc).base);
+    if (!d || !(d.sugerido > 0)) return;
+    confirmado("totalAmount");
+    onTotalInput(textoDoTotal(d.sugerido));
+    // Só os preços das linhas disparam isto; as funções são as deste render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.budgetAmounts, doc.budgetItems]);
   /**
    * Quantas linhas do orçamento já têm preço.
    *
@@ -3926,6 +3953,8 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
   const extrasDoDoc = opcionaisDe(doc as ProposalDoc);
   // O artigo do Moloni de cada linha (5/11) — só para a faturação.
   const artigosDoDoc = artigosDasLinhas(doc as ProposalDoc);
+  const servicosAOrcamentar =
+    doc.template !== "organizacao" ? servicosForaDoOrcamento(doc as ProposalDoc) : [];
 
   /**
    * ════════════════════════════════════════════════════════════════════════
@@ -4371,6 +4400,7 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
    * resultado da última multiplicação, e é um número que ela reconhece.
    */
   function definirEscala(i: number, tipo: TipoDeEscala) {
+    somarOTotal.current = true;
     setDoc((d) => {
       const escalas = escalasDe(d as ProposalDoc);
       const porMesa = d.convidadosPorMesa ?? CONVIDADOS_POR_MESA_OMISSAO;
@@ -4391,6 +4421,7 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
   }
 
   function definirUnitario(i: number, texto: string) {
+    somarOTotal.current = true;
     const n = normalizarValor(texto);
     setDoc((d) => {
       const escalas = escalasDe(d as ProposalDoc);
@@ -6635,9 +6666,11 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
           (typeof preco === "number" && preco > 0 ? ` — valia ${eur(preco)}.` : "."),
       });
     }
+    somarOTotal.current = true;
     setDoc((d) => removerLinha(d, i));
   }
   function updateBudgetPrice(i: number, texto: string) {
+    somarOTotal.current = true;
     setDoc((d) => definirPreco(d, i, normalizarValor(texto)));
   }
   /** O artigo do Moloni de uma linha (5/11) — só para a faturação. */
@@ -10001,6 +10034,9 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
                             className={`${INPUT_SM} min-w-[12rem] flex-1`}
                             value={l.item}
                             onChange={(e) => updateBudgetItem(i, e.target.value)}
+                            // Ao sair do nome, o artigo do Moloni que ele sugere
+                            // (só se ainda não houver um escolhido).
+                            onBlur={() => setDoc((d) => sugerirArtigoDaLinha(d, i))}
                             // A pega do salto. Faltava: o «Ver no campo» das
                             // gralhas caía na secção porque nenhuma rubrica a
                             // tinha, e o painel «Por traduzir» precisa dela para
@@ -10241,6 +10277,28 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
                         </div>
                       );
                     })}
+                    {/* OS SERVIÇOS JÁ ESCRITOS, COM O VALOR À FRENTE (5/11).
+                      Ela: «serviço tal, valor tal, serviço tal, valor tal». Os
+                      serviços estão no passo 2; aqui trazem-se de uma vez, com
+                      o artigo do Moloni que o nome sugere, e só falta o valor. */}
+                    {servicosAOrcamentar.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] px-3 py-2">
+                        <span className="min-w-0 flex-1 text-xs leading-relaxed text-[var(--bo-tinta-72)]">
+                          {servicosAOrcamentar.length === 1
+                            ? `O serviço «${servicosAOrcamentar[0]}» ainda não está no orçamento.`
+                            : `${servicosAOrcamentar.length} serviços da proposta ainda não estão no orçamento: ${servicosAOrcamentar.map((t) => `«${t}»`).join(", ")}.`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setDoc((d) => trazerServicosParaOOrcamento(d))}
+                          className={`alvo-toque shrink-0 text-xs font-medium text-[var(--bo-accent)] underline-offset-2 hover:underline ${ESTADO} ${PRESSAO}`}
+                        >
+                          {servicosAOrcamentar.length === 1
+                            ? "Pôr no orçamento"
+                            : "Pôr todos no orçamento"}
+                        </button>
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <button
                         type="button"
@@ -10650,8 +10708,8 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
                   <div className="mt-6">
                     <span className="bo-eyebrow">Faturação por artigo</span>
                     <p className="mt-1.5 mb-3 text-xs leading-relaxed text-foreground/45">
-                      O sinal e o saldo de cada artigo do Moloni, feitos a partir das linhas.
-                      Não aparece na proposta do cliente.
+                      O sinal e o saldo de cada artigo do Moloni, feitos a partir das linhas. Não
+                      aparece na proposta do cliente.
                     </p>
                     <RepartoPorArtigo
                       doc={doc as ProposalDoc}
@@ -10935,6 +10993,11 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
                   label="Valor (sem IVA)"
                   inputMode="decimal"
                   value={totalInput}
+                  // Com serviços com preço, o total é a SOMA deles (e dos
+                  // adicionais) e não se escreve à mão — ver `somarOTotal`.
+                  // Só fica aberto numa proposta antiga desalinhada, onde o
+                  // «Usar …» aqui em baixo é o gesto que o arruma.
+                  readOnly={contagem.comPreco > 0 && !desvio}
                   onChange={(e) => {
                     confirmado("totalAmount");
                     onTotalInput(e.target.value);
@@ -10947,7 +11010,13 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
                     desvio
                       ? `Escrito à mão — a soma dos serviços com preço é ${eur(desvio.soma)}`
                       : contagem.comPreco > 0
-                        ? "Bate certo com a soma dos serviços com preço."
+                        ? !(doc.budgetExtras ?? []).some(
+                            (e) => normalizarValor(e.valueText) !== null,
+                          )
+                          ? "Soma automática dos serviços."
+                          : doc.budgetExtrasSomam
+                            ? "Soma automática dos serviços. Os valores adicionais somam-se por cima."
+                            : "Soma automática dos serviços e dos valores adicionais."
                         : undefined
                   }
                 />

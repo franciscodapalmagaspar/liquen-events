@@ -271,7 +271,7 @@ export function oQueFaltaParaEnviar(
   const faltas: Impedimento[] = [];
   // A MESMA contagem do índice lateral. Ver `oQueTemODocumento`: eram duas, e
   // discordavam sobre o mesmo documento.
-  const { deco, grupos, boards, capas } = oQueTemODocumento(doc);
+  const { deco, grupos, boards, capas, linhas } = oQueTemODocumento(doc);
 
   if (!temTexto(doc.clientNames)) {
     faltas.push({
@@ -606,6 +606,18 @@ export function oQueFaltaParaEnviar(
    * saldo 70%, sem contas. Ver `orcamento/artigos-de-faturacao.ts`.
    */
   if (deco) {
+    // Sem nenhum serviço no orçamento não há nada para faturar por artigo: só
+    // um total escrito à mão — o que obrigava às contas no Moloni que isto
+    // existe para acabar (ela, 5/11: «não quero que o sistema deixe enviar
+    // uma proposta sem colocar os valores todos»).
+    if (linhas.length === 0) {
+      faltas.push({
+        id: "linhas-do-orcamento",
+        seccao: "orcamento",
+        texto: "O orçamento não tem serviços: escreve cada serviço com o seu valor",
+        trava: true,
+      });
+    }
     const { semPreco, semArtigo } = faltasDaFaturacao(doc);
     if (semPreco.length > 0) {
       faltas.push({

@@ -28,7 +28,11 @@ const doc = (over: Partial<ProposalDoc> = {}): ProposalDoc =>
     location: "Évora",
     guests: "120 pax",
     totalText: "12.000,00 € + IVA",
-    budgetItems: [],
+    // Cada serviço com valor e artigo do Moloni (5/11): é o que deixa uma
+    // proposta seguir. 12.000 € é o total que os casos «certos» escrevem.
+    budgetItems: ["Decoração Floral"],
+    budgetAmounts: [12000],
+    budgetArtigos: ["flores"],
     serviceGroups: [{ letter: "a)", title: "Decoração Floral", items: [] }],
     // Com título e nota: um tema mudo é um aviso (B1).
     moodBoards: [{ title: "Cerimónia", annotation: "Arco de flores.", images: ["board/1.jpg"] }],

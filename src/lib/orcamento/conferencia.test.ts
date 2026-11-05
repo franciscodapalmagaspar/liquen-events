@@ -31,7 +31,12 @@ const documento = (over: Partial<ProposalDoc> = {}): ProposalDoc =>
     eventDate: "18 de Setembro de 2027",
     location: "Évora",
     guests: "120 pax",
-    budgetItems: [],
+    // Cada serviço com valor e artigo do Moloni (5/11): é o que deixa uma
+    // proposta seguir. 12.000 € é o total que os casos «certos» escrevem.
+    budgetItems: ["Decoração Floral"],
+    budgetAmounts: [12000],
+    budgetArtigos: ["flores"],
+    budgetItemsEn: ["Floral Decoration"],
     // Um grupo COM título (é o que a lista exige) e mais nada traduzível: os
     // testes do idioma contam campos, e um fixture cheio de prosa fazia-os
     // contar a prosa do fixture.
@@ -476,6 +481,7 @@ describe("idioma", () => {
           },
         ],
         budgetItems: ["Decor Cocktail"],
+        budgetItemsEn: [],
       }),
       quote: pedido({ locale: "en" }),
       idioma: "en",
@@ -669,7 +675,9 @@ describe("o que falta para enviar entra nesta lista", () => {
 
   it("o que trava vem primeiro", () => {
     const vs = conferir({
-      doc: documento({ clientNames: "", location: "" }),
+      // Com o total escrito: as linhas do fixture valem 12.000 €, e sem ele a
+      // soma não batia — era uma segunda trava a contar aqui.
+      doc: documento({ clientNames: "", location: "", totalText: "12.000,00 € + IVA" }),
       quote: pedido(),
       ...base,
     });
