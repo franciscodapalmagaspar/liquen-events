@@ -758,6 +758,7 @@ function Detalhe({
         <PaymentsPanel
           key={`cob-${quote.id}`}
           quote={quote}
+          quem={userName}
           onChange={(payments) => onQuoteUpdated?.({ ...quote, payments })}
         />
       </div>

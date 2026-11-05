@@ -133,6 +133,10 @@ function docVisivel(doc: unknown): unknown {
     if (NUNCA_VISTO_PELO_CASAL.includes(chave)) continue;
     saida[chave] = entrada[chave];
   }
+  // O artigo do Moloni de um valor adicional (5/11) vive DENTRO do adicional,
+  // que o casal vê — mas o artigo não o vê. Tira-se antes de selar. Num
+  // documento sem artigos nada muda, e os selos já guardados continuam a bater.
+  if (Array.isArray(saida.budgetExtras)) saida.budgetExtras = semArtigoNosAdicionais(saida.budgetExtras);
   return saida;
 }
 
@@ -194,4 +198,14 @@ export function proximaVersao(
     return { versaoSelo: seloNovo, versaoNumero: numeroAnterior, mudou: false };
   }
   return { versaoSelo: seloNovo, versaoNumero: Math.max(numeroAnterior, 0) + 1, mudou: true };
+}
+
+/** Os valores adicionais sem o `artigo` do Moloni (que é só da faturação). */
+export function semArtigoNosAdicionais(extras: unknown[]): unknown[] {
+  return extras.map((e) => {
+    if (!e || typeof e !== "object" || !("artigo" in e)) return e;
+    const { artigo: _artigo, ...resto } = e as Record<string, unknown>;
+    void _artigo;
+    return resto;
+  });
 }

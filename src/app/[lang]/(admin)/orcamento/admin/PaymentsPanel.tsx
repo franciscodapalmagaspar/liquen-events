@@ -16,6 +16,7 @@ import { computeEventMetrics, paidTotal, type DossierData } from "@/lib/orcament
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { MEIOS_HABITUAIS, meioDoTexto } from "@/lib/orcamento/meios-de-pagamento";
 import { IconeDoMeio } from "./ui/IconeDoMeio";
+import FaturacaoMoloni from "./FaturacaoMoloni";
 
 const KIND_LABEL: Record<PaymentKind, string> = {
   sinal: "Sinal",
@@ -153,9 +154,11 @@ interface Props {
    * (selected/quotes) não ficar velho — o ciclo de vida e o CSV dependem dele.
    */
   onContractRef?: (ref: string) => void;
+  /** Quem está a usar — vai para o histórico quando se cria um rascunho no Moloni. */
+  quem?: string;
 }
 
-export default function PaymentsPanel({ quote, onChange, onContractRef }: Props) {
+export default function PaymentsPanel({ quote, onChange, onContractRef, quem }: Props) {
   const { toast } = useToast();
   const anular = useAnular();
   const [payments, setPayments] = useState<Payment[]>(quote.payments ?? []);
@@ -1265,6 +1268,15 @@ export default function PaymentsPanel({ quote, onChange, onContractRef }: Props)
           </div>
         )}
       </div>
+
+      {/* A faturação por artigo e os rascunhos no Moloni (5/11). Só aparece a
+          quem tem proposta aceite. */}
+      <FaturacaoMoloni
+        quoteId={quote.id}
+        quem={quem}
+        cliente={quote.company?.trim() || quote.name}
+        nif={quote.nif}
+      />
     </div>
   );
 }

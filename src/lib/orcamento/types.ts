@@ -369,6 +369,28 @@ export type ActivityKind =
   | "call_logged"
   | "assigned";
 
+/** Um rascunho de fatura posto no Moloni (ver `src/lib/moloni.ts`). */
+export interface RascunhoNoMoloni {
+  /** O id do documento no Moloni. Ausente enquanto está a ser criado. */
+  documentId?: number;
+  em: string;
+  valorSemIva?: number;
+  por?: string;
+  /**
+   * Marca de «a ser criado agora», posta ANTES de falar com o Moloni: dois
+   * cliques ao mesmo tempo dariam dois rascunhos. Caduca ao fim de 2 minutos,
+   * para um pedido que morreu a meio não bloquear a fase para sempre.
+   */
+  aCriarDesde?: string;
+  /** Os ids dos rascunhos anteriores desta fase («Criar outro rascunho»). */
+  anteriores?: number[];
+  /**
+   * Passada ao Moloni À MÃO (sem a API): só o registo de que já lá está, para
+   * ninguém a passar duas vezes. Não há `documentId`.
+   */
+  manual?: boolean;
+}
+
 export interface ActivityEntry {
   id: string;
   at: string;
@@ -505,6 +527,12 @@ export interface Quote extends QuoteFormData {
   activityLog?: ActivityEntry[];
   /** Internal contract/invoice reference number (e.g. "2026-042"). */
   contractRef?: string;
+  /**
+   * Os rascunhos de fatura que o back office pôs no Moloni (5/11), por fase.
+   * Serve para não criar o mesmo rascunho duas vezes sem querer — e para o
+   * ecrã dizer «já está no Moloni». Ver `src/lib/moloni.ts`.
+   */
+  faturasMoloni?: Partial<Record<"sinal" | "saldo", RascunhoNoMoloni>>;
   /** When true, the quote is hidden from the default list view (soft-delete). */
   archived?: boolean;
   /** Team member responsible for this lead (prevents double-work). */

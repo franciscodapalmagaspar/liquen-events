@@ -1,5 +1,6 @@
 import { type ProposalDoc, withProposalDefaults } from "./proposal-doc";
 import { desalinhamento, dinheiroDaProposta } from "./proposal-budget";
+import { faltasDaFaturacao } from "./orcamento/artigos-de-faturacao";
 import { camposPorTraduzir } from "./proposal-doc-bilingue";
 import { camposDoDocumento, lerCampo } from "./proposal-ortografia";
 import { eur } from "./money";
@@ -581,14 +582,56 @@ export function oQueFaltaParaEnviar(
   //
   // Agora é a mesma função, com a mesma base, nos dois sítios — que é a razão
   // pela qual este módulo existe.
+  //
+  // ── E PASSOU A TRAVAR (5/11) ──────────────────────────────────────────────
+  // Ela: «não deixar enviar as propostas sem estabelecer um valor para cada
+  // coisa … para depois no Moloni estar tudo registado». Com o preço de cada
+  // linha obrigatório, as linhas têm de somar o total — senão a faturação por
+  // artigo não fecha e alguém fica a fazer contas à mão no Moloni.
   if (desalinhamento(doc, dinheiroDaProposta(doc).base) !== null) {
     faltas.push({
       id: "soma",
       seccao: "total",
       campo: "totalAmount",
       texto: "O total não bate com a soma das linhas",
-      trava: false,
+      trava: deco,
     });
+  }
+
+  /**
+   * ── O PREÇO E O ARTIGO DO MOLONI DE CADA LINHA (5/11) ─────────────────────
+   *
+   * Só para a casa — o cliente não vê nada disto. É o que faz a faturação sair
+   * FEITA da proposta: cada artigo do Moloni com o seu valor, o sinal 30% e o
+   * saldo 70%, sem contas. Ver `orcamento/artigos-de-faturacao.ts`.
+   */
+  if (deco) {
+    const { semPreco, semArtigo } = faltasDaFaturacao(doc);
+    if (semPreco.length > 0) {
+      faltas.push({
+        id: "precos-das-linhas",
+        seccao: "orcamento",
+        campo: `budgetPreco:${semPreco[0].indice}`,
+        texto:
+          semPreco.length === 1
+            ? `A linha «${semPreco[0].nome}» não tem preço (é só para a faturação, o cliente não o vê)`
+            : `${semPreco.length} linhas do orçamento não têm preço (é só para a faturação, o cliente não o vê)`,
+        trava: true,
+      });
+    }
+    if (semArtigo.length > 0) {
+      const l = semArtigo[0];
+      faltas.push({
+        id: "artigos-moloni",
+        seccao: "orcamento",
+        campo: l.origem === "linha" ? `budgetArtigo:${l.indice}` : `extraArtigo:${l.indice}`,
+        texto:
+          semArtigo.length === 1
+            ? `«${l.nome}» não tem artigo do Moloni`
+            : `${semArtigo.length} linhas não têm artigo do Moloni`,
+        trava: true,
+      });
+    }
   }
 
   return faltas;

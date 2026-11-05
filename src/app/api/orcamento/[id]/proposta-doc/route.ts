@@ -63,6 +63,11 @@ const TRAVAM_NO_SERVIDOR: ReadonlySet<string> = new Set([
   // «Ver o PDF primeiro» (14/10): o envio leva a chave do PDF final que ela
   // descarregou e confirmou — ver `chaveDoQueChegou`, mais abaixo.
   "visto",
+  // O preço e o artigo do Moloni de cada linha, e as linhas a somar o total
+  // (5/11): sem isto a faturação não sai feita da proposta.
+  "precos-das-linhas",
+  "artigos-moloni",
+  "soma",
 ]);
 
 export const runtime = "nodejs";

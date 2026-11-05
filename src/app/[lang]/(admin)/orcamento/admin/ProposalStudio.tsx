@@ -165,6 +165,16 @@ import {
 import { NOME_DA_DISPOSICAO, disposicaoDoTema, type Disposicao } from "@/lib/pdf-editorial/mosaico";
 import { avisoDeTituloParecido, titulosParecidos } from "@/lib/proposal-titulos-parecidos";
 import { depositPercentOf } from "@/lib/proposal-doc";
+import { RepartoPorArtigo } from "./RepartoPorArtigo";
+import {
+  ARTIGOS,
+  artigoDoAdicional,
+  artigosDasLinhas,
+  definirArtigoDaLinha,
+  definirArtigoDoAdicional,
+  eArtigo,
+  type ArtigoId,
+} from "@/lib/orcamento/artigos-de-faturacao";
 import { ASPETO_POR_OMISSAO, PERDA_QUE_SE_AVISA } from "@/lib/proposal-geometria";
 import {
   LADO_MINIMO_DA_CAPA,
@@ -3914,6 +3924,8 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
   const convidados = convidadosDoDoc(doc as ProposalDoc);
   const escalasDoDoc = escalasDe(doc as ProposalDoc);
   const extrasDoDoc = opcionaisDe(doc as ProposalDoc);
+  // O artigo do Moloni de cada linha (5/11) — só para a faturação.
+  const artigosDoDoc = artigosDasLinhas(doc as ProposalDoc);
 
   /**
    * ════════════════════════════════════════════════════════════════════════
@@ -4296,6 +4308,9 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
       // inglês saía com a rubrica errada, sem nada a assinalá-lo. Foi o
       // `satisfies` daqui de baixo que obrigou a escrevê-la.
       budgetItemsEn: paralelo(d.budgetItemsEn),
+      // O artigo do Moloni vai com a linha (5/11) — senão «Arrumar» faturava a
+      // Cerimónia como Transporte.
+      budgetArtigos: paralelo(d.budgetArtigos),
     } satisfies Record<keyof ArrayParaleloDaLinha, unknown>;
     return {
       ...d,
@@ -6624,6 +6639,14 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
   }
   function updateBudgetPrice(i: number, texto: string) {
     setDoc((d) => definirPreco(d, i, normalizarValor(texto)));
+  }
+  /** O artigo do Moloni de uma linha (5/11) — só para a faturação. */
+  function updateBudgetArtigo(i: number, artigo: ArtigoId | null) {
+    setDoc((d) => definirArtigoDaLinha(d, i, artigo));
+  }
+  /** O artigo do Moloni de um valor adicional (5/11). */
+  function updateExtraArtigo(i: number, artigo: ArtigoId | null) {
+    setDoc((d) => definirArtigoDoAdicional(d, i, artigo));
   }
   /**
    * Marca (ou desmarca) uma linha como EXTRA.
@@ -10099,6 +10122,8 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
                               placeholder="sem preço"
                               inputMode="decimal"
                               aria-label={`Preço de ${l.item || "linha sem nome"}`}
+                              // A pega do salto da regra do envio (5/11).
+                              data-campo={`budgetPreco:${i}`}
                             />
                           </label>
                           {/* EXTRA OU NÃO. Uma caixa e não um menu: a pergunta é
@@ -10143,6 +10168,38 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
                           >
                             ×
                           </button>
+                          {/* ── O ARTIGO DO MOLONI DESTA LINHA (5/11) ─────────────
+                            Ela: «quando estivéssemos a fazer a proposta, colocar
+                            os valores para cada coisa … para depois no Moloni
+                            estar tudo organizadinho». Só para a casa — o cliente
+                            não vê. Uma fila própria por baixo, como a fórmula da
+                            escala: a fila de cima tem a largura contada ao píxel. */}
+                          <label className="flex w-full items-center gap-2 pl-1 text-[11px] text-[var(--bo-text-muted)]">
+                            <span className="shrink-0">Artigo do Moloni</span>
+                            <select
+                              value={artigosDoDoc[i] ?? ""}
+                              onChange={(e) =>
+                                updateBudgetArtigo(
+                                  i,
+                                  eArtigo(e.target.value) ? e.target.value : null,
+                                )
+                              }
+                              data-campo={`budgetArtigo:${i}`}
+                              aria-label={`Artigo do Moloni de ${l.item || "linha sem nome"}`}
+                              className={`bo-input w-auto max-w-full px-2 py-1 text-[11px] ${
+                                artigosDoDoc[i]
+                                  ? "text-[var(--bo-tinta-72)]"
+                                  : "border-dashed text-[var(--bo-text-muted)]"
+                              }`}
+                            >
+                              <option value="">Escolher…</option>
+                              {ARTIGOS.map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  {a.nome} · {a.ref}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
                           {/* A fórmula ao lado do número: um total que muda sozinho
                           e não explica porquê é um total em que se deixa de
                           confiar à primeira surpresa. E o preço UNITÁRIO ao pé
@@ -10538,6 +10595,36 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
                                 {`No PDF: ${ex.valueText}`}
                               </span>
                             )}
+                            {/* O artigo do Moloni deste valor (5/11) — só quando
+                              tem um número, que é quando entra no total. */}
+                            {!soLinhaPorEscrever && /\d/.test(ex.valueText ?? "") && (
+                              <label className="col-span-full flex items-center gap-2 pl-1 text-[11px] text-[var(--bo-text-muted)]">
+                                <span className="shrink-0">Artigo do Moloni</span>
+                                <select
+                                  value={artigoDoAdicional(ex) ?? ""}
+                                  onChange={(e) =>
+                                    updateExtraArtigo(
+                                      i,
+                                      eArtigo(e.target.value) ? e.target.value : null,
+                                    )
+                                  }
+                                  data-campo={`extraArtigo:${i}`}
+                                  aria-label={`Artigo do Moloni de ${ex.label?.trim() || "linha adicional sem nome"}`}
+                                  className={`bo-input w-auto max-w-full px-2 py-1 text-[11px] ${
+                                    artigoDoAdicional(ex)
+                                      ? "text-[var(--bo-tinta-72)]"
+                                      : "border-dashed text-[var(--bo-text-muted)]"
+                                  }`}
+                                >
+                                  <option value="">Escolher…</option>
+                                  {ARTIGOS.map((a) => (
+                                    <option key={a.id} value={a.id}>
+                                      {a.nome} · {a.ref}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            )}
                           </div>
                         );
                       })}
@@ -10553,6 +10640,27 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
                         continua à vista — deixou é de ser a terceira soma
                         diferente no mesmo ecrã. */}
                     </div>
+                  </div>
+
+                  {/* ── REPARTIR POR ARTIGO (5/11) ───────────────────────────
+                    Ela: «ter estes artigos nas propostas». O total sem IVA
+                    repartido pelos artigos do Moloni — só para ela e para o
+                    Moloni: não sai no PDF nem na página, e não mexe na versão
+                    aceite. Ver `RepartoPorArtigo.tsx`. */}
+                  <div className="mt-6">
+                    <span className="bo-eyebrow">Faturação por artigo</span>
+                    <p className="mt-1.5 mb-3 text-xs leading-relaxed text-foreground/45">
+                      O sinal e o saldo de cada artigo do Moloni, feitos a partir das linhas.
+                      Não aparece na proposta do cliente.
+                    </p>
+                    <RepartoPorArtigo
+                      doc={doc as ProposalDoc}
+                      pct={pctSinal}
+                      permitirManual={false}
+                      aoMudar={(reparto) =>
+                        setDoc((d) => ({ ...d, repartoPorArtigo: reparto }) as StudioDoc)
+                      }
+                    />
                   </div>
                 </>
               ) : (

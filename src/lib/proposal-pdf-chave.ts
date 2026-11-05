@@ -50,10 +50,41 @@ function canonico(valor: unknown): unknown {
   return valor;
 }
 
+/**
+ * O documento sem o que é só da FATURAÇÃO (5/11): os artigos do Moloni (de
+ * cada linha, de cada adicional, e a repartição à mão) escolhem-se muitas
+ * vezes depois do envio, e não estão no PDF. Se
+ * entrasse na chave, repartir o total de uma proposta aceite invalidava o PDF
+ * guardado — o casal abria o link e o servidor voltava a desenhá-lo (o caminho
+ * mais caro em processador), possivelmente diferente do que foi enviado.
+ * Num documento sem repartição nada muda: as chaves já guardadas continuam.
+ */
+function semFaturacao(doc: ProposalDoc): ProposalDoc {
+  if (!doc || typeof doc !== "object") return doc;
+  const temArtigoNosAdicionais = (doc.budgetExtras ?? []).some((e) => e && "artigo" in e);
+  if (!("repartoPorArtigo" in doc) && !("budgetArtigos" in doc) && !temArtigoNosAdicionais) return doc;
+  const { repartoPorArtigo: _reparto, budgetArtigos: _artigos, ...resto } = doc;
+  void _reparto;
+  void _artigos;
+  return {
+    ...resto,
+    ...(doc.budgetExtras
+      ? {
+          budgetExtras: doc.budgetExtras.map((e) => {
+            if (!e || !("artigo" in e)) return e;
+            const { artigo: _a, ...r } = e;
+            void _a;
+            return r;
+          }),
+        }
+      : {}),
+  } as ProposalDoc;
+}
+
 /** A identidade de um documento numa língua: mesmo conteúdo, mesma chave. */
 export function chaveDoPdf(doc: ProposalDoc, idioma: IdiomaDaProposta): string {
   return createHash("sha256")
-    .update(`${idioma}:${JSON.stringify(canonico(doc))}`)
+    .update(`${idioma}:${JSON.stringify(canonico(semFaturacao(doc)))}`)
     .digest("base64url")
     .slice(0, 32);
 }

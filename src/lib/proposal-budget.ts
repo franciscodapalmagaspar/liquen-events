@@ -912,6 +912,7 @@ type ComOrcamento = Pick<
   | "budgetScales"
   | "budgetOpcional"
   | "budgetItemsEn"
+  | "budgetArtigos"
 >;
 
 /**
@@ -939,6 +940,8 @@ const PARALELOS = [
   // Nasce `null` («ainda não foi traduzida»), que é diferente de `""` («foi
   // decidido que fica igual»). Ver `ProposalDoc.budgetItemsEn`.
   { campo: "budgetItemsEn", nascePor: null },
+  // O artigo do Moloni de cada linha (5/11): viaja com a linha, como o preço.
+  { campo: "budgetArtigos", nascePor: null },
 ] as const;
 
 /** Corta ou estica um array paralelo até ao tamanho das linhas. */
