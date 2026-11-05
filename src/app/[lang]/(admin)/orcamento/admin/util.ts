@@ -60,6 +60,13 @@ export function parseMoney(s: string): number | undefined {
   if (hasComma && hasDot) {
     // "1.500,50" — dots are thousands, comma is the decimal.
     t = t.replace(/\./g, "").replace(",", ".");
+  } else if (hasComma && /^[1-9]\d{0,2}(,\d{3})+$/.test(t)) {
+    // "4,323" / "1,234,567" — vírgulas de milhares, à inglesa. Um valor em
+    // euros não tem três casas decimais: «4,323» é 4.323 €, nunca 4,32 €.
+    // Foi assim (5/11) que um casamento aceite por 4.323 € + IVA ficou com
+    // 4,323 € no «valor combinado» e o painel de Pagamentos pediu 5,32 €.
+    // Um zero à frente («0,500») continua a ser decimal: 0,50 €.
+    t = t.replace(/,/g, "");
   } else if (hasComma) {
     // "1500,50"
     t = t.replace(",", ".");
