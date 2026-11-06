@@ -22,6 +22,7 @@ import { CONFIRMACAO_PHOTOS, type ConfirmacaoPhotoKey } from "./photos";
 const STATUS_COLORS: Record<string, string> = {
   pendente: "text-moss-dark",
   em_revisao: "text-moss-dark",
+  a_preparar: "text-moss-dark",
   cotado: "text-moss-dark",
   aceite: "text-moss-dark",
   rejeitado: "text-foreground/70",
@@ -282,7 +283,10 @@ export default function ConfirmacaoClient({
     );
   }
 
-  const statusKey = quote?.status ?? "pendente";
+  // «A preparar proposta» (6/11) é uma palavra do back office, para ela. O
+  // casal lê o que já lia antes de o estado existir — «Em Revisão» —, que diz
+  // a verdade sem prometer uma proposta para uma hora certa.
+  const statusKey = quote?.status === "a_preparar" ? "em_revisao" : (quote?.status ?? "pendente");
   const status = {
     label: (tc.statusLabels as Record<string, string>)[statusKey] ?? tc.statusLabels.pendente,
     color: STATUS_COLORS[statusKey] ?? STATUS_COLORS.pendente,
@@ -474,7 +478,9 @@ export default function ConfirmacaoClient({
             <AnimateIn from="bottom" delay={200}>
               <p className="mt-6 max-w-[34rem] text-foreground/75 text-[14px] leading-[1.75]">
                 {tc.enviadoParaPre}
-                <strong className="font-medium text-foreground [overflow-wrap:anywhere]">{quote.email}</strong>
+                <strong className="font-medium text-foreground [overflow-wrap:anywhere]">
+                  {quote.email}
+                </strong>
                 {tc.enviadoParaPos}
               </p>
             </AnimateIn>

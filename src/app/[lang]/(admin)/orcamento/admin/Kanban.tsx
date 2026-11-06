@@ -23,6 +23,8 @@ import { ESTADO, PRESSAO } from "./ui/movimento";
 const COLUMNS: { id: QuoteStatus; label: string; color: string }[] = [
   { id: "pendente", label: "Novo", color: "#8a8a82" },
   { id: "em_revisao", label: "Aguardar resposta", color: "#9aa36a" },
+  // Entre as duas, com a cor que a casa já tinha para «em curso» (6/11).
+  { id: "a_preparar", label: "A preparar proposta", color: "#7d8a55" },
   { id: "cotado", label: "Proposta enviada", color: "#7c854b" },
   { id: "aceite", label: "Ganho", color: "#525a2f" },
   { id: "rejeitado", label: "Perdido", color: "#5a5a55" },
@@ -599,7 +601,13 @@ export default function Kanban({
         accepted++;
       }
       if (q.status === "rejeitado") rejected++;
-      if (q.status === "pendente" || q.status === "em_revisao" || q.status === "cotado") active++;
+      if (
+        q.status === "pendente" ||
+        q.status === "em_revisao" ||
+        q.status === "a_preparar" ||
+        q.status === "cotado"
+      )
+        active++;
     }
     const decided = accepted + rejected;
     return {
@@ -685,7 +693,7 @@ export default function Kanban({
               description={
                 arquivados > 0
                   ? `Não há nenhum pedido activo. ${arquivados === 1 ? "O único que existe está arquivado" : `Os ${arquivados} que existem estão arquivados`}, e os arquivados não entram no quadro — por isso as colunas estão a zero.`
-                  : "As cinco colunas são as fases por que um pedido passa, do primeiro contacto ao ganho ou perdido. Cada pedido entra em «Novo» e vai andando; enquanto não houver nenhum, ficam assim — e isso é o normal numa primeira semana."
+                  : "As seis colunas são as fases por que um pedido passa, do primeiro contacto ao ganho ou perdido. Cada pedido entra em «Novo» e vai andando; enquanto não houver nenhum, ficam assim — e isso é o normal numa primeira semana."
               }
               action={
                 arquivados > 0 && onVerArquivados

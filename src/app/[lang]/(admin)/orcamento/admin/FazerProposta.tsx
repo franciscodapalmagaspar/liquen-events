@@ -79,6 +79,9 @@ const ESTADO: Record<QuoteStatus, { label: string; classe: string }> = {
     classe: "bg-sage-600/10 text-sage-600 ring-1 ring-inset ring-sage-600/30",
   },
   em_revisao: { label: "Aguardar resposta", classe: "bg-sage-600/18 text-sage-600" },
+  // O degrau entre as duas da rampa, e já com a tinta do texto: o verde sobre
+  // este fundo ficava à beira dos 4,5:1, como as duas de baixo (achado n.º 25).
+  a_preparar: { label: "A preparar proposta", classe: "bg-sage-600/20 text-[var(--bo-text)]" },
   // A tinta do texto e não o verde: sobre o fundo verde mais carregado destas
   // duas, o verde dava 3,4 e 3,9:1 (achado n.º 25).
   cotado: { label: "Proposta enviada", classe: "bg-sage-600/25 text-[var(--bo-text)]" },
@@ -87,13 +90,23 @@ const ESTADO: Record<QuoteStatus, { label: string; classe: string }> = {
 };
 
 /**
- * O estado que este ecrã existe para despachar: o pedido NOVO.
+ * Os estados que este ecrã existe para despachar: o pedido NOVO e o que está
+ * A PREPARAR.
  *
  * Eram dois («Novo» e «Aguardar resposta»), com uma fila de pastilhas para
  * escolher entre eles. Com um só, as pastilhas não tinham nada para filtrar e
  * sairam — ver o cabeçalho.
+ *
+ * O segundo entrou a 6/11 com o estado novo (`a_preparar`, pedido dela): gravar
+ * o rascunho no estúdio põe o pedido em «A preparar proposta». Se esse estado
+ * saísse desta lista, o casal desaparecia do ecrã no instante em que ela
+ * começa a proposta dele — e voltar a ele obrigava a procurá-lo, para ouvir
+ * «já tem proposta» de uma proposta que ainda não seguiu. Fica, com a
+ * pastilha a dizê-lo, até a proposta seguir. Não volta a haver fila de
+ * filtros: a pastilha de cada cartão já diz em que pé está.
  */
-const POR_FAZER: QuoteStatus = "pendente";
+const POR_FAZER: readonly QuoteStatus[] = ["pendente", "a_preparar"];
+const porFazer = (q: Quote): boolean => !q.archived && POR_FAZER.includes(q.status);
 
 function tipoDeEvento(q: Quote): string {
   if (q.category && q.eventType) {
@@ -129,6 +142,9 @@ interface Props {
   /** O valor mudou no estúdio, que o grava no pedido — o pai actualiza a sua
    *  cópia para o cartão do cliente aqui em cima mostrar o mesmo. */
   onQuoteUpdated: (quote: Quote) => void;
+  /** O primeiro rascunho pôs o pedido em «A preparar proposta» (6/11) — o pai
+   *  muda SÓ o estado da sua cópia, como no `onSent`. */
+  onEstadoDoPedido?: (quote: Quote, status: QuoteStatus) => void;
   /**
    * Abrir o pedido deste cliente no painel de detalhe (Produção, Financeiro,
    * mensagens).
@@ -155,6 +171,7 @@ export default function FazerProposta({
   onNovoPedido,
   onSent,
   onQuoteUpdated,
+  onEstadoDoPedido,
   onAbrirPedido,
   onAbrirOutro,
   onIrParaPropostas,
@@ -177,7 +194,7 @@ export default function FazerProposta({
   const lista = useMemo(() => {
     const t = procuraAdiada.trim().toLowerCase();
     return quotes
-      .filter((q) => !q.archived && q.status === POR_FAZER && bate(t, q))
+      .filter((q) => porFazer(q) && bate(t, q))
       .sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999"));
   }, [quotes, procuraAdiada]);
 
@@ -191,7 +208,7 @@ export default function FazerProposta({
   const foraDaLista = useMemo(() => {
     const t = procuraAdiada.trim().toLowerCase();
     if (!t) return { aAguardar: [] as Quote[], comProposta: [] as Quote[] };
-    const fora = quotes.filter((q) => !q.archived && q.status !== POR_FAZER && bate(t, q));
+    const fora = quotes.filter((q) => !q.archived && !porFazer(q) && bate(t, q));
     return {
       aAguardar: fora.filter((q) => q.status === "em_revisao"),
       comProposta: fora.filter((q) => q.status !== "em_revisao"),
@@ -236,10 +253,7 @@ export default function FazerProposta({
     [onQuoteUpdated, toast],
   );
 
-  const porFazer = useMemo(
-    () => quotes.filter((q) => !q.archived && q.status === POR_FAZER).length,
-    [quotes],
-  );
+  const quantosPorFazer = useMemo(() => quotes.filter(porFazer).length, [quotes]);
 
   /**
    * Que pedidos da lista caem em cima de um dia já comprometido.
@@ -358,6 +372,7 @@ export default function FazerProposta({
             quote={escolhido}
             quotes={quotes}
             onQuoteUpdated={onQuoteUpdated}
+            onEstadoDoPedido={(status) => onEstadoDoPedido?.(escolhido, status)}
             onSent={() => onSent(escolhido)}
           />
         </div>
@@ -376,9 +391,12 @@ export default function FazerProposta({
                 contagens a discordar no mesmo fluxo. */}
             <p className="text-sm text-[var(--bo-tinta-72)]">
               Para quem é a proposta?{" "}
-              {porFazer > 0 && (
+              {quantosPorFazer > 0 && (
                 <span className="text-foreground/45">
-                  {porFazer === 1 ? "1 pedido à espera" : `${porFazer} pedidos à espera`}.
+                  {quantosPorFazer === 1
+                    ? "1 pedido à espera"
+                    : `${quantosPorFazer} pedidos à espera`}
+                  .
                 </span>
               )}
             </p>

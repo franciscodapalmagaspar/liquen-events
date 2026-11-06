@@ -25,6 +25,14 @@ const st = vi.hoisted(() => ({
   /** A CHAVE que a leitura foi buscar. É isto que prova a porta do resgate:
    *  o duplo devolve sempre o mesmo, o que interessa é a gaveta pedida. */
   read: vi.fn(),
+  /** O braço que põe o pedido em «A preparar proposta» (6/11). O que ele faz
+   *  por dentro testa-se em `estado-do-pedido-servidor.test.ts`; aqui prova-se
+   *  QUANDO a rota o chama. */
+  marcar: vi.fn(async (_id: string): Promise<string | null> => null),
+}));
+
+vi.mock("@/lib/estado-do-pedido-servidor", () => ({
+  marcarPropostaEmPreparacao: (id: string) => st.marcar(id),
 }));
 
 vi.mock("@/lib/admin-auth", () => ({
@@ -114,6 +122,7 @@ beforeEach(() => {
   st.falhaDeEscrita = null;
   st.soNoFicheiroEfemero = false;
   vi.clearAllMocks();
+  st.marcar.mockImplementation(async () => null);
 });
 
 describe("GET /api/orcamento/[id]/proposta-rascunho", () => {
@@ -526,5 +535,63 @@ describe("a variante do rascunho", () => {
     await GET(...req("GET", undefined, undefined, "?variante=orcamento-linhas"));
     await DELETE(...req("DELETE", undefined, undefined, "?variante=orcamento-linhas"));
     expect(st.clear).toHaveBeenCalledWith("q-1--orcamento-linhas");
+  });
+});
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * «A PREPARAR PROPOSTA» — o pedido dela de 6/11
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Gravar o rascunho do estúdio põe o pedido em «A preparar proposta». Estes
+ * testes prendem QUANDO isso se pede: só o rascunho do estúdio, só depois de
+ * ficar gravado, e sem nunca fazer falhar a gravação.
+ */
+describe("PUT — o pedido passa a «A preparar proposta»", () => {
+  it("o rascunho do estúdio, gravado, pede a mudança e devolve o estado novo", async () => {
+    st.marcar.mockImplementation(async () => "a_preparar");
+    const res = await PUT(...req("PUT", { doc: { ref: "Casamento" } }));
+    expect(res.status).toBe(200);
+    expect(st.marcar).toHaveBeenCalledWith("q-1");
+    expect((await res.json()).estadoDoPedido).toBe("a_preparar");
+  });
+
+  it("quando o estado não muda (o caso de quase todos os autosaves), a resposta não o traz", async () => {
+    const res = await PUT(...req("PUT", { doc: { ref: "Casamento" } }));
+    expect(st.marcar).toHaveBeenCalledTimes(1);
+    expect(await res.json()).not.toHaveProperty("estadoDoPedido");
+  });
+
+  it("a ferramenta antiga das linhas não mexe no estado do pedido", async () => {
+    await PUT(...req("PUT", { doc: { linhas: [] } }, undefined, "?variante=orcamento-linhas"));
+    expect(st.marcar).not.toHaveBeenCalled();
+  });
+
+  it("a gaveta do resgate também não", async () => {
+    await PUT(...req("PUT", { doc: { ref: "x" } }, undefined, "?variante=sobreposto"));
+    expect(st.marcar).not.toHaveBeenCalled();
+  });
+
+  it("um rascunho que NÃO ficou gravado não põe o pedido «a preparar»", async () => {
+    st.falhaDeEscrita = "escrita-recusada";
+    const res = await PUT(...req("PUT", { doc: { ref: "Casamento" } }));
+    expect(res.status).toBe(503);
+    expect(st.marcar).not.toHaveBeenCalled();
+  });
+
+  it("se a mudança de estado rebentar, o rascunho continua dado como guardado", async () => {
+    st.marcar.mockImplementation(async () => {
+      throw new Error("base em baixo");
+    });
+    const res = await PUT(...req("PUT", { doc: { ref: "Casamento" } }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.guardado).toBe(true);
+    expect(body).not.toHaveProperty("estadoDoPedido");
+  });
+
+  it("um corpo inválido não chega a pedir nada", async () => {
+    await PUT(...req("PUT", { semDoc: true }));
+    expect(st.marcar).not.toHaveBeenCalled();
   });
 });

@@ -33,8 +33,8 @@ import type { Quote, QuoteStatus } from "./types";
  * produção nasce ao ganhar, e não há data para a pendurar. Sem isto, o aviso
  * DESAPARECIA exactamente no momento em que passa a custar dinheiro.
  *
- * O `rejeitado` fica de fora porque acabou; o `pendente` e o `em_revisao`
- * porque ainda é cedo.
+ * O `rejeitado` fica de fora porque acabou; o `pendente`, o `em_revisao` e o
+ * `a_preparar` porque ainda é cedo — a proposta ainda não seguiu.
  */
 
 /** Os estados em que um pedido sem data já é um problema, e não uma fase. */

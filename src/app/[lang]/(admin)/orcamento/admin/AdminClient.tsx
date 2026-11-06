@@ -298,6 +298,7 @@ const ENTRADA_DO_LOTE =
 const STATUS_OPTIONS: { id: QuoteStatus; label: string; color: string }[] = [
   { id: "pendente", label: "Novo", color: "bg-[var(--bo-tinta-10)] text-foreground/50" },
   { id: "em_revisao", label: "Aguardar resposta", color: "bg-moss/15 text-moss" },
+  { id: "a_preparar", label: "A preparar proposta", color: "bg-moss/20 text-moss" },
   { id: "cotado", label: "Proposta enviada", color: "bg-moss/25 text-moss" },
   { id: "aceite", label: "Ganho", color: "bg-moss/35 text-moss" },
   { id: "rejeitado", label: "Perdido", color: "bg-[var(--bo-tinta-10)] text-foreground/30" },
@@ -629,7 +630,7 @@ function COLUNAS_DE_PEDIDOS(ctx: {
    * ela que se ordena para responder a «a quem devo responder já».
    *
    * Um pedido em aberto está à espera de alguém — de nós enquanto não tem
-   * proposta (`pendente`, `em_revisao`), do casal depois de ela seguir
+   * proposta (`pendente`, `em_revisao`, `a_preparar`), do casal depois de ela seguir
    * (`cotado`). Um `aceite` e um `rejeitado` não estão à espera de ninguém:
    * acabaram. Esses passam a mostrar «—», que é a mesma marca que o resto da
    * tabela usa para «não se aplica».
@@ -796,7 +797,10 @@ function COLUNAS_DE_PEDIDOS(ctx: {
         const d = diasAEsperar(q);
         if (d === null) return <span className="text-foreground/40">—</span>;
         const parado =
-          (q.status === "pendente" || q.status === "em_revisao" || q.status === "cotado") &&
+          (q.status === "pendente" ||
+            q.status === "em_revisao" ||
+            q.status === "a_preparar" ||
+            q.status === "cotado") &&
           d >= 14;
         return (
           <span
@@ -851,7 +855,10 @@ const QuoteCard = memo(function QuoteCard({
   const lastActivity = q.lastUpdated ?? q.submittedAt;
   const daysSince = diasDesde(lastActivity, todayStr);
   const isStale =
-    (q.status === "pendente" || q.status === "em_revisao" || q.status === "cotado") &&
+    (q.status === "pendente" ||
+      q.status === "em_revisao" ||
+      q.status === "a_preparar" ||
+      q.status === "cotado") &&
     daysSince >= 14;
   const espera = diasDeEspera(q);
   const tom = espera === null ? null : tomDeEspera(espera);
@@ -3697,6 +3704,26 @@ export default function AdminClient({
    * que acabou de gravar. Sem isto, os campos ficavam com o valor anulado e o
    * botão voltava a gravá-lo.
    */
+  /**
+   * O estúdio gravou o rascunho e o servidor pôs o pedido em «A preparar
+   * proposta» (6/11). Muda-se SÓ o estado — o resto da cópia fica como está,
+   * pela razão do `onEstadoDoPedido` do estúdio.
+   *
+   * E o campo de estado do painel segue-o, mas só se ela não lhe tiver mexido:
+   * o «Guardar» compara `editStatus` com o estado do pedido, e um campo que
+   * ficasse em «Aguardar resposta» passava por uma escolha dela e desfazia o
+   * estado novo ao gravar o resto.
+   */
+  function refletirEstadoDoEstudio(id: string, status: QuoteStatus) {
+    setQuotes((prev) => prev.map((x) => (x.id === id ? { ...x, status } : x)));
+    const aberto = selectedRef.current;
+    if (aberto?.id === id) {
+      const anterior = aberto.status;
+      setEditStatus((e) => (e === anterior ? status : e));
+    }
+    setSelected((prev) => (prev?.id === id ? { ...prev, status } : prev));
+  }
+
   function refletirPedidoReposto(q: Quote) {
     setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
     setSelected((prev) => (prev?.id === q.id ? q : prev));
@@ -4448,8 +4475,10 @@ export default function AdminClient({
     [filtered, selectedIds],
   );
 
+  // «Por responder» inclui a proposta que se está a preparar: o casal ainda
+  // não recebeu nada, portanto a bola continua do nosso lado.
   const pendingCount = activeQuotes.filter(
-    (q) => q.status === "pendente" || q.status === "em_revisao",
+    (q) => q.status === "pendente" || q.status === "em_revisao" || q.status === "a_preparar",
   ).length;
 
   // Every tag in use across all quotes — feeds the tag editor suggestions and
@@ -6321,6 +6350,7 @@ export default function AdminClient({
                   // cabeçalho mandava-o para A.
                   if (q.id === selectedRef.current?.id) setEditPrice(textoDoPreco(q));
                 }}
+                onEstadoDoPedido={(q, status) => refletirEstadoDoEstudio(q.id, status)}
                 onSent={(q) => {
                   setQuotes((prev) =>
                     prev.map((x) => (x.id === q.id ? { ...x, status: "cotado" } : x)),
@@ -8604,6 +8634,9 @@ export default function AdminClient({
                                         // acabou de gravar.
                                         setEditPrice(textoDoPreco(q));
                                       }}
+                                      onEstadoDoPedido={(status) =>
+                                        refletirEstadoDoEstudio(selected.id, status)
+                                      }
                                       onSent={() => {
                                         setQuotes((prev) =>
                                           prev.map((q) =>

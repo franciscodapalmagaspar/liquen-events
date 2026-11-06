@@ -15,10 +15,13 @@ import { BASE_OMISSAO, kmEntre, localizar } from "@/lib/geo/portugal";
  * Só quem ainda não teve resposta: `pendente` e `em_revisao`. Um pedido com
  * proposta enviada não está à espera de nós, está à espera dele — e contar-lhe
  * os dias fazia a lista gritar por coisas que já estão feitas.
+ *
+ * `a_preparar` (6/11) conta como espera: a proposta começou no estúdio mas o
+ * casal ainda não recebeu nada, e é precisamente a ele que os dias interessam.
  */
 
 /** Estados em que a bola está do nosso lado. */
-export const A_ESPERAR_RESPOSTA: QuoteStatus[] = ["pendente", "em_revisao"];
+export const A_ESPERAR_RESPOSTA: QuoteStatus[] = ["pendente", "em_revisao", "a_preparar"];
 
 /**
  * Dias desde que o pedido entrou, para quem ainda espera resposta.

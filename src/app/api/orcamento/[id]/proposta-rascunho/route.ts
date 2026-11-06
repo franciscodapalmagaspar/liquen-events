@@ -12,6 +12,7 @@ import {
 import { log } from "@/lib/logger";
 import { juntarRascunhos } from "@/lib/rascunho-juntar";
 import { comCpu } from "@/lib/medir-cpu";
+import { marcarPropostaEmPreparacao } from "@/lib/estado-do-pedido-servidor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -286,6 +287,26 @@ async function PUT_semMedida(
         onde: persistencia.onde,
       });
     }
+
+    /**
+     * ── O PEDIDO PASSA A «A PREPARAR PROPOSTA» (6/11, pedido dela) ──────────
+     *
+     * Só o rascunho DO ESTÚDIO (`chave === id`): a ferramenta antiga das linhas
+     * e a gaveta do resgate não são uma proposta a ser montada. E só depois de
+     * o rascunho ter ficado gravado — um pedido «a preparar» cuja proposta não
+     * existe no servidor era o quadro a dizer uma coisa que não é.
+     *
+     * Barato de propósito, porque isto corre a cada autosave: uma leitura de
+     * uma coluna, e uma escrita no pedido SÓ na gravação em que o estado muda.
+     * Nunca atira — ver `marcarPropostaEmPreparacao`. O estado novo vai na
+     * resposta para o estúdio poder actualizar a sua cópia do pedido.
+     */
+    // O `.catch` é a segunda guarda, e de propósito: o rascunho JÁ está
+    // gravado, e um 500 daqui fazia o estúdio dizer «não guardado» sobre uma
+    // escrita que passou — por causa da cor de uma coluna.
+    const estadoDoPedido =
+      chave === id ? await marcarPropostaEmPreparacao(id).catch(() => null) : null;
+
     return NextResponse.json({
       ok: true,
       guardado: true,
@@ -298,6 +319,7 @@ async function PUT_semMedida(
       // O documento como ficou, para o estúdio pôr no ecrã o que veio da outra
       // pessoa — sem isto ela continuava a ver a sua versão como a gravada.
       ...(juntou ? { juntou: true as const, doc: docAGravar, conflitos } : {}),
+      ...(estadoDoPedido ? { estadoDoPedido } : {}),
     } satisfies {
       ok: true;
       guardado: true;
@@ -312,6 +334,7 @@ async function PUT_semMedida(
       juntou?: true;
       doc?: unknown;
       conflitos?: string[];
+      estadoDoPedido?: string;
     });
   } catch (err) {
     log.error("proposta-rascunho PUT falhou", err, { id });
