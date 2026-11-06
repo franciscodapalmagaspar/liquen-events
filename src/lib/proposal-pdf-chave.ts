@@ -62,10 +62,22 @@ function canonico(valor: unknown): unknown {
 function semFaturacao(doc: ProposalDoc): ProposalDoc {
   if (!doc || typeof doc !== "object") return doc;
   const temArtigoNosAdicionais = (doc.budgetExtras ?? []).some((e) => e && "artigo" in e);
-  if (!("repartoPorArtigo" in doc) && !("budgetArtigos" in doc) && !temArtigoNosAdicionais) return doc;
-  const { repartoPorArtigo: _reparto, budgetArtigos: _artigos, ...resto } = doc;
+  if (
+    !("repartoPorArtigo" in doc) &&
+    !("budgetArtigos" in doc) &&
+    !("budgetSubpontos" in doc) &&
+    !temArtigoNosAdicionais
+  )
+    return doc;
+  const {
+    repartoPorArtigo: _reparto,
+    budgetArtigos: _artigos,
+    budgetSubpontos: _subpontos,
+    ...resto
+  } = doc;
   void _reparto;
   void _artigos;
+  void _subpontos;
   return {
     ...resto,
     ...(doc.budgetExtras

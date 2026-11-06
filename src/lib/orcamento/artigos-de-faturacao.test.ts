@@ -10,6 +10,7 @@ import {
   faturacaoPorArtigo,
   faltasDaFaturacao,
   parcelasDaFatura,
+  definirSubpontos,
   refDoArtigo,
   repartoDe,
   servicosForaDoOrcamento,
@@ -275,6 +276,8 @@ describe("passar ao Moloni à mão", () => {
     expect(t).toMatch(/EXE\.2 · Flores e Elementos de Decoração: 5\s?915,00\s€/);
     expect(t).toMatch(/EXE\.5 · Transporte: 1\s?085,00\s€/);
     expect(t).toMatch(/Total sem IVA: 7\s?000,00\s€/);
+    // E o total com IVA, para conferir no Moloni (e no WhatsApp) de um relance.
+    expect(t).toMatch(/Total com IVA: 8\s?610,00\s€/);
   });
 });
 
@@ -315,5 +318,79 @@ describe("os serviços da proposta no orçamento (5/11)", () => {
       budgetArtigos: ["transporte", "material"],
     });
     expect(sugerirArtigoDaLinha(d as never, 1)).toBe(d);
+  });
+});
+
+describe("subpontos — só para nós (6/11)", () => {
+  const base = () =>
+    doc({
+      budgetItems: ["Decoração de Natal", "Transporte"],
+      budgetAmounts: [null, 1000],
+      budgetArtigos: [null, "transporte"],
+      budgetExtras: [],
+      totalAmount: 5000,
+    } as Partial<DocParaFaturar>);
+
+  it("a linha vale a soma dos subpontos, e cada um fatura no seu artigo", () => {
+    const d = definirSubpontos(base() as never, 0, [
+      { nome: "Zona do bar", valor: 1500, artigo: "flores" },
+      { nome: "Zona do jantar", valor: 2000, artigo: "material" },
+      { nome: "Montagem", valor: 500, artigo: "servico" },
+    ]) as unknown as DocParaFaturar;
+    expect(d.budgetAmounts).toEqual([4000, 1000]);
+    const f = faturacaoPorArtigo(d);
+    expect(f.modo).toBe("linhas");
+    expect(f.fecha).toBe(true);
+    expect(f.artigos).toEqual([
+      { artigo: "material", nome: "Material", valor: 2000 },
+      { artigo: "flores", nome: "Flores e Elementos de Decoração", valor: 1500 },
+      { artigo: "servico", nome: "Serviço", valor: 500 },
+      { artigo: "transporte", nome: "Transporte", valor: 1000 },
+    ]);
+  });
+
+  it("um subponto sem valor ou sem artigo falta para enviar — e a linha não pede artigo próprio", () => {
+    const d = definirSubpontos(base() as never, 0, [
+      { nome: "Zona do bar", valor: 1500, artigo: null },
+      { nome: "Zona do jantar", valor: null, artigo: "flores" },
+    ]) as unknown as DocParaFaturar;
+    const { semPreco, semArtigo } = faltasDaFaturacao(d as never);
+    expect(semPreco.map((l) => [l.origem, l.nome])).toEqual([
+      ["subponto", "Decoração de Natal — Zona do jantar"],
+    ]);
+    expect(semArtigo.map((l) => l.nome)).toEqual(["Decoração de Natal — Zona do bar"]);
+  });
+
+  it("«Pôr no orçamento» traz os itens do serviço como subpontos", () => {
+    const d = trazerServicosParaOOrcamento({
+      serviceGroups: [
+        {
+          letter: "a)",
+          title: "Decoração de Natal",
+          items: [{ label: "Zona do bar" }, { label: "Montagem e desmontagem" }],
+        },
+      ],
+      budgetItems: [],
+      budgetAmounts: [],
+    } as never) as unknown as DocParaFaturar & { budgetSubpontos: unknown };
+    expect(d.budgetItems).toEqual(["Decoração de Natal"]);
+    expect(d.budgetSubpontos).toEqual([
+      [
+        { nome: "Zona do bar", valor: null, artigo: "flores" },
+        { nome: "Montagem e desmontagem", valor: null, artigo: "servico" },
+      ],
+    ]);
+  });
+
+  it("os subpontos não mudam o PDF guardado nem o selo da versão", async () => {
+    const { chaveDoPdf } = await import("@/lib/proposal-pdf-chave");
+    const sem = { ...base(), budgetAmounts: [4000, 1000] } as unknown as ProposalDoc;
+    const com = definirSubpontos(sem as never, 0, [
+      { nome: "Zona do bar", valor: 4000, artigo: "flores" },
+    ]) as unknown as ProposalDoc;
+    expect(chaveDoPdf(com, "pt")).toBe(chaveDoPdf(sem, "pt"));
+    expect(seloDoConteudo({ doc: com, total: 6150 })).toBe(
+      seloDoConteudo({ doc: sem, total: 6150 }),
+    );
   });
 });

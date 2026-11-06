@@ -913,6 +913,7 @@ type ComOrcamento = Pick<
   | "budgetOpcional"
   | "budgetItemsEn"
   | "budgetArtigos"
+  | "budgetSubpontos"
 >;
 
 /**
@@ -942,6 +943,8 @@ const PARALELOS = [
   { campo: "budgetItemsEn", nascePor: null },
   // O artigo do Moloni de cada linha (5/11): viaja com a linha, como o preço.
   { campo: "budgetArtigos", nascePor: null },
+  // Os subpontos internos de cada linha (6/11): viajam com a linha.
+  { campo: "budgetSubpontos", nascePor: null },
 ] as const;
 
 /** Corta ou estica um array paralelo até ao tamanho das linhas. */

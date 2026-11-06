@@ -623,7 +623,10 @@ export function oQueFaltaParaEnviar(
       faltas.push({
         id: "precos-das-linhas",
         seccao: "orcamento",
-        campo: `budgetPreco:${semPreco[0].indice}`,
+        campo:
+          semPreco[0].origem === "subponto"
+            ? `budgetSubPreco:${semPreco[0].indice}:${semPreco[0].sub ?? 0}`
+            : `budgetPreco:${semPreco[0].indice}`,
         texto:
           semPreco.length === 1
             ? `A linha «${semPreco[0].nome}» não tem preço (é só para a faturação, o cliente não o vê)`
@@ -636,7 +639,12 @@ export function oQueFaltaParaEnviar(
       faltas.push({
         id: "artigos-moloni",
         seccao: "orcamento",
-        campo: l.origem === "linha" ? `budgetArtigo:${l.indice}` : `extraArtigo:${l.indice}`,
+        campo:
+          l.origem === "linha"
+            ? `budgetArtigo:${l.indice}`
+            : l.origem === "subponto"
+              ? `budgetSubArtigo:${l.indice}:${l.sub ?? 0}`
+              : `extraArtigo:${l.indice}`,
         texto:
           semArtigo.length === 1
             ? `«${l.nome}» não tem artigo do Moloni`
