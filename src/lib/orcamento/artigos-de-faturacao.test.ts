@@ -276,6 +276,8 @@ describe("passar ao Moloni à mão", () => {
     expect(t).toMatch(/EXE\.2 · Flores e Elementos de Decoração: 5\s?915,00\s€/);
     expect(t).toMatch(/EXE\.5 · Transporte: 1\s?085,00\s€/);
     expect(t).toMatch(/Total sem IVA: 7\s?000,00\s€/);
+    // E o total com IVA, para conferir no Moloni (e no WhatsApp) de um relance.
+    expect(t).toMatch(/Total com IVA: 8\s?610,00\s€/);
   });
 });
 

@@ -19,6 +19,7 @@ import {
 import { RepartoPorArtigo } from "./RepartoPorArtigo";
 import { useToast } from "./Toast";
 import { Button } from "./ui/Button";
+import { BotaoWhatsApp } from "./ui/BotaoWhatsApp";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 
 /**
@@ -357,9 +358,10 @@ function CartaoDaFase({
   const valor = Math.round(partes.reduce((s, p) => s + p.valor, 0) * 100) / 100;
   const criado = feito?.documentId ? feito : null;
   const manual = !criado && feito?.manual ? feito : null;
-  // Sem a ligação, passar à mão é O caminho: abre logo. Com ela, é a segunda via.
-  const [verAMao, setVerAMao] = useState(false);
-  const aMaoAberto = verAMao || (podeFaturar && !configurado && !criado && !manual);
+  // Os valores à vista LOGO (6/11 — ela: «quero que isto apareça logo»).
+  // Só uma fase que já está no Moloni abre fechada: aí já não há nada a passar.
+  const [verAMao, setVerAMao] = useState(!criado && !manual);
+  const aMaoAberto = verAMao;
 
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] p-3">
@@ -403,9 +405,13 @@ function CartaoDaFase({
           </div>
         </div>
       ) : !podeFaturar ? (
-        <LigacaoAMao aberto={aMaoAberto} aoTocar={() => setVerAMao((v) => !v)}>
-          {aMaoAberto ? "Esconder os valores" : "Ver os valores por serviço"}
-        </LigacaoAMao>
+        // Num `div` à parte: dentro da coluna, o botão esticava à largura toda
+        // e o texto ficava ao centro, a parecer um título.
+        <div className="flex">
+          <LigacaoAMao aberto={aMaoAberto} aoTocar={() => setVerAMao((v) => !v)}>
+            {aMaoAberto ? "Esconder os valores" : "Ver os valores por serviço"}
+          </LigacaoAMao>
+        </div>
       ) : configurado ? (
         <div className="flex flex-col items-start gap-1.5">
           <Button size="sm" onClick={() => aoCriar(false)} disabled={aCriar !== null}>
@@ -538,6 +544,13 @@ function PassarAMao({
         </li>
       </ul>
       <div className="flex flex-wrap items-center gap-2">
+        {/* Quem passa as faturas ao Moloni é outra pessoa (6/11 — «o marido
+            da Catarina»): o mesmo texto do «Copiar tudo» vai já escrito para o
+            WhatsApp, e ela escolhe lá a quem o manda. */}
+        <BotaoWhatsApp
+          texto={textoDaFatura(partes, fase, pct, vatRate, { nome, nif: nifLimpo })}
+          rotulo="Enviar por WhatsApp"
+        />
         <BotaoCopiar
           texto={textoDaFatura(partes, fase, pct, vatRate, { nome, nif: nifLimpo })}
           rotulo={`Copiar tudo ${fase === "sinal" ? "do sinal" : "do saldo"}`}

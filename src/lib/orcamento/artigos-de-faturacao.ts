@@ -611,6 +611,9 @@ export function textoDaFatura(
     `${titulo} — valores sem IVA (IVA ${Math.round(vatRate * 100)}%):`,
     ...partes.map((p) => `${refDoArtigo(p.artigo)} · ${p.nome}: ${eur(p.valor)}`),
     `Total sem IVA: ${eur(total)}`,
+    // Para conferir no Moloni de um relance (ele calcula o IVA linha a linha:
+    // pode diferir 1 cêntimo).
+    `Total com IVA: ${eur(round2(total * (1 + vatRate)))}`,
   ].join("\n");
 }
 
