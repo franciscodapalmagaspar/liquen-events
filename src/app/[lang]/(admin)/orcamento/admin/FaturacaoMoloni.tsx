@@ -17,7 +17,6 @@ import {
   type FaseDaFatura,
 } from "@/lib/orcamento/artigos-de-faturacao";
 import { RepartoPorArtigo } from "./RepartoPorArtigo";
-import { useDinheiroAceite } from "./percentagem-do-sinal";
 import { useToast } from "./Toast";
 import { Button } from "./ui/Button";
 import { ESTADO, PRESSAO } from "./ui/movimento";
@@ -56,7 +55,12 @@ interface Dados {
   configurado: boolean;
   faturas: Partial<Record<FaseDaFatura, Rascunho>>;
   proposta: {
-    id: string;
+    /** `null` quando é o rascunho do estúdio, ainda sem proposta gravada. */
+    id: string | null;
+    /** Só a aceite se fatura; as outras mostram os valores. */
+    estado: "aceite" | "rascunho" | "enviada";
+    /** Os valores de cada serviço vieram do estúdio (ver o GET da rota). */
+    linhasDoEstudio?: boolean;
     versaoEscolhida: VersaoEscolhida | null;
     doc: DocParaFaturar & { depositPercent?: number };
   } | null;
@@ -79,9 +83,6 @@ export default function FaturacaoMoloni({
   cliente?: string;
   nif?: string;
 }) {
-  // A lista leve já diz se há proposta aceite: sem ela não se pergunta nada.
-  const aceite = useDinheiroAceite(quoteId);
-  const temAceite = aceite !== null;
   const { toast } = useToast();
   const [dados, setDados] = useState<Dados | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -89,8 +90,16 @@ export default function FaturacaoMoloni({
   const [aCriar, setACriar] = useState<FaseDaFatura | null>(null);
   const [problema, setProblema] = useState<{ fase: FaseDaFatura; texto: string } | null>(null);
 
+  /**
+   * ── PERGUNTA-SE SEMPRE AO SERVIDOR (6/11) ─────────────────────────────────
+   * Perguntava só quando a lista leve de propostas (guardada no navegador)
+   * dizia que havia uma aceite. Essa lista podia estar velha — aceitar uma
+   * proposta noutro ecrã não a refazia — e o cartão não aparecia de todo.
+   * Ela: «meti-a como aceite … mas nem aparece o Moloni nos pagamentos». Um
+   * pedido quando o painel abre (regra 7: nada de polling) e é o servidor que
+   * diz que proposta conta.
+   */
   useEffect(() => {
-    if (!temAceite) return;
     const ctl = new AbortController();
     fetch(`/api/orcamento/${encodeURIComponent(quoteId)}/moloni`, { signal: ctl.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -99,9 +108,10 @@ export default function FaturacaoMoloni({
         if (!ctl.signal.aborted) setErro("Não foi possível ler a faturação agora.");
       });
     return () => ctl.abort();
-  }, [quoteId, temAceite]);
+  }, [quoteId]);
 
   const doc = dados?.proposta?.doc ?? null;
+  const podeFaturar = dados?.proposta?.estado === "aceite";
   const versao = dados?.proposta?.versaoEscolhida ?? undefined;
   const pct = doc ? depositPercentOf(doc) : 30;
   const f = useMemo(() => (doc ? faturacaoPorArtigo(doc, versao) : null), [doc, versao]);
@@ -110,7 +120,8 @@ export default function FaturacaoMoloni({
 
   const repartir = useCallback(
     async (reparto: Partial<Record<ArtigoId, number>>) => {
-      if (!dados?.proposta) return;
+      const idDaProposta = dados?.proposta?.id;
+      if (!dados?.proposta || !idDaProposta || dados.proposta.estado !== "aceite") return;
       const antes = dados;
       // À vista já; se o servidor recusar, volta atrás e diz porquê.
       setDados({
@@ -119,7 +130,7 @@ export default function FaturacaoMoloni({
       });
       setAGravar(true);
       try {
-        const res = await fetch(`/api/propostas/${encodeURIComponent(dados.proposta.id)}/reparto`, {
+        const res = await fetch(`/api/propostas/${encodeURIComponent(idDaProposta)}/reparto`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ reparto }),
@@ -214,8 +225,6 @@ export default function FaturacaoMoloni({
     }
   }
 
-  if (!temAceite) return null;
-
   return (
     <section
       aria-labelledby={`faturacao-${quoteId}`}
@@ -245,8 +254,22 @@ export default function FaturacaoMoloni({
       {erro && <p className="text-xs text-[var(--bo-perigo)]">{erro}</p>}
       {!dados && !erro && <p className="text-xs text-[var(--bo-text-muted)]">A carregar…</p>}
       {dados && !dados.proposta && (
-        <p className="text-xs text-[var(--bo-text-muted)]">
-          Este cliente ainda não tem uma proposta aceite.
+        <p className="text-xs leading-relaxed text-[var(--bo-text-muted)]">
+          Este cliente ainda não tem proposta. Quando a fizeres, com o valor e o artigo do Moloni de
+          cada serviço, os valores aparecem aqui.
+        </p>
+      )}
+      {dados?.proposta && !podeFaturar && (
+        <p className="mb-3 rounded-lg bg-[var(--bo-tinta-3)] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]">
+          {dados.proposta.estado === "rascunho"
+            ? "Valores da proposta que está a ser feita."
+            : "Valores da proposta enviada."}{" "}
+          Passar ao Moloni fica disponível quando a proposta for aceite.
+        </p>
+      )}
+      {podeFaturar && dados?.proposta?.linhasDoEstudio && (
+        <p className="mb-3 text-[11px] leading-relaxed text-[var(--bo-text-faint)]">
+          Os valores de cada serviço são os que estão no estúdio — o total é o da proposta aceite.
         </p>
       )}
 
@@ -257,6 +280,7 @@ export default function FaturacaoMoloni({
           pct={pct}
           aoMudar={repartir}
           bloqueado={aGravar}
+          permitirManual={podeFaturar && !!dados?.proposta?.id}
         >
           {/* Só no modo à mão: com preço por linha, a repartição é a da proposta. */}
           {jaHaRascunho && f.modo === "manual" && (
@@ -274,6 +298,7 @@ export default function FaturacaoMoloni({
                   pct={pct}
                   feito={dados?.faturas?.[fase]}
                   configurado={!!dados?.configurado}
+                  podeFaturar={podeFaturar}
                   aCriar={aCriar}
                   problema={problema?.fase === fase ? problema.texto : null}
                   cliente={cliente}
@@ -306,6 +331,7 @@ function CartaoDaFase({
   pct,
   feito,
   configurado,
+  podeFaturar,
   aCriar,
   problema,
   cliente,
@@ -318,6 +344,8 @@ function CartaoDaFase({
   pct: number;
   feito?: Rascunho;
   configurado: boolean;
+  /** Só a proposta aceite se fatura; antes, mostram-se só os valores. */
+  podeFaturar: boolean;
   aCriar: FaseDaFatura | null;
   problema: string | null;
   cliente?: string;
@@ -331,7 +359,7 @@ function CartaoDaFase({
   const manual = !criado && feito?.manual ? feito : null;
   // Sem a ligação, passar à mão é O caminho: abre logo. Com ela, é a segunda via.
   const [verAMao, setVerAMao] = useState(false);
-  const aMaoAberto = verAMao || (!configurado && !criado && !manual);
+  const aMaoAberto = verAMao || (podeFaturar && !configurado && !criado && !manual);
 
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] p-3">
@@ -374,6 +402,10 @@ function CartaoDaFase({
             </LigacaoAMao>
           </div>
         </div>
+      ) : !podeFaturar ? (
+        <LigacaoAMao aberto={aMaoAberto} aoTocar={() => setVerAMao((v) => !v)}>
+          {aMaoAberto ? "Esconder os valores" : "Ver os valores por serviço"}
+        </LigacaoAMao>
       ) : configurado ? (
         <div className="flex flex-col items-start gap-1.5">
           <Button size="sm" onClick={() => aoCriar(false)} disabled={aCriar !== null}>
@@ -393,7 +425,7 @@ function CartaoDaFase({
           vatRate={f.vatRate}
           cliente={cliente}
           nif={nif}
-          podeMarcar={!criado && !manual}
+          podeMarcar={podeFaturar && !criado && !manual}
           aMarcar={aCriar === fase}
           bloqueado={aCriar !== null}
           aoMarcar={aoMarcar}

@@ -576,6 +576,39 @@ export function textoDaFatura(
   ].join("\n");
 }
 
+/**
+ * A proposta ACEITE, com o preço e o artigo de cada serviço que ela pôs depois
+ * no estúdio (6/11).
+ *
+ * Uma proposta aceite antes de haver preço por linha — ou aceite e só depois
+ * preenchida no estúdio — tem os valores no rascunho do estúdio e não no
+ * documento aceite. Usam-se as linhas do estúdio SÓ quando o dinheiro é o
+ * mesmo: a base sem IVA igual ao cêntimo e a faturação a fechar. Senão fica a
+ * aceite tal como está, e o cartão diz o que falta.
+ */
+export function aceiteComLinhasDoEstudio(
+  aceite: DocParaFaturar,
+  estudio: DocParaFaturar | null | undefined,
+  versao?: VersaoEscolhida,
+): { doc: DocParaFaturar; doEstudio: boolean } {
+  if (!estudio || faturacaoPorArtigo(aceite, versao).fecha) return { doc: aceite, doEstudio: false };
+  const junto = {
+    ...aceite,
+    budgetItems: estudio.budgetItems,
+    budgetAmounts: estudio.budgetAmounts,
+    budgetArtigos: estudio.budgetArtigos,
+    budgetOpcional: estudio.budgetOpcional,
+    budgetExtras: estudio.budgetExtras,
+  } as DocParaFaturar;
+  const igual =
+    Math.abs(
+      dinheiroDaProposta(junto as ProposalDoc).base - dinheiroDaProposta(aceite as ProposalDoc).base,
+    ) < 0.005;
+  return igual && faturacaoPorArtigo(junto, versao).fecha
+    ? { doc: junto, doEstudio: true }
+    : { doc: aceite, doEstudio: false };
+}
+
 /** Os campos do documento que a faturação lê — e só esses. */
 const CAMPOS_DA_FATURACAO = [
   "budgetItems",

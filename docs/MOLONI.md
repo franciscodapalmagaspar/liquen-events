@@ -29,6 +29,7 @@
 | 10 | **O total é a soma** (5/11, segundo pedido dela): escrever o valor de um serviço põe o total na soma dos serviços e dos adicionais (deslocação…); com serviços com valor, o campo do total já não se escreve à mão. Uma proposta antiga aberta não muda sozinha — fica o aviso e o «Usar …» | `somarOTotal` em `ProposalStudio.tsx` |
 | 11 | **Sem serviços no orçamento, não sai** — nem por email, nem pelo WhatsApp, nem como PDF final descarregado (só o rascunho, marcado em cada página) | `linhas-do-orcamento` em `oQueFaltaParaEnviar`; `TRAVAM_O_PDF_FINAL` na rota |
 | 12 | **«Pôr no orçamento»**: os serviços escritos no passo «Serviços» vêm para o orçamento num gesto, cada um com o artigo do Moloni que o nome sugere — só falta o valor à frente. E ao escrever o nome de uma linha, o artigo escolhe-se sozinho (quando o nome é claro) | `servicosForaDoOrcamento`, `trazerServicosParaOOrcamento`, `sugerirArtigoDaLinha` |
+| 13 | **O cartão aparece sempre** (6/11 — ela: «meti-a como aceite … mas nem aparece o Moloni nos pagamentos»). Dependia de uma lista guardada no navegador que podia estar velha; passa a perguntar ao servidor quando abre. Mostra a proposta aceite, senão a que está a ser feita no estúdio, senão a última enviada — e só a aceite se fatura. Uma aceite sem preço por linha usa as linhas que ela pôs depois no estúdio, se o total for o mesmo | `FaturacaoMoloni.tsx`; GET da rota; `aceiteComLinhasDoEstudio` |
 
 ### Os artigos (respostas dela, 5/11)
 

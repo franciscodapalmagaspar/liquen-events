@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
 import { getQuote, updateQuoteWith } from "@/lib/quotes-store";
 import { listProposalsForQuote } from "@/lib/proposals-store";
+import { getProposalDraft } from "@/lib/proposal-drafts";
 import { depositPercentOf, type ProposalDoc } from "@/lib/proposal-doc";
 import {
+  aceiteComLinhasDoEstudio,
   docDaFaturacao,
   faturacaoPorArtigo,
   parcelasDaFatura,
+  type DocParaFaturar,
 } from "@/lib/orcamento/artigos-de-faturacao";
+import type { Proposal } from "@/lib/orcamento/types";
 import {
   configDoMoloni,
   criarRascunhoDeFatura,
@@ -38,6 +42,57 @@ export const dynamic = "force-dynamic";
  * ler o pedido e as propostas, mais ~9 pedidos ao Moloni que são espera de
  * rede. Não se guarda nada no armazenamento além do id do rascunho no pedido.
  */
+/**
+ * A proposta de que sai a fatura, e de onde vêm os valores de cada serviço.
+ *
+ * Por esta ordem: a ACEITE (com as linhas do estúdio quando ela as preencheu
+ * depois de aceitar — ver `aceiteComLinhasDoEstudio`); senão o rascunho do
+ * estúdio (a que ela está a fazer); senão a última enviada. Só a aceite deixa
+ * faturar; as outras mostram os valores e dizem porquê.
+ */
+async function propostaDeFaturacao(id: string, propostas: Proposal[]) {
+  const aceite = propostas.find((p) => p.status === "aceite");
+  const rascunho = await getProposalDraft(id).catch(() => null);
+  const doEstudio =
+    rascunho?.doc && typeof rascunho.doc === "object" && !Array.isArray(rascunho.doc)
+      ? (rascunho.doc as ProposalDoc)
+      : null;
+  if (aceite?.doc) {
+    const { doc, doEstudio: usouEstudio } = aceiteComLinhasDoEstudio(
+      aceite.doc as DocParaFaturar,
+      doEstudio,
+      aceite.versaoEscolhida,
+    );
+    return {
+      id: aceite.id as string | null,
+      estado: "aceite" as const,
+      versaoEscolhida: aceite.versaoEscolhida ?? null,
+      doc: doc as ProposalDoc,
+      linhasDoEstudio: usouEstudio,
+    };
+  }
+  if (doEstudio) {
+    return {
+      id: null,
+      estado: "rascunho" as const,
+      versaoEscolhida: null,
+      doc: doEstudio,
+      linhasDoEstudio: true,
+    };
+  }
+  const ultima = propostas.find((p) => p.doc && p.status !== "rejeitada");
+  if (ultima?.doc) {
+    return {
+      id: ultima.id as string | null,
+      estado: "enviada" as const,
+      versaoEscolhida: null,
+      doc: ultima.doc as ProposalDoc,
+      linhasDoEstudio: false,
+    };
+  }
+  return null;
+}
+
 async function POST_semMedida(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -117,15 +172,15 @@ async function POST_semMedida(
   }
 
   const propostas = await listProposalsForQuote(id);
-  const aceite = propostas.find((p) => p.status === "aceite");
-  if (!aceite?.doc) {
+  const fonte = await propostaDeFaturacao(id, propostas);
+  if (fonte?.estado !== "aceite") {
     return NextResponse.json(
       { error: "Este cliente ainda não tem uma proposta aceite.", codigo: "sem-proposta" },
       { status: 422 },
     );
   }
-  const doc = aceite.doc as ProposalDoc;
-  const f = faturacaoPorArtigo(doc, aceite.versaoEscolhida);
+  const doc = fonte.doc;
+  const f = faturacaoPorArtigo(doc, fonte.versaoEscolhida ?? undefined);
   if (!f.fecha) {
     return NextResponse.json(
       {
@@ -330,9 +385,17 @@ async function POST_semMedida(
 export const POST = comCpu("moloni rascunho", POST_semMedida);
 
 /**
- * O que o cartão de faturação precisa para se desenhar: a proposta aceite (só
- * os campos do dinheiro e dos artigos), os rascunhos já criados e se a ligação
+ * O que o cartão de faturação precisa para se desenhar: a proposta (só os
+ * campos do dinheiro e dos artigos), os rascunhos já criados e se a ligação
  * está configurada. Lido quando o cartão abre — nunca em polling.
+ *
+ * ── QUAL PROPOSTA (6/11) ──────────────────────────────────────────────────
+ * Ela: «estou a fazer uma proposta e já coloco os valores dos serviços e os
+ * artigos do Moloni, mas depois quando vou aos pagamentos nem aparece nada do
+ * Moloni». O cartão só lia a ACEITE. Passa a ler, por esta ordem: a aceite; o
+ * rascunho do estúdio (a que ela está a fazer); a última enviada. Faturar —
+ * criar o rascunho no Moloni ou marcar «já está» — continua a pedir a aceite
+ * (o POST não mudou); antes disso o cartão mostra os valores e diz porquê.
  */
 async function GET_semMedida(
   request: NextRequest,
@@ -342,17 +405,12 @@ async function GET_semMedida(
   const { id } = await params;
   const [quote, propostas] = await Promise.all([getQuote(id), listProposalsForQuote(id)]);
   if (!quote) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
-  const aceite = propostas.find((p) => p.status === "aceite");
+  const fonte = await propostaDeFaturacao(id, propostas);
+  const proposta = fonte ? { ...fonte, doc: docDaFaturacao(fonte.doc) } : null;
   return NextResponse.json({
     configurado: configDoMoloni() !== null,
     faturas: quote.faturasMoloni ?? {},
-    proposta: aceite?.doc
-      ? {
-          id: aceite.id,
-          versaoEscolhida: aceite.versaoEscolhida ?? null,
-          doc: docDaFaturacao(aceite.doc as ProposalDoc),
-        }
-      : null,
+    proposta,
   });
 }
 
