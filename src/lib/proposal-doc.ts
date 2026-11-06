@@ -262,6 +262,15 @@ export interface ServiceItem {
   descEn?: string;
 }
 
+/** Um subponto interno de uma linha do orçamento — ver `budgetSubpontos`. */
+export interface SubpontoDoOrcamento {
+  nome: string;
+  /** Sem IVA. `null` enquanto não tem valor. */
+  valor: number | null;
+  /** O id do artigo do Moloni (`orcamento/artigos-de-faturacao.ts`), ou `null`. */
+  artigo: string | null;
+}
+
 export interface ServiceGroup {
   /** Identidade estável do grupo — ver {@link ServiceItem.id}. */
   id?: string;
@@ -740,6 +749,18 @@ export interface ProposalDoc {
    * os valores para cada coisa»). Ver `orcamento/artigos-de-faturacao.ts`.
    */
   budgetArtigos?: (import("./orcamento/artigos-de-faturacao").ArtigoId | null)[];
+  /**
+   * Os SUBPONTOS de cada linha — só para nós (6/11). Ela: «quando eu metesse a
+   * linha A, tivessem os subtítulos também lá, para eu colocar o custo para
+   * cada coisa». Ex.: «Decoração de Natal» com «Zona do bar» e «Zona do
+   * jantar», cada um com o seu valor e o seu artigo do Moloni.
+   *
+   * INTERNO como os preços e os artigos: não sai no PDF nem na página — ela
+   * escolheu «só para nós». A linha passa a valer a SOMA dos subpontos (o
+   * `budgetAmounts` da linha é escrito com essa soma), e a faturação fatura
+   * cada subponto no seu artigo. Mesmo array paralelo que os outros.
+   */
+  budgetSubpontos?: (SubpontoDoOrcamento[] | null)[];
   /**
    * O total sem IVA repartido pelos artigos do Moloni (Material, Flores e
    * Elementos de Decoração, Serviço, Transporte, Alojamento, Wedding

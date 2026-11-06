@@ -1,4 +1,4 @@
-import type { ProposalDoc } from "@/lib/proposal-doc";
+import type { ProposalDoc, SubpontoDoOrcamento } from "@/lib/proposal-doc";
 import {
   adicionarLinha,
   dinheiroDaProposta,
@@ -147,9 +147,11 @@ export interface Faturacao {
 
 /** Uma linha do orçamento (ou um valor adicional) vista pela faturação. */
 export interface LinhaFaturavel {
-  origem: "linha" | "adicional";
+  origem: "linha" | "adicional" | "subponto";
   /** A posição em `budgetItems` ou em `budgetExtras`. */
   indice: number;
+  /** Num subponto, a posição dele dentro da linha `indice`. */
+  sub?: number;
   nome: string;
   /** Sem IVA. `null` quando a linha não tem preço. */
   valor: number | null;
@@ -164,6 +166,7 @@ export type DocParaFaturar = Pick<
   | "budgetExtras"
   | "budgetExtrasSomam"
   | "budgetArtigos"
+  | "budgetSubpontos"
   | "repartoPorArtigo"
   | "totalAmount"
   | "totalVatMode"
@@ -297,11 +300,18 @@ export function linhasDaFaturacao(doc: DocParaFaturar, versao?: VersaoEscolhida)
   const precos = precosDe(doc);
   const extra = opcionaisDe(doc);
   const artigos = artigosDasLinhas(doc);
+  const subpontos = subpontosDe(doc);
   const out: LinhaFaturavel[] = [];
   (doc.budgetItems ?? []).forEach((item, i) => {
     const nome = (item ?? "").trim();
-    if (!nome && precos[i] === null) return;
+    if (!nome && precos[i] === null && subpontos[i].length === 0) return;
     if (t.versoes && extra[i]) return;
+    // Com subpontos, fatura-se cada subponto no seu artigo (6/11); a linha
+    // vale a soma deles e não leva artigo próprio.
+    if (subpontos[i].length > 0) {
+      out.push(...linhasDosSubpontos(nome || `Linha ${i + 1}`, i, subpontos[i]));
+      return;
+    }
     out.push({
       origem: "linha",
       indice: i,
@@ -386,12 +396,32 @@ export function servicosForaDoOrcamento(
  */
 export function trazerServicosParaOOrcamento<
   T extends Parameters<typeof adicionarLinha>[0] &
-    Pick<ProposalDoc, "serviceGroups" | "budgetArtigos">,
+    Pick<ProposalDoc, "serviceGroups" | "budgetArtigos" | "budgetSubpontos">,
 >(doc: T): T {
   let d = doc;
+  const grupos = doc.serviceGroups ?? [];
   for (const nome of servicosForaDoOrcamento(doc)) {
     d = adicionarLinha(d, nome);
-    d = definirArtigoDaLinha(d, (d.budgetItems?.length ?? 1) - 1, artigoSugerido(nome));
+    const i = (d.budgetItems?.length ?? 1) - 1;
+    // Os subpontos do serviço vêm com ele (6/11): cada um com o artigo que o
+    // nome sugere (ou o do serviço, quando o do subponto não é claro).
+    const grupo = grupos.find((g) => chaveDoNome(g?.title ?? "") === chaveDoNome(nome));
+    const itens = (grupo?.items ?? [])
+      .map((it) => (it?.label ?? "").trim())
+      .filter((l) => l.length > 0);
+    if (itens.length > 0) {
+      d = definirSubpontos(
+        d,
+        i,
+        itens.map((label) => ({
+          nome: label,
+          valor: null,
+          artigo: artigoSugerido(label) ?? artigoSugerido(nome),
+        })),
+      );
+    } else {
+      d = definirArtigoDaLinha(d, i, artigoSugerido(nome));
+    }
   }
   return d;
 }
@@ -441,14 +471,22 @@ export function definirArtigoDoAdicional<T extends Pick<ProposalDoc, "budgetExtr
  * o `desalinhamento`, que já existia em `proposal-progress.ts`.
  */
 export function faltasDaFaturacao(
-  doc: Pick<ProposalDoc, "budgetItems" | "budgetAmounts" | "budgetArtigos" | "budgetExtras">,
+  doc: Pick<
+    ProposalDoc,
+    "budgetItems" | "budgetAmounts" | "budgetArtigos" | "budgetExtras" | "budgetSubpontos"
+  >,
 ): { semPreco: LinhaFaturavel[]; semArtigo: LinhaFaturavel[] } {
   const precos = precosDe(doc);
   const artigos = artigosDasLinhas(doc);
+  const subpontos = subpontosDe(doc);
   const linhas: LinhaFaturavel[] = [];
   (doc.budgetItems ?? []).forEach((item, i) => {
     const nome = (item ?? "").trim();
-    if (!nome && precos[i] === null) return;
+    if (!nome && precos[i] === null && subpontos[i].length === 0) return;
+    if (subpontos[i].length > 0) {
+      linhas.push(...linhasDosSubpontos(nome || `Linha ${i + 1}`, i, subpontos[i]));
+      return;
+    }
     linhas.push({
       origem: "linha",
       indice: i,
@@ -577,6 +615,83 @@ export function textoDaFatura(
 }
 
 /**
+ * ════════════════════════════════════════════════════════════════════════════
+ * OS SUBPONTOS DE CADA LINHA — SÓ PARA NÓS (6/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ * Ela: «quando eu metesse a linha A, tivessem os subtítulos também lá, para
+ * eu colocar o custo para cada coisa». E escolheu que fiquem SÓ PARA NÓS: o
+ * PDF continua a mostrar a linha como sempre mostrou.
+ */
+
+/** Os subpontos de cada linha, ao tamanho das linhas, já limpos (`[]` = sem). */
+export function subpontosDe(
+  doc: Pick<ProposalDoc, "budgetItems" | "budgetSubpontos">,
+): SubpontoDoOrcamento[][] {
+  const n = doc.budgetItems?.length ?? 0;
+  const guardados = Array.isArray(doc.budgetSubpontos) ? doc.budgetSubpontos : [];
+  return Array.from({ length: n }, (_, i) => {
+    const lista = guardados[i];
+    if (!Array.isArray(lista)) return [];
+    return lista
+      .filter((x): x is SubpontoDoOrcamento => !!x && typeof x === "object")
+      .map((x) => ({
+        nome: typeof x.nome === "string" ? x.nome : "",
+        valor:
+          typeof x.valor === "number" && Number.isFinite(x.valor) && x.valor >= 0
+            ? round2(x.valor)
+            : null,
+        artigo: eArtigo(x.artigo) ? x.artigo : null,
+      }));
+  });
+}
+
+/** A soma dos subpontos com valor, ou `null` quando nenhum tem. */
+export function somaDosSubpontos(subs: SubpontoDoOrcamento[]): number | null {
+  const valores = subs.map((s) => s.valor).filter((v): v is number => v !== null);
+  return valores.length ? round2(valores.reduce((a, b) => a + b, 0)) : null;
+}
+
+/**
+ * Escreve os subpontos de uma linha — e o preço da linha passa a ser a soma
+ * deles, para o total, o PDF e o sinal continuarem a ler o mesmo número.
+ */
+export function definirSubpontos<
+  T extends Pick<ProposalDoc, "budgetItems" | "budgetAmounts" | "budgetSubpontos">,
+>(doc: T, i: number, subs: SubpontoDoOrcamento[]): T {
+  const todos = subpontosDe(doc);
+  if (i < 0 || i >= todos.length) return doc;
+  todos[i] = subs;
+  const precos = precosDe(doc);
+  if (subs.length > 0) precos[i] = somaDosSubpontos(subs);
+  return {
+    ...doc,
+    budgetSubpontos: todos.map((l) => (l.length ? l : null)),
+    budgetAmounts: precos,
+  };
+}
+
+function linhasDosSubpontos(
+  nomeDaLinha: string,
+  i: number,
+  subs: SubpontoDoOrcamento[],
+): LinhaFaturavel[] {
+  const out: LinhaFaturavel[] = [];
+  subs.forEach((s, j) => {
+    const nome = s.nome.trim();
+    if (!nome && s.valor === null) return;
+    out.push({
+      origem: "subponto",
+      indice: i,
+      sub: j,
+      nome: `${nomeDaLinha} — ${nome || `subponto ${j + 1}`}`,
+      valor: s.valor,
+      artigo: eArtigo(s.artigo) ? s.artigo : null,
+    });
+  });
+  return out;
+}
+
+/**
  * A proposta ACEITE, com o preço e o artigo de cada serviço que ela pôs depois
  * no estúdio (6/11).
  *
@@ -591,18 +706,21 @@ export function aceiteComLinhasDoEstudio(
   estudio: DocParaFaturar | null | undefined,
   versao?: VersaoEscolhida,
 ): { doc: DocParaFaturar; doEstudio: boolean } {
-  if (!estudio || faturacaoPorArtigo(aceite, versao).fecha) return { doc: aceite, doEstudio: false };
+  if (!estudio || faturacaoPorArtigo(aceite, versao).fecha)
+    return { doc: aceite, doEstudio: false };
   const junto = {
     ...aceite,
     budgetItems: estudio.budgetItems,
     budgetAmounts: estudio.budgetAmounts,
     budgetArtigos: estudio.budgetArtigos,
+    budgetSubpontos: estudio.budgetSubpontos,
     budgetOpcional: estudio.budgetOpcional,
     budgetExtras: estudio.budgetExtras,
   } as DocParaFaturar;
   const igual =
     Math.abs(
-      dinheiroDaProposta(junto as ProposalDoc).base - dinheiroDaProposta(aceite as ProposalDoc).base,
+      dinheiroDaProposta(junto as ProposalDoc).base -
+        dinheiroDaProposta(aceite as ProposalDoc).base,
     ) < 0.005;
   return igual && faturacaoPorArtigo(junto, versao).fecha
     ? { doc: junto, doEstudio: true }
@@ -613,6 +731,7 @@ export function aceiteComLinhasDoEstudio(
 const CAMPOS_DA_FATURACAO = [
   "budgetItems",
   "budgetArtigos",
+  "budgetSubpontos",
   "budgetAmounts",
   "repartoPorArtigo",
   "budgetOpcional",

@@ -188,6 +188,8 @@ export const NUNCA_NO_PDF: Readonly<Record<string, string>> = {
   convidadosPorMesa: "quantas pessoas por mesa não é impresso.",
   budgetArtigos:
     "o artigo do Moloni de cada linha é da faturação: o casal não tem nada que o ler.",
+  budgetSubpontos:
+    "os subpontos de cada linha (com o valor e o artigo de cada um) são só para nós — ela escolheu-o a 6/11; o PDF continua a mostrar a linha como sempre.",
   repartoPorArtigo:
     "a repartição do total pelos artigos do Moloni é da faturação: diz em que artigo se fatura, e o casal não tem nada que a ler.",
   notasInternas: "as notas internas nunca são desenhadas — há um teste no gerador a garanti-lo.",

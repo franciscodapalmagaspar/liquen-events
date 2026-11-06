@@ -978,12 +978,53 @@ describe("total desalinhado da soma das linhas", () => {
       hidden: true,
     }) as HTMLInputElement[];
     expect(nomes.map((n) => n.value)).toEqual(["Decor Cerimónia", "Decor Jantar", "Decoração"]);
+    // O item «Cerimónia» do serviço vem como subponto (6/11), com o artigo.
     const artigo = screen.getByRole("combobox", {
-      name: "Artigo do Moloni de Decoração",
+      name: "Artigo do Moloni de Cerimónia (Decoração)",
       hidden: true,
     }) as HTMLSelectElement;
     expect(artigo.value).toBe("flores");
     expect(screen.queryByText(/ainda não está no orçamento/)).toBeNull();
+  });
+
+  /**
+   * ── SUBPONTOS, SÓ PARA NÓS (6/11) ──────────────────────────────────────
+   * «Quando eu metesse a linha A, tivessem os subtítulos também lá, para eu
+   * colocar o custo para cada coisa.» A linha vale a soma; o total segue.
+   */
+  it("dividir uma linha em subpontos: cada um com valor e artigo, a linha vale a soma", async () => {
+    seedComPrecos(3250);
+    renderStudio();
+    const user = userEvent.setup();
+    const dividir = await screen.findAllByRole("button", { name: "+ Subpontos", hidden: true });
+    // O primeiro subponto nasce com o preço da linha — nada se perde.
+    await user.click(dividir[1]);
+    const primeiro = (await screen.findByRole("textbox", {
+      name: "Valor de subponto 1 (Decor Jantar)",
+      hidden: true,
+    })) as HTMLInputElement;
+    expect(primeiro.value).toBe("2350");
+    await user.type(
+      screen.getByRole("textbox", { name: "Subponto 1 de Decor Jantar", hidden: true }),
+      "Zona do bar",
+    );
+    await user.tab();
+    await user.click(screen.getByRole("button", { name: "+ Subponto", hidden: true }));
+    const segundo = screen.getByRole("textbox", {
+      name: "Valor de subponto 2 (Decor Jantar)",
+      hidden: true,
+    });
+    await user.type(segundo, "650");
+    await user.tab();
+    // A linha passa a valer 3000 e não se escreve à mão; o total segue: 900 + 3000.
+    const precoDaLinha = screen.getByRole("textbox", {
+      name: "Preço de Decor Jantar",
+      hidden: true,
+    }) as HTMLInputElement;
+    await waitFor(() => expect(precoDaLinha.value).toBe("3000"));
+    expect(precoDaLinha.readOnly).toBe(true);
+    const valor = (await screen.findByLabelText(/^Valor \(sem IVA\)/)) as HTMLInputElement;
+    await waitFor(() => expect(valor.value.replace(/\D/g, "")).toMatch(/^3900(00)?$/));
   });
 
   it("abrir uma proposta antiga com o total à mão não o muda sozinho", async () => {

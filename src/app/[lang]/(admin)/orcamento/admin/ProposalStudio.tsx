@@ -169,11 +169,14 @@ import { RepartoPorArtigo } from "./RepartoPorArtigo";
 import {
   ARTIGOS,
   artigoDoAdicional,
+  artigoSugerido,
   artigosDasLinhas,
   definirArtigoDaLinha,
   definirArtigoDoAdicional,
   eArtigo,
+  definirSubpontos,
   servicosForaDoOrcamento,
+  subpontosDe,
   sugerirArtigoDaLinha,
   trazerServicosParaOOrcamento,
   type ArtigoId,
@@ -190,7 +193,7 @@ import { ArrastarParaEnquadrar, type Foco } from "./ArrastarParaEnquadrar";
 import { enquadrarNoLugar, trocarNoLugar } from "@/lib/pdf-editorial/lugares-escolhidos";
 import { LogotipoEmail, LogotipoWhatsApp } from "./LogotiposDosCanais";
 import { tecladoAberto } from "@/lib/orcamento/barra-de-destinos";
-import type { ProposalDoc } from "@/lib/proposal-doc";
+import type { ProposalDoc, SubpontoDoOrcamento } from "@/lib/proposal-doc";
 import type { CampoAMudar } from "@/lib/proposal-copy";
 import {
   adicionarLinha,
@@ -3953,6 +3956,7 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
   const extrasDoDoc = opcionaisDe(doc as ProposalDoc);
   // O artigo do Moloni de cada linha (5/11) — só para a faturação.
   const artigosDoDoc = artigosDasLinhas(doc as ProposalDoc);
+  const subpontosDoDoc = subpontosDe(doc as ProposalDoc);
   const servicosAOrcamentar =
     doc.template !== "organizacao" ? servicosForaDoOrcamento(doc as ProposalDoc) : [];
 
@@ -4340,6 +4344,8 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
       // O artigo do Moloni vai com a linha (5/11) — senão «Arrumar» faturava a
       // Cerimónia como Transporte.
       budgetArtigos: paralelo(d.budgetArtigos),
+      // E os subpontos internos (6/11), pela mesma razão.
+      budgetSubpontos: paralelo(d.budgetSubpontos),
     } satisfies Record<keyof ArrayParaleloDaLinha, unknown>;
     return {
       ...d,
@@ -6674,6 +6680,24 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
     setDoc((d) => definirPreco(d, i, normalizarValor(texto)));
   }
   /** O artigo do Moloni de uma linha (5/11) — só para a faturação. */
+  /**
+   * Os subpontos internos de uma linha (6/11). Lidos do documento DENTRO do
+   * `setDoc`, para dois gestos seguidos não se pisarem; e o total segue a soma.
+   */
+  function mudarSubpontos(
+    i: number,
+    mudar: (atuais: SubpontoDoOrcamento[]) => SubpontoDoOrcamento[],
+  ) {
+    somarOTotal.current = true;
+    setDoc((d) => definirSubpontos(d, i, mudar(subpontosDe(d as ProposalDoc)[i] ?? [])));
+  }
+  /** Dividir a linha: o primeiro subponto nasce com o preço e o artigo dela —
+   *  nada do que já estava escrito se perde. */
+  function dividirEmSubpontos(i: number) {
+    const preco = precosDe(doc)[i] ?? null;
+    const artigo = artigosDoDoc[i] ?? null;
+    mudarSubpontos(i, () => [{ nome: "", valor: preco, artigo }]);
+  }
   function updateBudgetArtigo(i: number, artigo: ArtigoId | null) {
     setDoc((d) => definirArtigoDaLinha(d, i, artigo));
   }
@@ -10151,6 +10175,9 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
                                   : "font-medium text-[var(--bo-text)]"
                               }`}
                               defaultValue={l.preco === null ? "" : String(l.preco)}
+                              // Com subpontos, a linha vale a soma deles e
+                              // escreve-se lá em baixo, em cada um (6/11).
+                              readOnly={subpontosDoDoc[i].length > 0}
                               // `onBlur` e não `onChange`: normalizar a cada tecla
                               // apagava o que ela estava a escrever a meio ("1." vira
                               // 1, e o "500" seguinte já não tinha onde entrar).
@@ -10210,32 +10237,50 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
                             estar tudo organizadinho». Só para a casa — o cliente
                             não vê. Uma fila própria por baixo, como a fórmula da
                             escala: a fila de cima tem a largura contada ao píxel. */}
-                          <label className="flex w-full items-center gap-2 pl-1 text-[11px] text-[var(--bo-text-muted)]">
-                            <span className="shrink-0">Artigo do Moloni</span>
-                            <select
-                              value={artigosDoDoc[i] ?? ""}
-                              onChange={(e) =>
-                                updateBudgetArtigo(
-                                  i,
-                                  eArtigo(e.target.value) ? e.target.value : null,
-                                )
-                              }
-                              data-campo={`budgetArtigo:${i}`}
-                              aria-label={`Artigo do Moloni de ${l.item || "linha sem nome"}`}
-                              className={`bo-input w-auto max-w-full px-2 py-1 text-[11px] ${
-                                artigosDoDoc[i]
-                                  ? "text-[var(--bo-tinta-72)]"
-                                  : "border-dashed text-[var(--bo-text-muted)]"
-                              }`}
-                            >
-                              <option value="">Escolher…</option>
-                              {ARTIGOS.map((a) => (
-                                <option key={a.id} value={a.id}>
-                                  {a.nome} · {a.ref}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                          {subpontosDoDoc[i].length === 0 ? (
+                            <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1">
+                              <label className="flex w-full items-center gap-2 pl-1 text-[11px] text-[var(--bo-text-muted)]">
+                                <span className="shrink-0">Artigo do Moloni</span>
+                                <select
+                                  value={artigosDoDoc[i] ?? ""}
+                                  onChange={(e) =>
+                                    updateBudgetArtigo(
+                                      i,
+                                      eArtigo(e.target.value) ? e.target.value : null,
+                                    )
+                                  }
+                                  data-campo={`budgetArtigo:${i}`}
+                                  aria-label={`Artigo do Moloni de ${l.item || "linha sem nome"}`}
+                                  className={`bo-input w-auto max-w-full px-2 py-1 text-[11px] ${
+                                    artigosDoDoc[i]
+                                      ? "text-[var(--bo-tinta-72)]"
+                                      : "border-dashed text-[var(--bo-text-muted)]"
+                                  }`}
+                                >
+                                  <option value="">Escolher…</option>
+                                  {ARTIGOS.map((a) => (
+                                    <option key={a.id} value={a.id}>
+                                      {a.nome} · {a.ref}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => dividirEmSubpontos(i)}
+                                className={`alvo-toque text-[11px] text-[var(--bo-text-muted)] underline-offset-2 hover:underline ${ESTADO} ${PRESSAO}`}
+                              >
+                                + Subpontos
+                              </button>
+                            </div>
+                          ) : (
+                            <SubpontosDaLinha
+                              i={i}
+                              linha={l.item}
+                              subs={subpontosDoDoc[i]}
+                              aoMudar={(mudar) => mudarSubpontos(i, mudar)}
+                            />
+                          )}
                           {/* A fórmula ao lado do número: um total que muda sozinho
                           e não explica porquê é um total em que se deixa de
                           confiar à primeira surpresa. E o preço UNITÁRIO ao pé
@@ -15465,5 +15510,105 @@ function AvisoDasTraducoes({
         Ver quais
       </button>
     </p>
+  );
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * OS SUBPONTOS DE UMA LINHA — SÓ PARA NÓS (6/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ * Ela: «quando eu metesse a linha A, tivessem os subtítulos também lá, para eu
+ * colocar o custo para cada coisa». Cada subponto com o seu valor e o seu
+ * artigo do Moloni; a linha vale a soma. Não sai no PDF nem na página — ela
+ * escolheu «só para nós».
+ */
+function SubpontosDaLinha({
+  i,
+  linha,
+  subs,
+  aoMudar,
+}: {
+  i: number;
+  linha: string;
+  subs: SubpontoDoOrcamento[];
+  aoMudar: (mudar: (atuais: SubpontoDoOrcamento[]) => SubpontoDoOrcamento[]) => void;
+}) {
+  const nomeDaLinha = linha.trim() || "linha sem nome";
+  const mudar = (j: number, p: Partial<SubpontoDoOrcamento>) =>
+    aoMudar((atuais) => atuais.map((s, k) => (k === j ? { ...s, ...p } : s)));
+  return (
+    <div className="flex w-full flex-col gap-1.5 rounded-xl border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] p-2">
+      <p className="px-1 text-[11px] leading-snug text-[var(--bo-text-muted)]">
+        Subpontos · só para nós — a linha vale a soma
+      </p>
+      {subs.map((sp, j) => (
+        <div key={j} className="flex flex-wrap items-center gap-2">
+          <input
+            key={`subnome:${i}:${j}:${sp.nome}`}
+            className={`${INPUT_SM} min-w-[9rem] flex-1`}
+            defaultValue={sp.nome}
+            onBlur={(e) => {
+              const nome = e.target.value;
+              if (nome === sp.nome) return;
+              // O artigo vem do nome quando ainda não há um escolhido.
+              mudar(j, { nome, ...(sp.artigo ? {} : { artigo: artigoSugerido(nome) }) });
+            }}
+            placeholder="Zona do bar"
+            aria-label={`Subponto ${j + 1} de ${nomeDaLinha}`}
+            data-campo={`budgetSubNome:${i}:${j}`}
+          />
+          <span className="w-28 shrink-0">
+            <input
+              key={`subvalor:${i}:${j}:${sp.valor ?? ""}`}
+              className={`bo-input px-2.5 py-2 text-right text-xs ${
+                sp.valor === null
+                  ? "border-dashed bg-[var(--bo-surface)] text-foreground/40 placeholder:italic placeholder:text-foreground/30"
+                  : "font-medium text-[var(--bo-text)]"
+              }`}
+              defaultValue={sp.valor === null ? "" : String(sp.valor)}
+              onBlur={(e) => {
+                const valor = normalizarValor(e.target.value);
+                if (valor !== sp.valor) mudar(j, { valor });
+              }}
+              placeholder="sem valor"
+              inputMode="decimal"
+              aria-label={`Valor de ${sp.nome.trim() || `subponto ${j + 1}`} (${nomeDaLinha})`}
+              data-campo={`budgetSubPreco:${i}:${j}`}
+            />
+          </span>
+          <select
+            value={sp.artigo ?? ""}
+            onChange={(e) => mudar(j, { artigo: eArtigo(e.target.value) ? e.target.value : null })}
+            aria-label={`Artigo do Moloni de ${sp.nome.trim() || `subponto ${j + 1}`} (${nomeDaLinha})`}
+            data-campo={`budgetSubArtigo:${i}:${j}`}
+            className={`bo-input w-auto max-w-full px-2 py-1.5 text-[11px] ${
+              sp.artigo ? "text-[var(--bo-tinta-72)]" : "border-dashed text-[var(--bo-text-muted)]"
+            }`}
+          >
+            <option value="">Artigo…</option>
+            {ARTIGOS.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.nome} · {a.ref}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => aoMudar((atuais) => atuais.filter((_, k) => k !== j))}
+            aria-label={`Tirar o subponto ${sp.nome.trim() || j + 1} de ${nomeDaLinha}`}
+            className={`alvo-toque flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--bo-text-muted)] hover:text-[var(--bo-perigo)] ${ESTADO} ${PRESSAO}`}
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => aoMudar((atuais) => [...atuais, { nome: "", valor: null, artigo: null }])}
+        className={`alvo-toque self-start px-1 text-[11px] font-medium text-[var(--bo-accent)] underline-offset-2 hover:underline ${ESTADO} ${PRESSAO}`}
+      >
+        + Subponto
+      </button>
+    </div>
   );
 }
