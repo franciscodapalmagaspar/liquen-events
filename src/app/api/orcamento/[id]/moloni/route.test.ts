@@ -13,6 +13,8 @@ const estado = vi.hoisted(() => ({
   propostas: [] as Record<string, unknown>[],
   gravado: null as Record<string, unknown> | null,
   config: true,
+  /** O rascunho do estúdio (o que ela está a fazer), se houver. */
+  rascunho: null as Record<string, unknown> | null,
 }));
 const moloni = vi.hoisted(() => ({
   criar: vi.fn(async (_cfg: unknown, _p: unknown) => ({ documentId: 77, valorSemIva: 3000 })),
@@ -32,6 +34,11 @@ vi.mock("@/lib/quotes-store", () => ({
 vi.mock("@/lib/proposals-store", () => ({
   listProposalsForQuote: vi.fn(async () => estado.propostas),
 }));
+vi.mock("@/lib/proposal-drafts", () => ({
+  getProposalDraft: vi.fn(async () =>
+    estado.rascunho ? { doc: estado.rascunho, updatedAt: "2026-11-06T10:00:00Z" } : null,
+  ),
+}));
 vi.mock("@/lib/moloni", async (orig) => {
   const real = await orig<typeof import("@/lib/moloni")>();
   return {
@@ -42,7 +49,7 @@ vi.mock("@/lib/moloni", async (orig) => {
   };
 });
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 const ctx = { params: Promise.resolve({ id: "LIQ-1" }) };
 const req = (body: unknown) =>
@@ -73,6 +80,7 @@ beforeEach(() => {
     { id: "p1", status: "aceite", doc: DOC },
   ];
   moloni.criar.mockClear();
+  estado.rascunho = null;
 });
 
 describe("POST /api/orcamento/[id]/moloni", () => {
@@ -248,5 +256,64 @@ describe("POST /api/orcamento/[id]/moloni", () => {
   it("fora do back office, nada", async () => {
     authed.ok = false;
     expect((await POST(req({ fase: "sinal" }), ctx)).status).toBe(401);
+  });
+});
+
+describe("GET — que proposta o cartão mostra (6/11)", () => {
+  const ler = async () =>
+    (
+      await GET(
+        new Request("https://liquen.test/api/orcamento/LIQ-1/moloni") as unknown as NextRequest,
+        ctx,
+      )
+    ).json();
+
+  /** Uma proposta feita no estúdio com o valor e o artigo de cada serviço. */
+  const COM_LINHAS = {
+    ...DOC,
+    repartoPorArtigo: undefined,
+    budgetItems: ["Decoração", "Montagem"],
+    budgetAmounts: [8000, 2000],
+    budgetArtigos: ["flores", "servico"],
+  };
+
+  it("sem aceite, mostra a que está a ser feita no estúdio — e diz que ainda não se fatura", async () => {
+    estado.propostas = [];
+    estado.rascunho = COM_LINHAS;
+    const j = await ler();
+    expect(j.proposta).toMatchObject({ estado: "rascunho", id: null });
+    expect(j.proposta.doc.budgetArtigos).toEqual(["flores", "servico"]);
+    // E faturar continua a pedir a aceite.
+    expect((await POST(req({ fase: "sinal", manual: true }), ctx)).status).toBe(422);
+  });
+
+  it("sem aceite nem estúdio, mostra a última enviada", async () => {
+    estado.propostas = [{ id: "p2", status: "enviada", doc: DOC }];
+    expect((await ler()).proposta).toMatchObject({ estado: "enviada", id: "p2" });
+  });
+
+  it("uma aceite sem preço por linha usa as linhas que ela pôs depois no estúdio — se o dinheiro bate", async () => {
+    estado.propostas = [
+      { id: "p1", status: "aceite", doc: { ...DOC, repartoPorArtigo: undefined } },
+    ];
+    estado.rascunho = COM_LINHAS;
+    const j = await ler();
+    expect(j.proposta).toMatchObject({ estado: "aceite", id: "p1", linhasDoEstudio: true });
+    // E o rascunho no Moloni sai com esses valores.
+    expect((await POST(req({ fase: "sinal" }), ctx)).status).toBe(200);
+    const pedido = moloni.criar.mock.calls[0][1] as { partes: { artigo: string; valor: number }[] };
+    expect(pedido.partes).toEqual([
+      { artigo: "flores", nome: "Flores e Elementos de Decoração", valor: 2400 },
+      { artigo: "servico", nome: "Serviço", valor: 600 },
+    ]);
+  });
+
+  it("se as linhas do estúdio não dão o total aceite, ficam de fora", async () => {
+    estado.propostas = [
+      { id: "p1", status: "aceite", doc: { ...DOC, repartoPorArtigo: undefined } },
+    ];
+    estado.rascunho = { ...COM_LINHAS, budgetAmounts: [9000, 2000], totalAmount: 11000 };
+    const j = await ler();
+    expect(j.proposta).toMatchObject({ estado: "aceite", linhasDoEstudio: false });
   });
 });

@@ -59,9 +59,13 @@ function renderPanel(quote: Quote, onChange = vi.fn()) {
 
 /** Os PATCH ao orçamento, pela ordem por que saíram. */
 function patches(): { payments: Payment[]; base?: { payments?: Payment[] } }[] {
-  return fetchMock.mock.calls
-    .filter((c) => String(c[0]).startsWith("/api/orcamento/"))
-    .map((c) => JSON.parse(String((c[1] as RequestInit).body)));
+  return (
+    fetchMock.mock.calls
+      // Só as gravações: o cartão do Moloni (ao fundo do painel) também lê
+      // `/api/orcamento/<id>/moloni` quando abre, sem corpo.
+      .filter((c) => String(c[0]).startsWith("/api/orcamento/") && !!(c[1] as RequestInit)?.body)
+      .map((c) => JSON.parse(String((c[1] as RequestInit).body)))
+  );
 }
 
 beforeEach(() => {
