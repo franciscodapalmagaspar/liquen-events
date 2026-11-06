@@ -134,6 +134,7 @@ export function downloadCsv(filename: string, rows: (string | number)[][]): void
 const STATUS_LABEL: Record<string, string> = {
   pendente: "Pendente",
   em_revisao: "Em Revisão",
+  a_preparar: "A Preparar Proposta",
   cotado: "Cotado",
   aceite: "Aceite",
   rejeitado: "Rejeitado",
@@ -634,6 +635,7 @@ export function printEventDossier(q: Quote): void {
   const STATUS_LABEL_PT: Record<string, string> = {
     pendente: "Pendente",
     em_revisao: "Em Revisão",
+    a_preparar: "A Preparar Proposta",
     cotado: "Cotado",
     aceite: "Aceite",
     rejeitado: "Rejeitado",

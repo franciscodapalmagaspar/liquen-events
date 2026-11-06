@@ -187,7 +187,7 @@ async function oResumoDeHoje(request: NextRequest) {
     const oneDayAgo = Date.now() - 864e5;
     const awaiting = quotes.filter(
       (q) =>
-        (q.status === "pendente" || q.status === "em_revisao") &&
+        (q.status === "pendente" || q.status === "em_revisao" || q.status === "a_preparar") &&
         !(q.messages && q.messages.length > 0) &&
         new Date(q.submittedAt).getTime() < oneDayAgo,
     ).length;

@@ -26,6 +26,8 @@ import {
  */
 const TODOS: AcontecimentoDoPedido[] = [
   "mensagem_enviada",
+  // O estúdio a gravar o rascunho da proposta (6/11, pedido dela).
+  "proposta_em_preparacao",
   "proposta_enviada",
   // Ela a marcar a proposta como aceite no back office — não o cliente pelo
   // link público, que é outra porta e vive noutro sítio. Mesmo tecto do
@@ -41,15 +43,22 @@ const opcoes = { at: AGORA, id: "fixo" };
 
 describe("a escada dos estados", () => {
   it("é a ordem por que o negócio anda, e não inclui `rejeitado`", () => {
-    expect([...ORDEM_DOS_ESTADOS]).toEqual(["pendente", "em_revisao", "cotado", "aceite"]);
+    expect([...ORDEM_DOS_ESTADOS]).toEqual([
+      "pendente",
+      "em_revisao",
+      "a_preparar",
+      "cotado",
+      "aceite",
+    ]);
     expect(ORDEM_DOS_ESTADOS).not.toContain("rejeitado");
   });
 
   it("dá o degrau de cada estado, e nenhum para `rejeitado`", () => {
     expect(degrauDoEstado("pendente")).toBe(0);
     expect(degrauDoEstado("em_revisao")).toBe(1);
-    expect(degrauDoEstado("cotado")).toBe(2);
-    expect(degrauDoEstado("aceite")).toBe(3);
+    expect(degrauDoEstado("a_preparar")).toBe(2);
+    expect(degrauDoEstado("cotado")).toBe(3);
+    expect(degrauDoEstado("aceite")).toBe(4);
     expect(degrauDoEstado("rejeitado")).toBeNull();
   });
 
@@ -71,9 +80,21 @@ describe("cada acontecimento leva o pedido ao seu estado", () => {
     expect(estadoApos("mensagem_enviada", "pendente")).toBe("em_revisao");
   });
 
+  /**
+   * O pedido dela de 6/11: «quero que também haja um estado a dizer, a fazer
+   * proposta, ou a preparar proposta». Começar a proposta no estúdio já o diz
+   * — de um pedido novo ou de um que está a aguardar resposta.
+   */
+  it("gravar o rascunho no estúdio põe-no em «A preparar proposta»", () => {
+    expect(estadoApos("proposta_em_preparacao", "pendente")).toBe("a_preparar");
+    expect(estadoApos("proposta_em_preparacao", "em_revisao")).toBe("a_preparar");
+    expect(estadoApos("proposta_em_preparacao", undefined)).toBe("a_preparar");
+  });
+
   it("enviar a proposta põe-no em «Proposta enviada»", () => {
     expect(estadoApos("proposta_enviada", "pendente")).toBe("cotado");
     expect(estadoApos("proposta_enviada", "em_revisao")).toBe("cotado");
+    expect(estadoApos("proposta_enviada", "a_preparar")).toBe("cotado");
   });
 
   /**
@@ -89,12 +110,20 @@ describe("cada acontecimento leva o pedido ao seu estado", () => {
     ] as const) {
       expect(estadoApos(acontecimento, "pendente")).toBe("aceite");
       expect(estadoApos(acontecimento, "em_revisao")).toBe("aceite");
+      expect(estadoApos(acontecimento, "a_preparar")).toBe("aceite");
       expect(estadoApos(acontecimento, "cotado")).toBe("aceite");
     }
   });
 
   it("nunca inventa um estado que o resto do back office não saiba pintar", () => {
-    const conhecidos: QuoteStatus[] = ["pendente", "em_revisao", "cotado", "aceite", "rejeitado"];
+    const conhecidos: QuoteStatus[] = [
+      "pendente",
+      "em_revisao",
+      "a_preparar",
+      "cotado",
+      "aceite",
+      "rejeitado",
+    ];
     for (const acontecimento of TODOS) {
       expect(conhecidos).toContain(ESTADO_APOS[acontecimento]);
     }
@@ -136,7 +165,22 @@ describe("o estado nunca anda para trás", () => {
     expect(estadoApos("proposta_enviada", "aceite")).toBeNull();
   });
 
+  /**
+   * O autosave do estúdio corre a cada pausa na escrita. Rever a proposta de um
+   * casamento já enviado — ou já ganho — não o pode pôr outra vez «a preparar».
+   */
+  it("gravar um rascunho de uma proposta já enviada, ganha ou perdida não mexe no pedido", () => {
+    expect(estadoApos("proposta_em_preparacao", "cotado")).toBeNull();
+    expect(estadoApos("proposta_em_preparacao", "aceite")).toBeNull();
+    expect(estadoApos("proposta_em_preparacao", "rejeitado")).toBeNull();
+  });
+
+  it("responder ao cliente enquanto a proposta se prepara não a tira de «A preparar proposta»", () => {
+    expect(estadoApos("mensagem_enviada", "a_preparar")).toBeNull();
+  });
+
   it("não reescreve o estado de quem já lá está", () => {
+    expect(estadoApos("proposta_em_preparacao", "a_preparar")).toBeNull();
     expect(estadoApos("mensagem_enviada", "em_revisao")).toBeNull();
     expect(estadoApos("proposta_enviada", "cotado")).toBeNull();
     expect(estadoApos("pagamento_recebido", "aceite")).toBeNull();
@@ -236,6 +280,18 @@ describe("a linha que fica no histórico", () => {
       ...opcoes,
     });
     expect(t!.entrada.kind).toBe("status_change");
+  });
+
+  it("a linha do estúdio diz que a proposta começou, com os rótulos do quadro", () => {
+    const t = transicaoDoPedido({
+      acontecimento: "proposta_em_preparacao",
+      estadoActual: "em_revisao",
+      ...opcoes,
+    });
+    expect(t!.status).toBe("a_preparar");
+    expect(t!.entrada.summary).toBe(
+      "Aguardar resposta → A preparar proposta · começámos a proposta no estúdio",
+    );
   });
 
   it("um pedido sem estado nenhum parte de «Novo» na frase", () => {

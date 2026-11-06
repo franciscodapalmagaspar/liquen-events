@@ -210,7 +210,7 @@ import { eur, eurDocumento, montanteNaLingua, round2, SINAL_POR_OMISSAO } from "
 import { resumoDaPropostaParaCopiar } from "@/lib/email-proposta-textos";
 import { linkDoWhatsApp } from "@/lib/whatsapp";
 import { randomId } from "./util";
-import type { ActivityEntry, Quote } from "@/lib/orcamento/types";
+import type { ActivityEntry, Quote, QuoteStatus } from "@/lib/orcamento/types";
 import { prepareImageWithThumb, type ImageKind } from "./image-prep";
 import ThemePicker, { type ImportedImage, type ReservedImage } from "./ThemePicker";
 import ServicesEditor, { MoveBtns } from "./ServicesEditor";
@@ -1216,6 +1216,12 @@ export type ResultadoDaGravacao =
        *  variáveis que o resolvem. Vem escrita de lá para não haver duas
        *  versões da mesma verdade. */
       aviso?: string;
+      /**
+       * O estado do pedido MUDOU com esta gravação (6/11: o primeiro rascunho
+       * põe-no em «A preparar proposta»). Só vem quando mudou — o caso normal
+       * de um autosave é não vir nada.
+       */
+      estadoDoPedido?: QuoteStatus;
     }
   /** Não ficou no servidor. O trabalho está no ecrã e na cópia local — e é isso
    *  mesmo que a pessoa tem de ouvir, com estas palavras. */
@@ -1287,6 +1293,10 @@ export async function gravarRascunhoNoServidor(
               : undefined,
           duradouro: typeof dados?.duradouro === "boolean" ? dados.duradouro : undefined,
           aviso: typeof dados?.aviso === "string" ? dados.aviso : undefined,
+          estadoDoPedido:
+            typeof dados?.estadoDoPedido === "string"
+              ? (dados.estadoDoPedido as QuoteStatus)
+              : undefined,
         };
       }
       porque = typeof dados?.erro === "string" ? dados.erro : undefined;
@@ -1412,9 +1422,22 @@ interface Props {
    * número: o estúdio grava-o no pedido, não guarda um segundo.
    */
   onQuoteUpdated?: (quote: Quote) => void;
+  /**
+   * O servidor mudou o ESTADO do pedido ao gravar o rascunho (6/11: «A
+   * preparar proposta»). Só o estado, e não o pedido inteiro: a cópia que o
+   * estúdio tem pode estar mais velha do que a do pai (o preço gravado entre
+   * duas teclas), e devolvê-la inteira era desfazer essa gravação no ecrã.
+   */
+  onEstadoDoPedido?: (status: QuoteStatus) => void;
 }
 
-export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }: Props) {
+export default function ProposalStudio({
+  quote,
+  quotes,
+  onSent,
+  onQuoteUpdated,
+  onEstadoDoPedido,
+}: Props) {
   const { toast } = useToast();
   const avisoDeQualidade = useAvisoDeQualidade();
   const DRAFT_KEY = `liquen-proposal-studio-${quote.id}`;
@@ -2731,6 +2754,7 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
             });
           }
           marcarGuardadoNoServidor();
+          if (r.estadoDoPedido) onEstadoDoPedido?.(r.estadoDoPedido);
           // Só um `false` EXPLÍCITO alarma — ver `duradouro`. Um servidor que
           // não diga nada é tratado como sempre foi.
           if (r.duradouro === false) registarNaoDura(r.aviso);
@@ -2743,7 +2767,14 @@ export default function ProposalStudio({ quote, quotes, onSent, onQuoteUpdated }
         setAGravarNoServidor((n) => Math.max(0, n - 1));
       }
     },
-    [quote.id, marcarGuardadoNoServidor, registarSoLocal, registarNaoDura, marcarQueDura],
+    [
+      quote.id,
+      marcarGuardadoNoServidor,
+      registarSoLocal,
+      registarNaoDura,
+      marcarQueDura,
+      onEstadoDoPedido,
+    ],
   );
 
   // ── O rascunho que está no SERVIDOR ──

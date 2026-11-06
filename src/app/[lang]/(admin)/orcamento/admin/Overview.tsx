@@ -45,6 +45,9 @@ const MemoAgenda = memo(Agenda);
 const STATUS_META: Record<QuoteStatus, { label: string; color: string }> = {
   pendente: { label: "Novo", color: "#8a8a82" },
   em_revisao: { label: "Aguardar resposta", color: "#9aa36a" },
+  // A cor que já existia entre estas duas (a «Em negociação» das Propostas):
+  // um estado novo não traz um tom novo para a casa medir — ver `status-meta.ts`.
+  a_preparar: { label: "A preparar proposta", color: "#7d8a55" },
   cotado: { label: "Proposta enviada", color: "#7c854b" },
   aceite: { label: "Ganho", color: "#525a2f" },
   rejeitado: { label: "Perdido", color: "#5a5a55" },
@@ -54,6 +57,7 @@ const STATUS_META: Record<QuoteStatus, { label: string; color: string }> = {
 const FUNNEL: { id: QuoteStatus; label: string }[] = [
   { id: "pendente", label: "Novo" },
   { id: "em_revisao", label: "Aguardar resposta" },
+  { id: "a_preparar", label: "A preparar proposta" },
   { id: "cotado", label: "Proposta enviada" },
   { id: "aceite", label: "Ganho" },
 ];
@@ -1389,7 +1393,12 @@ export default function Overview({
 
     const needAction = quotes
       .filter((q) => {
-        if (q.status !== "pendente" && q.status !== "em_revisao" && q.status !== "cotado")
+        if (
+          q.status !== "pendente" &&
+          q.status !== "em_revisao" &&
+          q.status !== "a_preparar" &&
+          q.status !== "cotado"
+        )
           return false;
         return true;
       })
@@ -1431,10 +1440,15 @@ export default function Overview({
     const billed = received + outstanding;
 
     // Active pipeline = everything not yet won/lost. Pending review = the leads
-    // still waiting on us to send a proposal (Novo + Aguardar resposta).
+    // still waiting on us to send a proposal (Novo + Aguardar resposta + A
+    // preparar proposta — esta última ainda não seguiu, por isso ainda é nossa).
     const active =
-      (byStatus["pendente"] ?? 0) + (byStatus["em_revisao"] ?? 0) + (byStatus["cotado"] ?? 0);
-    const pendingReview = (byStatus["pendente"] ?? 0) + (byStatus["em_revisao"] ?? 0);
+      (byStatus["pendente"] ?? 0) +
+      (byStatus["em_revisao"] ?? 0) +
+      (byStatus["a_preparar"] ?? 0) +
+      (byStatus["cotado"] ?? 0);
+    const pendingReview =
+      (byStatus["pendente"] ?? 0) + (byStatus["em_revisao"] ?? 0) + (byStatus["a_preparar"] ?? 0);
 
     /**
      * As propostas que seguiram e em que ninguém marcou nada há uma semana ou

@@ -156,6 +156,18 @@ describe("a lista mostra só os pedidos novos", () => {
     expect(screen.queryByRole("button", { name: /Sofia e Luís/ })).toBeNull();
   });
 
+  /**
+   * O estado novo de 6/11. Gravar o rascunho no estúdio põe o pedido «A
+   * preparar proposta» — e o casal não pode sair desta lista no instante em
+   * que ela lhe começa a proposta. Fica, com a pastilha a dizê-lo, e conta.
+   */
+  it("o que está a preparar fica na lista, com a pastilha, e conta no «à espera»", () => {
+    desenhar([...quotes(), pedido({ name: "Beatriz e Nuno", status: "a_preparar" })]);
+    const c = cartao("Beatriz e Nuno");
+    expect(c.textContent).toContain("A preparar proposta");
+    expect(screen.getByText("2 pedidos à espera.")).toBeTruthy();
+  });
+
   it("não há fila de filtros: com um estado só, não havia nada para escolher", () => {
     desenhar(quotes());
     expect(screen.queryByRole("group", { name: "Filtrar por estado" })).toBeNull();

@@ -186,7 +186,7 @@ const nomeDoPedido = z.string().trim().min(1).max(300).nullish();
 
 const quoteSchema = z.looseObject({
   id,
-  status: z.enum(["pendente", "em_revisao", "cotado", "aceite", "rejeitado"]),
+  status: z.enum(["pendente", "em_revisao", "a_preparar", "cotado", "aceite", "rejeitado"]),
   name: nomeDoPedido,
   email: text(300),
   submittedAt: stamp,

@@ -24,7 +24,13 @@ export type BudgetRange = "ate_5k" | "5k_15k" | "15k_30k" | "30k_60k" | "60k_plu
 
 export type Urgency = "standard" | "rush" | "urgente";
 
-export type QuoteStatus = "pendente" | "em_revisao" | "cotado" | "aceite" | "rejeitado";
+export type QuoteStatus =
+  | "pendente"
+  | "em_revisao"
+  | "a_preparar"
+  | "cotado"
+  | "aceite"
+  | "rejeitado";
 
 export type PackageTier = "essencial" | "completo" | "premium" | "personalizado";
 

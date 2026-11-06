@@ -107,7 +107,8 @@ describe("o quadro inteiro vazio", () => {
     desenhar({ quotes: [pedido()] });
 
     expect(screen.queryByText("O quadro ainda não tem pedidos")).toBeNull();
-    // Quatro colunas ficam vazias, e essas têm mesmo onde receber um cartão.
-    expect(screen.getAllByText("Arrasta para aqui").length).toBe(4);
+    // Cinco colunas ficam vazias (seis desde «A preparar proposta», 6/11), e
+    // essas têm mesmo onde receber um cartão.
+    expect(screen.getAllByText("Arrasta para aqui").length).toBe(5);
   });
 });

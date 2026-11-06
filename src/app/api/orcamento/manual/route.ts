@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
     const STATUSES: readonly Quote["status"][] = [
       "pendente",
       "em_revisao",
+      "a_preparar",
       "cotado",
       "aceite",
       "rejeitado",
