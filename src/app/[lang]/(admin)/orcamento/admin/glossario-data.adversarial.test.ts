@@ -67,10 +67,11 @@ describe("map-closing: every request status label is explained in the glossary",
     return [...block![0].matchAll(/label:\s*"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
   })();
 
-  it("finds all five QuoteStatus labels in AdminClient (guards the regex)", () => {
+  it("finds all six QuoteStatus labels in AdminClient (guards the regex)", () => {
     expect(statusLabels).toEqual([
       "Novo",
       "Aguardar resposta",
+      "A preparar proposta",
       "Proposta enviada",
       "Ganho",
       "Perdido",

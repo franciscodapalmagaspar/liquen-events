@@ -38,6 +38,8 @@ export default function CommsZone({ quote, userName, onQuoteChange, onAddEntry }
         // estúdio já o gravou no servidor; aqui só se actualiza a cópia local
         // para o resto do Dossier (financeiro, faturas) mostrar o mesmo.
         onQuoteUpdated={(q) => onQuoteChange({ quotedPrice: q.quotedPrice })}
+        // O primeiro rascunho põe o pedido em «A preparar proposta» (6/11).
+        onEstadoDoPedido={(status) => onQuoteChange({ status })}
         onSent={() => {
           onQuoteChange({ status: "cotado" });
           onAddEntry({

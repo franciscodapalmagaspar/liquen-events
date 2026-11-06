@@ -26,10 +26,14 @@ import { metaFor, tintaDoRotulo } from "./status-meta";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { linkDaConversa } from "@/lib/whatsapp";
 
-// Unified status vocabulary (Novo / Aguardar resposta / Proposta enviada / Ganho / Perdido).
+// Unified status vocabulary (Novo / Aguardar resposta / A preparar proposta /
+// Proposta enviada / Ganho / Perdido).
 const STATUS_META: Record<QuoteStatus, { label: string; color: string }> = {
   pendente: { label: "Novo", color: "#8a8a82" },
   em_revisao: { label: "Aguardar resposta", color: "#9aa36a" },
+  // A cor que já existia entre estas duas (a «Em negociação» das Propostas):
+  // um estado novo não traz um tom novo para a casa medir — ver `status-meta.ts`.
+  a_preparar: { label: "A preparar proposta", color: "#7d8a55" },
   cotado: { label: "Proposta enviada", color: "#7c854b" },
   aceite: { label: "Ganho", color: "#525a2f" },
   rejeitado: { label: "Perdido", color: "#5a5a55" },

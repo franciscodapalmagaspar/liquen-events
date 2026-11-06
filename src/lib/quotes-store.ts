@@ -3,6 +3,7 @@ import { randomBytes, createHmac } from "node:crypto";
 import type { Quote, QuoteSummary } from "@/lib/orcamento/types";
 import { CAMPOS_SO_DO_DETALHE } from "@/lib/orcamento/types";
 import { createRepository, type Mapper } from "./repository";
+import { getSupabase } from "./supabase";
 
 /**
  * Generates a quote reference id (e.g. LIQ-M1A2B3-9F3C7A1B2D4E5F60). The
@@ -84,6 +85,35 @@ export function resumirQuote(quote: Quote): QuoteSummary {
 export const listQuoteSummaries = async (): Promise<QuoteSummary[]> =>
   (await repo.list()).map(resumirQuote);
 export const getQuote = (id: string): Promise<Quote | null> => repo.get(id);
+
+/**
+ * Só o ESTADO de um pedido, sem o pedido.
+ *
+ * Existe para o autosave do estúdio (`proposta-rascunho`), que corre a cada
+ * pausa na escrita e só precisa de saber se o pedido ainda está antes de «A
+ * preparar proposta». Ler o pedido inteiro para isso era trazer a coluna
+ * `data` toda — histórico, mensagens, pagamentos — e desfazê-la em JSON a cada
+ * tecla. O `status` vive espelhado na sua coluna (`toRow`, acima): uma linha
+ * pela chave primária, um texto curto.
+ *
+ * Sem base de dados (desenvolvimento), cai no pedido inteiro: o disco local
+ * não tem colunas, e lá o custo não se paga a ninguém.
+ *
+ * `undefined` quando o pedido não existe — que é diferente de existir sem
+ * estado, e quem chama não mexe num pedido que não há.
+ */
+export async function getQuoteStatus(id: string): Promise<Quote["status"] | null | undefined> {
+  const sb = getSupabase();
+  if (!sb) {
+    const q = await repo.get(id);
+    return q ? (q.status ?? null) : undefined;
+  }
+  const { data, error } = await sb.from(mapper.table).select("status").eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!data) return undefined;
+  const status = (data as { status?: unknown }).status;
+  return typeof status === "string" ? (status as Quote["status"]) : null;
+}
 export const updateQuote = (id: string, updates: Partial<Quote>): Promise<Quote | null> =>
   repo.update(id, updates);
 /** Update derived from the freshly-read quote — use for appends (activity log,

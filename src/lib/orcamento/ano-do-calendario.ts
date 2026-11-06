@@ -31,7 +31,8 @@ import type { CalendarEvent, CalendarEventKind, Quote, QuoteStatus } from "./typ
  *
  * E o que NÃO fecha, com a mesma razão a pesar:
  *
- *   · pedido `pendente` ou `em_revisao` — ainda ninguém respondeu ao casal. Se
+ *   · pedido `pendente`, `em_revisao` ou `a_preparar` — o casal ainda não tem
+ *     proposta nenhuma na mão (a que está a preparar ainda não seguiu). Se
  *     um pedido por responder fechasse o dia, dois pedidos para a mesma data
  *     fechavam-se um ao outro e um ano com procura passava a ler-se como um
  *     ano cheio. Contam como MARCAÇÃO: estão lá, vêem-se, e não impedem nada.

@@ -7,7 +7,8 @@
  * Regra de ouro: os nomes aqui têm de coincidir com o que aparece nos ecrãs.
  * Rótulos verificados no código:
  *   · Estados do pedido — STATUS_OPTIONS em AdminClient.tsx:
- *       Novo · Aguardar resposta · Proposta enviada · Ganho · Perdido
+ *       Novo · Aguardar resposta · A preparar proposta · Proposta enviada ·
+ *       Ganho · Perdido
  *   · Fases do Dossier — STAGE_LABELS em src/lib/orcamento/dossier.ts
  *   · "Timeline" (a folha de operações do dia), "Mood boards",
  *     filtro "VIP" — todos presentes na UI de admin.
@@ -62,7 +63,7 @@ export const LIFECYCLE: LifecycleStep[] = [
 export const GLOSSARY: GlossaryEntry[] = [
   {
     term: "Pedido",
-    def: "Um contacto de alguém que quer um orçamento. Cada pedido tem um estado que mostra em que ponto está: Novo, Aguardar resposta, Proposta enviada, Ganho ou Perdido.",
+    def: "Um contacto de alguém que quer um orçamento. Cada pedido tem um estado que mostra em que ponto está: Novo, Aguardar resposta, A preparar proposta, Proposta enviada, Ganho ou Perdido.",
   },
   {
     term: "Novo",
@@ -71,6 +72,10 @@ export const GLOSSARY: GlossaryEntry[] = [
   {
     term: "Aguardar resposta",
     def: "O estado de um pedido a quem já respondemos e que está agora do lado do cliente. Um pedido entra aqui sozinho assim que lhe enviamos uma mensagem — antes disso fica em Novo. Chamou-se “Em revisão” até Agosto de 2026, mas esse nome descrevia o nosso trabalho e não o que falta acontecer.",
+  },
+  {
+    term: "A preparar proposta",
+    def: "O estado de um pedido cuja proposta já começou no editor de propostas e ainda não seguiu. Um pedido entra aqui sozinho quando se grava o primeiro rascunho, e passa a Proposta enviada quando a proposta segue. Continua na lista de Fazer proposta até seguir, porque o cliente ainda está à espera de nós.",
   },
   {
     term: "Organização de propostas",

@@ -37,8 +37,19 @@ import type { ActivityEntry, QuoteStatus } from "./types";
  *    desfecha. Um estado que recua sozinho é a maneira mais rápida de a coluna
  *    deixar de merecer confiança — e a partir daí ninguém olha para ela.
  *
- * 2. NÃO HÁ ESTADOS NOVOS. São os cinco de `QuoteStatus` e mais nenhum: são os
- *    que o Kanban, a lista, o funil, as estatísticas e o dossier sabem pintar.
+ * 2. NÃO HÁ ESTADOS NOVOS SEM ELA OS PEDIR. São os de `QuoteStatus` e mais
+ *    nenhum: são os que o Kanban, a lista, o funil, as estatísticas e o
+ *    dossier sabem pintar. Um estado novo obriga a ensinar TODOS esses sítios
+ *    — e a restrição `quotes_status_chk` da base de dados — ao mesmo tempo.
+ *
+ *    Esta regra dizia «não há estados novos», e a 6/11 mudou por pedido dela:
+ *    «nas propostas, quero que também haja um estado a dizer, a fazer
+ *    proposta, ou a preparar proposta». Perguntada onde, escolheu o estado do
+ *    PEDIDO. Nasceu `a_preparar` («A preparar proposta»), entre «Aguardar
+ *    resposta» e «Proposta enviada»: o estúdio já tem um rascunho deste
+ *    pedido, e a proposta ainda não seguiu. Conta como trabalho do nosso lado
+ *    (a lista «Fazer proposta», a espera, o «por responder»), nunca como
+ *    proposta enviada — o «À espera» do dinheiro continua a ser só `cotado`.
  *
  * 3. `rejeitado` NÃO SE ATINGE NEM SE LARGA SOZINHO. Perder um trabalho é uma
  *    decisão de uma pessoa (ou do próprio cliente, a recusar a proposta pelo
@@ -72,9 +83,17 @@ import type { ActivityEntry, QuoteStatus } from "./types";
  * fraco o segundo pedido podia nunca chegar — a proposta ficava aceite e o
  * pedido não. É exactamente a regra 1 do cabeçalho a repetir-se: a mesma
  * decisão escrita em dois sítios acaba a divergir.
+ *
+ * ── `proposta_em_preparacao` É O ESTÚDIO A GRAVAR UM RASCUNHO ─────────────
+ *
+ * Quem o produz é o `PUT` de `/api/orcamento/[id]/proposta-rascunho`, e só
+ * para o rascunho DO ESTÚDIO (a ferramenta antiga das linhas e a gaveta do
+ * resgate não contam: não são uma proposta a ser montada). Ela não tem de se
+ * lembrar de arrastar o cartão: começar a proposta já o diz.
  */
 export type AcontecimentoDoPedido =
   | "mensagem_enviada"
+  | "proposta_em_preparacao"
   | "proposta_enviada"
   | "proposta_aceite"
   | "pagamento_recebido"
@@ -89,6 +108,7 @@ export type AcontecimentoDoPedido =
 export const ORDEM_DOS_ESTADOS = [
   "pendente",
   "em_revisao",
+  "a_preparar",
   "cotado",
   "aceite",
 ] as const satisfies readonly QuoteStatus[];
@@ -102,6 +122,7 @@ export const ORDEM_DOS_ESTADOS = [
 export const ROTULO_DO_ESTADO: Record<QuoteStatus, string> = {
   pendente: "Novo",
   em_revisao: "Aguardar resposta",
+  a_preparar: "A preparar proposta",
   cotado: "Proposta enviada",
   aceite: "Ganho",
   rejeitado: "Perdido",
@@ -122,6 +143,7 @@ export const ROTULO_DO_ESTADO: Record<QuoteStatus, string> = {
  */
 export const ESTADO_APOS: Record<AcontecimentoDoPedido, QuoteStatus> = {
   mensagem_enviada: "em_revisao",
+  proposta_em_preparacao: "a_preparar",
   proposta_enviada: "cotado",
   proposta_aceite: "aceite",
   pagamento_recebido: "aceite",
@@ -134,6 +156,7 @@ export const ESTADO_APOS: Record<AcontecimentoDoPedido, QuoteStatus> = {
  */
 const MOTIVO: Record<AcontecimentoDoPedido, string> = {
   mensagem_enviada: "respondemos ao cliente",
+  proposta_em_preparacao: "começámos a proposta no estúdio",
   proposta_enviada: "proposta enviada ao cliente",
   proposta_aceite: "proposta dada como aceite",
   pagamento_recebido: "pagamento recebido",

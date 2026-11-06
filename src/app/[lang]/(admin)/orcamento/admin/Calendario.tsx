@@ -116,6 +116,7 @@ const MONTHS: readonly string[] = MESES;
 const STATUS_COLOR: Record<string, string> = {
   pendente: "#8a8a82",
   em_revisao: "#9aa36a",
+  a_preparar: "#7d8a55",
   cotado: "#7c854b",
   aceite: "#525a2f",
   rejeitado: "#5a5a55",
@@ -151,6 +152,7 @@ const STATUS_COLOR: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   pendente: "Novo",
   em_revisao: "Aguardar resposta",
+  a_preparar: "A preparar proposta",
   cotado: "Proposta enviada",
   aceite: "Ganho",
   rejeitado: "Perdido",

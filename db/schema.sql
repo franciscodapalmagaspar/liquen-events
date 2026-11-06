@@ -853,9 +853,19 @@ create index if not exists reciclagem_apagado_em_idx on public.reciclagem (apaga
 -- falharem numa instalação já existente com dados antigos: passam a ser
 -- aplicadas a partir da próxima escrita, sem varrer as linhas atuais.
 do $$ begin
+  -- «A preparar proposta» (6/11): uma instalação com a restrição antiga, sem
+  -- `a_preparar`, troca-a pela nova (db/migracoes/20261106_quotes_status_a_preparar.sql).
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'quotes_status_chk'
+      and pg_get_constraintdef(oid) not like '%a_preparar%'
+  ) then
+    alter table public.quotes drop constraint quotes_status_chk;
+  end if;
+
   if not exists (select 1 from pg_constraint where conname = 'quotes_status_chk') then
     alter table public.quotes add constraint quotes_status_chk
-      check (status in ('pendente','em_revisao','cotado','aceite','rejeitado')) not valid;
+      check (status in ('pendente','em_revisao','a_preparar','cotado','aceite','rejeitado')) not valid;
   end if;
 
   if not exists (select 1 from pg_constraint where conname = 'proposals_status_chk') then

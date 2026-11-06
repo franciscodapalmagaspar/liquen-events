@@ -452,7 +452,7 @@ const mapaDeMesasSchema = z.object({
 
 export const quoteUpdateSchema = z
   .object({
-    status: z.enum(["pendente", "em_revisao", "cotado", "aceite", "rejeitado"]),
+    status: z.enum(["pendente", "em_revisao", "a_preparar", "cotado", "aceite", "rejeitado"]),
     quotedPrice: z.number().finite().min(0).max(10_000_000).nullish(),
     adminNotes: trimmed(20000).nullish(),
     checklist: z.array(checklistItemSchema).max(500),
