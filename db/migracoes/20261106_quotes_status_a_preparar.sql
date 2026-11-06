@@ -2,9 +2,8 @@
 -- O estado «A preparar proposta» (6/11) — a restrição dos estados do pedido
 -- ════════════════════════════════════════════════════════════════════════════
 --
--- ⚠ POR APLICAR. Escrita a 6/11/2026 e NÃO corrida: precisa da autorização
--- dela, como as outras desta pasta. Quando for aplicada, escreve-se aqui a data
--- e as palavras dela, no formato das outras.
+-- ✔ APLICADA a 6/11/2026, com a autorização dela («Sim, aplica»), e
+-- confirmada a seguir lendo `pg_constraint` (a restrição lista `a_preparar`).
 --
 -- Pedido dela (6/11): «nas propostas, quero que também haja um estado a dizer,
 -- a fazer proposta, ou a preparar proposta». Escolheu o estado do PEDIDO, e o
