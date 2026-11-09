@@ -238,7 +238,7 @@ export default function NavEstudio({ seccoes, faltas, onSeccaoActual, porTraduzi
          TECTO, só em `lg`: aí é `sticky`, e uma lista mais alta do que o ecrã
          ficava com o fim inalcançável, porque a coluna não acompanha o rolo
          da página. Na tira não há altura para limitar. */
-      className="mb-2 @min-[40rem]/estudio:sticky @min-[40rem]/estudio:top-4 @min-[40rem]/estudio:mb-0 @min-[40rem]/estudio:max-h-[calc(100vh-2rem)] @min-[40rem]/estudio:w-48 @min-[40rem]/estudio:shrink-0 @min-[40rem]/estudio:self-start @min-[40rem]/estudio:overflow-y-auto"
+      className="mb-2 @min-[40rem]/estudio:sticky @min-[40rem]/estudio:top-[var(--bo-colado-topo)] @min-[40rem]/estudio:mb-0 @min-[40rem]/estudio:max-h-[var(--bo-colado-altura)] @min-[40rem]/estudio:w-48 @min-[40rem]/estudio:shrink-0 @min-[40rem]/estudio:self-start @min-[40rem]/estudio:overflow-y-auto"
     >
       {/* A tira rola de lado; a coluna empilha. Uma classe de cada lado do
           corte, e o mesmo `<ul>` nos dois. */}

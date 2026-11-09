@@ -622,7 +622,13 @@ test.describe("Back office — mobile", () => {
      * que este passo mede, com os separadores Produção e Financeiro — ficou a
      * uma tecla, no «Abrir o pedido» desse ecrã.
      */
-    const paraOPedido = page.getByRole("button", { name: /^Abrir o pedido$/ });
+    // No telemóvel, desde 9/11, as portas do pedido vivem no «⋯» do estúdio —
+    // seis botões soltos eram três linhas por cima dos passos.
+    await page
+      .getByRole("button", { name: /^Acções de / })
+      .first()
+      .tap();
+    const paraOPedido = page.getByRole("menuitem", { name: /^Abrir o pedido$/ });
     await expect(
       paraOPedido,
       "O ecrã de fazer proposta perdeu a porta de volta ao pedido.",

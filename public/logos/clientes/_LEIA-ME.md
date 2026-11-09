@@ -26,6 +26,7 @@ automaticamente na página /clientes e o erro 404 desaparece.
 | Monte do Zambujal                    | `monte-zambujal.png`                |
 | EDIA                                 | `edia.png`                          |
 | Ordem dos Médicos Veterinários       | `omv.png`                           |
+| Torre de Palma Wine Hotel            | `torre-de-palma.avif`               |
 
 Enquanto um ficheiro não existir, a grelha mostra o **nome em texto**
 nesse lugar (não fica partido).

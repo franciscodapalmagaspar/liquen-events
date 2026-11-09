@@ -448,15 +448,17 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.useRealTimers();
   });
 
-  it("pede a página da inspiração activa DEPOIS de uma pausa, e mostra-a no lugar da aproximação", async () => {
+  it("pede a página da inspiração activa DEPOIS de uma pausa — e nunca mostra uma aproximação", async () => {
     vi.useFakeTimers();
     comUrls();
     const f = respostaWebp();
     vi.stubGlobal("fetch", f);
     desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
-    // Antes da pausa: a aproximação, e dito que é uma.
-    expect(screen.getByText("Aproximação — a página real está a chegar")).toBeTruthy();
-    // A pausa é `ESPERA_MS` (3 s desde 3/11): antes dela não se pede nada.
+    // Antes da pausa: uma folha em branco com o nome da página — o que se vê é
+    // o que sai (9/11), e a aproximação do navegador não é o que sai.
+    expect(screen.getByText(/A preparar «Jantar»/)).toBeTruthy();
+    expect(screen.queryByText(/Aproximação/)).toBeNull();
+    // A pausa é `ESPERA_MS` (1 s desde 9/11): antes dela não se pede nada.
     await act(async () => {
       vi.advanceTimersByTime(ESPERA_MS - 200);
     });
@@ -507,7 +509,7 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.useRealTimers();
   });
 
-  it("se o servidor falha, fica a aproximação — e diz que a real não chegou", async () => {
+  it("se o servidor falha, diz que a página não chegou — sem aproximação", async () => {
     vi.useFakeTimers();
     comUrls();
     vi.stubGlobal("fetch", respostaWebp(false));
@@ -516,7 +518,7 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
       vi.advanceTimersByTime(ESPERA_MS + 100);
     });
     await vi.waitFor(() =>
-      expect(screen.getByText("Aproximação — a página real não chegou agora")).toBeTruthy(),
+      expect(screen.getByText("A página não chegou agora — tenta daqui a pouco")).toBeTruthy(),
     );
     vi.useRealTimers();
   });
@@ -532,5 +534,41 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     });
     expect(f).not.toHaveBeenCalled();
     vi.useRealTimers();
+  });
+});
+
+/**
+ * ── O QUE A VOLTA À MÃO DE 9/11 APANHOU ──────────────────────────────────
+ * Duas páginas erradas no painel: um mood board novo, só com o título, não
+ * era seguido (o painel ficava na página de antes); e numa secção que ainda
+ * não fez página nenhuma (um orçamento sem linhas) aparecia a última página
+ * que se viu, que não tinha nada a ver com o que se escrevia.
+ */
+describe("a página seguida, nos casos de canto", () => {
+  const docSoComTitulo = {
+    clientNames: "TESTE Ana & TESTE Rui",
+    eventType: "Casamento",
+    coverImages: [],
+    moodBoards: [board({ title: "Cerimónia", images: [] })],
+  } as unknown as React.ComponentProps<typeof PainelDoEstudio>["doc"];
+
+  it("um mood board ainda sem fotografias já é seguido — tem página no PDF", () => {
+    desenhar({
+      doc: docSoComTitulo,
+      paginas: [],
+      activa: 0,
+      seccao: "moodboards",
+      quoteId: "q1",
+    });
+    expect(screen.getByText(/Página \d+ de \d+ · Cerimónia/)).toBeTruthy();
+    // E conta-se como uma inspiração: tem página.
+    expect(screen.getByText("1 inspiração")).toBeTruthy();
+  });
+
+  it("uma secção sem página ainda diz isso, em vez de mostrar outra", () => {
+    desenhar({ doc: docSoComTitulo, paginas: [], seccao: "orcamento", quoteId: "q1" });
+    expect(screen.getByText(/Esta parte ainda não tem página no PDF/)).toBeTruthy();
+    // E dá para folhear à mesma.
+    expect(screen.getByRole("button", { name: "Página seguinte" })).toBeTruthy();
   });
 });

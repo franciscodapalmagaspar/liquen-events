@@ -14,9 +14,13 @@ import FazerProposta from "./FazerProposta";
  * fazer a proposta na página toda».
  *
  * A escada é a da casa — `.bo-cena`, 600 ms, degraus de 20 ms, tecto no sexto —
- * e a ORDEM é a de leitura: primeiro «Proposta para ‹nome›», que responde a
- * «para quem é isto»; depois o aviso de data ocupada, que é a única coisa que
- * pode mudar a decisão; e só então o estúdio.
+ * e a ORDEM é a de leitura: o aviso de data ocupada, que é a única coisa que
+ * pode mudar a decisão, e depois o estúdio.
+ *
+ * O «Proposta para ‹nome›» era o primeiro degrau, num cartão próprio. Desde
+ * 9/11 vive na linha de cima do ESTÚDIO (pedido dela, «está uma confusão
+ * brutal»: um cartão, um traço e outra linha antes dos passos) — continua a ser
+ * a primeira coisa que se lê, agora dentro do degrau do estúdio.
  *
  * O que este ficheiro prende é essa ordem e essa escada. Uma escada trocada
  * (o estúdio a chegar primeiro) ou desfeita (tudo ao mesmo tempo) passa a
@@ -24,7 +28,13 @@ import FazerProposta from "./FazerProposta";
  */
 
 // O estúdio é pesado, e o que se mede é o EMBRULHO dele, não o que tem dentro.
-vi.mock("./lazy", () => ({ ProposalStudio: () => <div data-testid="estudio" /> }));
+// O nome do cliente é dado ao estúdio (`cliente`), que o põe na sua linha de
+// cima — o duplo mostra-o para se poder ver que chega.
+vi.mock("./lazy", () => ({
+  ProposalStudio: ({ cliente }: { cliente?: { nome: string } }) => (
+    <div data-testid="estudio">Proposta para {cliente?.nome}</div>
+  ),
+}));
 
 const PEDIDO = {
   id: "LIQ-1",
@@ -53,7 +63,7 @@ function desenhar() {
 afterEach(cleanup);
 
 describe("FazerProposta — a página apresenta-se", () => {
-  it("os três blocos entram em escada, e pela ordem de leitura", () => {
+  it("os blocos entram em escada, e pela ordem de leitura", () => {
     desenhar();
 
     // Controlo positivo: o ecrã do cliente escolhido está mesmo desenhado.
@@ -61,22 +71,22 @@ describe("FazerProposta — a página apresenta-se", () => {
     expect(screen.getByTestId("estudio")).toBeTruthy();
 
     const cenas = [...document.querySelectorAll<HTMLElement>(".bo-cena")];
-    expect(cenas.length, "três blocos em escada").toBe(3);
+    expect(cenas.length, "dois blocos em escada").toBe(2);
 
     // O degrau de cada um, pela ordem em que estão no documento.
     const degraus = cenas.map((el) => el.style.getPropertyValue("--cena") || "0");
-    expect(degraus).toEqual(["0", "1", "2"]);
+    expect(degraus).toEqual(["0", "1"]);
 
-    // E o estúdio é o ÚLTIMO — a escada existe para o nome chegar primeiro.
+    // E o estúdio é o ÚLTIMO — o aviso de data ocupada chega antes.
     const doEstudio = screen.getByTestId("estudio").closest(".bo-cena");
-    expect(doEstudio).toBe(cenas[2]);
+    expect(doEstudio).toBe(cenas[1]);
   });
 
-  it("o cabeçalho «Proposta para» é o primeiro degrau", () => {
+  it("o nome do cliente chega ao estúdio, e não há um segundo cartão por cima", () => {
     desenhar();
-    const cabecalho = screen.getByText(/Proposta para/).closest(".bo-cena");
-    expect(cabecalho).toBeTruthy();
-    expect((cabecalho as HTMLElement).style.getPropertyValue("--cena") || "0").toBe("0");
+    expect(screen.getByTestId("estudio").textContent).toContain("Ana e Pedro");
+    // Uma só vez no ecrã: o cartão de antes repetia-o por cima do estúdio.
+    expect(screen.getAllByText(/Proposta para/)).toHaveLength(1);
   });
 
   /**

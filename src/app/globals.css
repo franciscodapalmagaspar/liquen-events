@@ -2365,7 +2365,9 @@ html.lightbox-aberta .barra-consentimento {
   .barra-consentimento {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    background-color: color-mix(in oklab, var(--color-sage-700) 95%, transparent);
+    /* 75 % (9/11 — ela: «transparente»): o mínimo em que o texto branco
+       ainda passa 4,5:1 sobre uma página branca, já que aqui não há desfoque. */
+    background-color: color-mix(in oklab, var(--color-sage-700) 75%, transparent);
   }
 }
 

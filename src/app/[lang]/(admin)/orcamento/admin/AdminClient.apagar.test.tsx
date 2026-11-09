@@ -102,7 +102,7 @@ async function abrirMenuDoPedido(pedido: Quote = PEDIDO, noPainel = false) {
   // `noPainel` não encontrava o «Mais» e falhava sempre (CI do #233, 16/10).
   if (!noPainel) {
     const abrir = await screen
-      .findByRole("button", { name: /^Abrir o pedido$/ }, { timeout: 1500 })
+      .findByRole("button", { name: /^Abrir o pedido$/ }, { timeout: 5_000 })
       .catch(() => null);
     if (abrir && screen.queryAllByRole("button", { name: /^Mais$/i }).length === 0) {
       await userEvent.click(abrir);

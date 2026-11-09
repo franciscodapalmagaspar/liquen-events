@@ -1316,6 +1316,17 @@ body:is(.admin-mode, :has([data-admin-mode])) {
   --bo-barra-inferior: 86px;
   --bo-barra-capsula: 4.5rem; /* 72px — a altura da cápsula que flutua */
   --bo-barra-folga: 0.75rem; /* 12px — o ar por baixo e dos lados dela */
+  /* ── O QUE SE COLA NO ESTÚDIO (o índice e «O que vai sair») ─────────────
+     Por baixo do cabeçalho E da barra dos passos (`--bo-passos`, que a
+     `StepNav` publica medida), mais o ar de um degrau; e da altura que sobra
+     até à barra de baixo do estúdio, que flutua por cima da do back office.
+     Colados a `top-4`, ficavam com o topo tapado pela barra dos passos — a
+     página «cortada» da captura dela (9/11). Os 4,5rem são a barra do
+     estúdio (`Guardado · Total · Seguinte`) e o ar à volta dela. */
+  --bo-colado-topo: calc(var(--bo-cabecalho, 0px) + var(--bo-passos, 0px) + 1rem);
+  --bo-colado-altura: calc(
+    100dvh - var(--bo-colado-topo) - var(--bo-barra-inferior) - var(--bo-barra-folga) - 4.5rem
+  );
   --bo-lh-tight: 1.3;
   --bo-lh-body: 1.6;
   /* ── A ENTRELINHA DA LEGENDA ─────────────────────────────────────────────

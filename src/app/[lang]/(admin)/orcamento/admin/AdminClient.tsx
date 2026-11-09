@@ -713,6 +713,7 @@ function COLUNAS_DE_PEDIDOS(ctx: {
               quote={q}
               quem={ctx.userName}
               onGravado={ctx.onDesfecho}
+              variante="linha"
             />
           )}
         </div>

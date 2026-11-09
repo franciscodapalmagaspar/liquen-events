@@ -29,13 +29,28 @@ import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
  * é cancelado: só a resposta ao último rascunho conta.
  */
 /**
- * Subiu de 1,2 s para 3 s a 3/11. Cada pedido desenha uma página com o motor
+ * Desceu de 3 s para 1 s a 9/11: ela pediu a página «em tempo real» («é
+ * mesmo importante que aquilo que se está a ver é aquilo que vai sair»), e
+ * medido na fatura desse mês o processador das funções foi 0,18 $ — o que
+ * pesa é a construção do site, não isto. Uma tecla continua a não ser um
+ * pedido: cada letra adia-o, e o anterior é cancelado.
+ *
+ * Tinha subido de 1,2 s para 3 s a 3/11. Cada pedido desenha uma página com o motor
  * do PDF (meio segundo a vários segundos de processador), e a 2/11 a conta da
  * Vercel passou o limite de processador. A meio de uma frase ninguém olha para
  * a página; três segundos parada é «acabei de escrever». E com o separador
  * escondido não se pede nada (ver o `document.hidden` em baixo).
  */
-export const ESPERA_MS = 3000;
+export const ESPERA_MS = 1000;
+
+/**
+ * Quando o rascunho NÃO mudou e só mudou a página — ela desceu para outra
+ * secção, ou carregou em «seguinte» (9/11, «à medida que vamos fazendo scroll,
+ * as páginas vão mudando») —, o pedido sai mais cedo: não há frase a meio. E
+ * continua a não sair a cada secção por que se passa a descer depressa: cada
+ * nova paragem adia o pedido, e o que já se viu vem da memória sem pedir.
+ */
+export const ESPERA_DA_PAGINA_MS = 1200;
 
 /**
  * ── O QUE JÁ VEIO NÃO SE PEDE OUTRA VEZ (4/11) ──────────────────────────
@@ -117,6 +132,8 @@ export function usePaginaReal({
     [quoteId, doc, idioma, n, largura],
   );
   const ultimaUrl = useRef<string | null>(null);
+  /** O rascunho do último pedido — para saber se agora só mudou a página. */
+  const ultimoDoc = useRef<ProposalDoc | undefined>(undefined);
 
   useEffect(() => {
     if (!corpo || !quoteId) return;
@@ -135,34 +152,42 @@ export function usePaginaReal({
       return () => window.clearTimeout(logo);
     }
     const controlo = new AbortController();
-    const temporizador = window.setTimeout(async () => {
-      // Ninguém está a ver: o desenho fica para quando ela voltar e mexer.
-      if (typeof document !== "undefined" && document.hidden) return;
-      setEstado((e) => ({ ...e, aCarregar: true, falhou: false }));
-      try {
-        const res = await fetch(`/api/orcamento/${quoteId}/pagina-do-rascunho`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: corpo,
-          signal: controlo.signal,
-        });
-        const paginas = Number(res.headers.get("X-Paginas")) || null;
-        if (!res.ok) throw new Error(String(res.status));
-        const imagem = await res.blob();
-        // Guarda-se mesmo que este pedido tenha ficado velho: a página está
-        // certa para AQUELE rascunho, e voltar a ele não a pede outra vez.
-        guardar(chave, { imagem, paginas });
-        if (controlo.signal.aborted) return;
-        mostrar(imagem, paginas);
-      } catch {
-        if (controlo.signal.aborted) return;
-        setEstado((e) => ({ ...e, aCarregar: false, falhou: true }));
-      }
-    }, ESPERA_MS);
+    const soAPagina = ultimoDoc.current === doc;
+    ultimoDoc.current = doc;
+    const temporizador = window.setTimeout(
+      async () => {
+        // Ninguém está a ver: o desenho fica para quando ela voltar e mexer.
+        if (typeof document !== "undefined" && document.hidden) return;
+        setEstado((e) => ({ ...e, aCarregar: true, falhou: false }));
+        try {
+          const res = await fetch(`/api/orcamento/${quoteId}/pagina-do-rascunho`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: corpo,
+            signal: controlo.signal,
+          });
+          const paginas = Number(res.headers.get("X-Paginas")) || null;
+          if (!res.ok) throw new Error(String(res.status));
+          const imagem = await res.blob();
+          // Guarda-se mesmo que este pedido tenha ficado velho: a página está
+          // certa para AQUELE rascunho, e voltar a ele não a pede outra vez.
+          guardar(chave, { imagem, paginas });
+          if (controlo.signal.aborted) return;
+          mostrar(imagem, paginas);
+        } catch {
+          if (controlo.signal.aborted) return;
+          setEstado((e) => ({ ...e, aCarregar: false, falhou: true }));
+        }
+      },
+      soAPagina ? ESPERA_DA_PAGINA_MS : ESPERA_MS,
+    );
     return () => {
       window.clearTimeout(temporizador);
       controlo.abort();
     };
+    // `doc` só é lido para comparar com o anterior; o pedido depende do
+    // `corpo`, que já muda com ele.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [corpo, quoteId]);
 
   // A última imagem liberta-se quando o painel sai.

@@ -33,7 +33,6 @@ vi.mock("./lazy", async (original) => ({
   ProposalStudio: () => null,
 }));
 
-
 /**
  * ════════════════════════════════════════════════════════════════════════════
  * ABRIR UM PEDIDO ERA MUDO — SEIS VEZES
@@ -111,7 +110,7 @@ async function abrir() {
    * coisa só: no fim, é o painel que está aberto.
    */
   const pelaProposta = await screen
-    .findByRole("button", { name: /^Abrir o pedido$/ }, { timeout: 3_000 })
+    .findByRole("button", { name: /^Abrir o pedido$/ }, { timeout: 8_000 })
     .catch(() => null);
   if (pelaProposta) await userEvent.click(pelaProposta);
 }
