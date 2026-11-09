@@ -2024,7 +2024,23 @@ function criarMotor(raiz: HTMLElement): Motor | null {
  */
 export function soACapa(): boolean {
   const lig = (navigator as ComLigacao).connection;
-  return !!lig?.saveData;
+  return !!lig?.saveData || noNavegadorDoTikTok(navigator.userAgent);
+}
+
+/**
+ * ── NO NAVEGADOR DE DENTRO DO TIKTOK, SÓ A CAPA (9/11) ─────────────────────
+ * Ela, a entrar pelo link da página da Líquen no TikTok: «aquilo abre tudo
+ * estranho… o vídeo está parado… abre o vídeo inicial como se estivesse a ver
+ * um vídeo normal». O navegador de dentro da app do TikTok não deixa o vídeo
+ * de fundo arrancar sozinho e mostra-o parado, ou num leitor dele. Aí entra
+ * a fotografia da capa — o primeiro fotograma da floresta —, sem vídeo. Fora
+ * do TikTok nada muda.
+ *
+ * A app identifica-se no `userAgent`: «musical_ly» / «trill» (o nome antigo da
+ * app, ainda lá), «BytedanceWebview», ou «TikTok».
+ */
+export function noNavegadorDoTikTok(ua: string | undefined | null): boolean {
+  return !!ua && /musical_ly|trill_|bytedancewebview|tiktok/i.test(ua);
 }
 
 /** Ver `lib/depois-de-carregar.ts` (partilhado com o scroll suave). */

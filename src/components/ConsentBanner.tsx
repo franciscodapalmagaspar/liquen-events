@@ -257,8 +257,15 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
        * agora é um cartão de 352 × ~150. A reserva de espaço (ver
        * `--reserva-consentimento` em globals.css) foi medida outra vez para
        * esta forma.
+       *
+       * ── MAIS TRANSPARENTE (9/11) ──────────────────────────────────────
+       * Ela: «coloca a barra dos cookies transparente». No computador passa a
+       * 70 % com desfoque; nos ecrãs de toque a 75 % SEM desfoque (ver
+       * globals.css — o desfoque num `fixed` engasga o deslize do iPhone). Os
+       * 75 % são o mínimo em que o texto branco ainda passa 4,5:1 por cima de
+       * uma página branca (≈ #6a7c6f).
        */
-      className="barra-consentimento fixed inset-x-3 z-[70] rounded-2xl border border-white/12 bg-sage-700/95 px-4 py-3.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] sm:inset-x-auto sm:left-5 sm:w-[22rem]"
+      className="barra-consentimento fixed inset-x-3 z-[70] rounded-2xl border border-white/12 bg-sage-700/70 backdrop-blur-md px-4 py-3.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] sm:inset-x-auto sm:left-5 sm:w-[22rem]"
       style={{
         // Fora das rotas sociais nada muda: `bottom: 0` (da classe) e o
         // preenchimento a respeitar a zona segura do iPhone.

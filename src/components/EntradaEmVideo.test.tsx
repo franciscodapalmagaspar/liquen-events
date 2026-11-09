@@ -1981,3 +1981,33 @@ describe("EntradaEmVideo", () => {
     });
   });
 });
+
+describe("no navegador de dentro do TikTok fica só a capa (9/11)", () => {
+  it("reconhece a app pelo userAgent, no iPhone e no Android", async () => {
+    const { noNavegadorDoTikTok } = await import("./EntradaEmVideo");
+    // iPhone: a app ainda se chama «musical_ly» no userAgent.
+    expect(
+      noNavegadorDoTikTok(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 musical_ly_34.5.0 JsSdk/2.0 NetType/WIFI Channel/App Store ByteLocale/pt",
+      ),
+    ).toBe(true);
+    // Android: «BytedanceWebview» e «trill_».
+    expect(
+      noNavegadorDoTikTok(
+        "Mozilla/5.0 (Linux; Android 14; SM-S911B Build/UP1A; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/124.0 Mobile Safari/537.36 trill_340500 BytedanceWebview/d8a21c6",
+      ),
+    ).toBe(true);
+    // O Safari, o Chrome e o Instagram continuam com vídeo.
+    expect(
+      noNavegadorDoTikTok(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+      ),
+    ).toBe(false);
+    expect(
+      noNavegadorDoTikTok(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 330.0.0.0",
+      ),
+    ).toBe(false);
+    expect(noNavegadorDoTikTok("")).toBe(false);
+  });
+});
