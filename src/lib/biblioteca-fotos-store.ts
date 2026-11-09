@@ -244,27 +244,53 @@ export interface FormaDaFoto {
 export async function formasDeCaminhos(
   paths: readonly string[],
 ): Promise<Map<string, FormaDaFoto>> {
+  try {
+    return await formasDeCaminhosOuErro(paths);
+  } catch {
+    /* sem formas — a grelha desenha-se na mesma, com a proporção por omissão */
+    return new Map();
+  }
+}
+
+/**
+ * ── PARA O PDF, UMA LEITURA FALHADA NÃO É «SEM MEDIDAS» (9/11) ───────────
+ *
+ * Ela: «alterei agora uma palavra e ele alterou uma foto. por favor estas
+ * coisas não podem acontecer». O PDF escolhe as fotos de cada página pelas
+ * MEDIDAS guardadas aqui; se a leitura falhava, o `formasDeCaminhos` de cima
+ * devolvia um mapa vazio em silêncio, o desenho media as fotos reduzidas em
+ * vez destas — e duas fotos de medidas quase iguais trocavam de lugar. Nos
+ * registos desse dia a base de dados recusou pedidos («JWT issued at
+ * future») à mesma hora.
+ *
+ * Esta versão tenta duas vezes e, se falhar, FALHA: quem desenha o PDF
+ * prefere não desenhar a desenhar outra escolha de fotografias. A grelha de
+ * cima continua a desenhar-se sem medidas, que lá não decide nada.
+ */
+export async function formasDeCaminhosOuErro(
+  paths: readonly string[],
+): Promise<Map<string, FormaDaFoto>> {
   const saida = new Map<string, FormaDaFoto>();
   if (paths.length === 0) return saida;
   const pastas = new Set(paths.map((p) => p.split("/")[0]).filter(Boolean));
   const querido = new Set(paths);
+  const ler = () =>
+    Promise.all([...pastas].map((pasta) => repo.where("pasta", pasta, (f) => f.pasta === pasta)));
+  let listas: Foto[][];
   try {
-    const listas = await Promise.all(
-      [...pastas].map((pasta) => repo.where("pasta", pasta, (f) => f.pasta === pasta)),
-    );
-    for (const f of listas.flat()) {
-      // As duas, ou nenhuma: meia forma não dá proporção nenhuma e uma altura
-      // de zero é pior do que não saber.
-      if (f.largura && f.altura && querido.has(f.path)) {
-        saida.set(f.path, { largura: f.largura, altura: f.altura });
-      }
-    }
+    listas = await ler();
   } catch {
-    /* sem formas — a grelha desenha-se na mesma, com a proporção por omissão */
+    await new Promise((r) => setTimeout(r, 250));
+    listas = await ler();
+  }
+  for (const f of listas.flat()) {
+    // As duas, ou nenhuma: meia forma não dá proporção nenhuma e uma altura
+    // de zero é pior do que não saber.
+    if (f.largura && f.altura && querido.has(f.path)) {
+      saida.set(f.path, { largura: f.largura, altura: f.altura });
+    }
   }
   return saida;
 }
 
-/** Apaga a linha (as etiquetas vão atrás, por `on delete cascade`). Chamada
- *  quando a FOTO sai do bucket — nunca ao contrário. */
 export const deleteFoto = (path: string): Promise<void> => repo.remove(path);
