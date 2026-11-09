@@ -30,10 +30,19 @@ vi.mock("@/lib/proposal-storage", () => ({
 }));
 /** A biblioteca sabe a medida de METADE das fotos — a outra metade mede-se dos bytes. */
 const naBiblioteca = new Map<string, { largura: number; altura: number }>();
-vi.mock("@/lib/biblioteca-fotos-store", () => ({
-  formasDeCaminhos: async (paths: readonly string[]) =>
-    new Map(paths.filter((p) => naBiblioteca.has(p)).map((p) => [p, naBiblioteca.get(p)!])),
-}));
+/** A base de dados recusa a leitura das medidas (como a 9/11). */
+let leituraFalha = false;
+vi.mock("@/lib/biblioteca-fotos-store", () => {
+  const formas = async (paths: readonly string[]) =>
+    new Map(paths.filter((p) => naBiblioteca.has(p)).map((p) => [p, naBiblioteca.get(p)!]));
+  return {
+    formasDeCaminhos: formas,
+    formasDeCaminhosOuErro: async (paths: readonly string[]) => {
+      if (leituraFalha) throw new Error("JWT issued at future");
+      return formas(paths);
+    },
+  };
+});
 
 const { renderStoredEditorialPdfWithReport, fotosDoEditorialDoDocumento } =
   await import("./proposal-doc-render");
@@ -113,5 +122,19 @@ describe("as miniaturas e o PDF que segue: as mesmas fotografias", () => {
     const plano = await fotosDoEditorialDoDocumento(d, "pt");
     expect(plano).toEqual(pdf.fotos);
     expect(pdf.fotos.total.map((f) => f.ref)).toEqual([ref(9)]);
+  });
+});
+
+describe("uma leitura falhada das medidas não troca fotografias (9/11)", () => {
+  // Ela: «alterei agora uma palavra e ele alterou uma foto». Sem as medidas
+  // da biblioteca o desenho media as fotos reduzidas, e duas de medidas quase
+  // iguais trocavam de lugar. Agora o desenho FALHA em vez de escolher outras.
+  it("o desenho falha em vez de sair com outra escolha", async () => {
+    leituraFalha = true;
+    try {
+      await expect(renderStoredEditorialPdfWithReport(doc(), "pt")).rejects.toThrow();
+    } finally {
+      leituraFalha = false;
+    }
   });
 });

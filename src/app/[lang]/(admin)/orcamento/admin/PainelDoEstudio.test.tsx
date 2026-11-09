@@ -8,8 +8,8 @@ import { fingirDisposicao, reporDisposicao } from "../../../../../../test/dispos
 import PainelDoEstudio, { type PaginaParaOPainel } from "./PainelDoEstudio";
 import {
   ESPERA_MS,
-  ESPERA_DA_PAGINA_MS,
-  PREPARAR_MS,
+  EM_PARALELO,
+  TENTATIVAS,
   esquecerPaginasGuardadas,
   paginasAPreparar,
 } from "./usePaginaReal";
@@ -469,7 +469,7 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     await act(async () => {
       vi.advanceTimersByTime(10);
     });
-    expect(f).toHaveBeenCalledTimes(1);
+    expect(f).toHaveBeenCalled();
     const [url, init] = f.mock.calls[0];
     expect(url).toBe("/api/orcamento/q1/pagina-do-rascunho");
     const corpo = JSON.parse(String(init?.body));
@@ -521,41 +521,89 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     await act(async () => {
       vi.advanceTimersByTime(ESPERA_MS);
     });
-    expect(f.mock.calls.length).toBe(pedidos + 1);
+    // A primeira a sair é a que está à vista, já com a letra nova.
+    expect(f.mock.calls.length).toBeGreaterThan(pedidos);
+    expect(JSON.parse(String(f.mock.calls[pedidos][1]?.body)).n).toBe(
+      JSON.parse(String(f.mock.calls[0][1]?.body)).n,
+    );
     expect(JSON.parse(String(f.mock.calls[pedidos][1]?.body)).doc.clientNames).toBe(
       "TESTE Ana & TESTE Rui!",
     );
     vi.useRealTimers();
   });
 
-  it("parada na página, prepara as vizinhas — e na primeira vez, todas (9/11)", async () => {
+  it("prepara as outras LOGO, duas de cada vez — a que está à vista primeiro (9/11)", async () => {
+    // Ela, a descer pelos mood boards: «fica muito tempo com a tela cinzenta a
+    // dizer preparar». A preparação esperava 1,5 s parada e cada página nova
+    // cancelava-a. Agora não espera, e mudar de página não cancela nada.
     vi.useFakeTimers();
     comUrls();
+    // Um servidor que ainda não respondeu: só saem `EM_PARALELO` de cada vez.
+    const pendurado = vi.fn(() => new Promise<never>(() => {}));
+    vi.stubGlobal("fetch", pendurado);
+    desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    expect(pendurado.mock.calls.length).toBe(EM_PARALELO);
+    cleanup();
+    esquecerPaginasGuardadas();
     const f = respostaWebp();
     vi.stubGlobal("fetch", f);
     desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
     await act(async () => {
       vi.advanceTimersByTime(10);
     });
-    await vi.waitFor(() => screen.getByRole("img", { name: /como vai sair/ }));
     const n = JSON.parse(String(f.mock.calls[0][1]?.body)).n as number;
-    expect(f).toHaveBeenCalledTimes(1);
-    // Antes da pausa não se prepara nada.
-    await act(async () => {
-      vi.advanceTimersByTime(PREPARAR_MS - 100);
-    });
-    expect(f).toHaveBeenCalledTimes(1);
-    // Depois, uma de cada vez: a seguinte, a anterior, e as outras todas.
-    for (let k = 0; k < 14; k++) {
+    for (let k = 0; k < 20; k++) {
       await act(async () => {
-        vi.advanceTimersByTime(200);
+        vi.advanceTimersByTime(50);
       });
     }
     const pedidas = f.mock.calls.map((c) => JSON.parse(String(c[1]?.body)).n as number);
-    expect(pedidas.slice(1, 3)).toEqual([n + 1, n - 1]);
-    expect([...new Set(pedidas)].sort((a, b) => a - b)).toEqual(
-      Array.from({ length: 14 }, (_, i) => i + 1),
+    expect(pedidas.slice(0, 3)).toEqual([n, n + 1, n - 1]);
+    // Na primeira vez da proposta, todas — e cada uma uma vez só.
+    expect([...pedidas].sort((a, b) => a - b)).toEqual(Array.from({ length: 14 }, (_, i) => i + 1));
+    vi.useRealTimers();
+  });
+
+  it("depois de uma mudança, só refaz as páginas perto dela — o resto quando lá chegar", async () => {
+    // O custo: ela pediu a Vercel «sem gastar quase nada».
+    vi.useFakeTimers();
+    comUrls();
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    const { rerender } = desenhar({ doc, activa: 0, quoteId: "q1", idioma: "pt" });
+    for (let k = 0; k < 20; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+    }
+    const antes = f.mock.calls.length;
+    const outro = { ...doc, clientNames: "TESTE Ana & TESTE Rui!" } as typeof doc;
+    rerender(
+      <PainelDoEstudio
+        cabe
+        paginas={paginas}
+        urls={{ "p/a.jpg": "u/a", "p/b.jpg": "u/b" }}
+        originais={{}}
+        aspetos={{ "p/a.jpg": 1.5, "p/b.jpg": 0.7 }}
+        onSaltar={() => {}}
+        doc={outro}
+        activa={0}
+        quoteId="q1"
+        idioma="pt"
+      />,
     );
+    for (let k = 0; k < 30; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+    }
+    const depois = f.mock.calls.slice(antes).map((c) => JSON.parse(String(c[1]?.body)).n as number);
+    const n = depois[0];
+    expect(depois.length).toBeLessThanOrEqual(5);
+    for (const p of depois) expect(Math.abs(p - n)).toBeLessThanOrEqual(2);
     vi.useRealTimers();
   });
 
@@ -589,7 +637,7 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
       />,
     );
     await act(async () => {
-      vi.advanceTimersByTime(ESPERA_DA_PAGINA_MS + PREPARAR_MS + 100);
+      vi.advanceTimersByTime(100);
     });
     expect(screen.queryByText("A atualizar…")).toBeNull();
     expect(screen.getByRole("img", { name: /como vai sair/ })).toBeTruthy();
@@ -599,29 +647,31 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
 
   it("a mesma página do mesmo rascunho não se pede duas vezes ao servidor (4/11)", async () => {
     // Ela pediu menos processador na Vercel «mantendo tudo como está». Sair do
-    // painel e voltar (outro passo, outra vista) desmontava-o e desenhava a
-    // página outra vez no servidor, com o rascunho igual.
+    // painel e voltar (outro passo, outra vista) não desenha nada outra vez.
     vi.useFakeTimers();
     comUrls();
     const f = respostaWebp();
     vi.stubGlobal("fetch", f);
     desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
-    await act(async () => {
-      vi.advanceTimersByTime(ESPERA_MS + 100);
-    });
-    expect(f).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() => screen.getByRole("img", { name: /como vai sair/ }));
+    for (let k = 0; k < 20; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+    }
+    const pedidos = f.mock.calls.length;
     cleanup();
-    // Volta ao mesmo sítio: a página aparece logo, sem pausa e sem pedido.
+    // Volta ao mesmo sítio: a página aparece logo, sem pedido nenhum.
     desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
     await act(async () => {
       vi.advanceTimersByTime(10);
     });
     expect(screen.getByRole("img", { name: /como vai sair/ })).toBeTruthy();
-    await act(async () => {
-      vi.advanceTimersByTime(ESPERA_MS + 100);
-    });
-    expect(f).toHaveBeenCalledTimes(1);
+    for (let k = 0; k < 20; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+    }
+    expect(f.mock.calls.length).toBe(pedidos);
     vi.useRealTimers();
   });
 
@@ -630,9 +680,12 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     comUrls();
     vi.stubGlobal("fetch", respostaWebp(false));
     desenhar({ doc, activa: 0, quoteId: "q1" });
-    await act(async () => {
-      vi.advanceTimersByTime(ESPERA_MS + 100);
-    });
+    // Tenta outra vez antes de desistir: uma falha passageira não é a página.
+    for (let k = 0; k < TENTATIVAS * 20; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+    }
     await vi.waitFor(() =>
       expect(screen.getByText("A página não chegou agora — tenta daqui a pouco")).toBeTruthy(),
     );
@@ -692,18 +745,18 @@ describe("a página seguida, nos casos de canto", () => {
   });
 });
 
-describe("paginasAPreparar — a ordem por que se preparam as outras", () => {
-  it("primeiro a seguinte e a anterior", () => {
-    expect(paginasAPreparar(5, 14, false)).toEqual([6, 4]);
+describe("paginasAPreparar — a ordem por que se preparam as páginas", () => {
+  it("a que está à vista, a seguinte, a anterior, e daí para fora", () => {
+    expect(paginasAPreparar(3, 6)).toEqual([3, 4, 2, 5, 1, 6]);
   });
-  it("nas pontas, só a que existe", () => {
-    expect(paginasAPreparar(1, 14, false)).toEqual([2]);
-    expect(paginasAPreparar(14, 14, false)).toEqual([13]);
+  it("com raio, só até essa distância", () => {
+    expect(paginasAPreparar(5, 14, 2)).toEqual([5, 6, 4, 7, 3]);
   });
-  it("na primeira volta, todas as outras, das mais perto para as mais longe", () => {
-    expect(paginasAPreparar(3, 6, true)).toEqual([4, 2, 5, 1, 6]);
+  it("nas pontas, só as que existem", () => {
+    expect(paginasAPreparar(1, 14, 1)).toEqual([1, 2]);
+    expect(paginasAPreparar(14, 14, 1)).toEqual([14, 13]);
   });
-  it("sem saber quantas há, só as vizinhas", () => {
-    expect(paginasAPreparar(3, null, true)).toEqual([4, 2]);
+  it("sem saber quantas há, só ela e as vizinhas", () => {
+    expect(paginasAPreparar(3, null)).toEqual([3, 4, 2]);
   });
 });
