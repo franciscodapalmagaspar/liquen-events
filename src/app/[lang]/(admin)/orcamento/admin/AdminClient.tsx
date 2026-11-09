@@ -200,6 +200,7 @@ import {
 } from "./lazy";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
 import { linkDaConversa } from "@/lib/whatsapp";
+import { dominiosConhecidos, sugerirEmail } from "@/lib/dominio-parecido";
 import CampoTelefone from "@/components/CampoTelefone";
 import { APARENCIA_DO_BACK_OFFICE, TELEFONE_EM_CAIXA } from "./ui/aparencia-do-telefone";
 
@@ -1402,6 +1403,23 @@ export default function AdminClient({
    */
   const [editNome, setEditNome] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  /**
+   * «Querias dizer …@adecco.com?» (9/11): a proposta da Adecco foi para
+   * «addecco.com» e voltou. Os domínios dos OUTROS pedidos e os de correio
+   * comuns dizem que domínio se queria escrever. Só sugere — ver
+   * `lib/dominio-parecido.ts`.
+   */
+  const emailSugerido = useMemo(
+    () =>
+      sugerirEmail(
+        editEmail,
+        dominiosConhecidos(
+          quotes.map((q) => q.email),
+          editEmail,
+        ),
+      ),
+    [editEmail, quotes],
+  );
   const [editTelefone, setEditTelefone] = useState("");
   // Which tools section of the detail panel is showing. Everything is visible
   // at once now — the management form always renders; only the heavier tool
@@ -8016,6 +8034,22 @@ export default function AdminClient({
                                     <p className="mt-1 text-[10px] leading-relaxed text-[var(--bo-perigo)]">
                                       Sem email, a proposta é gravada e o link continua a servir,
                                       mas não é enviada a ninguém.
+                                    </p>
+                                  )}
+                                  {emailSugerido && (
+                                    <p
+                                      role="status"
+                                      className="mt-1 text-[11px] leading-relaxed text-[var(--bo-aviso)]"
+                                    >
+                                      Querias dizer{" "}
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditEmail(emailSugerido)}
+                                        className="font-semibold underline underline-offset-2 hover:text-[var(--bo-text)]"
+                                      >
+                                        {emailSugerido}
+                                      </button>
+                                      ? Um email com uma letra trocada não chega a ninguém.
                                     </p>
                                   )}
                                 </div>
