@@ -26,6 +26,21 @@ function comOSharpOndeEPreciso(base: Record<string, string[]>): Record<string, s
 }
 
 const nextConfig: NextConfig = {
+  /**
+   * ── A VERIFICAÇÃO DE TIPOS NÃO SE PAGA DUAS VEZES (9/11) ──────────────────
+   *
+   * Ela: «continua a trabalhar nisso […] sem piorar nada». Numa construção
+   * medida a 9/11, o `next build` gastou 34 s dos ~64 a correr o TypeScript —
+   * e na Vercel isso são minutos de construção pagos. O MESMO `tsc` já corre
+   * no CI («Lint · Typecheck · Build», em cada PR e em cada push para o
+   * `main`), e nada entra no `main` sem o lote passar por lá.
+   *
+   * Por isso só na Vercel (`VERCEL=1`) a construção salta a verificação. No
+   * CI e em qualquer máquina, o `next build` continua a verificá-la — e a
+   * falhar com um erro de tipos. O que se publica não muda: a verificação não
+   * altera o código, só o confere.
+   */
+  typescript: { ignoreBuildErrors: process.env.VERCEL === "1" },
   // O SELO DE DESENVOLVIMENTO DO NEXT TAPA A NAVEGAÇÃO DO TELEMÓVEL.
   // É um botão fixo no canto inferior esquerdo — exactamente onde vive a barra
   // de baixo do back office. Em `next dev` a 375 px fica por cima do primeiro
