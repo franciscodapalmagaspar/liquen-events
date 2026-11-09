@@ -52,6 +52,14 @@ export const maxDuration = 60;
  * página do mesmo rascunho (voltar atrás, abrir em ecrã inteiro) não desenha
  * nada: o `imagemDaPagina` guarda a imagem, com o seu tecto de memória.
  */
+/**
+ * Quantas páginas tem o PDF de cada rascunho já desenhado. Quando a imagem
+ * vem da memória, o desenho não corre e o número perdia-se — e é por ele que
+ * o estúdio sabe que páginas preparar a seguir (9/11).
+ */
+const paginasPorChave = new Map<string, number>();
+const PAGINAS_POR_CHAVE_MAX = 500;
+
 async function POST_semMedida(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -82,29 +90,48 @@ async function POST_semMedida(
   const largura = larguraPedida(Number(body?.largura) || 800);
 
   try {
-    if (!(await getQuote(id))) {
-      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
-    }
     const chave = `rascunho:${createHash("sha256")
       .update(`${idioma}\u0000${n}\u0000${JSON.stringify(doc)}`)
       .digest("hex")}`;
     const comecou = Date.now();
     let paginas: number | null = null;
     let desenhou = false;
-    const imagem = await imagemDaPagina(
-      chave,
-      async () => {
-        desenhou = true;
-        const r = await renderStoredEditorialPdfWithReport(doc as ProposalDoc, idioma, {
-          soPaginas: [n],
-        });
-        paginas = r.paginas;
-        return r.pdf;
-      },
-      // O PDF devolvido tem SÓ a página pedida: é a primeira dele.
-      1,
-      largura,
-    );
+    // A confirmação de que o pedido existe e o desenho correm AO MESMO TEMPO
+    // (9/11, «tem que ser ultra rápida»): a ida à base de dados deixava de
+    // esperar à frente do desenho. Um pedido que não existe continua a dar
+    // 404 — o desenho que entretanto se fez fica só na memória desta
+    // instância, e quem o pede já passou o `isAuthed`.
+    const [existe, imagem] = await Promise.all([
+      getQuote(id),
+      imagemDaPagina(
+        chave,
+        async () => {
+          desenhou = true;
+          const r = await renderStoredEditorialPdfWithReport(doc as ProposalDoc, idioma, {
+            soPaginas: [n],
+          });
+          paginas = r.paginas;
+          return r.pdf;
+        },
+        // O PDF devolvido tem SÓ a página pedida: é a primeira dele.
+        1,
+        largura,
+      ),
+    ]);
+    if (!existe) {
+      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
+    }
+    if (paginas !== null) {
+      paginasPorChave.delete(chave);
+      paginasPorChave.set(chave, paginas);
+      while (paginasPorChave.size > PAGINAS_POR_CHAVE_MAX) {
+        const maisVelha = paginasPorChave.keys().next().value;
+        if (maisVelha === undefined) break;
+        paginasPorChave.delete(maisVelha);
+      }
+    } else {
+      paginas = paginasPorChave.get(chave) ?? null;
+    }
     const ms = Date.now() - comecou;
     const cabecalhos: Record<string, string> = {
       "Cache-Control": "private, no-store",
