@@ -29,7 +29,7 @@ enviadas; a barra de baixo («Fica a barra de baixo»); a regra única do envio
 |---|---|---|
 | 0 | A página ao lado: não cortada, segue o scroll, só a real, 1 s | **feito** — PR #389 |
 | 1 | A moldura: menos coisas antes do formulário | **feito** — PR #389 (ver em baixo) |
-| 2 | Orçamento: o que o cliente vê, o resumo, e o que é só para nós separados | por fazer |
+| 2 | Orçamento: o que o cliente vê, o resumo, e o que é só para nós separados | **parcial** — PR #389: a ordem (linhas → valores adicionais → total → só para nós) e as palavras «Total e validade» / «Como entram no total». Falta: o resumo colado às linhas e as palavras «Como escala» e «Extra» |
 | 3 | Inspiração: começar é óbvio, cada mood board lê-se de relance | por fazer |
 | 4 | Serviços e Evento: grupos e linhas que se leem como uma lista | por fazer |
 | 5 | Rever e enviar: o que falta primeiro, depois o PDF, depois o email | por fazer |
