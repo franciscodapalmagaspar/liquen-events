@@ -448,15 +448,17 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.useRealTimers();
   });
 
-  it("pede a página da inspiração activa DEPOIS de uma pausa, e mostra-a no lugar da aproximação", async () => {
+  it("pede a página da inspiração activa DEPOIS de uma pausa — e nunca mostra uma aproximação", async () => {
     vi.useFakeTimers();
     comUrls();
     const f = respostaWebp();
     vi.stubGlobal("fetch", f);
     desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
-    // Antes da pausa: a aproximação, e dito que é uma.
-    expect(screen.getByText("Aproximação — a página real está a chegar")).toBeTruthy();
-    // A pausa é `ESPERA_MS` (3 s desde 3/11): antes dela não se pede nada.
+    // Antes da pausa: uma folha em branco com o nome da página — o que se vê é
+    // o que sai (9/11), e a aproximação do navegador não é o que sai.
+    expect(screen.getByText(/A preparar «Jantar»/)).toBeTruthy();
+    expect(screen.queryByText(/Aproximação/)).toBeNull();
+    // A pausa é `ESPERA_MS` (1 s desde 9/11): antes dela não se pede nada.
     await act(async () => {
       vi.advanceTimersByTime(ESPERA_MS - 200);
     });
@@ -507,7 +509,7 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.useRealTimers();
   });
 
-  it("se o servidor falha, fica a aproximação — e diz que a real não chegou", async () => {
+  it("se o servidor falha, diz que a página não chegou — sem aproximação", async () => {
     vi.useFakeTimers();
     comUrls();
     vi.stubGlobal("fetch", respostaWebp(false));
@@ -516,7 +518,7 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
       vi.advanceTimersByTime(ESPERA_MS + 100);
     });
     await vi.waitFor(() =>
-      expect(screen.getByText("Aproximação — a página real não chegou agora")).toBeTruthy(),
+      expect(screen.getByText("A página não chegou agora — tenta daqui a pouco")).toBeTruthy(),
     );
     vi.useRealTimers();
   });

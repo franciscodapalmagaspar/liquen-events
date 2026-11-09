@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { quandoGravado } from "@/lib/quando-gravado";
+import { useSeccaoAVista } from "./useSeccaoAVista";
 import { rolarAteVer } from "@/lib/motion/rolar";
 import { SAIDA_FUNDO, useSaidaDeUmSo } from "./ui/saida";
 import { porqueFalhouOEnvio } from "./porque-falhou-o-envio";
@@ -8105,6 +8106,17 @@ export default function ProposalStudio({
    */
   const [boardActivo, setBoardActivo] = useState<number | null>(null);
 
+  /**
+   * E a parte do formulário que está À VISTA — pedido dela de 9/11: «à medida
+   * que vamos fazendo scroll, as páginas vão mudando». O painel mostra a página
+   * da secção que se está a ler, e na Inspiração a do mood board que passa pelo
+   * meio do ecrã. O foco continua a mandar quando ela entra num campo.
+   */
+  const aVista = useSeccaoAVista(step);
+  useEffect(() => {
+    if (aVista.board != null) setBoardActivo(aVista.board);
+  }, [aVista.board]);
+
   /** As páginas COM fotografias, pela ordem em que saem — a ordem do PDF. */
   const paginasParaOPainel = useMemo(
     () =>
@@ -11518,6 +11530,7 @@ export default function ProposalStudio({
             cabe={painelLateralCabe}
             paginas={paginasParaOPainel}
             activa={boardActivo ?? undefined}
+            seccao={aVista.seccao}
             urls={assetUrls}
             originais={assetOriginais}
             aspetos={aspetosDasFotos}
@@ -14010,8 +14023,31 @@ function StepNav({
   estados: Record<Step, EstadoDoPasso>;
   organizacao: boolean;
 }) {
+  /**
+   * A barra dos passos fica colada por baixo do cabeçalho — e o índice da
+   * esquerda e o painel «O que vai sair» colavam-se a `top-4`, POR BAIXO dela:
+   * ao descer, a barra tapava-lhes o topo. Era a página «cortada» da captura
+   * dela (9/11). A altura publica-se como a do cabeçalho (`--bo-cabecalho`, no
+   * `AdminClient`), medida e não escrita à mão: parte em duas linhas num ecrã
+   * estreito.
+   */
+  const barraRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = barraRef.current;
+    if (!el) return;
+    const publicar = () =>
+      document.documentElement.style.setProperty("--bo-passos", `${el.offsetHeight}px`);
+    publicar();
+    const ro = new ResizeObserver(publicar);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty("--bo-passos");
+    };
+  }, []);
   return (
     <nav
+      ref={barraRef}
       aria-label="Passos da proposta"
       className="sticky top-[var(--bo-cabecalho,0px)] z-10 -mx-1 mb-5 flex flex-nowrap items-center gap-1.5 overflow-x-auto border-b border-[var(--bo-hairline)] bg-[var(--bo-surface)] px-1 py-2 [scrollbar-width:none] [&>button]:shrink-0"
     >

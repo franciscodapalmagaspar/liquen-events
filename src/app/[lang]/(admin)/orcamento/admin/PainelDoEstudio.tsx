@@ -123,6 +123,7 @@ export default function PainelDoEstudio({
   onEscolherFotos,
   quoteId,
   idioma = IDIOMA_POR_OMISSAO,
+  seccao = null,
 }: {
   /** As páginas com fotografias, pela ordem em que saem. */
   paginas: readonly PaginaParaOPainel[];
@@ -168,6 +169,12 @@ export default function PainelDoEstudio({
   quoteId?: string;
   /** A língua em que o PDF vai sair — a da pré-visualização. */
   idioma?: IdiomaDaProposta;
+  /**
+   * A secção do formulário que está à vista (`useSeccaoAVista`). Fora da
+   * Inspiração, o painel mostra a página que ESSA secção produz — a capa, a
+   * proposta, os serviços, o orçamento — e não a última página de mood board.
+   */
+  seccao?: string | null;
 }) {
   const [vista, setVista] = useState<"pagina" | "documento">("pagina");
 
@@ -252,15 +259,64 @@ export default function PainelDoEstudio({
     const i = plano.findIndex((e) => e.tipo === "tema" && e.bi === aVer.bi && e.parte === 0);
     return i >= 0 ? i + 1 : null;
   })();
+  /* ── A PÁGINA DA SECÇÃO QUE ESTÁ À VISTA ────────────────────────────────
+     Pedido dela (9/11): «à medida que vamos fazendo scroll, as páginas vão
+     mudando». Cada página do plano diz que secção a produz (`seccao`); a
+     secção à vista escolhe a primeira dessas — com três preferências, porque a
+     primeira nem sempre é a que se está a mexer: no Evento a página «A
+     proposta» (o índice vem antes, mas não muda com o que lá se escreve), nas
+     Capas a capa, e no Total a página do total. Numa secção que não tem página
+     (as notas, o envio), fica a última que tinha. */
+  const nDaSeccao = (() => {
+    if (!seccao || seccao === "moodboards") return null;
+    const preferida = PAGINA_PREFERIDA[seccao];
+    let i = preferida ? plano.findIndex((e) => e.tipo === preferida) : -1;
+    if (i < 0) i = plano.findIndex((e) => e.seccao === seccao);
+    return i >= 0 ? i + 1 : null;
+  })();
+  const naInspiracao = seccao === "moodboards" || seccao == null;
+  const nSeguida = naInspiracao ? (nDaPagina ?? nDaSeccao) : nDaSeccao;
+  // A última página seguida, para uma secção sem página (as notas, o envio)
+  // não deixar o painel vazio. Estado derivado acertado no próprio render — o
+  // padrão do React para «lembrar o valor anterior de uma prop».
+  const [ultimaSeguida, setUltimaSeguida] = useState<number | null>(null);
+  if (nSeguida != null && nSeguida !== ultimaSeguida) setUltimaSeguida(nSeguida);
+  /* «Anterior» e «Seguinte» folheiam a partir da que se segue — e a mão larga
+     a página no instante em que ela desce para outra secção. */
+  const [folheada, setFolheada] = useState<{ de: number | null; n: number } | null>(null);
+  const base = nSeguida ?? ultimaSeguida ?? (plano.length ? 1 : null);
+  const nMostrada = folheada && folheada.de === base ? folheada.n : base;
+  const entradaMostrada = nMostrada ? plano[nMostrada - 1] : undefined;
+  /* ── O QUE SE VÊ É O QUE SAI ─────────────────────────────────────────────
+     Palavras dela (9/11): «é mesmo importante que aquilo que se está a ver é
+     aquilo que vai sair». Com um pedido (`quoteId`), o painel mostra SÓ a
+     página real, desenhada pelo motor do PDF — nunca a aproximação feita no
+     navegador, que podia partir uma linha noutro sítio ou escolher outra foto.
+     Enquanto a real não chega: a última real dessa página com «A atualizar…»,
+     ou, na primeira vez, uma folha em branco com o nome dela. A aproximação só
+     fica onde não há pedido nenhum a quem perguntar. */
+  const mostraTema =
+    !quoteId &&
+    !!aVer &&
+    (!entradaMostrada ||
+      (entradaMostrada.tipo === "tema" &&
+        entradaMostrada.bi === aVer.bi &&
+        entradaMostrada.parte === 0));
+  const folhear = (passo: number) => {
+    if (!nMostrada || !plano.length) return;
+    const n = Math.min(plano.length, Math.max(1, nMostrada + passo));
+    setFolheada({ de: base, n });
+  };
+
   const real = usePaginaReal({
     quoteId: cabe && vista === "pagina" ? quoteId : undefined,
     doc,
     idioma,
-    n: nDaPagina,
+    n: nMostrada,
   });
   // A imagem que chegou é desta página? Se ela mudou de página, a anterior
   // seria a página ERRADA — fica a aproximação até a certa chegar.
-  const urlReal = real.url && real.n === nDaPagina ? real.url : null;
+  const urlReal = real.url && real.n === nMostrada ? real.url : null;
   const [emGrande, setEmGrande] = useState(false);
 
   // Não cabe: não há painel nenhum, nem o custo de o desenhar. Ver
@@ -272,7 +328,7 @@ export default function PainelDoEstudio({
       {/* `sticky` e não fixo: acompanha o scroll da coluna do meio sem sair da
           página, e por isso continua a poder ser percorrido no fim do
           formulário como qualquer outra coisa. */}
-      <div className="sticky top-4 flex max-h-[calc(100vh-2rem)] flex-col">
+      <div className="sticky top-[var(--bo-colado-topo)] flex max-h-[var(--bo-colado-altura)] flex-col">
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <p className="bo-eyebrow">O que vai sair</p>
           {/*
@@ -294,7 +350,7 @@ export default function PainelDoEstudio({
           </p>
         </div>
 
-        {paginas.length === 0 ? (
+        {!plano.length && paginas.length === 0 ? (
           <p className="rounded-lg border border-dashed border-[var(--bo-hairline-strong)] px-3 py-6 text-center text-[12px] leading-relaxed text-foreground/45">
             Ainda não há páginas de inspiração.
             <br />
@@ -302,61 +358,63 @@ export default function PainelDoEstudio({
           </p>
         ) : (
           <>
-            <div
-              ref={separadoresRef}
-              role="tablist"
-              aria-label="O que mostrar"
-              /* `relative` porque é ESTA barra o `offsetParent` da marca: as
+            {paginas.length > 0 && (
+              <div
+                ref={separadoresRef}
+                role="tablist"
+                aria-label="O que mostrar"
+                /* `relative` porque é ESTA barra o `offsetParent` da marca: as
                  medidas que o `useMarcaQueAnda` devolve são relativas a ela. */
-              className="relative mb-3 flex gap-1 rounded-lg bg-[var(--bo-tinta-6)] p-0.5"
-            >
-              {/* A marca que anda. `aria-hidden` porque não diz nada que o
+                className="relative mb-3 flex gap-1 rounded-lg bg-[var(--bo-tinta-6)] p-0.5"
+              >
+                {/* A marca que anda. `aria-hidden` porque não diz nada que o
                   `aria-selected` de cada separador não diga melhor — é
                   desenho, não informação. Fica ATRÁS dos botões (eles são
                   `relative`), para o texto continuar por cima do branco.
 
                   `MARCA` traz `motion-safe:` nas duas classes: quem pediu para
                   não animar vê-a mudar de sítio de um fotograma para o outro. */}
-              {marca && (
-                <span
-                  aria-hidden="true"
-                  className={`pointer-events-none absolute left-0 top-0 rounded-[6px] bg-[var(--bo-surface)] ${
-                    podeAndar ? MARCA : ""
-                  }`}
-                  style={{
-                    translate: `${marca.x}px ${marca.y}px`,
-                    width: marca.largura,
-                    height: marca.altura,
-                  }}
-                />
-              )}
-              {(
-                [
-                  ["pagina", "Esta página"],
-                  ["documento", "Todas"],
-                ] as const
-              ).map(([id, rotulo]) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  aria-selected={vista === id}
-                  onClick={() => setVista(id)}
-                  className={`relative flex-1 rounded-[6px] px-2 py-1.5 text-[11px] ${ESTADO} ${PRESSAO} ${
-                    vista === id
-                      ? /* O fundo próprio é a rede de antes de a marca existir
+                {marca && (
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute left-0 top-0 rounded-[6px] bg-[var(--bo-surface)] ${
+                      podeAndar ? MARCA : ""
+                    }`}
+                    style={{
+                      translate: `${marca.x}px ${marca.y}px`,
+                      width: marca.largura,
+                      height: marca.altura,
+                    }}
+                  />
+                )}
+                {(
+                  [
+                    ["pagina", "Esta página"],
+                    ["documento", "Todas"],
+                  ] as const
+                ).map(([id, rotulo]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={vista === id}
+                    onClick={() => setVista(id)}
+                    className={`relative flex-1 rounded-[6px] px-2 py-1.5 text-[11px] ${ESTADO} ${PRESSAO} ${
+                      vista === id
+                        ? /* O fundo próprio é a rede de antes de a marca existir
                            — no servidor, e no fotograma antes da primeira
                            medida. Sai no instante em que ela está no sítio:
                            nunca há dois fundos, e nunca há nenhum. É a mesma
                            regra que o `Segmented` explica por extenso. */
-                        `text-[var(--bo-text)] ${marca ? "" : "bg-[var(--bo-surface)]"}`
-                      : "text-[var(--bo-text-muted)] hover:text-[var(--bo-text)]"
-                  }`}
-                >
-                  {rotulo}
-                </button>
-              ))}
-            </div>
+                          `text-[var(--bo-text)] ${marca ? "" : "bg-[var(--bo-surface)]"}`
+                        : "text-[var(--bo-text-muted)] hover:text-[var(--bo-text)]"
+                    }`}
+                  >
+                    {rotulo}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
               {/* ── E O PAINEL QUE CHEGA APRESENTA-SE ────────────────────────
@@ -376,7 +434,23 @@ export default function PainelDoEstudio({
                   garante que a classe recomeça em vez de o React reaproveitar
                   o nó e a animação nunca correr. */}
               <div key={vista} className="view-in">
-                {vista === "pagina" && aVer ? (
+                {vista === "pagina" && !mostraTema ? (
+                  <PaginaDaSeccao
+                    url={urlReal}
+                    n={nMostrada}
+                    total={real.paginas ?? plano.length}
+                    nome={entradaMostrada?.nome}
+                    aCarregar={real.aCarregar}
+                    falhou={real.falhou}
+                    onAbrir={() => setEmGrande(true)}
+                    onFolhear={folhear}
+                    onEscolherFotos={
+                      onEscolherFotos && entradaMostrada?.tipo === "tema"
+                        ? () => onEscolherFotos(entradaMostrada.bi)
+                        : undefined
+                    }
+                  />
+                ) : vista === "pagina" && aVer ? (
                   <>
                     {urlReal ? (
                       /* A página real, desenhada pelo motor do PDF. Um toque
@@ -384,13 +458,13 @@ export default function PainelDoEstudio({
                       <button
                         type="button"
                         onClick={() => setEmGrande(true)}
-                        aria-label={`Ver a página ${nDaPagina} em grande`}
+                        aria-label={`Ver a página ${nMostrada} em grande`}
                         className={`relative block w-full rounded-[3px] ${ESTADO} ${PRESSAO}`}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={urlReal}
-                          alt={`Página ${nDaPagina} do PDF, como vai sair`}
+                          alt={`Página ${nMostrada} do PDF, como vai sair`}
                           className="block w-full rounded-[3px] border border-[var(--bo-hairline)]"
                         />
                         {real.aCarregar && (
@@ -413,14 +487,13 @@ export default function PainelDoEstudio({
                         )}
                       </div>
                     )}
-                    <p
-                      className="mt-2 text-center text-[11px] text-foreground/45 tabular-nums"
-                      aria-live="polite"
-                    >
-                      {nDaPagina && real.paginas ? `Página ${nDaPagina} de ${real.paginas} · ` : ""}
+                    <Folhear onFolhear={folhear} n={nMostrada} total={real.paginas ?? plano.length}>
+                      {nMostrada && (real.paginas ?? plano.length)
+                        ? `Página ${nMostrada} de ${real.paginas ?? plano.length} · `
+                        : ""}
                       Inspiração {paginas.findIndex((p) => p.bi === aVer.bi) + 1} de{" "}
                       {paginas.length}
-                    </p>
+                    </Folhear>
                     {onEscolherFotos && (
                       <button
                         type="button"
@@ -467,18 +540,140 @@ export default function PainelDoEstudio({
       <FolhaOuDialogo
         aberto={emGrande && !!urlReal}
         onFechar={() => setEmGrande(false)}
-        titulo={nDaPagina ? `Página ${nDaPagina}` : "A página"}
+        titulo={nMostrada ? `Página ${nMostrada}` : "A página"}
         largura="largo"
       >
         {urlReal && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={urlReal}
-            alt={`Página ${nDaPagina} do PDF, como vai sair`}
+            alt={`Página ${nMostrada} do PDF, como vai sair`}
             className="block w-full rounded-[3px] border border-[var(--bo-hairline)]"
           />
         )}
       </FolhaOuDialogo>
     </aside>
+  );
+}
+
+/** Qual das páginas de uma secção é a que ela está a mexer (ver `nDaSeccao`). */
+const PAGINA_PREFERIDA: Record<string, EntradaDoPlano["tipo"]> = {
+  evento: "proposta",
+  capas: "capa",
+  total: "total",
+};
+
+/** A legenda da página, com «anterior» e «seguinte» de cada lado. */
+function Folhear({
+  n,
+  total,
+  onFolhear,
+  children,
+}: {
+  n: number | null;
+  total: number;
+  onFolhear: (passo: number) => void;
+  children: React.ReactNode;
+}) {
+  const seta = `alvo-toque flex h-7 w-7 items-center justify-center rounded-full text-[var(--bo-text-muted)] hover:bg-[var(--bo-tinta-6)] hover:text-[var(--bo-text)] disabled:opacity-30 ${ESTADO} ${PRESSAO}`;
+  return (
+    <div className="mt-2 flex items-center justify-between gap-2">
+      <button
+        type="button"
+        className={seta}
+        onClick={() => onFolhear(-1)}
+        disabled={!n || n <= 1}
+        aria-label="Página anterior"
+      >
+        ‹
+      </button>
+      <p
+        className="min-w-0 text-center text-[11px] text-foreground/45 tabular-nums"
+        aria-live="polite"
+      >
+        {children}
+      </p>
+      <button
+        type="button"
+        className={seta}
+        onClick={() => onFolhear(1)}
+        disabled={!n || n >= total}
+        aria-label="Página seguinte"
+      >
+        ›
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Uma página que não é de mood board — a capa, a proposta, os serviços, o
+ * orçamento. Destas não há aproximação desenhada no navegador: é a página
+ * REAL (o motor do PDF) ou, enquanto não chega, uma folha em branco com o
+ * nome dela, do tamanho exacto da página, para nada saltar quando chega.
+ */
+function PaginaDaSeccao({
+  url,
+  n,
+  total,
+  nome,
+  aCarregar,
+  falhou,
+  onAbrir,
+  onFolhear,
+  onEscolherFotos,
+}: {
+  url: string | null;
+  n: number | null;
+  total: number;
+  nome?: string;
+  aCarregar: boolean;
+  falhou: boolean;
+  onAbrir: () => void;
+  onFolhear: (passo: number) => void;
+  onEscolherFotos?: () => void;
+}) {
+  return (
+    <>
+      {url ? (
+        <button
+          type="button"
+          onClick={onAbrir}
+          aria-label={`Ver a página ${n} em grande`}
+          className={`relative block w-full rounded-[3px] ${ESTADO} ${PRESSAO}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt={`Página ${n} do PDF, como vai sair`}
+            className="block w-full rounded-[3px] border border-[var(--bo-hairline)]"
+          />
+          {aCarregar && (
+            <span className="absolute right-2 top-2 rounded-full bg-[var(--bo-surface)] px-2 py-0.5 text-[10px] text-[var(--bo-text-muted)]">
+              A atualizar…
+            </span>
+          )}
+        </button>
+      ) : (
+        <div className="flex aspect-[1123/794] w-full items-center justify-center rounded-[3px] border border-[var(--bo-hairline)] bg-[var(--bo-tinta-6)] px-4 text-center text-[11px] leading-relaxed text-[var(--bo-text-muted)]">
+          {falhou
+            ? "A página não chegou agora — tenta daqui a pouco"
+            : `A preparar «${nome ?? "a página"}»…`}
+        </div>
+      )}
+      <Folhear n={n} total={total} onFolhear={onFolhear}>
+        {n ? `Página ${n} de ${total}` : ""}
+        {nome ? ` · ${nome}` : ""}
+      </Folhear>
+      {onEscolherFotos && (
+        <button
+          type="button"
+          onClick={onEscolherFotos}
+          className={`mt-3 w-full rounded-lg border border-[var(--bo-hairline-strong)] px-3 py-2 text-[12px] text-[var(--bo-text-muted)] hover:border-sage-600/40 hover:text-[var(--bo-text)] ${ESTADO} ${PRESSAO}`}
+        >
+          Escolher fotografias para esta página
+        </button>
+      )}
+    </>
   );
 }
