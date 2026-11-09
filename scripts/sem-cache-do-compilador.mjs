@@ -20,7 +20,17 @@
  * o back office.
  *
  * A rede do outro lado é o `folhas-que-existem.mjs`: se a folha do back office
- * sair sem os seus tokens, a construção falha e nada é publicado.
+ * sair sem os seus tokens, a construção falha e nada é publicado. *
+ * ── E CORRE OUTRA VEZ NO FIM (9/11) ─────────────────────────────────────
+ *
+ * Ela: «melhorar ainda mais os custos da Vercel para cada vez custar menos».
+ * A Vercel guarda a `.next/cache` no fim de cada construção e envia-a para a
+ * seguinte — na de 6/11 foram 931 MB, 12 s a juntar e 16 s a enviar, pagos
+ * como minutos de construção. A parte do compilador ia lá dentro e era
+ * apagada no arranque da construção seguinte, sem nunca ser lida. Apagá-la
+ * também no fim (último passo do `build`, depois do `folhas-que-existem`)
+ * tira-a da cache que se envia e da que se repõe. O resultado é o mesmo:
+ * cada construção continua a compilar do zero.
  */
 import { rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
