@@ -90,8 +90,15 @@ interface Props {
    * `cartao` é a versão apertada, que vive no rodapé de um cartão da lista;
    * `painel` é a que abre o pedido. Só muda o tamanho e o espaçamento — as
    * palavras e o gesto são os mesmos nos dois sítios, de propósito.
+   *
+   * `linha` é a da TABELA de pedidos, no computador. Vive debaixo da pastilha
+   * do estado, numa célula de 9rem, e a do cartão não cabia lá: o traço por
+   * cima, a pergunta escrita e dois botões soltos faziam cada linha dobrar de
+   * altura e ficar torta — palavras dela, «está assim tipo em cima das
+   * coisas». Aqui são dois botões colados num só controlo, da altura de uma
+   * pastilha, e a pergunta passa a ser o nome do grupo.
    */
-  variante?: "cartao" | "painel";
+  variante?: "cartao" | "painel" | "linha";
 }
 
 export default function PerguntaDeDesfecho({ quote, quem, onGravado, variante = "cartao" }: Props) {
@@ -118,7 +125,8 @@ export default function PerguntaDeDesfecho({ quote, quem, onGravado, variante = 
   // opcional e vem DEPOIS) desapareciam no mesmo instante em que aparecem.
   if (!faltaODesfecho(quote) && !jaMarcado) return null;
 
-  const compacto = variante === "cartao";
+  const linha = variante === "linha";
+  const compacto = variante !== "painel";
 
   /**
    * ════════════════════════════════════════════════════════════════════════
@@ -238,7 +246,13 @@ export default function PerguntaDeDesfecho({ quote, quem, onGravado, variante = 
 
   return (
     <div
-      className={`${compacto ? "mt-3 pt-3 border-t border-[var(--bo-hairline)]" : "rounded-xl border border-sage-600/25 bg-sage-600/[0.04] p-4"}`}
+      className={
+        linha
+          ? "mt-1.5"
+          : compacto
+            ? "mt-3 pt-3 border-t border-[var(--bo-hairline)]"
+            : "rounded-xl border border-sage-600/25 bg-sage-600/[0.04] p-4"
+      }
       // O gesto vive dentro de cartões que são eles próprios um botão de abrir.
       // Sem isto, tocar em «Ganho» abria o pedido por baixo da marcação.
       onClick={(e) => e.stopPropagation()}
@@ -337,6 +351,51 @@ export default function PerguntaDeDesfecho({ quote, quem, onGravado, variante = 
               </div>
             ))}
         </div>
+      ) : linha &&
+        (fase.tipo === "quanto" || (fase.tipo === "a-gravar" && fase.desfecho === "ganho")) ? (
+        /* Na tabela, o valor cabe numa linha: o campo, um «Confirmar» e um
+           «Cancelar». A frase que explica de onde vem o número fica no
+           `title` — na tabela não há altura para ela, e o número que lá está
+           escrito já é o da proposta enviada. */
+        <div className="flex flex-wrap items-center gap-1.5">
+          <input
+            autoFocus
+            type="text"
+            inputMode="decimal"
+            value={escrito}
+            onChange={(e) => {
+              setEscrito(e.target.value);
+              setAviso(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") confirmarGanho();
+              if (e.key === "Escape") setFase({ tipo: "pergunta" });
+            }}
+            aria-label="Valor combinado (sem IVA) €"
+            title="É o valor da proposta enviada. Se houve negociação, corrige aqui"
+            placeholder="Ex.: 4.600"
+            className="bo-input w-[6.5rem] px-2 py-1 text-xs tabular-nums text-[var(--bo-text)]"
+          />
+          <button
+            type="button"
+            onClick={confirmarGanho}
+            disabled={fase.tipo === "a-gravar"}
+            className={`alvo-toque h-6 rounded-full bg-sage-600 px-2.5 text-[11px] font-medium text-white hover:bg-[var(--bo-accent-hover)] disabled:opacity-50 ${ESTADO} ${PRESSAO}`}
+          >
+            {fase.tipo === "a-gravar" ? "A marcar…" : "Confirmar"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEscrito(textoDoValor(quote));
+              setAviso(null);
+              setFase({ tipo: "pergunta" });
+            }}
+            className={`alvo-toque h-6 px-1 text-[11px] text-[var(--bo-text-muted)] hover:text-[var(--bo-text)] ${ESTADO} ${PRESSAO}`}
+          >
+            Cancelar
+          </button>
+        </div>
       ) : fase.tipo === "quanto" || (fase.tipo === "a-gravar" && fase.desfecho === "ganho") ? (
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-end gap-2">
@@ -392,6 +451,41 @@ export default function PerguntaDeDesfecho({ quote, quem, onGravado, variante = 
             É o valor da proposta enviada. Se houve negociação, corrige aqui — é este que passa a
             contar como ganho.
           </p>
+        </div>
+      ) : linha ? (
+        /* ── DOIS BOTÕES, UM CONTROLO ──────────────────────────────────────
+           Da altura da pastilha que está por cima, e com a mesma forma: lê-se
+           como uma segunda pastilha que se pode tocar, e não como um bloco
+           que caiu em cima da linha. O verde só no «Ganho» — é o gesto que se
+           espera, e o «Perdido» fica ao lado, sem gritar. */
+        <div
+          role="group"
+          aria-label="Já responderam?"
+          title="Já responderam?"
+          className="inline-flex h-6 items-stretch overflow-hidden rounded-full border border-[var(--bo-hairline-strong)] text-[11px] font-medium"
+        >
+          <button
+            type="button"
+            disabled={fase.tipo === "a-gravar"}
+            onClick={() => {
+              setAviso(null);
+              setFase({ tipo: "quanto" });
+            }}
+            className={`alvo-toque inline-flex items-center gap-1 px-2.5 text-sage-600 hover:bg-sage-600/10 disabled:opacity-50 ${ESTADO} ${PRESSAO}`}
+          >
+            <span aria-hidden="true">✓</span>
+            Ganho
+          </button>
+          <span aria-hidden="true" className="w-px bg-[var(--bo-hairline-strong)]" />
+          <button
+            type="button"
+            disabled={fase.tipo === "a-gravar"}
+            onClick={() => void marcar("perdido")}
+            className={`alvo-toque inline-flex items-center gap-1 px-2.5 text-[var(--bo-text-muted)] hover:bg-[var(--bo-tinta-6)] hover:text-[var(--bo-text)] disabled:opacity-50 ${ESTADO} ${PRESSAO}`}
+          >
+            <span aria-hidden="true">✕</span>
+            {fase.tipo === "a-gravar" ? "A marcar…" : "Perdido"}
+          </button>
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
