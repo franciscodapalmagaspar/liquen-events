@@ -4,15 +4,34 @@ import { SITE } from "@/lib/site";
 import { SERVICES } from "@/lib/services-data";
 import { PHOTOS } from "@/app/[lang]/(site)/galeria/photos-data";
 import { POLOS, ESTILOS, caminhoPolo } from "@/lib/ads/polos";
+import { galleryKey } from "@/app/[lang]/(site)/galeria/gallery-image-loader";
 
 const base = SITE.url;
 
 // Absolute URL for an image in /public/imagens (ASCII names only — see the
 // project notes on the optimizer 400ing on accented/space filenames).
-const img = (file: string) => `${base}/imagens/${file}`;
+/**
+ * ── AS FOTOGRAFIAS DO SITEMAP SÃO AS QUE O SITE SERVE (9/11) ─────────────
+ *
+ * Eram os ORIGINAIS (`/imagens/…`, 342 MB, 1 058 ficheiros) — e eram a única
+ * coisa que obrigava a pôr os 1 058 em cada publicação da Vercel: nenhuma
+ * página os pede (medido, página a página, com a lupa da galeria incluída);
+ * o site mostra sempre as versões de `/_img/g/`, que o `pregen-gallery` gera
+ * de TODOS os originais. Ela pediu menos custo de Vercel e disse «sim, faz
+ * isso dos originais». O Google passa a indexar a versão de 1280 px, que é a
+ * maior que o site tem.
+ *
+ * O `scripts/so-originais-precisos.mjs` tira das publicações os originais a
+ * que já nada se refere. Os que o código cita (OG, anúncios, JSON-LD) ficam.
+ */
+export const LARGURA_DO_SITEMAP = 1280;
+export const imagemDoSitemap = (src: string): string =>
+  src.startsWith("/imagens/") ? `/_img/g/${galleryKey(src)}-${LARGURA_DO_SITEMAP}.webp` : src;
+
+const img = (file: string) => `${base}${imagemDoSitemap(`/imagens/${file}`)}`;
 
 // Absolutise a "/imagens/…"-style public path into a full URL for the sitemap.
-const abs = (src: string) => (src.startsWith("http") ? src : `${base}${src}`);
+const abs = (src: string) => (src.startsWith("http") ? src : `${base}${imagemDoSitemap(src)}`);
 
 // Every gallery photo, as absolute URLs, so Google discovers the whole
 // portfolio for Google Images (not just a hand-picked few). Google allows up
