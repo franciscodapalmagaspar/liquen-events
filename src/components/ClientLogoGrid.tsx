@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useRef, useState } from "react";
+import { FILTRO_DA_TINTA, TintaDosLogotipos } from "./TintaDosLogotipos";
 import { useImageErrorRef } from "./SafeImage";
 import { logoHeight, logoDimsFor, logoSizes } from "@/lib/logo";
 import { useIsomorphicLayoutEffect } from "@/lib/motion/useIsomorphicLayoutEffect";
@@ -18,7 +19,7 @@ function ClientLogo({ client, index }: { client: Client; index: number }) {
   // Mesmo peso à vista para todos (ela, 17/10): a altura vem da área E da tinta
   // de cada logótipo (ver logoHeight). Limites largos — 22 a 72 px — porque é
   // a tinta, e não um tecto, que deve igualar o José de Mello e a Deloitte.
-  const h = logoHeight(client.logo, 3000, 22, 72);
+  const h = logoHeight(client.logo, 3000, 14, 72);
   const d = logoDimsFor(client.logo);
 
   return (
@@ -49,8 +50,8 @@ function ClientLogo({ client, index }: { client: Client; index: number }) {
               // Flat black silhouette (brightness-0) — encoder quality is
               // imperceptible, so 50 trims the bytes of ~20 logos on /clientes.
               quality={50}
-              style={{ height: `${h}px` }}
-              className="cl-black object-contain w-auto max-w-full brightness-0"
+              className="cl-black object-contain w-auto max-w-full"
+              style={{ height: `${h}px`, filter: FILTRO_DA_TINTA }}
               // O erro é ouvido pela `ref` e NÃO pelo `onError` do next/image.
               // Passar `onError` faz o next/image reatribuir `img.src = img.src` na
               // montagem (image-component.js:140) para ressuscitar um erro anterior à
@@ -123,6 +124,7 @@ export default function ClientLogoGrid({ clients }: { clients: Client[] }) {
 
   return (
     <div ref={gridRef} className="flex flex-wrap justify-center">
+      <TintaDosLogotipos />
       {clients.map((client, i) => (
         <ClientLogo key={client.name} client={client} index={i} />
       ))}
