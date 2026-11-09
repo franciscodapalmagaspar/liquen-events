@@ -2167,8 +2167,13 @@ export default function Temas() {
                   role="group"
                   aria-label="Tamanho dos cartões"
                   /* `min-h-10`, e os botões esticam: a moldura de 1 px
-                     está DENTRO dos 40, como nos outros controlos da fila. */
-                  className="flex min-h-10 overflow-hidden rounded-lg border border-[var(--bo-hairline-strong)]"
+                     está DENTRO dos 40, como nos outros controlos da fila.
+
+                     `hidden sm:flex` (9/11): abaixo de 640 px as duas
+                     densidades dão a MESMA grelha de duas colunas (ver
+                     `COLUNAS`) — o botão não mudava nada no telemóvel, e
+                     empurrava o «⋯» e o «Novo tema» para uma terceira linha. */
+                  className="hidden min-h-10 sm:flex overflow-hidden rounded-lg border border-[var(--bo-hairline-strong)]"
                 >
                   {(
                     [
@@ -2614,8 +2619,15 @@ export default function Temas() {
                    «todos os cartões da mesma fila têm a mesma altura»
                    (critério 2 da Parte 8) só se cumpre se o cartão encher a
                    célula — medido a 1440, a primeira fila tinha fundos a 508,
-                   523 e 525 px. */
-                className={`block h-full w-full overflow-hidden rounded-tile bg-[var(--bo-surface)] text-left shadow-[var(--bo-sombra-repouso)] hover:shadow-[var(--bo-sombra-erguida)] ${ESTADO} ${PRESSAO}`}
+                   523 e 525 px.
+
+                   `flex flex-col` (9/11): um `<button>` CENTRA o que tem dentro
+                   na vertical. Com o `h-full` a esticar todos à altura do mais
+                   alto da fila, os cartões mais baixos punham a fotografia uns
+                   9 px abaixo do topo — uma faixa branca por cima da capa em
+                   uns cartões e não noutros. Em coluna, o conteúdo fica
+                   encostado ao topo e a sobra vai para o fundo. */
+                className={`flex h-full w-full flex-col items-stretch justify-start overflow-hidden rounded-tile bg-[var(--bo-surface)] text-left shadow-[var(--bo-sombra-repouso)] hover:shadow-[var(--bo-sombra-erguida)] ${ESTADO} ${PRESSAO}`}
               >
                 {/* A moldura é 4:3 SEMPRE, aconteça o que acontecer lá dentro: é
                   ela que mantém a primeira linha alinhada quando as fotos têm
@@ -2773,9 +2785,17 @@ export default function Temas() {
                       o terceiro papel de texto da casa
                       (`--bo-texto-terciario`, 4,7:1 sobre o cartão branco e
                       5,7:1 sobre o escuro, os números da Parte 5.2). */}
-                  <p className="mt-0.5 line-clamp-2 text-caption tabular-nums text-[var(--bo-texto-terciario)]">
-                    {photoCountLabel(t.imageCount, t.truncated)}
-                    {/* «7 propostas» ou «Nunca usado» — a segunda é a metade
+                  {/* ── DUAS LINHAS FIXAS (9/11) ──────────────────────────
+                      Era um rasto só, que partia onde calhava: «3 fotos · 2
+                      propostas · há 6 / dias · ★» num cartão, «10 fotos ·
+                      Nunca usado · / 09/10/2026» no vizinho, uma linha no
+                      terceiro — e a fila deixava de alinhar. Agora a primeira
+                      linha diz o que o tema TEM e quanto SAIU; a segunda,
+                      QUANDO lhe tocaram (e a estrela). Cada uma numa linha. */}
+                  <p className="mt-0.5 text-caption tabular-nums text-[var(--bo-texto-terciario)]">
+                    <span className="block truncate">
+                      {photoCountLabel(t.imageCount, t.truncated)}
+                      {/* «7 propostas» ou «Nunca usado» — a segunda é a metade
                         mais útil: é o que distingue um tema que a biblioteca
                         TEM de um tema que o estúdio USA. Só entra quando a
                         contagem chegou (vem de outro pedido, depois dos
@@ -2787,12 +2807,14 @@ export default function Temas() {
                         fila. Agora é também o nome de um âmbito da barra —
                         «Por usar» —, e o rasto do cartão e o filtro dizem a
                         mesma coisa com as mesmas palavras. */}
-                    {usos
-                      ? usos[t.id]
-                        ? ` · ${plural(usos[t.id], "proposta", "propostas")}`
-                        : " · Nunca usado"
-                      : ""}
-                    {/* NÃO aparece quando a pasta não pôde ser lida: «Fotos
+                      {usos
+                        ? usos[t.id]
+                          ? ` · ${plural(usos[t.id], "proposta", "propostas")}`
+                          : " · Nunca usado"
+                        : ""}
+                    </span>
+                    <span className="block min-h-[1lh] truncate">
+                      {/* NÃO aparece quando a pasta não pôde ser lida: «Fotos
                         indisponíveis · há 2 meses» mistura um aviso com uma
                         informação de rotina, e é o aviso que tem de se ler.
 
@@ -2805,23 +2827,22 @@ export default function Temas() {
                         casamento dos Ferreira?». A partir dos 30 dias a
                         própria linha passa a dizer a data — ver
                         `desdeQuando`. */}
-                    {t.imageCount !== null && desdeQuando(t.updatedAt) ? (
-                      <span title={dataPorExtenso(t.updatedAt)}>
-                        {` · ${desdeQuando(t.updatedAt)}`}
-                      </span>
-                    ) : null}
-                    {/* A BANDEIRA DO FAVORITO (era «Fixado no topo»; a palavra
+                      {t.imageCount !== null && desdeQuando(t.updatedAt) ? (
+                        <span title={dataPorExtenso(t.updatedAt)}>{desdeQuando(t.updatedAt)}</span>
+                      ) : null}
+                      {/* A BANDEIRA DO FAVORITO (era «Fixado no topo»; a palavra
                         passou a ser a do menu e do filtro), que era o chip aceso por cima da
                         fotografia. Fica no fim da linha, como no desenho do
                         `ThemeCard` (Parte 3), e leva nome escrito: um glifo
                         sozinho não diz nada a quem ouve o ecrã. */}
-                    {t.favorito ? (
-                      <span className="text-[var(--bo-accent)]">
-                        {" · "}
-                        <span aria-hidden="true">★</span>
-                        <span className="sr-only">Favorito</span>
-                      </span>
-                    ) : null}
+                      {t.favorito ? (
+                        <span className="text-[var(--bo-accent)]">
+                          {t.imageCount !== null && desdeQuando(t.updatedAt) ? " · " : ""}
+                          <span aria-hidden="true">★</span>
+                          <span className="sr-only">Favorito</span>
+                        </span>
+                      ) : null}
+                    </span>
                   </p>
                   {/* ── UMA RESSALVA DE CADA VEZ ────────────────────────
                       Duas notas apagadas empilhadas leem-se como nenhuma. Este
@@ -6168,8 +6189,16 @@ function ThemeFolder({
                página. Contínuo e não tracejado, que é a diferença entre uma
                moldura e um convite.
 
-           A `bo-cena` não entra aqui: ver a nota do split view. */
-        className={`@container rounded-2xl border p-4 ${ESTADO} ${
+           A `bo-cena` não entra aqui: ver a nota do split view.
+
+           ── A GRELHA ALINHA COM O RESTO DA PÁGINA (9/11) ──────────────────
+           A moldura tem `p-4` para o realce do arrasto ter onde respirar, e
+           com isso as fotografias ficavam 17 px para dentro do título e da
+           margem — no telemóvel começavam aos 34 px quando tudo o resto
+           começa aos 16. `-mx-4 -mt-4` devolve esses 16 px: as fotografias
+           alinham com o título, e o realce do arrasto estende-se 16 px para
+           fora delas, como na app Fotografias. */
+        className={`@container -mx-4 -mt-4 rounded-2xl border p-4 ${ESTADO} ${
           drag
             ? "border-dashed border-sage-600/60 bg-sage-600/[0.06]"
             : images.length === 0 && pending.length === 0

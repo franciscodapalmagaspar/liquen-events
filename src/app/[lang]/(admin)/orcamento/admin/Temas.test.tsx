@@ -1422,7 +1422,7 @@ describe("Biblioteca de Temas — o cartão", () => {
     ).toEqual([]);
     // Duas entrelinhas do `text-headline` (1,375rem) = 2,75rem = `min-h-11`.
     expect(t).toContain("min-h-11");
-    const rasto = screen.getByText(/9 fotos/);
+    const rasto = screen.getByText(/9 fotos/).closest("p")!;
     const r = rasto.className.split(/\s+/);
     expect(r).toEqual(
       expect.arrayContaining(["tabular-nums", "text-caption", "text-[var(--bo-texto-terciario)]"]),
@@ -1437,13 +1437,15 @@ describe("Biblioteca de Temas — o cartão", () => {
     renderTemas();
     await acharCartaoDoTema(/Terracotta/);
     await act(async () => {});
-    // Um rasto só: fotos, uso, e a data por último. Parte-se em duas linhas
-    // quando não cabe (o desenho da Parte 3), em vez de cortar a data a meio.
-    const rasto = screen.getByText(/9 fotos · 4 propostas/);
-    expect(rasto.className).toMatch(/\bline-clamp-2\b/);
-    expect(rasto.className, "`truncate` cortava a data absoluta a meio").not.toMatch(
-      /\btruncate\b/,
-    );
+    // Duas linhas FIXAS (9/11): fotos e uso na primeira, a data sozinha na
+    // segunda. O rasto único partia onde calhava — «há 6 / dias» num cartão,
+    // «· / 09/10/2026» no vizinho — e a fila desalinhava. A data tem a linha
+    // dela inteira, por isso não se corta a meio.
+    const primeira = screen.getByText(/9 fotos · 4 propostas/);
+    expect(primeira.textContent).not.toMatch(/há|\d{2}\/\d{2}/);
+    const linhas = [...primeira.closest("p")!.children];
+    expect(linhas).toHaveLength(2);
+    for (const l of linhas) expect(l.className).toMatch(/\bblock\b/);
   });
 
   it("o cartão enche a célula da grelha, para a fila ter uma altura só", async () => {
