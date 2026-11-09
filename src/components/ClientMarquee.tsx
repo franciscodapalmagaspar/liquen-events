@@ -7,11 +7,12 @@ import { clientLogos } from "@/data";
 import { caixaNaParede, logoDimsFor, logoSizes } from "@/lib/logo";
 import { prefersReducedMotion } from "@/lib/motion/useReducedMotion";
 import { useTranslations } from "./LocaleProvider";
+import { FILTRO_DA_TINTA, TintaDosLogotipos } from "./TintaDosLogotipos";
 
 /**
  * Scrolling band of client logos on the homepage. Each logo is drawn with the
  * SAME box it has on the /clientes wall at the same screen width
- * (`caixaNaParede` + the cell's cap, `--fita-largura`), scaled down by one
+ * (`caixaNaParede`, without the wall's cell cap since 9/11), scaled down by one
  * number for the whole band (`--fita-escala`). A missing logo falls back to
  * the client name.
  *
@@ -49,7 +50,7 @@ function Mark({
 
   const d = logoDimsFor(logo);
   // A largura natural na parede, antes da trava da célula. A trava entra no
-  // CSS (`--fita-largura`, a da parede no mesmo degrau), e a altura sai da
+  // CSS da parede, mas a fita deixou de a usar a 9/11 (ver abaixo), e a altura sai da
   // proporção do logótipo.
   const natural = caixaNaParede(logo, Infinity).largura;
 
@@ -72,15 +73,24 @@ function Mark({
         // is imperceptible — 50 just trims the bytes of every logo in the strip.
         quality={50}
         // A caixa da parede NO MESMO ECRÃ, à escala da fita: a largura natural
-        // travada como a célula da parede a trava (`--fita-largura`), e a
+        // (sem a trava da célula — ver a nota de 9/11 logo abaixo), e a
         // altura pela proporção. Sem tecto de altura: era isso que, antes de
         // #282, punha todos à mesma altura.
+        //
+        // ── SEM A TRAVA DA CÉLULA, DESDE 9/11 ─────────────────────────────
+        // Ela: «a barra ainda não tem os logos todos no mesmo tamanho». A trava
+        // é da GRELHA de /clientes (uma célula de 2 colunas ao telemóvel); a fita
+        // não tem células, e ao telemóvel a trava cortava a Mainova, a
+        // Pérez-Llorca, o José de Mello e a Aernnova a metade da tinta dos
+        // outros. Sem ela, a fita fica com a mesma tinta em todos (logo.ts,
+        // `PESO_DA_TINTA`); a parede continua travada pela sua célula.
         style={{
-          width: `calc(min(${Math.round(natural * 10) / 10}px, var(--fita-largura)) * var(--fita-escala))`,
+          width: `calc(${Math.round(natural * 10) / 10}px * var(--fita-escala))`,
           height: "auto",
           aspectRatio: `${d[0]} / ${d[1]}`,
+          filter: FILTRO_DA_TINTA,
         }}
-        className="object-contain opacity-100 transition-opacity duration-300 brightness-0"
+        className="object-contain opacity-100 transition-opacity duration-300"
         // O erro é ouvido pela `ref` e NÃO pelo `onError` do next/image.
         // Passar `onError` faz o next/image reatribuir `img.src = img.src` na
         // montagem (image-component.js:140) para ressuscitar um erro anterior à
@@ -118,6 +128,37 @@ function Mark({
  */
 const PIXEIS_POR_SEGUNDO = 110;
 
+/**
+ * ── OS QUE ANDAM SEMPRE JUNTOS (9/11) ──────────────────────────────────────
+ * Ela: «coloca a Torre de Palma ao lado da Deloitte na barra». A ordem é
+ * sorteada a cada visita (ver o efeito no componente), e um sorteio simples
+ * separava-os. Cada par entra no sorteio como UM lugar só, e sai lado a lado.
+ */
+export const PARES_NA_FITA: ReadonlyArray<readonly [string, string]> = [
+  ["Deloitte", "Torre de Palma Wine Hotel"],
+];
+
+/** Baralha os clientes, mantendo cada par de `PARES_NA_FITA` lado a lado. */
+export function sortearComPares<T extends { name: string }>(
+  lista: readonly T[],
+  aleatorio: () => number = Math.random,
+): T[] {
+  const segundos = new Map(PARES_NA_FITA.map(([a, b]) => [a, b]));
+  const emPar = new Set(PARES_NA_FITA.map(([, b]) => b));
+  const blocos: T[][] = [];
+  for (const c of lista) {
+    if (emPar.has(c.name) && lista.some((x) => segundos.get(x.name) === c.name)) continue;
+    const segundo = segundos.get(c.name);
+    const par = segundo ? lista.find((x) => x.name === segundo) : undefined;
+    blocos.push(par ? [c, par] : [c]);
+  }
+  for (let i = blocos.length - 1; i > 0; i--) {
+    const j = Math.floor(aleatorio() * (i + 1));
+    [blocos[i], blocos[j]] = [blocos[j], blocos[i]];
+  }
+  return blocos.flat();
+}
+
 export default function ClientMarquee() {
   const { t } = useTranslations();
   const trackRef = useRef<HTMLDivElement>(null);
@@ -144,13 +185,8 @@ export default function ClientMarquee() {
   // reshuffles after mount; the marquee still cycles the full set within a view.
   const [order, setOrder] = useState(clientLogos);
   useEffect(() => {
-    const a = [...clientLogos];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOrder(a);
+    setOrder(sortearComPares(clientLogos));
   }, []);
 
   /**
@@ -207,14 +243,16 @@ export default function ClientMarquee() {
 
   return (
     /**
-     * `--fita-escala`: a parede de /clientes em ponto pequeno. `--fita-largura`:
-     * a trava da célula da parede no mesmo degrau (2/11 — sem ela os wordmarks
-     * ficavam enormes e os outros pequeninos). Os números estão em
-     * `ESCALA_DA_FITA` e `travaEmCss` (logo.ts), e um teste prende-os.
+     * `--fita-escala`: a parede de /clientes em ponto pequeno. A escala está em
+     * `ESCALA_DA_FITA` (logo.ts), e um teste prende-a. A `--fita-largura` (a
+     * trava da célula da parede, 2/11) saiu a 9/11: com a tinta compensada por
+     * inteiro, já não há wordmarks enormes a travar, e a trava cortava-os a
+     * metade da tinta dos outros ao telemóvel.
      */
-    <div className="relative min-h-16 py-3 [--fita-escala:0.75] [--fita-largura:calc(((100vw_-_48px)/2_-_32px)*0.68)] sm:min-h-[4.5rem] sm:[--fita-escala:0.8] sm:[--fita-largura:calc(((100vw_-_48px)/3_-_40px)*0.68)] lg:[--fita-escala:0.85] lg:[--fita-largura:calc(((100vw_-_128px)/4_-_40px)*0.68)] xl:[--fita-largura:calc(((min(100vw,1280px)_-_128px)/5_-_40px)*0.68)] border-y border-foreground/8 overflow-hidden flex items-center">
+    <div className="relative min-h-16 py-3 [--fita-escala:0.75] sm:min-h-[4.5rem] sm:[--fita-escala:0.8] lg:[--fita-escala:0.85] border-y border-foreground/8 overflow-hidden flex items-center">
       {/* sr-only heading so heading-navigation users find the client band. */}
       <h2 className="sr-only">{t.nav.clientes}</h2>
+      <TintaDosLogotipos />
       <div className="absolute inset-y-0 left-0 w-16 sm:w-24 bg-gradient-to-r from-surface to-transparent z-10 pointer-events-none" />
       <div className="absolute inset-y-0 right-0 w-16 sm:w-24 bg-gradient-to-l from-surface to-transparent z-10 pointer-events-none" />
       <div

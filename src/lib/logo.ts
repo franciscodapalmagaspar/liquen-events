@@ -21,8 +21,18 @@ const DIMS = logoDims as Record<string, number[]>;
 
 /** A tinta de um logótipo «médio» da parede (a mediana, medida a 17/10). */
 const DENSIDADE_DE_REFERENCIA = 0.28;
-/** Quanto a tinta pesa na altura: 0 ignora-a, 0,5 compensa-a por inteiro. */
-const PESO_DA_TINTA = 0.4;
+/**
+ * Quanto a tinta pesa na altura: 0 ignora-a, 0,5 compensa-a por inteiro.
+ *
+ * ── POR INTEIRO, DESDE 9/11 ───────────────────────────────────────────────
+ * Ela, com a captura da fita: «a barra ainda não tem os logos todos no mesmo
+ * tamanho». MEDIDO à largura do computador, com 0,4: a tinta à vista ia de 229
+ * (o Convento) a 1 005 (a Deloitte) — quatro vezes. A Deloitte, letra grossa de
+ * ponta a ponta, não descia por causa do mínimo de 22 px de altura. Com 0,5 e o
+ * mínimo a 14 px, todos os que cabem na caixa ficam com a MESMA tinta (607); só
+ * o Convento e a Torre de Palma, altos e com muito ar, param no máximo da altura.
+ */
+const PESO_DA_TINTA = 0.5;
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -41,7 +51,7 @@ const PESO_DA_TINTA = 0.4;
  * banda: 0,5 no telemóvel, 0,62 a partir de `sm`, 0,72 a partir de `lg`). A proporção entre quaisquer
  * dois logótipos é a mesma nos dois sítios.
  */
-export const PAREDE = { area: 3000, min: 22, max: 72, larguraMax: 194 } as const;
+export const PAREDE = { area: 3000, min: 14, max: 72, larguraMax: 194 } as const;
 
 /** A altura de um logótipo na parede, antes da trava de largura da célula. */
 export function alturaNaParede(src: string): number {
