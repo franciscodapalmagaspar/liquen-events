@@ -32,7 +32,7 @@ enviadas; a barra de baixo («Fica a barra de baixo»); a regra única do envio
 | 2 | Orçamento: o que o cliente vê, o resumo, e o que é só para nós separados | **parcial** — PR #389: a ordem (linhas → valores adicionais → total → só para nós) e as palavras «Total e validade» / «Como entram no total». Falta: o resumo colado às linhas e as palavras «Como escala» e «Extra» |
 | 3 | Inspiração: começar é óbvio, cada mood board lê-se de relance | **parcial** — PR #389: sem mood boards, um começo com o que é e «Começar um mood board»; «À escolha do casal» só depois. A «Vista de conjunto» FICA (tem o «Mudar fotografia» de cada página, que o painel não tem). Falta: o cartão de cada mood board |
 | 4 | Serviços e Evento: grupos e linhas que se leem como uma lista | por fazer |
-| 5 | Rever e enviar: o que falta primeiro, depois o PDF, depois o email | por fazer |
+| 5 | Rever e enviar: o que falta primeiro | **parcial** — PR #389: a Conferência mostra só o que trava e o que é para olhar; as conferidas dobram-se numa linha. A ORDEM do passo não mudou: «Por onde segue» em cima foi pedido dela a 14/10 |
 
 ### Onde a fase 1 se afastou do plano
 
