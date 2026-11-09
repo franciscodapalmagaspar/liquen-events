@@ -28,6 +28,7 @@ enviadas; a barra de baixo («Fica a barra de baixo»); a regra única do envio
 | Fase | O quê | Estado |
 |---|---|---|
 | 0 | A página ao lado: não cortada, segue o scroll, só a real, 1 s | **feito** — PR #389 |
+| 0b | A página ao lado «ultra rápida» (9/11): a primeira pede-se logo; as outras preparam-se sozinhas; nunca uma folha em branco quando já houve imagem; reabrir não pede nada | **feito** — `usePaginaReal.ts` (medido em local: página seguinte 0,1 s; depois de escrever 0,6 s; reabrir 0 pedidos) |
 | 1 | A moldura: menos coisas antes do formulário | **feito** — PR #389 (ver em baixo) |
 | 2 | Orçamento: o que o cliente vê, o resumo, e o que é só para nós separados | **parcial** — PR #389: a ordem (linhas → valores adicionais → total → só para nós) e as palavras «Total e validade» / «Como entram no total». Falta: o resumo colado às linhas e as palavras «Como escala» e «Extra» |
 | 3 | Inspiração: começar é óbvio, cada mood board lê-se de relance | **parcial** — PR #389: sem mood boards, um começo com o que é e «Começar um mood board»; «À escolha do casal» só depois. A «Vista de conjunto» FICA (tem o «Mudar fotografia» de cada página, que o painel não tem). Falta: o cartão de cada mood board |
