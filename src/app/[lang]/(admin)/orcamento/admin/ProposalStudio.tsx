@@ -9275,7 +9275,16 @@ export default function ProposalStudio({
                   defeito que o `useMedida.ts:16-21` conta por extenso. Aqui
                   seria uma tira de `overflow-x-auto` espremida em 176 px de um
                   lado, e um índice vertical à largura toda do outro. */}
-                <div className="@min-[40rem]:grid @min-[40rem]:grid-cols-[11rem_minmax(0,1fr)] @min-[40rem]:gap-5">
+                {/* Sem mood boards o índice não desenha nada, e a grelha dava a
+                    coluna de 11 rem ao conteúdo — o começo nascia espremido
+                    nela. A grelha só existe quando há o que indexar. */}
+                <div
+                  className={
+                    doc.moodBoards.length > 0
+                      ? "@min-[40rem]:grid @min-[40rem]:grid-cols-[11rem_minmax(0,1fr)] @min-[40rem]:gap-5"
+                      : undefined
+                  }
+                >
                   <MoodBoardIndice
                     boards={doc.moodBoards}
                     ordem={ordemDosBoards}
@@ -9899,14 +9908,37 @@ export default function ProposalStudio({
                         })}
                       </ListaDeBoards>
                     </ArrastoDosMoodBoards>
+                    {/* ── O COMEÇO, QUANDO AINDA NÃO HÁ NADA ─────────────────────
+                      Pedido dela de 9/11: «mesmo a parte da inspiração está uma
+                      confusão». Sem mood boards, o passo abria com um
+                      «+ Adicionar mood board» do tamanho de uma ligação, e a
+                      primeira coisa grande era «À escolha do casal», que só
+                      faz sentido depois. Agora a primeira coisa é dizer o que
+                      é isto e um botão a sério para começar. */}
+                    {doc.moodBoards.length === 0 && (
+                      <div className="mt-2 rounded-2xl border border-dashed border-[var(--bo-hairline-strong)] px-5 py-8 text-center">
+                        <p className="text-sm font-medium text-[var(--bo-text)]">
+                          Ainda não há inspiração nesta proposta
+                        </p>
+                        <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-[var(--bo-text-muted)]">
+                          Cada mood board é uma página do PDF com um título (por exemplo
+                          «Cerimónia») e as fotografias que mostram a ideia ao casal.
+                        </p>
+                        <div className="mt-4 flex justify-center">
+                          <Button onClick={addBoard}>Começar um mood board</Button>
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-3 flex flex-wrap items-center gap-4">
-                      <button
-                        type="button"
-                        className={`${ADD_BTN} ${ESTADO} ${PRESSAO}`}
-                        onClick={addBoard}
-                      >
-                        + Adicionar mood board
-                      </button>
+                      {doc.moodBoards.length > 0 && (
+                        <button
+                          type="button"
+                          className={`${ADD_BTN} ${ESTADO} ${PRESSAO}`}
+                          onClick={addBoard}
+                        >
+                          + Adicionar mood board
+                        </button>
+                      )}
                       {/* Fechar tudo é o gesto de quem acabou uma proposta e quer ver
                     a forma dela; abrir tudo, o de quem vai rever. Dois botões e
                     não um interruptor: o estado de cada board é seu, e um
@@ -9962,12 +9994,16 @@ export default function ProposalStudio({
                   Vive aqui dentro, e não numa secção própria: as alternativas
                   são visuais e as fotografias que as explicam já estão nestas
                   páginas. A razão longa está no cabeçalho do editor. */}
-                <EditorDeEscolhas
-                  escolhas={doc.escolhas}
-                  fotos={fotosParaEscolhas}
-                  bilingue={bilingue}
-                  onChange={(escolhas) => patch({ escolhas })}
-                />
+                {/* Só depois de haver inspiração — ou se já há alternativas
+                    escritas, que nunca se escondem. */}
+                {(doc.moodBoards.length > 0 || (doc.escolhas?.length ?? 0) > 0) && (
+                  <EditorDeEscolhas
+                    escolhas={doc.escolhas}
+                    fotos={fotosParaEscolhas}
+                    bilingue={bilingue}
+                    onChange={(escolhas) => patch({ escolhas })}
+                  />
+                )}
               </Section>
             )}
 
