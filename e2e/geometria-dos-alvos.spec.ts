@@ -555,7 +555,10 @@ test.describe("D4 · a barra de baixo na Biblioteca de Temas", () => {
     // que traz metade da fila. Medir mal o «Novo tema» aparece era medir uma
     // barra de ferramentas a meio — foi o que fez esta rede passar sobre o
     // defeito à primeira tentativa.
-    await expect(page.getByRole("group", { name: /Tamanho dos cartões/i })).toBeVisible();
+    // O sinal é o «Ordenar», que também só nasce com mais de dois temas. Era o
+    // «Tamanho dos cartões», que a 9/11 saiu do telemóvel (abaixo de 640 px as
+    // duas densidades dão a mesma grelha de duas colunas).
+    await expect(page.getByRole("combobox", { name: /Ordenar os temas/i })).toBeVisible();
 
     const m = await page.evaluate(() => {
       const de = document.documentElement;
