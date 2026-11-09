@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import sitemap from "./sitemap";
 import { SITE } from "@/lib/site";
+import { GALLERY_WIDTHS, galleryKey } from "@/app/[lang]/(site)/galeria/gallery-image-loader";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -86,10 +87,32 @@ describe("sitemap", () => {
     },
   );
 
-  it("todas as fotografias declaradas existem em public/", () => {
+  /**
+   * Desde 9/11 o sitemap declara as versões de `/_img/g/` (ver
+   * `imagemDoSitemap`), que não estão no git: o `pregen-gallery` gera-as na
+   * construção a partir de cada original de `public/imagens/`, nas larguras
+   * de `GALLERY_WIDTHS`. Para cada uma, o que se confere é que o ORIGINAL de
+   * onde nasce existe — e que a largura é uma das que se geram.
+   */
+  it("todas as fotografias declaradas existem em public/ (ou nascem de um original que existe)", () => {
     const imagens = new Set<string>();
     for (const e of entradas) for (const i of e.images ?? []) imagens.add(i);
-    const emFalta = [...imagens].filter((u) => !existsSync(join(PUBLICO, u.replace(SITE.url, ""))));
+    const chaves = new Set(readdirSync(join(PUBLICO, "imagens")).map((f) => galleryKey(f)));
+    const emFalta = [...imagens].filter((u) => {
+      const caminho = u.replace(SITE.url, "");
+      const g = /^\/_img\/g\/(.+)-(\d+)\.webp$/.exec(caminho);
+      if (g) {
+        return !(chaves.has(g[1]) && (GALLERY_WIDTHS as readonly number[]).includes(Number(g[2])));
+      }
+      return !existsSync(join(PUBLICO, caminho));
+    });
     expect(emFalta, `imagens declaradas que não existem: ${emFalta.join(", ")}`).toHaveLength(0);
+    // Controlo positivo: há mesmo fotografias da galeria declaradas assim.
+    expect([...imagens].some((u) => u.includes("/_img/g/"))).toBe(true);
+  });
+
+  it("o sitemap já não declara nenhum original", () => {
+    const todas = entradas.flatMap((e) => e.images ?? []);
+    expect(todas.filter((u) => u.includes("/imagens/"))).toEqual([]);
   });
 });
