@@ -230,6 +230,9 @@ function plural(n: number, one: string, many: string): string {
  *  a pasta não pôde ser lida — dizer "0" faria a equipa pensar que as fotos
  *  desapareceram; `truncated` = a contagem é um MÍNIMO ("500+"). */
 function themeCountLabel(theme: ThemeSummary): string {
+  // Com mais de 150 temas a lista chega sem a contagem dos últimos (9/11,
+  // `resumoPendente`): não é uma pasta ilegível, é uma pasta por perguntar.
+  if (theme.resumoPendente) return "";
   if (theme.imageCount === null) return "Fotos indisponíveis";
   return theme.truncated ? `${theme.imageCount}+` : `${theme.imageCount}`;
 }
@@ -243,6 +246,7 @@ function themeCountLabel(theme: ThemeSummary): string {
  * língua.
  */
 function themeButtonLabel(theme: ThemeSummary): string {
+  if (theme.resumoPendente) return theme.name;
   if (theme.imageCount === null) return `${theme.name}, fotos indisponíveis`;
   const n = theme.imageCount;
   const contagem = theme.truncated ? `mais de ${n} fotos` : n === 1 ? "1 foto" : `${n} fotos`;
