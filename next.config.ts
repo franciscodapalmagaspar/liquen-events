@@ -1,6 +1,29 @@
 import type { NextConfig } from "next";
 import bundleAnalyzer from "@next/bundle-analyzer";
 import { origensDeImagem } from "./src/lib/csp-imagens";
+import { rotasQueUsam } from "./scripts/rotas-que-usam.mjs";
+
+/**
+ * ── O BINÁRIO DO `sharp` SÓ VAI PARA AS ROTAS QUE LHE CHEGAM (9/11) ───────
+ *
+ * Era `"/api/**"`: os 18 MB da `@img/sharp-libvips-linux-x64` em todas as 125
+ * rotas, e a Vercel cobra o armazenamento das funções. Ela: «que se gaste o
+ * menos possível». Só 46 chegam ao `sharp` — a lista é calculada a cada
+ * construção (`scripts/rotas-que-usam.mjs`), portanto uma rota nova que o
+ * passe a usar entra sozinha. As chaves que já existiam (as páginas do PDF)
+ * ficam com o que tinham E com o `sharp`, e não substituídas.
+ */
+const BINARIO_DO_SHARP = [
+  "./node_modules/@img/sharp-linux-x64/**/*",
+  "./node_modules/@img/sharp-libvips-linux-x64/**/*",
+];
+function comOSharpOndeEPreciso(base: Record<string, string[]>): Record<string, string[]> {
+  const saida: Record<string, string[]> = { ...base };
+  for (const rota of rotasQueUsam("sharp")) {
+    saida[rota] = [...(saida[rota] ?? []), ...BINARIO_DO_SHARP];
+  }
+  return saida;
+}
 
 const nextConfig: NextConfig = {
   // O SELO DE DESENVOLVIMENTO DO NEXT TAPA A NAVEGAÇÃO DO TELEMÓVEL.
@@ -185,7 +208,7 @@ const nextConfig: NextConfig = {
    * ninguém dar por isso — porque o ficheiro está no repositório e o site
    * mostra-o na mesma.
    */
-  outputFileTracingIncludes: {
+  outputFileTracingIncludes: comOSharpOndeEPreciso({
     /**
      * ══════════════════════════════════════════════════════════════════════
      * O BINÁRIO DO `sharp` TEM DE VIAJAR COM A FUNÇÃO — não viajava
@@ -262,10 +285,8 @@ const nextConfig: NextConfig = {
      * sítio mostra-o na mesma. Dezanove kilobytes não valem um risco desses.
      */
     "/**": ["public/email/**/*"],
-    "/api/**": [
-      "./node_modules/@img/sharp-linux-x64/**/*",
-      "./node_modules/@img/sharp-libvips-linux-x64/**/*",
-    ],
+    // O `sharp` (as duas linhas que eram `"/api/**"`) passou a ir só para as
+    // rotas que lhe chegam — ver `comOSharpOndeEPreciso`, no topo do ficheiro.
     /**
      * As páginas do PDF da proposta, desenhadas no servidor (ver
      * `src/lib/paginas-do-pdf.ts`). O pdf.js abre o `@napi-rs/canvas` com um
@@ -288,7 +309,7 @@ const nextConfig: NextConfig = {
       "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
     ],
     "/api/proposta/*/paginas": ["./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"],
-  },
+  }),
 
   /**
    * ══════════════════════════════════════════════════════════════════════════

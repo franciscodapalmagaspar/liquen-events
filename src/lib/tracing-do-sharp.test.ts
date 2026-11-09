@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import config from "../../next.config";
+// @ts-expect-error — o picomatch compilado do Next não traz tipos; é o MESMO
+// que o `collect-build-traces.js` usa, e é por isso que é este.
+import picomatchSemTipos from "next/dist/compiled/picomatch";
+const picomatch = picomatchSemTipos as (
+  glob: string,
+  opcoes: { dot: boolean; contains: boolean },
+) => (s: string) => boolean;
+import { rotasQueUsam } from "../../scripts/rotas-que-usam.mjs";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -91,32 +99,31 @@ describe("o que o `sharp` leva para dentro da função", () => {
     );
   });
 
-  it("e viaja com uma chave que apanha as rotas que dele precisam", () => {
+  it("e viaja para TODAS as rotas que dele precisam — e não para as outras (9/11)", () => {
     /**
-     * As 31 rotas que usam o `sharp` estão TODAS debaixo de `/api` — foi
-     * medido, e é o que autoriza a chave a ser estreita. Este caso guarda duas
-     * coisas que se partem de maneiras diferentes:
-     *
-     *  1. `"/api/*"` NÃO casa com `/api/temas/[id]/imagens` — medido com o
-     *     próprio picomatch do Next. Uma estrela a menos e a avaria dos temas
-     *     volta, exactamente onde já esteve.
-     *  2. Uma rota de PÁGINA que passasse a precisar do `sharp` ficaria de
-     *     fora desta chave em silêncio. Quem apanha esse caso é o
-     *     `scripts/peso-das-rotas.mjs`, que lê o rastreio do build — este
-     *     ficheiro só lê a intenção, e não tem como saber o que o build fez.
+     * Era uma chave só, `"/api/**"`: os 18 MB do libvips em todas as rotas da
+     * API. Desde 9/11 a lista é calculada a cada construção
+     * (`scripts/rotas-que-usam.mjs`) e só leva o binário quem chega ao
+     * `sharp`. O que se guarda aqui é o que partiu os Temas em produção: cada
+     * rota que chega ao `sharp` tem de casar com uma chave que leve o libvips —
+     * medido com o MESMO picomatch, e as mesmas opções, que o Next usa
+     * (`collect-build-traces.js`: `{ dot: true, contains: true }`).
      */
-    for (const par of [
-      "./node_modules/@img/sharp-linux-x64/**/*",
-      "./node_modules/@img/sharp-libvips-linux-x64/**/*",
-    ]) {
-      const chave = chaveDe(par);
-      expect(chave, `${par} deixou de estar em chave nenhuma`).toBeDefined();
-      expect(
-        chave,
-        `a chave \`${chave}\` tem uma estrela a menos: não casa com uma rota aninhada ` +
-          "como `/api/temas/[id]/imagens`, que é onde a avaria dos temas viveu",
-      ).not.toMatch(/\/\*$/);
-    }
+    const casa = (chave: string, rota: string) =>
+      picomatch(chave, { dot: true, contains: true })(rota);
+    const chavesComLibvips = Object.entries(
+      (config.outputFileTracingIncludes ?? {}) as Record<string, string[]>,
+    )
+      .filter(([, ficheiros]) =>
+        ficheiros.includes("./node_modules/@img/sharp-libvips-linux-x64/**/*"),
+      )
+      .map(([chave]) => chave);
+    const precisam = rotasQueUsam("sharp", process.cwd(), { comoPadrao: false });
+    expect(precisam).toContain("/api/temas/[id]/imagens");
+    const sem = precisam.filter((r) => !chavesComLibvips.some((k) => casa(k, r)));
+    expect(sem, `rotas que usam o sharp e ficam sem o libvips: ${sem.join(", ")}`).toEqual([]);
+    // E poupa-se mesmo: uma rota que não lhe chega não o leva.
+    expect(chavesComLibvips.some((k) => casa(k, "/api/vitals"))).toBe(false);
   });
 
   it("as imagens do email ficam na chave larga — falham em silêncio", () => {
