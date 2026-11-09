@@ -39,6 +39,20 @@ Auditado no `Temas.tsx` (4346 linhas) contra a tabela da **Parte 8**.
 | 10 | Estados | **feito** (reauditado a 1/11) — `skeleton` com a geometria da grelha (`aspect-[4/3]`), «Ainda não há temas» com «Criar tema», «Nenhum tema corresponde a “…”» com «Limpar filtros» (mensagem diferente da biblioteca vazia), e o erro por imagem (`onError` → plano B, sem ícone partido) |
 | 11 | Teclado e acessibilidade | **feito** (2/11) — a grelha das fotografias é um `role="grid"` (`aria-multiselectable`) com células `gridcell` e `aria-selected`; um só elemento no fio do Tab (foco itinerante, com o `⋯` da foto com foco); setas, Home/End, ⌘/Ctrl+Home/End e PageUp/PageDown andam (`lib/temas-grelha.ts`, `fotoPelaTecla`, com as colunas MEDIDAS no `grid-template-columns`); `Shift`+setas estende a selecção; `Espaço` = Quick Look, `Enter` alterna, `Alt`+setas move a foto. **Desvio:** uma só `role="row"`, com a linha e a coluna em `aria-rowindex`/`aria-colindex` em cada célula — linhas a sério desmontavam as células sempre que o número de colunas muda (ao abrir, ao alargar, a cada foto removida), e a fila dos originais perdia a ordem. A caixa de seleção continua dentro da célula (é o alvo do dedo e do rato) |
 
+**9/11 — «melhora mesmo imenso essa parte dos temas»** (capturas com temas
+inventados, servidos só no navegador de teste):
+- **02 · Cartões:** um `<button>` centra o que tem dentro, e com o `h-full` os
+  cartões mais baixos ficavam com uma faixa branca de 9 px por cima da capa —
+  passa a `flex flex-col`. Os números passam a duas linhas fixas (fotos e uso;
+  data e estrela), em vez de um rasto que partia onde calhava.
+- **Cabeçalho do tema:** o nome no degrau `title1`; por baixo, numa linha, as
+  fotos, «usado em N propostas» / «nunca usado numa proposta», «alterado há…»
+  (com a data inteira no `title`) e o favorito; e a nota do tema, quando há.
+- **Grelha do tema:** começava 17 px para dentro do título (34 px no
+  telemóvel); `-mx-4 -mt-4` alinha-a e o realce do arrasto estende-se para fora.
+- **Telemóvel:** «Compacto / Confortável» sai abaixo de 640 px (as duas dão
+  duas colunas) — a barra passa de três linhas a duas.
+
 **Reauditado a 1/11:** quatro linhas desta tabela (03, 04, 05, 10) estavam
 desactualizadas — o código já as tinha feito e a tabela não acompanhou. A 11
 ficou feita a 2/11; ficam parciais a 01 e a 02.
