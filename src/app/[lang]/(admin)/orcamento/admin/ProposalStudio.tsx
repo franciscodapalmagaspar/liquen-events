@@ -10142,7 +10142,7 @@ export default function ProposalStudio({
                       volta a mentir. */}
                     <div className="hidden items-center gap-2 text-[9px] uppercase tracking-[0.2em] text-foreground/25 @min-[36rem]:flex">
                       <span className="flex-1">Item</span>
-                      <span className="w-32 shrink-0">Como escala</span>
+                      <span className="w-32 shrink-0">Tipo de preço</span>
                       <span className="flex w-28 shrink-0 items-center justify-end gap-1">
                         Preço (sem IVA)
                         <Ajuda sobre="para que servem os preços por linha">
@@ -10233,7 +10233,7 @@ export default function ProposalStudio({
                           essas contas à mão é onde entra o erro que ninguém vê,
                           porque o resultado continua a parecer um preço. */}
                           {/* ── O RÓTULO NÃO DESAPARECE SEM SUBSTITUTO ────────
-                            Sem o cabeçalho, «Como escala» não voltava em lado
+                            Sem o cabeçalho, «Tipo de preço» não voltava em lado
                             nenhum: ficava um `<select>` com três opções e
                             nenhuma palavra visível a dizer o que ele decide. O
                             nome existia para quem OUVE (`aria-label`) e não
@@ -10252,12 +10252,12 @@ export default function ProposalStudio({
                               aria-hidden="true"
                               className="text-[9px] uppercase tracking-[0.2em] text-foreground/25 @min-[36rem]:hidden"
                             >
-                              Como escala
+                              Tipo de preço
                             </span>
                             <select
                               value={escala?.tipo ?? "fixa"}
                               onChange={(e) => definirEscala(i, e.target.value as TipoDeEscala)}
-                              aria-label={`Como escala ${l.item || "a linha sem nome"}`}
+                              aria-label={`Tipo de preço ${l.item || "a linha sem nome"}`}
                               className="bo-input w-full px-2 py-2 text-xs"
                             >
                               <option value="fixa">Valor fixo</option>
@@ -10611,7 +10611,7 @@ export default function ProposalStudio({
                     <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
                       <Field
                         containerClassName="min-w-0 grow basis-[14rem]"
-                        label="Rótulo do total"
+                        label="Nome do total no PDF"
                         value={doc.totalLabel ?? ""}
                         onChange={(e) => patch({ totalLabel: e.target.value })}
                         data-campo="totalLabel"
@@ -10620,7 +10620,7 @@ export default function ProposalStudio({
                       {/* «Valor Total Decoração» já sai «Decoration Total» por
                         reconhecimento; um rótulo reescrito à mão deixa de ser
                         reconhecido, e é para esse que a caixa existe. */}
-                      {caixaDeIngles({ tipo: "totalLabel" }, "Rótulo do total", {
+                      {caixaDeIngles({ tipo: "totalLabel" }, "Nome do total no PDF", {
                         className: "bo-input px-2.5 py-2 text-xs text-[var(--bo-tinta-72)]",
                         placeholder: "Decoration Total",
                       })}

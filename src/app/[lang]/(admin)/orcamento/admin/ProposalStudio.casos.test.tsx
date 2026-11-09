@@ -2367,7 +2367,7 @@ describe("linhas que escalam com os convidados", () => {
     await user.clear(campoConvidados);
     await user.type(campoConvidados, "120 pax");
 
-    const comoEscala = screen.getByLabelText(/Como escala Arranjos de mesa/);
+    const comoEscala = screen.getByLabelText(/Tipo de preço Arranjos de mesa/);
     await user.selectOptions(comoEscala, "por-mesa");
 
     const unitario = screen.getByLabelText(/Preço por mesa de Arranjos de mesa/);
@@ -9201,14 +9201,14 @@ describe("o estúdio numa coluna, e não numa janela", () => {
   // ══════════════════════════════════════════════════════════════════════
 
   /**
-   * O cabeçalho («Item · Como escala · Preço · Extra») aparecia aos 640 de
+   * O cabeçalho («Item · Tipo de preço · Preço · Extra») aparecia aos 640 de
    * JANELA, e a fila por baixo quebra por CAIXA. Num portátil a 1024 o
    * cabeçalho nomeava quatro colunas por cima de filas já quebradas em duas
    * linhas — que é literalmente a razão escrita no código para o esconder no
    * telemóvel.
    *
    * E havia informação a desaparecer sem substituto: onde a fila quebra,
-   * «Como escala» e «Preço (sem IVA)» não voltavam em lado nenhum. Ficavam um
+   * «Tipo de preço» e «Preço (sem IVA)» não voltavam em lado nenhum. Ficavam um
    * `<select>` e um `<input>` com `aria-label` — o leitor de ecrã sabia, o olho
    * não. É a mesma família do «Total» que se corrigiu esta semana.
    */
@@ -9260,7 +9260,7 @@ describe("o estúdio numa coluna, e não numa janela", () => {
       const ctx = naColuna(375);
       expect(seVe(cabecalho, ctx), "a 375 px não há cabeçalho nenhum").toBe(false);
 
-      for (const nome of ["Como escala", "Preço (sem IVA)"]) {
+      for (const nome of ["Tipo de preço", "Preço (sem IVA)"]) {
         expect(
           rotuloVisivel(linha, nome, ctx),
           `«${nome}» desaparece com o cabeçalho e não volta em lado nenhum`,
@@ -9274,7 +9274,7 @@ describe("o estúdio numa coluna, e não numa janela", () => {
       const { linha, cabecalho } = await fila();
       const ctx = naColuna(640);
       expect(seVe(cabecalho, ctx)).toBe(true);
-      for (const nome of ["Como escala", "Preço (sem IVA)", "extra"]) {
+      for (const nome of ["Tipo de preço", "Preço (sem IVA)", "extra"]) {
         expect(rotuloVisivel(linha, nome, ctx), `«${nome}» dito duas vezes no mesmo ecrã`).toBe(
           false,
         );
@@ -9283,11 +9283,11 @@ describe("o estúdio numa coluna, e não numa janela", () => {
 
     it("o rótulo de dentro da fila não se anuncia duas vezes a quem ouve", async () => {
       const { linha } = await fila();
-      const escala = within(linha).getByLabelText(/^Como escala/);
+      const escala = within(linha).getByLabelText(/^Tipo de preço/);
       // O `aria-label` já diz o nome; o rótulo visível é para o olho.
       const visivel = linha.querySelector('[aria-hidden="true"]');
-      expect(visivel?.textContent?.trim()).toBe("Como escala");
-      expect(escala.getAttribute("aria-label")).toContain("Como escala");
+      expect(visivel?.textContent?.trim()).toBe("Tipo de preço");
+      expect(escala.getAttribute("aria-label")).toContain("Tipo de preço");
     });
   });
 
@@ -9375,7 +9375,7 @@ describe("o estúdio numa coluna, e não numa janela", () => {
   it("o par PT/EN só fica lado a lado onde as duas caixas cabem — sem corte nenhum", async () => {
     seedDraftEmIngles(1);
     renderStudio("Orçamento");
-    const rotulo = await screen.findByRole("textbox", { name: "Rótulo do total" });
+    const rotulo = await screen.findByRole("textbox", { name: "Nome do total no PDF" });
     // O invólucro do par: `flex-wrap` puro, que é a resposta que o
     // `Cortes.contrato.test.ts` manda dar quando a pergunta é sobre a caixa.
     const par = rotulo.closest('[class*="flex-wrap"]') as HTMLElement;

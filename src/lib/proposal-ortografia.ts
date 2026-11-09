@@ -809,7 +809,7 @@ export function camposDoDocumento(doc: Partial<ProposalDoc>): Array<{
     { campo: { tipo: "headerTitle" }, rotulo: "Título do cabeçalho" },
     { campo: { tipo: "servico" }, rotulo: "Serviço" },
     { campo: { tipo: "eventType" }, rotulo: "Tipo de evento" },
-    { campo: { tipo: "totalLabel" }, rotulo: "Rótulo do total" },
+    { campo: { tipo: "totalLabel" }, rotulo: "Nome do total no PDF" },
     { campo: { tipo: "budgetNote" }, rotulo: "Nota do orçamento" },
   ];
   (doc.serviceGroups ?? []).forEach((g, gi) => {
