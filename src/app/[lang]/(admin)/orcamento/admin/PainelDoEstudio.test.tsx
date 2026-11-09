@@ -6,7 +6,13 @@ import userEvent from "@testing-library/user-event";
    usa. O caminho é relativo porque o `@/` desta casa aponta para `src/`. */
 import { fingirDisposicao, reporDisposicao } from "../../../../../../test/disposicao-fingida";
 import PainelDoEstudio, { type PaginaParaOPainel } from "./PainelDoEstudio";
-import { ESPERA_MS, esquecerPaginasGuardadas } from "./usePaginaReal";
+import {
+  ESPERA_MS,
+  ESPERA_DA_PAGINA_MS,
+  PREPARAR_MS,
+  esquecerPaginasGuardadas,
+  paginasAPreparar,
+} from "./usePaginaReal";
 import { CORTES } from "./ui/adaptativo";
 import type { MoodBoard } from "@/lib/proposal-doc";
 import { MARCA } from "./ui/movimento";
@@ -448,23 +454,20 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.useRealTimers();
   });
 
-  it("pede a página da inspiração activa DEPOIS de uma pausa — e nunca mostra uma aproximação", async () => {
+  it("a primeira página pede-se LOGO — sem pausa, e nunca uma aproximação (9/11)", async () => {
+    // Ela, a 9/11, com uma captura de «A preparar «Capa»…»: «demora muito
+    // tempo a carregar. tem que ser ultra rapida». A primeira página não tem
+    // frase a meio nenhuma à espera: sai já.
     vi.useFakeTimers();
     comUrls();
     const f = respostaWebp();
     vi.stubGlobal("fetch", f);
     desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
-    // Antes da pausa: uma folha em branco com o nome da página — o que se vê é
-    // o que sai (9/11), e a aproximação do navegador não é o que sai.
+    // Antes de chegar: uma folha com o nome da página — nunca a aproximação.
     expect(screen.getByText(/A preparar «Jantar»/)).toBeTruthy();
     expect(screen.queryByText(/Aproximação/)).toBeNull();
-    // A pausa é `ESPERA_MS` (1 s desde 9/11): antes dela não se pede nada.
     await act(async () => {
-      vi.advanceTimersByTime(ESPERA_MS - 200);
-    });
-    expect(f).not.toHaveBeenCalled();
-    await act(async () => {
-      vi.advanceTimersByTime(300);
+      vi.advanceTimersByTime(10);
     });
     expect(f).toHaveBeenCalledTimes(1);
     const [url, init] = f.mock.calls[0];
@@ -478,6 +481,119 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     );
     expect(img.getAttribute("src")).toMatch(/^blob:pagina-/);
     expect(screen.getByText(new RegExp(`Página ${corpo.n} de 14`))).toBeTruthy();
+    vi.useRealTimers();
+  });
+
+  it("ao escrever, a página velha FICA com «A atualizar…» e a nova pede-se depois de uma pausa curta", async () => {
+    vi.useFakeTimers();
+    comUrls();
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    const { rerender } = desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    await vi.waitFor(() => screen.getByRole("img", { name: /como vai sair/ }));
+    const pedidos = f.mock.calls.length;
+    // Uma letra a mais no nome do casal: o rascunho muda.
+    const outro = { ...doc, clientNames: "TESTE Ana & TESTE Rui!" } as typeof doc;
+    rerender(
+      <PainelDoEstudio
+        cabe
+        paginas={paginas}
+        urls={{ "p/a.jpg": "u/a", "p/b.jpg": "u/b" }}
+        originais={{}}
+        aspetos={{ "p/a.jpg": 1.5, "p/b.jpg": 0.7 }}
+        onSaltar={() => {}}
+        doc={outro}
+        activa={1}
+        quoteId="q1"
+        idioma="pt"
+      />,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    // A página não desaparece: fica a anterior, e diz que vem aí outra.
+    expect(screen.getByRole("img", { name: /como vai sair/ })).toBeTruthy();
+    expect(screen.getByText("A atualizar…")).toBeTruthy();
+    expect(f.mock.calls.length).toBe(pedidos);
+    await act(async () => {
+      vi.advanceTimersByTime(ESPERA_MS);
+    });
+    expect(f.mock.calls.length).toBe(pedidos + 1);
+    expect(JSON.parse(String(f.mock.calls[pedidos][1]?.body)).doc.clientNames).toBe(
+      "TESTE Ana & TESTE Rui!",
+    );
+    vi.useRealTimers();
+  });
+
+  it("parada na página, prepara as vizinhas — e na primeira vez, todas (9/11)", async () => {
+    vi.useFakeTimers();
+    comUrls();
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    await vi.waitFor(() => screen.getByRole("img", { name: /como vai sair/ }));
+    const n = JSON.parse(String(f.mock.calls[0][1]?.body)).n as number;
+    expect(f).toHaveBeenCalledTimes(1);
+    // Antes da pausa não se prepara nada.
+    await act(async () => {
+      vi.advanceTimersByTime(PREPARAR_MS - 100);
+    });
+    expect(f).toHaveBeenCalledTimes(1);
+    // Depois, uma de cada vez: a seguinte, a anterior, e as outras todas.
+    for (let k = 0; k < 14; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(200);
+      });
+    }
+    const pedidas = f.mock.calls.map((c) => JSON.parse(String(c[1]?.body)).n as number);
+    expect(pedidas.slice(1, 3)).toEqual([n + 1, n - 1]);
+    expect([...new Set(pedidas)].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: 14 }, (_, i) => i + 1),
+    );
+    vi.useRealTimers();
+  });
+
+  it("mudar para uma página já preparada é imediato — sem pedido", async () => {
+    vi.useFakeTimers();
+    comUrls();
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    const props = { doc, quoteId: "q1", idioma: "pt" as const };
+    const { rerender } = desenhar({ ...props, activa: 0 });
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    await vi.waitFor(() => screen.getByRole("img", { name: /como vai sair/ }));
+    for (let k = 0; k < 30; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(200);
+      });
+    }
+    const pedidos = f.mock.calls.length;
+    rerender(
+      <PainelDoEstudio
+        cabe
+        paginas={paginas}
+        urls={{ "p/a.jpg": "u/a", "p/b.jpg": "u/b" }}
+        originais={{}}
+        aspetos={{ "p/a.jpg": 1.5, "p/b.jpg": 0.7 }}
+        onSaltar={() => {}}
+        {...props}
+        activa={1}
+      />,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(ESPERA_DA_PAGINA_MS + PREPARAR_MS + 100);
+    });
+    expect(screen.queryByText("A atualizar…")).toBeNull();
+    expect(screen.getByRole("img", { name: /como vai sair/ })).toBeTruthy();
+    expect(f.mock.calls.length).toBe(pedidos);
     vi.useRealTimers();
   });
 
@@ -528,11 +644,14 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.stubGlobal("fetch", f);
     desenhar({ doc, activa: 0, quoteId: "q1" });
     await userEvent.click(screen.getByRole("tab", { name: "Todas" }));
+    // A página que estava à vista pode ter sido pedida antes do toque; a
+    // partir dele, nada — nem a volta pelas outras.
+    const antes = f.mock.calls.length;
     vi.useFakeTimers();
     await act(async () => {
-      vi.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(5000);
     });
-    expect(f).not.toHaveBeenCalled();
+    expect(f.mock.calls.length).toBe(antes);
     vi.useRealTimers();
   });
 });
@@ -570,5 +689,21 @@ describe("a página seguida, nos casos de canto", () => {
     expect(screen.getByText(/Esta parte ainda não tem página no PDF/)).toBeTruthy();
     // E dá para folhear à mesma.
     expect(screen.getByRole("button", { name: "Página seguinte" })).toBeTruthy();
+  });
+});
+
+describe("paginasAPreparar — a ordem por que se preparam as outras", () => {
+  it("primeiro a seguinte e a anterior", () => {
+    expect(paginasAPreparar(5, 14, false)).toEqual([6, 4]);
+  });
+  it("nas pontas, só a que existe", () => {
+    expect(paginasAPreparar(1, 14, false)).toEqual([2]);
+    expect(paginasAPreparar(14, 14, false)).toEqual([13]);
+  });
+  it("na primeira volta, todas as outras, das mais perto para as mais longe", () => {
+    expect(paginasAPreparar(3, 6, true)).toEqual([4, 2, 5, 1, 6]);
+  });
+  it("sem saber quantas há, só as vizinhas", () => {
+    expect(paginasAPreparar(3, null, true)).toEqual([4, 2]);
   });
 });

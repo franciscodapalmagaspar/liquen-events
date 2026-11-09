@@ -337,6 +337,7 @@ export default function PainelDoEstudio({
     doc,
     idioma,
     n: nMostrada,
+    total: plano.length || undefined,
   });
   // A imagem que chegou é desta página? Se ela mudou de página, a anterior
   // seria a página ERRADA — fica a aproximação até a certa chegar.
@@ -697,9 +698,9 @@ function PaginaDaSeccao({
             alt={`Página ${n} do PDF, como vai sair`}
             className="block w-full rounded-[3px] border border-[var(--bo-hairline)]"
           />
-          {aCarregar && (
+          {(aCarregar || falhou) && (
             <span className="absolute right-2 top-2 rounded-full bg-[var(--bo-surface)] px-2 py-0.5 text-[10px] text-[var(--bo-text-muted)]">
-              A atualizar…
+              {aCarregar ? "A atualizar…" : "Por atualizar — tenta daqui a pouco"}
             </span>
           )}
         </button>
