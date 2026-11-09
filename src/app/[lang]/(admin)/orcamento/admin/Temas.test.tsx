@@ -2884,6 +2884,7 @@ describe("contarFotosDaBiblioteca", () => {
       fotos: 14,
       temas: 3,
       ilegiveis: 0,
+      porContar: 0,
     });
   });
 
@@ -2894,11 +2895,29 @@ describe("contarFotosDaBiblioteca", () => {
       fotos: 14,
       temas: 3,
       ilegiveis: 1,
+      porContar: 0,
     });
   });
 
   it("aguenta uma biblioteca vazia", () => {
-    expect(contarFotosDaBiblioteca([])).toEqual({ fotos: 0, temas: 0, ilegiveis: 0 });
+    expect(contarFotosDaBiblioteca([])).toEqual({
+      fotos: 0,
+      temas: 0,
+      ilegiveis: 0,
+      porContar: 0,
+    });
+  });
+
+  it("um tema por contar (milhares de temas, 9/11) não é uma pasta ilegível", () => {
+    // Acima de 150 temas, a contagem dos últimos chega depois: até lá o tema
+    // está «por contar», e o total diz-se como mínimo — nunca como avaria.
+    const porContar = { imageCount: null, resumoPendente: true } as never;
+    expect(contarFotosDaBiblioteca([t(10), porContar, t(4)])).toEqual({
+      fotos: 14,
+      temas: 3,
+      ilegiveis: 0,
+      porContar: 1,
+    });
   });
 });
 
