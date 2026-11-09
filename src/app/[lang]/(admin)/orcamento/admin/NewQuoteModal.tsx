@@ -8,6 +8,7 @@ import { Button, Field, FolhaOuDialogo } from "./ui";
 import { porqueFalhou } from "@/lib/erro-do-servidor";
 import CampoTelefone from "@/components/CampoTelefone";
 import { dominiosConhecidos, sugerirEmail } from "@/lib/dominio-parecido";
+import { ESTADO, PRESSAO } from "./ui/movimento";
 import { carregarTelefones } from "@/lib/telefone-no-browser";
 import { APARENCIA_DO_BACK_OFFICE, TELEFONE_SUBLINHADO } from "./ui/aparencia-do-telefone";
 
@@ -239,7 +240,7 @@ export default function NewQuoteModal({ open, onClose, onCreated, existingQuotes
               <button
                 type="button"
                 onClick={() => set("email", emailSugerido)}
-                className="font-semibold underline underline-offset-2 hover:text-[var(--bo-text)]"
+                className={`font-semibold underline underline-offset-2 hover:text-[var(--bo-text)] ${ESTADO} ${PRESSAO}`}
               >
                 {emailSugerido}
               </button>

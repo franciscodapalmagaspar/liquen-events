@@ -1409,6 +1409,41 @@ export default function AdminClient({
    * comuns dizem que domínio se queria escrever. Só sugere — ver
    * `lib/dominio-parecido.ts`.
    */
+  /**
+   * O ÚLTIMO EMAIL AO CLIENTE VOLTOU PARA TRÁS? (9/11 — ela: «o sistema tem que
+   * perceber logo se o e-mail existe ou não», depois de a proposta da Adecco ir
+   * para «addecco.com»). Pergunta-se uma vez ao abrir o pedido; o servidor só
+   * lê a caixa da Líquen se houve um envio nos últimos dias (ver
+   * `lib/email-devolvido.ts`).
+   */
+  const [devolucao, setDevolucao] = useState<{ quoteId: string; endereco: string } | null>(null);
+  const idDoAberto = selected?.id ?? null;
+  // Só pergunta quando o histórico mostra mexidas nos últimos 7 dias (um envio
+  // muda o estado do pedido): um pedido parado não custa um pedido à Vercel.
+  const mexidoHaPouco = useMemo(() => {
+    const limite = Date.now() - 7 * 86_400_000;
+    return (selected?.activityLog ?? []).some(
+      (e) =>
+        (e.kind === "status_change" || e.kind === "proposal_sent" || e.kind === "message_sent") &&
+        Date.parse(e.at) >= limite,
+    );
+  }, [selected?.activityLog]);
+  useEffect(() => {
+    if (!idDoAberto || !mexidoHaPouco) return;
+    const ctl = new AbortController();
+    fetch(`/api/orcamento/${encodeURIComponent(idDoAberto)}/entrega`, { signal: ctl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { estado?: string; endereco?: string } | null) => {
+        setDevolucao(
+          j?.estado === "devolvido" && j.endereco
+            ? { quoteId: idDoAberto, endereco: j.endereco }
+            : null,
+        );
+      })
+      .catch(() => {});
+    return () => ctl.abort();
+  }, [idDoAberto, mexidoHaPouco]);
+  const devolvidoAqui = devolucao && devolucao.quoteId === idDoAberto ? devolucao : null;
   const emailSugerido = useMemo(
     () =>
       sugerirEmail(
@@ -8036,6 +8071,17 @@ export default function AdminClient({
                                       mas não é enviada a ninguém.
                                     </p>
                                   )}
+                                  {devolvidoAqui && (
+                                    <p
+                                      role="alert"
+                                      className="mt-1 rounded-lg border border-[var(--bo-perigo)]/40 bg-[var(--bo-perigo-lavagem)] px-2.5 py-1.5 text-[11px] leading-relaxed text-[var(--bo-perigo)]"
+                                    >
+                                      {devolvidoAqui.endereco.toLowerCase() ===
+                                      editEmail.trim().toLowerCase()
+                                        ? `O último email para ${devolvidoAqui.endereco} voltou para trás: o endereço não existe. Corrige o email e volta a enviar.`
+                                        : `O último email foi para ${devolvidoAqui.endereco} e voltou para trás. Grava o email novo e volta a enviar.`}
+                                    </p>
+                                  )}
                                   {emailSugerido && (
                                     <p
                                       role="status"
@@ -8045,7 +8091,7 @@ export default function AdminClient({
                                       <button
                                         type="button"
                                         onClick={() => setEditEmail(emailSugerido)}
-                                        className="font-semibold underline underline-offset-2 hover:text-[var(--bo-text)]"
+                                        className={`font-semibold underline underline-offset-2 hover:text-[var(--bo-text)] ${ESTADO} ${PRESSAO}`}
                                       >
                                         {emailSugerido}
                                       </button>
