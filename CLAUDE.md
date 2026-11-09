@@ -34,6 +34,13 @@ Os cinco passos do estúdio (A2) são um formulário só, sempre montado: o que
 vive em cada passo e o estado de cada um estão em `passos-do-estudio.ts`, que
 lê as mesmas duas listas — não contes o estado de um passo noutro sítio.
 
+# E o redesenho dele, de 9/11
+
+`docs/FAZER-PROPOSTA-REDESENHO.md` é o pedido dela de 9/11 («está uma confusão
+brutal […] tem que ser muito mais profissional») com o que a análise encontrou
+e o plano por fases. A Parte −1 tem a tabela do que está feito. O que se vê ao
+lado tem de ser a página REAL do PDF — nunca uma aproximação.
+
 # E o ecrã de entrada tem outro
 
 `docs/LOGIN.md` reconstrói `/orcamento/admin/login`. Tem no topo uma tabela com

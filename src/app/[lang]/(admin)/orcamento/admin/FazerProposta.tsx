@@ -305,68 +305,22 @@ export default function FazerProposta({
        * `globals.css`.
        */
       <div className="flex flex-col gap-4">
-        <Card padding="md" className="bo-cena">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              {/* O EVENTO, A DATA E O LOCAL SAÍRAM DAQUI.
-                  Estavam escritos aqui e outra vez, duzentos pixels abaixo, nos
-                  campos "Data" e "Local" da secção Evento — e eram esses que
-                  saem na proposta. Duas cópias adjacentes do mesmo dado, sem
-                  nada a dizer qual manda, é pior do que uma: quando divergem
-                  (porque a data da proposta se escreve por extenso, ou porque o
-                  espaço mudou), não há maneira de saber qual está certa. Fica o
-                  nome, que é a âncora do "para quem é isto", e o botão de
-                  trocar. */}
-              {/* ── ISTO É CONTEÚDO, E POR ISSO NÃO LEVA VIDRO ───────────────
-                  Palavras dela, com uma captura deste cartão: «e isto também»,
-                  a seguir a pedir vidro na barra de acção do estúdio.
-
-                  A barra levou; este NÃO leva, e a razão está no documento que
-                  ela mandou. O sistema tem duas camadas — a FUNCIONAL
-                  (navegação e controlos) e a de CONTEÚDO (dados) — e o material
-                  vive só na primeira. A lista de proibições da Parte 18 abre
-                  com «vidro em cartões, linhas, formulários ou fundo de
-                  página»: um cartão de vidro por cima de conteúdo faz
-                  desaparecer a única pista que diz o que é dado e o que é
-                  comando, e o teste do documento é literal — «num screenshot,
-                  consegues dizer instantaneamente o que é navegação e o que é
-                  dados?».
-
-                  O que este cartão levou foi o tratamento de CONTEÚDO da mesma
-                  casa, que é onde ele estava mesmo errado: a sobrancelha em
-                  caixa alta com 0,14em de tracking. O sistema novo abandonou a
-                  caixa alta em cabeçalhos (Parte 6.4) — passa a legenda em
-                  capitalização normal, e o nome do casal, que é a âncora do
-                  «para quem é isto», sobe de `text-base` para o `title3` que o
-                  mapeamento fixo dá a um título de secção. */}
-              <p className="mb-0.5 text-caption text-[var(--bo-text-muted)]">Proposta para</p>
-              <p className="truncate text-title3 font-semibold text-[var(--bo-text)]">
-                {escolhido.name}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* O pedido inteiro — Produção, Financeiro, mensagens — a UMA
-                  tecla. Ver `onAbrirPedido`. */}
-              <Button variant="secondary" size="sm" onClick={() => onAbrirPedido(escolhido)}>
-                Abrir o pedido
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => onSelect(null)}>
-                Trocar de cliente
-              </Button>
-            </div>
-          </div>
-        </Card>
-
+        {/* O «Proposta para ‹nome›», o «Abrir o pedido» e o «Trocar de cliente»
+            eram um cartão inteiro aqui, por cima do estúdio — e o estúdio tinha
+            por baixo dele a sua própria linha de acções. Passaram para a MESMA
+            linha (a prop `cliente` do `ProposalStudio`): pedido dela de 9/11,
+            «está uma confusão brutal», e 360 px antes do primeiro campo eram
+            parte da confusão. O nome continua a ser a primeira coisa que se lê. */}
         {/* ANTES do estúdio, de propósito. Saber que o dia já está ocupado
             depois de escrever a proposta toda é saber tarde de mais. */}
-        <div style={{ "--cena": 1 } as React.CSSProperties} className="bo-cena empty:hidden">
+        <div style={{ "--cena": 0 } as React.CSSProperties} className="bo-cena empty:hidden">
           <AvisoDataOcupada quote={escolhido} quotes={quotes} onAbrir={onSelect} />
         </div>
 
         {/* `key` pelo id: trocar de cliente TEM de recomeçar o estúdio do zero.
             Sem isto o React reaproveitava a instância e o rascunho de um casal
             aparecia no ecrã do seguinte. */}
-        <div style={{ "--cena": 2 } as React.CSSProperties} className="bo-cena">
+        <div style={{ "--cena": 1 } as React.CSSProperties} className="bo-cena">
           <ProposalStudio
             key={`fazer-proposta-${escolhido.id}`}
             quote={escolhido}
@@ -374,6 +328,11 @@ export default function FazerProposta({
             onQuoteUpdated={onQuoteUpdated}
             onEstadoDoPedido={(status) => onEstadoDoPedido?.(escolhido, status)}
             onSent={() => onSent(escolhido)}
+            cliente={{
+              nome: escolhido.name,
+              onAbrirPedido: () => onAbrirPedido(escolhido),
+              onTrocar: () => onSelect(null),
+            }}
           />
         </div>
       </div>

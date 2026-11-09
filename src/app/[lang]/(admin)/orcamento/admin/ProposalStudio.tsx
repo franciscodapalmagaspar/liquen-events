@@ -10,6 +10,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { quandoGravado } from "@/lib/quando-gravado";
+import { useSeccaoAVista } from "./useSeccaoAVista";
 import { rolarAteVer } from "@/lib/motion/rolar";
 import { SAIDA_FUNDO, useSaidaDeUmSo } from "./ui/saida";
 import { porqueFalhouOEnvio } from "./porque-falhou-o-envio";
@@ -140,6 +141,7 @@ import ModelosParciais from "./ModelosParciais";
 import EditorDeEscolhas, { type FotoDisponivel } from "./EditorDeEscolhas";
 import NavEstudio from "./NavEstudio";
 import NotasInternas from "./NotasInternas";
+import { MenuDeAccoes } from "./ui/MenuDeAccoes";
 import AvisoDataOcupada from "./AvisoDataOcupada";
 import { estadoDasSeccoes, oQueFaltaParaEnviar, podeEnviar } from "@/lib/proposal-progress";
 import { hojeNoEstudio } from "@/lib/fuso";
@@ -1432,6 +1434,14 @@ interface Props {
    * duas teclas), e devolvê-la inteira era desfazer essa gravação no ecrã.
    */
   onEstadoDoPedido?: (status: QuoteStatus) => void;
+  /**
+   * Para quem é a proposta, e as duas portas do pedido. Dado pelo «Fazer
+   * proposta», o estúdio põe-no NA MESMA LINHA das suas acções — antes eram um
+   * cartão inteiro, um traço e uma linha «Estúdio de propostas (PDF)» por cima
+   * dos passos (360 px no computador, ~1 000 num telemóvel, antes do primeiro
+   * campo). Pedido dela de 9/11: «está uma confusão brutal».
+   */
+  cliente?: { nome: string; onAbrirPedido: () => void; onTrocar: () => void };
 }
 
 export default function ProposalStudio({
@@ -1440,6 +1450,7 @@ export default function ProposalStudio({
   onSent,
   onQuoteUpdated,
   onEstadoDoPedido,
+  cliente,
 }: Props) {
   const { toast } = useToast();
   const avisoDeQualidade = useAvisoDeQualidade();
@@ -5126,6 +5137,7 @@ export default function ProposalStudio({
     return (
       <NotasInternas
         compacta
+        fechadaSeVazia
         titulo={titulo}
         valor={notas[chave] ?? ""}
         placeholder="Só para a equipa. Nunca sai na proposta."
@@ -8105,6 +8117,17 @@ export default function ProposalStudio({
    */
   const [boardActivo, setBoardActivo] = useState<number | null>(null);
 
+  /**
+   * E a parte do formulário que está À VISTA — pedido dela de 9/11: «à medida
+   * que vamos fazendo scroll, as páginas vão mudando». O painel mostra a página
+   * da secção que se está a ler, e na Inspiração a do mood board que passa pelo
+   * meio do ecrã. O foco continua a mandar quando ela entra num campo.
+   */
+  const aVista = useSeccaoAVista(step);
+  useEffect(() => {
+    if (aVista.board != null) setBoardActivo(aVista.board);
+  }, [aVista.board]);
+
   /** As páginas COM fotografias, pela ordem em que saem — a ordem do PDF. */
   const paginasParaOPainel = useMemo(
     () =>
@@ -8139,7 +8162,7 @@ export default function ProposalStudio({
   return (
     <div
       ref={caixaDoEstudio}
-      className="@container border-t border-[var(--bo-hairline-strong)] pt-5"
+      className={`@container ${cliente ? "" : "border-t border-[var(--bo-hairline-strong)] pt-5"}`}
     >
       {/* EMPILHA no telemóvel, em vez de repartir a largura.
           O que estava aqui era um `flex` em linha com o texto de um lado e três
@@ -8167,14 +8190,34 @@ export default function ProposalStudio({
             o que aqui se poupa é altura, e duas cópias não poupam altura
             nenhuma a quem lê o HTML. */}
         <div className="min-w-0">
-          <p className="bo-eyebrow flex items-center gap-1.5">
-            Estúdio de propostas (PDF)
-            <Ajuda sobre="o que se faz no estúdio de propostas">
-              Monta aqui a proposta em PDF para o cliente, em cinco passos: Evento, Serviços,
-              Inspiração, Orçamento e Rever e enviar. Podes saltar entre eles à vontade — nada se
-              perde.
-            </Ajuda>
-          </p>
+          {cliente ? (
+            <>
+              {/* O nome da zona continua a existir para quem ouve o ecrã — e
+                  para os passeios que o usam como sinal de que o estúdio
+                  montou. À vista, o que se lê primeiro é para quem é. */}
+              <h2 className="sr-only">Estúdio de propostas (PDF)</h2>
+              <p className="flex items-center gap-1.5 text-caption text-[var(--bo-text-muted)]">
+                Proposta para
+                <Ajuda sobre="o que se faz no estúdio de propostas">
+                  Monta aqui a proposta em PDF para o cliente, em cinco passos: Evento, Serviços,
+                  Inspiração, Orçamento e Rever e enviar. Podes saltar entre eles à vontade — nada
+                  se perde. A página à direita é a do PDF, tal e qual vai sair.
+                </Ajuda>
+              </p>
+              <p className="truncate text-title3 font-semibold text-[var(--bo-text)]">
+                {cliente.nome}
+              </p>
+            </>
+          ) : (
+            <p className="bo-eyebrow flex items-center gap-1.5">
+              Estúdio de propostas (PDF)
+              <Ajuda sobre="o que se faz no estúdio de propostas">
+                Monta aqui a proposta em PDF para o cliente, em cinco passos: Evento, Serviços,
+                Inspiração, Orçamento e Rever e enviar. Podes saltar entre eles à vontade — nada se
+                perde.
+              </Ajuda>
+            </p>
+          )}
         </div>
         {/* `flex-wrap` e não `shrink-0`: com três botões a 375 px, um deles
             saía pela margem direita e ficava cortado ("Limpa…"). */}
@@ -8199,9 +8242,6 @@ export default function ProposalStudio({
           >
             Criar a partir de…
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setNomeModelo(doc.eventType || "")}>
-            Guardar como modelo
-          </Button>
           {/* DESFAZER TEM DE SE PODER TOCAR.
               Isto existia só como `Cmd+Z`, e num telemóvel não há `Cmd+Z`:
               desfazer um engano era uma coisa que só se podia fazer sentada ao
@@ -8219,9 +8259,53 @@ export default function ProposalStudio({
           >
             Desfazer
           </Button>
-          <Button variant="ghost" size="sm" onClick={clearDraft}>
-            Limpar rascunho
-          </Button>
+          {/* ── NUM ECRÃ ESTREITO, O RESTO VAI PARA O «⋯» ───────────────────
+              Seis botões soltos eram três linhas de botões num telemóvel, por
+              cima dos passos (9/11, «está uma confusão brutal»). Fica à vista o
+              que se usa a meio do trabalho — «Criar a partir de…» e «Desfazer»
+              — e o resto entra no menu. Num ecrã largo continua tudo à vista. */}
+          <div className="contents @max-[40rem]:hidden">
+            <Button variant="ghost" size="sm" onClick={() => setNomeModelo(doc.eventType || "")}>
+              Guardar como modelo
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clearDraft}>
+              Limpar rascunho
+            </Button>
+            {cliente && (
+              <>
+                {/* As portas do pedido, separadas das do rascunho por um traço:
+                  estas saem do estúdio, as de cima mexem nele. */}
+                <span aria-hidden="true" className="mx-1 h-5 w-px bg-[var(--bo-hairline-strong)]" />
+                <Button variant="ghost" size="sm" onClick={cliente.onAbrirPedido}>
+                  Abrir o pedido
+                </Button>
+                <Button variant="ghost" size="sm" onClick={cliente.onTrocar}>
+                  Trocar de cliente
+                </Button>
+              </>
+            )}
+          </div>
+          <div className="@min-[40rem]:hidden">
+            <MenuDeAccoes
+              sobre={cliente?.nome ?? "esta proposta"}
+              sempreVisivel
+              accoes={[
+                ...(cliente
+                  ? [
+                      { id: "pedido", rotulo: "Abrir o pedido", onAccao: cliente.onAbrirPedido },
+                      { id: "trocar", rotulo: "Trocar de cliente", onAccao: cliente.onTrocar },
+                    ]
+                  : []),
+                {
+                  id: "modelo",
+                  rotulo: "Guardar como modelo",
+                  onAccao: () => setNomeModelo(doc.eventType || ""),
+                  separadorAntes: !!cliente,
+                },
+                { id: "limpar", rotulo: "Limpar rascunho", onAccao: clearDraft, destrutiva: true },
+              ]}
+            />
+          </div>
         </div>
       </div>
 
@@ -9191,7 +9275,16 @@ export default function ProposalStudio({
                   defeito que o `useMedida.ts:16-21` conta por extenso. Aqui
                   seria uma tira de `overflow-x-auto` espremida em 176 px de um
                   lado, e um índice vertical à largura toda do outro. */}
-                <div className="@min-[40rem]:grid @min-[40rem]:grid-cols-[11rem_minmax(0,1fr)] @min-[40rem]:gap-5">
+                {/* Sem mood boards o índice não desenha nada, e a grelha dava a
+                    coluna de 11 rem ao conteúdo — o começo nascia espremido
+                    nela. A grelha só existe quando há o que indexar. */}
+                <div
+                  className={
+                    doc.moodBoards.length > 0
+                      ? "@min-[40rem]:grid @min-[40rem]:grid-cols-[11rem_minmax(0,1fr)] @min-[40rem]:gap-5"
+                      : undefined
+                  }
+                >
                   <MoodBoardIndice
                     boards={doc.moodBoards}
                     ordem={ordemDosBoards}
@@ -9815,14 +9908,37 @@ export default function ProposalStudio({
                         })}
                       </ListaDeBoards>
                     </ArrastoDosMoodBoards>
+                    {/* ── O COMEÇO, QUANDO AINDA NÃO HÁ NADA ─────────────────────
+                      Pedido dela de 9/11: «mesmo a parte da inspiração está uma
+                      confusão». Sem mood boards, o passo abria com um
+                      «+ Adicionar mood board» do tamanho de uma ligação, e a
+                      primeira coisa grande era «À escolha do casal», que só
+                      faz sentido depois. Agora a primeira coisa é dizer o que
+                      é isto e um botão a sério para começar. */}
+                    {doc.moodBoards.length === 0 && (
+                      <div className="mt-2 rounded-2xl border border-dashed border-[var(--bo-hairline-strong)] px-5 py-8 text-center">
+                        <p className="text-sm font-medium text-[var(--bo-text)]">
+                          Ainda não há inspiração nesta proposta
+                        </p>
+                        <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-[var(--bo-text-muted)]">
+                          Cada mood board é uma página do PDF com um título (por exemplo
+                          «Cerimónia») e as fotografias que mostram a ideia ao casal.
+                        </p>
+                        <div className="mt-4 flex justify-center">
+                          <Button onClick={addBoard}>Começar um mood board</Button>
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-3 flex flex-wrap items-center gap-4">
-                      <button
-                        type="button"
-                        className={`${ADD_BTN} ${ESTADO} ${PRESSAO}`}
-                        onClick={addBoard}
-                      >
-                        + Adicionar mood board
-                      </button>
+                      {doc.moodBoards.length > 0 && (
+                        <button
+                          type="button"
+                          className={`${ADD_BTN} ${ESTADO} ${PRESSAO}`}
+                          onClick={addBoard}
+                        >
+                          + Adicionar mood board
+                        </button>
+                      )}
                       {/* Fechar tudo é o gesto de quem acabou uma proposta e quer ver
                     a forma dela; abrir tudo, o de quem vai rever. Dois botões e
                     não um interruptor: o estado de cada board é seu, e um
@@ -9878,12 +9994,16 @@ export default function ProposalStudio({
                   Vive aqui dentro, e não numa secção própria: as alternativas
                   são visuais e as fotografias que as explicam já estão nestas
                   páginas. A razão longa está no cabeçalho do editor. */}
-                <EditorDeEscolhas
-                  escolhas={doc.escolhas}
-                  fotos={fotosParaEscolhas}
-                  bilingue={bilingue}
-                  onChange={(escolhas) => patch({ escolhas })}
-                />
+                {/* Só depois de haver inspiração — ou se já há alternativas
+                    escritas, que nunca se escondem. */}
+                {(doc.moodBoards.length > 0 || (doc.escolhas?.length ?? 0) > 0) && (
+                  <EditorDeEscolhas
+                    escolhas={doc.escolhas}
+                    fotos={fotosParaEscolhas}
+                    bilingue={bilingue}
+                    onChange={(escolhas) => patch({ escolhas })}
+                  />
+                )}
               </Section>
             )}
 
@@ -10560,7 +10680,7 @@ export default function ProposalStudio({
                         aria-hidden="true"
                         className="text-[9px] tracking-[0.2em] uppercase text-foreground/25"
                       >
-                        Como contam no preço final
+                        Como entram no total
                       </span>
                       <select
                         id="adicionais-modo"
@@ -10775,27 +10895,6 @@ export default function ProposalStudio({
                         diferente no mesmo ecrã. */}
                     </div>
                   </div>
-
-                  {/* ── REPARTIR POR ARTIGO (5/11) ───────────────────────────
-                    Ela: «ter estes artigos nas propostas». O total sem IVA
-                    repartido pelos artigos do Moloni — só para ela e para o
-                    Moloni: não sai no PDF nem na página, e não mexe na versão
-                    aceite. Ver `RepartoPorArtigo.tsx`. */}
-                  <div className="mt-6">
-                    <span className="bo-eyebrow">Faturação por artigo</span>
-                    <p className="mt-1.5 mb-3 text-xs leading-relaxed text-foreground/45">
-                      O sinal e o saldo de cada artigo do Moloni, feitos a partir das linhas. Não
-                      aparece na proposta do cliente.
-                    </p>
-                    <RepartoPorArtigo
-                      doc={doc as ProposalDoc}
-                      pct={pctSinal}
-                      permitirManual={false}
-                      aoMudar={(reparto) =>
-                        setDoc((d) => ({ ...d, repartoPorArtigo: reparto }) as StudioDoc)
-                      }
-                    />
-                  </div>
                 </>
               ) : (
                 <>
@@ -10898,112 +10997,8 @@ export default function ProposalStudio({
             {/* Total, IVA e validade — fonte de verdade do dinheiro. O valor + o modo
           de IVA eliminam a ambiguidade "3.000,00 €" (com IVA?) vs "+ IVA"; o
           texto do PDF é composto a partir daqui. */}
-            {/* ── O painel que o cliente nunca vê ────────────────────────────
-              Custos, margem, deslocação calculada e o aviso de valor fora do
-              habitual. Vive AQUI, no fim do orçamento, porque é aqui que os
-              números que ele comenta acabam de ser escritos. */}
-            <div hidden={step !== "orcamento"}>
-              <PainelInterno
-                doc={doc as ProposalDoc}
-                quote={quote}
-                quotes={quotes}
-                totalBruto={money.gross}
-                onCusto={(i, custo) =>
-                  setDoc((d) => ({
-                    ...d,
-                    // O array dos custos acompanha sempre o das linhas — se ficasse
-                    // mais curto, o índice 3 passava a ser o custo da linha 4.
-                    budgetCosts: custosDe(d as ProposalDoc).map((v, j) => (j === i ? custo : v)),
-                  }))
-                }
-                /**
-                 * Os quilómetros até ao local ficam no DOCUMENTO, não num estado
-                 * do ecrã: é isso que os torna o número desta proposta e que
-                 * impede que mudar a sede ou o preço do gasóleo lhes toque depois.
-                 *
-                 * `null` apaga o campo — «não decidi», e a tabela volta a sugerir.
-                 * Escrever 0 aqui seria dizer «é em casa», que é outra coisa.
-                 */
-                onKm={(km) =>
-                  setDoc((d) => {
-                    if (km === null) {
-                      const { kmDeslocacao: _fora, ...resto } = d;
-                      void _fora;
-                      return resto;
-                    }
-                    return { ...d, kmDeslocacao: km };
-                  })
-                }
-                /**
-                 * Quantas carrinhas vão — mesma casa e mesma razão que os
-                 * quilómetros: é um facto DESTE evento, e fica congelado nele.
-                 *
-                 * `null` APAGA o campo, e apagado quer dizer uma. Escrever 1 aqui
-                 * daria o mesmo preço, mas deixava no documento um número que
-                 * ninguém decidiu — e nas propostas antigas a ausência é o que
-                 * garante que nenhuma muda de preço por este campo existir.
-                 */
-                onCarrinhas={(n) =>
-                  setDoc((d) => {
-                    if (n === null) {
-                      const { carrinhasDeslocacao: _fora, ...resto } = d;
-                      void _fora;
-                      return resto;
-                    }
-                    return { ...d, carrinhasDeslocacao: n };
-                  })
-                }
-                onDeslocacao={(label, valueText) => {
-                  // Se já lá está uma linha de deslocação, actualiza-se essa em
-                  // vez de acrescentar uma segunda — duas linhas de deslocação
-                  // numa proposta são uma pergunta do cliente ao telefone.
-                  //
-                  // Passa por `definirExtras` como todas as outras: aceitar a
-                  // deslocação calculada tem de somar ao total, ou volta a haver
-                  // um valor na proposta que não está no que se cobra.
-                  const extras = [...(doc.budgetExtras ?? [])];
-                  const i = extras.findIndex((e) => /desloca/i.test(e.label ?? ""));
-                  if (i >= 0) extras[i] = { ...extras[i], label, valueText };
-                  else extras.push({ label, valueText });
-                  /**
-                   * ── E PERGUNTA-SE, COM OS DOIS NÚMEROS À VISTA ────────────────
-                   * «Pôr nos valores adicionais» é a segunda acção do editor que
-                   * muda o preço final de uma só carregada: a deslocação calculada
-                   * SOMA-SE ao total, e portanto ao sinal e à fatura. Levava
-                   * nenhuma pergunta e nenhuma volta atrás — o mesmo desenho do
-                   * «Usar X €», e por isso o mesmo tratamento.
-                   */
-                  const contexto = { mode: vatMode, vatRate: doc.vatRate };
-                  const antes = parseMoneyText(totalInput);
-                  const depois = Math.max(
-                    0,
-                    Math.round(
-                      (antes +
-                        somaDosExtrasSemIva(extras, contexto) -
-                        somaDosExtrasSemIva(doc.budgetExtras ?? [], contexto)) *
-                        100,
-                    ) / 100,
-                  );
-                  // Sem diferença nenhuma no dinheiro (a mesma deslocação outra
-                  // vez) não há nada a confirmar: aplica-se e cala-se.
-                  if (Math.abs(depois - antes) <= 0.01) {
-                    definirExtras(extras);
-                    return;
-                  }
-                  pedirConfirmacaoDeDinheiro({
-                    oQue: "o total",
-                    de: antes,
-                    para: depois,
-                    registo: `Deslocação calculada (${valueText}) posta nos valores adicionais no estúdio: preço final de ${eur(antes)} para ${eur(depois)}.`,
-                    motivo: "Deslocação posta nos valores adicionais.",
-                    aplicar: () => definirExtras(extras),
-                  });
-                }}
-              />
-            </div>
-
             <Section
-              title="Total, IVA e validade"
+              title="Total e validade"
               id="total"
               escondida={step !== "orcamento"}
               rodape={notaDaSeccao("total", "Nota sobre o total")}
@@ -11440,6 +11435,136 @@ export default function ProposalStudio({
               )}
             </Section>
 
+            {/* ── O painel que o cliente nunca vê ────────────────────────────
+              Custos, margem, deslocação calculada e o aviso de valor fora do
+              habitual. Vive AQUI, no fim do orçamento, porque é aqui que os
+              números que ele comenta acabam de ser escritos. */}
+            <div hidden={step !== "orcamento"}>
+              <PainelInterno
+                doc={doc as ProposalDoc}
+                quote={quote}
+                quotes={quotes}
+                totalBruto={money.gross}
+                onCusto={(i, custo) =>
+                  setDoc((d) => ({
+                    ...d,
+                    // O array dos custos acompanha sempre o das linhas — se ficasse
+                    // mais curto, o índice 3 passava a ser o custo da linha 4.
+                    budgetCosts: custosDe(d as ProposalDoc).map((v, j) => (j === i ? custo : v)),
+                  }))
+                }
+                /**
+                 * Os quilómetros até ao local ficam no DOCUMENTO, não num estado
+                 * do ecrã: é isso que os torna o número desta proposta e que
+                 * impede que mudar a sede ou o preço do gasóleo lhes toque depois.
+                 *
+                 * `null` apaga o campo — «não decidi», e a tabela volta a sugerir.
+                 * Escrever 0 aqui seria dizer «é em casa», que é outra coisa.
+                 */
+                onKm={(km) =>
+                  setDoc((d) => {
+                    if (km === null) {
+                      const { kmDeslocacao: _fora, ...resto } = d;
+                      void _fora;
+                      return resto;
+                    }
+                    return { ...d, kmDeslocacao: km };
+                  })
+                }
+                /**
+                 * Quantas carrinhas vão — mesma casa e mesma razão que os
+                 * quilómetros: é um facto DESTE evento, e fica congelado nele.
+                 *
+                 * `null` APAGA o campo, e apagado quer dizer uma. Escrever 1 aqui
+                 * daria o mesmo preço, mas deixava no documento um número que
+                 * ninguém decidiu — e nas propostas antigas a ausência é o que
+                 * garante que nenhuma muda de preço por este campo existir.
+                 */
+                onCarrinhas={(n) =>
+                  setDoc((d) => {
+                    if (n === null) {
+                      const { carrinhasDeslocacao: _fora, ...resto } = d;
+                      void _fora;
+                      return resto;
+                    }
+                    return { ...d, carrinhasDeslocacao: n };
+                  })
+                }
+                onDeslocacao={(label, valueText) => {
+                  // Se já lá está uma linha de deslocação, actualiza-se essa em
+                  // vez de acrescentar uma segunda — duas linhas de deslocação
+                  // numa proposta são uma pergunta do cliente ao telefone.
+                  //
+                  // Passa por `definirExtras` como todas as outras: aceitar a
+                  // deslocação calculada tem de somar ao total, ou volta a haver
+                  // um valor na proposta que não está no que se cobra.
+                  const extras = [...(doc.budgetExtras ?? [])];
+                  const i = extras.findIndex((e) => /desloca/i.test(e.label ?? ""));
+                  if (i >= 0) extras[i] = { ...extras[i], label, valueText };
+                  else extras.push({ label, valueText });
+                  /**
+                   * ── E PERGUNTA-SE, COM OS DOIS NÚMEROS À VISTA ────────────────
+                   * «Pôr nos valores adicionais» é a segunda acção do editor que
+                   * muda o preço final de uma só carregada: a deslocação calculada
+                   * SOMA-SE ao total, e portanto ao sinal e à fatura. Levava
+                   * nenhuma pergunta e nenhuma volta atrás — o mesmo desenho do
+                   * «Usar X €», e por isso o mesmo tratamento.
+                   */
+                  const contexto = { mode: vatMode, vatRate: doc.vatRate };
+                  const antes = parseMoneyText(totalInput);
+                  const depois = Math.max(
+                    0,
+                    Math.round(
+                      (antes +
+                        somaDosExtrasSemIva(extras, contexto) -
+                        somaDosExtrasSemIva(doc.budgetExtras ?? [], contexto)) *
+                        100,
+                    ) / 100,
+                  );
+                  // Sem diferença nenhuma no dinheiro (a mesma deslocação outra
+                  // vez) não há nada a confirmar: aplica-se e cala-se.
+                  if (Math.abs(depois - antes) <= 0.01) {
+                    definirExtras(extras);
+                    return;
+                  }
+                  pedirConfirmacaoDeDinheiro({
+                    oQue: "o total",
+                    de: antes,
+                    para: depois,
+                    registo: `Deslocação calculada (${valueText}) posta nos valores adicionais no estúdio: preço final de ${eur(antes)} para ${eur(depois)}.`,
+                    motivo: "Deslocação posta nos valores adicionais.",
+                    aplicar: () => definirExtras(extras),
+                  });
+                }}
+              />
+              {/* A faturação por artigo é do Moloni e não do cliente: veio para
+                  aqui, ao pé dos custos e da margem — tudo o que é só para nós
+                  num sítio só, DEPOIS do total (pedido dela de 9/11: «uma grande
+                  confusão» — estava a meio do que sai no PDF). */}
+              {/* ── REPARTIR POR ARTIGO (5/11) ───────────────────────────
+                Ela: «ter estes artigos nas propostas». O total sem IVA
+                repartido pelos artigos do Moloni — só para ela e para o
+                Moloni: não sai no PDF nem na página, e não mexe na versão
+                aceite. Ver `RepartoPorArtigo.tsx`. */}
+              {isDeco && (
+                <div className="mt-3 rounded-2xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] p-4">
+                  <span className="bo-eyebrow">Faturação por artigo</span>
+                  <p className="mt-1.5 mb-3 text-xs leading-relaxed text-foreground/45">
+                    O sinal e o saldo de cada artigo do Moloni, feitos a partir das linhas. Não
+                    aparece na proposta do cliente.
+                  </p>
+                  <RepartoPorArtigo
+                    doc={doc as ProposalDoc}
+                    pct={pctSinal}
+                    permitirManual={false}
+                    aoMudar={(reparto) =>
+                      setDoc((d) => ({ ...d, repartoPorArtigo: reparto }) as StudioDoc)
+                    }
+                  />
+                </div>
+              )}
+            </div>
+
             {/* ══════════════════════════════════════════════════════════════
               AS PÁGINAS LADO A LADO — NO FIM, E SEM SE PEDIR
               ══════════════════════════════════════════════════════════════
@@ -11518,6 +11643,7 @@ export default function ProposalStudio({
             cabe={painelLateralCabe}
             paginas={paginasParaOPainel}
             activa={boardActivo ?? undefined}
+            seccao={aVista.seccao}
             urls={assetUrls}
             originais={assetOriginais}
             aspetos={aspetosDasFotos}
@@ -14010,8 +14136,31 @@ function StepNav({
   estados: Record<Step, EstadoDoPasso>;
   organizacao: boolean;
 }) {
+  /**
+   * A barra dos passos fica colada por baixo do cabeçalho — e o índice da
+   * esquerda e o painel «O que vai sair» colavam-se a `top-4`, POR BAIXO dela:
+   * ao descer, a barra tapava-lhes o topo. Era a página «cortada» da captura
+   * dela (9/11). A altura publica-se como a do cabeçalho (`--bo-cabecalho`, no
+   * `AdminClient`), medida e não escrita à mão: parte em duas linhas num ecrã
+   * estreito.
+   */
+  const barraRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = barraRef.current;
+    if (!el) return;
+    const publicar = () =>
+      document.documentElement.style.setProperty("--bo-passos", `${el.offsetHeight}px`);
+    publicar();
+    const ro = new ResizeObserver(publicar);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty("--bo-passos");
+    };
+  }, []);
   return (
     <nav
+      ref={barraRef}
       aria-label="Passos da proposta"
       className="sticky top-[var(--bo-cabecalho,0px)] z-10 -mx-1 mb-5 flex flex-nowrap items-center gap-1.5 overflow-x-auto border-b border-[var(--bo-hairline)] bg-[var(--bo-surface)] px-1 py-2 [scrollbar-width:none] [&>button]:shrink-0"
     >
@@ -14560,7 +14709,7 @@ function PreviewSummary({
           </dl>
         ) : (
           <p className="text-sm text-foreground/50">
-            Ainda sem total. Define o valor no passo «Orçamento» → «Total, IVA e validade».
+            Ainda sem total. Define o valor no passo «Orçamento» → «Total e validade».
           </p>
         )}
       </div>

@@ -87,6 +87,65 @@ export default function Conferencia({
   );
   const reparos = temReparos(verificacoes);
   const travam = verificacoes.filter((x) => x.trava).length;
+  const porOlhar = verificacoes.filter((v) => v.severidade !== "ok");
+  const conferidas = verificacoes.filter((v) => v.severidade === "ok");
+  const linha = (v: (typeof verificacoes)[number]) => {
+    const m = MARCA[v.severidade];
+    /**
+     * A FRASE, num invólucro só.
+     *
+     * Título e detalhe são UMA frase — «Local — a proposta diz "Évora" e
+     * o pedido dizia "Sintra"» — e têm de correr como texto. Quando a
+     * linha é clicável leva `alvo-toque`, e essa classe põe
+     * `display: inline-flex` no toque: dentro de um contentor de flex
+     * cada `<span>` passa a ser uma coluna, e a frase parte-se em duas
+     * colunas lado a lado com o travessão a meio do nada. É a mesma
+     * armadilha que o `AvisoDataOcupada` documenta, medida a 375 px.
+     */
+    const frase = (
+      <span>
+        <span
+          className={v.severidade === "ok" ? "text-foreground/45" : "text-[var(--bo-tinta-72)]"}
+        >
+          {v.titulo}
+        </span>
+        {v.detalhe && <span className="text-[var(--bo-text-muted)]"> — {v.detalhe}</span>}
+        {/* O leitor de ecrã ouve a gravidade, que a cor e o símbolo só
+                  dizem a quem vê. */}
+        <span className="sr-only">
+          {v.severidade === "ok"
+            ? " (conferido)"
+            : v.severidade === "erro"
+              ? " (erro)"
+              : " (a confirmar)"}
+        </span>
+      </span>
+    );
+    // Só é link quando há mesmo para onde ir, e nunca no que já está
+    // conferido: um visto verde clicável convida a um salto que não
+    // resolve nada.
+    const saltavel = !!onIr && !!v.seccao && v.severidade !== "ok";
+    return (
+      <li key={v.id} className="flex items-start gap-2 text-xs leading-relaxed">
+        <span aria-hidden="true" className={`mt-px font-semibold ${m.cor}`}>
+          {m.simbolo}
+        </span>
+        <span className="min-w-0">
+          {saltavel ? (
+            <button
+              type="button"
+              onClick={() => onIr?.(v)}
+              className={`alvo-toque text-left underline decoration-foreground/25 underline-offset-2 hover:decoration-foreground/60 ${ESTADO} ${PRESSAO}`}
+            >
+              {frase}
+            </button>
+          ) : (
+            frase
+          )}
+        </span>
+      </li>
+    );
+  };
 
   return (
     <section
@@ -115,67 +174,30 @@ export default function Conferencia({
               : "Está tudo de acordo com o pedido original."}
       </p>
 
-      <ul className="mt-3 flex flex-col gap-1.5">
-        {verificacoes.map((v) => {
-          const m = MARCA[v.severidade];
-          /**
-           * A FRASE, num invólucro só.
-           *
-           * Título e detalhe são UMA frase — «Local — a proposta diz "Évora" e
-           * o pedido dizia "Sintra"» — e têm de correr como texto. Quando a
-           * linha é clicável leva `alvo-toque`, e essa classe põe
-           * `display: inline-flex` no toque: dentro de um contentor de flex
-           * cada `<span>` passa a ser uma coluna, e a frase parte-se em duas
-           * colunas lado a lado com o travessão a meio do nada. É a mesma
-           * armadilha que o `AvisoDataOcupada` documenta, medida a 375 px.
-           */
-          const frase = (
-            <span>
-              <span
-                className={
-                  v.severidade === "ok" ? "text-foreground/45" : "text-[var(--bo-tinta-72)]"
-                }
-              >
-                {v.titulo}
-              </span>
-              {v.detalhe && <span className="text-[var(--bo-text-muted)]"> — {v.detalhe}</span>}
-              {/* O leitor de ecrã ouve a gravidade, que a cor e o símbolo só
-                  dizem a quem vê. */}
-              <span className="sr-only">
-                {v.severidade === "ok"
-                  ? " (conferido)"
-                  : v.severidade === "erro"
-                    ? " (erro)"
-                    : " (a confirmar)"}
-              </span>
+      {/* ── O QUE PRECISA DE OLHOS PRIMEIRO; O QUE ESTÁ CERTO, DOBRADO ──────
+          Pedido dela de 9/11 («está uma confusão brutal»): a lista dizia doze
+          coisas certas para uma errada, e a errada perdia-se no meio dos
+          vistos verdes. Ficam à vista as que travam e as que são para olhar;
+          as conferidas cabem numa linha que se abre. Nada sai da lista — só
+          deixa de ser a primeira coisa que se lê. */}
+      {porOlhar.length > 0 && <ul className="mt-3 flex flex-col gap-1.5">{porOlhar.map(linha)}</ul>}
+      {conferidas.length > 0 && (
+        <details className="group mt-3">
+          <summary
+            className={`alvo-toque cursor-pointer list-none text-xs text-[var(--bo-text-muted)] hover:text-[var(--bo-text)] ${ESTADO} ${PRESSAO}`}
+          >
+            <span aria-hidden="true" className="mr-1 inline-block group-open:rotate-90">
+              ›
             </span>
-          );
-          // Só é link quando há mesmo para onde ir, e nunca no que já está
-          // conferido: um visto verde clicável convida a um salto que não
-          // resolve nada.
-          const saltavel = !!onIr && !!v.seccao && v.severidade !== "ok";
-          return (
-            <li key={v.id} className="flex items-start gap-2 text-xs leading-relaxed">
-              <span aria-hidden="true" className={`mt-px font-semibold ${m.cor}`}>
-                {m.simbolo}
-              </span>
-              <span className="min-w-0">
-                {saltavel ? (
-                  <button
-                    type="button"
-                    onClick={() => onIr?.(v)}
-                    className={`alvo-toque text-left underline decoration-foreground/25 underline-offset-2 hover:decoration-foreground/60 ${ESTADO} ${PRESSAO}`}
-                  >
-                    {frase}
-                  </button>
-                ) : (
-                  frase
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+            {porOlhar.length === 0
+              ? `${conferidas.length} coisas conferidas`
+              : conferidas.length === 1
+                ? "Mais 1 coisa está certa"
+                : `Mais ${conferidas.length} coisas estão certas`}
+          </summary>
+          <ul className="mt-2 flex flex-col gap-1.5">{conferidas.map(linha)}</ul>
+        </details>
+      )}
     </section>
   );
 }
