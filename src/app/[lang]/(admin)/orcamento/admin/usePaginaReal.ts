@@ -9,51 +9,52 @@ import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
  * A PÁGINA REAL, PEDIDA AO SERVIDOR — A1 do `docs/FAZER-PROPOSTA-MELHORIAS.md`
  * ════════════════════════════════════════════════════════════════════════════
  *
- * O painel do estúdio mostrava uma APROXIMAÇÃO da página (`PaginaEditorial`,
- * desenhada no navegador). Ela pediu a página real, e escolheu (2/11) «Só a
- * página, mais rápido»: o servidor desenha só a página `n` do rascunho, com o
- * motor do PDF (`/api/orcamento/[id]/pagina-do-rascunho`).
+ * O painel do estúdio mostra a página REAL do PDF: o servidor desenha a página
+ * `n` do rascunho com o motor do PDF (`/api/orcamento/[id]/pagina-do-rascunho`).
+ * Ela escolheu (2/11) «Só a página, mais rápido», e a 9/11 pediu-a «ultra
+ * rápida» — também ao escrever e a descer pelos mood boards.
  *
- * ── «TEM QUE SER ULTRA RÁPIDA» (9/11) ────────────────────────────────────
+ * ── UMA FILA QUE NÃO PÁRA QUANDO ELA DESCE (9/11, segunda volta) ────────
  *
- * Palavras dela, com uma captura de «A preparar «Capa»…»: «demora muito
- * tempo a carregar. tem que ser ultra rapida», e «a atualizar a pagina
- * quando se esta a mudar alguma coisa na proposta tambem tem que ser muito
- * mais rapida». MEDIDO nos registos da Vercel nesse dia: 1,4–2,3 s no
- * servidor por página; e antes disso o painel esperava 1 s (1,2 s ao mudar
- * de página) sem pedir nada, e a página seguinte só começava a ser desenhada
- * quando ela lá chegava. Três mudanças, por esta ordem de efeito:
+ * A primeira versão desse dia preparava as vizinhas depois de 1,5 s parada
+ * numa página — e cada página nova CANCELAVA essa preparação. A descer pelos
+ * mood boards a página nunca parava 1,5 s, nada se adiantava, e ela via o
+ * cinzento «A preparar» em cada uma. Medido nos registos: cada desenho custa
+ * ~1 s no servidor; o tempo perdia-se na fila, não no desenho.
  *
- *   1. NUNCA UMA FOLHA EM BRANCO quando já houve uma imagem daquela página.
- *      A última que chegou para cada página fica guardada — em memória e no
- *      armazenamento do navegador (`caches`), para sobreviver a recarregar —
- *      e aparece LOGO, marcada como «A atualizar…» (`velha`), enquanto a
- *      certa vem. O que se vê continua a ser a página real; quando ainda não
- *      é a deste rascunho, o painel di-lo.
- *   2. AS VIZINHAS PREPARAM-SE SOZINHAS. Depois de a página certa chegar e de
- *      ela parar `PREPARAR_MS`, pedem-se a seguinte e a anterior; na primeira
- *      página de cada proposta, todas as outras, uma de cada vez. Chegar lá
- *      deixa de ser um pedido: é a memória.
- *   3. MENOS ESPERA. A primeira página pede-se logo; mudar de página espera só
- *      `ESPERA_DA_PAGINA_MS` (o bastante para descer depressa não pedir cada
- *      secção por onde passa); escrever espera `ESPERA_MS`.
+ * Agora há um PREPARADOR por proposta (fora do React, ver `Preparador`):
+ *   · trabalha sempre, `EM_PARALELO` páginas de cada vez, e mudar de página
+ *     não cancela nada — só muda QUAL vem a seguir: a que ela está a ver, e
+ *     depois as mais perto dela;
+ *   · ao abrir uma proposta prepara-as todas (uma volta por sessão);
+ *   · depois de uma mudança no rascunho prepara só as que estão a
+ *     `RAIO_DEPOIS_DE_MUDAR` páginas dela — as outras desenham-se quando ela
+ *     lá chega. É o que segura o custo (ela: «o vercel e o seu custo tem que
+ *     funcionar da melhor forma possível sem gastar quase nada»);
+ *   · um pedido que falhou volta a tentar-se, até `TENTATIVAS` vezes.
  *
- * ── E O CUSTO ────────────────────────────────────────────────────────────
+ * ── NUNCA UMA FOLHA EM BRANCO QUANDO JÁ HOUVE IMAGEM ─────────────────────
  *
- * Cada desenho custa ~1–1,5 s de processador. As vizinhas são duas por
- * pausa; a volta inteira é uma vez por proposta e por sessão (~20 páginas,
- * ~30 s de processador — uns décimos de cêntimo). O processador das funções
- * foi 0,18 $ no mês inteiro: o que pesa na fatura é a construção do site.
- * Com o separador escondido continua a não se pedir nada, e um pedido que
- * fica velho é cancelado.
+ * A última imagem de cada página fica guardada — em memória e no navegador
+ * (`caches`) — e aparece LOGO, marcada «A atualizar…» (`velha`), até a certa
+ * chegar. A chave inclui quantas páginas o plano tem: se o plano mudou de
+ * tamanho, a página 7 de antes pode ser outra coisa, e não se mostra.
+ *
+ * ── E ESCREVER ───────────────────────────────────────────────────────────
+ *
+ * Uma tecla não é um pedido: o rascunho novo só entra na fila `ESPERA_MS`
+ * depois de parar de mudar. Até lá fica a imagem anterior, «A atualizar…».
  */
 export const ESPERA_MS = 400;
 
-/** Só mudou a página (desceu para outra secção, «seguinte»): quase nada. */
-export const ESPERA_DA_PAGINA_MS = 150;
+/** Quantas páginas se desenham ao mesmo tempo. */
+export const EM_PARALELO = 2;
 
-/** Parada esta pausa na página certa, preparam-se as outras. */
-export const PREPARAR_MS = 1500;
+/** Depois de uma mudança, só se refazem as páginas a esta distância. */
+export const RAIO_DEPOIS_DE_MUDAR = 2;
+
+/** Quantas vezes se tenta uma página antes de dizer que não chegou. */
+export const TENTATIVAS = 3;
 
 /**
  * ── O QUE JÁ VEIO NÃO SE PEDE OUTRA VEZ (4/11) ──────────────────────────
@@ -111,7 +112,7 @@ function guardar(chave: string, valor: Guardada) {
  */
 const ultimas = new Map<string, Guardada>();
 const ULTIMAS_MAX = 120;
-/** As propostas cuja volta inteira já se fez nesta sessão. */
+/** As propostas (e línguas) cuja volta inteira já se fez nesta sessão. */
 const voltasFeitas = new Set<string>();
 
 function guardarUltima(chave: string, valor: Guardada) {
@@ -180,49 +181,229 @@ export function esquecerPaginasGuardadas() {
   guardadas.clear();
   ultimas.clear();
   voltasFeitas.clear();
+  for (const p of preparadores.values()) p.parar();
+  preparadores.clear();
 }
 
 export interface PaginaReal {
-  /** URL de objeto da última página que chegou, ou `null`. */
+  /** URL de objeto da imagem à vista, ou `null`. */
   url: string | null;
-  /** Que página é essa (pode não ser a pedida, enquanto a nova não chega). */
+  /** Que página é essa. */
   n: number | null;
-  /** Há um pedido a caminho (ou para sair) — a imagem pode mudar. */
+  /** Vem aí outra imagem desta página (a certa). */
   aCarregar: boolean;
-  /** A imagem é desta página mas de um rascunho anterior: vem aí a certa. */
+  /** A imagem é desta página mas de um rascunho anterior. */
   velha: boolean;
-  /** O último pedido falhou (e não há página real para mostrar desta vez). */
+  /** A página não chegou depois de `TENTATIVAS` tentativas. */
   falhou: boolean;
   /** As páginas do PDF inteiro, quando o servidor já disse. */
   paginas: number | null;
 }
 
-async function pedir(quoteId: string, corpo: string, signal: AbortSignal): Promise<Guardada> {
-  const res = await fetch(`/api/orcamento/${quoteId}/pagina-do-rascunho`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: corpo,
-    signal,
-  });
-  const paginas = Number(res.headers.get("X-Paginas")) || null;
-  if (!res.ok) throw new Error(String(res.status));
-  return { imagem: await res.blob(), paginas, rascunho: impressao(corpo) };
+/**
+ * As páginas por ordem de vez, a partir de `n`: ela, a seguinte, a anterior,
+ * e daí para fora. Com `raio`, só até essa distância.
+ */
+export function paginasAPreparar(
+  n: number,
+  total: number | null,
+  raio: number = Number.POSITIVE_INFINITY,
+): number[] {
+  const dentro = (p: number) => p >= 1 && (total === null || p <= total);
+  const limite = total === null ? 1 : Math.min(raio, total);
+  const saida = dentro(n) ? [n] : [];
+  for (let d = 1; d <= limite; d++) {
+    if (dentro(n + d)) saida.push(n + d);
+    if (dentro(n - d)) saida.push(n - d);
+  }
+  return saida;
 }
 
+function corpoDe(doc: ProposalDoc, idioma: IdiomaDaProposta, n: number, largura: number) {
+  return JSON.stringify({ doc, idioma, n, largura });
+}
+
+class FalhaTemporaria extends Error {}
+
 /**
- * As páginas a preparar a seguir a `n`, por esta ordem: a seguinte, a
- * anterior e — se é a primeira volta desta proposta — todas as outras, a
- * partir das mais perto.
+ * ── O PREPARADOR DE UMA PROPOSTA ────────────────────────────────────────
+ *
+ * Fora do React de propósito: o painel desmonta e monta (outro passo, outra
+ * vista) e a fila não pode recomeçar do zero de cada vez.
  */
-export function paginasAPreparar(n: number, total: number | null, volta: boolean): number[] {
-  const perto = [n + 1, n - 1].filter((p) => p >= 1 && (total === null || p <= total));
-  if (!volta || total === null) return perto;
-  const resto: number[] = [];
-  for (let d = 2; d < total; d++) {
-    if (n + d <= total) resto.push(n + d);
-    if (n - d >= 1) resto.push(n - d);
+class Preparador {
+  private doc: ProposalDoc | null = null;
+  private versao = "";
+  private aVer = 1;
+  private total: number | null = null;
+  /** O tamanho do plano que o estúdio conta — entra na chave da imagem velha. */
+  private planoTotal: number | null = null;
+  private raio = Number.POSITIVE_INFINITY;
+  private emCurso = new Map<number, AbortController>();
+  private tentativas = new Map<number, number>();
+  private espera: ReturnType<typeof setTimeout> | null = null;
+  private parado = false;
+  private ouvintes = new Set<() => void>();
+
+  constructor(
+    private quoteId: string,
+    private idioma: IdiomaDaProposta,
+    private largura: number,
+  ) {}
+
+  ouvir(f: () => void) {
+    this.ouvintes.add(f);
+    return () => this.ouvintes.delete(f);
   }
-  return [...perto, ...resto];
+  private avisar() {
+    for (const f of [...this.ouvintes]) f();
+  }
+
+  chave(n: number, doc: ProposalDoc | null = this.doc) {
+    return doc ? `${this.quoteId}\u0000${corpoDe(doc, this.idioma, n, this.largura)}` : "";
+  }
+  chaveDaPagina(n: number, totalDoPlano: number | null) {
+    return `${this.quoteId}\u0000${this.idioma}\u0000${this.largura}\u0000${totalDoPlano ?? ""}\u0000${n}`;
+  }
+  falhou(n: number) {
+    return (this.tentativas.get(n) ?? 0) >= TENTATIVAS;
+  }
+  aCaminho(n: number) {
+    return this.emCurso.has(n) || this.espera !== null;
+  }
+
+  /** O que ela está a ver agora. `doc` igual = só mudou a página. */
+  definir(doc: ProposalDoc, n: number, totalDoPlano: number | null) {
+    this.parado = false;
+    this.aVer = n;
+    this.planoTotal = totalDoPlano;
+    if (totalDoPlano && !this.total) this.total = totalDoPlano;
+    const versao = JSON.stringify(doc);
+    if (versao !== this.versao) {
+      const primeira = this.versao === "";
+      this.versao = versao;
+      // O rascunho mudou: o que estava a ser desenhado já não serve.
+      for (const c of this.emCurso.values()) c.abort();
+      this.emCurso.clear();
+      this.tentativas.clear();
+      if (this.espera) clearTimeout(this.espera);
+      const entrar = () => {
+        this.espera = null;
+        this.doc = doc;
+        const volta = `${this.quoteId}\u0000${this.idioma}`;
+        this.raio = voltasFeitas.has(volta) ? RAIO_DEPOIS_DE_MUDAR : Number.POSITIVE_INFINITY;
+        voltasFeitas.add(volta);
+        this.bombear();
+        this.avisar();
+      };
+      if (primeira) {
+        entrar();
+      } else {
+        this.espera = setTimeout(entrar, ESPERA_MS);
+        this.avisar();
+      }
+      return;
+    }
+    // Só mudou a página: a fila passa a começar nela. Nada se cancela.
+    this.raio = Math.max(this.raio, RAIO_DEPOIS_DE_MUDAR);
+    this.bombear();
+  }
+
+  parar() {
+    this.parado = true;
+    for (const c of this.emCurso.values()) c.abort();
+    this.emCurso.clear();
+    if (this.espera) clearTimeout(this.espera);
+    this.espera = null;
+    // A versão esquece-se: voltar a abrir o painel é uma «primeira vez».
+    this.versao = "";
+  }
+
+  private proxima(): number | null {
+    if (!this.doc) return null;
+    for (const p of paginasAPreparar(this.aVer, this.total, this.raio)) {
+      if (this.emCurso.has(p) || this.falhou(p)) continue;
+      if (guardadas.has(this.chave(p))) continue;
+      return p;
+    }
+    return null;
+  }
+
+  private bombear() {
+    if (this.parado || !this.doc) return;
+    if (typeof document !== "undefined" && document.hidden) return;
+    while (this.emCurso.size < EM_PARALELO) {
+      const p = this.proxima();
+      if (p === null) return;
+      void this.desenhar(p, this.doc);
+    }
+  }
+
+  private async desenhar(p: number, doc: ProposalDoc) {
+    const controlo = new AbortController();
+    this.emCurso.set(p, controlo);
+    const chave = this.chave(p, doc);
+    const corpo = corpoDe(doc, this.idioma, p, this.largura);
+    const estaVersao = impressao(corpo);
+    const daPagina = this.chaveDaPagina(p, this.planoTotal);
+    try {
+      // Já está no navegador, desta versão (de antes de recarregar)?
+      const noNavegador = ultimas.get(daPagina) ?? (await lerDoNavegador(daPagina));
+      if (controlo.signal.aborted) return;
+      if (noNavegador?.rascunho === estaVersao) {
+        guardar(chave, noNavegador);
+      } else {
+        const res = await fetch(`/api/orcamento/${this.quoteId}/pagina-do-rascunho`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: corpo,
+          signal: controlo.signal,
+        });
+        const paginas = Number(res.headers.get("X-Paginas")) || null;
+        if (!res.ok) throw new FalhaTemporaria(String(res.status));
+        const g: Guardada = { imagem: await res.blob(), paginas, rascunho: estaVersao };
+        // Guarda-se mesmo que tenha ficado velho: está certa para AQUELE rascunho.
+        guardar(chave, g);
+        if (paginas) this.total = paginas;
+        guardarUltima(daPagina, g);
+      }
+      this.tentativas.delete(p);
+    } catch {
+      if (controlo.signal.aborted) return;
+      this.tentativas.set(p, (this.tentativas.get(p) ?? 0) + 1);
+    } finally {
+      if (this.emCurso.get(p) === controlo) this.emCurso.delete(p);
+    }
+    this.avisar();
+    // Uma falha espera um pouco antes da próxima tentativa.
+    if (!this.falhou(p) && this.tentativas.has(p)) {
+      setTimeout(() => this.bombear(), 800);
+    } else {
+      this.bombear();
+    }
+  }
+
+  retomar() {
+    this.bombear();
+  }
+}
+
+const preparadores = new Map<string, Preparador>();
+
+function preparadorDe(quoteId: string, idioma: IdiomaDaProposta, largura: number) {
+  const k = `${quoteId}\u0000${idioma}\u0000${largura}`;
+  let p = preparadores.get(k);
+  if (!p) {
+    p = new Preparador(quoteId, idioma, largura);
+    preparadores.set(k, p);
+  }
+  return p;
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) for (const p of preparadores.values()) p.retomar();
+  });
 }
 
 export function usePaginaReal({
@@ -241,9 +422,9 @@ export function usePaginaReal({
   n: number | null;
   largura?: number;
   /**
-   * Quantas páginas o estúdio conta no plano — só para saber que páginas
-   * preparar quando o servidor não o disse (uma imagem que ele já tinha em
-   * memória). O número que se MOSTRA continua a ser o do servidor.
+   * Quantas páginas o estúdio conta no plano: para saber que páginas
+   * preparar, e para a imagem velha de uma página nunca ser a de um plano
+   * com outro tamanho. O número que se MOSTRA é o do servidor.
    */
   total?: number;
 }): PaginaReal {
@@ -257,175 +438,74 @@ export function usePaginaReal({
   });
   // As fotografias a caminho não vão — a mesma fronteira da pré-visualização.
   const semPendentes = useMemo(() => (doc ? stripPendingImages(doc) : undefined), [doc]);
-  const corpo = useMemo(
-    () =>
-      quoteId && semPendentes && n
-        ? JSON.stringify({ doc: semPendentes, idioma, n, largura })
-        : null,
-    [quoteId, semPendentes, idioma, n, largura],
-  );
-  const ultimaUrl = useRef<string | null>(null);
-  /** O rascunho do último pedido — para saber se agora só mudou a página. */
-  const ultimoDoc = useRef<ProposalDoc | undefined>(undefined);
-  /** Já se mostrou alguma página desde que o painel abriu? */
-  const jaMostrou = useRef(false);
+  const ultimaUrl = useRef<{ url: string; imagem: Blob } | null>(null);
+  const ativo = !!(quoteId && semPendentes && n);
+
+  // O preparador pára quando o painel deixa de pedir (outra vista, desmontar).
+  useEffect(() => {
+    if (!quoteId) return;
+    const p = preparadorDe(quoteId, idioma, largura);
+    return () => p.parar();
+  }, [quoteId, idioma, largura]);
 
   useEffect(() => {
-    if (!corpo || !quoteId || !semPendentes || !n) return;
-    const chave = `${quoteId}\u0000${corpo}`;
-    const chaveDaPagina = (p: number) => `${quoteId}\u0000${idioma}\u0000${largura}\u0000${p}`;
+    if (!ativo || !quoteId || !semPendentes || !n) return;
+    const p = preparadorDe(quoteId, idioma, largura);
     let vivo = true;
-    const mostrar = (g: Guardada, velha: boolean) => {
+    const mostrar = () => {
       if (!vivo) return;
-      const url = URL.createObjectURL(g.imagem);
-      if (ultimaUrl.current) URL.revokeObjectURL(ultimaUrl.current);
-      ultimaUrl.current = url;
-      jaMostrou.current = true;
+      const certa = guardadas.get(p.chave(n, semPendentes));
+      const daPagina = p.chaveDaPagina(n, total ?? null);
+      const velha = certa ? null : (ultimas.get(daPagina) ?? null);
+      const g = certa ?? velha;
+      let url: string | null = null;
+      if (g) {
+        if (ultimaUrl.current?.imagem === g.imagem) {
+          url = ultimaUrl.current.url;
+        } else {
+          url = URL.createObjectURL(g.imagem);
+          if (ultimaUrl.current) URL.revokeObjectURL(ultimaUrl.current.url);
+          ultimaUrl.current = { url, imagem: g.imagem };
+        }
+      }
+      const falhou = !certa && p.falhou(n);
       setEstado((e) => ({
         url,
         n,
-        aCarregar: velha,
-        velha,
-        falhou: false,
-        paginas: g.paginas ?? e.paginas,
+        aCarregar: !certa && !falhou,
+        velha: !certa && !!velha,
+        falhou,
+        paginas: certa?.paginas ?? e.paginas,
       }));
     };
-    const controlo = new AbortController();
-    const temporizadores: number[] = [];
-    const depois = (ms: number, fazer: () => void) => {
-      temporizadores.push(window.setTimeout(fazer, ms));
-    };
-
-    /** As outras páginas, em silêncio, uma de cada vez. */
-    const prepararAsOutras = (doServidor: number | null) => {
-      const quantas = doServidor ?? total ?? null;
-      const volta = !voltasFeitas.has(`${quoteId}\u0000${idioma}`);
-      depois(PREPARAR_MS, async () => {
-        if (typeof document !== "undefined" && document.hidden) return;
-        if (volta) voltasFeitas.add(`${quoteId}\u0000${idioma}`);
-        for (const p of paginasAPreparar(n, quantas, volta)) {
-          if (controlo.signal.aborted) return;
-          const corpoP = JSON.stringify({ doc: semPendentes, idioma, n: p, largura });
-          const chaveP = `${quoteId}\u0000${corpoP}`;
-          if (guardadas.has(chaveP)) continue;
-          // Já está no navegador, desta versão (de antes de recarregar).
-          const ultimaP = ultimas.get(chaveDaPagina(p)) ?? (await lerDoNavegador(chaveDaPagina(p)));
-          if (controlo.signal.aborted) return;
-          if (ultimaP?.rascunho === impressao(corpoP)) {
-            guardar(chaveP, ultimaP);
-            continue;
-          }
-          try {
-            const g = await pedir(quoteId, corpoP, controlo.signal);
-            guardar(chaveP, g);
-            guardarUltima(chaveDaPagina(p), g);
-          } catch {
-            // Uma vizinha que falha não interessa a ninguém: pede-se quando
-            // ela lá chegar. E uma que já não existe acaba a volta.
-            if (controlo.signal.aborted) return;
-          }
+    const deixar = p.ouvir(mostrar);
+    p.definir(semPendentes, n, total ?? null);
+    // A imagem velha desta página, se só estiver no navegador.
+    const daPagina = p.chaveDaPagina(n, total ?? null);
+    if (!ultimas.has(daPagina)) {
+      void lerDoNavegador(daPagina).then((g) => {
+        if (g && vivo && !ultimas.has(daPagina)) {
+          ultimas.set(daPagina, g);
+          mostrar();
         }
       });
-    };
-
-    const ja = guardadas.get(chave);
-    if (ja) {
-      // Já veio: mostra-se logo, sem pausa e sem pedir nada ao servidor.
-      guardar(chave, ja);
-      depois(0, () => {
-        mostrar(ja, false);
-        prepararAsOutras(ja.paginas);
-      });
-      ultimoDoc.current = doc;
-      return () => {
-        vivo = false;
-        temporizadores.forEach((t) => window.clearTimeout(t));
-        controlo.abort();
-      };
     }
-
-    // Enquanto a certa não chega: a última imagem DESTA página, marcada como
-    // velha. Da memória, logo; do navegador, assim que se ler. E se for a
-    // desta versão do rascunho (reabrir a proposta sem mudar nada), é a
-    // certa: mostra-se e não se pede nada.
-    const estaVersao = impressao(corpo);
-    const daMemoria = ultimas.get(chaveDaPagina(n));
-    if (daMemoria?.rascunho === estaVersao) {
-      guardar(chave, daMemoria);
-      depois(0, () => {
-        mostrar(daMemoria, false);
-        prepararAsOutras(daMemoria.paginas);
-      });
-      ultimoDoc.current = doc;
-      return () => {
-        vivo = false;
-        temporizadores.forEach((t) => window.clearTimeout(t));
-        controlo.abort();
-      };
-    }
-    const anterior = daMemoria;
-    let doNavegador: Promise<boolean> = Promise.resolve(false);
-    if (anterior) {
-      depois(0, () => mostrar(anterior, true));
-    } else {
-      depois(0, () => setEstado((e) => (e.n === n ? { ...e, aCarregar: true } : e)));
-      doNavegador = lerDoNavegador(chaveDaPagina(n)).then((g) => {
-        if (!g || controlo.signal.aborted) return false;
-        ultimas.set(chaveDaPagina(n), g);
-        if (g.rascunho === estaVersao) {
-          guardar(chave, g);
-          mostrar(g, false);
-          prepararAsOutras(g.paginas);
-          return true;
-        }
-        mostrar(g, true);
-        return false;
-      });
-    }
-
-    const soAPagina = ultimoDoc.current === doc;
-    ultimoDoc.current = doc;
-    const espera = !jaMostrou.current && !anterior ? 0 : soAPagina ? ESPERA_DA_PAGINA_MS : ESPERA_MS;
-    depois(espera, async () => {
-      // Ninguém está a ver: o desenho fica para quando ela voltar e mexer.
-      if (typeof document !== "undefined" && document.hidden) return;
-      // A do navegador pode já ser a certa: nesse caso não se pede nada.
-      if (await doNavegador) return;
-      if (controlo.signal.aborted) return;
-      setEstado((e) => ({ ...e, aCarregar: true, falhou: false }));
-      try {
-        const g = await pedir(quoteId, corpo, controlo.signal);
-        // Guarda-se mesmo que este pedido tenha ficado velho: a página está
-        // certa para AQUELE rascunho, e voltar a ele não a pede outra vez.
-        guardar(chave, g);
-        guardarUltima(chaveDaPagina(n), g);
-        if (controlo.signal.aborted) return;
-        mostrar(g, false);
-        prepararAsOutras(g.paginas);
-      } catch {
-        if (controlo.signal.aborted) return;
-        // Se havia a imagem velha desta página, fica — e diz que falhou.
-        setEstado((e) => ({ ...e, aCarregar: false, falhou: true }));
-      }
-    });
+    const logo = window.setTimeout(mostrar, 0);
     return () => {
       vivo = false;
-      temporizadores.forEach((t) => window.clearTimeout(t));
-      controlo.abort();
+      deixar();
+      window.clearTimeout(logo);
     };
-    // `doc` só é lido para comparar com o anterior; o pedido depende do
-    // `corpo`, que já muda com ele.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [corpo, quoteId]);
+  }, [ativo, quoteId, semPendentes, idioma, n, largura, total]);
 
   // A última imagem liberta-se quando o painel sai.
   useEffect(
     () => () => {
-      if (ultimaUrl.current) URL.revokeObjectURL(ultimaUrl.current);
+      if (ultimaUrl.current) URL.revokeObjectURL(ultimaUrl.current.url);
       ultimaUrl.current = null;
     },
     [],
   );
 
-  return estado;
+  return ativo ? estado : { ...estado, aCarregar: false };
 }

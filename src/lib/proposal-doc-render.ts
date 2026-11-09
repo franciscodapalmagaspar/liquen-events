@@ -47,7 +47,7 @@ import {
   type Medida,
 } from "@/lib/pdf-editorial/montar";
 import type { ConteudoWeb } from "@/lib/pdf-editorial/conteudo-web";
-import { formasDeCaminhos } from "@/lib/biblioteca-fotos-store";
+import { formasDeCaminhosOuErro } from "@/lib/biblioteca-fotos-store";
 import { focoAutomatico, LADO_PAGINA, pixeisDaCaixa, type Foco } from "@/lib/pdf-editorial/imagens";
 import { FOLHA } from "@/lib/pdf-editorial/moldura";
 
@@ -841,7 +841,8 @@ function caminhosDoDocumento(doc: ProposalDoc): string[] {
 }
 
 async function medidasDaBiblioteca(refs: readonly string[]): Promise<Map<string, Medida>> {
-  const formas = await formasDeCaminhos(refs.filter(guardavel));
+  // Uma leitura falhada FALHA o desenho — ver `formasDeCaminhosOuErro`.
+  const formas = await formasDeCaminhosOuErro(refs.filter(guardavel));
   const saida = new Map<string, Medida>();
   for (const [ref, f] of formas) saida.set(ref, reduzidaParaOEditorial(f.largura, f.altura));
   return saida;
