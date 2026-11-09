@@ -536,3 +536,39 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.useRealTimers();
   });
 });
+
+/**
+ * ── O QUE A VOLTA À MÃO DE 9/11 APANHOU ──────────────────────────────────
+ * Duas páginas erradas no painel: um mood board novo, só com o título, não
+ * era seguido (o painel ficava na página de antes); e numa secção que ainda
+ * não fez página nenhuma (um orçamento sem linhas) aparecia a última página
+ * que se viu, que não tinha nada a ver com o que se escrevia.
+ */
+describe("a página seguida, nos casos de canto", () => {
+  const docSoComTitulo = {
+    clientNames: "TESTE Ana & TESTE Rui",
+    eventType: "Casamento",
+    coverImages: [],
+    moodBoards: [board({ title: "Cerimónia", images: [] })],
+  } as unknown as React.ComponentProps<typeof PainelDoEstudio>["doc"];
+
+  it("um mood board ainda sem fotografias já é seguido — tem página no PDF", () => {
+    desenhar({
+      doc: docSoComTitulo,
+      paginas: [],
+      activa: 0,
+      seccao: "moodboards",
+      quoteId: "q1",
+    });
+    expect(screen.getByText(/Página \d+ de \d+ · Cerimónia/)).toBeTruthy();
+    // E conta-se como uma inspiração: tem página.
+    expect(screen.getByText("1 inspiração")).toBeTruthy();
+  });
+
+  it("uma secção sem página ainda diz isso, em vez de mostrar outra", () => {
+    desenhar({ doc: docSoComTitulo, paginas: [], seccao: "orcamento", quoteId: "q1" });
+    expect(screen.getByText(/Esta parte ainda não tem página no PDF/)).toBeTruthy();
+    // E dá para folhear à mesma.
+    expect(screen.getByRole("button", { name: "Página seguinte" })).toBeTruthy();
+  });
+});

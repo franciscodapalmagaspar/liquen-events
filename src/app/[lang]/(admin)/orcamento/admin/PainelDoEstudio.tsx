@@ -247,6 +247,12 @@ export default function PainelDoEstudio({
     />
   );
 
+  // Quantas inspirações o PDF leva — pelo plano, que conta também um mood
+  // board que ainda só tem título (já é uma página). `paginas` só tem os que
+  // já têm fotografias, e o painel dizia «0 inspirações» com uma lá dentro.
+  const nInspiracoes = plano.length
+    ? plano.filter((e) => e.tipo === "tema" && e.parte === 0).length
+    : paginas.length;
   const aVer = paginas.find((p) => p.bi === activa) ?? paginas[0];
 
   /* ── A PÁGINA REAL (A1) ──────────────────────────────────────────────────
@@ -267,15 +273,25 @@ export default function PainelDoEstudio({
      proposta» (o índice vem antes, mas não muda com o que lá se escreve), nas
      Capas a capa, e no Total a página do total. Numa secção que não tem página
      (as notas, o envio), fica a última que tinha. */
+  /* O mood board que está a ser editado, pelo plano — e não só pelos que já
+     têm fotografias (`paginas`). Um mood board novo, só com o título, já tem
+     página no PDF; o painel ficava na página anterior até lhe pôr uma foto
+     (achado da volta à mão de 9/11). */
+  const nDoBoard = (() => {
+    if (activa == null) return null;
+    const i = plano.findIndex((e) => e.tipo === "tema" && e.bi === activa && e.parte === 0);
+    return i >= 0 ? i + 1 : null;
+  })();
   const nDaSeccao = (() => {
-    if (!seccao || seccao === "moodboards") return null;
+    if (!seccao) return null;
     const preferida = PAGINA_PREFERIDA[seccao];
     let i = preferida ? plano.findIndex((e) => e.tipo === preferida) : -1;
     if (i < 0) i = plano.findIndex((e) => e.seccao === seccao);
     return i >= 0 ? i + 1 : null;
   })();
   const naInspiracao = seccao === "moodboards" || seccao == null;
-  const nSeguida = naInspiracao ? (nDaPagina ?? nDaSeccao) : nDaSeccao;
+  const nSeguida = naInspiracao ? (nDoBoard ?? nDaPagina ?? nDaSeccao) : nDaSeccao;
+
   // A última página seguida, para uma secção sem página (as notas, o envio)
   // não deixar o painel vazio. Estado derivado acertado no próprio render — o
   // padrão do React para «lembrar o valor anterior de uma prop».
@@ -286,6 +302,14 @@ export default function PainelDoEstudio({
   const [folheada, setFolheada] = useState<{ de: number | null; n: number } | null>(null);
   const base = nSeguida ?? ultimaSeguida ?? (plano.length ? 1 : null);
   const nMostrada = folheada && folheada.de === base ? folheada.n : base;
+  const aFolhear = !!folheada && folheada.de === base;
+  /* Uma secção que FAZ páginas, mas ainda não fez nenhuma (um orçamento sem
+     linhas, serviços por escrever): mostrar a página anterior era mostrar uma
+     página que não tem nada a ver com o que se está a escrever. Diz-se que a
+     página ainda não existe. As secções que nunca fazem página (as notas, o
+     envio) continuam a deixar ficar a última. */
+  const semPaginaAinda =
+    !!seccao && SECCOES_COM_PAGINA.has(seccao) && nSeguida == null && plano.length > 0 && !aFolhear;
   const entradaMostrada = nMostrada ? plano[nMostrada - 1] : undefined;
   /* ── O QUE SE VÊ É O QUE SAI ─────────────────────────────────────────────
      Palavras dela (9/11): «é mesmo importante que aquilo que se está a ver é
@@ -324,7 +348,12 @@ export default function PainelDoEstudio({
   if (!cabe) return null;
 
   return (
-    <aside className="w-[21rem] shrink-0" aria-label="O que vai sair">
+    <aside
+      className="w-[21rem] shrink-0"
+      aria-label="O que vai sair"
+      data-seccao={seccao ?? ""}
+      data-pagina={nMostrada ?? ""}
+    >
       {/* `sticky` e não fixo: acompanha o scroll da coluna do meio sem sair da
           página, e por isso continua a poder ser percorrido no fim do
           formulário como qualquer outra coisa. */}
@@ -346,7 +375,7 @@ export default function PainelDoEstudio({
            * diferentes de propósito; o que não podiam era chamar-lhes o mesmo.
            */}
           <p className="text-[11px] text-foreground/45 tabular-nums">
-            {paginas.length === 1 ? "1 inspiração" : `${paginas.length} inspirações`}
+            {nInspiracoes === 1 ? "1 inspiração" : `${nInspiracoes} inspirações`}
           </p>
         </div>
 
@@ -434,7 +463,16 @@ export default function PainelDoEstudio({
                   garante que a classe recomeça em vez de o React reaproveitar
                   o nó e a animação nunca correr. */}
               <div key={vista} className="view-in">
-                {vista === "pagina" && !mostraTema ? (
+                {vista === "pagina" && semPaginaAinda ? (
+                  <>
+                    <div className="flex aspect-[1123/794] w-full items-center justify-center rounded-[3px] border border-dashed border-[var(--bo-hairline-strong)] px-5 text-center text-[11px] leading-relaxed text-[var(--bo-text-muted)]">
+                      Esta parte ainda não tem página no PDF. Aparece aqui assim que a preencheres.
+                    </div>
+                    <Folhear n={nMostrada} total={real.paginas ?? plano.length} onFolhear={folhear}>
+                      {plano.length} páginas no PDF
+                    </Folhear>
+                  </>
+                ) : vista === "pagina" && !mostraTema ? (
                   <PaginaDaSeccao
                     url={urlReal}
                     n={nMostrada}
@@ -555,6 +593,17 @@ export default function PainelDoEstudio({
     </aside>
   );
 }
+
+/** As secções do formulário que produzem páginas no plano (`plano.ts`). */
+const SECCOES_COM_PAGINA = new Set([
+  "capas",
+  "evento",
+  "servicos",
+  "moodboards",
+  "cronograma",
+  "orcamento",
+  "total",
+]);
 
 /** Qual das páginas de uma secção é a que ela está a mexer (ver `nDaSeccao`). */
 const PAGINA_PREFERIDA: Record<string, EntradaDoPlano["tipo"]> = {
