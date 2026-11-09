@@ -141,6 +141,7 @@ import ModelosParciais from "./ModelosParciais";
 import EditorDeEscolhas, { type FotoDisponivel } from "./EditorDeEscolhas";
 import NavEstudio from "./NavEstudio";
 import NotasInternas from "./NotasInternas";
+import { MenuDeAccoes } from "./ui/MenuDeAccoes";
 import AvisoDataOcupada from "./AvisoDataOcupada";
 import { estadoDasSeccoes, oQueFaltaParaEnviar, podeEnviar } from "@/lib/proposal-progress";
 import { hojeNoEstudio } from "@/lib/fuso";
@@ -1433,6 +1434,14 @@ interface Props {
    * duas teclas), e devolvê-la inteira era desfazer essa gravação no ecrã.
    */
   onEstadoDoPedido?: (status: QuoteStatus) => void;
+  /**
+   * Para quem é a proposta, e as duas portas do pedido. Dado pelo «Fazer
+   * proposta», o estúdio põe-no NA MESMA LINHA das suas acções — antes eram um
+   * cartão inteiro, um traço e uma linha «Estúdio de propostas (PDF)» por cima
+   * dos passos (360 px no computador, ~1 000 num telemóvel, antes do primeiro
+   * campo). Pedido dela de 9/11: «está uma confusão brutal».
+   */
+  cliente?: { nome: string; onAbrirPedido: () => void; onTrocar: () => void };
 }
 
 export default function ProposalStudio({
@@ -1441,6 +1450,7 @@ export default function ProposalStudio({
   onSent,
   onQuoteUpdated,
   onEstadoDoPedido,
+  cliente,
 }: Props) {
   const { toast } = useToast();
   const avisoDeQualidade = useAvisoDeQualidade();
@@ -5127,6 +5137,7 @@ export default function ProposalStudio({
     return (
       <NotasInternas
         compacta
+        fechadaSeVazia
         titulo={titulo}
         valor={notas[chave] ?? ""}
         placeholder="Só para a equipa. Nunca sai na proposta."
@@ -8151,7 +8162,7 @@ export default function ProposalStudio({
   return (
     <div
       ref={caixaDoEstudio}
-      className="@container border-t border-[var(--bo-hairline-strong)] pt-5"
+      className={`@container ${cliente ? "" : "border-t border-[var(--bo-hairline-strong)] pt-5"}`}
     >
       {/* EMPILHA no telemóvel, em vez de repartir a largura.
           O que estava aqui era um `flex` em linha com o texto de um lado e três
@@ -8179,14 +8190,34 @@ export default function ProposalStudio({
             o que aqui se poupa é altura, e duas cópias não poupam altura
             nenhuma a quem lê o HTML. */}
         <div className="min-w-0">
-          <p className="bo-eyebrow flex items-center gap-1.5">
-            Estúdio de propostas (PDF)
-            <Ajuda sobre="o que se faz no estúdio de propostas">
-              Monta aqui a proposta em PDF para o cliente, em cinco passos: Evento, Serviços,
-              Inspiração, Orçamento e Rever e enviar. Podes saltar entre eles à vontade — nada se
-              perde.
-            </Ajuda>
-          </p>
+          {cliente ? (
+            <>
+              {/* O nome da zona continua a existir para quem ouve o ecrã — e
+                  para os passeios que o usam como sinal de que o estúdio
+                  montou. À vista, o que se lê primeiro é para quem é. */}
+              <h2 className="sr-only">Estúdio de propostas (PDF)</h2>
+              <p className="flex items-center gap-1.5 text-caption text-[var(--bo-text-muted)]">
+                Proposta para
+                <Ajuda sobre="o que se faz no estúdio de propostas">
+                  Monta aqui a proposta em PDF para o cliente, em cinco passos: Evento, Serviços,
+                  Inspiração, Orçamento e Rever e enviar. Podes saltar entre eles à vontade — nada
+                  se perde. A página à direita é a do PDF, tal e qual vai sair.
+                </Ajuda>
+              </p>
+              <p className="truncate text-title3 font-semibold text-[var(--bo-text)]">
+                {cliente.nome}
+              </p>
+            </>
+          ) : (
+            <p className="bo-eyebrow flex items-center gap-1.5">
+              Estúdio de propostas (PDF)
+              <Ajuda sobre="o que se faz no estúdio de propostas">
+                Monta aqui a proposta em PDF para o cliente, em cinco passos: Evento, Serviços,
+                Inspiração, Orçamento e Rever e enviar. Podes saltar entre eles à vontade — nada se
+                perde.
+              </Ajuda>
+            </p>
+          )}
         </div>
         {/* `flex-wrap` e não `shrink-0`: com três botões a 375 px, um deles
             saía pela margem direita e ficava cortado ("Limpa…"). */}
@@ -8211,9 +8242,6 @@ export default function ProposalStudio({
           >
             Criar a partir de…
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setNomeModelo(doc.eventType || "")}>
-            Guardar como modelo
-          </Button>
           {/* DESFAZER TEM DE SE PODER TOCAR.
               Isto existia só como `Cmd+Z`, e num telemóvel não há `Cmd+Z`:
               desfazer um engano era uma coisa que só se podia fazer sentada ao
@@ -8231,9 +8259,53 @@ export default function ProposalStudio({
           >
             Desfazer
           </Button>
-          <Button variant="ghost" size="sm" onClick={clearDraft}>
-            Limpar rascunho
-          </Button>
+          {/* ── NUM ECRÃ ESTREITO, O RESTO VAI PARA O «⋯» ───────────────────
+              Seis botões soltos eram três linhas de botões num telemóvel, por
+              cima dos passos (9/11, «está uma confusão brutal»). Fica à vista o
+              que se usa a meio do trabalho — «Criar a partir de…» e «Desfazer»
+              — e o resto entra no menu. Num ecrã largo continua tudo à vista. */}
+          <div className="contents @max-[40rem]:hidden">
+            <Button variant="ghost" size="sm" onClick={() => setNomeModelo(doc.eventType || "")}>
+              Guardar como modelo
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clearDraft}>
+              Limpar rascunho
+            </Button>
+            {cliente && (
+              <>
+                {/* As portas do pedido, separadas das do rascunho por um traço:
+                  estas saem do estúdio, as de cima mexem nele. */}
+                <span aria-hidden="true" className="mx-1 h-5 w-px bg-[var(--bo-hairline-strong)]" />
+                <Button variant="ghost" size="sm" onClick={cliente.onAbrirPedido}>
+                  Abrir o pedido
+                </Button>
+                <Button variant="ghost" size="sm" onClick={cliente.onTrocar}>
+                  Trocar de cliente
+                </Button>
+              </>
+            )}
+          </div>
+          <div className="@min-[40rem]:hidden">
+            <MenuDeAccoes
+              sobre={cliente?.nome ?? "esta proposta"}
+              sempreVisivel
+              accoes={[
+                ...(cliente
+                  ? [
+                      { id: "pedido", rotulo: "Abrir o pedido", onAccao: cliente.onAbrirPedido },
+                      { id: "trocar", rotulo: "Trocar de cliente", onAccao: cliente.onTrocar },
+                    ]
+                  : []),
+                {
+                  id: "modelo",
+                  rotulo: "Guardar como modelo",
+                  onAccao: () => setNomeModelo(doc.eventType || ""),
+                  separadorAntes: !!cliente,
+                },
+                { id: "limpar", rotulo: "Limpar rascunho", onAccao: clearDraft, destrutiva: true },
+              ]}
+            />
+          </div>
         </div>
       </div>
 

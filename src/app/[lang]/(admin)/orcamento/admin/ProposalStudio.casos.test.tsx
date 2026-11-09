@@ -602,6 +602,29 @@ const renderStudio = (passo?: NomeDoPasso) => {
  * e o ponto é estarem onde a dúvida nasce.
  */
 describe("notas presas a cada secção", () => {
+  /**
+   * Vazias, as notas das secções ficam fechadas numa linha (pedido dela de
+   * 9/11: seis caixas amarelas abertas pareciam campos por preencher). A linha
+   * diz o mesmo — o título e «só para ti» — e abre a caixa.
+   */
+  async function abrirNota(titulo: string, user = userEvent.setup()) {
+    // `hidden`: as secções dos outros passos estão montadas mas escondidas.
+    await user.click(
+      await screen.findByRole("button", { name: new RegExp(titulo, "i"), hidden: true }),
+    );
+    return screen.findByLabelText(new RegExp(titulo, "i"));
+  }
+
+  it("fechadas, cada uma é uma linha que diz que é só para nós", async () => {
+    renderStudio();
+    const botao = await screen.findByRole("button", {
+      name: /Nota sobre o orçamento/i,
+      hidden: true,
+    });
+    expect(botao.textContent).toMatch(/só para ti, nunca sai na proposta/);
+    expect(screen.queryByLabelText(/Nota sobre o orçamento/i)).toBeNull();
+  });
+
   const seccoes = [
     "Nota sobre a capa",
     "Nota sobre os serviços",
@@ -613,10 +636,7 @@ describe("notas presas a cada secção", () => {
   it("cada secção do trabalho tem a sua caixa", async () => {
     renderStudio();
     for (const titulo of seccoes) {
-      expect(
-        await screen.findByLabelText(new RegExp(titulo, "i")),
-        `falta a caixa de «${titulo}»`,
-      ).toBeTruthy();
+      expect(await abrirNota(titulo), `falta a caixa de «${titulo}»`).toBeTruthy();
     }
   });
 
@@ -635,7 +655,7 @@ describe("notas presas a cada secção", () => {
   it("o que se escreve fica guardado na chave daquela secção", async () => {
     renderStudio();
     const user = userEvent.setup();
-    const caixa = await screen.findByLabelText(/Nota sobre o orçamento/i);
+    const caixa = await abrirNota("Nota sobre o orçamento", user);
     await user.type(caixa, "A margem toda está na linha das flores.");
     await waitFor(() => expect(corpos("proposta-rascunho").length).toBeGreaterThan(0), {
       timeout: 4000,
@@ -657,7 +677,7 @@ describe("notas presas a cada secção", () => {
      */
     renderStudio();
     const user = userEvent.setup();
-    const caixa = await screen.findByLabelText(/Nota sobre a capa/i);
+    const caixa = await abrirNota("Nota sobre a capa", user);
     await user.type(caixa, "trocar a segunda");
     await waitFor(
       () => expect(corpos("proposta-rascunho").at(-1) ?? "").toContain("trocar a segunda"),
@@ -683,7 +703,7 @@ describe("notas presas a cada secção", () => {
      */
     renderStudio();
     const user = userEvent.setup();
-    const caixa = await screen.findByLabelText(/Nota sobre o total/i);
+    const caixa = await abrirNota("Nota sobre o total", user);
     await user.type(caixa, "   ");
     // Tempo de sobra para uma gravação automática, se ela chegasse a existir.
     await new Promise((r) => setTimeout(r, 1500));
@@ -6628,7 +6648,7 @@ describe("traduzir com as fotos a meio", () => {
     // Remover passou a ser uma acção da folha, e não um círculo em cima da
     // fotografia — ver «SEIS CÍRCULOS EM CIMA DA FOTOGRAFIA». O caminho é o
     // mesmo dela: abrir as acções da primeira foto e escolher «Remover».
-    await user.click(screen.getAllByRole("button", { name: /^Acções de / })[0]);
+    await user.click(screen.getAllByRole("button", { name: /^Acções de (?!esta proposta)/ })[0]);
     await user.click(await screen.findByRole("button", { name: "Remover fotografia" }));
     await waitFor(() => expect(celulas()).toHaveLength(1));
 
@@ -7125,7 +7145,10 @@ describe("o estúdio no telemóvel: fotos, acções e descrições", () => {
     }
 
     // E o caminho do dedo existe por omissão: é ele que fica quando a barra sai.
-    const pontos = document.querySelector('button[aria-label^="Acções de"]')!;
+    const pontos = document.querySelector(
+      // O «⋯» do cabeçalho do estúdio (9/11) não é o da fotografia.
+      'button[aria-label^="Acções de"]:not([aria-label="Acções de esta proposta"])',
+    )!;
     expect(pontos.className).toContain("com-rato:hidden");
     expect(pontos.className).toContain("alvo-toque");
   });

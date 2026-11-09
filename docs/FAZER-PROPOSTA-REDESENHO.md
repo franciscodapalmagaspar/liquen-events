@@ -28,11 +28,23 @@ enviadas; a barra de baixo («Fica a barra de baixo»); a regra única do envio
 | Fase | O quê | Estado |
 |---|---|---|
 | 0 | A página ao lado: não cortada, segue o scroll, só a real, 1 s | **feito** — PR #389 |
-| 1 | A moldura: menos coisas antes do formulário, nada tapado pelas barras | em curso |
+| 1 | A moldura: menos coisas antes do formulário | **feito** — PR #389 (ver em baixo) |
 | 2 | Orçamento: o que o cliente vê, o resumo, e o que é só para nós separados | por fazer |
 | 3 | Inspiração: começar é óbvio, cada mood board lê-se de relance | por fazer |
 | 4 | Serviços e Evento: grupos e linhas que se leem como uma lista | por fazer |
 | 5 | Rever e enviar: o que falta primeiro, depois o PDF, depois o email | por fazer |
+
+### Onde a fase 1 se afastou do plano
+
+- **O índice da esquerda fica no telemóvel.** Escondê-lo partia uma decisão
+  anterior com testes próprios («existe em todas as larguras», `NavEstudio`).
+  Com o cabeçalho a uma linha e as ações no «⋯», o primeiro campo já sobe de
+  ~1 000 px para ~430 num iPhone. Fica para ela decidir.
+- **As barras de baixo continuam a flutuar por cima do formulário a meio do
+  scroll** — é o que uma barra que flutua faz; no fim da página há espaço para
+  nada ficar tapado.
+- **A nota do negócio («Notas internas», no Evento) fica aberta**; as outras
+  cinco fecham-se quando estão vazias.
 
 ## O que a análise encontrou (capturas a 1440 px e num iPhone, 9/11)
 

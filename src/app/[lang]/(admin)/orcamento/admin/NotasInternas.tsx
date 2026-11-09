@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { useId, useRef, useState } from "react";
+import { ESTADO, PRESSAO } from "./ui/movimento";
 import { useAlturaDoConteudo } from "./ui/altura-do-conteudo";
 
 /**
@@ -27,6 +28,16 @@ interface Props {
   placeholder?: string;
   /** Compacta, para viver dentro de uma secção em vez de a encimar. */
   compacta?: boolean;
+  /**
+   * Vazia, fica fechada numa linha que se toca para escrever.
+   *
+   * Pedido dela de 9/11 («está uma confusão brutal»): cada secção do estúdio
+   * tinha a sua caixa amarela ABERTA — seis caixas vazias a parecer campos por
+   * preencher, no meio dos que saem na proposta. Fechada, continua à vista e
+   * continua a dizer que é só para nós; abre-se quando há o que escrever, e
+   * abre-se sozinha quando já tem uma nota.
+   */
+  fechadaSeVazia?: boolean;
 }
 
 export default function NotasInternas({
@@ -35,7 +46,9 @@ export default function NotasInternas({
   titulo = "Notas internas",
   placeholder = "O que precisas de lembrar sobre este negócio e nunca vai na proposta.",
   compacta = false,
+  fechadaSeVazia = false,
 }: Props) {
+  const [aberta, setAberta] = useState(false);
   // O textarea cresce com o texto: uma nota de três linhas dentro de uma caixa
   // de uma linha lê-se por uma frincha, e o que não se relê não serve.
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -63,6 +76,24 @@ export default function NotasInternas({
 
   // Cresce até 320 px, e só se mede quando se vê — ver `ui/altura-do-conteudo.ts`.
   useAlturaDoConteudo(ref, valor, { maximo: 320 });
+
+  if (fechadaSeVazia && !aberta && !valor.trim()) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setAberta(true);
+          // O campo nasce no próximo desenho; o foco vai lá ter a seguir.
+          requestAnimationFrame(() => ref.current?.focus());
+        }}
+        className={`alvo-toque mt-3 inline-flex items-baseline gap-1.5 rounded-md px-1 py-0.5 text-[11px] text-[var(--bo-aviso)] hover:bg-[var(--bo-aviso-lavagem)]/60 ${ESTADO} ${PRESSAO}`}
+      >
+        <span aria-hidden="true">✎</span>
+        <span>{titulo}</span>
+        <span className="text-[var(--bo-aviso)]/80">— só para ti, nunca sai na proposta</span>
+      </button>
+    );
+  }
 
   return (
     <div
