@@ -172,9 +172,21 @@ async function rolarOPainel(page: Page, fracao: number) {
  * — ficou a uma tecla, no «Abrir o pedido» desse ecrã.
  */
 async function abrirOPainelDoPedido(page: Page) {
+  // Num ecrã estreito, desde 9/11, as portas do pedido vivem no «⋯» do
+  // estúdio (seis botões soltos eram três linhas por cima dos passos). No
+  // largo continuam à vista. Espera-se pelo estúdio e escolhe-se o caminho.
   const porta = page.getByRole("button", { name: /^Abrir o pedido$/ });
-  await expect(porta, "O ecrã de fazer proposta perdeu a porta de volta ao pedido.").toHaveCount(1);
-  await porta.click();
+  const menu = page.getByRole("button", { name: /^Acções de / }).first();
+  await expect(
+    porta.or(menu).first(),
+    "O ecrã de fazer proposta perdeu a porta de volta ao pedido.",
+  ).toBeVisible({ timeout: 20_000 });
+  if (await porta.isVisible()) {
+    await porta.click();
+    return;
+  }
+  await menu.click();
+  await page.getByRole("menuitem", { name: /^Abrir o pedido$/ }).click();
 }
 
 test.describe("D1 · a barra de gravação do pedido", () => {

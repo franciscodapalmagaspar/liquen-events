@@ -73,12 +73,15 @@ function montar(vista: "kanban" | "pedidos") {
   );
 }
 
+// O «Abrir o pedido» vive DENTRO do estúdio desde 9/11 (era o cartão por cima
+// dele), e o estúdio chega por um `import()` preguiçoso: no CI, mais lento, o
+// segundo de espera por omissão não chegava. Daí os 10 s.
 describe("as portas para um cliente (2/11)", () => {
   it("no Kanban, um pedido por ganhar abre a página da proposta — não o painel", async () => {
     montar("kanban");
     await userEvent.click((await screen.findAllByText("TESTE Ana Serra"))[0]);
     // A página da proposta tem o «Abrir o pedido»; o painel antigo, a «Gestão do pedido».
-    await screen.findByRole("button", { name: /^Abrir o pedido$/ });
+    await screen.findByRole("button", { name: /^Abrir o pedido$/ }, { timeout: 10_000 });
     expect(screen.queryByText("Gestão do pedido")).toBeNull();
     expect(navegar).not.toHaveBeenCalled();
   });
@@ -94,14 +97,16 @@ describe("as portas para um cliente (2/11)", () => {
   it("o painel continua lá, atrás do «Abrir o pedido» da página", async () => {
     montar("kanban");
     await userEvent.click((await screen.findAllByText("TESTE Ana Serra"))[0]);
-    await userEvent.click(await screen.findByRole("button", { name: /^Abrir o pedido$/ }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: /^Abrir o pedido$/ }, { timeout: 10_000 }),
+    );
     expect(await screen.findByText("Gestão do pedido")).toBeInTheDocument();
   });
 
   it("a lista de Pedidos leva SEMPRE à página — mesmo um ganho (é por lá que se chega ao painel dele)", async () => {
     montar("pedidos");
     await userEvent.click((await screen.findAllByText("TESTE Rui Lobo"))[0]);
-    await screen.findByRole("button", { name: /^Abrir o pedido$/ });
+    await screen.findByRole("button", { name: /^Abrir o pedido$/ }, { timeout: 10_000 });
     expect(navegar).not.toHaveBeenCalled();
   });
 });
