@@ -137,6 +137,13 @@ export const MAX_THEME_PAGE_SIZE = 200;
 
 /** O que a lista de temas precisa para desenhar um cartão. */
 export interface ThemeSummary extends ProposalTheme {
+  /**
+   * A contagem e a capa ainda não vieram (9/11): com mais de
+   * `LIMIAR_DE_RESUMOS` temas, o `GET /api/temas` só resume os primeiros e o
+   * ecrã pede os outros à `/api/temas/resumos` quando os desenha. Não é uma
+   * pasta ilegível — é uma pasta por perguntar.
+   */
+  resumoPendente?: boolean;
   /** Nº de fotos na pasta do tema, ou `null` quando a pasta NÃO pôde ser lida
    *  (Storage em baixo). Distinguir os dois casos evita mostrar "0 fotos" —
    *  que a equipa leria como "as minhas fotos desapareceram" — quando o que

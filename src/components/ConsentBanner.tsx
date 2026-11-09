@@ -264,8 +264,16 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
        * globals.css — o desfoque num `fixed` engasga o deslize do iPhone). Os
        * 75 % são o mínimo em que o texto branco ainda passa 4,5:1 por cima de
        * uma página branca (≈ #6a7c6f).
+       *
+       * ── E SEM DESFOQUE NO COMPUTADOR TAMBÉM (9/11, à noite) ─────────────
+       * Ela, horas depois: «o site voltou à antiga… já não aparece logo todo
+       * fluido». O desfoque dos 70 % foi a ÚNICA mudança desta publicação na
+       * página inicial do computador — e assenta, `fixed`, por cima do vídeo
+       * da entrada: o browser volta a desfocar o vídeo em cada fotograma. É o
+       * mesmo custo que já o tinha tirado dos ecrãs de toque. Fica igual em
+       * todo o lado: 75 % sem desfoque, o mínimo para o texto passar 4,5:1.
        */
-      className="barra-consentimento fixed inset-x-3 z-[70] rounded-2xl border border-white/12 bg-sage-700/70 backdrop-blur-md px-4 py-3.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] sm:inset-x-auto sm:left-5 sm:w-[22rem]"
+      className="barra-consentimento fixed inset-x-3 z-[70] rounded-2xl border border-white/12 bg-sage-700/75 px-4 py-3.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] sm:inset-x-auto sm:left-5 sm:w-[22rem]"
       style={{
         // Fora das rotas sociais nada muda: `bottom: 0` (da classe) e o
         // preenchimento a respeitar a zona segura do iPhone.

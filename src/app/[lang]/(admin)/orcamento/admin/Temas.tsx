@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useMaisAoDescer } from "./useMaisAoDescer";
 import type { ThemeCopyMode, ThemeImage, ThemeSummary } from "@/lib/theme-types";
 import PhotoLightbox from "./PhotoLightbox";
 import ThemeCopyDialog, { type ThemeCopyOutcome } from "./ThemeCopyDialog";
@@ -435,14 +436,18 @@ export function contarFotosDaBiblioteca(temas: readonly ThemeSummary[]): {
   fotos: number;
   temas: number;
   ilegiveis: number;
+  /** Temas cuja contagem ainda não veio (`resumoPendente`, 9/11). */
+  porContar: number;
 } {
   let fotos = 0;
   let ilegiveis = 0;
+  let porContar = 0;
   for (const t of temas) {
-    if (typeof t.imageCount === "number") fotos += t.imageCount;
+    if (t.resumoPendente) porContar += 1;
+    else if (typeof t.imageCount === "number") fotos += t.imageCount;
     else ilegiveis += 1;
   }
-  return { fotos, temas: temas.length, ilegiveis };
+  return { fotos, temas: temas.length, ilegiveis, porContar };
 }
 
 /**
@@ -1764,6 +1769,67 @@ export default function Temas() {
       : base;
     return ordenarTemas(filtrados, ordem, usos);
   }, [themes, deferredSearch, ordem, ambitoActivo, dadosDeUso, usos]);
+  /** Os cartões que se DESENHAM: os primeiros, e mais ao descer — ver
+   *  `useMaisAoDescer`. A procura, os filtros e as contagens continuam a usar
+   *  o `visible` inteiro. */
+  const {
+    aDesenhar: cartoesADesenhar,
+    sentinela: sentinelaDosCartoes,
+    temMais: haMaisCartoes,
+  } = useMaisAoDescer(visible, `${deferredSearch}\u0000${ordem}\u0000${ambitoActivo}`);
+
+  /**
+   * ── OS RESUMOS QUE FALTAM, SÓ PARA O QUE SE DESENHA (9/11) ─────────────
+   * Com mais de 150 temas, o `GET /api/temas` só resume os primeiros (a
+   * contagem, a capa, o borrão); os outros chegam com `resumoPendente`. Aqui
+   * pedem-se à `/api/temas/resumos`, 60 de cada vez, só os dos cartões que
+   * estão a ser desenhados — a lista inteira nunca se resume de uma vez. Um
+   * pedido que falha volta a poder ser feito no desenho seguinte.
+   */
+  const resumosPedidos = useRef(new Set<string>());
+  useEffect(() => {
+    const faltam = cartoesADesenhar
+      .filter((t) => t.resumoPendente && !resumosPedidos.current.has(t.id))
+      .map((t) => t.id);
+    for (let i = 0; i < faltam.length; i += 60) {
+      const lote = faltam.slice(i, i + 60);
+      lote.forEach((id) => resumosPedidos.current.add(id));
+      void (async () => {
+        try {
+          const res = await fetch("/api/temas/resumos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: lote }),
+          });
+          if (!res.ok) throw new Error(String(res.status));
+          const resumos: ThemeSummary[] = await res.json();
+          const porId = new Map(resumos.map((r) => [r.id, r]));
+          setThemes((prev) =>
+            prev.map((t) => {
+              const r = porId.get(t.id);
+              // O nome, a nota e o favorito podem ter mudado entretanto no
+              // ecrã: do resumo só entram a contagem e a capa.
+              return r && t.resumoPendente
+                ? {
+                    ...t,
+                    resumoPendente: undefined,
+                    imageCount: r.imageCount,
+                    truncated: r.truncated,
+                    coverUrl: r.coverUrl,
+                    coverFallbackUrl: r.coverFallbackUrl,
+                    coverLqip: r.coverLqip,
+                    coverCor: r.coverCor,
+                    coverAvif: r.coverAvif,
+                  }
+                : t;
+            }),
+          );
+        } catch {
+          lote.forEach((id) => resumosPedidos.current.delete(id));
+        }
+      })();
+    }
+  }, [cartoesADesenhar]);
 
   /**
    * ── O TAMANHO DA BIBLIOTECA É O ESTADO DA VISTA ────────────────────────
@@ -1783,8 +1849,13 @@ export default function Temas() {
     // A ler, a lista ainda está vazia — e «0 temas · 0 fotografias» é uma
     // afirmação, dita antes de haver resposta. Quem a lê pensa que perdeu tudo.
     if (loading) return "A contar…";
-    const { fotos, temas, ilegiveis } = contarFotosDaBiblioteca(visible);
-    const base = `${plural(temas, "tema", "temas")} · ${plural(fotos, "fotografia", "fotografias")}`;
+    const { fotos, temas, ilegiveis, porContar } = contarFotosDaBiblioteca(visible);
+    // Com milhares de temas as contagens chegam aos bocados: até lá, o total
+    // de fotografias é um mínimo, e diz-se («1 240+»), em vez de um número
+    // que parece final e vai crescendo à frente dela.
+    const base = `${plural(temas, "tema", "temas")} · ${
+      porContar > 0 ? `${fotos}+ fotografias` : plural(fotos, "fotografia", "fotografias")
+    }`;
     return ilegiveis > 0
       ? `${base} · ${plural(ilegiveis, "pasta não se deixou ler", "pastas não se deixaram ler")}`
       : base;
@@ -2470,7 +2541,7 @@ export default function Temas() {
           }}
           className={`bo-cena grid ${COLUNAS[densidade]}`}
         >
-          {visible.map((t) => (
+          {cartoesADesenhar.map((t) => (
             /* As acções são IRMÃS do botão do cartão, não filhas: um botão
                dentro de outro botão é HTML inválido, e o resultado prático é
                que fixar um tema abria-o a seguir. */
@@ -2690,7 +2761,7 @@ export default function Temas() {
                     >
                       {FolderIcon}
                     </div>
-                  ) : t.coverUrl || t.coverCor ? (
+                  ) : t.coverUrl || t.coverCor || t.resumoPendente ? (
                     <EsqueletoDeCor cor={t.coverCor} className="!absolute inset-0 !rounded-none" />
                   ) : null}
                   {t.coverUrl && t.imageCount !== 0 && (
@@ -2795,7 +2866,7 @@ export default function Temas() {
                       QUANDO lhe tocaram (e a estrela). Cada uma numa linha. */}
                   <p className="mt-0.5 text-caption tabular-nums text-[var(--bo-texto-terciario)]">
                     <span className="block truncate">
-                      {photoCountLabel(t.imageCount, t.truncated)}
+                      {t.resumoPendente ? "A contar…" : photoCountLabel(t.imageCount, t.truncated)}
                       {/* «7 propostas» ou «Nunca usado» — a segunda é a metade
                         mais útil: é o que distingue um tema que a biblioteca
                         TEM de um tema que o estúdio USA. Só entra quando a
@@ -2903,6 +2974,11 @@ export default function Temas() {
               )}
             </div>
           ))}
+          {haMaisCartoes && (
+            /* A marca que pede mais cartões quando se aproxima do ecrã. Ocupa
+               a linha inteira para nunca ficar ao lado de um cartão. */
+            <div ref={sentinelaDosCartoes} aria-hidden className="col-span-full h-px" />
+          )}
         </div>
       )}
       {/* O menu do botão direito, um só para o ecrã inteiro. Fica no fim

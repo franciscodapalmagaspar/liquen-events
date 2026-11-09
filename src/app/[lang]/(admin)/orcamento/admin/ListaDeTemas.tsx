@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PASSO_DA_LISTA, useMaisAoDescer } from "./useMaisAoDescer";
 import type { ThemeSummary } from "@/lib/theme-types";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import ImagemComPlanoB from "./ImagemComPlanoB";
@@ -132,6 +133,19 @@ export default function ListaDeTemas({
 }: ListaDeTemasProps) {
   /** O tema por cima do qual o lote está agora. `null` = nenhum. */
   const [sobre, setSobre] = useState<string | null>(null);
+  /* As linhas que se desenham (9/11, «aguentar milhares de temas»): as
+     primeiras, e mais ao descer — ver `useMaisAoDescer`. O tema aberto fica
+     sempre desenhado: o passo cresce até ele. */
+  const indiceDoActivo = temas.findIndex((t) => t.id === activoId);
+  const {
+    aDesenhar: linhasADesenhar,
+    sentinela: sentinelaDasLinhas,
+    temMais: haMaisLinhas,
+  } = useMaisAoDescer<ThemeSummary, HTMLLIElement>(
+    temas,
+    temas.length > 0 ? `${temas[0].id}\u0000${temas.length}` : "",
+    Math.max(PASSO_DA_LISTA, indiceDoActivo + 20),
+  );
   /**
    * ── SPRING LOADING ────────────────────────────────────────────────────
    *
@@ -185,7 +199,7 @@ export default function ListaDeTemas({
       </button>
 
       <ul className="flex flex-col gap-0.5">
-        {temas.map((t) => {
+        {linhasADesenhar.map((t) => {
           const activo = t.id === activoId;
           const alvo = aArrastar && sobre === t.id;
           return (
@@ -280,6 +294,7 @@ export default function ListaDeTemas({
             </li>
           );
         })}
+        {haMaisLinhas && <li ref={sentinelaDasLinhas} aria-hidden className="h-px" />}
       </ul>
     </nav>
   );
