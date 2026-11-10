@@ -147,3 +147,36 @@ gastava ~150 comandos. Por isso:
 - a lista vive em `src/lib/rate-limit.global.test.ts`. Mexer nela é decidir
   gastar, e diz-se no PR quanto (comandos por dia, contra o tecto do plano).
 
+## O Supabase (10/11)
+
+Ela: «é mesmo importante manter muito abaixo o supabase também — sempre a
+melhorar a experiência com ele, mas sempre a evoluir na optimização».
+
+O plano é o **gratuito**: 1 GB de ficheiros, 500 MB de base de dados, 5 GB de
+saída por mês. Medido a 10/11: base de dados 36 MB; ficheiros **928 MB em
+9 775 objectos** (theme-assets 284, fotos-editoriais 158, proposal-assets 147,
+proposal-pdfs 121, theme-medias 120, proposal-medias 43, theme-thumbs 30 MB).
+
+- Nada novo vai para o armazenamento sem o PR dizer quanto ocupa e como se
+  limita. A cache das páginas do estúdio (#411) foi DESFEITA no próprio dia
+  por isto: poupava cêntimos de processador e enchia o plano.
+- As caches derivadas têm de se poder apagar e refazer sem perder nada.
+- Antes de acrescentar, mede-se o que sobra (a consulta está no PR #414).
+
+**«Eu não quero pagar nada»** (dela, 10/11): o Supabase e o Upstash ficam nos
+planos gratuitos. Nada se faz que obrigue a subir de plano.
+
+### O que se mediu e o que se fez (10/11)
+
+- `fotos-editoriais` (cache, 158 MB numa semana): a tarefa da noite apaga o
+  que tem mais de 30 dias (`limpar-fotos-tratadas.ts`). Pela idade, porque o
+  Supabase não regista leituras (`last_accessed_at` = criação).
+- Duplicados pelo conteúdo (eTag): **160 MB em 1 525 cópias** —
+  proposal-assets ↔ theme-assets 45 MB, dentro de proposal-assets 38 MB,
+  proposal-medias ↔ theme-medias 24 MB, dentro de theme-assets 22 MB, dentro
+  de theme-medias 12 MB, o resto miniaturas. Por fazer: juntar numa cópia só,
+  com as propostas a apontar para a biblioteca (precisa de mexer nos
+  documentos — com cópia de segurança e autorização dela).
+- `proposal-pdfs` (121 MB): ela escolheu guardar o PDF actual e o aceite de
+  cada proposta; por fazer, com a lista mostrada antes de apagar.
+
