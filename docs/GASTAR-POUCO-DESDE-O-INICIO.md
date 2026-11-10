@@ -181,11 +181,15 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
   cada proposta. Lista mostrada a 10/11: 9 ficheiros (~9 MB), incluindo as
   pastas de 2 propostas que já não existem. O Supabase não deixa apagar
   ficheiros por SQL (`storage.protect_delete`), por isso apagam-se no painel.
-- **Fotografias de pedidos apagados (136 MB, autorizado por ela a 10/11)**:
-  11 pastas de `proposal-assets` (+ derivadas) de pedidos apagados em julho e
-  agosto, antes de a Reciclagem limpar as fotos. Nenhuma proposta, rascunho,
-  modelo ou entrada da Reciclagem as mencionava. A tarefa da noite apaga-as
-  (`limpar-pastas-orfas.ts`) e fica de guarda: só sai uma pasta `LIQ-…` sem
-  pedido, fora da Reciclagem, que ninguém menciona e sem ficheiros com menos
-  de 30 dias — e se uma leitura falhar, não sai nada.
+- **Fotografias de pedidos apagados (autorizado por ela a 10/11)**: pastas de
+  `proposal-assets` (+ derivadas) de pedidos apagados em julho e agosto, antes
+  de a Reciclagem limpar as fotos. Ela pediu logo a seguir: «verifica tudo… não
+  estarmos a apagar coisas que depois vamos ver e deviam estar lá». Verificado
+  em TODAS as tabelas: de 10 pastas sem pedido, 4 têm rascunho guardado
+  (`proposal-draft:<pedido>`, dois com fotos de lá) e FICAM; 6 (~112 MB com
+  derivadas, 169 fotos, uma delas com 158 de 22–25/07) não são mencionadas em
+  lado nenhum. A tarefa da noite (`limpar-pastas-orfas.ts`) passa-as por sete
+  portas, a última das quais é uma ESPERA de 7 dias à vista em `app_state`
+  (`limpeza:pastas-de-pedidos-apagados`): só sai o que continuar candidato.
+  As fotografias não têm cópia dos bytes — o que sai não volta.
 
