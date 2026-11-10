@@ -566,6 +566,7 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // fatura no Moloni com as chaves da casa. Escreve para fora — a barreira é a
   // mesma do mensageiro.
   { path: "./orcamento/[id]/moloni/route", methods: ["GET", "POST"] },
+  { path: "./orcamento/[id]/entrega/route", methods: ["GET"] },
   { path: "./moloni/route", methods: ["GET"] },
   // A repartição por artigo de uma proposta aceite — escreve no documento.
   { path: "./propostas/[id]/reparto/route", methods: ["PATCH"] },

@@ -200,6 +200,7 @@ import {
 } from "./lazy";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
 import { linkDaConversa } from "@/lib/whatsapp";
+import { dominiosConhecidos, sugerirEmail } from "@/lib/dominio-parecido";
 import CampoTelefone from "@/components/CampoTelefone";
 import { APARENCIA_DO_BACK_OFFICE, TELEFONE_EM_CAIXA } from "./ui/aparencia-do-telefone";
 
@@ -1402,6 +1403,58 @@ export default function AdminClient({
    */
   const [editNome, setEditNome] = useState("");
   const [editEmail, setEditEmail] = useState("");
+  /**
+   * «Querias dizer …@adecco.com?» (9/11): a proposta da Adecco foi para
+   * «addecco.com» e voltou. Os domínios dos OUTROS pedidos e os de correio
+   * comuns dizem que domínio se queria escrever. Só sugere — ver
+   * `lib/dominio-parecido.ts`.
+   */
+  /**
+   * O ÚLTIMO EMAIL AO CLIENTE VOLTOU PARA TRÁS? (9/11 — ela: «o sistema tem que
+   * perceber logo se o e-mail existe ou não», depois de a proposta da Adecco ir
+   * para «addecco.com»). Pergunta-se uma vez ao abrir o pedido; o servidor só
+   * lê a caixa da Líquen se houve um envio nos últimos dias (ver
+   * `lib/email-devolvido.ts`).
+   */
+  const [devolucao, setDevolucao] = useState<{ quoteId: string; endereco: string } | null>(null);
+  const idDoAberto = selected?.id ?? null;
+  // Só pergunta quando o histórico mostra mexidas nos últimos 7 dias (um envio
+  // muda o estado do pedido): um pedido parado não custa um pedido à Vercel.
+  const mexidoHaPouco = useMemo(() => {
+    const limite = Date.now() - 7 * 86_400_000;
+    return (selected?.activityLog ?? []).some(
+      (e) =>
+        (e.kind === "status_change" || e.kind === "proposal_sent" || e.kind === "message_sent") &&
+        Date.parse(e.at) >= limite,
+    );
+  }, [selected?.activityLog]);
+  useEffect(() => {
+    if (!idDoAberto || !mexidoHaPouco) return;
+    const ctl = new AbortController();
+    fetch(`/api/orcamento/${encodeURIComponent(idDoAberto)}/entrega`, { signal: ctl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { estado?: string; endereco?: string } | null) => {
+        setDevolucao(
+          j?.estado === "devolvido" && j.endereco
+            ? { quoteId: idDoAberto, endereco: j.endereco }
+            : null,
+        );
+      })
+      .catch(() => {});
+    return () => ctl.abort();
+  }, [idDoAberto, mexidoHaPouco]);
+  const devolvidoAqui = devolucao && devolucao.quoteId === idDoAberto ? devolucao : null;
+  const emailSugerido = useMemo(
+    () =>
+      sugerirEmail(
+        editEmail,
+        dominiosConhecidos(
+          quotes.map((q) => q.email),
+          editEmail,
+        ),
+      ),
+    [editEmail, quotes],
+  );
   const [editTelefone, setEditTelefone] = useState("");
   // Which tools section of the detail panel is showing. Everything is visible
   // at once now — the management form always renders; only the heavier tool
@@ -8016,6 +8069,33 @@ export default function AdminClient({
                                     <p className="mt-1 text-[10px] leading-relaxed text-[var(--bo-perigo)]">
                                       Sem email, a proposta é gravada e o link continua a servir,
                                       mas não é enviada a ninguém.
+                                    </p>
+                                  )}
+                                  {devolvidoAqui && (
+                                    <p
+                                      role="alert"
+                                      className="mt-1 rounded-lg border border-[var(--bo-perigo)]/40 bg-[var(--bo-perigo-lavagem)] px-2.5 py-1.5 text-[11px] leading-relaxed text-[var(--bo-perigo)]"
+                                    >
+                                      {devolvidoAqui.endereco.toLowerCase() ===
+                                      editEmail.trim().toLowerCase()
+                                        ? `O último email para ${devolvidoAqui.endereco} voltou para trás: o endereço não existe. Corrige o email e volta a enviar.`
+                                        : `O último email foi para ${devolvidoAqui.endereco} e voltou para trás. Grava o email novo e volta a enviar.`}
+                                    </p>
+                                  )}
+                                  {emailSugerido && (
+                                    <p
+                                      role="status"
+                                      className="mt-1 text-[11px] leading-relaxed text-[var(--bo-aviso)]"
+                                    >
+                                      Querias dizer{" "}
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditEmail(emailSugerido)}
+                                        className={`font-semibold underline underline-offset-2 hover:text-[var(--bo-text)] ${ESTADO} ${PRESSAO}`}
+                                      >
+                                        {emailSugerido}
+                                      </button>
+                                      ? Um email com uma letra trocada não chega a ninguém.
                                     </p>
                                   )}
                                 </div>
