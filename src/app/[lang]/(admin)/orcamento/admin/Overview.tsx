@@ -7,6 +7,7 @@ import { CATEGORIES, EVENT_TYPES_BY_CATEGORY } from "@/lib/orcamento/data";
 import Reminders from "./Reminders";
 import Agenda from "./Agenda";
 import { eur0 as eur } from "@/lib/money";
+import Hoje from "./Hoje";
 import { metaFor, tintaDoRotulo } from "./status-meta";
 import { todayKey } from "./util";
 import { useRelogio } from "./relogio";
@@ -1089,7 +1090,9 @@ interface Props {
   userName: string;
   onOpen: (q: Quote) => void;
   onGoStats: () => void;
-  onGo: (view: "pedidos" | "kanban" | "calendario" | "tarefas" | "propostas" | "clientes") => void;
+  onGo: (
+    view: "pedidos" | "kanban" | "calendario" | "tarefas" | "propostas" | "clientes" | "pagamentos",
+  ) => void;
   onNew: () => void;
   /**
    * O pedido tal como o servidor o devolveu depois de alguém marcar aqui o
@@ -1800,6 +1803,11 @@ export default function Overview({
           ))}
         </div>
       </div>
+
+      {/* ── HOJE (10/11) ─────────────────────────────────────────────────
+          O que precisa dela hoje, num sítio só e logo à entrada — ver
+          `Hoje.tsx` e `lib/orcamento/hoje.ts`. Não pede nada à rede. */}
+      <Hoje quotes={quotes} propostas={propostas ?? []} onOpen={onOpen} onGo={onGo} />
 
       {/* Próximo evento em destaque */}
       {data.nextEvent && data.nextEventDays !== null && data.nextEventDays <= 30 && (
