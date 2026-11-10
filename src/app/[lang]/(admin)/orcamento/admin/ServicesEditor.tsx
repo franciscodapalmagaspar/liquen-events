@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RATO, DEDO, TECLADO_DE_LISTA } from "./ui/sensores-de-arrasto";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAlturaDoConteudo } from "./ui/altura-do-conteudo";
 import {
   DndContext,
@@ -16,7 +17,6 @@ import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifi
 import {
   SortableContext,
   arrayMove,
-  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -247,7 +247,18 @@ type FocusTarget = { key: string; caret?: "end" } | null;
 const groupKey = (id: string) => `g:${id}`;
 const itemKey = (id: string, field: "label" | "desc") => `i:${id}:${field}`;
 
-export default function ServicesEditor({
+/**
+ * ── MEMORIZADO (10/11) ───────────────────────────────────────────────────
+ * Ela: «está a travar imenso» no «Fazer proposta». O estúdio desenha os cinco
+ * passos sempre montados, e este editor — com uma linha arrastável por serviço —
+ * redesenhava-se a cada letra escrita noutro passo (o perfil mostrou ~150 ms em
+ * 21 letras numa descrição de mood board). As props que recebe são estáveis
+ * enquanto se escreve noutro sítio: `groups` é o mesmo array, e as funções vêm
+ * de `useCallback`. Com `memo`, só se redesenha quando os serviços mudam.
+ */
+export default memo(ServicesEditor);
+
+function ServicesEditor({
   groups,
   onGroupsChange,
   showDesc = false,
@@ -661,9 +672,9 @@ export default function ServicesEditor({
   // único, no tablet o gesto de percorrer a página agarrava a linha logo aos
   // 4 px. Assim o rato começa a arrastar aos 4 px e o dedo só depois de segurar.
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(MouseSensor, RATO),
+    useSensor(TouchSensor, DEDO),
+    useSensor(KeyboardSensor, TECLADO_DE_LISTA),
   );
 
   const groupIds = useMemo(

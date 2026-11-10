@@ -1,5 +1,6 @@
 "use client";
 
+import { RATO, DEDO, TECLADO_DE_LISTA } from "./ui/sensores-de-arrasto";
 import { useEffect, useMemo, useState } from "react";
 import {
   DndContext,
@@ -14,7 +15,6 @@ import {
 import {
   SortableContext,
   rectSortingStrategy,
-  sortableKeyboardCoordinates,
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -91,9 +91,9 @@ export default function MoodBoardIndice({
     // Os mesmos limiares dos cartões: o rato pega aos 4 px, o dedo só depois de
     // segurar 180 ms — senão, no telemóvel, percorrer a tira do índice
     // arrastava a página em que o dedo pousou.
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(MouseSensor, RATO),
+    useSensor(TouchSensor, DEDO),
+    useSensor(KeyboardSensor, TECLADO_DE_LISTA),
   );
   const ids = useMemo(() => ordem.map((bi) => `indice:${bi}`), [ordem]);
 

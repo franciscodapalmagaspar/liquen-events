@@ -1,5 +1,6 @@
 "use client";
 
+import { RATO, DEDO } from "./ui/sensores-de-arrasto";
 import { useMemo, type ReactNode } from "react";
 import {
   DndContext,
@@ -202,6 +203,9 @@ export interface ArrastoProps {
  * Não desenha nada de seu: envolve os cartões dos mood boards e trata do que
  * acontece quando alguma coisa é largada.
  */
+/** Criado uma vez — ver `ui/sensores-de-arrasto.ts`. */
+const TECLADO_DAS_FOTOS = { coordinateGetter: coordenadasDeTeclado } as const;
+
 export function ArrastoDosMoodBoards({
   children,
   onLargarFoto,
@@ -215,9 +219,9 @@ export function ArrastoDosMoodBoards({
   // sensor de ponteiro único, no tablet o gesto de percorrer a página agarrava
   // a foto logo aos 4 px.
   const sensores = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: coordenadasDeTeclado }),
+    useSensor(MouseSensor, RATO),
+    useSensor(TouchSensor, DEDO),
+    useSensor(KeyboardSensor, TECLADO_DAS_FOTOS),
   );
 
   function aoComecar(e: DragStartEvent) {

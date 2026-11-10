@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, memo } from "react";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import {
@@ -47,7 +47,10 @@ import { ESTADO, PRESSAO } from "./ui/movimento";
 /** Quanto tempo o rato tem de ficar quieto para a folha crescer. */
 const INTENCAO_MS = 400;
 
-export default function VistaDeConjunto({
+/** Memorizado (10/11) — ver `docAdiado` no `ProposalStudio`. */
+export default memo(VistaDeConjunto);
+
+function VistaDeConjunto({
   doc,
   fotosDoPdf = null,
   onMudarFoto,

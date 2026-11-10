@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { Segmented } from "./Segmented";
 import { MARCA } from "./movimento";
@@ -50,9 +50,33 @@ async function passarUmFotograma() {
   });
 }
 
+/**
+ * ── AS MEDIDAS CHEGAM PELO `ResizeObserver` (10/11) ─────────────────────────
+ * O controlo deixou de se medir a cada desenho (era layout forçado a cada letra
+ * no estúdio): mede-se ao montar, quando muda o segmento, e quando o browser
+ * diz que um tamanho mudou. O duplo do `vitest.setup.ts` não faz nada; aqui
+ * guarda-se quem pediu para ser avisado, para o teste poder dizer «mudou».
+ */
+const avisados: ResizeObserverCallback[] = [];
+const RoOriginal = globalThis.ResizeObserver;
+beforeEach(() => {
+  avisados.length = 0;
+  globalThis.ResizeObserver = class {
+    constructor(aoMudar: ResizeObserverCallback) {
+      avisados.push(aoMudar);
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+});
+const mudouOTamanho = () =>
+  avisados.forEach((f) => f([], undefined as unknown as ResizeObserver));
+
 afterEach(() => {
   cleanup();
   reporDisposicao();
+  globalThis.ResizeObserver = RoOriginal;
 });
 
 describe("a marca que anda do Segmented", () => {
@@ -92,9 +116,9 @@ describe("a marca que anda do Segmented", () => {
     expect(pilula()).toBeNull();
 
     ligarAsMedidas();
-    // `options` novo de propósito: é o que manda o efeito remedir, e é o mesmo
-    // caminho por onde uma remedição a sério chega (o pai redesenha).
-    await act(async () => vista.rerender(desenhar("list")));
+    // O browser avisa que os tamanhos mudaram — é por aí que uma remedição a
+    // sério chega (o `ResizeObserver` do componente), e não por o pai redesenhar.
+    await act(async () => mudouOTamanho());
 
     const marca = pilula();
     expect(marca, "sem pílula não há nada a medir — o duplo das medidas falhou").not.toBeNull();
@@ -127,13 +151,13 @@ describe("a marca que anda do Segmented", () => {
    * Nunca há dois fundos, e nunca há nenhum.
    */
   it("antes de medida, o fundo do segmento activo é a rede — e sai quando ela chega", async () => {
-    const vista = render(desenhar("list"));
+    render(desenhar("list"));
     const activo = () => screen.getByRole("radio", { name: "Lista" });
     expect(pilula()).toBeNull();
     expect(activo().className.split(/\s+/)).toContain("bg-[var(--bo-surface)]");
 
     ligarAsMedidas();
-    await act(async () => vista.rerender(desenhar("list")));
+    await act(async () => mudouOTamanho());
 
     expect(pilula()).not.toBeNull();
     expect(activo().className.split(/\s+/)).not.toContain("bg-[var(--bo-surface)]");
