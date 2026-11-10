@@ -507,7 +507,22 @@ describe("o que o Bloco 1 deixou, e continua de pé", () => {
     ).toBeNull();
 
     await u.click(screen.getByRole("button", { name: /^Esqueci-me da palavra-passe$/i }));
-    await screen.findByLabelText(/Email da tua conta/i);
+    const campoDaRecuperacao = await screen.findByLabelText(/Email da tua conta/i);
+
+    /**
+     * O DEFEITO DE 10/11 — e o que este teste não perguntava. A caixa que
+     * recolhia o formulário de entrada tinha lá dentro a recuperação, e
+     * recolhia-a também: o cartão ficava só com «Mudei de aparelho». Ela: «não
+     * dá para fazer nada». Perguntava-se se a ENTRADA saía de alcance; nunca se
+     * perguntou se a RECUPERAÇÃO lá ficava.
+     */
+    expect(
+      campoDaRecuperacao.closest("[inert], [aria-hidden='true']"),
+      "a recuperação abriu DENTRO de uma caixa fechada — o cartão fica vazio",
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /Enviar/i }).closest("[inert], [aria-hidden='true']"),
+    ).toBeNull();
 
     expect(
       campoDaEntrada.closest("[inert]"),

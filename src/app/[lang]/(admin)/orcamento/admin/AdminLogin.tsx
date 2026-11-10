@@ -247,6 +247,20 @@ export default function AdminLogin() {
    * se está. Enquanto se está lá, o formulário recolhe (a mesma altura animada
    * que já existe para a chave de acesso), e volta com o «Voltar».
    */
+  /**
+   * ── DUAS GAVETAS, E NÃO UMA (10/11) ──────────────────────────────────────
+   *
+   * Era UMA: `noEstadoDaChave || aRecuperar` fechava a caixa inteira — e a
+   * caixa inteira tinha lá dentro o formulário de RECUPERAÇÃO. Carregar em
+   * «Esqueci-me da palavra-passe» fechava, portanto, o próprio formulário que
+   * devia abrir: o cartão ficava só com «Mudei de aparelho». Ela: «aparece isto
+   * e mais nada… não dá para fazer nada».
+   *
+   * Agora a caixa de fora fecha só no estado da chave de acesso
+   * ({@link caixaRecolhida}); a de dentro, à volta do formulário de entrada,
+   * fecha também enquanto se recupera ({@link formularioRecolhido}).
+   */
+  const caixaRecolhida = noEstadoDaChave;
   const formularioRecolhido = noEstadoDaChave || aRecuperar;
 
   /**
@@ -600,9 +614,9 @@ export default function AdminLogin() {
               mas tabulável é uma armadilha para quem navega com o teclado.
           */}
           <div
-            className={`grid ${formularioRecolhido ? "grid-rows-[0fr]" : "grid-rows-[1fr]"} motion-safe:transition-[grid-template-rows] motion-safe:duration-quick motion-safe:ease-quick`}
-            aria-hidden={formularioRecolhido || undefined}
-            inert={formularioRecolhido || undefined}
+            className={`grid ${caixaRecolhida ? "grid-rows-[0fr]" : "grid-rows-[1fr]"} motion-safe:transition-[grid-template-rows] motion-safe:duration-quick motion-safe:ease-quick`}
+            aria-hidden={caixaRecolhida || undefined}
+            inert={caixaRecolhida || undefined}
           >
             {/*
             ── O `overflow-hidden` SÓ ENQUANTO ESTÁ FECHADO ─────────────────
@@ -624,142 +638,151 @@ export default function AdminLogin() {
             substituto, e sem ele quem navega por teclado deixa de saber onde
             está. O que se tira é o CORTE.
           */}
-            <div className={formularioRecolhido ? "overflow-hidden" : ""}>
-              <form
-                onSubmit={submit}
-                className="flex flex-col gap-4"
-                onFocus={aoFocarCampo}
-                onBlur={aoSairDoCampo}
+            <div className={caixaRecolhida ? "overflow-hidden" : ""}>
+              {/* A gaveta de dentro: o formulário de entrada recolhe enquanto
+                  se recupera a palavra-passe — e a recuperação, cá fora dela,
+                  fica à vista. */}
+              <div
+                className={`grid ${formularioRecolhido ? "grid-rows-[0fr]" : "grid-rows-[1fr]"} motion-safe:transition-[grid-template-rows] motion-safe:duration-quick motion-safe:ease-quick`}
+                aria-hidden={formularioRecolhido || undefined}
+                inert={formularioRecolhido || undefined}
               >
-                <Field
-                  label="Email"
-                  semMarcaDeObrigatorio
-                  name="email"
-                  /**
-                   * ── PORQUE É QUE ISTO É UM EMAIL E NÃO UM NOME ─────────────
-                   *
-                   * Um nome próprio é curto, está escrito no site, colide assim
-                   * que a equipa cresça, e nenhum gestor de palavras-passe o sabe
-                   * guardar — o que empurra toda a gente para palavras-passe
-                   * repetidas e decoradas. O email resolve as quatro coisas.
-                   *
-                   * `type="email"` traz o teclado com o @ no telemóvel;
-                   * `spellCheck={false}` e `autoCapitalize="none"` evitam o
-                   * «Catarina@…» que o teclado de iOS faz sozinho.
-                   *
-                   * `autoComplete="username webauthn"`: `username` é o par que os
-                   * gestores de palavras-passe esperam encontrar ao lado do
-                   * `current-password` — sem ele, muitos não oferecem nada. O
-                   * `webauthn` NO FIM é o que a norma exige para o browser juntar
-                   * as passkeys a essa mesma lista (ver `armarEntradaAutomatica`);
-                   * fora do fim, é ignorado.
-                   *
-                   * SEM EXEMPLO, e é de propósito: estava aqui o nome verdadeiro
-                   * de quem trabalha na empresa, numa página que qualquer pessoa
-                   * na internet consegue abrir. Quem tenta entrar sem ser
-                   * convidado precisa de um identificador válido e de uma
-                   * palavra-passe — e nós dávamos a primeira metade.
-                   */
-                  type="email"
-                  inputMode="email"
-                  autoComplete={temPasskeys ? "username webauthn" : "username"}
-                  spellCheck={false}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyUp={aoTeclar}
-                  /* Bloco 3: ambos os campos são obrigatórios, portanto ambos
+                <div className={formularioRecolhido ? "overflow-hidden" : ""}>
+                  <form
+                    onSubmit={submit}
+                    className="flex flex-col gap-4"
+                    onFocus={aoFocarCampo}
+                    onBlur={aoSairDoCampo}
+                  >
+                    <Field
+                      label="Email"
+                      semMarcaDeObrigatorio
+                      name="email"
+                      /**
+                       * ── PORQUE É QUE ISTO É UM EMAIL E NÃO UM NOME ─────────────
+                       *
+                       * Um nome próprio é curto, está escrito no site, colide assim
+                       * que a equipa cresça, e nenhum gestor de palavras-passe o sabe
+                       * guardar — o que empurra toda a gente para palavras-passe
+                       * repetidas e decoradas. O email resolve as quatro coisas.
+                       *
+                       * `type="email"` traz o teclado com o @ no telemóvel;
+                       * `spellCheck={false}` e `autoCapitalize="none"` evitam o
+                       * «Catarina@…» que o teclado de iOS faz sozinho.
+                       *
+                       * `autoComplete="username webauthn"`: `username` é o par que os
+                       * gestores de palavras-passe esperam encontrar ao lado do
+                       * `current-password` — sem ele, muitos não oferecem nada. O
+                       * `webauthn` NO FIM é o que a norma exige para o browser juntar
+                       * as passkeys a essa mesma lista (ver `armarEntradaAutomatica`);
+                       * fora do fim, é ignorado.
+                       *
+                       * SEM EXEMPLO, e é de propósito: estava aqui o nome verdadeiro
+                       * de quem trabalha na empresa, numa página que qualquer pessoa
+                       * na internet consegue abrir. Quem tenta entrar sem ser
+                       * convidado precisa de um identificador válido e de uma
+                       * palavra-passe — e nós dávamos a primeira metade.
+                       */
+                      type="email"
+                      inputMode="email"
+                      autoComplete={temPasskeys ? "username webauthn" : "username"}
+                      spellCheck={false}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onKeyUp={aoTeclar}
+                      /* Bloco 3: ambos os campos são obrigatórios, portanto ambos
                  levam o asterisco. Ter só um marcado dizia que o outro não
                  era — e era. */
-                  required
-                  autoFocus
-                />
+                      required
+                      autoFocus
+                    />
 
-                {/* O olho de mostrar/ocultar. `relative` no invólucro e o botão
+                    {/* O olho de mostrar/ocultar. `relative` no invólucro e o botão
                 encostado ao FUNDO: o campo é o último filho do `Field`, logo o
                 fundo do invólucro é o fundo do campo — e continua a ser quando
                 a letra do telemóvel cresce para os 16 px. */}
-                <div className="relative">
-                  <Field
-                    label="Palavra-passe"
-                    semMarcaDeObrigatorio
-                    name="password"
-                    type={mostrarSenha ? "text" : "password"}
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onKeyUp={aoTeclar}
-                    onKeyDown={aoTeclar}
-                    required
-                    /* SEM placeholder. Os oito pontinhos que aqui estavam faziam um
+                    <div className="relative">
+                      <Field
+                        label="Palavra-passe"
+                        semMarcaDeObrigatorio
+                        name="password"
+                        type={mostrarSenha ? "text" : "password"}
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        onKeyUp={aoTeclar}
+                        onKeyDown={aoTeclar}
+                        required
+                        /* SEM placeholder. Os oito pontinhos que aqui estavam faziam um
                    campo VAZIO parecer preenchido — e num campo de palavra-passe
                    isso é a diferença entre «esqueci-me de escrever» e «escrevi e
                    não guardou». O placeholder só serve onde comunica FORMATO. */
-                    /* O aviso do Caps Lock vive fora do `Field` (senão empurrava o
+                        /* O aviso do Caps Lock vive fora do `Field` (senão empurrava o
                    olho para baixo ao aparecer); a ligação para quem usa leitor
                    de ecrã faz-se à mão. */
-                    aria-describedby={capsLock ? capsId : undefined}
-                    /* Espaço para o olho. Em estilo e não numa classe: o `cn` desta
+                        aria-describedby={capsLock ? capsId : undefined}
+                        /* Espaço para o olho. Em estilo e não numa classe: o `cn` desta
                    casa não resolve conflitos do Tailwind, e um `pr-12` ao lado
                    do `px-3.5` do `Field` decidia-se pela ordem da folha de
                    estilos, que não é coisa que se queira adivinhar. */
-                    style={{ paddingRight: "2.75rem" }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setMostrarSenha((v) => !v)}
-                    /* 40 px com rato, 44 no dedo — o mínimo das HIG, o mesmo que o
+                        style={{ paddingRight: "2.75rem" }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setMostrarSenha((v) => !v)}
+                        /* 40 px com rato, 44 no dedo — o mínimo das HIG, o mesmo que o
                    `ui/Button` usa. */
-                    className={`absolute bottom-0 right-0.5 flex h-10 w-10 items-center justify-center rounded-lg text-foreground/40 ${ESTADO} ${PRESSAO} hover:text-[var(--bo-tinta-72)] pointer-coarse:h-11 pointer-coarse:w-11`}
-                    aria-label={
-                      mostrarSenha ? "Ocultar a palavra-passe" : "Mostrar a palavra-passe"
-                    }
-                    aria-pressed={mostrarSenha}
-                    /* Fora da ordem de tabulação: quem anda de campo em campo com o
+                        className={`absolute bottom-0 right-0.5 flex h-10 w-10 items-center justify-center rounded-lg text-foreground/40 ${ESTADO} ${PRESSAO} hover:text-[var(--bo-tinta-72)] pointer-coarse:h-11 pointer-coarse:w-11`}
+                        aria-label={
+                          mostrarSenha ? "Ocultar a palavra-passe" : "Mostrar a palavra-passe"
+                        }
+                        aria-pressed={mostrarSenha}
+                        /* Fora da ordem de tabulação: quem anda de campo em campo com o
                    teclado quer ir do email para a palavra-passe e daí para o
                    botão de entrar, não parar num olho pelo meio. Continua
                    alcançável pelo rato, pelo dedo e por leitor de ecrã. */
-                    tabIndex={-1}
-                  >
-                    {mostrarSenha ? <OlhoFechado /> : <OlhoAberto />}
-                  </button>
-                </div>
+                        tabIndex={-1}
+                      >
+                        {mostrarSenha ? <OlhoFechado /> : <OlhoAberto />}
+                      </button>
+                    </div>
 
-                {/* Caps Lock. Um aviso, não um erro: a palavra-passe pode muito bem
+                    {/* Caps Lock. Um aviso, não um erro: a palavra-passe pode muito bem
                 ter maiúsculas de propósito. */}
-                {capsLock && (
-                  <p
-                    id={capsId}
-                    role="status"
-                    className="-mt-2 flex items-start gap-2 text-xs leading-relaxed text-[var(--bo-aviso)]"
-                  >
-                    <span aria-hidden="true">⇪</span>
-                    <span>O Caps Lock está ligado.</span>
-                  </p>
-                )}
+                    {capsLock && (
+                      <p
+                        id={capsId}
+                        role="status"
+                        className="-mt-2 flex items-start gap-2 text-xs leading-relaxed text-[var(--bo-aviso)]"
+                      >
+                        <span aria-hidden="true">⇪</span>
+                        <span>O Caps Lock está ligado.</span>
+                      </p>
+                    )}
 
-                {needs2fa && (
-                  <Field
-                    label="Código de verificação (2FA)"
-                    name="code"
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    maxLength={6}
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                    autoFocus
-                    required
-                    hint="Escreve o código de 6 dígitos da tua aplicação de autenticação."
-                    placeholder="000000"
-                    className="text-center text-lg tracking-[0.4em]"
-                  />
-                )}
+                    {needs2fa && (
+                      <Field
+                        label="Código de verificação (2FA)"
+                        name="code"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                        autoFocus
+                        required
+                        hint="Escreve o código de 6 dígitos da tua aplicação de autenticação."
+                        placeholder="000000"
+                        className="text-center text-lg tracking-[0.4em]"
+                      />
+                    )}
 
-                {error && !erroNoDispositivo && <AvisoDeRecusa texto={error} />}
+                    {error && !erroNoDispositivo && <AvisoDeRecusa texto={error} />}
 
-                {/* ── Manter a sessão iniciada ──────────────────────────────────
+                    {/* ── Manter a sessão iniciada ──────────────────────────────────
                 Com a duração dita por extenso: «manter-me com sessão iniciada»
                 sem número é uma promessa que cada pessoa lê como quer. O alvo
                 de toque é a linha inteira (`alvo-toque` no rótulo), não o
@@ -771,17 +794,17 @@ export default function AdminLogin() {
                 custavam 54 px que empurravam o botão de submeter para baixo da
                 dobra do telemóvel (medido a 390x844). Quem desliga vê logo o
                 que trocou. */}
-                <label className="alvo-toque flex items-start gap-2 text-left">
-                  <input
-                    type="checkbox"
-                    name="manterSessao"
-                    checked={manterSessao}
-                    onChange={(e) => setManterSessao(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-sage-600"
-                  />
-                  <span className="text-xs leading-relaxed text-[var(--bo-text-muted)]">
-                    Manter a sessão iniciada neste aparelho durante 30 dias
-                    {/* A CONSEQUÊNCIA APARECE NO ESTADO QUE SE ESCOLHE, não na
+                    <label className="alvo-toque flex items-start gap-2 text-left">
+                      <input
+                        type="checkbox"
+                        name="manterSessao"
+                        checked={manterSessao}
+                        onChange={(e) => setManterSessao(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-sage-600"
+                      />
+                      <span className="text-xs leading-relaxed text-[var(--bo-text-muted)]">
+                        Manter a sessão iniciada neste aparelho durante 30 dias
+                        {/* A CONSEQUÊNCIA APARECE NO ESTADO QUE SE ESCOLHE, não na
                     omissão — que é a MESMA regra de antes, virada ao contrário
                     porque a omissão mudou de lado.
 
@@ -796,16 +819,16 @@ export default function AdminLogin() {
                     dela: com as duas explicações sempre à vista, o botão de
                     entrar caía abaixo da dobra. Foi o que aconteceu à primeira,
                     e viu-se no retrato a 393 px. */}
-                    {manterSessao && (
-                      <span className="block text-foreground/45">
-                        Um mês é muito tempo num aparelho que ande por aí — marca só se este for
-                        teu.
+                        {manterSessao && (
+                          <span className="block text-foreground/45">
+                            Um mês é muito tempo num aparelho que ande por aí — marca só se este for
+                            teu.
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
-                </label>
+                    </label>
 
-                {/* ── UM BOTÃO CHEIO, E É ESTE ────────────────────────────────
+                    {/* ── UM BOTÃO CHEIO, E É ESTE ────────────────────────────────
                 Era `secondary` quando havia chaves de acesso, porque os dois
                 caminhos estavam abertos ao mesmo tempo e um deles tinha de
                 recuar. Já não estão: chegado aqui, a palavra-passe É o caminho,
@@ -818,27 +841,29 @@ export default function AdminLogin() {
                 Desactivado até haver as duas coisas, que é o que substitui os
                 asteriscos: em vez de marcar o que falta com cor, o botão diz
                 que ainda não dá, e o `title` diz porquê. */}
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="lg"
-                  fullWidth
-                  loading={loading}
-                  className="mt-1"
-                  disabled={!needs2fa && (!email.trim() || !password)}
-                  title={
-                    !needs2fa && (!email.trim() || !password)
-                      ? !email.trim() && !password
-                        ? "Escreve o email e a palavra-passe"
-                        : !email.trim()
-                          ? "Falta o email"
-                          : "Falta a palavra-passe"
-                      : undefined
-                  }
-                >
-                  {loading ? "A verificar…" : needs2fa ? "Verificar" : "Entrar"}
-                </Button>
-              </form>
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      size="lg"
+                      fullWidth
+                      loading={loading}
+                      className="mt-1"
+                      disabled={!needs2fa && (!email.trim() || !password)}
+                      title={
+                        !needs2fa && (!email.trim() || !password)
+                          ? !email.trim() && !password
+                            ? "Escreve o email e a palavra-passe"
+                            : !email.trim()
+                              ? "Falta o email"
+                              : "Falta a palavra-passe"
+                          : undefined
+                      }
+                    >
+                      {loading ? "A verificar…" : needs2fa ? "Verificar" : "Entrar"}
+                    </Button>
+                  </form>
+                </div>
+              </div>
 
               {/* ── Recuperação ────────────────────────────────────────────────
               Fica FORA do <form> de entrada: dois formulários encaixados são
