@@ -134,3 +134,22 @@ describe("limiteEsgotado — só pergunta, não gasta (10/11)", () => {
     expect((await limiteEsgotado(chave, 3)).ok).toBe(true);
   });
 });
+
+describe("o Redis ligado pelo painel da Vercel (KV_REST_API_*) também conta (10/11)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+  it("usa o KV_REST_API_URL quando não há UPSTASH_REDIS_REST_URL", async () => {
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+    vi.stubEnv("KV_REST_API_URL", "https://redis.exemplo.test");
+    vi.stubEnv("KV_REST_API_TOKEN", "token-de-teste");
+    const fetchMock = vi.fn(async () => Response.json([{ result: 1 }, { result: 5000 }]));
+    vi.stubGlobal("fetch", fetchMock);
+    expect((await rateLimit(`kv-${Math.random()}`, 3, 60_000)).ok).toBe(true);
+    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(
+      "https://redis.exemplo.test/pipeline",
+    );
+  });
+});

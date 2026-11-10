@@ -115,9 +115,22 @@ async function redisRateLimit(
  * Returns `{ ok: true }` if the caller is within the limit, or
  * `{ ok: false, retryAfter }` (seconds) when it should be throttled.
  */
+/**
+ * As credenciais do Redis (Upstash), pelos dois nomes possíveis (10/11):
+ * `UPSTASH_REDIS_REST_*` quando se copiam à mão da consola do Upstash, e
+ * `KV_REST_API_*`, que é o que a Vercel escreve sozinha quando o Upstash se
+ * liga pelo painel dela (Storage → Upstash for Redis → Connect). Sem nenhum,
+ * os limites ficam na memória de cada instância, como até aqui.
+ */
+function credenciaisDoRedis(): { url?: string; token?: string } {
+  return {
+    url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN,
+  };
+}
+
 export async function rateLimit(key: string, limit = 5, windowMs = 60_000): Promise<RateResult> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const { url, token } = credenciaisDoRedis();
   if (url && token) {
     try {
       return await redisRateLimit(url, token, key, limit, windowMs);
@@ -142,8 +155,7 @@ export async function rateLimit(key: string, limit = 5, windowMs = 60_000): Prom
  * Redis o INCR continua a contar, e o limite já foi gasto quando chega a ele.
  */
 export async function limiteEsgotado(key: string, limit: number): Promise<RateResult> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const { url, token } = credenciaisDoRedis();
   if (url && token) {
     try {
       const data = await pipeline(url, token, [

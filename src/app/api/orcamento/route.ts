@@ -214,10 +214,15 @@ class NadaParaConfirmar extends Error {}
  *  1. sem `leadEventId` não se envia. É o que garante a deduplicação: um
  *     identificador gerado aqui nunca encontraria o par do browser, e a
  *     conversão contaria duas vezes;
- *  2. sem `metaClick` não se envia — sem ele não há com que ligar o evento ao
- *     anúncio. ATENÇÃO: isto NÃO é prova de consentimento (o `fbclid` do URL
- *     fica guardado mesmo sem ele). A prova é a guarda 1: o formulário só manda
- *     o `leadEventId` quando o visitante aceitou (`PedidoRelampago.tsx`);
+ *  2. o `metaClick` (fbp/fbc) junta-se quando existe, mas já NÃO é condição
+ *     (10/11): desde então este é o ÚNICO caminho do `Lead` pelo servidor — a
+ *     rota pública `/api/meta` recusa-o, como já recusava o `Purchase`, porque
+ *     lá qualquer pessoa podia inventar «pedidos» com o token da casa. Aqui o
+ *     `Lead` só sai atrás de um pedido verdadeiro, gravado. Sem clique, a Meta
+ *     liga-o pela pessoa (email e telefone, cifrados pelo `enviarEventos`).
+ *     ATENÇÃO: o `metaClick` NÃO é prova de consentimento; a prova é a guarda
+ *     1 — o formulário só manda o `leadEventId` quando o visitante aceitou
+ *     (`PedidoRelampago.tsx`);
  *  3. sem configuração (`META_DATASET_ID` / `META_CAPI_ACCESS_TOKEN`) o
  *     `enviarEventos` devolve `sem-configuracao` sem abrir socket nenhum.
  *
@@ -231,7 +236,7 @@ async function reenviarLeadParaMeta(
 ): Promise<void> {
   const eventId = (form.leadEventId ?? "").trim();
   const meta = (form.metaClick ?? "").trim();
-  if (!eventId || !meta) return;
+  if (!eventId) return;
 
   const { fbp, fbc } = desserializarMeta(meta);
   const r = await enviarEventos([
