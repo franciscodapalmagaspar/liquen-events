@@ -154,6 +154,14 @@ export function Segmented<T extends string>({
   // deslizar do canto superior esquerdo até ao segmento activo, à chegada.
   const [podeAnimar, setPodeAnimar] = useState(false);
 
+  // ── A CHAVE DAS OPÇÕES, E NÃO A LISTA (10/11) ──────────────────────────
+  // Quem usa isto escreve `options={[…]}` no próprio desenho, portanto a lista
+  // é nova a cada desenho do ecrã à volta — no estúdio, a cada letra. Com ela
+  // nas dependências, a medição (que lê `offsetLeft`, layout forçado) corria a
+  // cada tecla. O que muda a pílula é QUE segmentos há; o tamanho de cada um já
+  // o segue o `ResizeObserver`.
+  const chaveDasOpcoes = options.map((o) => o.value).join("\n");
+
   useEffect(() => {
     const grupo = grupoRef.current;
     if (!grupo) return;
@@ -166,12 +174,16 @@ export function Segmented<T extends string>({
         setMarca(null);
         return;
       }
-      setMarca({
+      const nova = {
         x: activo.offsetLeft,
         y: activo.offsetTop,
         w: activo.offsetWidth,
         h: activo.offsetHeight,
-      });
+      };
+      // A mesma medida não volta a desenhar o controlo.
+      setMarca((m) =>
+        m && m.x === nova.x && m.y === nova.y && m.w === nova.w && m.h === nova.h ? m : nova,
+      );
     };
 
     medir();
@@ -182,7 +194,7 @@ export function Segmented<T extends string>({
     observador.observe(grupo);
     for (const b of grupo.querySelectorAll("button")) observador.observe(b);
     return () => observador.disconnect();
-  }, [value, options]);
+  }, [value, chaveDasOpcoes]);
 
   useEffect(() => {
     if (!marca || podeAnimar) return;

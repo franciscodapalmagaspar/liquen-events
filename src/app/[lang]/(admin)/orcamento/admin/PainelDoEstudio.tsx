@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, memo } from "react";
 import type { MoodBoard, ProposalDoc } from "@/lib/proposal-doc";
 import {
   capituloDoTema,
@@ -111,7 +111,10 @@ export interface PaginaParaOPainel {
  * este ficheiro existe para não fazer, e continua a não fazer.
  */
 
-export default function PainelDoEstudio({
+/** Memorizado (10/11) — ver `docAdiado` no `ProposalStudio`. */
+export default memo(PainelDoEstudio);
+
+function PainelDoEstudio({
   cabe,
   paginas,
   activa,
