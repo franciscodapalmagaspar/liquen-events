@@ -10,7 +10,7 @@ import { execSync } from "node:child_process";
  * `body:is(.admin-mode, :has([data-admin-mode]))`, com o atributo servido pelo
  * `layout.tsx` do grupo `(admin)`. A razão por extenso está no `globals.css`.
  */
-const SELECTOR_ADMIN = "body:is(.admin-mode, :has([data-admin-mode]))";
+const SELECTOR_ADMIN = "body:is(.bo, .admin-mode)";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -120,7 +120,7 @@ describe("os raios do back office", () => {
     // `body:has([data-admin-mode])` e NÃO `body.admin-mode`: a classe só entra
     // num efeito, e um raio que muda depois do primeiro desenho é o mesmo
     // piscar que o `data-admin-mode` veio cá tirar.
-    const b = bloco("body:has([data-admin-mode])");
+    const b = bloco("body:is(.admin-mode, .bo)");
 
     const rem = (degrau: string): number => {
       const m = b.match(new RegExp(`--radius-${degrau}:\\s*([\\d.]+)rem;`));

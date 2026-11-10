@@ -45,7 +45,7 @@ type RGB = [number, number, number];
 const BRANCO: RGB = [255, 255, 255];
 const PRETO: RGB = [0, 0, 0];
 
-const SELECTOR_ADMIN = "body:is(.admin-mode, :has([data-admin-mode]))";
+const SELECTOR_ADMIN = "body:is(.bo, .admin-mode)";
 function token(nome: string): string {
   const inicio = CSS.indexOf(`${SELECTOR_ADMIN} {`);
   expect(inicio, `desapareceu o bloco \`${SELECTOR_ADMIN}\``).toBeGreaterThan(-1);
