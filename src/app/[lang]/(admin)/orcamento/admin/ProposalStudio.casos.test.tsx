@@ -6672,7 +6672,7 @@ describe("traduzir com as fotos a meio", () => {
     // Remover passou a ser uma acção da folha, e não um círculo em cima da
     // fotografia — ver «SEIS CÍRCULOS EM CIMA DA FOTOGRAFIA». O caminho é o
     // mesmo dela: abrir as acções da primeira foto e escolher «Remover».
-    await user.click(screen.getAllByRole("button", { name: /^Acções de (?!esta proposta)/ })[0]);
+    await user.click(screen.getAllByRole("button", { name: /^Acções de (?!esta proposta|«)/ })[0]);
     await user.click(await screen.findByRole("button", { name: "Remover fotografia" }));
     await waitFor(() => expect(celulas()).toHaveLength(1));
 
@@ -7170,8 +7170,9 @@ describe("o estúdio no telemóvel: fotos, acções e descrições", () => {
 
     // E o caminho do dedo existe por omissão: é ele que fica quando a barra sai.
     const pontos = document.querySelector(
-      // O «⋯» do cabeçalho do estúdio (9/11) não é o da fotografia.
-      'button[aria-label^="Acções de"]:not([aria-label="Acções de esta proposta"])',
+      // O «⋯» do cabeçalho do estúdio (9/11) não é o da fotografia, nem o de
+      // cada mood board («Acções de «título»»), que fica sempre à vista.
+      'button[aria-label^="Acções de"]:not([aria-label="Acções de esta proposta"]):not([aria-label^="Acções de «"])',
     )!;
     expect(pontos.className).toContain("com-rato:hidden");
     expect(pontos.className).toContain("alvo-toque");
@@ -8225,7 +8226,8 @@ describe("acções irreversíveis: pergunta ou anulação, nunca nada", () => {
     renderStudio("Inspiração");
     const user = userEvent.setup();
     await screen.findAllByLabelText("Título do mood board");
-    await user.click(screen.getAllByRole("button", { name: "Remover mood board" })[0]);
+    await user.click(screen.getByRole("button", { name: "Acções de «Altar e corredor»" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Remover o mood board" }));
 
     const pergunta = (await screen.findByRole("alertdialog")).textContent ?? "";
     // O NOME que ela deu à página, e não «esta página».
@@ -8248,7 +8250,8 @@ describe("acções irreversíveis: pergunta ou anulação, nunca nada", () => {
     await waitFor(() => expect(boardsGravados()).toHaveLength(2));
     const antes = JSON.stringify(boardsGravados());
 
-    await user.click(screen.getAllByRole("button", { name: "Remover mood board" })[0]);
+    await user.click(screen.getByRole("button", { name: "Acções de «Altar e corredor»" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Remover o mood board" }));
     await user.click(await screen.findByRole("button", { name: /^Cancelar$/ }));
 
     // A pergunta sai do ecrã, as duas páginas continuam lá…
@@ -8266,7 +8269,8 @@ describe("acções irreversíveis: pergunta ou anulação, nunca nada", () => {
     renderStudio("Inspiração");
     const user = userEvent.setup();
     await screen.findAllByLabelText("Título do mood board");
-    await user.click(screen.getAllByRole("button", { name: "Remover mood board" })[0]);
+    await user.click(screen.getByRole("button", { name: "Acções de «Altar e corredor»" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Remover o mood board" }));
     await user.click(await screen.findByRole("button", { name: /^Remover a página$/ }));
     await waitFor(() => expect(screen.queryByDisplayValue("Altar e corredor")).toBeNull());
     expect(screen.getByDisplayValue("Mesa do jantar")).toBeTruthy();
@@ -8656,9 +8660,10 @@ describe("o estúdio diz o que mudou quando não se vê", () => {
     );
     renderStudio("Inspiração");
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Duplicar o mood board 1" }));
+    await user.click(await screen.findByRole("button", { name: "Acções de «Cerimónia»" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Duplicar o mood board" }));
 
-    // O botão é um ícone de 28 px repetido em cada cartão, e o cartão é alto:
+    // A acção repete-se no «⋯» de cada cartão, e o cartão é alto:
     // a cópia nasce abaixo da dobra. «Mood board duplicado.» não dizia nem
     // qual deles nem onde.
     expect(
