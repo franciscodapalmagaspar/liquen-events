@@ -566,6 +566,7 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // fatura no Moloni com as chaves da casa. Escreve para fora — a barreira é a
   // mesma do mensageiro.
   { path: "./orcamento/[id]/moloni/route", methods: ["GET", "POST"] },
+  { path: "./orcamento/[id]/entrega/route", methods: ["GET"] },
   { path: "./moloni/route", methods: ["GET"] },
   // A repartição por artigo de uma proposta aceite — escreve no documento.
   { path: "./propostas/[id]/reparto/route", methods: ["PATCH"] },
@@ -649,6 +650,7 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // as operações em lote que as movem. Estava FORA desta tabela até aqui — as
   // guardas existiam, mas nada as prendia, e é a tabela que é o contrato.
   { path: "./temas/route", methods: ["GET", "POST"] },
+  { path: "./temas/resumos/route", methods: ["POST"] },
   { path: "./temas/[id]/route", methods: ["PATCH", "DELETE"] },
   { path: "./temas/[id]/imagens/route", methods: ["GET", "POST", "DELETE"] },
   { path: "./temas/[id]/imagens/url/route", methods: ["POST", "PUT"] },

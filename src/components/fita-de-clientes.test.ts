@@ -230,10 +230,13 @@ describe("o fundo da fita", () => {
      * e foi o que entrou quando a fita vivia sobre a fotografia — sobre o
      * claro da página isso é branco sobre branco, ou seja, uma fita vazia.
      */
-    expect(componente(), "não se encontrou o `brightness-0`").toMatch(/\bbrightness-0\b/);
-    expect(componente(), "os logótipos ficaram brancos sobre a banda clara").not.toMatch(
-      /brightness-0[^"]*\binvert\b/,
-    );
+    // Desde 9/11 é o filtro da tinta (`TintaDosLogotipos`): preto E sem
+    // transparência — ela: «tudo com a mesma cor».
+    expect(componente(), "não se encontrou o filtro da tinta").toMatch(/filter: FILTRO_DA_TINTA/);
+    expect(componente(), "os logótipos ficaram brancos sobre a banda clara").not.toMatch(/\binvert\b/);
+    const filtro = readFileSync(join(__dirname, "TintaDosLogotipos.tsx"), "utf8");
+    // RGB a zero (preto) e o alfa multiplicado: a última linha da matriz.
+    expect(filtro).toContain('values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 3 0"');
   });
 
   it("as máscaras das pontas estão lá", () => {
@@ -369,5 +372,20 @@ describe("o bloco `@theme` do globals.css", () => {
   it("o `--color-noite` está lá, e é o mesmo tom das fotografias", () => {
     // Se desaparecer outra vez, a fita fica branca sobre branco.
     expect(tema()).toMatch(/--color-noite:\s*#12160f/i);
+  });
+});
+
+describe("a Torre de Palma ao lado da Deloitte (ela, 9/11)", () => {
+  it("o sorteio da ordem mantém o par lado a lado, em qualquer sorteio", async () => {
+    const { sortearComPares } = await import("./ClientMarquee");
+    const { clientLogos } = await import("@/data");
+    let semente = 1;
+    const aleatorio = () => ((semente = (semente * 16807) % 2147483647) - 1) / 2147483646;
+    for (let k = 0; k < 200; k++) {
+      const ordem = sortearComPares(clientLogos, aleatorio);
+      expect(ordem).toHaveLength(clientLogos.length);
+      const i = ordem.findIndex((c) => c.name === "Deloitte");
+      expect(ordem[i + 1]?.name).toBe("Torre de Palma Wine Hotel");
+    }
   });
 });

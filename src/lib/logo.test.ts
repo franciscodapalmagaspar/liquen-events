@@ -5,7 +5,6 @@ import {
   caixaNaParede,
   ESCALA_DA_FITA,
   travaNaParede,
-  travaEmCss,
   logoDimsFor,
   logoHeight,
   logoCssWidth,
@@ -110,12 +109,13 @@ describe("logoCssWidth / logoSizes", () => {
         [1920, ESCALA_DA_FITA.lg],
       ] as const)
         expect(declarada, `${src} ${ecra}`).toBeGreaterThanOrEqual(
-          caixaNaParede(src, travaNaParede(ecra)).largura * escala,
+          // Sem a trava da célula desde 9/11: a caixa natural, à escala.
+          caixaNaParede(src, Infinity).largura * escala,
         );
       // Parede: a célula mais larga (3 colunas a 1023px) e a mais estreita
       // (5 colunas dentro de max-w-7xl) — o `max-w-[68%]` de cada uma.
-      expect(declarada, src).toBeGreaterThanOrEqual(desenhada(src, 3000, 22, 72, Infinity, 194));
-      expect(declarada, src).toBeGreaterThanOrEqual(desenhada(src, 3000, 22, 72, Infinity, 129));
+      expect(declarada, src).toBeGreaterThanOrEqual(desenhada(src, 3000, 14, 72, Infinity, 194));
+      expect(declarada, src).toBeGreaterThanOrEqual(desenhada(src, 3000, 14, 72, Infinity, 129));
     }
   });
 
@@ -154,12 +154,38 @@ describe("logoCssWidth / logoSizes", () => {
     expect(Math.round(travaNaParede(768))).toBe(136);
     expect(Math.round(travaNaParede(1024))).toBe(125);
     expect(Math.round(travaNaParede(1440))).toBe(129);
-    for (const nome of ["Deloitte", "Pérez-Llorca", "Mainova", "Aernnova"]) {
+    // Os wordmarks finos chegam à trava da célula, como na parede.
+    for (const nome of ["Pérez-Llorca", "Mainova", "Aernnova"]) {
       const c = clientLogos.find((x) => x.name === nome)!;
       expect(caixaNaParede(c.logo, travaNaParede(390)).largura, nome).toBeCloseTo(
         travaNaParede(390),
       );
     }
+    // A Deloitte não (9/11): é letra grossa de ponta a ponta, e com a tinta
+    // compensada por inteiro fica mais estreita do que os outros wordmarks —
+    // era a maior da fita na captura dela.
+    const deloitte = clientLogos.find((x) => x.name === "Deloitte")!;
+    expect(caixaNaParede(deloitte.logo, travaNaParede(390)).largura).toBeLessThan(
+      travaNaParede(390),
+    );
+  });
+
+  it("na fita, a tinta à vista é a mesma em todos os que não param no máximo da altura (ela, 9/11)", () => {
+    // «A barra ainda não tem os logos todos no mesmo tamanho.» Com 0,4 a tinta
+    // ia de 229 a 1 005; agora, fora os que param no máximo da altura (altos e
+    // com muito ar: o Convento, a Torre de Palma), é praticamente igual.
+    // Na FITA, que não tem a trava da célula desde 9/11.
+    const tinta = (src: string) => {
+      const d = (logoDims as Record<string, number[]>)[src][2] ?? 0.28;
+      const c = caixaNaParede(src, Infinity);
+      return c.largura * c.altura * d;
+    };
+    const valores = Object.keys(logoDims)
+      .filter((src) => !/convento|torre-de-palma/.test(src))
+      .map(tinta);
+    // 12 % e não 0: a altura arredonda ao píxel, e num wordmark de 17 px um
+    // píxel são 6 % da altura (e da tinta). Com 0,4 eram 340 %.
+    expect(Math.max(...valores) / Math.min(...valores)).toBeLessThan(1.12);
   });
 
   it("declara a largura real, não a do logótipo mais largo de todos", () => {
@@ -168,7 +194,7 @@ describe("logoCssWidth / logoSizes", () => {
     // O Convento é leve (pouca tinta) e por isso cresce desde 17/10 — mas
     // continua muito mais estreito do que o wordmark.
     expect(logoCssWidth(TALL)).toBeLessThan(80);
-    expect(logoCssWidth(WIDE)).toBeGreaterThan(150); // wordmark, vai aos 170px
+    expect(logoCssWidth(WIDE)).toBeGreaterThan(110); // wordmark, bem mais largo do que o Convento
     expect(logoSizes(TALL)).toBe(`${logoCssWidth(TALL)}px`);
     expect(logoSizes(TALL)).toMatch(/^\d+px$/);
   });
@@ -202,18 +228,14 @@ describe("logoCssWidth / logoSizes", () => {
     // Se alguém mexer nestas classes sem mexer em CONTEXTOS (logo.ts), o
     // `sizes` passa a mentir — para menos, e os logótipos desfocam.
     expect(FITA).toContain("caixaNaParede(logo, Infinity)");
-    expect(FITA).toContain("var(--fita-largura)");
+    expect(FITA).not.toContain("var(--fita-largura)");
     expect(FITA).toContain(`[--fita-escala:${ESCALA_DA_FITA.telemovel}]`);
     expect(FITA).toContain(`sm:[--fita-escala:${ESCALA_DA_FITA.sm}]`);
     expect(FITA).toContain(`lg:[--fita-escala:${ESCALA_DA_FITA.lg}]`);
-    expect(FITA).toContain(` [--fita-largura:${travaEmCss("telemovel")}]`);
-    expect(FITA).toContain(`sm:[--fita-largura:${travaEmCss("sm")}]`);
-    expect(FITA).toContain(`lg:[--fita-largura:${travaEmCss("lg")}]`);
-    expect(FITA).toContain(`xl:[--fita-largura:${travaEmCss("xl")}]`);
     expect(PAREDE).toContain("max-w-[68%]");
     expect(PAREDE).toContain("basis-1/2 sm:basis-1/3 lg:basis-1/4");
     expect(PAREDE).toContain("px-4 sm:px-5");
     expect(PAREDE).toContain("max-w-[68%]");
-    expect(PAREDE).toContain("logoHeight(client.logo, 3000, 22, 72)");
+    expect(PAREDE).toContain("logoHeight(client.logo, 3000, 14, 72)");
   });
 });

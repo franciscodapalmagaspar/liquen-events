@@ -108,21 +108,30 @@ export function splitThirtySeventy(total: number): { sinal: number; saldo: numbe
   return splitSinal(total, SINAL_POR_OMISSAO);
 }
 
+/**
+ * ── UM FORMATADOR SÓ, E NÃO UM POR NÚMERO (9/11) ──────────────────────────
+ * Criavam um `Intl.NumberFormat` novo em CADA chamada. Criar um custa dezenas
+ * de vezes mais do que usá-lo, e há ecrãs com centenas de valores — o quadro
+ * dos Pagamentos chama isto 5 a 8 vezes por cartão, de cada vez que se abre ou
+ * fecha um cliente. Ela: «quando se carrega num cliente está super travada».
+ * O texto que sai é o mesmo: as mesmas opções, o mesmo idioma.
+ */
+const EUR2 = new Intl.NumberFormat("pt-PT", {
+  style: "currency",
+  currency: "EUR",
+  maximumFractionDigits: 2,
+});
+const EUR0 = new Intl.NumberFormat("pt-PT", {
+  style: "currency",
+  currency: "EUR",
+  maximumFractionDigits: 0,
+});
+
 /** Formatador de euros pt-PT com 2 casas decimais (ex.: "1234,50 €"). */
-export const eur = (n: number): string =>
-  new Intl.NumberFormat("pt-PT", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 2,
-  }).format(n || 0);
+export const eur = (n: number): string => EUR2.format(n || 0);
 
 /** Formatador de euros pt-PT sem casas decimais (ex.: "1235 €"). */
-export const eur0 = (n: number): string =>
-  new Intl.NumberFormat("pt-PT", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(n || 0);
+export const eur0 = (n: number): string => EUR0.format(n || 0);
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

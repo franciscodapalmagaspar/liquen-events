@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
 import type { Payment, Quote } from "@/lib/orcamento/types";
 import {
   comORecebido,
@@ -124,9 +124,16 @@ export default function Pagamentos({ quotes, userName, onOpenQuote, onQuoteUpdat
 
   const todas = useMemo(() => [...quadro.sinal, ...quadro.saldo, ...quadro.pago], [quadro]);
   const quantasPrecisam = useMemo(() => todas.filter(precisaDeMim).length, [todas]);
-  const quoteDe = (id: string | null) => (id ? (quotes.find((q) => q.id === id) ?? null) : null);
+  // Por id, uma vez por lista — e não um `find` por cartão em cada desenho.
+  const quotePorId = useMemo(() => new Map(quotes.map((q) => [q.id, q])), [quotes]);
+  const quoteDe = (id: string | null) => (id ? (quotePorId.get(id) ?? null) : null);
   const cobrancaDe = (id: string | null) =>
     id ? (todas.find((c) => c.quoteId === id) ?? null) : null;
+  // Estáveis, para o `memo` dos cartões valer: abrir um cliente não redesenha
+  // os outros quarenta (9/11 — «quando se carrega num cliente está super
+  // travada»).
+  const abrir = useCallback((id: string) => setAberto(id), []);
+  const receber = useCallback((id: string) => setAReceber(id), []);
 
   const visivel = (c: Cobranca) => {
     if (filtro === "precisa" && !precisaDeMim(c)) return false;
@@ -272,8 +279,8 @@ export default function Pagamentos({ quotes, userName, onOpenQuote, onQuoteUpdat
                       <Cartao
                         cobranca={c}
                         lembrado={diasDesdeOLembrete(quoteDe(c.quoteId) ?? ({} as Quote), hoje)}
-                        onAbrir={() => setAberto(c.quoteId)}
-                        onRecebido={() => setAReceber(c.quoteId)}
+                        onAbrir={abrir}
+                        onRecebido={receber}
                       />
                     </li>
                   ))}
@@ -354,17 +361,19 @@ function lembradoEmPalavras(dias: number): string {
   return `lembrado há ${dias} dias`;
 }
 
-function Cartao({
+const Cartao = memo(function Cartao({
   cobranca: c,
   lembrado,
-  onAbrir,
-  onRecebido,
+  onAbrir: abrirPorId,
+  onRecebido: receberPorId,
 }: {
   cobranca: Cobranca;
   lembrado: number | null;
-  onAbrir: () => void;
-  onRecebido: () => void;
+  onAbrir: (id: string) => void;
+  onRecebido: (id: string) => void;
 }) {
+  const onAbrir = () => abrirPorId(c.quoteId);
+  const onRecebido = () => receberPorId(c.quoteId);
   const prazo = prazoEmPalavras(c);
   const fraccao = fraccaoDaBarra(c.pago, c.total);
   const accao =
@@ -463,7 +472,7 @@ function Cartao({
       )}
     </article>
   );
-}
+});
 
 /**
  * «Recebido» num toque: o próximo pagamento do cartão, com o valor já escrito,

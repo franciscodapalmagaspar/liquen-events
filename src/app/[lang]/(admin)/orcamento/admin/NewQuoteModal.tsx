@@ -7,6 +7,8 @@ import { useToast } from "./Toast";
 import { Button, Field, FolhaOuDialogo } from "./ui";
 import { porqueFalhou } from "@/lib/erro-do-servidor";
 import CampoTelefone from "@/components/CampoTelefone";
+import { dominiosConhecidos, sugerirEmail } from "@/lib/dominio-parecido";
+import { ESTADO, PRESSAO } from "./ui/movimento";
 import { carregarTelefones } from "@/lib/telefone-no-browser";
 import { APARENCIA_DO_BACK_OFFICE, TELEFONE_SUBLINHADO } from "./ui/aparencia-do-telefone";
 
@@ -41,6 +43,11 @@ export default function NewQuoteModal({ open, onClose, onCreated, existingQuotes
 
   // Match the typed e-mail against existing quotes once per change, not per render.
   const email = f.email.trim().toLowerCase();
+  // «Querias dizer …@adecco.com?» — ver `lib/dominio-parecido.ts` (9/11).
+  const emailSugerido = useMemo(
+    () => sugerirEmail(f.email, dominiosConhecidos((existingQuotes ?? []).map((q) => q.email))),
+    [f.email, existingQuotes],
+  );
   const duplicates = useMemo(
     () => (email ? (existingQuotes ?? []).filter((q) => q.email.toLowerCase() === email) : []),
     [email, existingQuotes],
@@ -227,6 +234,19 @@ export default function NewQuoteModal({ open, onClose, onCreated, existingQuotes
             error={recusa?.campo === "email" ? recusa.texto : undefined}
             placeholder="email@exemplo.com"
           />
+          {emailSugerido && (
+            <p role="status" className="-mt-2 text-footnote text-[var(--bo-aviso)]">
+              Querias dizer{" "}
+              <button
+                type="button"
+                onClick={() => set("email", emailSugerido)}
+                className={`font-semibold underline underline-offset-2 hover:text-[var(--bo-text)] ${ESTADO} ${PRESSAO}`}
+              >
+                {emailSugerido}
+              </button>
+              ? Um email com uma letra trocada não chega a ninguém.
+            </p>
+          )}
           {/* O telefone com a bandeira. O rótulo é o mesmo do `Field` (o
               `text-footnote` a 13 px), escrito à mão porque o controlo não é
               um `<input>` só. */}
