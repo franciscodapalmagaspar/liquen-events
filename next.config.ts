@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import bundleAnalyzer from "@next/bundle-analyzer";
 import { origensDeImagem } from "./src/lib/csp-imagens";
 import { rotasQueUsam } from "./scripts/rotas-que-usam.mjs";
+import { REDIRECIONAMENTOS_DA_LINGUA, REESCRITAS_DA_LINGUA } from "./src/lib/rotas-da-lingua";
 
 /**
  * ── O BINÁRIO DO `sharp` SÓ VAI PARA AS ROTAS QUE LHE CHEGAM (9/11) ───────
@@ -895,6 +896,13 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  async rewrites() {
+    // A língua de cada caminho nu, sem invocar o `proxy` — ver
+    // `src/lib/rotas-da-lingua.ts`. `afterFiles`: depois dos ficheiros e das
+    // rotas fixas, antes das dinâmicas.
+    return { beforeFiles: [], afterFiles: REESCRITAS_DA_LINGUA, fallback: [] };
+  },
+
   async redirects() {
     // Legacy URLs from the previous (Wix) site that Google still has indexed →
     // the equivalent page on the rebuilt site, so old search results and
@@ -904,6 +912,9 @@ const nextConfig: NextConfig = {
     // are listed because the incoming pathname can arrive either way.
     const APEX = "https://liquen-events.com";
     return [
+      // O prefixo interno `/pt` e o atalho `/admin` — eram do `proxy.ts`; ver
+      // `src/lib/rotas-da-lingua.ts` (10/11, sem função por visita).
+      ...REDIRECIONAMENTOS_DA_LINGUA,
       { source: "/eventos", destination: `${APEX}/servicos`, permanent: true },
       { source: "/serviços", destination: `${APEX}/servicos`, permanent: true },
       { source: "/servi%C3%A7os", destination: `${APEX}/servicos`, permanent: true },

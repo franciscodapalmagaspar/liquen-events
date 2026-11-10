@@ -124,6 +124,11 @@ export async function textoDasPaginas(
   return textos;
 }
 
+/** Se esta página já está desenhada na memória desta instância (sem a desenhar). */
+export function imagemJaFeita(chave: string, n: number, largura: Largura): boolean {
+  return imagens.has(`${chave}:${n}:${largura}`);
+}
+
 /** A página `n` (a contar de 1) em WebP, ou `null` se não existir. */
 export async function imagemDaPagina(
   chave: string,
