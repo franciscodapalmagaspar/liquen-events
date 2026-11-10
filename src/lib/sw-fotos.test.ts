@@ -48,6 +48,7 @@ function extrair<T>(nome: string): T {
 const ehFotoDaBiblioteca = extrair<(u: URL) => boolean>("ehFotoDaBiblioteca");
 const chaveSemToken = extrair<(u: URL) => string>("chaveSemToken");
 const vaiParaODisco = extrair<(r: unknown) => boolean>("vaiParaODisco");
+const ehOriginalDaBiblioteca = extrair<(u: URL) => boolean>("ehOriginalDaBiblioteca");
 
 /** Uma resposta com o que interessa aqui: tipo, estado e content-type. */
 function resposta(o: { type?: string; ok?: boolean; contentType?: string | null }) {
@@ -127,7 +128,7 @@ describe("service worker — o que pode ir para o disco", () => {
    * O TESTE QUE INTERESSA. Estas são as fotografias de um casamento concreto.
    */
   it("NUNCA guarda fotografias de uma proposta", () => {
-    for (const bucket of ["proposal-assets", "proposal-thumbs"]) {
+    for (const bucket of ["proposal-assets", "proposal-thumbs", "proposal-medias"]) {
       expect(
         ehFotoDaBiblioteca(sb(`/storage/v1/object/sign/${bucket}/LIQ-ABC/capa.jpg`)),
         `${bucket} passou o filtro — as fotos de um casal iriam para o disco`,
@@ -135,10 +136,51 @@ describe("service worker — o que pode ir para o disco", () => {
     }
   });
 
-  it("não guarda os ORIGINAIS da biblioteca — são ~576 KB cada", () => {
-    expect(ehFotoDaBiblioteca(sb("/storage/v1/object/sign/theme-assets/italia/a1.jpg"))).toBe(
-      false,
+  /**
+   * v3 (10/11): medido nos registos do Supabase, as `.png` e `.webp` (9 % da
+   * biblioteca) e as derivadas de 1 200 px voltavam a ser descarregadas a
+   * cada abertura — o filtro só aceitava `.jpg` de duas gavetas.
+   */
+  it("guarda também as .png e .webp, as médias e as AVIF da biblioteca", () => {
+    for (const p of [
+      "/storage/v1/object/sign/theme-thumbs/italia/a1.png",
+      "/storage/v1/object/sign/theme-thumbs/italia/a1.webp",
+      "/storage/v1/object/sign/theme-medias/italia/a1.jpg",
+      "/storage/v1/object/sign/theme-avif/italia/a1.jpg",
+      "/storage/v1/object/sign/theme-avif-micro/italia/a1.jpg",
+      "/storage/v1/object/sign/theme-avif-medias/italia/a1.jpg",
+    ]) {
+      expect(ehFotoDaBiblioteca(sb(p)), `${p} ficou de fora`).toBe(true);
+    }
+  });
+
+  /**
+   * Os originais da biblioteca vão para uma gaveta PRÓPRIA (com tecto
+   * próprio), e não para a das miniaturas — para ~40 MB de originais nunca
+   * empurrarem as miniaturas para fora.
+   */
+  it("os ORIGINAIS da biblioteca vão para a gaveta deles, não para a das miniaturas", () => {
+    const original = sb("/storage/v1/object/sign/theme-assets/italia/a1.jpg");
+    expect(ehFotoDaBiblioteca(original)).toBe(false);
+    expect(ehOriginalDaBiblioteca(original)).toBe(true);
+    expect(ehOriginalDaBiblioteca(sb("/storage/v1/object/sign/theme-assets/italia/a1.png"))).toBe(
+      true,
     );
+    expect(FONTE).toContain('CACHE_ORIGINAIS = "liquen-originais-v1"');
+    expect(FONTE).toMatch(/k !== CACHE_ORIGINAIS/);
+  });
+
+  /** O TESTE QUE INTERESSA, outra vez, para a gaveta nova. */
+  it("NUNCA guarda originais de uma proposta, nem o que não é imagem", () => {
+    for (const p of [
+      "/storage/v1/object/sign/proposal-assets/LIQ-ABC/capa.jpg",
+      "/storage/v1/object/sign/proposal-medias/LIQ-ABC/capa.jpg",
+      "/storage/v1/object/sign/theme-assets-x/italia/a1.jpg",
+      "/storage/v1/object/sign/theme-assets/italia/lista.json",
+      "/theme-assets/italia/a1.jpg",
+    ]) {
+      expect(ehOriginalDaBiblioteca(sb(p)), `${p} passou o filtro`).toBe(false);
+    }
   });
 
   /** Um nome de bucket que só COMEÇA por `theme-` não é um dos dois. */

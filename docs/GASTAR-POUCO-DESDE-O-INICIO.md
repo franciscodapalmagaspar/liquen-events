@@ -168,6 +168,22 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
 
 ### O que se mediu e o que se fez (10/11)
 
+- **Saída de dados (egress), medida nos registos do Supabase a 10/11** (24 h,
+  um dia de trabalho dela): ~180 MB sem cache — ao ritmo de um dia assim,
+  ~5,4 GB/mês, ACIMA dos 5 GB do plano gratuito. Não verificado no painel de
+  uso (não há ferramenta para o ler daqui); é a soma dos `content-length`.
+  De onde vem:
+  · 118 MB: originais da biblioteca vistos no back office (visualizador e
+    pré-visualização do seletor), 803 pedidos, 224 repetidos;
+  · 23,5 MB: 1 702 listagens de pastas feitas pelo servidor (961 da
+    `theme-assets`);
+  · 16 MB: fotos tratadas lidas pelo servidor sem cache (+119 MB COM cache do
+    Supabase, que conta noutra quota);
+  · ~10 MB: miniaturas `.png`/`.webp` e médias, que o service worker não
+    guardava.
+  Feito: o service worker guarda agora as derivadas todas e os originais da
+  biblioteca (gaveta própria, 200 ≈ 40 MB), sempre pelo caminho sem token.
+
 - `fotos-editoriais` (cache, 158 MB numa semana): a tarefa da noite apaga o
   que tem mais de 30 dias (`limpar-fotos-tratadas.ts`). Pela idade, porque o
   Supabase não regista leituras (`last_accessed_at` = criação).
