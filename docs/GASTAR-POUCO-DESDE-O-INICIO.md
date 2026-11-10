@@ -149,3 +149,20 @@ proposal-pdfs 121, theme-medias 120, proposal-medias 43, theme-thumbs 30 MB).
 - As caches derivadas têm de se poder apagar e refazer sem perder nada.
 - Antes de acrescentar, mede-se o que sobra (a consulta está no PR #414).
 
+**«Eu não quero pagar nada»** (dela, 10/11): o Supabase e o Upstash ficam nos
+planos gratuitos. Nada se faz que obrigue a subir de plano.
+
+### O que se mediu e o que se fez (10/11)
+
+- `fotos-editoriais` (cache, 158 MB numa semana): a tarefa da noite apaga o
+  que tem mais de 30 dias (`limpar-fotos-tratadas.ts`). Pela idade, porque o
+  Supabase não regista leituras (`last_accessed_at` = criação).
+- Duplicados pelo conteúdo (eTag): **160 MB em 1 525 cópias** —
+  proposal-assets ↔ theme-assets 45 MB, dentro de proposal-assets 38 MB,
+  proposal-medias ↔ theme-medias 24 MB, dentro de theme-assets 22 MB, dentro
+  de theme-medias 12 MB, o resto miniaturas. Por fazer: juntar numa cópia só,
+  com as propostas a apontar para a biblioteca (precisa de mexer nos
+  documentos — com cópia de segurança e autorização dela).
+- `proposal-pdfs` (121 MB): ela escolheu guardar o PDF actual e o aceite de
+  cada proposta; por fazer, com a lista mostrada antes de apagar.
+
