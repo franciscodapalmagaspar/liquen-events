@@ -36,3 +36,24 @@ describe("que publicações a Vercel constrói", () => {
     expect(config.ignoreCommand).toBe("node scripts/vercel-construir.mjs");
   });
 });
+
+/**
+ * ── E OS RAMOS NEM CHEGAM A ARRANCAR UMA CONSTRUÇÃO (9/11) ─────────────────
+ * Medido: cada pré-visualização saltada por este guião ainda abria uma máquina
+ * de construção durante ~22 s (clonar, instalar o node, correr isto), e num
+ * dia de trabalho eram ~40 — mais minutos do que as construções de produção
+ * (~72 s cada, 5 nesse dia). Ela: «quero pagar muito pouco mas fazer tudo».
+ * O `git.deploymentEnabled` do vercel.json corta-as antes de existirem; este
+ * guião fica como segunda rede. A Vercel constrói quando PELO MENOS uma regra
+ * diz `true` para o ramo.
+ */
+import { readFileSync as lerFicheiro } from "node:fs";
+import { describe as descrever, it as caso, expect as esperar } from "vitest";
+
+descrever("vercel.json — só o main e os preview/… arrancam construções", () => {
+  const cfg = JSON.parse(lerFicheiro(new URL("../vercel.json", import.meta.url), "utf8"));
+  caso("o main constrói, os outros ramos não, e preview/… continua a ser a porta para pedir uma", () => {
+    esperar(cfg.git.deploymentEnabled).toEqual({ "**": false, main: true, "preview/**": true });
+    esperar(cfg.ignoreCommand).toBe("node scripts/vercel-construir.mjs");
+  });
+});
