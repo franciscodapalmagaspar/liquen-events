@@ -90,6 +90,9 @@ vi.mock("@/lib/retencao", () => ({
     return { apagados: 0 };
   }),
 }));
+vi.mock("@/lib/limpar-pastas-orfas", () => ({
+  limparPastasDePedidosApagados: vi.fn(async () => ({ candidatas: 0, apagadas: 0, acabou: true })),
+}));
 vi.mock("@/lib/limpar-fotos-tratadas", () => ({
   limparFotosTratadasVelhas: vi.fn(async () => ({ apagadas: 3, pastas: 256, acabou: true })),
 }));
