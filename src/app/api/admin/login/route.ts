@@ -69,13 +69,13 @@ export async function POST(request: NextRequest) {
   // Throttle brute-force attempts on the login endpoint.
   sweep();
   const [porMinuto, porHora] = await Promise.all([
-    rateLimit(`login:${ip}`, 8, 60_000),
+    rateLimit(`login:${ip}`, 8, 60_000, { global: true }),
     // Tecto POR ENDEREÇO à hora. O de 8/minuto sozinho deixa passar 480
     // tentativas por hora de um só sítio, e cada uma custa um bcrypt — mesmo
     // com identificadores inventados, que não gastam o contador de conta
     // nenhuma. É trabalho de CPU que se compra por nada. Sessenta à hora fica
     // muito acima do que um escritório inteiro usa num dia mau.
-    rateLimit(`login-ip-hora:${ip}`, 60, 60 * 60_000),
+    rateLimit(`login-ip-hora:${ip}`, 60, 60 * 60_000, { global: true }),
   ]);
   const limited = !porMinuto.ok ? porMinuto : !porHora.ok ? porHora : null;
   if (limited) {
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
     // Todos os degraus contam SEMPRE, mesmo quando um deles já está a fechar a
     // porta: é isso que faz a escada subir para quem insiste.
     const resultados = await Promise.all(
-      ESCADA.map((d) => rateLimit(`${d.chave}:${conta}`, d.tentativas, d.janelaMs)),
+      ESCADA.map((d) => rateLimit(`${d.chave}:${conta}`, d.tentativas, d.janelaMs, { global: true })),
     );
     let espera = 0;
     resultados.forEach((r, i) => {

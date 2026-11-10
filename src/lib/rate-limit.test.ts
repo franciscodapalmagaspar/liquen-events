@@ -90,9 +90,9 @@ describe("rateLimit — Upstash (distributed)", () => {
     }));
     vi.stubGlobal("fetch", fetchMock);
 
-    expect((await rateLimit("k", 2)).ok).toBe(true); // count 1
-    expect((await rateLimit("k", 2)).ok).toBe(true); // count 2
-    const blocked = await rateLimit("k", 2); // count 3 → over the limit
+    expect((await rateLimit("k", 2, 60_000, { global: true })).ok).toBe(true); // count 1
+    expect((await rateLimit("k", 2, 60_000, { global: true })).ok).toBe(true); // count 2
+    const blocked = await rateLimit("k", 2, 60_000, { global: true }); // count 3 → over the limit
     expect(blocked.ok).toBe(false);
     expect(blocked.retryAfter).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -108,7 +108,7 @@ describe("rateLimit — Upstash (distributed)", () => {
       }),
     );
     // Must not throw; the in-memory fallback allows the first call.
-    const r = await rateLimit("fallback-key", 1);
+    const r = await rateLimit("fallback-key", 1, 60_000, { global: true });
     expect(r.ok).toBe(true);
   });
 });
@@ -147,9 +147,26 @@ describe("o Redis ligado pelo painel da Vercel (KV_REST_API_*) também conta (10
     vi.stubEnv("KV_REST_API_TOKEN", "token-de-teste");
     const fetchMock = vi.fn(async () => Response.json([{ result: 1 }, { result: 5000 }]));
     vi.stubGlobal("fetch", fetchMock);
-    expect((await rateLimit(`kv-${Math.random()}`, 3, 60_000)).ok).toBe(true);
+    expect((await rateLimit(`kv-${Math.random()}`, 3, 60_000, { global: true })).ok).toBe(true);
     expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(
       "https://redis.exemplo.test/pipeline",
     );
+  });
+});
+
+describe("sem `global`, o Redis nem se toca — mesmo configurado (10/11)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+  it("um limite de volume fica na memória e não gasta comandos", async () => {
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://x.upstash.io");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "tok");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const chave = `volume-${Math.random()}`;
+    expect((await rateLimit(chave, 1)).ok).toBe(true);
+    expect((await rateLimit(chave, 1)).ok).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

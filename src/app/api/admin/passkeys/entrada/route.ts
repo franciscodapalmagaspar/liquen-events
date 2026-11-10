@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   // O mesmo tecto do login por palavra-passe. Uma assinatura não se adivinha,
   // mas a rota faz trabalho (uma leitura e uma verificação criptográfica) e
   // não há razão para deixar alguém repeti-lo sem fim.
-  const limitado = await rateLimit(`passkey:${ip}`, 20, 60_000);
+  const limitado = await rateLimit(`passkey:${ip}`, 20, 60_000, { global: true });
   if (!limitado.ok) {
     log.warn("passkeys: entrada com tecto de tentativas", { ip });
     return NextResponse.json(

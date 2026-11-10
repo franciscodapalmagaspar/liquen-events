@@ -103,8 +103,8 @@ export async function POST(request: NextRequest) {
    */
   const chaveConta = normalizarIdentificador(email);
   const [porIp, porConta] = await Promise.all([
-    rateLimit(`recuperar-ip:${ip}`, 5, 60 * 60_000),
-    rateLimit(`recuperar-conta:${chaveConta}`, 3, 60 * 60_000),
+    rateLimit(`recuperar-ip:${ip}`, 5, 60 * 60_000, { global: true }),
+    rateLimit(`recuperar-conta:${chaveConta}`, 3, 60 * 60_000, { global: true }),
   ]);
   const travado = !porIp.ok ? porIp : !porConta.ok ? porConta : null;
   if (travado) {

@@ -98,7 +98,7 @@ describe("rateLimit distribuído — a janela é FIXA", () => {
     const chave = "janela-fixa";
     const bateu = async (t: number) => {
       relogio.agora = t;
-      return (await rateLimit(chave, 3, 1000)).ok;
+      return (await rateLimit(chave, 3, 1000, { global: true })).ok;
     };
 
     // A janela abre e enche-se: três passam.
@@ -125,7 +125,7 @@ describe("rateLimit distribuído — a janela é FIXA", () => {
     const chave = "prazo-uma-vez";
     for (const t of [0, 100, 200, 300]) {
       relogio.agora = t;
-      await rateLimit(chave, 10, 1000);
+      await rateLimit(chave, 10, 1000, { global: true });
     }
 
     const prazos = comandos.filter((c) => c[0] === "PEXPIRE");
@@ -138,9 +138,9 @@ describe("rateLimit distribuído — a janela é FIXA", () => {
 
     const chave = "retry-real";
     relogio.agora = 0;
-    await rateLimit(chave, 1, 10_000);
+    await rateLimit(chave, 1, 10_000, { global: true });
     relogio.agora = 7_000;
-    const travado = await rateLimit(chave, 1, 10_000);
+    const travado = await rateLimit(chave, 1, 10_000, { global: true });
 
     expect(travado.ok).toBe(false);
     // Faltam 3 s. Dizer 10 mandava esperar mais do triplo do necessário.

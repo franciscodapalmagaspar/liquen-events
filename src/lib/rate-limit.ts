@@ -129,8 +129,31 @@ function credenciaisDoRedis(): { url?: string; token?: string } {
   };
 }
 
-export async function rateLimit(key: string, limit = 5, windowMs = 60_000): Promise<RateResult> {
-  const { url, token } = credenciaisDoRedis();
+/**
+ * ── O UPSTASH GASTA-SE SÓ ONDE PROTEGE (10/11, regra dela) ─────────────────
+ *
+ * Ela: «é mesmo importante manter muito abaixo o Upstash». Cada chamada ao
+ * Redis são 2–3 comandos, e o plano gratuito tem um tecto mensal. A proposta
+ * online, sozinha, faz ~60 pedidos por visita (página, PDF, fotografias): se
+ * todos fossem ao Redis, uma visita gastava ~150 comandos.
+ *
+ * Por isso a omissão é a MEMÓRIA da instância — custo zero, e chega para o
+ * que é anti-abuso de volume (telemetria, imagens, páginas da proposta, cujos
+ * códigos de 12 símbolos já não se adivinham). Só pede `{ global: true }` o
+ * que protege CONTAS e ENVIOS — entrar, chave de acesso, recuperação, o
+ * formulário do pedido e as confirmações por email —, onde um limite por
+ * instância deixaria passar quem tenta de muitos sítios. São poucas por dia.
+ *
+ * Quem acrescentar um `rateLimit` novo: deixa a omissão, a não ser que proteja
+ * uma conta ou um envio. Um teste (`rate-limit.global.test.ts`) prende a lista.
+ */
+export async function rateLimit(
+  key: string,
+  limit = 5,
+  windowMs = 60_000,
+  opcoes: { global?: boolean } = {},
+): Promise<RateResult> {
+  const { url, token } = opcoes.global ? credenciaisDoRedis() : {};
   if (url && token) {
     try {
       return await redisRateLimit(url, token, key, limit, windowMs);

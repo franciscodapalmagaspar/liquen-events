@@ -661,7 +661,7 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
     // 10/11: 5 → 2. Um cliente verdadeiro manda um pedido, às vezes corrige e
     // manda outro; cinco era margem para usar o formulário como remetente.
     const emailKey = `confirm:${form.email.trim().toLowerCase()}`;
-    if ((await rateLimit(emailKey, 2, 24 * 60 * 60_000)).ok) {
+    if ((await rateLimit(emailKey, 2, 24 * 60 * 60_000, { global: true })).ok) {
       const sentRes = await sendMail({
         to: form.email,
         // The body invites a reply ("basta responder a este email"), so point
@@ -711,7 +711,7 @@ async function POST_semMedida(request: NextRequest) {
   let locale = normalizeLocale(request.cookies?.get?.(LANG_COOKIE)?.value);
   try {
     sweep();
-    const limited = await rateLimit(`orcamento:${clientIp(request)}`, 5, 60_000);
+    const limited = await rateLimit(`orcamento:${clientIp(request)}`, 5, 60_000, { global: true });
     if (!limited.ok) {
       const segundos = Math.max(1, Math.ceil(limited.retryAfter ?? 60));
       return NextResponse.json(

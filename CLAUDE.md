@@ -202,6 +202,15 @@ ou uma varredura, responde no PR às três perguntas da regra 7:
 O trabalho pesado guarda-se no armazenamento, porque a memória da função não
 conta. As rotas pesadas passam por `comCpu` (`src/lib/medir-cpu.ts`).
 
+E o **Upstash fica muito abaixo do plano gratuito** (pedido dela, 10/11: «é
+mesmo importante manter muito abaixo o upstash»). Os limites de tentativas
+(`rateLimit`) ficam na MEMÓRIA por omissão; só usam o Upstash com
+`{ global: true }`, e só nas portas de contas e envios — entrar, chave de
+acesso, recuperação, formulário do pedido. A lista está presa por um teste
+(`src/lib/rate-limit.global.test.ts`): acrescentar uma é uma decisão de custo,
+com a razão no PR. Vale para qualquer serviço pago novo: entra sempre «para
+melhor, nunca para pior» na conta.
+
 E publica-se **em lotes** (regra 9, pedido dela de 4/11): um PR verde não entra
 logo no `main`. Junta-se num ramo `lote/AAAA-MM-DD`, e o lote entra no `main`
 de uma vez — **uma vez por dia** (pedido dela de 10/11: cada publicação é ~72 s
