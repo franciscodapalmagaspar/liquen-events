@@ -29,9 +29,13 @@ import { log } from "@/lib/logger";
  * propostas (umas 100 KB cada), por mais que ela escreva. É exactamente a que
  * interessa: a última versão é a que ela vê quando volta a abrir.
  *
- * Para nunca servir uma página velha, o ficheiro começa pela impressão digital
- * do rascunho que a desenhou (32 bytes) e pelo número de páginas do PDF
- * (2 bytes); a imagem vem a seguir. Rascunho diferente → não serve.
+ * Para nunca servir uma página velha, o ficheiro leva no FIM a impressão
+ * digital do rascunho que a desenhou (32 bytes) e o número de páginas do PDF
+ * (2 bytes). No fim, e não no princípio: o balde só aceita imagens, e um WebP
+ * com bytes a mais depois do seu bloco RIFF continua a ser um WebP válido (o
+ * tamanho está no cabeçalho; os leitores ignoram o resto). A primeira versão
+ * (10/11) punha-os à frente e gravava `application/octet-stream` — o balde
+ * recusava, e a página desenhava-se sempre. Rascunho diferente → não serve.
  *
  * ── E NUNCA MAIS LENTA ──────────────────────────────────────────────────
  *
@@ -46,19 +50,19 @@ const CABECALHO = 34;
 
 function caminho(quoteId: string, idioma: string, n: number, largura: number): string {
   const q = createHash("sha256").update(quoteId).digest("hex").slice(0, 24);
-  return `paginas-do-rascunho/${q}/${idioma}-${n}-${largura}.bin`;
+  return `paginas-do-rascunho/${q}/${idioma}-${n}-${largura}.webp`;
 }
 
 function impressao(chave: string): Buffer {
   return createHash("sha256").update(chave).digest();
 }
 
-/** Junta a impressão, o número de páginas e a imagem (exportado para os testes). */
+/** Junta a imagem, a impressão e o número de páginas (exportado para os testes). */
 export function embrulhar(chave: string, paginas: number | null, imagem: Buffer): Buffer {
-  const cab = Buffer.alloc(CABECALHO);
-  impressao(chave).copy(cab, 0);
-  cab.writeUInt16BE(Math.max(0, Math.min(65535, paginas ?? 0)), 32);
-  return Buffer.concat([cab, imagem]);
+  const fim = Buffer.alloc(CABECALHO);
+  impressao(chave).copy(fim, 0);
+  fim.writeUInt16BE(Math.max(0, Math.min(65535, paginas ?? 0)), 32);
+  return Buffer.concat([imagem, fim]);
 }
 
 /** O contrário: a imagem e as páginas, ou `null` se é de outro rascunho. */
@@ -67,9 +71,10 @@ export function desembrulhar(
   bytes: Buffer,
 ): { imagem: Buffer; paginas: number | null } | null {
   if (bytes.length <= CABECALHO) return null;
-  if (!bytes.subarray(0, 32).equals(impressao(chave))) return null;
-  const paginas = bytes.readUInt16BE(32);
-  return { imagem: bytes.subarray(CABECALHO), paginas: paginas || null };
+  const fim = bytes.subarray(bytes.length - CABECALHO);
+  if (!fim.subarray(0, 32).equals(impressao(chave))) return null;
+  const paginas = fim.readUInt16BE(32);
+  return { imagem: bytes.subarray(0, bytes.length - CABECALHO), paginas: paginas || null };
 }
 
 /** A página guardada deste rascunho, ou `null` (não há, é velha, ou demorou). */
@@ -120,7 +125,8 @@ export async function guardarPaginaDoRascunho(
     const { error } = await sb.storage
       .from(BUCKET_EDITORIAL)
       .upload(caminho(quoteId, idioma, n, largura), embrulhar(chave, paginas, imagem), {
-        contentType: "application/octet-stream",
+        // O balde só aceita imagens (`allowed_mime_types`) — e isto é uma.
+        contentType: "image/webp",
         upsert: true,
         cacheControl: "0",
       });

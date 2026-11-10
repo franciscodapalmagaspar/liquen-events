@@ -25,3 +25,12 @@ describe("a página do estúdio guardada", () => {
     expect(await lerPaginaGuardada("q1", "pt", 3, 800, "rascunho:abc")).toBeNull();
   });
 });
+
+describe("o que vai para o balde é uma imagem", () => {
+  it("começa como o WebP começa (o balde só aceita imagens)", () => {
+    const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBPVP8 ")]);
+    const b = embrulhar("rascunho:abc", 3, webp);
+    expect(b.subarray(0, webp.length).equals(webp)).toBe(true);
+    expect(desembrulhar("rascunho:abc", b)).toEqual({ imagem: webp, paginas: 3 });
+  });
+});
