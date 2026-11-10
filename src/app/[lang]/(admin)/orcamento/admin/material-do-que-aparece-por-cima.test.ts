@@ -78,7 +78,7 @@ const TINTA: RGB = [13, 13, 13];
  * `contraste-do-texto.test.ts` lê, e pela mesma razão: os `--bo-*` não estão no
  * `:root` nem no `@theme`.
  */
-const SELECTOR_ADMIN = "body:is(.admin-mode, :has([data-admin-mode]))";
+const SELECTOR_ADMIN = "body:is(.bo, .admin-mode)";
 function blocoAdmin(): string {
   const inicio = CSS.indexOf(`${SELECTOR_ADMIN} {`);
   expect(inicio, `desapareceu o bloco \`${SELECTOR_ADMIN}\``).toBeGreaterThan(-1);

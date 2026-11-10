@@ -66,9 +66,12 @@ export function EscolherAparencia() {
 
     // Imediato: o mesmo elemento que o servidor marca.
     const alvo = document.querySelector<HTMLElement>("[data-admin-mode]");
-    if (alvo) {
-      if (nova === "auto") delete alvo.dataset.aparencia;
-      else alvo.dataset.aparencia = nova;
+    // O <body> também: as regras de cor do back office lêem-no lá desde 10/11
+    // (ver `MarcaDoBackOffice.tsx`).
+    for (const el of [alvo, document.body]) {
+      if (!el) continue;
+      if (nova === "auto") delete el.dataset.aparencia;
+      else el.dataset.aparencia = nova;
     }
 
     // E fica: `SameSite=Lax` porque isto nunca precisa de viajar num pedido de

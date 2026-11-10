@@ -221,7 +221,7 @@
 
    A separação de 87,8 KB (o `@source not` do `globals.css`) tirou de lá os
    UTILITÁRIOS do back office, mas deixou as regras escritas à mão: tudo o que
-   começa por `body:is(.admin-mode, :has([data-admin-mode]))`, os `.bo-*` e os
+   começa por `body:is(.bo, .admin-mode)`, os `.bo-*` e os
    seus `@keyframes`. Nenhuma delas casa com nada fora do back office, e com o
    `inlineCss` iam embutidas no `<head>` de cada página pública e de cada
    proposta. MEDIDO no `npm run build`: a folha pública passou de 177 108 para
@@ -270,13 +270,13 @@
    Num iPhone com 4G fraco, entre o HTML e a hidratação vão segundos: era esse
    o «piscar inicial».
 
-   Por isso todas passaram a `body:is(.admin-mode, :has([data-admin-mode]))`.
+   Por isso todas passaram a `body:is(.bo, .admin-mode)`.
    Os dois braços têm a mesma especificidade que `body.admin-mode` tinha, por
    isso nada na cascata muda de lugar; o que muda é a altura a que chegam. A
    classe fica para o que depende mesmo de JS — e como marca de que o painel
    hidratou. */
 
-body:has([data-admin-mode]) {
+body:is(.admin-mode, .bo) {
   --color-surface: #ffffff;
   --color-surface-raised: #f7f7f8;
   --color-surface-elevated: #ffffff;
@@ -402,7 +402,7 @@ body:has([data-admin-mode]) {
 
 /* Back office: clean white surface. */
 
-body:is(.admin-mode, :has([data-admin-mode])) {
+body:is(.bo, .admin-mode) {
   --color-surface: #ffffff;
   --color-surface-raised: #f7f7f8;
   --color-surface-elevated: #ffffff;
@@ -668,7 +668,7 @@ body:is(.admin-mode, :has([data-admin-mode])) {
      Eram 10, 12 e 16 px — «chips», «controlos», «cartões». Três degraus para
      uma diferença que ninguém consegue apontar num ecrã de telemóvel.
      Passam a valer os mesmos 8 px que a escala do Tailwind (ver o bloco em
-     `body:has([data-admin-mode])`). Os nomes ficam porque há ~20 sítios que
+     `body:is(.admin-mode, .bo)`). Os nomes ficam porque há ~20 sítios que
      os pedem, e trocá-los era ruído sem ganho — mas já não escondem três
      valores. */
   --bo-radius-sm: 0.5rem;
@@ -1464,7 +1464,7 @@ body:is(.admin-mode, :has([data-admin-mode])) {
    ══════════════════════════════════════════════════════════════════════════ */
 
 @supports (color: light-dark(#fff, #000)) {
-  body:is(.admin-mode, :has([data-admin-mode])) {
+  body:is(.bo, .admin-mode) {
     /* Automático por omissão: os dois esquemas declarados, e o sistema decide. */
     color-scheme: light dark;
 
@@ -1577,10 +1577,10 @@ body:is(.admin-mode, :has([data-admin-mode])) {
 
      O `:has()` já é como o `data-admin-mode` é lido aqui em cima; isto é a
      mesma leitura com o segundo atributo no mesmo elemento. */
-  body:has([data-admin-mode][data-aparencia="claro"]) {
+  body:is(.admin-mode, .bo)[data-aparencia="claro"] {
     color-scheme: light;
   }
-  body:has([data-admin-mode][data-aparencia="escuro"]) {
+  body:is(.admin-mode, .bo)[data-aparencia="escuro"] {
     color-scheme: dark;
   }
 }
@@ -1610,16 +1610,16 @@ body:is(.admin-mode, :has([data-admin-mode])) {
 
 @media (prefers-color-scheme: dark) {
   /* Automático: só quando não há escolha explícita de Claro. */
-  body:has([data-admin-mode]):not(:has([data-admin-mode][data-aparencia="claro"])) {
+  body:is(.admin-mode, .bo):not([data-aparencia="claro"][data-aparencia="claro"]) {
     --bo-tinta-rgb: 241 245 241;
   }
 }
 
-body:has([data-admin-mode][data-aparencia="escuro"]) {
+body:is(.admin-mode, .bo)[data-aparencia="escuro"] {
   --bo-tinta-rgb: 241 245 241;
 }
 
-body:has([data-admin-mode][data-aparencia="claro"]) {
+body:is(.admin-mode, .bo)[data-aparencia="claro"] {
   --bo-tinta-rgb: 13 13 13;
 }
 
@@ -1634,7 +1634,7 @@ body:has([data-admin-mode][data-aparencia="claro"]) {
    ilegíveis se o verde clareasse. Os mesmos três estados do canal da tinta. */
 
 @media (prefers-color-scheme: dark) {
-  body:has([data-admin-mode]):not(:has([data-admin-mode][data-aparencia="claro"]))
+  body:is(.admin-mode, .bo):not([data-aparencia="claro"][data-aparencia="claro"])
     :is(.text-sage-600, .text-sage-700, .text-moss, [class*="text-sage-600/"]) {
     color: var(--bo-accent);
   }
@@ -1643,7 +1643,7 @@ body:has([data-admin-mode][data-aparencia="claro"]) {
 /* As variantes com opacidade (`text-sage-600/60`) e o `text-moss` também: no
    escuro, um verde-escuro a 60% sobre o chão escuro mediu 1,76:1. */
 
-body:has([data-admin-mode][data-aparencia="escuro"])
+body:is(.admin-mode, .bo)[data-aparencia="escuro"]
   :is(.text-sage-600, .text-sage-700, .text-moss, [class*="text-sage-600/"]) {
   color: var(--bo-accent);
 }
@@ -1686,15 +1686,15 @@ body:has([data-admin-mode][data-aparencia="escuro"])
    É uma linha e não uma lista de ficheiros de propósito: uma prévia nova
    herda isto por estar marcada como folha do cliente. */
 
-body:is(.admin-mode, :has([data-admin-mode])) [data-folha-do-cliente] {
+body:is(.bo, .admin-mode) [data-folha-do-cliente] {
   --font-display: var(--font-playfair);
 }
 
 /* O aperto de um título de trabalho. O degrau de cima, o do display, pede-se
    onde o título é mesmo grande — ver `--bo-tracking-display`. */
 
-body:is(.admin-mode, :has([data-admin-mode])) :is(h1, h2, h3, h4),
-body:is(.admin-mode, :has([data-admin-mode])) .font-display {
+body:is(.bo, .admin-mode) :is(h1, h2, h3, h4),
+body:is(.bo, .admin-mode) .font-display {
   letter-spacing: var(--bo-tracking-titulo);
 }
 
@@ -1707,9 +1707,9 @@ body:is(.admin-mode, :has([data-admin-mode])) .font-display {
    calm sentence case with quiet spacing, like a modern product app (ChatGPT/
    Linear). Data fields keep their true case via the block below. */
 
-body:is(.admin-mode, :has([data-admin-mode])) [class*="uppercase"],
-body:is(.admin-mode, :has([data-admin-mode])) .bo-eyebrow,
-body:is(.admin-mode, :has([data-admin-mode])) .eyebrow {
+body:is(.bo, .admin-mode) [class*="uppercase"],
+body:is(.bo, .admin-mode) .bo-eyebrow,
+body:is(.bo, .admin-mode) .eyebrow {
   text-transform: none;
   letter-spacing: 0.005em;
 }
@@ -1725,15 +1725,15 @@ body:is(.admin-mode, :has([data-admin-mode])) .eyebrow {
    interface is sentence case this is mostly redundant, but it also resets the
    letter-spacing on typed fields, so it stays.) */
 
-body:is(.admin-mode, :has([data-admin-mode])) input,
-body:is(.admin-mode, :has([data-admin-mode])) textarea,
-body:is(.admin-mode, :has([data-admin-mode])) select,
-body:is(.admin-mode, :has([data-admin-mode])) [contenteditable],
-body:is(.admin-mode, :has([data-admin-mode])) .bo-input,
-body:is(.admin-mode, :has([data-admin-mode])) a[href^="mailto:"],
-body:is(.admin-mode, :has([data-admin-mode])) a[href^="tel:"],
-body:is(.admin-mode, :has([data-admin-mode])) .font-mono,
-body:is(.admin-mode, :has([data-admin-mode])) [data-keep-case] {
+body:is(.bo, .admin-mode) input,
+body:is(.bo, .admin-mode) textarea,
+body:is(.bo, .admin-mode) select,
+body:is(.bo, .admin-mode) [contenteditable],
+body:is(.bo, .admin-mode) .bo-input,
+body:is(.bo, .admin-mode) a[href^="mailto:"],
+body:is(.bo, .admin-mode) a[href^="tel:"],
+body:is(.bo, .admin-mode) .font-mono,
+body:is(.bo, .admin-mode) [data-keep-case] {
   text-transform: none;
   letter-spacing: normal;
 }
@@ -1741,7 +1741,7 @@ body:is(.admin-mode, :has([data-admin-mode])) [data-keep-case] {
 /* Moss is the single admin accent — even the text selection picks it up instead
    of the site-wide gold. */
 
-body:is(.admin-mode, :has([data-admin-mode])) ::selection {
+body:is(.bo, .admin-mode) ::selection {
   background: rgba(99, 122, 95, 0.22);
   color: #2a2620;
 }
@@ -1749,15 +1749,15 @@ body:is(.admin-mode, :has([data-admin-mode])) ::selection {
 /* Matching utilities so the tokens can be applied like the Tailwind text-* class
    they replace. */
 
-body:is(.admin-mode, :has([data-admin-mode])) .bo-text {
+body:is(.bo, .admin-mode) .bo-text {
   color: var(--bo-text);
 }
 
-body:is(.admin-mode, :has([data-admin-mode])) .bo-text-muted {
+body:is(.bo, .admin-mode) .bo-text-muted {
   color: var(--bo-text-muted);
 }
 
-body:is(.admin-mode, :has([data-admin-mode])) .bo-text-faint {
+body:is(.bo, .admin-mode) .bo-text-faint {
   color: var(--bo-text-faint);
 }
 
@@ -1818,7 +1818,7 @@ body:is(.admin-mode, :has([data-admin-mode])) .bo-text-faint {
    sem isto o `text-[9px]` da chamada ganhava outra vez. */
 
 @media (max-width: 1023.98px) {
-  body:is(.admin-mode, :has([data-admin-mode]))
+  body:is(.bo, .admin-mode)
     :is(.text-\[8px\], .text-\[9px\], .text-\[10px\], .text-\[11px\], .text-\[7px\]) {
     font-size: var(--bo-fs-caption);
     letter-spacing: 0.01em;
@@ -1828,7 +1828,7 @@ body:is(.admin-mode, :has([data-admin-mode])) .bo-text-faint {
      e é ela que titula QUASE TODAS as secções do painel («Agenda · próximos»,
      «Precisam de atenção», «Fases dos pedidos»). Ficavam nove títulos por
      baixo do chão num ecrã onde os títulos são o mapa. */
-  body:is(.admin-mode, :has([data-admin-mode])) .bo-eyebrow {
+  body:is(.bo, .admin-mode) .bo-eyebrow {
     font-size: var(--bo-fs-caption);
     letter-spacing: 0.04em;
   }
@@ -1878,7 +1878,7 @@ body:is(.admin-mode, :has([data-admin-mode])) .bo-text-faint {
      E continua a ganhar à HERANÇA, que é o que se quer: uma declaração, seja de
      que camada for, ganha sempre ao valor herdado. */
   @layer utilities {
-    :where(body:is(.admin-mode, :has([data-admin-mode])))
+    :where(body:is(.bo, .admin-mode))
       :where(.text-\[7px\], .text-\[8px\], .text-\[9px\], .text-\[10px\], .text-\[11px\]) {
       line-height: var(--bo-lh-caption);
     }
@@ -1919,7 +1919,7 @@ body:is(.admin-mode, :has([data-admin-mode])) .bo-text-faint {
    subir o corpo sem desapertar o espacejamento troca letra pequena por texto
    transbordado. */
 
-body:is(.admin-mode, :has([data-admin-mode]))
+body:is(.bo, .admin-mode)
   :is(
     [class*="text-[7px]"],
     [class*="text-[8px]"],
@@ -1977,7 +1977,7 @@ body:is(.admin-mode, :has([data-admin-mode]))
    letra pequena por texto transbordado. É o mesmo valor que o chão do telemóvel
    já escolheu para ela. */
 
-body:is(.admin-mode, :has([data-admin-mode])) .bo-eyebrow {
+body:is(.bo, .admin-mode) .bo-eyebrow {
   font-size: var(--bo-fs-caption);
   letter-spacing: 0.04em;
 }
@@ -2047,7 +2047,7 @@ body:is(.admin-mode, :has([data-admin-mode])) .bo-eyebrow {
    e sem isto o `text-foreground/40` da chamada ganhava outra vez. É a mesma
    nota que o chão da letra tem escrita. */
 
-body:is(.admin-mode, :has([data-admin-mode]))
+body:is(.bo, .admin-mode)
   :is(
     .text-foreground\/25,
     .text-foreground\/30,
@@ -2058,7 +2058,7 @@ body:is(.admin-mode, :has([data-admin-mode]))
   color: var(--bo-text-faint);
 }
 
-body:is(.admin-mode, :has([data-admin-mode])) :is(.text-foreground\/50, .text-foreground\/55) {
+body:is(.bo, .admin-mode) :is(.text-foreground\/50, .text-foreground\/55) {
   color: var(--bo-text-muted);
 }
 
@@ -2115,7 +2115,7 @@ body:is(.admin-mode, :has([data-admin-mode])) :is(.text-foreground\/50, .text-fo
    o browser deita fora cores e sombras nossas.
    ══════════════════════════════════════════════════════════════════════════ */
 
-body:is(.admin-mode, :has([data-admin-mode]))
+body:is(.bo, .admin-mode)
   :is(
     textarea,
     select,
@@ -2131,7 +2131,7 @@ body:is(.admin-mode, :has([data-admin-mode]))
 }
 
 @media (forced-colors: active) {
-  body:is(.admin-mode, :has([data-admin-mode])) :is(textarea, select, input):focus-visible {
+  body:is(.bo, .admin-mode) :is(textarea, select, input):focus-visible {
     outline: 2px solid CanvasText;
     outline-offset: 0;
   }
@@ -2316,7 +2316,7 @@ body:is(.admin-mode, :has([data-admin-mode]))
 
 /* ── Back-office: full-screen tool surface (clean & minimal) ── */
 
-body:is(.admin-mode, :has([data-admin-mode])) nav[data-public-nav] {
+body:is(.bo, .admin-mode) nav[data-public-nav] {
   display: none !important;
 }
 
@@ -2329,23 +2329,23 @@ body:is(.admin-mode, :has([data-admin-mode])) nav[data-public-nav] {
 
 /* Drop the film grain inside the tool for a crisper, calmer surface */
 
-body:is(.admin-mode, :has([data-admin-mode]))::before {
+body:is(.bo, .admin-mode)::before {
   display: none !important;
 }
 
 /* Scrollbars for the white admin surface */
 
-body:is(.admin-mode, :has([data-admin-mode])) ::-webkit-scrollbar {
+body:is(.bo, .admin-mode) ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
 }
 
-body:is(.admin-mode, :has([data-admin-mode])) ::-webkit-scrollbar-thumb {
+body:is(.bo, .admin-mode) ::-webkit-scrollbar-thumb {
   background: rgba(42, 38, 32, 0.12);
   border-radius: 999px;
 }
 
-body:is(.admin-mode, :has([data-admin-mode])) ::-webkit-scrollbar-thumb:hover {
+body:is(.bo, .admin-mode) ::-webkit-scrollbar-thumb:hover {
   background: rgba(99, 122, 95, 0.45);
 }
 
@@ -3181,21 +3181,21 @@ body:is(.admin-mode, :has([data-admin-mode])) ::-webkit-scrollbar-thumb:hover {
    do estado, e não do tipo do elemento.
    ══════════════════════════════════════════════════════════════════════════ */
 
-body:has([data-admin-mode])
+body:is(.admin-mode, .bo)
   :is(button, [role="button"], [role="tab"], [role="option"], summary, label, select) {
   cursor: default;
 }
 
 /* O link continua a ser a mãozinha. É o único que a merece. */
 
-body:has([data-admin-mode]) a[href] {
+body:is(.admin-mode, .bo) a[href] {
   cursor: pointer;
 }
 
 /* Onde se escreve, o cursor diz que se escreve — incluindo as células
    editáveis de uma tabela, que é onde isto mais falta faz. */
 
-body:has([data-admin-mode])
+body:is(.admin-mode, .bo)
   :is(
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
     textarea,
@@ -3206,7 +3206,7 @@ body:has([data-admin-mode])
 
 /* O que não se pode fazer diz-se antes do clique, e não depois. */
 
-body:has([data-admin-mode]) :is(:disabled, [aria-disabled="true"]) {
+body:is(.admin-mode, .bo) :is(:disabled, [aria-disabled="true"]) {
   cursor: not-allowed;
 }
 
