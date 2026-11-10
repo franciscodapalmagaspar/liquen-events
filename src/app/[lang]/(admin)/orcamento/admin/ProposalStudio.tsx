@@ -8827,107 +8827,122 @@ export default function ProposalStudio({
                     </div>
                   </div>
                 )}
-              <div className="grid grid-cols-1 @min-[26rem]:grid-cols-2 gap-4">
-                <Field
-                  label="Clientes"
-                  value={doc.clientNames ?? ""}
-                  onChange={(e) => {
-                    confirmado("clientNames");
-                    patch({ clientNames: e.target.value });
-                  }}
-                  containerClassName={realce("clientNames")}
-                  data-campo="clientNames"
-                  placeholder="Maria & Zé"
-                />
-                <Field
-                  label="Tipo de evento"
-                  value={doc.eventType ?? ""}
-                  onChange={(e) => {
-                    confirmado("eventType");
-                    patch({ eventType: e.target.value });
-                  }}
-                  containerClassName={realce("eventType")}
-                  data-campo="eventType"
-                  list="sug-tipos-de-evento"
-                  placeholder="Casamento, festa, jantar…"
-                  hint={
-                    eCasamento(doc.eventType)
-                      ? "Casamento: o PDF arruma os mood boards em Cerimónia, Cocktail, Jantar e Complementos."
-                      : "O PDF diz «Cliente», e cada mood board abre o seu capítulo, com o título que lhe deram."
-                  }
-                />
-                <Field
-                  label="Data"
-                  value={doc.eventDate ?? ""}
-                  onChange={(e) => {
-                    confirmado("eventDate");
-                    patch({ eventDate: e.target.value });
-                  }}
-                  containerClassName={realce("eventDate")}
-                  data-campo="eventDate"
-                  placeholder="12 de setembro de 2026"
-                />
-                <Field
-                  label="Local"
-                  list="sug-locais"
-                  value={doc.location ?? ""}
-                  onChange={(e) => {
-                    confirmado("location");
-                    patch({ location: e.target.value });
-                  }}
-                  containerClassName={realce("location")}
-                  data-campo="location"
-                  placeholder="Monte da Oliveirinha"
-                />
-                <Field
-                  label="Convidados"
-                  value={doc.guests ?? ""}
-                  onChange={(e) => {
-                    confirmado("guests");
-                    patch({ guests: e.target.value });
-                  }}
-                  containerClassName={realce("guests")}
-                  data-campo="guests"
-                  placeholder="150 pax"
-                />
-                {isDeco && (
-                  <>
-                    {/* ── ESTES TRÊS NÃO TINHAM ANEL NENHUM ────────────────
-                      A cerimónia vem do que o casal escolheu no formulário e a
-                      hora vem, quando vem, de uma proposta copiada — texto de
-                      outra pessoa, exactamente como os quatro de cima. Eram os
-                      únicos campos do Evento onde a marca não acendia, e por
-                      isso os únicos onde um valor de terceiros se lia como um
-                      valor escrito. */}
-                    {/* Só num casamento — ou se já tiver texto, para não o
-                      esconder de quem o escreveu. */}
-                    {(eCasamento(doc.eventType) || (doc.ceremony ?? "").trim() !== "") && (
+              {/* ── QUEM, QUANDO, ONDE (Fase 4 do redesenho, 10/11) ──────────
+                Eram oito caixas numa grelha só, pela ordem em que foram
+                acrescentadas. Agora três grupos com nome — os mesmos campos,
+                as mesmas chaves (`data-campo`), as mesmas marcas de «veio de
+                fora» (`realce`). Só a arrumação muda. */}
+              <div className="flex flex-col gap-5">
+                <fieldset className="min-w-0">
+                  <legend className="bo-eyebrow mb-2">Quem</legend>
+                  <div className="grid grid-cols-1 gap-4 @min-[26rem]:grid-cols-2">
+                    <Field
+                      label="Clientes"
+                      value={doc.clientNames ?? ""}
+                      onChange={(e) => {
+                        confirmado("clientNames");
+                        patch({ clientNames: e.target.value });
+                      }}
+                      containerClassName={realce("clientNames")}
+                      data-campo="clientNames"
+                      placeholder="Maria & Zé"
+                    />
+                    <Field
+                      label="Tipo de evento"
+                      value={doc.eventType ?? ""}
+                      onChange={(e) => {
+                        confirmado("eventType");
+                        patch({ eventType: e.target.value });
+                      }}
+                      containerClassName={realce("eventType")}
+                      data-campo="eventType"
+                      list="sug-tipos-de-evento"
+                      placeholder="Casamento, festa, jantar…"
+                      hint={
+                        eCasamento(doc.eventType)
+                          ? "Casamento: o PDF arruma os mood boards em Cerimónia, Cocktail, Jantar e Complementos."
+                          : "O PDF diz «Cliente», e cada mood board abre o seu capítulo, com o título que lhe deram."
+                      }
+                    />
+                    <Field
+                      label="Convidados"
+                      value={doc.guests ?? ""}
+                      onChange={(e) => {
+                        confirmado("guests");
+                        patch({ guests: e.target.value });
+                      }}
+                      containerClassName={realce("guests")}
+                      data-campo="guests"
+                      placeholder="150 pax"
+                    />
+                  </div>
+                </fieldset>
+                <fieldset className="min-w-0">
+                  <legend className="bo-eyebrow mb-2">Quando</legend>
+                  <div className="grid grid-cols-1 gap-4 @min-[26rem]:grid-cols-2">
+                    <Field
+                      label="Data"
+                      value={doc.eventDate ?? ""}
+                      onChange={(e) => {
+                        confirmado("eventDate");
+                        patch({ eventDate: e.target.value });
+                      }}
+                      containerClassName={realce("eventDate")}
+                      data-campo="eventDate"
+                      placeholder="12 de setembro de 2026"
+                    />
+                    {isDeco && (
                       <Field
-                        label="Cerimónia"
-                        value={doc.ceremony ?? ""}
+                        label="Hora"
+                        value={doc.time ?? ""}
                         onChange={(e) => {
-                          confirmado("ceremony");
-                          patch({ ceremony: e.target.value });
+                          confirmado("time");
+                          patch({ time: e.target.value });
                         }}
-                        containerClassName={realce("ceremony")}
-                        data-campo="ceremony"
-                        placeholder="Civil, simbólica"
+                        containerClassName={realce("time")}
+                        data-campo="time"
+                        placeholder="A definir"
                       />
                     )}
+                  </div>
+                </fieldset>
+                <fieldset className="min-w-0">
+                  <legend className="bo-eyebrow mb-2">Onde</legend>
+                  <div className="grid grid-cols-1 gap-4 @min-[26rem]:grid-cols-2">
                     <Field
-                      label="Hora"
-                      value={doc.time ?? ""}
+                      label="Local"
+                      list="sug-locais"
+                      value={doc.location ?? ""}
                       onChange={(e) => {
-                        confirmado("time");
-                        patch({ time: e.target.value });
+                        confirmado("location");
+                        patch({ location: e.target.value });
                       }}
-                      containerClassName={realce("time")}
-                      data-campo="time"
-                      placeholder="A definir"
+                      containerClassName={realce("location")}
+                      data-campo="location"
+                      placeholder="Monte da Oliveirinha"
                     />
-                  </>
-                )}
+                    {/* Só num casamento — ou se já tiver texto, para não o
+                      esconder de quem o escreveu. */}
+                    {isDeco &&
+                      (eCasamento(doc.eventType) || (doc.ceremony ?? "").trim() !== "") && (
+                        <Field
+                          label="Cerimónia"
+                          value={doc.ceremony ?? ""}
+                          onChange={(e) => {
+                            confirmado("ceremony");
+                            patch({ ceremony: e.target.value });
+                          }}
+                          containerClassName={realce("ceremony")}
+                          data-campo="ceremony"
+                          placeholder="Civil, simbólica"
+                        />
+                      )}
+                  </div>
+                </fieldset>
               </div>
+              {/* A Hora e a Cerimónia têm o anel de «veio de fora» (`realce`)
+                como os outros: a cerimónia vem do formulário do casal e a hora,
+                quando vem, de uma proposta copiada — texto de outra pessoa. */}
 
               {/* O que já está marcado à volta da data que ESTÁ ESCRITA AQUI —
                 ver `pedidoComADataDoDoc`. O mesmo cartão do ecrã de escolher o
@@ -9916,7 +9931,7 @@ export default function ProposalStudio({
                       faz sentido depois. Agora a primeira coisa é dizer o que
                       é isto e um botão a sério para começar. */}
                     {doc.moodBoards.length === 0 && (
-                      <div className="mt-2 rounded-2xl border border-dashed border-[var(--bo-hairline-strong)] px-5 py-8 text-center">
+                      <div className="@container mt-2 rounded-2xl border border-dashed border-[var(--bo-hairline-strong)] px-5 py-8 text-center">
                         <p className="text-sm font-medium text-[var(--bo-text)]">
                           Ainda não há inspiração nesta proposta
                         </p>
@@ -9924,8 +9939,56 @@ export default function ProposalStudio({
                           Cada mood board é uma página do PDF com um título (por exemplo
                           «Cerimónia») e as fotografias que mostram a ideia ao casal.
                         </p>
-                        <div className="mt-4 flex justify-center">
-                          <Button onClick={addBoard}>Começar um mood board</Button>
+                        {/* ── TRÊS PORTAS (Fase 3, 10/11) ───────────────────
+                          As três maneiras de começar, do mesmo tamanho e lado
+                          a lado: em branco, de um modelo guardado, ou de um
+                          tema da biblioteca. Antes era um botão e um «De um
+                          modelo…» solto lá em baixo, e a biblioteca só aparecia
+                          DEPOIS de haver uma página. */}
+                        <div className="mx-auto mt-5 grid max-w-2xl grid-cols-1 gap-3 text-left @min-[34rem]:grid-cols-3">
+                          <button
+                            type="button"
+                            className={`${PORTA_DE_COMECO} ${ESTADO} ${PRESSAO}`}
+                            onClick={addBoard}
+                          >
+                            <span className="block text-sm font-medium text-[var(--bo-text)]">
+                              Mood board em branco
+                            </span>
+                            <span className="mt-1 block text-xs leading-relaxed text-[var(--bo-text-muted)]">
+                              Uma página nova: escreves o título e pões as fotografias.
+                            </span>
+                          </button>
+                          <ModelosParciais
+                            tipo="moodboard"
+                            mostrar="inserir"
+                            toast={toast}
+                            className="block"
+                            porta={{
+                              titulo: "Começar de um modelo",
+                              texto: "Um mood board que já guardaste, com as fotos e o texto.",
+                              className: PORTA_DE_COMECO,
+                            }}
+                            onInserir={(b) => void inserirMoodBoardDeModelo(b as MoodBoard)}
+                          />
+                          <button
+                            type="button"
+                            className={`${PORTA_DE_COMECO} ${ESTADO} ${PRESSAO}`}
+                            onClick={() => {
+                              const bi = doc.moodBoards.length;
+                              addBoard();
+                              setPicker({ kind: "board", bi });
+                            }}
+                            onPointerEnter={aquecerBiblioteca}
+                            onFocus={aquecerBiblioteca}
+                            onTouchStart={aquecerBiblioteca}
+                          >
+                            <span className="block text-sm font-medium text-[var(--bo-text)]">
+                              Da biblioteca de temas
+                            </span>
+                            <span className="mt-1 block text-xs leading-relaxed text-[var(--bo-text-muted)]">
+                              Escolhes as fotografias de um tema e a página nasce com elas.
+                            </span>
+                          </button>
                         </div>
                       </div>
                     )}
@@ -9961,12 +10024,16 @@ export default function ProposalStudio({
                           </button>
                         </>
                       )}
-                      <ModelosParciais
-                        tipo="moodboard"
-                        mostrar="inserir"
-                        toast={toast}
-                        onInserir={(b) => void inserirMoodBoardDeModelo(b as MoodBoard)}
-                      />
+                      {/* Sem mood boards, o «De um modelo…» é uma das três
+                        portas lá em cima — não se repete aqui. */}
+                      {doc.moodBoards.length > 0 && (
+                        <ModelosParciais
+                          tipo="moodboard"
+                          mostrar="inserir"
+                          toast={toast}
+                          onInserir={(b) => void inserirMoodBoardDeModelo(b as MoodBoard)}
+                        />
+                      )}
                       {/* ── AS FOTOS DO MODELO A CHEGAR ────────────────────
                         Ao lado do botão que as pediu, e não em cima do bloco:
                         o bloco já está na lista com as fotografias à vista (é
@@ -10991,6 +11058,19 @@ export default function ProposalStudio({
                     })}
                   </div>
                 </>
+              )}
+              {/* ── O RESUMO, COLADO ÀS LINHAS (Fase 2, 10/11) ─────────────
+                O que estas linhas dão, logo por baixo delas: ela escreve um
+                valor e vê o total a pagar, o sinal e o saldo sem descer ao
+                «Total e validade». Só leitura — os números são os MESMOS
+                `totais` do bloco «Totais» lá em baixo (a mesma chamada que
+                o PDF faz); mudar o sinal continua a ser lá. */}
+              {money.gross > 0 && (
+                <ResumoDasLinhas
+                  totais={totais}
+                  pctSinal={pctSinal}
+                  onMudar={() => irParaAFalta("total")}
+                />
               )}
             </Section>
 
@@ -13328,6 +13408,69 @@ const AMOSTRAS_KEY = "liquen-proposal-studio:geracoes-editorial";
  * Os números vão com `tabular-nums` para as vírgulas ficarem uma por baixo da
  * outra — num quadro de dinheiro, colunas desalinhadas leem-se como erros.
  */
+/** Uma das três portas do começo da Inspiração (Fase 3). */
+const PORTA_DE_COMECO =
+  "alvo-toque flex h-full w-full flex-col items-start rounded-2xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-surface)] px-4 py-3.5 text-left hover:border-sage-600/50 hover:bg-[var(--bo-tinta-3)]";
+
+/**
+ * O resumo do orçamento colado às linhas — uma faixa de leitura, pela ordem
+ * do PDF. Não calcula nada: recebe os `totais` de `totaisDaProposta`.
+ */
+function ResumoDasLinhas({
+  totais,
+  pctSinal,
+  onMudar,
+}: {
+  totais: ReturnType<typeof totaisDaProposta>;
+  pctSinal: number;
+  onMudar: () => void;
+}) {
+  const partes: [string, string, boolean?][] = [
+    ["Total sem IVA", eur(totais.total)],
+    [`IVA ${Math.round(totais.taxa * 100)}%`, eur(totais.iva)],
+    ["Total a pagar", eur(totais.aPagar), true],
+    [`Sinal ${pctSinal}%`, eur(totais.sinal)],
+    [`Saldo ${100 - pctSinal}%`, eur(totais.saldo)],
+  ];
+  return (
+    <section
+      aria-label="Resumo do orçamento"
+      className="mt-4 rounded-2xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] px-4 py-3"
+      data-resumo-das-linhas
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="bo-eyebrow">Resumo</span>
+        <button
+          type="button"
+          className={`alvo-toque relative text-[11px] font-medium text-sage-600 underline-offset-2 hover:underline ${ESTADO} ${PRESSAO}`}
+          onClick={onMudar}
+        >
+          Mudar o sinal ou a validade
+        </button>
+      </div>
+      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs @min-[34rem]:grid-cols-5">
+        {partes.map(([rotulo, valor, forte]) => (
+          <div key={rotulo} className="flex min-w-0 flex-col">
+            <dt className="text-[var(--bo-text-muted)]">{rotulo}</dt>
+            <dd
+              className={`tabular-nums ${
+                forte ? "text-sm font-semibold text-[var(--bo-text)]" : "text-[var(--bo-tinta-72)]"
+              }`}
+            >
+              {valor}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {!totais.fecha && (
+        <p className="mt-2 text-[11px] text-[var(--bo-perigo)]">
+          ⚠ O total não bate certo com as linhas — o porquê está em «Total e validade».
+        </p>
+      )}
+    </section>
+  );
+}
+
 function LinhaDeTotal({
   rotulo,
   valor,

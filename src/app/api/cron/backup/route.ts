@@ -8,6 +8,7 @@ import { construirManifesto, type ManifestoDeFotografias } from "@/lib/manifesto
 import { registarCopiaEnviada } from "@/lib/copia-de-seguranca-marcador";
 import { correrRetencao } from "@/lib/retencao";
 import { limparExpiradas } from "@/lib/reciclagem";
+import { limparFotosTratadasVelhas } from "@/lib/limpar-fotos-tratadas";
 import { isMissingTable } from "@/lib/repository";
 import { listQuotes } from "@/lib/quotes-store";
 import { log } from "@/lib/logger";
@@ -73,7 +74,11 @@ export const maxDuration = 60;
  * Uma sessão de administração também serve, para ela poder disparar à mão.
  */
 function authorized(req: NextRequest): boolean {
-  if (isAuthed(req)) return true;
+  // A sessão de administração serve para ela disparar à mão — mas só num pedido
+  // do próprio site (10/11). Os cookies vão também numa navegação vinda de
+  // outro sítio (SameSite=Lax), e um link numa página qualquer punha o browser
+  // dela a correr isto. O `Sec-Fetch-Site` é o browser a dizer de onde vem.
+  if (isAuthed(req) && req.headers.get("sec-fetch-site") === "same-origin") return true;
   const secret = process.env.CRON_SECRET;
   if (!secret) return process.env.NODE_ENV !== "production";
   const provided = createHash("sha256")
@@ -321,6 +326,20 @@ async function GET_semMedida(request: NextRequest) {
     }
 
     /**
+     * AS FOTOS TRATADAS COM MAIS DE 30 DIAS (10/11, decisão dela) — o
+     * Supabase fica no plano gratuito; ver `limpar-fotos-tratadas.ts`. São uma
+     * cache que se refaz sozinha. Como a Reciclagem: se falhar, a cópia seguiu.
+     */
+    let fotosTratadas: Awaited<ReturnType<typeof limparFotosTratadasVelhas>> | null = null;
+    try {
+      fotosTratadas = await limparFotosTratadasVelhas(new Date(), 10_000);
+    } catch (e) {
+      log.error("cron backup: a limpeza das fotos tratadas falhou (a cópia seguiu na mesma)", e, {
+        dia,
+      });
+    }
+
+    /**
      * ══════════════════════════════════════════════════════════════════════
      * E, COM O TEMPO QUE SOBRAR, OS PDF DAS PROPOSTAS JÁ ENVIADAS
      * ══════════════════════════════════════════════════════════════════════
@@ -376,6 +395,7 @@ async function GET_semMedida(request: NextRequest) {
         : null,
       retencao,
       reciclagem,
+      fotosTratadas,
       aquecimento,
     });
   } catch (err) {

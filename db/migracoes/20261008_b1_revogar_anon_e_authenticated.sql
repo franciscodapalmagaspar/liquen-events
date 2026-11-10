@@ -3,7 +3,10 @@
 -- deixam de ter privilégios nas tabelas, sequências e funções de `public`
 -- ════════════════════════════════════════════════════════════════════════════
 --
--- NÃO APLICADA. Para rever antes de correr no SQL Editor do Supabase.
+-- APLICADA a 10/11/2026 (decisão dela: «Sim, aplica»), pela ferramenta de
+-- migrações do Supabase, com o nome `b1_revogar_anon_e_authenticated`.
+-- Verificado depois: `anon` e `authenticated` sem privilégios em `public`;
+-- `service_role` intacto; /api/health em produção a responder 200.
 --
 -- Hoje as duas roles têm SELECT, INSERT, UPDATE e DELETE em todas as tabelas
 -- de `public` (são os privilégios que o Supabase dá por omissão), e a única

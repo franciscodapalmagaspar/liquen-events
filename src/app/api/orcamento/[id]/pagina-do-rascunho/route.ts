@@ -46,6 +46,16 @@ export const maxDuration = 60;
  *   · `Server-Timing` — quanto custou desenhar (para se medir a sério).
  * Nada se grava: é um rascunho.
  *
+ * ── E PORQUE É QUE NÃO SE GUARDA NO ARMAZENAMENTO (10/11) ────────────────
+ *
+ * Foi experimentado (#411): cada página desenhada ia também para o Supabase,
+ * para uma instância nova não a desenhar outra vez. Desfeito no mesmo dia: o
+ * Supabase está no plano GRATUITO (1 GB de ficheiros) e já ia nos 928 MB —
+ * guardar as páginas de todas as propostas enchia o resto, para poupar
+ * cêntimos de processador na Vercel. Fica a memória da instância e a do
+ * navegador (`usePaginaReal`), que não custam nada a ninguém. Antes de voltar
+ * a guardar coisas no armazenamento, ver quanto espaço sobra no plano.
+ *
  * ── E A MEMÓRIA ─────────────────────────────────────────────────────────
  *
  * A chave é o rascunho inteiro, a língua e a página. Pedir outra vez a mesma

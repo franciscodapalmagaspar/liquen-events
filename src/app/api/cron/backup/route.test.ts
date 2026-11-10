@@ -90,6 +90,9 @@ vi.mock("@/lib/retencao", () => ({
     return { apagados: 0 };
   }),
 }));
+vi.mock("@/lib/limpar-fotos-tratadas", () => ({
+  limparFotosTratadasVelhas: vi.fn(async () => ({ apagadas: 3, pastas: 256, acabou: true })),
+}));
 vi.mock("@/lib/reciclagem", () => ({
   limparExpiradas: vi.fn(async () => {
     if (st.reciclagemRebenta) throw new Error("a base não responde");
@@ -110,9 +113,14 @@ vi.mock("@/lib/mail", () => ({
 
 import { GET } from "./route";
 
-const req = (auth?: string): NextRequest =>
+// Um pedido do próprio site (o `fetch` do back office); `deFora` simula um
+// link aberto noutra página, que leva os cookies mas não o `same-origin`.
+const req = (auth?: string, deFora = false): NextRequest =>
   new Request("https://liquen.test/api/cron/backup", {
-    headers: auth === undefined ? {} : { authorization: auth },
+    headers: {
+      "sec-fetch-site": deFora ? "cross-site" : "same-origin",
+      ...(auth === undefined ? {} : { authorization: auth }),
+    },
   }) as unknown as NextRequest;
 
 beforeEach(() => {
@@ -288,5 +296,14 @@ describe("o aquecimento dos PDF viaja com a cópia", () => {
 
     expect(res.status).toBe(401);
     expect(st.aquecimentos).toEqual([]);
+  });
+});
+
+describe("a sessão só lança a cópia num pedido do próprio site (10/11)", () => {
+  it("um link aberto noutra página não a lança, mesmo com a sessão dela", async () => {
+    vi.stubEnv("CRON_SECRET", "segredo-de-teste");
+    st.authed = true;
+    const res = await GET(req(undefined, true));
+    expect(res.status).toBe(401);
   });
 });

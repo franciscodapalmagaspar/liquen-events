@@ -101,9 +101,11 @@ junto. Ela pediu a 4/11: **«passa a juntar as alterações em lotes»**.
      estão desligadas no `vercel-construir.mjs`);
   3. um PR `lote/…` → `main`, com a lista dos PRs que leva; com o CI verde,
      entra em squash — **uma** construção para o lote inteiro.
-- **Quando se publica:** quando ela pede para ver no site («publica já», «já
-  está online?»), ou no fim de um bloco de trabalho. No máximo **duas ou três
-  vezes por dia**.
+- **Quando se publica:** **uma vez por dia**, no fim do dia de trabalho
+  (pedido dela de 10/11 — era «duas ou três»). Mais cedo só quando ela pede
+  para ver no site («publica já», «já está online?»). A conta de 3–9/11 diz
+  porquê: a construção (2,16 $) e as versões guardadas (1,71 $) eram as duas
+  maiores linhas, e as duas crescem com cada publicação.
 - **Fora do lote, logo:** o site em baixo, uma falha de segurança, ou um erro
   que um cliente está a ver neste momento.
 - **O que mexe no PDF continua a precisar da aprovação dela antes de entrar no
@@ -130,3 +132,51 @@ Nada destas regras mexe no que se vê:
 - a mesma página, servida pronta em vez de montada a cada visita.
 
 É a regra do B0 do padrão: **«escolhe a mais simples que atinja a fasquia»**. Aqui, a mais simples é também a mais barata.
+
+## O Upstash (10/11)
+
+Ela: «é mesmo importante manter muito abaixo o upstash — guarda isso de forma
+sempre a melhorar». Cada `rateLimit` com Redis são 2–3 comandos; a proposta
+online faz ~60 pedidos por visita, e se todos fossem ao Redis uma visita
+gastava ~150 comandos. Por isso:
+
+- **por omissão, memória** (custo zero): telemetria, imagens, páginas e PDF da
+  proposta, códigos curtos (12 símbolos já não se adivinham), Meta, saúde;
+- **`{ global: true }` só** em entrar, chave de acesso, recuperação, formulário
+  do pedido e confirmação por email — poucas por dia;
+- a lista vive em `src/lib/rate-limit.global.test.ts`. Mexer nela é decidir
+  gastar, e diz-se no PR quanto (comandos por dia, contra o tecto do plano).
+
+## O Supabase (10/11)
+
+Ela: «é mesmo importante manter muito abaixo o supabase também — sempre a
+melhorar a experiência com ele, mas sempre a evoluir na optimização».
+
+O plano é o **gratuito**: 1 GB de ficheiros, 500 MB de base de dados, 5 GB de
+saída por mês. Medido a 10/11: base de dados 36 MB; ficheiros **928 MB em
+9 775 objectos** (theme-assets 284, fotos-editoriais 158, proposal-assets 147,
+proposal-pdfs 121, theme-medias 120, proposal-medias 43, theme-thumbs 30 MB).
+
+- Nada novo vai para o armazenamento sem o PR dizer quanto ocupa e como se
+  limita. A cache das páginas do estúdio (#411) foi DESFEITA no próprio dia
+  por isto: poupava cêntimos de processador e enchia o plano.
+- As caches derivadas têm de se poder apagar e refazer sem perder nada.
+- Antes de acrescentar, mede-se o que sobra (a consulta está no PR #414).
+
+**«Eu não quero pagar nada»** (dela, 10/11): o Supabase e o Upstash ficam nos
+planos gratuitos. Nada se faz que obrigue a subir de plano.
+
+### O que se mediu e o que se fez (10/11)
+
+- `fotos-editoriais` (cache, 158 MB numa semana): a tarefa da noite apaga o
+  que tem mais de 30 dias (`limpar-fotos-tratadas.ts`). Pela idade, porque o
+  Supabase não regista leituras (`last_accessed_at` = criação).
+- Duplicados pelo conteúdo (eTag): **160 MB em 1 525 cópias** —
+  proposal-assets ↔ theme-assets 45 MB, dentro de proposal-assets 38 MB,
+  proposal-medias ↔ theme-medias 24 MB, dentro de theme-assets 22 MB, dentro
+  de theme-medias 12 MB, o resto miniaturas. Por fazer: juntar numa cópia só,
+  com as propostas a apontar para a biblioteca (precisa de mexer nos
+  documentos — com cópia de segurança e autorização dela).
+- `proposal-pdfs` (121 MB): ela escolheu guardar o PDF actual e o aceite de
+  cada proposta; por fazer, com a lista mostrada antes de apagar.
+

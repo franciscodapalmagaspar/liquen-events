@@ -105,7 +105,21 @@ const ALFABETO = "0123456789abcdefghjkmnpqrstvwxyz";
  * têm um tecto de tentativas por IP (`TENTATIVAS_POR_MINUTO`) que os de 16 não
  * precisam. Com esse tecto, adivinhar fica fora do alcance de qualquer pessoa.
  */
-export const COMPRIMENTO_DO_CODIGO = 8;
+export const COMPRIMENTO_DO_CODIGO = 12;
+
+/**
+ * ── E PORQUE É QUE PASSOU DE 8 A 12 (decisão dela, 10/11) ─────────────────
+ *
+ * Numa revisão de segurança: 40 bits com um tecto POR IP param uma pessoa,
+ * mas não quem tenta de muitos endereços ao mesmo tempo — e um acerto mostra a
+ * proposta inteira de um casal. Doze símbolos são 60 bits: um milhão de vezes
+ * mais códigos, fora do alcance de qualquer busca, e o endereço continua curto
+ * (os nomes à frente ficam). Ela escolheu «Sim, mais compridas».
+ *
+ * Os de 8 já enviados (25/10 a 10/11) continuam a abrir, com o tecto de
+ * tentativas de sempre.
+ */
+export const COMPRIMENTO_DE_8 = 8;
 
 /** Os códigos emitidos antes de 25/10 têm 16 símbolos (80 bits) e continuam a abrir. */
 export const COMPRIMENTO_ANTIGO = 16;
@@ -174,7 +188,10 @@ export function codigoNovo(): string {
 export function pareceCodigoCurto(valor: unknown): boolean {
   const v = String(valor ?? "");
   return (
-    (v.length === COMPRIMENTO_DO_CODIGO || v.length === COMPRIMENTO_ANTIGO) && /^[0-9a-z]+$/.test(v)
+    (v.length === COMPRIMENTO_DO_CODIGO ||
+      v.length === COMPRIMENTO_DE_8 ||
+      v.length === COMPRIMENTO_ANTIGO) &&
+    /^[0-9a-z]+$/.test(v)
   );
 }
 
@@ -300,9 +317,9 @@ export async function lerLigacaoCurta(
   codigo: string,
 ): Promise<{ propostaId: string; criadaEm: string } | null> {
   if (!pareceCodigoCurto(codigo)) return null;
-  // O tecto de tentativas, só para os códigos de 8 (ver `COMPRIMENTO_DO_CODIGO`).
+  // O tecto de tentativas, para os códigos de 8 e de 12 (ver `COMPRIMENTO_DO_CODIGO`).
   // Fora de um pedido (um teste, um aquecimento) não há IP, e não se conta.
-  if (codigo.length === COMPRIMENTO_DO_CODIGO) {
+  if (codigo.length <= COMPRIMENTO_DO_CODIGO) {
     const ip = await ipDoPedido();
     if (ip && !(await rateLimit(`proposta-codigo:${ip}`, TENTATIVAS_POR_MINUTO, 60_000)).ok) {
       return null;
@@ -387,7 +404,7 @@ export async function enderecoDaProposta(propostaId: string, pedidoId: string): 
   if (!curto) return `${SITE.url}/proposta/${createProposalToken(propostaId)}`;
   // Os de 16 (emitidos antes de 25/10) ficam exactamente como foram enviados:
   // o casal não pode ficar com dois endereços diferentes para a mesma proposta.
-  if (curto.length !== COMPRIMENTO_DO_CODIGO) return `${SITE.url}/proposta/${curto}`;
+  if (curto.length === COMPRIMENTO_ANTIGO) return `${SITE.url}/proposta/${curto}`;
   return `${SITE.url}/proposta/${nomesNoEndereco(await nomesDaProposta(id))}-${curto}`;
 }
 

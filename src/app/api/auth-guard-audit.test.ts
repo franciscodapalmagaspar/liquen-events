@@ -1091,11 +1091,27 @@ describe("SECRET-guarded cron routes fail closed", () => {
     });
   }
 
-  it("a logged-in admin may trigger cron without any secret header", async () => {
+  it("a logged-in admin may trigger cron without any secret header — from the site itself", async () => {
     vi.stubEnv("CRON_SECRET", "top-secret");
     authed.ok = true;
     const fn = await handler("./cron/reminders/route", "GET");
-    const res = await fn(req("GET"), ctx());
+    const res = await fn(
+      req("GET", "/api/x", undefined, { "sec-fetch-site": "same-origin" }),
+      ctx(),
+    );
     expect(res.status).not.toBe(401);
+  });
+
+  it("…but not from a link on another site, even with the admin cookie (10/11)", async () => {
+    vi.stubEnv("CRON_SECRET", "top-secret");
+    authed.ok = true;
+    for (const rota of ["./cron/reminders/route", "./cron/backup/route"]) {
+      const fn = await handler(rota, "GET");
+      const res = await fn(
+        req("GET", "/api/x", undefined, { "sec-fetch-site": "cross-site" }),
+        ctx(),
+      );
+      expect(res.status, rota).toBe(401);
+    }
   });
 });

@@ -50,6 +50,12 @@ interface Props {
   mostrar?: "ambos" | "inserir" | "guardar";
   toast?: (mensagem: string, tipo?: "success" | "error") => void;
   className?: string;
+  /**
+   * O «De um modelo…» desenhado como uma PORTA (Fase 3 do redesenho, 10/11):
+   * sem mood boards, o passo abre com três portas do mesmo tamanho, e esta é
+   * uma delas. A lista de modelos e o resto são os mesmos.
+   */
+  porta?: { titulo: string; texto: string; className: string };
 }
 
 const ROTULO = {
@@ -114,6 +120,7 @@ export default function ModelosParciais({
   mostrar = "ambos",
   toast,
   className,
+  porta,
 }: Props) {
   const [painel, setPainel] = useState<Painel | null>(null);
   const [modelos, setModelos] = useState<ModeloProposta[]>([]);
@@ -261,7 +268,7 @@ export default function ModelosParciais({
         <button
           ref={abridorDaLista}
           type="button"
-          className={`${botao} ${ESTADO} ${PRESSAO}`}
+          className={`${porta ? porta.className : botao} ${ESTADO} ${PRESSAO}`}
           aria-expanded={painel === "lista"}
           onClick={() => {
             const vai = painel !== "lista";
@@ -269,7 +276,18 @@ export default function ModelosParciais({
             if (vai) void carregar();
           }}
         >
-          {ROTULO[tipo].inserir}
+          {porta ? (
+            <>
+              <span className="block text-sm font-medium text-[var(--bo-text)]">
+                {porta.titulo}
+              </span>
+              <span className="mt-1 block text-xs leading-relaxed text-[var(--bo-text-muted)]">
+                {porta.texto}
+              </span>
+            </>
+          ) : (
+            ROTULO[tipo].inserir
+          )}
         </button>
       )}
 

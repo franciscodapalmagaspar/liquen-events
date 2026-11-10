@@ -9,7 +9,7 @@ import {
   checkTotp,
   normalizarIdentificador,
 } from "@/lib/admin-auth";
-import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
+import { rateLimit, clientIp, sweep, limiteEsgotado } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -44,8 +44,17 @@ const RECUSA = "Credenciais incorretas";
  * empurra-se sozinho para os 30 e depois para a hora. Quem se enganou duas
  * vezes e foi buscar o papelinho não sente nada disto.
  *
- * E nenhum destes degraus pode fechar a porta a quem sabe a palavra-passe: os
- * contadores só são consultados DEPOIS de as credenciais falharem.
+ * Os dois primeiros degraus nunca fecham a porta a quem sabe a palavra-passe:
+ * são consultados só DEPOIS de as credenciais falharem — um engano repetido, ou
+ * alguém a tentar a conta dela umas vezes, não a deixa de fora.
+ *
+ * O TERCEIRO (20 falhas numa hora) fecha MESMO — decisão dela, 10/11, «Sim,
+ * fecha mesmo». Antes também deixava passar a palavra-passe certa, e isso
+ * queria dizer que quem tenta palpites de muitos endereços nunca era parado:
+ * os errados levavam 429 e o certo entrava. Agora, com a conta no último
+ * degrau, nem a certa entra durante essa hora. Ela não fica presa: a chave de
+ * acesso (passkey) e a recuperação por email não passam por aqui. E pergunta-se
+ * ANTES do bcrypt, que é o trabalho caro do pedido.
  */
 const ESCADA = [
   { chave: "login-conta-curto", tentativas: 5, janelaMs: 5 * 60_000, esperaS: 300 },
@@ -60,13 +69,13 @@ export async function POST(request: NextRequest) {
   // Throttle brute-force attempts on the login endpoint.
   sweep();
   const [porMinuto, porHora] = await Promise.all([
-    rateLimit(`login:${ip}`, 8, 60_000),
+    rateLimit(`login:${ip}`, 8, 60_000, { global: true }),
     // Tecto POR ENDEREÇO à hora. O de 8/minuto sozinho deixa passar 480
     // tentativas por hora de um só sítio, e cada uma custa um bcrypt — mesmo
     // com identificadores inventados, que não gastam o contador de conta
     // nenhuma. É trabalho de CPU que se compra por nada. Sessenta à hora fica
     // muito acima do que um escritório inteiro usa num dia mau.
-    rateLimit(`login-ip-hora:${ip}`, 60, 60 * 60_000),
+    rateLimit(`login-ip-hora:${ip}`, 60, 60 * 60_000, { global: true }),
   ]);
   const limited = !porMinuto.ok ? porMinuto : !porHora.ok ? porHora : null;
   if (limited) {
@@ -141,7 +150,7 @@ export async function POST(request: NextRequest) {
     // Todos os degraus contam SEMPRE, mesmo quando um deles já está a fechar a
     // porta: é isso que faz a escada subir para quem insiste.
     const resultados = await Promise.all(
-      ESCADA.map((d) => rateLimit(`${d.chave}:${conta}`, d.tentativas, d.janelaMs)),
+      ESCADA.map((d) => rateLimit(`${d.chave}:${conta}`, d.tentativas, d.janelaMs, { global: true })),
     );
     let espera = 0;
     resultados.forEach((r, i) => {
@@ -155,6 +164,19 @@ export async function POST(request: NextRequest) {
       { error: "Demasiadas tentativas nesta conta. Tenta mais tarde." },
       { status: 429, headers: { "Retry-After": String(espera) } },
     );
+  }
+
+  // O último degrau, perguntado sem gastar tentativa — ver a nota da ESCADA.
+  if (conta) {
+    const topo = ESCADA[ESCADA.length - 1];
+    const fechada = await limiteEsgotado(`${topo.chave}:${conta}`, topo.tentativas);
+    if (!fechada.ok) {
+      log.warn("admin login recusado: conta no último degrau", { ip, conta });
+      return NextResponse.json(
+        { error: "Demasiadas tentativas nesta conta. Tenta mais tarde." },
+        { status: 429, headers: { "Retry-After": String(fechada.retryAfter ?? topo.esperaS) } },
+      );
+    }
   }
 
   const user = await verifyCredentials(identificador, password);

@@ -1486,6 +1486,30 @@ describe("as linhas de Organização que não somam o total", () => {
     expect(await screen.findByText("Totais")).toBeTruthy();
     expect(screen.queryByText(/As contas não fecham/)).toBeNull();
   });
+
+  it("o resumo colado às linhas tem os mesmos números do bloco de totais (Fase 2)", async () => {
+    seedOrganizacao({
+      budgetRows: [
+        { item: "Planeamento integral", price: "7890,00 €" },
+        { item: "Coordenação no dia", price: "2.500,00 €" },
+      ],
+      totalEstimatedText: "10.390,00 €",
+      totalAmount: 10390,
+    });
+    renderStudio();
+    const resumo = await screen.findByRole("region", {
+      name: "Resumo do orçamento",
+      // O passo «Orçamento» não é o aberto ao começar: a secção existe, escondida.
+      hidden: true,
+    });
+    const totais = (await screen.findByText("Totais")).parentElement!;
+    for (const rotulo of ["Total a pagar", "Total sem IVA"]) {
+      const noResumo = within(resumo).getByText(rotulo).nextElementSibling!.textContent;
+      const noBloco = within(totais).getByText(rotulo).nextElementSibling!.textContent;
+      expect(noResumo).toBe(noBloco);
+    }
+    expect(within(resumo).queryByText(/não bate certo/)).toBeNull();
+  });
 });
 
 /**

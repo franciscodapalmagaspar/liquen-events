@@ -12,6 +12,7 @@ import { paletaDasFotos } from "@/lib/pdf-editorial/paleta-das-fotos";
 import { fotosDaProposta, inventarioDeFotos, type FotoDaProposta } from "@/lib/proposta-fotos";
 import { SITE } from "@/lib/site";
 import { log } from "@/lib/logger";
+import { bytesDeImagemPorEndereco } from "@/lib/proposal-storage";
 import { mosaicoDoCapitulo, type FormaDaCelula } from "./mosaico";
 import { textosWeb, type TextosWeb } from "./textos-web";
 import { chaveDoGuardado, guardadoOuCalculado } from "./guardado";
@@ -192,9 +193,8 @@ function coresDaPaleta(
           const url = f?.miniatura ?? f?.media ?? f?.original;
           if (!url) return null;
           try {
-            if (url.startsWith("data:")) return Buffer.from(url.split(",")[1] ?? "", "base64");
-            const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
-            return r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+            // Com a guarda do PDF: só o armazenamento, só https (10/11).
+            return await bytesDeImagemPorEndereco(url);
           } catch {
             return null;
           }

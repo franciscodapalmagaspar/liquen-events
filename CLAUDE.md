@@ -202,8 +202,27 @@ ou uma varredura, responde no PR às três perguntas da regra 7:
 O trabalho pesado guarda-se no armazenamento, porque a memória da função não
 conta. As rotas pesadas passam por `comCpu` (`src/lib/medir-cpu.ts`).
 
+E o **Upstash fica muito abaixo do plano gratuito** (pedido dela, 10/11: «é
+mesmo importante manter muito abaixo o upstash»). Os limites de tentativas
+(`rateLimit`) ficam na MEMÓRIA por omissão; só usam o Upstash com
+`{ global: true }`, e só nas portas de contas e envios — entrar, chave de
+acesso, recuperação, formulário do pedido. A lista está presa por um teste
+(`src/lib/rate-limit.global.test.ts`): acrescentar uma é uma decisão de custo,
+com a razão no PR. Vale para qualquer serviço pago novo: entra sempre «para
+melhor, nunca para pior» na conta.
+
+E o **Supabase fica muito abaixo do plano gratuito** (pedido dela, 10/11: «é
+mesmo importante manter muito abaixo o supabase também»). O plano é o GRATUITO:
+1 GB de ficheiros, 500 MB de base de dados, 5 GB de saída por mês. A 10/11 os
+ficheiros iam em 928 MB. Regras: nada novo se guarda no armazenamento sem dizer
+no PR quanto ocupa e como se limita (tecto, substituição, prazo); as caches
+derivadas (fotos tratadas, miniaturas, PDFs gerados) têm de poder ser apagadas
+e refeitas; e antes de acrescentar uma, mede-se o que sobra. Ver «O Supabase»
+em `docs/GASTAR-POUCO-DESDE-O-INICIO.md`.
+
 E publica-se **em lotes** (regra 9, pedido dela de 4/11): um PR verde não entra
 logo no `main`. Junta-se num ramo `lote/AAAA-MM-DD`, e o lote entra no `main`
-de uma vez — duas ou três vezes por dia, ou quando ela pede para ver no site.
+de uma vez — **uma vez por dia** (pedido dela de 10/11: cada publicação é ~72 s
+de construção e mais uma versão guardada), ou quando ela pede para ver no site.
 Só o site em baixo, a segurança ou um erro que um cliente esteja a ver passam à
 frente. E um commit em `main` dá UM deployment: confirma em `list_deployments`.

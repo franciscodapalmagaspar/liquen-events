@@ -10,7 +10,7 @@ import { join } from "node:path";
  * `body:is(.admin-mode, :has([data-admin-mode]))`, com o atributo servido pelo
  * `layout.tsx` do grupo `(admin)`. A razão por extenso está no `globals.css`.
  */
-const SELECTOR_ADMIN = "body:is(.admin-mode, :has([data-admin-mode]))";
+const SELECTOR_ADMIN = "body:is(.bo, .admin-mode)";
 
 /** Tira todos os `:where(…)` de um selector, contando os parêntesis. */
 function semWhere(selector: string): string {
