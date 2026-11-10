@@ -3,7 +3,9 @@
 -- `search_path` fixo
 -- ════════════════════════════════════════════════════════════════════════════
 --
--- NÃO APLICADA. Para rever antes de correr no SQL Editor do Supabase.
+-- APLICADA a 10/11/2026 (autorização dela: «vamos resolver isto tudo»), pela
+-- ferramenta de migrações do Supabase, com o nome `b2_next_invoice_seq_search_path`.
+-- Verificado depois: `proconfig` = {search_path=""}.
 --
 -- Sem `search_path` fixo, a função resolve os nomes pelo caminho de quem a
 -- chama — e quem consiga pôr um objecto com o mesmo nome num schema que venha

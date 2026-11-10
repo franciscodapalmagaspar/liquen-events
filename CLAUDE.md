@@ -202,6 +202,15 @@ ou uma varredura, responde no PR às três perguntas da regra 7:
 O trabalho pesado guarda-se no armazenamento, porque a memória da função não
 conta. As rotas pesadas passam por `comCpu` (`src/lib/medir-cpu.ts`).
 
+E o **Upstash fica muito abaixo do plano gratuito** (pedido dela, 10/11: «é
+mesmo importante manter muito abaixo o upstash»). Os limites de tentativas
+(`rateLimit`) ficam na MEMÓRIA por omissão; só usam o Upstash com
+`{ global: true }`, e só nas portas de contas e envios — entrar, chave de
+acesso, recuperação, formulário do pedido. A lista está presa por um teste
+(`src/lib/rate-limit.global.test.ts`): acrescentar uma é uma decisão de custo,
+com a razão no PR. Vale para qualquer serviço pago novo: entra sempre «para
+melhor, nunca para pior» na conta.
+
 E o **Supabase fica muito abaixo do plano gratuito** (pedido dela, 10/11: «é
 mesmo importante manter muito abaixo o supabase também»). O plano é o GRATUITO:
 1 GB de ficheiros, 500 MB de base de dados, 5 GB de saída por mês. A 10/11 os

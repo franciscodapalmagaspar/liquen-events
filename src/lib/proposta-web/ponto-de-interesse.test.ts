@@ -6,6 +6,14 @@ vi.mock("./guardado", () => ({
   guardadoOuCalculado: <T>(_c: string, calcular: () => Promise<T>) => calcular(),
 }));
 vi.mock("@/lib/logger", () => ({ log: { warn: vi.fn() } }));
+// A guarda do endereço (só o armazenamento, só https) tem o seu teste no
+// `proposal-storage`; aqui interessa o que se faz com os bytes.
+vi.mock("@/lib/proposal-storage", () => ({
+  bytesDeImagemPorEndereco: async (url: string) => {
+    const r = await fetch(url);
+    return r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+  },
+}));
 
 const { pontoDaAtencao, pontosDeInteresse } = await import("./ponto-de-interesse");
 

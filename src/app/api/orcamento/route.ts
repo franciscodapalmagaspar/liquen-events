@@ -1,3 +1,4 @@
+import { semEnderecos } from "@/lib/texto-sem-enderecos";
 import { NextRequest, NextResponse, after } from "next/server";
 import type { ZodError } from "zod";
 import type { Quote, QuoteFormData, PriceBreakdown } from "@/lib/orcamento/types";
@@ -213,10 +214,15 @@ class NadaParaConfirmar extends Error {}
  *  1. sem `leadEventId` não se envia. É o que garante a deduplicação: um
  *     identificador gerado aqui nunca encontraria o par do browser, e a
  *     conversão contaria duas vezes;
- *  2. sem `metaClick` não se envia — sem ele não há com que ligar o evento ao
- *     anúncio. ATENÇÃO: isto NÃO é prova de consentimento (o `fbclid` do URL
- *     fica guardado mesmo sem ele). A prova é a guarda 1: o formulário só manda
- *     o `leadEventId` quando o visitante aceitou (`PedidoRelampago.tsx`);
+ *  2. o `metaClick` (fbp/fbc) junta-se quando existe, mas já NÃO é condição
+ *     (10/11): desde então este é o ÚNICO caminho do `Lead` pelo servidor — a
+ *     rota pública `/api/meta` recusa-o, como já recusava o `Purchase`, porque
+ *     lá qualquer pessoa podia inventar «pedidos» com o token da casa. Aqui o
+ *     `Lead` só sai atrás de um pedido verdadeiro, gravado. Sem clique, a Meta
+ *     liga-o pela pessoa (email e telefone, cifrados pelo `enviarEventos`).
+ *     ATENÇÃO: o `metaClick` NÃO é prova de consentimento; a prova é a guarda
+ *     1 — o formulário só manda o `leadEventId` quando o visitante aceitou
+ *     (`PedidoRelampago.tsx`);
  *  3. sem configuração (`META_DATASET_ID` / `META_CAPI_ACCESS_TOKEN`) o
  *     `enviarEventos` devolve `sem-configuracao` sem abrir socket nenhum.
  *
@@ -230,7 +236,7 @@ async function reenviarLeadParaMeta(
 ): Promise<void> {
   const eventId = (form.leadEventId ?? "").trim();
   const meta = (form.metaClick ?? "").trim();
-  if (!eventId || !meta) return;
+  if (!eventId) return;
 
   const { fbp, fbc } = desserializarMeta(meta);
   const r = await enviarEventos([
@@ -609,9 +615,11 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
     // Only the free-text `location` is passed — never the internal pricing
     // bucket (LOCATION_LABELS), which would read as "your venue is a rural
     // area". Weddings/christenings are organised by a couple → plural register.
+    // O que o visitante escreveu volta-lhe SEM endereços (10/11) — ver
+    // `texto-sem-enderecos.ts`. A equipa recebe o pedido como veio.
     const confirmation = buildClientConfirmation({
       locale,
-      name: form.name,
+      name: semEnderecos(form.name),
       referenceId: id,
       event: {
         /**
@@ -627,14 +635,14 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
          * `eventTagLabel` deita fora é um rótulo de lista guardado onde devia
          * estar um nome.
          */
-        typeLabel: eventTagLabel(form, locale) || undefined,
+        typeLabel: semEnderecos(eventTagLabel(form, locale) || undefined),
         eventType: form.eventType,
         date: form.date,
         guests: form.guests || undefined,
         // Sem número, devolve-se a ordem de grandeza que ELA escolheu — em
         // vez de calar a linha e deixá-la a pensar que não ficou registada.
         guestsRange: form.guests ? undefined : guestRangeLabel(form.guestsRange, locale),
-        location: form.location?.trim() || undefined,
+        location: semEnderecos(form.location?.trim() || undefined),
         plural: form.eventType === "casamentos" || form.eventType === "batizados",
         // Na língua do email, não na da equipa: quem escreveu em inglês
         // recebe "Ceremony · Dinner tables", não "Cerimónia · Mesas".
@@ -650,8 +658,10 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
     // inbox from Líquen's sender reputation (a mail-bomb amplifier). 5/day per
     // address is far above any real client's needs; over it we skip the
     // confirmation — the lead is already persisted and the team notified.
+    // 10/11: 5 → 2. Um cliente verdadeiro manda um pedido, às vezes corrige e
+    // manda outro; cinco era margem para usar o formulário como remetente.
     const emailKey = `confirm:${form.email.trim().toLowerCase()}`;
-    if ((await rateLimit(emailKey, 5, 24 * 60 * 60_000)).ok) {
+    if ((await rateLimit(emailKey, 2, 24 * 60 * 60_000, { global: true })).ok) {
       const sentRes = await sendMail({
         to: form.email,
         // The body invites a reply ("basta responder a este email"), so point
@@ -701,7 +711,7 @@ async function POST_semMedida(request: NextRequest) {
   let locale = normalizeLocale(request.cookies?.get?.(LANG_COOKIE)?.value);
   try {
     sweep();
-    const limited = await rateLimit(`orcamento:${clientIp(request)}`, 5, 60_000);
+    const limited = await rateLimit(`orcamento:${clientIp(request)}`, 5, 60_000, { global: true });
     if (!limited.ok) {
       const segundos = Math.max(1, Math.ceil(limited.retryAfter ?? 60));
       return NextResponse.json(

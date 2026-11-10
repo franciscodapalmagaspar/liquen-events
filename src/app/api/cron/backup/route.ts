@@ -74,7 +74,11 @@ export const maxDuration = 60;
  * Uma sessão de administração também serve, para ela poder disparar à mão.
  */
 function authorized(req: NextRequest): boolean {
-  if (isAuthed(req)) return true;
+  // A sessão de administração serve para ela disparar à mão — mas só num pedido
+  // do próprio site (10/11). Os cookies vão também numa navegação vinda de
+  // outro sítio (SameSite=Lax), e um link numa página qualquer punha o browser
+  // dela a correr isto. O `Sec-Fetch-Site` é o browser a dizer de onde vem.
+  if (isAuthed(req) && req.headers.get("sec-fetch-site") === "same-origin") return true;
   const secret = process.env.CRON_SECRET;
   if (!secret) return process.env.NODE_ENV !== "production";
   const provided = createHash("sha256")

@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   sweep();
   // O token não se adivinha (2^256), mas a rota faz trabalho — uma leitura e um
   // bcrypt — e não há razão nenhuma para deixar alguém repeti-lo sem fim.
-  const limitado = await rateLimit(`recuperar-definir:${ip}`, 10, 60 * 60_000);
+  const limitado = await rateLimit(`recuperar-definir:${ip}`, 10, 60 * 60_000, { global: true });
   if (!limitado.ok) {
     log.warn("recuperação: definição com tecto de tentativas", { ip });
     return NextResponse.json(
