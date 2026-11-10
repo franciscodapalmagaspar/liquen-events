@@ -53,6 +53,19 @@ inventados, servidos só no navegador de teste):
 - **Telemóvel:** «Compacto / Confortável» sai abaixo de 640 px (as duas dão
   duas colunas) — a barra passa de três linhas a duas.
 
+**9/11 — «aguentar milhares de temas»** (medido em local com temas inventados):
+- **No navegador:** a grelha e a coluna da esquerda desenhavam TODOS os temas.
+  Com 2000: 41 053 elementos, 5,8 s de ecrã bloqueado, 1,7 s por tecla na
+  procura. Agora desenham-se 60 e mais 60 ao descer (`useMaisAoDescer.ts`); a
+  procura, os filtros e as contagens continuam sobre a lista inteira. Com 2000:
+  2 080 elementos, 0,14 s de bloqueio, o primeiro cartão a 0,9 s (era 3,9).
+- **No servidor:** o `GET /api/temas` listava a pasta de CADA tema (uma ida ao
+  Storage por tema) e passava o orçamento de 8 s com milhares. Acima de
+  `LIMIAR_DE_RESUMOS` (150) resume só os primeiros por nome; os outros vão com
+  `resumoPendente` e o ecrã pede-os à `/api/temas/resumos`, 60 de cada vez, à
+  medida que os desenha (`lib/temas-resumos.ts`). Por contar não é ilegível: o
+  cartão diz «A contar…» e o total «N+ fotografias».
+
 **Reauditado a 1/11:** quatro linhas desta tabela (03, 04, 05, 10) estavam
 desactualizadas — o código já as tinha feito e a tabela não acompanhou. A 11
 ficou feita a 2/11; ficam parciais a 01 e a 02.
