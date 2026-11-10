@@ -299,10 +299,10 @@ test.describe("Biblioteca de Temas", () => {
       const passo3 = page
         .getByRole("navigation", { name: "Passos da proposta" })
         .getByRole("button", { name: /^3\s*Inspiração/ });
-      // Sem mood boards, o botão é o do começo («Começar um mood board», 9/11);
+      // Sem mood boards, o botão é o do começo («Mood board em branco», uma das três portas de 10/11);
       // com algum, o «+ Adicionar mood board» do fundo da lista.
       const adicionar = page
-        .getByRole("button", { name: /Começar um mood board|\+ Adicionar mood board/i })
+        .getByRole("button", { name: /Mood board em branco|\+ Adicionar mood board/i })
         .first();
       const escolher = page.getByRole("button", { name: /Escolher da biblioteca de temas/i });
       await expect(async () => {

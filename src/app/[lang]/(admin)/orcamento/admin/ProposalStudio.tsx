@@ -9916,7 +9916,7 @@ export default function ProposalStudio({
                       faz sentido depois. Agora a primeira coisa é dizer o que
                       é isto e um botão a sério para começar. */}
                     {doc.moodBoards.length === 0 && (
-                      <div className="mt-2 rounded-2xl border border-dashed border-[var(--bo-hairline-strong)] px-5 py-8 text-center">
+                      <div className="@container mt-2 rounded-2xl border border-dashed border-[var(--bo-hairline-strong)] px-5 py-8 text-center">
                         <p className="text-sm font-medium text-[var(--bo-text)]">
                           Ainda não há inspiração nesta proposta
                         </p>
@@ -9924,8 +9924,56 @@ export default function ProposalStudio({
                           Cada mood board é uma página do PDF com um título (por exemplo
                           «Cerimónia») e as fotografias que mostram a ideia ao casal.
                         </p>
-                        <div className="mt-4 flex justify-center">
-                          <Button onClick={addBoard}>Começar um mood board</Button>
+                        {/* ── TRÊS PORTAS (Fase 3, 10/11) ───────────────────
+                          As três maneiras de começar, do mesmo tamanho e lado
+                          a lado: em branco, de um modelo guardado, ou de um
+                          tema da biblioteca. Antes era um botão e um «De um
+                          modelo…» solto lá em baixo, e a biblioteca só aparecia
+                          DEPOIS de haver uma página. */}
+                        <div className="mx-auto mt-5 grid max-w-2xl grid-cols-1 gap-3 text-left @min-[34rem]:grid-cols-3">
+                          <button
+                            type="button"
+                            className={`${PORTA_DE_COMECO} ${ESTADO} ${PRESSAO}`}
+                            onClick={addBoard}
+                          >
+                            <span className="block text-sm font-medium text-[var(--bo-text)]">
+                              Mood board em branco
+                            </span>
+                            <span className="mt-1 block text-xs leading-relaxed text-[var(--bo-text-muted)]">
+                              Uma página nova: escreves o título e pões as fotografias.
+                            </span>
+                          </button>
+                          <ModelosParciais
+                            tipo="moodboard"
+                            mostrar="inserir"
+                            toast={toast}
+                            className="block"
+                            porta={{
+                              titulo: "Começar de um modelo",
+                              texto: "Um mood board que já guardaste, com as fotos e o texto.",
+                              className: PORTA_DE_COMECO,
+                            }}
+                            onInserir={(b) => void inserirMoodBoardDeModelo(b as MoodBoard)}
+                          />
+                          <button
+                            type="button"
+                            className={`${PORTA_DE_COMECO} ${ESTADO} ${PRESSAO}`}
+                            onClick={() => {
+                              const bi = doc.moodBoards.length;
+                              addBoard();
+                              setPicker({ kind: "board", bi });
+                            }}
+                            onPointerEnter={aquecerBiblioteca}
+                            onFocus={aquecerBiblioteca}
+                            onTouchStart={aquecerBiblioteca}
+                          >
+                            <span className="block text-sm font-medium text-[var(--bo-text)]">
+                              Da biblioteca de temas
+                            </span>
+                            <span className="mt-1 block text-xs leading-relaxed text-[var(--bo-text-muted)]">
+                              Escolhes as fotografias de um tema e a página nasce com elas.
+                            </span>
+                          </button>
                         </div>
                       </div>
                     )}
@@ -9961,12 +10009,16 @@ export default function ProposalStudio({
                           </button>
                         </>
                       )}
-                      <ModelosParciais
-                        tipo="moodboard"
-                        mostrar="inserir"
-                        toast={toast}
-                        onInserir={(b) => void inserirMoodBoardDeModelo(b as MoodBoard)}
-                      />
+                      {/* Sem mood boards, o «De um modelo…» é uma das três
+                        portas lá em cima — não se repete aqui. */}
+                      {doc.moodBoards.length > 0 && (
+                        <ModelosParciais
+                          tipo="moodboard"
+                          mostrar="inserir"
+                          toast={toast}
+                          onInserir={(b) => void inserirMoodBoardDeModelo(b as MoodBoard)}
+                        />
+                      )}
                       {/* ── AS FOTOS DO MODELO A CHEGAR ────────────────────
                         Ao lado do botão que as pediu, e não em cima do bloco:
                         o bloco já está na lista com as fotografias à vista (é
@@ -13328,6 +13380,10 @@ const AMOSTRAS_KEY = "liquen-proposal-studio:geracoes-editorial";
  * Os números vão com `tabular-nums` para as vírgulas ficarem uma por baixo da
  * outra — num quadro de dinheiro, colunas desalinhadas leem-se como erros.
  */
+/** Uma das três portas do começo da Inspiração (Fase 3). */
+const PORTA_DE_COMECO =
+  "alvo-toque flex h-full w-full flex-col items-start rounded-2xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-surface)] px-4 py-3.5 text-left hover:border-sage-600/50 hover:bg-[var(--bo-tinta-3)]";
+
 function LinhaDeTotal({
   rotulo,
   valor,
