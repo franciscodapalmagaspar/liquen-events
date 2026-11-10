@@ -108,6 +108,17 @@ junto. Ela pediu a 4/11: **«passa a juntar as alterações em lotes»**.
   que um cliente está a ver neste momento.
 - **O que mexe no PDF continua a precisar da aprovação dela antes de entrar no
   lote** — o lote não é atalho.
+- **Os ramos de trabalho não arrancam construções na Vercel** (9/11). Uma
+  pré-visualização «saltada» pelo `ignoreCommand` ainda abre uma máquina de
+  construção ~22 s; num dia de trabalho eram ~40, mais minutos do que as
+  construções de produção (~72 s cada). No `vercel.json`,
+  `git.deploymentEnabled` só deixa o `main` e os `preview/…` (a Vercel
+  constrói quando pelo menos uma regra diz `true`). O guião fica como segunda
+  rede.
+- **Medido na fatura de 3 a 9/11** (6 dias, 4,83 $ de uso, fora o plano):
+  construção 2,16 $, armazenamento das publicações 1,71 $, armazenamento das
+  funções 0,58 $, processador das funções 0,18 $. O que pesa é construir e
+  guardar — não as visitas.
 
 ---
 
