@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { NextRequest } from "next/server";
-import { clientIp, rateLimit, sweep } from "./rate-limit";
+import { clientIp, limiteEsgotado, rateLimit, sweep } from "./rate-limit";
 
 function reqWith(headers: Record<string, string>): NextRequest {
   return { headers: new Headers(headers) } as unknown as NextRequest;
@@ -116,5 +116,21 @@ describe("rateLimit — Upstash (distributed)", () => {
 describe("sweep", () => {
   it("is safe to call and never throws", () => {
     expect(() => sweep()).not.toThrow();
+  });
+});
+
+describe("limiteEsgotado — só pergunta, não gasta (10/11)", () => {
+  it("diz que sim só depois de o limite ter sido gasto, e não conta nada", async () => {
+    const chave = `teste-espreitar-${Math.random()}`;
+    expect((await limiteEsgotado(chave, 2)).ok).toBe(true);
+    await rateLimit(chave, 2, 60_000);
+    expect((await limiteEsgotado(chave, 2)).ok).toBe(true);
+    await rateLimit(chave, 2, 60_000);
+    const r = await limiteEsgotado(chave, 2);
+    expect(r.ok).toBe(false);
+    expect(r.retryAfter).toBeGreaterThan(0);
+    // Perguntar muitas vezes não mexe no contador.
+    for (let i = 0; i < 5; i++) await limiteEsgotado(chave, 3);
+    expect((await limiteEsgotado(chave, 3)).ok).toBe(true);
   });
 });

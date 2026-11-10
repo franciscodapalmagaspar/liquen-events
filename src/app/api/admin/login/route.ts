@@ -9,7 +9,7 @@ import {
   checkTotp,
   normalizarIdentificador,
 } from "@/lib/admin-auth";
-import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
+import { rateLimit, clientIp, sweep, limiteEsgotado } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -44,8 +44,17 @@ const RECUSA = "Credenciais incorretas";
  * empurra-se sozinho para os 30 e depois para a hora. Quem se enganou duas
  * vezes e foi buscar o papelinho não sente nada disto.
  *
- * E nenhum destes degraus pode fechar a porta a quem sabe a palavra-passe: os
- * contadores só são consultados DEPOIS de as credenciais falharem.
+ * Os dois primeiros degraus nunca fecham a porta a quem sabe a palavra-passe:
+ * são consultados só DEPOIS de as credenciais falharem — um engano repetido, ou
+ * alguém a tentar a conta dela umas vezes, não a deixa de fora.
+ *
+ * O TERCEIRO (20 falhas numa hora) fecha MESMO — decisão dela, 10/11, «Sim,
+ * fecha mesmo». Antes também deixava passar a palavra-passe certa, e isso
+ * queria dizer que quem tenta palpites de muitos endereços nunca era parado:
+ * os errados levavam 429 e o certo entrava. Agora, com a conta no último
+ * degrau, nem a certa entra durante essa hora. Ela não fica presa: a chave de
+ * acesso (passkey) e a recuperação por email não passam por aqui. E pergunta-se
+ * ANTES do bcrypt, que é o trabalho caro do pedido.
  */
 const ESCADA = [
   { chave: "login-conta-curto", tentativas: 5, janelaMs: 5 * 60_000, esperaS: 300 },
@@ -155,6 +164,19 @@ export async function POST(request: NextRequest) {
       { error: "Demasiadas tentativas nesta conta. Tenta mais tarde." },
       { status: 429, headers: { "Retry-After": String(espera) } },
     );
+  }
+
+  // O último degrau, perguntado sem gastar tentativa — ver a nota da ESCADA.
+  if (conta) {
+    const topo = ESCADA[ESCADA.length - 1];
+    const fechada = await limiteEsgotado(`${topo.chave}:${conta}`, topo.tentativas);
+    if (!fechada.ok) {
+      log.warn("admin login recusado: conta no último degrau", { ip, conta });
+      return NextResponse.json(
+        { error: "Demasiadas tentativas nesta conta. Tenta mais tarde." },
+        { status: 429, headers: { "Retry-After": String(fechada.retryAfter ?? topo.esperaS) } },
+      );
+    }
   }
 
   const user = await verifyCredentials(identificador, password);
