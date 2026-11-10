@@ -28,6 +28,12 @@ vi.mock("@/lib/rate-limit", () => ({
     }
     return rl.result;
   }),
+  // Só pergunta, sem contar — o mesmo tecto que o `rateLimit` acima usa.
+  limiteEsgotado: vi.fn(async (key: string) => {
+    const tecto = rl.tectoReal.get(key);
+    if (tecto === undefined) return { ok: true };
+    return (rl.contagens.get(key) ?? 0) >= tecto ? { ok: false, retryAfter: 3600 } : { ok: true };
+  }),
   clientIp: () => "test-ip",
   sweep: () => {},
 }));
@@ -157,16 +163,17 @@ describe("POST /api/admin/login — tecto por conta", () => {
 describe("POST /api/admin/login — o tecto por conta não fecha a porta a quem sabe a palavra-passe", () => {
   const chaveConta = (n: string) => `login-conta:${n.toLowerCase()}`;
 
-  it("depois de 20 falhas alheias, a palavra-passe certa continua a entrar", async () => {
+  it("depois de 20 falhas, nem a palavra-passe certa entra nessa hora (decisão dela, 10/11)", async () => {
     rl.tectoReal.set(chaveConta("Catarina"), 20);
     for (let i = 0; i < 20; i++) {
       const r = await POST(postReq({ name: "Catarina", password: `tentativa-${i}` }));
       expect(r.status).toBe(401);
     }
-    // O contador está esgotado. A dona, com a palavra-passe certa:
+    // O último degrau está esgotado: quem adivinhar agora não entra. Ela entra
+    // pela chave de acesso ou pela recuperação, que não passam por aqui.
     const res = await POST(postReq({ name: "Catarina", password: "liquen2026" }));
-    expect(res.status).toBe(200);
-    expect(res.cookies.get(ADMIN_COOKIE)?.value).toBeTruthy();
+    expect(res.status).toBe(429);
+    expect(res.cookies.get(ADMIN_COOKIE)?.value).toBeFalsy();
   }, 60_000);
 
   it("uma entrada bem sucedida não gasta o contador da conta", async () => {

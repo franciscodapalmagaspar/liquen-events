@@ -115,9 +115,45 @@ async function redisRateLimit(
  * Returns `{ ok: true }` if the caller is within the limit, or
  * `{ ok: false, retryAfter }` (seconds) when it should be throttled.
  */
-export async function rateLimit(key: string, limit = 5, windowMs = 60_000): Promise<RateResult> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+/**
+ * As credenciais do Redis (Upstash), pelos dois nomes possíveis (10/11):
+ * `UPSTASH_REDIS_REST_*` quando se copiam à mão da consola do Upstash, e
+ * `KV_REST_API_*`, que é o que a Vercel escreve sozinha quando o Upstash se
+ * liga pelo painel dela (Storage → Upstash for Redis → Connect). Sem nenhum,
+ * os limites ficam na memória de cada instância, como até aqui.
+ */
+function credenciaisDoRedis(): { url?: string; token?: string } {
+  return {
+    url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN,
+  };
+}
+
+/**
+ * ── O UPSTASH GASTA-SE SÓ ONDE PROTEGE (10/11, regra dela) ─────────────────
+ *
+ * Ela: «é mesmo importante manter muito abaixo o Upstash». Cada chamada ao
+ * Redis são 2–3 comandos, e o plano gratuito tem um tecto mensal. A proposta
+ * online, sozinha, faz ~60 pedidos por visita (página, PDF, fotografias): se
+ * todos fossem ao Redis, uma visita gastava ~150 comandos.
+ *
+ * Por isso a omissão é a MEMÓRIA da instância — custo zero, e chega para o
+ * que é anti-abuso de volume (telemetria, imagens, páginas da proposta, cujos
+ * códigos de 12 símbolos já não se adivinham). Só pede `{ global: true }` o
+ * que protege CONTAS e ENVIOS — entrar, chave de acesso, recuperação, o
+ * formulário do pedido e as confirmações por email —, onde um limite por
+ * instância deixaria passar quem tenta de muitos sítios. São poucas por dia.
+ *
+ * Quem acrescentar um `rateLimit` novo: deixa a omissão, a não ser que proteja
+ * uma conta ou um envio. Um teste (`rate-limit.global.test.ts`) prende a lista.
+ */
+export async function rateLimit(
+  key: string,
+  limit = 5,
+  windowMs = 60_000,
+  opcoes: { global?: boolean } = {},
+): Promise<RateResult> {
+  const { url, token } = opcoes.global ? credenciaisDoRedis() : {};
   if (url && token) {
     try {
       return await redisRateLimit(url, token, key, limit, windowMs);
@@ -129,6 +165,41 @@ export async function rateLimit(key: string, limit = 5, windowMs = 60_000): Prom
 }
 
 // Opportunistic cleanup so the in-memory map can't grow unbounded.
+/**
+ * Só PERGUNTA se a chave já passou do limite — não gasta tentativa nenhuma.
+ *
+ * Para o login (10/11, decisão dela): a escada por conta conta só as FALHAS, e
+ * antes disto só era consultada depois de a palavra-passe falhar — por isso um
+ * palpite certo entrava sempre, mesmo com a conta «fechada». O degrau mais alto
+ * passa a ser perguntado ANTES de verificar a palavra-passe (o que poupa também
+ * o bcrypt).
+ *
+ * `count >= limit` nos dois motores: na memória o contador pára no limite; no
+ * Redis o INCR continua a contar, e o limite já foi gasto quando chega a ele.
+ */
+export async function limiteEsgotado(key: string, limit: number): Promise<RateResult> {
+  const { url, token } = credenciaisDoRedis();
+  if (url && token) {
+    try {
+      const data = await pipeline(url, token, [
+        ["GET", key],
+        ["PTTL", key],
+      ]);
+      const count = Number(data?.[0]?.result ?? 0);
+      const faltaMs = Number(data?.[1]?.result ?? -1);
+      return count >= limit
+        ? { ok: false, retryAfter: Math.ceil((faltaMs > 0 ? faltaMs : 60_000) / 1000) }
+        : { ok: true };
+    } catch {
+      /* cai na memória, como o `rateLimit` */
+    }
+  }
+  const now = Date.now();
+  const b = buckets.get(key);
+  if (!b || now > b.resetAt || b.count < limit) return { ok: true };
+  return { ok: false, retryAfter: Math.ceil((b.resetAt - now) / 1000) };
+}
+
 let lastSweep = 0;
 export function sweep(): void {
   const now = Date.now();

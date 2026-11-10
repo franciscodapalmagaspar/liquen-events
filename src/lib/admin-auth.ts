@@ -914,7 +914,17 @@ export function readSession(token: string | undefined | null): { name: string } 
     if (typeof payload.exp !== "number" || Date.now() > payload.exp) return null;
     // Revoked generation? Tokens minted before the claim existed are "1".
     if (String(payload.v ?? "1") !== sessionVersion()) return null;
-    return { name: String(payload.sub ?? "") };
+    const name = String(payload.sub ?? "");
+    // ── QUEM SAIU DA EQUIPA SAI JÁ (10/11) ───────────────────────────────
+    // Tirar alguém do `ADMIN_USERS` fechava-lhe a entrada nova, mas um cookie
+    // que já tivesse continuava a valer até 30 dias. Agora a sessão só vale
+    // enquanto a conta existir. É uma consulta à variável de ambiente — sem
+    // rede nem base de dados. Sem `ADMIN_USERS` (palavra-passe partilhada) o
+    // `contaExiste` diz sempre que sim. O `sub` é cortado a 40 caracteres ao
+    // criar a sessão: um nome mais comprido não se reconheceria, e por isso
+    // só se pergunta quando cabe inteiro.
+    if (name.length < 40 && !contaExiste(name)) return null;
+    return { name };
   } catch {
     return null;
   }

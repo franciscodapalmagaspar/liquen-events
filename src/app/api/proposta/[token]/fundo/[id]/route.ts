@@ -1,3 +1,4 @@
+import { ANGULOS_DO_FUNDO, BRILHOS_DO_FUNDO } from "@/lib/proposta-web/valores-do-fundo";
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { propostaDoLink } from "@/lib/proposta-do-link";
@@ -40,10 +41,11 @@ const LARGURA = 960;
 const guardados = new Map<string, Promise<Buffer | null>>();
 const MAXIMO_GUARDADOS = 40;
 
-/** Um número entre `min` e `max`, ou o de omissão. */
-function entre(v: string | null, min: number, max: number, omissao: number) {
+/** O valor da lista mais próximo do pedido, ou o de omissão. */
+function maisProximo(v: string | null, lista: readonly number[], omissao: number) {
   const n = v === null ? NaN : Number(v);
-  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : omissao;
+  if (!Number.isFinite(n)) return omissao;
+  return lista.reduce((melhor, x) => (Math.abs(x - n) < Math.abs(melhor - n) ? x : melhor));
 }
 
 async function GET_semMedida(
@@ -63,8 +65,8 @@ async function GET_semMedida(
     if (!entrada) return new NextResponse(null, { status: 404 });
 
     const url = new URL(request.url);
-    const brilho = entre(url.searchParams.get("b"), 0.2, 0.9, 0.42);
-    const angulo = entre(url.searchParams.get("a"), -24, -8, -14);
+    const brilho = maisProximo(url.searchParams.get("b"), BRILHOS_DO_FUNDO, 0.42);
+    const angulo = maisProximo(url.searchParams.get("a"), ANGULOS_DO_FUNDO, -14);
     const chave = `${entrada.ref}|${brilho}|${angulo}`;
 
     let feito = guardados.get(chave);

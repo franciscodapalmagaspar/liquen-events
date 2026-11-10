@@ -182,6 +182,20 @@ describe("POST /api/orcamento", () => {
     expect(pushMock).toHaveBeenCalledTimes(1);
   });
 
+  it("o Lead vai pelo servidor mesmo sem clique de anúncio — é o único caminho dele (10/11)", async () => {
+    await POST(req("POST", { form: { ...validForm, leadEventId: "evt-2" } }));
+    await correrDepois();
+    expect(metaMock).toHaveBeenCalledTimes(1);
+    const [eventos] = metaMock.mock.calls[0] as unknown as [{ nome: string; eventId: string }[]];
+    expect(eventos[0]).toMatchObject({ nome: "Lead", eventId: "evt-2" });
+  });
+
+  it("sem leadEventId (sem consentimento) não vai Lead nenhum", async () => {
+    await POST(req("POST", { form: { ...validForm, metaClick: "fbp=1;fbc=2" } }));
+    await correrDepois();
+    expect(metaMock).not.toHaveBeenCalled();
+  });
+
   /**
    * A excepção, e é uma só: quando a gravação falha, o email à equipa deixa de
    * ser um aviso e passa a ser a única cópia do pedido. Aí TEM de sair antes da
