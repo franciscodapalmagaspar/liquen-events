@@ -33,7 +33,7 @@ enviadas; a barra de baixo («Fica a barra de baixo»); a regra única do envio
 | 1 | A moldura: menos coisas antes do formulário | **feito** — PR #389 (ver em baixo) |
 | 2 | Orçamento: o que o cliente vê, o resumo, e o que é só para nós separados | **parcial** — PR #389: a ordem (linhas → valores adicionais → total → só para nós) e as palavras «Total e validade» / «Como entram no total». 9/11: «Como escala» passou a «Tipo de preço» e «Rótulo do total» a «Nome do total no PDF». «Extra» FICA — é a palavra dela («a caixa "extra"»). Esconder «Como entram no total» sem valores adicionais foi tentado e desfeito: seis testes de dinheiro escolhem o modo antes de escrever o valor. Falta: o resumo colado às linhas |
 | 3 | Inspiração: começar é óbvio, cada mood board lê-se de relance | **parcial** — PR #389: sem mood boards, um começo com o que é e «Começar um mood board»; «À escolha do casal» só depois. A «Vista de conjunto» FICA (tem o «Mudar fotografia» de cada página, que o painel não tem). Falta: o cartão de cada mood board |
-| 4 | Serviços e Evento: grupos e linhas que se leem como uma lista | por fazer |
+| 4 | Serviços e Evento: grupos e linhas que se leem como uma lista | **parcial** — 10/11: os campos do Evento em três grupos com nome, «Quem» (clientes, tipo, convidados), «Quando» (data, hora) e «Onde» (local, cerimónia); os mesmos campos e chaves. Falta: os grupos de Serviços como cartões |
 | 5 | Rever e enviar: o que falta primeiro | **parcial** — PR #389: a Conferência mostra só o que trava e o que é para olhar; as conferidas dobram-se numa linha. A ORDEM do passo não mudou: «Por onde segue» em cima foi pedido dela a 14/10 |
 
 ### Onde a fase 1 se afastou do plano
