@@ -45,13 +45,12 @@ const CACHE = "liquen-cache-v5";
    preciso para o PRIMEIRO carregamento de cada ficheiro.
 
    ── O que é guardado, e o que NÃO é ──────────────────────────────────────
-   Só `theme-thumbs` e `theme-micro`: as derivadas pequenas da biblioteca de
-   INSPIRAÇÃO. São ~20 KB e ~2 KB, sem nome de cliente, sem data, sem nada que
-   identifique alguém.
+   As derivadas da biblioteca de INSPIRAÇÃO (`theme-thumbs`, `theme-micro`,
+   `theme-medias` e as AVIF) e, desde a v3 (ver mais abaixo), os originais
+   (`theme-assets`) numa gaveta à parte com tecto próprio. Sem nome de
+   cliente, sem data, sem nada que identifique alguém.
 
-   Ficam de fora, de propósito:
-   · `theme-assets` — os originais de ~576 KB. Guardá-los enchia o disco para
-     servir uma vista que quase nunca os pede.
+   Fica de fora, de propósito:
    · `proposal-assets` e `proposal-thumbs` — as fotos DE UMA proposta, ao lado
      da data e do local do casamento daquele casal. É a mesma linha que este
      ficheiro já traça ao recusar guardar `/portal` e `/proposta`: o que
@@ -90,8 +89,40 @@ const MAX_FOTOS = 600;
  *  estar escrito aqui (este ficheiro é estático, não passa pelo build). */
 function ehFotoDaBiblioteca(url) {
   return (
-    /\/storage\/v1\/object\/(sign|public)\/theme-(thumbs|micro)\//.test(url.pathname) &&
-    url.pathname.endsWith(".jpg")
+    /\/storage\/v1\/object\/(sign|public)\/theme-(thumbs|micro|medias|avif|avif-micro|avif-medias)\//.test(
+      url.pathname,
+    ) && /\.(jpe?g|png|webp|avif)$/i.test(url.pathname)
+  );
+}
+
+/* ── v3 (10/11): AS DERIVADAS TODAS, E OS ORIGINAIS NUMA GAVETA À PARTE ─────
+
+   Medido nos registos do Supabase a 9/11 (um dia de trabalho dela): 803
+   originais da biblioteca descarregados pelo computador do back office
+   (118 MB), dos quais 224 eram REPETIDOS — a mesma fotografia vista outra vez
+   no visualizador ou na pré-visualização do seletor, com um token novo. E as
+   miniaturas `.png` e `.webp` (9 % da biblioteca) nunca entravam aqui, porque
+   o filtro só aceitava `.jpg`; nem as derivadas de 1 200 px (`theme-medias`).
+   Ela: «eu não quero pagar nada» — o plano gratuito do Supabase dá 5 GB de
+   saída por mês, e esse dia sozinho ia em ~180 MB.
+
+   Os originais da biblioteca não identificam ninguém (são fotografias de
+   INSPIRAÇÃO, como as miniaturas) e o caminho nunca é reescrito — um ficheiro
+   novo tem sempre um nome novo —, por isso guardá-los pelo caminho é seguro.
+   Vivem numa gaveta própria, com um tecto próprio ({@link MAX_ORIGINAIS}),
+   para ~40 MB de originais nunca empurrarem as miniaturas para fora.
+
+   As fotografias das PROPOSTAS continuam fora, pela razão de sempre. */
+const CACHE_ORIGINAIS = "liquen-originais-v1";
+
+/** ~200 originais ≈ 40 MB (a média é ~190 KB). Acima disto saem os mais antigos. */
+const MAX_ORIGINAIS = 200;
+
+/** É um original da biblioteca de temas? (Nunca de uma proposta.) */
+function ehOriginalDaBiblioteca(url) {
+  return (
+    /\/storage\/v1\/object\/(sign|public)\/theme-assets\//.test(url.pathname) &&
+    /\.(jpe?g|png|webp|avif)$/i.test(url.pathname)
   );
 }
 
@@ -128,7 +159,7 @@ function vaiParaODisco(res) {
  * NÃO se guarda nada. Uma falha não escrita repete-se e resolve-se sozinha
  * quando a causa passar; uma falha escrita fica para sempre.
  */
-async function buscarEGuardar(request, url, cache, chave) {
+async function buscarEGuardar(request, url, cache, chave, tecto = MAX_FOTOS) {
   let res;
   try {
     res = await fetch(url.href, { mode: "cors", credentials: "omit" });
@@ -138,17 +169,17 @@ async function buscarEGuardar(request, url, cache, chave) {
   }
   if (vaiParaODisco(res)) {
     await cache.put(chave, res.clone());
-    void aparar(cache);
+    void aparar(cache, tecto);
   }
   return res;
 }
 
 /** Deita fora as mais antigas quando passa do tecto. A Cache Storage mantém a
  *  ordem de inserção, por isso as primeiras chaves são as mais velhas. */
-async function aparar(cache) {
+async function aparar(cache, tecto = MAX_FOTOS) {
   const chaves = await cache.keys();
-  if (chaves.length <= MAX_FOTOS) return;
-  await Promise.all(chaves.slice(0, chaves.length - MAX_FOTOS).map((k) => cache.delete(k)));
+  if (chaves.length <= tecto) return;
+  await Promise.all(chaves.slice(0, chaves.length - tecto).map((k) => cache.delete(k)));
 }
 
 // Best-effort precache so a first-ever offline load still has a shell to show.
@@ -172,7 +203,9 @@ self.addEventListener("activate", (event) => {
       // Drop caches from previous versions.
       const keys = await caches.keys();
       await Promise.all(
-        keys.filter((k) => k !== CACHE && k !== CACHE_FOTOS).map((k) => caches.delete(k)),
+        keys
+          .filter((k) => k !== CACHE && k !== CACHE_FOTOS && k !== CACHE_ORIGINAIS)
+          .map((k) => caches.delete(k)),
       );
       // ── O PEDIDO DA PÁGINA PARTE ENQUANTO ESTE GUIÃO ACORDA (22/10) ──────
       // Sem isto, abrir uma página com o service worker a dormir esperava que
@@ -281,14 +314,21 @@ self.addEventListener("fetch", (event) => {
 
   // As miniaturas da biblioteca vêm do Storage, que é OUTRA origem — por isso
   // este ramo tem de vir antes da guarda de mesma origem.
-  if (ehFotoDaBiblioteca(url)) {
+  const original = ehOriginalDaBiblioteca(url);
+  if (original || ehFotoDaBiblioteca(url)) {
     event.respondWith(
       (async () => {
-        const cache = await caches.open(CACHE_FOTOS);
+        const cache = await caches.open(original ? CACHE_ORIGINAIS : CACHE_FOTOS);
         const chave = chaveSemToken(url);
         const guardada = await cache.match(chave);
         if (guardada) return guardada;
-        return buscarEGuardar(request, url, cache, chave);
+        return buscarEGuardar(
+          request,
+          url,
+          cache,
+          chave,
+          original ? MAX_ORIGINAIS : MAX_FOTOS,
+        );
       })().catch(() => fetch(request)),
     );
     return;
