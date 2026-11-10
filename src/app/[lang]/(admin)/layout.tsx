@@ -2,6 +2,8 @@ import "../../admin.css";
 import { Geist } from "next/font/google";
 import { normalizeLocale } from "@/lib/i18n";
 import { Cortina } from "@/components/Cortina";
+import { MarcaDoBackOffice } from "./MarcaDoBackOffice";
+import { guiaoDaMarca } from "./guiao-da-marca";
 import { cookies } from "next/headers";
 import {
   COOKIE_APARENCIA,
@@ -183,6 +185,9 @@ export default async function AdminLayout({
       data-aparencia={atributoDaAparencia(aparencia)}
       className={`flex-1 ${geist.variable}`}
     >
+      {/* A classe `.bo` no <body> antes da primeira pintura (ver MarcaDoBackOffice). */}
+      <script dangerouslySetInnerHTML={{ __html: guiaoDaMarca(atributoDaAparencia(aparencia)) }} />
+      <MarcaDoBackOffice />
       {/*
         A MESMA CORTINA DA PROPOSTA, À ENTRADA DO BACK OFFICE.
 

@@ -415,7 +415,15 @@ export default async function RootLayout({
         {storageOrigin && <link rel="preconnect" href={storageOrigin} crossOrigin="" />}
         {storageOrigin && <link rel="dns-prefetch" href={storageOrigin} />}
       </head>
-      <body className="flex flex-col min-h-screen antialiased">
+      {/*
+        `suppressHydrationWarning` (10/11): no back office, um guião de uma
+        linha (`(admin)/guiao-da-marca.ts`) põe a classe `bo` e o
+        `data-aparencia` no <body> ANTES da hidratação — é o que deixou o
+        estilo do back office deixar de depender de `body:has(…)`. Sem isto o
+        React acusa os dois atributos como «diferentes do servidor». Vale só
+        para os atributos do próprio <body>, não para o que está lá dentro.
+      */}
+      <body className="flex flex-col min-h-screen antialiased" suppressHydrationWarning>
         <LocaleProvider locale={locale} dict={pickChromeDict(t)}>
           {imageCdnOrigin && <link rel="preconnect" href={imageCdnOrigin} />}
           <StructuredData locale={locale} />
