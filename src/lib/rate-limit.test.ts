@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { NextRequest } from "next/server";
-import { clientIp, rateLimit, sweep } from "./rate-limit";
+import { clientIp, limiteEsgotado, rateLimit, sweep } from "./rate-limit";
 
 function reqWith(headers: Record<string, string>): NextRequest {
   return { headers: new Headers(headers) } as unknown as NextRequest;
@@ -90,9 +90,9 @@ describe("rateLimit — Upstash (distributed)", () => {
     }));
     vi.stubGlobal("fetch", fetchMock);
 
-    expect((await rateLimit("k", 2)).ok).toBe(true); // count 1
-    expect((await rateLimit("k", 2)).ok).toBe(true); // count 2
-    const blocked = await rateLimit("k", 2); // count 3 → over the limit
+    expect((await rateLimit("k", 2, 60_000, { global: true })).ok).toBe(true); // count 1
+    expect((await rateLimit("k", 2, 60_000, { global: true })).ok).toBe(true); // count 2
+    const blocked = await rateLimit("k", 2, 60_000, { global: true }); // count 3 → over the limit
     expect(blocked.ok).toBe(false);
     expect(blocked.retryAfter).toBeGreaterThan(0);
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -108,7 +108,7 @@ describe("rateLimit — Upstash (distributed)", () => {
       }),
     );
     // Must not throw; the in-memory fallback allows the first call.
-    const r = await rateLimit("fallback-key", 1);
+    const r = await rateLimit("fallback-key", 1, 60_000, { global: true });
     expect(r.ok).toBe(true);
   });
 });
@@ -116,5 +116,57 @@ describe("rateLimit — Upstash (distributed)", () => {
 describe("sweep", () => {
   it("is safe to call and never throws", () => {
     expect(() => sweep()).not.toThrow();
+  });
+});
+
+describe("limiteEsgotado — só pergunta, não gasta (10/11)", () => {
+  it("diz que sim só depois de o limite ter sido gasto, e não conta nada", async () => {
+    const chave = `teste-espreitar-${Math.random()}`;
+    expect((await limiteEsgotado(chave, 2)).ok).toBe(true);
+    await rateLimit(chave, 2, 60_000);
+    expect((await limiteEsgotado(chave, 2)).ok).toBe(true);
+    await rateLimit(chave, 2, 60_000);
+    const r = await limiteEsgotado(chave, 2);
+    expect(r.ok).toBe(false);
+    expect(r.retryAfter).toBeGreaterThan(0);
+    // Perguntar muitas vezes não mexe no contador.
+    for (let i = 0; i < 5; i++) await limiteEsgotado(chave, 3);
+    expect((await limiteEsgotado(chave, 3)).ok).toBe(true);
+  });
+});
+
+describe("o Redis ligado pelo painel da Vercel (KV_REST_API_*) também conta (10/11)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+  it("usa o KV_REST_API_URL quando não há UPSTASH_REDIS_REST_URL", async () => {
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+    vi.stubEnv("KV_REST_API_URL", "https://redis.exemplo.test");
+    vi.stubEnv("KV_REST_API_TOKEN", "token-de-teste");
+    const fetchMock = vi.fn(async () => Response.json([{ result: 1 }, { result: 5000 }]));
+    vi.stubGlobal("fetch", fetchMock);
+    expect((await rateLimit(`kv-${Math.random()}`, 3, 60_000, { global: true })).ok).toBe(true);
+    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(
+      "https://redis.exemplo.test/pipeline",
+    );
+  });
+});
+
+describe("sem `global`, o Redis nem se toca — mesmo configurado (10/11)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+  it("um limite de volume fica na memória e não gasta comandos", async () => {
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://x.upstash.io");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "tok");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const chave = `volume-${Math.random()}`;
+    expect((await rateLimit(chave, 1)).ok).toBe(true);
+    expect((await rateLimit(chave, 1)).ok).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

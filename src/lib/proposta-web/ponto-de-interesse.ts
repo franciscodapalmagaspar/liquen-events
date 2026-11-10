@@ -1,6 +1,7 @@
 import "server-only";
 import { chaveDoGuardado, guardadoOuCalculado } from "./guardado";
 import { log } from "@/lib/logger";
+import { bytesDeImagemPorEndereco } from "@/lib/proposal-storage";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -54,9 +55,9 @@ export function pontoDaAtencao(
 
 async function pontoDeUmaFoto(url: string): Promise<PontoDeInteresse | null> {
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
-    if (!r.ok) return null;
-    const bytes = Buffer.from(await r.arrayBuffer());
+    // Com a guarda do PDF: só o armazenamento, só https (10/11).
+    const bytes = await bytesDeImagemPorEndereco(url);
+    if (!bytes) return null;
     const { default: sharp } = await import("sharp");
     const meta = await sharp(bytes).rotate().metadata();
     const w = meta.autoOrient?.width ?? meta.width ?? 0;

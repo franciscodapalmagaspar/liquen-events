@@ -96,9 +96,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ enviado: false, motivo: "sem-consentimento" }, { status: 200 });
     }
 
-    // `Purchase` só do back office. Ver o cabeçalho.
-    if (eventos.some((e) => e.nome === EVENTOS.purchase)) {
-      log.warn("meta: Purchase recusado por vir do browser");
+    // `Purchase` só do back office, e `Lead` só atrás de um pedido gravado
+    // (`/api/orcamento`, `reenviarLeadParaMeta`) — 10/11. Esta rota é pública:
+    // aqui qualquer pessoa podia inventar «pedidos» e ensinar os anúncios a
+    // procurar gente que não existe. O browser continua a mandar o `Lead` pelo
+    // pixel, com o mesmo `event_id`; a Meta junta os dois.
+    if (eventos.some((e) => e.nome === EVENTOS.purchase || e.nome === EVENTOS.lead)) {
+      log.warn("meta: Purchase/Lead recusado por vir do browser");
       return NextResponse.json({ enviado: false, motivo: "evento-nao-permitido" }, { status: 200 });
     }
 

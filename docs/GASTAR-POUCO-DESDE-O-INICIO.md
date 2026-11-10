@@ -132,3 +132,18 @@ Nada destas regras mexe no que se vê:
 - a mesma página, servida pronta em vez de montada a cada visita.
 
 É a regra do B0 do padrão: **«escolhe a mais simples que atinja a fasquia»**. Aqui, a mais simples é também a mais barata.
+
+## O Upstash (10/11)
+
+Ela: «é mesmo importante manter muito abaixo o upstash — guarda isso de forma
+sempre a melhorar». Cada `rateLimit` com Redis são 2–3 comandos; a proposta
+online faz ~60 pedidos por visita, e se todos fossem ao Redis uma visita
+gastava ~150 comandos. Por isso:
+
+- **por omissão, memória** (custo zero): telemetria, imagens, páginas e PDF da
+  proposta, códigos curtos (12 símbolos já não se adivinham), Meta, saúde;
+- **`{ global: true }` só** em entrar, chave de acesso, recuperação, formulário
+  do pedido e confirmação por email — poucas por dia;
+- a lista vive em `src/lib/rate-limit.global.test.ts`. Mexer nela é decidir
+  gastar, e diz-se no PR quanto (comandos por dia, contra o tecto do plano).
+

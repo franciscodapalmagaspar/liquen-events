@@ -32,6 +32,10 @@ vi.mock("@/lib/rate-limit", () => ({
     rl.contagens.set(key, n);
     return n > limit ? { ok: false, retryAfter: Math.ceil(windowMs / 1000) } : { ok: true };
   }),
+  // Só pergunta, sem contar.
+  limiteEsgotado: vi.fn(async (key: string, limit: number) =>
+    (rl.contagens.get(key) ?? 0) >= limit ? { ok: false, retryAfter: 3600 } : { ok: true },
+  ),
   clientIp: () => `ip-${rl.ip++}`,
   sweep: () => {},
 }));
@@ -125,16 +129,27 @@ describe("o bloqueio por conta SOBE com a insistência", () => {
     expect(esperas[20]).toBe("3600");
   }, 60_000);
 
-  it("nem o degrau mais alto fecha a porta a quem sabe a palavra-passe", async () => {
-    // A propriedade que não se pode perder: os contadores só são consultados
-    // DEPOIS de as credenciais falharem. Senão bastava um estranho gastar o
-    // contador para a Catarina ficar de fora numa manhã de montagem.
-    for (let i = 0; i < 25; i++) {
+  it("os dois primeiros degraus não fecham a porta a quem sabe a palavra-passe", async () => {
+    // 10 falhas (dois degraus): um estranho a gastar o contador não deixa a
+    // Catarina de fora numa manhã de montagem.
+    for (let i = 0; i < 10; i++) {
       await POST(entrar({ email: "catarina@liquen-events.com", password: `errada-${i}` }));
     }
     const res = await POST(entrar({ email: "catarina@liquen-events.com", password: "cat-pass" }));
     expect(res.status).toBe(200);
     expect(res.cookies.get(ADMIN_COOKIE)?.value).toBeTruthy();
+  }, 60_000);
+
+  it("o terceiro (20 falhas numa hora) fecha mesmo — decisão dela, 10/11", async () => {
+    // Quem tenta palpites de muitos endereços era parado nos errados mas
+    // entrava com o certo. Agora, nessa hora, nem o certo: ela entra pela
+    // chave de acesso ou pela recuperação, que não passam por aqui.
+    for (let i = 0; i < 20; i++) {
+      await POST(entrar({ email: "catarina@liquen-events.com", password: `errada-${i}` }));
+    }
+    const res = await POST(entrar({ email: "catarina@liquen-events.com", password: "cat-pass" }));
+    expect(res.status).toBe(429);
+    expect(res.cookies.get(ADMIN_COOKIE)?.value).toBeFalsy();
   }, 60_000);
 
   it("os degraus são POR CONTA: uma conta bloqueada não bloqueia a do lado", async () => {

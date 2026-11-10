@@ -290,3 +290,25 @@ describe("contaExiste", () => {
     expect(contaExiste("Catarina")).toBe(true);
   });
 });
+
+describe("a sessão de quem saiu da equipa (10/11)", () => {
+  it("deixa de valer quando a conta sai do ADMIN_USERS", async () => {
+    const antes = process.env.ADMIN_USERS;
+    const { createSession, readSession } = await import("./admin-auth");
+    try {
+      process.env.ADMIN_USERS = JSON.stringify([
+        { name: "TESTE Ana", email: "ana@exemplo.test", passwordHash: "$2a$04$x" },
+        { name: "TESTE Rui", email: "rui@exemplo.test", passwordHash: "$2a$04$x" },
+      ]);
+      const token = createSession("TESTE Rui");
+      expect(readSession(token)).toEqual({ name: "TESTE Rui" });
+      process.env.ADMIN_USERS = JSON.stringify([
+        { name: "TESTE Ana", email: "ana@exemplo.test", passwordHash: "$2a$04$x" },
+      ]);
+      expect(readSession(token)).toBeNull();
+    } finally {
+      if (antes === undefined) delete process.env.ADMIN_USERS;
+      else process.env.ADMIN_USERS = antes;
+    }
+  });
+});

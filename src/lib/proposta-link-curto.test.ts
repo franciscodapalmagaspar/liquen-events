@@ -138,7 +138,7 @@ describe("criar e ler", () => {
 describe("o endereço que vai no email", () => {
   it("leva os nomes do casal e um código curto (pedido dela, 25/10)", async () => {
     const url = await enderecoDaProposta("prop-1", "ped-1");
-    expect(url).toMatch(new RegExp(`^${SITE.url}/proposta/ana-e-joao-[0-9a-z]{8}$`));
+    expect(url).toMatch(new RegExp(`^${SITE.url}/proposta/ana-e-joao-[0-9a-z]{12}$`));
     const codigo = codigoDoEndereco(url.slice(`${SITE.url}/proposta/`.length));
     expect(codigo).toHaveLength(COMPRIMENTO_DO_CODIGO);
     expect((await lerLigacaoCurta(codigo!))?.propostaId).toBe("prop-1");
@@ -146,7 +146,7 @@ describe("o endereço que vai no email", () => {
 
   it("sem nomes, fica `proposta-<código>`", async () => {
     const url = await enderecoDaProposta("prop-sem-nomes", "ped-1");
-    expect(url).toMatch(new RegExp(`^${SITE.url}/proposta/proposta-[0-9a-z]{8}$`));
+    expect(url).toMatch(new RegExp(`^${SITE.url}/proposta/proposta-[0-9a-z]{12}$`));
   });
 
   it("um código de 16 já enviado continua com o mesmo endereço, sem nomes", async () => {
@@ -257,5 +257,16 @@ describe("os nomes no endereço", () => {
       .mock.calls.slice(antes)
       .filter(([k]) => String(k).startsWith("ligacao-proposta:"));
     expect(leituras.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("os códigos passam a 12 símbolos (decisão dela, 10/11)", () => {
+  it("os novos têm 12; os de 8 e os de 16 já enviados continuam a ler-se", async () => {
+    const { codigoNovo, codigoDoEndereco } = await import("./proposta-link-curto");
+    expect(codigoNovo()).toHaveLength(12);
+    expect(codigoDoEndereco("ana-e-joao-k7m2q9xdab3c")).toBe("k7m2q9xdab3c");
+    expect(codigoDoEndereco("ana-e-joao-k7m2q9xd")).toBe("k7m2q9xd");
+    expect(codigoDoEndereco("njwwrj4m7tyz6x62")).toBe("njwwrj4m7tyz6x62");
+    expect(codigoDoEndereco("ana-e-joao-k7m2q9x")).toBeNull();
   });
 });

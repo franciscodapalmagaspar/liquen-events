@@ -27,8 +27,11 @@ import { sendPushToAll } from "@/lib/push";
 
 const SECRET = "cron-top-secret";
 
-function req(authHeader?: string): NextRequest {
-  const headers: Record<string, string> = {};
+function req(authHeader?: string, deFora = false): NextRequest {
+  // O `fetch` da campainha é do próprio site; `deFora` é um link noutra página.
+  const headers: Record<string, string> = {
+    "sec-fetch-site": deFora ? "cross-site" : "same-origin",
+  };
   if (authHeader !== undefined) headers.authorization = authHeader;
   return new Request("https://liquen.test/api/cron/reminders", {
     headers,
@@ -99,6 +102,13 @@ describe("GET /api/cron/reminders — auth guard", () => {
     data.authed = true;
     const res = await GET(req());
     expect(res.status).toBe(200);
+  });
+
+  it("but not from a link on another site, even with her session (10/11)", async () => {
+    vi.stubEnv("CRON_SECRET", SECRET);
+    data.authed = true;
+    const res = await GET(req(undefined, true));
+    expect(res.status).toBe(401);
   });
 });
 
