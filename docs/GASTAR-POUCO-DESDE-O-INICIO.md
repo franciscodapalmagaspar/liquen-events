@@ -178,5 +178,14 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
   com as propostas a apontar para a biblioteca (precisa de mexer nos
   documentos — com cópia de segurança e autorização dela).
 - `proposal-pdfs` (121 MB): ela escolheu guardar o PDF actual e o aceite de
-  cada proposta; por fazer, com a lista mostrada antes de apagar.
+  cada proposta. Lista mostrada a 10/11: 9 ficheiros (~9 MB), incluindo as
+  pastas de 2 propostas que já não existem. O Supabase não deixa apagar
+  ficheiros por SQL (`storage.protect_delete`), por isso apagam-se no painel.
+- **Fotografias de pedidos apagados (136 MB, autorizado por ela a 10/11)**:
+  11 pastas de `proposal-assets` (+ derivadas) de pedidos apagados em julho e
+  agosto, antes de a Reciclagem limpar as fotos. Nenhuma proposta, rascunho,
+  modelo ou entrada da Reciclagem as mencionava. A tarefa da noite apaga-as
+  (`limpar-pastas-orfas.ts`) e fica de guarda: só sai uma pasta `LIQ-…` sem
+  pedido, fora da Reciclagem, que ninguém menciona e sem ficheiros com menos
+  de 30 dias — e se uma leitura falhar, não sai nada.
 

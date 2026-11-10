@@ -9,6 +9,7 @@ import { registarCopiaEnviada } from "@/lib/copia-de-seguranca-marcador";
 import { correrRetencao } from "@/lib/retencao";
 import { limparExpiradas } from "@/lib/reciclagem";
 import { limparFotosTratadasVelhas } from "@/lib/limpar-fotos-tratadas";
+import { limparPastasDePedidosApagados } from "@/lib/limpar-pastas-orfas";
 import { isMissingTable } from "@/lib/repository";
 import { listQuotes } from "@/lib/quotes-store";
 import { log } from "@/lib/logger";
@@ -340,6 +341,21 @@ async function GET_semMedida(request: NextRequest) {
     }
 
     /**
+     * E as fotografias de pedidos que já não existem (decisão dela, 10/11):
+     * pastas que ficaram de antes da Reciclagem. Ver `limpar-pastas-orfas.ts`
+     * — com qualquer dúvida, não apaga. Como as outras: se falhar, a cópia
+     * seguiu.
+     */
+    let pastasOrfas: Awaited<ReturnType<typeof limparPastasDePedidosApagados>> | null = null;
+    try {
+      pastasOrfas = await limparPastasDePedidosApagados(new Date(), 8_000);
+    } catch (e) {
+      log.error("cron backup: a limpeza das pastas órfãs falhou (a cópia seguiu na mesma)", e, {
+        dia,
+      });
+    }
+
+    /**
      * ══════════════════════════════════════════════════════════════════════
      * E, COM O TEMPO QUE SOBRAR, OS PDF DAS PROPOSTAS JÁ ENVIADAS
      * ══════════════════════════════════════════════════════════════════════
@@ -396,6 +412,7 @@ async function GET_semMedida(request: NextRequest) {
       retencao,
       reciclagem,
       fotosTratadas,
+      pastasOrfas,
       aquecimento,
     });
   } catch (err) {
