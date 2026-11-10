@@ -8827,107 +8827,122 @@ export default function ProposalStudio({
                     </div>
                   </div>
                 )}
-              <div className="grid grid-cols-1 @min-[26rem]:grid-cols-2 gap-4">
-                <Field
-                  label="Clientes"
-                  value={doc.clientNames ?? ""}
-                  onChange={(e) => {
-                    confirmado("clientNames");
-                    patch({ clientNames: e.target.value });
-                  }}
-                  containerClassName={realce("clientNames")}
-                  data-campo="clientNames"
-                  placeholder="Maria & Zé"
-                />
-                <Field
-                  label="Tipo de evento"
-                  value={doc.eventType ?? ""}
-                  onChange={(e) => {
-                    confirmado("eventType");
-                    patch({ eventType: e.target.value });
-                  }}
-                  containerClassName={realce("eventType")}
-                  data-campo="eventType"
-                  list="sug-tipos-de-evento"
-                  placeholder="Casamento, festa, jantar…"
-                  hint={
-                    eCasamento(doc.eventType)
-                      ? "Casamento: o PDF arruma os mood boards em Cerimónia, Cocktail, Jantar e Complementos."
-                      : "O PDF diz «Cliente», e cada mood board abre o seu capítulo, com o título que lhe deram."
-                  }
-                />
-                <Field
-                  label="Data"
-                  value={doc.eventDate ?? ""}
-                  onChange={(e) => {
-                    confirmado("eventDate");
-                    patch({ eventDate: e.target.value });
-                  }}
-                  containerClassName={realce("eventDate")}
-                  data-campo="eventDate"
-                  placeholder="12 de setembro de 2026"
-                />
-                <Field
-                  label="Local"
-                  list="sug-locais"
-                  value={doc.location ?? ""}
-                  onChange={(e) => {
-                    confirmado("location");
-                    patch({ location: e.target.value });
-                  }}
-                  containerClassName={realce("location")}
-                  data-campo="location"
-                  placeholder="Monte da Oliveirinha"
-                />
-                <Field
-                  label="Convidados"
-                  value={doc.guests ?? ""}
-                  onChange={(e) => {
-                    confirmado("guests");
-                    patch({ guests: e.target.value });
-                  }}
-                  containerClassName={realce("guests")}
-                  data-campo="guests"
-                  placeholder="150 pax"
-                />
-                {isDeco && (
-                  <>
-                    {/* ── ESTES TRÊS NÃO TINHAM ANEL NENHUM ────────────────
-                      A cerimónia vem do que o casal escolheu no formulário e a
-                      hora vem, quando vem, de uma proposta copiada — texto de
-                      outra pessoa, exactamente como os quatro de cima. Eram os
-                      únicos campos do Evento onde a marca não acendia, e por
-                      isso os únicos onde um valor de terceiros se lia como um
-                      valor escrito. */}
-                    {/* Só num casamento — ou se já tiver texto, para não o
-                      esconder de quem o escreveu. */}
-                    {(eCasamento(doc.eventType) || (doc.ceremony ?? "").trim() !== "") && (
+              {/* ── QUEM, QUANDO, ONDE (Fase 4 do redesenho, 10/11) ──────────
+                Eram oito caixas numa grelha só, pela ordem em que foram
+                acrescentadas. Agora três grupos com nome — os mesmos campos,
+                as mesmas chaves (`data-campo`), as mesmas marcas de «veio de
+                fora» (`realce`). Só a arrumação muda. */}
+              <div className="flex flex-col gap-5">
+                <fieldset className="min-w-0">
+                  <legend className="bo-eyebrow mb-2">Quem</legend>
+                  <div className="grid grid-cols-1 gap-4 @min-[26rem]:grid-cols-2">
+                    <Field
+                      label="Clientes"
+                      value={doc.clientNames ?? ""}
+                      onChange={(e) => {
+                        confirmado("clientNames");
+                        patch({ clientNames: e.target.value });
+                      }}
+                      containerClassName={realce("clientNames")}
+                      data-campo="clientNames"
+                      placeholder="Maria & Zé"
+                    />
+                    <Field
+                      label="Tipo de evento"
+                      value={doc.eventType ?? ""}
+                      onChange={(e) => {
+                        confirmado("eventType");
+                        patch({ eventType: e.target.value });
+                      }}
+                      containerClassName={realce("eventType")}
+                      data-campo="eventType"
+                      list="sug-tipos-de-evento"
+                      placeholder="Casamento, festa, jantar…"
+                      hint={
+                        eCasamento(doc.eventType)
+                          ? "Casamento: o PDF arruma os mood boards em Cerimónia, Cocktail, Jantar e Complementos."
+                          : "O PDF diz «Cliente», e cada mood board abre o seu capítulo, com o título que lhe deram."
+                      }
+                    />
+                    <Field
+                      label="Convidados"
+                      value={doc.guests ?? ""}
+                      onChange={(e) => {
+                        confirmado("guests");
+                        patch({ guests: e.target.value });
+                      }}
+                      containerClassName={realce("guests")}
+                      data-campo="guests"
+                      placeholder="150 pax"
+                    />
+                  </div>
+                </fieldset>
+                <fieldset className="min-w-0">
+                  <legend className="bo-eyebrow mb-2">Quando</legend>
+                  <div className="grid grid-cols-1 gap-4 @min-[26rem]:grid-cols-2">
+                    <Field
+                      label="Data"
+                      value={doc.eventDate ?? ""}
+                      onChange={(e) => {
+                        confirmado("eventDate");
+                        patch({ eventDate: e.target.value });
+                      }}
+                      containerClassName={realce("eventDate")}
+                      data-campo="eventDate"
+                      placeholder="12 de setembro de 2026"
+                    />
+                    {isDeco && (
                       <Field
-                        label="Cerimónia"
-                        value={doc.ceremony ?? ""}
+                        label="Hora"
+                        value={doc.time ?? ""}
                         onChange={(e) => {
-                          confirmado("ceremony");
-                          patch({ ceremony: e.target.value });
+                          confirmado("time");
+                          patch({ time: e.target.value });
                         }}
-                        containerClassName={realce("ceremony")}
-                        data-campo="ceremony"
-                        placeholder="Civil, simbólica"
+                        containerClassName={realce("time")}
+                        data-campo="time"
+                        placeholder="A definir"
                       />
                     )}
+                  </div>
+                </fieldset>
+                <fieldset className="min-w-0">
+                  <legend className="bo-eyebrow mb-2">Onde</legend>
+                  <div className="grid grid-cols-1 gap-4 @min-[26rem]:grid-cols-2">
                     <Field
-                      label="Hora"
-                      value={doc.time ?? ""}
+                      label="Local"
+                      list="sug-locais"
+                      value={doc.location ?? ""}
                       onChange={(e) => {
-                        confirmado("time");
-                        patch({ time: e.target.value });
+                        confirmado("location");
+                        patch({ location: e.target.value });
                       }}
-                      containerClassName={realce("time")}
-                      data-campo="time"
-                      placeholder="A definir"
+                      containerClassName={realce("location")}
+                      data-campo="location"
+                      placeholder="Monte da Oliveirinha"
                     />
-                  </>
-                )}
+                    {/* Só num casamento — ou se já tiver texto, para não o
+                      esconder de quem o escreveu. */}
+                    {isDeco &&
+                      (eCasamento(doc.eventType) || (doc.ceremony ?? "").trim() !== "") && (
+                        <Field
+                          label="Cerimónia"
+                          value={doc.ceremony ?? ""}
+                          onChange={(e) => {
+                            confirmado("ceremony");
+                            patch({ ceremony: e.target.value });
+                          }}
+                          containerClassName={realce("ceremony")}
+                          data-campo="ceremony"
+                          placeholder="Civil, simbólica"
+                        />
+                      )}
+                  </div>
+                </fieldset>
               </div>
+              {/* A Hora e a Cerimónia têm o anel de «veio de fora» (`realce`)
+                como os outros: a cerimónia vem do formulário do casal e a hora,
+                quando vem, de uma proposta copiada — texto de outra pessoa. */}
 
               {/* O que já está marcado à volta da data que ESTÁ ESCRITA AQUI —
                 ver `pedidoComADataDoDoc`. O mesmo cartão do ecrã de escolher o
