@@ -4823,7 +4823,12 @@ export default function ProposalStudio({
       // aberto: a limpeza do efeito devolve-a a zero.
       // Escondida pelo teclado, a barra não ocupa nada: o aviso desce.
       const altura = barraEscondida ? 0 : Math.ceil(r.height);
-      document.documentElement.style.setProperty("--bo-barra-accao", `${altura}px`);
+      // Só se escreve quando muda: uma variável no `<html>` herda-se por todos
+      // os elementos, e cada escrita refaz o estilo da página inteira.
+      const raiz = document.documentElement.style;
+      if (raiz.getPropertyValue("--bo-barra-accao") !== `${altura}px`) {
+        raiz.setProperty("--bo-barra-accao", `${altura}px`);
+      }
     };
     medir();
     const observador = new ResizeObserver(medir);
@@ -4832,10 +4837,21 @@ export default function ProposalStudio({
     return () => {
       observador.disconnect();
       window.removeEventListener("resize", medir);
-      document.documentElement.style.removeProperty("--bo-barra-accao");
     };
     // O passo muda o conteúdo da barra (e portanto a altura); remedir aí.
   }, [step, barraEscondida]);
+  // ── A VARIÁVEL SAI QUANDO O ESTÚDIO FECHA, NÃO A CADA PASSO (10/11) ────────
+  // Estava na limpeza do efeito de cima, que corre a cada mudança de passo:
+  // tirar e voltar a pôr a variável no `<html>` refazia o estilo da página
+  // inteira duas vezes por passo — numa proposta com 9 mood boards, uma boa
+  // parte do tempo de abrir a Inspiração. Fechado o estúdio, volta a zero
+  // como antes (o aviso deixa de subir por uma barra que já não existe).
+  useEffect(
+    () => () => {
+      document.documentElement.style.removeProperty("--bo-barra-accao");
+    },
+    [],
+  );
 
   // ── Aviso ao sair com trabalho por gravar ─────────────────────────────
   // A janela é estreita (a gravação é a 800ms), mas existe: fechar o
