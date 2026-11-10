@@ -721,7 +721,22 @@ export async function fetchProposalImageBytes(ref: string): Promise<Buffer | nul
   return bytes;
 }
 
-async function fetchProposalImageBytesInner(ref: string): Promise<Buffer | null> {
+/**
+ * Os bytes de uma imagem por ENDEREÇO, com a mesma guarda do PDF (10/11): só
+ * `https`, só o anfitrião do armazenamento, redirecções vigiadas, tecto de
+ * tamanho. Sem registo de falha — quem chama (as cores e o ponto de interesse
+ * da página web) vive bem sem a imagem, e um endereço de fora (um Pinterest
+ * colado) é o caso normal, não um aviso. `data:` também serve.
+ *
+ * Existia porque essas duas leituras faziam `fetch(url)` cru a endereços que
+ * podem vir escritos no documento.
+ */
+export async function bytesDeImagemPorEndereco(url: string): Promise<Buffer | null> {
+  if (!url.startsWith("data:") && !/^https?:\/\//i.test(url)) return null;
+  return fetchProposalImageBytesInner(url, false);
+}
+
+async function fetchProposalImageBytesInner(ref: string, registar = true): Promise<Buffer | null> {
   if (!ref) return null;
   // Inline base64 / data URI.
   if (ref.startsWith("data:") || (!ref.includes("/") && ref.length > 128)) {
@@ -744,9 +759,11 @@ async function fetchProposalImageBytesInner(ref: string): Promise<Buffer | null>
     }
     const allowedHost = allowedRemoteHost();
     if (parsed.protocol !== "https:" || !allowedHost || parsed.host !== allowedHost) {
-      log.error("proposal-storage: remote image host não permitido (SSRF guard)", null, {
-        host: parsed.host,
-      });
+      if (registar) {
+        log.error("proposal-storage: remote image host não permitido (SSRF guard)", null, {
+          host: parsed.host,
+        });
+      }
       return null;
     }
     try {

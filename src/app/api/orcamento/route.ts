@@ -1,3 +1,4 @@
+import { semEnderecos } from "@/lib/texto-sem-enderecos";
 import { NextRequest, NextResponse, after } from "next/server";
 import type { ZodError } from "zod";
 import type { Quote, QuoteFormData, PriceBreakdown } from "@/lib/orcamento/types";
@@ -609,9 +610,11 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
     // Only the free-text `location` is passed — never the internal pricing
     // bucket (LOCATION_LABELS), which would read as "your venue is a rural
     // area". Weddings/christenings are organised by a couple → plural register.
+    // O que o visitante escreveu volta-lhe SEM endereços (10/11) — ver
+    // `texto-sem-enderecos.ts`. A equipa recebe o pedido como veio.
     const confirmation = buildClientConfirmation({
       locale,
-      name: form.name,
+      name: semEnderecos(form.name),
       referenceId: id,
       event: {
         /**
@@ -627,14 +630,14 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
          * `eventTagLabel` deita fora é um rótulo de lista guardado onde devia
          * estar um nome.
          */
-        typeLabel: eventTagLabel(form, locale) || undefined,
+        typeLabel: semEnderecos(eventTagLabel(form, locale) || undefined),
         eventType: form.eventType,
         date: form.date,
         guests: form.guests || undefined,
         // Sem número, devolve-se a ordem de grandeza que ELA escolheu — em
         // vez de calar a linha e deixá-la a pensar que não ficou registada.
         guestsRange: form.guests ? undefined : guestRangeLabel(form.guestsRange, locale),
-        location: form.location?.trim() || undefined,
+        location: semEnderecos(form.location?.trim() || undefined),
         plural: form.eventType === "casamentos" || form.eventType === "batizados",
         // Na língua do email, não na da equipa: quem escreveu em inglês
         // recebe "Ceremony · Dinner tables", não "Cerimónia · Mesas".
@@ -650,8 +653,10 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
     // inbox from Líquen's sender reputation (a mail-bomb amplifier). 5/day per
     // address is far above any real client's needs; over it we skip the
     // confirmation — the lead is already persisted and the team notified.
+    // 10/11: 5 → 2. Um cliente verdadeiro manda um pedido, às vezes corrige e
+    // manda outro; cinco era margem para usar o formulário como remetente.
     const emailKey = `confirm:${form.email.trim().toLowerCase()}`;
-    if ((await rateLimit(emailKey, 5, 24 * 60 * 60_000)).ok) {
+    if ((await rateLimit(emailKey, 2, 24 * 60 * 60_000)).ok) {
       const sentRes = await sendMail({
         to: form.email,
         // The body invites a reply ("basta responder a este email"), so point
