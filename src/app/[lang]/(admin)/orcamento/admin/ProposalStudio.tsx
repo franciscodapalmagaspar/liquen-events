@@ -890,6 +890,14 @@ export function cortesDoCabecalho(header: string | null): Corte[] {
   }
 }
 
+/**
+ * O título do mood board (e a sua caixa inglesa) no cabeçalho do cartão: ao
+ * lado da pega, da dobra, do cadeado e do «⋯» quando o cartão tem largura
+ * para isso; numa linha só sua, por baixo deles, quando não tem.
+ */
+const TITULO_DO_BOARD =
+  "order-last basis-full min-w-0 @min-[28rem]:order-none @min-[28rem]:basis-0 @min-[28rem]:min-w-[12rem] flex-1";
+
 /** "Mood board «Cerimónia»: 3 fotos não entram no PDF". */
 function fraseDeCorte(c: Corte): string {
   if (c.unit === "fotos") {
@@ -9410,7 +9418,10 @@ export default function ProposalStudio({
                                       <span aria-hidden="true">{dobrado ? "▸" : "▾"}</span>
                                     </button>
                                     <input
-                                      className="bo-input min-w-[12rem] flex-1 px-2.5 py-2 text-xs text-[var(--bo-tinta-72)]"
+                                      // Num cartão estreito (telemóvel), o título desce para uma
+                                      // linha inteira por baixo dos botões: ao lado deles
+                                      // sobravam ~130 px e «Cerimónia» já não cabia.
+                                      className={`bo-input ${TITULO_DO_BOARD} px-2.5 py-2 text-xs text-[var(--bo-tinta-72)]`}
                                       value={b.title}
                                       onChange={(e) => updateBoard(bi, { title: e.target.value })}
                                       // A pega do aviso de ortografia: é por ela
@@ -9431,8 +9442,7 @@ export default function ProposalStudio({
                                       { tipo: "boardTitulo", bi },
                                       "Título do mood board",
                                       {
-                                        className:
-                                          "bo-input min-w-[12rem] flex-1 px-2.5 py-2 text-xs text-[var(--bo-tinta-72)]",
+                                        className: `bo-input ${TITULO_DO_BOARD} px-2.5 py-2 text-xs text-[var(--bo-tinta-72)]`,
                                         readOnly: fechado,
                                         placeholder: "Ceremony Decoration",
                                       },
@@ -9468,7 +9478,7 @@ export default function ProposalStudio({
                                     <MenuDeAccoes
                                       sobre={`«${b.title.trim() || `mood board ${pos + 1}`}»`}
                                       sempreVisivel
-                                      className="ml-auto"
+                                      className="ml-auto shrink-0"
                                       accoes={[
                                         {
                                           id: "subir",
@@ -9513,7 +9523,7 @@ export default function ProposalStudio({
                                   {/* O subtítulo numa segunda linha, alinhado com o título:
                                     quatro caixas na mesma linha liam-se como um formulário,
                                     e não como o cabeçalho de uma página. */}
-                                  <div className="mb-2 flex flex-wrap items-center gap-2 pl-16">
+                                  <div className="mb-2 flex flex-wrap items-center gap-2 @min-[32rem]:pl-16">
                                     {/* O SEGUNDO andar do cabeçalho da página.
                             A proposta feita à mão tem «Complementos dos Noivos»
                             e, por baixo, «Ramo de Noiva (a definir com a
