@@ -132,3 +132,20 @@ Nada destas regras mexe no que se vê:
 - a mesma página, servida pronta em vez de montada a cada visita.
 
 É a regra do B0 do padrão: **«escolhe a mais simples que atinja a fasquia»**. Aqui, a mais simples é também a mais barata.
+
+## O Supabase (10/11)
+
+Ela: «é mesmo importante manter muito abaixo o supabase também — sempre a
+melhorar a experiência com ele, mas sempre a evoluir na optimização».
+
+O plano é o **gratuito**: 1 GB de ficheiros, 500 MB de base de dados, 5 GB de
+saída por mês. Medido a 10/11: base de dados 36 MB; ficheiros **928 MB em
+9 775 objectos** (theme-assets 284, fotos-editoriais 158, proposal-assets 147,
+proposal-pdfs 121, theme-medias 120, proposal-medias 43, theme-thumbs 30 MB).
+
+- Nada novo vai para o armazenamento sem o PR dizer quanto ocupa e como se
+  limita. A cache das páginas do estúdio (#411) foi DESFEITA no próprio dia
+  por isto: poupava cêntimos de processador e enchia o plano.
+- As caches derivadas têm de se poder apagar e refazer sem perder nada.
+- Antes de acrescentar, mede-se o que sobra (a consulta está no PR #414).
+

@@ -1,11 +1,10 @@
-import { after, NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { isAuthed } from "@/lib/admin-auth";
 import { getQuote } from "@/lib/quotes-store";
 import { MAX_PROPOSAL_DOC_BYTES, type ProposalDoc } from "@/lib/proposal-doc";
 import { renderStoredEditorialPdfWithReport } from "@/lib/proposal-doc-render";
-import { imagemDaPagina, imagemJaFeita, larguraPedida } from "@/lib/paginas-do-pdf";
-import { guardarPaginaDoRascunho, lerPaginaGuardada } from "@/lib/paginas-do-rascunho-guardadas";
+import { imagemDaPagina, larguraPedida } from "@/lib/paginas-do-pdf";
 import {
   ehIdiomaDaProposta,
   IDIOMA_POR_OMISSAO,
@@ -46,6 +45,16 @@ export const maxDuration = 60;
  *   · `X-Paginas` — quantas páginas tem o PDF inteiro;
  *   · `Server-Timing` — quanto custou desenhar (para se medir a sério).
  * Nada se grava: é um rascunho.
+ *
+ * ── E PORQUE É QUE NÃO SE GUARDA NO ARMAZENAMENTO (10/11) ────────────────
+ *
+ * Foi experimentado (#411): cada página desenhada ia também para o Supabase,
+ * para uma instância nova não a desenhar outra vez. Desfeito no mesmo dia: o
+ * Supabase está no plano GRATUITO (1 GB de ficheiros) e já ia nos 928 MB —
+ * guardar as páginas de todas as propostas enchia o resto, para poupar
+ * cêntimos de processador na Vercel. Fica a memória da instância e a do
+ * navegador (`usePaginaReal`), que não custam nada a ninguém. Antes de voltar
+ * a guardar coisas no armazenamento, ver quanto espaço sobra no plano.
  *
  * ── E A MEMÓRIA ─────────────────────────────────────────────────────────
  *
@@ -97,7 +106,6 @@ async function POST_semMedida(
     const comecou = Date.now();
     let paginas: number | null = null;
     let desenhou = false;
-    let guardada = false;
     // A confirmação de que o pedido existe e o desenho correm AO MESMO TEMPO
     // (9/11, «tem que ser ultra rápida»): a ida à base de dados deixava de
     // esperar à frente do desenho. Um pedido que não existe continua a dar
@@ -105,33 +113,20 @@ async function POST_semMedida(
     // instância, e quem o pede já passou o `isAuthed`.
     const [existe, imagem] = await Promise.all([
       getQuote(id),
-      (async () => {
-        // Sem ela na memória desta instância, a última versão desta página
-        // pode estar no armazenamento (10/11, `paginas-do-rascunho-guardadas`):
-        // descarregar não gasta processador, desenhar gasta ~1 s.
-        if (!imagemJaFeita(chave, 1, largura)) {
-          const g = await lerPaginaGuardada(id, idioma, n, largura, chave);
-          if (g) {
-            guardada = true;
-            paginas = g.paginas;
-            return g.imagem;
-          }
-        }
-        return imagemDaPagina(
-          chave,
-          async () => {
-            desenhou = true;
-            const r = await renderStoredEditorialPdfWithReport(doc as ProposalDoc, idioma, {
-              soPaginas: [n],
-            });
-            paginas = r.paginas;
-            return r.pdf;
-          },
-          // O PDF devolvido tem SÓ a página pedida: é a primeira dele.
-          1,
-          largura,
-        );
-      })(),
+      imagemDaPagina(
+        chave,
+        async () => {
+          desenhou = true;
+          const r = await renderStoredEditorialPdfWithReport(doc as ProposalDoc, idioma, {
+            soPaginas: [n],
+          });
+          paginas = r.paginas;
+          return r.pdf;
+        },
+        // O PDF devolvido tem SÓ a página pedida: é a primeira dele.
+        1,
+        largura,
+      ),
     ]);
     if (!existe) {
       return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
@@ -150,7 +145,7 @@ async function POST_semMedida(
     const ms = Date.now() - comecou;
     const cabecalhos: Record<string, string> = {
       "Cache-Control": "private, no-store",
-      "Server-Timing": `${desenhou ? "desenho" : guardada ? "guardada" : "memoria"};dur=${ms}`,
+      "Server-Timing": `${desenhou ? "desenho" : "memoria"};dur=${ms}`,
     };
     if (paginas !== null) cabecalhos["X-Paginas"] = String(paginas);
     if (!imagem) {
@@ -160,18 +155,6 @@ async function POST_semMedida(
         { error: "Esta página já não existe.", paginas },
         { status: 404, headers: cabecalhos },
       );
-    }
-    if (desenhou) {
-      // Guardar não atrasa a página: corre depois de a resposta sair.
-      const desenhada = imagem;
-      const total = paginas;
-      const guardar = () => guardarPaginaDoRascunho(id, idioma, n, largura, chave, total, desenhada);
-      try {
-        after(guardar);
-      } catch {
-        // Fora de um pedido (testes) o `after` não existe.
-        void guardar();
-      }
     }
     return new NextResponse(new Uint8Array(imagem), {
       status: 200,

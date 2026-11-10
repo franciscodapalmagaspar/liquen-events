@@ -202,6 +202,15 @@ ou uma varredura, responde no PR às três perguntas da regra 7:
 O trabalho pesado guarda-se no armazenamento, porque a memória da função não
 conta. As rotas pesadas passam por `comCpu` (`src/lib/medir-cpu.ts`).
 
+E o **Supabase fica muito abaixo do plano gratuito** (pedido dela, 10/11: «é
+mesmo importante manter muito abaixo o supabase também»). O plano é o GRATUITO:
+1 GB de ficheiros, 500 MB de base de dados, 5 GB de saída por mês. A 10/11 os
+ficheiros iam em 928 MB. Regras: nada novo se guarda no armazenamento sem dizer
+no PR quanto ocupa e como se limita (tecto, substituição, prazo); as caches
+derivadas (fotos tratadas, miniaturas, PDFs gerados) têm de poder ser apagadas
+e refeitas; e antes de acrescentar uma, mede-se o que sobra. Ver «O Supabase»
+em `docs/GASTAR-POUCO-DESDE-O-INICIO.md`.
+
 E publica-se **em lotes** (regra 9, pedido dela de 4/11): um PR verde não entra
 logo no `main`. Junta-se num ramo `lote/AAAA-MM-DD`, e o lote entra no `main`
 de uma vez — **uma vez por dia** (pedido dela de 10/11: cada publicação é ~72 s

@@ -18,13 +18,6 @@ const st = vi.hoisted(() => ({
     fotos: {},
   })),
   imagens: new Map<string, Buffer>(),
-  guardada: null as { imagem: Buffer; paginas: number | null } | null,
-  guardar: vi.fn(async () => undefined),
-}));
-
-vi.mock("@/lib/paginas-do-rascunho-guardadas", () => ({
-  lerPaginaGuardada: async () => st.guardada,
-  guardarPaginaDoRascunho: st.guardar,
 }));
 
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => st.authed }));
@@ -34,8 +27,6 @@ vi.mock("@/lib/proposal-doc-render", () => ({
 }));
 vi.mock("@/lib/paginas-do-pdf", () => ({
   larguraPedida: (n: number) => (n <= 800 ? 800 : n <= 1200 ? 1200 : 1600),
-  imagemJaFeita: (chave: string, n: number, largura: number) =>
-    st.imagens.has(`${chave}:${n}:${largura}`),
   // Uma memória de verdade, como a do módulo: a chave e a página.
   imagemDaPagina: async (
     chave: string,
@@ -71,8 +62,6 @@ beforeEach(() => {
   st.quote = { id: "q1" };
   st.render.mockClear();
   st.imagens.clear();
-  st.guardada = null;
-  st.guardar.mockClear();
 });
 
 describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
@@ -117,24 +106,6 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
     await pedir({ doc: DOC, n: 4 });
     await pedir({ doc: { ...DOC, clientNames: "TESTE Ana & TESTE Rita" }, n: 3 });
     expect(st.render).toHaveBeenCalledTimes(3);
-  });
-
-  it("a página desenhada fica guardada fora da memória (10/11)", async () => {
-    await pedir({ doc: DOC, n: 3 });
-    expect(st.guardar).toHaveBeenCalledTimes(1);
-    const [quoteId, idioma, n, largura, , paginas] = st.guardar.mock.calls[0] as unknown[];
-    expect([quoteId, idioma, n, largura, paginas]).toEqual(["q1", "pt", 3, 800, 14]);
-  });
-
-  it("numa instância nova, a guardada serve — sem desenhar nem voltar a guardar", async () => {
-    st.guardada = { imagem: Buffer.from("WEBP-GUARDADA"), paginas: 14 };
-    const res = await pedir({ doc: DOC, n: 3 });
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Server-Timing")).toMatch(/^guardada;/);
-    expect(res.headers.get("X-Paginas")).toBe("14");
-    expect(Buffer.from(await res.arrayBuffer()).toString()).toBe("WEBP-GUARDADA");
-    expect(st.render).not.toHaveBeenCalled();
-    expect(st.guardar).not.toHaveBeenCalled();
   });
 
   it("uma língua estranha cai no português", async () => {
