@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { getDictionary, htmlLang, localizeHref, type Locale } from "@/lib/i18n";
 import { CABECALHO_DA_LINGUA } from "@/lib/lingua-do-pedido";
+import { COOKIE_DA_LINGUA } from "@/lib/rotas-da-lingua";
 import { waHref } from "@/data";
 import NotFoundConteudo from "./[lang]/(site)/NotFoundConteudo";
 
@@ -78,7 +79,11 @@ const playfair = Playfair_Display({
 });
 
 async function lingua(): Promise<Locale> {
-  return (await headers()).get(CABECALHO_DA_LINGUA) === "en" ? "en" : "pt";
+  if ((await headers()).get(CABECALHO_DA_LINGUA) === "en") return "en";
+  // Desde 10/11 os caminhos nus já não passam pelo `proxy` (que punha o
+  // cabeçalho): a escolha do inglês lê-se do mesmo cookie que as regras de
+  // `rotas-da-lingua.ts` lêem.
+  return (await cookies()).get(COOKIE_DA_LINGUA)?.value === "en" ? "en" : "pt";
 }
 
 /**

@@ -204,6 +204,7 @@ conta. As rotas pesadas passam por `comCpu` (`src/lib/medir-cpu.ts`).
 
 E publica-se **em lotes** (regra 9, pedido dela de 4/11): um PR verde não entra
 logo no `main`. Junta-se num ramo `lote/AAAA-MM-DD`, e o lote entra no `main`
-de uma vez — duas ou três vezes por dia, ou quando ela pede para ver no site.
+de uma vez — **uma vez por dia** (pedido dela de 10/11: cada publicação é ~72 s
+de construção e mais uma versão guardada), ou quando ela pede para ver no site.
 Só o site em baixo, a segurança ou um erro que um cliente esteja a ver passam à
 frente. E um commit em `main` dá UM deployment: confirma em `list_deployments`.

@@ -101,9 +101,11 @@ junto. Ela pediu a 4/11: **«passa a juntar as alterações em lotes»**.
      estão desligadas no `vercel-construir.mjs`);
   3. um PR `lote/…` → `main`, com a lista dos PRs que leva; com o CI verde,
      entra em squash — **uma** construção para o lote inteiro.
-- **Quando se publica:** quando ela pede para ver no site («publica já», «já
-  está online?»), ou no fim de um bloco de trabalho. No máximo **duas ou três
-  vezes por dia**.
+- **Quando se publica:** **uma vez por dia**, no fim do dia de trabalho
+  (pedido dela de 10/11 — era «duas ou três»). Mais cedo só quando ela pede
+  para ver no site («publica já», «já está online?»). A conta de 3–9/11 diz
+  porquê: a construção (2,16 $) e as versões guardadas (1,71 $) eram as duas
+  maiores linhas, e as duas crescem com cada publicação.
 - **Fora do lote, logo:** o site em baixo, uma falha de segurança, ou um erro
   que um cliente está a ver neste momento.
 - **O que mexe no PDF continua a precisar da aprovação dela antes de entrar no
