@@ -772,7 +772,7 @@ export default function ServicesEditor({
         onDragEnd={onGroupDragEnd}
       >
         <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {groups.map((g, gi) => {
               const gid = groupIds[gi];
               const itemIds = g.items.map((it, ii) => it.id ?? fallbackServiceItemId(gid, ii));
@@ -780,7 +780,11 @@ export default function ServicesEditor({
                 <SortableRow
                   key={gid}
                   id={gid}
-                  className="rounded-lg border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] p-2.5"
+                  // Fase 4 do redesenho: cada grupo é um CARTÃO — o título
+                  // grande em cima e as linhas por baixo, separadas por um
+                  // traço. Antes, título e linhas tinham o mesmo corpo de
+                  // letra e o grupo lia-se como mais uma linha da lista.
+                  className="rounded-2xl border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] p-3"
                 >
                   {({ handleProps }) => (
                     <>
@@ -805,7 +809,7 @@ export default function ServicesEditor({
                         <CampoQueCresce
                           {...fieldProps(groupKey(gid))}
                           aoEscrever={register(groupKey(gid))}
-                          className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none font-medium`}
+                          className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none !text-sm font-semibold`}
                           valor={g.title}
                           onChange={(e) => updateGroup(gi, { title: e.target.value })}
                           // A pega do aviso de ortografia — ver `chaveDoCampo`.
@@ -834,7 +838,7 @@ export default function ServicesEditor({
                             porTraduzir={!!g.title.trim() && !(g.titleEn ?? "").trim()}
                             as="textarea"
                             cresce
-                            className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none font-medium`}
+                            className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none !text-sm font-semibold`}
                             placeholder="Wedding Floral Design"
                           />
                         )}
@@ -879,7 +883,7 @@ export default function ServicesEditor({
                         onDragEnd={(e) => onItemDragEnd(gi, e)}
                       >
                         <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-                          <div className="mt-1.5 flex flex-col gap-1 pl-4">
+                          <div className="mt-2 flex flex-col gap-1 border-t border-[var(--bo-hairline)] pt-2 pl-4">
                             {g.items.map((it, ii) => {
                               const iid = itemIds[ii];
                               return (

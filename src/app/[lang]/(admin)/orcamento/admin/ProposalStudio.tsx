@@ -9437,6 +9437,83 @@ export default function ProposalStudio({
                                         placeholder: "Ceremony Decoration",
                                       },
                                     )}
+                                    {/* ── FECHAR A PÁGINA ──────────────────────────
+                                  Marcada como terminada, fica só de leitura e
+                                  muda de cor. Reabrir é um clique — e não uma
+                                  pergunta a que se responde sem ler. */}
+                                    <button
+                                      type="button"
+                                      onClick={() => alternarBloqueio(bi)}
+                                      aria-pressed={fechado}
+                                      aria-label={
+                                        fechado
+                                          ? `Reabrir o mood board ${pos + 1} a alterações`
+                                          : `Marcar o mood board ${pos + 1} como terminado`
+                                      }
+                                      className={`alvo-toque flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-xs  ${
+                                        fechado
+                                          ? "bg-sage-600/15 text-sage-600"
+                                          : "text-foreground/35 hover:bg-[var(--bo-tinta-6)] hover:text-[var(--bo-tinta-72)]"
+                                      } ${ESTADO} ${PRESSAO}`}
+                                    >
+                                      <span aria-hidden="true">{fechado ? "🔒" : "🔓"}</span>
+                                    </button>
+                                    {/* ── O RESTO, NUM «⋯» ─────────────────────────────────
+                                      Fase 3 do redesenho: a barra deste cartão tinha seis
+                                      ícones soltos (setas, cor, duplicar, remover) e lia-se
+                                      como um painel de controlo. Fica à vista o título e o
+                                      cadeado — o que diz o estado da página —, e o que se
+                                      usa de vez em quando entra no menu, com nomes. Mover
+                                      à pressa continua a ser a pega (e o índice ao lado). */}
+                                    <MenuDeAccoes
+                                      sobre={`«${b.title.trim() || `mood board ${pos + 1}`}»`}
+                                      sempreVisivel
+                                      className="ml-auto"
+                                      accoes={[
+                                        {
+                                          id: "subir",
+                                          rotulo: "Subir uma posição",
+                                          onAccao: () => moveBoard(pos, -1),
+                                          desativada: pos === 0,
+                                        },
+                                        {
+                                          id: "descer",
+                                          rotulo: "Descer uma posição",
+                                          onAccao: () => moveBoard(pos, 1),
+                                          desativada: pos === doc.moodBoards.length - 1,
+                                        },
+                                        // Arrumar por cor só quando há o que arrumar: três
+                                        // fotos com cor conhecida (ver `arrumarPorCor`).
+                                        ...(b.images.filter((p) => assetCores[p]).length >= 3
+                                          ? [
+                                              {
+                                                id: "cor",
+                                                rotulo: "Arrumar as fotografias por cor",
+                                                onAccao: () => arrumarPorCor(bi),
+                                                desativada: fechado,
+                                              },
+                                            ]
+                                          : []),
+                                        {
+                                          id: "duplicar",
+                                          rotulo: "Duplicar o mood board",
+                                          onAccao: () => duplicarBoard(bi),
+                                          separadorAntes: true,
+                                        },
+                                        {
+                                          id: "remover",
+                                          rotulo: "Remover o mood board",
+                                          onAccao: () => removeBoard(bi),
+                                          destrutiva: true,
+                                          desativada: fechado,
+                                        },
+                                      ]}
+                                    />
+                                  </div>
+                                  {/* O subtítulo numa segunda linha, alinhado com o título:
+                                    quatro caixas na mesma linha liam-se como um formulário,
+                                    e não como o cabeçalho de uma página. */}
+                                  <div className="mb-2 flex flex-wrap items-center gap-2 pl-16">
                                     {/* O SEGUNDO andar do cabeçalho da página.
                             A proposta feita à mão tem «Complementos dos Noivos»
                             e, por baixo, «Ramo de Noiva (a definir com a
@@ -9464,72 +9541,6 @@ export default function ProposalStudio({
                                         readOnly: fechado,
                                       },
                                     )}
-                                    {/* A POSIÇÃO NO ECRÃ, não o índice do array: ver
-                            `moveBoard`. */}
-                                    <MoveBtns
-                                      onUp={() => moveBoard(pos, -1)}
-                                      onDown={() => moveBoard(pos, 1)}
-                                      disUp={pos === 0}
-                                      disDown={pos === doc.moodBoards.length - 1}
-                                    />
-                                    {/* ── FECHAR A PÁGINA ──────────────────────────
-                                  Marcada como terminada, fica só de leitura e
-                                  muda de cor. Reabrir é um clique — e não uma
-                                  pergunta a que se responde sem ler. */}
-                                    <button
-                                      type="button"
-                                      onClick={() => alternarBloqueio(bi)}
-                                      aria-pressed={fechado}
-                                      aria-label={
-                                        fechado
-                                          ? `Reabrir o mood board ${pos + 1} a alterações`
-                                          : `Marcar o mood board ${pos + 1} como terminado`
-                                      }
-                                      className={`alvo-toque flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-xs  ${
-                                        fechado
-                                          ? "bg-sage-600/15 text-sage-600"
-                                          : "text-foreground/35 hover:bg-[var(--bo-tinta-6)] hover:text-[var(--bo-tinta-72)]"
-                                      } ${ESTADO} ${PRESSAO}`}
-                                    >
-                                      <span aria-hidden="true">{fechado ? "🔒" : "🔓"}</span>
-                                    </button>
-                                    {/* ── ARRUMAR POR COR ──────────────────────
-                                      Só aparece quando há mesmo o que arrumar:
-                                      três fotos com cor conhecida. Com menos, o
-                                      botão não teria nada para fazer e seria só
-                                      mais um ícone a ocupar a barra. Fica
-                                      escondido — e não desactivado — porque um
-                                      botão desactivado que nunca se explica é
-                                      pior do que um botão que não está lá. */}
-                                    {b.images.filter((p) => assetCores[p]).length >= 3 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => arrumarPorCor(bi)}
-                                        aria-label={`Arrumar por cor as fotografias do mood board ${pos + 1}`}
-                                        title="Arrumar as fotografias por cor"
-                                        disabled={fechado}
-                                        className={`alvo-toque flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-xs text-foreground/35 hover:bg-[var(--bo-tinta-6)] hover:text-[var(--bo-tinta-72)] disabled:opacity-40 ${ESTADO} ${PRESSAO}`}
-                                      >
-                                        <span aria-hidden="true">◑</span>
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => duplicarBoard(bi)}
-                                      aria-label={`Duplicar o mood board ${pos + 1}`}
-                                      className={`alvo-toque flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-xs text-foreground/35 hover:bg-[var(--bo-tinta-6)] hover:text-[var(--bo-tinta-72)] ${ESTADO} ${PRESSAO}`}
-                                    >
-                                      <span aria-hidden="true">⧉</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={`${REMOVE_BTN} ${ESTADO} ${PRESSAO}`}
-                                      onClick={() => removeBoard(bi)}
-                                      aria-label="Remover mood board"
-                                      disabled={fechado}
-                                    >
-                                      ×
-                                    </button>
                                   </div>
                                   {/* A pergunta fica DENTRO do cartão, logo por
                                     baixo da barra que a levantou — e antes da
