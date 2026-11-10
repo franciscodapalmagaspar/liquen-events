@@ -11820,72 +11820,165 @@ export default function ProposalStudio({
       </div>
       {/* ══════════ /PASSOS 1 a 4 ══════════ */}
 
-      {/* ══════════ PASSO 5 · Rever e enviar — por onde segue, LOGO EM CIMA ══════════
-          Palavras dela, a 14/10, com a captura deste bloco: «coloca isto em
-          cima para se ver logo no início e coloca o logo do email e do
-          WhatsApp». Estava a meio do passo, depois do resumo inteiro — a
-          primeira escolha do envio era a última coisa que se via. Sempre
-          montado e escondido como o envio aqui em baixo, para o salto de
-          «Falta o email» (`#seccao-envio`) ter onde cair. */}
+      {/* ══════════ PASSO 5 · Rever e enviar — «Está pronta?», LOGO EM CIMA ══════════
+          Decisão dela a 10/11 (o plano de 9/11, fase 5): primeiro o que falta
+          — a Conferência, as fotografias em falta, as gralhas, o que ficou por
+          traduzir —, depois ver o PDF final, depois o resumo e o email, e só
+          no fim por onde segue. Substitui a ordem de 14/10, em que «Por onde
+          segue» vinha em cima: ela escolheu «Está pronta?» primeiro. */}
       <div
         className={step === "enviar" && !sent ? "view-in mb-4" : undefined}
         hidden={step !== "enviar" || sent}
       >
-        <Section title="Por onde segue">
-          {/* ── POR ONDE SEGUE ────────────────────────────────────────────
-                  A escolha vem ANTES do resumo e do botão (e, desde 14/10, no
-                  topo do passo), porque muda o que o
-                  resumo quer dizer: com «só WhatsApp», a linha «Para: <email>»
-                  deixa de ser o destino e passa a ser só um dado do pedido.
-
-                  Os rótulos dizem o CANAL e não o verbo — «Email», «WhatsApp»,
-                  «Os dois» — porque o verbo já está no botão a seguir, e repetir
-                  «enviar» três vezes numa fila de três não ajuda a escolher. */}
-          <div className="scroll-mt-24" id="seccao-envio">
-            <Segmented
-              size="sm"
-              ariaLabel="Por onde é que a proposta segue"
-              value={canal}
-              onChange={escolherCanal}
-              options={OPCOES_DO_CANAL}
+        <Section title="Está pronta?">
+            {/* As fotos a caminho têm a sua própria linha, e não a genérica
+                  dos campos por preencher: aqui não há nada a fazer senão
+                  esperar uns segundos — dizer-lhe para "preencher" seria
+                  mandá-la procurar um campo que está bem. */}
+            {fotosPorConfirmar > 0 && (
+              <p
+                aria-live="polite"
+                className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-[var(--bo-perigo)]"
+              >
+                <span aria-hidden="true">⏳</span>
+                <span>
+                  {fotosPorConfirmar === 1
+                    ? "1 foto ainda está a entrar na proposta."
+                    : `${fotosPorConfirmar} fotos ainda estão a entrar na proposta.`}{" "}
+                  O envio fica disponível mal ela assente — assim a proposta segue completa.
+                </span>
+              </p>
+            )}
+            {/* A PASSAGEM DE OLHOS. Depois do resumo (que diz o que vai
+                  seguir) e antes do botão (que o torna irreversível). */}
+            <Conferencia
+              doc={doc as ProposalDoc}
+              quote={quote}
+              quotes={quotes}
+              totalBruto={money.gross}
+              // A língua escolhida aqui ao lado. Sem ela, a lista falava do
+              // pedido que veio em inglês e calava-se sobre a metade da
+              // proposta que ia sair em português.
+              idioma={idiomaDoPdf}
+              // O canal e o email: sem eles a lista não sabia que uma
+              // proposta por email sem email não chega a ninguém (B1).
+              canal={canal}
+              emailDoCliente={quote.email}
+              onIr={(v) => irParaAFalta(v.seccao, v.campo)}
             />
-            {/* ── O QUE CADA ESCOLHA FAZ, DITO ANTES DO GESTO ────────────
-                    Sem esta linha, «WhatsApp» prometia um envio automático que
-                    não existe: nenhuma página consegue mandar uma mensagem por
-                    alguém. O que acontece é o WhatsApp ABRIR com a mensagem
-                    escrita, e ser ela a escolher a quem — e isso é um segundo
-                    gesto, dela, depois deste. Dizê-lo aqui é a diferença entre
-                    uma expectativa cumprida e uma surpresa. */}
-            <p className="bo-text-muted mt-2 text-xs leading-relaxed">
-              {canal === "email"
-                ? "O cliente recebe a proposta em PDF por email."
-                : canal === "whatsapp"
-                  ? "Não sai email. A proposta é gerada e o link fica pronto — a seguir abres o WhatsApp e escolhes a quem o mandas."
-                  : "O cliente recebe o PDF por email, e a seguir abres o WhatsApp com o link para lho mandares também."}
-            </p>
-          </div>
-          {/* ── SEM DESTINATÁRIO, DIZ-SE AQUI E NÃO DEPOIS ──────────────
-                  Um pedido que entrou por telefone não tem email. Até aqui só
-                  se sabia DEPOIS de carregar em Enviar: a proposta ficava
-                  gravada, o email não saía, e o aviso vinha a seguir ao gesto.
+            {/* ── ANTES DE ENVIAR: VER O PDF FINAL (14/10) ───────────────
+                  «Quero que haja algo que antes de enviar para os clientes
+                  obrigue os colaboradores da Líquen a verificar se está tudo
+                  bem.» A escolha dela foi «Ver o PDF primeiro». O PDF final
+                  só sai sem erros (B1); depois de descarregado, pede-se a
+                  confirmação; e mudar o documento depois de o ver volta a
+                  pedir as duas coisas. O servidor confere a mesma chave. */}
+            <div
+              data-testid="ver-antes-de-enviar"
+              data-campo="pdf-visto"
+              className="mt-4 flex flex-col items-start gap-2 rounded-xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] px-3 py-3"
+            >
+              <p className="bo-eyebrow text-[var(--bo-text-muted)]">Antes de enviar</p>
+              {temErros ? (
+                <p className="text-xs leading-relaxed text-[var(--bo-tinta-72)]">
+                  Primeiro corrige o que está na lista acima — o PDF final só sai sem erros. Depois
+                  descarrega-o e vê-o com atenção.
+                </p>
+              ) : !pdfVistoAgora ? (
+                <>
+                  <p className="text-xs leading-relaxed text-[var(--bo-tinta-72)]">
+                    {pdfVisto
+                      ? "A proposta mudou depois de veres o PDF. Descarrega-o outra vez e vê-o antes de enviar."
+                      : "Descarrega o PDF final e vê-o com atenção, página a página — é exactamente o que o cliente vai receber."}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void preview()}
+                    disabled={busy !== null}
+                  >
+                    {busy === "preview" ? "A gerar o PDF…" : "Descarregar o PDF final"}
+                  </Button>
+                </>
+              ) : (
+                <label className="alvo-toque flex cursor-pointer items-start gap-2 text-sm leading-snug text-[var(--bo-text)]">
+                  <input
+                    type="checkbox"
+                    checked={!!pdfVisto?.confirmado}
+                    onChange={(e) => confirmarPdfVisto(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-sage-600"
+                  />
+                  <span>Vi a proposta e está tudo certo</span>
+                </label>
+              )}
+            </div>
+            {/* ── AS FOTOGRAFIAS ESTÃO MESMO LÁ? ─────────────────────────
+                  Primeiro de todos os avisos deste passo, e é de propósito: é
+                  o único que fala de uma coisa que já não se vê no ecrã. As
+                  gralhas e as traduções lêem-se no documento; um ficheiro que
+                  desapareceu do armazenamento só se descobre perguntando.
 
-                  Agora está antes do dedo, e diz ONDE se resolve — no painel do
-                  pedido, que passou a deixar corrigir os contactos. */}
-          {/* ── E O AVISO DO EMAIL EM FALTA CALA-SE QUANDO NÃO É POR AÍ ──
-                  Com «só WhatsApp», não ter email de cliente deixou de ser um
-                  problema — é o caso NORMAL de um pedido que entrou por
-                  telefone. Um aviso cor de laranja a apontar para uma coisa
-                  que não faz falta ensina a ignorar avisos. */}
-          {!emailDoCliente && canal !== "whatsapp" && (
-            <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-[var(--bo-aviso-tom)]/35 bg-[var(--bo-aviso-tom)]/[0.06] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]">
-              <span aria-hidden="true">⚠</span>
-              <span>
-                Este pedido não tem email de cliente, e sem ele a proposta não pode seguir por
-                email. Acrescenta-o nos <strong className="font-medium">contactos do pedido</strong>
-                , em Detalhes — ou escolhe «WhatsApp».
-              </span>
-            </p>
-          )}
+                  Foi o defeito que a fez escrever: quatro fotos que não
+                  existiam seguiram numa proposta, e a primeira pessoa a dar por
+                  isso foi o casal. */}
+            <FotosEmFalta quoteId={quote.id} doc={doc as ProposalDoc} />
+
+            {/* Os acentos que faltam nos campos que saem impressos. Aqui, ao
+                  pé da Conferência, e não a meio de escrever: a palavra ainda
+                  está a ser escrita quando o aviso apareceria. */}
+            <Gralhas
+              doc={doc as ProposalDoc}
+              onCorrigir={(g) => {
+                setDoc((d) => corrigirGralha(d, g));
+                // A palavra muda num campo que pode estar a catorze páginas
+                // daqui, dentro de uma secção que não se está a ver. No sítio
+                // do clique só se vê a linha sair desta lista — e uma linha a
+                // desaparecer não diz o que ficou escrito lá em cima.
+                //
+                // Com as duas palavras e o campo, é a mesma prestação de
+                // contas que o «Corrigir as N» ao lado já fazia com o número.
+                toast(`«${g.escrita}» passou a «${g.sugerida}» — ${g.rotulo}.`, "info");
+              }}
+              onIr={(g) => irParaCampo(g.campo)}
+              onTirarSimbolos={(s) => {
+                setDoc((d) => tirarSimbolos(d, s));
+                toast(`Tirei ${s.simbolos.join(" ")} — ${s.rotulo}.`, "info");
+              }}
+              onIrAosSimbolos={(s) => irParaCampo(s.campo)}
+              onCorrigirTudo={() => {
+                const quantas = gralhasDoDocumento(doc as ProposalDoc).length;
+                setDoc((d) => corrigirTudo(d));
+                toast(
+                  quantas === 1 ? "1 palavra corrigida." : `${quantas} palavras corrigidas.`,
+                  "info",
+                );
+              }}
+            />
+            {/* ── O QUE VAI SAIR EM PORTUGUÊS ─────────────────────────────
+                  Logo a seguir às Gralhas, e SÓ com «Inglês» escolhido: numa
+                  proposta portuguesa não há nada por traduzir, e uma secção
+                  vazia a dizê-lo era ruído no ecrã de toda a gente. */}
+            {idiomaDoPdf === "en" && (
+              <PorTraduzir
+                doc={doc as ProposalDoc}
+                onFicarEmPortugues={(c) => setDoc((d) => escreverEn(d, c.campo, c.texto))}
+                onFicarTodosEmPortugues={() => {
+                  const faltam = camposPorTraduzir(doc as ProposalDoc);
+                  setDoc((d) => {
+                    let saida = d;
+                    for (const c of faltam) saida = escreverEn(saida, c.campo, c.texto);
+                    return saida;
+                  });
+                  toast(
+                    faltam.length === 1
+                      ? "1 campo fica em português."
+                      : `${faltam.length} campos ficam em português.`,
+                    "info",
+                  );
+                }}
+                onIr={(c) => irParaCampo(c.campo, "en")}
+              />
+            )}
         </Section>
       </div>
 
@@ -12044,154 +12137,6 @@ export default function ProposalStudio({
               // aqui.
               onNomeDoFicheiro={(nome) => patch({ nomeDoFicheiro: nome.trim() ? nome : undefined })}
             />
-            {/* As fotos a caminho têm a sua própria linha, e não a genérica
-                  dos campos por preencher: aqui não há nada a fazer senão
-                  esperar uns segundos — dizer-lhe para "preencher" seria
-                  mandá-la procurar um campo que está bem. */}
-            {fotosPorConfirmar > 0 && (
-              <p
-                aria-live="polite"
-                className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-[var(--bo-perigo)]"
-              >
-                <span aria-hidden="true">⏳</span>
-                <span>
-                  {fotosPorConfirmar === 1
-                    ? "1 foto ainda está a entrar na proposta."
-                    : `${fotosPorConfirmar} fotos ainda estão a entrar na proposta.`}{" "}
-                  O envio fica disponível mal ela assente — assim a proposta segue completa.
-                </span>
-              </p>
-            )}
-            {/* A PASSAGEM DE OLHOS. Depois do resumo (que diz o que vai
-                  seguir) e antes do botão (que o torna irreversível). */}
-            <Conferencia
-              doc={doc as ProposalDoc}
-              quote={quote}
-              quotes={quotes}
-              totalBruto={money.gross}
-              // A língua escolhida aqui ao lado. Sem ela, a lista falava do
-              // pedido que veio em inglês e calava-se sobre a metade da
-              // proposta que ia sair em português.
-              idioma={idiomaDoPdf}
-              // O canal e o email: sem eles a lista não sabia que uma
-              // proposta por email sem email não chega a ninguém (B1).
-              canal={canal}
-              emailDoCliente={quote.email}
-              onIr={(v) => irParaAFalta(v.seccao, v.campo)}
-            />
-            {/* ── ANTES DE ENVIAR: VER O PDF FINAL (14/10) ───────────────
-                  «Quero que haja algo que antes de enviar para os clientes
-                  obrigue os colaboradores da Líquen a verificar se está tudo
-                  bem.» A escolha dela foi «Ver o PDF primeiro». O PDF final
-                  só sai sem erros (B1); depois de descarregado, pede-se a
-                  confirmação; e mudar o documento depois de o ver volta a
-                  pedir as duas coisas. O servidor confere a mesma chave. */}
-            <div
-              data-testid="ver-antes-de-enviar"
-              data-campo="pdf-visto"
-              className="mt-4 flex flex-col items-start gap-2 rounded-xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] px-3 py-3"
-            >
-              <p className="bo-eyebrow text-[var(--bo-text-muted)]">Antes de enviar</p>
-              {temErros ? (
-                <p className="text-xs leading-relaxed text-[var(--bo-tinta-72)]">
-                  Primeiro corrige o que está na lista acima — o PDF final só sai sem erros. Depois
-                  descarrega-o e vê-o com atenção.
-                </p>
-              ) : !pdfVistoAgora ? (
-                <>
-                  <p className="text-xs leading-relaxed text-[var(--bo-tinta-72)]">
-                    {pdfVisto
-                      ? "A proposta mudou depois de veres o PDF. Descarrega-o outra vez e vê-o antes de enviar."
-                      : "Descarrega o PDF final e vê-o com atenção, página a página — é exactamente o que o cliente vai receber."}
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void preview()}
-                    disabled={busy !== null}
-                  >
-                    {busy === "preview" ? "A gerar o PDF…" : "Descarregar o PDF final"}
-                  </Button>
-                </>
-              ) : (
-                <label className="alvo-toque flex cursor-pointer items-start gap-2 text-sm leading-snug text-[var(--bo-text)]">
-                  <input
-                    type="checkbox"
-                    checked={!!pdfVisto?.confirmado}
-                    onChange={(e) => confirmarPdfVisto(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-sage-600"
-                  />
-                  <span>Vi a proposta e está tudo certo</span>
-                </label>
-              )}
-            </div>
-            {/* ── AS FOTOGRAFIAS ESTÃO MESMO LÁ? ─────────────────────────
-                  Primeiro de todos os avisos deste passo, e é de propósito: é
-                  o único que fala de uma coisa que já não se vê no ecrã. As
-                  gralhas e as traduções lêem-se no documento; um ficheiro que
-                  desapareceu do armazenamento só se descobre perguntando.
-
-                  Foi o defeito que a fez escrever: quatro fotos que não
-                  existiam seguiram numa proposta, e a primeira pessoa a dar por
-                  isso foi o casal. */}
-            <FotosEmFalta quoteId={quote.id} doc={doc as ProposalDoc} />
-
-            {/* Os acentos que faltam nos campos que saem impressos. Aqui, ao
-                  pé da Conferência, e não a meio de escrever: a palavra ainda
-                  está a ser escrita quando o aviso apareceria. */}
-            <Gralhas
-              doc={doc as ProposalDoc}
-              onCorrigir={(g) => {
-                setDoc((d) => corrigirGralha(d, g));
-                // A palavra muda num campo que pode estar a catorze páginas
-                // daqui, dentro de uma secção que não se está a ver. No sítio
-                // do clique só se vê a linha sair desta lista — e uma linha a
-                // desaparecer não diz o que ficou escrito lá em cima.
-                //
-                // Com as duas palavras e o campo, é a mesma prestação de
-                // contas que o «Corrigir as N» ao lado já fazia com o número.
-                toast(`«${g.escrita}» passou a «${g.sugerida}» — ${g.rotulo}.`, "info");
-              }}
-              onIr={(g) => irParaCampo(g.campo)}
-              onTirarSimbolos={(s) => {
-                setDoc((d) => tirarSimbolos(d, s));
-                toast(`Tirei ${s.simbolos.join(" ")} — ${s.rotulo}.`, "info");
-              }}
-              onIrAosSimbolos={(s) => irParaCampo(s.campo)}
-              onCorrigirTudo={() => {
-                const quantas = gralhasDoDocumento(doc as ProposalDoc).length;
-                setDoc((d) => corrigirTudo(d));
-                toast(
-                  quantas === 1 ? "1 palavra corrigida." : `${quantas} palavras corrigidas.`,
-                  "info",
-                );
-              }}
-            />
-            {/* ── O QUE VAI SAIR EM PORTUGUÊS ─────────────────────────────
-                  Logo a seguir às Gralhas, e SÓ com «Inglês» escolhido: numa
-                  proposta portuguesa não há nada por traduzir, e uma secção
-                  vazia a dizê-lo era ruído no ecrã de toda a gente. */}
-            {idiomaDoPdf === "en" && (
-              <PorTraduzir
-                doc={doc as ProposalDoc}
-                onFicarEmPortugues={(c) => setDoc((d) => escreverEn(d, c.campo, c.texto))}
-                onFicarTodosEmPortugues={() => {
-                  const faltam = camposPorTraduzir(doc as ProposalDoc);
-                  setDoc((d) => {
-                    let saida = d;
-                    for (const c of faltam) saida = escreverEn(saida, c.campo, c.texto);
-                    return saida;
-                  });
-                  toast(
-                    faltam.length === 1
-                      ? "1 campo fica em português."
-                      : `${faltam.length} campos ficam em português.`,
-                    "info",
-                  );
-                }}
-                onIr={(c) => irParaCampo(c.campo, "en")}
-              />
-            )}
             {/* ── O QUE JÁ SEGUIU ────────────────────────────────────────
                   Depois da conferência (que olha para ESTA proposta) e antes
                   do botão: é aqui que a pergunta "o que é que eles vão ver de
@@ -12225,6 +12170,78 @@ export default function ProposalStudio({
                   qualquer largura — ver `conferencia.ts`. */}
           </div>
         )}
+      </div>
+
+      {/* ══════════ PASSO 5 · Rever e enviar — por onde segue, NO FIM (10/11) ══════════
+          Até 10/11 vinha logo em cima, por um pedido dela de 14/10 que o
+          comentário de baixo conta; a 10/11 ela escolheu «Está pronta?»
+          primeiro, e este passou para depois do email.
+          Palavras dela, a 14/10, com a captura deste bloco: «coloca isto em
+          cima para se ver logo no início e coloca o logo do email e do
+          WhatsApp». Estava a meio do passo, depois do resumo inteiro — a
+          primeira escolha do envio era a última coisa que se via. Sempre
+          montado e escondido como o envio aqui em baixo, para o salto de
+          «Falta o email» (`#seccao-envio`) ter onde cair. */}
+      <div
+        className={step === "enviar" && !sent ? "view-in mt-4 mb-4" : undefined}
+        hidden={step !== "enviar" || sent}
+      >
+        <Section title="Por onde segue">
+          {/* ── POR ONDE SEGUE ────────────────────────────────────────────
+                  A escolha vem ANTES do resumo e do botão (e, desde 14/10, no
+                  topo do passo), porque muda o que o
+                  resumo quer dizer: com «só WhatsApp», a linha «Para: <email>»
+                  deixa de ser o destino e passa a ser só um dado do pedido.
+
+                  Os rótulos dizem o CANAL e não o verbo — «Email», «WhatsApp»,
+                  «Os dois» — porque o verbo já está no botão a seguir, e repetir
+                  «enviar» três vezes numa fila de três não ajuda a escolher. */}
+          <div className="scroll-mt-24" id="seccao-envio">
+            <Segmented
+              size="sm"
+              ariaLabel="Por onde é que a proposta segue"
+              value={canal}
+              onChange={escolherCanal}
+              options={OPCOES_DO_CANAL}
+            />
+            {/* ── O QUE CADA ESCOLHA FAZ, DITO ANTES DO GESTO ────────────
+                    Sem esta linha, «WhatsApp» prometia um envio automático que
+                    não existe: nenhuma página consegue mandar uma mensagem por
+                    alguém. O que acontece é o WhatsApp ABRIR com a mensagem
+                    escrita, e ser ela a escolher a quem — e isso é um segundo
+                    gesto, dela, depois deste. Dizê-lo aqui é a diferença entre
+                    uma expectativa cumprida e uma surpresa. */}
+            <p className="bo-text-muted mt-2 text-xs leading-relaxed">
+              {canal === "email"
+                ? "O cliente recebe a proposta em PDF por email."
+                : canal === "whatsapp"
+                  ? "Não sai email. A proposta é gerada e o link fica pronto — a seguir abres o WhatsApp e escolhes a quem o mandas."
+                  : "O cliente recebe o PDF por email, e a seguir abres o WhatsApp com o link para lho mandares também."}
+            </p>
+          </div>
+          {/* ── SEM DESTINATÁRIO, DIZ-SE AQUI E NÃO DEPOIS ──────────────
+                  Um pedido que entrou por telefone não tem email. Até aqui só
+                  se sabia DEPOIS de carregar em Enviar: a proposta ficava
+                  gravada, o email não saía, e o aviso vinha a seguir ao gesto.
+
+                  Agora está antes do dedo, e diz ONDE se resolve — no painel do
+                  pedido, que passou a deixar corrigir os contactos. */}
+          {/* ── E O AVISO DO EMAIL EM FALTA CALA-SE QUANDO NÃO É POR AÍ ──
+                  Com «só WhatsApp», não ter email de cliente deixou de ser um
+                  problema — é o caso NORMAL de um pedido que entrou por
+                  telefone. Um aviso cor de laranja a apontar para uma coisa
+                  que não faz falta ensina a ignorar avisos. */}
+          {!emailDoCliente && canal !== "whatsapp" && (
+            <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-[var(--bo-aviso-tom)]/35 bg-[var(--bo-aviso-tom)]/[0.06] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]">
+              <span aria-hidden="true">⚠</span>
+              <span>
+                Este pedido não tem email de cliente, e sem ele a proposta não pode seguir por
+                email. Acrescenta-o nos <strong className="font-medium">contactos do pedido</strong>
+                , em Detalhes — ou escolhe «WhatsApp».
+              </span>
+            </p>
+          )}
+        </Section>
       </div>
 
       {/* Ação principal — muda conforme o passo, para haver sempre UMA próxima
