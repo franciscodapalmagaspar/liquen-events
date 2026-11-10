@@ -106,6 +106,13 @@ function fraseDasTraducoes(n: number): string {
 export default function NavEstudio({ seccoes, faltas, onSeccaoActual, porTraduzir, onIr }: Props) {
   const [atual, setAtual] = useState<string | null>(null);
   const listaRef = useRef<HTMLUListElement>(null);
+  // ── A CHAVE DAS SECÇÕES, E NÃO A LISTA (10/11) ──────────────────────────
+  // `seccoes` chega nova a cada desenho do estúdio — cada letra, cada mudança
+  // de passo. Com a lista nas dependências, os dois efeitos aqui em baixo
+  // corriam sempre: o observador refazia-se (e media a página toda logo a
+  // seguir) e a tira pedia `getBoundingClientRect` — layout forçado no meio de
+  // ela escrever. O que eles leem são os ids, e esses quase nunca mudam.
+  const idsDasSeccoes = seccoes.map((s) => s.id).join("\n");
 
   // ── Onde estou ────────────────────────────────────────────────────────
   // Um observador em vez de ouvir o scroll: dá a resposta sem correr código a
@@ -116,8 +123,9 @@ export default function NavEstudio({ seccoes, faltas, onSeccaoActual, porTraduzi
     // depende disto. (No jsdom dos testes não existe, e sem esta guarda o
     // estúdio inteiro deixava de montar.)
     if (typeof IntersectionObserver === "undefined") return;
-    const alvos = seccoes
-      .map((s) => document.getElementById(`seccao-${s.id}`))
+    const alvos = idsDasSeccoes
+      .split("\n")
+      .map((id) => document.getElementById(`seccao-${id}`))
       .filter((el): el is HTMLElement => !!el);
     if (alvos.length === 0) return;
     const observador = new IntersectionObserver(
@@ -140,7 +148,7 @@ export default function NavEstudio({ seccoes, faltas, onSeccaoActual, porTraduzi
     );
     alvos.forEach((el) => observador.observe(el));
     return () => observador.disconnect();
-  }, [seccoes, onSeccaoActual]);
+  }, [idsDasSeccoes, onSeccaoActual]);
 
   /**
    * ── A MARCA DO DESTINO ACTIVO ANDA, EM VEZ DE PISCAR NOUTRO SÍTIO ────────
@@ -185,7 +193,7 @@ export default function NavEstudio({ seccoes, faltas, onSeccaoActual, porTraduzi
     const dela = ul.getBoundingClientRect();
     if (dele.left < dela.left) ul.scrollLeft -= dela.left - dele.left;
     else if (dele.right > dela.right) ul.scrollLeft += dele.right - dela.right;
-  }, [atual, seccoes]);
+  }, [atual, idsDasSeccoes]);
 
   function saltarPara(id: string) {
     if (onIr) {

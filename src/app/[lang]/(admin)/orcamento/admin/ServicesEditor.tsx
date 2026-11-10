@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RATO, DEDO, TECLADO_DE_LISTA } from "./ui/sensores-de-arrasto";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAlturaDoConteudo } from "./ui/altura-do-conteudo";
 import {
   DndContext,
@@ -16,7 +17,6 @@ import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifi
 import {
   SortableContext,
   arrayMove,
-  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -247,7 +247,18 @@ type FocusTarget = { key: string; caret?: "end" } | null;
 const groupKey = (id: string) => `g:${id}`;
 const itemKey = (id: string, field: "label" | "desc") => `i:${id}:${field}`;
 
-export default function ServicesEditor({
+/**
+ * ── MEMORIZADO (10/11) ───────────────────────────────────────────────────
+ * Ela: «está a travar imenso» no «Fazer proposta». O estúdio desenha os cinco
+ * passos sempre montados, e este editor — com uma linha arrastável por serviço —
+ * redesenhava-se a cada letra escrita noutro passo (o perfil mostrou ~150 ms em
+ * 21 letras numa descrição de mood board). As props que recebe são estáveis
+ * enquanto se escreve noutro sítio: `groups` é o mesmo array, e as funções vêm
+ * de `useCallback`. Com `memo`, só se redesenha quando os serviços mudam.
+ */
+export default memo(ServicesEditor);
+
+function ServicesEditor({
   groups,
   onGroupsChange,
   showDesc = false,
@@ -661,9 +672,9 @@ export default function ServicesEditor({
   // único, no tablet o gesto de percorrer a página agarrava a linha logo aos
   // 4 px. Assim o rato começa a arrastar aos 4 px e o dedo só depois de segurar.
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(MouseSensor, RATO),
+    useSensor(TouchSensor, DEDO),
+    useSensor(KeyboardSensor, TECLADO_DE_LISTA),
   );
 
   const groupIds = useMemo(
@@ -772,7 +783,7 @@ export default function ServicesEditor({
         onDragEnd={onGroupDragEnd}
       >
         <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {groups.map((g, gi) => {
               const gid = groupIds[gi];
               const itemIds = g.items.map((it, ii) => it.id ?? fallbackServiceItemId(gid, ii));
@@ -780,7 +791,11 @@ export default function ServicesEditor({
                 <SortableRow
                   key={gid}
                   id={gid}
-                  className="rounded-lg border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] p-2.5"
+                  // Fase 4 do redesenho: cada grupo é um CARTÃO — o título
+                  // grande em cima e as linhas por baixo, separadas por um
+                  // traço. Antes, título e linhas tinham o mesmo corpo de
+                  // letra e o grupo lia-se como mais uma linha da lista.
+                  className="rounded-2xl border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] p-3"
                 >
                   {({ handleProps }) => (
                     <>
@@ -805,7 +820,7 @@ export default function ServicesEditor({
                         <CampoQueCresce
                           {...fieldProps(groupKey(gid))}
                           aoEscrever={register(groupKey(gid))}
-                          className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none font-medium`}
+                          className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none !text-sm font-semibold`}
                           valor={g.title}
                           onChange={(e) => updateGroup(gi, { title: e.target.value })}
                           // A pega do aviso de ortografia — ver `chaveDoCampo`.
@@ -834,7 +849,7 @@ export default function ServicesEditor({
                             porTraduzir={!!g.title.trim() && !(g.titleEn ?? "").trim()}
                             as="textarea"
                             cresce
-                            className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none font-medium`}
+                            className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none !text-sm font-semibold`}
                             placeholder="Wedding Floral Design"
                           />
                         )}
@@ -879,7 +894,7 @@ export default function ServicesEditor({
                         onDragEnd={(e) => onItemDragEnd(gi, e)}
                       >
                         <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-                          <div className="mt-1.5 flex flex-col gap-1 pl-4">
+                          <div className="mt-2 flex flex-col gap-1 border-t border-[var(--bo-hairline)] pt-2 pl-4">
                             {g.items.map((it, ii) => {
                               const iid = itemIds[ii];
                               return (

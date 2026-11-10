@@ -74,11 +74,77 @@ export interface Capacidade {
   toque: boolean;
 }
 
+/**
+ * ── UMA PERGUNTA POR MEDIA QUERY, E NÃO UMA POR DESENHO (10/11) ──────────
+ *
+ * Ela: «está a travar imenso e super pouco fluido» no «Fazer proposta». MEDIDO
+ * (perfil do processador a escrever 21 letras numa descrição de mood board,
+ * com 8 páginas de 12 fotos): ~230 ms em `matchMedia`. Cada célula de foto
+ * monta as acções (`AccoesDaFoto` → `useAdaptativo` → cinco `useMedia`), e
+ * cada `useMedia`:
+ *
+ *   · criava um `MediaQueryList` NOVO em cada leitura (`window.matchMedia(mq)`
+ *     a cada desenho, e o React lê duas vezes por desenho para se proteger de
+ *     valores rasgados) — 96 células × 5 perguntas × 2 por letra;
+ *   · e dava ao `useSyncExternalStore` uma função `subscrever` NOVA a cada
+ *     desenho, o que o obriga a cancelar e voltar a subscrever, também a cada
+ *     letra.
+ *
+ * Agora há UM `MediaQueryList` e UMA função de subscrição por media query,
+ * guardados ao nível do módulo. A leitura passa a ser ler `.matches` de um
+ * objecto que já existe. O comportamento é o mesmo — a mesma pergunta, as
+ * mesmas respostas, o mesmo `false` no servidor.
+ */
+const listas = new Map<string, MediaQueryList>();
+/** O `matchMedia` de onde vieram as listas — se for trocado (os testes trocam-no
+ *  entre casos), as listas guardadas são de outro mundo e esquecem-se. */
+let fonteDasListas: typeof window.matchMedia | null = null;
+
+function listaDe(mq: string): MediaQueryList | null {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return null;
+  if (fonteDasListas !== window.matchMedia) {
+    listas.clear();
+    fonteDasListas = window.matchMedia;
+  }
+  let m = listas.get(mq);
+  if (!m) {
+    m = window.matchMedia(mq);
+    listas.set(mq, m);
+  }
+  return m;
+}
+
 /** O que o `matchMedia` diria no servidor: nada. Uma leitura só do cliente. */
-const consulta = (mq: string): boolean =>
-  typeof window !== "undefined" && typeof window.matchMedia === "function"
-    ? window.matchMedia(mq).matches
-    : false;
+const consulta = (mq: string): boolean => listaDe(mq)?.matches ?? false;
+
+const subscricoes = new Map<string, (avisar: () => void) => () => void>();
+
+function subscricaoDe(mq: string): (avisar: () => void) => () => void {
+  let s = subscricoes.get(mq);
+  if (!s) {
+    s = (avisar: () => void) => {
+      const m = listaDe(mq);
+      if (!m) return () => {};
+      // `addEventListener` é o moderno; o Safari antigo só tem `addListener`.
+      // Falhar aqui deixava o ecrã congelado na primeira leitura — o que se
+      // nota exactamente quando se roda o telemóvel.
+      if (typeof m.addEventListener === "function") {
+        m.addEventListener("change", avisar);
+        return () => m.removeEventListener("change", avisar);
+      }
+      m.addListener(avisar);
+      return () => m.removeListener(avisar);
+    };
+    subscricoes.set(mq, s);
+  }
+  return s;
+}
+
+/** Para os testes: um `matchMedia` falso novo exige esquecer as listas. */
+export function esquecerMediaQueries(): void {
+  listas.clear();
+  subscricoes.clear();
+}
 
 /**
  * Subscreve uma media query. Feito com `useSyncExternalStore` de propósito:
@@ -90,24 +156,8 @@ const consulta = (mq: string): boolean =>
  * primeiro desenho. É essa igualdade que impede o desencontro de hidratação.
  */
 function useMedia(mq: string): boolean {
-  const subscrever = (avisar: () => void) => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
-    const m = window.matchMedia(mq);
-    // `addEventListener` é o moderno; o Safari antigo só tem `addListener`.
-    // Falhar aqui deixava o ecrã congelado na primeira leitura — o que se nota
-    // exactamente quando se roda o telemóvel.
-    if (typeof m.addEventListener === "function") {
-      m.addEventListener("change", avisar);
-      return () => m.removeEventListener("change", avisar);
-    }
-    m.addListener(avisar);
-    return () => m.removeListener(avisar);
-  };
-  return useSyncExternalStore(
-    subscrever,
-    () => consulta(mq),
-    () => false, // servidor
-  );
+  const getSnapshot = useCallback(() => consulta(mq), [mq]);
+  return useSyncExternalStore(subscricaoDe(mq), getSnapshot, () => false);
 }
 
 /**

@@ -1,8 +1,11 @@
 "use client";
 
+import { useAccaoEstavel } from "./ui/accao-estavel";
 import {
   Fragment,
+  memo,
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -889,6 +892,14 @@ export function cortesDoCabecalho(header: string | null): Corte[] {
     return [];
   }
 }
+
+/**
+ * O título do mood board (e a sua caixa inglesa) no cabeçalho do cartão: ao
+ * lado da pega, da dobra, do cadeado e do «⋯» quando o cartão tem largura
+ * para isso; numa linha só sua, por baixo deles, quando não tem.
+ */
+const TITULO_DO_BOARD =
+  "order-last basis-full min-w-0 @min-[28rem]:order-none @min-[28rem]:basis-0 @min-[28rem]:min-w-[12rem] flex-1";
 
 /** "Mood board «Cerimónia»: 3 fotos não entram no PDF". */
 function fraseDeCorte(c: Corte): string {
@@ -4023,8 +4034,37 @@ export default function ProposalStudio({
    * escreve.
    */
   const linhasDoOrcamento = linhasDe(doc);
-  const ordemDoOrcamento = ordemDeSaida(doc as ProposalDoc, linhasDoOrcamento, (l) => l.item ?? "");
-  const ordemDosBoards = ordemDeSaida(doc as ProposalDoc, doc.moodBoards, (b) => b.title ?? "");
+  /*
+    ── SÓ SE RECALCULA QUANDO MUDA O QUE A DECIDE (10/11) ──────────────────
+    Ela: «está a travar imenso». A ordem depende dos TÍTULOS (dos grupos de
+    serviços, das linhas e das páginas) e da marca de ordem explícita — não do
+    texto de uma descrição. Corria a cada letra escrita em qualquer campo; o
+    perfil mostrou ~100 ms em 21 letras só aqui. Com a chave dos títulos, só
+    corre quando um título muda — e o array devolvido fica o MESMO entre
+    letras, o que deixa os filhos que o recebem sem razão para se redesenhar.
+  */
+  // `JSON.stringify` e não um `join`: com um `join`, nenhuma linha e UMA linha
+  // ainda sem nome davam a mesma chave, e a linha acabada de acrescentar não
+  // aparecia (apanhado pelo teste «mostra a conta ao lado do número»).
+  const chaveDosRotulosDoOrcamento = JSON.stringify(linhasDoOrcamento.map((l) => l.item ?? ""));
+  const chaveDosTitulosDosBoards = JSON.stringify(doc.moodBoards.map((b) => b.title ?? ""));
+  // `ordemDosCapitulos` lê o título de cada grupo E os rótulos das linhas dele.
+  const chaveDosCapitulos = JSON.stringify(
+    (doc.serviceGroups ?? []).map((g) => [
+      g.title ?? "",
+      ...(g.items ?? []).map((it) => it.label ?? ""),
+    ]),
+  );
+  const ordemDoOrcamento = useMemo(
+    () => ordemDeSaida(doc as ProposalDoc, linhasDoOrcamento, (l) => l.item ?? ""),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a chave diz o que decide
+    [chaveDosRotulosDoOrcamento, chaveDosCapitulos, doc.ordemExplicita],
+  );
+  const ordemDosBoards = useMemo(
+    () => ordemDeSaida(doc as ProposalDoc, doc.moodBoards, (b) => b.title ?? ""),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a chave diz o que decide
+    [chaveDosTitulosDosBoards, chaveDosCapitulos, doc.ordemExplicita],
+  );
   /**
    * ════════════════════════════════════════════════════════════════════════
    * QUANTO PESA ESTA PROPOSTA, SEMPRE À VISTA
@@ -4268,6 +4308,9 @@ export default function ProposalStudio({
    * As outras repetições — outro casal, outro sítio, outro mês — não são aviso
    * nenhum: a biblioteca existe para ser usada.
    */
+  // Pela CHAVE das fotografias e não pelo array das páginas: este muda a cada
+  // letra escrita num título ou numa descrição, e a contagem não (10/11).
+  const chaveDasFotosDosBoards = JSON.stringify(doc.moodBoards.map((b) => b.images));
   const ondeEstaCadaFoto = useMemo(() => {
     const contagem = new Map<string, number>();
     for (const b of doc.moodBoards)
@@ -4275,7 +4318,8 @@ export default function ProposalStudio({
         if (p) contagem.set(p, (contagem.get(p) ?? 0) + 1);
       }
     return contagem;
-  }, [doc.moodBoards]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a chave diz o que decide
+  }, [chaveDasFotosDosBoards]);
 
   const repetidasPorOrigem = useMemo(
     () => new Map(repetidas.map((f) => [f.origem, f])),
@@ -4333,6 +4377,24 @@ export default function ProposalStudio({
       .filter(Boolean)
       .join(" · ");
   }
+
+  /*
+    ── O QUE A GRELHA DE CADA PÁGINA RECEBE, ESTÁVEL ENTRE LETRAS (10/11) ──
+    As duas perguntas acima, embrulhadas para mudarem só quando os dados delas
+    mudam (as fotografias da proposta, a origem e o passado de cada uma) — e não
+    a cada letra escrita num título ou numa descrição. É isso que deixa o `memo`
+    do `FotosDoBoard` saltar as 96 células de uma proposta com 8 páginas.
+  */
+  const historiaDaFoto = useCallback(
+    (caminho: string) => repeticaoNestaProposta(caminho),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lê só `ondeEstaCadaFoto`
+    [ondeEstaCadaFoto],
+  );
+  const origemDaFoto = useCallback(
+    (caminho: string) => passadoDaFoto(caminho),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lê só estes três
+    [themeOrigins, repetidasPorOrigem, quote.location],
+  );
 
   /** Alguma das duas listas sai por ordem diferente da que está escrita? */
   const ordemSugerida = !eAOrdemEscrita(ordemDoOrcamento) || !eAOrdemEscrita(ordemDosBoards);
@@ -4761,7 +4823,12 @@ export default function ProposalStudio({
       // aberto: a limpeza do efeito devolve-a a zero.
       // Escondida pelo teclado, a barra não ocupa nada: o aviso desce.
       const altura = barraEscondida ? 0 : Math.ceil(r.height);
-      document.documentElement.style.setProperty("--bo-barra-accao", `${altura}px`);
+      // Só se escreve quando muda: uma variável no `<html>` herda-se por todos
+      // os elementos, e cada escrita refaz o estilo da página inteira.
+      const raiz = document.documentElement.style;
+      if (raiz.getPropertyValue("--bo-barra-accao") !== `${altura}px`) {
+        raiz.setProperty("--bo-barra-accao", `${altura}px`);
+      }
     };
     medir();
     const observador = new ResizeObserver(medir);
@@ -4770,10 +4837,21 @@ export default function ProposalStudio({
     return () => {
       observador.disconnect();
       window.removeEventListener("resize", medir);
-      document.documentElement.style.removeProperty("--bo-barra-accao");
     };
     // O passo muda o conteúdo da barra (e portanto a altura); remedir aí.
   }, [step, barraEscondida]);
+  // ── A VARIÁVEL SAI QUANDO O ESTÚDIO FECHA, NÃO A CADA PASSO (10/11) ────────
+  // Estava na limpeza do efeito de cima, que corre a cada mudança de passo:
+  // tirar e voltar a pôr a variável no `<html>` refazia o estilo da página
+  // inteira duas vezes por passo — numa proposta com 9 mood boards, uma boa
+  // parte do tempo de abrir a Inspiração. Fechado o estúdio, volta a zero
+  // como antes (o aviso deixa de subir por uma barra que já não existe).
+  useEffect(
+    () => () => {
+      document.documentElement.style.removeProperty("--bo-barra-accao");
+    },
+    [],
+  );
 
   // ── Aviso ao sair com trabalho por gravar ─────────────────────────────
   // A janela é estreita (a gravação é a 800ms), mas existe: fechar o
@@ -6537,6 +6615,52 @@ export default function ProposalStudio({
     }));
   }
 
+  /** As fotografias escolhidas DESTA página, como texto («0,3») — um valor que
+   *  só muda quando a escolha desta página muda, para o `memo` da grelha. */
+  function seleccionadasDoBoard(bi: number): string {
+    const out: number[] = [];
+    for (const k of seleccionadas) {
+      const [b, i] = k.split(":");
+      if (Number(b) === bi) out.push(Number(i));
+    }
+    return out.sort((x, y) => x - y).join(",");
+  }
+
+  /*
+    ── AS ACÇÕES DAS FOTOGRAFIAS, NUM OBJECTO QUE NUNCA MUDA (10/11) ──────
+    A grelha de cada página é memorizada (`FotosDoBoard`), e um `memo` só serve
+    se as props não mudarem a cada desenho. As acções são funções deste
+    componente, refeitas a cada desenho; por isso a grelha recebe UM objecto
+    estável cujos métodos chamam sempre a versão mais recente (a ref é
+    actualizada em cada desenho). Nenhuma acção fica com dados velhos.
+  */
+  const accoesAtuais = useRef<EventosDasFotos | null>(null);
+  accoesAtuais.current = {
+    reordenar: (bi, de, para) => reordenarFotos(bi, de, para),
+    ampliar: (bi, ii) => setLupa({ bi, ii }),
+    substituir: (bi, ii) => setPicker({ kind: "board", bi, substituir: ii }),
+    principal: (bi, ii) => marcarPrincipal(bi, ii),
+    seleccionar: (bi, ii) => alternarSeleccao(bi, ii),
+    remover: (bi, ii) => removeBoardImageAt(bi, ii),
+    tentarDeNovo: () => void tentarBuscarFotos(),
+    morreu: (url) => marcarUrlMorto(url),
+    medida: (caminho, aspeto) => registarAspeto(caminho, aspeto),
+  };
+  const eventosDasFotos = useMemo<EventosDasFotos>(
+    () => ({
+      reordenar: (...a) => accoesAtuais.current!.reordenar(...a),
+      ampliar: (...a) => accoesAtuais.current!.ampliar(...a),
+      substituir: (...a) => accoesAtuais.current!.substituir(...a),
+      principal: (...a) => accoesAtuais.current!.principal(...a),
+      seleccionar: (...a) => accoesAtuais.current!.seleccionar(...a),
+      remover: (...a) => accoesAtuais.current!.remover(...a),
+      tentarDeNovo: () => accoesAtuais.current!.tentarDeNovo(),
+      morreu: (...a) => accoesAtuais.current!.morreu(...a),
+      medida: (...a) => accoesAtuais.current!.medida(...a),
+    }),
+    [],
+  );
+
   // ── A fotografia da capa ──
   // Escreve-se NA POSIÇÃO e não se compacta a lista: as propostas antigas têm
   // duas, e a segunda fica guardada como estava (o PDF novo usa uma só).
@@ -8129,12 +8253,47 @@ export default function ProposalStudio({
   }, [aVista.board]);
 
   /** As páginas COM fotografias, pela ordem em que saem — a ordem do PDF. */
+  // A mesma ordem já calculada lá em cima (`ordemDosBoards`), em vez de outra
+  // volta à mesma conta a cada letra (10/11).
   const paginasParaOPainel = useMemo(
     () =>
-      ordemDeSaida(doc as ProposalDoc, doc.moodBoards ?? [], (b) => b.title ?? "")
+      ordemDosBoards
         .map((bi) => ({ bi, board: (doc.moodBoards ?? [])[bi] }))
         .filter((p) => p.board && (p.board.images ?? []).length > 0),
-    [doc],
+    [ordemDosBoards, doc.moodBoards],
+  );
+
+  /*
+    ── O QUE SE VÊ AO LADO ACOMPANHA, MAS NÃO ATRASA A LETRA (10/11) ──────
+    Ela: «está a travar imenso e super pouco fluido». O painel «O que vai
+    sair» e a «Vista de conjunto» refazem o plano do PDF e desenham folhas
+    inteiras — e faziam-no DENTRO de cada letra escrita. Com o documento
+    ADIADO (`useDeferredValue`, DENTRO de cada um — ver `VistaAdiada` e
+    `PainelAdiado`; chamado aqui, obrigava o estúdio inteiro a desenhar-se duas
+    vezes por letra, medido), a letra aparece logo no campo, e eles
+    redesenham-se a seguir, num desenho que o React interrompe se ela escrever
+    outra letra entretanto. Mostram exactamente o mesmo; só chegam uma fracção
+    de segundo depois. (Os dois são `memo`, e por isso as acções que recebem
+    são estáveis — `useAccaoEstavel`.)
+  */
+  const painelSaltar = useAccaoEstavel((bi: number) =>
+    irParaAFalta("moodboards", `boardTitulo:${bi}`),
+  );
+  const painelEscolherFotos = useAccaoEstavel((bi: number) => setPicker({ kind: "board", bi }));
+  const vistaMudarFoto = useAccaoEstavel(
+    (chave: string, nome: string, max: number, formas: number[]) => {
+      setLugarDaFoto(0);
+      setPaginaDaFoto({ chave, nome, max, formas });
+    },
+  );
+  const vistaMover = useAccaoEstavel((de: number, para: number) => moverBoardParaPosicao(de, para));
+  const vistaSaltar = useAccaoEstavel((bi: number) => {
+    const id = doc.moodBoards[bi]?.id;
+    if (id && dobrados[id]) escreverDobras({ ...dobrados, [id]: false });
+    rolarAteVer(document.getElementById(`mood-board-${bi}`), { block: "start" });
+  });
+  const vistaIrParaSeccao = useAccaoEstavel((seccao: Parameters<typeof irParaAFalta>[0]) =>
+    irParaAFalta(seccao),
   );
 
   const traducoesPorSeccao = useMemo(
@@ -9410,7 +9569,10 @@ export default function ProposalStudio({
                                       <span aria-hidden="true">{dobrado ? "▸" : "▾"}</span>
                                     </button>
                                     <input
-                                      className="bo-input min-w-[12rem] flex-1 px-2.5 py-2 text-xs text-[var(--bo-tinta-72)]"
+                                      // Num cartão estreito (telemóvel), o título desce para uma
+                                      // linha inteira por baixo dos botões: ao lado deles
+                                      // sobravam ~130 px e «Cerimónia» já não cabia.
+                                      className={`bo-input ${TITULO_DO_BOARD} px-2.5 py-2 text-xs text-[var(--bo-tinta-72)]`}
                                       value={b.title}
                                       onChange={(e) => updateBoard(bi, { title: e.target.value })}
                                       // A pega do aviso de ortografia: é por ela
@@ -9431,12 +9593,88 @@ export default function ProposalStudio({
                                       { tipo: "boardTitulo", bi },
                                       "Título do mood board",
                                       {
-                                        className:
-                                          "bo-input min-w-[12rem] flex-1 px-2.5 py-2 text-xs text-[var(--bo-tinta-72)]",
+                                        className: `bo-input ${TITULO_DO_BOARD} px-2.5 py-2 text-xs text-[var(--bo-tinta-72)]`,
                                         readOnly: fechado,
                                         placeholder: "Ceremony Decoration",
                                       },
                                     )}
+                                    {/* ── FECHAR A PÁGINA ──────────────────────────
+                                  Marcada como terminada, fica só de leitura e
+                                  muda de cor. Reabrir é um clique — e não uma
+                                  pergunta a que se responde sem ler. */}
+                                    <button
+                                      type="button"
+                                      onClick={() => alternarBloqueio(bi)}
+                                      aria-pressed={fechado}
+                                      aria-label={
+                                        fechado
+                                          ? `Reabrir o mood board ${pos + 1} a alterações`
+                                          : `Marcar o mood board ${pos + 1} como terminado`
+                                      }
+                                      className={`alvo-toque flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-xs  ${
+                                        fechado
+                                          ? "bg-sage-600/15 text-sage-600"
+                                          : "text-foreground/35 hover:bg-[var(--bo-tinta-6)] hover:text-[var(--bo-tinta-72)]"
+                                      } ${ESTADO} ${PRESSAO}`}
+                                    >
+                                      <span aria-hidden="true">{fechado ? "🔒" : "🔓"}</span>
+                                    </button>
+                                    {/* ── O RESTO, NUM «⋯» ─────────────────────────────────
+                                      Fase 3 do redesenho: a barra deste cartão tinha seis
+                                      ícones soltos (setas, cor, duplicar, remover) e lia-se
+                                      como um painel de controlo. Fica à vista o título e o
+                                      cadeado — o que diz o estado da página —, e o que se
+                                      usa de vez em quando entra no menu, com nomes. Mover
+                                      à pressa continua a ser a pega (e o índice ao lado). */}
+                                    <MenuDeAccoes
+                                      sobre={`«${b.title.trim() || `mood board ${pos + 1}`}»`}
+                                      sempreVisivel
+                                      className="ml-auto shrink-0"
+                                      accoes={[
+                                        {
+                                          id: "subir",
+                                          rotulo: "Subir uma posição",
+                                          onAccao: () => moveBoard(pos, -1),
+                                          desativada: pos === 0,
+                                        },
+                                        {
+                                          id: "descer",
+                                          rotulo: "Descer uma posição",
+                                          onAccao: () => moveBoard(pos, 1),
+                                          desativada: pos === doc.moodBoards.length - 1,
+                                        },
+                                        // Arrumar por cor só quando há o que arrumar: três
+                                        // fotos com cor conhecida (ver `arrumarPorCor`).
+                                        ...(b.images.filter((p) => assetCores[p]).length >= 3
+                                          ? [
+                                              {
+                                                id: "cor",
+                                                rotulo: "Arrumar as fotografias por cor",
+                                                onAccao: () => arrumarPorCor(bi),
+                                                desativada: fechado,
+                                              },
+                                            ]
+                                          : []),
+                                        {
+                                          id: "duplicar",
+                                          rotulo: "Duplicar o mood board",
+                                          onAccao: () => duplicarBoard(bi),
+                                          separadorAntes: true,
+                                        },
+                                        {
+                                          id: "remover",
+                                          rotulo: "Remover o mood board",
+                                          onAccao: () => removeBoard(bi),
+                                          destrutiva: true,
+                                          desativada: fechado,
+                                        },
+                                      ]}
+                                    />
+                                  </div>
+                                  {/* O subtítulo numa segunda linha, alinhado com o título:
+                                    quatro caixas na mesma linha liam-se como um formulário,
+                                    e não como o cabeçalho de uma página. */}
+                                  <div className="mb-2 flex flex-wrap items-center gap-2 @min-[32rem]:pl-16">
                                     {/* O SEGUNDO andar do cabeçalho da página.
                             A proposta feita à mão tem «Complementos dos Noivos»
                             e, por baixo, «Ramo de Noiva (a definir com a
@@ -9464,72 +9702,6 @@ export default function ProposalStudio({
                                         readOnly: fechado,
                                       },
                                     )}
-                                    {/* A POSIÇÃO NO ECRÃ, não o índice do array: ver
-                            `moveBoard`. */}
-                                    <MoveBtns
-                                      onUp={() => moveBoard(pos, -1)}
-                                      onDown={() => moveBoard(pos, 1)}
-                                      disUp={pos === 0}
-                                      disDown={pos === doc.moodBoards.length - 1}
-                                    />
-                                    {/* ── FECHAR A PÁGINA ──────────────────────────
-                                  Marcada como terminada, fica só de leitura e
-                                  muda de cor. Reabrir é um clique — e não uma
-                                  pergunta a que se responde sem ler. */}
-                                    <button
-                                      type="button"
-                                      onClick={() => alternarBloqueio(bi)}
-                                      aria-pressed={fechado}
-                                      aria-label={
-                                        fechado
-                                          ? `Reabrir o mood board ${pos + 1} a alterações`
-                                          : `Marcar o mood board ${pos + 1} como terminado`
-                                      }
-                                      className={`alvo-toque flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-xs  ${
-                                        fechado
-                                          ? "bg-sage-600/15 text-sage-600"
-                                          : "text-foreground/35 hover:bg-[var(--bo-tinta-6)] hover:text-[var(--bo-tinta-72)]"
-                                      } ${ESTADO} ${PRESSAO}`}
-                                    >
-                                      <span aria-hidden="true">{fechado ? "🔒" : "🔓"}</span>
-                                    </button>
-                                    {/* ── ARRUMAR POR COR ──────────────────────
-                                      Só aparece quando há mesmo o que arrumar:
-                                      três fotos com cor conhecida. Com menos, o
-                                      botão não teria nada para fazer e seria só
-                                      mais um ícone a ocupar a barra. Fica
-                                      escondido — e não desactivado — porque um
-                                      botão desactivado que nunca se explica é
-                                      pior do que um botão que não está lá. */}
-                                    {b.images.filter((p) => assetCores[p]).length >= 3 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => arrumarPorCor(bi)}
-                                        aria-label={`Arrumar por cor as fotografias do mood board ${pos + 1}`}
-                                        title="Arrumar as fotografias por cor"
-                                        disabled={fechado}
-                                        className={`alvo-toque flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-xs text-foreground/35 hover:bg-[var(--bo-tinta-6)] hover:text-[var(--bo-tinta-72)] disabled:opacity-40 ${ESTADO} ${PRESSAO}`}
-                                      >
-                                        <span aria-hidden="true">◑</span>
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => duplicarBoard(bi)}
-                                      aria-label={`Duplicar o mood board ${pos + 1}`}
-                                      className={`alvo-toque flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-xs text-foreground/35 hover:bg-[var(--bo-tinta-6)] hover:text-[var(--bo-tinta-72)] ${ESTADO} ${PRESSAO}`}
-                                    >
-                                      <span aria-hidden="true">⧉</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={`${REMOVE_BTN} ${ESTADO} ${PRESSAO}`}
-                                      onClick={() => removeBoard(bi)}
-                                      aria-label="Remover mood board"
-                                      disabled={fechado}
-                                    >
-                                      ×
-                                    </button>
                                   </div>
                                   {/* A pergunta fica DENTRO do cartão, logo por
                                     baixo da barra que a levantou — e antes da
@@ -9684,109 +9856,25 @@ export default function ProposalStudio({
                                         ~101 aos 375 e ~126 entre 640 e 1023 —
                                         nunca mais uma miniatura mais pequena
                                         num ecrã maior. */}
-                                      <GrelhaDeFotos
+                                      {/* Memorizado (10/11): escrever o título ou a
+                                        descrição desta página — ou de outra — já
+                                        não redesenha as fotografias todas. Ver
+                                        `FotosDoBoard`. */}
+                                      <FotosDoBoard
                                         bi={bi}
-                                        quantas={b.images.length}
-                                        className="grid grid-cols-3 @min-[24rem]:grid-cols-4 gap-2"
-                                      >
-                                        {b.images.map((path, ii) => (
-                                          <CelulaDeFoto
-                                            // A chave é a POSIÇÃO, não o caminho: quando o
-                                            // marcador provisório dá lugar ao caminho definitivo,
-                                            // uma chave com o caminho faria o React desmontar a
-                                            // célula e a foto piscava a meio da troca.
-                                            key={ii}
-                                            bi={bi}
-                                            ii={ii}
-                                            principal={principalDoTema === ii}
-                                            seleccionada={seleccionadas.has(`${bi}:${ii}`)}
-                                            // Fechado, a foto vê-se mas não se mexe: é
-                                            // isso que «terminado» quer dizer.
-                                            bloqueada={fechado}
-                                            // A tira e o texto do rato — ver
-                                            // `repeticaoNestaProposta` logo por
-                                            // cima, e porque é que só uma das
-                                            // três perguntas acende.
-                                            historia={repeticaoNestaProposta(path)}
-                                            origem={passadoDaFoto(path)}
-                                            accoes={
-                                              fechado ? null : (
-                                                <AccoesDaFoto
-                                                  nome={`Fotografia ${ii + 1} de «${b.title || "mood board sem título"}»`}
-                                                  podeRecuar={ii > 0}
-                                                  podeAvancar={ii < b.images.length - 1}
-                                                  seleccionada={seleccionadas.has(`${bi}:${ii}`)}
-                                                  principal={principalDoTema === ii}
-                                                  onRecuar={() => reordenarFotos(bi, ii, ii - 1)}
-                                                  onAvancar={() => reordenarFotos(bi, ii, ii + 1)}
-                                                  onAmpliar={() => setLupa({ bi, ii })}
-                                                  onSubstituir={() =>
-                                                    setPicker({ kind: "board", bi, substituir: ii })
-                                                  }
-                                                  onPrincipal={() => marcarPrincipal(bi, ii)}
-                                                  onSeleccionar={() => alternarSeleccao(bi, ii)}
-                                                  onRemover={() => removeBoardImageAt(bi, ii)}
-                                                />
-                                              )
-                                            }
-                                          >
-                                            <Thumb
-                                              url={assetUrls[path]}
-                                              // Do mais leve para o mais pesado —
-                                              // ver `assetMedias`. É esta grelha
-                                              // que tem 24 células e é aqui que a
-                                              // queda de 20 KB para 1099 doía.
-                                              planoB={[assetMedias[path], assetOriginais[path]]}
-                                              estadoDosUrls={estadoDosUrls}
-                                              aoTentarDeNovo={() => void tentarBuscarFotos()}
-                                              aoMorrer={marcarUrlMorto}
-                                              // A PRIMEIRA DOBRA do primeiro
-                                              // board. Medido: sem prioridade
-                                              // nenhuma, as 24 células repartiam
-                                              // o canal e a primeira fotografia
-                                              // só aparecia aos 34,0 s. Estas
-                                              // quatro são as que ela está mesmo
-                                              // a olhar quando desce às fotos.
-                                              priority={bi === 0 && ii < 4}
-                                              onde="mood-board"
-                                              refDoc={path}
-                                              // A remoção mudou-se para a barra de acções, que
-                                              // é visível ao toque — o × só aparecia em hover, e
-                                              // num telemóvel isso é um botão que não existe.
-                                              semRemover
-                                              onRemove={() => removeBoardImageAt(bi, ii)}
-                                              onMedida={(a) => registarAspeto(path, a)}
-                                              // ── TODAS AS CÉLULAS COM A MESMA FORMA ──────────
-                                              // Pedido dela, a olhar para a grelha: «as fotos
-                                              // umas são maiores que outras. coloca tudo igual
-                                              // aqui».
-                                              //
-                                              // O que estava aqui era a forma da CAIXA que esta
-                                              // foto vai ocupar na página: a do destaque é alta,
-                                              // as da grelha da direita são baixas, e por isso a
-                                              // grelha ficava aos degraus. Não era descuido —
-                                              // existia para ela não escolher uma foto pelo que
-                                              // via e o cliente receber a MESMA foto cortada
-                                              // noutro sítio (ver o `aspeto` no `Thumb`).
-                                              //
-                                              // Foi-lhe dito o que se perdia, com estas palavras,
-                                              // e ela escolheu igualar à mesma. Fica escrito
-                                              // porque quem vier a seguir encontra o `aspeto`
-                                              // documentado no `Thumb` e pergunta porque é que
-                                              // este sítio não o usa: não é esquecimento.
-                                              //
-                                              // E igualar aqui não a deixa às cegas: o diagrama
-                                              // da disposição continua a desenhar as caixas
-                                              // verdadeiras, e o `cortadas` aqui em cima continua
-                                              // a dizer, foto a foto, quanto é que cada uma perde
-                                              // no recorte. Perdeu-se ver a forma; não se perdeu
-                                              // ser avisada.
-                                              aspeto={1}
-                                              pendente={isPendingImage(path)}
-                                            />
-                                          </CelulaDeFoto>
-                                        ))}
-                                      </GrelhaDeFotos>
+                                        images={b.images}
+                                        titulo={b.title}
+                                        principal={principalDoTema}
+                                        fechado={fechado}
+                                        seleccionadasDoBoard={seleccionadasDoBoard(bi)}
+                                        assetUrls={assetUrls}
+                                        assetMedias={assetMedias}
+                                        assetOriginais={assetOriginais}
+                                        estadoDosUrls={estadoDosUrls}
+                                        historiaDe={historiaDaFoto}
+                                        origemDe={origemDaFoto}
+                                        eventos={eventosDasFotos}
+                                      />
                                       {/* ── A CAIXA DE ACRESCENTAR, FORA DA GRELHA ────────
                                         Estava DENTRO da grelha, como se fosse
                                         mais uma fotografia — uma célula quadrada
@@ -11684,29 +11772,24 @@ export default function ProposalStudio({
               Fica sem optimização nenhuma, que é o estado honesto: se algum dia
               pesar, mede-se primeiro. */}
             <div className="mt-6" hidden={step !== "inspiracao"}>
-              <VistaDeConjunto
+              <VistaAdiada
+                // ADIADO (10/11): as folhas acompanham o que se escreve logo a
+                // seguir, sem a letra ter de esperar por elas.
                 doc={doc as ProposalDoc}
                 fotosDoPdf={fotosDoPdf}
-                onMudarFoto={(chave, nome, max, formas) => {
-                  setLugarDaFoto(0);
-                  setPaginaDaFoto({ chave, nome, max, formas });
-                }}
+                onMudarFoto={vistaMudarFoto}
                 ordem={ordemDosBoards}
                 idioma={idiomaDoPdf}
                 urls={assetUrls}
                 originais={assetOriginais}
                 aspetos={aspetosDasFotos}
-                onMover={(de, para) => moverBoardParaPosicao(de, para)}
-                onSaltar={(bi) => {
-                  const id = doc.moodBoards[bi]?.id;
-                  if (id && dobrados[id]) escreverDobras({ ...dobrados, [id]: false });
-                  rolarAteVer(document.getElementById(`mood-board-${bi}`), { block: "start" });
-                }}
+                onMover={vistaMover}
+                onSaltar={vistaSaltar}
                 // O salto de uma folha de texto usa o MESMO caminho da
                 // Conferência: abre a secção se estiver dobrada e só então
                 // leva a vista. Uma segunda maneira de saltar era uma segunda
                 // maneira de falhar a abertura da dobra.
-                onIrParaSeccao={(seccao) => irParaAFalta(seccao)}
+                onIrParaSeccao={vistaIrParaSeccao}
               />
             </div>
           </div>
@@ -11719,7 +11802,7 @@ export default function ProposalStudio({
            * — em particular por que é um painel só e por que só aparece muito
            * largo.
            */}
-          <PainelDoEstudio
+          <PainelAdiado
             cabe={painelLateralCabe}
             paginas={paginasParaOPainel}
             activa={boardActivo ?? undefined}
@@ -11728,8 +11811,8 @@ export default function ProposalStudio({
             originais={assetOriginais}
             aspetos={aspetosDasFotos}
             doc={doc as ProposalDoc}
-            onSaltar={(bi) => irParaAFalta("moodboards", `boardTitulo:${bi}`)}
-            onEscolherFotos={(bi) => setPicker({ kind: "board", bi })}
+            onSaltar={painelSaltar}
+            onEscolherFotos={painelEscolherFotos}
             quoteId={quote.id}
             idioma={idiomaDoPdf}
           />
@@ -13748,6 +13831,150 @@ function DescricaoQueCresce({
  * largar sem falhar; mover uma foto uma casa é um toque, e é o gesto que se faz
  * dez vezes seguidas ao afinar uma página.
  */
+/**
+ * Os dois painéis que mostram o resultado do que se escreve — ADIADOS (10/11).
+ *
+ * O invólucro é que chama o `useDeferredValue`: no desenho urgente (a letra)
+ * devolve o documento ANTERIOR, e o painel memorizado por dentro não tem nada
+ * de novo para desenhar; a seguir, num desenho que o React pode interromper,
+ * chega o documento novo. Chamado no estúdio, o mesmo gancho redesenhava o
+ * estúdio inteiro duas vezes por letra (medido).
+ */
+function VistaAdiada(props: React.ComponentProps<typeof VistaDeConjunto>) {
+  const doc = useDeferredValue(props.doc);
+  return <VistaDeConjunto {...props} doc={doc} />;
+}
+
+function PainelAdiado(props: React.ComponentProps<typeof PainelDoEstudio>) {
+  const doc = useDeferredValue(props.doc);
+  const paginas = useDeferredValue(props.paginas);
+  return <PainelDoEstudio {...props} doc={doc} paginas={paginas} />;
+}
+
+/** As acções das fotografias de um mood board — ver `eventosDasFotos`. */
+interface EventosDasFotos {
+  reordenar: (bi: number, de: number, para: number) => void;
+  ampliar: (bi: number, ii: number) => void;
+  substituir: (bi: number, ii: number) => void;
+  principal: (bi: number, ii: number) => void;
+  seleccionar: (bi: number, ii: number) => void;
+  remover: (bi: number, ii: number) => void;
+  tentarDeNovo: () => void;
+  morreu: (url: string) => void;
+  medida: (caminho: string, aspeto: number) => void;
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * A GRELHA DE FOTOGRAFIAS DE UMA PÁGINA, MEMORIZADA (10/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Ela: «está a travar imenso e super pouco fluido». MEDIDO (perfil a escrever
+ * numa descrição, proposta com 8 páginas de 12 fotos): cada letra redesenhava
+ * as 96 células — a miniatura, a tira, e as acções de cada uma —, porque a
+ * grelha vivia dentro do corpo do estúdio, que se redesenha inteiro a cada
+ * letra.
+ *
+ * Aqui, com `memo`, uma página só se redesenha quando muda alguma coisa que
+ * ELA mostra: as fotografias dela, o título (entra no nome das acções), a
+ * principal, o estar fechada, as escolhidas dela, os endereços das miniaturas,
+ * ou a história/origem das fotografias. O que se desenha é EXACTAMENTE o que
+ * estava no estúdio — só mudou de sítio.
+ */
+const FotosDoBoard = memo(function FotosDoBoard({
+  bi,
+  images,
+  titulo,
+  principal: principalDoTema,
+  fechado,
+  seleccionadasDoBoard,
+  assetUrls,
+  assetMedias,
+  assetOriginais,
+  estadoDosUrls,
+  historiaDe,
+  origemDe,
+  eventos,
+}: {
+  bi: number;
+  images: readonly string[];
+  titulo: string;
+  principal: number | undefined;
+  fechado: boolean;
+  /** As escolhidas desta página, «0,3». */
+  seleccionadasDoBoard: string;
+  assetUrls: Record<string, string>;
+  assetMedias: Record<string, string>;
+  assetOriginais: Record<string, string>;
+  estadoDosUrls: EstadoDosUrls;
+  historiaDe: (caminho: string) => { texto: string; grave: boolean } | null;
+  origemDe: (caminho: string) => string | undefined;
+  eventos: EventosDasFotos;
+}) {
+  const escolhidas = new Set(
+    seleccionadasDoBoard ? seleccionadasDoBoard.split(",").map(Number) : [],
+  );
+  return (
+    <GrelhaDeFotos
+      bi={bi}
+      quantas={images.length}
+      className="grid grid-cols-3 @min-[24rem]:grid-cols-4 gap-2"
+    >
+      {images.map((path, ii) => (
+        <CelulaDeFoto
+          // A chave é a POSIÇÃO, não o caminho: quando o marcador provisório dá
+          // lugar ao caminho definitivo, uma chave com o caminho faria o React
+          // desmontar a célula e a foto piscava a meio da troca.
+          key={ii}
+          bi={bi}
+          ii={ii}
+          principal={principalDoTema === ii}
+          seleccionada={escolhidas.has(ii)}
+          // Fechado, a foto vê-se mas não se mexe: é isso que «terminado» quer dizer.
+          bloqueada={fechado}
+          // A tira e o texto do rato — ver `repeticaoNestaProposta`.
+          historia={historiaDe(path)}
+          origem={origemDe(path)}
+          accoes={
+            fechado ? null : (
+              <AccoesDaFoto
+                nome={`Fotografia ${ii + 1} de «${titulo || "mood board sem título"}»`}
+                podeRecuar={ii > 0}
+                podeAvancar={ii < images.length - 1}
+                seleccionada={escolhidas.has(ii)}
+                principal={principalDoTema === ii}
+                onRecuar={() => eventos.reordenar(bi, ii, ii - 1)}
+                onAvancar={() => eventos.reordenar(bi, ii, ii + 1)}
+                onAmpliar={() => eventos.ampliar(bi, ii)}
+                onSubstituir={() => eventos.substituir(bi, ii)}
+                onPrincipal={() => eventos.principal(bi, ii)}
+                onSeleccionar={() => eventos.seleccionar(bi, ii)}
+                onRemover={() => eventos.remover(bi, ii)}
+              />
+            )
+          }
+        >
+          <Thumb
+            url={assetUrls[path]}
+            planoB={[assetMedias[path], assetOriginais[path]]}
+            estadoDosUrls={estadoDosUrls}
+            aoTentarDeNovo={eventos.tentarDeNovo}
+            aoMorrer={eventos.morreu}
+            priority={bi === 0 && ii < 4}
+            onde="mood-board"
+            refDoc={path}
+            semRemover
+            onRemove={() => eventos.remover(bi, ii)}
+            onMedida={(a) => eventos.medida(path, a)}
+            aspeto={1}
+            pendente={isPendingImage(path)}
+          />
+        </CelulaDeFoto>
+      ))}
+    </GrelhaDeFotos>
+  );
+});
+
 function AccoesDaFoto({
   nome = "esta fotografia",
   podeRecuar,
