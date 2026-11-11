@@ -85,6 +85,9 @@ remotion/public/*.mp4
 !.claude/skills/aprender-comigo/
 !.claude/skills/liquen-padrao/
 !.claude/skills/auditoria-extrema/
+!.claude/skills/entrega-impecavel/
+!.claude/skills/design-nivel-premium/
+!.claude/skills/anuncios-que-convertem/
 skills-lock.json
 
 # Exportação das landing pages (imagens geradas; ver scripts/exportar-lps.mjs)

@@ -12,7 +12,7 @@ As regras em `.claude/rules/` ganham a esta skill se houver conflito.
 ## Marca e estética
 - Cor da marca: sage green `#5F7C66`. Nunca verdes vivos/saturados.
 - Clean, minimalista, premium, muito espaço em branco. Referências: Apple, SpaceX, Pixelmatters, Aernova (site); Laus Events e With M Events (fotografia).
-- Animações fluidas e subtis, ao nível da Pixelmatters.
+- Animações fluidas e subtis.
 
 ## Back office (liquen-events.com/orcamento/admin)
 Secções: Visão Geral, Pedidos, Fazer proposta, Propostas, Calendário, Tarefas; em "Mais": Propostas Aceites, Material, Temas, Estatísticas, Definições.
@@ -26,7 +26,7 @@ Secções: Visão Geral, Pedidos, Fazer proposta, Propostas, Calendário, Tarefa
 ## Copy e redes sociais
 - Legendas Instagram: curtas, poéticas, 2–3 linhas, sem emojis, nomes dos noivos e ano no fim. Hashtags no primeiro comentário.
 - Português europeu. Tom elegante e caloroso, nunca comercial agressivo.
-- Anúncios (Google/Meta): foco em pedido de orçamento; landing pages limpas com um único CTA.
+- Anúncios: foco em pedido de orçamento; landing pages limpas com um único CTA.
 
 ## Materiais para noivos
 - Menus, seating plans, mood cards: tipografia elegante, bilingue quando preciso, PDF pronto a imprimir (frente e verso quando aplicável).

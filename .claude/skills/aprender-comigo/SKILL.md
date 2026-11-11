@@ -21,11 +21,11 @@ Grava uma regra quando o Francisco:
 Não grava: pedidos pontuais desta tarefa, coisas temporárias (nomes de branch, portas), suposições tuas.
 
 ## Onde gravar
-- `.claude/rules/<tema>.md` (ex: `design.md`, `propostas.md`, `copy.md`, `codigo.md`). Cria o ficheiro se não existir.
+- `.claude/rules/<tema>.md` (ex: `design.md`, `copy.md`, `codigo.md`). Cria o ficheiro se não existir.
 
 ## Formato de cada regra
-Uma linha, imperativa, específica, com o motivo se ele o deu:
-- Botões primários: sage #5F7C66, nunca verde vivo. (correção 2026-11)
+Uma linha, imperativa, específica, com o motivo se ele o deu. Exemplo:
+- Botões primários: cor da marca, nunca verde vivo. (correção 2026-11)
 
 Antes de acrescentar, procura regras parecidas: atualiza em vez de duplicar. Se uma regra nova contradiz uma antiga, substitui a antiga.
 

@@ -17,7 +17,7 @@ description: Usar quando o Francisco pede para auditar, rever a fundo, elevar o 
 - **Performance**: queries repetidas, imagens pesadas, renders desnecessários.
 - **UX**: cliques a mais, mensagens de erro confusas, mobile.
 - **Design**: consistência com as regras do projeto.
-- **Código**: duplicação, ficheiros gigantes, código morto.
+- **Código**: duplicação, ficheiros gigantes, código morto, módulos com pouca coesão.
 
 ## 3. Entregar
 `AUDITORIA.md` com:
