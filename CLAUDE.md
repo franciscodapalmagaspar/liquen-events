@@ -1,3 +1,9 @@
+## Como trabalhar comigo
+- Antes de qualquer tarefa, lê e segue todas as regras em `.claude/rules/`.
+- Sempre que eu corrigir, rejeitar ou ajustar algo, ou disser "sempre"/"nunca", usa a skill `aprender-comigo` e grava a regra em `.claude/rules/`.
+- Antes de dizer que algo está feito, usa a skill `entrega-impecavel`.
+- Em qualquer trabalho da Líquen segue a skill `liquen-padrao`. Para auditorias usa `auditoria-extrema`.
+
 @AGENTS.md
 
 # O sistema de design manda
