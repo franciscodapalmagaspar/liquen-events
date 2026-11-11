@@ -53,7 +53,7 @@ const FORMA_DE_PEDIDO = /^LIQ-[A-Za-z0-9-]+$/;
 const DIA_MS = 24 * 60 * 60_000;
 
 /** As tabelas cujo conteúdo pode mencionar uma fotografia de um pedido. */
-const TABELAS_COM_CONTEUDO = [
+export const TABELAS_COM_CONTEUDO = [
   "proposals",
   "app_state",
   "proposal_settings",

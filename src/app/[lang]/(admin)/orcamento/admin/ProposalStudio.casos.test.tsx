@@ -10003,11 +10003,13 @@ describe("os cinco passos do estúdio", () => {
 });
 
 /**
- * «POR ONDE SEGUE» LOGO EM CIMA (14/10). Palavras dela: «coloca isto em cima
- * para se ver logo no início e coloca o logo do email e do WhatsApp».
+ * A ORDEM DO PASSO DO ENVIO (10/11). Até aqui «Por onde segue» vinha logo em
+ * cima (pedido dela de 14/10: «coloca isto em cima para se ver logo no
+ * início»). A 10/11 ela escolheu «Está pronta?» primeiro: o que falta, depois
+ * o PDF, o resumo e o email, e por onde segue no fim. Os logótipos ficam.
  */
-describe("por onde segue, no topo do passo do envio", () => {
-  it("vem antes do resumo, e cada canal leva o seu logótipo", async () => {
+describe("o passo do envio: «Está pronta?» primeiro, por onde segue no fim", () => {
+  it("a Conferência vem antes do resumo, por onde segue depois do email, e cada canal leva o seu logótipo", async () => {
     seedDraft(1);
     renderStudio();
     const user = userEvent.setup();
@@ -10016,8 +10018,15 @@ describe("por onde segue, no topo do passo do envio", () => {
       name: "Por onde é que a proposta segue",
     });
     const resumo = await screen.findByText("Resumo da proposta");
-    // O grupo aparece ANTES do resumo na ordem do documento.
-    expect(grupo.compareDocumentPosition(resumo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const pronta = screen.getByRole("heading", { name: "Está pronta?" });
+    const conferencia = screen.getByRole("heading", { name: "Conferência" });
+    const depois = (a: Node, b: Node) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    // «Está pronta?» (com a Conferência dentro) vem antes do resumo…
+    expect(depois(pronta, conferencia)).toBe(true);
+    expect(depois(conferencia, resumo)).toBe(true);
+    // …e por onde segue vem DEPOIS do resumo (no fim, a seguir ao email).
+    expect(depois(resumo, grupo)).toBe(true);
     const opcao = (nome: string) => within(grupo).getByRole("radio", { name: nome });
     expect(opcao("Email").querySelectorAll("svg")).toHaveLength(1);
     expect(opcao("WhatsApp").querySelectorAll("svg")).toHaveLength(1);

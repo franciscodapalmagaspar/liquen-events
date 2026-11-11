@@ -80,7 +80,15 @@ remotion/public/*.mp4
 
 # Agent skills installed via `skills add` (build-time tooling, not site code)
 .agents/
-.claude/skills/
+.claude/skills/*
+# …menos as que ficam no repositório (11/11): o graphify e as seis do Francisco.
+!.claude/skills/graphify/
+!.claude/skills/aprender-comigo/
+!.claude/skills/liquen-padrao/
+!.claude/skills/auditoria-extrema/
+!.claude/skills/entrega-impecavel/
+!.claude/skills/design-nivel-premium/
+!.claude/skills/anuncios-que-convertem/
 skills-lock.json
 
 # Exportação das landing pages (imagens geradas; ver scripts/exportar-lps.mjs)
@@ -138,3 +146,8 @@ e2e/.auth/
 # Caches do CI (lint e typecheck)
 .eslintcache
 .tsbuildinfo-ci
+
+# graphify: o grafo entra no repositório; a cache e o estado da construção
+# são de cada máquina (o estado guarda o caminho absoluto dela).
+graphify-out/cache/
+graphify-out/.graphify_build_state.json
