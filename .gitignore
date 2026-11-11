@@ -80,7 +80,11 @@ remotion/public/*.mp4
 
 # Agent skills installed via `skills add` (build-time tooling, not site code)
 .agents/
-.claude/skills/
+.claude/skills/*
+# …menos as skills que ficam no repositório (pedido dele a 11/11).
+!.claude/skills/aprender-comigo/
+!.claude/skills/liquen-padrao/
+!.claude/skills/auditoria-extrema/
 skills-lock.json
 
 # Exportação das landing pages (imagens geradas; ver scripts/exportar-lps.mjs)

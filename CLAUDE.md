@@ -1,3 +1,8 @@
+## Como trabalhar comigo
+- Antes de qualquer tarefa, lê e segue todas as regras em `.claude/rules/`.
+- Sempre que eu corrigir, rejeitar ou ajustar algo, ou disser "sempre"/"nunca", usa a skill `aprender-comigo` e grava a regra em `.claude/rules/`.
+- Para auditorias ou revisões a fundo, usa a skill `auditoria-extrema`.
+
 @AGENTS.md
 
 # O sistema de design manda
