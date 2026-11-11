@@ -80,7 +80,9 @@ remotion/public/*.mp4
 
 # Agent skills installed via `skills add` (build-time tooling, not site code)
 .agents/
-.claude/skills/
+.claude/skills/*
+# …menos o graphify, que fica no repositório (pedido dela a 11/11).
+!.claude/skills/graphify/
 skills-lock.json
 
 # Exportação das landing pages (imagens geradas; ver scripts/exportar-lps.mjs)
