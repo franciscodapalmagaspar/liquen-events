@@ -10,6 +10,7 @@ import { correrRetencao } from "@/lib/retencao";
 import { limparExpiradas } from "@/lib/reciclagem";
 import { limparFotosTratadasVelhas } from "@/lib/limpar-fotos-tratadas";
 import { limparPastasDePedidosApagados } from "@/lib/limpar-pastas-orfas";
+import { limparPdfsSubstituidos } from "@/lib/limpar-pdfs-substituidos";
 import { isMissingTable } from "@/lib/repository";
 import { listQuotes } from "@/lib/quotes-store";
 import { log } from "@/lib/logger";
@@ -356,6 +357,22 @@ async function GET_semMedida(request: NextRequest) {
     }
 
     /**
+     * E os PDF de propostas que já foram substituídos por uma versão nova
+     * (decisão dela, 10/11: «vou demorar bue tempo» a apagá-los à mão). O
+     * enviado, o aceite e o mais recente de cada proposta ficam sempre — ver
+     * `limpar-pdfs-substituidos.ts`. Antes do aquecimento, para este nunca
+     * desenhar um PDF que a seguir se apagasse.
+     */
+    let pdfsSubstituidos: Awaited<ReturnType<typeof limparPdfsSubstituidos>> | null = null;
+    try {
+      pdfsSubstituidos = await limparPdfsSubstituidos(new Date(), 6_000);
+    } catch (e) {
+      log.error("cron backup: a limpeza dos PDF substituídos falhou (a cópia seguiu na mesma)", e, {
+        dia,
+      });
+    }
+
+    /**
      * ══════════════════════════════════════════════════════════════════════
      * E, COM O TEMPO QUE SOBRAR, OS PDF DAS PROPOSTAS JÁ ENVIADAS
      * ══════════════════════════════════════════════════════════════════════
@@ -413,6 +430,7 @@ async function GET_semMedida(request: NextRequest) {
       reciclagem,
       fotosTratadas,
       pastasOrfas,
+      pdfsSubstituidos,
       aquecimento,
     });
   } catch (err) {
