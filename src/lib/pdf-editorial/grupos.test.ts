@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agrupar, capitulos, eDasMesas, grupoDoTema } from "./grupos";
+import { agrupar, capitulos, eDasMesas, grupoDoTema, grupoNoCasamento } from "./grupos";
 import { primeirosNomes } from "./textos";
 
 describe("o grupo lê-se do nome do tema", () => {
@@ -64,8 +64,55 @@ describe("os capítulos: casamento pelo dia, o resto pelo mood board", () => {
   });
 
   it("num casamento, continuam os capítulos do dia", () => {
-    const c = capitulos(temas, (t) => t, true);
+    const c = capitulos([{ title: "Cocktail" }, ...temas], (t) => t, true);
     expect(c.map((x) => x.grupo)).toEqual(["cerimonia", "cocktail", "jantar"]);
+    expect(c[1].itens.map((t) => t.title)).toEqual(["Cocktail", "Bar"]);
+  });
+});
+
+/**
+ * Pedido de 12/11: os noivos não quiseram cocktail, ela tirou o tema no
+ * «Fazer proposta», e o PDF continuou com o capítulo «Cocktail» — porque o
+ * «Seating Plan» que ficou vivia lá dentro.
+ */
+describe("sem tema do cocktail, não há capítulo «Cocktail»", () => {
+  const comCocktail = [
+    { title: "Decoração Cerimónia " },
+    { title: "Decor Cocktail" },
+    { title: "Decoração e Decor Floral Jantar " },
+    { title: "Seating Plan" },
+    { title: "Complementos dos Noivos " },
+  ];
+  const semCocktail = comCocktail.filter((t) => t.title !== "Decor Cocktail");
+
+  it("com o tema do cocktail, o seating plan fica no «Cocktail» (como no exemplo dela)", () => {
+    const c = capitulos(comCocktail, (t) => t, true);
+    expect(c.map((x) => x.grupo)).toEqual(["cerimonia", "cocktail", "jantar", "complementos"]);
+    expect(c[1].itens.map((t) => t.title)).toEqual(["Decor Cocktail", "Seating Plan"]);
+  });
+
+  it("tirado o cocktail, o capítulo desaparece e o seating plan passa para o «Jantar»", () => {
+    const c = capitulos(semCocktail, (t) => t, true);
+    expect(c.map((x) => x.grupo)).toEqual(["cerimonia", "jantar", "complementos"]);
+    expect(c[1].itens.map((t) => t.title)).toEqual([
+      "Decoração e Decor Floral Jantar ",
+      "Seating Plan",
+    ]);
+  });
+
+  it("o bar e o bistro, sem cocktail, vão para «Ambiente»", () => {
+    const todos = [{ title: "Bar" }, { title: "Bistro" }, { title: "Mesas" }];
+    expect(todos.map((t) => grupoNoCasamento(t, todos))).toEqual([
+      "ambiente",
+      "ambiente",
+      "jantar",
+    ]);
+  });
+
+  it("«Seatting» (com dois tt, como ela às vezes escreve) conta como seating", () => {
+    const todos = [{ title: "Decoração Seatting Plan " }, { title: "Cocktail" }];
+    expect(grupoNoCasamento(todos[0], todos)).toBe("cocktail");
+    expect(grupoNoCasamento(todos[0], [todos[0]])).toBe("jantar");
   });
 });
 

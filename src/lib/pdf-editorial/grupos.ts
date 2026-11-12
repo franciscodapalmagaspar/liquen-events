@@ -45,7 +45,10 @@ const REGRAS: readonly (readonly [Grupo, readonly string[]])[] = [
     "complementos",
     ["complemento", "ramo", "lapela", "bouquet", "boutonniere", "convite", "noiva", "noivo"],
   ],
-  ["cocktail", ["cocktail", "welcome", "boas-vindas", "aperitivo", "seating", "bar", "bistro"]],
+  [
+    "cocktail",
+    ["cocktail", "welcome", "boas-vindas", "aperitivo", "seating", "seatting", "bar", "bistro"],
+  ],
   ["jantar", ["jantar", "dinner", "banquete", "bolo", "cake", "mesa", "table", "centro"]],
 ];
 
@@ -73,6 +76,54 @@ export function grupoDoTema(titulo: string, subtitulo = ""): Grupo {
     }
   }
   return "ambiente";
+}
+
+/**
+ * ── SEM COCKTAIL, NÃO HÁ CAPÍTULO «COCKTAIL» (pedido de 12/11) ─────────────
+ *
+ * «Os noivos disseram que não querem cocktail, ela tirou-o no Fazer proposta,
+ * e o PDF continuou a mostrar o cocktail.» Tirou o tema do cocktail, mas o
+ * «Seating Plan» ficou — e o «Seating Plan» (como «Bar» e «Bistro») vivia no
+ * capítulo «Cocktail». Resultado: um separador «Cocktail» e o capítulo no
+ * índice, num casamento sem cocktail nenhum.
+ *
+ * O capítulo «Cocktail» passa a existir só quando há um tema que é MESMO do
+ * cocktail (cocktail, welcome, boas-vindas, aperitivo). As palavras que só
+ * vão para lá por arrasto seguem-no quando ele existe; sem ele, o seating
+ * plan vai para o «Jantar» (é das mesas do jantar que ele fala) e o bar e o
+ * bistro para «Ambiente». O sistema acompanha o que ela tira.
+ */
+const DO_COCKTAIL_MESMO = ["cocktail", "welcome", "boas-vindas", "aperitivo"];
+const DO_SEATING = ["seating", "seatting"];
+
+const palavrasDe = (titulo: string, subtitulo: string) =>
+  semAcentos(`${titulo} ${subtitulo}`)
+    .split(/[^a-z0-9-]+/)
+    .filter(Boolean);
+
+/** O tema é do cocktail pelo nome, e não só por arrasto (seating, bar…)? */
+export function eDoCocktailMesmo(titulo: string, subtitulo = ""): boolean {
+  if (grupoDoTema(titulo, subtitulo) !== "cocktail") return false;
+  return palavrasDe(titulo, subtitulo).some((p) => DO_COCKTAIL_MESMO.some((c) => eAPalavra(p, c)));
+}
+
+type TemaComNome = { title?: string; subtitulo?: string };
+
+/**
+ * O grupo de um tema num casamento, sabendo os OUTROS temas da proposta: é
+ * este, e não o `grupoDoTema` sozinho, que o PDF, o plano das páginas e o
+ * estúdio usam para o capítulo.
+ */
+export function grupoNoCasamento(tema: TemaComNome, todos: readonly TemaComNome[]): Grupo {
+  const titulo = tema.title ?? "";
+  const sub = tema.subtitulo ?? "";
+  const g = grupoDoTema(titulo, sub);
+  if (g !== "cocktail") return g;
+  const haCocktail = todos.some((t) => eDoCocktailMesmo(t.title ?? "", t.subtitulo ?? ""));
+  if (haCocktail) return g;
+  return palavrasDe(titulo, sub).some((p) => DO_SEATING.some((c) => eAPalavra(p, c)))
+    ? "jantar"
+    : "ambiente";
 }
 
 /**
@@ -146,9 +197,13 @@ export function capitulos<T>(
   casamento: boolean,
 ): Capitulo<T>[] {
   if (casamento) {
-    return agrupar(itens, (t) => grupoDoTema(temaDe(t).title ?? "", temaDe(t).subtitulo ?? "")).map(
-      (c) => ({ chave: c.grupo, grupo: c.grupo, itens: c.itens }),
-    );
+    const todos = itens.map(temaDe);
+    const pares = itens.map((t, i) => ({ t, g: grupoNoCasamento(todos[i], todos) }));
+    return agrupar(pares, (p) => p.g).map((c) => ({
+      chave: c.grupo,
+      grupo: c.grupo,
+      itens: c.itens.map((p) => p.t),
+    }));
   }
   return itens.map((t, i) => ({ chave: `tema-${i + 1}`, grupo: null, itens: [t] }));
 }
