@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { semOTema } from "./ProposalStudio";
+import { semAsFotosNasPaginas, semOTema } from "./ProposalStudio";
 
 /**
  * Pedido de 12/11: «os noivos não querem cocktail; ela tirou o mood board no
@@ -48,5 +48,33 @@ describe("tirar um tema tira-o do PDF todo", () => {
 
   it("a capa não se toca (escolhe-se à parte, à vista)", () => {
     expect(depois.coverImages).toEqual(["tema:y/cock1.jpg"]);
+  });
+});
+
+describe("tirar UMA foto de um tema tira-a das páginas (auditoria 12/11, n.º 2)", () => {
+  it("a foto tirada sai das páginas; a que ainda está noutro tema fica", () => {
+    const tirada = {
+      ...doc,
+      moodBoards: doc.moodBoards.map((b, i) => (i === 1 ? { ...b, images: [] } : b)),
+    };
+    const r = semAsFotosNasPaginas(tirada as Doc, ["tema:y/cock1.jpg", "tema:x/partilhada.jpg"]);
+    expect(r.fotosDasPaginas?.indice).toBeUndefined();
+    expect(r.fotosDasPaginas?.paleta?.fotos).toEqual(["tema:x/partilhada.jpg"]);
+  });
+});
+
+describe("o separador de um capítulo que deixou de existir sai (n.º 9)", () => {
+  it("num casamento, tirado o cocktail, «separador:cocktail» sai; os outros ficam", () => {
+    const casamento = {
+      ...doc,
+      eventType: "Casamento",
+      fotosDasPaginas: {
+        "separador:cocktail": { fotos: ["biblioteca/x.jpg"] },
+        "separador:jantar": { fotos: ["biblioteca/y.jpg"] },
+      },
+    } as unknown as Doc;
+    const r = semOTema(casamento, 1);
+    expect(r.fotosDasPaginas?.["separador:cocktail"]).toBeUndefined();
+    expect(r.fotosDasPaginas?.["separador:jantar"]?.fotos).toEqual(["biblioteca/y.jpg"]);
   });
 });

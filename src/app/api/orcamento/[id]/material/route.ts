@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
 import { getQuote } from "@/lib/quotes-store";
 import { getProposalByQuote } from "@/lib/proposals-store";
-import { rotularPontos } from "@/lib/orcamento/decoracao";
+import { contextoDoEvento } from "@/lib/semear-producao";
 import { listMaterial } from "@/lib/material-store";
 import { listLists } from "@/lib/material-lists-store";
 import { listAllListItems } from "@/lib/material-list-items-store";
@@ -36,29 +36,9 @@ async function contextoDoPedido(quoteId: string): Promise<ContextoEvento | null>
   const [quote, proposta] = await Promise.all([getQuote(quoteId), getProposalByQuote(quoteId)]);
   if (!quote) return null;
 
-  const grupos = proposta?.doc?.serviceGroups ?? [];
-  const servicos = grupos.flatMap((g) =>
-    (g.items ?? []).map((i) => `${g.title ?? ""} ${i.label ?? ""}`.trim()),
-  );
-  // Os pontos que o casal marcou no pedido são serviços para efeitos de regra:
-  // "arco floral" escolhido no formulário tem de disparar a mesma regra que
-  // "arco floral" escrito na proposta.
-  const pontos = rotularPontos(quote.decorPoints ?? [], "pt");
-
-  return {
-    servicos: [...servicos, ...pontos],
-    // Tudo num só texto: é o que deixa uma regra de `texto` apanhar "velas"
-    // escrito na DESCRIÇÃO de um item, e não só no título de um serviço.
-    texto: [
-      quote.notes ?? "",
-      ...servicos,
-      ...pontos,
-      ...grupos.flatMap((g) => (g.items ?? []).map((i) => i.desc ?? "")),
-    ].join(" \n "),
-    // Sem número, fica 0 — o que faz as quantidades que escalam ficarem pelo
-    // mínimo da linha, em vez de zero.
-    pax: quote.guests || 0,
-  };
+  // A regra vive num sítio só (`contextoDoEvento`): com proposta, conta só a
+  // proposta — o que ela tirou não volta a pedir material.
+  return contextoDoEvento(quote, proposta?.doc?.serviceGroups ?? []);
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

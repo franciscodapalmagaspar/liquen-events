@@ -48,6 +48,7 @@ import {
   referenciaDoDocumento,
   type IdiomaDaProposta,
 } from "@/lib/proposal-doc-textos";
+import { grupoNoCasamento } from "@/lib/pdf-editorial/grupos";
 import {
   ordemDeSaida,
   eAOrdemEscrita,
@@ -845,13 +846,49 @@ export function semOTema(d: StudioDoc, bi: number): StudioDoc {
   const sai = d.moodBoards[bi];
   const moodBoards = d.moodBoards.filter((_, i) => i !== bi);
   if (!sai) return { ...d, moodBoards };
-  const ficam = new Set(moodBoards.flatMap((b) => b.images));
-  const doTema = new Set(sai.images.filter((p) => !ficam.has(p)));
-  if (!doTema.size || !d.fotosDasPaginas) return { ...d, moodBoards };
+  return semSeparadoresSemCapitulo(semAsFotosNasPaginas({ ...d, moodBoards }, sai.images));
+}
+
+/**
+ * Num casamento, o separador de um capítulo que deixou de existir
+ * («separador:cocktail» sem tema de cocktail) sai das escolhas — senão, se ela
+ * voltasse a pôr um cocktail, a foto antiga reaparecia sem ninguém a ter
+ * escolhido outra vez (auditoria de 12/11, n.º 9).
+ */
+function semSeparadoresSemCapitulo(d: StudioDoc): StudioDoc {
+  const fp = d.fotosDasPaginas;
+  if (!fp || !eCasamento(d.eventType)) return d;
+  const ficam = new Set<string>(d.moodBoards.map((b) => grupoNoCasamento(b, d.moodBoards)));
+  let mudou = false;
+  const novas: NonNullable<StudioDoc["fotosDasPaginas"]> = {};
+  for (const [chave, e] of Object.entries(fp)) {
+    const grupo = /^separador:(cerimonia|cocktail|jantar|complementos|ambiente)(:\d+)?$/.exec(
+      chave,
+    )?.[1];
+    if (grupo && !ficam.has(grupo)) {
+      mudou = true;
+      continue;
+    }
+    novas[chave] = e;
+  }
+  return mudou ? { ...d, fotosDasPaginas: novas } : d;
+}
+
+/**
+ * As fotografias `saem` deixam as páginas escolhidas (`fotosDasPaginas`) —
+ * salvo as que ainda estão nalgum tema de `d`. Cada lugar que fica vazio
+ * volta ao automático. É o que tirar uma foto de um tema (ou o tema inteiro)
+ * faz às páginas onde ela a tinha posto (auditoria de 12/11, n.º 2).
+ */
+export function semAsFotosNasPaginas(d: StudioDoc, saem: readonly string[]): StudioDoc {
+  if (!d.fotosDasPaginas || !saem.length) return d;
+  const ficam = new Set(d.moodBoards.flatMap((b) => b.images));
+  const tirar = new Set(saem.filter((p) => p && !ficam.has(p)));
+  if (!tirar.size) return d;
   const limpo = mapImagePaths({ ...d, moodBoards: [], coverImages: [] }, (p) =>
-    doTema.has(p) ? null : p,
+    tirar.has(p) ? null : p,
   );
-  return { ...d, moodBoards, fotosDasPaginas: limpo.fotosDasPaginas };
+  return { ...d, fotosDasPaginas: limpo.fotosDasPaginas };
 }
 
 function mapImagePaths(d: StudioDoc, f: (path: string) => string | null): StudioDoc {
@@ -6033,7 +6070,12 @@ export default function ProposalStudio({
    */
   function removeBoard(bi: number) {
     const b = doc.moodBoards[bi];
-    const apagar = () => setDoc((d) => semOTema(d, bi));
+    const apagar = () => {
+      // A seleção para mover guarda posições («bi:ii»): depois de um tema sair,
+      // apontava para fotos de outro (auditoria de 12/11, n.º 10).
+      setSeleccionadas(new Set());
+      setDoc((d) => semOTema(d, bi));
+    };
     if (!b) return;
     const nome = (b.title ?? "").trim();
     const fotos = b.images.length;
@@ -6111,23 +6153,30 @@ export default function ProposalStudio({
    * seria respondida sem ser lida.
    */
   function removeBoardImageAt(bi: number, ii: number) {
+    setSeleccionadas(new Set());
     setLimpo({ doc, total: totalInput, segundos: 10, motivo: "Fotografia removida." });
-    setDoc((d) => ({
-      ...d,
-      moodBoards: d.moodBoards.map((b, i) =>
-        i === bi
-          ? {
-              ...b,
-              images: b.images.filter((_, j) => j !== ii),
-              // A marca da principal acompanha: sem isto, tirar a foto de cima
-              // fazia «a principal» passar a ser a que calhou àquele índice.
-              principal: marcaDepoisDeMexer(b, (antigo) =>
-                antigo === ii ? null : antigo > ii ? antigo - 1 : antigo,
-              ),
-            }
-          : b,
-      ),
-    }));
+    setDoc((d) => {
+      const tirada = d.moodBoards[bi]?.images[ii];
+      return semAsFotosNasPaginas(
+        {
+          ...d,
+          moodBoards: d.moodBoards.map((b, i) =>
+            i === bi
+              ? {
+                  ...b,
+                  images: b.images.filter((_, j) => j !== ii),
+                  // A marca da principal acompanha: sem isto, tirar a foto de cima
+                  // fazia «a principal» passar a ser a que calhou àquele índice.
+                  principal: marcaDepoisDeMexer(b, (antigo) =>
+                    antigo === ii ? null : antigo > ii ? antigo - 1 : antigo,
+                  ),
+                }
+              : b,
+          ),
+        },
+        tirada ? [tirada] : [],
+      );
+    });
   }
 
   /**
@@ -6141,12 +6190,20 @@ export default function ProposalStudio({
    * troca a foto que manda na página quer que a nova mande na mesma.
    */
   function substituirFotoDoBoard(bi: number, ii: number, path: string) {
-    setDoc((d) => ({
-      ...d,
-      moodBoards: d.moodBoards.map((b, i) =>
-        i === bi ? { ...b, images: b.images.map((p, j) => (j === ii ? path : p)) } : b,
-      ),
-    }));
+    // A que sai deixa também as páginas onde ela a tinha posto (o lugar volta
+    // ao automático) — salvo se ainda estiver noutro tema.
+    setDoc((d) => {
+      const antiga = d.moodBoards[bi]?.images[ii];
+      return semAsFotosNasPaginas(
+        {
+          ...d,
+          moodBoards: d.moodBoards.map((b, i) =>
+            i === bi ? { ...b, images: b.images.map((p, j) => (j === ii ? path : p)) } : b,
+          ),
+        },
+        antiga && antiga !== path ? [antiga] : [],
+      );
+    });
     setPicker(null);
   }
 

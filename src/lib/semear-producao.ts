@@ -212,15 +212,33 @@ async function datasChaveEmFalta(
  */
 async function contextoDeMaterial(quote: Quote): Promise<ContextoEvento> {
   const proposta = await getProposalByQuote(quote.id);
-  const grupos = proposta?.doc?.serviceGroups ?? [];
+  return contextoDoEvento(quote, proposta?.doc?.serviceGroups ?? []);
+}
+
+/**
+ * O que dispara as regras do material — UM sítio para a rota «Gerar» e para o
+ * «Ganho» (auditoria de 12/11, n.º 3).
+ *
+ * Enquanto não há proposta, contam os pontos que o casal marcou no pedido e
+ * as notas dele. Quando a proposta tem serviços, conta SÓ a proposta: é o que
+ * foi vendido. Antes, os pontos do pedido somavam-se sempre — os noivos
+ * tiravam o cocktail, ela tirava-o da proposta, e a lista de material
+ * continuava a mandar carregar o material do cocktail, porque o pedido de há
+ * três meses ainda o tinha marcado.
+ */
+export function contextoDoEvento(
+  quote: Pick<Quote, "decorPoints" | "notes" | "guests">,
+  grupos: readonly { title?: string; items?: readonly { label?: string; desc?: string }[] }[],
+): ContextoEvento {
   const servicos = grupos.flatMap((g) =>
-    (g.items ?? []).map((i) => `${g.title ?? ""} ${i.label ?? ""}`.trim()),
+    (g.items ?? []).map((i) => `${g.title ?? ""} ${i.label ?? ""}`.trim()).filter(Boolean),
   );
-  const pontos = rotularPontos(quote.decorPoints ?? [], "pt");
+  const daProposta = servicos.length > 0;
+  const pontos = daProposta ? [] : rotularPontos(quote.decorPoints ?? [], "pt");
   return {
     servicos: [...servicos, ...pontos],
     texto: [
-      quote.notes ?? "",
+      daProposta ? "" : (quote.notes ?? ""),
       ...servicos,
       ...pontos,
       ...grupos.flatMap((g) => (g.items ?? []).map((i) => i.desc ?? "")),
