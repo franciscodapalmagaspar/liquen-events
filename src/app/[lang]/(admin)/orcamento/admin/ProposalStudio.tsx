@@ -48,7 +48,14 @@ import {
   referenciaDoDocumento,
   type IdiomaDaProposta,
 } from "@/lib/proposal-doc-textos";
-import { ordemDeSaida, eAOrdemEscrita, aplicarOrdem, ORDEM_EXPLICITA } from "@/lib/proposal-ordem";
+import {
+  ordemDeSaida,
+  eAOrdemEscrita,
+  aplicarOrdem,
+  ORDEM_EXPLICITA,
+  rubricasDosServicos,
+  temasQueSaemComAsLinhas,
+} from "@/lib/proposal-ordem";
 import {
   CONTAGEM_VAZIA,
   comAcontecimento,
@@ -798,6 +805,55 @@ function move<T>(arr: T[], i: number, dir: -1 | 1): T[] {
  * seu lugar (a foto foi removida à mão entretanto) não pode marcar o rascunho
  * como alterado.
  */
+/**
+ * Os mood boards que saem com as linhas/grupos APAGADOS entre `d` e `next`
+ * (pelo id: renomear não conta). Ver `temasQueSaemComAsLinhas`.
+ */
+/** Os ids das linhas e grupos que estavam em `antes` e não estão em `next`. */
+function idsTirados(antes: StudioDoc["serviceGroups"], next: StudioDoc["serviceGroups"]): string[] {
+  const ficam = new Set(next.flatMap((g) => [g.id, ...g.items.map((it) => it.id)]));
+  return antes
+    .flatMap((g) => [g.id, ...g.items.map((it) => it.id)])
+    .filter((id): id is string => !!id && !ficam.has(id));
+}
+
+export function temasLevadosPelasLinhas(d: StudioDoc, next: StudioDoc["serviceGroups"]): number[] {
+  if (next === d.serviceGroups || !d.moodBoards.length) return [];
+  const gruposQueFicam = new Set(next.map((g) => g.id).filter(Boolean));
+  const linhasQueFicam = new Set(next.flatMap((g) => g.items.map((it) => it.id)).filter(Boolean));
+  const tiradas: string[] = [];
+  for (const g of d.serviceGroups) {
+    if (g.id && !gruposQueFicam.has(g.id)) tiradas.push(g.title ?? "");
+    for (const it of g.items) if (it.id && !linhasQueFicam.has(it.id)) tiradas.push(it.label ?? "");
+  }
+  if (!tiradas.length) return [];
+  return temasQueSaemComAsLinhas(tiradas, rubricasDosServicos(next), d.moodBoards);
+}
+
+/**
+ * ── TIRAR UM TEMA TIRA-O DO PDF TODO (pedido de 12/11) ──────────────────────
+ *
+ * «Os noivos não querem cocktail; ela tirou o mood board, e o cocktail
+ * continuou no PDF.» As fotografias que ela escolheu para as páginas
+ * (`fotosDasPaginas`: índice, notas, separadores, paleta…) guardam-se à parte
+ * do tema — e ficavam lá depois de o tema sair. Agora, as do tema apagado que
+ * não estão em mais nenhum tema saem dessas páginas também, e cada lugar que
+ * fica vazio volta a escolher sozinho, entre os temas que ficaram. A capa não
+ * se toca: é escolhida à parte, à vista, na «Fotografia da capa».
+ */
+export function semOTema(d: StudioDoc, bi: number): StudioDoc {
+  const sai = d.moodBoards[bi];
+  const moodBoards = d.moodBoards.filter((_, i) => i !== bi);
+  if (!sai) return { ...d, moodBoards };
+  const ficam = new Set(moodBoards.flatMap((b) => b.images));
+  const doTema = new Set(sai.images.filter((p) => !ficam.has(p)));
+  if (!doTema.size || !d.fotosDasPaginas) return { ...d, moodBoards };
+  const limpo = mapImagePaths({ ...d, moodBoards: [], coverImages: [] }, (p) =>
+    doTema.has(p) ? null : p,
+  );
+  return { ...d, moodBoards, fotosDasPaginas: limpo.fotosDasPaginas };
+}
+
 function mapImagePaths(d: StudioDoc, f: (path: string) => string | null): StudioDoc {
   let changed = false;
   const cover = normaliseCoverImages(d.coverImages).map((p) => {
@@ -5742,6 +5798,12 @@ export default function ProposalStudio({
   // ── Serviços ──
   // O editor da secção vive em `ServicesEditor.tsx` (teclado, arrasto, anular).
   // Aqui fica só a ponte para o documento.
+  const levadosPelasLinhas = useRef<{
+    ids: string[];
+    moodBoards: StudioDoc["moodBoards"];
+    fotosDasPaginas: StudioDoc["fotosDasPaginas"];
+    depois: StudioDoc["moodBoards"];
+  } | null>(null);
   const setServiceGroups = useCallback(
     (update: (prev: StudioDoc["serviceGroups"]) => StudioDoc["serviceGroups"]) => {
       // Ver `camposTocados`: o editor de serviços é o outro caminho por onde a
@@ -5753,14 +5815,68 @@ export default function ProposalStudio({
       // trazia; a gravação seguinte apagava-os do servidor. Medido: abrir a
       // proposta noutro computador deixava os Serviços vazios (relatório da
       // auditoria, n.º 1). `soMudaramOsIds` separa as duas coisas.
+      //
+      // E TIRAR A LINHA TIRA O MOOD BOARD DELA (12/11): «tirar a linha tem de
+      // tirar o mood board sozinho». Só uma linha ou um grupo APAGADO conta (o
+      // id desapareceu) — mudar o nome de uma linha não leva nada —, e o mood
+      // board só sai quando casa com o que saiu e com nada do que fica
+      // (`temasQueSaemComAsLinhas`). O «Anular» devolve-o, com as fotos que
+      // tinha nas páginas.
+      // E o «Anular» da LINHA (o do editor dos Serviços) também o devolve:
+      // quando as linhas que o levaram voltam, ele volta com elas.
+      const antes = docRef.current;
+      const seguinte = update(antes.serviceGroups);
+      const saem = temasLevadosPelasLinhas(antes, seguinte);
+      const levado = levadosPelasLinhas.current;
+      const voltaram =
+        levado &&
+        antes.moodBoards === levado.depois &&
+        levado.ids.every((id) =>
+          seguinte.some((g) => g.id === id || g.items.some((it) => it.id === id)),
+        );
+      if (voltaram) levadosPelasLinhas.current = null;
       setDoc((d) => {
         const next = update(d.serviceGroups);
         if (next === d.serviceGroups) return d;
         if (!soMudaramOsIds(d.serviceGroups, next)) camposTocados.current.add("serviceGroups");
-        return { ...d, serviceGroups: next };
+        const comServicos = { ...d, serviceGroups: next };
+        if (voltaram && levado && d.moodBoards === levado.depois) {
+          return {
+            ...comServicos,
+            moodBoards: levado.moodBoards,
+            fotosDasPaginas: levado.fotosDasPaginas,
+          };
+        }
+        if (!saem.length || d.moodBoards !== antes.moodBoards) return comServicos;
+        const sem = [...saem]
+          .sort((a, b) => b - a)
+          .reduce((acc, bi) => semOTema(acc, bi), comServicos);
+        levadosPelasLinhas.current = {
+          ids: idsTirados(d.serviceGroups, next),
+          moodBoards: d.moodBoards,
+          fotosDasPaginas: d.fotosDasPaginas,
+          depois: sem.moodBoards,
+        };
+        return sem;
       });
+      if (saem.length) {
+        const nomes = saem.map((bi) => `«${(antes.moodBoards[bi]?.title ?? "").trim()}»`);
+        anular(
+          saem.length === 1
+            ? `O mood board ${nomes[0]} saiu com a linha.`
+            : `Os mood boards ${nomes.join(", ")} saíram com a linha.`,
+          () => {
+            levadosPelasLinhas.current = null;
+            setDoc((d) => ({
+              ...d,
+              moodBoards: antes.moodBoards,
+              fotosDasPaginas: antes.fotosDasPaginas,
+            }));
+          },
+        );
+      }
     },
-    [],
+    [anular],
   );
 
   // ── Mood boards (decoracao) ──
@@ -5917,8 +6033,7 @@ export default function ProposalStudio({
    */
   function removeBoard(bi: number) {
     const b = doc.moodBoards[bi];
-    const apagar = () =>
-      setDoc((d) => ({ ...d, moodBoards: d.moodBoards.filter((_, i) => i !== bi) }));
+    const apagar = () => setDoc((d) => semOTema(d, bi));
     if (!b) return;
     const nome = (b.title ?? "").trim();
     const fotos = b.images.length;
@@ -9935,7 +10050,11 @@ export default function ProposalStudio({
                                       <p className="mt-2 text-xs leading-relaxed text-[var(--bo-text-muted)]">
                                         Capítulo:{" "}
                                         <strong className="font-medium text-[var(--bo-tinta-72)]">
-                                          {capituloDoTema(b, eCasamento(doc.eventType))}
+                                          {capituloDoTema(
+                                            b,
+                                            eCasamento(doc.eventType),
+                                            doc.moodBoards,
+                                          )}
                                         </strong>
                                         <span className="text-foreground/35"> · </span>
                                         {composicaoEmPalavras(fotosDoTema, disposicaoDesteTema)}
@@ -11831,88 +11950,88 @@ export default function ProposalStudio({
         hidden={step !== "enviar" || sent}
       >
         <Section title="Está pronta?">
-            {/* As fotos a caminho têm a sua própria linha, e não a genérica
+          {/* As fotos a caminho têm a sua própria linha, e não a genérica
                   dos campos por preencher: aqui não há nada a fazer senão
                   esperar uns segundos — dizer-lhe para "preencher" seria
                   mandá-la procurar um campo que está bem. */}
-            {fotosPorConfirmar > 0 && (
-              <p
-                aria-live="polite"
-                className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-[var(--bo-perigo)]"
-              >
-                <span aria-hidden="true">⏳</span>
-                <span>
-                  {fotosPorConfirmar === 1
-                    ? "1 foto ainda está a entrar na proposta."
-                    : `${fotosPorConfirmar} fotos ainda estão a entrar na proposta.`}{" "}
-                  O envio fica disponível mal ela assente — assim a proposta segue completa.
-                </span>
-              </p>
-            )}
-            {/* A PASSAGEM DE OLHOS. Depois do resumo (que diz o que vai
+          {fotosPorConfirmar > 0 && (
+            <p
+              aria-live="polite"
+              className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-[var(--bo-perigo)]"
+            >
+              <span aria-hidden="true">⏳</span>
+              <span>
+                {fotosPorConfirmar === 1
+                  ? "1 foto ainda está a entrar na proposta."
+                  : `${fotosPorConfirmar} fotos ainda estão a entrar na proposta.`}{" "}
+                O envio fica disponível mal ela assente — assim a proposta segue completa.
+              </span>
+            </p>
+          )}
+          {/* A PASSAGEM DE OLHOS. Depois do resumo (que diz o que vai
                   seguir) e antes do botão (que o torna irreversível). */}
-            <Conferencia
-              doc={doc as ProposalDoc}
-              quote={quote}
-              quotes={quotes}
-              totalBruto={money.gross}
-              // A língua escolhida aqui ao lado. Sem ela, a lista falava do
-              // pedido que veio em inglês e calava-se sobre a metade da
-              // proposta que ia sair em português.
-              idioma={idiomaDoPdf}
-              // O canal e o email: sem eles a lista não sabia que uma
-              // proposta por email sem email não chega a ninguém (B1).
-              canal={canal}
-              emailDoCliente={quote.email}
-              onIr={(v) => irParaAFalta(v.seccao, v.campo)}
-            />
-            {/* ── ANTES DE ENVIAR: VER O PDF FINAL (14/10) ───────────────
+          <Conferencia
+            doc={doc as ProposalDoc}
+            quote={quote}
+            quotes={quotes}
+            totalBruto={money.gross}
+            // A língua escolhida aqui ao lado. Sem ela, a lista falava do
+            // pedido que veio em inglês e calava-se sobre a metade da
+            // proposta que ia sair em português.
+            idioma={idiomaDoPdf}
+            // O canal e o email: sem eles a lista não sabia que uma
+            // proposta por email sem email não chega a ninguém (B1).
+            canal={canal}
+            emailDoCliente={quote.email}
+            onIr={(v) => irParaAFalta(v.seccao, v.campo)}
+          />
+          {/* ── ANTES DE ENVIAR: VER O PDF FINAL (14/10) ───────────────
                   «Quero que haja algo que antes de enviar para os clientes
                   obrigue os colaboradores da Líquen a verificar se está tudo
                   bem.» A escolha dela foi «Ver o PDF primeiro». O PDF final
                   só sai sem erros (B1); depois de descarregado, pede-se a
                   confirmação; e mudar o documento depois de o ver volta a
                   pedir as duas coisas. O servidor confere a mesma chave. */}
-            <div
-              data-testid="ver-antes-de-enviar"
-              data-campo="pdf-visto"
-              className="mt-4 flex flex-col items-start gap-2 rounded-xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] px-3 py-3"
-            >
-              <p className="bo-eyebrow text-[var(--bo-text-muted)]">Antes de enviar</p>
-              {temErros ? (
+          <div
+            data-testid="ver-antes-de-enviar"
+            data-campo="pdf-visto"
+            className="mt-4 flex flex-col items-start gap-2 rounded-xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] px-3 py-3"
+          >
+            <p className="bo-eyebrow text-[var(--bo-text-muted)]">Antes de enviar</p>
+            {temErros ? (
+              <p className="text-xs leading-relaxed text-[var(--bo-tinta-72)]">
+                Primeiro corrige o que está na lista acima — o PDF final só sai sem erros. Depois
+                descarrega-o e vê-o com atenção.
+              </p>
+            ) : !pdfVistoAgora ? (
+              <>
                 <p className="text-xs leading-relaxed text-[var(--bo-tinta-72)]">
-                  Primeiro corrige o que está na lista acima — o PDF final só sai sem erros. Depois
-                  descarrega-o e vê-o com atenção.
+                  {pdfVisto
+                    ? "A proposta mudou depois de veres o PDF. Descarrega-o outra vez e vê-o antes de enviar."
+                    : "Descarrega o PDF final e vê-o com atenção, página a página — é exactamente o que o cliente vai receber."}
                 </p>
-              ) : !pdfVistoAgora ? (
-                <>
-                  <p className="text-xs leading-relaxed text-[var(--bo-tinta-72)]">
-                    {pdfVisto
-                      ? "A proposta mudou depois de veres o PDF. Descarrega-o outra vez e vê-o antes de enviar."
-                      : "Descarrega o PDF final e vê-o com atenção, página a página — é exactamente o que o cliente vai receber."}
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void preview()}
-                    disabled={busy !== null}
-                  >
-                    {busy === "preview" ? "A gerar o PDF…" : "Descarregar o PDF final"}
-                  </Button>
-                </>
-              ) : (
-                <label className="alvo-toque flex cursor-pointer items-start gap-2 text-sm leading-snug text-[var(--bo-text)]">
-                  <input
-                    type="checkbox"
-                    checked={!!pdfVisto?.confirmado}
-                    onChange={(e) => confirmarPdfVisto(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-sage-600"
-                  />
-                  <span>Vi a proposta e está tudo certo</span>
-                </label>
-              )}
-            </div>
-            {/* ── AS FOTOGRAFIAS ESTÃO MESMO LÁ? ─────────────────────────
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void preview()}
+                  disabled={busy !== null}
+                >
+                  {busy === "preview" ? "A gerar o PDF…" : "Descarregar o PDF final"}
+                </Button>
+              </>
+            ) : (
+              <label className="alvo-toque flex cursor-pointer items-start gap-2 text-sm leading-snug text-[var(--bo-text)]">
+                <input
+                  type="checkbox"
+                  checked={!!pdfVisto?.confirmado}
+                  onChange={(e) => confirmarPdfVisto(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-sage-600"
+                />
+                <span>Vi a proposta e está tudo certo</span>
+              </label>
+            )}
+          </div>
+          {/* ── AS FOTOGRAFIAS ESTÃO MESMO LÁ? ─────────────────────────
                   Primeiro de todos os avisos deste passo, e é de propósito: é
                   o único que fala de uma coisa que já não se vê no ecrã. As
                   gralhas e as traduções lêem-se no documento; um ficheiro que
@@ -11921,64 +12040,64 @@ export default function ProposalStudio({
                   Foi o defeito que a fez escrever: quatro fotos que não
                   existiam seguiram numa proposta, e a primeira pessoa a dar por
                   isso foi o casal. */}
-            <FotosEmFalta quoteId={quote.id} doc={doc as ProposalDoc} />
+          <FotosEmFalta quoteId={quote.id} doc={doc as ProposalDoc} />
 
-            {/* Os acentos que faltam nos campos que saem impressos. Aqui, ao
+          {/* Os acentos que faltam nos campos que saem impressos. Aqui, ao
                   pé da Conferência, e não a meio de escrever: a palavra ainda
                   está a ser escrita quando o aviso apareceria. */}
-            <Gralhas
-              doc={doc as ProposalDoc}
-              onCorrigir={(g) => {
-                setDoc((d) => corrigirGralha(d, g));
-                // A palavra muda num campo que pode estar a catorze páginas
-                // daqui, dentro de uma secção que não se está a ver. No sítio
-                // do clique só se vê a linha sair desta lista — e uma linha a
-                // desaparecer não diz o que ficou escrito lá em cima.
-                //
-                // Com as duas palavras e o campo, é a mesma prestação de
-                // contas que o «Corrigir as N» ao lado já fazia com o número.
-                toast(`«${g.escrita}» passou a «${g.sugerida}» — ${g.rotulo}.`, "info");
-              }}
-              onIr={(g) => irParaCampo(g.campo)}
-              onTirarSimbolos={(s) => {
-                setDoc((d) => tirarSimbolos(d, s));
-                toast(`Tirei ${s.simbolos.join(" ")} — ${s.rotulo}.`, "info");
-              }}
-              onIrAosSimbolos={(s) => irParaCampo(s.campo)}
-              onCorrigirTudo={() => {
-                const quantas = gralhasDoDocumento(doc as ProposalDoc).length;
-                setDoc((d) => corrigirTudo(d));
-                toast(
-                  quantas === 1 ? "1 palavra corrigida." : `${quantas} palavras corrigidas.`,
-                  "info",
-                );
-              }}
-            />
-            {/* ── O QUE VAI SAIR EM PORTUGUÊS ─────────────────────────────
+          <Gralhas
+            doc={doc as ProposalDoc}
+            onCorrigir={(g) => {
+              setDoc((d) => corrigirGralha(d, g));
+              // A palavra muda num campo que pode estar a catorze páginas
+              // daqui, dentro de uma secção que não se está a ver. No sítio
+              // do clique só se vê a linha sair desta lista — e uma linha a
+              // desaparecer não diz o que ficou escrito lá em cima.
+              //
+              // Com as duas palavras e o campo, é a mesma prestação de
+              // contas que o «Corrigir as N» ao lado já fazia com o número.
+              toast(`«${g.escrita}» passou a «${g.sugerida}» — ${g.rotulo}.`, "info");
+            }}
+            onIr={(g) => irParaCampo(g.campo)}
+            onTirarSimbolos={(s) => {
+              setDoc((d) => tirarSimbolos(d, s));
+              toast(`Tirei ${s.simbolos.join(" ")} — ${s.rotulo}.`, "info");
+            }}
+            onIrAosSimbolos={(s) => irParaCampo(s.campo)}
+            onCorrigirTudo={() => {
+              const quantas = gralhasDoDocumento(doc as ProposalDoc).length;
+              setDoc((d) => corrigirTudo(d));
+              toast(
+                quantas === 1 ? "1 palavra corrigida." : `${quantas} palavras corrigidas.`,
+                "info",
+              );
+            }}
+          />
+          {/* ── O QUE VAI SAIR EM PORTUGUÊS ─────────────────────────────
                   Logo a seguir às Gralhas, e SÓ com «Inglês» escolhido: numa
                   proposta portuguesa não há nada por traduzir, e uma secção
                   vazia a dizê-lo era ruído no ecrã de toda a gente. */}
-            {idiomaDoPdf === "en" && (
-              <PorTraduzir
-                doc={doc as ProposalDoc}
-                onFicarEmPortugues={(c) => setDoc((d) => escreverEn(d, c.campo, c.texto))}
-                onFicarTodosEmPortugues={() => {
-                  const faltam = camposPorTraduzir(doc as ProposalDoc);
-                  setDoc((d) => {
-                    let saida = d;
-                    for (const c of faltam) saida = escreverEn(saida, c.campo, c.texto);
-                    return saida;
-                  });
-                  toast(
-                    faltam.length === 1
-                      ? "1 campo fica em português."
-                      : `${faltam.length} campos ficam em português.`,
-                    "info",
-                  );
-                }}
-                onIr={(c) => irParaCampo(c.campo, "en")}
-              />
-            )}
+          {idiomaDoPdf === "en" && (
+            <PorTraduzir
+              doc={doc as ProposalDoc}
+              onFicarEmPortugues={(c) => setDoc((d) => escreverEn(d, c.campo, c.texto))}
+              onFicarTodosEmPortugues={() => {
+                const faltam = camposPorTraduzir(doc as ProposalDoc);
+                setDoc((d) => {
+                  let saida = d;
+                  for (const c of faltam) saida = escreverEn(saida, c.campo, c.texto);
+                  return saida;
+                });
+                toast(
+                  faltam.length === 1
+                    ? "1 campo fica em português."
+                    : `${faltam.length} campos ficam em português.`,
+                  "info",
+                );
+              }}
+              onIr={(c) => irParaCampo(c.campo, "en")}
+            />
+          )}
         </Section>
       </div>
 

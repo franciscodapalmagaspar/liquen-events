@@ -9,7 +9,7 @@ import {
   type EntradaDoPlano,
 } from "@/lib/pdf-editorial/plano";
 import { MAXIMO_POR_PAGINA, disposicaoDoTema, repartir } from "@/lib/pdf-editorial/mosaico";
-import { grupoDoTema } from "@/lib/pdf-editorial/grupos";
+import { grupoNoCasamento } from "@/lib/pdf-editorial/grupos";
 import { eCasamento } from "@/lib/proposal-evento";
 import PaginaEditorial, { fontesDasFolhas } from "./PaginaEditorial";
 import { ESTADO, MARCA, PRESSAO } from "./ui/movimento";
@@ -222,7 +222,7 @@ function PainelDoEstudio({
       // A mesma chave de capítulo que o `plano.ts` dá: o grupo do dia num
       // casamento, `tema-<n>` fora dele (cada mood board é o seu capítulo).
       grupo: (doc ? eCasamento(doc.eventType) : true)
-        ? grupoDoTema(p.board.title ?? "", p.board.subtitulo ?? "")
+        ? grupoNoCasamento(p.board, docDosTemas.moodBoards.filter(Boolean))
         : `tema-${vez}`,
       titulo: (p.board.title ?? "").trim(),
       parte: 0,
@@ -234,7 +234,11 @@ function PainelDoEstudio({
       disposicao: disposicaoDoTema(p.board),
       nome:
         (p.board.title ?? "").trim() ||
-        capituloDoTema(p.board, doc ? eCasamento(doc.eventType) : true),
+        capituloDoTema(
+          p.board,
+          doc ? eCasamento(doc.eventType) : true,
+          docDosTemas.moodBoards.filter(Boolean),
+        ),
       seccao: "moodboards",
     };
   const entradas = paginas.map((p, i) => entradaDe(p, i + 1));

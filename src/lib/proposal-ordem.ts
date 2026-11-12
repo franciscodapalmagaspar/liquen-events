@@ -204,3 +204,78 @@ export const ORDEM_EXPLICITA = "arrumada-a-mao" as const;
 export function temOrdemExplicita(doc: Pick<ProposalDoc, "ordemExplicita">): boolean {
   return doc.ordemExplicita === ORDEM_EXPLICITA;
 }
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * TIRAR A LINHA TIRA O MOOD BOARD DELA (pedido de 12/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * «Sim, tirar a linha tem de tirar o mood board sozinho.» Os noivos não
+ * quiseram cocktail; ela tirou a linha «Coctail» dos Serviços e o mood board
+ * «Decor Cocktail» continuou no PDF.
+ *
+ * Casar a linha com o mood board usa a mesma chave da ordem do documento
+ * ({@link chaveDeRubrica}: sem «decor», «decoração», «floral»…), por
+ * igualdade ou contenção, e tolera UMA letra trocada ou em falta nas palavras
+ * com cinco letras ou mais — porque nas folhas dela «Coctail» e «Seatting» são
+ * o «Cocktail» e o «Seating». As travas: uma chave vazia não casa com nada, e
+ * um mood board que ainda case com uma linha que FICA não sai.
+ */
+function quaseIguais(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length < 5 || b.length < 5 || Math.abs(a.length - b.length) > 1) return false;
+  // Distância de edição ≤ 1 (uma troca, uma a mais ou uma a menos).
+  let i = 0;
+  let j = 0;
+  let diferencas = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    if (++diferencas > 1) return false;
+    if (a.length > b.length) i++;
+    else if (b.length > a.length) j++;
+    else {
+      i++;
+      j++;
+    }
+  }
+  return diferencas + (a.length - i) + (b.length - j) <= 1;
+}
+
+/** Duas rubricas falam do mesmo capítulo? (ver o bloco acima) */
+export function mesmaRubrica(a: string, b: string): boolean {
+  const ta = chaveDeRubrica(a).split(" ").filter(Boolean);
+  const tb = chaveDeRubrica(b).split(" ").filter(Boolean);
+  if (!ta.length || !tb.length) return false;
+  const [curta, longa] = ta.length <= tb.length ? [ta, tb] : [tb, ta];
+  return curta.every((t) => longa.some((u) => quaseIguais(t, u)));
+}
+
+/**
+ * Os mood boards que saem com as rubricas `tiradas`: os que casam com uma
+ * delas e com nenhuma das que `ficam`. Devolve os índices em `boards`.
+ */
+export function temasQueSaemComAsLinhas(
+  tiradas: readonly string[],
+  ficam: readonly string[],
+  boards: readonly { title?: string }[],
+): number[] {
+  const tiradasComNome = tiradas.filter((r) => chaveDeRubrica(r));
+  if (!tiradasComNome.length) return [];
+  const saem: number[] = [];
+  boards.forEach((b, bi) => {
+    const titulo = b.title ?? "";
+    if (!tiradasComNome.some((r) => mesmaRubrica(r, titulo))) return;
+    if (ficam.some((r) => mesmaRubrica(r, titulo))) return;
+    saem.push(bi);
+  });
+  return saem;
+}
+
+/** Todas as rubricas dos Serviços (títulos dos grupos e rótulos das linhas). */
+export function rubricasDosServicos(groups: readonly ServiceGroup[]): string[] {
+  return groups.flatMap((g) => [g.title ?? "", ...(g.items ?? []).map((it) => it.label ?? "")]);
+}

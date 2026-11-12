@@ -10365,3 +10365,75 @@ describe("o PDF final preparado antes de ela carregar", () => {
     expect(await screen.findByText("PDF pronto")).toBeInTheDocument();
   });
 });
+
+/**
+ * Pedido de 12/11: «tirar a linha tem de tirar o mood board sozinho». Os
+ * noivos não quiseram cocktail; ela tirou a linha «Coctail» e o mood board
+ * «Decor Cocktail» continuava no PDF.
+ */
+describe("tirar a linha dos Serviços tira o mood board dela", () => {
+  function seedComCocktail() {
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        template: "decoracao",
+        ref: "PO Decoração",
+        clientNames: "Maria & Zé",
+        eventType: "Casamento",
+        eventDate: "12 de setembro de 2026",
+        location: "Évora",
+        guests: "80 pax",
+        serviceGroups: [
+          {
+            letter: "a)",
+            title: "Decoração Casamento",
+            items: [{ label: "Decor Floral Cerimónia" }, { label: "Coctail" }, { label: "Jantar" }],
+          },
+        ],
+        moodBoards: [
+          { title: "Decoração Cerimónia", annotation: "", images: ["board/a.jpg"] },
+          { title: "Decor Cocktail", annotation: "", images: ["board/c.jpg"] },
+          { title: "Decoração Jantar", annotation: "", images: ["board/j.jpg"] },
+        ],
+        fotosDasPaginas: { indice: { fotos: ["board/c.jpg"] } },
+        budgetItems: [],
+        coverImages: ["", ""],
+        totalAmount: 3000,
+        totalVatMode: "acrescer",
+      }),
+    );
+  }
+
+  const titulosDosTemas = () =>
+    JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "{}").moodBoards?.map(
+      (b: { title: string }) => b.title,
+    );
+
+  it("a linha sai, o mood board dela sai, e os outros ficam", async () => {
+    seedComCocktail();
+    renderStudio();
+    const user = userEvent.setup();
+    expect(await screen.findByDisplayValue("Decor Cocktail")).toBeTruthy();
+    const linha = await screen.findByDisplayValue("Coctail");
+    expect(linha).toBeTruthy();
+    await user.click(screen.getByLabelText("Remover linha 2 do grupo 1"));
+    expect(await screen.findByText(/O mood board «Decor Cocktail» saiu com a linha/)).toBeTruthy();
+    await waitFor(() => expect(screen.queryByDisplayValue("Decor Cocktail")).toBeNull());
+    expect(screen.getByDisplayValue("Decoração Cerimónia")).toBeTruthy();
+    expect(screen.getByDisplayValue("Decoração Jantar")).toBeTruthy();
+  });
+
+  it("anular devolve o mood board", async () => {
+    seedComCocktail();
+    renderStudio();
+    const user = userEvent.setup();
+    const linha = await screen.findByDisplayValue("Coctail");
+    expect(linha).toBeTruthy();
+    await user.click(screen.getByLabelText("Remover linha 2 do grupo 1"));
+    const aviso = await screen.findByText(/O mood board «Decor Cocktail» saiu com a linha/);
+    const caixa = aviso.closest("[role='status'],[role='alert'],li,div")!;
+    await user.click(within(caixa as HTMLElement).getByRole("button", { name: /^Anular$/ }));
+    expect(await screen.findByDisplayValue("Decor Cocktail")).toBeTruthy();
+    void titulosDosTemas;
+  });
+});

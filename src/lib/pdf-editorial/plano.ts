@@ -7,7 +7,7 @@ import {
 import { blocosFixosNaLingua, textosDaProposta } from "@/lib/proposal-doc-textos";
 import { totaisDaProposta } from "@/lib/proposal-budget";
 import { chaveDeRubrica, ordemDeSaida } from "@/lib/proposal-ordem";
-import { capitulos as capitulosDaInspiracao, grupoDoTema } from "./grupos";
+import { capitulos as capitulosDaInspiracao, grupoNoCasamento } from "./grupos";
 import { eCasamento } from "../proposal-evento";
 import {
   FOTOS_DA_DISPOSICAO,
@@ -681,10 +681,12 @@ export function composicaoEmPalavras(n: number, disposicao?: Disposicao | null):
 export function capituloDoTema(
   b: Pick<MoodBoard, "title" | "subtitulo">,
   casamento = true,
+  /** Os temas todos da proposta: sem tema do cocktail, o seating não é «Cocktail». */
+  todos: readonly Pick<MoodBoard, "title" | "subtitulo">[] = [b],
 ): string {
   const te = textosEditoriais("pt");
   if (!casamento) return (b.title ?? "").trim() || te.inspiracao;
-  return te.grupos[grupoDoTema(b.title ?? "", b.subtitulo ?? "")];
+  return te.grupos[grupoNoCasamento(b, todos)];
 }
 
 /** Quantas páginas um tema ocupa no PDF (0 fotos é uma página de texto). */
