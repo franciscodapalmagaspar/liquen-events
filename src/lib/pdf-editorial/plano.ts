@@ -692,3 +692,103 @@ export function capituloDoTema(
 /** Quantas páginas um tema ocupa no PDF (0 fotos é uma página de texto). */
 export const paginasDoTema = (n: number, disposicao?: Disposicao | null) =>
   n > 0 ? repartirFotos(n, disposicao).length : 1;
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * AS FOTOS ESCOLHIDAS ACOMPANHAM O TEMA, NÃO A POSIÇÃO (auditoria de 12/11, n.º 1)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * As chaves de `fotosDasPaginas` das páginas de inspiração são posicionais:
+ * `tema:<índice em moodBoards>` (e `tema:<i>:<n>` para as páginas seguintes do
+ * mesmo tema), e, fora dos casamentos, `separador:tema-<n.º do capítulo>`. Ela
+ * escolhia uma foto da biblioteca para o separador do «Bar», apagava o «Bar»,
+ * e a foto passava a abrir o capítulo seguinte — no PDF e na proposta online.
+ * O mesmo ao mover, duplicar, mudar um título (a ordem segue os Serviços) ou
+ * pôr a primeira foto num tema vazio.
+ *
+ * O formato guardado NÃO muda (o PDF, a proposta online e as propostas já
+ * enviadas continuam a ler as mesmas chaves): o estúdio é que, sempre que as
+ * posições mudam, reescreve as chaves para onde o MESMO tema foi parar. Um
+ * tema que saiu leva as suas chaves com ele.
+ *
+ * `antes` e `depois` são dois estados seguidos do documento, e as chaves de
+ * `depois.fotosDasPaginas` têm de estar ainda nas posições de `antes` — é o
+ * caso quando o gesto não mexeu nelas (ou só as limpou). Quem repõe um estado
+ * antigo inteiro (anular) já traz as chaves certas e não passa por aqui.
+ */
+export function realinharChavesDosTemas<D extends ProposalDoc>(antes: D, depois: D): D {
+  const fp = depois.fotosDasPaginas;
+  if (!fp) return depois;
+  if (
+    antes.moodBoards === depois.moodBoards &&
+    antes.serviceGroups === depois.serviceGroups &&
+    antes.ordemExplicita === depois.ordemExplicita &&
+    antes.eventType === depois.eventType
+  ) {
+    return depois;
+  }
+  const velhos = antes.moodBoards ?? [];
+  const novos = depois.moodBoards ?? [];
+  /** Onde o tema que estava em `bi` foi parar (−1 = saiu). */
+  const destino = (bi: number): number => {
+    const b = velhos[bi];
+    if (!b) return -1;
+    const mesmo = novos.indexOf(b);
+    if (mesmo >= 0) return mesmo;
+    if (b.id) {
+      const peloId = novos.findIndex((n) => n.id === b.id);
+      // Dois com o mesmo id (uma cópia ainda por desempatar): na dúvida, o
+      // da mesma posição.
+      if (peloId >= 0 && novos.filter((n) => n.id === b.id).length === 1) return peloId;
+    }
+    // Editado no sítio (um título, uma foto): mesma posição, mesmo tamanho.
+    return velhos.length === novos.length ? bi : -1;
+  };
+  const casamentoAntes = eCasamento(antes.eventType);
+  const casamentoDepois = eCasamento(depois.eventType);
+  const capAntes = casamentoAntes ? [] : temasComPagina(antes);
+  const capDepois = casamentoDepois ? [] : temasComPagina(depois);
+
+  const novas: NonNullable<ProposalDoc["fotosDasPaginas"]> = {};
+  const remapeadas: [string, (typeof fp)[string]][] = [];
+  let mudou = false;
+  for (const [chave, e] of Object.entries(fp)) {
+    const tema = /^tema:(\d+)((?::\d+)?)$/.exec(chave);
+    if (tema) {
+      const nb = destino(Number(tema[1]));
+      if (nb < 0) {
+        mudou = true;
+        continue;
+      }
+      const nova = `tema:${nb}${tema[2]}`;
+      if (nova !== chave) mudou = true;
+      remapeadas.push([nova, e]);
+      continue;
+    }
+    const sep = /^separador:tema-(\d+)((?::\d+)?)$/.exec(chave);
+    if (sep && !casamentoAntes && !casamentoDepois) {
+      const bi = capAntes[Number(sep[1]) - 1];
+      const nb = bi === undefined ? -1 : destino(bi);
+      const n = nb < 0 ? -1 : capDepois.indexOf(nb);
+      if (n < 0) {
+        mudou = true;
+        continue;
+      }
+      const nova = `separador:tema-${n + 1}${sep[2]}`;
+      if (nova !== chave) mudou = true;
+      remapeadas.push([nova, e]);
+      continue;
+    }
+    novas[chave] = e;
+  }
+  if (!mudou) return depois;
+  // Os remapeados por cima, e sem se pisarem uns aos outros: o primeiro fica.
+  const ja = new Set<string>();
+  for (const [k] of remapeadas) delete novas[k];
+  for (const [k, e] of remapeadas) {
+    if (ja.has(k)) continue;
+    ja.add(k);
+    novas[k] = e;
+  }
+  return { ...depois, fotosDasPaginas: novas };
+}
