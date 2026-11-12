@@ -11,6 +11,8 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  useReducer,
+  type SetStateAction,
 } from "react";
 import { quandoGravado } from "@/lib/quando-gravado";
 import { useSeccaoAVista } from "./useSeccaoAVista";
@@ -173,6 +175,7 @@ import {
   ordemDoDesenho,
   paginasDoTema,
   planoDaProposta,
+  realinharChavesDosTemas,
   temasComPagina,
 } from "@/lib/pdf-editorial/plano";
 import { NOME_DA_DISPOSICAO, disposicaoDoTema, type Disposicao } from "@/lib/pdf-editorial/mosaico";
@@ -832,6 +835,38 @@ export function temasLevadosPelasLinhas(d: StudioDoc, next: StudioDoc["serviceGr
 }
 
 /**
+ * As `fotosDasPaginas` que só foram LIMPAS a partir do estado anterior (as
+ * chaves continuam nas posições dele) — ver o `setDoc` do estúdio.
+ */
+const fotosLimpasDoAnterior = new WeakSet<object>();
+/** Cada `fotosDasPaginas` com os temas com que ficou gravada. */
+const paresGravados = new WeakMap<object, readonly unknown[]>();
+function marcarLimpas<T extends object | undefined>(fp: T): T {
+  if (fp) fotosLimpasDoAnterior.add(fp);
+  return fp;
+}
+
+/**
+ * A escrita do documento do estúdio. Só se realinham as chaves das fotos das
+ * páginas quando ainda estão nas posições do estado anterior: o gesto não lhes
+ * tocou, ou só as limpou (`fotosLimpasDoAnterior`). Um par (temas, fotos) que
+ * já esteve gravado junto — o que um «Anular» repõe — passa direito.
+ */
+function escreverODocumento(prev: StudioDoc, u: SetStateAction<StudioDoc>): StudioDoc {
+  const next = typeof u === "function" ? u(prev) : u;
+  if (next === prev) return prev;
+  const fp = next.fotosDasPaginas;
+  const jaCoerente = !!fp && paresGravados.get(fp) === next.moodBoards;
+  const nasPosicoesDeAntes =
+    !jaCoerente && (fp === prev.fotosDasPaginas || (!!fp && fotosLimpasDoAnterior.has(fp)));
+  const final = nasPosicoesDeAntes
+    ? (realinharChavesDosTemas(prev as ProposalDoc, next as ProposalDoc) as StudioDoc)
+    : next;
+  if (final.fotosDasPaginas) paresGravados.set(final.fotosDasPaginas, final.moodBoards);
+  return final;
+}
+
+/**
  * ── TIRAR UM TEMA TIRA-O DO PDF TODO (pedido de 12/11) ──────────────────────
  *
  * «Os noivos não querem cocktail; ela tirou o mood board, e o cocktail
@@ -871,7 +906,7 @@ function semSeparadoresSemCapitulo(d: StudioDoc): StudioDoc {
     }
     novas[chave] = e;
   }
-  return mudou ? { ...d, fotosDasPaginas: novas } : d;
+  return mudou ? { ...d, fotosDasPaginas: marcarLimpas(novas) } : d;
 }
 
 /**
@@ -888,7 +923,7 @@ export function semAsFotosNasPaginas(d: StudioDoc, saem: readonly string[]): Stu
   const limpo = mapImagePaths({ ...d, moodBoards: [], coverImages: [] }, (p) =>
     tirar.has(p) ? null : p,
   );
-  return { ...d, fotosDasPaginas: limpo.fotosDasPaginas };
+  return { ...d, fotosDasPaginas: marcarLimpas(limpo.fotosDasPaginas) };
 }
 
 function mapImagePaths(d: StudioDoc, f: (path: string) => string | null): StudioDoc {
@@ -1594,7 +1629,13 @@ export default function ProposalStudio({
     });
   }, []);
 
-  const [doc, setDoc] = useState<StudioDoc>(() => initialDoc(quote));
+  /**
+   * Todas as escritas do documento passam por aqui para as fotos escolhidas das
+   * páginas acompanharem o TEMA e não a posição (`realinharChavesDosTemas`,
+   * auditoria de 12/11, n.º 1) — ver `escreverODocumento`. Um `useReducer` e
+   * não um `useState` embrulhado: o `dispatch` é estável e o React sabe-o.
+   */
+  const [doc, setDoc] = useReducer(escreverODocumento, quote, initialDoc);
   // «É mesmo um casamento»: o aviso de baixo cala-se para este pedido — e
   // fica calado nas próximas vezes (um casamento metido à mão, sem tipo, não
   // pode ficar a perguntar o mesmo cada vez que se abre).
