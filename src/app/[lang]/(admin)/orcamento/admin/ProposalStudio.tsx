@@ -48,7 +48,14 @@ import {
   referenciaDoDocumento,
   type IdiomaDaProposta,
 } from "@/lib/proposal-doc-textos";
-import { ordemDeSaida, eAOrdemEscrita, aplicarOrdem, ORDEM_EXPLICITA } from "@/lib/proposal-ordem";
+import {
+  ordemDeSaida,
+  eAOrdemEscrita,
+  aplicarOrdem,
+  ORDEM_EXPLICITA,
+  rubricasDosServicos,
+  temasQueSaemComAsLinhas,
+} from "@/lib/proposal-ordem";
 import {
   CONTAGEM_VAZIA,
   comAcontecimento,
@@ -798,6 +805,31 @@ function move<T>(arr: T[], i: number, dir: -1 | 1): T[] {
  * seu lugar (a foto foi removida à mão entretanto) não pode marcar o rascunho
  * como alterado.
  */
+/**
+ * Os mood boards que saem com as linhas/grupos APAGADOS entre `d` e `next`
+ * (pelo id: renomear não conta). Ver `temasQueSaemComAsLinhas`.
+ */
+/** Os ids das linhas e grupos que estavam em `antes` e não estão em `next`. */
+function idsTirados(antes: StudioDoc["serviceGroups"], next: StudioDoc["serviceGroups"]): string[] {
+  const ficam = new Set(next.flatMap((g) => [g.id, ...g.items.map((it) => it.id)]));
+  return antes
+    .flatMap((g) => [g.id, ...g.items.map((it) => it.id)])
+    .filter((id): id is string => !!id && !ficam.has(id));
+}
+
+export function temasLevadosPelasLinhas(d: StudioDoc, next: StudioDoc["serviceGroups"]): number[] {
+  if (next === d.serviceGroups || !d.moodBoards.length) return [];
+  const gruposQueFicam = new Set(next.map((g) => g.id).filter(Boolean));
+  const linhasQueFicam = new Set(next.flatMap((g) => g.items.map((it) => it.id)).filter(Boolean));
+  const tiradas: string[] = [];
+  for (const g of d.serviceGroups) {
+    if (g.id && !gruposQueFicam.has(g.id)) tiradas.push(g.title ?? "");
+    for (const it of g.items) if (it.id && !linhasQueFicam.has(it.id)) tiradas.push(it.label ?? "");
+  }
+  if (!tiradas.length) return [];
+  return temasQueSaemComAsLinhas(tiradas, rubricasDosServicos(next), d.moodBoards);
+}
+
 /**
  * ── TIRAR UM TEMA TIRA-O DO PDF TODO (pedido de 12/11) ──────────────────────
  *
@@ -5766,6 +5798,12 @@ export default function ProposalStudio({
   // ── Serviços ──
   // O editor da secção vive em `ServicesEditor.tsx` (teclado, arrasto, anular).
   // Aqui fica só a ponte para o documento.
+  const levadosPelasLinhas = useRef<{
+    ids: string[];
+    moodBoards: StudioDoc["moodBoards"];
+    fotosDasPaginas: StudioDoc["fotosDasPaginas"];
+    depois: StudioDoc["moodBoards"];
+  } | null>(null);
   const setServiceGroups = useCallback(
     (update: (prev: StudioDoc["serviceGroups"]) => StudioDoc["serviceGroups"]) => {
       // Ver `camposTocados`: o editor de serviços é o outro caminho por onde a
@@ -5777,14 +5815,68 @@ export default function ProposalStudio({
       // trazia; a gravação seguinte apagava-os do servidor. Medido: abrir a
       // proposta noutro computador deixava os Serviços vazios (relatório da
       // auditoria, n.º 1). `soMudaramOsIds` separa as duas coisas.
+      //
+      // E TIRAR A LINHA TIRA O MOOD BOARD DELA (12/11): «tirar a linha tem de
+      // tirar o mood board sozinho». Só uma linha ou um grupo APAGADO conta (o
+      // id desapareceu) — mudar o nome de uma linha não leva nada —, e o mood
+      // board só sai quando casa com o que saiu e com nada do que fica
+      // (`temasQueSaemComAsLinhas`). O «Anular» devolve-o, com as fotos que
+      // tinha nas páginas.
+      // E o «Anular» da LINHA (o do editor dos Serviços) também o devolve:
+      // quando as linhas que o levaram voltam, ele volta com elas.
+      const antes = docRef.current;
+      const seguinte = update(antes.serviceGroups);
+      const saem = temasLevadosPelasLinhas(antes, seguinte);
+      const levado = levadosPelasLinhas.current;
+      const voltaram =
+        levado &&
+        antes.moodBoards === levado.depois &&
+        levado.ids.every((id) =>
+          seguinte.some((g) => g.id === id || g.items.some((it) => it.id === id)),
+        );
+      if (voltaram) levadosPelasLinhas.current = null;
       setDoc((d) => {
         const next = update(d.serviceGroups);
         if (next === d.serviceGroups) return d;
         if (!soMudaramOsIds(d.serviceGroups, next)) camposTocados.current.add("serviceGroups");
-        return { ...d, serviceGroups: next };
+        const comServicos = { ...d, serviceGroups: next };
+        if (voltaram && levado && d.moodBoards === levado.depois) {
+          return {
+            ...comServicos,
+            moodBoards: levado.moodBoards,
+            fotosDasPaginas: levado.fotosDasPaginas,
+          };
+        }
+        if (!saem.length || d.moodBoards !== antes.moodBoards) return comServicos;
+        const sem = [...saem]
+          .sort((a, b) => b - a)
+          .reduce((acc, bi) => semOTema(acc, bi), comServicos);
+        levadosPelasLinhas.current = {
+          ids: idsTirados(d.serviceGroups, next),
+          moodBoards: d.moodBoards,
+          fotosDasPaginas: d.fotosDasPaginas,
+          depois: sem.moodBoards,
+        };
+        return sem;
       });
+      if (saem.length) {
+        const nomes = saem.map((bi) => `«${(antes.moodBoards[bi]?.title ?? "").trim()}»`);
+        anular(
+          saem.length === 1
+            ? `O mood board ${nomes[0]} saiu com a linha.`
+            : `Os mood boards ${nomes.join(", ")} saíram com a linha.`,
+          () => {
+            levadosPelasLinhas.current = null;
+            setDoc((d) => ({
+              ...d,
+              moodBoards: antes.moodBoards,
+              fotosDasPaginas: antes.fotosDasPaginas,
+            }));
+          },
+        );
+      }
     },
-    [],
+    [anular],
   );
 
   // ── Mood boards (decoracao) ──
