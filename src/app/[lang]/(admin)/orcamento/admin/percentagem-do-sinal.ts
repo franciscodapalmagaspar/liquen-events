@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { SINAL_POR_OMISSAO } from "@/lib/money";
+import { pctDoSinalDe, propostaQueContaDoPedido } from "@/lib/orcamento/proposta-que-conta";
 import { useCachedList } from "./useCachedList";
 
 /**
@@ -35,12 +35,15 @@ interface PropostaLeve {
   pctSinal?: number;
   total?: number;
   subtotal?: number;
+  /** O que o casal tem a pagar, pela versão escolhida (ver `/api/propostas`). */
+  totalAPagar?: number;
+  subtotalAPagar?: number;
   vatRate?: number;
 }
 
 /**
  * A proposta que conta para o dinheiro de um pedido: a ACEITE, se houver; senão
- * a mais recente. A lista chega ordenada da mais nova para a mais velha.
+ * a mais recente que seguiu para o casal (nunca um rascunho por enviar).
  *
  * ── PORQUE É QUE A ACEITE PASSA À FRENTE (5/11) ─────────────────────────────
  * Ela: «o último valor que foi acordado foi porque o cliente aceitou a
@@ -48,15 +51,11 @@ interface PropostaLeve {
  * nova, por enviar ou enviada), e é a aceite que o cliente assinou: é dela o
  * total a receber e a percentagem do sinal. É a mesma regra do link do casal
  * («o que foi aceite fica congelado», `proposta-do-link.ts`).
+ *
+ * A escolha vive em `lib/orcamento/proposta-que-conta.ts` — a MESMA do quadro
+ * das Cobranças, do «Gerar» e do «Ganho» (auditoria de 13/11, n.os 3 e 9).
  */
-function propostaQueConta(
-  data: PropostaLeve[] | undefined,
-  quoteId: string | null | undefined,
-): PropostaLeve | null {
-  if (!quoteId || !Array.isArray(data)) return null;
-  const doPedido = data.filter((p) => p?.quoteId === quoteId);
-  return doPedido.find((p) => p.status === "aceite") ?? doPedido[0] ?? null;
-}
+const propostaQueConta = propostaQueContaDoPedido<PropostaLeve>;
 
 /**
  * A percentagem do sinal do pedido, ou a da casa quando ainda não há proposta.
@@ -67,10 +66,7 @@ export function usePercentagemDoSinal(quoteId: string | null | undefined): numbe
   // Enquanto a lista não chega — ou se a leitura falhar — vale a percentagem da
   // casa. É o que o servidor também aplica quando não há proposta que diga
   // outra coisa, por isso o ecrã nunca promete um número que ninguém emitiria.
-  const pct = propostaQueConta(data, quoteId)?.pctSinal;
-  return typeof pct === "number" && Number.isFinite(pct) && pct >= 1 && pct <= 99
-    ? Math.round(pct)
-    : SINAL_POR_OMISSAO;
+  return pctDoSinalDe(propostaQueConta(data, quoteId));
 }
 
 /** O dinheiro da proposta ACEITE de um pedido, para as contas dos pagamentos. */
@@ -95,8 +91,10 @@ export function useDinheiroAceite(quoteId: string | null | undefined): DinheiroA
   const { data } = useCachedList<PropostaLeve[]>("propostas-leves", "/api/propostas?semDoc=1");
   const p = propostaQueConta(data, quoteId);
   const aceite = p?.status === "aceite";
-  const total = aceite && typeof p?.total === "number" ? p.total : NaN;
-  const subtotal = aceite && typeof p?.subtotal === "number" ? p.subtotal : NaN;
+  // Pela versão que o casal escolheu (a base, sem os extras, quando foi essa):
+  // o mesmo número que a faturação manda ao Moloni (auditoria de 13/11, n.º 1).
+  const total = aceite ? (p?.totalAPagar ?? p?.total ?? NaN) : NaN;
+  const subtotal = aceite ? (p?.subtotalAPagar ?? p?.subtotal ?? NaN) : NaN;
   const vatRate = aceite && typeof p?.vatRate === "number" ? p.vatRate : undefined;
   // O mesmo objecto enquanto os números não mudam: quem o usa num `useMemo`
   // não recalcula as contas a cada desenho.

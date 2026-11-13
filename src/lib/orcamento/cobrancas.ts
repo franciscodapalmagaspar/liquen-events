@@ -1,6 +1,7 @@
 import type { Payment, Proposal, Quote } from "./types";
-import { contractedAmounts, paidTotal } from "./dossier";
-import { SINAL_POR_OMISSAO, eur, round2, splitSinal } from "@/lib/money";
+import { contractedAmounts, estaTudoPago, paidTotal } from "./dossier";
+import { eur, round2, splitSinal } from "@/lib/money";
+import { pctDoSinalDe, propostaQueContaDoPedido } from "./proposta-que-conta";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -23,11 +24,13 @@ import { SINAL_POR_OMISSAO, eur, round2, splitSinal } from "@/lib/money";
  *    regra do painel de Pagamentos (`percentagem-do-sinal.ts`).
  *  · O PAGO é a soma das linhas dadas por recebidas (`paidTotal`) — o mesmo
  *    número do painel.
- *  · O SINAL é a percentagem da proposta aceite (30% por omissão).
+ *  · O SINAL é a percentagem da proposta que conta (`proposta-que-conta.ts`:
+ *    a aceite, senão a última enviada; 30% por omissão) — a mesma do painel.
  *  · O PRAZO é o da linha prevista (por receber) desse pagamento, quando há —
  *    é o que o «Ganho» semeia (`semear-producao.ts`): o sinal no dia do aceite,
  *    o saldo um mês antes do evento. Sem linha, o saldo conta um mês antes do
- *    evento (`prazoDoSaldo`) e o sinal fica sem data.
+ *    evento (`prazoDoSaldo`), nunca antes do dia do sinal — e o sinal fica sem
+ *    data.
  */
 
 /** O que esta conta precisa de cada proposta da lista leve. */
@@ -36,6 +39,11 @@ export interface PropostaParaCobrar {
   status?: string;
   total?: number;
   subtotal?: number;
+  /**
+   * O que o casal tem a pagar, pela versão que escolheu (`totalAPagarDaProposta`
+   * — vem já feito na lista leve). Manda sobre o `total` quando existe.
+   */
+  totalAPagar?: number;
   vatRate?: number;
   pctSinal?: number;
 }
@@ -69,12 +77,15 @@ export interface Cobranca {
   atraso: boolean;
   /** Dias até ao prazo (negativo = dias de atraso); `null` sem prazo. */
   diasParaOPrazo: number | null;
+  /**
+   * O prazo do SALDO, seja qual for a fase: o da linha prevista quando há (é o
+   * que ela pode ter mudado à mão), senão um mês antes do evento. A previsão e
+   * o resumo diário lêem-no daqui (auditoria de 13/11, n.º 10).
+   */
+  prazoDoSaldo: string | null;
 }
 
 const DIA = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Folga para o arredondamento: meio euro não deixa um cliente «por pagar». */
-const FOLGA = 0.5;
 
 /**
  * O último dia para liquidar o saldo: um mês de calendário antes do evento.
@@ -105,6 +116,42 @@ export function prazoDoSaldo(dataDoEvento: string, diaDoSinal: string): string {
   return prazo < diaDoSinal ? diaDoSinal : prazo;
 }
 
+/**
+ * Os pagamentos com o prazo do saldo PREVISTO a acompanhar uma nova data do
+ * evento — ou `null` quando não há nada a mudar.
+ *
+ * Auditoria de 13/11, n.º 7: o «Ganho» grava o saldo previsto com um prazo
+ * (`prazoDoSaldo`), e mudar a data do casamento não o mexia. Só se move a linha
+ * de saldo POR RECEBER cujo dia é exactamente o que a regra dava para a data
+ * ANTIGA (com o mesmo dia do sinal): esse dia foi a regra que o escreveu, não
+ * ela. Uma data escrita à mão, ou uma linha já paga, ficam como estão.
+ */
+export function saldoQueSegueAData(
+  pagamentos: readonly Payment[],
+  dataAntiga: string | undefined,
+  dataNova: string | undefined,
+): Payment[] | null {
+  const antiga = (dataAntiga ?? "").slice(0, 10);
+  const nova = (dataNova ?? "").slice(0, 10);
+  if (!DIA.test(antiga) || !DIA.test(nova) || antiga === nova) return null;
+  const diaDoSinal =
+    pagamentos
+      .filter((p) => p.kind === "sinal" && typeof p.date === "string" && DIA.test(p.date))
+      .map((p) => p.date)
+      .sort()[0] ?? "0000-00-00";
+  const daRegraAntiga = prazoDoSaldo(antiga, diaDoSinal);
+  const daRegraNova = prazoDoSaldo(nova, diaDoSinal);
+  let mudou = false;
+  const lista = pagamentos.map((p) => {
+    if (p.paid || p.kind !== "saldo" || p.date !== daRegraAntiga || p.date === daRegraNova) {
+      return p;
+    }
+    mudou = true;
+    return { ...p, date: daRegraNova };
+  });
+  return mudou ? lista : null;
+}
+
 /** Dias de `de` até `ate` (ambos «aaaa-mm-dd»), pelo calendário. */
 function diasEntre(de: string, ate: string): number {
   const [a, b] = [de, ate].map((d) => {
@@ -117,6 +164,30 @@ function diasEntre(de: string, ate: string): number {
 /** A proposta ACEITE do pedido (a lista chega da mais nova para a mais velha). */
 function aceiteDe(propostas: readonly PropostaParaCobrar[], quoteId: string) {
   return propostas.find((p) => p?.quoteId === quoteId && p.status === "aceite") ?? null;
+}
+
+/**
+ * O dia do sinal, para o prazo do saldo nunca cair antes dele (a regra de
+ * {@link prazoDoSaldo}): o da linha do sinal (paga ou prevista) mais antiga;
+ * sem linha de sinal, o primeiro dinheiro recebido; sem nada, hoje — o sinal
+ * ainda não entrou, e o saldo não vence antes de ele entrar.
+ *
+ * Auditoria de 13/11, n.º 6: sem linha gerada, o prazo do saldo contava-se sem
+ * esta trava, e um casamento marcado a três semanas nascia com o saldo «em
+ * atraso».
+ */
+function diaDoSinalDe(q: Quote, hoje: string): string {
+  const datas = (ps: readonly Payment[]) =>
+    ps
+      .map((p) => (typeof p.date === "string" ? p.date.slice(0, 10) : ""))
+      .filter((d) => DIA.test(d))
+      .sort();
+  const linhas = q.payments ?? [];
+  return (
+    datas(linhas.filter((p) => p.kind === "sinal"))[0] ??
+    datas(linhas.filter((p) => p.paid))[0] ??
+    hoje
+  );
 }
 
 /** A data prevista da primeira linha POR RECEBER deste tipo, se houver. */
@@ -135,33 +206,34 @@ export function cobrancaDoPedido(
   hoje: string,
 ): Cobranca {
   const aceite = aceiteDe(propostas, q.id);
+  // Pela versão que o casal escolheu — o mesmo número que vai ao Moloni.
+  const totalAceite = aceite ? (aceite.totalAPagar ?? aceite.total) : undefined;
   const daPropostaAceite =
-    !!aceite &&
-    typeof aceite.total === "number" &&
-    Number.isFinite(aceite.total) &&
-    aceite.total > 0;
+    typeof totalAceite === "number" && Number.isFinite(totalAceite) && totalAceite > 0;
   const total = round2(
     daPropostaAceite
-      ? (aceite!.total as number)
+      ? (totalAceite as number)
       : contractedAmounts(q, null as Proposal | null).gross,
   );
-  const pct =
-    typeof aceite?.pctSinal === "number" && aceite.pctSinal >= 1 && aceite.pctSinal <= 99
-      ? Math.round(aceite.pctSinal)
-      : SINAL_POR_OMISSAO;
+  // A MESMA percentagem do painel de Pagamentos (auditoria de 13/11, n.º 9).
+  const pct = pctDoSinalDe(propostaQueContaDoPedido(propostas, q.id));
   const { sinal } = splitSinal(total, pct);
   const pago = paidTotal(q);
   const emFalta = round2(Math.max(0, total - pago));
 
-  const fase: FaseDaCobranca =
-    total > 0 && pago >= total - FOLGA
-      ? "pago"
-      : pago >= sinal - FOLGA && total > 0
-        ? "saldo"
-        : "sinal";
+  // «Pago» é o critério da casa (`estaTudoPago`), o mesmo do painel e do
+  // dossiê; o sinal mede-se com a mesma folga.
+  const fase: FaseDaCobranca = estaTudoPago(total, pago)
+    ? "pago"
+    : estaTudoPago(sinal, pago) && total > 0
+      ? "saldo"
+      : "sinal";
 
   const dataDoEvento =
     typeof q.date === "string" && DIA.test(q.date.slice(0, 10)) ? q.date.slice(0, 10) : null;
+  const prazoSaldo =
+    prazoDaLinha(q, "saldo") ??
+    (dataDoEvento ? prazoDoSaldo(dataDoEvento, diaDoSinalDe(q, hoje)) : null);
 
   let proximo: ProximoPagamento | null = null;
   if (fase === "sinal" && total > 0) {
@@ -174,9 +246,7 @@ export function cobrancaDoPedido(
     proximo = {
       tipo: "saldo",
       valor: emFalta,
-      prazo:
-        prazoDaLinha(q, "saldo") ??
-        (dataDoEvento ? prazoDoSaldo(dataDoEvento, "0000-00-00") : null),
+      prazo: prazoSaldo,
     };
   }
 
@@ -197,6 +267,7 @@ export function cobrancaDoPedido(
     proximo,
     atraso: diasParaOPrazo !== null && diasParaOPrazo < 0,
     diasParaOPrazo,
+    prazoDoSaldo: prazoSaldo,
   };
 }
 
@@ -250,7 +321,9 @@ export function quadroDeCobrancas(
     pago: todas
       .filter((c) => c.fase === "pago")
       .sort((a, b) => (b.dataDoEvento ?? "").localeCompare(a.dataDoEvento ?? "")),
-    porReceber: round2(todas.reduce((s, c) => s + c.emFalta, 0)),
+    // Só o que não está dado por pago: um «Tudo pago» dentro da folga não tem
+    // nada por receber (auditoria de 13/11, n.º 11).
+    porReceber: round2(todas.reduce((s, c) => s + (c.fase === "pago" ? 0 : c.emFalta), 0)),
     emAtraso: {
       valor: round2(atrasadas.reduce((s, c) => s + (c.proximo?.valor ?? 0), 0)),
       clientes: atrasadas.length,
@@ -349,22 +422,61 @@ export function diasDesdeOLembrete(q: Quote, hoje: string): number | null {
  * não ficar uma prevista órfã ao lado de uma recebida. Sem linha prevista,
  * acrescenta-se uma nova. Nunca se mexe nas outras linhas.
  *
- * Se entrou só uma PARTE da prevista, a diferença continua prevista, com o
+ * Se entrou só uma PARTE do que faltava, a diferença continua prevista, com o
  * prazo que tinha: o resto não desaparece do quadro nem perde o dia.
+ *
+ * O resto mede-se pelo que FALTA deste pagamento (`c.proximo.valor`), e não
+ * pelo valor antigo da linha (auditoria de 13/11, n.º 8): uma linha gerada com
+ * outro total deixava um «sinal» fantasma por receber depois de o sinal estar
+ * todo pago — e o resumo diário somava-o.
  */
 export function comORecebido(
   q: Quote,
   c: Cobranca,
   o: { valor: number; dia: string; meio?: string; novoId: string },
 ): Payment[] {
-  const lista = [...(q.payments ?? [])];
-  const tipo = c.proximo?.tipo ?? "pagamento";
+  return comPagamentoRecebido(q.payments ?? [], {
+    kind: c.proximo?.tipo ?? "pagamento",
+    valor: o.valor,
+    dia: o.dia,
+    meio: o.meio,
+    novoId: o.novoId,
+    emFalta: c.proximo?.valor,
+  });
+}
+
+/**
+ * Regista dinheiro RECEBIDO de um tipo (sinal, saldo…) numa lista de
+ * pagamentos — a regra única do «Recebido» das Cobranças E do «Registar» do
+ * painel de Pagamentos (auditoria de 13/11, n.º 4: o painel acrescentava uma
+ * linha paga ao lado da prevista, que ficava por receber para sempre e o
+ * resumo diário contava-a todos os dias).
+ *
+ * Se houver uma linha PREVISTA (por receber) desse tipo, é ela que passa a
+ * recebida, com o valor, o dia e o meio. O que ainda faltar desse pagamento
+ * (`emFalta − valor`) fica previsto, com o prazo que tinha; sem `emFalta`
+ * conhecido, não fica resto nenhum. Sem linha prevista, acrescenta-se uma.
+ * Nunca se mexe nas linhas já pagas.
+ */
+export function comPagamentoRecebido(
+  pagamentos: readonly Payment[],
+  o: {
+    kind: Payment["kind"];
+    valor: number;
+    dia: string;
+    meio?: string;
+    novoId: string;
+    /** O que faltava deste pagamento antes de este entrar. */
+    emFalta?: number;
+  },
+): Payment[] {
+  const lista = [...pagamentos];
   const valor = round2(o.valor);
   const meio = o.meio?.trim() || undefined;
-  const i = lista.findIndex((p) => !p.paid && p.kind === tipo);
+  const i = lista.findIndex((p) => !p.paid && p.kind === o.kind);
   if (i >= 0) {
     const antes = lista[i];
-    const resto = round2(antes.amount - valor);
+    const resto = typeof o.emFalta === "number" ? round2(o.emFalta - valor) : 0;
     lista[i] = {
       ...antes,
       amount: valor,
@@ -377,13 +489,39 @@ export function comORecebido(
   }
   lista.push({
     id: o.novoId,
-    kind: tipo,
+    kind: o.kind,
     amount: valor,
     date: o.dia,
     paid: true,
     ...(meio ? { note: meio } : {}),
   });
   return lista;
+}
+
+/**
+ * Os pagamentos deste cliente que vencem até `ate` (inclusive, e os já em
+ * atraso) — para o resumo diário.
+ *
+ * Auditoria de 13/11, n.º 4: o resumo somava as LINHAS por receber de todos os
+ * pedidos não arquivados. Uma linha prevista que ficou esquecida ao lado da
+ * paga contava todos os dias, o mesmo sinal contava duas vezes, e entravam
+ * pedidos perdidos. Agora é a conta do quadro: o próximo pagamento de cada
+ * cliente aceite e, na fase do sinal, o saldo que vier a seguir — pelo que
+ * FALTA, não pelo valor escrito nas linhas.
+ */
+export function aVencerAte(c: Cobranca, ate: string): { tipo: "sinal" | "saldo"; valor: number }[] {
+  const out: { tipo: "sinal" | "saldo"; valor: number }[] = [];
+  if (c.fase === "pago" || !c.proximo) return out;
+  if (c.proximo.prazo && c.proximo.prazo <= ate && c.proximo.valor > 0) {
+    out.push({ tipo: c.proximo.tipo, valor: c.proximo.valor });
+  }
+  if (c.proximo.tipo === "sinal") {
+    const saldo = round2(c.emFalta - c.proximo.valor);
+    if (saldo > 0 && c.prazoDoSaldo && c.prazoDoSaldo <= ate) {
+      out.push({ tipo: "saldo", valor: saldo });
+    }
+  }
+  return out;
 }
 
 /** Um mês da previsão: «aaaa-mm» e o que se espera receber nele. */
@@ -422,8 +560,8 @@ export function previsaoDeEntradas(
     somar(c.proximo.prazo, c.proximo.valor);
     if (c.proximo.tipo === "sinal") {
       const saldo = round2(c.emFalta - c.proximo.valor);
-      const prazo = c.dataDoEvento ? prazoDoSaldo(c.dataDoEvento, "0000-00-00") : null;
-      somar(prazo, saldo);
+      // O prazo do saldo da linha prevista, quando há (n.º 10 da auditoria).
+      somar(c.prazoDoSaldo, saldo);
     }
   }
   return lista;

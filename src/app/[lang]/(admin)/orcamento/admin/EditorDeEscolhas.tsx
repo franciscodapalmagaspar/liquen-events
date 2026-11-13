@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MINIMO_DE_OPCOES,
   escolhaPronta,
@@ -141,6 +141,51 @@ export default function EditorDeEscolhas({
     return () => clearTimeout(t);
   }, [anulavel]);
 
+  // ── O FOCO DO TECLADO, DEPOIS DA PERGUNTA (auditoria 6, n.º 22) ──────────
+  //
+  // A pergunta aparecia sem receber o foco, e ao «Apagar» o cartão inteiro
+  // saía do DOM com o botão que o tinha: o foco caía no `<body>`, e quem usa o
+  // teclado ou um leitor de ecrã voltava ao início da página. Agora a pergunta
+  // recebe o foco no «Cancelar» (o lado que não perde nada); cancelar devolve-o
+  // ao «×» de onde veio; e apagar leva-o à alternativa seguinte (ou à
+  // anterior, ou ao «+ Alternativa» quando não sobra nenhuma).
+  const raiz = useRef<HTMLDivElement>(null);
+  const cancelarApagar = useRef<HTMLButtonElement>(null);
+  /** Para onde vai o foco quando a lista nova chegar do pai. */
+  const focoDepois = useRef<{ alvo: "titulo" | "apagar"; id: string } | "acrescentar" | null>(null);
+  useEffect(() => {
+    if (aApagar) cancelarApagar.current?.focus();
+  }, [aApagar]);
+  useEffect(() => {
+    const pedido = focoDepois.current;
+    if (!pedido || !raiz.current) return;
+    // Procura pelo atributo e compara à mão, em vez de montar um seletor com o
+    // id lá dentro: nada de escapar o que vem do documento.
+    const procurar = (atributo: string, valor?: string) =>
+      [...raiz.current!.querySelectorAll<HTMLElement>(`[${atributo}]`)].find(
+        (el) => valor === undefined || el.getAttribute(atributo) === valor,
+      );
+    const el =
+      pedido === "acrescentar"
+        ? procurar("data-acrescentar-escolha")
+        : procurar(
+            pedido.alvo === "titulo" ? "data-titulo-da-escolha" : "data-apagar-escolha",
+            pedido.id,
+          );
+    if (!el) return;
+    focoDepois.current = null;
+    el.focus();
+  });
+
+  /** Apaga a alternativa confirmada, e diz para onde vai o foco a seguir. */
+  function apagarEscolhaConfirmada(id: string) {
+    const i = lista.findIndex((e) => e.id === id);
+    const vizinha = lista[i + 1] ?? lista[i - 1];
+    focoDepois.current = vizinha ? { alvo: "titulo", id: vizinha.id } : "acrescentar";
+    onChange(lista.filter((e) => e.id !== id));
+    setAApagar(null);
+  }
+
   const mudarEscolha = (i: number, p: Partial<Escolha>) =>
     onChange(lista.map((e, k) => (k === i ? { ...e, ...p } : e)));
 
@@ -240,7 +285,10 @@ export default function EditorDeEscolhas({
      * dentro dos mood boards, pela razão escrita no cabeçalho: é lá que estão
      * as fotografias que explicam as alternativas.
      */
-    <div className="mt-8 rounded-xl border border-[var(--color-moss)]/25 bg-[color-mix(in_srgb,var(--color-moss)_5%,transparent)] p-4 sm:p-5">
+    <div
+      ref={raiz}
+      className="mt-8 rounded-xl border border-[var(--color-moss)]/25 bg-[color-mix(in_srgb,var(--color-moss)_5%,transparent)] p-4 sm:p-5"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h4
           className="text-[var(--bo-text)] text-[17px]"
@@ -248,7 +296,12 @@ export default function EditorDeEscolhas({
         >
           À escolha do casal <span className="text-foreground/40 text-[12px]">(opcional)</span>
         </h4>
-        <button type="button" className={BOTAO_MAGRO} onClick={acrescentarEscolha}>
+        <button
+          type="button"
+          className={BOTAO_MAGRO}
+          onClick={acrescentarEscolha}
+          data-acrescentar-escolha
+        >
           + Alternativa
         </button>
       </div>
@@ -306,6 +359,7 @@ export default function EditorDeEscolhas({
                       placeholder="Paleta da cerimónia"
                       aria-label={`Título da alternativa ${i + 1}`}
                       data-campo={`escolhas:${i}:titulo`}
+                      data-titulo-da-escolha={escolha.id}
                       onChange={(ev) => mudarEscolha(i, { titulo: ev.target.value })}
                     />
                     {bilingue && (
@@ -341,6 +395,7 @@ export default function EditorDeEscolhas({
                     type="button"
                     aria-label={`Apagar a alternativa ${i + 1}`}
                     title="Apagar esta alternativa"
+                    data-apagar-escolha={escolha.id}
                     // À VISTA no telemóvel — é a regra desta casa desde o «×»
                     // das fotos: um botão que apaga não pode ser invisível e
                     // continuar a apanhar o dedo.
@@ -372,16 +427,21 @@ export default function EditorDeEscolhas({
                     </span>
                     {/* Cancelar é o primeiro e não escreve NADA: nem apaga, nem
                         toca no documento. Fecha a pergunta e mais nada. */}
-                    <button type="button" className={BOTAO_MAGRO} onClick={() => setAApagar(null)}>
+                    <button
+                      ref={cancelarApagar}
+                      type="button"
+                      className={BOTAO_MAGRO}
+                      onClick={() => {
+                        focoDepois.current = { alvo: "apagar", id: escolha.id };
+                        setAApagar(null);
+                      }}
+                    >
                       Cancelar
                     </button>
                     <button
                       type="button"
                       className={`${BOTAO_MAGRO} border-[var(--bo-perigo)]/35 text-[var(--bo-perigo)] hover:bg-[var(--bo-perigo)]/10`}
-                      onClick={() => {
-                        onChange(lista.filter((e) => e.id !== escolha.id));
-                        setAApagar(null);
-                      }}
+                      onClick={() => apagarEscolhaConfirmada(escolha.id)}
                     >
                       Apagar a alternativa
                     </button>

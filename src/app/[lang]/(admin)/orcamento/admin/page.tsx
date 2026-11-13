@@ -10,7 +10,8 @@ import MedidorDeTransbordo from "./MedidorDeTransbordo";
 import AdminLogin from "./AdminLogin";
 import { ToastProvider } from "./Toast";
 import { RegistoDeGravacoesProvider } from "./registo-de-gravacoes";
-import { ADMIN_COOKIE, ADMIN_NAME_COOKIE, readSession } from "@/lib/admin-auth";
+import { ADMIN_COOKIE, ADMIN_NAME_COOKIE } from "@/lib/admin-auth";
+import { sessaoValida } from "@/lib/sessoes-revogadas";
 import { listQuoteSummaries } from "@/lib/quotes-store";
 
 // Kept out of robots.txt (crawling) *and* given noindex here (indexing) —
@@ -60,7 +61,8 @@ export default async function AdminPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const store = await cookies();
-  const session = readSession(store.get(ADMIN_COOKIE)?.value);
+  // Com as revogações (sair, palavra-passe redefinida) — ver `sessoes-revogadas.ts`.
+  const session = await sessaoValida(store.get(ADMIN_COOKIE)?.value);
 
   if (!session) {
     return <AdminLogin />;

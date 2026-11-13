@@ -169,7 +169,20 @@ describe("PATCH /api/contratos/[id] — desfazer o registo («voltar atrás»)",
       acceptedName: "",
       registadoPor: "",
       registadoComo: "",
+      propostaVersaoSelo: "",
+      propostaVersaoNumero: null,
     });
+  });
+
+  /** Auditoria 6, n.º 18: o selo da versão aceite ia com o registo, e ficava. */
+  it("leva o selo da versão da proposta com o registo", async () => {
+    dados.contrato = {
+      ...registado(),
+      propostaVersaoSelo: "abc123",
+      propostaVersaoNumero: 3,
+    } as Contract;
+    await PATCH(pedido({ desfazer: true }), { params });
+    expect(dados.gravado).toMatchObject({ propostaVersaoSelo: "", propostaVersaoNumero: null });
   });
 
   it("um aceite electrónico do casal (com IP) não se desfaz — é a prova", async () => {

@@ -56,12 +56,44 @@ const store = vi.hoisted(() => {
       ...patch,
     })),
     remove: vi.fn(async (_id: string) => {}),
+    /**
+     * O ler-mudar-escrever da loja verdadeira: relê o pedido, aplica a mudança
+     * e grava o resultado inteiro. `antesDeGravar` deixa um teste meter uma
+     * escrita de outra pessoa ENTRE a leitura e a gravação (a corrida).
+     */
+    antesDeGravar: null as null | (() => void),
+    updateWith: vi.fn(
+      async (id: string, mutate: (q: Record<string, unknown>) => Record<string, unknown>) => {
+        for (let volta = 1; volta <= 3; volta++) {
+          const lido = await store.get(id);
+          if (!lido) return null;
+          const proximo = mutate(lido);
+          if (store.antesDeGravar) {
+            const corrida = store.antesDeGravar;
+            store.antesDeGravar = null;
+            corrida();
+            continue; // o bloqueio optimista apanhou a escrita do meio: relê
+          }
+          // Grava-se só o que mudou, para os testes poderem perguntar pelo
+          // patch como perguntam ao `updateQuote`.
+          const mudou = Object.fromEntries(
+            Object.entries(proximo).filter(
+              ([k, v]) =>
+                JSON.stringify(v) !== JSON.stringify((lido as Record<string, unknown>)[k]),
+            ),
+          );
+          return store.update(id, mudou);
+        }
+        throw Object.assign(new Error("conflito"), { name: "ConflictError", current: {} });
+      },
+    ),
   };
 });
 const rl = vi.hoisted(() => ({ result: { ok: true } as { ok: boolean; retryAfter?: number } }));
 vi.mock("@/lib/quotes-store", () => ({
   getQuote: store.get,
   updateQuote: store.update,
+  updateQuoteWith: store.updateWith,
   deleteQuote: store.remove,
 }));
 /**
@@ -108,13 +140,16 @@ vi.mock("@/lib/rate-limit", () => ({
  */
 const propostas = vi.hoisted(() => ({
   daQuote: null as null | Record<string, unknown>,
+  /** Todas as propostas do pedido, da mais nova para a mais velha (se o teste as der). */
+  lista: null as null | Record<string, unknown>[],
   getByQuote: vi.fn(async (_qid: string) => propostas.daQuote),
   update: vi.fn(async (id: string, patch: Record<string, unknown>) => ({ id, ...patch })),
 }));
 vi.mock("@/lib/proposals-store", () => ({
   getProposalByQuote: propostas.getByQuote,
   updateProposal: propostas.update,
-  listProposalsForQuote: async () => (propostas.daQuote ? [propostas.daQuote] : []),
+  listProposalsForQuote: async () =>
+    propostas.lista ?? (propostas.daQuote ? [propostas.daQuote] : []),
 }));
 const contratos = vi.hoisted(() => ({
   criar: vi.fn(async (c: Record<string, unknown>) => ({ created: true, contract: c })),
@@ -185,7 +220,9 @@ beforeEach(() => {
   authed.ok = false;
   rl.result = { ok: true };
   store.override = {};
+  store.antesDeGravar = null;
   propostas.daQuote = null;
+  propostas.lista = null;
   contratos.daProposta = null;
   vi.clearAllMocks();
 });
@@ -835,13 +872,12 @@ describe("PATCH /api/orcamento/[id] — propaga o desfecho para a proposta", () 
       id: () => "entrada-1",
     });
 
-  it("marcar «Ganho» escreve status e respondedAt na proposta mais recente", async () => {
+  it("marcar «Ganho» escreve status e respondedAt na proposta que conta (a enviada)", async () => {
     authed.ok = true;
     store.override = { status: "cotado" };
     propostas.daQuote = proposta();
     await PATCH(req("PATCH", corpo("ganho", 4600)), ctx("LIQ-1"));
 
-    expect(propostas.getByQuote).toHaveBeenCalledWith("LIQ-1");
     expect(propostas.update).toHaveBeenCalledWith(
       "prop-1",
       expect.objectContaining({ status: "aceite", respondedAt: expect.any(String) }),
@@ -963,6 +999,24 @@ describe("PATCH /api/orcamento/[id] — o contrato nasce ao Ganho", () => {
     expect(contrato).not.toHaveProperty("acceptedAt");
     expect(contrato).not.toHaveProperty("acceptedName");
     expect(contrato).not.toHaveProperty("acceptedIp");
+  });
+
+  it("marcar «Ganho» com uma revisão por enviar aceita a ENVIADA — nunca o rascunho (auditoria de 13/11, n.º 3)", async () => {
+    authed.ok = true;
+    store.override = { status: "cotado" };
+    const rascunho = proposta({ id: "prop-2", status: "rascunho" });
+    // A mais recente é o rascunho de uma revisão que o casal nunca viu.
+    propostas.daQuote = rascunho;
+    propostas.lista = [rascunho, proposta({ id: "prop-1", status: "enviada" })];
+    await PATCH(req("PATCH", corpoGanho(4600)), ctx("LIQ-1"));
+
+    expect(propostas.update).toHaveBeenCalledWith(
+      "prop-1",
+      expect.objectContaining({ status: "aceite" }),
+    );
+    expect(propostas.update).not.toHaveBeenCalledWith("prop-2", expect.anything());
+    expect(contratos.criar).toHaveBeenCalledTimes(1);
+    expect(contratos.criar.mock.calls[0][0]).toMatchObject({ proposalId: "prop-1" });
   });
 
   it("marcar «Perdido» não faz nascer contrato nenhum", async () => {
@@ -1334,5 +1388,142 @@ describe("PATCH /api/orcamento/[id] — «Anular» um Ganho leva o que ele arras
       status: "enviada",
       respondedAt: "",
     });
+  });
+});
+
+describe("PATCH /api/orcamento/[id] — o prazo do saldo segue a data do evento", () => {
+  it("mudar a data move o saldo PREVISTO pela regra, e não toca no pago nem no escrito à mão (auditoria de 13/11, n.º 7)", async () => {
+    authed.ok = true;
+    store.override = {
+      status: "aceite",
+      date: "2027-06-12",
+      payments: [
+        { id: "s", kind: "sinal", amount: 3000, date: "2026-11-01", paid: true },
+        // O «Ganho» semeou-o a um mês do evento.
+        { id: "r", kind: "saldo", amount: 7000, date: "2027-05-12", paid: false },
+        // Este foi ela que o pôs noutro dia — fica.
+        { id: "m", kind: "saldo", amount: 100, date: "2027-04-01", paid: false },
+      ],
+    };
+    // A loja deste ficheiro não guarda o que se escreve; aqui a segunda escrita
+    // (a do saldo) tem de ler a data que a primeira gravou.
+    const gravaDeVerdade = async (id: string, patch: Record<string, unknown>) => {
+      Object.assign(store.override, patch);
+      return { ...(await store.get(id)), ...patch } as Awaited<ReturnType<typeof store.update>>;
+    };
+    store.update.mockImplementationOnce(gravaDeVerdade).mockImplementationOnce(gravaDeVerdade);
+    const res = await PATCH(req("PATCH", { date: "2027-09-20" }), ctx("LIQ-1"));
+    expect(res.status).toBe(200);
+    const corpo = (await res.json()) as { payments: { id: string; date: string }[] };
+    const dia = (id: string) => corpo.payments.find((p) => p.id === id)?.date;
+    expect(dia("r")).toBe("2027-08-20");
+    expect(dia("m")).toBe("2027-04-01");
+    expect(dia("s")).toBe("2026-11-01");
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * DUAS PESSOAS NO MESMO PEDIDO AO MESMO TEMPO (auditoria de 13/11)
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe("PATCH /api/orcamento/[id] — gravações ao mesmo tempo", () => {
+  it("n.º 3: notas internas com uma base que já não é a guardada dão 409, e nada se grava", async () => {
+    authed.ok = true;
+    // O ecrã dela leu as notas vazias; entretanto a colega escreveu «nota interna».
+    const res = await PATCH(
+      req("PATCH", { adminNotes: "ligou a confirmar", base: { adminNotes: "" } }),
+      ctx("LIQ-1"),
+    );
+    expect(res.status).toBe(409);
+    expect(store.update).not.toHaveBeenCalled();
+    const corpo = await res.json();
+    expect(corpo.current.adminNotes).toBe("nota interna");
+    expect(corpo.submetido.adminNotes).toBe("ligou a confirmar");
+  });
+
+  it("n.º 3: a rede a repetir um PATCH de notas que já passou não é conflito", async () => {
+    authed.ok = true;
+    // Gravado já tem «nota interna»; o reenvio traz o mesmo texto com a base
+    // de antes da primeira tentativa.
+    const res = await PATCH(
+      req("PATCH", { adminNotes: "nota interna", base: { adminNotes: "" } }),
+      ctx("LIQ-1"),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("n.º 3: notas internas com a base certa gravam", async () => {
+    authed.ok = true;
+    const res = await PATCH(
+      req("PATCH", { adminNotes: "nota interna + mais", base: { adminNotes: "nota interna" } }),
+      ctx("LIQ-1"),
+    );
+    expect(res.status).toBe(200);
+    expect(gravadoNaLoja()).toEqual({ adminNotes: "nota interna + mais" });
+  });
+
+  it("n.º 4: uma linha do histórico escrita por outra pessoa a meio não se perde", async () => {
+    authed.ok = true;
+    // Entre a leitura e a escrita deste PATCH, outro acrescenta «b2» ao histórico.
+    store.antesDeGravar = () => {
+      store.override = {
+        activityLog: [
+          { id: "a1", at: "2026-06-02", kind: "manual_note", summary: "interno" },
+          { id: "b2", at: "2026-06-03", kind: "note_added", summary: "da colega" },
+        ],
+      };
+    };
+    const res = await PATCH(
+      req("PATCH", {
+        activityLogAppend: [{ id: "c3", at: "2026-06-04", kind: "note_added", summary: "minha" }],
+      }),
+      ctx("LIQ-1"),
+    );
+    expect(res.status).toBe(200);
+    const log = gravadoNaLoja().activityLog as { id: string }[];
+    expect(log.map((e) => e.id)).toEqual(["a1", "b2", "c3"]);
+  });
+
+  it("n.º 5: um conflito que não se resolve responde 409 com a mensagem, não 500", async () => {
+    authed.ok = true;
+    // As três voltas do bloqueio optimista esgotaram-se: o repositório desiste.
+    store.update.mockRejectedValueOnce(
+      Object.assign(new Error("Concurrent update"), {
+        name: "ConflictError",
+        current: { id: "LIQ-1" },
+        attempted: { id: "LIQ-1" },
+      }),
+    );
+    const res = await PATCH(req("PATCH", { guests: 80 }), ctx("LIQ-1"));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/NÃO foi gravado/);
+  });
+
+  it("n.º 11: dois pagamentos ao mesmo tempo — o segundo não passa por cima do primeiro", async () => {
+    authed.ok = true;
+    const base = [{ id: "p1", kind: "sinal", amount: 3000, date: "2026-06-05", paid: true }];
+    // Os dois ecrãs leram a mesma lista; o primeiro grava p2 ENTRE a conferência
+    // da base deste PATCH e a escrita dele.
+    store.antesDeGravar = () => {
+      store.override = {
+        payments: [
+          ...base,
+          { id: "p2", kind: "reforco", amount: 1000, date: "2026-07-01", paid: true },
+        ],
+      };
+    };
+    const res = await PATCH(
+      req("PATCH", {
+        payments: [
+          ...base,
+          { id: "p3", kind: "saldo", amount: 500, date: "2026-08-01", paid: true },
+        ],
+        base: { payments: base },
+      }),
+      ctx("LIQ-1"),
+    );
+    expect(res.status).toBe(409);
+    expect(store.update).not.toHaveBeenCalled();
   });
 });

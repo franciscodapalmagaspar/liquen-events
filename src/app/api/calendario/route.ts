@@ -4,6 +4,8 @@ import { listCalendarEvents, createCalendarEvent } from "@/lib/calendar-store";
 import { jsonWithEtag } from "@/lib/api-cache";
 import type { CalendarEventKind } from "@/lib/orcamento/types";
 import { log } from "@/lib/logger";
+import { dataIso } from "@/lib/validation";
+import { minutosDe } from "@/lib/orcamento/guiao-do-dia";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,17 +34,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
     }
     const title = String(body.title ?? "").trim();
-    const date = String(body.date ?? "").trim();
-    if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const dataEscrita = String(body.date ?? "").trim();
+    if (!title || !dataEscrita) {
       return NextResponse.json({ error: "Título e data são obrigatórios" }, { status: 400 });
+    }
+    // ── UM DIA QUE EXISTA, UMA HORA QUE EXISTA, TEXTOS COM TECTO ──────────
+    // A regex sozinha deixava passar «2027-02-30»; a coluna `event_date` é
+    // `date` e o Postgres recusava-o, o que saía como 500 «Erro interno» em
+    // vez de dizer o que estava mal (achado n.º 15 da auditoria 6).
+    const date = dataIso(dataEscrita);
+    if (!date) {
+      return NextResponse.json(
+        { error: "Data inválida — escolhe um dia do calendário." },
+        { status: 400 },
+      );
+    }
+    if (title.length > 200) {
+      return NextResponse.json(
+        { error: "O título é demasiado longo (o máximo são 200 caracteres)." },
+        { status: 400 },
+      );
+    }
+    const horaEscrita = String(body.time ?? "").trim();
+    if (horaEscrita && minutosDe(horaEscrita) === null) {
+      return NextResponse.json({ error: "Hora inválida — usa o formato hh:mm." }, { status: 400 });
+    }
+    const note = String(body.note ?? "");
+    if (note.length > 2000) {
+      return NextResponse.json(
+        { error: "A nota é demasiado longa (o máximo são 2000 caracteres)." },
+        { status: 400 },
+      );
     }
     const kind: CalendarEventKind = KINDS.includes(body.kind) ? body.kind : "evento";
     const event = await createCalendarEvent({
       title,
       date,
       kind,
-      time: body.time || undefined,
-      note: body.note || undefined,
+      time: horaEscrita || undefined,
+      note: note || undefined,
     });
     return NextResponse.json(event);
   } catch (err) {

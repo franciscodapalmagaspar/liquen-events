@@ -48,7 +48,17 @@ vi.mock("@/lib/app-state", () => ({
 }));
 
 import { POST } from "./route";
-import { ADMIN_COOKIE } from "@/lib/admin-auth";
+import { ADMIN_COOKIE, ADMIN_DEVICE_COOKIE } from "@/lib/admin-auth";
+import { NextRequest as NextRequestReal } from "next/server";
+
+/** Um pedido com cookies (o `entrar` simples não os tem). */
+function entrarComCookie(body: unknown, cookie: string): NextRequest {
+  return new NextRequestReal("https://liquen-events.com/api/admin/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", cookie },
+    body: JSON.stringify(body),
+  });
+}
 
 function entrar(body: unknown): NextRequest {
   return new Request("https://liquen-events.com/api/admin/login", {
@@ -150,6 +160,62 @@ describe("o bloqueio por conta SOBE com a insistência", () => {
     const res = await POST(entrar({ email: "catarina@liquen-events.com", password: "cat-pass" }));
     expect(res.status).toBe(429);
     expect(res.cookies.get(ADMIN_COOKIE)?.value).toBeFalsy();
+  }, 60_000);
+
+  it("n.º 4 — com a conta no último degrau, o aparelho onde ela já entrou entra na mesma", async () => {
+    // Uma entrada boa, antes, deixa a marca do aparelho.
+    const antes = await POST(entrar({ email: "catarina@liquen-events.com", password: "cat-pass" }));
+    const marca = antes.cookies.get(ADMIN_DEVICE_COOKIE)?.value;
+    expect(marca).toBeTruthy();
+    // Um estranho gasta as 20 tentativas da conta dela, de muitos endereços.
+    for (let i = 0; i < 20; i++) {
+      await POST(entrar({ email: "catarina@liquen-events.com", password: `errada-${i}` }));
+    }
+    // De fora (sem a marca) a porta continua fechada — a decisão de 10/11…
+    const deFora = await POST(
+      entrar({ email: "catarina@liquen-events.com", password: "cat-pass" }),
+    );
+    expect(deFora.status).toBe(429);
+    // …e do aparelho dela, com a palavra-passe certa, entra.
+    const doAparelho = await POST(
+      entrarComCookie(
+        { email: "catarina@liquen-events.com", password: "cat-pass" },
+        `${ADMIN_DEVICE_COOKIE}=${marca}`,
+      ),
+    );
+    expect(doAparelho.status).toBe(200);
+    expect(doAparelho.cookies.get(ADMIN_COOKIE)?.value).toBeTruthy();
+    // Com a marca, uma palavra-passe ERRADA continua recusada.
+    const errada = await POST(
+      entrarComCookie(
+        { email: "catarina@liquen-events.com", password: "errada" },
+        `${ADMIN_DEVICE_COOKIE}=${marca}`,
+      ),
+    );
+    expect(errada.status).not.toBe(200);
+  }, 60_000);
+
+  it("n.º 4 — a marca de um aparelho de OUTRA conta não serve", async () => {
+    process.env.ADMIN_USERS = JSON.stringify([
+      {
+        name: "Catarina",
+        email: "catarina@liquen-events.com",
+        passwordHash: bcrypt.hashSync("cat-pass", 4),
+      },
+      { name: "Rui", email: "rui@liquen-events.com", passwordHash: bcrypt.hashSync("rui-pass", 4) },
+    ]);
+    const doRui = await POST(entrar({ email: "rui@liquen-events.com", password: "rui-pass" }));
+    const marcaDoRui = doRui.cookies.get(ADMIN_DEVICE_COOKIE)?.value;
+    for (let i = 0; i < 20; i++) {
+      await POST(entrar({ email: "catarina@liquen-events.com", password: `errada-${i}` }));
+    }
+    const res = await POST(
+      entrarComCookie(
+        { email: "catarina@liquen-events.com", password: "cat-pass" },
+        `${ADMIN_DEVICE_COOKIE}=${marcaDoRui}`,
+      ),
+    );
+    expect(res.status).toBe(429);
   }, 60_000);
 
   it("os degraus são POR CONTA: uma conta bloqueada não bloqueia a do lado", async () => {

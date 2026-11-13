@@ -448,8 +448,12 @@ function duplicateKeyError(table: string, id: string): Error {
  * com PGRST303 (o relógio do servidor dele está uns segundos atrás do nosso).
  * Passa sozinho num segundo — mas sem nova tentativa deixou a cópia diária
  * INCOMPLETA a 7, 9 e 11/11 e falhou a lista de pedidos e o link de uma
- * proposta. Só nas LEITURAS (repetir é inofensivo); as escritas não se
- * repetem às cegas.
+ * proposta.
+ *
+ * As ESCRITAS também se repetem, mas SÓ com este erro: o PGRST303 é a chave
+ * recusada à porta, antes de o pedido chegar à base de dados — nada ficou
+ * escrito, e repetir não duplica nada (auditoria de 13/11, n.º 11). Qualquer
+ * outro erro de escrita continua a não se repetir às cegas.
  */
 const ESPERAS_DO_RELOGIO_MS = [800, 2000];
 
@@ -582,7 +586,10 @@ export class SupabaseBackend<T> implements Backend<T> {
 
   async insert(entity: T, extra?: Record<string, unknown>): Promise<void> {
     const row = extra ? { ...this.m.toRow(entity), ...extra } : this.m.toRow(entity);
-    const { error, status } = await this.sb.from(this.m.table).insert(row);
+    // Nova tentativa só com o relógio adiantado — ver `lerComNovaTentativa`.
+    const { error, status } = await lerComNovaTentativa(() =>
+      this.sb.from(this.m.table).insert(row),
+    );
     if (error) throw comEstadoHttp(error, status);
   }
 
@@ -594,20 +601,26 @@ export class SupabaseBackend<T> implements Backend<T> {
     // we read. Zero rows updated ⇒ someone else wrote in between ⇒ conflict.
     const stamp = cas && typeof cas === "object" ? this.stamps.get(cas as object) : undefined;
     if (stamp !== undefined) {
-      const base = this.sb.from(this.m.table).update(row).eq(this.idCol, id);
-      const guarded = stamp === null ? base.is("updated_at", null) : base.eq("updated_at", stamp);
-      const { data, error, status } = await guarded.select(this.idCol);
+      const { data, error, status } = await lerComNovaTentativa(() => {
+        const base = this.sb.from(this.m.table).update(row).eq(this.idCol, id);
+        const guarded = stamp === null ? base.is("updated_at", null) : base.eq("updated_at", stamp);
+        return guarded.select(this.idCol);
+      });
       if (error) throw comEstadoHttp(error, status);
       if (!data?.length) throw new ConflictError<T>(id, { table: this.m.table, attempted: merged });
       return;
     }
 
-    const { error, status } = await this.sb.from(this.m.table).update(row).eq(this.idCol, id);
+    const { error, status } = await lerComNovaTentativa(() =>
+      this.sb.from(this.m.table).update(row).eq(this.idCol, id),
+    );
     if (error) throw comEstadoHttp(error, status);
   }
 
   async remove(id: string): Promise<void> {
-    const { error, status } = await this.sb.from(this.m.table).delete().eq(this.idCol, id);
+    const { error, status } = await lerComNovaTentativa(() =>
+      this.sb.from(this.m.table).delete().eq(this.idCol, id),
+    );
     if (error) throw comEstadoHttp(error, status);
   }
 }

@@ -4,6 +4,7 @@ import { listAllProposals } from "@/lib/proposals-store";
 import { jsonWithEtag } from "@/lib/api-cache";
 import { log } from "@/lib/logger";
 import { opcionaisDe } from "@/lib/orcamento/versoes-da-proposta";
+import { totalAPagarDaProposta } from "@/lib/orcamento/proposta-que-conta";
 import type { Proposal } from "@/lib/orcamento/types";
 import { depositPercentOf, type ProposalDoc } from "@/lib/proposal-doc";
 import { comCpu } from "@/lib/medir-cpu";
@@ -77,14 +78,22 @@ function resumir(p: Awaited<ReturnType<typeof listAllProposals>>[number]) {
  *                      oferecia 3.690,00 € onde o combinado eram 6.150,00 €.
  *                      Um número, não o documento — é para isto que serve esta
  *                      forma sem `doc`.
+ *   · `totalAPagar` / `subtotalAPagar` — o que o casal tem a pagar, pela versão
+ *                      que escolheu (`totalAPagarDaProposta`, a conta da
+ *                      faturação). Com a versão base, é menos do que o `total`
+ *                      da proposta inteira — e é este que os Pagamentos e as
+ *                      Cobranças cobram (auditoria de 13/11, n.º 1).
  *
  * O campo `doc` é OMITIDO, não truncado: um documento pela metade é a espécie
  * de coisa que passa despercebida até alguém desenhar um PDF a partir dele.
  */
 function semDocumento(p: Proposal) {
   const { doc, ...resto } = p;
+  const aPagar = totalAPagarDaProposta(p);
   return {
     ...resto,
+    totalAPagar: aPagar.total,
+    subtotalAPagar: aPagar.subtotal,
     temDoc: !!doc,
     temOpcionais: !!doc && opcionaisDe(doc).some(Boolean),
     pctSinal: depositPercentOf(doc),

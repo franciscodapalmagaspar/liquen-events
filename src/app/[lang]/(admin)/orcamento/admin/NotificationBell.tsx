@@ -6,6 +6,18 @@ import { log } from "@/lib/logger";
 import { Button } from "./ui";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 
+/** Um cookie legível pelo browser (o nome de quem entrou, `liquen_user`). */
+function lerCookie(nome: string): string | null {
+  if (typeof document === "undefined") return null;
+  const par = document.cookie.split("; ").find((c) => c.startsWith(`${nome}=`));
+  if (!par) return null;
+  try {
+    return decodeURIComponent(par.slice(nome.length + 1));
+  } catch {
+    return null;
+  }
+}
+
 function BellIcon() {
   return (
     <svg
@@ -155,6 +167,48 @@ export default function NotificationBell() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void sondar();
   }, [sondar]);
+
+  /**
+   * ── LIGAR À CONTA UMA SUBSCRIÇÃO DE ANTES (auditoria de 13/11, n.º 7) ────
+   *
+   * As subscrições passaram a guardar a conta de quem as ligou, e as antigas
+   * não a têm — por isso só recebem um aviso genérico, sem nomes nem valores.
+   * Num aparelho que já tem as notificações ligadas, isto volta a mandar a
+   * MESMA subscrição uma vez, com a sessão de agora, e o servidor prende-a à
+   * conta. Uma vez por aparelho e por conta (lembrado no `localStorage`): não é
+   * um pedido por carregamento.
+   */
+  useEffect(() => {
+    if (state !== "granted") return;
+    const conta = lerCookie("liquen_user") ?? "";
+    const marca = `liquen-push-conta:${conta}`;
+    try {
+      if (localStorage.getItem(marca) === "1") return;
+    } catch {
+      return;
+    }
+    void (async () => {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = await reg?.pushManager.getSubscription();
+        if (!sub) return;
+        const res = await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sub),
+        });
+        if (res.ok) {
+          try {
+            localStorage.setItem(marca, "1");
+          } catch {
+            /* sem armazenamento: tenta outra vez no próximo carregamento */
+          }
+        }
+      } catch {
+        // Fica para o próximo carregamento; até lá chega o aviso genérico.
+      }
+    })();
+  }, [state]);
 
   /**
    * O lado do NAVEGADOR: registar o service worker, pedir a permissão,

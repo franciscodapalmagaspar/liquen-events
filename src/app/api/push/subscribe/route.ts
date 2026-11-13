@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAuthed } from "@/lib/admin-auth";
+import { ADMIN_COOKIE, isAuthed, readSession } from "@/lib/admin-auth";
 import { saveSubscription, removeSubscription, pushConfigured } from "@/lib/push";
 import { isPersistenceUnavailable } from "@/lib/repository";
 import { pushSubscriptionSchema } from "@/lib/validation";
@@ -24,7 +24,10 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: "Subscrição inválida" }, { status: 400 });
     }
-    await saveSubscription(parsed.data);
+    // A subscrição fica presa à conta da SESSÃO (auditoria de 13/11, n.º 7):
+    // quem sair da equipa deixa de receber — ver `lib/push.ts`.
+    const conta = readSession(request.cookies?.get(ADMIN_COOKIE)?.value)?.name;
+    await saveSubscription(parsed.data, conta);
     return NextResponse.json({ ok: true });
   } catch (err) {
     /**

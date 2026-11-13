@@ -197,3 +197,36 @@ export function marcarExtra<T extends Pick<ProposalDoc, "budgetItems" | "budgetO
 ): T {
   return { ...doc, budgetOpcional: opcionaisDe(doc).map((v, j) => (j === i ? extra : v)) };
 }
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O TOTAL DA PROPOSTA ACEITE, PELA VERSÃO QUE O CASAL ESCOLHEU
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Auditoria do dinheiro (13/11, n.º 1): o casal ficou com a versão BASE, e o
+ * Moloni faturava a base — mas os Pagamentos, o quadro das Cobranças, as linhas
+ * de sinal e saldo do «Gerar» e o resumo diário cobravam o total COM os extras.
+ * O «Em falta» nunca chegava a zero.
+ *
+ * Esta é a conta que a faturação já fazia (era o `totalDaVersao` de
+ * `artigos-de-faturacao.ts`), mudada para aqui para TODOS a lerem: sem versão
+ * escolhida, ou com «extras», é a proposta inteira (`dinheiroDaProposta`); com
+ * «base», é a versão base de {@link totaisDasVersoes}. Não há regra nova — só
+ * um sítio.
+ */
+export function totalDaVersaoAceite(
+  doc: Parameters<typeof dinheiroDaProposta>[0] & DocComTotais,
+  versao?: VersaoEscolhida | null,
+) {
+  const dinheiro = dinheiroDaProposta(doc);
+  const versoes = versao === "base" ? totaisDasVersoes(doc, dinheiro.base) : null;
+  return {
+    /** Sem IVA. */
+    base: versoes ? versoes.base : dinheiro.base,
+    /** Com IVA — o que o casal paga. */
+    bruto: versoes ? versoes.bruto.base : dinheiro.gross,
+    vatRate: dinheiro.vatRate,
+    mode: dinheiro.mode,
+    versoes,
+  };
+}

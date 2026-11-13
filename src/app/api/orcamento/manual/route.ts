@@ -7,6 +7,8 @@ import { z } from "zod";
 import { normalizarTelefone } from "@/lib/contacto-do-pedido";
 import { dominioRecebeEmail } from "@/lib/dominio-do-email";
 import { getDictionary } from "@/lib/i18n";
+import { dataIso } from "@/lib/validation";
+import { parseMoney } from "@/app/[lang]/(admin)/orcamento/admin/util";
 
 export const runtime = "nodejs";
 
@@ -100,8 +102,25 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const telefoneEscrito = str(b.phone, 40).trim();
-    const telefone = telefoneEscrito ? normalizarTelefone(telefoneEscrito) : "";
+    const telefoneEscrito = strLine(b.phone, 40);
+    const normalizado = telefoneEscrito ? normalizarTelefone(telefoneEscrito) : "";
+    /**
+     * ── «DUPLICAR PEDIDO» NÃO FALHA POR CAUSA DE UM TELEFONE ANTIGO ────────
+     *
+     * Os pedidos gravados antes de 30/10 têm telefones que as regras do país
+     * não reconhecem. Duplicar um deles batia aqui e acabava num aviso
+     * genérico, sem forma de duplicar sem antes corrigir o original (achado
+     * n.º 21 da auditoria 6). Numa cópia (`duplicado: true`) o número fica
+     * como estava, e a resposta diz que ficou, para ela o conferir.
+     */
+    const duplicado = b.duplicado === true;
+    let aviso: string | undefined;
+    let telefone = normalizado;
+    if (normalizado === null && duplicado) {
+      telefone = telefoneEscrito;
+      aviso =
+        "O telefone do pedido original não foi reconhecido e ficou como estava. Confira-o no pedido novo.";
+    }
     if (telefone === null) {
       return NextResponse.json(
         {
@@ -112,6 +131,33 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    /**
+     * ── A DATA TEM DE SER UM DIA QUE EXISTE ───────────────────────────────
+     *
+     * Era a única porta de entrada de pedidos sem esta guarda: «2027-02-30»,
+     * um ano de cinco algarismos (o `<input type="date">` do Chrome aceita-o)
+     * ou texto livre ficavam gravados, e o Calendário e o PDF do guião
+     * partiam-se depois (achado n.º 11 da auditoria 6). Vazio continua a ser
+     * «ainda a definir»; o resto passa por `dataIso`, o sítio único.
+     */
+    const dataEscrita = strLine(b.date, 40);
+    const date = dataEscrita ? dataIso(dataEscrita) : "";
+    if (dataEscrita && !date) {
+      return NextResponse.json(
+        { error: "Data inválida — escolhe um dia do calendário.", campo: "data" },
+        { status: 400 },
+      );
+    }
+
+    /**
+     * Os convidados escritos à portuguesa: «1.200» são mil e duzentos, não 1
+     * (achado n.º 20 da auditoria 6). A mesma leitura do dinheiro
+     * (`parseMoney`): pontos em grupos de três são milhares.
+     */
+    const convidadosLidos =
+      typeof b.guests === "number" ? b.guests : (parseMoney(String(b.guests ?? "")) ?? 0);
+    const guests = Math.min(Math.max(Math.floor(convidadosLidos) || 0, 0), 100000);
 
     const id = generateQuoteId();
     const quote: Quote = {
@@ -125,11 +171,11 @@ export async function POST(request: NextRequest) {
       category: (str(b.category, 40) || null) as Quote["category"],
       eventType: (str(b.eventType, 60) || null) as Quote["eventType"],
       eventName: str(b.eventName, 160),
-      date: str(b.date, 40),
+      date,
       endDate: "",
       location: str(b.location, 200),
       locationType: "lisboa",
-      guests: Math.min(Math.max(Math.floor(Number(b.guests) || 0), 0), 100000),
+      guests,
       duration: 4,
       isMultiDay: false,
       packageTier: "completo",
@@ -170,7 +216,7 @@ export async function POST(request: NextRequest) {
     };
 
     await createQuote(quote);
-    return NextResponse.json({ ok: true, quote });
+    return NextResponse.json(aviso ? { ok: true, quote, aviso } : { ok: true, quote });
   } catch (err) {
     log.error("orcamento manual POST falhou", err);
     return NextResponse.json({ error: "Erro ao criar o pedido" }, { status: 500 });

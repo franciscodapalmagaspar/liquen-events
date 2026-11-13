@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { ADMIN_COOKIE, readSession } from "@/lib/admin-auth";
+import { ADMIN_COOKIE } from "@/lib/admin-auth";
+import { sessaoValida } from "@/lib/sessoes-revogadas";
 import { normalizeLocale } from "@/lib/i18n";
 import { getQuote } from "@/lib/quotes-store";
 import { listProposalsForQuote } from "@/lib/proposals-store";
 import { getContractByProposal, getAcceptedContractByQuote } from "@/lib/contracts-store";
 import type { DossierData } from "@/lib/orcamento/dossier";
+import { propostaQueConta, totalAPagarDaProposta } from "@/lib/orcamento/proposta-que-conta";
 import DossierClient from "./DossierClient";
 import { entradaCom } from "../../entrada-destino";
 
@@ -43,7 +45,8 @@ export default async function EventoDossierPage({
   // `?destino=` aceita é decidido no `entrada-destino.ts`, e só lá: um destino
   // vindo do URL é escolhido por quem manda o link, não por nós.
   const store = await cookies();
-  const session = readSession(store.get(ADMIN_COOKIE)?.value);
+  // Com as revogações (sair, palavra-passe redefinida) — ver `sessoes-revogadas.ts`.
+  const session = await sessaoValida(store.get(ADMIN_COOKIE)?.value);
   if (!session) {
     redirect(entradaCom(`/${lang}/orcamento/admin`, `/${lang}/orcamento/admin/evento/${id}`));
   }
@@ -63,7 +66,9 @@ export default async function EventoDossierPage({
   // nova para a mais velha. É a mesma regra do painel de Pagamentos
   // (`percentagem-do-sinal.ts`) e do link do casal.
   const propostas = await listProposalsForQuote(quote.id);
-  const proposal = propostas.find((p) => p.status === "aceite") ?? propostas[0] ?? null;
+  // A regra única (`propostaQueConta`): a aceite; senão a última que seguiu
+  // para o casal; nunca um rascunho.
+  const proposal = propostaQueConta(propostas);
   const [contractByQuote, contractByProposal] = await Promise.all([
     getAcceptedContractByQuote(quote.id),
     proposal ? getContractByProposal(proposal.id) : Promise.resolve(null),
@@ -72,9 +77,13 @@ export default async function EventoDossierPage({
 
   // Fronteira serializável: reduzimos o contrato aos campos que o Dossier
   // mostra (sem instâncias, sem funções).
+  //
+  // O dinheiro da proposta é o da VERSÃO que o casal escolheu (a base, sem os
+  // extras, quando foi essa) — o mesmo que a faturação manda ao Moloni e que os
+  // Pagamentos cobram (auditoria de 13/11, n.º 1).
   const data: DossierData = {
     quote,
-    proposal: proposal ?? null,
+    proposal: proposal ? { ...proposal, ...totalAPagarDaProposta(proposal) } : null,
     contract: contract
       ? {
           status: contract.status,

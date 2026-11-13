@@ -115,7 +115,14 @@ export default function WhatsAppButton() {
       // é um cartão no canto ESQUERDO e não tapa este lado), e a pílula fica
       // com 36 px de altura no computador (era 46). No telemóvel continua um
       // círculo de 44 px, que é o alvo mínimo de um dedo.
-      className={`toque whatsapp-fixed piso-flutuante-direita alvo-toque fixed z-50 flex items-center justify-center gap-2 p-3 sm:px-4 sm:py-2 bg-black/20 border border-white hover:bg-white hover:text-moss text-white rounded-full shadow-lg shadow-black/30 hover:shadow-xl hover:scale-105 transition-[opacity,translate,scale,background-color,color,box-shadow] duration-500 motion-reduce:transition-none motion-reduce:translate-y-0 motion-reduce:hover:scale-100 ${
+      //
+      // ── O VÉU A 55 %, E NÃO A 20 % (auditoria de 13/11, n.º 9) ─────────
+      // Transparente continua, como ela pediu; só que a 20 % de preto, por
+      // cima de uma página branca (/contacto, /servicos), a pílula era um
+      // cinzento claro com letra branca: ≈1,8:1. Branco sobre o pior fundo
+      // (branco) precisa de 53 % de preto para os 4,5:1 de um texto de 13 px;
+      // a 55 % dá 4,8:1, e por cima das fotografias continua a deixar ver.
+      className={`toque whatsapp-fixed piso-flutuante-direita alvo-toque fixed z-50 flex items-center justify-center gap-2 p-3 sm:px-4 sm:py-2 bg-black/55 border border-white hover:bg-white hover:text-moss text-white rounded-full shadow-lg shadow-black/30 hover:shadow-xl hover:scale-105 transition-[opacity,translate,scale,background-color,color,box-shadow] duration-500 motion-reduce:transition-none motion-reduce:translate-y-0 motion-reduce:hover:scale-100 ${
         show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
       }`}
       style={{

@@ -22,6 +22,46 @@ const ESPERA_MS = 2500;
 /** Os domínios já vistos, para não perguntar ao DNS de cada vez (por instância). */
 const vistos = new Map<string, { recebe: boolean; ate: number }>();
 const VALIDADE_MS = 6 * 60 * 60 * 1000;
+/**
+ * ── O «NÃO» GUARDA-SE POUCO TEMPO ─────────────────────────────────────────
+ *
+ * Um «sim» do DNS é uma resposta a sério e vale seis horas. Um «não» pode não
+ * ser: num resolvedor serverless, um soluço chega como `ENOTFOUND`, igual a um
+ * domínio que não existe. Guardado seis horas, um soluço com o `gmail.com`
+ * recusava todos os pedidos com Gmail que caíssem nessa instância (achado
+ * n.º 12 da auditoria 6). Cinco minutos chegam para não perguntar duas vezes
+ * pelo mesmo engano de quem carrega em Enviar outra vez.
+ */
+const VALIDADE_DO_NAO_MS = 5 * 60 * 1000;
+
+/**
+ * Os grandes fornecedores de correio recebem sempre: nunca se pergunta ao DNS
+ * por eles, e por isso um soluço do DNS nunca recusa um Gmail. A lista é
+ * curta de propósito (só serviços vivos e enormes); os domínios antigos que já
+ * fecharam (o clix.pt, por exemplo) continuam a ser perguntados.
+ */
+const RECEBEM_SEMPRE = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "hotmail.com",
+  "hotmail.pt",
+  "outlook.com",
+  "outlook.pt",
+  "live.com",
+  "live.com.pt",
+  "msn.com",
+  "yahoo.com",
+  "yahoo.com.br",
+  "icloud.com",
+  "me.com",
+  "mac.com",
+  "sapo.pt",
+  "gmx.com",
+  "gmx.net",
+  "proton.me",
+  "protonmail.com",
+  "aol.com",
+]);
 
 /** «Não existe» ou «não tem registos»: as duas respostas que querem dizer que não. */
 function eNao(e: unknown): boolean {
@@ -60,6 +100,7 @@ export async function dominioRecebeEmail(email: string): Promise<boolean> {
     .trim()
     .toLowerCase();
   if (arroba < 1 || !dominio) return true;
+  if (RECEBEM_SEMPRE.has(dominio)) return true;
   const guardado = vistos.get(dominio);
   if (guardado && guardado.ate > Date.now()) return guardado.recebe;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -72,7 +113,7 @@ export async function dominioRecebeEmail(email: string): Promise<boolean> {
     ]);
     // Sem resposta a tempo: deixa passar, e não se guarda.
     if (recebe === null) return true;
-    vistos.set(dominio, { recebe, ate: Date.now() + VALIDADE_MS });
+    vistos.set(dominio, { recebe, ate: Date.now() + (recebe ? VALIDADE_MS : VALIDADE_DO_NAO_MS) });
     return recebe;
   } catch {
     return true;

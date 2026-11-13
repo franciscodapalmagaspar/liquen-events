@@ -17,6 +17,8 @@ interface Props {
   onClose: () => void;
   onCreated: (q: Quote) => void;
   existingQuotes?: Quote[];
+  /** Abre a importação de uma proposta antiga (Word/PowerPoint). */
+  onImportar?: () => void;
 }
 
 const EMPTY = {
@@ -33,7 +35,13 @@ const EMPTY = {
   referralSource: "Contacto direto",
 };
 
-export default function NewQuoteModal({ open, onClose, onCreated, existingQuotes }: Props) {
+export default function NewQuoteModal({
+  open,
+  onClose,
+  onCreated,
+  existingQuotes,
+  onImportar,
+}: Props) {
   const { toast } = useToast();
   const [f, setF] = useState({ ...EMPTY });
   const [saving, setSaving] = useState(false);
@@ -177,6 +185,18 @@ export default function NewQuoteModal({ open, onClose, onCreated, existingQuotes
           }
         }}
       >
+        {/* Pedido dela (13/11): as propostas que a mãe fez em Word e PowerPoint
+            antes do back office entram por aqui, já com o cliente. */}
+        {onImportar && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-[var(--bo-hairline)] px-4 py-3">
+            <p className="min-w-0 text-footnote text-[var(--bo-text-muted)]">
+              Já tens a proposta feita em Word ou PowerPoint?
+            </p>
+            <Button variant="secondary" size="sm" onClick={onImportar}>
+              Importar proposta antiga (Word/PowerPoint)
+            </Button>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-x-4 gap-y-5 @min-[26rem]:grid-cols-2">
           {duplicates.length > 0 && (
             <div className="@min-[26rem]:col-span-2 flex items-start gap-3 rounded-xl border border-[var(--bo-aviso-tom)]/25 bg-[var(--bo-aviso-tom)]/[0.06] p-3.5">

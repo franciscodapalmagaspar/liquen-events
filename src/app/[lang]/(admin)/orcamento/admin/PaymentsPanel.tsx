@@ -12,7 +12,13 @@ import type { Quote, Payment, PaymentKind } from "@/lib/orcamento/types";
 import { splitSinal } from "@/lib/money";
 import { useDinheiroAceite, usePercentagemDoSinal } from "./percentagem-do-sinal";
 import { ESTADO, PRESSAO } from "./ui/movimento";
-import { computeEventMetrics, paidTotal, type DossierData } from "@/lib/orcamento/dossier";
+import {
+  computeEventMetrics,
+  estaTudoPago,
+  paidTotal,
+  type DossierData,
+} from "@/lib/orcamento/dossier";
+import { comPagamentoRecebido } from "@/lib/orcamento/cobrancas";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { MEIOS_HABITUAIS, meioDoTexto } from "@/lib/orcamento/meios-de-pagamento";
 import { IconeDoMeio } from "./ui/IconeDoMeio";
@@ -286,8 +292,11 @@ export default function PaymentsPanel({ quote, onChange, onContractRef, quem }: 
   // conhece e o que este ecrã sempre prometeu.
   const headlinePaid = useMemo(() => paidTotal(dossier.quote), [dossier]);
   const outstanding = Math.max(0, total - headlinePaid);
-  // Estado "tudo recebido" só faz sentido quando há um total contratado.
-  const allReceived = total > 0 && outstanding === 0;
+  // Estado "tudo recebido" só faz sentido quando há um total contratado — e é
+  // o critério único da casa (`estaTudoPago`, com a folga do arredondamento):
+  // com o zero exacto, o cêntimo que o Moloni soma ao IVA linha a linha nunca
+  // deixava dizer «tudo recebido» (auditoria de 13/11, n.os 2 e 5).
+  const allReceived = estaTudoPago(total, headlinePaid);
   // Aviso suave: registaram-se recebimentos acima do total contratado.
   const overReceived = total > 0 && headlinePaid > total;
   // Faseamento sobre o total com IVA — alimenta os atalhos de registo.
@@ -542,7 +551,25 @@ export default function PaymentsPanel({ quote, onChange, onContractRef, quem }: 
       paid: paidOnAdd,
       note: note.trim() || undefined,
     };
-    void persist([...payments, p], {
+    // Sinal ou saldo RECEBIDO com uma linha prevista desse tipo: é ela que passa
+    // a recebida (a mesma regra do «Recebido» das Cobranças). Antes ficava a
+    // prevista por receber ao lado da paga, para sempre — e o resumo diário
+    // contava-a todos os dias (auditoria de 13/11, n.º 4).
+    const prevista =
+      p.paid && (p.kind === "sinal" || p.kind === "saldo")
+        ? payments.find((x) => !x.paid && x.kind === p.kind)
+        : undefined;
+    const next = prevista
+      ? comPagamentoRecebido(payments, {
+          kind: p.kind,
+          valor: p.amount,
+          dia: p.date,
+          meio: p.note,
+          novoId: p.id,
+          emFalta: p.kind === "sinal" ? Math.max(0, split.sinal - headlinePaid) : outstanding,
+        })
+      : [...payments, p];
+    void persist(next, {
       id: p.id,
       ghost: p,
       label: `${KIND_LABEL[p.kind]} ${eur2(p.amount)}`,

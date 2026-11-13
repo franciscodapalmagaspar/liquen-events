@@ -65,7 +65,9 @@ describe("a cor da espera", () => {
   });
 
   it("diz os dias em português, sem plural errado", () => {
-    expect(esperaEmPalavras(0)).toBe("hoje");
+    // «recebido hoje», e não «hoje»: o cartão do pedido também diz «Hoje» quando
+    // é o EVENTO que é hoje, e os dois ficavam lado a lado.
+    expect(esperaEmPalavras(0)).toBe("recebido hoje");
     expect(esperaEmPalavras(1)).toBe("há 1 dia");
     expect(esperaEmPalavras(4)).toBe("há 4 dias");
   });

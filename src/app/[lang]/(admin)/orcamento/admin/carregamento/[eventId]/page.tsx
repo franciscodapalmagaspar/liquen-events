@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import Carregamento from "./Carregamento";
 import AdminLogin from "../../AdminLogin";
-import { ADMIN_COOKIE, ADMIN_NAME_COOKIE, readSession } from "@/lib/admin-auth";
+import { ADMIN_COOKIE, ADMIN_NAME_COOKIE } from "@/lib/admin-auth";
+import { sessaoValida } from "@/lib/sessoes-revogadas";
 import { getEventMaterial } from "@/lib/event-material-store";
 import { getQuote } from "@/lib/quotes-store";
 
@@ -27,7 +28,8 @@ export default async function CarregamentoPage({
   params: Promise<{ eventId: string }>;
 }) {
   const store = await cookies();
-  const session = readSession(store.get(ADMIN_COOKIE)?.value);
+  // Com as revogações (sair, palavra-passe redefinida) — ver `sessoes-revogadas.ts`.
+  const session = await sessaoValida(store.get(ADMIN_COOKIE)?.value);
   if (!session) return <AdminLogin />;
 
   const { eventId } = await params;

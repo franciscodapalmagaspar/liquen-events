@@ -16,9 +16,35 @@ describe("a queixa que o servidor manda mesmo", () => {
     const r = quoteUpdateSchema.safeParse({ guests: -50 });
     expect(r.success).toBe(false);
     if (r.success) return;
+    // Desde o achado n.º 13 da auditoria 6, a ROTA já manda em português; a
+    // tradução do ecrã continua a não estragar o que já vem traduzido.
     const doServidor = firstError(r.error);
-    expect(doServidor).toBe("Too small: expected number to be >=0");
+    expect(doServidor).toBe("O número não pode ser inferior a 0.");
     expect(erroDoServidorEmPortugues(doServidor)).toBe("O número não pode ser inferior a 0.");
+  });
+
+  it("firstError nunca devolve a frase inglesa da biblioteca (achado n.º 13)", () => {
+    const esquema = z.object({
+      email: z.email().optional(),
+      name: z.string().min(1).optional(),
+      guests: z.number().max(100_000).optional(),
+      site: z.url().optional(),
+    });
+    const casos: [Record<string, unknown>, string][] = [
+      [{ email: "ana@x" }, "O email não é válido."],
+      [{ name: "" }, "O campo não pode ficar em branco."],
+      [{ guests: 200_000 }, "O número não pode ser superior a 100000."],
+      [{ site: "x" }, "O endereço (URL) não é válido."],
+    ];
+    for (const [dados, frase] of casos) {
+      const r = esquema.safeParse(dados);
+      if (r.success) throw new Error("devia ter sido recusado");
+      expect(firstError(r.error)).toBe(frase);
+    }
+    // E o PATCH do pedido, com o esquema verdadeiro.
+    const p = quoteUpdateSchema.safeParse({ email: "ana@x" });
+    if (p.success) throw new Error("devia ter sido recusado");
+    expect(firstError(p.error)).not.toMatch(/^(Invalid|Too )/);
   });
 
   it("um número acima do tecto também", () => {

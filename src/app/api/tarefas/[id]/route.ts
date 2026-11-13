@@ -6,6 +6,7 @@ import { updateTask } from "@/lib/tasks-store";
 import { taskUpdateSchema, firstError } from "@/lib/validation";
 import { respostaDeConflito, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
 import { log } from "@/lib/logger";
+import { diaDoPrazo } from "@/lib/tarefas/prazo";
 
 export const runtime = "nodejs";
 
@@ -50,7 +51,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!parsed.success) {
       return NextResponse.json({ error: firstError(parsed.error) }, { status: 400 });
     }
-    const updated = await updateTask(id, parsed.data as Partial<Task>);
+    const patch = parsed.data as Partial<Task>;
+    // O prazo é um dia (ver `lib/tarefas/prazo.ts`): uma hora agarrada saía de
+    // «Hoje» e perdia-se na coluna `date` ao recarregar.
+    if (patch.dueDate) patch.dueDate = diaDoPrazo(patch.dueDate);
+    const updated = await updateTask(id, patch);
     if (!updated) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
     return NextResponse.json(updated);
   } catch (err) {

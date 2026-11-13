@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Proposal, Quote } from "@/lib/orcamento/types";
 import { transicaoDoPedido, type AcontecimentoDoPedido } from "@/lib/orcamento/estado-do-pedido";
 import { ehMotivoDeRecusa } from "@/lib/orcamento/desfecho";
-import { getQuote, updateQuote } from "@/lib/quotes-store";
+import { getQuote, updateQuote, updateQuoteWith } from "@/lib/quotes-store";
+import { respostaDeConflito } from "@/lib/resposta-de-conflito";
 import type { ResultadoDoApagamento } from "@/lib/apagar-pedido";
 import { NaoDeuParaApagar, enviarComDetalhe, quemApagou } from "@/lib/reciclagem";
 import {
@@ -10,7 +11,9 @@ import {
   preverGeracaoDoEvento,
   gerarEventoAoGanhar,
 } from "@/lib/semear-producao";
-import { getProposalByQuote, updateProposal } from "@/lib/proposals-store";
+import { listProposalsForQuote, updateProposal } from "@/lib/proposals-store";
+import { propostaQueConta } from "@/lib/orcamento/proposta-que-conta";
+import { saldoQueSegueAData } from "@/lib/orcamento/cobrancas";
 import { desfazerCadeiaDoGanho, nascerContratoDoGanho } from "@/lib/contrato-do-ganho";
 import { isAuthed } from "@/lib/admin-auth";
 import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
@@ -276,6 +279,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     "mapaDeMesas",
   ] as const;
   const aConferir = COLECCOES_INTEIRAS.filter((campo) => campo in picked && campo in base);
+  /**
+   * As notas internas são TEXTO, não uma lista — mas o problema é o mesmo: a
+   * gravação automática manda o texto inteiro, e duas pessoas com o mesmo
+   * pedido aberto escreviam uma por cima da outra sem aviso (a de ontem
+   * voltava a aparecer, a de hoje desaparecia). O ecrã passa a mandar em
+   * `base.adminNotes` o texto que leu do servidor; se o que está guardado já
+   * não é esse, recusa com 409 como as listas. Sem `base`, grava como sempre.
+   */
+  const textosAConferir = (["adminNotes"] as const).filter(
+    (campo) => campo in picked && campo in base,
+  );
 
   /**
    * O texto livre do motivo de perda — não é campo do PEDIDO, é campo da
@@ -314,6 +328,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
    */
   const estadoEscolhidoAMao = "status" in picked;
 
+  /** Os campos cuja base mandada já não é a que está guardada em `fresco`. */
+  const camposMexidos = (fresco: Quote): string[] => {
+    const gravado = fresco as unknown as Record<string, unknown>;
+    const igual = (a: unknown, b: unknown) =>
+      JSON.stringify(canonizar(a ?? [])) === JSON.stringify(canonizar(b ?? []));
+    const listas = aConferir.filter((campo) => !igual(base[campo], gravado[campo]));
+    // Um texto que JÁ é o que está gravado não é conflito: é a rede a repetir
+    // o PATCH que já tinha passado (a base desse reenvio é a de antes dele).
+    const textos = textosAConferir.filter(
+      (campo) =>
+        String(base[campo] ?? "") !== String(gravado[campo] ?? "") &&
+        String(picked[campo] ?? "") !== String(gravado[campo] ?? ""),
+    );
+    return [...listas, ...textos];
+  };
+
   try {
     // Merge appends onto the FRESH stored log, server-side. Clients used to
     // send the whole recomputed array; two tools saving near-simultaneously
@@ -326,45 +356,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       !estadoEscolhidoAMao && ("payments" in picked || "contractRef" in picked);
     // Os contactos conferem-se contra o que está gravado (ver lá em baixo).
     const mexeNosContactos = "phone" in updates || "email" in updates;
-    const precisaDoActual =
-      querAppend || podeMudarEstado || aConferir.length > 0 || mexeNosContactos;
-    const current = precisaDoActual ? await getQuote(id) : null;
-    if (precisaDoActual && !current) {
+    // A data do evento: o prazo do saldo previsto acompanha-a (ver lá em baixo).
+    const mexeNaData = "date" in updates;
+    const precisaDoAntigo = mexeNosContactos || mexeNaData;
+    const current = precisaDoAntigo ? await getQuote(id) : null;
+    if (precisaDoAntigo && !current) {
       return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
-    }
-
-    /**
-     * A CONFERÊNCIA DA BASE — ver o comentário longo lá em cima.
-     *
-     * Só recusa quando o ecrã DIZ de onde copiou e essa base já não é a que
-     * está guardada. Um cliente que não mande `base` continua a gravar como
-     * sempre gravou: isto acrescenta uma protecção a quem a pede, e não parte
-     * nada de quem ainda não a manda.
-     */
-    if (current && aConferir.length > 0) {
-      const igual = (a: unknown, b: unknown) =>
-        JSON.stringify(canonizar(a ?? [])) === JSON.stringify(canonizar(b ?? []));
-      const mexido = aConferir.filter(
-        (campo) => !igual(base[campo], (current as unknown as Record<string, unknown>)[campo]),
-      );
-      if (mexido.length > 0) {
-        log.warn("orcamento PATCH: gravação recusada, a lista mudou por baixo", {
-          id,
-          campos: mexido,
-        });
-        return NextResponse.json(
-          {
-            error:
-              "Isto foi alterado noutro sítio depois de este ecrã ter aberto. " +
-              "Recarrega para veres o que está guardado — o que escreveste está aqui em baixo.",
-            /** O que o servidor tem AGORA, para o ecrã se pôr em dia. */
-            current,
-            /** O que esta gravação queria escrever, para não se perder na recusa. */
-            submetido: picked,
-          },
-          { status: 409 },
-        );
-      }
     }
 
     /**
@@ -411,13 +408,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
-    if (current && querAppend) {
-      (updates as Partial<Quote>).activityLog = [
-        ...(current.activityLog ?? []),
-        ...(activityLogAppend ?? []),
-      ].slice(-5000);
-    }
-
     /**
      * ════════════════════════════════════════════════════════════════════════
      * REGISTAR UM PAGAMENTO OU UM CONTRATO É DIZER QUE O TRABALHO É NOSSO
@@ -442,31 +432,97 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
      * Tudo em melhor esforço: guardar um pagamento tem de resultar mesmo que a
      * conta do estado rebente. O que se perde é a cor de uma coluna.
      */
-    if (current && podeMudarEstado) {
-      try {
-        const aconteceu = acontecimentoDoPatch(current, updates);
-        const transicao = aconteceu
-          ? transicaoDoPedido({
-              acontecimento: aconteceu.acontecimento,
-              estadoActual: current.status,
-              detalhe: aconteceu.detalhe,
-            })
-          : null;
-        if (transicao) {
-          (updates as Partial<Quote>).status = transicao.status;
-          (updates as Partial<Quote>).activityLog = [
-            ...((updates as Partial<Quote>).activityLog ?? current.activityLog ?? []),
-            transicao.entrada,
-          ].slice(-5000);
-        }
-      } catch (e) {
-        log.error("orcamento PATCH: transição automática de estado falhou", e, { id });
-      }
-    }
+    /**
+     * ── TUDO O QUE DEPENDE DO QUE ESTÁ GRAVADO, DENTRO DA MESMA ESCRITA ──
+     *
+     * A conferência da base, o acrescento ao histórico e a transição
+     * automática eram feitos sobre uma leitura SEPARADA da escrita. Entre as
+     * duas cabia outra gravação: dois PATCH ao mesmo tempo liam o mesmo
+     * histórico, e o segundo apagava a linha do primeiro (e a mudança de
+     * estado que vinha com ela); dois pagamentos ao mesmo tempo passavam os
+     * dois a conferência da base, e o segundo escrevia por cima do primeiro.
+     *
+     * Agora correm DENTRO do `updateQuoteWith`: cada volta parte do pedido tal
+     * como está, e o bloqueio optimista do repositório relê e volta a aplicar
+     * quando alguém escreveu no meio. Na volta repetida, a base já não bate e
+     * a gravação é recusada com 409 — em vez de passar por cima.
+     *
+     * A conferência da base (ver o comentário longo lá em cima) só recusa
+     * quando o ecrã DIZ de onde copiou e essa base já não é a que está
+     * guardada. Um cliente que não mande `base` continua a gravar como sempre
+     * gravou.
+     */
+    const precisaDoActual =
+      querAppend || podeMudarEstado || aConferir.length > 0 || textosAConferir.length > 0;
 
-    const updated = await updateQuote(id, updates);
+    let estadoDaTransicao: Quote["status"] | undefined;
+    let updated: Quote | null;
+    if (precisaDoActual) {
+      updated = await updateQuoteWith(id, (fresco) => {
+        estadoDaTransicao = undefined;
+        const mexido = camposMexidos(fresco);
+        if (mexido.length > 0) throw new BaseUltrapassada(fresco, mexido);
+
+        const proximo: Quote = { ...fresco, ...updates };
+        if (querAppend) {
+          proximo.activityLog = [...(fresco.activityLog ?? []), ...(activityLogAppend ?? [])].slice(
+            -5000,
+          );
+        }
+        if (podeMudarEstado) {
+          try {
+            const aconteceu = acontecimentoDoPatch(fresco, updates);
+            const transicao = aconteceu
+              ? transicaoDoPedido({
+                  acontecimento: aconteceu.acontecimento,
+                  estadoActual: fresco.status,
+                  detalhe: aconteceu.detalhe,
+                })
+              : null;
+            if (transicao) {
+              estadoDaTransicao = transicao.status;
+              proximo.status = transicao.status;
+              proximo.activityLog = [...(proximo.activityLog ?? []), transicao.entrada].slice(
+                -5000,
+              );
+            }
+          } catch (e) {
+            log.error("orcamento PATCH: transição automática de estado falhou", e, { id });
+          }
+        }
+        return proximo;
+      });
+    } else {
+      updated = await updateQuote(id, updates);
+    }
     if (!updated) {
       return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+    }
+    if (estadoDaTransicao) (updates as Partial<Quote>).status = estadoDaTransicao;
+
+    /**
+     * O PRAZO DO SALDO ACOMPANHA A DATA DO EVENTO (auditoria de 13/11, n.º 7).
+     *
+     * O «Ganho» semeia o saldo previsto com o prazo de um mês antes do evento,
+     * e esse dia ficava gravado: mudava-se a data do casamento e o saldo
+     * continuava a vencer pela data antiga. Só se mexe na linha de saldo POR
+     * RECEBER cujo dia é exactamente o que a regra dava para a data antiga — uma
+     * data escrita à mão por ela, ou uma linha já paga, nunca se tocam
+     * (`saldoQueSegueAData`). Sobre o pedido FRESCO (`updateQuoteWith`), para não
+     * pisar um pagamento gravado entretanto; e em melhor esforço — a data já
+     * está guardada.
+     */
+    const dataAntiga = current?.date ?? "";
+    if (mexeNaData && current && updated.date !== dataAntiga && !("payments" in updates)) {
+      try {
+        const seguido = await updateQuoteWith(id, (q) => {
+          const payments = saldoQueSegueAData(q.payments ?? [], dataAntiga, q.date);
+          return payments ? { ...q, payments } : q;
+        });
+        if (seguido) updated = seguido;
+      } catch (e) {
+        log.error("orcamento PATCH: o prazo do saldo não acompanhou a data", e, { id });
+      }
     }
 
     /**
@@ -505,8 +561,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
      * «enviada» para sempre, a taxa de fecho ficava nula, e os casamentos
      * ganhos contavam como «ainda sem resposta».
      *
-     * Propaga-se para a proposta MAIS RECENTE do pedido (a mesma que o portal
-     * do cliente mostra — `getProposalByQuote`), em dois momentos:
+     * Propaga-se para a proposta QUE CONTA do pedido (`propostaQueConta`): a
+     * aceite, senão a última que seguiu para o casal. Nunca um rascunho por
+     * enviar — antes ia a mais recente, e marcar «Ganho» com uma revisão por
+     * enviar aceitava-a e fazia nascer o contrato de um documento que o
+     * cliente nunca viu (auditoria de 13/11, n.º 3). Em dois momentos:
      *
      *  1. `desfechoConfirmadoAgora` — ESTE PATCH é quem decide o desfecho, à
      *     mão ou pela transição automática de cima. Vai `status` e
@@ -537,7 +596,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (desfechoConfirmadoAgora || motivoAcrescentadoDepois) {
       try {
-        const proposta = await getProposalByQuote(id);
+        const proposta = propostaQueConta(await listProposalsForQuote(id));
         if (proposta) {
           const patchProposta: Partial<Proposal> = {};
           if (desfechoConfirmadoAgora) {
@@ -577,8 +636,46 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     return NextResponse.json(updated);
   } catch (err) {
+    if (err instanceof BaseUltrapassada) {
+      log.warn("orcamento PATCH: gravação recusada, a lista mudou por baixo", {
+        id,
+        campos: err.campos,
+      });
+      return NextResponse.json(
+        {
+          error:
+            "Isto foi alterado noutro sítio depois de este ecrã ter aberto. " +
+            "Recarrega para veres o que está guardado — o que escreveste está aqui em baixo.",
+          /** O que o servidor tem AGORA, para o ecrã se pôr em dia. */
+          current: err.current,
+          /** O que esta gravação queria escrever, para não se perder na recusa. */
+          submetido: picked,
+        },
+        { status: 409 },
+      );
+    }
+    // Três voltas do bloqueio optimista sem conseguir: é gente a gravar o
+    // mesmo pedido ao mesmo tempo, e diz-se com 409 e as duas versões — não
+    // com um «Erro interno» que convida a carregar outra vez por cima.
+    const conflito = respostaDeConflito(err);
+    if (conflito) return conflito;
     log.error("orcamento PATCH falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  }
+}
+
+/**
+ * A base que o ecrã mandou já não é a que está guardada. Lançada de dentro do
+ * `updateQuoteWith` para parar a escrita sem repetir (não é um `ConflictError`:
+ * repetir dava sempre o mesmo) e apanhada no `catch` da rota, que responde 409.
+ */
+class BaseUltrapassada extends Error {
+  constructor(
+    readonly current: Quote,
+    readonly campos: string[],
+  ) {
+    super("base ultrapassada");
+    this.name = "BaseUltrapassada";
   }
 }
 

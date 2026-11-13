@@ -12,8 +12,11 @@ export const runtime = "nodejs";
  * o tem — os ganhos de antes desta regra, ou os que passaram por um caminho que
  * não o criava. É ela que carrega: nada aqui cria contratos sozinho para trás.
  *
- * Usa a proposta aceite do pedido, ou a mais recente. Sem proposta não há
- * termos nem sinal a congelar — 409, e o ecrã já o diz antes de chegar aqui.
+ * Usa a proposta aceite do pedido; sem ela, a enviada mais recente (enviada ou
+ * em negociação). NUNCA um rascunho que nunca saiu nem uma proposta rejeitada
+ * (auditoria 6, n.º 18): o contrato congela os termos e o sinal dela, e
+ * congelar o que o casal nunca viu — ou recusou — seria pôr no contrato um
+ * negócio que não existiu. Sem nenhuma destas não há termos a congelar — 409.
  * Idempotente por proposta (`createContractIfAbsent`): carregar duas vezes não
  * cria dois.
  */
@@ -31,10 +34,17 @@ export async function POST(request: NextRequest) {
         a.respondedAt ?? a.sentAt ?? a.createdAt ?? "",
       ),
     );
-    const proposta = ordenadas.find((p) => p.status === "aceite") ?? ordenadas[0];
+    const proposta =
+      ordenadas.find((p) => p.status === "aceite") ??
+      ordenadas.find((p) => p.status === "enviada" || p.status === "em_negociacao");
     if (!proposta) {
       return NextResponse.json(
-        { error: "Este pedido não tem proposta — não há termos a registar." },
+        {
+          error:
+            propostas.length === 0
+              ? "Este pedido não tem proposta — não há termos a registar."
+              : "Este pedido não tem nenhuma proposta enviada ao casal — envia-a primeiro.",
+        },
         { status: 409 },
       );
     }

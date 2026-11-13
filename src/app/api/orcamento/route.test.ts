@@ -12,6 +12,8 @@ const store = vi.hoisted(() => ({
   // porque nenhum teste mandava `submissionId` — o vitest só se queixa de um
   // export em falta quando alguém lhe toca.
   get: vi.fn(async () => null as unknown),
+  // «Mudou?» sem ler a lista: `null` (sem base de dados) lê sempre.
+  assinatura: vi.fn(async () => null as string | null),
 }));
 const authed = vi.hoisted(() => ({ ok: false }));
 const rl = vi.hoisted(() => ({ result: { ok: true } as { ok: boolean; retryAfter?: number } }));
@@ -20,6 +22,7 @@ vi.mock("@/lib/quotes-store", () => ({
   createQuote: store.create,
   listQuotes: store.list,
   listQuoteSummaries: store.resumos,
+  assinaturaDaListaDePedidos: store.assinatura,
   getQuote: store.get,
   generateQuoteId: () => "LIQ-TEST-0000000000000000",
   quoteIdFor: (s: string) => `LIQ-IDEM-${s}`,
@@ -521,6 +524,13 @@ describe("POST /api/orcamento", () => {
     expect(store.create).not.toHaveBeenCalled();
   });
 
+  it("o tecto diário das confirmações conta a caixa de correio, não a grafia (n.º 14)", async () => {
+    const { rateLimit } = await import("@/lib/rate-limit");
+    await enviarTudo({ form: { ...validForm, email: "A.n.a+2@Gmail.com" } });
+    const chaves = vi.mocked(rateLimit).mock.calls.map((c) => c[0]);
+    expect(chaves).toContain("confirm:ana@gmail.com");
+  });
+
   it("returns 429 when throttled", async () => {
     rl.result = { ok: false, retryAfter: 10 };
     const res = await POST(req("POST", { form: validForm }));
@@ -568,9 +578,9 @@ describe("POST /api/orcamento", () => {
       // que o formulário mostra ao lado do campo, e vê-las escritas de duas
       // maneiras faz duvidar de que seja o mesmo erro.
       const semNome = await POST(req("POST", { form: { name: "A", email: "ana@example.com" } }));
-      expect((await semNome.json()).error).toBe("Indique o seu nome");
+      expect((await semNome.json()).error).toBe("Indique o seu nome.");
       const emailMau = await POST(req("POST", { form: { ...validForm, email: "nao-e-email" } }));
-      expect((await emailMau.json()).error).toBe("E-mail inválido");
+      expect((await emailMau.json()).error).toBe("E-mail inválido.");
     });
 
     it("um corpo que nem sequer é um pedido não devolve jargão", async () => {
@@ -628,6 +638,38 @@ describe("GET /api/orcamento", () => {
     await GET(req("GET"));
     expect(store.list).toHaveBeenCalled();
     expect(store.resumos).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Auditoria de 13/11, n.º 3: o 304 decidia-se DEPOIS de ler a coluna `data`
+   * de todos os pedidos. Agora uma leitura barata decide primeiro.
+   */
+  it("quando nada mudou, responde 304 SEM ler a lista", async () => {
+    authed.ok = true;
+    store.assinatura.mockResolvedValue("12:2026-11-13T09:00:00.000Z");
+    const primeira = await GET(req("GET", undefined, "?resumo=1"));
+    expect(primeira.status).toBe(200);
+    const etag = primeira.headers.get("etag") as string;
+    expect(store.resumos).toHaveBeenCalledTimes(1);
+
+    const segunda = await GET(
+      new Request("https://liquen.test/api/orcamento?resumo=1", {
+        headers: { "if-none-match": etag },
+      }) as unknown as NextRequest,
+    );
+    expect(segunda.status).toBe(304);
+    expect(store.resumos).toHaveBeenCalledTimes(1);
+
+    // Mudou (mais um pedido): lê e responde a lista nova.
+    store.assinatura.mockResolvedValue("13:2026-11-13T09:05:00.000Z");
+    const terceira = await GET(
+      new Request("https://liquen.test/api/orcamento?resumo=1", {
+        headers: { "if-none-match": etag },
+      }) as unknown as NextRequest,
+    );
+    expect(terceira.status).toBe(200);
+    expect(store.resumos).toHaveBeenCalledTimes(2);
+    store.assinatura.mockResolvedValue(null);
   });
 
   it("com ?resumo=1 lê os resumos, e não a lista inteira", async () => {
@@ -951,8 +993,62 @@ describe("POST /api/orcamento — o gémeo que chega ao mesmo tempo", () => {
     );
     const res = await enviarTudo({ form: validForm, submissionId: "abcdefgh12" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ id: "LIQ-IDEM-abcdefgh12", status: "ok" });
+    expect(await res.json()).toMatchObject({
+      id: expect.stringMatching(/^LIQ-IDEM-abcdefgh12:/),
+      status: "ok",
+    });
     expect(sendMailMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * N.º 12 da auditoria de 13/11: a resposta perdeu-se, ela corrigiu a data e
+   * reenviou. O `submissionId` era o mesmo, a rota encontrava o pedido antigo
+   * e respondia «ok» — a correcção perdia-se em silêncio.
+   */
+  it("n.º 12: o mesmo envio repetido dá o mesmo pedido; um envio CORRIGIDO dá outro", async () => {
+    store.get.mockResolvedValue(null);
+    await enviarTudo({ form: validForm, submissionId: "abcdefgh14" });
+    await enviarTudo({ form: validForm, submissionId: "abcdefgh14" });
+    await enviarTudo({
+      form: { ...validForm, guests: validForm.guests + 20 },
+      submissionId: "abcdefgh14",
+    });
+    const ids = store.create.mock.calls.map((c) => ((c as unknown[])[0] as { id: string }).id);
+    expect(ids[0]).toBe(ids[1]);
+    expect(ids[2]).not.toBe(ids[0]);
+  });
+
+  /**
+   * Revisão do PR #444: a assinatura levava o `leadEventId`, que o
+   * `PedidoRelampago` gera novo a cada toque. No Instagram, o segundo toque era
+   * outro pedido, outro email à equipa e ao cliente, outro Lead à Meta.
+   */
+  it("n.º 12: dois toques iguais com `leadEventId` (e clique) diferentes dão UM pedido e um só email", async () => {
+    const criados = new Set<string>();
+    store.get.mockImplementation((async (id: unknown) =>
+      criados.has(String(id)) ? { id: String(id) } : null) as unknown as () => Promise<unknown>);
+    store.create.mockImplementation((async (q: { id: string }) => {
+      criados.add(q.id);
+    }) as unknown as () => Promise<void>);
+    try {
+      const r1 = await enviarTudo({
+        form: { ...validForm, leadEventId: "evento-1", metaClick: "fb.1.1.aaa" },
+        submissionId: "abcdefgh15",
+      });
+      const emailsDoPrimeiro = sendMailMock.mock.calls.length;
+      const r2 = await enviarTudo({
+        form: { ...validForm, leadEventId: "evento-2", metaClick: "fb.1.2.bbb" },
+        submissionId: "abcdefgh15",
+      });
+      expect((await r2.json()).id).toBe((await r1.json()).id);
+      expect(store.create).toHaveBeenCalledTimes(1);
+      expect(sendMailMock.mock.calls.length).toBe(emailsDoPrimeiro);
+    } finally {
+      store.get.mockReset();
+      store.get.mockImplementation(async () => null);
+      store.create.mockReset();
+      store.create.mockImplementation(async () => {});
+    }
   });
 
   it("uma gravação que falha a sério continua a avisar a equipa", async () => {
@@ -1034,5 +1130,47 @@ describe("POST /api/orcamento — o formulário completo", () => {
     await enviarTudo({ form: { ...completo, idioma: "en" } });
     const gravado = (store.create.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
     expect(gravado.locale).toBe("en");
+  });
+});
+
+/**
+ * A DATA TEM AS SUAS FRASES (achados n.º 2 e n.º 14 da auditoria 6).
+ *
+ * Uma data passada ou que não existe caía no ramo dos contactos e a pessoa lia
+ * «Indique um email ou um telemóvel» com os dois campos preenchidos. E o fim de
+ * um evento de vários dias não era conferido de todo.
+ */
+describe("POST /api/orcamento — a recusa da data diz que é a data", () => {
+  it.each([
+    ["2020-01-01", "errDataPassada"],
+    ["2027-02-30", "errDataInvalida"],
+  ] as const)("%s é recusada com a frase da data, em PT e em EN", async (date, chave) => {
+    const pt = await POST(req("POST", { form: { ...validForm, date } }));
+    expect(pt.status).toBe(400);
+    expect((await pt.json()).error).toBe(getDictionary("pt").orcamento[chave]);
+    const en = await POST(pedidoNaLingua({ form: { ...validForm, date } }, "en"));
+    expect(en.status).toBe(400);
+    expect((await en.json()).error).toBe(getDictionary("en").orcamento[chave]);
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["2027-02-30", "errDataInvalida"],
+    ["amanhã!", "errDataInvalida"],
+    ["2027-09-10", "errDataFim"],
+  ] as const)("o fim %s é recusado (início a 2027-09-12)", async (endDate, chave) => {
+    const res = await POST(
+      req("POST", { form: { ...validForm, date: "2027-09-12", isMultiDay: true, endDate } }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(getDictionary("pt").orcamento[chave]);
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it("um fim válido, no próprio dia ou depois, passa", async () => {
+    const res = await enviarTudo({
+      form: { ...validForm, date: "2027-09-12", isMultiDay: true, endDate: "2027-09-13" },
+    });
+    expect(res.status).toBe(200);
   });
 });

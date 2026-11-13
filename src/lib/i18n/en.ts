@@ -514,8 +514,8 @@ export const en: Dict = {
     phMensagem: "Style, colours, atmosphere, inspiration you've saved…",
     hintMensagem:
       "The more you can tell us about the style you have in mind, the colour palette, the atmosphere you want and the references you've chosen, the better we can tailor the proposal to your expectations.\n\nThese are the elements we start from to develop your personalised proposal.",
-    errNome: "Please enter your name",
-    errEmail: "Invalid email",
+    errNome: "Please enter your name.",
+    errEmail: "Invalid email.",
     // Ver `pt.ts`: a frase da regra "email ou telemóvel", partilhada pela rota
     // e pelo formulário.
     errContacto: "Please leave us an email or a phone number so we can get back to you.",
@@ -526,6 +526,9 @@ export const en: Dict = {
     errTelefone:
       "This phone number isn't valid. Please check the digits and the country (outside Portugal, pick the flag or start with the country code, e.g. +44).",
     errEmailObrigatorio: "Please enter your email.",
+    errDataInvalida: "This date doesn't exist. Please pick a day on the calendar.",
+    errDataPassada: "The event date has already passed. Please pick a day from today onwards.",
+    errDataFim: "The end date can't be before the start date.",
     errDominioDoEmail:
       "This email doesn't seem to exist: please check what comes after the @ (for example, gmail.com).",
     sugestaoEmailPre: "Did you mean ",

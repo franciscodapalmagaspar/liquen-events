@@ -75,8 +75,8 @@ describe("proxy — só /api e /en", () => {
     expect(config.matcher).toEqual(["/api/:path*", "/en", "/en/:path*"]);
   });
 
-  it("não sequestra os /api/admin/* (é o ramo da api)", () => {
-    const res = proxy(req("/api/admin/login", "POST"));
+  it("não sequestra os /api/admin/* (é o ramo da api)", async () => {
+    const res = await proxy(req("/api/admin/login", "POST"));
     expect(res.headers.get("location")).toBeNull();
     expect(reescritaPara(res)).toBeNull();
   });

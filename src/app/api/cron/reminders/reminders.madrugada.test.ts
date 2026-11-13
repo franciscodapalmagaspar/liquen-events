@@ -108,7 +108,16 @@ describe("GET /api/cron/reminders — à 00h30 de Lisboa o dia já virou", () =>
   it("o pagamento que vence daqui a sete dias entra na conta", async () => {
     // 21 + 7 = 28 de Julho. Com a janela a fechar no 27, este desaparecia.
     data.quotes = [
-      { id: "p", name: "Cliente", payments: [{ paid: false, date: "2026-07-28", amount: 500 }] },
+      // Um cliente ACEITE (o resumo conta pelo quadro das Cobranças): 1.000 € +
+      // IVA, o sinal de 30% previsto para o dia 28.
+      {
+        id: "p",
+        name: "Cliente",
+        status: "aceite",
+        quotedPrice: 1000,
+        date: "2026-12-12",
+        payments: [{ id: "s", kind: "sinal", paid: false, date: "2026-07-28", amount: 369 }],
+      },
     ];
     await GET(req());
     expect(pushBody()).toContain("1 pagamento");

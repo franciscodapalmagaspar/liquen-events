@@ -79,4 +79,18 @@ describe("/api/tarefas", () => {
       expect.objectContaining({ title: "Nova", priority: "alta", dueDate: "2026-08-01" }),
     );
   });
+
+  /**
+   * N.º 2 da auditoria de 13/11: «amanhã às 10h» gravava `2026-11-13T10:00`. A
+   * tarefa saía de «Hoje», caía em «Semana», mostrava «Invalid Date» e a coluna
+   * `date` perdia a hora ao recarregar. O prazo grava-se como dia; a hora vai
+   * para o título.
+   */
+  it("n.º 2: um prazo com hora grava-se como dia, e a hora fica no título", async () => {
+    authed.ok = true;
+    await POST(req("POST", { title: "Confirmar florista", dueDate: "2026-11-13T10:00" }));
+    expect(store.create).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Confirmar florista às 10h", dueDate: "2026-11-13" }),
+    );
+  });
 });

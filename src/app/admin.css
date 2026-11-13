@@ -1499,6 +1499,11 @@ body:is(.bo, .admin-mode) {
     --bo-seleccao-hover: light-dark(#2a3227, #d0e1d4);
     --bo-sobre-seleccao: light-dark(#ffffff, #171b17);
     --bo-marca: light-dark(#5f7c66, #7ea086);
+    /* O anel de foco global (`:focus-visible`, no `globals.css`) lê o
+       `--focus-ring`. O par é o mesmo do `:root` e do `.dark` de lá; aqui
+       escolhe-o a aparência do back office, que não usa a classe `.dark`.
+       Sem isto o escuro ficava com o verde do claro: ≈2,6:1 sobre #171b17. */
+    --focus-ring: light-dark(#4c6752, #7ea086);
 
     /* ── E A TINTA DO SÍTIO, QUE O BACK OFFICE HERDA ────────────────────
        MEDIDO: o back office usa `text-foreground` **584 vezes**, mais 50 de

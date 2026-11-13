@@ -4,6 +4,7 @@ import { listTasks, createTask } from "@/lib/tasks-store";
 import { jsonWithEtag } from "@/lib/api-cache";
 import { taskUpdateSchema, firstError } from "@/lib/validation";
 import { log } from "@/lib/logger";
+import { tituloEPrazo } from "@/lib/tarefas/prazo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,10 +31,13 @@ export async function POST(request: NextRequest) {
     }
     const title = (parsed.data.title ?? "").trim();
     if (!title) return NextResponse.json({ error: "Título obrigatório" }, { status: 400 });
+    // O prazo grava-se como DIA; uma hora que venha agarrada vai para o título
+    // (ver `lib/tarefas/prazo.ts`) — senão a tarefa saía de «Hoje».
+    const comPrazo = tituloEPrazo(title, parsed.data.dueDate);
     const task = await createTask({
-      title,
+      title: comPrazo.title,
       priority: parsed.data.priority ?? "normal",
-      dueDate: parsed.data.dueDate || undefined,
+      dueDate: comPrazo.dueDate,
       quoteId: parsed.data.quoteId || undefined,
       clientName: parsed.data.clientName || undefined,
       assignee: parsed.data.assignee || undefined,
