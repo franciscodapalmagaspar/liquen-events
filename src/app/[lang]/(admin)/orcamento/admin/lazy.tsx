@@ -197,6 +197,10 @@ export const Guioes = guioes.View;
 export const MapaDeMesas = mesas.View;
 
 // ── Detail-panel tools (only needed once a quote is opened) ──
+// A importação de propostas antigas (Word/PowerPoint) só desce quando ela
+// carrega no botão: o leitor de ZIP/XML e o ecrã somavam 22 KB ao arranque do
+// painel, que passou o tecto do `peso-das-rotas` (lote de 13/11).
+export const ImportarProposta = dynamic(() => import("./ImportarProposta"));
 export const ProposalStudio = dynamic(() => import("./ProposalStudio"), {
   loading: PanelLoading,
 });

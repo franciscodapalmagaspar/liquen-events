@@ -197,6 +197,7 @@ import {
   FollowUpField,
   ActivityLog,
   EventTasks,
+  ImportarProposta,
 } from "./lazy";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
 import { linkDaConversa } from "@/lib/whatsapp";
@@ -671,7 +672,18 @@ function COLUNAS_DE_PEDIDOS(ctx: {
         // coluna que existe sempre (as outras escondem-se abaixo de 1440), e
         // um atributo vazio não desenha nada nem é lido por ninguém. Quem a
         // usa é o `:has()` do `ENTRADA_DO_LOTE`, lá em cima.
-        <span className="block" data-lote-novo={ctx.ehDoLoteNovo?.(q) ? "" : undefined}>
+        //
+        // E o mesmo tecto que o «Local» (ver a nota lá): numa tabela de
+        // largura automática o `truncate` sozinho não corta. MEDIDO a 1440:
+        // um nome de 89 letras pôs a coluna com 630 px e a tabela com 1448
+        // numa caixa de 1358 — «À espera» escondida, sem pista de que havia
+        // mais. Fica no degrau de 420 da escala (§9.9: «420 — nome, local»),
+        // com o nome inteiro no `title`.
+        <span
+          className="block max-w-105"
+          title={q.name}
+          data-lote-novo={ctx.ehDoLoteNovo?.(q) ? "" : undefined}
+        >
           <span
             className={`block truncate ${
               ctx.atual === q.id ? "font-semibold text-sage-600" : "text-[var(--bo-text)]"
@@ -959,7 +971,11 @@ const QuoteCard = memo(function QuoteCard({
                       ? "bg-[var(--bo-aviso-tom)]/15 text-[var(--bo-aviso)]"
                       : "bg-[var(--bo-tinta-6)] text-foreground/45"
                 }`}
-                title={`Entrou ${esperaEmPalavras(espera)} e ainda não teve resposta`}
+                title={
+                  espera <= 0
+                    ? "Entrou hoje e ainda não teve resposta"
+                    : `Entrou ${esperaEmPalavras(espera)} e ainda não teve resposta`
+                }
               >
                 {esperaEmPalavras(espera)}
               </span>
@@ -1637,6 +1653,7 @@ export default function AdminClient({
   );
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [newQuoteOpen, setNewQuoteOpen] = useState(false);
+  const [importarOpen, setImportarOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [passkeysOpen, setPasskeysOpen] = useState(false);
@@ -2287,6 +2304,29 @@ export default function AdminClient({
   );
 
   /**
+   * Um 409 traz em `current` o que o servidor tem AGORA. A base das notas passa
+   * a ser essa: sem isto, cada gravação seguinte levava a base velha e voltava
+   * a dar 409 até recarregar a página. O texto que ela escreveu fica no campo
+   * — o aviso do 409 já lhe disse que alguém mexeu entretanto.
+   */
+  const acertarBaseDoConflito = useCallback(async (id: string, res: Response) => {
+    // Uma cópia: o corpo original ainda vai ser lido para a frase do aviso.
+    let corpo: { current?: Partial<Quote> } | null = null;
+    try {
+      corpo = (await res.clone().json()) as { current?: Partial<Quote> } | null;
+    } catch {
+      return;
+    }
+    const actual = corpo?.current;
+    if (!actual || actual.id !== id) return;
+    escritoNoServidor.current = {
+      id,
+      adminNotes: actual.adminNotes ?? "",
+      lostReason: actual.lostReason ?? "",
+    };
+  }, []);
+
+  /**
    * Manda ao servidor SÓ o que foi tocado. Uma tentativa — a repetição é do
    * hook.
    */
@@ -2303,7 +2343,12 @@ export default function AdminClient({
         };
       }
       const corpo: Record<string, unknown> = {};
-      if (v.adminNotes !== base.adminNotes) corpo.adminNotes = v.adminNotes;
+      if (v.adminNotes !== base.adminNotes) {
+        corpo.adminNotes = v.adminNotes;
+        // O texto tal como foi lido do servidor: se a colega gravou outras
+        // notas entretanto, o servidor recusa com 409 em vez de as apagar.
+        corpo.base = { adminNotes: base.adminNotes };
+      }
       if (v.lostReason !== null && v.lostReason !== base.lostReason) {
         corpo.lostReason = v.lostReason || null;
       }
@@ -2329,7 +2374,10 @@ export default function AdminClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(corpo),
       });
-      if (!res.ok) return respostaDeHttp(res.status, { porque: porqueNaoGravou(res.status) });
+      if (!res.ok) {
+        if (res.status === 409) await acertarBaseDoConflito(v.id, res);
+        return respostaDeHttp(res.status, { porque: porqueNaoGravou(res.status) });
+      }
       const updated = (await res.json()) as Quote;
       if (primeiraNota) registouNotas.current = v.id;
       escritoNoServidor.current = {
@@ -2340,7 +2388,7 @@ export default function AdminClient({
       absorverDoServidor(updated);
       return { estado: "guardado" };
     },
-    [userName, absorverDoServidor],
+    [userName, absorverDoServidor, acertarBaseDoConflito],
   );
 
   /**
@@ -3530,10 +3578,23 @@ export default function AdminClient({
           notes: q.notes,
           referralSource: q.referralSource || "Cliente recorrente",
           status: "em_revisao",
+          // Uma cópia: um telefone antigo, gravado antes das regras do país,
+          // fica como estava em vez de impedir a cópia (achado n.º 21).
+          duplicado: true,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.quote) throw new Error();
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.quote) {
+        // A recusa do servidor diz o campo e o que fazer; o genérico só fica
+        // para quando não vem razão nenhuma.
+        toast(
+          typeof data?.error === "string" && data.error
+            ? `Não foi possível duplicar o pedido: ${data.error}`
+            : "Não foi possível duplicar o pedido",
+          "error",
+        );
+        return;
+      }
       setQuotes((prev) => [data.quote, ...prev]);
       setSelected(data.quote);
       setEditPrice("");
@@ -3550,6 +3611,7 @@ export default function AdminClient({
       // Pedido NOVO (é uma cópia): recomeça os separadores visitados.
       abrirPrimeiroDetailTab("comunicacao");
       toast("Pedido duplicado — define a nova data", "success");
+      if (typeof data.aviso === "string" && data.aviso) toast(data.aviso, "info");
     } catch {
       toast("Não foi possível duplicar o pedido", "error");
     }
@@ -3950,7 +4012,16 @@ export default function AdminClient({
       const body: Record<string, unknown> = {};
       if (editStatus !== selected.status) body.status = editStatus;
       if (newPrice !== (selected.quotedPrice ?? undefined)) body.quotedPrice = newPrice ?? null;
-      if (editNotes !== (selected.adminNotes ?? "")) body.adminNotes = editNotes;
+      if (editNotes !== (selected.adminNotes ?? "")) {
+        body.adminNotes = editNotes;
+        // Como na gravação automática: o texto de onde partiu, para o servidor
+        // recusar com 409 se outra pessoa gravou notas entretanto.
+        const lido = escritoNoServidor.current;
+        body.base = {
+          adminNotes:
+            lido && lido.id === selected.id ? lido.adminNotes : (selected.adminNotes ?? ""),
+        };
+      }
       if (editAssigned !== (selected.assignedTo ?? "")) {
         body.assignedTo = editAssigned.trim() || null;
       }
@@ -4022,6 +4093,7 @@ export default function AdminClient({
            * O `respostaDeHttp` decide também se vale a pena repetir: um 4xx é
            * o pedido que está errado e repeti-lo dá exactamente o mesmo.
            */
+          if (res.status === 409) await acertarBaseDoConflito(selected.id, res);
           return respostaDeHttp(res.status, {
             porque: (await porqueRecusou(res)) ?? undefined,
           });
@@ -4858,7 +4930,23 @@ export default function AdminClient({
             setQuotes((prev) => [q, ...prev]);
             abrirCliente(q);
           }}
+          onImportar={() => {
+            setNewQuoteOpen(false);
+            setImportarOpen(true);
+          }}
         />
+        {/* Uma proposta antiga (Word/PowerPoint) → o pedido e o rascunho, e
+            abre no «Fazer proposta» pela mesma porta do «Novo pedido». */}
+        {importarOpen && (
+          <ImportarProposta
+            open={importarOpen}
+            onClose={() => setImportarOpen(false)}
+            onCreated={(q) => {
+              setQuotes((prev) => [q, ...prev]);
+              abrirCliente(q);
+            }}
+          />
+        )}
         {/* ── Sidebar ── */}
         {/* `inert` quando é gaveta E está fechada.
             Sem isto, os 20 botões da gaveta fechada continuavam alcançáveis: o

@@ -191,7 +191,13 @@ describe("eventCountdown", () => {
   it("handles very-far-future dates", () => {
     const r = eventCountdown(dayOffset(1000));
     expect(r?.tone).toBe("future");
-    expect(r?.label).toMatch(/^faltam \d+ meses$/);
+    expect(r?.label).toBe("faltam 3 anos");
+  });
+
+  it("passa de 'meses' a 'anos' acima de 24 meses (o «faltam 884 meses» de um pedido de 2099)", () => {
+    expect(eventCountdown(dayOffset(720))).toEqual({ label: "faltam 24 meses", tone: "future" });
+    expect(eventCountdown(dayOffset(750))).toEqual({ label: "faltam 2 anos", tone: "future" });
+    expect(eventCountdown(dayOffset(26_507))).toEqual({ label: "faltam 73 anos", tone: "future" });
   });
 
   it("uses singular 'dia' for exactly one day past", () => {

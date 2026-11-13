@@ -223,34 +223,12 @@ export default function DossierHeader({ data, stage, next, lang, onScrollTo }: P
                 className="alvo-toque"
                 onClick={() => printEventDossier(quote)}
                 title="Imprimir o dossier completo: contactos, financeiro, cronograma e convidados"
-                iconLeft={
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path d="M14 2v6h6M9 13h6M9 17h6M9 9h1" strokeLinecap="round" />
-                  </svg>
-                }
-              >
-                <span className="hidden sm:inline">Imprimir Dossier</span>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="alvo-toque"
-                onClick={() => printRunSheet(quote)}
-                title="Imprimir a timeline (cronograma e checklist do evento)"
+                // Os ícones estavam trocados (auditoria de 13/11, n.º 14): a
+                // impressora é a do «Imprimir Dossier», e o documento com
+                // linhas é o da timeline. E no telemóvel o rótulo some
+                // (`hidden sm:inline` é `display: none`, que também o tira ao
+                // leitor de ecrã): o nome vai no `aria-label`.
+                aria-label="Imprimir Dossier"
                 iconLeft={
                   <svg
                     width="14"
@@ -270,6 +248,35 @@ export default function DossierHeader({ data, stage, next, lang, onScrollTo }: P
                   </svg>
                 }
               >
+                <span className="hidden sm:inline">Imprimir Dossier</span>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="alvo-toque"
+                onClick={() => printRunSheet(quote)}
+                title="Imprimir a timeline (cronograma e checklist do evento)"
+                aria-label="Imprimir a timeline"
+                iconLeft={
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path d="M14 2v6h6M9 13h6M9 17h6M9 9h1" strokeLinecap="round" />
+                  </svg>
+                }
+              >
                 <span className="hidden sm:inline">Timeline</span>
               </Button>
 
@@ -282,6 +289,7 @@ export default function DossierHeader({ data, stage, next, lang, onScrollTo }: P
                   className="alvo-toque"
                   onClick={() => downloadEventIcs(quote)}
                   title="Descarregar .ics para adicionar ao calendário (Google/Apple/Outlook)"
+                  aria-label="Descarregar .ics para o calendário"
                   iconLeft={
                     <svg
                       width="14"

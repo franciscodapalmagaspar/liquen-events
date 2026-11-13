@@ -5,8 +5,8 @@ import {
   precosDe,
   somaDosExtrasSemIva,
 } from "@/lib/proposal-budget";
-import { opcionaisDe, totaisDasVersoes, type VersaoEscolhida } from "./versoes-da-proposta";
-import { eur, round2 } from "@/lib/money";
+import { opcionaisDe, totalDaVersaoAceite, type VersaoEscolhida } from "./versoes-da-proposta";
+import { eur, round2, splitSinal } from "@/lib/money";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -175,18 +175,13 @@ export type DocParaFaturar = Pick<
   | "totalEstimatedText"
 >;
 
-/** O total sem IVA (e com IVA) da versão que conta. */
-function totalDaVersao(doc: DocParaFaturar, versao?: VersaoEscolhida) {
-  const dinheiro = dinheiroDaProposta(doc);
-  const versoes = versao === "base" ? totaisDasVersoes(doc, dinheiro.base) : null;
-  return {
-    base: versoes ? versoes.base : dinheiro.base,
-    bruto: versoes ? versoes.bruto.base : dinheiro.gross,
-    vatRate: dinheiro.vatRate,
-    mode: dinheiro.mode,
-    versoes,
-  };
-}
+/**
+ * O total sem IVA (e com IVA) da versão que conta. Vive em
+ * `versoes-da-proposta.ts` (`totalDaVersaoAceite`) para os Pagamentos, as
+ * Cobranças e o «Gerar» lerem a MESMA conta que a faturação.
+ */
+const totalDaVersao = (doc: DocParaFaturar, versao?: VersaoEscolhida) =>
+  totalDaVersaoAceite(doc, versao);
 
 /** A repartição guardada, limpa: só artigos conhecidos, só números ≥ 0. */
 export function repartoDe(
@@ -593,6 +588,33 @@ export function parcelasDaFatura(
   return partes.filter((p) => p.valor !== 0);
 }
 
+/**
+ * O total COM IVA que o Moloni vai calcular para estas parcelas: ele soma o IVA
+ * LINHA A LINHA (cada artigo leva o seu IVA arredondado ao cêntimo), e não sobre
+ * o total. Por isso pode sair 1 cêntimo (ou 2) longe do sinal e do saldo que o
+ * PDF e os Pagamentos mostram, que dividem o total com IVA (`splitSinal`).
+ *
+ * Auditoria do dinheiro (13/11, n.º 2): a regra não muda — é só dizer, no
+ * cartão, o número que o Moloni vai mostrar, e avisar quando não é o mesmo.
+ */
+export function totalComIvaNoMoloni(partes: readonly ParcelaDoArtigo[], vatRate: number): number {
+  return round2(partes.reduce((s, p) => s + p.valor + round2(p.valor * vatRate), 0));
+}
+
+/**
+ * O que o Moloni vai faturar nesta fase, com IVA, ao lado do que a proposta (o
+ * PDF, os Pagamentos) diz para a mesma fase. `diferenca` é Moloni − proposta.
+ */
+export function conferenciaDoMoloni(
+  f: Pick<Faturacao, "base" | "bruto" | "artigos" | "vatRate">,
+  fase: FaseDaFatura,
+  pct: number,
+): { noMoloni: number; naProposta: number; diferenca: number } {
+  const noMoloni = totalComIvaNoMoloni(parcelasDaFatura(f, fase, pct), f.vatRate);
+  const naProposta = splitSinal(f.bruto, pct)[fase];
+  return { noMoloni, naProposta, diferenca: round2(noMoloni - naProposta) };
+}
+
 /** O texto a copiar para o Moloni à mão, quando a ligação não está feita. */
 export function textoDaFatura(
   partes: ParcelaDoArtigo[],
@@ -613,7 +635,7 @@ export function textoDaFatura(
     `Total sem IVA: ${eur(total)}`,
     // Para conferir no Moloni de um relance (ele calcula o IVA linha a linha:
     // pode diferir 1 cêntimo).
-    `Total com IVA: ${eur(round2(total * (1 + vatRate)))}`,
+    `Total com IVA: ${eur(totalComIvaNoMoloni(partes, vatRate))}`,
   ].join("\n");
 }
 

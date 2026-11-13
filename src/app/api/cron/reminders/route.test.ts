@@ -125,14 +125,28 @@ describe("GET /api/cron/reminders — digest logic (clock pinned 2026-07-20)", (
     expect(sendPushToAll).not.toHaveBeenCalled();
   });
 
-  it("stays up (200, nothing to notify) even when the quotes store rejects", async () => {
+  // Auditoria de 13/11, n.º 12: antes respondia 200 «nada a notificar» — a
+  // frase de um dia sossegado — com a base de dados em baixo.
+  it("a store that rejects is NOT «nothing to notify»: it is logged and reported as a failure", async () => {
     (
       listQuotes as unknown as { mockRejectedValueOnce: (e: unknown) => void }
     ).mockRejectedValueOnce(new Error("db down"));
+    const { log } = await import("@/lib/logger");
     const res = await GET(req());
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ sent: 0, reason: "nada a notificar" });
+    expect(res.status).toBe(502);
+    const corpo = await res.json();
+    expect(corpo).toMatchObject({ sent: 0, incompleto: ["pedidos"] });
+    expect(corpo.reason).not.toBe("nada a notificar");
+    expect(log.error).toHaveBeenCalled();
     expect(sendPushToAll).not.toHaveBeenCalled();
+  });
+
+  it("with something to say but the subscriptions list unreadable, the failure shows", async () => {
+    data.quotes = [awaitingQuote()];
+    vi.mocked(sendPushToAll).mockResolvedValueOnce({ sent: 0, failed: 0, semLista: true });
+    const res = await GET(req());
+    expect(res.status).toBe(502);
+    expect(await res.json()).toMatchObject({ sent: 0, subscricoes: "não foi possível ler" });
   });
 
   it("counts events in the next 3 days (from quotes + calendar) and excludes those beyond", async () => {
@@ -160,14 +174,20 @@ describe("GET /api/cron/reminders — digest logic (clock pinned 2026-07-20)", (
   });
 
   it("flags unpaid payments due within 7 days and pushes the summary", async () => {
+    // Um cliente ACEITE: o resumo conta pela conta do quadro das Cobranças
+    // (auditoria de 13/11, n.º 4). Proposta aceite de 10.000 €, sinal de 30%.
+    data.proposals = [
+      { id: "pa", quoteId: "a", status: "aceite", total: 10000, subtotal: 8130.08 },
+    ];
     data.quotes = [
       {
         id: "a",
         name: "Cliente",
+        status: "aceite",
+        date: "2026-12-12",
         payments: [
-          { paid: false, date: "2026-07-21", amount: 500 }, // due within 7
-          { paid: true, date: "2026-07-22", amount: 999 }, // already paid → ignored
-          { paid: false, date: "2026-08-30", amount: 200 }, // beyond +7 → ignored
+          { id: "s", kind: "sinal", paid: false, date: "2026-07-21", amount: 3000 }, // due within 7
+          { id: "x", kind: "saldo", paid: false, date: "2026-11-12", amount: 7000 }, // beyond +7 → ignored
         ],
       },
     ];
@@ -181,6 +201,33 @@ describe("GET /api/cron/reminders — digest logic (clock pinned 2026-07-20)", (
     expect(push.body).toContain("1 pagamento");
   });
 
+  it("um sinal registado ao lado da linha prevista, e um pedido perdido, não contam «a receber» (auditoria de 13/11, n.º 4)", async () => {
+    data.proposals = [
+      { id: "pa", quoteId: "a", status: "aceite", total: 10000, subtotal: 8130.08 },
+    ];
+    data.quotes = [
+      {
+        id: "a",
+        name: "Cliente",
+        status: "aceite",
+        date: "2026-12-12",
+        payments: [
+          // O sinal entrou e foi registado numa linha NOVA; a prevista ficou.
+          { id: "s", kind: "sinal", paid: false, date: "2026-07-18", amount: 3000 },
+          { id: "s2", kind: "sinal", paid: true, date: "2026-07-19", amount: 3000 },
+        ],
+      },
+      {
+        id: "b",
+        name: "Perdido",
+        status: "rejeitado",
+        payments: [{ id: "x", kind: "sinal", paid: false, date: "2026-07-21", amount: 500 }],
+      },
+    ];
+    await GET(req());
+    expect(sendPushToAll).not.toHaveBeenCalled();
+  });
+
   it("flags a quote awaiting a first reply for 24h+ but not a fresh one", async () => {
     data.quotes = [
       awaitingQuote(),
@@ -190,6 +237,28 @@ describe("GET /api/cron/reminders — digest logic (clock pinned 2026-07-20)", (
         status: "pendente",
         messages: [],
         submittedAt: "2026-07-20T09:00:00.000Z",
+      },
+    ];
+    await GET(req());
+    const push = (sendPushToAll as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0][0] as {
+      body: string;
+    };
+    expect(push.body).toContain("1 pedido por responder");
+  });
+
+  // Revisão de 13/11 (achado n.º 8): uma mensagem que não saiu não é resposta
+  // — o resumo da manhã usa a mesma regra dos lembretes do ecrã.
+  it("um pedido cuja única mensagem não saiu continua por responder", async () => {
+    data.quotes = [
+      {
+        ...awaitingQuote(),
+        messages: [{ at: "2026-07-18T09:00:00.000Z", body: "x", emailed: false }],
+      },
+      {
+        ...awaitingQuote(),
+        id: "q-respondido",
+        messages: [{ at: "2026-07-18T09:00:00.000Z", body: "y" }],
       },
     ];
     await GET(req());

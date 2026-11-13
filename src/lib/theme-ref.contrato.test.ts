@@ -125,3 +125,28 @@ describe("apagar fotos da Biblioteca", () => {
     ).toEqual([]);
   });
 });
+
+describe("mover fotos da Biblioteca", () => {
+  /**
+   * Auditoria 6, n.º 1. Mover uma foto muda-lhe a chave, e as propostas e os
+   * rascunhos guardam REFERÊNCIAS (`tema:<pasta>/<ficheiro>`) — um `move` cru
+   * deixava-as a apontar para o vazio, e as etiquetas da Biblioteca presas ao
+   * caminho antigo. A única porta é o `moverFotosDaBiblioteca`; uma rota só
+   * pode chamar a primitiva para COPIAR.
+   */
+  it("nenhuma rota move com o `transferThemeImage` — passa pela porta do mover", () => {
+    const infractores: string[] = [];
+    for (const ficheiro of ficheiros(join(process.cwd(), "src", "app"))) {
+      const fonte = readFileSync(ficheiro, "utf-8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/.*$/gm, "");
+      for (const m of fonte.matchAll(/transferThemeImage\(([^)]*)\)/g)) {
+        const modo = m[1].split(",").at(-1)?.trim();
+        if (modo !== '"copy"') {
+          infractores.push(`${ficheiro.replace(process.cwd() + "/", "")} → ${m[0]}`);
+        }
+      }
+    }
+    expect(infractores, "use moverFotosDaBiblioteca (theme-materializar.ts)").toEqual([]);
+  });
+});

@@ -139,6 +139,38 @@ describe("deriveStage — quote.status as a first-class won signal", () => {
     expect(deriveStage(d, TODAY)).toBe("concluido");
   });
 
+  it("sem proposta (o indicador da lista), a estimativa não prende um evento todo pago em produção", () => {
+    // Revisão de 13/11: a estimativa era 25.000 €, o casal aceitou 20.000 € e
+    // pagou-os (sinal + saldo). O indicador chama sem proposta; o dossiê diz
+    // «concluído», e a lista tem de dizer o mesmo.
+    const d = data({
+      quote: makeQuote({
+        status: "aceite",
+        date: "2026-07-01",
+        quotedPrice: 25000,
+        payments: [
+          { id: "s", kind: "sinal", amount: 6000, date: "2026-03-01", paid: true },
+          { id: "f", kind: "saldo", amount: 14000, date: "2026-06-10", paid: true },
+        ],
+      }),
+    });
+    expect(deriveStage(d, TODAY)).toBe("concluido");
+  });
+
+  it("com a proposta à frente, um saldo pago só em parte não fecha o evento (nem por 1 cêntimo)", () => {
+    const pagamentos = (saldo: number) => [
+      { id: "s", kind: "sinal" as const, amount: 6000, date: "2026-03-01", paid: true },
+      { id: "f", kind: "saldo" as const, amount: saldo, date: "2026-06-10", paid: true },
+    ];
+    const com = (saldo: number) =>
+      data({
+        quote: makeQuote({ status: "aceite", date: "2026-07-01", payments: pagamentos(saldo) }),
+        proposal: makeProposal({ status: "aceite" }),
+      });
+    expect(deriveStage(com(13999.99), TODAY)).not.toBe("concluido");
+    expect(deriveStage(com(14000), TODAY)).toBe("concluido");
+  });
+
   it("rejeitado still wins even when the quote also carries 'aceite' history via proposal", () => {
     // Terminal 'perdido' precedence must not regress with the new won signal.
     const d = data({

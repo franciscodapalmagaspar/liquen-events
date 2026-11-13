@@ -1,4 +1,5 @@
 import type { Task, TaskPriority } from "@/lib/orcamento/types";
+import { diaDoPrazo } from "./prazo";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -146,13 +147,16 @@ export function chaveDoEvento(t: Task): string | null {
  */
 export function pertenceALista(t: Task, lista: ListaId, hoje: string): boolean {
   if (lista.startsWith("evento:")) return chaveDoEvento(t) === lista.slice("evento:".length);
+  // Lido como DIA: um prazo antigo com hora agarrada («…T10:00») comparava-se
+  // como texto mais comprido e saía de «Hoje» (ver `lib/tarefas/prazo.ts`).
+  const dia = diaDoPrazo(t.dueDate);
   switch (lista) {
     case "hoje":
-      return !!t.dueDate && t.dueDate <= hoje;
+      return !!dia && dia <= hoje;
     case "semana":
-      return !!t.dueDate && t.dueDate <= fimDaSemana(hoje);
+      return !!dia && dia <= fimDaSemana(hoje);
     case "atrasadas":
-      return !!t.dueDate && t.dueDate < hoje && !t.done;
+      return !!dia && dia < hoje && !t.done;
     case "sem-data":
       return !t.dueDate;
     case "todas":
@@ -261,11 +265,12 @@ const TITULO_DO_DEGRAU: Record<(typeof DEGRAUS_DE_DATA)[number], string> = {
 };
 
 function degrauDaData(t: Task, hoje: string): (typeof DEGRAUS_DE_DATA)[number] {
-  if (!t.dueDate) return "sem-data";
-  if (t.dueDate < hoje) return "atrasadas";
-  if (t.dueDate === hoje) return "hoje";
-  if (t.dueDate === amanha(hoje)) return "amanha";
-  if (t.dueDate <= fimDaSemana(hoje)) return "semana";
+  const dia = diaDoPrazo(t.dueDate);
+  if (!dia) return "sem-data";
+  if (dia < hoje) return "atrasadas";
+  if (dia === hoje) return "hoje";
+  if (dia === amanha(hoje)) return "amanha";
+  if (dia <= fimDaSemana(hoje)) return "semana";
   return "depois";
 }
 

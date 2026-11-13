@@ -54,9 +54,19 @@ vi.mock("./calendar-store", () => {
   };
 });
 
-const propostasDb = vi.hoisted(() => ({ byQuote: new Map<string, Record<string, unknown>>() }));
+const propostasDb = vi.hoisted(() => ({
+  byQuote: new Map<string, Record<string, unknown>>(),
+  /** Todas as propostas de um pedido, da mais nova para a mais velha, quando o teste as dá. */
+  listas: new Map<string, Record<string, unknown>[]>(),
+}));
 vi.mock("./proposals-store", () => ({
   getProposalByQuote: vi.fn(async (quoteId: string) => propostasDb.byQuote.get(quoteId) ?? null),
+  listProposalsForQuote: vi.fn(async (quoteId: string) => {
+    const todas = propostasDb.listas.get(quoteId);
+    if (todas) return todas;
+    const p = propostasDb.byQuote.get(quoteId);
+    return p ? [p] : [];
+  }),
 }));
 
 const matDb = vi.hoisted(() => ({
@@ -129,6 +139,7 @@ beforeEach(() => {
   quotesDb.rows.clear();
   cal.events = [];
   propostasDb.byQuote.clear();
+  propostasDb.listas.clear();
   matDb.catalogo = [];
   matDb.listas = [];
   matDb.linhasDeLista = [];
@@ -346,6 +357,32 @@ describe("gerarEventoAoGanhar — o dinheiro é o da proposta", () => {
     // Nunca marcado como pago automaticamente.
     expect(sinal.paid).toBe(false);
     expect(saldo.paid).toBe(false);
+  });
+
+  it("gera da proposta ACEITE, pela versão base — nunca da revisão mais recente (auditoria de 13/11, n.os 1 e 3)", async () => {
+    const q = seedQuote();
+    const docAceite = {
+      budgetItems: ["Decoração floral", "Arco extra"],
+      budgetAmounts: [1000, 200],
+      budgetOpcional: [false, true],
+      totalAmount: 1200,
+      totalVatMode: "acrescer",
+      vatRate: 0.23,
+      depositPercent: 30,
+    };
+    propostasDb.listas.set("Q1", [
+      // A mais recente: uma revisão de 5.000 € que o casal nunca viu.
+      { id: "prop-2", quoteId: "Q1", status: "rascunho", doc: { ...docAceite, totalAmount: 5000 } },
+      { id: "prop-1", quoteId: "Q1", status: "aceite", versaoEscolhida: "base", doc: docAceite },
+    ]);
+
+    await gerarEventoAoGanhar(q as never, "2026-08-14T09:00:00.000Z");
+
+    const payments = quotesDb.rows.get("Q1")!.payments as { kind: string; amount: number }[];
+    // A base são 1.000 € + IVA = 1.230 €: 369 € de sinal, 861 € de saldo — o
+    // mesmo total que a faturação manda ao Moloni.
+    expect(payments.find((p) => p.kind === "sinal")!.amount).toBe(369);
+    expect(payments.find((p) => p.kind === "saldo")!.amount).toBe(861);
   });
 
   it("as quatro datas-chave nascem com as antecedências aprovadas", async () => {

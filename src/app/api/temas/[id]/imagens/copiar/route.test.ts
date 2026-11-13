@@ -37,6 +37,22 @@ const st = vi.hoisted(() => ({
 
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => st.authed }));
 vi.mock("@/lib/supabase", () => ({ isDatabaseConfigured: () => st.dbConfigured }));
+// A porta do mover (`theme-materializar.ts`) tem testes próprios; aqui faz o
+// que a primitiva faria, foto a foto, para a rota ser testada sozinha.
+vi.mock("@/lib/theme-materializar", () => ({
+  moverFotosDaBiblioteca: vi.fn(async (paths: string[], destino: string) => {
+    const saida = [];
+    for (const p of paths)
+      saida.push(
+        await (st.transfer as (...a: unknown[]) => ReturnType<typeof st.transfer>)(
+          p,
+          destino,
+          "move",
+        ),
+      );
+    return saida;
+  }),
+}));
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@/lib/themes-store", () => ({
   getTheme: vi.fn(async (id: string) => st.themes.find((t) => t.id === id) ?? null),

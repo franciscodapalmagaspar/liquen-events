@@ -284,6 +284,24 @@ describe("gravar", () => {
     expect(await screen.findByText("31%")).toBeInTheDocument();
   });
 
+  // Achado n.º 4 da auditoria 6: «15.000» era lido como 15 €.
+  it.each([
+    ["15.000", "15000"],
+    ["1.500,50", "1500.5"],
+    ["12,5", "12.5"],
+    ["15 000 €", "15000"],
+  ])("a meta escrita «%s» grava %s", async (escrito, gravado) => {
+    desenhar();
+    await screen.findByText("Sem meta definida.");
+    await userEvent.click(screen.getByRole("button", { name: /definir meta/i }));
+    fireEvent.change(screen.getByLabelText("Meta de receita deste mês"), {
+      target: { value: escrito },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(gravacoes).toHaveLength(1));
+    expect(gravacoes[0].value).toBe(gravado);
+  });
+
   it("gravar as notas não deixa o texto no localStorage (deixou de ser onde ele vive)", async () => {
     desenhar();
     await screen.findByText("Sem notas.");
@@ -628,5 +646,54 @@ describe("o dia é o local, não o de UTC", () => {
       />,
     );
     expect(await screen.findByText(/1 evento hoje/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * ── A FRASE E O CARTÃO «HOJE» CONTAM COM A MESMA REGRA ────────────────────
+ *
+ * Auditoria visual de 13/11 (n.º 4): a frase de abertura dizia «Tem 1 evento
+ * hoje» e o cartão «Hoje» logo por baixo dizia «Não há eventos». A frase
+ * contava QUALQUER pedido com a data de hoje — um «Novo» também —, e o cartão
+ * só os aceites ou com proposta enviada. Passaram a ler a mesma função,
+ * `contaComoEvento`, em `lib/orcamento/hoje.ts`.
+ */
+describe("um pedido Novo com a data de hoje não é «1 evento hoje»", () => {
+  beforeEach(() => {
+    vi.setSystemTime(new Date("2026-07-15T10:00:00.000Z"));
+  });
+
+  const com = (status: string) =>
+    [{ ...quotes[0], id: `q-${status}`, status, date: "2026-07-15" }] as unknown as Quote[];
+
+  it("um pedido Novo (pendente) não entra na frase", async () => {
+    render(
+      <Overview
+        quotes={com("pendente")}
+        userName="Rita"
+        onOpen={() => {}}
+        onGoStats={() => {}}
+        onGo={() => {}}
+        onNew={() => {}}
+      />,
+    );
+    // A frase existe (há um pedido por responder), mas não fala de eventos.
+    expect(await screen.findByText(/1 pedido por responder/)).toBeInTheDocument();
+    expect(screen.queryByText(/evento hoje/)).not.toBeInTheDocument();
+  });
+
+  it("um aceite entra — na frase E no cartão «Hoje»", async () => {
+    render(
+      <Overview
+        quotes={com("aceite")}
+        userName="Rita"
+        onOpen={() => {}}
+        onGoStats={() => {}}
+        onGo={() => {}}
+        onNew={() => {}}
+      />,
+    );
+    expect(await screen.findByText(/1 evento hoje/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Evento hoje/).length).toBeGreaterThan(0);
   });
 });

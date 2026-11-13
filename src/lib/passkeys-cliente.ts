@@ -85,8 +85,19 @@ async function pedirJson(url: string, init?: RequestInit): Promise<unknown> {
  *
  * Só é chamado de dentro do back office — o servidor exige sessão válida nos
  * dois passos, e o segundo verifica ainda que a conta não mudou entretanto.
+ *
+ * E a palavra-passe da conta, confirmada antes (auditoria de 13/11, n.º 5):
+ * a sessão sozinha não chega para dar a um aparelho uma porta própria.
  */
-export async function registarDispositivo(deviceLabel: string): Promise<void> {
+export async function registarDispositivo(
+  deviceLabel: string,
+  palavraPasse: string,
+): Promise<void> {
+  await pedirJson("/api/admin/passkeys/confirmar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password: palavraPasse }),
+  });
   const optionsJSON = (await pedirJson("/api/admin/passkeys/registo")) as Parameters<
     typeof startRegistration
   >[0]["optionsJSON"];

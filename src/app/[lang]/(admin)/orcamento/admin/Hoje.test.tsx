@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Quote, Task } from "@/lib/orcamento/types";
 import { __resetListCache } from "./useCachedList";
@@ -64,7 +64,9 @@ describe("«Hoje» na Visão Geral", () => {
     await user.click(screen.getByRole("button", { name: /Evento hoje.*TESTE Ana e Rui/ }));
     expect(onOpen).toHaveBeenCalledWith(q);
 
-    const tarefa = await screen.findByRole("button", { name: /Tarefa para hoje.*Confirmar flores/ });
+    const tarefa = await screen.findByRole("button", {
+      name: /Tarefa para hoje.*Confirmar flores/,
+    });
     await user.click(tarefa);
     expect(onGo).toHaveBeenCalledWith("tarefas");
     await waitFor(() => expect(screen.getByText("2 coisas")).toBeTruthy());
@@ -82,5 +84,40 @@ describe("«Hoje» na Visão Geral", () => {
     const linha = screen.getByRole("button", { name: /Sinal em atraso há \d+ dias/ });
     await userEvent.setup().click(linha);
     expect(onGo).toHaveBeenCalledWith("pagamentos");
+  });
+});
+
+/**
+ * N.º 14 da auditoria de 13/11: o «Hoje» lia o dia no render, e com o back
+ * office aberto de um dia para o outro ficava preso em ontem.
+ */
+describe("«Hoje» passa a meia-noite", () => {
+  it("n.º 14: à meia-noite, a tarefa de amanhã passa a ser de hoje", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 10, 13, 23, 59, 0));
+    tarefas = [
+      {
+        id: "t1",
+        title: "Ligar à florista",
+        done: false,
+        priority: "alta",
+        dueDate: "2026-11-14",
+      } as Task,
+    ];
+    try {
+      render(<Hoje quotes={[]} propostas={[]} onOpen={vi.fn()} onGo={vi.fn()} />);
+      // Espera que a lista chegue: antes da meia-noite não é de hoje.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10);
+      });
+      expect(screen.queryByRole("button", { name: /Ligar à florista/ })).toBeNull();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2 * 60_000);
+      });
+      expect(screen.getByRole("button", { name: /Ligar à florista/ })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

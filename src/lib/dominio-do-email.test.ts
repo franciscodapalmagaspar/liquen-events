@@ -63,6 +63,36 @@ describe("dominioRecebeEmail — só recusa quando o DNS diz mesmo que não", ()
     expect(await dominioRecebeEmail("ana@lento.pt")).toBe(false);
   });
 
+  // Achado n.º 12 da auditoria 6: um «não» transitório ficava seis horas.
+  it("um «não» guarda-se só por pouco tempo; um «sim» guarda-se seis horas", async () => {
+    vi.useFakeTimers();
+    try {
+      dns.resolveMx.mockRejectedValue(erro("ENOTFOUND"));
+      dns.resolve4.mockRejectedValue(erro("ENOTFOUND"));
+      dns.resolve6.mockRejectedValue(erro("ENOTFOUND"));
+      expect(await dominioRecebeEmail("ana@empresa-nova.pt")).toBe(false);
+      // O DNS volta a si: dez minutos depois, o domínio já recebe.
+      dns.resolveMx.mockResolvedValue([{ exchange: "mx.empresa-nova.pt", priority: 5 }]);
+      vi.advanceTimersByTime(10 * 60 * 1000);
+      expect(await dominioRecebeEmail("ana@empresa-nova.pt")).toBe(true);
+      // E o «sim» fica: uma hora depois não volta a perguntar.
+      vi.advanceTimersByTime(60 * 60 * 1000);
+      await dominioRecebeEmail("ana@empresa-nova.pt");
+      expect(dns.resolveMx).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("um soluço do DNS nunca recusa um Gmail", async () => {
+    dns.resolveMx.mockRejectedValue(erro("ENOTFOUND"));
+    dns.resolve4.mockRejectedValue(erro("ENOTFOUND"));
+    dns.resolve6.mockRejectedValue(erro("ENOTFOUND"));
+    expect(await dominioRecebeEmail("ana@gmail.com")).toBe(true);
+    expect(await dominioRecebeEmail("rui@Hotmail.com")).toBe(true);
+    expect(dns.resolveMx).not.toHaveBeenCalled();
+  });
+
   it("um domínio já visto não volta a perguntar", async () => {
     dns.resolveMx.mockResolvedValue([{ exchange: "mx.exemplo.pt", priority: 5 }]);
     await dominioRecebeEmail("ana@exemplo.pt");

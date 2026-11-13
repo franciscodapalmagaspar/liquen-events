@@ -24,6 +24,50 @@ describe("ultimoEnvio", () => {
   it("o envio da proposta, com o endereço para onde foi de facto", () => {
     expect(ultimoEnvio(pedido, [envio], AGORA)).toEqual({ em: envio.enviadoEm, para: envio.para });
   });
+  // Achado n.º 6 da auditoria 6: o mapa enviado à quinta, um lembrete por
+  // WhatsApp ou uma mensagem que não saiu escondiam a devolução da proposta.
+  it("só conta o que foi mesmo por email ao cliente", () => {
+    const comRuido = {
+      ...pedido,
+      activityLog: [
+        {
+          id: "a1",
+          at: "2026-11-09T22:25:00Z",
+          kind: "message_sent" as const,
+          summary: "Mapa de mesas enviado por email a quinta@exemplo.pt",
+        },
+      ],
+      messages: [{ at: "2026-11-09T22:26:00Z", body: "Não saiu", emailed: false }],
+    };
+    expect(ultimoEnvio(comRuido, [envio], AGORA)).toEqual({
+      em: envio.enviadoEm,
+      para: envio.para,
+    });
+    // Uma mensagem que saiu conta, com o endereço para onde foi.
+    const saiu = {
+      ...comRuido,
+      messages: [
+        ...comRuido.messages,
+        { at: "2026-11-09T22:28:00Z", body: "Saiu", emailed: true, para: "ana@x.pt" },
+      ],
+    };
+    expect(ultimoEnvio(saiu, [envio], AGORA)).toEqual({
+      em: "2026-11-09T22:28:00Z",
+      para: "ana@x.pt",
+    });
+  });
+  // Revisão de 13/11: as mensagens anteriores ao campo `emailed` contam como
+  // saídas (a regra de `mensagemSaiu`), para o email do pedido.
+  it("uma mensagem antiga, sem o campo `emailed`, conta como enviada para o email do pedido", () => {
+    const antiga = {
+      ...pedido,
+      messages: [{ at: "2026-11-09T22:27:00Z", body: "Antiga, sem o campo" }],
+    };
+    expect(ultimoEnvio(antiga, [envio], AGORA)).toEqual({
+      em: "2026-11-09T22:27:00Z",
+      para: pedido.email,
+    });
+  });
   it("sem envio nos últimos 7 dias não há nada a verificar (não se lê a caixa)", () => {
     const antigo = { ...envio, enviadoEm: "2026-10-20T10:00:00Z" };
     expect(ultimoEnvio(pedido, [antigo], AGORA)).toBeNull();
@@ -67,7 +111,7 @@ describe("estadoDaEntrega — o caso dela (9/11)", () => {
 describe("pesquisaDoGmail", () => {
   it("procura os avisos de entrega falhada com o endereço, a partir do envio", () => {
     const q = pesquisaDoGmail("a@b.com", "2026-11-09T22:22:00Z");
-    expect(q).toContain('from:(mailer-daemon OR postmaster)');
+    expect(q).toContain("from:(mailer-daemon OR postmaster)");
     expect(q).toContain('"a@b.com"');
     expect(q).toMatch(/after:\d+$/);
   });

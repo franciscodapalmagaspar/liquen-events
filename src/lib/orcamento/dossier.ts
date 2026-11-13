@@ -204,6 +204,34 @@ export function paidTotal(quote: Quote): number {
 }
 
 /**
+ * Folga do «tudo pago»: NENHUMA. Pedido de 13/11: «eu não quero que falte
+ * nada. 0,0 €». Um cêntimo por receber é um cêntimo por receber, e o cliente
+ * fica em «por pagar» até ele entrar. A comparação faz-se em cêntimos inteiros
+ * (ver `estaTudoPago`), para a vírgula flutuante não inventar nem esconder um.
+ */
+export const FOLGA_DO_PAGO = 0;
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * «ESTÁ PAGO» — UM CRITÉRIO SÓ
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Auditoria do dinheiro (13/11, n.os 2 e 5): havia três. O dossiê dava o saldo
+ * por pago com QUALQUER linha de saldo recebida (um saldo pago em parte fechava
+ * o evento); o quadro das Cobranças aceitava meio euro de folga; o painel de
+ * Pagamentos exigia o zero exacto — e com o cêntimo do Moloni nunca dizia
+ * «tudo recebido».
+ *
+ * Fica um só: há um valor a receber, e o recebido chega a ele ao cêntimo
+ * ({@link FOLGA_DO_PAGO} é zero — ela não quer que falte nada).
+ */
+export function estaTudoPago(total: number, pago: number): boolean {
+  const totalCent = Math.round(total * 100);
+  const pagoCent = Math.round(pago * 100);
+  return totalCent > 0 && pagoCent >= totalCent - Math.round(FOLGA_DO_PAGO * 100);
+}
+
+/**
  * Máquina de estados do Dossier. Calcula os booleanos e escolhe a fase mais
  * avançada alcançada (primeira coincidência ganha, topo = mais avançado).
  * A implementação segue à letra a tabela do plano.
@@ -236,9 +264,24 @@ export function deriveStage(d: DossierData, today: Date = new Date()): EventStag
   // nunca rotule a última parcela como «saldo». Um evento já realizado e
   // integralmente pago mas com as parcelas todas rotuladas «pagamento» ficaria
   // preso em `em_producao` para sempre e acumulava no quadro, ano após ano.
+  //
+  // Com um total conhecido, «saldo pago» é o critério único da casa
+  // (`estaTudoPago`): um saldo pago só em PARTE já não fecha o evento
+  // (auditoria de 13/11, n.º 5). Sem total nenhum, não há com que comparar, e
+  // vale a linha de saldo recebida, como sempre.
+  //
+  // Mas só com a PROPOSTA à frente. Sem ela (o indicador de fase da lista
+  // chama isto com `proposal: null`), o «contratado» seria a estimativa ou o
+  // preço cotado, que não são o que o casal aceitou — e um evento todo pago
+  // ficava preso em «em produção» na lista enquanto o dossiê dizia
+  // «concluído». Aí vale, como sempre, a linha de saldo recebida.
+  const saldoLinhaRecebida = (quote.payments ?? []).some(
+    (p) => p.kind === "saldo" && p.paid && p.amount > 0,
+  );
   const saldoPago =
-    (quote.payments ?? []).some((p) => p.kind === "saldo" && p.paid && p.amount > 0) ||
-    (contracted > 0 && pago >= round2(contracted));
+    proposal && contracted > 0
+      ? estaTudoPago(contracted, pago)
+      : saldoLinhaRecebida || (contracted > 0 && estaTudoPago(contracted, pago));
 
   const sinalPago = (quote.payments ?? []).some(
     (p) => p.kind === "sinal" && p.paid && p.amount > 0,

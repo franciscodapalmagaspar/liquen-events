@@ -63,9 +63,9 @@ async function entrarComSenha(page: Page): Promise<boolean> {
     de acesso, em que o formulário já está aberto).
   */
   await page
-      .getByRole("button", { name: /^Entrar com palavra-passe$/ })
-      .click({ timeout: 5_000 })
-      .catch(() => {});
+    .getByRole("button", { name: /^Entrar com palavra-passe$/ })
+    .click({ timeout: 5_000 })
+    .catch(() => {});
 
   await page.getByLabel(/^Email$/i).fill("catarina@liquen-events.com");
   await page.locator('input[name="password"]').fill(SENHA);
@@ -154,6 +154,9 @@ test.describe("Passkeys", () => {
     test.skip(await semTabela.isVisible(), "A tabela das passkeys não existe neste ambiente.");
 
     await dialogo.getByLabel(/^Nome$/i).fill("Portátil de testes");
+    // Registar um aparelho pede a palavra-passe da conta (auditoria de 13/11,
+    // n.º 5): uma sessão roubada não pode juntar uma chave de acesso sua.
+    await dialogo.locator('input[name="password"]').fill(SENHA);
     await dialogo.getByRole("button", { name: /^Registar$/ }).click();
 
     await expect(dialogo.getByText("Portátil de testes")).toBeVisible({ timeout: 10_000 });

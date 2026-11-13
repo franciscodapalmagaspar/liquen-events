@@ -129,7 +129,11 @@ export default async function PoloPage({
       {/* ── 1. HERÓI + FORMULÁRIO ─────────────────────────────────────────
           Uma só imagem, com `priority`: é o candidato a LCP e não pode
           esperar pela hidratação nem por um observador de intersecção. */}
-      <section className="relative min-h-[calc(var(--ecra)*0.92)] flex items-center">
+      {/* -mt-24 anula o pt-24 do <main> e o pt-24 devolve-o por dentro: a foto
+          vai até ao topo, por baixo da barra transparente, e o texto fica
+          onde estava. Sem isto havia uma faixa branca de 96 px no topo das
+          páginas dos anúncios, com a barra meio no branco, meio na foto. */}
+      <section className="relative -mt-24 pt-24 min-h-[calc(var(--ecra)*0.92)] flex items-center">
         <div className="absolute inset-0">
           {/* HeroImage e não SafeImage: só o HeroImage usa o `heroImageLoader`,
               que resolve a imagem para os WebP estáticos até 2048 px. Numa

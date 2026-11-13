@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { semEnderecos } from "@/lib/texto-sem-enderecos";
+import { canonizar } from "@/lib/proposta-versao";
 import { NextRequest, NextResponse, after } from "next/server";
 import type { ZodError } from "zod";
 import type { Quote, QuoteFormData, PriceBreakdown } from "@/lib/orcamento/types";
@@ -28,17 +30,19 @@ import {
   createQuote,
   listQuotes,
   listQuoteSummaries,
+  assinaturaDaListaDePedidos,
   getQuote,
   generateQuoteId,
   quoteIdFor,
 } from "@/lib/quotes-store";
 import { isAuthed } from "@/lib/admin-auth";
-import { jsonWithEtag } from "@/lib/api-cache";
+import { jsonWithEtag, naoMudou } from "@/lib/api-cache";
 import { sendPushToAll } from "@/lib/push";
 import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
 import { quotePayloadSchema } from "@/lib/validation";
 import { normalizarTelefone } from "@/lib/contacto-do-pedido";
 import { dominioRecebeEmail } from "@/lib/dominio-do-email";
+import { emailParaContagem } from "@/lib/email-para-contagem";
 import { log } from "@/lib/logger";
 import { eur0 as eur } from "@/lib/money";
 import { enviarEventos, ipDoPedido } from "@/lib/meta/capi";
@@ -131,7 +135,21 @@ function mensagemDeValidacao(err: ZodError, locale: Locale): string {
     const regra = (issue as { params?: { regra?: string } }).params?.regra;
     if (regra === "email-obrigatorio") return to.errEmailObrigatorio;
     if (regra === "telefone") return to.errTelefone;
-    return to.errContacto;
+    // A data tem as suas frases. Antes caía aqui em baixo, na dos contactos, e
+    // quem enviava uma data passada lia «Indique um email ou um telemóvel» com
+    // os dois já preenchidos (achado n.º 2 da auditoria 6).
+    if (regra === "data-invalida") return to.errDataInvalida;
+    if (regra === "data-passada") return to.errDataPassada;
+    if (regra === "data-fim") return to.errDataFim;
+    if (regra === "contacto") return to.errContacto;
+    // Uma regra nova sem frase própria não pode fingir ser a dos contactos.
+    return rotulo
+      ? en
+        ? `Please check the “${rotulo}” field.`
+        : `Verifique o campo «${rotulo}».`
+      : en
+        ? "We couldn't read your request. Please check the fields and try again."
+        : "Não foi possível ler o seu pedido. Verifique os campos e tente novamente.";
   }
 
   if (issue?.code === "too_big" && typeof issue.maximum === "number") {
@@ -660,7 +678,9 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
     // confirmation — the lead is already persisted and the team notified.
     // 10/11: 5 → 2. Um cliente verdadeiro manda um pedido, às vezes corrige e
     // manda outro; cinco era margem para usar o formulário como remetente.
-    const emailKey = `confirm:${form.email.trim().toLowerCase()}`;
+    // A chave conta a CAIXA que recebe, não a grafia: `ana+1@…`, `a.n.a@gmail…`
+    // e `ana@gmail…` são o mesmo tecto (ver `emailParaContagem`).
+    const emailKey = `confirm:${emailParaContagem(form.email)}`;
     if ((await rateLimit(emailKey, 2, 24 * 60 * 60_000, { global: true })).ok) {
       const sentRes = await sendMail({
         to: form.email,
@@ -785,7 +805,35 @@ async function POST_semMedida(request: NextRequest) {
     const rawSub = (body as Record<string, unknown> | null)?.submissionId;
     const submissionId =
       typeof rawSub === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(rawSub) ? rawSub : null;
-    const id = submissionId ? quoteIdFor(submissionId) : generateQuoteId();
+    /**
+     * O MESMO pedido, e não só o mesmo `submissionId`. O id guarda-se no
+     * telemóvel até o envio dar certo; se a resposta se perdia e a pessoa
+     * CORRIGIA um campo antes de reenviar (a data, o número de convidados), o
+     * reenvio levava o mesmo id, a rota respondia «ok» com o pedido antigo, e
+     * a correcção perdia-se em silêncio. A assinatura do conteúdo entra no id:
+     * o reenvio igual continua a dar UM pedido; o corrigido dá o seu.
+     */
+    //
+    // Só o que a PESSOA escreveu entra na assinatura. Os campos que o browser
+    // preenche sozinho mudam de envio para envio sem ela mexer em nada: o
+    // `leadEventId` nasce novo a cada toque (`meta.lead`), e o clique e a
+    // origem vêm do que a visita calhou de trazer. Com eles lá dentro, o
+    // segundo toque no Instagram era OUTRO pedido — outro email à equipa,
+    // outro ao cliente, outro Lead à Meta.
+    const {
+      leadEventId: _evento,
+      adClick: _cliqueGoogle,
+      metaClick: _cliqueMeta,
+      referralSource: _origem2,
+      idioma: _idioma2,
+      origem: _origem3,
+      ...escrito
+    } = parsed.data.form as Record<string, unknown>;
+    const assinatura = createHash("sha256")
+      .update(JSON.stringify(canonizar(escrito)))
+      .digest("hex")
+      .slice(0, 16);
+    const id = submissionId ? quoteIdFor(`${submissionId}:${assinatura}`) : generateQuoteId();
 
     if (submissionId) {
       try {
@@ -1004,7 +1052,30 @@ async function GET_semMedida(request: NextRequest) {
      * Por ADESÃO: sem o parâmetro a resposta é a de sempre, com tudo.
      */
     const resumo = new URL(request.url).searchParams.get("resumo") === "1";
-    return jsonWithEtag(request, resumo ? await listQuoteSummaries() : await listQuotes());
+    /**
+     * «Mudou?» antes de ler (auditoria de 13/11, n.º 3): uma leitura de ~100
+     * bytes (quantos pedidos, última alteração) decide o 304, e só se lê a
+     * lista — a coluna `data` de todos os pedidos — quando mudou mesmo. Ver
+     * `assinaturaDaListaDePedidos`. A versão publicada entra no validador: um
+     * deploy que mude a forma da lista não pode responder 304 a uma cópia velha.
+     */
+    const assinatura = await assinaturaDaListaDePedidos();
+    const validador = assinatura
+      ? {
+          lista: assinatura,
+          resumo,
+          versao: process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "",
+        }
+      : undefined;
+    if (validador) {
+      const igual = naoMudou(request, validador);
+      if (igual) return igual;
+    }
+    return jsonWithEtag(
+      request,
+      resumo ? await listQuoteSummaries() : await listQuotes(),
+      validador,
+    );
   } catch (err) {
     log.error("orcamento GET falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

@@ -103,6 +103,12 @@ export function lerNumero(bruto: string): number | null {
         : s.replace(/,/g, "");
   } else if (temVirgula) {
     normal = s.replace(",", ".");
+  } else if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(s)) {
+    // Só pontos, em grupos de três: milhares à portuguesa. «1.200»
+    // guardanapos são mil e duzentos, não 1,2 (achado n.º 16 da auditoria 6).
+    // A mesma regra do `parseMoney` do back office; «12.5» e «0.500»
+    // (zero à frente) continuam decimais.
+    normal = s.replace(/\./g, "");
   }
   const n = Number(normal);
   return Number.isFinite(n) && n >= 0 ? n : null;
