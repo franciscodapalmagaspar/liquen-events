@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizarTelefone } from "./contacto-do-pedido";
+import { erroDoServidorEmPortugues } from "./erro-do-servidor";
 
 /**
  * Server-side validation schemas (zod). The public forms are the front door
@@ -673,7 +674,16 @@ export const pushSubscriptionSchema = z.object({
   }),
 });
 
-/** Returns the first human-readable error, for a clean 400 response. */
+/**
+ * A primeira queixa do esquema, para o corpo de um 400 — sempre em português.
+ *
+ * As rotas que a usam são todas do back office. As frases desta casa passam
+ * tal e qual; as que o Zod escreve sozinho («Invalid email address», «Too
+ * small: expected string to have >=1 characters») chegavam ao ecrã em inglês
+ * (achado n.º 13 da auditoria 6) e passam pela mesma tradução que o ecrã já
+ * usa (`erroDoServidorEmPortugues`). O site público em inglês não passa por
+ * aqui: tem a sua `mensagemDeValidacao`, na língua de quem escreveu.
+ */
 export function firstError(err: z.ZodError): string {
-  return err.issues[0]?.message ?? "Dados inválidos";
+  return erroDoServidorEmPortugues(err.issues[0]?.message) ?? "Dados inválidos";
 }
