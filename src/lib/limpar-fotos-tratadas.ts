@@ -22,7 +22,13 @@ import { BUCKET_EDITORIAL } from "@/lib/fotos-editoriais-guardadas";
  * As fotografias ORIGINAIS (`proposal-assets`, `theme-assets`) nunca passam
  * por aqui. Nada disto lança: se falhar, amanhã tenta outra vez.
  */
-export const DIAS = 30;
+/**
+ * 7 e não 30 (13/11, autorizado por ele: «esvazia a cache»): com 30 dias nada
+ * tinha ainda saído (o ficheiro mais antigo era de 3/11) e o balde chegou aos
+ * 197 MB, com o armazenamento a 997 MB de 1 GB. Uma proposta em trabalho
+ * refaz as suas uma vez por semana — segundos de processador.
+ */
+export const DIAS = 7;
 
 /** Quantas pastas se lêem ao mesmo tempo (são 256, de duas letras). */
 const EM_PARALELO = 16;

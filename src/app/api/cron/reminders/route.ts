@@ -13,7 +13,12 @@ import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// 300 e não 60 (auditoria de robustez de 13/11): a apanha das derivadas
+// passou dos 60 s em 6 dos 7 dias e a função era morta a meio. O ORÇAMENTO de
+// trabalho continua o de sempre (50 s, lá em baixo) — o tecto maior é só a
+// folga para não ser cortada; o plano Pro permite-o, e o tempo à espera da
+// rede não conta como processador.
+export const maxDuration = 300;
 
 /**
  * Smart daily digest. Meant to be hit by a scheduled cron (Vercel Cron or
