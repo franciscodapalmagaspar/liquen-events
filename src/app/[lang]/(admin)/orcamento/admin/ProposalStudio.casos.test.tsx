@@ -5776,6 +5776,24 @@ describe("gerar a proposta em inglês", () => {
   /** Voltar atrás também tem de pegar: um `meta` com «en» não pode ressuscitar
    *  uma escolha que ela desfez. É a diferença entre guardar a escolha e
    *  guardar só metade dela. */
+  /** Auditoria de 13/11, estúdio n.º 9: noutro aparelho (sem o `meta` local)
+   *  partia sempre do português, mesmo para um casal que pediu em inglês. */
+  it("sem escolha guardada neste aparelho, parte da língua em que o casal fez o pedido", async () => {
+    seedDraft(1);
+    render(
+      <ToastProvider>
+        <ProposalStudio quote={{ ...quote, locale: "en" }} />
+      </ToastProvider>,
+    );
+    const user = userEvent.setup();
+    await irParaPrever(user);
+    expect(
+      within(screen.getByRole("radiogroup", { name: "Idioma da proposta" })).getByRole("radio", {
+        name: /^Inglês/,
+      }),
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
   it("e voltar a «Português» também fica guardado", async () => {
     seedDraft(1);
     localStorage.setItem(`${DRAFT_KEY}:meta`, JSON.stringify({ idioma: "en" }));

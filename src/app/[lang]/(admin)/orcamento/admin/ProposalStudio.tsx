@@ -1451,7 +1451,16 @@ export async function gravarRascunhoNoServidor(
               : undefined,
         };
       }
-      porque = typeof dados?.erro === "string" ? dados.erro : undefined;
+      // O 503 da gravação manda `erro` (a frase do motivo); as outras recusas
+      // da rota (400, 401, 413, 500) mandam `error`. Só se lia o primeiro, e
+      // «Rascunho demasiado grande» nunca chegava ao ecrã (auditoria 13/11,
+      // estúdio n.º 16).
+      porque =
+        typeof dados?.erro === "string"
+          ? dados.erro
+          : typeof dados?.error === "string"
+            ? dados.error
+            : undefined;
       sessaoExpirada = res.status === 401;
       // Um 4xx é o pedido que está errado, e repeti-lo dá o mesmo. Um 503
       // `permanente` é a instalação que está incompleta — também dá o mesmo.
@@ -2098,7 +2107,12 @@ export default function ProposalStudio({
    * ESTE clique — como escolher a impressora. Guardá-la era passar a ter uma
    * proposta com uma língua colada, que ninguém voltaria a rever.
    */
-  const [idiomaDoPdf, setIdiomaDoPdf] = useState<IdiomaDaProposta>(IDIOMA_POR_OMISSAO);
+  // Parte da língua em que o casal FEZ o pedido (auditoria 13/11, estúdio n.º 9):
+  // noutro aparelho, sem o rascunho local, partia sempre do português — e uma
+  // proposta para um casal que pediu em inglês seguia em português.
+  const [idiomaDoPdf, setIdiomaDoPdf] = useState<IdiomaDaProposta>(() =>
+    ehIdiomaDaProposta(quote.locale) ? quote.locale : IDIOMA_POR_OMISSAO,
+  );
   /**
    * ── A PROPOSTA É BILINGUE: CADA CAMPO DE PROSA COM DUAS CAIXAS ────────────
    *
