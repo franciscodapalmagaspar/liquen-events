@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
 import { getForQuote, updateEventMaterial } from "@/lib/event-material-store";
-import { listItemsOfEvent, updateEventItem } from "@/lib/event-material-items-store";
-import { registar } from "@/lib/event-material-log-store";
+import { listItemsOfEvent, updateEventItemWith } from "@/lib/event-material-items-store";
+import type { EventMaterialItem } from "@/lib/event-material-types";
+import { listLogOf, registar } from "@/lib/event-material-log-store";
 import type { AccaoOffline } from "@/lib/material-offline";
 import { isConflictError } from "@/lib/repository";
 import { respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
@@ -27,6 +28,22 @@ const ACCOES: AccaoOffline[] = [
 
 /** Um lote grande é duas horas sem rede; acima disto é engano ou abuso. */
 const MAX_MARCACOES = 500;
+
+/**
+ * Os dois EIXOS de uma linha: carregar/descarregar e devolver/dar em falta.
+ * Duas marcações do mesmo eixo disputam-se; de eixos diferentes, não.
+ */
+type Eixo = "carga" | "regresso";
+function eixoDe(accao: AccaoOffline): Eixo | null {
+  if (accao === "loaded" || accao === "unloaded") return "carga";
+  if (accao === "returned" || accao === "missing") return "regresso";
+  return null;
+}
+
+/** O carimbo que a linha guarda para um eixo (só existe nos estados «sim»). */
+function carimboNaLinha(item: EventMaterialItem, eixo: Eixo): string {
+  return (eixo === "carga" ? item.loadedAt : item.returnedAt) ?? "";
+}
 
 /**
  * DESCARREGA A FILA DE MARCAÇÕES.
@@ -59,6 +76,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const itens = await listItemsOfEvent(evento.id);
     const porId = new Map(itens.map((i) => [i.id, i]));
+
+    // ── O CARIMBO DE CADA EIXO, MESMO DEPOIS DE LIMPO (auditoria 6, n.º 9) ──
+    //
+    // «Descarregado» e «em falta» limpam o carimbo da linha (`loadedAt` /
+    // `returnedAt` a nulo) — é isso que os faz ler como «não». Comparar só com
+    // a linha deixava, por isso, de haver com que comparar: um «carregado» das
+    // 10:00 de um telemóvel que esteve offline desfazia o «descarregado» das
+    // 10:05, e a carrinha saía sem o material que a checklist dizia lá estar.
+    //
+    // O carimbo de TODAS as marcações já vive no registo do evento (que só
+    // cresce), por isso compara-se com o mais recente de lá, de cada eixo —
+    // sem coluna nova. Uma leitura por lote, não uma por marcação.
+    const ultimoPorEixo = new Map<string, string>();
+    const chave = (itemId: string, eixo: Eixo) => `${itemId}|${eixo}`;
+    const notarCarimbo = (itemId: string, eixo: Eixo, quando: string) => {
+      const k = chave(itemId, eixo);
+      if (quando > (ultimoPorEixo.get(k) ?? "")) ultimoPorEixo.set(k, quando);
+    };
+    for (const l of await listLogOf(evento.id)) {
+      if (l.superseded || !porId.has(l.itemId)) continue;
+      const eixo = eixoDe(l.action);
+      if (eixo) notarCarimbo(l.itemId, eixo, l.markedAt);
+    }
 
     let aplicadas = 0;
     let ignoradas = 0;
@@ -116,14 +156,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
 
       // A marcação que já lá está é mais recente? Então esta perdeu — mas fica
-      // registada, para se poder saber que existiu.
-      const carimboAtual =
-        accao === "loaded" || accao === "unloaded"
-          ? item.loadedAt
-          : accao === "returned" || accao === "missing"
-            ? item.returnedAt
-            : undefined;
-      const perdeu = Boolean(carimboAtual && carimboAtual > markedAt);
+      // registada, para se poder saber que existiu. «Já lá está» é a linha OU
+      // o registo: o registo é o único que se lembra de quando foi limpa.
+      const eixo = eixoDe(accao);
+      const maisRecente = (linha: EventMaterialItem): string => {
+        if (!eixo) return "";
+        const doRegisto = ultimoPorEixo.get(chave(itemId, eixo)) ?? "";
+        const daLinha = carimboNaLinha(linha, eixo);
+        return doRegisto > daLinha ? doRegisto : daLinha;
+      };
+      const perdeu = Boolean(eixo) && maisRecente(item) > markedAt;
 
       await registar({
         eventId: evento.id,
@@ -183,7 +225,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // que horas. Perde-se a aplicação, nunca o facto — e ele fica
       // recuperável à mão a partir do registo.
       try {
-        await updateEventItem(item.id, patch);
+        // A decisão repete-se sobre a linha FRESCA, dentro da escrita: dois
+        // lotes ao mesmo tempo não podem pôr um carimbo mais velho por cima
+        // de um mais novo só porque a leitura do início já era velha.
+        let perdeuNaHora = false;
+        const escrita = await updateEventItemWith(item.id, (actual) => {
+          perdeuNaHora = Boolean(eixo) && maisRecente(actual) > markedAt;
+          return perdeuNaHora ? actual : ({ ...actual, ...patch } as EventMaterialItem);
+        });
+        if (!escrita || perdeuNaHora) {
+          // A linha já não existe (a checklist foi regenerada entretanto), ou
+          // perdeu na hora: não se aplicou, e não se conta como aplicada.
+          ignoradas++;
+          continue;
+        }
+        if (eixo) notarCarimbo(itemId, eixo, markedAt);
         aplicadas++;
       } catch (err) {
         if (!isConflictError(err)) throw err;

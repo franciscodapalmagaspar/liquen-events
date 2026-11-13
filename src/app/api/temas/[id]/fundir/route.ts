@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
 import { getTheme, updateTheme } from "@/lib/themes-store";
-import {
-  countThemeFiles,
-  listThemeObjects,
-  themeFolder,
-  transferThemeImage,
-  type ThemeTransferOutcome,
-} from "@/lib/theme-storage";
+import { countThemeFiles, listThemeObjects, themeFolder } from "@/lib/theme-storage";
+import { moverFotosDaBiblioteca } from "@/lib/theme-materializar";
 import {
   MAX_PHOTO_ORDER,
   MAX_THEME_NOTES,
@@ -22,9 +17,6 @@ export const runtime = "nodejs";
  *  atravessar a função, não cabem nos 10 s por omissão do alojamento. */
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
-
-/** Transferências ao mesmo tempo — o mesmo 5 da rota `/imagens/copiar`. */
-const CONCURRENCY = 5;
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -115,16 +107,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const folder = themeFolder(id);
     const paths = listed.objects.map((o) => `${folder}/${o.name}`);
 
-    const results = new Array<{ outcome: ThemeTransferOutcome; to: string; thumb: boolean }>(
-      paths.length,
-    );
-    let next = 0;
-    const worker = async () => {
-      for (let i = next++; i < paths.length; i = next++) {
-        results[i] = await transferThemeImage(paths[i], destino, "move");
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, paths.length) }, worker));
+    // Pela porta do mover, e nunca pelo `transferThemeImage(…, "move")` à
+    // mão: é ela que reescreve as referências das propostas e dos rascunhos e
+    // leva as etiquetas da Biblioteca atrás da foto (auditoria 6, n.º 1). Uma
+    // foto que não pôde ir com tudo o que é dela fica — e conta como falhada.
+    const results = await moverFotosDaBiblioteca(paths, destino);
 
     const movidas: { from: string; to: string }[] = [];
     let existing = 0;

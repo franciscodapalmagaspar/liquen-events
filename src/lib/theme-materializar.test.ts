@@ -36,17 +36,85 @@ const st = vi.hoisted(() => ({
   copias: [] as { themePath: string; quoteId: string }[],
   apagouFoto: [] as string[],
   apagouPasta: [] as string[],
+  /** O que o Storage fez ao mover: [de, para, modo]. */
+  transferencias: [] as [string, string, string][],
+  /** As linhas da Biblioteca, por caminho. */
+  fotos: new Map<string, Record<string, unknown>>(),
+  etiquetas: [] as { path: string; etiquetaId: string; origem: string }[],
+  /** Entradas da Reciclagem (o retrato guarda documentos com referências). */
+  reciclagem: [] as {
+    id: string;
+    tipo: string;
+    rotulo: string;
+    origemId: string;
+    retrato: Record<string, unknown>;
+  }[],
+  /** Quantas vezes se listaram as propostas — é o custo da varredura. */
+  listagens: 0,
+  /** Derivadas órfãs apagadas, por caminho de origem. */
+  derivadasApagadas: [] as string[],
+}));
+
+vi.mock("./reciclagem-store", () => ({
+  listarReciclagem: async () => st.reciclagem,
+  actualizarRetrato: async (
+    id: string,
+    mutate: (r: Record<string, unknown>) => Record<string, unknown>,
+  ) => {
+    const e = st.reciclagem.find((x) => x.id === id);
+    if (!e) return null;
+    e.retrato = mutate(e.retrato);
+    return e;
+  },
+}));
+vi.mock("./repository", () => ({ isMissingTable: () => false }));
+
+vi.mock("./biblioteca-fotos-store", () => ({
+  getFoto: async (path: string) => st.fotos.get(path) ?? null,
+  garantirFoto: async (path: string, dados: Record<string, unknown> = {}) => {
+    const f = st.fotos.get(path) ?? { path, ...dados };
+    st.fotos.set(path, f);
+    return f;
+  },
+  deleteFoto: async (path: string) => {
+    st.fotos.delete(path);
+    st.etiquetas = st.etiquetas.filter((e) => e.path !== path);
+  },
+}));
+
+vi.mock("./biblioteca-foto-etiquetas-store", () => ({
+  etiquetasDaFoto: async (path: string) => st.etiquetas.filter((e) => e.path === path),
+  etiquetar: async (path: string, etiquetaId: string, origem: string) => {
+    if (st.etiquetas.some((e) => e.path === path && e.etiquetaId === etiquetaId)) {
+      return { criada: false };
+    }
+    st.etiquetas.push({ path, etiquetaId, origem });
+    return { criada: true };
+  },
+  desetiquetar: async (path: string, etiquetaId: string) => {
+    st.etiquetas = st.etiquetas.filter((e) => !(e.path === path && e.etiquetaId === etiquetaId));
+    return true;
+  },
 }));
 
 vi.mock("./proposals-store", () => ({
   listAllProposals: async () => {
+    st.listagens++;
     if (st.listaRebenta) throw new Error("db em baixo");
-    return st.propostas;
+    // Cópias: quem varre fica com a versão desse instante, como na base.
+    return st.propostas.map((p) => ({ ...p }));
   },
-  updateProposal: async (id: string, patch: { doc?: unknown }) => {
+  updateProposalWith: async (
+    id: string,
+    mutate: (p: { id: string; quoteId: string; doc?: unknown }) => { doc?: unknown },
+  ) => {
     if (st.gravacaoFalha) return null;
-    st.gravacoes.push({ id, doc: patch.doc });
-    return { id };
+    const actual = st.propostas.find((p) => p.id === id);
+    if (!actual) return null;
+    const nova = mutate(actual);
+    actual.doc = nova.doc;
+    st.gravacoes.push({ id, doc: nova.doc });
+    return nova;
   },
 }));
 
@@ -80,6 +148,14 @@ vi.mock("./theme-storage", () => ({
     st.apagouFoto.push(path);
     return true;
   },
+  apagarDerivadasOrfas: async (path: string) => {
+    st.derivadasApagadas.push(path);
+  },
+  transferThemeImage: async (from: string, destId: string, mode: string) => {
+    const to = `${destId}/${from.slice(from.indexOf("/") + 1)}`;
+    st.transferencias.push([from, to, mode]);
+    return { outcome: "copied", to, thumb: true };
+  },
   deleteThemeFolder: async (themeId: string) => {
     st.apagouPasta.push(themeId);
     return { ok: true, removed: 1 };
@@ -92,6 +168,8 @@ import {
   apagarFotoDaBiblioteca,
   apagarPastaDaBiblioteca,
   materializarAntesDeApagar,
+  esquecerVarreduras,
+  moverFotosDaBiblioteca,
   refsDeTemaNoDoc,
   trocarRefsNoDoc,
 } from "./theme-materializar";
@@ -109,6 +187,13 @@ beforeEach(() => {
   st.copias = [];
   st.apagouFoto = [];
   st.apagouPasta = [];
+  st.transferencias = [];
+  st.fotos = new Map();
+  st.etiquetas = [];
+  st.reciclagem = [];
+  st.listagens = 0;
+  st.derivadasApagadas = [];
+  esquecerVarreduras();
 });
 
 // ── Encontrar as referências ───────────────────────────────────────────────
@@ -352,5 +437,137 @@ describe("materializarAntesDeApagar", () => {
       copiadas: 0,
       documentos: 0,
     });
+  });
+});
+
+// ── Mover (fundir temas, «Mover para…») — auditoria 6, n.º 1 ───────────────
+describe("moverFotosDaBiblioteca", () => {
+  /**
+   * A proposta da Ana, já enviada, usa uma foto do tema «Boho». Ela funde
+   * «Boho» em «Campestre». Antes, a foto mudava de chave e a proposta ficava
+   * a apontar para `tema:boho/a.jpg` — que já não existia — e as etiquetas
+   * ficavam presas ao caminho antigo.
+   */
+  it("reescreve as referências e leva as etiquetas atrás da foto", async () => {
+    st.propostas = [
+      { id: "LIQ-1", quoteId: "q-1", doc: { moodBoards: [{ images: ["tema:boho/a.jpg"] }] } },
+    ];
+    st.rascunhos = { "proposal-draft:q-2": { doc: { capa: "tema:boho/a.jpg" }, updatedAt: "x" } };
+    st.fotos.set("boho/a.jpg", { path: "boho/a.jpg", md5: "m", cor: "#aabbcc", lqip: "L" });
+    st.etiquetas = [{ path: "boho/a.jpg", etiquetaId: "terracotta", origem: "manual" }];
+
+    const [r] = await moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
+
+    expect(r.outcome).toBe("copied");
+    // Referenciada: COPIA, reescreve, e só depois apaga a origem.
+    expect(st.transferencias).toEqual([["boho/a.jpg", "campestre/a.jpg", "copy"]]);
+    expect(st.gravacoes[0].doc).toEqual({ moodBoards: [{ images: ["tema:campestre/a.jpg"] }] });
+    expect((st.escritas[0].value as { doc: unknown }).doc).toEqual({
+      capa: "tema:campestre/a.jpg",
+    });
+    expect(st.apagouFoto).toEqual(["boho/a.jpg"]);
+    // Nada se materializou: a foto continua na Biblioteca, só mudou de pasta.
+    expect(st.copias).toEqual([]);
+    expect(st.fotos.get("campestre/a.jpg")).toMatchObject({ md5: "m", cor: "#aabbcc", lqip: "L" });
+    expect(st.fotos.has("boho/a.jpg")).toBe(false);
+    expect(st.etiquetas).toEqual([
+      { path: "campestre/a.jpg", etiquetaId: "terracotta", origem: "manual" },
+    ]);
+  });
+
+  it("uma foto que ninguém usa muda com `move`, como antes", async () => {
+    const [r] = await moverFotosDaBiblioteca(["boho/b.jpg"], "campestre");
+    expect(r.outcome).toBe("copied");
+    expect(st.transferencias).toEqual([["boho/b.jpg", "campestre/b.jpg", "move"]]);
+    expect(st.apagouFoto).toEqual([]);
+  });
+
+  it("um documento que não grava deixa a foto também na origem — e conta como falhada", async () => {
+    st.propostas = [{ id: "LIQ-1", quoteId: "q-1", doc: { capa: "tema:boho/a.jpg" } }];
+    st.gravacaoFalha = true;
+    const [r] = await moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
+    expect(r.outcome).toBe("failed");
+    expect(st.apagouFoto).toEqual([]);
+  });
+
+  it("varredura incompleta: nada sai do sítio", async () => {
+    st.varreduraCompleta = false;
+    const [r] = await moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
+    expect(r.outcome).toBe("failed");
+    expect(st.transferencias).toEqual([]);
+  });
+});
+
+// ── A revisão do PR #448 ───────────────────────────────────────────────────
+describe("moverFotosDaBiblioteca — o que a revisão encontrou", () => {
+  it("o rascunho reescrito leva um `updatedAt` novo (o estúdio aberto entra na junção)", async () => {
+    st.rascunhos = {
+      "proposal-draft:q-2": {
+        doc: { capa: "tema:boho/a.jpg" },
+        updatedAt: "2026-11-13T09:00:00.000Z",
+      },
+    };
+    await moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
+    const escrito = st.escritas[0].value as { updatedAt: string };
+    expect(escrito.updatedAt).not.toBe("2026-11-13T09:00:00.000Z");
+  });
+
+  it("e o mesmo no apagar (materializar)", async () => {
+    st.rascunhos = {
+      "proposal-draft:q-2": {
+        doc: { capa: "tema:boho/a.jpg" },
+        updatedAt: "2026-11-13T09:00:00.000Z",
+      },
+    };
+    await apagarFotoDaBiblioteca("boho/a.jpg");
+    const escrito = st.escritas[0].value as { updatedAt: string };
+    expect(escrito.updatedAt).not.toBe("2026-11-13T09:00:00.000Z");
+  });
+
+  /**
+   * A varredura lê a proposta; antes de a reescrita chegar, o estúdio grava um
+   * título novo. Reescrever sobre o `doc` da varredura apagava esse título.
+   */
+  it("a proposta reescreve-se sobre a versão lida AGORA, não sobre a da varredura", async () => {
+    st.propostas = [
+      { id: "LIQ-1", quoteId: "q-1", doc: { capa: "tema:boho/a.jpg", titulo: "velho" } },
+    ];
+    const original = st.propostas[0];
+    // A varredura lê (uma cópia) logo ao arrancar; a seguir alguém grava.
+    const espera = moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
+    original.doc = { capa: "tema:boho/a.jpg", titulo: "novo" };
+    await espera;
+    expect(st.propostas[0].doc).toEqual({ capa: "tema:campestre/a.jpg", titulo: "novo" });
+  });
+
+  it("uma foto só referida na Reciclagem também é protegida: o retrato é reescrito", async () => {
+    st.reciclagem = [
+      {
+        id: "r1",
+        tipo: "pedido",
+        rotulo: "Ana e João",
+        origemId: "q-9",
+        retrato: { propostas: [{ id: "LIQ-9", doc: { capa: "tema:boho/a.jpg" } }] },
+      },
+    ];
+    const [r] = await moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
+    expect(r.outcome).toBe("copied");
+    expect(st.transferencias[0][2]).toBe("copy");
+    expect(st.reciclagem[0].retrato).toEqual({
+      propostas: [{ id: "LIQ-9", doc: { capa: "tema:campestre/a.jpg" } }],
+    });
+  });
+
+  it("copiar+apagar apaga também as derivadas órfãs da origem", async () => {
+    st.propostas = [{ id: "LIQ-1", quoteId: "q-1", doc: { capa: "tema:boho/a.jpg" } }];
+    await moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
+    expect(st.apagouFoto).toEqual(["boho/a.jpg"]);
+    expect(st.derivadasApagadas).toEqual(["boho/a.jpg"]);
+  });
+
+  it("dois lotes da mesma fusão varrem UMA vez", async () => {
+    await moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
+    await moverFotosDaBiblioteca(["boho/b.jpg"], "campestre");
+    expect(st.listagens).toBe(1);
   });
 });
