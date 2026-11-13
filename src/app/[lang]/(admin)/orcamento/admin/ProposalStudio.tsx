@@ -4267,6 +4267,20 @@ export default function ProposalStudio({
    * Grava a escolha de uma página (ou apaga-a, com `null`), com «Anular». Os
    * focos vão com as fotos, lugar a lugar; sem `focos`, ficam os que havia.
    */
+  /**
+   * As cores da paleta escolhidas por ELA (`paletaDela`), com «Anular» —
+   * «a minha mãe quer ser ela a escolher as cores» (13/11). `null` volta às
+   * automáticas (a sugestão das flores das fotografias).
+   */
+  function mudarPaleta(cores: string[] | null, frase: string) {
+    const antes = doc.paletaDela;
+    patch({ paletaDela: cores && cores.length ? cores : undefined });
+    anular(frase, () => patch({ paletaDela: antes }));
+  }
+  /** As fotografias da página «Paleta e ambiente», como o PDF as põe. */
+  const fotosDaPaleta = lugaresDaPagina("ambiente").flatMap((r) =>
+    r ? [{ ref: r, url: assetUrls[r] ?? (r.startsWith("data:") ? r : undefined) }] : [],
+  );
   function gravarFotosDaPagina(
     chave: string,
     fotos: string[] | null,
@@ -10363,6 +10377,21 @@ export default function ProposalStudio({
                   </div>
                 </div>
 
+                {/* ── AS CORES DA PALETA, ESCOLHIDAS POR ELA (13/11) ─────────
+                  «A minha mãe quer ser ela a escolher as cores.» À vista, aqui,
+                  onde estão as fotografias — e não só no «Mudar fotografia» da
+                  página. As mesmas cores vão para o PDF e para a proposta
+                  online; sem escolha dela, saem as sugeridas pelas flores. */}
+                {fotosDaPaleta.length > 0 && (
+                  <div className="mt-8 border-t border-[var(--bo-hairline)] pt-6">
+                    <CoresDaPaleta
+                      fotos={fotosDaPaleta}
+                      cores={paletaDaProposta(doc)}
+                      onMudar={mudarPaleta}
+                    />
+                  </div>
+                )}
+
                 {/* ── AS ALTERNATIVAS QUE O CASAL ESCOLHE (Fase 3) ───────────
                   Vive aqui dentro, e não numa secção própria: as alternativas
                   são visuais e as fotografias que as explicam já estão nestas
@@ -13604,11 +13633,7 @@ export default function ProposalStudio({
                     : [],
                 )}
                 cores={paletaDaProposta(doc)}
-                onMudar={(cores, frase) => {
-                  const antes = doc.paletaDela;
-                  patch({ paletaDela: cores && cores.length ? cores : undefined });
-                  anular(frase, () => patch({ paletaDela: antes }));
-                }}
+                onMudar={mudarPaleta}
               />
             ) : undefined
           }

@@ -34,11 +34,21 @@ describe("as cores da paleta, escolhidas por ela", () => {
     expect(onMudar).toHaveBeenCalledWith(["#A48CC9"], "Cor #D98AA6 tirada da paleta.");
   });
 
-  it("«Voltar às automáticas» devolve a paleta ao sistema", () => {
+  it("«Outra cor»: qualquer cor, e só grava ao carregar em «Pôr»", () => {
+    const onMudar = vi.fn();
+    render(<CoresDaPaleta fotos={[]} cores={["#D98AA6", "#A48CC9"]} onMudar={onMudar} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Cor 2, #A48CC9" }));
+    fireEvent.change(screen.getByLabelText("Outra cor"), { target: { value: "#2f6b4f" } });
+    expect(onMudar).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Pôr #2F6B4F" }));
+    expect(onMudar).toHaveBeenCalledWith(["#D98AA6", "#2F6B4F"], "Cor #2F6B4F posta na paleta.");
+  });
+
+  it("«Voltar à sugestão» devolve a paleta às cores das flores", () => {
     const onMudar = vi.fn();
     render(<CoresDaPaleta fotos={[]} cores={["#D98AA6"]} onMudar={onMudar} />);
-    fireEvent.click(screen.getByRole("button", { name: "Voltar às automáticas" }));
-    expect(onMudar).toHaveBeenCalledWith(null, "A paleta volta às cores automáticas.");
+    fireEvent.click(screen.getByRole("button", { name: "Voltar à sugestão" }));
+    expect(onMudar).toHaveBeenCalledWith(null, "A paleta volta às cores sugeridas.");
   });
 
   it("sem conseguir ler as fotografias, di-lo — e o PDF continua a tirá-las sozinho", async () => {
@@ -48,7 +58,7 @@ describe("as cores da paleta, escolhidas por ela", () => {
     );
     vi.stubGlobal("createImageBitmap", vi.fn());
     render(<CoresDaPaleta fotos={fotos} cores={null} onMudar={() => {}} />);
-    expect(await screen.findByText(/Não deu para ler as cores destas fotografias/)).toBeTruthy();
+    expect(await screen.findByText(/Não deu para ler as fotografias aqui/)).toBeTruthy();
     vi.unstubAllGlobals();
   });
 });

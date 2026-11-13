@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   LADO,
   deHex,
@@ -59,7 +59,17 @@ export default function CoresDaPaleta({
   /** `null` = voltar às automáticas. `frase` é a do «Anular». */
   onMudar: (cores: string[] | null, frase: string) => void;
 }) {
-  const [activa, setActiva] = useState<number | null>(null);
+  const [activa, setActivaCru] = useState<number | null>(null);
+  /** A cor do seletor, antes de ela carregar em «Pôr». */
+  const [rascunho, setRascunho] = useState<string | null>(null);
+  /** A cor debaixo do dedo/rato, mostrada no lugar activo antes de se escolher. */
+  const [previa, setPrevia] = useState<string | null>(null);
+  const setActiva = (i: number | null) => {
+    setActivaCru(i);
+    setRascunho(null);
+    setPrevia(null);
+  };
+  const idDoTitulo = useId();
   // O que se leu das fotografias, com a chave delas: fotografias novas são
   // «a ler» até a leitura delas chegar (sem pôr estado dentro do efeito).
   const [leitura, setLeitura] = useState<{
@@ -103,7 +113,6 @@ export default function CoresDaPaleta({
 
   const dela = cores !== null;
   const actuais = dela ? [...cores] : automaticas;
-  const podeJuntar = actuais.length < CORES_DA_PALETA;
 
   /** Põe `cor` no lugar activo (ou junta-a, se o activo é o «+»). */
   function por(cor: string) {
@@ -114,7 +123,10 @@ export default function CoresDaPaleta({
     // A mesma cor duas vezes não faz paleta: a repetida sai.
     const unicas = novas.filter((c, i) => novas.findIndex((d) => parecidas(c, d)) === i);
     onMudar(unicas, `Cor ${maiusculas(cor)} posta na paleta.`);
-    setActiva(Math.min(activa, unicas.length - 1));
+    // Segue para a cor seguinte, como quem escolhe as cinco de seguida; na
+    // última, fecha.
+    const seguinte = Math.min(activa, unicas.length - 1) + 1;
+    setActiva(seguinte < CORES_DA_PALETA && seguinte <= unicas.length ? seguinte : null);
   }
 
   function tirar(i: number) {
@@ -123,90 +135,161 @@ export default function CoresDaPaleta({
     setActiva(null);
   }
 
+  /** A cor que se vê no lugar activo: a que está debaixo do dedo, ou a dela. */
+  const corDoLugar = (i: number) => (i === activa && previa ? previa : actuais[i]);
+  const aTrocar = activa !== null;
+
   return (
-    <section aria-labelledby="cores-da-paleta" className="flex flex-col gap-3">
-      <div>
-        <p id="cores-da-paleta" className="bo-eyebrow">
-          Cores da paleta
-        </p>
-        <p className="mt-1 text-sm text-[var(--bo-text-muted)]">
-          {dela
-            ? "Escolhidas por vocês. Toca numa cor e depois numa flor das fotografias para a trocar."
-            : "Tiradas das flores destas fotografias. Toca numa cor e depois numa flor para a trocar."}
-        </p>
+    <section aria-labelledby={idDoTitulo} className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div className="flex items-center gap-2">
+          <p id={idDoTitulo} className="bo-eyebrow">
+            Cores da paleta
+          </p>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+              dela
+                ? "bg-sage-600/12 text-[var(--bo-accent)]"
+                : "bg-[var(--bo-tinta-6)] text-[var(--bo-text-muted)]"
+            }`}
+          >
+            {dela ? "Escolhidas por vocês" : "Sugestão"}
+          </span>
+        </div>
+        {dela ? (
+          <button
+            type="button"
+            onClick={() => {
+              onMudar(null, "A paleta volta às cores sugeridas.");
+              setActiva(null);
+            }}
+            className={`alvo-toque text-caption font-medium text-[var(--bo-text-muted)] underline underline-offset-2 hover:text-[var(--bo-text)] ${ESTADO} ${PRESSAO}`}
+          >
+            Voltar à sugestão
+          </button>
+        ) : null}
       </div>
 
-      <div role="radiogroup" aria-label="Que cor trocar" className="flex flex-wrap gap-2">
-        {actuais.map((c, i) => (
-          <button
-            key={`${c}-${i}`}
-            type="button"
-            role="radio"
-            aria-checked={activa === i}
-            aria-label={`Cor ${i + 1}, ${maiusculas(c)}`}
-            onClick={() => setActiva(activa === i ? null : i)}
-            className={`flex w-14 flex-col items-center gap-1 ${ESTADO} ${PRESSAO}`}
-          >
-            <span
-              aria-hidden="true"
-              style={{ backgroundColor: c }}
-              className={`h-11 w-11 rounded-md border border-[var(--bo-hairline)] ${
-                activa === i
-                  ? "ring-2 ring-[var(--bo-accent)] ring-offset-2 ring-offset-[var(--bo-surface)]"
-                  : ""
-              }`}
-            />
-            <span className="text-[10px] tabular-nums text-[var(--bo-text-muted)]">
-              {maiusculas(c)}
-            </span>
-          </button>
-        ))}
-        {podeJuntar && (estado === "lido" || dela) && (
-          <button
-            type="button"
-            role="radio"
-            aria-checked={activa === actuais.length}
-            aria-label="Juntar uma cor"
-            onClick={() => setActiva(activa === actuais.length ? null : actuais.length)}
-            className={`flex w-14 flex-col items-center gap-1 ${ESTADO} ${PRESSAO}`}
-          >
-            <span
-              aria-hidden="true"
-              className={`flex h-11 w-11 items-center justify-center rounded-md border border-dashed border-[var(--bo-tinta-58)] text-lg text-[var(--bo-text-muted)] ${
-                activa === actuais.length
-                  ? "ring-2 ring-[var(--bo-accent)] ring-offset-2 ring-offset-[var(--bo-surface)]"
-                  : ""
-              }`}
+      <p className="-mt-2 text-sm leading-relaxed text-[var(--bo-text-muted)]">
+        {dela
+          ? "São estas que saem no PDF e na proposta online. Toca numa cor para a trocar."
+          : "Tiradas das flores das fotografias da página. Toca numa cor para a trocar por uma flor, ou fica com estas."}
+      </p>
+
+      {/* A faixa: como a página do PDF a desenha — retângulos altos, o código
+          por baixo. O que se vê aqui é o que o casal vê. */}
+      <div
+        role="radiogroup"
+        aria-label="Que cor trocar"
+        className="grid grid-cols-5 gap-2 sm:gap-3"
+      >
+        {Array.from({ length: CORES_DA_PALETA }, (_, i) => {
+          const c = corDoLugar(i);
+          const activo = activa === i;
+          if (!c) {
+            const juntar = i === actuais.length && (estado === "lido" || dela);
+            return juntar ? (
+              <button
+                key={`vazio-${i}`}
+                type="button"
+                role="radio"
+                aria-checked={activo}
+                aria-label="Juntar uma cor"
+                onClick={() => setActiva(activo ? null : i)}
+                className={`flex flex-col gap-1.5 text-left ${ESTADO} ${PRESSAO}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`flex aspect-[103/180] w-full items-center justify-center rounded-md border border-dashed border-[var(--bo-tinta-58)] text-xl text-[var(--bo-text-muted)] ${
+                    activo
+                      ? "ring-2 ring-[var(--bo-accent)] ring-offset-2 ring-offset-[var(--bo-surface)]"
+                      : ""
+                  }`}
+                >
+                  +
+                </span>
+                <span className="text-[10px] tracking-[0.08em] text-[var(--bo-text-muted)]">
+                  JUNTAR
+                </span>
+              </button>
+            ) : (
+              <span
+                key={`vazio-${i}`}
+                aria-hidden="true"
+                className="aspect-[103/180] w-full rounded-md bg-[var(--bo-tinta-3)]"
+              />
+            );
+          }
+          return (
+            <button
+              key={`cor-${i}`}
+              type="button"
+              role="radio"
+              aria-checked={activo}
+              aria-label={`Cor ${i + 1}, ${maiusculas(actuais[i])}`}
+              onClick={() => setActiva(activo ? null : i)}
+              className={`group flex min-w-0 flex-col gap-1.5 text-left ${ESTADO} ${PRESSAO}`}
             >
-              +
-            </span>
-            <span className="text-[10px] text-[var(--bo-text-muted)]">Juntar</span>
-          </button>
-        )}
+              <span
+                aria-hidden="true"
+                style={{ backgroundColor: c }}
+                className={`aspect-[103/180] w-full rounded-md border border-[var(--bo-hairline)] shadow-[var(--bo-sombra-repouso)] ${ESTADO} ${
+                  activo
+                    ? "ring-2 ring-[var(--bo-accent)] ring-offset-2 ring-offset-[var(--bo-surface)]"
+                    : // As outras NUNCA se esbatem: uma cor esbatida é outra
+                      // cor, e é a cor exacta que ela está a comparar.
+                      "group-hover:shadow-[var(--bo-sombra-erguida)]"
+                }`}
+              />
+              <span className="truncate text-[10px] tabular-nums tracking-[0.08em] text-[var(--bo-text-muted)]">
+                {maiusculas(c)}
+              </span>
+            </button>
+          );
+        })}
       </div>
+
+      {!dela && automaticas.length > 0 && !aTrocar && (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="self-start"
+          onClick={() => onMudar([...automaticas], "Paleta escolhida.")}
+        >
+          Ficar com estas
+        </Button>
+      )}
 
       {estado === "a-ler" && !actuais.length && (
         <p className="text-sm text-[var(--bo-text-muted)]">A ler as cores das fotografias…</p>
       )}
       {estado === "falhou" && (
         <p className="text-sm text-[var(--bo-text-muted)]">
-          Não deu para ler as cores destas fotografias aqui. O PDF continua a tirá-las sozinho.
+          Não deu para ler as fotografias aqui — escolhe as cores no seletor. Sem escolha, o PDF
+          tira-as sozinho das flores.
         </p>
       )}
 
-      {activa !== null && (
-        <div className="flex flex-col gap-3 rounded-lg bg-[var(--bo-tinta-3)] p-3">
-          <p className="text-sm text-[var(--bo-text)]">
-            {activa < actuais.length
-              ? `A trocar a cor ${activa + 1}: toca numa flor de uma fotografia, ou numa sugestão.`
-              : "Uma cor nova: toca numa flor de uma fotografia, ou numa sugestão."}
-          </p>
+      {aTrocar && (
+        <div className="flex flex-col gap-4 rounded-xl border border-[var(--bo-hairline)] bg-[var(--bo-surface)] p-3 shadow-[var(--bo-sombra-suspensa)] sm:p-4">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-[var(--bo-text)]">
+              {activa < actuais.length ? `A trocar a cor ${activa + 1}` : "Uma cor nova"}
+              <span className="block text-caption font-normal text-[var(--bo-text-muted)]">
+                Passa por cima de uma flor e toca para a escolher.
+              </span>
+            </p>
+            <Button variant="ghost" size="sm" onClick={() => setActiva(null)}>
+              Feito
+            </Button>
+          </div>
 
           {lidas.length > 0 && (
-            <ul aria-label="Fotografias desta página" className="grid grid-cols-3 gap-2">
+            // Em mosaico (colunas), cada fotografia na sua forma, sem buracos.
+            <ul aria-label="Fotografias da página" className="columns-2 gap-2 sm:columns-3">
               {lidas.map((l) => (
-                <li key={l.ref}>
-                  <ContaGotas lida={l} onCor={por} />
+                <li key={l.ref} className="mb-2 break-inside-avoid">
+                  <ContaGotas lida={l} onCor={por} onPrevia={setPrevia} />
                 </li>
               ))}
             </ul>
@@ -214,16 +297,21 @@ export default function CoresDaPaleta({
 
           {sugeridas.length > 0 && (
             <div>
-              <p className="mb-1 text-caption text-[var(--bo-text-muted)]">Sugestões</p>
-              <ul className="flex flex-wrap gap-1.5">
+              <p className="mb-1.5 text-caption text-[var(--bo-text-muted)]">
+                Sugestões das fotografias
+              </p>
+              <ul className="flex flex-wrap gap-2">
                 {sugeridas.map((c) => (
                   <li key={c}>
                     <button
                       type="button"
                       onClick={() => por(c)}
+                      onPointerEnter={() => setPrevia(c)}
+                      onPointerLeave={() => setPrevia(null)}
                       aria-label={`Pôr ${maiusculas(c)}`}
+                      title={maiusculas(c)}
                       style={{ backgroundColor: c }}
-                      className={`alvo-toque h-8 w-8 rounded-full border border-[var(--bo-hairline)] ${ESTADO} ${PRESSAO}`}
+                      className={`alvo-toque h-8 w-8 rounded-full border border-[var(--bo-hairline)] shadow-[var(--bo-sombra-repouso)] ${ESTADO} ${PRESSAO}`}
                     />
                   </li>
                 ))}
@@ -231,37 +319,71 @@ export default function CoresDaPaleta({
             </div>
           )}
 
-          {activa < actuais.length && actuais.length > 1 && (
-            <Button variant="ghost" size="sm" onClick={() => tirar(activa)} className="self-start">
-              Tirar esta cor
-            </Button>
-          )}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--bo-hairline)] pt-3">
+            {/* Qualquer cor: o seletor do próprio aparelho, e um botão para a
+                pôr — mexer no seletor não grava a cada passo (seriam dezenas
+                de «Anular»). */}
+            <label className="flex items-center gap-2 text-sm text-[var(--bo-text)]">
+              <input
+                type="color"
+                value={rascunho ?? actuais[activa] ?? "#C8B8A6"}
+                onChange={(e) => {
+                  const c = e.target.value.toUpperCase();
+                  setRascunho(c);
+                  setPrevia(c);
+                }}
+                className="h-9 w-12 cursor-pointer rounded-md border border-[var(--bo-hairline)] bg-transparent"
+              />
+              Outra cor
+            </label>
+            {rascunho && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  por(rascunho);
+                  setRascunho(null);
+                }}
+              >
+                Pôr {maiusculas(rascunho)}
+              </Button>
+            )}
+            {activa < actuais.length && actuais.length > 1 && (
+              <Button variant="ghost" size="sm" onClick={() => tirar(activa)} className="ml-auto">
+                Tirar esta cor
+              </Button>
+            )}
+          </div>
         </div>
-      )}
-
-      {dela && (
-        <button
-          type="button"
-          onClick={() => {
-            onMudar(null, "A paleta volta às cores automáticas.");
-            setActiva(null);
-          }}
-          className={`alvo-toque self-start text-caption font-medium text-[var(--bo-accent)] underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
-        >
-          Voltar às automáticas
-        </button>
       )}
     </section>
   );
 }
 
 /**
- * Uma fotografia onde se toca para tirar a cor. Desenha-se numa tela: tocar
- * lê a cor do sítio exacto (a média de um quadrado de 5 × 5 píxeis, para um
- * grão da fotografia não dar uma cor que não se vê).
+ * Uma fotografia onde se toca para tirar a cor — com uma LUPA: ao passar o
+ * rato (ou o dedo) por cima, um círculo com a cor exacta segue o ponteiro, e a
+ * cor aparece logo no lugar da paleta que se está a trocar (`onPrevia`).
+ * Tocar (largar) escolhe-a. A cor é a média de um quadrado de 5 × 5 píxeis,
+ * para um grão da fotografia não dar uma cor que não se vê.
+ *
+ * No dedo, a lupa fica ACIMA do ponto (o dedo tapava-a), e a fotografia não
+ * deixa a página deslizar enquanto se escolhe (`touch-action: none`) — só
+ * existe enquanto se está a trocar uma cor.
  */
-function ContaGotas({ lida, onCor }: { lida: Lida; onCor: (cor: string) => void }) {
+function ContaGotas({
+  lida,
+  onCor,
+  onPrevia,
+}: {
+  lida: Lida;
+  onCor: (cor: string) => void;
+  onPrevia: (cor: string | null) => void;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const [lupa, setLupa] = useState<{ x: number; y: number; cor: string; dedo: boolean } | null>(
+    null,
+  );
   useEffect(() => {
     const t = ref.current;
     if (!t) return;
@@ -269,23 +391,73 @@ function ContaGotas({ lida, onCor }: { lida: Lida; onCor: (cor: string) => void 
     t.height = lida.tela.height;
     t.getContext("2d")?.drawImage(lida.tela, 0, 0);
   }, [lida]);
+
+  const ler = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const t = e.currentTarget;
+    const caixa = t.getBoundingClientRect();
+    const fx = (e.clientX - caixa.left) / caixa.width;
+    const fy = (e.clientY - caixa.top) / caixa.height;
+    if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return null;
+    const cor = corNoSitio(lida.tela, Math.round(fx * t.width), Math.round(fy * t.height));
+    return cor ? { x: fx * 100, y: fy * 100, cor, dedo: e.pointerType !== "mouse" } : null;
+  };
+
   return (
-    <canvas
-      ref={ref}
-      // O conta-gotas é um gesto de dedo/rato; quem usa o teclado tem as
-      // sugestões logo por baixo, com as mesmas cores das fotografias.
-      aria-hidden="true"
-      onClick={(e) => {
-        const t = e.currentTarget;
-        const caixa = t.getBoundingClientRect();
-        const x = Math.round(((e.clientX - caixa.left) / caixa.width) * t.width);
-        const y = Math.round(((e.clientY - caixa.top) / caixa.height) * t.height);
-        const cor = corNoSitio(lida.tela, x, y);
-        if (cor) onCor(cor);
-      }}
-      style={{ aspectRatio: String(lida.aspeto) }}
-      className="block w-full cursor-crosshair rounded-md bg-[var(--bo-tinta-10)] object-cover"
-    />
+    <div className="relative">
+      <canvas
+        ref={ref}
+        // O conta-gotas é um gesto de dedo/rato; quem usa o teclado tem as
+        // sugestões e o seletor de cor logo por baixo.
+        aria-hidden="true"
+        onPointerDown={(e) => {
+          if (e.pointerType !== "mouse") e.currentTarget.setPointerCapture(e.pointerId);
+          const l = ler(e);
+          setLupa(l);
+          onPrevia(l?.cor ?? null);
+        }}
+        onPointerMove={(e) => {
+          const l = ler(e);
+          setLupa(l);
+          onPrevia(l?.cor ?? null);
+        }}
+        onPointerUp={(e) => {
+          const l = ler(e);
+          setLupa(null);
+          onPrevia(null);
+          if (l) onCor(l.cor);
+        }}
+        onPointerLeave={() => {
+          setLupa(null);
+          onPrevia(null);
+        }}
+        onPointerCancel={() => {
+          setLupa(null);
+          onPrevia(null);
+        }}
+        style={{ aspectRatio: String(lida.aspeto), touchAction: "none" }}
+        className="block w-full cursor-crosshair rounded-lg bg-[var(--bo-tinta-10)]"
+      />
+      {lupa && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute flex flex-col items-center gap-1"
+          style={{
+            left: `${lupa.x}%`,
+            top: `${lupa.y}%`,
+            // O círculo fica por cima do ponto: com o dedo, bem acima dele.
+            transform: `translate(-50%, ${lupa.dedo ? "-130%" : "-115%"})`,
+          }}
+        >
+          <span
+            className="h-11 w-11 rounded-full border-[3px] border-[var(--bo-surface)] shadow-[var(--bo-sombra-suspensa)]"
+            style={{ backgroundColor: lupa.cor }}
+          />
+          <span className="rounded bg-[var(--bo-surface)] px-1.5 py-0.5 text-[10px] tabular-nums tracking-[0.06em] text-[var(--bo-text)] shadow-[var(--bo-sombra-repouso)]">
+            {lupa.cor}
+          </span>
+        </span>
+      )}
+    </div>
   );
 }
 

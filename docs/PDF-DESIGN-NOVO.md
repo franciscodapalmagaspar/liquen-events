@@ -97,10 +97,15 @@ lado a lado com o modelo página a página. O jantar de empresa sai com as mesma
   cliente a vê; a parede e o céu perdem o peso pela altura e por encherem os
   bordos. As propostas JÁ enviadas não mudam de paleta (a página online
   guarda as cores com a chave antiga, e o PDF delas já seguiu).
-  E, por cima disso, ela pode escolher à mão (`paletaDela`): no «Mudar
-  fotografia» da página «Paleta e ambiente», toca numa cor e depois numa flor
-  de uma das fotografias (conta-gotas), ou numa sugestão. Com isso, o PDF e a
-  proposta online usam as dela.
+  **E quem escolhe as cores é ela** («a minha mãe quer ser ela a escolher as
+  cores», 13/11): a automática é só a sugestão. No «Fazer proposta», na secção
+  dos mood boards, à vista (e também no «Mudar fotografia» da página da
+  paleta): a faixa das cinco cores como sai no PDF; toca numa cor, passa por
+  cima de uma flor das fotografias (uma lupa mostra a cor, e a faixa muda em
+  directo), toca para a escolher — e segue sozinha para a cor seguinte. Há
+  ainda as sugestões, um seletor de qualquer cor, «Ficar com estas» e
+  «Voltar à sugestão». Gravado em `paletaDela`; o PDF e a proposta online
+  usam as dela.
 - **«estes números não dá para perceber nada»** (a página do total, aberta no
   iPhone). No tamanho óptico 96 do documento, o traço fino da Bodoni mede
   0,2 % do corpo: a página inteira num iPhone tem ~390 px de largura, e o traço
