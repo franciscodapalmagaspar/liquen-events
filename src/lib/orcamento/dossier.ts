@@ -269,10 +269,19 @@ export function deriveStage(d: DossierData, today: Date = new Date()): EventStag
   // (`estaTudoPago`): um saldo pago só em PARTE já não fecha o evento
   // (auditoria de 13/11, n.º 5). Sem total nenhum, não há com que comparar, e
   // vale a linha de saldo recebida, como sempre.
+  //
+  // Mas só com a PROPOSTA à frente. Sem ela (o indicador de fase da lista
+  // chama isto com `proposal: null`), o «contratado» seria a estimativa ou o
+  // preço cotado, que não são o que o casal aceitou — e um evento todo pago
+  // ficava preso em «em produção» na lista enquanto o dossiê dizia
+  // «concluído». Aí vale, como sempre, a linha de saldo recebida.
+  const saldoLinhaRecebida = (quote.payments ?? []).some(
+    (p) => p.kind === "saldo" && p.paid && p.amount > 0,
+  );
   const saldoPago =
-    contracted > 0
+    proposal && contracted > 0
       ? estaTudoPago(contracted, pago)
-      : (quote.payments ?? []).some((p) => p.kind === "saldo" && p.paid && p.amount > 0);
+      : saldoLinhaRecebida || (contracted > 0 && estaTudoPago(contracted, pago));
 
   const sinalPago = (quote.payments ?? []).some(
     (p) => p.kind === "sinal" && p.paid && p.amount > 0,

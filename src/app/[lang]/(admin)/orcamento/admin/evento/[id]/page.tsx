@@ -7,7 +7,7 @@ import { getQuote } from "@/lib/quotes-store";
 import { listProposalsForQuote } from "@/lib/proposals-store";
 import { getContractByProposal, getAcceptedContractByQuote } from "@/lib/contracts-store";
 import type { DossierData } from "@/lib/orcamento/dossier";
-import { totalAPagarDaProposta } from "@/lib/orcamento/proposta-que-conta";
+import { propostaQueConta, totalAPagarDaProposta } from "@/lib/orcamento/proposta-que-conta";
 import DossierClient from "./DossierClient";
 import { entradaCom } from "../../entrada-destino";
 
@@ -64,7 +64,9 @@ export default async function EventoDossierPage({
   // nova para a mais velha. É a mesma regra do painel de Pagamentos
   // (`percentagem-do-sinal.ts`) e do link do casal.
   const propostas = await listProposalsForQuote(quote.id);
-  const proposal = propostas.find((p) => p.status === "aceite") ?? propostas[0] ?? null;
+  // A regra única (`propostaQueConta`): a aceite; senão a última que seguiu
+  // para o casal; nunca um rascunho.
+  const proposal = propostaQueConta(propostas);
   const [contractByQuote, contractByProposal] = await Promise.all([
     getAcceptedContractByQuote(quote.id),
     proposal ? getContractByProposal(proposal.id) : Promise.resolve(null),
