@@ -37,6 +37,8 @@ const dados = vi.hoisted(() => ({
   pedidoRebenta: false,
   tarefas: [] as { id: string; quoteId?: string }[],
   tarefasApagadas: [] as string[],
+  /** As chaves de rascunho que existem (`draft:<chave>`). */
+  estado: new Map<string, unknown>(),
 }));
 
 vi.mock("@/lib/quotes-store", () => ({
@@ -59,7 +61,11 @@ vi.mock("@/lib/contracts-store", () => ({
     return dados.contratos;
   },
 }));
+vi.mock("@/lib/app-state", () => ({
+  getState: async (k: string) => dados.estado.get(k) ?? null,
+}));
 vi.mock("@/lib/proposal-drafts", () => ({
+  draftKey: (k: string) => `draft:${k}`,
   clearProposalDraft: async (k: string) => {
     dados.rascunhosLimpos.push(k);
     return { gravado: true as const, duradouro: true as const, onde: "servidor" as const };
@@ -110,6 +116,11 @@ beforeEach(() => {
   dados.apagadas = [];
   dados.removidas = [];
   dados.rascunhosLimpos = [];
+  dados.estado = new Map(
+    ["q1", "q1--orcamento-linhas", "q1--sobreposto", "q1--orcamento-linhas--sobreposto"].map(
+      (k) => [`draft:${k}`, { doc: {} }],
+    ),
+  );
   dados.pedidosApagados = [];
   dados.contratosRebentam = false;
   dados.propostaQueFalha = null;
@@ -164,6 +175,13 @@ describe("apagar um pedido sem contrato", () => {
       "q1--sobreposto",
       "q1--orcamento-linhas--sobreposto",
     ]);
+  });
+
+  it("um rascunho que não existe não se «apaga» nem se conta (revisão 13/11, n.º 3)", async () => {
+    dados.estado = new Map([["draft:q1", { doc: {} }]]);
+    const r = await apagarPedidoSemContrato("q1");
+    expect(dados.rascunhosLimpos).toEqual(["q1"]);
+    expect(r.contou.rascunhos).toBe(1);
   });
 
   it("o pedido é o ÚLTIMO a sair", async () => {

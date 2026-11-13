@@ -36,6 +36,19 @@ const {
 beforeEach(() => gaveta.clear());
 
 describe("acrescentarTempoActivo", () => {
+  it("uma leitura falhada não põe o total a zero por cima do verdadeiro (revisão 13/11, n.º 10)", async () => {
+    await acrescentarTempoActivo("LIQ-1", 60_000);
+    const { getState, setState } = await import("./app-state");
+    const escritas = vi.mocked(setState).mock.calls.length;
+    vi.mocked(getState).mockImplementationOnce(async (_k: string, o?: { ouFalha?: boolean }) => {
+      if (o?.ouFalha) throw new Error("rede");
+      return null;
+    });
+    await expect(acrescentarTempoActivo("LIQ-1", 30_000)).rejects.toThrow();
+    expect(vi.mocked(setState).mock.calls.length).toBe(escritas);
+    expect((await getTempoActivo("LIQ-1"))?.ms).toBe(60_000);
+  });
+
   it("SOMA os envios em vez de os substituir", async () => {
     await acrescentarTempoActivo("LIQ-1", 60_000);
     await acrescentarTempoActivo("LIQ-1", 30_000);

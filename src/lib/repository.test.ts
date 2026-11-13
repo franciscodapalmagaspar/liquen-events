@@ -121,7 +121,8 @@ function createFakeSupabase() {
     private filters: [string, unknown, "eq" | "is"][] = [];
     private single = false;
     private returning = false;
-    private orderBy: { col: string; asc: boolean } | null = null;
+    // Várias ordens, como no PostgREST: a primeira manda, as seguintes desempatam.
+    private orderBy: { col: string; asc: boolean }[] = [];
     private lim: number | null = null;
     private desde = 0;
     constructor(private table: string) {}
@@ -155,7 +156,7 @@ function createFakeSupabase() {
       return this;
     }
     order(col: string, opts: { ascending: boolean }) {
-      this.orderBy = { col, asc: opts.ascending };
+      this.orderBy.push({ col, asc: opts.ascending });
       return this;
     }
     limit(n: number) {
@@ -204,11 +205,14 @@ function createFakeSupabase() {
       }
       // select
       let rows = this.rows().filter((r) => this.matches(r));
-      if (this.orderBy) {
-        const { col, asc } = this.orderBy;
-        rows = [...rows].sort(
-          (a, b) => String(a[col]).localeCompare(String(b[col])) * (asc ? 1 : -1),
-        );
+      if (this.orderBy.length > 0) {
+        rows = [...rows].sort((a, b) => {
+          for (const { col, asc } of this.orderBy) {
+            const c = String(a[col]).localeCompare(String(b[col])) * (asc ? 1 : -1);
+            if (c !== 0) return c;
+          }
+          return 0;
+        });
       }
       if (this.single) return { data: rows[0] ?? null, error: null };
       if (this.lim !== null) rows = rows.slice(this.desde, this.desde + this.lim);

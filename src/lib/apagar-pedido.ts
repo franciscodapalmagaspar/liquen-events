@@ -2,7 +2,8 @@ import "server-only";
 import { getQuote, deleteQuote } from "./quotes-store";
 import { listProposalsForQuote, deleteProposal } from "./proposals-store";
 import { listContracts } from "./contracts-store";
-import { clearProposalDraft } from "./proposal-drafts";
+import { clearProposalDraft, draftKey } from "./proposal-drafts";
+import { getState } from "./app-state";
 import { listProposalImages, removeStoredObject, PROPOSAL_BUCKET } from "./proposal-storage";
 import { listTasks, deleteTask } from "./tasks-store";
 import { log } from "@/lib/logger";
@@ -195,8 +196,15 @@ export async function apagarPedidoSemContrato(
     `${id}--orcamento-linhas--sobreposto`,
   ]) {
     try {
+      // Só se apaga (e só se CONTA) o rascunho que existe. Gravar `null` por
+      // cima de nada deixava uma chave vazia por pedido — e contava-a como
+      // «apagada», o que fazia a Reciclagem achar que o pedido já tinha saído
+      // em parte quando nada tinha saído (revisão de 13/11, n.º 3). A leitura
+      // é a de quem vai escrever: se falhar, lança, e diz-se que ficou.
+      if ((await getState(draftKey(chave), { ouFalha: true })) == null) continue;
       const r = await clearProposalDraft(chave);
       if (r.gravado) contou.rascunhos++;
+      else falhou.push(`o rascunho ${chave} não foi limpo`);
     } catch (e) {
       falhou.push(`o rascunho ${chave} não foi limpo`);
       log.error("apagar-pedido: rascunho não limpo", e, { pedido: id, chave });

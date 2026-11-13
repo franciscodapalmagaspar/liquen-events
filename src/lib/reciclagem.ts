@@ -334,7 +334,11 @@ export const TIPOS = {
     },
     async conflito(r) {
       const q = primeiro<Quote>(r, "principal");
-      if (q && (await getQuote(q.id))) return JA_EXISTE;
+      // O pedido está vivo: ou já voltou de vez, ou esta é a entrada de um
+      // apagar que parou a meio (ou de um «Repor» que parou a meio). Se ainda
+      // falta alguma coisa do que ela guardou, repõe-se o que falta; se não
+      // falta nada, já voltou (revisão de 13/11, n.ºs 4 e 5).
+      if (q && (await getQuote(q.id))) return (await faltaAlgoDoPedido(r)) ? null : JA_EXISTE;
       for (const p of todos<Proposal>(r, "propostas")) {
         if (await getProposal(p.id)) {
           return "Uma das propostas deste pedido já existe outra vez. Nada foi reposto.";
@@ -343,7 +347,9 @@ export const TIPOS = {
       return null;
     },
     async repor(r) {
-      await reporPedido(primeiro<Quote>(r, "principal"));
+      const q = primeiro<Quote>(r, "principal");
+      // Com o pedido vivo (ver o `conflito`), repõe-se só o que falta.
+      if (!(await getQuote(q.id))) await reporPedido(q);
       await reporSeFaltar(todos<Proposal>(r, "propostas"), getProposal, reporProposta);
       for (const { chave, valor } of todos<{ chave: string; valor: unknown }>(r, "rascunhos")) {
         // Um rascunho que entretanto nasceu de novo é trabalho de agora: fica.
@@ -365,6 +371,12 @@ export const TIPOS = {
     async largar(e) {
       // Se voltou (com o mesmo id), a pasta é dele outra vez.
       if (await getQuote(e.origemId)) return true;
+      // Outra entrada do MESMO pedido ainda promete um «Repor»: a pasta é dela
+      // (revisão de 13/11, n.º 2).
+      const outras = (await listarReciclagem()).filter(
+        (o) => o.id !== e.id && o.tipo === "pedido" && o.origemId === e.origemId,
+      );
+      if (outras.length > 0) return true;
       return apagarPastaDoPedido(e.origemId);
     },
   },
@@ -581,6 +593,27 @@ export async function enviarComDetalhe(
   const entradaId = randomUUID();
   const capturado = await def.capturar(id, entradaId);
   if (!capturado) return { reciclagem: null, detalhe: await def.apagar(id) };
+  /**
+   * Uma segunda tentativa de apagar o MESMO pedido, depois de uma que parou a
+   * meio: a entrada antiga guarda o que já saiu (e que já não se consegue
+   * capturar). Junta-se tudo numa entrada só, e a antiga sai quando a nova
+   * fica — nunca antes (revisão de 13/11, n.º 2).
+   */
+  const anteriores =
+    tipo === "pedido"
+      ? (await listarReciclagem().catch(() => [] as EntradaDaReciclagem[])).filter(
+          (e) => e.tipo === "pedido" && e.origemId === id,
+        )
+      : [];
+  if (anteriores.length > 0) {
+    capturado.retrato = juntarRetratos(
+      capturado.retrato,
+      anteriores.map((e) => e.retrato as Retrato),
+    );
+  }
+  const largarAnteriores = async () => {
+    for (const e of anteriores) await tirarDaReciclagem(e.id).catch(() => {});
+  };
   const entrada: EntradaDaReciclagem = {
     id: entradaId,
     tipo,
@@ -599,12 +632,15 @@ export async function enviarComDetalhe(
     throw err;
   }
   try {
-    return { reciclagem: { id: entrada.id }, detalhe: await def.apagar(id, entrada.id) };
+    const detalhe = await def.apagar(id, entrada.id);
+    await largarAnteriores();
+    return { reciclagem: { id: entrada.id }, detalhe };
   } catch (err) {
     // Se o apagar parou A MEIO (o pedido saiu em parte: propostas, rascunhos,
     // tarefas), a entrada é a ÚNICA cópia do que já saiu — fica na Reciclagem.
     // Só se tira quando nada saiu (auditoria de 13/11, «dados que se perdem»).
-    if (err instanceof NaoDeuParaApagar && saiuAlgo(err.detalhe)) {
+    if (err instanceof NaoDeuParaApagar && (saiuAlgo(err.detalhe) || anteriores.length > 0)) {
+      await largarAnteriores();
       throw new NaoDeuParaApagar(
         "O pedido não foi apagado por completo. O que já saiu está guardado na Reciclagem — tenta de novo.",
         err.status,
@@ -614,6 +650,57 @@ export async function enviarComDetalhe(
     await tirarDaReciclagem(entrada.id).catch(() => {});
     throw err;
   }
+}
+
+/** Do que a entrada de um pedido guardou, alguma linha ainda não voltou? */
+async function faltaAlgoDoPedido(r: Retrato): Promise<boolean> {
+  const grupos: [string, (id: string) => Promise<unknown>][] = [
+    ["propostas", getProposal],
+    ["material", getEventMaterial],
+    ["itens", obterEventItem],
+    ["registo", obterDoRegisto],
+    ["tarefas", obterTarefa],
+  ];
+  for (const [grupo, obter] of grupos) {
+    for (const l of todos<{ id: string }>(r, grupo)) {
+      if (!(await obter(l.id))) return true;
+    }
+  }
+  for (const { chave } of todos<{ chave: string }>(r, "rascunhos")) {
+    if ((await getState(draftKey(chave))) == null) return true;
+  }
+  return false;
+}
+
+/**
+ * Junta os retratos de entradas do MESMO pedido: o que saiu numa tentativa que
+ * parou a meio não está no retrato da tentativa seguinte (já não existia para
+ * ser capturado). O retrato novo manda; do antigo entra o que falta, por `id`
+ * (ou `chave`, nos rascunhos).
+ */
+function juntarRetratos(novo: Retrato, antigos: Retrato[]): Retrato {
+  const out: Retrato = { ...novo };
+  const chaveDe = (l: unknown): string | null => {
+    const o = l as { id?: unknown; chave?: unknown } | null;
+    if (o && typeof o.id === "string") return `id:${o.id}`;
+    if (o && typeof o.chave === "string") return `chave:${o.chave}`;
+    return null;
+  };
+  for (const antigo of antigos) {
+    for (const [grupo, linhas] of Object.entries(antigo)) {
+      if (grupo === "principal" && (out.principal ?? []).length > 0) continue;
+      const atuais = [...(out[grupo] ?? [])];
+      const vistas = new Set(atuais.map(chaveDe).filter(Boolean));
+      for (const l of linhas ?? []) {
+        const k = chaveDe(l);
+        if (k && vistas.has(k)) continue;
+        atuais.push(l);
+        if (k) vistas.add(k);
+      }
+      out[grupo] = atuais;
+    }
+  }
+  return out;
 }
 
 /** O apagar devolveu uma contagem com alguma coisa já apagada? */

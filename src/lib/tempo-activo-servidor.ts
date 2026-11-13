@@ -97,7 +97,13 @@ export async function acrescentarTempoActivo(
   ms: number,
   seccao?: string,
 ): Promise<{ tempo: TempoDaProposta; persistencia: ResultadoDeEscrita | null }> {
-  const anterior = (await getTempoActivo(quoteId)) ?? { ms: 0, updatedAt: "" };
+  // Lido para somar e voltar a gravar: uma leitura falhada LANÇA (a rota
+  // apanha e responde sem gravar) em vez de pôr o total a zero por cima do
+  // verdadeiro (revisão de 13/11, n.º 10).
+  const anterior = (await getState<TempoDaProposta>(chave(quoteId), { ouFalha: true })) ?? {
+    ms: 0,
+    updatedAt: "",
+  };
   const somar = Number.isFinite(ms) && ms > 0 ? Math.min(Math.round(ms), MAXIMO_POR_ENVIO) : 0;
 
   if (somar === 0) {

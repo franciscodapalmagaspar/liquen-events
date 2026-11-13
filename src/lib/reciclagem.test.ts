@@ -436,6 +436,69 @@ describe("Reciclagem — pedido (R3b)", () => {
       vi.doUnmock("./quotes-store");
     }
   });
+
+  it("parado a meio: «Repor» com o pedido vivo devolve o que saiu; e tentar outra vez junta numa entrada só", async () => {
+    let recusa = true;
+    vi.doMock("./quotes-store", async () => {
+      const real = await vi.importActual<typeof import("./quotes-store")>("./quotes-store");
+      return {
+        ...real,
+        deleteQuote: async (id: string) => {
+          if (recusa) throw new Error("TESTE: a base de dados recusou");
+          return real.deleteQuote(id);
+        },
+      };
+    });
+    try {
+      const r = await carregarR3b();
+      await r.pedidos.createQuote(UM_PEDIDO);
+      await r.propostas.createProposal(umaProposta("P-TESTE-3", UM_PEDIDO.id));
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
+
+      // 1) Repor com o pedido ainda vivo: a proposta volta, a entrada sai.
+      const [parcial] = await r.store.listarReciclagem();
+      await r.reciclagem.reporDaReciclagem(parcial.id);
+      expect(await r.propostas.getProposal("P-TESTE-3")).not.toBeNull();
+      expect(await r.store.listarReciclagem()).toEqual([]);
+
+      // 2) Falha outra vez, e depois tenta-se de novo e o pedido sai: UMA
+      //    entrada, com a proposta que saiu na primeira tentativa.
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
+      recusa = false;
+      await r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id);
+      const entradas = await r.store.listarReciclagem();
+      expect(entradas).toHaveLength(1);
+      expect(entradas[0].retrato.propostas).toEqual([expect.objectContaining({ id: "P-TESTE-3" })]);
+      expect(await r.pedidos.getQuote(UM_PEDIDO.id)).toBeNull();
+
+      // E repor devolve tudo.
+      await r.reciclagem.reporDaReciclagem(entradas[0].id);
+      expect(await r.pedidos.getQuote(UM_PEDIDO.id)).not.toBeNull();
+      expect(await r.propostas.getProposal("P-TESTE-3")).not.toBeNull();
+    } finally {
+      vi.doUnmock("./quotes-store");
+    }
+  });
+
+  it("se o apagar falha sem nada ter saído, não fica entrada nenhuma", async () => {
+    vi.doMock("./quotes-store", async () => {
+      const real = await vi.importActual<typeof import("./quotes-store")>("./quotes-store");
+      return {
+        ...real,
+        deleteQuote: async () => {
+          throw new Error("TESTE: a base de dados recusou");
+        },
+      };
+    });
+    try {
+      const r = await carregarR3b();
+      await r.pedidos.createQuote(UM_PEDIDO);
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
+      expect(await r.store.listarReciclagem()).toEqual([]);
+    } finally {
+      vi.doUnmock("./quotes-store");
+    }
+  });
 });
 
 describe("Reciclagem — proposta (R3b)", () => {

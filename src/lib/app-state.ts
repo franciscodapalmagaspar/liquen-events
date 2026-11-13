@@ -321,6 +321,9 @@ export async function getState<T>(key: string, opcoes?: { ouFalha?: boolean }): 
  * chama em vez de ser escondido — uma varredura truncada não pode passar por
  * uma varredura completa numa decisão sobre perder fotos.
  */
+/** O tecto do PostgREST por resposta (`max-rows`, 1000 no Supabase). */
+const PAGINA_DO_ESTADO = 1000;
+
 export async function listStateByPrefix<T>(
   prefix: string,
   limite = 2000,
@@ -328,15 +331,28 @@ export async function listStateByPrefix<T>(
   const sb = getSupabase();
   if (sb) {
     try {
-      const { data, error } = await sb
-        .from("app_state")
-        .select("key, value")
-        // `%` e `_` são curingas do LIKE: escapá-los impede que um prefixo com
-        // um deles varra mais do que devia.
-        .like("key", `${prefix.replace(/([%_\\])/g, "\\$1")}%`)
-        .limit(limite + 1);
-      if (error) throw error;
-      const linhas = (data ?? []) as { key: string; value: T }[];
+      /**
+       * Às páginas de {@link PAGINA_DO_ESTADO}: o PostgREST corta CADA resposta
+       * nas 1000 linhas sem avisar, e um `.limit(limite + 1)` maior do que isso
+       * voltava com 1000 e dizia-se «completa» (revisão de 13/11, n.º 1). Ordem
+       * pela chave, que é única: as páginas não se repetem nem saltam linhas.
+       */
+      const linhas: { key: string; value: T }[] = [];
+      for (let desde = 0; linhas.length <= limite; desde += PAGINA_DO_ESTADO) {
+        const ate = Math.min(desde + PAGINA_DO_ESTADO, limite + 1) - 1;
+        const { data, error } = await sb
+          .from("app_state")
+          .select("key, value")
+          // `%` e `_` são curingas do LIKE: escapá-los impede que um prefixo com
+          // um deles varra mais do que devia.
+          .like("key", `${prefix.replace(/([%_\\])/g, "\\$1")}%`)
+          .order("key", { ascending: true })
+          .range(desde, ate);
+        if (error) throw error;
+        const pagina = (data ?? []) as { key: string; value: T }[];
+        linhas.push(...pagina);
+        if (pagina.length < ate - desde + 1) break;
+      }
       return { entradas: linhas.slice(0, limite), completa: linhas.length <= limite };
     } catch (err) {
       log.error("app-state: varredura por prefixo falhou", err, { prefix });

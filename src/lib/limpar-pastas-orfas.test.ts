@@ -40,18 +40,33 @@ vi.mock("@/lib/supabase", () => ({
     from: (tabela: string) => ({
       // A tabela `app_state` devolve também o que o `setState` gravou — como
       // a de verdade: a lista de espera vive lá.
-      select: async () =>
-        st.tabelas[tabela] === null
-          ? { data: null, error: { message: "falhou" } }
-          : {
-              data: [
-                ...(st.tabelas[tabela] ?? []),
-                ...(tabela === "app_state"
-                  ? Object.entries(st.estado).map(([key, value]) => ({ key, value }))
-                  : []),
-              ],
-              error: null,
-            },
+      // Como o PostgREST: `order`/`range`, e NUNCA mais de 1000 por resposta.
+      select: () => {
+        let desde = 0;
+        let ate = Infinity;
+        const b = {
+          order: () => b,
+          range(d: number, a: number) {
+            desde = d;
+            ate = a;
+            return b;
+          },
+          then(resolve: (v: unknown) => unknown) {
+            if (st.tabelas[tabela] === null) {
+              return Promise.resolve(resolve({ data: null, error: { message: "falhou" } }));
+            }
+            const todas = [
+              ...(st.tabelas[tabela] ?? []),
+              ...(tabela === "app_state"
+                ? Object.entries(st.estado).map(([key, value]) => ({ key, value }))
+                : []),
+            ];
+            const fim = Math.min(ate + 1, desde + 1000);
+            return Promise.resolve(resolve({ data: todas.slice(desde, fim), error: null }));
+          },
+        };
+        return b;
+      },
     }),
   }),
 }));
@@ -133,11 +148,21 @@ describe("as fotografias de pedidos que já não existem (10/11)", () => {
    * resto sem avisar. Com 1000 pedidos, um pedido VIVO que ficou de fora da
    * lista parecia órfão e a pasta dele era apagada.
    */
-  it("se a lista dos pedidos chega cheia (1000), pode estar cortada: não apaga nada", async () => {
+  it("um pedido vivo depois das primeiras 1000 linhas continua vivo (lê-se tudo, às páginas)", async () => {
+    // O «apagado» da lista volta a existir, mas na linha 1501: lido só até às
+    // 1000, parecia órfão e a pasta dele saía.
+    const vivo = "LIQ-APAGADO-1";
+    st.tabelas.quotes = [
+      { id: "LIQ-VIVO-1" },
+      ...Array.from({ length: 1500 }, (_, i) => ({
+        id: `LIQ-OUTRO-${String(i).padStart(4, "0")}`,
+      })),
+      { id: vivo },
+    ];
     await limparPastasDePedidosApagados(dia1);
-    st.tabelas.quotes = Array.from({ length: 1000 }, (_, i) => ({ id: `LIQ-OUTRO-${i}` }));
     const r = await limparPastasDePedidosApagados(dia9);
     expect(st.apagadas).toEqual([]);
-    expect(r.acabou).toBe(false);
+    // E a limpeza CORRE (não pára para sempre por haver mais de 1000 pedidos).
+    expect(r.acabou).toBe(true);
   });
 });

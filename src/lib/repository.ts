@@ -512,9 +512,15 @@ export class SupabaseBackend<T> implements Backend<T> {
       const base = this.sb.from(this.m.table).select(this.cols);
       // Ordem SEMPRE determinística: sem ela, as páginas de baixo podiam
       // repetir ou saltar linhas. A do mapper, ou a da chave.
-      return this.m.order
-        ? base.order(this.m.order.column, { ascending: this.m.order.ascending })
-        : base.order(this.idCol, { ascending: true });
+      // E com DESEMPATE pela chave: a coluna do mapper repete-se (posição,
+      // categoria, data de criação de uma reposição em lote), e com empates
+      // na fronteira de uma página o Postgres pode repetir ou saltar linhas
+      // (revisão de 13/11, n.º 6).
+      if (!this.m.order) return base.order(this.idCol, { ascending: true });
+      const porColuna = base.order(this.m.order.column, { ascending: this.m.order.ascending });
+      return this.m.order.column === this.idCol
+        ? porColuna
+        : porColuna.order(this.idCol, { ascending: true });
     };
     if (limit != null) {
       const { data, error, status } = await lerComNovaTentativa(() => consulta().limit(limit));

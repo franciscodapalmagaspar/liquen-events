@@ -70,3 +70,25 @@ describe("list() lê TUDO, por páginas", () => {
     expect(pedidos).toHaveLength(1);
   });
 });
+
+describe("a ordem das páginas desempata pela chave (revisão de 13/11, n.º 6)", () => {
+  it("com a ordem do mapper numa coluna que se repete, junta a chave como segunda ordem", async () => {
+    const ordens: string[] = [];
+    const b = {
+      order(col: string) {
+        ordens.push(col);
+        return b;
+      },
+      range: async () => ({ data: [], error: null, status: 200 }),
+    };
+    const sb = { from: () => ({ select: () => b }) };
+    const comOrdem = {
+      table: "t",
+      order: { column: "position", ascending: true },
+      fromRow: (r: Record<string, unknown>) => r,
+      toRow: (x: unknown) => x,
+    } as never;
+    await new SupabaseBackend(comOrdem, sb as never).list();
+    expect(ordens).toEqual(["position", "id"]);
+  });
+});
