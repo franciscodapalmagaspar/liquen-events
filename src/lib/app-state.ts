@@ -360,6 +360,59 @@ export async function listStateByPrefix<T>(
 }
 
 /**
+ * Apaga as entradas cuja chave começa por `prefix` E é menor do que
+ * `chaveAntesDe` (comparação de texto) — e só essas.
+ *
+ * Existe para os registos com a DATA dentro da chave (`<prefixo><AAAA-MM-DD>:…`,
+ * ver `diagnostico-video`): com a data no formato ISO, «a chave é menor do que
+ * `<prefixo><dia>`» é exactamente «é de antes desse dia». As duas condições
+ * vão juntas para a base de dados, numa só ordem: nada fora do prefixo pode
+ * sair por engano.
+ *
+ * Devolve quantas saíram, ou `null` quando não se conseguiu apagar (o erro
+ * fica registado; quem chama tenta outra vez na noite seguinte).
+ */
+export async function apagarEstadoPorPrefixo(
+  prefix: string,
+  chaveAntesDe: string,
+): Promise<number | null> {
+  if (!prefix || !chaveAntesDe.startsWith(prefix)) return 0;
+  const sb = getSupabase();
+  if (sb) {
+    try {
+      const { data, error } = await comTecto(
+        sb
+          .from("app_state")
+          .delete()
+          .like("key", `${prefix.replace(/([%_\\])/g, "\\$1")}%`)
+          .lt("key", chaveAntesDe)
+          .select("key"),
+        TEMPO_POR_TENTATIVA_MS,
+      );
+      if (error) throw error;
+      return (data ?? []).length;
+    } catch (err) {
+      log.error("app-state: apagar por prefixo falhou", err, { prefix });
+      return null;
+    }
+  }
+  try {
+    return await emFila(async () => {
+      const all = await readFileState();
+      const sair = Object.keys(all).filter((k) => k.startsWith(prefix) && k < chaveAntesDe);
+      if (sair.length === 0) return 0;
+      for (const k of sair) delete all[k];
+      await fs.mkdir(path.dirname(FILE), { recursive: true });
+      await fs.writeFile(FILE, JSON.stringify(all, null, 2));
+      return sair.length;
+    });
+  } catch (err) {
+    log.error("app-state: apagar por prefixo em ficheiro falhou", err, { prefix });
+    return null;
+  }
+}
+
+/**
  * Grava, e DIZ se gravou.
  *
  * Continua a não lançar — quem chama pode ignorar o resultado exactamente como
