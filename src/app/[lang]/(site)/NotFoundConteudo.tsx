@@ -67,7 +67,10 @@ export default function NotFoundConteudo({
           </Link>
         </div>
 
-        {/* Quick links — keep the crawler & visitor moving */}
+        {/* Quick links — keep the crawler & visitor moving.
+            `alvo-toque`, como o resto do sítio: no dedo cada link tinha 16 px
+            de altura (auditoria de 13/11, n.º 13); com a classe chega aos 44,
+            e no rato o desenho fica igual. */}
         <nav className="mt-14 pt-8 border-t border-foreground/8 flex flex-wrap gap-x-7 gap-y-2 justify-center">
           {[
             [t.common.pedirOrcamento, "/orcamento"],
@@ -79,7 +82,7 @@ export default function NotFoundConteudo({
             <Link
               key={href}
               href={localizeHref(href, locale)}
-              className="text-foreground/68 hover:text-moss text-xs tracking-[0.2em] uppercase transition-colors"
+              className="alvo-toque text-foreground/68 hover:text-moss text-xs tracking-[0.2em] uppercase transition-colors"
             >
               {label}
             </Link>

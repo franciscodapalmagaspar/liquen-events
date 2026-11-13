@@ -134,8 +134,15 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                   className="text-white font-bold uppercase tracking-display leading-[0.95]"
                   style={{ fontSize: "clamp(40px, 7vw, 88px)" }}
                 >
+                  {/* A palavra a musgo leva o véu SÓ DELA (`text-veil-shadow`,
+                      a sombra larga que o sítio já usa onde o texto se perde):
+                      sobre a floresta, o #637a5f media ≈2,4:1 contra o fundo
+                      do fotograma (auditoria de 13/11, n.º 8). Escurecer a
+                      faixa inteira era voltar ao «super preta» de 29/10, e
+                      trocar a cor era mexer na marca: o escuro vai só para
+                      trás das letras. */}
                   {t.home.heroLines.map((l, i) => (
-                    <span key={i} className={`block ${l.moss ? "text-moss" : ""}`}>
+                    <span key={i} className={`block ${l.moss ? "text-moss text-veil-shadow" : ""}`}>
                       {l.words.join(" ")}
                     </span>
                   ))}
