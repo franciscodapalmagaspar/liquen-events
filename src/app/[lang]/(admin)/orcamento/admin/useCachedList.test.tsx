@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { renderHook, waitFor, act, cleanup } from "@testing-library/react";
 import { useCachedList, prefetchList, __resetListCache } from "./useCachedList";
 
 /**
@@ -304,5 +304,51 @@ describe("useCachedList — refresh", () => {
     act(() => result.current.refresh());
     await waitFor(() => expect(result.current.data).toHaveLength(2));
     expect(requests[1].ifNoneMatch).toBeNull();
+  });
+});
+
+/**
+ * N.º 9 da auditoria de 13/11: o «Hoje», os Lembretes, a Agenda, as Tarefas e
+ * as tarefas do pedido lêem a MESMA lista e estão montados ao mesmo tempo. Uma
+ * tarefa riscada num ficava por fazer nos outros, e voltar ao separador não
+ * trazia o que a colega tinha feito noutro computador.
+ */
+describe("useCachedList — os ecrãs da mesma lista falam uns com os outros", () => {
+  it("n.º 9: uma escrita num ecrã chega ao outro, e voltar ao separador pergunta outra vez", async () => {
+    // Os ganchos dos testes de cima continuam montados (e a ouvir o regresso
+    // ao separador); desmontá-los deixa as respostas todas para estes dois.
+    cleanup();
+    replies = [{ status: 200, body: [{ id: "t1", done: false }], etag: 'W/"v1"' }, { status: 304 }];
+    const hoje = renderHook(() => useCachedList<{ id: string; done: boolean }[]>("t", "/api/t"));
+    await waitFor(() => expect(hoje.result.current.loading).toBe(false));
+    const tarefas = renderHook(() => useCachedList<{ id: string; done: boolean }[]>("t", "/api/t"));
+    await waitFor(() => expect(requests).toHaveLength(2));
+
+    // Riscada no ecrã das Tarefas — o «Hoje» tem de a ver riscada já.
+    act(() => tarefas.result.current.setData((l) => l.map((t) => ({ ...t, done: true }))));
+    expect(hoje.result.current.data).toEqual([{ id: "t1", done: true }]);
+
+    // A colega acrescentou uma noutro computador; ela volta ao separador meia
+    // hora depois.
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31 * 60_000);
+    replies = [
+      {
+        status: 200,
+        body: [
+          { id: "t1", done: true },
+          { id: "t2", done: false },
+        ],
+        etag: 'W/"v2"',
+      },
+    ];
+    const antes = requests.length;
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await waitFor(() => expect(hoje.result.current.data).toHaveLength(2));
+    expect(tarefas.result.current.data).toHaveLength(2);
+    // Duas vistas montadas, UMA viagem.
+    expect(requests.length - antes).toBe(1);
+    vi.restoreAllMocks();
   });
 });

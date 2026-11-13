@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { porqueNaoLeu, porqueNaoLeuDoErro, type LeituraFalhada } from "@/lib/porque-nao-leu";
 
 /**
@@ -73,6 +73,39 @@ const escritas = new Map<string, number>();
 const inFlight = new Map<string, Promise<Entry | null>>();
 
 /**
+ * ── QUEM ESTÁ A OLHAR PARA CADA LISTA ─────────────────────────────────────
+ *
+ * A cache era partilhada mas MUDA: o «Hoje», os Lembretes e a Agenda lêem a
+ * mesma lista de tarefas que o ecrã das Tarefas e as tarefas do pedido, e
+ * estão montados AO MESMO TEMPO (lado a lado, ou a gaveta por cima). Uma
+ * tarefa riscada num deles ficava por fazer nos outros até se mudar de vista
+ * — cada um tinha a sua cópia no estado do React e ninguém lhe dizia nada.
+ *
+ * Agora cada `useCachedList` montado inscreve-se na sua chave, e toda a
+ * escrita na cache (a optimista do `setData` e a resposta 200 do servidor)
+ * avisa os inscritos. Sem rede nenhuma: é só a mesma página a falar consigo.
+ */
+const ouvintes = new Map<string, Set<(data: unknown) => void>>();
+
+function avisar(key: string, data: unknown): void {
+  for (const ouvir of ouvintes.get(key) ?? []) ouvir(data);
+}
+
+/**
+ * Quando foi a última leitura que voltou de cada chave. Serve só para o regresso
+ * ao separador não pedir outra vez o que acabou de chegar.
+ */
+const lidoEm = new Map<string, number>();
+
+/**
+ * O intervalo mínimo entre duas revalidações por «voltar ao separador». Ela
+ * salta entre separadores muitas vezes por minuto; cada salto é, no máximo,
+ * um pedido condicional por lista montada (quase sempre um 304 sem corpo), e
+ * este tecto faz com que saltos seguidos não sejam nem isso.
+ */
+const REGRESSO_MIN_MS = 30_000;
+
+/**
  * A leitura falhou, e leva consigo a RAZÃO até quem desenha o ecrã.
  *
  * Antes ia um `Error` com o texto do servidor — ou, quando ele não dizia nada,
@@ -136,6 +169,8 @@ function loadOnce(key: string, url: string): Promise<Entry | null> {
 
     const entry: Entry = { data: corpo, etag: res.headers.get("etag") ?? undefined };
     cache.set(key, entry);
+    // Chegou uma versão nova do servidor: todos os que a mostram passam a ela.
+    avisar(key, entry.data);
     return entry;
   })();
 
@@ -188,12 +223,19 @@ export function useCachedList<T>(key: string, url: string): CachedList<T> {
   const [loading, setLoading] = useState(cached === undefined);
   const [error, setError] = useState(false);
   const [falha, setFalha] = useState<LeituraFalhada | null>(null);
+  // O valor mais recente deste ecrã, para o `setData` quando a cache ainda
+  // não tem a chave (antes da primeira leitura voltar).
+  const dataRef = useRef<T | undefined>(cached?.data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
 
   const revalidate = useCallback(
     async (silent: boolean) => {
       if (!silent) setLoading(true);
       try {
         const entry = await loadOnce(key, url);
+        lidoEm.set(key, Date.now());
         // Num 304 isto é a MESMA referência que já está no estado, por isso o
         // React descarta a actualização e não há render nenhum.
         if (entry) setDataState(entry.data as T);
@@ -220,20 +262,58 @@ export function useCachedList<T>(key: string, url: string): CachedList<T> {
     revalidate(cache.has(key));
   }, [revalidate, key]);
 
+  // Inscreve este ecrã na lista: o que outro ecrã escrever nela chega aqui.
+  useEffect(() => {
+    const ouvir = (d: unknown) => setDataState(d as T);
+    let daChave = ouvintes.get(key);
+    if (!daChave) ouvintes.set(key, (daChave = new Set()));
+    daChave.add(ouvir);
+    return () => {
+      daChave.delete(ouvir);
+      if (daChave.size === 0) ouvintes.delete(key);
+    };
+  }, [key]);
+
+  /**
+   * ── VOLTAR AO SEPARADOR É VOLTAR A PERGUNTAR ─────────────────────────────
+   *
+   * Ela deixa o back office aberto horas a fio; a colega risca tarefas noutro
+   * computador. Sem isto, o «Hoje» mostrava a manhã inteira o que estava às
+   * nove. Sem sondagem nenhuma (nada corre com o separador escondido): só ao
+   * regressar, um pedido condicional com o ETag — 304 sem corpo quando nada
+   * mudou — e no máximo um por lista a cada 30 s.
+   */
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const aoVoltar = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - (lidoEm.get(key) ?? 0) < REGRESSO_MIN_MS) return;
+      void revalidate(true);
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => document.removeEventListener("visibilitychange", aoVoltar);
+  }, [key, revalidate]);
+
   const setData = useCallback(
     (updater: T | ((prev: T) => T)) => {
       // Marcada AQUI, e não dentro do actualizador: este corre no render
       // seguinte, e o que interessa é o instante em que ela mexeu na lista —
       // qualquer resposta que ainda esteja no ar já é anterior a isto.
       escritas.set(key, (escritas.get(key) ?? 0) + 1);
-      setDataState((prev) => {
-        const next = typeof updater === "function" ? (updater as (p: T) => T)(prev as T) : updater;
-        // Sem ETag: o que temos em mão já não é a versão que o servidor
-        // carimbou, portanto a revalidação seguinte tem de trazer o corpo todo
-        // em vez de aceitar um 304 que descrevia a versão anterior.
-        cache.set(key, { data: next });
-        return next;
-      });
+      // Calculado já, a partir da cache (que é a versão que TODOS os ecrãs
+      // desta chave mostram), e não dentro do actualizador do React: é a
+      // mesma lista que os outros ecrãs inscritos vão receber, e avisá-los de
+      // dentro de um actualizador seria mexer noutro componente a meio de um
+      // render.
+      const prev = (cache.has(key) ? cache.get(key)!.data : dataRef.current) as T;
+      const next = typeof updater === "function" ? (updater as (p: T) => T)(prev) : updater;
+      // Sem ETag: o que temos em mão já não é a versão que o servidor
+      // carimbou, portanto a revalidação seguinte tem de trazer o corpo todo
+      // em vez de aceitar um 304 que descrevia a versão anterior.
+      cache.set(key, { data: next });
+      dataRef.current = next;
+      setDataState(next);
+      avisar(key, next);
     },
     [key],
   );
@@ -254,4 +334,5 @@ export function __resetListCache(): void {
   cache.clear();
   inFlight.clear();
   escritas.clear();
+  lidoEm.clear();
 }
