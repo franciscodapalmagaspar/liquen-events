@@ -1,0 +1,157 @@
+import {
+  normaliseCoverImages,
+  parseMoneyText,
+  type MoodBoard,
+  type VatMode,
+  type withProposalDefaults,
+} from "../proposal-doc";
+import { dataDoEventoPorExtenso, referenciaDoDocumento } from "../proposal-doc-textos";
+import { eur } from "../money";
+import type { PropostaImportada } from "./mapear";
+
+/**
+ * O passo final, no navegador: o que se leu, MAIS o que ela corrigiu na
+ * pré-visualização, MAIS os caminhos das fotografias já carregadas → o
+ * rascunho do estúdio e o corpo do pedido.
+ *
+ * Puro e testado à parte: é aqui que um valor errado passaria do ecrã da
+ * importação para o «Fazer proposta» sem ninguém dar por isso.
+ */
+
+export type DocDoEstudio = Parameters<typeof withProposalDefaults>[0];
+
+/** Os campos que ela pode corrigir antes de criar. */
+export interface Correccoes {
+  clientNames: string;
+  email: string;
+  dataIso: string;
+  location: string;
+  eventType: string;
+  guests: string;
+  /** O total como ela o escreve («3.200,00»); vazio = sem total. */
+  total: string;
+  totalVatMode: VatMode | null;
+}
+
+export function correccoesIniciais(p: PropostaImportada): Correccoes {
+  return {
+    clientNames: p.clientNames,
+    email: p.email,
+    dataIso: p.dataIso,
+    location: p.location,
+    eventType: p.eventType,
+    guests: p.guests ? String(p.guests) : "",
+    total: p.totalAmount ? p.totalAmount.toFixed(2).replace(".", ",") : "",
+    totalVatMode: p.totalVatMode,
+  };
+}
+
+/** O total escrito, em número; `null` quando está vazio ou não se lê. */
+export function totalEscrito(texto: string): number | null {
+  if (!/\d/.test(texto)) return null;
+  // A mesma leitura do resto da casa (`parseMoneyText`).
+  const n = parseMoneyText(texto);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+}
+
+/** O que ainda impede criar. Vazio = pode criar. */
+export function oQueFalta(c: Correccoes): string[] {
+  const falta: string[] = [];
+  if (!c.clientNames.trim()) falta.push("o nome do cliente");
+  if (c.total.trim() && totalEscrito(c.total) === null) falta.push("um total que se leia");
+  if (totalEscrito(c.total) !== null && !c.totalVatMode) {
+    falta.push("dizer se o total inclui IVA");
+  }
+  return falta;
+}
+
+function hojeEmTexto(hoje: Date): string {
+  const d = String(hoje.getDate()).padStart(2, "0");
+  const m = String(hoje.getMonth() + 1).padStart(2, "0");
+  return `${d}/${m}/${hoje.getFullYear()}`;
+}
+
+/** O corpo para `POST /api/orcamento/manual` — o caminho de sempre. */
+export function corpoDoPedido(
+  p: PropostaImportada,
+  c: Correccoes,
+  nomeDoFicheiro: string,
+  hoje = new Date(),
+): Record<string, unknown> {
+  const guests = Number.parseInt(c.guests, 10);
+  return {
+    name: c.clientNames.trim(),
+    email: c.email.trim(),
+    date: /^\d{4}-\d{2}-\d{2}$/.test(c.dataIso) ? c.dataIso : "",
+    location: c.location.trim(),
+    guests: Number.isFinite(guests) && guests > 0 ? guests : 0,
+    category: p.categoria || null,
+    eventType: p.tipoDoPedido || null,
+    notes: `Proposta antiga importada de «${nomeDoFicheiro}» a ${hojeEmTexto(hoje)}.`,
+  };
+}
+
+/**
+ * O rascunho do estúdio.
+ *
+ * @param carregadas caminho dentro do ficheiro → caminho no armazenamento. Uma
+ *   fotografia que não está aqui (deixada de fora, ou que falhou) sai do
+ *   documento — e um mood board que fique sem fotografias sai também: nada
+ *   aparece no PDF que ela não tenha visto aqui.
+ */
+export function montarDocumento(
+  p: PropostaImportada,
+  c: Correccoes,
+  carregadas: ReadonlyMap<string, string>,
+  nomeDoFicheiro: string,
+  hoje = new Date(),
+): DocDoEstudio {
+  const total = totalEscrito(c.total);
+  const modo = total !== null ? c.totalVatMode : null;
+  const guests = Number.parseInt(c.guests, 10);
+  const moodBoards: MoodBoard[] = p.moodBoards
+    .map((b) => ({
+      title: b.title,
+      images: b.images.map((im) => carregadas.get(im)).filter((x): x is string => Boolean(x)),
+    }))
+    .filter((b) => b.images.length > 0);
+  const capa = p.capa ? carregadas.get(p.capa) : undefined;
+
+  const notas = [
+    `Proposta importada de «${nomeDoFicheiro}» a ${hojeEmTexto(hoje)}.`,
+    p.notasInternas
+      ? `Texto do documento original que não ficou em nenhum campo:\n${p.notasInternas}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const doc: DocDoEstudio = {
+    template: "decoracao",
+    ref: "",
+    clientNames: c.clientNames.trim(),
+    eventType: c.eventType.trim(),
+    eventDate: /^\d{4}-\d{2}-\d{2}$/.test(c.dataIso) ? dataDoEventoPorExtenso(c.dataIso) : "",
+    location: c.location.trim(),
+    guests: Number.isFinite(guests) && guests > 0 ? `${guests} pax` : "",
+    ceremony: "",
+    time: "",
+    serviceGroups: p.serviceGroups.map((g) => ({ ...g, items: g.items.map((i) => ({ ...i })) })),
+    moodBoards,
+    cronograma: [],
+    budgetItems: [...p.budgetItems],
+    ...(p.budgetAmounts.some((v) => v !== null) ? { budgetAmounts: [...p.budgetAmounts] } : {}),
+    budgetExtras: [],
+    totalLabel: "Valor Total Decoração",
+    totalText:
+      total !== null && modo ? (modo === "acrescer" ? `${eur(total)} + IVA` : eur(total)) : "",
+    ...(total !== null && modo ? { totalAmount: total, totalVatMode: modo } : {}),
+    budgetRows: [],
+    totalEstimatedText: "",
+    budgetNote: "",
+    coverImages: normaliseCoverImages(capa ? [capa] : []),
+    notasInternas: notas,
+  };
+  doc.ref = referenciaDoDocumento(doc);
+  return doc;
+}

@@ -46,7 +46,8 @@ vi.mock("@/lib/passkeys-store", async (orig) => ({
 }));
 
 const { GET, POST } = await import("./route");
-const { ADMIN_COOKIE, createSession } = await import("@/lib/admin-auth");
+const { ADMIN_COOKIE, ADMIN_REAUTH_COOKIE, createSession, criarConfirmacao } =
+  await import("@/lib/admin-auth");
 const { CHALLENGE_COOKIE, novoDesafio, selarDesafio } = await import("@/lib/passkey-challenge");
 
 const DOMINIO = "liquen.test";
@@ -55,10 +56,14 @@ function pedido(opts: {
   sessao?: string | null;
   desafioDe?: string | null;
   metodo?: "GET" | "POST";
+  /** De quem é a confirmação recente da palavra-passe (`null`: nenhuma). */
+  confirmadoPor?: string | null;
 }) {
   const { sessao = "Catarina", desafioDe = "Catarina", metodo = "POST" } = opts;
+  const confirmadoPor = opts.confirmadoPor === undefined ? sessao : opts.confirmadoPor;
   const cookies: string[] = [];
   if (sessao) cookies.push(`${ADMIN_COOKIE}=${createSession(sessao)}`);
+  if (confirmadoPor) cookies.push(`${ADMIN_REAUTH_COOKIE}=${criarConfirmacao(confirmadoPor)}`);
   if (desafioDe !== null) {
     cookies.push(`${CHALLENGE_COOKIE}=${selarDesafio("registo", novoDesafio(), desafioDe)}`);
   }
@@ -158,16 +163,38 @@ describe("POST — guardar o dispositivo", () => {
       headers: {
         "content-type": "application/json",
         host: DOMINIO,
-        cookie: `${ADMIN_COOKIE}=${createSession("Catarina")}; ${CHALLENGE_COOKIE}=${selarDesafio(
-          "registo",
-          novoDesafio(),
+        cookie: `${ADMIN_COOKIE}=${createSession("Catarina")}; ${ADMIN_REAUTH_COOKIE}=${criarConfirmacao(
           "Catarina",
-        )}`,
+        )}; ${CHALLENGE_COOKIE}=${selarDesafio("registo", novoDesafio(), "Catarina")}`,
       },
       body: JSON.stringify({ response: { id: "cred-nova" } }),
     });
     const res = await POST(req);
     expect(res.status).toBe(200);
     expect(store.criadas[0].deviceLabel).toBe("Dispositivo");
+  });
+});
+
+describe("registar pede a palavra-passe confirmada há pouco (auditoria de 13/11, n.º 5)", () => {
+  it("só com a sessão, sem confirmação, não há opções nem registo", async () => {
+    const g = await GET(pedido({ metodo: "GET", confirmadoPor: null }));
+    expect(g.status).toBe(403);
+    expect(await g.json()).toMatchObject({ reconfirmar: true });
+    const p = await POST(pedido({ confirmadoPor: null }));
+    expect(p.status).toBe(403);
+    expect(store.criadas).toHaveLength(0);
+  });
+
+  it("a confirmação de OUTRA conta não serve", async () => {
+    const p = await POST(pedido({ confirmadoPor: "Rui" }));
+    expect(p.status).toBe(403);
+    expect(store.criadas).toHaveLength(0);
+  });
+
+  it("com a confirmação desta conta, regista — e a confirmação gasta-se", async () => {
+    const p = await POST(pedido({}));
+    expect(p.status).toBe(200);
+    expect(store.criadas).toHaveLength(1);
+    expect(p.cookies.get(ADMIN_REAUTH_COOKIE)?.value).toBe("");
   });
 });

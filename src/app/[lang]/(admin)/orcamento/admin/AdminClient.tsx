@@ -72,6 +72,7 @@ import CommandPalette, { type Command } from "./CommandPalette";
 import ShortcutsModal from "./ShortcutsModal";
 import AjudaGlossario from "./AjudaGlossario";
 import NewQuoteModal from "./NewQuoteModal";
+import ImportarProposta from "./ImportarProposta";
 import RestoreDialog from "./RestoreDialog";
 import PasskeysDialog from "./PasskeysDialog";
 import SessaoExpirada from "./SessaoExpirada";
@@ -671,7 +672,18 @@ function COLUNAS_DE_PEDIDOS(ctx: {
         // coluna que existe sempre (as outras escondem-se abaixo de 1440), e
         // um atributo vazio não desenha nada nem é lido por ninguém. Quem a
         // usa é o `:has()` do `ENTRADA_DO_LOTE`, lá em cima.
-        <span className="block" data-lote-novo={ctx.ehDoLoteNovo?.(q) ? "" : undefined}>
+        //
+        // E o mesmo tecto que o «Local» (ver a nota lá): numa tabela de
+        // largura automática o `truncate` sozinho não corta. MEDIDO a 1440:
+        // um nome de 89 letras pôs a coluna com 630 px e a tabela com 1448
+        // numa caixa de 1358 — «À espera» escondida, sem pista de que havia
+        // mais. Fica no degrau de 420 da escala (§9.9: «420 — nome, local»),
+        // com o nome inteiro no `title`.
+        <span
+          className="block max-w-105"
+          title={q.name}
+          data-lote-novo={ctx.ehDoLoteNovo?.(q) ? "" : undefined}
+        >
           <span
             className={`block truncate ${
               ctx.atual === q.id ? "font-semibold text-sage-600" : "text-[var(--bo-text)]"
@@ -959,7 +971,11 @@ const QuoteCard = memo(function QuoteCard({
                       ? "bg-[var(--bo-aviso-tom)]/15 text-[var(--bo-aviso)]"
                       : "bg-[var(--bo-tinta-6)] text-foreground/45"
                 }`}
-                title={`Entrou ${esperaEmPalavras(espera)} e ainda não teve resposta`}
+                title={
+                  espera <= 0
+                    ? "Entrou hoje e ainda não teve resposta"
+                    : `Entrou ${esperaEmPalavras(espera)} e ainda não teve resposta`
+                }
               >
                 {esperaEmPalavras(espera)}
               </span>
@@ -1637,6 +1653,7 @@ export default function AdminClient({
   );
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [newQuoteOpen, setNewQuoteOpen] = useState(false);
+  const [importarOpen, setImportarOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [passkeysOpen, setPasskeysOpen] = useState(false);
@@ -4909,6 +4926,20 @@ export default function AdminClient({
           open={newQuoteOpen}
           onClose={() => setNewQuoteOpen(false)}
           existingQuotes={quotes}
+          onCreated={(q) => {
+            setQuotes((prev) => [q, ...prev]);
+            abrirCliente(q);
+          }}
+          onImportar={() => {
+            setNewQuoteOpen(false);
+            setImportarOpen(true);
+          }}
+        />
+        {/* Uma proposta antiga (Word/PowerPoint) → o pedido e o rascunho, e
+            abre no «Fazer proposta» pela mesma porta do «Novo pedido». */}
+        <ImportarProposta
+          open={importarOpen}
+          onClose={() => setImportarOpen(false)}
           onCreated={(q) => {
             setQuotes((prev) => [q, ...prev]);
             abrirCliente(q);

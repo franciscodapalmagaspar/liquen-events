@@ -35,6 +35,8 @@ import {
   nomeCurto,
   refazer,
   registar,
+  gestoDaDiferenca,
+  historicoDepoisDaJuncao,
 } from "./mapa-de-mesas";
 
 const g = (id: string, name: string, party = 1, rsvp: Guest["rsvp"] = "confirmado"): Guest => ({
@@ -342,5 +344,48 @@ describe("o número de cada lugar (único na sala, o pedido dela de 15/10)", () 
     expect(numeros.get(chaveDoLugar(mesa("Mesa 10").id, 0))).toBe(19);
     expect(numeros.get(chaveDoLugar(mesa("Mesa 11").id, 2))).toBe(23);
     expect(new Set(numeros.values()).size).toBe(numeros.size);
+  });
+});
+
+// ── Auditoria 6, n.º 17 — a junção depois de um conflito ───────────────────
+describe("gestoDaDiferenca e historicoDepoisDaJuncao", () => {
+  const vazio = (): MapaDeMesas => ({ versao: 1, mesas: [], elementos: [], lugares: {} });
+
+  /**
+   * Ela põe a mesa A e anula-a com o «Anular» (dois gestos por gravar).
+   * Entretanto, outra pessoa gravou a mesa B. A gravação dá 409 e os gestos
+   * voltam a aplicar-se ao mapa do servidor. O «Anular» era `() => antes`:
+   * devolvia o mapa vazio inteiro e a mesa B desaparecia.
+   */
+  it("o «Anular» reaplicado numa junção não apaga o que a outra pessoa fez", () => {
+    const base = vazio();
+    const porA = (m: MapaDeMesas) => novaMesa(m, "redonda", "A").mapa;
+    const comA = porA(base);
+    const anularA = gestoDaDiferenca(comA, base);
+
+    const doServidor = novaMesa(base, "comprida", "B").mapa;
+    const junto = [porA, anularA].reduce((m, g) => g(m), doServidor);
+
+    expect(junto.mesas.map((m) => m.id)).toEqual(["B"]);
+  });
+
+  it("aplicado ao próprio mapa de partida, dá o de chegada (lugares incluídos)", () => {
+    const base = novaMesa(vazio(), "redonda", "A").mapa;
+    const sentado = sentar(base, chaveDoLugar("A", 0), { convidadoId: "g1", n: 1 });
+    expect(gestoDaDiferenca(base, sentado)(base)).toEqual(sentado);
+    expect(gestoDaDiferenca(sentado, base)(sentado)).toEqual(base);
+  });
+
+  it("anular depois de uma junção não repõe um mapa de antes dela", () => {
+    const base = vazio();
+    const comA = novaMesa(base, "redonda", "A").mapa;
+    const historico = registar(historicoVazio(), base);
+    const doServidor = novaMesa(base, "comprida", "B").mapa;
+
+    const h = historicoDepoisDaJuncao(historico, base, doServidor);
+    const actual = gestoDaDiferenca(base, doServidor)(comA);
+    const r = desfazer(h, actual)!;
+
+    expect(r.mapa.mesas.map((m) => m.id)).toEqual(["B"]);
   });
 });

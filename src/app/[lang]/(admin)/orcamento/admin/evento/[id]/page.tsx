@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { ADMIN_COOKIE, readSession } from "@/lib/admin-auth";
+import { ADMIN_COOKIE } from "@/lib/admin-auth";
+import { sessaoValida } from "@/lib/sessoes-revogadas";
 import { normalizeLocale } from "@/lib/i18n";
 import { getQuote } from "@/lib/quotes-store";
 import { listProposalsForQuote } from "@/lib/proposals-store";
@@ -44,7 +45,8 @@ export default async function EventoDossierPage({
   // `?destino=` aceita é decidido no `entrada-destino.ts`, e só lá: um destino
   // vindo do URL é escolhido por quem manda o link, não por nós.
   const store = await cookies();
-  const session = readSession(store.get(ADMIN_COOKIE)?.value);
+  // Com as revogações (sair, palavra-passe redefinida) — ver `sessoes-revogadas.ts`.
+  const session = await sessaoValida(store.get(ADMIN_COOKIE)?.value);
   if (!session) {
     redirect(entradaCom(`/${lang}/orcamento/admin`, `/${lang}/orcamento/admin/evento/${id}`));
   }

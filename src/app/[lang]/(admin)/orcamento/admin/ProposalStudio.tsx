@@ -25,7 +25,6 @@ import {
   eTempoEsgotado,
   sinalComTecto,
   TECTO_DA_PRE_VISUALIZACAO_MS,
-  TECTO_DE_UMA_FOTO_MS,
   TECTO_DO_ENVIO_MS,
 } from "@/lib/tempo-esgotado";
 import { useToast } from "./Toast";
@@ -241,6 +240,7 @@ import { linkDoWhatsApp } from "@/lib/whatsapp";
 import { randomId } from "./util";
 import type { ActivityEntry, Quote, QuoteStatus } from "@/lib/orcamento/types";
 import { prepareImageWithThumb, type ImageKind } from "./image-prep";
+import { enviarFotoDaProposta } from "./enviar-foto-da-proposta";
 import ThemePicker, { type ImportedImage, type ReservedImage } from "./ThemePicker";
 import ServicesEditor, { MoveBtns } from "./ServicesEditor";
 import CaixaInglesa from "./CaixaInglesa";
@@ -5700,69 +5700,10 @@ export default function ProposalStudio({
     lqip?: string | null,
     mid?: File | null,
   ): Promise<{ path: string; url: string; thumbUrl?: string; cor?: string }> {
-    // UMA chave por foto, gerada aqui e repetida na segunda tentativa: se a
-    // primeira chegou e só a resposta se perdeu, o servidor reconhece-a e não
-    // guarda um segundo ficheiro (auditoria de 13/11, estúdio n.º 18).
-    const chave = crypto.randomUUID();
-    const post = () => {
-      const form = new FormData();
-      form.append("files", file);
-      form.append("chaves", chave);
-      // O LQIP — a mancha de cor que ocupa a célula enquanto a fotografia não
-      // chega. Sai da MESMA descodificação que já calculou a cor e a miniatura
-      // (`image-prep`), portanto não custa nada, e sem ele a página do casal
-      // abre com rectângulos vazios: o caminho da Biblioteca de Temas gravava-o
-      // e este não, e por isso a mesma página tinha metade das células com
-      // placeholder e a outra metade sem.
-      if (lqip) form.append("lqips", lqip);
-      // A cor dominante, calculada na mesma descodificação que encolheu a foto
-      // (ver `image-prep`). É aqui que ela pode ser calculada — do lado do
-      // estúdio as fotos já vêm de outro domínio e o `canvas` fica manchado.
-      if (cor) form.append("cores", cor);
-      // A miniatura viaja ao lado do original, no mesmo pedido: sai da MESMA
-      // descodificação que já se fez para encolher a foto, portanto não custa
-      // tempo nenhum, e ~30–60 KB não se notam ao lado de uma foto de 2 MB.
-      // Sem ela, a grelha voltava a puxar 1130 KB por célula para desenhar
-      // 174 px (medido em IMAGES-BEFORE.md).
-      if (thumb) form.append("thumbs", thumb);
-      // A de 1200 px — a que a PÁGINA DO CASAL mostra. Sai da mesma
-      // descodificação que fez a miniatura, portanto não custa tempo nenhum, e
-      // ~250 KB não se notam ao lado de uma foto de 2 MB.
-      //
-      // Sem ela, esta fotografia só ganha a de 1200 quando ALGUÉM OLHAR para
-      // ela — e numa proposta acabada de enviar essa pessoa é o casal, com um
-      // download do original e uma conversão a acontecer no servidor enquanto
-      // eles olham para um rectângulo vazio.
-      if (mid) form.append("medias", mid);
-      return fetch(`/api/orcamento/${quote.id}/assets`, {
-        method: "POST",
-        body: form,
-        signal: sinalComTecto(TECTO_DE_UMA_FOTO_MS),
-      });
-    };
-    let res: Response;
-    try {
-      res = await post();
-    } catch (e) {
-      // Um tempo esgotado não se repete: seriam mais 120 s à espera, e o
-      // primeiro pedido pode bem ter chegado (revisão de 13/11).
-      if (eTempoEsgotado(e)) throw e;
-      // Soluço de rede — tenta uma segunda vez antes de desistir (com a mesma
-      // chave: se a primeira chegou, não fica um segundo ficheiro).
-      res = await post();
-    }
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(
-        data?.error ||
-          (res.status === 413
-            ? "Imagem demasiado grande para envio."
-            : "Falha ao carregar a imagem."),
-      );
-    }
-    const im: { path: string; url: string; thumbUrl?: string; cor?: string } | undefined =
-      data?.images?.[0];
-    if (!im) throw new Error("Falha ao carregar a imagem.");
+    // O formulário, a repetição e as mensagens vivem em
+    // `enviar-foto-da-proposta.ts`: a importação de propostas antigas carrega
+    // as fotografias pelo MESMO caminho.
+    const im = await enviarFotoDaProposta(quote.id, { file, thumb, cor, lqip, mid });
     // A grelha desenha pela miniatura quando existe; o original fica para o
     // detalhe e para o PDF.
     setAssetUrls((prev) => ({ ...prev, [im.path]: im.thumbUrl || im.url }));
@@ -12388,6 +12329,11 @@ export default function ProposalStudio({
             // proposta por email sem email não chega a ninguém (B1).
             canal={canal}
             emailDoCliente={quote.email}
+            // O «visto» do PDF, o mesmo do botão (`contextoDoBotao`): sem
+            // ele esta lista dizia «3 coisas impedem o envio» por cima de
+            // uma pastilha a dizer «Faltam 4». A regra é uma só, a de
+            // `oQueFaltaParaEnviar`, e as duas contam a partir dela.
+            pdfVisto={pdfConfirmado}
             onIr={(v) => irParaAFalta(v.seccao, v.campo)}
           />
           {/* ── ANTES DE ENVIAR: VER O PDF FINAL (14/10) ───────────────
@@ -13044,7 +12990,16 @@ export default function ProposalStudio({
                 a folga em partes iguais, e o grupo ficaria centrado — com o total a
                 passear-se para o meio da barra sempre que o estado mudasse de
                 largura. */}
-            <div className="flex min-w-0 items-center gap-3">
+            {/* ── A DICA SAI QUANDO NÃO CABE, EM VEZ DE FICAR COM UMA LETRA ──
+                A 390 px, com «← Inspiração» e «Seguinte: Rever e enviar» ao
+                lado, sobravam uns 30 px para a linha da esquerda, e o
+                `truncate` deixava «Pree…» e depois só «P.» (auditoria de
+                13/11, n.º 12) — e um total cortado a meio é pior: lê-se outro
+                número. O grupo passa a contentor (`@container`, com a folga
+                toda da barra, e `justify-end` para continuar encostado à
+                direita), e a linha e a divisória saem quando a caixa não dá
+                ~120 px à linha: 27rem com o «anterior», 20rem sem ele. */}
+            <div className="@container flex min-w-0 flex-1 items-center justify-end gap-3">
               {/* ── A ETIQUETA VIAJA COM O NÚMERO ────────────────────────────
                     A escolha acima — no telemóvel, o que o CLIENTE paga — estava
                     certa. O que estava errado era a palavra: «Total» ficava FORA
@@ -13082,7 +13037,11 @@ export default function ProposalStudio({
                   número dança. Em algarismos tabulares um 4 e um 1 ocupam o mesmo, e
                   a linha fica quieta. É o mesmo que o bloco de totais aqui em baixo
                   já faz (ver `LinhaDeTotal`). */}
-              <p className="min-w-0 truncate text-xs tabular-nums text-[var(--bo-text-muted)]">
+              <p
+                className={`min-w-0 truncate text-xs tabular-nums text-[var(--bo-text-muted)] ${
+                  passoAoLado(step, -1) ? "@max-[27rem]:hidden" : "@max-[20rem]:hidden"
+                }`}
+              >
                 {money.base > 0 ? (
                   <>
                     <span className="sm:hidden">
@@ -13119,7 +13078,12 @@ export default function ProposalStudio({
                   da casa. Diz que o número e o botão são vizinhos de propósito e não
                   a mesma coisa — que é precisamente o que um espaço não conseguia
                   dizer. `aria-hidden` porque não há nada aqui para ouvir. */}
-              <span aria-hidden className="h-5 w-px shrink-0 bg-[var(--bo-hairline-strong)]" />
+              <span
+                aria-hidden
+                className={`h-5 w-px shrink-0 bg-[var(--bo-hairline-strong)] ${
+                  passoAoLado(step, -1) ? "@max-[27rem]:hidden" : "@max-[20rem]:hidden"
+                }`}
+              />
               {/* ══════════════════════════════════════════════════════════════
                 O «GUARDAR AGORA» SAIU — MENOS NO ÚNICO CASO EM QUE ERA A ÚNICA
                 MANEIRA DE GRAVAR

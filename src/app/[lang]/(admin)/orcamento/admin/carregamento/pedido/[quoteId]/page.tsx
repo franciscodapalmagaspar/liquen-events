@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import AdminLogin from "../../../AdminLogin";
-import { ADMIN_COOKIE, readSession } from "@/lib/admin-auth";
+import { ADMIN_COOKIE } from "@/lib/admin-auth";
+import { sessaoValida } from "@/lib/sessoes-revogadas";
 import { getForQuote } from "@/lib/event-material-store";
 import { getQuote } from "@/lib/quotes-store";
 import { ESTADO, PRESSAO } from "../../../ui/movimento";
@@ -58,7 +59,8 @@ export default async function CarregamentoDoPedido({
   params: Promise<{ lang: string; quoteId: string }>;
 }) {
   const store = await cookies();
-  const session = readSession(store.get(ADMIN_COOKIE)?.value);
+  // Com as revogações (sair, palavra-passe redefinida) — ver `sessoes-revogadas.ts`.
+  const session = await sessaoValida(store.get(ADMIN_COOKIE)?.value);
   if (!session) return <AdminLogin />;
 
   const { lang, quoteId } = await params;

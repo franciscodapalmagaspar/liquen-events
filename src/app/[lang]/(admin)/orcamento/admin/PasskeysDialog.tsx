@@ -75,6 +75,8 @@ export default function PasskeysDialog({ open, onClose, toast }: Props) {
   // Assim quem não quer pensar no nome carrega em Registar e fica com o palpite,
   // e quem quer escrever não tem de apagar texto primeiro.
   const [nome, setNome] = useState("");
+  /** A palavra-passe da conta, pedida antes de registar (auditoria de 13/11, n.º 5). */
+  const [palavraPasse, setPalavraPasse] = useState("");
   /** Que dispositivo está a ser renomeado, e para quê. */
   const [aRenomear, setARenomear] = useState<{ id: string; nome: string } | null>(null);
   // Capacidades do ambiente, não estado: ver a nota igual no AdminLogin.
@@ -115,10 +117,15 @@ export default function PasskeysDialog({ open, onClose, toast }: Props) {
 
   async function registar() {
     if (aRegistar) return;
+    if (!palavraPasse) {
+      setErro("Escreve a tua palavra-passe para confirmar que és tu.");
+      return;
+    }
     setARegistar(true);
     setErro(null);
     try {
-      await registarDispositivo(nome.trim() || nomeSugerido());
+      await registarDispositivo(nome.trim() || nomeSugerido(), palavraPasse);
+      setPalavraPasse("");
       toast?.("Dispositivo registado.", "success");
       await carregar();
     } catch (err) {
@@ -239,6 +246,17 @@ export default function PasskeysDialog({ open, onClose, toast }: Props) {
                   onChange={(e) => setNome(e.target.value)}
                   placeholder={sugestao}
                 />
+                <div className="mt-2">
+                  <Field
+                    label="Palavra-passe (para confirmar que és tu)"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={palavraPasse}
+                    maxLength={200}
+                    onChange={(e) => setPalavraPasse(e.target.value)}
+                  />
+                </div>
               </div>
               <Button type="button" onClick={registar} loading={aRegistar} className="mb-[2px]">
                 {aRegistar ? "A confirmar…" : "Registar"}

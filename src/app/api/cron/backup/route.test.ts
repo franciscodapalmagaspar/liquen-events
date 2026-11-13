@@ -40,6 +40,8 @@ const st = vi.hoisted(() => ({
     readme: "…",
   },
   manifestoRebenta: false,
+  /** A junção das fotografias repetidas rebenta? */
+  duplicadosRebenta: false,
   /** O aquecimento dos PDF: o que devolveu, e se rebentou. */
   aquecimentos: [] as number[],
   aquecimentoRebenta: false,
@@ -50,7 +52,36 @@ const st = vi.hoisted(() => ({
   /** O `sendMail` devolve `sent: false` (SMTP por configurar, conta bloqueada). */
   emailNaoSai: false,
   retencoes: 0,
+  /** Os pedidos que a retenção recebeu. */
+  retencaoRecebeu: null as unknown,
   carimbos: [] as unknown[],
+  /** A cópia comprimida passa dos 20 MB do anexo. */
+  anexoGigante: false,
+  /** As opções que o aquecimento recebeu. */
+  aquecimentoOpcoes: [] as Record<string, unknown>[],
+  fotosTratadasLimpezas: 0,
+  diagnosticosLimpezas: 0,
+  leiturasDosPedidos: 0,
+}));
+
+vi.mock("node:zlib", async (original) => {
+  const real = await original<typeof import("node:zlib")>();
+  return {
+    ...real,
+    gzipSync: (b: Buffer) => (st.anexoGigante ? Buffer.alloc(21 * 1024 * 1024) : real.gzipSync(b)),
+  };
+});
+vi.mock("@/lib/quotes-store", () => ({
+  listQuotes: vi.fn(async () => {
+    st.leiturasDosPedidos++;
+    return [];
+  }),
+}));
+vi.mock("@/lib/limpar-diagnosticos-video", () => ({
+  limparDiagnosticosDoVideo: vi.fn(async () => {
+    st.diagnosticosLimpezas++;
+    return 4;
+  }),
 }));
 
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => st.authed }));
@@ -70,9 +101,10 @@ vi.mock("@/lib/copia-de-seguranca-marcador", () => ({
   }),
 }));
 vi.mock("@/lib/aquecimento-de-pdf", () => ({
-  aquecerPdfsEmFalta: vi.fn(async (decorrido: number) => {
+  aquecerPdfsEmFalta: vi.fn(async (decorrido: number, opcoes?: Record<string, unknown>) => {
     if (st.aquecimentoRebenta) throw new Error("a base não responde");
     st.aquecimentos.push(decorrido);
+    st.aquecimentoOpcoes.push(opcoes ?? {});
     return {
       vistas: 2,
       jaTinham: 1,
@@ -85,16 +117,26 @@ vi.mock("@/lib/aquecimento-de-pdf", () => ({
   }),
 }));
 vi.mock("@/lib/retencao", () => ({
-  correrRetencao: vi.fn(async () => {
+  correrRetencao: vi.fn(async (pedidos: unknown) => {
     st.retencoes++;
+    st.retencaoRecebeu = pedidos;
     return { apagados: 0 };
+  }),
+}));
+vi.mock("@/lib/juntar-fotos-duplicadas", () => ({
+  juntarFotosDuplicadas: vi.fn(async () => {
+    if (st.duplicadosRebenta) throw new Error("Storage em baixo");
+    return { fase: "nada", copias: 0, apagadas: 0, acabou: true };
   }),
 }));
 vi.mock("@/lib/limpar-pastas-orfas", () => ({
   limparPastasDePedidosApagados: vi.fn(async () => ({ candidatas: 0, apagadas: 0, acabou: true })),
 }));
 vi.mock("@/lib/limpar-fotos-tratadas", () => ({
-  limparFotosTratadasVelhas: vi.fn(async () => ({ apagadas: 3, pastas: 256, acabou: true })),
+  limparFotosTratadasVelhas: vi.fn(async () => {
+    st.fotosTratadasLimpezas++;
+    return { apagadas: 3, pastas: 256, acabou: true };
+  }),
 }));
 vi.mock("@/lib/reciclagem", () => ({
   limparExpiradas: vi.fn(async () => {
@@ -129,6 +171,7 @@ const req = (auth?: string, deFora = false): NextRequest =>
 beforeEach(() => {
   st.authed = false;
   st.manifestoRebenta = false;
+  st.duplicadosRebenta = false;
   st.manifesto.completo = true;
   st.manifesto.avisos = [];
   st.payload = {
@@ -144,6 +187,12 @@ beforeEach(() => {
   st.reciclagemLimpezas = 0;
   st.emailNaoSai = false;
   st.retencoes = 0;
+  st.retencaoRecebeu = null;
+  st.anexoGigante = false;
+  st.aquecimentoOpcoes = [];
+  st.fotosTratadasLimpezas = 0;
+  st.diagnosticosLimpezas = 0;
+  st.leiturasDosPedidos = 0;
   vi.stubEnv("CRON_SECRET", "segredo");
   vi.clearAllMocks();
 });
@@ -284,6 +333,27 @@ describe("o aquecimento dos PDF viaja com a cópia", () => {
     expect(await res.json()).toMatchObject({ reciclagem: { apagadas: 2 } });
   });
 
+  it("a junção das fotografias repetidas que rebenta NÃO impede a cópia de seguir", async () => {
+    st.authed = true;
+    st.duplicadosRebenta = true;
+    const res = await GET(req());
+    expect(res.status).toBe(200);
+    expect(st.enviados, "a cópia não seguiu por causa dos duplicados").toHaveLength(1);
+    expect(await res.json()).toMatchObject({ ok: true, duplicados: null });
+  });
+
+  it("a junção das fotografias repetidas recebe o manifesto da noite, e só completo", async () => {
+    st.authed = true;
+    const { juntarFotosDuplicadas } = await import("@/lib/juntar-fotos-duplicadas");
+    vi.mocked(juntarFotosDuplicadas).mockClear();
+    await GET(req());
+    expect(vi.mocked(juntarFotosDuplicadas).mock.calls[0]?.[0]).toBe(st.manifesto);
+    vi.mocked(juntarFotosDuplicadas).mockClear();
+    st.manifesto.completo = false;
+    await GET(req());
+    expect(juntarFotosDuplicadas).not.toHaveBeenCalled();
+  });
+
   it("uma limpeza da Reciclagem que rebenta NÃO impede a cópia de seguir", async () => {
     st.authed = true;
     st.reciclagemRebenta = true;
@@ -308,5 +378,52 @@ describe("a sessão só lança a cópia num pedido do próprio site (10/11)", ()
     st.authed = true;
     const res = await GET(req(undefined, true));
     expect(res.status).toBe(401);
+  });
+});
+
+describe("auditoria de 13/11: a cópia grande demais, as caches, as leituras repetidas", () => {
+  it("n.º 9 — cópia grande demais: as caches limpam-se na mesma, nada de dados sai, e a resposta não é 200", async () => {
+    st.anexoGigante = true;
+    const res = await GET(req("Bearer segredo"));
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    const corpo = await res.json();
+    expect(corpo).toMatchObject({ ok: false, reason: "grande demais", avisoEnviado: true });
+    // As caches (que se refazem sozinhas) saem…
+    expect(st.fotosTratadasLimpezas).toBe(1);
+    expect(st.diagnosticosLimpezas).toBe(1);
+    // …e o que apaga dados continua à espera de uma cópia que tenha saído.
+    expect(st.retencoes).toBe(0);
+    expect(st.reciclagemLimpezas).toBe(0);
+    expect(st.carimbos).toHaveLength(0);
+  });
+
+  it("n.º 9 — se nem o aviso de «grande demais» sai, a resposta di-lo", async () => {
+    st.anexoGigante = true;
+    st.emailNaoSai = true;
+    const res = await GET(req("Bearer segredo"));
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(await res.json()).toMatchObject({ ok: false, avisoEnviado: false });
+  });
+
+  it("n.º 15 — os registos velhos do diagnóstico do vídeo limpam-se todas as noites", async () => {
+    const res = await GET(req("Bearer segredo"));
+    expect(res.status).toBe(200);
+    expect(st.diagnosticosLimpezas).toBe(1);
+    expect(await res.json()).toMatchObject({ diagnosticos: 4 });
+  });
+
+  it("n.º 17 — a retenção usa os pedidos que a cópia já leu, sem ler a tabela outra vez", async () => {
+    const pedidos = [{ id: "LIQ-1" }, { id: "LIQ-2" }];
+    st.payload = { ...st.payload, quotes: pedidos };
+    await GET(req("Bearer segredo"));
+    expect(st.retencaoRecebeu).toBe(pedidos);
+    expect(st.leiturasDosPedidos).toBe(0);
+  });
+
+  it("n.º 17 — o aquecimento recebe as propostas que a cópia já leu", async () => {
+    const propostas = [{ id: "p1" }];
+    st.payload = { ...st.payload, proposals: propostas };
+    await GET(req("Bearer segredo"));
+    expect(st.aquecimentoOpcoes[0]).toMatchObject({ propostas });
   });
 });

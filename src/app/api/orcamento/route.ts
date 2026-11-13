@@ -30,17 +30,19 @@ import {
   createQuote,
   listQuotes,
   listQuoteSummaries,
+  assinaturaDaListaDePedidos,
   getQuote,
   generateQuoteId,
   quoteIdFor,
 } from "@/lib/quotes-store";
 import { isAuthed } from "@/lib/admin-auth";
-import { jsonWithEtag } from "@/lib/api-cache";
+import { jsonWithEtag, naoMudou } from "@/lib/api-cache";
 import { sendPushToAll } from "@/lib/push";
 import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
 import { quotePayloadSchema } from "@/lib/validation";
 import { normalizarTelefone } from "@/lib/contacto-do-pedido";
 import { dominioRecebeEmail } from "@/lib/dominio-do-email";
+import { emailParaContagem } from "@/lib/email-para-contagem";
 import { log } from "@/lib/logger";
 import { eur0 as eur } from "@/lib/money";
 import { enviarEventos, ipDoPedido } from "@/lib/meta/capi";
@@ -676,7 +678,9 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
     // confirmation — the lead is already persisted and the team notified.
     // 10/11: 5 → 2. Um cliente verdadeiro manda um pedido, às vezes corrige e
     // manda outro; cinco era margem para usar o formulário como remetente.
-    const emailKey = `confirm:${form.email.trim().toLowerCase()}`;
+    // A chave conta a CAIXA que recebe, não a grafia: `ana+1@…`, `a.n.a@gmail…`
+    // e `ana@gmail…` são o mesmo tecto (ver `emailParaContagem`).
+    const emailKey = `confirm:${emailParaContagem(form.email)}`;
     if ((await rateLimit(emailKey, 2, 24 * 60 * 60_000, { global: true })).ok) {
       const sentRes = await sendMail({
         to: form.email,
@@ -1048,7 +1052,30 @@ async function GET_semMedida(request: NextRequest) {
      * Por ADESÃO: sem o parâmetro a resposta é a de sempre, com tudo.
      */
     const resumo = new URL(request.url).searchParams.get("resumo") === "1";
-    return jsonWithEtag(request, resumo ? await listQuoteSummaries() : await listQuotes());
+    /**
+     * «Mudou?» antes de ler (auditoria de 13/11, n.º 3): uma leitura de ~100
+     * bytes (quantos pedidos, última alteração) decide o 304, e só se lê a
+     * lista — a coluna `data` de todos os pedidos — quando mudou mesmo. Ver
+     * `assinaturaDaListaDePedidos`. A versão publicada entra no validador: um
+     * deploy que mude a forma da lista não pode responder 304 a uma cópia velha.
+     */
+    const assinatura = await assinaturaDaListaDePedidos();
+    const validador = assinatura
+      ? {
+          lista: assinatura,
+          resumo,
+          versao: process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "",
+        }
+      : undefined;
+    if (validador) {
+      const igual = naoMudou(request, validador);
+      if (igual) return igual;
+    }
+    return jsonWithEtag(
+      request,
+      resumo ? await listQuoteSummaries() : await listQuotes(),
+      validador,
+    );
   } catch (err) {
     log.error("orcamento GET falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

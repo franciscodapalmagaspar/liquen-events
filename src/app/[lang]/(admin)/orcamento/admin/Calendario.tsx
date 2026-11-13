@@ -1465,7 +1465,10 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
   const estadoDaVista =
     vista === "ano"
       ? fechadosDoAno === 0
-        ? "Ano todo livre"
+        ? // «Ano todo livre» lia-se «nada marcado», com o cartão de novembro
+          // a dizer «1 dia com marcações» por baixo. O que se conta são dias
+          // FECHADOS, e a frase tem de o dizer.
+          "Nenhum dia fechado este ano"
         : `${fechadosDoAno} dia${fechadosDoAno !== 1 ? "s" : ""} fechado${fechadosDoAno !== 1 ? "s" : ""} este ano`
       : vista === "mes"
         ? monthTotal === 0
@@ -1971,12 +1974,21 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                            parecem dias de setembro». Passam a ter o fundo
                            recuado da casa e o número no tom mais calmo que a
                            escada dá — não estão desligados, estão noutro mês,
-                           e a grelha tem de o dizer sem se partir em duas. */
-                            className="bg-[var(--bo-surface-sunken)] p-1.5 sm:p-2"
+                           e a grelha tem de o dizer sem se partir em duas.
+
+                           A MESMA CAIXA que os dias do mês: o mesmo `p-1
+                           sm:p-1.5` e a mesma linha flex de 24 px (a do «+»).
+                           Com `p-2` e o número solto num bloco, o número
+                           ficava 6 px abaixo dos do lado na mesma semana. E o
+                           tom é o dos dias do mês (`/40`): a `/25` dava 1,6:1,
+                           e o «noutro mês» já o diz o fundo recuado. */
+                            className="bg-[var(--bo-surface-sunken)] p-1 sm:p-1.5"
                           >
-                            <span className="text-[10px] sm:text-[11px] tabular-nums text-foreground/25">
-                              {c.day}
-                            </span>
+                            <div className="flex items-center sm:h-6">
+                              <span className="text-[10px] sm:text-[11px] tabular-nums text-foreground/40 px-0.5">
+                                {c.day}
+                              </span>
+                            </div>
                           </div>
                         );
                       }
@@ -2383,8 +2395,15 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
             o lado esquerdo do conteúdo não é uma barra, é o começo do texto.
             Mudar esta coluna de lado punha-a a competir com uma barra lateral
             que não existe, e — empilhada no telemóvel — punha os filtros e os
-            próximos eventos ANTES da grelha, que é o herói do ecrã. */}
-        <div className="flex flex-col gap-4 lg:gap-6">
+            próximos eventos ANTES da grelha, que é o herói do ecrã.
+
+            `min-w-0` aqui e `w-full` no cartão: um item de grelha não encolhe
+            abaixo do seu conteúdo, e o `self-start` que o cartão tinha, numa
+            coluna flex, dava-lhe a largura do nome mais comprido — com 89
+            letras ia a 631 px numa coluna de 320, a página ganhava scroll de
+            lado e, no telemóvel, a barra de baixo fugia do ecrã. Com largura
+            a sério, o `truncate` do nome tem onde morder. */}
+        <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
           <ListaDeCalendarios
             calendarios={calendarios}
             contagens={contagensPorTipo}
@@ -2396,7 +2415,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
           <Card
             padding="none"
             style={{ "--cena": 2 } as React.CSSProperties}
-            className="bo-cena overflow-clip self-start"
+            className="bo-cena overflow-clip w-full min-w-0"
           >
             <p className="bo-eyebrow px-5 sm:px-6 py-4 border-b border-[var(--bo-hairline)]">
               Próximos eventos

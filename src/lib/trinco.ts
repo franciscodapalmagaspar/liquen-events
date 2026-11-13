@@ -33,9 +33,7 @@ import { log } from "./logger";
  * Custo: duas escritas pequenas por envio (criar e apagar). Nada fica guardado.
  */
 
-export type Trinco =
-  | { ok: true; soltar: () => Promise<void> }
-  | { ok: false; ate: string };
+export type Trinco = { ok: true; soltar: () => Promise<void> } | { ok: false; ate: string };
 
 const PREFIXO = "trinco:";
 const emMemoria = new Map<string, number>();

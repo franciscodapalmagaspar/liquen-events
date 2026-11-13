@@ -211,6 +211,13 @@ export interface Contexto {
   emailDoCliente?: string;
   /** O dia de hoje (yyyy-mm-dd), para a validade. Injetável para testes. */
   hoje?: string;
+  /**
+   * O PDF final desta versão já foi visto e confirmado? Passa tal e qual ao
+   * `oQueFaltaParaEnviar` (`ContextoDoEnvio.pdfVisto`). Sem ele, a pastilha do
+   * envio dizia «Faltam 4» e esta lista «3 coisas impedem o envio»: a quarta
+   * era o «Ver o PDF», que só uma das duas contava. Ausente, não se verifica.
+   */
+  pdfVisto?: boolean;
 }
 
 /**
@@ -245,6 +252,7 @@ export function conferir({
   canal,
   emailDoCliente,
   hoje,
+  pdfVisto,
 }: Contexto): Verificacao[] {
   const v: Verificacao[] = [];
 
@@ -674,6 +682,7 @@ export function conferir({
     canal,
     emailDoCliente,
     hoje,
+    pdfVisto,
   })) {
     // «Por traduzir» é o assunto que esta lista chama «Idioma» — a mesma
     // pergunta com outro nome, e duas linhas sobre ela era uma a mais.

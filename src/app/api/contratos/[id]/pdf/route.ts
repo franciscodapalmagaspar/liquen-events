@@ -34,6 +34,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         // O tamanho à frente deixa o browser contar o que já chegou.
         "Content-Length": String(corpo.byteLength),
         "Content-Disposition": `inline; filename="Contrato-Liquen-${ref}.pdf"`,
+        // Nome, email e termos do casal: nada disto fica guardado num cache
+        // pelo caminho nem no browser (auditoria 6, n.º 19). As rotas irmãs
+        // (mesas, guiões) já o diziam.
+        "Cache-Control": "no-store",
       },
     });
   } catch (err) {

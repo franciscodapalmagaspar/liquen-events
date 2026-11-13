@@ -514,8 +514,8 @@ export const en: Dict = {
     phMensagem: "Style, colours, atmosphere, inspiration you've saved…",
     hintMensagem:
       "The more you can tell us about the style you have in mind, the colour palette, the atmosphere you want and the references you've chosen, the better we can tailor the proposal to your expectations.\n\nThese are the elements we start from to develop your personalised proposal.",
-    errNome: "Please enter your name",
-    errEmail: "Invalid email",
+    errNome: "Please enter your name.",
+    errEmail: "Invalid email.",
     // Ver `pt.ts`: a frase da regra "email ou telemóvel", partilhada pela rota
     // e pelo formulário.
     errContacto: "Please leave us an email or a phone number so we can get back to you.",

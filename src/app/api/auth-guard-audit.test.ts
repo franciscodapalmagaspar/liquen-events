@@ -484,6 +484,9 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // nomes das variáveis a confirmar. E a verificação ESCREVE (é assim que ela é
   // honesta: tenta gravar e volta a ler). Sem sessão, nem se pergunta.
   { path: "./admin/armazenamento/route", methods: ["GET"] },
+  // O plano das fotografias repetidas (a seco): lista caminhos de fotografias
+  // de casais e lê as tabelas todas. Só lê — mas o que lê é a base inteira.
+  { path: "./admin/fotos-duplicadas/route", methods: ["GET"] },
   // «Porque é que as fotografias não aparecem?» — a rota que responde. Nomeia
   // as variáveis do Supabase, os buckets, o papel da chave e a política de
   // segurança que esta instalação serve: é o mapa da instalação, e vai buscar
@@ -622,6 +625,9 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // clientes, datas e locais de OUTROS pedidos, numa resposta só.
   { path: "./orcamento/[id]/fotos-repetidas/route", methods: ["GET"] },
   { path: "./orcamento/manual/route", methods: ["POST"] },
+  // Ler uma proposta antiga (Word/PowerPoint). Não grava nada, mas devolve o
+  // conteúdo de um documento de uma cliente — só para a sessão admin.
+  { path: "./orcamento/importar/route", methods: ["POST"] },
   // A biblioteca visual: o vocabulário de etiquetas, a procura por etiquetas e
   // o etiquetar em lote. Tudo isto lê e escreve o trabalho de arrumação da
   // equipa, e as fotos que devolve são URLs assinados de um bucket PRIVADO.
@@ -685,6 +691,9 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // sessão baptizava o aparelho de outra pessoa para ela apagar o dela.
   { path: "./admin/passkeys/[id]/route", methods: ["DELETE", "PATCH"] },
   { path: "./admin/passkeys/registo/route", methods: ["GET", "POST"] },
+  // Confirmar a palavra-passe antes de registar (auditoria de 13/11, n.º 5):
+  // só para a conta da sessão que já lá está.
+  { path: "./admin/passkeys/confirmar/route", methods: ["POST"] },
   // A Reciclagem (R3): ler mostra o que se apagou — dados de clientes e de
   // fornecedores —, e repor e apagar de vez escrevem. Tudo de sessão.
   { path: "./reciclagem/route", methods: ["GET"] },

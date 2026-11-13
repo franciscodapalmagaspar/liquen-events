@@ -53,9 +53,20 @@ describe("o anel de foco", () => {
     expect(/(^|\})\s*:focus-visible\s*\{[^}]*outline-offset:/m.test(codigo)).toBe(true);
   });
 
+  it("a cor é o token `--focus-ring`, que tem par no escuro (auditoria de 13/11, n.º 6)", () => {
+    // Um rgba fixo dava ≈2,6:1 sobre o fundo escuro do back office.
+    expect(
+      /(^|\})\s*:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--focus-ring\)/m.test(codigo),
+    ).toBe(true);
+    const admin = readFileSync(join(process.cwd(), "src/app/admin.css"), "utf8");
+    expect(/--focus-ring:\s*light-dark\(/.test(admin)).toBe(true);
+  });
+
   it("sai apenas nos campos do formulário de orçamento — e na caixa dos anúncios", () => {
     expect(
-      /\.field-line:focus-visible,\s*\.campo-apple:focus-visible\s*\{\s*outline:\s*none/.test(codigo),
+      /\.field-line:focus-visible,\s*\.campo-apple:focus-visible\s*\{\s*outline:\s*none/.test(
+        codigo,
+      ),
       "o «quadrado verde» voltou aos campos do orçamento ou dos anúncios",
     ).toBe(true);
   });
@@ -70,7 +81,9 @@ describe("o anel de foco", () => {
     const foco = codigo.match(/\.campo-apple:focus\s*\{([^}]*)\}/)?.[1] ?? "";
     expect(/border-color:\s*var\(--fg-secondary\)/.test(foco)).toBe(true);
     expect(/box-shadow:\s*inset/.test(foco)).toBe(true);
-    expect(/moss|--accent/.test(foco), "o foco da caixa dos anúncios voltou a ser verde").toBe(false);
+    expect(/moss|--accent/.test(foco), "o foco da caixa dos anúncios voltou a ser verde").toBe(
+      false,
+    );
   });
 
   /**

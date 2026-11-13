@@ -69,7 +69,8 @@ vi.mock("@/lib/passkeys-store", async (orig) => ({
 const { POST: entrarPOST } = await import("./entrada/route");
 const { POST: registarPOST } = await import("./registo/route");
 const { CHALLENGE_COOKIE, novoDesafio, selarDesafio } = await import("@/lib/passkey-challenge");
-const { ADMIN_COOKIE, createSession } = await import("@/lib/admin-auth");
+const { ADMIN_COOKIE, ADMIN_REAUTH_COOKIE, createSession, criarConfirmacao } =
+  await import("@/lib/admin-auth");
 
 const DOMINIO = "liquen.test";
 const CONTA = "Catarina";
@@ -123,7 +124,8 @@ function pedidoDeRegisto(): NextRequest {
     headers: {
       "content-type": "application/json",
       host: DOMINIO,
-      cookie: `${CHALLENGE_COOKIE}=${desafio}; ${ADMIN_COOKIE}=${createSession(CONTA)}`,
+      // Com a palavra-passe confirmada há pouco (n.º 5), como no ecrã.
+      cookie: `${CHALLENGE_COOKIE}=${desafio}; ${ADMIN_COOKIE}=${createSession(CONTA)}; ${ADMIN_REAUTH_COOKIE}=${criarConfirmacao(CONTA)}`,
     },
     body: JSON.stringify({ response: { id: "cred-1" }, deviceLabel: "iPhone" }),
   });

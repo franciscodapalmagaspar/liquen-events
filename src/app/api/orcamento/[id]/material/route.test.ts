@@ -5,12 +5,30 @@ import type { LinhaGerada } from "@/lib/material-rules";
 
 const authed = vi.hoisted(() => ({ ok: true }));
 const dados = vi.hoisted(() => ({
-  /** As linhas que já estavam na checklist antes de se voltar a gerar. */
-  anteriores: [] as unknown[],
+  /** As linhas que já estavam na checklist antes de se voltar a gerar
+   *  (escrever aqui é escrever na checklist da base). */
+  get anteriores(): unknown[] {
+    return dados.linhas;
+  },
+  set anteriores(v: unknown[]) {
+    dados.linhas = (v as Record<string, unknown>[]).map((l) => ({ ...l }));
+  },
   /** O que o motor de regras devolve nesta geração. */
   geradas: [] as unknown[],
-  addEventItem: vi.fn(async (input: Record<string, unknown>) => ({ id: "novo", ...input })),
-  removeItemsOfEvent: vi.fn(async () => {}),
+  /** A checklist como está na base, depois de cada escrita. */
+  linhas: [] as Record<string, unknown>[],
+  /** A ordem das escritas: é ela que diz se algo saiu antes de o novo entrar. */
+  passos: [] as string[],
+  addEventItem: vi.fn(async (input: Record<string, unknown>) => {
+    const linha = { ...input, id: `novo-${String(input.itemId ?? input.name)}` };
+    dados.linhas.push(linha);
+    dados.passos.push(`add:${String(input.itemId)}`);
+    return linha;
+  }),
+  removeEventItem: vi.fn(async (id: string) => {
+    dados.linhas = dados.linhas.filter((l) => l.id !== id);
+    dados.passos.push(`remove:${id}`);
+  }),
   updateEventMaterial: vi.fn(async () => null),
   /**
    * Os dois duplos que ficam entre o PEDIDO e as REGRAS. Gravam o que lhes
@@ -45,9 +63,24 @@ vi.mock("@/lib/event-material-store", () => ({
   updateEventMaterial: dados.updateEventMaterial,
 }));
 vi.mock("@/lib/event-material-items-store", () => ({
-  listItemsOfEvent: vi.fn(async () => dados.anteriores),
+  listItemsOfEvent: vi.fn(async () => dados.linhas.map((l) => ({ ...l }))),
   addEventItem: dados.addEventItem,
-  removeItemsOfEvent: dados.removeItemsOfEvent,
+  removeEventItem: dados.removeEventItem,
+  // A primitiva de apagar tudo — que a regeneração já NÃO pode usar.
+  removeItemsOfEvent: vi.fn(async () => {
+    for (const l of dados.linhas) dados.passos.push(`remove:${String(l.id)}`);
+    dados.linhas = [];
+  }),
+  obterEventItem: vi.fn(async (id: string) => dados.linhas.find((l) => l.id === id) ?? null),
+  updateEventItemWith: vi.fn(
+    async (id: string, mutate: (c: Record<string, unknown>) => Record<string, unknown>) => {
+      const i = dados.linhas.findIndex((l) => l.id === id);
+      if (i < 0) return null;
+      dados.linhas[i] = mutate(dados.linhas[i]);
+      dados.passos.push(`update:${id}`);
+      return dados.linhas[i];
+    },
+  ),
 }));
 
 import { POST } from "./route";
@@ -92,17 +125,16 @@ function anterior(over: Partial<EventMaterialItem> = {}): EventMaterialItem {
   };
 }
 
-/** A linha que a regeneração gravou para um dado item do catálogo. */
+/** A linha que ficou na checklist, depois de regenerar, para um item do catálogo. */
 function gravada(itemId: string) {
-  const call = dados.addEventItem.mock.calls.find(
-    (c) => (c[0] as { itemId?: string }).itemId === itemId,
-  );
-  return call?.[0] as unknown as Partial<EventMaterialItem> | undefined;
+  return dados.linhas.find((l) => l.itemId === itemId) as Partial<EventMaterialItem> | undefined;
 }
 
 beforeEach(() => {
   authed.ok = true;
   dados.anteriores = [];
+  dados.linhas = [];
+  dados.passos = [];
   dados.geradas = [];
   vi.clearAllMocks();
 });
@@ -214,7 +246,39 @@ describe("POST /api/orcamento/[id]/material — o que a regeneração preserva",
   it("401 sem sessão, e nada é regenerado", async () => {
     authed.ok = false;
     expect((await post()).status).toBe(401);
-    expect(dados.removeItemsOfEvent).not.toHaveBeenCalled();
+    expect(dados.removeEventItem).not.toHaveBeenCalled();
     expect(dados.addEventItem).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Auditoria 6, n.º 10. Uma regra mudou e a toalha deixou de ser gerada —
+   * mas estava marcada «em falta» depois do evento. Apagar e reconstruir
+   * deitava essa marca fora: era o único registo do material perdido.
+   */
+  it("uma linha marcada que deixou de ser gerada fica, com a sua marca", async () => {
+    dados.anteriores = [anterior({ itemId: "toalha", missing: true })];
+    dados.geradas = [gerada({ itemId: "vela", name: "Vela" })];
+
+    expect((await post()).status).toBe(200);
+
+    expect(gravada("toalha")).toMatchObject({ id: "linha-1", missing: true });
+    expect(gravada("vela")).toBeDefined();
+  });
+
+  it("a linha que continua a ser gerada é a MESMA (mesmo id), e as novas entram antes de algo sair", async () => {
+    dados.anteriores = [
+      anterior({ id: "linha-1", itemId: "toalha", loadedAt: "2026-06-01T08:00:00.000Z" }),
+      anterior({ id: "linha-2", itemId: "guardanapo" }),
+    ];
+    dados.geradas = [gerada({ qty: 12 }), gerada({ itemId: "vela", name: "Vela" })];
+
+    await post();
+
+    // A toalha não foi apagada e recriada: um «carregado» que chegasse a meio
+    // da regeneração ia parar a um id que já não existia.
+    expect(gravada("toalha")).toMatchObject({ id: "linha-1", qty: 12 });
+    // O guardanapo, sem marca e sem par, sai — mas só depois de a vela entrar.
+    expect(gravada("guardanapo")).toBeUndefined();
+    expect(dados.passos.indexOf("add:vela")).toBeLessThan(dados.passos.indexOf("remove:linha-2"));
   });
 });

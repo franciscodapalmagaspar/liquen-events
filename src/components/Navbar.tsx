@@ -476,7 +476,10 @@ export default function Navbar() {
     pathname === "/contacto" ||
     pathname === "/servicos" ||
     pathname === "/galeria" ||
-    pathname.startsWith("/servicos/");
+    pathname.startsWith("/servicos/") ||
+    // As páginas dos anúncios (destination, polos, estilos): todas abrem numa
+    // foto escura com véu, e a barra tem de lá ler-se clara.
+    pathname.startsWith("/casamentos/");
   // Scrim de legibilidade — SÓ sobre o hero escuro no topo (barra transparente)
   // ou com o menu aberto. Uma vez em scroll a barra ganha fundo sólido próprio,
   // pelo que o gradiente deixaria apenas uma sombra a sangrar para o conteúdo.

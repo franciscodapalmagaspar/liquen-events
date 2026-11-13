@@ -5,7 +5,13 @@ import {
   verifyRegistrationResponse,
   type VerifyRegistrationResponseOpts,
 } from "@simplewebauthn/server";
-import { ADMIN_COOKIE, isAuthed, readSession } from "@/lib/admin-auth";
+import {
+  ADMIN_COOKIE,
+  ADMIN_REAUTH_COOKIE,
+  confirmacaoValida,
+  isAuthed,
+  readSession,
+} from "@/lib/admin-auth";
 import { isMissingTable, isPersistenceUnavailable } from "@/lib/repository";
 import {
   MAX_DEVICE_LABEL,
@@ -69,10 +75,28 @@ function contaAutenticada(req: NextRequest): string | null {
   return nome ? nome : null;
 }
 
+/**
+ * A palavra-passe confirmada há pouco (auditoria de 13/11, n.º 5): a sessão
+ * sozinha não chega para dar a um aparelho uma porta que dura mais do que ela.
+ * Ver `confirmar/route.ts`.
+ */
+function semConfirmacaoRecente(req: NextRequest, conta: string): NextResponse | null {
+  if (confirmacaoValida(req.cookies.get(ADMIN_REAUTH_COOKIE)?.value, conta)) return null;
+  return NextResponse.json(
+    {
+      error: "Confirma a tua palavra-passe para registar este dispositivo.",
+      reconfirmar: true,
+    },
+    { status: 403 },
+  );
+}
+
 export async function GET(req: NextRequest) {
   if (!isAuthed(req)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const conta = contaAutenticada(req);
   if (!conta) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  const recusa = semConfirmacaoRecente(req, conta);
+  if (recusa) return recusa;
 
   let existentes;
   try {
@@ -144,6 +168,8 @@ export async function POST(req: NextRequest) {
   if (!isAuthed(req)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const conta = contaAutenticada(req);
   if (!conta) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  const recusa = semConfirmacaoRecente(req, conta);
+  if (recusa) return recusa;
 
   let body: unknown;
   try {
@@ -228,5 +254,14 @@ export async function POST(req: NextRequest) {
   }
 
   log.info("passkeys: dispositivo registado", { conta });
-  return gastandoODesafio(NextResponse.json({ ok: true }));
+  // A confirmação serve um registo: o seguinte pede a palavra-passe outra vez.
+  const feito = gastandoODesafio(NextResponse.json({ ok: true }));
+  feito.cookies.set(ADMIN_REAUTH_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+    maxAge: 0,
+  });
+  return feito;
 }

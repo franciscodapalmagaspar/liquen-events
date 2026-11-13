@@ -122,5 +122,9 @@ export function eventCountdown(
   const weeks = Math.round(days / 7);
   if (days <= 90) return { label: `faltam ${weeks} semanas`, tone: "future" };
   const months = Math.round(days / 30);
-  return { label: `faltam ${months} meses`, tone: "future" };
+  if (months <= 24) return { label: `faltam ${months} meses`, tone: "future" };
+  // «faltam 884 meses» não se lê: acima de dois anos conta-se em anos. Nunca
+  // no singular, pela mesma razão das semanas e dos meses — a fronteira deixa
+  // o mínimo deste ramo nos 2.
+  return { label: `faltam ${Math.round(days / 365)} anos`, tone: "future" };
 }

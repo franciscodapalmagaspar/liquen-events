@@ -8,7 +8,11 @@ const push = vi.hoisted(() => ({
   configured: true,
 }));
 
-vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => authState.authed }));
+vi.mock("@/lib/admin-auth", () => ({
+  ADMIN_COOKIE: "liquen_admin",
+  isAuthed: () => authState.authed,
+  readSession: () => (authState.authed ? { name: "TESTE Ana" } : null),
+}));
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@/lib/push", () => ({
   saveSubscription: push.save,
@@ -70,8 +74,10 @@ describe("POST /api/push/subscribe", () => {
     const res = await POST(req("POST", VALID_SUB));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
+    // Presa à conta da sessão (n.º 7), nunca a uma conta vinda do corpo.
     expect(push.save).toHaveBeenCalledWith(
       expect.objectContaining({ endpoint: VALID_SUB.endpoint }),
+      "TESTE Ana",
     );
   });
 

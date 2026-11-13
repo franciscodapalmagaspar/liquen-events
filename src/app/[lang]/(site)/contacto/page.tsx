@@ -107,7 +107,10 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
           único formulário (capta o lead para o CRM). Aqui ficam os canais
           diretos (para perguntas rápidas) e o CTA que encaminha para esse
           formulário — sem dois funis a competir. */}
-      <section className="bg-surface">
+      {/* `overflow-x-clip`: a foto do painel da direita sangra até à borda do
+          ecrã (ver lá), e o `100vw` conta a barra de rolagem — o que sobrar
+          corta-se aqui, sem rolagem de lado. */}
+      <section className="bg-surface overflow-x-clip">
         <div className="max-w-7xl mx-auto px-6 lg:px-16">
           <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr]">
             {/* ── Esquerda — canais diretos ── */}
@@ -272,20 +275,31 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
             {/* ── Direita — CTA para o formulário único (/orcamento) ──
                 Painel com foto de um evento decorado + véu escuro por cima,
                 para o texto (cream) manter contraste AA sobre a imagem. */}
-            <div className="relative overflow-hidden flex flex-col justify-center py-14 px-8 md:py-20 md:px-12 lg:pl-20 lg:pr-12">
-              <SafeImage
-                src={orcamentoCtaImg}
-                {...blurFor(orcamentoCtaImg)}
-                alt=""
+            {/* ── A FOTO SANGRA ATÉ À BORDA DIREITA (auditoria de 13/11, n.º 20) ──
+                O painel acabava no fim do `max-w-7xl` (x = 1296 a 1440) e
+                deixava uma faixa branca de 144 px à direita: a banda parecia
+                cortada. A partir de `lg` a foto e o véu estendem-se para lá do
+                contentor — o `px-16` (4rem) mais a margem do `max-w-7xl`
+                (80rem) —, e o texto fica onde estava. */}
+            <div className="relative overflow-hidden lg:overflow-visible flex flex-col justify-center py-14 px-8 md:py-20 md:px-12 lg:pl-20 lg:pr-12">
+              <div
                 aria-hidden
-                fill
-                sizes="(max-width: 1024px) 100vw, 60vw"
-                quality={75}
-                className="object-cover"
-              />
-              {/* Véu 100% neutro (sem tinte moss) — a foto lê-se como textura
-                  escura e o cream mantém o contraste AA. */}
-              <div className="absolute inset-0 bg-gradient-to-br from-ink/85 via-ink/72 to-[#0c0e0b]/70" />
+                className="absolute inset-y-0 left-0 right-0 lg:-right-[calc(4rem_+_max(0px,(100vw_-_80rem)/2))]"
+              >
+                <SafeImage
+                  src={orcamentoCtaImg}
+                  {...blurFor(orcamentoCtaImg)}
+                  alt=""
+                  aria-hidden
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 60vw"
+                  quality={75}
+                  className="object-cover"
+                />
+                {/* Véu 100% neutro (sem tinte moss) — a foto lê-se como textura
+                    escura e o cream mantém o contraste AA. */}
+                <div className="absolute inset-0 bg-gradient-to-br from-ink/85 via-ink/72 to-[#0c0e0b]/70" />
+              </div>
               <AnimateIn>
                 <div className="relative">
                   <p className="text-cream/70 text-[10px] tracking-[0.5em] uppercase mb-8 flex items-center gap-3">
