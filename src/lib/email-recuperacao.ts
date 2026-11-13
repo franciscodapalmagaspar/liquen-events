@@ -1,5 +1,6 @@
 import { esc } from "./mail";
 import { ESTILO_DA_CARTA } from "./email-pedido-recebido";
+import { FUSO_DO_ESTUDIO } from "./fuso";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -44,7 +45,7 @@ export function horaDeLisboa(d: Date): string {
   return new Intl.DateTimeFormat("pt-PT", {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Europe/Lisbon",
+    timeZone: FUSO_DO_ESTUDIO,
   }).format(d);
 }
 
