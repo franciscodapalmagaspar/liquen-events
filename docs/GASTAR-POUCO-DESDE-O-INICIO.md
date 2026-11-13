@@ -234,10 +234,14 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
   que já existem; isto IMPEDE que nasçam novas (`fotos-resumo.ts`).
   · **Índice**: uma linha de `app_state` por resumo, `foto-resumo:<32 hex>` →
     até 6 caminhos (`<pedido>/<x>.jpg` ou `tema:<pasta>/<x>.jpg`). O resumo é
-    o da Biblioteca (16 bytes do SHA-256), e cada foto entra com dois: o dos
-    bytes GUARDADOS (calculado no servidor) e o do ficheiro ORIGINAL (calculado
-    no navegador antes de preparar — é o que reconhece uma foto da Biblioteca,
-    que lá foi preparada com outro tamanho). Sem migração.
+    o da Biblioteca (16 bytes do SHA-256). Escreve-se o dos bytes GUARDADOS
+    (calculado no servidor) e, só na Biblioteca, o do ficheiro ORIGINAL quando
+    o nome do ficheiro já o traz — é o que reconhece uma foto da Biblioteca,
+    que lá foi preparada com outro tamanho. O resumo que o navegador manda
+    serve só para PROCURAR (revisão do #454: errado, envenenava o índice).
+    Tema apagado sai do índice; tema arquivado fica. Antes de gravar o
+    rascunho, a importação volta a confirmar as `tema:` e sobe como nova a
+    que tiver saído entretanto. Sem migração.
   · **Carregar para uma proposta** (`assets`): se a foto já está na pasta
     DESTE pedido, devolve esse caminho; se está na Biblioteca num tema vivo
     (não arquivado), devolve `tema:<caminho>` — a mesma referência do «escolher
