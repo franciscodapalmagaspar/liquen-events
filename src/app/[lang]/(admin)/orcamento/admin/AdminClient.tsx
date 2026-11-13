@@ -72,7 +72,6 @@ import CommandPalette, { type Command } from "./CommandPalette";
 import ShortcutsModal from "./ShortcutsModal";
 import AjudaGlossario from "./AjudaGlossario";
 import NewQuoteModal from "./NewQuoteModal";
-import ImportarProposta from "./ImportarProposta";
 import RestoreDialog from "./RestoreDialog";
 import PasskeysDialog from "./PasskeysDialog";
 import SessaoExpirada from "./SessaoExpirada";
@@ -198,6 +197,7 @@ import {
   FollowUpField,
   ActivityLog,
   EventTasks,
+  ImportarProposta,
 } from "./lazy";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
 import { linkDaConversa } from "@/lib/whatsapp";
@@ -4937,14 +4937,16 @@ export default function AdminClient({
         />
         {/* Uma proposta antiga (Word/PowerPoint) → o pedido e o rascunho, e
             abre no «Fazer proposta» pela mesma porta do «Novo pedido». */}
-        <ImportarProposta
-          open={importarOpen}
-          onClose={() => setImportarOpen(false)}
-          onCreated={(q) => {
-            setQuotes((prev) => [q, ...prev]);
-            abrirCliente(q);
-          }}
-        />
+        {importarOpen && (
+          <ImportarProposta
+            open={importarOpen}
+            onClose={() => setImportarOpen(false)}
+            onCreated={(q) => {
+              setQuotes((prev) => [q, ...prev]);
+              abrirCliente(q);
+            }}
+          />
+        )}
         {/* ── Sidebar ── */}
         {/* `inert` quando é gaveta E está fechada.
             Sem isto, os 20 botões da gaveta fechada continuavam alcançáveis: o
