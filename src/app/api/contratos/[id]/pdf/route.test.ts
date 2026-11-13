@@ -59,6 +59,8 @@ describe("GET /api/contratos/[id]/pdf", () => {
     const res = await GET(req(), { params: Promise.resolve({ id: "c-1" }) });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/pdf");
+    // Dados pessoais: nunca num cache (auditoria 6, n.º 19).
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(res.headers.get("Content-Disposition")).toContain("inline");
     expect(res.headers.get("Content-Disposition")).toContain("Contrato-Liquen-q-1.pdf");
     // O tamanho à frente: é o que deixa o back office mostrar quanto já chegou.
