@@ -64,7 +64,7 @@ export interface CelulaWeb {
   forma: FormaDaCelula;
   formaMovel: FormaDaCelula;
   imagem?: ImagemWeb;
-  /** A célula de texto: o tema que abre o capítulo. */
+  /** A célula de texto: o título e a nota do tema a que o mosaico pertence. */
   texto?: { sobre: string; titulo: string; nota: string };
 }
 
@@ -77,7 +77,13 @@ export interface CapituloPronto {
   foto: ImagemWeb | null;
   fundo: string | null;
   fotoAEsquerda: boolean;
-  mosaico: CelulaWeb[];
+  /**
+   * Um mosaico por tema, pela ordem dela, cada um com a SUA célula de texto —
+   * como no PDF, onde cada tema tem a sua página com o seu título e a sua nota.
+   * Era um só por capítulo, com o texto do primeiro tema: o título e a nota do
+   * segundo em diante não apareciam em lado nenhum (auditoria de 13/11).
+   */
+  mosaicos: CelulaWeb[][];
 }
 
 export interface PropostaWeb {
@@ -429,20 +435,56 @@ export async function montarPropostaWeb(
       }
     : null;
 
-  // ── Capítulos: o ecrã de abertura e o mosaico ──
+  // ── Capítulos: o ecrã de abertura e um mosaico por tema ──
+  const lingua = idioma === "en" ? "en" : "pt-PT";
   const capitulos: CapituloPronto[] = c.capitulos.map((k, ci) => {
     const fotos = k.temas.flatMap((x) => x.fotos);
-    const celulas = fotos.length
-      ? mosaicoDoCapitulo(
-          fotos.map((f) => f.aspecto),
-          true,
-          fotos.map((f) => {
+    /**
+     * ── CADA TEMA COM O SEU TEXTO, UMA VEZ ─────────────────────────────────
+     *
+     * O PDF dá a cada tema a sua página, com o título e a nota dele. A página
+     * fazia um mosaico só, com o texto do primeiro tema, e pintava a nota
+     * desse primeiro DUAS vezes (no ecrã de abertura e na célula); a do
+     * segundo tema em diante perdia-se. Agora há um mosaico por tema, e a
+     * nota vive só na célula do tema a que pertence.
+     *
+     * O primeiro leva sempre a célula (com o nome do capítulo, se o tema não
+     * tiver título), como antes. Um tema seguinte sem texto nenhum não a leva:
+     * repetir o nome do capítulo a meio das fotografias não diz nada.
+     */
+    const mosaicos = k.temas
+      .map((x, ti) => {
+        const temTexto = !!(x.titulo || x.subtitulo || x.nota);
+        if (!x.fotos.length && !temTexto) return [];
+        const comTexto = ti === 0 || temTexto;
+        const celulas = mosaicoDoCapitulo(
+          x.fotos.map((f) => f.aspecto),
+          comTexto,
+          x.fotos.map((f) => {
             const a = porRef.get(f.ref);
             return a?.largura && a?.altura ? Math.min(a.largura, a.altura) : undefined;
           }),
-        )
-      : [];
-    const abre = k.temas.find((x) => x.titulo) ?? k.temas[0];
+        );
+        return celulas.map(
+          (cel): CelulaWeb =>
+            cel.tipo === "texto"
+              ? {
+                  forma: cel.forma,
+                  formaMovel: cel.formaMovel,
+                  texto: {
+                    sobre: (x.subtitulo || k.nome).toLocaleLowerCase(lingua),
+                    titulo: x.titulo || k.nome,
+                    nota: x.nota,
+                  },
+                }
+              : {
+                  forma: cel.forma,
+                  formaMovel: cel.formaMovel,
+                  imagem: imagem(x.fotos[cel.indice!]) ?? undefined,
+                },
+        );
+      })
+      .filter((m) => m.length > 0);
     const molduraDoCapitulo = paraMoldura(k.fotos[0], [...k.fotos, ...fotos]);
     return {
       id: `cap${ci + 1}`,
@@ -458,25 +500,7 @@ export async function montarPropostaWeb(
       ),
       // O lado alterna: par → fotografia à esquerda (o protótipo).
       fotoAEsquerda: (ci + 1) % 2 === 0,
-      mosaico: celulas.map((cel) =>
-        cel.tipo === "texto"
-          ? {
-              forma: cel.forma,
-              formaMovel: cel.formaMovel,
-              texto: {
-                sobre: (abre?.subtitulo || k.nome).toLocaleLowerCase(
-                  idioma === "en" ? "en" : "pt-PT",
-                ),
-                titulo: abre?.titulo || k.nome,
-                nota: abre?.nota ?? "",
-              },
-            }
-          : {
-              forma: cel.forma,
-              formaMovel: cel.formaMovel,
-              imagem: imagem(fotos[cel.indice!]) ?? undefined,
-            },
-      ),
+      mosaicos,
     };
   });
 

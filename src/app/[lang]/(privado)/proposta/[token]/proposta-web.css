@@ -636,6 +636,11 @@ html:has(.pw) {
     grid-auto-rows: minmax(25vw, auto);
   }
 }
+/* Um mosaico por tema (13/11): seguidos, lêem-se como uma grelha só, com o
+   mesmo intervalo de 4 px entre eles que há entre as células. */
+.pw-mos + .pw-mos {
+  margin-top: 4px;
+}
 .pw-mos figure {
   position: relative;
   overflow: hidden;
