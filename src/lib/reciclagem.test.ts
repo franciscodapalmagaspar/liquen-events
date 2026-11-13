@@ -260,6 +260,7 @@ async function carregarR3b() {
   const registo = await import("./event-material-log-store");
   const temas = await import("./themes-store");
   const contratos = await import("./contracts-store");
+  const tarefas = await import("./tasks-store");
   return {
     ...base,
     pedidos,
@@ -271,6 +272,7 @@ async function carregarR3b() {
     registo,
     temas,
     contratos,
+    tarefas,
   };
 }
 
@@ -360,6 +362,33 @@ describe("Reciclagem — pedido (R3b)", () => {
     expect((await r.itens.listItemsOfEvent(ev.id)).map((l) => l.id)).toEqual([linha.id]);
     expect((await r.registo.listLogOf(ev.id)).map((l) => l.id)).toEqual([marca.id]);
     expect(await r.store.listarReciclagem()).toEqual([]);
+  });
+
+  it("as tarefas do pedido saem com ele e voltam com ele (auditoria 12/11, n.º 7)", async () => {
+    const r = await carregarR3b();
+    await r.pedidos.createQuote(UM_PEDIDO);
+    const t = await r.tarefas.createTask({
+      title: "TESTE Ligar aos noivos",
+      priority: "media",
+      quoteId: UM_PEDIDO.id,
+      clientName: "TESTE Ana e Rui",
+    } as Parameters<typeof r.tarefas.createTask>[0]);
+    const outra = await r.tarefas.createTask({
+      title: "TESTE Sem pedido",
+      priority: "media",
+    } as Parameters<typeof r.tarefas.createTask>[0]);
+
+    await r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id, "Catarina");
+    expect(await r.tarefas.obterTarefa(t.id)).toBeNull();
+    expect(await r.tarefas.obterTarefa(outra.id)).not.toBeNull();
+
+    const [entrada] = await r.store.listarReciclagem();
+    await r.reciclagem.reporDaReciclagem(entrada.id);
+    expect(await r.tarefas.obterTarefa(t.id)).toMatchObject({
+      title: "TESTE Ligar aos noivos",
+      quoteId: UM_PEDIDO.id,
+      createdAt: t.createdAt,
+    });
   });
 
   it("um pedido com contrato não sai — e nada fica na Reciclagem", async () => {
