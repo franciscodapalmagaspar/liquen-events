@@ -20,8 +20,8 @@ export interface LegalDoc {
   sections: LegalSection[];
 }
 
-const UPDATED_PT = "Última atualização: julho de 2026";
-const UPDATED_EN = "Last updated: July 2026";
+const UPDATED_PT = "Última atualização: novembro de 2026";
+const UPDATED_EN = "Last updated: November 2026";
 
 function privacyPt(): LegalDoc {
   return {
@@ -45,6 +45,7 @@ function privacyPt(): LegalDoc {
           "Origem da visita: se chegar ao site através de uma ligação com parâmetros de campanha (UTM) ou a partir de outro site, podemos registar essa proveniência, associada ao pedido, para percebermos como nos encontrou.",
           "Dados técnicos recolhidos automaticamente para segurança e estatística: endereço IP (de forma efémera, para limitação de abusos) e informação básica do pedido.",
           "Dados de análise e de publicidade (apenas com o seu consentimento): se aceitar os cookies no aviso apresentado, utilizamos o Google Analytics e o Google Ads. Estes serviços recolhem identificadores associados a cookies, informação do dispositivo e do navegador e as páginas e interações no site, para medirmos a audiência e a eficácia da nossa publicidade. Se recusar, não são colocados cookies nem recolhida informação associada a cookies; o Google poderá ainda receber sinais técnicos agregados e sem cookies (por exemplo, país e tipo de página), que utiliza para modelação estatística e que não permitem identificá-lo individualmente.",
+          "Dados de publicidade da Meta (apenas com o seu consentimento): se aceitar os cookies, utilizamos também o Pixel da Meta (Facebook e Instagram), que regista as páginas visitadas e o envio do pedido de orçamento, com identificadores associados a cookies. Quando nos envia um pedido de orçamento depois de ter aceitado, comunicamos esse pedido à Meta também a partir do nosso servidor (API de Conversões), com o seu e-mail e telefone encriptados (hash) antes do envio, para medir a eficácia dos nossos anúncios. Se recusar os cookies, nada disto acontece.",
           "Rascunho do formulário: para não perder o que escreve, o formulário de pedido de orçamento guarda temporariamente as suas respostas no armazenamento de sessão do navegador (sessionStorage), apenas no seu dispositivo e apenas durante a sessão, e são apagadas ao fechar o separador. Pode também limpá-lo a qualquer momento nas definições do navegador; nada é enviado enquanto não submeter o pedido.",
         ],
       },
@@ -54,6 +55,7 @@ function privacyPt(): LegalDoc {
           "Responder a pedidos e elaborar orçamentos: diligências pré-contratuais que solicita (art. 6.º, n.º 1, al. b) do RGPD) e, quanto a mensagens que não visem a contratação, o nosso interesse legítimo em responder-lhe (al. f)).",
           "Gerir a relação com clientes e a prestação dos nossos serviços de organização de eventos: execução do contrato (al. b).",
           "Medir a audiência do site e a eficácia da nossa publicidade (Google Analytics e Google Ads): com base no seu consentimento (al. a)), quando aceita os cookies.",
+          "Medir a eficácia da nossa publicidade na Meta (Facebook e Instagram), incluindo saber se um pedido de orçamento ou uma contratação teve origem num anúncio: com base no seu consentimento (al. a)), quando aceita os cookies.",
           "Garantir a segurança do site e prevenir abusos: interesse legítimo (al. f).",
           "Cumprir obrigações legais, nomeadamente fiscais e contabilísticas: obrigação legal (al. c).",
         ],
@@ -71,6 +73,7 @@ function privacyPt(): LegalDoc {
           "Não vendemos os seus dados. Podemos recorrer a prestadores de serviços que os tratam em nosso nome e sob instruções, com garantias de segurança adequadas: alojamento e infraestrutura do site, envio e receção de e-mail, e base de dados. Sempre que aplicável, celebramos contratos de subcontratação nos termos do art. 28.º do RGPD.",
           "Recorremos ainda ao Google (Google Ireland Limited) para estatísticas de utilização (Google Analytics) e para medição e otimização de publicidade (Google Ads), mas apenas quando aceita os cookies respetivos no aviso de cookies. Se recusar, não são colocados cookies nem partilhados identificadores; o Google poderá ainda receber sinais agregados e sem cookies para modelação estatística, que não o identificam individualmente.",
           "Conversões Melhoradas: se aceitar os cookies e submeter um pedido de orçamento, o seu e-mail e/ou telefone podem ser partilhados com o Google apenas para medir a eficácia dos anúncios. Estes dados são encriptados (com hash) no seu navegador antes de serem enviados, e o Google usa-os apenas para associar a conversão ao anúncio, nunca para o identificar publicamente. Se recusar os cookies, nada disto acontece.",
+          "Recorremos ainda à Meta (Meta Platforms Ireland Limited) para medir e otimizar a nossa publicidade no Facebook e no Instagram, apenas quando aceita os cookies. A Meta recebe os identificadores dos cookies «_fbp» e «_fbc», o endereço IP e o tipo de navegador e, quando envia um pedido de orçamento ou contrata os nossos serviços, o seu e-mail e telefone encriptados (hash), que usa apenas para associar o resultado ao anúncio. A Meta atua, nesta medição, como responsável conjunto connosco, nos termos dos seus Termos de Ferramentas Empresariais.",
           "Poderemos divulgar dados quando exigido por lei ou por autoridade competente.",
         ],
       },
@@ -79,6 +82,7 @@ function privacyPt(): LegalDoc {
         body: [
           "Alguns prestadores podem tratar dados fora do Espaço Económico Europeu. Nesses casos, asseguramos garantias adequadas (por exemplo, cláusulas contratuais-tipo da Comissão Europeia) para proteger os seus dados.",
           "Em concreto, se aceitar os cookies de análise e publicidade, o Google poderá tratar dados nos Estados Unidos, ao abrigo dessas garantias (cláusulas contratuais-tipo e/ou o EU-US Data Privacy Framework).",
+          "Também a Meta poderá tratar dados nos Estados Unidos (Meta Platforms, Inc.), ao abrigo das mesmas garantias (EU-US Data Privacy Framework e/ou cláusulas contratuais-tipo), apenas se aceitar os cookies de publicidade.",
         ],
       },
       {
@@ -110,6 +114,7 @@ function privacyPt(): LegalDoc {
         body: [
           "Cookies estritamente necessários ao funcionamento, por exemplo «liquen-lang», que guarda o idioma escolhido, não requerem consentimento. A sua preferência de cookies é guardada no armazenamento local do navegador (localStorage), na chave «liquen-consent», e não num cookie.",
           "Cookies de análise e de publicidade (Google Analytics e Google Ads): só são ativados se os aceitar no aviso de cookies apresentado na primeira visita. Servem para medir as visitas e a eficácia da nossa publicidade e podem implicar a partilha de dados com o Google (ver secções 5 e 6). Utilizamos o Modo de Consentimento da Google: enquanto não aceitar, não são colocados cookies de análise nem de publicidade.",
+          "Cookies de publicidade da Meta («_fbp» e «_fbc», cerca de 90 dias): só são colocados se aceitar os cookies no mesmo aviso, e servem para medir a eficácia dos anúncios no Facebook e no Instagram (ver secções 5 e 6).",
           "Pode recusar, ou alterar a sua escolha a qualquer momento, através da ligação «Gerir cookies» no rodapé do site. Recusar os cookies não essenciais não afeta o funcionamento do site.",
           "Principais cookies e armazenamento utilizados: «liquen-lang» (cookie de idioma, cerca de 1 ano); «liquen-consent» (a sua escolha de cookies, guardada no localStorage do navegador); «_ga» e «_ga_*» (Google Analytics: distinguem visitantes e sessões, até 2 anos); «_gcl_au» (Google Ads: medição de conversões, cerca de 90 dias). Os cookies de análise e de publicidade só existem se os tiver aceitado.",
           "Para funcionamento offline, o site pode guardar no seu dispositivo uma cópia de páginas e recursos (cache do navegador), que não contém dados pessoais. A área reservada da equipa utiliza ainda cookies de sessão estritamente necessários, que não são colocados aos visitantes do site.",
@@ -210,6 +215,7 @@ function privacyEn(): LegalDoc {
           "Visit source: if you reach the site via a link carrying campaign parameters (UTM) or from another website, we may record that origin, linked to your request, to understand how you found us.",
           "Technical data collected automatically for security and statistics: IP address (ephemerally, for abuse limiting) and basic request information.",
           "Analytics and advertising data (only with your consent): if you accept cookies in the notice shown, we use Google Analytics and Google Ads. These services collect cookie-based identifiers, device and browser information and the pages and interactions on the site, so we can measure our audience and the effectiveness of our advertising. If you decline, no cookies are set and no cookie-based information is collected; Google may still receive aggregated, cookieless signals (for example, country and page type) that it uses for statistical modelling and that do not identify you individually.",
+          "Meta advertising data (only with your consent): if you accept cookies, we also use the Meta Pixel (Facebook and Instagram), which records the pages visited and the submission of the quote request, with cookie-based identifiers. When you send us a quote request after accepting, we also report that request to Meta from our server (Conversions API), with your e-mail and phone hashed before they are sent, to measure the effectiveness of our ads. If you decline cookies, none of this happens.",
           "Form draft: so you don't lose what you type, the quote-request form temporarily saves your answers in the browser's session storage (sessionStorage), on your device only and only for the session, and they are cleared when you close the tab. You can also clear it at any time in your browser settings; nothing is sent until you submit the request.",
         ],
       },
@@ -219,6 +225,7 @@ function privacyEn(): LegalDoc {
           "Responding to requests and preparing quotes: pre-contractual steps you request (Art. 6(1)(b) GDPR) and, for messages not aimed at contracting, our legitimate interest in replying to you (f).",
           "Managing the client relationship and delivering our event-planning services: performance of a contract (b).",
           "Measuring the site's audience and the effectiveness of our advertising (Google Analytics and Google Ads): based on your consent (a), when you accept cookies.",
+          "Measuring the effectiveness of our advertising on Meta (Facebook and Instagram), including whether a quote request or a booking came from an ad: based on your consent (a), when you accept cookies.",
           "Ensuring the security of the site and preventing abuse: legitimate interest (f).",
           "Complying with legal obligations, notably tax and accounting: legal obligation (c).",
         ],
@@ -236,6 +243,7 @@ function privacyEn(): LegalDoc {
           "We do not sell your data. We may use service providers who process it on our behalf and under our instructions, with appropriate security safeguards: website hosting and infrastructure, sending and receiving e-mail, and database. Where applicable, we enter into processing agreements under Art. 28 GDPR.",
           "We also use Google (Google Ireland Limited) for usage statistics (Google Analytics) and for advertising measurement and optimisation (Google Ads), but only when you accept the relevant cookies in the cookie notice. If you decline, no cookies are set and no identifiers are shared; Google may still receive aggregated, cookieless signals for statistical modelling that do not identify you individually.",
           "Enhanced Conversions: if you accept cookies and submit a quote request, your e-mail and/or phone may be shared with Google solely to measure ad effectiveness. This data is hashed in your browser before it is sent, and Google uses it only to match the conversion to the ad, never to identify you publicly. If you decline cookies, none of this happens.",
+          "We also use Meta (Meta Platforms Ireland Limited) to measure and optimise our advertising on Facebook and Instagram, only when you accept cookies. Meta receives the identifiers in the “_fbp” and “_fbc” cookies, your IP address and browser type and, when you send a quote request or book our services, your e-mail and phone in hashed form, which it uses solely to match the outcome to the ad. For this measurement Meta acts as joint controller with us, under its Business Tools Terms.",
           "We may disclose data where required by law or by a competent authority.",
         ],
       },
@@ -244,6 +252,7 @@ function privacyEn(): LegalDoc {
         body: [
           "Some providers may process data outside the European Economic Area. In such cases we ensure appropriate safeguards (for example, the European Commission's standard contractual clauses) to protect your data.",
           "In particular, if you accept analytics and advertising cookies, Google may process data in the United States, under those safeguards (standard contractual clauses and/or the EU-US Data Privacy Framework).",
+          "Meta may also process data in the United States (Meta Platforms, Inc.), under the same safeguards (EU-US Data Privacy Framework and/or standard contractual clauses), only if you accept advertising cookies.",
         ],
       },
       {
@@ -275,6 +284,7 @@ function privacyEn(): LegalDoc {
         body: [
           "Strictly necessary cookies for the site to work, for example “liquen-lang”, which remembers your chosen language, do not require consent. Your cookie preference is stored in the browser's local storage (localStorage), under the key “liquen-consent”, not in a cookie.",
           "Analytics and advertising cookies (Google Analytics and Google Ads): these are only activated if you accept them in the cookie notice shown on your first visit. They are used to measure visits and the effectiveness of our advertising and may involve sharing data with Google (see sections 5 and 6). We use Google Consent Mode: until you accept, no analytics or advertising cookies are set.",
+          "Meta advertising cookies (“_fbp” and “_fbc”, about 90 days): only set if you accept cookies in the same notice; they measure the effectiveness of ads on Facebook and Instagram (see sections 5 and 6).",
           "You can decline, or change your choice at any time, via the “Manage cookies” link in the site footer. Declining non-essential cookies does not affect how the site works.",
           "Main cookies and storage used: “liquen-lang” (language cookie, about 1 year); “liquen-consent” (your cookie choice, stored in the browser's localStorage); “_ga” and “_ga_*” (Google Analytics: distinguish visitors and sessions, up to 2 years); “_gcl_au” (Google Ads: conversion measurement, about 90 days). Analytics and advertising cookies only exist if you have accepted them.",
           "For offline use, the site may store a copy of pages and resources on your device (browser cache), which contains no personal data. The team's restricted area also uses strictly necessary session cookies, which are not set for site visitors.",

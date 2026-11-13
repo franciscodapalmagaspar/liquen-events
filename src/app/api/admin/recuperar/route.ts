@@ -2,7 +2,13 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { pedirRecuperacao, normalizarIdentificador } from "@/lib/admin-auth";
 import { VALIDADE_MS } from "@/lib/admin-recuperacao";
 import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
-import { sendMail, esc } from "@/lib/mail";
+import { sendMail } from "@/lib/mail";
+import { EMAIL_LOGO_CID, emailLogoAttachment } from "@/lib/email-logo";
+import {
+  ASSUNTO_DA_RECUPERACAO,
+  htmlDaRecuperacao,
+  textoDaRecuperacao,
+} from "@/lib/email-recuperacao";
 import { SITE } from "@/lib/site";
 import { log } from "@/lib/logger";
 
@@ -203,26 +209,20 @@ export async function POST(request: NextRequest) {
      */
     after(async () => {
       try {
+        const dados = {
+          logo: `cid:${EMAIL_LOGO_CID}`,
+          nome: resultado.conta.name,
+          ligacao,
+          minutos,
+          pedidoEm: new Date(inicio),
+        };
         const { sent } = await sendMail({
           to: resultado.conta.email,
-          subject: "Definir uma palavra-passe nova — Líquen Events",
-          text: [
-            `Olá ${resultado.conta.name},`,
-            "",
-            "Alguém (esperemos que tu) pediu para definir uma palavra-passe nova no painel de gestão.",
-            "",
-            ligacao,
-            "",
-            `A ligação serve UMA vez e expira daqui a ${minutos} minutos.`,
-            "Se não foste tu, não é preciso fazeres nada: a palavra-passe actual continua a valer.",
-          ].join("\n"),
-          html: `
-          <p>Olá ${esc(resultado.conta.name)},</p>
-          <p>Alguém (esperemos que tu) pediu para definir uma palavra-passe nova no painel de gestão.</p>
-          <p><a href="${esc(ligacao)}">Definir uma palavra-passe nova</a></p>
-          <p>A ligação serve <strong>uma vez</strong> e expira daqui a ${minutos} minutos.</p>
-          <p>Se não foste tu, não é preciso fazeres nada: a palavra-passe actual continua a valer.</p>
-        `,
+          // O desenho da carta da casa (pedido de 13/11) — ver `email-recuperacao.ts`.
+          subject: ASSUNTO_DA_RECUPERACAO,
+          text: textoDaRecuperacao(dados),
+          html: htmlDaRecuperacao(dados),
+          attachments: [emailLogoAttachment()],
           headers: { "Auto-Submitted": "auto-generated" },
         });
         if (!sent) {

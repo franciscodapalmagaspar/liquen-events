@@ -204,6 +204,8 @@ export const NOT_BACKED_UP: Readonly<Record<string, string>> = {
     "Subscrições Web Push, uma por browser/dispositivo: um endereço de entrega mais duas chaves SECRETAS. São credenciais de browser, caducam sozinhas e são recriadas quando a equipa volta a autorizar as notificações — repô-las não devolve nada e exportá-las era espalhar segredos por um ficheiro que anda de email em email.",
   passkeys:
     "Os dispositivos registados para entrar sem palavra-passe. São credenciais, não dados do negócio, e ficam de fora por uma razão que vale mais do que a comodidade de as repor: uma reposição escreve por cima do conjunto inteiro, portanto passkeys na cópia significaria que repor um ficheiro de há dois meses RESSUSCITAVA o aparelho de alguém que entretanto saiu da equipa — sem ninguém reparar, porque a atenção estaria toda nos dados. Ficando de fora, a reposição não lhes toca: quem estava registado continua, quem foi removido continua removido. Perder a tabela obriga cada pessoa a registar outra vez o seu aparelho, o que se faz em segundos e sempre com a palavra-passe como caminho alternativo.",
+  registo_de_acoes:
+    "O registo de «quem fez o quê» no back office (13/11): quem, quando, o método e o caminho de cada alteração — nunca o conteúdo. É um diário de auditoria, não dados do negócio, e fica de fora por duas razões. Repor uma cópia escreve por cima do conjunto inteiro, e um registo de auditoria que se pode reescrever com o de há dois meses deixa de provar o que quer que seja. E a cópia diária vai por email: levar doze meses de entradas era fazer crescer o anexo todos os dias sem nada a ganhar na reposição. Perder a tabela não tira nada à casa — perde-se só o histórico de quem mexeu.",
 };
 
 /**

@@ -1,4 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import { ADMIN_COOKIE, readSession } from "@/lib/admin-auth";
+import { deveRegistar, registarAcao } from "@/lib/registo-de-acoes";
 import { CABECALHO_DA_LINGUA } from "@/lib/lingua-do-pedido";
 import { COOKIE_DA_LINGUA as LANG_COOKIE } from "@/lib/rotas-da-lingua";
 
@@ -11,6 +13,7 @@ import { COOKIE_DA_LINGUA as LANG_COOKIE } from "@/lib/rotas-da-lingua";
  *  2. CSRF em profundidade (/api que muda coisas): um Origin presente e
  *     diferente é recusado; o mesmo site e as chamadas de servidor passam.
  *  3. Um id por pedido em /api, para ligar erros aos registos.
+ *  4. O registo de «quem fez o quê» do back office (`registo-de-acoes.ts`).
  *
  * Até 10/11 também reescrevia cada caminho nu para `/{lang}/…`, redirecionava
  * o `/pt/…` e o `/admin` — e por isso corria em CADA visita a uma página. Isso
@@ -19,7 +22,7 @@ import { COOKIE_DA_LINGUA as LANG_COOKIE } from "@/lib/rotas-da-lingua";
  */
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-export function proxy(req: NextRequest) {
+export function proxy(req: NextRequest, event?: NextFetchEvent) {
   const { pathname } = req.nextUrl;
 
   // ── /api: CSRF defence + request-id (unchanged behaviour) ──
@@ -50,6 +53,13 @@ export function proxy(req: NextRequest) {
     requestHeaders.set("x-request-id", requestId);
     const res = NextResponse.next({ request: { headers: requestHeaders } });
     res.headers.set("X-Request-ID", requestId);
+    // ── 4. O registo de «quem fez o quê» (13/11) ──
+    // Só alterações com sessão VÁLIDA (um cookie forjado não chega a escrever
+    // um nome), e depois da resposta — nunca atrasa nem derruba o pedido.
+    if (event && deveRegistar(req.method, pathname)) {
+      const sessao = readSession(req.cookies.get(ADMIN_COOKIE)?.value);
+      if (sessao) event.waitUntil(registarAcao(sessao.name, req.method, pathname));
+    }
     return res;
   }
 

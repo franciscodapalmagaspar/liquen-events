@@ -1236,3 +1236,19 @@ alter table public.contracts enable row level security;
 alter table public.message_links enable row level security;
 alter table public.passkeys enable row level security;
 alter table public.reciclagem enable row level security;
+
+-- O registo de «quem fez o quê» (13/11) — ver db/migracoes/20261113_registo_de_acoes.sql
+
+create table if not exists public.registo_de_acoes (
+  id bigint generated always as identity primary key,
+  quando timestamptz not null default now(),
+  quem text not null,
+  metodo text not null,
+  caminho text not null
+);
+
+create index if not exists registo_de_acoes_quando_idx on public.registo_de_acoes (quando desc);
+
+alter table public.registo_de_acoes enable row level security;
+revoke all on public.registo_de_acoes from anon, authenticated;
+
