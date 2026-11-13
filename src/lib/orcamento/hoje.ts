@@ -1,5 +1,6 @@
 import type { Quote, Task } from "./types";
 import { cobrancaDoPedido, entraNasCobrancas, type PropostaParaCobrar } from "./cobrancas";
+import { diaDoPrazo } from "@/lib/tarefas/prazo";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -160,12 +161,14 @@ export function oQueHaHoje(
     }
   }
 
+  // O prazo lê-se como DIA: uma tarefa antiga gravada com hora agarrada
+  // («2026-11-13T10:00») também é de hoje (ver `lib/tarefas/prazo.ts`).
   const deHoje: TarefaDeHoje[] = tarefas
-    .filter((t) => !t.done && !!t.dueDate && DIA.test(t.dueDate) && t.dueDate <= hoje)
+    .filter((t) => !t.done && DIA.test(diaDoPrazo(t.dueDate)) && diaDoPrazo(t.dueDate) <= hoje)
     .map((t) => ({
       id: t.id,
       titulo: t.title,
-      atrasada: t.dueDate! < hoje,
+      atrasada: diaDoPrazo(t.dueDate) < hoje,
       ...(t.quoteId ? { quoteId: t.quoteId } : {}),
     }));
 

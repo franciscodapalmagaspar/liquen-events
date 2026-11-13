@@ -95,3 +95,38 @@ describe("StatsDashboard — a janela dos 60 dias conta dias locais", () => {
     expect(screen.queryByText("Fora do limite")).toBeNull();
   });
 });
+
+/**
+ * N.º 7 da auditoria de 13/11: «Tempo de fecho» e «Resposta média» contavam
+ * até ao `lastUpdated`, que muda a cada gravação. Uma nota escrita meses depois
+ * do Ganho punha o casamento a «demorar» meses a fechar.
+ */
+describe("StatsDashboard — os tempos contam do que aconteceu, não da última gravação", () => {
+  it("n.º 7: o fecho conta até ao Ganho e a resposta até ao primeiro contacto", () => {
+    const pedido = {
+      ...comPagamentoEm("2026-09-30", "Ana"),
+      submittedAt: "2026-06-01T10:00:00.000Z",
+      // Uma nota escrita a 14/07 — 43 dias depois de chegar.
+      lastUpdated: "2026-07-14T10:00:00.000Z",
+      activityLog: [
+        {
+          id: "c1",
+          at: "2026-06-01T13:00:00.000Z",
+          kind: "call_logged",
+          summary: "Ligámos",
+        },
+        {
+          id: "g1",
+          at: "2026-06-11T10:00:00.000Z",
+          kind: "status_change",
+          summary: "Proposta enviada → Ganho",
+        },
+      ],
+    } as unknown as Quote;
+    render(<StatsDashboard quotes={[pedido]} />);
+    const fecho = screen.getByText("Tempo de fecho").parentElement!;
+    expect(fecho.textContent).toContain("10d");
+    const resposta = screen.getByText("Resposta média").parentElement!;
+    expect(resposta.textContent).toContain("3.0h");
+  });
+});
