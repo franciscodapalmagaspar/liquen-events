@@ -951,8 +951,29 @@ describe("POST /api/orcamento — o gémeo que chega ao mesmo tempo", () => {
     );
     const res = await enviarTudo({ form: validForm, submissionId: "abcdefgh12" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ id: "LIQ-IDEM-abcdefgh12", status: "ok" });
+    expect(await res.json()).toMatchObject({
+      id: expect.stringMatching(/^LIQ-IDEM-abcdefgh12:/),
+      status: "ok",
+    });
     expect(sendMailMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * N.º 12 da auditoria de 13/11: a resposta perdeu-se, ela corrigiu a data e
+   * reenviou. O `submissionId` era o mesmo, a rota encontrava o pedido antigo
+   * e respondia «ok» — a correcção perdia-se em silêncio.
+   */
+  it("n.º 12: o mesmo envio repetido dá o mesmo pedido; um envio CORRIGIDO dá outro", async () => {
+    store.get.mockResolvedValue(null);
+    await enviarTudo({ form: validForm, submissionId: "abcdefgh14" });
+    await enviarTudo({ form: validForm, submissionId: "abcdefgh14" });
+    await enviarTudo({
+      form: { ...validForm, guests: validForm.guests + 20 },
+      submissionId: "abcdefgh14",
+    });
+    const ids = store.create.mock.calls.map((c) => ((c as unknown[])[0] as { id: string }).id);
+    expect(ids[0]).toBe(ids[1]);
+    expect(ids[2]).not.toBe(ids[0]);
   });
 
   it("uma gravação que falha a sério continua a avisar a equipa", async () => {
