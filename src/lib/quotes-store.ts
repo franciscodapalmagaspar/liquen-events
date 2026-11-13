@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes, createHmac } from "node:crypto";
 import type { Quote, QuoteSummary } from "@/lib/orcamento/types";
 import { CAMPOS_SO_DO_DETALHE } from "@/lib/orcamento/types";
-import { createRepository, type Mapper } from "./repository";
+import { createRepository, lerComNovaTentativa, type Mapper } from "./repository";
 import { getSupabase } from "./supabase";
 
 /**
@@ -54,7 +54,16 @@ export const mapper: Mapper<Quote> = {
 
 const repo = createRepository(mapper);
 
-export const createQuote = (quote: Quote): Promise<void> => repo.create(quote);
+/**
+ * Um pedido novo nasce com `updated_at` preenchido (a coluna não tem valor por
+ * omissão). É o que faz um pedido acabado de entrar mexer na
+ * {@link assinaturaDaListaDePedidos} — sem isto, apagar um e criar outro entre
+ * duas perguntas deixava a contagem e a data mais recente iguais.
+ */
+const agoraComoAlteracao = () => ({ updated_at: new Date().toISOString() });
+
+export const createQuote = (quote: Quote): Promise<void> =>
+  repo.create(quote, agoraComoAlteracao());
 export const listQuotes = (): Promise<Quote[]> => repo.list();
 
 /**
@@ -128,4 +137,50 @@ export const updateQuoteWith = (
 export const deleteQuote = (id: string): Promise<void> => repo.remove(id);
 /** Volta da Reciclagem com o MESMO id e a data em que chegou (`created_at`). */
 export const reporPedido = (q: Quote): Promise<void> =>
-  repo.create(q, { created_at: q.submittedAt });
+  repo.create(q, { created_at: q.submittedAt, ...agoraComoAlteracao() });
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * «A LISTA MUDOU?» SEM LER A LISTA (auditoria de 13/11, n.º 3)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O back office pergunta pela lista de pedidos de cinco em cinco minutos e ao
+ * voltar ao separador, com `If-None-Match`. A resposta era quase sempre 304 —
+ * mas para chegar ao 304 o servidor lia a coluna `data` (jsonb) de TODOS os
+ * pedidos e calculava o ETag sobre ela. A viagem até ao browser poupava-se; a
+ * saída do Supabase, que é o que conta para o plano gratuito, não.
+ *
+ * Aqui responde-se à mesma pergunta com UMA leitura de ~100 bytes: quantos
+ * pedidos há e quando foi a última alteração. Qualquer escrita pelo
+ * repositório mexe numa das duas — editar (o `updated_at`), apagar (a
+ * contagem), criar ou repor (os dois; ver `agoraComoAlteracao`).
+ *
+ * `null` quer dizer «não sei — lê a lista»: sem base de dados, com erro, e
+ * também quando a última alteração foi há menos de {@link JANELA_RECENTE_MS}.
+ * Essa última é a margem para os relógios: o `updated_at` é escrito pela
+ * função que gravou, e duas funções podem discordar uns milissegundos. Uma
+ * escrita com o relógio atrasado podia ficar ATRÁS do máximo e não o mexer;
+ * enquanto houver escritas recentes, lê-se a lista a sério.
+ */
+const JANELA_RECENTE_MS = 2 * 60_000;
+
+export async function assinaturaDaListaDePedidos(): Promise<string | null> {
+  const sb = getSupabase();
+  if (!sb) return null;
+  try {
+    const { data, error, count } = await lerComNovaTentativa(() =>
+      sb
+        .from(mapper.table)
+        .select("updated_at", { count: "exact" })
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1),
+    );
+    if (error || typeof count !== "number") return null;
+    const ultima = (data?.[0] as { updated_at?: unknown } | undefined)?.updated_at;
+    const ultimaTxt = typeof ultima === "string" ? ultima : "";
+    if (ultimaTxt && Date.now() - Date.parse(ultimaTxt) < JANELA_RECENTE_MS) return null;
+    return `${count}:${ultimaTxt}`;
+  } catch {
+    return null;
+  }
+}

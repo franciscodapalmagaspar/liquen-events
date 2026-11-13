@@ -28,12 +28,13 @@ import {
   createQuote,
   listQuotes,
   listQuoteSummaries,
+  assinaturaDaListaDePedidos,
   getQuote,
   generateQuoteId,
   quoteIdFor,
 } from "@/lib/quotes-store";
 import { isAuthed } from "@/lib/admin-auth";
-import { jsonWithEtag } from "@/lib/api-cache";
+import { jsonWithEtag, naoMudou } from "@/lib/api-cache";
 import { sendPushToAll } from "@/lib/push";
 import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
 import { quotePayloadSchema } from "@/lib/validation";
@@ -1007,7 +1008,30 @@ async function GET_semMedida(request: NextRequest) {
      * Por ADESÃO: sem o parâmetro a resposta é a de sempre, com tudo.
      */
     const resumo = new URL(request.url).searchParams.get("resumo") === "1";
-    return jsonWithEtag(request, resumo ? await listQuoteSummaries() : await listQuotes());
+    /**
+     * «Mudou?» antes de ler (auditoria de 13/11, n.º 3): uma leitura de ~100
+     * bytes (quantos pedidos, última alteração) decide o 304, e só se lê a
+     * lista — a coluna `data` de todos os pedidos — quando mudou mesmo. Ver
+     * `assinaturaDaListaDePedidos`. A versão publicada entra no validador: um
+     * deploy que mude a forma da lista não pode responder 304 a uma cópia velha.
+     */
+    const assinatura = await assinaturaDaListaDePedidos();
+    const validador = assinatura
+      ? {
+          lista: assinatura,
+          resumo,
+          versao: process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? "",
+        }
+      : undefined;
+    if (validador) {
+      const igual = naoMudou(request, validador);
+      if (igual) return igual;
+    }
+    return jsonWithEtag(
+      request,
+      resumo ? await listQuoteSummaries() : await listQuotes(),
+      validador,
+    );
   } catch (err) {
     log.error("orcamento GET falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
