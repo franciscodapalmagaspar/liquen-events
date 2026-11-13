@@ -2,7 +2,7 @@ import "server-only";
 import { promises as fs } from "fs";
 import path from "path";
 import { getSupabase } from "./supabase";
-import { isMissingTable } from "./repository";
+import { eRelogioAdiantado, isMissingTable } from "./repository";
 import { log } from "./logger";
 
 /**
@@ -134,22 +134,13 @@ function ehSemPermissao(err: unknown): boolean {
   );
 }
 
-function relogioAdiantado(err: unknown): boolean {
-  return (
-    !!err &&
-    typeof err === "object" &&
-    ((err as { code?: unknown }).code === "PGRST303" ||
-      /issued at future/i.test(String((err as { message?: unknown }).message ?? "")))
-  );
-}
-
 function motivoDaFalha(err: unknown): MotivoDeFalha {
   // O relógio adiantado (PGRST303, «JWT issued at future») é PASSAGEIRO e
   // repete-se — mas a mensagem diz «JWT», e a regra de baixo tomava-o por uma
   // permissão recusada, que nunca se repete. Resultado: nenhuma escrita nem
   // leitura do app_state repetia o erro mais comum (auditoria de 13/11). A
   // mesma deteção do `repository.ts` (`eRelogioAdiantado`).
-  if (relogioAdiantado(err)) return "escrita-recusada";
+  if (eRelogioAdiantado(err)) return "escrita-recusada";
   if (isMissingTable(err)) return "tabela-em-falta";
   if (ehSemPermissao(err)) return "sem-permissao";
   return "escrita-recusada";
