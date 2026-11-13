@@ -125,14 +125,28 @@ describe("GET /api/cron/reminders — digest logic (clock pinned 2026-07-20)", (
     expect(sendPushToAll).not.toHaveBeenCalled();
   });
 
-  it("stays up (200, nothing to notify) even when the quotes store rejects", async () => {
+  // Auditoria de 13/11, n.º 12: antes respondia 200 «nada a notificar» — a
+  // frase de um dia sossegado — com a base de dados em baixo.
+  it("a store that rejects is NOT «nothing to notify»: it is logged and reported as a failure", async () => {
     (
       listQuotes as unknown as { mockRejectedValueOnce: (e: unknown) => void }
     ).mockRejectedValueOnce(new Error("db down"));
+    const { log } = await import("@/lib/logger");
     const res = await GET(req());
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ sent: 0, reason: "nada a notificar" });
+    expect(res.status).toBe(502);
+    const corpo = await res.json();
+    expect(corpo).toMatchObject({ sent: 0, incompleto: ["pedidos"] });
+    expect(corpo.reason).not.toBe("nada a notificar");
+    expect(log.error).toHaveBeenCalled();
     expect(sendPushToAll).not.toHaveBeenCalled();
+  });
+
+  it("with something to say but the subscriptions list unreadable, the failure shows", async () => {
+    data.quotes = [awaitingQuote()];
+    vi.mocked(sendPushToAll).mockResolvedValueOnce({ sent: 0, failed: 0, semLista: true });
+    const res = await GET(req());
+    expect(res.status).toBe(502);
+    expect(await res.json()).toMatchObject({ sent: 0, subscricoes: "não foi possível ler" });
   });
 
   it("counts events in the next 3 days (from quotes + calendar) and excludes those beyond", async () => {

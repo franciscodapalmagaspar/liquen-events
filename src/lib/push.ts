@@ -140,7 +140,10 @@ export async function removeSubscription(endpoint: string): Promise<void> {
 async function listSubscriptions(): Promise<PushSub[]> {
   const sb = getSupabase();
   if (sb) {
-    const { data } = await sb.from(TABLE).select("endpoint, keys");
+    // O erro LANÇA (auditoria de 13/11, n.º 12): ignorado, uma leitura falhada
+    // era uma lista vazia, e «enviadas 0» lia-se como «ninguém subscrito».
+    const { data, error } = await sb.from(TABLE).select("endpoint, keys");
+    if (error) throw error;
     return (data ?? []).map((r) => ({
       endpoint: r.endpoint as string,
       keys: r.keys as PushSub["keys"],
@@ -195,7 +198,7 @@ interface PushPayload {
  */
 export async function sendPushToAll(
   payload: PushPayload,
-): Promise<{ sent: number; failed: number }> {
+): Promise<{ sent: number; failed: number; semLista?: boolean }> {
   if (!pushConfigured()) {
     log.warn(
       "push: sem chaves VAPID nenhuma notificação é enviada — defina VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY",
@@ -204,7 +207,16 @@ export async function sendPushToAll(
     return { sent: 0, failed: 0 };
   }
 
-  const subs = await listSubscriptions();
+  let subs: PushSub[];
+  try {
+    subs = await listSubscriptions();
+  } catch (err) {
+    // Não se sabe a quem mandar — e isso é diferente de não haver ninguém.
+    log.error("push: não foi possível ler as subscrições — nenhuma notificação saiu", err, {
+      titulo: payload.title,
+    });
+    return { sent: 0, failed: 0, semLista: true };
+  }
   const body = JSON.stringify(payload);
   let sent = 0;
   let mortas = 0;
