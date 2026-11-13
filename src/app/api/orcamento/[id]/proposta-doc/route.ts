@@ -51,6 +51,7 @@ import { listarEnvios, registarEnvio } from "@/lib/envios-de-proposta";
 import { log } from "@/lib/logger";
 import { eCasamento } from "@/lib/proposal-evento";
 import { comCpu } from "@/lib/medir-cpu";
+import { fecharTrinco, type Trinco } from "@/lib/trinco";
 
 /** Os erros do estúdio que a rota também recusa — ver «O QUE TRAVA NO ESTÚDIO». */
 const TRAVAM_NO_SERVIDOR: ReadonlySet<string> = new Set([
@@ -202,6 +203,8 @@ async function POST_semMedida(
   const { id } = await params;
   const chegou = Date.now();
   const resta = () => ORCAMENTO_MS - (Date.now() - chegou);
+  /** O trinco do envio (ver abaixo). Solta-se no `finally`, aconteça o que acontecer. */
+  let trinco: Trinco | null = null;
 
   try {
     const quote = await getQuote(id);
@@ -251,6 +254,29 @@ async function POST_semMedida(
     } | null;
     const raw = body?.doc;
     const mode = body?.mode === "send" ? "send" : "preview";
+
+    /**
+     * ── DOIS ENVIOS EM VOO AO MESMO TEMPO (auditoria de 13/11, n.º 3) ───────
+     *
+     * A trava de repetição, mais abaixo, olha para o que JÁ seguiu. Dois
+     * pedidos ao mesmo tempo leem as irmãs antes de qualquer um ter enviado, e
+     * nenhum vê o outro: dois emails ao casal. O trinco deixa passar um só por
+     * pedido; o segundo ouve que o primeiro ainda está a enviar. Vale o tempo
+     * máximo desta função e mais uma margem — se ela morrer a meio, vence.
+     */
+    if (mode === "send") {
+      trinco = await fecharTrinco(`envio-da-proposta:${id}`, (maxDuration + 15) * 1000);
+      if (!trinco.ok) {
+        return NextResponse.json(
+          {
+            error:
+              "Esta proposta já está a ser enviada (carregou duas vezes, ou noutro separador). Espere uns segundos: se não aparecer como enviada, volte a carregar em enviar.",
+            aEnviar: true,
+          },
+          { status: 409 },
+        );
+      }
+    }
 
     /**
      * A mensagem pessoal do passo «Enviar» do estúdio. OPCIONAL A SÉRIO: vazia,
@@ -1974,6 +2000,8 @@ async function POST_semMedida(
       { error: `Erro ao gerar a proposta: ${detail || "desconhecido"}` },
       { status: 500 },
     );
+  } finally {
+    if (trinco?.ok) await trinco.soltar();
   }
 }
 

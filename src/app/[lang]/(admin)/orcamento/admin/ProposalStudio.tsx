@@ -19,6 +19,14 @@ import { useSeccaoAVista } from "./useSeccaoAVista";
 import { rolarAteVer } from "@/lib/motion/rolar";
 import { SAIDA_FUNDO, useSaidaDeUmSo } from "./ui/saida";
 import { porqueFalhouOEnvio } from "./porque-falhou-o-envio";
+import { porqueFalhou } from "@/lib/erro-do-servidor";
+import {
+  eTempoEsgotado,
+  sinalComTecto,
+  TECTO_DA_PRE_VISUALIZACAO_MS,
+  TECTO_DE_UMA_FOTO_MS,
+  TECTO_DO_ENVIO_MS,
+} from "@/lib/tempo-esgotado";
 import { useToast } from "./Toast";
 import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravacoes";
 import {
@@ -5558,7 +5566,11 @@ export default function ProposalStudio({
       // download do original e uma conversão a acontecer no servidor enquanto
       // eles olham para um rectângulo vazio.
       if (mid) form.append("medias", mid);
-      return fetch(`/api/orcamento/${quote.id}/assets`, { method: "POST", body: form });
+      return fetch(`/api/orcamento/${quote.id}/assets`, {
+        method: "POST",
+        body: form,
+        signal: sinalComTecto(TECTO_DE_UMA_FOTO_MS),
+      });
     };
     let res: Response;
     try {
@@ -5639,7 +5651,11 @@ export default function ProposalStudio({
           // fotos escolhidas é a que a Catarina vê no documento.
           results[i] = { path: im.path };
         } catch (e) {
-          errors.push(e instanceof Error ? e.message : `Falha ao carregar "${f.name}".`);
+          errors.push(
+            eTempoEsgotado(e)
+              ? `«${f.name}» demorou demasiado a subir (rede lenta).`
+              : porqueFalhou(e, `Sem ligação: «${f.name}» não subiu.`),
+          );
         } finally {
           maisUma();
         }
@@ -7374,6 +7390,7 @@ export default function ProposalStudio({
     const res = await fetch(`/api/orcamento/${quote.id}/proposta-doc`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: sinalComTecto(TECTO_DA_PRE_VISUALIZACAO_MS),
       // `idioma` vai SEMPRE, mesmo quando é o português. O servidor tem o
       // português por omissão para os chamadores antigos, mas quem tem um
       // botão para escolher diz o que escolheu — senão «pt» seria só a
@@ -7500,7 +7517,15 @@ export default function ProposalStudio({
         );
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Erro na pré-visualização.", "error");
+      toast(
+        eTempoEsgotado(e)
+          ? "A pré-visualização demorou demasiado e foi interrompida. Tente outra vez."
+          : porqueFalhou(
+              e,
+              "Sem ligação ao servidor — a pré-visualização não foi gerada. Verifique a rede e tente outra vez.",
+            ),
+        "error",
+      );
     } finally {
       setBusy(null);
     }
@@ -7629,6 +7654,7 @@ export default function ProposalStudio({
       const res = await fetch(`/api/orcamento/${quote.id}/proposta-doc`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: sinalComTecto(TECTO_DO_ENVIO_MS),
         // As ORIGENS das fotos entram no documento no envio, e só no envio:
         // é a partir daqui que a proposta seguinte pode saber que esta já usou
         // aquele arco. Enquanto é rascunho, o mapa vive ao lado (SIDE_KEY) e
@@ -7824,7 +7850,17 @@ export default function ProposalStudio({
         whatsAppAberto = true;
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Erro ao enviar a proposta.", "error");
+      // Tempo esgotado ou ligação cortada NÃO querem dizer «não seguiu»: o
+      // pedido pode ter chegado e o email ter saído — só a resposta é que não
+      // voltou. Diz-se isso, e não «erro», para ela ver antes de carregar outra
+      // vez (e, se carregar logo, o servidor responde que ainda está a enviar).
+      const semResposta = eTempoEsgotado(e) || e instanceof TypeError;
+      toast(
+        semResposta
+          ? "A resposta do envio não chegou (rede lenta ou cortada). A proposta pode já ter seguido: confirme no pedido se aparece como enviada antes de voltar a enviar."
+          : porqueFalhou(e, "Erro ao enviar a proposta."),
+        "error",
+      );
     } finally {
       setBusy(null);
       // Não seguiu (ou parou para perguntar pelos cortes): o separador vazio
