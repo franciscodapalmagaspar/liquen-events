@@ -165,7 +165,13 @@ export async function registarEnvio(
   envio: EnvioDeProposta,
 ): Promise<ResultadoDeEscrita> {
   try {
-    const anteriores = await listarEnvios(quoteId);
+    // Para acrescentar: uma leitura falhada NÃO pode dar uma lista vazia — a
+    // escrita seguinte apagava o histórico dos envios (auditoria de 13/11).
+    // Lança, e o `catch` de baixo diz que a cópia não ficou guardada.
+    const guardado = await getState<EnviosDoPedido>(chaveDosEnvios(quoteId), { ouFalha: true });
+    const anteriores = (Array.isArray(guardado?.envios) ? guardado.envios : [])
+      .map(comoEnvio)
+      .filter((e): e is EnvioDeProposta => e !== null);
     const limpo = comoEnvio(envio);
     if (!limpo) {
       log.warn("envios de proposta: entrada sem forma, não foi guardada", { quoteId });

@@ -127,4 +127,17 @@ describe("as fotografias de pedidos que já não existem (10/11)", () => {
     await limparPastasDePedidosApagados(dia9);
     expect(st.apagadas).toEqual([]);
   });
+
+  /**
+   * Auditoria de 13/11: o Supabase devolve no máximo 1000 linhas e corta o
+   * resto sem avisar. Com 1000 pedidos, um pedido VIVO que ficou de fora da
+   * lista parecia órfão e a pasta dele era apagada.
+   */
+  it("se a lista dos pedidos chega cheia (1000), pode estar cortada: não apaga nada", async () => {
+    await limparPastasDePedidosApagados(dia1);
+    st.tabelas.quotes = Array.from({ length: 1000 }, (_, i) => ({ id: `LIQ-OUTRO-${i}` }));
+    const r = await limparPastasDePedidosApagados(dia9);
+    expect(st.apagadas).toEqual([]);
+    expect(r.acabou).toBe(false);
+  });
 });

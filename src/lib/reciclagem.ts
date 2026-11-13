@@ -347,7 +347,10 @@ export const TIPOS = {
       await reporSeFaltar(todos<Proposal>(r, "propostas"), getProposal, reporProposta);
       for (const { chave, valor } of todos<{ chave: string; valor: unknown }>(r, "rascunhos")) {
         // Um rascunho que entretanto nasceu de novo é trabalho de agora: fica.
-        if ((await getState(draftKey(chave))) == null) await setState(draftKey(chave), valor);
+        // Lido para decidir se se grava: uma leitura falhada lança — nunca
+        // escreve por cima de um rascunho que não se conseguiu ver.
+        if ((await getState(draftKey(chave), { ouFalha: true })) == null)
+          await setState(draftKey(chave), valor);
       }
       await reporSeFaltar(
         todos<EventMaterial>(r, "material"),
@@ -598,9 +601,26 @@ export async function enviarComDetalhe(
   try {
     return { reciclagem: { id: entrada.id }, detalhe: await def.apagar(id, entrada.id) };
   } catch (err) {
+    // Se o apagar parou A MEIO (o pedido saiu em parte: propostas, rascunhos,
+    // tarefas), a entrada é a ÚNICA cópia do que já saiu — fica na Reciclagem.
+    // Só se tira quando nada saiu (auditoria de 13/11, «dados que se perdem»).
+    if (err instanceof NaoDeuParaApagar && saiuAlgo(err.detalhe)) {
+      throw new NaoDeuParaApagar(
+        "O pedido não foi apagado por completo. O que já saiu está guardado na Reciclagem — tenta de novo.",
+        err.status,
+        err.detalhe,
+      );
+    }
     await tirarDaReciclagem(entrada.id).catch(() => {});
     throw err;
   }
+}
+
+/** O apagar devolveu uma contagem com alguma coisa já apagada? */
+function saiuAlgo(detalhe: unknown): boolean {
+  const contou = (detalhe as { contou?: Record<string, unknown> } | undefined)?.contou;
+  if (!contou || typeof contou !== "object") return false;
+  return Object.values(contou).some((n) => typeof n === "number" && n > 0);
 }
 
 /** O porquê de um «Repor» não poder acontecer — a rota responde 409. */

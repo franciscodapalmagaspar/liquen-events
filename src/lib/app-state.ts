@@ -134,7 +134,22 @@ function ehSemPermissao(err: unknown): boolean {
   );
 }
 
+function relogioAdiantado(err: unknown): boolean {
+  return (
+    !!err &&
+    typeof err === "object" &&
+    ((err as { code?: unknown }).code === "PGRST303" ||
+      /issued at future/i.test(String((err as { message?: unknown }).message ?? "")))
+  );
+}
+
 function motivoDaFalha(err: unknown): MotivoDeFalha {
+  // O relógio adiantado (PGRST303, «JWT issued at future») é PASSAGEIRO e
+  // repete-se — mas a mensagem diz «JWT», e a regra de baixo tomava-o por uma
+  // permissão recusada, que nunca se repete. Resultado: nenhuma escrita nem
+  // leitura do app_state repetia o erro mais comum (auditoria de 13/11). A
+  // mesma deteção do `repository.ts` (`eRelogioAdiantado`).
+  if (relogioAdiantado(err)) return "escrita-recusada";
   if (isMissingTable(err)) return "tabela-em-falta";
   if (ehSemPermissao(err)) return "sem-permissao";
   return "escrita-recusada";
@@ -223,26 +238,73 @@ function emFila<R>(trabalho: () => Promise<R>): Promise<R> {
   return corrida;
 }
 
-export async function getState<T>(key: string): Promise<T | null> {
-  const sb = getSupabase();
-  if (sb) {
-    try {
-      const { data, error } = await sb
-        .from("app_state")
-        .select("value")
-        .eq("key", key)
-        .maybeSingle();
-      if (error) throw error;
-      return (data?.value as T) ?? null;
-    } catch (err) {
-      log.error("app-state: leitura falhou (a tabela app_state existe? ver db/schema.sql)", err, {
-        key,
-      });
-      return null;
-    }
+/**
+ * A leitura falhou (o Supabase não respondeu, ou respondeu com erro) — o que
+ * é DIFERENTE de «não há nada guardado». Ver `getState(chave, { ouFalha: true })`.
+ */
+export class LeituraFalhou extends Error {
+  constructor(
+    readonly key: string,
+    readonly causa: unknown,
+  ) {
+    super(`Não foi possível ler «${key}» da base de dados.`);
+    this.name = "LeituraFalhou";
   }
-  const all = await readFileState();
-  return (all[key] as T) ?? null;
+}
+
+/**
+ * Lê uma chave, com as mesmas tentativas da escrita: um erro passageiro (o
+ * PGRST303 do relógio, uma ligação que cai) repete-se antes de desistir.
+ */
+async function lerComTentativas<T>(
+  key: string,
+): Promise<{ ok: true; valor: T | null } | { ok: false; erro: unknown }> {
+  const sb = getSupabase();
+  if (!sb) {
+    const all = await readFileState();
+    return { ok: true, valor: (all[key] as T) ?? null };
+  }
+  let ultimoErro: unknown = null;
+  for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+    try {
+      const { data, error } = await comTecto(
+        sb.from("app_state").select("value").eq("key", key).maybeSingle(),
+        TEMPO_POR_TENTATIVA_MS,
+      );
+      if (!error) return { ok: true, valor: (data?.value as T) ?? null };
+      ultimoErro = error;
+    } catch (err) {
+      ultimoErro = err;
+    }
+    if (motivoDaFalha(ultimoErro) !== "escrita-recusada") break;
+    if (tentativa < TENTATIVAS) await new Promise((r) => setTimeout(r, PAUSA_MS * tentativa));
+  }
+  return { ok: false, erro: ultimoErro };
+}
+
+/**
+ * Lê uma chave.
+ *
+ * Por omissão, uma leitura falhada dá `null`, como «não há nada» — serve a
+ * quem SÓ LÊ (mostrar, decidir se vale a pena fazer uma coisa).
+ *
+ * Quem lê para MUDAR e voltar a gravar passa `{ ouFalha: true }`: aí `null`
+ * quer mesmo dizer «não há nada», e uma leitura falhada LANÇA
+ * {@link LeituraFalhou}. Sem isto, um erro passageiro parecia uma chave vazia
+ * e a escrita seguinte apagava o que lá estava — palavras-passe redefinidas,
+ * modelos, o histórico dos envios (auditoria de 13/11).
+ */
+export async function getState<T>(key: string, opcoes?: { ouFalha?: boolean }): Promise<T | null> {
+  const r = await lerComTentativas<T>(key);
+  if (r.ok) return r.valor;
+  if (opcoes?.ouFalha) {
+    log.error("app-state: leitura para escrita falhou — a escrita não se faz", r.erro, { key });
+    throw new LeituraFalhou(key, r.erro);
+  }
+  log.error("app-state: leitura falhou (a tabela app_state existe? ver db/schema.sql)", r.erro, {
+    key,
+  });
+  return null;
 }
 
 /**

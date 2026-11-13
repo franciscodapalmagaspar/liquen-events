@@ -94,7 +94,9 @@ export class DemasiadosModelos extends Error {}
  */
 export async function guardarModelo(modelo: ModeloProposta): Promise<ModeloProposta[]> {
   if (tamanho(modelo) > MAX_BYTES) throw new ModeloDemasiadoGrande();
-  const atuais = await listarModelos();
+  // Para mudar: uma leitura falhada lança, nunca grava uma lista vazia por
+  // cima dos modelos que lá estão (auditoria de 13/11).
+  const atuais = saoModelos(await getState<unknown>(CHAVE, { ouFalha: true }));
   const semEste = atuais.filter((m) => m.id !== modelo.id);
   if (semEste.length >= MAX_MODELOS) throw new DemasiadosModelos();
   // Mais recente primeiro: é a ordem em que são úteis.
@@ -104,7 +106,9 @@ export async function guardarModelo(modelo: ModeloProposta): Promise<ModeloPropo
 }
 
 export async function apagarModelo(id: string): Promise<ModeloProposta[]> {
-  const lista = (await listarModelos()).filter((m) => m.id !== id);
+  const lista = saoModelos(await getState<unknown>(CHAVE, { ouFalha: true })).filter(
+    (m) => m.id !== id,
+  );
   await setState(CHAVE, lista);
   return lista;
 }

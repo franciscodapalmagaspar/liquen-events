@@ -51,6 +51,8 @@ export const CHAVE = "limpeza:pastas-de-pedidos-apagados";
 const BUCKET = "proposal-assets";
 const FORMA_DE_PEDIDO = /^LIQ-[A-Za-z0-9-]+$/;
 const DIA_MS = 24 * 60 * 60_000;
+/** O máximo que o Supabase devolve por leitura (`max-rows`): uma lista cheia pode estar cortada. */
+const LIMITE_DE_LINHAS = 1000;
 
 /** As tabelas cujo conteúdo pode mencionar uma fotografia de um pedido. */
 export const TABELAS_COM_CONTEUDO = [
@@ -104,6 +106,16 @@ export async function limparPastasDePedidosApagados(
     sb.from("proposals").select("quote_id"),
   ]);
   if ([pedidos, reciclagem, chaves, propostas].some((r) => r.error || !r.data)) return falhou;
+  // O Supabase devolve no máximo 1000 linhas e corta o resto SEM AVISAR. Uma
+  // lista que chega cheia pode estar cortada — e um pedido vivo que ficou de
+  // fora pareceria órfão, e a pasta dele seria apagada. Na dúvida, não se
+  // apaga nada (auditoria de 13/11).
+  if (
+    [pedidos, reciclagem, chaves, propostas].some((r) => (r.data?.length ?? 0) >= LIMITE_DE_LINHAS)
+  ) {
+    log.warn("limpeza de pastas: uma lista chegou ao limite de linhas — nada se apaga", {});
+    return falhou;
+  }
 
   const vivos = new Set<string>([
     ...(pedidos.data as { id: string }[]).map((p) => p.id),
@@ -118,6 +130,10 @@ export async function limparPastasDePedidosApagados(
   if (candidatas.length > 0) {
     const leituras = await Promise.all(TABELAS_COM_CONTEUDO.map((t) => sb.from(t).select("*")));
     if (leituras.some((l) => l.error || !l.data)) return falhou;
+    if (leituras.some((l) => (l.data?.length ?? 0) >= LIMITE_DE_LINHAS)) {
+      log.warn("limpeza de pastas: um conteúdo chegou ao limite de linhas — nada se apaga", {});
+      return falhou;
+    }
     // A própria lista de espera (porta 7) vive em `app_state` e nomeia as
     // pastas: lida como «menção», nenhuma pasta sairia nunca.
     const texto = leituras

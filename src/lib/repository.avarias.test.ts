@@ -49,6 +49,7 @@ function clienteQueRecusa(error: unknown, status: number): SupabaseClient {
     select: () => q,
     order: () => q,
     limit: () => q,
+    range: () => q,
     then: <R>(f: (v: unknown) => R) => Promise.resolve({ data: null, error, status }).then(f),
   };
   return { from: () => q } as unknown as SupabaseClient;

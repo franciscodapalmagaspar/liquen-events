@@ -63,7 +63,9 @@ export async function lerPreferencias(): Promise<PreferenciasProposta> {
 export async function gravarPreferencias(
   p: Partial<PreferenciasProposta>,
 ): Promise<PreferenciasProposta> {
-  const atuais = await lerPreferencias();
+  // Para mudar: uma leitura falhada lança em vez de gravar as de omissão por
+  // cima das dela (auditoria de 13/11).
+  const atuais = saoValidas(await getState<unknown>(CHAVE, { ouFalha: true }));
   const proximas = saoValidas({ ...atuais, ...p });
   await setState(CHAVE, proximas);
   return proximas;

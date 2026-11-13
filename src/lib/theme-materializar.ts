@@ -139,7 +139,9 @@ async function todosOsPortadores(): Promise<{ portadores: Portador[]; completo: 
           // mexido no rascunho noutro separador, e escrever o que se leu há
           // dez segundos apagava esse trabalho. O que se preserva é sempre a
           // versão MAIS RECENTE, com as referências trocadas.
-          const actual = (await getState<StoredProposalDraft>(key)) ?? value;
+          // Uma leitura FALHADA lança (e responde «não gravou»): o `?? value`
+          // só vale para «não há rascunho», nunca para «não o consegui ler».
+          const actual = (await getState<StoredProposalDraft>(key, { ouFalha: true })) ?? value;
           // `setState` NÃO lança quando a escrita é recusada — dizia-o só nos
           // registos. Este `return true` era, por isso, uma promessa que não
           // tinha como saber se era verdade, e o que ela autoriza a seguir é

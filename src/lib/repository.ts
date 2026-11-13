@@ -453,6 +453,9 @@ function duplicateKeyError(table: string, id: string): Error {
  */
 const ESPERAS_DO_RELOGIO_MS = [800, 2000];
 
+/** O máximo de linhas que o Supabase devolve por pedido (o `max-rows`). */
+export const PAGINA_DO_SUPABASE = 1000;
+
 export function eRelogioAdiantado(error: unknown): boolean {
   return (
     !!error &&
@@ -505,24 +508,46 @@ export class SupabaseBackend<T> implements Backend<T> {
 
   async list(): Promise<T[]> {
     const limit = this.m.listLimit; // undefined ⇒ fetch everything (no cap)
-    const base = this.sb.from(this.m.table).select(this.cols);
-    const ordered = this.m.order
-      ? base.order(this.m.order.column, { ascending: this.m.order.ascending })
-      : base;
-    const { data, error, status } = await lerComNovaTentativa(() =>
-      limit != null ? ordered.limit(limit) : ordered,
-    );
-    if (error) throw comEstadoHttp(error, status);
-    const rows = data ?? [];
-    // Only an EXPLICIT opt-in limit can truncate — and never silently: a full
-    // page is the signal that real pagination is needed.
-    if (limit != null && rows.length >= limit) {
-      log.warn("list() hit the configured row cap — results may be truncated", {
-        table: this.m.table,
-        limit,
-      });
+    const consulta = () => {
+      const base = this.sb.from(this.m.table).select(this.cols);
+      // Ordem SEMPRE determinística: sem ela, as páginas de baixo podiam
+      // repetir ou saltar linhas. A do mapper, ou a da chave.
+      return this.m.order
+        ? base.order(this.m.order.column, { ascending: this.m.order.ascending })
+        : base.order(this.idCol, { ascending: true });
+    };
+    if (limit != null) {
+      const { data, error, status } = await lerComNovaTentativa(() => consulta().limit(limit));
+      if (error) throw comEstadoHttp(error, status);
+      const rows = data ?? [];
+      // Only an EXPLICIT opt-in limit can truncate — and never silently: a full
+      // page is the signal that real pagination is needed.
+      if (rows.length >= limit) {
+        log.warn("list() hit the configured row cap — results may be truncated", {
+          table: this.m.table,
+          limit,
+        });
+      }
+      return rows.map(this.map);
     }
-    return rows.map(this.map);
+    /**
+     * «Tudo» é mesmo TUDO (auditoria de 13/11). O Supabase devolve no máximo
+     * 1000 linhas por pedido e corta o resto SEM AVISAR — a cópia diária saía
+     * truncada, e a limpeza das pastas órfãs, a partir dos 1000 pedidos, dava
+     * pastas de pedidos vivos como órfãs. Lê-se por páginas até vir uma
+     * incompleta.
+     */
+    const todas: unknown[] = [];
+    for (let desde = 0; ; desde += PAGINA_DO_SUPABASE) {
+      const { data, error, status } = await lerComNovaTentativa(() =>
+        consulta().range(desde, desde + PAGINA_DO_SUPABASE - 1),
+      );
+      if (error) throw comEstadoHttp(error, status);
+      const pagina = data ?? [];
+      todas.push(...pagina);
+      if (pagina.length < PAGINA_DO_SUPABASE) break;
+    }
+    return todas.map(this.map);
   }
 
   async get(id: string): Promise<T | null> {

@@ -132,6 +132,12 @@ function fakeSupabase() {
               if (typeof n === "number") q.limit = n;
               return builder;
             },
+            range(desde: number, ate: number) {
+              // Respeitado a sério, como o `limit`: o `list()` pagina de 1000
+              // em 1000 e pára numa página curta.
+              q.range = [desde, ate];
+              return builder;
+            },
             eq(column: string, value: unknown) {
               filtered = (filtered ?? rowsOf(table)).filter((r) => r[column] === value);
               return builder;
@@ -171,6 +177,10 @@ function fakeSupabase() {
               }
               data = data.map((r) => ({ ...r }));
               if (typeof q.limit === "number") data = data.slice(0, q.limit as number);
+              if (q.range) {
+                const [desde, ate] = q.range as [number, number];
+                data = data.slice(desde, ate + 1);
+              }
               return Promise.resolve(resolve({ data, error: null }));
             },
           };

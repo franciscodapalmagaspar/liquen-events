@@ -123,6 +123,7 @@ function createFakeSupabase() {
     private returning = false;
     private orderBy: { col: string; asc: boolean } | null = null;
     private lim: number | null = null;
+    private desde = 0;
     constructor(private table: string) {}
 
     select() {
@@ -159,6 +160,12 @@ function createFakeSupabase() {
     }
     limit(n: number) {
       this.lim = n;
+      return this;
+    }
+    // Leitura por páginas (o `list()` lê tudo assim — auditoria de 13/11).
+    range(de: number, ate: number) {
+      this.desde = de;
+      this.lim = ate - de + 1;
       return this;
     }
     maybeSingle() {
@@ -204,7 +211,7 @@ function createFakeSupabase() {
         );
       }
       if (this.single) return { data: rows[0] ?? null, error: null };
-      if (this.lim !== null) rows = rows.slice(0, this.lim);
+      if (this.lim !== null) rows = rows.slice(this.desde, this.desde + this.lim);
       return { data: rows, error: null };
     }
 

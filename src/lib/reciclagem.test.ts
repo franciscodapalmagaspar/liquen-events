@@ -407,6 +407,35 @@ describe("Reciclagem — pedido (R3b)", () => {
     expect(await r.pedidos.getQuote(UM_PEDIDO.id)).not.toBeNull();
     expect(await r.store.listarReciclagem()).toEqual([]);
   });
+
+  it("se o apagar pára a meio (propostas já saíram, o pedido não), a Reciclagem guarda o que saiu", async () => {
+    // Auditoria de 13/11: o pedido falhava no fim, a entrada da Reciclagem
+    // — a única cópia das propostas já apagadas — era tirada, e perdiam-se.
+    vi.doMock("./quotes-store", async () => {
+      const real = await vi.importActual<typeof import("./quotes-store")>("./quotes-store");
+      return {
+        ...real,
+        deleteQuote: async () => {
+          throw new Error("TESTE: a base de dados recusou");
+        },
+      };
+    });
+    try {
+      const r = await carregarR3b();
+      await r.pedidos.createQuote(UM_PEDIDO);
+      await r.propostas.createProposal(umaProposta("P-TESTE-2", UM_PEDIDO.id));
+
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow(
+        /Reciclagem/,
+      );
+      expect(await r.propostas.getProposal("P-TESTE-2")).toBeNull();
+      const [entrada] = await r.store.listarReciclagem();
+      expect(entrada).toMatchObject({ tipo: "pedido", origemId: UM_PEDIDO.id });
+      expect(entrada.retrato.propostas).toEqual([expect.objectContaining({ id: "P-TESTE-2" })]);
+    } finally {
+      vi.doUnmock("./quotes-store");
+    }
+  });
 });
 
 describe("Reciclagem — proposta (R3b)", () => {
