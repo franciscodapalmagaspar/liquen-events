@@ -97,4 +97,24 @@ describe("as cores da paleta, escolhidas por ela", () => {
     fireEvent.click(screen.getByRole("button", { name: "Pôr #D98AA7" }));
     expect(onMudar).toHaveBeenCalledWith(["#A48CC9", "#D98AA7"], "Cor #D98AA7 posta na paleta.");
   });
+
+  it("o endereço da fotografia chega DEPOIS (a proposta a abrir): lê-se quando chega", async () => {
+    const buscar = vi.fn(() => Promise.reject(new Error("sem rede")));
+    vi.stubGlobal("fetch", buscar);
+    vi.stubGlobal("createImageBitmap", vi.fn());
+    const { rerender } = render(
+      <CoresDaPaleta fotos={[{ ref: "TESTE/a.jpg" }]} cores={null} onMudar={() => {}} />,
+    );
+    await screen.findByText(/Não deu para ler as fotografias aqui/);
+    expect(buscar).not.toHaveBeenCalled();
+    rerender(
+      <CoresDaPaleta
+        fotos={[{ ref: "TESTE/a.jpg", url: "https://exemplo.invalid/a-media.jpg" }]}
+        cores={null}
+        onMudar={() => {}}
+      />,
+    );
+    await vi.waitFor(() => expect(buscar).toHaveBeenCalledTimes(1));
+    vi.unstubAllGlobals();
+  });
 });

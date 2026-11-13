@@ -83,11 +83,16 @@ export default function CoresDaPaleta({
     estado: "lido" | "falhou";
   } | null>(null);
 
-  // A chave resume as fotografias sem copiar um `data:` de vários MB a cada
-  // render: a referência, o tamanho do endereço e o fim dele.
-  // Só pelas REFERÊNCIAS: os endereços assinados mudam pouco depois de se
-  // abrir a proposta, e isso não é «outras fotografias».
+  // Duas chaves (resumidas: sem copiar um `data:` de vários MB a cada render). A da TROCA é só das referências: os endereços assinados
+  // mudam pouco depois de se abrir a proposta, e isso não é «outras
+  // fotografias» — a troca não se fecha. A da LEITURA inclui o endereço: os
+  // endereços chegam DEPOIS das referências (ou renovam-se, ou passam da
+  // miniatura à versão média), e cada um desses é uma leitura nova — senão
+  // ficava «não deu para ler» para sempre, ou a ler o recorte da miniatura.
   const chave = fotos.map((f) => `${f.ref.slice(0, 200)}|${f.ref.length}`).join("\n");
+  const chaveDaLeitura = fotos
+    .map((f) => `${f.ref.slice(0, 200)}|${(f.url ?? "").length}|${(f.url ?? "").slice(-80)}`)
+    .join("\n");
   useEffect(() => {
     let vivo = true;
     (async () => {
@@ -96,23 +101,30 @@ export default function CoresDaPaleta({
       const boas = resultado.filter((r): r is { lida: Lida; pontos: Ponto[] } => !!r);
       const pontos = boas.flatMap((r) => r.pontos);
       setLeitura({
-        chave,
+        chave: chaveDaLeitura,
         lidas: boas.map((r) => r.lida),
         automaticas: escolher(pontos),
         sugeridas: sugestoes(pontos, 12),
         estado: boas.length ? "lido" : "falhou",
       });
     })().catch(() => {
-      if (vivo) setLeitura({ chave, lidas: [], automaticas: [], sugeridas: [], estado: "falhou" });
+      if (vivo)
+        setLeitura({
+          chave: chaveDaLeitura,
+          lidas: [],
+          automaticas: [],
+          sugeridas: [],
+          estado: "falhou",
+        });
     });
     return () => {
       vivo = false;
     };
-    // `chave` resume `fotos`: as mesmas fotografias não se voltam a ler.
+    // `chaveDaLeitura` resume `fotos`: as mesmas não se voltam a ler.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chave]);
+  }, [chaveDaLeitura]);
 
-  const lida = leitura?.chave === chave ? leitura : null;
+  const lida = leitura?.chave === chaveDaLeitura ? leitura : null;
   const estado = lida?.estado ?? "a-ler";
   const lidas = lida?.lidas ?? [];
   const automaticas = lida?.automaticas ?? [];
@@ -470,7 +482,6 @@ function ContaGotas({
           if (e.pointerType !== "mouse") {
             relogio.current = setTimeout(() => {
               apontar.current = true;
-              navigator.vibrate?.(8);
             }, 300);
           }
           const l = ler(e);
@@ -509,7 +520,14 @@ function ContaGotas({
           setLupa(null);
           onPrevia(null);
         }}
-        style={{ aspectRatio: String(lida.aspeto), touchAction: "pan-y pinch-zoom" }}
+        // Segurar não abre o menu do sistema nem selecciona (Android e iPhone).
+        onContextMenu={(e) => e.preventDefault()}
+        style={{
+          aspectRatio: String(lida.aspeto),
+          touchAction: "pan-y pinch-zoom",
+          WebkitTouchCallout: "none",
+          userSelect: "none",
+        }}
         className="block w-full cursor-crosshair rounded-lg bg-[var(--bo-tinta-10)]"
       />
       {lupa && (
@@ -566,8 +584,10 @@ const jaLidas = new Map<string, Promise<Leitura>>();
 function lerFotoGuardada(f: Foto): Promise<Leitura> {
   const url = f.url;
   if (!url) return Promise.resolve(null);
-  // Pela referência (o endereço assinado muda); um `data:` é a sua própria.
-  const chave = f.ref.startsWith("data:") ? `${f.ref.length}|${f.ref.slice(-80)}` : f.ref;
+  // Pelo ENDEREÇO: um endereço novo (renovado, ou a versão média em vez da
+  // miniatura, ou uma fotografia substituída) é uma leitura nova. Um `data:`
+  // resume-se pelo tamanho e pelo fim.
+  const chave = url.startsWith("data:") ? `${url.length}|${url.slice(-80)}` : url;
   const ja = jaLidas.get(chave);
   if (ja) return ja.then((l) => (l ? { ...l, lida: { ...l.lida, ref: f.ref } } : null));
   const nova = lerFoto(f);

@@ -4281,7 +4281,14 @@ export default function ProposalStudio({
    */
   const fotosDaPaleta = (() => {
     // Pela ordem do PDF: o painel (o 6.º lugar) primeiro, depois a fila.
-    const l = lugaresDaPagina("ambiente");
+    // Os seis lugares, mesmo numa proposta que gravou só cinco (antes de o
+    // 6.º ser o painel): o que falta é o que o PDF lá põe.
+    const auto = (fotosDoPdf?.ambiente ?? []).map((f) => f.ref);
+    const dela = lugaresDaPagina("ambiente");
+    const l = Array.from(
+      { length: Math.max(dela.length, auto.length, 6) },
+      (_, k) => dela[k] ?? auto[k] ?? null,
+    );
     const pelaOrdemDoPdf = [l[5], ...l.slice(0, 5)].filter((r): r is string => !!r);
     return fotosQueDaoCor(pelaOrdemDoPdf, doc.moodBoards).map((r) => ({
       ref: r,
