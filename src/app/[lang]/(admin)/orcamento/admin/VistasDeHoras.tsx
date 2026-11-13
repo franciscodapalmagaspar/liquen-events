@@ -328,6 +328,27 @@ export function VistaDeHoras({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveDosDias, temAgora]);
 
+  /**
+   * ── E ABRE-SE NO DIA DE HOJE, TAMBÉM NA LARGURA ─────────────────────────
+   *
+   * No telemóvel a semana rola de lado (48 + 7×96 px numa caixa de 343) e
+   * abria sempre na segunda: numa sexta, o evento de HOJE ficava três colunas
+   * fora do ecrã, sem nada a dizer que havia mais. Se hoje está nesta semana e
+   * a coluna dele não cabe à vista, a caixa abre com ela encostada às horas.
+   * Só ao trocar de semana, pela mesma razão do salto vertical: uma caixa que
+   * se mexe sozinha a meio de uma leitura tira-a do sítio.
+   */
+  useLayoutEffect(() => {
+    const caixa = caixaRef.current;
+    if (!caixa || caixa.scrollWidth <= caixa.clientWidth) return;
+    const coluna = caixa.querySelector<HTMLElement>('[aria-current="date"]');
+    if (!coluna) return;
+    const r = coluna.getBoundingClientRect();
+    const c = caixa.getBoundingClientRect();
+    if (r.right <= c.right && r.left >= c.left + LARGURA_DAS_HORAS) return;
+    caixa.scrollLeft = Math.max(0, r.left - c.left + caixa.scrollLeft - LARGURA_DAS_HORAS);
+  }, [chaveDosDias, hoje]);
+
   return (
     <div
       /* ── O ROLO É DESTA CAIXA, E NÃO DA PÁGINA ───────────────────────────

@@ -949,16 +949,22 @@ export default function OrcamentoForm({
           a barra ainda alta, o fundo do painel fica um pouco abaixo da dobra,
           e o título no meio fica à vista na mesma. */}
       <aside className="relative hidden lg:block overflow-hidden lg:sticky lg:top-[76px] lg:h-[calc(100svh-76px)] lg:self-start">
-        <Image
-          src="/imagens/DaniGui_JantarFesta_1.jpg"
-          placeholder="blur"
-          blurDataURL={panelBlur}
-          alt={t.common.imageAlt.orcamentoPanel}
-          fill
-          sizes="(max-width: 1024px) 0vw, 45vw"
-          quality={75}
-          className="object-cover"
-        />
+        {/* A foto num `div` `absolute inset-0` próprio: o `next/image` com
+            `fill` pede um pai `relative`/`absolute`/`fixed`, e a partir de
+            `lg` o pai é `sticky` — dava um aviso na consola em cada visita
+            (auditoria de 13/11, n.º 19). A caixa da foto é a mesma. */}
+        <div className="absolute inset-0">
+          <Image
+            src="/imagens/DaniGui_JantarFesta_1.jpg"
+            placeholder="blur"
+            blurDataURL={panelBlur}
+            alt={t.common.imageAlt.orcamentoPanel}
+            fill
+            sizes="(max-width: 1024px) 0vw, 45vw"
+            quality={75}
+            className="object-cover"
+          />
+        </div>
         <div className="absolute inset-0 bg-gradient-to-t from-[#080808] via-[#080808]/35 to-[#080808]/55" />
         <div className="absolute inset-0 flex flex-col p-12 xl:p-16">
           <Link
@@ -1392,10 +1398,12 @@ export default function OrcamentoForm({
                   baixo diz porque é que importa escrevê-lo bem; a sugestão
                   apanha o domínio mal escrito («gmial.com»). */}
               <div>
+                {/* Sem o `required` do asterisco: era o ÚNICO campo com «*»,
+                    por baixo de uma nota que diz que todos são obrigatórios
+                    menos o telemóvel. O `aria-required` do campo fica. */}
                 <FloatingField
                   htmlFor="of-email"
                   label={to.labelEmail}
-                  required
                   error={emailErr}
                   errorId="of-email-err"
                 >

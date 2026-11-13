@@ -7960,8 +7960,11 @@ describe("o que falta para enviar, no passo de enviar", () => {
     expect(
       screen.queryByText(/Preenche clientes, referência e um total maior que 0 \(no passo/),
     ).toBeNull();
-    expect(await screen.findByText(/Uma coisa impede o envio/)).toBeTruthy();
+    // Duas, e não uma: a Conferência conta também o «ver o PDF final», como a
+    // pastilha do envio (auditoria de 13/11, n.º 5 — «Faltam 4» vs «3 coisas»).
+    expect(await screen.findByText(/2 coisas impedem o envio/)).toBeTruthy();
     expect(screen.getByText("Nome dos clientes")).toBeTruthy();
+    expect(screen.getByText(/Falta ver o PDF final/)).toBeTruthy();
   });
 
   it("tocar na linha volta ao conteúdo e põe o cursor no campo", async () => {

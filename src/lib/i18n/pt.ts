@@ -582,8 +582,8 @@ export const pt = {
     // parágrafos; o formulário desenha-o com `whitespace-pre-line`.
     hintMensagem:
       "Quanto mais informação nos facultar sobre o estilo pretendido, a paleta de cores, o ambiente desejado e as referências que selecionou, melhor poderemos adaptar a proposta às suas expectativas.\n\nÉ a partir destes elementos que começamos a desenvolver a sua proposta personalizada.",
-    errNome: "Indique o seu nome",
-    errEmail: "E-mail inválido",
+    errNome: "Indique o seu nome.",
+    errEmail: "E-mail inválido.",
     /**
      * ── A FRASE DA REGRA «EMAIL OU TELEMÓVEL», NUM SÓ SÍTIO ────────────────
      *

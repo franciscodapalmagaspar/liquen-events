@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import type { Quote } from "./types";
 import { conferir, temReparos, type Verificacao } from "./conferencia";
+import { oQueFaltaParaEnviar } from "@/lib/proposal-progress";
 
 const pedido = (over: Partial<Quote> = {}): Quote =>
   ({
@@ -966,5 +967,33 @@ describe("as alternativas contam no idioma (A6-010)", () => {
     const v = vs.find((x) => x.id === "idioma")!;
     expect(v.detalhe).toContain("Escolha «Paleta»");
     expect(v.detalhe).toContain("Opção «Terracota»");
+  });
+});
+
+/**
+ * ── A CONFERÊNCIA E A PASTILHA CONTAM A PARTIR DA MESMA LISTA ─────────────
+ *
+ * Auditoria visual de 13/11 (n.º 5): no passo «Rever e enviar», a pastilha
+ * da barra dizia «Faltam 4» e a Conferência, por cima, «3 coisas impedem o
+ * envio». A quarta era o «visto» do PDF final, que o estúdio dava ao botão e
+ * não dava a esta lista. Passa o mesmo `pdfVisto`, e as duas contagens são a
+ * de `oQueFaltaParaEnviar`.
+ */
+describe("o visto do PDF final", () => {
+  it("por ver, entra como uma falta que trava — e a contagem é a do envio", () => {
+    const doc = documentoCompleto({ clientNames: "", ref: "" });
+    const ctx = { pdfVisto: false };
+    const vs = conferir({ ...base, doc, quote: pedido(), ...ctx });
+    const doEnvio = oQueFaltaParaEnviar(doc, base.totalBruto, ctx).filter((f) => f.trava);
+    expect(achar(vs, "visto")).toMatchObject({ severidade: "erro", trava: true });
+    expect(vs.filter((v) => v.trava).length).toBe(doEnvio.length);
+  });
+
+  it("visto e confirmado, desaparece; sem o dizer, não se verifica", () => {
+    const doc = documentoCompleto();
+    const visto = conferir({ ...base, doc, quote: pedido(), pdfVisto: true });
+    const semDizer = conferir({ ...base, doc, quote: pedido() });
+    expect(visto.some((v) => v.id === "visto")).toBe(false);
+    expect(semDizer.some((v) => v.id === "visto")).toBe(false);
   });
 });

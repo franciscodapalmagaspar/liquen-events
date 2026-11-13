@@ -578,9 +578,9 @@ describe("POST /api/orcamento", () => {
       // que o formulário mostra ao lado do campo, e vê-las escritas de duas
       // maneiras faz duvidar de que seja o mesmo erro.
       const semNome = await POST(req("POST", { form: { name: "A", email: "ana@example.com" } }));
-      expect((await semNome.json()).error).toBe("Indique o seu nome");
+      expect((await semNome.json()).error).toBe("Indique o seu nome.");
       const emailMau = await POST(req("POST", { form: { ...validForm, email: "nao-e-email" } }));
-      expect((await emailMau.json()).error).toBe("E-mail inválido");
+      expect((await emailMau.json()).error).toBe("E-mail inválido.");
     });
 
     it("um corpo que nem sequer é um pedido não devolve jargão", async () => {

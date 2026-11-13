@@ -24,6 +24,7 @@ import {
   type PropostaParaContas,
 } from "@/lib/orcamento/dinheiro-dos-pedidos";
 import { A_ESPERAR_RESPOSTA, esperaEmPalavras } from "@/lib/orcamento/espera";
+import { contaComoEvento } from "@/lib/orcamento/hoje";
 import type { LeituraFalhada } from "@/lib/porque-nao-leu";
 import { AvisoDeFalha } from "./AvisoDeFalha";
 import { fraccaoDaBarra } from "@/lib/fraccao-da-barra";
@@ -1369,8 +1370,13 @@ export default function Overview({
         if (p.paid) received += p.amount;
         else outstanding += p.amount;
       }
-      if (q.date === hoje) eventsToday++;
-      if (q.date && q.date >= hoje && q.date <= weekEndKey) eventsThisWeek++;
+      // «Evento» é a regra do cartão «Hoje» (`contaComoEvento`), e não
+      // qualquer pedido com data: a frase dizia «Tem 1 evento hoje» por cima
+      // de um cartão que dizia «Não há eventos», por causa de um pedido Novo.
+      if (contaComoEvento(q)) {
+        if (q.date === hoje) eventsToday++;
+        if (q.date && q.date >= hoje && q.date <= weekEndKey) eventsThisWeek++;
+      }
 
       const sd = new Date(q.submittedAt);
       const sKey = `${sd.getFullYear()}-${sd.getMonth()}`;

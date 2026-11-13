@@ -69,6 +69,12 @@ interface Props {
   /** Por onde segue, e o email do pedido — sem eles o email não se verifica. */
   canal?: "email" | "whatsapp" | "ambos";
   emailDoCliente?: string;
+  /**
+   * O PDF final desta versão foi visto e confirmado — o mesmo valor que o
+   * estúdio dá ao botão de enviar. Com ele, o «Falta ver o PDF final» entra
+   * nesta lista como as outras faltas, e a contagem daqui é a da pastilha.
+   */
+  pdfVisto?: boolean;
 }
 
 export default function Conferencia({
@@ -80,10 +86,21 @@ export default function Conferencia({
   onIr,
   canal,
   emailDoCliente,
+  pdfVisto,
 }: Props) {
   const verificacoes = useMemo(
-    () => conferir({ doc, quote, historico: quotes, totalBruto, idioma, canal, emailDoCliente }),
-    [doc, quote, quotes, totalBruto, idioma, canal, emailDoCliente],
+    () =>
+      conferir({
+        doc,
+        quote,
+        historico: quotes,
+        totalBruto,
+        idioma,
+        canal,
+        emailDoCliente,
+        pdfVisto,
+      }),
+    [doc, quote, quotes, totalBruto, idioma, canal, emailDoCliente, pdfVisto],
   );
   const reparos = temReparos(verificacoes);
   const travam = verificacoes.filter((x) => x.trava).length;
