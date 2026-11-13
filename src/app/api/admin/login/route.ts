@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   ADMIN_COOKIE,
+  ADMIN_DEVICE_COOKIE,
   ADMIN_NAME_COOKIE,
+  APARELHO_MS,
+  aparelhoConhecido,
+  criarMarcaDeAparelho,
   createSession,
   duracaoDaSessao,
   verifyCredentials,
@@ -150,7 +154,9 @@ export async function POST(request: NextRequest) {
     // Todos os degraus contam SEMPRE, mesmo quando um deles já está a fechar a
     // porta: é isso que faz a escada subir para quem insiste.
     const resultados = await Promise.all(
-      ESCADA.map((d) => rateLimit(`${d.chave}:${conta}`, d.tentativas, d.janelaMs, { global: true })),
+      ESCADA.map((d) =>
+        rateLimit(`${d.chave}:${conta}`, d.tentativas, d.janelaMs, { global: true }),
+      ),
     );
     let espera = 0;
     resultados.forEach((r, i) => {
@@ -167,7 +173,17 @@ export async function POST(request: NextRequest) {
   }
 
   // O último degrau, perguntado sem gastar tentativa — ver a nota da ESCADA.
-  if (conta) {
+  //
+  // MENOS no aparelho onde esta conta já entrou (auditoria de 13/11, n.º 4):
+  // ver `aparelhoConhecido`. Sem isto, um estranho que soubesse o endereço
+  // dela chegava às 20 falhas de propósito e deixava-a uma hora de fora. Quem
+  // tenta de fora não tem a marca, e para ele a porta fecha como antes; e as
+  // falhas deste aparelho continuam a contar para a escada.
+  const doAparelhoConhecido = aparelhoConhecido(
+    request.cookies?.get(ADMIN_DEVICE_COOKIE)?.value,
+    identificador,
+  );
+  if (conta && !doAparelhoConhecido) {
     const topo = ESCADA[ESCADA.length - 1];
     const fechada = await limiteEsgotado(`${topo.chave}:${conta}`, topo.tentativas);
     if (!fechada.ok) {
@@ -232,5 +248,14 @@ export async function POST(request: NextRequest) {
   });
   // Who is logged in — used to greet the partner and default task ownership.
   res.cookies.set(ADMIN_NAME_COOKIE, user.name, { httpOnly: false, ...cookieBase });
+  // A marca de «aparelho conhecido» (n.º 4): dura mais do que a sessão, porque
+  // é justamente depois de a sessão acabar que ela precisa dela.
+  res.cookies.set(ADMIN_DEVICE_COOKIE, criarMarcaDeAparelho(identificador), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+    maxAge: Math.floor(APARELHO_MS / 1000),
+  });
   return res;
 }

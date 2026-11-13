@@ -1007,6 +1007,86 @@ export function isAuthed(req: NextRequest): boolean {
   return readSession(req.cookies.get(ADMIN_COOKIE)?.value) !== null;
 }
 
+// --- Aparelho conhecido ----------------------------------------------------
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O BLOQUEIO DA CONTA NÃO FECHA A PORTA AO APARELHO DELA (auditoria de 13/11, n.º 4)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O último degrau da escada da entrada (20 falhas numa hora) fecha a conta
+ * MESMO para a palavra-passe certa — decisão dela de 10/11, e é o que trava
+ * quem tenta palpites a partir de muitos endereços. O efeito secundário: um
+ * estranho que soubesse o endereço dela chegava aos 20 de propósito e ela
+ * ficava uma hora de fora, sem ter feito nada.
+ *
+ * A saída que mantém a decisão: o aparelho onde ela já entrou com sucesso leva
+ * uma MARCA (cookie próprio, assinado com uma sub-chave só dele, presa à
+ * conta). Com a marca, o último degrau não se aplica à palavra-passe certa;
+ * sem ela — que é o caso de quem tenta de fora —, fecha como antes. As falhas
+ * contam sempre, com ou sem marca.
+ */
+export const ADMIN_DEVICE_COOKIE =
+  process.env.NODE_ENV === "production" ? "__Host-liquen_aparelho" : "liquen_aparelho";
+export const APARELHO_MS = 1000 * 60 * 60 * 24 * 180; // 180 dias
+
+function chaveDoAparelho(): Buffer {
+  return subKey("liquen.admin-aparelho-conhecido.v1");
+}
+
+/**
+ * A conta a que um identificador escrito à entrada corresponde: o email dela
+ * (ou o nome, se não tiver email). Sem `ADMIN_USERS` (palavra-passe
+ * partilhada), o próprio identificador.
+ */
+function contaDoIdentificador(identificador: string): string {
+  const users = configuredUsers();
+  const achada = users ? encontrarConta(users, identificador) : null;
+  if (achada) return normalizarIdentificador(achada.user.email ?? achada.user.name);
+  return users ? "" : normalizarIdentificador(identificador);
+}
+
+/**
+ * A marca que se deixa num aparelho depois de uma entrada bem sucedida, com o
+ * identificador que foi escrito nela.
+ */
+export function criarMarcaDeAparelho(identificador: string): string {
+  const corpo = Buffer.from(
+    JSON.stringify({
+      typ: "aparelho",
+      sub: contaDoIdentificador(identificador),
+      exp: Date.now() + APARELHO_MS,
+    }),
+  ).toString("base64url");
+  const sig = createHmac("sha256", chaveDoAparelho()).update(corpo).digest("base64url");
+  return `${corpo}.${sig}`;
+}
+
+/**
+ * Este aparelho já entrou nesta conta? `identificador` é o que foi escrito à
+ * entrada (email ou nome); compara-se com a conta a que ele corresponde.
+ */
+export function aparelhoConhecido(
+  token: string | undefined | null,
+  identificador: string,
+): boolean {
+  if (!token) return false;
+  const partes = token.split(".");
+  if (partes.length !== 2 || !partes[0] || !partes[1]) return false;
+  const esperado = createHmac("sha256", chaveDoAparelho()).update(partes[0]).digest("base64url");
+  const a = Buffer.from(partes[1]);
+  const b = Buffer.from(esperado);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
+  let p: { typ?: unknown; sub?: unknown; exp?: unknown };
+  try {
+    p = JSON.parse(Buffer.from(partes[0], "base64url").toString());
+  } catch {
+    return false;
+  }
+  if (p.typ !== "aparelho" || typeof p.exp !== "number" || Date.now() > p.exp) return false;
+  const alvo = contaDoIdentificador(identificador);
+  return !!alvo && identificadorIgual(String(p.sub ?? ""), alvo);
+}
+
 // --- Confirmação recente da palavra-passe ----------------------------------
 /**
  * ════════════════════════════════════════════════════════════════════════════
