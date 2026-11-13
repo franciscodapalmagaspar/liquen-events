@@ -668,6 +668,44 @@ describe("notas presas a cada secção", () => {
     expect(JSON.parse(gravado).doc.notasPorSeccao.orcamento).toContain("margem toda");
   });
 
+  /**
+   * Auditoria de 13/11, estúdio n.ºs 1 e 2. Com a rede lenta, a gravação
+   * seguinte partia antes de a anterior voltar — com o mesmo carimbo, e o
+   * servidor via-a como «alterada por outra pessoa»; e a mais antiga podia
+   * chegar depois e ficar a valer. Agora vão uma de cada vez, e a segunda leva
+   * o carimbo que a primeira trouxe.
+   */
+  it("com a rede lenta, as gravações vão uma de cada vez — e a segunda leva o carimbo da primeira", async () => {
+    let soltar!: () => void;
+    const portao = new Promise<void>((r) => (soltar = r));
+    let n = 0;
+    gravacaoDoRascunho = (async () => {
+      n += 1;
+      if (n === 1) {
+        await portao;
+        return reply({ json: { ok: true, guardado: true, updatedAt: "2026-11-13T10:00:01.000Z" } });
+      }
+      return reply({ json: { ok: true, guardado: true, updatedAt: "2026-11-13T10:00:02.000Z" } });
+    }) as unknown as () => Response;
+
+    renderStudio();
+    const user = userEvent.setup();
+    const caixa = await abrirNota("Nota sobre o orçamento", user);
+    await user.type(caixa, "primeira");
+    await waitFor(() => expect(corpos("proposta-rascunho").length).toBe(1), { timeout: 4000 });
+
+    // Escreve mais enquanto a primeira está presa na rede.
+    await user.type(caixa, " segunda");
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(corpos("proposta-rascunho"), "partiu uma segunda gravação em paralelo").toHaveLength(1);
+
+    soltar();
+    await waitFor(() => expect(corpos("proposta-rascunho").length).toBe(2), { timeout: 4000 });
+    const segunda = JSON.parse(corpos("proposta-rascunho")[1]);
+    expect(segunda.baseUpdatedAt).toBe("2026-11-13T10:00:01.000Z");
+    expect(segunda.doc.notasPorSeccao.orcamento).toContain("primeira segunda");
+  });
+
   it("apagar a nota TIRA a chave, em vez de deixar um vazio", async () => {
     /**
      * Seis caixas que gravassem `""` punham seis chaves sem conteúdo em todos

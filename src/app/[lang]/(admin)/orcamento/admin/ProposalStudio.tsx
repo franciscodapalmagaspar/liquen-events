@@ -2894,7 +2894,7 @@ export default function ProposalStudio({
    * a esquecer-se de dizer que falhou é exactamente o problema que isto veio
    * resolver.
    */
-  const enviarParaServidor = useCallback(
+  const gravarUmaVez = useCallback(
     async (docGravavel: unknown): Promise<ResultadoDaGravacao> => {
       setAGravarNoServidor((n) => n + 1);
       try {
@@ -2956,6 +2956,50 @@ export default function ProposalStudio({
       marcarQueDura,
       onEstadoDoPedido,
     ],
+  );
+
+  /**
+   * ── UMA GRAVAÇÃO DE CADA VEZ, E SEMPRE A MAIS RECENTE ────────────────────
+   *
+   * Auditoria de 13/11 (estúdio, n.ºs 1 e 2). Com a rede lenta, a gravação dos
+   * 800 ms seguinte partia antes de a anterior voltar: as duas levavam o MESMO
+   * carimbo (`serverStamp`), e o servidor via a segunda como «alterada por
+   * outra pessoa» — aviso falso, gaveta de resgate estragada. E se a mais
+   * antiga chegasse depois da nova, era ela que ficava a valer: ao reabrir,
+   * perdiam-se as últimas alterações.
+   *
+   * Agora há uma fila: uma gravação só parte quando a anterior voltou (e com
+   * o carimbo que ela trouxe). Quando chega a vez, vai o documento MAIS RECENTE
+   * que foi pedido — as versões intermédias não interessam a ninguém —, e as
+   * que ficaram pelo caminho recebem o resultado dessa.
+   */
+  const filaDaGravacao = useRef<Promise<unknown> | null>(null);
+  const porEnviar = useRef<{ doc: unknown } | null>(null);
+  const ultimoResultado = useRef<ResultadoDaGravacao | null>(null);
+  const enviarParaServidor = useCallback(
+    (docGravavel: unknown): Promise<ResultadoDaGravacao> => {
+      porEnviar.current = { doc: docGravavel };
+      const umaVez = async (): Promise<ResultadoDaGravacao> => {
+        const pedido = porEnviar.current;
+        // Uma gravação anterior já levou este documento (ou um mais recente).
+        if (!pedido) return ultimoResultado.current ?? { estado: "so-local" };
+        porEnviar.current = null;
+        const r = await gravarUmaVez(pedido.doc);
+        ultimoResultado.current = r;
+        return r;
+      };
+      // Sem nada em voo, parte JÁ (sem esperar um passo da fila): a gravação
+      // de quando o ecrã fecha tem de sair enquanto o ecrã fecha.
+      const anterior = filaDaGravacao.current;
+      const vez = anterior ? anterior.then(umaVez) : umaVez();
+      const naFila = vez.catch(() => {});
+      filaDaGravacao.current = naFila;
+      void naFila.then(() => {
+        if (filaDaGravacao.current === naFila) filaDaGravacao.current = null;
+      });
+      return vez;
+    },
+    [gravarUmaVez],
   );
 
   // ── O rascunho que está no SERVIDOR ──
