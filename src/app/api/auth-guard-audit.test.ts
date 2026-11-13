@@ -622,6 +622,9 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // clientes, datas e locais de OUTROS pedidos, numa resposta só.
   { path: "./orcamento/[id]/fotos-repetidas/route", methods: ["GET"] },
   { path: "./orcamento/manual/route", methods: ["POST"] },
+  // Ler uma proposta antiga (Word/PowerPoint). Não grava nada, mas devolve o
+  // conteúdo de um documento de uma cliente — só para a sessão admin.
+  { path: "./orcamento/importar/route", methods: ["POST"] },
   // A biblioteca visual: o vocabulário de etiquetas, a procura por etiquetas e
   // o etiquetar em lote. Tudo isto lê e escreve o trabalho de arrumação da
   // equipa, e as fotos que devolve são URLs assinados de um bucket PRIVADO.

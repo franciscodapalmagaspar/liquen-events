@@ -231,6 +231,7 @@ import { linkDoWhatsApp } from "@/lib/whatsapp";
 import { randomId } from "./util";
 import type { ActivityEntry, Quote, QuoteStatus } from "@/lib/orcamento/types";
 import { prepareImageWithThumb, type ImageKind } from "./image-prep";
+import { enviarFotoDaProposta } from "./enviar-foto-da-proposta";
 import ThemePicker, { type ImportedImage, type ReservedImage } from "./ThemePicker";
 import ServicesEditor, { MoveBtns } from "./ServicesEditor";
 import CaixaInglesa from "./CaixaInglesa";
@@ -5529,56 +5530,10 @@ export default function ProposalStudio({
     lqip?: string | null,
     mid?: File | null,
   ): Promise<{ path: string; url: string; thumbUrl?: string; cor?: string }> {
-    const post = () => {
-      const form = new FormData();
-      form.append("files", file);
-      // O LQIP — a mancha de cor que ocupa a célula enquanto a fotografia não
-      // chega. Sai da MESMA descodificação que já calculou a cor e a miniatura
-      // (`image-prep`), portanto não custa nada, e sem ele a página do casal
-      // abre com rectângulos vazios: o caminho da Biblioteca de Temas gravava-o
-      // e este não, e por isso a mesma página tinha metade das células com
-      // placeholder e a outra metade sem.
-      if (lqip) form.append("lqips", lqip);
-      // A cor dominante, calculada na mesma descodificação que encolheu a foto
-      // (ver `image-prep`). É aqui que ela pode ser calculada — do lado do
-      // estúdio as fotos já vêm de outro domínio e o `canvas` fica manchado.
-      if (cor) form.append("cores", cor);
-      // A miniatura viaja ao lado do original, no mesmo pedido: sai da MESMA
-      // descodificação que já se fez para encolher a foto, portanto não custa
-      // tempo nenhum, e ~30–60 KB não se notam ao lado de uma foto de 2 MB.
-      // Sem ela, a grelha voltava a puxar 1130 KB por célula para desenhar
-      // 174 px (medido em IMAGES-BEFORE.md).
-      if (thumb) form.append("thumbs", thumb);
-      // A de 1200 px — a que a PÁGINA DO CASAL mostra. Sai da mesma
-      // descodificação que fez a miniatura, portanto não custa tempo nenhum, e
-      // ~250 KB não se notam ao lado de uma foto de 2 MB.
-      //
-      // Sem ela, esta fotografia só ganha a de 1200 quando ALGUÉM OLHAR para
-      // ela — e numa proposta acabada de enviar essa pessoa é o casal, com um
-      // download do original e uma conversão a acontecer no servidor enquanto
-      // eles olham para um rectângulo vazio.
-      if (mid) form.append("medias", mid);
-      return fetch(`/api/orcamento/${quote.id}/assets`, { method: "POST", body: form });
-    };
-    let res: Response;
-    try {
-      res = await post();
-    } catch {
-      // Soluço de rede — tenta uma segunda vez antes de desistir.
-      res = await post();
-    }
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(
-        data?.error ||
-          (res.status === 413
-            ? "Imagem demasiado grande para envio."
-            : "Falha ao carregar a imagem."),
-      );
-    }
-    const im: { path: string; url: string; thumbUrl?: string; cor?: string } | undefined =
-      data?.images?.[0];
-    if (!im) throw new Error("Falha ao carregar a imagem.");
+    // O formulário, a repetição e as mensagens vivem em
+    // `enviar-foto-da-proposta.ts`: a importação de propostas antigas carrega
+    // as fotografias pelo MESMO caminho.
+    const im = await enviarFotoDaProposta(quote.id, { file, thumb, cor, lqip, mid });
     // A grelha desenha pela miniatura quando existe; o original fica para o
     // detalhe e para o PDF.
     setAssetUrls((prev) => ({ ...prev, [im.path]: im.thumbUrl || im.url }));
