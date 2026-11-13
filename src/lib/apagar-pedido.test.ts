@@ -35,6 +35,8 @@ const dados = vi.hoisted(() => ({
   propostaQueFalha: null as string | null,
   fotoQueFalha: null as string | null,
   pedidoRebenta: false,
+  tarefas: [] as { id: string; quoteId?: string }[],
+  tarefasApagadas: [] as string[],
 }));
 
 vi.mock("@/lib/quotes-store", () => ({
@@ -69,6 +71,12 @@ vi.mock("@/lib/proposal-storage", () => ({
   removeStoredObject: async (_b: string, path: string) => {
     if (dados.fotoQueFalha === path) throw new Error("recusado");
     dados.removidas.push(path);
+  },
+}));
+vi.mock("@/lib/tasks-store", () => ({
+  listTasks: async () => dados.tarefas,
+  deleteTask: async (id: string) => {
+    dados.tarefasApagadas.push(id);
   },
 }));
 vi.mock("@/lib/logger", () => ({
@@ -107,6 +115,8 @@ beforeEach(() => {
   dados.propostaQueFalha = null;
   dados.fotoQueFalha = null;
   dados.pedidoRebenta = false;
+  dados.tarefas = [];
+  dados.tarefasApagadas = [];
 });
 
 describe("apagar um pedido sem contrato", () => {
@@ -123,6 +133,18 @@ describe("apagar um pedido sem contrato", () => {
     // A proposta de OUTRO pedido não se toca.
     expect(dados.apagadas).not.toContain("p3");
     expect(r.contou.propostas).toBe(2);
+  });
+
+  it("leva as TAREFAS do pedido — guardam o nome do casal (auditoria 12/11, n.º 7)", async () => {
+    dados.tarefas = [
+      { id: "t1", quoteId: "q1" },
+      { id: "t2", quoteId: "outro" },
+      { id: "t3" },
+      { id: "t4", quoteId: "q1" },
+    ];
+    const r = await apagarPedidoSemContrato("q1");
+    expect(dados.tarefasApagadas.sort()).toEqual(["t1", "t4"]);
+    expect(r.contou.tarefas).toBe(2);
   });
 
   it("leva as fotografias carregadas para aquele pedido", async () => {
