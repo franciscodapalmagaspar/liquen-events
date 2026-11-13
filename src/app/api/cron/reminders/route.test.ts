@@ -174,14 +174,20 @@ describe("GET /api/cron/reminders — digest logic (clock pinned 2026-07-20)", (
   });
 
   it("flags unpaid payments due within 7 days and pushes the summary", async () => {
+    // Um cliente ACEITE: o resumo conta pela conta do quadro das Cobranças
+    // (auditoria de 13/11, n.º 4). Proposta aceite de 10.000 €, sinal de 30%.
+    data.proposals = [
+      { id: "pa", quoteId: "a", status: "aceite", total: 10000, subtotal: 8130.08 },
+    ];
     data.quotes = [
       {
         id: "a",
         name: "Cliente",
+        status: "aceite",
+        date: "2026-12-12",
         payments: [
-          { paid: false, date: "2026-07-21", amount: 500 }, // due within 7
-          { paid: true, date: "2026-07-22", amount: 999 }, // already paid → ignored
-          { paid: false, date: "2026-08-30", amount: 200 }, // beyond +7 → ignored
+          { id: "s", kind: "sinal", paid: false, date: "2026-07-21", amount: 3000 }, // due within 7
+          { id: "x", kind: "saldo", paid: false, date: "2026-11-12", amount: 7000 }, // beyond +7 → ignored
         ],
       },
     ];
@@ -193,6 +199,33 @@ describe("GET /api/cron/reminders — digest logic (clock pinned 2026-07-20)", (
       body: string;
     };
     expect(push.body).toContain("1 pagamento");
+  });
+
+  it("um sinal registado ao lado da linha prevista, e um pedido perdido, não contam «a receber» (auditoria de 13/11, n.º 4)", async () => {
+    data.proposals = [
+      { id: "pa", quoteId: "a", status: "aceite", total: 10000, subtotal: 8130.08 },
+    ];
+    data.quotes = [
+      {
+        id: "a",
+        name: "Cliente",
+        status: "aceite",
+        date: "2026-12-12",
+        payments: [
+          // O sinal entrou e foi registado numa linha NOVA; a prevista ficou.
+          { id: "s", kind: "sinal", paid: false, date: "2026-07-18", amount: 3000 },
+          { id: "s2", kind: "sinal", paid: true, date: "2026-07-19", amount: 3000 },
+        ],
+      },
+      {
+        id: "b",
+        name: "Perdido",
+        status: "rejeitado",
+        payments: [{ id: "x", kind: "sinal", paid: false, date: "2026-07-21", amount: 500 }],
+      },
+    ];
+    await GET(req());
+    expect(sendPushToAll).not.toHaveBeenCalled();
   });
 
   it("flags a quote awaiting a first reply for 24h+ but not a fresh one", async () => {

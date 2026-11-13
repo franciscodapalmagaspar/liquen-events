@@ -140,13 +140,16 @@ vi.mock("@/lib/rate-limit", () => ({
  */
 const propostas = vi.hoisted(() => ({
   daQuote: null as null | Record<string, unknown>,
+  /** Todas as propostas do pedido, da mais nova para a mais velha (se o teste as der). */
+  lista: null as null | Record<string, unknown>[],
   getByQuote: vi.fn(async (_qid: string) => propostas.daQuote),
   update: vi.fn(async (id: string, patch: Record<string, unknown>) => ({ id, ...patch })),
 }));
 vi.mock("@/lib/proposals-store", () => ({
   getProposalByQuote: propostas.getByQuote,
   updateProposal: propostas.update,
-  listProposalsForQuote: async () => (propostas.daQuote ? [propostas.daQuote] : []),
+  listProposalsForQuote: async () =>
+    propostas.lista ?? (propostas.daQuote ? [propostas.daQuote] : []),
 }));
 const contratos = vi.hoisted(() => ({
   criar: vi.fn(async (c: Record<string, unknown>) => ({ created: true, contract: c })),
@@ -219,6 +222,7 @@ beforeEach(() => {
   store.override = {};
   store.antesDeGravar = null;
   propostas.daQuote = null;
+  propostas.lista = null;
   contratos.daProposta = null;
   vi.clearAllMocks();
 });
@@ -868,13 +872,12 @@ describe("PATCH /api/orcamento/[id] — propaga o desfecho para a proposta", () 
       id: () => "entrada-1",
     });
 
-  it("marcar «Ganho» escreve status e respondedAt na proposta mais recente", async () => {
+  it("marcar «Ganho» escreve status e respondedAt na proposta que conta (a enviada)", async () => {
     authed.ok = true;
     store.override = { status: "cotado" };
     propostas.daQuote = proposta();
     await PATCH(req("PATCH", corpo("ganho", 4600)), ctx("LIQ-1"));
 
-    expect(propostas.getByQuote).toHaveBeenCalledWith("LIQ-1");
     expect(propostas.update).toHaveBeenCalledWith(
       "prop-1",
       expect.objectContaining({ status: "aceite", respondedAt: expect.any(String) }),
@@ -996,6 +999,24 @@ describe("PATCH /api/orcamento/[id] — o contrato nasce ao Ganho", () => {
     expect(contrato).not.toHaveProperty("acceptedAt");
     expect(contrato).not.toHaveProperty("acceptedName");
     expect(contrato).not.toHaveProperty("acceptedIp");
+  });
+
+  it("marcar «Ganho» com uma revisão por enviar aceita a ENVIADA — nunca o rascunho (auditoria de 13/11, n.º 3)", async () => {
+    authed.ok = true;
+    store.override = { status: "cotado" };
+    const rascunho = proposta({ id: "prop-2", status: "rascunho" });
+    // A mais recente é o rascunho de uma revisão que o casal nunca viu.
+    propostas.daQuote = rascunho;
+    propostas.lista = [rascunho, proposta({ id: "prop-1", status: "enviada" })];
+    await PATCH(req("PATCH", corpoGanho(4600)), ctx("LIQ-1"));
+
+    expect(propostas.update).toHaveBeenCalledWith(
+      "prop-1",
+      expect.objectContaining({ status: "aceite" }),
+    );
+    expect(propostas.update).not.toHaveBeenCalledWith("prop-2", expect.anything());
+    expect(contratos.criar).toHaveBeenCalledTimes(1);
+    expect(contratos.criar.mock.calls[0][0]).toMatchObject({ proposalId: "prop-1" });
   });
 
   it("marcar «Perdido» não faz nascer contrato nenhum", async () => {
@@ -1367,6 +1388,37 @@ describe("PATCH /api/orcamento/[id] — «Anular» um Ganho leva o que ele arras
       status: "enviada",
       respondedAt: "",
     });
+  });
+});
+
+describe("PATCH /api/orcamento/[id] — o prazo do saldo segue a data do evento", () => {
+  it("mudar a data move o saldo PREVISTO pela regra, e não toca no pago nem no escrito à mão (auditoria de 13/11, n.º 7)", async () => {
+    authed.ok = true;
+    store.override = {
+      status: "aceite",
+      date: "2027-06-12",
+      payments: [
+        { id: "s", kind: "sinal", amount: 3000, date: "2026-11-01", paid: true },
+        // O «Ganho» semeou-o a um mês do evento.
+        { id: "r", kind: "saldo", amount: 7000, date: "2027-05-12", paid: false },
+        // Este foi ela que o pôs noutro dia — fica.
+        { id: "m", kind: "saldo", amount: 100, date: "2027-04-01", paid: false },
+      ],
+    };
+    // A loja deste ficheiro não guarda o que se escreve; aqui a segunda escrita
+    // (a do saldo) tem de ler a data que a primeira gravou.
+    const gravaDeVerdade = async (id: string, patch: Record<string, unknown>) => {
+      Object.assign(store.override, patch);
+      return { ...(await store.get(id)), ...patch } as Awaited<ReturnType<typeof store.update>>;
+    };
+    store.update.mockImplementationOnce(gravaDeVerdade).mockImplementationOnce(gravaDeVerdade);
+    const res = await PATCH(req("PATCH", { date: "2027-09-20" }), ctx("LIQ-1"));
+    expect(res.status).toBe(200);
+    const corpo = (await res.json()) as { payments: { id: string; date: string }[] };
+    const dia = (id: string) => corpo.payments.find((p) => p.id === id)?.date;
+    expect(dia("r")).toBe("2027-08-20");
+    expect(dia("m")).toBe("2027-04-01");
+    expect(dia("s")).toBe("2026-11-01");
   });
 });
 

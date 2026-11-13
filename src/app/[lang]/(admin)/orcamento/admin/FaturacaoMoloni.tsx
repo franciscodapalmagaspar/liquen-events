@@ -5,6 +5,7 @@ import { eur } from "@/lib/money";
 import { depositPercentOf } from "@/lib/proposal-doc";
 import type { VersaoEscolhida } from "@/lib/orcamento/versoes-da-proposta";
 import {
+  conferenciaDoMoloni,
   faturacaoPorArtigo,
   parcelasDaFatura,
   refDoArtigo,
@@ -356,6 +357,9 @@ function CartaoDaFase({
 }) {
   const partes = parcelasDaFatura(f, fase, pct);
   const valor = Math.round(partes.reduce((s, p) => s + p.valor, 0) * 100) / 100;
+  // O total com IVA que o MOLONI vai mostrar (IVA linha a linha), e se difere do
+  // que a proposta e os Pagamentos dizem para esta fase (auditoria de 13/11, n.º 2).
+  const conferencia = conferenciaDoMoloni(f, fase, pct);
   const criado = feito?.documentId ? feito : null;
   const manual = !criado && feito?.manual ? feito : null;
   // Os valores à vista LOGO (6/11 — ela: «quero que isto apareça logo»).
@@ -374,6 +378,17 @@ function CartaoDaFase({
           <span className="ml-1 text-[11px] font-normal text-[var(--bo-text-faint)]">sem IVA</span>
         </span>
       </div>
+      <p className="-mt-1 text-right text-[11px] tabular-nums text-[var(--bo-text-faint)]">
+        No Moloni: {eur(conferencia.noMoloni)} com IVA
+      </p>
+      {conferencia.diferenca !== 0 && (
+        <p className="rounded-lg bg-[var(--bo-aviso-tom)]/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-[var(--bo-aviso)]">
+          A proposta e os Pagamentos dizem {eur(conferencia.naProposta)}: o Moloni soma o IVA linha
+          a linha e fica {eur(Math.abs(conferencia.diferenca))}{" "}
+          {conferencia.diferenca > 0 ? "acima" : "abaixo"}. Regista no pagamento o que o cliente
+          pagar de facto.
+        </p>
+      )}
 
       {criado || manual ? (
         <div className="flex flex-col gap-1.5">
