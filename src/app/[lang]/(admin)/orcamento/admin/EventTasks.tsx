@@ -9,6 +9,7 @@ import { AvisoDeFalha } from "./AvisoDeFalha";
 import { useCachedList } from "./useCachedList";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
+import { diaDoPrazo } from "@/lib/tarefas/prazo";
 
 const PRIORITY_COLOR: Record<TaskPriority, string> = {
   baixa: "#8a8a82",
@@ -213,10 +214,13 @@ export default function EventTasks({ quote, userName }: Props) {
     ];
     if (task.dueDate) {
       perde.push(
-        `a data limite de ${new Date(task.dueDate + "T12:00:00").toLocaleDateString("pt-PT", {
-          day: "numeric",
-          month: "long",
-        })}`,
+        `a data limite de ${new Date(diaDoPrazo(task.dueDate) + "T12:00:00").toLocaleDateString(
+          "pt-PT",
+          {
+            day: "numeric",
+            month: "long",
+          },
+        )}`,
       );
     }
     if (task.assignee) perde.push(`o nome de quem ficou com ela (${task.assignee})`);
@@ -472,10 +476,13 @@ export default function EventTasks({ quote, userName }: Props) {
                       }`}
                     >
                       {task.dueDate < todayStr ? "Atrasada · " : ""}
-                      {new Date(task.dueDate + "T12:00:00").toLocaleDateString("pt-PT", {
-                        day: "numeric",
-                        month: "short",
-                      })}
+                      {new Date(diaDoPrazo(task.dueDate) + "T12:00:00").toLocaleDateString(
+                        "pt-PT",
+                        {
+                          day: "numeric",
+                          month: "short",
+                        },
+                      )}
                     </span>
                   )}
                   {task.assignee && !task.done && (
