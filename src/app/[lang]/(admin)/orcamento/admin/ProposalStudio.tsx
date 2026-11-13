@@ -1870,6 +1870,8 @@ export default function ProposalStudio({
    * passava a redesenhar o formulário inteiro a cada tecla.
    */
   const historico = useRef<StudioDoc[]>([]);
+  /** O documento «assente»: o da abertura, ou o da última fotografia. */
+  const docAssente = useRef<StudioDoc | null>(null);
   /**
    * Há alguma coisa para desfazer? Isto É estado, ao contrário do histórico:
    * é o que acende e apaga o botão "Desfazer".
@@ -3503,6 +3505,7 @@ export default function ProposalStudio({
       // trabalho dela, e fixar a marca antes de todas fazia o alarme acender
       // por causa de um `id` que o próprio estúdio acabou de escrever.
       marcaDaAbertura.current = marcaDoTrabalho();
+      docAssente.current = doc;
       return;
     }
     if (nadaPorGravar()) return;
@@ -3530,6 +3533,13 @@ export default function ProposalStudio({
     if (porGravarRef.current) return;
     porGravarRef.current = true;
     setPorGravar(true);
+    // A primeira mudança desde o documento assente (a abertura, ou a última
+    // gravação): ele entra no histórico, para a PRIMEIRA mudança também se
+    // poder desfazer — e logo, sem esperar pela fotografia dos 800 ms.
+    if (historico.current.length === 0 && docAssente.current) {
+      historico.current = [docAssente.current];
+    }
+    if (historico.current.length > 0) setPodeDesfazer(true);
     // A mensagem do envio conta como trabalho por gravar: sem ela nesta lista, o
     // indicador dizia «guardado às 14:32» com o texto dela ainda por escrever no
     // rascunho — e é essa frase que faz uma pessoa fechar o portátil descansada.
@@ -3548,6 +3558,7 @@ export default function ProposalStudio({
       if (!ultimo || JSON.stringify(ultimo) !== JSON.stringify(doc)) {
         historico.current = [...historico.current, doc].slice(-MAX_HISTORICO);
       }
+      docAssente.current = doc;
       // Dois, e não um: o último do histórico é o documento ACTUAL, portanto
       // com uma só fotografia não há nada anterior para onde voltar.
       setPodeDesfazer(historico.current.length >= 2);
@@ -4810,9 +4821,23 @@ export default function ProposalStudio({
    * gravação); por isso desfazer tira DOIS e usa o penúltimo.
    */
   function desfazer(): boolean {
-    if (historico.current.length < 2) return false;
-    const anterior = historico.current[historico.current.length - 2];
-    historico.current = historico.current.slice(0, -1);
+    const h = historico.current;
+    const ultimo = h[h.length - 1];
+    let anterior: StudioDoc;
+    /**
+     * Auditoria de 13/11 (estúdio, n.º 4): a fotografia só se tira 800 ms
+     * depois de ela parar. Desfazer ANTES disso (apagou uma linha e carregou
+     * logo ⌘Z) usava o penúltimo — e voltava DOIS passos atrás. Se o documento
+     * de agora ainda não está no histórico, volta-se ao último, e o histórico
+     * fica como está.
+     */
+    if (ultimo && JSON.stringify(ultimo) !== JSON.stringify(doc)) {
+      anterior = ultimo;
+    } else {
+      if (h.length < 2) return false;
+      anterior = h[h.length - 2];
+      historico.current = h.slice(0, -1);
+    }
     setPodeDesfazer(historico.current.length >= 2);
     setDoc(anterior);
     // O campo do total é estado à parte (aceita texto a meio de ser escrito),
@@ -4820,6 +4845,11 @@ export default function ProposalStudio({
     // e deixava o valor novo na caixa.
     const base = baseDoDoc(anterior);
     setTotalInput(base === undefined ? "" : textoDoTotal(base));
+    // E o PEDIDO também (n.º 5): o valor desfeito voltava ao ecrã e ao PDF, mas
+    // o «Preço final» do pedido — margem, Estatísticas, faturas — ficava com o
+    // número desfeito.
+    const doPedido = base == null ? undefined : baseDoEcraParaOPedido(base, anterior);
+    if (doPedido !== precoEnviado.current) persistirPreco(base, { doc: anterior });
     return true;
   }
 

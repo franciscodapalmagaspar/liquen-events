@@ -4311,6 +4311,59 @@ describe("o indicador diz onde é que o rascunho ficou", () => {
  * portátil — intacto e invisível. O estúdio abria, via que o servidor não tinha
  * rascunho nenhum, e não fazia nada com essa informação.
  */
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * ⌘Z / «DESFAZER» (auditoria de 13/11, estúdio n.ºs 4 e 5)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * A fotografia do histórico só se tirava 800 ms depois de ela parar de
+ * escrever: desfazer logo a seguir voltava DOIS passos, a primeira mudança não
+ * se podia desfazer, e desfazer um preço repunha-o no ecrã mas não no pedido.
+ */
+describe("desfazer", () => {
+  it("logo a seguir a escrever, volta UM passo — e a primeira mudança também se desfaz", async () => {
+    const user = userEvent.setup();
+    renderStudio();
+    const local = (await screen.findByLabelText("Local")) as HTMLInputElement;
+    const antes = local.value;
+    await user.type(local, "Évora");
+    // Deixa a fotografia acontecer, e escreve mais.
+    await new Promise((r) => setTimeout(r, 1200));
+    await user.type(local, " Sul");
+    // Desfaz JÁ, antes dos 800 ms.
+    await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+    await waitFor(() => expect(local.value).toBe(antes + "Évora"));
+    // E outra vez: volta ao que estava ao abrir (a primeira mudança).
+    await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+    await waitFor(() => expect(local.value).toBe(antes));
+  });
+
+  it("desfazer um preço também o devolve ao PEDIDO (e não só ao ecrã)", async () => {
+    const user = userEvent.setup();
+    renderStudio();
+    const valor = (await screen.findByLabelText(/Valor \(sem IVA\)/)) as HTMLInputElement;
+    await user.clear(valor);
+    await user.type(valor, "7777");
+    await new Promise((r) => setTimeout(r, 1300));
+    const patches = () =>
+      fetchMock.mock.calls
+        .filter(([, i]) => i?.method === "PATCH" && String(i?.body).includes("quotedPrice"))
+        .map(([, i]) => JSON.parse(String(i?.body)).quotedPrice as number | null);
+    const depoisDeEscrever = patches().at(-1);
+    expect(depoisDeEscrever).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+    await waitFor(
+      () => {
+        const ultimo = patches().at(-1);
+        expect(patches().length).toBeGreaterThan(1);
+        expect(ultimo).not.toBe(depoisDeEscrever);
+      },
+      { timeout: 3000 },
+    );
+  });
+});
+
 describe("o rascunho preso neste navegador é reenviado ao abrir", () => {
   /** Um rascunho local com marca de tempo — como o que ficou no portátil dela. */
   function rascunhoOrfaoLocal(marca: string) {
