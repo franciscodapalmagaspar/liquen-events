@@ -44,6 +44,10 @@ interface FotoImportada {
   marcador?: string;
 }
 
+// As fotos carregadas do computador não passam pelo canvas no jsdom.
+vi.mock("./image-prep", () => ({
+  prepareImageWithThumb: async (f: File) => ({ file: f, thumb: f, cor: "", lqip: "", mid: f }),
+}));
 vi.mock("./ThemePicker", () => ({
   default: ({
     onPicked,
@@ -4353,6 +4357,76 @@ describe("o indicador diz onde é que o rascunho ficou", () => {
  * portátil — intacto e invisível. O estúdio abria, via que o servidor não tinha
  * rascunho nenhum, e não fazia nada com essa informação.
  */
+/**
+ * Auditoria de 13/11, estúdio n.ºs 6 e 7: as fotos carregadas do computador
+ * entravam no mood board pelo ÍNDICE que ele tinha quando ela as escolheu. Se
+ * o tema mudasse de lugar entretanto, iam parar a OUTRO tema. E o envio não
+ * sabia que havia fotos a caminho.
+ */
+describe("fotos a carregar enquanto se mexe nos temas", () => {
+  it("a foto vai para o tema onde ela a pôs, mesmo que o tema mude de lugar a meio", async () => {
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        template: "decoracao",
+        ref: "PO Decoração",
+        serviceGroups: [],
+        moodBoards: [
+          { title: "Tema A", images: [] },
+          { title: "Tema B", images: [] },
+        ],
+        budgetItems: [],
+        coverImages: ["", ""],
+      }),
+    );
+    localStorage.setItem(`${DRAFT_KEY}:at`, String(Date.now()));
+    const original = global.fetch;
+    let soltar!: () => void;
+    const portao = new Promise<void>((r) => (soltar = r));
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).includes("/assets") && init?.method === "POST") {
+        await portao;
+        return new Response(
+          JSON.stringify({ images: [{ path: "q1/nova.jpg", url: "https://x/nova.jpg" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return original(url, init);
+    }) as typeof fetch;
+    try {
+      renderStudio("Inspiração");
+      const user = userEvent.setup();
+      await screen.findByDisplayValue("Tema B");
+      const dosTemas = [...document.querySelectorAll<HTMLInputElement>('input[type="file"]')].filter(
+        (i) => i.multiple,
+      );
+      expect(dosTemas.length).toBeGreaterThanOrEqual(2);
+      fireEvent.change(dosTemas[1], {
+        target: { files: [new File(["x"], "flores.jpg", { type: "image/jpeg" })] },
+      });
+      // Enquanto sobe, o «Tema B» passa para cima do «Tema A».
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      await user.click(screen.getByRole("button", { name: "Acções de «Tema B»" }));
+      await user.click(await screen.findByRole("menuitem", { name: "Subir uma posição" }));
+      soltar();
+      await waitFor(
+        () => {
+          const ultimo = corpos("proposta-rascunho").at(-1);
+          expect(ultimo).toBeTruthy();
+          const boards = JSON.parse(ultimo!).doc.moodBoards as { title: string; images: string[] }[];
+          expect(boards.find((b) => b.title === "Tema B")?.images).toEqual(["q1/nova.jpg"]);
+          expect(boards.find((b) => b.title === "Tema A")?.images).toEqual([]);
+        },
+        { timeout: 5000 },
+      );
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
 /**
  * ════════════════════════════════════════════════════════════════════════════
  * ⌘Z / «DESFAZER» (auditoria de 13/11, estúdio n.ºs 4 e 5)

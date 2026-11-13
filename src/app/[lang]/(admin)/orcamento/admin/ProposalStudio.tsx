@@ -40,6 +40,7 @@ import {
   normaliseCoverImages,
   countPendingImages,
   isPendingImage,
+  PENDING_IMAGE_PREFIX,
   stripPendingImages,
   DEFAULT_VAT_RATE,
   DEFAULT_VALID_DAYS,
@@ -5704,13 +5705,52 @@ export default function ProposalStudio({
     return im;
   }
 
-  async function handleUpload(key: string, todas: File[], onPaths: (paths: string[]) => void) {
+  async function handleUpload(
+    key: string,
+    todas: File[],
+    onPaths: (paths: string[]) => void,
+    /**
+     * ── A FOTO OCUPA O LUGAR LOGO AO ESCOLHER (auditoria 13/11, n.ºs 6 e 7) ──
+     *
+     * Sem isto, as fotos só entravam no mood board quando acabavam de subir, e
+     * entravam no ÍNDICE que ele tinha no início: se ela apagasse, movesse ou
+     * duplicasse um tema entretanto, iam para o tema errado (ou sumiam). E o
+     * envio não sabia que havia fotos a caminho — seguia sem elas.
+     *
+     * Com `reservar`, cada ficheiro entra JÁ no documento como um marcador
+     * provisório (`pending:<uuid>`) — o mesmo das fotos da biblioteca. O
+     * marcador anda com o tema para onde ela o levar; ao subir, troca-se pelo
+     * caminho no sítio onde estiver; se falhar, sai. E o envio, que já espera
+     * por marcadores, espera também por estas.
+     */
+    reservar?: (marcadores: string[]) => void,
+  ) {
     if (todas.length === 0) return;
     // Ela (28/10): «que avise mesmo, não coloque esta foto porque vai ficar
     // com uma qualidade péssima». As más ficam de fora, a não ser que ela diga
     // «Usar na mesma» (`AvisoDeQualidade`).
     const files = await avisoDeQualidade.filtrarFicheiros(todas, lugarDaChave(key));
     if (files.length === 0) return;
+    const marcadores = reservar
+      ? files.map(() => `${PENDING_IMAGE_PREFIX}${crypto.randomUUID()}`)
+      : [];
+    const previas: string[] = [];
+    if (reservar) {
+      setAssetUrls((prev) => {
+        const next = { ...prev };
+        files.forEach((f, i) => {
+          try {
+            const url = URL.createObjectURL(f);
+            previas.push(url);
+            next[marcadores[i]] = url;
+          } catch {
+            /* sem pré-visualização: a célula mostra-se a carregar */
+          }
+        });
+        return next;
+      });
+      reservar(marcadores);
+    }
     setUploading((u) => ({ ...u, [key]: { feito: 0, total: files.length } }));
     /**
      * Mais uma arrumada — e conta tanto a que subiu como a que falhou.
@@ -5769,7 +5809,25 @@ export default function ProposalStudio({
     try {
       await Promise.all(Array.from({ length: Math.min(UPLOAD_CONCURRENCY, files.length) }, lane));
       const paths = results.filter((r): r is { path: string } => r !== null).map((r) => r.path);
-      if (paths.length > 0) onPaths(paths);
+      if (reservar) {
+        // Cada marcador dá lugar ao seu caminho, ONDE QUER QUE ESTEJA agora; o
+        // que falhou sai. Um marcador que ela já tirou não volta a entrar.
+        const trocas = new Map<string, string | null>();
+        marcadores.forEach((m, i) => trocas.set(m, results[i]?.path ?? null));
+        setDoc((d) => mapImagePaths(d, (p) => (trocas.has(p) ? (trocas.get(p) ?? null) : p)));
+        setAssetUrls((prev) => {
+          const next = { ...prev };
+          for (const m of marcadores) delete next[m];
+          return next;
+        });
+        for (const u of previas) {
+          try {
+            URL.revokeObjectURL(u);
+          } catch {
+            /* nada a libertar */
+          }
+        }
+      } else if (paths.length > 0) onPaths(paths);
       if (errors.length > 0) {
         toast(
           errors.length === files.length
@@ -10283,8 +10341,11 @@ export default function ProposalStudio({
                                             multiple
                                             faixa
                                             onFiles={(files) =>
-                                              handleUpload(`board-${bi}`, files, (paths) =>
-                                                addBoardImages(bi, paths),
+                                              handleUpload(
+                                                `board-${bi}`,
+                                                files,
+                                                (paths) => addBoardImages(bi, paths),
+                                                (marcadores) => addBoardImages(bi, marcadores),
                                               )
                                             }
                                           />
