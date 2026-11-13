@@ -1006,3 +1006,96 @@ export function lerSessao(
 export function isAuthed(req: NextRequest): boolean {
   return readSession(req.cookies.get(ADMIN_COOKIE)?.value) !== null;
 }
+
+// --- Confirmação recente da palavra-passe ----------------------------------
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O QUE FICA PARA SEMPRE PEDE A PALAVRA-PASSE OUTRA VEZ (auditoria de 13/11, n.º 5)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Registar um aparelho como chave de entrada é dar-lhe uma porta que dura mais
+ * do que a sessão: a passkey continua a abrir depois de o cookie expirar. Por
+ * isso não basta ter uma sessão aberta — pede-se a palavra-passe da conta, e a
+ * confirmação vale {@link CONFIRMACAO_MS}, num cookie próprio, assinado com uma
+ * sub-chave só dele.
+ */
+export const ADMIN_REAUTH_COOKIE =
+  process.env.NODE_ENV === "production" ? "__Host-liquen_reconfirmacao" : "liquen_reconfirmacao";
+export const CONFIRMACAO_MS = 10 * 60_000;
+
+function chaveDaConfirmacao(): Buffer {
+  return subKey("liquen.admin-reconfirmacao.v1");
+}
+
+/** O cookie que diz «esta conta confirmou a palavra-passe há pouco». */
+export function criarConfirmacao(nomeDaSessao: string): string {
+  const corpo = Buffer.from(
+    JSON.stringify({
+      typ: "reconfirmacao",
+      sub: nomeDaSessao.slice(0, 40),
+      exp: Date.now() + CONFIRMACAO_MS,
+    }),
+  ).toString("base64url");
+  const sig = createHmac("sha256", chaveDaConfirmacao()).update(corpo).digest("base64url");
+  return `${corpo}.${sig}`;
+}
+
+/** A confirmação é válida, recente, e desta conta? */
+export function confirmacaoValida(token: string | undefined | null, nomeDaSessao: string): boolean {
+  if (!token) return false;
+  const partes = token.split(".");
+  if (partes.length !== 2 || !partes[0] || !partes[1]) return false;
+  const esperado = createHmac("sha256", chaveDaConfirmacao()).update(partes[0]).digest("base64url");
+  const a = Buffer.from(partes[1]);
+  const b = Buffer.from(esperado);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
+  try {
+    const p = JSON.parse(Buffer.from(partes[0], "base64url").toString());
+    if (p.typ !== "reconfirmacao") return false;
+    if (typeof p.exp !== "number" || Date.now() > p.exp) return false;
+    return identificadorIgual(
+      normalizarIdentificador(String(p.sub ?? "")),
+      normalizarIdentificador(nomeDaSessao.slice(0, 40)),
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A palavra-passe da conta DA SESSÃO está certa?
+ *
+ * Pela sessão e não por um identificador escrito: quem confirma é quem já lá
+ * está, e não pode confirmar a conta de outra pessoa. Faz sempre um bcrypt,
+ * mesmo sem conta, para o tempo não dizer nada.
+ */
+export async function confirmarPalavraPasse(
+  nomeDaSessao: string,
+  password: string,
+): Promise<boolean> {
+  if (!password) return false;
+  const { compareSync } = (await import("bcryptjs")).default;
+  const users = configuredUsers();
+  if (users) {
+    const senhas = await lerSenhasRedefinidas();
+    const alvo = normalizarIdentificador(nomeDaSessao.slice(0, 40));
+    let conta: AdminUser | null = null;
+    for (const u of users) {
+      const nome = normalizarIdentificador(String(u.name ?? "").slice(0, 40));
+      if (!conta && identificadorIgual(nome, alvo)) conta = u;
+    }
+    const hash = conta ? hashEfectivo(conta, senhas) : hashEfectivo(users[0], senhas);
+    try {
+      const certa = !!hash && compareSync(password, hash);
+      return !!conta && certa;
+    } catch {
+      return false;
+    }
+  }
+  const hash = sharedHash();
+  try {
+    return !!hash && compareSync(password, hash);
+  } catch {
+    return false;
+  }
+}

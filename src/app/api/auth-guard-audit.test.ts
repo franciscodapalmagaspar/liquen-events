@@ -685,6 +685,9 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // sessão baptizava o aparelho de outra pessoa para ela apagar o dela.
   { path: "./admin/passkeys/[id]/route", methods: ["DELETE", "PATCH"] },
   { path: "./admin/passkeys/registo/route", methods: ["GET", "POST"] },
+  // Confirmar a palavra-passe antes de registar (auditoria de 13/11, n.º 5):
+  // só para a conta da sessão que já lá está.
+  { path: "./admin/passkeys/confirmar/route", methods: ["POST"] },
   // A Reciclagem (R3): ler mostra o que se apagou — dados de clientes e de
   // fornecedores —, e repor e apagar de vez escrevem. Tudo de sessão.
   { path: "./reciclagem/route", methods: ["GET"] },
