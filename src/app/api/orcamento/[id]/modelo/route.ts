@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 import type { QuoteMessage } from "@/lib/orcamento/types";
-import { getQuote, updateQuote } from "@/lib/quotes-store";
+import { getQuote, updateQuoteWith } from "@/lib/quotes-store";
 import { sendMail, MAIL_TO } from "@/lib/mail";
 import { emailAoCliente } from "@/lib/email-assinatura";
 import { assinaturaDeQuemEnvia } from "@/lib/email-quem-assina";
@@ -246,9 +246,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
      * ninguém recebeu é só uma mentira que dura para sempre.
      */
     if (mail.sent) {
-      const nova: QuoteMessage = { at: new Date().toISOString(), body: preparado.texto };
+      const nova: QuoteMessage = {
+        at: new Date().toISOString(),
+        body: preparado.texto,
+        emailed: true,
+        para: quote.email,
+      };
       try {
-        await updateQuote(id, { messages: [...(quote.messages ?? []), nova] });
+        // Sobre a leitura fresca: o SMTP pode ter demorado, e outra mensagem
+        // gravada entretanto não pode ser apagada (achado n.º 5 da auditoria 6).
+        await updateQuoteWith(id, (actual) => ({
+          ...actual,
+          messages: [...(actual.messages ?? []), nova],
+        }));
       } catch (e) {
         // O email JÁ saiu. Falhar o registo não pode transformar isso num erro
         // que a leve a carregar outra vez e a mandar o mesmo email duas vezes.

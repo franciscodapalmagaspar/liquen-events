@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { Quote, Task } from "@/lib/orcamento/types";
 import { eur0 } from "@/lib/money";
 import { contractedAmounts } from "@/lib/orcamento/dossier";
+import { jaRespondemos } from "@/lib/orcamento/mensagens";
 import { Card } from "./ui";
 import { diasDesde, diasEntreDias, todayKey } from "./util";
 import { useCachedList } from "./useCachedList";
@@ -95,7 +96,8 @@ export default function Reminders({ quotes, onOpen }: Props) {
       // Stale pending requests (>2 days, no reply)
       if (q.status === "pendente") {
         const age = diasDesde(q.submittedAt, today);
-        if (age >= 2 && !(q.messages && q.messages.length)) {
+        // Só conta como resposta uma mensagem que SAIU (achado n.º 8).
+        if (age >= 2 && !jaRespondemos(q)) {
           list.push({
             kind: "pedido",
             urgent: age >= 4,

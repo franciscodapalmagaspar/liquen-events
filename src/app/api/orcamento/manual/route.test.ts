@@ -202,3 +202,57 @@ describe("POST /api/orcamento/manual — o email e o telefone", () => {
     expect(json.quote).toMatchObject({ email: "", phone: "" });
   });
 });
+
+/** Achado n.º 11 da auditoria 6: a data do pedido manual não era conferida. */
+describe("POST /api/orcamento/manual — a data", () => {
+  it.each(["2027-02-30", "20270-09-12", "amanhã"])("«%s» é recusada com 400", async (date) => {
+    authed.ok = true;
+    const res = await POST(req({ name: "Ana", date }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Data inválida/);
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it("um dia que existe grava-se, e vazio continua a valer", async () => {
+    authed.ok = true;
+    const com = await (await POST(req({ name: "Ana", date: "2027-09-12" }))).json();
+    expect(com.quote.date).toBe("2027-09-12");
+    const sem = await (await POST(req({ name: "Ana", date: "" }))).json();
+    expect(sem.quote.date).toBe("");
+  });
+});
+
+/** Achado n.º 20 da auditoria 6: «1.200» convidados gravava 1. */
+describe("POST /api/orcamento/manual — os convidados à portuguesa", () => {
+  it.each([
+    ["1.200", 1200],
+    ["120", 120],
+    ["1 200", 1200],
+  ])("«%s» grava %i", async (guests, esperado) => {
+    authed.ok = true;
+    const json = await (await POST(req({ name: "Ana", guests }))).json();
+    expect(json.quote.guests).toBe(esperado);
+  });
+});
+
+/** Achado n.º 21 da auditoria 6: duplicar um pedido com um telefone antigo. */
+describe("POST /api/orcamento/manual — duplicar com um telefone antigo", () => {
+  it("numa cópia, o telefone que não normaliza fica como estava, e a resposta avisa", async () => {
+    authed.ok = true;
+    const res = await POST(req({ name: "Ana", phone: "21 123", duplicado: true }));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.quote.phone).toBe("21 123");
+    expect(json.aviso).toMatch(/telefone/);
+    expect(store.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("numa cópia com um telefone bom, normaliza e não avisa", async () => {
+    authed.ok = true;
+    const json = await (
+      await POST(req({ name: "Ana", phone: "912 345 678", duplicado: true }))
+    ).json();
+    expect(json.quote.phone).toBe("+351912345678");
+    expect(json.aviso).toBeUndefined();
+  });
+});

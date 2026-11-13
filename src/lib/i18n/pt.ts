@@ -608,6 +608,10 @@ export const pt = {
     errTelefone:
       "Este número de telefone não é válido. Confira os dígitos e o país (de fora de Portugal, escolha a bandeira ou comece pelo indicativo, ex.: +44).",
     errEmailObrigatorio: "Indique o seu email.",
+    /** As recusas da data, vindas do servidor (`mensagemDeValidacao`). */
+    errDataInvalida: "Esta data não existe. Escolha um dia no calendário.",
+    errDataPassada: "A data do evento já passou. Escolha um dia a partir de hoje.",
+    errDataFim: "A data de fim não pode ser antes da data de início.",
     /** O domínio (o que vem depois do @) não recebe correio — `dominioRecebeEmail`. */
     errDominioDoEmail:
       "Este email não parece existir: confira o que está depois do @ (por exemplo, gmail.com).",
