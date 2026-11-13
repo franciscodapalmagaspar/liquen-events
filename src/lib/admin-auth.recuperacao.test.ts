@@ -269,6 +269,18 @@ describe("recuperação — a palavra-passe nova", () => {
     expect(await verifyCredentials("catarina@liquen-events.com", "cat-pass-original")).toBeNull();
   });
 
+  it("fecha as sessões que já estavam abertas nessa conta (n.º 6)", async () => {
+    const { sessaoValida, esquecerRevogacoesEmMemoria } = await import("./sessoes-revogadas");
+    esquecerRevogacoesEmMemoria();
+    const antiga = createSession("Catarina");
+    const doRui = createSession("Rui");
+    expect(await sessaoValida(antiga)).toEqual({ name: "Catarina" });
+    await new Promise((r) => setTimeout(r, 2));
+    expect((await redefinir("a-minha-frase-nova")).estado).toBe("definida");
+    expect(await sessaoValida(antiga)).toBeNull();
+    expect(await sessaoValida(doRui)).toEqual({ name: "Rui" });
+  });
+
   it("não toca nas outras contas", async () => {
     await redefinir("a-minha-frase-nova");
     expect(await verifyCredentials("rui@liquen-events.com", "rui-pass-original")).toMatchObject({

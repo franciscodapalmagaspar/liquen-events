@@ -850,6 +850,23 @@ export async function definirPalavraPasseComToken(
   }
 
   log.info("recuperação: palavra-passe redefinida", { conta: conta.name });
+
+  /**
+   * As sessões que já estavam abertas com a palavra-passe antiga deixam de
+   * valer (auditoria de 13/11, n.º 6) — muda-se a palavra-passe precisamente
+   * quando se desconfia de quem a tem. A palavra-passe nova já está gravada:
+   * uma revogação que falhe fica registada, mas não desfaz a redefinição.
+   */
+  try {
+    const { revogarSessoesDaConta } = await import("./sessoes-revogadas");
+    if (!(await revogarSessoesDaConta(conta.name))) {
+      log.error("recuperação: as sessões antigas não foram revogadas", undefined, {
+        conta: conta.name,
+      });
+    }
+  } catch (err) {
+    log.error("recuperação: as sessões antigas não foram revogadas", err, { conta: conta.name });
+  }
   return { estado: "definida", conta: { name: conta.name, email: conta.email } };
 }
 
@@ -892,10 +909,14 @@ function sign(body: string): string {
  * 30 dias de sempre, e nenhuma sessão já emitida muda de forma por causa disto.
  */
 export function createSession(name: string, ttlMs: number = SESSION_TTL_MS): string {
+  const agora = Date.now();
   const payload = {
     typ: "session",
     sub: name.slice(0, 40),
-    exp: Date.now() + ttlMs,
+    // Quando foi emitida: é o que deixa uma recuperação de palavra-passe
+    // invalidar as sessões ANTERIORES dessa conta (`sessoes-revogadas.ts`).
+    iat: agora,
+    exp: agora + ttlMs,
     v: sessionVersion(),
   };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -925,6 +946,20 @@ export function duracaoDaSessao(manterSessao: boolean): {
 
 /** Validate a session token; returns the user name or null if invalid/expired. */
 export function readSession(token: string | undefined | null): { name: string } | null {
+  const s = lerSessao(token);
+  return s ? { name: s.name } : null;
+}
+
+/**
+ * A sessão validada, com as datas: `iat` (quando foi emitida) e `exp`.
+ *
+ * As sessões emitidas antes de o token levar `iat` contam como emitidas no
+ * momento mais cedo possível (`exp` menos a duração longa): perante uma
+ * revogação, a dúvida resolve-se para o lado de as fechar.
+ */
+export function lerSessao(
+  token: string | undefined | null,
+): { name: string; iat: number; exp: number } | null {
   if (!token) return null;
   // A minted token is exactly `body.sig`; base64url contains no ".", so any
   // token that doesn't split into precisely two non-empty parts is malformed or
@@ -960,7 +995,8 @@ export function readSession(token: string | undefined | null): { name: string } 
     // criar a sessão — e um nome mais comprido também tem de ser reconhecido
     // (auditoria de 13/11, n.º 16): ver `contaDaSessaoExiste`.
     if (!contaDaSessaoExiste(name)) return null;
-    return { name };
+    const iat = typeof payload.iat === "number" ? payload.iat : payload.exp - SESSAO_LONGA_MS;
+    return { name, iat, exp: payload.exp };
   } catch {
     return null;
   }

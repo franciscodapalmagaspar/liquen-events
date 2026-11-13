@@ -1,9 +1,26 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_COOKIE, ADMIN_NAME_COOKIE } from "@/lib/admin-auth";
+import { terminarSessao } from "@/lib/sessoes-revogadas";
+import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
-export async function POST() {
+export async function POST(request?: NextRequest) {
+  /**
+   * Sair TERMINA a sessão, e não só o cookie deste browser (auditoria de
+   * 13/11, n.º 6): uma cópia do cookie deixa de valer — ver
+   * `sessoes-revogadas.ts`. Se o registo falhar, o cookie sai na mesma: sair
+   * nunca pode falhar para quem carregou no botão.
+   */
+  const token = request?.cookies?.get(ADMIN_COOKIE)?.value;
+  if (token) {
+    try {
+      await terminarSessao(token);
+    } catch (err) {
+      log.error("logout: não foi possível terminar a sessão no servidor", err);
+    }
+  }
+
   const res = NextResponse.json({ ok: true });
   // The clearing Set-Cookie MUST carry the same attributes as the one that set
   // it — in production ADMIN_COOKIE is a `__Host-` cookie, and browsers reject

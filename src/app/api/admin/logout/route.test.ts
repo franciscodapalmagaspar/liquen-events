@@ -1,4 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { NextRequest } from "next/server";
+
+const terminadas = vi.hoisted(() => [] as string[]);
+vi.mock("@/lib/sessoes-revogadas", () => ({
+  terminarSessao: vi.fn(async (t: string) => {
+    terminadas.push(t);
+    return true;
+  }),
+}));
+
 import { ADMIN_COOKIE, ADMIN_NAME_COOKIE } from "@/lib/admin-auth";
 import * as route from "./route";
 
@@ -39,5 +49,15 @@ describe("POST /api/admin/logout", () => {
     expect((route as Record<string, unknown>).GET).toBeUndefined();
     expect((route as Record<string, unknown>).PUT).toBeUndefined();
     expect((route as Record<string, unknown>).DELETE).toBeUndefined();
+  });
+
+  it("termina a sessão no servidor — uma cópia do cookie deixa de valer (n.º 6)", async () => {
+    const req = new NextRequest(new URL("https://liquen.test/api/admin/logout"), {
+      method: "POST",
+      headers: { cookie: `${ADMIN_COOKIE}=corpo.assinatura` },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(terminadas).toContain("corpo.assinatura");
   });
 });
