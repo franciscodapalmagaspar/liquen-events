@@ -426,9 +426,8 @@ function RestoreDialogInner({ aSair, onClose, toast }: Omit<Props, "open"> & { a
             <div>
               <p className="text-sm leading-relaxed text-[var(--bo-tinta-72)]">
                 Escolhe o ficheiro <strong>liquen-backup-….json</strong> que descarregaste do botão{" "}
-                <strong>Cópia de segurança</strong>. Carregá-lo mostra primeiro um{" "}
-                <strong>ensaio</strong>: o que aconteceria a cada conjunto de dados, sem escrever
-                nada.
+                <strong>Backup</strong>. Carregá-lo mostra primeiro um <strong>ensaio</strong>: o
+                que aconteceria a cada conjunto de dados, sem escrever nada.
               </p>
               <label className="mt-4 block">
                 <span className="sr-only">Ficheiro da cópia de segurança</span>
@@ -502,10 +501,7 @@ function RestoreDialogInner({ aSair, onClose, toast }: Omit<Props, "open"> & { a
                       >
                         Substituídos
                       </th>
-                      <th
-                        scope="col"
-                        className="px-3 py-2 text-right font-medium text-[var(--bo-perigo)]"
-                      >
+                      <th scope="col" className="px-3 py-2 text-right font-medium text-[var(--bo-perigo)]">
                         Apagados
                       </th>
                     </tr>
@@ -538,9 +534,7 @@ function RestoreDialogInner({ aSair, onClose, toast }: Omit<Props, "open"> & { a
                         </td>
                         <td
                           className={`px-3 py-2 text-right tabular-nums ${
-                            d.removed > 0
-                              ? "font-medium text-[var(--bo-perigo)]"
-                              : "text-foreground/40"
+                            d.removed > 0 ? "font-medium text-[var(--bo-perigo)]" : "text-foreground/40"
                           }`}
                         >
                           {d.skipped ? "—" : d.removed}

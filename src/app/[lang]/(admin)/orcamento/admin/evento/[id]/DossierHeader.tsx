@@ -256,8 +256,8 @@ export default function DossierHeader({ data, stage, next, lang, onScrollTo }: P
                 size="sm"
                 className="alvo-toque"
                 onClick={() => printRunSheet(quote)}
-                title="Imprimir o cronograma e a checklist do evento"
-                aria-label="Imprimir o cronograma"
+                title="Imprimir a timeline (cronograma e checklist do evento)"
+                aria-label="Imprimir a timeline"
                 iconLeft={
                   <svg
                     width="14"
@@ -277,7 +277,7 @@ export default function DossierHeader({ data, stage, next, lang, onScrollTo }: P
                   </svg>
                 }
               >
-                <span className="hidden sm:inline">Cronograma</span>
+                <span className="hidden sm:inline">Timeline</span>
               </Button>
 
               {/* .ics — só quando o evento tem data (buildEventIcs devolve null

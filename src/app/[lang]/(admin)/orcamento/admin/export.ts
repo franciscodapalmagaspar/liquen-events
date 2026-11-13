@@ -64,7 +64,7 @@ function horaDaFolha(hhmm: string): string {
 
 function horarioEmHtml(momentos: readonly TimelineItem[]): string {
   const emOrdem = ordenar(momentos);
-  if (emOrdem.length === 0) return "<p class='empty'>Cronograma não definido.</p>";
+  if (emOrdem.length === 0) return "<p class='empty'>Timeline não definida.</p>";
 
   let horaAnterior = "";
   let localAnterior = "";
@@ -341,7 +341,7 @@ const RSVP_LABEL: Record<string, string> = {
 
 /** Export an event's guest list (RSVP) as CSV rows. */
 export function guestsToCsvRows(q: Quote): (string | number)[][] {
-  const header = ["Convidado / Família", "Pessoas", "Confirmação de presença", "Nota"];
+  const header = ["Convidado / Família", "Pessoas", "RSVP", "Nota"];
   const rows = (q.guestList ?? []).map((g) => [
     g.name,
     g.party ?? 1,
@@ -425,7 +425,7 @@ export function printGuestList(q: Quote): void {
       <div><div class="v">${declined}</div><div class="k">Recusados</div></div>
     </div>
     <table>
-      <thead><tr><th>Convidado / Família</th><th>Pessoas</th><th>Confirmação de presença</th><th>Nota</th></tr></thead>
+      <thead><tr><th>Convidado / Família</th><th>Pessoas</th><th>RSVP</th><th>Nota</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="foot">Gerado em ${new Date().toLocaleString("pt-PT")} · Líquen Events</div>
@@ -553,7 +553,7 @@ export function printRunSheet(q: Quote): void {
       : "";
 
   win.document.write(`<!doctype html><html lang="pt"><head><meta charset="utf-8" />
-  <title>Cronograma — ${escapeHtml(q.name)} — ${q.id}</title>
+  <title>Timeline — ${escapeHtml(q.name)} — ${q.id}</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111; margin: 0; padding: 40px; }
@@ -582,7 +582,7 @@ export function printRunSheet(q: Quote): void {
   </style></head><body>
     <div class="head">
       <div>
-        <div class="brand">Líquen Events · Cronograma</div>
+        <div class="brand">Líquen Events · Timeline</div>
         <h1>${escapeHtml(q.name)}</h1>
         <div class="sub">${dateStr}</div>
       </div>
@@ -751,7 +751,7 @@ export function printEventDossier(q: Quote): void {
   const sectionGuests = guests.length
     ? `<section>
       <h2>Convidados (${guests.length} ${guests.length === 1 ? "entrada" : "entradas"} · ${gConfirmed} confirmados · ${gPending} pendentes)</h2>
-      <table><thead><tr><th>Nome</th><th>Pax</th><th>Confirmação de presença</th><th>Nota</th></tr></thead><tbody>
+      <table><thead><tr><th>Nome</th><th>Pax</th><th>RSVP</th><th>Nota</th></tr></thead><tbody>
       ${guests
         .map(
           (g) =>

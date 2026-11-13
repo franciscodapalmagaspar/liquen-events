@@ -387,10 +387,10 @@ export default function EventTimeline({ quote, onChange, modelos, aoGuardarComoM
     if (!aoGuardarComoModelo) return;
     const momentos = modeloAPartirDoGuiao(items);
     if (momentos.length === 0) {
-      toast("O cronograma ainda não tem momentos com hora e nome para guardar.", "error");
+      toast("A timeline ainda não tem momentos com hora e nome para guardar.", "error");
       return;
     }
-    const sugestao = quote.eventName?.trim() || "Cronograma";
+    const sugestao = quote.eventName?.trim() || "Timeline";
     const nome = window.prompt("Que nome dás a este modelo?", sugestao);
     if (nome === null) return;
     const limpo = nome.trim();
@@ -417,9 +417,9 @@ export default function EventTimeline({ quote, onChange, modelos, aoGuardarComoM
       // guião antigo — que é a comparação que o 409 faz.
       ...(minutos > 0 ? { duracao: minutos } : {}),
     };
-    persist(`acrescentar «${time} ${t}» ao cronograma`, (atuais) => [...atuais, momento]);
-    anular(`«${time} ${t}» acrescentado ao cronograma.`, () =>
-      persist(`tirar «${time} ${t}» do cronograma`, (atuais) =>
+    persist(`acrescentar «${time} ${t}» à timeline`, (atuais) => [...atuais, momento]);
+    anular(`«${time} ${t}» acrescentado à timeline.`, () =>
+      persist(`tirar «${time} ${t}» da timeline`, (atuais) =>
         atuais.filter((i) => i.id !== momento.id),
       ),
     );
@@ -433,13 +433,13 @@ export default function EventTimeline({ quote, onChange, modelos, aoGuardarComoM
   function remove(id: string) {
     const momento = items.find((i) => i.id === id);
     persist(
-      `remover «${momento ? `${momento.time} ${momento.title}` : "o momento"}» do cronograma`,
+      `remover «${momento ? `${momento.time} ${momento.title}` : "o momento"}» da timeline`,
       (atuais) => atuais.filter((i) => i.id !== id),
     );
     if (!momento) return;
     // O guião ordena-se pela hora, portanto o momento volta ao sítio dele sozinho.
-    anular(`«${momento.time} ${momento.title}» saiu do cronograma.`, () =>
-      persist(`repor «${momento.time} ${momento.title}» no cronograma`, (atuais) =>
+    anular(`«${momento.time} ${momento.title}» saiu da timeline.`, () =>
+      persist(`repor «${momento.time} ${momento.title}» na timeline`, (atuais) =>
         atuais.some((i) => i.id === id) ? atuais : [...atuais, momento],
       ),
     );
@@ -665,7 +665,7 @@ export default function EventTimeline({ quote, onChange, modelos, aoGuardarComoM
         {modelos && modelos.length > 0 && (
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
             <Escolha
-              aria-label="Juntar um modelo a este cronograma"
+              aria-label="Juntar um modelo a esta timeline"
               opcoes={modelos.map((m) => ({ valor: m.id, rotulo: m.nome }))}
               valor=""
               vazio="Juntar modelo…"
@@ -691,8 +691,8 @@ export default function EventTimeline({ quote, onChange, modelos, aoGuardarComoM
             <button
               type="button"
               onClick={() => printRunSheet(quote)}
-              title="Imprimir o cronograma"
-              aria-label="Imprimir o cronograma"
+              title="Imprimir a timeline"
+              aria-label="Imprimir a timeline"
               // 27×27 medidos a 375 px — um botão de ícone sem rótulo, que é
               // a classe de alvo mais fácil de falhar com o polegar.
               className={`alvo-toque rounded-lg p-1.5 text-foreground/40 hover:bg-[var(--bo-tinta-6)] hover:text-[var(--bo-tinta-72)] ${ESTADO} ${PRESSAO}`}
@@ -753,7 +753,7 @@ export default function EventTimeline({ quote, onChange, modelos, aoGuardarComoM
           ) : (
             <p className="bo-text-muted mt-1 text-sm">
               {seguinte.terminado
-                ? "O cronograma chegou ao fim."
+                ? "A timeline chegou ao fim."
                 : "Não há nada marcado neste momento."}
             </p>
           )}
@@ -795,12 +795,12 @@ export default function EventTimeline({ quote, onChange, modelos, aoGuardarComoM
           className="mb-5 rounded-xl border border-[var(--bo-perigo)]/25 bg-[var(--bo-perigo-lavagem)]/50 px-4 py-3 text-sm"
         >
           <p className="font-medium text-[var(--bo-perigo)]">
-            Não deu para {colisoes.map((c) => c.oQue).join(" e ")}: o cronograma mudou noutro sítio
+            Não deu para {colisoes.map((c) => c.oQue).join(" e ")}: a timeline mudou noutro sítio
             entretanto.
           </p>
           <p className="bo-text-muted mt-1">
-            O cronograma que está no ecrã é o que ficou guardado. Não se perdeu nada — podes voltar
-            a aplicar o que estavas a fazer por cima dele.
+            A timeline que está no ecrã é a que ficou guardada. Não se perdeu nada — podes voltar a
+            aplicar o que estavas a fazer por cima dele.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" onClick={voltarAAplicar}>
@@ -888,7 +888,7 @@ export default function EventTimeline({ quote, onChange, modelos, aoGuardarComoM
               <path d="M12 7v5l3 2" />
             </svg>
           }
-          title="Cronograma por preencher"
+          title="Timeline por preencher"
           /* ── O «GERAR CRONOGRAMA-BASE» SAIU, E FOI ELA QUE O MANDOU SAIR ──
              «Quero retirar isto de gerar cronograma. Quero apenas ser eu a
              fazer sozinha.»

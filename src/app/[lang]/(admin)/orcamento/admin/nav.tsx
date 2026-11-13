@@ -343,7 +343,7 @@ export const NAV: { id: View; label: string; icon: ReactNode }[] = [
   },
   {
     id: "guioes",
-    label: "Cronogramas",
+    label: "Timelines",
     /* Uma régua do dia: a espinha do tempo à esquerda e dois blocos de
        comprimentos diferentes — que é a ideia inteira desta vista (a duração é
        o comprimento). Não é um relógio nem um calendário de propósito: esses

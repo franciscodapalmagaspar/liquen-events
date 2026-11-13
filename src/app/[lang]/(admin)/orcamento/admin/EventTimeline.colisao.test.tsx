@@ -125,7 +125,7 @@ describe("Cronograma do dia — um 409 com trabalho por gravar no ecrã", () => 
     );
     expect((screen.getByPlaceholderText("Responsável") as HTMLInputElement).value).toBe("Rita");
     // O aviso fica no ecrã (um toast desaparecia) e NOMEIA o gesto travado.
-    expect(screen.getByText(/remover «09:00 Montagem» do cronograma/)).toBeTruthy();
+    expect(screen.getByText(/remover «09:00 Montagem» da timeline/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Voltar a aplicar" })).toBeTruthy();
   });
 
@@ -180,8 +180,8 @@ describe("Cronograma do dia — um 409 com trabalho por gravar no ecrã", () => 
 
     // Cada gesto é um DELTA: o segundo não contém o primeiro, portanto guardar
     // só o último era perder uma remoção sem ninguém dar por ela.
-    expect(screen.getByText(/remover «09:00 Montagem» do cronograma/)).toBeTruthy();
-    expect(screen.getByText(/remover «17:00 Cerimónia» do cronograma/)).toBeTruthy();
+    expect(screen.getByText(/remover «09:00 Montagem» da timeline/)).toBeTruthy();
+    expect(screen.getByText(/remover «17:00 Cerimónia» da timeline/)).toBeTruthy();
 
     fetchMock.mockImplementation(async () => reply(200));
     await user.click(screen.getByRole("button", { name: "Voltar a aplicar" }));

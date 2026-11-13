@@ -63,7 +63,7 @@ function montar(guestList: Guest[], onChange: (g: Guest[]) => void = () => {}) {
  * botão mostra, e o que se faz é abrir e carregar na opção. A tradução vive em
  * `test/escolher.ts`, num sítio só.
  */
-const rsvpDe = (nome: string) => screen.getByLabelText(`Confirmação de presença de ${nome}`);
+const rsvpDe = (nome: string) => screen.getByLabelText(`Estado do RSVP de ${nome}`);
 const rsvpVisivel = (nome: string) => valorVisivel(rsvpDe(nome));
 
 afterEach(() => {
@@ -147,6 +147,6 @@ describe("Lista de convidados — um estado de RSVP que o mapa não conhece", ()
     expect(() => montar([A, estranho])).not.toThrow();
     expect(screen.getByText("Família Costa")).toBeTruthy();
     // E a contagem de confirmados não pode inventar que este o é.
-    expect(screen.getByLabelText("Confirmação de presença de Família Costa")).toBeTruthy();
+    expect(screen.getByLabelText("Estado do RSVP de Família Costa")).toBeTruthy();
   });
 });

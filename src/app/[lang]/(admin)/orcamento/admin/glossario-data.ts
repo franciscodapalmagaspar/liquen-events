@@ -10,7 +10,7 @@
  *       Novo · Aguardar resposta · A preparar proposta · Proposta enviada ·
  *       Ganho · Perdido
  *   · Fases do Dossier — STAGE_LABELS em src/lib/orcamento/dossier.ts
- *   · "Cronograma" (a folha de operações do dia), "Mood boards",
+ *   · "Timeline" (a folha de operações do dia), "Mood boards",
  *     filtro "VIP" — todos presentes na UI de admin.
  */
 
@@ -134,7 +134,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     def: "A vista completa de um evento (o “Dossier do evento”), com tudo num só sítio: contacto, proposta, contrato, pagamentos e produção. É o “processo” do evento e onde as contas ficam certas.",
   },
   {
-    term: "Cronograma",
+    term: "Timeline",
     def: "A folha de operações do evento, pronta a imprimir: o alinhamento de horas e tarefas para a equipa seguir no próprio dia.",
   },
   {

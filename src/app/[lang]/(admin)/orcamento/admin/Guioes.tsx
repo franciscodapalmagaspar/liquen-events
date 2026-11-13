@@ -157,7 +157,7 @@ const ROTULO_DO_SINAL: Record<TipoDeSinal, string> = {
   choque: "Choque",
   buraco: "Vazio",
   "sem-duracao": "Sem duração",
-  "sem-guiao": "Sem cronograma",
+  "sem-guiao": "Sem timeline",
   sobreposicao: "Em paralelo",
   pronto: "Pronto",
 };
@@ -542,7 +542,7 @@ export default function Guioes({ carregarPedido, onQuoteAtualizado }: Props) {
   function tituloDaFolha(g: { evento: string; cliente: string; data: string }): string {
     const [ano, mes, dia] = g.data.split("-");
     const curta = ano && mes && dia ? `${dia}.${mes}.${ano.slice(2)}` : "";
-    return [g.evento, g.cliente, curta].filter(Boolean).join(" ") || "Cronograma";
+    return [g.evento, g.cliente, curta].filter(Boolean).join(" ") || "Timeline";
   }
 
   function guiaoMudou(id: string, momentos: TimelineItem[]) {
@@ -614,7 +614,7 @@ export default function Guioes({ carregarPedido, onQuoteAtualizado }: Props) {
         <div hidden={!!abertoId}>
           <div className="mb-5 flex flex-wrap items-center gap-3">
             <Segmented<Filtro>
-              ariaLabel="Filtrar os cronogramas"
+              ariaLabel="Filtrar as timelines"
               size="sm"
               value={filtro}
               onChange={setFiltro}
@@ -672,7 +672,7 @@ export default function Guioes({ carregarPedido, onQuoteAtualizado }: Props) {
             <SkeletonList rows={5} />
           ) : lista.error ? (
             <AvisoDeFalha
-              titulo="Não foi possível ler os cronogramas"
+              titulo="Não foi possível ler as timelines"
               mensagem={lista.errorMessage}
               falha={lista.falha}
               aoTentarDeNovo={lista.refresh}
@@ -681,7 +681,7 @@ export default function Guioes({ carregarPedido, onQuoteAtualizado }: Props) {
             <EmptyState
               icon={<IconeDeGuiao />}
               title="Ainda não há eventos com data"
-              description="Um cronograma pertence a um evento marcado. Assim que um pedido tiver data, aparece aqui à espera de cronograma."
+              description="Uma timeline pertence a um evento marcado. Assim que um pedido tiver data, aparece aqui à espera de timeline."
             />
           ) : noAmbito.length === 0 ? (
             /* ── NINGUÉM MUDOU O FILTRO ─────────────────────────────────────
@@ -708,10 +708,10 @@ export default function Guioes({ carregarPedido, onQuoteAtualizado }: Props) {
               icon={<IconeDeGuiao />}
               title={
                 filtro === "problemas"
-                  ? "Nenhum cronograma com pessoas em dois sítios ao mesmo tempo"
-                  : "Nenhum cronograma por fazer"
+                  ? "Nenhuma timeline com pessoas em dois sítios ao mesmo tempo"
+                  : "Nenhuma timeline por fazer"
               }
-              description="Mudou o filtro, não os dados: há cronogramas, só que nenhum deles cai neste caso."
+              description="Mudou o filtro, não os dados: há timelines, só que nenhuma delas cai neste caso."
               action={{ label: "Ver todos", onClick: () => setFiltro("todos") }}
             />
           ) : (
@@ -945,7 +945,7 @@ export default function Guioes({ carregarPedido, onQuoteAtualizado }: Props) {
 
               {falhaAoAbrir ? (
                 <AvisoDeFalha
-                  titulo="Não foi possível abrir este cronograma"
+                  titulo="Não foi possível abrir esta timeline"
                   mensagem={falhaAoAbrir}
                   aoTentarDeNovo={() => void abrir(aberto.id)}
                 />
@@ -954,7 +954,7 @@ export default function Guioes({ carregarPedido, onQuoteAtualizado }: Props) {
                   <div className="bo-skeleton h-2.5 w-40" aria-hidden />
                   <div className="bo-skeleton h-11 w-full" aria-hidden />
                   <div className="bo-skeleton h-16 w-full" aria-hidden />
-                  <span className="sr-only">A abrir o cronograma…</span>
+                  <span className="sr-only">A abrir a timeline…</span>
                 </div>
               ) : (
                 <>
@@ -1149,7 +1149,7 @@ function PainelDeHoje({
               ) : (
                 <p className="bo-text-muted text-sm">
                   {seguinte.terminado
-                    ? "O cronograma chegou ao fim."
+                    ? "A timeline chegou ao fim."
                     : "Não há nada marcado neste momento."}
                 </p>
               )}

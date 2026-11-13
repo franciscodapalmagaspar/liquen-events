@@ -870,7 +870,7 @@ export default function StatsDashboard({
           <Kpi
             small
             value={stats.forecastRevenue > 0 ? eur(stats.forecastRevenue) : "—"}
-            label="Previsão de negócios (com IVA)"
+            label="Previsão pipeline (com IVA)"
           />
         </div>
       </div>
@@ -1145,7 +1145,7 @@ export default function StatsDashboard({
         {stats.referralConvRows.length > 0 && (
           <Section
             title="Conversão por fonte"
-            hint="Pedidos que se tornaram evento ganho, por origem."
+            hint="Leads que se tornaram evento ganho, por origem."
           >
             <div className="flex flex-col gap-3">
               {stats.referralConvRows.map((row: LinhaDeOrigem) => (

@@ -181,7 +181,7 @@ async function escolherModelo(user: ReturnType<typeof userEvent.setup>, nome: st
   let opcao: HTMLElement | null = null;
   for (let i = 0; i < 40 && !opcao; i++) {
     const controlo = await screen.findByRole("combobox", {
-      name: "Juntar um modelo a este cronograma",
+      name: "Juntar um modelo a esta timeline",
     });
     if (controlo.getAttribute("aria-expanded") !== "true") await user.click(controlo);
     await vi.advanceTimersByTimeAsync(25);
@@ -230,7 +230,7 @@ describe("Timelines — a lista", () => {
     montar();
     const semGuiao = await screen.findByRole("button", { name: /Carla e Diogo/ });
     const pronto = linhaDe("Ana e Rui");
-    expect(within(semGuiao).getByText("Sem cronograma")).toBeTruthy();
+    expect(within(semGuiao).getByText("Sem timeline")).toBeTruthy();
     expect(within(pronto).getByText("Pronto")).toBeTruthy();
     // CONTROLO NEGATIVO: se a linha vazia herdasse o estado da outra, isto
     // passava a encontrar «Pronto» nas duas.
@@ -442,7 +442,7 @@ describe("Timelines — abrir e editar", () => {
     // A timeline aberta ocupa a vista (14/10): volta-se à lista para a ver.
     await user.click(screen.getByRole("button", { name: "Voltar aos eventos" }));
     const linha = screen.getByRole("button", { name: /Carla e Diogo/ });
-    expect(within(linha).queryByText("Sem cronograma")).toBeNull();
+    expect(within(linha).queryByText("Sem timeline")).toBeNull();
   });
 });
 
@@ -462,7 +462,7 @@ describe("Timelines — a lista em cartões", () => {
     montar();
     const pronto = await screen.findByRole("button", { name: /Ana e Rui/ });
     expect(within(pronto).getByText(/2 momentos · 09:00–12:00/)).toBeTruthy();
-    expect(within(linhaDe("Carla e Diogo")).getByText("Sem cronograma")).toBeTruthy();
+    expect(within(linhaDe("Carla e Diogo")).getByText("Sem timeline")).toBeTruthy();
   });
 
   it("a procura filtra pelo nome ou pelo local", async () => {

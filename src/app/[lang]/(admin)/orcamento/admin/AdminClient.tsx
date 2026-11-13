@@ -427,7 +427,7 @@ function detailNextAction(quote: Quote): { label: string; hint: string; tab: Det
     default:
       return {
         label: "Preparar o dia do evento",
-        hint: "Cronograma, convidados e checklist",
+        hint: "Timeline, convidados e checklist",
         tab: "producao",
       };
   }
@@ -4734,7 +4734,7 @@ export default function AdminClient({
     servicos: "Biblioteca de serviços",
     reciclagem: "Reciclagem",
     "fazer-proposta": "Fazer proposta",
-    guioes: "Cronogramas",
+    guioes: "Timelines",
     mesas: "Mapa de mesas",
     tarefas: "Tarefas",
     fornecedores: "Fornecedores",
@@ -5244,7 +5244,7 @@ export default function AdminClient({
                       strokeLinejoin="round"
                     />
                   </svg>
-                  Cópia de segurança
+                  Backup
                 </button>
                 {/* A outra metade do botão ao lado. Fica AQUI, encostado ao
                   Backup, porque é aqui que se procura num dia mau — e porque
@@ -7462,7 +7462,7 @@ export default function AdminClient({
                                   ),
                                 },
                                 {
-                                  label: "Cronograma",
+                                  label: "Timeline",
                                   hint: "Imprimir a folha de operações",
                                   onClick: () => printRunSheet(selected),
                                   icon: (
