@@ -1776,6 +1776,19 @@ export default function ProposalStudio({
      *  também, e um aviso a dizer "rascunho limpo" depois de um restauro
      *  mandava procurar um problema que não houve. */
     motivo: string;
+    /**
+     * Os mapas das fotografias, quando o gesto também os esvaziou (o
+     * «Limpar»). Sem eles, «Anular» devolvia o documento com as fotos a
+     * cinzento («não veio») e sem a origem das da biblioteca (auditoria de
+     * 13/11, estúdio n.º 11).
+     */
+    fotos?: {
+      urls: Record<string, string>;
+      originais: Record<string, string>;
+      medias: Record<string, string>;
+      cores: Record<string, string>;
+      origens: Record<string, string>;
+    };
   } | null>(null);
   /**
    * ══════════════════════════════════════════════════════════════════════════
@@ -5134,6 +5147,15 @@ export default function ProposalStudio({
     if (!limpo) return;
     setDoc(limpo.doc);
     setTotalInput(limpo.total);
+    if (limpo.fotos) {
+      const f = limpo.fotos;
+      // O que entretanto chegou de novo fica; o que o «Limpar» levou volta.
+      setAssetUrls((agora) => ({ ...f.urls, ...agora }));
+      setAssetOriginais((agora) => ({ ...f.originais, ...agora }));
+      setAssetMedias((agora) => ({ ...f.medias, ...agora }));
+      setAssetCores((agora) => ({ ...f.cores, ...agora }));
+      setThemeOrigins((agora) => ({ ...f.origens, ...agora }));
+    }
     // E o preço volta ao pedido com ele: quem repôs o rascunho repôs o valor
     // que lá estava, e deixá-lo só no ecrã era voltar a ter duas verdades.
     const base = parseMoneyText(limpo.total);
@@ -5541,7 +5563,19 @@ export default function ProposalStudio({
      * quem não sabe o que perdeu não sabe se vale a pena anular. Agora diz o
      * que levou (`oQueOLimparLevou`), enquanto ainda dá para o trazer de volta.
      */
-    setLimpo({ doc, total: totalInput, segundos: 10, motivo: oQueOLimparLevou(doc) });
+    setLimpo({
+      doc,
+      total: totalInput,
+      segundos: 10,
+      motivo: oQueOLimparLevou(doc),
+      fotos: {
+        urls: assetUrls,
+        originais: assetOriginais,
+        medias: assetMedias,
+        cores: assetCores,
+        origens: themeOrigins,
+      },
+    });
     try {
       localStorage.removeItem(DRAFT_KEY);
       localStorage.removeItem(`${DRAFT_KEY}:at`);
@@ -8353,6 +8387,11 @@ export default function ProposalStudio({
       motivo: `Proposta copiada de ${e.nomeDaOrigem}.`,
     });
     setDoc(copiado);
+    // As fotografias da cópia são caminhos que este ecrã ainda não conhece:
+    // sem ir buscar as miniaturas, ficavam a cinzento («não veio») até
+    // recarregar a página (auditoria de 13/11, estúdio n.º 12). O mesmo
+    // `hidratarAssets` da cópia de um mood board.
+    void hidratarAssets();
     // O campo do valor é estado à parte (aceita texto a meio de ser escrito),
     // por isso não acompanha o documento de graça: ficava a mostrar o número
     // ANTERIOR enquanto o documento copiado já tinha outro — ou nenhum. E,

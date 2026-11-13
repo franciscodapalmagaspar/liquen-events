@@ -2190,6 +2190,14 @@ describe("POST /api/orcamento/[id]/proposta-doc — a versão da proposta", () =
  * tecto de tempo próprio, a rede tosse, o ecrã diz «Erro ao enviar» e repõe o
  * botão — e ela carrega outra vez enquanto o primeiro pedido ainda corre.
  */
+describe("POST /api/orcamento/[id]/proposta-doc — o que falta", () => {
+  it("diz O QUE falta, em vez de «Proposta incompleta.» (auditoria 13/11, n.º 19)", async () => {
+    const res = await POST(sendReq(baseDoc({ clientNames: "" })), { params });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/falta o nome dos clientes/);
+  });
+});
+
 describe("POST /api/orcamento/[id]/proposta-doc — envio repetido", () => {
   it("o segundo envio do mesmo documento não manda um segundo email", async () => {
     const doc = baseDoc({ totalAmount: 3000 });

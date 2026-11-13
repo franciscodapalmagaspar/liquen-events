@@ -370,7 +370,14 @@ async function POST_semMedida(
      * não regista nada.
      */
     if (!raw || !raw.ref || !raw.clientNames) {
-      return NextResponse.json({ error: "Proposta incompleta." }, { status: 400 });
+      // Dizer O QUE falta (auditoria de 13/11, estúdio n.º 19): «Proposta
+      // incompleta.» sozinho deixava-a a adivinhar.
+      const falta = !raw
+        ? "o documento"
+        : [!raw.ref ? "a referência" : null, !raw.clientNames ? "o nome dos clientes" : null]
+            .filter(Boolean)
+            .join(" e ");
+      return NextResponse.json({ error: `Proposta incompleta: falta ${falta}.` }, { status: 400 });
     }
     let idioma: IdiomaDaProposta = IDIOMA_POR_OMISSAO;
     if (body?.idioma !== undefined) {

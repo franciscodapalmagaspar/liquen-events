@@ -892,10 +892,11 @@ describe("o trabalho que uma gravação esmagou", () => {
     await screen.findByText(/A versão de Catarina ficou guardada/i, {}, { timeout: 4000 });
     await user.click(screen.getByRole("button", { name: /Repor essa versão/i }));
     await screen.findByDisplayValue("Cerimónia ao pôr do sol");
-    await waitFor(() =>
-      expect(
-        parseMoneyText((screen.getByLabelText(/Valor \(sem IVA\)/) as HTMLInputElement).value),
-      ).toBeCloseTo(4321 / 1.23, 2), // o campo é o valor SEM IVA
+    await waitFor(
+      () =>
+        expect(
+          parseMoneyText((screen.getByLabelText(/Valor \(sem IVA\)/) as HTMLInputElement).value),
+        ).toBeCloseTo(4321 / 1.23, 2), // o campo é o valor SEM IVA
     );
   });
 
@@ -4024,6 +4025,53 @@ describe("repor e copiar gravam o preço no pedido", () => {
     expect(precosGravados()).not.toContain(8895);
   }, 20_000);
 
+  it("copiar uma proposta vai buscar as miniaturas das fotos copiadas (auditoria 13/11, n.º 12)", async () => {
+    propostasServidor = [
+      {
+        id: "p1",
+        quoteId: "q9",
+        clientName: "Rita & Paulo",
+        createdAt: "2026-01-05T10:00:00.000Z",
+        status: "aceite",
+        temDoc: true,
+        eventType: "Casamento",
+        eventDate: "1 de junho de 2026",
+        location: "Estremoz",
+        guests: "100 pax",
+        grupos: 1,
+        moodBoards: 1,
+        linhas: 0,
+        fotos: 1,
+      },
+    ];
+    copiaServidor = {
+      nomeDaOrigem: "Rita & Paulo",
+      camposAMudar: [],
+      fotosCopiadas: 1,
+      fotosPartilhadas: 0,
+      doc: {
+        template: "decoracao",
+        ref: "",
+        clientNames: "Maria & Zé",
+        serviceGroups: [{ letter: "a)", title: "Decoração Copiada", items: [] }],
+        moodBoards: [{ title: "Mesa", images: ["q1/copiada.jpg"] }],
+        budgetItems: [],
+        coverImages: ["", ""],
+      },
+    };
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Criar a partir de…/ }));
+    const antes = pedidos.filter((p) => /\/assets(\?|$)/.test(p.url) && !p.init?.method).length;
+    await user.click(await screen.findByRole("button", { name: /Rita & Paulo/ }));
+    await screen.findByDisplayValue("Decoração Copiada");
+    await waitFor(() =>
+      expect(
+        pedidos.filter((p) => /\/assets(\?|$)/.test(p.url) && !p.init?.method).length,
+      ).toBeGreaterThan(antes),
+    );
+  });
+
   it("copiar uma proposta grava o valor copiado e arruma o campo", async () => {
     propostasServidor = [
       {
@@ -4397,9 +4445,9 @@ describe("fotos a carregar enquanto se mexe nos temas", () => {
       renderStudio("Inspiração");
       const user = userEvent.setup();
       await screen.findByDisplayValue("Tema B");
-      const dosTemas = [...document.querySelectorAll<HTMLInputElement>('input[type="file"]')].filter(
-        (i) => i.multiple,
-      );
+      const dosTemas = [
+        ...document.querySelectorAll<HTMLInputElement>('input[type="file"]'),
+      ].filter((i) => i.multiple);
       expect(dosTemas.length).toBeGreaterThanOrEqual(2);
       fireEvent.change(dosTemas[1], {
         target: { files: [new File(["x"], "flores.jpg", { type: "image/jpeg" })] },
@@ -4415,7 +4463,10 @@ describe("fotos a carregar enquanto se mexe nos temas", () => {
         () => {
           const ultimo = corpos("proposta-rascunho").at(-1);
           expect(ultimo).toBeTruthy();
-          const boards = JSON.parse(ultimo!).doc.moodBoards as { title: string; images: string[] }[];
+          const boards = JSON.parse(ultimo!).doc.moodBoards as {
+            title: string;
+            images: string[];
+          }[];
           expect(boards.find((b) => b.title === "Tema B")?.images).toEqual(["q1/nova.jpg"]);
           expect(boards.find((b) => b.title === "Tema A")?.images).toEqual([]);
         },
@@ -8710,6 +8761,27 @@ describe("acções irreversíveis: pergunta ou anulação, nunca nada", () => {
     expect(barra).toMatch(/2 linhas de orçamento/);
     // E continua sem pergunta nenhuma antes — é a decisão escrita em `limpo`.
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  /** Auditoria de 13/11, estúdio n.º 11: «Anular» devolvia o documento, mas
+   *  as fotografias voltavam a cinzento («não veio») — o «Limpar» tinha
+   *  esvaziado os mapas das miniaturas e o «Anular» não os devolvia. */
+  it("anular o «Limpar» devolve também as fotografias (as miniaturas)", async () => {
+    assetsServidor = [
+      {
+        path: "board/a.jpg",
+        url: "https://fotos.test/a.jpg",
+        thumbUrl: "https://fotos.test/a-mini.jpg",
+      },
+    ];
+    seedDuasPaginas();
+    renderStudio("Inspiração");
+    const user = userEvent.setup();
+    await waitFor(() => expect(document.querySelector('img[src*="fotos.test/a"]')).not.toBeNull());
+    await user.click(await screen.findByRole("button", { name: /Limpar rascunho/ }));
+    await user.click(await screen.findByRole("button", { name: /^Anular$/ }));
+    await screen.findByDisplayValue("Altar e corredor");
+    await waitFor(() => expect(document.querySelector('img[src*="fotos.test/a"]')).not.toBeNull());
   });
 
   // ── O envio ─────────────────────────────────────────────────────────────
