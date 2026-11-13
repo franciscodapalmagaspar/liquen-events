@@ -2,10 +2,9 @@
 -- O REGISTO DE «QUEM FEZ O QUÊ» (13/11) — auditoria de segurança
 -- ════════════════════════════════════════════════════════════════════════════
 --
--- ⏳ POR APLICAR — só com a autorização explícita dele (regra da casa: nada de
--- migrações sem um «sim»). Enquanto não for aplicada, o código não grava nada
--- e não falha (`registo-de-acoes.ts` engole a tabela em falta).
---
+-- ✔ APLICADA a 13/11/2026, com a autorização dele («sim, aplica»), e
+-- confirmada a seguir: RLS ligado, 0 permissões para anon/authenticated.
+
 -- Pedido do Francisco (13/11, «faz isto tudo»): a auditoria de segurança
 -- apontou que não há registo duradouro de quem mudou o quê no back office —
 -- só os registos da Vercel, que se apagam ao fim de dias. Uma empresa grande
