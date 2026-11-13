@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { propostaDoLink } from "@/lib/proposta-do-link";
-import { chaveDoPdf, PropostaIncompleta } from "@/lib/proposal-pdf-chave";
+import { chaveDoPdf } from "@/lib/proposal-pdf-chave";
 import { pdfGuardadoEmFluxo } from "@/lib/pdf-do-armazenamento";
 import { idiomaDaProposta } from "@/lib/proposta-idioma";
 import { nomeDoFicheiroDaProposta } from "@/lib/email-proposta-textos";
@@ -92,14 +92,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
      * Uma proposta sem língua gravada é portuguesa — ver `idiomaDaProposta`.
      */
     const idioma = idiomaDaProposta(proposal);
-    // `true`: este botão redesenha, para ecrã, um documento que o casal já
-    // recebeu por email. Uma fotografia em falta no armazenamento fazia isto
-    // responder 503 sem corpo — e o botão não fazia nada. Ver a nota em
-    // `proposal-pdf-cache.ts`; o anexo do email continua a recusar.
-    // O `proposal.id` entra para o desenho guardado no ENVIO poder ser
-    // servido tal e qual — é este o caminho que o casal usa, e o que o
-    // inventário apanhou como «um link que não diz nada enquanto trabalha».
-    // Ver `proposal-pdf-guardado.ts`.
     // O nome do ficheiro vai dentro de um cabeçalho: saneia-se a referência
     // (aspas, espaços, acentos) em vez de a confiar tal como está gravada.
     const ref = (proposal.quoteId || proposal.id).replace(/[^A-Za-z0-9_-]/g, "");
@@ -153,14 +145,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
      * Um `import` no topo do ficheiro é pago em TODOS os pedidos. O
      * `proposal-pdf-cache` traz o `pdf-lib` e o `sharp` atrás — medido, 212 ms
      * de módulos — e o caminho de cima, que é o normal, não desenha nada:
-     * manda o browser directamente ao armazenamento. Pagava-se o desenhador
-     * para não o usar, exactamente no instante em que ela carrega no botão.
+     * encaminha o ficheiro guardado. Pagava-se o desenhador para não o usar,
+     * exactamente no instante em que ela carrega no botão.
      *
      * Aqui em baixo é o caminho raro: o ficheiro ainda não está guardado, e
      * então há mesmo que o desenhar. É o único sítio onde o custo se justifica.
      */
     const { pdfDaPropostaEmCache } = await import("@/lib/proposal-pdf-cache");
 
+    // `true`: este botão redesenha, para ecrã, um documento que o casal já
+    // recebeu por email, e serve-o MESMO que lhe falte uma fotografia — uma
+    // falta fazia isto responder 503 sem corpo, e o botão não fazia nada. Ver a
+    // nota em `proposal-pdf-cache.ts`; o anexo do email continua a recusar.
+    // O `proposal.id` entra para o desenho guardado no ENVIO poder ser servido
+    // tal e qual (`proposal-pdf-guardado.ts`).
     const pdf = await pdfDaPropostaEmCache(proposal.doc, idioma, true, proposal.id);
     // `Content-Length`, pedaços e `ETag` — a razão está em `pdf-resposta.ts`.
     // O NOME é o mesmo com que o ficheiro seguiu no email: o casal tem-no na
@@ -170,24 +168,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     // faziam coisas diferentes — ver `OpcoesPdf.descarregar`.
     return respostaPdf(request, pdf, { nome, descarregar: true });
   } catch (err) {
-    /**
-     * A PROPOSTA SAIRIA COM FOTOS A MENOS — e por isso não sai.
-     *
-     * 503 e não 500: isto tem conserto e é temporário. O `Retry-After` diz ao
-     * leitor de PDF do cliente para voltar, e o registo do lado de lá
-     * (`proposal-storage`: «imagem não resolveu») diz QUAL foto e porquê.
-     *
-     * Um ficheiro com buracos era o que saía antes, calado. Um casal a ver uma
-     * proposta a que faltam duas fotografias não sabe que faltam — a moldura
-     * simplesmente não existe.
-     */
-    if (err instanceof PropostaIncompleta) {
-      log.error("proposta pdf: recusado, o documento sairia incompleto", null, {
-        proposalId: idParaRegisto,
-        emFalta: err.emFalta,
-      });
-      return new NextResponse(null, { status: 503, headers: { "Retry-After": "30" } });
-    }
     log.error("proposta pdf GET falhou", err, { proposalId: idParaRegisto });
     return new NextResponse(null, { status: 500 });
   }
