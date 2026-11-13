@@ -19,6 +19,7 @@ import { useSeccaoAVista } from "./useSeccaoAVista";
 import { rolarAteVer } from "@/lib/motion/rolar";
 import { SAIDA_FUNDO, useSaidaDeUmSo } from "./ui/saida";
 import { porqueFalhouOEnvio } from "./porque-falhou-o-envio";
+import { seguirASeleccao } from "./seleccao-de-fotos";
 import { porqueFalhou } from "@/lib/erro-do-servidor";
 import {
   eTempoEsgotado,
@@ -2504,6 +2505,9 @@ export default function ProposalStudio({
   /** A vista com as páginas lado a lado está aberta? */
   /** As fotos escolhidas para serem movidas em conjunto — chaves `bi:ii`. */
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set());
+  /** A fotografia (o caminho) de cada escolha — ver o efeito «A ESCOLHA SEGUE
+   *  A FOTOGRAFIA», mais abaixo. */
+  const caminhoDaSeleccao = useRef<Map<string, string>>(new Map());
   const hydrated = useRef(false);
   /** `updatedAt` do rascunho do servidor tal como o lemos — é com isto que o
    *  servidor deteta que alguém gravou por cima entretanto. */
@@ -6923,6 +6927,8 @@ export default function ProposalStudio({
 
   /** Escolher (ou desescolher) uma foto para o conjunto que se move de uma vez. */
   function alternarSeleccao(bi: number, ii: number) {
+    const path = doc.moodBoards[bi]?.images[ii];
+    if (typeof path === "string") caminhoDaSeleccao.current.set(`${bi}:${ii}`, path);
     setSeleccionadas((antes) => {
       const proxima = new Set(antes);
       const chave = `${bi}:${ii}`;
@@ -6931,6 +6937,22 @@ export default function ProposalStudio({
       return proxima;
     });
   }
+
+  /**
+   * ── A ESCOLHA SEGUE A FOTOGRAFIA (auditoria de 13/11, estúdio n.º 8) ─────
+   *
+   * As escolhas guardam POSIÇÕES (`página:foto`). Arrastar, reordenar, apagar
+   * ou mover mudava as posições, e as escolhas ficavam a apontar para outras
+   * fotografias: «Mover para…» levava as erradas. Cada escolha lembra-se do
+   * caminho da fotografia; quando as posições mudam, a escolha vai atrás dela,
+   * e sai se ela já lá não está.
+   */
+  useEffect(() => {
+    if (seleccionadas.size === 0) return;
+    const r = seguirASeleccao(seleccionadas, caminhoDaSeleccao.current, doc.moodBoards);
+    caminhoDaSeleccao.current = r.caminhos;
+    if (r.mudou) setSeleccionadas(r.novas);
+  }, [doc.moodBoards, seleccionadas]);
 
   /** A foto que manda na página — ver `proposal-moodboard.ts`. */
   function marcarPrincipal(bi: number, ii: number) {
