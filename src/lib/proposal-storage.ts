@@ -484,18 +484,45 @@ export interface UploadedImage {
 }
 
 /** Upload one image (bytes) for a quote; returns its storage path + signed URL. */
+/** O Storage recusou porque o ficheiro já lá está (409 / «already exists»). */
+function jaExiste(error: unknown): boolean {
+  const e = error as { statusCode?: unknown; status?: unknown; message?: unknown } | null;
+  if (!e) return false;
+  if (String(e.statusCode ?? e.status ?? "") === "409") return true;
+  return typeof e.message === "string" && /already exists|duplicate/i.test(e.message);
+}
+
+/** Um identificador de carregamento válido (o uuid que o estúdio gera). */
+const CHAVE_DE_CARREGAMENTO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function uploadProposalImage(
   quoteId: string,
   bytes: Buffer,
   contentType: string,
+  /**
+   * ── A MESMA FOTO DUAS VEZES NÃO SÃO DOIS FICHEIROS (auditoria 13/11, n.º 18)
+   *
+   * O estúdio repete o envio de uma foto quando a rede falha — e se a primeira
+   * tentativa tinha chegado (só a resposta é que se perdeu), ficavam DOIS
+   * ficheiros iguais no armazenamento, um deles órfão. Com uma chave gerada
+   * uma vez por foto no navegador, o caminho é sempre o mesmo: a segunda
+   * tentativa encontra o ficheiro que a primeira deixou e usa-o.
+   */
+  chave?: string,
 ): Promise<UploadedImage | null> {
   const sb = getSupabase();
   if (!sb || !(await ensureBucket())) return null;
   const safeId = quoteId.replace(/[^a-zA-Z0-9_-]/g, "");
-  const path = `${safeId}/${randomUUID()}.${extFor(contentType)}`;
+  const nome = chave && CHAVE_DE_CARREGAMENTO.test(chave) ? chave.toLowerCase() : randomUUID();
+  const path = `${safeId}/${nome}.${extFor(contentType)}`;
   const { error } = await sb.storage
     .from(PROPOSAL_BUCKET)
     .upload(path, bytes, opcoesDeCarregamento(contentType));
+  if (error && chave && jaExiste(error)) {
+    // A tentativa anterior chegou: é a mesma foto, no mesmo caminho.
+    const { data } = await sb.storage.from(PROPOSAL_BUCKET).createSignedUrl(path, SIGNED_TTL);
+    return { path, url: data?.signedUrl ?? "" };
+  }
   if (error) {
     log.error("proposal-storage: upload falhou", error, { quoteId });
     return null;

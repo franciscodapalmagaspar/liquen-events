@@ -284,6 +284,24 @@ describe("gravar", () => {
     expect(await screen.findByText("31%")).toBeInTheDocument();
   });
 
+  // Achado n.º 4 da auditoria 6: «15.000» era lido como 15 €.
+  it.each([
+    ["15.000", "15000"],
+    ["1.500,50", "1500.5"],
+    ["12,5", "12.5"],
+    ["15 000 €", "15000"],
+  ])("a meta escrita «%s» grava %s", async (escrito, gravado) => {
+    desenhar();
+    await screen.findByText("Sem meta definida.");
+    await userEvent.click(screen.getByRole("button", { name: /definir meta/i }));
+    fireEvent.change(screen.getByLabelText("Meta de receita deste mês"), {
+      target: { value: escrito },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(gravacoes).toHaveLength(1));
+    expect(gravacoes[0].value).toBe(gravado);
+  });
+
   it("gravar as notas não deixa o texto no localStorage (deixou de ser onde ele vive)", async () => {
     desenhar();
     await screen.findByText("Sem notas.");

@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { jaRespondemos } from "@/lib/orcamento/mensagens";
 import { NextRequest, NextResponse } from "next/server";
 import { listQuotes } from "@/lib/quotes-store";
 import { listAllProposals } from "@/lib/proposals-store";
@@ -197,7 +198,9 @@ async function oResumoDeHoje(request: NextRequest) {
     const awaiting = quotes.filter(
       (q) =>
         (q.status === "pendente" || q.status === "em_revisao" || q.status === "a_preparar") &&
-        !(q.messages && q.messages.length > 0) &&
+        // Uma mensagem que não saiu não é resposta (achado n.º 8, a mesma
+        // regra dos lembretes do ecrã).
+        !jaRespondemos(q) &&
         new Date(q.submittedAt).getTime() < oneDayAgo,
     ).length;
 

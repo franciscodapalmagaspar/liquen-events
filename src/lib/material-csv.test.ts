@@ -51,6 +51,13 @@ describe("dividirLinha", () => {
 });
 
 describe("lerNumero", () => {
+  it("lê «1.200» como mil e duzentos, à portuguesa (achado n.º 16)", () => {
+    expect(lerNumero("1.200")).toBe(1200);
+    expect(lerNumero("1.234.567")).toBe(1234567);
+    expect(lerNumero("12.5")).toBe(12.5);
+    expect(lerNumero("0.500")).toBe(0.5);
+  });
+
   it("lê números escritos por gente", () => {
     expect(lerNumero("12")).toBe(12);
     expect(lerNumero("12,5")).toBe(12.5);

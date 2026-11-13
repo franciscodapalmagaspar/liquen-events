@@ -309,6 +309,7 @@ async function POST_semMedida(
   // São OPCIONAIS de propósito: um cliente antigo, ou um browser onde a
   // fabricação falhou, envia só o original e o carregamento corre na mesma —
   // a grelha cai para o original, que é o comportamento de hoje.
+  const chaves = form.getAll("chaves").map((v) => (typeof v === "string" ? v : undefined));
   const thumbs = form.getAll("thumbs").filter((f): f is File => f instanceof File);
 
   /**
@@ -433,7 +434,9 @@ async function POST_semMedida(
         { status: 415 },
       );
     }
-    const res = await uploadProposalImage(id, pronto.bytes, pronto.contentType);
+    // A chave do carregamento (uma por foto, gerada no navegador): a mesma foto
+    // repetida depois de uma rede que falhou vai para o MESMO caminho.
+    const res = await uploadProposalImage(id, pronto.bytes, pronto.contentType, chaves[indice]);
     if (!res) {
       log.error("assets: upload falhou", null, { id, name: file.name });
       return NextResponse.json({ error: "Falha ao guardar a imagem." }, { status: 502 });

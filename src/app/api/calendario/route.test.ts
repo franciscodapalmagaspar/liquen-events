@@ -70,3 +70,44 @@ describe("/api/calendario", () => {
     expect(store.create).not.toHaveBeenCalled();
   });
 });
+
+/** Achado n.º 15 da auditoria 6: um dia que não existe dava 500 do Postgres. */
+describe("POST /api/calendario — a data, a hora e os tectos", () => {
+  it("«2027-02-30» é 400 com a frase em português, e nunca chega à base de dados", async () => {
+    authed.ok = true;
+    const res = await POST(req("POST", { title: "Reunião", date: "2027-02-30" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Data inválida/);
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it("uma hora que não existe é 400", async () => {
+    authed.ok = true;
+    const res = await POST(req("POST", { title: "Reunião", date: "2027-02-10", time: "24:99" }));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Hora inválida/);
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it("título e nota têm tecto", async () => {
+    authed.ok = true;
+    const longo = await POST(req("POST", { title: "x".repeat(201), date: "2027-02-10" }));
+    expect(longo.status).toBe(400);
+    const nota = await POST(
+      req("POST", { title: "Reunião", date: "2027-02-10", note: "x".repeat(2001) }),
+    );
+    expect(nota.status).toBe(400);
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it("uma marcação certa grava-se com a hora e a nota", async () => {
+    authed.ok = true;
+    const res = await POST(
+      req("POST", { title: "Reunião", date: "2027-02-10", time: "09:30", note: "Na quinta" }),
+    );
+    expect(res.status).toBe(200);
+    expect(store.create).toHaveBeenCalledWith(
+      expect.objectContaining({ date: "2027-02-10", time: "09:30", note: "Na quinta" }),
+    );
+  });
+});

@@ -137,3 +137,29 @@ describe("Reminders — «hoje» é o dia local, não o de UTC", () => {
     expect(screen.queryByText(/Evento de Ana e Rui/)).toBeNull();
   });
 });
+
+/**
+ * Achado n.º 8 da auditoria 6: uma mensagem que NÃO saiu (pedido sem email, o
+ * correio em baixo) tirava o pedido da lista «aguarda resposta» para sempre.
+ */
+describe("Reminders — só uma mensagem que saiu é resposta", () => {
+  const velho = { status: "pendente" as const, submittedAt: "2020-01-01T10:00:00.000Z" };
+
+  it("uma mensagem que não saiu deixa o pedido na lista", () => {
+    const q = pedido({ ...velho, messages: [{ at: "t", body: "Olá", emailed: false }] });
+    render(<Reminders quotes={[q]} onOpen={() => {}} />);
+    expect(screen.getByText("Ana e Rui aguarda resposta")).toBeTruthy();
+  });
+
+  it("uma que saiu (ou uma antiga, sem o campo) tira-o", () => {
+    const saiu = pedido({ ...velho, messages: [{ at: "t", body: "Olá", emailed: true }] });
+    const antiga = pedido({
+      ...velho,
+      id: "q2",
+      name: "Antiga",
+      messages: [{ at: "t", body: "Olá" }],
+    });
+    render(<Reminders quotes={[saiu, antiga]} onOpen={() => {}} />);
+    expect(screen.queryByText(/aguarda resposta/)).toBeNull();
+  });
+});

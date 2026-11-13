@@ -2190,6 +2190,14 @@ describe("POST /api/orcamento/[id]/proposta-doc — a versão da proposta", () =
  * tecto de tempo próprio, a rede tosse, o ecrã diz «Erro ao enviar» e repõe o
  * botão — e ela carrega outra vez enquanto o primeiro pedido ainda corre.
  */
+describe("POST /api/orcamento/[id]/proposta-doc — o que falta", () => {
+  it("diz O QUE falta, em vez de «Proposta incompleta.» (auditoria 13/11, n.º 19)", async () => {
+    const res = await POST(sendReq(baseDoc({ clientNames: "" })), { params });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/falta o nome dos clientes/);
+  });
+});
+
 describe("POST /api/orcamento/[id]/proposta-doc — envio repetido", () => {
   it("o segundo envio do mesmo documento não manda um segundo email", async () => {
     const doc = baseDoc({ totalAmount: 3000 });
@@ -2210,6 +2218,36 @@ describe("POST /api/orcamento/[id]/proposta-doc — envio repetido", () => {
     expect(corpo.estado).toBe("enviada");
     expect(corpo.acceptUrl).toContain("/proposta/");
     expect(corpo.repetidoAviso).toMatch(/já tinha seguido/i);
+  });
+
+  it("dois envios EM VOO ao mesmo tempo mandam um email só (auditoria 13/11, n.º 3)", async () => {
+    // O primeiro fica preso no `sendMail` (rede lenta) enquanto o segundo chega.
+    let soltarEmail!: () => void;
+    const emailPreso = new Promise<void>((r) => (soltarEmail = r));
+    vi.mocked(sendMail).mockImplementationOnce(async () => {
+      await emailPreso;
+      return { sent: true };
+    });
+    const doc = baseDoc({ totalAmount: 3000 });
+    const antes = vi.mocked(sendMail).mock.calls.length;
+
+    const primeiro = POST(sendReq(doc), { params });
+    // Espera até o primeiro estar mesmo dentro do envio.
+    for (let i = 0; i < 200 && vi.mocked(sendMail).mock.calls.length === antes; i++) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    const segundo = await POST(sendReq(doc), { params });
+    expect(segundo.status).toBe(409);
+    expect((await segundo.json()).aEnviar).toBe(true);
+
+    soltarEmail();
+    expect((await primeiro).status).toBe(200);
+    expect(vi.mocked(sendMail).mock.calls.length).toBe(antes + 1);
+    expect(store.linhas.size).toBe(1);
+
+    // E o trinco solta-se: um envio a seguir já não ouve «a enviar».
+    const depois = await POST(sendReq(baseDoc({ totalAmount: 3500 })), { params });
+    expect(depois.status).toBe(200);
   });
 
   it("mexer no documento entre os dois envios é um envio a sério", async () => {
