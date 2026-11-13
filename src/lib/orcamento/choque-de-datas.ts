@@ -31,6 +31,15 @@ import { kmPorEstrada, localizar } from "@/lib/geo/portugal";
 /** Estados que representam um dia comprometido. */
 const OCUPAM: QuoteStatus[] = ["cotado", "aceite"];
 
+/**
+ * Este pedido ocupa os seus dias? A mesma regra serve o aviso de data ocupada e
+ * a exportação do calendário (.ics): um pedido perdido, arquivado ou ainda por
+ * responder não pode aparecer como «ocupado» no calendário do telemóvel dela.
+ */
+export function ocupaOsDias(q: Pick<Quote, "status" | "archived">): boolean {
+  return !q.archived && OCUPAM.includes(q.status);
+}
+
 export type Proximidade = "mesmo-dia" | "vespera" | "dia-seguinte";
 
 export interface Choque {
@@ -93,8 +102,7 @@ export function choquesDeData(alvo: Quote, todos: Quote[]): Choque[] {
   const achados: Choque[] = [];
   for (const outro of todos) {
     if (outro.id === alvo.id) continue;
-    if (outro.archived) continue;
-    if (!OCUPAM.includes(outro.status)) continue;
+    if (!ocupaOsDias(outro)) continue;
 
     const diasDoOutro = diasOcupados(outro);
     if (diasDoOutro.length === 0) continue;

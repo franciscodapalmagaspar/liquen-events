@@ -127,9 +127,12 @@ describe("a linha de escrever lê o que ela escreve", () => {
     await waitFor(() => expect(criadas).toHaveLength(1));
     const c = criadas[0];
     /* O título vai SEM as expressões: é o que fica na lista, e «Confirmar
-       florista amanhã às 10h #Ana !alta» numa linha de lista é ruído. */
-    expect(c.title).toBe("Confirmar florista");
-    expect(c.dueDate).toBe("2026-09-11T10:00");
+       florista amanhã às 10h #Ana !alta» numa linha de lista é ruído.
+       A HORA é a excepção (n.º 2 da auditoria de 13/11): o prazo grava-se como
+       dia — a coluna é `date`, e um prazo com hora saía de «Hoje» —, e a hora
+       fica no título, que é onde ela não se perde. */
+    expect(c.title).toBe("Confirmar florista às 10h");
+    expect(c.dueDate).toBe("2026-09-11");
     expect(c.assignee).toBe("Ana");
     expect(c.priority).toBe("alta");
   });

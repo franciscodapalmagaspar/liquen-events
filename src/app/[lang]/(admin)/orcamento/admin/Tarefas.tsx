@@ -23,6 +23,7 @@ import { metaFor, tintaDoRotulo } from "./status-meta";
 import { ESTADO, MOLA_DE_MARCAR, PRESSAO } from "./ui/movimento";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { interpretarTarefa, type Interpretacao } from "@/lib/tarefas/linguagem-natural";
+import { tituloEPrazo } from "@/lib/tarefas/prazo";
 /* As regras das fases 05 e 06 vivem em `@/lib/tarefas/listas` e não aqui: o que
    é uma tarefa «de hoje» e o que conta como atrasada são perguntas que se
    discutem e se testam sozinhas, longe do desenho. */
@@ -853,7 +854,9 @@ export default function Tarefas({
     error,
     errorMessage,
     refresh,
-  } = useCachedList<Task[]>("tarefas", "/api/tarefas");
+  } = useCachedList<Task[]>("tarefas", "/api/tarefas", {
+    revalidarAoVoltar: true,
+  });
   const [adding, setAdding] = useState(false);
   const [showDone, setShowDone] = useState(false);
 
@@ -1285,9 +1288,11 @@ export default function Tarefas({
      * acabado de escolher no campo de baixo, e ela via o seu próprio gesto a
      * ser desfeito por uma palavra.
      *
-     * A hora junta-se à data com um `T`, que é como o `dueDate` a guarda. Uma
-     * hora sem data não vale nada sozinha — «às 10h» de que dia? — e por isso
-     * só entra acompanhada.
+     * A hora junta-se à data com um `T` e o `tituloEPrazo` arruma-a: o prazo
+     * grava-se como DIA e a hora vai para o título («… às 10h»). Gravada no
+     * prazo, a tarefa saía de «Hoje» e a coluna `date` perdia-a ao recarregar
+     * (ver `lib/tarefas/prazo.ts`). Uma hora sem data não vale nada sozinha —
+     * «às 10h» de que dia? — e por isso só entra acompanhada.
      */
     const usar = aInterpretar ? lida : null;
     const t = (usar ? usar.titulo : title).trim();
@@ -1306,14 +1311,16 @@ export default function Tarefas({
     const prioridadeLida =
       usar?.prioridade && priority === "normal" ? usar.prioridade.valor : priority;
 
+    const comPrazo = tituloEPrazo(t, prazoLido);
+
     setAdding(true);
     const { ok, corpo } = await gravar(`criar a tarefa «${t}»`, "/api/tarefas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title: t,
+        title: comPrazo.title,
         priority: prioridadeLida,
-        dueDate: prazoLido || undefined,
+        dueDate: comPrazo.dueDate || undefined,
         assignee: responsavelLido || undefined,
         area: area || undefined,
       }),

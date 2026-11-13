@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { semEnderecos } from "@/lib/texto-sem-enderecos";
+import { canonizar } from "@/lib/proposta-versao";
 import { NextRequest, NextResponse, after } from "next/server";
 import type { ZodError } from "zod";
 import type { Quote, QuoteFormData, PriceBreakdown } from "@/lib/orcamento/types";
@@ -799,7 +801,35 @@ async function POST_semMedida(request: NextRequest) {
     const rawSub = (body as Record<string, unknown> | null)?.submissionId;
     const submissionId =
       typeof rawSub === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(rawSub) ? rawSub : null;
-    const id = submissionId ? quoteIdFor(submissionId) : generateQuoteId();
+    /**
+     * O MESMO pedido, e não só o mesmo `submissionId`. O id guarda-se no
+     * telemóvel até o envio dar certo; se a resposta se perdia e a pessoa
+     * CORRIGIA um campo antes de reenviar (a data, o número de convidados), o
+     * reenvio levava o mesmo id, a rota respondia «ok» com o pedido antigo, e
+     * a correcção perdia-se em silêncio. A assinatura do conteúdo entra no id:
+     * o reenvio igual continua a dar UM pedido; o corrigido dá o seu.
+     */
+    //
+    // Só o que a PESSOA escreveu entra na assinatura. Os campos que o browser
+    // preenche sozinho mudam de envio para envio sem ela mexer em nada: o
+    // `leadEventId` nasce novo a cada toque (`meta.lead`), e o clique e a
+    // origem vêm do que a visita calhou de trazer. Com eles lá dentro, o
+    // segundo toque no Instagram era OUTRO pedido — outro email à equipa,
+    // outro ao cliente, outro Lead à Meta.
+    const {
+      leadEventId: _evento,
+      adClick: _cliqueGoogle,
+      metaClick: _cliqueMeta,
+      referralSource: _origem2,
+      idioma: _idioma2,
+      origem: _origem3,
+      ...escrito
+    } = parsed.data.form as Record<string, unknown>;
+    const assinatura = createHash("sha256")
+      .update(JSON.stringify(canonizar(escrito)))
+      .digest("hex")
+      .slice(0, 16);
+    const id = submissionId ? quoteIdFor(`${submissionId}:${assinatura}`) : generateQuoteId();
 
     if (submissionId) {
       try {

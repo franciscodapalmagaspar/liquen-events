@@ -6,7 +6,7 @@ import type { PropostaParaCobrar } from "@/lib/orcamento/cobrancas";
 import { oQueHaHoje, quantasHoje } from "@/lib/orcamento/hoje";
 import { eur0 as eur } from "@/lib/money";
 import { useCachedList } from "./useCachedList";
-import { todayKey } from "./util";
+import { useDiaDeHoje } from "./useDiaDeHoje";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 
 /**
@@ -45,8 +45,11 @@ const COR_DO_TOM: Record<Linha["tom"], string> = {
 };
 
 function Hoje({ quotes, propostas, onOpen, onGo }: Props) {
-  const { data: tarefas = [] } = useCachedList<Task[]>("tarefas", "/api/tarefas");
-  const hoje = todayKey();
+  const { data: tarefas = [] } = useCachedList<Task[]>("tarefas", "/api/tarefas", {
+    revalidarAoVoltar: true,
+  });
+  // Muda à meia-noite e ao voltar ao separador (ver `useDiaDeHoje`).
+  const hoje = useDiaDeHoje();
   const h = useMemo(
     () => oQueHaHoje(quotes, propostas, tarefas, hoje),
     [quotes, propostas, tarefas, hoje],

@@ -6,6 +6,7 @@ import { funilDoNegocio, pct, type Funil } from "@/lib/orcamento/funil";
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
 import { CATEGORIES, EVENT_TYPES_BY_CATEGORY } from "@/lib/orcamento/data";
 import { computeEventMetrics } from "@/lib/orcamento/dossier";
+import { quandoFoiGanho, quandoRespondemos } from "@/lib/orcamento/tempos-do-pedido";
 import {
   propostasPorPedido,
   valorDoPedido,
@@ -467,7 +468,7 @@ export default function StatsDashboard({
     }
     const monthIndex = new Map(months.map((m, i) => [m.key, i]));
 
-    // Days-to-close tracking (submittedAt → lastUpdated for accepted quotes)
+    // Dias até fechar (entrada → momento do Ganho, nos aceites)
     let closeSum = 0,
       closeCount = 0;
     /**
@@ -533,8 +534,13 @@ export default function StatsDashboard({
         if (q.status === "aceite") months[idx].revenue += contratado;
       }
 
-      // Response time: submitted → first reply (or last update)
-      const respAt = q.messages?.[0]?.at ?? q.lastUpdated;
+      // Tempo de resposta: da entrada ao PRIMEIRO contacto registado
+      // (mensagem, chamada, proposta enviada). Nunca o `lastUpdated`, que muda
+      // a cada gravação — ver `lib/orcamento/tempos-do-pedido.ts`.
+      const respAt = quandoRespondemos(
+        q,
+        (porPedido.get(q.id) ?? []).map((p) => p.sentAt),
+      );
       if (respAt) {
         const h = (new Date(respAt).getTime() - sd.getTime()) / 36e5;
         if (h >= 0 && h < 24 * 60) {
@@ -543,9 +549,12 @@ export default function StatsDashboard({
         }
       }
 
-      // Days to close: submitted → last updated (only for accepted, < 2 years)
-      if (q.status === "aceite" && q.lastUpdated) {
-        const days = (new Date(q.lastUpdated).getTime() - sd.getTime()) / 86400000;
+      // Dias até fechar: da entrada à linha do histórico que o pôs em «Ganho»
+      // (só aceites, < 2 anos). Sem essa linha, não conta — o `lastUpdated`
+      // mudava com cada nota escrita depois do Ganho.
+      const ganhoEm = q.status === "aceite" ? quandoFoiGanho(q) : undefined;
+      if (ganhoEm) {
+        const days = (new Date(ganhoEm).getTime() - sd.getTime()) / 86400000;
         if (days >= 0 && days < 730) {
           closeSum += days;
           closeCount++;

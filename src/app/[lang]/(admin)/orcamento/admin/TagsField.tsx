@@ -34,6 +34,8 @@ export default function TagsField({ quote, suggestions, onChange }: Props) {
   /** A última lista que o servidor aceitou — o único sítio seguro para onde
    *  voltar quando uma gravação falha. */
   const confirmado = useRef<string[]>(quote.tags ?? []);
+  /** A gravação que está no ar — a seguinte só parte quando esta responder. */
+  const fila = useRef<Promise<unknown>>(Promise.resolve());
 
   /**
    * ══════════════════════════════════════════════════════════════════════════
@@ -72,9 +74,20 @@ export default function TagsField({ quote, suggestions, onChange }: Props) {
     // Daí as duas marcas: só a ÚLTIMA gravação pode mexer no ecrã, e o que ela
     // repõe é o último estado CONFIRMADO pelo servidor — nunca uma lista
     // intermédia que nunca lá chegou.
+    //
+    // ── E UMA DE CADA VEZ ──────────────────────────────────────────────────
+    // Duas gravações em paralelo podem chegar ao servidor pela ordem errada:
+    // a lista com UMA etiqueta chegava depois da lista com as DUAS e gravava
+    // por cima dela — o servidor ficava sem a segunda e o ecrã continuava a
+    // mostrá-la. Agora cada uma espera pela anterior antes de partir, e a ordem
+    // de chegada é a ordem em que ela escreveu.
     const minha = ++ordem.current;
     setTags(next);
     onChange(next);
+    const anterior = fila.current;
+    let soltar: () => void = () => {};
+    fila.current = new Promise<void>((r) => (soltar = r));
+    await anterior;
     let res: Response;
     try {
       res = await fetch(`/api/orcamento/${quote.id}`, {
@@ -83,10 +96,12 @@ export default function TagsField({ quote, suggestions, onChange }: Props) {
         body: JSON.stringify({ tags: next }),
       });
     } catch {
+      soltar();
       if (minha !== ordem.current) return false;
       reverter(porqueRebentou(oQue));
       return false;
     }
+    soltar();
     if (!res.ok) {
       const corpo = await res.json().catch(() => null);
       if (minha !== ordem.current) return false;

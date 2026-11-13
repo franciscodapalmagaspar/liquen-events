@@ -951,8 +951,62 @@ describe("POST /api/orcamento — o gémeo que chega ao mesmo tempo", () => {
     );
     const res = await enviarTudo({ form: validForm, submissionId: "abcdefgh12" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ id: "LIQ-IDEM-abcdefgh12", status: "ok" });
+    expect(await res.json()).toMatchObject({
+      id: expect.stringMatching(/^LIQ-IDEM-abcdefgh12:/),
+      status: "ok",
+    });
     expect(sendMailMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * N.º 12 da auditoria de 13/11: a resposta perdeu-se, ela corrigiu a data e
+   * reenviou. O `submissionId` era o mesmo, a rota encontrava o pedido antigo
+   * e respondia «ok» — a correcção perdia-se em silêncio.
+   */
+  it("n.º 12: o mesmo envio repetido dá o mesmo pedido; um envio CORRIGIDO dá outro", async () => {
+    store.get.mockResolvedValue(null);
+    await enviarTudo({ form: validForm, submissionId: "abcdefgh14" });
+    await enviarTudo({ form: validForm, submissionId: "abcdefgh14" });
+    await enviarTudo({
+      form: { ...validForm, guests: validForm.guests + 20 },
+      submissionId: "abcdefgh14",
+    });
+    const ids = store.create.mock.calls.map((c) => ((c as unknown[])[0] as { id: string }).id);
+    expect(ids[0]).toBe(ids[1]);
+    expect(ids[2]).not.toBe(ids[0]);
+  });
+
+  /**
+   * Revisão do PR #444: a assinatura levava o `leadEventId`, que o
+   * `PedidoRelampago` gera novo a cada toque. No Instagram, o segundo toque era
+   * outro pedido, outro email à equipa e ao cliente, outro Lead à Meta.
+   */
+  it("n.º 12: dois toques iguais com `leadEventId` (e clique) diferentes dão UM pedido e um só email", async () => {
+    const criados = new Set<string>();
+    store.get.mockImplementation((async (id: unknown) =>
+      criados.has(String(id)) ? { id: String(id) } : null) as unknown as () => Promise<unknown>);
+    store.create.mockImplementation((async (q: { id: string }) => {
+      criados.add(q.id);
+    }) as unknown as () => Promise<void>);
+    try {
+      const r1 = await enviarTudo({
+        form: { ...validForm, leadEventId: "evento-1", metaClick: "fb.1.1.aaa" },
+        submissionId: "abcdefgh15",
+      });
+      const emailsDoPrimeiro = sendMailMock.mock.calls.length;
+      const r2 = await enviarTudo({
+        form: { ...validForm, leadEventId: "evento-2", metaClick: "fb.1.2.bbb" },
+        submissionId: "abcdefgh15",
+      });
+      expect((await r2.json()).id).toBe((await r1.json()).id);
+      expect(store.create).toHaveBeenCalledTimes(1);
+      expect(sendMailMock.mock.calls.length).toBe(emailsDoPrimeiro);
+    } finally {
+      store.get.mockReset();
+      store.get.mockImplementation(async () => null);
+      store.create.mockReset();
+      store.create.mockImplementation(async () => {});
+    }
   });
 
   it("uma gravação que falha a sério continua a avisar a equipa", async () => {
