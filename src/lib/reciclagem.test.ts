@@ -369,13 +369,13 @@ describe("Reciclagem — pedido (R3b)", () => {
     await r.pedidos.createQuote(UM_PEDIDO);
     const t = await r.tarefas.createTask({
       title: "TESTE Ligar aos noivos",
-      priority: "media",
+      priority: "normal",
       quoteId: UM_PEDIDO.id,
       clientName: "TESTE Ana e Rui",
     } as Parameters<typeof r.tarefas.createTask>[0]);
     const outra = await r.tarefas.createTask({
       title: "TESTE Sem pedido",
-      priority: "media",
+      priority: "normal",
     } as Parameters<typeof r.tarefas.createTask>[0]);
 
     await r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id, "Catarina");
