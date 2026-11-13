@@ -38,6 +38,7 @@ import {
   maisDias,
 } from "@/lib/orcamento/ano-do-calendario";
 import { diasDaSemana, tituloDaSemana } from "@/lib/orcamento/dia-do-calendario";
+import { ocupaOsDias } from "@/lib/orcamento/choque-de-datas";
 import { SAIDA, SAIDA_FUNDO, useSaidaDeUmSo } from "./ui/saida";
 import { useCachedList } from "./useCachedList";
 import { useArrastoDeMarcacoes } from "./useArrastoDeMarcacoes";
@@ -194,6 +195,11 @@ function exportIcs(quotes: Quote[]) {
     "METHOD:PUBLISH",
   ];
   for (const q of quotes) {
+    // Só o que OCUPA o dia (proposta enviada ou ganho, não arquivado) — a
+    // mesma regra do aviso de data ocupada. Exportava-se tudo: um pedido
+    // perdido ou ainda sem resposta aparecia como dia ocupado no calendário
+    // do telemóvel, e ela recusava trabalho por um casamento que não existe.
+    if (!ocupaOsDias(q)) continue;
     // Only real calendar dates — free-form values ("a definir") would otherwise
     // emit a malformed `DTSTART;VALUE=DATE:adefinir`. Skip them.
     if (!isDateKey(q.date)) continue;
@@ -218,6 +224,8 @@ function exportIcs(quotes: Quote[]) {
       `DTSTAMP:${stamp}`,
       `DTSTART;VALUE=DATE:${day(q.date)}`,
       `DTEND;VALUE=DATE:${dtEnd}`,
+      // Proposta enviada é um dia em aberto; ganho é um dia confirmado.
+      `STATUS:${q.status === "aceite" ? "CONFIRMED" : "TENTATIVE"}`,
       `SUMMARY:${esc(title)}`,
       q.location ? `LOCATION:${esc(q.location)}` : "",
       desc ? `DESCRIPTION:${esc(desc)}` : "",
