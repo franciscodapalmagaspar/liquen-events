@@ -332,8 +332,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const igual = (a: unknown, b: unknown) =>
       JSON.stringify(canonizar(a ?? [])) === JSON.stringify(canonizar(b ?? []));
     const listas = aConferir.filter((campo) => !igual(base[campo], gravado[campo]));
+    // Um texto que JÁ é o que está gravado não é conflito: é a rede a repetir
+    // o PATCH que já tinha passado (a base desse reenvio é a de antes dele).
     const textos = textosAConferir.filter(
-      (campo) => String(base[campo] ?? "") !== String(gravado[campo] ?? ""),
+      (campo) =>
+        String(base[campo] ?? "") !== String(gravado[campo] ?? "") &&
+        String(picked[campo] ?? "") !== String(gravado[campo] ?? ""),
     );
     return [...listas, ...textos];
   };

@@ -2287,6 +2287,29 @@ export default function AdminClient({
   );
 
   /**
+   * Um 409 traz em `current` o que o servidor tem AGORA. A base das notas passa
+   * a ser essa: sem isto, cada gravação seguinte levava a base velha e voltava
+   * a dar 409 até recarregar a página. O texto que ela escreveu fica no campo
+   * — o aviso do 409 já lhe disse que alguém mexeu entretanto.
+   */
+  const acertarBaseDoConflito = useCallback(async (id: string, res: Response) => {
+    // Uma cópia: o corpo original ainda vai ser lido para a frase do aviso.
+    let corpo: { current?: Partial<Quote> } | null = null;
+    try {
+      corpo = (await res.clone().json()) as { current?: Partial<Quote> } | null;
+    } catch {
+      return;
+    }
+    const actual = corpo?.current;
+    if (!actual || actual.id !== id) return;
+    escritoNoServidor.current = {
+      id,
+      adminNotes: actual.adminNotes ?? "",
+      lostReason: actual.lostReason ?? "",
+    };
+  }, []);
+
+  /**
    * Manda ao servidor SÓ o que foi tocado. Uma tentativa — a repetição é do
    * hook.
    */
@@ -2334,7 +2357,10 @@ export default function AdminClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(corpo),
       });
-      if (!res.ok) return respostaDeHttp(res.status, { porque: porqueNaoGravou(res.status) });
+      if (!res.ok) {
+        if (res.status === 409) await acertarBaseDoConflito(v.id, res);
+        return respostaDeHttp(res.status, { porque: porqueNaoGravou(res.status) });
+      }
       const updated = (await res.json()) as Quote;
       if (primeiraNota) registouNotas.current = v.id;
       escritoNoServidor.current = {
@@ -2345,7 +2371,7 @@ export default function AdminClient({
       absorverDoServidor(updated);
       return { estado: "guardado" };
     },
-    [userName, absorverDoServidor],
+    [userName, absorverDoServidor, acertarBaseDoConflito],
   );
 
   /**
@@ -4036,6 +4062,7 @@ export default function AdminClient({
            * O `respostaDeHttp` decide também se vale a pena repetir: um 4xx é
            * o pedido que está errado e repeti-lo dá exactamente o mesmo.
            */
+          if (res.status === 409) await acertarBaseDoConflito(selected.id, res);
           return respostaDeHttp(res.status, {
             porque: (await porqueRecusou(res)) ?? undefined,
           });

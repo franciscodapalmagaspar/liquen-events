@@ -158,6 +158,8 @@ const cabecalhos = (mapa: Record<string, string>) => ({ get: (k: string) => mapa
 let gravacoes: { id: string; corpo: Record<string, unknown> }[] = [];
 /** O que o PATCH seguinte responde. `null` = responde bem. */
 let recusarCom: number | null = null;
+/** Quando posto, o PATCH seguinte responde 409 com este pedido em `current`. */
+let conflitoCom: Quote | null = null;
 /** Quantas das próximas gravações caem por REDE — não por recusa do servidor.
  *  É o caso da quinta com 4G: a ligação aceita e nunca responde. */
 let falharPorRede = 0;
@@ -177,6 +179,18 @@ function montar(quote: Quote, comRegisto = false) {
         if (falharPorRede > 0) {
           falharPorRede -= 1;
           return Promise.reject(new TypeError("Failed to fetch"));
+        }
+        if (conflitoCom) {
+          // O 409 da casa: o que o servidor tem agora vem em `current`.
+          const current = conflitoCom;
+          const resposta = {
+            ok: false,
+            status: 409,
+            headers: cabecalhos({}),
+            json: () => Promise.resolve({ error: "mudou", current }),
+          };
+          conflitoCom = null;
+          return Promise.resolve({ ...resposta, clone: () => resposta });
         }
         if (recusarCom) {
           return Promise.resolve({
@@ -283,6 +297,7 @@ function semearRascunho(q: Quote, mudancas: Record<string, string>) {
 beforeEach(() => {
   gravacoes = [];
   recusarCom = null;
+  conflitoCom = null;
   falharPorRede = 0;
   localStorage.clear();
   vi.useFakeTimers();
@@ -343,6 +358,26 @@ describe("Painel do pedido — o que se escreve grava-se sozinho", () => {
     await passar(ATRASO_DA_GRAVACAO + 50);
 
     expect(gravacoes[0].corpo.base).toEqual({ adminNotes: "o que estava" });
+  });
+
+  /**
+   * Revisão do PR #444: depois de um 409, a base das notas ficava a velha, e
+   * todas as gravações seguintes voltavam a dar 409 até recarregar a página.
+   */
+  it("depois de um 409, a gravação seguinte parte do que o servidor tem agora", async () => {
+    const q = makeQuote({ adminNotes: "o que estava" });
+    montar(q);
+    await abrirPedido();
+
+    conflitoCom = { ...q, adminNotes: "o que a colega escreveu" };
+    fireEvent.change(notas(), { target: { value: "o que estava e mais" } });
+    await passar(ATRASO_DA_GRAVACAO + 50);
+    expect(gravacoes).toHaveLength(1);
+
+    fireEvent.change(notas(), { target: { value: "o que estava e mais isto" } });
+    await passar(ATRASO_DA_GRAVACAO + 50);
+    expect(gravacoes).toHaveLength(2);
+    expect(gravacoes.at(-1)?.corpo.base).toEqual({ adminNotes: "o que a colega escreveu" });
   });
 
   it("escrever seguido não paga um pedido por tecla", async () => {

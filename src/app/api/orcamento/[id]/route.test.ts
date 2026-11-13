@@ -1390,6 +1390,17 @@ describe("PATCH /api/orcamento/[id] — gravações ao mesmo tempo", () => {
     expect(corpo.submetido.adminNotes).toBe("ligou a confirmar");
   });
 
+  it("n.º 3: a rede a repetir um PATCH de notas que já passou não é conflito", async () => {
+    authed.ok = true;
+    // Gravado já tem «nota interna»; o reenvio traz o mesmo texto com a base
+    // de antes da primeira tentativa.
+    const res = await PATCH(
+      req("PATCH", { adminNotes: "nota interna", base: { adminNotes: "" } }),
+      ctx("LIQ-1"),
+    );
+    expect(res.status).toBe(200);
+  });
+
   it("n.º 3: notas internas com a base certa gravam", async () => {
     authed.ok = true;
     const res = await PATCH(

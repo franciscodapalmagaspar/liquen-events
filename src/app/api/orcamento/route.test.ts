@@ -983,9 +983,8 @@ describe("POST /api/orcamento — o gémeo que chega ao mesmo tempo", () => {
    */
   it("n.º 12: dois toques iguais com `leadEventId` (e clique) diferentes dão UM pedido e um só email", async () => {
     const criados = new Set<string>();
-    store.get.mockImplementation(async (id: unknown) =>
-      criados.has(String(id)) ? { id: String(id) } : null,
-    );
+    store.get.mockImplementation((async (id: unknown) =>
+      criados.has(String(id)) ? { id: String(id) } : null) as unknown as () => Promise<unknown>);
     store.create.mockImplementation((async (q: { id: string }) => {
       criados.add(q.id);
     }) as unknown as () => Promise<void>);
