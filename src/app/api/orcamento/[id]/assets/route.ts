@@ -21,6 +21,9 @@ import { corNormalizada } from "@/lib/cor";
 import { coresDeCaminhos, garantirFoto, updateFoto } from "@/lib/biblioteca-fotos-store";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
+import { procurarExistentes, registarResumos, resumoDosBytes } from "@/lib/fotos-resumo";
+import { isFingerprint } from "@/lib/theme-fingerprint";
+import { ehRefDeTema } from "@/lib/theme-ref";
 
 export const runtime = "nodejs";
 // Carrega a foto, redimensiona-a com o sharp, guarda o original E a
@@ -365,7 +368,27 @@ async function POST_semMedida(
     });
   }
 
-  const uploaded: { path: string; url: string; thumbUrl?: string; cor?: string }[] = [];
+  /**
+   * O resumo do ficheiro ORIGINAL de cada foto, calculado no navegador antes de
+   * a preparar (`fingerprintBlob`) e emparelhado pela ordem — a mesma regra das
+   * cores. É com ele que uma foto que já está na Biblioteca (preparada lá com
+   * outro tamanho, portanto com outros bytes) é reconhecida aqui. Opcional: sem
+   * ele fica só o resumo dos bytes guardados, calculado abaixo.
+   */
+  const resumosCrus = form.getAll("resumos").map((v) => (typeof v === "string" ? v : ""));
+  const resumosDoOriginal: (string | null)[] =
+    resumosCrus.length === files.length
+      ? resumosCrus.map((v) => (isFingerprint(v) ? v : null))
+      : files.map(() => null);
+
+  const uploaded: {
+    path: string;
+    url: string;
+    thumbUrl?: string;
+    cor?: string;
+    /** Já estava guardada (nesta pasta ou na Biblioteca): zero bytes novos. */
+    jaExistia?: true;
+  }[] = [];
   for (const [indice, file] of files.entries()) {
     if (!OK_TYPES.test(file.type)) {
       return NextResponse.json(
@@ -434,6 +457,43 @@ async function POST_semMedida(
         { status: 415 },
       );
     }
+    // ── UMA FOTOGRAFIA NUNCA SE GUARDA DUAS VEZES (ver `fotos-resumo.ts`) ──
+    // O resumo dos bytes que IAM ser guardados, e o do original quando veio.
+    // Se a foto já está na pasta deste pedido, ou na Biblioteca num tema vivo,
+    // devolve-se esse caminho e não se guarda nada — nem a foto, nem as
+    // derivadas, nem a linha da cor (a que lá está já as tem).
+    const resumos = [resumoDosBytes(pronto.bytes), resumosDoOriginal[indice]];
+    let jaGuardada: string | null = null;
+    try {
+      const achados = [...(await procurarExistentes(resumos, id)).values()];
+      jaGuardada = achados.find((c) => !ehRefDeTema(c)) ?? achados[0] ?? null;
+    } catch (e) {
+      // «Não sei» = guarda-se, como antes disto existir.
+      log.warn("assets: índice dos resumos ilegível", { id, erro: String(e) });
+    }
+    if (jaGuardada) {
+      const [urls, miniaturas] = await Promise.all([
+        signProposalPaths([jaGuardada]),
+        signProposalThumbs([jaGuardada]),
+      ]);
+      const url = urls.get(jaGuardada) ?? "";
+      if (url) {
+        // O resumo do original passa a apontar também para aqui.
+        await registarResumos(resumos, jaGuardada);
+        const thumbUrl = miniaturas.get(jaGuardada) || miniaturaAPedidoUrl(id, jaGuardada);
+        const cor = cores[indice];
+        uploaded.push({
+          path: jaGuardada,
+          url,
+          thumbUrl,
+          ...(cor ? { cor } : {}),
+          jaExistia: true,
+        });
+        continue;
+      }
+      // Sem URL não se consegue mostrar: guarda-se, como antes.
+    }
+
     // A chave do carregamento (uma por foto, gerada no navegador): a mesma foto
     // repetida depois de uma rede que falhou vai para o MESMO caminho.
     const res = await uploadProposalImage(id, pronto.bytes, pronto.contentType, chaves[indice]);
@@ -441,6 +501,8 @@ async function POST_semMedida(
       log.error("assets: upload falhou", null, { id, name: file.name });
       return NextResponse.json({ error: "Falha ao guardar a imagem." }, { status: 502 });
     }
+    // Entra no índice: a próxima vez que esta foto chegar, não se guarda.
+    await registarResumos(resumos, res.path);
     // A miniatura só depois de o original estar guardado, e sempre em melhor
     // esforço: falhar aqui não pode fazer falhar um carregamento que já correu
     // bem. `uploadProposalThumb` nunca lança e devolve "" quando não dá.

@@ -131,7 +131,11 @@ export async function limparPastasDePedidosApagados(
       .map((l, i) =>
         JSON.stringify(
           TABELAS_COM_CONTEUDO[i] === "app_state"
-            ? (l.data as { key?: string }[]).filter((r) => r.key !== CHAVE)
+            ? // E o índice dos resumos (`fotos-resumo.ts`): nomeia fotos de
+              // pedidos apagados até alguém as procurar — não é uma menção.
+              (l.data as { key?: string }[]).filter(
+                (r) => r.key !== CHAVE && !String(r.key ?? "").startsWith("foto-resumo:"),
+              )
             : l.data,
         ),
       )

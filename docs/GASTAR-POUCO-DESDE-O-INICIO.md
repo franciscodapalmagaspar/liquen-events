@@ -228,6 +228,48 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
   voltou a escrever o caminho apagado (um separador antigo, uma reposição).
   Na Fase B, antes de cada lote, relê o que se gravou desde a leitura das
   tabelas. Um tema arquivado não serve de destino.
+- **Uma fotografia nunca se guarda duas vezes (13/11, pedido dele: «ficar
+  incrível e termos imenso espaço sem perder nada»; ramo
+  `supabase/sem-duplicados-ao-carregar`)**. A junção da noite arruma as cópias
+  que já existem; isto IMPEDE que nasçam novas (`fotos-resumo.ts`).
+  · **Índice**: uma linha de `app_state` por resumo, `foto-resumo:<32 hex>` →
+    até 6 caminhos (`<pedido>/<x>.jpg` ou `tema:<pasta>/<x>.jpg`). O resumo é
+    o da Biblioteca (16 bytes do SHA-256), e cada foto entra com dois: o dos
+    bytes GUARDADOS (calculado no servidor) e o do ficheiro ORIGINAL (calculado
+    no navegador antes de preparar — é o que reconhece uma foto da Biblioteca,
+    que lá foi preparada com outro tamanho). Sem migração.
+  · **Carregar para uma proposta** (`assets`): se a foto já está na pasta
+    DESTE pedido, devolve esse caminho; se está na Biblioteca num tema vivo
+    (não arquivado), devolve `tema:<caminho>` — a mesma referência do «escolher
+    da Biblioteca», que já funciona no estúdio, no PDF, na proposta online e na
+    galeria do pedido, e que o `theme-materializar` protege. Zero bytes
+    guardados: nem a foto, nem a miniatura, nem a média. Na pasta de OUTRO
+    pedido nunca (apagar esse pedido levava a foto).
+  · **Biblioteca**: carregar a mesma foto no MESMO tema já não guardava outra
+    cópia (o nome do ficheiro é o resumo, e o `upsert: false` dá 409; a rede do
+    MD5/eTag apanha as antigas). Agora cada foto carregada (ou recusada como
+    repetida) entra também no índice, e é assim que as propostas a reconhecem.
+  · **Importar proposta antiga**: o navegador calcula os resumos e pergunta a
+    `POST /api/orcamento/fotos-existentes` (só admin, `comCpu`) antes de
+    preparar seja o que for. As que já existem não sobem um byte, não ocupam
+    espaço e não contam para o tecto; o tecto passou de 8 (todas) para 20
+    NOVAS. A janela diz «X já existem — não ocupam espaço» e os MB das novas.
+  · **Quanto poupa**: cada foto repetida que deixa de se guardar são ~0,6–1,3
+    MB (original + média + miniatura). Para ordem de grandeza: a 10/11 havia
+    160 MB em 1 525 cópias iguais; parte delas vem do tempo em que escolher da
+    Biblioteca copiava os bytes, por isso não se promete um número por mês —
+    mede-se no manifesto da noite.
+  · **Quanto custa**: ~150 B por foto na base de dados (< 1 MB para as ~3 000
+    de hoje, dos 500 MB). Por foto carregada: uma leitura `key in (…)` e uma ou
+    duas escritas pequenas; só quando há candidata, um `getTheme` e um HEAD ao
+    Storage (zero bytes de saída). Nunca uma listagem do Storage. No navegador,
+    ~40 ms por foto para o resumo. Um caminho que já não existe sai do índice
+    na primeira vez que se tropeça nele; cada chave guarda no máximo 6.
+  · **O que não faz**: o índice começa vazio — as fotos de antes de 13/11 só
+    entram quando voltarem a ser carregadas (ou recusadas como repetidas na
+    Biblioteca). As limpezas da noite (`juntar-fotos-duplicadas`,
+    `limpar-pastas-orfas`, `limpar-pdfs-substituidos`) não contam as chaves
+    `foto-resumo:` como menções: o índice nomeia caminhos, não os usa.
 - `proposal-pdfs` (121 MB): ela escolheu guardar o PDF actual e o aceite de
   cada proposta. Lista mostrada a 10/11: 9 ficheiros (~9 MB), incluindo as
   pastas de 2 propostas que já não existem. O Supabase não deixa apagar

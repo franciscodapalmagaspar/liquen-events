@@ -21,6 +21,8 @@ import {
 } from "@/lib/theme-types";
 import { isDatabaseConfigured } from "@/lib/supabase";
 import { NaoDeuParaApagar, enviarParaAReciclagem, quemApagou } from "@/lib/reciclagem";
+import { registarResumos, resumoDosBytes } from "@/lib/fotos-resumo";
+import { refDeTema } from "@/lib/theme-ref";
 import { log } from "@/lib/logger";
 import { lqipAceitavel } from "@/lib/lqip";
 import { corNormalizada } from "@/lib/cor";
@@ -343,6 +345,9 @@ async function POST_semMedida(
       const already = await findThemeImageByBytes(id, bytes);
       if (already) {
         duplicates.push({ name: file.name, path: already, reason: "no-tema" });
+        // A foto antiga entra no índice de graça: as propostas passam a
+        // reconhecê-la (ver `fotos-resumo.ts`).
+        await registarResumos([resumoDosBytes(bytes), hashes[i]], refDeTema(already));
         continue;
       }
     }
@@ -382,8 +387,14 @@ async function POST_semMedida(
     // existe — e o "Tentar novamente" voltaria a fazer o mesmo para sempre.
     if (res.kind === "duplicate") {
       duplicates.push({ name: file.name, path: res.path, reason: "no-tema" });
+      await registarResumos([resumoDosBytes(bytes), hashes[i]], refDeTema(res.path));
       continue;
     }
+    // ── O ÍNDICE DOS RESUMOS (`fotos-resumo.ts`) ──────────────────────────
+    // Os bytes guardados e o original: é por aqui que uma proposta que receba
+    // esta mesma fotografia devolve `tema:<caminho>` em vez de a guardar outra
+    // vez. Melhor esforço — nunca lança.
+    await registarResumos([resumoDosBytes(bytes), hashes[i]], refDeTema(res.image.path));
     // O LQIP entra na linha da foto que acabou de nascer. Melhor esforço: a
     // fotografia já está guardada, e falhar aqui deixa-a sem placeholder —
     // exactamente como estão todas as anteriores a isto existir. Nunca é

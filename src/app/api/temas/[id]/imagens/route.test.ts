@@ -38,6 +38,15 @@ const st = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => st.authed }));
+// O índice dos resumos tem testes próprios (`route.sem-duplicados.test.ts`);
+// aqui nunca encontra nada e nunca escreve — sem ele, o `app_state` de
+// desenvolvimento (um ficheiro) era escrito pelos testes.
+const indice = vi.hoisted(() => ({ registar: vi.fn(async (_r: unknown[], _c: string) => {}) }));
+vi.mock("@/lib/fotos-resumo", () => ({
+  procurarExistentes: vi.fn(async () => new Map<string, string>()),
+  registarResumos: indice.registar,
+  resumoDosBytes: () => "0".repeat(32),
+}));
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@/lib/supabase", () => ({ isDatabaseConfigured: () => st.dbConfigured }));
 vi.mock("@/lib/themes-store", () => ({
@@ -519,6 +528,18 @@ describe("POST /api/temas/[id]/imagens — repetidas", () => {
       images: [],
       duplicates: [{ name: "praia.jpg", path: "t-1/ja-la-estava.jpg", reason: "no-tema" }],
     });
+  });
+
+  it("cada foto (nova ou repetida) entra no índice dos resumos como `tema:`", async () => {
+    // É por aqui que uma proposta que receba esta MESMA foto devolve a
+    // referência à Biblioteca em vez de guardar outra cópia (`fotos-resumo.ts`).
+    st.upload.mockResolvedValueOnce({ kind: "duplicate", path: "t-1/ja-la-estava.jpg" } as never);
+    await POST(...post([jpg("praia.jpg")], "t-1", undefined, { hashes: [H1] }));
+    expect(indice.registar).toHaveBeenCalledWith(["0".repeat(32), H1], "tema:t-1/ja-la-estava.jpg");
+    indice.registar.mockClear();
+    const res = await POST(...post([jpg("nova.jpg")]));
+    const [nova] = (await res.json()).images;
+    expect(indice.registar).toHaveBeenCalledWith(["0".repeat(32), null], `tema:${nova.path}`);
   });
 
   it("meio lote repetido: as boas entram e as repetidas são contadas à parte", async () => {

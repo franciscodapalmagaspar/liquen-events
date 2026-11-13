@@ -299,6 +299,47 @@ export async function getState<T>(key: string, opcoes?: { ouFalha?: boolean }): 
 }
 
 /**
+ * Várias chaves conhecidas, numa ida só (`key in (…)`), em lotes de 100.
+ *
+ * Existe para o índice dos resumos das fotografias (`fotos-resumo.ts`): a
+ * importação pergunta por 20 ou 30 resumos de uma vez, e 30 leituras soltas
+ * eram 30 idas à base de dados. Só devolve as chaves que existem.
+ *
+ * Nunca lança. Uma leitura falhada devolve um mapa VAZIO — quem chama tem de
+ * o ler como «não sei», nunca como «não existe» numa decisão de apagar. (O
+ * índice só o usa para decidir NÃO guardar uma cópia; vazio = guarda-se, que é
+ * o comportamento de antes.)
+ */
+export async function getStates<T>(keys: readonly string[]): Promise<Map<string, T>> {
+  const saida = new Map<string, T>();
+  const unicas = [...new Set(keys.filter((k) => typeof k === "string" && k))];
+  if (unicas.length === 0) return saida;
+  const sb = getSupabase();
+  if (!sb) {
+    const all = await readFileState();
+    for (const k of unicas) if (k in all) saida.set(k, all[k] as T);
+    return saida;
+  }
+  try {
+    for (let i = 0; i < unicas.length; i += 100) {
+      const { data, error } = await comTecto(
+        sb
+          .from("app_state")
+          .select("key, value")
+          .in("key", unicas.slice(i, i + 100)),
+        TEMPO_POR_TENTATIVA_MS,
+      );
+      if (error) throw error;
+      for (const r of (data ?? []) as { key: string; value: T }[]) saida.set(r.key, r.value);
+    }
+    return saida;
+  } catch (err) {
+    log.error("app-state: leitura de várias chaves falhou", err, { n: unicas.length });
+    return new Map();
+  }
+}
+
+/**
  * Todas as entradas cuja chave começa por `prefix`.
  *
  * Existe por causa de UMA pergunta que não se conseguia responder de outra

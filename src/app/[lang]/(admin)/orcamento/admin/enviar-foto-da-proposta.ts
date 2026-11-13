@@ -24,10 +24,20 @@ export interface FotoEnviada {
   url: string;
   thumbUrl?: string;
   cor?: string;
+  /** Já estava guardada (nesta pasta ou na Biblioteca): não ocupou espaço. */
+  jaExistia?: boolean;
 }
 
 export type FotoParaEnviar = Pick<PreparedImage, "file" | "thumb"> &
-  Partial<Pick<PreparedImage, "cor" | "lqip" | "mid">>;
+  Partial<Pick<PreparedImage, "cor" | "lqip" | "mid">> & {
+    /**
+     * O resumo do ficheiro ORIGINAL (`fingerprintBlob`, antes de preparar).
+     * Com ele o servidor reconhece uma foto que já está na Biblioteca — lá foi
+     * preparada com outro tamanho, e os bytes guardados nunca batiam — e
+     * devolve o caminho dela em vez de guardar outra cópia (`fotos-resumo.ts`).
+     */
+    resumo?: string | null;
+  };
 
 export function formularioDaFoto(f: FotoParaEnviar, chave?: string): FormData {
   const form = new FormData();
@@ -36,6 +46,7 @@ export function formularioDaFoto(f: FotoParaEnviar, chave?: string): FormData {
   // só a resposta se perdeu, o servidor reconhece-a e não guarda um segundo
   // ficheiro (auditoria de 13/11, estúdio n.º 18).
   if (chave) form.append("chaves", chave);
+  if (f.resumo) form.append("resumos", f.resumo);
   // O LQIP — a mancha de cor que ocupa a célula enquanto a fotografia não
   // chega. Sai da MESMA descodificação que já calculou a cor e a miniatura
   // (`image-prep`), portanto não custa nada, e sem ele a página do casal
