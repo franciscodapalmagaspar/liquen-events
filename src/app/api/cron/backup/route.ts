@@ -19,7 +19,10 @@ import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// 300 e não 60 (auditoria de robustez de 13/11): é a folga para a cópia e as
+// limpezas acabarem sem a função ser morta a meio. Cada passo tem o seu
+// orçamento próprio, como antes.
+export const maxDuration = 300;
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -290,12 +293,27 @@ async function GET_semMedida(request: NextRequest) {
      * cópia seguiu — porque seguiu. Trocar uma cópia bem-sucedida por um 500
      * por causa da limpeza seria vender o essencial pelo acessório.
      */
-    let retencao: Awaited<ReturnType<typeof correrRetencao>> | null = null;
-    try {
-      retencao = await correrRetencao(await listQuotes());
-    } catch (e) {
-      log.error("cron backup: a retenção falhou (a cópia seguiu na mesma)", e, { dia });
+    /**
+     * ── NUMA CÓPIA PARCIAL, NÃO SE APAGA NADA (auditoria de 13/11) ─────────
+     *
+     * Se a cópia de hoje saiu incompleta, a retenção, a Reciclagem e as
+     * limpezas de ficheiros ficam para amanhã: apagar no dia em que não há
+     * cópia boa do que se apaga é trocar o seguro pelo risco. Só a cache das
+     * fotos tratadas corre (refaz-se sozinha).
+     */
+    if (parcial) {
+      log.warn("cron backup: cópia parcial — retenção e limpezas ficam para amanhã", {
+        dia,
+        falhados,
+      });
     }
+    let retencao: Awaited<ReturnType<typeof correrRetencao>> | null = null;
+    if (!parcial)
+      try {
+        retencao = await correrRetencao(await listQuotes());
+      } catch (e) {
+        log.error("cron backup: a retenção falhou (a cópia seguiu na mesma)", e, { dia });
+      }
 
     /**
      * ══════════════════════════════════════════════════════════════════════
@@ -309,23 +327,24 @@ async function GET_semMedida(request: NextRequest) {
      * migração ainda não correu), não há nada para limpar.
      */
     let reciclagem: { apagadas: number; ficaram: number } | null = null;
-    try {
-      // 20 s: a função tem 60, e a cópia e a retenção já gastaram parte. O
-      // que não couber (uma pasta grande de fotos) fica para amanhã.
-      reciclagem = await limparExpiradas(new Date(), 50, 20_000);
-      if (reciclagem.ficaram > 0) {
-        log.warn("cron backup: há fotografias da Reciclagem que não saíram — fica para amanhã", {
-          dia,
-          ficaram: reciclagem.ficaram,
-        });
+    if (!parcial)
+      try {
+        // 20 s: a função tem 60, e a cópia e a retenção já gastaram parte. O
+        // que não couber (uma pasta grande de fotos) fica para amanhã.
+        reciclagem = await limparExpiradas(new Date(), 50, 20_000);
+        if (reciclagem.ficaram > 0) {
+          log.warn("cron backup: há fotografias da Reciclagem que não saíram — fica para amanhã", {
+            dia,
+            ficaram: reciclagem.ficaram,
+          });
+        }
+      } catch (e) {
+        if (!isMissingTable(e)) {
+          log.error("cron backup: a limpeza da Reciclagem falhou (a cópia seguiu na mesma)", e, {
+            dia,
+          });
+        }
       }
-    } catch (e) {
-      if (!isMissingTable(e)) {
-        log.error("cron backup: a limpeza da Reciclagem falhou (a cópia seguiu na mesma)", e, {
-          dia,
-        });
-      }
-    }
 
     /**
      * AS FOTOS TRATADAS COM MAIS DE 30 DIAS (10/11, decisão dela) — o
@@ -334,7 +353,9 @@ async function GET_semMedida(request: NextRequest) {
      */
     let fotosTratadas: Awaited<ReturnType<typeof limparFotosTratadasVelhas>> | null = null;
     try {
-      fotosTratadas = await limparFotosTratadasVelhas(new Date(), 10_000);
+      // 60 s (13/11): com 10 nunca chegava ao fim das 256 pastas — e a cache
+      // encheu o armazenamento até aos 997 MB de 1 GB.
+      fotosTratadas = await limparFotosTratadasVelhas(new Date(), 60_000);
     } catch (e) {
       log.error("cron backup: a limpeza das fotos tratadas falhou (a cópia seguiu na mesma)", e, {
         dia,
@@ -348,13 +369,14 @@ async function GET_semMedida(request: NextRequest) {
      * seguiu.
      */
     let pastasOrfas: Awaited<ReturnType<typeof limparPastasDePedidosApagados>> | null = null;
-    try {
-      pastasOrfas = await limparPastasDePedidosApagados(new Date(), 8_000);
-    } catch (e) {
-      log.error("cron backup: a limpeza das pastas órfãs falhou (a cópia seguiu na mesma)", e, {
-        dia,
-      });
-    }
+    if (!parcial)
+      try {
+        pastasOrfas = await limparPastasDePedidosApagados(new Date(), 8_000);
+      } catch (e) {
+        log.error("cron backup: a limpeza das pastas órfãs falhou (a cópia seguiu na mesma)", e, {
+          dia,
+        });
+      }
 
     /**
      * E os PDF de propostas que já foram substituídos por uma versão nova
@@ -364,13 +386,18 @@ async function GET_semMedida(request: NextRequest) {
      * desenhar um PDF que a seguir se apagasse.
      */
     let pdfsSubstituidos: Awaited<ReturnType<typeof limparPdfsSubstituidos>> | null = null;
-    try {
-      pdfsSubstituidos = await limparPdfsSubstituidos(new Date(), 6_000);
-    } catch (e) {
-      log.error("cron backup: a limpeza dos PDF substituídos falhou (a cópia seguiu na mesma)", e, {
-        dia,
-      });
-    }
+    if (!parcial)
+      try {
+        pdfsSubstituidos = await limparPdfsSubstituidos(new Date(), 6_000);
+      } catch (e) {
+        log.error(
+          "cron backup: a limpeza dos PDF substituídos falhou (a cópia seguiu na mesma)",
+          e,
+          {
+            dia,
+          },
+        );
+      }
 
     /**
      * ══════════════════════════════════════════════════════════════════════

@@ -441,6 +441,40 @@ function duplicateKeyError(table: string, id: string): Error {
   );
 }
 
+/**
+ * ── «JWT ISSUED AT FUTURE» (PGRST303): TENTA OUTRA VEZ ─────────────────────
+ *
+ * Auditoria de robustez de 13/11: o PostgREST recusa de vez em quando a chave
+ * com PGRST303 (o relógio do servidor dele está uns segundos atrás do nosso).
+ * Passa sozinho num segundo — mas sem nova tentativa deixou a cópia diária
+ * INCOMPLETA a 7, 9 e 11/11 e falhou a lista de pedidos e o link de uma
+ * proposta. Só nas LEITURAS (repetir é inofensivo); as escritas não se
+ * repetem às cegas.
+ */
+const ESPERAS_DO_RELOGIO_MS = [800, 2000];
+
+export function eRelogioAdiantado(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    ((error as { code?: unknown }).code === "PGRST303" ||
+      /issued at future/i.test(String((error as { message?: unknown }).message ?? "")))
+  );
+}
+
+export async function lerComNovaTentativa<R extends { error: unknown }>(
+  ler: () => PromiseLike<R>,
+  esperar: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<R> {
+  let r = await ler();
+  for (const ms of ESPERAS_DO_RELOGIO_MS) {
+    if (!eRelogioAdiantado(r.error)) return r;
+    await esperar(ms);
+    r = await ler();
+  }
+  return r;
+}
+
 // ── Supabase backend ──────────────────────────────────────────────────────
 export class SupabaseBackend<T> implements Backend<T> {
   constructor(
@@ -475,7 +509,9 @@ export class SupabaseBackend<T> implements Backend<T> {
     const ordered = this.m.order
       ? base.order(this.m.order.column, { ascending: this.m.order.ascending })
       : base;
-    const { data, error, status } = await (limit != null ? ordered.limit(limit) : ordered);
+    const { data, error, status } = await lerComNovaTentativa(() =>
+      limit != null ? ordered.limit(limit) : ordered,
+    );
     if (error) throw comEstadoHttp(error, status);
     const rows = data ?? [];
     // Only an EXPLICIT opt-in limit can truncate — and never silently: a full
@@ -490,11 +526,9 @@ export class SupabaseBackend<T> implements Backend<T> {
   }
 
   async get(id: string): Promise<T | null> {
-    const { data, error, status } = await this.sb
-      .from(this.m.table)
-      .select(this.colsWithStamp)
-      .eq(this.idCol, id)
-      .maybeSingle();
+    const { data, error, status } = await lerComNovaTentativa(() =>
+      this.sb.from(this.m.table).select(this.colsWithStamp).eq(this.idCol, id).maybeSingle(),
+    );
     if (error) throw comEstadoHttp(error, status);
     if (!data) return null;
     const entity = this.map(data);
@@ -510,7 +544,7 @@ export class SupabaseBackend<T> implements Backend<T> {
     const q = this.m.order
       ? base.order(this.m.order.column, { ascending: this.m.order.ascending })
       : base;
-    const { data, error, status } = await q;
+    const { data, error, status } = await lerComNovaTentativa(() => q);
     if (error) throw comEstadoHttp(error, status);
     return (data ?? []).map(this.map);
   }
