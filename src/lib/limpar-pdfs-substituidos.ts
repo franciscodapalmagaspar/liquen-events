@@ -1,4 +1,5 @@
 import "server-only";
+import { lerTodasAsLinhas } from "./ler-todas-as-linhas";
 import { createHash } from "node:crypto";
 import { getSupabase } from "@/lib/supabase";
 import { getState, setState } from "@/lib/app-state";
@@ -75,10 +76,13 @@ export async function limparPdfsSubstituidos(agora: Date, prazoMs = 8_000): Prom
   const pastas = raiz.filter((e) => !e.id).map((e) => e.name);
   if (pastas.length === 0) return nada;
 
+  // Às páginas: lidas só até às 1000, uma proposta da linha 1001 não estava em
+  // `existe` nem nos `selos`, e o PDF enviado e o aceite dela passavam a
+  // candidatos (revisão de 13/11, n.º 8).
   const [propostas, contratos, reciclagem] = await Promise.all([
-    sb.from("proposals").select("id, pdf_sha256, pdf_bytes"),
-    sb.from("contracts").select("proposal_id, proposta_pdf_sha256, proposta_pdf_bytes"),
-    sb.from("reciclagem").select("origem_id"),
+    lerTodasAsLinhas(sb, "proposals", "id, pdf_sha256, pdf_bytes"),
+    lerTodasAsLinhas(sb, "contracts", "proposal_id, proposta_pdf_sha256, proposta_pdf_bytes"),
+    lerTodasAsLinhas(sb, "reciclagem", "origem_id"),
   ]);
   if ([propostas, contratos, reciclagem].some((r) => r.error || !r.data)) return falhou;
 
@@ -139,7 +143,9 @@ export async function limparPdfsSubstituidos(agora: Date, prazoMs = 8_000): Prom
 
   // ── Porta 4: menções em qualquer tabela ─────────────────────────────────
   if (candidatos.length > 0) {
-    const leituras = await Promise.all(TABELAS_COM_CONTEUDO.map((t) => sb.from(t).select("*")));
+    const leituras = await Promise.all(
+      TABELAS_COM_CONTEUDO.map((t) => lerTodasAsLinhas(sb, t, "*")),
+    );
     if (leituras.some((l) => l.error || !l.data)) return falhou;
     const texto = leituras
       .map((l, i) =>
@@ -166,7 +172,9 @@ export async function limparPdfsSubstituidos(agora: Date, prazoMs = 8_000): Prom
     if (Date.now() > fim) return { ...falhou, candidatos: candidatos.length };
     const pasta = f.caminho.split("/")[0];
     const daPasta = selos.get(pasta) ?? [];
-    const podeSer = daPasta.filter((s) => s.bytes === null || f.bytes === null || s.bytes === f.bytes);
+    const podeSer = daPasta.filter(
+      (s) => s.bytes === null || f.bytes === null || s.bytes === f.bytes,
+    );
     if (podeSer.length > 0) {
       const { data, error } = await sb.storage.from(BUCKET).download(f.caminho);
       if (error || !data) continue;

@@ -144,7 +144,10 @@ export function registoVazio(): RegistoDeRecuperacao {
 }
 
 export async function lerRegisto(): Promise<RegistoDeRecuperacao> {
-  const guardado = await getState<Partial<RegistoDeRecuperacao>>(CHAVE_ESTADO);
+  // Para MUDAR e voltar a gravar: uma leitura falhada lança em vez de dar um
+  // registo vazio — senão o pedido seguinte gravava-o vazio e as
+  // palavras-passe redefinidas desapareciam (auditoria de 13/11).
+  const guardado = await getState<Partial<RegistoDeRecuperacao>>(CHAVE_ESTADO, { ouFalha: true });
   if (!guardado || typeof guardado !== "object") return registoVazio();
   return {
     pedidos: tabelaSemHeranca<PedidoDeRecuperacao>(guardado.pedidos),

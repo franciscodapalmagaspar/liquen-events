@@ -1,11 +1,14 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { log } from "./logger";
 import type { NextRequest } from "next/server";
 import { ADMIN_COOKIE, nomeVisivel, readSession } from "./admin-auth";
 import { isMissingTable } from "./repository";
 import {
+  entradasDe,
   guardarNaReciclagem,
   listarReciclagem,
+  trocarRetrato,
   obterDaReciclagem,
   tirarDaReciclagem,
   type EntradaDaReciclagem,
@@ -334,7 +337,27 @@ export const TIPOS = {
     },
     async conflito(r) {
       const q = primeiro<Quote>(r, "principal");
-      if (q && (await getQuote(q.id))) return JA_EXISTE;
+      // O pedido está vivo. Uma entrada normal já voltou de vez. A de um
+      // apagar que parou a meio (`parcial`) guarda SÓ o que saiu — propostas,
+      // tarefas, rascunhos —, e repõe-se o que disso ainda falta (revisão de
+      // 13/11). Nunca o retrato inteiro por cima de um pedido vivo.
+      if (q && (await getQuote(q.id))) {
+        if (!eParcial(r)) return JA_EXISTE;
+        return (await faltaAlgoDoQueSaiu(r)) ? null : JA_EXISTE;
+      }
+      // Uma entrada parcial com o pedido já apagado de vez: se há uma entrada
+      // MAIS RECENTE e completa do mesmo pedido, é essa que se repõe (tem
+      // tudo, esta incluída). Repor esta primeiro deixava a outra presa.
+      if (q && eParcial(r)) {
+        const outras = await entradasDe(q.id).catch(() => [] as EntradaDaReciclagem[]);
+        const completa = outras.find(
+          (e) =>
+            e.tipo === "pedido" && !eParcial(e.retrato as Retrato) && e.apagadoEm > apagadoEmDe(r),
+        );
+        if (completa) {
+          return "Este pedido tem uma entrada mais recente na Reciclagem, com tudo. Repõe essa.";
+        }
+      }
       for (const p of todos<Proposal>(r, "propostas")) {
         if (await getProposal(p.id)) {
           return "Uma das propostas deste pedido já existe outra vez. Nada foi reposto.";
@@ -343,25 +366,44 @@ export const TIPOS = {
       return null;
     },
     async repor(r) {
-      await reporPedido(primeiro<Quote>(r, "principal"));
+      const q = primeiro<Quote>(r, "principal");
+      // Com o pedido vivo (só numa entrada `parcial` — ver o `conflito`), o
+      // retrato tem só o que saiu, e repõe-se o que disso falta.
+      const vivo = !!(await getQuote(q.id));
+      if (!vivo) await reporPedido(q);
       await reporSeFaltar(todos<Proposal>(r, "propostas"), getProposal, reporProposta);
-      for (const { chave, valor } of todos<{ chave: string; valor: unknown }>(r, "rascunhos")) {
+      const rascunhos = todos<{ chave: string; valor: unknown }>(r, "rascunhos");
+      for (const { chave, valor } of rascunhos) {
         // Um rascunho que entretanto nasceu de novo é trabalho de agora: fica.
-        if ((await getState(draftKey(chave))) == null) await setState(draftKey(chave), valor);
+        // Lido para decidir se se grava: uma leitura falhada lança — nunca
+        // escreve por cima de um rascunho que não se conseguiu ver.
+        if ((await getState(draftKey(chave), { ouFalha: true })) == null)
+          await setState(draftKey(chave), valor);
       }
-      await reporSeFaltar(
-        todos<EventMaterial>(r, "material"),
-        getEventMaterial,
-        reporEventMaterial,
-      );
-      await reporSeFaltar(todos<EventMaterialItem>(r, "itens"), obterEventItem, reporEventItem);
-      await reporSeFaltar(todos<EventMaterialLog>(r, "registo"), obterDoRegisto, reporNoRegisto);
+      // Com o pedido vivo, o material nunca saiu (cai em cascata com o pedido):
+      // repô-lo era pô-lo a dobrar ao lado do de agora — mesmo que o retrato o
+      // traga, por uma entrada que não chegou a ser reduzida (3.ª revisão).
+      if (!vivo) {
+        await reporSeFaltar(
+          todos<EventMaterial>(r, "material"),
+          getEventMaterial,
+          reporEventMaterial,
+        );
+        await reporSeFaltar(todos<EventMaterialItem>(r, "itens"), obterEventItem, reporEventItem);
+        await reporSeFaltar(todos<EventMaterialLog>(r, "registo"), obterDoRegisto, reporNoRegisto);
+      }
       // Um retrato de antes desta mudança não tem `tarefas`: `todos` dá [].
       await reporSeFaltar(todos<Task>(r, "tarefas"), obterTarefa, reporTarefa);
     },
     async largar(e) {
       // Se voltou (com o mesmo id), a pasta é dele outra vez.
       if (await getQuote(e.origemId)) return true;
+      // Outra entrada do MESMO pedido ainda promete um «Repor»: a pasta é dela
+      // (revisão de 13/11, n.º 2).
+      const outras = (await entradasDe(e.origemId)).filter(
+        (o) => o.id !== e.id && o.tipo === "pedido",
+      );
+      if (outras.length > 0) return true;
       return apagarPastaDoPedido(e.origemId);
     },
   },
@@ -578,6 +620,28 @@ export async function enviarComDetalhe(
   const entradaId = randomUUID();
   const capturado = await def.capturar(id, entradaId);
   if (!capturado) return { reciclagem: null, detalhe: await def.apagar(id) };
+  /**
+   * Uma segunda tentativa de apagar o MESMO pedido, depois de uma que parou a
+   * meio: a entrada antiga guarda o que já saiu (e que já não se consegue
+   * capturar). Junta-se tudo numa entrada só, e a antiga sai quando a nova
+   * fica — nunca antes (revisão de 13/11, n.º 2).
+   */
+  const anteriores =
+    tipo === "pedido"
+      ? (await entradasDe(id).catch(() => [] as EntradaDaReciclagem[])).filter(
+          (e) => e.tipo === "pedido",
+        )
+      : [];
+  const retratoNovo = capturado.retrato as Retrato;
+  if (anteriores.length > 0) {
+    capturado.retrato = juntarRetratos(
+      capturado.retrato,
+      anteriores.map((e) => e.retrato as Retrato),
+    );
+  }
+  const largarAnteriores = async () => {
+    for (const e of anteriores) await tirarDaReciclagem(e.id).catch(() => {});
+  };
   const entrada: EntradaDaReciclagem = {
     id: entradaId,
     tipo,
@@ -596,11 +660,151 @@ export async function enviarComDetalhe(
     throw err;
   }
   try {
-    return { reciclagem: { id: entrada.id }, detalhe: await def.apagar(id, entrada.id) };
+    const detalhe = await def.apagar(id, entrada.id);
+    await largarAnteriores();
+    return { reciclagem: { id: entrada.id }, detalhe };
   } catch (err) {
+    // Se o apagar parou A MEIO (o pedido saiu em parte: propostas, rascunhos,
+    // tarefas), a entrada é a ÚNICA cópia do que já saiu — fica na Reciclagem.
+    // Só se tira quando nada saiu (auditoria de 13/11, «dados que se perdem»).
+    // Só um apagar que FALHOU a meio (sem `motivo`): uma recusa — o contrato,
+    // um pedido que já não existe — não apagou nada, e as entradas que havia
+    // ficam como estavam.
+    let reduziu = tipo !== "pedido";
+    const parouAMeio =
+      err instanceof NaoDeuParaApagar &&
+      !(err.detalhe as { motivo?: unknown } | undefined)?.motivo &&
+      (saiuAlgo(err.detalhe) || anteriores.length > 0);
+    if (parouAMeio && tipo === "pedido") {
+      // A entrada fica — mas só com o que saiu (desta vez e das anteriores).
+      const saiu = (err.detalhe as { saiu?: Parameters<typeof soOQueSaiu>[1] }).saiu ?? {
+        propostas: [],
+        tarefas: [],
+        rascunhos: [],
+      };
+      const reduzido = juntarRetratos(
+        soOQueSaiu(retratoNovo, saiu, entrada.apagadoEm),
+        anteriores.map((e) => e.retrato as Retrato),
+      );
+      reduzido.parcial = [{ apagadoEm: entrada.apagadoEm }];
+      // Se não se conseguir trocar, fica o retrato inteiro: o «Repor» com o
+      // pedido vivo recusa-o (não é `parcial`), e o que saiu continua guardado.
+      reduziu = await trocarRetrato(entrada.id, reduzido).then(
+        () => true,
+        (e) => {
+          log.error("reciclagem: não deu para reduzir a entrada parcial", e, { id: entrada.id });
+          return false;
+        },
+      );
+    }
+    if (parouAMeio && err instanceof NaoDeuParaApagar) {
+      // As anteriores só saem se a nova ficou com tudo (reduzida e marcada):
+      // senão, ficam como estavam — repostáveis.
+      if (reduziu) await largarAnteriores();
+      throw new NaoDeuParaApagar(
+        "O pedido não foi apagado por completo. O que já saiu está guardado na Reciclagem — tenta de novo.",
+        err.status,
+        err.detalhe,
+      );
+    }
     await tirarDaReciclagem(entrada.id).catch(() => {});
     throw err;
   }
+}
+
+/** A entrada é a de um apagar de pedido que parou a meio? */
+const eParcial = (r: Retrato): boolean => (r.parcial ?? []).length > 0;
+const apagadoEmDe = (r: Retrato): string =>
+  String((primeiro<{ apagadoEm?: string }>(r, "parcial") ?? {}).apagadoEm ?? "");
+
+/** Do que um apagar parcial levou, alguma coisa ainda não voltou? */
+async function faltaAlgoDoQueSaiu(r: Retrato): Promise<boolean> {
+  for (const p of todos<{ id: string }>(r, "propostas"))
+    if (!(await getProposal(p.id))) return true;
+  for (const t of todos<{ id: string }>(r, "tarefas")) if (!(await obterTarefa(t.id))) return true;
+  // Um rascunho que voltou a existir (o estúdio grava sozinho) é trabalho de
+  // agora, e não se lhe toca; um que ainda falta, falta.
+  for (const { chave } of todos<{ chave: string }>(r, "rascunhos")) {
+    if ((await getState(draftKey(chave))) == null) return true;
+  }
+  return false;
+}
+
+/**
+ * O retrato de um apagar que parou a meio: o pedido (para o rótulo e o
+ * «Repor» de depois), e só as linhas que SAÍRAM. O material, os itens e o
+ * registo nunca saem num apagar parcial (caem em cascata com o pedido), e um
+ * retrato com eles repunha-os a dobrar por cima do pedido vivo.
+ */
+function soOQueSaiu(
+  r: Retrato,
+  saiu: { propostas: string[]; tarefas: string[]; rascunhos: string[] },
+  apagadoEm: string,
+): Retrato {
+  const ids = (l: unknown) => String((l as { id?: unknown })?.id ?? "");
+  // Uma linha criada entre a captura e o apagar saiu sem estar no retrato: não
+  // há cópia dela. Diz-se, para se poder ir buscar à cópia de segurança.
+  const capturadas = new Set([
+    ...todos<unknown>(r, "propostas").map(ids),
+    ...todos<unknown>(r, "tarefas").map(ids),
+  ]);
+  const semCopia = [...saiu.propostas, ...saiu.tarefas].filter((id) => !capturadas.has(id));
+  if (semCopia.length > 0) {
+    log.error("reciclagem: saíram linhas que não estavam no retrato", null, { ids: semCopia });
+  }
+  return {
+    principal: r.principal ?? [],
+    propostas: todos<unknown>(r, "propostas").filter((p) => saiu.propostas.includes(ids(p))),
+    tarefas: todos<unknown>(r, "tarefas").filter((t) => saiu.tarefas.includes(ids(t))),
+    rascunhos: todos<{ chave: string }>(r, "rascunhos").filter((x) =>
+      saiu.rascunhos.includes(x.chave),
+    ),
+    parcial: [{ apagadoEm }],
+  };
+}
+
+/**
+ * Junta os retratos de entradas do MESMO pedido: o que saiu numa tentativa que
+ * parou a meio não está no retrato da tentativa seguinte (já não existia para
+ * ser capturado). O retrato novo manda; do antigo entra o que falta, por `id`
+ * (ou `chave`, nos rascunhos).
+ */
+const GRUPOS_QUE_SAEM_A_MEIO = new Set(["propostas", "tarefas", "rascunhos"]);
+
+function juntarRetratos(novo: Retrato, antigos: Retrato[]): Retrato {
+  const out: Retrato = { ...novo };
+  const chaveDe = (l: unknown): string | null => {
+    const o = l as { id?: unknown; chave?: unknown } | null;
+    if (o && typeof o.id === "string") return `id:${o.id}`;
+    if (o && typeof o.chave === "string") return `chave:${o.chave}`;
+    return null;
+  };
+  for (const antigo of antigos) {
+    for (const [grupo, linhas] of Object.entries(antigo)) {
+      // Das entradas antigas só vem o que um apagar parcial LEVA: propostas,
+      // tarefas, rascunhos. O pedido, o material, os itens e o registo são os
+      // da captura nova (um material antigo, refeito entretanto com ids novos,
+      // voltava a dobrar). A marca de parcial decide-a quem junta.
+      if (!GRUPOS_QUE_SAEM_A_MEIO.has(grupo)) continue;
+      const atuais = [...(out[grupo] ?? [])];
+      const vistas = new Set(atuais.map(chaveDe).filter(Boolean));
+      for (const l of linhas ?? []) {
+        const k = chaveDe(l);
+        if (k && vistas.has(k)) continue;
+        atuais.push(l);
+        if (k) vistas.add(k);
+      }
+      out[grupo] = atuais;
+    }
+  }
+  return out;
+}
+
+/** O apagar devolveu uma contagem com alguma coisa já apagada? */
+function saiuAlgo(detalhe: unknown): boolean {
+  const contou = (detalhe as { contou?: Record<string, unknown> } | undefined)?.contou;
+  if (!contou || typeof contou !== "object") return false;
+  return Object.values(contou).some((n) => typeof n === "number" && n > 0);
 }
 
 /** O porquê de um «Repor» não poder acontecer — a rota responde 409. */

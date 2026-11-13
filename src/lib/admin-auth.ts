@@ -696,7 +696,15 @@ export async function pedirRecuperacao(email: string): Promise<ResultadoDoPedido
   const { lerRegisto, gravarRegisto, limparExpirados, novoToken, resumoDoToken, VALIDADE_MS } =
     await import("./admin-recuperacao");
 
-  const registo = await lerRegisto();
+  // Sem conseguir ler o registo não se grava nada por cima dele: a mesma
+  // resposta de «não consegui gravar», igual para qualquer endereço.
+  let registo;
+  try {
+    registo = await lerRegisto();
+  } catch (err) {
+    log.error("recuperação: não foi possível ler o registo — nada se grava", err);
+    return { estado: "sem-persistencia" };
+  }
   const agora = Date.now();
   limparExpirados(registo, agora);
 
@@ -768,7 +776,13 @@ export async function definirPalavraPasseComToken(
   const { lerRegisto, gravarRegisto, limparExpirados, emailDoToken } =
     await import("./admin-recuperacao");
 
-  const registo = await lerRegisto();
+  let registo;
+  try {
+    registo = await lerRegisto();
+  } catch (err) {
+    log.error("recuperação: não foi possível ler o registo — nada se grava", err);
+    return { estado: "sem-persistencia" };
+  }
   const agora = Date.now();
   limparExpirados(registo, agora);
 

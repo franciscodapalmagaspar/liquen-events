@@ -122,7 +122,12 @@ function fakeSupabase() {
             columns && columns !== "*" ? missingColumnIn(table, columns.split(",")) : null;
           const builder = {
             order(column: string, opts?: { ascending?: boolean }) {
-              q.order = { column, ascending: opts?.ascending !== false };
+              // A primeira ordem manda; as seguintes (o desempate pela chave)
+              // só decidem empates — como no PostgREST.
+              q.ordens = [
+                ...((q.ordens as { column: string; ascending: boolean }[]) ?? []),
+                { column, ascending: opts?.ascending !== false },
+              ];
               return builder;
             },
             limit(n?: number) {
@@ -130,6 +135,12 @@ function fakeSupabase() {
               // linhas justamente para saber se ficou truncada, e um `limit`
               // decorativo fazia esse mecanismo passar por testado sem o estar.
               if (typeof n === "number") q.limit = n;
+              return builder;
+            },
+            range(desde: number, ate: number) {
+              // Respeitado a sério, como o `limit`: o `list()` pagina de 1000
+              // em 1000 e pára numa página curta.
+              q.range = [desde, ate];
               return builder;
             },
             eq(column: string, value: unknown) {
@@ -161,16 +172,24 @@ function fakeSupabase() {
                 );
               }
               let data = [...(filtered ?? rowsOf(table))];
-              const order = q.order as { column: string; ascending: boolean } | undefined;
-              if (order) {
+              const ordens = (q.ordens as { column: string; ascending: boolean }[]) ?? [];
+              if (ordens.length > 0) {
                 data.sort((a, b) => {
-                  const x = String(a[order.column] ?? "");
-                  const y = String(b[order.column] ?? "");
-                  return order.ascending ? x.localeCompare(y) : y.localeCompare(x);
+                  for (const order of ordens) {
+                    const x = String(a[order.column] ?? "");
+                    const y = String(b[order.column] ?? "");
+                    const c = order.ascending ? x.localeCompare(y) : y.localeCompare(x);
+                    if (c !== 0) return c;
+                  }
+                  return 0;
                 });
               }
               data = data.map((r) => ({ ...r }));
               if (typeof q.limit === "number") data = data.slice(0, q.limit as number);
+              if (q.range) {
+                const [desde, ate] = q.range as [number, number];
+                data = data.slice(desde, ate + 1);
+              }
               return Promise.resolve(resolve({ data, error: null }));
             },
           };

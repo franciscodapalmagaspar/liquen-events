@@ -42,18 +42,33 @@ vi.mock("@/lib/supabase", () => ({
       }),
     },
     from: (tabela: string) => ({
-      select: async () =>
-        st.tabelas[tabela] === null
-          ? { data: null, error: { message: "falhou" } }
-          : {
-              data: [
-                ...(st.tabelas[tabela] ?? []),
-                ...(tabela === "app_state"
-                  ? Object.entries(st.estado).map(([key, value]) => ({ key, value }))
-                  : []),
-              ],
-              error: null,
-            },
+      // Como o PostgREST: `order`/`range`, e NUNCA mais de 1000 por resposta.
+      select: () => {
+        let desde = 0;
+        let ate = Infinity;
+        const b = {
+          order: () => b,
+          range(d: number, a: number) {
+            desde = d;
+            ate = a;
+            return b;
+          },
+          then(resolve: (v: unknown) => unknown) {
+            if (st.tabelas[tabela] === null) {
+              return Promise.resolve(resolve({ data: null, error: { message: "falhou" } }));
+            }
+            const todas = [
+              ...(st.tabelas[tabela] ?? []),
+              ...(tabela === "app_state"
+                ? Object.entries(st.estado).map(([key, value]) => ({ key, value }))
+                : []),
+            ];
+            const fim = Math.min(ate + 1, desde + 1000);
+            return Promise.resolve(resolve({ data: todas.slice(desde, fim), error: null }));
+          },
+        };
+        return b;
+      },
     }),
   }),
 }));
@@ -131,6 +146,28 @@ describe("os PDF de proposta substituídos (10/11)", () => {
     expect(r).toMatchObject({ candidatos: 3, apagados: 0, acabou: true });
   });
 
+  it("com mais de 1000 propostas, o contrato da linha 1001 continua a guardar o PDF assinado (revisão 13/11, n.º 8)", async () => {
+    const muitas = Array.from({ length: 1200 }, (_, i) => ({
+      id: `outra-${String(i).padStart(4, "0")}`,
+      pdf_sha256: null,
+      pdf_bytes: null,
+    }));
+    st.tabelas.proposals = [...muitas, ...(st.tabelas.proposals as object[])];
+    st.tabelas.contracts = [
+      ...Array.from({ length: 1200 }, (_, i) => ({
+        proposal_id: `outra-${i}`,
+        proposta_pdf_sha256: sha(`o${i}`),
+        proposta_pdf_bytes: 1,
+      })),
+      ...(st.tabelas.contracts as object[]),
+    ];
+    await limparPdfsSubstituidos(dia1);
+    const espera = Object.keys(st.estado[CHAVE] as object);
+    // O assinado, o enviado e o da proposta viva nunca entram na espera.
+    expect(espera).not.toContain("prop-aceite/k7Qassinado.pdf");
+    expect(espera).not.toContain("prop-viva/k7Qatual.pdf");
+  });
+
   it("passados 7 dias saem — e o aceite, mesmo sendo mais antigo, fica", async () => {
     await limparPdfsSubstituidos(dia1);
     await limparPdfsSubstituidos(dia9);
@@ -147,7 +184,10 @@ describe("os PDF de proposta substituídos (10/11)", () => {
     await limparPdfsSubstituidos(dia1);
     // O aceite (17 bytes) descarrega-se; o rascunho (11) e o velho (8 = o
     // tamanho do enviado!) — o velho coincide no tamanho e descarrega-se.
-    expect(st.descarregados.sort()).toEqual(["prop-aceite/k7Qassinado.pdf", "prop-viva/k7Qvelho.pdf"]);
+    expect(st.descarregados.sort()).toEqual([
+      "prop-aceite/k7Qassinado.pdf",
+      "prop-viva/k7Qvelho.pdf",
+    ]);
   });
 
   it("um PDF mencionado numa tabela fica", async () => {

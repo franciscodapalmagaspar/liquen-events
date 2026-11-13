@@ -2,6 +2,7 @@ import "server-only";
 import { getSupabase } from "@/lib/supabase";
 import { apagarPastaDoPedido } from "@/lib/proposal-storage";
 import { getState, setState } from "@/lib/app-state";
+import { lerTodasAsLinhas } from "./ler-todas-as-linhas";
 import { log } from "@/lib/logger";
 
 /**
@@ -51,6 +52,7 @@ export const CHAVE = "limpeza:pastas-de-pedidos-apagados";
 const BUCKET = "proposal-assets";
 const FORMA_DE_PEDIDO = /^LIQ-[A-Za-z0-9-]+$/;
 const DIA_MS = 24 * 60 * 60_000;
+/** O máximo que o Supabase devolve por leitura (`max-rows`): uma lista cheia pode estar cortada. */
 
 /** As tabelas cujo conteúdo pode mencionar uma fotografia de um pedido. */
 export const TABELAS_COM_CONTEUDO = [
@@ -97,11 +99,14 @@ export async function limparPastasDePedidosApagados(
   if (erroRaiz || !raiz) return falhou;
   const pastas = raiz.filter((e) => !e.id && FORMA_DE_PEDIDO.test(e.name)).map((e) => e.name);
 
+  // Às páginas: o Supabase devolve no máximo 1000 linhas e corta o resto SEM
+  // AVISAR. Um pedido vivo que ficasse de fora pareceria órfão, e a pasta dele
+  // seria apagada (auditoria e revisão de 13/11).
   const [pedidos, reciclagem, chaves, propostas] = await Promise.all([
-    sb.from("quotes").select("id"),
-    sb.from("reciclagem").select("origem_id"),
-    sb.from("app_state").select("key"),
-    sb.from("proposals").select("quote_id"),
+    lerTodasAsLinhas(sb, "quotes", "id"),
+    lerTodasAsLinhas(sb, "reciclagem", "origem_id"),
+    lerTodasAsLinhas(sb, "app_state", "key"),
+    lerTodasAsLinhas(sb, "proposals", "quote_id"),
   ]);
   if ([pedidos, reciclagem, chaves, propostas].some((r) => r.error || !r.data)) return falhou;
 
@@ -116,7 +121,9 @@ export async function limparPastasDePedidosApagados(
 
   // ── Porta 5: só se há candidatas é que se lê o conteúdo ──────────────────
   if (candidatas.length > 0) {
-    const leituras = await Promise.all(TABELAS_COM_CONTEUDO.map((t) => sb.from(t).select("*")));
+    const leituras = await Promise.all(
+      TABELAS_COM_CONTEUDO.map((t) => lerTodasAsLinhas(sb, t, "*")),
+    );
     if (leituras.some((l) => l.error || !l.data)) return falhou;
     // A própria lista de espera (porta 7) vive em `app_state` e nomeia as
     // pastas: lida como «menção», nenhuma pasta sairia nunca.

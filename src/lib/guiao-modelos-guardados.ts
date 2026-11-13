@@ -100,7 +100,9 @@ export async function guardarModeloDeGuiao(
   if (modelo.momentos.length > MAX_MOMENTOS_DE_MODELO || tamanho(modelo) > MAX_BYTES) {
     throw new ModeloDemasiadoGrande();
   }
-  const atuais = await listarModelosDeGuiao();
+  // Para mudar: uma leitura falhada lança, nunca grava uma lista vazia por
+  // cima dos modelos que lá estão (auditoria de 13/11).
+  const atuais = saoModelosDeGuiao(await getState<unknown>(CHAVE, { ouFalha: true }));
   const semEste = atuais.filter((m) => m.id !== modelo.id);
   if (semEste.length >= MAX_MODELOS) throw new DemasiadosModelos();
   // Mais recente primeiro: é a ordem por que são úteis.
@@ -112,7 +114,9 @@ export async function guardarModeloDeGuiao(
 export async function apagarModeloDeGuiao(
   id: string,
 ): Promise<{ modelos: ModeloDeGuiao[]; escrita: ResultadoDeEscrita }> {
-  const modelos = (await listarModelosDeGuiao()).filter((m) => m.id !== id);
+  const modelos = saoModelosDeGuiao(await getState<unknown>(CHAVE, { ouFalha: true })).filter(
+    (m) => m.id !== id,
+  );
   const escrita = await setState(CHAVE, modelos);
   return { modelos, escrita };
 }

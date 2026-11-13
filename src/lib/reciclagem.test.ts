@@ -407,6 +407,247 @@ describe("Reciclagem — pedido (R3b)", () => {
     expect(await r.pedidos.getQuote(UM_PEDIDO.id)).not.toBeNull();
     expect(await r.store.listarReciclagem()).toEqual([]);
   });
+
+  it("se o apagar pára a meio (propostas já saíram, o pedido não), a Reciclagem guarda o que saiu", async () => {
+    // Auditoria de 13/11: o pedido falhava no fim, a entrada da Reciclagem
+    // — a única cópia das propostas já apagadas — era tirada, e perdiam-se.
+    vi.doMock("./quotes-store", async () => {
+      const real = await vi.importActual<typeof import("./quotes-store")>("./quotes-store");
+      return {
+        ...real,
+        deleteQuote: async () => {
+          throw new Error("TESTE: a base de dados recusou");
+        },
+      };
+    });
+    try {
+      const r = await carregarR3b();
+      await r.pedidos.createQuote(UM_PEDIDO);
+      await r.propostas.createProposal(umaProposta("P-TESTE-2", UM_PEDIDO.id));
+
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow(
+        /Reciclagem/,
+      );
+      expect(await r.propostas.getProposal("P-TESTE-2")).toBeNull();
+      const [entrada] = await r.store.listarReciclagem();
+      expect(entrada).toMatchObject({ tipo: "pedido", origemId: UM_PEDIDO.id });
+      expect(entrada.retrato.propostas).toEqual([expect.objectContaining({ id: "P-TESTE-2" })]);
+    } finally {
+      vi.doUnmock("./quotes-store");
+    }
+  });
+
+  it("parado a meio: «Repor» com o pedido vivo devolve o que saiu; e tentar outra vez junta numa entrada só", async () => {
+    let recusa = true;
+    vi.doMock("./quotes-store", async () => {
+      const real = await vi.importActual<typeof import("./quotes-store")>("./quotes-store");
+      return {
+        ...real,
+        deleteQuote: async (id: string) => {
+          if (recusa) throw new Error("TESTE: a base de dados recusou");
+          return real.deleteQuote(id);
+        },
+      };
+    });
+    try {
+      const r = await carregarR3b();
+      await r.pedidos.createQuote(UM_PEDIDO);
+      await r.propostas.createProposal(umaProposta("P-TESTE-3", UM_PEDIDO.id));
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
+
+      // 1) Repor com o pedido ainda vivo: a proposta volta, a entrada sai.
+      const [parcial] = await r.store.listarReciclagem();
+      await r.reciclagem.reporDaReciclagem(parcial.id);
+      expect(await r.propostas.getProposal("P-TESTE-3")).not.toBeNull();
+      expect(await r.store.listarReciclagem()).toEqual([]);
+
+      // 2) Falha outra vez, e depois tenta-se de novo e o pedido sai: UMA
+      //    entrada, com a proposta que saiu na primeira tentativa.
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
+      recusa = false;
+      await r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id);
+      const entradas = await r.store.listarReciclagem();
+      expect(entradas).toHaveLength(1);
+      expect(entradas[0].retrato.propostas).toEqual([expect.objectContaining({ id: "P-TESTE-3" })]);
+      expect(await r.pedidos.getQuote(UM_PEDIDO.id)).toBeNull();
+
+      // E repor devolve tudo.
+      await r.reciclagem.reporDaReciclagem(entradas[0].id);
+      expect(await r.pedidos.getQuote(UM_PEDIDO.id)).not.toBeNull();
+      expect(await r.propostas.getProposal("P-TESTE-3")).not.toBeNull();
+    } finally {
+      vi.doUnmock("./quotes-store");
+    }
+  });
+
+  it("parado a meio, a entrada guarda SÓ o que saiu: a checklist refeita não volta a dobrar, e o rascunho de agora não é pisado", async () => {
+    const recusa = true;
+    vi.doMock("./quotes-store", async () => {
+      const real = await vi.importActual<typeof import("./quotes-store")>("./quotes-store");
+      return {
+        ...real,
+        deleteQuote: async (id: string) => {
+          if (recusa) throw new Error("TESTE: a base de dados recusou");
+          return real.deleteQuote(id);
+        },
+      };
+    });
+    try {
+      const r = await carregarR3b();
+      const item = (eventId: string, name: string) =>
+        ({
+          eventId,
+          name,
+          category: "Luz",
+          kind: "consumivel",
+          qty: 10,
+          critical: false,
+          origin: "manual",
+          originLabel: "À mão",
+          missing: false,
+        }) as Parameters<typeof r.itens.addEventItem>[0];
+      await r.pedidos.createQuote(UM_PEDIDO);
+      await r.propostas.createProposal(umaProposta("P-TESTE-4", UM_PEDIDO.id));
+      await r.estado.setState(r.rascunhos.draftKey(UM_PEDIDO.id), { doc: { titulo: "VELHO" } });
+      const ev = await r.eventos.createEventMaterial({
+        quoteId: UM_PEDIDO.id,
+        status: "preparada",
+        vehicles: [],
+      });
+      await r.itens.addEventItem(item(ev.id, "TESTE Velas"));
+
+      // 1.ª tentativa: pára a meio.
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
+      let [entrada] = await r.store.listarReciclagem();
+      expect(entrada.retrato.propostas).toEqual([expect.objectContaining({ id: "P-TESTE-4" })]);
+      expect(entrada.retrato.material ?? []).toEqual([]);
+      expect(entrada.retrato.itens ?? []).toEqual([]);
+
+      // Ela continua: refaz a checklist (ids NOVOS), cria outra proposta, e o
+      // estúdio volta a gravar um rascunho.
+      await r.itens.removeItemsOfEvent(ev.id);
+      await r.itens.addEventItem(item(ev.id, "TESTE Velas (refeita)"));
+      await r.propostas.createProposal(umaProposta("P-TESTE-5", UM_PEDIDO.id));
+      await r.estado.setState(r.rascunhos.draftKey(UM_PEDIDO.id), { doc: { titulo: "NOVO" } });
+
+      // 2.ª tentativa: pára outra vez. UMA entrada, com as duas propostas.
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
+      const entradas = await r.store.listarReciclagem();
+      expect(entradas).toHaveLength(1);
+      [entrada] = entradas;
+      expect((entrada.retrato.propostas as { id: string }[]).map((p) => p.id).sort()).toEqual([
+        "P-TESTE-4",
+        "P-TESTE-5",
+      ]);
+      expect(entrada.retrato.itens ?? []).toEqual([]);
+
+      // O estúdio grava outra vez (trabalho de agora), e ela repõe.
+      await r.estado.setState(r.rascunhos.draftKey(UM_PEDIDO.id), { doc: { titulo: "AGORA" } });
+      await r.reciclagem.reporDaReciclagem(entrada.id);
+      expect(await r.propostas.getProposal("P-TESTE-4")).not.toBeNull();
+      expect(await r.propostas.getProposal("P-TESTE-5")).not.toBeNull();
+      // A checklist refeita fica como está: um item, não dois.
+      expect((await r.itens.listItemsOfEvent(ev.id)).map((i) => i.name)).toEqual([
+        "TESTE Velas (refeita)",
+      ]);
+      // O rascunho de agora não é pisado pelo velho.
+      expect(await r.estado.getState(r.rascunhos.draftKey(UM_PEDIDO.id))).toEqual({
+        doc: { titulo: "AGORA" },
+      });
+      void recusa;
+    } finally {
+      vi.doUnmock("./quotes-store");
+    }
+  });
+
+  it("se a entrada não chegou a ser reduzida, a tentativa seguinte não lhe herda o material velho", async () => {
+    vi.doMock("./quotes-store", async () => {
+      const real = await vi.importActual<typeof import("./quotes-store")>("./quotes-store");
+      return {
+        ...real,
+        deleteQuote: async () => {
+          throw new Error("TESTE: a base de dados recusou");
+        },
+      };
+    });
+    let trocaFalha = true;
+    vi.doMock("./reciclagem-store", async () => {
+      const real = await vi.importActual<typeof import("./reciclagem-store")>("./reciclagem-store");
+      return {
+        ...real,
+        trocarRetrato: async (...a: Parameters<typeof real.trocarRetrato>) => {
+          if (trocaFalha) throw new Error("TESTE: a escrita falhou");
+          return real.trocarRetrato(...a);
+        },
+      };
+    });
+    try {
+      const r = await carregarR3b();
+      await r.pedidos.createQuote(UM_PEDIDO);
+      await r.propostas.createProposal(umaProposta("P-TESTE-6", UM_PEDIDO.id));
+      const ev = await r.eventos.createEventMaterial({
+        quoteId: UM_PEDIDO.id,
+        status: "preparada",
+        vehicles: [],
+      });
+      const novoItem = (name: string) =>
+        ({
+          eventId: ev.id,
+          name,
+          category: "Luz",
+          kind: "consumivel",
+          qty: 1,
+          critical: false,
+          origin: "manual",
+          originLabel: "À mão",
+          missing: false,
+        }) as Parameters<typeof r.itens.addEventItem>[0];
+      await r.itens.addEventItem(novoItem("TESTE velho"));
+
+      // 1.ª: pára a meio, e a redução falha — fica o retrato inteiro.
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
+      const [inteira] = await r.store.listarReciclagem();
+      expect(inteira.retrato.itens as unknown[]).toHaveLength(1);
+      // Com o pedido vivo e sem a marca, não se repõe por cima dele.
+      await expect(r.reciclagem.reporDaReciclagem(inteira.id)).rejects.toMatchObject({
+        status: 409,
+      });
+
+      // Ela refaz a checklist; 2.ª tentativa, a redução já funciona.
+      await r.itens.removeItemsOfEvent(ev.id);
+      await r.itens.addEventItem(novoItem("TESTE novo"));
+      trocaFalha = false;
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
+      const entradas = await r.store.listarReciclagem();
+      expect(entradas).toHaveLength(1);
+      // A proposta da 1.ª está lá; o item velho, não.
+      expect(entradas[0].retrato.propostas).toEqual([expect.objectContaining({ id: "P-TESTE-6" })]);
+      expect(entradas[0].retrato.itens ?? []).toEqual([]);
+    } finally {
+      vi.doUnmock("./quotes-store");
+      vi.doUnmock("./reciclagem-store");
+    }
+  });
+
+  it("se o apagar falha sem nada ter saído, não fica entrada nenhuma", async () => {
+    vi.doMock("./quotes-store", async () => {
+      const real = await vi.importActual<typeof import("./quotes-store")>("./quotes-store");
+      return {
+        ...real,
+        deleteQuote: async () => {
+          throw new Error("TESTE: a base de dados recusou");
+        },
+      };
+    });
+    try {
+      const r = await carregarR3b();
+      await r.pedidos.createQuote(UM_PEDIDO);
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
+      expect(await r.store.listarReciclagem()).toEqual([]);
+    } finally {
+      vi.doUnmock("./quotes-store");
+    }
+  });
 });
 
 describe("Reciclagem — proposta (R3b)", () => {
