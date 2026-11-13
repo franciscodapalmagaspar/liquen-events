@@ -396,7 +396,7 @@ export function contaExiste(name: string): boolean {
  * da mesma maneira. Antes, um nome com 40 ou mais caracteres saltava esta
  * verificação, e a sessão de quem saísse da equipa continuava a valer.
  */
-function contaDaSessaoExiste(sub: string): boolean {
+export function contaDaSessaoExiste(sub: string): boolean {
   if (sub.length < 40) return contaExiste(sub);
   const users = configuredUsers();
   if (!users) return true;

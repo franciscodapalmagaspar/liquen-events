@@ -29,6 +29,10 @@ const st = vi.hoisted(() => ({
   lido: "[]",
   escrito: null as string | null,
   enviadas: [] as string[],
+  /** O que cada aparelho recebeu: endereço → corpo. */
+  corpos: {} as Record<string, string>,
+  /** As chaves que foram ao serviço de push. */
+  chavesEnviadas: [] as Record<string, unknown>[],
   /** Código HTTP com que o serviço de push recusa a entrega, quando recusa. */
   recusaCom: null as number | null,
 }));
@@ -46,15 +50,19 @@ vi.mock("fs", () => ({
 vi.mock("web-push", () => ({
   default: {
     setVapidDetails: vi.fn(),
-    sendNotification: vi.fn(async (sub: { endpoint: string }) => {
-      if (st.recusaCom !== null) {
-        // A forma do erro do `web-push`: o código HTTP vem em `statusCode`.
-        throw Object.assign(new Error(`push recusado (${st.recusaCom})`), {
-          statusCode: st.recusaCom,
-        });
-      }
-      st.enviadas.push(sub.endpoint);
-    }),
+    sendNotification: vi.fn(
+      async (sub: { endpoint: string; keys: Record<string, unknown> }, corpo: string) => {
+        st.corpos[sub.endpoint] = corpo;
+        st.chavesEnviadas.push(sub.keys);
+        if (st.recusaCom !== null) {
+          // A forma do erro do `web-push`: o código HTTP vem em `statusCode`.
+          throw Object.assign(new Error(`push recusado (${st.recusaCom})`), {
+            statusCode: st.recusaCom,
+          });
+        }
+        st.enviadas.push(sub.endpoint);
+      },
+    ),
   },
 }));
 
@@ -72,6 +80,8 @@ beforeEach(() => {
   st.lido = "[]";
   st.escrito = null;
   st.enviadas = [];
+  st.corpos = {};
+  st.chavesEnviadas = [];
   st.recusaCom = null;
   vi.clearAllMocks();
   vi.stubEnv("VAPID_PUBLIC_KEY", "pub");
@@ -208,5 +218,64 @@ describe("com base de dados configurada", () => {
     await saveSubscription(SUB);
     expect(upsert).toHaveBeenCalled();
     expect(st.escrito).toBeNull();
+  });
+});
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * A SUBSCRIÇÃO É DE UMA CONTA (auditoria de 13/11, n.º 7)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * As notificações levam nomes de casais e valores. Quem sai da equipa perde a
+ * sessão — e tem de perder também o telemóvel a ouvir.
+ */
+describe("a subscrição é de uma conta", () => {
+  const ANA = {
+    ...SUB,
+    endpoint: `${SUB.endpoint}-ana`,
+    keys: { ...SUB.keys, conta: "TESTE Ana" },
+  };
+  const RUI = {
+    ...SUB,
+    endpoint: `${SUB.endpoint}-rui`,
+    keys: { ...SUB.keys, conta: "TESTE Rui" },
+  };
+  const ANTIGA = { ...SUB, endpoint: `${SUB.endpoint}-antiga` };
+
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "development");
+    // O Rui saiu da equipa: já não está no ADMIN_USERS.
+    vi.stubEnv(
+      "ADMIN_USERS",
+      JSON.stringify([{ name: "TESTE Ana", email: "ana@exemplo.test", passwordHash: "$2a$04$x" }]),
+    );
+  });
+
+  it("guarda a conta de quem ligou", async () => {
+    await saveSubscription(SUB, "TESTE Ana");
+    expect(JSON.parse(st.escrito ?? "[]")[0].keys.conta).toBe("TESTE Ana");
+  });
+
+  it("quem saiu da equipa não recebe nada, e a subscrição dele é apagada", async () => {
+    st.lido = JSON.stringify([ANA, RUI]);
+    const r = await sendPushToAll({ title: "Pedido novo", body: "Maria & Zé · 12 000 €" });
+    expect(r.sent).toBe(1);
+    expect(Object.keys(st.corpos)).toEqual([ANA.endpoint]);
+    // A gravação a seguir ao envio já não tem o Rui.
+    expect(st.escrito).not.toContain(RUI.endpoint);
+  });
+
+  it("uma subscrição antiga, sem conta, recebe só um aviso sem nomes nem valores", async () => {
+    st.lido = JSON.stringify([ANTIGA]);
+    await sendPushToAll({ title: "Pedido novo", body: "Maria & Zé · 12 000 €" });
+    expect(st.corpos[ANTIGA.endpoint]).toBeDefined();
+    expect(st.corpos[ANTIGA.endpoint]).not.toContain("Maria");
+    expect(st.corpos[ANTIGA.endpoint]).not.toContain("12 000");
+  });
+
+  it("a conta não vai para o serviço de push", async () => {
+    st.lido = JSON.stringify([ANA]);
+    await sendPushToAll({ title: "Pedido novo", body: "…" });
+    expect(st.chavesEnviadas[0]).not.toHaveProperty("conta");
   });
 });

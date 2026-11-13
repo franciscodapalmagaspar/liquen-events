@@ -6,6 +6,7 @@ import { getSupabase } from "./supabase";
 import { oFicheiroEhEfemero } from "./app-state";
 import { pushSubscriptionSchema } from "./validation";
 import { log } from "./logger";
+import { contaDaSessaoExiste } from "./admin-auth";
 
 /**
  * Web Push delivery + subscription storage.
@@ -46,7 +47,37 @@ import { log } from "./logger";
 
 export interface PushSub {
   endpoint: string;
-  keys: { p256dh: string; auth: string };
+  /**
+   * `conta` é o nome da conta que ligou as notificações neste aparelho
+   * (auditoria de 13/11, n.º 7). Vive dentro de `keys` — a coluna jsonb que já
+   * existe — para não precisar de migração; nunca vai para o serviço de push
+   * (ver `paraOServico`).
+   */
+  keys: { p256dh: string; auth: string; conta?: string };
+}
+
+/**
+ * ── A SUBSCRIÇÃO É DE UMA CONTA ─────────────────────────────────────────────
+ *
+ * As notificações levam nomes de casais e valores. Uma subscrição sem dono
+ * continuava a recebê-los depois de a pessoa sair da equipa — a sessão dela
+ * deixava de valer, mas o telemóvel continuava a ouvir. Agora:
+ *
+ *  · cada subscrição guarda a conta que a ligou;
+ *  · uma subscrição cuja conta já não existe é apagada no envio seguinte, e
+ *    não recebe nada;
+ *  · uma subscrição ANTIGA, de antes disto (sem conta), recebe só um aviso
+ *    genérico, sem nomes nem valores, até o aparelho voltar a abrir o back
+ *    office — que a liga à conta sozinho (`NotificationBell`).
+ */
+const AVISO_GENERICO = {
+  title: "Líquen",
+  body: "Há novidades no back office.",
+};
+
+/** O que vai para o serviço de push: só o endereço e as duas chaves. */
+function paraOServico(sub: PushSub): webpush.PushSubscription {
+  return { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } };
 }
 
 const TABLE = "push_subscriptions";
@@ -98,13 +129,19 @@ function recusarPorFaltaDeSitio(): never {
   throw new Error("Persistence unavailable: Supabase not configured in production");
 }
 
-export async function saveSubscription(sub: PushSub): Promise<void> {
+export async function saveSubscription(sub: PushSub, conta?: string): Promise<void> {
   // Sanitise the network-provided subscription into a strict, known-good object
   // before it is persisted (validates the endpoint is an https URL, caps sizes).
   const parsed = pushSubscriptionSchema.parse(sub);
+  // A conta vem da SESSÃO de quem liga (a rota), nunca do corpo do pedido.
+  const dono = conta?.trim().slice(0, 40);
   const safe: PushSub = {
     endpoint: parsed.endpoint,
-    keys: { p256dh: parsed.keys.p256dh, auth: parsed.keys.auth },
+    keys: {
+      p256dh: parsed.keys.p256dh,
+      auth: parsed.keys.auth,
+      ...(dono ? { conta: dono } : {}),
+    },
   };
 
   const sb = getSupabase();
@@ -117,10 +154,10 @@ export async function saveSubscription(sub: PushSub): Promise<void> {
   }
   if (!ficheiroServeDeSitio()) recusarPorFaltaDeSitio();
   const subs = await fileRead();
-  if (!subs.some((s) => s.endpoint === safe.endpoint)) {
-    subs.push(safe);
-    await fileWrite(subs);
-  }
+  const i = subs.findIndex((s) => s.endpoint === safe.endpoint);
+  if (i < 0) subs.push(safe);
+  else subs[i] = safe;
+  await fileWrite(subs);
 }
 
 export async function removeSubscription(endpoint: string): Promise<void> {
@@ -222,10 +259,25 @@ export async function sendPushToAll(
   let mortas = 0;
   const codigos: number[] = [];
 
+  // Só o título/corpo genéricos, para as subscrições antigas sem conta.
+  const bodyGenerico = JSON.stringify({
+    ...AVISO_GENERICO,
+    ...(payload.url ? { url: payload.url } : {}),
+    ...(payload.tag ? { tag: payload.tag } : {}),
+  });
+  let semConta = 0;
+
   await Promise.all(
     subs.map(async (sub) => {
+      const conta = sub.keys?.conta;
+      if (conta && !contaDaSessaoExiste(conta)) {
+        // Quem saiu da equipa deixa de ouvir: a subscrição sai, e nada lhe chega.
+        await removeSubscription(sub.endpoint).catch(() => {});
+        semConta++;
+        return;
+      }
       try {
-        await webpush.sendNotification(sub as webpush.PushSubscription, body);
+        await webpush.sendNotification(paraOServico(sub), conta ? body : bodyGenerico);
         sent++;
       } catch (err: unknown) {
         const code = (err as { statusCode?: number }).statusCode;
@@ -249,6 +301,9 @@ export async function sendPushToAll(
   }
   if (mortas > 0) {
     log.info("push: subscrições mortas removidas", { removidas: mortas });
+  }
+  if (semConta > 0) {
+    log.info("push: subscrições de contas que já não existem removidas", { removidas: semConta });
   }
 
   return { sent, failed: codigos.length };
