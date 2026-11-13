@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { propostaDoLink } from "@/lib/proposta-do-link";
-import { getQuote, updateQuote } from "@/lib/quotes-store";
+import { updateQuoteWith } from "@/lib/quotes-store";
 import { comResposta, respostaAceitavel } from "@/lib/proposta-escolhas";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
@@ -78,16 +78,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
 
     const quoteId = (proposta.quoteId ?? "").trim();
     if (!quoteId) return new NextResponse(null, { status: 404 });
-    const quote = await getQuote(quoteId);
-    if (!quote) return new NextResponse(null, { status: 404 });
-
-    await updateQuote(quoteId, {
-      escolhasDoCasal: comResposta(quote.escolhasDoCasal, {
-        escolhaId: escolhaId as string,
-        opcaoId: opcaoId as string,
-        em: new Date().toISOString(),
-      }),
-    });
+    /**
+     * Ler-mudar-gravar sobre o pedido ACABADO DE LER, com o bloqueio
+     * optimista do repositório (auditoria de 13/11). Com um `getQuote` e um
+     * `updateQuote` separados, duas escolhas quase ao mesmo tempo (os dois no
+     * sofá, cada um no seu telemóvel) partiam da mesma lista, e a segunda
+     * gravação apagava a primeira.
+     */
+    const resposta = {
+      escolhaId: escolhaId as string,
+      opcaoId: opcaoId as string,
+      em: new Date().toISOString(),
+    };
+    const gravado = await updateQuoteWith(quoteId, (atual) => ({
+      ...atual,
+      escolhasDoCasal: comResposta(atual.escolhasDoCasal, resposta),
+    }));
+    if (!gravado) return new NextResponse(null, { status: 404 });
 
     /**
      * A resposta é `{ ok: true }` e mais nada.

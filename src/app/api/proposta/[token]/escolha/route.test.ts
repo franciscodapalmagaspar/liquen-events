@@ -40,11 +40,35 @@ vi.mock("@/lib/proposals-store", () => ({
   listProposalsForQuote: async () => (H.proposta ? [H.proposta] : []),
 }));
 vi.mock("@/lib/contracts-store", () => ({ getAcceptedContractByQuote: async () => null }));
+/** Uma volta ao «servidor»: o que deixa duas gravações cruzarem-se. */
+const volta = () => new Promise((r) => setTimeout(r, 0));
 vi.mock("@/lib/quotes-store", () => ({
-  getQuote: async () => H.pedido,
+  getQuote: async () => {
+    await volta();
+    return H.pedido ? structuredClone(H.pedido) : null;
+  },
   updateQuote: async (id: string, patch: Record<string, unknown>) => {
+    await volta();
     H.gravado = { id, patch };
-    return { ...(H.pedido ?? {}), ...patch };
+    H.pedido = { ...(H.pedido ?? {}), ...patch };
+    return H.pedido;
+  },
+  // Como o repositório: lê o que está AGORA e grava por cima disso, numa só
+  // operação (o bloqueio optimista repete quando alguém escreveu no meio).
+  updateQuoteWith: async (
+    id: string,
+    mutar: (q: Record<string, unknown>) => Record<string, unknown>,
+  ) => {
+    await volta();
+    if (!H.pedido) return null;
+    const antes = H.pedido;
+    const novo = mutar(structuredClone(antes));
+    const patch = Object.fromEntries(
+      Object.entries(novo).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(antes[k])),
+    );
+    H.gravado = { id, patch };
+    H.pedido = novo;
+    return novo;
   },
 }));
 vi.mock("@/lib/rate-limit", () => ({
@@ -127,6 +151,33 @@ describe("o caminho normal", () => {
     // o preço ou as notas do pedido pela porta das traseiras.
     await POST(pedir({ escolhaId: "e1", opcaoId: "o1" }), ctx("bom"));
     expect(Object.keys(H.gravado?.patch ?? {})).toEqual(["escolhasDoCasal"]);
+  });
+});
+
+describe("duas escolhas ao mesmo tempo (auditoria de 13/11)", () => {
+  it("duas respostas quase simultâneas ficam AMBAS no pedido", async () => {
+    // Os dois no sofá, cada um no seu telemóvel, a responder a perguntas
+    // diferentes. Com ler e gravar separados, a segunda apagava a primeira.
+    const ESCOLHAS2 = [
+      ...ESCOLHAS,
+      {
+        id: "e3",
+        titulo: "Música",
+        opcoes: [
+          { id: "m1", rotulo: "Quarteto" },
+          { id: "m2", rotulo: "DJ" },
+        ],
+      },
+    ];
+    H.proposta = { id: "p1", quoteId: "LIQ-9", doc: { escolhas: ESCOLHAS2 } };
+    const [a, b] = await Promise.all([
+      POST(pedir({ escolhaId: "e1", opcaoId: "o1" }), ctx("bom")),
+      POST(pedir({ escolhaId: "e3", opcaoId: "m2" }), ctx("bom")),
+    ]);
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    const escolhas = (H.pedido?.escolhasDoCasal ?? []) as { escolhaId: string }[];
+    expect(escolhas.map((e) => e.escolhaId).sort()).toEqual(["e1", "e3"]);
   });
 });
 
