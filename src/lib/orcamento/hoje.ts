@@ -88,6 +88,20 @@ export function ultimoContacto(q: Pick<Quote, "activityLog" | "escolhasDoCasal">
 /** As escolhas do casal contam como «de hoje» durante este tempo. */
 export const HORAS_DAS_RESPOSTAS = 48;
 
+/**
+ * Um pedido CONTA COMO EVENTO no dia da sua data? Só se não está arquivado e
+ * já é a sério: aceite, ou com a proposta enviada — a regra do «Próximo
+ * evento». Um pedido «Novo» com data para hoje é um pedido, não um evento.
+ *
+ * Vive aqui, e não dentro do `oQueHaHoje`, porque a Visão Geral abre com uma
+ * frase («Tem 1 evento hoje») que contava QUALQUER pedido com a data de hoje,
+ * e o cartão «Hoje» logo por baixo dizia «Não há eventos». Os dois lêem esta
+ * função, e não podem voltar a discordar.
+ */
+export function contaComoEvento(q: Pick<Quote, "archived" | "status">): boolean {
+  return !q.archived && (q.status === "aceite" || q.status === "cotado");
+}
+
 export function oQueHaHoje(
   quotes: readonly Quote[],
   propostas: readonly PropostaParaCobrar[],
@@ -106,8 +120,7 @@ export function oQueHaHoje(
 
   for (const q of quotes) {
     if (q.archived) continue;
-    const confirmado = q.status === "aceite" || q.status === "cotado";
-    if (confirmado && (q.date === hoje || q.date === amanha)) {
+    if (contaComoEvento(q) && (q.date === hoje || q.date === amanha)) {
       eventos.push({ quoteId: q.id, nome: q.name, quando: q.date === hoje ? "hoje" : "amanha" });
     }
 

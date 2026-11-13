@@ -5,6 +5,7 @@ import { CATEGORIES, EVENT_TYPES_BY_CATEGORY, PACKAGES } from "@/lib/orcamento/d
 import { ActivityLog } from "../../lazy";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
 import { linkDaConversa } from "@/lib/whatsapp";
+import { useTelefones } from "@/lib/telefone-no-browser";
 
 /**
  * Coluna lateral do Dossier — Contacto (só leitura) + factos do Evento,
@@ -37,6 +38,10 @@ export default function DossierAside({ quote, actor, onAddEntry }: Props) {
 
   // Um número antigo sem +351 dava um link partido — ver `linkDaConversa`.
   const wa = linkDaConversa(quote.phone);
+  // O número para LER («+351 912 345 678») e não o E.164 cru: as regras dos
+  // telefones chegam só se houver um número (são ~150 KB, ver o módulo), e
+  // até lá mostra-se o que está gravado. O `tel:` continua com o E.164.
+  const telefones = useTelefones(!!quote.phone);
 
   return (
     /* ── TRÊS MOLDURAS A SEGUIR A TRÊS MOLDURAS ───────────────────────────────
@@ -82,7 +87,7 @@ export default function DossierAside({ quote, actor, onAddEntry }: Props) {
                 href={`tel:${quote.phone}`}
                 className={`alvo-toque !justify-start text-[var(--bo-text-muted)] text-xs hover:text-[var(--bo-tinta-72)] ${ESTADO} ${PRESSAO}`}
               >
-                {quote.phone}
+                {telefones?.telefoneParaLer(quote.phone) ?? quote.phone}
               </a>
               <a
                 href={wa}

@@ -31,7 +31,10 @@ function Cell({
   tone?: string;
 }) {
   return (
-    <div className="bo-card px-4 py-3.5 flex flex-col justify-center">
+    // `justify-start` e não `center`: as células sem subtítulo («Valor c/ IVA»,
+    // «% Recebido») centravam e ficavam ~11 px abaixo das outras na mesma
+    // fila. Os rótulos alinham-se pelo topo, como uma fila de indicadores.
+    <div className="bo-card px-4 py-3.5 flex flex-col justify-start">
       <p className="text-foreground/30 text-[9px] tracking-[0.22em] uppercase mb-1.5">{label}</p>
       <p className={`text-lg font-semibold leading-none ${tone ?? "text-[var(--bo-text)]"}`}>
         {value}
@@ -63,11 +66,12 @@ export default function MetricStrip({ metrics }: Props) {
       cdValue = "Hoje";
       cdTone = "text-[var(--bo-perigo)]";
     } else if (countdownDays > 0) {
-      cdValue = String(countdownDays);
+      // «26 507» e não «26507»: o número escreve-se em pt-PT.
+      cdValue = countdownDays.toLocaleString("pt-PT");
       cdSub = countdownDays === 1 ? "dia" : "dias";
       cdTone = countdownDays <= 7 ? "text-[var(--bo-perigo)]" : undefined;
     } else {
-      cdValue = String(Math.abs(countdownDays));
+      cdValue = Math.abs(countdownDays).toLocaleString("pt-PT");
       cdSub = Math.abs(countdownDays) === 1 ? "dia (passou)" : "dias (passou)";
       cdTone = "text-foreground/40";
     }
@@ -82,7 +86,13 @@ export default function MetricStrip({ metrics }: Props) {
         sub={
           supplierCosts > 0 ? `custos s/ IVA ${eur0(supplierCostsNet)}` : "sem custos registados"
         }
-        tone={supplierCosts > 0 ? (margin >= 0 ? "text-sage-600" : "text-[var(--bo-perigo)]") : undefined}
+        tone={
+          supplierCosts > 0
+            ? margin >= 0
+              ? "text-sage-600"
+              : "text-[var(--bo-perigo)]"
+            : undefined
+        }
       />
       {/* «% Recebido», e já não «% Pago».
           Esta célula lia o livro de faturas: era a fatia do contratado que

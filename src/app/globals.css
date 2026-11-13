@@ -513,7 +513,11 @@ body:has([data-orcamento-mode]) {
    ser focado. É o que a Parte 10 do `docs/LOGIN.md` pede à letra.
    ══════════════════════════════════════════════════════════════════════════ */
 :focus-visible {
-  outline: 2px solid rgba(76, 97, 80, 0.95);
+  /* A cor é o TOKEN, e não um rgba fixo: o `--focus-ring` tem a variante do
+     escuro (#7ea086, em `.dark`), e o musgo fixo dava ≈2,6:1 sobre o fundo
+     escuro do back office — abaixo dos 3:1 da WCAG 1.4.11. No claro é o mesmo
+     verde de acento (#4c6752) que já era. */
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   /* O anel era o único estado do sítio inteiro sem movimento nenhum: aparecia e
      desaparecia de repente, num sítio onde tudo o resto assenta. E é o estado
@@ -564,7 +568,7 @@ body:has([data-cream-page]) [data-public-nav] {
 .foco-largo:focus-visible {
   box-shadow:
     0 0 0 4px var(--color-surface),
-    0 0 0 6px rgba(76, 97, 80, 0.95);
+    0 0 0 6px var(--focus-ring);
 }
 
 /* Opt-out for elements focused PROGRAMMATICALLY as a screen-reader landing
@@ -1500,6 +1504,18 @@ body:has([data-orcamento-mode]) .scroll-progress {
 .ff-input {
   padding-top: 1.3rem;
   padding-bottom: 0.35rem;
+}
+/* ── NA ÁREA DE TEXTO, O ESPAÇO DO RÓTULO FICA FORA DO QUE ROLA ──
+   O `padding-top` de uma `textarea` rola com o texto: com um texto comprido a
+   caixa rolava por dentro e as linhas passavam por BAIXO do rótulo flutuante,
+   as duas sobrepostas e nenhuma legível (390 px, auditoria de 13/11, n.º 7).
+   O mesmo 1,3rem passa para o invólucro, que não rola: o rótulo fica no mesmo
+   sítio, a primeira linha também, e o texto nunca sobe acima da caixa. */
+.ff:has(> textarea.ff-input) {
+  padding-top: 1.3rem;
+}
+.ff > textarea.ff-input {
+  padding-top: 0;
 }
 .ff-label {
   position: absolute;

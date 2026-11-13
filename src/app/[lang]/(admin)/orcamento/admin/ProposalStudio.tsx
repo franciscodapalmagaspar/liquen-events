@@ -12081,6 +12081,11 @@ export default function ProposalStudio({
             // proposta por email sem email não chega a ninguém (B1).
             canal={canal}
             emailDoCliente={quote.email}
+            // O «visto» do PDF, o mesmo do botão (`contextoDoBotao`): sem
+            // ele esta lista dizia «3 coisas impedem o envio» por cima de
+            // uma pastilha a dizer «Faltam 4». A regra é uma só, a de
+            // `oQueFaltaParaEnviar`, e as duas contam a partir dela.
+            pdfVisto={pdfConfirmado}
             onIr={(v) => irParaAFalta(v.seccao, v.campo)}
           />
           {/* ── ANTES DE ENVIAR: VER O PDF FINAL (14/10) ───────────────
@@ -12737,7 +12742,16 @@ export default function ProposalStudio({
                 a folga em partes iguais, e o grupo ficaria centrado — com o total a
                 passear-se para o meio da barra sempre que o estado mudasse de
                 largura. */}
-            <div className="flex min-w-0 items-center gap-3">
+            {/* ── A DICA SAI QUANDO NÃO CABE, EM VEZ DE FICAR COM UMA LETRA ──
+                A 390 px, com «← Inspiração» e «Seguinte: Rever e enviar» ao
+                lado, sobravam uns 30 px para a linha da esquerda, e o
+                `truncate` deixava «Pree…» e depois só «P.» (auditoria de
+                13/11, n.º 12) — e um total cortado a meio é pior: lê-se outro
+                número. O grupo passa a contentor (`@container`, com a folga
+                toda da barra, e `justify-end` para continuar encostado à
+                direita), e a linha e a divisória saem quando a caixa não dá
+                ~120 px à linha: 27rem com o «anterior», 20rem sem ele. */}
+            <div className="@container flex min-w-0 flex-1 items-center justify-end gap-3">
               {/* ── A ETIQUETA VIAJA COM O NÚMERO ────────────────────────────
                     A escolha acima — no telemóvel, o que o CLIENTE paga — estava
                     certa. O que estava errado era a palavra: «Total» ficava FORA
@@ -12775,7 +12789,11 @@ export default function ProposalStudio({
                   número dança. Em algarismos tabulares um 4 e um 1 ocupam o mesmo, e
                   a linha fica quieta. É o mesmo que o bloco de totais aqui em baixo
                   já faz (ver `LinhaDeTotal`). */}
-              <p className="min-w-0 truncate text-xs tabular-nums text-[var(--bo-text-muted)]">
+              <p
+                className={`min-w-0 truncate text-xs tabular-nums text-[var(--bo-text-muted)] ${
+                  passoAoLado(step, -1) ? "@max-[27rem]:hidden" : "@max-[20rem]:hidden"
+                }`}
+              >
                 {money.base > 0 ? (
                   <>
                     <span className="sm:hidden">
@@ -12812,7 +12830,12 @@ export default function ProposalStudio({
                   da casa. Diz que o número e o botão são vizinhos de propósito e não
                   a mesma coisa — que é precisamente o que um espaço não conseguia
                   dizer. `aria-hidden` porque não há nada aqui para ouvir. */}
-              <span aria-hidden className="h-5 w-px shrink-0 bg-[var(--bo-hairline-strong)]" />
+              <span
+                aria-hidden
+                className={`h-5 w-px shrink-0 bg-[var(--bo-hairline-strong)] ${
+                  passoAoLado(step, -1) ? "@max-[27rem]:hidden" : "@max-[20rem]:hidden"
+                }`}
+              />
               {/* ══════════════════════════════════════════════════════════════
                 O «GUARDAR AGORA» SAIU — MENOS NO ÚNICO CASO EM QUE ERA A ÚNICA
                 MANEIRA DE GRAVAR

@@ -990,6 +990,8 @@ export default function Tarefas({
    * dois caminhos que fecham o campo: o `Esc` e o `Shift+Enter`.
    */
   const botaoDeAbrir = useRef<HTMLButtonElement | null>(null);
+  /** O estado vazio, que traz o seu próprio «Nova tarefa» — ver a linha de baixo. */
+  const vazio = useRef<HTMLDivElement | null>(null);
   const devolverFoco = useRef(false);
   const fecharEscrever = useCallback(() => {
     devolverFoco.current = true;
@@ -998,7 +1000,9 @@ export default function Tarefas({
   useEffect(() => {
     if (aEscrever || !devolverFoco.current) return;
     devolverFoco.current = false;
-    botaoDeAbrir.current?.focus();
+    // Com a lista vazia a linha fechada não existe (ver o fim da lista), e o
+    // vizinho é o botão do estado vazio, no mesmo cartão.
+    (botaoDeAbrir.current ?? vazio.current?.querySelector<HTMLButtonElement>("button"))?.focus();
   }, [aEscrever]);
 
   /**
@@ -2331,25 +2335,26 @@ export default function Tarefas({
                 )}
                 <div className="divide-y divide-[var(--bo-hairline)]">
                   {open.length === 0 ? (
-                    <EmptyState
-                      icon={
-                        <svg
-                          width="24"
-                          height="24"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.4"
-                          aria-hidden="true"
-                        >
-                          <path d="M9 11l3 3 8-8" strokeLinecap="round" strokeLinejoin="round" />
-                          <path
-                            d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                      }
-                      /* ── O ESTADO VAZIO DEIXA DE MANDAR OLHAR PARA OUTRO SÍTIO
+                    <div ref={vazio}>
+                      <EmptyState
+                        icon={
+                          <svg
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            aria-hidden="true"
+                          >
+                            <path d="M9 11l3 3 8-8" strokeLinecap="round" strokeLinejoin="round" />
+                            <path
+                              d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        }
+                        /* ── O ESTADO VAZIO DEIXA DE MANDAR OLHAR PARA OUTRO SÍTIO
                      «"Adiciona uma acima para começar a organizar a equipa."
                      O estado vazio diz o passo seguinte e traz um botão;
                      apontar para outro elemento do ecrã é sinal de que a ação
@@ -2364,10 +2369,11 @@ export default function Tarefas({
                      florista amanhã às 10h"»). Ela ensina uma capacidade que é
                      a fase 07 e ainda não existe — escrevê-la agora era
                      prometer uma coisa que o campo não faz. Entra com ela. */
-                      title="Nada por fazer nesta lista"
-                      description="Escreve a primeira e ela fica aqui, com quem a faz e para quando."
-                      action={{ label: "Nova tarefa", onClick: () => setAEscrever(true) }}
-                    />
+                        title="Nada por fazer nesta lista"
+                        description="Escreve a primeira e ela fica aqui, com quem a faz e para quando."
+                        action={{ label: "Nova tarefa", onClick: () => setAEscrever(true) }}
+                      />
+                    </div>
                   ) : (
                     /* ── OS GRUPOS, COM O CABEÇALHO PEGADO AO TOPO (fase 06) ────
                    «Um seletor Agrupar por: Data · Evento · Responsável ·
@@ -2432,18 +2438,25 @@ export default function Tarefas({
                   primeira coisa que se vê ao entrar aqui e se lê como avaria.
                   `Enter` cria, que é o gesto que toda a gente tenta primeiro;
                   o botão só existia para quem não o tentasse. */}
-                  <LinhaDeEscrever
-                    aberta={aEscrever}
-                    aoAbrir={() => setAEscrever(true)}
-                    aoFechar={fecharEscrever}
-                    botao={botaoDeAbrir}
-                    campo={campoDoTitulo}
-                    titulo={title}
-                    aoEscrever={setTitle}
-                    aoCriar={add}
-                    aGravar={adding}
-                  >
-                    {/* ── O QUE A LINHA DIZ, ANTES DE ELA CARREGAR ─────────────────
+                  {/* ── E COM A LISTA VAZIA, A LINHA FECHADA NÃO SE REPETE ────
+                      O estado vazio já traz o «Nova tarefa», e o cabeçalho
+                      outro: eram três botões iguais no mesmo ecrã (auditoria
+                      de 13/11, n.º 22). A linha só aparece fechada quando há
+                      lista por cima dela; aberta (pelo botão do estado vazio,
+                      ou pelo ⌘N) aparece sempre, que é onde se escreve. */}
+                  {(open.length > 0 || aEscrever) && (
+                    <LinhaDeEscrever
+                      aberta={aEscrever}
+                      aoAbrir={() => setAEscrever(true)}
+                      aoFechar={fecharEscrever}
+                      botao={botaoDeAbrir}
+                      campo={campoDoTitulo}
+                      titulo={title}
+                      aoEscrever={setTitle}
+                      aoCriar={add}
+                      aGravar={adding}
+                    >
+                      {/* ── O QUE A LINHA DIZ, ANTES DE ELA CARREGAR ─────────────────
                         As pastilhas do que foi lido. Não são decoração: são a
                         promessa do que vai ficar gravado, feita ANTES do gesto
                         que a cumpre. É o que separa isto de uma extracção
@@ -2452,18 +2465,18 @@ export default function Tarefas({
                         `role="status"`: muda enquanto ela escreve, sem a página
                         recarregar, e quem usa leitor de ecrã tem de ouvir a
                         mesma promessa que os outros lêem. */}
-                    {aInterpretar && (
-                      <div
-                        role="status"
-                        /* Nome próprio, e não só o papel. Este ecrã tem mais do
+                      {aInterpretar && (
+                        <div
+                          role="status"
+                          /* Nome próprio, e não só o papel. Este ecrã tem mais do
                            que um `role="status"` — a contagem da lista é outro —
                            e um leitor de ecrã que anuncia dois «estados» sem os
                            nomear obriga quem ouve a adivinhar de qual se trata. */
-                        aria-label="O que a linha vai gravar"
-                        className="mt-2 flex flex-wrap items-center gap-1.5 text-caption2"
-                      >
-                        <span className="bo-text-muted">Vai ficar com</span>
-                        {/* ── SÓ SE MOSTRA O QUE VAI MESMO ACONTECER ────────
+                          aria-label="O que a linha vai gravar"
+                          className="mt-2 flex flex-wrap items-center gap-1.5 text-caption2"
+                        >
+                          <span className="bo-text-muted">Vai ficar com</span>
+                          {/* ── SÓ SE MOSTRA O QUE VAI MESMO ACONTECER ────────
                             Um campo que ela já preencheu à mão GANHA à leitura
                             (ver o `add`). Mostrar aqui a data lida, quando o
                             campo de baixo já tem outra, era prometer uma coisa
@@ -2474,30 +2487,30 @@ export default function Tarefas({
                             condição do `add`. Se um dia divergirem, isto volta
                             a mentir; por isso estão escritas com as mesmas
                             palavras nos dois sítios. */}
-                        {lida.data && !dueDate && (
-                          <Pastilha rotulo="Quando" valor={quandoLido(lida)} />
-                        )}
-                        {lida.responsavel && assignee.trim() === PREDEFINIDO() && (
-                          <Pastilha rotulo="Quem" valor={lida.responsavel.valor} />
-                        )}
-                        {lida.evento && <Pastilha rotulo="Evento" valor={lida.evento.valor} />}
-                        {lida.prioridade && priority === "normal" && (
-                          <Pastilha rotulo="Prioridade" valor={lida.prioridade.valor} />
-                        )}
-                        {/* E o desligar, que é o que torna a promessa honesta:
+                          {lida.data && !dueDate && (
+                            <Pastilha rotulo="Quando" valor={quandoLido(lida)} />
+                          )}
+                          {lida.responsavel && assignee.trim() === PREDEFINIDO() && (
+                            <Pastilha rotulo="Quem" valor={lida.responsavel.valor} />
+                          )}
+                          {lida.evento && <Pastilha rotulo="Evento" valor={lida.evento.valor} />}
+                          {lida.prioridade && priority === "normal" && (
+                            <Pastilha rotulo="Prioridade" valor={lida.prioridade.valor} />
+                          )}
+                          {/* E o desligar, que é o que torna a promessa honesta:
                             sem ele, a única saída de uma leitura errada era
                             apagar a palavra e reescrever a frase à volta. */}
-                        <button
-                          type="button"
-                          onClick={() => setSemInterpretar(true)}
-                          className={`alvo-toque ms-1 rounded-md px-1.5 text-[var(--bo-text-muted)] underline decoration-dotted underline-offset-2 ${ESTADO} ${PRESSAO}`}
-                        >
-                          Tal como escrevi
-                        </button>
-                      </div>
-                    )}
+                          <button
+                            type="button"
+                            onClick={() => setSemInterpretar(true)}
+                            className={`alvo-toque ms-1 rounded-md px-1.5 text-[var(--bo-text-muted)] underline decoration-dotted underline-offset-2 ${ESTADO} ${PRESSAO}`}
+                          >
+                            Tal como escrevi
+                          </button>
+                        </div>
+                      )}
 
-                    {/* ── OS DETALHES DEIXARAM DE ESTAR ATRÁS DE UMA PORTA ───────────
+                      {/* ── OS DETALHES DEIXARAM DE ESTAR ATRÁS DE UMA PORTA ───────────
                 «Retira isto do opcional. Quero que apareça logo.»
 
                 Eram quatro campos — responsável, área, prioridade e prazo — dentro
@@ -2513,9 +2526,9 @@ export default function Tarefas({
                 O rótulo perde o «(opcional)» pela mesma razão — a palavra estava a
                 responder à pergunta «tenho de preencher isto?», e a resposta já
                 está no «Sem responsável» e no «Sem área» de cada campo. */}
-                    <div className="mt-3">
-                      <p className="bo-eyebrow text-[var(--bo-text-muted)]">Detalhes</p>
-                      {/* ── O CORPO É UM BLOCO, E NÃO QUATRO CAMPOS ────────────────────
+                      <div className="mt-3">
+                        <p className="bo-eyebrow text-[var(--bo-text-muted)]">Detalhes</p>
+                        {/* ── O CORPO É UM BLOCO, E NÃO QUATRO CAMPOS ────────────────────
                   Quatro campos numa grelha são uma LINHA, não quatro blocos: a
                   escada da casa é por bloco, e uma fila de campos a entrar um a um
                   lê-se como um tremor. Entra tudo junto, nos 240 ms e nos quatro
@@ -2525,66 +2538,67 @@ export default function Tarefas({
                   Continuam a ser UM bloco e não quatro: a escada da casa é por
                   bloco, e uma fila de campos a entrar um a um lê-se como um
                   tremor. */}
-                      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        {equipa.length > 0 ? (
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          {equipa.length > 0 ? (
+                            <Field
+                              as="select"
+                              label="Responsável"
+                              value={assignee}
+                              onChange={(e) => setAssignee(e.target.value)}
+                            >
+                              <option value="">Sem responsável</option>
+                              {opcoesDeResponsavel(assignee).map((n) => (
+                                <option key={n} value={n}>
+                                  {n}
+                                </option>
+                              ))}
+                            </Field>
+                          ) : (
+                            /* Sem contas nomeadas configuradas não há equipa a listar, e o
+                     campo continua a ser o de sempre. Ver a nota no `equipa`: uma
+                     lista vazia é «não sei quem são», não «não há ninguém». */
+                            <Field
+                              label="Responsável"
+                              value={assignee}
+                              onChange={(e) => setAssignee(e.target.value)}
+                              // Um cargo, não uma pessoa: o nome de uma colega verdadeira num
+                              // exemplo acaba por sair daqui para sítios onde não devia estar.
+                              placeholder="Ex.: quem fica responsável"
+                            />
+                          )}
                           <Field
                             as="select"
-                            label="Responsável"
-                            value={assignee}
-                            onChange={(e) => setAssignee(e.target.value)}
+                            label="Área"
+                            value={area}
+                            onChange={(e) => setArea(e.target.value)}
                           >
-                            <option value="">Sem responsável</option>
-                            {opcoesDeResponsavel(assignee).map((n) => (
-                              <option key={n} value={n}>
-                                {n}
+                            <option value="">Sem área</option>
+                            {AREAS.map((a) => (
+                              <option key={a} value={a}>
+                                {a}
                               </option>
                             ))}
                           </Field>
-                        ) : (
-                          /* Sem contas nomeadas configuradas não há equipa a listar, e o
-                     campo continua a ser o de sempre. Ver a nota no `equipa`: uma
-                     lista vazia é «não sei quem são», não «não há ninguém». */
                           <Field
-                            label="Responsável"
-                            value={assignee}
-                            onChange={(e) => setAssignee(e.target.value)}
-                            // Um cargo, não uma pessoa: o nome de uma colega verdadeira num
-                            // exemplo acaba por sair daqui para sítios onde não devia estar.
-                            placeholder="Ex.: quem fica responsável"
+                            as="select"
+                            label="Prioridade"
+                            value={priority}
+                            onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                          >
+                            <option value="alta">Alta</option>
+                            <option value="normal">Normal</option>
+                            <option value="baixa">Baixa</option>
+                          </Field>
+                          <Field
+                            label="Prazo"
+                            type="date"
+                            value={dueDate}
+                            onChange={(e) => setDueDate(e.target.value)}
                           />
-                        )}
-                        <Field
-                          as="select"
-                          label="Área"
-                          value={area}
-                          onChange={(e) => setArea(e.target.value)}
-                        >
-                          <option value="">Sem área</option>
-                          {AREAS.map((a) => (
-                            <option key={a} value={a}>
-                              {a}
-                            </option>
-                          ))}
-                        </Field>
-                        <Field
-                          as="select"
-                          label="Prioridade"
-                          value={priority}
-                          onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                        >
-                          <option value="alta">Alta</option>
-                          <option value="normal">Normal</option>
-                          <option value="baixa">Baixa</option>
-                        </Field>
-                        <Field
-                          label="Prazo"
-                          type="date"
-                          value={dueDate}
-                          onChange={(e) => setDueDate(e.target.value)}
-                        />
+                        </div>
                       </div>
-                    </div>
-                  </LinhaDeEscrever>
+                    </LinhaDeEscrever>
+                  )}
                 </div>
               </Card>
 

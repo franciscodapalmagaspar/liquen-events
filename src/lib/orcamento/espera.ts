@@ -52,7 +52,10 @@ export function tomDeEspera(dias: number): TomDeEspera {
 
 /** "hoje", "há 1 dia", "há 4 dias" — sempre a mesma frase. */
 export function esperaEmPalavras(dias: number): string {
-  if (dias <= 0) return "hoje";
+  // «recebido hoje» e não «hoje»: no cartão do pedido esta pastilha fica ao
+  // lado da contagem do evento, e um evento HOJE também diz «Hoje». Eram dois
+  // «hoje» no mesmo cartão a dizer coisas diferentes.
+  if (dias <= 0) return "recebido hoje";
   if (dias === 1) return "há 1 dia";
   return `há ${dias} dias`;
 }
