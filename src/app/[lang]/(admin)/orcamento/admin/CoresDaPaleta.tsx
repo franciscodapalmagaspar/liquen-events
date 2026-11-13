@@ -59,13 +59,16 @@ export default function CoresDaPaleta({
   /** `null` = voltar às automáticas. `frase` é a do «Anular». */
   onMudar: (cores: string[] | null, frase: string) => void;
 }) {
-  const [activa, setActivaCru] = useState<number | null>(null);
+  // O lugar que se está a trocar, preso às fotografias de agora: se elas
+  // mudarem (outra fotografia na página), a troca acaba — senão um «Pôr»
+  // gravava por cima de uma paleta que já não é a que se vê.
+  const [seleccao, setSeleccao] = useState<{ chave: string; i: number } | null>(null);
   /** A cor do seletor, antes de ela carregar em «Pôr». */
   const [rascunho, setRascunho] = useState<string | null>(null);
   /** A cor debaixo do dedo/rato, mostrada no lugar activo antes de se escolher. */
   const [previa, setPrevia] = useState<string | null>(null);
   const setActiva = (i: number | null) => {
-    setActivaCru(i);
+    setSeleccao(i === null ? null : { chave, i });
     setRascunho(null);
     setPrevia(null);
   };
@@ -80,11 +83,15 @@ export default function CoresDaPaleta({
     estado: "lido" | "falhou";
   } | null>(null);
 
-  const chave = fotos.map((f) => `${f.ref}|${f.url ?? ""}`).join("\n");
+  // A chave resume as fotografias sem copiar um `data:` de vários MB a cada
+  // render: a referência, o tamanho do endereço e o fim dele.
+  const chave = fotos
+    .map((f) => `${f.ref.slice(0, 200)}|${(f.url ?? "").length}|${(f.url ?? "").slice(-80)}`)
+    .join("\n");
   useEffect(() => {
     let vivo = true;
     (async () => {
-      const resultado = await Promise.all(fotos.map((f) => lerFoto(f)));
+      const resultado = await Promise.all(fotos.map((f) => lerFotoGuardada(f)));
       if (!vivo) return;
       const boas = resultado.filter((r): r is { lida: Lida; pontos: Ponto[] } => !!r);
       const pontos = boas.flatMap((r) => r.pontos);
@@ -113,20 +120,41 @@ export default function CoresDaPaleta({
 
   const dela = cores !== null;
   const actuais = dela ? [...cores] : automaticas;
+  // Fora do intervalo (um «Anular» vindo de fora encurtou a paleta) é como
+  // não haver troca nenhuma.
+  const activa =
+    seleccao &&
+    seleccao.chave === chave &&
+    seleccao.i <= actuais.length &&
+    seleccao.i < CORES_DA_PALETA
+      ? seleccao.i
+      : null;
+  // Pode-se juntar uma cor sempre que já não se está à espera da leitura —
+  // também quando ela FALHOU: aí o seletor é o caminho.
+  const podeJuntar = actuais.length < CORES_DA_PALETA && (estado !== "a-ler" || dela);
 
   /** Põe `cor` no lugar activo (ou junta-a, se o activo é o «+»). */
   function por(cor: string) {
     if (activa === null) return;
-    const novas = [...actuais];
-    if (activa >= novas.length) novas.push(cor);
-    else novas[activa] = cor;
-    // A mesma cor duas vezes não faz paleta: a repetida sai.
-    const unicas = novas.filter((c, i) => novas.findIndex((d) => parecidas(c, d)) === i);
-    onMudar(unicas, `Cor ${maiusculas(cor)} posta na paleta.`);
+    // Sem paleta dela e sem a sugestão lida, não há sobre o quê gravar: um
+    // «Pôr» agora deixava a paleta com uma cor só.
+    if (!dela && estado === "a-ler") return;
+    // A mesma cor duas vezes não faz paleta: sai a ANTIGA parecida, e a nova
+    // fica onde ela a pôs — nunca desaparece o que se acabou de escolher.
+    const outras = actuais.filter((c, k) => k !== activa && !parecidas(c, cor));
+    const lugar = Math.min(
+      activa - actuais.slice(0, activa).filter((c) => parecidas(c, cor)).length,
+      outras.length,
+    );
+    const novas = [...outras.slice(0, lugar), cor, ...outras.slice(lugar)].slice(
+      0,
+      CORES_DA_PALETA,
+    );
+    onMudar(novas, `Cor ${maiusculas(cor)} posta na paleta.`);
     // Segue para a cor seguinte, como quem escolhe as cinco de seguida; na
     // última, fecha.
-    const seguinte = Math.min(activa, unicas.length - 1) + 1;
-    setActiva(seguinte < CORES_DA_PALETA && seguinte <= unicas.length ? seguinte : null);
+    const seguinte = lugar + 1;
+    setActiva(seguinte < CORES_DA_PALETA && seguinte <= novas.length ? seguinte : null);
   }
 
   function tirar(i: number) {
@@ -173,27 +201,24 @@ export default function CoresDaPaleta({
       <p className="-mt-2 text-sm leading-relaxed text-[var(--bo-text-muted)]">
         {dela
           ? "São estas que saem no PDF e na proposta online. Toca numa cor para a trocar."
-          : "Tiradas das flores das fotografias da página. Toca numa cor para a trocar por uma flor, ou fica com estas."}
+          : estado === "falhou"
+            ? "Escolhe as cores com o «+». Sem escolha, o PDF tira-as sozinho das flores das fotografias."
+            : "Tiradas das flores das fotografias da página. Toca numa cor para a trocar por uma flor, ou fica com estas."}
       </p>
 
       {/* A faixa: como a página do PDF a desenha — retângulos altos, o código
           por baixo. O que se vê aqui é o que o casal vê. */}
-      <div
-        role="radiogroup"
-        aria-label="Que cor trocar"
-        className="grid grid-cols-5 gap-2 sm:gap-3"
-      >
+      <div role="group" aria-label="As cores da paleta" className="grid grid-cols-5 gap-2 sm:gap-3">
         {Array.from({ length: CORES_DA_PALETA }, (_, i) => {
           const c = corDoLugar(i);
           const activo = activa === i;
           if (!c) {
-            const juntar = i === actuais.length && (estado === "lido" || dela);
+            const juntar = i === actuais.length && podeJuntar;
             return juntar ? (
               <button
                 key={`vazio-${i}`}
                 type="button"
-                role="radio"
-                aria-checked={activo}
+                aria-pressed={activo}
                 aria-label="Juntar uma cor"
                 onClick={() => setActiva(activo ? null : i)}
                 className={`flex flex-col gap-1.5 text-left ${ESTADO} ${PRESSAO}`}
@@ -224,9 +249,12 @@ export default function CoresDaPaleta({
             <button
               key={`cor-${i}`}
               type="button"
-              role="radio"
-              aria-checked={activo}
-              aria-label={`Cor ${i + 1}, ${maiusculas(actuais[i])}`}
+              aria-pressed={activo}
+              aria-label={
+                i < actuais.length
+                  ? `Cor ${i + 1}, ${maiusculas(actuais[i])}`
+                  : `Juntar uma cor, ${maiusculas(c)}`
+              }
               onClick={() => setActiva(activo ? null : i)}
               className={`group flex min-w-0 flex-col gap-1.5 text-left ${ESTADO} ${PRESSAO}`}
             >
@@ -265,8 +293,8 @@ export default function CoresDaPaleta({
       )}
       {estado === "falhou" && (
         <p className="text-sm text-[var(--bo-text-muted)]">
-          Não deu para ler as fotografias aqui — escolhe as cores no seletor. Sem escolha, o PDF
-          tira-as sozinho das flores.
+          Não deu para ler as fotografias aqui (a ligação ou o ficheiro). As cores escolhem-se na
+          mesma, com o seletor do «+».
         </p>
       )}
 
@@ -287,8 +315,8 @@ export default function CoresDaPaleta({
           {lidas.length > 0 && (
             // Em mosaico (colunas), cada fotografia na sua forma, sem buracos.
             <ul aria-label="Fotografias da página" className="columns-2 gap-2 sm:columns-3">
-              {lidas.map((l) => (
-                <li key={l.ref} className="mb-2 break-inside-avoid">
+              {lidas.map((l, k) => (
+                <li key={`${l.ref}-${k}`} className="mb-2 break-inside-avoid">
                   <ContaGotas lida={l} onCor={por} onPrevia={setPrevia} />
                 </li>
               ))}
@@ -367,9 +395,8 @@ export default function CoresDaPaleta({
  * Tocar (largar) escolhe-a. A cor é a média de um quadrado de 5 × 5 píxeis,
  * para um grão da fotografia não dar uma cor que não se vê.
  *
- * No dedo, a lupa fica ACIMA do ponto (o dedo tapava-a), e a fotografia não
- * deixa a página deslizar enquanto se escolhe (`touch-action: none`) — só
- * existe enquanto se está a trocar uma cor.
+ * No dedo, a lupa fica ACIMA do ponto (o dedo tapava-a). Deslizar por cima
+ * das fotografias continua a deslizar a página; só um toque curto escolhe.
  */
 function ContaGotas({
   lida,
@@ -392,6 +419,10 @@ function ContaGotas({
     t.getContext("2d")?.drawImage(lida.tela, 0, 0);
   }, [lida]);
 
+  // Onde o dedo pousou: só um TOQUE (andou menos de 10 px) escolhe a cor.
+  // Deslizar por cima das fotografias é deslizar a página — e a página
+  // desliza (`pan-y`), o que cancela o gesto sem gravar nada.
+  const inicio = useRef<{ x: number; y: number } | null>(null);
   const ler = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const t = e.currentTarget;
     const caixa = t.getBoundingClientRect();
@@ -410,7 +441,7 @@ function ContaGotas({
         // sugestões e o seletor de cor logo por baixo.
         aria-hidden="true"
         onPointerDown={(e) => {
-          if (e.pointerType !== "mouse") e.currentTarget.setPointerCapture(e.pointerId);
+          inicio.current = { x: e.clientX, y: e.clientY };
           const l = ler(e);
           setLupa(l);
           onPrevia(l?.cor ?? null);
@@ -422,19 +453,23 @@ function ContaGotas({
         }}
         onPointerUp={(e) => {
           const l = ler(e);
+          const de = inicio.current;
+          inicio.current = null;
           setLupa(null);
           onPrevia(null);
-          if (l) onCor(l.cor);
+          const andou = de ? Math.hypot(e.clientX - de.x, e.clientY - de.y) : 0;
+          if (l && (e.pointerType === "mouse" || andou < 10)) onCor(l.cor);
         }}
         onPointerLeave={() => {
           setLupa(null);
           onPrevia(null);
         }}
         onPointerCancel={() => {
+          inicio.current = null;
           setLupa(null);
           onPrevia(null);
         }}
-        style={{ aspectRatio: String(lida.aspeto), touchAction: "none" }}
+        style={{ aspectRatio: String(lida.aspeto), touchAction: "pan-y pinch-zoom" }}
         className="block w-full cursor-crosshair rounded-lg bg-[var(--bo-tinta-10)]"
       />
       {lupa && (
@@ -465,9 +500,11 @@ function ContaGotas({
 function corNoSitio(tela: HTMLCanvasElement, x: number, y: number): string | null {
   const ctx = tela.getContext("2d");
   if (!ctx) return null;
-  const x0 = Math.max(0, Math.min(tela.width - 5, x - 2));
-  const y0 = Math.max(0, Math.min(tela.height - 5, y - 2));
-  const { data } = ctx.getImageData(x0, y0, 5, 5);
+  const w = Math.min(5, tela.width);
+  const h = Math.min(5, tela.height);
+  const x0 = Math.max(0, Math.min(tela.width - w, x - 2));
+  const y0 = Math.max(0, Math.min(tela.height - h, y - 2));
+  const { data } = ctx.getImageData(x0, y0, w, h);
   const soma = [0, 0, 0];
   for (let i = 0; i < data.length; i += 4) {
     soma[0] += data[i];
@@ -478,32 +515,66 @@ function corNoSitio(tela: HTMLCanvasElement, x: number, y: number): string | nul
   return hex([Math.round(soma[0] / n), Math.round(soma[1] / n), Math.round(soma[2] / n)]);
 }
 
+type Leitura = { lida: Lida; pontos: Ponto[] } | null;
+
+/**
+ * As fotografias já lidas, pelo endereço — o estúdio mostra as cores em dois
+ * sítios (a secção e o «Mudar fotografia»), e a mesma fotografia não se
+ * descarrega nem se descodifica duas vezes. Poucas: são as seis de uma página.
+ */
+const jaLidas = new Map<string, Promise<Leitura>>();
+function lerFotoGuardada(f: Foto): Promise<Leitura> {
+  const url = f.url;
+  if (!url) return Promise.resolve(null);
+  const ja = jaLidas.get(url);
+  if (ja) return ja.then((l) => (l ? { ...l, lida: { ...l.lida, ref: f.ref } } : null));
+  const nova = lerFoto(f);
+  jaLidas.set(url, nova);
+  // Uma que falhou pode dar à próxima: não fica guardada.
+  void nova.then((l) => {
+    if (!l) jaLidas.delete(url);
+  });
+  if (jaLidas.size > 24) jaLidas.delete(jaLidas.keys().next().value!);
+  return nova;
+}
+
+/** Quanto se espera por uma fotografia antes de desistir dela. */
+const ESPERA_MS = 15_000;
+
 /** Lê uma fotografia: a tela do conta-gotas e os pontos da regra automática. */
-async function lerFoto(f: Foto): Promise<{ lida: Lida; pontos: Ponto[] } | null> {
+async function lerFoto(f: Foto): Promise<Leitura> {
   if (!f.url || typeof createImageBitmap !== "function") return null;
   try {
-    const r = await fetch(f.url);
+    const r = await fetch(f.url, {
+      signal:
+        typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+          ? AbortSignal.timeout(ESPERA_MS)
+          : undefined,
+    });
     if (!r.ok) return null;
     const imagem = await createImageBitmap(await r.blob());
-    const desenhar = (lado: number) => {
-      const k = Math.min(1, lado / Math.max(imagem.width, imagem.height));
-      const t = document.createElement("canvas");
-      t.width = Math.max(1, Math.round(imagem.width * k));
-      t.height = Math.max(1, Math.round(imagem.height * k));
-      const ctx = t.getContext("2d", { willReadFrequently: true });
-      if (!ctx) return null;
-      ctx.drawImage(imagem, 0, 0, t.width, t.height);
-      return { t, ctx };
-    };
-    const grande = desenhar(LADO_DO_CONTA_GOTAS);
-    const pequena = desenhar(LADO);
-    imagem.close();
-    if (!grande || !pequena) return null;
-    const { data } = pequena.ctx.getImageData(0, 0, pequena.t.width, pequena.t.height);
-    return {
-      lida: { ref: f.ref, tela: grande.t, aspeto: grande.t.width / grande.t.height },
-      pontos: pontosDaFoto(data, pequena.t.width, pequena.t.height, 4),
-    };
+    try {
+      const desenhar = (lado: number) => {
+        const k = Math.min(1, lado / Math.max(imagem.width, imagem.height));
+        const t = document.createElement("canvas");
+        t.width = Math.max(1, Math.round(imagem.width * k));
+        t.height = Math.max(1, Math.round(imagem.height * k));
+        const ctx = t.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return null;
+        ctx.drawImage(imagem, 0, 0, t.width, t.height);
+        return { t, ctx };
+      };
+      const grande = desenhar(LADO_DO_CONTA_GOTAS);
+      const pequena = desenhar(LADO);
+      if (!grande || !pequena) return null;
+      const { data } = pequena.ctx.getImageData(0, 0, pequena.t.width, pequena.t.height);
+      return {
+        lida: { ref: f.ref, tela: grande.t, aspeto: grande.t.width / grande.t.height },
+        pontos: pontosDaFoto(data, pequena.t.width, pequena.t.height, 4),
+      };
+    } finally {
+      imagem.close();
+    }
   } catch {
     return null;
   }

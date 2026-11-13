@@ -274,7 +274,7 @@ describe("o retrato da proposta online", () => {
       pontos: impressao("src/lib/proposta-web/ponto-de-interesse.ts"),
     }).toEqual({
       versao: 8,
-      modelo: "8b3cc052b8c5b499",
+      modelo: "5efa8a9017fda00f",
       mosaico: "397ad578deb7111f",
       textos: "71448f103c1b0275",
       capa: "2717fc2f91e2ede7",

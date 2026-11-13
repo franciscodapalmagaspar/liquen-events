@@ -189,10 +189,11 @@ function coresDaPaleta(
   // gravaram. As novas trazem só as seis da página.
   const asDaPagina = refs.slice(0, 12);
   return guardadoOuCalculado(
-    // A chave fica a mesma de propósito: uma proposta JÁ enviada guardou as
-    // suas cores (e o seu PDF) antes de 13/11, e a página dela não pode mudar
-    // de paleta sozinha e passar a discordar do PDF que o casal tem. As novas
-    // têm outras referências (as fotografias da página), logo outra chave.
+    // A chave fica a mesma de propósito. Uma proposta enviada antes de 13/11
+    // cuja página online JÁ foi aberta guardou o conteúdo (com as referências
+    // antigas) e as cores — e continua a mostrar essas, as do PDF que seguiu.
+    // Uma que nunca foi aberta calcula agora, com a regra nova (as flores das
+    // fotografias da página): pode diferir do PDF antigo. Está dito no PR.
     chaveDoGuardado("cores", proposalId, ...asDaPagina),
     async () => {
       const bytes = await Promise.all(

@@ -15,10 +15,12 @@ export async function paletaDasFotos(fotos: readonly Buffer[]): Promise<string[]
       const { data, info } = await sharp(b, { failOn: "none" })
         .rotate()
         .resize(LADO, LADO, { fit: "inside" })
+        // Uma fotografia a preto e branco vem com um canal só; a conta lê três.
+        .toColourspace("srgb")
         .removeAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
-      pontos.push(...pontosDaFoto(data, info.width, info.height));
+      pontos.push(...pontosDaFoto(data, info.width, info.height, info.channels === 4 ? 4 : 3));
     } catch {
       // Uma foto que não se lê não tem cor para dar; as outras chegam.
     }

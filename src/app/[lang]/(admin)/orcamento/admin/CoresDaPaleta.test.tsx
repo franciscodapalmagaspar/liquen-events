@@ -21,15 +21,15 @@ describe("as cores da paleta, escolhidas por ela", () => {
       vi.fn(() => Promise.reject(new Error("sem rede"))),
     );
     render(<CoresDaPaleta fotos={fotos} cores={["#D98AA6", "#A48CC9"]} onMudar={() => {}} />);
-    expect(screen.getByRole("radio", { name: "Cor 1, #D98AA6" })).toBeTruthy();
-    expect(screen.getByRole("radio", { name: "Cor 2, #A48CC9" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cor 1, #D98AA6" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cor 2, #A48CC9" })).toBeTruthy();
     expect(screen.getByText(/Escolhidas por vocês/)).toBeTruthy();
   });
 
   it("«Tirar esta cor» tira-a, com a frase do Anular", () => {
     const onMudar = vi.fn();
     render(<CoresDaPaleta fotos={[]} cores={["#D98AA6", "#A48CC9"]} onMudar={onMudar} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Cor 1, #D98AA6" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cor 1, #D98AA6" }));
     fireEvent.click(screen.getByRole("button", { name: "Tirar esta cor" }));
     expect(onMudar).toHaveBeenCalledWith(["#A48CC9"], "Cor #D98AA6 tirada da paleta.");
   });
@@ -37,7 +37,7 @@ describe("as cores da paleta, escolhidas por ela", () => {
   it("«Outra cor»: qualquer cor, e só grava ao carregar em «Pôr»", () => {
     const onMudar = vi.fn();
     render(<CoresDaPaleta fotos={[]} cores={["#D98AA6", "#A48CC9"]} onMudar={onMudar} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Cor 2, #A48CC9" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cor 2, #A48CC9" }));
     fireEvent.change(screen.getByLabelText("Outra cor"), { target: { value: "#2f6b4f" } });
     expect(onMudar).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Pôr #2F6B4F" }));
@@ -60,5 +60,41 @@ describe("as cores da paleta, escolhidas por ela", () => {
     render(<CoresDaPaleta fotos={fotos} cores={null} onMudar={() => {}} />);
     expect(await screen.findByText(/Não deu para ler as fotografias aqui/)).toBeTruthy();
     vi.unstubAllGlobals();
+  });
+
+  /* ── Os erros que a revisão de 13/11 encontrou — cada um com o seu teste ── */
+
+  it("«Juntar uma cor» com uma cor à espera não rebenta (era `actuais[i]` indefinido)", () => {
+    const onMudar = vi.fn();
+    render(<CoresDaPaleta fotos={[]} cores={["#D98AA6"]} onMudar={onMudar} />);
+    fireEvent.click(screen.getByRole("button", { name: "Juntar uma cor" }));
+    // Mexer no seletor põe a cor «à espera» no lugar do «+».
+    fireEvent.change(screen.getByLabelText("Outra cor"), { target: { value: "#2f6b4f" } });
+    expect(screen.getByRole("button", { name: "Juntar uma cor, #2F6B4F" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Pôr #2F6B4F" }));
+    expect(onMudar).toHaveBeenCalledWith(["#D98AA6", "#2F6B4F"], "Cor #2F6B4F posta na paleta.");
+  });
+
+  it("sem conseguir ler as fotografias, continua a dar para escolher cores (o «+»)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new Error("sem rede"))),
+    );
+    vi.stubGlobal("createImageBitmap", vi.fn());
+    render(<CoresDaPaleta fotos={fotos} cores={null} onMudar={() => {}} />);
+    expect(await screen.findByRole("button", { name: "Juntar uma cor" })).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
+  it("pôr uma cor parecida com outra: fica a NOVA, onde ela a pôs; sai a antiga", () => {
+    const onMudar = vi.fn();
+    render(
+      <CoresDaPaleta fotos={[]} cores={["#D98AA6", "#A48CC9", "#2F6B4F"]} onMudar={onMudar} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Cor 3, #2F6B4F" }));
+    // Quase igual à cor 1 (a antiga sai, a nova fica no lugar 3 → passa a 2.º).
+    fireEvent.change(screen.getByLabelText("Outra cor"), { target: { value: "#d98aa7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Pôr #D98AA7" }));
+    expect(onMudar).toHaveBeenCalledWith(["#A48CC9", "#D98AA7"], "Cor #D98AA7 posta na paleta.");
   });
 });

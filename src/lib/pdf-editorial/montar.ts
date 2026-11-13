@@ -620,9 +620,12 @@ async function motor(
     // E, havendo temas das mesas, só as DAS MESAS de entre essas (a decisão
     // dela de 20/10): uma fotografia da cerimónia que entre na fila para a
     // encher não dá cor à paleta.
+    // Pelas REFERÊNCIAS, e não pelo objecto: uma fotografia que ela escolheu
+    // ou enquadrou chega como um objecto novo, e era deixada de fora.
     const naPagina = [painel, ...fila].filter((f): f is Foto => !!f);
+    const refsDasMesas = new Set(daPaleta.flatMap((f) => (f.ref ? [f.ref] : [])));
     const dasMesasNaPagina = dasMesas.length
-      ? naPagina.filter((f) => daPaleta.includes(f))
+      ? naPagina.filter((f) => (f.ref ? refsDasMesas.has(f.ref) : daPaleta.includes(f)))
       : naPagina;
     const daPagina = dasMesasNaPagina.length ? dasMesasNaPagina : naPagina;
     const coresDela = paletaDaProposta(doc);

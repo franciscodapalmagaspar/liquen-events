@@ -50,7 +50,7 @@ import {
   referenciaDoDocumento,
   type IdiomaDaProposta,
 } from "@/lib/proposal-doc-textos";
-import { grupoNoCasamento } from "@/lib/pdf-editorial/grupos";
+import { fotosQueDaoCor, grupoNoCasamento } from "@/lib/pdf-editorial/grupos";
 import {
   ordemDeSaida,
   eAOrdemEscrita,
@@ -4264,10 +4264,6 @@ export default function ProposalStudio({
     );
   };
   /**
-   * Grava a escolha de uma página (ou apaga-a, com `null`), com «Anular». Os
-   * focos vão com as fotos, lugar a lugar; sem `focos`, ficam os que havia.
-   */
-  /**
    * As cores da paleta escolhidas por ELA (`paletaDela`), com «Anular» —
    * «a minha mãe quer ser ela a escolher as cores» (13/11). `null` volta às
    * automáticas (a sugestão das flores das fotografias).
@@ -4277,10 +4273,23 @@ export default function ProposalStudio({
     patch({ paletaDela: cores && cores.length ? cores : undefined });
     anular(frase, () => patch({ paletaDela: antes }));
   }
-  /** As fotografias da página «Paleta e ambiente», como o PDF as põe. */
-  const fotosDaPaleta = lugaresDaPagina("ambiente").flatMap((r) =>
-    r ? [{ ref: r, url: assetUrls[r] ?? (r.startsWith("data:") ? r : undefined) }] : [],
-  );
+  /**
+   * As fotografias de onde saem as cores — as MESMAS que o PDF lê
+   * (`fotosQueDaoCor`): as da página «Paleta e ambiente», e delas só as dos
+   * temas das mesas, quando os há. Lê-se a fotografia inteira (o original) e
+   * não a miniatura, que é um recorte quadrado com outras cores.
+   */
+  const fotosDaPaleta = fotosQueDaoCor(
+    lugaresDaPagina("ambiente").filter((r): r is string => !!r),
+    doc.moodBoards,
+  ).map((r) => ({
+    ref: r,
+    url: assetOriginais[r] ?? assetUrls[r] ?? (r.startsWith("data:") ? r : undefined),
+  }));
+  /**
+   * Grava a escolha de uma página (ou apaga-a, com `null`), com «Anular». Os
+   * focos vão com as fotos, lugar a lugar; sem `focos`, ficam os que havia.
+   */
   function gravarFotosDaPagina(
     chave: string,
     fotos: string[] | null,
