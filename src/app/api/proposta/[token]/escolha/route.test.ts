@@ -19,6 +19,8 @@ const H = vi.hoisted(() => ({
   pedido: null as Record<string, unknown> | null,
   gravado: null as { id: string; patch: Record<string, unknown> } | null,
   limite: { ok: true },
+  /** Os argumentos com que a rota pediu o limite: `[chave, tecto, janela, opções]`. */
+  pedidoAoLimite: [] as unknown[],
   registos: [] as string[],
   agora: "2026-05-02T10:00:00.000Z",
 }));
@@ -49,7 +51,10 @@ vi.mock("@/lib/quotes-store", () => ({
 }));
 vi.mock("@/lib/rate-limit", () => ({
   clientIp: () => "1.2.3.4",
-  rateLimit: async () => H.limite,
+  rateLimit: async (...a: unknown[]) => {
+    H.pedidoAoLimite = a;
+    return H.limite;
+  },
 }));
 
 const { POST } = await import("./route");
@@ -193,6 +198,22 @@ describe("o que a rota recusa", () => {
     const res = await POST(pedir({ escolhaId: "e1", opcaoId: "o1" }), ctx("bom"));
     expect(res.status).toBe(429);
     expect(H.gravado).toBeNull();
+  });
+
+  it("o tecto deixa um casal indeciso mudar de ideias (13/11) — e fica em memória", async () => {
+    // Quatro perguntas, duas pessoas na mesma casa, cada uma a mudar de ideias
+    // duas vezes: 4 × 2 × 2 = 16 escolhas num minuto. Com o tecto antigo (10)
+    // a 11.ª voltava atrás no ecrã e dizia que não tinha seguido.
+    await POST(pedir({ escolhaId: "e1", opcaoId: "o1" }), ctx("bom"));
+    const [, tecto, janela, opcoes] = H.pedidoAoLimite as [string, number, number, unknown];
+    const { rateLimit } =
+      await vi.importActual<typeof import("@/lib/rate-limit")>("@/lib/rate-limit");
+    const chave = `teste-indecisos-${Date.now()}`;
+    const respostas = [];
+    for (let i = 0; i < 16; i++) respostas.push(await rateLimit(chave, tecto, janela));
+    expect(respostas.every((r) => r.ok)).toBe(true);
+    // E nunca o Upstash: só as portas de contas e envios o usam.
+    expect(opcoes).toBeUndefined();
   });
 });
 
