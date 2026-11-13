@@ -7403,7 +7403,16 @@ export default function ProposalStudio({
       apagar();
       return;
     }
-    const base = parseMoneyText(totalInput);
+    const escrito = parseMoneyText(totalInput);
+    /**
+     * Auditoria de 13/11 (estúdio, n.º 17). Com «estas linhas somam-se», o
+     * campo é SÓ a parte dos serviços, e o preço final é ele MAIS todos os
+     * adicionais: a pergunta mostrava «de [campo] para [campo − linha]», dois
+     * números que não eram o preço de antes nem o de depois.
+     */
+    const base = doc.budgetExtrasSomam
+      ? Math.round((escrito + somaDosExtrasSemIva(doc.budgetExtras ?? [], contexto)) * 100) / 100
+      : escrito;
     const nome = linha.label?.trim() || "esta linha";
     pedirConfirmacaoDeDinheiro({
       oQue: "o total",

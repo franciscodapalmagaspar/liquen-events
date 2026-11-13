@@ -2973,6 +2973,19 @@ describe("os valores adicionais somam ao total", () => {
     expect(await screen.findByLabelText(/Valor \(sem IVA\)/i)).toHaveValue("6875");
   });
 
+  /** Auditoria de 13/11, estúdio n.º 17: com «estas linhas somam-se» (o modo
+   *  por omissão), o campo é só a parte dos serviços — a pergunta mostrava «de
+   *  6.875 para 5.325», que não era o preço de antes nem o de depois. */
+  it("com os adicionais a somar, a pergunta mostra o preço FINAL de antes e o de depois", async () => {
+    desenhar(comPreco(6875));
+    const user = await escreverExtra("1550");
+    await user.click(await screen.findByRole("button", { name: /Remover linha adicional/i }));
+    const pergunta = await screen.findByText(/Substituir o total de/i);
+    expect(pergunta.textContent).toMatch(/8\s?425,00/);
+    expect(pergunta.textContent).toMatch(/6\s?875,00/);
+    expect(pergunta.textContent).not.toMatch(/5\s?325,00/);
+  });
+
   it("e cancelar deixa o total exactamente como estava", async () => {
     desenhar(comPreco(6875));
     // Este caso descreve a regra em que o valor escrito JÁ INCLUI os
