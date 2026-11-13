@@ -33,6 +33,8 @@ vi.mock("./reciclagem-store", () => ({
     st.entradas.push(e);
   },
   listarReciclagem: async () => st.entradas,
+  entradasDe: async (origemId: string) => st.entradas.filter((e) => e.origemId === origemId),
+  trocarRetrato: async () => null,
   obterDaReciclagem: async (id: string) => st.entradas.find((e) => e.id === id) ?? null,
   tirarDaReciclagem: async (id: string) => {
     st.entradas = st.entradas.filter((e) => e.id !== id);

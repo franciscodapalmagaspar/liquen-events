@@ -480,6 +480,63 @@ describe("Reciclagem — pedido (R3b)", () => {
     }
   });
 
+  it("parado a meio, a entrada guarda SÓ o que saiu: o material não volta a dobrar, e um rascunho velho não passa por cima de um envio", async () => {
+    vi.doMock("./quotes-store", async () => {
+      const real = await vi.importActual<typeof import("./quotes-store")>("./quotes-store");
+      return {
+        ...real,
+        deleteQuote: async () => {
+          throw new Error("TESTE: a base de dados recusou");
+        },
+      };
+    });
+    try {
+      const r = await carregarR3b();
+      await r.pedidos.createQuote(UM_PEDIDO);
+      await r.propostas.createProposal(umaProposta("P-TESTE-4", UM_PEDIDO.id));
+      await r.estado.setState(r.rascunhos.draftKey(UM_PEDIDO.id), { doc: { titulo: "VELHO" } });
+      const ev = await r.eventos.createEventMaterial({
+        quoteId: UM_PEDIDO.id,
+        status: "preparada",
+        vehicles: [],
+      });
+      await r.itens.addEventItem({
+        eventId: ev.id,
+        name: "TESTE Velas",
+        category: "Luz",
+        kind: "consumivel",
+        qty: 10,
+        critical: false,
+        origin: "manual",
+        originLabel: "À mão",
+        missing: false,
+      } as Parameters<typeof r.itens.addEventItem>[0]);
+
+      await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
+      const [entrada] = await r.store.listarReciclagem();
+      // Só o que saiu: a proposta e o rascunho. Nem material, nem itens.
+      expect(entrada.retrato.propostas).toEqual([expect.objectContaining({ id: "P-TESTE-4" })]);
+      expect(entrada.retrato.material ?? []).toEqual([]);
+      expect(entrada.retrato.itens ?? []).toEqual([]);
+
+      // Ela continua o pedido: refaz a checklist (ids novos) e envia uma
+      // proposta nova (o envio limpa o rascunho).
+      const antes = await r.itens.listItemsOfEvent(ev.id);
+      await r.propostas.createProposal({
+        ...umaProposta("P-TESTE-5", UM_PEDIDO.id),
+        createdAt: new Date(Date.now() + 1000).toISOString(),
+      });
+
+      await r.reciclagem.reporDaReciclagem(entrada.id);
+      expect(await r.propostas.getProposal("P-TESTE-4")).not.toBeNull();
+      expect(await r.itens.listItemsOfEvent(ev.id)).toHaveLength(antes.length);
+      // O rascunho velho NÃO voltou: houve um envio depois do apagar.
+      expect(await r.estado.getState(r.rascunhos.draftKey(UM_PEDIDO.id))).toBeNull();
+    } finally {
+      vi.doUnmock("./quotes-store");
+    }
+  });
+
   it("se o apagar falha sem nada ter saído, não fica entrada nenhuma", async () => {
     vi.doMock("./quotes-store", async () => {
       const real = await vi.importActual<typeof import("./quotes-store")>("./quotes-store");

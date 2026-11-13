@@ -69,7 +69,19 @@ export interface ResultadoDoApagamento {
   };
   /** O que ficou para trás, em linguagem de quem vai ler o registo. */
   falhou: string[];
+  /**
+   * O que SAIU, pelo id (as chaves, nos rascunhos). Um apagar que pára a meio
+   * deixa na Reciclagem só isto — e não o retrato inteiro, que repunha por
+   * cima do pedido vivo o que nunca tinha saído (revisão de 13/11).
+   */
+  saiu: { propostas: string[]; tarefas: string[]; rascunhos: string[] };
 }
+
+const nadaSaiu = () => ({
+  propostas: [] as string[],
+  tarefas: [] as string[],
+  rascunhos: [] as string[],
+});
 
 const VAZIO = { propostas: 0, fotos: 0, rascunhos: 0, tarefas: 0 };
 
@@ -88,13 +100,21 @@ export async function apagarPedidoSemContrato(
   opcoes: { fotos?: boolean } = {},
 ): Promise<ResultadoDoApagamento> {
   const id = String(pedidoId ?? "").trim();
-  if (!id) return { apagado: false, motivo: "nao-existe", contou: { ...VAZIO }, falhou: [] };
+  if (!id)
+    return {
+      apagado: false,
+      motivo: "nao-existe",
+      contou: { ...VAZIO },
+      falhou: [],
+      saiu: nadaSaiu(),
+    };
 
   const contou = { ...VAZIO };
   const falhou: string[] = [];
+  const saiu = nadaSaiu();
 
   const pedido = await getQuote(id);
-  if (!pedido) return { apagado: false, motivo: "nao-existe", contou, falhou };
+  if (!pedido) return { apagado: false, motivo: "nao-existe", contou, falhou, saiu };
 
   /**
    * ── O CONTRATO MANDA PARAR ──────────────────────────────────────────────
@@ -111,14 +131,14 @@ export async function apagarPedidoSemContrato(
   try {
     const contratos = await listContracts();
     if (contratos.some((c) => (c.quoteId ?? "").trim() === id)) {
-      return { apagado: false, motivo: "tem-contrato", contou, falhou };
+      return { apagado: false, motivo: "tem-contrato", contou, falhou, saiu };
     }
   } catch (e) {
     falhou.push("não consegui verificar se este pedido tem contrato");
     log.error("apagar-pedido: leitura dos contratos falhou — não se apaga nada", e, {
       pedido: id,
     });
-    return { apagado: false, motivo: "tem-contrato", contou, falhou };
+    return { apagado: false, motivo: "tem-contrato", contou, falhou, saiu };
   }
 
   // ── As propostas, que é onde estão os dados pessoais a mais ──────────────
@@ -128,6 +148,7 @@ export async function apagarPedidoSemContrato(
       try {
         await deleteProposal(p.id);
         contou.propostas++;
+        saiu.propostas.push(p.id);
       } catch (e) {
         falhou.push(`a proposta ${p.id} não foi apagada`);
         log.error("apagar-pedido: proposta não apagada", e, { pedido: id, proposta: p.id });
@@ -150,6 +171,7 @@ export async function apagarPedidoSemContrato(
       try {
         await deleteTask(t.id);
         contou.tarefas++;
+        saiu.tarefas.push(t.id);
       } catch (e) {
         falhou.push(`a tarefa ${t.id} não foi apagada`);
         log.error("apagar-pedido: tarefa não apagada", e, { pedido: id, tarefa: t.id });
@@ -203,8 +225,10 @@ export async function apagarPedidoSemContrato(
       // é a de quem vai escrever: se falhar, lança, e diz-se que ficou.
       if ((await getState(draftKey(chave), { ouFalha: true })) == null) continue;
       const r = await clearProposalDraft(chave);
-      if (r.gravado) contou.rascunhos++;
-      else falhou.push(`o rascunho ${chave} não foi limpo`);
+      if (r.gravado) {
+        contou.rascunhos++;
+        saiu.rascunhos.push(chave);
+      } else falhou.push(`o rascunho ${chave} não foi limpo`);
     } catch (e) {
       falhou.push(`o rascunho ${chave} não foi limpo`);
       log.error("apagar-pedido: rascunho não limpo", e, { pedido: id, chave });
@@ -217,7 +241,7 @@ export async function apagarPedidoSemContrato(
   } catch (e) {
     falhou.push("o pedido em si não foi apagado");
     log.error("apagar-pedido: o pedido não foi apagado", e, { pedido: id });
-    return { apagado: false, contou, falhou };
+    return { apagado: false, contou, falhou, saiu };
   }
 
   log.info("pedido apagado por completo", {
@@ -228,5 +252,5 @@ export async function apagarPedidoSemContrato(
     tarefas: contou.tarefas,
     ficou_por_apagar: falhou.length,
   });
-  return { apagado: true, contou, falhou };
+  return { apagado: true, contou, falhou, saiu };
 }
