@@ -5677,9 +5677,14 @@ export default function ProposalStudio({
     lqip?: string | null,
     mid?: File | null,
   ): Promise<{ path: string; url: string; thumbUrl?: string; cor?: string }> {
+    // UMA chave por foto, gerada aqui e repetida na segunda tentativa: se a
+    // primeira chegou e só a resposta se perdeu, o servidor reconhece-a e não
+    // guarda um segundo ficheiro (auditoria de 13/11, estúdio n.º 18).
+    const chave = crypto.randomUUID();
     const post = () => {
       const form = new FormData();
       form.append("files", file);
+      form.append("chaves", chave);
       // O LQIP — a mancha de cor que ocupa a célula enquanto a fotografia não
       // chega. Sai da MESMA descodificação que já calculou a cor e a miniatura
       // (`image-prep`), portanto não custa nada, e sem ele a página do casal

@@ -32,6 +32,8 @@ const st = vi.hoisted(() => ({
   /** Cada `list`, com o que lhe foi pedido. */
   listagens: [] as { prefixo: string; limit?: number; offset?: number }[],
   log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+  /** O que já está no bucket — para o carregamento repetido (n.º 18). */
+  guardados: new Set<string>(),
 }));
 
 // O registo vive no `st` (e não num objecto novo a cada reposição de módulos)
@@ -47,6 +49,16 @@ vi.mock("./supabase", () => ({
       from: () => ({
         createSignedUrls: st.signed,
         createSignedUrl: st.signedOne,
+        upload: async (path: string) => {
+          if (st.guardados.has(path)) {
+            return {
+              data: null,
+              error: { statusCode: "409", message: "The resource already exists" },
+            };
+          }
+          st.guardados.add(path);
+          return { data: { path }, error: null };
+        },
         list: async (prefixo: string, opts?: { limit?: number; offset?: number }) => {
           st.listagens.push({ prefixo, limit: opts?.limit, offset: opts?.offset });
           const limite = opts?.limit ?? 100;
@@ -358,5 +370,27 @@ describe("apagarPastaDoPedido", () => {
     const { apagarPastaDoPedido } = await import("./proposal-storage");
     expect(await apagarPastaDoPedido("../")).toBe(false);
     expect(st.listagens).toEqual([]);
+  });
+});
+
+describe("uploadProposalImage — a mesma foto, repetida depois de a rede falhar (13/11, n.º 18)", () => {
+  it("com a mesma chave vai para o MESMO caminho, e a segunda vez usa o ficheiro que lá está", async () => {
+    st.guardados.clear();
+    st.signedOne.mockResolvedValue({ data: { signedUrl: "https://x/assinado" }, error: null });
+    const { uploadProposalImage } = await load();
+    const chave = "6f1c2b9e-3a4d-4b8e-9c1f-2a3b4c5d6e7f";
+    const a = await uploadProposalImage("q1", Buffer.from("x"), "image/jpeg", chave);
+    const b = await uploadProposalImage("q1", Buffer.from("x"), "image/jpeg", chave);
+    expect(a?.path).toBe(`q1/${chave}.jpg`);
+    expect(b?.path).toBe(a?.path);
+    expect(st.guardados.size).toBe(1);
+  });
+
+  it("sem chave (ou com uma chave estranha) continua a ser um nome novo", async () => {
+    st.guardados.clear();
+    st.signedOne.mockResolvedValue({ data: { signedUrl: "https://x/assinado" }, error: null });
+    const { uploadProposalImage } = await load();
+    const a = await uploadProposalImage("q1", Buffer.from("x"), "image/jpeg", "../../outra");
+    expect(a?.path).toMatch(/^q1\/[0-9a-f-]{36}\.jpg$/);
   });
 });
