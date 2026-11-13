@@ -321,11 +321,28 @@ describe("Painel do pedido — o que se escreve grava-se sozinho", () => {
     await passar(ATRASO_DA_GRAVACAO + 50);
 
     const corpo = gravacoes[0].corpo;
-    expect(Object.keys(corpo).filter((k) => k !== "activityLogAppend")).toEqual(["adminNotes"]);
+    expect(Object.keys(corpo).filter((k) => k !== "activityLogAppend" && k !== "base")).toEqual([
+      "adminNotes",
+    ]);
     expect(corpo).not.toHaveProperty("status");
     expect(corpo).not.toHaveProperty("quotedPrice");
     expect(corpo).not.toHaveProperty("assignedTo");
     expect(corpo).not.toHaveProperty("guests");
+  });
+
+  /**
+   * N.º 3 da auditoria de 13/11: as notas iam sem `base`, fora da conferência
+   * do 409, e duas pessoas no mesmo pedido apagavam-se uma à outra. A gravação
+   * passa a dizer de que texto partiu.
+   */
+  it("as notas levam o texto de onde partiram, para o servidor recusar se mudou", async () => {
+    montar(makeQuote({ adminNotes: "o que estava" }));
+    await abrirPedido();
+
+    fireEvent.change(notas(), { target: { value: "o que estava e mais isto" } });
+    await passar(ATRASO_DA_GRAVACAO + 50);
+
+    expect(gravacoes[0].corpo.base).toEqual({ adminNotes: "o que estava" });
   });
 
   it("escrever seguido não paga um pedido por tecla", async () => {

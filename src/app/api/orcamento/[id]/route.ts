@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Proposal, Quote } from "@/lib/orcamento/types";
 import { transicaoDoPedido, type AcontecimentoDoPedido } from "@/lib/orcamento/estado-do-pedido";
 import { ehMotivoDeRecusa } from "@/lib/orcamento/desfecho";
-import { getQuote, updateQuote } from "@/lib/quotes-store";
+import { getQuote, updateQuote, updateQuoteWith } from "@/lib/quotes-store";
+import { respostaDeConflito } from "@/lib/resposta-de-conflito";
 import type { ResultadoDoApagamento } from "@/lib/apagar-pedido";
 import { NaoDeuParaApagar, enviarComDetalhe, quemApagou } from "@/lib/reciclagem";
 import {
@@ -276,6 +277,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     "mapaDeMesas",
   ] as const;
   const aConferir = COLECCOES_INTEIRAS.filter((campo) => campo in picked && campo in base);
+  /**
+   * As notas internas são TEXTO, não uma lista — mas o problema é o mesmo: a
+   * gravação automática manda o texto inteiro, e duas pessoas com o mesmo
+   * pedido aberto escreviam uma por cima da outra sem aviso (a de ontem
+   * voltava a aparecer, a de hoje desaparecia). O ecrã passa a mandar em
+   * `base.adminNotes` o texto que leu do servidor; se o que está guardado já
+   * não é esse, recusa com 409 como as listas. Sem `base`, grava como sempre.
+   */
+  const textosAConferir = (["adminNotes"] as const).filter(
+    (campo) => campo in picked && campo in base,
+  );
 
   /**
    * O texto livre do motivo de perda — não é campo do PEDIDO, é campo da
@@ -314,6 +326,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
    */
   const estadoEscolhidoAMao = "status" in picked;
 
+  /** Os campos cuja base mandada já não é a que está guardada em `fresco`. */
+  const camposMexidos = (fresco: Quote): string[] => {
+    const gravado = fresco as unknown as Record<string, unknown>;
+    const igual = (a: unknown, b: unknown) =>
+      JSON.stringify(canonizar(a ?? [])) === JSON.stringify(canonizar(b ?? []));
+    const listas = aConferir.filter((campo) => !igual(base[campo], gravado[campo]));
+    const textos = textosAConferir.filter(
+      (campo) => String(base[campo] ?? "") !== String(gravado[campo] ?? ""),
+    );
+    return [...listas, ...textos];
+  };
+
   try {
     // Merge appends onto the FRESH stored log, server-side. Clients used to
     // send the whole recomputed array; two tools saving near-simultaneously
@@ -326,45 +350,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       !estadoEscolhidoAMao && ("payments" in picked || "contractRef" in picked);
     // Os contactos conferem-se contra o que está gravado (ver lá em baixo).
     const mexeNosContactos = "phone" in updates || "email" in updates;
-    const precisaDoActual =
-      querAppend || podeMudarEstado || aConferir.length > 0 || mexeNosContactos;
-    const current = precisaDoActual ? await getQuote(id) : null;
-    if (precisaDoActual && !current) {
+    const current = mexeNosContactos ? await getQuote(id) : null;
+    if (mexeNosContactos && !current) {
       return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
-    }
-
-    /**
-     * A CONFERÊNCIA DA BASE — ver o comentário longo lá em cima.
-     *
-     * Só recusa quando o ecrã DIZ de onde copiou e essa base já não é a que
-     * está guardada. Um cliente que não mande `base` continua a gravar como
-     * sempre gravou: isto acrescenta uma protecção a quem a pede, e não parte
-     * nada de quem ainda não a manda.
-     */
-    if (current && aConferir.length > 0) {
-      const igual = (a: unknown, b: unknown) =>
-        JSON.stringify(canonizar(a ?? [])) === JSON.stringify(canonizar(b ?? []));
-      const mexido = aConferir.filter(
-        (campo) => !igual(base[campo], (current as unknown as Record<string, unknown>)[campo]),
-      );
-      if (mexido.length > 0) {
-        log.warn("orcamento PATCH: gravação recusada, a lista mudou por baixo", {
-          id,
-          campos: mexido,
-        });
-        return NextResponse.json(
-          {
-            error:
-              "Isto foi alterado noutro sítio depois de este ecrã ter aberto. " +
-              "Recarrega para veres o que está guardado — o que escreveste está aqui em baixo.",
-            /** O que o servidor tem AGORA, para o ecrã se pôr em dia. */
-            current,
-            /** O que esta gravação queria escrever, para não se perder na recusa. */
-            submetido: picked,
-          },
-          { status: 409 },
-        );
-      }
     }
 
     /**
@@ -411,13 +399,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
-    if (current && querAppend) {
-      (updates as Partial<Quote>).activityLog = [
-        ...(current.activityLog ?? []),
-        ...(activityLogAppend ?? []),
-      ].slice(-5000);
-    }
-
     /**
      * ════════════════════════════════════════════════════════════════════════
      * REGISTAR UM PAGAMENTO OU UM CONTRATO É DIZER QUE O TRABALHO É NOSSO
@@ -442,32 +423,73 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
      * Tudo em melhor esforço: guardar um pagamento tem de resultar mesmo que a
      * conta do estado rebente. O que se perde é a cor de uma coluna.
      */
-    if (current && podeMudarEstado) {
-      try {
-        const aconteceu = acontecimentoDoPatch(current, updates);
-        const transicao = aconteceu
-          ? transicaoDoPedido({
-              acontecimento: aconteceu.acontecimento,
-              estadoActual: current.status,
-              detalhe: aconteceu.detalhe,
-            })
-          : null;
-        if (transicao) {
-          (updates as Partial<Quote>).status = transicao.status;
-          (updates as Partial<Quote>).activityLog = [
-            ...((updates as Partial<Quote>).activityLog ?? current.activityLog ?? []),
-            transicao.entrada,
-          ].slice(-5000);
-        }
-      } catch (e) {
-        log.error("orcamento PATCH: transição automática de estado falhou", e, { id });
-      }
-    }
+    /**
+     * ── TUDO O QUE DEPENDE DO QUE ESTÁ GRAVADO, DENTRO DA MESMA ESCRITA ──
+     *
+     * A conferência da base, o acrescento ao histórico e a transição
+     * automática eram feitos sobre uma leitura SEPARADA da escrita. Entre as
+     * duas cabia outra gravação: dois PATCH ao mesmo tempo liam o mesmo
+     * histórico, e o segundo apagava a linha do primeiro (e a mudança de
+     * estado que vinha com ela); dois pagamentos ao mesmo tempo passavam os
+     * dois a conferência da base, e o segundo escrevia por cima do primeiro.
+     *
+     * Agora correm DENTRO do `updateQuoteWith`: cada volta parte do pedido tal
+     * como está, e o bloqueio optimista do repositório relê e volta a aplicar
+     * quando alguém escreveu no meio. Na volta repetida, a base já não bate e
+     * a gravação é recusada com 409 — em vez de passar por cima.
+     *
+     * A conferência da base (ver o comentário longo lá em cima) só recusa
+     * quando o ecrã DIZ de onde copiou e essa base já não é a que está
+     * guardada. Um cliente que não mande `base` continua a gravar como sempre
+     * gravou.
+     */
+    const precisaDoActual =
+      querAppend || podeMudarEstado || aConferir.length > 0 || textosAConferir.length > 0;
 
-    const updated = await updateQuote(id, updates);
+    let estadoDaTransicao: Quote["status"] | undefined;
+    let updated: Quote | null;
+    if (precisaDoActual) {
+      updated = await updateQuoteWith(id, (fresco) => {
+        estadoDaTransicao = undefined;
+        const mexido = camposMexidos(fresco);
+        if (mexido.length > 0) throw new BaseUltrapassada(fresco, mexido);
+
+        const proximo: Quote = { ...fresco, ...updates };
+        if (querAppend) {
+          proximo.activityLog = [...(fresco.activityLog ?? []), ...(activityLogAppend ?? [])].slice(
+            -5000,
+          );
+        }
+        if (podeMudarEstado) {
+          try {
+            const aconteceu = acontecimentoDoPatch(fresco, updates);
+            const transicao = aconteceu
+              ? transicaoDoPedido({
+                  acontecimento: aconteceu.acontecimento,
+                  estadoActual: fresco.status,
+                  detalhe: aconteceu.detalhe,
+                })
+              : null;
+            if (transicao) {
+              estadoDaTransicao = transicao.status;
+              proximo.status = transicao.status;
+              proximo.activityLog = [...(proximo.activityLog ?? []), transicao.entrada].slice(
+                -5000,
+              );
+            }
+          } catch (e) {
+            log.error("orcamento PATCH: transição automática de estado falhou", e, { id });
+          }
+        }
+        return proximo;
+      });
+    } else {
+      updated = await updateQuote(id, updates);
+    }
     if (!updated) {
       return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
     }
+    if (estadoDaTransicao) (updates as Partial<Quote>).status = estadoDaTransicao;
 
     /**
      * GANHO À MÃO É GANHO À MESMA — E A PRODUÇÃO ARRANCA PREENCHIDA.
@@ -577,8 +599,46 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     return NextResponse.json(updated);
   } catch (err) {
+    if (err instanceof BaseUltrapassada) {
+      log.warn("orcamento PATCH: gravação recusada, a lista mudou por baixo", {
+        id,
+        campos: err.campos,
+      });
+      return NextResponse.json(
+        {
+          error:
+            "Isto foi alterado noutro sítio depois de este ecrã ter aberto. " +
+            "Recarrega para veres o que está guardado — o que escreveste está aqui em baixo.",
+          /** O que o servidor tem AGORA, para o ecrã se pôr em dia. */
+          current: err.current,
+          /** O que esta gravação queria escrever, para não se perder na recusa. */
+          submetido: picked,
+        },
+        { status: 409 },
+      );
+    }
+    // Três voltas do bloqueio optimista sem conseguir: é gente a gravar o
+    // mesmo pedido ao mesmo tempo, e diz-se com 409 e as duas versões — não
+    // com um «Erro interno» que convida a carregar outra vez por cima.
+    const conflito = respostaDeConflito(err);
+    if (conflito) return conflito;
     log.error("orcamento PATCH falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  }
+}
+
+/**
+ * A base que o ecrã mandou já não é a que está guardada. Lançada de dentro do
+ * `updateQuoteWith` para parar a escrita sem repetir (não é um `ConflictError`:
+ * repetir dava sempre o mesmo) e apanhada no `catch` da rota, que responde 409.
+ */
+class BaseUltrapassada extends Error {
+  constructor(
+    readonly current: Quote,
+    readonly campos: string[],
+  ) {
+    super("base ultrapassada");
+    this.name = "BaseUltrapassada";
   }
 }
 

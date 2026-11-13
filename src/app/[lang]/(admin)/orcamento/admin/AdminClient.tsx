@@ -2303,7 +2303,12 @@ export default function AdminClient({
         };
       }
       const corpo: Record<string, unknown> = {};
-      if (v.adminNotes !== base.adminNotes) corpo.adminNotes = v.adminNotes;
+      if (v.adminNotes !== base.adminNotes) {
+        corpo.adminNotes = v.adminNotes;
+        // O texto tal como foi lido do servidor: se a colega gravou outras
+        // notas entretanto, o servidor recusa com 409 em vez de as apagar.
+        corpo.base = { adminNotes: base.adminNotes };
+      }
       if (v.lostReason !== null && v.lostReason !== base.lostReason) {
         corpo.lostReason = v.lostReason || null;
       }
@@ -3950,7 +3955,16 @@ export default function AdminClient({
       const body: Record<string, unknown> = {};
       if (editStatus !== selected.status) body.status = editStatus;
       if (newPrice !== (selected.quotedPrice ?? undefined)) body.quotedPrice = newPrice ?? null;
-      if (editNotes !== (selected.adminNotes ?? "")) body.adminNotes = editNotes;
+      if (editNotes !== (selected.adminNotes ?? "")) {
+        body.adminNotes = editNotes;
+        // Como na gravação automática: o texto de onde partiu, para o servidor
+        // recusar com 409 se outra pessoa gravou notas entretanto.
+        const lido = escritoNoServidor.current;
+        body.base = {
+          adminNotes:
+            lido && lido.id === selected.id ? lido.adminNotes : (selected.adminNotes ?? ""),
+        };
+      }
       if (editAssigned !== (selected.assignedTo ?? "")) {
         body.assignedTo = editAssigned.trim() || null;
       }
