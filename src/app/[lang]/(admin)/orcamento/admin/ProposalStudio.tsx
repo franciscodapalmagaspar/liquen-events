@@ -4056,6 +4056,11 @@ export default function ProposalStudio({
     setPrecoAGravar(true);
     try {
       const r = await mandarPrecoAoPedido(quote.id, base);
+      // Auditoria de 13/11 (estúdio, n.º 10): uma resposta ATRASADA — ela já
+      // escreveu outro valor, que entretanto partiu — não pode voltar ao ecrã:
+      // o pedido com o preço antigo fazia a sincronização saltar o campo a meio
+      // da escrita. Só a resposta do último valor enviado conta.
+      if (base !== (precoEnviado.current ?? null)) return;
       if (r.estado === "gravado") {
         setPrecoPorChegar(null);
         // `quote` pode faltar num 200 de corpo ilegível — ver `ResultadoDoPreco`.

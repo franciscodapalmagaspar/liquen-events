@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { describe } from "../../../../../../test/em-partes";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { ToastProvider } from "./Toast";
 import ProposalStudio, {
   avisoDeConteudoIncompleto,
@@ -4336,6 +4337,56 @@ describe("desfazer", () => {
     // E outra vez: volta ao que estava ao abrir (a primeira mudança).
     await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
     await waitFor(() => expect(local.value).toBe(antes));
+  });
+
+  it("uma resposta ATRASADA do preço não volta ao ecrã por cima do que ela escreveu depois (n.º 10)", async () => {
+    const original = global.fetch;
+    let soltarPrimeira!: () => void;
+    const portao = new Promise<void>((r) => (soltarPrimeira = r));
+    let n = 0;
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const corpo = String(init?.body ?? "");
+      if (init?.method === "PATCH" && corpo.includes("quotedPrice")) {
+        const { quotedPrice } = JSON.parse(corpo) as { quotedPrice: number | null };
+        n += 1;
+        if (n === 1) await portao;
+        return new Response(JSON.stringify({ ...quote, quotedPrice }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return original(url, init);
+    }) as typeof fetch;
+    function ComPedido() {
+      const [q, setQ] = useState<Quote>(quote);
+      return (
+        <ToastProvider>
+          <ProposalStudio quote={q} onQuoteUpdated={setQ} />
+        </ToastProvider>
+      );
+    }
+    try {
+      render(<ComPedido />);
+      const user = userEvent.setup();
+      const valor = (await screen.findByLabelText(/Valor \(sem IVA\)/)) as HTMLInputElement;
+      await user.clear(valor);
+      await user.type(valor, "7000");
+      await waitFor(() => expect(n).toBe(1), { timeout: 3000 });
+      await user.clear(valor);
+      await user.type(valor, "8000");
+      await waitFor(() => expect(n).toBe(2), { timeout: 3000 });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 200));
+      });
+      // Só agora chega a resposta do 7000.
+      soltarPrimeira();
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 500));
+      });
+      expect(parseMoneyText(valor.value)).toBe(8000);
+    } finally {
+      global.fetch = original;
+    }
   });
 
   it("desfazer um preço também o devolve ao PEDIDO (e não só ao ecrã)", async () => {
