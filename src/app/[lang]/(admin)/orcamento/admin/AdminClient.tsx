@@ -72,6 +72,7 @@ import CommandPalette, { type Command } from "./CommandPalette";
 import ShortcutsModal from "./ShortcutsModal";
 import AjudaGlossario from "./AjudaGlossario";
 import NewQuoteModal from "./NewQuoteModal";
+import ImportarProposta from "./ImportarProposta";
 import RestoreDialog from "./RestoreDialog";
 import PasskeysDialog from "./PasskeysDialog";
 import SessaoExpirada from "./SessaoExpirada";
@@ -1637,6 +1638,7 @@ export default function AdminClient({
   );
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [newQuoteOpen, setNewQuoteOpen] = useState(false);
+  const [importarOpen, setImportarOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [passkeysOpen, setPasskeysOpen] = useState(false);
@@ -4909,6 +4911,20 @@ export default function AdminClient({
           open={newQuoteOpen}
           onClose={() => setNewQuoteOpen(false)}
           existingQuotes={quotes}
+          onCreated={(q) => {
+            setQuotes((prev) => [q, ...prev]);
+            abrirCliente(q);
+          }}
+          onImportar={() => {
+            setNewQuoteOpen(false);
+            setImportarOpen(true);
+          }}
+        />
+        {/* Uma proposta antiga (Word/PowerPoint) → o pedido e o rascunho, e
+            abre no «Fazer proposta» pela mesma porta do «Novo pedido». */}
+        <ImportarProposta
+          open={importarOpen}
+          onClose={() => setImportarOpen(false)}
           onCreated={(q) => {
             setQuotes((prev) => [q, ...prev]);
             abrirCliente(q);
