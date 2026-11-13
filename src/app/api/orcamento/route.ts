@@ -131,7 +131,21 @@ function mensagemDeValidacao(err: ZodError, locale: Locale): string {
     const regra = (issue as { params?: { regra?: string } }).params?.regra;
     if (regra === "email-obrigatorio") return to.errEmailObrigatorio;
     if (regra === "telefone") return to.errTelefone;
-    return to.errContacto;
+    // A data tem as suas frases. Antes caía aqui em baixo, na dos contactos, e
+    // quem enviava uma data passada lia «Indique um email ou um telemóvel» com
+    // os dois já preenchidos (achado n.º 2 da auditoria 6).
+    if (regra === "data-invalida") return to.errDataInvalida;
+    if (regra === "data-passada") return to.errDataPassada;
+    if (regra === "data-fim") return to.errDataFim;
+    if (regra === "contacto") return to.errContacto;
+    // Uma regra nova sem frase própria não pode fingir ser a dos contactos.
+    return rotulo
+      ? en
+        ? `Please check the “${rotulo}” field.`
+        : `Verifique o campo «${rotulo}».`
+      : en
+        ? "We couldn't read your request. Please check the fields and try again."
+        : "Não foi possível ler o seu pedido. Verifique os campos e tente novamente.";
   }
 
   if (issue?.code === "too_big" && typeof issue.maximum === "number") {

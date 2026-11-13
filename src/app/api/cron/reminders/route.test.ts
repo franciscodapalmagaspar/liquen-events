@@ -233,6 +233,28 @@ describe("GET /api/cron/reminders — digest logic (clock pinned 2026-07-20)", (
     expect(push.body).toContain("1 pedido por responder");
   });
 
+  // Revisão de 13/11 (achado n.º 8): uma mensagem que não saiu não é resposta
+  // — o resumo da manhã usa a mesma regra dos lembretes do ecrã.
+  it("um pedido cuja única mensagem não saiu continua por responder", async () => {
+    data.quotes = [
+      {
+        ...awaitingQuote(),
+        messages: [{ at: "2026-07-18T09:00:00.000Z", body: "x", emailed: false }],
+      },
+      {
+        ...awaitingQuote(),
+        id: "q-respondido",
+        messages: [{ at: "2026-07-18T09:00:00.000Z", body: "y" }],
+      },
+    ];
+    await GET(req());
+    const push = (sendPushToAll as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0][0] as {
+      body: string;
+    };
+    expect(push.body).toContain("1 pedido por responder");
+  });
+
   it("flags follow-ups due today/overdue on active deals only", async () => {
     data.quotes = [
       { id: "a", name: "Ativo", followUpAt: "2026-07-20", status: "pendente" }, // due today

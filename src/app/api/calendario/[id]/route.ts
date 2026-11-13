@@ -4,6 +4,8 @@ import { enviarParaAReciclagem, quemApagou } from "@/lib/reciclagem";
 import { log } from "@/lib/logger";
 import { moverCalendarEvent } from "@/lib/calendar-store";
 import { isConflictError } from "@/lib/repository";
+import { dataIso } from "@/lib/validation";
+import { minutosDe } from "@/lib/orcamento/guiao-do-dia";
 
 export const runtime = "nodejs";
 
@@ -37,13 +39,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
   }
-  const date = String((body as Record<string, unknown>).date ?? "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T12:00:00Z`))) {
+  // `dataIso` e não `Date.parse`: «2027-02-30» dá 2 de março no `Date.parse`,
+  // passava a guarda, e o Postgres recusava-o com um 500 (achado n.º 15).
+  const date = dataIso((body as Record<string, unknown>).date);
+  if (!date) {
     return NextResponse.json({ error: "Data inválida" }, { status: 400 });
   }
   const temHora = "time" in body;
   const time = temHora ? String((body as Record<string, unknown>).time ?? "").trim() : undefined;
-  if (time && !/^\d{2}:\d{2}$/.test(time)) {
+  // «24:99» também tinha a forma certa.
+  if (time && minutosDe(time) === null) {
     return NextResponse.json({ error: "Hora inválida" }, { status: 400 });
   }
   try {
