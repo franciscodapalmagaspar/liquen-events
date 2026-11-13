@@ -390,12 +390,10 @@ describe("auditoria de 13/11: a cópia grande demais, as caches, as leituras rep
     expect(st.leiturasDosPedidos).toBe(0);
   });
 
-  it("n.º 13 — o aquecimento dos PDF recebe o tempo que a função ainda tem, não os 45 s antigos", async () => {
+  it("n.º 17 — o aquecimento recebe as propostas que a cópia já leu", async () => {
+    const propostas = [{ id: "p1" }];
+    st.payload = { ...st.payload, proposals: propostas };
     await GET(req("Bearer segredo"));
-    const opcoes = st.aquecimentoOpcoes[0] as { orcamentoMs?: number };
-    // Com a cópia e as limpezas a gastar mais de um minuto, 45 s nunca
-    // chegavam. O orçamento novo cabe dentro dos 300 s da função, com folga.
-    expect(opcoes.orcamentoMs).toBeGreaterThanOrEqual(120_000);
-    expect(opcoes.orcamentoMs).toBeLessThan(300_000);
+    expect(st.aquecimentoOpcoes[0]).toMatchObject({ propostas });
   });
 });

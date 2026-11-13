@@ -101,14 +101,6 @@ const TECTO_ANEXO = 20 * 1024 * 1024;
 const MB = (bytes: number) => (bytes / 1048576).toFixed(1);
 
 /**
- * O tempo que o aquecimento dos PDF tem, contado desde o arranque da função:
- * o `maxDuration` (300 s) menos 40 s de folga para a resposta sair. O
- * aquecimento pára sozinho quando sobram menos de 20 s, e o tecto de
- * propostas por noite (`TECTO_POR_NOITE`) não muda.
- */
-const ORCAMENTO_DO_AQUECIMENTO_MS = (300 - 40) * 1000;
-
-/**
  * ── AS CACHES, QUE SE LIMPAM SEMPRE ─────────────────────────────────────────
  *
  * O que aqui sai refaz-se sozinho ou não serve a ninguém: as fotos tratadas
@@ -498,23 +490,20 @@ async function GET_semMedida(request: NextRequest) {
     try {
       const { aquecerPdfsEmFalta } = await import("@/lib/aquecimento-de-pdf");
       /**
-       * O orçamento é o que a FUNÇÃO ainda tem, e não os 45 s por omissão
-       * (auditoria de 13/11, n.º 13). Esses 45 s contavam-se desde o arranque,
-       * e a cópia mais as limpezas (só as fotos tratadas têm 60 s) gastavam-nos
-       * quase sempre antes de aqui se chegar — o aquecimento saía «sem tempo»
-       * noite após noite. O tecto de propostas por noite continua o mesmo; o
-       * que muda é haver tempo para as fazer.
+       * As propostas vão as que a cópia já leu, quando a cópia as tem todas:
+       * sem isto, a mesma tabela era lida duas vezes na mesma noite
+       * (auditoria de 13/11, n.º 17).
        *
-       * E as propostas vão as que a cópia já leu, quando a cópia as tem todas:
-       * sem isto, a mesma tabela era lida duas vezes na mesma noite.
+       * O ORÇAMENTO de tempo fica o de sempre (45 s desde o arranque), e por
+       * isso o aquecimento quase nunca chega a correr (n.º 13). Alargá-lo é
+       * fácil, mas cada PDF aquecido fica guardado no armazenamento — vários
+       * MB, até seis por noite —, e o armazenamento está perto do tecto do
+       * plano gratuito. Fica para uma decisão dela, com o que sobra medido.
        */
       const propostas = falhados.includes("proposals")
         ? undefined
         : (payload.proposals as PropostaParaAquecer[] | undefined);
-      aquecimento = await aquecerPdfsEmFalta(Date.now() - arrancou, {
-        orcamentoMs: ORCAMENTO_DO_AQUECIMENTO_MS,
-        ...(propostas ? { propostas } : {}),
-      });
+      aquecimento = await aquecerPdfsEmFalta(Date.now() - arrancou, propostas ? { propostas } : {});
     } catch (e) {
       log.error("cron backup: o aquecimento dos PDF falhou (a cópia seguiu na mesma)", e, { dia });
     }
