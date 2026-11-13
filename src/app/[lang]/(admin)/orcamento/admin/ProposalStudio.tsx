@@ -5503,7 +5503,15 @@ export default function ProposalStudio({
           ? `Reposta a versão de ${sobreposto.quem}.`
           : "Reposta a versão que tinha sido substituída.",
       });
-      setDoc(recuperado as StudioDoc);
+      const reposto = recuperado as StudioDoc;
+      setDoc(reposto);
+      // O total também (auditoria de 13/11, estúdio n.º 13): o campo é estado à
+      // parte, e ficava com o valor da versão que se acabou de substituir — o
+      // campo dizia um número e o PDF saía com outro. E grava-se no pedido,
+      // como em `restaurarVersao`.
+      const base = baseDoDoc(reposto);
+      setTotalInput(typeof base === "number" && base > 0 ? textoDoTotal(base) : "");
+      persistirPreco(typeof base === "number" && base > 0 ? base : undefined, { doc: reposto });
       setSobreposto(null);
     } catch {
       toast("Não consegui abrir essa versão agora. Ela continua guardada.", "error");

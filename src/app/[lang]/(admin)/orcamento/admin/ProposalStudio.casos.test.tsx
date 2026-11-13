@@ -867,6 +867,34 @@ describe("o trabalho que uma gravação esmagou", () => {
     expect(await screen.findByDisplayValue("Cerimónia ao pôr do sol")).toBeTruthy();
   });
 
+  it("repor a versão da outra pessoa acerta também o TOTAL (auditoria 13/11, n.º 13)", async () => {
+    rascunhoSobreposto = {
+      doc: {
+        template: "decoracao",
+        ref: "a versão com outro valor",
+        serviceGroups: [{ letter: "a)", title: "Cerimónia ao pôr do sol", items: [] }],
+        moodBoards: [],
+        budgetItems: [],
+        coverImages: ["", ""],
+        totalAmount: 4321,
+      },
+      updatedAt: "2026-07-28T15:30:00.000Z",
+    };
+    gravacaoQueSobrepos();
+    semear();
+    renderStudio();
+    const user = userEvent.setup();
+    await mexerNoDocumento(user);
+    await screen.findByText(/A versão de Catarina ficou guardada/i, {}, { timeout: 4000 });
+    await user.click(screen.getByRole("button", { name: /Repor essa versão/i }));
+    await screen.findByDisplayValue("Cerimónia ao pôr do sol");
+    await waitFor(() =>
+      expect(
+        parseMoneyText((screen.getByLabelText(/Valor \(sem IVA\)/) as HTMLInputElement).value),
+      ).toBeCloseTo(4321 / 1.23, 2), // o campo é o valor SEM IVA
+    );
+  });
+
   it("repor pode ser anulado — é um gesto que substitui o documento", async () => {
     rascunhoSobreposto = {
       doc: {
