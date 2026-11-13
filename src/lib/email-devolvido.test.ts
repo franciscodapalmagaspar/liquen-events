@@ -37,10 +37,7 @@ describe("ultimoEnvio", () => {
           summary: "Mapa de mesas enviado por email a quinta@exemplo.pt",
         },
       ],
-      messages: [
-        { at: "2026-11-09T22:26:00Z", body: "Não saiu", emailed: false },
-        { at: "2026-11-09T22:27:00Z", body: "Antiga, sem o campo" },
-      ],
+      messages: [{ at: "2026-11-09T22:26:00Z", body: "Não saiu", emailed: false }],
     };
     expect(ultimoEnvio(comRuido, [envio], AGORA)).toEqual({
       em: envio.enviadoEm,
@@ -57,6 +54,18 @@ describe("ultimoEnvio", () => {
     expect(ultimoEnvio(saiu, [envio], AGORA)).toEqual({
       em: "2026-11-09T22:28:00Z",
       para: "ana@x.pt",
+    });
+  });
+  // Revisão de 13/11: as mensagens anteriores ao campo `emailed` contam como
+  // saídas (a regra de `mensagemSaiu`), para o email do pedido.
+  it("uma mensagem antiga, sem o campo `emailed`, conta como enviada para o email do pedido", () => {
+    const antiga = {
+      ...pedido,
+      messages: [{ at: "2026-11-09T22:27:00Z", body: "Antiga, sem o campo" }],
+    };
+    expect(ultimoEnvio(antiga, [envio], AGORA)).toEqual({
+      em: "2026-11-09T22:27:00Z",
+      para: pedido.email,
     });
   });
   it("sem envio nos últimos 7 dias não há nada a verificar (não se lê a caixa)", () => {

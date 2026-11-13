@@ -71,6 +71,9 @@ export function ultimoEnvio(
   }
   for (const m of quote.messages ?? []) {
     if (m.emailed === true && m.para) todos.push({ em: m.at, para: m.para });
+    // As mensagens anteriores ao campo `emailed` contam como saídas, para o
+    // email do pedido — a mesma regra de `mensagemSaiu` (revisão de 13/11).
+    else if (m.emailed === undefined) todos.push({ em: m.at, para: quote.email ?? "" });
   }
   let ultimo: Envio | null = null;
   for (const e of todos) {
