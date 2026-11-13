@@ -204,6 +204,31 @@ export function paidTotal(quote: Quote): number {
 }
 
 /**
+ * Folga do arredondamento: meio euro não deixa um cliente «por pagar». Era a
+ * folga do quadro das Cobranças, e é a que cobre o cêntimo (ou dois) que o
+ * Moloni soma a mais ou a menos ao calcular o IVA linha a linha.
+ */
+export const FOLGA_DO_PAGO = 0.5;
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * «ESTÁ PAGO» — UM CRITÉRIO SÓ
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Auditoria do dinheiro (13/11, n.os 2 e 5): havia três. O dossiê dava o saldo
+ * por pago com QUALQUER linha de saldo recebida (um saldo pago em parte fechava
+ * o evento); o quadro das Cobranças aceitava meio euro de folga; o painel de
+ * Pagamentos exigia o zero exacto — e com o cêntimo do Moloni nunca dizia
+ * «tudo recebido».
+ *
+ * Fica o do quadro, que já existia: há um valor a receber, e o recebido chega
+ * a ele a menos de {@link FOLGA_DO_PAGO}.
+ */
+export function estaTudoPago(total: number, pago: number): boolean {
+  return total > 0 && pago >= total - FOLGA_DO_PAGO;
+}
+
+/**
  * Máquina de estados do Dossier. Calcula os booleanos e escolhe a fase mais
  * avançada alcançada (primeira coincidência ganha, topo = mais avançado).
  * A implementação segue à letra a tabela do plano.
@@ -236,9 +261,15 @@ export function deriveStage(d: DossierData, today: Date = new Date()): EventStag
   // nunca rotule a última parcela como «saldo». Um evento já realizado e
   // integralmente pago mas com as parcelas todas rotuladas «pagamento» ficaria
   // preso em `em_producao` para sempre e acumulava no quadro, ano após ano.
+  //
+  // Com um total conhecido, «saldo pago» é o critério único da casa
+  // (`estaTudoPago`): um saldo pago só em PARTE já não fecha o evento
+  // (auditoria de 13/11, n.º 5). Sem total nenhum, não há com que comparar, e
+  // vale a linha de saldo recebida, como sempre.
   const saldoPago =
-    (quote.payments ?? []).some((p) => p.kind === "saldo" && p.paid && p.amount > 0) ||
-    (contracted > 0 && pago >= round2(contracted));
+    contracted > 0
+      ? estaTudoPago(contracted, pago)
+      : (quote.payments ?? []).some((p) => p.kind === "saldo" && p.paid && p.amount > 0);
 
   const sinalPago = (quote.payments ?? []).some(
     (p) => p.kind === "sinal" && p.paid && p.amount > 0,

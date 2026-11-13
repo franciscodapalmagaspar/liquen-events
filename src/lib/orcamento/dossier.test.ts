@@ -181,7 +181,10 @@ describe("deriveStage", () => {
 
   it("concluido: event passed AND saldo paid", () => {
     const d = data({
-      quote: makeQuote({ date: "2026-07-01", payments: [pago({ kind: "saldo", amount: 14000 })] }),
+      quote: makeQuote({
+        date: "2026-07-01",
+        payments: [pago(), pago({ id: "pay2", kind: "saldo", amount: 14000 })],
+      }),
       proposal: makeProposal({ status: "aceite", total: 20000 }),
     });
     expect(deriveStage(d, TODAY)).toBe("concluido");
@@ -195,7 +198,7 @@ describe("deriveStage", () => {
     const d = data({
       quote: makeQuote({
         date: "2026-07-01T18:30:00Z",
-        payments: [pago({ kind: "saldo", amount: 14000 })],
+        payments: [pago(), pago({ id: "pay2", kind: "saldo", amount: 14000 })],
       }),
       proposal: makeProposal({ status: "aceite", total: 20000 }),
     });

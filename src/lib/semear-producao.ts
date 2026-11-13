@@ -7,7 +7,8 @@ import {
   chavesDeDatasJaGeradas,
   notaDeDataChaveGerada,
 } from "./calendar-store";
-import { getProposalByQuote } from "./proposals-store";
+import { listProposalsForQuote } from "./proposals-store";
+import { propostaQueConta, totalAPagarDaProposta } from "./orcamento/proposta-que-conta";
 import { rotularPontos } from "./orcamento/decoracao";
 import { listMaterial } from "./material-store";
 import { listLists } from "./material-lists-store";
@@ -17,7 +18,7 @@ import { gerarChecklist, type ContextoEvento } from "./material-rules";
 import { getForQuote, obterOuCriarParaPedido, updateEventMaterial } from "./event-material-store";
 import { listItemsOfEvent, addEventItem, removeItemsOfEvent } from "./event-material-items-store";
 import { depositPercentOf, hojeNoEstudio } from "./proposal-doc";
-import { totaisDaProposta } from "./proposal-budget";
+import { splitSinal } from "./money";
 import type { ChecklistItem, CalendarEventKind, Payment, Quote } from "./orcamento/types";
 import { prazoDoSaldo } from "./orcamento/cobrancas";
 
@@ -210,8 +211,17 @@ async function datasChaveEmFalta(
  *     nota — e preserva as linhas acrescentadas à MÃO (`origin === "manual"`).
  *     Só as linhas de origem "base"/"regra" são substituídas.
  */
+/**
+ * A proposta que conta para este pedido: a ACEITE, senão a última que seguiu
+ * para o casal — nunca a mais recente só por ser a mais recente, que pode ser
+ * um rascunho de revisão que o cliente nunca viu (auditoria de 13/11, n.º 3).
+ */
+async function propostaDoPedido(quoteId: string) {
+  return propostaQueConta(await listProposalsForQuote(quoteId));
+}
+
 async function contextoDeMaterial(quote: Quote): Promise<ContextoEvento> {
-  const proposta = await getProposalByQuote(quote.id);
+  const proposta = await propostaDoPedido(quote.id);
   return contextoDoEvento(quote, proposta?.doc?.serviceGroups ?? []);
 }
 
@@ -337,7 +347,8 @@ async function gerarMaterial(quote: Quote): Promise<{ linhas: number; preservada
  * SINAL E SALDO — O DINHEIRO É O DA PROPOSTA, NUNCA UMA CONTA NOVA
  * ════════════════════════════════════════════════════════════════════════════
  *
- * `dinheiroDaProposta` (via `totaisDaProposta`) e `depositPercentOf` são a
+ * `totalAPagarDaProposta` (o `dinheiroDaProposta` da versão escolhida),
+ * `splitSinal` e `depositPercentOf` são a
  * ÚNICA fonte — os mesmos que o PDF da proposta usou para imprimir "Sinal" e
  * "Saldo" ao casal. Nunca `resolveProposalMoney` sozinho (esse ignora os
  * valores adicionais) e nunca uma soma feita aqui.
@@ -355,13 +366,17 @@ async function pagamentosEmFalta(
   quote: Quote,
   quando: string,
 ): Promise<{ kind: "sinal" | "saldo"; amount: number; date: string }[]> {
-  const proposta = await getProposalByQuote(quote.id);
+  const proposta = await propostaDoPedido(quote.id);
   if (!proposta?.doc) return [];
   const pct = depositPercentOf(proposta.doc);
-  const totais = totaisDaProposta(proposta.doc, pct);
+  // O total da VERSÃO que o casal escolheu (a base, quando foi essa) — o mesmo
+  // que a faturação manda ao Moloni (auditoria de 13/11, n.º 1) — dividido
+  // pela regra de sempre (`splitSinal`).
+  const aPagar = totalAPagarDaProposta(proposta).total;
   // Sem total resolvido não há o que gerar — gerar sinal/saldo de zero euros
   // não é "um ponto de partida", é lixo no separador de Pagamentos.
-  if (!(totais.aPagar > 0)) return [];
+  if (!(aPagar > 0)) return [];
+  const totais = splitSinal(aPagar, pct);
 
   const existentes = new Set((quote.payments ?? []).map((p) => p.kind));
   const emFalta: { kind: "sinal" | "saldo"; amount: number; date: string }[] = [];

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Proposal, Quote } from "@/lib/orcamento/types";
 import { transicaoDoPedido, type AcontecimentoDoPedido } from "@/lib/orcamento/estado-do-pedido";
 import { ehMotivoDeRecusa } from "@/lib/orcamento/desfecho";
-import { getQuote, updateQuote } from "@/lib/quotes-store";
+import { getQuote, updateQuote, updateQuoteWith } from "@/lib/quotes-store";
 import type { ResultadoDoApagamento } from "@/lib/apagar-pedido";
 import { NaoDeuParaApagar, enviarComDetalhe, quemApagou } from "@/lib/reciclagem";
 import {
@@ -10,7 +10,9 @@ import {
   preverGeracaoDoEvento,
   gerarEventoAoGanhar,
 } from "@/lib/semear-producao";
-import { getProposalByQuote, updateProposal } from "@/lib/proposals-store";
+import { listProposalsForQuote, updateProposal } from "@/lib/proposals-store";
+import { propostaQueConta } from "@/lib/orcamento/proposta-que-conta";
+import { saldoQueSegueAData } from "@/lib/orcamento/cobrancas";
 import { desfazerCadeiaDoGanho, nascerContratoDoGanho } from "@/lib/contrato-do-ganho";
 import { isAuthed } from "@/lib/admin-auth";
 import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
@@ -326,8 +328,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       !estadoEscolhidoAMao && ("payments" in picked || "contractRef" in picked);
     // Os contactos conferem-se contra o que está gravado (ver lá em baixo).
     const mexeNosContactos = "phone" in updates || "email" in updates;
+    // A data do evento: o prazo do saldo previsto acompanha-a (ver lá em baixo).
+    const mexeNaData = "date" in updates;
     const precisaDoActual =
-      querAppend || podeMudarEstado || aConferir.length > 0 || mexeNosContactos;
+      querAppend || podeMudarEstado || aConferir.length > 0 || mexeNosContactos || mexeNaData;
     const current = precisaDoActual ? await getQuote(id) : null;
     if (precisaDoActual && !current) {
       return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
@@ -464,9 +468,34 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
-    const updated = await updateQuote(id, updates);
+    let updated = await updateQuote(id, updates);
     if (!updated) {
       return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+    }
+
+    /**
+     * O PRAZO DO SALDO ACOMPANHA A DATA DO EVENTO (auditoria de 13/11, n.º 7).
+     *
+     * O «Ganho» semeia o saldo previsto com o prazo de um mês antes do evento,
+     * e esse dia ficava gravado: mudava-se a data do casamento e o saldo
+     * continuava a vencer pela data antiga. Só se mexe na linha de saldo POR
+     * RECEBER cujo dia é exactamente o que a regra dava para a data antiga — uma
+     * data escrita à mão por ela, ou uma linha já paga, nunca se tocam
+     * (`saldoQueSegueAData`). Sobre o pedido FRESCO (`updateQuoteWith`), para não
+     * pisar um pagamento gravado entretanto; e em melhor esforço — a data já
+     * está guardada.
+     */
+    const dataAntiga = current?.date ?? "";
+    if (mexeNaData && current && updated.date !== dataAntiga && !("payments" in updates)) {
+      try {
+        const seguido = await updateQuoteWith(id, (q) => {
+          const payments = saldoQueSegueAData(q.payments ?? [], dataAntiga, q.date);
+          return payments ? { ...q, payments } : q;
+        });
+        if (seguido) updated = seguido;
+      } catch (e) {
+        log.error("orcamento PATCH: o prazo do saldo não acompanhou a data", e, { id });
+      }
     }
 
     /**
@@ -505,8 +534,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
      * «enviada» para sempre, a taxa de fecho ficava nula, e os casamentos
      * ganhos contavam como «ainda sem resposta».
      *
-     * Propaga-se para a proposta MAIS RECENTE do pedido (a mesma que o portal
-     * do cliente mostra — `getProposalByQuote`), em dois momentos:
+     * Propaga-se para a proposta QUE CONTA do pedido (`propostaQueConta`): a
+     * aceite, senão a última que seguiu para o casal. Nunca um rascunho por
+     * enviar — antes ia a mais recente, e marcar «Ganho» com uma revisão por
+     * enviar aceitava-a e fazia nascer o contrato de um documento que o
+     * cliente nunca viu (auditoria de 13/11, n.º 3). Em dois momentos:
      *
      *  1. `desfechoConfirmadoAgora` — ESTE PATCH é quem decide o desfecho, à
      *     mão ou pela transição automática de cima. Vai `status` e
@@ -537,7 +569,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (desfechoConfirmadoAgora || motivoAcrescentadoDepois) {
       try {
-        const proposta = await getProposalByQuote(id);
+        const proposta = propostaQueConta(await listProposalsForQuote(id));
         if (proposta) {
           const patchProposta: Partial<Proposal> = {};
           if (desfechoConfirmadoAgora) {

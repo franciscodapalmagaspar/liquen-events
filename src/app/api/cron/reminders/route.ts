@@ -10,6 +10,8 @@ import { gerarLoteDeDerivadas } from "@/lib/derivadas";
 import { eur0 as eur } from "@/lib/money";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
 import { comCpu } from "@/lib/medir-cpu";
+import { aVencerAte, cobrancaDoPedido, entraNasCobrancas } from "@/lib/orcamento/cobrancas";
+import { propostaParaCobrar } from "@/lib/orcamento/proposta-que-conta";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -178,15 +180,17 @@ async function oResumoDeHoje(request: NextRequest) {
         .map((e) => ({ date: e.date, label: e.title })),
     ].sort((a, b) => a.date.localeCompare(b.date));
 
-    // 2. Payments due (or overdue) within 7 days
+    // 2. Pagamentos a vencer (ou em atraso) nos próximos 7 dias — pela conta do
+    //    quadro das Cobranças, e não pelas linhas soltas (auditoria de 13/11,
+    //    n.º 4): só clientes aceites, o que FALTA de cada pagamento, e uma linha
+    //    prevista esquecida ao lado da paga já não conta para sempre.
     let dueCount = 0;
     let dueSum = 0;
-    for (const q of quotes) {
-      for (const p of q.payments ?? []) {
-        if (!p.paid && p.date && p.date <= in7) {
-          dueCount++;
-          dueSum += p.amount;
-        }
+    const propostasParaCobrar = allProposals.map(propostaParaCobrar);
+    for (const q of quotes.filter(entraNasCobrancas)) {
+      for (const p of aVencerAte(cobrancaDoPedido(q, propostasParaCobrar, todayKey), in7)) {
+        dueCount++;
+        dueSum += p.valor;
       }
     }
 

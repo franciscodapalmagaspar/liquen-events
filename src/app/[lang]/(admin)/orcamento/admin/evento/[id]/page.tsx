@@ -7,6 +7,7 @@ import { getQuote } from "@/lib/quotes-store";
 import { listProposalsForQuote } from "@/lib/proposals-store";
 import { getContractByProposal, getAcceptedContractByQuote } from "@/lib/contracts-store";
 import type { DossierData } from "@/lib/orcamento/dossier";
+import { totalAPagarDaProposta } from "@/lib/orcamento/proposta-que-conta";
 import DossierClient from "./DossierClient";
 import { entradaCom } from "../../entrada-destino";
 
@@ -72,9 +73,13 @@ export default async function EventoDossierPage({
 
   // Fronteira serializável: reduzimos o contrato aos campos que o Dossier
   // mostra (sem instâncias, sem funções).
+  //
+  // O dinheiro da proposta é o da VERSÃO que o casal escolheu (a base, sem os
+  // extras, quando foi essa) — o mesmo que a faturação manda ao Moloni e que os
+  // Pagamentos cobram (auditoria de 13/11, n.º 1).
   const data: DossierData = {
     quote,
-    proposal: proposal ?? null,
+    proposal: proposal ? { ...proposal, ...totalAPagarDaProposta(proposal) } : null,
     contract: contract
       ? {
           status: contract.status,
