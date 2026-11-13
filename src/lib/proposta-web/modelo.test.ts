@@ -279,8 +279,8 @@ describe("a proposta online pronta a desenhar", () => {
       textosWeb("pt"),
       assinadas,
     );
-    expect(p.capitulos[0].mosaico.filter((c) => c.texto)).toHaveLength(1);
-    expect(p.capitulos[0].mosaico.filter((c) => c.imagem)).toHaveLength(3);
+    expect(p.capitulos[0].mosaicos.flat().filter((c) => c.texto)).toHaveLength(1);
+    expect(p.capitulos[0].mosaicos.flat().filter((c) => c.imagem)).toHaveLength(3);
     expect(p.capitulos.map((c) => c.fotoAEsquerda)).toEqual([false, true]);
   });
 

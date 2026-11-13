@@ -195,7 +195,9 @@ export default function PropostaWeb({
         <div className="pw-k pw-rv">{t.ancoras.inspiracao.toLocaleLowerCase(lang)}</div>
         <RevealText className="pw-t">{k.nome}</RevealText>
         <div className="pw-rule pw-rv" />
-        {(k.nota || k.linha) && <p className="pw-rv">{k.nota || k.linha}</p>}
+        {/* Só a linha (o subtítulo). A nota é de UM tema e vive na célula
+            dele, no mosaico por baixo — aqui saía repetida (13/11). */}
+        {k.linha && <p className="pw-rv">{k.linha}</p>}
       </div>
     );
     const moldura = k.foto ? (
@@ -221,45 +223,51 @@ export default function PropostaWeb({
             )}
           </div>
         </section>
-        {k.mosaico.length > 0 && (
-          <section className="pw-mos" data-g="">
-            {k.mosaico.map((cel, i) => {
-              const CLASSE = { normal: "", alta: "tall", larga: "wide", grande: "big" } as const;
-              const forma = [
-                CLASSE[cel.forma] && `pw-${CLASSE[cel.forma]}`,
-                CLASSE[cel.formaMovel] && `pw-m-${CLASSE[cel.formaMovel]}`,
-              ]
-                .filter(Boolean)
-                .join(" ");
-              if (cel.texto)
+        {k.mosaicos.map((mosaico, m) => {
+          // A numeração das fotografias continua de um tema para o seguinte:
+          // para quem ouve o ecrã, o capítulo é uma galeria só.
+          const antes = k.mosaicos.slice(0, m).reduce((s, x) => s + x.length, 0);
+          return (
+            <section key={m} className="pw-mos" data-g="">
+              {mosaico.map((cel, j) => {
+                const i = antes + j;
+                const CLASSE = { normal: "", alta: "tall", larga: "wide", grande: "big" } as const;
+                const forma = [
+                  CLASSE[cel.forma] && `pw-${CLASSE[cel.forma]}`,
+                  CLASSE[cel.formaMovel] && `pw-m-${CLASSE[cel.formaMovel]}`,
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+                if (cel.texto)
+                  return (
+                    <figure key={j} className={`pw-txt ${forma}`}>
+                      <div className="pw-k">{cel.texto.sobre}</div>
+                      <b>{cel.texto.titulo}</b>
+                      {cel.texto.nota && <span>{cel.texto.nota}</span>}
+                    </figure>
+                  );
+                if (!cel.imagem) return null;
                 return (
-                  <figure key={i} className={`pw-txt ${forma}`}>
-                    <div className="pw-k">{cel.texto.sobre}</div>
-                    <b>{cel.texto.titulo}</b>
-                    {cel.texto.nota && <span>{cel.texto.nota}</span>}
+                  <figure
+                    key={j}
+                    className={forma || undefined}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`${t.fotografia} ${i + 1} · ${k.nome}`}
+                  >
+                    <Foto
+                      img={cel.imagem}
+                      sizes={SIZES.mosaico(cel.imagem.aspecto, cel.forma, cel.formaMovel)}
+                      espacoGrande={
+                        MOSAICO_GRANDE.has(cel.forma) || MOSAICO_GRANDE.has(cel.formaMovel)
+                      }
+                    />
                   </figure>
                 );
-              if (!cel.imagem) return null;
-              return (
-                <figure
-                  key={i}
-                  className={forma || undefined}
-                  tabIndex={0}
-                  role="button"
-                  aria-label={`${t.fotografia} ${i + 1} · ${k.nome}`}
-                >
-                  <Foto
-                    img={cel.imagem}
-                    sizes={SIZES.mosaico(cel.imagem.aspecto, cel.forma, cel.formaMovel)}
-                    espacoGrande={
-                      MOSAICO_GRANDE.has(cel.forma) || MOSAICO_GRANDE.has(cel.formaMovel)
-                    }
-                  />
-                </figure>
-              );
-            })}
-          </section>
-        )}
+              })}
+            </section>
+          );
+        })}
       </div>
     );
   };

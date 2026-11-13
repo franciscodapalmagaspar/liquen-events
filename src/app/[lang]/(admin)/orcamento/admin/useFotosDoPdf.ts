@@ -37,9 +37,19 @@ const ESPERA_MS = 2500;
  * aparecem logo, em vez de esperarem 2,5 s.
  */
 export const FOTOS_GUARDADAS_MAX = 12;
-const guardadas = new Map<string, FotosDoPdf>();
+/**
+ * A resposta: as fotografias de cada página e, para a página da paleta, as
+ * referências de onde o PDF tira as cores (`daPaleta`, pela ordem dele; 13/11)
+ * — o estúdio pede a sugestão de cores por elas (`paleta-do-pdf`).
+ */
+export interface PlanoDoPdf {
+  fotos: FotosDoPdf;
+  daPaleta: string[] | null;
+}
 
-function guardar(chave: string, fotos: FotosDoPdf) {
+const guardadas = new Map<string, PlanoDoPdf>();
+
+function guardar(chave: string, fotos: PlanoDoPdf) {
   guardadas.delete(chave);
   guardadas.set(chave, fotos);
   while (guardadas.size > FOTOS_GUARDADAS_MAX) {
@@ -59,9 +69,18 @@ export function useFotosDoPdf(
   doc: ProposalDoc,
   idioma: IdiomaDaProposta,
 ): FotosDoPdf | null {
+  return usePlanoDoPdf(quoteId, doc, idioma)?.fotos ?? null;
+}
+
+/** O mesmo pedido, com as referências da paleta (`daPaleta`). */
+export function usePlanoDoPdf(
+  quoteId: string,
+  doc: ProposalDoc,
+  idioma: IdiomaDaProposta,
+): PlanoDoPdf | null {
   const corpo = JSON.stringify({ doc: stripPendingImages(doc), idioma });
   const chave = `${quoteId}\u0000${corpo}`;
-  const [fotos, setFotos] = useState<FotosDoPdf | null>(() => guardadas.get(chave) ?? null);
+  const [fotos, setFotos] = useState<PlanoDoPdf | null>(() => guardadas.get(chave) ?? null);
   useEffect(() => {
     const ja = guardadas.get(chave);
     if (ja) {
@@ -79,10 +98,17 @@ export function useFotosDoPdf(
         signal: pedido.signal,
       })
         .then((r) => (r.ok ? r.json() : null))
-        .then((j: { fotos?: FotosDoPdf } | null) => {
+        .then((j: { fotos?: FotosDoPdf; daPaleta?: unknown } | null) => {
           if (!j?.fotos) return;
-          guardar(chave, j.fotos);
-          setFotos(j.fotos);
+          const plano: PlanoDoPdf = {
+            fotos: j.fotos,
+            daPaleta:
+              Array.isArray(j.daPaleta) && j.daPaleta.every((r) => typeof r === "string")
+                ? (j.daPaleta as string[])
+                : null,
+          };
+          guardar(chave, plano);
+          setFotos(plano);
         })
         .catch(() => {});
     }, ESPERA_MS);

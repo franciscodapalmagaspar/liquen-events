@@ -78,6 +78,8 @@ Isto **desfaz a decisão de 22/10** («a proposta online não tem nada a ver com
 11. **«Quero avançar» saiu** (23/10, «retira o quero avançar e coloca o logo da liquen a meio»): na barra fica o logótipo ao meio, com as âncoras dos dois lados. O fecho continua com «Responder por WhatsApp» e por email. A mensagem do WhatsApp passa a ser a dela: «Olá Catarina! Vi a proposta e gostámos muito daquilo que nos apresentou!».
 12. **Texto comido** (23/10): a célula de texto do mosaico tinha a altura de uma fotografia, e um título comprido subia por baixo da fotografia de cima. As linhas do mosaico passam a crescer com o texto; no telemóvel o título tem menos espaço entre letras. E a página pede ao Safari do iPhone que não aumente o texto sozinho (`text-size-adjust`). Verificado com uma proposta TESTE de títulos e notas compridos, a 320, 390, 768, 1024, 1440 e 2000 px: nenhum texto cortado nem tapado (antes eram 11).
 
+13. **Um mosaico por tema** (13/11, auditoria): o mosaico era um por capítulo, com o texto do primeiro tema só — o título e a nota do segundo tema em diante não apareciam em lado nenhum, e a nota do primeiro saía duas vezes (no ecrã de abertura e na célula). Agora cada tema tem o seu mosaico (`mosaicos`, no `modelo.ts`), seguidos e com o mesmo intervalo de 4 px, cada um com a sua célula de texto; o ecrã de abertura do capítulo mostra só a linha (o subtítulo). O PDF não mudou. Um tema que só tem texto fica com uma célula sozinha (no computador, a linha fica curta). Teste: `cada-tema-o-seu-texto.test.tsx`.
+
 ## A rapidez (23/10)
 
 Palavras dela: «quero que melhores mesmo muito a resposta e a rapidez e fluidez da proposta online e de quando carregamos no email para ver e ela demora tempo até aparecer».

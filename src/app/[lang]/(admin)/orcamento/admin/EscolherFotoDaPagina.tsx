@@ -50,6 +50,7 @@ export default function EscolherFotoDaPagina({
   aspetos = {},
   fotosDaProposta,
   carregar,
+  paleta,
   onLugar,
   onFoco,
   onEscolher,
@@ -82,6 +83,8 @@ export default function EscolherFotoDaPagina({
   fotosDaProposta: readonly FotoParaEscolher[];
   /** A caixa de carregar uma fotografia nova (a do estúdio). */
   carregar: ReactNode;
+  /** Na página «Paleta e ambiente», as cores (`CoresDaPaleta`), logo a seguir às fotografias. */
+  paleta?: ReactNode;
   onLugar: (lugar: number) => void;
   /** Enquadrar o lugar activo (`null` = o automático). */
   onFoco?: (foco: Foco | null) => void;
@@ -187,6 +190,8 @@ export default function EscolherFotoDaPagina({
             );
           })}
         </div>
+
+        {paleta}
 
         {/* O enquadrar do lugar activo, na forma da caixa onde sai no PDF. */}
         {onFoco && activa?.url && (

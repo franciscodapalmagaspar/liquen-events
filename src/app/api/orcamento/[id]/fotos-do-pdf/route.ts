@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { ehIdiomaDaProposta, IDIOMA_POR_OMISSAO } from "@/lib/proposal-doc-textos";
-import { fotosDoEditorialDoDocumento } from "@/lib/proposal-doc-render";
+import { planoDoEditorialDoDocumento } from "@/lib/proposal-doc-render";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
 
@@ -21,7 +21,7 @@ const MAXIMO_DO_CORPO = 2 * 1024 * 1024;
  * A colaboradora dela: as fotografias das miniaturas de baixo «não têm nada a
  * ver» com as do PDF. A miniatura adivinhava; quem escolhe é o álbum do PDF,
  * pelos pixéis de cada ficheiro. Esta rota corre o MESMO plano do PDF sem o
- * desenhar (`fotosDoEditorialDoDocumento`) e devolve, por chave de página, o
+ * desenhar (`planoDoEditorialDoDocumento`) e devolve, por chave de página, o
  * caminho de cada fotografia em cada lugar — o estúdio pinta essas.
  *
  * Não grava nada: recebe o rascunho como o estúdio o tem, e responde.
@@ -46,8 +46,13 @@ async function POST_semMedida(
   }
   const idioma = ehIdiomaDaProposta(body?.idioma) ? body.idioma : IDIOMA_POR_OMISSAO;
   try {
-    const fotos = await fotosDoEditorialDoDocumento(doc, idioma);
-    return NextResponse.json({ ok: true, fotos }, { headers: { "Cache-Control": "no-store" } });
+    // `daPaleta`: as fotografias de onde o PDF tira as cores, pela ordem dele —
+    // o estúdio pede a paleta por elas (`paleta-do-pdf`), e não faz outra conta.
+    const { fotos, daPaleta } = await planoDoEditorialDoDocumento(doc, idioma);
+    return NextResponse.json(
+      { ok: true, fotos, daPaleta },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (err) {
     log.error("fotos-do-pdf falhou", err, { id });
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

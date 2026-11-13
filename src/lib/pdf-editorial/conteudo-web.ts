@@ -108,8 +108,10 @@ export interface ConteudoWeb {
     /** A fila (até 5) e o painel, como no PDF. */
     fila: FotoWeb[];
     painel: FotoWeb | null;
-    /** As referências de onde saem as cores (as das mesas), pela ordem. */
+    /** As referências de onde saem as cores: as fotografias desta página (o painel e a fila). */
     daPaleta: string[];
+    /** As cores que ELA escolheu (`paletaDela`), ou `null` para as automáticas. */
+    coresDela: string[] | null;
   } | null;
   capitulos: CapituloWeb[];
   citacao: { sobretitulo: string; frase: string; assinatura: string; foto: FotoWeb } | null;

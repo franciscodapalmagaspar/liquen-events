@@ -181,7 +181,7 @@ export default function Escolhas({ escolhas, escolhido, fotos, token, textos, em
             <h3 className="text-foreground/85 text-[17px] font-medium">
               {emLingua.titulo[escolha.id]}
             </h3>
-            {nota && <p className="mt-1 text-foreground/60 text-sm leading-relaxed">{nota}</p>}
+            {nota && <p className="mt-1 text-foreground/70 text-sm leading-relaxed">{nota}</p>}
 
             {/* Uma coluna no telemóvel — a mesma razão da galeria: duas
                 alternativas lado a lado num ecrã de 390 px dão 180 px cada, e
@@ -218,7 +218,7 @@ export default function Escolhas({ escolhas, escolhido, fotos, token, textos, em
                       )}
                     </span>
                     {descricao && (
-                      <span className="text-foreground/60 text-[13px] leading-relaxed">
+                      <span className="text-foreground/70 text-[13px] leading-relaxed">
                         {descricao}
                       </span>
                     )}
@@ -237,7 +237,7 @@ export default function Escolhas({ escolhas, escolhido, fotos, token, textos, em
             <p className="mt-3 min-h-5 text-[13px]" aria-live="polite">
               {estado === "seguiu" && <span className="text-moss">{textos.escolhaGuardada}</span>}
               {estado === "falhou" && (
-                <span className="text-[#a03123]">
+                <span className="text-[color:var(--danger)]">
                   {textos.escolhaFalhou}{" "}
                   <button
                     type="button"

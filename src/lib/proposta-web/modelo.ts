@@ -8,11 +8,10 @@ import type {
   PecaWeb,
 } from "@/lib/pdf-editorial/conteudo-web";
 import { conteudoWebDoDocumento } from "@/lib/proposal-doc-render";
-import { paletaDasFotos } from "@/lib/pdf-editorial/paleta-das-fotos";
+import { paletaDoPdfPelasRefs } from "@/lib/paleta-do-pdf";
 import { fotosDaProposta, inventarioDeFotos, type FotoDaProposta } from "@/lib/proposta-fotos";
 import { SITE } from "@/lib/site";
 import { log } from "@/lib/logger";
-import { bytesDeImagemPorEndereco } from "@/lib/proposal-storage";
 import { mosaicoDoCapitulo, type FormaDaCelula } from "./mosaico";
 import { textosWeb, type TextosWeb } from "./textos-web";
 import { chaveDoGuardado, guardadoOuCalculado } from "./guardado";
@@ -64,7 +63,7 @@ export interface CelulaWeb {
   forma: FormaDaCelula;
   formaMovel: FormaDaCelula;
   imagem?: ImagemWeb;
-  /** A célula de texto: o tema que abre o capítulo. */
+  /** A célula de texto: o título e a nota do tema a que o mosaico pertence. */
   texto?: { sobre: string; titulo: string; nota: string };
 }
 
@@ -77,7 +76,13 @@ export interface CapituloPronto {
   foto: ImagemWeb | null;
   fundo: string | null;
   fotoAEsquerda: boolean;
-  mosaico: CelulaWeb[];
+  /**
+   * Um mosaico por tema, pela ordem dela, cada um com a SUA célula de texto —
+   * como no PDF, onde cada tema tem a sua página com o seu título e a sua nota.
+   * Era um só por capítulo, com o texto do primeiro tema: o título e a nota do
+   * segundo em diante não apareciam em lado nenhum (auditoria de 13/11).
+   */
+  mosaicos: CelulaWeb[][];
 }
 
 export interface PropostaWeb {
@@ -174,38 +179,35 @@ function blocosDasCondicoes(seccoes: { titulo: string; pecas: PecaWeb[] }[]) {
 }
 
 /**
- * As cores da paleta: das mesas, pelas miniaturas (leves). Calculadas uma vez
- * por proposta e guardadas (`guardado.ts`) — doze descargas e o `sharp` não
- * podem repetir-se a cada visita.
+ * As cores da paleta — as do PDF, pela ordem do PDF (13/11).
+ *
+ * `daPaleta` são as referências que o motor do PDF escolheu para a paleta, e
+ * `paletaDoPdfPelasRefs` lê delas os MESMOS bytes que o PDF desenha e corre a
+ * MESMA conta. Antes lia-se aqui a versão média, e a mesma proposta dava cores
+ * diferentes no PDF e na página (o defeito do PR #440).
+ *
+ * ── As propostas que já foram vistas ────────────────────────────────────────
+ * Um conteúdo guardado ANTES desta regra (sem `coresDela`, que nasceu com ela)
+ * é de uma proposta cuja página já foi aberta — e cujas cores ficaram
+ * guardadas pela chave antiga. Essa chave mantém-se para elas: o casal
+ * continua a ver as cores que viu. Só se a chave antiga não tiver nada é que
+ * se calcula, e com a conta do PDF.
  */
 function coresDaPaleta(
   proposalId: string,
-  refs: readonly string[],
-  porRef: ReadonlyMap<string, FotoDaProposta>,
+  ambiente: NonNullable<ConteudoWeb["ambiente"]>,
 ): Promise<string[]> {
-  const doze = refs.slice(0, 12);
-  return guardadoOuCalculado(
-    chaveDoGuardado("cores", proposalId, ...doze),
-    async () => {
-      const bytes = await Promise.all(
-        doze.map(async (ref) => {
-          const f = porRef.get(ref);
-          const url = f?.miniatura ?? f?.media ?? f?.original;
-          if (!url) return null;
-          try {
-            // Com a guarda do PDF: só o armazenamento, só https (10/11).
-            return await bytesDeImagemPorEndereco(url);
-          } catch {
-            return null;
-          }
-        }),
-      );
-      const validos: Buffer[] = [];
-      for (const b of bytes) if (b && b.length > 0) validos.push(b);
-      return validos.length ? paletaDasFotos(validos) : [];
-    },
-    (cores) => cores.length > 0,
-  ).catch((e) => {
+  const refs = ambiente.daPaleta;
+  const doPdf = () => paletaDoPdfPelasRefs(refs).then((p) => p.cores);
+  const conta =
+    "coresDela" in ambiente
+      ? doPdf()
+      : guardadoOuCalculado(
+          chaveDoGuardado("cores", proposalId, ...refs.slice(0, 12)),
+          doPdf,
+          (cores) => cores.length > 0,
+        );
+  return conta.catch((e) => {
     log.warn("proposta online: a paleta não se deixou calcular", { erro: e });
     return [] as string[];
   });
@@ -422,27 +424,63 @@ export async function montarPropostaWeb(
     ? {
         titulo: c.ambiente.titulo,
         subtitulo: c.ambiente.subtitulo,
-        cores: (await coresDaPaleta(proposta.id, c.ambiente.daPaleta, porRef)).slice(0, 5),
+        cores: c.ambiente.coresDela ?? (await coresDaPaleta(proposta.id, c.ambiente)).slice(0, 5),
         fotos: [c.ambiente.painel, c.ambiente.fila[0], c.ambiente.fila[1]]
           .map((f) => imagem(f))
           .filter((i): i is ImagemWeb => i !== null),
       }
     : null;
 
-  // ── Capítulos: o ecrã de abertura e o mosaico ──
+  // ── Capítulos: o ecrã de abertura e um mosaico por tema ──
+  const lingua = idioma === "en" ? "en" : "pt-PT";
   const capitulos: CapituloPronto[] = c.capitulos.map((k, ci) => {
     const fotos = k.temas.flatMap((x) => x.fotos);
-    const celulas = fotos.length
-      ? mosaicoDoCapitulo(
-          fotos.map((f) => f.aspecto),
-          true,
-          fotos.map((f) => {
+    /**
+     * ── CADA TEMA COM O SEU TEXTO, UMA VEZ ─────────────────────────────────
+     *
+     * O PDF dá a cada tema a sua página, com o título e a nota dele. A página
+     * fazia um mosaico só, com o texto do primeiro tema, e pintava a nota
+     * desse primeiro DUAS vezes (no ecrã de abertura e na célula); a do
+     * segundo tema em diante perdia-se. Agora há um mosaico por tema, e a
+     * nota vive só na célula do tema a que pertence.
+     *
+     * O primeiro leva sempre a célula (com o nome do capítulo, se o tema não
+     * tiver título), como antes. Um tema seguinte sem texto nenhum não a leva:
+     * repetir o nome do capítulo a meio das fotografias não diz nada.
+     */
+    const mosaicos = k.temas
+      .map((x, ti) => {
+        const temTexto = !!(x.titulo || x.subtitulo || x.nota);
+        if (!x.fotos.length && !temTexto) return [];
+        const comTexto = ti === 0 || temTexto;
+        const celulas = mosaicoDoCapitulo(
+          x.fotos.map((f) => f.aspecto),
+          comTexto,
+          x.fotos.map((f) => {
             const a = porRef.get(f.ref);
             return a?.largura && a?.altura ? Math.min(a.largura, a.altura) : undefined;
           }),
-        )
-      : [];
-    const abre = k.temas.find((x) => x.titulo) ?? k.temas[0];
+        );
+        return celulas.map(
+          (cel): CelulaWeb =>
+            cel.tipo === "texto"
+              ? {
+                  forma: cel.forma,
+                  formaMovel: cel.formaMovel,
+                  texto: {
+                    sobre: (x.subtitulo || k.nome).toLocaleLowerCase(lingua),
+                    titulo: x.titulo || k.nome,
+                    nota: x.nota,
+                  },
+                }
+              : {
+                  forma: cel.forma,
+                  formaMovel: cel.formaMovel,
+                  imagem: imagem(x.fotos[cel.indice!]) ?? undefined,
+                },
+        );
+      })
+      .filter((m) => m.length > 0);
     const molduraDoCapitulo = paraMoldura(k.fotos[0], [...k.fotos, ...fotos]);
     return {
       id: `cap${ci + 1}`,
@@ -458,25 +496,7 @@ export async function montarPropostaWeb(
       ),
       // O lado alterna: par → fotografia à esquerda (o protótipo).
       fotoAEsquerda: (ci + 1) % 2 === 0,
-      mosaico: celulas.map((cel) =>
-        cel.tipo === "texto"
-          ? {
-              forma: cel.forma,
-              formaMovel: cel.formaMovel,
-              texto: {
-                sobre: (abre?.subtitulo || k.nome).toLocaleLowerCase(
-                  idioma === "en" ? "en" : "pt-PT",
-                ),
-                titulo: abre?.titulo || k.nome,
-                nota: abre?.nota ?? "",
-              },
-            }
-          : {
-              forma: cel.forma,
-              formaMovel: cel.formaMovel,
-              imagem: imagem(fotos[cel.indice!]) ?? undefined,
-            },
-      ),
+      mosaicos,
     };
   });
 

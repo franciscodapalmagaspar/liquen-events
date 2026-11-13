@@ -50,10 +50,14 @@ describe("a paleta dá as cores que se vêem nas mesas, e não os castanhos do f
     expect(vermelho.length, "um vermelho").toBeGreaterThan(0);
     expect(bordeaux.length, "um bordeaux").toBeGreaterThan(0);
     expect(creme.length, "um creme").toBeGreaterThan(0);
-    // No máximo um castanho escuro e baço, e nunca à frente das cores.
+    // No máximo um castanho escuro e baço (quente: vermelho ≥ verde ≥ azul) —
+    // o verde-escuro das folhas não é castanho.
     const castanhos = cores.filter(
       ([r, g, b]) =>
-        0.299 * r + 0.587 * g + 0.114 * b < 95 && Math.max(r, g, b) - Math.min(r, g, b) < 56,
+        0.299 * r + 0.587 * g + 0.114 * b < 95 &&
+        Math.max(r, g, b) - Math.min(r, g, b) < 56 &&
+        r >= g &&
+        g >= b,
     );
     expect(castanhos.length).toBeLessThanOrEqual(1);
   });
@@ -105,5 +109,59 @@ describe("a paleta dá as cores que se vêem nas mesas, e não os castanhos do f
     expect(creme, "o creme da toalha").toBe(true);
     expect(dourado, "o dourado dos castiçais").toBe(true);
     expect(azul, "o azul da parede").toHaveLength(0);
+  });
+});
+
+/**
+ * O pedido de 13/11. Um cliente: «as paletas não batem com as cores das
+ * flores». O Francisco: «quero é que as paletas tenham a ver com a cor das
+ * flores». Uma mesa vista de cima — a toalha de linho a encher quase tudo —
+ * com flores PEQUENAS: rosa, lilás e pêssego, e umas folhas. As flores são
+ * poucos píxeis; a paleta tem de as ter na mesma.
+ */
+describe("a paleta é a das flores (13/11)", () => {
+  const bloco = async (w: number, h: number, cor: string) =>
+    sharp({ create: { width: w, height: h, channels: 3, background: cor } })
+      .png()
+      .toBuffer();
+  const mesaComFlores = async (v: number) =>
+    sharp({ create: { width: 800, height: 600, channels: 3, background: "#e6dfd2" } })
+      .composite([
+        { input: await bloco(60, 50, "#d98aa6"), top: 260 + v * 10, left: 300 },
+        { input: await bloco(40, 40, "#a48cc9"), top: 300, left: 420 - v * 15 },
+        { input: await bloco(45, 35, "#f0b48a"), top: 330, left: 360 },
+        { input: await bloco(70, 25, "#5f7d4a"), top: 360, left: 280 + v * 20 },
+      ])
+      .jpeg({ quality: 90 })
+      .toBuffer();
+
+  it("o rosa, o lilás e o pêssego entram, por pequenas que sejam as flores", async () => {
+    const cores = (await paletaDasFotos(await Promise.all([0, 1, 2].map(mesaComFlores)))).map(hex);
+    const perto = (alvo: string) => {
+      const [r, g, b] = hex(alvo);
+      return cores.some((c) => Math.hypot(c[0] - r, c[1] - g, c[2] - b) < 40);
+    };
+    expect(perto("#d98aa6"), "o rosa").toBe(true);
+    expect(perto("#a48cc9"), "o lilás").toBe(true);
+    expect(perto("#f0b48a"), "o pêssego").toBe(true);
+    expect(perto("#e6dfd2"), "o linho da toalha").toBe(true);
+  });
+
+  it("cada cor da paleta EXISTE nas fotografias — nenhuma é a média de duas", async () => {
+    // Meia fotografia rosa, meia verde: a média seria um bege-acinzentado
+    // (#9B8F7A, mais ou menos) que não está em lado nenhum.
+    const foto = await sharp({
+      create: { width: 400, height: 300, channels: 3, background: "#d0607c" },
+    })
+      .composite([{ input: await bloco(200, 300, "#4f7a3c"), top: 0, left: 200 }])
+      .jpeg({ quality: 92 })
+      .toBuffer();
+    const cores = (await paletaDasFotos([foto])).map(hex);
+    expect(cores.length).toBeGreaterThan(0);
+    for (const [r, g, b] of cores) {
+      const aoRosa = Math.hypot(r - 0xd0, g - 0x60, b - 0x7c);
+      const aoVerde = Math.hypot(r - 0x4f, g - 0x7a, b - 0x3c);
+      expect(Math.min(aoRosa, aoVerde)).toBeLessThan(35);
+    }
   });
 });
