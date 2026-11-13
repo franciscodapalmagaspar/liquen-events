@@ -12,6 +12,8 @@ const store = vi.hoisted(() => ({
   // porque nenhum teste mandava `submissionId` — o vitest só se queixa de um
   // export em falta quando alguém lhe toca.
   get: vi.fn(async () => null as unknown),
+  // «Mudou?» sem ler a lista: `null` (sem base de dados) lê sempre.
+  assinatura: vi.fn(async () => null as string | null),
 }));
 const authed = vi.hoisted(() => ({ ok: false }));
 const rl = vi.hoisted(() => ({ result: { ok: true } as { ok: boolean; retryAfter?: number } }));
@@ -20,6 +22,7 @@ vi.mock("@/lib/quotes-store", () => ({
   createQuote: store.create,
   listQuotes: store.list,
   listQuoteSummaries: store.resumos,
+  assinaturaDaListaDePedidos: store.assinatura,
   getQuote: store.get,
   generateQuoteId: () => "LIQ-TEST-0000000000000000",
   quoteIdFor: (s: string) => `LIQ-IDEM-${s}`,
@@ -521,6 +524,13 @@ describe("POST /api/orcamento", () => {
     expect(store.create).not.toHaveBeenCalled();
   });
 
+  it("o tecto diário das confirmações conta a caixa de correio, não a grafia (n.º 14)", async () => {
+    const { rateLimit } = await import("@/lib/rate-limit");
+    await enviarTudo({ form: { ...validForm, email: "A.n.a+2@Gmail.com" } });
+    const chaves = vi.mocked(rateLimit).mock.calls.map((c) => c[0]);
+    expect(chaves).toContain("confirm:ana@gmail.com");
+  });
+
   it("returns 429 when throttled", async () => {
     rl.result = { ok: false, retryAfter: 10 };
     const res = await POST(req("POST", { form: validForm }));
@@ -628,6 +638,38 @@ describe("GET /api/orcamento", () => {
     await GET(req("GET"));
     expect(store.list).toHaveBeenCalled();
     expect(store.resumos).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Auditoria de 13/11, n.º 3: o 304 decidia-se DEPOIS de ler a coluna `data`
+   * de todos os pedidos. Agora uma leitura barata decide primeiro.
+   */
+  it("quando nada mudou, responde 304 SEM ler a lista", async () => {
+    authed.ok = true;
+    store.assinatura.mockResolvedValue("12:2026-11-13T09:00:00.000Z");
+    const primeira = await GET(req("GET", undefined, "?resumo=1"));
+    expect(primeira.status).toBe(200);
+    const etag = primeira.headers.get("etag") as string;
+    expect(store.resumos).toHaveBeenCalledTimes(1);
+
+    const segunda = await GET(
+      new Request("https://liquen.test/api/orcamento?resumo=1", {
+        headers: { "if-none-match": etag },
+      }) as unknown as NextRequest,
+    );
+    expect(segunda.status).toBe(304);
+    expect(store.resumos).toHaveBeenCalledTimes(1);
+
+    // Mudou (mais um pedido): lê e responde a lista nova.
+    store.assinatura.mockResolvedValue("13:2026-11-13T09:05:00.000Z");
+    const terceira = await GET(
+      new Request("https://liquen.test/api/orcamento?resumo=1", {
+        headers: { "if-none-match": etag },
+      }) as unknown as NextRequest,
+    );
+    expect(terceira.status).toBe(200);
+    expect(store.resumos).toHaveBeenCalledTimes(2);
+    store.assinatura.mockResolvedValue(null);
   });
 
   it("com ?resumo=1 lê os resumos, e não a lista inteira", async () => {

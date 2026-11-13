@@ -148,11 +148,30 @@ async function GET_semMedida(request: NextRequest) {
 async function oResumoDeHoje(request: NextRequest) {
   void request;
   try {
+    /**
+     * ── UMA LEITURA QUE FALHA NÃO É «NADA A NOTIFICAR» (auditoria de 13/11) ──
+     *
+     * Cada leitura caía para `[]` em silêncio: com a base de dados em baixo, o
+     * resumo respondia «nada a notificar» — a mesma frase de um dia sossegado —
+     * e ninguém sabia que o resumo dessa manhã não tinha sido feito. Continua a
+     * fazer-se com o que se conseguiu ler, mas a falha fica registada e a
+     * resposta diz o que faltou, com um estado que a Vercel mostra como falha.
+     */
+    const faltou: string[] = [];
+    const ler = <T>(nome: string, leitura: Promise<T[]>): Promise<T[]> =>
+      leitura.catch((err) => {
+        log.error("cron reminders: uma leitura falhou — o resumo de hoje está incompleto", err, {
+          conjunto: nome,
+        });
+        faltou.push(nome);
+        return [] as T[];
+      });
     const [allQuotes, calEvents, allProposals] = await Promise.all([
-      listQuotes().catch(() => []),
-      listCalendarEvents().catch(() => []),
-      listAllProposals().catch(() => []),
+      ler("pedidos", listQuotes()),
+      ler("calendario", listCalendarEvents()),
+      ler("propostas", listAllProposals()),
     ]);
+    const incompleto = faltou.length > 0 ? { incompleto: [...faltou].sort() } : {};
     // Archived quotes are soft-deleted — never worth a notification.
     const quotes = allQuotes.filter((q) => !q.archived);
 
@@ -259,10 +278,16 @@ async function oResumoDeHoje(request: NextRequest) {
     }
 
     if (lines.length === 0) {
+      if (faltou.length > 0) {
+        return NextResponse.json(
+          { sent: 0, reason: "não foi possível ler tudo", ...incompleto },
+          { status: 502 },
+        );
+      }
       return NextResponse.json({ sent: 0, reason: "nada a notificar" });
     }
 
-    const { sent, failed } = await sendPushToAll({
+    const { sent, failed, semLista } = await sendPushToAll({
       title: "Resumo Líquen · hoje",
       body: lines.join(" · "),
       url: "/orcamento/admin",
@@ -271,8 +296,20 @@ async function oResumoDeHoje(request: NextRequest) {
 
     // `falhados` sai na resposta porque HAVIA o que dizer e não chegou a
     // aparelho nenhum — sem isto, quem carrega no sino lê o mesmo `sent: 0` que
-    // lê num dia sossegado, e fica descansado por engano.
-    return NextResponse.json({ sent, falhados: failed, summary: lines });
+    // lê num dia sossegado, e fica descansado por engano. E quando nada chegou
+    // por avaria (aparelhos que recusaram, lista de subscrições que não se
+    // leu), ou o resumo saiu incompleto, o estado também o diz.
+    const avaria = faltou.length > 0 || (sent === 0 && (failed > 0 || !!semLista));
+    return NextResponse.json(
+      {
+        sent,
+        falhados: failed,
+        summary: lines,
+        ...incompleto,
+        ...(semLista ? { subscricoes: "não foi possível ler" } : {}),
+      },
+      avaria ? { status: 502 } : undefined,
+    );
   } catch (err) {
     log.error("cron reminders falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

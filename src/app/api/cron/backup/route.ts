@@ -12,10 +12,11 @@ import { limparFotosTratadasVelhas } from "@/lib/limpar-fotos-tratadas";
 import { limparPastasDePedidosApagados } from "@/lib/limpar-pastas-orfas";
 import { limparPdfsSubstituidos } from "@/lib/limpar-pdfs-substituidos";
 import { limparRegistoAntigo } from "@/lib/registo-de-acoes";
+import { limparDiagnosticosDoVideo } from "@/lib/limpar-diagnosticos-video";
 import { isMissingTable } from "@/lib/repository";
-import { listQuotes } from "@/lib/quotes-store";
+import type { Quote } from "@/lib/orcamento/types";
 import { log } from "@/lib/logger";
-import type { aquecerPdfsEmFalta } from "@/lib/aquecimento-de-pdf";
+import type { aquecerPdfsEmFalta, PropostaParaAquecer } from "@/lib/aquecimento-de-pdf";
 import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
@@ -100,6 +101,39 @@ const TECTO_ANEXO = 20 * 1024 * 1024;
 const MB = (bytes: number) => (bytes / 1048576).toFixed(1);
 
 /**
+ * ── AS CACHES, QUE SE LIMPAM SEMPRE ─────────────────────────────────────────
+ *
+ * O que aqui sai refaz-se sozinho ou não serve a ninguém: as fotos tratadas
+ * com mais de 30 dias (`limpar-fotos-tratadas.ts`) e os registos do
+ * diagnóstico do vídeo da entrada (`limpar-diagnosticos-video.ts`). Nada disto
+ * precisa de estar numa cópia, por isso corre em TODAS as noites — com cópia,
+ * sem cópia, com cópia grande demais (auditoria de 13/11, n.º 9). O
+ * armazenamento do plano gratuito não pode ficar à espera de a cópia caber.
+ *
+ * Nunca lança: uma limpeza que falha fica registada e tenta outra vez amanhã.
+ */
+async function limparCaches(dia: string): Promise<{
+  fotosTratadas: Awaited<ReturnType<typeof limparFotosTratadasVelhas>> | null;
+  diagnosticos: number | null;
+}> {
+  let fotosTratadas: Awaited<ReturnType<typeof limparFotosTratadasVelhas>> | null = null;
+  try {
+    // 60 s (13/11): com 10 nunca chegava ao fim das 256 pastas — e a cache
+    // encheu o armazenamento até aos 997 MB de 1 GB.
+    fotosTratadas = await limparFotosTratadasVelhas(new Date(), 60_000);
+  } catch (e) {
+    log.error("cron backup: a limpeza das fotos tratadas falhou", e, { dia });
+  }
+  let diagnosticos: number | null = null;
+  try {
+    diagnosticos = await limparDiagnosticosDoVideo(new Date());
+  } catch (e) {
+    log.error("cron backup: a limpeza do diagnóstico do vídeo falhou", e, { dia });
+  }
+  return { fotosTratadas, diagnosticos };
+}
+
+/**
  * A lista das fotografias, comprimida, para ir como segundo anexo.
  *
  * Devolve `null` em vez de lançar, e é deliberado: o manifesto é um extra e a
@@ -161,7 +195,7 @@ async function GET_semMedida(request: NextRequest) {
       log.error("cron backup: a cópia excedeu o tecto do anexo", null, {
         bytes: comprimido.byteLength,
       });
-      await sendMail({
+      const { sent: avisoSaiu } = await sendMail({
         subject: `Cópia de segurança de ${dia} — grande demais para email`,
         html:
           `<p>A cópia de hoje tem ${MB(comprimido.byteLength)} MB ` +
@@ -170,11 +204,32 @@ async function GET_semMedida(request: NextRequest) {
           `e guarda-a fora do computador de trabalho.</p><p>${linhas}</p>`,
         headers: { "Auto-Submitted": "auto-generated" },
       });
-      return NextResponse.json({
-        ok: false,
-        reason: "grande demais",
-        bytes: comprimido.byteLength,
-      });
+      if (!avisoSaiu) {
+        log.error("cron backup: nem o aviso de «grande demais» saiu", undefined, { dia });
+      }
+      /**
+       * ── AS CACHES LIMPAM-SE NA MESMA (auditoria de 13/11, n.º 9) ─────────
+       *
+       * Saía-se daqui sem limpeza nenhuma. Com o armazenamento perto do tecto
+       * do plano gratuito, uma cópia grande demais deixava a cache das fotos
+       * tratadas crescer noite após noite — que é precisamente o que a enche.
+       * O que não depende da cópia (o que se refaz sozinho) corre sempre; o
+       * que apaga DADOS continua à espera de uma cópia que tenha saído.
+       *
+       * E a resposta não é 200: não saiu cópia, e o trabalho tem de aparecer
+       * como falhado na Vercel.
+       */
+      const caches = await limparCaches(dia);
+      return NextResponse.json(
+        {
+          ok: false,
+          reason: "grande demais",
+          bytes: comprimido.byteLength,
+          avisoEnviado: avisoSaiu,
+          ...caches,
+        },
+        { status: 507 },
+      );
     }
 
     /**
@@ -247,12 +302,18 @@ async function GET_semMedida(request: NextRequest) {
      * `docs/PLANO-SITE-E-GALERIA.md`.)
      */
     if (!sent) {
-      log.error("cron backup: o email da cópia NÃO saiu — nada foi apagado hoje", undefined, {
-        dia,
-        bytes: comprimido.byteLength,
-      });
+      log.error(
+        "cron backup: o email da cópia NÃO saiu — nenhum dado foi apagado hoje",
+        undefined,
+        {
+          dia,
+          bytes: comprimido.byteLength,
+        },
+      );
+      // Só as caches (que se refazem sozinhas) — ver `limparCaches`.
+      const caches = await limparCaches(dia);
       return NextResponse.json(
-        { ok: false, sent: false, dia, error: "O email da cópia não saiu." },
+        { ok: false, sent: false, dia, error: "O email da cópia não saiu.", ...caches },
         { status: 502 },
       );
     }
@@ -311,7 +372,10 @@ async function GET_semMedida(request: NextRequest) {
     let retencao: Awaited<ReturnType<typeof correrRetencao>> | null = null;
     if (!parcial)
       try {
-        retencao = await correrRetencao(await listQuotes());
+        // Os pedidos que a cópia ACABOU de ler (a cópia não é parcial, por
+        // isso estão todos): ler a tabela outra vez era trazer a coluna `data`
+        // inteira duas vezes na mesma noite (auditoria de 13/11, n.º 17).
+        retencao = await correrRetencao((payload.quotes ?? []) as Quote[]);
       } catch (e) {
         log.error("cron backup: a retenção falhou (a cópia seguiu na mesma)", e, { dia });
       }
@@ -347,21 +411,8 @@ async function GET_semMedida(request: NextRequest) {
         }
       }
 
-    /**
-     * AS FOTOS TRATADAS COM MAIS DE 30 DIAS (10/11, decisão dela) — o
-     * Supabase fica no plano gratuito; ver `limpar-fotos-tratadas.ts`. São uma
-     * cache que se refaz sozinha. Como a Reciclagem: se falhar, a cópia seguiu.
-     */
-    let fotosTratadas: Awaited<ReturnType<typeof limparFotosTratadasVelhas>> | null = null;
-    try {
-      // 60 s (13/11): com 10 nunca chegava ao fim das 256 pastas — e a cache
-      // encheu o armazenamento até aos 997 MB de 1 GB.
-      fotosTratadas = await limparFotosTratadasVelhas(new Date(), 60_000);
-    } catch (e) {
-      log.error("cron backup: a limpeza das fotos tratadas falhou (a cópia seguiu na mesma)", e, {
-        dia,
-      });
-    }
+    // As caches (fotos tratadas, registos do diagnóstico) — ver `limparCaches`.
+    const { fotosTratadas, diagnosticos } = await limparCaches(dia);
 
     /**
      * E as fotografias de pedidos que já não existem (decisão dela, 10/11):
@@ -438,7 +489,21 @@ async function GET_semMedida(request: NextRequest) {
     let aquecimento: Awaited<ReturnType<typeof aquecerPdfsEmFalta>> | null = null;
     try {
       const { aquecerPdfsEmFalta } = await import("@/lib/aquecimento-de-pdf");
-      aquecimento = await aquecerPdfsEmFalta(Date.now() - arrancou);
+      /**
+       * As propostas vão as que a cópia já leu, quando a cópia as tem todas:
+       * sem isto, a mesma tabela era lida duas vezes na mesma noite
+       * (auditoria de 13/11, n.º 17).
+       *
+       * O ORÇAMENTO de tempo fica o de sempre (45 s desde o arranque), e por
+       * isso o aquecimento quase nunca chega a correr (n.º 13). Alargá-lo é
+       * fácil, mas cada PDF aquecido fica guardado no armazenamento — vários
+       * MB, até seis por noite —, e o armazenamento está perto do tecto do
+       * plano gratuito. Fica para uma decisão dela, com o que sobra medido.
+       */
+      const propostas = falhados.includes("proposals")
+        ? undefined
+        : (payload.proposals as PropostaParaAquecer[] | undefined);
+      aquecimento = await aquecerPdfsEmFalta(Date.now() - arrancou, propostas ? { propostas } : {});
     } catch (e) {
       log.error("cron backup: o aquecimento dos PDF falhou (a cópia seguiu na mesma)", e, { dia });
     }
@@ -466,6 +531,7 @@ async function GET_semMedida(request: NextRequest) {
       retencao,
       reciclagem,
       fotosTratadas,
+      diagnosticos,
       pastasOrfas,
       pdfsSubstituidos,
       aquecimento,

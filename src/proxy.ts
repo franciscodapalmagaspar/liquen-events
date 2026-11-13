@@ -22,7 +22,7 @@ import { COOKIE_DA_LINGUA as LANG_COOKIE } from "@/lib/rotas-da-lingua";
  */
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-export function proxy(req: NextRequest, event?: NextFetchEvent) {
+export async function proxy(req: NextRequest, event?: NextFetchEvent) {
   const { pathname } = req.nextUrl;
 
   // ── /api: CSRF defence + request-id (unchanged behaviour) ──
@@ -51,14 +51,41 @@ export function proxy(req: NextRequest, event?: NextFetchEvent) {
       incomingId && /^[A-Za-z0-9._-]{1,64}$/.test(incomingId) ? incomingId : crypto.randomUUID();
     const requestHeaders = new Headers(req.headers);
     requestHeaders.set("x-request-id", requestId);
+
+    // ── 5. Sessões terminadas antes do prazo (auditoria de 13/11, n.º 6) ──
+    // Uma sessão revogada (saiu, ou a palavra-passe foi redefinida) chega às
+    // rotas SEM o cookie de sessão — e todas a tratam como quem não entrou,
+    // sem cada uma ter de saber disto. Só se pergunta quando há uma sessão
+    // válida, e a resposta vem da memória quase sempre (ver
+    // `sessoes-revogadas.ts`: no máximo uma leitura por minuto por instância).
+    const token = req.cookies.get(ADMIN_COOKIE)?.value;
+    let sessao = readSession(token);
+    let revogada = false;
+    if (sessao) {
+      const { sessaoRevogada } = await import("@/lib/sessoes-revogadas");
+      if (await sessaoRevogada(token)) {
+        revogada = true;
+        sessao = null;
+        requestHeaders.set("cookie", semCookie(req.headers.get("cookie") ?? "", ADMIN_COOKIE));
+      }
+    }
+
     const res = NextResponse.next({ request: { headers: requestHeaders } });
     res.headers.set("X-Request-ID", requestId);
+    if (revogada) {
+      res.cookies.set(ADMIN_COOKIE, "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+      });
+    }
     // ── 4. O registo de «quem fez o quê» (13/11) ──
     // Só alterações com sessão VÁLIDA (um cookie forjado não chega a escrever
     // um nome), e depois da resposta — nunca atrasa nem derruba o pedido.
-    if (event && deveRegistar(req.method, pathname)) {
-      const sessao = readSession(req.cookies.get(ADMIN_COOKIE)?.value);
-      if (sessao) event.waitUntil(registarAcao(sessao.name, req.method, pathname));
+    if (event && sessao && deveRegistar(req.method, pathname)) {
+      event.waitUntil(registarAcao(sessao.name, req.method, pathname));
     }
     return res;
   }
@@ -86,6 +113,15 @@ export function proxy(req: NextRequest, event?: NextFetchEvent) {
   }
 
   return NextResponse.next();
+}
+
+/** O cabeçalho `Cookie` sem o cookie `nome` (os outros ficam tal e qual). */
+function semCookie(cabecalho: string, nome: string): string {
+  return cabecalho
+    .split(";")
+    .map((c) => c.trim())
+    .filter((c) => c && !c.startsWith(`${nome}=`))
+    .join("; ");
 }
 
 /**

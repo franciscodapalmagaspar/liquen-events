@@ -73,6 +73,29 @@ export function matchesEtag(ifNoneMatch: string | null, etag: string): boolean {
  * bastante antes da validade das assinaturas (ver `theme-picker-cache.ts`, que
  * deita a entrada fora ao fim de 30 minutos contra 6 horas de validade).
  */
+/**
+ * 304 ANTES de ler a lista, quando quem chama sabe dizer «nada mudou» com uma
+ * leitura barata (auditoria de 13/11, n.º 3).
+ *
+ * O `jsonWithEtag` decide o 304 sobre o corpo — o que obriga a ler a lista
+ * inteira só para concluir que não mudou. Quem tem um `validador` barato (uma
+ * contagem e uma data, por exemplo) pergunta aqui primeiro: o ETag é o mesmo
+ * que o `jsonWithEtag(request, dados, validador)` daria, portanto um 304 daqui
+ * e um 200 de lá falam a mesma língua. `null` quer dizer «lê e responde».
+ */
+export function naoMudou(request: NextRequest, validador: unknown): NextResponse | null {
+  const etag = etagFor(JSON.stringify(validador));
+  if (!matchesEtag(request.headers.get("if-none-match"), etag)) return null;
+  return new NextResponse(null, {
+    status: 304,
+    headers: {
+      ETag: etag,
+      "Cache-Control": "private, no-cache, must-revalidate",
+      Vary: "Cookie",
+    },
+  });
+}
+
 export function jsonWithEtag(
   request: NextRequest,
   data: unknown,

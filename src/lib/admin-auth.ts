@@ -388,6 +388,28 @@ export function contaExiste(name: string): boolean {
 }
 
 /**
+ * A conta de uma SESSÃO ainda existe?
+ *
+ * O nome dentro do token vai cortado a 40 caracteres (`createSession`). Até 39
+ * é o nome inteiro, e vale o `contaExiste`. Com 40 pode ser o princípio de um
+ * nome mais comprido — e aí compara-se com o princípio de cada conta, cortado
+ * da mesma maneira. Antes, um nome com 40 ou mais caracteres saltava esta
+ * verificação, e a sessão de quem saísse da equipa continuava a valer.
+ */
+export function contaDaSessaoExiste(sub: string): boolean {
+  if (sub.length < 40) return contaExiste(sub);
+  const users = configuredUsers();
+  if (!users) return true;
+  const alvo = normalizarIdentificador(sub);
+  let existe = false;
+  for (const u of users) {
+    const cortado = normalizarIdentificador(String(u.name ?? "").slice(0, 40));
+    if (identificadorIgual(cortado, alvo)) existe = true;
+  }
+  return existe;
+}
+
+/**
  * A conta que corresponde a um identificador — email primeiro, nome depois.
  *
  * ── Porque é que a lista é percorrida ATÉ AO FIM ──────────────────────────
@@ -828,6 +850,23 @@ export async function definirPalavraPasseComToken(
   }
 
   log.info("recuperação: palavra-passe redefinida", { conta: conta.name });
+
+  /**
+   * As sessões que já estavam abertas com a palavra-passe antiga deixam de
+   * valer (auditoria de 13/11, n.º 6) — muda-se a palavra-passe precisamente
+   * quando se desconfia de quem a tem. A palavra-passe nova já está gravada:
+   * uma revogação que falhe fica registada, mas não desfaz a redefinição.
+   */
+  try {
+    const { revogarSessoesDaConta } = await import("./sessoes-revogadas");
+    if (!(await revogarSessoesDaConta(conta.name))) {
+      log.error("recuperação: as sessões antigas não foram revogadas", undefined, {
+        conta: conta.name,
+      });
+    }
+  } catch (err) {
+    log.error("recuperação: as sessões antigas não foram revogadas", err, { conta: conta.name });
+  }
   return { estado: "definida", conta: { name: conta.name, email: conta.email } };
 }
 
@@ -870,10 +909,14 @@ function sign(body: string): string {
  * 30 dias de sempre, e nenhuma sessão já emitida muda de forma por causa disto.
  */
 export function createSession(name: string, ttlMs: number = SESSION_TTL_MS): string {
+  const agora = Date.now();
   const payload = {
     typ: "session",
     sub: name.slice(0, 40),
-    exp: Date.now() + ttlMs,
+    // Quando foi emitida: é o que deixa uma recuperação de palavra-passe
+    // invalidar as sessões ANTERIORES dessa conta (`sessoes-revogadas.ts`).
+    iat: agora,
+    exp: agora + ttlMs,
     v: sessionVersion(),
   };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -903,6 +946,20 @@ export function duracaoDaSessao(manterSessao: boolean): {
 
 /** Validate a session token; returns the user name or null if invalid/expired. */
 export function readSession(token: string | undefined | null): { name: string } | null {
+  const s = lerSessao(token);
+  return s ? { name: s.name } : null;
+}
+
+/**
+ * A sessão validada, com as datas: `iat` (quando foi emitida) e `exp`.
+ *
+ * As sessões emitidas antes de o token levar `iat` contam como emitidas no
+ * momento mais cedo possível (`exp` menos a duração longa): perante uma
+ * revogação, a dúvida resolve-se para o lado de as fechar.
+ */
+export function lerSessao(
+  token: string | undefined | null,
+): { name: string; iat: number; exp: number } | null {
   if (!token) return null;
   // A minted token is exactly `body.sig`; base64url contains no ".", so any
   // token that doesn't split into precisely two non-empty parts is malformed or
@@ -935,10 +992,11 @@ export function readSession(token: string | undefined | null): { name: string } 
     // enquanto a conta existir. É uma consulta à variável de ambiente — sem
     // rede nem base de dados. Sem `ADMIN_USERS` (palavra-passe partilhada) o
     // `contaExiste` diz sempre que sim. O `sub` é cortado a 40 caracteres ao
-    // criar a sessão: um nome mais comprido não se reconheceria, e por isso
-    // só se pergunta quando cabe inteiro.
-    if (name.length < 40 && !contaExiste(name)) return null;
-    return { name };
+    // criar a sessão — e um nome mais comprido também tem de ser reconhecido
+    // (auditoria de 13/11, n.º 16): ver `contaDaSessaoExiste`.
+    if (!contaDaSessaoExiste(name)) return null;
+    const iat = typeof payload.iat === "number" ? payload.iat : payload.exp - SESSAO_LONGA_MS;
+    return { name, iat, exp: payload.exp };
   } catch {
     return null;
   }
@@ -947,4 +1005,177 @@ export function readSession(token: string | undefined | null): { name: string } 
 /** True when the request carries a valid, unexpired admin session cookie. */
 export function isAuthed(req: NextRequest): boolean {
   return readSession(req.cookies.get(ADMIN_COOKIE)?.value) !== null;
+}
+
+// --- Aparelho conhecido ----------------------------------------------------
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O BLOQUEIO DA CONTA NÃO FECHA A PORTA AO APARELHO DELA (auditoria de 13/11, n.º 4)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O último degrau da escada da entrada (20 falhas numa hora) fecha a conta
+ * MESMO para a palavra-passe certa — decisão dela de 10/11, e é o que trava
+ * quem tenta palpites a partir de muitos endereços. O efeito secundário: um
+ * estranho que soubesse o endereço dela chegava aos 20 de propósito e ela
+ * ficava uma hora de fora, sem ter feito nada.
+ *
+ * A saída que mantém a decisão: o aparelho onde ela já entrou com sucesso leva
+ * uma MARCA (cookie próprio, assinado com uma sub-chave só dele, presa à
+ * conta). Com a marca, o último degrau não se aplica à palavra-passe certa;
+ * sem ela — que é o caso de quem tenta de fora —, fecha como antes. As falhas
+ * contam sempre, com ou sem marca.
+ */
+export const ADMIN_DEVICE_COOKIE =
+  process.env.NODE_ENV === "production" ? "__Host-liquen_aparelho" : "liquen_aparelho";
+export const APARELHO_MS = 1000 * 60 * 60 * 24 * 180; // 180 dias
+
+function chaveDoAparelho(): Buffer {
+  return subKey("liquen.admin-aparelho-conhecido.v1");
+}
+
+/**
+ * A conta a que um identificador escrito à entrada corresponde: o email dela
+ * (ou o nome, se não tiver email). Sem `ADMIN_USERS` (palavra-passe
+ * partilhada), o próprio identificador.
+ */
+function contaDoIdentificador(identificador: string): string {
+  const users = configuredUsers();
+  const achada = users ? encontrarConta(users, identificador) : null;
+  if (achada) return normalizarIdentificador(achada.user.email ?? achada.user.name);
+  return users ? "" : normalizarIdentificador(identificador);
+}
+
+/**
+ * A marca que se deixa num aparelho depois de uma entrada bem sucedida, com o
+ * identificador que foi escrito nela.
+ */
+export function criarMarcaDeAparelho(identificador: string): string {
+  const corpo = Buffer.from(
+    JSON.stringify({
+      typ: "aparelho",
+      sub: contaDoIdentificador(identificador),
+      exp: Date.now() + APARELHO_MS,
+    }),
+  ).toString("base64url");
+  const sig = createHmac("sha256", chaveDoAparelho()).update(corpo).digest("base64url");
+  return `${corpo}.${sig}`;
+}
+
+/**
+ * Este aparelho já entrou nesta conta? `identificador` é o que foi escrito à
+ * entrada (email ou nome); compara-se com a conta a que ele corresponde.
+ */
+export function aparelhoConhecido(
+  token: string | undefined | null,
+  identificador: string,
+): boolean {
+  if (!token) return false;
+  const partes = token.split(".");
+  if (partes.length !== 2 || !partes[0] || !partes[1]) return false;
+  const esperado = createHmac("sha256", chaveDoAparelho()).update(partes[0]).digest("base64url");
+  const a = Buffer.from(partes[1]);
+  const b = Buffer.from(esperado);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
+  let p: { typ?: unknown; sub?: unknown; exp?: unknown };
+  try {
+    p = JSON.parse(Buffer.from(partes[0], "base64url").toString());
+  } catch {
+    return false;
+  }
+  if (p.typ !== "aparelho" || typeof p.exp !== "number" || Date.now() > p.exp) return false;
+  const alvo = contaDoIdentificador(identificador);
+  return !!alvo && identificadorIgual(String(p.sub ?? ""), alvo);
+}
+
+// --- Confirmação recente da palavra-passe ----------------------------------
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O QUE FICA PARA SEMPRE PEDE A PALAVRA-PASSE OUTRA VEZ (auditoria de 13/11, n.º 5)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Registar um aparelho como chave de entrada é dar-lhe uma porta que dura mais
+ * do que a sessão: a passkey continua a abrir depois de o cookie expirar. Por
+ * isso não basta ter uma sessão aberta — pede-se a palavra-passe da conta, e a
+ * confirmação vale {@link CONFIRMACAO_MS}, num cookie próprio, assinado com uma
+ * sub-chave só dele.
+ */
+export const ADMIN_REAUTH_COOKIE =
+  process.env.NODE_ENV === "production" ? "__Host-liquen_reconfirmacao" : "liquen_reconfirmacao";
+export const CONFIRMACAO_MS = 10 * 60_000;
+
+function chaveDaConfirmacao(): Buffer {
+  return subKey("liquen.admin-reconfirmacao.v1");
+}
+
+/** O cookie que diz «esta conta confirmou a palavra-passe há pouco». */
+export function criarConfirmacao(nomeDaSessao: string): string {
+  const corpo = Buffer.from(
+    JSON.stringify({
+      typ: "reconfirmacao",
+      sub: nomeDaSessao.slice(0, 40),
+      exp: Date.now() + CONFIRMACAO_MS,
+    }),
+  ).toString("base64url");
+  const sig = createHmac("sha256", chaveDaConfirmacao()).update(corpo).digest("base64url");
+  return `${corpo}.${sig}`;
+}
+
+/** A confirmação é válida, recente, e desta conta? */
+export function confirmacaoValida(token: string | undefined | null, nomeDaSessao: string): boolean {
+  if (!token) return false;
+  const partes = token.split(".");
+  if (partes.length !== 2 || !partes[0] || !partes[1]) return false;
+  const esperado = createHmac("sha256", chaveDaConfirmacao()).update(partes[0]).digest("base64url");
+  const a = Buffer.from(partes[1]);
+  const b = Buffer.from(esperado);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
+  try {
+    const p = JSON.parse(Buffer.from(partes[0], "base64url").toString());
+    if (p.typ !== "reconfirmacao") return false;
+    if (typeof p.exp !== "number" || Date.now() > p.exp) return false;
+    return identificadorIgual(
+      normalizarIdentificador(String(p.sub ?? "")),
+      normalizarIdentificador(nomeDaSessao.slice(0, 40)),
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A palavra-passe da conta DA SESSÃO está certa?
+ *
+ * Pela sessão e não por um identificador escrito: quem confirma é quem já lá
+ * está, e não pode confirmar a conta de outra pessoa. Faz sempre um bcrypt,
+ * mesmo sem conta, para o tempo não dizer nada.
+ */
+export async function confirmarPalavraPasse(
+  nomeDaSessao: string,
+  password: string,
+): Promise<boolean> {
+  if (!password) return false;
+  const { compareSync } = (await import("bcryptjs")).default;
+  const users = configuredUsers();
+  if (users) {
+    const senhas = await lerSenhasRedefinidas();
+    const alvo = normalizarIdentificador(nomeDaSessao.slice(0, 40));
+    let conta: AdminUser | null = null;
+    for (const u of users) {
+      const nome = normalizarIdentificador(String(u.name ?? "").slice(0, 40));
+      if (!conta && identificadorIgual(nome, alvo)) conta = u;
+    }
+    const hash = conta ? hashEfectivo(conta, senhas) : hashEfectivo(users[0], senhas);
+    try {
+      const certa = !!hash && compareSync(password, hash);
+      return !!conta && certa;
+    } catch {
+      return false;
+    }
+  }
+  const hash = sharedHash();
+  try {
+    return !!hash && compareSync(password, hash);
+  } catch {
+    return false;
+  }
 }
