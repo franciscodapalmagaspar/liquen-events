@@ -39,6 +39,7 @@ import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
 import { quotePayloadSchema } from "@/lib/validation";
 import { normalizarTelefone } from "@/lib/contacto-do-pedido";
 import { dominioRecebeEmail } from "@/lib/dominio-do-email";
+import { emailParaContagem } from "@/lib/email-para-contagem";
 import { log } from "@/lib/logger";
 import { eur0 as eur } from "@/lib/money";
 import { enviarEventos, ipDoPedido } from "@/lib/meta/capi";
@@ -660,7 +661,9 @@ async function confirmarAoCliente(id: string, form: QuoteFormData, locale: Local
     // confirmation — the lead is already persisted and the team notified.
     // 10/11: 5 → 2. Um cliente verdadeiro manda um pedido, às vezes corrige e
     // manda outro; cinco era margem para usar o formulário como remetente.
-    const emailKey = `confirm:${form.email.trim().toLowerCase()}`;
+    // A chave conta a CAIXA que recebe, não a grafia: `ana+1@…`, `a.n.a@gmail…`
+    // e `ana@gmail…` são o mesmo tecto (ver `emailParaContagem`).
+    const emailKey = `confirm:${emailParaContagem(form.email)}`;
     if ((await rateLimit(emailKey, 2, 24 * 60 * 60_000, { global: true })).ok) {
       const sentRes = await sendMail({
         to: form.email,

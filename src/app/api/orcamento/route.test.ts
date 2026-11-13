@@ -521,6 +521,13 @@ describe("POST /api/orcamento", () => {
     expect(store.create).not.toHaveBeenCalled();
   });
 
+  it("o tecto diário das confirmações conta a caixa de correio, não a grafia (n.º 14)", async () => {
+    const { rateLimit } = await import("@/lib/rate-limit");
+    await enviarTudo({ form: { ...validForm, email: "A.n.a+2@Gmail.com" } });
+    const chaves = vi.mocked(rateLimit).mock.calls.map((c) => c[0]);
+    expect(chaves).toContain("confirm:ana@gmail.com");
+  });
+
   it("returns 429 when throttled", async () => {
     rl.result = { ok: false, retryAfter: 10 };
     const res = await POST(req("POST", { form: validForm }));
