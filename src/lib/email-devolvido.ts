@@ -50,19 +50,27 @@ export interface Envio {
 /**
  * O envio mais recente ao cliente nos últimos `JANELA_DIAS` dias. Conta o que
  * ficou guardado do envio da proposta (`envios-de-proposta.ts`, com o endereço
- * para onde foi DE FACTO) e as mensagens do histórico do pedido (que foram para
- * o email do pedido nesse momento).
+ * para onde foi DE FACTO), a proposta enviada do histórico, e as mensagens que
+ * SAÍRAM de facto (`emailed: true`), com o endereço para onde foram.
+ *
+ * ── PORQUE É QUE O `message_sent` DO HISTÓRICO JÁ NÃO CONTA ───────────────
+ * Escrevem-no coisas que não são emails ao cliente: o mapa de mesas enviado à
+ * quinta, o lembrete de pagamento por WhatsApp, e a mensagem que não saiu por
+ * falta de email. Contado como «email para o cliente», um mapa enviado à
+ * quinta no dia 2 escondia a devolução da proposta do dia 1 — a pesquisa no
+ * Gmail começa no envio mais recente (achado n.º 6 da auditoria 6).
  */
 export function ultimoEnvio(
-  quote: Pick<Quote, "activityLog" | "email">,
+  quote: Pick<Quote, "activityLog" | "email" | "messages">,
   envios: readonly { enviadoEm: string; para: string }[] = [],
   agora = Date.now(),
 ): Envio | null {
   const todos: Envio[] = envios.map((e) => ({ em: e.enviadoEm, para: e.para }));
   for (const e of quote.activityLog ?? []) {
-    if (e.kind === "proposal_sent" || e.kind === "message_sent") {
-      todos.push({ em: e.at, para: quote.email ?? "" });
-    }
+    if (e.kind === "proposal_sent") todos.push({ em: e.at, para: quote.email ?? "" });
+  }
+  for (const m of quote.messages ?? []) {
+    if (m.emailed === true && m.para) todos.push({ em: m.at, para: m.para });
   }
   let ultimo: Envio | null = null;
   for (const e of todos) {
@@ -128,7 +136,9 @@ async function procurarNoGmail(pesquisa: string): Promise<{ em: string }[]> {
       const achados: { em: string }[] = [];
       for await (const m of cliente.fetch(uids.slice(-5), { internalDate: true }, { uid: true })) {
         const d = m.internalDate;
-        achados.push({ em: (d instanceof Date ? d : new Date(String(d ?? Date.now()))).toISOString() });
+        achados.push({
+          em: (d instanceof Date ? d : new Date(String(d ?? Date.now()))).toISOString(),
+        });
       }
       return achados;
     } finally {

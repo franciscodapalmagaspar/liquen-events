@@ -33,7 +33,17 @@ vi.mock("@/lib/admin-auth", () => ({
    *  o comportamento certo sem `ADMIN_USERS` configurado. */
   assinaturaConfigurada: () => ({}),
 }));
-vi.mock("@/lib/quotes-store", () => ({ getQuote: quotes.get, updateQuote: quotes.update }));
+// `updateQuoteWith` como o verdadeiro: relê o pedido (`quotes.actual` no momento
+// da gravação, DEPOIS do SMTP) e aplica a mutação; o `quotes.update` recebe o
+// resultado inteiro.
+vi.mock("@/lib/quotes-store", () => ({
+  getQuote: quotes.get,
+  updateQuoteWith: async (id: string, mutate: (q: Record<string, unknown>) => unknown) => {
+    const fresco = await quotes.get(id);
+    if (!fresco) return null;
+    return quotes.update(id, mutate(fresco) as Record<string, unknown>);
+  },
+}));
 vi.mock("@/lib/mail", () => ({
   sendMail: mail.send,
   // Escapa MESMO, como o verdadeiro: é a única forma de um teste aqui ver a
@@ -236,6 +246,25 @@ describe("POST /api/orcamento/[id]/modelo — o envio", () => {
     const ultima = patch.messages.at(-1)!.body;
     expect(ultima).toContain("Ana");
     expect(ultima).not.toMatch(/[<>]/);
+  });
+
+  /** Achado n.º 5 da auditoria 6: o histórico vinha da leitura de antes do SMTP. */
+  it("uma mensagem gravada enquanto o SMTP demora não é apagada", async () => {
+    authed.ok = true;
+    mail.send.mockImplementationOnce(async () => {
+      quotes.actual = {
+        ...(quotes.actual as Record<string, unknown>),
+        messages: [{ at: "t1", body: "Escrita noutro separador" }],
+      };
+      return { sent: true };
+    });
+    await POST(req({ chave: "agradecimento", enviar: true }), ctx("LIQ-1"));
+    const patch = quotes.update.mock.calls.at(-1)![1] as {
+      messages: { body: string; emailed?: boolean; para?: string }[];
+    };
+    expect(patch.messages).toHaveLength(2);
+    expect(patch.messages[0].body).toBe("Escrita noutro separador");
+    expect(patch.messages[1]).toMatchObject({ emailed: true, para: PEDIDO.email });
   });
 
   it("um email que não saiu não entra no histórico como se tivesse saído", async () => {

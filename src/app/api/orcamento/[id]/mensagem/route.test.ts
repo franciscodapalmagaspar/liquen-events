@@ -41,7 +41,25 @@ vi.mock("@/lib/admin-auth", () => ({
    *  de email de ir parar ao fundo de uma proposta. */
   assinaturaConfigurada: () => sessao.perfil,
 }));
-vi.mock("@/lib/quotes-store", () => ({ getQuote: store.get, updateQuote: store.update }));
+/**
+ * `updateQuoteWith` como o verdadeiro: lê o pedido DE NOVO e aplica a mutação
+ * sobre essa leitura. O que chega ao `store.update` é só o que mudou, para os
+ * testes poderem perguntar «o estado foi tocado?».
+ */
+const releitura = vi.hoisted(() => ({
+  /** Quando definido, a releitura (depois do SMTP) devolve isto. */
+  fresca: null as Record<string, unknown> | null,
+}));
+vi.mock("@/lib/quotes-store", () => ({
+  getQuote: store.get,
+  updateQuoteWith: async (id: string, mutate: (q: Record<string, unknown>) => unknown) => {
+    const actual = (releitura.fresca ?? (await store.get(id))) as Record<string, unknown> | null;
+    if (!actual) return null;
+    const seguinte = mutate(actual) as Record<string, unknown>;
+    const mudou = Object.fromEntries(Object.entries(seguinte).filter(([k, v]) => v !== actual[k]));
+    return store.update(id, mudou);
+  },
+}));
 vi.mock("@/lib/mail", () => ({
   sendMail: mail.send,
   esc: (v: unknown) => String(v ?? ""),
@@ -542,5 +560,77 @@ describe("POST /api/orcamento/[id]/mensagem — o domínio do email", () => {
     });
     expect(mail.send).not.toHaveBeenCalled();
     expect(store.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Achado n.º 5 da auditoria 6: o histórico construído com a leitura de ANTES
+ * do SMTP apagava o que outro separador gravasse entretanto.
+ */
+describe("POST /api/orcamento/[id]/mensagem — junta sobre a leitura fresca", () => {
+  it("uma mensagem gravada durante o envio não é apagada", async () => {
+    authed.ok = true;
+    store.estado = "pendente";
+    mail.send.mockImplementationOnce(async () => {
+      // Enquanto o SMTP demora, outro separador grava um modelo.
+      releitura.fresca = {
+        id: "LIQ-1",
+        name: "Ana Silva",
+        email: "ana@x.pt",
+        status: "em_revisao",
+        messages: [
+          { at: "t0", body: "old" },
+          { at: "t1", body: "Sinal recebido" },
+        ],
+      };
+      return { sent: true };
+    });
+    try {
+      await POST(req({ message: "Nova mensagem" }), ctx("LIQ-1"));
+      const patch = store.update.mock.calls.at(-1)?.[1] as {
+        messages?: { body: string }[];
+        status?: string;
+      };
+      expect(patch.messages?.map((m) => m.body)).toEqual([
+        "old",
+        "Sinal recebido",
+        "Nova mensagem",
+      ]);
+      // A transição lê o estado fresco: já estava a aguardar, não se reescreve.
+      expect(patch).not.toHaveProperty("status");
+    } finally {
+      releitura.fresca = null;
+    }
+  });
+});
+
+/**
+ * Achados n.º 6 e n.º 8 da auditoria 6: uma mensagem que não saiu ficava igual
+ * a uma que saiu — contava como «respondido» e passava a bola ao cliente.
+ */
+describe("POST /api/orcamento/[id]/mensagem — uma mensagem que não saiu não é resposta", () => {
+  it("o correio falha: fica registada com emailed:false e o pedido continua «Novo»", async () => {
+    authed.ok = true;
+    store.estado = "pendente";
+    mail.send.mockRejectedValueOnce(new Error("connect ETIMEDOUT"));
+    await POST(req({ message: "Olá!" }), ctx("LIQ-1"));
+    const patch = store.update.mock.calls.at(-1)?.[1] as {
+      messages?: { emailed?: boolean; para?: string }[];
+    };
+    expect(patch.messages?.at(-1)).toMatchObject({ emailed: false });
+    expect(patch.messages?.at(-1)).not.toHaveProperty("para");
+    expect(patch).not.toHaveProperty("status");
+  });
+
+  it("quando sai, fica com emailed:true e o endereço para onde foi", async () => {
+    authed.ok = true;
+    store.estado = "pendente";
+    await POST(req({ message: "Olá!" }), ctx("LIQ-1"));
+    const patch = store.update.mock.calls.at(-1)?.[1] as {
+      messages?: { emailed?: boolean; para?: string }[];
+      status?: string;
+    };
+    expect(patch.messages?.at(-1)).toMatchObject({ emailed: true, para: "ana@x.pt" });
+    expect(patch.status).toBe("em_revisao");
   });
 });

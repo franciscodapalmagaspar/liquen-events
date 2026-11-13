@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 import type { QuoteMessage } from "@/lib/orcamento/types";
 import { transicaoDoPedido } from "@/lib/orcamento/estado-do-pedido";
-import { getQuote, updateQuote } from "@/lib/quotes-store";
+import { getQuote, updateQuoteWith } from "@/lib/quotes-store";
 import { sendMail, esc, MAIL_TO } from "@/lib/mail";
 import { emailAoCliente } from "@/lib/email-assinatura";
 import { assinaturaDeQuemEnvia } from "@/lib/email-quem-assina";
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
      * servidor de correio em baixo — uma ligação que expira (o `mail.ts` corta
      * aos 8 s), credenciais recusadas, uma caixa cheia do outro lado — o
      * `sendMail` ATIRA, a excepção subia ao `catch` do fim, a rota respondia
-     * 500 «Erro ao enviar a mensagem», e o `updateQuote` lá em baixo nunca
+     * 500 «Erro ao enviar a mensagem», e o `updateQuoteWith` lá em baixo nunca
      * chegava a correr.
      *
      * Ou seja: exactamente o defeito que se tinha corrigido, a entrar pela
@@ -213,8 +213,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
     }
 
-    const newMessage: QuoteMessage = { at: new Date().toISOString(), body: message };
-    const messages = [...(quote.messages ?? []), newMessage];
+    // Se saiu, e para onde: uma mensagem que não saiu continua registada, mas
+    // não conta como resposta nem como envio ao cliente (achados n.º 6 e 8).
+    const newMessage: QuoteMessage = {
+      at: new Date().toISOString(),
+      body: message,
+      emailed: mail.sent,
+      ...(mail.sent ? { para: quote.email } : {}),
+    };
 
     /**
      * ════════════════════════════════════════════════════════════════════════
@@ -253,18 +259,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
      * coisa que faltava: a mudança passa a deixar uma LINHA NO HISTÓRICO. Sem
      * ela, ela via a coluna mudar sozinha e não tinha onde ir ver porquê.
      */
-    const transicao = transicaoDoPedido({
-      acontecimento: "mensagem_enviada",
-      estadoActual: quote.status,
-    });
-    const updated = await updateQuote(id, {
-      messages,
-      ...(transicao
-        ? {
-            status: transicao.status,
-            activityLog: [...(quote.activityLog ?? []), transicao.entrada],
-          }
-        : {}),
+    //
+    // ── SÓ PASSA A BOLA SE A MENSAGEM SAIU ─────────────────────────────────
+    // Uma mensagem que o cliente não recebeu não o põe a «Aguardar resposta»:
+    // o pedido continua por responder, e os lembretes continuam a lembrá-lo
+    // (achado n.º 8 da auditoria 6).
+    //
+    // ── E LÊ-SE O PEDIDO DE NOVO, DEPOIS DO SMTP ──────────────────────────
+    // O envio pode demorar dezenas de segundos. Juntar a mensagem à leitura de
+    // ANTES do envio apagava o que outro separador tivesse escrito entretanto
+    // (outra mensagem, uma linha do histórico). `updateQuoteWith` junta sobre
+    // a leitura fresca, com bloqueio optimista (achado n.º 5 da auditoria 6).
+    const updated = await updateQuoteWith(id, (actual) => {
+      const transicao = mail.sent
+        ? transicaoDoPedido({ acontecimento: "mensagem_enviada", estadoActual: actual.status })
+        : null;
+      return {
+        ...actual,
+        messages: [...(actual.messages ?? []), newMessage],
+        ...(transicao
+          ? {
+              status: transicao.status,
+              activityLog: [...(actual.activityLog ?? []), transicao.entrada],
+            }
+          : {}),
+      };
     });
 
     return NextResponse.json({
