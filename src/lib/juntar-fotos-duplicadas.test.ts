@@ -14,6 +14,7 @@ const st = vi.hoisted(() => ({
   /** Alguém grava o rascunho entre a leitura e a escrita desta limpeza. */
   escritaAlheia: null as null | string,
   setStateFalha: false,
+  depoisDeLer: null as null | (() => void),
 }));
 
 vi.mock("@/lib/app-state", () => ({
@@ -51,7 +52,17 @@ vi.mock("@/lib/supabase", () => ({
           let desde = 0;
           let ate = Infinity;
           let chave: string | null = null;
+          let prefixo: string | null = null;
+          let depoisDe: string | null = null;
           const b = {
+            like(_c: string, v: string) {
+              prefixo = v.replace(/%$/, "");
+              return b;
+            },
+            gt(_c: string, v: string) {
+              depoisDe = v;
+              return b;
+            },
             order: () => b,
             range(d: number, a: number) {
               desde = d;
@@ -70,10 +81,20 @@ vi.mock("@/lib/supabase", () => ({
               return out;
             },
             then(resolve: (v: unknown) => unknown) {
-              const todas = linhas();
+              let todas = linhas();
               if (!todas) return Promise.resolve(resolve({ data: null, error: { message: "x" } }));
+              if (prefixo !== null) todas = todas.filter((l) => String(l.key).startsWith(prefixo!));
+              if (depoisDe !== null)
+                todas = todas.filter(
+                  (l) => typeof l.updated_at === "string" && l.updated_at > depoisDe!,
+                );
               const fim = Math.min(ate + 1, desde + 1000);
-              return Promise.resolve(resolve({ data: todas.slice(desde, fim), error: null }));
+              const pagina = todas.slice(desde, fim);
+              // A leitura INTEIRA do app_state acabou (a página vazia do fim): é
+              // depois dela que a corrida da Fase B acontece.
+              if (tabela === "app_state" && prefixo === null && depoisDe === null && !pagina.length)
+                queueMicrotask(() => st.depoisDeLer?.());
+              return Promise.resolve(resolve({ data: pagina, error: null }));
             },
           };
           return b;
@@ -150,6 +171,7 @@ beforeEach(() => {
   st.copiados = [];
   st.escritaAlheia = null;
   st.setStateFalha = false;
+  st.depoisDeLer = null;
   st.tabelas = { proposal_themes: [{ id: TEMA, name: "Campo" }] };
 });
 
@@ -406,5 +428,81 @@ describe("a seco e o intervalo", () => {
     rascunho(PEDIDO, { coverImages: [`${PEDIDO}/b.jpg`] });
     await juntarFotosDuplicadas(manifesto(), new Date("2026-11-22T03:00:00Z"));
     expect(docDe(PEDIDO)).toEqual({ coverImages: [`${PEDIDO}/a.jpg`] });
+  });
+});
+
+describe("depois de uma cópia sair (revisão do #451)", () => {
+  const agoraReal = () => new Date().toISOString();
+  beforeEach(() => {
+    foto(`proposal-assets/${PEDIDO}/a.jpg`, "aaa", "2026-09-01T00:00:00Z");
+    foto(`proposal-assets/${PEDIDO}/b.jpg`, "aaa");
+  });
+
+  it("um rascunho que volte a escrever o caminho apagado é corrigido NA NOITE SEGUINTE (não daqui a 7 dias)", async () => {
+    await duasNoites();
+    expect(st.apagados).toContain(`proposal-assets/${PEDIDO}/b.jpg`);
+    entradas = entradas.filter((e) => !e.chave.endsWith("/b.jpg"));
+    // Um separador antigo grava por cima, com o caminho que já saiu.
+    st.estado[`proposal-draft:${PEDIDO}`] = {
+      value: { doc: { coverImages: [`${PEDIDO}/b.jpg`] }, updatedAt: "velho" },
+      updated_at: agoraReal(),
+    };
+    const r = await juntarFotosDuplicadas(manifesto(), new Date("2026-11-16T03:00:00Z"));
+    expect(r.fase).toBe("nada");
+    expect(docDe(PEDIDO)).toEqual({ coverImages: [`${PEDIDO}/a.jpg`] });
+    const v = st.estado[`proposal-draft:${PEDIDO}`].value as { updatedAt: string };
+    expect(v.updatedAt).not.toBe("velho");
+  });
+
+  it("passados 60 dias deixa de vigiar", async () => {
+    await duasNoites();
+    entradas = entradas.filter((e) => !e.chave.endsWith("/b.jpg"));
+    st.estado[`proposal-draft:${PEDIDO}`] = {
+      value: { doc: { coverImages: [`${PEDIDO}/b.jpg`] }, updatedAt: "velho" },
+      updated_at: agoraReal(),
+    };
+    const muitoDepois = new Date(Date.now() + 61 * 24 * 60 * 60_000);
+    // Dentro dos 7 dias da Fase A não conta aqui: forçamos um plano recente.
+    plano().faseA = muitoDepois.toISOString();
+    st.estado[CHAVE].value = plano();
+    await juntarFotosDuplicadas(manifesto(), muitoDepois);
+    expect(docDe(PEDIDO)).toEqual({ coverImages: [`${PEDIDO}/b.jpg`] });
+  });
+
+  it("a corrida da Fase B: um rascunho gravado entre a leitura e o `remove` segura a cópia", async () => {
+    await juntarFotosDuplicadas(manifesto(), noite1);
+    st.depoisDeLer = () => {
+      st.depoisDeLer = null;
+      st.estado[`proposal-draft:${PEDIDO}`] = {
+        value: { doc: { coverImages: [`${PEDIDO}/b.jpg`] }, updatedAt: "x" },
+        updated_at: agoraReal(),
+      };
+    };
+    const b = await juntarFotosDuplicadas(manifesto(), noite2);
+    expect(b.apagadas).toBe(0);
+    expect(st.apagados).toEqual([]);
+  });
+
+  it("uma proposta gravada entre a leitura e o `remove` também segura a cópia", async () => {
+    await juntarFotosDuplicadas(manifesto(), noite1);
+    st.depoisDeLer = () => {
+      st.depoisDeLer = null;
+      st.tabelas.proposals = [
+        { id: "p9", doc: { capa: `${PEDIDO}/b.jpg` }, updated_at: agoraReal() },
+      ];
+    };
+    await juntarFotosDuplicadas(manifesto(), noite2);
+    expect(st.apagados).toEqual([]);
+  });
+
+  it("um tema ARQUIVADO não serve de cópia que fica", async () => {
+    entradas = [];
+    st.tabelas.proposal_themes = [{ id: TEMA, arquivado: true }];
+    foto(`theme-assets/${TEMA}/f0f0.jpg`, "bbb");
+    foto(`proposal-assets/${PEDIDO}/copia.jpg`, "bbb");
+    rascunho(PEDIDO, { coverImages: [`${PEDIDO}/copia.jpg`] });
+    await duasNoites();
+    expect(docDe(PEDIDO)).toEqual({ coverImages: [`${PEDIDO}/copia.jpg`] });
+    expect(st.apagados).toEqual([]);
   });
 });

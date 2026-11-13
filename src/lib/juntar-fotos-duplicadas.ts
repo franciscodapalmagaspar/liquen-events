@@ -92,14 +92,36 @@ import { log } from "@/lib/logger";
  * Nada disto lança. Se uma leitura falhar, não se escreve nem se apaga nada; se
  * o tempo acabar, amanhã continua.
  *
+ * ── Depois (revisão do #451) ──────────────────────────────────────────────
+ *
+ *   · as `tema:` que se escrevem aqui são reescritas pelo `moverFotosDaBiblioteca`
+ *     (PR #448) quando ela funde temas ou move fotos — teste de ponta a ponta
+ *     em `juntar-fotos-duplicadas.mover.test.ts`;
+ *   · durante {@link FEITOS_DIAS} dias depois de uma cópia sair, TODAS as
+ *     noites se relêem os rascunhos gravados desde a véspera e corrige-se um
+ *     que tenha voltado a escrever o caminho apagado ({@link vigiarFeitos});
+ *   · na Fase B, antes de cada lote de `remove`, relê-se o que foi gravado
+ *     depois da leitura das tabelas (rascunhos e propostas);
+ *   · um tema arquivado não serve de destino.
+ *
  * Custo: nas noites sem plano a correr e com o último cálculo há menos de
  * {@link INTERVALO_DIAS} dias, nada (o manifesto já existe). Numa Fase A ou B,
  * as 15 tabelas (~5 MB a 13/11) uma vez, e, na B, ~10 chamadas ao Storage por
- * cópia (cópias e remoções dentro do Supabase — zero bytes de saída).
+ * cópia (cópias e remoções dentro do Supabase — zero bytes de saída). A vigia
+ * de todas as noites é uma leitura de `app_state` filtrada por prefixo e por
+ * `updated_at` — só os rascunhos gravados desde a véspera (normalmente 0 a 5,
+ * dezenas de KB) — e só escreve quando encontra um caminho que saiu. A releitura
+ * da corrida, na Fase B, são duas leituras do mesmo género por lote de 6.
  */
 export const CHAVE = "limpeza:fotos-duplicadas";
 export const ESPERA_HORAS = 24;
 export const INTERVALO_DIAS = 7;
+/** Quanto tempo depois de sair uma cópia se continua a vigiar, todas as
+ *  noites, os rascunhos que voltem a escrever o caminho dela. */
+export const FEITOS_DIAS = 60;
+/** Margem para trás nas leituras «gravado depois de»: uma escrita carimbada
+ *  antes da leitura mas confirmada depois dela não pode escapar. */
+const MARGEM_MS = 5 * 60_000;
 const HORA_MS = 60 * 60_000;
 const DIA_MS = 24 * HORA_MS;
 const PREFIXO_CACHE_WEB = "proposta-web:";
@@ -133,6 +155,12 @@ export interface PlanoDeDuplicados {
   /** O que já saiu → para onde foi. Uma cópia de segurança reposta com os
    *  caminhos antigos volta a ser corrigida na Fase A seguinte. */
   feitos: Record<string, string>;
+  /** Quando saiu cada um dos `feitos` (ISO). A correção de todas as noites
+   *  só olha para os de menos de {@link FEITOS_DIAS} dias. */
+  feitosEm?: Record<string, string>;
+  /** Até onde a correção de todas as noites já viu os rascunhos (ISO): só se
+   *  relêem os gravados DEPOIS disto. */
+  feitosVistoAte?: string;
   /** Acumulado do que já saiu. */
   saiu: { copias: number; bytes: number };
 }
@@ -238,7 +266,10 @@ async function lerTudo(sb: Cliente): Promise<Leitura | null> {
   const temasVivos = new Set<string>();
   TABELAS_COM_CONTEUDO.forEach((t, i) => {
     const linhas = leituras[i].data as Linha[];
-    if (t === "proposal_themes") for (const l of linhas) temasVivos.add(String(l.id ?? ""));
+    // Um tema ARQUIVADO não serve de destino: está fora de vista, e é o
+    // primeiro candidato a sair da Biblioteca.
+    if (t === "proposal_themes")
+      for (const l of linhas) if (l.arquivado !== true) temasVivos.add(String(l.id ?? ""));
     if (t !== "app_state") {
       partes.push(JSON.stringify(linhas));
       return;
@@ -393,6 +424,8 @@ async function faseA(
     apagar,
     trocas: [],
     feitos,
+    ...(anterior?.feitosEm ? { feitosEm: anterior.feitosEm } : {}),
+    ...(anterior?.feitosVistoAte ? { feitosVistoAte: anterior.feitosVistoAte } : {}),
     saiu: anterior?.saiu ?? { copias: 0, bytes: 0 },
   };
   const resumo = (fase: Resultado["fase"], trocas: number): Resultado => ({
@@ -439,6 +472,95 @@ async function faseA(
     presas,
   });
   return { ...resumo("A", plano.trocas.length), acabou: Date.now() <= fim };
+}
+
+// ── O que foi gravado depois de uma hora ───────────────────────────────────
+
+/** Rascunhos (chave + valor) gravados depois de `desde`, às páginas. `null` se
+ *  a leitura falhou. Pelo `updated_at` da linha: normalmente nenhum ou poucos. */
+async function rascunhosDesde(
+  sb: Cliente,
+  desde: string,
+): Promise<{ chave: string; texto: string }[] | null> {
+  const saida: { chave: string; texto: string }[] = [];
+  try {
+    for (let de = 0; de < 20_000; de += 1000) {
+      const { data, error } = await sb
+        .from("app_state")
+        .select("key, value")
+        .like("key", `${DRAFT_PREFIX.replace(/([%_\\])/g, "\\$1")}%`)
+        .gt("updated_at", desde)
+        .order("key", { ascending: true })
+        .range(de, de + 999);
+      if (error || !data) return null;
+      for (const l of data as Linha[])
+        saida.push({ chave: String(l.key), texto: JSON.stringify(l.value ?? null) });
+      if (data.length < 1000) return saida;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** O texto de tudo o que se gravou depois de `desde` e pode referir uma cópia:
+ *  rascunhos e propostas. `null` se a leitura falhou. */
+async function gravadosDesde(sb: Cliente, desde: string): Promise<string | null> {
+  const rascunhos = await rascunhosDesde(sb, desde);
+  if (!rascunhos) return null;
+  try {
+    const { data, error } = await sb
+      .from("proposals")
+      .select("id, doc")
+      .gt("updated_at", desde)
+      .order("id", { ascending: true })
+      .range(0, 999);
+    if (error || !data || data.length >= 1000) return null;
+    return `${rascunhos.map((r) => r.texto).join("\n")}\n${JSON.stringify(data)}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ── A VIGIA DE TODAS AS NOITES ─────────────────────────────────────────────
+ *
+ * Depois de uma cópia sair, um separador antigo, um rascunho guardado no
+ * navegador ou uma cópia de segurança reposta podem voltar a escrever o
+ * caminho dela. Enquanto houver cópias saídas há menos de {@link FEITOS_DIAS}
+ * dias, todas as noites se relêem os rascunhos gravados desde a última vez
+ * (pelo `updated_at` — normalmente nenhum) e, onde aparecer um caminho que
+ * saiu, troca-se pelo que ficou, com o mesmo compare-and-set e `updatedAt`
+ * novo da Fase A. Devolve se o plano mudou (e tem de se gravar).
+ */
+async function vigiarFeitos(sb: Cliente, plano: PlanoDeDuplicados, agora: Date): Promise<boolean> {
+  const limite = agora.getTime() - FEITOS_DIAS * DIA_MS;
+  const recentes = Object.entries(plano.feitos).filter(([c]) => {
+    const em = Date.parse(plano.feitosEm?.[c] ?? "");
+    return Number.isFinite(em) && em >= limite;
+  });
+  if (recentes.length === 0 || !plano.feitosVistoAte) return false;
+  // O relógio da base de dados, e não o `agora` de quem chama: é com o
+  // `updated_at` das linhas que isto se compara.
+  const lidoEm = new Date(Date.now() - MARGEM_MS).toISOString();
+  const rascunhos = await rascunhosDesde(sb, plano.feitosVistoAte);
+  if (!rascunhos) return false;
+  let tudoTrocado = true;
+  for (const r of rascunhos) {
+    const mapa = new Map(recentes.filter(([de]) => r.texto.includes(de)));
+    if (mapa.size === 0) continue;
+    const feito = await reescreverRascunho(sb, r.chave, mapa);
+    plano.trocas.push(...feito.trocas);
+    if (!feito.ok) tudoTrocado = false;
+    if (feito.trocas.length > 0)
+      log.warn("duplicados: um rascunho voltou a escrever um caminho que já saiu — corrigido", {
+        chave: r.chave,
+        trocas: feito.trocas.length,
+      });
+  }
+  // Só se avança quando tudo ficou trocado: o que falhou relê-se amanhã.
+  if (tudoTrocado) plano.feitosVistoAte = lidoEm;
+  return true;
 }
 
 // ── Fase B: confirmar e apagar ─────────────────────────────────────────────
@@ -509,6 +631,7 @@ async function faseB(
   plano: PlanoDeDuplicados,
   fim: number,
 ): Promise<Resultado> {
+  const lidoEm = new Date(Date.now() - MARGEM_MS).toISOString();
   const leitura = await lerTudo(sb);
   if (!leitura) return { ...zero("B", false), copias: plano.apagar.length };
   const { proposta, tema } = fotosDoManifesto(m);
@@ -541,17 +664,31 @@ async function faseB(
       restam.push(...prontas.slice(i));
       break;
     }
-    const lote = prontas.slice(i, i + EM_PARALELO);
+    // A corrida entre a leitura das tabelas e o `remove`: o que foi gravado
+    // depois dela (rascunhos e propostas, pelo `updated_at`) relê-se antes de
+    // cada lote. Normalmente é nada, e custa duas leituras vazias.
+    const recentes = await gravadosDesde(sb, lidoEm);
+    if (recentes === null) {
+      restam.push(...prontas.slice(i));
+      break;
+    }
+    // Uma que voltou a ser referida entretanto fica — e sai do plano.
+    const lote = prontas.slice(i, i + EM_PARALELO).filter((c) => !recentes.includes(c.caminho));
     const feitas = await Promise.all(lote.map((c) => apagarUma(sb, c)));
     lote.forEach((c, j) => {
       if (feitas[j]) {
         apagadas++;
         bytesApagados += c.bytes;
         plano.feitos[c.caminho] = c.fica;
+        plano.feitosEm = { ...(plano.feitosEm ?? {}), [c.caminho]: new Date().toISOString() };
       } else restam.push(c);
     });
   }
   plano.apagar = restam;
+  // A vigia de todas as noites começa no momento em que estes se leram: um
+  // rascunho que volte a escrever um caminho apagado grava DEPOIS disto.
+  if (apagadas > 0 && (!plano.feitosVistoAte || plano.feitosVistoAte > lidoEm))
+    plano.feitosVistoAte = lidoEm;
   plano.saiu = {
     copias: plano.saiu.copias + apagadas,
     bytes: plano.saiu.bytes + bytesApagados,
@@ -597,6 +734,7 @@ export async function juntarFotosDuplicadas(
     const plano = await getState<PlanoDeDuplicados>(CHAVE, { ouFalha: true });
     const valido = plano && plano.versao === 1 && Array.isArray(plano.apagar) ? plano : null;
     if (aSeco) return await faseA(sb, manifesto, agora, valido, true, fim);
+    if (valido && (await vigiarFeitos(sb, valido, agora))) await setState(CHAVE, valido);
     const desde = valido ? agora.getTime() - Date.parse(valido.faseA) : Infinity;
     if (valido && valido.apagar.length > 0) {
       if (!(desde >= ESPERA_HORAS * HORA_MS))

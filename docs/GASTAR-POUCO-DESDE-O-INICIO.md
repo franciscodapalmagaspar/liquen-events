@@ -220,6 +220,14 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
   MB de derivadas (`proposal-medias` 8,1, `proposal-thumbs` 1,4) ≈ 45 MB**,
   ao longo de 2–4 noites (tecto de 20 s por noite). Não os 114 MB do total
   de duplicados: o resto é o que fica de fora acima.
+  **Depende do PR #448** (`moverFotosDaBiblioteca`): é ele que reescreve as
+  `tema:` que a Fase A escreve quando ela funde temas ou move fotos (teste de
+  ponta a ponta em `juntar-fotos-duplicadas.mover.test.ts`). Depois de uma
+  cópia sair, durante 60 dias, a tarefa da noite relê os rascunhos gravados
+  desde a véspera (filtro por `updated_at`: dezenas de KB) e corrige o que
+  voltou a escrever o caminho apagado (um separador antigo, uma reposição).
+  Na Fase B, antes de cada lote, relê o que se gravou desde a leitura das
+  tabelas. Um tema arquivado não serve de destino.
 - `proposal-pdfs` (121 MB): ela escolheu guardar o PDF actual e o aceite de
   cada proposta. Lista mostrada a 10/11: 9 ficheiros (~9 MB), incluindo as
   pastas de 2 propostas que já não existem. O Supabase não deixa apagar
