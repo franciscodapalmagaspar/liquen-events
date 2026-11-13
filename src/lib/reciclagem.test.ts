@@ -607,7 +607,7 @@ describe("Reciclagem — pedido (R3b)", () => {
       // 1.ª: pára a meio, e a redução falha — fica o retrato inteiro.
       await expect(r.reciclagem.enviarComDetalhe("pedido", UM_PEDIDO.id)).rejects.toThrow();
       const [inteira] = await r.store.listarReciclagem();
-      expect((inteira.retrato.itens ?? []).length).toBe(1);
+      expect(inteira.retrato.itens as unknown[]).toHaveLength(1);
       // Com o pedido vivo e sem a marca, não se repõe por cima dele.
       await expect(r.reciclagem.reporDaReciclagem(inteira.id)).rejects.toMatchObject({
         status: 409,
