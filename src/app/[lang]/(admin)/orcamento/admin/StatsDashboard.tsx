@@ -2,6 +2,7 @@
 
 import { tintaDoRotulo } from "./status-meta";
 import { useMemo, useState } from "react";
+import { funilDoNegocio, pct, type Funil } from "@/lib/orcamento/funil";
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
 import { CATEGORIES, EVENT_TYPES_BY_CATEGORY } from "@/lib/orcamento/data";
 import { computeEventMetrics } from "@/lib/orcamento/dossier";
@@ -241,6 +242,55 @@ function HBars({ data }: { data: BarraH[] }) {
 // A collapsible titled section — the deeper breakdowns fold away so the screen
 // opens calm (headline numbers + money) and the analytics are one click away.
 // `defaultOpen` keeps the sections that matter most for the owner expanded.
+/**
+ * ── ONDE SE PERDEM OS CLIENTES (13/11) ─────────────────────────────────────
+ *
+ * Os três degraus do negócio, cada um com a percentagem DO DEGRAU DE CIMA (e
+ * não do total, como as `HBars`): «72% receberam proposta» e «30% dessas
+ * aceitaram». Por baixo, onde ficaram os outros — é isso que diz se o
+ * problema é chegar a tempo com a proposta ou o que a proposta diz.
+ * A conta é `funilDoNegocio` (`lib/orcamento/funil.ts`).
+ */
+function FunilDoNegocio({ f }: { f: Funil }) {
+  const degraus = [
+    { label: "Pedidos que chegaram", value: f.chegaram, de: null as number | null },
+    { label: "Receberam proposta", value: f.comProposta, de: f.chegaram },
+    { label: "Aceitaram", value: f.aceites, de: f.comProposta },
+  ];
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        {degraus.map((d) => (
+          <div key={d.label}>
+            <div className="flex items-center justify-between gap-3 mb-1.5">
+              <span className="text-[var(--bo-text-muted)] text-xs">{d.label}</span>
+              <span className="text-foreground/50 text-xs tabular-nums shrink-0">
+                {d.value}
+                {d.de !== null && ` · ${pct(d.value, d.de)}% do passo anterior`}
+              </span>
+            </div>
+            <div className="h-1.5 bg-[var(--bo-tinta-6)] rounded-full overflow-hidden">
+              <div
+                className={`h-full w-full origin-left rounded-full ${PROGRESSO}`}
+                style={{
+                  transform: `scaleX(${fraccaoDaBarra(d.value, Math.max(1, f.chegaram))})`,
+                  background: "#7c854b",
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Kpi small value={String(f.perdidosAntesDaProposta)} label="Perdidos antes da proposta" />
+        <Kpi small value={String(f.perdidosDepoisDaProposta)} label="Perdidos depois da proposta" />
+        <Kpi small value={String(f.semPropostaEmAberto)} label="À espera de proposta" />
+        <Kpi small value={String(f.aEsperarDecisao)} label="À espera de decisão" />
+      </div>
+    </div>
+  );
+}
+
 function Section({
   title,
   hint,
@@ -387,6 +437,7 @@ export default function StatsDashboard({
     return quotes.filter((q) => q.submittedAt >= cutoff);
   }, [quotes, period]);
 
+  const funil = useMemo(() => funilDoNegocio(filteredQuotes), [filteredQuotes]);
   const stats = useMemo(() => {
     const now = new Date();
     const total = filteredQuotes.length;
@@ -836,6 +887,14 @@ export default function StatsDashboard({
             em que meses. Isto conta PROPOSTAS, e responde a outras perguntas —
             a primeira das quais é a que fez o motivo de recusa ser uma lista
             fechada em vez de texto livre: perdemos por preço quantas vezes? */}
+        <Section
+          title="Onde se perdem os clientes"
+          hint="Do pedido à proposta e da proposta ao sim — e quantos ficaram pelo caminho em cada passo."
+          defaultOpen
+        >
+          <FunilDoNegocio f={funil} />
+        </Section>
+
         <Section
           title="Propostas"
           hint="Fecho, motivos de recusa e o que os extras vendem."

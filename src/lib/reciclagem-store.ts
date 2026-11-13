@@ -70,3 +70,16 @@ export const listarReciclagem = (): Promise<EntradaDaReciclagem[]> => repo.list(
 export const obterDaReciclagem = (id: string): Promise<EntradaDaReciclagem | null> => repo.get(id);
 export const guardarNaReciclagem = (e: EntradaDaReciclagem): Promise<void> => repo.create(e);
 export const tirarDaReciclagem = (id: string): Promise<void> => repo.remove(id);
+
+/**
+ * As entradas de um mesmo `origem_id` — sem ler a tabela inteira, que leva os
+ * retratos de todas (revisão de 13/11: cada apagar de pedido lia tudo).
+ */
+export const entradasDe = (origemId: string): Promise<EntradaDaReciclagem[]> =>
+  repo.where("origem_id", origemId, (e) => e.origemId === origemId);
+
+/** Troca o retrato de uma entrada (o de um apagar que parou a meio). */
+export const trocarRetrato = (
+  id: string,
+  retrato: EntradaDaReciclagem["retrato"],
+): Promise<EntradaDaReciclagem | null> => repo.update(id, { retrato });

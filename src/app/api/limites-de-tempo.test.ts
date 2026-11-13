@@ -130,10 +130,16 @@ describe("as rotas pesadas declaram o tempo de que precisam", () => {
   /**
    * O tecto do plano. Um valor acima disto não é aceite no arranque — e uma
    * função que não arranca é pior do que uma que demora.
+   *
+   * Era 60, o tecto do plano gratuito. A casa passou ao Pro a 2/11, onde o
+   * tecto é 300 s (800 s com Fluid compute): as duas tarefas da noite pedem
+   * 300 desde 13/11 (#436), porque a cópia diária e a limpeza das fotos
+   * estavam a ser cortadas a meio. Fica nos 300 — o tecto que vale nos dois
+   * modos do Pro.
    */
   it("nenhuma pede mais do que o plano permite", () => {
     for (const { rota } of PESADAS) {
-      expect(tempoDeclarado(rota)!, rota).toBeLessThanOrEqual(60);
+      expect(tempoDeclarado(rota)!, rota).toBeLessThanOrEqual(300);
     }
   });
 });

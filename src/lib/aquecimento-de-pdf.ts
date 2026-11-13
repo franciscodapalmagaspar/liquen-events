@@ -211,7 +211,12 @@ export async function aquecerPdfsEmFalta(
   let estado: EstadoDoAquecimento;
   let propostas: PropostaParaAquecer[];
   try {
-    estado = (await getState<EstadoDoAquecimento>(CHAVE_DO_ESTADO)) ?? { falhadas: {} };
+    // Lido para mudar e voltar a gravar: uma falha LANÇA (e o `catch` sai sem
+    // gravar) em vez de esquecer o que já estava feito — e redesenhar tudo
+    // outra vez, a gastar processador (revisão de 13/11, n.º 10).
+    estado = (await getState<EstadoDoAquecimento>(CHAVE_DO_ESTADO, { ouFalha: true })) ?? {
+      falhadas: {},
+    };
     if (!estado.falhadas) estado.falhadas = {};
     if (!estado.feitas) estado.feitas = {};
     // As propostas já lidas por quem chama, quando as tem — ver `OpcoesDoAquecimento`.

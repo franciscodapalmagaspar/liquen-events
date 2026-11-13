@@ -87,6 +87,15 @@ function Hoje({ quotes, propostas, onOpen, onGo }: Props) {
         aoCarregar: abrir(r.quoteId),
       });
     }
+    for (const s of h.semResposta) {
+      l.push({
+        chave: `sem-resposta:${s.quoteId}`,
+        tom: "normal",
+        rotulo: `Proposta sem resposta há ${s.dias} dias`,
+        texto: s.nome,
+        aoCarregar: abrir(s.quoteId),
+      });
+    }
     for (const s of h.seguimentos) {
       l.push({
         chave: `seguimento:${s.quoteId}`,
@@ -120,7 +129,7 @@ function Hoje({ quotes, propostas, onOpen, onGo }: Props) {
       </div>
       {total === 0 ? (
         <p className="px-5 py-4 text-sm text-[var(--bo-text-muted)]">
-          Não há eventos, pagamentos, seguimentos nem tarefas para hoje.
+          Não há eventos, pagamentos, propostas por responder, seguimentos nem tarefas para hoje.
         </p>
       ) : (
         <ul className="divide-y divide-[var(--bo-hairline)]">

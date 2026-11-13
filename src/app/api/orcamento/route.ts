@@ -944,11 +944,15 @@ async function POST_semMedida(request: NextRequest) {
 
       // Push notification to the team's devices (best-effort).
       try {
+        // Abre o PEDIDO (o dossier, com os modelos de resposta à mão) e não a
+        // Visão Geral: é a diferença entre responder com um toque e ter de o
+        // procurar (13/11, pedido do Francisco). A `tag` é por pedido — dois
+        // pedidos seguidos não se apagam um ao outro no ecrã do telemóvel.
         await sendPushToAll({
           title: "Novo pedido de orçamento",
-          body: `${form.name}${form.guests ? ` · ${form.guests} convidados` : ""}`,
-          url: "/orcamento/admin",
-          tag: "novo-orcamento",
+          body: `${form.name}${form.guests ? ` · ${form.guests} convidados` : ""} — toca para responder`,
+          url: `/orcamento/admin/evento/${encodeURIComponent(id)}`,
+          tag: `novo-orcamento-${id}`,
         });
       } catch (pushErr) {
         log.error("orcamento: push falhou", pushErr, { id });

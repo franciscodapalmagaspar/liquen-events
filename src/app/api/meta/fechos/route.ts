@@ -61,7 +61,9 @@ async function reunir() {
     listQuotes(),
     listAllProposals(),
     listContracts(),
-    getState<string[]>(CHAVE_ENVIADOS),
+    // Sem conseguir ler os já enviados, não se envia nada: a lista vazia faria
+    // a Meta receber outra vez todos os fechos (auditoria de 13/11).
+    getState<string[]>(CHAVE_ENVIADOS, { ouFalha: true }),
   ]);
 
   // A proposta MAIS RECENTE de cada pedido é a que vale: se houve revisão de

@@ -701,7 +701,12 @@ export async function DELETE(
     }
     if (r) {
       return NextResponse.json(
-        { error: "Não consegui apagar este pedido.", falhou: r.falhou },
+        {
+          // A frase da Reciclagem quando o que já saiu ficou lá guardado
+          // (revisão de 13/11, n.º 9) — senão, a de sempre.
+          error: (err as Error).message || "Não consegui apagar este pedido.",
+          falhou: r.falhou,
+        },
         { status: 500 },
       );
     }
