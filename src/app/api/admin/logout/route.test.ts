@@ -5,6 +5,8 @@ const terminadas = vi.hoisted(() => [] as string[]);
 vi.mock("@/lib/sessoes-revogadas", () => ({
   terminarSessao: vi.fn(async (t: string) => {
     terminadas.push(t);
+    // Uma base pendurada: o registo nunca responde.
+    if (t === "corpo.pendurado") await new Promise(() => {});
     return true;
   }),
 }));
@@ -60,4 +62,16 @@ describe("POST /api/admin/logout", () => {
     expect(res.status).toBe(200);
     expect(terminadas).toContain("corpo.assinatura");
   });
+
+  it("com o registo pendurado, «Sair» não fica à espera: apaga o cookie e responde (revisão de 13/11)", async () => {
+    const req = new NextRequest(new URL("https://liquen.test/api/admin/logout"), {
+      method: "POST",
+      headers: { cookie: `${ADMIN_COOKIE}=corpo.pendurado` },
+    });
+    const inicio = Date.now();
+    const res = await POST(req);
+    expect(Date.now() - inicio).toBeLessThan(3_000);
+    expect(res.status).toBe(200);
+    expect(res.cookies.get(ADMIN_COOKIE)?.value).toBe("");
+  }, 10_000);
 });

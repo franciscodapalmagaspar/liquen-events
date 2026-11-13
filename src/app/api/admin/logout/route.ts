@@ -1,9 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { ADMIN_COOKIE, ADMIN_NAME_COOKIE } from "@/lib/admin-auth";
 import { terminarSessao } from "@/lib/sessoes-revogadas";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
+
+/** Sem `after`, o máximo que «Sair» espera pelo registo. */
+const SEM_ESPERA_MS = 1_500;
 
 export async function POST(request?: NextRequest) {
   /**
@@ -14,10 +17,18 @@ export async function POST(request?: NextRequest) {
    */
   const token = request?.cookies?.get(ADMIN_COOKIE)?.value;
   if (token) {
+    // Sair não espera pelo registo (revisão de 13/11): o cookie apaga-se e a
+    // resposta sai já; o registo grava-se depois da resposta (`after`). Fora de
+    // um pedido (sem `after`), espera-se no máximo SEM_ESPERA_MS.
+    const terminar = () =>
+      terminarSessao(token).catch((err) => {
+        log.error("logout: não foi possível terminar a sessão no servidor", err);
+        return false;
+      });
     try {
-      await terminarSessao(token);
-    } catch (err) {
-      log.error("logout: não foi possível terminar a sessão no servidor", err);
+      after(terminar);
+    } catch {
+      await Promise.race([terminar(), new Promise((r) => setTimeout(r, SEM_ESPERA_MS))]);
     }
   }
 

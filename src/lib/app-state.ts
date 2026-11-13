@@ -360,6 +360,100 @@ export async function listStateByPrefix<T>(
 }
 
 /**
+ * ════════════════════════════════════════════════════════════════════════════
+ * LEITURA COM VERSÃO E ESCRITA CONDICIONAL (revisão de 13/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Para quem lê-muda-grava um registo partilhado e não pode perder uma escrita
+ * que entre no meio (dois «Sair» ao mesmo tempo, ver `sessoes-revogadas.ts`).
+ *
+ * `lerEstadoComVersao` lê UMA vez, com tecto `tectoMs` e SEM repetições (quem
+ * chama decide o que fazer com a falha — o caminho quente não pode ficar 24 s
+ * à espera de três tentativas). A versão é o `updated_at` da linha (`null`
+ * quando a linha não existe).
+ *
+ * `gravarEstadoSeNaoMudou` só grava se a linha ainda estiver na versão lida:
+ *  · `"gravado"`   — ficou;
+ *  · `"conflito"`  — alguém escreveu entretanto: relê e tenta outra vez;
+ *  · `"falhou"`    — a escrita não se fez (erro ou tempo esgotado).
+ *
+ * Sem base de dados (desenvolvimento) a versão é o próprio valor em JSON, e a
+ * comparação e a escrita fazem-se dentro da fila do ficheiro.
+ */
+export type VersaoDoEstado = string | null;
+
+export async function lerEstadoComVersao<T>(
+  key: string,
+  tectoMs: number,
+): Promise<{ valor: T | null; versao: VersaoDoEstado }> {
+  const sb = getSupabase();
+  if (!sb) {
+    const all = await readFileState();
+    const valor = (all[key] as T) ?? null;
+    return { valor, versao: valor === null ? null : JSON.stringify(valor) };
+  }
+  const { data, error } = await comTecto(
+    sb.from("app_state").select("value, updated_at").eq("key", key).maybeSingle(),
+    tectoMs,
+  );
+  if (error) throw error;
+  if (!data) return { valor: null, versao: null };
+  const linha = data as { value?: unknown; updated_at?: unknown };
+  return {
+    valor: (linha.value as T) ?? null,
+    versao: typeof linha.updated_at === "string" ? linha.updated_at : "",
+  };
+}
+
+export async function gravarEstadoSeNaoMudou<T>(
+  key: string,
+  value: T,
+  versao: VersaoDoEstado,
+  tectoMs: number = TEMPO_POR_TENTATIVA_MS,
+): Promise<"gravado" | "conflito" | "falhou"> {
+  const sb = getSupabase();
+  if (!sb) {
+    if (oFicheiroEhEfemero()) return "falhou";
+    try {
+      return await emFila(async () => {
+        const all = await readFileState();
+        const atual = all[key] === undefined ? null : JSON.stringify(all[key]);
+        if (atual !== versao) return "conflito" as const;
+        all[key] = value;
+        await fs.mkdir(path.dirname(FILE), { recursive: true });
+        await fs.writeFile(FILE, JSON.stringify(all, null, 2));
+        return "gravado" as const;
+      });
+    } catch (err) {
+      log.error("app-state: escrita condicional em ficheiro falhou", err, { key });
+      return "falhou";
+    }
+  }
+  const agora = new Date().toISOString();
+  try {
+    if (versao === null) {
+      // A linha ainda não existia: inserir. Se outra escrita a criou entretanto,
+      // a chave primária recusa — é um conflito, não uma avaria.
+      const { error } = await comTecto(
+        sb.from("app_state").insert({ key, value, updated_at: agora }),
+        tectoMs,
+      );
+      if (!error) return "gravado";
+      if ((error as { code?: unknown }).code === "23505") return "conflito";
+      throw error;
+    }
+    const base = sb.from("app_state").update({ value, updated_at: agora }).eq("key", key);
+    const guardada = versao === "" ? base.is("updated_at", null) : base.eq("updated_at", versao);
+    const { data, error } = await comTecto(guardada.select("key"), tectoMs);
+    if (error) throw error;
+    return (data ?? []).length > 0 ? "gravado" : "conflito";
+  } catch (err) {
+    log.error("app-state: escrita condicional falhou", err, { key });
+    return "falhou";
+  }
+}
+
+/**
  * Apaga as entradas cuja chave começa por `prefix` E é menor do que
  * `chaveAntesDe` (comparação de texto) — e só essas.
  *

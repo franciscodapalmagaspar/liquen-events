@@ -50,6 +50,21 @@ vi.mock("./app-state", () => ({
       ? { gravado: true, duradouro: true, onde: "servidor" }
       : { gravado: true, duradouro: false, onde: "ficheiro-efemero" };
   }),
+  // A leitura com versão e a escrita condicional (o registo das sessões
+  // revogadas). A versão é o valor em JSON, como no ficheiro.
+  lerEstadoComVersao: vi.fn(async (k: string) => {
+    const v = estado.mapa.get(k);
+    return v === undefined
+      ? { valor: null, versao: null }
+      : { valor: JSON.parse(JSON.stringify(v)), versao: JSON.stringify(v) };
+  }),
+  gravarEstadoSeNaoMudou: vi.fn(async (k: string, v: unknown, versao: string | null) => {
+    const atual = estado.mapa.get(k);
+    if ((atual === undefined ? null : JSON.stringify(atual)) !== versao) return "conflito";
+    if (estado.recusaEscrita) return "falhou";
+    estado.mapa.set(k, JSON.parse(JSON.stringify(v)));
+    return "gravado";
+  }),
 }));
 
 import {
