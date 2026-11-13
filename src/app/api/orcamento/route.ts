@@ -795,8 +795,24 @@ async function POST_semMedida(request: NextRequest) {
      * a correcção perdia-se em silêncio. A assinatura do conteúdo entra no id:
      * o reenvio igual continua a dar UM pedido; o corrigido dá o seu.
      */
+    //
+    // Só o que a PESSOA escreveu entra na assinatura. Os campos que o browser
+    // preenche sozinho mudam de envio para envio sem ela mexer em nada: o
+    // `leadEventId` nasce novo a cada toque (`meta.lead`), e o clique e a
+    // origem vêm do que a visita calhou de trazer. Com eles lá dentro, o
+    // segundo toque no Instagram era OUTRO pedido — outro email à equipa,
+    // outro ao cliente, outro Lead à Meta.
+    const {
+      leadEventId: _evento,
+      adClick: _cliqueGoogle,
+      metaClick: _cliqueMeta,
+      referralSource: _origem2,
+      idioma: _idioma2,
+      origem: _origem3,
+      ...escrito
+    } = parsed.data.form as Record<string, unknown>;
     const assinatura = createHash("sha256")
-      .update(JSON.stringify(canonizar(parsed.data.form)))
+      .update(JSON.stringify(canonizar(escrito)))
       .digest("hex")
       .slice(0, 16);
     const id = submissionId ? quoteIdFor(`${submissionId}:${assinatura}`) : generateQuoteId();

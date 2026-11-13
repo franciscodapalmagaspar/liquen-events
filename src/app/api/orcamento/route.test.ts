@@ -976,6 +976,40 @@ describe("POST /api/orcamento — o gémeo que chega ao mesmo tempo", () => {
     expect(ids[2]).not.toBe(ids[0]);
   });
 
+  /**
+   * Revisão do PR #444: a assinatura levava o `leadEventId`, que o
+   * `PedidoRelampago` gera novo a cada toque. No Instagram, o segundo toque era
+   * outro pedido, outro email à equipa e ao cliente, outro Lead à Meta.
+   */
+  it("n.º 12: dois toques iguais com `leadEventId` (e clique) diferentes dão UM pedido e um só email", async () => {
+    const criados = new Set<string>();
+    store.get.mockImplementation(async (id: unknown) =>
+      criados.has(String(id)) ? { id: String(id) } : null,
+    );
+    store.create.mockImplementation((async (q: { id: string }) => {
+      criados.add(q.id);
+    }) as unknown as () => Promise<void>);
+    try {
+      const r1 = await enviarTudo({
+        form: { ...validForm, leadEventId: "evento-1", metaClick: "fb.1.1.aaa" },
+        submissionId: "abcdefgh15",
+      });
+      const emailsDoPrimeiro = sendMailMock.mock.calls.length;
+      const r2 = await enviarTudo({
+        form: { ...validForm, leadEventId: "evento-2", metaClick: "fb.1.2.bbb" },
+        submissionId: "abcdefgh15",
+      });
+      expect((await r2.json()).id).toBe((await r1.json()).id);
+      expect(store.create).toHaveBeenCalledTimes(1);
+      expect(sendMailMock.mock.calls.length).toBe(emailsDoPrimeiro);
+    } finally {
+      store.get.mockReset();
+      store.get.mockImplementation(async () => null);
+      store.create.mockReset();
+      store.create.mockImplementation(async () => {});
+    }
+  });
+
   it("uma gravação que falha a sério continua a avisar a equipa", async () => {
     store.get.mockResolvedValue(null);
     store.create.mockRejectedValueOnce(new Error("base em baixo"));
