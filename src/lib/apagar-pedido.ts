@@ -4,6 +4,7 @@ import { listProposalsForQuote, deleteProposal } from "./proposals-store";
 import { listContracts } from "./contracts-store";
 import { clearProposalDraft } from "./proposal-drafts";
 import { listProposalImages, removeStoredObject, PROPOSAL_BUCKET } from "./proposal-storage";
+import { listTasks, deleteTask } from "./tasks-store";
 import { log } from "@/lib/logger";
 
 /**
@@ -62,12 +63,14 @@ export interface ResultadoDoApagamento {
     fotos: number;
     /** O rascunho do estúdio, quando havia um. */
     rascunhos: number;
+    /** As tarefas ligadas ao pedido (guardam o nome do casal). */
+    tarefas: number;
   };
   /** O que ficou para trás, em linguagem de quem vai ler o registo. */
   falhou: string[];
 }
 
-const VAZIO = { propostas: 0, fotos: 0, rascunhos: 0 };
+const VAZIO = { propostas: 0, fotos: 0, rascunhos: 0, tarefas: 0 };
 
 /**
  * Apaga um pedido e tudo o que é dele, quando ele não deu origem a contrato.
@@ -134,6 +137,28 @@ export async function apagarPedidoSemContrato(
     log.error("apagar-pedido: listagem de propostas falhou", e, { pedido: id });
   }
 
+  // ── As tarefas do pedido (auditoria de 12/11, n.º 7) ─────────────────────
+  //
+  // Cada tarefa guarda uma cópia do nome do casal (`client_name`) e o id do
+  // pedido, sem chave estrangeira: apagar o pedido deixava-as para trás, com
+  // os dados pessoais que esta função existe para apagar. A Reciclagem guarda-
+  // as no retrato do pedido ANTES de chamar isto, e repõe-nas com ele.
+  try {
+    const tarefas = (await listTasks()).filter((t) => (t.quoteId ?? "").trim() === id);
+    for (const t of tarefas) {
+      try {
+        await deleteTask(t.id);
+        contou.tarefas++;
+      } catch (e) {
+        falhou.push(`a tarefa ${t.id} não foi apagada`);
+        log.error("apagar-pedido: tarefa não apagada", e, { pedido: id, tarefa: t.id });
+      }
+    }
+  } catch (e) {
+    falhou.push("não consegui listar as tarefas deste pedido");
+    log.error("apagar-pedido: listagem de tarefas falhou", e, { pedido: id });
+  }
+
   // ── As fotografias que ela carregou para este pedido ─────────────────────
   //
   // Só a pasta `<pedido>/` do bucket das propostas. As fotografias da
@@ -192,6 +217,7 @@ export async function apagarPedidoSemContrato(
     propostas: contou.propostas,
     fotos: contou.fotos,
     rascunhos: contou.rascunhos,
+    tarefas: contou.tarefas,
     ficou_por_apagar: falhou.length,
   });
   return { apagado: true, contou, falhou };

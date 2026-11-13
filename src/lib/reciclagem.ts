@@ -10,7 +10,7 @@ import {
   tirarDaReciclagem,
   type EntradaDaReciclagem,
 } from "./reciclagem-store";
-import { deleteTask, obterTarefa, reporTarefa } from "./tasks-store";
+import { deleteTask, listTasks, obterTarefa, reporTarefa } from "./tasks-store";
 import { deleteSupplier, obterFornecedor, reporFornecedor } from "./suppliers-store";
 import { deleteCalendarEvent, obterEvento, reporEvento } from "./calendar-store";
 import { apagarServico, criarServico, obterServico } from "./servicos-catalogo-store";
@@ -303,10 +303,13 @@ export const TIPOS = {
     async capturar(id) {
       const q = await getQuote(id);
       if (!q) return null;
-      const [propostas, rascunhos, material] = await Promise.all([
+      const [propostas, rascunhos, material, tarefas] = await Promise.all([
         listProposalsForQuote(id),
         rascunhosDoPedido(id),
         getForQuote(id),
+        // As tarefas saem com o pedido (`apagarPedidoSemContrato`) e voltam
+        // com ele (auditoria de 12/11, n.º 7).
+        listTasks().then((ts) => ts.filter((t) => (t.quoteId ?? "").trim() === id)),
       ]);
       const [itens, registo] = material
         ? await Promise.all([listItemsOfEvent(material.id), listLogOf(material.id)])
@@ -320,6 +323,7 @@ export const TIPOS = {
           material: material ? [material] : [],
           itens,
           registo,
+          tarefas,
         },
       };
     },
@@ -352,6 +356,8 @@ export const TIPOS = {
       );
       await reporSeFaltar(todos<EventMaterialItem>(r, "itens"), obterEventItem, reporEventItem);
       await reporSeFaltar(todos<EventMaterialLog>(r, "registo"), obterDoRegisto, reporNoRegisto);
+      // Um retrato de antes desta mudança não tem `tarefas`: `todos` dá [].
+      await reporSeFaltar(todos<Task>(r, "tarefas"), obterTarefa, reporTarefa);
     },
     async largar(e) {
       // Se voltou (com o mesmo id), a pasta é dele outra vez.
