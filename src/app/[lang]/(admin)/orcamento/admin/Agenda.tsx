@@ -97,7 +97,9 @@ export default function Agenda({ quotes, onOpen }: Props) {
     loading: aLerTarefas,
     falha: falhaDasTarefas,
     refresh: recarregarTarefas,
-  } = useCachedList<Task[]>("tarefas", "/api/tarefas");
+  } = useCachedList<Task[]>("tarefas", "/api/tarefas", {
+    revalidarAoVoltar: true,
+  });
 
   /**
    * ══════════════════════════════════════════════════════════════════════════

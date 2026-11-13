@@ -319,9 +319,13 @@ describe("useCachedList — os ecrãs da mesma lista falam uns com os outros", (
     // ao separador); desmontá-los deixa as respostas todas para estes dois.
     cleanup();
     replies = [{ status: 200, body: [{ id: "t1", done: false }], etag: 'W/"v1"' }, { status: 304 }];
-    const hoje = renderHook(() => useCachedList<{ id: string; done: boolean }[]>("t", "/api/t"));
+    const hoje = renderHook(() =>
+      useCachedList<{ id: string; done: boolean }[]>("t", "/api/t", { revalidarAoVoltar: true }),
+    );
     await waitFor(() => expect(hoje.result.current.loading).toBe(false));
-    const tarefas = renderHook(() => useCachedList<{ id: string; done: boolean }[]>("t", "/api/t"));
+    const tarefas = renderHook(() =>
+      useCachedList<{ id: string; done: boolean }[]>("t", "/api/t", { revalidarAoVoltar: true }),
+    );
     await waitFor(() => expect(requests).toHaveLength(2));
 
     // Riscada no ecrã das Tarefas — o «Hoje» tem de a ver riscada já.
@@ -350,5 +354,30 @@ describe("useCachedList — os ecrãs da mesma lista falam uns com os outros", (
     // Duas vistas montadas, UMA viagem.
     expect(requests.length - antes).toBe(1);
     vi.restoreAllMocks();
+  });
+});
+
+/**
+ * Revisão do PR #444 (custo): cada regresso ao separador relia TODAS as listas
+ * montadas — e a rota, para responder 304, lê a tabela inteira do Supabase.
+ * Só as listas que o pedem voltam a perguntar.
+ */
+describe("useCachedList — voltar ao separador só relê quem o pede", () => {
+  it("uma lista sem `revalidarAoVoltar` não vai à rede ao voltar ao separador", async () => {
+    cleanup();
+    replies = [{ status: 200, body: [{ id: "a" }], etag: 'W/"v1"' }];
+    const { result } = renderHook(() => useCachedList<{ id: string }[]>("grande", "/api/grande"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const antes = requests.length;
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31 * 60_000);
+    try {
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      await new Promise((r) => setTimeout(r, 20));
+      expect(requests.length).toBe(antes);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });

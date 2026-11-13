@@ -28,7 +28,9 @@ export default function Reminders({ quotes, onOpen }: Props) {
   // `useCachedList` — este painel e a Agenda são desenhados lado a lado na
   // Visão Geral e pediam a mesma lista duas vezes (três, com o aquecimento
   // ocioso do AdminClient). A cache junta os pedidos em voo numa só viagem.
-  const { data: tasks = [] } = useCachedList<Task[]>("tarefas", "/api/tarefas");
+  const { data: tasks = [] } = useCachedList<Task[]>("tarefas", "/api/tarefas", {
+    revalidarAoVoltar: true,
+  });
 
   const reminders = useMemo(() => {
     // Tudo se conta entre DIAS a partir do `today`, e não do relógio: o

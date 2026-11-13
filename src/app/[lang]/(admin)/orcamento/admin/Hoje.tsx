@@ -45,7 +45,9 @@ const COR_DO_TOM: Record<Linha["tom"], string> = {
 };
 
 function Hoje({ quotes, propostas, onOpen, onGo }: Props) {
-  const { data: tarefas = [] } = useCachedList<Task[]>("tarefas", "/api/tarefas");
+  const { data: tarefas = [] } = useCachedList<Task[]>("tarefas", "/api/tarefas", {
+    revalidarAoVoltar: true,
+  });
   // Muda à meia-noite e ao voltar ao separador (ver `useDiaDeHoje`).
   const hoje = useDiaDeHoje();
   const h = useMemo(

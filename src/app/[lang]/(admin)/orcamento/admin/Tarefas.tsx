@@ -854,7 +854,9 @@ export default function Tarefas({
     error,
     errorMessage,
     refresh,
-  } = useCachedList<Task[]>("tarefas", "/api/tarefas");
+  } = useCachedList<Task[]>("tarefas", "/api/tarefas", {
+    revalidarAoVoltar: true,
+  });
   const [adding, setAdding] = useState(false);
   const [showDone, setShowDone] = useState(false);
 

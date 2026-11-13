@@ -216,7 +216,24 @@ export interface CachedList<T> {
   refresh: () => void;
 }
 
-export function useCachedList<T>(key: string, url: string): CachedList<T> {
+export interface OpcoesDaLista {
+  /**
+   * Voltar a perguntar ao servidor quando ela regressa ao separador. Desligado
+   * por omissão, e é de propósito: a rota responde 304 sem corpo, mas para
+   * calcular o ETag lê a tabela INTEIRA do Supabase — o 304 poupa a saída para
+   * o browser, não a leitura. Só o liga quem é lista pequena e partilhada por
+   * vários ecrãs ao mesmo tempo (as tarefas: Hoje, Lembretes, Agenda, Tarefas,
+   * tarefas do pedido).
+   */
+  revalidarAoVoltar?: boolean;
+}
+
+export function useCachedList<T>(
+  key: string,
+  url: string,
+  opcoes: OpcoesDaLista = {},
+): CachedList<T> {
+  const revalidarAoVoltar = opcoes.revalidarAoVoltar === true;
   const cached = cache.get(key) as Entry<T> | undefined;
   const [data, setDataState] = useState<T | undefined>(cached?.data);
   // Only the true first load (nothing cached) shows the skeleton.
@@ -281,10 +298,11 @@ export function useCachedList<T>(key: string, url: string): CachedList<T> {
    * computador. Sem isto, o «Hoje» mostrava a manhã inteira o que estava às
    * nove. Sem sondagem nenhuma (nada corre com o separador escondido): só ao
    * regressar, um pedido condicional com o ETag — 304 sem corpo quando nada
-   * mudou — e no máximo um por lista a cada 30 s.
+   * mudou — e no máximo um por lista a cada 30 s. Só nas listas que o pedem
+   * (`revalidarAoVoltar`): ver o custo em `OpcoesDaLista`.
    */
   useEffect(() => {
-    if (typeof document === "undefined") return;
+    if (!revalidarAoVoltar || typeof document === "undefined") return;
     const aoVoltar = () => {
       if (document.visibilityState !== "visible") return;
       if (Date.now() - (lidoEm.get(key) ?? 0) < REGRESSO_MIN_MS) return;
@@ -292,7 +310,7 @@ export function useCachedList<T>(key: string, url: string): CachedList<T> {
     };
     document.addEventListener("visibilitychange", aoVoltar);
     return () => document.removeEventListener("visibilitychange", aoVoltar);
-  }, [key, revalidate]);
+  }, [key, revalidate, revalidarAoVoltar]);
 
   const setData = useCallback(
     (updater: T | ((prev: T) => T)) => {

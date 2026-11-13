@@ -97,7 +97,9 @@ export default function EventTasks({ quote, userName }: Props) {
     error: erro,
     errorMessage: mensagemDeErro,
     refresh: tentarDeNovo,
-  } = useCachedList<Task[]>("tarefas", "/api/tarefas");
+  } = useCachedList<Task[]>("tarefas", "/api/tarefas", {
+    revalidarAoVoltar: true,
+  });
   const tasks = useMemo(
     () => (allTasks ?? []).filter((t) => t.quoteId === quote.id),
     [allTasks, quote.id],
