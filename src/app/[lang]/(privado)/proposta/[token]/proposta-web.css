@@ -1222,6 +1222,27 @@ html:has(.pw) {
 .pw-escolhas {
   padding-top: clamp(56px, 8vw, 110px);
   padding-bottom: clamp(56px, 8vw, 110px);
+  /* AS ESCOLHAS SÃO DO SITE, EM TAILWIND — E O SITE NÃO SABE DO ESCURO DAQUI.
+     O `text-foreground`, o `text-moss` e o vermelho do aviso liam os tokens do
+     site (#2a2620, sempre), e no telemóvel em modo escuro o fundo desta página
+     é #191714: 1,2:1, a única coisa que o casal FAZ na página ficava ilegível
+     (13/11). Os mesmos tokens passam a apontar para os desta página, e o verde
+     e o vermelho escolhem o degrau que passa 4,5:1 em cada tema — o
+     `escolhas-leem-se.test.ts` faz a conta. */
+  --color-foreground: var(--fg);
+  --color-moss: var(--color-moss-dark);
+}
+@media (prefers-color-scheme: dark) {
+  .pw-escolhas {
+    --color-moss: var(--color-moss-light);
+    /* O `--danger` do modo escuro do site (`globals.css`, bloco `.dark`), que
+       aqui não se pode ler pelo nome: a classe `.dark` nunca está na página. */
+    --danger: #f4a79d;
+  }
+}
+.pw[data-theme="dark"] .pw-escolhas {
+  --color-moss: var(--color-moss-light);
+  --danger: #f4a79d;
 }
 .pw-mos figure:focus-visible {
   outline: 2px solid var(--fg);
