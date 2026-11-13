@@ -4412,6 +4412,79 @@ describe("o indicador diz onde é que o rascunho ficou", () => {
  * sabia que havia fotos a caminho.
  */
 describe("fotos a carregar enquanto se mexe nos temas", () => {
+  it("desfazer para antes de uma foto assentar não deixa a foto presa a «carregar»", async () => {
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        template: "decoracao",
+        ref: "PO Decoração",
+        location: "Évora",
+        serviceGroups: [],
+        moodBoards: [{ title: "Tema B", images: [] }],
+        budgetItems: [],
+        coverImages: ["", ""],
+      }),
+    );
+    localStorage.setItem(`${DRAFT_KEY}:at`, String(Date.now()));
+    const original = global.fetch;
+    let soltar!: () => void;
+    const portao = new Promise<void>((r) => (soltar = r));
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).includes("/assets") && init?.method === "POST") {
+        await portao;
+        return new Response(
+          JSON.stringify({ images: [{ path: "q1/nova.jpg", url: "https://x/nova.jpg" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return original(url, init);
+    }) as typeof fetch;
+    try {
+      renderStudio("Inspiração");
+      const user = userEvent.setup();
+      await screen.findByDisplayValue("Tema B");
+      const input = [...document.querySelectorAll<HTMLInputElement>('input[type="file"]')].find(
+        (i) => i.multiple,
+      )!;
+      fireEvent.change(input, {
+        target: { files: [new File(["x"], "flores.jpg", { type: "image/jpeg" })] },
+      });
+      // Ela escreve enquanto a foto sobe: a fotografia do ⌘Z é tirada com a
+      // foto ainda a caminho (um marcador provisório).
+      await user.type(screen.getByDisplayValue("Tema B"), " A");
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 1200));
+      });
+      soltar();
+      await waitFor(
+        () => expect(corpos("proposta-rascunho").at(-1) ?? "").toContain("q1/nova.jpg"),
+        {
+          timeout: 4000,
+        },
+      );
+      // Escreve outra coisa, e desfaz duas vezes — até antes de a foto assentar.
+      const titulo = screen.getByDisplayValue("Tema B A");
+      await user.type(titulo, " X");
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 1200));
+      });
+      // Desfaz até à fotografia tirada com a foto a caminho («Tema B A»).
+      // (1: tira o « X»; 2: volta à fotografia com a foto a caminho.)
+      await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+      await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+      await screen.findByDisplayValue("Tema B A");
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 1200));
+      });
+      // A foto está lá — e não um marcador que nunca mais assenta.
+      const ultimo = JSON.parse(corpos("proposta-rascunho").at(-1)!);
+      expect(ultimo.doc.moodBoards[0].title).toBe("Tema B A");
+      expect(ultimo.doc.moodBoards[0].images).toEqual(["q1/nova.jpg"]);
+    } finally {
+      global.fetch = original;
+    }
+  });
+
   it("a foto vai para o tema onde ela a pôs, mesmo que o tema mude de lugar a meio", async () => {
     localStorage.setItem(
       DRAFT_KEY,
@@ -4553,6 +4626,34 @@ describe("desfazer", () => {
     } finally {
       global.fetch = original;
     }
+  });
+
+  it("abrir noutro aparelho: desfazer nunca volta ao que estava ANTES do rascunho do servidor", async () => {
+    localStorage.clear();
+    rascunhoServidor = {
+      updatedAt: new Date().toISOString(),
+      doc: {
+        template: "decoracao",
+        ref: "PO Decoração",
+        clientNames: "Maria & Zé",
+        location: "Herdade do Servidor",
+        serviceGroups: [],
+        moodBoards: [],
+        budgetItems: [],
+        coverImages: ["", ""],
+      },
+    };
+    const user = userEvent.setup();
+    renderStudio();
+    const local = (await screen.findByDisplayValue("Herdade do Servidor")) as HTMLInputElement;
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 300));
+    });
+    await user.type(local, " Sul");
+    await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+    await waitFor(() => expect(local.value).toBe("Herdade do Servidor"));
+    // E não há mais para trás: o que estava antes do servidor não é um passo.
+    expect(screen.getByRole("button", { name: /^Desfazer/ })).toBeDisabled();
   });
 
   it("desfazer um preço também o devolve ao PEDIDO (e não só ao ecrã)", async () => {

@@ -1888,6 +1888,21 @@ export default function ProposalStudio({
   /** O documento «assente»: o da abertura, ou o da última fotografia. */
   const docAssente = useRef<StudioDoc | null>(null);
   /**
+   * Os marcadores provisórios que JÁ se resolveram (o caminho em que a foto
+   * assentou, ou `null` se falhou). Um documento reposto pelo ⌘Z ou pelo
+   * «Anular» pode trazer marcadores de uma fotografia tirada a meio de um
+   * carregamento — e um marcador que já não está em voo nunca mais assenta:
+   * as células ficavam a carregar para sempre e o envio preso (revisão de
+   * 13/11). Repor passa por aqui.
+   */
+  const marcadoresResolvidos = useRef<Map<string, string | null>>(new Map());
+  const semMarcadoresMortos = (d: StudioDoc): StudioDoc =>
+    marcadoresResolvidos.current.size === 0
+      ? d
+      : mapImagePaths(d, (p) =>
+          marcadoresResolvidos.current.has(p) ? (marcadoresResolvidos.current.get(p) ?? null) : p,
+        );
+  /**
    * Há alguma coisa para desfazer? Isto É estado, ao contrário do histórico:
    * é o que acende e apaga o botão "Desfazer".
    *
@@ -3196,7 +3211,14 @@ export default function ProposalStudio({
         if (base != null && !camposTocados.current.has("__total")) {
           setTotalInput(textoDoTotal(base));
         }
-        return paraOEcra == null ? limpo : aplicarBase(limpo, paraOEcra);
+        const adoptado = paraOEcra == null ? limpo : aplicarBase(limpo, paraOEcra);
+        // O ponto de partida do ⌘Z passa a ser ESTE documento: desfazer não
+        // pode voltar ao que estava no ecrã antes de o rascunho do servidor
+        // chegar (revisão de 13/11) — e a gravação seguinte escrevê-lo-ia por
+        // cima do trabalho bom.
+        docAssente.current = adoptado;
+        historico.current = [];
+        return adoptado;
       });
       // O que estava marcado como «vindo do pedido» deixou de estar no ecrã: o
       // que se vê agora é o rascunho dela, feito noutro dispositivo. Manter os
@@ -4862,6 +4884,7 @@ export default function ProposalStudio({
       historico.current = h.slice(0, -1);
     }
     setPodeDesfazer(historico.current.length >= 2);
+    anterior = semMarcadoresMortos(anterior);
     setDoc(anterior);
     // O campo do total é estado à parte (aceita texto a meio de ser escrito),
     // por isso tem de acompanhar — senão desfazer devolvia o documento antigo
@@ -5145,7 +5168,7 @@ export default function ProposalStudio({
   /** Devolve o rascunho que o "Limpar" deitou fora. */
   function anularLimpeza() {
     if (!limpo) return;
-    setDoc(limpo.doc);
+    setDoc(semMarcadoresMortos(limpo.doc));
     setTotalInput(limpo.total);
     if (limpo.fotos) {
       const f = limpo.fotos;
@@ -5720,8 +5743,12 @@ export default function ProposalStudio({
     let res: Response;
     try {
       res = await post();
-    } catch {
-      // Soluço de rede — tenta uma segunda vez antes de desistir.
+    } catch (e) {
+      // Um tempo esgotado não se repete: seriam mais 120 s à espera, e o
+      // primeiro pedido pode bem ter chegado (revisão de 13/11).
+      if (eTempoEsgotado(e)) throw e;
+      // Soluço de rede — tenta uma segunda vez antes de desistir (com a mesma
+      // chave: se a primeira chegou, não fica um segundo ficheiro).
       res = await post();
     }
     const data = await res.json().catch(() => null);
@@ -5853,6 +5880,7 @@ export default function ProposalStudio({
         // que falhou sai. Um marcador que ela já tirou não volta a entrar.
         const trocas = new Map<string, string | null>();
         marcadores.forEach((m, i) => trocas.set(m, results[i]?.path ?? null));
+        for (const [m, p] of trocas) marcadoresResolvidos.current.set(m, p);
         setDoc((d) => mapImagePaths(d, (p) => (trocas.has(p) ? (trocas.get(p) ?? null) : p)));
         setAssetUrls((prev) => {
           const next = { ...prev };
@@ -6051,6 +6079,7 @@ export default function ProposalStudio({
       return next;
     });
     if (trocas.size > 0) {
+      for (const [m, p] of trocas) marcadoresResolvidos.current.set(m, p);
       setDoc((d) => mapImagePaths(d, (p) => trocas.get(p) ?? p));
     }
     if (novas.length === 0) return;
@@ -6078,6 +6107,7 @@ export default function ProposalStudio({
   function onDroppedFromLibrary(marcadores: string[]) {
     if (marcadores.length === 0) return;
     const perdidos = new Set(marcadores);
+    for (const m of marcadores) marcadoresResolvidos.current.set(m, null);
     setDoc((d) => mapImagePaths(d, (p) => (perdidos.has(p) ? null : p)));
     setAssetUrls((prev) => {
       const next = { ...prev };
@@ -7878,6 +7908,9 @@ export default function ProposalStudio({
     // O retrato do que vai seguir: se o PDF desta versão já estiver à mão, é o
     // ficheiro que o «Descarregar PDF» de depois do envio entrega.
     const retratoDoEnvio = retratoDoPdf(stripPendingImages(doc), idiomaDoPdf);
+    // Se a resposta do servidor CHEGOU, um erro a seguir não é «a resposta não
+    // chegou» — é outra coisa, e diz-se como tal (revisão de 13/11).
+    let respondeu = false;
     try {
       const comecou = Date.now();
       const res = await fetch(`/api/orcamento/${quote.id}/proposta-doc`, {
@@ -7936,6 +7969,7 @@ export default function ProposalStudio({
           ...(pdfVisto?.confirmado ? { pdfVisto: pdfVisto.chave } : {}),
         }),
       });
+      respondeu = true;
       const data = await res.json().catch(() => null);
       /**
        * ── O ENVIO PAROU PARA PERGUNTAR ────────────────────────────────────
@@ -8083,7 +8117,7 @@ export default function ProposalStudio({
       // pedido pode ter chegado e o email ter saído — só a resposta é que não
       // voltou. Diz-se isso, e não «erro», para ela ver antes de carregar outra
       // vez (e, se carregar logo, o servidor responde que ainda está a enviar).
-      const semResposta = eTempoEsgotado(e) || e instanceof TypeError;
+      const semResposta = !respondeu && (eTempoEsgotado(e) || e instanceof TypeError);
       toast(
         semResposta
           ? "A resposta do envio não chegou (rede lenta ou cortada). A proposta pode já ter seguido: confirme no pedido se aparece como enviada antes de voltar a enviar."
