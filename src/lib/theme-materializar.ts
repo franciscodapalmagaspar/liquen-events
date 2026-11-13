@@ -1,10 +1,13 @@
 import "server-only";
 import { getState, listStateByPrefix, setState } from "./app-state";
 import { DRAFT_PREFIX, type StoredProposalDraft } from "./proposal-drafts";
-import { listAllProposals, updateProposal } from "./proposals-store";
+import { listAllProposals, updateProposalWith } from "./proposals-store";
+import { actualizarRetrato, listarReciclagem } from "./reciclagem-store";
+import { isMissingTable } from "./repository";
 import {
   copyThemeImageToProposal,
   deleteThemeFolder,
+  apagarDerivadasOrfas,
   deleteThemeImage,
   levarFotoParaAReciclagem,
   themeFolder,
@@ -116,10 +119,14 @@ async function todosOsPortadores(): Promise<{ portadores: Portador[]; completo: 
         descricao: `proposta ${p.id}`,
         quoteId: p.quoteId,
         doc: p.doc,
+        // Sobre a proposta LIDA AGORA, e não sobre o `doc` da varredura: uma
+        // gravação feita entretanto (o estúdio, um envio) não pode ser escrita
+        // por cima com a versão de há segundos.
         gravar: async (substituicoes) =>
-          !!(await updateProposal(p.id, {
-            doc: trocarRefsNoDoc(p.doc, substituicoes) as typeof p.doc,
-          }).catch(() => null)),
+          !!(await updateProposalWith(p.id, (cur) => ({
+            ...cur,
+            doc: trocarRefsNoDoc(cur.doc, substituicoes) as typeof cur.doc,
+          })).catch(() => null)),
       });
     }
   } catch (e) {
@@ -152,9 +159,16 @@ async function todosOsPortadores(): Promise<{ portadores: Portador[]; completo: 
           // APAGAR as fotos do Storage. Um rascunho que ficou por reescrever com
           // as fotos já apagadas é um mood board com buracos que ninguém volta a
           // conseguir explicar. Passa a responder o que o `app-state` respondeu.
+          //
+          // E com um `updatedAt` NOVO: é por ele que a rota do rascunho sabe
+          // que alguém gravou entretanto. Com o antigo, um estúdio aberto
+          // noutro separador gravava a seguir o seu documento — com a
+          // referência antiga — como se nada tivesse mudado, e a foto partia.
+          // Com o novo, essa gravação entra na junção campo a campo.
           const { gravado } = await setState(key, {
             ...actual,
             doc: trocarRefsNoDoc(actual.doc, substituicoes),
+            updatedAt: new Date().toISOString(),
           });
           return gravado;
         } catch {
@@ -162,6 +176,37 @@ async function todosOsPortadores(): Promise<{ portadores: Portador[]; completo: 
         }
       },
     });
+  }
+  // ── E O QUE ESTÁ NA RECICLAGEM ──────────────────────────────────────────
+  //
+  // Um pedido ou uma proposta na Reciclagem guarda o retrato inteiro — os
+  // documentos com as suas referências `tema:` — para o «Repor» os gravar de
+  // volta. Uma foto só referida por lá também é usada: sem isto, apagá-la ou
+  // movê-la fazia o «Repor» devolver uma proposta partida. O retrato percorre-
+  // -se inteiro, como os documentos. Sem a tabela não há nada lá.
+  try {
+    for (const e of await listarReciclagem()) {
+      if (refsDeTemaNoDoc(e.retrato).size === 0) continue;
+      const proposta = (e.retrato.principal as { quoteId?: unknown }[] | undefined)?.[0];
+      const quoteId =
+        e.tipo === "proposta" && typeof proposta?.quoteId === "string"
+          ? proposta.quoteId
+          : e.origemId;
+      portadores.push({
+        descricao: `«${e.rotulo}» na Reciclagem`,
+        quoteId,
+        doc: e.retrato,
+        gravar: async (substituicoes) =>
+          !!(await actualizarRetrato(e.id, (r) => trocarRefsNoDoc(r, substituicoes) as typeof r)
+            .then((x) => x !== null)
+            .catch(() => false)),
+      });
+    }
+  } catch (err) {
+    if (!isMissingTable(err)) {
+      log.error("materializar: não foi possível ler a Reciclagem", err);
+      completo = false;
+    }
   }
   return { portadores, completo };
 }
@@ -324,6 +369,42 @@ export async function salvarAntesDeReciclarOTema(themeId: string): Promise<boole
 // Supabase gratuito tem 1 GB) para guardar uma segunda cópia de bytes que
 // continuam a existir.
 
+// ── UMA VARREDURA POR FUSÃO, E NÃO UMA POR LOTE ──────────────────────────
+//
+// Fundir um tema de 3000 fotos são 75 pedidos de 40; varrer todas as propostas
+// (com o documento inteiro), os rascunhos e a Reciclagem em cada um custava 75
+// leituras completas para responder à mesma pergunta. A varredura fica na
+// memória da função durante um minuto, por par origem→destino, e os lotes
+// seguintes da mesma fusão reutilizam-na (numa instância nova, varre-se outra
+// vez — custa, não parte).
+//
+// O que isto aceita: uma referência NOVA a uma foto da origem, criada durante
+// esse minuto num documento que a varredura não viu, não é reescrita. As
+// gravações são sempre feitas sobre a versão lida no momento (proposta,
+// rascunho, Reciclagem), por isso nada do que a varredura VIU fica velho.
+const VARREDURA_VALE_MS = 60_000;
+const varreduras = new Map<string, { quando: number; portadores: Portador[] }>();
+
+async function varreduraParaMover(chave: string): Promise<{ portadores: Portador[] } | null> {
+  const agora = Date.now();
+  for (const [k, v] of varreduras) if (agora - v.quando > VARREDURA_VALE_MS) varreduras.delete(k);
+  const guardada = varreduras.get(chave);
+  if (guardada) return guardada;
+  const { portadores, completo } = await todosOsPortadores();
+  if (!completo) return null;
+  // Só se guarda o que referencia ALGUMA foto: o resto não tem nada a dizer a
+  // um mover, e guardar os documentos inteiros era memória por nada.
+  const comRefs = portadores.filter((p) => refsDeTemaNoDoc(p.doc).size > 0);
+  const nova = { quando: agora, portadores: comRefs };
+  varreduras.set(chave, nova);
+  return nova;
+}
+
+/** Só para os testes: esquece as varreduras guardadas. */
+export function esquecerVarreduras(): void {
+  varreduras.clear();
+}
+
 /** O que aconteceu a cada foto, na mesma forma do `transferThemeImage`. */
 export interface ResultadoDeMover {
   outcome: ThemeTransferOutcome;
@@ -420,11 +501,13 @@ export async function moverFotosDaBiblioteca(
   const destino = themeFolder(destThemeId);
   if (!destino) return paths.map(falhou);
 
-  const { portadores, completo } = await todosOsPortadores();
-  if (!completo) {
+  const origem = paths.length > 0 ? themeIdOfPath(paths[0]) : "";
+  const varredura = await varreduraParaMover(`${origem}>${destino}`);
+  if (!varredura) {
     log.error("mover: varredura incompleta — nenhuma foto mudou de tema");
     return paths.map(falhou);
   }
+  const { portadores } = varredura;
   const aMover = new Set(paths);
   const referenciadas = new Set<string>();
   for (const p of portadores) {
@@ -467,6 +550,8 @@ export async function moverFotosDaBiblioteca(
         continue;
       }
       await linhas.apagarAntigas();
+      // A micro e a miniatura foram com ela; a média e as AVIF ficavam órfãs.
+      await apagarDerivadasOrfas(from);
       resultados[i] = r;
     }
   };
@@ -505,6 +590,9 @@ export async function moverFotosDaBiblioteca(
       continue;
     }
     await linhas.apagarAntigas();
+    // O `deleteThemeImage` leva a miniatura; a micro, a média e as AVIF da
+    // origem ficavam órfãs no Storage (a cópia já levou as que o destino usa).
+    await apagarDerivadasOrfas(from);
   }
   return resultados;
 }

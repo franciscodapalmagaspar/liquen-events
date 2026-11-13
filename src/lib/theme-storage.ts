@@ -31,6 +31,7 @@ import {
   THEME_MID_BUCKET,
   THEME_AVIF_BUCKET,
   THEME_AVIF_MICRO_BUCKET,
+  THEME_AVIF_MID_BUCKET,
   THEME_SIGNED_TTL,
   isThemePath,
   refDeTema,
@@ -1245,6 +1246,40 @@ export async function deleteThemeImage(path: string): Promise<boolean> {
   forgetThemeFingerprints(themeIdOfPath(path));
   await removeThumbs([path]);
   return true;
+}
+
+/**
+ * As DERIVADAS de uma foto que saiu do tema (micro, média e as AVIF), no sítio
+ * de onde ela saiu. A miniatura vai com o `deleteThemeImage`; estas ficavam
+ * órfãs no Storage — sem original, ninguém as lista nem as volta a usar —, e o
+ * Supabase gratuito tem 1 GB. Usado por quem MUDA uma foto de tema
+ * (`moverFotosDaBiblioteca`): a micro e a miniatura já foram com ela, e as
+ * outras são caches que se refazem.
+ *
+ * Melhor esforço: um bucket que não existe, ou uma derivada que nunca foi
+ * feita, não é erro. Nunca lança.
+ */
+export async function apagarDerivadasOrfas(path: string): Promise<void> {
+  const sb = getSupabase();
+  if (!sb || !isThemePath(path)) return;
+  await Promise.all(
+    [
+      THEME_MICRO_BUCKET,
+      THEME_MID_BUCKET,
+      THEME_AVIF_BUCKET,
+      THEME_AVIF_MICRO_BUCKET,
+      THEME_AVIF_MID_BUCKET,
+    ].map(async (bucket) => {
+      try {
+        const { error } = await sb.storage.from(bucket).remove([path]);
+        if (error && !isNotFound(error)) {
+          log.warn("theme-storage: derivada órfã por apagar", { bucket, path });
+        }
+      } catch (e) {
+        log.warn("theme-storage: derivada órfã por apagar", { bucket, path, erro: String(e) });
+      }
+    }),
+  );
 }
 
 // ── A Reciclagem (fase R3b de `docs/TUDO-REVERSIVEL.md`) ──────────────────
