@@ -89,9 +89,11 @@ describe("a paleta e o ambiente vêm das mesas", () => {
     ]);
     await desenhar(d);
     expect(usadas).toHaveLength(1);
-    expect(usadas[0].map((b) => b.toString("base64"))).toEqual(
-      bytesDe(jantar).map((b) => b.toString("base64")),
-    );
+    // As cores saem das fotografias que a PÁGINA mostra (13/11) — e essas
+    // são todas do jantar.
+    const doJantar = new Set(bytesDe(jantar).map((b) => b.toString("base64")));
+    expect(usadas[0].length).toBeGreaterThan(0);
+    for (const b of usadas[0]) expect(doJantar.has(b.toString("base64"))).toBe(true);
     const fotos = await fotosDoEditorial(d, "pt", medidas);
     // As quatro do jantar: três na fila e a fotografia grande (o 7.º lugar).
     const daPagina = fotos.ambiente.map((f) => f?.ref).filter(Boolean);
@@ -109,13 +111,14 @@ describe("a paleta e o ambiente vêm das mesas", () => {
     }
   });
 
-  it("sem tema das mesas, fica como antes: todas as fotografias", async () => {
+  it("sem tema das mesas, as cores saem das seis que a página mostra", async () => {
     const d = documento([
       { title: "Decoração Cerimónia", images: cerimonia.slice(0, 4) },
       { title: "Decor Cocktail", images: cerimonia.slice(4) },
     ]);
     await desenhar(d);
-    expect(usadas[0]).toHaveLength(8);
+    // A fila de cinco e a fotografia grande — nem mais uma.
+    expect(usadas[0]).toHaveLength(6);
   });
 
   it("um tema «Mesas» só com texto não tira as cores às outras", async () => {
@@ -124,7 +127,37 @@ describe("a paleta e o ambiente vêm das mesas", () => {
       { title: "Mesas de jantar", images: [] },
     ]);
     await desenhar(d);
-    expect(usadas[0]).toHaveLength(cerimonia.length);
+    expect(usadas[0]).toHaveLength(6);
+  });
+
+  /**
+   * 13/11: um cliente reparou que a paleta não batia com as flores das
+   * fotografias. As cores saíam de até quarenta fotografias, e a página só
+   * mostrava seis. Agora são as MESMAS seis.
+   */
+  it("as cores saem exactamente das fotografias da página", async () => {
+    const d = documento([
+      { title: "Decoração Cerimónia", images: cerimonia.slice(0, 4) },
+      { title: "Decor Cocktail", images: cerimonia.slice(4) },
+    ]);
+    await desenhar(d);
+    const fotos = await fotosDoEditorial(d, "pt", medidas);
+    const daPagina = fotos.ambiente.flatMap((f) => (f?.ref ? [f.ref] : []));
+    expect(usadas[0].map((b) => b.toString("base64")).sort()).toEqual(
+      bytesDe(daPagina)
+        .map((b) => b.toString("base64"))
+        .sort(),
+    );
+  });
+
+  it("as cores que ELA escolheu (`paletaDela`) ganham às automáticas", async () => {
+    const d = {
+      ...documento([{ title: "Mesas de Jantar", images: jantar }]),
+      paletaDela: ["#d98aa6", "#A48CC9", "nada", "#D98AA6"],
+    } as ProposalDoc;
+    await desenhar(d);
+    // Nem se calculam: as dela vão directas para a página.
+    expect(usadas).toHaveLength(0);
   });
 
   it("um buffet conta como mesa", async () => {
