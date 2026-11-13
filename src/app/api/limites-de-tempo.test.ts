@@ -82,6 +82,16 @@ const PESADAS: { rota: string; faz: string; minimo: number }[] = [
     minimo: 30,
   },
   {
+    rota: "orcamento/[id]/material",
+    faz: "regenera a checklist: uma escrita por linha que entra, muda ou sai",
+    minimo: 30,
+  },
+  {
+    rota: "temas/[id]/fundir",
+    faz: "move um lote de 40 fotos, reescreve as propostas que as usam e leva as etiquetas",
+    minimo: 60,
+  },
+  {
     rota: "temas/[id]",
     faz: "o DELETE copia as fotos referenciadas para as propostas e apaga a pasta",
     minimo: 30,
