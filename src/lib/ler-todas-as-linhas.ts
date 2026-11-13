@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * nas noites em que há candidatos. Mais um pedido, vazio, no fim.
  */
 const PAGINA = 1000;
+const TECTO_DE_PAGINAS = 200;
 
 const chaveDe = (tabela: string) => (tabela === "app_state" ? "key" : "id");
 
@@ -30,7 +31,12 @@ export async function lerTodasAsLinhas<T = Record<string, unknown>>(
   // Avança pelo que VEIO e só pára numa página vazia: assim não depende de o
   // `max-rows` ser 1000 (com 500, uma página «curta» de 500 não é o fim).
   // Custa um pedido vazio no fim — aceitável numa tarefa da noite.
-  for (let desde = 0; ; ) {
+  for (let desde = 0, paginas = 0; ; paginas++) {
+    // Um tecto, para nunca girar para sempre se alguém ignorar o `range`: o
+    // erro faz a limpeza parar — que é o lado seguro.
+    if (paginas >= TECTO_DE_PAGINAS) {
+      return { data: null, error: new Error(`${tabela}: mais de ${TECTO_DE_PAGINAS} páginas`) };
+    }
     const { data, error } = await sb
       .from(tabela)
       .select(colunas)

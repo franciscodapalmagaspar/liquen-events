@@ -345,6 +345,19 @@ export const TIPOS = {
         if (!eParcial(r)) return JA_EXISTE;
         return (await faltaAlgoDoQueSaiu(r)) ? null : JA_EXISTE;
       }
+      // Uma entrada parcial com o pedido já apagado de vez: se há uma entrada
+      // MAIS RECENTE e completa do mesmo pedido, é essa que se repõe (tem
+      // tudo, esta incluída). Repor esta primeiro deixava a outra presa.
+      if (q && eParcial(r)) {
+        const outras = await entradasDe(q.id).catch(() => [] as EntradaDaReciclagem[]);
+        const completa = outras.find(
+          (e) =>
+            e.tipo === "pedido" && !eParcial(e.retrato as Retrato) && e.apagadoEm > apagadoEmDe(r),
+        );
+        if (completa) {
+          return "Este pedido tem uma entrada mais recente na Reciclagem, com tudo. Repõe essa.";
+        }
+      }
       for (const p of todos<Proposal>(r, "propostas")) {
         if (await getProposal(p.id)) {
           return "Uma das propostas deste pedido já existe outra vez. Nada foi reposto.";
@@ -360,24 +373,25 @@ export const TIPOS = {
       if (!vivo) await reporPedido(q);
       await reporSeFaltar(todos<Proposal>(r, "propostas"), getProposal, reporProposta);
       const rascunhos = todos<{ chave: string; valor: unknown }>(r, "rascunhos");
-      // Com o pedido vivo, um rascunho só volta se ela não enviou nada desde o
-      // apagar: enviar limpa o rascunho, e repor o antigo era pôr trabalho
-      // velho por cima do que seguiu.
-      const podeRascunhos = !vivo || !(await enviouDepois(q.id, apagadoEmDe(r)));
-      for (const { chave, valor } of podeRascunhos ? rascunhos : []) {
+      for (const { chave, valor } of rascunhos) {
         // Um rascunho que entretanto nasceu de novo é trabalho de agora: fica.
         // Lido para decidir se se grava: uma leitura falhada lança — nunca
         // escreve por cima de um rascunho que não se conseguiu ver.
         if ((await getState(draftKey(chave), { ouFalha: true })) == null)
           await setState(draftKey(chave), valor);
       }
-      await reporSeFaltar(
-        todos<EventMaterial>(r, "material"),
-        getEventMaterial,
-        reporEventMaterial,
-      );
-      await reporSeFaltar(todos<EventMaterialItem>(r, "itens"), obterEventItem, reporEventItem);
-      await reporSeFaltar(todos<EventMaterialLog>(r, "registo"), obterDoRegisto, reporNoRegisto);
+      // Com o pedido vivo, o material nunca saiu (cai em cascata com o pedido):
+      // repô-lo era pô-lo a dobrar ao lado do de agora — mesmo que o retrato o
+      // traga, por uma entrada que não chegou a ser reduzida (3.ª revisão).
+      if (!vivo) {
+        await reporSeFaltar(
+          todos<EventMaterial>(r, "material"),
+          getEventMaterial,
+          reporEventMaterial,
+        );
+        await reporSeFaltar(todos<EventMaterialItem>(r, "itens"), obterEventItem, reporEventItem);
+        await reporSeFaltar(todos<EventMaterialLog>(r, "registo"), obterDoRegisto, reporNoRegisto);
+      }
       // Um retrato de antes desta mudança não tem `tarefas`: `todos` dá [].
       await reporSeFaltar(todos<Task>(r, "tarefas"), obterTarefa, reporTarefa);
     },
@@ -656,6 +670,7 @@ export async function enviarComDetalhe(
     // Só um apagar que FALHOU a meio (sem `motivo`): uma recusa — o contrato,
     // um pedido que já não existe — não apagou nada, e as entradas que havia
     // ficam como estavam.
+    let reduziu = tipo !== "pedido";
     const parouAMeio =
       err instanceof NaoDeuParaApagar &&
       !(err.detalhe as { motivo?: unknown } | undefined)?.motivo &&
@@ -674,12 +689,18 @@ export async function enviarComDetalhe(
       reduzido.parcial = [{ apagadoEm: entrada.apagadoEm }];
       // Se não se conseguir trocar, fica o retrato inteiro: o «Repor» com o
       // pedido vivo recusa-o (não é `parcial`), e o que saiu continua guardado.
-      await trocarRetrato(entrada.id, reduzido).catch((e) =>
-        log.error("reciclagem: não deu para reduzir a entrada parcial", e, { id: entrada.id }),
+      reduziu = await trocarRetrato(entrada.id, reduzido).then(
+        () => true,
+        (e) => {
+          log.error("reciclagem: não deu para reduzir a entrada parcial", e, { id: entrada.id });
+          return false;
+        },
       );
     }
     if (parouAMeio && err instanceof NaoDeuParaApagar) {
-      await largarAnteriores();
+      // As anteriores só saem se a nova ficou com tudo (reduzida e marcada):
+      // senão, ficam como estavam — repostáveis.
+      if (reduziu) await largarAnteriores();
       throw new NaoDeuParaApagar(
         "O pedido não foi apagado por completo. O que já saiu está guardado na Reciclagem — tenta de novo.",
         err.status,
@@ -696,24 +717,15 @@ const eParcial = (r: Retrato): boolean => (r.parcial ?? []).length > 0;
 const apagadoEmDe = (r: Retrato): string =>
   String((primeiro<{ apagadoEm?: string }>(r, "parcial") ?? {}).apagadoEm ?? "");
 
-/** Saiu alguma proposta do pedido criada DEPOIS de `desde` (um envio novo)? */
-async function enviouDepois(quoteId: string, desde: string): Promise<boolean> {
-  const t = Date.parse(desde);
-  if (Number.isNaN(t)) return true; // sem data, o lado seguro: não repor rascunhos
-  const propostas = await listProposalsForQuote(quoteId);
-  return propostas.some((p) => Date.parse(p.createdAt ?? "") > t);
-}
-
 /** Do que um apagar parcial levou, alguma coisa ainda não voltou? */
 async function faltaAlgoDoQueSaiu(r: Retrato): Promise<boolean> {
   for (const p of todos<{ id: string }>(r, "propostas"))
     if (!(await getProposal(p.id))) return true;
   for (const t of todos<{ id: string }>(r, "tarefas")) if (!(await obterTarefa(t.id))) return true;
-  const q = primeiro<Quote>(r, "principal");
-  if (q && !(await enviouDepois(q.id, apagadoEmDe(r)))) {
-    for (const { chave } of todos<{ chave: string }>(r, "rascunhos")) {
-      if ((await getState(draftKey(chave))) == null) return true;
-    }
+  // Um rascunho que voltou a existir (o estúdio grava sozinho) é trabalho de
+  // agora, e não se lhe toca; um que ainda falta, falta.
+  for (const { chave } of todos<{ chave: string }>(r, "rascunhos")) {
+    if ((await getState(draftKey(chave))) == null) return true;
   }
   return false;
 }
@@ -730,6 +742,16 @@ function soOQueSaiu(
   apagadoEm: string,
 ): Retrato {
   const ids = (l: unknown) => String((l as { id?: unknown })?.id ?? "");
+  // Uma linha criada entre a captura e o apagar saiu sem estar no retrato: não
+  // há cópia dela. Diz-se, para se poder ir buscar à cópia de segurança.
+  const capturadas = new Set([
+    ...todos<unknown>(r, "propostas").map(ids),
+    ...todos<unknown>(r, "tarefas").map(ids),
+  ]);
+  const semCopia = [...saiu.propostas, ...saiu.tarefas].filter((id) => !capturadas.has(id));
+  if (semCopia.length > 0) {
+    log.error("reciclagem: saíram linhas que não estavam no retrato", null, { ids: semCopia });
+  }
   return {
     principal: r.principal ?? [],
     propostas: todos<unknown>(r, "propostas").filter((p) => saiu.propostas.includes(ids(p))),
@@ -747,6 +769,8 @@ function soOQueSaiu(
  * ser capturado). O retrato novo manda; do antigo entra o que falta, por `id`
  * (ou `chave`, nos rascunhos).
  */
+const GRUPOS_QUE_SAEM_A_MEIO = new Set(["propostas", "tarefas", "rascunhos"]);
+
 function juntarRetratos(novo: Retrato, antigos: Retrato[]): Retrato {
   const out: Retrato = { ...novo };
   const chaveDe = (l: unknown): string | null => {
@@ -757,9 +781,11 @@ function juntarRetratos(novo: Retrato, antigos: Retrato[]): Retrato {
   };
   for (const antigo of antigos) {
     for (const [grupo, linhas] of Object.entries(antigo)) {
-      if (grupo === "principal" && (out.principal ?? []).length > 0) continue;
-      // A marca de parcial decide-a quem junta, não se herda.
-      if (grupo === "parcial") continue;
+      // Das entradas antigas só vem o que um apagar parcial LEVA: propostas,
+      // tarefas, rascunhos. O pedido, o material, os itens e o registo são os
+      // da captura nova (um material antigo, refeito entretanto com ids novos,
+      // voltava a dobrar). A marca de parcial decide-a quem junta.
+      if (!GRUPOS_QUE_SAEM_A_MEIO.has(grupo)) continue;
       const atuais = [...(out[grupo] ?? [])];
       const vistas = new Set(atuais.map(chaveDe).filter(Boolean));
       for (const l of linhas ?? []) {
