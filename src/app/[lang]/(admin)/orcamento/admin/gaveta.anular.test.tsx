@@ -111,7 +111,7 @@ describe("Guião", () => {
     const user = userEvent.setup();
     comAviso(<EventTimeline quote={{ id: "q1", timeline: GUIAO } as Quote} onChange={() => {}} />);
     await user.click(screen.getByRole("button", { name: "Remover 16:00 Cerimónia" }));
-    expect(await screen.findByText(/«16:00 Cerimónia» saiu do cronograma/)).toBeTruthy();
+    expect(await screen.findByText(/«16:00 Cerimónia» saiu da timeline/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Anular" }));
     await waitFor(() => expect(patches.length).toBe(2));
     expect((patches[1].timeline as TimelineItem[]).map((i) => i.id)).toEqual(["t1", "t2"]);

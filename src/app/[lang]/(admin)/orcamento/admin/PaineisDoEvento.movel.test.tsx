@@ -313,7 +313,7 @@ describe("os estados vazios lêem `--bo-p-vazio`", () => {
   it("e o vazio que chega ao ecrã traz mesmo o token", () => {
     // Os dois painéis que ela encontra vazios num evento novo.
     const { unmount } = envolver(<EventTimeline quote={pedido()} onChange={() => {}} />);
-    const cronograma = screen.getByText("Cronograma por preencher").parentElement!;
+    const cronograma = screen.getByText("Timeline por preencher").parentElement!;
     expect(cronograma.className).toMatch(/py-\[var\(--bo-p-vazio\)\]/);
     expect(cronograma.className).not.toMatch(/\bpy-10\b/);
     unmount();
