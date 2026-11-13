@@ -10,6 +10,7 @@ import { correrRetencao } from "@/lib/retencao";
 import { limparExpiradas } from "@/lib/reciclagem";
 import { limparFotosTratadasVelhas } from "@/lib/limpar-fotos-tratadas";
 import { limparPastasDePedidosApagados } from "@/lib/limpar-pastas-orfas";
+import { juntarFotosDuplicadas } from "@/lib/juntar-fotos-duplicadas";
 import { limparPdfsSubstituidos } from "@/lib/limpar-pdfs-substituidos";
 import { limparRegistoAntigo } from "@/lib/registo-de-acoes";
 import { isMissingTable } from "@/lib/repository";
@@ -380,6 +381,27 @@ async function GET_semMedida(request: NextRequest) {
       }
 
     /**
+     * E as fotografias guardadas duas vezes (autorizado por ele a 13/11): uma
+     * noite reescreve os rascunhos e grava o plano, a seguinte (≥ 24 h)
+     * reconfirma tudo e só então apaga. Ver `juntar-fotos-duplicadas.ts`. Usa
+     * o manifesto que já se fez para o email — nenhuma listagem a mais — e só
+     * com ele completo.
+     */
+    let duplicados: Awaited<ReturnType<typeof juntarFotosDuplicadas>> | null = null;
+    if (!parcial && fotos?.manifesto.completo)
+      try {
+        duplicados = await juntarFotosDuplicadas(fotos.manifesto, new Date(), { prazoMs: 20_000 });
+      } catch (e) {
+        log.error(
+          "cron backup: a junção das fotografias repetidas falhou (a cópia seguiu na mesma)",
+          e,
+          {
+            dia,
+          },
+        );
+      }
+
+    /**
      * E os PDF de propostas que já foram substituídos por uma versão nova
      * (decisão dela, 10/11: «vou demorar bue tempo» a apagá-los à mão). O
      * enviado, o aceite e o mais recente de cada proposta ficam sempre — ver
@@ -467,6 +489,7 @@ async function GET_semMedida(request: NextRequest) {
       reciclagem,
       fotosTratadas,
       pastasOrfas,
+      duplicados: duplicados ? { ...duplicados, plano: undefined } : null,
       pdfsSubstituidos,
       aquecimento,
     });

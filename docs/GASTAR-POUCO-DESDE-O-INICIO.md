@@ -193,6 +193,33 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
   de theme-medias 12 MB, o resto miniaturas. Por fazer: juntar numa cópia só,
   com as propostas a apontar para a biblioteca (precisa de mexer nos
   documentos — com cópia de segurança e autorização dela).
+  **Feito a 13/11 (autorizado por ele nesse dia; ramo
+  `supabase/juntar-duplicados`)**: `juntar-fotos-duplicadas.ts`, na tarefa da
+  noite, com o manifesto que já se faz para o email (nenhuma listagem a mais).
+  Duas fases à vista em `app_state` (`limpeza:fotos-duplicadas`): a Fase A
+  agrupa por `eTag` + tamanho, reescreve os RASCUNHOS do estúdio com
+  compare-and-set no `updated_at` (e `updatedAt` novo lá dentro, para o
+  estúdio aberto juntar campo a campo em vez de repor o caminho antigo) e grava
+  o valor antigo de cada campo; a Fase B, ≥ 24 h depois, relê as 15 tabelas e
+  só apaga a cópia (e as derivadas, depois de copiadas para o caminho que fica
+  se lá faltarem) que ninguém menciona. Recalcula no máximo uma vez por
+  semana. Plano a seco: `GET /api/admin/fotos-duplicadas`.
+  O que fica DE FORA, e porquê:
+  · cópias referidas por PROPOSTAS GRAVADAS — reescrever uma proposta enviada
+    mudava-lhe o selo da versão (uma aceite passava a «revista»), a chave do
+    PDF guardado e contrariava o contrato (~15 MB a 13/11);
+  · cópias referidas pela Reciclagem ou por qualquer outra tabela (~4 MB);
+  · as cópias DENTRO da Biblioteca (theme-assets 31 MB, theme-medias 17 MB):
+    cada uma é a foto num tema diferente — tirá-la tirava-a do tema;
+  · entre pastas de pedidos diferentes, sem cópia na Biblioteca: apagar um
+    pedido leva a pasta, e o outro ficava sem a foto;
+  · a única cópia da pasta de um pedido que também está na Biblioteca, quando
+    o rascunho desse pedido não a usa (~14 MB): a pasta é a galeria do pedido
+    no estúdio, e a foto desaparecia de lá. Decisão dela, se quiser.
+  Esperado (medido por SQL a 13/11): **~36 MB de originais (86 cópias) + ~9,5
+  MB de derivadas (`proposal-medias` 8,1, `proposal-thumbs` 1,4) ≈ 45 MB**,
+  ao longo de 2–4 noites (tecto de 20 s por noite). Não os 114 MB do total
+  de duplicados: o resto é o que fica de fora acima.
 - `proposal-pdfs` (121 MB): ela escolheu guardar o PDF actual e o aceite de
   cada proposta. Lista mostrada a 10/11: 9 ficheiros (~9 MB), incluindo as
   pastas de 2 propostas que já não existem. O Supabase não deixa apagar

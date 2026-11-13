@@ -40,6 +40,8 @@ const st = vi.hoisted(() => ({
     readme: "…",
   },
   manifestoRebenta: false,
+  /** A junção das fotografias repetidas rebenta? */
+  duplicadosRebenta: false,
   /** O aquecimento dos PDF: o que devolveu, e se rebentou. */
   aquecimentos: [] as number[],
   aquecimentoRebenta: false,
@@ -90,6 +92,12 @@ vi.mock("@/lib/retencao", () => ({
     return { apagados: 0 };
   }),
 }));
+vi.mock("@/lib/juntar-fotos-duplicadas", () => ({
+  juntarFotosDuplicadas: vi.fn(async () => {
+    if (st.duplicadosRebenta) throw new Error("Storage em baixo");
+    return { fase: "nada", copias: 0, apagadas: 0, acabou: true };
+  }),
+}));
 vi.mock("@/lib/limpar-pastas-orfas", () => ({
   limparPastasDePedidosApagados: vi.fn(async () => ({ candidatas: 0, apagadas: 0, acabou: true })),
 }));
@@ -129,6 +137,7 @@ const req = (auth?: string, deFora = false): NextRequest =>
 beforeEach(() => {
   st.authed = false;
   st.manifestoRebenta = false;
+  st.duplicadosRebenta = false;
   st.manifesto.completo = true;
   st.manifesto.avisos = [];
   st.payload = {
@@ -282,6 +291,27 @@ describe("o aquecimento dos PDF viaja com a cópia", () => {
     expect(st.enviados).toHaveLength(1);
     expect(st.reciclagemLimpezas).toBe(1);
     expect(await res.json()).toMatchObject({ reciclagem: { apagadas: 2 } });
+  });
+
+  it("a junção das fotografias repetidas que rebenta NÃO impede a cópia de seguir", async () => {
+    st.authed = true;
+    st.duplicadosRebenta = true;
+    const res = await GET(req());
+    expect(res.status).toBe(200);
+    expect(st.enviados, "a cópia não seguiu por causa dos duplicados").toHaveLength(1);
+    expect(await res.json()).toMatchObject({ ok: true, duplicados: null });
+  });
+
+  it("a junção das fotografias repetidas recebe o manifesto da noite, e só completo", async () => {
+    st.authed = true;
+    const { juntarFotosDuplicadas } = await import("@/lib/juntar-fotos-duplicadas");
+    vi.mocked(juntarFotosDuplicadas).mockClear();
+    await GET(req());
+    expect(vi.mocked(juntarFotosDuplicadas).mock.calls[0]?.[0]).toBe(st.manifesto);
+    vi.mocked(juntarFotosDuplicadas).mockClear();
+    st.manifesto.completo = false;
+    await GET(req());
+    expect(juntarFotosDuplicadas).not.toHaveBeenCalled();
   });
 
   it("uma limpeza da Reciclagem que rebenta NÃO impede a cópia de seguir", async () => {
