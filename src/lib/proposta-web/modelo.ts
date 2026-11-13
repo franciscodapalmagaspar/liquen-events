@@ -174,23 +174,31 @@ function blocosDasCondicoes(seccoes: { titulo: string; pecas: PecaWeb[] }[]) {
 }
 
 /**
- * As cores da paleta: das mesas, pelas miniaturas (leves). Calculadas uma vez
- * por proposta e guardadas (`guardado.ts`) — doze descargas e o `sharp` não
- * podem repetir-se a cada visita.
+ * As cores da paleta, das fotografias que a página mostra (o painel e a fila
+ * — as MESMAS do PDF, 13/11). Calculadas uma vez por proposta e guardadas
+ * (`guardado.ts`) — seis descargas e o `sharp` não podem repetir-se a cada
+ * visita. Lê-se a versão média e não a miniatura: a miniatura é um recorte
+ * quadrado, e as cores de um recorte não são as da fotografia que se vê.
  */
 function coresDaPaleta(
   proposalId: string,
   refs: readonly string[],
   porRef: ReadonlyMap<string, FotoDaProposta>,
 ): Promise<string[]> {
-  const doze = refs.slice(0, 12);
+  // Até doze, como antes: assim as propostas antigas encontram a chave que
+  // gravaram. As novas trazem só as seis da página.
+  const asDaPagina = refs.slice(0, 12);
   return guardadoOuCalculado(
-    chaveDoGuardado("cores", proposalId, ...doze),
+    // A chave fica a mesma de propósito: uma proposta JÁ enviada guardou as
+    // suas cores (e o seu PDF) antes de 13/11, e a página dela não pode mudar
+    // de paleta sozinha e passar a discordar do PDF que o casal tem. As novas
+    // têm outras referências (as fotografias da página), logo outra chave.
+    chaveDoGuardado("cores", proposalId, ...asDaPagina),
     async () => {
       const bytes = await Promise.all(
-        doze.map(async (ref) => {
+        asDaPagina.map(async (ref) => {
           const f = porRef.get(ref);
-          const url = f?.miniatura ?? f?.media ?? f?.original;
+          const url = f?.media ?? f?.miniatura ?? f?.original;
           if (!url) return null;
           try {
             // Com a guarda do PDF: só o armazenamento, só https (10/11).
@@ -422,7 +430,9 @@ export async function montarPropostaWeb(
     ? {
         titulo: c.ambiente.titulo,
         subtitulo: c.ambiente.subtitulo,
-        cores: (await coresDaPaleta(proposta.id, c.ambiente.daPaleta, porRef)).slice(0, 5),
+        cores:
+          c.ambiente.coresDela ??
+          (await coresDaPaleta(proposta.id, c.ambiente.daPaleta, porRef)).slice(0, 5),
         fotos: [c.ambiente.painel, c.ambiente.fila[0], c.ambiente.fila[1]]
           .map((f) => imagem(f))
           .filter((i): i is ImagemWeb => i !== null),

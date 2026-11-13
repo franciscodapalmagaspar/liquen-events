@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import type { ProposalDoc } from "@/lib/proposal-doc";
+import { paletaDaProposta, type ProposalDoc } from "@/lib/proposal-doc";
 import { composicao, LARGURA_DO_MOSAICO, levaBloco, type Caixa } from "@/lib/pdf-editorial/mosaico";
 import { chavesDasPaginas, type EntradaDoPlano } from "@/lib/pdf-editorial/plano";
 import { textosEditoriais } from "@/lib/pdf-editorial/textos";
@@ -421,17 +421,24 @@ export default function PaginaEditorial({
           />
           <Foto foto={outra(5)} estilo={caixa({ x: 0, y: 0, w: 442, h: H })} />
           <Cabecalho sobre={te.sobretituloAmbiente} titulo={te.tituloAmbiente} x={504} w={547} />
-          {Array.from({ length: 5 }, (_, i) => (
-            <span
-              key={i}
-              aria-hidden="true"
-              className="absolute border border-[var(--bo-papel-pdf-fio)]"
-              style={{
-                ...caixa({ x: 504 + i * 111, y: 243, w: 103, h: 211 }),
-                background: `color-mix(in srgb, var(--bo-papel-pdf-baixo) ${85 - i * 15}%, var(--bo-papel-pdf))`,
-              }}
-            />
-          ))}
+          {/* As cores: as que ela escolheu (`paletaDela`), que são as do PDF;
+              sem elas, tons de papel — as automáticas só o PDF as calcula, e
+              a miniatura não inventa outras. */}
+          {(paletaDaProposta(doc) ?? Array.from({ length: 5 }, () => null))
+            .slice(0, 5)
+            .map((cor, i) => (
+              <span
+                key={i}
+                aria-hidden="true"
+                className="absolute border border-[var(--bo-papel-pdf-fio)]"
+                style={{
+                  ...caixa({ x: 504 + i * 111, y: 243, w: 103, h: 211 }),
+                  background:
+                    cor ??
+                    `color-mix(in srgb, var(--bo-papel-pdf-baixo) ${85 - i * 15}%, var(--bo-papel-pdf))`,
+                }}
+              />
+            ))}
           {Array.from({ length: 5 }, (_, i) => (
             <Foto
               key={i}

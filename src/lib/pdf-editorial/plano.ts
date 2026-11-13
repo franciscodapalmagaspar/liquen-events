@@ -609,7 +609,7 @@ export function lugaresDaPagina(p: PaginaDoPlano): { min: number; max: number } 
       return p.fotos.length ? null : { min: 1, max: 1 };
     case "ambiente":
       // Pedido dela de 23/10: a fila de cinco quadrados e o painel grande (o
-      // 6.º lugar). As cores continuam a vir das mesas.
+      // 6.º lugar). As cores saem destas mesmas fotografias (13/11).
       return { min: 1, max: 6 };
     case "servicos":
       return null;

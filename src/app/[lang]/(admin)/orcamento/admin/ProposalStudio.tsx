@@ -102,6 +102,7 @@ import EscolherDisposicao from "./EscolherDisposicao";
 import PaginaEditorial, { fontesDasFolhas } from "./PaginaEditorial";
 import { useFotosDoPdf } from "./useFotosDoPdf";
 import EscolherFotoDaPagina from "./EscolherFotoDaPagina";
+import CoresDaPaleta from "./CoresDaPaleta";
 import { VerOPdfNoEcra } from "./VerOPdfNoEcra";
 import { useAnular } from "./ui/anular";
 import LupaDeFotos from "./LupaDeFotos";
@@ -180,7 +181,7 @@ import {
 } from "@/lib/pdf-editorial/plano";
 import { NOME_DA_DISPOSICAO, disposicaoDoTema, type Disposicao } from "@/lib/pdf-editorial/mosaico";
 import { avisoDeTituloParecido, titulosParecidos } from "@/lib/proposal-titulos-parecidos";
-import { depositPercentOf } from "@/lib/proposal-doc";
+import { depositPercentOf, paletaDaProposta } from "@/lib/proposal-doc";
 import { RepartoPorArtigo } from "./RepartoPorArtigo";
 import {
   ARTIGOS,
@@ -13594,6 +13595,23 @@ export default function ProposalStudio({
           aspetos={aspetosDasFotos}
           onFoco={(f) => enquadrarNaPagina(paginaDaFoto.chave, paginaDaFoto.nome, lugarDaFoto, f)}
           fotosDaProposta={fotosDaProposta}
+          paleta={
+            paginaDaFoto.chave === "ambiente" ? (
+              <CoresDaPaleta
+                fotos={lugaresDaPagina("ambiente").flatMap((r) =>
+                  r
+                    ? [{ ref: r, url: assetUrls[r] ?? (r.startsWith("data:") ? r : undefined) }]
+                    : [],
+                )}
+                cores={paletaDaProposta(doc)}
+                onMudar={(cores, frase) => {
+                  const antes = doc.paletaDela;
+                  patch({ paletaDela: cores && cores.length ? cores : undefined });
+                  anular(frase, () => patch({ paletaDela: antes }));
+                }}
+              />
+            ) : undefined
+          }
           carregar={
             <UploadArea
               label="Carregar uma fotografia"

@@ -1,6 +1,11 @@
 import "server-only";
 import { PDFDocument, type PDFImage } from "pdf-lib";
-import { depositPercentOf, resolveValidUntil, type ProposalDoc } from "@/lib/proposal-doc";
+import {
+  depositPercentOf,
+  paletaDaProposta,
+  resolveValidUntil,
+  type ProposalDoc,
+} from "@/lib/proposal-doc";
 import { docNaLingua } from "@/lib/proposal-doc-bilingue";
 import type { DocTruncation } from "@/lib/proposal-doc-pdf";
 import {
@@ -565,8 +570,8 @@ async function motor(
       (x) => x.fotos.length && eDasMesas(x.pt.title ?? "", x.pt.subtitulo ?? ""),
     );
     const daPaleta = dasMesas.length ? dasMesas.flatMap((x) => x.fotos) : inspiracao;
-    // As que ELA escolheu (23/10): lugares 0–4 a fila, o 5 o painel. Só as
-    // fotografias — as cores continuam a ser as das mesas.
+    // As que ELA escolheu (23/10): lugares 0–4 a fila, o 5 o painel. As
+    // cores saem destas mesmas fotografias (ver em baixo, 13/11).
     const minhas = escolhidasPorLugar(chave, pagina) ?? [];
     const filaDela = Array.from({ length: 5 }, (_, i) => minhas[i] ?? null);
     const painelDela = minhas[5] ?? null;
@@ -608,13 +613,27 @@ async function motor(
       const posta = f ?? filaAuto[a++];
       if (posta) fila.push(posta);
     }
+    // As cores saem das fotografias que ESTA página mostra — o painel e a
+    // fila —, e não de outras (13/11: um cliente reparou que a paleta não
+    // batia com as flores das fotografias). As que ela escolheu à mão
+    // (`paletaDela`) ganham a tudo.
+    // E, havendo temas das mesas, só as DAS MESAS de entre essas (a decisão
+    // dela de 20/10): uma fotografia da cerimónia que entre na fila para a
+    // encher não dá cor à paleta.
+    const naPagina = [painel, ...fila].filter((f): f is Foto => !!f);
+    const dasMesasNaPagina = dasMesas.length
+      ? naPagina.filter((f) => daPaleta.includes(f))
+      : naPagina;
+    const daPagina = dasMesasNaPagina.length ? dasMesasNaPagina : naPagina;
+    const coresDela = paletaDaProposta(doc);
     web.ambiente = {
       sobretitulo: te.sobretituloAmbiente,
       titulo: te.tituloAmbiente,
       subtitulo: te.subtituloAmbiente,
       fila: fws(fila),
       painel: fw(painel),
-      daPaleta: daPaleta.flatMap((f) => (f.ref ? [f.ref] : [])),
+      daPaleta: daPagina.flatMap((f) => (f.ref ? [f.ref] : [])),
+      coresDela,
     };
     plano.push({
       chave,
@@ -623,7 +642,7 @@ async function motor(
       desenhar: async (numero) =>
         ambiente(ctx, {
           // A paleta lê os bytes: só quando se desenha (o plano não os tem).
-          cores: await paletaDasFotos(daPaleta.slice(0, 40).map((f) => f.bytes)),
+          cores: coresDela ?? (await paletaDasFotos(daPagina.map((f) => f.bytes))),
           fotos: fila,
           painel,
           pagina: numero,

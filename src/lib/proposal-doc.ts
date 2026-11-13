@@ -515,6 +515,19 @@ export interface ProposalDoc {
   fotosDasPaginas?: Record<string, FotosDeUmaPagina>;
 
   /**
+   * As cores da página «Paleta e ambiente» escolhidas À MÃO (13/11), em
+   * `#RRGGBB`, até cinco, pela ordem em que saem. Sem elas (ou vazias), o PDF
+   * e a proposta online tiram as cores das fotografias dessa mesma página
+   * (`lib/paleta-cores.ts`).
+   *
+   * Porquê: um cliente disse que «as paletas não batem com as cores das
+   * flores». A regra automática passou a ler as flores das fotografias da
+   * página; mas quem conhece as flores é ela — no «Fazer proposta» toca numa
+   * flor de uma das fotografias e essa cor entra na paleta.
+   */
+  paletaDela?: string[];
+
+  /**
    * ════════════════════════════════════════════════════════════════════════
    * CONTRA QUE PORTUGUÊS É QUE CADA TRADUÇÃO FOI ESCRITA
    * ════════════════════════════════════════════════════════════════════════
@@ -1669,4 +1682,27 @@ export function withProposalDefaults(
     faseamento: doc.faseamento ?? faseamentoPorOmissao(depositPercentOf(doc)),
     cancelamento: doc.cancelamento ?? DEFAULT_CANCELAMENTO,
   };
+}
+
+/** Quantas cores leva a paleta, no máximo. */
+export const CORES_DA_PALETA = 5;
+
+/**
+ * As cores que ELA escolheu para a paleta (`paletaDela`), já validadas — só
+ * `#RRGGBB`, sem repetidas, até cinco —, ou `null` para o PDF usar as
+ * automáticas. Um rascunho antigo ou estragado nunca chega ao PDF com uma cor
+ * que o desenho não saiba ler.
+ */
+export function paletaDaProposta(doc: Pick<ProposalDoc, "paletaDela">): string[] | null {
+  const vistas = new Set<string>();
+  const cores: string[] = [];
+  for (const c of doc.paletaDela ?? []) {
+    if (typeof c !== "string" || !/^#[0-9A-Fa-f]{6}$/.test(c)) continue;
+    const h = c.toUpperCase();
+    if (vistas.has(h)) continue;
+    vistas.add(h);
+    cores.push(h);
+    if (cores.length === CORES_DA_PALETA) break;
+  }
+  return cores.length ? cores : null;
 }

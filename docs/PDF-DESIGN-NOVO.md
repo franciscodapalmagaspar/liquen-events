@@ -75,6 +75,32 @@ lado a lado com o modelo página a página. O jantar de empresa sai com as mesma
   toalha creme e castiçais dourados — a paleta dá vermelho, creme e dourado, e
   nenhum azul. Num PDF de teste com mesas fabricadas a paleta saiu creme,
   creme, terracota, vermelho e bordeaux.
+- **13/11 — «as paletas não batem com as cores das flores» (disse um
+  cliente), e o Francisco: «quero é que as paletas tenham a ver com a cor das
+  flores».** Três defeitos, os três corrigidos:
+  1. *As cores saíam de outras fotografias.* A página mostra seis (a fila e o
+     painel) e a paleta lia até quarenta, de todos os temas das mesas — e a
+     proposta online lia doze. Agora as cores saem das fotografias que A
+     PÁGINA MOSTRA (das mesas, de entre elas, como ela decidiu a 20/10), no PDF
+     e na proposta online.
+  2. *Cada cor era uma média.* A média de rosas, folhas e pétalas brancas é um
+     bege-acinzentado que não está em fotografia nenhuma. Agora cada cor é uma
+     cor que EXISTE nas fotografias (a mais típica do seu grupo).
+  3. *As flores perdiam para a toalha.* Um rosa ocupa poucos píxeis. As cores
+     agrupam-se agora por famílias, à parte — PÉTALAS, FOLHAGEM e o resto
+     (linho, toalha, madeira) — e a paleta escolhe como um florista: até três
+     pétalas de tons diferentes, uma folhagem, uma base. As contas são em
+     Oklab (o espaço de cor feito para o olho). A regra vive em
+     `src/lib/paleta-cores.ts`, sem dependências, e é a mesma no servidor e no
+     «Fazer proposta».
+  O recorte de «atenção» do sharp saiu: a fotografia lê-se inteira, como o
+  cliente a vê; a parede e o céu perdem o peso pela altura e por encherem os
+  bordos. As propostas JÁ enviadas não mudam de paleta (a página online
+  guarda as cores com a chave antiga, e o PDF delas já seguiu).
+  E, por cima disso, ela pode escolher à mão (`paletaDela`): no «Mudar
+  fotografia» da página «Paleta e ambiente», toca numa cor e depois numa flor
+  de uma das fotografias (conta-gotas), ou numa sugestão. Com isso, o PDF e a
+  proposta online usam as dela.
 - **«estes números não dá para perceber nada»** (a página do total, aberta no
   iPhone). No tamanho óptico 96 do documento, o traço fino da Bodoni mede
   0,2 % do corpo: a página inteira num iPhone tem ~390 px de largura, e o traço
@@ -122,7 +148,7 @@ lado a lado com o modelo página a página. O jantar de empresa sai com as mesma
 | §6.2 Índice | feito |
 | §6.3 A proposta | feito |
 | §6.4 O que propomos | feito — até 3 cartões por página, repartidos por igual |
-| §6.5 Paleta e ambiente | feito — 5 cores, 5 quadradas e o painel. **Desde 23/10 escolhem-se as fotografias** («sim, retoma a paleta e o enquadrar»): 6 lugares no estúdio (os 5 quadrados e o painel grande, no 6.º); um lugar sem escolha fica automático. As cores continuam a vir das mesas |
+| §6.5 Paleta e ambiente | feito — 5 cores, 5 quadradas e o painel. **Desde 23/10 escolhem-se as fotografias** («sim, retoma a paleta e o enquadrar»): 6 lugares no estúdio (os 5 quadrados e o painel grande, no 6.º); um lugar sem escolha fica automático. As cores saem das fotografias da página (as das mesas) e das flores delas — 13/11; ou as que ela escolhe com o conta-gotas |
 | Enquadrar (23/10) | feito — em qualquer página com fotografia, o seletor da página mostra o lugar escolhido na forma da caixa onde sai nítido (`formasDosLugares`) e deixa arrastá-lo, como a capa. Grava `fotosDasPaginas[chave].focos[lugar]`; trocar a foto apaga o enquadramento desse lugar. As regras estão em `lugares-escolhidos.ts` |
 | §6.6a Separadores | feito |
 | §6.6b Temas em mosaico (1, 2, 3, 4–5, 6–12, >12) e as disposições à mão | feito — `mosaico.ts` |
