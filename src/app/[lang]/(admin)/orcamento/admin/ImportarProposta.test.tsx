@@ -60,7 +60,10 @@ function preparar(
   rascunhoFalhaUmaVez = false,
   /** Os nomes das fotografias que já estão guardadas na Biblioteca. */
   jaGuardadas: readonly string[] = [],
+  /** As que, entre ler o ficheiro e gravar o rascunho, saíram da Biblioteca. */
+  morremAntesDeGravar: readonly string[] = [],
 ) {
+  let perguntas = 0;
   let rascunhoFalhou = false;
   const chamadas: Chamada[] = [];
   const proposta = mapearConteudo(extrairConteudo(ficheiro));
@@ -72,7 +75,9 @@ function preparar(
     if (url === "/api/orcamento/fotos-existentes") {
       const { resumos } = JSON.parse(init?.body as string) as { resumos: string[] };
       const existentes: Record<string, string> = {};
+      perguntas++;
       for (const nome of jaGuardadas) {
+        if (perguntas > 1 && morremAntesDeGravar.includes(nome)) continue;
         const r = resumoDoNome(nome);
         if (resumos.includes(r)) existentes[r] = `tema:t1/${r}.jpg`;
       }
@@ -318,6 +323,49 @@ describe("Importar proposta antiga", () => {
     );
     const refs = JSON.stringify(doc);
     for (const n of guardadas) expect(refs).toContain(`tema:t1/${resumoDoNome(n)}.jpg`);
+  });
+
+  it("sem armazenamento, pára ao fim de 3 falhas — mesmo com fotografias já guardadas", async () => {
+    const guardadas = [
+      "capa.jpeg",
+      ...Array.from({ length: 8 }, (_, i) => `c${i}.jpeg`),
+      "m0.jpeg",
+    ];
+    const { chamadas, onCreated } = preparar(true, VINTE_E_CINCO, false, guardadas);
+    const user = userEvent.setup();
+    await escolherFicheiro(VINTE_E_CINCO);
+    await user.click(
+      screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+    );
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    // Duas vias: no máximo 4 tentativas antes de parar — não as 15.
+    expect(chamadas.filter((c) => c.url.endsWith("/assets")).length).toBeLessThanOrEqual(4);
+  });
+
+  it("uma foto da Biblioteca que saiu entretanto sobe como nova — o rascunho nunca leva um `tema:` morto", async () => {
+    const guardadas = [
+      "capa.jpeg",
+      ...Array.from({ length: 8 }, (_, i) => `c${i}.jpeg`),
+      "m0.jpeg",
+    ];
+    const { chamadas, onCreated } = preparar(false, VINTE_E_CINCO, false, guardadas, ["capa.jpeg"]);
+    const user = userEvent.setup();
+    await escolherFicheiro(VINTE_E_CINCO);
+    await user.click(
+      screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+    );
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    // Confirmou-se outra vez antes de gravar…
+    expect(chamadas.filter((c) => c.url === "/api/orcamento/fotos-existentes")).toHaveLength(2);
+    // …e a capa, que morreu, subiu: 15 novas + 1.
+    const enviadas = chamadas.filter((c) => c.url.endsWith("/assets"));
+    expect(enviadas).toHaveLength(16);
+    expect(
+      enviadas.some((c) => ((c.init?.body as FormData).get("files") as File).name === "capa.jpeg"),
+    ).toBe(true);
+    const texto = chamadas.find((c) => c.url.endsWith("/proposta-rascunho"))!.init?.body as string;
+    expect(texto).not.toContain(`tema:t1/${resumoDoNome("capa.jpeg")}.jpg`);
+    expect(texto).toContain(`tema:t1/${resumoDoNome("c0.jpeg")}.jpg`);
   });
 
   it("se o rascunho falha depois de o pedido criado, diz a verdade e o novo clique continua — sem 2.º pedido nem fotos repetidas", async () => {

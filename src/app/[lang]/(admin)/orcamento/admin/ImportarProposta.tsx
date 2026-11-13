@@ -350,40 +350,78 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       }
       const aSubir = fotosASubir(fotos, escolhidas, jaGuardadas);
       const porSubir = aSubir.filter((f) => !carregadas.has(f.caminho));
+      /** As que têm de ficar na pasta do pedido (as novas e as que morreram). */
+      const deviamSubir: FotoDoFicheiro[] = [...aSubir];
+      let total = aSubir.length;
       let feitas = aSubir.length - porSubir.length;
       let porque = "";
-      setProgresso({ titulo: "A carregar as fotografias", feito: feitas, total: aSubir.length });
+      setProgresso({ titulo: "A carregar as fotografias", feito: feitas, total });
       let falhasAgora = 0;
-      let proxima = 0;
-      const via = async () => {
-        for (;;) {
-          const i = proxima++;
-          if (i >= porSubir.length) return;
-          // Três falhas sem nenhuma a passar é o armazenamento que não está
-          // lá (não uma foto má): parar, em vez de tentar as outras.
-          if (falhasAgora >= 3 && carregadas.size === 0) return;
-          const f = porSubir[i];
-          try {
-            const preparada = await prepareImageWithThumb(f.ficheiro, "board");
-            const im = await enviarFotoDaProposta(quote.id, {
-              ...preparada,
-              resumo: resumos.get(f.caminho) ?? null,
-            });
-            carregadas.set(f.caminho, im.path);
-          } catch (e) {
-            falhasAgora++;
-            if (!porque && e instanceof Error) porque = e.message;
-          } finally {
-            feitas++;
-            setProgresso({
-              titulo: "A carregar as fotografias",
-              feito: feitas,
-              total: aSubir.length,
-            });
+      // As que subiram NESTA importação. `carregadas` não serve para isto: já
+      // traz as que estavam guardadas, e a paragem nunca disparava.
+      let subiramAgora = 0;
+      const subir = async (lista: readonly FotoDoFicheiro[]) => {
+        let proxima = 0;
+        const via = async () => {
+          for (;;) {
+            const i = proxima++;
+            if (i >= lista.length) return;
+            // Três falhas sem nenhuma a passar é o armazenamento que não está
+            // lá (não uma foto má): parar, em vez de tentar as outras.
+            if (falhasAgora >= 3 && subiramAgora === 0) return;
+            const f = lista[i];
+            try {
+              const preparada = await prepareImageWithThumb(f.ficheiro, "board");
+              const im = await enviarFotoDaProposta(quote.id, {
+                ...preparada,
+                resumo: resumos.get(f.caminho) ?? null,
+              });
+              carregadas.set(f.caminho, im.path);
+              subiramAgora++;
+            } catch (e) {
+              falhasAgora++;
+              if (!porque && e instanceof Error) porque = e.message;
+            } finally {
+              feitas++;
+              setProgresso({ titulo: "A carregar as fotografias", feito: feitas, total });
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(VIAS, lista.length) }, via));
+      };
+      await subir(porSubir);
+
+      // 2b. As da Biblioteca outra vez, mesmo antes de gravar: entre ler o
+      // ficheiro e chegar aqui podem ter passado minutos, e a foto pode ter
+      // sido apagada ou movida. Um `tema:` morto no rascunho é uma célula
+      // vazia; a que já não está sobe como nova. Não se conseguir confirmar
+      // conta como morta — guardar uma cópia é melhor do que perder a foto.
+      const daBiblioteca = fotos.filter(
+        (f) => escolhidas.has(f.caminho) && carregadas.get(f.caminho)?.startsWith("tema:"),
+      );
+      if (daBiblioteca.length > 0) {
+        const aConfirmar = new Map<string, string>();
+        for (const f of daBiblioteca) {
+          const r = resumos.get(f.caminho);
+          if (r) aConfirmar.set(f.caminho, r);
+        }
+        const vivas = await quaisJaExistem(aConfirmar);
+        const mortas: FotoDoFicheiro[] = [];
+        for (const f of daBiblioteca) {
+          const ref = vivas.get(f.caminho);
+          if (ref) carregadas.set(f.caminho, ref);
+          else {
+            carregadas.delete(f.caminho);
+            mortas.push(f);
           }
         }
-      };
-      await Promise.all(Array.from({ length: Math.min(VIAS, porSubir.length) }, via));
+        if (mortas.length > 0) {
+          total += mortas.length;
+          deviamSubir.push(...mortas);
+          setProgresso({ titulo: "A carregar as fotografias", feito: feitas, total });
+          await subir(mortas);
+        }
+      }
 
       // 3. O rascunho do estúdio — o que o «Fazer proposta» abre.
       setProgresso({ titulo: "A guardar o rascunho da proposta" });
@@ -397,14 +435,14 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
         const d = await r.json().catch(() => null);
         throw new Error(typeof d?.erro === "string" ? d.erro : "");
       }
-      const subiram = aSubir.filter((f) => carregadas.has(f.caminho)).length;
-      if (subiram === 0 && aSubir.length > 0) {
+      const subiram = deviamSubir.filter((f) => carregadas.has(f.caminho)).length;
+      if (subiram === 0 && deviamSubir.length > 0) {
         toast(
           `O pedido e a proposta foram criados, mas nenhuma fotografia carregou${porque ? ` (${porque})` : ""}. Podes juntá-las no Fazer proposta.`,
           "error",
         );
-      } else if (subiram < aSubir.length) {
-        const n = aSubir.length - subiram;
+      } else if (subiram < deviamSubir.length) {
+        const n = deviamSubir.length - subiram;
         toast(
           n === 1
             ? "Uma fotografia não carregou. As outras estão na proposta."
