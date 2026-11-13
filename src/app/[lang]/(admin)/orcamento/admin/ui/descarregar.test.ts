@@ -80,12 +80,12 @@ describe("descarregar", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        Response.json({ error: "Esta timeline ainda não tem horas." }, { status: 422 }),
+        Response.json({ error: "Este cronograma ainda não tem horas." }, { status: 422 }),
       ),
     );
     const erro = await descarregar("/api/x").catch((e: unknown) => e);
     expect(erro).toBeInstanceOf(FalhaDaDescarga);
-    expect((erro as FalhaDaDescarga).message).toBe("Esta timeline ainda não tem horas.");
+    expect((erro as FalhaDaDescarga).message).toBe("Este cronograma ainda não tem horas.");
     expect((erro as FalhaDaDescarga).daRota).toBe(true);
     expect((erro as FalhaDaDescarga).estado).toBe(422);
   });

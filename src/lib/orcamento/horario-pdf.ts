@@ -485,8 +485,8 @@ function cabecalhoDaPrimeira(
   y -= alturaDaFaixa + 24;
 
   // ── «TIMELINE», A NEGRITO E EM ITÁLICO ───────────────────────────────────
-  pagina.drawText("Timeline", {
-    x: (LARGURA - italico.widthOfTextAtSize("Timeline", 10.5)) / 2,
+  pagina.drawText("Cronograma", {
+    x: (LARGURA - italico.widthOfTextAtSize("Cronograma", 10.5)) / 2,
     y,
     size: 10.5,
     font: italico,

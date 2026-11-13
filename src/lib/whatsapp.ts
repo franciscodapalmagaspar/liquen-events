@@ -45,7 +45,7 @@ function cortar(texto: string): string {
   if (texto.length <= TECTO) return texto;
   const corte = texto.slice(0, TECTO);
   const fim = corte.lastIndexOf("\n");
-  return `${corte.slice(0, fim > TECTO * 0.6 ? fim : TECTO)}\n\n(…) A timeline completa vai no PDF.`;
+  return `${corte.slice(0, fim > TECTO * 0.6 ? fim : TECTO)}\n\n(…) O cronograma completo vai no PDF.`;
 }
 
 /**

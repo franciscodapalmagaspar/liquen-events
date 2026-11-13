@@ -91,10 +91,10 @@ test.describe("Timelines @guiao", () => {
     // idempotente, portanto insistir não constrói nada a dobrar.
     await expect(async () => {
       await nav
-        .getByRole("button", { name: /^Timelines$/ })
+        .getByRole("button", { name: /^Cronogramas$/ })
         .first()
         .click();
-      await expect(page.getByRole("heading", { level: 1, name: /^Timelines$/ })).toBeVisible({
+      await expect(page.getByRole("heading", { level: 1, name: /^Cronogramas$/ })).toBeVisible({
         timeout: 5_000,
       });
     }).toPass({ timeout: 120_000 });
@@ -187,7 +187,7 @@ test.describe("Timelines @guiao", () => {
     // Recarregar é a única prova. Sem o PATCH a chegar ao servidor, o guião
     // volta vazio e o ecrã volta a oferecer o cronograma-base.
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1, name: /^Timelines$/ })).toBeVisible({
+    await expect(page.getByRole("heading", { level: 1, name: /^Cronogramas$/ })).toBeVisible({
       timeout: 60_000,
     });
     /* ── E O ÂMBITO VOLTA AO PRINCÍPIO, DE PROPÓSITO ──────────────────────

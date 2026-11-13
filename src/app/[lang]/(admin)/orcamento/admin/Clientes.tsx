@@ -240,7 +240,7 @@ export default function Clientes({
         "Telefone",
         "Pedidos",
         "Ganho (€, com IVA)",
-        "Pipeline (€, com IVA)",
+        "Em negociação (€, com IVA)",
         "Taxa conversão",
         "Último contacto",
       ],
@@ -341,7 +341,7 @@ export default function Clientes({
               options={[
                 { value: "recent", label: "Recentes" },
                 { value: "value", label: "Valor ganho" },
-                { value: "pipeline", label: "Pipeline" },
+                { value: "pipeline", label: "Em negociação" },
               ]}
             />
           </>
@@ -514,7 +514,7 @@ function Dinheiro({ c }: { c: Client }) {
   if (c.totalPipeline > 0)
     return (
       <span className="text-foreground/45 text-xs tabular-nums">
-        {eur(c.totalPipeline)} pipeline
+        {eur(c.totalPipeline)} em negociação
       </span>
     );
   return <span className="text-foreground/25 text-xs">—</span>;
@@ -665,7 +665,7 @@ function colunasDeClientes(aberto: string | null, alternar: (c: Client) => void)
     },
     {
       chave: "pipeline",
-      cabecalho: "Pipeline",
+      cabecalho: "Em negociação",
       alinharADireita: true,
       celula: (c) =>
         c.totalPipeline > 0 ? (

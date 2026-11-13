@@ -83,7 +83,7 @@ export function FolhaDaTimeline({
       /* `bg-white` e não a superfície do painel: isto é uma folha de papel, e
          uma folha de papel é branca mesmo quando o ecrã à volta não é. */
       className="overflow-hidden rounded-[var(--bo-raio-conteudo)] border border-[var(--bo-hairline)] bg-white"
-      aria-label="Pré-visualização da folha da timeline"
+      aria-label="Pré-visualização da folha do cronograma"
     >
       <div className="px-4 pt-5 pb-4">
         <Image
@@ -97,7 +97,7 @@ export function FolhaDaTimeline({
         <p className="mt-4 bg-sage-700 px-3 py-2 text-center text-[11px] font-medium tracking-[0.08em] text-white uppercase">
           {titulo}
         </p>
-        <p className="mt-3 text-center text-[11px] italic">Timeline</p>
+        <p className="mt-3 text-center text-[11px] italic">Cronograma</p>
 
         {/* ── AS CONTAGENS ────────────────────────────────────────────────
             Três colunas, como na folha dela. As que ainda não têm onde ser

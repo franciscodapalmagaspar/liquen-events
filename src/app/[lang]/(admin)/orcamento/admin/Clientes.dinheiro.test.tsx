@@ -67,6 +67,6 @@ describe("Clientes — Ganho e Pipeline são sempre com IVA", () => {
       />,
     );
     // 10 000 x 1,23 = 12 300.
-    expect(screen.getByText(porTexto(`${eur(12300)} pipeline`))).toBeInTheDocument();
+    expect(screen.getByText(porTexto(`${eur(12300)} em negociação`))).toBeInTheDocument();
   });
 });

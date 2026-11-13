@@ -100,7 +100,7 @@ describe("Cronograma do dia — duas remoções ao mesmo tempo", () => {
     await waitFor(() => expect(screen.getByText("Cerimónia")).toBeTruthy());
     // A frase nomeia o momento que voltou ao ecrã e diz o que fazer a seguir.
     expect(screen.getByText(/não está a aceitar gravações/)).toBeTruthy();
-    expect(screen.getByText(/remover «17:00 Cerimónia» da timeline/)).toBeTruthy();
+    expect(screen.getByText(/remover «17:00 Cerimónia» do cronograma/)).toBeTruthy();
   });
 });
 

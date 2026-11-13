@@ -115,7 +115,7 @@ export default function MetricStrip({ metrics }: Props) {
         tone={cdTone}
       />
       <Cell
-        label="RSVP"
+        label="Confirmações de presença"
         value={rsvpTotal > 0 ? `${rsvpConfirmed}/${rsvpTotal}` : "—"}
         sub={rsvpTotal > 0 ? "confirmados" : "sem lista"}
       />

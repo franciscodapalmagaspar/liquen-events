@@ -86,7 +86,7 @@ describe("o endereço que abre o WhatsApp", () => {
       m({ time: `${String(6 + (i % 17)).padStart(2, "0")}:00`, title: `Momento número ${i}` }),
     );
     const url = linkDoWhatsApp(timelineParaWhatsApp({ titulo: "Dia longo", momentos: comprido }));
-    expect(decodeURIComponent(url)).toContain("A timeline completa vai no PDF");
+    expect(decodeURIComponent(url)).toContain("O cronograma completo vai no PDF");
   });
 });
 

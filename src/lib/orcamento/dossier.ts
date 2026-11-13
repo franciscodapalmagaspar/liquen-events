@@ -63,7 +63,7 @@ export const STAGE_ORDER: EventStage[] = [
 
 /** Rótulos PT (AO90) curtos para cada fase. */
 export const STAGE_LABELS: Record<EventStage, string> = {
-  lead: "Lead",
+  lead: "Pedido",
   proposta_enviada: "Proposta enviada",
   aceite: "Aceite",
   sinal_pago: "Sinal pago",

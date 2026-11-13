@@ -370,7 +370,7 @@ export default function GuestList({ quote, onChange }: Props) {
                 // o que está gravado.
                 valor={g.rsvp ?? ""}
                 aoMudar={(v) => setRsvpOf(g.id, v as RsvpStatus)}
-                aria-label={`Estado do RSVP de ${g.name}`}
+                aria-label={`Confirmação de presença de ${g.name}`}
                 // ── E OS 16 px DO iOS PASSARAM A SER PEDIDOS, NÃO HERDADOS ──
                 // Enquanto isto foi um `<select>`, os 16 px que impedem o Safari
                 // de AMPLIAR a página ao focar vinham da regra

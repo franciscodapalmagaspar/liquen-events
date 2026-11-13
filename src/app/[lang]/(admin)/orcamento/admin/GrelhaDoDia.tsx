@@ -244,8 +244,8 @@ export function GrelhaDoDia({ dia, agora = null, chaveDoEvento }: GrelhaDoDiaPro
   if (!janela || colunas.length === 0) {
     return (
       <p className="bo-text-muted rounded-[var(--bo-raio-conteudo)] border border-dashed border-[var(--bo-hairline-strong)] px-4 py-6 text-center text-sm">
-        Esta timeline ainda não tem momentos com hora, por isso não há nada para pôr numa grelha de
-        horas. Junta um modelo ou escreve o primeiro momento na régua.
+        Este cronograma ainda não tem momentos com hora, por isso não há nada para pôr numa grelha
+        de horas. Junta um modelo ou escreve o primeiro momento na régua.
       </p>
     );
   }

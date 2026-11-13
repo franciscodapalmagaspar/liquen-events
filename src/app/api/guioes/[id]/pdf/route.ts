@@ -96,7 +96,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const titulo = [eventTagLabel(q), q.name, curta].filter(Boolean).join(" ");
 
     const bytes = await horarioEmPdf({
-      titulo: titulo || "Timeline",
+      titulo: titulo || "Cronograma",
       /* ── AS TRÊS CONTAGENS DO TOPO ────────────────────────────────────
          Escritas por ela no ecrã da timeline (`folhaDaTimeline`), ao lado da
          pré-visualização. Os adultos caem para o `guests` do pedido quando ela
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // melhor do que mandar uma folha em branco que parece um defeito.
     if (!bytes) {
       return NextResponse.json(
-        { error: "Esta timeline ainda não tem momentos com hora." },
+        { error: "Este cronograma ainda não tem momentos com hora." },
         { status: 409 },
       );
     }
