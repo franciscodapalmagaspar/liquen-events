@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { describe } from "../../../../../../test/em-partes";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { ToastProvider } from "./Toast";
 import ProposalStudio, {
   avisoDeConteudoIncompleto,
@@ -43,6 +44,10 @@ interface FotoImportada {
   marcador?: string;
 }
 
+// As fotos carregadas do computador não passam pelo canvas no jsdom.
+vi.mock("./image-prep", () => ({
+  prepareImageWithThumb: async (f: File) => ({ file: f, thumb: f, cor: "", lqip: "", mid: f }),
+}));
 vi.mock("./ThemePicker", () => ({
   default: ({
     onPicked,
@@ -668,6 +673,44 @@ describe("notas presas a cada secção", () => {
     expect(JSON.parse(gravado).doc.notasPorSeccao.orcamento).toContain("margem toda");
   });
 
+  /**
+   * Auditoria de 13/11, estúdio n.ºs 1 e 2. Com a rede lenta, a gravação
+   * seguinte partia antes de a anterior voltar — com o mesmo carimbo, e o
+   * servidor via-a como «alterada por outra pessoa»; e a mais antiga podia
+   * chegar depois e ficar a valer. Agora vão uma de cada vez, e a segunda leva
+   * o carimbo que a primeira trouxe.
+   */
+  it("com a rede lenta, as gravações vão uma de cada vez — e a segunda leva o carimbo da primeira", async () => {
+    let soltar!: () => void;
+    const portao = new Promise<void>((r) => (soltar = r));
+    let n = 0;
+    gravacaoDoRascunho = (async () => {
+      n += 1;
+      if (n === 1) {
+        await portao;
+        return reply({ json: { ok: true, guardado: true, updatedAt: "2026-11-13T10:00:01.000Z" } });
+      }
+      return reply({ json: { ok: true, guardado: true, updatedAt: "2026-11-13T10:00:02.000Z" } });
+    }) as unknown as () => Response;
+
+    renderStudio();
+    const user = userEvent.setup();
+    const caixa = await abrirNota("Nota sobre o orçamento", user);
+    await user.type(caixa, "primeira");
+    await waitFor(() => expect(corpos("proposta-rascunho").length).toBe(1), { timeout: 4000 });
+
+    // Escreve mais enquanto a primeira está presa na rede.
+    await user.type(caixa, " segunda");
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(corpos("proposta-rascunho"), "partiu uma segunda gravação em paralelo").toHaveLength(1);
+
+    soltar();
+    await waitFor(() => expect(corpos("proposta-rascunho").length).toBe(2), { timeout: 4000 });
+    const segunda = JSON.parse(corpos("proposta-rascunho")[1]);
+    expect(segunda.baseUpdatedAt).toBe("2026-11-13T10:00:01.000Z");
+    expect(segunda.doc.notasPorSeccao.orcamento).toContain("primeira segunda");
+  });
+
   it("apagar a nota TIRA a chave, em vez de deixar um vazio", async () => {
     /**
      * Seis caixas que gravassem `""` punham seis chaves sem conteúdo em todos
@@ -826,6 +869,35 @@ describe("o trabalho que uma gravação esmagou", () => {
     );
     // E o documento voltou mesmo.
     expect(await screen.findByDisplayValue("Cerimónia ao pôr do sol")).toBeTruthy();
+  });
+
+  it("repor a versão da outra pessoa acerta também o TOTAL (auditoria 13/11, n.º 13)", async () => {
+    rascunhoSobreposto = {
+      doc: {
+        template: "decoracao",
+        ref: "a versão com outro valor",
+        serviceGroups: [{ letter: "a)", title: "Cerimónia ao pôr do sol", items: [] }],
+        moodBoards: [],
+        budgetItems: [],
+        coverImages: ["", ""],
+        totalAmount: 4321,
+      },
+      updatedAt: "2026-07-28T15:30:00.000Z",
+    };
+    gravacaoQueSobrepos();
+    semear();
+    renderStudio();
+    const user = userEvent.setup();
+    await mexerNoDocumento(user);
+    await screen.findByText(/A versão de Catarina ficou guardada/i, {}, { timeout: 4000 });
+    await user.click(screen.getByRole("button", { name: /Repor essa versão/i }));
+    await screen.findByDisplayValue("Cerimónia ao pôr do sol");
+    await waitFor(
+      () =>
+        expect(
+          parseMoneyText((screen.getByLabelText(/Valor \(sem IVA\)/) as HTMLInputElement).value),
+        ).toBeCloseTo(4321 / 1.23, 2), // o campo é o valor SEM IVA
+    );
   });
 
   it("repor pode ser anulado — é um gesto que substitui o documento", async () => {
@@ -2906,6 +2978,19 @@ describe("os valores adicionais somam ao total", () => {
     expect(await screen.findByLabelText(/Valor \(sem IVA\)/i)).toHaveValue("6875");
   });
 
+  /** Auditoria de 13/11, estúdio n.º 17: com «estas linhas somam-se» (o modo
+   *  por omissão), o campo é só a parte dos serviços — a pergunta mostrava «de
+   *  6.875 para 5.325», que não era o preço de antes nem o de depois. */
+  it("com os adicionais a somar, a pergunta mostra o preço FINAL de antes e o de depois", async () => {
+    desenhar(comPreco(6875));
+    const user = await escreverExtra("1550");
+    await user.click(await screen.findByRole("button", { name: /Remover linha adicional/i }));
+    const pergunta = await screen.findByText(/Substituir o total de/i);
+    expect(pergunta.textContent).toMatch(/8\s?425,00/);
+    expect(pergunta.textContent).toMatch(/6\s?875,00/);
+    expect(pergunta.textContent).not.toMatch(/5\s?325,00/);
+  });
+
   it("e cancelar deixa o total exactamente como estava", async () => {
     desenhar(comPreco(6875));
     // Este caso descreve a regra em que o valor escrito JÁ INCLUI os
@@ -3940,6 +4025,53 @@ describe("repor e copiar gravam o preço no pedido", () => {
     expect(precosGravados()).not.toContain(8895);
   }, 20_000);
 
+  it("copiar uma proposta vai buscar as miniaturas das fotos copiadas (auditoria 13/11, n.º 12)", async () => {
+    propostasServidor = [
+      {
+        id: "p1",
+        quoteId: "q9",
+        clientName: "Rita & Paulo",
+        createdAt: "2026-01-05T10:00:00.000Z",
+        status: "aceite",
+        temDoc: true,
+        eventType: "Casamento",
+        eventDate: "1 de junho de 2026",
+        location: "Estremoz",
+        guests: "100 pax",
+        grupos: 1,
+        moodBoards: 1,
+        linhas: 0,
+        fotos: 1,
+      },
+    ];
+    copiaServidor = {
+      nomeDaOrigem: "Rita & Paulo",
+      camposAMudar: [],
+      fotosCopiadas: 1,
+      fotosPartilhadas: 0,
+      doc: {
+        template: "decoracao",
+        ref: "",
+        clientNames: "Maria & Zé",
+        serviceGroups: [{ letter: "a)", title: "Decoração Copiada", items: [] }],
+        moodBoards: [{ title: "Mesa", images: ["q1/copiada.jpg"] }],
+        budgetItems: [],
+        coverImages: ["", ""],
+      },
+    };
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /Criar a partir de…/ }));
+    const antes = pedidos.filter((p) => /\/assets(\?|$)/.test(p.url) && !p.init?.method).length;
+    await user.click(await screen.findByRole("button", { name: /Rita & Paulo/ }));
+    await screen.findByDisplayValue("Decoração Copiada");
+    await waitFor(() =>
+      expect(
+        pedidos.filter((p) => /\/assets(\?|$)/.test(p.url) && !p.init?.method).length,
+      ).toBeGreaterThan(antes),
+    );
+  });
+
   it("copiar uma proposta grava o valor copiado e arruma o campo", async () => {
     propostasServidor = [
       {
@@ -4273,6 +4405,283 @@ describe("o indicador diz onde é que o rascunho ficou", () => {
  * portátil — intacto e invisível. O estúdio abria, via que o servidor não tinha
  * rascunho nenhum, e não fazia nada com essa informação.
  */
+/**
+ * Auditoria de 13/11, estúdio n.ºs 6 e 7: as fotos carregadas do computador
+ * entravam no mood board pelo ÍNDICE que ele tinha quando ela as escolheu. Se
+ * o tema mudasse de lugar entretanto, iam parar a OUTRO tema. E o envio não
+ * sabia que havia fotos a caminho.
+ */
+describe("fotos a carregar enquanto se mexe nos temas", () => {
+  it("desfazer para antes de uma foto assentar não deixa a foto presa a «carregar»", async () => {
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        template: "decoracao",
+        ref: "PO Decoração",
+        location: "Évora",
+        serviceGroups: [],
+        moodBoards: [{ title: "Tema B", images: [] }],
+        budgetItems: [],
+        coverImages: ["", ""],
+      }),
+    );
+    localStorage.setItem(`${DRAFT_KEY}:at`, String(Date.now()));
+    const original = global.fetch;
+    let soltar!: () => void;
+    const portao = new Promise<void>((r) => (soltar = r));
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).includes("/assets") && init?.method === "POST") {
+        await portao;
+        return new Response(
+          JSON.stringify({ images: [{ path: "q1/nova.jpg", url: "https://x/nova.jpg" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return original(url, init);
+    }) as typeof fetch;
+    try {
+      renderStudio("Inspiração");
+      const user = userEvent.setup();
+      await screen.findByDisplayValue("Tema B");
+      const input = [...document.querySelectorAll<HTMLInputElement>('input[type="file"]')].find(
+        (i) => i.multiple,
+      )!;
+      fireEvent.change(input, {
+        target: { files: [new File(["x"], "flores.jpg", { type: "image/jpeg" })] },
+      });
+      // Ela escreve enquanto a foto sobe: a fotografia do ⌘Z é tirada com a
+      // foto ainda a caminho (um marcador provisório).
+      await user.type(screen.getByDisplayValue("Tema B"), " A");
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 1200));
+      });
+      soltar();
+      await waitFor(
+        () => expect(corpos("proposta-rascunho").at(-1) ?? "").toContain("q1/nova.jpg"),
+        {
+          timeout: 4000,
+        },
+      );
+      // Escreve outra coisa, e desfaz duas vezes — até antes de a foto assentar.
+      const titulo = screen.getByDisplayValue("Tema B A");
+      await user.type(titulo, " X");
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 1200));
+      });
+      // Desfaz até à fotografia tirada com a foto a caminho («Tema B A»).
+      // (1: tira o « X»; 2: volta à fotografia com a foto a caminho.)
+      await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+      await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+      await screen.findByDisplayValue("Tema B A");
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 1200));
+      });
+      // A foto está lá — e não um marcador que nunca mais assenta.
+      const ultimo = JSON.parse(corpos("proposta-rascunho").at(-1)!);
+      expect(ultimo.doc.moodBoards[0].title).toBe("Tema B A");
+      expect(ultimo.doc.moodBoards[0].images).toEqual(["q1/nova.jpg"]);
+    } finally {
+      global.fetch = original;
+    }
+  });
+
+  it("a foto vai para o tema onde ela a pôs, mesmo que o tema mude de lugar a meio", async () => {
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        template: "decoracao",
+        ref: "PO Decoração",
+        serviceGroups: [],
+        moodBoards: [
+          { title: "Tema A", images: [] },
+          { title: "Tema B", images: [] },
+        ],
+        budgetItems: [],
+        coverImages: ["", ""],
+      }),
+    );
+    localStorage.setItem(`${DRAFT_KEY}:at`, String(Date.now()));
+    const original = global.fetch;
+    let soltar!: () => void;
+    const portao = new Promise<void>((r) => (soltar = r));
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).includes("/assets") && init?.method === "POST") {
+        await portao;
+        return new Response(
+          JSON.stringify({ images: [{ path: "q1/nova.jpg", url: "https://x/nova.jpg" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return original(url, init);
+    }) as typeof fetch;
+    try {
+      renderStudio("Inspiração");
+      const user = userEvent.setup();
+      await screen.findByDisplayValue("Tema B");
+      const dosTemas = [
+        ...document.querySelectorAll<HTMLInputElement>('input[type="file"]'),
+      ].filter((i) => i.multiple);
+      expect(dosTemas.length).toBeGreaterThanOrEqual(2);
+      fireEvent.change(dosTemas[1], {
+        target: { files: [new File(["x"], "flores.jpg", { type: "image/jpeg" })] },
+      });
+      // Enquanto sobe, o «Tema B» passa para cima do «Tema A».
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 50));
+      });
+      await user.click(screen.getByRole("button", { name: "Acções de «Tema B»" }));
+      await user.click(await screen.findByRole("menuitem", { name: "Subir uma posição" }));
+      soltar();
+      await waitFor(
+        () => {
+          const ultimo = corpos("proposta-rascunho").at(-1);
+          expect(ultimo).toBeTruthy();
+          const boards = JSON.parse(ultimo!).doc.moodBoards as {
+            title: string;
+            images: string[];
+          }[];
+          expect(boards.find((b) => b.title === "Tema B")?.images).toEqual(["q1/nova.jpg"]);
+          expect(boards.find((b) => b.title === "Tema A")?.images).toEqual([]);
+        },
+        { timeout: 5000 },
+      );
+    } finally {
+      global.fetch = original;
+    }
+  });
+});
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * ⌘Z / «DESFAZER» (auditoria de 13/11, estúdio n.ºs 4 e 5)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * A fotografia do histórico só se tirava 800 ms depois de ela parar de
+ * escrever: desfazer logo a seguir voltava DOIS passos, a primeira mudança não
+ * se podia desfazer, e desfazer um preço repunha-o no ecrã mas não no pedido.
+ */
+describe("desfazer", () => {
+  it("logo a seguir a escrever, volta UM passo — e a primeira mudança também se desfaz", async () => {
+    const user = userEvent.setup();
+    renderStudio();
+    const local = (await screen.findByLabelText("Local")) as HTMLInputElement;
+    const antes = local.value;
+    await user.type(local, "Évora");
+    // Deixa a fotografia acontecer, e escreve mais.
+    await new Promise((r) => setTimeout(r, 1200));
+    await user.type(local, " Sul");
+    // Desfaz JÁ, antes dos 800 ms.
+    await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+    await waitFor(() => expect(local.value).toBe(antes + "Évora"));
+    // E outra vez: volta ao que estava ao abrir (a primeira mudança).
+    await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+    await waitFor(() => expect(local.value).toBe(antes));
+  });
+
+  it("uma resposta ATRASADA do preço não volta ao ecrã por cima do que ela escreveu depois (n.º 10)", async () => {
+    const original = global.fetch;
+    let soltarPrimeira!: () => void;
+    const portao = new Promise<void>((r) => (soltarPrimeira = r));
+    let n = 0;
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const corpo = String(init?.body ?? "");
+      if (init?.method === "PATCH" && corpo.includes("quotedPrice")) {
+        const { quotedPrice } = JSON.parse(corpo) as { quotedPrice: number | null };
+        n += 1;
+        if (n === 1) await portao;
+        return new Response(JSON.stringify({ ...quote, quotedPrice }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return original(url, init);
+    }) as typeof fetch;
+    function ComPedido() {
+      const [q, setQ] = useState<Quote>(quote);
+      return (
+        <ToastProvider>
+          <ProposalStudio quote={q} onQuoteUpdated={setQ} />
+        </ToastProvider>
+      );
+    }
+    try {
+      render(<ComPedido />);
+      const user = userEvent.setup();
+      const valor = (await screen.findByLabelText(/Valor \(sem IVA\)/)) as HTMLInputElement;
+      await user.clear(valor);
+      await user.type(valor, "7000");
+      await waitFor(() => expect(n).toBe(1), { timeout: 3000 });
+      await user.clear(valor);
+      await user.type(valor, "8000");
+      await waitFor(() => expect(n).toBe(2), { timeout: 3000 });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 200));
+      });
+      // Só agora chega a resposta do 7000.
+      soltarPrimeira();
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 500));
+      });
+      expect(parseMoneyText(valor.value)).toBe(8000);
+    } finally {
+      global.fetch = original;
+    }
+  });
+
+  it("abrir noutro aparelho: desfazer nunca volta ao que estava ANTES do rascunho do servidor", async () => {
+    localStorage.clear();
+    rascunhoServidor = {
+      updatedAt: new Date().toISOString(),
+      doc: {
+        template: "decoracao",
+        ref: "PO Decoração",
+        clientNames: "Maria & Zé",
+        location: "Herdade do Servidor",
+        serviceGroups: [],
+        moodBoards: [],
+        budgetItems: [],
+        coverImages: ["", ""],
+      },
+    };
+    const user = userEvent.setup();
+    renderStudio();
+    const local = (await screen.findByDisplayValue("Herdade do Servidor")) as HTMLInputElement;
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 300));
+    });
+    await user.type(local, " Sul");
+    await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+    await waitFor(() => expect(local.value).toBe("Herdade do Servidor"));
+    // E não há mais para trás: o que estava antes do servidor não é um passo.
+    expect(screen.getByRole("button", { name: /^Desfazer/ })).toBeDisabled();
+  });
+
+  it("desfazer um preço também o devolve ao PEDIDO (e não só ao ecrã)", async () => {
+    const user = userEvent.setup();
+    renderStudio();
+    const valor = (await screen.findByLabelText(/Valor \(sem IVA\)/)) as HTMLInputElement;
+    await user.clear(valor);
+    await user.type(valor, "7777");
+    await new Promise((r) => setTimeout(r, 1300));
+    const patches = () =>
+      fetchMock.mock.calls
+        .filter(([, i]) => i?.method === "PATCH" && String(i?.body).includes("quotedPrice"))
+        .map(([, i]) => JSON.parse(String(i?.body)).quotedPrice as number | null);
+    const depoisDeEscrever = patches().at(-1);
+    expect(depoisDeEscrever).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /^Desfazer/ }));
+    await waitFor(
+      () => {
+        const ultimo = patches().at(-1);
+        expect(patches().length).toBeGreaterThan(1);
+        expect(ultimo).not.toBe(depoisDeEscrever);
+      },
+      { timeout: 3000 },
+    );
+  });
+});
+
 describe("o rascunho preso neste navegador é reenviado ao abrir", () => {
   /** Um rascunho local com marca de tempo — como o que ficou no portátil dela. */
   function rascunhoOrfaoLocal(marca: string) {
@@ -5776,6 +6185,24 @@ describe("gerar a proposta em inglês", () => {
   /** Voltar atrás também tem de pegar: um `meta` com «en» não pode ressuscitar
    *  uma escolha que ela desfez. É a diferença entre guardar a escolha e
    *  guardar só metade dela. */
+  /** Auditoria de 13/11, estúdio n.º 9: noutro aparelho (sem o `meta` local)
+   *  partia sempre do português, mesmo para um casal que pediu em inglês. */
+  it("sem escolha guardada neste aparelho, parte da língua em que o casal fez o pedido", async () => {
+    seedDraft(1);
+    render(
+      <ToastProvider>
+        <ProposalStudio quote={{ ...quote, locale: "en" }} />
+      </ToastProvider>,
+    );
+    const user = userEvent.setup();
+    await irParaPrever(user);
+    expect(
+      within(screen.getByRole("radiogroup", { name: "Idioma da proposta" })).getByRole("radio", {
+        name: /^Inglês/,
+      }),
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
   it("e voltar a «Português» também fica guardado", async () => {
     seedDraft(1);
     localStorage.setItem(`${DRAFT_KEY}:meta`, JSON.stringify({ idioma: "en" }));
@@ -8435,6 +8862,27 @@ describe("acções irreversíveis: pergunta ou anulação, nunca nada", () => {
     expect(barra).toMatch(/2 linhas de orçamento/);
     // E continua sem pergunta nenhuma antes — é a decisão escrita em `limpo`.
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  /** Auditoria de 13/11, estúdio n.º 11: «Anular» devolvia o documento, mas
+   *  as fotografias voltavam a cinzento («não veio») — o «Limpar» tinha
+   *  esvaziado os mapas das miniaturas e o «Anular» não os devolvia. */
+  it("anular o «Limpar» devolve também as fotografias (as miniaturas)", async () => {
+    assetsServidor = [
+      {
+        path: "board/a.jpg",
+        url: "https://fotos.test/a.jpg",
+        thumbUrl: "https://fotos.test/a-mini.jpg",
+      },
+    ];
+    seedDuasPaginas();
+    renderStudio("Inspiração");
+    const user = userEvent.setup();
+    await waitFor(() => expect(document.querySelector('img[src*="fotos.test/a"]')).not.toBeNull());
+    await user.click(await screen.findByRole("button", { name: /Limpar rascunho/ }));
+    await user.click(await screen.findByRole("button", { name: /^Anular$/ }));
+    await screen.findByDisplayValue("Altar e corredor");
+    await waitFor(() => expect(document.querySelector('img[src*="fotos.test/a"]')).not.toBeNull());
   });
 
   // ── O envio ─────────────────────────────────────────────────────────────

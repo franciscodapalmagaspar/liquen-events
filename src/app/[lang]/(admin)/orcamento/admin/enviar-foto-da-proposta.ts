@@ -1,6 +1,7 @@
 "use client";
 
 import type { PreparedImage } from "./image-prep";
+import { eTempoEsgotado, sinalComTecto, TECTO_DE_UMA_FOTO_MS } from "@/lib/tempo-esgotado";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -28,9 +29,13 @@ export interface FotoEnviada {
 export type FotoParaEnviar = Pick<PreparedImage, "file" | "thumb"> &
   Partial<Pick<PreparedImage, "cor" | "lqip" | "mid">>;
 
-export function formularioDaFoto(f: FotoParaEnviar): FormData {
+export function formularioDaFoto(f: FotoParaEnviar, chave?: string): FormData {
   const form = new FormData();
   form.append("files", f.file);
+  // UMA chave por foto, repetida na segunda tentativa: se a primeira chegou e
+  // só a resposta se perdeu, o servidor reconhece-a e não guarda um segundo
+  // ficheiro (auditoria de 13/11, estúdio n.º 18).
+  if (chave) form.append("chaves", chave);
   // O LQIP — a mancha de cor que ocupa a célula enquanto a fotografia não
   // chega. Sai da MESMA descodificação que já calculou a cor e a miniatura
   // (`image-prep`), portanto não custa nada, e sem ele a página do casal
@@ -53,13 +58,21 @@ export async function enviarFotoDaProposta(
   quoteId: string,
   f: FotoParaEnviar,
 ): Promise<FotoEnviada> {
+  const chave = crypto.randomUUID();
   const post = () =>
-    fetch(`/api/orcamento/${quoteId}/assets`, { method: "POST", body: formularioDaFoto(f) });
+    fetch(`/api/orcamento/${quoteId}/assets`, {
+      method: "POST",
+      body: formularioDaFoto(f, chave),
+      signal: sinalComTecto(TECTO_DE_UMA_FOTO_MS),
+    });
   let res: Response;
   try {
     res = await post();
-  } catch {
-    // Soluço de rede — tenta uma segunda vez antes de desistir.
+  } catch (e) {
+    // Um tempo esgotado não se repete: seriam mais 120 s à espera, e o
+    // primeiro pedido pode bem ter chegado (revisão de 13/11).
+    if (eTempoEsgotado(e)) throw e;
+    // Soluço de rede — tenta uma segunda vez, com a MESMA chave.
     res = await post();
   }
   const data = await res.json().catch(() => null);

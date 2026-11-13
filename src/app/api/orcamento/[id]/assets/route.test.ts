@@ -177,7 +177,7 @@ describe("POST /api/orcamento/[id]/assets", () => {
     expect(body.ok).toBe(true);
     expect(body.images).toHaveLength(3);
     expect(st.upload).toHaveBeenCalledTimes(3);
-    expect(st.upload).toHaveBeenCalledWith("q-1", expect.any(Buffer), "image/jpeg");
+    expect(st.upload).toHaveBeenCalledWith("q-1", expect.any(Buffer), "image/jpeg", undefined);
   });
 
   it("um WEBP é aceite mas GUARDADO em JPEG (o PDF não sabe imprimir WebP)", async () => {
@@ -187,14 +187,14 @@ describe("POST /api/orcamento/[id]/assets", () => {
     // estúdio — converte-se à entrada.
     const [req, ctx] = uploadReq([file("pinterest.webp", "image/webp")]);
     expect((await POST(req, ctx)).status).toBe(200);
-    expect(st.upload).toHaveBeenCalledWith("q-1", expect.any(Buffer), "image/jpeg");
-    expect(st.upload).not.toHaveBeenCalledWith("q-1", expect.any(Buffer), "image/webp");
+    expect(st.upload).toHaveBeenCalledWith("q-1", expect.any(Buffer), "image/jpeg", undefined);
+    expect(st.upload).not.toHaveBeenCalledWith("q-1", expect.any(Buffer), "image/webp", undefined);
   });
 
   it("o PNG e o JPEG passam intactos — não se reencoda o que já é imprimível", async () => {
     const [req, ctx] = uploadReq([file("b.png", "image/png")]);
     expect((await POST(req, ctx)).status).toBe(200);
-    expect(st.upload).toHaveBeenCalledWith("q-1", expect.any(Buffer), "image/png");
+    expect(st.upload).toHaveBeenCalledWith("q-1", expect.any(Buffer), "image/png", undefined);
   });
 
   it("415 quando nem o sharp consegue converter os bytes, sem guardar nada", async () => {

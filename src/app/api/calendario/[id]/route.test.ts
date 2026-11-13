@@ -82,6 +82,15 @@ describe("/api/calendario/[id]", () => {
       expect(store.mover).not.toHaveBeenCalled();
     });
 
+    it("400 para um dia que não existe e para uma hora que não existe (achado n.º 15)", async () => {
+      authed.ok = true;
+      expect((await PATCH(patch({ date: "2027-02-30" }), ctx("e1"))).status).toBe(400);
+      expect((await PATCH(patch({ date: "2026-09-12", time: "24:99" }), ctx("e1"))).status).toBe(
+        400,
+      );
+      expect(store.mover).not.toHaveBeenCalled();
+    });
+
     it("404 se já não existe; 409 se outra pessoa a mudou entretanto", async () => {
       authed.ok = true;
       store.mover.mockResolvedValueOnce(null as never);

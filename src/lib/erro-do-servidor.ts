@@ -51,7 +51,23 @@ const TRADUCOES: { padrao: RegExp; frase: (m: RegExpMatchArray) => string }[] = 
     frase: () => "O valor tem de ser um número.",
   },
   { padrao: /^Invalid option: expected one of/i, frase: () => "Essa opção não é válida." },
+  { padrao: /^Invalid email address/i, frase: () => "O email não é válido." },
+  { padrao: /^Invalid URL/i, frase: () => "O endereço (URL) não é válido." },
+  {
+    padrao: /^Too small: expected array to have >=(\d+) items/i,
+    frase: (m) => `A lista tem de ter pelo menos ${m[1]} elemento${m[1] === "1" ? "" : "s"}.`,
+  },
+  {
+    padrao: /^Too big: expected array to have <=(\d+) items/i,
+    frase: (m) => `A lista tem elementos a mais (o máximo são ${m[1]}).`,
+  },
   { padrao: /^Invalid input/i, frase: () => "Há um campo com um valor que não serve." },
+  // O resto das frases da biblioteca («Invalid string: must match pattern…»,
+  // «Invalid ISO date», «Unrecognized key…»): nenhuma chega ao ecrã em inglês.
+  {
+    padrao: /^(Invalid|Too (small|big)|Unrecognized key)/,
+    frase: () => "Há um campo com um valor que não serve.",
+  },
 ];
 
 const numero = (s: string) => s.replace(".", ",");

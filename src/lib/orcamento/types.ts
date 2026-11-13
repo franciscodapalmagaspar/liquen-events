@@ -188,6 +188,16 @@ export interface PriceBreakdown {
 export interface QuoteMessage {
   at: string;
   body: string;
+  /**
+   * Se o email saiu de facto para o cliente. A mensagem fica registada mesmo
+   * quando não sai (um pedido sem email, o correio em baixo), e sem isto uma
+   * mensagem que ninguém recebeu contava como «já respondemos» e servia de
+   * âncora à verificação de devoluções (achados n.º 6 e n.º 8 da auditoria 6).
+   * Ausente nas mensagens anteriores a este campo — ver `mensagemSaiu`.
+   */
+  emailed?: boolean;
+  /** O endereço para onde o email seguiu, quando seguiu. */
+  para?: string;
 }
 
 export interface ChecklistItem {

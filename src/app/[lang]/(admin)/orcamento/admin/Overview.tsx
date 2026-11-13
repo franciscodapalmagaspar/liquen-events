@@ -9,7 +9,7 @@ import Agenda from "./Agenda";
 import { eur0 as eur } from "@/lib/money";
 import Hoje from "./Hoje";
 import { metaFor, tintaDoRotulo } from "./status-meta";
-import { todayKey } from "./util";
+import { parseMoney, todayKey } from "./util";
 import { useRelogio } from "./relogio";
 import { useEntradaAoChegar } from "./ui/useEntradaAoChegar";
 import { ESTADO, PRESSAO, PROGRESSO } from "./ui/movimento";
@@ -560,7 +560,11 @@ const MetaReceita = memo(function MetaReceita({
   const [goalInput, setGoalInput] = useState("");
 
   async function saveGoal() {
-    const v = parseFloat(goalInput.replace(/[^\d.]/g, "")) || 0;
+    // `parseMoney`, a leitura de dinheiro escrito à portuguesa: «15.000» são
+    // quinze mil euros, não 15 €, e «1.500,50» não vira «1.50050» (achado
+    // n.º 4 da auditoria 6). Arredonda ao cêntimo, que é o que o servidor guarda.
+    const lido = parseMoney(goalInput) ?? 0;
+    const v = Math.round(lido * 100) / 100;
     // O editor só fecha quando o servidor confirma: fechá-lo antes seria a
     // mesma promessa vazia de antes.
     if (await onGuardar(v > 0 ? String(v) : "")) setEditingGoal(false);
@@ -615,7 +619,10 @@ const MetaReceita = memo(function MetaReceita({
           <div className="flex items-center gap-2">
             <input
               autoFocus
-              type="number"
+              // Texto e não `number`: o campo numérico do browser recusa
+              // «1.500,50» (fica vazio) e é o `parseMoney` quem lê o valor.
+              type="text"
+              inputMode="decimal"
               value={goalInput}
               onChange={(e) => setGoalInput(e.target.value)}
               onKeyDown={(e) => {

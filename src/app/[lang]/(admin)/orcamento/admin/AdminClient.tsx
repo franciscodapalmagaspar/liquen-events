@@ -3532,10 +3532,23 @@ export default function AdminClient({
           notes: q.notes,
           referralSource: q.referralSource || "Cliente recorrente",
           status: "em_revisao",
+          // Uma cópia: um telefone antigo, gravado antes das regras do país,
+          // fica como estava em vez de impedir a cópia (achado n.º 21).
+          duplicado: true,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.quote) throw new Error();
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.quote) {
+        // A recusa do servidor diz o campo e o que fazer; o genérico só fica
+        // para quando não vem razão nenhuma.
+        toast(
+          typeof data?.error === "string" && data.error
+            ? `Não foi possível duplicar o pedido: ${data.error}`
+            : "Não foi possível duplicar o pedido",
+          "error",
+        );
+        return;
+      }
       setQuotes((prev) => [data.quote, ...prev]);
       setSelected(data.quote);
       setEditPrice("");
@@ -3552,6 +3565,7 @@ export default function AdminClient({
       // Pedido NOVO (é uma cópia): recomeça os separadores visitados.
       abrirPrimeiroDetailTab("comunicacao");
       toast("Pedido duplicado — define a nova data", "success");
+      if (typeof data.aviso === "string" && data.aviso) toast(data.aviso, "info");
     } catch {
       toast("Não foi possível duplicar o pedido", "error");
     }

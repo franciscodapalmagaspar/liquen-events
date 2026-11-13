@@ -526,6 +526,9 @@ export const en: Dict = {
     errTelefone:
       "This phone number isn't valid. Please check the digits and the country (outside Portugal, pick the flag or start with the country code, e.g. +44).",
     errEmailObrigatorio: "Please enter your email.",
+    errDataInvalida: "This date doesn't exist. Please pick a day on the calendar.",
+    errDataPassada: "The event date has already passed. Please pick a day from today onwards.",
+    errDataFim: "The end date can't be before the start date.",
     errDominioDoEmail:
       "This email doesn't seem to exist: please check what comes after the @ (for example, gmail.com).",
     sugestaoEmailPre: "Did you mean ",

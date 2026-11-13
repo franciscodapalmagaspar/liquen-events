@@ -19,6 +19,14 @@ import { useSeccaoAVista } from "./useSeccaoAVista";
 import { rolarAteVer } from "@/lib/motion/rolar";
 import { SAIDA_FUNDO, useSaidaDeUmSo } from "./ui/saida";
 import { porqueFalhouOEnvio } from "./porque-falhou-o-envio";
+import { seguirASeleccao } from "./seleccao-de-fotos";
+import { porqueFalhou } from "@/lib/erro-do-servidor";
+import {
+  eTempoEsgotado,
+  sinalComTecto,
+  TECTO_DA_PRE_VISUALIZACAO_MS,
+  TECTO_DO_ENVIO_MS,
+} from "@/lib/tempo-esgotado";
 import { useToast } from "./Toast";
 import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravacoes";
 import {
@@ -31,6 +39,7 @@ import {
   normaliseCoverImages,
   countPendingImages,
   isPendingImage,
+  PENDING_IMAGE_PREFIX,
   stripPendingImages,
   DEFAULT_VAT_RATE,
   DEFAULT_VALID_DAYS,
@@ -1444,7 +1453,16 @@ export async function gravarRascunhoNoServidor(
               : undefined,
         };
       }
-      porque = typeof dados?.erro === "string" ? dados.erro : undefined;
+      // O 503 da gravação manda `erro` (a frase do motivo); as outras recusas
+      // da rota (400, 401, 413, 500) mandam `error`. Só se lia o primeiro, e
+      // «Rascunho demasiado grande» nunca chegava ao ecrã (auditoria 13/11,
+      // estúdio n.º 16).
+      porque =
+        typeof dados?.erro === "string"
+          ? dados.erro
+          : typeof dados?.error === "string"
+            ? dados.error
+            : undefined;
       sessaoExpirada = res.status === 401;
       // Um 4xx é o pedido que está errado, e repeti-lo dá o mesmo. Um 503
       // `permanente` é a instalação que está incompleta — também dá o mesmo.
@@ -1758,6 +1776,19 @@ export default function ProposalStudio({
      *  também, e um aviso a dizer "rascunho limpo" depois de um restauro
      *  mandava procurar um problema que não houve. */
     motivo: string;
+    /**
+     * Os mapas das fotografias, quando o gesto também os esvaziou (o
+     * «Limpar»). Sem eles, «Anular» devolvia o documento com as fotos a
+     * cinzento («não veio») e sem a origem das da biblioteca (auditoria de
+     * 13/11, estúdio n.º 11).
+     */
+    fotos?: {
+      urls: Record<string, string>;
+      originais: Record<string, string>;
+      medias: Record<string, string>;
+      cores: Record<string, string>;
+      origens: Record<string, string>;
+    };
   } | null>(null);
   /**
    * ══════════════════════════════════════════════════════════════════════════
@@ -1854,6 +1885,23 @@ export default function ProposalStudio({
    * passava a redesenhar o formulário inteiro a cada tecla.
    */
   const historico = useRef<StudioDoc[]>([]);
+  /** O documento «assente»: o da abertura, ou o da última fotografia. */
+  const docAssente = useRef<StudioDoc | null>(null);
+  /**
+   * Os marcadores provisórios que JÁ se resolveram (o caminho em que a foto
+   * assentou, ou `null` se falhou). Um documento reposto pelo ⌘Z ou pelo
+   * «Anular» pode trazer marcadores de uma fotografia tirada a meio de um
+   * carregamento — e um marcador que já não está em voo nunca mais assenta:
+   * as células ficavam a carregar para sempre e o envio preso (revisão de
+   * 13/11). Repor passa por aqui.
+   */
+  const marcadoresResolvidos = useRef<Map<string, string | null>>(new Map());
+  const semMarcadoresMortos = (d: StudioDoc): StudioDoc =>
+    marcadoresResolvidos.current.size === 0
+      ? d
+      : mapImagePaths(d, (p) =>
+          marcadoresResolvidos.current.has(p) ? (marcadoresResolvidos.current.get(p) ?? null) : p,
+        );
   /**
    * Há alguma coisa para desfazer? Isto É estado, ao contrário do histórico:
    * é o que acende e apaga o botão "Desfazer".
@@ -2091,7 +2139,12 @@ export default function ProposalStudio({
    * ESTE clique — como escolher a impressora. Guardá-la era passar a ter uma
    * proposta com uma língua colada, que ninguém voltaria a rever.
    */
-  const [idiomaDoPdf, setIdiomaDoPdf] = useState<IdiomaDaProposta>(IDIOMA_POR_OMISSAO);
+  // Parte da língua em que o casal FEZ o pedido (auditoria 13/11, estúdio n.º 9):
+  // noutro aparelho, sem o rascunho local, partia sempre do português — e uma
+  // proposta para um casal que pediu em inglês seguia em português.
+  const [idiomaDoPdf, setIdiomaDoPdf] = useState<IdiomaDaProposta>(() =>
+    ehIdiomaDaProposta(quote.locale) ? quote.locale : IDIOMA_POR_OMISSAO,
+  );
   /**
    * ── A PROPOSTA É BILINGUE: CADA CAMPO DE PROSA COM DUAS CAIXAS ────────────
    *
@@ -2481,6 +2534,9 @@ export default function ProposalStudio({
   /** A vista com as páginas lado a lado está aberta? */
   /** As fotos escolhidas para serem movidas em conjunto — chaves `bi:ii`. */
   const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set());
+  /** A fotografia (o caminho) de cada escolha — ver o efeito «A ESCOLHA SEGUE
+   *  A FOTOGRAFIA», mais abaixo. */
+  const caminhoDaSeleccao = useRef<Map<string, string>>(new Map());
   const hydrated = useRef(false);
   /** `updatedAt` do rascunho do servidor tal como o lemos — é com isto que o
    *  servidor deteta que alguém gravou por cima entretanto. */
@@ -2873,7 +2929,7 @@ export default function ProposalStudio({
    * a esquecer-se de dizer que falhou é exactamente o problema que isto veio
    * resolver.
    */
-  const enviarParaServidor = useCallback(
+  const gravarUmaVez = useCallback(
     async (docGravavel: unknown): Promise<ResultadoDaGravacao> => {
       setAGravarNoServidor((n) => n + 1);
       try {
@@ -2935,6 +2991,50 @@ export default function ProposalStudio({
       marcarQueDura,
       onEstadoDoPedido,
     ],
+  );
+
+  /**
+   * ── UMA GRAVAÇÃO DE CADA VEZ, E SEMPRE A MAIS RECENTE ────────────────────
+   *
+   * Auditoria de 13/11 (estúdio, n.ºs 1 e 2). Com a rede lenta, a gravação dos
+   * 800 ms seguinte partia antes de a anterior voltar: as duas levavam o MESMO
+   * carimbo (`serverStamp`), e o servidor via a segunda como «alterada por
+   * outra pessoa» — aviso falso, gaveta de resgate estragada. E se a mais
+   * antiga chegasse depois da nova, era ela que ficava a valer: ao reabrir,
+   * perdiam-se as últimas alterações.
+   *
+   * Agora há uma fila: uma gravação só parte quando a anterior voltou (e com
+   * o carimbo que ela trouxe). Quando chega a vez, vai o documento MAIS RECENTE
+   * que foi pedido — as versões intermédias não interessam a ninguém —, e as
+   * que ficaram pelo caminho recebem o resultado dessa.
+   */
+  const filaDaGravacao = useRef<Promise<unknown> | null>(null);
+  const porEnviar = useRef<{ doc: unknown } | null>(null);
+  const ultimoResultado = useRef<ResultadoDaGravacao | null>(null);
+  const enviarParaServidor = useCallback(
+    (docGravavel: unknown): Promise<ResultadoDaGravacao> => {
+      porEnviar.current = { doc: docGravavel };
+      const umaVez = async (): Promise<ResultadoDaGravacao> => {
+        const pedido = porEnviar.current;
+        // Uma gravação anterior já levou este documento (ou um mais recente).
+        if (!pedido) return ultimoResultado.current ?? { estado: "so-local" };
+        porEnviar.current = null;
+        const r = await gravarUmaVez(pedido.doc);
+        ultimoResultado.current = r;
+        return r;
+      };
+      // Sem nada em voo, parte JÁ (sem esperar um passo da fila): a gravação
+      // de quando o ecrã fecha tem de sair enquanto o ecrã fecha.
+      const anterior = filaDaGravacao.current;
+      const vez = anterior ? anterior.then(umaVez) : umaVez();
+      const naFila = vez.catch(() => {});
+      filaDaGravacao.current = naFila;
+      void naFila.then(() => {
+        if (filaDaGravacao.current === naFila) filaDaGravacao.current = null;
+      });
+      return vez;
+    },
+    [gravarUmaVez],
   );
 
   // ── O rascunho que está no SERVIDOR ──
@@ -3111,7 +3211,14 @@ export default function ProposalStudio({
         if (base != null && !camposTocados.current.has("__total")) {
           setTotalInput(textoDoTotal(base));
         }
-        return paraOEcra == null ? limpo : aplicarBase(limpo, paraOEcra);
+        const adoptado = paraOEcra == null ? limpo : aplicarBase(limpo, paraOEcra);
+        // O ponto de partida do ⌘Z passa a ser ESTE documento: desfazer não
+        // pode voltar ao que estava no ecrã antes de o rascunho do servidor
+        // chegar (revisão de 13/11) — e a gravação seguinte escrevê-lo-ia por
+        // cima do trabalho bom.
+        docAssente.current = adoptado;
+        historico.current = [];
+        return adoptado;
       });
       // O que estava marcado como «vindo do pedido» deixou de estar no ecrã: o
       // que se vê agora é o rascunho dela, feito noutro dispositivo. Manter os
@@ -3438,6 +3545,7 @@ export default function ProposalStudio({
       // trabalho dela, e fixar a marca antes de todas fazia o alarme acender
       // por causa de um `id` que o próprio estúdio acabou de escrever.
       marcaDaAbertura.current = marcaDoTrabalho();
+      docAssente.current = doc;
       return;
     }
     if (nadaPorGravar()) return;
@@ -3465,6 +3573,13 @@ export default function ProposalStudio({
     if (porGravarRef.current) return;
     porGravarRef.current = true;
     setPorGravar(true);
+    // A primeira mudança desde o documento assente (a abertura, ou a última
+    // gravação): ele entra no histórico, para a PRIMEIRA mudança também se
+    // poder desfazer — e logo, sem esperar pela fotografia dos 800 ms.
+    if (historico.current.length === 0 && docAssente.current) {
+      historico.current = [docAssente.current];
+    }
+    if (historico.current.length > 0) setPodeDesfazer(true);
     // A mensagem do envio conta como trabalho por gravar: sem ela nesta lista, o
     // indicador dizia «guardado às 14:32» com o texto dela ainda por escrever no
     // rascunho — e é essa frase que faz uma pessoa fechar o portátil descansada.
@@ -3483,6 +3598,7 @@ export default function ProposalStudio({
       if (!ultimo || JSON.stringify(ultimo) !== JSON.stringify(doc)) {
         historico.current = [...historico.current, doc].slice(-MAX_HISTORICO);
       }
+      docAssente.current = doc;
       // Dois, e não um: o último do histórico é o documento ACTUAL, portanto
       // com uma só fotografia não há nada anterior para onde voltar.
       setPodeDesfazer(historico.current.length >= 2);
@@ -3980,6 +4096,11 @@ export default function ProposalStudio({
     setPrecoAGravar(true);
     try {
       const r = await mandarPrecoAoPedido(quote.id, base);
+      // Auditoria de 13/11 (estúdio, n.º 10): uma resposta ATRASADA — ela já
+      // escreveu outro valor, que entretanto partiu — não pode voltar ao ecrã:
+      // o pedido com o preço antigo fazia a sincronização saltar o campo a meio
+      // da escrita. Só a resposta do último valor enviado conta.
+      if (base !== (precoEnviado.current ?? null)) return;
       if (r.estado === "gravado") {
         setPrecoPorChegar(null);
         // `quote` pode faltar num 200 de corpo ilegível — ver `ResultadoDoPreco`.
@@ -4745,16 +4866,36 @@ export default function ProposalStudio({
    * gravação); por isso desfazer tira DOIS e usa o penúltimo.
    */
   function desfazer(): boolean {
-    if (historico.current.length < 2) return false;
-    const anterior = historico.current[historico.current.length - 2];
-    historico.current = historico.current.slice(0, -1);
+    const h = historico.current;
+    const ultimo = h[h.length - 1];
+    let anterior: StudioDoc;
+    /**
+     * Auditoria de 13/11 (estúdio, n.º 4): a fotografia só se tira 800 ms
+     * depois de ela parar. Desfazer ANTES disso (apagou uma linha e carregou
+     * logo ⌘Z) usava o penúltimo — e voltava DOIS passos atrás. Se o documento
+     * de agora ainda não está no histórico, volta-se ao último, e o histórico
+     * fica como está.
+     */
+    if (ultimo && JSON.stringify(ultimo) !== JSON.stringify(doc)) {
+      anterior = ultimo;
+    } else {
+      if (h.length < 2) return false;
+      anterior = h[h.length - 2];
+      historico.current = h.slice(0, -1);
+    }
     setPodeDesfazer(historico.current.length >= 2);
+    anterior = semMarcadoresMortos(anterior);
     setDoc(anterior);
     // O campo do total é estado à parte (aceita texto a meio de ser escrito),
     // por isso tem de acompanhar — senão desfazer devolvia o documento antigo
     // e deixava o valor novo na caixa.
     const base = baseDoDoc(anterior);
     setTotalInput(base === undefined ? "" : textoDoTotal(base));
+    // E o PEDIDO também (n.º 5): o valor desfeito voltava ao ecrã e ao PDF, mas
+    // o «Preço final» do pedido — margem, Estatísticas, faturas — ficava com o
+    // número desfeito.
+    const doPedido = base == null ? undefined : baseDoEcraParaOPedido(base, anterior);
+    if (doPedido !== precoEnviado.current) persistirPreco(base, { doc: anterior });
     return true;
   }
 
@@ -5027,8 +5168,17 @@ export default function ProposalStudio({
   /** Devolve o rascunho que o "Limpar" deitou fora. */
   function anularLimpeza() {
     if (!limpo) return;
-    setDoc(limpo.doc);
+    setDoc(semMarcadoresMortos(limpo.doc));
     setTotalInput(limpo.total);
+    if (limpo.fotos) {
+      const f = limpo.fotos;
+      // O que entretanto chegou de novo fica; o que o «Limpar» levou volta.
+      setAssetUrls((agora) => ({ ...f.urls, ...agora }));
+      setAssetOriginais((agora) => ({ ...f.originais, ...agora }));
+      setAssetMedias((agora) => ({ ...f.medias, ...agora }));
+      setAssetCores((agora) => ({ ...f.cores, ...agora }));
+      setThemeOrigins((agora) => ({ ...f.origens, ...agora }));
+    }
     // E o preço volta ao pedido com ele: quem repôs o rascunho repôs o valor
     // que lá estava, e deixá-lo só no ecrã era voltar a ter duas verdades.
     const base = parseMoneyText(limpo.total);
@@ -5403,7 +5553,15 @@ export default function ProposalStudio({
           ? `Reposta a versão de ${sobreposto.quem}.`
           : "Reposta a versão que tinha sido substituída.",
       });
-      setDoc(recuperado as StudioDoc);
+      const reposto = recuperado as StudioDoc;
+      setDoc(reposto);
+      // O total também (auditoria de 13/11, estúdio n.º 13): o campo é estado à
+      // parte, e ficava com o valor da versão que se acabou de substituir — o
+      // campo dizia um número e o PDF saía com outro. E grava-se no pedido,
+      // como em `restaurarVersao`.
+      const base = baseDoDoc(reposto);
+      setTotalInput(typeof base === "number" && base > 0 ? textoDoTotal(base) : "");
+      persistirPreco(typeof base === "number" && base > 0 ? base : undefined, { doc: reposto });
       setSobreposto(null);
     } catch {
       toast("Não consegui abrir essa versão agora. Ela continua guardada.", "error");
@@ -5428,7 +5586,19 @@ export default function ProposalStudio({
      * quem não sabe o que perdeu não sabe se vale a pena anular. Agora diz o
      * que levou (`oQueOLimparLevou`), enquanto ainda dá para o trazer de volta.
      */
-    setLimpo({ doc, total: totalInput, segundos: 10, motivo: oQueOLimparLevou(doc) });
+    setLimpo({
+      doc,
+      total: totalInput,
+      segundos: 10,
+      motivo: oQueOLimparLevou(doc),
+      fotos: {
+        urls: assetUrls,
+        originais: assetOriginais,
+        medias: assetMedias,
+        cores: assetCores,
+        origens: themeOrigins,
+      },
+    });
     try {
       localStorage.removeItem(DRAFT_KEY);
       localStorage.removeItem(`${DRAFT_KEY}:at`);
@@ -5542,13 +5712,52 @@ export default function ProposalStudio({
     return im;
   }
 
-  async function handleUpload(key: string, todas: File[], onPaths: (paths: string[]) => void) {
+  async function handleUpload(
+    key: string,
+    todas: File[],
+    onPaths: (paths: string[]) => void,
+    /**
+     * ── A FOTO OCUPA O LUGAR LOGO AO ESCOLHER (auditoria 13/11, n.ºs 6 e 7) ──
+     *
+     * Sem isto, as fotos só entravam no mood board quando acabavam de subir, e
+     * entravam no ÍNDICE que ele tinha no início: se ela apagasse, movesse ou
+     * duplicasse um tema entretanto, iam para o tema errado (ou sumiam). E o
+     * envio não sabia que havia fotos a caminho — seguia sem elas.
+     *
+     * Com `reservar`, cada ficheiro entra JÁ no documento como um marcador
+     * provisório (`pending:<uuid>`) — o mesmo das fotos da biblioteca. O
+     * marcador anda com o tema para onde ela o levar; ao subir, troca-se pelo
+     * caminho no sítio onde estiver; se falhar, sai. E o envio, que já espera
+     * por marcadores, espera também por estas.
+     */
+    reservar?: (marcadores: string[]) => void,
+  ) {
     if (todas.length === 0) return;
     // Ela (28/10): «que avise mesmo, não coloque esta foto porque vai ficar
     // com uma qualidade péssima». As más ficam de fora, a não ser que ela diga
     // «Usar na mesma» (`AvisoDeQualidade`).
     const files = await avisoDeQualidade.filtrarFicheiros(todas, lugarDaChave(key));
     if (files.length === 0) return;
+    const marcadores = reservar
+      ? files.map(() => `${PENDING_IMAGE_PREFIX}${crypto.randomUUID()}`)
+      : [];
+    const previas: string[] = [];
+    if (reservar) {
+      setAssetUrls((prev) => {
+        const next = { ...prev };
+        files.forEach((f, i) => {
+          try {
+            const url = URL.createObjectURL(f);
+            previas.push(url);
+            next[marcadores[i]] = url;
+          } catch {
+            /* sem pré-visualização: a célula mostra-se a carregar */
+          }
+        });
+        return next;
+      });
+      reservar(marcadores);
+    }
     setUploading((u) => ({ ...u, [key]: { feito: 0, total: files.length } }));
     /**
      * Mais uma arrumada — e conta tanto a que subiu como a que falhou.
@@ -5594,7 +5803,11 @@ export default function ProposalStudio({
           // fotos escolhidas é a que a Catarina vê no documento.
           results[i] = { path: im.path };
         } catch (e) {
-          errors.push(e instanceof Error ? e.message : `Falha ao carregar "${f.name}".`);
+          errors.push(
+            eTempoEsgotado(e)
+              ? `«${f.name}» demorou demasiado a subir (rede lenta).`
+              : porqueFalhou(e, `Sem ligação: «${f.name}» não subiu.`),
+          );
         } finally {
           maisUma();
         }
@@ -5603,7 +5816,26 @@ export default function ProposalStudio({
     try {
       await Promise.all(Array.from({ length: Math.min(UPLOAD_CONCURRENCY, files.length) }, lane));
       const paths = results.filter((r): r is { path: string } => r !== null).map((r) => r.path);
-      if (paths.length > 0) onPaths(paths);
+      if (reservar) {
+        // Cada marcador dá lugar ao seu caminho, ONDE QUER QUE ESTEJA agora; o
+        // que falhou sai. Um marcador que ela já tirou não volta a entrar.
+        const trocas = new Map<string, string | null>();
+        marcadores.forEach((m, i) => trocas.set(m, results[i]?.path ?? null));
+        for (const [m, p] of trocas) marcadoresResolvidos.current.set(m, p);
+        setDoc((d) => mapImagePaths(d, (p) => (trocas.has(p) ? (trocas.get(p) ?? null) : p)));
+        setAssetUrls((prev) => {
+          const next = { ...prev };
+          for (const m of marcadores) delete next[m];
+          return next;
+        });
+        for (const u of previas) {
+          try {
+            URL.revokeObjectURL(u);
+          } catch {
+            /* nada a libertar */
+          }
+        }
+      } else if (paths.length > 0) onPaths(paths);
       if (errors.length > 0) {
         toast(
           errors.length === files.length
@@ -5788,6 +6020,7 @@ export default function ProposalStudio({
       return next;
     });
     if (trocas.size > 0) {
+      for (const [m, p] of trocas) marcadoresResolvidos.current.set(m, p);
       setDoc((d) => mapImagePaths(d, (p) => trocas.get(p) ?? p));
     }
     if (novas.length === 0) return;
@@ -5815,6 +6048,7 @@ export default function ProposalStudio({
   function onDroppedFromLibrary(marcadores: string[]) {
     if (marcadores.length === 0) return;
     const perdidos = new Set(marcadores);
+    for (const m of marcadores) marcadoresResolvidos.current.set(m, null);
     setDoc((d) => mapImagePaths(d, (p) => (perdidos.has(p) ? null : p)));
     setAssetUrls((prev) => {
       const next = { ...prev };
@@ -6761,6 +6995,8 @@ export default function ProposalStudio({
 
   /** Escolher (ou desescolher) uma foto para o conjunto que se move de uma vez. */
   function alternarSeleccao(bi: number, ii: number) {
+    const path = doc.moodBoards[bi]?.images[ii];
+    if (typeof path === "string") caminhoDaSeleccao.current.set(`${bi}:${ii}`, path);
     setSeleccionadas((antes) => {
       const proxima = new Set(antes);
       const chave = `${bi}:${ii}`;
@@ -6769,6 +7005,22 @@ export default function ProposalStudio({
       return proxima;
     });
   }
+
+  /**
+   * ── A ESCOLHA SEGUE A FOTOGRAFIA (auditoria de 13/11, estúdio n.º 8) ─────
+   *
+   * As escolhas guardam POSIÇÕES (`página:foto`). Arrastar, reordenar, apagar
+   * ou mover mudava as posições, e as escolhas ficavam a apontar para outras
+   * fotografias: «Mover para…» levava as erradas. Cada escolha lembra-se do
+   * caminho da fotografia; quando as posições mudam, a escolha vai atrás dela,
+   * e sai se ela já lá não está.
+   */
+  useEffect(() => {
+    if (seleccionadas.size === 0) return;
+    const r = seguirASeleccao(seleccionadas, caminhoDaSeleccao.current, doc.moodBoards);
+    caminhoDaSeleccao.current = r.caminhos;
+    if (r.mudou) setSeleccionadas(r.novas);
+  }, [doc.moodBoards, seleccionadas]);
 
   /** A foto que manda na página — ver `proposal-moodboard.ts`. */
   function marcarPrincipal(bi: number, ii: number) {
@@ -7241,7 +7493,16 @@ export default function ProposalStudio({
       apagar();
       return;
     }
-    const base = parseMoneyText(totalInput);
+    const escrito = parseMoneyText(totalInput);
+    /**
+     * Auditoria de 13/11 (estúdio, n.º 17). Com «estas linhas somam-se», o
+     * campo é SÓ a parte dos serviços, e o preço final é ele MAIS todos os
+     * adicionais: a pergunta mostrava «de [campo] para [campo − linha]», dois
+     * números que não eram o preço de antes nem o de depois.
+     */
+    const base = doc.budgetExtrasSomam
+      ? Math.round((escrito + somaDosExtrasSemIva(doc.budgetExtras ?? [], contexto)) * 100) / 100
+      : escrito;
     const nome = linha.label?.trim() || "esta linha";
     pedirConfirmacaoDeDinheiro({
       oQue: "o total",
@@ -7329,6 +7590,7 @@ export default function ProposalStudio({
     const res = await fetch(`/api/orcamento/${quote.id}/proposta-doc`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: sinalComTecto(TECTO_DA_PRE_VISUALIZACAO_MS),
       // `idioma` vai SEMPRE, mesmo quando é o português. O servidor tem o
       // português por omissão para os chamadores antigos, mas quem tem um
       // botão para escolher diz o que escolheu — senão «pt» seria só a
@@ -7455,7 +7717,15 @@ export default function ProposalStudio({
         );
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Erro na pré-visualização.", "error");
+      toast(
+        eTempoEsgotado(e)
+          ? "A pré-visualização demorou demasiado e foi interrompida. Tente outra vez."
+          : porqueFalhou(
+              e,
+              "Sem ligação ao servidor — a pré-visualização não foi gerada. Verifique a rede e tente outra vez.",
+            ),
+        "error",
+      );
     } finally {
       setBusy(null);
     }
@@ -7579,11 +7849,15 @@ export default function ProposalStudio({
     // O retrato do que vai seguir: se o PDF desta versão já estiver à mão, é o
     // ficheiro que o «Descarregar PDF» de depois do envio entrega.
     const retratoDoEnvio = retratoDoPdf(stripPendingImages(doc), idiomaDoPdf);
+    // Se a resposta do servidor CHEGOU, um erro a seguir não é «a resposta não
+    // chegou» — é outra coisa, e diz-se como tal (revisão de 13/11).
+    let respondeu = false;
     try {
       const comecou = Date.now();
       const res = await fetch(`/api/orcamento/${quote.id}/proposta-doc`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: sinalComTecto(TECTO_DO_ENVIO_MS),
         // As ORIGENS das fotos entram no documento no envio, e só no envio:
         // é a partir daqui que a proposta seguinte pode saber que esta já usou
         // aquele arco. Enquanto é rascunho, o mapa vive ao lado (SIDE_KEY) e
@@ -7636,6 +7910,7 @@ export default function ProposalStudio({
           ...(pdfVisto?.confirmado ? { pdfVisto: pdfVisto.chave } : {}),
         }),
       });
+      respondeu = true;
       const data = await res.json().catch(() => null);
       /**
        * ── O ENVIO PAROU PARA PERGUNTAR ────────────────────────────────────
@@ -7779,7 +8054,17 @@ export default function ProposalStudio({
         whatsAppAberto = true;
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Erro ao enviar a proposta.", "error");
+      // Tempo esgotado ou ligação cortada NÃO querem dizer «não seguiu»: o
+      // pedido pode ter chegado e o email ter saído — só a resposta é que não
+      // voltou. Diz-se isso, e não «erro», para ela ver antes de carregar outra
+      // vez (e, se carregar logo, o servidor responde que ainda está a enviar).
+      const semResposta = !respondeu && (eTempoEsgotado(e) || e instanceof TypeError);
+      toast(
+        semResposta
+          ? "A resposta do envio não chegou (rede lenta ou cortada). A proposta pode já ter seguido: confirme no pedido se aparece como enviada antes de voltar a enviar."
+          : porqueFalhou(e, "Erro ao enviar a proposta."),
+        "error",
+      );
     } finally {
       setBusy(null);
       // Não seguiu (ou parou para perguntar pelos cortes): o separador vazio
@@ -8082,6 +8367,11 @@ export default function ProposalStudio({
       motivo: `Proposta copiada de ${e.nomeDaOrigem}.`,
     });
     setDoc(copiado);
+    // As fotografias da cópia são caminhos que este ecrã ainda não conhece:
+    // sem ir buscar as miniaturas, ficavam a cinzento («não veio») até
+    // recarregar a página (auditoria de 13/11, estúdio n.º 12). O mesmo
+    // `hidratarAssets` da cópia de um mood board.
+    void hidratarAssets();
     // O campo do valor é estado à parte (aceita texto a meio de ser escrito),
     // por isso não acompanha o documento de graça: ficava a mostrar o número
     // ANTERIOR enquanto o documento copiado já tinha outro — ou nenhum. E,
@@ -10070,8 +10360,11 @@ export default function ProposalStudio({
                                             multiple
                                             faixa
                                             onFiles={(files) =>
-                                              handleUpload(`board-${bi}`, files, (paths) =>
-                                                addBoardImages(bi, paths),
+                                              handleUpload(
+                                                `board-${bi}`,
+                                                files,
+                                                (paths) => addBoardImages(bi, paths),
+                                                (marcadores) => addBoardImages(bi, marcadores),
                                               )
                                             }
                                           />

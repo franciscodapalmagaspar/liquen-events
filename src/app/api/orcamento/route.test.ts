@@ -1036,3 +1036,45 @@ describe("POST /api/orcamento — o formulário completo", () => {
     expect(gravado.locale).toBe("en");
   });
 });
+
+/**
+ * A DATA TEM AS SUAS FRASES (achados n.º 2 e n.º 14 da auditoria 6).
+ *
+ * Uma data passada ou que não existe caía no ramo dos contactos e a pessoa lia
+ * «Indique um email ou um telemóvel» com os dois campos preenchidos. E o fim de
+ * um evento de vários dias não era conferido de todo.
+ */
+describe("POST /api/orcamento — a recusa da data diz que é a data", () => {
+  it.each([
+    ["2020-01-01", "errDataPassada"],
+    ["2027-02-30", "errDataInvalida"],
+  ] as const)("%s é recusada com a frase da data, em PT e em EN", async (date, chave) => {
+    const pt = await POST(req("POST", { form: { ...validForm, date } }));
+    expect(pt.status).toBe(400);
+    expect((await pt.json()).error).toBe(getDictionary("pt").orcamento[chave]);
+    const en = await POST(pedidoNaLingua({ form: { ...validForm, date } }, "en"));
+    expect(en.status).toBe(400);
+    expect((await en.json()).error).toBe(getDictionary("en").orcamento[chave]);
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["2027-02-30", "errDataInvalida"],
+    ["amanhã!", "errDataInvalida"],
+    ["2027-09-10", "errDataFim"],
+  ] as const)("o fim %s é recusado (início a 2027-09-12)", async (endDate, chave) => {
+    const res = await POST(
+      req("POST", { form: { ...validForm, date: "2027-09-12", isMultiDay: true, endDate } }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe(getDictionary("pt").orcamento[chave]);
+    expect(store.create).not.toHaveBeenCalled();
+  });
+
+  it("um fim válido, no próprio dia ou depois, passa", async () => {
+    const res = await enviarTudo({
+      form: { ...validForm, date: "2027-09-12", isMultiDay: true, endDate: "2027-09-13" },
+    });
+    expect(res.status).toBe(200);
+  });
+});

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizarTelefone } from "./contacto-do-pedido";
+import { erroDoServidorEmPortugues } from "./erro-do-servidor";
 
 /**
  * Server-side validation schemas (zod). The public forms are the front door
@@ -36,9 +37,20 @@ function ontem(): string {
   return new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 }
 
+// ── A REGRA VAI NO `params`, PORQUE O CÓDIGO NÃO CHEGA ────────────────────
+// As duas recusas da data são `code: "custom"`, como as dos contactos. A rota
+// pública escolhe a frase pela `regra` (`mensagemDeValidacao`); sem ela, uma
+// data passada caía na frase dos contactos e a pessoa lia «Indique um email ou
+// um telemóvel» com os dois campos preenchidos (achado n.º 2 da auditoria 6).
 const dataDoEvento = trimmed(20)
-  .refine((v) => v === "" || ehDiaDeCalendario(v), "Data inválida — escolha um dia do calendário.")
-  .refine((v) => v === "" || !ehDiaDeCalendario(v) || v >= ontem(), "A data do evento já passou.");
+  .refine((v) => v === "" || ehDiaDeCalendario(v), {
+    message: "Data inválida — escolha um dia do calendário.",
+    params: { regra: "data-invalida" },
+  })
+  .refine((v) => v === "" || !ehDiaDeCalendario(v) || v >= ontem(), {
+    message: "A data do evento já passou.",
+    params: { regra: "data-passada" },
+  });
 
 // Quote request — the part of QuoteFormData we rely on; rest passes through.
 const selectedAddonSchema = z.object({
@@ -96,7 +108,10 @@ export const quoteFormSchema = z
     category: trimmed(40).nullish(),
     eventType: trimmed(60).nullish(),
     eventName: trimmed(200).optional().default(""),
-    endDate: trimmed(20).optional().default(""),
+    // O fim de um evento de vários dias: as mesmas regras do início (um dia
+    // que exista, e não já passado), e o `superRefine` lá em baixo prende-o a
+    // não ser antes do início (achado n.º 14 da auditoria 6).
+    endDate: dataDoEvento.optional().default(""),
     location: trimmed(300).optional().default(""),
     locationType: trimmed(30).optional(),
     duration: z.coerce.number().finite().min(0).max(1000).optional(),
@@ -174,6 +189,22 @@ export const quoteFormSchema = z
   .strip()
   // Os contactos: as duas regras (o formulário completo e as fichas rápidas).
   .superRefine((f, ctx) => {
+    // ── O FIM NÃO PODE VIR ANTES DO INÍCIO ────────────────────────────────
+    // Datas `yyyy-mm-dd` já conferidas acima: a ordem das letras é a ordem
+    // dos dias.
+    if (
+      f.date &&
+      f.endDate &&
+      ehDiaDeCalendario(f.date) &&
+      ehDiaDeCalendario(f.endDate) &&
+      f.endDate < f.date
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["endDate"],
+        message: "A data de fim não pode ser antes da data de início.",
+        params: { regra: "data-fim" },
+      });
     // ── O FORMULÁRIO COMPLETO: O EMAIL É OBRIGATÓRIO ──────────────────────
     // Ela (28/10): um pedido chegou com o email mal escrito e não havia mais
     // por onde responder. No formulário completo (`origem: "completo"`) o
@@ -643,7 +674,16 @@ export const pushSubscriptionSchema = z.object({
   }),
 });
 
-/** Returns the first human-readable error, for a clean 400 response. */
+/**
+ * A primeira queixa do esquema, para o corpo de um 400 — sempre em português.
+ *
+ * As rotas que a usam são todas do back office. As frases desta casa passam
+ * tal e qual; as que o Zod escreve sozinho («Invalid email address», «Too
+ * small: expected string to have >=1 characters») chegavam ao ecrã em inglês
+ * (achado n.º 13 da auditoria 6) e passam pela mesma tradução que o ecrã já
+ * usa (`erroDoServidorEmPortugues`). O site público em inglês não passa por
+ * aqui: tem a sua `mensagemDeValidacao`, na língua de quem escreveu.
+ */
 export function firstError(err: z.ZodError): string {
-  return err.issues[0]?.message ?? "Dados inválidos";
+  return erroDoServidorEmPortugues(err.issues[0]?.message) ?? "Dados inválidos";
 }
