@@ -139,6 +139,17 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
   });
   const [tentouCriar, setTentouCriar] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  /**
+   * ── O QUE JÁ FICOU FEITO, PARA UM SEGUNDO CLIQUE NÃO O REPETIR ───────────
+   *
+   * Se o pedido já foi criado e uma etapa seguinte falha (a rede cai a
+   * guardar o rascunho), o ecrã dizia «Não foi possível criar o pedido» — e
+   * o clique seguinte criava um SEGUNDO pedido e voltava a carregar as
+   * fotografias para o armazenamento. Agora guarda-se o pedido e as
+   * fotografias já carregadas, e o clique seguinte continua daí.
+   */
+  const feito = useRef<{ quote: Quote; carregadas: Map<string, string> } | null>(null);
+  const [pedidoCriado, setPedidoCriado] = useState<Quote | null>(null);
 
   // As miniaturas são URLs do próprio navegador — libertam-se ao sair.
   const urls = useMemo(
@@ -148,6 +159,8 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
   useEffect(() => () => urls.forEach((u) => URL.revokeObjectURL(u)), [urls]);
 
   function recomecar() {
+    feito.current = null;
+    setPedidoCriado(null);
     setPasso("escolher");
     setErro(null);
     setNome("");
@@ -162,7 +175,11 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
 
   function fechar() {
     if (passo === "a-criar") return;
+    // O pedido já existe (o rascunho é que ficou por guardar): fechar leva-o
+    // na mesma para a lista, para não ficar um pedido que ninguém vê.
+    const criado = feito.current?.quote;
     recomecar();
+    if (criado) onCreated(criado);
     onClose();
   }
 
@@ -238,41 +255,47 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     if (falta.length) return;
     setPasso("a-criar");
     try {
-      // 1. O pedido, pelo caminho de sempre.
-      setProgresso({ titulo: "A criar o pedido" });
-      const res = await fetch("/api/orcamento/manual", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(corpoDoPedido(proposta, c, nome)),
-      });
-      const dados = await res.json().catch(() => null);
-      if (!res.ok || !dados?.quote)
-        throw new Error(dados?.error || "Não foi possível criar o pedido.");
-      const quote = dados.quote as Quote;
+      // 1. O pedido, pelo caminho de sempre — só se ainda não foi criado.
+      if (!feito.current) {
+        setProgresso({ titulo: "A criar o pedido" });
+        const res = await fetch("/api/orcamento/manual", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(corpoDoPedido(proposta, c, nome)),
+        });
+        const dados = await res.json().catch(() => null);
+        if (!res.ok || !dados?.quote) {
+          throw new Error(dados?.error || "Não foi possível criar o pedido.");
+        }
+        feito.current = { quote: dados.quote as Quote, carregadas: new Map() };
+        setPedidoCriado(dados.quote as Quote);
+      }
+      const { quote, carregadas } = feito.current;
 
       // 2. As fotografias escolhidas, reduzidas no navegador e carregadas como
       // no estúdio. Uma que falhe não deita fora as outras.
+      // As que já subiram numa tentativa anterior não sobem outra vez.
       const aSubir = fotosASubir(fotos, escolhidas);
-      const carregadas = new Map<string, string>();
-      let feitas = 0;
-      let falhadas = 0;
+      const porSubir = aSubir.filter((f) => !carregadas.has(f.caminho));
+      let feitas = aSubir.length - porSubir.length;
       let porque = "";
-      setProgresso({ titulo: "A carregar as fotografias", feito: 0, total: aSubir.length });
+      setProgresso({ titulo: "A carregar as fotografias", feito: feitas, total: aSubir.length });
+      let falhasAgora = 0;
       let proxima = 0;
       const via = async () => {
         for (;;) {
           const i = proxima++;
-          if (i >= aSubir.length) return;
+          if (i >= porSubir.length) return;
           // Três falhas sem nenhuma a passar é o armazenamento que não está
-          // lá (não uma foto má): parar, em vez de tentar as trinta.
-          if (falhadas >= 3 && carregadas.size === 0) return;
-          const f = aSubir[i];
+          // lá (não uma foto má): parar, em vez de tentar as outras.
+          if (falhasAgora >= 3 && carregadas.size === 0) return;
+          const f = porSubir[i];
           try {
             const preparada = await prepareImageWithThumb(f.ficheiro, "board");
             const im = await enviarFotoDaProposta(quote.id, preparada);
             carregadas.set(f.caminho, im.path);
           } catch (e) {
-            falhadas++;
+            falhasAgora++;
             if (!porque && e instanceof Error) porque = e.message;
           } finally {
             feitas++;
@@ -284,7 +307,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
           }
         }
       };
-      await Promise.all(Array.from({ length: Math.min(VIAS, aSubir.length) }, via));
+      await Promise.all(Array.from({ length: Math.min(VIAS, porSubir.length) }, via));
 
       // 3. O rascunho do estúdio — o que o «Fazer proposta» abre.
       setProgresso({ titulo: "A guardar o rascunho da proposta" });
@@ -296,11 +319,9 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       });
       if (!r.ok) {
         const d = await r.json().catch(() => null);
-        toast(
-          `O pedido foi criado, mas o rascunho não ficou guardado${d?.erro ? `: ${d.erro}` : ""}. Abre o pedido e tenta importar outra vez.`,
-          "error",
-        );
-      } else if (carregadas.size === 0 && aSubir.length > 0) {
+        throw new Error(typeof d?.erro === "string" ? d.erro : "");
+      }
+      if (carregadas.size === 0 && aSubir.length > 0) {
         toast(
           `O pedido e a proposta foram criados, mas nenhuma fotografia carregou${porque ? ` (${porque})` : ""}. Podes juntá-las no Fazer proposta.`,
           "error",
@@ -321,7 +342,16 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       onClose();
     } catch (e) {
       setPasso("rever");
-      toast(porqueFalhou(e, "Não foi possível criar o pedido. Verifica a ligação."), "error");
+      if (feito.current) {
+        // A verdade: o pedido EXISTE; o que falta é o rascunho.
+        const porque = e instanceof Error && e.message ? ` (${e.message})` : "";
+        toast(
+          `O pedido foi criado; falta guardar o rascunho da proposta${porque}. Carrega em «Continuar a importação» — não cria outro pedido.`,
+          "error",
+        );
+      } else {
+        toast(porqueFalhou(e, "Não foi possível criar o pedido. Verifica a ligação."), "error");
+      }
     }
   }
 
@@ -350,9 +380,11 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       accoes={
         passo === "rever" ? (
           <>
-            <Button variant="ghost" onClick={recomecar} className="sm:ml-auto">
-              Outro ficheiro
-            </Button>
+            {!pedidoCriado && (
+              <Button variant="ghost" onClick={recomecar} className="sm:ml-auto">
+                Outro ficheiro
+              </Button>
+            )}
             {/* No telemóvel o botão toma a linha toda: o nome é comprido, e
                 cortado a meio não se lê. */}
             <Button
@@ -361,7 +393,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
               iconRight={<span aria-hidden="true">→</span>}
               className="basis-full sm:basis-auto"
             >
-              Criar o pedido e abrir no Fazer proposta
+              {pedidoCriado ? "Continuar a importação" : "Criar o pedido e abrir no Fazer proposta"}
             </Button>
           </>
         ) : (
@@ -432,6 +464,19 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
 
       {passo === "rever" && proposta && c && (
         <div className="flex min-w-0 flex-col gap-7">
+          {pedidoCriado && (
+            <p
+              role="status"
+              className="rounded-xl border border-[var(--bo-aviso-tom)]/25 bg-[var(--bo-aviso-tom)]/[0.06] px-4 py-3 text-footnote text-[var(--bo-text)]"
+            >
+              <span className="font-semibold text-[var(--bo-aviso)]">
+                O pedido de «{pedidoCriado.name}» já foi criado.
+              </span>{" "}
+              Falta guardar o rascunho da proposta. «Continuar a importação» acaba o que falta, sem
+              criar outro pedido nem voltar a carregar as fotografias que já subiram. Os campos do
+              pedido já não mudam aqui — muda-os no próprio pedido.
+            </p>
+          )}
           {proposta.avisos.length > 0 && (
             <div className="rounded-xl border border-[var(--bo-aviso-tom)]/25 bg-[var(--bo-aviso-tom)]/[0.06] px-4 py-3">
               <p className="text-footnote font-semibold text-[var(--bo-aviso)]">A confirmar</p>

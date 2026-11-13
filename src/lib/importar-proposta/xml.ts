@@ -22,10 +22,6 @@ export interface No {
 
 const MAX_PROFUNDIDADE = 400;
 
-const TOKEN =
-  /<!--[\s\S]*?-->|<!\[CDATA\[([\s\S]*?)\]\]>|<\?[\s\S]*?\?>|<![A-Za-z][^>]*>|<(\/?)([A-Za-z_][\w:.-]*)((?:\s+[^\s=>/]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>|([^<]+)|</g;
-const ATTR = /([^\s=>/]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-
 export function local(nome: string): string {
   const i = nome.indexOf(":");
   return i >= 0 ? nome.slice(i + 1) : nome;
@@ -44,39 +40,145 @@ export function decodificar(s: string): string {
   });
 }
 
+/**
+ * ── UM PERCURSO SÓ, DO PRINCÍPIO AO FIM ─────────────────────────────────────
+ *
+ * Isto era uma expressão regular com `[\s\S]*?` para os comentários, o CDATA
+ * e as instruções. Com um `<?`, `<!--` ou `<![CDATA[` SEM FECHO, a procura
+ * corria até ao fim do texto uma vez por cada `<` — quadrático: 80 KB de `<?`
+ * levavam 0,6 s, e 16 MB (que comprimem para KB e cabem nos 4 MB da rota)
+ * prendiam a função 30 s. Processador numa função é o que desligou o site a
+ * 2/11.
+ *
+ * Agora cada fecho procura-se com `indexOf` a partir de onde se está, e sem
+ * fecho salta-se para o fim de uma vez: cada carácter é visto um número fixo
+ * de vezes, seja qual for o ficheiro. O mesmo vale para as aspas dentro de uma
+ * etiqueta e para os atributos (lidos à mão, sem expressão regular).
+ */
+function lerAtributos(corpo: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  const n = corpo.length;
+  let i = 0;
+  const espaco = (c: string) => c === " " || c === "\n" || c === "\t" || c === "\r";
+  while (i < n) {
+    while (i < n && espaco(corpo[i])) i++;
+    const ini = i;
+    while (i < n && !espaco(corpo[i]) && corpo[i] !== "=" && corpo[i] !== "/" && corpo[i] !== ">")
+      i++;
+    const nome = corpo.slice(ini, i);
+    if (!nome) {
+      i++;
+      continue;
+    }
+    while (i < n && espaco(corpo[i])) i++;
+    if (corpo[i] !== "=") continue;
+    i++;
+    while (i < n && espaco(corpo[i])) i++;
+    const aspa = corpo[i];
+    if (aspa !== '"' && aspa !== "'") continue;
+    const fim = corpo.indexOf(aspa, i + 1);
+    if (fim < 0) break;
+    attrs[nome] = decodificar(corpo.slice(i + 1, fim));
+    i = fim + 1;
+  }
+  return attrs;
+}
+
+/** Onde acaba a etiqueta que começa em `de` (o `>` fora de aspas), ou -1. */
+function fimDaEtiqueta(xml: string, de: number): number {
+  // Cada procura só volta a correr quando a posição passa o que ela achou —
+  // com muitas aspas antes do `>`, procurar de novo a cada par era quadrático.
+  let i = de;
+  let gt = -2;
+  let d = -2;
+  let p = -2;
+  for (;;) {
+    if (gt !== -1 && gt < i) gt = xml.indexOf(">", i);
+    if (gt < 0) return -1;
+    // Há aspas antes do `>`? Então o `>` pode estar dentro delas.
+    if (d !== -1 && d < i) d = xml.indexOf('"', i);
+    if (p !== -1 && p < i) p = xml.indexOf("'", i);
+    const aspa = d >= 0 && (p < 0 || d < p) ? d : p;
+    if (aspa < 0 || aspa > gt) return gt;
+    const fecho = xml.indexOf(xml[aspa], aspa + 1);
+    if (fecho < 0) return -1;
+    i = fecho + 1;
+  }
+}
+
+const NOME_DA_ETIQUETA = /^[A-Za-z_][\w:.-]*/;
+
 export function lerXml(xml: string): No {
   const raiz: No = { nome: "#raiz", attrs: {}, filhos: [] };
   const pilha: No[] = [raiz];
-  TOKEN.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = TOKEN.exec(xml))) {
-    const topo = pilha[pilha.length - 1];
-    if (m[1] !== undefined) {
-      topo.filhos.push(m[1]);
-    } else if (m[3] !== undefined) {
-      const nome = local(m[3]);
-      if (m[2] === "/") {
-        // Fecha até ao nó com este nome; se não houver, ignora o fecho.
-        for (let i = pilha.length - 1; i > 0; i--) {
-          if (pilha[i].nome === nome) {
-            pilha.length = i;
-            break;
-          }
-        }
-        continue;
-      }
-      const attrs: Record<string, string> = {};
-      if (m[4]) {
-        ATTR.lastIndex = 0;
-        let a: RegExpExecArray | null;
-        while ((a = ATTR.exec(m[4]))) attrs[a[1]] = decodificar(a[2] ?? a[3] ?? "");
-      }
-      const no: No = { nome, attrs, filhos: [] };
-      topo.filhos.push(no);
-      if (m[5] !== "/" && pilha.length < MAX_PROFUNDIDADE) pilha.push(no);
-    } else if (m[6] !== undefined) {
-      if (pilha.length > 1) topo.filhos.push(decodificar(m[6]));
+  const n = xml.length;
+  let i = 0;
+  const texto = (t: string) => {
+    if (t && pilha.length > 1) pilha[pilha.length - 1].filhos.push(decodificar(t));
+  };
+  while (i < n) {
+    const lt = xml.indexOf("<", i);
+    if (lt < 0) {
+      texto(xml.slice(i));
+      break;
     }
+    if (lt > i) texto(xml.slice(i, lt));
+    const topo = pilha[pilha.length - 1];
+    if (xml.startsWith("<!--", lt)) {
+      const fim = xml.indexOf("-->", lt + 4);
+      if (fim < 0) break;
+      i = fim + 3;
+      continue;
+    }
+    if (xml.startsWith("<![CDATA[", lt)) {
+      const fim = xml.indexOf("]]>", lt + 9);
+      if (fim < 0) break;
+      topo.filhos.push(xml.slice(lt + 9, fim));
+      i = fim + 3;
+      continue;
+    }
+    if (xml.startsWith("<?", lt)) {
+      const fim = xml.indexOf("?>", lt + 2);
+      if (fim < 0) break;
+      i = fim + 2;
+      continue;
+    }
+    if (xml.startsWith("<!", lt)) {
+      // DOCTYPE e afins: ignorados, e com eles qualquer entidade declarada.
+      const fim = xml.indexOf(">", lt + 2);
+      if (fim < 0) break;
+      i = fim + 1;
+      continue;
+    }
+    const fecha = xml[lt + 1] === "/";
+    const nomeM = NOME_DA_ETIQUETA.exec(
+      xml.slice(lt + (fecha ? 2 : 1), lt + (fecha ? 2 : 1) + 256),
+    );
+    if (!nomeM) {
+      // Um `<` solto: salta-se só ele.
+      i = lt + 1;
+      continue;
+    }
+    const fim = fimDaEtiqueta(xml, lt + 1);
+    if (fim < 0) break;
+    const nome = local(nomeM[0]);
+    i = fim + 1;
+    if (fecha) {
+      // Fecha até ao nó com este nome; se não houver, ignora o fecho.
+      for (let k = pilha.length - 1; k > 0; k--) {
+        if (pilha[k].nome === nome) {
+          pilha.length = k;
+          break;
+        }
+      }
+      continue;
+    }
+    let corpo = xml.slice(lt + 1 + nomeM[0].length, fim);
+    const vazia = corpo.trimEnd().endsWith("/");
+    if (vazia) corpo = corpo.trimEnd().slice(0, -1);
+    const no: No = { nome, attrs: lerAtributos(corpo), filhos: [] };
+    topo.filhos.push(no);
+    if (!vazia && pilha.length < MAX_PROFUNDIDADE) pilha.push(no);
   }
   return raiz;
 }

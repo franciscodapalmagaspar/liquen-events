@@ -41,7 +41,8 @@ interface Chamada {
   init?: RequestInit;
 }
 
-function preparar(semArmazenamento = false, ficheiro = FICHEIRO) {
+function preparar(semArmazenamento = false, ficheiro = FICHEIRO, rascunhoFalhaUmaVez = false) {
+  let rascunhoFalhou = false;
   const chamadas: Chamada[] = [];
   const proposta = mapearConteudo(extrairConteudo(ficheiro));
   let fotos = 0;
@@ -63,7 +64,13 @@ function preparar(semArmazenamento = false, ficheiro = FICHEIRO) {
       fotos++;
       return ok({ ok: true, images: [{ path: `LIQ-IMP-1/foto${fotos}.jpg`, url: "u" }] });
     }
-    if (url.endsWith("/proposta-rascunho")) return ok({ ok: true, updatedAt: "x" });
+    if (url.endsWith("/proposta-rascunho")) {
+      if (rascunhoFalhaUmaVez && !rascunhoFalhou) {
+        rascunhoFalhou = true;
+        throw new TypeError("Failed to fetch");
+      }
+      return ok({ ok: true, updatedAt: "x" });
+    }
     throw new Error(`inesperado: ${url}`);
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -243,5 +250,32 @@ describe("Importar proposta antiga", () => {
     );
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
     expect(chamadas.filter((c) => c.url.endsWith("/assets"))).toHaveLength(8);
+  });
+
+  it("se o rascunho falha depois de o pedido criado, diz a verdade e o novo clique continua — sem 2.º pedido nem fotos repetidas", async () => {
+    const { chamadas, onCreated } = preparar(false, FICHEIRO, true);
+    const user = userEvent.setup();
+    await escolherFicheiro();
+    await user.click(screen.getByRole("radio", { name: "Acresce IVA" }));
+    await user.click(
+      screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+    );
+
+    expect(await screen.findByText(/O pedido foi criado; falta guardar o rascunho/)).toBeTruthy();
+    expect(screen.queryByText(/Não foi possível criar o pedido/)).toBeNull();
+    expect(onCreated).not.toHaveBeenCalled();
+    const continuar = await screen.findByRole("button", { name: /Continuar a importação/ });
+    expect(screen.queryByRole("button", { name: /Outro ficheiro/ })).toBeNull();
+
+    await user.click(continuar);
+    await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    const urls = chamadas.map((c) => c.url);
+    expect(urls.filter((u) => u === "/api/orcamento/manual")).toHaveLength(1);
+    expect(urls.filter((u) => u.endsWith("/assets"))).toHaveLength(2);
+    expect(urls.filter((u) => u.endsWith("/proposta-rascunho"))).toHaveLength(2);
+    // O rascunho que ficou guardado leva as duas fotografias da 1.ª tentativa.
+    const ultimo = chamadas.filter((c) => c.url.endsWith("/proposta-rascunho")).at(-1);
+    const { doc } = JSON.parse(ultimo?.init?.body as string);
+    expect(doc.moodBoards[0].images).toEqual(["LIQ-IMP-1/foto1.jpg", "LIQ-IMP-1/foto2.jpg"]);
   });
 });
