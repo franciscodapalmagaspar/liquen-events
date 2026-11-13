@@ -118,6 +118,16 @@ export const updateEventItem = (
   patch: Partial<EventMaterialItem>,
 ): Promise<EventMaterialItem | null> => repo.update(id, patch);
 
+/**
+ * Ler-mudar-escrever sobre a linha FRESCA, com o bloqueio optimista do
+ * `touch`: quem decide se uma marcação ganha tem de decidir sobre o que está
+ * na base agora, e não sobre o que leu no início do pedido.
+ */
+export const updateEventItemWith = (
+  id: string,
+  mutate: (current: EventMaterialItem) => EventMaterialItem,
+): Promise<EventMaterialItem | null> => repo.updateWith(id, mutate);
+
 export const removeEventItem = (id: string): Promise<void> => repo.remove(id);
 export const obterEventItem = (id: string): Promise<EventMaterialItem | null> => repo.get(id);
 /** Volta da Reciclagem com o MESMO id. */
