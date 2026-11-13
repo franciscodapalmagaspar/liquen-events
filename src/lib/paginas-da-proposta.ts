@@ -15,7 +15,30 @@ import type { ProposalDoc } from "@/lib/proposal-doc";
  *
  * `null` para tudo o que não tenha documento: o link não revela se existe.
  */
-type PdfDoLink = { chave: string; obterBytes: () => Promise<Uint8Array> } | null;
+type PdfDoLink = {
+  chave: string;
+  obterBytes: () => Promise<Uint8Array>;
+  /**
+   * Se os bytes desta chave, da última vez que se leram neste processo,
+   * vieram COMPLETOS. `false` também quando ainda não se leram: na dúvida,
+   * nada se guarda para sempre. Ver `pdfDaPropostaComEstado`.
+   */
+  completo: () => boolean;
+} | null;
+
+/**
+ * O estado dos bytes de cada chave. As páginas em imagem (`paginas-do-pdf.ts`)
+ * guardam o documento aberto por chave, e por isso o estado também é por
+ * chave, e não por link: dois links da mesma proposta abrem o mesmo documento.
+ */
+const completos = new Map<string, boolean>();
+const MAXIMO_DE_ESTADOS = 200;
+
+function marcar(chave: string, completo: boolean): void {
+  completos.delete(chave);
+  completos.set(chave, completo);
+  if (completos.size > MAXIMO_DE_ESTADOS) completos.delete(completos.keys().next().value!);
+}
 
 /**
  * ── UMA LEITURA POR LINK, E NÃO UMA POR PÁGINA ─────────────────────────────
@@ -49,6 +72,7 @@ export function pdfDoLink(token: string): Promise<PdfDoLink> {
 /** Só para os testes. */
 export function esquecerLinksLidos(): void {
   lidos.clear();
+  completos.clear();
 }
 
 async function lerPdfDoLink(token: string): Promise<PdfDoLink> {
@@ -56,13 +80,17 @@ async function lerPdfDoLink(token: string): Promise<PdfDoLink> {
   if (!proposta?.doc) return null;
   const doc = proposta.doc;
   const idioma = idiomaDaProposta(proposta);
+  const chave = chaveDasPaginas(proposta.id, doc, idioma);
   return {
-    chave: chaveDasPaginas(proposta.id, doc, idioma),
+    chave,
     obterBytes: async () => {
       // O desenhador só entra se for preciso — ver a nota na rota do PDF.
-      const { pdfDaPropostaEmCache } = await import("@/lib/proposal-pdf-cache");
-      return pdfDaPropostaEmCache(doc, idioma, true, proposta.id);
+      const { pdfDaPropostaComEstado } = await import("@/lib/proposal-pdf-cache");
+      const { pdf, completo } = await pdfDaPropostaComEstado(doc, idioma, true, proposta.id);
+      marcar(chave, completo);
+      return pdf;
     },
+    completo: () => completos.get(chave) === true,
   };
 }
 

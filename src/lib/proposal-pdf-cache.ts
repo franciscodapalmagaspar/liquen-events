@@ -171,13 +171,32 @@ export async function pdfDaPropostaEmCache(
    */
   proposalId?: string,
 ): Promise<Buffer<ArrayBuffer>> {
+  return (await pdfDaPropostaComEstado(doc, idioma, servirIncompleto, proposalId)).pdf;
+}
+
+/**
+ * O mesmo, e se o documento saiu COMPLETO.
+ *
+ * Com `servirIncompleto`, um documento a que falte uma fotografia sai na
+ * mesma — e quem guarda o que daqui deriva (as páginas em imagem, no telemóvel
+ * do casal, por um ano) tem de o saber: a chave é a do conteúdo, e não muda
+ * quando ela repõe a fotografia. Só o que vem completo se pode guardar para
+ * sempre. O que está em memória ou no armazenamento é sempre completo: um
+ * documento com buracos nunca lá entra.
+ */
+export async function pdfDaPropostaComEstado(
+  doc: ProposalDoc,
+  idioma: IdiomaDaProposta = IDIOMA_POR_OMISSAO,
+  servirIncompleto = false,
+  proposalId?: string,
+): Promise<{ pdf: Buffer<ArrayBuffer>; completo: boolean }> {
   const chave = chaveDoPdf(doc, idioma);
   const guardado = cache.get(chave);
   if (guardado) {
     // Reinserir para ficar no fim da fila — foi usado agora.
     cache.delete(chave);
     cache.set(chave, guardado);
-    return guardado;
+    return { pdf: guardado, completo: true };
   }
 
   /**
@@ -202,7 +221,7 @@ export async function pdfDaPropostaEmCache(
     const doStorage = await lerPdfDaProposta(proposalId, chave);
     if (doStorage) {
       guardar(chave, doStorage as Buffer<ArrayBuffer>);
-      return doStorage as Buffer<ArrayBuffer>;
+      return { pdf: doStorage as Buffer<ArrayBuffer>, completo: true };
     }
   }
 
@@ -270,7 +289,7 @@ export async function pdfDaPropostaEmCache(
       // NÃO se guarda em cache. Uma falta é passageira por definição, e fixá-la
       // punha o documento com buracos a durar até ao próximo arranque a frio —
       // mesmo depois de ela repor a fotografia.
-      return ultimo.pdf;
+      return { pdf: ultimo.pdf, completo: false };
     }
     log.error("proposta-pdf: RECUSADO — o documento sairia com fotos a menos", null, {
       emFalta: ultimo.missingImages,
@@ -284,7 +303,7 @@ export async function pdfDaPropostaEmCache(
   // função; com `await` são uns milissegundos numa resposta que acabou de
   // gastar segundos a desenhar.
   if (proposalId) await guardarPdfDaProposta(proposalId, chave, ultimo.pdf);
-  return ultimo.pdf;
+  return { pdf: ultimo.pdf, completo: true };
 }
 
 /**
