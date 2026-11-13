@@ -106,6 +106,16 @@ lado a lado com o modelo página a página. O jantar de empresa sai com as mesma
   ainda as sugestões, um seletor de qualquer cor, «Ficar com estas» e
   «Voltar à sugestão». Gravado em `paletaDela`; o PDF e a proposta online
   usam as dela.
+  **E a sugestão é UMA conta só (13/11, mais tarde).** A mesma proposta TESTE
+  dava três paletas — o PDF `#E5B56B #AFA385 …`, a online `#E4C07B #B3A387 …`
+  e o estúdio outras, por outra ordem: a regra era a mesma, os bytes não (o
+  PDF lê a versão editorial, a online lia a média, o estúdio o que o navegador
+  descodificava). Agora a online e o estúdio pedem a paleta pelas referências
+  que o motor do PDF escolheu (`daPaleta`) a `src/lib/paleta-do-pdf.ts`, que
+  lê os MESMOS bytes do PDF e faz a MESMA conta, guardada por conjunto de
+  fotografias (`app_state`). O conta-gotas continua no navegador: a cor que ela
+  toca é escolha dela. Um teste (`paleta-do-pdf.test.ts`) prende os três. As
+  páginas online já abertas antes disto mantêm as cores que guardaram.
 - **«estes números não dá para perceber nada»** (a página do total, aberta no
   iPhone). No tamanho óptico 96 do documento, o traço fino da Bodoni mede
   0,2 % do corpo: a página inteira num iPhone tem ~390 px de largura, e o traço

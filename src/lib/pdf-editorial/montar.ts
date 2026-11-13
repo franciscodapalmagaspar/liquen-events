@@ -159,8 +159,21 @@ export async function fotosDoEditorial(
   idioma: IdiomaDaProposta,
   medidas: ReadonlyMap<string, Medida>,
 ): Promise<FotosDoPdf> {
+  return (await planoDoEditorial(original, idioma, medidas)).fotos;
+}
+
+/**
+ * O mesmo, e as referências das fotografias de onde o PDF tira a paleta
+ * (`web.ambiente.daPaleta`, pela ordem do PDF; `null` sem página da paleta) —
+ * da MESMA volta do motor, para o estúdio pedir a paleta do PDF por elas.
+ */
+export async function planoDoEditorial(
+  original: ProposalDoc,
+  idioma: IdiomaDaProposta,
+  medidas: ReadonlyMap<string, Medida>,
+): Promise<{ fotos: FotosDoPdf; daPaleta: string[] | null }> {
   const m = await motor(original, idioma, {}, { semBytes: true, medidas });
-  return fotosDoPlano(m.plano);
+  return { fotos: fotosDoPlano(m.plano), daPaleta: m.web.ambiente?.daPaleta ?? null };
 }
 
 /**

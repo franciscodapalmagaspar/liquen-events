@@ -8,11 +8,10 @@ import type {
   PecaWeb,
 } from "@/lib/pdf-editorial/conteudo-web";
 import { conteudoWebDoDocumento } from "@/lib/proposal-doc-render";
-import { paletaDasFotos } from "@/lib/pdf-editorial/paleta-das-fotos";
+import { paletaDoPdfPelasRefs } from "@/lib/paleta-do-pdf";
 import { fotosDaProposta, inventarioDeFotos, type FotoDaProposta } from "@/lib/proposta-fotos";
 import { SITE } from "@/lib/site";
 import { log } from "@/lib/logger";
-import { bytesDeImagemPorEndereco } from "@/lib/proposal-storage";
 import { mosaicoDoCapitulo, type FormaDaCelula } from "./mosaico";
 import { textosWeb, type TextosWeb } from "./textos-web";
 import { chaveDoGuardado, guardadoOuCalculado } from "./guardado";
@@ -174,47 +173,35 @@ function blocosDasCondicoes(seccoes: { titulo: string; pecas: PecaWeb[] }[]) {
 }
 
 /**
- * As cores da paleta, das fotografias que a página mostra (o painel e a fila
- * — as MESMAS do PDF, 13/11). Calculadas uma vez por proposta e guardadas
- * (`guardado.ts`) — seis descargas e o `sharp` não podem repetir-se a cada
- * visita. Lê-se a versão média e não a miniatura: a miniatura é um recorte
- * quadrado, e as cores de um recorte não são as da fotografia que se vê.
+ * As cores da paleta — as do PDF, pela ordem do PDF (13/11).
+ *
+ * `daPaleta` são as referências que o motor do PDF escolheu para a paleta, e
+ * `paletaDoPdfPelasRefs` lê delas os MESMOS bytes que o PDF desenha e corre a
+ * MESMA conta. Antes lia-se aqui a versão média, e a mesma proposta dava cores
+ * diferentes no PDF e na página (o defeito do PR #440).
+ *
+ * ── As propostas que já foram vistas ────────────────────────────────────────
+ * Um conteúdo guardado ANTES desta regra (sem `coresDela`, que nasceu com ela)
+ * é de uma proposta cuja página já foi aberta — e cujas cores ficaram
+ * guardadas pela chave antiga. Essa chave mantém-se para elas: o casal
+ * continua a ver as cores que viu. Só se a chave antiga não tiver nada é que
+ * se calcula, e com a conta do PDF.
  */
 function coresDaPaleta(
   proposalId: string,
-  refs: readonly string[],
-  porRef: ReadonlyMap<string, FotoDaProposta>,
+  ambiente: NonNullable<ConteudoWeb["ambiente"]>,
 ): Promise<string[]> {
-  // Até doze, como antes: assim as propostas antigas encontram a chave que
-  // gravaram. As novas trazem só as seis da página.
-  const asDaPagina = refs.slice(0, 12);
-  return guardadoOuCalculado(
-    // A chave fica a mesma de propósito. Uma proposta enviada antes de 13/11
-    // cuja página online JÁ foi aberta guardou o conteúdo (com as referências
-    // antigas) e as cores — e continua a mostrar essas, as do PDF que seguiu.
-    // Uma que nunca foi aberta calcula agora, com a regra nova (as flores das
-    // fotografias da página): pode diferir do PDF antigo. Está dito no PR.
-    chaveDoGuardado("cores", proposalId, ...asDaPagina),
-    async () => {
-      const bytes = await Promise.all(
-        asDaPagina.map(async (ref) => {
-          const f = porRef.get(ref);
-          const url = f?.media ?? f?.miniatura ?? f?.original;
-          if (!url) return null;
-          try {
-            // Com a guarda do PDF: só o armazenamento, só https (10/11).
-            return await bytesDeImagemPorEndereco(url);
-          } catch {
-            return null;
-          }
-        }),
-      );
-      const validos: Buffer[] = [];
-      for (const b of bytes) if (b && b.length > 0) validos.push(b);
-      return validos.length ? paletaDasFotos(validos) : [];
-    },
-    (cores) => cores.length > 0,
-  ).catch((e) => {
+  const refs = ambiente.daPaleta;
+  const doPdf = () => paletaDoPdfPelasRefs(refs).then((p) => p.cores);
+  const conta =
+    "coresDela" in ambiente
+      ? doPdf()
+      : guardadoOuCalculado(
+          chaveDoGuardado("cores", proposalId, ...refs.slice(0, 12)),
+          doPdf,
+          (cores) => cores.length > 0,
+        );
+  return conta.catch((e) => {
     log.warn("proposta online: a paleta não se deixou calcular", { erro: e });
     return [] as string[];
   });
@@ -431,9 +418,7 @@ export async function montarPropostaWeb(
     ? {
         titulo: c.ambiente.titulo,
         subtitulo: c.ambiente.subtitulo,
-        cores:
-          c.ambiente.coresDela ??
-          (await coresDaPaleta(proposta.id, c.ambiente.daPaleta, porRef)).slice(0, 5),
+        cores: c.ambiente.coresDela ?? (await coresDaPaleta(proposta.id, c.ambiente)).slice(0, 5),
         fotos: [c.ambiente.painel, c.ambiente.fila[0], c.ambiente.fila[1]]
           .map((f) => imagem(f))
           .filter((i): i is ImagemWeb => i !== null),

@@ -100,7 +100,7 @@ import { ControlosDoEnvio, PainelDoEnvio, PastilhaDoEnvio } from "./BarraDoEnvio
 import VistaDeConjunto from "./VistaDeConjunto";
 import EscolherDisposicao from "./EscolherDisposicao";
 import PaginaEditorial, { fontesDasFolhas } from "./PaginaEditorial";
-import { useFotosDoPdf } from "./useFotosDoPdf";
+import { usePlanoDoPdf } from "./useFotosDoPdf";
 import EscolherFotoDaPagina from "./EscolherFotoDaPagina";
 import CoresDaPaleta from "./CoresDaPaleta";
 import { VerOPdfNoEcra } from "./VerOPdfNoEcra";
@@ -4220,8 +4220,12 @@ export default function ProposalStudio({
   const fotosPorBoard = doc.moodBoards.map((b) => b.images.length);
   const totalDeFotos = fotosPorBoard.reduce((a, b) => a + b, 0);
   const planoDoPdf = useMemo(() => planoDaProposta(doc as ProposalDoc), [doc]);
-  /** Que fotografia o PDF põe em cada página — perguntado ao PDF (`useFotosDoPdf`). */
-  const fotosDoPdf = useFotosDoPdf(quote.id, doc as ProposalDoc, idiomaDoPdf);
+  /**
+   * Que fotografia o PDF põe em cada página — perguntado ao PDF
+   * (`usePlanoDoPdf`) —, e de que fotografias o PDF tira a paleta.
+   */
+  const respostaDoPdf = usePlanoDoPdf(quote.id, doc as ProposalDoc, idiomaDoPdf);
+  const fotosDoPdf = respostaDoPdf?.fotos ?? null;
   /** De onde vêm as fotografias das miniaturas do PDF novo (`PaginaEditorial`). */
   const fontesDasMiniaturas = useMemo(
     () => fontesDasFolhas(doc as ProposalDoc, planoDoPdf, assetUrls, assetOriginais, fotosDoPdf),
@@ -4274,12 +4278,23 @@ export default function ProposalStudio({
     anular(frase, () => patch({ paletaDela: antes }));
   }
   /**
-   * As fotografias de onde saem as cores — as MESMAS que o PDF lê
-   * (`fotosQueDaoCor`): as da página «Paleta e ambiente», e delas só as dos
-   * temas das mesas, quando os há. Lê-se a fotografia inteira (a versão média)
-   * e não a miniatura, que é um recorte quadrado com outras cores.
+   * As fotografias de onde saem as cores — as MESMAS que o PDF lê. Quem as diz
+   * é o próprio PDF (`daPaleta`, da rota `fotos-do-pdf`, pela ordem dele); e a
+   * SUGESTÃO de cores vem também do servidor, calculada sobre os bytes do PDF
+   * (`paleta-do-pdf`) — o navegador só as lê para o conta-gotas (13/11: a
+   * sugestão do estúdio dava outras cores, por outra ordem, do que o PDF).
+   * Enquanto o PDF não responde, a mesma regra feita aqui (`fotosQueDaoCor`)
+   * mostra as fotografias ao conta-gotas. Lê-se a fotografia inteira (a versão
+   * média) e não a miniatura, que é um recorte quadrado com outras cores.
    */
   const fotosDaPaleta = (() => {
+    const urlDe = (r: string) =>
+      assetMedias[r] ??
+      assetOriginais[r] ??
+      assetUrls[r] ??
+      (r.startsWith("data:") ? r : undefined);
+    if (respostaDoPdf?.daPaleta)
+      return respostaDoPdf.daPaleta.map((r) => ({ ref: r, url: urlDe(r) }));
     // Pela ordem do PDF: o painel (o 6.º lugar) primeiro, depois a fila.
     // Os seis lugares, mesmo numa proposta que gravou só cinco (antes de o
     // 6.º ser o painel): o que falta é o que o PDF lá põe.
@@ -4290,17 +4305,12 @@ export default function ProposalStudio({
       (_, k) => dela[k] ?? auto[k] ?? null,
     );
     const pelaOrdemDoPdf = [l[5], ...l.slice(0, 5)].filter((r): r is string => !!r);
-    return fotosQueDaoCor(pelaOrdemDoPdf, doc.moodBoards).map((r) => ({
-      ref: r,
-      // A versão média («inside», sem recorte) — a mesma que a proposta online
-      // lê. O original pesava vários MB por fotografia, seis de cada vez.
-      url:
-        assetMedias[r] ??
-        assetOriginais[r] ??
-        assetUrls[r] ??
-        (r.startsWith("data:") ? r : undefined),
-    }));
+    // A versão média («inside», sem recorte). O original pesava vários MB por
+    // fotografia, seis de cada vez.
+    return fotosQueDaoCor(pelaOrdemDoPdf, doc.moodBoards).map((r) => ({ ref: r, url: urlDe(r) }));
   })();
+  /** As referências pelas quais se pede a sugestão ao servidor: só as do PDF. */
+  const refsDaPaleta = respostaDoPdf?.daPaleta ?? null;
   /**
    * Grava a escolha de uma página (ou apaga-a, com `null`), com «Anular». Os
    * focos vão com as fotos, lugar a lugar; sem `focos`, ficam os que havia.
@@ -10409,7 +10419,9 @@ export default function ProposalStudio({
                 {fotosDaPaleta.length > 0 && (
                   <div className="mt-8 border-t border-[var(--bo-hairline)] pt-6">
                     <CoresDaPaleta
+                      quoteId={quote.id}
                       fotos={fotosDaPaleta}
+                      refsDoPdf={refsDaPaleta}
                       cores={paletaDaProposta(doc)}
                       onMudar={mudarPaleta}
                     />
@@ -13650,12 +13662,12 @@ export default function ProposalStudio({
           fotosDaProposta={fotosDaProposta}
           paleta={
             paginaDaFoto.chave === "ambiente" ? (
+              // As MESMAS fotografias e a mesma sugestão da secção de cima — as
+              // do PDF (13/11: aqui lia-se a miniatura, de outras fotografias).
               <CoresDaPaleta
-                fotos={lugaresDaPagina("ambiente").flatMap((r) =>
-                  r
-                    ? [{ ref: r, url: assetUrls[r] ?? (r.startsWith("data:") ? r : undefined) }]
-                    : [],
-                )}
+                quoteId={quote.id}
+                fotos={fotosDaPaleta}
+                refsDoPdf={refsDaPaleta}
                 cores={paletaDaProposta(doc)}
                 onMudar={mudarPaleta}
               />

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import CoresDaPaleta from "./CoresDaPaleta";
+import CoresDaPaleta, { esquecerSugestoes } from "./CoresDaPaleta";
 
 /**
  * As cores da paleta no «Fazer proposta» (13/11). O conta-gotas precisa de um
@@ -10,7 +10,11 @@ import CoresDaPaleta from "./CoresDaPaleta";
  * conseguir ler as fotografias, o ecrã di-lo em vez de ficar à espera.
  */
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  esquecerSugestoes();
+  vi.unstubAllGlobals();
+});
 
 const fotos = [{ ref: "TESTE/a.jpg", url: "https://exemplo.invalid/a.jpg" }];
 
@@ -116,5 +120,72 @@ describe("as cores da paleta, escolhidas por ela", () => {
     );
     await vi.waitFor(() => expect(buscar).toHaveBeenCalledTimes(1));
     vi.unstubAllGlobals();
+  });
+
+  /**
+   * 13/11 (PR #440): a sugestão do estúdio era calculada aqui, sobre as
+   * fotografias lidas pelo navegador, e dava outras cores — por outra ordem —
+   * do que o PDF. Agora é a do PDF: pedida ao servidor pelas referências que o
+   * PDF usa, e mostrada tal e qual.
+   */
+  it("a sugestão é a do PDF: pedida pelas referências do PDF, pela ordem do PDF", async () => {
+    const DO_PDF = ["#E5B56B", "#AFA385", "#B87134", "#516B2C", "#933357"];
+    const buscar = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/paleta-do-pdf")) {
+        expect(url).toBe("/api/orcamento/Q1/paleta-do-pdf");
+        expect(JSON.parse(String(init?.body))).toEqual({ refs: ["TESTE/b.jpg", "TESTE/a.jpg"] });
+        return new Response(
+          JSON.stringify({ ok: true, cores: DO_PDF, sugestoes: [...DO_PDF, "#123456"] }),
+        );
+      }
+      throw new Error("sem rede");
+    });
+    vi.stubGlobal("fetch", buscar);
+    vi.stubGlobal("createImageBitmap", vi.fn());
+    const onMudar = vi.fn();
+    render(
+      <CoresDaPaleta
+        quoteId="Q1"
+        fotos={fotos}
+        refsDoPdf={["TESTE/b.jpg", "TESTE/a.jpg"]}
+        cores={null}
+        onMudar={onMudar}
+      />,
+    );
+    for (const [i, c] of DO_PDF.entries()) {
+      expect(await screen.findByRole("button", { name: `Cor ${i + 1}, ${c}` })).toBeTruthy();
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Ficar com estas" }));
+    expect(onMudar).toHaveBeenCalledWith(DO_PDF, "Paleta escolhida.");
+  });
+
+  it("enquanto o PDF não diz as referências, não inventa uma sugestão", async () => {
+    const buscar = vi.fn(() => Promise.reject(new Error("sem rede")));
+    vi.stubGlobal("fetch", buscar);
+    vi.stubGlobal("createImageBitmap", vi.fn());
+    render(
+      <CoresDaPaleta quoteId="Q1" fotos={[]} refsDoPdf={null} cores={null} onMudar={() => {}} />,
+    );
+    expect(screen.getByText(/A ler as cores das fotografias/)).toBeTruthy();
+    expect(buscar).not.toHaveBeenCalled();
+  });
+
+  it("o servidor falha: sem sugestão, e continua a dar para escolher (o «+»)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 500 })),
+    );
+    vi.stubGlobal("createImageBitmap", vi.fn());
+    render(
+      <CoresDaPaleta
+        quoteId="Q1"
+        fotos={[]}
+        refsDoPdf={["TESTE/a.jpg"]}
+        cores={null}
+        onMudar={() => {}}
+      />,
+    );
+    expect(await screen.findByRole("button", { name: "Juntar uma cor" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ficar com estas" })).toBeNull();
   });
 });

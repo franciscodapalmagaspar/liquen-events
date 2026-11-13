@@ -52,9 +52,12 @@
  *      máximo duas neutras (para as flores terem lugar), e ordenam-se da mais
  *      clara para a mais escura, como no exemplo.
  *
- * Este ficheiro não tem dependências: corre no servidor (o PDF e a proposta
- * online, por `pdf-editorial/paleta-das-fotos.ts`) e no navegador (as
- * sugestões e o conta-gotas do «Fazer proposta») — a MESMA regra nos três.
+ * Este ficheiro não tem dependências. A conta corre SÓ no servidor, sobre os
+ * bytes que o PDF desenha (`pdf-editorial/paleta-das-fotos.ts`): o PDF chama-a
+ * directamente, e a proposta online e a sugestão do «Fazer proposta» pedem-na
+ * pelas referências (`lib/paleta-do-pdf.ts`). Corrida no navegador, sobre
+ * outros bytes, dava outras cores (13/11). O navegador usa daqui só as
+ * conversões de cor (o conta-gotas).
  *
  * Não há sorteio em lado nenhum: as mesmas fotografias dão sempre as mesmas
  * cinco cores, e a proposta reenviada não muda de paleta.

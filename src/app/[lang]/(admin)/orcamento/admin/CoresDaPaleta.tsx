@@ -1,16 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import {
-  LADO,
-  deHex,
-  escolher,
-  hex,
-  paraOklab,
-  pontosDaFoto,
-  sugestoes,
-  type Ponto,
-} from "@/lib/paleta-cores";
+import { deHex, eHex, hex, paraOklab } from "@/lib/paleta-cores";
 import { CORES_DA_PALETA } from "@/lib/proposal-doc";
 import { Button } from "./ui";
 import { ESTADO, PRESSAO } from "./ui/movimento";
@@ -36,8 +27,12 @@ import { ESTADO, PRESSAO } from "./ui/movimento";
  * Cada toque aplica-se logo, com «Anular» (quem grava é o estúdio), e a página
  * ao lado é o PDF real: vê-se lá o que o casal vai ver.
  *
- * As fotografias lêem-se no navegador (`fetch` → `createImageBitmap`): nada
- * vai ao servidor, nada se grava no armazenamento.
+ * A SUGESTÃO (as cinco automáticas e as outras cores) vem do servidor
+ * (`/api/orcamento/[id]/paleta-do-pdf`), calculada sobre os MESMOS bytes que o
+ * PDF desenha: é a paleta que o PDF e a proposta online mostram, pela mesma
+ * ordem (13/11 — lida aqui no navegador, dava outras cores). As fotografias
+ * lêem-se no navegador só para o conta-gotas: a cor que ELA toca é escolha
+ * dela, e grava-se tal e qual.
  */
 
 type Foto = { ref: string; url?: string };
@@ -48,12 +43,21 @@ const LADO_DO_CONTA_GOTAS = 480;
 type Lida = { ref: string; tela: HTMLCanvasElement; aspeto: number };
 
 export default function CoresDaPaleta({
+  quoteId,
   fotos,
+  refsDoPdf,
   cores,
   onMudar,
 }: {
-  /** As fotografias desta página (o painel e a fila), como o PDF as põe. */
+  /** O pedido: a sugestão pede-se ao servidor por ele. Sem ele, não há sugestão. */
+  quoteId?: string;
+  /** As fotografias desta página (o painel e a fila), como o PDF as põe — para o conta-gotas. */
   fotos: readonly Foto[];
+  /**
+   * As referências de onde o PDF tira a paleta (`daPaleta`, pela ordem dele),
+   * ou `null` enquanto o PDF não respondeu. A sugestão pede-se por elas.
+   */
+  refsDoPdf?: readonly string[] | null;
   /** As que ELA escolheu, ou `null` (as automáticas). */
   cores: readonly string[] | null;
   /** `null` = voltar às automáticas. `frase` é a do «Anular». */
@@ -78,6 +82,11 @@ export default function CoresDaPaleta({
   const [leitura, setLeitura] = useState<{
     chave: string;
     lidas: Lida[];
+    estado: "lido" | "falhou";
+  } | null>(null);
+  /** A sugestão do servidor (a paleta do PDF), com a chave das referências. */
+  const [doPdf, setDoPdf] = useState<{
+    chave: string;
     automaticas: string[];
     sugeridas: string[];
     estado: "lido" | "falhou";
@@ -98,24 +107,10 @@ export default function CoresDaPaleta({
     (async () => {
       const resultado = await Promise.all(fotos.map((f) => lerFotoGuardada(f)));
       if (!vivo) return;
-      const boas = resultado.filter((r): r is { lida: Lida; pontos: Ponto[] } => !!r);
-      const pontos = boas.flatMap((r) => r.pontos);
-      setLeitura({
-        chave: chaveDaLeitura,
-        lidas: boas.map((r) => r.lida),
-        automaticas: escolher(pontos),
-        sugeridas: sugestoes(pontos, 12),
-        estado: boas.length ? "lido" : "falhou",
-      });
+      const boas = resultado.filter((r): r is Lida => !!r);
+      setLeitura({ chave: chaveDaLeitura, lidas: boas, estado: boas.length ? "lido" : "falhou" });
     })().catch(() => {
-      if (vivo)
-        setLeitura({
-          chave: chaveDaLeitura,
-          lidas: [],
-          automaticas: [],
-          sugeridas: [],
-          estado: "falhou",
-        });
+      if (vivo) setLeitura({ chave: chaveDaLeitura, lidas: [], estado: "falhou" });
     });
     return () => {
       vivo = false;
@@ -124,11 +119,39 @@ export default function CoresDaPaleta({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveDaLeitura]);
 
+  // A sugestão: pedida ao servidor pelas referências do PDF. Sem pedido ou
+  // sem referências não há o que pedir; `null` é o PDF ainda a responder.
+  const chaveDoPdf = refsDoPdf ? `${quoteId ?? ""}\n${refsDoPdf.join("\n")}` : null;
+  const semSugestao = !quoteId || refsDoPdf === undefined || refsDoPdf?.length === 0;
+  useEffect(() => {
+    if (!quoteId || !refsDoPdf?.length || chaveDoPdf === null) return;
+    let vivo = true;
+    void pedirSugestao(quoteId, refsDoPdf).then((r) => {
+      if (!vivo) return;
+      setDoPdf(
+        r
+          ? { chave: chaveDoPdf, automaticas: r.cores, sugeridas: r.sugestoes, estado: "lido" }
+          : { chave: chaveDoPdf, automaticas: [], sugeridas: [], estado: "falhou" },
+      );
+    });
+    return () => {
+      vivo = false;
+    };
+    // `chaveDoPdf` resume `quoteId` e `refsDoPdf`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveDoPdf]);
+
   const lida = leitura?.chave === chaveDaLeitura ? leitura : null;
-  const estado = lida?.estado ?? "a-ler";
   const lidas = lida?.lidas ?? [];
-  const automaticas = lida?.automaticas ?? [];
-  const sugeridas = lida?.sugeridas ?? [];
+  /** O conta-gotas não conseguiu ler nenhuma fotografia. */
+  const fotosFalharam = lida?.estado === "falhou";
+  const sugestao = doPdf && doPdf.chave === chaveDoPdf ? doPdf : null;
+  /** O estado da SUGESTÃO (a paleta do PDF). */
+  const estado: "a-ler" | "lido" | "falhou" = semSugestao
+    ? "falhou"
+    : (sugestao?.estado ?? "a-ler");
+  const automaticas = sugestao?.automaticas ?? [];
+  const sugeridas = sugestao?.sugeridas ?? [];
 
   const dela = cores !== null;
   const actuais = dela ? [...cores] : automaticas;
@@ -303,7 +326,7 @@ export default function CoresDaPaleta({
       {estado === "a-ler" && !actuais.length && (
         <p className="text-sm text-[var(--bo-text-muted)]">A ler as cores das fotografias…</p>
       )}
-      {estado === "falhou" && (
+      {fotosFalharam && (
         <p className="text-sm text-[var(--bo-text-muted)]">
           Não deu para ler as fotografias aqui (a ligação ou o ficheiro). As cores escolhem-se na
           mesma, com o seletor do «+».
@@ -573,7 +596,7 @@ function corNoSitio(tela: HTMLCanvasElement, x: number, y: number): string | nul
   return hex([Math.round(soma[0] / n), Math.round(soma[1] / n), Math.round(soma[2] / n)]);
 }
 
-type Leitura = { lida: Lida; pontos: Ponto[] } | null;
+type Leitura = Lida | null;
 
 /**
  * As fotografias já lidas, pelo endereço — o estúdio mostra as cores em dois
@@ -589,7 +612,7 @@ function lerFotoGuardada(f: Foto): Promise<Leitura> {
   // resume-se pelo tamanho e pelo fim.
   const chave = url.startsWith("data:") ? `${url.length}|${url.slice(-80)}` : url;
   const ja = jaLidas.get(chave);
-  if (ja) return ja.then((l) => (l ? { ...l, lida: { ...l.lida, ref: f.ref } } : null));
+  if (ja) return ja.then((l) => (l ? { ...l, ref: f.ref } : null));
   const nova = lerFoto(f);
   jaLidas.set(chave, nova);
   // Uma que falhou pode dar à próxima: não fica guardada.
@@ -603,7 +626,7 @@ function lerFotoGuardada(f: Foto): Promise<Leitura> {
 /** Quanto se espera por uma fotografia antes de desistir dela. */
 const ESPERA_MS = 15_000;
 
-/** Lê uma fotografia: a tela do conta-gotas e os pontos da regra automática. */
+/** Lê uma fotografia para o conta-gotas (a regra automática é a do servidor). */
 async function lerFoto(f: Foto): Promise<Leitura> {
   if (!f.url || typeof createImageBitmap !== "function") return null;
   try {
@@ -627,13 +650,8 @@ async function lerFoto(f: Foto): Promise<Leitura> {
         return { t, ctx };
       };
       const grande = desenhar(LADO_DO_CONTA_GOTAS);
-      const pequena = desenhar(LADO);
-      if (!grande || !pequena) return null;
-      const { data } = pequena.ctx.getImageData(0, 0, pequena.t.width, pequena.t.height);
-      return {
-        lida: { ref: f.ref, tela: grande.t, aspeto: grande.t.width / grande.t.height },
-        pontos: pontosDaFoto(data, pequena.t.width, pequena.t.height, 4),
-      };
+      if (!grande) return null;
+      return { ref: f.ref, tela: grande.t, aspeto: grande.t.width / grande.t.height };
     } finally {
       imagem.close();
     }
@@ -643,6 +661,52 @@ async function lerFoto(f: Foto): Promise<Leitura> {
 }
 
 const maiusculas = (c: string) => c.toUpperCase();
+
+type Sugestao = { cores: string[]; sugestoes: string[] };
+
+/**
+ * As sugestões já pedidas, pelas referências: a secção e o «Mudar fotografia»
+ * mostram a mesma, e abrir e fechar não volta a perguntar. Uma falha não fica.
+ */
+const jaPedidas = new Map<string, Promise<Sugestao | null>>();
+
+/** A paleta do PDF para estas fotografias (`paleta-do-pdf`), ou `null` se falhar. */
+export function pedirSugestao(quoteId: string, refs: readonly string[]): Promise<Sugestao | null> {
+  const chave = `${quoteId}\n${refs.join("\n")}`;
+  const ja = jaPedidas.get(chave);
+  if (ja) return ja;
+  const nova = (async (): Promise<Sugestao | null> => {
+    try {
+      const r = await fetch(`/api/orcamento/${encodeURIComponent(quoteId)}/paleta-do-pdf`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refs }),
+        signal:
+          typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+            ? AbortSignal.timeout(30_000)
+            : undefined,
+      });
+      if (!r.ok) return null;
+      const j = (await r.json()) as { cores?: unknown; sugestoes?: unknown };
+      const cores = Array.isArray(j.cores) ? j.cores.filter(eHex) : [];
+      const sugestoes = Array.isArray(j.sugestoes) ? j.sugestoes.filter(eHex) : [];
+      return cores.length ? { cores, sugestoes } : null;
+    } catch {
+      return null;
+    }
+  })();
+  jaPedidas.set(chave, nova);
+  void nova.then((s) => {
+    if (!s) jaPedidas.delete(chave);
+  });
+  if (jaPedidas.size > 24) jaPedidas.delete(jaPedidas.keys().next().value!);
+  return nova;
+}
+
+/** Só para os testes. */
+export function esquecerSugestoes(): void {
+  jaPedidas.clear();
+}
 
 /** Duas cores praticamente iguais (o mesmo toque duas vezes). */
 function parecidas(a: string, b: string): boolean {

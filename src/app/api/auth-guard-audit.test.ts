@@ -609,6 +609,9 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // O recorte automático da capa, para o estúdio o mostrar igual ao PDF.
   { path: "./orcamento/[id]/foco-da-capa/route", methods: ["GET"] },
   { path: "./orcamento/[id]/fotos-do-pdf/route", methods: ["POST"] },
+  // A sugestão de cores do estúdio: lê fotografias do armazenamento e gasta
+  // processador — só com sessão.
+  { path: "./orcamento/[id]/paleta-do-pdf/route", methods: ["POST"] },
   // «Ver as propostas que já mandei»: o PDF que seguiu, o link do casal e as
   // cópias dos emails — tudo dados de clientes, só com sessão.
   { path: "./orcamento/[id]/propostas/[pid]/pdf/route", methods: ["GET"] },
