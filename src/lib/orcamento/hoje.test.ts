@@ -138,3 +138,64 @@ describe("«Hoje» na Visão Geral (10/11)", () => {
     expect(quantasHoje(h)).toBe(0);
   });
 });
+
+describe("propostas sem resposta (13/11)", () => {
+  const enviada = (dia: string) => ({
+    activityLog: [{ id: "x", at: `${dia}T10:00:00`, kind: "proposal_sent" as const, summary: "" }],
+  });
+
+  it("enviada há 5 dias ou mais sem notícias aparece; a mais esquecida primeiro", () => {
+    const h = oQueHaHoje(
+      [
+        pedido("a", { status: "cotado", ...enviada("2026-11-04") }), // 6 dias
+        pedido("b", { status: "cotado", ...enviada("2026-11-08") }), // 2 dias: ainda não
+        pedido("c", { status: "cotado", ...enviada("2026-10-30") }), // 10 dias e 23 horas
+        pedido("d", { status: "aceite", ...enviada("2026-10-01") }), // já respondeu
+      ],
+      [],
+      [],
+      HOJE,
+      AGORA,
+    );
+    expect(h.semResposta.map((s) => [s.quoteId, s.dias])).toEqual([
+      ["c", 10],
+      ["a", 5],
+    ]);
+    expect(quantasHoje(h)).toBe(2);
+  });
+
+  it("um contacto depois do envio (chamada, mensagem, escolha do casal) recomeça a conta", () => {
+    const h = oQueHaHoje(
+      [
+        pedido("a", {
+          status: "cotado",
+          activityLog: [
+            { id: "1", at: "2026-11-01T10:00:00", kind: "proposal_sent", summary: "" },
+            { id: "2", at: "2026-11-08T10:00:00", kind: "call_logged", summary: "" },
+          ],
+        }),
+        pedido("b", {
+          status: "cotado",
+          ...enviada("2026-11-01"),
+          escolhasDoCasal: [{ em: "2026-11-09T12:00:00" } as never],
+        }),
+      ],
+      [],
+      [],
+      HOJE,
+      AGORA,
+    );
+    expect(h.semResposta).toEqual([]);
+  });
+
+  it("um seguimento marcado para mais tarde tira-a daqui (a decisão já foi tomada)", () => {
+    const h = oQueHaHoje(
+      [pedido("a", { status: "cotado", followUpAt: "2026-11-20", ...enviada("2026-11-01") })],
+      [],
+      [],
+      HOJE,
+      AGORA,
+    );
+    expect(h.semResposta).toEqual([]);
+  });
+});

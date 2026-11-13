@@ -411,8 +411,15 @@ self.addEventListener("notificationclick", (event) => {
   const url = (event.notification.data && event.notification.data.url) || "/orcamento/admin";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      // Com o back office já aberto, LEVA-O ao endereço da notificação (o
+      // pedido novo) em vez de só lhe dar o foco — senão tocar no aviso
+      // mostrava o ecrã onde ela estava, e o pedido ficava por procurar.
       for (const client of clients) {
-        if (client.url.includes("/orcamento/admin") && "focus" in client) return client.focus();
+        if (client.url.includes("/orcamento/admin") && "focus" in client) {
+          return client.focus().then((c) =>
+            c && "navigate" in c && !c.url.endsWith(url) ? c.navigate(url) : c,
+          );
+        }
       }
       return self.clients.openWindow(url);
     })
