@@ -484,6 +484,9 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // nomes das variáveis a confirmar. E a verificação ESCREVE (é assim que ela é
   // honesta: tenta gravar e volta a ler). Sem sessão, nem se pergunta.
   { path: "./admin/armazenamento/route", methods: ["GET"] },
+  // O plano das fotografias repetidas (a seco): lista caminhos de fotografias
+  // de casais e lê as tabelas todas. Só lê — mas o que lê é a base inteira.
+  { path: "./admin/fotos-duplicadas/route", methods: ["GET"] },
   // «Porque é que as fotografias não aparecem?» — a rota que responde. Nomeia
   // as variáveis do Supabase, os buckets, o papel da chave e a política de
   // segurança que esta instalação serve: é o mapa da instalação, e vai buscar
