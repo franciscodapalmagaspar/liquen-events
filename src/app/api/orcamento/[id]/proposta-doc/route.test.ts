@@ -1133,7 +1133,7 @@ describe("POST /api/orcamento/[id]/proposta-doc — o email sai na língua da pr
     const pdf = enviado().attachments?.find((a) => a.filename.endsWith(".pdf"));
     // O nome leva o casal e a data do evento — o identificador do pedido só
     // volta quando não há casal nenhum (ver `email-proposta-textos.test.ts`).
-    expect(pdf?.filename).toBe("Proposal-Liquen-Events-Maria-e-Ze-03-07-2027.pdf");
+    expect(pdf?.filename).toBe("Proposal-Liquen-Events-Maria-and-Ze-03-07-2027.pdf");
   });
 
   it("proposta portuguesa: o email de sempre, palavra por palavra", async () => {

@@ -5520,7 +5520,7 @@ describe("gerar a proposta em inglês", () => {
     // Duas versões da mesma proposta na pasta de transferências têm de se
     // distinguir sem as abrir — e é o «Proposal» que as distingue, como no
     // anexo que o casal recebe.
-    expect(nomes).toEqual(["Proposal-Liquen-Events-Maria-e-Ze-12-09-2026.pdf"]);
+    expect(nomes).toEqual(["Proposal-Liquen-Events-Maria-and-Ze-12-09-2026.pdf"]);
   });
 
   it("a escolha alcança-se pelo teclado, com as setas", async () => {
