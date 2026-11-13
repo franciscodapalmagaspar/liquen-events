@@ -11,6 +11,7 @@ import { limparExpiradas } from "@/lib/reciclagem";
 import { limparFotosTratadasVelhas } from "@/lib/limpar-fotos-tratadas";
 import { limparPastasDePedidosApagados } from "@/lib/limpar-pastas-orfas";
 import { limparPdfsSubstituidos } from "@/lib/limpar-pdfs-substituidos";
+import { limparRegistoAntigo } from "@/lib/registo-de-acoes";
 import { isMissingTable } from "@/lib/repository";
 import { listQuotes } from "@/lib/quotes-store";
 import { log } from "@/lib/logger";
@@ -398,6 +399,15 @@ async function GET_semMedida(request: NextRequest) {
           },
         );
       }
+
+    // O registo de «quem fez o quê» guarda 12 meses (registo-de-acoes.ts).
+    if (!parcial) {
+      try {
+        await limparRegistoAntigo(new Date());
+      } catch (e) {
+        log.error("cron backup: a limpeza do registo de ações falhou", e, { dia });
+      }
+    }
 
     /**
      * ══════════════════════════════════════════════════════════════════════
