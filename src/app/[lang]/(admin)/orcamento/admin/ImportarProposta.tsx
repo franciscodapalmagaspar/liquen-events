@@ -583,7 +583,9 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
             </div>
           </section>
 
-          <section>
+          {/* A grelha mede a CAIXA (`@container`), não a janela — ver
+              `Cortes.contrato.test.ts`. */}
+          <section className="@container">
             <Titulo>Fotografias</Titulo>
             {fotos.length === 0 ? (
               <p className="text-footnote text-[var(--bo-text-muted)]">
@@ -596,7 +598,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                   {Math.max(1, Math.round(escolhidas.size * MB_POR_FOTO))} MB no armazenamento. Toca
                   numa fotografia para a tirar ou voltar a pôr.
                 </p>
-                <ul className="grid grid-cols-3 gap-2 @container sm:grid-cols-4 md:grid-cols-6">
+                <ul className="grid grid-cols-3 gap-2 @min-[30rem]:grid-cols-4 @min-[44rem]:grid-cols-6">
                   {fotos.map((f) => {
                     const on = escolhidas.has(f.caminho);
                     const ondeVai = proposta.fotos.find((x) => x.caminho === f.caminho);
