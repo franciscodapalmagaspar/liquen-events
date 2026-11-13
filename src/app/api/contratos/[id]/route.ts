@@ -91,6 +91,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         acceptedName: "",
         registadoPor: "",
         registadoComo: "",
+        // E o selo da versão da proposta que o registo copiou (auditoria 6,
+        // n.º 18): um contrato por assinar não diz que versão foi aceite. Volta
+        // a ser copiado, da proposta de então, quando se registar outra vez.
+        // Texto vazio e `null` pela mesma razão dos de cima — `undefined`
+        // deixava o selo antigo na base.
+        propostaVersaoSelo: "",
+        propostaVersaoNumero: null as unknown as undefined,
       });
       if (!gravado) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
       return NextResponse.json(gravado);

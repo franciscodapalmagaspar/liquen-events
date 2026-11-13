@@ -11,7 +11,9 @@ import {
   desfazer,
   duplicarMesa,
   ELEMENTOS,
+  gestoDaDiferenca,
   gruposPartidos,
+  historicoDepoisDaJuncao,
   historicoVazio,
   lerChave,
   lerMapa,
@@ -262,8 +264,13 @@ export default function EditorDoMapa({ pedido, onPedido, resumo, onSair }: Props
       | (Quote & { current?: Partial<Quote> })
       | null;
     if (res.status === 409) {
-      // Outra pessoa gravou: os gestos daqui vão por cima do mapa dela.
+      // Outra pessoa gravou: os gestos daqui vão por cima do mapa dela. Os
+      // gestos são DIFERENÇAS (ver `gestoDaDiferenca`), por isso só levam o que
+      // se fez aqui; e o histórico de anular passa a incluir o que ela fez.
       const doServidor = lerMapa(corpo?.current?.mapaDeMesas);
+      mudarHistorico(
+        historicoDepoisDaJuncao(historicoRef.current, lerMapa(gravado.current), doServidor),
+      );
       gravado.current = corpo?.current?.mapaDeMesas;
       const junto = reconciliar(
         pendentes.current.reduce((m, g) => g(m), doServidor),
@@ -345,9 +352,11 @@ export default function EditorDoMapa({ pedido, onPedido, resumo, onSair }: Props
   /** Um gesto grande, com «Anular» que repõe o mapa de antes. */
   function mexerComAnular(mensagem: string, gesto: Gesto) {
     const antes = mapaRef.current;
-    mexer(gesto);
+    const depois = mexer(gesto);
+    // Desfaz SÓ este gesto: o que se fez depois dele (aqui, ou por outra
+    // pessoa numa junção) não volta atrás com ele.
     anular(mensagem, () => {
-      mexer(() => antes);
+      mexer(gestoDaDiferenca(depois, antes));
     });
   }
 
@@ -356,7 +365,7 @@ export default function EditorDoMapa({ pedido, onPedido, resumo, onSair }: Props
     if (!r) return;
     mudarHistorico(r.historico);
     ultimaJunta.current = null;
-    mexer(() => r.mapa, { registar: false });
+    mexer(gestoDaDiferenca(mapaRef.current, r.mapa), { registar: false });
   }
 
   function refazerUm() {
@@ -364,7 +373,7 @@ export default function EditorDoMapa({ pedido, onPedido, resumo, onSair }: Props
     if (!r) return;
     mudarHistorico(r.historico);
     ultimaJunta.current = null;
-    mexer(() => r.mapa, { registar: false });
+    mexer(gestoDaDiferenca(mapaRef.current, r.mapa), { registar: false });
   }
 
   // ── A LISTA DE CONVIDADOS (só acrescentar daqui) ────────────────────────

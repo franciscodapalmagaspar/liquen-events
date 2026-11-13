@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import EditorDeEscolhas, { type FotoDisponivel } from "./EditorDeEscolhas";
@@ -304,6 +305,54 @@ describe("apagar a alternativa — pergunta que conta o que se perde", () => {
     await user.click(screen.getByRole("button", { name: /Apagar a alternativa 1/ }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(onChange).toHaveBeenCalledWith([]);
+  });
+});
+
+// ── Auditoria 6, n.º 22 — o foco do teclado não pode cair no <body> ────────
+describe("apagar a alternativa — o foco do teclado", () => {
+  /** Como o estúdio o usa: o pai guarda a lista e devolve-a a cada mudança. */
+  function Controlado({ inicial }: { inicial: Escolha[] }) {
+    const [escolhas, setEscolhas] = useState(inicial);
+    return (
+      <EditorDeEscolhas escolhas={escolhas} fotos={FOTOS} bilingue={false} onChange={setEscolhas} />
+    );
+  }
+  const DUAS: Escolha[] = [
+    UMA[0],
+    { id: "e2", titulo: "Corredor", opcoes: [{ id: "o9", rotulo: "Velas" }] },
+  ];
+
+  it("a pergunta recebe o foco no «Cancelar»", async () => {
+    const user = userEvent.setup();
+    render(<Controlado inicial={DUAS} />);
+    await user.click(screen.getByRole("button", { name: /Apagar a alternativa 1/ }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /^Cancelar$/ }));
+  });
+
+  it("depois de apagar, vai para a alternativa seguinte", async () => {
+    const user = userEvent.setup();
+    render(<Controlado inicial={DUAS} />);
+    await user.click(screen.getByRole("button", { name: /Apagar a alternativa 1/ }));
+    await user.click(screen.getByRole("button", { name: /^Apagar a alternativa$/ }));
+    expect(document.activeElement).toBe(screen.getByDisplayValue("Corredor"));
+  });
+
+  it("sem nenhuma a seguir, vai para o «+ Alternativa»", async () => {
+    const user = userEvent.setup();
+    render(<Controlado inicial={UMA} />);
+    await user.click(screen.getByRole("button", { name: /Apagar a alternativa 1/ }));
+    await user.click(screen.getByRole("button", { name: /^Apagar a alternativa$/ }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /\+ Alternativa/ }));
+  });
+
+  it("cancelar devolve-o ao «×» de onde veio", async () => {
+    const user = userEvent.setup();
+    render(<Controlado inicial={UMA} />);
+    await user.click(screen.getByRole("button", { name: /Apagar a alternativa 1/ }));
+    await user.click(screen.getByRole("button", { name: /^Cancelar$/ }));
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: /Apagar a alternativa 1/ }),
+    );
   });
 });
 

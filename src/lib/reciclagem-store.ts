@@ -83,3 +83,14 @@ export const trocarRetrato = (
   id: string,
   retrato: EntradaDaReciclagem["retrato"],
 ): Promise<EntradaDaReciclagem | null> => repo.update(id, { retrato });
+
+/**
+ * Muda o retrato de uma entrada sobre a versão LIDA AGORA (`updateWith`, com o
+ * bloqueio optimista). É o que usa quem tem de trocar referências lá dentro —
+ * uma foto da Biblioteca que mudou de tema (`theme-materializar.ts`).
+ */
+export const actualizarRetrato = (
+  id: string,
+  mutate: (retrato: EntradaDaReciclagem["retrato"]) => EntradaDaReciclagem["retrato"],
+): Promise<EntradaDaReciclagem | null> =>
+  repo.updateWith(id, (e) => ({ ...e, retrato: mutate(e.retrato) }));

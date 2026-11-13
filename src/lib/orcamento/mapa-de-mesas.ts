@@ -773,6 +773,85 @@ export function refazer(
   };
 }
 
+// ─── O GESTO QUE SÓ LEVA O QUE MUDOU ─────────────────────────────────────────
+//
+// Anular, refazer e o «Anular» de um gesto grande repunham um MAPA INTEIRO
+// (`() => antes`). Isso basta enquanto ninguém mais mexe no mapa — mas quando a
+// gravação dá conflito (outra pessoa gravou entretanto) os gestos por gravar
+// voltam a aplicar-se por cima do mapa dela, e um gesto «constante» devolvia o
+// mapa antigo inteiro: apagava tudo o que a outra pessoa tinha feito
+// (auditoria 6, n.º 17). Este é o gesto que só leva a DIFERENÇA.
+
+const igual = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+function porId<T extends { id: string }>(
+  base: readonly T[],
+  de: readonly T[],
+  para: readonly T[],
+): T[] {
+  const antes = new Map(de.map((x) => [x.id, x]));
+  const depois = new Map(para.map((x) => [x.id, x]));
+  const mudou = new Set<string>();
+  for (const id of new Set([...antes.keys(), ...depois.keys()])) {
+    if (!igual(antes.get(id), depois.get(id))) mudou.add(id);
+  }
+  if (mudou.size === 0) return base as T[];
+  const saida: T[] = [];
+  const vistos = new Set<string>();
+  for (const x of base) {
+    vistos.add(x.id);
+    if (!mudou.has(x.id)) saida.push(x);
+    else if (depois.has(x.id)) saida.push(depois.get(x.id)!);
+    // e se saiu em `para`, sai também daqui
+  }
+  for (const x of para) {
+    if (mudou.has(x.id) && !vistos.has(x.id)) saida.push(x);
+  }
+  return saida;
+}
+
+/**
+ * O gesto que leva `de` a `para`, aplicado a outro mapa qualquer: só as mesas,
+ * os elementos e os lugares que mudaram entre os dois tocam no mapa de base;
+ * o resto da base — o que outra pessoa fez entretanto — fica como está.
+ * Aplicado ao próprio `de`, dá `para`.
+ */
+export function gestoDaDiferenca(
+  de: MapaDeMesas,
+  para: MapaDeMesas,
+): (base: MapaDeMesas) => MapaDeMesas {
+  return (base) => {
+    const mesas = porId(base.mesas, de.mesas, para.mesas);
+    const elementos = porId(base.elementos, de.elementos, para.elementos);
+    let lugares = base.lugares;
+    for (const k of new Set([...Object.keys(de.lugares), ...Object.keys(para.lugares)])) {
+      if (igual(de.lugares[k], para.lugares[k])) continue;
+      if (lugares === base.lugares) lugares = { ...base.lugares };
+      if (para.lugares[k]) lugares[k] = para.lugares[k];
+      else delete lugares[k];
+    }
+    if (mesas === base.mesas && elementos === base.elementos && lugares === base.lugares) {
+      return base;
+    }
+    return { ...base, mesas, elementos, lugares };
+  };
+}
+
+/**
+ * O histórico depois de uma junção: cada mapa guardado para trás (e para a
+ * frente) passa a ter também o que a outra pessoa fez. Sem isto, anular a
+ * seguir a uma junção repunha um mapa de ANTES dela — e gravava-o sem conflito
+ * nenhum, por cima do trabalho da outra pessoa.
+ */
+export function historicoDepoisDaJuncao(
+  h: Historico,
+  base: MapaDeMesas,
+  doServidor: MapaDeMesas,
+): Historico {
+  const deles = gestoDaDiferenca(base, doServidor);
+  return { passado: h.passado.map(deles), futuro: h.futuro.map(deles) };
+}
+
 /**
  * O nome curto que se escreve debaixo da cadeira, de perto: o primeiro nome de
  * quem foi escrito à mão («Maria»), ou o apelido do grupo com o número da

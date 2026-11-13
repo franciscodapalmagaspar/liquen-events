@@ -41,9 +41,18 @@ vi.mock("@/lib/event-material-store", () => ({
 }));
 vi.mock("@/lib/event-material-items-store", () => ({
   listItemsOfEvent: async () => base.itens,
-  updateEventItem: async () => undefined,
+  updateEventItemWith: async (
+    id: string,
+    mutate: (c: Record<string, unknown>) => Record<string, unknown>,
+  ) => {
+    const i = base.itens.findIndex((x) => x.id === id);
+    if (i < 0) return null;
+    base.itens[i] = mutate(base.itens[i]);
+    return base.itens[i];
+  },
 }));
 vi.mock("@/lib/event-material-log-store", () => ({
+  listLogOf: async () => [...base.registos],
   registar: async (l: Record<string, unknown>) => {
     base.registos.push(l);
   },
@@ -172,5 +181,50 @@ describe("/api/orcamento/[id]/material/marcar — o fecho", () => {
     expect(corpo.ok).toBe(true);
     expect(corpo.ignoradas).toBe(1);
     expect(base.actualizacoes).toEqual([]);
+  });
+});
+
+// ── Auditoria 6, n.º 9 ─────────────────────────────────────────────────────
+describe("/api/orcamento/[id]/material/marcar — o carimbo sobrevive a limpar", () => {
+  const params = { params: Promise.resolve({ id: "q1" }) };
+  const marca = (accao: string, markedAt: string, actor = "B") => ({
+    itemId: "i1",
+    accao,
+    markedAt,
+    actor,
+  });
+
+  /**
+   * O telemóvel A, offline, marca «carregado» às 10:00. O B, online, marca
+   * «carregado» às 10:02 e «descarregado» às 10:05. Às 10:30 o A volta à
+   * rede. O «descarregado» limpou o `loadedAt`, e por isso o «carregado» das
+   * 10:00 deixava de ter com que se comparar — a linha voltava a «carregada».
+   */
+  it("um «carregado» antigo não desfaz um «descarregado» mais recente", async () => {
+    base.itens = [{ id: "i1", eventId: "ev1", name: "Escadote", missing: false }];
+    await POST(req([marca("loaded", "2026-05-01T10:02:00.000Z")]), params);
+    await POST(req([marca("unloaded", "2026-05-01T10:05:00.000Z")]), params);
+    expect(base.itens[0].loadedAt).toBeNull();
+
+    const res = await POST(req([marca("loaded", "2026-05-01T10:00:00.000Z", "A")]), params);
+    const json = await res.json();
+    expect(json.ignoradas).toBe(1);
+    expect(base.itens[0].loadedAt).toBeNull();
+    // Fica no registo, marcada como perdida.
+    expect(base.registos.at(-1)).toMatchObject({ action: "loaded", superseded: true });
+  });
+
+  it("um «devolvido» antigo não desfaz um «em falta» mais recente", async () => {
+    base.itens = [{ id: "i1", eventId: "ev1", name: "Escadote", missing: false }];
+    await POST(req([marca("missing", "2026-05-01T18:00:00.000Z")]), params);
+    await POST(req([marca("returned", "2026-05-01T17:00:00.000Z", "A")]), params);
+    expect(base.itens[0].missing).toBe(true);
+  });
+
+  it("e um «carregado» MAIS recente continua a ganhar", async () => {
+    base.itens = [{ id: "i1", eventId: "ev1", name: "Escadote", missing: false }];
+    await POST(req([marca("unloaded", "2026-05-01T10:05:00.000Z")]), params);
+    await POST(req([marca("loaded", "2026-05-01T10:06:00.000Z", "A")]), params);
+    expect(base.itens[0].loadedAt).toBe("2026-05-01T10:06:00.000Z");
   });
 });
