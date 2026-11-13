@@ -41,9 +41,9 @@ interface Chamada {
   init?: RequestInit;
 }
 
-function preparar(semArmazenamento = false) {
+function preparar(semArmazenamento = false, ficheiro = FICHEIRO) {
   const chamadas: Chamada[] = [];
-  const proposta = mapearConteudo(extrairConteudo(FICHEIRO));
+  const proposta = mapearConteudo(extrairConteudo(ficheiro));
   let fotos = 0;
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     chamadas.push({ url, init });
@@ -77,9 +77,9 @@ function preparar(semArmazenamento = false) {
   return { chamadas, onCreated, onClose };
 }
 
-async function escolherFicheiro() {
+async function escolherFicheiro(ficheiro = FICHEIRO) {
   const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-  const f = new File([FICHEIRO as BlobPart], "antiga.docx");
+  const f = new File([ficheiro as BlobPart], "antiga.docx");
   fireEvent.change(input, { target: { files: [f] } });
   await screen.findByText(/Lido de «antiga\.docx»/);
 }
@@ -201,5 +201,47 @@ describe("Importar proposta antiga", () => {
     expect(doc.moodBoards).toEqual([]);
     expect(doc.coverImages).toEqual(["", ""]);
     expect(doc.totalVatMode).toBe("incluido");
+  });
+
+  it("com 13 fotografias: liga 8 por omissão, a 9.ª não liga, e sobem só 8", async () => {
+    // A capa e 4 fotografias em cada uma de três secções.
+    const seccao = (t: string, p: string) => [
+      { h: 1 as const, t },
+      { li: `Ponto de ${t}` },
+      ...Array.from({ length: 4 }, (_, i) => ({ img: `${p}${i}.jpeg` })),
+    ];
+    const muitas = docx([
+      "Casamento Inês Teste & Tiago Exemplo",
+      { img: "capa.jpeg" },
+      ...seccao("Cerimónia", "c"),
+      ...seccao("Mesas", "m"),
+      ...seccao("Bar", "b"),
+      { h: 1, t: "Orçamento" },
+      "Total 2.800 € + IVA",
+    ]);
+    const { chamadas, onCreated } = preparar(false, muitas);
+    const user = userEvent.setup();
+    await escolherFicheiro(muitas);
+
+    expect(screen.getByText(/8 de 13 escolhidas/)).toBeTruthy();
+    expect(screen.getByText(/Máximo 8 — tira uma para pôr outra/)).toBeTruthy();
+    // A capa e as primeiras de cada secção, à vez: c0 m0 b0 c1 m1 b1 c2.
+    const ligadas = screen
+      .getAllByRole("button", { pressed: true })
+      .map((b) => b.querySelector("img")?.getAttribute("alt"));
+    expect(ligadas).toHaveLength(8);
+    expect(ligadas[0]).toBe("Fotografia da capa");
+
+    // A 9.ª não liga.
+    const desligada = screen.getAllByRole("button", { pressed: false })[0];
+    await user.click(desligada);
+    expect(desligada.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByText(/8 de 13 escolhidas/)).toBeTruthy();
+
+    await user.click(
+      screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+    );
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    expect(chamadas.filter((c) => c.url.endsWith("/assets"))).toHaveLength(8);
   });
 });

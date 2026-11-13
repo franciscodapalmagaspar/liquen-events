@@ -23,13 +23,89 @@ export const MAX_BYTES_POR_FOTO = 40 * 1024 * 1024;
  * Quantas fotografias sobem por importação, no máximo.
  *
  * O armazenamento é o plano gratuito do Supabase (1 GB) e ia em 928 MB a
- * 10/11 — sobram ~70 MB, e o pedido dela é ficar «muito abaixo». Cada
+ * 10/11 — sobram ~70 MB, e o pedido dela é ficar «MUITO abaixo». Cada
  * fotografia ocupa 0,6–1,3 MB depois de reduzida pelo caminho do estúdio (a de
- * 2200 px, a média de 1200 e a miniatura de 400): 24 fotografias são ~15–30
- * MB. Chega para uma proposta (um mood board leva 10) e não leva o espaço que
- * sobra de uma vez. Ela pode escolher menos; mais do que isto, avisa-se.
+ * 2200 px, a média de 1200 e a miniatura de 400): 8 fotografias são ~5–10 MB.
+ * Com 24 (o tecto de antes) eram 15–30 MB, e 2 a 4 importações acabavam o
+ * espaço. Oito chegam para a capa e uma ou duas por secção; o resto junta-se
+ * depois no estúdio, se ela quiser, foto a foto.
  */
-export const MAX_FOTOS_POR_IMPORTACAO = 24;
+export const MAX_FOTOS_POR_IMPORTACAO = 8;
+
+/** O mínimo que se precisa de saber de cada fotografia para a escolher. */
+export interface FotoParaEscolher {
+  caminho: string;
+  seccao: string;
+  destino: "capa" | "moodboard";
+}
+
+/**
+ * As fotografias ligadas por omissão: a capa primeiro, e depois as primeiras
+ * de cada secção À VEZ (a 1.ª de cada uma, depois a 2.ª de cada uma…), até ao
+ * tecto. Pegar simplesmente nas oito primeiras do ficheiro dava oito da mesma
+ * secção e nenhuma das outras.
+ *
+ * @param fotos       pela ordem do documento (o que o servidor devolveu).
+ * @param disponiveis os caminhos que o navegador conseguiu ler.
+ */
+export function escolhaPorOmissao(
+  fotos: readonly FotoParaEscolher[],
+  disponiveis: ReadonlySet<string>,
+  maximo = MAX_FOTOS_POR_IMPORTACAO,
+): string[] {
+  const usaveis = fotos.filter((f) => disponiveis.has(f.caminho));
+  const escolhidas: string[] = [];
+  for (const f of usaveis) {
+    if (f.destino === "capa" && escolhidas.length < maximo) escolhidas.push(f.caminho);
+  }
+  const porSeccao = new Map<string, string[]>();
+  for (const f of usaveis) {
+    if (f.destino === "capa") continue;
+    const lista = porSeccao.get(f.seccao) ?? [];
+    lista.push(f.caminho);
+    porSeccao.set(f.seccao, lista);
+  }
+  const listas = [...porSeccao.values()];
+  for (let volta = 0; escolhidas.length < maximo; volta++) {
+    let houve = false;
+    for (const l of listas) {
+      if (volta < l.length) {
+        houve = true;
+        if (escolhidas.length < maximo) escolhidas.push(l[volta]);
+      }
+    }
+    if (!houve) break;
+  }
+  return escolhidas;
+}
+
+/**
+ * Liga ou desliga uma fotografia — e nunca deixa passar do tecto. Devolve
+ * `null` quando a pedida seria a (máximo + 1).ª: o ecrã diz porquê.
+ */
+export function alternarFoto(
+  escolhidas: ReadonlySet<string>,
+  caminho: string,
+  maximo = MAX_FOTOS_POR_IMPORTACAO,
+): Set<string> | null {
+  const n = new Set(escolhidas);
+  if (n.has(caminho)) {
+    n.delete(caminho);
+    return n;
+  }
+  if (n.size >= maximo) return null;
+  n.add(caminho);
+  return n;
+}
+
+/** As que sobem, pela ordem do documento — e nunca mais do que o tecto. */
+export function fotosASubir<T extends { caminho: string }>(
+  fotos: readonly T[],
+  escolhidas: ReadonlySet<string>,
+  maximo = MAX_FOTOS_POR_IMPORTACAO,
+): T[] {
+  return fotos.filter((f) => escolhidas.has(f.caminho)).slice(0, maximo);
+}
 /** Abaixo disto (lado mais curto) é um logótipo ou um ícone, não uma foto. */
 export const LADO_MINIMO = 300;
 

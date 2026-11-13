@@ -23,6 +23,9 @@ import {
   fotosDoFicheiro,
   MAX_BYTES_DO_FICHEIRO,
   MAX_FOTOS_POR_IMPORTACAO,
+  alternarFoto,
+  escolhaPorOmissao,
+  fotosASubir,
   type FotoDoFicheiro,
   type FotosLidas,
 } from "@/lib/importar-proposta/no-navegador";
@@ -203,7 +206,9 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       setC(correccoesIniciais(p));
       setFotos(lidas.fotos);
       setDeFora(lidas.deFora);
-      setEscolhidas(new Set(lidas.fotos.slice(0, MAX_FOTOS_POR_IMPORTACAO).map((f) => f.caminho)));
+      setEscolhidas(
+        new Set(escolhaPorOmissao(p.fotos, new Set(lidas.fotos.map((f) => f.caminho)))),
+      );
       setPasso("rever");
     } catch (e) {
       setPasso("escolher");
@@ -217,15 +222,14 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     setC((x) => (x ? { ...x, [k]: v } : x));
 
   function alternar(caminho: string) {
-    setEscolhidas((s) => {
-      const n = new Set(s);
-      if (n.has(caminho)) n.delete(caminho);
-      else if (n.size < MAX_FOTOS_POR_IMPORTACAO) n.add(caminho);
-      else {
-        toast(`No máximo ${MAX_FOTOS_POR_IMPORTACAO} fotografias por importação.`, "info");
-      }
-      return n;
-    });
+    const n = alternarFoto(escolhidas, caminho);
+    if (n) setEscolhidas(n);
+    else {
+      toast(
+        `No máximo ${MAX_FOTOS_POR_IMPORTACAO} fotografias por importação — tira uma para pôr outra.`,
+        "info",
+      );
+    }
   }
 
   async function criar() {
@@ -248,7 +252,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
 
       // 2. As fotografias escolhidas, reduzidas no navegador e carregadas como
       // no estúdio. Uma que falhe não deita fora as outras.
-      const aSubir = fotos.filter((f) => escolhidas.has(f.caminho));
+      const aSubir = fotosASubir(fotos, escolhidas);
       const carregadas = new Map<string, string>();
       let feitas = 0;
       let falhadas = 0;
@@ -598,6 +602,12 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                   {Math.max(1, Math.round(escolhidas.size * MB_POR_FOTO))} MB no armazenamento. Toca
                   numa fotografia para a tirar ou voltar a pôr.
                 </p>
+                {escolhidas.size >= MAX_FOTOS_POR_IMPORTACAO &&
+                  fotos.length > MAX_FOTOS_POR_IMPORTACAO && (
+                    <p role="status" className="-mt-2 mb-3 text-footnote text-[var(--bo-aviso)]">
+                      Máximo {MAX_FOTOS_POR_IMPORTACAO} — tira uma para pôr outra.
+                    </p>
+                  )}
                 <ul className="grid grid-cols-3 gap-2 @min-[30rem]:grid-cols-4 @min-[44rem]:grid-cols-6">
                   {fotos.map((f) => {
                     const on = escolhidas.has(f.caminho);
@@ -643,9 +653,10 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
               <ul className="mt-3 flex list-disc flex-col gap-1 pl-5 text-footnote text-[var(--bo-text-muted)]">
                 {acimaDoLimite > 0 && (
                   <li>
-                    O documento tem {fotos.length} fotografias; ficaram escolhidas as primeiras{" "}
-                    {MAX_FOTOS_POR_IMPORTACAO}, que é o máximo por importação (para não encher o
-                    armazenamento). Podes trocar umas por outras.
+                    O documento tem {fotos.length} fotografias; ficaram ligadas a capa e as
+                    primeiras de cada secção, até {MAX_FOTOS_POR_IMPORTACAO}, que é o máximo por
+                    importação (para não encher o armazenamento). As outras juntam-se depois no
+                    Fazer proposta, se quiseres.
                   </li>
                 )}
                 {Object.entries(deForaPorMotivo).map(([motivo, n]) => (

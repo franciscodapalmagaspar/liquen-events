@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { deflateRawSync } from "node:zlib";
 import {
+  alternarFoto,
   dimensoesDoCabecalho,
+  escolhaPorOmissao,
+  fotosASubir,
   fotosDoFicheiro,
+  MAX_FOTOS_POR_IMPORTACAO,
   inflarNoNavegador,
   tipoDaImagem,
 } from "./no-navegador";
@@ -106,5 +110,60 @@ describe("as fotografias, no navegador", () => {
     const r = await fotosDoFicheiro(z, ["ppt/media/bomba.jpg"], (c) => inflarNoNavegador(c, 1000));
     expect(r.fotos).toEqual([]);
     expect(r.deFora[0].motivo).toBe("ilegivel");
+  });
+});
+
+describe("o tecto de fotografias por importação", () => {
+  const f = (caminho: string, seccao: string, destino: "capa" | "moodboard" = "moodboard") => ({
+    caminho,
+    seccao,
+    destino,
+  });
+  // A capa, 6 da Cerimónia, 4 das Mesas, 3 do Bar = 14.
+  const fotos = [
+    f("capa", "Capa", "capa"),
+    ...Array.from({ length: 6 }, (_, i) => f(`c${i}`, "Cerimónia")),
+    ...Array.from({ length: 4 }, (_, i) => f(`m${i}`, "Mesas")),
+    ...Array.from({ length: 3 }, (_, i) => f(`b${i}`, "Bar")),
+  ];
+  const todas = new Set(fotos.map((x) => x.caminho));
+
+  it("é de 8", () => {
+    expect(MAX_FOTOS_POR_IMPORTACAO).toBe(8);
+  });
+
+  it("por omissão: a capa e as primeiras de cada secção, à vez, até 8", () => {
+    expect(escolhaPorOmissao(fotos, todas)).toEqual([
+      "capa",
+      "c0",
+      "m0",
+      "b0",
+      "c1",
+      "m1",
+      "b1",
+      "c2",
+    ]);
+  });
+
+  it("só escolhe as que o navegador conseguiu ler", () => {
+    const semAlgumas = new Set([...todas].filter((c) => c !== "capa" && c !== "m0"));
+    const e = escolhaPorOmissao(fotos, semAlgumas);
+    expect(e).toHaveLength(8);
+    expect(e).not.toContain("capa");
+    expect(e).not.toContain("m0");
+  });
+
+  it("a 9.ª não liga; tirar uma deixa pôr outra", () => {
+    const oito = new Set(escolhaPorOmissao(fotos, todas));
+    expect(alternarFoto(oito, "c5")).toBeNull();
+    const sete = alternarFoto(oito, "c0")!;
+    expect(sete.size).toBe(7);
+    expect(alternarFoto(sete, "c5")?.size).toBe(8);
+  });
+
+  it("nunca sobem mais de 8, mesmo que o conjunto traga mais", () => {
+    expect(fotosASubir(fotos, todas).map((x) => x.caminho)).toEqual(
+      fotos.slice(0, 8).map((x) => x.caminho),
+    );
   });
 });
