@@ -388,6 +388,28 @@ export function contaExiste(name: string): boolean {
 }
 
 /**
+ * A conta de uma SESSÃO ainda existe?
+ *
+ * O nome dentro do token vai cortado a 40 caracteres (`createSession`). Até 39
+ * é o nome inteiro, e vale o `contaExiste`. Com 40 pode ser o princípio de um
+ * nome mais comprido — e aí compara-se com o princípio de cada conta, cortado
+ * da mesma maneira. Antes, um nome com 40 ou mais caracteres saltava esta
+ * verificação, e a sessão de quem saísse da equipa continuava a valer.
+ */
+function contaDaSessaoExiste(sub: string): boolean {
+  if (sub.length < 40) return contaExiste(sub);
+  const users = configuredUsers();
+  if (!users) return true;
+  const alvo = normalizarIdentificador(sub);
+  let existe = false;
+  for (const u of users) {
+    const cortado = normalizarIdentificador(String(u.name ?? "").slice(0, 40));
+    if (identificadorIgual(cortado, alvo)) existe = true;
+  }
+  return existe;
+}
+
+/**
  * A conta que corresponde a um identificador — email primeiro, nome depois.
  *
  * ── Porque é que a lista é percorrida ATÉ AO FIM ──────────────────────────
@@ -935,9 +957,9 @@ export function readSession(token: string | undefined | null): { name: string } 
     // enquanto a conta existir. É uma consulta à variável de ambiente — sem
     // rede nem base de dados. Sem `ADMIN_USERS` (palavra-passe partilhada) o
     // `contaExiste` diz sempre que sim. O `sub` é cortado a 40 caracteres ao
-    // criar a sessão: um nome mais comprido não se reconheceria, e por isso
-    // só se pergunta quando cabe inteiro.
-    if (name.length < 40 && !contaExiste(name)) return null;
+    // criar a sessão — e um nome mais comprido também tem de ser reconhecido
+    // (auditoria de 13/11, n.º 16): ver `contaDaSessaoExiste`.
+    if (!contaDaSessaoExiste(name)) return null;
     return { name };
   } catch {
     return null;

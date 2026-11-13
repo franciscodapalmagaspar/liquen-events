@@ -311,4 +311,20 @@ describe("a sessão de quem saiu da equipa (10/11)", () => {
       else process.env.ADMIN_USERS = antes;
     }
   });
+
+  it("também quando o nome tem 40 caracteres ou mais (n.º 16)", async () => {
+    const { createSession, readSession } = await import("./admin-auth");
+    const comprido = "TESTE Maria da Conceição Albuquerque de Sousa Tavares";
+    expect(comprido.length).toBeGreaterThan(40);
+    process.env.ADMIN_USERS = JSON.stringify([
+      { name: "TESTE Ana", email: "ana@exemplo.test", passwordHash: "$2a$04$x" },
+      { name: comprido, email: "maria@exemplo.test", passwordHash: "$2a$04$x" },
+    ]);
+    const token = createSession(comprido);
+    expect(readSession(token)).toEqual({ name: comprido.slice(0, 40) });
+    process.env.ADMIN_USERS = JSON.stringify([
+      { name: "TESTE Ana", email: "ana@exemplo.test", passwordHash: "$2a$04$x" },
+    ]);
+    expect(readSession(token)).toBeNull();
+  });
 });
