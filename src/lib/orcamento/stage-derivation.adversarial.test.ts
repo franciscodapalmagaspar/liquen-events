@@ -133,7 +133,8 @@ describe("deriveStage — quote.status as a first-class won signal", () => {
         status: "aceite",
         date: "2026-07-01",
         quotedPrice: 20000,
-        payments: [{ id: "p1", kind: "saldo", amount: 20000, date: "2026-06-10", paid: true }],
+        // 20.000 € + IVA: só fecha pago ao cêntimo (24.600 €).
+        payments: [{ id: "p1", kind: "saldo", amount: 24600, date: "2026-06-10", paid: true }],
       }),
     });
     expect(deriveStage(d, TODAY)).toBe("concluido");

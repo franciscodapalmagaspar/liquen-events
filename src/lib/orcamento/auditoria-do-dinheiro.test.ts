@@ -81,7 +81,7 @@ describe("auditoria do dinheiro de 13/11", () => {
     expect(c.fase).toBe("pago");
   });
 
-  it("n.º 2 — o cartão do Moloni diz o total que o Moloni vai calcular, e avisa do cêntimo; e 1 cêntimo não impede «tudo recebido»", () => {
+  it("n.º 2 — o cartão do Moloni diz o total que o Moloni vai calcular, e avisa do cêntimo; e 1 cêntimo por receber NÃO é «tudo recebido»", () => {
     const doc = {
       budgetItems: ["A", "B"],
       budgetAmounts: [1000.05, 333.33],
@@ -101,8 +101,12 @@ describe("auditoria do dinheiro de 13/11", () => {
       diferenca: -0.01,
     });
     // Ela regista o sinal do Moloni e o saldo da proposta: falta 1 cêntimo, e
-    // está pago.
-    expect(estaTudoPago(f.bruto, 492.01 + 1148.04)).toBe(true);
+    // NÃO está pago — pedido de 13/11, «não quero que falte nada. 0,0 €».
+    expect(estaTudoPago(f.bruto, 492.01 + 1148.04)).toBe(false);
+    // Ao cêntimo, está.
+    expect(estaTudoPago(f.bruto, 492.02 + 1148.04)).toBe(true);
+    // E a vírgula flutuante não inventa um cêntimo em falta.
+    expect(estaTudoPago(0.3, 0.1 + 0.2)).toBe(true);
   });
 
   it("n.º 4 — registar o sinal no painel passa a linha PREVISTA a recebida, em vez de a deixar por receber ao lado", () => {
@@ -174,10 +178,16 @@ describe("auditoria do dinheiro de 13/11", () => {
     expect(marco?.valor).toBe(861);
   });
 
-  it("n.º 11 — um «Tudo pago» dentro da folga não soma nada ao «Por receber»", () => {
-    const q = pedido("a", {}, [linha("s", "sinal", 1229.7, "2026-10-01", true)]);
-    const quadro = quadroDeCobrancas([q], [], HOJE);
+  it("n.º 11 — o «Tudo pago» não soma nada ao «Por receber»; e 30 cêntimos em falta não são «Tudo pago»", () => {
+    // 1.000 € + IVA = 1.230 €. Pago ao cêntimo: «Tudo pago», nada por receber.
+    const pago = pedido("a", {}, [linha("s", "sinal", 1230, "2026-10-01", true)]);
+    const quadro = quadroDeCobrancas([pago], [], HOJE);
     expect(quadro.pago).toHaveLength(1);
     expect(quadro.porReceber).toBe(0);
+    // Faltam 0,30 €: não há folga (pedido de 13/11, «0,0 €»).
+    const falta = pedido("b", {}, [linha("s", "sinal", 1229.7, "2026-10-01", true)]);
+    const outro = quadroDeCobrancas([falta], [], HOJE);
+    expect(outro.pago).toHaveLength(0);
+    expect(outro.porReceber).toBeCloseTo(0.3, 2);
   });
 });

@@ -204,11 +204,12 @@ export function paidTotal(quote: Quote): number {
 }
 
 /**
- * Folga do arredondamento: meio euro não deixa um cliente «por pagar». Era a
- * folga do quadro das Cobranças, e é a que cobre o cêntimo (ou dois) que o
- * Moloni soma a mais ou a menos ao calcular o IVA linha a linha.
+ * Folga do «tudo pago»: NENHUMA. Pedido de 13/11: «eu não quero que falte
+ * nada. 0,0 €». Um cêntimo por receber é um cêntimo por receber, e o cliente
+ * fica em «por pagar» até ele entrar. A comparação faz-se em cêntimos inteiros
+ * (ver `estaTudoPago`), para a vírgula flutuante não inventar nem esconder um.
  */
-export const FOLGA_DO_PAGO = 0.5;
+export const FOLGA_DO_PAGO = 0;
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -221,11 +222,13 @@ export const FOLGA_DO_PAGO = 0.5;
  * Pagamentos exigia o zero exacto — e com o cêntimo do Moloni nunca dizia
  * «tudo recebido».
  *
- * Fica o do quadro, que já existia: há um valor a receber, e o recebido chega
- * a ele a menos de {@link FOLGA_DO_PAGO}.
+ * Fica um só: há um valor a receber, e o recebido chega a ele ao cêntimo
+ * ({@link FOLGA_DO_PAGO} é zero — ela não quer que falte nada).
  */
 export function estaTudoPago(total: number, pago: number): boolean {
-  return total > 0 && pago >= total - FOLGA_DO_PAGO;
+  const totalCent = Math.round(total * 100);
+  const pagoCent = Math.round(pago * 100);
+  return totalCent > 0 && pagoCent >= totalCent - Math.round(FOLGA_DO_PAGO * 100);
 }
 
 /**
