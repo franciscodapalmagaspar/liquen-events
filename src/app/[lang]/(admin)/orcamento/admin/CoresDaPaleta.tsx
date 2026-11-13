@@ -85,9 +85,9 @@ export default function CoresDaPaleta({
 
   // A chave resume as fotografias sem copiar um `data:` de vários MB a cada
   // render: a referência, o tamanho do endereço e o fim dele.
-  const chave = fotos
-    .map((f) => `${f.ref.slice(0, 200)}|${(f.url ?? "").length}|${(f.url ?? "").slice(-80)}`)
-    .join("\n");
+  // Só pelas REFERÊNCIAS: os endereços assinados mudam pouco depois de se
+  // abrir a proposta, e isso não é «outras fotografias».
+  const chave = fotos.map((f) => `${f.ref.slice(0, 200)}|${f.ref.length}`).join("\n");
   useEffect(() => {
     let vivo = true;
     (async () => {
@@ -177,7 +177,7 @@ export default function CoresDaPaleta({
           <span
             className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
               dela
-                ? "bg-sage-600/12 text-[var(--bo-accent)]"
+                ? "bg-sage-600/10 text-[var(--bo-accent)]"
                 : "bg-[var(--bo-tinta-6)] text-[var(--bo-text-muted)]"
             }`}
           >
@@ -304,7 +304,8 @@ export default function CoresDaPaleta({
             <p className="text-sm font-medium text-[var(--bo-text)]">
               {activa < actuais.length ? `A trocar a cor ${activa + 1}` : "Uma cor nova"}
               <span className="block text-caption font-normal text-[var(--bo-text-muted)]">
-                Passa por cima de uma flor e toca para a escolher.
+                Passa por cima de uma flor e toca para a escolher. No telemóvel, toca e segura para
+                afinar com a lupa.
               </span>
             </p>
             <Button variant="ghost" size="sm" onClick={() => setActiva(null)}>
@@ -395,8 +396,9 @@ export default function CoresDaPaleta({
  * Tocar (largar) escolhe-a. A cor é a média de um quadrado de 5 × 5 píxeis,
  * para um grão da fotografia não dar uma cor que não se vê.
  *
- * No dedo, a lupa fica ACIMA do ponto (o dedo tapava-a). Deslizar por cima
- * das fotografias continua a deslizar a página; só um toque curto escolhe.
+ * No dedo, a lupa fica ACIMA do ponto (o dedo tapava-a). Um toque curto
+ * escolhe; deslizar desliza a página; tocar e segurar (300 ms) deixa arrastar
+ * a lupa pela fotografia para afinar — e largar escolhe.
  */
 function ContaGotas({
   lida,
@@ -419,10 +421,31 @@ function ContaGotas({
     t.getContext("2d")?.drawImage(lida.tela, 0, 0);
   }, [lida]);
 
-  // Onde o dedo pousou: só um TOQUE (andou menos de 10 px) escolhe a cor.
-  // Deslizar por cima das fotografias é deslizar a página — e a página
-  // desliza (`pan-y`), o que cancela o gesto sem gravar nada.
+  // Onde o dedo pousou: um TOQUE curto (andou menos de 10 px) escolhe a cor;
+  // deslizar desliza a página (`pan-y`), sem gravar nada. E um toque LONGO
+  // (300 ms parado) entra em «apontar»: a página deixa de deslizar, a lupa
+  // segue o dedo para afinar o sítio, e largar escolhe — é para isso que a
+  // lupa existe.
   const inicio = useRef<{ x: number; y: number } | null>(null);
+  const apontar = useRef(false);
+  const relogio = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pararRelogio = () => {
+    if (relogio.current) clearTimeout(relogio.current);
+    relogio.current = null;
+  };
+  useEffect(() => {
+    const t = ref.current;
+    if (!t) return;
+    // Não passivo de propósito: em «apontar», é isto que segura a página.
+    const segurar = (e: TouchEvent) => {
+      if (apontar.current && e.cancelable) e.preventDefault();
+    };
+    t.addEventListener("touchmove", segurar, { passive: false });
+    return () => {
+      t.removeEventListener("touchmove", segurar);
+      pararRelogio();
+    };
+  }, []);
   const ler = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const t = e.currentTarget;
     const caixa = t.getBoundingClientRect();
@@ -442,11 +465,23 @@ function ContaGotas({
         aria-hidden="true"
         onPointerDown={(e) => {
           inicio.current = { x: e.clientX, y: e.clientY };
+          apontar.current = false;
+          pararRelogio();
+          if (e.pointerType !== "mouse") {
+            relogio.current = setTimeout(() => {
+              apontar.current = true;
+              navigator.vibrate?.(8);
+            }, 300);
+          }
           const l = ler(e);
           setLupa(l);
           onPrevia(l?.cor ?? null);
         }}
         onPointerMove={(e) => {
+          // Andou antes do toque longo: é deslizar, não apontar.
+          const de = inicio.current;
+          if (de && !apontar.current && Math.hypot(e.clientX - de.x, e.clientY - de.y) >= 10)
+            pararRelogio();
           const l = ler(e);
           setLupa(l);
           onPrevia(l?.cor ?? null);
@@ -458,7 +493,10 @@ function ContaGotas({
           setLupa(null);
           onPrevia(null);
           const andou = de ? Math.hypot(e.clientX - de.x, e.clientY - de.y) : 0;
-          if (l && (e.pointerType === "mouse" || andou < 10)) onCor(l.cor);
+          const apontava = apontar.current;
+          apontar.current = false;
+          pararRelogio();
+          if (l && (e.pointerType === "mouse" || apontava || andou < 10)) onCor(l.cor);
         }}
         onPointerLeave={() => {
           setLupa(null);
@@ -466,6 +504,8 @@ function ContaGotas({
         }}
         onPointerCancel={() => {
           inicio.current = null;
+          apontar.current = false;
+          pararRelogio();
           setLupa(null);
           onPrevia(null);
         }}
@@ -526,13 +566,15 @@ const jaLidas = new Map<string, Promise<Leitura>>();
 function lerFotoGuardada(f: Foto): Promise<Leitura> {
   const url = f.url;
   if (!url) return Promise.resolve(null);
-  const ja = jaLidas.get(url);
+  // Pela referência (o endereço assinado muda); um `data:` é a sua própria.
+  const chave = f.ref.startsWith("data:") ? `${f.ref.length}|${f.ref.slice(-80)}` : f.ref;
+  const ja = jaLidas.get(chave);
   if (ja) return ja.then((l) => (l ? { ...l, lida: { ...l.lida, ref: f.ref } } : null));
   const nova = lerFoto(f);
-  jaLidas.set(url, nova);
+  jaLidas.set(chave, nova);
   // Uma que falhou pode dar à próxima: não fica guardada.
   void nova.then((l) => {
-    if (!l) jaLidas.delete(url);
+    if (!l) jaLidas.delete(chave);
   });
   if (jaLidas.size > 24) jaLidas.delete(jaLidas.keys().next().value!);
   return nova;

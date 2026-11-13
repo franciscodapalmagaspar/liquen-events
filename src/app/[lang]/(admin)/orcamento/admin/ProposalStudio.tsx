@@ -4276,16 +4276,24 @@ export default function ProposalStudio({
   /**
    * As fotografias de onde saem as cores — as MESMAS que o PDF lê
    * (`fotosQueDaoCor`): as da página «Paleta e ambiente», e delas só as dos
-   * temas das mesas, quando os há. Lê-se a fotografia inteira (o original) e
-   * não a miniatura, que é um recorte quadrado com outras cores.
+   * temas das mesas, quando os há. Lê-se a fotografia inteira (a versão média)
+   * e não a miniatura, que é um recorte quadrado com outras cores.
    */
-  const fotosDaPaleta = fotosQueDaoCor(
-    lugaresDaPagina("ambiente").filter((r): r is string => !!r),
-    doc.moodBoards,
-  ).map((r) => ({
-    ref: r,
-    url: assetOriginais[r] ?? assetUrls[r] ?? (r.startsWith("data:") ? r : undefined),
-  }));
+  const fotosDaPaleta = (() => {
+    // Pela ordem do PDF: o painel (o 6.º lugar) primeiro, depois a fila.
+    const l = lugaresDaPagina("ambiente");
+    const pelaOrdemDoPdf = [l[5], ...l.slice(0, 5)].filter((r): r is string => !!r);
+    return fotosQueDaoCor(pelaOrdemDoPdf, doc.moodBoards).map((r) => ({
+      ref: r,
+      // A versão média («inside», sem recorte) — a mesma que a proposta online
+      // lê. O original pesava vários MB por fotografia, seis de cada vez.
+      url:
+        assetMedias[r] ??
+        assetOriginais[r] ??
+        assetUrls[r] ??
+        (r.startsWith("data:") ? r : undefined),
+    }));
+  })();
   /**
    * Grava a escolha de uma página (ou apaga-a, com `null`), com «Anular». Os
    * focos vão com as fotos, lugar a lugar; sem `focos`, ficam os que havia.
