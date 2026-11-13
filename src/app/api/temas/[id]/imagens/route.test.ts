@@ -533,13 +533,34 @@ describe("POST /api/temas/[id]/imagens — repetidas", () => {
   it("cada foto (nova ou repetida) entra no índice dos resumos como `tema:`", async () => {
     // É por aqui que uma proposta que receba esta MESMA foto devolve a
     // referência à Biblioteca em vez de guardar outra cópia (`fotos-resumo.ts`).
-    st.upload.mockResolvedValueOnce({ kind: "duplicate", path: "t-1/ja-la-estava.jpg" } as never);
-    await POST(...post([jpg("praia.jpg")], "t-1", undefined, { hashes: [H1] }));
-    expect(indice.registar).toHaveBeenCalledWith(["0".repeat(32), H1], "tema:t-1/ja-la-estava.jpg");
-    indice.registar.mockClear();
     const res = await POST(...post([jpg("nova.jpg")]));
     const [nova] = (await res.json()).images;
-    expect(indice.registar).toHaveBeenCalledWith(["0".repeat(32), null], `tema:${nova.path}`);
+    expect(indice.registar).toHaveBeenCalledWith(["0".repeat(32)], `tema:${nova.path}`);
+  });
+
+  it("o resumo do CLIENTE nunca liga os bytes que chegaram a uma foto que lá estava", async () => {
+    // Repetida pelo NOME (= o resumo que o navegador mandou): os bytes que
+    // chegaram não provam nada sobre a que lá está. Só o que o nome já diz.
+    st.upload.mockResolvedValueOnce({ kind: "duplicate", path: "t-1/ja-la-estava.jpg" } as never);
+    await POST(...post([jpg("praia.jpg")], "t-1", undefined, { hashes: [H1] }));
+    expect(indice.registar).toHaveBeenCalledWith([H1], "tema:t-1/ja-la-estava.jpg");
+    expect(JSON.stringify(indice.registar.mock.calls)).not.toContain("0".repeat(32));
+
+    // Repetida pelo MD5 dos bytes: aí são os bytes a prova, e o resumo do
+    // cliente fica de fora.
+    indice.registar.mockClear();
+    st.byBytes.mockResolvedValueOnce("t-1/antiga.jpg");
+    await POST(...post([jpg("praia.jpg")], "t-1", undefined, { hashes: [H1] }));
+    expect(indice.registar).toHaveBeenCalledWith(["0".repeat(32)], "tema:t-1/antiga.jpg");
+
+    // Nova com o resumo no NOME: o original entra, porque o nome já o afirma.
+    indice.registar.mockClear();
+    st.upload.mockResolvedValueOnce({
+      kind: "created",
+      image: { path: `t-1/${H1}.jpg`, url: "u" },
+    } as never);
+    await POST(...post([jpg("praia.jpg")], "t-1", undefined, { hashes: [H1] }));
+    expect(indice.registar).toHaveBeenCalledWith(["0".repeat(32), H1], `tema:t-1/${H1}.jpg`);
   });
 
   it("meio lote repetido: as boas entram e as repetidas são contadas à parte", async () => {

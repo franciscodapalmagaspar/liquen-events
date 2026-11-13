@@ -462,11 +462,20 @@ async function POST_semMedida(
     // Se a foto já está na pasta deste pedido, ou na Biblioteca num tema vivo,
     // devolve-se esse caminho e não se guarda nada — nem a foto, nem as
     // derivadas, nem a linha da cor (a que lá está já as tem).
-    const resumos = [resumoDosBytes(pronto.bytes), resumosDoOriginal[indice]];
+    //
+    // O resumo do ORIGINAL vem do navegador: só serve para PROCURAR, nunca se
+    // escreve no índice daqui. Se viesse errado e fosse registado, apontava
+    // para sempre uma fotografia para outra (o `exists` continuava a dizer que
+    // sim). O que se escreve é só o resumo dos bytes, calculado aqui.
+    const resumoDosBytesGuardados = resumoDosBytes(pronto.bytes);
+    const resumos = [resumoDosBytesGuardados, resumosDoOriginal[indice]];
     let jaGuardada: string | null = null;
+    let peloConteudo = false;
     try {
-      const achados = [...(await procurarExistentes(resumos, id)).values()];
-      jaGuardada = achados.find((c) => !ehRefDeTema(c)) ?? achados[0] ?? null;
+      const achados = await procurarExistentes(resumos, id);
+      const valores = [...achados.values()];
+      jaGuardada = valores.find((c) => !ehRefDeTema(c)) ?? valores[0] ?? null;
+      peloConteudo = !!jaGuardada && achados.get(resumoDosBytesGuardados) === jaGuardada;
     } catch (e) {
       // «Não sei» = guarda-se, como antes disto existir.
       log.warn("assets: índice dos resumos ilegível", { id, erro: String(e) });
@@ -478,8 +487,29 @@ async function POST_semMedida(
       ]);
       const url = urls.get(jaGuardada) ?? "";
       if (url) {
-        // O resumo do original passa a apontar também para aqui.
-        await registarResumos(resumos, jaGuardada);
+        // Só quando foram os BYTES a encontrá-la (põe-na à frente na lista).
+        if (peloConteudo) await registarResumos([resumoDosBytesGuardados], jaGuardada);
+        // Uma foto ANTIGA da pasta deste pedido pode não ter a forma, a cor ou
+        // o LQIP (eram gravados por menos sítios). Os bytes são os mesmos, por
+        // isso os valores também: grava-se o que veio, como num carregamento.
+        if (peloConteudo && !ehRefDeTema(jaGuardada)) {
+          const dados = {
+            ...(cores[indice] ? { cor: cores[indice] } : {}),
+            ...(lqips[indice] ? { lqip: lqips[indice] } : {}),
+            ...(forma ? { largura: forma.w, altura: forma.h } : {}),
+          };
+          if (Object.keys(dados).length > 0) {
+            try {
+              await garantirFoto(jaGuardada, dados);
+              await updateFoto(jaGuardada, dados);
+            } catch (e) {
+              log.warn("assets: cor/LQIP/forma não guardados", {
+                path: jaGuardada,
+                erro: String(e),
+              });
+            }
+          }
+        }
         const thumbUrl = miniaturas.get(jaGuardada) || miniaturaAPedidoUrl(id, jaGuardada);
         const cor = cores[indice];
         uploaded.push({
@@ -502,7 +532,7 @@ async function POST_semMedida(
       return NextResponse.json({ error: "Falha ao guardar a imagem." }, { status: 502 });
     }
     // Entra no índice: a próxima vez que esta foto chegar, não se guarda.
-    await registarResumos(resumos, res.path);
+    await registarResumos([resumoDosBytesGuardados], res.path);
     // A miniatura só depois de o original estar guardado, e sempre em melhor
     // esforço: falhar aqui não pode fazer falhar um carregamento que já correu
     // bem. `uploadProposalThumb` nunca lança e devolve "" quando não dá.

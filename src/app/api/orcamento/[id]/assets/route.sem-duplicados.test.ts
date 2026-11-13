@@ -195,4 +195,81 @@ describe("assets POST: uma fotografia nunca se guarda duas vezes", () => {
     expect(uploads.upload).toHaveBeenCalledTimes(1);
     expect(st.estado.get(`foto-resumo:${resumo(bytes)}`)).toEqual([r.corpo.images[0].path]);
   });
+
+  it("o resumo do ORIGINAL errado não envenena o índice: só serve para procurar", async () => {
+    // A Biblioteca tem a foto X, registada pelo resumo do original dela.
+    const original = "2".repeat(32);
+    st.temas.set("t1", { id: "t1" });
+    st.ficheiros.add(`theme-assets/t1/${original}.jpg`);
+    st.estado.set(`foto-resumo:${original}`, [`tema:t1/${original}.jpg`]);
+
+    // Um navegador manda OUTRA fotografia com esse resumo (errado).
+    const outra = new TextEncoder().encode("uma fotografia que não é a X");
+    const fd = new FormData();
+    fd.append("files", new File([outra], "y.jpg", { type: "image/jpeg" }));
+    fd.append("resumos", original);
+    await POST(
+      new Request("https://liquen.test/api/orcamento/q-1/assets", {
+        method: "POST",
+        body: fd,
+      }) as unknown as NextRequest,
+      { params: Promise.resolve({ id: "q-1" }) },
+    );
+    // Os bytes desta NÃO ficam ligados à X…
+    expect(st.estado.get(`foto-resumo:${resumo(outra)}`)).toBeUndefined();
+    // …e por isso, carregada outra vez sem resumo do cliente, guarda-se.
+    const r = await carregar(new File([outra], "y.jpg", { type: "image/jpeg" }));
+    expect(uploads.upload).toHaveBeenCalledTimes(1);
+    expect(r.corpo.images[0].path).toMatch(/^q-1\//);
+  });
+
+  it("um resumo do cliente num carregamento NOVO não entra no índice", async () => {
+    const doCliente = "3".repeat(32);
+    const fd = new FormData();
+    fd.append("files", foto("fotografia nova"));
+    fd.append("resumos", doCliente);
+    await POST(
+      new Request("https://liquen.test/api/orcamento/q-1/assets", {
+        method: "POST",
+        body: fd,
+      }) as unknown as NextRequest,
+      { params: Promise.resolve({ id: "q-1" }) },
+    );
+    expect(uploads.upload).toHaveBeenCalledTimes(1);
+    expect(st.estado.has(`foto-resumo:${doCliente}`)).toBe(false);
+    expect(
+      st.estado.has(`foto-resumo:${resumo(new TextEncoder().encode("fotografia nova"))}`),
+    ).toBe(true);
+  });
+
+  it("reutilizar uma foto ANTIGA da pasta do pedido grava-lhe a forma, a cor e o LQIP", async () => {
+    const bytes = new TextEncoder().encode("foto antiga sem forma");
+    st.ficheiros.add("proposal-assets/q-1/antiga.jpg");
+    st.estado.set(`foto-resumo:${resumo(bytes)}`, ["q-1/antiga.jpg"]);
+    const fd = new FormData();
+    fd.append("files", new File([bytes], "a.jpg", { type: "image/jpeg" }));
+    fd.append("cores", "#aabbcc");
+    const res = await POST(
+      new Request("https://liquen.test/api/orcamento/q-1/assets", {
+        method: "POST",
+        body: fd,
+      }) as unknown as NextRequest,
+      { params: Promise.resolve({ id: "q-1" }) },
+    );
+    expect((await res.json()).images[0].path).toBe("q-1/antiga.jpg");
+    expect(uploads.upload).not.toHaveBeenCalled();
+    expect(uploads.garantirFoto).toHaveBeenCalledWith(
+      "q-1/antiga.jpg",
+      expect.objectContaining({ cor: "#aabbcc", largura: 1200, altura: 800 }),
+    );
+  });
+
+  it("um tema que já não existe sai do índice (não ocupa um lugar para sempre)", async () => {
+    const bytes = new TextEncoder().encode("foto de um tema apagado");
+    st.ficheiros.add(`theme-assets/t9/${resumo(bytes)}.jpg`);
+    st.estado.set(`foto-resumo:${resumo(bytes)}`, [`tema:t9/${resumo(bytes)}.jpg`]);
+    const r = await carregar(foto("foto de um tema apagado"));
+    expect(uploads.upload).toHaveBeenCalledTimes(1);
+    expect(st.estado.get(`foto-resumo:${resumo(bytes)}`)).toEqual([r.corpo.images[0].path]);
+  });
 });

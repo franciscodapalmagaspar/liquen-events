@@ -30,11 +30,15 @@ import { log } from "@/lib/logger";
  *
  *   · o dos bytes GUARDADOS — calculado aqui, no servidor, sobre o que vai
  *     para o bucket. É o que apanha a mesma foto carregada duas vezes;
- *   · o do ficheiro ORIGINAL, quando o navegador o manda (o estúdio, a
- *     importação e a Biblioteca já o calculam antes de preparar a foto). É o
- *     que apanha uma foto da Biblioteca carregada outra vez para uma proposta,
- *     porque a Biblioteca prepara as fotos com outro tamanho e os bytes
- *     guardados nunca batem.
+ *   · o do ficheiro ORIGINAL — e este SÓ na Biblioteca, quando o nome do
+ *     ficheiro já o traz (`<tema>/<resumo>.jpg`, a afirmação que a Biblioteca
+ *     já fazia). É o que apanha uma foto da Biblioteca carregada outra vez para
+ *     uma proposta, porque a Biblioteca prepara as fotos com outro tamanho e os
+ *     bytes guardados nunca batem.
+ *
+ * O resumo do original que o navegador manda num carregamento serve para
+ * PROCURAR e nunca se escreve daqui (revisão do #454): vindo errado, ligava
+ * para sempre os bytes de uma foto ao caminho de outra.
  *
  * ── O que custa e como se limita ───────────────────────────────────────────
  *
@@ -159,14 +163,20 @@ export async function procurarExistentes(
   if (indice.size === 0) return saida;
 
   const safeId = quoteId ? quoteId.replace(/[^a-zA-Z0-9_-]/g, "") : "";
-  const temaVivo = new Map<string, Promise<boolean>>();
-  const vivo = (pasta: string): Promise<boolean> => {
-    let p = temaVivo.get(pasta);
+  /**
+   * O estado do tema de uma pasta. «Apagado» (o tema já não existe) sai do
+   * índice; «arquivado» não serve mas fica (pode voltar); «não sei» (a leitura
+   * falhou) não serve e fica.
+   */
+  type EstadoDoTema = "vivo" | "arquivado" | "apagado" | "nao-sei";
+  const estadoDoTema = new Map<string, Promise<EstadoDoTema>>();
+  const estado = (pasta: string): Promise<EstadoDoTema> => {
+    let p = estadoDoTema.get(pasta);
     if (!p) {
       p = getTheme(pasta)
-        .then((t) => !!t && t.arquivado !== true)
-        .catch(() => false);
-      temaVivo.set(pasta, p);
+        .then((t): EstadoDoTema => (!t ? "apagado" : t.arquivado === true ? "arquivado" : "vivo"))
+        .catch((): EstadoDoTema => "nao-sei");
+      estadoDoTema.set(pasta, p);
     }
     return p;
   };
@@ -191,7 +201,14 @@ export async function procurarExistentes(
         const caminho = caminhoDoRefDeTema(ref);
         const pasta = caminho.slice(0, caminho.indexOf("/"));
         // Um tema arquivado não serve, mas também não se esquece: pode voltar.
-        if (!(await vivo(pasta))) continue;
+        // Um tema que já não existe esquece-se — senão ocupava um dos
+        // {@link MAX_CAMINHOS} lugares para sempre.
+        const e = await estado(pasta);
+        if (e === "apagado") {
+          mortos.push(ref);
+          continue;
+        }
+        if (e !== "vivo") continue;
         const ok = await existe(THEME_BUCKET, caminho);
         if (ok) {
           achado = refDeTema(caminho);
