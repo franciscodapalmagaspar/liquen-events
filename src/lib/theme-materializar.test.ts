@@ -36,6 +36,39 @@ const st = vi.hoisted(() => ({
   copias: [] as { themePath: string; quoteId: string }[],
   apagouFoto: [] as string[],
   apagouPasta: [] as string[],
+  /** O que o Storage fez ao mover: [de, para, modo]. */
+  transferencias: [] as [string, string, string][],
+  /** As linhas da Biblioteca, por caminho. */
+  fotos: new Map<string, Record<string, unknown>>(),
+  etiquetas: [] as { path: string; etiquetaId: string; origem: string }[],
+}));
+
+vi.mock("./biblioteca-fotos-store", () => ({
+  getFoto: async (path: string) => st.fotos.get(path) ?? null,
+  garantirFoto: async (path: string, dados: Record<string, unknown> = {}) => {
+    const f = st.fotos.get(path) ?? { path, ...dados };
+    st.fotos.set(path, f);
+    return f;
+  },
+  deleteFoto: async (path: string) => {
+    st.fotos.delete(path);
+    st.etiquetas = st.etiquetas.filter((e) => e.path !== path);
+  },
+}));
+
+vi.mock("./biblioteca-foto-etiquetas-store", () => ({
+  etiquetasDaFoto: async (path: string) => st.etiquetas.filter((e) => e.path === path),
+  etiquetar: async (path: string, etiquetaId: string, origem: string) => {
+    if (st.etiquetas.some((e) => e.path === path && e.etiquetaId === etiquetaId)) {
+      return { criada: false };
+    }
+    st.etiquetas.push({ path, etiquetaId, origem });
+    return { criada: true };
+  },
+  desetiquetar: async (path: string, etiquetaId: string) => {
+    st.etiquetas = st.etiquetas.filter((e) => !(e.path === path && e.etiquetaId === etiquetaId));
+    return true;
+  },
 }));
 
 vi.mock("./proposals-store", () => ({
@@ -80,6 +113,11 @@ vi.mock("./theme-storage", () => ({
     st.apagouFoto.push(path);
     return true;
   },
+  transferThemeImage: async (from: string, destId: string, mode: string) => {
+    const to = `${destId}/${from.slice(from.indexOf("/") + 1)}`;
+    st.transferencias.push([from, to, mode]);
+    return { outcome: "copied", to, thumb: true };
+  },
   deleteThemeFolder: async (themeId: string) => {
     st.apagouPasta.push(themeId);
     return { ok: true, removed: 1 };
@@ -92,6 +130,7 @@ import {
   apagarFotoDaBiblioteca,
   apagarPastaDaBiblioteca,
   materializarAntesDeApagar,
+  moverFotosDaBiblioteca,
   refsDeTemaNoDoc,
   trocarRefsNoDoc,
 } from "./theme-materializar";
@@ -109,6 +148,9 @@ beforeEach(() => {
   st.copias = [];
   st.apagouFoto = [];
   st.apagouPasta = [];
+  st.transferencias = [];
+  st.fotos = new Map();
+  st.etiquetas = [];
 });
 
 // ── Encontrar as referências ───────────────────────────────────────────────
@@ -352,5 +394,63 @@ describe("materializarAntesDeApagar", () => {
       copiadas: 0,
       documentos: 0,
     });
+  });
+});
+
+// ── Mover (fundir temas, «Mover para…») — auditoria 6, n.º 1 ───────────────
+describe("moverFotosDaBiblioteca", () => {
+  /**
+   * A proposta da Ana, já enviada, usa uma foto do tema «Boho». Ela funde
+   * «Boho» em «Campestre». Antes, a foto mudava de chave e a proposta ficava
+   * a apontar para `tema:boho/a.jpg` — que já não existia — e as etiquetas
+   * ficavam presas ao caminho antigo.
+   */
+  it("reescreve as referências e leva as etiquetas atrás da foto", async () => {
+    st.propostas = [
+      { id: "LIQ-1", quoteId: "q-1", doc: { moodBoards: [{ images: ["tema:boho/a.jpg"] }] } },
+    ];
+    st.rascunhos = { "proposal-draft:q-2": { doc: { capa: "tema:boho/a.jpg" }, updatedAt: "x" } };
+    st.fotos.set("boho/a.jpg", { path: "boho/a.jpg", md5: "m", cor: "#aabbcc", lqip: "L" });
+    st.etiquetas = [{ path: "boho/a.jpg", etiquetaId: "terracotta", origem: "manual" }];
+
+    const [r] = await moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
+
+    expect(r.outcome).toBe("copied");
+    // Referenciada: COPIA, reescreve, e só depois apaga a origem.
+    expect(st.transferencias).toEqual([["boho/a.jpg", "campestre/a.jpg", "copy"]]);
+    expect(st.gravacoes[0].doc).toEqual({ moodBoards: [{ images: ["tema:campestre/a.jpg"] }] });
+    expect((st.escritas[0].value as { doc: unknown }).doc).toEqual({
+      capa: "tema:campestre/a.jpg",
+    });
+    expect(st.apagouFoto).toEqual(["boho/a.jpg"]);
+    // Nada se materializou: a foto continua na Biblioteca, só mudou de pasta.
+    expect(st.copias).toEqual([]);
+    expect(st.fotos.get("campestre/a.jpg")).toMatchObject({ md5: "m", cor: "#aabbcc", lqip: "L" });
+    expect(st.fotos.has("boho/a.jpg")).toBe(false);
+    expect(st.etiquetas).toEqual([
+      { path: "campestre/a.jpg", etiquetaId: "terracotta", origem: "manual" },
+    ]);
+  });
+
+  it("uma foto que ninguém usa muda com `move`, como antes", async () => {
+    const [r] = await moverFotosDaBiblioteca(["boho/b.jpg"], "campestre");
+    expect(r.outcome).toBe("copied");
+    expect(st.transferencias).toEqual([["boho/b.jpg", "campestre/b.jpg", "move"]]);
+    expect(st.apagouFoto).toEqual([]);
+  });
+
+  it("um documento que não grava deixa a foto também na origem — e conta como falhada", async () => {
+    st.propostas = [{ id: "LIQ-1", quoteId: "q-1", doc: { capa: "tema:boho/a.jpg" } }];
+    st.gravacaoFalha = true;
+    const [r] = await moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
+    expect(r.outcome).toBe("failed");
+    expect(st.apagouFoto).toEqual([]);
+  });
+
+  it("varredura incompleta: nada sai do sítio", async () => {
+    st.varreduraCompleta = false;
+    const [r] = await moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
+    expect(r.outcome).toBe("failed");
+    expect(st.transferencias).toEqual([]);
   });
 });

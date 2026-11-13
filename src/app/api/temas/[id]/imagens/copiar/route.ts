@@ -8,6 +8,7 @@ import {
   themeFolder,
   type ThemeTransferOutcome,
 } from "@/lib/theme-storage";
+import { moverFotosDaBiblioteca } from "@/lib/theme-materializar";
 import { MAX_THEME_COPY_BATCH, type ThemeCopyMode } from "@/lib/theme-types";
 import { isDatabaseConfigured } from "@/lib/supabase";
 import { log } from "@/lib/logger";
@@ -107,16 +108,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const mode = modo === "mover" ? "move" : "copy";
-    const results = new Array<{ outcome: ThemeTransferOutcome; to: string; thumb: boolean }>(
-      paths.length,
-    );
-    let next = 0;
-    const worker = async () => {
-      for (let i = next++; i < paths.length; i = next++) {
-        results[i] = await transferThemeImage(paths[i], destino, mode);
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, paths.length) }, worker));
+    let results: { outcome: ThemeTransferOutcome; to: string; thumb: boolean }[];
+    if (mode === "move") {
+      // MOVER passa pela porta da Biblioteca (`theme-materializar.ts`): é ela
+      // que reescreve as referências das propostas e dos rascunhos e leva as
+      // etiquetas atrás da foto. Um `move` cru partia as fotos das propostas
+      // já enviadas (auditoria 6, n.º 1).
+      results = await moverFotosDaBiblioteca(paths, destino);
+    } else {
+      results = new Array(paths.length);
+      let next = 0;
+      const worker = async () => {
+        for (let i = next++; i < paths.length; i = next++) {
+          results[i] = await transferThemeImage(paths[i], destino, "copy");
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, paths.length) }, worker));
+    }
 
     const copied: { from: string; to: string }[] = [];
     const existing: string[] = [];

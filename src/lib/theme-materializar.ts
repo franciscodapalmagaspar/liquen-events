@@ -8,8 +8,12 @@ import {
   deleteThemeImage,
   levarFotoParaAReciclagem,
   themeFolder,
+  transferThemeImage,
+  type ThemeTransferOutcome,
 } from "./theme-storage";
-import { caminhoDoRefDeTema, ehRefDeTema, themeIdOfPath } from "./theme-ref";
+import { caminhoDoRefDeTema, ehRefDeTema, refDeTema, themeIdOfPath } from "./theme-ref";
+import { deleteFoto, garantirFoto, getFoto } from "./biblioteca-fotos-store";
+import { desetiquetar, etiquetar, etiquetasDaFoto } from "./biblioteca-foto-etiquetas-store";
 import { log } from "./logger";
 
 /**
@@ -286,4 +290,221 @@ export async function salvarAntesDeReciclarOTema(themeId: string): Promise<boole
   const pasta = themeFolder(themeId);
   if (!pasta) return false;
   return (await materializarAntesDeApagar((p) => themeIdOfPath(p) === pasta)).ok;
+}
+
+// ── E a porta por onde uma foto MUDA de tema (fundir, «Mover para…») ───────
+//
+// Mover era o buraco ao lado do apagar (auditoria 6, n.º 1). A foto muda de
+// chave (`<origem>/x.jpg` → `<destino>/x.jpg`) e:
+//
+//   · as propostas e os rascunhos guardam `tema:<origem>/x.jpg` — uma
+//     referência, não uma cópia — e ficavam a apontar para o vazio. Uma
+//     proposta já enviada perdia as fotos no link do casal e no PDF;
+//   · a `biblioteca_fotos` e a `biblioteca_foto_etiquetas` têm o CAMINHO por
+//     chave, e ninguém as atualizava: as etiquetas postas à mão, o borrão, a
+//     cor e o md5 ficavam presos ao caminho antigo, e a Biblioteca mostrava um
+//     fantasma na origem.
+//
+// O que se faz aqui, por esta ordem, para nunca haver um instante em que uma
+// referência aponta para onde a foto não está:
+//
+//   1. a varredura de quem referencia (a MESMA do apagar). Incompleta →
+//      nada se move;
+//   2. as linhas da Biblioteca são COPIADAS para o caminho novo antes de a foto
+//      sair. Se a cópia falha, a foto não sai;
+//   3. uma foto que ninguém referencia muda com `move` (atómico, como antes);
+//      uma foto REFERENCIADA é copiada, as referências são reescritas de
+//      `tema:<antigo>` para `tema:<novo>`, e só então a origem se apaga. Se
+//      um documento não grava, a origem fica: a referência que não mudou
+//      continua a ter onde apontar;
+//   4. só no fim, com a foto já no destino, saem as linhas antigas.
+//
+// Reescrever e não materializar: a foto continua na Biblioteca, só mudou de
+// pasta. Copiá-la para a pasta de cada proposta gastava armazenamento (o
+// Supabase gratuito tem 1 GB) para guardar uma segunda cópia de bytes que
+// continuam a existir.
+
+/** O que aconteceu a cada foto, na mesma forma do `transferThemeImage`. */
+export interface ResultadoDeMover {
+  outcome: ThemeTransferOutcome;
+  to: string;
+  thumb: boolean;
+}
+
+/** Transferências ao mesmo tempo — o mesmo 5 das rotas que chamam isto. */
+const CONCORRENCIA_AO_MOVER = 5;
+
+/**
+ * As linhas da Biblioteca de uma foto, copiadas para o caminho novo.
+ *
+ * Devolve como desfazer o que criou (para quando a foto acaba por não sair),
+ * ou `null` se não conseguiu — e então a foto não se move.
+ */
+async function copiarLinhasDaBiblioteca(
+  from: string,
+  to: string,
+): Promise<{ desfazer: () => Promise<void>; apagarAntigas: () => Promise<void> } | null> {
+  try {
+    const [foto, etiquetas, jaNoDestino] = await Promise.all([
+      getFoto(from),
+      etiquetasDaFoto(from),
+      getFoto(to),
+    ]);
+    const criadas: string[] = [];
+    let criouFoto = false;
+    const desfazer = async () => {
+      try {
+        for (const e of criadas) await desetiquetar(to, e);
+        if (criouFoto) await deleteFoto(to);
+      } catch (e) {
+        log.warn("mover: não foi possível desfazer as linhas copiadas", { to, erro: String(e) });
+      }
+    };
+    try {
+      if (foto && !jaNoDestino) {
+        await garantirFoto(to, {
+          ...(foto.fingerprint ? { fingerprint: foto.fingerprint } : {}),
+          ...(foto.md5 ? { md5: foto.md5 } : {}),
+          ...(foto.largura ? { largura: foto.largura } : {}),
+          ...(foto.altura ? { altura: foto.altura } : {}),
+          ...(foto.lqip ? { lqip: foto.lqip } : {}),
+          ...(foto.cor ? { cor: foto.cor } : {}),
+        });
+        criouFoto = true;
+      } else if (etiquetas.length > 0 && !jaNoDestino) {
+        // Etiquetas sem linha da foto não existem (chave estrangeira): a linha
+        // nasce vazia, como nasceria preguiçosamente.
+        await garantirFoto(to);
+        criouFoto = true;
+      }
+      // A `origem` vai com a etiqueta: uma posta à mão continua «manual».
+      for (const e of etiquetas) {
+        const { criada } = await etiquetar(to, e.etiquetaId, e.origem);
+        if (criada) criadas.push(e.etiquetaId);
+      }
+    } catch (e) {
+      log.error("mover: as linhas da Biblioteca não acompanharam — a foto fica", e, { from, to });
+      await desfazer();
+      return null;
+    }
+    const apagarAntigas = async () => {
+      try {
+        for (const e of etiquetas) await desetiquetar(from, e.etiquetaId);
+        if (foto || etiquetas.length > 0) await deleteFoto(from);
+      } catch (e) {
+        // A foto já está no destino com as suas linhas: o que sobra é uma
+        // linha fantasma na origem, que a pasta (fonte da verdade) desmente.
+        log.warn("mover: linhas antigas por limpar", { from, erro: String(e) });
+      }
+    };
+    return { desfazer, apagarAntigas };
+  } catch (e) {
+    log.error("mover: não foi possível ler as linhas da Biblioteca — a foto fica", e, { from });
+    return null;
+  }
+}
+
+/**
+ * Leva um lote de fotos da Biblioteca para outro tema, sem partir as propostas
+ * que as usam e sem perder as etiquetas. É ESTA a porta do «mover» — as rotas
+ * de fundir e de «Mover para…» não chamam o `transferThemeImage(…, "move")`.
+ *
+ * Nunca lança. Uma foto que não se pôde mover com tudo o que vai com ela
+ * responde `failed` e fica na origem.
+ */
+export async function moverFotosDaBiblioteca(
+  paths: readonly string[],
+  destThemeId: string,
+): Promise<ResultadoDeMover[]> {
+  const falhou = (): ResultadoDeMover => ({ outcome: "failed", to: "", thumb: false });
+  const destino = themeFolder(destThemeId);
+  if (!destino) return paths.map(falhou);
+
+  const { portadores, completo } = await todosOsPortadores();
+  if (!completo) {
+    log.error("mover: varredura incompleta — nenhuma foto mudou de tema");
+    return paths.map(falhou);
+  }
+  const aMover = new Set(paths);
+  const referenciadas = new Set<string>();
+  for (const p of portadores) {
+    for (const r of refsDeTemaNoDoc(p.doc)) {
+      const c = caminhoDoRefDeTema(r);
+      if (aMover.has(c)) referenciadas.add(c);
+    }
+  }
+
+  const resultados = new Array<ResultadoDeMover>(paths.length);
+  /** As copiadas que ainda têm de largar a origem, depois das referências. */
+  const porFechar = new Map<
+    string,
+    { i: number; to: string; linhas: { apagarAntigas: () => Promise<void> } }
+  >();
+
+  let proxima = 0;
+  const trabalhador = async () => {
+    for (let i = proxima++; i < paths.length; i = proxima++) {
+      const from = paths[i];
+      const nome = from.slice(from.indexOf("/") + 1);
+      const to = `${destino}/${nome}`;
+      const linhas = await copiarLinhasDaBiblioteca(from, to);
+      if (!linhas) {
+        resultados[i] = { outcome: "failed", to, thumb: false };
+        continue;
+      }
+      const referenciada = referenciadas.has(from);
+      const r = await transferThemeImage(from, destThemeId, referenciada ? "copy" : "move");
+      if (r.outcome !== "copied") {
+        // Não chegou, ou já lá estava e a origem fica: as linhas da origem
+        // continuam a ser as dela.
+        await linhas.desfazer();
+        resultados[i] = r;
+        continue;
+      }
+      if (referenciada) {
+        porFechar.set(from, { i, to: r.to, linhas });
+        resultados[i] = r;
+        continue;
+      }
+      await linhas.apagarAntigas();
+      resultados[i] = r;
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(CONCORRENCIA_AO_MOVER, paths.length) }, trabalhador),
+  );
+
+  if (porFechar.size === 0) return resultados;
+
+  // As referências: cada documento grava uma vez, com todas as suas trocas.
+  const substituicoes = new Map<string, string>();
+  for (const [from, { to }] of porFechar) substituicoes.set(refDeTema(from), refDeTema(to));
+  const presas = new Set<string>();
+  for (const portador of portadores) {
+    const suas = new Map<string, string>();
+    for (const r of refsDeTemaNoDoc(portador.doc)) {
+      const novo = substituicoes.get(r);
+      if (novo) suas.set(r, novo);
+    }
+    if (suas.size === 0) continue;
+    const gravou = await portador.gravar(suas);
+    if (!gravou) {
+      // Este documento continua a apontar para a origem — portanto a origem
+      // FICA. A cópia no destino é a mesma foto (mesmo nome, mesmo resumo).
+      log.error("mover: documento não gravado — a foto fica também na origem", null, {
+        onde: portador.descricao,
+      });
+      for (const r of suas.keys()) presas.add(caminhoDoRefDeTema(r));
+    }
+  }
+
+  for (const [from, { i, linhas }] of porFechar) {
+    if (presas.has(from) || !(await deleteThemeImage(from))) {
+      // A foto não saiu da origem: para quem pediu, não se moveu.
+      resultados[i] = { ...resultados[i], outcome: "failed" };
+      continue;
+    }
+    await linhas.apagarAntigas();
+  }
+  return resultados;
 }
