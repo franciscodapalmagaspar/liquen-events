@@ -5,7 +5,7 @@ const propostaDoLink = vi.fn();
 vi.mock("@/lib/proposta-do-link", () => ({ propostaDoLink: (t: string) => propostaDoLink(t) }));
 vi.mock("@/lib/proposal-pdf-chave", () => ({ chaveDoPdf: () => "abcdef0123456789abcdef" }));
 vi.mock("@/lib/proposta-idioma", () => ({ idiomaDaProposta: () => "pt" }));
-const linksCortadosEm = vi.fn(async (): Promise<number | null> => null);
+const linksCortadosEm = vi.fn(async (_pedido: string): Promise<number | null> => null);
 vi.mock("@/lib/links-cortados", () => ({
   linksCortadosEm: (p: string) => linksCortadosEm(p),
 }));
