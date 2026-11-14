@@ -82,7 +82,11 @@ interface Props {
 }
 
 const eur = (n: number) =>
-  new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(n || 0);
+  new Intl.NumberFormat("pt-PT", {
+    useGrouping: "always",
+    style: "currency",
+    currency: "EUR",
+  }).format(n || 0);
 
 const quando = (iso: string) => {
   const d = new Date(iso);

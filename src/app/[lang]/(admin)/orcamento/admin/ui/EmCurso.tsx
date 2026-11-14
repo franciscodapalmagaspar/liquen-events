@@ -121,7 +121,8 @@ export function useFimVisivel(
 export function contagemEmBytes(feito: number, total: number): string {
   const mb = total >= 1024 * 1024;
   const div = mb ? 1024 * 1024 : 1024;
-  const f = (n: number) => (n / div).toLocaleString("pt-PT", { maximumFractionDigits: mb ? 1 : 0 });
+  const f = (n: number) =>
+    (n / div).toLocaleString("pt-PT", { useGrouping: "always", maximumFractionDigits: mb ? 1 : 0 });
   return `${f(Math.min(feito, total))} de ${f(total)} ${mb ? "MB" : "KB"}`;
 }
 

@@ -2854,9 +2854,9 @@ describe("os valores adicionais somam ao total", () => {
     // números vivem noutros filhos do mesmo parágrafo.
     const nota = (await screen.findByText(/só os serviços/i)).closest("p");
     expect(nota).not.toBeNull();
-    expect(nota!.textContent).toMatch(/3000,00/);
+    expect(nota!.textContent).toMatch(/3\s000,00/);
     expect(nota!.textContent).toMatch(/140,00/);
-    expect(nota!.textContent).toMatch(/3140,00/);
+    expect(nota!.textContent).toMatch(/3\s140,00/);
   });
 
   /**
@@ -2940,9 +2940,9 @@ describe("os valores adicionais somam ao total", () => {
     // `findAllByText`: estes números aparecem em mais do que um sítio do ecrã
     // de propósito (o quadro de totais e a barra do fundo dizem o mesmo), e o
     // que se está a afirmar é que aparecem, não que aparecem uma só vez.
-    expect((await screen.findAllByText(/6875,00/)).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText(/1550,00/)).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText(/8425,00/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/6\s875,00/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/1\s550,00/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/8\s425,00/)).length).toBeGreaterThan(0);
   });
 
   /**
@@ -10442,10 +10442,13 @@ describe("os cinco passos do estúdio", () => {
     // Só falta ver o PDF: descarrega-se o PDF final (não o rascunho)…
     await screen.findByRole("button", { name: /^Descarregar PDF$/ });
     // … mas a Conferência trava, e o passo 5 não pode dizer que está completo.
+    // Também não fica a vermelho: ver o PDF é o passo seguinte, não um erro
+    // (revisão de 14/11). E o botão guia esse passo, coerente com o sinal.
     expect(await screen.findAllByText(/Falta ver o PDF final/)).not.toHaveLength(0);
     expect(
       screen.getByRole("button", { name: /^5\s*Rever e enviar/ }).getAttribute("data-estado"),
-    ).toBe("erro");
+    ).toBe("incompleto");
+    expect(screen.getByRole("button", { name: "Ver o PDF final" })).toBeEnabled();
   });
 
   it("na Inspiração o índice da esquerda sai, e volta no passo seguinte", async () => {

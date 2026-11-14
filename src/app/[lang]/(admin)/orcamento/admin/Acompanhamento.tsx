@@ -75,6 +75,7 @@ function paraLeve(p: Proposal): PropostaLeve {
 
 const eur = (n: number) =>
   new Intl.NumberFormat("pt-PT", {
+    useGrouping: "always",
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0,

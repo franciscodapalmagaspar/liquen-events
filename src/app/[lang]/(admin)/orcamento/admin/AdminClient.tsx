@@ -1294,6 +1294,7 @@ function oQueSePerdeComOPedido(q: Quote | null): string[] {
   if (q.quotedPrice) {
     linhas.push(
       `o valor combinado, ${q.quotedPrice.toLocaleString("pt-PT", {
+        useGrouping: "always",
         style: "currency",
         currency: "EUR",
       })}`,

@@ -96,13 +96,19 @@ export function estadoDosPassos(
       estado[p] = "incompleto";
     else estado[p] = "completo";
   }
+  // «Ainda não viste o PDF final» trava o envio mas não é um ERRO: é o passo
+  // seguinte. Sozinho, o passo 5 fica por completar (sem o vermelho); com
+  // outra falta que trave, continua a vermelho (revisão de 14/11).
+  const travamDeVerdade = faltas.filter((f) => f.trava && f.id !== "visto");
   estado.enviar = enviada
     ? "completo"
-    : faltas.some((f) => f.trava)
+    : travamDeVerdade.length > 0
       ? "erro"
-      : faltas.some((f) => passoDaSeccao(f.seccao) === "enviar")
+      : faltas.some((f) => f.trava)
         ? "incompleto"
-        : "completo";
+        : faltas.some((f) => passoDaSeccao(f.seccao) === "enviar")
+          ? "incompleto"
+          : "completo";
   return estado;
 }
 

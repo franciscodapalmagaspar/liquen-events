@@ -38,6 +38,7 @@ import {
   agruparTarefas,
   contarPorLista,
   listasDeEvento,
+  nomeDoEvento,
   type NomesDosPedidos,
   ordemVisivel,
   ordenarTarefas,
@@ -416,6 +417,7 @@ function BarraDeListas({
 
 const TaskRow = memo(function TaskRow({
   t,
+  nomeDoCliente,
   overdue,
   arrastavel,
   escolhida,
@@ -430,6 +432,13 @@ const TaskRow = memo(function TaskRow({
   onArrastar,
 }: {
   t: Task;
+  /**
+   * O nome do evento: o do PEDIDO quando a tarefa o tem, senão o `clientName`
+   * (ver `nomeDoEvento`). Uma tarefa gravada sem `clientName` mostrava a linha
+   * sem nome nenhum, com o grupo por cima a dizê-lo (revisão de 14/11). Uma
+   * string, e não o mapa, para o `memo` da linha continuar a valer.
+   */
+  nomeDoCliente: string;
   overdue: boolean;
   /**
    * ── A COSTURA DO ARRASTAR, E ONDE ELA FICA ──────────────────────────────
@@ -668,7 +677,7 @@ const TaskRow = memo(function TaskRow({
               {t.area}
             </span>
           )}
-          {t.clientName && <span className="text-foreground/25">{t.clientName}</span>}
+          {nomeDoCliente && <span className="text-foreground/25">{nomeDoCliente}</span>}
         </div>
       </div>
       {/* ── A SEGUNDA LINHA DO CARTÃO ────────────────────────────────────────
@@ -2073,6 +2082,7 @@ export default function Tarefas({
       <TaskRow
         key={t.id}
         t={t}
+        nomeDoCliente={nomeDoEvento(t, nomesDosPedidos)}
         overdue={!!t.dueDate && !t.done && t.dueDate < todayStr}
         arrastavel={arrastavel}
         escolhida={escolhida === t.id}

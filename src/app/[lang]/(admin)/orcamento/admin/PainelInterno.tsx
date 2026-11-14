@@ -42,7 +42,11 @@ import { ESTADO, PRESSAO } from "./ui/movimento";
  */
 
 const eur = (n: number) =>
-  new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(n || 0);
+  new Intl.NumberFormat("pt-PT", {
+    useGrouping: "always",
+    style: "currency",
+    currency: "EUR",
+  }).format(n || 0);
 
 /**
  * Os limites do campo dos quilómetros.
@@ -677,6 +681,7 @@ export default function PainelInterno({
                       onDeslocacao(
                         "Deslocação da equipa Líquen",
                         `${new Intl.NumberFormat("pt-PT", {
+                          useGrouping: "always",
                           style: "currency",
                           currency: "EUR",
                           minimumFractionDigits: 2,

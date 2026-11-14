@@ -112,14 +112,26 @@ describe("o estado de cada passo", () => {
  * lista SEM o «visto» e ao botão a lista COM ele. Uma lista só.
  */
 describe("os passos e o botão de enviar lêem a mesma lista", () => {
-  it("só faltar ver o PDF final não deixa o passo 5 completo", () => {
-    const visto = {
-      id: "visto",
-      seccao: "envio",
-      texto: "Falta ver o PDF final e confirmar que está tudo certo",
+  const visto = {
+    id: "visto",
+    seccao: "envio",
+    texto: "Falta ver o PDF final e confirmar que está tudo certo",
+    trava: true,
+  } as Impedimento;
+
+  it("só faltar ver o PDF final deixa o passo 5 por completar — nem completo, nem a vermelho", () => {
+    // Revisão de 14/11: ver o PDF é o passo seguinte, não um erro dela.
+    expect(estadoDosPassos([], [visto], false).enviar).toBe("incompleto");
+  });
+
+  it("com outra falta que trave, o passo 5 continua a vermelho", () => {
+    const valor = {
+      id: "valor",
+      seccao: "total",
+      texto: "Falta o valor",
       trava: true,
-    } as Parameters<typeof estadoDosPassos>[1][number];
-    expect(estadoDosPassos([], [visto], false).enviar).toBe("erro");
+    } as Impedimento;
+    expect(estadoDosPassos([], [visto, valor], false).enviar).toBe("erro");
   });
 
   it("o estúdio passa aos passos e ao índice a lista do envio (`faltasDoEnvio`)", async () => {

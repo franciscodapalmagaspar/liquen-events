@@ -34,6 +34,7 @@ const quandoDe = (p: Proposal) => p.sentAt || p.createdAt;
 
 const eur = (n: number) =>
   new Intl.NumberFormat("pt-PT", {
+    useGrouping: "always",
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0,
@@ -44,6 +45,7 @@ const eur = (n: number) =>
  *  conferir). */
 const eurCentimos = (n: number) =>
   new Intl.NumberFormat("pt-PT", {
+    useGrouping: "always",
     style: "currency",
     currency: "EUR",
     minimumFractionDigits: 2,

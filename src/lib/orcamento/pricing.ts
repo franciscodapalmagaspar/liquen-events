@@ -20,6 +20,7 @@ export { isHighSeason } from "@/lib/workdays";
 
 export function formatPrice(n: number): string {
   return new Intl.NumberFormat("pt-PT", {
+    useGrouping: "always",
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0,

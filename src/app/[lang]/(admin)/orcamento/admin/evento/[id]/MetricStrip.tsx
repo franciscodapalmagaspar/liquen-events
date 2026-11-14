@@ -67,11 +67,11 @@ export default function MetricStrip({ metrics }: Props) {
       cdTone = "text-[var(--bo-perigo)]";
     } else if (countdownDays > 0) {
       // «26 507» e não «26507»: o número escreve-se em pt-PT.
-      cdValue = countdownDays.toLocaleString("pt-PT");
+      cdValue = countdownDays.toLocaleString("pt-PT", { useGrouping: "always" });
       cdSub = countdownDays === 1 ? "dia" : "dias";
       cdTone = countdownDays <= 7 ? "text-[var(--bo-perigo)]" : undefined;
     } else {
-      cdValue = Math.abs(countdownDays).toLocaleString("pt-PT");
+      cdValue = Math.abs(countdownDays).toLocaleString("pt-PT", { useGrouping: "always" });
       cdSub = Math.abs(countdownDays) === 1 ? "dia (passou)" : "dias (passou)";
       cdTone = "text-foreground/40";
     }

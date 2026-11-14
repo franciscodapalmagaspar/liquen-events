@@ -35,7 +35,12 @@ import { ESTADO, PRESSAO } from "./ui/movimento";
  */
 
 const eur = (n: number) =>
-  n.toLocaleString("pt-PT", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
+  n.toLocaleString("pt-PT", {
+    useGrouping: "always",
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+  });
 
 const dia = (iso: string) => {
   const d = new Date(iso);
