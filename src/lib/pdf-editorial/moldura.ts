@@ -65,6 +65,11 @@ export interface Contexto {
   naoDesenhadas: Set<string>;
   /** As imagens já preparadas e embutidas — ver {@link fotoNaCaixa}. */
   embutidas: Map<string, Promise<PDFImage | null>>;
+  /**
+   * A vez de embutir e desenhar — ver «A ORDEM» em {@link fotoNaCaixa}.
+   * Opcional para quem monta um contexto à mão: sem ela, começa vazia.
+   */
+  vez?: Promise<void>;
 }
 
 /** Uma página nova, já com o fundo de recurso (a Tinta). */
@@ -110,6 +115,17 @@ function desenharNaCaixa(pagina: PDFPage, img: PDFImage, caixa: CaixaPx) {
  *
  * `lado` é o lado maior em píxeis: {@link LADO_CELULA} para as células, mais
  * para as fotos de página inteira, menos para os fundos arrastados.
+ *
+ * ── A ORDEM (14/11, `docs/ARQUIVO-DE-PDFS.md`) ─────────────────────────────
+ *
+ * As páginas pedem as fotos de uma vez (`Promise.all`), e a PREPARAÇÃO (o
+ * `sharp`, o caro) continua em paralelo. Mas embutir dá à imagem o número do
+ * objecto no PDF, e desenhar dá-lhe o nome na página: feito pela ordem em que
+ * cada preparação acabava, o mesmo documento dava bytes diferentes a cada
+ * geração (medido: 16 a 18 imagens com o número trocado entre duas gerações
+ * iguais). Agora embutir e desenhar fazem-se pela ordem em que as fotos foram
+ * PEDIDAS — a do código, sempre a mesma. O aspecto não muda: as mesmas
+ * imagens, nas mesmas caixas.
  */
 export async function fotoNaCaixa(
   ctx: Contexto,
@@ -125,20 +141,31 @@ export async function fotoNaCaixa(
   // O enquadramento é da FOTOGRAFIA (escolhido à mão para ela), e não da página.
   if (foto.foco) t = { ...t, foco: foto.foco };
   const chave = `${foto.id}|${w}x${h}|${JSON.stringify(t)}`;
-  let img = ctx.embutidas.get(chave);
-  if (!img) {
-    img = prepararGuardado(foto.bytes, w, h, caixa.w, t).then((jpeg) =>
-      jpeg ? embedImagem(ctx.pdf, jpeg) : null,
-    );
-    ctx.embutidas.set(chave, img);
+  // A vez desta chamada marca-se JÁ, antes do primeiro `await`: a ordem do
+  // código, e não a da chegada.
+  const anterior = ctx.vez ?? Promise.resolve();
+  let soltar!: () => void;
+  ctx.vez = new Promise<void>((r) => (soltar = r));
+  try {
+    let img = ctx.embutidas.get(chave);
+    if (!img) {
+      img = prepararGuardado(foto.bytes, w, h, caixa.w, t).then(async (jpeg) => {
+        await anterior;
+        return jpeg ? embedImagem(ctx.pdf, jpeg) : null;
+      });
+      ctx.embutidas.set(chave, img);
+    }
+    const pronta = await img;
+    await anterior;
+    if (!pronta) {
+      ctx.naoDesenhadas.add(foto.origem);
+      return false;
+    }
+    desenharNaCaixa(pagina, pronta, caixa);
+    return true;
+  } finally {
+    soltar();
   }
-  const pronta = await img;
-  if (!pronta) {
-    ctx.naoDesenhadas.add(foto.origem);
-    return false;
-  }
-  desenharNaCaixa(pagina, pronta, caixa);
-  return true;
 }
 
 /**

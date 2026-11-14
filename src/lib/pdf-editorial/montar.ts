@@ -110,6 +110,15 @@ export async function renderEditorialPdf(
      * das outras. O PDF devolvido tem só as pedidas, pela ordem do documento.
      */
     soPaginas?: readonly number[];
+    /**
+     * A data de criação gravada nas propriedades do PDF (`CreationDate` e
+     * `ModDate`, ao segundo). Sem ela, como sempre, é o instante do desenho —
+     * e é a ÚNICA coisa que muda entre duas gerações do mesmo documento. Com
+     * ela, o mesmo documento dá os mesmos bytes: é o que deixa provar que um
+     * PDF guardado se refaz igual (`docs/ARQUIVO-DE-PDFS.md`). Não se vê em
+     * nenhuma página.
+     */
+    criadoEm?: Date;
   } = {},
   fontes: FontesDasFotos = {},
 ): Promise<{
@@ -239,7 +248,7 @@ function fotosDoPlano(plano: readonly Passo[]): FotosDoPdf {
 async function motor(
   original: ProposalDoc,
   idioma: IdiomaDaProposta,
-  { rascunho = false }: { rascunho?: boolean },
+  { rascunho = false, criadoEm }: { rascunho?: boolean; criadoEm?: Date },
   fontes: FontesDasFotos,
 ) {
   const doc = docNaLingua(original, idioma);
@@ -256,6 +265,11 @@ async function motor(
   const eurDoc = (n: number) => dinheiro(eurDocumento(n));
 
   const pdf = await PDFDocument.create();
+  // Por cima das que o `create` pôs: as mesmas chaves, no mesmo sítio.
+  if (criadoEm) {
+    pdf.setCreationDate(criadoEm);
+    pdf.setModificationDate(criadoEm);
+  }
   pdf.setTitle(
     `${rascunho ? `${te.rascunho} · ` : ""}${te.rodapeModelo(org)} · ${doc.clientNames}`,
   );

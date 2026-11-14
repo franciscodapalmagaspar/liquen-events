@@ -29,10 +29,12 @@ export interface Letras {
 export async function embutirLetras(pdf: PDFDocument): Promise<Letras> {
   pdf.registerFontkit(fontkit);
   const embutir = (b64: string) => pdf.embedFont(Buffer.from(b64, "base64"), { subset: true });
-  const [jost, bodoni] = await Promise.all([
-    embutir(JOST_400_TTF_B64),
-    embutir(BODONI_PRECO_TTF_B64),
-  ]);
+  // Uma a seguir à outra, e não ao mesmo tempo: a ordem em que entram dá-lhes
+  // o número do objecto no PDF, e tem de ser sempre a mesma para o mesmo
+  // documento dar os mesmos bytes (`docs/ARQUIVO-DE-PDFS.md`). Ler as letras
+  // é trabalho do processador, não de espera: em paralelo não se ganhava nada.
+  const jost = await embutir(JOST_400_TTF_B64);
+  const bodoni = await embutir(BODONI_PRECO_TTF_B64);
   return { jost, bodoni };
 }
 
