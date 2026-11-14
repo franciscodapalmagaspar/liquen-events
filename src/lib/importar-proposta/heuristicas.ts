@@ -282,13 +282,20 @@ export const PALAVRAS_FINANCEIRAS: readonly RegExp[] = [
   /remanescente/,
   /\bsaldo\b/,
   /\bentrada\b/,
-  // «Reserva do espaço» e «Reserva de mesa» são serviços; só estas não:
-  /^reserva$/,
-  /reserva da data/,
-  /valor da reserva/,
   /\bvalor global\b/,
   /\bvalor final\b/,
   /\bvalor da proposta\b/,
+];
+
+/**
+ * A reserva: «Reserva do espaço» e «Reserva de mesa» são serviços; só estas
+ * não. Testam-se no nome SEM parênteses e sem «de X%» — «Reserva (30%)» e
+ * «Reserva de 30%» são a reserva da data.
+ */
+export const PALAVRAS_DA_RESERVA: readonly RegExp[] = [
+  /^reserva$/,
+  /reserva da data/,
+  /valor da reserva/,
 ];
 
 /** As palavras do IVA: só contam no rótulo SEM o que está entre parênteses. */
@@ -318,9 +325,16 @@ export function eFinanceira(rotulo: string): boolean {
     .replace(/\([^)]*\)/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  const nucleo = semParenteses
+    .replace(/\bde\s+\d+(?:[.,]\d+)?\s*%/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   return (
     PALAVRAS_FINANCEIRAS.some((p) => p.test(r)) ||
-    PALAVRAS_DO_IVA.some((p) => p.test(semParenteses))
+    PALAVRAS_DO_IVA.some((p) => p.test(semParenteses)) ||
+    PALAVRAS_DA_RESERVA.some((p) => p.test(nucleo)) ||
+    // «Valor por pessoa»: um preço unitário, não um serviço.
+    (/^valor\b/.test(r) && ePorPessoa(r))
   );
 }
 

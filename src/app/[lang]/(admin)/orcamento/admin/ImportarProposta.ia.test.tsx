@@ -581,3 +581,75 @@ describe("10.ª revisão — a conferência do dinheiro, sem IA", () => {
     expect(urls).not.toContain("/api/orcamento/manual");
   });
 });
+
+describe("12.ª revisão — a conferência no browser", () => {
+  const regras = (frases: Parameters<typeof docx>[0]) =>
+    importarDocumento(docx(["Casamento Ana Teste & Rui Exemplo", ...frases]), { chamar: null });
+  const iva = (nome: "sem IVA" | "com IVA") =>
+    fireEvent.click(
+      within(screen.getByRole("group", { name: /O IVA dos valores do documento/ })).getByRole(
+        "radio",
+        { name: nome },
+      ),
+    );
+
+  it("1: duas linhas com o mesmo nome mostram cada uma o seu valor — o que se grava", async () => {
+    const { rascunhos } = preparar(
+      await regras([
+        "Centro de mesa TESTE: 120,00 €",
+        "Centro de mesa TESTE: 80,00 €",
+        "Total: 200,00 €",
+      ]),
+    );
+    await escolher();
+    iva("com IVA");
+    escolherOTotal(200);
+    const linhas = screen.getByTestId("linhas-do-documento");
+    const mostrado = [...linhas.querySelectorAll("li .tabular-nums")].map((x) => x.textContent);
+    // As duas linhas de serviço (a do «Total» vem a seguir, com o seu valor).
+    expect(mostrado.slice(0, 2)).toEqual([eur(97.56), eur(65.04)]);
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await waitFor(() => expect(rascunhos.length).toBe(1));
+    expect(rascunhos[0].doc.budgetAmounts).toEqual([97.56, 65.04]);
+  });
+
+  it("2: uma taxa que não se lê é um erro visível no campo, e o Criar espera", async () => {
+    const { urls } = preparar(await regras(["Flores TESTE: 100,00 €", "Total: 100,00 €"]));
+    await escolher();
+    iva("sem IVA");
+    escolherOTotal(100);
+    fireEvent.change(screen.getByLabelText(/Taxa do IVA/), { target: { value: "50" } });
+    expect(screen.getByText("uma taxa entre 0 e 30%")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await screen.findByText(/Falta .*uma taxa entre 0 e 30%/);
+    expect(urls).not.toContain("/api/orcamento/manual");
+  });
+
+  it("3: com uma sugestão de taxa e sem valores, o campo está à vista e não trava", async () => {
+    const { urls } = preparar(await regras(["Os preços levam IVA (6%)."]));
+    await escolher();
+    expect((screen.getByLabelText(/Taxa do IVA/) as HTMLInputElement).value).toBe("6");
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await waitFor(() => expect(urls).toContain("/api/orcamento/manual"));
+  });
+
+  it("4: a linha de desconto não tem interruptor", async () => {
+    preparar(await regras(["Flores TESTE: 1.000,00 €", "Desconto: 200,00 €", "Total: 800,00 €"]));
+    await escolher();
+    expect(screen.queryByRole("radiogroup", { name: "«Desconto» é um serviço?" })).toBeNull();
+    expect(
+      within(screen.getByTestId("linhas-do-documento")).getByText("desconto — põe à mão"),
+    ).toBeTruthy();
+  });
+
+  it("6: «-3000» em «outro valor» é um erro visível, nunca 3000", async () => {
+    const { urls } = preparar(await regras(["Flores TESTE: 3.000,00 €", "Total: 3.000,00 €"]));
+    await escolher();
+    iva("sem IVA");
+    fireEvent.change(screen.getByLabelText(/Valor total/), { target: { value: "-3000" } });
+    expect(screen.getByText("o total não pode ser negativo")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await screen.findByText(/Falta .*o total não pode ser negativo/);
+    expect(urls).not.toContain("/api/orcamento/manual");
+  });
+});

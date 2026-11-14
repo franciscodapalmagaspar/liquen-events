@@ -226,6 +226,10 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
   const linhasDoDocumento: LinhaDoDocumento[] = dinheiro
     .filter((d) => d.rotulo)
     .map((d) => {
+      // «Total por pessoa: 95 € × 120 = 11 400 €»: a linha inteira, legível,
+      // e o valor da conta (o último), não o rótulo cortado pelo primeiro valor.
+      const pessoa = candidataPorPessoa(d.linha);
+      if (pessoa) d = { ...d, rotulo: pessoa.rotulo, valor: pessoa.valor };
       const oferta = eOferta(d.rotulo);
       const servico = oferta || !eFinanceira(d.rotulo);
       return {

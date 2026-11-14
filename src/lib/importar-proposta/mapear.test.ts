@@ -561,3 +561,78 @@ describe("10.ª revisão — as heurísticas só sugerem; o dinheiro confirma-o 
     expect(somaDosServicos(p, c)).toBe(750);
   });
 });
+
+describe("12.ª revisão — a conferência no browser", () => {
+  const ler = (frases: Parameters<typeof docx>[0]) => mapearConteudo(extrairConteudo(docx(frases)));
+  const conferir = (p: ReturnType<typeof ler>, modo: "acrescer" | "incluido", valor: number) => {
+    const c = escolherModoDoIva(p, { ...correccoesIniciais(p), clientNames: "Ana" }, modo);
+    const x = p.candidatasAoTotal!.find((y) => y.valor === valor)!;
+    return escolherTotal(p, c, x.id);
+  };
+
+  it("2: uma taxa que não se lê nunca cai em silêncio para 23 %", () => {
+    const p = ler(["Flores TESTE: 123,00 €", "Total: 123,00 €"]);
+    const c = conferir(p, "incluido", 123);
+    expect(oQueFalta(c, p)).toEqual([]);
+    for (const taxa of ["50", "abc", "", "-5"]) {
+      const m = { ...c, taxa, taxaConfirmada: true };
+      expect(oQueFalta(m, p), taxa).toContain("uma taxa entre 0 e 30%");
+      // Nada se converte com uma taxa inventada.
+      expect(valoresQueVaoSerGravados(p, m).budgetAmounts, taxa).toEqual([null]);
+      expect(() => montarDocumento(p, m, new Map(), "x.docx"), taxa).toThrow(/taxa do IVA/);
+    }
+    // A gravada é a que está no campo.
+    const treze = { ...c, taxa: "13", taxaConfirmada: true };
+    expect(montarDocumento(p, treze, new Map(), "x.docx").vatRate).toBe(0.13);
+    expect(valoresQueVaoSerGravados(p, treze).budgetAmounts).toEqual([108.85]);
+  });
+
+  it("2: o documento sugere 6 % e ela apaga o campo — pede uma taxa", () => {
+    const p = ler(["Livros TESTE: 106,00 €", "IVA (6%): 6,00 €", "Total: 106,00 €"]);
+    const c = { ...conferir(p, "incluido", 106), taxa: "", taxaConfirmada: true };
+    expect(oQueFalta(c, p)).toEqual(["uma taxa entre 0 e 30%"]);
+  });
+
+  it("3: sem valores, a sugestão da taxa não trava o criar", () => {
+    const p = ler(["Casamento Ana Teste & Rui Exemplo", "Os preços levam IVA (6%)."]);
+    expect(p.taxaSugerida).toBe(0.06);
+    expect(p.ivaPorEscolher).toBeFalsy();
+    expect(oQueFalta(correccoesIniciais(p), p)).toEqual([]);
+  });
+
+  it("4: um desconto nunca passa a serviço, nem a +200 €", () => {
+    const p = ler(["Flores TESTE: 1.000,00 €", "Desconto: 200,00 €", "Total: 800,00 €"]);
+    const d = p.linhasDoDocumento!.find((l) => l.desconto)!;
+    const c = { ...conferir(p, "acrescer", 800), servicoDaLinha: { [d.chave]: true } };
+    expect(propostaConferida(p, c).budgetItems).toEqual(["Flores TESTE"]);
+    expect(valoresQueVaoSerGravados(p, c).budgetAmounts).toEqual([1000]);
+    expect(avisosDosDescontos(p, c)).toHaveLength(1);
+  });
+
+  it("5: «Reserva (30%)», «Reserva de 30%» e «Valor por pessoa» não são serviço", () => {
+    const p = ler([
+      "Flores TESTE: 1.000,00 €",
+      "Reserva (30%): 300,00 €",
+      "Reserva de 30%: 300,00 €",
+      "Valor por pessoa: 95,00 €",
+      "Reserva do espaço TESTE: 200,00 €",
+      "Total: 1.200,00 €",
+    ]);
+    expect(p.budgetItems).toEqual(["Flores TESTE", "Reserva do espaço TESTE"]);
+  });
+
+  it("5: a linha «Total por pessoa: 95 € × 120 = 11 400 €» mostra-se inteira", () => {
+    const p = ler(["Jantar TESTE: 11.400,00 €", "Total por pessoa: 95 € × 120 = 11 400 €"]);
+    const l = p.linhasDoDocumento!.find((x) => !x.servico)!;
+    expect(l.rotulo).toBe("Total por pessoa: 95 € × 120 = 11 400 €");
+    expect(l.valor).toBe(11400);
+  });
+
+  it("6: «-3000» em «outro valor» é um erro, nunca 3000", () => {
+    const p = ler(["Flores TESTE: 3.000,00 €", "Total: 3.000,00 €"]);
+    const c = { ...escolherTotal(p, conferir(p, "acrescer", 3000), "outro"), total: "-3000" };
+    expect(oQueFalta(c, p)).toContain("o total não pode ser negativo");
+    expect(valoresQueVaoSerGravados(p, c).totalAmount).toBeNull();
+    for (const t of ["-3000", "− 3.000,00", "(3000)"]) expect(totalEscrito(t), t).toBeNull();
+  });
+});

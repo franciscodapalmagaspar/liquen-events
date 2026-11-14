@@ -20,6 +20,7 @@ import {
   propostaConferida,
   taxaDe,
   taxaSugeridaDe,
+  eNegativo,
   usarASoma,
   totalEscrito,
   montarDocumento,
@@ -318,6 +319,12 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
   const pEf = proposta && c ? propostaConferida(proposta, c) : proposta;
   const candidatas = proposta && c ? candidatasOrdenadas(proposta, c) : [];
   const taxaSugerida = proposta ? taxaSugeridaDe(proposta) : undefined;
+  const taxaAgora = c ? taxaDe(c) : null;
+  const posicaoDoServico = new Map(
+    (proposta?.linhasDoDocumento ?? [])
+      .filter((l) => c && eServico(l, c))
+      .map((l, i) => [l.chave, i]),
+  );
   const semTotalPorConfirmar = Boolean(
     c &&
     !c.total.trim() &&
@@ -723,7 +730,9 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
               >
                 {proposta.linhasDoDocumento.map((l) => {
                   const servico = eServico(l, c);
-                  const k = servico ? (pEf?.budgetItems.indexOf(l.rotulo) ?? -1) : -1;
+                  // A posição desta linha entre os serviços (pela chave, nunca pelo
+                  // nome: duas «Centro de mesa» são duas linhas).
+                  const k = servico ? (posicaoDoServico.get(l.chave) ?? -1) : -1;
                   const convertido = k >= 0 ? aGravar.budgetAmounts[k] : null;
                   return (
                     <li
@@ -740,25 +749,34 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                         <span className="tabular-nums text-[var(--bo-tinta-72)]">
                           {eur(convertido ?? l.valor)}
                         </span>
-                        <Segmented<"sim" | "nao">
-                          ariaLabel={`«${l.rotulo}» é um serviço?`}
-                          size="sm"
-                          value={servico ? "sim" : "nao"}
-                          onChange={(v) =>
-                            setC((x) =>
-                              x
-                                ? {
-                                    ...x,
-                                    servicoDaLinha: { ...x.servicoDaLinha, [l.chave]: v === "sim" },
-                                  }
-                                : x,
-                            )
-                          }
-                          options={[
-                            { value: "sim", label: "serviço" },
-                            { value: "nao", label: "não é serviço" },
-                          ]}
-                        />
+                        {l.desconto ? (
+                          <span className="font-semibold text-[var(--bo-perigo)]">
+                            desconto — põe à mão
+                          </span>
+                        ) : (
+                          <Segmented<"sim" | "nao">
+                            ariaLabel={`«${l.rotulo}» é um serviço?`}
+                            size="sm"
+                            value={servico ? "sim" : "nao"}
+                            onChange={(v) =>
+                              setC((x) =>
+                                x
+                                  ? {
+                                      ...x,
+                                      servicoDaLinha: {
+                                        ...x.servicoDaLinha,
+                                        [l.chave]: v === "sim",
+                                      },
+                                    }
+                                  : x,
+                              )
+                            }
+                            options={[
+                              { value: "sim", label: "serviço" },
+                              { value: "nao", label: "não é serviço" },
+                            ]}
+                          />
+                        )}
                       </span>
                     </li>
                   );
@@ -836,6 +854,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                 variant="underline"
                 label="Valor total"
                 inputMode="decimal"
+                error={eNegativo(c.total) ? "o total não pode ser negativo" : undefined}
                 value={c.total}
                 onChange={(e) => {
                   const total = e.target.value;
@@ -874,8 +893,8 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                   className="text-footnote font-semibold text-[var(--bo-text-muted)]"
                 >
                   IVA
-                  {Math.abs(taxaDe(c) - 0.23) > 1e-9
-                    ? ` a ${String(Math.round(taxaDe(c) * 10000) / 100).replace(".", ",")}%`
+                  {taxaAgora !== null && Math.abs(taxaAgora - 0.23) > 1e-9
+                    ? ` a ${String(Math.round(taxaAgora * 10000) / 100).replace(".", ",")}%`
                     : ""}
                   {!c.totalVatMode && <Marca c="nada" />}
                 </span>
@@ -901,10 +920,11 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                   />
                 )}
               </div>
-              {mostrarIva ? (
+              {mostrarIva || taxaSugerida !== undefined ? (
                 <Field
                   variant="underline"
                   label="Taxa do IVA (%)"
+                  error={taxaDe(c) === null ? "uma taxa entre 0 e 30%" : undefined}
                   inputMode="decimal"
                   value={c.taxa ?? ""}
                   onChange={(e) => {

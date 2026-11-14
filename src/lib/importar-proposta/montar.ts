@@ -66,15 +66,17 @@ export interface AvisoDoEcra {
 const percentagem = (taxa: number) => String(Math.round(taxa * 10000) / 100).replace(".", ",");
 
 /**
- * A taxa do IVA que vale: a do campo dela (0 a 30 %), ou 23 %. A do documento
- * é só a sugestão com que o campo começa (`correccoesIniciais`).
+ * A taxa do IVA que vale: a do campo dela, entre 0 e 30 %. A do documento é só
+ * a sugestão com que o campo começa (`correccoesIniciais`). Um campo que não
+ * se lê («50», «abc», vazio) dá `null` — NUNCA cai em silêncio para 23 %:
+ * `oQueFalta` pede «uma taxa entre 0 e 30%» e nada se converte nem grava.
+ * (Sem campo nenhum — correcções antigas — vale a da casa.)
  */
-export function taxaDe(c: Pick<Correccoes, "taxa">): number {
-  const t = (c.taxa ?? "").replace("%", "").replace(",", ".").trim();
+export function taxaDe(c: Pick<Correccoes, "taxa">): number | null {
+  if (c.taxa === undefined) return DEFAULT_VAT_RATE;
+  const t = c.taxa.replace("%", "").replace(",", ".").trim();
   const n = Number(t);
-  return t && Number.isFinite(n) && n >= 0 && n <= 30
-    ? Math.round(n * 100) / 10000
-    : DEFAULT_VAT_RATE;
+  return t && Number.isFinite(n) && n >= 0 && n <= 30 ? Math.round(n * 100) / 10000 : null;
 }
 
 /** A taxa sugerida pelo documento, quando não é 23 % (as duas vias). */
@@ -85,6 +87,9 @@ export function taxaSugeridaDe(p: PropostaImportada): number | undefined {
 
 /** A linha é um serviço? A escolha dela, senão a sugestão da heurística. */
 export function eServico(l: LinhaDoDocumento, c: Pick<Correccoes, "servicoDaLinha">): boolean {
+  // Um desconto nunca passa a serviço (seria +X € em vez de −X €): fica fora,
+  // com o aviso «põe à mão», e não tem interruptor no ecrã.
+  if (l.desconto) return false;
   return c.servicoDaLinha?.[l.chave] ?? l.servico;
 }
 
@@ -139,7 +144,7 @@ export function candidatasOrdenadas(
   const taxa = taxaDe(c);
   const valores = [...new Set(cands.map((x) => x.valor))].sort((a, b) => a - b);
   const pares: [number, number][] = [];
-  for (let i = 0; i < valores.length; i++) {
+  for (let i = 0; taxa !== null && i < valores.length; i++) {
     for (let j = i + 1; j < valores.length; j++) {
       if (Math.round(valores[i] * (1 + taxa) * 100) === Math.round(valores[j] * 100)) {
         pares.push([valores[i], valores[j]]);
@@ -249,10 +254,15 @@ export function juntarCorreccoes(
 
 /** O total escrito, em número; `null` quando está vazio ou não se lê. */
 export function totalEscrito(texto: string): number | null {
-  if (!/\d/.test(texto)) return null;
+  if (!/\d/.test(texto) || eNegativo(texto)) return null;
   // A mesma leitura do resto da casa (`parseMoneyText`).
   const n = parseMoneyText(texto);
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+}
+
+/** «-3000», «− 3000», «(3000)»: um total negativo — erro, nunca 3000. */
+export function eNegativo(texto: string): boolean {
+  return /^\s*[-−–]|^\s*\(.*\)\s*$/.test(texto);
 }
 
 /** O que ainda impede criar. Vazio = pode criar. */
@@ -283,12 +293,22 @@ export function oQueFalta(
         : "dizer se o total inclui IVA",
     );
   }
+  // A taxa só se pede quando há dinheiro — e então o campo está à vista
+  // (`ImportarProposta`: com IVA a escolher, total, linhas, ou sugestão).
+  const haDinheiro = Boolean(p?.ivaPorEscolher) || totalEscrito(c.total) !== null;
+  if (haDinheiro && taxaDe(c) === null) falta.push("uma taxa entre 0 e 30%");
   const sugerida = p ? (p.taxaSugerida ?? p.vatRate) : undefined;
-  if (sugerida !== undefined && Math.abs(sugerida - DEFAULT_VAT_RATE) > 1e-9 && !c.taxaConfirmada) {
+  if (
+    haDinheiro &&
+    sugerida !== undefined &&
+    Math.abs(sugerida - DEFAULT_VAT_RATE) > 1e-9 &&
+    !c.taxaConfirmada
+  ) {
     falta.push(`confirmar a taxa do IVA (o documento sugere ${percentagem(sugerida)}%)`);
   }
   if (!c.clientNames.trim()) falta.push("o nome do cliente");
-  if (c.total.trim() && totalEscrito(c.total) === null) falta.push("um total que se leia");
+  if (eNegativo(c.total)) falta.push("o total não pode ser negativo");
+  else if (c.total.trim() && totalEscrito(c.total) === null) falta.push("um total que se leia");
   return falta;
 }
 
@@ -308,6 +328,7 @@ export function avisoDaSomaGravada(p: PropostaImportada, c: Correccoes): AvisoDo
   if (!vals.length) return null;
   const soma = round2(vals.reduce((a, b) => a + b, 0));
   const taxa = taxaDe(c);
+  if (taxa === null) return null;
   const base = resolveProposalMoney({
     totalAmount: g.totalAmount,
     totalVatMode: g.totalVatMode,
@@ -397,16 +418,17 @@ export function valoresQueVaoSerGravados(
   c: Correccoes,
 ): { budgetAmounts: (number | null)[]; totalAmount: number | null; totalVatMode: VatMode | null } {
   p = propostaConferida(p, c);
+  const taxa = taxaDe(c);
   const total = totalEscrito(c.total);
   const modo = total !== null ? c.totalVatMode : null;
   const budgetAmounts =
     p.ivaPorEscolher && p.linhasEscritas
-      ? c.totalVatMode
+      ? c.totalVatMode && taxa !== null
         ? valoresSemIvaDasLinhas(
             p.linhasEscritas,
             p.linhasNormais ?? p.linhasEscritas.map(() => true),
             c.totalVatMode,
-            taxaDe(c),
+            taxa,
           )
         : p.linhasEscritas.map(() => null)
       : [...p.budgetAmounts];
@@ -461,6 +483,8 @@ export function montarDocumento(
   const amounts = valoresQueVaoSerGravados(p, c).budgetAmounts;
   p = propostaConferida(p, c);
   const taxa = taxaDe(c);
+  // `oQueFalta` não deixa chegar aqui com uma taxa que não se lê.
+  if (taxa === null) throw new Error("A taxa do IVA não se lê: corrige-a antes de criar.");
   const total = totalEscrito(c.total);
   const modo = total !== null ? c.totalVatMode : null;
   // Os valores das linhas passam pelo que ELA escolheu — a mesma função do ecrã

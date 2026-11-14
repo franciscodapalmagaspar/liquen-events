@@ -290,3 +290,14 @@ describe("10.ª revisão — as sugestões das linhas, do total e da taxa", () =
     }
   });
 });
+
+describe("12.ª revisão — a reserva sem parênteses nem «de X%»", () => {
+  it("«Reserva (30%)», «Reserva de 30%» e «Valor por pessoa» não são serviço", () => {
+    for (const r of ["Reserva (30%)", "Reserva de 30%", "Reserva de 30 %", "Valor por pessoa"]) {
+      expect(eFinanceira(r), r).toBe(true);
+    }
+    for (const r of ["Reserva do espaço", "Reserva de mesa (30 lugares)"]) {
+      expect(eFinanceira(r), r).toBe(false);
+    }
+  });
+});
