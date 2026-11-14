@@ -82,6 +82,8 @@ type Resultado = {
   emEspera: number;
   apagadas: number;
   acabou: boolean;
+  /** As pastas que saíram esta noite (`<pedido>/`) — para o índice visual. */
+  pastasApagadas?: string[];
 };
 
 export async function limparPastasDePedidosApagados(
@@ -169,6 +171,7 @@ export async function limparPastasDePedidosApagados(
   }
 
   let apagadas = 0;
+  const pastasApagadas: string[] = [];
   for (const { pasta, ficheiros } of prontas) {
     if (apagadas >= POR_NOITE || Date.now() > fim) break;
     const visto = espera[pasta];
@@ -176,6 +179,7 @@ export async function limparPastasDePedidosApagados(
     if (Number.isNaN(desde) || agora.getTime() - desde < ESPERA_DIAS * DIA_MS) continue;
     if (await apagarPastaDoPedido(pasta)) {
       apagadas++;
+      pastasApagadas.push(`${pasta}/`);
       delete espera[pasta];
       log.info("limpeza: pasta de pedido apagado saiu do armazenamento", {
         pasta,
@@ -189,6 +193,7 @@ export async function limparPastasDePedidosApagados(
     candidatas: prontas.length,
     emEspera: Object.keys(espera).length,
     apagadas,
+    pastasApagadas,
     acabou: true,
   };
 }

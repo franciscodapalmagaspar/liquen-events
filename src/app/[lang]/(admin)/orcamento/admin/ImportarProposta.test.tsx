@@ -405,8 +405,8 @@ describe("Importar proposta antiga", () => {
 
   describe("pelo que mostram (13/11): a zona cinzenta pergunta-se", () => {
     /** cer1 parece-se com uma da Biblioteca («talvez»); cer2 é «a mesma» noutro ficheiro. */
-    function comParecidas() {
-      const r = preparar();
+    function comParecidas(rascunhoFalhaUmaVez = false) {
+      const r = preparar(false, FICHEIRO, rascunhoFalhaUmaVez);
       const antes = globalThis.fetch as unknown as (u: string, i?: RequestInit) => Promise<unknown>;
       vi.stubGlobal(
         "fetch",
@@ -478,6 +478,44 @@ describe("Importar proposta antiga", () => {
       await waitFor(() => expect(onCreated).toHaveBeenCalled());
       expect(enviadas(chamadas)).toHaveLength(0);
       expect(rascunho(chamadas)).toContain("tema:t1/parecida.jpg");
+    });
+
+    it("«É a mesma» → o rascunho falha → «É outra» → Continuar: a foto dela SOBE e a da Biblioteca sai", async () => {
+      const { chamadas, onCreated } = comParecidas(true);
+      await escolherFicheiro();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("radio", { name: "Acresce IVA" }));
+      await user.click(screen.getByRole("radio", { name: "É a mesma" }));
+      await user.click(
+        screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+      );
+      const continuar = await screen.findByRole("button", { name: /Continuar a importação/ });
+      expect(enviadas(chamadas)).toHaveLength(0);
+      await user.click(screen.getByRole("radio", { name: "É outra" }));
+      await user.click(continuar);
+      await waitFor(() => expect(onCreated).toHaveBeenCalled());
+      expect(enviadas(chamadas).map((f) => (f.get("files") as File).name)).toEqual(["cer1.jpeg"]);
+      const doc = rascunho(chamadas.filter((c) => c.url.endsWith("/proposta-rascunho")).slice(-1));
+      expect(doc).not.toContain("tema:t1/parecida.jpg");
+      expect(doc).toContain("LIQ-IMP-1/foto1.jpg");
+    });
+
+    it("e no sentido contrário: «É outra» (sobe) → falha → «É a mesma» → entra a da Biblioteca", async () => {
+      const { chamadas, onCreated } = comParecidas(true);
+      await escolherFicheiro();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("radio", { name: "Acresce IVA" }));
+      await user.click(screen.getByRole("radio", { name: "É outra" }));
+      await user.click(
+        screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+      );
+      const continuar = await screen.findByRole("button", { name: /Continuar a importação/ });
+      await user.click(screen.getByRole("radio", { name: "É a mesma" }));
+      await user.click(continuar);
+      await waitFor(() => expect(onCreated).toHaveBeenCalled());
+      const doc = rascunho(chamadas.filter((c) => c.url.endsWith("/proposta-rascunho")).slice(-1));
+      expect(doc).toContain("tema:t1/parecida.jpg");
+      expect(doc).not.toContain("LIQ-IMP-1/foto1.jpg");
     });
 
     it("«É outra» sobe como nova", async () => {

@@ -906,12 +906,22 @@ export async function limparExpiradas(
   lote = 50,
   /** Uma pasta grande demora: o que não couber neste tempo fica para amanhã. */
   tectoMs = 40_000,
-): Promise<{ apagadas: number; ficaram: number }> {
+): Promise<{
+  apagadas: number;
+  ficaram: number;
+  /**
+   * As pastas de fotografias que podem ter saído (`<pedido>/`, `tema:<tema>/`):
+   * a tarefa da noite passa-as ao índice visual, para não calcular impressões
+   * de fotos que já não existem (revisão de 13/11).
+   */
+  pastasApagadas: string[];
+}> {
   const comeco = Date.now();
   const todas = await listarReciclagem();
   const expiradas = todas.filter((e) => saiEm(e).getTime() <= agora.getTime()).slice(0, lote);
   let apagadas = 0;
   let ficaram = 0;
+  const pastasApagadas: string[] = [];
   for (const e of expiradas) {
     if (Date.now() - comeco > tectoMs) break;
     // Os ficheiros primeiro: se não saírem, a entrada fica (e com ela a
@@ -919,9 +929,11 @@ export async function limparExpiradas(
     if (await largarFicheiros(e)) {
       await tirarDaReciclagem(e.id);
       apagadas++;
+      if (e.tipo === "pedido") pastasApagadas.push(`${e.origemId}/`);
+      if (e.tipo === "tema") pastasApagadas.push(`tema:${e.origemId}/`);
     } else {
       ficaram++;
     }
   }
-  return { apagadas, ficaram };
+  return { apagadas, ficaram, pastasApagadas };
 }

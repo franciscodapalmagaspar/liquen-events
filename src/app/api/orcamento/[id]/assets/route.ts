@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 import { isAuthed } from "@/lib/admin-auth";
 import {
+  caminhoDoCarregamento,
   uploadProposalImage,
   uploadProposalMid,
   uploadProposalThumb,
@@ -21,7 +22,7 @@ import { corNormalizada } from "@/lib/cor";
 import { coresDeCaminhos, garantirFoto, updateFoto } from "@/lib/biblioteca-fotos-store";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
-import { procurarExistentes, registarResumos, resumoDosBytes } from "@/lib/fotos-resumo";
+import { existe, procurarExistentes, registarResumos, resumoDosBytes } from "@/lib/fotos-resumo";
 import { impressaoDosBytes, registarImpressao } from "@/lib/fotos-parecidas";
 import { lerEspaco, MARGEM_DAS_DERIVADAS, somarCarregado } from "@/lib/ocupacao-do-armazenamento";
 import {
@@ -388,27 +389,21 @@ async function POST_semMedida(
    * `importacao`: o carregamento vem da importação de propostas antigas, e
    * passa pelo travão (nunca acima de 90% do plano). Conta-se o original e
    * uma margem para a média e a miniatura que vêm com ele
-   * ({@link MARGEM_DAS_DERIVADAS}).
+   * ({@link MARGEM_DAS_DERIVADAS}). A verificação é feita foto a foto, DEPOIS
+   * de se saber que ela não está já guardada (pelo resumo, ou por uma
+   * tentativa anterior com a mesma chave): uma foto que não ocupa nada nunca
+   * leva um 507 (revisão de 13/11).
    */
   const daImportacao = form.get("importacao") === "1";
-  if (daImportacao) {
-    try {
-      const espaco = await lerEspaco();
-      const pedidos = Math.ceil(files.reduce((s, f) => s + f.size, 0) * MARGEM_DAS_DERIVADAS);
-      if (espaco.conhecido && espaco.sobra < pedidos) {
-        return NextResponse.json(
-          {
-            error:
-              "O armazenamento chegou ao travão (90% do plano). A fotografia não foi guardada — junta-a depois, quando houver espaço.",
-            travao: true,
-          },
-          { status: 507 },
-        );
-      }
-    } catch {
-      /* não se sabe — o importador já fez a conta antes de começar */
-    }
-  }
+  let espacoLido: Promise<{ conhecido: boolean; sobra: number } | null> | null = null;
+  const passaDoTravao = async (bytes: number): Promise<boolean> => {
+    if (!daImportacao) return false;
+    espacoLido ??= lerEspaco().catch(() => null);
+    const espaco = await espacoLido;
+    // Não se sabe — o importador já fez a conta antes de começar.
+    if (!espaco?.conhecido) return false;
+    return espaco.sobra < Math.ceil(bytes * MARGEM_DAS_DERIVADAS);
+  };
 
   const resumosCrus = form.getAll("resumos").map((v) => (typeof v === "string" ? v : ""));
   const resumosDoOriginal: (string | null)[] =
@@ -568,6 +563,24 @@ async function POST_semMedida(
 
     // A chave do carregamento (uma por foto, gerada no navegador): a mesma foto
     // repetida depois de uma rede que falhou vai para o MESMO caminho.
+    // O travão, só agora: a foto não estava guardada pelo resumo. Uma
+    // tentativa anterior com a mesma chave também não conta (já lá está).
+    if (await passaDoTravao(file.size)) {
+      const anterior = caminhoDoCarregamento(id, pronto.contentType, chaves[indice]);
+      const jaLaEsta = anterior
+        ? (await existe(PROPOSAL_BUCKET_DO_TRAVAO, anterior)) === true
+        : false;
+      if (!jaLaEsta) {
+        return NextResponse.json(
+          {
+            error:
+              "O armazenamento chegou ao travão (90% do plano). A fotografia não foi guardada — junta-a depois, quando houver espaço.",
+            travao: true,
+          },
+          { status: 507 },
+        );
+      }
+    }
     const res = await uploadProposalImage(id, pronto.bytes, pronto.contentType, chaves[indice]);
     if (!res) {
       log.error("assets: upload falhou", null, { id, name: file.name });

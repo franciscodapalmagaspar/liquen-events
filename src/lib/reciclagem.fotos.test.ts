@@ -149,7 +149,12 @@ describe("a limpeza dos 30 dias, com ficheiros", () => {
       velha({ id: "e1", tipo: "tema", origemId: "t-9" }),
       velha({ id: "e2", tipo: "pedido", origemId: "LIQ-9" }),
     ];
-    expect(await limparExpiradas()).toEqual({ apagadas: 2, ficaram: 0 });
+    expect(await limparExpiradas()).toEqual({
+      apagadas: 2,
+      ficaram: 0,
+      // As pastas que saíram vão para o índice visual da mesma noite.
+      pastasApagadas: ["tema:t-9/", "LIQ-9/"],
+    });
     expect(st.pastaDoTema).toHaveBeenCalledWith("t-9");
     expect(st.pastaDoPedido).toHaveBeenCalledWith("LIQ-9");
     expect(st.entradas).toEqual([]);
@@ -170,13 +175,17 @@ describe("a limpeza dos 30 dias, com ficheiros", () => {
   it("a pasta que não sai deixa a entrada para amanhã", async () => {
     st.pastaDoTema.mockResolvedValueOnce({ ok: false, removed: 0 });
     st.entradas = [velha({ id: "e1", tipo: "tema", origemId: "t-9" })];
-    expect(await limparExpiradas()).toEqual({ apagadas: 0, ficaram: 1 });
+    expect(await limparExpiradas()).toEqual({ apagadas: 0, ficaram: 1, pastasApagadas: [] });
     expect(st.entradas).toHaveLength(1);
   });
 
   it("pára no tecto de tempo — o resto fica para amanhã", async () => {
     st.entradas = [velha({ id: "e1", tipo: "tema", origemId: "t-9" })];
-    expect(await limparExpiradas(new Date(), 50, -1)).toEqual({ apagadas: 0, ficaram: 0 });
+    expect(await limparExpiradas(new Date(), 50, -1)).toEqual({
+      apagadas: 0,
+      ficaram: 0,
+      pastasApagadas: [],
+    });
     expect(st.entradas).toHaveLength(1);
   });
 });

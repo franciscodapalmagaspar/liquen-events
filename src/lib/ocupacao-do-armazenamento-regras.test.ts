@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  bucketsAMedir,
   BYTES_POR_FOTO_NOVA,
+  FOLGA_DO_SERVIDOR_BYTES,
   espacoQueSobra,
   fotosQueCabem,
   LIMITE_DO_PLANO_BYTES,
@@ -28,14 +30,15 @@ describe("o travão do armazenamento", () => {
     const e = espacoQueSobra(oc(695_000_000), { "proposal-assets": 5_000_000, x: "lixo" });
     expect(e.conhecido).toBe(true);
     expect(e.ocupado).toBe(700_000_000);
-    expect(e.sobra).toBe(200_000_000);
+    // O que sobra já desconta a folga do que o servidor guarda sozinho.
+    expect(e.sobra).toBe(200_000_000 - FOLGA_DO_SERVIDOR_BYTES);
   });
 
   it("nunca deixa subir o que passaria do travão", () => {
-    const e = espacoQueSobra(oc(899_000_000), {});
+    const e = espacoQueSobra(oc(899_000_000 - FOLGA_DO_SERVIDOR_BYTES), {});
     const cabem = fotosQueCabem(e, 200);
     expect(cabem).toBe(Math.floor(1_000_000 / BYTES_POR_FOTO_NOVA));
-    expect(e.ocupado + cabem * BYTES_POR_FOTO_NOVA).toBeLessThanOrEqual(
+    expect(e.ocupado + FOLGA_DO_SERVIDOR_BYTES + cabem * BYTES_POR_FOTO_NOVA).toBeLessThanOrEqual(
       LIMITE_DO_PLANO_BYTES * TRAVAO,
     );
     // Acima do travão: zero, nunca negativo.
@@ -58,5 +61,37 @@ describe("o travão do armazenamento", () => {
     const depois = Date.parse("2026-11-13T03:00:00Z");
     expect(espacoQueSobra(velha, {}, depois).conhecido).toBe(false);
     expect(fotosQueCabem(espacoQueSobra(velha, {}, depois), 200)).toBe(TECTO_SEM_MEDICAO);
+  });
+
+  it("reserva uma folga para o que o servidor guarda sozinho (PDF, fotos tratadas, AVIF)", () => {
+    const tecto = LIMITE_DO_PLANO_BYTES * TRAVAO;
+    // Medido a 1 MB da folga do travão: já não cabe nada.
+    expect(fotosQueCabem(espacoQueSobra(oc(tecto - FOLGA_DO_SERVIDOR_BYTES), {}), 200)).toBe(0);
+    expect(FOLGA_DO_SERVIDOR_BYTES).toBeGreaterThanOrEqual(30_000_000);
+  });
+
+  it("de noite: os PDF e as fotos tratadas medem-se SEMPRE, primeiro; os outros, de semana a semana", () => {
+    const agora = Date.parse("2026-11-14T03:00:00Z");
+    const ontem = "2026-11-13T03:00:00Z";
+    const ha8dias = "2026-11-06T03:00:00Z";
+    const nomes = [
+      "proposal-assets",
+      "theme-thumbs",
+      "proposal-pdfs",
+      "fotos-editoriais",
+      "theme-avif",
+    ];
+    const r = bucketsAMedir(
+      nomes,
+      new Set(["proposal-assets"]),
+      {
+        "proposal-pdfs": { medidoEm: ontem },
+        "fotos-editoriais": { medidoEm: ontem },
+        "theme-thumbs": { medidoEm: ontem },
+        "theme-avif": { medidoEm: ha8dias },
+      },
+      agora,
+    );
+    expect(r).toEqual(["proposal-pdfs", "fotos-editoriais", "theme-avif"]);
   });
 });

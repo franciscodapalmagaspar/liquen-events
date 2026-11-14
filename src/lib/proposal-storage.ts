@@ -495,6 +495,21 @@ function jaExiste(error: unknown): boolean {
 /** Um identificador de carregamento válido (o uuid que o estúdio gera). */
 const CHAVE_DE_CARREGAMENTO = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * O caminho onde `uploadProposalImage` guardaria esta foto com esta chave —
+ * `null` sem chave válida (aí o nome é aleatório). Serve para saber, ANTES de
+ * enviar, se uma tentativa anterior com a mesma chave já lá a deixou.
+ */
+export function caminhoDoCarregamento(
+  quoteId: string,
+  contentType: string,
+  chave?: string,
+): string | null {
+  if (!chave || !CHAVE_DE_CARREGAMENTO.test(chave)) return null;
+  const safeId = quoteId.replace(/[^a-zA-Z0-9_-]/g, "");
+  return `${safeId}/${chave.toLowerCase()}.${extFor(contentType)}`;
+}
+
 export async function uploadProposalImage(
   quoteId: string,
   bytes: Buffer,

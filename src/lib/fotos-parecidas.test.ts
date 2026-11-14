@@ -161,8 +161,66 @@ describe("o preenchimento da noite", () => {
       },
     });
     expect(r.parou).toBe("tempo");
-    expect(r.calculadas).toBe(10); // dois lotes de 5: o 3.º já não começa
-    expect(r.faltam).toBe(20);
+    // Cinco a ler ao mesmo tempo: as que começaram antes do prazo acabam.
+    expect(r.calculadas).toBeGreaterThan(0);
+    expect(r.calculadas).toBeLessThan(15);
+    expect(r.faltam).toBe(30 - r.calculadas);
+  });
+
+  it("o ritmo: lê várias ao mesmo tempo e grava UMA vez por linha do índice", async () => {
+    // Cada leitura demora 40 ms de verdade. Uma a uma, em 1 s, eram ~25.
+    const escritas = vi.spyOn(await import("@/lib/app-state"), "gravarEstadoSeNaoMudou");
+    escritas.mockClear();
+    const r = await M.preencherImpressoes(manifesto(400), {
+      prazoMs: 1_000,
+      lerMiniatura: async () => {
+        await new Promise((ok) => setTimeout(ok, 40));
+        return miniatura();
+      },
+    });
+    expect(r.calculadas).toBeGreaterThan(100);
+    // Uma escrita por linha tocada (são 64 linhas no índice), não uma por foto.
+    expect(escritas.mock.calls.length).toBeLessThanOrEqual(64);
+    expect(new Set(escritas.mock.calls.map((c) => c[0])).size).toBe(escritas.mock.calls.length);
+  });
+
+  it("a Reciclagem da Biblioteca (`reciclagem/<entrada>/x.jpg`) não entra no índice", () => {
+    expect(M.caminhoDaEntrada("theme-assets/reciclagem/e-1/x.jpg")).toBeNull();
+    expect(M.caminhoDaEntrada("theme-assets/tema1/x.jpg")).toBe("tema:tema1/x.jpg");
+    expect(M.caminhoDaEntrada("proposal-assets/LIQ-1/x.jpg")).toBe("LIQ-1/x.jpg");
+  });
+
+  it("uma miniatura que o `sharp` não lê: tenta a média", async () => {
+    const r = await M.preencherImpressoes(manifesto(1), {
+      prazoMs: 60_000,
+      lerMiniatura: async () => Buffer.from("isto não é uma imagem"),
+      lerMedia: miniatura,
+    });
+    expect(r).toMatchObject({ calculadas: 1, semMiniatura: 0 });
+  });
+
+  it("uma marcada «sem impressão» volta a ser tentada passados 14 dias", async () => {
+    const dia = (d: string) => Date.parse(d);
+    await M.preencherImpressoes(manifesto(1), {
+      prazoMs: 60_000,
+      agora: () => dia("2026-11-01T03:00:00Z"),
+      lerMiniatura: async () => "nao-existe",
+    });
+    const ler = vi.fn(miniatura);
+    const r1 = await M.preencherImpressoes(manifesto(1), {
+      prazoMs: 60_000,
+      agora: () => dia("2026-11-10T03:00:00Z"),
+      lerMiniatura: ler,
+    });
+    expect(ler).not.toHaveBeenCalled();
+    expect(r1.jaTinham).toBe(1);
+    const r2 = await M.preencherImpressoes(manifesto(1), {
+      prazoMs: 60_000,
+      agora: () => dia("2026-11-16T03:00:00Z"),
+      lerMiniatura: ler,
+    });
+    expect(ler).toHaveBeenCalledTimes(1);
+    expect(r2.calculadas).toBe(1);
   });
 
   it("uma sem miniatura fica marcada (não volta a ser lida) e nunca é encontrada", async () => {
@@ -211,6 +269,17 @@ describe("o preenchimento da noite", () => {
     expect(r.esquecidas).toBe(1);
     const ind = await M.lerIndiceVisual();
     expect([...ind!.keys()]).toEqual(["tema:tema2/f0002.jpg"]);
+  });
+
+  it("uma PASTA apagada depois do manifesto (órfã, Reciclagem) também fica de fora", async () => {
+    const ler = vi.fn(miniatura);
+    await M.preencherImpressoes(manifesto(3), {
+      prazoMs: 60_000,
+      lerMiniatura: ler,
+      apagadosDepois: ["tema:tema0/", "tema:tema2/"],
+    });
+    expect(ler).toHaveBeenCalledTimes(1);
+    expect([...(await M.lerIndiceVisual())!.keys()]).toEqual(["tema:tema1/f0001.jpg"]);
   });
 
   it("com o manifesto completo, tira do índice o que já não existe", async () => {

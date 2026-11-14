@@ -52,6 +52,8 @@ vi.mock("@/lib/themes-store", () => ({
 }));
 vi.mock("@/lib/proposal-storage", () => ({
   uploadProposalImage: uploads.upload,
+  caminhoDoCarregamento: (id: string, _t: string, chave?: string) =>
+    chave ? `${id}/${chave}.jpg` : null,
   listProposalImages: vi.fn(async () => []),
   signProposalPaths: vi.fn(
     async (refs: string[]) => new Map(refs.map((r) => [r, `https://signed/${r}`])),
@@ -112,13 +114,13 @@ vi.mock("sharp", () => ({
 
 import { POST } from "./route";
 
-async function carregar(extra: Record<string, string> = {}) {
+async function carregar(extra: Record<string, string> = {}, chave = crypto.randomUUID()) {
   const fd = new FormData();
   fd.append(
     "files",
     new File([new TextEncoder().encode("foto-x")], "x.jpg", { type: "image/jpeg" }),
   );
-  fd.append("chaves", crypto.randomUUID());
+  fd.append("chaves", chave);
   for (const [k, v] of Object.entries(extra)) fd.append(k, v);
   const req = new Request("https://liquen.test/api/orcamento/q-1/assets", {
     method: "POST",
@@ -180,5 +182,25 @@ describe("assets: pelo que mostram", () => {
     expect((await carregar({ importacao: "1" })).status).toBe(507);
     vis.sobra = 9;
     expect((await carregar({ importacao: "1" })).status).toBe(200);
+  });
+
+  it("uma foto JÁ guardada (pelo resumo) nunca leva 507, mesmo sem espaço", async () => {
+    vis.sobra = 0;
+    const bytes = new TextEncoder().encode("foto-x");
+    const r = createHash("sha256").update(bytes).digest("hex").slice(0, 32);
+    st.estado.set(`foto-resumo:${r}`, ["q-1/velha.jpg"]);
+    st.ficheiros.add("proposal-assets/q-1/velha.jpg");
+    const { status, corpo } = await carregar({ importacao: "1" });
+    expect(status).toBe(200);
+    expect(corpo.images[0]).toMatchObject({ path: "q-1/velha.jpg", jaExistia: true });
+  });
+
+  it("o reenvio com a MESMA chave (a 1.ª tentativa chegou) nunca leva 507", async () => {
+    vis.sobra = 0;
+    const chave = crypto.randomUUID();
+    st.ficheiros.add(`proposal-assets/q-1/${chave}.jpg`);
+    const { status } = await carregar({ importacao: "1" }, chave);
+    expect(status).toBe(200);
+    expect(uploads.upload).toHaveBeenCalledTimes(1);
   });
 });

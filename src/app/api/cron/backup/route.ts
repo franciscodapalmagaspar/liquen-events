@@ -394,7 +394,7 @@ async function GET_semMedida(request: NextRequest) {
      * cópia seguiu na mesma — e amanhã tenta outra vez. Sem a tabela (a
      * migração ainda não correu), não há nada para limpar.
      */
-    let reciclagem: { apagadas: number; ficaram: number } | null = null;
+    let reciclagem: Awaited<ReturnType<typeof limparExpiradas>> | null = null;
     if (!parcial)
       try {
         // 20 s: a função tem 60, e a cópia e a retenção já gastaram parte. O
@@ -458,7 +458,7 @@ async function GET_semMedida(request: NextRequest) {
      * As fotografias antigas entram no índice «pelo que mostram» (13/11, ver
      * `fotos-parecidas.ts`): a impressão de cada original que ainda não a tem,
      * calculada a partir da MINIATURA guardada (dezenas de KB, nunca o
-     * original), aos lotes, com tecto de 10 s e 600 fotos por noite. Com o
+     * original), 6 ao mesmo tempo, com tecto de 10 s e 600 fotos (~400 por noite). Com o
      * manifesto que já se fez — nenhuma listagem a mais. Quando todas tiverem
      * impressão, cada noite só lê o índice e não faz mais nada.
      */
@@ -468,8 +468,13 @@ async function GET_semMedida(request: NextRequest) {
         impressoes = await preencherImpressoes(fotos.manifesto, {
           prazoMs: 10_000,
           maximo: 600,
-          // O manifesto foi lido ANTES da junção: o que ela apagou não conta.
-          apagadosDepois: duplicados?.caminhosApagados ?? [],
+          // O manifesto foi lido ANTES das limpezas: o que a junção, as pastas
+          // órfãs e a Reciclagem apagaram esta noite não conta.
+          apagadosDepois: [
+            ...(duplicados?.caminhosApagados ?? []),
+            ...(pastasOrfas?.pastasApagadas ?? []),
+            ...(reciclagem?.pastasApagadas ?? []),
+          ],
         });
       } catch (e) {
         log.error("cron backup: o índice visual das fotografias falhou (a cópia seguiu)", e, {

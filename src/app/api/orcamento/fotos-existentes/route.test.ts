@@ -113,6 +113,12 @@ describe("POST /api/orcamento/fotos-existentes", () => {
     expect(st.parecidas).toHaveBeenCalledWith([imp], null, new Map([[imp, 1800]]));
   });
 
+  it("a mesma impressão pedida duas vezes leva o lado MAIOR", async () => {
+    const imp = "2".repeat(90);
+    await POST(pedido({ resumos: [], impressoes: [imp, imp, imp], lados: [900, 1800, 1200] }));
+    expect(st.parecidas).toHaveBeenCalledWith([imp, imp, imp], null, new Map([[imp, 1800]]));
+  });
+
   it("recusa mais impressões do que o tecto", async () => {
     const res = await POST(pedido({ resumos: [], impressoes: Array(61).fill("1".repeat(86)) }));
     expect(res.status).toBe(400);

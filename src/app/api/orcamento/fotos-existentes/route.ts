@@ -83,7 +83,10 @@ async function POST_semMedida(request: NextRequest) {
   const ladosPedidos = new Map<string, number>();
   impressoes.forEach((imp, i) => {
     const l = Number(ladosCrus[i]);
-    if (typeof imp === "string" && Number.isFinite(l) && l > 0) ladosPedidos.set(imp, l);
+    // Duas fotos com a mesma impressão: conta a que precisa de MAIS (uma
+    // guardada que sirva a maior serve as duas).
+    if (typeof imp === "string" && Number.isFinite(l) && l > 0)
+      ladosPedidos.set(imp, Math.max(ladosPedidos.get(imp) ?? 0, l));
   });
   const [existentes, parecidas, espaco] = await Promise.all([
     procurarExistentes(resumos, quoteId).catch((e) => {

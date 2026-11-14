@@ -335,7 +335,10 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
       do tamanho que a nova precisa (o lado dela, até 1 800 num mood board e
       2 200 na capa). Uma guardada mais pequena nunca a substitui — sobe a
       nova; uma de lado desconhecido fica «talvez». A «talvez» mostra as duas
-      lado a lado com «É a mesma» / «É outra»; sem resposta é NOVA.
+      lado a lado com «É a mesma» / «É outra»; sem resposta é NOVA. Se a
+      criação falhar a meio e ela mudar de ideias (ou tirar uma foto) antes de
+      «Continuar a importação», o que já não vale sai antes de continuar
+      (`carregadasQueValem`) — uma foto recusada nunca fica na proposta.
   · **O índice** (`fotos-parecidas.ts`): 64 linhas `foto-visual:<00–3f>` em
     `app_state`, cada uma `caminho → "<impressão>:<lado>"` (o lado maior da
     foto guardada). ~150–200 B por foto com a chave; escrever é compare-and-
@@ -350,12 +353,20 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
     ignoram como menções — sem isso, o índice segurava todas as fotos e
     nenhuma limpeza voltava a apagar nada (achado da revisão).
   · **A noite** (`cron/backup`, `preencherImpressoes`): com o manifesto que já
-    se faz, cada original sem impressão lê a MINIATURA (se faltar, a média;
-    nunca o original), em lotes de 20, até 600 fotos ou 10 s. ~3 000 fotos →
-    ~5 noites. Uma leitura que falhe pela rede não marca nada (volta na
-    noite seguinte); só uma sem miniatura nem média, confirmado por HEAD,
-    fica marcada sem impressão. O que a junção dos duplicados apagou nessa
-    noite (depois do manifesto) não se calcula e sai do índice.
+    se faz, cada original sem impressão lê a MINIATURA (se faltar, ou se o
+    `sharp` não a ler, a média; nunca o original), até 600 fotos ou 10 s de
+    leitura. **O ritmo** (segunda revisão): lida uma a uma e gravada lote a
+    lote dava ~40–60 fotos por noite. Agora lêem-se 6 ao mesmo tempo e grava-se
+    no fim, UMA escrita por linha do índice (≤ 64, também 6 a 6). Medido num
+    teste com 40 ms por leitura: 140 fotos num segundo. Com as ~150 ms reais de
+    uma leitura do Storage são ~40 por segundo, **~400 por noite**: as ~3 000
+    fotos de hoje entram em **~8 noites**. Uma leitura que falhe pela rede não
+    marca nada (volta na noite seguinte); uma sem miniatura nem média
+    (confirmado por HEAD), ou ilegível, fica marcada `sem:<data>` e volta a
+    ser tentada passados 14 dias. A Reciclagem da Biblioteca
+    (`reciclagem/<entrada>/…`) não entra. O que a junção dos duplicados, as
+    pastas órfãs e a Reciclagem apagaram nessa noite (depois do manifesto)
+    não se calcula e sai do índice.
   · **Cada foto nova de MOOD BOARD ocupa menos** (`image-prep.ts`). O PDF
     reduz tudo a 1 800 px; a proposta online usa a média de 1 200 e a
     miniatura. Medido com 49 fotos de 2 400–2 560 px (original + média +
@@ -376,27 +387,35 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
     poupança por proposta. **Limite**: uma foto de mood board escolhida
     DEPOIS para capa tem 1 800 px, e a capa web grande dela sai a 1 800.
   · **Quanto cabe**: até ao travão de 90% (900 MB, contados em 10⁹), com
-    ~695 MB depois das limpezas sobram ~205 MB → **~410 fotos novas** a 0,5
-    MB, mais todas as que já existem. No R2 (90% de 10 GB) seriam ~18 000.
+    ~695 MB depois das limpezas sobram ~205 MB — menos a folga de 40 MB do que
+    o servidor guarda sozinho (ver «O travão»), ~165 MB → **~330 fotos novas**
+    a 0,5 MB, mais todas as que já existem. No R2 (90% de 10 GB) seriam ~18 000.
   · **O travão** (`ocupacao-do-armazenamento*.ts`): a noite grava quanto ocupa
     cada bucket (os originais pelo manifesto; os outros, o de medição mais
     velha primeiro, com 6 s), e o `assets` e a rota da Biblioteca somam por
-    bucket o que guardam depois disso (as derivadas que o servidor fabrica
-    sozinho não se somam: custava uma escrita por derivada; entram na
-    medição seguinte). Uma medição com mais de 50 h já não serve (volta o
-    tecto de 20). O importador sobe até **200 novas**, limitado pelo que
-    cabe; o `assets` recusa (507) um carregamento da importação que
-    passasse do travão, contando o original × 1,35 (média e miniatura); ao
-    primeiro 507 o importador pára e diz quantas ficaram de fora.
+    bucket o que guardam depois disso. **O que o servidor guarda sozinho**
+    (segunda revisão) não passa pelo contador — os PDF (`proposal-pdfs`), as
+    fotos tratadas do PDF (`fotos-editoriais`, ~23 MB num dia de trabalho a
+    10/11), as AVIF e as capas. Os dois que mais crescem medem-se TODAS as
+    noites, antes dos outros; e entre medições o travão reserva uma folga
+    fixa de **40 MB** (um dia inteiro desses dois, com margem). Uma medição com
+    mais de 50 h já não serve (volta o tecto de 20). O importador sobe até
+    **200 novas**, limitado pelo que cabe; o `assets` recusa (507) um
+    carregamento da importação que passasse do travão, contando o original ×
+    1,35 (média e miniatura) — mas só DEPOIS de ver que a foto não está já
+    guardada (pelo resumo, ou por uma tentativa anterior com a mesma chave),
+    para uma foto que não ocupa nada nunca levar 507. Ao primeiro 507 o
+    importador pára e diz quantas ficaram de fora. Com a folga, o que cabe
+    até ao travão desce para ~165 MB → ~330 fotos novas no Supabase.
   · **As três perguntas do custo**:
     1. *Quantas vezes corre*: a noite, uma vez (dentro da cópia); a impressão
        no servidor, uma vez por foto guardada; a pergunta do importador, uma
        por lote de 60 fotos.
     2. *Quanto processador*: por foto guardada, um `sharp` a 128 px (~10–20
-       ms) e o pHash (<1 ms); a noite, ~5–10 ms por miniatura, até 600 por
-       noite nas ~5 primeiras noites e quase nada depois; a medição, ≤ 6 s
+       ms) e o pHash (<1 ms); a noite, ~5–10 ms por miniatura, ~400 por
+       noite nas ~8 primeiras noites e quase nada depois; a medição, ≤ 6 s
        por noite. Storage: as miniaturas uma vez (~3 000 × ~30 KB ≈ 90 MB de
-       saída em ~5 noites — o maior custo, e único); listagens ~0,4 KB por
+       saída em ~8 noites — o maior custo, e único); listagens ~0,4 KB por
        ficheiro, cada bucket uma vez por semana (~4 MB por semana). Base de
        dados: ~0,5 MB de índice com 3 000 fotos; cada procura lê-o (~0,5 MB),
        guardado 5 min.

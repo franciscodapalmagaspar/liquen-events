@@ -116,7 +116,7 @@ describe("as fotografias de pedidos que já não existem (10/11)", () => {
     const r = await limparPastasDePedidosApagados(dia9);
     expect(st.apagadas).toEqual(["LIQ-APAGADO-1"]);
     expect(st.estado[CHAVE]).toEqual({});
-    expect(r).toMatchObject({ apagadas: 1, emEspera: 0 });
+    expect(r).toMatchObject({ apagadas: 1, emEspera: 0, pastasApagadas: ["LIQ-APAGADO-1/"] });
   });
 
   it("se entretanto alguma coisa passou a mencioná-la, sai da espera e fica", async () => {

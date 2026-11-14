@@ -132,3 +132,35 @@ export function continuaGuardada(
   const { exacta, parecida } = respostaDaFoto(f, r);
   return exacta === escolhida || parecida?.caminho === escolhida;
 }
+
+/**
+ * ── UMA SEGUNDA TENTATIVA NÃO LEVA DECISÕES VELHAS (revisão de 13/11) ──────
+ *
+ * `carregadas` (caminho no ficheiro → onde a foto está) sobrevive entre
+ * tentativas, para o «Continuar a importação» não voltar a subir o que já
+ * subiu. Mas entre uma tentativa e a outra ela pode ter mudado de ideias: «É
+ * a mesma» → «É outra», ou tirado uma foto da escolha. No início de cada
+ * tentativa tira-se o que já não vale:
+ *
+ *  · o que deixou de estar escolhido;
+ *  · uma referência a uma guardada (`tema:`…) que já não é a guardada que
+ *    conta para esta foto (ela disse «É outra», ou a resposta mudou).
+ *
+ * As que subiram para a pasta DESTE pedido ficam (não se sobem duas vezes);
+ * se ela passou a dizer «É a mesma», a guardada substitui-as a seguir.
+ */
+export function carregadasQueValem(
+  carregadas: ReadonlyMap<string, string>,
+  escolhidas: ReadonlySet<string>,
+  guardadas: ReadonlyMap<string, string>,
+  pastaDoPedido: string,
+): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [caminho, onde] of carregadas) {
+    if (!escolhidas.has(caminho)) continue;
+    const subiuAqui = onde.startsWith(`${pastaDoPedido}/`);
+    if (!subiuAqui && guardadas.get(caminho) !== onde) continue;
+    out.set(caminho, onde);
+  }
+  return out;
+}

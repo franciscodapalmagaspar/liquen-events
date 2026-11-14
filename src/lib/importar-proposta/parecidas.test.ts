@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  carregadasQueValem,
   classificarGuardadas,
   continuaGuardada,
   guardadasComDecisoes,
@@ -69,5 +70,20 @@ describe("importar: o que já está guardado", () => {
     expect(continuaGuardada("tema:t/c.jpg", fotos[2], { existentes: {}, parecidas: {} })).toBe(
       false,
     );
+  });
+
+  it("numa segunda tentativa, sai o que já não vale: tirada da escolha, ou a guardada que deixou de contar", () => {
+    const carregadas = new Map([
+      ["a.jpg", "tema:t/a.jpg"], // ela passou a dizer «É outra»
+      ["b.jpg", "tema:t/b.jpg"], // continua «É a mesma»
+      ["c.jpg", "PED-1/c.jpg"], // subiu nesta importação
+      ["d.jpg", "PED-1/d.jpg"], // subiu, mas ela tirou-a da escolha
+    ]);
+    const escolhidas = new Set(["a.jpg", "b.jpg", "c.jpg"]);
+    const guardadas = new Map([["b.jpg", "tema:t/b.jpg"]]);
+    expect([...carregadasQueValem(carregadas, escolhidas, guardadas, "PED-1")]).toEqual([
+      ["b.jpg", "tema:t/b.jpg"],
+      ["c.jpg", "PED-1/c.jpg"],
+    ]);
   });
 });

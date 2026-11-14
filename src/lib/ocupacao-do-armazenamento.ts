@@ -4,6 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import type { ManifestoDeFotografias } from "@/lib/manifesto-de-fotografias";
 import { log } from "@/lib/logger";
 import {
+  bucketsAMedir,
   espacoQueSobra,
   type EspacoNoArmazenamento,
   type Ocupacao,
@@ -164,13 +165,7 @@ export async function medirOcupacao(
     const nomes = buckets.map((b) => b.name);
     // Um bucket que deixou de existir sai da conta.
     for (const k of Object.keys(porBucket)) if (!nomes.includes(k)) delete porBucket[k];
-    const porMedir = nomes
-      .filter((n) => !originais.has(n))
-      .filter((n) => {
-        const m = porBucket[n];
-        return !m || agora.getTime() - Date.parse(m.medidoEm) > IDADE_MAXIMA_MS / 2;
-      })
-      .sort((a, b) => (porBucket[a]?.medidoEm ?? "").localeCompare(porBucket[b]?.medidoEm ?? ""));
+    const porMedir = bucketsAMedir(nomes, originais, porBucket, agora.getTime());
     for (const n of porMedir) {
       if (Date.now() > ate) break;
       const r = await somarBucket(n, ate);

@@ -37,6 +37,7 @@ import { prepareImageWithThumb } from "./image-prep";
 import { ArmazenamentoNoTravao, enviarFotoDaProposta } from "./enviar-foto-da-proposta";
 import { fingerprintBlob } from "@/lib/theme-fingerprint";
 import {
+  carregadasQueValem,
   classificarGuardadas,
   continuaGuardada,
   guardadasComDecisoes,
@@ -400,7 +401,16 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
         feito.current = { quote: dados.quote as Quote, carregadas: new Map() };
         setPedidoCriado(dados.quote as Quote);
       }
-      const { quote, carregadas } = feito.current;
+      const { quote } = feito.current;
+      // O que ficou de uma tentativa anterior e já não vale (ela mudou de
+      // ideias, ou tirou a foto) sai — ver `carregadasQueValem`.
+      const carregadas = carregadasQueValem(
+        feito.current.carregadas,
+        escolhidas,
+        guardadas,
+        String(quote.id),
+      );
+      feito.current.carregadas = carregadas;
 
       // 2. As fotografias escolhidas, reduzidas no navegador e carregadas como
       // no estúdio. Uma que falhe não deita fora as outras.

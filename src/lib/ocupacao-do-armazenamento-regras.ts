@@ -29,6 +29,48 @@ export const BYTES_POR_FOTO_NOVA = 500_000;
  */
 export const MARGEM_DAS_DERIVADAS = 1.35;
 
+/**
+ * ── O QUE O SERVIDOR GUARDA SOZINHO (revisão de 13/11) ─────────────────────
+ *
+ * O contador (`somarCarregado`) só soma o que ela carrega. O servidor também
+ * escreve sozinho: os PDF das propostas (`proposal-pdfs`), as fotos tratadas
+ * do PDF (`fotos-editoriais`, ~23 MB num dia de trabalho a 10/11 — 158 MB numa
+ * semana), as AVIF e as capas. Os dois que mais crescem medem-se TODAS as
+ * noites ({@link BUCKETS_QUE_CRESCEM}); os outros, de semana a semana. Entre
+ * uma medição e a seguinte reserva-se esta folga fixa, que cobre um dia
+ * inteiro de trabalho desses dois com margem.
+ */
+export const FOLGA_DO_SERVIDOR_BYTES = 40_000_000;
+
+/** Os buckets que o servidor faz crescer depressa: medidos todas as noites. */
+export const BUCKETS_QUE_CRESCEM = ["proposal-pdfs", "fotos-editoriais"] as const;
+
+/** Uma medição de um bucket que não é dos que crescem serve 7 dias. */
+const SEMANA_MS = 7 * 24 * 3600_000;
+
+/**
+ * Que buckets medir esta noite, por ordem: primeiro os que crescem depressa
+ * (sempre), depois os outros cuja medição tem mais de 7 dias, o mais velho
+ * primeiro. Os originais não entram (o manifesto já os mediu).
+ */
+export function bucketsAMedir(
+  nomes: readonly string[],
+  originais: ReadonlySet<string>,
+  porBucket: Readonly<Record<string, { medidoEm: string } | undefined>>,
+  agora: number,
+): string[] {
+  const outros = nomes.filter((n) => !originais.has(n));
+  const crescem = outros.filter((n) => (BUCKETS_QUE_CRESCEM as readonly string[]).includes(n));
+  const velhos = outros
+    .filter((n) => !crescem.includes(n))
+    .filter((n) => {
+      const m = porBucket[n];
+      return !m || agora - Date.parse(m.medidoEm) > SEMANA_MS;
+    })
+    .sort((a, b) => (porBucket[a]?.medidoEm ?? "").localeCompare(porBucket[b]?.medidoEm ?? ""));
+  return [...crescem, ...velhos];
+}
+
 export interface Ocupacao {
   medidoEm: string;
   /** A soma dos buckets conhecidos. */
@@ -89,7 +131,8 @@ export function espacoQueSobra(
     limite,
     travao: tecto,
     ocupado,
-    sobra: Math.max(0, tecto - ocupado),
+    // A folga do que o servidor guarda sozinho sai do que sobra.
+    sobra: Math.max(0, tecto - ocupado - FOLGA_DO_SERVIDOR_BYTES),
     medidoEm: ocupacao.medidoEm ?? null,
   };
 }

@@ -25,6 +25,7 @@ import {
   THEME_MID_BUCKET,
   THEME_THUMB_BUCKET,
   caminhoDoRefDeTema,
+  isThemePath,
   ehRefDeTema,
   refDeTema,
 } from "@/lib/theme-ref";
@@ -87,6 +88,8 @@ const LINHAS = 64;
 export const MAX_IMPRESSOES_POR_PERGUNTA = 60;
 /** Quanto tempo a leitura do índice serve, numa instância. */
 export const VALIDADE_DO_INDICE_MS = 5 * 60_000;
+/** Quantas leituras (ou escritas) do Storage/base de dados ao mesmo tempo. */
+const EM_PARALELO = 6;
 /** Quantas candidatas se verificam no Storage, por foto, antes de desistir. */
 const CANDIDATAS_A_VERIFICAR = 3;
 
@@ -119,11 +122,28 @@ export function lerEntrada(v: string): { impressao: string; lado: number } | nul
   return { impressao, lado };
 }
 
+/**
+ * Uma foto que se tentou e não deu impressão (sem miniatura nem média, ou
+ * ilegíveis): `"sem:<data>"`. Nunca é encontrada; volta a ser tentada passados
+ * {@link TENTAR_OUTRA_VEZ_DIAS} dias (a miniatura pode ter aparecido entretanto).
+ */
+export const TENTAR_OUTRA_VEZ_DIAS = 14;
+export const semImpressao = (agora: number) => `sem:${new Date(agora).toISOString().slice(0, 10)}`;
+function eSem(x: string): boolean {
+  return x === "" || /^sem:\d{4}-\d{2}-\d{2}$/.test(x);
+}
+/** Uma marca «sem impressão» já com idade para se tentar outra vez? */
+export function semParaTentarOutraVez(x: string, agora: number): boolean {
+  if (!eSem(x)) return false;
+  const d = x === "" ? 0 : Date.parse(x.slice(4));
+  return !Number.isFinite(d) || agora - d >= TENTAR_OUTRA_VEZ_DIAS * 24 * 3600_000;
+}
+
 function linhaValida(v: unknown): Linha {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: Linha = {};
   for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
-    if (typeof k === "string" && k && typeof x === "string" && (x === "" || lerEntrada(x)))
+    if (typeof k === "string" && k && typeof x === "string" && (eSem(x) || lerEntrada(x)))
       out[k] = x;
   }
   return out;
@@ -223,8 +243,20 @@ async function mudarEntradas(mudancas: ReadonlyMap<string, string | null>): Prom
     porLinha.set(l, m);
   }
   let feitas = 0;
-  for (const [l, m] of porLinha) {
-    if (await mudarLinha(l, m)) {
+  // Uma escrita (compare-and-set) por LINHA, até seis linhas ao mesmo tempo.
+  const linhas = [...porLinha];
+  const gravadas = new Array<boolean>(linhas.length).fill(false);
+  let proxima = 0;
+  const via = async () => {
+    for (;;) {
+      const i = proxima++;
+      if (i >= linhas.length) return;
+      gravadas[i] = await mudarLinha(linhas[i][0], linhas[i][1]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(EM_PARALELO, linhas.length) }, via));
+  for (const [i, [, m]] of linhas.entries()) {
+    if (gravadas[i]) {
       feitas += m.size;
       // A cópia desta instância acompanha o que se escreveu.
       if (guardado) {
@@ -381,7 +413,9 @@ export function caminhoDaEntrada(chave: string): string | null {
   if (i <= 0) return null;
   const bucket = chave.slice(0, i);
   const resto = chave.slice(i + 1);
-  if (!resto || !/\.(jpe?g|png|webp)$/i.test(resto)) return null;
+  // UM nível só (`<pasta>/<ficheiro>`), como em `fotosDoManifesto`: a
+  // Reciclagem (`reciclagem/<entrada>/x.jpg`) fica de fora por construção.
+  if (!isThemePath(resto)) return null;
   if (bucket === THEME_BUCKET) return refDeTema(resto);
   if (bucket === PROPOSAL_BUCKET) return resto;
   return null;
@@ -422,12 +456,15 @@ export interface OpcoesDoPreenchimento {
   lote?: number;
   /**
    * Caminhos que saíram DEPOIS de o manifesto ser lido (a junção dos
-   * duplicados da mesma noite): não se calculam e saem do índice.
+   * duplicados, as pastas órfãs e a Reciclagem da mesma noite): não se
+   * calculam e saem do índice. Um que acabe em «/» é uma pasta inteira.
    */
   apagadosDepois?: readonly string[];
   /** Para os testes: o relógio, a leitura dos bytes e a dos lados. */
   agora?: () => number;
   lerMiniatura?: (caminho: string) => Promise<LeituraDaMiniatura>;
+  /** A média de 1 200 px, quando a miniatura existe mas não se consegue ler. */
+  lerMedia?: (caminho: string) => Promise<Buffer | null>;
   lerLados?: (caminhos: readonly string[]) => Promise<Map<string, number>>;
 }
 
@@ -467,6 +504,11 @@ async function lerMiniaturaGuardada(caminho: string): Promise<LeituraDaMiniatura
   return hm === false && hd === false ? "nao-existe" : null;
 }
 
+async function lerMediaGuardada(caminho: string): Promise<Buffer | null> {
+  const b = bucketsDe(caminho);
+  return descarregar(b.media, b.caminho);
+}
+
 /** O lado maior de cada fotografia, pelas medidas guardadas (`biblioteca_fotos`). */
 async function ladosGuardados(caminhos: readonly string[]): Promise<Map<string, number>> {
   const semTema = caminhos.map((c) => (ehRefDeTema(c) ? caminhoDoRefDeTema(c) : c));
@@ -504,7 +546,13 @@ export async function preencherImpressoes(
   const lote = Math.max(1, opcoes.lote ?? 20);
   const ler = opcoes.lerMiniatura ?? lerMiniaturaGuardada;
   const lerLados = opcoes.lerLados ?? ladosGuardados;
-  const apagados = new Set(opcoes.apagadosDepois ?? []);
+  // Caminhos inteiros, ou pastas inteiras quando acabam em «/» (as pastas
+  // órfãs e a Reciclagem apagam pastas).
+  const apagadosExactos = new Set((opcoes.apagadosDepois ?? []).filter((c) => !c.endsWith("/")));
+  const pastasApagadas = (opcoes.apagadosDepois ?? []).filter((c) => c.endsWith("/"));
+  const apagados = {
+    has: (c: string) => apagadosExactos.has(c) || pastasApagadas.some((p) => c.startsWith(p)),
+  };
 
   // O índice como está AGORA (sem a cópia da instância).
   esquecerIndiceVisual();
@@ -535,47 +583,73 @@ export async function preencherImpressoes(
 
   const porFazer: string[] = [];
   for (const c of existentes) {
-    if (indice.has(c)) res.jaTinham++;
-    else porFazer.push(c);
+    const v = indice.get(c);
+    if (v === undefined) porFazer.push(c);
+    // Uma «sem impressão» velha tenta-se outra vez (a miniatura pode ter
+    // aparecido); as outras contam como feitas.
+    else if (semParaTentarOutraVez(v, inicio)) porFazer.push(c);
+    else res.jaTinham++;
   }
   // Ordem estável: as mesmas noites retomam onde a anterior parou.
   porFazer.sort();
+  const lerMedia = opcoes.lerMedia ?? lerMediaGuardada;
+  const marcaSem = semImpressao(inicio);
 
+  /** Uma foto: a impressão, `""` (sem impressão), ou `null` (não se soube). */
+  const umaFoto = async (c: string): Promise<string | null> => {
+    const bytes = await ler(c).catch(() => null);
+    if (bytes === null) return null;
+    if (bytes === "nao-existe") return "";
+    let imp = await impressaoDosBytes(bytes);
+    // A miniatura existe mas o `sharp` não a lê: tenta-se a média.
+    if (!imp) {
+      const media = await lerMedia(c).catch(() => null);
+      if (media) imp = await impressaoDosBytes(media);
+    }
+    return imp ?? "";
+  };
+
+  /**
+   * ── O RITMO (revisão de 13/11) ──────────────────────────────────────────
+   * Lido uma a uma e gravado lote a lote, eram ~40–60 fotos por noite (cada
+   * leitura ~150 ms, cada lote ~20 escritas). Agora lêem-se até
+   * {@link EM_PARALELO} ao mesmo tempo, e as impressões juntam-se e gravam-se
+   * no fim — UMA escrita por linha do índice (no máximo 64), também em
+   * paralelo. Ver o teste do ritmo em `fotos-parecidas.test.ts`.
+   */
+  const lidas = new Map<string, string>(); // caminho → impressão ou ""
   let i = 0;
-  let vistas = 0;
-  while (i < porFazer.length) {
-    if (vistas >= maximo) {
-      res.parou = "tecto";
-      break;
-    }
-    if (agora() - inicio >= opcoes.prazoMs) {
-      res.parou = "tempo";
-      break;
-    }
-    const fatia = porFazer.slice(i, i + Math.min(lote, maximo - vistas));
-    i += fatia.length;
-    vistas += fatia.length;
-    const lidas: { c: string; imp: string | "" }[] = [];
-    for (const c of fatia) {
-      const bytes = await ler(c).catch(() => null);
-      if (bytes === null) {
-        res.falharam++;
-        continue;
+  let parar: ResultadoDoPreenchimento["parou"] = null;
+  const via = async () => {
+    for (;;) {
+      if (parar) return;
+      if (i >= porFazer.length) return;
+      if (i >= maximo) {
+        parar = "tecto";
+        return;
       }
-      const imp = bytes === "nao-existe" ? null : await impressaoDosBytes(bytes);
-      lidas.push({ c, imp: imp ?? "" });
+      if (agora() - inicio >= opcoes.prazoMs) {
+        parar = "tempo";
+        return;
+      }
+      const c = porFazer[i++];
+      const r = await umaFoto(c);
+      if (r === null) res.falharam++;
+      else lidas.set(c, r);
     }
-    const lados = await lerLados(lidas.filter((l) => l.imp).map((l) => l.c)).catch(
-      () => new Map<string, number>(),
-    );
-    const novas = new Map<string, string>();
-    for (const { c, imp } of lidas)
-      novas.set(c, imp ? entradaDoIndice(imp, lados.get(c) ?? 0) : "");
-    await mudarEntradas(novas);
-    for (const v of novas.values()) {
-      if (v) res.calculadas++;
-      else res.semMiniatura++;
-    }
+  };
+  await Promise.all(Array.from({ length: Math.min(lote, EM_PARALELO) }, via));
+  res.parou = parar;
+
+  const comImpressao = [...lidas].filter(([, v]) => v).map(([c]) => c);
+  const lados = await lerLados(comImpressao).catch(() => new Map<string, number>());
+  const novas = new Map<string, string>();
+  for (const [c, imp] of lidas)
+    novas.set(c, imp ? entradaDoIndice(imp, lados.get(c) ?? 0) : marcaSem);
+  await mudarEntradas(novas);
+  for (const v of novas.values()) {
+    if (lerEntrada(v)) res.calculadas++;
+    else res.semMiniatura++;
   }
   res.faltam = porFazer.length - i + res.falharam;
   return res;
