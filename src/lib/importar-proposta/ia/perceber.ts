@@ -29,20 +29,53 @@ import { INSTRUCOES } from "./instrucoes";
  */
 
 export const MODELO = "claude-opus-5-5";
-/** ~17 000 tokens de entrada por pedido (o português dá ~3,5 caracteres por token). */
-export const MAX_CARACTERES_POR_PARTE = 60_000;
+/** ~8 500 tokens de entrada por pedido (o português dá ~3,5 caracteres por token). */
+export const MAX_CARACTERES_POR_PARTE = 30_000;
 export const MAX_PARTES = 6;
-/** As descrições copiam-se inteiras: a saída pode ser quase tão grande como a entrada. */
-export const MAX_TOKENS = 64_000;
+/**
+ * ── O PRAZO DE TUDO: 240 s ──────────────────────────────────────────────────
+ *
+ * A função da Vercel morre aos 300 s (`maxDuration`): se a resposta chegasse
+ * aos 301, a Vercel dava 504, o lugar do tecto ficava gasto e os tokens eram
+ * cobrados sem nada a mostrar. O `timeout` do SDK não cobre a leitura do
+ * stream; por isso há UM sinal de interrupção com prazo para a importação
+ * inteira (todas as partes ao mesmo tempo), e ao chegar ao prazo corta-se,
+ * cai-se nas regras e diz-se porquê — com 60 s de folga para o resto da rota.
+ */
+export const PRAZO_MS = 240_000;
+
+/**
+ * O `max_tokens` de cada parte, à medida dela: as descrições copiam-se
+ * inteiras (≈ o texto, uma vez e meia por causa do JSON e das citações) mais
+ * o pensamento. Nunca os 64 000 de antes, que só serviam para pagar mais.
+ */
+export function maxTokensPara(caracteres: number): number {
+  return Math.min(32_000, 6_000 + Math.ceil(estimarTokens(caracteres) * 1.5));
+}
 
 /** Preços do Claude Opus 5.5, em dólares por milhão de tokens. */
 export const PRECO = { entrada: 4, saida: 20, escritaNaCache: 5, leituraDaCache: 0.2 } as const;
+/**
+ * Para o que corre no modelo de RECURSO (`fallbacks: "default"`), que pode
+ * ser outro e mais caro: conta-se pelo preço de um Opus anterior, por cima.
+ * É também o preço da RESERVA no tecto (`custoMaximoEmDolares`).
+ */
+export const PRECO_DE_RECURSO = {
+  entrada: 5,
+  saida: 25,
+  escritaNaCache: 6.25,
+  leituraDaCache: 0.5,
+} as const;
 
-export interface Uso {
+interface UsoBase {
   input_tokens: number;
   output_tokens: number;
   cache_creation_input_tokens?: number | null;
   cache_read_input_tokens?: number | null;
+}
+export interface Uso extends UsoBase {
+  /** Um por modelo que correu nesta resposta, quando o recurso entrou. */
+  iterations?: (UsoBase & { type?: string })[] | null;
 }
 
 /** A forma mínima de uma resposta da API — a do SDK, sem depender dele aqui. */
@@ -68,12 +101,15 @@ export interface PedidoAoModelo {
 }
 
 /** O duplo dos testes implementa isto; o verdadeiro está em `cliente.ts`. */
-export type ChamarModelo = (pedido: PedidoAoModelo) => Promise<RespostaDoModelo>;
+export type ChamarModelo = (
+  pedido: PedidoAoModelo,
+  opcoes: { signal: AbortSignal },
+) => Promise<RespostaDoModelo>;
 
 export class LeituraFalhou extends Error {
   constructor(
     message: string,
-    readonly motivo: "recusa" | "max_tokens" | "incompleta" | "forma" | "erro" | "grande",
+    readonly motivo: "recusa" | "max_tokens" | "incompleta" | "forma" | "erro" | "grande" | "tempo",
     readonly uso: Uso[] = [],
   ) {
     super(message);
@@ -88,7 +124,7 @@ export function pedidoAoModelo(texto: string, parte?: { i: number; n: number }):
       : "";
   return {
     model: MODELO,
-    max_tokens: MAX_TOKENS,
+    max_tokens: maxTokensPara(texto.length),
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
     thinking: { type: "adaptive" },
@@ -140,11 +176,18 @@ async function lerUmaParte(
   chamar: ChamarModelo,
   texto: string,
   parte: { i: number; n: number },
+  signal: AbortSignal,
 ): Promise<{ leitura: Leitura; uso: Uso }> {
   let r: RespostaDoModelo;
   try {
-    r = await chamar(pedidoAoModelo(texto, parte));
+    r = await chamar(pedidoAoModelo(texto, parte), { signal });
   } catch (e) {
+    if (signal.aborted) {
+      throw new LeituraFalhou(
+        `A leitura com IA passou do prazo (${PRAZO_MS / 1000} s) e foi interrompida.`,
+        "tempo",
+      );
+    }
     throw new LeituraFalhou(
       `A leitura com IA não respondeu${e instanceof Error && e.message ? ` (${e.message.slice(0, 160)})` : ""}.`,
       "erro",
@@ -213,9 +256,9 @@ export function juntarLeituras(leituras: Leitura[]): { leitura: Leitura; conflit
     const o = out.orcamento;
     o.linhas.push(...l.orcamento.linhas);
     o.iva.taxa = citado(o.iva.taxa, l.orcamento.iva.taxa, "a taxa de IVA");
-    if (o.iva.valoresDasLinhas === "desconhecido")
+    if (o.iva.valoresDasLinhas.valor === "desconhecido")
       o.iva.valoresDasLinhas = l.orcamento.iva.valoresDasLinhas;
-    if (o.iva.valoresDoTotal === "desconhecido")
+    if (o.iva.valoresDoTotal.valor === "desconhecido")
       o.iva.valoresDoTotal = l.orcamento.iva.valoresDoTotal;
     o.totalSemIva = citado(o.totalSemIva, l.orcamento.totalSemIva, "o total sem IVA");
     o.valorDoIva = citado(o.valorDoIva, l.orcamento.valorDoIva, "o valor do IVA");
@@ -237,8 +280,11 @@ export interface Percebido {
   partes: number;
 }
 
-export async function perceber(chamar: ChamarModelo, d: DocumentoCompleto): Promise<Percebido> {
-  const pedacos = partirEmPedacos(d);
+export async function perceber(
+  chamar: ChamarModelo,
+  pedacos: string[],
+  opcoes: { prazoMs?: number } = {},
+): Promise<Percebido> {
   if (pedacos.length > MAX_PARTES) {
     throw new LeituraFalhou(
       `O documento é grande demais para a leitura com IA (${pedacos.length} partes; o máximo é ${MAX_PARTES}).`,
@@ -246,29 +292,62 @@ export async function perceber(chamar: ChamarModelo, d: DocumentoCompleto): Prom
     );
   }
   const n = pedacos.length;
-  // A primeira sozinha (escreve as instruções na cache), as outras ao mesmo
-  // tempo (lêem-nas da cache).
-  const primeira = await lerUmaParte(chamar, pedacos[0], { i: 1, n });
-  const resto = await Promise.all(
-    pedacos.slice(1).map((t, k) => lerUmaParte(chamar, t, { i: k + 2, n })),
-  );
-  const todas = [primeira, ...resto];
-  const { leitura, conflitos } = juntarLeituras(todas.map((x) => x.leitura));
-  return { leitura, conflitos, uso: todas.map((x) => x.uso), partes: n };
+  // Um prazo para TUDO, e as partes todas ao mesmo tempo. Se uma falha, as
+  // outras param logo (não se pagam tokens de uma leitura que não se usa).
+  const controlo = new AbortController();
+  const relogio = setTimeout(() => controlo.abort(), opcoes.prazoMs ?? PRAZO_MS);
+  try {
+    const todas = await Promise.all(
+      pedacos.map((t, k) =>
+        lerUmaParte(chamar, t, { i: k + 1, n }, controlo.signal).catch((e) => {
+          controlo.abort();
+          throw e;
+        }),
+      ),
+    );
+    const { leitura, conflitos } = juntarLeituras(todas.map((x) => x.leitura));
+    return { leitura, conflitos, uso: todas.map((x) => x.uso), partes: n };
+  } finally {
+    clearTimeout(relogio);
+  }
 }
 
 /** Quanto custou, em dólares, pelos preços de {@link PRECO}. */
 export function custoEmDolares(usos: readonly Uso[]): number {
+  const de = (u: UsoBase, p: typeof PRECO | typeof PRECO_DE_RECURSO) =>
+    (u.input_tokens * p.entrada +
+      u.output_tokens * p.saida +
+      (u.cache_creation_input_tokens ?? 0) * p.escritaNaCache +
+      (u.cache_read_input_tokens ?? 0) * p.leituraDaCache) /
+    1_000_000;
   let c = 0;
   for (const u of usos) {
-    c +=
-      (u.input_tokens * PRECO.entrada +
-        u.output_tokens * PRECO.saida +
-        (u.cache_creation_input_tokens ?? 0) * PRECO.escritaNaCache +
-        (u.cache_read_input_tokens ?? 0) * PRECO.leituraDaCache) /
-      1_000_000;
+    // Com o recurso, cada modelo que correu vem em `iterations`: somam-se
+    // todos (o que recusou também se paga), e o do recurso pelo preço de cima.
+    if (u.iterations?.length) {
+      for (const it of u.iterations) {
+        c += de(it, it.type === "fallback_message" ? PRECO_DE_RECURSO : PRECO);
+      }
+    } else c += de(u, PRECO);
   }
   return Math.round(c * 10_000) / 10_000;
+}
+
+/**
+ * O MAIS que uma importação pode custar — o que se reserva no tecto antes de
+ * chamar: por parte, a entrada toda a preço de escrita na cache e o
+ * `max_tokens` inteiro a preço de saída, pelos preços de cima.
+ */
+export function custoMaximoEmDolares(pedacos: readonly string[]): number {
+  const fixo = estimarTokens(INSTRUCOES.length + JSON.stringify(esquemaJson()).length);
+  let c = 0;
+  for (const p of pedacos) {
+    c +=
+      ((fixo + estimarTokens(p.length) + 200) * PRECO_DE_RECURSO.escritaNaCache +
+        maxTokensPara(p.length) * PRECO_DE_RECURSO.saida) /
+      1_000_000;
+  }
+  return Math.ceil(c * 10_000) / 10_000;
 }
 
 /** Estimativa sem chamar nada: ~3,5 caracteres por token. */

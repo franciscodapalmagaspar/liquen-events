@@ -1,4 +1,4 @@
-import { DEFAULT_VAT_RATE, parseMoneyText, resolveProposalMoney } from "../../proposal-doc";
+import { DEFAULT_VAT_RATE, resolveProposalMoney } from "../../proposal-doc";
 import { eur, round2 } from "../../money";
 import { datasDaLinha, semAcentos } from "../heuristicas";
 import type { DocumentoCompleto, UnidadeLida } from "../documento-completo";
@@ -54,7 +54,10 @@ export interface Contas {
   /** A soma das linhas normais com valor (no modo das linhas), ou null sem valores. */
   somaDasLinhas: number | null;
   linhasSemValor: number;
+  /** O modo das linhas CONFIRMADO no documento (sem confirmação: «desconhecido», e os valores não passam). */
   modoDasLinhas: "sem_iva" | "com_iva" | "desconhecido";
+  /** O modo do total CONFIRMADO no documento («sem_iva» também quando tem os dois totais). */
+  modoDoTotal: "sem_iva" | "com_iva" | "desconhecido";
 }
 
 export interface Verificacao {
@@ -112,54 +115,76 @@ function curto(s: string, n = 90): string {
 
 // ── Números ──────────────────────────────────────────────────────────────────
 
-const NUMERO =
-  /\d{1,3}(?:[.\s ]\d{3})+(?:,\d{1,2})?(?!\d)|\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?(?!\d)|\d+(?:[.,]\d{1,2})?(?!\d)/g;
+/**
+ * Um número INTEIRO à portuguesa, num texto já normalizado: milhares com «.»
+ * ou com espaço, decimais com «,». Nunca um bocado de outro número: «740»
+ * não é um token de «1.740,00», nem «250» de «1 250,00», nem «7» de «2027».
+ */
+const TOKEN =
+  /(?<![\d.,])(?:\d{1,3}(?:\.\d{3})+|\d{1,3}(?: \d{3})+(?!\d)|\d+)(?:,\d{1,2})?(?!\d|[.,]\d)/g;
 
-/** Todos os números de um texto, lidos à portuguesa, com e sem os espaços. */
-export function numerosDe(texto: string): number[] {
-  const out = new Set<number>();
-  for (const m of texto.matchAll(NUMERO)) {
-    out.add(round2(parseMoneyText(m[0])));
-    for (const p of m[0].split(/[\s ]+/)) if (/\d/.test(p)) out.add(round2(parseMoneyText(p)));
-  }
-  return [...out];
+export interface Token {
+  valor: number;
+  ini: number;
+  fim: number;
+  texto: string;
 }
 
-const DINHEIRO = new RegExp(
-  String.raw`(?:€|eur\b)\s*(${NUMERO.source})|(${NUMERO.source})\s*(?:€|eur(?:os)?\b)`,
-  "gi",
-);
-const CABECA_DE_DINHEIRO = /€|eur\b|euros|pre[cç]o|valor|total|montante|custo|investimento/i;
-
-/** Os valores em euros escritos numa unidade (e nas tabelas com coluna de preços). */
-function valoresEmEuros(
-  u: UnidadeLida,
-  tabelaComDinheiro: boolean,
-): { valor: number; trecho: string }[] {
-  const t = textoDaUnidade(u);
-  const out: { valor: number; trecho: string }[] = [];
-  const vistos = new Set<string>();
-  const juntar = (valor: number, trecho: string, onde: number) => {
-    const k = `${round2(valor)}@${onde}`;
-    if (valor > 0 && !vistos.has(k)) {
-      vistos.add(k);
-      out.push({ valor: round2(valor), trecho });
+export function tokensDe(normalizado: string): Token[] {
+  const out: Token[] = [];
+  for (const m of normalizado.matchAll(TOKEN)) {
+    const [inteiro, dec = ""] = m[0].split(",");
+    const valor = Number(`${inteiro.replace(/[. ]/g, "")}.${dec || "0"}`);
+    if (Number.isFinite(valor)) {
+      out.push({ valor: round2(valor), ini: m.index!, fim: m.index! + m[0].length, texto: m[0] });
     }
-  };
-  for (const m of t.matchAll(DINHEIRO)) juntar(parseMoneyText(m[1] ?? m[2]), m[0], m.index ?? 0);
-  if (u.tipo === "linha-de-tabela" && tabelaComDinheiro && u.linha > 0) {
-    u.celulas.forEach((c, i) => {
-      const s = c.trim();
-      if (/[€]|eur/i.test(s)) return; // já contado acima
-      if (
-        /^\d{1,3}(?:[.\s ]\d{3})*(?:,\d{2})?$|^\d+(?:,\d{2})$/.test(s) &&
-        /,\d{2}$|\d{3}/.test(s)
-      ) {
-        juntar(parseMoneyText(s), s, 100_000 + i);
-      }
-    });
   }
   return out;
+}
+
+/** Os valores dos tokens de um texto (normaliza primeiro). */
+export function numerosDe(texto: string): number[] {
+  return tokensDe(normalizar(texto)).map((t) => t.valor);
+}
+
+const CABECA_DE_DINHEIRO = /€|eur\b|euros|pre[cç]o|valor|total|montante|custo|investimento/i;
+const EURO_DEPOIS = /^\s?(?:€|eur\b|euros?\b)/;
+const EURO_ANTES = /(?:€|eur)\s?$/;
+
+/** Os valores em euros de uma unidade (texto normalizado), com a posição. */
+function valoresEmEuros(
+  u: UnidadeLida,
+  n: string,
+  tabelaComDinheiro: boolean,
+): { valor: number; trecho: string }[] {
+  const out: { valor: number; trecho: string }[] = [];
+  for (const t of tokensDe(n)) {
+    if (!(t.valor > 0)) continue;
+    const euro =
+      EURO_DEPOIS.test(n.slice(t.fim, t.fim + 7)) ||
+      EURO_ANTES.test(n.slice(Math.max(0, t.ini - 5), t.ini));
+    // Numa tabela de preços, as células sem «€» mas com cara de dinheiro.
+    const naTabela =
+      u.tipo === "linha-de-tabela" &&
+      tabelaComDinheiro &&
+      u.linha > 0 &&
+      /,\d{2}$|\./.test(t.texto) &&
+      !/%/.test(n.slice(t.fim, t.fim + 2));
+    if (euro || naTabela)
+      out.push({ valor: t.valor, trecho: n.slice(Math.max(0, t.ini - 30), t.fim + 6).trim() });
+  }
+  return out;
+}
+
+const COM_IVA =
+  /iva\s*inclu|c\/\s*iva|com\s+(?:o\s+)?iva|inclu(?:i|em|indo|ido|idos)\s+(?:o\s+)?iva|iva\s+incl/;
+const SEM_IVA =
+  /\+\s*iva|mais\s+iva|acresc\w*\s+(?:de\s+|o\s+)*iva|iva\s+a\s+acrescer|s\/\s*iva|sem\s+(?:o\s+)?iva|iva\s+nao\s+inclu|nao\s+inclu\w*\s+(?:o\s+)?iva/;
+export function dizComIva(t: string): boolean {
+  return COM_IVA.test(semAcentos(t));
+}
+export function dizSemIva(t: string): boolean {
+  return SEM_IVA.test(semAcentos(t));
 }
 
 // ── A verificação ────────────────────────────────────────────────────────────
@@ -174,11 +199,48 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
 
   const unidades = d.unidades;
   const normDe = new Map(unidades.map((u) => [u.id, normalizar(textoDaUnidade(u))]));
-  const palheiro = unidades.map((u) => normDe.get(u.id)!).join(" ");
+  const tokensDaUnidade = new Map(unidades.map((u) => [u.id, tokensDe(normDe.get(u.id)!)]));
+  /** Cada linha do texto está, contígua, dentro de UMA unidade (não a saltar de uma para a outra). */
   const existe = (texto: string): boolean => {
     const ss = segmentos(texto);
-    return ss.length > 0 && ss.every((s) => palheiro.includes(s));
+    return ss.length > 0 && ss.every((s) => unidades.some((u) => normDe.get(u.id)!.includes(s)));
   };
+  const normCitacao = (c: string) =>
+    normalizar(c)
+      .replace(/^[•·\-*▪◦●○■□✓✔>]+\s*/, "")
+      .replace(/\s*[:;]$/, "");
+  /** As unidades onde a citação inteira está, contígua, e onde. */
+  const ocorrencias = (c: string): { u: UnidadeLida; k: number; fim: number }[] => {
+    const x = normCitacao(c);
+    if (!x) return [];
+    const out: { u: UnidadeLida; k: number; fim: number }[] = [];
+    for (const u of unidades) {
+      const n = normDe.get(u.id)!;
+      for (let k = n.indexOf(x); k >= 0; k = n.indexOf(x, k + 1))
+        out.push({ u, k, fim: k + x.length });
+    }
+    return out;
+  };
+  const citacaoNumaUnidade = (c: string | null): boolean => Boolean(c && ocorrencias(c).length);
+  /**
+   * As unidades onde o valor é um token INTEIRO dentro da citação (e a citação
+   * está, inteira, nessa unidade). Vazio = o valor não está onde a citação diz.
+   */
+  const ligar = (valor: number, c: string, comPercentagem = false): string[] => {
+    const v = round2(valor);
+    const ids = new Set<string>();
+    for (const o of ocorrencias(c)) {
+      const n = normDe.get(o.u.id)!;
+      for (const t of tokensDaUnidade.get(o.u.id)!) {
+        if (t.valor !== v || t.ini < o.k || t.fim > o.fim) continue;
+        if (comPercentagem && !/^\s?%/.test(n.slice(t.fim, t.fim + 2))) continue;
+        ids.add(o.u.id);
+      }
+    }
+    return [...ids];
+  };
+  /** O que cada campo de dinheiro prende no documento: unidade e valor. */
+  const ligacoes: { valor: number; unidades: string[]; usado: "linha" | "total" }[] = [];
 
   // ── (a) Os textos literais ──
   const literal = (
@@ -224,7 +286,13 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
 
   // ── (a) Os valores citados ──
   type Citado = { valor: number | null; citacao: string | null };
-  const numeroCitado = (c: Citado, campo: string, nome: string, dinheiro: boolean): Citado => {
+  const numeroCitado = (
+    c: Citado,
+    campo: string,
+    nome: string,
+    dinheiro: boolean,
+    usado?: "linha" | "total",
+  ): Citado => {
     if (c.valor === null) return { valor: null, citacao: c.citacao };
     const falha = (porque: string) => {
       inventados++;
@@ -238,11 +306,11 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
       return { valor: null, citacao: null };
     };
     if (!c.citacao || !c.citacao.trim()) return falha("não diz de onde veio");
-    if (!existe(c.citacao))
+    if (!citacaoNumaUnidade(c.citacao))
       return falha(`vem de «${curto(c.citacao, 60)}», que não está no documento`);
-    if (!numerosDe(c.citacao).includes(round2(c.valor))) {
-      return falha(`não está escrito em «${curto(c.citacao, 60)}»`);
-    }
+    const onde = ligar(c.valor, c.citacao);
+    if (!onde.length) return falha(`não está escrito em «${curto(c.citacao, 60)}»`);
+    if (usado) ligacoes.push({ valor: round2(c.valor), unidades: onde, usado });
     return c;
   };
 
@@ -251,7 +319,7 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
   if (ev.tipo.valor !== null) {
     const ok =
       ev.tipo.citacao &&
-      existe(ev.tipo.citacao) &&
+      citacaoNumaUnidade(ev.tipo.citacao) &&
       semAcentos(ev.tipo.citacao).includes(semAcentos(ev.tipo.valor).split(/\s+/)[0].slice(0, 6));
     if (!ok) {
       inventados++;
@@ -277,17 +345,19 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
       new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).toISOString().slice(0, 10) === iso;
     let porque = "";
     if (!real) porque = "não é uma data válida";
-    else if (!ev.data.citacao || !existe(ev.data.citacao))
-      porque = "não vem de um sítio do documento";
+    else if (!citacaoNumaUnidade(ev.data.citacao)) porque = "não vem de um sítio do documento";
     else {
-      const datas = datasDaLinha(ev.data.citacao);
-      const nums = numerosDe(ev.data.citacao.replace(/[./-]/g, " "));
+      const datas = datasDaLinha(ev.data.citacao!);
+      const nums = normalizar(ev.data.citacao!)
+        .split(/[^\d]+/)
+        .filter(Boolean)
+        .map(Number);
       const dia = Number(m![3]);
       const ano = Number(m![1]);
       const bate =
         datas.includes(iso) ||
         (nums.includes(dia) && (nums.includes(ano) || nums.includes(ano % 100)));
-      if (!bate) porque = `não está escrita em «${curto(ev.data.citacao, 60)}»`;
+      if (!bate) porque = `não está escrita em «${curto(ev.data.citacao!, 60)}»`;
     }
     if (porque) {
       inventados++;
@@ -304,12 +374,39 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
 
   // ── O dinheiro ──
   const o = leitura.orcamento;
-  o.iva.taxa = numeroCitado(o.iva.taxa, "orcamento.iva", "A taxa de IVA", true);
+  // A taxa: o número com «%» colado, e «IVA» na MESMA unidade. Uma taxa que
+  // não seja a da casa é sempre um aviso de dinheiro.
+  if (o.iva.taxa.valor !== null) {
+    const t = o.iva.taxa;
+    const onde = t.citacao ? ligar(t.valor!, t.citacao, true) : [];
+    const comIva = onde.filter((id) => /\biva\b/.test(normDe.get(id)!));
+    if (!comIva.length) {
+      inventados++;
+      aviso({
+        id: "inventado:orcamento.iva",
+        campo: "orcamento.iva",
+        dinheiro: true,
+        gravidade: "erro",
+        texto: `A taxa de IVA (${t.valor}%) não está escrita como «${t.valor}%» ao lado da palavra IVA${t.citacao ? ` em «${curto(t.citacao, 60)}»` : ""} — ficou a da casa (${DEFAULT_VAT_RATE * 100}%).`,
+      });
+      o.iva.taxa = { valor: null, citacao: null };
+    }
+  }
   const taxaLida = o.iva.taxa.valor;
   let vatRate = DEFAULT_VAT_RATE;
   if (taxaLida !== null) {
-    if (taxaLida >= 0 && taxaLida <= 30) vatRate = round2(taxaLida) / 100;
-    else {
+    if (taxaLida >= 0 && taxaLida <= 30) {
+      vatRate = round2(taxaLida) / 100;
+      if (round2(taxaLida) !== round2(DEFAULT_VAT_RATE * 100)) {
+        aviso({
+          id: "iva:taxa-diferente",
+          campo: "orcamento.iva",
+          dinheiro: true,
+          gravidade: "aviso",
+          texto: `O documento usa IVA a ${taxaLida}%, e não a ${DEFAULT_VAT_RATE * 100}% da casa. A proposta nova fica com ${taxaLida}%: confirma que ainda é a taxa certa.`,
+        });
+      }
+    } else {
       aviso({
         id: "iva:taxa-estranha",
         campo: "orcamento.iva",
@@ -319,9 +416,9 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
       });
     }
   }
-  o.totalSemIva = numeroCitado(o.totalSemIva, "orcamento.total", "O total sem IVA", true);
-  o.valorDoIva = numeroCitado(o.valorDoIva, "orcamento.total", "O valor do IVA", true);
-  o.totalComIva = numeroCitado(o.totalComIva, "orcamento.total", "O total com IVA", true);
+  o.totalSemIva = numeroCitado(o.totalSemIva, "orcamento.total", "O total sem IVA", true, "total");
+  o.valorDoIva = numeroCitado(o.valorDoIva, "orcamento.total", "O valor do IVA", true, "total");
+  o.totalComIva = numeroCitado(o.totalComIva, "orcamento.total", "O total com IVA", true, "total");
 
   o.linhas = o.linhas.map((l, i): LinhaLida => {
     const campo = `orcamento.linhas.${i}`;
@@ -329,13 +426,24 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     return {
       descricao: literal(l.descricao, campo, "A linha do orçamento", true),
       quantidade: numeroCitado(l.quantidade, campo, `${nome}: a quantidade`, true),
-      precoUnitario: numeroCitado(l.precoUnitario, campo, `${nome}: o preço unitário`, true),
-      totalDaLinha: numeroCitado(l.totalDaLinha, campo, `${nome}: o total`, true),
+      precoUnitario: numeroCitado(
+        l.precoUnitario,
+        campo,
+        `${nome}: o preço unitário`,
+        true,
+        "linha",
+      ),
+      totalDaLinha: numeroCitado(l.totalDaLinha, campo, `${nome}: o total`, true, "linha"),
       tipo: l.tipo,
     };
   });
+  const naoUsadosLigados: { valor: number; unidades: string[]; motivo: string }[] = [];
   o.valoresNaoUsados = o.valoresNaoUsados.filter((v) => {
-    if (existe(v.citacao) && numerosDe(v.citacao).includes(round2(v.valor))) return true;
+    const onde = ligar(v.valor, v.citacao);
+    if (onde.length) {
+      naoUsadosLigados.push({ valor: round2(v.valor), unidades: onde, motivo: v.motivo });
+      return true;
+    }
     aviso({
       id: `inventado:nao-usado:${round2(v.valor)}`,
       campo: "orcamento",
@@ -411,21 +519,122 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     });
   }
 
-  let modoDasLinhas = o.iva.valoresDasLinhas;
+  // ── O modo do IVA: tem de estar ESCRITO, e não pode contradizer o sítio dos valores ──
+  type Modo = "sem_iva" | "com_iva" | "desconhecido";
+  const dizOutro = (modo: "sem_iva" | "com_iva", id: string) => {
+    const n = normDe.get(id)!;
+    return modo === "sem_iva" ? dizComIva(n) && !dizSemIva(n) : dizSemIva(n) && !dizComIva(n);
+  };
+  const contradicao = (modo: "sem_iva" | "com_iva", ids: string[], campo: string, oQue: string) => {
+    const mau = ids.find((id) => dizOutro(modo, id));
+    if (!mau) return false;
+    const u = unidades.find((x) => x.id === mau)!;
+    aviso({
+      id: `iva:contradicao:${campo}`,
+      campo,
+      dinheiro: true,
+      gravidade: "erro",
+      texto: `A leitura pôs ${oQue} ${modo === "sem_iva" ? "SEM IVA" : "COM IVA"}, mas o documento diz «${curto(textoDaUnidade(u), 70)}». Assim ${modo === "sem_iva" ? "o IVA seria cobrado duas vezes" : "o IVA ficava por cobrar"}. O IVA fica por escolher.`,
+    });
+    return true;
+  };
+  const modoEscrito = (
+    m: { valor: Modo; citacao: string | null },
+    campo: string,
+    oQue: string,
+  ): Modo => {
+    if (m.valor === "desconhecido") return "desconhecido";
+    const diz = m.valor === "sem_iva" ? dizSemIva : dizComIva;
+    if (m.citacao && citacaoNumaUnidade(m.citacao) && diz(normalizar(m.citacao))) return m.valor;
+    aviso({
+      id: `iva:sem-citacao:${campo}`,
+      campo,
+      dinheiro: true,
+      gravidade: "erro",
+      texto: `A leitura diz que ${oQue} ${m.valor === "sem_iva" ? "não têm IVA" : "já têm IVA"}, mas não mostra onde o documento o escreve${m.citacao ? ` («${curto(m.citacao, 50)}» não o diz)` : ""}. O IVA fica por escolher.`,
+    });
+    return "desconhecido";
+  };
+  const unidadesDe = (v: { citacao: string | null; valor: number | null }) =>
+    v.valor !== null && v.citacao ? ligar(v.valor, v.citacao) : [];
+
+  // O total.
+  const contraSem =
+    base !== null &&
+    contradicao("sem_iva", unidadesDe(o.totalSemIva), "orcamento.total", `o total (${eur(base)})`);
+  const contraCom =
+    bruto !== null &&
+    contradicao("com_iva", unidadesDe(o.totalComIva), "orcamento.total", `o total (${eur(bruto)})`);
+  let modoDoTotal: Modo = "desconhecido";
+  if (!contraSem && !contraCom) {
+    if (base !== null && bruto !== null) modoDoTotal = "sem_iva";
+    else if (base !== null || bruto !== null) {
+      const escrito = modoEscrito(o.iva.valoresDoTotal, "orcamento.iva", "os valores do total");
+      const doCampo: Modo = base !== null ? "sem_iva" : "com_iva";
+      if (escrito !== "desconhecido" && escrito !== doCampo) {
+        aviso({
+          id: "iva:contradicao:campo-do-total",
+          campo: "orcamento.total",
+          dinheiro: true,
+          gravidade: "erro",
+          texto: `A leitura pôs o total ${eur((base ?? bruto)!)} como ${base !== null ? "SEM" : "COM"} IVA, mas diz que o total ${escrito === "sem_iva" ? "não tem" : "tem"} IVA. O IVA fica por escolher.`,
+        });
+      } else if (escrito === doCampo) modoDoTotal = doCampo;
+    }
+  }
+  if ((base !== null || bruto !== null) && modoDoTotal === "desconhecido") {
+    aviso({
+      id: "iva:total",
+      campo: "orcamento.total",
+      dinheiro: true,
+      gravidade: "erro",
+      texto: `Não se confirmou no documento se o total (${eur((base ?? bruto)!)}) inclui IVA. Escolhe abaixo se acresce ou se está incluído.`,
+    });
+  }
+
+  // As linhas.
+  const temValores = o.linhas.some(
+    (l) => l.totalDaLinha.valor !== null || l.precoUnitario.valor !== null,
+  );
+  let modoDasLinhas: Modo = "desconhecido";
+  if (temValores) {
+    const escrito = modoEscrito(o.iva.valoresDasLinhas, "orcamento", "os valores das linhas");
+    const ids = o.linhas.flatMap((l) => [
+      ...unidadesDe(l.totalDaLinha),
+      ...unidadesDe(l.precoUnitario),
+    ]);
+    if (
+      escrito !== "desconhecido" &&
+      !contradicao(escrito, ids, "orcamento", "os valores das linhas")
+    ) {
+      modoDasLinhas = escrito;
+    }
+    if (modoDasLinhas === "desconhecido") {
+      aviso({
+        id: "iva:linhas",
+        campo: "orcamento",
+        dinheiro: true,
+        gravidade: "erro",
+        texto:
+          "Não se confirmou no documento se os valores das linhas têm IVA. Os valores das linhas NÃO passam para a proposta nova (só as descrições): escreve-os no Fazer proposta.",
+      });
+    }
+  }
+
   if (soma !== null) {
-    // O total a comparar, no modo das linhas.
+    // O total a comparar, no modo das linhas; sem modo, o que bater (só para avisar).
     const alvoSem = base ?? (bruto !== null ? baseDoBruto(bruto) : null);
     const alvoCom = bruto ?? (base !== null ? brutoDaBase(base) : null);
-    let alvo: number | null = null;
-    if (modoDasLinhas === "sem_iva") alvo = alvoSem;
-    else if (modoDasLinhas === "com_iva") alvo = alvoCom;
-    else if (alvoSem !== null && soma === alvoSem) {
-      alvo = alvoSem;
-      modoDasLinhas = "sem_iva";
-    } else if (alvoCom !== null && soma === alvoCom) {
-      alvo = alvoCom;
-      modoDasLinhas = "com_iva";
-    } else alvo = alvoSem ?? alvoCom;
+    const alvo =
+      modoDasLinhas === "sem_iva"
+        ? alvoSem
+        : modoDasLinhas === "com_iva"
+          ? alvoCom
+          : alvoSem !== null && soma === alvoSem
+            ? alvoSem
+            : alvoCom !== null && soma === alvoCom
+              ? alvoCom
+              : (alvoSem ?? alvoCom);
 
     if (alvo === null) {
       aviso({
@@ -460,29 +669,6 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
         texto: `As linhas com valor somam o total, mas ${linhasSemValor === 1 ? "uma linha não tem" : `${linhasSemValor} linhas não têm`} valor. Confirma que estão incluídas.`,
       });
     }
-    if (modoDasLinhas === "desconhecido") {
-      aviso({
-        id: "iva:linhas",
-        campo: "orcamento",
-        dinheiro: true,
-        gravidade: "erro",
-        texto:
-          "Não se percebeu se os valores das linhas têm IVA ou não. Os valores das linhas não passam até confirmares.",
-      });
-    }
-  }
-  if (
-    (base !== null || bruto !== null) &&
-    o.iva.valoresDoTotal === "desconhecido" &&
-    !(base !== null && bruto !== null)
-  ) {
-    aviso({
-      id: "iva:total",
-      campo: "orcamento.total",
-      dinheiro: true,
-      gravidade: "erro",
-      texto: `O documento não diz se o total (${eur((base ?? bruto)!)}) inclui IVA. Escolhe abaixo.`,
-    });
   }
 
   // ── (b) Cada valor em € do documento tem sítio ──
@@ -494,50 +680,35 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
       .filter((u) => u.linha === 0 && CABECA_DE_DINHEIRO.test(u.celulas.join(" ")))
       .map((u) => u.tabela),
   );
-  const usadosEmCampos: { valor: number; citacao: string; usado: "linha" | "total" }[] = [];
-  for (const l of o.linhas) {
-    for (const c of [l.precoUnitario, l.totalDaLinha]) {
-      if (c.valor !== null && c.citacao)
-        usadosEmCampos.push({ valor: round2(c.valor), citacao: c.citacao, usado: "linha" });
-    }
-  }
-  for (const c of [o.totalSemIva, o.valorDoIva, o.totalComIva]) {
-    if (c.valor !== null && c.citacao)
-      usadosEmCampos.push({ valor: round2(c.valor), citacao: c.citacao, usado: "total" });
-  }
-  const naoUsadosPorConsumir = o.valoresNaoUsados.map((v) => ({
-    ...v,
-    valor: round2(v.valor),
-    gasto: false,
-  }));
+  // Um valor do documento está «usado» quando um campo o PRENDE nessa unidade
+  // (o token inteiro, dentro da citação). Os «não usados» só valem na unidade
+  // onde a citação deles está — e cada um é um aviso de dinheiro para ela
+  // confirmar: um valor verdadeiro arrumado ali era um valor perdido.
   const valores: ValorDoDocumento[] = [];
   for (const u of unidades) {
     const tabela = u.tipo === "linha-de-tabela" && tabelasComDinheiro.has(u.tabela);
-    for (const v of valoresEmEuros(u, tabela)) {
-      const n = normDe.get(u.id)!;
-      const naUnidade = (cit: string) => segmentos(cit).some((s) => n.includes(s) || s.includes(n));
-      const campo = usadosEmCampos.find((c) => c.valor === v.valor && naUnidade(c.citacao));
-      let usado: ValorDoDocumento["usado"] = campo?.usado ?? null;
-      let motivo: string | undefined;
-      if (!usado) {
-        const nu =
-          naoUsadosPorConsumir.find(
-            (x) => !x.gasto && x.valor === v.valor && naUnidade(x.citacao),
-          ) ?? naoUsadosPorConsumir.find((x) => !x.gasto && x.valor === v.valor);
-        if (nu) {
-          nu.gasto = true;
-          usado = "nao-usado";
-          motivo = nu.motivo;
-        }
-      }
+    for (const v of valoresEmEuros(u, normDe.get(u.id)!, tabela)) {
+      const campo = ligacoes.find((c) => c.valor === v.valor && c.unidades.includes(u.id));
+      const nu = campo
+        ? undefined
+        : naoUsadosLigados.find((x) => x.valor === v.valor && x.unidades.includes(u.id));
+      const usado: ValorDoDocumento["usado"] = campo?.usado ?? (nu ? "nao-usado" : null);
       valores.push({
         unidade: u.id,
         valor: v.valor,
         trecho: v.trecho,
         usado,
-        ...(motivo ? { motivo } : {}),
+        ...(nu ? { motivo: nu.motivo } : {}),
       });
-      if (!usado) {
+      if (nu) {
+        aviso({
+          id: `nao-usado:${u.id}:${Math.round(v.valor * 100)}`,
+          campo: "orcamento",
+          dinheiro: true,
+          gravidade: "aviso",
+          texto: `O documento tem ${eur(v.valor)} em «${curto(textoDaUnidade(u), 70)}» (${nomeDaParte(d, u.parte)}), que ficou FORA das linhas e do total: «${curto(nu.motivo, 60)}».`,
+        });
+      } else if (!usado) {
         aviso({
           id: `valor:${u.id}:${Math.round(v.valor * 100)}`,
           campo: "orcamento",
@@ -728,7 +899,7 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     avisos,
     valores,
     naoColocados,
-    contas: { vatRate, somaDasLinhas: soma, linhasSemValor, modoDasLinhas },
+    contas: { vatRate, somaDasLinhas: soma, linhasSemValor, modoDasLinhas, modoDoTotal },
     inventados,
   };
 }

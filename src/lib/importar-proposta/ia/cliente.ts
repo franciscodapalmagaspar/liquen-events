@@ -13,11 +13,13 @@ import type { ChamarModelo, RespostaDoModelo } from "./perceber";
  */
 export function chamarModeloSeHouverChave(): ChamarModelo | null {
   if (!process.env.ANTHROPIC_API_KEY) return null;
-  // Uma tentativa a mais nos erros passageiros; nada de ficar a repetir.
-  const client = new Anthropic({ maxRetries: 1, timeout: 280_000 });
-  return async (pedido) => {
-    // Streaming: uma resposta longa sem stream bate no tempo máximo do pedido.
-    const stream = client.beta.messages.stream(pedido);
+  // Sem novas tentativas: o prazo é um só para a importação inteira
+  // (`PRAZO_MS`, em `perceber.ts`), e uma repetição gastava-o a meio.
+  const client = new Anthropic({ maxRetries: 0 });
+  return async (pedido, { signal }) => {
+    // Streaming (uma resposta longa sem stream bate no tempo do pedido), e o
+    // sinal corta a LEITURA do stream também — o `timeout` do SDK não a cobre.
+    const stream = client.beta.messages.stream(pedido, { signal });
     const final = await stream.finalMessage();
     return final as unknown as RespostaDoModelo;
   };

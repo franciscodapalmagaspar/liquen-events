@@ -7,13 +7,26 @@ import {
   perceber,
   LeituraFalhou,
   custoEmDolares,
+  custoMaximoEmDolares,
+  maxTokensPara,
   type ChamarModelo,
   type PedidoAoModelo,
   type RespostaDoModelo,
 } from "./perceber";
-import { leituraCerta, propostaDeTeste, documentoDeTeste } from "./fixtures.testkit";
+import {
+  leituraCerta,
+  leituraComIvaASeis,
+  leituraComIvaIncluido,
+  propostaComIvaASeis,
+  propostaComIvaIncluido,
+  propostaDeTeste,
+  documentoDeTeste,
+} from "./fixtures.testkit";
 import { docx } from "../fabricar.testkit";
 import { montarDocumento, correccoesIniciais } from "../montar";
+import { pedidoParaOClaude } from "./instrucoes";
+import { esquemaJson, lerLeitura } from "./esquema";
+import { documentoEmTexto } from "../documento-completo";
 
 /** O duplo da API: devolve o que lhe mandarem, e guarda os pedidos. */
 function duplo(
@@ -32,15 +45,18 @@ function duplo(
   };
   return { chamar, pedidos };
 }
-const reservaLivre = async () => ({ ok: true, usadas: 1, maximo: 30 });
+const reservaLivre = async () => ({ ok: true, usadas: 1, maximo: 30, dolares: 0, maxDolares: 5 });
 
 describe("sem chave da API", () => {
   it("cai no importador por regras, diz «sem IA», e dá o pedido para o Claude (custo zero)", async () => {
     const r = await importarDocumento(propostaDeTeste(), { chamar: null });
     expect(r.revisao?.via).toBe("regras");
     expect(r.revisao?.porque).toMatch(/Importação sem IA/);
-    expect(r.revisao?.pedidoParaOClaude).toMatch(/NUNCA INVENTAR/);
-    expect(r.revisao?.pedidoParaOClaude).toMatch(/\[p2\] Ana Teste & Rui Exemplo/);
+    // O pedido para o Claude faz-se no navegador, do documento que já vem na revisão.
+    expect(r.revisao).not.toHaveProperty("pedidoParaOClaude");
+    const pedido = pedidoParaOClaude(documentoEmTexto(r.revisao!.documento));
+    expect(pedido).toMatch(/NUNCA INVENTAR/);
+    expect(pedido).toMatch(/\[p2\] Ana Teste & Rui Exemplo/);
     // E o que as regras leem continua lá.
     expect(r.proposta.clientNames).toBe("Ana Teste & Rui Exemplo");
   });
@@ -93,7 +109,8 @@ describe("com a IA (duplo, sem chamadas reais)", () => {
       { title: "Decoração da Cerimónia", images: ["word/media/arco.jpeg"] },
     ]);
     expect(p.notasInternas).toMatch(/Validade: Validade da proposta: 30 dias\./);
-    expect(r.revisao?.avisos).toEqual([]);
+    // O único aviso é o sinal fora das linhas (um «não usado» confirma-se sempre).
+    expect(r.revisao?.avisos.map((a) => a.id)).toEqual(["nao-usado:p10:52200"]);
     expect(r.revisao?.custo?.dolares).toBeCloseTo(
       custoEmDolares([{ input_tokens: 3000, output_tokens: 2000, cache_read_input_tokens: 2500 }]),
     );
@@ -109,15 +126,37 @@ describe("com a IA (duplo, sem chamadas reais)", () => {
     expect(doc.budgetAmounts).toEqual([1200, 540]);
   });
 
-  it("valores com IVA: a base de cada linha sai da regra da casa, e as opcionais ficam marcadas", async () => {
+  it("valores com IVA: a base de cada linha sai da regra da casa, e a soma das bases é a base da soma (ao cêntimo)", async () => {
+    const l = leituraComIvaIncluido();
+    l.orcamento.linhas[1].tipo = "normal";
+    const r = await importarDocumento(propostaComIvaIncluido(), {
+      leituraCarregada: JSON.stringify(l),
+    });
+    // 25 € com IVA a 23% → 20,33 € cada; mas 50 € com IVA são 40,65 € de base:
+    // o cêntimo a mais sai da última linha. Folga zero.
+    expect(r.proposta.budgetAmounts).toEqual([20.33, 20.32]);
+    expect(r.proposta.totalAmount).toBe(50);
+    expect(r.proposta.totalVatMode).toBe("incluido");
+    expect(r.revisao?.avisos).toEqual([]);
+  });
+
+  it("as linhas opcionais ficam marcadas", async () => {
     const l = leituraCerta();
-    l.orcamento.iva.valoresDasLinhas = "com_iva";
     l.orcamento.linhas[1].tipo = "opcional";
-    const { chamar } = duplo({ content: [{ type: "text", text: JSON.stringify(l) }] });
-    const r = await importarDocumento(propostaDeTeste(), { chamar, reservar: reservaLivre });
-    // 1.200 com IVA a 23% → 975,61 de base (round2(1200 / 1,23)).
-    expect(r.proposta.budgetAmounts[0]).toBe(975.61);
+    const r = await importarDocumento(propostaDeTeste(), { leituraCarregada: JSON.stringify(l) });
     expect(r.proposta.budgetOpcional).toEqual([false, true]);
+  });
+
+  it("IVA a 6%: passa para a proposta, e é sempre um aviso de dinheiro", async () => {
+    const r = await importarDocumento(propostaComIvaASeis(), {
+      leituraCarregada: JSON.stringify(leituraComIvaASeis()),
+    });
+    expect(r.proposta.vatRate).toBe(0.06);
+    expect(r.proposta.totalVatMode).toBe("acrescer");
+    const a = r.revisao!.avisos.find((x) => x.id === "iva:taxa-diferente")!;
+    expect(a.dinheiro).toBe(true);
+    const doc = montarDocumento(r.proposta, correccoesIniciais(r.proposta), new Map(), "t.docx");
+    expect(doc.vatRate).toBe(0.06);
   });
 
   it.each([
@@ -169,19 +208,33 @@ describe("o travão do mês", () => {
     const chamar = vi.fn<ChamarModelo>();
     const r = await importarDocumento(propostaDeTeste(), {
       chamar,
-      reservar: async () => ({ ok: false, motivo: "tecto", usadas: 30, maximo: 30 }),
+      reservar: async () => ({
+        ok: false,
+        motivo: "tecto",
+        usadas: 30,
+        maximo: 30,
+        dolares: 1,
+        maxDolares: 5,
+      }),
     });
     expect(chamar).not.toHaveBeenCalled();
     expect(r.revisao?.via).toBe("regras");
     expect(r.revisao?.porque).toMatch(/30 de 30/);
-    expect(r.revisao?.pedidoParaOClaude).toBeTruthy();
+    expect(r.revisao?.porque).toMatch(/pedido para o Claude/);
   });
 
   it("sem contador que se leia, também não chama", async () => {
     const chamar = vi.fn<ChamarModelo>();
     await importarDocumento(propostaDeTeste(), {
       chamar,
-      reservar: async () => ({ ok: false, motivo: "sem-contador", usadas: null, maximo: 30 }),
+      reservar: async () => ({
+        ok: false,
+        motivo: "sem-contador",
+        usadas: null,
+        maximo: 30,
+        dolares: null,
+        maxDolares: 5,
+      }),
     });
     expect(chamar).not.toHaveBeenCalled();
   });
@@ -250,8 +303,10 @@ describe("documentos grandes: dividir pelas secções, nunca cortar", () => {
       ),
     );
     const { chamar } = duplo({});
-    await expect(perceber(chamar, d)).rejects.toBeInstanceOf(LeituraFalhou);
-    await expect(perceber(chamar, d)).rejects.toThrow(new RegExp(`o máximo é ${MAX_PARTES}`));
+    await expect(perceber(chamar, partirEmPedacos(d))).rejects.toBeInstanceOf(LeituraFalhou);
+    await expect(perceber(chamar, partirEmPedacos(d))).rejects.toThrow(
+      new RegExp(`o máximo é ${MAX_PARTES}`),
+    );
   });
 
   it("as partes juntam-se pela ordem", async () => {
@@ -263,8 +318,87 @@ describe("documentos grandes: dividir pelas secções, nunca cortar", () => {
       l.servicos = [{ titulo: `Secção TESTE ${n}`, itens: [] }];
       return { content: [{ type: "text", text: JSON.stringify(l) }] };
     });
-    const p = await perceber(chamar, d);
+    const p = await perceber(chamar, partirEmPedacos(d, 3000));
     expect(p.partes).toBe(n);
     expect(p.leitura.servicos[0].titulo).toBe("Secção TESTE 1");
+  });
+});
+
+describe("o custo: reservar o pior caso, acertar pelo real (com o recurso)", () => {
+  it("reserva DEPOIS de saber as partes, e acerta pelo custo real (somando as iterações)", async () => {
+    const usage = {
+      input_tokens: 0,
+      output_tokens: 0,
+      iterations: [
+        { type: "message", input_tokens: 1000, output_tokens: 0 },
+        { type: "fallback_message", input_tokens: 1000, output_tokens: 1000 },
+      ],
+    };
+    const { chamar } = duplo({ usage });
+    const reservar = vi.fn(async () => ({
+      ok: true,
+      usadas: 1,
+      maximo: 30,
+      dolares: 0,
+      maxDolares: 5,
+    }));
+    const acertar = vi.fn(async () => true);
+    const r = await importarDocumento(propostaDeTeste(), { chamar, reservar, acertar });
+    const reservado = (reservar.mock.calls[0] as unknown as [number])[0];
+    expect(reservado).toBeCloseTo(custoMaximoEmDolares(partirEmPedacos(documentoDeTeste())), 6);
+    // 1000 × 4 $/M (a que recusou) + 1000 × 5 $/M + 1000 × 25 $/M (o recurso, pelo preço de cima).
+    expect(r.revisao?.custo?.dolares).toBe(0.034);
+    expect(acertar).toHaveBeenCalledWith(reservado, 0.034);
+    // A reserva é sempre ≥ ao que se pagou.
+    expect(reservado).toBeGreaterThan(0.034);
+  });
+
+  it("quando os dólares do mês não chegam, não chama", async () => {
+    const chamar = vi.fn<ChamarModelo>();
+    const r = await importarDocumento(propostaDeTeste(), {
+      chamar,
+      reservar: async () => ({
+        ok: false,
+        motivo: "dolares",
+        usadas: 3,
+        maximo: 30,
+        dolares: 4.9,
+        maxDolares: 5,
+      }),
+    });
+    expect(chamar).not.toHaveBeenCalled();
+    expect(r.revisao?.porque).toMatch(/dos 5 US\$ do tecto/);
+  });
+
+  it("o max_tokens é à medida da parte, nunca 64 000", () => {
+    expect(maxTokensPara(1000)).toBeLessThan(8_000);
+    expect(maxTokensPara(1_000_000)).toBe(32_000);
+  });
+});
+
+describe("o tamanho da resposta", () => {
+  it("um documento enorme não vai inteiro para o ecrã (e diz-se)", async () => {
+    const enorme = docx(
+      Array.from({ length: 160 }, (_, i) => `Parágrafo TESTE ${i} ${"x".repeat(10_000)}`),
+    );
+    const r = await importarDocumento(enorme, { chamar: null });
+    expect(r.revisao?.documentoGrandeDemais).toBe(true);
+    expect(r.revisao?.documento.unidades).toEqual([]);
+    expect(r.revisao?.avisosDaLeitura.join(" ")).toMatch(/grande demais para o mostrar/);
+  });
+});
+
+describe("o esquema tem limites", () => {
+  it("um texto gigante ou linhas a mais não passam", async () => {
+    const l = leituraCerta();
+    l.servicos[0].itens[0].descricao = "x".repeat(20_001);
+    expect(lerLeitura(JSON.stringify(l)).ok).toBe(false);
+    const m = leituraCerta();
+    m.orcamento.linhas = Array.from({ length: 501 }, () => m.orcamento.linhas[0]);
+    expect(lerLeitura(JSON.stringify(m)).ok).toBe(false);
+  });
+
+  it("o esquema que segue para a API não leva os limites que ela não aceita", () => {
+    expect(JSON.stringify(esquemaJson())).not.toMatch(/maxLength|maxItems/);
   });
 });

@@ -53,7 +53,7 @@ const ROTULO_DAS_NOTAS: Record<Leitura["notas"][number]["tipo"], string> = {
 
 export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImportada {
   const l = v.leitura;
-  const { vatRate, modoDasLinhas } = v.contas;
+  const { vatRate, modoDasLinhas, modoDoTotal } = v.contas;
   const o = l.orcamento;
 
   // ── Os serviços ──
@@ -74,26 +74,46 @@ export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImporta
     }));
 
   // ── O orçamento ──
-  const valorDaLinha = (x: LinhaLida): number | null => {
+  /** O valor da linha COMO O DOCUMENTO O ESCREVE (com ou sem IVA), ou null. */
+  const escritoDaLinha = (x: LinhaLida): number | null => {
     if (x.tipo === "incluido") return null;
-    const t =
+    return (
       x.totalDaLinha.valor ??
       (x.precoUnitario.valor !== null
         ? round2((x.quantidade.valor ?? 1) * x.precoUnitario.valor)
-        : null);
-    if (t === null) return null;
-    if (modoDasLinhas === "sem_iva") return round2(t);
-    if (modoDasLinhas === "com_iva") {
-      return resolveProposalMoney({ totalAmount: t, totalVatMode: "incluido", vatRate }).base;
-    }
-    return null;
+        : null)
+    );
   };
+  const baseDe = (g: number) =>
+    resolveProposalMoney({ totalAmount: g, totalVatMode: "incluido", vatRate }).base;
   const linhas = o.linhas.filter(
     (x) => x.descricao || x.totalDaLinha.valor !== null || x.precoUnitario.valor !== null,
   );
   const budgetItems = linhas.map((x) => x.descricao ?? "");
-  const budgetAmounts = linhas.map(valorDaLinha);
   const budgetOpcional = linhas.map((x) => x.tipo === "opcional");
+  const escritos = linhas.map(escritoDaLinha);
+  let budgetAmounts: (number | null)[];
+  if (modoDasLinhas === "sem_iva")
+    budgetAmounts = escritos.map((t) => (t === null ? null : round2(t)));
+  else if (modoDasLinhas === "com_iva") {
+    budgetAmounts = escritos.map((t) => (t === null ? null : baseDe(t)));
+    /**
+     * ── A SOMA DAS BASES TEM DE SER A BASE DA SOMA, AO CÊNTIMO ──────────────
+     * Duas linhas de 25,00 € com IVA dão 20,33 € + 20,33 € = 40,66 €, mas os
+     * 50,00 € do total são 40,65 € sem IVA. Folga zero (regras de dinheiro):
+     * o cêntimo que sobra (ou falta) vai para a ÚLTIMA linha normal com valor.
+     */
+    const normais = linhas
+      .map((x, i) => ({ x, i }))
+      .filter(({ x, i }) => x.tipo === "normal" && escritos[i] !== null);
+    if (normais.length) {
+      const bruto = round2(normais.reduce((acc, { i }) => acc + escritos[i]!, 0));
+      const somaDasBases = round2(normais.reduce((acc, { i }) => acc + budgetAmounts[i]!, 0));
+      const resto = round2(baseDe(bruto) - somaDasBases);
+      const ultima = normais[normais.length - 1].i;
+      if (resto !== 0) budgetAmounts[ultima] = round2(budgetAmounts[ultima]! + resto);
+    }
+  } else budgetAmounts = escritos.map(() => null);
   const somaDasLinhas = round2(
     budgetAmounts.reduce<number>((s, x, i) => (x !== null && !budgetOpcional[i] ? s + x : s), 0),
   );
@@ -102,12 +122,14 @@ export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImporta
   const bruto = o.totalComIva.valor;
   let totalAmount: number | null = null;
   let totalVatMode: VatMode | null = null;
+  // O modo só vai quando o documento o ESCREVE e nada o contradiz
+  // (`verificar.ts`); sem isso vai sem modo, e o ecrã obriga a escolher.
   if (base !== null) {
     totalAmount = base;
-    totalVatMode = bruto !== null || o.iva.valoresDoTotal === "sem_iva" ? "acrescer" : null;
+    totalVatMode = modoDoTotal === "sem_iva" ? "acrescer" : null;
   } else if (bruto !== null) {
     totalAmount = bruto;
-    totalVatMode = o.iva.valoresDoTotal === "com_iva" ? "incluido" : null;
+    totalVatMode = modoDoTotal === "com_iva" ? "incluido" : null;
   }
 
   // ── As fotografias ──

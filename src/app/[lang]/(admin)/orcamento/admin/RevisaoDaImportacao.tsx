@@ -5,7 +5,8 @@ import { eur } from "@/lib/money";
 import type { PropostaImportada } from "@/lib/importar-proposta/mapear";
 import type { Revisao } from "@/lib/importar-proposta/ia/importar";
 import type { Aviso } from "@/lib/importar-proposta/ia/verificar";
-import type { UnidadeLida } from "@/lib/importar-proposta/documento-completo";
+import { documentoEmTexto, type UnidadeLida } from "@/lib/importar-proposta/documento-completo";
+import { pedidoParaOClaude } from "@/lib/importar-proposta/ia/instrucoes";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 
 /**
@@ -127,8 +128,9 @@ export default function RevisaoDaImportacao({
   const partes = new Map(revisao.documento.partes.map((p) => [p.id, p]));
 
   function descarregarPedido() {
-    if (!revisao.pedidoParaOClaude) return;
-    const blob = new Blob([revisao.pedidoParaOClaude], { type: "text/plain;charset=utf-8" });
+    // Feito aqui, do documento que já veio: a resposta da rota não leva o mesmo texto duas vezes.
+    const pedido = pedidoParaOClaude(documentoEmTexto(revisao.documento));
+    const blob = new Blob([pedido], { type: "text/plain;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "pedido-para-o-claude.txt";
@@ -221,11 +223,11 @@ export default function RevisaoDaImportacao({
           <p className="mt-0.5 text-[var(--bo-text-muted)]">
             Custo desta leitura: {revisao.custo.dolares.toFixed(2).replace(".", ",")} US$
             {revisao.tecto?.usadas != null
-              ? ` · ${revisao.tecto.usadas} de ${revisao.tecto.maximo} este mês`
+              ? ` · ${revisao.tecto.usadas} de ${revisao.tecto.maximo} leituras este mês`
               : ""}
           </p>
         )}
-        {revisao.via === "regras" && revisao.pedidoParaOClaude && (
+        {revisao.via === "regras" && !revisao.documentoGrandeDemais && (
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
             <button
               type="button"

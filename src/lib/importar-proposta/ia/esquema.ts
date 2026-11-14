@@ -26,20 +26,41 @@ import { z } from "zod";
  * o valor está na citação.
  */
 
-const texto = z.string().nullable();
+/**
+ * ── LIMITES ─────────────────────────────────────────────────────────────────
+ *
+ * Um JSON carregado à mão (ou uma resposta que enlouqueceu) não pode trazer
+ * um texto de 50 MB nem 100 000 linhas de orçamento. Os limites ficam aqui, no
+ * zod; a API não aceita `maxLength`/`maxItems` no esquema, e por isso o
+ * {@link esquemaJson} tira-os antes de o mandar (verificam-se ao ler).
+ */
+export const LIMITES = {
+  texto: 20_000,
+  citacao: 2_000,
+  grupos: 200,
+  itens: 300,
+  subitens: 100,
+  linhas: 500,
+  notas: 500,
+  imagens: 2_000,
+  naoColocados: 20_000,
+} as const;
+
+const texto = z.string().max(LIMITES.texto).nullable();
+const citacao = z.string().max(LIMITES.citacao).nullable();
 const comCitacao = <T extends z.ZodType>(valor: T) =>
-  z.strictObject({ valor: valor.nullable(), citacao: z.string().nullable() });
+  z.strictObject({ valor: valor.nullable(), citacao });
 
 export const NumeroCitado = comCitacao(z.number());
-export const TextoCitado = comCitacao(z.string());
+export const TextoCitado = comCitacao(z.string().max(LIMITES.citacao));
 
 export const Subitem = z.strictObject({ titulo: texto, descricao: texto });
 export const Item = z.strictObject({
   titulo: texto,
   descricao: texto,
-  subitens: z.array(Subitem),
+  subitens: z.array(Subitem).max(LIMITES.subitens),
 });
-export const Grupo = z.strictObject({ titulo: texto, itens: z.array(Item) });
+export const Grupo = z.strictObject({ titulo: texto, itens: z.array(Item).max(LIMITES.itens) });
 
 export const TIPOS_DE_LINHA = ["normal", "opcional", "incluido"] as const;
 export const Linha = z.strictObject({
@@ -51,6 +72,8 @@ export const Linha = z.strictObject({
 });
 
 export const MODOS_DO_IVA = ["sem_iva", "com_iva", "desconhecido"] as const;
+/** O modo de IVA TAMBÉM traz a citação de onde vem («+ IVA», «IVA incluído»). */
+export const ModoCitado = z.strictObject({ valor: z.enum(MODOS_DO_IVA), citacao });
 
 export const Leitura = z.strictObject({
   cliente: z.strictObject({ nomes: texto, email: texto, telefone: texto }),
@@ -61,38 +84,50 @@ export const Leitura = z.strictObject({
     convidados: NumeroCitado,
     idioma: z.enum(["pt", "en", "outro"]).nullable(),
   }),
-  servicos: z.array(Grupo),
+  servicos: z.array(Grupo).max(LIMITES.grupos),
   orcamento: z.strictObject({
-    linhas: z.array(Linha),
+    linhas: z.array(Linha).max(LIMITES.linhas),
     iva: z.strictObject({
-      /** Em percentagem: 23 = 23 %. */
+      /** Em percentagem: 23 = 23 %. A citação tem de ter o «%» e o «IVA». */
       taxa: NumeroCitado,
-      valoresDasLinhas: z.enum(MODOS_DO_IVA),
-      valoresDoTotal: z.enum(MODOS_DO_IVA),
+      valoresDasLinhas: ModoCitado,
+      valoresDoTotal: ModoCitado,
     }),
     totalSemIva: NumeroCitado,
     valorDoIva: NumeroCitado,
     totalComIva: NumeroCitado,
-    valoresNaoUsados: z.array(
-      z.strictObject({ valor: z.number(), citacao: z.string(), motivo: z.string() }),
-    ),
+    valoresNaoUsados: z
+      .array(
+        z.strictObject({
+          valor: z.number(),
+          citacao: z.string().max(LIMITES.citacao),
+          motivo: z.string().max(LIMITES.citacao),
+        }),
+      )
+      .max(LIMITES.linhas),
   }),
-  notas: z.array(
-    z.strictObject({
-      tipo: z.enum(["condicao", "pagamento", "validade", "nota"]),
-      texto: z.string(),
-    }),
-  ),
-  imagens: z.array(
-    z.strictObject({
-      id: z.string(),
-      destino: z.enum(["capa", "moodboard", "fora"]),
-      tema: texto,
-      capitulo: texto,
-      motivo: texto,
-    }),
-  ),
-  naoColocados: z.array(z.strictObject({ id: z.string(), motivo: z.string() })),
+  notas: z
+    .array(
+      z.strictObject({
+        tipo: z.enum(["condicao", "pagamento", "validade", "nota"]),
+        texto: z.string().max(LIMITES.texto),
+      }),
+    )
+    .max(LIMITES.notas),
+  imagens: z
+    .array(
+      z.strictObject({
+        id: z.string().max(40),
+        destino: z.enum(["capa", "moodboard", "fora"]),
+        tema: texto,
+        capitulo: texto,
+        motivo: texto,
+      }),
+    )
+    .max(LIMITES.imagens),
+  naoColocados: z
+    .array(z.strictObject({ id: z.string().max(40), motivo: z.string().max(LIMITES.citacao) }))
+    .max(LIMITES.naoColocados),
 });
 
 export type Leitura = z.infer<typeof Leitura>;
@@ -102,7 +137,28 @@ export type LinhaLida = z.infer<typeof Linha>;
 export function esquemaJson(): Record<string, unknown> {
   const s = z.toJSONSchema(Leitura) as Record<string, unknown>;
   delete s.$schema;
-  return s;
+  return semLimites(s) as Record<string, unknown>;
+}
+
+/** Tira o que a saída estruturada da API não aceita (os limites ficam no zod). */
+const NAO_ACEITES = new Set([
+  "maxLength",
+  "minLength",
+  "maxItems",
+  "minItems",
+  "maximum",
+  "minimum",
+]);
+function semLimites(x: unknown): unknown {
+  if (Array.isArray(x)) return x.map(semLimites);
+  if (x && typeof x === "object") {
+    return Object.fromEntries(
+      Object.entries(x)
+        .filter(([k]) => !NAO_ACEITES.has(k))
+        .map(([k, v]) => [k, semLimites(v)]),
+    );
+  }
+  return x;
 }
 
 /** Uma leitura vazia — o ponto de partida para juntar as partes de um documento grande. */
@@ -120,7 +176,11 @@ export function leituraVazia(): Leitura {
     servicos: [],
     orcamento: {
       linhas: [],
-      iva: { taxa: { ...nada }, valoresDasLinhas: "desconhecido", valoresDoTotal: "desconhecido" },
+      iva: {
+        taxa: { ...nada },
+        valoresDasLinhas: { valor: "desconhecido", citacao: null },
+        valoresDoTotal: { valor: "desconhecido", citacao: null },
+      },
       totalSemIva: { ...nada },
       valorDoIva: { ...nada },
       totalComIva: { ...nada },

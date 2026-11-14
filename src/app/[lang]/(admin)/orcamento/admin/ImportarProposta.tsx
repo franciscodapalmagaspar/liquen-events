@@ -10,6 +10,7 @@ import type { Confianca } from "@/lib/importar-proposta/heuristicas";
 import {
   corpoDoPedido,
   correccoesIniciais,
+  juntarCorreccoes,
   montarDocumento,
   oQueFalta,
   type Correccoes,
@@ -203,6 +204,10 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       );
       return;
     }
+    // Com a leitura (JSON) é uma releitura: guarda-se o que ela tinha, para
+    // não lho apagar nem se a releitura falhar.
+    const antes = leitura && proposta && c ? { inicial: correccoesIniciais(proposta), c } : null;
+    const antesDela = antes !== null;
     setPasso("a-ler");
     setNome(ficheiro.name);
     original.current = ficheiro;
@@ -237,7 +242,13 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
         ...(rev?.imagens ?? []).map((i) => i.caminho).filter((c) => !naProposta.has(c)),
       ]);
       setProposta(p);
-      setC(correccoesIniciais(p));
+      // Ao recarregar com a leitura (JSON), o que ela já corrigiu à mão FICA:
+      // só os campos que ela não tocou passam a ser os da leitura nova.
+      setC(
+        antes && antesDela
+          ? juntarCorreccoes(antes.inicial, antes.c, correccoesIniciais(p))
+          : correccoesIniciais(p),
+      );
       setRevisao(rev);
       setConfirmados(new Set());
       setImagensDoDocumento(new Map(lidas.fotos.map((f) => [f.caminho, f.ficheiro])));
@@ -248,6 +259,12 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       );
       setPasso("rever");
     } catch (e) {
+      if (antes) {
+        // A releitura falhou: fica tudo como estava.
+        setPasso("rever");
+        toast(porqueFalhou(e, "Não foi possível ler a leitura. Verifica a ligação."), "error");
+        return;
+      }
       setPasso("escolher");
       setErro(porqueFalhou(e, "Não foi possível ler este ficheiro. Verifica a ligação."));
       if (inputRef.current) inputRef.current.value = "";

@@ -3,7 +3,7 @@ import { isAuthed } from "@/lib/admin-auth";
 import { porqueNaoE } from "@/lib/importar-proposta/extrair";
 import { importarDocumento } from "@/lib/importar-proposta/ia/importar";
 import { chamarModeloSeHouverChave } from "@/lib/importar-proposta/ia/cliente";
-import { reservarImportacaoComIa } from "@/lib/importar-proposta/ia/tecto";
+import { acertarImportacaoComIa, reservarImportacaoComIa } from "@/lib/importar-proposta/ia/tecto";
 import { FicheiroIlegivel, MAX_BYTES_DA_IMPORTACAO } from "@/lib/importar-proposta/zip";
 import { comCpu } from "@/lib/medir-cpu";
 import { log } from "@/lib/logger";
@@ -50,8 +50,8 @@ export const maxDuration = 300;
  *
  * Dormente sem `ANTHROPIC_API_KEY` (não existe): sem ela, a importação é a de
  * sempre, e o ecrã diz «importação sem IA». Com ela, no máximo
- * `MAX_IMPORTACOES_COM_IA_POR_MES` por mês (o travão em `ia/tecto.ts`, numa
- * linha do `app_state`), a ~0,25 $ cada. E há a via de custo zero: o campo
+ * `MAX_IMPORTACOES_COM_IA_POR_MES` por mês E no máximo `MAX_DOLARES_POR_MES`
+ * (5 $; o travão em `ia/tecto.ts`, numa linha do `app_state`), a ~0,25 $ cada. E há a via de custo zero: o campo
  * `leitura` traz o JSON que o Claude do plano dele devolveu, e passa pela
  * MESMA verificação. Ver `src/lib/importar-proposta/ia/importar.ts`.
  */
@@ -114,7 +114,8 @@ async function POST_semMedida(request: NextRequest) {
     const { proposta, revisao } = await importarDocumento(bytes, {
       leituraCarregada: leitura,
       chamar: chamarModeloSeHouverChave(),
-      reservar: () => reservarImportacaoComIa(),
+      reservar: (custoMaximo) => reservarImportacaoComIa(custoMaximo),
+      acertar: (reservado, real) => acertarImportacaoComIa(reservado, real),
     });
     if (revisao?.custo) {
       // Só números: nem o texto do documento nem a chave vão para os registos.

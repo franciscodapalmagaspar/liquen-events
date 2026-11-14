@@ -18,7 +18,7 @@ vi.mock("./image-prep", () => ({
 
 import ImportarProposta from "./ImportarProposta";
 
-function preparar(resposta: Importacao) {
+function preparar(resposta: Importacao, depois: (Importacao | "falha")[] = []) {
   const urls: string[] = [];
   const corpos: (FormData | undefined)[] = [];
   vi.stubGlobal(
@@ -28,7 +28,10 @@ function preparar(resposta: Importacao) {
       const ok = (dados: unknown) => ({ ok: true, status: 200, json: async () => dados });
       if (url === "/api/orcamento/importar") {
         corpos.push(init?.body as FormData);
-        return ok({ ok: true, ...resposta });
+        const r = corpos.length === 1 ? resposta : (depois[corpos.length - 2] ?? resposta);
+        if (r === "falha")
+          return { ok: false, status: 500, json: async () => ({ error: "Falhou TESTE" }) };
+        return ok({ ok: true, ...r });
       }
       if (url === "/api/orcamento/manual")
         return ok({ ok: true, quote: { id: "LIQ-T-1", name: "Ana" } });
@@ -100,5 +103,35 @@ describe("a revisão lado a lado", () => {
     await waitFor(() => expect(corpos.length).toBe(2));
     expect(corpos[1]?.get("leitura")).toBeInstanceOf(File);
     expect(corpos[1]?.get("ficheiro")).toBeInstanceOf(File);
+  });
+
+  it("recarregar com a leitura NÃO apaga o que ela já corrigiu (e uma falha não apaga nada)", async () => {
+    const semIa = await importarDocumento(propostaDeTeste(), { chamar: null });
+    const comJson = await importarDocumento(propostaDeTeste(), {
+      leituraCarregada: JSON.stringify(leituraCerta()),
+    });
+    preparar(semIa, ["falha", comJson]);
+    await escolher();
+    const nome = screen.getByLabelText(/Nome do cliente/) as HTMLInputElement;
+    fireEvent.change(nome, { target: { value: "Nome corrigido TESTE" } });
+
+    const json = () => screen.getByLabelText(/Carregar a leitura/) as HTMLInputElement;
+    const carregar = () =>
+      fireEvent.change(json(), {
+        target: { files: [new File([JSON.stringify(leituraCerta())], "l.json")] },
+      });
+    // 1.ª vez a rota falha: fica tudo como estava.
+    carregar();
+    await screen.findByText(/Falhou TESTE/);
+    expect((screen.getByLabelText(/Nome do cliente/) as HTMLInputElement).value).toBe(
+      "Nome corrigido TESTE",
+    );
+    // 2.ª vez passa: a correcção dela fica, o resto vem da leitura.
+    carregar();
+    await screen.findByText(/sem custo\) e verificado/);
+    expect((screen.getByLabelText(/Nome do cliente/) as HTMLInputElement).value).toBe(
+      "Nome corrigido TESTE",
+    );
+    expect((screen.getByLabelText(/Data do evento/) as HTMLInputElement).value).toBe("2027-06-12");
   });
 });

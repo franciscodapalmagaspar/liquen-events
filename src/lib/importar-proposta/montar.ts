@@ -46,6 +46,22 @@ export function correccoesIniciais(p: PropostaImportada): Correccoes {
   };
 }
 
+/**
+ * Ao reler o documento (com a leitura em JSON), o que ela já corrigiu à mão
+ * fica; só os campos que ela NÃO tocou passam a ser os da leitura nova.
+ */
+export function juntarCorreccoes(
+  inicialAntes: Correccoes,
+  actual: Correccoes,
+  novas: Correccoes,
+): Correccoes {
+  const out = { ...novas };
+  for (const k of Object.keys(novas) as (keyof Correccoes)[]) {
+    if (actual[k] !== inicialAntes[k]) (out as Record<string, unknown>)[k] = actual[k];
+  }
+  return out;
+}
+
 /** O total escrito, em número; `null` quando está vazio ou não se lê. */
 export function totalEscrito(texto: string): number | null {
   if (!/\d/.test(texto)) return null;

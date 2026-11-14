@@ -61,6 +61,34 @@ describe("POST /api/orcamento/importar — as vias da leitura", () => {
     expect(tecto.reservar).not.toHaveBeenCalled();
   });
 
+  it("um JSON da leitura grande demais, como FICHEIRO, é recusado", async () => {
+    const res = await POST(
+      req({
+        ficheiro: new File([propostaDeTeste() as BlobPart], "p.docx"),
+        leitura: new File(["x".repeat(2 * 1024 * 1024 + 1)], "leitura.json"),
+      }),
+    );
+    expect(res.status).toBe(413);
+  });
+
+  it("um corpo declarado acima do tecto é recusado antes de se ler", async () => {
+    const form = new FormData();
+    form.append("ficheiro", new File([propostaDeTeste() as BlobPart], "p.docx"));
+    const r = new Request("https://liquen.test/api/orcamento/importar", {
+      method: "POST",
+      body: form,
+      headers: { "content-length": String(5 * 1024 * 1024) },
+    }) as unknown as NextRequest;
+    expect((await POST(r)).status).toBe(413);
+  });
+
+  it("a resposta não leva o pedido para o Claude (faz-se no navegador): o texto vai uma vez", async () => {
+    const res = await POST(req({ ficheiro: new File([propostaDeTeste() as BlobPart], "p.docx") }));
+    const texto = await res.text();
+    expect(texto).not.toMatch(/pedidoParaOClaude|NUNCA INVENTAR/);
+    expect(texto.split("Ana Teste & Rui Exemplo").length - 1).toBeLessThanOrEqual(2);
+  });
+
   it("um JSON da leitura grande demais é recusado", async () => {
     const res = await POST(
       req({

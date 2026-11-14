@@ -5,7 +5,6 @@ import { lerDocx } from "../docx";
 import { lerPptx } from "../pptx";
 import { mapearConteudo, type PropostaImportada } from "../mapear";
 import {
-  documentoEmTexto,
   LeituraIncompleta,
   lerDocxCompleto,
   lerPptxCompleto,
@@ -14,8 +13,16 @@ import {
   type UnidadeLida,
 } from "../documento-completo";
 import { lerLeitura, type Leitura } from "./esquema";
-import { pedidoParaOClaude } from "./instrucoes";
-import { custoEmDolares, LeituraFalhou, perceber, type ChamarModelo, type Uso } from "./perceber";
+import {
+  custoEmDolares,
+  custoMaximoEmDolares,
+  LeituraFalhou,
+  MAX_PARTES,
+  partirEmPedacos,
+  perceber,
+  type ChamarModelo,
+  type Uso,
+} from "./perceber";
 import {
   verificar,
   type Aviso,
@@ -71,9 +78,19 @@ export interface Revisao {
   }[];
   inventados: number;
   custo: { dolares: number; uso: Uso[]; partes: number } | null;
-  tecto: { usadas: number | null; maximo: number } | null;
-  /** O pedido para a via de custo zero (só fora da via «ia»/«json»). */
-  pedidoParaOClaude: string | null;
+  tecto: {
+    usadas: number | null;
+    maximo: number;
+    dolares: number | null;
+    maxDolares: number;
+  } | null;
+  /**
+   * O documento é grande demais para seguir inteiro para o ecrã (a resposta da
+   * rota não pode passar de ~4 MB): `documento.unidades` vai vazio, e diz-se.
+   * O pedido para o Claude (via de custo zero) é feito NO NAVEGADOR a partir
+   * de `documento` (`pedidoParaOClaude`), para não ir duas vezes o mesmo texto.
+   */
+  documentoGrandeDemais: boolean;
   /** Avisos da leitura do ficheiro (comentários, gráficos…). */
   avisosDaLeitura: string[];
 }
@@ -89,7 +106,18 @@ export interface Opcoes {
   /** O cliente da API, ou `null` sem chave. */
   chamar?: ChamarModelo | null;
   /** Reserva um lugar no tecto do mês; só se chama quando se vai mesmo à IA. */
-  reservar?: () => Promise<{ ok: boolean; usadas: number | null; maximo: number; motivo?: string }>;
+  reservar?: (custoMaximo: number) => Promise<{
+    ok: boolean;
+    usadas: number | null;
+    maximo: number;
+    dolares: number | null;
+    maxDolares: number;
+    motivo?: string;
+  }>;
+  /** Troca a reserva pelo custo real, depois de a resposta chegar. */
+  acertar?: (reservado: number, real: number) => Promise<unknown>;
+  /** O prazo da leitura com IA (por omissão `PRAZO_MS`). */
+  prazoMs?: number;
 }
 
 function lerDocumento(textos: Map<string, string>): {
@@ -114,11 +142,30 @@ function lerDocumento(textos: Map<string, string>): {
   }
 }
 
+/**
+ * A resposta da rota não pode passar de ~4 MB (o limite da Vercel). O texto do
+ * documento vai UMA vez (em `documento.unidades`); acima disto não vai.
+ */
+export const MAX_CARACTERES_NO_ECRA = 1_500_000;
+function tamanhoDoDocumento(c: DocumentoCompleto): number {
+  let n = 0;
+  for (const u of c.unidades) {
+    n +=
+      u.tipo === "paragrafo"
+        ? u.texto.length
+        : u.tipo === "linha-de-tabela"
+          ? u.celulas.join("").length
+          : 80;
+  }
+  return n;
+}
+
 function revisaoBase(c: DocumentoCompleto, via: Via, porque: string): Revisao {
+  const grande = tamanhoDoDocumento(c) > MAX_CARACTERES_NO_ECRA;
   return {
     via,
     porque,
-    documento: { formato: c.formato, partes: c.partes, unidades: c.unidades },
+    documento: { formato: c.formato, partes: c.partes, unidades: grande ? [] : c.unidades },
     avisos: [],
     valores: [],
     naoColocados: [],
@@ -133,8 +180,13 @@ function revisaoBase(c: DocumentoCompleto, via: Via, porque: string): Revisao {
     inventados: 0,
     custo: null,
     tecto: null,
-    pedidoParaOClaude: null,
-    avisosDaLeitura: c.avisos,
+    documentoGrandeDemais: grande,
+    avisosDaLeitura: grande
+      ? [
+          ...c.avisos,
+          "O documento é grande demais para o mostrar inteiro ao lado: confirma tudo com o original aberto.",
+        ]
+      : c.avisos,
   };
 }
 
@@ -186,7 +238,6 @@ function viaDasRegras(
   }
   const r = revisaoBase(c, "regras", porque);
   r.tecto = tecto;
-  r.pedidoParaOClaude = pedidoParaOClaude(documentoEmTexto(c));
   const naProposta = new Map(regras.fotos.map((f) => [f.caminho, f]));
   r.imagens = r.imagens.map((i) => {
     const f = naProposta.get(i.caminho);
@@ -224,26 +275,54 @@ export async function importarDocumento(
     return comLeitura(completo, lida.leitura, "json");
   }
 
-  // 2. A API — só com chave e com lugar no tecto do mês.
+  // 2. A API — só com chave, só se couber, e com lugar no tecto do mês.
   if (!opcoes.chamar) {
     return viaDasRegras(regras, completo, "Importação sem IA (não há chave da API configurada).");
   }
-  const reserva = opcoes.reservar ? await opcoes.reservar() : { ok: true, usadas: null, maximo: 0 };
-  const tecto = { usadas: reserva.usadas, maximo: reserva.maximo };
+  // As partes primeiro: o que se reserva no tecto é o pior caso DESTA importação.
+  const pedacos = partirEmPedacos(completo);
+  if (pedacos.length > MAX_PARTES) {
+    return viaDasRegras(
+      regras,
+      completo,
+      `Importação sem IA: o documento é grande demais para a leitura com IA (${pedacos.length} partes; o máximo é ${MAX_PARTES}). O pedido para o Claude abaixo lê-o sem custo.`,
+    );
+  }
+  const reservado = custoMaximoEmDolares(pedacos);
+  const reserva = opcoes.reservar
+    ? await opcoes.reservar(reservado)
+    : { ok: true, usadas: null, maximo: 0, dolares: null, maxDolares: 0 };
+  const tecto = {
+    usadas: reserva.usadas,
+    maximo: reserva.maximo,
+    dolares: reserva.dolares,
+    maxDolares: reserva.maxDolares,
+  };
   if (!reserva.ok) {
     return viaDasRegras(
       regras,
       completo,
       reserva.motivo === "tecto"
         ? `Importação sem IA: este mês já se fizeram ${reserva.usadas} de ${reserva.maximo} leituras com IA (o tecto). Para ler com IA na mesma e sem custo, usa o pedido para o Claude abaixo.`
-        : "Importação sem IA: não foi possível confirmar quantas leituras com IA já se fizeram este mês, e sem isso o tecto não trava.",
+        : reserva.motivo === "dolares"
+          ? `Importação sem IA: esta leitura podia custar até ${reservado.toFixed(2).replace(".", ",")} US$, e este mês já se gastaram ${(reserva.dolares ?? 0).toFixed(2).replace(".", ",")} dos ${reserva.maxDolares} US$ do tecto. O pedido para o Claude abaixo lê-o sem custo.`
+          : "Importação sem IA: não foi possível confirmar quanto já se gastou este mês com a IA, e sem isso o tecto não trava.",
       tecto,
     );
   }
+  const acertar = async (real: number) => {
+    try {
+      await opcoes.acertar?.(reservado, real);
+    } catch {
+      /* a reserva fica: gasta-se menos, nunca mais */
+    }
+  };
   try {
-    const p = await perceber(opcoes.chamar, completo);
+    const p = await perceber(opcoes.chamar, pedacos, { prazoMs: opcoes.prazoMs });
+    const real = custoEmDolares(p.uso);
+    await acertar(real);
     const out = comLeitura(completo, p.leitura, "ia", p.conflitos);
-    out.revisao.custo = { dolares: custoEmDolares(p.uso), uso: p.uso, partes: p.partes };
+    out.revisao.custo = { dolares: real, uso: p.uso, partes: p.partes };
     out.revisao.tecto = tecto;
     return out;
   } catch (e) {
@@ -254,6 +333,9 @@ export async function importarDocumento(
       `${e.message} Usei a importação sem IA — nada da resposta da IA foi usado.`,
       tecto,
     );
+    // Só se acerta o que se SABE: com o prazo ou a rede a cortar, a reserva fica.
+    if (e.uso.length && e.motivo !== "tempo" && e.motivo !== "erro")
+      await acertar(custoEmDolares(e.uso));
     if (r.revisao && e.uso.length)
       r.revisao.custo = { dolares: custoEmDolares(e.uso), uso: e.uso, partes: 0 };
     return r;
