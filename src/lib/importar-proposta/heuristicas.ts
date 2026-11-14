@@ -254,13 +254,28 @@ export function lerLinhaDeDinheiro(linha: string): LinhaDeDinheiro | null {
 
 export type TipoDeLinha = "total" | "iva" | "pagamento" | "item";
 
+/**
+ * O rótulo é EXATAMENTE o de uma base do total («Base», «Base tributável»,
+ * «Valor sem IVA», «Valor líquido», «Líquido») — nunca «Base de bolo…».
+ * O rótulo já vem sem o «:» e sem o valor (`lerLinhaDeDinheiro`).
+ */
+export function eRotuloDeBase(rotulo: string): boolean {
+  return /^(?:base|base tributavel|valor sem iva|valor liquido|liquido)$/.test(
+    semAcentos(rotulo).trim(),
+  );
+}
+
+/** O rótulo é exatamente «Valor com IVA». */
+export function eRotuloComIva(rotulo: string): boolean {
+  return /^valor com iva$/.test(semAcentos(rotulo).trim());
+}
+
 export function tipoDaLinha(rotulo: string): TipoDeLinha {
   const r = semAcentos(rotulo);
   if (/\bsub-?\s?total/.test(r)) return "pagamento"; // não é linha nem total
-  // A base tributável, o valor sem/com IVA: as contas do total, não uma linha.
-  if (/^\s*(?:base|valor sem iva|valor com iva|valor liquido|liquido)\b|base tributavel/.test(r)) {
-    return "pagamento";
-  }
+  // Só os rótulos EXATOS de uma base. Se a prova pela taxa falhar, o
+  // `mapear` devolve-a às linhas (`ia/../mapear.ts`, «a base do total»).
+  if (eRotuloDeBase(rotulo) || eRotuloComIva(rotulo)) return "pagamento";
   if (/\btotal\b|valor global|valor final|investimento (?:total|global)/.test(r)) return "total";
   if (/^\s*iva\b|\biva\s*\(?\s*\d+\s*%/.test(r)) return "iva";
   if (/sinal|adjudica|pagamento|prestac|restante|reserva|liquida|caucao|desconto/.test(r)) {

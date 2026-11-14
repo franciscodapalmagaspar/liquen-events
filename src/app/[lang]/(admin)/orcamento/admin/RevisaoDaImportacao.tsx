@@ -32,11 +32,8 @@ import type { VatMode } from "@/lib/proposal-doc";
 export function avisosPorConfirmar(
   revisao: Revisao | null,
   confirmados: ReadonlySet<string>,
-  extra: readonly Aviso[] = [],
 ): Aviso[] {
-  return revisao
-    ? [...revisao.avisos, ...extra].filter((a) => a.dinheiro && !confirmados.has(a.id))
-    : [];
+  return revisao ? revisao.avisos.filter((a) => a.dinheiro && !confirmados.has(a.id)) : [];
 }
 
 interface Props {
@@ -55,6 +52,8 @@ interface Props {
   onModoDoIva?: (m: VatMode) => void;
   /** Avisos que nascem do que ela escolheu no ecrã (a soma depois do IVA). */
   avisosExtra?: readonly Aviso[];
+  /** Há total ou linhas com valor (do documento ou escritos por ela): o IVA escolhe-se aqui. */
+  mostrarIva?: boolean;
 }
 
 const PARECE: Record<string, string> = {
@@ -80,7 +79,8 @@ function EscolherOIva({
   modo: VatMode | null;
   onModo: (m: VatMode) => void;
 }) {
-  const contas = revisao.contas!;
+  // Sem contas (um documento sem valores, total escrito por ela): só a escolha.
+  const contas = revisao.contas;
   const lido = (x: { valor: string; citacao: string | null }) =>
     x.valor === "sem_iva" ? "sem IVA" : x.valor === "com_iva" ? "com IVA" : "não sabe";
   return (
@@ -104,10 +104,10 @@ function EscolherOIva({
           ]}
         />
       </div>
-      {contas.sugestaoDasContas && (
+      {contas?.sugestaoDasContas && (
         <p className="mt-2 text-footnote text-[var(--bo-text)]">{contas.sugestaoDasContas.texto}</p>
       )}
-      {contas.discordancia && (
+      {contas?.discordancia && (
         <p role="alert" className="mt-2 text-footnote font-semibold text-[var(--bo-perigo)]">
           Atenção: as contas sugerem{" "}
           {contas.sugestaoDasContas?.modo === "sem_iva" ? "sem IVA" : "com IVA"}, mas as frases do
@@ -115,10 +115,12 @@ function EscolherOIva({
         </p>
       )}
       <p className="mt-2 text-caption text-[var(--bo-text-muted)]">
-        Escolhes sempre tu. A leitura disse: linhas {lido(contas.leituraDoIva.linhas)}, total{" "}
-        {lido(contas.leituraDoIva.total)}.
+        Escolhes sempre tu.
+        {contas
+          ? ` A leitura disse: linhas ${lido(contas.leituraDoIva.linhas)}, total ${lido(contas.leituraDoIva.total)}.`
+          : ""}
       </p>
-      {contas.frasesDoIva.length > 0 ? (
+      {contas && contas.frasesDoIva.length > 0 ? (
         <ul className="mt-2 flex flex-col gap-1">
           {contas.frasesDoIva.map((f) => (
             <li key={f.unidade} className="break-words text-footnote text-[var(--bo-text)]">
@@ -145,7 +147,7 @@ const VIA: Record<Revisao["via"], string> = {
   regras: "Importação sem IA",
 };
 
-function AvisoLinha({
+export function AvisoLinha({
   a,
   confirmados,
   onConfirmar,
@@ -214,6 +216,7 @@ export default function RevisaoDaImportacao({
   onModoDoIva,
   correccoes,
   avisosExtra = [],
+  mostrarIva = false,
 }: Props) {
   const urls = useMemo(
     () => new Map([...imagens].map(([c, f]) => [c, URL.createObjectURL(f)])),
@@ -223,7 +226,10 @@ export default function RevisaoDaImportacao({
 
   const naoColocados = new Map(revisao.naoColocados.map((x) => [x.id, x]));
   const destinoDa = new Map(revisao.imagens.map((i) => [i.id, i]));
-  const porConfirmar = avisosPorConfirmar(revisao, confirmados, avisosExtra).length;
+  const porConfirmar = [
+    ...avisosPorConfirmar(revisao, confirmados),
+    ...avisosExtra.filter((a) => a.dinheiro && !confirmados.has(a.id)),
+  ].length;
   const todosOsAvisos = [...revisao.avisos, ...avisosExtra];
   const partes = new Map(revisao.documento.partes.map((p) => [p.id, p]));
 
@@ -368,7 +374,7 @@ export default function RevisaoDaImportacao({
         )}
       </div>
 
-      {proposta.ivaPorEscolher && revisao.contas && onModoDoIva && (
+      {mostrarIva && onModoDoIva && (
         <EscolherOIva revisao={revisao} modo={modoDoIva ?? null} onModo={onModoDoIva} />
       )}
 

@@ -14,6 +14,8 @@ import {
   lerNomes,
   lerTipoDeEvento,
   tipoDaLinha,
+  eRotuloDeBase,
+  eRotuloComIva,
   type Confianca,
   type LinhaDeDinheiro,
 } from "./heuristicas";
@@ -179,8 +181,46 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
     dinheiro.push(d);
   }
   const totais = dinheiro.filter((d) => tipoDaLinha(d.rotulo) === "total");
-  const itensComValor = dinheiro.filter((d) => tipoDaLinha(d.rotulo) === "item" && d.rotulo);
   const total = escolherTotal(totais);
+  /**
+   * ── A BASE DO TOTAL: SÓ COM AS DUAS PROVAS ───────────────────────────────
+   * Uma linha só é a base do total (o total sem IVA, como a leitura o dá em
+   * `ia/preencher.ts`) quando (1) o rótulo é EXATAMENTE o de uma base
+   * (`eRotuloDeBase`) — ou um «Subtotal» — e (2) base × (1 + 23 %) dá o total
+   * ao cêntimo. Fora disso é um serviço como os outros, e o total é o escrito:
+   * «Base de bolo em madeira: 80 €» é uma linha, não o total.
+   * Sem linha «Total», o par «Valor sem IVA» / «Valor com IVA» é o total
+   * quando bate pela taxa; senão as duas ficam como linhas, à vista dela.
+   */
+  const daTaxa = (sem: number, com: number) =>
+    Math.round(sem * (1 + DEFAULT_VAT_RATE) * 100) === Math.round(com * 100);
+  const chave = (d: LinhaDeDinheiro) => `${d.rotulo.toLowerCase()}|${d.valor}`;
+  const subtotais = dinheiro.filter((d) => /^\s*sub-?\s?total\b/i.test(d.rotulo));
+  let baseLinha: LinhaDeDinheiro | undefined;
+  let comIvaDoPar: LinhaDeDinheiro | undefined;
+  if (total) {
+    const t = total.valor.valor;
+    baseLinha = [...dinheiro.filter((d) => eRotuloDeBase(d.rotulo)), ...subtotais].find((d) =>
+      daTaxa(d.valor, t),
+    );
+  } else {
+    for (const sem of dinheiro.filter((d) => eRotuloDeBase(d.rotulo))) {
+      const com = dinheiro.find((d) => eRotuloComIva(d.rotulo) && daTaxa(sem.valor, d.valor));
+      if (com) {
+        baseLinha = sem;
+        comIvaDoPar = com;
+        break;
+      }
+    }
+  }
+  const usadas = new Set([baseLinha, comIvaDoPar].filter(Boolean).map((d) => chave(d!)));
+  const eItem = (d: LinhaDeDinheiro) =>
+    Boolean(d.rotulo) &&
+    (tipoDaLinha(d.rotulo) === "item" ||
+      ((eRotuloDeBase(d.rotulo) || eRotuloComIva(d.rotulo)) && !usadas.has(chave(d))));
+  const itensComValor = dinheiro.filter(eItem);
+  const totalLido = total?.valor.valor ?? comIvaDoPar?.valor ?? null;
+  const base = baseLinha?.valor ?? null;
   /**
    * ── O IVA É SEMPRE ELA QUE O ESCOLHE — TAMBÉM NESTA VIA ──────────────────
    * Era lido do texto (`lerModoDoIva`) e vinha pré-escolhido. Quatro rondas
@@ -188,31 +228,7 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
    * IVA: tanto nesta via como na leitura com IA, o modo fica por escolher, e
    * o ecrã mostra as mesmas sugestões (`ia/verificar.ts`, `analisarIva`).
    */
-  const ivaPorEscolher = Boolean(total) || itensComValor.length > 0;
-  // Os dois totais escritos, como a leitura os dá (`ia/preencher.ts`): a base
-  // e o total. Com a base escrita e menor que o total, o total gravado é a
-  // base — o mesmo que a outra via grava. «Base», «Valor sem IVA» e «Líquido»
-  // dizem-no pelo nome; um «Subtotal» só conta se ele + IVA a 23 % der o total
-  // (um subtotal antes de um desconto não é uma base).
-  const totalLido = total?.valor.valor ?? null;
-  const rotuloSemAcentos = (d: LinhaDeDinheiro) =>
-    d.rotulo
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase();
-  const daTaxa = (v: number) =>
-    totalLido !== null &&
-    Math.round(v * (1 + DEFAULT_VAT_RATE) * 100) === Math.round(totalLido * 100);
-  const candidatas = dinheiro.filter((d) => totalLido !== null && d.valor < totalLido);
-  const base =
-    candidatas.find((d) =>
-      /^\s*(?:base|valor sem iva|valor liquido|liquido)\b|base tributavel/.test(
-        rotuloSemAcentos(d),
-      ),
-    )?.valor ??
-    candidatas.find((d) => /^\s*sub-?\s?total\b/.test(rotuloSemAcentos(d)) && daTaxa(d.valor))
-      ?.valor ??
-    null;
+  const ivaPorEscolher = totalLido !== null || itensComValor.length > 0;
   const somaDasLinhas = Math.round(itensComValor.reduce((s, d) => s + d.valor, 0) * 100) / 100;
   const linhasComValor = new Set(dinheiro.map((d) => d.linha));
 
@@ -247,7 +263,7 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
       const d = lerLinhaDeDinheiro(b.texto);
       const texto = d ? d.rotulo : b.texto;
       if (!texto) continue;
-      if (d && tipoDaLinha(d.rotulo) !== "item") continue;
+      if (d && !eItem(d)) continue;
       if (b.tipo === "item" && b.nivel > 0 && items.length) {
         const ant = items[items.length - 1];
         ant.desc = [ant.desc, texto.replace(/\n/g, " ")].filter(Boolean).join("; ");
@@ -301,7 +317,7 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
     // Os serviços saem sempre de uma regra (o título ou a forma da secção):
     // nunca passam de «média».
     servicos: serviceGroups.length ? "media" : "nada",
-    total: total?.confianca ?? "nada",
+    total: total?.confianca ?? (comIvaDoPar ? "media" : "nada"),
     iva: "nada",
     fotos: fotos.length ? "alta" : "nada",
   };
@@ -321,7 +337,7 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
   if (local?.confianca === "baixa") {
     avisos.push(`O local «${local.valor}» é um palpite: o documento fala de mais do que um sítio.`);
   }
-  if (!total && itensComValor.length) {
+  if (totalLido === null && itensComValor.length) {
     avisos.push(
       `Não encontrei a linha do total. As linhas com valor somam ${formatarEuros(somaDasLinhas)}. Confirma o total antes de usar.`,
     );

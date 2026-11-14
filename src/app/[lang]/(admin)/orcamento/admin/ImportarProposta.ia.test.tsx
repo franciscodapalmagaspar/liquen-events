@@ -363,3 +363,59 @@ describe("6.ª revisão — recarregar com a leitura e o total", () => {
     expect(total()).toBe("50,00");
   });
 });
+
+describe("7.ª revisão — o IVA e o aviso da soma em todos os caminhos", () => {
+  const semValores = () =>
+    importarDocumento(
+      docx(["Casamento Ana TESTE & Rui TESTE", { h: 1, t: "Cerimónia" }, "Arco de flores"]),
+      { chamar: null },
+    );
+
+  it("documento sem valores: ela escreve o total, aparece a escolha do IVA, e cria", async () => {
+    const r = await semValores();
+    expect(r.revisao).not.toBeNull();
+    expect(r.proposta.ivaPorEscolher).toBeFalsy();
+    const { urls } = preparar(r);
+    await escolher();
+    fireEvent.change(screen.getByLabelText(/Nome do cliente/), { target: { value: "Ana TESTE" } });
+    expect(screen.queryByRole("group", { name: /O IVA dos valores do documento/ })).toBeNull();
+    fireEvent.change(screen.getByLabelText(/Valor total/), { target: { value: "1.000" } });
+    const grupo = screen.getByRole("group", { name: /O IVA dos valores do documento/ });
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await screen.findByText(/dizer se o total inclui IVA/);
+    expect(urls).not.toContain("/api/orcamento/manual");
+    fireEvent.click(within(grupo).getByRole("radio", { name: "sem IVA" }));
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await waitFor(() => expect(urls).toContain("/api/orcamento/manual"));
+  });
+
+  it("total escrito por ela e sem linhas: mudar o IVA deixa uma nota junto do total", async () => {
+    preparar(await semValores());
+    await escolher();
+    fireEvent.change(screen.getByLabelText(/Valor total/), { target: { value: "1.000" } });
+    const grupo = screen.getByRole("group", { name: /O IVA dos valores do documento/ });
+    fireEvent.click(within(grupo).getByRole("radio", { name: "sem IVA" }));
+    expect(screen.queryByText(/Mudaste o IVA/)).toBeNull();
+    fireEvent.click(within(grupo).getByRole("radio", { name: "com IVA" }));
+    expect(screen.getByText(/Mudaste o IVA — confirma que este total é com IVA/)).toBeTruthy();
+    expect((screen.getByLabelText(/Valor total/) as HTMLInputElement).value).toBe("1.000");
+  });
+
+  it("sem revisão (revisao: null): o aviso da soma aparece e trava o criar até ser confirmado", async () => {
+    const l = leituraComIvaIncluido();
+    l.cliente.nomes = "Velas TESTE";
+    const r = await importarDocumento(propostaComIvaIncluido(), {
+      leituraCarregada: JSON.stringify(l),
+    });
+    const { urls } = preparar({ ...r, revisao: null });
+    await escolher();
+    fireEvent.click(screen.getByRole("radio", { name: "sem IVA" }));
+    expect(screen.getByText(/Com o IVA que escolheste, as linhas somam 50,00\s€/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await screen.findByText(/confirmar o aviso de dinheiro/);
+    expect(urls).not.toContain("/api/orcamento/manual");
+    fireEvent.click(screen.getByRole("checkbox", { name: /Com o IVA que escolheste/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await waitFor(() => expect(urls).toContain("/api/orcamento/manual"));
+  });
+});

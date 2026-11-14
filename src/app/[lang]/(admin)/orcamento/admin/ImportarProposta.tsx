@@ -14,6 +14,7 @@ import {
   valoresQueVaoSerGravados,
   escolherModoDoIva,
   avisoDaSomaGravada,
+  totalEscrito,
   montarDocumento,
   oQueFalta,
   type Correccoes,
@@ -39,7 +40,7 @@ import { ESTADO, PRESSAO } from "./ui/movimento";
 import { prepareImageWithThumb } from "./image-prep";
 import { enviarFotoDaProposta } from "./enviar-foto-da-proposta";
 import type { Revisao } from "@/lib/importar-proposta/ia/importar";
-import RevisaoDaImportacao, { avisosPorConfirmar } from "./RevisaoDaImportacao";
+import RevisaoDaImportacao, { AvisoLinha, avisosPorConfirmar } from "./RevisaoDaImportacao";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -148,6 +149,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
   // avisos da verificação, e os de dinheiro que ela já confirmou.
   const [revisao, setRevisao] = useState<Revisao | null>(null);
   const [confirmados, setConfirmados] = useState<Set<string>>(new Set());
+  const [notaDoIva, setNotaDoIva] = useState(false);
   const [imagensDoDocumento, setImagensDoDocumento] = useState<Map<string, File>>(new Map());
   const original = useRef<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +186,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     setTentouCriar(false);
     setRevisao(null);
     setConfirmados(new Set());
+    setNotaDoIva(false);
     setImagensDoDocumento(new Map());
     original.current = null;
     if (inputRef.current) inputRef.current.value = "";
@@ -255,6 +258,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       );
       setRevisao(rev);
       setConfirmados(new Set());
+      setNotaDoIva(false);
       setImagensDoDocumento(new Map(lidas.fotos.map((f) => [f.caminho, f.ficheiro])));
       setFotos(lidas.fotos.filter((f) => naProposta.has(f.caminho)));
       setDeFora(lidas.deFora.filter((f) => naProposta.has(f.caminho)));
@@ -283,14 +287,38 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
 
   // A ÚNICA maneira de escolher o IVA (o bloco de cima, e o de baixo quando
   // não há revisão): muda o modo E o total do lado escolhido.
-  const escolherIva = (m: VatMode) =>
+  const semLinhasComValor = !proposta?.linhasEscritas?.some((v) => v !== null);
+  const escolherIva = (m: VatMode) => {
+    // Com o total escrito por ela e sem linhas, mudar o IVA não mexe no total:
+    // fica uma nota para ela confirmar de que lado é esse total.
+    if (
+      c?.totalTocado &&
+      c.total.trim() &&
+      semLinhasComValor &&
+      c.totalVatMode &&
+      c.totalVatMode !== m
+    ) {
+      setNotaDoIva(true);
+    }
     setC((x) => (x && proposta ? escolherModoDoIva(proposta, x, m) : x));
+  };
+  // O aviso da soma vive AQUI, com ou sem revisão: é ele que trava o criar.
   const avisoDaSoma = proposta && c ? avisoDaSomaGravada(proposta, c) : null;
-  const porConfirmar = avisosPorConfirmar(
-    revisao,
-    confirmados,
-    avisoDaSoma ? [avisoDaSoma] : [],
-  ).length;
+  const confirmar = (id: string, sim: boolean) =>
+    setConfirmados((x) => {
+      const n = new Set(x);
+      if (sim) n.add(id);
+      else n.delete(id);
+      return n;
+    });
+  const porConfirmar =
+    avisosPorConfirmar(revisao, confirmados).length +
+    (avisoDaSoma && !confirmados.has(avisoDaSoma.id) ? 1 : 0);
+  const mostrarIva = Boolean(
+    proposta &&
+    c &&
+    (proposta.ivaPorEscolher || totalEscrito(c.total) !== null || proposta.somaDasLinhas > 0),
+  );
   const falta = c
     ? [
         ...oQueFalta(c, proposta ?? undefined),
@@ -558,16 +586,10 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
               modoDoIva={c.totalVatMode}
               onModoDoIva={escolherIva}
               avisosExtra={avisoDaSoma ? [avisoDaSoma] : []}
+              mostrarIva={mostrarIva}
               imagens={imagensDoDocumento}
               confirmados={confirmados}
-              onConfirmar={(id, sim) =>
-                setConfirmados((x) => {
-                  const n = new Set(x);
-                  if (sim) n.add(id);
-                  else n.delete(id);
-                  return n;
-                })
-              }
+              onConfirmar={confirmar}
               onLeitura={(f) => {
                 if (original.current && !pedidoCriado) void ler(original.current, f);
               }}
@@ -696,6 +718,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                 onChange={(e) => {
                   const total = e.target.value;
                   setC((x) => (x ? { ...x, total, totalTocado: true } : x));
+                  setNotaDoIva(false);
                 }}
                 placeholder={proposta.somaDasLinhas ? eur(proposta.somaDasLinhas) : "Sem total"}
                 hint={
@@ -763,6 +786,20 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                   O documento tem total ({eur(proposta.totalAmount)}): confirmo que a proposta fica
                   sem total.
                 </label>
+              ) : null}
+              {notaDoIva && c.totalVatMode ? (
+                <p
+                  role="status"
+                  className="text-footnote font-semibold text-[var(--bo-aviso)] @min-[26rem]:col-span-2"
+                >
+                  Mudaste o IVA — confirma que este total é{" "}
+                  {c.totalVatMode === "incluido" ? "com" : "sem"} IVA.
+                </p>
+              ) : null}
+              {!revisao && avisoDaSoma ? (
+                <ul className="flex flex-col gap-1.5 @min-[26rem]:col-span-2">
+                  <AvisoLinha a={avisoDaSoma} confirmados={confirmados} onConfirmar={confirmar} />
+                </ul>
               ) : null}
             </div>
           </section>

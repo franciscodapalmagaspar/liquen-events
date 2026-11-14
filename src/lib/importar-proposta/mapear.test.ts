@@ -322,3 +322,66 @@ describe("6.ª revisão — sem IA, a base do total como a leitura a dá", () =>
     expect(p.totaisEscritos).toEqual({ sem: 50, com: 50 });
   });
 });
+
+describe("7.ª revisão — uma base só é o total com o rótulo exato E a prova pela taxa", () => {
+  const ler = (frases: Parameters<typeof docx>[0]) => mapearConteudo(extrairConteudo(docx(frases)));
+
+  it("«Base de bolo em madeira» é um serviço, e o total é o escrito", () => {
+    const p = ler([
+      "Flores TESTE: 1.000,00 €",
+      "Base de bolo em madeira TESTE: 80,00 €",
+      "Total: 1.080,00 €",
+    ]);
+    expect(p.budgetItems).toEqual(["Flores TESTE", "Base de bolo em madeira TESTE"]);
+    expect(p.linhasEscritas).toEqual([1000, 80]);
+    expect(p.totalAmount).toBe(1080);
+    expect(p.totaisEscritos).toEqual({ sem: 1080, com: 1080 });
+    // Nem quando, por acaso, o valor dela + 23 % dá o total: o rótulo não é «Base».
+    const q = ler(["Base de bolo TESTE: 1.000,00 €", "Total: 1.230,00 €"]);
+    expect(q.budgetItems).toEqual(["Base de bolo TESTE"]);
+    expect(q.totaisEscritos).toEqual({ sem: 1230, com: 1230 });
+  });
+
+  it("«Base: 1.500» que + IVA não dá o total é uma linha como as outras", () => {
+    const p = ler([
+      "Base: 1.500,00 €",
+      "Extras TESTE: 300,00 €",
+      "Total: 2.214,00 € (IVA incluído)",
+    ]);
+    expect(p.budgetItems).toEqual(["Base", "Extras TESTE"]);
+    expect(p.linhasEscritas).toEqual([1500, 300]);
+    expect(p.totalAmount).toBe(2214);
+    expect(p.totaisEscritos).toEqual({ sem: 2214, com: 2214 });
+  });
+
+  it("o caso bom: Total 50 / Base 40,65 / IVA 9,35", () => {
+    const p = ler([
+      "Flores TESTE: 25,00 €",
+      "Velas TESTE: 25,00 €",
+      "Total: 50,00 €",
+      "Base: 40,65 €",
+      "IVA (23%): 9,35 €",
+    ]);
+    expect(p.budgetItems).toEqual(["Flores TESTE", "Velas TESTE"]);
+    expect(p.totaisEscritos).toEqual({ sem: 40.65, com: 50 });
+    expect(p.totalAmount).toBe(40.65);
+  });
+
+  it("sem «Total»: o par «Valor sem IVA» / «Valor com IVA» é o total quando bate pela taxa", () => {
+    const bom = ler([
+      "Flores TESTE: 1.000,00 €",
+      "Valor sem IVA: 1.000,00 €",
+      "Valor com IVA: 1.230,00 €",
+    ]);
+    expect(bom.budgetItems).toEqual(["Flores TESTE"]);
+    expect(bom.totaisEscritos).toEqual({ sem: 1000, com: 1230 });
+    // Não bate: ficam as duas à vista, como linhas, e não há total escrito.
+    const mau = ler([
+      "Flores TESTE: 1.000,00 €",
+      "Valor sem IVA: 1.000,00 €",
+      "Valor com IVA: 1.300,00 €",
+    ]);
+    expect(mau.budgetItems).toEqual(["Flores TESTE", "Valor sem IVA", "Valor com IVA"]);
+    expect(mau.totalAmount).toBeNull();
+  });
+});
