@@ -822,6 +822,9 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                   className="text-footnote font-semibold text-[var(--bo-text-muted)]"
                 >
                   IVA
+                  {typeof proposta.vatRate === "number"
+                    ? ` a ${Math.round(proposta.vatRate * 10000) / 100}%`
+                    : ""}
                   {!c.totalVatMode && <Marca c="nada" />}
                 </span>
                 {revisao ? (

@@ -545,3 +545,16 @@ describe("9.ª revisão — o desconto, sem IA, é aviso de dinheiro", () => {
     expect(urls).not.toContain("/api/orcamento/manual");
   });
 });
+
+describe("10.ª revisão — a taxa escrita fica à vista no campo do IVA", () => {
+  it("sem IA, com IVA a 6 %: o campo diz «IVA a 6%»", async () => {
+    preparar(
+      await importarDocumento(
+        docx(["Livros TESTE: 106,00 €", "IVA (6%): 12,00 €", "Total: 212,00 €"]),
+        { chamar: null },
+      ),
+    );
+    await escolher();
+    expect(screen.getByTestId("rotulo-iva").textContent).toMatch(/IVA a 6%/);
+  });
+});

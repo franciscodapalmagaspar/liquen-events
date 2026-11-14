@@ -633,3 +633,33 @@ describe("6.ª revisão — a escolha do IVA e o total", () => {
     expect(k.totalTocado).toBe(true);
   });
 });
+
+describe("10.ª revisão — sem IA, a taxa escrita (6 %) também converte as linhas", () => {
+  it("«com IVA»: as linhas convertem a 6 % e somam o total ao cêntimo, com o aviso da taxa", async () => {
+    const doc = docx([
+      { h: 1, t: "Orçamento" },
+      "Livros TESTE: 106,00 €",
+      "Cadernos TESTE: 106,00 €",
+      "Valor sem IVA: 200,00 €",
+      "IVA (6%): 12,00 €",
+      "Total: 212,00 €",
+    ]);
+    const r = await importarDocumento(doc, { chamar: null });
+    expect(r.revisao?.via).toBe("regras");
+    expect(r.proposta.vatRate).toBe(0.06);
+    expect(r.proposta.totaisEscritos).toEqual({ sem: 200, com: 212 });
+    expect(r.revisao?.contas?.vatRate).toBe(0.06);
+    const taxa = r.revisao!.avisos.find((a) => a.id === "iva:taxa-diferente")!;
+    expect(taxa.dinheiro).toBe(true);
+    expect(taxa.texto).toMatch(/IVA a 6%/);
+    const { c, gravar } = escolherIva(r.proposta, "incluido");
+    // 106 com IVA a 6 % = 100 sem IVA, cada uma.
+    expect(gravar.budgetAmounts).toEqual([100, 100]);
+    expect(gravar).toMatchObject({ totalAmount: 212, totalVatMode: "incluido" });
+    const doEstudio = montarDocumento(r.proposta, c, new Map(), "x.docx");
+    expect(doEstudio.vatRate).toBe(0.06);
+    expect(doEstudio.budgetAmounts).toEqual([100, 100]);
+    // A soma das linhas convertidas é a base do total, ao cêntimo: sem aviso da soma.
+    expect(avisoDaSomaGravada(r.proposta, c)).toBeNull();
+  });
+});

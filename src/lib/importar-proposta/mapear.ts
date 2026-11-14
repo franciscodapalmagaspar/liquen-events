@@ -370,6 +370,11 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
     budgetAmounts: itensComValor.map(() => null),
     totalAmount: totaisEscritos?.sem ?? null,
     totalVatMode: null,
+    // Uma só taxa escrita, diferente da da casa: passa a `vatRate` (como na
+    // leitura, `ia/preencher.ts`) e converte também as linhas.
+    ...(taxas.length === 1 && Math.abs(taxas[0] - DEFAULT_VAT_RATE) > 1e-9
+      ? { vatRate: taxas[0] }
+      : {}),
     ...(ivaPorEscolher
       ? {
           ivaPorEscolher: true,
