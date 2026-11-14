@@ -29,7 +29,9 @@ import { TABELAS_COM_CONTEUDO } from "@/lib/limpar-pastas-orfas";
  *      inteira — «não sei qual foi» não autoriza apagar nenhum;
  *   3. o último ENVIADO (`proposals.pdf_sha256`);
  *   4. mencionado em qualquer tabela com conteúdo (o nome do ficheiro, ou o id
- *      de uma proposta que já não existe — um resgate na Reciclagem, por ex.);
+ *      de uma proposta que já não existe — um resgate na Reciclagem, por ex.).
+ *      Não contam as linhas de `app_state` que só APONTAM para a proposta
+ *      ({@link PREFIXOS_QUE_NAO_SAO_MENCAO}) — ver «Porque é que não apagava»;
  *   5. com menos de {@link DIAS} dias;
  *   6. e só sai depois de ter sido candidato numa noite anterior, há pelo menos
  *      {@link ESPERA_DIAS} dias, continuando a sê-lo (lista em `app_state`,
@@ -41,6 +43,31 @@ import { TABELAS_COM_CONTEUDO } from "@/lib/limpar-pastas-orfas";
  *
  * Se UMA leitura falhar, não se apaga nada. No máximo {@link POR_NOITE}
  * ficheiros por noite, cada um no log. Nada disto lança.
+ *
+ * ── PORQUE É QUE NÃO APAGAVA (medido a 14/11) ─────────────────────────────
+ *
+ * A 14/11 o bucket tinha 65 PDF (132 MB) e a limpeza corria todas as noites —
+ * mas só tinha UM ficheiro em espera. Doze PDF de nove propostas APAGADAS
+ * (≈11,6 MB, de agosto e setembro) nunca chegavam a candidatos: a porta 4
+ * encontrava o id delas no `app_state` e guardava a pasta inteira. Nenhuma
+ * dessas menções era um resgate. Eram:
+ *
+ *   · `ligacao-proposta:<código>` e `ligacao-de-proposta:<id>` — o endereço
+ *     curto do link (`proposta-link-curto.ts`). Sem a proposta, o link não abre
+ *     nada: a rota lê a proposta antes de procurar o PDF;
+ *   · `envio-de-proposta:<pedido>` — a cópia do email (`envios-de-proposta.ts`).
+ *     Guarda o nome e o tamanho do anexo, nunca o ficheiro guardado;
+ *   · `aquecimento-pdf:estado` — a memória do aquecimento nocturno;
+ *   · `proposta-web:…` — a cache da proposta online, derivada do documento.
+ *
+ * Nenhuma delas lê o ficheiro, e nenhuma o faria voltar a fazer falta. Por isso
+ * deixam de contar como menção; tudo o resto conta como dantes.
+ *
+ * ── ENSAIO ───────────────────────────────────────────────────────────────
+ *
+ * Com `{ ensaio: true }` faz as mesmas leituras e devolve a `lista` do que
+ * sairia (com os bytes), mas não grava a lista de espera nem apaga nada. É o
+ * que `scripts/ensaio-pdfs-substituidos.mjs` corre contra produção.
  *
  * Custo: uma listagem da raiz, uma por proposta (dezenas), e três leituras de
  * colunas pequenas. Os textos das tabelas só se lêem nas noites com
@@ -55,16 +82,59 @@ export const CHAVE = "limpeza:pdfs-substituidos";
 const BUCKET = "proposal-pdfs";
 const DIA_MS = 24 * 60 * 60_000;
 
+/**
+ * Chaves de `app_state` que nomeiam uma proposta sem precisarem do PDF dela.
+ * Lidas como menção, guardavam para sempre a pasta de uma proposta apagada
+ * (ver «Porque é que não apagava», acima). Os prefixos são os dos módulos que
+ * as escrevem: `proposta-link-curto.ts`, `envios-de-proposta.ts`,
+ * `aquecimento-de-pdf.ts` e `proposta-web/guardado.ts`.
+ */
+export const PREFIXOS_QUE_NAO_SAO_MENCAO = [
+  "ligacao-proposta:",
+  "ligacao-de-proposta:",
+  "envio-de-proposta:",
+  "aquecimento-pdf:",
+  "proposta-web:",
+] as const;
+
+/** Esta linha de `app_state` conta como menção de um PDF ou de uma proposta? */
+export function contaComoMencao(chave: unknown): boolean {
+  const k = String(chave ?? "");
+  if (k === CHAVE || eChaveDeIndiceDeFotos(k)) return false;
+  return !PREFIXOS_QUE_NAO_SAO_MENCAO.some((p) => k.startsWith(p));
+}
+
 /** Ficheiro → quando foi visto candidato pela primeira vez (ISO). */
 export type EmEspera = Record<string, string>;
 
-type Resultado = { candidatos: number; emEspera: number; apagados: number; acabou: boolean };
+/** Um PDF que sairia, como o ensaio o mostra. */
+export type QueSairia = {
+  caminho: string;
+  bytes: number | null;
+  criado: string;
+  /** Já cumpriu a espera de {@link ESPERA_DIAS} dias (sairia esta noite)? */
+  saiaHoje: boolean;
+};
+
+type Resultado = {
+  candidatos: number;
+  emEspera: number;
+  apagados: number;
+  acabou: boolean;
+  /** Só no ensaio: o que sairia, e quanto ocupa. */
+  lista?: QueSairia[];
+  bytes?: number;
+};
 
 type Ficheiro = { caminho: string; nome: string; criado: number; bytes: number | null };
 
 type Selo = { sha: string; bytes: number | null };
 
-export async function limparPdfsSubstituidos(agora: Date, prazoMs = 8_000): Promise<Resultado> {
+export async function limparPdfsSubstituidos(
+  agora: Date,
+  prazoMs = 8_000,
+  { ensaio = false }: { ensaio?: boolean } = {},
+): Promise<Resultado> {
   const nada: Resultado = { candidatos: 0, emEspera: 0, apagados: 0, acabou: true };
   const falhou: Resultado = { ...nada, acabou: false };
   const sb = getSupabase();
@@ -153,10 +223,10 @@ export async function limparPdfsSubstituidos(agora: Date, prazoMs = 8_000): Prom
         JSON.stringify(
           TABELAS_COM_CONTEUDO[i] === "app_state"
             ? // O índice dos resumos (`fotos-resumo.ts`) nomeia pastas de pedidos
-              // por fotos que lá estiveram — não é uma menção.
-              (l.data as { key?: string }[]).filter(
-                (r) => r.key !== CHAVE && !eChaveDeIndiceDeFotos(r.key),
-              )
+              // por fotos que lá estiveram, e os ponteiros para a proposta
+              // (`PREFIXOS_QUE_NAO_SAO_MENCAO`) nomeiam-na sem precisarem do
+              // PDF — nenhum deles é uma menção.
+              (l.data as { key?: string }[]).filter((r) => contaComoMencao(r.key))
             : l.data,
         ),
       )
@@ -195,6 +265,27 @@ export async function limparPdfsSubstituidos(agora: Date, prazoMs = 8_000): Prom
   const antes = (await getState<EmEspera>(CHAVE)) ?? {};
   const espera: EmEspera = {};
   for (const f of prontos) espera[f.caminho] = antes[f.caminho] ?? agora.toISOString();
+
+  if (ensaio) {
+    const lista: QueSairia[] = prontos.map((f) => {
+      const desde = Date.parse(espera[f.caminho]);
+      return {
+        caminho: f.caminho,
+        bytes: f.bytes,
+        criado: new Date(f.criado).toISOString(),
+        saiaHoje: !Number.isNaN(desde) && agora.getTime() - desde >= ESPERA_DIAS * DIA_MS,
+      };
+    });
+    return {
+      candidatos: prontos.length,
+      emEspera: Object.keys(antes).length,
+      apagados: 0,
+      acabou: true,
+      lista,
+      bytes: lista.reduce((s, f) => s + (f.bytes ?? 0), 0),
+    };
+  }
+
   const gravou = await setState(CHAVE, espera);
   if (!gravou.gravado || !gravou.duradouro) {
     return { ...falhou, candidatos: prontos.length, emEspera: prontos.length };

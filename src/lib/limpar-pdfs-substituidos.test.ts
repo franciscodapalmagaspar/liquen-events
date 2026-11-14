@@ -229,4 +229,41 @@ describe("os PDF de proposta substituídos (10/11)", () => {
     await limparPdfsSubstituidos(dia1);
     expect(Object.keys(st.estado[CHAVE] as object)).not.toContain("prop-aceite/k7Qrascunho.pdf");
   });
+
+  it("os ponteiros para uma proposta apagada (link curto, cópia do email, aquecimento, proposta web) não guardam a pasta (14/11)", async () => {
+    // Era assim em produção: 12 PDF de 9 propostas apagadas, presos só por isto.
+    st.tabelas.app_state = [
+      { key: "ligacao-proposta:gfedy692gzm0", value: { propostaId: "prop-apagada" } },
+      { key: "ligacao-de-proposta:prop-apagada", value: { codigo: "gfedy692gzm0" } },
+      {
+        key: "envio-de-proposta:LIQ-X",
+        value: { envios: [{ propostaId: "prop-apagada", anexo: { nome: "p.pdf", bytes: 1 } }] },
+      },
+      { key: "aquecimento-pdf:estado", value: { feitas: { "prop-apagada": "k7Qso" } } },
+      { key: "proposta-web:retrato:prop-apagada:abc", value: { proposta: "prop-apagada" } },
+    ];
+    await limparPdfsSubstituidos(dia1);
+    expect(Object.keys(st.estado[CHAVE] as object)).toContain("prop-apagada/k7Qso.pdf");
+  });
+
+  it("o ensaio lista o que sairia e soma os bytes, sem gravar a espera nem apagar", async () => {
+    const r1 = await limparPdfsSubstituidos(dia1, 8_000, { ensaio: true });
+    expect(st.estado[CHAVE]).toBeUndefined();
+    expect(st.apagados).toEqual([]);
+    expect(r1.lista?.map((f) => f.caminho).sort()).toEqual([
+      "prop-aceite/k7Qrascunho.pdf",
+      "prop-apagada/k7Qso.pdf",
+      "prop-viva/k7Qvelho.pdf",
+    ]);
+    // 11 + 1 + 8 bytes; nenhum cumpriu ainda a espera.
+    expect(r1.bytes).toBe(20);
+    expect(r1.lista?.every((f) => !f.saiaHoje)).toBe(true);
+
+    // Com a espera já gravada por uma noite a sério, o ensaio diz que saíam.
+    await limparPdfsSubstituidos(dia1);
+    const r9 = await limparPdfsSubstituidos(dia9, 8_000, { ensaio: true });
+    expect(st.apagados).toEqual([]);
+    expect(r9.lista?.every((f) => f.saiaHoje)).toBe(true);
+    expect(Object.keys(st.estado[CHAVE] as object)).toHaveLength(3);
+  });
 });
