@@ -171,7 +171,12 @@ describe("contagem de fotos em falta", () => {
     } as unknown as Parameters<typeof renderStoredProposalDocPdfWithReport>[0]);
     expect(missingImages).toBe(10);
     // As 80 primeiras pela ordem dela; o último board inteiro fica de fora.
-    expect([...pedidas].sort()).toEqual(boards.slice(0, 8).flatMap((b) => b.images).sort());
+    expect([...pedidas].sort()).toEqual(
+      boards
+        .slice(0, 8)
+        .flatMap((b) => b.images)
+        .sort(),
+    );
   });
 
   it("a foto que RESOLVE e não se consegue DESENHAR também conta como em falta", async () => {
