@@ -337,6 +337,13 @@ export const SEM_LUPA = "pointer-coarse:select-none pointer-coarse:[-webkit-touc
 
 const RECLAMADOS = new WeakSet<Event>();
 
+/**
+ * Quanto tempo o `contextmenu` que chega depois de um toque longo se conta
+ * como DELE. O do Android chega na mesma fracção de segundo; um segundo cobre-o
+ * com folga, e depois disso um `contextmenu` é outra coisa (a tecla de menu).
+ */
+export const DISPARO_VALE_MS = 1000;
+
 export function useToqueLongo(ms = 550) {
   const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
   const origem = useRef<PontoDoToque | null>(null);
@@ -344,6 +351,8 @@ export function useToqueLongo(ms = 550) {
   const engolirClique = useRef<((e: Event) => void) | null>(null);
   /** Um toque longo disparou e o `contextmenu` que o Android manda a seguir é dele. */
   const disparou = useRef(false);
+  /** Baixa o `disparou` passado um segundo (ver `DISPARO_VALE_MS`). */
+  const baixarDisparo = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const largarRolo = useCallback(() => {
     if (aoRolar.current) window.removeEventListener("scroll", aoRolar.current, true);
@@ -363,19 +372,36 @@ export function useToqueLongo(ms = 550) {
     engolirClique.current = null;
   }, []);
 
+  const esquecerDisparo = useCallback(() => {
+    if (baixarDisparo.current) clearTimeout(baixarDisparo.current);
+    baixarDisparo.current = null;
+    disparou.current = false;
+  }, []);
+
   useEffect(
     () => () => {
       cancelar();
       largarClique();
+      esquecerDisparo();
     },
-    [cancelar, largarClique],
+    [cancelar, largarClique, esquecerDisparo],
   );
 
   return useCallback(
     (aoDisparar: AoToqueLongo, aoMenuDoRato?: (e: React.MouseEvent<HTMLElement>) => void) => {
-      const disparar = (ponto: PontoDoToque, alvo: HTMLElement) => {
-        if (aoDisparar(ponto, alvo) === false) return;
+      /** Abre o menu; `false` quando o toque não era com quem o recebeu. */
+      const disparar = (ponto: PontoDoToque, alvo: HTMLElement): boolean => {
+        if (aoDisparar(ponto, alvo) === false) return false;
         disparou.current = true;
+        // A bandeira só serve o `contextmenu` que o Android manda logo a
+        // seguir ao toque longo. Levantada até ao próximo `pointerdown` NESTE
+        // alvo, engolia a tecla de menu (ou o ⇧F10) de um híbrido com
+        // teclado — que também chega como `contextmenu` (revisão de 14/11).
+        if (baixarDisparo.current) clearTimeout(baixarDisparo.current);
+        baixarDisparo.current = setTimeout(() => {
+          baixarDisparo.current = null;
+          disparou.current = false;
+        }, DISPARO_VALE_MS);
         largarClique();
         // Um `pointerdown` em QUALQUER sítio também a deita abaixo: o iOS nem
         // sempre manda o clique depois do toque longo, e uma bandeira que
@@ -390,13 +416,14 @@ export function useToqueLongo(ms = 550) {
         engolirClique.current = engolir;
         window.addEventListener("click", engolir, true);
         window.addEventListener("pointerdown", engolir, true);
+        return true;
       };
       return {
         onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
           // Um toque novo: o clique que ficou por engolir (o iOS nem sempre o
           // manda) não pode levar este.
           largarClique();
-          disparou.current = false;
+          esquecerDisparo();
           if (e.pointerType !== "touch" || RECLAMADOS.has(e.nativeEvent)) return;
           if (
             (e.target as HTMLElement | null)?.closest?.(
@@ -433,19 +460,23 @@ export function useToqueLongo(ms = 550) {
             e.stopPropagation();
             return;
           }
-          // O browser chegou primeiro (Android): conta como o toque longo.
+          // O browser chegou primeiro (Android): conta como o toque longo —
+          // se for com ele. Quando `aoDisparar` diz que não (a lista das
+          // tarefas, fora de uma tarefa), o menu do browser fica e segue para
+          // o do rato, como seguia antes de haver toque longo.
           if (origem.current) {
             const ponto = origem.current;
             cancelar();
-            e.preventDefault();
-            e.stopPropagation();
-            disparar(ponto, e.target as HTMLElement);
-            return;
+            if (disparar(ponto, e.target as HTMLElement)) {
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+            }
           }
           aoMenuDoRato?.(e);
         },
       };
     },
-    [cancelar, largarClique, largarRolo, ms],
+    [cancelar, largarClique, largarRolo, esquecerDisparo, ms],
   );
 }

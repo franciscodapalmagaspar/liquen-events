@@ -92,31 +92,15 @@ describe("o passo que chega apresenta-se", () => {
  * usá-lo dos dois lados é uma decisão sobre a casa, não sobre esta tela — e é
  * isso que este bloco prende, para ninguém os deixar divergir.
  */
-/**
- * E O PASSO QUE CHEGA MOSTRA-SE PELO PRINCÍPIO (auditoria do telemóvel, 14/11).
- * Trocar de passo pela barra ou pelo «Anterior / Seguinte» deixava o rolo onde
- * estava — vinda do fundo do passo 1, ela caía a meio do passo 2. O gesto mede-se
- * no browser (`e2e/o-iphone-com-barras.spec.ts`); aqui prende-se que os quatro
- * caminhos passam pela mesma porta, e que o alvo desconta as barras coladas.
+/*
+ * O PASSO QUE CHEGA MOSTRA-SE PELO PRINCÍPIO (auditoria do telemóvel, 14/11)
+ * já não se prende aqui com expressões sobre o código: uma regex passava com
+ * um quinto caminho a fazer `setStep` ao lado (o «Voltar e corrigir» fazia-o).
+ * Prende-se a EXERCER o `irParaPasso` — em `ProposalStudio.casos.test.tsx`,
+ * os casos com «INÍCIO» no nome (barra, «Seguinte», «Voltar e corrigir»,
+ * «Repor esta versão», «Limpar rascunho», com `comOPassoLaEmCima`) — e com o
+ * dedo no passeio `e2e/o-iphone-com-barras.spec.ts`.
  */
-describe("o passo que chega mostra-se pelo princípio", () => {
-  it("a barra dos passos e o «Anterior / Seguinte» passam pelo `irParaPasso`", () => {
-    expect(FONTE).toMatch(/<StepNav\s+step=\{step\}\s+onSelect=\{irParaPasso\}/);
-    expect(FONTE).not.toMatch(/onClick=\{\(\) => setStep\(passoAoLado\(/);
-    expect(FONTE).toMatch(/onClick=\{\(\) => irParaPasso\(passoAoLado\(step, 1\) as Step\)\}/);
-  });
-
-  it("o alvo do rolo tem a margem das barras coladas, e o rolo passa pelo `rolarAteVer`", () => {
-    expect(FONTE).toMatch(
-      /ref=\{formularioDosPassos\}\s*className=\{`@container\/estudio scroll-mt-\[var\(--bo-colado-topo\)\]/,
-    );
-    expect(FONTE).toMatch(
-      /ref=\{passoDoEnvio\}\s*className=\{`scroll-mt-\[var\(--bo-colado-topo\)\]/,
-    );
-    expect(FONTE).toMatch(/rolarAteVer\(alvo, \{ block: "start" \}\)/);
-  });
-});
-
 describe("o fim da jornada desenha-se", () => {
   it("a confirmação do envio usa o mesmo visto que o casal vê", () => {
     // No estúdio.

@@ -5522,7 +5522,9 @@ export default function ProposalStudio({
     setRefEdited(true);
     setConfirmSend(false);
     setSent(false);
-    setStep("evento");
+    // Muda de passo como a barra dos passos: sobe ao início do Evento se ele
+    // ficou acima (ver «MUDAR DE PASSO SOBE AO TOPO DO PASSO NOVO»).
+    irParaPasso("evento");
     // Só se o preço tiver MESMO mudado: repor uma versão com o mesmo valor não
     // é um acontecimento do dinheiro, e uma linha por cada não-mudança ensina a
     // saltar o histórico todo.
@@ -5801,7 +5803,8 @@ export default function ProposalStudio({
     setRefEdited(false);
     setConfirmSend(false);
     setSent(false);
-    setStep("evento");
+    // Recomeçar é recomeçar no topo do Evento — não a meio dele.
+    irParaPasso("evento");
     /**
      * Limpar deita o total fora com o resto — e o total é o preço do pedido.
      * Fica no histórico pela mesma razão que o «Usar X €»: um preço que muda
@@ -13788,7 +13791,9 @@ export default function ProposalStudio({
                       // capa (o passo do Evento), e as outras linhas cortadas
                       // são de serviços.
                       const corte = cortesPorConfirmar?.[0];
-                      setStep(
+                      // Pela mesma porta da barra dos passos: chega ao
+                      // INÍCIO do passo, não a meio dele (revisão de 14/11).
+                      irParaPasso(
                         !corte
                           ? "evento"
                           : corte.unit === "fotos"

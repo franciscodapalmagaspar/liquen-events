@@ -2010,7 +2010,9 @@ export default function Tarefas({
     const linha = alvo.closest?.("[data-tarefa]") as HTMLElement | null;
     const botao = linha?.querySelector<HTMLElement>('[aria-haspopup="menu"]');
     if (!botao) return false;
-    botao.click();
+    // O «⋯» alterna: com o menu desta linha já aberto, um clique fechava-o —
+    // o toque longo ABRE, e o que já está aberto fica (revisão de 14/11).
+    if (botao.getAttribute("aria-expanded") !== "true") botao.click();
     return true;
   }, []);
   const menuDoBotaoDireito = useCallback((e: React.MouseEvent<HTMLElement>) => {

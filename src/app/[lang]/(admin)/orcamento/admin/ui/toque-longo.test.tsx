@@ -165,4 +165,81 @@ describe("useToqueLongo", () => {
     expect(visto).toHaveBeenCalledTimes(1);
     document.body.removeEventListener("click", visto);
   });
+
+  it("passado um segundo do toque longo, a tecla de menu (⇧F10) volta a abrir o menu do rato", () => {
+    const { result } = renderHook(() => useToqueLongo());
+    const doRato = vi.fn();
+    const h = result.current(vi.fn(), doRato);
+    act(() => h.onPointerDown(evento("pointerdown")));
+    act(() => void vi.advanceTimersByTime(600));
+    h.onPointerUp();
+    // Logo a seguir é o do Android: engole-se.
+    const logo = evento("contextmenu") as unknown as React.MouseEvent<HTMLElement>;
+    h.onContextMenu(logo);
+    expect(doRato).not.toHaveBeenCalled();
+    // Um segundo depois, sem outro toque NESTE alvo, é a tecla de menu de um
+    // híbrido com teclado: não pode ser engolida.
+    act(() => void vi.advanceTimersByTime(1000));
+    const tecla = evento("contextmenu") as unknown as React.MouseEvent<HTMLElement>;
+    h.onContextMenu(tecla);
+    expect(doRato).toHaveBeenCalledTimes(1);
+    expect(tecla.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("Android fora do que é dele (`false`): o menu do browser fica e segue para o do rato", () => {
+    const { result } = renderHook(() => useToqueLongo());
+    const doRato = vi.fn();
+    const h = result.current(() => false, doRato);
+    act(() => h.onPointerDown(evento("pointerdown")));
+    act(() => void vi.advanceTimersByTime(500));
+    const e = evento("contextmenu") as unknown as React.MouseEvent<HTMLElement>;
+    h.onContextMenu(e);
+    expect(e.preventDefault).not.toHaveBeenCalled();
+    expect(e.stopPropagation).not.toHaveBeenCalled();
+    expect(doRato).toHaveBeenCalledTimes(1);
+    // E não fica a engolir o clique seguinte.
+    const visto = vi.fn();
+    document.body.addEventListener("click", visto);
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(visto).toHaveBeenCalledTimes(1);
+    document.body.removeEventListener("click", visto);
+  });
+
+  it("ao desmontar, o temporizador e os ouvintes de click/pointerdown/scroll vão-se", () => {
+    const juntos = new Map<string, number>();
+    const add = vi.spyOn(window, "addEventListener");
+    const rem = vi.spyOn(window, "removeEventListener");
+    try {
+      // A meio de um toque (temporizador e `scroll` vivos)…
+      const um = renderHook(() => useToqueLongo());
+      const aoDisparar = vi.fn();
+      act(() => um.result.current(aoDisparar).onPointerDown(evento("pointerdown")));
+      // …e depois de um toque longo (o `click`/`pointerdown` que engolem vivos).
+      const dois = renderHook(() => useToqueLongo());
+      const h2 = dois.result.current(vi.fn());
+      act(() => h2.onPointerDown(evento("pointerdown")));
+      act(() => void vi.advanceTimersByTime(549));
+      um.unmount();
+      act(() => void vi.advanceTimersByTime(10));
+      dois.unmount();
+      // O temporizador de quem desmontou a meio não dispara.
+      act(() => void vi.advanceTimersByTime(2000));
+      expect(aoDisparar).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+      for (const [tipo, f] of add.mock.calls.map((c) => [c[0], c[1]] as const)) {
+        const tirado = rem.mock.calls.some((c) => c[0] === tipo && c[1] === f);
+        if (!tirado) juntos.set(String(tipo), (juntos.get(String(tipo)) ?? 0) + 1);
+      }
+      expect(Object.fromEntries(juntos)).toEqual({});
+      // E o que se vê: um clique depois de desmontar já não é engolido.
+      const visto = vi.fn();
+      document.body.addEventListener("click", visto);
+      document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(visto).toHaveBeenCalledTimes(1);
+      document.body.removeEventListener("click", visto);
+    } finally {
+      add.mockRestore();
+      rem.mockRestore();
+    }
+  });
 });

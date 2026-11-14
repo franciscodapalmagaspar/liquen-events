@@ -22,6 +22,11 @@ import { entrarNoBackOffice, exigirLogin, pedidoDoDia } from "./semear-pedido";
  *   7. A semana abria com um dia cortado a meio.
  *   8. «Nova tarefa» abria colada à barra de baixo, com os detalhes por baixo.
  *
+ * E da revisão de 14/11: «Voltar e corrigir» (o envio parado nos cortes) chega
+ * ao início do passo; o clique do fim do toque longo não chega a ninguém; o
+ * toque (ou o clique, com rato a 1440) que fecha um menu SÓ o fecha; e o toque
+ * longo no «⋯» já aberto deixa-o aberto.
+ *
  * Corre com servidor que GRAVA (cria uma marcação e tarefas «TESTE e2e») — ver
  * `playwright.movel.config.ts`.
  */
@@ -82,6 +87,32 @@ async function toqueLongo(cdp: CDPSession, x: number, y: number, ms = 800) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 }
 
+/**
+ * Os cliques DO BROWSER (`isTrusted`) que chegam à página a partir de agora.
+ *
+ * Depois do toque longo o browser manda um `click` quando o dedo se levanta
+ * (MEDIDO neste Chromium: pointerdown → 550 ms → pointerup → click). Esse clique
+ * tem de ser engolido antes de chegar a quem quer que seja. Contá-lo no
+ * `document` é a prova que não depende de onde o menu se desenhou: no dia do
+ * calendário o menu abre DEBAIXO do dedo, o clique caía nele e não fazia nada,
+ * e o passeio ficava verde sem o engolir (revisão de 14/11). Os `click()` do
+ * código (o «⋯» que o toque longo carrega) não contam: não são do browser.
+ */
+async function contarCliquesDoBrowser(page: Page): Promise<() => Promise<number>> {
+  await page.evaluate(() => {
+    const w = window as unknown as { __cliques: number };
+    w.__cliques = 0;
+    document.addEventListener(
+      "click",
+      (e) => {
+        if (e.isTrusted) w.__cliques += 1;
+      },
+      true,
+    );
+  });
+  return () => page.evaluate(() => (window as unknown as { __cliques: number }).__cliques);
+}
+
 async function deslizar(cdp: CDPSession, x: number, y0: number, y1: number) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: y0 }] });
   for (let i = 1; i <= 10; i += 1) {
@@ -110,6 +141,29 @@ function diaVazioDoMes(): string {
   const d = new Date();
   const dia = d.getDate() > 15 ? 3 : 25;
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+}
+
+/** O centro de um dia vazio, à vista, que NÃO esteja debaixo do menu aberto. */
+async function diaVazioForaDoMenu(page: Page, menos: string) {
+  const alvo = await page.evaluate((longe) => {
+    const m = document.querySelector('[role="menu"]')!.getBoundingClientRect();
+    const barra =
+      document.querySelector('nav[aria-label*="Navegação do back office"]')?.getBoundingClientRect()
+        .top ?? innerHeight;
+    for (const c of document.querySelectorAll<HTMLElement>('[role="gridcell"][data-dia]')) {
+      if (c.dataset.dia === longe || c.querySelector('[class*="group/chip"]')) continue;
+      const r = c.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      const y = r.top + r.height / 2;
+      const noMenu = x >= m.left - 4 && x <= m.right + 4 && y >= m.top - 4 && y <= m.bottom + 4;
+      if (!noMenu && y > 80 && y < barra - 8 && x > 0 && x < innerWidth) {
+        return { x, y, dia: c.dataset.dia! };
+      }
+    }
+    return null;
+  }, menos);
+  expect(alvo, "não há um dia vazio à vista fora do menu").not.toBeNull();
+  return alvo!;
 }
 
 const MARCACAO = "TESTE e2e — reunião do telemóvel";
@@ -225,6 +279,118 @@ test.describe("o back office num iPhone com as barras do Safari", () => {
     await page.waitForTimeout(1000);
     expect(Math.abs((await inicioDoPasso()).scrollY - antes)).toBeLessThanOrEqual(1);
     expect(erros).toEqual([]);
+  });
+
+  test("2 · «Voltar e corrigir» (o envio parou nos cortes) chega ao INÍCIO do passo do corte", async ({
+    page,
+  }) => {
+    const erros = errosDaConsola(page);
+    const { id, naLista } = await pedidoDoDia(page);
+    // NADA SAI: a rota do PDF responde aqui — a descarga com um PDF de uma
+    // linha, e o envio com o 409 dos cortes, que é a resposta que pára antes de
+    // gravar e de enviar. O rascunho também não toca no servidor.
+    const envios: string[] = [];
+    await page.route(`**/api/orcamento/${id}/proposta-doc**`, async (route) => {
+      const corpo = route.request().postData() ?? "";
+      if (/"mode":"send"/.test(corpo)) {
+        envios.push(corpo);
+        return route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: "O documento sai com conteúdo cortado.",
+            precisaConfirmarCortes: true,
+            truncations: [{ where: "Mood board «TESTE Cerimónia»", dropped: 3, unit: "fotos" }],
+          }),
+        });
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: "application/pdf",
+        headers: { "X-Chave-Do-Pdf": "chave-e2e" },
+        body: "%PDF-1.4\n%TESTE\n%%EOF\n",
+      });
+    });
+    await page.route(`**/api/orcamento/${id}/proposta-rascunho**`, (route) =>
+      route.request().method() === "GET"
+        ? route.fulfill({ json: { ok: true, draft: null } })
+        : route.fulfill({
+            json: { ok: true, guardado: true, updatedAt: new Date().toISOString() },
+          }),
+    );
+    await vista(page, "pedidos");
+    // Um rascunho que pode sair (o mesmo dos casos do estúdio), só «TESTE».
+    await page.evaluate((chave) => {
+      localStorage.setItem(
+        chave,
+        JSON.stringify({
+          template: "decoracao",
+          ref: "PO TESTE",
+          clientNames: "TESTE Maria & Zé",
+          eventType: "Casamento",
+          eventDate: "12 de setembro de 2026",
+          location: "TESTE Évora",
+          guests: "80 pax",
+          serviceGroups: [
+            { letter: "a)", title: "TESTE Decoração", items: [{ label: "Cerimónia" }] },
+          ],
+          moodBoards: [{ title: "TESTE Cerimónia", annotation: "", images: [] }],
+          budgetItems: ["TESTE Decoração da cerimónia"],
+          budgetAmounts: [3000],
+          budgetArtigos: ["flores"],
+          coverImages: ["", ""],
+          totalAmount: 3000,
+          totalVatMode: "acrescer",
+        }),
+      );
+    }, `liquen-proposal-studio-${id}`);
+    await tocar(page, page.getByText(naLista).first());
+    const passos = page.locator("nav[aria-label='Passos da proposta']");
+    await expect(passos).toBeVisible({ timeout: 30_000 });
+    await page.waitForTimeout(1500);
+    await tocar(page, passos.getByRole("button").nth(4));
+    await page.waitForTimeout(800);
+
+    // No telemóvel o PDF final abre numa folha, com «Está certo — enviar».
+    await tocar(page, page.getByRole("button", { name: "Descarregar o PDF final" }));
+    const estaCerto = page
+      .getByRole("dialog", { name: "O PDF final" })
+      .getByRole("button", { name: "Está certo — enviar" });
+    await expect(estaCerto).toBeVisible({ timeout: 20_000 });
+    await tocar(page, estaCerto);
+    const confirmar = page.getByRole("button", { name: /^Confirmar$/ });
+    await page.waitForTimeout(600);
+    if (!(await confirmar.isVisible().catch(() => false))) {
+      await tocar(page, page.getByRole("button", { name: "Gerar e enviar ao cliente" }).last());
+    }
+    await expect(confirmar).toBeVisible();
+    await page.waitForTimeout(500); // o «Confirmar» ignora os primeiros 400 ms
+    await tocar(page, confirmar);
+    const ja = page.getByRole("button", { name: /^Enviar já$/ });
+    if (await ja.isVisible().catch(() => false)) await tocar(page, ja);
+    const voltar = page.getByRole("button", { name: "Voltar e corrigir" });
+    await expect(voltar).toBeVisible({ timeout: 20_000 });
+    expect(envios, "o envio não chegou a perguntar").toHaveLength(1);
+
+    // Ela está no fundo do «Rever e enviar», onde a pergunta aparece.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForTimeout(400);
+    await tocar(page, voltar);
+    await page.waitForTimeout(1200);
+    const p = await page.evaluate(() => {
+      const nav = document.querySelector("nav[aria-label='Passos da proposta']")!;
+      const f = document.querySelector<HTMLElement>('[class~="@container/estudio"]')!;
+      return { topo: f.getBoundingClientRect().top, barras: nav.getBoundingClientRect().bottom };
+    });
+    await expect(passos.getByRole("button").nth(2)).toHaveAttribute("aria-current", "step");
+    expect(
+      p.topo,
+      `a Inspiração começa ${Math.round(p.barras - p.topo)} px acima das barras`,
+    ).toBeGreaterThanOrEqual(p.barras - 2);
+    expect(p.topo).toBeLessThanOrEqual(p.barras + 48);
+    expect(envios, "«Voltar e corrigir» enviou").toHaveLength(1);
+    // O 409 é a resposta que o teste deu ao envio: o browser regista-a sempre.
+    expect(erros.filter((e) => !/status of 409/.test(e))).toEqual([]);
   });
 
   test("2 · com movimento reduzido, o salto ao topo do passo é imediato", async ({ page }) => {
@@ -370,13 +536,28 @@ test.describe("o back office num iPhone com as barras do Safari", () => {
     await dia.scrollIntoViewIfNeeded();
     const c = (await dia.boundingBox())!;
 
-    // Toque longo: o menu do dia, e NÃO o «Novo no calendário» do clique.
+    // Toque longo: o menu do dia, e NÃO o «Novo no calendário» do clique —
+    // e o clique que o dedo manda ao levantar não chega a ninguém.
+    const cliques = await contarCliquesDoBrowser(page);
     await toqueLongo(cdp, c.x + c.width / 2, c.y + c.height / 2);
     await page.waitForTimeout(600);
     await expect(page.getByRole("menu")).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(await cliques(), "o clique do fim do toque longo não foi engolido").toBe(0);
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);
+
+    // Com o menu aberto, um toque curto NOUTRO dia só o fecha — não abre
+    // «Novo no calendário» lá (revisão de 14/11).
+    await toqueLongo(cdp, c.x + c.width / 2, c.y + c.height / 2);
+    await page.waitForTimeout(600);
+    await expect(page.getByRole("menu")).toBeVisible();
+    // Um dia vazio à vista e FORA do menu (senão o toque caía num item dele).
+    const alvo = await diaVazioForaDoMenu(page, diaVazioDoMes());
+    await page.touchscreen.tap(alvo.x, alvo.y);
+    await page.waitForTimeout(800);
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(page.getByRole("dialog"), "o toque que fechou o menu abriu o dia").toHaveCount(0);
 
     // Deslizar por cima do dia rola a página e não abre nada.
     await deslizar(cdp, c.x + c.width / 2, c.y + c.height / 2, c.y + c.height / 2 - 160);
@@ -394,17 +575,70 @@ test.describe("o back office num iPhone com as barras do Safari", () => {
   test("6 · o toque longo numa tarefa abre as «Acções» dela, e não a tarefa", async ({ page }) => {
     const erros = errosDaConsola(page);
     const cdp = await page.context().newCDPSession(page);
-    await garantirTarefas(page, 1);
+    await garantirTarefas(page, 4);
     await vista(page, "tarefas");
     const linha = page.locator("[data-tarefa]", { hasText: /TESTE e2e tarefa/ }).first();
     await linha.scrollIntoViewIfNeeded();
+    // A primeira lá em cima, para as outras ficarem à vista por baixo do menu.
+    const topo = (await linha.boundingBox())!.y;
+    await page.evaluate((d) => window.scrollBy(0, d), topo - 120);
+    await page.waitForTimeout(400);
     const titulo = linha.getByText(/TESTE e2e tarefa/).first();
     const c = (await titulo.boundingBox())!;
+    const cliques = await contarCliquesDoBrowser(page);
     await toqueLongo(cdp, c.x + c.width / 2, c.y + c.height / 2);
     await page.waitForTimeout(600);
     await expect(page.getByRole("menu")).toBeVisible();
-    // O clique que o dedo manda ao levantar não abriu a tarefa por baixo do menu.
+    // O clique que o dedo manda ao levantar não abriu a tarefa por baixo do
+    // menu — nem chegou a ninguém.
     await expect(linha).not.toHaveAttribute("aria-current", "true");
+    expect(await cliques(), "o clique do fim do toque longo não foi engolido").toBe(0);
+
+    // Com o menu aberto, tocar NOUTRA tarefa só o fecha — não a abre. Uma que
+    // não esteja debaixo do menu (senão o toque caía num item dele).
+    const m = (await page.getByRole("menu").boundingBox())!;
+    const linhas = page.locator("[data-tarefa]", { hasText: /TESTE e2e tarefa/ });
+    let outra = linhas.nth(1);
+    let t2 = { x: 0, y: 0 };
+    for (let i = 1; i < (await linhas.count()); i += 1) {
+      const b = await linhas
+        .nth(i)
+        .getByText(/TESTE e2e tarefa/)
+        .first()
+        .boundingBox();
+      if (!b) continue;
+      const x = b.x + Math.min(b.width / 2, 40);
+      const y = b.y + b.height / 2;
+      const noMenu =
+        x >= m.x - 4 && x <= m.x + m.width + 4 && y >= m.y - 4 && y <= m.y + m.height + 4;
+      if (!noMenu && y > 80 && y < (await topoDaBarraDeBaixo(page)) - 8) {
+        outra = linhas.nth(i);
+        t2 = { x, y };
+        break;
+      }
+    }
+    expect(t2.y, "não há outra tarefa à vista fora do menu").toBeGreaterThan(0);
+    await page.touchscreen.tap(t2.x, t2.y);
+    await page.waitForTimeout(800);
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(outra, "o toque que fechou o menu abriu a outra tarefa").not.toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+
+    // O toque longo no «⋯» com o menu dele já aberto deixa-o aberto (o «⋯»
+    // alterna, e o toque longo abre — não fecha).
+    const tres = linha.locator('[aria-haspopup="menu"]').first();
+    await tocar(page, tres);
+    await page.waitForTimeout(500);
+    await expect(tres).toHaveAttribute("aria-expanded", "true");
+    const b = (await tres.boundingBox())!;
+    await toqueLongo(cdp, b.x + b.width / 2, b.y + b.height / 2);
+    await page.waitForTimeout(600);
+    await expect(tres, "o toque longo fechou o menu que já estava aberto").toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);
 
@@ -491,6 +725,82 @@ test.describe("o back office num iPhone com as barras do Safari", () => {
       fundo,
       `a linha de escrever acaba ${Math.round(fundo - barra)} px por baixo da barra`,
     ).toBeLessThanOrEqual(barra + 1);
+    expect(erros).toEqual([]);
+  });
+});
+
+/**
+ * O MESMO, COM RATO, A 1440 — o clique que fecha um menu só fecha (revisão de
+ * 14/11). Botão direito num dia abre o menu dele; o clique esquerdo NOUTRO dia
+ * fechava-o e abria «Novo no calendário» lá. E no «⋯ Acções» das tarefas,
+ * clicar noutra tarefa para fechar o menu abria-a.
+ */
+test.describe("com rato, a 1440: o clique que fecha um menu só fecha", () => {
+  test.use({
+    viewport: { width: 1440, height: 900 },
+    isMobile: false,
+    hasTouch: false,
+    deviceScaleFactor: 1,
+  });
+  test.beforeEach(async ({ page }) => {
+    exigirLogin(await entrarNoBackOffice(page));
+  });
+
+  test("calendário: botão direito num dia, clique noutro — fecha, e não cria nada", async ({
+    page,
+  }) => {
+    const erros = errosDaConsola(page);
+    await vista(page, "calendario");
+    await page
+      .getByRole("radio", { name: "Mês", exact: true })
+      .or(page.getByRole("tab", { name: "Mês", exact: true }))
+      .or(page.getByRole("button", { name: "Mês", exact: true }))
+      .first()
+      .click();
+    await page.waitForTimeout(800);
+    const dia = page.locator(`[role="gridcell"][data-dia="${diaVazioDoMes()}"]`);
+    await dia.click({ button: "right" });
+    await expect(page.getByRole("menu")).toBeVisible();
+    const alvo = await diaVazioForaDoMenu(page, diaVazioDoMes());
+    const outro = page.locator(`[role="gridcell"][data-dia="${alvo.dia}"]`);
+    await page.mouse.click(alvo.x, alvo.y);
+    await page.waitForTimeout(600);
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(page.getByRole("dialog"), "o clique que fechou o menu abriu o dia").toHaveCount(0);
+    // E o clique seguinte é um clique: abre o «Novo no calendário».
+    await outro.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    expect(erros).toEqual([]);
+  });
+
+  test("tarefas: «⋯ Acções» aberto, clique noutra tarefa — fecha, e não a abre", async ({
+    page,
+  }) => {
+    const erros = errosDaConsola(page);
+    await garantirTarefas(page, 2);
+    await vista(page, "tarefas");
+    const linhas = page.locator("[data-tarefa]", { hasText: /TESTE e2e tarefa/ });
+    const primeira = linhas.first();
+    const outra = linhas.nth(1);
+    await primeira.hover();
+    const tres = primeira.locator('[aria-haspopup="menu"]').first();
+    await tres.click();
+    await expect(tres).toHaveAttribute("aria-expanded", "true");
+    await outra
+      .getByText(/TESTE e2e tarefa/)
+      .first()
+      .click();
+    await page.waitForTimeout(600);
+    await expect(tres).toHaveAttribute("aria-expanded", "false");
+    await expect(outra, "o clique que fechou o menu abriu a outra tarefa").not.toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    await outra
+      .getByText(/TESTE e2e tarefa/)
+      .first()
+      .click();
+    await expect(outra).toHaveAttribute("aria-current", "true");
     expect(erros).toEqual([]);
   });
 });
