@@ -20,8 +20,12 @@ vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => true }));
 vi.mock("@/lib/biblioteca-fotos-store", () => ({
   listFotos: async () => fotosNaTabela.lista,
 }));
+const temas = vi.hoisted(() => ({ falha: null as Error | null }));
 vi.mock("@/lib/themes-store", () => ({
-  listThemes: async () => [{ id: TEMA, name: "Itália" }],
+  listThemes: async () => {
+    if (temas.falha) throw temas.falha;
+    return [{ id: TEMA, name: "Itália" }];
+  },
 }));
 vi.mock("@/lib/biblioteca-foto-etiquetas-store", () => ({
   listFotoEtiquetas: async () => [],
@@ -57,6 +61,7 @@ const pedir = (qs = "") => GET(new NextRequest(`https://liquen.test/api/bibliote
 
 beforeEach(() => {
   assinadas.caminhos = [];
+  temas.falha = null;
   // A ordem da tabela (mais recentes primeiro) põe as de proposta À FRENTE —
   // o caso que partia a primeira página.
   fotosNaTabela.lista = [
@@ -98,5 +103,13 @@ describe("/api/biblioteca/fotos — as fotos das propostas ficam de fora", () =>
     const corpo = await (await pedir("?pasta=LIQ-2026-0412")).json();
     expect(corpo.total).toBe(0);
     expect(corpo.fotos).toEqual([]);
+  });
+
+  it("se a leitura dos temas falha, responde com erro — nunca com a tabela inteira", async () => {
+    temas.falha = new Error("base de dados em baixo");
+    const res = await pedir();
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    const corpo = await res.json();
+    expect(corpo.fotos).toBeUndefined();
   });
 });
