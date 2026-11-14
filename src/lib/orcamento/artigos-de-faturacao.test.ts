@@ -394,3 +394,16 @@ describe("subpontos — só para nós (6/11)", () => {
     );
   });
 });
+
+describe("textoDaFatura — para colar no Moloni", () => {
+  it("os valores não levam separador de milhares (um espaço inquebrável pode não colar)", () => {
+    const t = textoDaFatura(
+      [{ artigo: "flores" as never, nome: "Flores", valor: 1500 }],
+      "sinal",
+      30,
+      0.23,
+    );
+    expect(t).toContain("1500,00");
+    expect(t).not.toMatch(/1[\u00a0\u202f .]500/);
+  });
+});

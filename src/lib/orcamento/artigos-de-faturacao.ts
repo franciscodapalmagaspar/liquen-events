@@ -615,6 +615,19 @@ export function conferenciaDoMoloni(
   return { noMoloni, naProposta, diferenca: round2(noMoloni - naProposta) };
 }
 
+/**
+ * Euros para COLAR no Moloni: sem separador de milhares (um espaço inquebrável
+ * no meio do número pode não ser aceite no campo do preço). Só este texto.
+ */
+const eurParaColar = (n: number): string =>
+  new Intl.NumberFormat("pt-PT", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: false,
+  }).format(n || 0);
+
 /** O texto a copiar para o Moloni à mão, quando a ligação não está feita. */
 export function textoDaFatura(
   partes: ParcelaDoArtigo[],
@@ -631,11 +644,11 @@ export function textoDaFatura(
   return [
     ...(quem ? [`Cliente: ${quem}`] : []),
     `${titulo} — valores sem IVA (IVA ${Math.round(vatRate * 100)}%):`,
-    ...partes.map((p) => `${refDoArtigo(p.artigo)} · ${p.nome}: ${eur(p.valor)}`),
-    `Total sem IVA: ${eur(total)}`,
+    ...partes.map((p) => `${refDoArtigo(p.artigo)} · ${p.nome}: ${eurParaColar(p.valor)}`),
+    `Total sem IVA: ${eurParaColar(total)}`,
     // Para conferir no Moloni de um relance (ele calcula o IVA linha a linha:
     // pode diferir 1 cêntimo).
-    `Total com IVA: ${eur(totalComIvaNoMoloni(partes, vatRate))}`,
+    `Total com IVA: ${eurParaColar(totalComIvaNoMoloni(partes, vatRate))}`,
   ].join("\n");
 }
 
