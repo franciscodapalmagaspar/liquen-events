@@ -25,8 +25,14 @@
  * uma bandeira levantada para sempre engolia o próximo toque a sério. Cai no
  * próximo `pointerdown`, ou passado `PRAZO_MS`.
  *
- * O botão direito fora do menu fecha-o na mesma; o `contextmenu` que vem a
- * seguir não é um clique e abre o menu do sítio novo, como no macOS.
+ * O botão direito fora do menu fecha-o na mesma, e o `contextmenu` que vem a
+ * seguir DESARMA o engolir: há menus que abrem pelo `contextmenu` com um
+ * `click()` sintético (o «⋯» das tarefas), e esse clique tem de passar — o do
+ * sítio novo abre, como no macOS (2.ª revisão de 14/11).
+ *
+ * «Só fecha» vale para o `pointerdown` e o `click`. O `mousedown` e o
+ * `pointerup` que vêm a seguir continuam a chegar (ex.: o fundo de uma folha
+ * que fecha com `onMouseDown`), como antes desta peça.
  */
 
 /** Quanto tempo o clique que vem depois do toque que fechou é dele. */
@@ -47,12 +53,14 @@ function engolirOProximoClique() {
   const largar = () => {
     window.removeEventListener("click", engolir, true);
     window.removeEventListener("pointerdown", largar, true);
+    window.removeEventListener("contextmenu", largar, true);
     clearTimeout(prazo);
     if (largarOEngolir === largar) largarOEngolir = null;
   };
   const prazo = setTimeout(largar, PRAZO_MS);
   window.addEventListener("click", engolir, true);
   window.addEventListener("pointerdown", largar, true);
+  window.addEventListener("contextmenu", largar, true);
   largarOEngolir = largar;
 }
 

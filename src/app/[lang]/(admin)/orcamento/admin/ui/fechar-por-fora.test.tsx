@@ -110,4 +110,38 @@ describe("o clique que fecha um menu não faz mais nada", () => {
     fireEvent.click(b); // um clique sem pointerdown (teclado, leitor de ecrã)
     expect(abrirLinha).toHaveBeenCalledTimes(1);
   });
+
+  it("botão direito noutra linha com um «⋯» aberto: fecha esse E abre o da linha nova (o `click()` sintético do `contextmenu` passa)", () => {
+    const abrirMenuB = vi.fn();
+    render(
+      <>
+        <MenuDeAccoes
+          accoes={[{ id: "a", rotulo: "Concluir", onAccao: () => {} }]}
+          sobre="Tarefa A"
+        />
+        <button type="button" onClick={abrirMenuB}>
+          ⋯ B
+        </button>
+        <div
+          data-testid="linha-b"
+          onContextMenu={(e) => {
+            // O que `Tarefas.tsx` faz: o menu da linha abre pelo clique no «⋯».
+            e.preventDefault();
+            (screen.getByRole("button", { name: "⋯ B" }) as HTMLButtonElement).click();
+          }}
+        >
+          Tarefa B
+        </div>
+      </>,
+    );
+    const botoes = screen.getAllByRole("button");
+    fireEvent.click(botoes[0]);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    const linha = screen.getByTestId("linha-b");
+    fireEvent.pointerDown(linha, { button: 2 });
+    fireEvent.mouseDown(linha, { button: 2 });
+    fireEvent.contextMenu(linha);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(abrirMenuB).toHaveBeenCalledTimes(1);
+  });
 });
