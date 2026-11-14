@@ -260,7 +260,42 @@ async function resolveImages(
   peloTecto: number;
   refs: NonNullable<FontesDasFotos["refs"]>;
 }> {
-  let remaining = MAX_IMAGES_PER_DOC;
+  /**
+   * ── QUE LUGARES CABEM NO TECTO, DECIDIDO ANTES DE IR BUSCAR NADA ─────────
+   *
+   * Revisão de 14/11, menor n.º 1. O tecto era um contador gasto à medida que
+   * as idas ao armazenamento COMEÇAVAM — e com dois mood boards em paralelo a
+   * ordem depende de quem acaba primeiro. Medido: o mesmo documento de 91
+   * fotos dava três PDFs diferentes em três passagens (cortava fotos
+   * diferentes). Para a falta ser certa — e o documento poder guardar-se —, o
+   * corte tem de ser sempre o mesmo: as ÚLTIMAS pela ordem do documento (a
+   * capa, os mood boards pela ordem dela, e as escolhidas para as páginas),
+   * que era o que o contador queria dizer. Abaixo do tecto nada muda.
+   */
+  const dentroDoTecto = new Set<string>();
+  const indiceDoBoard = new Map<MoodBoard, number>();
+  {
+    let vez = 0;
+    const contar = (lugar: string) => {
+      if (vez++ < MAX_IMAGES_PER_DOC) dentroDoTecto.add(lugar);
+    };
+    (doc.coverImages ?? []).forEach((ref, i) => {
+      if (ref) contar(`c${i}`);
+    });
+    (doc.moodBoards ?? []).forEach((mb, b) => {
+      if (!indiceDoBoard.has(mb)) indiceDoBoard.set(mb, b);
+      (mb.images ?? []).forEach((ref, i) => {
+        if (ref) contar(`b${indiceDoBoard.get(mb)}:${i}`);
+      });
+    });
+    if (opcoes.originais) {
+      for (const [chave, e] of Object.entries(doc.fotosDasPaginas ?? {})) {
+        (e?.fotos ?? []).forEach((ref, k) => {
+          if (ref && ref.trim()) contar(`p${chave}:${k}`);
+        });
+      }
+    }
+  }
   const sabidas: string[] = [];
   let peloTecto = 0;
   // Quantas fotos foram PEDIDAS e não entraram. Uma proposta com fotos a menos
@@ -385,8 +420,12 @@ async function resolveImages(
   };
 
   /** `buscar` com o tecto de imagens por documento e a contagem das que faltam. */
-  const buscarComTecto = async (ref: string, caixa: CaixaPdf | null): Promise<Resolvida | null> => {
-    if (remaining <= 0) {
+  const buscarComTecto = async (
+    ref: string,
+    caixa: CaixaPdf | null,
+    lugar: string,
+  ): Promise<Resolvida | null> => {
+    if (!dentroDoTecto.has(lugar)) {
       // O tecto também é uma perda silenciosa: uma proposta com mais de
       // MAX_IMAGES_PER_DOC fotos perdia as últimas sem aviso. Conta como
       // falta (o aviso continua a dizê-lo), mas CERTA, não passageira: uma
@@ -395,7 +434,6 @@ async function resolveImages(
       peloTecto++;
       return null;
     }
-    remaining--;
     if (opcoes.faltam?.has(ref)) {
       sabidas.push(ref);
       missing++;
@@ -411,8 +449,10 @@ async function resolveImages(
   // foto escolhida para a DIREITA sair impressa à esquerda. Um lugar vazio não
   // gasta orçamento de imagens (nem sequer chega a ser buscado).
   const cover = (
-    await mapLimit(doc.coverImages ?? [], FETCH_CONCURRENCY, async (ref) =>
-      ref ? await buscarComTecto(ref, null) : null,
+    await mapLimit(
+      (doc.coverImages ?? []).map((ref, i) => ({ ref, i })),
+      FETCH_CONCURRENCY,
+      async ({ ref, i }) => (ref ? await buscarComTecto(ref, null, `c${i}`) : null),
     )
   ).map((r) => (r ? r.bytes.toString("base64") : ""));
   const refsDaCapa = (doc.coverImages ?? []).map((ref) => ref || null);
@@ -483,14 +523,18 @@ async function resolveImages(
       mb.images.map(() => null),
     );
     const obtidas = await mapLimit(
-      mb.images.map((ref, i) => ({ ref, caixa: previstas[i] })),
+      mb.images.map((ref, i) => ({
+        ref,
+        caixa: previstas[i],
+        lugar: `b${indiceDoBoard.get(mb)}:${i}`,
+      })),
       FETCH_CONCURRENCY,
       // Uma referência VAZIA não é uma foto que faltou: é um lugar que nunca
       // teve foto nenhuma. Ir buscá-la falhava sempre e somava ao contador —
       // e o estúdio dizia «1 foto em falta» numa proposta que estava inteira.
       // Um aviso que toca sem razão é um aviso que se deixa de ler. (A capa já
       // tinha esta guarda; os mood boards não.)
-      ({ ref, caixa }) => (ref ? buscarComTecto(ref, caixa) : Promise.resolve(null)),
+      ({ ref, caixa, lugar }) => (ref ? buscarComTecto(ref, caixa, lugar) : Promise.resolve(null)),
     );
 
     /**
@@ -559,8 +603,11 @@ async function resolveImages(
       // Os lugares vazios (`""`, «automático») FICAM: a posição é o lugar na
       // página (na paleta, o 6.º é o painel) e o foco de cada uma é o dela.
       const lista = e?.fotos ?? [];
-      const obtidas = await mapLimit(lista, FETCH_CONCURRENCY, (ref) =>
-        ref && ref.trim() ? buscarComTecto(ref, null) : Promise.resolve(null),
+      const obtidas = await mapLimit(
+        lista.map((ref, k) => ({ ref, k })),
+        FETCH_CONCURRENCY,
+        ({ ref, k }) =>
+          ref && ref.trim() ? buscarComTecto(ref, null, `p${chave}:${k}`) : Promise.resolve(null),
       );
       // A que ela escolheu e NÃO se deixou buscar não volta a ser `""` (que é
       // «automático»): fica marcada, e o desenho deixa-lhe o lugar vazio em
