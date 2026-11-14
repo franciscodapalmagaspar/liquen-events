@@ -99,3 +99,52 @@ export function urlAindaBom(guardado: string | undefined, fresco: string): strin
   if (!guardado) return fresco;
   return assinaturaExpirada(guardado) ? fresco : guardado;
 }
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O RASCUNHO GUARDADO NÃO PODE TRAZER ASSINATURAS MORTAS PARA O ECRÃ (14/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Os registos do Supabase de 13/11 mostram o defeito ao vivo: às 20:44:08 ela
+ * abriu uma proposta e o Edge pediu ao Storage miniaturas, derivadas e
+ * originais da Biblioteca com tokens ASSINADOS A 6/11 — sete dias antes, para
+ * uma validade de seis horas. Cada um deu `400 InvalidJWT "exp"`, e cada célula
+ * desceu a cascata inteira (miniatura → 1200 px → original) a pagar um 400 por
+ * degrau. Um segundo depois chegava a hidratação, o `urlAindaBom` trocava tudo
+ * por assinaturas frescas, e os 400 paravam.
+ *
+ * O que os trazia era o restauro do rascunho: `meta.urls`, `meta.originais` e
+ * `meta.medias` saíam do `localStorage` direitos para o estado, sem ninguém
+ * perguntar ao token se ainda servia. O `urlAindaBom` só corria quando a
+ * hidratação respondesse — tarde demais para as células que já tinham pedido.
+ *
+ * Aqui faz-se a pergunta ANTES: o que já morreu não entra. A célula fica com o
+ * LQIP (ou sem nada) durante o segundo que a hidratação demora, e depois recebe
+ * a assinatura fresca. As que ainda servem entram, e a cache do browser
+ * continua a valer como antes.
+ */
+export function semAssinaturasMortas(mapa: unknown, agora = Date.now()): Record<string, string> {
+  const saida: Record<string, string> = {};
+  if (!mapa || typeof mapa !== "object") return saida;
+  for (const [chave, url] of Object.entries(mapa as Record<string, unknown>)) {
+    if (typeof url === "string" && url && !assinaturaExpirada(url, agora)) saida[chave] = url;
+  }
+  return saida;
+}
+
+/**
+ * Algum destes mapas já tem um URL que morreu (ou está a cinco minutos de
+ * morrer)?
+ *
+ * É a pergunta que o estúdio faz quando ela VOLTA ao separador: com o estúdio
+ * aberto de um dia para o outro, as assinaturas de seis horas da Biblioteca
+ * morrem com o ecrã à frente dela, e nada voltava a pedir a lista. Só quando a
+ * resposta é «sim» se pede a lista outra vez — uma leitura, e não um relógio a
+ * bater de x em x minutos.
+ */
+export function haAssinaturaMorta(
+  mapas: readonly Record<string, string>[],
+  agora = Date.now(),
+): boolean {
+  return mapas.some((m) => Object.values(m).some((u) => assinaturaExpirada(u, agora)));
+}

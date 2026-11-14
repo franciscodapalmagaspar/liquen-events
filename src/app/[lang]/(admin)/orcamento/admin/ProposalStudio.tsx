@@ -85,7 +85,7 @@ import {
 } from "@/lib/orcamento/data";
 import { log } from "@/lib/logger";
 import { camposMudados, mesmoValor } from "@/lib/rascunho-juntar";
-import { urlAindaBom } from "./assinatura";
+import { haAssinaturaMorta, semAssinaturasMortas, urlAindaBom } from "./assinatura";
 import { relatarFalhaDeImagem } from "./relatar-falha";
 import { pedirVezDeImagemPesada } from "./fila-de-imagens";
 import PainelInterno from "./PainelInterno";
@@ -2720,17 +2720,23 @@ export default function ProposalStudio({
       const rawMeta = localStorage.getItem(SIDE_KEY);
       if (rawMeta) {
         const meta = JSON.parse(rawMeta);
-        if (meta?.urls && typeof meta.urls === "object") setAssetUrls(meta.urls);
+        // Só as assinaturas que AINDA SERVEM: as da Biblioteca duram seis
+        // horas, e um rascunho de ontem trazia-as mortas para o ecrã — um 400
+        // do Storage por célula e por degrau, antes de a hidratação chegar.
+        // Ver `semAssinaturasMortas` em `assinatura.ts`.
+        if (meta?.urls && typeof meta.urls === "object") {
+          setAssetUrls(semAssinaturasMortas(meta.urls));
+        }
         // Rascunhos gravados antes de o plano B existir não o têm: abrem na
         // mesma, e a hidratação preenche-o assim que responder.
         if (meta?.originais && typeof meta.originais === "object") {
-          setAssetOriginais(meta.originais);
+          setAssetOriginais(semAssinaturasMortas(meta.originais));
         }
         // O degrau do meio viaja com o rascunho pela mesma razão que o plano B,
         // e rascunhos gravados antes de ele existir não o têm: abrem na mesma,
         // com a cascata de dois degraus, até a hidratação responder.
         if (meta?.medias && typeof meta.medias === "object") {
-          setAssetMedias(meta.medias);
+          setAssetMedias(semAssinaturasMortas(meta.medias));
         }
         // Rascunhos guardados antes de as cores existirem não as têm: abrem na
         // mesma, e a hidratação preenche-as assim que o servidor responder.
@@ -3385,6 +3391,49 @@ export default function ProposalStudio({
     void hidratarAssets(() => alive);
     return () => {
       alive = false;
+    };
+  }, [hidratarAssets]);
+
+  /**
+   * ── O ESTÚDIO ABERTO DE UM DIA PARA O OUTRO (14/11) ────────────────────
+   * A hidratação corria UMA vez, à entrada. Com o separador aberto mais de
+   * seis horas, as assinaturas da Biblioteca morriam com o ecrã à frente dela,
+   * e cada célula nova (um passo aberto, uma pré-visualização) pedia ao
+   * Storage um URL que ele recusa com 400.
+   *
+   * Ao voltar ao separador pergunta-se aos URLs que estão no ecrã se algum já
+   * morreu; só então se pede a lista outra vez, e o `urlAindaBom` troca os
+   * mortos e deixa os bons (a cache do browser continua a valer). Custo: zero
+   * pedidos enquanto tudo serve; uma leitura do `/assets` por regresso depois
+   * de expirar. Nenhum relógio a bater.
+   */
+  const urlsNoEcra = useRef<Record<string, string>[]>([]);
+  useEffect(() => {
+    urlsNoEcra.current = [assetUrls, assetOriginais, assetMedias];
+  }, [assetUrls, assetOriginais, assetMedias]);
+  useEffect(() => {
+    // O `focus` e o `visibilitychange` chegam os dois no mesmo regresso: uma
+    // leitura só, não duas.
+    let aCaminho = false;
+    const aoVoltar = () => {
+      if (aCaminho || document.visibilityState !== "visible") return;
+      if (!haAssinaturaMorta(urlsNoEcra.current)) return;
+      aCaminho = true;
+      void hidratarAssets().finally(() => {
+        aCaminho = false;
+        // O que a lista não trouxe de volta (uma foto que só está no rascunho
+        // deste computador) continuava morto — e voltar ao separador pedia a
+        // lista outra vez, de cada vez. Um URL morto não serve a ninguém: sai.
+        setAssetUrls((m) => semAssinaturasMortas(m));
+        setAssetOriginais((m) => semAssinaturasMortas(m));
+        setAssetMedias((m) => semAssinaturasMortas(m));
+      });
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+    window.addEventListener("focus", aoVoltar);
+    return () => {
+      document.removeEventListener("visibilitychange", aoVoltar);
+      window.removeEventListener("focus", aoVoltar);
     };
   }, [hidratarAssets]);
 

@@ -2484,6 +2484,101 @@ describe("linhas que escalam com os convidados", () => {
   });
 });
 
+// ── As assinaturas de seis horas da Biblioteca (registos de 13/11) ──────────
+/**
+ * Às 20:44 de 13/11 ela abriu uma proposta e o browser pediu ao Storage
+ * miniaturas, derivadas e originais da Biblioteca assinados a 6/11 — sete dias
+ * antes, para uma validade de seis horas. Cada um deu `400 InvalidJWT`. Vinham
+ * do rascunho do `localStorage`, posto no ecrã antes de a hidratação chegar.
+ */
+describe("um rascunho guardado com assinaturas da Biblioteca já mortas", () => {
+  /** Um URL assinado à maneira do Supabase, a morrer `daquiASegundos` depois de agora. */
+  function assinado(nome: string, daquiASegundos: number): string {
+    const exp = Math.floor(Date.now() / 1000) + daquiASegundos;
+    const carga = btoa(JSON.stringify({ url: `theme-thumbs/${nome}`, exp }))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    return `https://storage.test/storage/v1/object/sign/theme-thumbs/${nome}?token=cab.${carga}.ass`;
+  }
+
+  beforeEach(() => {
+    class ImagemQueCarrega {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      decoding = "";
+      set src(_v: string) {
+        setTimeout(() => this.onload?.(), 0);
+      }
+    }
+    vi.stubGlobal("Image", ImagemQueCarrega);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const srcsNoEcra = () =>
+    Array.from(document.querySelectorAll("img")).map((i) => i.getAttribute("src") ?? "");
+
+  it("não põe no ecrã o que já morreu — espera pela assinatura fresca", async () => {
+    const morta = assinado("p/foto-0.jpg", -7 * 24 * 3600);
+    const mortaOriginal = assinado("p/foto-0-original.jpg", -7 * 24 * 3600);
+    const fresca = assinado("p/foto-0-fresca.jpg", 6 * 3600);
+    seedDraft(1);
+    localStorage.setItem(
+      `${DRAFT_KEY}:meta`,
+      JSON.stringify({
+        urls: { "board/foto-0.jpg": morta },
+        originais: { "board/foto-0.jpg": mortaOriginal },
+        medias: { "board/foto-0.jpg": mortaOriginal },
+      }),
+    );
+    assetsServidor = [{ path: "board/foto-0.jpg", url: fresca, thumbUrl: fresca }];
+    const abrir = segurarOsAssets();
+    renderStudio();
+    // A lista ainda não chegou: é este o segundo em que o Edge pagava os 400.
+    await waitFor(() => expect(pedidos.some((p) => p.url.includes("/assets"))).toBe(true));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(srcsNoEcra()).not.toContain(morta);
+    expect(srcsNoEcra()).not.toContain(mortaOriginal);
+    abrir();
+    await waitFor(() => expect(srcsNoEcra()).toContain(fresca));
+  });
+
+  it("aberto de um dia para o outro: ao voltar ao separador, pede a lista outra vez", async () => {
+    const quaseNoFim = assinado("p/foto-0.jpg", 6 * 3600);
+    seedDraft(1);
+    localStorage.setItem(
+      `${DRAFT_KEY}:meta`,
+      JSON.stringify({ urls: { "board/foto-0.jpg": quaseNoFim } }),
+    );
+    assetsServidor = [{ path: "board/foto-0.jpg", url: quaseNoFim, thumbUrl: quaseNoFim }];
+    renderStudio();
+    const leituras = () =>
+      pedidos.filter((p) => /\/assets(\?|$)/.test(p.url) && !p.init?.method).length;
+    await waitFor(() => expect(leituras()).toBe(1));
+
+    // Voltar com tudo a servir não custa pedido nenhum.
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(leituras()).toBe(1);
+
+    // Sete horas depois, a assinatura já morreu com o ecrã à frente dela.
+    const real = Date.now();
+    const relogio = vi.spyOn(Date, "now").mockReturnValue(real + 7 * 3600 * 1000);
+    try {
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new Event("focus"));
+      });
+      await waitFor(() => expect(leituras()).toBe(2));
+    } finally {
+      relogio.mockRestore();
+    }
+  });
+});
+
 // ── A pré-visualização das fotos do documento ──────────────────────────────
 describe("uma célula que não conseguiu desenhar a foto", () => {
   /**
