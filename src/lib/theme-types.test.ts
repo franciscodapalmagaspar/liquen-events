@@ -28,3 +28,31 @@ describe("themeNameTakenError", () => {
     );
   });
 });
+
+/**
+ * Revisão de 14/11, n.º 7: a foto na Reciclagem não está na grelha, por isso a
+ * ordem que o ecrã envia ao reordenar já não a traz. Perdia o lugar arrumado
+ * e, reposta, ia para a cauda.
+ */
+describe("ordemComAsDaReciclagem", () => {
+  it("a da Reciclagem volta logo a seguir à que a precedia", async () => {
+    const { ordemComAsDaReciclagem } = await import("./theme-types");
+    const antiga = ["t/a.jpg", "t/foi.jpg", "t/b.jpg", "t/c.jpg"];
+    const nova = ["t/c.jpg", "t/a.jpg", "t/b.jpg"];
+    expect(ordemComAsDaReciclagem(antiga, nova, new Set(["t/foi.jpg"]))).toEqual([
+      "t/c.jpg",
+      "t/a.jpg",
+      "t/foi.jpg",
+      "t/b.jpg",
+    ]);
+  });
+
+  it("à frente quando nada a precedia; e a que saiu de vez não volta", async () => {
+    const { ordemComAsDaReciclagem } = await import("./theme-types");
+    const antiga = ["t/foi.jpg", "t/apagada.jpg", "t/a.jpg"];
+    expect(ordemComAsDaReciclagem(antiga, ["t/a.jpg"], new Set(["t/foi.jpg"]))).toEqual([
+      "t/foi.jpg",
+      "t/a.jpg",
+    ]);
+  });
+});

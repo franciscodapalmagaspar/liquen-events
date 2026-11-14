@@ -221,10 +221,23 @@ function coresDaPaleta(
 export function conteudoGuardado(
   proposta: { id: string; doc: ProposalDoc },
   idioma: IdiomaDaProposta,
+  /**
+   * As que se sabe que já não existem (`refsQueJaNaoExistem`): o motor corre
+   * SEM elas, como o PDF (`semAsQueFaltam`). Entram na chave só quando há —
+   * as propostas que estão bem guardam a mesma chave de sempre.
+   */
+  faltam: ReadonlySet<string> = new Set(),
 ): Promise<ConteudoWeb> {
+  const quais = [...faltam].sort();
   return guardadoOuCalculado(
-    chaveDoGuardado("conteudo", proposta.id, idioma, JSON.stringify(proposta.doc)),
-    () => conteudoWebDoDocumento(proposta.doc, idioma),
+    chaveDoGuardado(
+      "conteudo",
+      proposta.id,
+      idioma,
+      JSON.stringify(proposta.doc),
+      ...(quais.length ? [`faltam:${quais.join("\u0000")}`] : []),
+    ),
+    () => conteudoWebDoDocumento(proposta.doc, idioma, faltam),
   );
 }
 
@@ -263,11 +276,17 @@ export async function propostaWeb(
    * retrato expira), nunca por visita — e a que falta sai como no PDF: o
    * lugar vazio, a fila sem ela. «Não sei» (uma pasta que não responde) não
    * esconde nada.
+   *
+   * E pergunta-se ANTES do motor (revisão de 14/11, importante n.º 1): o
+   * conteúdo calcula-se já sem elas (`semAsQueFaltam`), como o PDF e o plano
+   * do estúdio — senão o motor escolhia-as (a linha da biblioteca fica, com a
+   * medida) e esta página tirava-as depois, a escolher outras ainda.
    */
+  const faltamP = refsQueJaNaoExistem(inventarioDeFotos(proposta.doc).map((e) => e.ref));
   const [conteudo, assinadas, faltam] = await Promise.all([
-    conteudoGuardado(proposta, idioma),
+    faltamP.then((f) => conteudoGuardado(proposta, idioma, f)),
     fotosDaProposta(proposta.doc),
-    refsQueJaNaoExistem(inventarioDeFotos(proposta.doc).map((e) => e.ref)),
+    faltamP,
   ]);
   // A capa em AVIF (27/10): fabricada uma vez por fotografia, porque isto só
   // corre quando a página é montada — no envio, ou sem retrato. A montagem não

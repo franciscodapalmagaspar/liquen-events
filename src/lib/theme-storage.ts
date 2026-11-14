@@ -816,6 +816,9 @@ export function invalidateThemeCount(themeId: string): void {
   if (folder) {
     countMemo.delete(folder);
     nomesMemo.delete(folder);
+    for (const p of ausentesConfirmadas.keys()) {
+      if (p.startsWith(`${folder}/`)) ausentesConfirmadas.delete(p);
+    }
   }
 }
 
@@ -838,11 +841,64 @@ export function invalidateThemeCount(themeId: string): void {
  */
 const nomesMemo = new Map<string, { at: number; nomes: Set<string> }>();
 
-async function nomesDoTema(themeId: string): Promise<Set<string> | null> {
+/**
+ * As arrumadas que a memória dá como ausentes, CONFIRMADAS ao armazenamento
+ * há pouco (caminho → quando). Ver «A MEMÓRIA DE OUTRA INSTÂNCIA» abaixo.
+ */
+const ausentesConfirmadas = new Map<string, number>();
+const AUSENTE_CONFIRMADA_MS = 10_000;
+/** Quantas ausentes se confirmam uma a uma por página — as outras esperam a memória caducar. */
+const MAX_CONFIRMACOES = 10;
+
+/**
+ * ── A MEMÓRIA DE OUTRA INSTÂNCIA (revisão de 14/11, n.º 7) ────────────────
+ *
+ * Carregar e repor deitam fora a memória (`invalidateThemeCount`) — mas só na
+ * instância do servidor que fez a escrita. Noutra, a memória de há 50 s ainda
+ * não conhece a foto reposta (ou a carregada que já estava na ordem): ela
+ * saía da ordem arrumada e aparecia na CAUDA da grelha, pela listagem fresca
+ * da pasta, até a memória caducar.
+ *
+ * Por isso uma arrumada que a MEMÓRIA dá como ausente confirma-se por
+ * ficheiro (`fotoExisteNoTema`, uma pergunta pelo nome) antes de sair da
+ * ordem. Custo: zero quando nenhuma arrumada falta (o caso normal); com uma
+ * foto na Reciclagem ainda na ordem, uma pergunta por foto, no máximo uma vez
+ * a cada 10 s por foto, e nunca mais de 10 por página.
+ */
+async function nomesConfirmados(themeId: string, arrumadas: readonly string[]) {
+  const folder = themeFolder(themeId);
+  const lidos = await nomesDoTema(themeId);
+  if (!lidos || !lidos.daMemoria) return lidos?.nomes ?? null;
+  const agora = Date.now();
+  const porConfirmar = arrumadas
+    .filter((p) => !lidos.nomes.has(p.slice(folder.length + 1)))
+    .filter((p) => agora - (ausentesConfirmadas.get(p) ?? -Infinity) > AUSENTE_CONFIRMADA_MS)
+    .slice(0, MAX_CONFIRMACOES);
+  const respostas = await Promise.all(porConfirmar.map((p) => fotoExisteNoTema(p)));
+  porConfirmar.forEach((p, i) => {
+    // Está lá: a memória estava velha — passa a sabê-lo (e a contagem dela
+    // também deixou de valer).
+    if (respostas[i] === true) {
+      lidos.nomes.add(p.slice(folder.length + 1));
+      countMemo.delete(folder);
+    } else if (respostas[i] === false) ausentesConfirmadas.set(p, agora);
+  });
+  return lidos.nomes;
+}
+
+/** Só para os testes. */
+export function esquecerNomesDosTemas(): void {
+  nomesMemo.clear();
+  ausentesConfirmadas.clear();
+}
+
+async function nomesDoTema(
+  themeId: string,
+): Promise<{ nomes: Set<string>; daMemoria: boolean } | null> {
   const folder = themeFolder(themeId);
   if (!folder) return null;
   const hit = nomesMemo.get(folder);
-  if (hit && Date.now() - hit.at <= COUNT_TTL_MS) return hit.nomes;
+  if (hit && Date.now() - hit.at <= COUNT_TTL_MS) return { nomes: hit.nomes, daMemoria: true };
   const nomes = new Set<string>();
   for (let pagina = 0; pagina < MAX_COUNT_PAGES; pagina++) {
     const listed = await listThemeFiles(themeId, COUNT_PAGE, pagina * COUNT_PAGE);
@@ -855,7 +911,7 @@ async function nomesDoTema(themeId: string): Promise<Set<string> | null> {
         ok: true,
         truncated: false,
       });
-      return nomes;
+      return { nomes, daMemoria: false };
     }
   }
   return null;
@@ -1172,7 +1228,7 @@ export async function listThemeImagePage(
   // Só as que a pasta ainda tem (ver `nomesDoTema`): uma foto na Reciclagem
   // deixa de ser oferecida, e volta a sê-lo quando se repõe.
   if (arranged.length > 0) {
-    const nomes = await nomesDoTema(themeId);
+    const nomes = await nomesConfirmados(themeId, arranged);
     if (nomes) arranged = arranged.filter((p) => nomes.has(p.slice(folder.length + 1)));
   }
   const plan = planOrderedPage(arranged, size, from);

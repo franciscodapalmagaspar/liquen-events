@@ -168,7 +168,7 @@ import {
 } from "@/lib/orcamento/escala";
 import CriarAPartirDe, { type Escolha } from "./CriarAPartirDe";
 import ModelosParciais from "./ModelosParciais";
-import EditorDeEscolhas, { type FotoDisponivel } from "./EditorDeEscolhas";
+import EditorDeEscolhas, { fotosParaAsEscolhas, type FotoDisponivel } from "./EditorDeEscolhas";
 import NavEstudio from "./NavEstudio";
 import NotasInternas from "./NotasInternas";
 import { MenuDeAccoes } from "./ui/MenuDeAccoes";
@@ -8646,15 +8646,19 @@ export default function ProposalStudio({
    * vai existir, e o casal via um buraco onde devia estar a paleta.
    */
   const [escolhidasQueFaltam, setEscolhidasQueFaltam] = useState<FotoEscolhidaEmFalta[]>([]);
-  const fotosParaEscolhas: FotoDisponivel[] = (doc.moodBoards ?? []).flatMap((b) =>
-    (b.images ?? [])
-      .filter((caminho) => !!caminho && !isPendingImage(caminho))
-      .map((caminho) => ({
-        caminho,
-        url: assetUrls[caminho],
-        onde: (b.title ?? "").trim() || "Mood board",
-      })),
+  // As que SE SABE que já não existem (na Reciclagem, ou saídas da pasta): a
+  // mesma resposta do armazenamento que trava o envio (`FotosEmFalta`), e a
+  // mesma fonte do escolhedor dos temas — a pasta. Não se oferecem como
+  // alternativa (revisão de 14/11, n.º 6): seriam uma escolha que já nasce
+  // em falta.
+  const [refsQueFaltam, setRefsQueFaltam] = useState<ReadonlySet<string>>(() => new Set());
+  const aoSaberQueFaltam = useCallback((refs: string[]) => setRefsQueFaltam(new Set(refs)), []);
+  const fotosParaEscolhas: FotoDisponivel[] = fotosParaAsEscolhas(
+    doc.moodBoards ?? [],
+    assetUrls,
+    refsQueFaltam,
   );
+
   /**
    * ── O QUE O DOCUMENTO NÃO SABE DE SI PRÓPRIO ──────────────────────────────
    *
@@ -12558,6 +12562,7 @@ export default function ProposalStudio({
             quoteId={quote.id}
             doc={doc as ProposalDoc}
             onEscolhidasQueFaltam={setEscolhidasQueFaltam}
+            onRefsQueFaltam={aoSaberQueFaltam}
           />
 
           {/* Os acentos que faltam nos campos que saem impressos. Aqui, ao

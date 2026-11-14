@@ -1,5 +1,6 @@
 import type { ProposalDoc } from "./proposal-doc";
 import { chavesDasPaginas, lugaresDaPagina, planoDaProposta } from "./pdf-editorial/plano";
+import { log } from "./logger";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -19,7 +20,10 @@ import { chavesDasPaginas, lugaresDaPagina, planoDaProposta } from "./pdf-editor
  * armazenamento (`proposta-fotos-verificacao.ts`). Contam:
  *
  *   · a fotografia de capa — a primeira de `coverImages` com alguma coisa, que
- *     é a que o desenho usa (`montar.ts`);
+ *     é a que o desenho usa (`montar.ts`). Só TRAVA se o PDF a fosse usar de
+ *     facto (`aCapaDelaVaiNoPdf`, a regra do desenho): isso precisa da medida,
+ *     que aqui não há — quem trava é a verificação do armazenamento, que a lê
+ *     da biblioteca (`proposta-fotos-verificacao.ts`, revisão de 14/11, n.º 3);
  *   · as de `fotosDasPaginas` das páginas que o plano AINDA tem
  *     (`chavesDasPaginas(planoDaProposta(doc))`), só nas páginas onde ela pode
  *     escolher (`lugaresDaPagina`) e só até ao número de lugares da página —
@@ -55,14 +59,13 @@ export function fotosEscolhidasDoDocumento(doc: Partial<ProposalDoc>): FotoEscol
   let plano: ReturnType<typeof planoDaProposta>;
   try {
     plano = planoDaProposta(doc as ProposalDoc);
-  } catch {
-    // Sem plano não se sabe que páginas existem. «Não sei» não pode desligar
-    // o travão: contam todas, como antes desta lista.
-    for (const [chave, e] of Object.entries(escolhas)) {
-      (e?.fotos ?? []).forEach((ref, lugar) => {
-        if (preenchida(ref)) saida.push({ ref, chave, pagina: chave, lugar });
-      });
-    }
+  } catch (err) {
+    // Sem plano não se sabe que páginas existem, nem o nome delas (revisão de
+    // 14/11, n.º 5). Contar as chaves todas era voltar a travar o envio por
+    // páginas que já não existem, e a mostrar-lhe a chave crua (`tema:0:3`).
+    // Fica só o que se sabe nomear — a capa —, e o erro fica registado: é um
+    // defeito do plano, não dela.
+    log.error("fotos escolhidas: o plano da proposta falhou — só a capa conta", err);
     return saida;
   }
   const chaves = chavesDasPaginas(plano);

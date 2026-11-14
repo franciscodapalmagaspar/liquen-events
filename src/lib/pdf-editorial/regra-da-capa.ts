@@ -40,6 +40,23 @@ export function problemaDaCapa(w: number, h: number): ProblemaDaCapa | null {
 }
 
 /**
+ * A fotografia DELA vai mesmo para a capa do PDF? Sim, se servir para a página
+ * inteira, ou se ela disse para a usar na mesma (`capaMesmoAssim`). Sem medida
+ * não se sabe — e conta como sim.
+ *
+ * É a pergunta do desenho (`montar.ts`) e a do travão do envio
+ * (`proposta-fotos-verificacao.ts`, revisão de 14/11, n.º 3): uma capa em
+ * falta só trava se o PDF a fosse usar. Uma regra, dois sítios.
+ */
+export function aCapaDelaVaiNoPdf(
+  medida: { w: number; h: number } | null | undefined,
+  mesmoAssim: boolean | undefined,
+): boolean {
+  if (!medida) return true;
+  return !!mesmoAssim || !problemaDaCapa(medida.w, medida.h);
+}
+
+/**
  * Que parte da fotografia fica de fora da folha (0 a 1), pelo recorte que
  * cobre a página inteira.
  */

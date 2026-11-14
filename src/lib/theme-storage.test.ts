@@ -541,6 +541,46 @@ describe("listThemeImagePage", () => {
     ]);
   });
 
+  /**
+   * Revisão de 14/11, n.º 7: repor ou carregar deita fora a memória da pasta
+   * — mas só na instância do servidor que fez a escrita. Noutra, a memória de
+   * há 50 s ainda não conhece a foto, e ela saía da ordem arrumada para a
+   * CAUDA da grelha (a listagem da página é fresca). Uma arrumada que a
+   * memória dá como ausente confirma-se por ficheiro antes de sair.
+   */
+  it("a foto reposta noutra instância aparece no seu lugar arrumado, e não na cauda", async () => {
+    let nomes = ["fica.jpg", "outra.jpg"];
+    st.list.mockImplementation(async (_pasta: string, opts?: { search?: string }) =>
+      page(opts?.search ? nomes.filter((n) => n.startsWith(opts.search!)) : nomes),
+    );
+    const { listThemeImagePage } = await load();
+    const ordem = ["t-1/foi.jpg", "t-1/fica.jpg"];
+    const antes = await listThemeImagePage("t-1", 10, 0, ordem);
+    expect(antes.images.map((i) => i.path)).toEqual(["t-1/fica.jpg", "t-1/outra.jpg"]);
+
+    // Reposta NOUTRA instância: esta não ouviu a escrita (a memória fica).
+    nomes = ["fica.jpg", "outra.jpg", "foi.jpg"];
+    const depois = await listThemeImagePage("t-1", 10, 0, ordem);
+    expect(depois.images.map((i) => i.path)).toEqual([
+      "t-1/foi.jpg",
+      "t-1/fica.jpg",
+      "t-1/outra.jpg",
+    ]);
+  });
+
+  it("uma arrumada que continua na Reciclagem confirma-se uma vez, e não a cada página", async () => {
+    st.list.mockImplementation(async (_pasta: string, opts?: { search?: string }) =>
+      page(opts?.search ? [] : ["fica.jpg"]),
+    );
+    const { listThemeImagePage } = await load();
+    const ordem = ["t-1/foi.jpg", "t-1/fica.jpg"];
+    await listThemeImagePage("t-1", 10, 0, ordem);
+    await listThemeImagePage("t-1", 10, 0, ordem);
+    await listThemeImagePage("t-1", 10, 0, ordem);
+    const buscas = st.list.mock.calls.filter((c) => (c[1] as { search?: string })?.search);
+    expect(buscas).toHaveLength(1);
+  });
+
   it("assina SÓ a página pedida, num pedido por bucket", async () => {
     st.list.mockResolvedValue(page(["a.jpg", "b.png"]));
     const { listThemeImagePage } = await load();

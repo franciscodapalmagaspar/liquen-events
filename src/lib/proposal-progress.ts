@@ -725,10 +725,10 @@ function fraseDasQueJaNaoExistem(lista: readonly FotoEscolhidaEmFalta[]): string
  */
 function fraseDasQueEstaoACopiar(lista: readonly FotoEscolhidaEmFalta[]): string {
   if (lista.length === 1) {
-    return `${ondeEsta(lista[0])} ainda está a ser copiada — espera um momento e volta a confirmar`;
+    return `${ondeEsta(lista[0])} ainda está a ser copiada — espera um momento e volta a confirmar, ou escolhe outra`;
   }
   const paginas = [...new Set(lista.map((f) => `«${f.pagina}»`))].slice(0, 3).join(", ");
-  return `${lista.length} fotos escolhidas para as páginas ${paginas} ainda estão a ser copiadas — espera um momento e volta a confirmar`;
+  return `${lista.length} fotos escolhidas para as páginas ${paginas} ainda estão a ser copiadas — espera um momento e volta a confirmar, ou escolhe outras`;
 }
 
 /** «A foto da página «Cerimónia» do tema «Natal» já não existe (está na Reciclagem) — …». */

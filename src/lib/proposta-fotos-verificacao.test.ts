@@ -26,6 +26,9 @@ const H = vi.hoisted(() => ({
   pastas: new Map<string, string[] | null>(),
   /** Quantas vezes o Storage foi consultado — o custo, medido. */
   listagens: [] as string[],
+  /** As perguntas por ficheiro (`search`). */
+  buscas: [] as string[],
+  buscaFalha: false,
   temSupabase: true,
 }));
 
@@ -50,12 +53,33 @@ vi.mock("./supabase", () => ({
       ? {
           storage: {
             from: (bucket: string) => ({
-              list: async (pasta: string) => {
-                H.listagens.push(`${bucket}::${pasta}`);
+              list: async (
+                pasta: string,
+                opts: { limit?: number; offset?: number; search?: string } = {},
+              ) => {
                 const nomes = H.pastas.get(`${bucket}::${pasta}`);
+                // A pergunta por ficheiro (`search`), contada à parte.
+                if (opts.search !== undefined) {
+                  H.buscas.push(`${bucket}::${pasta}/${opts.search}`);
+                  if (nomes === null || H.buscaFalha) {
+                    return { data: null, error: new Error("storage em baixo") };
+                  }
+                  const achados = (nomes ?? []).filter((n) => n.startsWith(opts.search!));
+                  return {
+                    data: achados
+                      .slice(0, opts.limit ?? 100)
+                      .map((name) => ({ id: `id-${name}`, name })),
+                    error: null,
+                  };
+                }
+                H.listagens.push(`${bucket}::${pasta}`);
                 if (nomes === null) return { data: null, error: new Error("storage em baixo") };
+                // Paginado como o Storage: `limit` de cada vez, a partir de `offset`.
+                const de = opts.offset ?? 0;
                 return {
-                  data: (nomes ?? []).map((name) => ({ id: `id-${name}`, name })),
+                  data: (nomes ?? [])
+                    .slice(de, de + (opts.limit ?? 100))
+                    .map((name) => ({ id: `id-${name}`, name })),
                   error: null,
                 };
               },
@@ -72,6 +96,8 @@ beforeEach(() => {
   H.formas.clear();
   H.pastas.clear();
   H.listagens.length = 0;
+  H.buscas.length = 0;
+  H.buscaFalha = false;
   H.temSupabase = true;
 });
 
@@ -503,5 +529,112 @@ describe("as fotografias que já não existem, para a página do casal", () => {
       "pending:LIQ-9/p.jpg",
     ]);
     expect([...faltam].sort()).toEqual(["LIQ-9/duas.jpg", "tema:t1/foi.jpg"]);
+  });
+});
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * REVISÃO DE 14/11 (2.ª) — A PASTA MAIOR DO QUE O TECTO, A CAPA QUE NÃO IA
+ * PARA O PDF, E O MOOD BOARD QUE NÃO TRAVA
+ * ════════════════════════════════════════════════════════════════════════════
+ */
+describe("uma pasta maior do que o tecto da listagem (importante n.º 2)", () => {
+  /** 5200 ficheiros: a listagem pára aos 5000 (25 páginas de 200). */
+  const MUITOS = Array.from({ length: 5200 }, (_, i) => `f${String(i).padStart(4, "0")}.jpg`);
+  const comEscolha = (ref: string) => ({
+    template: "decoracao",
+    moodBoards: [{ title: "Cerimónia", images: [] }],
+    fotosDasPaginas: { indice: { fotos: [ref] } },
+  });
+
+  it("uma foto para lá do corte NÃO passa a «já não existe»", async () => {
+    naBiblioteca("grande", MUITOS);
+    expect(await fotosEscolhidasQueFaltam(comEscolha("tema:grande/f5100.jpg") as never)).toEqual(
+      [],
+    );
+    expect(await refsQueJaNaoExistem(["tema:grande/f5100.jpg"])).toEqual(new Set());
+    // Perguntou-se por ela, pelo nome — uma pergunta em cada uma das duas chamadas.
+    expect(H.buscas).toEqual(["theme-assets::grande/f5100.jpg", "theme-assets::grande/f5100.jpg"]);
+  });
+
+  it("e a que falta mesmo continua a faltar (e a travar)", async () => {
+    naBiblioteca("grande", MUITOS);
+    const r = await fotosEscolhidasQueFaltam(comEscolha("tema:grande/nao-ha.jpg") as never);
+    expect(r.map((f) => f.ref)).toEqual(["tema:grande/nao-ha.jpg"]);
+  });
+
+  it("se a pergunta por ficheiro falhar, fica por confirmar: não acusa nem esconde", async () => {
+    naBiblioteca("grande", MUITOS);
+    H.buscaFalha = true;
+    expect(await fotosEscolhidasQueFaltam(comEscolha("tema:grande/nao-ha.jpg") as never)).toEqual(
+      [],
+    );
+    expect(await refsQueJaNaoExistem(["tema:grande/nao-ha.jpg"])).toEqual(new Set());
+  });
+
+  it("numa pasta normal não há pergunta por ficheiro nenhuma", async () => {
+    naBiblioteca("t1", ["fica.jpg"]);
+    await refsQueJaNaoExistem(["tema:t1/fica.jpg", "tema:t1/foi.jpg"]);
+    expect(H.buscas).toEqual([]);
+    expect(H.listagens).toEqual(["theme-assets::t1"]);
+  });
+});
+
+describe("a capa só trava se o PDF a fosse usar (n.º 3)", () => {
+  const comCapa = (capaMesmoAssim?: boolean) =>
+    ({
+      template: "decoracao",
+      coverImages: ["tema:t1/foi.jpg"],
+      moodBoards: [],
+      ...(capaMesmoAssim ? { capaMesmoAssim } : {}),
+    }) as never;
+
+  it("ao alto e sem «usar mesmo assim»: o PDF já punha outra — não trava", async () => {
+    naBiblioteca("t1", []);
+    H.formas.set("t1/foi.jpg", { largura: 1600, altura: 2400 });
+    expect(await fotosEscolhidasQueFaltam(comCapa())).toEqual([]);
+  });
+
+  it("ao alto mas com «usar mesmo assim»: ia para a capa — trava", async () => {
+    naBiblioteca("t1", []);
+    H.formas.set("t1/foi.jpg", { largura: 1600, altura: 2400 });
+    const r = await fotosEscolhidasQueFaltam(comCapa(true));
+    expect(r).toEqual([
+      { ref: "tema:t1/foi.jpg", pagina: "Capa", capa: true, tema: "Natal", naReciclagem: true },
+    ]);
+  });
+
+  it("deitada e grande: ia para a capa — trava; sem medida não se sabe — trava", async () => {
+    naBiblioteca("t1", []);
+    expect(await fotosEscolhidasQueFaltam(comCapa())).toHaveLength(1);
+    H.formas.set("t1/foi.jpg", { largura: 3000, altura: 2000 });
+    expect(await fotosEscolhidasQueFaltam(comCapa())).toHaveLength(1);
+  });
+});
+
+describe("uma foto de mood board na Reciclagem não trava; uma escolhida à mão trava", () => {
+  it("só a do mood board: o motor deixa de a usar, e o envio segue", async () => {
+    naBiblioteca("t1", ["fica.jpg"]);
+    const d = {
+      template: "decoracao",
+      moodBoards: [{ title: "Cerimónia", images: ["tema:t1/foi.jpg", "tema:t1/fica.jpg"] }],
+    };
+    expect(await fotosEscolhidasQueFaltam(d as never)).toEqual([]);
+    const r = await verificarFotosDaProposta(d as never);
+    // Continua a ser o aviso de sempre — e o estúdio deixa de a oferecer.
+    expect(r.emFalta.map((f) => f.id)).toEqual(["b0f0"]);
+    expect(r.refsEmFalta).toEqual(["tema:t1/foi.jpg"]);
+  });
+
+  it("a mesma foto escolhida à mão para uma página: trava", async () => {
+    naBiblioteca("t1", ["fica.jpg"]);
+    const d = {
+      template: "decoracao",
+      moodBoards: [{ title: "Cerimónia", images: ["tema:t1/foi.jpg", "tema:t1/fica.jpg"] }],
+      fotosDasPaginas: { indice: { fotos: ["tema:t1/foi.jpg"] } },
+    };
+    expect((await fotosEscolhidasQueFaltam(d as never)).map((f) => f.ref)).toEqual([
+      "tema:t1/foi.jpg",
+    ]);
   });
 });

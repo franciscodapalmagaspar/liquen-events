@@ -291,3 +291,22 @@ describe("voltar a confirmar confirma o documento de AGORA", () => {
     await waitFor(() => expect(avisar).toHaveBeenCalledWith(lista));
   });
 });
+
+describe("as que faltam chegam ao estúdio (revisão de 14/11, n.º 6)", () => {
+  it("passa os caminhos das que já não existem, para as alternativas não as oferecerem", async () => {
+    responde = () =>
+      ok({
+        total: 2,
+        emFalta: [
+          { id: "b0f0", onde: "Mood board «Cerimónia» · foto 1", motivo: "saiu-da-biblioteca" },
+        ],
+        refsEmFalta: ["tema:t1/foi.jpg"],
+        suspeitas: [],
+        naoVerificaveis: 0,
+        verificou: true,
+      });
+    const aoSaber = vi.fn();
+    render(<FotosEmFalta quoteId="LIQ-9" doc={DOC} onRefsQueFaltam={aoSaber} />);
+    await waitFor(() => expect(aoSaber).toHaveBeenCalledWith(["tema:t1/foi.jpg"]));
+  });
+});

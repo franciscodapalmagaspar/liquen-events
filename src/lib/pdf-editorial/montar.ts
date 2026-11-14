@@ -51,7 +51,7 @@ import type { FotosDoPdf, Medida } from "./fotos-do-pdf";
 import type { ConteudoWeb, FotoWeb } from "./conteudo-web";
 
 export type { FotoNaPagina, FotosDoPdf, Medida } from "./fotos-do-pdf";
-import { problemaDaCapa } from "./regra-da-capa";
+import { aCapaDelaVaiNoPdf } from "./regra-da-capa";
 import {
   alturaDasColunas,
   comoTitulo,
@@ -488,7 +488,7 @@ async function motor(
   // O enquadramento escolhido à mão (`focoDaCapa`) é da fotografia DELA: só
   // vai com ela, nunca com a deitada que a substitui.
   const fundoDaCapa =
-    fotoDaCapa && (doc.capaMesmoAssim || !problemaDaCapa(fotoDaCapa.w, fotoDaCapa.h))
+    fotoDaCapa && aCapaDelaVaiNoPdf(fotoDaCapa, doc.capaMesmoAssim)
       ? doc.focoDaCapa
         ? { ...fotoDaCapa, foco: doc.focoDaCapa }
         : fotoDaCapa

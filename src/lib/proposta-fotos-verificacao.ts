@@ -5,6 +5,7 @@ import { THEME_BUCKET, ehRefDeTema, caminhoDoRefDeTema, themeIdOfPath } from "./
 import { entradasDe } from "./reciclagem-store";
 import { getTheme } from "./themes-store";
 import { CHAVE_DA_CAPA, fotosEscolhidasDoDocumento, type FotoEscolhida } from "./fotos-escolhidas";
+import { aCapaDelaVaiNoPdf } from "./pdf-editorial/regra-da-capa";
 import { isPendingImage, type ProposalDoc } from "./proposal-doc";
 import { formasDeCaminhos } from "./biblioteca-fotos-store";
 import { LARGURAS_DE_PARTILHA, type FotoSuspeita } from "./proposta-fotos-verificacao-tipos";
@@ -144,6 +145,35 @@ function inventarioComSitio(doc: Partial<ProposalDoc>): Entrada[] {
  *  `listProposalImages`: uma pasta de pedido não passa disto. */
 const PAGINA = 200;
 const MAX_PAGINAS = 25;
+/**
+ * Numa pasta maior do que o tecto, quantas se perguntam uma a uma (ver
+ * `nomesNaPasta`). As que passarem disto ficam «por confirmar».
+ */
+const MAX_PERGUNTAS_POR_FICHEIRO = 40;
+/** Quantas perguntas uma a uma ao mesmo tempo. */
+const PERGUNTAS_EM_PARALELO = 4;
+
+/**
+ * O que se sabe de uma pasta: os nomes, e se a lista está INTEIRA. Uma lista
+ * cortada no tecto não diz nada das que ficaram para lá do corte.
+ */
+interface Listagem {
+  nomes: Set<string>;
+  inteira: boolean;
+}
+
+/**
+ * Memória curta das listagens, só para quem a pede (o plano do estúdio, que
+ * corre a cada gesto). O travão do envio e a página do casal perguntam sempre
+ * de fresco: «já corrigi — voltar a confirmar» tem de ver o que está lá agora.
+ */
+const MEMORIA_MS = 30_000;
+const memoria = new Map<string, { at: number; listagem: Listagem }>();
+
+/** Só para os testes. */
+export function esquecerListagens(): void {
+  memoria.clear();
+}
 
 /**
  * Os nomes de ficheiro que existem numa pasta de um bucket.
@@ -151,11 +181,27 @@ const MAX_PAGINAS = 25;
  * Devolve `null` quando não se conseguiu listar — que é diferente de uma pasta
  * vazia, e a diferença decide se se acusa uma foto de faltar. Acusar por não
  * se ter conseguido perguntar seria pior do que não perguntar.
+ *
+ * Revisão de 14/11, importante n.º 2: a lista pára no tecto (PAGINA ×
+ * MAX_PAGINAS = 5000). Até aqui devolvia-se o que se tinha lido como se fosse
+ * a pasta inteira, e uma foto para lá do corte passava a «já não existe» —
+ * travava o envio e escondia-se ao casal. Agora a listagem diz se está
+ * `inteira`; quando não está, quem chama pergunta por ficheiro.
  */
-async function nomesNaPasta(bucket: string, pasta: string): Promise<Set<string> | null> {
+async function nomesNaPasta(
+  bucket: string,
+  pasta: string,
+  comMemoria = false,
+): Promise<Listagem | null> {
+  const chave = `${bucket}::${pasta}`;
+  if (comMemoria) {
+    const ja = memoria.get(chave);
+    if (ja && Date.now() - ja.at <= MEMORIA_MS) return ja.listagem;
+  }
   const sb = getSupabase();
   if (!sb) return null;
   const nomes = new Set<string>();
+  let inteira = false;
   for (let p = 0; p < MAX_PAGINAS; p += 1) {
     const { data, error } = await sb.storage
       .from(bucket)
@@ -165,9 +211,53 @@ async function nomesNaPasta(bucket: string, pasta: string): Promise<Set<string> 
       return null;
     }
     for (const o of data) if (o.id && !o.name.startsWith(".")) nomes.add(o.name);
-    if (data.length < PAGINA) break;
+    if (data.length < PAGINA) {
+      inteira = true;
+      break;
+    }
   }
-  return nomes;
+  const listagem = { nomes, inteira };
+  memoria.set(chave, { at: Date.now(), listagem });
+  return listagem;
+}
+
+/**
+ * Este ficheiro está nesta pasta? Uma pergunta só, pelo nome (`search`), sem
+ * listar a pasta — para as pastas maiores do que o tecto. `null` quando não se
+ * conseguiu saber (e «não sei» não acusa).
+ *
+ * O `search` do Storage procura pelo começo do nome; confere-se o nome exacto.
+ * Se a resposta vier cheia sem o nome lá dentro, também não se sabe.
+ */
+async function existeNaPasta(bucket: string, pasta: string, nome: string): Promise<boolean | null> {
+  const sb = getSupabase();
+  if (!sb) return null;
+  const LIMITE = 100;
+  try {
+    const { data, error } = await sb.storage
+      .from(bucket)
+      .list(pasta, { limit: LIMITE, search: nome });
+    if (error || !data) return null;
+    if (data.some((o) => o.name === nome)) return true;
+    return data.length < LIMITE ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Corre `fn` sobre cada um, no máximo `limite` ao mesmo tempo, pela ordem. */
+async function mapLimit<T, R>(itens: readonly T[], limite: number, fn: (t: T) => Promise<R>) {
+  const saida: R[] = new Array(itens.length);
+  let proximo = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limite, itens.length) }, async () => {
+      while (proximo < itens.length) {
+        const i = proximo++;
+        saida[i] = await fn(itens[i]);
+      }
+    }),
+  );
+  return saida;
 }
 
 /** `pasta/ficheiro.jpg` → `["pasta", "ficheiro.jpg"]`; `null` se não tiver a forma. */
@@ -203,7 +293,10 @@ interface Procura {
 
 const caminhoDe = (ref: string) => (ehRefDeTema(ref) ? caminhoDoRefDeTema(ref) : ref);
 
-async function procurarAsQueFaltam(entradas: readonly Entrada[]): Promise<Procura> {
+async function procurarAsQueFaltam(
+  entradas: readonly Entrada[],
+  opcoes: { memoria?: boolean } = {},
+): Promise<Procura> {
   const emFalta: FotoEmFalta[] = [];
   const porConfirmar: Entrada[] = [];
   let naoVerificaveis = 0;
@@ -252,28 +345,53 @@ async function procurarAsQueFaltam(entradas: readonly Entrada[]): Promise<Procur
   const listagens = await Promise.all(
     [...porPasta.values()].map(async (g) => ({
       ...g,
-      nomes: await nomesNaPasta(g.bucket, g.pasta).catch(() => null),
+      listagem: await nomesNaPasta(g.bucket, g.pasta, opcoes.memoria).catch(() => null),
     })),
   );
 
+  const acusar = (e: Entrada) =>
+    emFalta.push({
+      id: e.id,
+      onde: e.onde,
+      motivo: ehRefDeTema(e.ref) ? "saiu-da-biblioteca" : "nao-esta-no-bucket",
+    });
+  const nomeDe = (e: Entrada) => {
+    const caminho = caminhoDe(e.ref);
+    const partes = caminho ? partir(caminho) : null;
+    return partes ? partes[1] : null;
+  };
+
+  /** As das pastas maiores do que o tecto: perguntam-se uma a uma. */
+  const umaAUma: { g: (typeof listagens)[number]; e: Entrada; nome: string }[] = [];
   for (const g of listagens) {
     // Não se conseguiu listar: estas não se acusam (ver `nomesNaPasta`) — mas
     // as das outras pastas continuam a contar.
-    if (!g.nomes) {
+    if (!g.listagem) {
       porConfirmar.push(...g.entradas);
       continue;
     }
     for (const e of g.entradas) {
-      const caminho = caminhoDe(e.ref);
-      const partes = caminho ? partir(caminho) : null;
-      if (!partes || g.nomes.has(partes[1])) continue;
-      emFalta.push({
-        id: e.id,
-        onde: e.onde,
-        motivo: ehRefDeTema(e.ref) ? "saiu-da-biblioteca" : "nao-esta-no-bucket",
-      });
+      const nome = nomeDe(e);
+      if (!nome || g.listagem.nomes.has(nome)) continue;
+      // Não está na parte lida: numa pasta INTEIRA, falta; numa pasta cortada
+      // no tecto, pode estar para lá do corte — pergunta-se por ela.
+      if (g.listagem.inteira) acusar(e);
+      else umaAUma.push({ g, e, nome });
     }
   }
+  if (umaAUma.length > MAX_PERGUNTAS_POR_FICHEIRO) {
+    log.warn("verificação de fotos: pasta maior do que o tecto — algumas ficam por confirmar", {
+      porConfirmar: umaAUma.length - MAX_PERGUNTAS_POR_FICHEIRO,
+    });
+    porConfirmar.push(...umaAUma.splice(MAX_PERGUNTAS_POR_FICHEIRO).map((x) => x.e));
+  }
+  const respostas = await mapLimit(umaAUma, PERGUNTAS_EM_PARALELO, ({ g, nome }) =>
+    existeNaPasta(g.bucket, g.pasta, nome),
+  );
+  umaAUma.forEach(({ e }, i) => {
+    if (respostas[i] === false) acusar(e);
+    else if (respostas[i] === null) porConfirmar.push(e);
+  });
   return { emFalta, naoVerificaveis, porConfirmar, porResolver };
 }
 
@@ -303,11 +421,18 @@ export async function verificarFotosDaProposta(
       await procurarAsQueFaltam(entradas);
     // As escolhidas que faltam TRAVAM o envio: com a página e o tema, para a
     // frase dizer onde ir (ver `oQueFaltaParaEnviar`). A MESMA função da rota.
-    const escolhidasQueFaltam = await escolhidasQueFaltamDe(entradas, emFalta);
+    const escolhidasQueFaltam = await escolhidasQueFaltamDe(entradas, emFalta, doc ?? {});
+    // Os caminhos de TODAS as que se sabe que faltam (não só as escolhidas):
+    // o estúdio deixa de as oferecer nas alternativas (revisão de 14/11, n.º 6).
+    const idsEmFalta = new Set(emFalta.filter((f) => f.motivo !== "por-copiar").map((f) => f.id));
+    const refsEmFalta = [
+      ...new Set(entradas.filter((e) => idsEmFalta.has(e.id)).map((e) => e.ref)),
+    ];
+    const comRefs = refsEmFalta.length > 0 ? { refsEmFalta } : {};
     if (porConfirmar.length > 0) {
       // Uma pasta não respondeu: a verificação não é inteira («não sei» não
       // acusa), mas o que se sabe das outras pastas não se deita fora.
-      return { ...vazio, emFalta, escolhidasQueFaltam, naoVerificaveis };
+      return { ...vazio, emFalta, escolhidasQueFaltam, naoVerificaveis, ...comRefs };
     }
 
     /**
@@ -349,6 +474,7 @@ export async function verificarFotosDaProposta(
       suspeitas,
       naoVerificaveis,
       verificou: true,
+      ...comRefs,
     };
   } catch (err) {
     log.error("verificação de fotos falhou", err);
@@ -390,7 +516,7 @@ export async function fotosEscolhidasQueFaltam(
         porConfirmar: porConfirmar.length,
       });
     }
-    return await escolhidasQueFaltamDe(entradas, emFalta);
+    return await escolhidasQueFaltamDe(entradas, emFalta, doc ?? {});
   } catch (err) {
     log.error("verificação das fotos escolhidas falhou", err);
     return [];
@@ -406,7 +532,11 @@ export async function fotosEscolhidasQueFaltam(
  * As `pending:` também não: a página do casal já as deixa de fora
  * (`inventarioDeFotos`).
  */
-export async function refsQueJaNaoExistem(refs: readonly string[]): Promise<Set<string>> {
+export async function refsQueJaNaoExistem(
+  refs: readonly string[],
+  /** `memoria`: aceita uma listagem de há menos de 30 s (só o plano do estúdio). */
+  opcoes: { memoria?: boolean } = {},
+): Promise<Set<string>> {
   const unicas = [...new Set(refs.filter((r) => r && !isPendingImage(r)))];
   if (unicas.length === 0) return new Set();
   const entradas: Entrada[] = unicas.map((ref, i) => ({
@@ -416,7 +546,7 @@ export async function refsQueJaNaoExistem(refs: readonly string[]): Promise<Set<
     lugar: "tema",
   }));
   try {
-    const { emFalta } = await procurarAsQueFaltam(entradas);
+    const { emFalta } = await procurarAsQueFaltam(entradas, opcoes);
     const ids = new Set(emFalta.map((f) => f.id));
     return new Set(entradas.filter((e) => ids.has(e.id)).map((e) => e.ref));
   } catch (err) {
@@ -429,14 +559,33 @@ export async function refsQueJaNaoExistem(refs: readonly string[]): Promise<Set<
 async function escolhidasQueFaltamDe(
   entradas: readonly Entrada[],
   emFalta: readonly FotoEmFalta[],
+  doc: Partial<ProposalDoc>,
 ): Promise<FotoEscolhidaEmFalta[]> {
   const faltam = new Map(emFalta.map((f) => [f.id, f]));
   const vistas = new Set<string>();
-  const escolhidas = entradas.filter((e) => {
+  let escolhidas = entradas.filter((e) => {
     if (!e.escolhida || !faltam.has(e.id) || vistas.has(e.ref)) return false;
     vistas.add(e.ref);
     return true;
   });
+  /**
+   * A CAPA só trava se o PDF a fosse usar (revisão de 14/11, n.º 3): uma ao
+   * alto ou pequena, sem «usar mesmo assim», já não ia para a capa — o PDF
+   * põe lá a melhor deitada da inspiração, falte ela ou não. A regra é a do
+   * desenho (`aCapaDelaVaiNoPdf`); a medida, a da biblioteca (a linha fica
+   * quando a foto vai para a Reciclagem). Uma consulta, só quando a capa falta.
+   */
+  const capa = escolhidas.find((e) => e.escolhida?.chave === CHAVE_DA_CAPA);
+  if (capa && !isPendingImage(capa.ref)) {
+    const caminho = caminhoDe(capa.ref);
+    const forma = caminho
+      ? (await formasDeCaminhos([caminho]).catch(() => new Map())).get(caminho)
+      : undefined;
+    const medida = forma ? { w: forma.largura, h: forma.altura } : null;
+    if (!aCapaDelaVaiNoPdf(medida, doc.capaMesmoAssim)) {
+      escolhidas = escolhidas.filter((e) => e !== capa);
+    }
+  }
   return Promise.all(
     escolhidas.map(async (e): Promise<FotoEscolhidaEmFalta> => {
       const f = e.escolhida!;

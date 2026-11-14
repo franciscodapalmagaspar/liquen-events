@@ -48,9 +48,16 @@ export default function FotosEmFalta({
   quoteId,
   doc,
   onEscolhidasQueFaltam,
+  onRefsQueFaltam,
 }: {
   quoteId: string;
   doc: ProposalDoc;
+  /**
+   * Os caminhos de todas as que SE SABE que já não existem (revisão de 14/11,
+   * n.º 6): o estúdio deixa de as oferecer nas alternativas. A mesma resposta
+   * do armazenamento que trava o envio — e não uma segunda pergunta.
+   */
+  onRefsQueFaltam?: (refs: string[]) => void;
   /**
    * As fotos escolhidas para as páginas que já não existem (14/11): o estúdio
    * passa-as a `oQueFaltaParaEnviar`, onde TRAVAM o envio. Só com uma
@@ -63,6 +70,7 @@ export default function FotosEmFalta({
   const [r, setR] = useState<VerificacaoDeFotos | null>(null);
   // Numa ref: a função muda a cada desenho do estúdio, e a verificação não.
   const avisar = useRef(onEscolhidasQueFaltam);
+  const avisarRefs = useRef(onRefsQueFaltam);
   // E o documento ACTUAL, também numa ref (revisão de 14/11, n.º 7): a
   // verificação não corre a cada tecla, mas quando corre — «Já corrigi —
   // voltar a confirmar» — tem de confirmar o documento de agora, e não o do
@@ -71,8 +79,9 @@ export default function FotosEmFalta({
   const docAtual = useRef(doc);
   useEffect(() => {
     avisar.current = onEscolhidasQueFaltam;
+    avisarRefs.current = onRefsQueFaltam;
     docAtual.current = doc;
-  }, [onEscolhidasQueFaltam, doc]);
+  }, [onEscolhidasQueFaltam, onRefsQueFaltam, doc]);
 
   const verificar = useCallback(async () => {
     try {
@@ -90,6 +99,7 @@ export default function FotosEmFalta({
       // o que as outras disseram.
       if (resposta.escolhidasQueFaltam) avisar.current?.(resposta.escolhidasQueFaltam);
       else if (resposta.verificou) avisar.current?.([]);
+      avisarRefs.current?.(resposta.refsEmFalta ?? []);
     } catch {
       setEstado("falhou");
     }

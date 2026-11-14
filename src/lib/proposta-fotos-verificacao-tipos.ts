@@ -62,6 +62,11 @@ export interface VerificacaoDeFotos {
    */
   escolhidasQueFaltam?: FotoEscolhidaEmFalta[];
   /**
+   * Os caminhos de todas as que SE SABE que já não existem (sem as `pending:`)
+   * — o estúdio deixa de as oferecer nas alternativas. Ausente quando não há.
+   */
+  refsEmFalta?: string[];
+  /**
    * As que estão lá e não deviam ir assim: medida de site de partilha, ou
    * pequenas demais para o sítio onde são desenhadas. Não impedem nada — ver
    * o bloco «A FOTOGRAFIA QUE ESTÁ LÁ, MAS NÃO DEVIA IR ASSIM».

@@ -643,7 +643,7 @@ describe("a foto escolhida para uma página que já não existe", () => {
     }).find((x) => x.id === "foto-escolhida-em-falta");
     expect(t?.trava).toBe(true);
     expect(t?.texto).toBe(
-      "A foto da página «Índice» ainda está a ser copiada — espera um momento e volta a confirmar",
+      "A foto da página «Índice» ainda está a ser copiada — espera um momento e volta a confirmar, ou escolhe outra",
     );
     expect(t?.texto).not.toMatch(/já não existe/);
   });
