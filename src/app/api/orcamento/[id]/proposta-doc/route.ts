@@ -80,6 +80,9 @@ const TRAVAM_NO_SERVIDOR: ReadonlySet<string> = new Set([
   // PDF deixava de a mostrar e punha outra em silêncio. Confere-se aqui, no
   // armazenamento, com `fotosEscolhidasQueFaltam`.
   "foto-escolhida-em-falta",
+  // Uma escolhida (ou a capa) que o tecto de fotos do PDF deixaria de fora
+  // (14/11): a mesma regra pura do motor, `fotosNoTectoDoPdf`.
+  "fotos-a-mais",
 ]);
 
 /**
@@ -98,6 +101,7 @@ const TRAVAM_O_PDF_FINAL: ReadonlySet<string> = new Set([
   // A foto que ela escolheu e já não existe: o PDF final sairia com o lugar
   // vazio. O estúdio já só oferece o rascunho nesse caso (a mesma lista).
   "foto-escolhida-em-falta",
+  "fotos-a-mais",
 ]);
 
 export const runtime = "nodejs";
@@ -542,7 +546,7 @@ async function POST_semMedida(
             // Só a primeira letra desce: o resto leva os nomes dos serviços,
             // que se escrevem como ela os escreveu.
             error: `O PDF final só sai com ${
-              travam.every((f) => f.id === "foto-escolhida-em-falta")
+              travam.every((f) => f.id === "foto-escolhida-em-falta" || f.id === "fotos-a-mais")
                 ? "as fotografias todas"
                 : "os valores todos"
             }: ${travam

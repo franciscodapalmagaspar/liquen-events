@@ -22,7 +22,7 @@ let filaDeFaltas: number[] = [];
  * Das faltas de cada passagem, as que SE SABE que faltam, e dessas as das
  * fotos que ela escolheu à mão — por ordem, como `filaDeFaltas`.
  */
-let filaDeSabidas: { sabidas: number; travam: number; tecto?: number }[] = [];
+let filaDeSabidas: { sabidas: number; travam: number; tecto?: number; tectoTravam?: number }[] = [];
 vi.mock("./proposal-doc-render", () => ({
   renderStoredEditorialPdfWithReport: async (...args: unknown[]) => {
     const pdf = await desenhar(...args);
@@ -35,11 +35,22 @@ vi.mock("./proposal-doc-render", () => ({
             faltasSabidas: s.sabidas,
             faltasSabidasQueTravam: s.travam,
             ...(s.tecto ? { faltasPeloTecto: s.tecto } : {}),
+            ...(s.tectoTravam ? { faltasPeloTectoQueTravam: s.tectoTravam } : {}),
           }
         : {}),
       truncations: [],
     };
   },
+}));
+
+/**
+ * O Storage dos PDFs guardados — só os testes que passam um `proposalId` lá
+ * chegam; os outros nem o tocam.
+ */
+const noStorage = vi.hoisted(() => ({ guardar: vi.fn(async () => {}) }));
+vi.mock("@/lib/proposal-pdf-guardado", () => ({
+  lerPdfDaProposta: async () => null,
+  guardarPdfDaProposta: noStorage.guardar,
 }));
 
 import {
@@ -59,6 +70,7 @@ beforeEach(() => {
   desenhar.mockReset();
   filaDeFaltas = [];
   filaDeSabidas = [];
+  noStorage.guardar.mockClear();
 });
 
 describe("pdfDaPropostaEmCache", () => {
@@ -248,6 +260,34 @@ describe("fotos que se sabe que faltam", () => {
     expect(estadoCachePdf().entradas).toBe(1);
     await pdfDaPropostaEmCache(doc("LIQ-24"));
     expect(desenhar).toHaveBeenCalledTimes(1);
+  });
+
+  it("uma ESCOLHIDA cortada pelo tecto: nunca se guarda — nem memória, nem Storage", async () => {
+    // 2.ª revisão de 14/11, importante n.º 1: o PDF sai sem a foto que ela
+    // escolheu à mão. Não é um documento completo, e guardá-lo fixava-o.
+    desenhar.mockResolvedValue(pdfDe(100));
+    filaDeFaltas = [3, 3];
+    filaDeSabidas = [
+      { sabidas: 0, travam: 0, tecto: 3, tectoTravam: 1 },
+      { sabidas: 0, travam: 0, tecto: 3, tectoTravam: 1 },
+    ];
+    const r = await pdfDaPropostaComEstado(doc("LIQ-26"), "pt", true, "prop-26");
+    expect(r.completo).toBe(false);
+    // Certa como as outras do tecto: um desenho só.
+    expect(desenhar).toHaveBeenCalledTimes(1);
+    expect(estadoCachePdf().entradas).toBe(0);
+    expect(noStorage.guardar).not.toHaveBeenCalled();
+    // E o documento de registo recusa-o.
+    await expect(pdfDaPropostaEmCache(doc("LIQ-26"))).rejects.toThrow(/em falta/i);
+  });
+
+  it("só mood boards cortados pelo tecto: guarda-se também no Storage", async () => {
+    desenhar.mockResolvedValue(pdfDe(100));
+    filaDeFaltas = [3];
+    filaDeSabidas = [{ sabidas: 0, travam: 0, tecto: 3 }];
+    const r = await pdfDaPropostaComEstado(doc("LIQ-27"), "pt", true, "prop-27");
+    expect(r.completo).toBe(true);
+    expect(noStorage.guardar).toHaveBeenCalledTimes(1);
   });
 
   it("tecto E passageiras: repete-se pelas passageiras", async () => {

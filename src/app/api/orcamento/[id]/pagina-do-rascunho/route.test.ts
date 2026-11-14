@@ -53,9 +53,9 @@ vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.
 
 import { POST } from "./route";
 
-const pedir = (body: unknown) =>
+const pedir = (body: unknown, qs = "") =>
   POST(
-    new Request("http://x/api/orcamento/q1/pagina-do-rascunho", {
+    new Request(`http://x/api/orcamento/q1/pagina-do-rascunho${qs}`, {
       method: "POST",
       body: typeof body === "string" ? body : JSON.stringify(body),
     }) as unknown as NextRequest,
@@ -142,5 +142,27 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
   it("uma língua estranha cai no português", async () => {
     await pedir({ doc: DOC, n: 1, idioma: "xx" });
     expect(st.render.mock.calls[0][1]).toBe("pt");
+  });
+
+  /**
+   * 2.ª revisão de 14/11, importante n.º 2: o primeiro pedido de cada página
+   * depois de uma foto mudar vem com `fresco=1` — pode cair noutra instância,
+   * com a listagem de antes guardada. Esse pergunta à pasta AGORA (e guarda
+   * por cima); os outros continuam a aceitar a memória.
+   */
+  it("`fresco=1` pergunta à pasta de novo; sem ele, aceita a memória", async () => {
+    await pedir({ doc: DOC, n: 3 }, "?fresco=1");
+    await pedir({ doc: DOC, n: 3 });
+    expect(st.perguntas).toEqual([{ memoria: true, renovar: true }, { memoria: true }]);
+  });
+
+  it("a resposta fresca muda a chave: a página guardada sem a foto não volta", async () => {
+    st.faltam = new Set(["t/a.jpg"]);
+    await pedir({ doc: DOC, n: 3 });
+    expect(st.render).toHaveBeenCalledTimes(1);
+    // A foto voltou (noutra instância): a pergunta fresca já a vê.
+    st.faltam = new Set();
+    await pedir({ doc: DOC, n: 3 }, "?fresco=1");
+    expect(st.render).toHaveBeenCalledTimes(2);
   });
 });

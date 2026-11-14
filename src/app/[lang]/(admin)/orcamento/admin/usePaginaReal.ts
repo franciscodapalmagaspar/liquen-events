@@ -251,6 +251,19 @@ function lerGeracao(): string {
 
 let geracaoDasFotos = lerGeracao();
 
+/**
+ * Quanto vale, no servidor, a listagem guardada de uma pasta
+ * (`MEMORIA_MS` de `memoria-das-listagens.ts`). Uma geração mais nova do que
+ * isto pode ser mais nova do que a memória de alguma instância.
+ */
+const MEMORIA_DO_SERVIDOR_MS = 3 * 60_000;
+
+/** A geração é o instante da mudança (`Date.now()`): ainda dentro da memória do servidor? */
+function geracaoRecente(g: string = geracaoDasFotos): boolean {
+  const quando = Number(g);
+  return Number.isFinite(quando) && quando > 0 && Date.now() - quando < MEMORIA_DO_SERVIDOR_MS;
+}
+
 /** As fotos mudaram (nesta aba, ou noutra com `nova`): as páginas guardadas deixam de ser desta versão. */
 export function fotosMudaram(nova?: string) {
   geracaoDasFotos = nova ?? String(Date.now());
@@ -294,6 +307,21 @@ class Preparador {
   private espera: ReturnType<typeof setTimeout> | null = null;
   private parado = false;
   private ouvintes = new Set<() => void>();
+  /**
+   * ── O PRIMEIRO PEDIDO DE CADA PÁGINA DEPOIS DE UMA MUDANÇA VAI `fresco` ──
+   *
+   * 2.ª revisão de 14/11, importante n.º 2. A geração muda a chave de cá, e a
+   * página pede-se outra vez — mas pode cair noutra instância do servidor, com
+   * a listagem da pasta de ANTES da mudança guardada (3 min), e voltava velha.
+   * Por isso o primeiro pedido de cada página depois de a geração mudar leva
+   * `?fresco=1`, e o servidor pergunta à pasta agora (uma listagem por pasta,
+   * uma vez por página). As que já foram frescas não voltam a ir.
+   *
+   * Um preparador que nasce com uma geração recente (outro separador mudou há
+   * menos do que a memória do servidor) começa no mesmo estado.
+   */
+  private frescoPorPedir = geracaoRecente();
+  private jaFrescas = new Set<number>();
 
   constructor(
     private quoteId: string,
@@ -407,14 +435,20 @@ class Preparador {
       if (noNavegador?.rascunho === estaVersao) {
         guardar(chave, noNavegador);
       } else {
-        const res = await fetch(`/api/orcamento/${this.quoteId}/pagina-do-rascunho`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: corpo,
-          signal: controlo.signal,
-        });
+        const fresco = this.frescoPorPedir && geracaoRecente() && !this.jaFrescas.has(p);
+        const res = await fetch(
+          `/api/orcamento/${this.quoteId}/pagina-do-rascunho${fresco ? "?fresco=1" : ""}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: corpo,
+            signal: controlo.signal,
+          },
+        );
         const paginas = Number(res.headers.get("X-Paginas")) || null;
         if (!res.ok) throw new FalhaTemporaria(String(res.status));
+        // Só conta como fresca a que chegou: uma que falhou volta a ir fresca.
+        if (fresco) this.jaFrescas.add(p);
         const g: Guardada = { imagem: await res.blob(), paginas, rascunho: estaVersao };
         // Guarda-se mesmo que tenha ficado velho: está certa para AQUELE rascunho.
         guardar(chave, g);
@@ -443,6 +477,8 @@ class Preparador {
 
   /** Uma foto entrou ou saiu: as páginas à volta da que se vê pedem-se outra vez. */
   fotosMudaram() {
+    this.frescoPorPedir = true;
+    this.jaFrescas.clear();
     this.tentativas.clear();
     this.raio = RAIO_DEPOIS_DE_MUDAR;
     this.avisar();

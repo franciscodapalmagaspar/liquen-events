@@ -80,3 +80,86 @@ export function fotosEscolhidasDoDocumento(doc: Partial<ProposalDoc>): FotoEscol
   });
   return saida;
 }
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O TECTO DE FOTOGRAFIAS DO PDF — QUEM CABE, DECIDIDO NUM SÍTIO SÓ
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O PDF não leva mais de {@link FOTOS_NO_TECTO_DO_PDF} fotografias DIFERENTES
+ * (memória e tempo da função: ver `proposal-doc-render.ts`). Revisão de 14/11,
+ * importante n.º 1:
+ *
+ *   · conta-se FOTOS, não lugares. O motor descarrega cada fotografia uma vez
+ *     só (`jaPedidas`), por isso uma que já cabe — a mesma em dois mood boards,
+ *     a capa que também está num board — não gasta mais tecto;
+ *   · quem cabe primeiro é o que ELA escolheu à mão: a capa, depois as
+ *     escolhidas para as páginas que o plano ainda tem (a lista de cima,
+ *     {@link fotosEscolhidasDoDocumento}), depois as outras capas, depois os
+ *     mood boards pela ordem do documento, e por fim o que sobrar de
+ *     `fotosDasPaginas` (chaves órfãs, lugares a mais), que o PDF não desenha.
+ *     Uma escolhida à mão nunca sai antes de uma de mood board;
+ *   · se mesmo assim uma escolhida (ou a capa) ficar de fora, isso TRAVA o
+ *     envio (`oQueFaltaParaEnviar`, id `fotos-a-mais`) e o PDF não se guarda.
+ *     Uma de mood board cortada não trava: o mosaico faz-se sem ela.
+ *
+ * Abaixo do tecto não muda nada: cabem todas.
+ *
+ * ── O QUE NÃO APLICA O TECTO (diferença que já existia) ──────────────────
+ * A página web do casal (`conteudoWebDoDocumento`) e o plano/miniaturas do
+ * estúdio (`fotosDoEditorialDoDocumento`, `plano.ts`) não cortam nada: acima do
+ * tecto mostram mood boards com fotos que o PDF deixa de fora. Só acontece
+ * acima de 80 fotografias diferentes, e o PDF diz quantas faltaram
+ * (`X-Fotos-Em-Falta`).
+ *
+ * Puro, sem `server-only`: a Conferência corre-o no navegador.
+ */
+export const FOTOS_NO_TECTO_DO_PDF = 80;
+
+export interface FotosNoTecto {
+  /** As referências que cabem no tecto. */
+  dentro: Set<string>;
+  /** As escolhidas à mão (capa incluída) que ficaram de fora — travam. */
+  escolhidasDeFora: FotoEscolhida[];
+  /** Quantas fotografias diferentes passam do tecto, ao todo. */
+  aMais: number;
+}
+
+export function fotosNoTectoDoPdf(
+  doc: Partial<ProposalDoc>,
+  opcoes: {
+    /**
+     * As de `fotosDasPaginas` contam (o desenho editorial). Sem isto só a capa
+     * e os mood boards, que é o que o gerador antigo vai buscar.
+     */
+    comPaginas?: boolean;
+    tecto?: number;
+  } = {},
+): FotosNoTecto {
+  const tecto = opcoes.tecto ?? FOTOS_NO_TECTO_DO_PDF;
+  const escolhidas = opcoes.comPaginas
+    ? fotosEscolhidasDoDocumento(doc)
+    : fotosEscolhidasDoDocumento({ coverImages: doc.coverImages });
+  const pelaOrdem: string[] = [
+    ...escolhidas.map((f) => f.ref),
+    ...(doc.coverImages ?? []),
+    ...(doc.moodBoards ?? []).flatMap((b) => b?.images ?? []),
+    ...(opcoes.comPaginas
+      ? Object.values(doc.fotosDasPaginas ?? {}).flatMap((e) => e?.fotos ?? [])
+      : []),
+  ];
+  const vistas = new Set<string>();
+  const dentro = new Set<string>();
+  for (const ref of pelaOrdem) {
+    // Vazia é um lugar sem foto, não uma foto: não gasta tecto (o motor nem a
+    // vai buscar). O mesmo teste que o motor faz antes de ir buscar.
+    if (typeof ref !== "string" || !ref || vistas.has(ref)) continue;
+    vistas.add(ref);
+    if (dentro.size < tecto) dentro.add(ref);
+  }
+  return {
+    dentro,
+    escolhidasDeFora: escolhidas.filter((f) => !dentro.has(f.ref)),
+    aMais: Math.max(0, vistas.size - tecto),
+  };
+}

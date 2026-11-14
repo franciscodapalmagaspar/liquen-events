@@ -62,6 +62,7 @@ import { porqueFalhou, porqueRebentou, type Falha } from "@/lib/porque-falhou";
 import { porqueNaoLeu, porqueNaoLeuDoErro, type LeituraFalhada } from "@/lib/porque-nao-leu";
 import ListaDeTemas from "./ListaDeTemas";
 import { fotoPelaTecla } from "@/lib/temas-grelha";
+import { bibliotecaAlterada, bibliotecaAlteradaEmLote } from "./biblioteca-alterada";
 import {
   escreverCarga,
   fotosQueViajam,
@@ -735,21 +736,6 @@ function photoCountLabel(count: number | null, truncated?: boolean): string {
  * `stop` é consultado antes de cada item: é assim que sair da pasta trava o
  * que ainda não começou, sem cortar o que já vai a caminho.
  */
-/**
- * Avisa o seletor da Biblioteca de Temas que o que ele tem em cache deixou de
- * corresponder à realidade.
- *
- * O seletor (ThemePicker) guarda temas e páginas de miniaturas em cache de
- * módulo, para reabrir sem disparar um pedido. Essa cache só é invalidada por
- * este evento — sem ele, acrescentar ou remover uma foto aqui deixava o
- * seletor a mostrar a biblioteca velha até a aba ser recarregada. Um evento em
- * `window` (e não um import) mantém os dois ecrãs sem se conhecerem.
- */
-function bibliotecaAlterada(): void {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event("liquen:biblioteca-alterada"));
-}
-
 /**
  * O retrato de uma ação em bloco a decorrer, para o `EmCurso` da barra de
  * seleção. Transferir 40 fotos e remover 40 fotos são 40 coisas cada uma: há
@@ -4041,7 +4027,8 @@ function ThemeFolder({
             // em paralelo perdiam fotos e uma foto removida entretanto voltava.
             setImages((prev) => (prev.some((x) => x.path === im.path) ? prev : [im, ...prev]));
             setTotal((t) => (t === null ? null : t + 1));
-            bibliotecaAlterada();
+            // Um aviso por LOTE, não por foto (revisão de 14/11, menor n.º 5).
+            bibliotecaAlteradaEmLote();
             added += 1;
           } catch (e) {
             // A foto não subiu: a célula provisória sai (a caixa vermelha do

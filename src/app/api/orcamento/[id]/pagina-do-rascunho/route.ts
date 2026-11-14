@@ -114,6 +114,18 @@ async function POST_semMedida(
      * listagem por pasta a cada 3 min quando a página vem da memória.
      */
     const comecou = Date.now();
+    /**
+     * ── `fresco=1`: O PRIMEIRO PEDIDO DE CADA PÁGINA DEPOIS DE UMA MUDANÇA ──
+     *
+     * 2.ª revisão de 14/11, importante n.º 2. Uma foto que entra ou sai da
+     * Reciclagem esquece a listagem da pasta NESTA instância — mas a página
+     * pode ser pedida a outra, com a listagem de antes guardada (até 3 min):
+     * a pré-visualização voltava velha. O estúdio marca o primeiro pedido de
+     * cada página depois da mudança (`usePaginaReal`, `fotosMudaram`), e esse
+     * pergunta à pasta AGORA — uma listagem por pasta, uma vez — e guarda a
+     * resposta por cima da velha. Os seguintes voltam à memória.
+     */
+    const fresco = new URL(request.url).searchParams.get("fresco") === "1";
     let paginas: number | null = null;
     let desenhou = false;
     let chave = "";
@@ -127,6 +139,7 @@ async function POST_semMedida(
       (async () => {
         const faltam = await fotosQueSeSabeQueFaltam(withProposalDefaults(doc as ProposalDoc), {
           memoria: true,
+          ...(fresco ? { renovar: true } : {}),
         });
         chave = `rascunho:${createHash("sha256")
           .update(

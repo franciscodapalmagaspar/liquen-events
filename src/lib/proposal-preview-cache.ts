@@ -53,6 +53,8 @@ export interface RelatorioDoPdf {
   faltasSabidasQueTravam?: number;
   /** Das `missingImages`, as que passaram do tecto de fotografias por documento. */
   faltasPeloTecto?: number;
+  /** Das que passaram do tecto, as escolhidas por ela (ou a capa): nunca se guarda. */
+  faltasPeloTectoQueTravam?: number;
   truncations: DocTruncation[];
 }
 
@@ -102,8 +104,13 @@ export async function pdfFinalDaVersao(
   try {
     const relatorio = await promessa;
     // As que passaram do tecto não impedem de guardar: o desenho não muda por
-    // as repetir (revisão de 14/11, menor n.º 1).
-    if (relatorio.missingImages - (relatorio.faltasPeloTecto ?? 0) === 0) {
+    // as repetir (revisão de 14/11, menor n.º 1). Menos uma escolhida à mão
+    // (ou a capa) cortada pelo tecto: o documento não está completo, e não se
+    // guarda (2.ª revisão de 14/11, importante n.º 1).
+    if (
+      relatorio.missingImages - (relatorio.faltasPeloTecto ?? 0) === 0 &&
+      (relatorio.faltasPeloTectoQueTravam ?? 0) === 0
+    ) {
       prontos.guardar(chave, relatorio);
     }
     return { relatorio, daMemoria: false };

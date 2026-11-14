@@ -26,6 +26,8 @@ const st = vi.hoisted(() => ({
   fotoExiste: vi.fn(async (_p: string): Promise<boolean | null> => false),
   pastaDoTema: vi.fn(async (_id: string) => ({ ok: true, removed: 3 })),
   pastaDoPedido: vi.fn(async (_id: string) => true),
+  /** As linhas da Biblioteca marcadas «mexidas agora». */
+  mexida: vi.fn(async (_p: string) => {}),
 }));
 
 vi.mock("./reciclagem-store", () => ({
@@ -51,6 +53,7 @@ vi.mock("./theme-materializar", () => ({
   apagarPastaDaBiblioteca: st.pastaDoTema,
 }));
 vi.mock("./proposal-storage", () => ({ apagarPastaDoPedido: st.pastaDoPedido }));
+vi.mock("./biblioteca-fotos-store", () => ({ marcarFotoMexida: st.mexida }));
 vi.mock("./theme-storage", async () => {
   const real = await vi.importActual<typeof import("./theme-storage")>("./theme-storage");
   return {
@@ -88,6 +91,25 @@ describe("foto de um tema", () => {
     await reporDaReciclagem(r.id);
     expect(st.trazer).toHaveBeenCalledWith(FOTO, guardada);
     expect(st.entradas).toEqual([]);
+  });
+
+  /**
+   * 2.ª revisão de 14/11, importante n.º 3: a foto volta à pasta, e a linha
+   * dela na Biblioteca fica «mexida agora» — senão uma listagem de outra
+   * instância, de quando ela não estava lá, escondia-a até 3 min.
+   */
+  it("ao voltar, a linha da Biblioteca fica marcada como mexida — só se voltou", async () => {
+    const r = await enviarParaAReciclagem("foto-de-tema", FOTO, "Catarina");
+    if (!r) throw new Error("devia estar na Reciclagem");
+    expect(st.mexida).not.toHaveBeenCalled();
+    await reporDaReciclagem(r.id);
+    expect(st.mexida).toHaveBeenCalledWith(FOTO);
+
+    st.mexida.mockClear();
+    const outra = await enviarParaAReciclagem("foto-de-tema", FOTO, "Catarina");
+    st.trazer.mockResolvedValueOnce("falhou");
+    await expect(reporDaReciclagem((outra as { id: string }).id)).rejects.toThrow();
+    expect(st.mexida).not.toHaveBeenCalled();
   });
 
   it("não volta para um tema que já não existe", async () => {

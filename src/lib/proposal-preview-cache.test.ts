@@ -51,6 +51,18 @@ describe("pdfFinalDaVersao", () => {
     expect(desenhar).toHaveBeenCalledTimes(1);
   });
 
+  it("uma ESCOLHIDA cortada pelo tecto não se guarda (2.ª revisão de 14/11, importante n.º 1)", async () => {
+    const desenhar = vi.fn(async () => ({
+      ...relatorio(10),
+      faltasPeloTecto: 10,
+      faltasPeloTectoQueTravam: 1,
+    }));
+    await pdfFinalDaVersao("k", desenhar);
+    await pdfFinalDaVersao("k", desenhar);
+    expect(desenhar).toHaveBeenCalledTimes(2);
+    expect(estadoDosPdfsFinais().entradas).toBe(0);
+  });
+
   it("faltasPassageiras tira as sabidas e as do tecto", () => {
     expect(faltasPassageiras({ missingImages: 5 })).toBe(5);
     expect(faltasPassageiras({ missingImages: 5, faltasSabidas: 2, faltasPeloTecto: 3 })).toBe(0);

@@ -714,6 +714,61 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.useRealTimers();
   });
 
+  it("depois de uma foto mudar, o PRIMEIRO pedido de cada página vai `fresco` — os seguintes não (2.ª revisão de 14/11)", async () => {
+    // A página pode cair noutra instância do servidor, com a listagem da pasta
+    // de antes da mudança guardada: o primeiro pedido de cada página depois
+    // da mudança pede ao servidor que pergunte à pasta agora.
+    vi.useFakeTimers();
+    comUrls();
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    const { rerender } = desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
+    const andar = async (vezes = 20) => {
+      for (let k = 0; k < vezes; k++) {
+        await act(async () => {
+          vi.advanceTimersByTime(50);
+        });
+      }
+    };
+    await andar();
+    const antes = f.mock.calls.length;
+    await act(async () => {
+      window.dispatchEvent(new Event("liquen:biblioteca-alterada"));
+    });
+    await andar();
+    const depois = f.mock.calls.slice(antes);
+    expect(depois.length).toBeGreaterThan(0);
+    // Cada página, a primeira vez depois da mudança: fresca.
+    expect(depois.every(([url]) => String(url).endsWith("/pagina-do-rascunho?fresco=1"))).toBe(
+      true,
+    );
+    const frescas = new Set(depois.map((c) => JSON.parse(String(c[1]?.body)).n));
+    // O rascunho muda: as mesmas páginas pedem-se outra vez — já sem `fresco`.
+    const outro = { ...doc, clientNames: "TESTE Ana & TESTE Rui!" } as typeof doc;
+    const n = f.mock.calls.length;
+    rerender(
+      <PainelDoEstudio
+        cabe
+        paginas={paginas}
+        urls={{ "p/a.jpg": "u/a", "p/b.jpg": "u/b" }}
+        originais={{}}
+        aspetos={{ "p/a.jpg": 1.5, "p/b.jpg": 0.7 }}
+        onSaltar={() => {}}
+        doc={outro}
+        activa={1}
+        quoteId="q1"
+        idioma="pt"
+      />,
+    );
+    await andar();
+    const seguintes = f.mock.calls
+      .slice(n)
+      .filter((c) => frescas.has(JSON.parse(String(c[1]?.body)).n));
+    expect(seguintes.length).toBeGreaterThan(0);
+    expect(seguintes.every(([url]) => !String(url).includes("fresco"))).toBe(true);
+    vi.useRealTimers();
+  });
+
   it("se o servidor falha, diz que a página não chegou — sem aproximação", async () => {
     vi.useFakeTimers();
     comUrls();

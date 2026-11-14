@@ -48,8 +48,13 @@ import {
 } from "@/lib/pdf-editorial/montar";
 import { marcaDeFotoEmFalta } from "@/lib/pdf-editorial/embutir";
 import { semAsQueFaltam } from "@/lib/pdf-editorial/sem-as-que-faltam";
-import { refsQueJaNaoExistem } from "@/lib/proposta-fotos-verificacao";
-import { CHAVE_DA_CAPA, fotosEscolhidasDoDocumento } from "@/lib/fotos-escolhidas";
+import { refsQueJaNaoExistem, type OpcoesDaPergunta } from "@/lib/proposta-fotos-verificacao";
+import {
+  CHAVE_DA_CAPA,
+  FOTOS_NO_TECTO_DO_PDF,
+  fotosEscolhidasDoDocumento,
+  fotosNoTectoDoPdf,
+} from "@/lib/fotos-escolhidas";
 import { aFaltaDaCapaTrava, haFotoNaInspiracao } from "@/lib/pdf-editorial/regra-da-capa";
 import type { ConteudoWeb } from "@/lib/pdf-editorial/conteudo-web";
 import { formasDeCaminhosOuErro } from "@/lib/biblioteca-fotos-store";
@@ -108,7 +113,7 @@ async function cobre(bytes: Buffer, alvo: TargetPixels): Promise<boolean> {
 // e reaproveita por conteúdo a mesma foto desenhada mais do que uma vez. Ou
 // seja, no máximo MAX_IMAGES_PER_DOC redimensionamentos e nunca mais do que um
 // em simultâneo — bem dentro de FETCH_CONCURRENCY.
-const MAX_IMAGES_PER_DOC = 80;
+const MAX_IMAGES_PER_DOC = FOTOS_NO_TECTO_DO_PDF;
 const FETCH_CONCURRENCY = 4;
 
 /**
@@ -258,46 +263,41 @@ async function resolveImages(
    * tecto pelo mesmo número, por isso desenhar outra vez não as traz.
    */
   peloTecto: number;
+  /**
+   * Das `peloTecto`, as de fotografias escolhidas à mão (ou da capa): o PDF
+   * sai incompleto, e não se guarda (2.ª revisão de 14/11, importante n.º 1).
+   */
+  peloTectoQueTravam: number;
   refs: NonNullable<FontesDasFotos["refs"]>;
 }> {
   /**
-   * ── QUE LUGARES CABEM NO TECTO, DECIDIDO ANTES DE IR BUSCAR NADA ─────────
+   * ── QUE FOTOGRAFIAS CABEM NO TECTO, DECIDIDO ANTES DE IR BUSCAR NADA ─────
    *
-   * Revisão de 14/11, menor n.º 1. O tecto era um contador gasto à medida que
-   * as idas ao armazenamento COMEÇAVAM — e com dois mood boards em paralelo a
-   * ordem depende de quem acaba primeiro. Medido: o mesmo documento de 91
-   * fotos dava três PDFs diferentes em três passagens (cortava fotos
-   * diferentes). Para a falta ser certa — e o documento poder guardar-se —, o
-   * corte tem de ser sempre o mesmo: as ÚLTIMAS pela ordem do documento (a
-   * capa, os mood boards pela ordem dela, e as escolhidas para as páginas),
-   * que era o que o contador queria dizer. Abaixo do tecto nada muda.
+   * Revisão de 14/11, menor n.º 1: o tecto era um contador gasto à medida que
+   * as idas ao armazenamento COMEÇAVAM, e com dois mood boards em paralelo o
+   * mesmo documento de 91 fotos dava três PDFs diferentes. O corte decide-se
+   * antes, e é sempre o mesmo.
+   *
+   * E a 2.ª revisão de 14/11 (importante n.º 1) mudou O QUE se conta e QUEM
+   * cabe primeiro — a regra vive em `fotosNoTectoDoPdf` (`fotos-escolhidas.ts`),
+   * a mesma que a Conferência e a rota do envio usam para travar: fotos
+   * DIFERENTES (cada uma descarrega-se uma vez só, `jaPedidas`), e primeiro a
+   * capa e as escolhidas à mão, depois os mood boards pela ordem do documento.
+   * Abaixo de MAX_IMAGES_PER_DOC fotos diferentes cabem todas, e nada muda.
+   *
+   * O plano do estúdio e a página web do casal NÃO aplicam o tecto — ver o
+   * comentário de `fotosNoTectoDoPdf`.
    */
-  const dentroDoTecto = new Set<string>();
-  const indiceDoBoard = new Map<MoodBoard, number>();
-  {
-    let vez = 0;
-    const contar = (lugar: string) => {
-      if (vez++ < MAX_IMAGES_PER_DOC) dentroDoTecto.add(lugar);
-    };
-    (doc.coverImages ?? []).forEach((ref, i) => {
-      if (ref) contar(`c${i}`);
-    });
-    (doc.moodBoards ?? []).forEach((mb, b) => {
-      if (!indiceDoBoard.has(mb)) indiceDoBoard.set(mb, b);
-      (mb.images ?? []).forEach((ref, i) => {
-        if (ref) contar(`b${indiceDoBoard.get(mb)}:${i}`);
-      });
-    });
-    if (opcoes.originais) {
-      for (const [chave, e] of Object.entries(doc.fotosDasPaginas ?? {})) {
-        (e?.fotos ?? []).forEach((ref, k) => {
-          if (ref && ref.trim()) contar(`p${chave}:${k}`);
-        });
-      }
-    }
-  }
+  const noTecto = fotosNoTectoDoPdf(doc, {
+    comPaginas: !!opcoes.originais,
+    tecto: MAX_IMAGES_PER_DOC,
+  });
+  const dentroDoTecto = noTecto.dentro;
+  const escolhidasDeFora = new Set(noTecto.escolhidasDeFora.map((f) => f.ref));
   const sabidas: string[] = [];
   let peloTecto = 0;
+  /** Das `peloTecto`, os lugares de fotografias que ELA escolheu (ou da capa). */
+  let peloTectoQueTravam = 0;
   // Quantas fotos foram PEDIDAS e não entraram. Uma proposta com fotos a menos
   // seguia para o cliente sem ninguém dar por isso; agora quem chama fica a
   // saber e pode dizê-lo. Ver o cabeçalho `X-Fotos-Em-Falta` na rota.
@@ -420,18 +420,15 @@ async function resolveImages(
   };
 
   /** `buscar` com o tecto de imagens por documento e a contagem das que faltam. */
-  const buscarComTecto = async (
-    ref: string,
-    caixa: CaixaPdf | null,
-    lugar: string,
-  ): Promise<Resolvida | null> => {
-    if (!dentroDoTecto.has(lugar)) {
+  const buscarComTecto = async (ref: string, caixa: CaixaPdf | null): Promise<Resolvida | null> => {
+    if (!dentroDoTecto.has(ref)) {
       // O tecto também é uma perda silenciosa: uma proposta com mais de
       // MAX_IMAGES_PER_DOC fotos perdia as últimas sem aviso. Conta como
       // falta (o aviso continua a dizê-lo), mas CERTA, não passageira: uma
       // segunda passagem esbarrava no mesmo tecto (revisão de 14/11, menor n.º 1).
       missing++;
       peloTecto++;
+      if (escolhidasDeFora.has(ref)) peloTectoQueTravam++;
       return null;
     }
     if (opcoes.faltam?.has(ref)) {
@@ -450,9 +447,9 @@ async function resolveImages(
   // gasta orçamento de imagens (nem sequer chega a ser buscado).
   const cover = (
     await mapLimit(
-      (doc.coverImages ?? []).map((ref, i) => ({ ref, i })),
+      (doc.coverImages ?? []).map((ref) => ({ ref })),
       FETCH_CONCURRENCY,
-      async ({ ref, i }) => (ref ? await buscarComTecto(ref, null, `c${i}`) : null),
+      async ({ ref }) => (ref ? await buscarComTecto(ref, null) : null),
     )
   ).map((r) => (r ? r.bytes.toString("base64") : ""));
   const refsDaCapa = (doc.coverImages ?? []).map((ref) => ref || null);
@@ -526,7 +523,6 @@ async function resolveImages(
       mb.images.map((ref, i) => ({
         ref,
         caixa: previstas[i],
-        lugar: `b${indiceDoBoard.get(mb)}:${i}`,
       })),
       FETCH_CONCURRENCY,
       // Uma referência VAZIA não é uma foto que faltou: é um lugar que nunca
@@ -534,7 +530,7 @@ async function resolveImages(
       // e o estúdio dizia «1 foto em falta» numa proposta que estava inteira.
       // Um aviso que toca sem razão é um aviso que se deixa de ler. (A capa já
       // tinha esta guarda; os mood boards não.)
-      ({ ref, caixa, lugar }) => (ref ? buscarComTecto(ref, caixa, lugar) : Promise.resolve(null)),
+      ({ ref, caixa }) => (ref ? buscarComTecto(ref, caixa) : Promise.resolve(null)),
     );
 
     /**
@@ -603,11 +599,8 @@ async function resolveImages(
       // Os lugares vazios (`""`, «automático») FICAM: a posição é o lugar na
       // página (na paleta, o 6.º é o painel) e o foco de cada uma é o dela.
       const lista = e?.fotos ?? [];
-      const obtidas = await mapLimit(
-        lista.map((ref, k) => ({ ref, k })),
-        FETCH_CONCURRENCY,
-        ({ ref, k }) =>
-          ref && ref.trim() ? buscarComTecto(ref, null, `p${chave}:${k}`) : Promise.resolve(null),
+      const obtidas = await mapLimit(lista, FETCH_CONCURRENCY, (ref) =>
+        ref && ref.trim() ? buscarComTecto(ref, null) : Promise.resolve(null),
       );
       // A que ela escolheu e NÃO se deixou buscar não volta a ser `""` (que é
       // «automático»): fica marcada, e o desenho deixa-lhe o lugar vazio em
@@ -636,6 +629,7 @@ async function resolveImages(
     missing,
     sabidas,
     peloTecto,
+    peloTectoQueTravam,
     refs: { capa: refsDaCapa, temas: moodBoards.map((m) => m.refs), paginas: refsDasPaginas },
   };
 }
@@ -926,6 +920,13 @@ export async function renderStoredEditorialPdfWithReport(
    * isso pode guardar-se (revisão de 14/11, menor n.º 1).
    */
   faltasPeloTecto: number;
+  /**
+   * Das `faltasPeloTecto`, as de fotografias que ELA escolheu (ou da capa).
+   * O PDF sai sem elas, e por isso NÃO é um documento completo: não se guarda
+   * em lado nenhum (2.ª revisão de 14/11, importante n.º 1). O envio já travou
+   * antes (`oQueFaltaParaEnviar`, `fotos-a-mais`).
+   */
+  faltasPeloTectoQueTravam: number;
   truncations: DocTruncation[];
   /** Que fotografia foi para cada página — o mesmo que `fotosDoEditorialDoDocumento`. */
   fotos: FotosDoPdf;
@@ -941,6 +942,7 @@ export async function renderStoredEditorialPdfWithReport(
     missing,
     sabidas,
     peloTecto,
+    peloTectoQueTravam,
     refs,
   } = await resolveImages(withDefaults, {
     originais: true,
@@ -974,6 +976,7 @@ export async function renderStoredEditorialPdfWithReport(
     faltasSabidas: sabidas.length,
     faltasSabidasQueTravam: travam ? sabidas.filter((r) => travam.has(r)).length : 0,
     faltasPeloTecto: peloTecto,
+    faltasPeloTectoQueTravam: peloTectoQueTravam,
     truncations,
     fotos,
     paginas,
@@ -1111,7 +1114,7 @@ export async function conteudoWebDoDocumento(
  */
 export function fotosQueSeSabeQueFaltam(
   withDefaults: ProposalDoc,
-  opcoes: { memoria?: boolean } = {},
+  opcoes: OpcoesDaPergunta = {},
 ): Promise<Set<string>> {
   return refsQueJaNaoExistem(caminhosDoDocumento(withDefaults), opcoes);
 }

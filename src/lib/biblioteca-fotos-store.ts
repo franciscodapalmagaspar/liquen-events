@@ -1,6 +1,7 @@
 import "server-only";
 import { createRepository, type Mapper } from "./repository";
 import type { Foto } from "./biblioteca-types";
+import { log } from "./logger";
 
 /**
  * As FOTOS da biblioteca — uma linha por ficheiro do bucket `theme-assets`.
@@ -115,6 +116,32 @@ export const updateFoto = (
   path: string,
   patch: Partial<Pick<Foto, "fingerprint" | "md5" | "largura" | "altura" | "lqip" | "cor">>,
 ): Promise<Foto | null> => repo.update(path, patch);
+
+/**
+ * ── O FICHEIRO VOLTOU A ESTE CAMINHO: A LINHA FICA «MEXIDA AGORA» ─────────
+ *
+ * 2.ª revisão de 14/11, importante n.º 3. A Biblioteca esconde a linha cuja
+ * foto a pasta diz que já não existe — com a listagem guardada 3 min por
+ * instância (`memoria-das-listagens.ts`). Uma listagem de OUTRA instância, de
+ * antes de a foto voltar, escondia-a; a guarda é «uma linha mexida há menos de
+ * 3 min nunca se esconde» (`api/biblioteca/fotos`). Repor uma foto da
+ * Reciclagem — ou outra escrita que traga um ficheiro de volta a um caminho
+ * que já tinha linha — não mexia na linha, e a guarda não a apanhava.
+ *
+ * É uma escrita normal da aplicação: o `updated_at` passa a agora (o `touch`
+ * do repositório). Sem linha não faz nada (a Biblioteca nem a lista). Nunca
+ * lança: a foto já voltou, e a linha é acessória.
+ */
+export async function marcarFotoMexida(path: string): Promise<void> {
+  try {
+    await repo.update(path, { updatedAt: new Date().toISOString() });
+  } catch (e) {
+    log.warn("biblioteca: a linha da foto não ficou marcada como mexida", {
+      path,
+      erro: String(e),
+    });
+  }
+}
 
 /**
  * Os LQIP de um conjunto de caminhos, num pedido só.

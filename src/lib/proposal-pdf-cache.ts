@@ -274,7 +274,14 @@ export async function pdfDaPropostaComEstado(
     // que sai: MESMO documento, MESMA língua.
     ultimo = await renderStoredEditorialPdfWithReport(doc, idioma);
   }
-  if (passageiras(ultimo) > 0 || (ultimo.faltasSabidasQueTravam ?? 0) > 0) {
+  // Uma escolhida à mão (ou a capa) que o tecto de fotos cortou também deixa
+  // o documento incompleto — a mesma saída das escolhidas que já não existem:
+  // nunca se guarda (2.ª revisão de 14/11, importante n.º 1).
+  if (
+    passageiras(ultimo) > 0 ||
+    (ultimo.faltasSabidasQueTravam ?? 0) > 0 ||
+    (ultimo.faltasPeloTectoQueTravam ?? 0) > 0
+  ) {
     /**
      * ── E AQUI A REGRA MUDOU, POR UMA RAZÃO MEDIDA NO TELEMÓVEL DELA ──────
      *
