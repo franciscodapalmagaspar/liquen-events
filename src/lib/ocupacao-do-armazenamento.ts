@@ -4,8 +4,8 @@ import { getSupabase } from "@/lib/supabase";
 import type { ManifestoDeFotografias } from "@/lib/manifesto-de-fotografias";
 import { log } from "@/lib/logger";
 import {
-  bucketsAMedir,
   espacoQueSobra,
+  medirPorOrdem,
   type EspacoNoArmazenamento,
   type Ocupacao,
 } from "@/lib/ocupacao-do-armazenamento-regras";
@@ -96,12 +96,19 @@ async function somarBucket(
   let ficheiros = 0;
   const pastas: { prefixo: string; fundura: number }[] = [{ prefixo: "", fundura: 4 }];
   let falhou = false;
+  // Cortado pelo tecto a meio (também a meio das páginas de uma pasta): o
+  // total ficava curto e passava por completo — não se devolve nada.
+  let cortado = false;
   const trabalhar = async () => {
     for (;;) {
       if (falhou || Date.now() > ateMs) return;
       const p = pastas.shift();
       if (!p) return;
       for (let offset = 0; ; offset += 1000) {
+        if (Date.now() > ateMs) {
+          cortado = true;
+          return;
+        }
         const { data, error } = await sb.storage
           .from(bucket)
           .list(p.prefixo, { limit: 1000, offset });
@@ -129,7 +136,7 @@ async function somarBucket(
     await Promise.all(Array.from({ length: 4 }, trabalhar));
     if (falhou || Date.now() > ateMs || pastas.length === 0) break;
   }
-  if (falhou || pastas.length > 0) return null;
+  if (falhou || cortado || pastas.length > 0) return null;
   return { bytes, ficheiros };
 }
 
@@ -165,12 +172,17 @@ export async function medirOcupacao(
     const nomes = buckets.map((b) => b.name);
     // Um bucket que deixou de existir sai da conta.
     for (const k of Object.keys(porBucket)) if (!nomes.includes(k)) delete porBucket[k];
-    const porMedir = bucketsAMedir(nomes, originais, porBucket, agora.getTime());
-    for (const n of porMedir) {
-      if (Date.now() > ate) break;
-      const r = await somarBucket(n, ate);
-      if (r) porBucket[n] = { bytes: r.bytes, medidoEm: iso };
-    }
+    // Os dois que crescem com metade do prazo, no máximo; o resto para os
+    // outros, o mais velho primeiro (`medirPorOrdem`).
+    const medidosAgora = await medirPorOrdem(
+      nomes,
+      originais,
+      porBucket,
+      agora.getTime(),
+      Math.max(0, ate - Date.now()),
+      somarBucket,
+    );
+    for (const [n, bytes] of medidosAgora) porBucket[n] = { bytes, medidoEm: iso };
     const completo = nomes.every((n) => {
       const m = porBucket[n];
       return !!m && agora.getTime() - Date.parse(m.medidoEm) <= IDADE_MAXIMA_MS;

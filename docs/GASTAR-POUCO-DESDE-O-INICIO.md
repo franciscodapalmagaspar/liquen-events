@@ -364,9 +364,14 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
     marca nada (volta na noite seguinte); uma sem miniatura nem média
     (confirmado por HEAD), ou ilegível, fica marcada `sem:<data>` e volta a
     ser tentada passados 14 dias. A Reciclagem da Biblioteca
-    (`reciclagem/<entrada>/…`) não entra. O que a junção dos duplicados, as
+    (`reciclagem/<entrada>/…`) não entra. **Fica de fora, por decisão**: uma
+    foto cujo nome não passe o `isThemePath` (um nível, letras, algarismos,
+    `_` e `-`) não entra no índice — é a mesma regra que já decide o que é um
+    caminho de tema e de pedido nesta casa; uma foto antiga com outro nome não
+    é reconhecida pelo que mostra (sobe como nova, o lado seguro). O que a junção dos duplicados, as
     pastas órfãs e a Reciclagem apagaram nessa noite (depois do manifesto)
-    não se calcula e sai do índice.
+    não se calcula e sai do índice — só as pastas que saíram de facto: a de um
+    pedido ou tema que voltou (o `largar` responde `"ficou-viva"`) fica.
   · **Cada foto nova de MOOD BOARD ocupa menos** (`image-prep.ts`). O PDF
     reduz tudo a 1 800 px; a proposta online usa a média de 1 200 e a
     miniatura. Medido com 49 fotos de 2 400–2 560 px (original + média +
@@ -397,7 +402,10 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
     (segunda revisão) não passa pelo contador — os PDF (`proposal-pdfs`), as
     fotos tratadas do PDF (`fotos-editoriais`, ~23 MB num dia de trabalho a
     10/11), as AVIF e as capas. Os dois que mais crescem medem-se TODAS as
-    noites, antes dos outros; e entre medições o travão reserva uma folga
+    noites, antes dos outros, mas com no máximo metade dos 6 s — o resto vai
+    para os outros, o mais velho primeiro, para nenhum ficar sem medição
+    (terceira revisão; uma listagem cortada pelo tecto, mesmo a meio das
+    páginas de uma pasta, não conta como medida); e entre medições o travão reserva uma folga
     fixa de **40 MB** (um dia inteiro desses dois, com margem). Uma medição com
     mais de 50 h já não serve (volta o tecto de 20). O importador sobe até
     **200 novas**, limitado pelo que cabe; o `assets` recusa (507) um

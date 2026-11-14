@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bucketsAMedir,
+  medirPorOrdem,
   BYTES_POR_FOTO_NOVA,
   FOLGA_DO_SERVIDOR_BYTES,
   espacoQueSobra,
@@ -93,5 +94,33 @@ describe("o travão do armazenamento", () => {
       agora,
     );
     expect(r).toEqual(["proposal-pdfs", "fotos-editoriais", "theme-avif"]);
+  });
+
+  it("com os PDF e as fotos tratadas LENTOS, os outros continuam a ser medidos, à vez", async () => {
+    // Relógio fingido: os dois que crescem gastam o tecto todo que lhes dão
+    // (e não acabam); cada um dos outros demora 1 s.
+    let t = 0;
+    const somar = async (b: string, ate: number) => {
+      if (b === "proposal-pdfs" || b === "fotos-editoriais") {
+        t = Math.max(t, ate);
+        return null;
+      }
+      t += 1_000;
+      return { bytes: 1 };
+    };
+    const nomes = ["proposal-pdfs", "fotos-editoriais", "a", "b", "c", "d", "e", "f"];
+    const porBucket: Record<string, { medidoEm: string }> = {};
+    const noite = (d: number) => Date.parse("2026-11-01T03:00:00Z") + d * 24 * 3600_000;
+    const vistos: string[][] = [];
+    for (let d = 0; d < 3; d++) {
+      const m = await medirPorOrdem(nomes, new Set(), porBucket, noite(d), 6_000, somar, () => t);
+      vistos.push([...m.keys()]);
+      for (const n of m.keys()) porBucket[n] = { medidoEm: new Date(noite(d)).toISOString() };
+    }
+    // Metade do prazo para os dois lentos; os outros 3 s dão três por noite.
+    expect(vistos[0]).toEqual(["a", "b", "c"]);
+    expect(vistos[1]).toEqual(["d", "e", "f"]);
+    // Ninguém fica eternamente sem medição.
+    expect(new Set(vistos.flat())).toEqual(new Set(["a", "b", "c", "d", "e", "f"]));
   });
 });

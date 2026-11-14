@@ -167,9 +167,11 @@ describe("a limpeza dos 30 dias, com ficheiros", () => {
       velha({ id: "e1", tipo: "tema", origemId: "t-9" }),
       velha({ id: "e2", tipo: "pedido", origemId: "LIQ-9" }),
     ];
-    await limparExpiradas();
+    const r = await limparExpiradas();
     expect(st.pastaDoTema).not.toHaveBeenCalled();
     expect(st.pastaDoPedido).not.toHaveBeenCalled();
+    // As entradas saem, mas as pastas ficaram: não vão para o índice visual.
+    expect(r).toEqual({ apagadas: 2, ficaram: 0, pastasApagadas: [] });
   });
 
   it("a pasta que não sai deixa a entrada para amanhã", async () => {

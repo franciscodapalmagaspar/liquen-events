@@ -137,10 +137,13 @@ interface DefinicaoDoTipo {
   repor(retrato: Retrato): Promise<void>;
   /**
    * Os ficheiros guardados saem de vez («Apagar de vez», ou os 30 dias).
-   * `false` deixa a entrada na Reciclagem, para se tentar outra vez — nunca se
-   * perde a última referência a uma pasta que ficou no Storage.
+   * `"apagou"`: saíram. `"ficou-viva"`: não havia nada a apagar (o pedido ou
+   * o tema voltou, ou outra entrada ainda é dona da pasta) — a entrada sai na
+   * mesma, mas a pasta continua. `false` deixa a entrada na Reciclagem, para
+   * se tentar outra vez — nunca se perde a última referência a uma pasta que
+   * ficou no Storage.
    */
-  largar?(entrada: EntradaDaReciclagem): Promise<boolean>;
+  largar?(entrada: EntradaDaReciclagem): Promise<ResultadoDoLargar>;
 }
 
 /**
@@ -397,14 +400,14 @@ export const TIPOS = {
     },
     async largar(e) {
       // Se voltou (com o mesmo id), a pasta é dele outra vez.
-      if (await getQuote(e.origemId)) return true;
+      if (await getQuote(e.origemId)) return "ficou-viva";
       // Outra entrada do MESMO pedido ainda promete um «Repor»: a pasta é dela
       // (revisão de 13/11, n.º 2).
       const outras = (await entradasDe(e.origemId)).filter(
         (o) => o.id !== e.id && o.tipo === "pedido",
       );
-      if (outras.length > 0) return true;
-      return apagarPastaDoPedido(e.origemId);
+      if (outras.length > 0) return "ficou-viva";
+      return (await apagarPastaDoPedido(e.origemId)) ? "apagou" : false;
     },
   },
 
@@ -472,8 +475,8 @@ export const TIPOS = {
       await reporTema(primeiro<ProposalTheme>(r, "principal"));
     },
     async largar(e) {
-      if (await getTheme(e.origemId)) return true;
-      return (await apagarPastaDaBiblioteca(e.origemId)).ok;
+      if (await getTheme(e.origemId)) return "ficou-viva";
+      return (await apagarPastaDaBiblioteca(e.origemId)).ok ? "apagou" : false;
     },
   },
 
@@ -525,7 +528,8 @@ export const TIPOS = {
     },
     async largar(e) {
       const f = primeiro<FotoNaReciclagem>(e.retrato as Retrato, "principal");
-      return f ? largarFotoDaReciclagem(f.path, f.naReciclagem) : true;
+      if (!f) return "ficou-viva";
+      return (await largarFotoDaReciclagem(f.path, f.naReciclagem)) ? "apagou" : false;
     },
   },
 } satisfies Record<string, DefinicaoDoTipo>;
@@ -832,12 +836,15 @@ export async function reporDaReciclagem(entradaId: string): Promise<EntradaDaRec
   return entrada;
 }
 
-/** Os ficheiros que a entrada guarda saem de vez. `true` se não ficou nada. */
-async function largarFicheiros(entrada: EntradaDaReciclagem): Promise<boolean> {
-  if (!eTipo(entrada.tipo)) return true;
+/** O que o `largar` de um tipo fez — ver `DefinicaoDoTipo.largar`. */
+export type ResultadoDoLargar = "apagou" | "ficou-viva" | false;
+
+/** Os ficheiros que a entrada guarda saem de vez. `false` se ficou alguma coisa por apagar. */
+async function largarFicheiros(entrada: EntradaDaReciclagem): Promise<ResultadoDoLargar> {
+  if (!eTipo(entrada.tipo)) return "ficou-viva";
   const def: DefinicaoDoTipo = TIPOS[entrada.tipo];
   try {
-    return def.largar ? await def.largar(entrada) : true;
+    return def.largar ? await def.largar(entrada) : "ficou-viva";
   } catch {
     return false;
   }
@@ -926,11 +933,14 @@ export async function limparExpiradas(
     if (Date.now() - comeco > tectoMs) break;
     // Os ficheiros primeiro: se não saírem, a entrada fica (e com ela a
     // única lembrança de que há uma pasta para apagar).
-    if (await largarFicheiros(e)) {
+    const largou = await largarFicheiros(e);
+    if (largou) {
       await tirarDaReciclagem(e.id);
       apagadas++;
-      if (e.tipo === "pedido") pastasApagadas.push(`${e.origemId}/`);
-      if (e.tipo === "tema") pastasApagadas.push(`tema:${e.origemId}/`);
+      // Só as pastas que SAÍRAM (não a de um pedido ou tema que voltou).
+      if (largou === "apagou" && e.tipo === "pedido") pastasApagadas.push(`${e.origemId}/`);
+      if (largou === "apagou" && e.tipo === "tema")
+        pastasApagadas.push(`tema:${themeFolder(e.origemId)}/`);
     } else {
       ficaram++;
     }

@@ -71,6 +71,41 @@ export function bucketsAMedir(
   return [...crescem, ...velhos];
 }
 
+/**
+ * ── A NOITE NÃO SE GASTA TODA NOS DOIS QUE CRESCEM (terceira revisão) ──────
+ *
+ * Os PDF e as fotos tratadas medem-se primeiro, mas com NO MÁXIMO metade do
+ * prazo; o resto vai para os outros, o de medição mais velha primeiro. Assim,
+ * mesmo com os dois lentos, os outros continuam a ser medidos à vez, noite
+ * após noite. `somar` recebe o seu tecto e devolve `null` se não acabou (esse
+ * bucket fica com o valor anterior).
+ */
+export async function medirPorOrdem(
+  nomes: readonly string[],
+  originais: ReadonlySet<string>,
+  porBucket: Readonly<Record<string, { medidoEm: string } | undefined>>,
+  agora: number,
+  prazoMs: number,
+  somar: (bucket: string, ateMs: number) => Promise<{ bytes: number } | null>,
+  relogio: () => number = Date.now,
+): Promise<Map<string, number>> {
+  const ordem = bucketsAMedir(nomes, originais, porBucket, agora);
+  const crescem = ordem.filter((n) => (BUCKETS_QUE_CRESCEM as readonly string[]).includes(n));
+  const outros = ordem.filter((n) => !crescem.includes(n));
+  const inicio = relogio();
+  const medidos = new Map<string, number>();
+  const fase = async (lista: readonly string[], ate: number) => {
+    for (const n of lista) {
+      if (relogio() >= ate) return;
+      const r = await somar(n, ate).catch(() => null);
+      if (r) medidos.set(n, r.bytes);
+    }
+  };
+  await fase(crescem, inicio + prazoMs / 2);
+  await fase(outros, inicio + prazoMs);
+  return medidos;
+}
+
 export interface Ocupacao {
   medidoEm: string;
   /** A soma dos buckets conhecidos. */
