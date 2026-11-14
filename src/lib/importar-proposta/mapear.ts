@@ -14,6 +14,7 @@ import {
   lerTipoDeEvento,
   eFinanceira,
   eCandidataATotal,
+  taxasDoIvaEscritas,
   type Confianca,
   type LinhaDeDinheiro,
 } from "./heuristicas";
@@ -203,8 +204,12 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
   const totaisDoDocumento = [
     ...new Set(financeiras.filter((d) => eCandidataATotal(d.rotulo)).map((d) => d.valor)),
   ].sort((x, y) => x - y);
+  // A prova do par usa a taxa ESCRITA no documento, se houver uma só; sem
+  // nenhuma, 23 %; com taxas diferentes, não há prova (ela escolhe o total).
+  const taxas = taxasDoIvaEscritas(textoTodo);
+  const taxaDaProva = taxas.length === 1 ? taxas[0] : taxas.length === 0 ? DEFAULT_VAT_RATE : null;
   const daTaxa = (sem: number, com: number) =>
-    Math.round(sem * (1 + DEFAULT_VAT_RATE) * 100) === Math.round(com * 100);
+    taxaDaProva !== null && Math.round(sem * (1 + taxaDaProva) * 100) === Math.round(com * 100);
   const pares: [number, number][] = [];
   for (let i = 0; i < totaisDoDocumento.length; i++) {
     for (let j = i + 1; j < totaisDoDocumento.length; j++) {

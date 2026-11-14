@@ -11,6 +11,7 @@ import {
   lerModoDoIva,
   lerNomes,
   lerTipoDeEvento,
+  taxasDoIvaEscritas,
 } from "./heuristicas";
 
 describe("os nomes", () => {
@@ -114,6 +115,13 @@ describe("o dinheiro", () => {
       "Valor sem taxas",
       "Valor com taxas",
       "Base tributável",
+      "Desconto",
+      "Abatimento de 10%",
+      "Restante",
+      "Caução",
+      "Reforço",
+      "Valor remanescente",
+      "Valor global",
       "Liquido",
       "Pagamento final",
       "2.ª prestação",
@@ -147,6 +155,35 @@ describe("o dinheiro", () => {
     for (const r of ["Subtotal", "IVA (23%)", "Sinal", "Base de bolo", "Arco floral"]) {
       expect(eCandidataATotal(r), r).toBe(false);
     }
+  });
+
+  it("9.ª revisão: valor global/final/da proposta e montante total são candidatas", () => {
+    for (const r of ["Valor global", "Valor final", "Valor da proposta", "Montante total"]) {
+      expect(eCandidataATotal(r), r).toBe(true);
+    }
+  });
+
+  it("9.ª revisão: uma linha de pagamento nunca é candidata, mesmo com «líquido» ou «valor»", () => {
+    for (const r of [
+      "Valor líquido do sinal",
+      "Prestação total",
+      "Adjudicação — valor total",
+      "Pagamento líquido",
+      "Restante (valor final)",
+      "Reforço do valor global",
+      "Caução total",
+    ]) {
+      expect(eFinanceira(r), r).toBe(true);
+      expect(eCandidataATotal(r), r).toBe(false);
+    }
+  });
+
+  it("9.ª revisão: as taxas de IVA escritas no documento", () => {
+    expect(taxasDoIvaEscritas("IVA (6%): 6,00 €")).toEqual([0.06]);
+    expect(taxasDoIvaEscritas("IVA à taxa de 13 %")).toEqual([0.13]);
+    expect(taxasDoIvaEscritas("acresce 23% de IVA")).toEqual([0.23]);
+    expect(taxasDoIvaEscritas("IVA 6%\nIVA (23%)")).toEqual([0.06, 0.23]);
+    expect(taxasDoIvaEscritas("Total: 100 € + IVA")).toEqual([]);
   });
 
   it("o IVA: a linha do total manda; o resto só com confiança média; nada = não decide", () => {

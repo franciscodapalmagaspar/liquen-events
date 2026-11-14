@@ -5,6 +5,7 @@ import {
   corpoDoPedido,
   avisoDaSomaUsada,
   avisosDoEcra,
+  avisosDosDescontos,
   comServicosPostos,
   correccoesIniciais,
   escolherModoDoIva,
@@ -467,5 +468,75 @@ describe("8.ª revisão — linhas financeiras, uma lista só, e o total só del
     const doc = montarDocumento(p, c, new Map(), "x.docx");
     expect(doc.budgetItems).toEqual(["Flores TESTE", "Pagamento do transporte"]);
     expect(doc.budgetAmounts).toEqual([1000, 230]);
+  });
+});
+
+describe("9.ª revisão — descontos, totais com outros nomes, e a taxa escrita", () => {
+  const ler = (frases: Parameters<typeof docx>[0]) => mapearConteudo(extrairConteudo(docx(frases)));
+
+  it("desconto, abatimento, restante, caução, reforço e remanescente não são serviços", () => {
+    const p = ler([
+      "Flores TESTE: 1.000,00 €",
+      "Reserva do espaço TESTE: 230,00 €",
+      "Desconto: 100,00 €",
+      "Abatimento: 30,00 €",
+      "Restante: 500,00 €",
+      "Caução: 200,00 €",
+      "Reforço: 50,00 €",
+      "Valor remanescente: 400,00 €",
+      "Total: 1.100,00 €",
+    ]);
+    expect(p.budgetItems).toEqual(["Flores TESTE", "Reserva do espaço TESTE"]);
+    expect(p.totaisEscritos).toEqual({ sem: 1100, com: 1100 });
+    const descontos = avisosDosDescontos(p);
+    expect(descontos.map((a) => a.texto)).toEqual([
+      "«Desconto»: desconto de 100,00\u00a0€ — põe à mão no Fazer proposta.",
+      "«Abatimento»: desconto de 30,00\u00a0€ — põe à mão no Fazer proposta.",
+    ]);
+    expect(descontos.every((a) => a.dinheiro)).toBe(true);
+    expect(avisosDoEcra(p, correccoesIniciais(p)).map((a) => a.id)).toEqual(
+      descontos.map((a) => a.id),
+    );
+  });
+
+  it("«Valor global» é o total", () => {
+    const p = ler(["Flores TESTE: 1.500,00 €", "Valor global: 1.500,00 €"]);
+    expect(p.budgetItems).toEqual(["Flores TESTE"]);
+    expect(p.totaisEscritos).toEqual({ sem: 1500, com: 1500 });
+  });
+
+  it("o sinal com «valor líquido» não compete com o total", () => {
+    const p = ler([
+      "Flores TESTE: 1.000,00 €",
+      "Total: 1.000,00 €",
+      "Valor líquido do sinal: 300,00 €",
+    ]);
+    expect(p.totalPorEscolher).toBeUndefined();
+    expect(p.totaisEscritos).toEqual({ sem: 1000, com: 1000 });
+  });
+
+  it("a prova do par usa a taxa escrita (6 %); com duas taxas, não há prova", () => {
+    const seis = ler([
+      "Livros TESTE: 100,00 €",
+      "Total: 100,00 €",
+      "IVA (6%): 6,00 €",
+      "Total com IVA: 106,00 €",
+    ]);
+    expect(seis.totaisEscritos).toEqual({ sem: 100, com: 106 });
+    const duas = ler([
+      "Flores TESTE: 1.000,00 €",
+      "Total: 1.000,00 €",
+      "IVA (23%): 230,00 €",
+      "Livros com IVA a 6%",
+      "Total com IVA: 1.230,00 €",
+    ]);
+    expect(duas.totalPorEscolher).toBe(true);
+    // Sem taxa escrita, 23 %.
+    const nenhuma = ler([
+      "Flores TESTE: 1.000,00 €",
+      "Total: 1.000,00 €",
+      "Total com IVA: 1.230,00 €",
+    ]);
+    expect(nenhuma.totaisEscritos).toEqual({ sem: 1000, com: 1230 });
   });
 });

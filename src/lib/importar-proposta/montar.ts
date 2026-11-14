@@ -11,6 +11,7 @@ import { dataDoEventoPorExtenso, referenciaDoDocumento } from "../proposal-doc-t
 import { eur, round2 } from "../money";
 import type { PropostaImportada } from "./mapear";
 import { valoresSemIvaDasLinhas } from "./ia/linhas";
+import { eDesconto } from "./heuristicas";
 
 /**
  * O passo final, no navegador: o que se leu, MAIS o que ela corrigiu na
@@ -254,9 +255,31 @@ export function avisoDaSomaUsada(
   };
 }
 
+/**
+ * Via das regras: um desconto não entra no orçamento (as linhas não levam
+ * valores negativos) — aviso de dinheiro, como o da leitura (`ia/verificar.ts`).
+ */
+export function avisosDosDescontos(
+  p: PropostaImportada,
+): { id: string; texto: string; campo: string; dinheiro: true; gravidade: "erro" }[] {
+  return (p.valoresFinanceiros ?? []).flatMap((v, i) =>
+    eDesconto(v.rotulo)
+      ? [
+          {
+            id: `desconto-regras:${i}:${v.valor}`,
+            campo: "orcamento.total",
+            dinheiro: true as const,
+            gravidade: "erro" as const,
+            texto: `«${v.rotulo}»: desconto de ${eur(v.valor)} — põe à mão no Fazer proposta.`,
+          },
+        ]
+      : [],
+  );
+}
+
 /** Os avisos de dinheiro que nascem do que ela faz no ecrã (com ou sem revisão). */
 export function avisosDoEcra(p: PropostaImportada, c: Correccoes) {
-  return [avisoDaSomaGravada(p, c), avisoDaSomaUsada(p, c)].filter(
+  return [...avisosDosDescontos(p), avisoDaSomaGravada(p, c), avisoDaSomaUsada(p, c)].filter(
     (a): a is NonNullable<typeof a> => a !== null,
   );
 }

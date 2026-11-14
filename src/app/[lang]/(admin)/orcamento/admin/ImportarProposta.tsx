@@ -723,8 +723,9 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                   Valores do documento que não entraram como serviço
                 </p>
                 <ul className="flex flex-col divide-y divide-[var(--bo-hairline)] rounded-xl border border-[var(--bo-hairline)]">
-                  {proposta.valoresFinanceiros.map((v, i) =>
-                    c.servicosPostos?.includes(i) ? null : (
+                  {proposta.valoresFinanceiros.map((v, i) => {
+                    const posto = Boolean(c.servicosPostos?.includes(i));
+                    return (
                       <li
                         key={i}
                         className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 py-2 text-footnote"
@@ -736,21 +737,33 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                           <span className="tabular-nums text-[var(--bo-tinta-72)]">
                             {eur(v.valor)}
                           </span>
+                          {posto && (
+                            <span className="text-caption text-[var(--bo-text-muted)]">
+                              posto como serviço
+                            </span>
+                          )}
                           <button
                             type="button"
                             onClick={() =>
                               setC((x) =>
-                                x ? { ...x, servicosPostos: [...(x.servicosPostos ?? []), i] } : x,
+                                x
+                                  ? {
+                                      ...x,
+                                      servicosPostos: posto
+                                        ? (x.servicosPostos ?? []).filter((k) => k !== i)
+                                        : [...(x.servicosPostos ?? []), i],
+                                    }
+                                  : x,
                               )
                             }
                             className={`font-semibold text-[var(--bo-accent)] underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
                           >
-                            pôr como serviço
+                            {posto ? "tirar" : "pôr como serviço"}
                           </button>
                         </span>
                       </li>
-                    ),
-                  )}
+                    );
+                  })}
                 </ul>
               </div>
             ) : null}

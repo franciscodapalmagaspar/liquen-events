@@ -274,7 +274,21 @@ export const PALAVRAS_FINANCEIRAS: readonly RegExp[] = [
   /\bvalor com\b/,
   /base tributavel/,
   /^base$/, // exatamente «Base» — nunca «Base de bolo»
+  /desconto/,
+  /abatimento/,
+  /restante/,
+  /caucao/, // caução
+  /reforco/, // reforço
+  /remanescente/,
+  /\bvalor global\b/,
+  /\bvalor final\b/,
+  /\bvalor da proposta\b/,
 ];
+
+/** Um desconto ou um abatimento: financeiro, e um aviso de dinheiro («põe à mão»). */
+export function eDesconto(rotulo: string): boolean {
+  return /desconto|abatimento/.test(semAcentos(rotulo));
+}
 
 /** O rótulo (já sem o «:» e sem o valor, `lerLinhaDeDinheiro`) é financeiro. */
 export function eFinanceira(rotulo: string): boolean {
@@ -284,12 +298,38 @@ export function eFinanceira(rotulo: string): boolean {
 
 /**
  * Uma linha financeira que pode ser o total: o rótulo tem «total», «valor
- * com/sem IVA», «base» ou «líquido». O «Subtotal» NUNCA é o total.
+ * com/sem IVA», «valor global/final/da proposta», «montante total», «base»
+ * ou «líquido». NUNCA o «Subtotal», nem uma linha de um pagamento («sinal»,
+ * «prestação», «adjudicação», «pagamento», «restante», «reforço», «caução»),
+ * mesmo com «líquido» ou «valor» no rótulo.
  */
 export function eCandidataATotal(rotulo: string): boolean {
   const r = semAcentos(rotulo).replace(/\s+/g, " ").trim();
   if (!eFinanceira(rotulo) || /sub-?\s?total/.test(r)) return false;
-  return /\btotal|\bvalor (?:com|sem) iva\b|\bbase\b|liquido/.test(r);
+  if (/\bsinal\b|prestac|adjudica|pagamento|restante|reforco|caucao/.test(r)) return false;
+  return /\btotal|\bvalor (?:com|sem) iva\b|\bvalor (?:global|final|da proposta)\b|\bbase\b|liquido/.test(
+    r,
+  );
+}
+
+/**
+ * As taxas de IVA escritas no documento («IVA (6%)», «IVA à taxa de 13 %»,
+ * «23% de IVA»), em fração e sem repetidas.
+ */
+export function taxasDoIvaEscritas(texto: string): number[] {
+  const t = semAcentos(texto);
+  const taxas = new Set<number>();
+  const E = [
+    /\biva\b[^%\d\n]{0,20}?(\d{1,2}(?:[.,]\d{1,2})?)\s*%/g,
+    /(\d{1,2}(?:[.,]\d{1,2})?)\s*%\s*(?:de\s+)?iva\b/g,
+  ];
+  for (const e of E) {
+    for (const m of t.matchAll(e)) {
+      const n = Number(m[1].replace(",", "."));
+      if (n > 0 && n < 100) taxas.add(Math.round(n * 100) / 10000);
+    }
+  }
+  return [...taxas];
 }
 
 const DIZ_QUE_ACRESCE =

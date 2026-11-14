@@ -442,9 +442,14 @@ describe("8.ª revisão — sem IA: as linhas financeiras, os totais e a soma", 
     const linha = within(lista).getByText("Pagamento do transporte").closest("li")!;
     fireEvent.click(within(linha).getByRole("button", { name: "pôr como serviço" }));
     expect(nova()).toMatch(/Pagamento do transporte/);
-    expect(
-      within(screen.getByTestId("valores-financeiros")).queryByText("Pagamento do transporte"),
-    ).toBeNull();
+    // 9.ª revisão: e desfaz-se com «tirar».
+    const outra = within(screen.getByTestId("valores-financeiros"))
+      .getByText("Pagamento do transporte")
+      .closest("li")!;
+    expect(outra.textContent).toMatch(/posto como serviço/);
+    fireEvent.click(within(outra).getByRole("button", { name: "tirar" }));
+    expect(nova()).not.toMatch(/Pagamento do transporte/);
+    expect(within(outra).getByRole("button", { name: "pôr como serviço" })).toBeTruthy();
   });
 
   it("vários totais sem par: ela escolhe o total (nada pré-escolhido) antes de criar", async () => {
@@ -511,5 +516,32 @@ describe("8.ª revisão — sem IA: as linhas financeiras, os totais e a soma", 
     expect(screen.getByText(/Mudaste o IVA/)).toBeTruthy();
     fireEvent.click(within(grupo).getByRole("radio", { name: "sem IVA" }));
     expect(screen.queryByText(/Mudaste o IVA/)).toBeNull();
+  });
+});
+
+describe("9.ª revisão — o desconto, sem IA, é aviso de dinheiro", () => {
+  it("a linha de desconto fica na lista, e um aviso «põe à mão» trava o criar", async () => {
+    const r = await importarDocumento(
+      docx([
+        "Casamento Ana Teste & Rui Exemplo",
+        "Flores TESTE: 1.000,00 €",
+        "Desconto: 100,00 €",
+        "Total: 900,00 €",
+      ]),
+      { chamar: null },
+    );
+    const { urls } = preparar(r);
+    await escolher();
+    expect(screen.getByTestId("valores-financeiros").textContent).toMatch(/Desconto/);
+    expect(screen.getAllByText(/desconto de 100,00\s€ — põe à mão/).length).toBeGreaterThan(0);
+    fireEvent.click(
+      within(screen.getByRole("group", { name: /O IVA dos valores do documento/ })).getByRole(
+        "radio",
+        { name: "sem IVA" },
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await screen.findByText(/confirmar os? .*aviso/);
+    expect(urls).not.toContain("/api/orcamento/manual");
   });
 });
