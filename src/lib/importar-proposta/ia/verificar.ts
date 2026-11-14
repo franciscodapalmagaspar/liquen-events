@@ -54,14 +54,18 @@ export interface Contas {
   /** A soma das linhas normais com valor (no modo das linhas), ou null sem valores. */
   somaDasLinhas: number | null;
   linhasSemValor: number;
-  /** O modo das linhas CONFIRMADO no documento (sem confirmação: «desconhecido», e os valores não passam). */
+  /** Sempre «desconhecido»: o modo é ela que o escolhe (ver `ivaPorEscolher`). */
   modoDasLinhas: "sem_iva" | "com_iva" | "desconhecido";
-  /** O modo do total PROVADO pelas contas do documento. */
+  /** Sempre «desconhecido»: o modo é ela que o escolhe. */
   modoDoTotal: "sem_iva" | "com_iva" | "desconhecido";
-  /** Sem prova aritmética: ela escolhe (nada pré-escolhido). */
+  /** O IVA é SEMPRE ela que o escolhe (nada pré-escolhido), quando há valores. */
   ivaPorEscolher: boolean;
-  /** A prova, em palavras, quando há. */
-  prova: string | null;
+  /** O que as contas do documento sugerem (um par ou trio que bate pela taxa) — só sugestão. */
+  sugestaoDasContas: { modo: "sem_iva" | "com_iva"; texto: string } | null;
+  /** O que as frases do documento parecem dizer, quando dizem uma coisa só — só sugestão. */
+  sugestaoDasFrases: "sem_iva" | "com_iva" | null;
+  /** As contas sugerem uma coisa e as frases outra. */
+  discordancia: boolean;
   /** As frases do documento que falam de IVA (só para mostrar). */
   frasesDoIva: { unidade: string; texto: string; parece: ModoNoTexto }[];
   /** O que a leitura (IA ou JSON) disse — só para mostrar. */
@@ -343,10 +347,15 @@ export function tokensDe(normalizado: string): Token[] {
  * «1.000,00» são portugueses; «1,740.00» e «45.00» são ingleses. `null`
  * quando não há números claros (ou há dos dois em quantidade parecida).
  */
+/** Uma hora escrita com ponto («16.30», «19.30»): nem dinheiro, nem formato. */
+export const E_HORA = /^(?:[01]?\d|2[0-3])[.:][0-5]\d$/;
+
 export function formatoDoDocumento(tokens: readonly Token[]): "pt" | "en" | null {
   let pt = 0;
   let en = 0;
   for (const t of tokens) {
+    // Uma hora («16.30», «19.30») não diz nada do formato.
+    if (E_HORA.test(t.texto)) continue;
     if (/\d,\d{1,2}(?!\d)/.test(t.texto)) pt++;
     else if (/\d\.\d{1,2}(?!\d)/.test(t.texto)) en++;
   }
@@ -423,6 +432,7 @@ function valoresEmEuros(
       tabelaComDinheiro &&
       u.linha > 0 &&
       /[.,]\d{2}\)?$|\d[.,]\d{3}/.test(t.texto) &&
+      !E_HORA.test(t.texto) &&
       !/%/.test(n.slice(t.fim, t.fim + 2));
     return euro || naTabela;
   });
@@ -522,11 +532,6 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
   const lidas = new Map(unidades.map((u) => [u.id, tokensDoTexto(textoDaUnidade(u))]));
   const normDe = new Map([...lidas].map(([id, l]) => [id, l.plano]));
   const tokensDaUnidade = new Map([...lidas].map(([id, l]) => [id, l.tokens]));
-  // O formato dos números ambíguos decide-se pelos números claros do documento.
-  resolverAmbiguos(
-    [...tokensDaUnidade.values()].flat(),
-    formatoDoDocumento([...tokensDaUnidade.values()].flat()),
-  );
   const tabelasComDinheiro = new Set(
     unidades
       .filter(
@@ -543,6 +548,13 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
       tokensDaUnidade.get(u.id)!,
       u.tipo === "linha-de-tabela" && tabelasComDinheiro.has(u.tabela),
     );
+  // O formato dos números ambíguos decide-se pelos números claros do documento
+  // — só os de DINHEIRO (com «€» ou numa coluna de preços): horas («16.30»)
+  // e datas («12.06.2027») não contam.
+  resolverAmbiguos(
+    [...tokensDaUnidade.values()].flat(),
+    formatoDoDocumento(unidades.flatMap((u) => dinheiroDa(u))),
+  );
   const unidadesDeTexto = unidades.filter((u) => u.tipo !== "imagem");
   /**
    * Um texto copiado: cada linha contígua numa unidade, e as linhas pela ORDEM
@@ -860,6 +872,30 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     return false;
   });
 
+  // ── S8: a descrição e o valor de cada linha estão no MESMO sítio ──
+  // (a mesma unidade, ou a mesma linha de tabela). «Flores» com o valor das
+  // «Velas» é um valor trocado que nenhuma citação apanha sozinha.
+  o.linhas.forEach((l, i) => {
+    if (!l.descricao) return;
+    const desc = segmentos(l.descricao)[0];
+    const daDescricao = new Set(
+      unidades.filter((u) => desc && normDe.get(u.id)!.includes(desc)).map((u) => u.id),
+    );
+    for (const f of [l.totalDaLinha, l.precoUnitario]) {
+      if (f.valor === null || !f.citacao) continue;
+      const doValor = ligar(f.valor, f.citacao, false, { quantidadeDaLinha: l.quantidade.valor });
+      if (doValor.length && daDescricao.size && !doValor.some((id) => daDescricao.has(id))) {
+        aviso({
+          id: `linha:outro-sitio:${i}`,
+          campo: `orcamento.linhas.${i}`,
+          dinheiro: true,
+          gravidade: "erro",
+          texto: `O valor ${eur(f.valor)} está noutro sítio do documento — confirma que é de «${curto(l.descricao, 40)}».`,
+        });
+      }
+    }
+  });
+
   // ── (c) Cada linha, e a soma ──
   const valorDaLinha = (l: LinhaLida): number | null => {
     if (l.totalDaLinha.valor !== null) return l.totalDaLinha.valor;
@@ -1026,60 +1062,62 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     }
   }
 
-  // A prova: a soma das linhas (ou, sem linhas com valor, o total lido) bate com um lado de um par.
+  // ── O IVA É SEMPRE ELA QUE O ESCOLHE ──
+  // Nem o texto, nem as contas, nem a leitura decidem sozinhos (quinta
+  // revisão: «Decoração 1.000 / Transporte 230 / Total 1.230» parece um trio
+  // de IVA, e um trio de outra secção — o catering de um parceiro — decidia as
+  // linhas). Um clique por proposta é barato; um IVA errado é caro. As contas
+  // e as frases ficam como SUGESTÕES, ao lado da escolha.
   const temValores = o.linhas.some(
     (l) => l.totalDaLinha.valor !== null || l.precoUnitario.valor !== null,
   );
-  let modoDasLinhas: Modo = "desconhecido";
-  let modoDoTotal: Modo = "desconhecido";
-  let prova: string | null = null;
+  const modoDasLinhas: Modo = "desconhecido";
+  const modoDoTotal: Modo = "desconhecido";
+  const ivaPorEscolher = temValores || base !== null || bruto !== null;
+  const taxaEmTexto = `${Math.round(vatRate * 10000) / 100}%`;
   const parDa = (v: number, lado: "s" | "c") => pares.find((p) => p[lado] === round2(v));
-  if (temValores && soma !== null) {
-    const ps = parDa(soma, "s");
-    const pc = ps ? undefined : parDa(soma, "c");
-    if (ps || pc) {
-      modoDasLinhas = ps ? "sem_iva" : "com_iva";
-      const p = (ps ?? pc)!;
-      prova = `As linhas somam ${eur(soma)}, e o documento mostra ${eur(p.s)} + IVA = ${eur(p.c)}.`;
+  let sugestaoDasContas: { modo: "sem_iva" | "com_iva"; texto: string } | null = null;
+  {
+    const alvo = temValores && soma !== null ? soma : (base ?? bruto);
+    const ps = alvo !== null ? parDa(alvo, "s") : undefined;
+    const pc = alvo !== null && !ps ? parDa(alvo, "c") : undefined;
+    const par = ps ?? pc;
+    if (par) {
+      const quem =
+        temValores && soma !== null ? `as linhas somam ${eur(alvo!)}` : `o total é ${eur(alvo!)}`;
+      sugestaoDasContas = {
+        modo: ps ? "sem_iva" : "com_iva",
+        texto: `As contas do documento sugerem: ${ps ? "sem IVA" : "com IVA"} — ${quem}, e o documento mostra ${eur(par.s)} + IVA a ${taxaEmTexto} = ${eur(par.c)}.`,
+      };
     }
-  }
-  if (!temValores || modoDasLinhas !== "desconhecido") {
-    if (base !== null && parDa(base, "s")) modoDoTotal = "sem_iva";
-    else if (bruto !== null && parDa(bruto, "c")) modoDoTotal = "com_iva";
-    if (!temValores && modoDoTotal !== "desconhecido") {
-      const p = parDa((base ?? bruto)!, modoDoTotal === "sem_iva" ? "s" : "c")!;
-      prova = `O documento mostra ${eur(p.s)} + IVA = ${eur(p.c)}.`;
-    }
-  }
-  const ivaPorEscolher =
-    (temValores && modoDasLinhas === "desconhecido") ||
-    ((base !== null || bruto !== null) && modoDoTotal === "desconhecido");
-  if (ivaPorEscolher) {
-    // Sem prova, nenhum dos dois passa: ela escolhe para tudo de uma vez.
-    modoDasLinhas = "desconhecido";
-    modoDoTotal = "desconhecido";
   }
   // As frases do documento que falam de IVA, para ela ver ao escolher.
   const frasesDoIva = unidadesDeTexto
     .map((u) => ({ u, m: modoDoIvaNoTexto(normDe.get(u.id)!) }))
     .filter((x) => x.m !== null || /\b(?:iva|vat)\b/.test(normDe.get(x.u.id)!))
     .map((x) => ({ unidade: x.u.id, texto: textoDaUnidade(x.u), parece: x.m }));
+  const modosDasFrases = new Set(
+    frasesDoIva.map((f) => f.parece).filter((m): m is "sem" | "com" => m === "sem" || m === "com"),
+  );
+  const sugestaoDasFrases: "sem_iva" | "com_iva" | null =
+    modosDasFrases.size === 1 ? ([...modosDasFrases][0] === "sem" ? "sem_iva" : "com_iva") : null;
+  const discordancia =
+    sugestaoDasContas !== null &&
+    sugestaoDasFrases !== null &&
+    sugestaoDasContas.modo !== sugestaoDasFrases;
   const valoresEmConflito = new Set<number>();
 
   if (soma !== null) {
-    // O total a comparar, no modo das linhas; sem modo, o que bater (só para avisar).
+    // O total a comparar: sem e com IVA (o modo é ela que o escolhe); vale o
+    // que bater — só serve para avisar quando nenhum bate.
     const alvoSem = base ?? (bruto !== null ? baseDoBruto(bruto) : null);
     const alvoCom = bruto ?? (base !== null ? brutoDaBase(base) : null);
     const alvo =
-      modoDasLinhas === "sem_iva"
+      alvoSem !== null && soma === alvoSem
         ? alvoSem
-        : modoDasLinhas === "com_iva"
+        : alvoCom !== null && soma === alvoCom
           ? alvoCom
-          : alvoSem !== null && soma === alvoSem
-            ? alvoSem
-            : alvoCom !== null && soma === alvoCom
-              ? alvoCom
-              : (alvoSem ?? alvoCom);
+          : (base ?? bruto);
 
     if (alvo === null) {
       aviso({
@@ -1374,7 +1412,9 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
       modoDasLinhas,
       modoDoTotal,
       ivaPorEscolher,
-      prova,
+      sugestaoDasContas,
+      sugestaoDasFrases,
+      discordancia,
       frasesDoIva,
       leituraDoIva: {
         linhas: entrada.orcamento.iva.valoresDasLinhas,

@@ -11,6 +11,9 @@ import {
   corpoDoPedido,
   correccoesIniciais,
   juntarCorreccoes,
+  valoresQueVaoSerGravados,
+  totalEmTexto,
+  totalParaOModo,
   montarDocumento,
   oQueFalta,
   type Correccoes,
@@ -417,6 +420,11 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
   }, {});
   const acimaDoLimite = Math.max(0, fotos.length - MAX_FOTOS_POR_IMPORTACAO);
   const conf = (k: CampoImportado): Confianca => proposta?.confianca[k] ?? "nada";
+  // O que VAI ser gravado (a mesma função do `montarDocumento`).
+  const aGravar =
+    proposta && c
+      ? valoresQueVaoSerGravados(proposta, c)
+      : { budgetAmounts: [] as (number | null)[], totalAmount: null, totalVatMode: null };
 
   return (
     <FolhaOuDialogo
@@ -537,8 +545,17 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
             <RevisaoDaImportacao
               revisao={revisao}
               proposta={proposta}
+              correccoes={c}
               modoDoIva={c.totalVatMode}
-              onModoDoIva={(m) => set("totalVatMode", m)}
+              onModoDoIva={(m) => {
+                set("totalVatMode", m);
+                // Com os dois totais no documento, o campo passa ao do modo escolhido
+                // (se ela não o mudou à mão).
+                const t = proposta.totaisEscritos;
+                if (t && [totalEmTexto(t.sem), totalEmTexto(t.com)].includes(c.total)) {
+                  set("total", totalEmTexto(totalParaOModo(proposta, m)));
+                }
+              }}
               imagens={imagensDoDocumento}
               confirmados={confirmados}
               onConfirmar={(id, sim) =>
@@ -659,9 +676,9 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                     className="flex items-baseline justify-between gap-3 px-3 py-2 text-footnote"
                   >
                     <span className="min-w-0 break-words text-[var(--bo-text)]">{item}</span>
-                    {proposta.budgetAmounts[k] !== null && (
+                    {aGravar.budgetAmounts[k] != null && (
                       <span className="shrink-0 tabular-nums text-[var(--bo-tinta-72)]">
-                        {eur(proposta.budgetAmounts[k] as number)}
+                        {eur(aGravar.budgetAmounts[k] as number)}
                       </span>
                     )}
                   </li>

@@ -22,9 +22,10 @@ import {
   propostaComIvaIncluido,
   propostaDeTeste,
   documentoDeTeste,
+  escolherIva,
 } from "./fixtures.testkit";
 import { docx } from "../fabricar.testkit";
-import { montarDocumento, correccoesIniciais } from "../montar";
+import { montarDocumento } from "../montar";
 import { INSTRUCOES, pedidoParaOClaude } from "./instrucoes";
 import { esquemaJson, lerLeitura } from "./esquema";
 import { documentoEmTexto } from "../documento-completo";
@@ -102,9 +103,12 @@ describe("com a IA (duplo, sem chamadas reais)", () => {
       },
     ]);
     expect(p.budgetItems).toEqual(["Decoração da cerimónia", "Centros de mesa"]);
-    expect(p.budgetAmounts).toEqual([1200, 540]);
+    // O IVA é sempre ela que o escolhe: até lá, nada passa.
+    expect(p.ivaPorEscolher).toBe(true);
+    expect(p.budgetAmounts).toEqual([null, null]);
+    expect(p.linhasEscritas).toEqual([1200, 540]);
     expect(p.totalAmount).toBe(1740);
-    expect(p.totalVatMode).toBe("acrescer");
+    expect(p.totalVatMode).toBeNull();
     expect(p.capa).toBe("word/media/capa.jpeg");
     expect(p.moodBoards).toEqual([
       { title: "Decoração da Cerimónia", images: ["word/media/arco.jpeg"] },
@@ -117,13 +121,16 @@ describe("com a IA (duplo, sem chamadas reais)", () => {
     );
 
     // E o rascunho do estúdio sai pelo caminho de sempre.
+    // Ela escolhe «sem IVA» — e o rascunho sai pelo caminho de sempre.
+    const { c } = escolherIva(p, "acrescer");
     const doc = montarDocumento(
       p,
-      correccoesIniciais(p),
+      c,
       new Map([["word/media/arco.jpeg", "x/arco.jpg"]]),
       "teste.docx",
     );
     expect(doc.totalAmount).toBe(1740);
+    expect(doc.totalVatMode).toBe("acrescer");
     expect(doc.budgetAmounts).toEqual([1200, 540]);
   });
 
@@ -135,10 +142,11 @@ describe("com a IA (duplo, sem chamadas reais)", () => {
     });
     // 25 € com IVA a 23% → 20,33 € cada; mas 50 € com IVA são 40,65 € de base:
     // o cêntimo a mais sai da última linha. Folga zero.
-    expect(r.proposta.budgetAmounts).toEqual([20.33, 20.32]);
-    // O total vai pela base provada (40,65 € + IVA = 50,00 €): o mesmo dinheiro.
-    expect(r.proposta.totalAmount).toBe(40.65);
-    expect(r.proposta.totalVatMode).toBe("acrescer");
+    const { gravar } = escolherIva(r.proposta, "incluido");
+    expect(gravar.budgetAmounts).toEqual([20.33, 20.32]);
+    // Com os dois totais no documento, «com IVA» usa o total com IVA.
+    expect(gravar.totalAmount).toBe(50);
+    expect(gravar.totalVatMode).toBe("incluido");
     expect(r.revisao?.avisos).toEqual([]);
   });
 
@@ -154,11 +162,17 @@ describe("com a IA (duplo, sem chamadas reais)", () => {
       leituraCarregada: JSON.stringify(leituraComIvaASeis()),
     });
     expect(r.proposta.vatRate).toBe(0.06);
-    expect(r.proposta.totalVatMode).toBe("acrescer");
+    expect(r.revisao?.contas?.sugestaoDasContas?.modo).toBe("sem_iva");
     const a = r.revisao!.avisos.find((x) => x.id === "iva:taxa-diferente")!;
     expect(a.dinheiro).toBe(true);
-    const doc = montarDocumento(r.proposta, correccoesIniciais(r.proposta), new Map(), "t.docx");
+    const doc = montarDocumento(
+      r.proposta,
+      escolherIva(r.proposta, "acrescer").c,
+      new Map(),
+      "t.docx",
+    );
     expect(doc.vatRate).toBe(0.06);
+    expect(doc.totalVatMode).toBe("acrescer");
   });
 
   it.each([

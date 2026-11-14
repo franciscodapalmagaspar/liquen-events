@@ -213,6 +213,7 @@ export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImporta
           ivaPorEscolher: true,
           linhasEscritas: escritos,
           linhasNormais: normais,
+          totaisEscritos: { sem: base, com: bruto },
         }
       : {}),
     somaDasLinhas,

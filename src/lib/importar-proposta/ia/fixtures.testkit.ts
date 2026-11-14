@@ -2,6 +2,14 @@ import { docx } from "../fabricar.testkit";
 import { lerTextosDoZip } from "../zip-node";
 import { lerDocxCompleto, type DocumentoCompleto } from "../documento-completo";
 import type { Leitura } from "./esquema";
+import type { PropostaImportada } from "../mapear";
+import type { VatMode } from "../../proposal-doc";
+import {
+  correccoesIniciais,
+  totalEmTexto,
+  totalParaOModo,
+  valoresQueVaoSerGravados,
+} from "../montar";
 
 /**
  * Uma proposta INVENTADA (dados TESTE) e a leitura certa dela — o ponto de
@@ -204,4 +212,17 @@ export function leituraComIvaASeis(): Leitura {
   l.orcamento.iva.valoresDasLinhas = { valor: "sem_iva", citacao: "100,00 € + IVA" };
   l.orcamento.iva.valoresDoTotal = { valor: "sem_iva", citacao: "100,00 € + IVA" };
   return l;
+}
+
+/**
+ * O que o ecrã faz quando ela escolhe o IVA: o modo, e o total do lado
+ * escolhido (`totalParaOModo`). Devolve o que VAI ser gravado.
+ */
+export function escolherIva(p: PropostaImportada, modo: VatMode) {
+  const c = {
+    ...correccoesIniciais(p),
+    totalVatMode: modo,
+    total: totalEmTexto(totalParaOModo(p, modo)),
+  };
+  return { c, gravar: valoresQueVaoSerGravados(p, c) };
 }

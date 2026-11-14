@@ -9,6 +9,7 @@ import { documentoEmTexto, type UnidadeLida } from "@/lib/importar-proposta/docu
 import { pedidoParaOClaude } from "@/lib/importar-proposta/ia/instrucoes";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { Segmented } from "./ui";
+import { valoresQueVaoSerGravados, type Correccoes } from "@/lib/importar-proposta/montar";
 import type { VatMode } from "@/lib/proposal-doc";
 
 /**
@@ -44,6 +45,8 @@ interface Props {
   onConfirmar: (id: string, sim: boolean) => void;
   /** Carregar o JSON de uma leitura feita fora (custo zero). */
   onLeitura: (f: File) => void;
+  /** O que ela corrigiu (para mostrar o que VAI ser gravado). */
+  correccoes?: Correccoes;
   /** O que ela escolheu para o IVA (o mesmo campo do total), ou null. */
   modoDoIva?: VatMode | null;
   onModoDoIva?: (m: VatMode) => void;
@@ -57,10 +60,11 @@ const PARECE: Record<string, string> = {
 };
 
 /**
- * ── O IVA SEM PROVA NAS CONTAS: ELA ESCOLHE ──────────────────────────────
- * O texto nunca decide o IVA sozinho (`ia/verificar.ts`). Quando as contas do
- * documento não o provam, ela escolhe com um clique — nada pré-escolhido — e
- * vê ao lado as frases do documento que falam de IVA e o que a leitura disse.
+ * ── O IVA É SEMPRE ELA QUE O ESCOLHE ─────────────────────────────────────
+ * Nem o texto, nem as contas, nem a leitura decidem sozinhos
+ * (`ia/verificar.ts`). Ela escolhe com um clique — nada pré-escolhido — e vê ao
+ * lado o que AJUDA: o que as contas do documento sugerem, as frases que falam
+ * de IVA e o que a leitura disse. Se as contas e as frases discordam, diz-se.
  */
 function EscolherOIva({
   revisao,
@@ -95,9 +99,19 @@ function EscolherOIva({
           ]}
         />
       </div>
+      {contas.sugestaoDasContas && (
+        <p className="mt-2 text-footnote text-[var(--bo-text)]">{contas.sugestaoDasContas.texto}</p>
+      )}
+      {contas.discordancia && (
+        <p role="alert" className="mt-2 text-footnote font-semibold text-[var(--bo-perigo)]">
+          Atenção: as contas sugerem{" "}
+          {contas.sugestaoDasContas?.modo === "sem_iva" ? "sem IVA" : "com IVA"}, mas as frases do
+          documento parecem dizer {contas.sugestaoDasFrases === "sem_iva" ? "sem IVA" : "com IVA"}.
+        </p>
+      )}
       <p className="mt-2 text-caption text-[var(--bo-text-muted)]">
-        As contas do documento não o provam, por isso escolhes tu. A leitura disse: linhas{" "}
-        {lido(contas.leituraDoIva.linhas)}, total {lido(contas.leituraDoIva.total)}.
+        Escolhes sempre tu. A leitura disse: linhas {lido(contas.leituraDoIva.linhas)}, total{" "}
+        {lido(contas.leituraDoIva.total)}.
       </p>
       {contas.frasesDoIva.length > 0 ? (
         <ul className="mt-2 flex flex-col gap-1">
@@ -193,6 +207,7 @@ export default function RevisaoDaImportacao({
   onLeitura,
   modoDoIva,
   onModoDoIva,
+  correccoes,
 }: Props) {
   const urls = useMemo(
     () => new Map([...imagens].map(([c, f]) => [c, URL.createObjectURL(f)])),
@@ -288,7 +303,15 @@ export default function RevisaoDaImportacao({
     );
   };
 
-  const total = proposta.totalAmount;
+  // O que VAI ser gravado, depois da escolha dela (a mesma função do `montarDocumento`).
+  const gravar = correccoes
+    ? valoresQueVaoSerGravados(proposta, correccoes)
+    : {
+        budgetAmounts: proposta.budgetAmounts,
+        totalAmount: proposta.totalAmount,
+        totalVatMode: proposta.totalVatMode,
+      };
+  const total = gravar.totalAmount ?? proposta.totalAmount;
   return (
     <section className="@container flex min-w-0 flex-col gap-4">
       <div
@@ -339,11 +362,6 @@ export default function RevisaoDaImportacao({
 
       {proposta.ivaPorEscolher && revisao.contas && onModoDoIva && (
         <EscolherOIva revisao={revisao} modo={modoDoIva ?? null} onModo={onModoDoIva} />
-      )}
-      {revisao.contas?.prova && (
-        <p className="text-footnote text-[var(--bo-text-muted)]">
-          IVA provado pelas contas: {revisao.contas.prova}
-        </p>
       )}
 
       {revisao.avisos.length > 0 && (
@@ -452,8 +470,8 @@ export default function RevisaoDaImportacao({
                         {proposta.budgetOpcional?.[k] ? " (opcional)" : ""}
                       </span>
                       <span className="shrink-0 tabular-nums text-[var(--bo-tinta-72)]">
-                        {proposta.budgetAmounts[k] !== null
-                          ? eur(proposta.budgetAmounts[k] as number)
+                        {gravar.budgetAmounts[k] != null
+                          ? eur(gravar.budgetAmounts[k] as number)
                           : "—"}
                       </span>
                     </div>
@@ -470,7 +488,7 @@ export default function RevisaoDaImportacao({
                 <span>Total</span>
                 <span className="tabular-nums">
                   {total !== null
-                    ? `${eur(total)}${proposta.totalVatMode === "acrescer" ? " + IVA" : proposta.totalVatMode === "incluido" ? " (IVA incluído)" : " (IVA por escolher)"}`
+                    ? `${eur(total)}${gravar.totalVatMode === "acrescer" ? " + IVA" : gravar.totalVatMode === "incluido" ? " (IVA incluído)" : " (IVA por escolher)"}`
                     : "—"}
                 </span>
               </p>

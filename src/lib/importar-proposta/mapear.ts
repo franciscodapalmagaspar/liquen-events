@@ -101,6 +101,8 @@ export interface PropostaImportada {
   linhasEscritas?: (number | null)[];
   /** Paralelo a `budgetItems`: as linhas que somam o total (nem opcionais nem incluídas). */
   linhasNormais?: boolean[];
+  /** Os totais escritos no documento, sem e com IVA (para a escolha dela). */
+  totaisEscritos?: { sem: number | null; com: number | null };
   totalAmount: number | null;
   /** `null` = não se percebeu; ela escolhe. */
   totalVatMode: VatMode | null;

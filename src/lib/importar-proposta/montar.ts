@@ -43,7 +43,7 @@ export function correccoesIniciais(p: PropostaImportada): Correccoes {
     location: p.location,
     eventType: p.eventType,
     guests: p.guests ? String(p.guests) : "",
-    total: p.totalAmount ? p.totalAmount.toFixed(2).replace(".", ",") : "",
+    total: totalEmTexto(p.totalAmount),
     totalVatMode: p.totalVatMode,
   };
 }
@@ -75,15 +75,64 @@ export function totalEscrito(texto: string): number | null {
 /** O que ainda impede criar. Vazio = pode criar. */
 export function oQueFalta(c: Correccoes, p?: Pick<PropostaImportada, "ivaPorEscolher">): string[] {
   const falta: string[] = [];
-  // Sem prova nas contas, o IVA é ELA que o diz — mesmo sem total.
-  if (p?.ivaPorEscolher && !c.totalVatMode)
-    falta.push("escolher se os valores do documento têm IVA");
+  // O IVA é SEMPRE ela que o diz (`ia/verificar.ts`) — mesmo sem total. Uma
+  // vez só: a mesma escolha vale para as linhas e para o total.
+  const porEscolher = !c.totalVatMode && (p?.ivaPorEscolher || totalEscrito(c.total) !== null);
+  if (porEscolher) {
+    falta.push(
+      p?.ivaPorEscolher
+        ? "escolher se os valores do documento têm IVA"
+        : "dizer se o total inclui IVA",
+    );
+  }
   if (!c.clientNames.trim()) falta.push("o nome do cliente");
   if (c.total.trim() && totalEscrito(c.total) === null) falta.push("um total que se leia");
-  if (totalEscrito(c.total) !== null && !c.totalVatMode) {
-    falta.push("dizer se o total inclui IVA");
-  }
   return falta;
+}
+
+/**
+ * O total escrito que corresponde à escolha dela: com os dois no documento,
+ * «sem IVA» usa o sem IVA e «com IVA» o com IVA; com um só, esse.
+ */
+export function totalParaOModo(p: PropostaImportada, modo: VatMode): number | null {
+  const t = p.totaisEscritos;
+  if (!t) return p.totalAmount;
+  return modo === "acrescer" ? (t.sem ?? t.com) : (t.com ?? t.sem);
+}
+
+/** O total em texto, como o campo do ecrã o escreve. */
+export function totalEmTexto(n: number | null): string {
+  return n ? n.toFixed(2).replace(".", ",") : "";
+}
+
+/**
+ * ── O QUE VAI SER GRAVADO, NUMA FUNÇÃO SÓ ─────────────────────────────────
+ * Os valores sem IVA das linhas, o total e o modo, a partir do que se leu e do
+ * que ela escolheu. O ecrã mostra ISTO e o `montarDocumento` grava ISTO: os
+ * dois nunca podem discordar.
+ */
+export function valoresQueVaoSerGravados(
+  p: PropostaImportada,
+  c: Correccoes,
+): { budgetAmounts: (number | null)[]; totalAmount: number | null; totalVatMode: VatMode | null } {
+  const total = totalEscrito(c.total);
+  const modo = total !== null ? c.totalVatMode : null;
+  const budgetAmounts =
+    p.ivaPorEscolher && p.linhasEscritas
+      ? c.totalVatMode
+        ? valoresSemIvaDasLinhas(
+            p.linhasEscritas,
+            p.linhasNormais ?? p.linhasEscritas.map(() => true),
+            c.totalVatMode,
+            p.vatRate ?? DEFAULT_VAT_RATE,
+          )
+        : p.linhasEscritas.map(() => null)
+      : [...p.budgetAmounts];
+  return {
+    budgetAmounts,
+    totalAmount: total !== null && modo ? total : null,
+    totalVatMode: total !== null ? modo : null,
+  };
 }
 
 function hojeEmTexto(hoje: Date): string {
@@ -129,16 +178,8 @@ export function montarDocumento(
 ): DocDoEstudio {
   const total = totalEscrito(c.total);
   const modo = total !== null ? c.totalVatMode : null;
-  // Sem prova nas contas, os valores das linhas passam pelo que ELA escolheu.
-  const amounts =
-    p.ivaPorEscolher && p.linhasEscritas && c.totalVatMode
-      ? valoresSemIvaDasLinhas(
-          p.linhasEscritas,
-          p.linhasNormais ?? p.linhasEscritas.map(() => true),
-          c.totalVatMode,
-          p.vatRate ?? DEFAULT_VAT_RATE,
-        )
-      : [...p.budgetAmounts];
+  // Os valores das linhas passam pelo que ELA escolheu — a mesma função do ecrã.
+  const amounts = valoresQueVaoSerGravados(p, c).budgetAmounts;
   const guests = Number.parseInt(c.guests, 10);
   const moodBoards: MoodBoard[] = p.moodBoards
     .map((b) => ({

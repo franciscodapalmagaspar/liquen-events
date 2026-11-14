@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizar, numerosDe, plano, verificar } from "./verificar";
+import { formatoDoDocumento, normalizar, numerosDe, plano, verificar } from "./verificar";
 import { correccoesIniciais, montarDocumento, oQueFalta } from "../montar";
 import { preencher } from "./preencher";
 import {
@@ -8,6 +8,7 @@ import {
   leituraComIvaASeis,
   leituraComIvaIncluido,
   leituraSoDoOrcamento,
+  escolherIva,
   propostaComIvaASeis,
   propostaComIvaIncluido,
 } from "./fixtures.testkit";
@@ -467,7 +468,7 @@ describe("4.ª revisão, B2 — uma nota sobre OUTRA coisa não decide o orçame
 });
 
 describe("4.ª revisão, 1 — o IVA aceite sem perguntar só com PROVA nas contas", () => {
-  it("o formato «Subtotal / IVA (23%) / Total»: zero avisos, linhas sem IVA", () => {
+  it("o formato «Subtotal / IVA (23%) / Total»: zero avisos; as contas SUGEREM sem IVA, e ela escolhe", () => {
     const d = documentoDeTeste(
       docx([
         "Flores TESTE: 1.000,00 €",
@@ -487,14 +488,20 @@ describe("4.ª revisão, 1 — o IVA aceite sem perguntar só com PROVA nas cont
     l.orcamento.totalComIva = { valor: 2140.2, citacao: "Total: 2.140,20 €" };
     const v = verificar(d, l);
     expect(v.avisos).toEqual([]);
-    expect(v.contas.ivaPorEscolher).toBe(false);
-    expect(v.contas.modoDasLinhas).toBe("sem_iva");
+    expect(v.contas.ivaPorEscolher).toBe(true);
+    expect(v.contas.sugestaoDasContas?.modo).toBe("sem_iva");
+    expect(v.contas.sugestaoDasContas?.texto).toMatch(
+      /sugerem: sem IVA — as linhas somam 1740,00\s€, e o documento mostra 1740,00\s€ \+ IVA a 23% = 2140,20\s€/,
+    );
     const p = preencher(d, v);
-    expect(p.budgetAmounts).toEqual([1000, 740]);
-    expect(p.totalVatMode).toBe("acrescer");
+    expect(p.totalVatMode).toBeNull();
+    const { gravar } = escolherIva(p, "acrescer");
+    expect(gravar.budgetAmounts).toEqual([1000, 740]);
+    expect(gravar.totalAmount).toBe(1740);
+    expect(gravar.totalVatMode).toBe("acrescer");
   });
 
-  it("«+ IVA (… com IVA)» ligados na mesma unidade: prova; as linhas com IVA também", () => {
+  it("«+ IVA (… com IVA)» ligados na mesma unidade: as contas sugerem com IVA", () => {
     const d = documentoDeTeste(
       docx([
         "Flores TESTE: 25,00 €",
@@ -509,8 +516,9 @@ describe("4.ª revisão, 1 — o IVA aceite sem perguntar só com PROVA nas cont
     ];
     l.orcamento.totalComIva = { valor: 50, citacao: "50,00 € com IVA" };
     const v = verificar(d, l);
-    expect(v.contas.modoDasLinhas).toBe("com_iva");
-    expect(preencher(d, v).budgetAmounts).toEqual([20.33, 20.32]);
+    expect(v.contas.sugestaoDasContas?.modo).toBe("com_iva");
+    const { gravar } = escolherIva(preencher(d, v), "incluido");
+    expect(gravar.budgetAmounts).toEqual([20.33, 20.32]);
   });
 
   it("M1 — dois serviços diferentes na mesma frase NÃO são um par", () => {
@@ -641,10 +649,14 @@ describe("4.ª revisão, M3 — o texto plano não tem espaços repetidos", () =
 });
 
 describe("as rondas anteriores, que continuam certas", () => {
-  it("IVA incluído com prova: passa como incluído, e o cêntimo reparte-se", () => {
-    const v = verificar(documentoDeTeste(propostaComIvaIncluido()), leituraComIvaIncluido());
+  it("IVA incluído: as contas sugerem com IVA, e o cêntimo reparte-se quando ela escolhe", () => {
+    const d = documentoDeTeste(propostaComIvaIncluido());
+    const v = verificar(d, leituraComIvaIncluido());
     expect(v.avisos).toEqual([]);
-    expect(v.contas.modoDasLinhas).toBe("com_iva");
+    expect(v.contas.sugestaoDasContas?.modo).toBe("com_iva");
+    const { gravar } = escolherIva(preencher(d, v), "incluido");
+    expect(gravar.budgetAmounts).toEqual([20.33, 20.32]);
+    expect(gravar.totalAmount).toBe(50);
   });
 
   it("um total repetido (com prova) é a mesma quantia", () => {
@@ -699,5 +711,59 @@ describe("as rondas anteriores, que continuam certas", () => {
     expect(numerosDe("1,740.00 €")).toEqual([1740]);
     expect(numerosDe("45.00 €")).toEqual([45]);
     expect(numerosDe("1.200 €")).toEqual([1200, 1.2]);
+  });
+});
+
+describe("5.ª revisão, S8 — a descrição e o valor de cada linha no mesmo sítio", () => {
+  it("«Flores» com o valor das «Velas» é aviso de dinheiro", () => {
+    const d = documentoDeTeste(
+      docx(["Flores TESTE: 300,00 €", "Velas TESTE: 120,00 €", "Total: 420,00 €"]),
+    );
+    const l = leituraSoDoOrcamento();
+    l.orcamento.linhas = [
+      linhaCom("Flores TESTE", 120, "Velas TESTE: 120,00 €"),
+      linhaCom("Velas TESTE", 300, "Flores TESTE: 300,00 €"),
+    ];
+    l.orcamento.totalSemIva = { valor: 420, citacao: "Total: 420,00 €" };
+    const v = verificar(d, l);
+    const a = v.avisos.find((x) => x.id === "linha:outro-sitio:0")!;
+    expect(a.dinheiro).toBe(true);
+    expect(a.texto).toMatch(
+      /120,00\s€ está noutro sítio do documento — confirma que é de «Flores TESTE»/,
+    );
+    expect(v.avisos.some((x) => x.id === "linha:outro-sitio:1")).toBe(true);
+  });
+
+  it("na mesma linha de tabela, não há aviso", () => {
+    const d = documentoDeTeste(docx([{ tabela: [["Flores TESTE", "300,00 €"]] }]));
+    const l = leituraSoDoOrcamento();
+    l.orcamento.linhas = [linhaCom("Flores TESTE", 300, "Flores TESTE | 300,00 €")];
+    expect(verificar(d, l).avisos.some((x) => x.id.startsWith("linha:outro-sitio"))).toBe(false);
+  });
+});
+
+describe("5.ª revisão — horas não dizem o formato dos números", () => {
+  it("«16.30» e «19.30» são ignoradas", () => {
+    const t = (texto: string) => ({
+      valor: 0,
+      valores: [],
+      candidatos: [],
+      ini: 0,
+      fim: 0,
+      texto,
+      celula: 0,
+    });
+    expect(formatoDoDocumento([t("45,00"), t("16.30"), t("19.30")])).toBe("pt");
+  });
+});
+
+describe("5.ª revisão — a falta do IVA aparece uma vez só", () => {
+  it("com total e sem escolha: uma frase, não duas", () => {
+    const { d, l } = orcamentoSimples([]);
+    const p = preencher(d, verificar(d, l));
+    const falta = oQueFalta(correccoesIniciais(p), p);
+    expect(falta.filter((x) => /IVA/.test(x))).toEqual([
+      "escolher se os valores do documento têm IVA",
+    ]);
   });
 });

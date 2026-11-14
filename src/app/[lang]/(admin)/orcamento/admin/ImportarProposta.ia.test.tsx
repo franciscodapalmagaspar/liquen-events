@@ -5,7 +5,9 @@ import { ToastProvider } from "./Toast";
 import { importarDocumento, type Importacao } from "@/lib/importar-proposta/ia/importar";
 import {
   leituraCerta,
+  leituraComIvaIncluido,
   leituraSoDoOrcamento,
+  propostaComIvaIncluido,
   propostaDeTeste,
 } from "@/lib/importar-proposta/ia/fixtures.testkit";
 import { docx } from "@/lib/importar-proposta/fabricar.testkit";
@@ -22,10 +24,14 @@ vi.mock("./image-prep", () => ({
 }));
 
 import ImportarProposta from "./ImportarProposta";
+import { eur } from "@/lib/money";
 
 function preparar(resposta: Importacao, depois: (Importacao | "falha")[] = []) {
   const urls: string[] = [];
   const corpos: (FormData | undefined)[] = [];
+  const rascunhos: {
+    doc: { budgetAmounts?: (number | null)[]; totalAmount?: number; totalVatMode?: string };
+  }[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -42,7 +48,10 @@ function preparar(resposta: Importacao, depois: (Importacao | "falha")[] = []) {
         return ok({ ok: true, quote: { id: "LIQ-T-1", name: "Ana" } });
       if (url.endsWith("/assets"))
         return ok({ ok: true, images: [{ path: "LIQ-T-1/f.jpg", url: "u" }] });
-      if (url.endsWith("/proposta-rascunho")) return ok({ ok: true, updatedAt: "x" });
+      if (url.endsWith("/proposta-rascunho")) {
+        rascunhos.push(JSON.parse(String(init?.body)));
+        return ok({ ok: true, updatedAt: "x" });
+      }
       throw new Error(`inesperado: ${url}`);
     }),
   );
@@ -51,7 +60,7 @@ function preparar(resposta: Importacao, depois: (Importacao | "falha")[] = []) {
       <ImportarProposta open onClose={() => {}} onCreated={() => {}} />
     </ToastProvider>,
   );
-  return { urls, corpos };
+  return { urls, corpos, rascunhos };
 }
 
 async function escolher() {
@@ -88,8 +97,11 @@ describe("a revisão lado a lado", () => {
     expect(aviso).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
-    await screen.findByText(/Falta confirmar o aviso de dinheiro/);
+    await screen.findByText(/confirmar o aviso de dinheiro/);
     expect(urls).not.toContain("/api/orcamento/manual");
+    // O IVA é sempre ela que o escolhe.
+    const grupo = screen.getByRole("group", { name: /O IVA dos valores do documento/ });
+    fireEvent.click(within(grupo).getByRole("radio", { name: "sem IVA" }));
 
     // Cada aviso aparece no topo e junto do campo: confirma-se uma vez cada um.
     const vistos = new Set<string>();
@@ -166,6 +178,35 @@ describe("a revisão lado a lado", () => {
     });
     await screen.findByText(/sem custo\) e verificado/);
     expect(fotos().length).toBe(antes - 1);
+  });
+
+  it("o ecrã mostra os valores convertidos depois da escolha — IGUAIS aos que o rascunho grava", async () => {
+    const l = leituraComIvaIncluido();
+    l.orcamento.linhas[1].tipo = "normal";
+    l.cliente.nomes = "Velas TESTE";
+    const r = await importarDocumento(propostaComIvaIncluido(), {
+      leituraCarregada: JSON.stringify(l),
+    });
+    const { rascunhos } = preparar(r);
+    await escolher();
+    const grupo = screen.getByRole("group", { name: /O IVA dos valores do documento/ });
+    // As contas sugerem, mas nada vem escolhido.
+    expect(grupo.textContent).toMatch(/sugerem: com IVA/);
+    expect(
+      within(grupo).getByRole("radio", { name: "com IVA" }).getAttribute("aria-checked"),
+    ).not.toBe("true");
+    fireEvent.click(within(grupo).getByRole("radio", { name: "com IVA" }));
+    // O que o ecrã mostra para as linhas…
+    const nova = screen.getByText("Na proposta nova").parentElement!;
+    const mostrado = [...nova.querySelectorAll("li .tabular-nums")].map((x) => x.textContent);
+    expect(mostrado).toEqual([eur(20.33), eur(20.32)]);
+    // … é exactamente o que se grava.
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await waitFor(() => expect(rascunhos.length).toBe(1));
+    expect(rascunhos[0].doc.budgetAmounts).toEqual([20.33, 20.32]);
+    expect(rascunhos[0].doc.totalAmount).toBe(50);
+    expect(rascunhos[0].doc.totalVatMode).toBe("incluido");
+    expect(mostrado).toEqual(rascunhos[0].doc.budgetAmounts!.map((x) => eur(x as number)));
   });
 
   it("sem prova nas contas, ela escolhe o IVA (nada pré-escolhido), e criar espera por ela", async () => {
