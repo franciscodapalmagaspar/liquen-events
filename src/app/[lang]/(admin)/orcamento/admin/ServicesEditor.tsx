@@ -820,7 +820,7 @@ function ServicesEditor({
                         <CampoQueCresce
                           {...fieldProps(groupKey(gid))}
                           aoEscrever={register(groupKey(gid))}
-                          className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none !text-sm font-semibold`}
+                          className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none !text-sm pointer-coarse:!text-base font-semibold`}
                           valor={g.title}
                           onChange={(e) => updateGroup(gi, { title: e.target.value })}
                           // A pega do aviso de ortografia — ver `chaveDoCampo`.
@@ -849,7 +849,7 @@ function ServicesEditor({
                             porTraduzir={!!g.title.trim() && !(g.titleEn ?? "").trim()}
                             as="textarea"
                             cresce
-                            className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none !text-sm font-semibold`}
+                            className={`${ROW_INPUT} min-w-[12rem] flex-1 resize-none !text-sm pointer-coarse:!text-base font-semibold`}
                             placeholder="Wedding Floral Design"
                           />
                         )}

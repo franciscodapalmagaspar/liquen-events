@@ -38,13 +38,13 @@ describe("o passo que chega apresenta-se", () => {
   it("os passos 1 a 4 entram com a classe, e o formulário continua montado quando sai", () => {
     // A classe depende do passo, e o `hidden` também: os dois no mesmo nó.
     expect(FONTE).toMatch(
-      /className=\{`@container\/estudio \$\{noFormulario \? "view-in" : ""\}`\}\s*hidden=\{!noFormulario\}/,
+      /className=\{`@container\/estudio [^`]*\$\{noFormulario \? "view-in" : ""\}`\}\s*hidden=\{!noFormulario\}/,
     );
   });
 
   it("o passo 3 entra com a classe, e continua montado quando sai", () => {
     expect(FONTE).toMatch(
-      /className=\{step === "enviar" \? "view-in" : undefined\}\s+hidden=\{step !== "enviar"\}/,
+      /className=\{`[^`]*\$\{step === "enviar" \? "view-in" : ""\}`\}\s+hidden=\{step !== "enviar"\}/,
     );
   });
 
@@ -92,6 +92,31 @@ describe("o passo que chega apresenta-se", () => {
  * usá-lo dos dois lados é uma decisão sobre a casa, não sobre esta tela — e é
  * isso que este bloco prende, para ninguém os deixar divergir.
  */
+/**
+ * E O PASSO QUE CHEGA MOSTRA-SE PELO PRINCÍPIO (auditoria do telemóvel, 14/11).
+ * Trocar de passo pela barra ou pelo «Anterior / Seguinte» deixava o rolo onde
+ * estava — vinda do fundo do passo 1, ela caía a meio do passo 2. O gesto mede-se
+ * no browser (`e2e/o-iphone-com-barras.spec.ts`); aqui prende-se que os quatro
+ * caminhos passam pela mesma porta, e que o alvo desconta as barras coladas.
+ */
+describe("o passo que chega mostra-se pelo princípio", () => {
+  it("a barra dos passos e o «Anterior / Seguinte» passam pelo `irParaPasso`", () => {
+    expect(FONTE).toMatch(/<StepNav\s+step=\{step\}\s+onSelect=\{irParaPasso\}/);
+    expect(FONTE).not.toMatch(/onClick=\{\(\) => setStep\(passoAoLado\(/);
+    expect(FONTE).toMatch(/onClick=\{\(\) => irParaPasso\(passoAoLado\(step, 1\) as Step\)\}/);
+  });
+
+  it("o alvo do rolo tem a margem das barras coladas, e o rolo passa pelo `rolarAteVer`", () => {
+    expect(FONTE).toMatch(
+      /ref=\{formularioDosPassos\}\s*className=\{`@container\/estudio scroll-mt-\[var\(--bo-colado-topo\)\]/,
+    );
+    expect(FONTE).toMatch(
+      /ref=\{passoDoEnvio\}\s*className=\{`scroll-mt-\[var\(--bo-colado-topo\)\]/,
+    );
+    expect(FONTE).toMatch(/rolarAteVer\(alvo, \{ block: "start" \}\)/);
+  });
+});
+
 describe("o fim da jornada desenha-se", () => {
   it("a confirmação do envio usa o mesmo visto que o casal vê", () => {
     // No estúdio.

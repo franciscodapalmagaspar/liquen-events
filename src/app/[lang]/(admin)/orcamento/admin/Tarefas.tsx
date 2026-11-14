@@ -21,6 +21,8 @@ import { useCachedList } from "./useCachedList";
 import { AvisoDeFalha } from "./AvisoDeFalha";
 import { metaFor, tintaDoRotulo } from "./status-meta";
 import { ESTADO, MOLA_DE_MARCAR, PRESSAO } from "./ui/movimento";
+import { rolarAteCaberPorCima } from "@/lib/motion/rolar";
+import { SEM_LUPA, useToqueLongo, type PontoDoToque } from "./ui/adaptativo";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { interpretarTarefa, type Interpretacao } from "@/lib/tarefas/linguagem-natural";
 import { tituloEPrazo } from "@/lib/tarefas/prazo";
@@ -231,6 +233,41 @@ function LinhaDeEscrever({
   aGravar: boolean;
   children: React.ReactNode;
 }) {
+  /* ── ABERTA, VÊ-SE INTEIRA, POR CIMA DA BARRA DE BAIXO ─────────────────────
+     No telemóvel a linha é a última da lista, e abria a y≈505 de 664: o campo
+     colado à barra de destinos e os detalhes (responsável, data, lista) por
+     baixo dela, sem a página rolar até eles (auditoria do telemóvel, 14/11).
+     Ao abrir, leva-se a linha inteira à vista — só se não se vê, portanto quem
+     já a vê não é sacudido — e o `scroll-mb` desconta a barra de baixo. */
+  const caixa = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = caixa.current;
+    if (!aberta || !el) return;
+    // Dois fotogramas depois, e não já: MEDIDO, o que está POR CIMA da linha
+    // ainda cresce ~40 px depois de ela abrir, e um rolo pedido logo deixava-a
+    // a acabar 26 px por baixo da barra. A linha também cresce enquanto
+    // assenta (os detalhes), e cada crescimento volta a pedir o mesmo.
+    let f2 = 0;
+    const f1 = requestAnimationFrame(() => {
+      f2 = requestAnimationFrame(() => rolarAteCaberPorCima(el));
+    });
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      let primeira = true;
+      ro = new ResizeObserver(() => {
+        if (primeira) primeira = false;
+        else rolarAteCaberPorCima(el);
+      });
+      ro.observe(el);
+    }
+    const fim = setTimeout(() => ro?.disconnect(), 800);
+    return () => {
+      cancelAnimationFrame(f1);
+      cancelAnimationFrame(f2);
+      clearTimeout(fim);
+      ro?.disconnect();
+    };
+  }, [aberta]);
   if (!aberta) {
     return (
       <button
@@ -251,7 +288,10 @@ function LinhaDeEscrever({
   }
 
   return (
-    <div className="px-5 py-3.5 sm:px-6">
+    <div
+      ref={caixa}
+      className="scroll-mt-[var(--bo-cabecalho,0px)] scroll-mb-[calc(var(--bo-barra-inferior)+var(--bo-barra-folga))] px-5 py-3.5 sm:px-6"
+    >
       <input
         ref={campo}
         value={titulo}
@@ -521,7 +561,7 @@ const TaskRow = memo(function TaskRow({
       onDrop={arrastavel ? onArrastar.largar : undefined}
       onDragEnd={arrastavel ? onArrastar.acabar : undefined}
       aria-current={escolhida || undefined}
-      className={`group relative flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:items-center sm:px-5 sm:py-3.5 ${ESTADO} ${
+      className={`group relative flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:items-center sm:px-5 sm:py-3.5 ${SEM_LUPA} ${ESTADO} ${
         escolhida ? "bg-[var(--bo-accent-lavagem)]" : "hover:bg-[var(--bo-tinta-3)]"
       } ${arrastavel ? "cursor-grab active:cursor-grabbing" : ""} ${aArrastar ? "opacity-50" : ""}`}
     >
@@ -1965,7 +2005,15 @@ export default function Tarefas({
   );
 
   /** O botão direito abre o mesmo menu — ver a nota no `⇧F10`, acima. */
-  const menuDoBotaoDireito = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const toqueLongo = useToqueLongo();
+  const abrirAccoesDaLinha = useCallback((_: PontoDoToque, alvo: HTMLElement) => {
+    const linha = alvo.closest?.("[data-tarefa]") as HTMLElement | null;
+    const botao = linha?.querySelector<HTMLElement>('[aria-haspopup="menu"]');
+    if (!botao) return false;
+    botao.click();
+    return true;
+  }, []);
+  const menuDoBotaoDireito = useCallback((e: React.MouseEvent<HTMLElement>) => {
     const linha = (e.target as HTMLElement)?.closest?.("[data-tarefa]") as HTMLElement | null;
     const botao = linha?.querySelector<HTMLElement>('[aria-haspopup="menu"]');
     if (!botao) return;
@@ -2249,7 +2297,11 @@ export default function Tarefas({
                  `data-tarefa` de quem a recebeu. */
               data-lista-de-tarefas
               onKeyDown={teclasDaLista}
-              onContextMenu={menuDoBotaoDireito}
+              /* O toque longo abre o mesmo «⋯ Acções» que o botão direito —
+                 o Safari do iPhone não dispara `contextmenu` (ver
+                 `useToqueLongo`). Fora de uma tarefa não é com ele, e o toque
+                 segue como estava. */
+              {...toqueLongo(abrirAccoesDaLinha, menuDoBotaoDireito)}
             >
               {/* ── O CARTÃO DEIXOU DE CORTAR O QUE SAI DE DENTRO DELE ────────
               «Isto não está bem, está a tapar, não dá para ver tudo no ecrã» —
