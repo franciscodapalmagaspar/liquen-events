@@ -191,9 +191,15 @@ async function oResumoDeHoje(request: NextRequest) {
     const in7 = plus(7);
 
     // 1. Events in the next 3 days (quotes + calendar entries)
+    //
+    // Um pedido só é um EVENTO quando foi ganho (`status === "aceite"`) —
+    // auditoria de 14/11: contavam-se aqui pedidos «pendente» e «rejeitado»
+    // com data nos próximos dias, e a manhã dela abria com eventos que não
+    // existem. É a regra das Cobranças (`entraNasCobrancas`) e do dossiê
+    // (`contratoAceite`). Os arquivados já saíram em `quotes`.
     const upcomingEvents = [
       ...quotes
-        .filter((q) => q.date && q.date >= todayKey && q.date <= in3)
+        .filter((q) => q.status === "aceite" && q.date && q.date >= todayKey && q.date <= in3)
         .map((q) => ({ date: q.date, label: q.name })),
       ...calEvents
         .filter((e) => e.date >= todayKey && e.date <= in3)

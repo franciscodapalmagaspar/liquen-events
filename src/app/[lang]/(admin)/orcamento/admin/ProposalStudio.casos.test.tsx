@@ -1444,12 +1444,15 @@ describe("a barra do fundo chama cada número pelo seu nome", () => {
     // Uma margem é arranjo e muda quando o desenho muda. O que NÃO muda é o que
     // define este parágrafo: é o único da barra com os dois ramos de largura
     // como filhos directos, um para o telemóvel e outro para o computador.
-    const barra = [...container.querySelectorAll("p")].find((el) =>
-      [...el.children].some((f) => f.className.includes("sm:hidden")),
-    )!;
+    //
+    // E a 14/11 os ramos deixaram de perguntar à janela (`sm:`) e passaram a
+    // perguntar à caixa (`@min-[48rem]:`); o parágrafo ganhou um nome próprio,
+    // `data-total-da-barra`, para nenhum destes localizadores voltar a depender
+    // de uma classe de largura.
+    const barra = container.querySelector<HTMLElement>("p[data-total-da-barra]")!;
     const ramos = [...barra.querySelectorAll(":scope > span")];
-    const estreito = ramos.find((el) => el.className.includes("sm:hidden"));
-    const largo = ramos.find((el) => el.className.includes("sm:inline"));
+    const estreito = ramos.find((el) => el.className.includes("@min-[48rem]:hidden"));
+    const largo = ramos.find((el) => el.className.includes("@min-[48rem]:inline"));
     return { esperado, estreito, largo };
   }
 
@@ -2982,9 +2985,9 @@ describe("os valores adicionais somam ao total", () => {
     // números vivem noutros filhos do mesmo parágrafo.
     const nota = (await screen.findByText(/só os serviços/i)).closest("p");
     expect(nota).not.toBeNull();
-    expect(nota!.textContent).toMatch(/3000,00/);
+    expect(nota!.textContent).toMatch(/3\s000,00/);
     expect(nota!.textContent).toMatch(/140,00/);
-    expect(nota!.textContent).toMatch(/3140,00/);
+    expect(nota!.textContent).toMatch(/3\s140,00/);
   });
 
   /**
@@ -3068,9 +3071,9 @@ describe("os valores adicionais somam ao total", () => {
     // `findAllByText`: estes números aparecem em mais do que um sítio do ecrã
     // de propósito (o quadro de totais e a barra do fundo dizem o mesmo), e o
     // que se está a afirmar é que aparecem, não que aparecem uma só vez.
-    expect((await screen.findAllByText(/6875,00/)).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText(/1550,00/)).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText(/8425,00/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/6\s875,00/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/1\s550,00/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/8\s425,00/)).length).toBeGreaterThan(0);
   });
 
   /**
@@ -8095,7 +8098,9 @@ describe("o que falta para enviar, no passo de enviar", () => {
     // pastilha do envio (auditoria de 13/11, n.º 5 — «Faltam 4» vs «3 coisas»).
     expect(await screen.findByText(/2 coisas impedem o envio/)).toBeTruthy();
     expect(screen.getByText("Nome dos clientes")).toBeTruthy();
-    expect(screen.getByText(/Falta ver o PDF final/)).toBeTruthy();
+    // Na Conferência e no índice: os dois lêem a mesma lista (auditoria de
+    // 14/11, n.º 4).
+    expect(screen.getAllByText(/Falta ver o PDF final/).length).toBeGreaterThan(0);
   });
 
   it("tocar na linha volta ao conteúdo e põe o cursor no campo", async () => {
@@ -9030,7 +9035,8 @@ describe("acções irreversíveis: pergunta ou anulação, nunca nada", () => {
     await verEConfirmar();
     await user.click(await screen.findByRole("button", { name: /Gerar e enviar ao cliente/ }));
 
-    const resumo = (await screen.findByText(/Enviar para/)).textContent ?? "";
+    // «por email»: a pergunta diz o canal (auditoria de 14/11, n.º 3).
+    const resumo = (await screen.findByText(/Enviar por email para/)).textContent ?? "";
     // PARA QUEM.
     expect(resumo).toContain("maria@example.pt");
     // QUANTAS PÁGINAS — com o «cerca de» que a contagem promete, e não um
@@ -10553,15 +10559,27 @@ describe("os cinco passos do estúdio", () => {
     expect(screen.getByRole("button", { name: /^1\s*Evento/ }).textContent).toMatch(/com erros/);
   });
 
-  it("o sinal do «Rever e enviar» bate com o botão de descarregar", async () => {
+  /*
+   * Este dizia «o sinal do Rever e enviar bate com o botão de DESCARREGAR»
+   * (rascunho ⇔ erro). Era a lista errada: o descarregar lê as faltas SEM o
+   * «ver o PDF final» — de propósito, senão o PDF final nunca se podia ver —, e
+   * com essa lista o passo 5 punha o visto enquanto a Conferência travava com
+   * «Falta ver o PDF final» (auditoria de 14/11, n.º 4). O passo lê agora a
+   * MESMA lista do botão de enviar e da Conferência.
+   */
+  it("o sinal do «Rever e enviar» bate com a Conferência e o botão de enviar", async () => {
     seedDraft(1);
     renderStudio("Rever e enviar");
-    const descarregar = await screen.findByRole("button", { name: /^Descarregar (PDF|rascunho)$/ });
-    const estado = screen
-      .getByRole("button", { name: /^5\s*Rever e enviar/ })
-      .getAttribute("data-estado");
-    // A mesma lista decide as duas coisas: rascunho ⇔ erro.
-    expect(estado === "erro").toBe(/rascunho/.test(descarregar.textContent ?? ""));
+    // Só falta ver o PDF: descarrega-se o PDF final (não o rascunho)…
+    await screen.findByRole("button", { name: /^Descarregar PDF$/ });
+    // … mas a Conferência trava, e o passo 5 não pode dizer que está completo.
+    // Também não fica a vermelho: ver o PDF é o passo seguinte, não um erro
+    // (revisão de 14/11). E o botão guia esse passo, coerente com o sinal.
+    expect(await screen.findAllByText(/Falta ver o PDF final/)).not.toHaveLength(0);
+    expect(
+      screen.getByRole("button", { name: /^5\s*Rever e enviar/ }).getAttribute("data-estado"),
+    ).toBe("incompleto");
+    expect(screen.getByRole("button", { name: "Ver o PDF final" })).toBeEnabled();
   });
 
   it("na Inspiração o índice da esquerda sai, e volta no passo seguinte", async () => {
@@ -10680,7 +10698,7 @@ describe("a barra do envio, numa caixa estreita", () => {
     expect(screen.queryByRole("radiogroup", { name: "Idioma da proposta" })).toBeNull();
     expect(screen.queryByText(/Não dá para enviar/)).toBeNull();
 
-    const pastilha = screen.getByRole("button", { name: /^Antes de enviar: Ver o PDF/ });
+    const pastilha = screen.getByRole("button", { name: /^Antes de enviar: Falta 1/ });
     await user.click(pastilha);
     const folha = await screen.findByRole("dialog", { name: "Antes de enviar" });
     expect(
@@ -10725,7 +10743,7 @@ describe("ver o PDF final antes de enviar", () => {
     // Só falta ver o PDF: o botão principal guia esse passo em vez de estar
     // apagado (14/10), e a pastilha diz o que falta.
     expect(await screen.findByRole("button", { name: "Ver o PDF final" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: /^Antes de enviar: Ver o PDF/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Antes de enviar: Falta 1/ })).toBeInTheDocument();
 
     // O caminho pela caixa do corpo do passo continua a valer.
     await user.click(screen.getByRole("button", { name: "Descarregar o PDF final" }));

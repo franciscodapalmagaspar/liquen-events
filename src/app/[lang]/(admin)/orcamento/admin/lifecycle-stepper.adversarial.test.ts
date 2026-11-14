@@ -90,7 +90,7 @@ describe("deriveRequestLifecycle — date-anchored parity with deriveStage", () 
       date: "2026-07-01",
       payments: [pago("sinal", SINAL), pago("saldo", SALDO)],
     });
-    expect(deriveRequestLifecycle(q, TODAY)).toEqual({
+    expect(deriveRequestLifecycle(q, null, TODAY)).toEqual({
       perdido: false,
       currentIndex: 4,
       allDone: true,
@@ -107,7 +107,7 @@ describe("deriveRequestLifecycle — date-anchored parity with deriveStage", () 
       date: "2026-07-01T15:00:00",
       payments: [pago("sinal", SINAL), pago("saldo", SALDO)],
     });
-    expect(deriveRequestLifecycle(q, TODAY)).toEqual({
+    expect(deriveRequestLifecycle(q, null, TODAY)).toEqual({
       perdido: false,
       currentIndex: 4,
       allDone: true,
@@ -118,7 +118,7 @@ describe("deriveRequestLifecycle — date-anchored parity with deriveStage", () 
     // countdownDays already handles the datetime; guard the fix keeps the
     // not-yet-passed 'semana do evento' case (atual, not allDone) intact.
     const q = makeQuote({ status: "aceite", date: "2026-07-22T18:00:00" });
-    expect(deriveRequestLifecycle(q, TODAY)).toEqual({
+    expect(deriveRequestLifecycle(q, null, TODAY)).toEqual({
       perdido: false,
       currentIndex: 4,
       allDone: false,
@@ -127,7 +127,7 @@ describe("deriveRequestLifecycle — date-anchored parity with deriveStage", () 
 
   it("malformed date never marks the event passed nor crashes (safe)", () => {
     const q = makeQuote({ status: "aceite", date: "not-a-date" });
-    expect(deriveRequestLifecycle(q, TODAY)).toEqual({
+    expect(deriveRequestLifecycle(q, null, TODAY)).toEqual({
       perdido: false,
       currentIndex: 2,
       allDone: false,
@@ -152,7 +152,7 @@ describe("deriveRequestLifecycle — a data passada não paga as contas", () => 
 
   it("casamento já realizado e SEM UM CÊNTIMO pago não fica todo verde", () => {
     const q = makeQuote({ status: "aceite", date: "2026-07-01" });
-    const l = deriveRequestLifecycle(q, TODAY);
+    const l = deriveRequestLifecycle(q, null, TODAY);
     expect(l.allDone).toBe(false);
     // Contrato aceite, nada recebido → o passo em aberto é o do dinheiro.
     expect(l).toEqual({ perdido: false, currentIndex: 2, allDone: false });
@@ -165,7 +165,7 @@ describe("deriveRequestLifecycle — a data passada não paga as contas", () => 
       date: "2026-07-01",
       payments: [pago("sinal", SINAL)],
     });
-    expect(deriveRequestLifecycle(q, TODAY)).toEqual({
+    expect(deriveRequestLifecycle(q, null, TODAY)).toEqual({
       perdido: false,
       currentIndex: 3,
       allDone: false,
@@ -184,7 +184,7 @@ describe("deriveRequestLifecycle — a data passada não paga as contas", () => 
         { id: "pay-saldo", kind: "saldo", amount: SALDO, date: "2026-07-05", paid: false },
       ],
     });
-    expect(deriveRequestLifecycle(q, TODAY).allDone).toBe(false);
+    expect(deriveRequestLifecycle(q, null, TODAY).allDone).toBe(false);
   });
 
   it("casamento já realizado e INTEGRALMENTE pago fica todo verde", () => {
@@ -193,7 +193,7 @@ describe("deriveRequestLifecycle — a data passada não paga as contas", () => 
       date: "2026-07-01",
       payments: [pago("sinal", SINAL), pago("saldo", SALDO)],
     });
-    expect(deriveRequestLifecycle(q, TODAY)).toEqual({
+    expect(deriveRequestLifecycle(q, null, TODAY)).toEqual({
       perdido: false,
       currentIndex: 4,
       allDone: true,
@@ -208,7 +208,7 @@ describe("deriveRequestLifecycle — a data passada não paga as contas", () => 
       payments: [pago("pagamento", 6150, "p1"), pago("pagamento", 6150, "p2")],
     });
     expect(pago("pagamento", 6150).amount * 2).toBe(CONTRATADO);
-    expect(deriveRequestLifecycle(q, TODAY).allDone).toBe(true);
+    expect(deriveRequestLifecycle(q, null, TODAY).allDone).toBe(true);
   });
 
   it("allDone é EXATAMENTE 'concluido' do Dossier, caso a caso", () => {
@@ -230,7 +230,7 @@ describe("deriveRequestLifecycle — a data passada não paga as contas", () => 
       makeQuote({ status: "aceite", date: "2026-07-22", payments: [pago("saldo", CONTRATADO)] }),
     ];
     for (const q of casos) {
-      const l = deriveRequestLifecycle(q, TODAY);
+      const l = deriveRequestLifecycle(q, null, TODAY);
       expect({ id: q.status + q.date, allDone: l.allDone }).toEqual({
         id: q.status + q.date,
         allDone: deriveStage(dossier(q), TODAY) === "concluido",
@@ -256,7 +256,7 @@ describe("deriveRequestLifecycle — sinais que vivem no Quote", () => {
         },
       ],
     });
-    expect(deriveRequestLifecycle(q, TODAY)).toEqual({
+    expect(deriveRequestLifecycle(q, null, TODAY)).toEqual({
       perdido: false,
       currentIndex: 1,
       allDone: false,
@@ -265,7 +265,7 @@ describe("deriveRequestLifecycle — sinais que vivem no Quote", () => {
 
   it("nº de contrato preenchido conta como contrato aceite", () => {
     const q = makeQuote({ contractRef: "2026-042" });
-    expect(deriveRequestLifecycle(q, TODAY)).toEqual({
+    expect(deriveRequestLifecycle(q, null, TODAY)).toEqual({
       perdido: false,
       currentIndex: 2,
       allDone: false,

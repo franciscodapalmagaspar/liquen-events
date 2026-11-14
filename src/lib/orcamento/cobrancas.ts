@@ -1,6 +1,6 @@
 import type { Payment, Proposal, Quote } from "./types";
 import { contractedAmounts, estaTudoPago, paidTotal } from "./dossier";
-import { eur, round2, splitSinal } from "@/lib/money";
+import { eur, eurDocumento, round2, splitSinal } from "@/lib/money";
 import { pctDoSinalDe, propostaQueContaDoPedido } from "./proposta-que-conta";
 
 /**
@@ -376,7 +376,7 @@ export function mensagemDeLembrete(c: Cobranca, hoje: string): string | null {
   return [
     `Olá${nomes ? ` ${nomes}` : ""}! Espero que esteja tudo bem.`,
     "",
-    `Passo só para lembrar ${qual} da vossa proposta, no valor de ${eur(p.valor)}${quando}.`,
+    `Passo só para lembrar ${qual} da vossa proposta, no valor de ${eurDocumento(p.valor)}${quando}.`,
     "",
     "Se já trataram disto, por favor ignorem esta mensagem. Qualquer dúvida, estamos por aqui.",
     "",

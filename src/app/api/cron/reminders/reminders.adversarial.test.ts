@@ -80,7 +80,7 @@ describe("GET /api/cron/reminders — timezone anchoring (Europe/Lisbon, UTC+1)"
 
   it("includes an event exactly 3 days out in the 'next 3 days' window", async () => {
     // 2026-07-20 + 3 = 2026-07-23, the inclusive top of the window.
-    data.quotes = [{ id: "e", name: "Casamento", date: "2026-07-23" }];
+    data.quotes = [{ id: "e", name: "Casamento", date: "2026-07-23", status: "aceite" }];
     await GET(req());
     expect(pushBody()).toContain("1 evento nos próximos 3 dias");
   });

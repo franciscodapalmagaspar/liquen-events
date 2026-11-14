@@ -5,7 +5,7 @@ import type { Locale } from "@/lib/i18n";
 import { rolarAteVer } from "@/lib/motion/rolar";
 import type { Quote, ActivityEntry } from "@/lib/orcamento/types";
 import {
-  deriveStage,
+  faseDoPedido,
   computeEventMetrics,
   nextAction,
   type DossierData,
@@ -49,7 +49,9 @@ export default function DossierClient({ data, lang, userName }: Props) {
   // `quote`), por isso reconstruímos o DossierData com a quote atual.
   const live: DossierData = useMemo(() => ({ ...data, quote }), [data, quote]);
 
-  const stage = useMemo(() => deriveStage(live), [live]);
+  // A MESMA função que a lista (`LifecycleStepper`) usa, com a mesma proposta
+  // que conta e o mesmo total a pagar: as duas nunca dão fases diferentes.
+  const stage = useMemo(() => faseDoPedido(live.quote, live.proposal, live.contract), [live]);
   const metrics = useMemo(() => computeEventMetrics(live), [live]);
   const next = useMemo(() => nextAction(stage, live), [stage, live]);
 

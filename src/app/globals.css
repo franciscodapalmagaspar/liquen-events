@@ -2526,6 +2526,15 @@ html:not(.consentimento-decidido) body:has(.barra-consentimento) .cta-flutuante 
 body:has(.barra-consentimento) footer {
   margin-bottom: var(--reserva-consentimento, 0px);
 }
+/* No rodapé do SITE a reserva é `padding` e não `margin` (auditoria de 14/11,
+   n.º 10): a margem ficava FORA do rodapé, e o que se via debaixo dele era o
+   fundo do <body> — uma faixa branca de 156 px por baixo de um rodapé escuro.
+   Com padding a reserva é rodapé, com a cor dele. Só neste, porque é o único
+   que não tem padding próprio para o padding da reserva lhe apagar. */
+body:has(.barra-consentimento) footer.rodape-do-site {
+  margin-bottom: 0;
+  padding-bottom: var(--reserva-consentimento, 0px);
+}
 
 /* ── O itálico do Playfair, que é um desenho à parte e não uma inclinação ──
    Vive numa família própria, servida SEM pré-carregamento (ver o comentário

@@ -194,13 +194,41 @@ describe("eur / eur0 formatters", () => {
 
   // Grouping separator is optional: some (small-ICU) Node builds omit it.
   it("eur formats with two decimals (pt-PT)", () => {
-    expect(norm(eur(1234.5))).toMatch(/^1\.?234,50\s€$/);
+    expect(norm(eur(1234.5))).toBe("1 234,50 €");
     expect(norm(eur(0))).toMatch(/^0,00\s€$/);
   });
 
   it("eur0 formats with no decimals (pt-PT)", () => {
-    expect(norm(eur0(1234.5))).toMatch(/^1\.?235\s€$/);
-    expect(norm(eur0(3000))).toMatch(/^3\.?000\s€$/);
+    expect(norm(eur0(1234.5))).toBe("1 235 €");
+    expect(norm(eur0(3000))).toBe("3 000 €");
+  });
+
+  /**
+   * A decisão de 14/11 (auditoria visual, n.º 18): no back office os milhares
+   * levam SEMPRE o espaço — «15 129 €» e «3690 €» na mesma fila eram dois
+   * formatos do mesmo formatador. E o espaço é UM só: o inquebrável (U+00A0)
+   * que o `Intl` já punha nos números grandes.
+   */
+  it("os milhares agrupam sempre, com o mesmo espaço inquebrável dos números grandes", () => {
+    expect(eur0(1000)).toBe("1\u00A0000\u00A0€");
+    expect(eur0(3690)).toBe("3\u00A0690\u00A0€");
+    expect(eur0(999)).toBe("999\u00A0€");
+    expect(eur0(15129)).toBe("15\u00A0129\u00A0€");
+    expect(eur(3690)).toBe("3\u00A0690,00\u00A0€");
+    // O separador dos quatro dígitos é o mesmo carácter que o dos cinco.
+    expect(eur0(3690)[1]).toBe(eur0(15129)[2]);
+  });
+
+  it("o que o cliente lê NÃO muda: o PDF e a proposta online continuam com o ponto", () => {
+    // `eurDocumento` é o dinheiro que o gerador escreve…
+    expect(eurDocumento(3690)).toBe("3.690,00\u00A0€");
+    expect(eurDocumento(999)).toBe("999,00\u00A0€");
+    // … e o `milharesComPonto` é por onde passam os textos que ela escreveu
+    // com o `eur` (deslocação, «+ IVA»): o agrupado de agora e o colado de
+    // antes dão exactamente o mesmo na folha.
+    expect(milharesComPonto(`${eur(3690)} + IVA`)).toBe("3.690,00\u00A0€ + IVA");
+    expect(milharesComPonto(`${eur(3690)} + IVA`)).toBe(milharesComPonto("3690,00\u00A0€ + IVA"));
+    expect(milharesComPonto(eur(15129.4))).toBe("15.129,40\u00A0€");
   });
 
   it("both coerce falsy/NaN to 0", () => {

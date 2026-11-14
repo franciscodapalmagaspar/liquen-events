@@ -5,7 +5,13 @@ import { listFotoEtiquetas } from "@/lib/biblioteca-foto-etiquetas-store";
 import { signThemePaths, signThemeThumbs } from "@/lib/theme-storage";
 import { isMissingTable, isPersistenceUnavailable } from "@/lib/repository";
 import { isEixo, type Eixo } from "@/lib/biblioteca-types";
-import { porConfirmarSet, porFoto, responde, type Procura } from "@/lib/biblioteca-consulta";
+import {
+  ehFotoDaBiblioteca,
+  porConfirmarSet,
+  porFoto,
+  responde,
+  type Procura,
+} from "@/lib/biblioteca-consulta";
 import { pastasDeTemasNaReciclagem } from "@/lib/reciclagem";
 import { log } from "@/lib/logger";
 
@@ -80,8 +86,12 @@ export async function GET(request: NextRequest) {
 
     // Um tema na Reciclagem deixa a pasta no Storage durante 30 dias — e as
     // fotos dele assinavam-se e voltavam a aparecer aqui. Não aparecem.
+    // E as fotos das PROPOSTAS, que vivem na mesma tabela (cor, LQIP e forma
+    // do estúdio — ver `ehFotoDaBiblioteca`), não são da Biblioteca: entravam
+    // no total e saíam da página por não se assinarem no bucket dos temas.
     const encontradas = fotos.filter(
       (f) =>
+        ehFotoDaBiblioteca(f.path) &&
         !naReciclagem.has(f.pasta) &&
         (!procura.pasta || f.pasta === procura.pasta) &&
         responde(etiquetasDe.get(f.path), procura, adivinhadas.has(f.path)),

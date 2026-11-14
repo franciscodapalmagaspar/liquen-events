@@ -44,7 +44,7 @@ const serviceSlugs = [
 export default function Footer({ locale = "pt" }: { locale?: Locale }) {
   const t = getDictionary(locale);
   return (
-    <footer className="relative overflow-hidden bg-[#0c0e0b] text-white">
+    <footer className="rodape-do-site relative overflow-hidden bg-[#0c0e0b] text-white">
       {/* ── Background photo + dark veil ── */}
       {/* Sem legenda de indisponível: isto é uma textura de fundo decorativa
           (alt=""), coberta por dois véus escuros. Uma etiqueta "foto

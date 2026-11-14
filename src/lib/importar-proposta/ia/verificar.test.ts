@@ -135,7 +135,7 @@ describe("(c) as contas", () => {
     const v = verificar(d, l);
     const a = v.avisos.find((x) => x.id === "conta:soma")!;
     expect(a.texto).toMatch(
-      /diz 1750,00\s€, as linhas somam 1700,00\s€ — falta uma linha de 50,00\s€\?/,
+      /diz 1\s750,00\s€, as linhas somam 1\s700,00\s€ — falta uma linha de 50,00\s€\?/,
     );
     expect(a.dinheiro).toBe(true);
   });
@@ -491,7 +491,7 @@ describe("4.ª revisão, 1 — o IVA aceite sem perguntar só com PROVA nas cont
     expect(v.contas.ivaPorEscolher).toBe(true);
     expect(v.contas.sugestaoDasContas?.modo).toBe("sem_iva");
     expect(v.contas.sugestaoDasContas?.texto).toMatch(
-      /sugerem: sem IVA — as linhas somam 1740,00\s€, e o documento mostra 1740,00\s€ \+ IVA a 23% = 2140,20\s€/,
+      /sugerem: sem IVA — as linhas somam 1\s740,00\s€, e o documento mostra 1\s740,00\s€ \+ IVA a 23% = 2\s140,20\s€/,
     );
     const p = preencher(d, v);
     expect(p.totalVatMode).toBeNull();
@@ -570,7 +570,7 @@ describe("4.ª revisão, I1 — números ambíguos", () => {
     const v = verificar(d, l);
     const a = v.avisos.find((x) => x.id.startsWith("numero:ambiguo"))!;
     expect(a.dinheiro).toBe(true);
-    expect(a.texto).toMatch(/1200,00\s€ como 1,20\s€/);
+    expect(a.texto).toMatch(/1\s200,00\s€ como 1,20\s€/);
     // A leitura decimal também nunca passa calada.
     l.orcamento.linhas[0].totalDaLinha.valor = 1.2;
     expect(verificar(d, l).avisos.some((x) => x.id.startsWith("numero:ambiguo"))).toBe(true);

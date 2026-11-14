@@ -44,6 +44,21 @@ describe("quando está tudo no sítio", () => {
     expect(await screen.findByText(/3 fotografias estão todas no sítio/i)).toBeTruthy();
   });
 
+  it("sem fotografia nenhuma não diz que estão «todas no sítio» (auditoria de 14/11)", async () => {
+    responde = () =>
+      ok({ total: 0, emFalta: [], suspeitas: [], naoVerificaveis: 0, verificou: true });
+    render(<FotosEmFalta quoteId="LIQ-9" doc={DOC} />);
+    expect(await screen.findByText("Ainda não há fotografias na proposta.")).toBeTruthy();
+    expect(screen.queryByText(/0 fotografias/)).toBeNull();
+  });
+
+  it("com uma só, fala no singular", async () => {
+    responde = () =>
+      ok({ total: 1, emFalta: [], suspeitas: [], naoVerificaveis: 0, verificou: true });
+    render(<FotosEmFalta quoteId="LIQ-9" doc={DOC} />);
+    expect(await screen.findByText("A fotografia está no sítio.")).toBeTruthy();
+  });
+
   it("as fotos de fora contam-se à parte", async () => {
     responde = () =>
       ok({ total: 3, emFalta: [], suspeitas: [], naoVerificaveis: 1, verificou: true });

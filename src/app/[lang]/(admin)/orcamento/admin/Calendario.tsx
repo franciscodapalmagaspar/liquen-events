@@ -34,6 +34,7 @@ import {
   DIAS_DA_SEMANA,
   MESES,
   anoDoCalendario,
+  contaParaOCalendario,
   fechadosNoAno,
   maisDias,
 } from "@/lib/orcamento/ano-do-calendario";
@@ -1205,19 +1206,31 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
    * `byDay`/`eventsByDay`, uma data por marcar ("a definir") fica de fora sem
    * regra à parte: se a grelha não a desenha, também não a conta.
    */
-  const monthTotal = useMemo(() => {
+  /*
+   * Os PERDIDOS desenham-se na grelha mas não contam como eventos — a regra da
+   * vista de ano (`contaParaOCalendario`, auditoria de 14/11, n.º 17). Por isso
+   * contam-se à parte: o estado vazio pergunta se a grelha desenha ALGUMA
+   * coisa (eventos OU perdidos), e não se a contagem de eventos é zero. Com só
+   * um pedido perdido no mês, o «Mês sem eventos» voltava a abrir por baixo do
+   * cartão dele — o defeito que o bloco de cima diz ter fechado.
+   */
+  const contasDoMes = useMemo(() => {
     const prefixo = `${year}-${pad2(month + 1)}`;
     const vistos = new Set<string>();
+    const perdidos = new Set<string>();
     for (const [dia, doDia] of byDay) {
       if (!dia.startsWith(prefixo)) continue;
-      for (const q of doDia) vistos.add(`q:${q.id}`);
+      for (const q of doDia) (contaParaOCalendario(q) ? vistos : perdidos).add(`q:${q.id}`);
     }
     for (const [dia, doDia] of eventsByDay) {
       if (!dia.startsWith(prefixo)) continue;
       for (const e of doDia) vistos.add(`e:${e.id}`);
     }
-    return vistos.size;
+    return { eventos: vistos.size, perdidos: perdidos.size };
   }, [byDay, eventsByDay, year, month]);
+  const monthTotal = contasDoMes.eventos;
+  /** A grelha do mês desenha alguma coisa — é isto que decide o estado vazio. */
+  const mesDesenhaAlgo = contasDoMes.eventos + contasDoMes.perdidos > 0;
 
   /**
    * Quantas marcações de cada tipo tem a unidade à vista — o mês, ou o ano.
@@ -1423,14 +1436,19 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
    * `monthTotal`: um casamento de três dias que atravesse a semana é UM evento
    * e não três.
    */
-  const contagemDaVista = useMemo(() => {
+  const contasDaVista = useMemo(() => {
     const vistos = new Set<string>();
+    const perdidos = new Set<string>();
     for (const d of diasDaVista) {
-      for (const q of byDay.get(d) ?? []) vistos.add(`q:${q.id}`);
+      for (const q of byDay.get(d) ?? [])
+        (contaParaOCalendario(q) ? vistos : perdidos).add(`q:${q.id}`);
       for (const e of eventsByDay.get(d) ?? []) vistos.add(`e:${e.id}`);
     }
-    return vistos.size;
+    return { eventos: vistos.size, perdidos: perdidos.size };
   }, [diasDaVista, byDay, eventsByDay]);
+  const contagemDaVista = contasDaVista.eventos;
+  /** «· 1 perdido» quando a vista desenha perdidos — nunca «nada marcado» por cima deles. */
+  const comPerdidos = (n: number) => (n > 0 ? ` · ${n} perdido${n !== 1 ? "s" : ""}` : "");
 
   /**
    * O TÍTULO da vista é a unidade que ela mostra — a regra que o documento fixa
@@ -1471,18 +1489,22 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
           "Nenhum dia fechado este ano"
         : `${fechadosDoAno} dia${fechadosDoAno !== 1 ? "s" : ""} fechado${fechadosDoAno !== 1 ? "s" : ""} este ano`
       : vista === "mes"
-        ? monthTotal === 0
-          ? "Sem eventos este mês"
-          : `${monthTotal} evento${monthTotal !== 1 ? "s" : ""} este mês`
+        ? (monthTotal === 0
+            ? "Sem eventos este mês"
+            : `${monthTotal} evento${monthTotal !== 1 ? "s" : ""} este mês`) +
+          comPerdidos(contasDoMes.perdidos)
         : vista === "dia"
           ? `${nomeDoDiaDaSemana(diaAncora)} · ${
               contagemDaVista === 0
-                ? "nada marcado"
+                ? contasDaVista.perdidos > 0
+                  ? "sem eventos"
+                  : "nada marcado"
                 : `${contagemDaVista} evento${contagemDaVista !== 1 ? "s" : ""}`
-            }`
-          : contagemDaVista === 0
-            ? "Sem eventos esta semana"
-            : `${contagemDaVista} evento${contagemDaVista !== 1 ? "s" : ""} esta semana`;
+            }${comPerdidos(contasDaVista.perdidos)}`
+          : (contagemDaVista === 0
+              ? "Sem eventos esta semana"
+              : `${contagemDaVista} evento${contagemDaVista !== 1 ? "s" : ""} esta semana`) +
+            comPerdidos(contasDaVista.perdidos);
 
   /* ── QUEM SEGURA O «NOVO NO CALENDÁRIO» OS 200 MS ────────────────────────
      O estado é daqui, portanto o nó é segurado daqui. O `modalDate` cai para
@@ -2345,7 +2367,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
               )}
 
               {/* ── Empty month ── */}
-              {monthTotal === 0 && (
+              {!mesDesenhaAlgo && (
                 <EmptyState
                   icon={
                     <svg

@@ -976,6 +976,15 @@ export default function Temas() {
   const [themes, setThemes] = useState<ThemeSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  /**
+   * «Novo tema» leva o foco ao campo do nome (auditoria de 14/11, n.º 15): o
+   * formulário abria e o cursor ficava no botão, e o primeiro gesto era sempre
+   * ir buscar o campo com o rato.
+   */
+  const caixaDoNovoTema = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (adding) caixaDoNovoTema.current?.querySelector<HTMLInputElement>("input")?.focus();
+  }, [adding]);
   const [newName, setNewName] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -2416,7 +2425,7 @@ export default function Temas() {
               640 px de janela —, com a diferença de continuar a valer se este
               cartão alguma vez for para uma coluna estreita. */}
           <div className="grid grid-cols-1 gap-4 @min-[36rem]:grid-cols-2">
-            <div>
+            <div ref={caixaDoNovoTema}>
               <Field
                 label="Nome do tema"
                 required
@@ -2466,16 +2475,21 @@ export default function Temas() {
            temas» — ou, com o filtro de arquivados, «Todos os temas estão
            arquivados» —, que é exactamente o susto que se está a corrigir: o
            ecrã a afirmar sobre os dados dela uma coisa que não sabe. */
-        <Card padding="none">
-          <EmptyState
-            icon={FolderIcon}
-            title="Ainda não há temas"
-            description="Cria um tema por estilo que usas nos casamentos — Itália, Terracotta, Branco & Verde — e carrega lá as fotos de inspiração. Depois é só escolher na proposta."
-            // Com o formulário já aberto, este botão seria um segundo "Criar
-            // tema" no mesmo ecrã — a apontar para o campo que está mesmo ali.
-            action={adding ? undefined : { label: "Criar tema", onClick: () => setAdding(true) }}
-          />
-        </Card>
+        /* E com o formulário aberto o estado vazio sai: era um segundo
+           cartão a dizer «ainda não há temas» por baixo do sítio onde ela
+           está, nesse instante, a criar o primeiro (auditoria de 14/11). */
+        adding ? null : (
+          <Card padding="none">
+            <EmptyState
+              icon={FolderIcon}
+              title="Ainda não há temas"
+              description="Cria um tema por estilo que usas nos casamentos — Itália, Terracotta, Branco & Verde — e carrega lá as fotos de inspiração. Depois é só escolher na proposta."
+              // Com o formulário já aberto, este botão seria um segundo "Criar
+              // tema" no mesmo ecrã — a apontar para o campo que está mesmo ali.
+              action={{ label: "Criar tema", onClick: () => setAdding(true) }}
+            />
+          </Card>
+        )
       ) : visible.length === 0 ? (
         <Card padding="sm">
           {/* ── FILTRO SEM RESULTADOS ≠ BIBLIOTECA VAZIA ─────────────────

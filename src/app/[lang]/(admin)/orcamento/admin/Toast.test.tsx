@@ -49,3 +49,22 @@ describe("ToastProvider", () => {
     expect(screen.queryByText("Aviso 1")).toBeNull();
   });
 });
+
+/**
+ * Auditoria de 14/11, n.º 14: a 390 um aviso de 384 px começava no x = 0. A
+ * pilha passou a ter os dois lados (`left-4` e `right-*`), com cada aviso
+ * encostado à direita (`items-end`). O jsdom não mede; prende-se a regra.
+ */
+describe("a pilha dos avisos tem margem dos dois lados", () => {
+  it("left-4, right-*, items-end", () => {
+    const { container } = render(
+      <ToastProvider>
+        <span />
+      </ToastProvider>,
+    );
+    const pilha = container.ownerDocument.querySelector<HTMLElement>("[data-acima-dos-modais]");
+    expect(pilha?.className).toMatch(/(^|\s)left-4(\s|$)/);
+    expect(pilha?.className).toMatch(/(^|\s)right-4(\s|$)/);
+    expect(pilha?.className).toMatch(/(^|\s)items-end(\s|$)/);
+  });
+});

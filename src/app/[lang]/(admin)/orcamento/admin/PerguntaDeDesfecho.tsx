@@ -1,5 +1,6 @@
 "use client";
 
+import { asPropostasMudaram } from "./percentagem-do-sinal";
 import { useState } from "react";
 import { razaoDaRecusa } from "@/lib/porque-falhou";
 import type { MotivoDeRecusa, Quote } from "@/lib/orcamento/types";
@@ -190,6 +191,8 @@ export default function PerguntaDeDesfecho({ quote, quem, onGravado, variante = 
         return;
       }
       const actualizado = (await res.json()) as Quote;
+      // O desfecho arrasta a proposta no servidor: a lista leve relê-se.
+      asPropostasMudaram();
       setAntes({ status: quote.status, quotedPrice: quote.quotedPrice });
       setFase({ tipo: "marcado", desfecho, valor });
       onGravado(actualizado);
