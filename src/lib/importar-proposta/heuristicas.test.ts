@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   datasDaLinha,
-  escolherTotal,
+  candidataPorPessoa,
+  eCandidataATotal,
+  eFinanceira,
   lerConvidados,
   lerData,
   lerEmail,
@@ -10,7 +12,7 @@ import {
   lerModoDoIva,
   lerNomes,
   lerTipoDeEvento,
-  tipoDaLinha,
+  taxasDoIvaEscritas,
 } from "./heuristicas";
 
 describe("os nomes", () => {
@@ -102,22 +104,87 @@ describe("o dinheiro", () => {
     expect(lerLinhaDeDinheiro("150 convidados")).toBeNull();
   });
 
-  it("distingue total, IVA, pagamentos e linhas", () => {
-    expect(tipoDaLinha("Valor Total")).toBe("total");
-    expect(tipoDaLinha("Subtotal")).toBe("pagamento");
-    expect(tipoDaLinha("IVA 23%")).toBe("iva");
-    expect(tipoDaLinha("Sinal de 30%")).toBe("pagamento");
-    expect(tipoDaLinha("Arco floral")).toBe("item");
+  it("as linhas financeiras: uma lista só, e nunca são serviços", () => {
+    for (const r of [
+      "Valor Total",
+      "Subtotal",
+      "IVA 23%",
+      "VAT",
+      "Sinal de 30%",
+      "Líquido a pagar",
+      "Montante a pagar",
+      "Valor sem taxas",
+      "Valor com taxas",
+      "Base tributável",
+      "Desconto",
+      "Abatimento de 10%",
+      "Restante",
+      "Caução",
+      "Reforço",
+      "Valor remanescente",
+      "Valor global",
+      "Liquido",
+      "Pagamento final",
+      "2.ª prestação",
+      "Adjudicação",
+      "Valor sem IVA",
+      "Valor com IVA",
+      "Base tributável (s/ IVA)",
+      "Base",
+      "Líquido (s/ IVA)",
+      "Valor líquido do sinal",
+      "Total sem IVA",
+    ]) {
+      expect(eFinanceira(r), r).toBe(true);
+    }
+    for (const r of ["Arco floral", "Reserva do espaço", "Base de bolo em madeira", "Totó"]) {
+      expect(eFinanceira(r), r).toBe(false);
+    }
   });
 
-  it("de vários totais, o sem IVA; sem regra, o último com confiança baixa", () => {
-    const a = { rotulo: "Total", valor: 3000, linha: "Total 3.000 € + IVA" };
-    const b = { rotulo: "Total com IVA", valor: 3690, linha: "Total com IVA 3.690 €" };
-    expect(escolherTotal([a, b])).toEqual({ valor: a, confianca: "media" });
-    const c = { rotulo: "Total A", valor: 1, linha: "x" };
-    const d = { rotulo: "Total B", valor: 2, linha: "y" };
-    expect(escolherTotal([c, d])).toEqual({ valor: d, confianca: "baixa" });
-    expect(escolherTotal([])).toBeNull();
+  it("o total só sai de linhas financeiras com total, valor com/sem IVA, base ou líquido", () => {
+    for (const r of [
+      "Total",
+      "Total com IVA",
+      "Valor sem IVA",
+      "Base",
+      "Base tributável (s/ IVA)",
+      "Líquido a pagar",
+    ]) {
+      expect(eCandidataATotal(r), r).toBe(true);
+    }
+    for (const r of ["Subtotal", "IVA (23%)", "Sinal", "Base de bolo", "Arco floral"]) {
+      expect(eCandidataATotal(r), r).toBe(false);
+    }
+  });
+
+  it("9.ª revisão: valor global/final/da proposta e montante total são candidatas", () => {
+    for (const r of ["Valor global", "Valor final", "Valor da proposta", "Montante total"]) {
+      expect(eCandidataATotal(r), r).toBe(true);
+    }
+  });
+
+  it("9.ª revisão: uma linha de pagamento nunca é candidata, mesmo com «líquido» ou «valor»", () => {
+    for (const r of [
+      "Valor líquido do sinal",
+      "Prestação total",
+      "Adjudicação — valor total",
+      "Pagamento líquido",
+      "Restante (valor final)",
+      "Reforço do valor global",
+      "Caução total",
+    ]) {
+      expect(eFinanceira(r), r).toBe(true);
+      expect(eCandidataATotal(r), r).toBe(false);
+    }
+  });
+
+  it("9.ª revisão: as taxas de IVA escritas no documento", () => {
+    expect(taxasDoIvaEscritas("IVA (6%): 6,00 €")).toEqual([0.06]);
+    expect(taxasDoIvaEscritas("IVA à taxa de 13 %")).toEqual([0.13]);
+    expect(taxasDoIvaEscritas("acresce 23% de IVA")).toEqual([0.23]);
+    expect(taxasDoIvaEscritas("IVA 6%\nIVA (23%)")).toEqual([0.06, 0.23]);
+    expect(taxasDoIvaEscritas("Total: 100 € + IVA")).toEqual([]);
   });
 
   it("o IVA: a linha do total manda; o resto só com confiança média; nada = não decide", () => {
@@ -166,5 +233,85 @@ describe("o local, os convidados e o tipo", () => {
       confianca: "media",
     });
     expect(lerTipoDeEvento("Proposta", "flores")).toBeNull();
+  });
+});
+
+describe("10.ª revisão — as sugestões das linhas, do total e da taxa", () => {
+  it("reserva (só a da data, isolada ou «valor da»), liquidação, saldo e entrada não são serviço", () => {
+    for (const r of [
+      "Reserva da data",
+      "Reserva",
+      "Valor da reserva",
+      "Liquidação",
+      "Saldo",
+      "Entrada",
+    ]) {
+      expect(eFinanceira(r), r).toBe(true);
+    }
+    for (const r of ["Reserva do espaço", "Reserva de mesa", "Flores (IVA 6%)", "Oferta: velas"]) {
+      expect(eFinanceira(r), r).toBe(false);
+    }
+    // O IVA fora de parênteses continua a contar.
+    expect(eFinanceira("IVA (23%)")).toBe(true);
+    expect(eFinanceira("IVA")).toBe(true);
+  });
+
+  it("por pessoa: não é candidata; com a conta, a candidata é o último valor", () => {
+    for (const r of [
+      "Total por pessoa",
+      "Total p/ pessoa",
+      "Valor total /pax",
+      "Total por convidado",
+    ]) {
+      expect(eCandidataATotal(r), r).toBe(false);
+    }
+    expect(candidataPorPessoa("Total por pessoa: 95 € × 120 = 11 400 €")).toEqual({
+      rotulo: "Total por pessoa: 95 € × 120 = 11 400 €",
+      valor: 11400,
+    });
+    expect(candidataPorPessoa("Total por pessoa: 95 €")).toBeNull();
+  });
+
+  it("a taxa só se sugere colada a «IVA», e nunca numa frase de sinal, adjudicação, desconto…", () => {
+    expect(taxasDoIvaEscritas("IVA 6%")).toEqual([0.06]);
+    expect(taxasDoIvaEscritas("IVA à taxa de 6%")).toEqual([0.06]);
+    expect(taxasDoIvaEscritas("6% de IVA")).toEqual([0.06]);
+    for (const t of [
+      "30% de sinal, valores com IVA",
+      "50% na adjudicação (IVA 6%)",
+      "5% de desconto com IVA 13%",
+      "Reserva: 20% de IVA",
+      "Pagamento em prestações, IVA 6%",
+      "Entrada de 10% — IVA 6%",
+      "Valores com IVA. 30% de sinal",
+      "Valores com IVA, 30% de sinal na adjudicação",
+    ]) {
+      expect(taxasDoIvaEscritas(t), t).toEqual([]);
+    }
+  });
+});
+
+describe("12.ª revisão — a reserva sem parênteses nem «de X%»", () => {
+  it("«Reserva (30%)», «Reserva de 30%» e «Valor por pessoa» não são serviço", () => {
+    for (const r of ["Reserva (30%)", "Reserva de 30%", "Reserva de 30 %", "Valor por pessoa"]) {
+      expect(eFinanceira(r), r).toBe(true);
+    }
+    for (const r of ["Reserva do espaço", "Reserva de mesa (30 lugares)"]) {
+      expect(eFinanceira(r), r).toBe(false);
+    }
+  });
+});
+
+describe("o email, em linear", () => {
+  it("uma sequência longa sem «@» não é quadrática, e os emails são os mesmos", () => {
+    const t = performance.now();
+    expect(lerEmail("x".repeat(200_000))).toBeNull();
+    expect(lerEmail(`${"x".repeat(50_000)} ana.teste@exemplo.pt`)?.valor).toBe(
+      "ana.teste@exemplo.pt",
+    );
+    expect(performance.now() - t).toBeLessThan(500);
+    expect(lerEmail("Contacto: ana.teste@exemplo.pt · info@liquen-events.com")?.valor).toBe(
+      "ana.teste@exemplo.pt",
+    );
   });
 });

@@ -131,10 +131,15 @@ export function lerNomes(
 
 // ── EMAIL ───────────────────────────────────────────────────────────────────
 
-const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+// O lookbehind faz cada tentativa começar só no INÍCIO de uma palavra: sem
+// ele, uma sequência longa sem «@» («xxxx…», 10 000 letras) era percorrida a
+// partir de cada letra — quadrático (8 s num documento de 1,6 MB). Os emails
+// encontrados são os mesmos: o mais à esquerda começa sempre num início.
+const EMAIL = /(?<![A-Z0-9._%+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 
 /** O email do cliente: os da casa (Líquen) ficam de fora. */
 export function lerEmail(texto: string): Lido<string> | null {
+  if (!texto.includes("@")) return null;
   const vistos = [...new Set((texto.match(EMAIL) ?? []).map((e) => e.toLowerCase()))].filter(
     (e) => !/liquen/.test(e),
   );
@@ -238,6 +243,9 @@ export interface LinhaDeDinheiro {
 
 /** Uma linha com um valor em euros → o rótulo e o valor. `null` se não tem. */
 export function lerLinhaDeDinheiro(linha: string): LinhaDeDinheiro | null {
+  // Sem «€» nem «eur» não há valor (a `VALOR` exige um dos dois) — e assim uma
+  // sequência longa de algarismos não é percorrida a partir de cada um.
+  if (!/€|eur/i.test(linha)) return null;
   const m = VALOR.exec(linha);
   if (!m) return null;
   const valor = parseMoneyText(m[1] ?? m[2]);
@@ -252,30 +260,211 @@ export function lerLinhaDeDinheiro(linha: string): LinhaDeDinheiro | null {
   return { rotulo, valor, linha };
 }
 
-export type TipoDeLinha = "total" | "iva" | "pagamento" | "item";
+/**
+ * ── AS LINHAS QUE NÃO SÃO SERVIÇO: UMA LISTA SÓ ───────────────────────────
+ * Uma linha cujo rótulo tenha QUALQUER uma destas palavras vem marcada como
+ * «não é serviço» na conferência — só como SUGESTÃO: cada linha tem o seu
+ * interruptor, e ela decide (`ImportarProposta`, `propostaConferida`).
+ * As do IVA (`PALAVRAS_DO_IVA`) só contam FORA de parênteses: «Flores (IVA
+ * 6%)» é um serviço.
+ */
+export const PALAVRAS_FINANCEIRAS: readonly RegExp[] = [
+  /\btotal/, // total, totais
+  /sub-?\s?total/,
+  /liquido/, // líquido, sem acentos
+  /liquidac/, // liquidação
+  /\ba pagar\b/,
+  /pagamento/,
+  /prestac/, // prestação, prestações
+  /\bsinal\b/,
+  /adjudica/, // adjudicação
+  /\bvalor sem\b/,
+  /\bvalor com\b/,
+  /base tributavel/,
+  /^base$/, // exatamente «Base» — nunca «Base de bolo»
+  /desconto/,
+  /abatimento/,
+  /restante/,
+  /caucao/, // caução
+  /reforco/, // reforço
+  /remanescente/,
+  /\bsaldo\b/,
+  /\bentrada\b/,
+  /\bvalor global\b/,
+  /\bvalor final\b/,
+  /\bvalor da proposta\b/,
+];
 
-export function tipoDaLinha(rotulo: string): TipoDeLinha {
-  const r = semAcentos(rotulo);
-  if (/\bsub-?\s?total/.test(r)) return "pagamento"; // não é linha nem total
-  if (/\btotal\b|valor global|valor final|investimento (?:total|global)/.test(r)) return "total";
-  if (/^\s*iva\b|\biva\s*\(?\s*\d+\s*%/.test(r)) return "iva";
-  if (/sinal|adjudica|pagamento|prestac|restante|reserva|liquida|caucao|desconto/.test(r)) {
-    return "pagamento";
-  }
-  return "item";
+/**
+ * A reserva: «Reserva do espaço» e «Reserva de mesa» são serviços; só estas
+ * não. Testam-se no nome SEM parênteses e sem «de X%» — «Reserva (30%)» e
+ * «Reserva de 30%» são a reserva da data.
+ */
+export const PALAVRAS_DA_RESERVA: readonly RegExp[] = [
+  /^reserva$/,
+  /reserva da data/,
+  /valor da reserva/,
+];
+
+/** As palavras do IVA: só contam no rótulo SEM o que está entre parênteses. */
+export const PALAVRAS_DO_IVA: readonly RegExp[] = [/\biva\b/, /\bvat\b/];
+
+const limpo = (rotulo: string) => semAcentos(rotulo).replace(/\s+/g, " ").trim();
+
+/** Um desconto ou um abatimento: um aviso de dinheiro («põe à mão»). */
+export function eDesconto(rotulo: string): boolean {
+  return /desconto|abatimento/.test(semAcentos(rotulo));
 }
 
-/** De várias linhas de total, a que vale. */
-export function escolherTotal(totais: readonly LinhaDeDinheiro[]): Lido<LinhaDeDinheiro> | null {
-  if (!totais.length) return null;
-  if (totais.length === 1) return { valor: totais[0], confianca: "alta" };
-  const distintos = new Set(totais.map((t) => t.valor));
-  if (distintos.size === 1) return { valor: totais[0], confianca: "alta" };
-  const semIva = totais.find((t) => /sem iva|s\/\s*iva|\+\s*iva|mais iva|base/i.test(t.linha));
-  if (semIva) return { valor: semIva, confianca: "media" };
-  const geral = totais.find((t) => /geral|final|global|proposta/i.test(t.rotulo));
-  if (geral) return { valor: geral, confianca: "media" };
-  return { valor: totais[totais.length - 1], confianca: "baixa" };
+/** «Oferta»: um serviço com valor 0. */
+export function eOferta(rotulo: string): boolean {
+  return /\boferta\b/.test(semAcentos(rotulo));
+}
+
+/** «Opcional»: um serviço opcional (`budgetOpcional`). */
+export function eOpcional(rotulo: string): boolean {
+  return /opcional/.test(semAcentos(rotulo));
+}
+
+/** O rótulo (já sem o «:» e sem o valor, `lerLinhaDeDinheiro`) não é de um serviço. */
+export function eFinanceira(rotulo: string): boolean {
+  const r = limpo(rotulo);
+  const semParenteses = r
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const nucleo = semParenteses
+    .replace(/\bde\s+\d+(?:[.,]\d+)?\s*%/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (
+    PALAVRAS_FINANCEIRAS.some((p) => p.test(r)) ||
+    PALAVRAS_DO_IVA.some((p) => p.test(semParenteses)) ||
+    PALAVRAS_DA_RESERVA.some((p) => p.test(nucleo)) ||
+    // «Valor por pessoa»: um preço unitário, não um serviço.
+    (/^valor\b/.test(r) && ePorPessoa(r))
+  );
+}
+
+/** «Total por pessoa», «p/ pessoa», «/pax», «por convidado». */
+export function ePorPessoa(texto: string): boolean {
+  return /por pessoa|p\/\s*pessoa|\/\s*pax\b|por convidado/.test(semAcentos(texto));
+}
+
+/**
+ * Uma linha que pode ser o total: o rótulo tem «total», «valor com/sem IVA»,
+ * «valor global/final/da proposta», «montante total», «base» ou «líquido».
+ * NUNCA o «Subtotal», nem uma linha de um pagamento, nem um valor por pessoa
+ * (esse trata-se à parte: `candidataPorPessoa`).
+ */
+export function eCandidataATotal(rotulo: string): boolean {
+  const r = limpo(rotulo);
+  if (!eFinanceira(rotulo) || /sub-?\s?total/.test(r)) return false;
+  if (/\bsinal\b|prestac|adjudica|pagamento|restante|reforco|caucao/.test(r)) return false;
+  if (ePorPessoa(r)) return false;
+  return /\btotal|\bvalor (?:com|sem) iva\b|\bvalor (?:global|final|da proposta)\b|\bbase\b|liquido/.test(
+    r,
+  );
+}
+
+const VALOR_GLOBAL = new RegExp(VALOR.source, "gi");
+
+/**
+ * «Total por pessoa: 95 € × 120 = 11 400 €»: o valor por pessoa não é o
+ * total, mas a conta que dá o total é — a candidata é o ÚLTIMO valor, com a
+ * linha inteira por rótulo. Com um só valor (o por pessoa), não há candidata.
+ */
+export function candidataPorPessoa(linha: string): { rotulo: string; valor: number } | null {
+  if (!ePorPessoa(linha) || !/\btotal/.test(semAcentos(linha))) return null;
+  const valores = [...linha.matchAll(VALOR_GLOBAL)].map((m) => parseMoneyText(m[1] ?? m[2]));
+  if (valores.length < 2) return null;
+  const valor = valores[valores.length - 1];
+  return valor > 0 ? { rotulo: linha.replace(/\s+/g, " ").trim(), valor } : null;
+}
+
+/** A linha é sobre o IVA (o valor do imposto): «IVA (23%)», «IVA». */
+export function eLinhaDoIva(rotulo: string): boolean {
+  const r = limpo(rotulo);
+  return (
+    /^(?:o\s+)?(?:valor\s+do\s+)?iva\b/.test(r) && !/\btotal|\bvalor com\b|\bvalor sem\b/.test(r)
+  );
+}
+
+/** Uma candidata ao total, como ela a vê na conferência. */
+export interface CandidataAoTotal {
+  id: string;
+  /** O rótulo inteiro (ou a conta, numa derivada). */
+  rotulo: string;
+  valor: number;
+  /** Tirada de um trio («3 000 € = Total 3 690 € − IVA 690 €»), não escrita. */
+  derivada?: boolean;
+  /** O lado do IVA que o rótulo sugere: «sem» (base, sem IVA, líquido) ou «com». */
+  lado?: "sem" | "com";
+}
+
+/** O lado que o rótulo de um total sugere (só para ordenar e derivar). */
+export function ladoDoTotal(rotulo: string): "sem" | "com" | undefined {
+  const r = semAcentos(rotulo);
+  if (/\bsem iva|s\/\s*iva|\bbase\b|liquido|\+\s*iva/.test(r)) return "sem";
+  if (/\bcom iva|c\/\s*iva|iva inclu/.test(r)) return "com";
+  return undefined;
+}
+
+/**
+ * As candidatas tiradas de um trio: com o valor do IVA escrito, um total
+ * «com» (ou sem lado) dá a base (T − IVA) e uma base dá o total (B + IVA),
+ * quando esse valor não está já na lista. Só SUGESTÕES: ela escolhe.
+ */
+export function candidatasDerivadas(
+  lidas: readonly CandidataAoTotal[],
+  ivas: readonly { rotulo: string; valor: number }[],
+  euros: (n: number) => string,
+): CandidataAoTotal[] {
+  const out: CandidataAoTotal[] = [];
+  const ja = new Set(lidas.map((c) => Math.round(c.valor * 100)));
+  for (const iva of ivas) {
+    for (const c of lidas) {
+      const sem = c.lado === "sem";
+      const v = Math.round((sem ? c.valor + iva.valor : c.valor - iva.valor) * 100) / 100;
+      if (!(v > 0) || ja.has(Math.round(v * 100))) continue;
+      ja.add(Math.round(v * 100));
+      out.push({
+        id: `d${out.length}`,
+        rotulo: `${euros(v)} = ${c.rotulo} ${euros(c.valor)} ${sem ? "+" : "−"} ${iva.rotulo} ${euros(iva.valor)}`,
+        valor: v,
+        derivada: true,
+        lado: sem ? "com" : "sem",
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * A taxa de IVA escrita no documento, SÓ quando o número com «%» está colado
+ * a «IVA» («IVA 6%», «IVA (6%)», «IVA à taxa de 6%», «6% de IVA») e a frase
+ * não fala de sinal, adjudicação, desconto, reserva, pagamento, prestação ou
+ * entrada. Em fração e sem repetidas. É uma SUGESTÃO para o campo da taxa.
+ */
+export function taxasDoIvaEscritas(texto: string): number[] {
+  const taxas = new Set<number>();
+  const N = String.raw`(\d{1,2}(?:[.,]\d{1,2})?)\s*%`;
+  const E = [
+    new RegExp(String.raw`\biva\s*\(?\s*${N}`, "g"),
+    new RegExp(String.raw`\biva\s+a\s+taxa\s+de\s+${N}`, "g"),
+    new RegExp(String.raw`${N}\s*de\s+iva\b`, "g"),
+  ];
+  // As frases: um ponto seguido de um algarismo é uma casa decimal, não o fim.
+  for (const frase of semAcentos(texto).split(/[\n;!?]|\.(?!\d)/)) {
+    if (/sinal|adjudica|desconto|reserva|pagamento|prestac|entrada/.test(frase)) continue;
+    for (const e of E) {
+      for (const m of frase.matchAll(e)) {
+        const n = Number(m[1].replace(",", "."));
+        if (n > 0 && n < 100) taxas.add(Math.round(n * 100) / 10000);
+      }
+    }
+  }
+  return [...taxas];
 }
 
 const DIZ_QUE_ACRESCE =

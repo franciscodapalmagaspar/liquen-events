@@ -5,20 +5,29 @@ import {
   type VatMode,
 } from "../proposal-doc";
 import {
-  escolherTotal,
   lerConvidados,
   lerData,
   lerEmail,
   lerLinhaDeDinheiro,
   lerLocal,
-  lerModoDoIva,
   lerNomes,
   lerTipoDeEvento,
-  tipoDaLinha,
+  eFinanceira,
+  eCandidataATotal,
+  eDesconto,
+  eOferta,
+  eOpcional,
+  eLinhaDoIva,
+  candidataPorPessoa,
+  candidatasDerivadas,
+  ladoDoTotal,
+  taxasDoIvaEscritas,
+  type CandidataAoTotal,
   type Confianca,
   type LinhaDeDinheiro,
 } from "./heuristicas";
 import { eur } from "../money";
+import { DEFAULT_VAT_RATE } from "../proposal-doc";
 import type { Bloco, ConteudoImportado, Seccao } from "./tipos";
 
 /**
@@ -55,6 +64,23 @@ export type CampoImportado =
   | "iva"
   | "fotos";
 
+/** Uma linha com valor do documento (via das regras), como ela a confere. */
+export interface LinhaDoDocumento {
+  /** «rótulo|valor»: a chave do interruptor dela (`Correccoes.servicoDaLinha`). */
+  chave: string;
+  rotulo: string;
+  valor: number;
+  /** A sugestão da heurística: é um serviço? */
+  servico: boolean;
+  opcional?: boolean;
+  /** «Oferta»: serviço a 0 €. */
+  oferta?: boolean;
+  /** Um desconto: aviso de dinheiro («põe à mão»). */
+  desconto?: boolean;
+}
+
+export type { CandidataAoTotal };
+
 export interface FotoImportada {
   /** O caminho dentro do ficheiro (`ppt/media/image3.jpeg`). */
   caminho: string;
@@ -87,6 +113,29 @@ export interface PropostaImportada {
   budgetItems: string[];
   /** Paralelo a `budgetItems`; `null` onde a linha não tinha valor. */
   budgetAmounts: (number | null)[];
+  /** Paralelo a `budgetItems`: as linhas opcionais (extra). Só a leitura com IA o preenche. */
+  budgetOpcional?: boolean[];
+  /** A taxa de IVA do documento, quando não é a da casa. Só a leitura com IA o preenche. */
+  vatRate?: number;
+  /**
+   * O documento não PROVA com contas se os valores têm IVA (`ia/verificar.ts`):
+   * ela escolhe no ecrã («sem IVA» / «com IVA», nada pré-escolhido), e só aí
+   * os valores das linhas passam — a partir de `linhasEscritas`.
+   */
+  ivaPorEscolher?: boolean;
+  /**
+   * As candidatas ao total (as duas vias): as escritas e as de um trio. Ela
+   * escolhe SEMPRE — nada vem escolhido, nem com uma só.
+   */
+  candidatasAoTotal?: CandidataAoTotal[];
+  /** Via das regras: cada linha com valor, com «serviço / não é serviço» pré-posto. */
+  linhasDoDocumento?: LinhaDoDocumento[];
+  /** A taxa de IVA escrita no documento, quando não é 23 %: só uma sugestão. */
+  taxaSugerida?: number;
+  /** Paralelo a `budgetItems`: os valores COMO O DOCUMENTO OS ESCREVE. */
+  linhasEscritas?: (number | null)[];
+  /** Paralelo a `budgetItems`: as linhas que somam o total (nem opcionais nem incluídas). */
+  linhasNormais?: boolean[];
   totalAmount: number | null;
   /** `null` = não se percebeu; ela escolhe. */
   totalVatMode: VatMode | null;
@@ -162,11 +211,64 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
     jaVisto.add(chave);
     dinheiro.push(d);
   }
-  const totais = dinheiro.filter((d) => tipoDaLinha(d.rotulo) === "total");
-  const itensComValor = dinheiro.filter((d) => tipoDaLinha(d.rotulo) === "item" && d.rotulo);
-  const total = escolherTotal(totais);
-  const iva = total ? lerModoDoIva(total.valor.linha, textoTodo) : null;
-  const somaDasLinhas = Math.round(itensComValor.reduce((s, d) => s + d.valor, 0) * 100) / 100;
+  /**
+   * ── O DINHEIRO: AS HEURÍSTICAS SÓ SUGEREM ────────────────────────────────
+   * (10.ª revisão.) Nada aqui decide dinheiro: ela confirma tudo num ecrã de
+   * conferência curto (`ImportarProposta`, `montar.ts`):
+   *  · cada linha com valor vem com «serviço / não é serviço» pré-posto por
+   *    `eFinanceira` (`linhasDoDocumento`); «Oferta» é serviço a 0 €, e
+   *    «Opcional» é opcional;
+   *  · o total escolhe-o ela entre TODAS as candidatas (as escritas, as de
+   *    um trio e «outro valor») — nada vem escolhido, nem com uma só;
+   *  · a taxa do IVA é um campo (23 % por omissão); a escrita no documento
+   *    é só uma sugestão (`taxasDoIvaEscritas`).
+   */
+  const linhasDoDocumento: LinhaDoDocumento[] = dinheiro
+    .filter((d) => d.rotulo)
+    .map((d) => {
+      // «Total por pessoa: 95 € × 120 = 11 400 €»: a linha inteira, legível,
+      // e o valor da conta (o último), não o rótulo cortado pelo primeiro valor.
+      const pessoa = candidataPorPessoa(d.linha);
+      if (pessoa) d = { ...d, rotulo: pessoa.rotulo, valor: pessoa.valor };
+      const oferta = eOferta(d.rotulo);
+      const servico = oferta || !eFinanceira(d.rotulo);
+      return {
+        chave: `${d.rotulo}|${d.valor}`,
+        rotulo: d.rotulo,
+        valor: oferta ? 0 : d.valor,
+        servico,
+        ...(servico && eOpcional(d.rotulo) ? { opcional: true } : {}),
+        ...(oferta ? { oferta: true } : {}),
+        ...(eDesconto(d.rotulo) ? { desconto: true } : {}),
+      };
+    });
+  const itensComValor = linhasDoDocumento.filter((l) => l.servico);
+  const lidas: CandidataAoTotal[] = [];
+  for (const d of dinheiro) {
+    const pessoa = candidataPorPessoa(d.linha);
+    if (pessoa) {
+      lidas.push({ id: `c${lidas.length}`, rotulo: pessoa.rotulo, valor: pessoa.valor });
+    } else if (eCandidataATotal(d.rotulo)) {
+      const lado = ladoDoTotal(d.linha);
+      lidas.push({
+        id: `c${lidas.length}`,
+        rotulo: d.rotulo,
+        valor: d.valor,
+        ...(lado ? { lado } : {}),
+      });
+    }
+  }
+  const ivas = dinheiro.filter((d) => eLinhaDoIva(d.rotulo));
+  const candidatasAoTotal = [...lidas, ...candidatasDerivadas(lidas, ivas, formatarEuros)];
+  const taxas = taxasDoIvaEscritas(textoTodo);
+  const taxaSugerida =
+    taxas.length === 1 && Math.abs(taxas[0] - DEFAULT_VAT_RATE) > 1e-9 ? taxas[0] : undefined;
+  // O IVA é SEMPRE ela que o escolhe, também nesta via, com as mesmas
+  // sugestões da leitura (`ia/verificar.ts`, `analisarIva`).
+  const ivaPorEscolher = linhasDoDocumento.length > 0;
+  const somaDasLinhas =
+    Math.round(itensComValor.filter((l) => !l.opcional).reduce((s, l) => s + l.valor, 0) * 100) /
+    100;
   const linhasComValor = new Set(dinheiro.map((d) => d.linha));
 
   // ── Os serviços ──
@@ -200,7 +302,7 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
       const d = lerLinhaDeDinheiro(b.texto);
       const texto = d ? d.rotulo : b.texto;
       if (!texto) continue;
-      if (d && tipoDaLinha(d.rotulo) !== "item") continue;
+      if (d && eFinanceira(d.rotulo) && !eOferta(d.rotulo)) continue;
       if (b.tipo === "item" && b.nivel > 0 && items.length) {
         const ant = items[items.length - 1];
         ant.desc = [ant.desc, texto.replace(/\n/g, " ")].filter(Boolean).join("; ");
@@ -254,8 +356,9 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
     // Os serviços saem sempre de uma regra (o título ou a forma da secção):
     // nunca passam de «média».
     servicos: serviceGroups.length ? "media" : "nada",
-    total: total?.confianca ?? "nada",
-    iva: total ? (iva?.confianca ?? "nada") : "nada",
+    // O total é sempre ela que o escolhe: nunca «alta».
+    total: candidatasAoTotal.length ? "media" : "nada",
+    iva: "nada",
     fotos: fotos.length ? "alta" : "nada",
   };
 
@@ -274,37 +377,17 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
   if (local?.confianca === "baixa") {
     avisos.push(`O local «${local.valor}» é um palpite: o documento fala de mais do que um sítio.`);
   }
-  if (!total && itensComValor.length) {
+  if (!candidatasAoTotal.length && itensComValor.length) {
     avisos.push(
       `Não encontrei a linha do total. As linhas com valor somam ${formatarEuros(somaDasLinhas)}. Confirma o total antes de usar.`,
-    );
-  } else if (total && total.confianca !== "alta") {
-    avisos.push(
-      `Há várias linhas de total (${totais.map((t) => formatarEuros(t.valor)).join(", ")}). Escolhi ${formatarEuros(total.valor.valor)}. Confirma.`,
-    );
-  }
-  if (total && !iva) {
-    avisos.push("Não percebi se o total inclui IVA ou se o IVA acresce. Escolhe abaixo.");
-  } else if (iva && iva.confianca !== "alta") {
-    avisos.push(
-      iva.valor === "acrescer"
-        ? "O total não diz nada sobre o IVA; o resto do documento diz que acresce. Confirma."
-        : "O total não diz nada sobre o IVA; o resto do documento diz que está incluído. Confirma.",
     );
   }
   if (!serviceGroups.length) {
     avisos.push("Não encontrei uma lista de serviços. Os Serviços ficam por preencher no estúdio.");
   }
 
-  // Os valores de cada linha só passam quando o total é «+ IVA»: o estúdio
-  // guarda-os sem IVA, e com o IVA incluído (ou por perceber) passar o número
-  // tal e qual punha um valor com IVA num campo sem IVA.
-  const passaOsValores = iva?.valor === "acrescer";
-  if (itensComValor.length && !passaOsValores) {
-    avisos.push(
-      "Os valores de cada linha do orçamento não passaram: não ficou claro que são sem IVA. Os nomes das linhas estão lá.",
-    );
-  }
+  // Os valores de cada linha passam quando ELA escolhe se são sem ou com IVA
+  // (`valoresQueVaoSerGravados`): até lá vão os escritos, à parte.
 
   const notas = sobras.join("\n").trim();
   return {
@@ -318,10 +401,24 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
     tipoDoPedido: tipo?.valor.tipo ?? "",
     guests: convidados?.valor ?? null,
     serviceGroups,
-    budgetItems: itensComValor.map((d) => d.rotulo),
-    budgetAmounts: itensComValor.map((d) => (passaOsValores ? d.valor : null)),
-    totalAmount: total?.valor.valor ?? null,
-    totalVatMode: iva?.valor ?? null,
+    // As linhas e os valores PRÉ-POSTOS; ela confirma (`propostaConferida`).
+    budgetItems: itensComValor.map((l) => l.rotulo),
+    budgetAmounts: itensComValor.map(() => null),
+    ...(itensComValor.some((l) => l.opcional)
+      ? { budgetOpcional: itensComValor.map((l) => Boolean(l.opcional)) }
+      : {}),
+    totalAmount: null,
+    totalVatMode: null,
+    ...(taxaSugerida !== undefined ? { taxaSugerida } : {}),
+    ...(ivaPorEscolher
+      ? {
+          ivaPorEscolher: true,
+          linhasEscritas: itensComValor.map((l) => l.valor),
+          linhasNormais: itensComValor.map((l) => !l.opcional),
+          linhasDoDocumento,
+        }
+      : {}),
+    ...(candidatasAoTotal.length ? { candidatasAoTotal } : {}),
     somaDasLinhas,
     moodBoards,
     capa,

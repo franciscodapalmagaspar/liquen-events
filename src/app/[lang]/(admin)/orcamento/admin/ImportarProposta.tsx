@@ -10,6 +10,19 @@ import type { Confianca } from "@/lib/importar-proposta/heuristicas";
 import {
   corpoDoPedido,
   correccoesIniciais,
+  juntarCorreccoes,
+  valoresQueVaoSerGravados,
+  escolherModoDoIva,
+  avisosDoEcra,
+  candidatasOrdenadas,
+  eServico,
+  escolherTotal,
+  propostaConferida,
+  taxaDe,
+  taxaSugeridaDe,
+  eNegativo,
+  usarASoma,
+  totalEscrito,
   montarDocumento,
   oQueFalta,
   type Correccoes,
@@ -34,6 +47,8 @@ import { useToast } from "./Toast";
 import { Button, EmCurso, Field, FolhaOuDialogo, Segmented } from "./ui";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { prepareImageWithThumb } from "./image-prep";
+import type { Revisao } from "@/lib/importar-proposta/ia/importar";
+import RevisaoDaImportacao, { AvisoLinha, avisosPorConfirmar } from "./RevisaoDaImportacao";
 import { ArmazenamentoNoTravao, enviarFotoDaProposta } from "./enviar-foto-da-proposta";
 import { fingerprintBlob } from "@/lib/theme-fingerprint";
 import {
@@ -240,6 +255,15 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     titulo: "",
   });
   const [tentouCriar, setTentouCriar] = useState(false);
+  // A revisão lado a lado (`RevisaoDaImportacao`): o documento inteiro, os
+  // avisos da verificação, e os de dinheiro que ela já confirmou.
+  const [revisao, setRevisao] = useState<Revisao | null>(null);
+  const [confirmados, setConfirmados] = useState<Set<string>>(new Set());
+  // O modo que estava quando ela escreveu o total e mudou o IVA: a nota
+  // «Mudaste o IVA» some quando ela volta a ele.
+  const [modoAntes, setModoAntes] = useState<VatMode | null>(null);
+  const [imagensDoDocumento, setImagensDoDocumento] = useState<Map<string, File>>(new Map());
+  const original = useRef<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   /**
    * ── O QUE JÁ FICOU FEITO, PARA UM SEGUNDO CLIQUE NÃO O REPETIR ───────────
@@ -278,6 +302,11 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     setEspaco(null);
     setEscolhidas(new Set());
     setTentouCriar(false);
+    setRevisao(null);
+    setConfirmados(new Set());
+    setModoAntes(null);
+    setImagensDoDocumento(new Map());
+    original.current = null;
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -291,7 +320,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     onClose();
   }
 
-  async function ler(ficheiro: File) {
+  async function ler(ficheiro: File, leitura?: File) {
     setErro(null);
     if (ficheiro.size > MAX_BYTES_DO_FICHEIRO) {
       setErro(
@@ -299,8 +328,14 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       );
       return;
     }
+    // Com a leitura (JSON) é uma releitura: guarda-se o que ela tinha, para
+    // não lho apagar nem se a releitura falhar.
+    const antes =
+      leitura && proposta && c ? { inicial: correccoesIniciais(proposta), c, escolhidas } : null;
+    const antesDela = antes !== null;
     setPasso("a-ler");
     setNome(ficheiro.name);
+    original.current = ficheiro;
     try {
       const bytes = new Uint8Array(await ficheiro.arrayBuffer());
       let magro: Uint8Array;
@@ -317,21 +352,26 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       }
       const form = new FormData();
       form.append("ficheiro", new File([magro as BlobPart], ficheiro.name));
+      if (leitura) form.append("leitura", leitura);
       const res = await fetch("/api/orcamento/importar", { method: "POST", body: form });
       const dados = await res.json().catch(() => null);
       if (!res.ok || !dados?.proposta) {
         throw new Error(dados?.error || "Não foi possível ler este ficheiro.");
       }
       const p = dados.proposta as PropostaImportada;
-      const lidas = await fotosDoFicheiro(
-        bytes,
-        p.fotos.map((f) => f.caminho),
-      );
+      const rev = (dados.revisao ?? null) as Revisao | null;
+      // As da proposta, e as outras do documento só para as miniaturas da revisão.
+      const naProposta = new Set(p.fotos.map((f) => f.caminho));
+      const lidas = await fotosDoFicheiro(bytes, [
+        ...naProposta,
+        ...(rev?.imagens ?? []).map((i) => i.caminho).filter((c) => !naProposta.has(c)),
+      ]);
+      const fotosDaProposta = lidas.fotos.filter((f) => naProposta.has(f.caminho));
       // Antes de escolher: quais destas já estão guardadas (não gastam tecto).
-      const { resumos: r, impressoes: im } = await resumosDasFotos(lidas.fotos);
-      const lados = ladosPedidos(lidas.fotos, p.fotos);
+      const { resumos: r, impressoes: im } = await resumosDasFotos(fotosDaProposta);
+      const lados = ladosPedidos(fotosDaProposta, p.fotos);
       const pergunta = aPerguntar(
-        lidas.fotos.map((f) => f.caminho),
+        fotosDaProposta.map((f) => f.caminho),
         r,
         im,
         lados,
@@ -339,33 +379,116 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       const { resposta, espaco: e } = await perguntarGuardadas(pergunta);
       const { existentes: ja, duvidas: d } = classificarGuardadas(pergunta, resposta);
       setProposta(p);
-      setC(correccoesIniciais(p));
-      setFotos(lidas.fotos);
-      setDeFora(lidas.deFora);
+      // Ao recarregar com a leitura (JSON), o que ela já corrigiu à mão FICA:
+      // só os campos que ela não tocou passam a ser os da leitura nova.
+      setC(
+        antes && antesDela
+          ? juntarCorreccoes(antes.inicial, antes.c, correccoesIniciais(p), p)
+          : correccoesIniciais(p),
+      );
+      setRevisao(rev);
+      setConfirmados(new Set());
+      setModoAntes(null);
+      setImagensDoDocumento(new Map(lidas.fotos.map((f) => [f.caminho, f.ficheiro])));
+      setFotos(fotosDaProposta);
+      setDeFora(lidas.deFora.filter((f) => naProposta.has(f.caminho)));
       setResumos(r);
       setImpressoes(im);
       setExistentes(ja);
       setDuvidas(d);
       setEspaco(e);
+      // A escolha das fotografias dela também fica (as que continuam na proposta).
+      const naNova = new Set(fotosDaProposta.map((f) => f.caminho));
       setEscolhidas(
-        new Set(
-          escolhaPorOmissao(
-            p.fotos,
-            new Set(lidas.fotos.map((f) => f.caminho)),
-            new Set(ja.keys()),
-            fotosQueCabem(e, MAX_FOTOS_POR_IMPORTACAO),
-          ),
-        ),
+        antes
+          ? new Set([...antes.escolhidas].filter((x) => naNova.has(x)))
+          : new Set(
+              escolhaPorOmissao(
+                p.fotos,
+                naNova,
+                new Set(ja.keys()),
+                fotosQueCabem(e, MAX_FOTOS_POR_IMPORTACAO),
+              ),
+            ),
       );
       setPasso("rever");
     } catch (e) {
+      if (antes) {
+        // A releitura falhou: fica tudo como estava.
+        setPasso("rever");
+        toast(porqueFalhou(e, "Não foi possível ler a leitura. Verifica a ligação."), "error");
+        return;
+      }
       setPasso("escolher");
       setErro(porqueFalhou(e, "Não foi possível ler este ficheiro. Verifica a ligação."));
       if (inputRef.current) inputRef.current.value = "";
     }
   }
 
-  const falta = c ? oQueFalta(c) : [];
+  // A ÚNICA maneira de escolher o IVA (o bloco de cima, e o de baixo quando
+  // não há revisão): muda o modo E o total do lado escolhido.
+  const semLinhasComValor = !proposta?.linhasEscritas?.some((v) => v !== null);
+  const escolherIva = (m: VatMode) => {
+    // Com o total escrito por ela e sem linhas, mudar o IVA não mexe no total:
+    // fica uma nota para ela confirmar de que lado é esse total.
+    if (
+      c?.totalTocado &&
+      c.total.trim() &&
+      semLinhasComValor &&
+      c.totalVatMode &&
+      c.totalVatMode !== m &&
+      !modoAntes
+    ) {
+      setModoAntes(c.totalVatMode);
+    }
+    setC((x) => (x && proposta ? escolherModoDoIva(proposta, x, m) : x));
+  };
+  // Os avisos da soma vivem AQUI, com ou sem revisão: são eles que travam o criar.
+  const avisosDaSoma = proposta && c ? avisosDoEcra(proposta, c) : [];
+  // A proposta como ela a conferiu (as linhas que ela deixou como serviço).
+  const pEf = proposta && c ? propostaConferida(proposta, c) : proposta;
+  const candidatas = proposta && c ? candidatasOrdenadas(proposta, c) : [];
+  const taxaSugerida = proposta ? taxaSugeridaDe(proposta) : undefined;
+  const taxaAgora = c ? taxaDe(c) : null;
+  const posicaoDoServico = new Map(
+    (proposta?.linhasDoDocumento ?? [])
+      .filter((l) => c && eServico(l, c))
+      .map((l, i) => [l.chave, i]),
+  );
+  const semTotalPorConfirmar = Boolean(
+    c &&
+    !c.total.trim() &&
+    (candidatas.length
+      ? c.totalEscolhido !== undefined || c.totalTocado
+      : Boolean(proposta?.totalAmount)),
+  );
+  const confirmar = (id: string, sim: boolean) =>
+    setConfirmados((x) => {
+      const n = new Set(x);
+      if (sim) n.add(id);
+      else n.delete(id);
+      return n;
+    });
+  const porConfirmar =
+    avisosPorConfirmar(revisao, confirmados).length +
+    avisosDaSoma.filter((a) => !confirmados.has(a.id)).length;
+  const mostrarIva = Boolean(
+    proposta &&
+    c &&
+    (pEf?.ivaPorEscolher || totalEscrito(c.total) !== null || (pEf?.somaDasLinhas ?? 0) > 0),
+  );
+  const falta = c
+    ? [
+        ...oQueFalta(c, proposta ?? undefined),
+        ...(porConfirmar > 0
+          ? [
+              porConfirmar === 1
+                ? "confirmar o aviso de dinheiro"
+                : `confirmar os ${porConfirmar} avisos de dinheiro`,
+            ]
+          : []),
+      ]
+    : [];
   const set = <K extends keyof Correccoes>(k: K, v: Correccoes[K]) =>
     setC((x) => (x ? { ...x, [k]: v } : x));
 
@@ -572,6 +695,11 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
   const novasEscolhidas = quantasNovas(escolhidas, jaGuardadas);
   const jaEscolhidas = escolhidas.size - novasEscolhidas;
   const conf = (k: CampoImportado): Confianca => proposta?.confianca[k] ?? "nada";
+  // O que VAI ser gravado (a mesma função do `montarDocumento`).
+  const aGravar =
+    proposta && c
+      ? valoresQueVaoSerGravados(proposta, c)
+      : { budgetAmounts: [] as (number | null)[], totalAmount: null, totalVatMode: null };
 
   return (
     <FolhaOuDialogo
@@ -584,7 +712,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
           ? `Lido de «${nome}». Nada está guardado ainda.`
           : "O sistema lê o documento e prepara o pedido e a proposta. Nada é enviado ao cliente."
       }
-      largura="lg"
+      largura={revisao && passo === "rever" ? "largo" : "lg"}
       nivel={86}
       bloqueado={passo === "a-criar"}
       accoesQuebram
@@ -690,6 +818,23 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
               pedido já não mudam aqui — muda-os no próprio pedido.
             </p>
           )}
+          {revisao && (
+            <RevisaoDaImportacao
+              revisao={revisao}
+              proposta={proposta}
+              correccoes={c}
+              modoDoIva={c.totalVatMode}
+              onModoDoIva={escolherIva}
+              avisosExtra={avisosDaSoma}
+              mostrarIva={mostrarIva}
+              imagens={imagensDoDocumento}
+              confirmados={confirmados}
+              onConfirmar={confirmar}
+              onLeitura={(f) => {
+                if (original.current && !pedidoCriado) void ler(original.current, f);
+              }}
+            />
+          )}
           {proposta.avisos.length > 0 && (
             <div className="rounded-xl border border-[var(--bo-aviso-tom)]/25 bg-[var(--bo-aviso-tom)]/[0.06] px-4 py-3">
               <p className="text-footnote font-semibold text-[var(--bo-aviso)]">A confirmar</p>
@@ -787,61 +932,268 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
 
           <section className="@container">
             <Titulo c={conf("total")}>Orçamento</Titulo>
-            {proposta.budgetItems.length > 0 && (
-              <ul className="mb-4 flex flex-col divide-y divide-[var(--bo-hairline)] rounded-xl border border-[var(--bo-hairline)]">
-                {proposta.budgetItems.map((item, k) => (
-                  <li
-                    key={k}
-                    className="flex items-baseline justify-between gap-3 px-3 py-2 text-footnote"
-                  >
-                    <span className="min-w-0 break-words text-[var(--bo-text)]">{item}</span>
-                    {proposta.budgetAmounts[k] !== null && (
-                      <span className="shrink-0 tabular-nums text-[var(--bo-tinta-72)]">
-                        {eur(proposta.budgetAmounts[k] as number)}
+            {/* A CONFERÊNCIA DO DINHEIRO (10.ª revisão): as heurísticas só
+                sugerem — cada linha tem o seu interruptor, o total escolhe-se
+                entre todas as candidatas, e a taxa é um campo. */}
+            {proposta.linhasDoDocumento?.length ? (
+              <ul
+                data-testid="linhas-do-documento"
+                className="mb-4 flex flex-col divide-y divide-[var(--bo-hairline)] rounded-xl border border-[var(--bo-hairline)]"
+              >
+                {proposta.linhasDoDocumento.map((l) => {
+                  const servico = eServico(l, c);
+                  // A posição desta linha entre os serviços (pela chave, nunca pelo
+                  // nome: duas «Centro de mesa» são duas linhas).
+                  const k = servico ? (posicaoDoServico.get(l.chave) ?? -1) : -1;
+                  const convertido = k >= 0 ? aGravar.budgetAmounts[k] : null;
+                  return (
+                    <li
+                      key={l.chave}
+                      className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-2 text-footnote"
+                    >
+                      <span
+                        className={`min-w-0 break-words ${servico ? "text-[var(--bo-text)]" : "text-[var(--bo-text-muted)]"}`}
+                      >
+                        {l.rotulo}
+                        {l.oferta ? " (oferta)" : l.opcional ? " (opcional)" : ""}
                       </span>
-                    )}
-                  </li>
-                ))}
+                      <span className="flex shrink-0 items-center gap-3">
+                        <span className="tabular-nums text-[var(--bo-tinta-72)]">
+                          {eur(convertido ?? l.valor)}
+                        </span>
+                        {l.desconto ? (
+                          <span className="font-semibold text-[var(--bo-perigo)]">
+                            desconto — põe à mão
+                          </span>
+                        ) : (
+                          <Segmented<"sim" | "nao">
+                            ariaLabel={`«${l.rotulo}» é um serviço?`}
+                            size="sm"
+                            value={servico ? "sim" : "nao"}
+                            onChange={(v) =>
+                              setC((x) =>
+                                x
+                                  ? {
+                                      ...x,
+                                      servicoDaLinha: {
+                                        ...x.servicoDaLinha,
+                                        [l.chave]: v === "sim",
+                                      },
+                                    }
+                                  : x,
+                              )
+                            }
+                            options={[
+                              { value: "sim", label: "serviço" },
+                              { value: "nao", label: "não é serviço" },
+                            ]}
+                          />
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
+            ) : (
+              pEf &&
+              pEf.budgetItems.length > 0 && (
+                <ul className="mb-4 flex flex-col divide-y divide-[var(--bo-hairline)] rounded-xl border border-[var(--bo-hairline)]">
+                  {pEf.budgetItems.map((item, k) => (
+                    <li
+                      key={k}
+                      className="flex items-baseline justify-between gap-3 px-3 py-2 text-footnote"
+                    >
+                      <span className="min-w-0 break-words text-[var(--bo-text)]">{item}</span>
+                      {aGravar.budgetAmounts[k] != null && (
+                        <span className="shrink-0 tabular-nums text-[var(--bo-tinta-72)]">
+                          {eur(aGravar.budgetAmounts[k] as number)}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )
             )}
+            {candidatas.length ? (
+              <fieldset
+                className="mb-4 flex min-w-0 flex-col gap-1.5"
+                data-testid="candidatas-ao-total"
+              >
+                <legend className="mb-1 text-footnote font-semibold text-[var(--bo-text-muted)]">
+                  Qual é o total?
+                  {c.totalEscolhido === undefined && !c.totalTocado && <Marca c="nada" />}
+                </legend>
+                {candidatas.map((x) => (
+                  <label
+                    key={x.id}
+                    className="flex min-w-0 cursor-pointer items-baseline gap-2 text-footnote text-[var(--bo-text)]"
+                  >
+                    <input
+                      type="radio"
+                      name="total-do-documento"
+                      className="shrink-0 accent-[var(--bo-accent)]"
+                      checked={c.totalEscolhido === x.id}
+                      onChange={() => {
+                        setC((y) => (y ? escolherTotal(proposta, y, x.id) : y));
+                        setModoAntes(null);
+                      }}
+                    />
+                    <span className="min-w-0 break-words">
+                      {x.derivada ? x.rotulo : `${x.rotulo} — ${eur(x.valor)}`}
+                      {x.sugerida ? (
+                        <span className="font-semibold text-[var(--bo-accent)]">
+                          {" "}
+                          · sugerido pelo IVA que escolheste
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                ))}
+                <label className="flex cursor-pointer items-baseline gap-2 text-footnote text-[var(--bo-text)]">
+                  <input
+                    type="radio"
+                    name="total-do-documento"
+                    className="shrink-0 accent-[var(--bo-accent)]"
+                    checked={c.totalEscolhido === "outro" || c.totalEscolhido === "soma"}
+                    onChange={() => setC((y) => (y ? escolherTotal(proposta, y, "outro") : y))}
+                  />
+                  outro valor (escreve-o em baixo)
+                </label>
+              </fieldset>
+            ) : null}
             <div className="grid grid-cols-1 items-end gap-x-4 gap-y-4 @min-[26rem]:grid-cols-2">
               <Field
                 variant="underline"
                 label="Valor total"
                 inputMode="decimal"
+                error={eNegativo(c.total) ? "o total não pode ser negativo" : undefined}
                 value={c.total}
-                onChange={(e) => set("total", e.target.value)}
-                placeholder={proposta.somaDasLinhas ? eur(proposta.somaDasLinhas) : "Sem total"}
+                onChange={(e) => {
+                  const total = e.target.value;
+                  setC((x) =>
+                    x
+                      ? {
+                          ...x,
+                          total,
+                          totalTocado: true,
+                          somaUsada: false,
+                          ...(candidatas.length ? { totalEscolhido: "outro" } : {}),
+                        }
+                      : x,
+                  );
+                  setModoAntes(null);
+                }}
+                placeholder={pEf?.somaDasLinhas ? eur(pEf.somaDasLinhas) : "Sem total"}
                 hint={
-                  !proposta.totalAmount && proposta.somaDasLinhas > 0 && !c.total ? (
+                  (pEf?.somaDasLinhas ?? 0) > 0 && !c.total ? (
                     <button
                       type="button"
-                      onClick={() =>
-                        set("total", proposta.somaDasLinhas.toFixed(2).replace(".", ","))
-                      }
+                      onClick={() => {
+                        setC((x) => (x ? usarASoma(proposta, x) : x));
+                        setModoAntes(null);
+                      }}
                       className={`font-semibold text-[var(--bo-accent)] underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
                     >
-                      Usar a soma das linhas ({eur(proposta.somaDasLinhas)})
+                      Usar a soma das linhas ({eur(pEf?.somaDasLinhas ?? 0)})
                     </button>
                   ) : undefined
                 }
               />
               <div className="flex min-w-0 flex-col gap-1.5">
-                <span className="text-footnote font-semibold text-[var(--bo-text-muted)]">
+                <span
+                  data-testid="rotulo-iva"
+                  className="text-footnote font-semibold text-[var(--bo-text-muted)]"
+                >
                   IVA
-                  <Marca c={c.total.trim() ? (c.totalVatMode ? conf("iva") : "nada") : "alta"} />
+                  {taxaAgora !== null && Math.abs(taxaAgora - 0.23) > 1e-9
+                    ? ` a ${String(Math.round(taxaAgora * 10000) / 100).replace(".", ",")}%`
+                    : ""}
+                  {!c.totalVatMode && <Marca c="nada" />}
                 </span>
-                <Segmented<VatMode | "">
-                  ariaLabel="O total inclui IVA?"
-                  size="sm"
-                  value={c.totalVatMode ?? ""}
-                  onChange={(v) => set("totalVatMode", v === "" ? null : v)}
-                  options={[
-                    { value: "acrescer", label: "Acresce IVA" },
-                    { value: "incluido", label: "IVA incluído" },
-                  ]}
-                />
+                {revisao ? (
+                  // Uma só escolha do IVA na folha: a de cima. Aqui só se lê.
+                  <p className="text-footnote text-[var(--bo-text)]" data-testid="iva-espelho">
+                    {c.totalVatMode === "acrescer"
+                      ? "Sem IVA (acresce) — escolhido em cima"
+                      : c.totalVatMode === "incluido"
+                        ? "Com IVA (incluído) — escolhido em cima"
+                        : "Por escolher, em cima"}
+                  </p>
+                ) : (
+                  <Segmented<VatMode | "">
+                    ariaLabel="Os valores do documento têm IVA?"
+                    size="sm"
+                    value={c.totalVatMode ?? ""}
+                    onChange={(v) => v && escolherIva(v)}
+                    options={[
+                      { value: "acrescer", label: "sem IVA" },
+                      { value: "incluido", label: "com IVA" },
+                    ]}
+                  />
+                )}
               </div>
+              {mostrarIva || taxaSugerida !== undefined ? (
+                <Field
+                  variant="underline"
+                  label="Taxa do IVA (%)"
+                  error={taxaDe(c) === null ? "uma taxa entre 0 e 30%" : undefined}
+                  inputMode="decimal"
+                  value={c.taxa ?? ""}
+                  onChange={(e) => {
+                    const taxa = e.target.value;
+                    setC((x) => (x ? { ...x, taxa, taxaConfirmada: true } : x));
+                  }}
+                  hint={
+                    taxaSugerida !== undefined && !c.taxaConfirmada ? (
+                      <span>
+                        O documento sugere{" "}
+                        {String(Math.round(taxaSugerida * 10000) / 100).replace(".", ",")}%.{" "}
+                        <button
+                          type="button"
+                          onClick={() => setC((x) => (x ? { ...x, taxaConfirmada: true } : x))}
+                          className={`font-semibold text-[var(--bo-accent)] underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
+                        >
+                          Confirmar {c.taxa}%
+                        </button>
+                      </span>
+                    ) : undefined
+                  }
+                />
+              ) : null}
+              {semTotalPorConfirmar ? (
+                <label className="flex items-center gap-2 text-footnote text-[var(--bo-text)] @min-[26rem]:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="accent-[var(--bo-accent)]"
+                    checked={Boolean(c.semTotalConfirmado)}
+                    onChange={(e) =>
+                      setC((x) => (x ? { ...x, semTotalConfirmado: e.target.checked } : x))
+                    }
+                  />
+                  O documento tem total: confirmo que a proposta fica sem total.
+                </label>
+              ) : null}
+              {modoAntes && c.totalVatMode && c.totalVatMode !== modoAntes ? (
+                <p
+                  role="status"
+                  className="text-footnote font-semibold text-[var(--bo-aviso)] @min-[26rem]:col-span-2"
+                >
+                  Mudaste o IVA — confirma que este total é{" "}
+                  {c.totalVatMode === "incluido" ? "com" : "sem"} IVA.
+                </p>
+              ) : null}
+              {!revisao && avisosDaSoma.length ? (
+                <ul className="flex flex-col gap-1.5 @min-[26rem]:col-span-2">
+                  {avisosDaSoma.map((a) => (
+                    <AvisoLinha
+                      key={a.id}
+                      a={a}
+                      confirmados={confirmados}
+                      onConfirmar={confirmar}
+                    />
+                  ))}
+                </ul>
+              ) : null}
             </div>
           </section>
 
