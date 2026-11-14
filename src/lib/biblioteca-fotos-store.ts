@@ -5,6 +5,17 @@ import type { Foto } from "./biblioteca-types";
 /**
  * As FOTOS da biblioteca — uma linha por ficheiro do bucket `theme-assets`.
  *
+ * ── E TAMBÉM as medidas das fotos das PROPOSTAS (achado de 14/11) ────────
+ * O carregamento das propostas (`api/orcamento/[id]/assets`) grava aqui a
+ * largura, a altura, a cor e o LQIP de fotos do bucket `proposal-assets`
+ * (pastas `LIQ-…`), que o estúdio e o PDF lêem por caminho
+ * (`formasDeCaminhos`, `coresDeCaminhos`); e a cache de URLs assinados
+ * (`urls-assinados.ts`, chamada por `proposta-fotos.ts`) cria linhas dessas só
+ * com os URLs. Por isso o `listFotos` devolve a tabela INTEIRA: fora deste
+ * módulo, só a cópia de segurança, a reposição e o `listFotosDaBiblioteca`
+ * (`biblioteca-fotos-da-biblioteca.ts`, que filtra as pastas de temas) o usam.
+ * Para LISTAR a Biblioteca usa-se este último; um teste prende isto.
+ *
  * ── O que esta tabela NÃO é ──────────────────────────────────────────────
  * Não é a fonte de verdade do que existe. A PASTA continua a mandar nisso (ver
  * `theme-storage.ts`, que lista o bucket): uma linha sem ficheiro é um

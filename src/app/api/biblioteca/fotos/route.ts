@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
-import { listFotos } from "@/lib/biblioteca-fotos-store";
+import { listFotosDaBiblioteca } from "@/lib/biblioteca-fotos-da-biblioteca";
 import { listFotoEtiquetas } from "@/lib/biblioteca-foto-etiquetas-store";
 import { signThemePaths, signThemeThumbs } from "@/lib/theme-storage";
 import { isMissingTable, isPersistenceUnavailable } from "@/lib/repository";
@@ -70,8 +70,10 @@ export async function GET(request: NextRequest) {
   const inicio = inteiro(q.get("offset"), 0, 100_000);
 
   try {
+    // Só as fotos das pastas de TEMAS: a tabela também guarda as medidas das
+    // fotos das propostas, que não são da Biblioteca (ver `soDaBiblioteca`).
     const [fotos, ligacoes, naReciclagem] = await Promise.all([
-      listFotos(),
+      listFotosDaBiblioteca(),
       listFotoEtiquetas(),
       pastasDeTemasNaReciclagem(),
     ]);
