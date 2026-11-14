@@ -12,13 +12,22 @@ import { NextRequest } from "next/server";
  */
 
 type F = { path: string; pasta: string };
-const H = vi.hoisted(() => ({ fotos: [] as F[] }));
+const H = vi.hoisted(() => ({
+  fotos: [] as F[],
+  /** As fotografias de tema na Reciclagem, pelo caminho de origem. */
+  fotosNaReciclagem: new Set<string>(),
+}));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => true }));
 vi.mock("@/lib/biblioteca-fotos-store", () => ({ listFotos: async () => H.fotos }));
 vi.mock("@/lib/biblioteca-foto-etiquetas-store", () => ({ listFotoEtiquetas: async () => [] }));
-vi.mock("@/lib/reciclagem", () => ({ pastasDeTemasNaReciclagem: async () => new Set<string>() }));
+vi.mock("@/lib/reciclagem", () => ({
+  oQueOsTemasTemNaReciclagem: async () => ({
+    pastas: new Set<string>(),
+    fotos: H.fotosNaReciclagem,
+  }),
+}));
 // O bucket dos temas só assina o que lá existe: um caminho de pedido não.
 const assina = async (caminhos: string[]) =>
   new Map(caminhos.filter((c) => !c.startsWith("LIQ-")).map((c) => [c, `https://x/${c}`]));
@@ -32,6 +41,7 @@ const pedir = async (qs = "") => {
 };
 
 beforeEach(() => {
+  H.fotosNaReciclagem = new Set();
   // Intercaladas, como na tabela (ordenada por data): tema, pedido, tema, pedido…
   H.fotos = Array.from({ length: 6 }, (_, i) =>
     i % 2 === 0
@@ -52,5 +62,18 @@ describe("GET /api/biblioteca/fotos", () => {
     expect(r.fotos.map((f) => f.path)).toEqual(["0b6f2c1e-tema/0.jpg", "0b6f2c1e-tema/2.jpg"]);
     const seguinte = await pedir("?limit=2&offset=2");
     expect(seguinte.fotos.map((f) => f.path)).toEqual(["0b6f2c1e-tema/4.jpg"]);
+  });
+  /**
+   * 14/11: uma foto levada para a Reciclagem sai da pasta, mas a linha dela na
+   * tabela fica (é com ela que volta, etiquetas incluídas). A Biblioteca deixa
+   * de a mostrar — e volta a mostrá-la quando ela a repõe.
+   */
+  it("uma foto na Reciclagem não aparece; reposta, volta", async () => {
+    H.fotosNaReciclagem = new Set(["0b6f2c1e-tema/2.jpg"]);
+    const r = await pedir();
+    expect(r.total).toBe(2);
+    expect(r.fotos.map((f) => f.path)).toEqual(["0b6f2c1e-tema/0.jpg", "0b6f2c1e-tema/4.jpg"]);
+    H.fotosNaReciclagem = new Set();
+    expect((await pedir()).total).toBe(3);
   });
 });

@@ -813,7 +813,52 @@ function writeCount(
  */
 export function invalidateThemeCount(themeId: string): void {
   const folder = themeFolder(themeId);
-  if (folder) countMemo.delete(folder);
+  if (folder) {
+    countMemo.delete(folder);
+    nomesMemo.delete(folder);
+  }
+}
+
+/**
+ * ── OS NOMES DA PASTA, PARA A ORDEM ARRUMADA À MÃO (14/11) ─────────────────
+ *
+ * A ordem arrumada à mão (`photoOrder`, no tema) vem à frente da grelha, e
+ * NÃO passava pela pasta: uma foto que foi para a Reciclagem saía da pasta mas
+ * ficava na ordem — e o escolhedor do estúdio continuava a oferecê-la, com a
+ * miniatura (que fica, para a foto voltar a encontrá-la). Foi assim que quatro
+ * propostas escolheram fotos que já não existiam.
+ *
+ * A pasta é a fonte da verdade: as arrumadas só entram se a pasta as tiver.
+ * Custo: NENHUMA ida a mais. Com ordem arrumada a grelha já contava a pasta
+ * inteira (`countThemeFiles`) em cada página; agora lê os NOMES nessa mesma
+ * volta, e a contagem sai deles. A mesma memória de 60 s, deitada fora pelas
+ * mesmas escritas (`invalidateThemeCount` — também ao levar e ao trazer da
+ * Reciclagem). Uma pasta que não se deixa ler, ou maior do que o tecto, dá
+ * `null`: não se esconde nada por não se saber.
+ */
+const nomesMemo = new Map<string, { at: number; nomes: Set<string> }>();
+
+async function nomesDoTema(themeId: string): Promise<Set<string> | null> {
+  const folder = themeFolder(themeId);
+  if (!folder) return null;
+  const hit = nomesMemo.get(folder);
+  if (hit && Date.now() - hit.at <= COUNT_TTL_MS) return hit.nomes;
+  const nomes = new Set<string>();
+  for (let pagina = 0; pagina < MAX_COUNT_PAGES; pagina++) {
+    const listed = await listThemeFiles(themeId, COUNT_PAGE, pagina * COUNT_PAGE);
+    if (!listed.ok) return null;
+    for (const n of listed.names) nomes.add(n);
+    if (!listed.truncated) {
+      nomesMemo.set(folder, { at: Date.now(), nomes });
+      writeCount(themeId, MAX_COUNT_PAGES, COUNT_PAGE, {
+        total: nomes.size,
+        ok: true,
+        truncated: false,
+      });
+      return nomes;
+    }
+  }
+  return null;
 }
 
 // ── O ÍNDICE DE REPETIDAS ──────────────────────────────────────────────────
@@ -1123,7 +1168,13 @@ export async function listThemeImagePage(
   // Sem ordem manual, o caminho é o de sempre: uma leitura da pasta, uma
   // página. Com ordem manual, as arrumadas vêm à frente e a pasta continua
   // atrás — saltando as que já foram mostradas no prefixo.
-  const arranged = order.filter((p) => themeIdOfPath(p) === folder);
+  let arranged = order.filter((p) => themeIdOfPath(p) === folder);
+  // Só as que a pasta ainda tem (ver `nomesDoTema`): uma foto na Reciclagem
+  // deixa de ser oferecida, e volta a sê-lo quando se repõe.
+  if (arranged.length > 0) {
+    const nomes = await nomesDoTema(themeId);
+    if (nomes) arranged = arranged.filter((p) => nomes.has(p.slice(folder.length + 1)));
+  }
   const plan = planOrderedPage(arranged, size, from);
   const arrangedSet = new Set(arranged);
 

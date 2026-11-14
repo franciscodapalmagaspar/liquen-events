@@ -2601,7 +2601,7 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o envio recusa uma propo
     try {
       const doc = baseDoc({
         totalAmount: 3000,
-        fotosDasPaginas: { "separador:cerimonia": { fotos: ["tema:x/y.jpg"] } },
+        fotosDasPaginas: { indice: { fotos: ["tema:x/y.jpg"] } },
       });
       const r = await recusa(doc);
       expect(r.status).toBe(422);
@@ -2656,6 +2656,32 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o envio recusa uma propo
       params,
     });
     expect(rascunho.status).toBe(200);
+  });
+
+  /**
+   * Revisão de 14/11, n.º 6: o PDF final com uma foto escolhida em falta sairia
+   * com o lugar vazio — e descarregá-lo e mandá-lo por fora é enviar. Só o
+   * rascunho sai, como no estúdio.
+   */
+  it("o PDF final não sai com uma foto escolhida em falta — o rascunho sai", async () => {
+    escolhidas.emFalta = [
+      { ref: "tema:x/y.jpg", pagina: "Índice", tema: "Natal", naReciclagem: true },
+    ];
+    try {
+      const doc = baseDoc({
+        totalAmount: 3000,
+        fotosDasPaginas: { indice: { fotos: ["tema:x/y.jpg"] } },
+      });
+      const final = await POST(previewReq(doc), { params });
+      expect(final.status).toBe(422);
+      expect((await final.json()).error).toMatch(
+        /O PDF final só sai com as fotografias todas: a foto da página «Índice» do tema «Natal» já não existe/,
+      );
+      const rascunho = await POST(req({ mode: "preview", rascunho: true, doc }), { params });
+      expect(rascunho.status).toBe(200);
+    } finally {
+      escolhidas.emFalta = [];
+    }
   });
 
   it("e um orçamento sem serviço nenhum também não dá PDF final", async () => {

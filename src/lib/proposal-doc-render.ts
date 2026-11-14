@@ -819,6 +819,17 @@ export async function renderStoredEditorialPdfWithReport(
       fotos: fotosEscolhidasEmFalta,
     });
   }
+  // A CAPA escolhida que não se deixou buscar (revisão de 14/11, n.º 3). O
+  // desenho da capa não muda — cai para a melhor deitada da inspiração, como
+  // sempre que a dela não serve —, mas isto não pode passar em silêncio: fica
+  // registado aqui, e o envio já travou antes (`fotosEscolhidasQueFaltam`
+  // conta a capa na mesma lista das páginas).
+  const iCapa = (withDefaults.coverImages ?? []).findIndex((c) => c && c.trim());
+  if (iCapa >= 0 && !resolved.coverImages?.[iCapa]) {
+    log.warn("pdf editorial: a fotografia de capa escolhida já não existe — saiu outra", {
+      capa: withDefaults.coverImages[iCapa],
+    });
+  }
   return {
     pdf: Buffer.from(bytes),
     missingImages: missing + undrawnImages,

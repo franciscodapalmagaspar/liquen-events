@@ -106,6 +106,44 @@ const assinadas = inventarioDeFotos(doc).map((e, i) => ({
 }));
 
 describe("a proposta online pronta a desenhar", () => {
+  /**
+   * 14/11: uma foto que foi para a Reciclagem continuava na página do casal —
+   * assinar não prova que o ficheiro existe —, e via-se uma imagem partida.
+   * Faz-se como no PDF: o lugar vazio, a fila sem ela. Vale também para as
+   * propostas já enviadas: o conteúdo guardado delas ainda a cita.
+   */
+  it("uma fotografia que já não existe não sai: nem imagem partida, nem célula vazia", async () => {
+    const normal = await montarPropostaWeb(
+      conteudo,
+      { id: "p1", doc },
+      "TOKEN",
+      "pt",
+      textosWeb("pt"),
+      assinadas,
+    );
+    const p = await montarPropostaWeb(
+      conteudo,
+      { id: "p1", doc },
+      "TOKEN",
+      "pt",
+      textosWeb("pt"),
+      assinadas,
+      undefined,
+      undefined,
+      new Set([C(2)]),
+    );
+    // C(2) é a 3.ª do inventário: nenhum endereço dela sai na página.
+    expect(JSON.stringify(normal)).toMatch(/-2\.(webp|jpg)/);
+    expect(JSON.stringify(p)).not.toMatch(/-2\.(webp|jpg)/);
+    // O serviço que a tinha fica sem foto (o lugar vazio do PDF).
+    expect(p.servicos?.itens[0].foto).toBeNull();
+    // O mosaico do primeiro tema fica sem ela — uma célula de imagem a menos,
+    // e nenhuma sem imagem.
+    const imagens = (q: typeof p) => q.capitulos[0].mosaicos.flat().filter((c) => !c.texto);
+    expect(imagens(p)).toHaveLength(imagens(normal).length - 1);
+    expect(imagens(p).every((c) => c.imagem)).toBe(true);
+  });
+
   it("a capa leva as suas AVIF (27/10, «Mais rápida») — e só a capa", async () => {
     const p = await montarPropostaWeb(
       conteudo,

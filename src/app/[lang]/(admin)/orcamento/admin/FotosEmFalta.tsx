@@ -63,29 +63,39 @@ export default function FotosEmFalta({
   const [r, setR] = useState<VerificacaoDeFotos | null>(null);
   // Numa ref: a função muda a cada desenho do estúdio, e a verificação não.
   const avisar = useRef(onEscolhidasQueFaltam);
+  // E o documento ACTUAL, também numa ref (revisão de 14/11, n.º 7): a
+  // verificação não corre a cada tecla, mas quando corre — «Já corrigi —
+  // voltar a confirmar» — tem de confirmar o documento de agora, e não o do
+  // primeiro desenho. Com o `doc` preso no `useCallback`, ela trocava a foto e
+  // o botão voltava a dizer que faltava.
+  const docAtual = useRef(doc);
   useEffect(() => {
     avisar.current = onEscolhidasQueFaltam;
-  }, [onEscolhidasQueFaltam]);
+    docAtual.current = doc;
+  }, [onEscolhidasQueFaltam, doc]);
 
   const verificar = useCallback(async () => {
     try {
       const res = await fetch(`/api/orcamento/${encodeURIComponent(quoteId)}/fotos-em-falta`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc }),
+        body: JSON.stringify({ doc: docAtual.current }),
       });
       if (!res.ok) throw new Error(String(res.status));
       const resposta = (await res.json()) as VerificacaoDeFotos;
       setR(resposta);
       setEstado("respondeu");
-      if (resposta.verificou) avisar.current?.(resposta.escolhidasQueFaltam ?? []);
+      // Mesmo com uma pasta por confirmar (`verificou: false`), as que SE SABE
+      // que faltam vêm na lista e travam — «não sei» de uma pasta não apaga
+      // o que as outras disseram.
+      if (resposta.escolhidasQueFaltam) avisar.current?.(resposta.escolhidasQueFaltam);
+      else if (resposta.verificou) avisar.current?.([]);
     } catch {
       setEstado("falhou");
     }
-    // `doc` de fora das dependências DE PROPÓSITO: ele muda a cada tecla, e a
-    // verificação lista pastas do armazenamento. Corre ao entrar no passo e
-    // quando ela pedir — ver o efeito abaixo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // O `doc` lê-se de `docAtual` e não entra nas dependências DE PROPÓSITO:
+    // ele muda a cada tecla, e a verificação lista pastas do armazenamento.
+    // Corre ao entrar no passo e quando ela pedir — ver o efeito abaixo.
   }, [quoteId]);
 
   /**

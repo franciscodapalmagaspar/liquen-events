@@ -43,6 +43,13 @@ export interface FotoEscolhidaEmFalta {
   tema: string | null;
   /** Está na Reciclagem (e pode repor-se)? */
   naReciclagem: boolean;
+  /**
+   * Ainda a copiar (`pending:`): o ficheiro está reservado e não chegou. Não
+   * é «já não existe» — é «espera e volta a confirmar» (revisão de 14/11).
+   */
+  porCopiar?: true;
+  /** É a fotografia de capa (`coverImages`), e não a de uma página. */
+  capa?: true;
 }
 
 export interface VerificacaoDeFotos {

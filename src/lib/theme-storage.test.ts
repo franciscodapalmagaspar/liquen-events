@@ -513,6 +513,34 @@ describe("countThemeFiles", () => {
 
 // ── Uma página, assinada (originais + miniaturas) ──────────────────────────
 describe("listThemeImagePage", () => {
+  /**
+   * 14/11: uma foto que vai para a Reciclagem sai da pasta, mas ficava na
+   * ordem arrumada à mão (`photoOrder`) — e o escolhedor do estúdio continuava
+   * a oferecê-la, com a miniatura (que fica). Quatro propostas escolheram
+   * assim fotos que já não existiam. A pasta manda; reposta, volta.
+   */
+  it("a ordem arrumada só oferece o que a pasta tem — e a foto reposta volta", async () => {
+    st.list.mockResolvedValue(page(["fica.jpg", "outra.jpg"]));
+    const { listThemeImagePage, trazerFotoDaReciclagem } = await load();
+    const ordem = ["t-1/foi.jpg", "t-1/fica.jpg"];
+    const r = await listThemeImagePage("t-1", 10, 0, ordem);
+    expect(r.images.map((i) => i.path)).toEqual(["t-1/fica.jpg", "t-1/outra.jpg"]);
+    expect(r.total).toBe(2);
+    // Nenhuma ida a mais: a página e a pasta (que já se contava), e mais nada.
+    expect(st.list).toHaveBeenCalledTimes(2);
+
+    // Reposta: volta à pasta (o mesmo caminho) e volta a ser oferecida já —
+    // repor deita fora a memória curta da pasta.
+    expect(await trazerFotoDaReciclagem("t-1/foi.jpg", "reciclagem/e-1/foi.jpg")).toBe("ok");
+    st.list.mockResolvedValue(page(["fica.jpg", "outra.jpg", "foi.jpg"]));
+    const depois = await listThemeImagePage("t-1", 10, 0, ordem);
+    expect(depois.images.map((i) => i.path)).toEqual([
+      "t-1/foi.jpg",
+      "t-1/fica.jpg",
+      "t-1/outra.jpg",
+    ]);
+  });
+
   it("assina SÓ a página pedida, num pedido por bucket", async () => {
     st.list.mockResolvedValue(page(["a.jpg", "b.png"]));
     const { listThemeImagePage } = await load();

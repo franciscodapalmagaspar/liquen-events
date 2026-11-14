@@ -65,7 +65,7 @@ vi.mock("./supabase", () => ({
       : null,
 }));
 
-const { verificarFotosDaProposta, fotosEscolhidasQueFaltam, PORQUE_FALTA } =
+const { verificarFotosDaProposta, fotosEscolhidasQueFaltam, refsQueJaNaoExistem, PORQUE_FALTA } =
   await import("./proposta-fotos-verificacao");
 
 beforeEach(() => {
@@ -324,11 +324,11 @@ describe("as fotografias que vão sair pior do que deviam", () => {
     // 1100 de lado maior: chegava para um mood board, não para uma página inteira.
     H.formas.set("LIQ-9/pag.jpg", { largura: 1100, altura: 733 });
     const r = await verificarFotosDaProposta(
-      doc({ fotosDasPaginas: { "separador:Cerimónia": { fotos: ["LIQ-9/pag.jpg"] } } }),
+      doc({ fotosDasPaginas: { indice: { fotos: ["LIQ-9/pag.jpg"] } } }),
     );
     expect(r.suspeitas).toHaveLength(1);
     expect(r.suspeitas[0]).toMatchObject({
-      onde: "Página escolhida 1 · foto 1",
+      onde: "Página «Índice» · foto 1",
       motivo: "pequena-demais",
     });
     expect(r.suspeitas[0].id).toMatch(/^p[0-9a-z]{1,8}f0$/);
@@ -405,11 +405,103 @@ describe("as fotos escolhidas para as páginas que já não existem", () => {
     expect(r.escolhidasQueFaltam?.map((f) => f.ref)).toEqual(["tema:t1/foi.jpg"]);
   });
 
-  it("uma listagem que falha não acusa ninguém (null), e sem escolhas não pergunta nada", async () => {
+  it("uma listagem que falha não acusa as dela, e sem escolhas não pergunta nada", async () => {
     H.pastas.set("theme-assets::t1", null);
-    expect(await fotosEscolhidasQueFaltam(doc as never)).toBeNull();
+    expect(await fotosEscolhidasQueFaltam(doc as never)).toEqual([]);
     H.listagens.length = 0;
     expect(await fotosEscolhidasQueFaltam({ fotosDasPaginas: {} } as never)).toEqual([]);
     expect(H.listagens).toEqual([]);
+  });
+
+  /**
+   * Revisão de 14/11, n.º 2: na rota, UMA pasta que não se deixava listar
+   * devolvia «não sei» para a proposta inteira, e o travão desligava-se. Uma
+   * pasta em falha deixa por acusar só as SUAS fotos.
+   */
+  it("uma pasta que falha não desliga o que as outras disseram", async () => {
+    H.pastas.set("theme-assets::t1", ["fica.jpg"]);
+    H.pastas.set("theme-assets::t2", null);
+    const comDuas = {
+      ...doc,
+      fotosDasPaginas: {
+        indice: { fotos: ["tema:t1/foi.jpg"] },
+        proposta: { fotos: ["tema:t2/talvez.jpg"] },
+      },
+    };
+    expect((await fotosEscolhidasQueFaltam(comDuas as never)).map((f) => f.ref)).toEqual([
+      "tema:t1/foi.jpg",
+    ]);
+    const r = await verificarFotosDaProposta(comDuas as never);
+    // A verificação não é inteira — mas a que se SABE que falta vem, e trava.
+    expect(r.verificou).toBe(false);
+    expect(r.escolhidasQueFaltam?.map((f) => f.ref)).toEqual(["tema:t1/foi.jpg"]);
+  });
+
+  /**
+   * Revisão de 14/11, n.º 1: uma chave de uma página que JÁ NÃO EXISTE no
+   * plano (o tema ficou com menos páginas) não sai no PDF — acusá-la travava o
+   * envio sem forma de resolver, com a chave crua na frase.
+   */
+  it("uma chave órfã não conta, nem na verificação nem no travão", async () => {
+    H.pastas.set("theme-assets::t1", ["fica.jpg"]);
+    const orfa = {
+      ...doc,
+      fotosDasPaginas: { "tema:0:3": { fotos: ["tema:t1/foi.jpg"] } },
+    };
+    expect(await fotosEscolhidasQueFaltam(orfa as never)).toEqual([]);
+    const r = await verificarFotosDaProposta(orfa as never);
+    expect(r.escolhidasQueFaltam).toEqual([]);
+    expect(r.emFalta).toEqual([]);
+  });
+
+  /** N.º 8: uma `pending:` ainda a copiar não «já não existe». */
+  it("uma foto ainda a copiar vem marcada como tal", async () => {
+    const r = await fotosEscolhidasQueFaltam({
+      ...doc,
+      fotosDasPaginas: { indice: { fotos: ["pending:LIQ-9/nova.jpg"] } },
+    } as never);
+    expect(r).toEqual([
+      {
+        ref: "pending:LIQ-9/nova.jpg",
+        pagina: "Índice",
+        tema: null,
+        naReciclagem: false,
+        porCopiar: true,
+      },
+    ]);
+  });
+
+  /**
+   * N.º 3: a capa escolhida que não se deixa buscar punha outra no lugar, em
+   * silêncio. O desenho da capa não muda; a capa entra na MESMA lista e trava.
+   */
+  it("a fotografia de capa escolhida que falta entra na mesma lista", async () => {
+    H.pastas.set("theme-assets::t1", ["fica.jpg"]);
+    const r = await fotosEscolhidasQueFaltam({
+      ...doc,
+      coverImages: ["", "tema:t1/foi.jpg"],
+    } as never);
+    expect(r).toEqual([
+      { ref: "tema:t1/foi.jpg", pagina: "Capa", tema: "Natal", naReciclagem: true, capa: true },
+    ]);
+  });
+});
+
+/** A proposta online (14/11): o que SE SABE que falta, e só isso. */
+describe("as fotografias que já não existem, para a página do casal", () => {
+  it("só as que a pasta não tem; «não sei» não esconde nada", async () => {
+    naBiblioteca("t1", ["fica.jpg"]);
+    naBiblioteca("t2", null);
+    naPastaDoPedido("LIQ-9", ["uma.jpg"]);
+    const faltam = await refsQueJaNaoExistem([
+      "tema:t1/fica.jpg",
+      "tema:t1/foi.jpg",
+      "tema:t2/talvez.jpg",
+      "LIQ-9/uma.jpg",
+      "LIQ-9/duas.jpg",
+      "https://fora/x.jpg",
+      "pending:LIQ-9/p.jpg",
+    ]);
+    expect([...faltam].sort()).toEqual(["LIQ-9/duas.jpg", "tema:t1/foi.jpg"]);
   });
 });

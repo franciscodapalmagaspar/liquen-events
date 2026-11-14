@@ -90,6 +90,9 @@ const TRAVAM_O_PDF_FINAL: ReadonlySet<string> = new Set([
   "precos-das-linhas",
   "artigos-moloni",
   "soma",
+  // A foto que ela escolheu e já não existe: o PDF final sairia com o lugar
+  // vazio. O estúdio já só oferece o rascunho nesse caso (a mesma lista).
+  "foto-escolhida-em-falta",
 ]);
 
 export const runtime = "nodejs";
@@ -481,9 +484,9 @@ async function POST_semMedida(
      * minuto deitado fora.
      */
     if (mode === "send") {
-      // `null` (não se conseguiu perguntar) não trava: «não sei» não acusa, e o
-      // PDF, se faltar mesmo, deixa o lugar vazio e regista-o.
-      const escolhidasEmFalta = (await fotosEscolhidasQueFaltam(doc)) ?? [];
+      // A MESMA conta do estúdio (`fotosEscolhidasQueFaltam`). Uma pasta que
+      // não responde deixa por acusar só as fotos dela; as outras contam.
+      const escolhidasEmFalta = await fotosEscolhidasQueFaltam(doc);
       const travam = oQueFaltaParaEnviar(doc, dinheiroDaProposta(doc).gross, {
         idioma,
         fotosEscolhidasQueFaltam: escolhidasEmFalta,
@@ -523,6 +526,7 @@ async function POST_semMedida(
     if (mode === "preview" && !rascunho) {
       const travam = oQueFaltaParaEnviar(doc, dinheiroDaProposta(doc).gross, {
         idioma,
+        fotosEscolhidasQueFaltam: await fotosEscolhidasQueFaltam(doc),
         canal: "email",
         emailDoCliente: quote.email,
         pdfVisto: false,
@@ -532,7 +536,11 @@ async function POST_semMedida(
           {
             // Só a primeira letra desce: o resto leva os nomes dos serviços,
             // que se escrevem como ela os escreveu.
-            error: `O PDF final só sai com os valores todos: ${travam
+            error: `O PDF final só sai com ${
+              travam.every((f) => f.id === "foto-escolhida-em-falta")
+                ? "as fotografias todas"
+                : "os valores todos"
+            }: ${travam
               .map((f) => f.texto.charAt(0).toLowerCase() + f.texto.slice(1))
               .join("; ")}. Até lá, descarrega o rascunho.`,
             faltas: travam,

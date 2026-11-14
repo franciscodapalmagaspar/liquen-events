@@ -129,8 +129,32 @@ describe("uma foto escolhida que já não existe não é trocada por outra (14/1
   it("o lugar fica dela, conta como em falta, e o aviso diz qual", async () => {
     const d = doc({ fotosDasPaginas: { indice: { fotos: ["proposal-assets/TESTE/foi.jpg"] } } });
     const pdf = await renderStoredEditorialPdfWithReport(d, "pt");
-    expect(pdf.fotos.indice).toEqual([{ ref: "proposal-assets/TESTE/foi.jpg" }]);
+    expect(pdf.fotos.indice).toEqual([{ ref: "proposal-assets/TESTE/foi.jpg", emFalta: true }]);
     expect(pdf.missingImages).toBe(1);
+  });
+
+  /**
+   * Revisão de 14/11, n.º 3: a CAPA escolhida que não se deixa buscar. O
+   * desenho da capa não muda (sai a melhor deitada, como sempre que a dela não
+   * serve) — mas não em silêncio: fica registado, e o envio trava antes
+   * (`fotosEscolhidasQueFaltam` conta a capa na mesma lista).
+   */
+  it("a capa escolhida em falta fica registada (o desenho da capa não muda)", async () => {
+    const { log } = await import("@/lib/logger");
+    const aviso = vi.spyOn(log, "warn");
+    try {
+      const pdf = await renderStoredEditorialPdfWithReport(
+        doc({ coverImages: ["proposal-assets/TESTE/capa-foi.jpg"] }),
+        "pt",
+      );
+      expect(pdf.fotos.capa[0].ref).not.toBe("proposal-assets/TESTE/capa-foi.jpg");
+      expect(aviso).toHaveBeenCalledWith(
+        expect.stringMatching(/fotografia de capa escolhida já não existe/),
+        { capa: "proposal-assets/TESTE/capa-foi.jpg" },
+      );
+    } finally {
+      aviso.mockRestore();
+    }
   });
 });
 

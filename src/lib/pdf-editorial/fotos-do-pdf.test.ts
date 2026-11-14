@@ -184,7 +184,7 @@ describe("a fotografia que ela escolhe é a que sai", () => {
     const sem = await fotosDoEditorial(comCaminhos(), "pt", medidas);
     const { desenhado, plano } = await asDuas(d);
     expect(sem.indice[0].ref).not.toBe("TESTE/apagada.jpg");
-    expect(desenhado.indice).toEqual([{ ref: "TESTE/apagada.jpg" }]);
+    expect(desenhado.indice).toEqual([{ ref: "TESTE/apagada.jpg", emFalta: true }]);
     expect(plano).toEqual(desenhado);
     const r = paraDesenhar(d);
     const pdf = await renderEditorialPdf(r.doc, "pt", {}, { refs: r.refs, medidas });

@@ -246,6 +246,9 @@ function fotosDoPlano(plano: readonly Passo[]): FotosDoPdf {
     saida[p.chave] = p.fotos.map((f) => ({
       ref: f?.ref ?? null,
       ...(f?.foco ? { foco: f.foco } : {}),
+      // Marcada: o estúdio desenha o lugar vazio com aviso, e não a miniatura
+      // de um caminho que já não tem ficheiro (revisão de 14/11, n.º 9).
+      ...(f?.emFalta ? { emFalta: true as const } : {}),
     }));
   }
   return saida;
