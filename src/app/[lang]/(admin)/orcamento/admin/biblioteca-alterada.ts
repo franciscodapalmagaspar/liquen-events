@@ -9,8 +9,8 @@
  * `window` (e não um import) mantém os dois ecrãs sem se conhecerem.
  *
  * O mesmo evento muda a GERAÇÃO das fotos da pré-visualização real
- * (`usePaginaReal`, `fotosMudaram`): as páginas à vista pedem-se outra vez, e o
- * primeiro pedido de cada uma vai `fresco`.
+ * (`usePaginaReal`, `fotosMudaram`): as páginas à vista pedem-se outra vez, e
+ * os pedidos dos 3 min seguintes levam `desde` (o instante da mudança).
  */
 export function bibliotecaAlterada(): void {
   if (typeof window === "undefined") return;

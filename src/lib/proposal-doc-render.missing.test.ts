@@ -170,11 +170,13 @@ describe("contagem de fotos em falta", () => {
       moodBoards: boards,
     } as unknown as Parameters<typeof renderStoredProposalDocPdfWithReport>[0]);
     expect(missingImages).toBe(10);
-    // As 80 primeiras pela ordem dela; o último board inteiro fica de fora.
+    // A ★ de cada board primeiro (3.ª revisão de 14/11: nenhum board fica
+    // vazio), depois as outras pela ordem dela — saem as 10 últimas.
+    const deFora = new Set(["b7f9.jpg", ...Array.from({ length: 9 }, (_, k) => `b8f${k + 1}.jpg`)]);
     expect([...pedidas].sort()).toEqual(
       boards
-        .slice(0, 8)
         .flatMap((b) => b.images)
+        .filter((r) => !deFora.has(r))
         .sort(),
     );
   });

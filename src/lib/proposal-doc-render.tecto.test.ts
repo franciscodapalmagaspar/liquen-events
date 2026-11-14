@@ -114,11 +114,14 @@ describe("o tecto de fotos do PDF editorial", () => {
     );
     expect(pedidas.has("TESTE/capa.jpg")).toBe(true);
     expect(pedidas.has("TESTE/escolhida.jpg")).toBe(true);
-    // 92 diferentes, tecto de 80: saem as 12 últimas dos mood boards.
+    // 92 diferentes, tecto de 80: a capa, a escolhida e a ★ de cada board
+    // primeiro (3.ª revisão de 14/11); saem as 12 últimas do resto dos boards.
     expect(r.faltasPeloTecto).toBe(12);
     expect(r.faltasPeloTectoQueTravam).toBe(0);
     expect(pedidas.has("TESTE/b8f9.jpg")).toBe(false);
-    expect(pedidas.has("TESTE/b7f7.jpg")).toBe(true);
+    expect(pedidas.has("TESTE/b8f0.jpg")).toBe(true);
+    expect(pedidas.has("TESTE/b7f7.jpg")).toBe(false);
+    expect(pedidas.has("TESTE/b7f6.jpg")).toBe(true);
     // E chega ao desenho como bytes, não como lugar vazio.
     const indice = recebidos[0].fotosDasPaginas?.indice?.fotos?.[0] ?? "";
     expect(indice.length).toBeGreaterThan(100);
@@ -135,6 +138,41 @@ describe("o tecto de fotos do PDF editorial", () => {
       doc({ coverImages: ["TESTE/capa.jpg"], moodBoards: temas, fotosDasPaginas }),
     );
     expect(pedidas.has("TESTE/capa.jpg")).toBe(true);
+    expect(r.faltasPeloTecto).toBe(6);
+    expect(r.faltasPeloTectoQueTravam).toBe(6);
+  });
+
+  /**
+   * 3.ª revisão de 14/11, importante n.º 1: a capa e nove boards de dez (91
+   * diferentes). O tecto cortava o board 8 inteiro — a página do tema saía
+   * só com o título, e o PDF guardava-se.
+   */
+  it("capa + 9 boards de 10: nenhum board chega ao desenho sem fotos, e a ★ continua a ★", async () => {
+    const mbs = boards(9, (b, k) => `TESTE/b${b}f${k}.jpg`);
+    (mbs[8] as { principal?: number }).principal = 4;
+    const r = await renderStoredEditorialPdfWithReport(
+      doc({ coverImages: ["TESTE/capa.jpg"], moodBoards: mbs }),
+    );
+    expect(r.faltasPeloTecto).toBe(11);
+    expect(r.faltasPeloTectoQueTravam).toBe(0);
+    const desenhados = recebidos[0].moodBoards;
+    expect(desenhados).toHaveLength(9);
+    for (const b of desenhados) expect(b.images.length).toBeGreaterThan(0);
+    // O board 8 só leva a ★, e ela continua marcada como tal.
+    expect(desenhados[8].images).toHaveLength(1);
+    expect(desenhados[8].principal ?? 0).toBe(0);
+    expect(pedidas.has("TESTE/b8f4.jpg")).toBe(true);
+  });
+
+  it("boards a mais para uma foto cada: os que ficam vazios contam como os que travam", async () => {
+    const mbs = Array.from({ length: 85 }, (_, b) => ({
+      title: `Tema ${b}`,
+      images: [`TESTE/b${b}.jpg`],
+    }));
+    const r = await renderStoredEditorialPdfWithReport(
+      doc({ coverImages: ["TESTE/capa.jpg"], moodBoards: mbs }),
+    );
+    // A capa e 79 boards cabem; os outros 6 ficam sem nenhuma foto.
     expect(r.faltasPeloTecto).toBe(6);
     expect(r.faltasPeloTectoQueTravam).toBe(6);
   });

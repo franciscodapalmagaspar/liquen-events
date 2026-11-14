@@ -115,17 +115,23 @@ async function POST_semMedida(
      */
     const comecou = Date.now();
     /**
-     * ── `fresco=1`: O PRIMEIRO PEDIDO DE CADA PÁGINA DEPOIS DE UMA MUDANÇA ──
+     * ── `desde`: OS PEDIDOS NOS 3 MIN SEGUINTES A UMA MUDANÇA ─────────────
      *
-     * 2.ª revisão de 14/11, importante n.º 2. Uma foto que entra ou sai da
-     * Reciclagem esquece a listagem da pasta NESTA instância — mas a página
-     * pode ser pedida a outra, com a listagem de antes guardada (até 3 min):
-     * a pré-visualização voltava velha. O estúdio marca o primeiro pedido de
-     * cada página depois da mudança (`usePaginaReal`, `fotosMudaram`), e esse
-     * pergunta à pasta AGORA — uma listagem por pasta, uma vez — e guarda a
-     * resposta por cima da velha. Os seguintes voltam à memória.
+     * Uma foto que entra ou sai da Reciclagem esquece a listagem da pasta
+     * NESTA instância — mas a página pode ser pedida a outra, com a listagem
+     * de antes guardada (até 3 min): a pré-visualização voltava velha. O
+     * estúdio manda o instante da mudança (`usePaginaReal`, `fotosMudaram`)
+     * em TODOS os pedidos dos 3 min seguintes, e a memória só serve uma
+     * listagem começada depois dele (`memoria-das-listagens.ts`, com folga de
+     * 5 s para os relógios). Cada instância renova UMA vez por mudança.
+     *
+     * 3.ª revisão de 14/11, importante n.º 2: o `fresco=1` de antes só ia no
+     * primeiro pedido de cada página, e só renovava a instância que o
+     * recebia — o pedido seguinte da mesma página, noutra instância, lia a
+     * listagem velha.
      */
-    const fresco = new URL(request.url).searchParams.get("fresco") === "1";
+    const desdeNoPedido = Number(new URL(request.url).searchParams.get("desde"));
+    const desde = Number.isFinite(desdeNoPedido) && desdeNoPedido > 0 ? desdeNoPedido : undefined;
     let paginas: number | null = null;
     let desenhou = false;
     let chave = "";
@@ -139,7 +145,7 @@ async function POST_semMedida(
       (async () => {
         const faltam = await fotosQueSeSabeQueFaltam(withProposalDefaults(doc as ProposalDoc), {
           memoria: true,
-          ...(fresco ? { renovar: true } : {}),
+          ...(desde !== undefined ? { desde } : {}),
         });
         chave = `rascunho:${createHash("sha256")
           .update(

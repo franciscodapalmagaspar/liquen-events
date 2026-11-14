@@ -820,7 +820,7 @@ describe("quantas listagens, e quando se renovam", () => {
     expect(H.maxEmVoo).toBeGreaterThan(1);
   });
 
-  it("`renovar` lista de novo e guarda por cima — os seguintes lêem a resposta nova", async () => {
+  it("`desde` lista de novo e guarda por cima — os seguintes com o MESMO `desde` lêem a resposta nova", async () => {
     naBiblioteca("t1", []);
     expect(await refsQueJaNaoExistem(["tema:t1/a.jpg"], { memoria: true })).toEqual(
       new Set(["tema:t1/a.jpg"]),
@@ -831,18 +831,26 @@ describe("quantas listagens, e quando se renovam", () => {
       new Set(["tema:t1/a.jpg"]),
     );
     expect(H.listagens.length).toBe(1);
-    expect(await refsQueJaNaoExistem(["tema:t1/a.jpg"], { renovar: true })).toEqual(new Set());
+    // A mudança foi DEPOIS da listagem guardada (mais do que a folga dos relógios).
+    const desde = Date.now() + 10_000;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(desde);
+    expect(await refsQueJaNaoExistem(["tema:t1/a.jpg"], { desde })).toEqual(new Set());
     expect(H.listagens.length).toBe(2);
+    // Os pedidos seguintes da mesma janela (o mesmo `desde`): da memória nova.
+    expect(await refsQueJaNaoExistem(["tema:t1/a.jpg"], { desde })).toEqual(new Set());
     expect(await refsQueJaNaoExistem(["tema:t1/a.jpg"], { memoria: true })).toEqual(new Set());
     expect(H.listagens.length).toBe(2);
+    vi.useRealTimers();
   });
 
-  it("renovações ao mesmo tempo partilham UMA listagem por pasta", async () => {
+  it("pedidos com `desde` ao mesmo tempo partilham UMA listagem por pasta", async () => {
     naBiblioteca("t1", ["a.jpg"]);
     H.atraso = 5;
+    const desde = Date.now();
     await Promise.all([
-      refsQueJaNaoExistem(["tema:t1/a.jpg"], { renovar: true }),
-      refsQueJaNaoExistem(["tema:t1/a.jpg"], { renovar: true }),
+      refsQueJaNaoExistem(["tema:t1/a.jpg"], { desde }),
+      refsQueJaNaoExistem(["tema:t1/a.jpg"], { desde }),
     ]);
     expect(H.listagens.length).toBe(1);
   });

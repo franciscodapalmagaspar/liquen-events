@@ -192,9 +192,9 @@ function nomesNaPasta(
   pasta: string,
   memoria: OpcoesDaPergunta = {},
 ): Promise<Listagem | null> {
-  return memoria.memoria || memoria.renovar
+  return memoria.memoria || memoria.desde !== undefined
     ? listagemComMemoria(bucket, pasta, () => listarAPasta(bucket, pasta), {
-        renovar: memoria.renovar,
+        desde: memoria.desde,
       })
     : listarAPasta(bucket, pasta);
 }
@@ -204,15 +204,17 @@ function nomesNaPasta(
  *  · `memoria` — aceita a resposta guardada há pouco (`MEMORIA_MS`), e
  *    partilha a pergunta em curso: os rascunhos, a pré-visualização, o plano
  *    e a Biblioteca;
- *  · `renovar` — pergunta AGORA e guarda a resposta por cima (o primeiro
- *    pedido de cada página depois de uma foto entrar ou sair da Reciclagem —
- *    2.ª revisão de 14/11, importante n.º 2).
+ *  · `desde` — só aceita uma resposta guardada (ou em curso) que tenha
+ *    começado depois deste instante; senão pergunta AGORA e guarda por cima
+ *    (os pedidos da pré-visualização nos 3 min seguintes a uma foto entrar ou
+ *    sair da Reciclagem — 3.ª revisão de 14/11, importante n.º 2; ver
+ *    `memoria-das-listagens.ts`).
  * Sem nenhuma — o travão do envio e a porta do casal —, de fresco, e nada se
  * guarda.
  */
 export interface OpcoesDaPergunta {
   memoria?: boolean;
-  renovar?: boolean;
+  desde?: number;
 }
 
 /**
@@ -264,9 +266,9 @@ function existeNaPastaComMemoria(
   nome: string,
   memoria: OpcoesDaPergunta,
 ): Promise<boolean | null> {
-  return memoria.memoria || memoria.renovar
+  return memoria.memoria || memoria.desde !== undefined
     ? respostaComMemoria(bucket, pasta, nome, () => existeNaPasta(bucket, pasta, nome), {
-        renovar: memoria.renovar,
+        desde: memoria.desde,
       })
     : existeNaPasta(bucket, pasta, nome);
 }
@@ -577,7 +579,7 @@ export async function refsQueJaNaoExistem(
   /**
    * `memoria`: aceita uma listagem guardada há pouco (`MEMORIA_MS`), e partilha
    * a que estiver em curso — só os rascunhos, a pré-visualização e o plano.
-   * `renovar`: pergunta agora e guarda por cima — ver {@link OpcoesDaPergunta}.
+   * `desde`: só uma listagem começada depois disso — ver {@link OpcoesDaPergunta}.
    */
   opcoes: OpcoesDaPergunta = {},
 ): Promise<Set<string>> {

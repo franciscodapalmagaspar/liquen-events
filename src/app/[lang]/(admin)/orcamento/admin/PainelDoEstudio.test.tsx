@@ -714,10 +714,11 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.useRealTimers();
   });
 
-  it("depois de uma foto mudar, o PRIMEIRO pedido de cada página vai `fresco` — os seguintes não (2.ª revisão de 14/11)", async () => {
-    // A página pode cair noutra instância do servidor, com a listagem da pasta
-    // de antes da mudança guardada: o primeiro pedido de cada página depois
-    // da mudança pede ao servidor que pergunte à pasta agora.
+  it("depois de uma foto mudar, TODOS os pedidos dos 3 min seguintes levam `desde` — e depois deixam de levar (3.ª revisão de 14/11)", async () => {
+    // A página pode cair em qualquer instância do servidor, com a listagem da
+    // pasta de antes da mudança guardada. O `fresco=1` de antes só ia no
+    // primeiro pedido de cada página: o segundo, noutra instância, voltava
+    // velho. Agora cada pedido da janela diz DESDE QUANDO a listagem serve.
     vi.useFakeTimers();
     comUrls();
     const f = respostaWebp();
@@ -730,42 +731,56 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
         });
       }
     };
+    const mostrar = (d: typeof doc) =>
+      rerender(
+        <PainelDoEstudio
+          cabe
+          paginas={paginas}
+          urls={{ "p/a.jpg": "u/a", "p/b.jpg": "u/b" }}
+          originais={{}}
+          aspetos={{ "p/a.jpg": 1.5, "p/b.jpg": 0.7 }}
+          onSaltar={() => {}}
+          doc={d}
+          activa={1}
+          quoteId="q1"
+          idioma="pt"
+        />,
+      );
     await andar();
     const antes = f.mock.calls.length;
+    const quando = Date.now();
     await act(async () => {
       window.dispatchEvent(new Event("liquen:biblioteca-alterada"));
     });
     await andar();
     const depois = f.mock.calls.slice(antes);
     expect(depois.length).toBeGreaterThan(0);
-    // Cada página, a primeira vez depois da mudança: fresca.
-    expect(depois.every(([url]) => String(url).endsWith("/pagina-do-rascunho?fresco=1"))).toBe(
-      true,
-    );
-    const frescas = new Set(depois.map((c) => JSON.parse(String(c[1]?.body)).n));
-    // O rascunho muda: as mesmas páginas pedem-se outra vez — já sem `fresco`.
-    const outro = { ...doc, clientNames: "TESTE Ana & TESTE Rui!" } as typeof doc;
+    const comDesde = (url: unknown) => {
+      const m = /\?desde=(\d+)$/.exec(String(url));
+      return m ? Number(m[1]) : null;
+    };
+    const desde = comDesde(depois[0][0]);
+    expect(desde).not.toBeNull();
+    expect(Math.abs((desde ?? 0) - quando)).toBeLessThan(2_000);
+    expect(depois.every(([url]) => comDesde(url) === desde)).toBe(true);
+    // O rascunho muda: as mesmas páginas pedem-se outra vez — e continuam a
+    // levar o MESMO `desde` (podem cair noutra instância).
     const n = f.mock.calls.length;
-    rerender(
-      <PainelDoEstudio
-        cabe
-        paginas={paginas}
-        urls={{ "p/a.jpg": "u/a", "p/b.jpg": "u/b" }}
-        originais={{}}
-        aspetos={{ "p/a.jpg": 1.5, "p/b.jpg": 0.7 }}
-        onSaltar={() => {}}
-        doc={outro}
-        activa={1}
-        quoteId="q1"
-        idioma="pt"
-      />,
-    );
+    mostrar({ ...doc, clientNames: "TESTE Ana & TESTE Rui!" } as typeof doc);
     await andar();
-    const seguintes = f.mock.calls
-      .slice(n)
-      .filter((c) => frescas.has(JSON.parse(String(c[1]?.body)).n));
+    const seguintes = f.mock.calls.slice(n);
     expect(seguintes.length).toBeGreaterThan(0);
-    expect(seguintes.every(([url]) => !String(url).includes("fresco"))).toBe(true);
+    expect(seguintes.every(([url]) => comDesde(url) === desde)).toBe(true);
+    // Passados os 3 min da memória do servidor, já não é preciso.
+    await act(async () => {
+      vi.advanceTimersByTime(3 * 60_000);
+    });
+    const m = f.mock.calls.length;
+    mostrar({ ...doc, clientNames: "TESTE Ana & TESTE Rui!!" } as typeof doc);
+    await andar();
+    const tarde = f.mock.calls.slice(m);
+    expect(tarde.length).toBeGreaterThan(0);
+    expect(tarde.every(([url]) => String(url).endsWith("/pagina-do-rascunho"))).toBe(true);
     vi.useRealTimers();
   });
 

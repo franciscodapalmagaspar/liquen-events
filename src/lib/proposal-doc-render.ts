@@ -54,6 +54,7 @@ import {
   FOTOS_NO_TECTO_DO_PDF,
   fotosEscolhidasDoDocumento,
   fotosNoTectoDoPdf,
+  preenchida,
 } from "@/lib/fotos-escolhidas";
 import { aFaltaDaCapaTrava, haFotoNaInspiracao } from "@/lib/pdf-editorial/regra-da-capa";
 import type { ConteudoWeb } from "@/lib/pdf-editorial/conteudo-web";
@@ -293,7 +294,10 @@ async function resolveImages(
     tecto: MAX_IMAGES_PER_DOC,
   });
   const dentroDoTecto = noTecto.dentro;
-  const escolhidasDeFora = new Set(noTecto.escolhidasDeFora.map((f) => f.ref));
+  // As escolhidas de fora E as fotos de um board que ficou sem nenhuma (3.ª
+  // revisão de 14/11, importante n.º 1): com qualquer delas o PDF não está
+  // completo e não se guarda.
+  const queTravam = noTecto.queTravam;
   const sabidas: string[] = [];
   let peloTecto = 0;
   /** Das `peloTecto`, os lugares de fotografias que ELA escolheu (ou da capa). */
@@ -428,7 +432,7 @@ async function resolveImages(
       // segunda passagem esbarrava no mesmo tecto (revisão de 14/11, menor n.º 1).
       missing++;
       peloTecto++;
-      if (escolhidasDeFora.has(ref)) peloTectoQueTravam++;
+      if (queTravam.has(ref)) peloTectoQueTravam++;
       return null;
     }
     if (opcoes.faltam?.has(ref)) {
@@ -449,7 +453,7 @@ async function resolveImages(
     await mapLimit(
       (doc.coverImages ?? []).map((ref) => ({ ref })),
       FETCH_CONCURRENCY,
-      async ({ ref }) => (ref ? await buscarComTecto(ref, null) : null),
+      async ({ ref }) => (preenchida(ref) ? await buscarComTecto(ref, null) : null),
     )
   ).map((r) => (r ? r.bytes.toString("base64") : ""));
   const refsDaCapa = (doc.coverImages ?? []).map((ref) => ref || null);
@@ -530,7 +534,7 @@ async function resolveImages(
       // e o estúdio dizia «1 foto em falta» numa proposta que estava inteira.
       // Um aviso que toca sem razão é um aviso que se deixa de ler. (A capa já
       // tinha esta guarda; os mood boards não.)
-      ({ ref, caixa }) => (ref ? buscarComTecto(ref, caixa) : Promise.resolve(null)),
+      ({ ref, caixa }) => (preenchida(ref) ? buscarComTecto(ref, caixa) : Promise.resolve(null)),
     );
 
     /**
@@ -600,7 +604,7 @@ async function resolveImages(
       // página (na paleta, o 6.º é o painel) e o foco de cada uma é o dela.
       const lista = e?.fotos ?? [];
       const obtidas = await mapLimit(lista, FETCH_CONCURRENCY, (ref) =>
-        ref && ref.trim() ? buscarComTecto(ref, null) : Promise.resolve(null),
+        preenchida(ref) ? buscarComTecto(ref, null) : Promise.resolve(null),
       );
       // A que ela escolheu e NÃO se deixou buscar não volta a ser `""` (que é
       // «automático»): fica marcada, e o desenho deixa-lhe o lugar vazio em

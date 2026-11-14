@@ -145,15 +145,22 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
   });
 
   /**
-   * 2.ª revisão de 14/11, importante n.º 2: o primeiro pedido de cada página
-   * depois de uma foto mudar vem com `fresco=1` — pode cair noutra instância,
-   * com a listagem de antes guardada. Esse pergunta à pasta AGORA (e guarda
-   * por cima); os outros continuam a aceitar a memória.
+   * 3.ª revisão de 14/11, importante n.º 2: os pedidos dos 3 min seguintes a
+   * uma foto mudar trazem `desde` (o instante da mudança) — podem cair em
+   * qualquer instância, com a listagem de antes guardada. A memória só serve
+   * uma listagem começada depois dele; sem `desde`, aceita a memória.
    */
-  it("`fresco=1` pergunta à pasta de novo; sem ele, aceita a memória", async () => {
-    await pedir({ doc: DOC, n: 3 }, "?fresco=1");
+  it("`desde` passa à pergunta das fotos que faltam; sem ele (ou inválido), só a memória", async () => {
+    await pedir({ doc: DOC, n: 3 }, "?desde=1763130000000");
     await pedir({ doc: DOC, n: 3 });
-    expect(st.perguntas).toEqual([{ memoria: true, renovar: true }, { memoria: true }]);
+    await pedir({ doc: DOC, n: 3 }, "?desde=abc");
+    await pedir({ doc: DOC, n: 3 }, "?fresco=1");
+    expect(st.perguntas).toEqual([
+      { memoria: true, desde: 1763130000000 },
+      { memoria: true },
+      { memoria: true },
+      { memoria: true },
+    ]);
   });
 
   it("a resposta fresca muda a chave: a página guardada sem a foto não volta", async () => {
@@ -162,7 +169,7 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
     expect(st.render).toHaveBeenCalledTimes(1);
     // A foto voltou (noutra instância): a pergunta fresca já a vê.
     st.faltam = new Set();
-    await pedir({ doc: DOC, n: 3 }, "?fresco=1");
+    await pedir({ doc: DOC, n: 3 }, `?desde=${Date.now()}`);
     expect(st.render).toHaveBeenCalledTimes(2);
   });
 });

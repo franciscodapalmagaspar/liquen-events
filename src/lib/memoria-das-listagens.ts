@@ -39,12 +39,19 @@ const memoria = new Map<string, { at: number; valor: unknown }>();
 const emCurso = new Map<string, Promise<unknown>>();
 const emCursoMarca = new Map<string, object>();
 /**
- * As perguntas em curso que são RENOVAÇÕES (`renovar`) — só essas servem a
- * outra renovação: uma pergunta normal em curso pode ter começado antes da
- * mudança que a renovação quer ver.
+ * Quando COMEÇOU cada pergunta em curso (pela marca). Só serve a quem pede
+ * `desde` uma pergunta que começou depois disso: uma que começou antes da
+ * mudança pode trazer a pasta de antes.
  */
-const renovadoras = new WeakSet<object>();
+const inicioDaPergunta = new WeakMap<object, number>();
 
+/**
+ * A folga para os relógios do navegador e do servidor não baterem certo
+ * (3.ª revisão de 14/11, importante n.º 2): `desde` vem do relógio do
+ * navegador, a memória do servidor. Uma listagem começada até 5 s antes do
+ * instante pedido ainda serve.
+ */
+export const FOLGA_DO_RELOGIO_MS = 5_000;
 /**
  * As respostas das perguntas POR FICHEIRO (`existeNaPasta`, nas pastas maiores
  * do que o tecto da listagem — revisão de 14/11, menor n.º 4): a mesma memória
@@ -75,15 +82,29 @@ const RESPOSTAS: Loja = {
 };
 
 /**
- * `renovar` (2.ª revisão de 14/11, importante n.º 2): NÃO aceita a memória —
- * pergunta agora — e GUARDA a resposta por cima da que lá estava. É o primeiro
- * pedido de cada página depois de uma foto entrar ou sair da Reciclagem
- * (`fresco=1` em `pagina-do-rascunho`): a memória desta instância pode ser de
- * antes da mudança, feita noutra instância. As renovações ao mesmo tempo
- * partilham a mesma pergunta (as páginas pedidas em paralelo).
+ * `desde` (3.ª revisão de 14/11, importante n.º 2): o instante (ms, relógio do
+ * navegador) em que uma foto entrou ou saiu da Reciclagem. Só serve uma
+ * listagem guardada — ou uma em curso — que tenha COMEÇADO depois disso
+ * (menos {@link FOLGA_DO_RELOGIO_MS}); senão lista agora e guarda por cima.
+ *
+ * O estúdio manda-o em TODOS os pedidos nos 3 min seguintes à mudança
+ * (`usePaginaReal`), por isso cada instância renova a pasta UMA vez por
+ * mudança — a primeira página que lá cai — e as seguintes lêem a memória
+ * nova. Antes (`fresco=1`, 2.ª revisão) só renovava a instância que recebia o
+ * primeiro pedido de cada página; as outras serviam a listagem velha.
+ *
+ * Um `desde` no futuro (relógio do navegador adiantado) conta como «agora»:
+ * nunca se exige uma listagem mais nova do que o próprio servidor.
  */
 export interface OpcoesDaMemoria {
-  renovar?: boolean;
+  desde?: number;
+}
+
+/** O instante a partir do qual uma listagem serve, ou `null` se qualquer uma serve. */
+function limiteDe(opcoes: OpcoesDaMemoria, agora: number): number | null {
+  const d = opcoes.desde;
+  if (typeof d !== "number" || !Number.isFinite(d) || d <= 0) return null;
+  return Math.min(d, agora) - FOLGA_DO_RELOGIO_MS;
 }
 
 /**
@@ -118,31 +139,34 @@ async function comMemoria<T>(
   opcoes: OpcoesDaMemoria,
 ): Promise<T | null> {
   const agora = Date.now();
-  if (!opcoes.renovar) {
-    const ja = loja.memoria.get(chave);
-    if (ja && agora - ja.at <= MEMORIA_MS) return ja.valor as T;
-  }
+  const limite = limiteDe(opcoes, agora);
+  const serve = (inicio: number | undefined) =>
+    limite === null || (inicio !== undefined && inicio >= limite);
+  const ja = loja.memoria.get(chave);
+  if (ja && agora - ja.at <= MEMORIA_MS && serve(ja.at)) return ja.valor as T;
   const corre = loja.emCurso.get(chave);
   const marcaQueCorre = loja.marcas.get(chave);
-  if (corre && (!opcoes.renovar || (marcaQueCorre && renovadoras.has(marcaQueCorre)))) {
+  if (corre && marcaQueCorre && serve(inicioDaPergunta.get(marcaQueCorre))) {
     return corre as Promise<T | null>;
   }
   // A marca desta pergunta: se a pasta for esquecida enquanto ela corre (uma
-  // escrita nesta instância), ou se uma renovação passar à frente, o que vier
-  // pode já estar velho e não se guarda.
+  // escrita nesta instância), ou se uma pergunta mais nova passar à frente, o
+  // que vier pode já estar velho e não se guarda.
   const marca = {};
-  if (opcoes.renovar) renovadoras.add(marca);
+  inicioDaPergunta.set(marca, agora);
   loja.marcas.set(chave, marca);
   // Uma listagem pendurada não prende as outras perguntas desta pasta até ao
   // timeout do fetch (~300 s): ao fim de {@link ESPERA_MAX_MS} vale `null`
   // («por confirmar»), que não se guarda.
   let relogio: ReturnType<typeof setTimeout> | undefined;
-  const limite = new Promise<null>((r) => {
+  const espera = new Promise<null>((r) => {
     relogio = setTimeout(() => r(null), ESPERA_MAX_MS);
   });
-  const nova = Promise.race([listar(), limite])
+  const nova = Promise.race([listar(), espera])
     .then((valor) => {
-      if (valor !== null && loja.marcas.get(chave) === marca) guardar(loja, chave, valor);
+      // Guarda-se com o instante em que a pergunta COMEÇOU: é desde aí que a
+      // listagem diz a verdade (`desde` compara com ele).
+      if (valor !== null && loja.marcas.get(chave) === marca) guardar(loja, chave, valor, agora);
       return valor;
     })
     .finally(() => {
@@ -156,13 +180,13 @@ async function comMemoria<T>(
   return nova;
 }
 
-function guardar(loja: Loja, chave: string, valor: unknown): void {
+function guardar(loja: Loja, chave: string, valor: unknown, at: number): void {
   const agora = Date.now();
   // As caducadas saem antes de se escrever: o mapa não cresce sem fim numa
   // instância que fica viva dias.
   for (const [k, v] of loja.memoria) if (agora - v.at > MEMORIA_MS) loja.memoria.delete(k);
   loja.memoria.delete(chave);
-  loja.memoria.set(chave, { at: agora, valor });
+  loja.memoria.set(chave, { at, valor });
   while (loja.memoria.size > loja.maximo) {
     const maisVelha = loja.memoria.keys().next().value;
     if (maisVelha === undefined) break;

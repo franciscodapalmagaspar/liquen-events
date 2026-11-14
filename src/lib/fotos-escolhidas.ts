@@ -1,5 +1,10 @@
 import type { ProposalDoc } from "./proposal-doc";
-import { chavesDasPaginas, lugaresDaPagina, planoDaProposta } from "./pdf-editorial/plano";
+import {
+  chavesDasPaginas,
+  lugaresDaPagina,
+  ordemDoDesenho,
+  planoDaProposta,
+} from "./pdf-editorial/plano";
 import { log } from "./logger";
 
 /**
@@ -47,7 +52,13 @@ export interface FotoEscolhida {
   lugar: number;
 }
 
-const preenchida = (r: unknown): r is string => typeof r === "string" && r.trim() !== "";
+/**
+ * Um lugar com fotografia: uma referência que não está vazia nem só com
+ * espaços. O MESMO teste no tecto, nesta lista e no motor
+ * (`proposal-doc-render.ts`) — um lugar só com espaços não é uma foto, não se
+ * vai buscar e não gasta tecto (revisão de 14/11, 3.ª, menor n.º 3).
+ */
+export const preenchida = (r: unknown): r is string => typeof r === "string" && r.trim() !== "";
 
 export function fotosEscolhidasDoDocumento(doc: Partial<ProposalDoc>): FotoEscolhida[] {
   const saida: FotoEscolhida[] = [];
@@ -95,13 +106,23 @@ export function fotosEscolhidasDoDocumento(doc: Partial<ProposalDoc>): FotoEscol
  *     a capa que também está num board — não gasta mais tecto;
  *   · quem cabe primeiro é o que ELA escolheu à mão: a capa, depois as
  *     escolhidas para as páginas que o plano ainda tem (a lista de cima,
- *     {@link fotosEscolhidasDoDocumento}), depois as outras capas, depois os
- *     mood boards pela ordem do documento, e por fim o que sobrar de
- *     `fotosDasPaginas` (chaves órfãs, lugares a mais), que o PDF não desenha.
- *     Uma escolhida à mão nunca sai antes de uma de mood board;
- *   · se mesmo assim uma escolhida (ou a capa) ficar de fora, isso TRAVA o
- *     envio (`oQueFaltaParaEnviar`, id `fotos-a-mais`) e o PDF não se guarda.
- *     Uma de mood board cortada não trava: o mosaico faz-se sem ela.
+ *     {@link fotosEscolhidasDoDocumento}); logo a seguir a foto PRINCIPAL de
+ *     cada mood board (a ★ — a primeira com alguma coisa pela ordem do
+ *     desenho, `ordemDoDesenho`, a mesma que o motor e o plano usam); depois
+ *     as outras capas, depois o resto dos mood boards pela ordem do documento,
+ *     e por fim o que sobrar de `fotosDasPaginas` (chaves órfãs, lugares a
+ *     mais), que o PDF não desenha. Uma escolhida à mão nunca sai antes de uma
+ *     de mood board;
+ *   · a principal de cada board cabe antes do resto dos boards (3.ª revisão de
+ *     14/11, importante n.º 1): cortar pela ordem do documento deixava o
+ *     último board INTEIRO de fora — a página do tema saía só com o título, e
+ *     ganhava um lugar para escolher que lia `fotosDasPaginas["tema:8"]`.
+ *     Assim nenhum board fica vazio e a ★ continua a ser a ★;
+ *   · se mesmo assim uma escolhida (ou a capa) ficar de fora — ou um board
+ *     ficar sem nenhuma foto (escolhidas + um board por foto passam do
+ *     tecto) —, isso TRAVA o envio (`oQueFaltaParaEnviar`, id `fotos-a-mais`)
+ *     e o PDF não se guarda. Uma de mood board cortada num board que fica com
+ *     outras não trava: o mosaico faz-se sem ela.
  *
  * Abaixo do tecto não muda nada: cabem todas.
  *
@@ -121,6 +142,17 @@ export interface FotosNoTecto {
   dentro: Set<string>;
   /** As escolhidas à mão (capa incluída) que ficaram de fora — travam. */
   escolhidasDeFora: FotoEscolhida[];
+  /**
+   * Os índices (em `moodBoards`) dos boards com fotografias que ficaram sem
+   * NENHUMA dentro do tecto — travam, como as escolhidas de fora.
+   */
+  boardsVazios: number[];
+  /**
+   * As referências cujo corte deixa o PDF incompleto: as escolhidas de fora e
+   * as fotos dos {@link boardsVazios}. O motor conta-as à parte, e com elas o
+   * PDF não se guarda.
+   */
+  queTravam: Set<string>;
   /** Quantas fotografias diferentes passam do tecto, ao todo. */
   aMais: number;
 }
@@ -140,10 +172,18 @@ export function fotosNoTectoDoPdf(
   const escolhidas = opcoes.comPaginas
     ? fotosEscolhidasDoDocumento(doc)
     : fotosEscolhidasDoDocumento({ coverImages: doc.coverImages });
+  const boards = doc.moodBoards ?? [];
+  /** A ★ de cada board: a primeira com alguma coisa pela ordem do desenho. */
+  const principais = boards.flatMap((b) => {
+    if (!b || !Array.isArray(b.images)) return [];
+    const k = ordemDoDesenho(b).find((i) => preenchida(b.images[i]));
+    return k === undefined ? [] : [b.images[k]];
+  });
   const pelaOrdem: string[] = [
     ...escolhidas.map((f) => f.ref),
+    ...principais,
     ...(doc.coverImages ?? []),
-    ...(doc.moodBoards ?? []).flatMap((b) => b?.images ?? []),
+    ...boards.flatMap((b) => b?.images ?? []),
     ...(opcoes.comPaginas
       ? Object.values(doc.fotosDasPaginas ?? {}).flatMap((e) => e?.fotos ?? [])
       : []),
@@ -151,15 +191,26 @@ export function fotosNoTectoDoPdf(
   const vistas = new Set<string>();
   const dentro = new Set<string>();
   for (const ref of pelaOrdem) {
-    // Vazia é um lugar sem foto, não uma foto: não gasta tecto (o motor nem a
-    // vai buscar). O mesmo teste que o motor faz antes de ir buscar.
-    if (typeof ref !== "string" || !ref || vistas.has(ref)) continue;
+    // Vazia (ou só com espaços) é um lugar sem foto, não uma foto: não gasta
+    // tecto (o motor nem a vai buscar). O mesmo teste que o motor faz.
+    if (!preenchida(ref) || vistas.has(ref)) continue;
     vistas.add(ref);
     if (dentro.size < tecto) dentro.add(ref);
   }
+  const escolhidasDeFora = escolhidas.filter((f) => !dentro.has(f.ref));
+  const queTravam = new Set(escolhidasDeFora.map((f) => f.ref));
+  const boardsVazios: number[] = [];
+  boards.forEach((b, i) => {
+    const fotos = (b?.images ?? []).filter(preenchida);
+    if (fotos.length === 0 || fotos.some((r) => dentro.has(r))) return;
+    boardsVazios.push(i);
+    for (const r of fotos) queTravam.add(r);
+  });
   return {
     dentro,
-    escolhidasDeFora: escolhidas.filter((f) => !dentro.has(f.ref)),
+    escolhidasDeFora,
+    boardsVazios,
+    queTravam,
     aMais: Math.max(0, vistas.size - tecto),
   };
 }
