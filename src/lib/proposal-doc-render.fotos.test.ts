@@ -48,10 +48,16 @@ vi.mock("@/lib/biblioteca-fotos-store", () => {
  * O que o armazenamento diz que já não existe (`refsQueJaNaoExistem`) — a
  * fonte única do PDF, do plano e da página do casal. Vazio por omissão.
  */
-const NoArmazenamento = vi.hoisted(() => ({ faltam: new Set<string>() }));
+const NoArmazenamento = vi.hoisted(() => ({
+  faltam: new Set<string>(),
+  /** Com que opções se perguntou, de cada vez. */
+  perguntas: [] as unknown[],
+}));
 vi.mock("@/lib/proposta-fotos-verificacao", () => ({
-  refsQueJaNaoExistem: async (refs: readonly string[]) =>
-    new Set(refs.filter((r) => NoArmazenamento.faltam.has(r))),
+  refsQueJaNaoExistem: async (refs: readonly string[], opcoes?: unknown) => {
+    NoArmazenamento.perguntas.push(opcoes);
+    return new Set(refs.filter((r) => NoArmazenamento.faltam.has(r)));
+  },
 }));
 
 const { renderStoredEditorialPdfWithReport, fotosDoEditorialDoDocumento, conteudoWebDoDocumento } =
@@ -258,5 +264,83 @@ describe("plano, PDF e página do casal escolhem as mesmas fotos quando uma foto
     } finally {
       NoArmazenamento.faltam = new Set();
     }
+  });
+});
+
+/**
+ * Revisão de 14/11 (2.ª), importantes n.º 1 e n.º 2: o desenho diz À PARTE
+ * quantas das fotos em falta SE SABE que faltam (não vale a pena repetir por
+ * elas), e quantas dessas são escolhidas à mão (o documento não está
+ * completo). E só o rascunho/a pré-visualização pergunta com memória.
+ */
+describe("o relatório separa as faltas sabidas das passageiras", () => {
+  const FOI = "proposal-assets/TESTE/sabida.jpg";
+
+  it("uma de mood board sabida: conta, mas não trava", async () => {
+    NoArmazenamento.faltam = new Set([FOI]);
+    try {
+      const d = doc({
+        moodBoards: [
+          { title: "Cerimónia", images: [FOI, ref(0), ref(1)] },
+          { title: "Cocktail", images: [ref(3), ref(4)] },
+        ],
+      });
+      const r = await renderStoredEditorialPdfWithReport(d, "pt");
+      expect(r.missingImages).toBe(1);
+      expect(r.faltasSabidas).toBe(1);
+      expect(r.faltasSabidasQueTravam).toBe(0);
+    } finally {
+      NoArmazenamento.faltam = new Set();
+    }
+  });
+
+  it("uma escolhida à mão sabida: trava; uma que não se deixou buscar não é «sabida»", async () => {
+    NoArmazenamento.faltam = new Set([FOI]);
+    try {
+      const d = doc({
+        fotosDasPaginas: {
+          indice: { fotos: [FOI] },
+          total: { fotos: ["proposal-assets/TESTE/sumiu.jpg"] },
+        },
+      });
+      const r = await renderStoredEditorialPdfWithReport(d, "pt");
+      expect(r.faltasSabidas).toBe(1);
+      expect(r.faltasSabidasQueTravam).toBe(1);
+      // A outra (sem bytes, mas que ninguém sabe que falta) é passageira.
+      expect(r.missingImages).toBe(2);
+    } finally {
+      NoArmazenamento.faltam = new Set();
+    }
+  });
+
+  it("a capa sabida em falta, pequena: só trava sem inspiração para pôr no lugar (n.º 3)", async () => {
+    const CAPA = "proposal-assets/TESTE/capa-sabida.jpg";
+    naBiblioteca.set(CAPA, { largura: 900, altura: 600 });
+    try {
+      NoArmazenamento.faltam = new Set([CAPA]);
+      const comInspiracao = await renderStoredEditorialPdfWithReport(
+        doc({ coverImages: [CAPA] }),
+        "pt",
+      );
+      expect(comInspiracao.faltasSabidasQueTravam).toBe(0);
+      // A inspiração toda também em falta: o PDF ficava sem capa — trava.
+      const board = [ref(0), ref(1)];
+      NoArmazenamento.faltam = new Set([CAPA, ...board]);
+      const semNada = await renderStoredEditorialPdfWithReport(
+        doc({ coverImages: [CAPA], moodBoards: [{ title: "Cerimónia", images: board }] }),
+        "pt",
+      );
+      expect(semNada.faltasSabidasQueTravam).toBe(1);
+    } finally {
+      NoArmazenamento.faltam = new Set();
+      naBiblioteca.delete(CAPA);
+    }
+  });
+
+  it("só com `memoria` a pergunta aceita a listagem guardada — o envio pergunta de fresco", async () => {
+    NoArmazenamento.perguntas = [];
+    await renderStoredEditorialPdfWithReport(doc(), "pt", { soPaginas: [1], memoria: true });
+    await renderStoredEditorialPdfWithReport(doc(), "pt");
+    expect(NoArmazenamento.perguntas).toEqual([{ memoria: true }, { memoria: false }]);
   });
 });

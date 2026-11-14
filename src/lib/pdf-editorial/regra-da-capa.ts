@@ -1,3 +1,5 @@
+import { isPendingImage } from "@/lib/proposal-doc";
+
 /**
  * ═══════════════════════════════════════════════════════════════════════════
  * A FOTOGRAFIA DA CAPA — quando é que a dela serve
@@ -54,6 +56,47 @@ export function aCapaDelaVaiNoPdf(
 ): boolean {
   if (!medida) return true;
   return !!mesmoAssim || !problemaDaCapa(medida.w, medida.h);
+}
+
+/**
+ * Há na inspiração (os mood boards) alguma fotografia que o PDF possa pôr na
+ * capa no lugar da dela? `falta` diz as que se sabe que já não existem; as
+ * ainda a copiar (`pending:`) também não servem.
+ *
+ * É o «senão, a melhor deitada da inspiração» do desenho (`montar.ts`): o
+ * álbum escolhe entre as fotos da inspiração e, faltando a deitada, leva a que
+ * houver — por isso basta UMA que exista.
+ */
+export function haFotoNaInspiracao(
+  doc: { moodBoards?: readonly ({ images?: readonly (string | null | undefined)[] } | null)[] },
+  falta: (ref: string) => boolean,
+): boolean {
+  return (doc.moodBoards ?? []).some((b) =>
+    (b?.images ?? []).some(
+      (r) => typeof r === "string" && r.trim() !== "" && !isPendingImage(r) && !falta(r),
+    ),
+  );
+}
+
+/**
+ * A capa DELA que se sabe que falta trava o envio (e deixa o PDF incompleto)?
+ *
+ * Sim, se o PDF a fosse usar (`aCapaDelaVaiNoPdf`) — o lugar sairia com outra.
+ * E sim TAMBÉM quando não ia, mas a inspiração não tem nenhuma para pôr no
+ * lugar dela: aí o desenho fica sem fotografia de capa nenhuma (revisão de
+ * 14/11, 2.ª, importante n.º 3 — uma capa ao alto em falta, com a inspiração
+ * vazia, dava um PDF sem capa e o envio não travava).
+ *
+ * Uma regra, três sítios: a verificação do armazenamento (o travão do envio),
+ * o desenho do PDF (`proposal-doc-render.ts`, se o PDF sai completo) e o
+ * desenho da capa (`montar.ts`, que faz a mesma escolha).
+ */
+export function aFaltaDaCapaTrava(
+  medida: { w: number; h: number } | null | undefined,
+  mesmoAssim: boolean | undefined,
+  haOutraNaInspiracao: boolean,
+): boolean {
+  return aCapaDelaVaiNoPdf(medida, mesmoAssim) || !haOutraNaInspiracao;
 }
 
 /**

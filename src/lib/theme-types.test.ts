@@ -56,3 +56,32 @@ describe("ordemComAsDaReciclagem", () => {
     ]);
   });
 });
+
+/**
+ * Revisão de 14/11 (2.ª), menor n.º 5: com o tecto de 500, a ordem nova DELA
+ * vem primeiro e nunca é cortada; das da Reciclagem, só entram as que cabem.
+ * Antes, as da Reciclagem entravam no meio e o `slice` final cortava a cauda
+ * da ordem que ela acabou de arrumar.
+ */
+describe("ordemComAsDaReciclagem, no tecto", () => {
+  it("a ordem nova fica inteira; corta-se só as da Reciclagem que não cabem", async () => {
+    const { ordemComAsDaReciclagem, MAX_PHOTO_ORDER } = await import("./theme-types");
+    const nova = Array.from({ length: MAX_PHOTO_ORDER - 1 }, (_, i) => `t/n${i}.jpg`);
+    // Duas da Reciclagem, logo à cabeça da ordem antiga: só cabe uma.
+    const antiga = ["t/r0.jpg", "t/r1.jpg", ...nova];
+    const r = ordemComAsDaReciclagem(antiga, nova, new Set(["t/r0.jpg", "t/r1.jpg"]));
+    expect(r).toHaveLength(MAX_PHOTO_ORDER);
+    // Todas as dela, pela ordem dela.
+    expect(r.filter((p) => p.includes("/n"))).toEqual(nova);
+    // Da Reciclagem, a primeira (a que cabe), no seu lugar.
+    expect(r[0]).toBe("t/r0.jpg");
+    expect(r).not.toContain("t/r1.jpg");
+  });
+
+  it("com a ordem nova já no tecto, nenhuma da Reciclagem entra", async () => {
+    const { ordemComAsDaReciclagem, MAX_PHOTO_ORDER } = await import("./theme-types");
+    const nova = Array.from({ length: MAX_PHOTO_ORDER }, (_, i) => `t/n${i}.jpg`);
+    const r = ordemComAsDaReciclagem(["t/r0.jpg", ...nova], nova, new Set(["t/r0.jpg"]));
+    expect(r).toEqual(nova);
+  });
+});

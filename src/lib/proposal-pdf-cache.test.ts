@@ -18,15 +18,27 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const desenhar = vi.fn();
 /** Fotos em falta em cada passagem, por ordem. Vazia = zero, sempre. */
 let filaDeFaltas: number[] = [];
+/**
+ * Das faltas de cada passagem, as que SE SABE que faltam, e dessas as das
+ * fotos que ela escolheu à mão — por ordem, como `filaDeFaltas`.
+ */
+let filaDeSabidas: { sabidas: number; travam: number }[] = [];
 vi.mock("./proposal-doc-render", () => ({
   renderStoredEditorialPdfWithReport: async (...args: unknown[]) => {
     const pdf = await desenhar(...args);
-    return { pdf, missingImages: filaDeFaltas.shift() ?? 0, truncations: [] };
+    const s = filaDeSabidas.shift();
+    return {
+      pdf,
+      missingImages: filaDeFaltas.shift() ?? 0,
+      ...(s ? { faltasSabidas: s.sabidas, faltasSabidasQueTravam: s.travam } : {}),
+      truncations: [],
+    };
   },
 }));
 
 import {
   pdfDaPropostaEmCache,
+  pdfDaPropostaComEstado,
   esvaziarCachePdf,
   estadoCachePdf,
   chaveDoPdf,
@@ -40,6 +52,7 @@ beforeEach(() => {
   esvaziarCachePdf();
   desenhar.mockReset();
   filaDeFaltas = [];
+  filaDeSabidas = [];
 });
 
 describe("pdfDaPropostaEmCache", () => {
@@ -157,6 +170,54 @@ describe("fotos em falta", () => {
 
     await expect(pdfDaPropostaEmCache(doc("LIQ-11"))).resolves.toBeTruthy();
     expect(estadoCachePdf().entradas).toBe(1);
+  });
+});
+
+/**
+ * Revisão de 14/11 (2.ª), importante n.º 2: uma foto que SE SABE que já não
+ * existe (foi para a Reciclagem) não volta numa segunda passagem. Repetir por
+ * ela era um desenho inteiro a dobrar em CADA visita do casal — e, por não
+ * ficar guardado, em todas as visitas a seguir.
+ */
+describe("fotos que se sabe que faltam", () => {
+  it("só de mood board: UM desenho, guarda-se, e a visita seguinte não desenha", async () => {
+    desenhar.mockResolvedValue(pdfDe(100));
+    filaDeFaltas = [2];
+    filaDeSabidas = [{ sabidas: 2, travam: 0 }];
+    const a = await pdfDaPropostaComEstado(doc("LIQ-20"));
+    expect(a.completo).toBe(true);
+    expect(desenhar).toHaveBeenCalledTimes(1);
+    expect(estadoCachePdf().entradas).toBe(1);
+    await pdfDaPropostaComEstado(doc("LIQ-20"));
+    expect(desenhar).toHaveBeenCalledTimes(1);
+  });
+
+  it("uma escolhida à mão: um desenho por visita, nunca dois — incompleto, e não se guarda", async () => {
+    desenhar.mockResolvedValue(pdfDe(100));
+    filaDeFaltas = [1, 1];
+    filaDeSabidas = [
+      { sabidas: 1, travam: 1 },
+      { sabidas: 1, travam: 1 },
+    ];
+    const servido = await pdfDaPropostaComEstado(doc("LIQ-21"), "pt", true);
+    expect(servido.completo).toBe(false);
+    expect(desenhar).toHaveBeenCalledTimes(1);
+    // O documento de registo continua a recusar — mas sem desenhar duas vezes.
+    await expect(pdfDaPropostaEmCache(doc("LIQ-21"))).rejects.toThrow(/em falta/i);
+    expect(desenhar).toHaveBeenCalledTimes(2);
+    expect(estadoCachePdf().entradas).toBe(0);
+  });
+
+  it("sabidas E passageiras: repete-se pelas passageiras, como sempre", async () => {
+    desenhar.mockResolvedValue(pdfDe(100));
+    filaDeFaltas = [3, 1];
+    filaDeSabidas = [
+      { sabidas: 1, travam: 0 },
+      { sabidas: 1, travam: 0 },
+    ];
+    const r = await pdfDaPropostaComEstado(doc("LIQ-22"));
+    expect(desenhar).toHaveBeenCalledTimes(2);
+    expect(r.completo).toBe(true);
   });
 });
 

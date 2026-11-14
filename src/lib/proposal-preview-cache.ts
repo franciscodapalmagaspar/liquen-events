@@ -47,6 +47,10 @@ import { criarCachePorBytes } from "@/lib/cache-por-bytes";
 export interface RelatorioDoPdf {
   pdf: Buffer<ArrayBuffer>;
   missingImages: number;
+  /** Das `missingImages`, as que se sabe que já não existem — ver `renderStoredEditorialPdfWithReport`. */
+  faltasSabidas?: number;
+  /** Das sabidas, as escolhidas por ela que o PDF desenharia. */
+  faltasSabidasQueTravam?: number;
   truncations: DocTruncation[];
 }
 

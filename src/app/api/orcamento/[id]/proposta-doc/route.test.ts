@@ -20,6 +20,8 @@ const renderMock = vi.hoisted(() => ({
   /** Contagens a devolver POR CHAMADA, para poder testar a segunda tentativa
    *  do envio: a primeira falha, a segunda resolve. Vazio = usa `missing`. */
   sequencia: [] as number[],
+  /** Das faltas de cada chamada, as que SE SABE que faltam (Reciclagem). */
+  sabidas: 0,
   chamadas: 0,
 }));
 /** O que foi gravado no pedido (para verificar o "Preço final (sem IVA)"), e o
@@ -106,6 +108,7 @@ vi.mock("@/lib/proposal-doc-render", () => ({
       missingImages: renderMock.sequencia.length
         ? (renderMock.sequencia[i] ?? 0)
         : renderMock.missing,
+      ...(renderMock.sabidas ? { faltasSabidas: renderMock.sabidas } : {}),
       truncations: renderMock.truncations,
     };
   }),
@@ -673,7 +676,28 @@ describe("POST /api/orcamento/[id]/proposta-doc — a segunda tentativa do envio
     renderMock.missing = 0;
     renderMock.truncations = [];
     renderMock.sequencia = [];
+    renderMock.sabidas = 0;
     renderMock.chamadas = 0;
+  });
+
+  /**
+   * Revisão de 14/11 (2.ª), importante n.º 2: uma foto de mood board que foi
+   * para a Reciclagem não volta numa segunda passagem — repetir era pagar o
+   * desenho inteiro a dobrar, para sair o mesmo.
+   */
+  it("faltas que se SABE que faltam não se repetem; com passageiras à mistura, sim", async () => {
+    renderMock.missing = 2;
+    renderMock.sabidas = 2;
+    const res = await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    expect(res.status).toBe(200);
+    expect(renderStoredEditorialPdfWithReport).toHaveBeenCalledTimes(1);
+    expect((await res.json()).missingImages).toBe(2);
+
+    vi.mocked(renderStoredEditorialPdfWithReport).mockClear();
+    renderMock.missing = 3;
+    renderMock.sabidas = 1;
+    await POST(sendReq(baseDoc({ totalAmount: 3001 })), { params });
+    expect(renderStoredEditorialPdfWithReport).toHaveBeenCalledTimes(2);
   });
 
   it("uma falha passageira é apanhada: a segunda tentativa resolve", async () => {
@@ -2711,8 +2735,11 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o rascunho", () => {
     const res = await pedir({ mode: "preview", doc: baseDoc({ totalAmount: 0 }), rascunho: true });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Disposition")).toContain("proposta-preview-rascunho.pdf");
+    // O rascunho aceita a listagem das pastas guardada há pouco (revisão de
+    // 14/11, 2.ª, n.º 1); o PDF final, aqui em baixo, pergunta de fresco.
     expect(vi.mocked(renderStoredEditorialPdfWithReport).mock.calls[0][2]).toEqual({
       rascunho: true,
+      memoria: true,
     });
   });
 

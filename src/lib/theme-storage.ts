@@ -38,6 +38,7 @@ import {
   themeIdOfPath,
 } from "./theme-ref";
 import { log } from "./logger";
+import { esquecerListagemDaPasta } from "./memoria-das-listagens";
 import { lqipsECoresDeCaminhos } from "./biblioteca-fotos-store";
 import type { ThemeImage, ThemeImagePage } from "./theme-types";
 import { THEME_PAGE_SIZE, MAX_THEME_PAGE_SIZE } from "./theme-types";
@@ -816,6 +817,10 @@ export function invalidateThemeCount(themeId: string): void {
   if (folder) {
     countMemo.delete(folder);
     nomesMemo.delete(folder);
+    // E a listagem que a pré-visualização do estúdio guardou desta pasta: a
+    // foto levada ou trazida da Reciclagem vê-se já, nesta instância (revisão
+    // de 14/11, 2.ª, menor n.º 6).
+    esquecerListagemDaPasta(THEME_BUCKET, folder);
     for (const p of ausentesConfirmadas.keys()) {
       if (p.startsWith(`${folder}/`)) ausentesConfirmadas.delete(p);
     }
@@ -846,7 +851,13 @@ const nomesMemo = new Map<string, { at: number; nomes: Set<string> }>();
  * há pouco (caminho → quando). Ver «A MEMÓRIA DE OUTRA INSTÂNCIA» abaixo.
  */
 const ausentesConfirmadas = new Map<string, number>();
-const AUSENTE_CONFIRMADA_MS = 10_000;
+/**
+ * O mesmo prazo da memória da pasta (`COUNT_TTL_MS`): a confirmação não pode
+ * valer menos do que a listagem que ela confirma — com 10 s, uma foto na
+ * Reciclagem ainda na ordem custava uma pergunta a cada 10 s por grelha aberta
+ * (revisão de 14/11, 2.ª, menor n.º 4).
+ */
+const AUSENTE_CONFIRMADA_MS = COUNT_TTL_MS;
 /** Quantas ausentes se confirmam uma a uma por página — as outras esperam a memória caducar. */
 const MAX_CONFIRMACOES = 10;
 
@@ -863,7 +874,7 @@ const MAX_CONFIRMACOES = 10;
  * ficheiro (`fotoExisteNoTema`, uma pergunta pelo nome) antes de sair da
  * ordem. Custo: zero quando nenhuma arrumada falta (o caso normal); com uma
  * foto na Reciclagem ainda na ordem, uma pergunta por foto, no máximo uma vez
- * a cada 10 s por foto, e nunca mais de 10 por página.
+ * a cada 60 s por foto, e nunca mais de 10 por página.
  */
 async function nomesConfirmados(themeId: string, arrumadas: readonly string[]) {
   const folder = themeFolder(themeId);
@@ -875,6 +886,11 @@ async function nomesConfirmados(themeId: string, arrumadas: readonly string[]) {
     .filter((p) => agora - (ausentesConfirmadas.get(p) ?? -Infinity) > AUSENTE_CONFIRMADA_MS)
     .slice(0, MAX_CONFIRMACOES);
   const respostas = await Promise.all(porConfirmar.map((p) => fotoExisteNoTema(p)));
+  // As caducadas saem antes de se escrever: o mapa não cresce sem fim numa
+  // instância que fica viva dias.
+  for (const [p, quando] of ausentesConfirmadas) {
+    if (agora - quando > AUSENTE_CONFIRMADA_MS) ausentesConfirmadas.delete(p);
+  }
   porConfirmar.forEach((p, i) => {
     // Está lá: a memória estava velha — passa a sabê-lo (e a contagem dela
     // também deixou de valer).
@@ -884,6 +900,11 @@ async function nomesConfirmados(themeId: string, arrumadas: readonly string[]) {
     } else if (respostas[i] === false) ausentesConfirmadas.set(p, agora);
   });
   return lidos.nomes;
+}
+
+/** Só para os testes: quantas ausentes confirmadas a memória guarda. */
+export function quantasAusentesConfirmadas(): number {
+  return ausentesConfirmadas.size;
 }
 
 /** Só para os testes. */

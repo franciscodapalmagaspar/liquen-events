@@ -252,7 +252,18 @@ export async function pdfDaPropostaComEstado(
    * apareceu na cache de fotografias e na célula do estúdio.
    */
   let ultimo = await renderStoredEditorialPdfWithReport(doc, idioma);
-  if (ultimo.missingImages > 0) {
+  /**
+   * ── AS QUE SE SABE QUE FALTAM NÃO SE REPETEM (revisão de 14/11, 2.ª, n.º 2)
+   *
+   * Uma foto que foi para a Reciclagem não volta numa segunda passagem: era
+   * um desenho inteiro a dobrar em CADA visita, e o documento nunca ficava
+   * guardado. Só as outras faltas — passageiras até prova em contrário —
+   * justificam repetir. E das sabidas, só as que ELA escolheu à mão deixam o
+   * documento incompleto: uma de mood board sai do mosaico, exactamente como
+   * o estúdio e a página do casal já a mostram, e o documento guarda-se.
+   */
+  const passageiras = (r: typeof ultimo) => r.missingImages - (r.faltasSabidas ?? 0);
+  if (passageiras(ultimo) > 0) {
     log.warn("proposta-pdf: fotos em falta, a tentar segunda vez", {
       emFalta: ultimo.missingImages,
     });
@@ -260,7 +271,7 @@ export async function pdfDaPropostaComEstado(
     // que sai: MESMO documento, MESMA língua.
     ultimo = await renderStoredEditorialPdfWithReport(doc, idioma);
   }
-  if (ultimo.missingImages > 0) {
+  if (passageiras(ultimo) > 0 || (ultimo.faltasSabidasQueTravam ?? 0) > 0) {
     /**
      * ── E AQUI A REGRA MUDOU, POR UMA RAZÃO MEDIDA NO TELEMÓVEL DELA ──────
      *

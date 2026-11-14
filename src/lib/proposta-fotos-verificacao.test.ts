@@ -91,6 +91,7 @@ vi.mock("./supabase", () => ({
 
 const { verificarFotosDaProposta, fotosEscolhidasQueFaltam, refsQueJaNaoExistem, PORQUE_FALTA } =
   await import("./proposta-fotos-verificacao");
+const { esquecerListagens } = await import("./memoria-das-listagens");
 
 beforeEach(() => {
   H.formas.clear();
@@ -99,6 +100,7 @@ beforeEach(() => {
   H.buscas.length = 0;
   H.buscaFalha = false;
   H.temSupabase = true;
+  esquecerListagens();
 });
 
 /** Uma pasta do bucket das propostas, com os ficheiros que lá estão mesmo. */
@@ -581,22 +583,50 @@ describe("uma pasta maior do que o tecto da listagem (importante n.º 2)", () =>
 });
 
 describe("a capa só trava se o PDF a fosse usar (n.º 3)", () => {
-  const comCapa = (capaMesmoAssim?: boolean) =>
+  const comCapa = (capaMesmoAssim?: boolean, inspiracao: string[] = ["tema:t1/fica.jpg"]) =>
     ({
       template: "decoracao",
       coverImages: ["tema:t1/foi.jpg"],
-      moodBoards: [],
+      moodBoards: inspiracao.length ? [{ title: "Cerimónia", images: inspiracao }] : [],
       ...(capaMesmoAssim ? { capaMesmoAssim } : {}),
     }) as never;
 
   it("ao alto e sem «usar mesmo assim»: o PDF já punha outra — não trava", async () => {
-    naBiblioteca("t1", []);
+    naBiblioteca("t1", ["fica.jpg"]);
     H.formas.set("t1/foi.jpg", { largura: 1600, altura: 2400 });
     expect(await fotosEscolhidasQueFaltam(comCapa())).toEqual([]);
+    expect((await verificarFotosDaProposta(comCapa())).escolhidasQueFaltam).toEqual([]);
+  });
+
+  /**
+   * Revisão de 14/11 (2.ª), importante n.º 3: «o PDF já punha outra» só é
+   * verdade se houver outra. Com a inspiração vazia — ou com todas as dela
+   * também em falta —, o PDF saía SEM capa e o envio não travava.
+   */
+  it("ao alto, mas sem nenhuma na inspiração para pôr no lugar: trava", async () => {
+    naBiblioteca("t1", []);
+    H.formas.set("t1/foi.jpg", { largura: 1600, altura: 2400 });
+    expect((await fotosEscolhidasQueFaltam(comCapa(false, []))).map((f) => f.ref)).toEqual([
+      "tema:t1/foi.jpg",
+    ]);
+    // A inspiração tem uma, mas também já não existe: trava na mesma — no
+    // travão da rota (que só confere as escolhidas) e na verificação do passo.
+    const soComAQueFalta = comCapa(false, ["tema:t1/tambem-foi.jpg"]);
+    expect(await fotosEscolhidasQueFaltam(soComAQueFalta)).toHaveLength(1);
+    expect((await verificarFotosDaProposta(soComAQueFalta)).escolhidasQueFaltam).toHaveLength(1);
+    // E uma ainda a copiar também não serve para o lugar.
+    expect(await fotosEscolhidasQueFaltam(comCapa(false, ["pending:abc"]))).toHaveLength(1);
+  });
+
+  it("uma da inspiração que não se conseguiu confirmar conta como existente («não sei» não acusa)", async () => {
+    naBiblioteca("t1", []);
+    H.pastas.set("theme-assets::t2", null);
+    H.formas.set("t1/foi.jpg", { largura: 1600, altura: 2400 });
+    expect(await fotosEscolhidasQueFaltam(comCapa(false, ["tema:t2/talvez.jpg"]))).toEqual([]);
   });
 
   it("ao alto mas com «usar mesmo assim»: ia para a capa — trava", async () => {
-    naBiblioteca("t1", []);
+    naBiblioteca("t1", ["fica.jpg"]);
     H.formas.set("t1/foi.jpg", { largura: 1600, altura: 2400 });
     const r = await fotosEscolhidasQueFaltam(comCapa(true));
     expect(r).toEqual([
@@ -636,5 +666,111 @@ describe("uma foto de mood board na Reciclagem não trava; uma escolhida à mão
     expect((await fotosEscolhidasQueFaltam(d as never)).map((f) => f.ref)).toEqual([
       "tema:t1/foi.jpg",
     ]);
+  });
+});
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O CUSTO DA PRÉ-VISUALIZAÇÃO REAL (revisão de 14/11, 2.ª, importante n.º 1)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Cada página da pré-visualização real pergunta que fotografias já não
+ * existem. O estúdio desenha ~26 páginas ao abrir (várias ao mesmo tempo) e
+ * até 5 por mudança. Sem memória partilhada eram, por pasta, uma listagem por
+ * página desenhada: 26 + 10 × 5 = 76 por pasta num minuto a editar.
+ */
+describe("o custo da pré-visualização real: uma listagem por pasta por janela de memória", () => {
+  const refs = ["LIQ-9/uma.jpg", "LIQ-9/foi.jpg", "tema:t1/fica.jpg", "tema:t1/foi.jpg"];
+  const pagina = () => refsQueJaNaoExistem(refs, { memoria: true });
+
+  it("abrir (26 páginas) e 10 mudanças (5 páginas cada) num minuto: uma por pasta", async () => {
+    vi.useFakeTimers();
+    try {
+      naPastaDoPedido("LIQ-9", ["uma.jpg"]);
+      naBiblioteca("t1", ["fica.jpg"]);
+      // Abrir: as páginas pedem-se em lotes de 5 em paralelo (`usePaginaReal`).
+      for (let lote = 0; lote < 26; lote += 5) {
+        const r = await Promise.all(Array.from({ length: Math.min(5, 26 - lote) }, pagina));
+        for (const x of r) expect([...x].sort()).toEqual(["LIQ-9/foi.jpg", "tema:t1/foi.jpg"]);
+      }
+      // Dez mudanças, uma a cada 6 s, cada uma com as 5 páginas à volta.
+      for (let m = 0; m < 10; m++) {
+        vi.advanceTimersByTime(6_000);
+        await Promise.all(Array.from({ length: 5 }, pagina));
+      }
+      // K = número de pastas (2): uma listagem por pasta por janela de memória.
+      expect(H.listagens).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("o envio e a porta do casal perguntam sempre de fresco — e não escrevem na memória", async () => {
+    naPastaDoPedido("LIQ-9", ["uma.jpg"]);
+    await refsQueJaNaoExistem(["LIQ-9/uma.jpg"]);
+    await refsQueJaNaoExistem(["LIQ-9/uma.jpg"]);
+    expect(H.listagens).toHaveLength(2);
+    // Um desenho de rascunho a seguir não encontra nada guardado por eles.
+    await refsQueJaNaoExistem(["LIQ-9/uma.jpg"], { memoria: true });
+    expect(H.listagens).toHaveLength(3);
+  });
+
+  it("passada a janela, volta a perguntar; uma listagem falhada não se guarda", async () => {
+    vi.useFakeTimers();
+    try {
+      naPastaDoPedido("LIQ-9", null);
+      await pagina();
+      await pagina();
+      // As duas listagens falharam: a segunda não leu a falha da memória.
+      expect(H.listagens.filter((l) => l.endsWith("LIQ-9"))).toHaveLength(2);
+      naPastaDoPedido("LIQ-9", ["uma.jpg"]);
+      H.listagens.length = 0;
+      await pagina();
+      await pagina();
+      expect(H.listagens.filter((l) => l.endsWith("LIQ-9"))).toHaveLength(1);
+      vi.advanceTimersByTime(3 * 60_000 + 1);
+      await pagina();
+      expect(H.listagens.filter((l) => l.endsWith("LIQ-9"))).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("a memória das listagens não cresce sem fim (menor n.º 6)", () => {
+  it("ao guardar uma pasta, as caducadas saem", async () => {
+    const { quantasListagensGuardadas } = await import("./memoria-das-listagens");
+    vi.useFakeTimers();
+    try {
+      naPastaDoPedido("LIQ-1", ["a.jpg"]);
+      naPastaDoPedido("LIQ-2", ["b.jpg"]);
+      naPastaDoPedido("LIQ-3", ["c.jpg"]);
+      await refsQueJaNaoExistem(["LIQ-1/a.jpg", "LIQ-2/b.jpg"], { memoria: true });
+      expect(quantasListagensGuardadas()).toBe(2);
+      vi.advanceTimersByTime(3 * 60_000 + 1);
+      await refsQueJaNaoExistem(["LIQ-3/c.jpg"], { memoria: true });
+      expect(quantasListagensGuardadas()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+/**
+ * Revisão de 14/11 (2.ª), menor n.º 6: ela leva (ou traz) uma foto da
+ * Reciclagem e volta ao estúdio na mesma instância — a pré-visualização tem de
+ * ver a pasta como está agora, e não a listagem guardada de antes.
+ */
+describe("levar ou trazer da Reciclagem esquece a listagem dessa pasta", () => {
+  it("a foto reposta volta a contar logo, sem esperar a memória caducar", async () => {
+    const { esquecerListagemDaPasta } = await import("./memoria-das-listagens");
+    naBiblioteca("t1", ["fica.jpg"]);
+    const r1 = await refsQueJaNaoExistem(["tema:t1/foi.jpg"], { memoria: true });
+    expect([...r1]).toEqual(["tema:t1/foi.jpg"]);
+    // Reposta (o `theme-storage` chama isto em `invalidateThemeCount`).
+    naBiblioteca("t1", ["fica.jpg", "foi.jpg"]);
+    esquecerListagemDaPasta("theme-assets", "t1");
+    const r2 = await refsQueJaNaoExistem(["tema:t1/foi.jpg"], { memoria: true });
+    expect([...r2]).toEqual([]);
   });
 });

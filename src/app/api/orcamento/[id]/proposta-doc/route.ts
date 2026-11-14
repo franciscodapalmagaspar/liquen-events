@@ -561,7 +561,13 @@ async function POST_semMedida(
     // segundo.
     let pdfDaMemoria = false;
     if (rascunho) {
-      relatorio = await renderStoredEditorialPdfWithReport(doc, idioma, { rascunho });
+      // O rascunho aceita a listagem das pastas guardada há pouco (revisão de
+      // 14/11, 2.ª, n.º 1). O PDF final — que o envio reaproveita — pergunta
+      // de fresco.
+      relatorio = await renderStoredEditorialPdfWithReport(doc, idioma, {
+        rascunho,
+        memoria: true,
+      });
     } else {
       const versao = await pdfFinalDaVersao(chaveDaVersao(chaveDoQueChegou, doc.validUntil), () =>
         renderStoredEditorialPdfWithReport(doc, idioma, { rascunho }),
@@ -601,9 +607,12 @@ async function POST_semMedida(
      * A pré-visualização não repete: é onde ela DESCOBRE o que falta, e é para
      * ser rápida.
      */
+    // As que se SABE que faltam (foram para a Reciclagem) não voltam numa
+    // segunda passagem: só as outras justificam desenhar outra vez (revisão
+    // de 14/11, 2.ª, n.º 2). As escolhidas dessas já travaram o envio acima.
     if (
       mode === "send" &&
-      relatorio.missingImages > 0 &&
+      relatorio.missingImages - (relatorio.faltasSabidas ?? 0) > 0 &&
       resta() > FOLGA_DO_EMAIL_MS + FOLGA_DA_SEGUNDA_PASSAGEM_MS
     ) {
       log.warn("proposta-doc: fotos em falta no envio, a desenhar segunda vez", {

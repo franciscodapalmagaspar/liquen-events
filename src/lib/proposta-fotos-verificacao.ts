@@ -5,13 +5,18 @@ import { THEME_BUCKET, ehRefDeTema, caminhoDoRefDeTema, themeIdOfPath } from "./
 import { entradasDe } from "./reciclagem-store";
 import { getTheme } from "./themes-store";
 import { CHAVE_DA_CAPA, fotosEscolhidasDoDocumento, type FotoEscolhida } from "./fotos-escolhidas";
-import { aCapaDelaVaiNoPdf } from "./pdf-editorial/regra-da-capa";
+import {
+  aCapaDelaVaiNoPdf,
+  aFaltaDaCapaTrava,
+  haFotoNaInspiracao,
+} from "./pdf-editorial/regra-da-capa";
 import { isPendingImage, type ProposalDoc } from "./proposal-doc";
 import { formasDeCaminhos } from "./biblioteca-fotos-store";
 import { LARGURAS_DE_PARTILHA, type FotoSuspeita } from "./proposta-fotos-verificacao-tipos";
 import { avaliarFoto, type LugarDaFoto } from "./qualidade-da-foto";
 import { marcaDaRef } from "./proposta-fotos";
 import { log } from "./logger";
+import { listagemComMemoria } from "./memoria-das-listagens";
 import type {
   FotoEmFalta,
   FotoEscolhidaEmFalta,
@@ -163,19 +168,6 @@ interface Listagem {
 }
 
 /**
- * Memória curta das listagens, só para quem a pede (o plano do estúdio, que
- * corre a cada gesto). O travão do envio e a página do casal perguntam sempre
- * de fresco: «já corrigi — voltar a confirmar» tem de ver o que está lá agora.
- */
-const MEMORIA_MS = 30_000;
-const memoria = new Map<string, { at: number; listagem: Listagem }>();
-
-/** Só para os testes. */
-export function esquecerListagens(): void {
-  memoria.clear();
-}
-
-/**
  * Os nomes de ficheiro que existem numa pasta de um bucket.
  *
  * Devolve `null` quando não se conseguiu listar — que é diferente de uma pasta
@@ -187,17 +179,21 @@ export function esquecerListagens(): void {
  * a pasta inteira, e uma foto para lá do corte passava a «já não existe» —
  * travava o envio e escondia-se ao casal. Agora a listagem diz se está
  * `inteira`; quando não está, quem chama pergunta por ficheiro.
+ *
+ * Com `comMemoria` (revisão de 14/11, 2.ª, importante n.º 1): da memória
+ * (`memoria-das-listagens.ts`), ou à espera da pergunta que outra página já
+ * fez — UMA listagem por pasta para as páginas desenhadas em paralelo. Só os
+ * desenhos de rascunho, a pré-visualização real e o plano do estúdio a pedem.
+ * Sem ela — o travão do envio e a porta do casal —, de fresco, e nada se
+ * guarda: «já corrigi — voltar a confirmar» tem de ver o que está lá agora.
  */
-async function nomesNaPasta(
-  bucket: string,
-  pasta: string,
-  comMemoria = false,
-): Promise<Listagem | null> {
-  const chave = `${bucket}::${pasta}`;
-  if (comMemoria) {
-    const ja = memoria.get(chave);
-    if (ja && Date.now() - ja.at <= MEMORIA_MS) return ja.listagem;
-  }
+function nomesNaPasta(bucket: string, pasta: string, comMemoria = false): Promise<Listagem | null> {
+  return comMemoria
+    ? listagemComMemoria(bucket, pasta, () => listarAPasta(bucket, pasta))
+    : listarAPasta(bucket, pasta);
+}
+
+async function listarAPasta(bucket: string, pasta: string): Promise<Listagem | null> {
   const sb = getSupabase();
   if (!sb) return null;
   const nomes = new Set<string>();
@@ -216,9 +212,7 @@ async function nomesNaPasta(
       break;
     }
   }
-  const listagem = { nomes, inteira };
-  memoria.set(chave, { at: Date.now(), listagem });
-  return listagem;
+  return { nomes, inteira };
 }
 
 /**
@@ -534,7 +528,10 @@ export async function fotosEscolhidasQueFaltam(
  */
 export async function refsQueJaNaoExistem(
   refs: readonly string[],
-  /** `memoria`: aceita uma listagem de há menos de 30 s (só o plano do estúdio). */
+  /**
+   * `memoria`: aceita uma listagem guardada há pouco (`MEMORIA_MS`), e partilha
+   * a que estiver em curso — só os rascunhos, a pré-visualização e o plano.
+   */
   opcoes: { memoria?: boolean } = {},
 ): Promise<Set<string>> {
   const unicas = [...new Set(refs.filter((r) => r && !isPendingImage(r)))];
@@ -553,6 +550,33 @@ export async function refsQueJaNaoExistem(
     log.warn("fotos que já não existem: não deu para confirmar", { erro: String(err) });
     return new Set();
   }
+}
+
+/**
+ * As fotografias da inspiração (os mood boards) que se SABE que faltam — para
+ * a regra da capa (`haFotoNaInspiracao`). As que a verificação já conferiu
+ * vêm de `emFalta`; as outras (o travão da rota só confere as escolhidas)
+ * perguntam-se agora: uma listagem por pasta, e só quando a capa falta e não
+ * ia para o PDF. «Não sei» não conta como falta.
+ */
+async function inspiracaoQueFalta(
+  entradas: readonly Entrada[],
+  emFalta: readonly FotoEmFalta[],
+  doc: Partial<ProposalDoc>,
+): Promise<Set<string>> {
+  const ehDaInspiracao = (e: Entrada) => /^b\d+f\d+$/.test(e.id);
+  const conferidas = new Set(entradas.filter(ehDaInspiracao).map((e) => e.id));
+  const porConferir = inventarioComSitio(doc).filter(
+    (e) => ehDaInspiracao(e) && !conferidas.has(e.id),
+  );
+  const faltas = [...emFalta];
+  if (porConferir.length > 0) faltas.push(...(await procurarAsQueFaltam(porConferir)).emFalta);
+  const ids = new Set(faltas.map((f) => f.id));
+  return new Set(
+    [...entradas.filter(ehDaInspiracao), ...porConferir]
+      .filter((e) => ids.has(e.id))
+      .map((e) => e.ref),
+  );
 }
 
 /** Das que faltam, as escolhidas — com a página, o tema e se está na Reciclagem. */
@@ -582,8 +606,15 @@ async function escolhidasQueFaltamDe(
       ? (await formasDeCaminhos([caminho]).catch(() => new Map())).get(caminho)
       : undefined;
     const medida = forma ? { w: forma.largura, h: forma.altura } : null;
+    // Não ia para a capa — mas «o PDF põe lá outra» só se houver outra
+    // (revisão de 14/11, 2.ª, n.º 3): com a inspiração vazia, ou toda em
+    // falta, o PDF saía sem capa. A mesma regra do desenho (`regra-da-capa.ts`).
     if (!aCapaDelaVaiNoPdf(medida, doc.capaMesmoAssim)) {
-      escolhidas = escolhidas.filter((e) => e !== capa);
+      const faltaNaInspiracao = await inspiracaoQueFalta(entradas, emFalta, doc);
+      const haOutra = haFotoNaInspiracao(doc, (r) => faltaNaInspiracao.has(r));
+      if (!aFaltaDaCapaTrava(medida, doc.capaMesmoAssim, haOutra)) {
+        escolhidas = escolhidas.filter((e) => e !== capa);
+      }
     }
   }
   return Promise.all(

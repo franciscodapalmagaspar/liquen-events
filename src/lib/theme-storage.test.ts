@@ -581,6 +581,66 @@ describe("listThemeImagePage", () => {
     expect(buscas).toHaveLength(1);
   });
 
+  /**
+   * Revisão de 14/11 (2.ª), menor n.º 4: a confirmação de uma ausente vale o
+   * mesmo que a memória da pasta (60 s, `COUNT_TTL_MS`) — com 10 s, uma foto
+   * na Reciclagem ainda na ordem custava uma pergunta a cada 10 s por grelha
+   * aberta. E as confirmações caducadas saem do mapa, que não cresce sem fim.
+   */
+  it("uma ausente confirmada vale 60 s, e as caducadas saem do mapa", async () => {
+    vi.useFakeTimers();
+    try {
+      st.list.mockImplementation(async (_pasta: string, opts?: { search?: string }) =>
+        page(opts?.search ? [] : ["fica.jpg"]),
+      );
+      const { listThemeImagePage, quantasAusentesConfirmadas } = await load();
+      const ordem = ["t-1/foi.jpg", "t-1/fica.jpg"];
+      const buscas = () =>
+        st.list.mock.calls.filter((c) => (c[1] as { search?: string })?.search).length;
+      await listThemeImagePage("t-1", 10, 0, ordem); // lista a pasta, fresca
+      await listThemeImagePage("t-1", 10, 0, ordem); // memória: confirma uma vez
+      expect(buscas()).toBe(1);
+      vi.advanceTimersByTime(15_000);
+      await listThemeImagePage("t-1", 10, 0, ordem);
+      expect(buscas()).toBe(1);
+      expect(quantasAusentesConfirmadas()).toBe(1);
+
+      // Passado o minuto, a confirmação de «t-1» caducou: ao confirmar outra
+      // (noutro tema), a velha sai do mapa.
+      vi.advanceTimersByTime(61_000);
+      const outra = ["t-2/foi.jpg", "t-2/fica.jpg"];
+      await listThemeImagePage("t-2", 10, 0, outra);
+      await listThemeImagePage("t-2", 10, 0, outra);
+      expect(quantasAusentesConfirmadas()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /**
+   * Revisão de 14/11 (2.ª), menor n.º 6: levar ou trazer uma foto da
+   * Reciclagem esquece também a listagem que a pré-visualização do estúdio
+   * guardou dessa pasta (`memoria-das-listagens.ts`) — nesta instância, ela
+   * vê a foto reposta logo, sem esperar os 3 min.
+   */
+  it("levar e trazer da Reciclagem esquecem a listagem guardada da pasta", async () => {
+    const { levarFotoParaAReciclagem, trazerFotoDaReciclagem } = await load();
+    const mem = await import("./memoria-das-listagens");
+    const guardarAs = () =>
+      Promise.all([
+        mem.listagemComMemoria("theme-assets", "t-1", async () => ["foi.jpg"]),
+        mem.listagemComMemoria("theme-assets", "t-2", async () => ["outra.jpg"]),
+      ]);
+    await guardarAs();
+    expect(mem.quantasListagensGuardadas()).toBe(2);
+    expect(await trazerFotoDaReciclagem("t-1/foi.jpg", "reciclagem/e-1/foi.jpg")).toBe("ok");
+    // Só a pasta mexida; a do outro tema fica.
+    expect(mem.quantasListagensGuardadas()).toBe(1);
+    await guardarAs();
+    expect(await levarFotoParaAReciclagem("t-1/foi.jpg", "reciclagem/e-2/foi.jpg")).toBe(true);
+    expect(mem.quantasListagensGuardadas()).toBe(1);
+  });
+
   it("assina SÓ a página pedida, num pedido por bucket", async () => {
     st.list.mockResolvedValue(page(["a.jpg", "b.png"]));
     const { listThemeImagePage } = await load();

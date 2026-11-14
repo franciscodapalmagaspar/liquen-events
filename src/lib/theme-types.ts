@@ -253,16 +253,23 @@ export const MAX_PHOTO_ORDER = 500;
  * à arrumada que a precedia na ordem antiga (ou à frente, se não havia
  * nenhuma). Só as que estão na Reciclagem: uma foto apagada de vez, ou que ela
  * tirou da ordem, não volta.
+ *
+ * No tecto ({@link MAX_PHOTO_ORDER}) a ordem nova DELA manda: vem inteira, e
+ * das da Reciclagem só entram as que ainda cabem (pela ordem antiga). Antes
+ * entravam no meio e o corte final levava a cauda da ordem que ela acabara de
+ * arrumar (revisão de 14/11, menor n.º 5).
  */
 export function ordemComAsDaReciclagem(
   antiga: readonly string[],
   nova: readonly string[],
   naReciclagem: ReadonlySet<string>,
 ): string[] {
-  const saida = [...nova];
-  const ja = new Set(nova);
+  const saida = nova.slice(0, MAX_PHOTO_ORDER);
+  const ja = new Set(saida);
+  let cabem = MAX_PHOTO_ORDER - saida.length;
   antiga.forEach((p, i) => {
-    if (ja.has(p) || !naReciclagem.has(p)) return;
+    if (cabem <= 0 || ja.has(p) || !naReciclagem.has(p)) return;
+    cabem -= 1;
     let onde = 0;
     for (let k = i - 1; k >= 0; k--) {
       const antes = saida.indexOf(antiga[k]);
@@ -274,7 +281,7 @@ export function ordemComAsDaReciclagem(
     saida.splice(onde, 0, p);
     ja.add(p);
   });
-  return saida.slice(0, MAX_PHOTO_ORDER);
+  return saida;
 }
 
 /**

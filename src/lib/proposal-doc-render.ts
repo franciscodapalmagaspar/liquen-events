@@ -49,6 +49,8 @@ import {
 import { marcaDeFotoEmFalta } from "@/lib/pdf-editorial/embutir";
 import { semAsQueFaltam } from "@/lib/pdf-editorial/sem-as-que-faltam";
 import { refsQueJaNaoExistem } from "@/lib/proposta-fotos-verificacao";
+import { CHAVE_DA_CAPA, fotosEscolhidasDoDocumento } from "@/lib/fotos-escolhidas";
+import { aFaltaDaCapaTrava, haFotoNaInspiracao } from "@/lib/pdf-editorial/regra-da-capa";
 import type { ConteudoWeb } from "@/lib/pdf-editorial/conteudo-web";
 import { formasDeCaminhosOuErro } from "@/lib/biblioteca-fotos-store";
 import { focoAutomatico, LADO_PAGINA, pixeisDaCaixa, type Foco } from "@/lib/pdf-editorial/imagens";
@@ -242,8 +244,18 @@ async function resolveImages(
    * sobra uma derivada guardada de uma foto que foi para a Reciclagem.
    */
   opcoes: { originais?: boolean; faltam?: ReadonlySet<string> } = {},
-): Promise<{ doc: ProposalDoc; missing: number; refs: NonNullable<FontesDasFotos["refs"]> }> {
+): Promise<{
+  doc: ProposalDoc;
+  missing: number;
+  /**
+   * Das `missing`, as que nem se foram buscar por se SABER que faltam
+   * (`opcoes.faltam`), uma por pedido. Repetir o desenho não as traz.
+   */
+  sabidas: string[];
+  refs: NonNullable<FontesDasFotos["refs"]>;
+}> {
   let remaining = MAX_IMAGES_PER_DOC;
+  const sabidas: string[] = [];
   // Quantas fotos foram PEDIDAS e não entraram. Uma proposta com fotos a menos
   // seguia para o cliente sem ninguém dar por isso; agora quem chama fica a
   // saber e pode dizê-lo. Ver o cabeçalho `X-Fotos-Em-Falta` na rota.
@@ -374,7 +386,12 @@ async function resolveImages(
       return null;
     }
     remaining--;
-    const r = opcoes.faltam?.has(ref) ? null : await buscar(ref, caixa);
+    if (opcoes.faltam?.has(ref)) {
+      sabidas.push(ref);
+      missing++;
+      return null;
+    }
+    const r = await buscar(ref, caixa);
     if (!r) missing++;
     return r;
   };
@@ -560,6 +577,7 @@ async function resolveImages(
       ...(opcoes.originais ? { fotosDasPaginas: paginas } : {}),
     },
     missing,
+    sabidas,
     refs: { capa: refsDaCapa, temas: moodBoards.map((m) => m.refs), paginas: refsDasPaginas },
   };
 }
@@ -805,22 +823,47 @@ async function reduzirParaEditorial(bytes: Buffer): Promise<Buffer> {
 export async function renderStoredEditorialPdfWithReport(
   doc: ProposalDoc,
   idioma: IdiomaDaProposta = IDIOMA_POR_OMISSAO,
-  /** `soPaginas`: só estas páginas — ver `renderEditorialPdf`. */
-  opcoes: { rascunho?: boolean; soPaginas?: readonly number[] } = {},
+  /**
+   * `soPaginas`: só estas páginas — ver `renderEditorialPdf`.
+   *
+   * `memoria`: a pergunta «que fotografias já não existem» aceita a listagem
+   * guardada há pouco, e partilha a que estiver em curso (revisão de 14/11,
+   * 2.ª, importante n.º 1). SÓ os rascunhos e a pré-visualização real — cada
+   * página desenhada perguntava de novo, ~150 listagens por minuto a editar.
+   * O envio e a porta do casal ficam sem ela: perguntam sempre de fresco.
+   */
+  opcoes: { rascunho?: boolean; soPaginas?: readonly number[]; memoria?: boolean } = {},
 ): Promise<{
   pdf: Buffer<ArrayBuffer>;
   missingImages: number;
+  /**
+   * Das `missingImages`, as que SE SABE que já não existem (foram para a
+   * Reciclagem, saíram do armazenamento): uma segunda passagem não as traz,
+   * por isso não se repete o desenho por causa delas (revisão de 14/11, 2.ª,
+   * importante n.º 2). As restantes são passageiras até prova em contrário.
+   */
+  faltasSabidas: number;
+  /**
+   * Das sabidas, as das fotografias que ELA escolheu e que o PDF desenharia
+   * (`fotosEscolhidasDoDocumento`; a capa pela regra `aFaltaDaCapaTrava`): o
+   * PDF sai com o lugar vazio, e não é um documento completo. Uma foto de mood
+   * board sabida em falta NÃO conta — o motor faz o mosaico sem ela, como o
+   * estúdio e a página do casal já mostram.
+   */
+  faltasSabidasQueTravam: number;
   truncations: DocTruncation[];
   /** Que fotografia foi para cada página — o mesmo que `fotosDoEditorialDoDocumento`. */
   fotos: FotosDoPdf;
   /** As páginas do PDF inteiro, mesmo com `soPaginas`. */
   paginas: number;
 }> {
+  const { memoria, ...doDesenho } = opcoes;
   const withDefaults = withProposalDefaults(doc);
-  const faltam = await fotosQueSeSabeQueFaltam(withDefaults);
+  const faltam = await fotosQueSeSabeQueFaltam(withDefaults, { memoria: !!memoria });
   const {
     doc: resolved,
     missing,
+    sabidas,
     refs,
   } = await resolveImages(withDefaults, {
     originais: true,
@@ -828,7 +871,7 @@ export async function renderStoredEditorialPdfWithReport(
   });
   const medidas = await medidasDaBiblioteca(caminhosDoDocumento(withDefaults));
   const { bytes, truncations, undrawnImages, fotos, paginas, fotosEscolhidasEmFalta } =
-    await renderEditorialPdf(resolved, idioma, opcoes, { refs, medidas });
+    await renderEditorialPdf(resolved, idioma, doDesenho, { refs, medidas });
   if (fotosEscolhidasEmFalta.length > 0) {
     // Já contadas em `missing` (a resolução não as encontrou). O aviso diz
     // QUAIS, e que o lugar saiu vazio — nunca com outra foto.
@@ -847,13 +890,41 @@ export async function renderStoredEditorialPdfWithReport(
       capa: withDefaults.coverImages[iCapa],
     });
   }
+  const travam = sabidas.length > 0 ? escolhidasQueTravam(withDefaults, faltam, medidas) : null;
   return {
     pdf: Buffer.from(bytes),
     missingImages: missing + undrawnImages,
+    faltasSabidas: sabidas.length,
+    faltasSabidasQueTravam: travam ? sabidas.filter((r) => travam.has(r)).length : 0,
     truncations,
     fotos,
     paginas,
   };
+}
+
+/**
+ * Das fotografias que se sabe que faltam, as que ela ESCOLHEU e que o PDF
+ * desenharia — a mesma lista do travão do envio (`fotosEscolhidasDoDocumento`)
+ * e a mesma regra da capa (`aFaltaDaCapaTrava`), com as medidas do desenho.
+ */
+function escolhidasQueTravam(
+  withDefaults: ProposalDoc,
+  faltam: ReadonlySet<string>,
+  medidas: ReadonlyMap<string, Medida>,
+): Set<string> {
+  const saida = new Set<string>();
+  for (const f of fotosEscolhidasDoDocumento(withDefaults)) {
+    if (!faltam.has(f.ref)) continue;
+    if (f.chave !== CHAVE_DA_CAPA) {
+      saida.add(f.ref);
+      continue;
+    }
+    const haOutra = haFotoNaInspiracao(withDefaults, (r) => faltam.has(r));
+    if (aFaltaDaCapaTrava(medidas.get(f.ref), withDefaults.capaMesmoAssim, haOutra)) {
+      saida.add(f.ref);
+    }
+  }
+  return saida;
 }
 
 /**
