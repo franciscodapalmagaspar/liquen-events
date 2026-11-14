@@ -88,6 +88,16 @@ describe("listagemComMemoria — `desde`", () => {
     expect(listar).toHaveBeenCalledTimes(1);
   });
 
+  it("… e uma começada mais do que a folga antes já não serve: relista", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(6_000_000);
+    const listar = vi.fn(async () => ["x"]);
+    await listagemComMemoria("b", "p", listar);
+    vi.setSystemTime(6_000_000 + FOLGA_DO_RELOGIO_MS + 1_000);
+    await listagemComMemoria("b", "p", listar, { desde: 43 });
+    expect(listar).toHaveBeenCalledTimes(2);
+  });
+
   it("uma pergunta em curso que começou ANTES da mudança não serve a quem pede `desde`", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(4_000_000);
