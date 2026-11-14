@@ -25,6 +25,8 @@ import {
 } from "./perceber";
 import {
   verificar,
+  analisarIva,
+  prepararDocumento,
   type Aviso,
   type Contas,
   type ValorDoDocumento,
@@ -32,6 +34,7 @@ import {
 } from "./verificar";
 import { preencher } from "./preencher";
 import { round2 } from "../../money";
+import { DEFAULT_VAT_RATE } from "../../proposal-doc";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -244,6 +247,29 @@ function viaDasRegras(
     const f = naProposta.get(i.caminho);
     return f ? { ...i, destino: f.destino, tema: f.seccao } : i;
   });
+  // O IVA, também nesta via: sempre por escolher, com as MESMAS sugestões.
+  const escritos = (regras.linhasEscritas ?? []).filter((x): x is number => x !== null);
+  const soma = escritos.length ? round2(escritos.reduce((a, b) => a + b, 0)) : null;
+  const analise = analisarIva(prepararDocumento(c), DEFAULT_VAT_RATE, {
+    soma,
+    total: regras.totalAmount,
+  });
+  r.contas = {
+    vatRate: DEFAULT_VAT_RATE,
+    somaDasLinhas: soma,
+    linhasSemValor: 0,
+    modoDasLinhas: "desconhecido",
+    modoDoTotal: "desconhecido",
+    ivaPorEscolher: Boolean(regras.ivaPorEscolher),
+    sugestaoDasContas: analise.sugestaoDasContas,
+    sugestaoDasFrases: analise.sugestaoDasFrases,
+    discordancia: analise.discordancia,
+    frasesDoIva: analise.frasesDoIva,
+    leituraDoIva: {
+      linhas: { valor: "desconhecido", citacao: null },
+      total: { valor: "desconhecido", citacao: null },
+    },
+  };
   return { proposta: regras, revisao: r };
 }
 

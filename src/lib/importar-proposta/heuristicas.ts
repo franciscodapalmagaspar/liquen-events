@@ -257,6 +257,10 @@ export type TipoDeLinha = "total" | "iva" | "pagamento" | "item";
 export function tipoDaLinha(rotulo: string): TipoDeLinha {
   const r = semAcentos(rotulo);
   if (/\bsub-?\s?total/.test(r)) return "pagamento"; // não é linha nem total
+  // A base tributável, o valor sem/com IVA: as contas do total, não uma linha.
+  if (/^\s*(?:base|valor sem iva|valor com iva|valor liquido|liquido)\b|base tributavel/.test(r)) {
+    return "pagamento";
+  }
   if (/\btotal\b|valor global|valor final|investimento (?:total|global)/.test(r)) return "total";
   if (/^\s*iva\b|\biva\s*\(?\s*\d+\s*%/.test(r)) return "iva";
   if (/sinal|adjudica|pagamento|prestac|restante|reserva|liquida|caucao|desconto/.test(r)) {

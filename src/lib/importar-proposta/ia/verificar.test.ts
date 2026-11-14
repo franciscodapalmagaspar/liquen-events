@@ -740,6 +740,27 @@ describe("5.ª revisão, S8 — a descrição e o valor de cada linha no mesmo s
     l.orcamento.linhas = [linhaCom("Flores TESTE", 300, "Flores TESTE | 300,00 €")];
     expect(verificar(d, l).avisos.some((x) => x.id.startsWith("linha:outro-sitio"))).toBe(false);
   });
+
+  it("6.ª revisão: descrição num parágrafo e o valor no SEGUINTE é a mesma linha", () => {
+    const d = documentoDeTeste(
+      docx(["Flores TESTE", "300,00 €", "Velas TESTE", "120,00 €", "Total: 420,00 €"]),
+    );
+    const l = leituraSoDoOrcamento();
+    l.orcamento.linhas = [
+      linhaCom("Flores TESTE", 300, "300,00 €"),
+      linhaCom("Velas TESTE", 120, "120,00 €"),
+    ];
+    l.orcamento.totalSemIva = { valor: 420, citacao: "Total: 420,00 €" };
+    expect(verificar(d, l).avisos.filter((x) => x.id.startsWith("linha:outro-sitio"))).toEqual([]);
+    // E trocados, nos parágrafos seguintes um do outro, continua a ser aviso.
+    l.orcamento.linhas = [
+      linhaCom("Flores TESTE", 120, "120,00 €"),
+      linhaCom("Velas TESTE", 300, "300,00 €"),
+    ];
+    const ids = verificar(d, l).avisos.map((x) => x.id);
+    expect(ids).toContain("linha:outro-sitio:0");
+    expect(ids).toContain("linha:outro-sitio:1");
+  });
 });
 
 describe("5.ª revisão — horas não dizem o formato dos números", () => {

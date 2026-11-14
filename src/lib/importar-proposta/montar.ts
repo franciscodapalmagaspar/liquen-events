@@ -1,13 +1,14 @@
 import {
   DEFAULT_VAT_RATE,
   normaliseCoverImages,
+  resolveProposalMoney,
   parseMoneyText,
   type MoodBoard,
   type VatMode,
   type withProposalDefaults,
 } from "../proposal-doc";
 import { dataDoEventoPorExtenso, referenciaDoDocumento } from "../proposal-doc-textos";
-import { eur } from "../money";
+import { eur, round2 } from "../money";
 import type { PropostaImportada } from "./mapear";
 import { valoresSemIvaDasLinhas } from "./ia/linhas";
 
@@ -32,7 +33,30 @@ export interface Correccoes {
   guests: string;
   /** O total como ela o escreve («3.200,00»); vazio = sem total. */
   total: string;
+  /**
+   * O modo do IVA. Só muda por `escolherModoDoIva` (que também acerta o total
+   * pelo lado escolhido); nunca por um campo à parte.
+   */
   totalVatMode: VatMode | null;
+  /** Ela escreveu no campo do total À MÃO (apagar também conta). */
+  totalTocado?: boolean;
+  /** O documento tinha total e ela confirmou que a proposta fica sem ele. */
+  semTotalConfirmado?: boolean;
+}
+
+/**
+ * ── A ÚNICA MANEIRA DE ESCOLHER O IVA ─────────────────────────────────────
+ * Muda o modo e, se ela não tocou no total à mão, põe o total do lado
+ * escolhido (`totalParaOModo`): «com IVA» com os dois totais no documento usa
+ * o com IVA. Havia uma segunda escolha (o «O total inclui IVA?» de baixo) que
+ * mudava o modo sem trocar o total, e gravava 40,65 € «incluído» em vez de 50.
+ */
+export function escolherModoDoIva(p: PropostaImportada, c: Correccoes, modo: VatMode): Correccoes {
+  return {
+    ...c,
+    totalVatMode: modo,
+    ...(c.totalTocado ? {} : { total: totalEmTexto(totalParaOModo(p, modo)) }),
+  };
 }
 
 export function correccoesIniciais(p: PropostaImportada): Correccoes {
@@ -56,10 +80,24 @@ export function juntarCorreccoes(
   inicialAntes: Correccoes,
   actual: Correccoes,
   novas: Correccoes,
+  nova?: PropostaImportada,
 ): Correccoes {
   const out = { ...novas };
   for (const k of Object.keys(novas) as (keyof Correccoes)[]) {
+    if (k === "total" || k === "totalVatMode") continue;
     if (actual[k] !== inicialAntes[k]) (out as Record<string, unknown>)[k] = actual[k];
+  }
+  // O total só fica se ela o escreveu à mão. Se veio da escolha do IVA, volta
+  // a sair da leitura nova — pelo mesmo modo que ela tinha escolhido.
+  if (actual.totalTocado) {
+    out.total = actual.total;
+    out.totalTocado = true;
+  }
+  if (actual.semTotalConfirmado) out.semTotalConfirmado = true;
+  if (actual.totalVatMode) {
+    return nova
+      ? escolherModoDoIva(nova, out, actual.totalVatMode)
+      : { ...out, totalVatMode: actual.totalVatMode };
   }
   return out;
 }
@@ -73,11 +111,19 @@ export function totalEscrito(texto: string): number | null {
 }
 
 /** O que ainda impede criar. Vazio = pode criar. */
-export function oQueFalta(c: Correccoes, p?: Pick<PropostaImportada, "ivaPorEscolher">): string[] {
+export function oQueFalta(
+  c: Correccoes,
+  p?: Pick<PropostaImportada, "ivaPorEscolher" | "totalAmount">,
+): string[] {
   const falta: string[] = [];
   // O IVA é SEMPRE ela que o diz (`ia/verificar.ts`) — mesmo sem total. Uma
   // vez só: a mesma escolha vale para as linhas e para o total.
   const porEscolher = !c.totalVatMode && (p?.ivaPorEscolher || totalEscrito(c.total) !== null);
+  // O documento tinha total e o campo ficou vazio: ou ela o escreve, ou diz
+  // que a proposta fica mesmo sem total.
+  if (p?.totalAmount && !c.total.trim() && !c.semTotalConfirmado) {
+    falta.push("o total (o documento tem total — escreve-o ou confirma que fica sem total)");
+  }
   if (porEscolher) {
     falta.push(
       p?.ivaPorEscolher
@@ -88,6 +134,38 @@ export function oQueFalta(c: Correccoes, p?: Pick<PropostaImportada, "ivaPorEsco
   if (!c.clientNames.trim()) falta.push("o nome do cliente");
   if (c.total.trim() && totalEscrito(c.total) === null) falta.push("um total que se leia");
   return falta;
+}
+
+/**
+ * ── DEPOIS DA ESCOLHA: AS LINHAS SOMAM O TOTAL? ───────────────────────────
+ * As linhas convertidas (sem IVA) contra a base do total gravado, ao cêntimo
+ * (`resolveProposalMoney`). Se não batem, é um aviso de dinheiro para ela
+ * confirmar; o id leva os dois números, para mudar se ela mudar algum.
+ */
+export function avisoDaSomaGravada(
+  p: PropostaImportada,
+  c: Correccoes,
+): { id: string; texto: string; campo: string; dinheiro: true; gravidade: "erro" } | null {
+  if (!c.totalVatMode) return null;
+  const g = valoresQueVaoSerGravados(p, c);
+  if (g.totalAmount === null || !g.totalVatMode) return null;
+  const normais = p.linhasNormais ?? g.budgetAmounts.map((_, i) => !p.budgetOpcional?.[i]);
+  const vals = g.budgetAmounts.filter((v, i): v is number => v !== null && normais[i] !== false);
+  if (!vals.length) return null;
+  const soma = round2(vals.reduce((a, b) => a + b, 0));
+  const base = resolveProposalMoney({
+    totalAmount: g.totalAmount,
+    totalVatMode: g.totalVatMode,
+    vatRate: p.vatRate ?? DEFAULT_VAT_RATE,
+  }).base;
+  if (soma === base) return null;
+  return {
+    id: `soma-depois:${soma}:${base}`,
+    campo: "orcamento.total",
+    dinheiro: true,
+    gravidade: "erro",
+    texto: `Com o IVA que escolheste, as linhas somam ${eur(soma)} — o total é ${eur(base)} sem IVA.`,
+  };
 }
 
 /**

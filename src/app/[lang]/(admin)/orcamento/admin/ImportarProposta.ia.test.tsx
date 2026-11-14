@@ -245,3 +245,121 @@ describe("a revisão lado a lado", () => {
     void corpos;
   });
 });
+
+describe("6.ª revisão — uma só escolha do IVA, e o resumo é o que se grava", () => {
+  const comIvaIncluido = () => {
+    const l = leituraComIvaIncluido();
+    l.cliente.nomes = "Velas TESTE"; // um nome citado, para só faltar o que se testa
+    return importarDocumento(propostaComIvaIncluido(), { leituraCarregada: JSON.stringify(l) });
+  };
+
+  it("o IVA escolhe-se num sítio só: em baixo é um espelho, e o total segue a escolha", async () => {
+    preparar(await comIvaIncluido());
+    await escolher();
+    // Um só grupo de escolha do IVA na folha.
+    expect(screen.getAllByRole("radio", { name: "com IVA" })).toHaveLength(1);
+    expect(screen.queryByRole("radiogroup", { name: /O total inclui IVA/ })).toBeNull();
+    const espelho = screen.getByTestId("iva-espelho");
+    expect(espelho.textContent).toMatch(/Por escolher/);
+    const total = screen.getByLabelText(/Valor total/) as HTMLInputElement;
+    expect(total.value).toBe("40,65");
+    fireEvent.click(screen.getByRole("radio", { name: "com IVA" }));
+    expect(espelho.textContent).toMatch(/Com IVA/);
+    // O total passou ao do lado escolhido (`totalParaOModo`).
+    expect(total.value).toBe("50,00");
+    fireEvent.click(screen.getByRole("radio", { name: "sem IVA" }));
+    expect(total.value).toBe("40,65");
+  });
+
+  it("no código do ecrã, o modo do IVA só muda por `escolherModoDoIva`", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    for (const f of ["ImportarProposta.tsx", "RevisaoDaImportacao.tsx"]) {
+      const src = readFileSync(join(__dirname, f), "utf8");
+      expect(src).not.toMatch(/set\(\s*"totalVatMode"/);
+      expect(src).not.toMatch(/totalVatMode:\s*(?:m|v|modo)\b/);
+    }
+  });
+
+  it("ela apaga o total: o resumo diz «sem total», e criar pede o total ou a confirmação", async () => {
+    const { urls } = preparar(await comIvaIncluido());
+    await escolher();
+    fireEvent.click(screen.getByRole("radio", { name: "com IVA" }));
+    const total = screen.getByLabelText(/Valor total/) as HTMLInputElement;
+    fireEvent.change(total, { target: { value: "" } });
+    const nova = screen.getByText("Na proposta nova").parentElement!;
+    expect(nova.textContent).toMatch(/Totalsem total/);
+    expect(nova.textContent).not.toMatch(/50,00\s€ \(IVA incluído\)/);
+    // Mudar o IVA depois NÃO repõe o total que ela apagou.
+    fireEvent.click(screen.getByRole("radio", { name: "sem IVA" }));
+    expect(total.value).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await screen.findByText(/o documento tem total — escreve-o ou confirma que fica sem total/);
+    expect(urls).not.toContain("/api/orcamento/manual");
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /confirmo que a proposta fica sem total/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await waitFor(() => expect(urls).toContain("/api/orcamento/manual"));
+  });
+
+  it("depois da escolha, as linhas que não somam o total são aviso de dinheiro que trava o criar", async () => {
+    const { urls } = preparar(await comIvaIncluido());
+    await escolher();
+    expect(screen.queryByText(/Com o IVA que escolheste/)).toBeNull();
+    // «sem IVA»: as linhas ficam 25 + 25 = 50, o total 40,65 + IVA.
+    fireEvent.click(screen.getByRole("radio", { name: "sem IVA" }));
+    const aviso = screen.getAllByText(/as linhas somam 50,00\s€ — o total é 40,65\s€ sem IVA/);
+    expect(aviso.length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await screen.findByText(/confirmar o aviso de dinheiro/);
+    expect(urls).not.toContain("/api/orcamento/manual");
+    // Com «com IVA» batem ao cêntimo, e o aviso sai.
+    fireEvent.click(screen.getByRole("radio", { name: "com IVA" }));
+    expect(screen.queryByText(/Com o IVA que escolheste/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await waitFor(() => expect(urls).toContain("/api/orcamento/manual"));
+  });
+
+  it("sem IA (regras): o mesmo bloco, as mesmas sugestões, e a «Base» não é uma linha", async () => {
+    const r = await importarDocumento(propostaComIvaIncluido(), { chamar: null });
+    preparar(r);
+    await escolher();
+    const grupo = screen.getByRole("group", { name: /O IVA dos valores do documento/ });
+    expect(grupo.textContent).toMatch(/sugerem: com IVA/);
+    expect(
+      within(grupo).getByRole("radio", { name: "com IVA" }).getAttribute("aria-checked"),
+    ).not.toBe("true");
+    const nova = screen.getByText("Na proposta nova").parentElement!;
+    expect(nova.textContent).not.toMatch(/Base/);
+    fireEvent.click(within(grupo).getByRole("radio", { name: "com IVA" }));
+    const mostrado = [...nova.querySelectorAll("li .tabular-nums")].map((x) => x.textContent);
+    expect(mostrado).toEqual([eur(20.33), eur(20.32)]);
+    expect(screen.getByTestId("rotulo-iva").textContent).not.toMatch(/Não encontrado/);
+  });
+});
+
+describe("6.ª revisão — recarregar com a leitura e o total", () => {
+  it("o total que veio da escolha volta a sair da leitura nova, pelo mesmo IVA", async () => {
+    const semIa = await importarDocumento(propostaComIvaIncluido(), { chamar: null });
+    const l = leituraComIvaIncluido();
+    l.cliente.nomes = "Velas TESTE";
+    const comJson = await importarDocumento(propostaComIvaIncluido(), {
+      leituraCarregada: JSON.stringify(l),
+    });
+    preparar(semIa, [comJson]);
+    await escolher();
+    fireEvent.click(screen.getByRole("radio", { name: "com IVA" }));
+    const total = () => (screen.getByLabelText(/Valor total/) as HTMLInputElement).value;
+    expect(total()).toBe("50,00");
+    fireEvent.change(screen.getByLabelText(/Carregar a leitura/), {
+      target: { files: [new File([JSON.stringify(l)], "l.json")] },
+    });
+    await screen.findByText(/sem custo\) e verificado/);
+    // A leitura nova diz base 40,65 e total 50 com IVA: com «com IVA» escolhido, 50.
+    expect(screen.getByRole("radio", { name: "com IVA" }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(total()).toBe("50,00");
+  });
+});

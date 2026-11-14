@@ -11,7 +11,6 @@ import {
   lerEmail,
   lerLinhaDeDinheiro,
   lerLocal,
-  lerModoDoIva,
   lerNomes,
   lerTipoDeEvento,
   tipoDaLinha,
@@ -19,6 +18,7 @@ import {
   type LinhaDeDinheiro,
 } from "./heuristicas";
 import { eur } from "../money";
+import { DEFAULT_VAT_RATE } from "../proposal-doc";
 import type { Bloco, ConteudoImportado, Seccao } from "./tipos";
 
 /**
@@ -181,7 +181,38 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
   const totais = dinheiro.filter((d) => tipoDaLinha(d.rotulo) === "total");
   const itensComValor = dinheiro.filter((d) => tipoDaLinha(d.rotulo) === "item" && d.rotulo);
   const total = escolherTotal(totais);
-  const iva = total ? lerModoDoIva(total.valor.linha, textoTodo) : null;
+  /**
+   * ── O IVA É SEMPRE ELA QUE O ESCOLHE — TAMBÉM NESTA VIA ──────────────────
+   * Era lido do texto (`lerModoDoIva`) e vinha pré-escolhido. Quatro rondas
+   * de revisão mostraram que nenhuma regra lê bem todas as maneiras de dizer o
+   * IVA: tanto nesta via como na leitura com IA, o modo fica por escolher, e
+   * o ecrã mostra as mesmas sugestões (`ia/verificar.ts`, `analisarIva`).
+   */
+  const ivaPorEscolher = Boolean(total) || itensComValor.length > 0;
+  // Os dois totais escritos, como a leitura os dá (`ia/preencher.ts`): a base
+  // e o total. Com a base escrita e menor que o total, o total gravado é a
+  // base — o mesmo que a outra via grava. «Base», «Valor sem IVA» e «Líquido»
+  // dizem-no pelo nome; um «Subtotal» só conta se ele + IVA a 23 % der o total
+  // (um subtotal antes de um desconto não é uma base).
+  const totalLido = total?.valor.valor ?? null;
+  const rotuloSemAcentos = (d: LinhaDeDinheiro) =>
+    d.rotulo
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  const daTaxa = (v: number) =>
+    totalLido !== null &&
+    Math.round(v * (1 + DEFAULT_VAT_RATE) * 100) === Math.round(totalLido * 100);
+  const candidatas = dinheiro.filter((d) => totalLido !== null && d.valor < totalLido);
+  const base =
+    candidatas.find((d) =>
+      /^\s*(?:base|valor sem iva|valor liquido|liquido)\b|base tributavel/.test(
+        rotuloSemAcentos(d),
+      ),
+    )?.valor ??
+    candidatas.find((d) => /^\s*sub-?\s?total\b/.test(rotuloSemAcentos(d)) && daTaxa(d.valor))
+      ?.valor ??
+    null;
   const somaDasLinhas = Math.round(itensComValor.reduce((s, d) => s + d.valor, 0) * 100) / 100;
   const linhasComValor = new Set(dinheiro.map((d) => d.linha));
 
@@ -271,7 +302,7 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
     // nunca passam de «média».
     servicos: serviceGroups.length ? "media" : "nada",
     total: total?.confianca ?? "nada",
-    iva: total ? (iva?.confianca ?? "nada") : "nada",
+    iva: "nada",
     fotos: fotos.length ? "alta" : "nada",
   };
 
@@ -299,28 +330,12 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
       `Há várias linhas de total (${totais.map((t) => formatarEuros(t.valor)).join(", ")}). Escolhi ${formatarEuros(total.valor.valor)}. Confirma.`,
     );
   }
-  if (total && !iva) {
-    avisos.push("Não percebi se o total inclui IVA ou se o IVA acresce. Escolhe abaixo.");
-  } else if (iva && iva.confianca !== "alta") {
-    avisos.push(
-      iva.valor === "acrescer"
-        ? "O total não diz nada sobre o IVA; o resto do documento diz que acresce. Confirma."
-        : "O total não diz nada sobre o IVA; o resto do documento diz que está incluído. Confirma.",
-    );
-  }
   if (!serviceGroups.length) {
     avisos.push("Não encontrei uma lista de serviços. Os Serviços ficam por preencher no estúdio.");
   }
 
-  // Os valores de cada linha só passam quando o total é «+ IVA»: o estúdio
-  // guarda-os sem IVA, e com o IVA incluído (ou por perceber) passar o número
-  // tal e qual punha um valor com IVA num campo sem IVA.
-  const passaOsValores = iva?.valor === "acrescer";
-  if (itensComValor.length && !passaOsValores) {
-    avisos.push(
-      "Os valores de cada linha do orçamento não passaram: não ficou claro que são sem IVA. Os nomes das linhas estão lá.",
-    );
-  }
+  // Os valores de cada linha passam quando ELA escolhe se são sem ou com IVA
+  // (`valoresQueVaoSerGravados`): até lá vão os escritos, à parte.
 
   const notas = sobras.join("\n").trim();
   return {
@@ -335,9 +350,17 @@ export function mapearConteudo(c: ConteudoImportado): PropostaImportada {
     guests: convidados?.valor ?? null,
     serviceGroups,
     budgetItems: itensComValor.map((d) => d.rotulo),
-    budgetAmounts: itensComValor.map((d) => (passaOsValores ? d.valor : null)),
-    totalAmount: total?.valor.valor ?? null,
-    totalVatMode: iva?.valor ?? null,
+    budgetAmounts: itensComValor.map(() => null),
+    totalAmount: base ?? totalLido,
+    totalVatMode: null,
+    ...(ivaPorEscolher
+      ? {
+          ivaPorEscolher: true,
+          linhasEscritas: itensComValor.map((d) => d.valor),
+          linhasNormais: itensComValor.map(() => true),
+          totaisEscritos: { sem: base ?? totalLido, com: totalLido },
+        }
+      : {}),
     somaDasLinhas,
     moodBoards,
     capa,

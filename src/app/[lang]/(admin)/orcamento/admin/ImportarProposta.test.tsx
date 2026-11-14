@@ -118,8 +118,8 @@ describe("Importar proposta antiga", () => {
     expect(screen.getByLabelText(/Data do evento/)).toHaveProperty("value", "2027-07-04");
     expect(screen.getByLabelText(/^Local/)).toHaveProperty("value", "Quinta do Ensaio");
     expect(screen.getByText("Arco de flores")).toBeTruthy();
-    // O total sem IVA dito: avisa e não deixa criar sem ela escolher.
-    expect(screen.getByText(/Não percebi se o total inclui IVA/)).toBeTruthy();
+    // O IVA é sempre ela que o escolhe: marcado como não encontrado até lá.
+    expect(screen.getByTestId("rotulo-iva").textContent).toMatch(/Não encontrado/);
     expect(screen.getByText(/2 de 2 escolhidas/)).toBeTruthy();
   });
 
@@ -130,13 +130,17 @@ describe("Importar proposta antiga", () => {
 
     const criar = screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ });
     await user.click(criar);
-    expect(await screen.findByText(/Falta dizer se o total inclui IVA/)).toBeTruthy();
+    expect(
+      await screen.findByText(/Falta escolher se os valores do documento têm IVA/),
+    ).toBeTruthy();
     expect(chamadas.map((c) => c.url)).toEqual(["/api/orcamento/importar"]);
 
     // Tira uma das duas fotografias e escolhe o IVA.
     await user.click(screen.getAllByRole("button", { pressed: true })[1]);
     expect(screen.getByText(/1 de 2 escolhidas/)).toBeTruthy();
-    await user.click(screen.getByRole("radio", { name: "Acresce IVA" }));
+    await user.click(screen.getByRole("radio", { name: "sem IVA" }));
+    // 6.ª revisão: depois de escolher, a marca «Não encontrado» do IVA sai.
+    expect(screen.getByTestId("rotulo-iva").textContent).not.toMatch(/Não encontrado/);
     await user.click(criar);
 
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
@@ -194,7 +198,7 @@ describe("Importar proposta antiga", () => {
     const { chamadas, onCreated } = preparar(true);
     const user = userEvent.setup();
     await escolherFicheiro();
-    await user.click(screen.getByRole("radio", { name: "IVA incluído" }));
+    await user.click(screen.getByRole("radio", { name: "com IVA" }));
     await user.click(
       screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
     );
@@ -245,6 +249,9 @@ describe("Importar proposta antiga", () => {
     expect(desligada.getAttribute("aria-pressed")).toBe("false");
     expect(screen.getByText(/8 de 13 escolhidas/)).toBeTruthy();
 
+    // «+ IVA» no texto não escolhe por ela.
+    await user.click(screen.getByRole("radio", { name: "sem IVA" }));
+
     await user.click(
       screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
     );
@@ -256,7 +263,7 @@ describe("Importar proposta antiga", () => {
     const { chamadas, onCreated } = preparar(false, FICHEIRO, true);
     const user = userEvent.setup();
     await escolherFicheiro();
-    await user.click(screen.getByRole("radio", { name: "Acresce IVA" }));
+    await user.click(screen.getByRole("radio", { name: "sem IVA" }));
     await user.click(
       screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
     );

@@ -19,14 +19,18 @@ const linha = (descricao: string, valor: number, citacao: string) => ({
 function cenario(
   frases: Parameters<typeof docx>[0],
   ajustar: (l: Leitura) => void,
-): { d: DocumentoCompleto; l: Leitura } {
-  const d = documentoDeTeste(docx(frases));
+): { d: DocumentoCompleto; l: Leitura; bytes: Uint8Array } {
+  const bytes = docx(frases);
+  const d = documentoDeTeste(bytes);
   const l = leituraSoDoOrcamento();
   ajustar(l);
-  return { d, l };
+  return { d, l, bytes };
 }
 
-export const CENARIOS: Record<string, () => { d: DocumentoCompleto; l: Leitura; oQue: string }> = {
+export const CENARIOS: Record<
+  string,
+  () => { d: DocumentoCompleto; l: Leitura; bytes: Uint8Array; oQue: string }
+> = {
   A: () => ({
     oQue: "«+ IVA» só no total, sem contas",
     ...cenario(

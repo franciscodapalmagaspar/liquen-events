@@ -4,6 +4,7 @@ import { mapearConteudo } from "./mapear";
 import {
   corpoDoPedido,
   correccoesIniciais,
+  escolherModoDoIva,
   montarDocumento,
   oQueFalta,
   totalEscrito,
@@ -61,7 +62,8 @@ describe("uma proposta em Word, inventada, de ponta a ponta", () => {
       location: "alta",
       guests: "alta",
       total: "alta",
-      iva: "alta",
+      // 6.ª revisão: o IVA é sempre ela que o escolhe, também sem IA.
+      iva: "nada",
     });
   });
 
@@ -86,11 +88,14 @@ describe("uma proposta em Word, inventada, de ponta a ponta", () => {
     ]);
   });
 
-  it("o orçamento: linhas, total e IVA — o sinal fica de fora", () => {
+  it("o orçamento: linhas e total — o sinal fica de fora, e o IVA por escolher mesmo com «+ IVA»", () => {
     expect(p.budgetItems).toEqual(["Decoração da cerimónia", "Mesas dos convidados"]);
-    expect(p.budgetAmounts).toEqual([1200, 1800]);
+    // Os valores ficam à espera da escolha dela (o «+ IVA» do texto é só uma sugestão).
+    expect(p.budgetAmounts).toEqual([null, null]);
+    expect(p.linhasEscritas).toEqual([1200, 1800]);
     expect(p.totalAmount).toBe(3000);
-    expect(p.totalVatMode).toBe("acrescer");
+    expect(p.totalVatMode).toBeNull();
+    expect(p.ivaPorEscolher).toBe(true);
   });
 
   it("as fotografias: capa e um mood board por secção", () => {
@@ -107,8 +112,10 @@ describe("uma proposta em Word, inventada, de ponta a ponta", () => {
   });
 
   it("e o documento do estúdio sai com o dinheiro que o motor de sempre lê", () => {
-    const c = correccoesIniciais(p);
-    expect(oQueFalta(c)).toEqual([]);
+    const c0 = correccoesIniciais(p);
+    expect(oQueFalta(c0, p)).toEqual(["escolher se os valores do documento têm IVA"]);
+    const c = escolherModoDoIva(p, c0, "acrescer");
+    expect(oQueFalta(c, p)).toEqual([]);
     const carregadas = new Map([
       ["word/media/capa.jpeg", "Q1/capa.jpg"],
       ["word/media/cer1.jpeg", "Q1/c1.jpg"],
@@ -124,6 +131,7 @@ describe("uma proposta em Word, inventada, de ponta a ponta", () => {
     expect(doc.totalText).toBe(`${eur(3000)} + IVA`);
     expect(doc.totalAmount).toBe(3000);
     expect(doc.totalVatMode).toBe("acrescer");
+    expect(doc.budgetAmounts).toEqual([1200, 1800]);
     expect(doc.ref).toMatch(/Beatriz Teste & Duarte Exemplo/);
     expect(doc.notasInternas).toMatch(/^Proposta importada de «antiga\.docx» a 13\/11\/2026\./);
     const money = resolveProposalMoney(withProposalDefaults(doc));
@@ -182,11 +190,12 @@ describe("uma proposta em PowerPoint, inventada", () => {
     expect(p.totalAmount).toBe(4500);
     expect(p.totalVatMode).toBeNull();
     expect(p.confianca.iva).toBe("nada");
-    expect(p.avisos.join(" ")).toMatch(/inclui IVA/);
+    expect(p.ivaPorEscolher).toBe(true);
     const c = correccoesIniciais(p);
-    expect(oQueFalta(c)).toEqual(["dizer se o total inclui IVA"]);
-    expect(oQueFalta({ ...c, totalVatMode: "incluido" })).toEqual([]);
-    const doc = montarDocumento(p, { ...c, totalVatMode: "incluido" }, new Map(), "x.pptx");
+    expect(oQueFalta(c, p)).toEqual(["escolher se os valores do documento têm IVA"]);
+    const escolhida = escolherModoDoIva(p, c, "incluido");
+    expect(oQueFalta(escolhida, p)).toEqual([]);
+    const doc = montarDocumento(p, escolhida, new Map(), "x.pptx");
     expect(doc.totalText).toBe(eur(4500));
     expect(doc.totalVatMode).toBe("incluido");
   });
@@ -227,5 +236,89 @@ describe("o que não se lê fica marcado, não adivinhado", () => {
     expect(totalEscrito("3.200,50")).toBe(3200.5);
     expect(totalEscrito("")).toBeNull();
     expect(totalEscrito("abc")).toBeNull();
+  });
+});
+
+describe("6.ª revisão — sem IA, o IVA e as linhas pelas mesmas regras da leitura", () => {
+  const p = mapearConteudo(
+    extrairConteudo(
+      docx([
+        "Noivos: Teste & Exemplo",
+        { h: 1, t: "Orçamento" },
+        {
+          tabela: [
+            ["Flores TESTE", "25,00 €"],
+            ["Velas TESTE", "25,00 €"],
+            ["Toalhas TESTE", "10,00 €"],
+            ["Subtotal", "60,00 €"],
+            ["Base", "40,65 €"],
+            ["IVA (23%)", "9,35 €"],
+            ["Total", "50,00 €"],
+            ["Sinal", "15,00 €"],
+            ["Prestação", "35,00 €"],
+          ],
+        },
+      ]),
+    ),
+  );
+
+  it("Base, Subtotal, IVA, Total, Sinal e Prestação nunca são linhas do orçamento", () => {
+    expect(p.budgetItems).toEqual(["Flores TESTE", "Velas TESTE", "Toalhas TESTE"]);
+    expect(p.linhasEscritas).toEqual([25, 25, 10]);
+  });
+
+  it("e o IVA fica por escolher, com os valores à espera da escolha", () => {
+    expect(p.ivaPorEscolher).toBe(true);
+    expect(p.totalVatMode).toBeNull();
+    expect(p.budgetAmounts).toEqual([null, null, null]);
+    const c = correccoesIniciais(p);
+    expect(oQueFalta(c, p)).toContain("escolher se os valores do documento têm IVA");
+  });
+});
+
+describe("6.ª revisão — sem IA, a base do total como a leitura a dá", () => {
+  const ler = (frases: Parameters<typeof docx>[0]) => mapearConteudo(extrairConteudo(docx(frases)));
+
+  it("«Base: 40,65 €» é o total sem IVA; o «Total: 50 €» o com IVA", () => {
+    const p = ler([
+      "Flores TESTE: 25,00 €",
+      "Velas TESTE: 25,00 €",
+      "Total: 50,00 €",
+      "Base: 40,65 €",
+    ]);
+    expect(p.totaisEscritos).toEqual({ sem: 40.65, com: 50 });
+    expect(p.totalAmount).toBe(40.65);
+  });
+
+  it("um «Subtotal» só é a base quando ele + IVA dá o total", () => {
+    const c = ler([
+      "Flores TESTE: 1.000,00 €",
+      "Velas TESTE: 740,00 €",
+      "Subtotal: 1.740,00 €",
+      "IVA (23%): 400,20 €",
+      "Total: 2.140,20 €",
+    ]);
+    expect(c.totaisEscritos).toEqual({ sem: 1740, com: 2140.2 });
+    // Um subtotal antes de um desconto não é a base.
+    const d = ler([
+      "Flores TESTE: 1.000,00 €",
+      "Subtotal: 1.000,00 €",
+      "Desconto: 100,00 €",
+      "Total: 900,00 €",
+    ]);
+    expect(d.totaisEscritos).toEqual({ sem: 900, com: 900 });
+    // Nem um subtotal antes de mais uma linha.
+    const e = ler([
+      "Flores TESTE: 1.000,00 €",
+      "Subtotal: 1.000,00 €",
+      "Transporte TESTE: 100,00 €",
+      "Total: 1.100,00 €",
+    ]);
+    expect(e.totaisEscritos).toEqual({ sem: 1100, com: 1100 });
+  });
+
+  it("uma «Base» maior do que o total não é a base dele", () => {
+    const p = ler(["Flores TESTE: 50,00 €", "Total: 50,00 €", "Base: 60,00 €"]);
+    expect(p.totaisEscritos).toEqual({ sem: 50, com: 50 });
   });
 });

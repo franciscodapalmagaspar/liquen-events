@@ -12,8 +12,8 @@ import {
   correccoesIniciais,
   juntarCorreccoes,
   valoresQueVaoSerGravados,
-  totalEmTexto,
-  totalParaOModo,
+  escolherModoDoIva,
+  avisoDaSomaGravada,
   montarDocumento,
   oQueFalta,
   type Correccoes,
@@ -250,7 +250,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       // só os campos que ela não tocou passam a ser os da leitura nova.
       setC(
         antes && antesDela
-          ? juntarCorreccoes(antes.inicial, antes.c, correccoesIniciais(p))
+          ? juntarCorreccoes(antes.inicial, antes.c, correccoesIniciais(p), p)
           : correccoesIniciais(p),
       );
       setRevisao(rev);
@@ -281,7 +281,16 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     }
   }
 
-  const porConfirmar = avisosPorConfirmar(revisao, confirmados).length;
+  // A ÚNICA maneira de escolher o IVA (o bloco de cima, e o de baixo quando
+  // não há revisão): muda o modo E o total do lado escolhido.
+  const escolherIva = (m: VatMode) =>
+    setC((x) => (x && proposta ? escolherModoDoIva(proposta, x, m) : x));
+  const avisoDaSoma = proposta && c ? avisoDaSomaGravada(proposta, c) : null;
+  const porConfirmar = avisosPorConfirmar(
+    revisao,
+    confirmados,
+    avisoDaSoma ? [avisoDaSoma] : [],
+  ).length;
   const falta = c
     ? [
         ...oQueFalta(c, proposta ?? undefined),
@@ -547,15 +556,8 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
               proposta={proposta}
               correccoes={c}
               modoDoIva={c.totalVatMode}
-              onModoDoIva={(m) => {
-                set("totalVatMode", m);
-                // Com os dois totais no documento, o campo passa ao do modo escolhido
-                // (se ela não o mudou à mão).
-                const t = proposta.totaisEscritos;
-                if (t && [totalEmTexto(t.sem), totalEmTexto(t.com)].includes(c.total)) {
-                  set("total", totalEmTexto(totalParaOModo(proposta, m)));
-                }
-              }}
+              onModoDoIva={escolherIva}
+              avisosExtra={avisoDaSoma ? [avisoDaSoma] : []}
               imagens={imagensDoDocumento}
               confirmados={confirmados}
               onConfirmar={(id, sim) =>
@@ -691,14 +693,25 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                 label="Valor total"
                 inputMode="decimal"
                 value={c.total}
-                onChange={(e) => set("total", e.target.value)}
+                onChange={(e) => {
+                  const total = e.target.value;
+                  setC((x) => (x ? { ...x, total, totalTocado: true } : x));
+                }}
                 placeholder={proposta.somaDasLinhas ? eur(proposta.somaDasLinhas) : "Sem total"}
                 hint={
                   !proposta.totalAmount && proposta.somaDasLinhas > 0 && !c.total ? (
                     <button
                       type="button"
                       onClick={() =>
-                        set("total", proposta.somaDasLinhas.toFixed(2).replace(".", ","))
+                        setC((x) =>
+                          x
+                            ? {
+                                ...x,
+                                total: proposta.somaDasLinhas.toFixed(2).replace(".", ","),
+                                totalTocado: true,
+                              }
+                            : x,
+                        )
                       }
                       className={`font-semibold text-[var(--bo-accent)] underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
                     >
@@ -708,21 +721,49 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                 }
               />
               <div className="flex min-w-0 flex-col gap-1.5">
-                <span className="text-footnote font-semibold text-[var(--bo-text-muted)]">
+                <span
+                  data-testid="rotulo-iva"
+                  className="text-footnote font-semibold text-[var(--bo-text-muted)]"
+                >
                   IVA
-                  <Marca c={c.total.trim() ? (c.totalVatMode ? conf("iva") : "nada") : "alta"} />
+                  {!c.totalVatMode && <Marca c="nada" />}
                 </span>
-                <Segmented<VatMode | "">
-                  ariaLabel="O total inclui IVA?"
-                  size="sm"
-                  value={c.totalVatMode ?? ""}
-                  onChange={(v) => set("totalVatMode", v === "" ? null : v)}
-                  options={[
-                    { value: "acrescer", label: "Acresce IVA" },
-                    { value: "incluido", label: "IVA incluído" },
-                  ]}
-                />
+                {revisao ? (
+                  // Uma só escolha do IVA na folha: a de cima. Aqui só se lê.
+                  <p className="text-footnote text-[var(--bo-text)]" data-testid="iva-espelho">
+                    {c.totalVatMode === "acrescer"
+                      ? "Sem IVA (acresce) — escolhido em cima"
+                      : c.totalVatMode === "incluido"
+                        ? "Com IVA (incluído) — escolhido em cima"
+                        : "Por escolher, em cima"}
+                  </p>
+                ) : (
+                  <Segmented<VatMode | "">
+                    ariaLabel="Os valores do documento têm IVA?"
+                    size="sm"
+                    value={c.totalVatMode ?? ""}
+                    onChange={(v) => v && escolherIva(v)}
+                    options={[
+                      { value: "acrescer", label: "sem IVA" },
+                      { value: "incluido", label: "com IVA" },
+                    ]}
+                  />
+                )}
               </div>
+              {proposta.totalAmount && !c.total.trim() ? (
+                <label className="flex items-center gap-2 text-footnote text-[var(--bo-text)] @min-[26rem]:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="accent-[var(--bo-accent)]"
+                    checked={Boolean(c.semTotalConfirmado)}
+                    onChange={(e) =>
+                      setC((x) => (x ? { ...x, semTotalConfirmado: e.target.checked } : x))
+                    }
+                  />
+                  O documento tem total ({eur(proposta.totalAmount)}): confirmo que a proposta fica
+                  sem total.
+                </label>
+              ) : null}
             </div>
           </section>
 

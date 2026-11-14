@@ -32,8 +32,11 @@ import type { VatMode } from "@/lib/proposal-doc";
 export function avisosPorConfirmar(
   revisao: Revisao | null,
   confirmados: ReadonlySet<string>,
+  extra: readonly Aviso[] = [],
 ): Aviso[] {
-  return revisao ? revisao.avisos.filter((a) => a.dinheiro && !confirmados.has(a.id)) : [];
+  return revisao
+    ? [...revisao.avisos, ...extra].filter((a) => a.dinheiro && !confirmados.has(a.id))
+    : [];
 }
 
 interface Props {
@@ -50,6 +53,8 @@ interface Props {
   /** O que ela escolheu para o IVA (o mesmo campo do total), ou null. */
   modoDoIva?: VatMode | null;
   onModoDoIva?: (m: VatMode) => void;
+  /** Avisos que nascem do que ela escolheu no ecrã (a soma depois do IVA). */
+  avisosExtra?: readonly Aviso[];
 }
 
 const PARECE: Record<string, string> = {
@@ -208,6 +213,7 @@ export default function RevisaoDaImportacao({
   modoDoIva,
   onModoDoIva,
   correccoes,
+  avisosExtra = [],
 }: Props) {
   const urls = useMemo(
     () => new Map([...imagens].map(([c, f]) => [c, URL.createObjectURL(f)])),
@@ -217,7 +223,8 @@ export default function RevisaoDaImportacao({
 
   const naoColocados = new Map(revisao.naoColocados.map((x) => [x.id, x]));
   const destinoDa = new Map(revisao.imagens.map((i) => [i.id, i]));
-  const porConfirmar = avisosPorConfirmar(revisao, confirmados).length;
+  const porConfirmar = avisosPorConfirmar(revisao, confirmados, avisosExtra).length;
+  const todosOsAvisos = [...revisao.avisos, ...avisosExtra];
   const partes = new Map(revisao.documento.partes.map((p) => [p.id, p]));
 
   function descarregarPedido() {
@@ -311,7 +318,8 @@ export default function RevisaoDaImportacao({
         totalAmount: proposta.totalAmount,
         totalVatMode: proposta.totalVatMode,
       };
-  const total = gravar.totalAmount ?? proposta.totalAmount;
+  // SÓ o que vai ser gravado: se ela apagou o total, aqui não aparece o do documento.
+  const total = gravar.totalAmount;
   return (
     <section className="@container flex min-w-0 flex-col gap-4">
       <div
@@ -364,16 +372,16 @@ export default function RevisaoDaImportacao({
         <EscolherOIva revisao={revisao} modo={modoDoIva ?? null} onModo={onModoDoIva} />
       )}
 
-      {revisao.avisos.length > 0 && (
+      {todosOsAvisos.length > 0 && (
         <div className="rounded-xl border border-[var(--bo-perigo)]/25 bg-[var(--bo-perigo-lavagem)]/50 px-4 py-3">
           <p className="text-footnote font-semibold text-[var(--bo-perigo)]">
-            {revisao.avisos.length === 1 ? "1 aviso" : `${revisao.avisos.length} avisos`}
+            {todosOsAvisos.length === 1 ? "1 aviso" : `${todosOsAvisos.length} avisos`}
             {porConfirmar > 0
               ? ` · ${porConfirmar === 1 ? "falta confirmar 1 que mexe" : `faltam confirmar ${porConfirmar} que mexem`} em dinheiro`
               : ""}
           </p>
           <ul className="mt-2 flex flex-col gap-1.5">
-            {revisao.avisos.map((a) => (
+            {todosOsAvisos.map((a) => (
               <AvisoLinha key={a.id} a={a} confirmados={confirmados} onConfirmar={onConfirmar} />
             ))}
           </ul>
@@ -414,13 +422,13 @@ export default function RevisaoDaImportacao({
                   .join(" · ") || "— sem dados do evento —"}
               </p>
               <AvisosDoCampo
-                avisos={revisao.avisos}
+                avisos={todosOsAvisos}
                 prefixo="cliente"
                 confirmados={confirmados}
                 onConfirmar={onConfirmar}
               />
               <AvisosDoCampo
-                avisos={revisao.avisos}
+                avisos={todosOsAvisos}
                 prefixo="evento"
                 confirmados={confirmados}
                 onConfirmar={onConfirmar}
@@ -452,7 +460,7 @@ export default function RevisaoDaImportacao({
                 ))
               )}
               <AvisosDoCampo
-                avisos={revisao.avisos}
+                avisos={todosOsAvisos}
                 prefixo="servicos"
                 confirmados={confirmados}
                 onConfirmar={onConfirmar}
@@ -476,7 +484,7 @@ export default function RevisaoDaImportacao({
                       </span>
                     </div>
                     <AvisosDoCampo
-                      avisos={revisao.avisos}
+                      avisos={todosOsAvisos}
                       prefixo={`orcamento.linhas.${k}`}
                       confirmados={confirmados}
                       onConfirmar={onConfirmar}
@@ -489,7 +497,7 @@ export default function RevisaoDaImportacao({
                 <span className="tabular-nums">
                   {total !== null
                     ? `${eur(total)}${gravar.totalVatMode === "acrescer" ? " + IVA" : gravar.totalVatMode === "incluido" ? " (IVA incluído)" : " (IVA por escolher)"}`
-                    : "—"}
+                    : "sem total"}
                 </span>
               </p>
               {revisao.contas?.somaDasLinhas != null && (
@@ -499,13 +507,13 @@ export default function RevisaoDaImportacao({
                 </p>
               )}
               <AvisosDoCampo
-                avisos={revisao.avisos}
+                avisos={todosOsAvisos}
                 prefixo="orcamento.total"
                 confirmados={confirmados}
                 onConfirmar={onConfirmar}
               />
               <AvisosDoCampo
-                avisos={revisao.avisos}
+                avisos={todosOsAvisos}
                 prefixo="orcamento.iva"
                 confirmados={confirmados}
                 onConfirmar={onConfirmar}
@@ -552,7 +560,7 @@ export default function RevisaoDaImportacao({
                 </ul>
               )}
               <AvisosDoCampo
-                avisos={revisao.avisos}
+                avisos={todosOsAvisos}
                 prefixo="imagens"
                 confirmados={confirmados}
                 onConfirmar={onConfirmar}

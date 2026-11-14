@@ -4,12 +4,7 @@ import { lerDocxCompleto, type DocumentoCompleto } from "../documento-completo";
 import type { Leitura } from "./esquema";
 import type { PropostaImportada } from "../mapear";
 import type { VatMode } from "../../proposal-doc";
-import {
-  correccoesIniciais,
-  totalEmTexto,
-  totalParaOModo,
-  valoresQueVaoSerGravados,
-} from "../montar";
+import { correccoesIniciais, escolherModoDoIva, valoresQueVaoSerGravados } from "../montar";
 
 /**
  * Uma proposta INVENTADA (dados TESTE) e a leitura certa dela — o ponto de
@@ -219,10 +214,7 @@ export function leituraComIvaASeis(): Leitura {
  * escolhido (`totalParaOModo`). Devolve o que VAI ser gravado.
  */
 export function escolherIva(p: PropostaImportada, modo: VatMode) {
-  const c = {
-    ...correccoesIniciais(p),
-    totalVatMode: modo,
-    total: totalEmTexto(totalParaOModo(p, modo)),
-  };
+  // O mesmo caminho do ecrã: a escolha passa SEMPRE por `escolherModoDoIva`.
+  const c = escolherModoDoIva(p, correccoesIniciais(p), modo);
   return { c, gravar: valoresQueVaoSerGravados(p, c) };
 }

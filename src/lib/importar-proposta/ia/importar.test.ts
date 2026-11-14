@@ -25,7 +25,17 @@ import {
   escolherIva,
 } from "./fixtures.testkit";
 import { docx } from "../fabricar.testkit";
-import { montarDocumento } from "../montar";
+import {
+  avisoDaSomaGravada,
+  correccoesIniciais,
+  escolherModoDoIva,
+  juntarCorreccoes,
+  montarDocumento,
+  oQueFalta,
+  totalEmTexto,
+  totalParaOModo,
+  valoresQueVaoSerGravados,
+} from "../montar";
 import { INSTRUCOES, pedidoParaOClaude } from "./instrucoes";
 import { esquemaJson, lerLeitura } from "./esquema";
 import { documentoEmTexto } from "../documento-completo";
@@ -506,5 +516,120 @@ describe("4.ª revisão, M2 — um conflito do IVA entre partes FICA", () => {
     const j = juntarLeituras([a, b, c]);
     expect(j.leitura.orcamento.iva.valoresDoTotal.valor).toBe("desconhecido");
     expect(j.conflitos.join(" ")).toMatch(/IVA do total/);
+  });
+});
+
+describe("6.ª revisão — as duas vias, a mesma regra do IVA", () => {
+  const vias = async () => ({
+    regras: await importarDocumento(propostaComIvaIncluido(), { chamar: null }),
+    json: await importarDocumento(propostaComIvaIncluido(), {
+      leituraCarregada: JSON.stringify(leituraComIvaIncluido()),
+    }),
+  });
+
+  it("sem IA e com a leitura: o mesmo dinheiro por escolher, as mesmas sugestões, o mesmo que se grava", async () => {
+    const { regras, json } = await vias();
+    expect(regras.revisao?.via).toBe("regras");
+    expect(json.revisao?.via).toBe("json");
+    const dinheiro = (r: typeof regras) => ({
+      budgetItems: r.proposta.budgetItems,
+      budgetAmounts: r.proposta.budgetAmounts,
+      linhasEscritas: r.proposta.linhasEscritas,
+      totalAmount: r.proposta.totalAmount,
+      totalVatMode: r.proposta.totalVatMode,
+      ivaPorEscolher: r.proposta.ivaPorEscolher,
+      totaisEscritos: r.proposta.totaisEscritos,
+    });
+    expect(dinheiro(regras)).toEqual(dinheiro(json));
+    // A «Base: 40,65 €» não é uma linha.
+    expect(regras.proposta.budgetItems).toEqual(["Flores TESTE", "Velas TESTE"]);
+    expect(regras.proposta.totalVatMode).toBeNull();
+    const sug = (r: typeof regras) => ({
+      contas: r.revisao?.contas?.sugestaoDasContas,
+      frases: r.revisao?.contas?.sugestaoDasFrases,
+      discordancia: r.revisao?.contas?.discordancia,
+    });
+    expect(sug(regras)).toEqual(sug(json));
+    expect(sug(regras).contas?.modo).toBe("com_iva");
+    for (const modo of ["acrescer", "incluido"] as const) {
+      expect(escolherIva(regras.proposta, modo).gravar).toEqual(
+        escolherIva(json.proposta, modo).gravar,
+      );
+    }
+    expect(escolherIva(regras.proposta, "incluido").gravar).toEqual({
+      budgetAmounts: [20.33, 20.32],
+      totalAmount: 50,
+      totalVatMode: "incluido",
+    });
+  });
+});
+
+describe("6.ª revisão — a escolha do IVA e o total", () => {
+  const prop = async () =>
+    (
+      await importarDocumento(propostaComIvaIncluido(), {
+        leituraCarregada: JSON.stringify(leituraComIvaIncluido()),
+      })
+    ).proposta;
+
+  it("escolher o IVA muda o total para o do lado escolhido — se ela não lhe tocou", async () => {
+    const p = await prop();
+    const c = correccoesIniciais(p);
+    expect(escolherModoDoIva(p, c, "incluido").total).toBe("50,00");
+    expect(escolherModoDoIva(p, c, "acrescer").total).toBe("40,65");
+    // Ela apagou o total à mão: vazio, mas TOCADO — a escolha não o repõe.
+    const apagado = { ...c, total: "", totalTocado: true };
+    expect(escolherModoDoIva(p, apagado, "incluido").total).toBe("");
+    // Ela escreveu outro: fica o dela.
+    expect(escolherModoDoIva(p, { ...c, total: "45", totalTocado: true }, "acrescer").total).toBe(
+      "45",
+    );
+  });
+
+  it("o documento tinha total e ela apagou-o: falta escrevê-lo ou confirmar que fica sem", async () => {
+    const p = await prop();
+    const c = { ...escolherModoDoIva(p, correccoesIniciais(p), "incluido"), total: "" };
+    const frase = "o total (o documento tem total — escreve-o ou confirma que fica sem total)";
+    expect(oQueFalta(c, p)).toContain(frase);
+    expect(oQueFalta({ ...c, semTotalConfirmado: true }, p)).not.toContain(frase);
+    expect(valoresQueVaoSerGravados(p, c).totalAmount).toBeNull();
+  });
+
+  it("depois da escolha, as linhas que não somam o total gravado são aviso de dinheiro", async () => {
+    const p = await prop();
+    // «com IVA»: 20,33 + 20,32 = 40,65 = a base de 50 com IVA. Sem aviso.
+    expect(avisoDaSomaGravada(p, escolherModoDoIva(p, correccoesIniciais(p), "incluido"))).toBe(
+      null,
+    );
+    // «sem IVA»: as linhas ficam 25 + 25 = 50, e o total gravado é 40,65 + IVA.
+    const a = avisoDaSomaGravada(p, escolherModoDoIva(p, correccoesIniciais(p), "acrescer"))!;
+    expect(a.dinheiro).toBe(true);
+    expect(a.texto).toMatch(/as linhas somam 50,00\s€ — o total é 40,65\s€ sem IVA/);
+    // Sem escolha ainda, não há aviso (não há o que comparar).
+    expect(avisoDaSomaGravada(p, correccoesIniciais(p))).toBe(null);
+  });
+
+  it("recarregar com outra leitura: o total só fica se ela o escreveu à mão", async () => {
+    const p = await prop();
+    const inicial = correccoesIniciais(p);
+    const escolhido = escolherModoDoIva(p, inicial, "acrescer");
+    expect(escolhido.total).toBe("40,65");
+    // A leitura nova não leu a base: o total «sem IVA» passa a ser o único escrito.
+    const l2 = leituraComIvaIncluido();
+    l2.orcamento.totalSemIva = { valor: null, citacao: null };
+    l2.orcamento.valorDoIva = { valor: null, citacao: null };
+    const nova = (
+      await importarDocumento(propostaComIvaIncluido(), { leituraCarregada: JSON.stringify(l2) })
+    ).proposta;
+    // Não tocado: sai da leitura nova, pelo modo que ela escolheu.
+    const j = juntarCorreccoes(inicial, escolhido, correccoesIniciais(nova), nova);
+    expect(j.totalVatMode).toBe("acrescer");
+    expect(j.total).toBe(totalEmTexto(totalParaOModo(nova, "acrescer")));
+    expect(j.total).toBe("50,00");
+    // Tocado: fica o dela.
+    const dela = { ...escolhido, total: "47,00", totalTocado: true };
+    const k = juntarCorreccoes(inicial, dela, correccoesIniciais(nova), nova);
+    expect(k.total).toBe("47,00");
+    expect(k.totalTocado).toBe(true);
   });
 });
