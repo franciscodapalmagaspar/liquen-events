@@ -87,6 +87,7 @@ import {
   downloadEventIcs,
 } from "./export";
 import { prefetchList } from "./useCachedList";
+import { separadorQuandoAPropostaChega, type SeparadorPorDecidir } from "./separador-por-decidir";
 import {
   useGravacaoAutomatica,
   useTravaoDeSaida,
@@ -108,6 +109,12 @@ import { useCamadaDeHistoria } from "./useCamadaDeHistoria";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
 import EmptyState from "./EmptyState";
 import LifecycleStepper, { deriveRequestLifecycle } from "./LifecycleStepper";
+import {
+  asPropostasMudaram,
+  propostaDaFaseDoPedido,
+  usePropostasLevesSoOuvir,
+} from "./percentagem-do-sinal";
+import type { PropostaParaAFase } from "@/lib/orcamento/dossier";
 import { NAV, CORE_NAV, MORE_NAV, BARRA_INFERIOR, ROTULO_CURTO, type View } from "./nav";
 import { useDesceu } from "./ui/adaptativo";
 import { Escolha } from "./ui/Escolha";
@@ -390,8 +397,11 @@ const DETAIL_TABS: { id: DetailTab; label: string; hint: string; icon: ReactNode
     ),
   },
 ];
-function detailNextAction(quote: Quote): { label: string; hint: string; tab: DetailTarget } {
-  const { perdido, currentIndex, allDone } = deriveRequestLifecycle(quote);
+function detailNextAction(
+  quote: Quote,
+  proposta: PropostaParaAFase | null | undefined,
+): { label: string; hint: string; tab: DetailTarget } {
+  const { perdido, currentIndex, allDone } = deriveRequestLifecycle(quote, proposta);
   if (perdido)
     return { label: "Reabrir pedido", hint: "Voltar a colocar em revisão", tab: "gestao" };
   if (allDone)
@@ -1317,6 +1327,9 @@ export default function AdminClient({
   // o elemento da lista passa a ser o pedido INTEIRO devolvido pelo servidor.
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes);
   const [selected, setSelected] = useState<Quote | null>(null);
+  // A lista leve de propostas, SÓ OUVIDA (sem pedido novo): a fase do pedido
+  // aberto lê dela o total a pagar da proposta que conta, como o dossiê.
+  const propostasLeves = usePropostasLevesSoOuvir();
 
   /**
    * ══════════════════════════════════════════════════════════════════════════
@@ -1518,6 +1531,27 @@ export default function AdminClient({
     setDetailTab(tab);
     setDetailTabsVisitados(new Set([tab]));
   }, []);
+
+  // Ver `separador-por-decidir.ts`: o separador escolhido antes de a lista
+  // leve de propostas chegar volta a escolher-se quando ela chega.
+  const separadorPorDecidirRef = useRef<SeparadorPorDecidir<DetailTab> | null>(null);
+  useEffect(() => {
+    const porDecidir = separadorPorDecidirRef.current;
+    if (!porDecidir || !selected || propostasLeves === undefined) return;
+    separadorPorDecidirRef.current = null;
+    const alvo = detailNextAction(
+      selected,
+      propostaDaFaseDoPedido(propostasLeves, selected.id),
+    ).tab;
+    const novo = separadorQuandoAPropostaChega(
+      porDecidir,
+      { quoteId: selected.id, tab: detailTab, em: Date.now() },
+      alvo === "gestao" ? "comunicacao" : alvo,
+    );
+    // `abrirDetailTab` ACRESCENTA: o separador de antes não desmonta.
+    if (novo) abrirDetailTab(novo);
+  }, [propostasLeves, selected, detailTab, abrirDetailTab]);
+
   // Scroll targets for the "Próxima ação" shortcut: the always-visible
   // management form and the tools (tabs) section.
   const gestaoRef = useRef<HTMLDivElement>(null);
@@ -2290,6 +2324,8 @@ export default function AdminClient({
         return;
       }
       marcarDesfecho(corpo as Quote);
+      // O PATCH acabou: o estado novo pode ter arrastado a proposta.
+      asPropostasMudaram();
       anular(`${q.name}: ${de} → ${para}`, async () => {
         const reposto = await reporEstadoDoPedido({
           quoteId: q.id,
@@ -3531,8 +3567,19 @@ export default function AdminClient({
     );
     // Open on the tools tab that matches where this pedido is in its lifecycle.
     // Pedido NOVO: os separadores visitados do anterior não valem para este.
-    const target = detailNextAction(q).tab;
-    abrirPrimeiroDetailTab(target === "gestao" ? "comunicacao" : target);
+    const daFase = propostaDaFaseDoPedido(propostasLeves, q.id);
+    const target = detailNextAction(q, daFase).tab;
+    const abre = target === "gestao" ? "comunicacao" : target;
+    abrirPrimeiroDetailTab(abre);
+    // A lista leve ainda não chegou: a escolha foi feita às cegas. Pede-se já
+    // (é o MESMO pedido do aquecimento em ociosidade, adiantado — não é um a
+    // mais) e, quando chegar, volta-se a escolher se ela não mexeu.
+    if (daFase === undefined) {
+      separadorPorDecidirRef.current = { quoteId: q.id, tab: abre, desde: Date.now() };
+      prefetchList("propostas-leves", "/api/propostas?semDoc=1");
+    } else {
+      separadorPorDecidirRef.current = null;
+    }
   }
   // Stable identity for the memoised QuoteCard's onOpen prop. `irFazerAProposta`
   // is a plain function (closes over discardGuard and many setters), so its
@@ -4099,6 +4146,9 @@ export default function AdminClient({
           });
         }
         guardado = (await res.json()) as Quote;
+        // Um estado novo gravado pelo formulário («Ganho», «Perdido») arrasta
+        // a proposta no servidor: a lista leve relê-se, depois do PATCH.
+        if ("status" in body) asPropostasMudaram();
         return { estado: "guardado" } satisfies RespostaDoEnvio;
       });
       if (resultado.estado !== "guardado") {
@@ -7698,7 +7748,10 @@ export default function AdminClient({
                         abaixo — nada fica escondido atrás de revelações. */}
                       <div className="mx-auto flex w-full max-w-3xl flex-col gap-[var(--bo-gap-vista)] px-3.5 py-3.5 sm:px-7 sm:py-8">
                         {/* Ciclo de vida — em que fase está o pedido, num relance. */}
-                        <LifecycleStepper quote={selected} />
+                        <LifecycleStepper
+                          quote={selected}
+                          proposta={propostaDaFaseDoPedido(propostasLeves, selected.id)}
+                        />
 
                         {/* ── «JÁ RESPONDERAM?», TAMBÉM AQUI ─────────────────
                           O mesmo gesto do cartão da lista, no sítio onde ela
@@ -7761,8 +7814,9 @@ export default function AdminClient({
                         {/* Próxima ação — o único passo seguinte, em destaque. Abre a
                           ferramenta certa dentro da área avançada. */}
                         {(() => {
-                          const na = detailNextAction(selected);
-                          const reopen = deriveRequestLifecycle(selected).perdido;
+                          const daFase = propostaDaFaseDoPedido(propostasLeves, selected.id);
+                          const na = detailNextAction(selected, daFase);
+                          const reopen = deriveRequestLifecycle(selected, daFase).perdido;
                           return (
                             <div>
                               <button
