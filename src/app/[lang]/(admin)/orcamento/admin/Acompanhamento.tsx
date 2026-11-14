@@ -353,6 +353,7 @@ export default function Acompanhamento({
               quoteId: pedidoMovido.id,
               de: pedidoAntes,
               para: pedidoMovido.status,
+              semReler: true,
             });
             if (reposto) onQuoteAtualizado?.(reposto);
           }

@@ -1,7 +1,7 @@
 import type { ProposalDoc, SubpontoDoOrcamento } from "@/lib/proposal-doc";
 import {
   adicionarLinha,
-  dinheiroDaProposta,
+  modoDeIvaDaLinha,
   precosDe,
   somaDosExtrasSemIva,
 } from "@/lib/proposal-budget";
@@ -212,22 +212,62 @@ export function faturacaoPorArtigo(doc: DocParaFaturar, versao?: VersaoEscolhida
   // ── MODO «LINHAS»: tudo vem da proposta ──────────────────────────────────
   // Quando todas as linhas têm preço e a soma dá o total, os valores por
   // artigo saem feitos — não há contas nenhumas a fazer na faturação.
+  //
+  // Tudo em CÊNTIMOS inteiros (revisão de 14/11): em euros, um cêntimo de
+  // arredondamento chegava como 0,0100000001 e passava ao lado do `<= 0,01`
+  // — a proposta caía no modo «manual» sem razão que se visse.
+  const cent = (v: number | null) => Math.round((v ?? 0) * 100);
+  const baseCent = cent(t.base);
   const todasComPreco = linhas.length > 0 && linhas.every((l) => l.valor !== null);
-  const somaDasLinhas = round2(linhas.reduce((s, l) => s + (l.valor ?? 0), 0));
-  if (todasComPreco && t.base > 0 && Math.abs(somaDasLinhas - t.base) <= 0.01) {
+  const somaCent = linhas.reduce((s, l) => s + cent(l.valor), 0);
+  if (todasComPreco && baseCent > 0 && Math.abs(somaCent - baseCent) <= 1) {
     const porArtigo = new Map<ArtigoId, number>();
     for (const l of linhas) {
-      if (l.artigo) porArtigo.set(l.artigo, (porArtigo.get(l.artigo) ?? 0) + (l.valor ?? 0));
+      if (l.artigo) porArtigo.set(l.artigo, (porArtigo.get(l.artigo) ?? 0) + cent(l.valor));
     }
-    const semArtigo = linhas.filter((l) => !l.artigo && (l.valor ?? 0) !== 0);
+    const semArtigo = linhas.filter((l) => !l.artigo && cent(l.valor) !== 0);
     if (semArtigo.length > 0)
       porqueNaoFecha.push(frasePorFalta(semArtigo, "não tem artigo", "não têm artigo"));
-    const artigos = ARTIGOS.filter((a) => (porArtigo.get(a.id) ?? 0) > 0).map((a) => ({
+    // ── UM ARTIGO QUE SOMA ZERO OU MENOS NÃO SE FATURA (auditoria de 14/11) ──
+    // Um desconto com artigo próprio (Flores 5 000 € + «Desconto» −500 € no
+    // Serviço) deixava o Serviço a −500 €. O filtro abaixo (só valores > 0)
+    // deitava-o fora, a repartição ficava 500 € acima do total — e dizia
+    // «fecha». Não se fatura um artigo negativo; diz-se, e não fecha.
+    const comLinhasComValor = new Set(
+      linhas.filter((l) => l.artigo && cent(l.valor) !== 0).map((l) => l.artigo!),
+    );
+    for (const a of ARTIGOS) {
+      const v = porArtigo.get(a.id) ?? 0;
+      if (comLinhasComValor.has(a.id) && v <= 0)
+        porqueNaoFecha.push(
+          `«${a.nome}» soma ${eur(v / 100)}: um artigo não se fatura a zero nem a menos. ` +
+            `Põe o desconto no mesmo artigo do serviço a que se aplica.`,
+        );
+    }
+    const artigosCent = ARTIGOS.filter((a) => (porArtigo.get(a.id) ?? 0) > 0).map((a) => ({
       artigo: a.id,
       nome: a.nome,
-      valor: round2(porArtigo.get(a.id)!),
+      cent: porArtigo.get(a.id)!,
     }));
-    const repartido = round2(artigos.reduce((s, a) => s + a.valor, 0));
+    // ── NENHUM CÊNTIMO DE FOLGA (2.ª revisão de 14/11) ────────────────────
+    // O único cêntimo legítimo é o do arredondamento dos adicionais «IVA
+    // incluído», e esse já vem repartido por eles em `linhasDaFaturacao`.
+    // Qualquer outra diferença — um total escrito com 0,01 € a mais — é um
+    // engano: diz-se, e não fecha.
+    const difCent = baseCent - artigosCent.reduce((s, a) => s + a.cent, 0);
+    const artigos = artigosCent.map((a) => ({
+      artigo: a.artigo,
+      nome: a.nome,
+      valor: a.cent / 100,
+    }));
+    const repartido = artigosCent.reduce((s, a) => s + a.cent, 0) / 100;
+    const faltaLinhas = difCent / 100;
+    if (difCent !== 0 && porqueNaoFecha.length === 0)
+      porqueNaoFecha.push(
+        difCent > 0
+          ? `Os artigos somam ${eur(faltaLinhas)} a menos do que o total.`
+          : `Os artigos somam ${eur(-faltaLinhas)} a mais do que o total.`,
+      );
     return {
       fecha: porqueNaoFecha.length === 0,
       porqueNaoFecha,
@@ -235,7 +275,7 @@ export function faturacaoPorArtigo(doc: DocParaFaturar, versao?: VersaoEscolhida
       bruto: t.bruto,
       vatRate: t.vatRate,
       repartido,
-      falta: round2(t.base - repartido),
+      falta: faltaLinhas,
       artigos,
       modo: "linhas",
       linhas,
@@ -252,6 +292,14 @@ export function faturacaoPorArtigo(doc: DocParaFaturar, versao?: VersaoEscolhida
   const repartido = round2(artigos.reduce((s, a) => s + a.valor, 0));
   const falta = round2(t.base - repartido);
   if (t.base <= 0) porqueNaoFecha.push("A proposta ainda não tem total.");
+  else if (artigos.length === 0 && todasComPreco)
+    // Todas as linhas têm preço, mas não dão o total: «não está repartido»
+    // mandava-a repartir à mão uma proposta que só tem o total errado.
+    porqueNaoFecha.push(
+      somaCent < baseCent
+        ? `As linhas somam ${eur(somaCent / 100)}: ${eur((baseCent - somaCent) / 100)} a menos do que o total (${eur(t.base)}).`
+        : `As linhas somam ${eur(somaCent / 100)}: ${eur((somaCent - baseCent) / 100)} a mais do que o total (${eur(t.base)}).`,
+    );
   else if (artigos.length === 0)
     porqueNaoFecha.push("O total ainda não está repartido pelos artigos.");
   else if (Math.abs(falta) > 0.005)
@@ -315,17 +363,63 @@ export function linhasDaFaturacao(doc: DocParaFaturar, versao?: VersaoEscolhida)
       artigo: artigos[i],
     });
   });
+  const contexto = { mode: t.mode, vatRate: t.vatRate };
+  const adicionais: LinhaFaturavel[] = [];
+  // Só os «IVA incluído» se convertem (bruto → base) e só eles arredondam: os
+  // «+ IVA» são exactos e nunca recebem o cêntimo de outro (2.ª revisão).
+  type Extra = NonNullable<ProposalDoc["budgetExtras"]>[number];
+  const incluidos: LinhaFaturavel[] = [];
+  const extrasIncluidos: Extra[] = [];
   (doc.budgetExtras ?? []).forEach((e, i) => {
     if (!/\d/.test(e?.valueText ?? "")) return;
-    out.push({
+    const linha: LinhaFaturavel = {
       origem: "adicional",
       indice: i,
       nome: (e?.label ?? "").trim() || `Valor adicional ${i + 1}`,
-      valor: somaDosExtrasSemIva([e], { mode: t.mode, vatRate: t.vatRate }),
+      valor: somaDosExtrasSemIva([e], contexto),
       artigo: eArtigo(e?.artigo) ? e.artigo : null,
-    });
+    };
+    adicionais.push(linha);
+    if ((modoDeIvaDaLinha(e?.valueText) ?? t.mode ?? "acrescer") === "incluido") {
+      incluidos.push(linha);
+      extrasIncluidos.push(e);
+    }
   });
+  repartirOArredondamento(incluidos, somaDosExtrasSemIva(extrasIncluidos, contexto));
+  out.push(...adicionais);
   return out;
+}
+
+/**
+ * ── O ARREDONDAMENTO DOS ADICIONAIS, REPARTIDO (revisão de 14/11) ─────────
+ *
+ * O total da proposta converte a SOMA dos adicionais «IVA incluído» e
+ * arredonda uma vez; a faturação mostra cada adicional à parte, arredondado
+ * por si. Reparte-se SÓ pelos «IVA incluído» (2.ª revisão de 14/11): os
+ * «+ IVA» são exactos, e um cêntimo neles mudava-o de artigo. Dois de 55 € IVA incluído são 44,72 € cada (89,44 €), e a soma
+ * convertida dá 89,43 €. Esse cêntimo (ou dois, com três adicionais) passa
+ * para os próprios adicionais, a começar pelo maior, para a soma das linhas
+ * dar o total ao cêntimo. Em cêntimos inteiros; só mexe quando a diferença
+ * é de arredondamento (no máximo um cêntimo por adicional).
+ */
+function repartirOArredondamento(adicionais: LinhaFaturavel[], alvo: number): void {
+  if (adicionais.length === 0) return;
+  const cents = adicionais.map((a) => Math.round((a.valor ?? 0) * 100));
+  let dif = Math.round(alvo * 100) - cents.reduce((s, c) => s + c, 0);
+  if (dif === 0 || Math.abs(dif) > adicionais.length) return;
+  const ordem = cents
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => Math.abs(b.c) - Math.abs(a.c) || a.i - b.i)
+    .map((x) => x.i);
+  for (let k = 0; dif !== 0; k++) {
+    const i = ordem[k % ordem.length];
+    const passo = Math.sign(dif);
+    cents[i] += passo;
+    dif -= passo;
+  }
+  adicionais.forEach((a, i) => {
+    a.valor = cents[i] / 100;
+  });
 }
 
 /** O artigo de cada linha do orçamento, ao tamanho das linhas. */
@@ -723,14 +817,21 @@ function linhasDosSubpontos(
  * Uma proposta aceite antes de haver preço por linha — ou aceite e só depois
  * preenchida no estúdio — tem os valores no rascunho do estúdio e não no
  * documento aceite. Usam-se as linhas do estúdio SÓ quando o dinheiro é o
- * mesmo: a base sem IVA igual ao cêntimo e a faturação a fechar. Senão fica a
- * aceite tal como está, e o cartão diz o que falta.
+ * mesmo: a base sem IVA DA VERSÃO ACEITE igual ao cêntimo e a faturação a
+ * fechar. Senão fica a aceite tal como está, e `porqueNao` diz porquê.
+ *
+ * ── A VERSÃO, E NÃO A PROPOSTA INTEIRA (auditoria de 14/11) ─────────────────
+ * Comparava-se a base da proposta INTEIRA. Com a versão base aceite por
+ * 8 000 € e o estúdio com Decoração 6 000 € + Cocktail 4 000 € (extra), as
+ * duas inteiras davam 10 000 € e «batiam» — e o rascunho do Moloni saía
+ * sobre 6 000 €, a base do estúdio, e não sobre os 8 000 € que o casal
+ * aceitou. Compara-se o que se vai faturar: a versão escolhida dos dois lados.
  */
 export function aceiteComLinhasDoEstudio(
   aceite: DocParaFaturar,
   estudio: DocParaFaturar | null | undefined,
   versao?: VersaoEscolhida,
-): { doc: DocParaFaturar; doEstudio: boolean } {
+): { doc: DocParaFaturar; doEstudio: boolean; porqueNao?: string } {
   if (!estudio || faturacaoPorArtigo(aceite, versao).fecha)
     return { doc: aceite, doEstudio: false };
   const junto = {
@@ -742,14 +843,26 @@ export function aceiteComLinhasDoEstudio(
     budgetOpcional: estudio.budgetOpcional,
     budgetExtras: estudio.budgetExtras,
   } as DocParaFaturar;
-  const igual =
-    Math.abs(
-      dinheiroDaProposta(junto as ProposalDoc).base -
-        dinheiroDaProposta(aceite as ProposalDoc).base,
-    ) < 0.005;
-  return igual && faturacaoPorArtigo(junto, versao).fecha
-    ? { doc: junto, doEstudio: true }
-    : { doc: aceite, doEstudio: false };
+  const doEstudio = totalDaVersaoAceite(junto, versao).base;
+  const daAceite = totalDaVersaoAceite(aceite, versao).base;
+  if (Math.round(doEstudio * 100) !== Math.round(daAceite * 100)) {
+    return {
+      doc: aceite,
+      doEstudio: false,
+      porqueNao:
+        `As linhas do estúdio dão ${eur(doEstudio)} sem IVA na versão aceite, e o casal ` +
+        `aceitou ${eur(daAceite)}: não se usam.`,
+    };
+  }
+  const fJunto = faturacaoPorArtigo(junto, versao);
+  if (!fJunto.fecha) {
+    return {
+      doc: aceite,
+      doEstudio: false,
+      porqueNao: ["As linhas do estúdio não fecham:", ...fJunto.porqueNaoFecha].join(" "),
+    };
+  }
+  return { doc: junto, doEstudio: true };
 }
 
 /** Os campos do documento que a faturação lê — e só esses. */

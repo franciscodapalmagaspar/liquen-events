@@ -58,17 +58,20 @@ async function propostaDeFaturacao(id: string, propostas: Proposal[]) {
       ? (rascunho.doc as ProposalDoc)
       : null;
   if (aceite?.doc) {
-    const { doc, doEstudio: usouEstudio } = aceiteComLinhasDoEstudio(
-      aceite.doc as DocParaFaturar,
-      doEstudio,
-      aceite.versaoEscolhida,
-    );
+    const {
+      doc,
+      doEstudio: usouEstudio,
+      porqueNao,
+    } = aceiteComLinhasDoEstudio(aceite.doc as DocParaFaturar, doEstudio, aceite.versaoEscolhida);
     return {
       id: aceite.id as string | null,
       estado: "aceite" as const,
       versaoEscolhida: aceite.versaoEscolhida ?? null,
       doc: doc as ProposalDoc,
       linhasDoEstudio: usouEstudio,
+      // Porque é que as linhas do estúdio NÃO se usaram (a versão aceite não
+      // bate com elas, ou não fecham) — para o cartão e o 422 o dizerem.
+      porqueNaoUsouEstudio: porqueNao ?? null,
     };
   }
   if (doEstudio) {
@@ -78,6 +81,7 @@ async function propostaDeFaturacao(id: string, propostas: Proposal[]) {
       versaoEscolhida: null,
       doc: doEstudio,
       linhasDoEstudio: true,
+      porqueNaoUsouEstudio: null,
     };
   }
   const ultima = propostas.find((p) => p.doc && p.status !== "rejeitada");
@@ -88,6 +92,7 @@ async function propostaDeFaturacao(id: string, propostas: Proposal[]) {
       versaoEscolhida: null,
       doc: ultima.doc as ProposalDoc,
       linhasDoEstudio: false,
+      porqueNaoUsouEstudio: null,
     };
   }
   return null;
@@ -186,7 +191,10 @@ async function POST_semMedida(
       {
         error: "A proposta ainda não está dividida por artigos.",
         codigo: "nao-fecha",
-        porque: f.porqueNaoFecha,
+        porque: [
+          ...f.porqueNaoFecha,
+          ...(fonte.porqueNaoUsouEstudio ? [fonte.porqueNaoUsouEstudio] : []),
+        ],
       },
       { status: 422 },
     );
