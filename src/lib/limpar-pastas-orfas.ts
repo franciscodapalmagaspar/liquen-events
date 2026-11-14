@@ -1,4 +1,5 @@
 import "server-only";
+import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
 import { getSupabase } from "@/lib/supabase";
 import { apagarPastaDoPedido } from "@/lib/proposal-storage";
 import { getState, setState } from "@/lib/app-state";
@@ -81,6 +82,8 @@ type Resultado = {
   emEspera: number;
   apagadas: number;
   acabou: boolean;
+  /** As pastas que saíram esta noite (`<pedido>/`) — para o índice visual. */
+  pastasApagadas?: string[];
 };
 
 export async function limparPastasDePedidosApagados(
@@ -134,7 +137,7 @@ export async function limparPastasDePedidosApagados(
             ? // E o índice dos resumos (`fotos-resumo.ts`): nomeia fotos de
               // pedidos apagados até alguém as procurar — não é uma menção.
               (l.data as { key?: string }[]).filter(
-                (r) => r.key !== CHAVE && !String(r.key ?? "").startsWith("foto-resumo:"),
+                (r) => r.key !== CHAVE && !eChaveDeIndiceDeFotos(r.key),
               )
             : l.data,
         ),
@@ -168,6 +171,7 @@ export async function limparPastasDePedidosApagados(
   }
 
   let apagadas = 0;
+  const pastasApagadas: string[] = [];
   for (const { pasta, ficheiros } of prontas) {
     if (apagadas >= POR_NOITE || Date.now() > fim) break;
     const visto = espera[pasta];
@@ -175,6 +179,7 @@ export async function limparPastasDePedidosApagados(
     if (Number.isNaN(desde) || agora.getTime() - desde < ESPERA_DIAS * DIA_MS) continue;
     if (await apagarPastaDoPedido(pasta)) {
       apagadas++;
+      pastasApagadas.push(`${pasta}/`);
       delete espera[pasta];
       log.info("limpeza: pasta de pedido apagado saiu do armazenamento", {
         pasta,
@@ -188,6 +193,7 @@ export async function limparPastasDePedidosApagados(
     candidatas: prontas.length,
     emEspera: Object.keys(espera).length,
     apagadas,
+    pastasApagadas,
     acabou: true,
   };
 }

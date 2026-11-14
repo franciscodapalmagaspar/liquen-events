@@ -47,6 +47,17 @@ vi.mock("@/lib/fotos-resumo", () => ({
   registarResumos: indice.registar,
   resumoDosBytes: () => "0".repeat(32),
 }));
+// O índice visual e o contador do espaço têm testes próprios; aqui só se
+// prova que a Biblioteca os alimenta.
+const espaco = vi.hoisted(() => ({
+  somar: vi.fn(async (_p: Record<string, number>) => {}),
+  registar: vi.fn(async (_c: string, _i: string | null, _l: number) => {}),
+}));
+vi.mock("@/lib/ocupacao-do-armazenamento", () => ({ somarCarregado: espaco.somar }));
+vi.mock("@/lib/fotos-parecidas", () => ({
+  impressaoDosBytes: async () => "a".repeat(90),
+  registarImpressao: espaco.registar,
+}));
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@/lib/supabase", () => ({ isDatabaseConfigured: () => st.dbConfigured }));
 vi.mock("@/lib/themes-store", () => ({
@@ -346,6 +357,22 @@ describe("POST /api/temas/[id]/imagens", () => {
       naming(null),
       undefined,
       undefined,
+    );
+  });
+
+  it("conta o espaço que guardou (o travão da importação) e regista a impressão com o lado", async () => {
+    espaco.somar.mockClear();
+    espaco.registar.mockClear();
+    const res = await POST(...post([jpg("a.jpg")], "t-1", [jpg("ta.jpg", 4)]));
+    expect(res.status).toBe(200);
+    expect(espaco.somar).toHaveBeenCalledTimes(1);
+    const contado = espaco.somar.mock.calls[0][0];
+    expect(contado["theme-assets"]).toBeGreaterThan(0);
+    expect(contado["theme-thumbs"]).toBeGreaterThan(0);
+    expect(espaco.registar).toHaveBeenCalledWith(
+      "tema:t-1/nova.jpg",
+      "a".repeat(90),
+      expect.any(Number),
     );
   });
 

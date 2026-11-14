@@ -1,4 +1,5 @@
 import "server-only";
+import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
 import { lerTodasAsLinhas } from "./ler-todas-as-linhas";
 import { createHash } from "node:crypto";
 import { getSupabase } from "@/lib/supabase";
@@ -154,7 +155,7 @@ export async function limparPdfsSubstituidos(agora: Date, prazoMs = 8_000): Prom
             ? // O índice dos resumos (`fotos-resumo.ts`) nomeia pastas de pedidos
               // por fotos que lá estiveram — não é uma menção.
               (l.data as { key?: string }[]).filter(
-                (r) => r.key !== CHAVE && !String(r.key ?? "").startsWith("foto-resumo:"),
+                (r) => r.key !== CHAVE && !eChaveDeIndiceDeFotos(r.key),
               )
             : l.data,
         ),

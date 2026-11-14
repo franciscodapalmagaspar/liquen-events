@@ -11,6 +11,15 @@ import {
   type ThemeThumbInput,
 } from "@/lib/theme-storage";
 import { fingerprintOfFileName, isFingerprint } from "@/lib/theme-fingerprint";
+import { impressaoDosBytes, registarImpressao } from "@/lib/fotos-parecidas";
+import { somarCarregado } from "@/lib/ocupacao-do-armazenamento";
+import {
+  THEME_BUCKET,
+  THEME_MICRO_BUCKET,
+  THEME_MID_BUCKET,
+  THEME_THUMB_BUCKET,
+  refDeTema,
+} from "@/lib/theme-ref";
 import { dimensoesReais, garantirFormatoImprimivel, motivoDaRecusa } from "@/lib/proposal-image";
 import { recusaDeImagem } from "@/lib/recusa-de-imagem";
 import {
@@ -22,7 +31,6 @@ import {
 import { isDatabaseConfigured } from "@/lib/supabase";
 import { NaoDeuParaApagar, enviarParaAReciclagem, quemApagou } from "@/lib/reciclagem";
 import { registarResumos, resumoDosBytes } from "@/lib/fotos-resumo";
-import { refDeTema } from "@/lib/theme-ref";
 import { log } from "@/lib/logger";
 import { lqipAceitavel } from "@/lib/lqip";
 import { corNormalizada } from "@/lib/cor";
@@ -430,6 +438,23 @@ async function POST_semMedida(
      * Sobre `pronto` e não sobre `recebidos`: é `pronto` que fica no bucket.
      */
     const forma = await dimensoesReais(pronto.bytes);
+    // A impressão visual, calculada aqui sobre os bytes guardados, com o lado
+    // maior deles — é por ela que uma proposta antiga com esta fotografia
+    // recomprimida a reconhece (`fotos-parecidas.ts`). Melhor esforço.
+    await registarImpressao(
+      refDeTema(res.image.path),
+      await impressaoDosBytes(bytes),
+      forma ? Math.max(forma.w, forma.h) : 0,
+    );
+    // E o espaço que ocupou, para o travão da importação saber antes da
+    // medição da noite (`ocupacao-do-armazenamento.ts`). As derivadas contam-se
+    // pelo que veio (se uma não tiver ficado, conta a mais — o lado seguro).
+    await somarCarregado({
+      [THEME_BUCKET]: bytes.length,
+      ...(thumbInput ? { [THEME_THUMB_BUCKET]: thumbInput.bytes.length } : {}),
+      ...(microInput ? { [THEME_MICRO_BUCKET]: microInput.bytes.length } : {}),
+      ...(midInput ? { [THEME_MID_BUCKET]: midInput.bytes.length } : {}),
+    });
     const dados = {
       ...(lqip ? { lqip } : {}),
       ...(cor ? { cor } : {}),

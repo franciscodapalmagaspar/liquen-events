@@ -34,6 +34,7 @@ import {
   MID_QUALITY,
 } from "./image-worker";
 import { corDominanteDePixeis } from "@/lib/cor-dominante";
+import { LADO_DA_FOTO_DE_PROPOSTA } from "@/lib/derivadas-medidas";
 // A mesma explicação que o servidor dá, num sítio só. Este módulo não traz nada
 // de servidor atrás — ver `recusa-de-imagem`.
 import { CONSELHO_HEIC, nomeOuTipoDeHeic } from "@/lib/recusa-de-imagem";
@@ -109,6 +110,85 @@ const PRESETS: Record<ImageKind, { maxEdge: number; quality: number; keepBytes: 
 };
 
 /**
+ * ════════════════════════════════════════════════════════════════════════════
+ * AS FOTOGRAFIAS DAS PROPOSTAS OCUPAM O MÍNIMO (13/11, pedido dele)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * «quero otimizar o máximo possível para ser possível colocar todas as fotos
+ * das propostas antigas». Para onde vai cada fotografia de uma proposta:
+ *
+ *  · o PDF reduz TODAS a 1 800 px antes de desenhar (`LADO_EDITORIAL` em
+ *    `proposal-doc-render.ts`; a página inteira é `LADO_PAGINA` = 1 800);
+ *  · a proposta online serve a média de 1 200 px (e a AVIF dela), e a
+ *    miniatura nas grelhas; o mosaico grande pede ~1 440 px num ecrã retina.
+ *
+ * Guardar o original a 2 200 px era guardar 50% mais píxeis do que alguém
+ * alguma vez vê. Medido com 49 fotografias reais de `public/imagens`
+ * (2 400–2 560 px), pelo caminho do PDF (original → 1 800 q86) contra a
+ * fonte levada a 1 800 px:
+ *
+ *                       original  média  miniatura   total   PSNR do PDF
+ *   antes (2200 q0,82, JPEG)  517 KB  154 KB   18 KB   0,67 MB   37,6 dB (pior 32,1)
+ *   agora (1800 q0,82, WebP)  354 KB  112 KB   15 KB   0,47 MB   38,0 dB (pior 32,9)
+ *
+ * O PDF fica IGUAL OU MELHOR (sai do original sem segunda redução), e cada
+ * fotografia ocupa 30% menos. Medido também: 2 000 px dava 35,2 dB — a
+ * redução 2000 → 1800 do PDF custa mais do que os píxeis a mais valem.
+ *
+ * O original continua JPEG (o servidor converte o resto para JPEG antes de
+ * guardar, e o PDF lê-o com o `sharp`); a média e a miniatura passam a WebP
+ * onde o navegador o codifica, como as que o servidor já fabrica. NADA disto
+ * mexe numa fotografia já guardada.
+ *
+ * ── A CAPA FICA A 2 200 px (revisão de 13/11) ──────────────────────────────
+ *
+ * A capa da proposta online tem uma versão GRANDE, até 2 000 px
+ * (`CAPA_WEB_LADO`), para o ecrã largo. Medido com 8 fotos deitadas, a capa a
+ * toda a largura de um ecrã de 1 920 px contra a fonte:
+ *
+ *   original a 2 000 px → 36,5 dB (pior 30,3); AVIF grande 212 KB
+ *   original a 1 800 px → 29,5 dB (pior 23,2); AVIF grande 181 KB
+ *
+ * Sete decibéis é ver a diferença. A capa é UMA ou duas fotos por proposta,
+ * por isso as fotos de capa (`kind: "cover"`) continuam como estavam
+ * (2 200 px q0,90 — e 2 200 dá 37,6 dB no PDF, ao lado dos 38,0 das de
+ * 1 800): perde-se ~0,2 MB por proposta de poupança, e a capa não piora em
+ * lado nenhum. Só as fotos dos mood boards descem a 1 800.
+ *
+ * A Biblioteca de Temas fica como estava (2 200 px): não foi pedido, e as
+ * fotos dela também alimentam a capa web grande.
+ */
+export const PROPOSTA_MAX_EDGE = LADO_DA_FOTO_DE_PROPOSTA;
+/**
+ * Abaixo disto uma foto da proposta sobe sem ser recodificada (já é mais
+ * pequena do que sairia daqui) — e não perde nada a uma segunda compressão.
+ */
+const PROPOSTA_KEEP_BYTES = 450_000;
+
+/** Para onde vai a fotografia: muda o lado do original e o formato das derivadas. */
+export type DestinoDaFoto = "biblioteca" | "proposta";
+
+/** O preset de uma foto (puro — testado). */
+export function presetDe(
+  kind: ImageKind,
+  destino: DestinoDaFoto = "biblioteca",
+): { maxEdge: number; quality: number; keepBytes: number; derivadas: "webp" | "jpeg" } {
+  const base = PRESETS[kind];
+  // A capa da proposta continua a 2 200 px (ver acima): só muda o formato das
+  // derivadas.
+  if (destino === "proposta" && kind === "cover") return { ...base, derivadas: "webp" };
+  if (destino === "proposta") {
+    return {
+      ...base,
+      maxEdge: PROPOSTA_MAX_EDGE,
+      keepBytes: PROPOSTA_KEEP_BYTES,
+      derivadas: "webp",
+    };
+  }
+  return { ...base, derivadas: "jpeg" };
+}
+
+/**
  * Miniatura da biblioteca de temas: 400 px de lado maior, q0.72 (~25–50 KB).
  *
  * A célula da grelha tem ~150 px de lado; 400 px cobre um ecrã Retina (2×) com
@@ -140,8 +220,13 @@ export function fitWithin(w: number, h: number, maxEdge: number): { w: number; h
  *  e acabavam como moldura vazia na proposta. Agora um WebP vai sempre ao
  *  canvas, que devolve JPEG; ser pequeno deixa de ser desculpa para o guardar
  *  num formato que não se imprime. */
-export function keepOriginal(type: string, size: number, kind: ImageKind = "cover"): boolean {
-  return IMPRIMIVEL.test(type) && size <= PRESETS[kind].keepBytes;
+export function keepOriginal(
+  type: string,
+  size: number,
+  kind: ImageKind = "cover",
+  destino: DestinoDaFoto = "biblioteca",
+): boolean {
+  return IMPRIMIVEL.test(type) && size <= presetDe(kind, destino).keepBytes;
 }
 
 /**
@@ -351,7 +436,7 @@ async function acquire(): Promise<Lane | null> {
  */
 async function prepareViaWorker(
   file: File,
-  preset: { maxEdge: number; quality: number },
+  preset: { maxEdge: number; quality: number; derivadas: "webp" | "jpeg" },
   skipOriginal: boolean,
   wantThumb: boolean,
 ): Promise<{
@@ -374,6 +459,7 @@ async function prepareViaWorker(
     wantThumb,
     thumbEdge: THUMB_EDGE,
     thumbQuality: THUMB_QUALITY,
+    formatoDerivadas: preset.derivadas,
   };
   const res = await new Promise<WorkerResponse | null>((resolve) => {
     pending.set(id, resolve);
@@ -441,6 +527,27 @@ function drawTo(source: CanvasImageSource, w: number, h: number): HTMLCanvasElem
 
 function encode(canvas: HTMLCanvasElement, quality: number): Promise<Blob | null> {
   return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+}
+
+/**
+ * Uma derivada no formato pedido — o gémeo de `codificarDerivada` do
+ * trabalhador. O Safari não codifica WebP e devolve PNG: aí sai JPEG.
+ */
+async function encodeDerivada(
+  canvas: HTMLCanvasElement,
+  quality: number,
+  formato: "webp" | "jpeg",
+): Promise<Blob | null> {
+  if (formato === "webp") {
+    const w = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/webp", quality));
+    if (w && w.type === "image/webp") return w;
+  }
+  return encode(canvas, quality);
+}
+
+/** O nome de uma derivada com a extensão do formato que de facto saiu. */
+function nomeDaDerivada(nome: string, blob: Blob): string {
+  return blob.type === "image/webp" ? nome.replace(/\.jpg$/i, ".webp") : nome;
 }
 
 /**
@@ -513,9 +620,14 @@ function sizeOf(source: Source): { w: number; h: number } {
  * barato. Só quando não há canvas (ficheiro enviado tal e qual) é que se
  * desenha diretamente da fonte.
  */
-async function prepare(file: File, kind: ImageKind, wantThumb: boolean): Promise<PreparedImage> {
-  const preset = PRESETS[kind];
-  const keep = keepOriginal(file.type, file.size, kind);
+async function prepare(
+  file: File,
+  kind: ImageKind,
+  wantThumb: boolean,
+  destino: DestinoDaFoto = "biblioteca",
+): Promise<PreparedImage> {
+  const preset = presetDe(kind, destino);
+  const keep = keepOriginal(file.type, file.size, kind, destino);
   // Sem miniatura a pedir, um ficheiro já pequeno e suportado nem sequer é
   // descodificado — é o caminho barato que o estúdio de propostas já usava.
   if (keep && !wantThumb)
@@ -529,11 +641,16 @@ async function prepare(file: File, kind: ImageKind, wantThumb: boolean): Promise
     const out = viaWorker.blob
       ? new File([viaWorker.blob], jpegName(file.name), { type: "image/jpeg" })
       : file;
+    // O tipo que de facto saiu (WebP nas propostas, onde o navegador o sabe).
     const thumb = viaWorker.thumb
-      ? new File([viaWorker.thumb], thumbFileName(file.name), { type: "image/jpeg" })
+      ? new File([viaWorker.thumb], nomeDaDerivada(thumbFileName(file.name), viaWorker.thumb), {
+          type: viaWorker.thumb.type || "image/jpeg",
+        })
       : null;
     const mid = viaWorker.mid
-      ? new File([viaWorker.mid], midFileName(file.name), { type: "image/jpeg" })
+      ? new File([viaWorker.mid], nomeDaDerivada(midFileName(file.name), viaWorker.mid), {
+          type: viaWorker.mid.type || "image/jpeg",
+        })
       : null;
     const micro = viaWorker.micro
       ? new File([viaWorker.micro], microFileName(file.name), { type: "image/jpeg" })
@@ -603,8 +720,11 @@ async function prepare(file: File, kind: ImageKind, wantThumb: boolean): Promise
     if (wantThumb && needsThumb(bw, bh)) {
       const t = fitWithin(bw, bh, THUMB_EDGE);
       const canvas = drawTo(base, t.w, t.h);
-      const blob = canvas ? await encode(canvas, THUMB_QUALITY) : null;
-      if (blob) thumb = new File([blob], thumbFileName(file.name), { type: "image/jpeg" });
+      const blob = canvas ? await encodeDerivada(canvas, THUMB_QUALITY, preset.derivadas) : null;
+      if (blob)
+        thumb = new File([blob], nomeDaDerivada(thumbFileName(file.name), blob), {
+          type: blob.type || "image/jpeg",
+        });
     }
 
     // 3) A micro, do mesmo canvas. Silenciosa como a miniatura.
@@ -623,8 +743,11 @@ async function prepare(file: File, kind: ImageKind, wantThumb: boolean): Promise
     if (wantThumb && needsMid(bw, bh)) {
       const d = fitWithin(bw, bh, MID_EDGE);
       const canvas = drawTo(base, d.w, d.h);
-      const blob = canvas ? await encode(canvas, MID_QUALITY) : null;
-      if (blob) mid = new File([blob], midFileName(file.name), { type: "image/jpeg" });
+      const blob = canvas ? await encodeDerivada(canvas, MID_QUALITY, preset.derivadas) : null;
+      if (blob)
+        mid = new File([blob], nomeDaDerivada(midFileName(file.name), blob), {
+          type: blob.type || "image/jpeg",
+        });
     }
 
     // 5) O LQIP, do MESMO canvas — a imagem que a grelha desenha a 0 ms.
@@ -659,6 +782,8 @@ export async function prepareImageForUpload(file: File, kind: ImageKind = "cover
 export async function prepareImageWithThumb(
   file: File,
   kind: ImageKind = "cover",
+  /** `"proposta"`: 1 800 px e derivadas em WebP — ver {@link PROPOSTA_MAX_EDGE}. */
+  destino: DestinoDaFoto = "biblioteca",
 ): Promise<PreparedImage> {
-  return prepare(file, kind, true);
+  return prepare(file, kind, true, destino);
 }

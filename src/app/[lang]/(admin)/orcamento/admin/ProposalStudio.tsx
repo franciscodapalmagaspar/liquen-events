@@ -5846,7 +5846,7 @@ export default function ProposalStudio({
           // que já está na Biblioteca ou neste pedido e não guardar outra cópia
           // (`fotos-resumo.ts`). `null` sem contexto seguro — sobe como antes.
           const [prepared, resumo] = await Promise.all([
-            prepareImageWithThumb(f, kind),
+            prepareImageWithThumb(f, kind, "proposta"),
             fingerprintBlob(f),
           ]);
           const im = await uploadOne(

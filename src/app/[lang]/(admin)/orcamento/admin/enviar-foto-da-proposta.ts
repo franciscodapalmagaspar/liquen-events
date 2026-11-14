@@ -37,6 +37,8 @@ export type FotoParaEnviar = Pick<PreparedImage, "file" | "thumb"> &
      * devolve o caminho dela em vez de guardar outra cópia (`fotos-resumo.ts`).
      */
     resumo?: string | null;
+    /** Vem da importação: passa pelo travão do espaço (90% do plano). */
+    importacao?: boolean;
   };
 
 export function formularioDaFoto(f: FotoParaEnviar, chave?: string): FormData {
@@ -47,6 +49,7 @@ export function formularioDaFoto(f: FotoParaEnviar, chave?: string): FormData {
   // ficheiro (auditoria de 13/11, estúdio n.º 18).
   if (chave) form.append("chaves", chave);
   if (f.resumo) form.append("resumos", f.resumo);
+  if (f.importacao) form.append("importacao", "1");
   // O LQIP — a mancha de cor que ocupa a célula enquanto a fotografia não
   // chega. Sai da MESMA descodificação que já calculou a cor e a miniatura
   // (`image-prep`), portanto não custa nada, e sem ele a página do casal
@@ -63,6 +66,18 @@ export function formularioDaFoto(f: FotoParaEnviar, chave?: string): FormData {
   // alguém olhar — e numa proposta acabada de enviar essa pessoa é o casal.
   if (f.mid) form.append("medias", f.mid);
   return form;
+}
+
+/**
+ * O servidor recusou porque o armazenamento chegou ao travão (90% do plano,
+ * HTTP 507). Quem envia um lote PÁRA ao primeiro: as outras também seriam
+ * recusadas, e cada uma é um pedido a mais.
+ */
+export class ArmazenamentoNoTravao extends Error {
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = "ArmazenamentoNoTravao";
+  }
 }
 
 export async function enviarFotoDaProposta(
@@ -87,6 +102,11 @@ export async function enviarFotoDaProposta(
     res = await post();
   }
   const data = await res.json().catch(() => null);
+  if (res.status === 507) {
+    throw new ArmazenamentoNoTravao(
+      data?.error || "O armazenamento chegou ao travão (90% do plano).",
+    );
+  }
   if (!res.ok) {
     throw new Error(
       data?.error ||

@@ -34,7 +34,15 @@ vi.mock("@/lib/theme-fingerprint", () => ({
   fingerprintBlob: vi.fn(async (f: File) => resumoDoNome(f.name)),
 }));
 
+// A impressão visual (canvas) também sai do NOME aqui: 86 hex por foto.
+vi.mock("./fotos-ja-guardadas", async (orig) => ({
+  ...(await orig<typeof import("./fotos-ja-guardadas")>()),
+  impressaoDoFicheiro: vi.fn(async (f: File) => resumoDoNome(f.name).repeat(3).slice(0, 86)),
+}));
+const impressaoDoNome = (nome: string) => resumoDoNome(nome).repeat(3).slice(0, 86);
+
 import ImportarProposta from "./ImportarProposta";
+import { prepareImageWithThumb } from "./image-prep";
 
 // Dados inventados.
 const FICHEIRO = docx([
@@ -305,7 +313,7 @@ describe("Importar proposta antiga", () => {
 
     expect(screen.getByText(/25 de 25 escolhidas/)).toBeTruthy();
     expect(screen.getByText(/10 já existem — não ocupam espaço/)).toBeTruthy();
-    expect(screen.getByText(/as 15 novas ocupam cerca de 14 MB/)).toBeTruthy();
+    expect(screen.getByText(/as 15 novas ocupam cerca de 8 MB/)).toBeTruthy();
     expect(screen.queryByText(/Máximo 20 novas/)).toBeNull();
 
     await user.click(
@@ -393,5 +401,169 @@ describe("Importar proposta antiga", () => {
     const ultimo = chamadas.filter((c) => c.url.endsWith("/proposta-rascunho")).at(-1);
     const { doc } = JSON.parse(ultimo?.init?.body as string);
     expect(doc.moodBoards[0].images).toEqual(["LIQ-IMP-1/foto1.jpg", "LIQ-IMP-1/foto2.jpg"]);
+  });
+
+  describe("pelo que mostram (13/11): a zona cinzenta pergunta-se", () => {
+    /** cer1 parece-se com uma da Biblioteca («talvez»); cer2 é «a mesma» noutro ficheiro. */
+    function comParecidas(rascunhoFalhaUmaVez = false) {
+      const r = preparar(false, FICHEIRO, rascunhoFalhaUmaVez);
+      const antes = globalThis.fetch as unknown as (u: string, i?: RequestInit) => Promise<unknown>;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) => {
+          if (url === "/api/orcamento/fotos-existentes") {
+            r.chamadas.push({ url, init });
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                ok: true,
+                existentes: {},
+                parecidas: {
+                  [impressaoDoNome("cer1.jpeg")]: {
+                    caminho: "tema:t1/parecida.jpg",
+                    veredicto: "talvez",
+                    miniatura: "https://x/parecida",
+                  },
+                  [impressaoDoNome("cer2.jpeg")]: {
+                    caminho: "tema:t1/mesma.jpg",
+                    veredicto: "mesma",
+                    miniatura: null,
+                  },
+                },
+              }),
+            };
+          }
+          return antes(url, init);
+        }),
+      );
+      return r;
+    }
+    const enviadas = (ch: Chamada[]) =>
+      ch.filter((c) => c.url.endsWith("/assets")).map((c) => c.init?.body as FormData);
+    const rascunho = (ch: Chamada[]) =>
+      JSON.stringify(
+        JSON.parse(ch.find((c) => c.url.endsWith("/proposta-rascunho"))!.init?.body as string).doc,
+      );
+
+    it("a «mesma» entra sozinha; a «talvez» mostra as duas e, sem resposta, sobe como nova", async () => {
+      const { chamadas, onCreated } = comParecidas();
+      await escolherFicheiro();
+      expect(screen.getByText(/parece-se com uma que já está guardada/)).toBeTruthy();
+      expect(screen.getByAltText("Fotografia já guardada")).toBeTruthy();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("radio", { name: "Acresce IVA" }));
+      await user.click(
+        screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+      );
+      await waitFor(() => expect(onCreated).toHaveBeenCalled());
+      const e = enviadas(chamadas);
+      expect(e.map((f) => (f.get("files") as File).name)).toEqual(["cer1.jpeg"]);
+      expect(e[0].get("importacao")).toBe("1");
+      expect(e[0].get("semParecidas")).toBeNull();
+      const doc = rascunho(chamadas);
+      expect(doc).toContain("tema:t1/mesma.jpg");
+      expect(doc).not.toContain("tema:t1/parecida.jpg");
+    });
+
+    it("«É a mesma» usa a guardada e não sobe nada", async () => {
+      const { chamadas, onCreated } = comParecidas();
+      await escolherFicheiro();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("radio", { name: "Acresce IVA" }));
+      await user.click(screen.getByRole("radio", { name: "É a mesma" }));
+      await user.click(
+        screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+      );
+      await waitFor(() => expect(onCreated).toHaveBeenCalled());
+      expect(enviadas(chamadas)).toHaveLength(0);
+      expect(rascunho(chamadas)).toContain("tema:t1/parecida.jpg");
+    });
+
+    it("«É a mesma» → o rascunho falha → «É outra» → Continuar: a foto dela SOBE e a da Biblioteca sai", async () => {
+      const { chamadas, onCreated } = comParecidas(true);
+      await escolherFicheiro();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("radio", { name: "Acresce IVA" }));
+      await user.click(screen.getByRole("radio", { name: "É a mesma" }));
+      await user.click(
+        screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+      );
+      const continuar = await screen.findByRole("button", { name: /Continuar a importação/ });
+      expect(enviadas(chamadas)).toHaveLength(0);
+      await user.click(screen.getByRole("radio", { name: "É outra" }));
+      await user.click(continuar);
+      await waitFor(() => expect(onCreated).toHaveBeenCalled());
+      expect(enviadas(chamadas).map((f) => (f.get("files") as File).name)).toEqual(["cer1.jpeg"]);
+      const doc = rascunho(chamadas.filter((c) => c.url.endsWith("/proposta-rascunho")).slice(-1));
+      expect(doc).not.toContain("tema:t1/parecida.jpg");
+      expect(doc).toContain("LIQ-IMP-1/foto1.jpg");
+    });
+
+    it("e no sentido contrário: «É outra» (sobe) → falha → «É a mesma» → entra a da Biblioteca", async () => {
+      const { chamadas, onCreated } = comParecidas(true);
+      await escolherFicheiro();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("radio", { name: "Acresce IVA" }));
+      await user.click(screen.getByRole("radio", { name: "É outra" }));
+      await user.click(
+        screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+      );
+      const continuar = await screen.findByRole("button", { name: /Continuar a importação/ });
+      await user.click(screen.getByRole("radio", { name: "É a mesma" }));
+      await user.click(continuar);
+      await waitFor(() => expect(onCreated).toHaveBeenCalled());
+      const doc = rascunho(chamadas.filter((c) => c.url.endsWith("/proposta-rascunho")).slice(-1));
+      expect(doc).toContain("tema:t1/parecida.jpg");
+      expect(doc).not.toContain("LIQ-IMP-1/foto1.jpg");
+    });
+
+    it("«É outra» sobe como nova", async () => {
+      const { chamadas, onCreated } = comParecidas();
+      await escolherFicheiro();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("radio", { name: "Acresce IVA" }));
+      await user.click(screen.getByRole("radio", { name: "É outra" }));
+      await user.click(
+        screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+      );
+      await waitFor(() => expect(onCreated).toHaveBeenCalled());
+      expect(enviadas(chamadas)).toHaveLength(1);
+      expect(rascunho(chamadas)).not.toContain("tema:t1/parecida.jpg");
+    });
+  });
+
+  it("o armazenamento no travão (507): pára ao primeiro e diz quantas ficaram de fora", async () => {
+    const { chamadas, onCreated } = preparar(false, VINTE_E_CINCO);
+    const antes = globalThis.fetch as unknown as (u: string, i?: RequestInit) => Promise<unknown>;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.endsWith("/assets")) {
+          chamadas.push({ url, init });
+          return {
+            ok: false,
+            status: 507,
+            json: async () => ({ error: "travão", travao: true }),
+          };
+        }
+        return antes(url, init);
+      }),
+    );
+    const user = userEvent.setup();
+    await escolherFicheiro(VINTE_E_CINCO);
+    await user.click(
+      screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+    );
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    // Duas vias: no máximo os dois pedidos que já estavam a caminho.
+    expect(chamadas.filter((c) => c.url.endsWith("/assets")).length).toBeLessThanOrEqual(2);
+    expect(await screen.findByText(/chegou ao travão.*ficaram de fora/)).toBeTruthy();
+    // A capa prepara-se como capa (2 200 px — a capa web grande pede-os); o resto como mood board.
+    expect(prepareImageWithThumb).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "capa.jpeg" }),
+      "cover",
+      "proposta",
+    );
   });
 });

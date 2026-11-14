@@ -22,18 +22,20 @@ export const MAX_BYTES_POR_FOTO = 40 * 1024 * 1024;
 /**
  * Quantas fotografias NOVAS sobem por importação, no máximo.
  *
- * O armazenamento é o plano gratuito do Supabase (1 GB) e ia em 997 MB a
- * 13/11 — o pedido dela é ficar «MUITO abaixo». Cada fotografia nova ocupa
- * 0,6–1,3 MB depois de reduzida pelo caminho do estúdio (a de 2200 px, a média
- * de 1200 e a miniatura de 400): 20 novas são ~12–26 MB.
+ * Era 8 e contava TODAS; a 13/11 passou a 20 NOVAS («uma fotografia nunca se
+ * guarda duas vezes», `fotos-resumo.ts`: as que já estão guardadas entram
+ * pela referência e não contam). Mais tarde no mesmo dia, o pedido dele:
+ * «otimizar o máximo possível para ser possível colocar todas as fotos das
+ * propostas antigas». Com cada foto nova a ocupar ~0,5 MB (era ~0,7 —
+ * `image-prep.ts`, `PROPOSTA_MAX_EDGE`) e as parecidas reconhecidas pelo que
+ * mostram (`fotos-parecidas.ts`), o tecto passou a 200: um PowerPoint antigo
+ * inteiro cabe.
  *
- * Era 8 e contava TODAS. Desde 13/11 («uma fotografia nunca se guarda duas
- * vezes», `fotos-resumo.ts`) o navegador pergunta, pelo resumo, quais já estão
- * guardadas na Biblioteca — essas entram na proposta pela referência `tema:`,
- * não sobem e não ocupam espaço, e por isso NÃO contam para o tecto. O tecto
- * passou a valer só para as novas, e subiu para 20.
+ * O que manda de facto é o TRAVÃO do espaço (`fotosQueCabem`, em
+ * `ocupacao-do-armazenamento-regras.ts`): nunca se passa de 90% do plano, e
+ * sem medição do armazenamento fica o tecto prudente de 20.
  */
-export const MAX_FOTOS_POR_IMPORTACAO = 20;
+export const MAX_FOTOS_POR_IMPORTACAO = 200;
 
 const NENHUMA: ReadonlySet<string> = new Set();
 

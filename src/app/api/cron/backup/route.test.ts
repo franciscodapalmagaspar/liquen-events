@@ -129,6 +129,13 @@ vi.mock("@/lib/juntar-fotos-duplicadas", () => ({
     return { fase: "nada", copias: 0, apagadas: 0, acabou: true };
   }),
 }));
+const visual = vi.hoisted(() => ({
+  preencher: vi.fn(async (_m: unknown, _o: { apagadosDepois?: readonly string[] }) => ({
+    calculadas: 0,
+  })),
+}));
+vi.mock("@/lib/fotos-parecidas", () => ({ preencherImpressoes: visual.preencher }));
+vi.mock("@/lib/ocupacao-do-armazenamento", () => ({ medirOcupacao: vi.fn(async () => null) }));
 vi.mock("@/lib/limpar-pastas-orfas", () => ({
   limparPastasDePedidosApagados: vi.fn(async () => ({ candidatas: 0, apagadas: 0, acabou: true })),
 }));
@@ -352,6 +359,45 @@ describe("o aquecimento dos PDF viaja com a cópia", () => {
     st.manifesto.completo = false;
     await GET(req());
     expect(juntarFotosDuplicadas).not.toHaveBeenCalled();
+  });
+
+  it("o índice visual não calcula o que a junção, as pastas órfãs e a Reciclagem da mesma noite apagaram", async () => {
+    st.authed = true;
+    const { juntarFotosDuplicadas } = await import("@/lib/juntar-fotos-duplicadas");
+    vi.mocked(juntarFotosDuplicadas).mockResolvedValueOnce({
+      fase: "B",
+      copias: 0,
+      bytes: 0,
+      trocas: 0,
+      presas: 0,
+      apagadas: 1,
+      bytesApagados: 1,
+      caminhosApagados: ["LIQ-1/repetida.jpg"],
+      acabou: true,
+    });
+    const { limparPastasDePedidosApagados } = await import("@/lib/limpar-pastas-orfas");
+    vi.mocked(limparPastasDePedidosApagados).mockResolvedValueOnce({
+      candidatas: 1,
+      emEspera: 0,
+      apagadas: 1,
+      pastasApagadas: ["LIQ-ORFAO/"],
+      acabou: true,
+    });
+    const { limparExpiradas } = await import("@/lib/reciclagem");
+    vi.mocked(limparExpiradas).mockResolvedValueOnce({
+      apagadas: 2,
+      ficaram: 0,
+      pastasApagadas: ["LIQ-RECICLADO/", "tema:tema-velho/"],
+    });
+    visual.preencher.mockClear();
+    await GET(req());
+    expect(visual.preencher).toHaveBeenCalledTimes(1);
+    expect(visual.preencher.mock.calls[0][1].apagadosDepois).toEqual([
+      "LIQ-1/repetida.jpg",
+      "LIQ-ORFAO/",
+      "LIQ-RECICLADO/",
+      "tema:tema-velho/",
+    ]);
   });
 
   it("uma limpeza da Reciclagem que rebenta NÃO impede a cópia de seguir", async () => {

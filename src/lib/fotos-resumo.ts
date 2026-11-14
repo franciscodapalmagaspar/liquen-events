@@ -130,7 +130,7 @@ async function esquecer(resumo: string, mortos: readonly string[]): Promise<void
 }
 
 /** O ficheiro está mesmo no bucket? `null` = não se conseguiu saber. */
-async function existe(bucket: string, path: string): Promise<boolean | null> {
+export async function existe(bucket: string, path: string): Promise<boolean | null> {
   const sb = getSupabase();
   if (!sb) return null;
   try {

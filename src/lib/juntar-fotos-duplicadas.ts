@@ -1,4 +1,5 @@
 import "server-only";
+import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
 import { getSupabase } from "@/lib/supabase";
 import { getState, setState } from "@/lib/app-state";
 import { DRAFT_PREFIX, draftKey } from "@/lib/proposal-drafts";
@@ -125,9 +126,8 @@ const MARGEM_MS = 5 * 60_000;
 const HORA_MS = 60 * 60_000;
 const DIA_MS = 24 * HORA_MS;
 const PREFIXO_CACHE_WEB = "proposta-web:";
-/** O índice dos resumos (`fotos-resumo.ts`) nomeia caminhos, mas não os usa:
- *  um caminho que sai daqui é esquecido lá na primeira vez que se procura. */
-const PREFIXO_INDICE_DE_RESUMOS = "foto-resumo:";
+// Os índices das fotografias (`foto-resumo:`, `foto-visual:`) nomeiam caminhos
+// mas não os usam — ver `indices-de-fotos.ts`.
 const PROPOSAL_COVER_BUCKET = "proposal-capas";
 const THEME_COVER_BUCKET = "theme-capas";
 const EM_PARALELO = 6;
@@ -179,6 +179,12 @@ export type Resultado = {
   presas: number;
   apagadas: number;
   bytesApagados: number;
+  /**
+   * Os caminhos que saíram esta noite (Fase B). A tarefa da noite usa-os para
+   * o índice visual não calcular impressões de fotos que já não existem — o
+   * manifesto foi lido ANTES desta junção (revisão de 13/11).
+   */
+  caminhosApagados?: string[];
   acabou: boolean;
   /** Só a seco: o plano inteiro, para se mostrar antes. */
   plano?: PlanoDeDuplicados;
@@ -279,11 +285,7 @@ async function lerTudo(sb: Cliente): Promise<Leitura | null> {
     }
     for (const l of linhas) {
       const chave = String(l.key ?? "");
-      if (
-        chave === CHAVE ||
-        chave.startsWith(PREFIXO_CACHE_WEB) ||
-        chave.startsWith(PREFIXO_INDICE_DE_RESUMOS)
-      )
+      if (chave === CHAVE || chave.startsWith(PREFIXO_CACHE_WEB) || eChaveDeIndiceDeFotos(chave))
         continue;
       if (chave.startsWith(DRAFT_PREFIX)) {
         rascunhos.push({ chave, texto: JSON.stringify(l.value ?? null), valor: l.value });
@@ -667,6 +669,7 @@ async function faseB(
 
   let apagadas = 0;
   let bytesApagados = 0;
+  const caminhosApagados: string[] = [];
   for (let i = 0; i < prontas.length; i += EM_PARALELO) {
     if (Date.now() > fim) {
       restam.push(...prontas.slice(i));
@@ -687,6 +690,7 @@ async function faseB(
       if (feitas[j]) {
         apagadas++;
         bytesApagados += c.bytes;
+        caminhosApagados.push(c.caminho);
         plano.feitos[c.caminho] = c.fica;
         plano.feitosEm = { ...(plano.feitosEm ?? {}), [c.caminho]: new Date().toISOString() };
       } else restam.push(c);
@@ -716,6 +720,7 @@ async function faseB(
     bytes: restam.reduce((n, c) => n + c.bytes, 0),
     apagadas,
     bytesApagados,
+    caminhosApagados,
   };
 }
 
