@@ -1,18 +1,26 @@
 import "server-only";
 import { getSupabase } from "./supabase";
 import { PROPOSAL_BUCKET } from "./proposal-storage";
-import { THEME_BUCKET, ehRefDeTema, caminhoDoRefDeTema } from "./theme-ref";
+import { THEME_BUCKET, ehRefDeTema, caminhoDoRefDeTema, themeIdOfPath } from "./theme-ref";
+import { entradasDe } from "./reciclagem-store";
+import { getTheme } from "./themes-store";
+import { chavesDasPaginas, planoDaProposta } from "./pdf-editorial/plano";
 import { isPendingImage, type ProposalDoc } from "./proposal-doc";
 import { formasDeCaminhos } from "./biblioteca-fotos-store";
 import { LARGURAS_DE_PARTILHA, type FotoSuspeita } from "./proposta-fotos-verificacao-tipos";
 import { avaliarFoto, type LugarDaFoto } from "./qualidade-da-foto";
 import { marcaDaRef } from "./proposta-fotos";
 import { log } from "./logger";
-import type { FotoEmFalta, VerificacaoDeFotos } from "./proposta-fotos-verificacao-tipos";
+import type {
+  FotoEmFalta,
+  FotoEscolhidaEmFalta,
+  VerificacaoDeFotos,
+} from "./proposta-fotos-verificacao-tipos";
 
 export type {
   MotivoDeFalta,
   FotoEmFalta,
+  FotoEscolhidaEmFalta,
   VerificacaoDeFotos,
 } from "./proposta-fotos-verificacao-tipos";
 export { PORQUE_FALTA, PORQUE_SUSPEITA } from "./proposta-fotos-verificacao-tipos";
@@ -267,9 +275,135 @@ export async function verificarFotosDaProposta(
       suspeitas.push({ id: e.id, onde: e.onde, motivo, largura, altura });
     }
 
-    return { total: entradas.length, emFalta, suspeitas, naoVerificaveis, verificou: true };
+    // As escolhidas para as páginas que faltam TRAVAM o envio: com a página e
+    // o tema, para a frase dizer onde ir (ver `oQueFaltaParaEnviar`).
+    const idsEmFalta = new Set(emFalta.map((f) => f.id));
+    const escolhidasQueFaltam = await descreverEscolhidasQueFaltam(
+      doc ?? {},
+      entradas.filter((e) => e.lugar === "pagina" && idsEmFalta.has(e.id)).map((e) => e.ref),
+    );
+    return {
+      total: entradas.length,
+      emFalta,
+      escolhidasQueFaltam,
+      suspeitas,
+      naoVerificaveis,
+      verificou: true,
+    };
   } catch (err) {
     log.error("verificação de fotos falhou", err);
     return vazio;
   }
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * AS FOTOS ESCOLHIDAS PARA AS PÁGINAS QUE JÁ NÃO EXISTEM — TRAVAM O ENVIO
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * 14/11: em propostas enviadas a 6/11 e 12/11, uma foto que ela escolhera para
+ * um separador estava na Reciclagem da Biblioteca, e o PDF pôs OUTRA no lugar
+ * dela, em silêncio. O desenho deixou de o fazer (`pdf-editorial/embutir.ts`),
+ * e o envio passa a travar — no estúdio e na rota, pela mesma regra
+ * (`oQueFaltaParaEnviar`, id `foto-escolhida-em-falta`).
+ *
+ * Só as de `fotosDasPaginas`: uma foto de um mood board que falta sai do
+ * mosaico (não é trocada por outra), e continua a ser o aviso de sempre.
+ *
+ * Custo: uma listagem por PASTA das fotos escolhidas (poucas), e, só para as
+ * que faltam, uma leitura do tema e da Reciclagem pelo caminho.
+ *
+ * `null` = não se conseguiu perguntar. Nunca lança: «não sei» não acusa.
+ */
+export async function fotosEscolhidasQueFaltam(
+  doc: Partial<ProposalDoc> | null | undefined,
+): Promise<FotoEscolhidaEmFalta[] | null> {
+  const refs = [
+    ...new Set(
+      Object.values(doc?.fotosDasPaginas ?? {}).flatMap((e) =>
+        (e?.fotos ?? []).filter((r): r is string => typeof r === "string" && r.trim() !== ""),
+      ),
+    ),
+  ];
+  if (refs.length === 0) return [];
+  try {
+    const faltam: string[] = [];
+    const porPasta = new Map<string, { bucket: string; pasta: string; refs: string[] }>();
+    for (const ref of refs) {
+      if (isPendingImage(ref)) {
+        faltam.push(ref);
+        continue;
+      }
+      if (ref.startsWith("data:") || /^https?:\/\//i.test(ref)) continue;
+      const tema = ehRefDeTema(ref);
+      const caminho = tema ? caminhoDoRefDeTema(ref) : ref;
+      const partes = caminho ? partir(caminho) : null;
+      if (!partes) {
+        faltam.push(ref);
+        continue;
+      }
+      const bucket = tema ? THEME_BUCKET : PROPOSAL_BUCKET;
+      const chave = `${bucket}::${partes[0]}`;
+      const g = porPasta.get(chave) ?? { bucket, pasta: partes[0], refs: [] };
+      g.refs.push(ref);
+      porPasta.set(chave, g);
+    }
+    const listagens = await Promise.all(
+      [...porPasta.values()].map(async (g) => ({
+        ...g,
+        nomes: await nomesNaPasta(g.bucket, g.pasta),
+      })),
+    );
+    for (const g of listagens) {
+      if (!g.nomes) return null;
+      for (const ref of g.refs) {
+        const caminho = ehRefDeTema(ref) ? caminhoDoRefDeTema(ref) : ref;
+        const partes = caminho ? partir(caminho) : null;
+        if (!partes || !g.nomes.has(partes[1])) faltam.push(ref);
+      }
+    }
+    return await descreverEscolhidasQueFaltam(doc ?? {}, faltam);
+  } catch (err) {
+    log.error("verificação das fotos escolhidas falhou", err);
+    return null;
+  }
+}
+
+/** A página, o tema e se está na Reciclagem, para cada caminho que falta. */
+async function descreverEscolhidasQueFaltam(
+  doc: Partial<ProposalDoc>,
+  refs: readonly string[],
+): Promise<FotoEscolhidaEmFalta[]> {
+  const unicas = [...new Set(refs)];
+  if (unicas.length === 0) return [];
+  /** chave da página → o nome que ela vê no estúdio. */
+  const nomes = new Map<string, string>();
+  try {
+    const plano = planoDaProposta(doc as ProposalDoc);
+    chavesDasPaginas(plano).forEach((c, i) => nomes.set(c, plano[i].nome));
+  } catch {
+    // Sem nome, fica a chave: a frase continua a apontar para algum sítio.
+  }
+  const saida: FotoEscolhidaEmFalta[] = [];
+  for (const ref of unicas) {
+    const chave =
+      Object.entries(doc.fotosDasPaginas ?? {}).find(([, e]) =>
+        (e?.fotos ?? []).includes(ref),
+      )?.[0] ?? "";
+    let tema: string | null = null;
+    let naReciclagem = false;
+    if (ehRefDeTema(ref)) {
+      const caminho = caminhoDoRefDeTema(ref);
+      if (caminho) {
+        const [t, entradas] = await Promise.all([
+          getTheme(themeIdOfPath(caminho)).catch(() => null),
+          entradasDe(caminho).catch(() => []),
+        ]);
+        tema = t?.name?.trim() || null;
+        naReciclagem = entradas.some((e) => e.tipo === "foto-de-tema");
+      }
+    }
+    saida.push({ ref, pagina: nomes.get(chave) ?? chave, tema, naReciclagem });
+  }
+  return saida;
 }

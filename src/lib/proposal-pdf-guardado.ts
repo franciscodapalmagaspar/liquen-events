@@ -1,6 +1,8 @@
 import "server-only";
 import { getSupabase } from "./supabase";
 import { log } from "./logger";
+import { after } from "next/server";
+import { arquivarPdfDesmontado, ligado as arquivoLigado } from "./arquivo-de-pdfs/arquivo";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -133,6 +135,18 @@ export async function guardarPdfDaProposta(
     if (error && !/exist|duplicate/i.test(error.message)) {
       log.warn("pdf-guardado: não ficou guardado", { erro: error.message });
       return false;
+    }
+    // Um PDF NOVO: guarda-se também desmontado, ao lado, com prova
+    // (`arquivo-de-pdfs/`, fase 2 — desligado por omissão). Depois da
+    // resposta: não atrasa o envio nem o casal. O original fica sempre.
+    if (!error && arquivoLigado()) {
+      const arquivar = () => arquivarPdfDesmontado(proposalId, chave, bytes).then(() => undefined);
+      try {
+        after(arquivar);
+      } catch {
+        // Fora de um pedido (testes, scripts) o `after` não existe.
+        await arquivar();
+      }
     }
     return true;
   } catch (e) {

@@ -553,3 +553,59 @@ describe("ver o PDF final antes de enviar (14/10)", () => {
     expect(semValor).toContain("visto");
   });
 });
+
+/**
+ * 14/11: uma foto que ela escolheu para uma página do PDF estava na Reciclagem,
+ * e o PDF punha OUTRA no lugar dela em silêncio. Agora trava o envio.
+ */
+describe("a foto escolhida para uma página que já não existe", () => {
+  const comEscolha = {
+    ...COMPLETO,
+    fotosDasPaginas: { "separador:cerimonia": { fotos: ["tema:t/a.jpg"] } },
+  } as unknown as ProposalDoc;
+  const falta = { ref: "tema:t/a.jpg", pagina: "Cerimónia", tema: "Natal", naReciclagem: true };
+
+  it("trava, e diz a página, o tema e que está na Reciclagem", () => {
+    const f = oQueFaltaParaEnviar(comEscolha, 3250, { fotosEscolhidasQueFaltam: [falta] }).find(
+      (x) => x.id === "foto-escolhida-em-falta",
+    );
+    expect(f?.trava).toBe(true);
+    expect(f?.texto).toBe(
+      "A foto da página «Cerimónia» do tema «Natal» já não existe (está na Reciclagem) — escolhe outra ou repõe-na",
+    );
+    expect(podeEnviar(comEscolha, 3250, { fotosEscolhidasQueFaltam: [falta] })).toBe(false);
+  });
+
+  it("trocada a foto no documento, o aviso cai sem esperar por outra verificação", () => {
+    const trocada = {
+      ...comEscolha,
+      fotosDasPaginas: { "separador:cerimonia": { fotos: ["tema:t/outra.jpg"] } },
+    } as unknown as ProposalDoc;
+    const ids = oQueFaltaParaEnviar(trocada, 3250, { fotosEscolhidasQueFaltam: [falta] }).map(
+      (x) => x.id,
+    );
+    expect(ids).not.toContain("foto-escolhida-em-falta");
+  });
+
+  it("fora da Reciclagem não oferece «repõe-na»; várias dizem quantas", () => {
+    const fora = { ...falta, naReciclagem: false, tema: null };
+    expect(
+      oQueFaltaParaEnviar(comEscolha, 3250, { fotosEscolhidasQueFaltam: [fora] }).find(
+        (x) => x.id === "foto-escolhida-em-falta",
+      )?.texto,
+    ).toBe("A foto da página «Cerimónia» já não existe — escolhe outra");
+    const duas = {
+      ...COMPLETO,
+      fotosDasPaginas: { indice: { fotos: ["a.jpg"] }, total: { fotos: ["b.jpg"] } },
+    } as unknown as ProposalDoc;
+    const t = oQueFaltaParaEnviar(duas, 3250, {
+      fotosEscolhidasQueFaltam: [
+        { ref: "a.jpg", pagina: "Índice", tema: null, naReciclagem: true },
+        { ref: "b.jpg", pagina: "Total", tema: null, naReciclagem: false },
+      ],
+    }).find((x) => x.id === "foto-escolhida-em-falta")?.texto;
+    expect(t).toBe(
+      "2 fotos escolhidas para as páginas «Índice», «Total» já não existem (algumas estão na Reciclagem) — escolhe outras ou repõe-nas",
+    );
+  });
+});

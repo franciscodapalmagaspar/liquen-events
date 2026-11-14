@@ -34,6 +34,13 @@ vi.mock("./biblioteca-fotos-store", () => ({
   formasDeCaminhos: async (paths: readonly string[]) =>
     new Map([...H.formas].filter(([c]) => paths.includes(c))),
 }));
+vi.mock("./themes-store", () => ({
+  getTheme: async (id: string) => (id === "t1" ? { id, name: "Natal" } : null),
+}));
+vi.mock("./reciclagem-store", () => ({
+  entradasDe: async (origem: string) =>
+    origem === "t1/foi.jpg" ? [{ tipo: "foto-de-tema", origemId: origem }] : [],
+}));
 vi.mock("./logger", () => ({
   log: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
@@ -58,7 +65,8 @@ vi.mock("./supabase", () => ({
       : null,
 }));
 
-const { verificarFotosDaProposta, PORQUE_FALTA } = await import("./proposta-fotos-verificacao");
+const { verificarFotosDaProposta, fotosEscolhidasQueFaltam, PORQUE_FALTA } =
+  await import("./proposta-fotos-verificacao");
 
 beforeEach(() => {
   H.formas.clear();
@@ -368,5 +376,40 @@ describe("as fotografias que vão sair pior do que deviam", () => {
     );
     expect(r.emFalta).toHaveLength(1);
     expect(r.suspeitas).toEqual([]);
+  });
+});
+
+/** 14/11: a escolhida para uma página que foi para a Reciclagem trava o envio. */
+describe("as fotos escolhidas para as páginas que já não existem", () => {
+  const doc = {
+    template: "decoracao",
+    moodBoards: [{ title: "Cerimónia", images: ["tema:t1/fica.jpg"] }],
+    fotosDasPaginas: {
+      indice: { fotos: ["tema:t1/foi.jpg"] },
+      total: { fotos: ["", "tema:t1/fica.jpg"] },
+    },
+  };
+
+  it("diz a página, o tema e que está na Reciclagem — só das que faltam", async () => {
+    H.pastas.set("theme-assets::t1", ["fica.jpg"]);
+    expect(await fotosEscolhidasQueFaltam(doc as never)).toEqual([
+      { ref: "tema:t1/foi.jpg", pagina: "Índice", tema: "Natal", naReciclagem: true },
+    ]);
+    // Uma ida por pasta, e não por foto.
+    expect(H.listagens).toEqual(["theme-assets::t1"]);
+  });
+
+  it("a mesma resposta vem na verificação do passo do envio", async () => {
+    H.pastas.set("theme-assets::t1", ["fica.jpg"]);
+    const r = await verificarFotosDaProposta(doc as never);
+    expect(r.escolhidasQueFaltam?.map((f) => f.ref)).toEqual(["tema:t1/foi.jpg"]);
+  });
+
+  it("uma listagem que falha não acusa ninguém (null), e sem escolhas não pergunta nada", async () => {
+    H.pastas.set("theme-assets::t1", null);
+    expect(await fotosEscolhidasQueFaltam(doc as never)).toBeNull();
+    H.listagens.length = 0;
+    expect(await fotosEscolhidasQueFaltam({ fotosDasPaginas: {} } as never)).toEqual([]);
+    expect(H.listagens).toEqual([]);
   });
 });

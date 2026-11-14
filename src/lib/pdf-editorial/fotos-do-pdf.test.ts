@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { withProposalDefaults, type ProposalDoc } from "@/lib/proposal-doc";
 import { conteudoDoEditorial, fotosDoEditorial, renderEditorialPdf, type Medida } from "./montar";
 import { chavesDasPaginas, planoDaProposta } from "./plano";
+import { marcaDeFotoEmFalta } from "./embutir";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -105,7 +106,8 @@ function paraDesenhar(d: ProposalDoc) {
       fotosDasPaginas: Object.fromEntries(
         Object.entries(d.fotosDasPaginas ?? {}).map(([k, e]) => [
           k,
-          { ...e, fotos: e.fotos.map(bytes) },
+          // A que não se deixa buscar fica marcada, como em `resolveImages`.
+          { ...e, fotos: e.fotos.map((r) => (r ? (b64.get(r) ?? marcaDeFotoEmFalta(r)) : "")) },
         ]),
       ),
     } as ProposalDoc,
@@ -175,11 +177,43 @@ describe("a fotografia que ela escolhe é a que sai", () => {
     expect(plano).toEqual(desenhado);
   });
 
-  it("uma escolhida que já não existe volta ao automático", async () => {
+  // Até 14/11 voltava ao automático, e o PDF saía com OUTRA foto em silêncio
+  // (aconteceu em propostas enviadas). Agora o lugar é dela, e fica vazio.
+  it("uma escolhida que já não existe NÃO é trocada por outra: o lugar fica dela, vazio", async () => {
     const d = comCaminhos({ fotosDasPaginas: { indice: { fotos: ["TESTE/apagada.jpg"] } } });
     const sem = await fotosDoEditorial(comCaminhos(), "pt", medidas);
-    const com = await fotosDoEditorial(d, "pt", medidas);
-    expect(com.indice).toEqual(sem.indice);
+    const { desenhado, plano } = await asDuas(d);
+    expect(sem.indice[0].ref).not.toBe("TESTE/apagada.jpg");
+    expect(desenhado.indice).toEqual([{ ref: "TESTE/apagada.jpg" }]);
+    expect(plano).toEqual(desenhado);
+    const r = paraDesenhar(d);
+    const pdf = await renderEditorialPdf(r.doc, "pt", {}, { refs: r.refs, medidas });
+    expect(pdf.fotosEscolhidasEmFalta).toEqual(["TESTE/apagada.jpg"]);
+    // Não conta como «não desenhada»: já foi contada como em falta na resolução.
+    expect(pdf.undrawnImages).toBe(0);
+    // E a página online também não mostra outra no lugar dela.
+    const web = await conteudoDoEditorial(d, "pt", medidas);
+    expect(JSON.stringify(web)).not.toContain("TESTE/apagada.jpg");
+  });
+
+  it("no separador, nenhuma das fotos dos temas ocupa o lugar da que falta", async () => {
+    const chave = chavesDasPaginas(planoDaProposta(comCaminhos())).find((c) =>
+      c.startsWith("separador:"),
+    )!;
+    const d = comCaminhos({ fotosDasPaginas: { [chave]: { fotos: ["TESTE/apagada.jpg"] } } });
+    const { desenhado, plano } = await asDuas(d);
+    expect(desenhado[chave].map((f) => f.ref)).toEqual(["TESTE/apagada.jpg"]);
+    expect(plano).toEqual(desenhado);
+  });
+
+  it("na paleta, o lugar da que falta fica vazio e as outras não puxam", async () => {
+    const d = comCaminhos({
+      fotosDasPaginas: { ambiente: { fotos: ["", "TESTE/apagada.jpg", "", "", "", ref(0)] } },
+    });
+    const { desenhado, plano } = await asDuas(d);
+    expect(desenhado.ambiente[1].ref).toBe("TESTE/apagada.jpg");
+    expect(desenhado.ambiente[5].ref).toBe(ref(0));
+    expect(plano).toEqual(desenhado);
   });
 });
 
@@ -211,7 +245,9 @@ describe("a paleta: cada fotografia no seu lugar", () => {
     expect(plano).toEqual(desenhado);
   });
 
-  it("uma escolhida que não chega deixa o SEU lugar automático — não puxa as seguintes", async () => {
+  // Até 14/11 o lugar voltava ao automático (outra foto, em silêncio). Agora
+  // continua a não puxar as seguintes, e fica DELA: vazio no desenho.
+  it("uma escolhida que não chega fica no SEU lugar, sem outra — não puxa as seguintes", async () => {
     const d = comCaminhos({
       fotosDasPaginas: {
         ambiente: { fotos: ["TESTE/apagada.jpg", "", "", "", "", ref(0)] },
@@ -219,7 +255,8 @@ describe("a paleta: cada fotografia no seu lugar", () => {
     });
     const { desenhado } = await asDuas(d);
     expect(desenhado.ambiente[5]).toEqual({ ref: ref(0) });
-    expect(desenhado.ambiente[0].ref).toMatch(/^TESTE\/foto-/);
+    expect(desenhado.ambiente[0].ref).toBe("TESTE/apagada.jpg");
+    expect(desenhado.ambiente[1].ref).toMatch(/^TESTE\/foto-/);
   });
 });
 

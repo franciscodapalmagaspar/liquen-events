@@ -43,7 +43,12 @@ export const MARGEM_DAS_DERIVADAS = 1.35;
 export const FOLGA_DO_SERVIDOR_BYTES = 40_000_000;
 
 /** Os buckets que o servidor faz crescer depressa: medidos todas as noites. */
-export const BUCKETS_QUE_CRESCEM = ["proposal-pdfs", "fotos-editoriais"] as const;
+export const BUCKETS_QUE_CRESCEM = [
+  "proposal-pdfs",
+  "fotos-editoriais",
+  // O arquivo desmontado (`arquivo-de-pdfs/`): cresce com cada envio, e tem tecto.
+  "proposal-pdfs-arquivo",
+] as const;
 
 /** Uma medição de um bucket que não é dos que crescem serve 7 dias. */
 const SEMANA_MS = 7 * 24 * 3600_000;

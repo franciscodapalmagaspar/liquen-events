@@ -40,6 +40,11 @@ const st = vi.hoisted(() => ({
 
 vi.mock("./supabase", () => ({ getSupabase: () => st.cliente }));
 vi.mock("./logger", () => ({ log: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+const arquivar = vi.hoisted(() => vi.fn(async () => null));
+vi.mock("./arquivo-de-pdfs/arquivo", () => ({
+  arquivarPdfDesmontado: arquivar,
+  ligado: () => process.env.ARQUIVO_DE_PDFS === "ligado",
+}));
 
 import {
   guardarPdfDaProposta,
@@ -289,5 +294,51 @@ describe("saber se o PDF já lá está, sem o trazer", () => {
       [...st.ficheiros.keys()].every((c) => !c.includes("..")),
       "o caminho escapou",
     ).toBe(true);
+  });
+});
+
+/**
+ * O desmontado ao lado (`arquivo-de-pdfs/`, fase 2): só para um PDF NOVO, só
+ * com o interruptor ligado, e nunca no lugar do original.
+ */
+describe("o arquivo desmontado, ao lado do original", () => {
+  beforeEach(() => {
+    st.ficheiros.clear();
+    st.bucketExiste = true;
+    st.subirRebenta = false;
+    st.cliente = storageFalso();
+    esquecerBucketDePdfs();
+    arquivar.mockClear();
+  });
+
+  it("desligado (por omissão), não desmonta nada", async () => {
+    delete process.env.ARQUIVO_DE_PDFS;
+    expect(await guardarPdfDaProposta("p1", "c1", Buffer.from("%PDF-1"))).toBe(true);
+    expect(arquivar).not.toHaveBeenCalled();
+  });
+
+  it("ligado: um PDF novo desmonta-se uma vez; o que já lá estava, não", async () => {
+    process.env.ARQUIVO_DE_PDFS = "ligado";
+    try {
+      expect(await guardarPdfDaProposta("p1", "c1", Buffer.from("%PDF-1"))).toBe(true);
+      expect(arquivar).toHaveBeenCalledTimes(1);
+      expect(arquivar).toHaveBeenCalledWith("p1", "c1", Buffer.from("%PDF-1"));
+      expect(st.ficheiros.has("p1/c1.pdf")).toBe(true);
+      expect(await guardarPdfDaProposta("p1", "c1", Buffer.from("%PDF-1"))).toBe(true);
+      expect(arquivar).toHaveBeenCalledTimes(1);
+    } finally {
+      delete process.env.ARQUIVO_DE_PDFS;
+    }
+  });
+
+  it("um original que não ficou guardado não se desmonta", async () => {
+    process.env.ARQUIVO_DE_PDFS = "ligado";
+    st.subirRebenta = true;
+    try {
+      expect(await guardarPdfDaProposta("p1", "c1", Buffer.from("%PDF-1"))).toBe(false);
+      expect(arquivar).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.ARQUIVO_DE_PDFS;
+    }
   });
 });

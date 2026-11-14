@@ -172,6 +172,14 @@ vi.mock("@/lib/envios-de-proposta", () => ({
   listarEnvios: vi.fn(async () => copia.lista),
 }));
 
+/** As fotos escolhidas para as páginas que já não existem — por caso. */
+const escolhidas = vi.hoisted(() => ({
+  emFalta: [] as { ref: string; pagina: string; tema: string | null; naReciclagem: boolean }[],
+}));
+vi.mock("@/lib/proposta-fotos-verificacao", () => ({
+  fotosEscolhidasQueFaltam: vi.fn(async () => escolhidas.emFalta),
+}));
+
 import { GET, POST } from "./route";
 import { sendMail } from "@/lib/mail";
 import { dominioRecebeEmail } from "@/lib/dominio-do-email";
@@ -2582,6 +2590,28 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o envio recusa uma propo
     expect(r.error).toMatch(/não pode seguir/);
     expect(renderStoredEditorialPdfWithReport).not.toHaveBeenCalled();
     expect(sendMail).not.toHaveBeenCalled();
+  });
+
+  // 14/11: o PDF punha OUTRA foto no lugar de uma escolhida que estava na
+  // Reciclagem. A rota recusa, com a mesma frase do estúdio.
+  it("uma foto escolhida para uma página que já não existe: 422, nada desenhado nem enviado", async () => {
+    escolhidas.emFalta = [
+      { ref: "tema:x/y.jpg", pagina: "Cerimónia", tema: "Natal", naReciclagem: true },
+    ];
+    try {
+      const doc = baseDoc({
+        totalAmount: 3000,
+        fotosDasPaginas: { "separador:cerimonia": { fotos: ["tema:x/y.jpg"] } },
+      });
+      const r = await recusa(doc);
+      expect(r.status).toBe(422);
+      expect(r.ids).toEqual(["foto-escolhida-em-falta"]);
+      expect(r.error).toMatch(/Natal.*já não existe \(está na Reciclagem\)/);
+      expect(renderStoredEditorialPdfWithReport).not.toHaveBeenCalled();
+      expect(sendMail).not.toHaveBeenCalled();
+    } finally {
+      escolhidas.emFalta = [];
+    }
   });
 
   it("sem email no pedido, um envio por email é recusado", async () => {

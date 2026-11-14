@@ -24,6 +24,7 @@ import { renderStoredEditorialPdfWithReport } from "@/lib/proposal-doc-render";
 import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
 import { chaveDaVersao, pdfFinalDaVersao, type RelatorioDoPdf } from "@/lib/proposal-preview-cache";
 import { guardarPdfDaProposta } from "@/lib/proposal-pdf-guardado";
+import { fotosEscolhidasQueFaltam } from "@/lib/proposta-fotos-verificacao";
 import { enderecoDoPdfDaProposta } from "@/lib/proposta-link-curto";
 import {
   ehIdiomaDaProposta,
@@ -70,6 +71,10 @@ const TRAVAM_NO_SERVIDOR: ReadonlySet<string> = new Set([
   "precos-das-linhas",
   "artigos-moloni",
   "soma",
+  // Uma foto que ela escolheu para uma página e que já não existe (14/11): o
+  // PDF deixava de a mostrar e punha outra em silêncio. Confere-se aqui, no
+  // armazenamento, com `fotosEscolhidasQueFaltam`.
+  "foto-escolhida-em-falta",
 ]);
 
 /**
@@ -476,8 +481,12 @@ async function POST_semMedida(
      * minuto deitado fora.
      */
     if (mode === "send") {
+      // `null` (não se conseguiu perguntar) não trava: «não sei» não acusa, e o
+      // PDF, se faltar mesmo, deixa o lugar vazio e regista-o.
+      const escolhidasEmFalta = (await fotosEscolhidasQueFaltam(doc)) ?? [];
       const travam = oQueFaltaParaEnviar(doc, dinheiroDaProposta(doc).gross, {
         idioma,
+        fotosEscolhidasQueFaltam: escolhidasEmFalta,
         canal: body?.porEmail === false ? "whatsapp" : "email",
         emailDoCliente: quote.email,
         pdfVisto: typeof body?.pdfVisto === "string" && body.pdfVisto === chaveDoQueChegou,
@@ -489,7 +498,7 @@ async function POST_semMedida(
         });
         return NextResponse.json(
           {
-            error: `A proposta não pode seguir: ${travam.map((f) => f.texto.toLowerCase()).join("; ")}.`,
+            error: `A proposta não pode seguir: ${travam.map((f) => f.texto.charAt(0).toLowerCase() + f.texto.slice(1)).join("; ")}.`,
             faltas: travam,
           },
           { status: 422 },

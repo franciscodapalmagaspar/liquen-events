@@ -1,4 +1,5 @@
 import "server-only";
+import { semProtegidos } from "@/lib/arquivo-de-pdfs/protegidos";
 import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
 import { lerTodasAsLinhas } from "./ler-todas-as-linhas";
 import { createHash } from "node:crypto";
@@ -206,6 +207,8 @@ export async function limparPdfsSubstituidos(agora: Date, prazoMs = 8_000): Prom
     const visto = espera[f.caminho];
     const desde = Date.parse(visto);
     if (Number.isNaN(desde) || agora.getTime() - desde < ESPERA_DIAS * DIA_MS) continue;
+    // O que nenhuma limpeza pode levar (`arquivo-de-pdfs/protegidos.ts`).
+    if (semProtegidos(BUCKET, [f.caminho]).length === 0) continue;
     const { error } = await sb.storage.from(BUCKET).remove([f.caminho]);
     if (error) continue;
     apagados++;

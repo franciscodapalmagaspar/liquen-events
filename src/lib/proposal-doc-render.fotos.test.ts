@@ -125,6 +125,15 @@ describe("as miniaturas e o PDF que segue: as mesmas fotografias", () => {
   });
 });
 
+describe("uma foto escolhida que já não existe não é trocada por outra (14/11)", () => {
+  it("o lugar fica dela, conta como em falta, e o aviso diz qual", async () => {
+    const d = doc({ fotosDasPaginas: { indice: { fotos: ["proposal-assets/TESTE/foi.jpg"] } } });
+    const pdf = await renderStoredEditorialPdfWithReport(d, "pt");
+    expect(pdf.fotos.indice).toEqual([{ ref: "proposal-assets/TESTE/foi.jpg" }]);
+    expect(pdf.missingImages).toBe(1);
+  });
+});
+
 describe("uma leitura falhada das medidas não troca fotografias (9/11)", () => {
   // Ela: «alterei agora uma palavra e ele alterou uma foto». Sem as medidas
   // da biblioteca o desenho media as fotos reduzidas, e duas de medidas quase

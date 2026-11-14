@@ -27,10 +27,33 @@ export interface FotoEmFalta {
   motivo: MotivoDeFalta;
 }
 
+/**
+ * Uma fotografia que ELA escolheu para uma página do PDF (`fotosDasPaginas`) e
+ * que já não existe. Trava o envio (`oQueFaltaParaEnviar`, id
+ * `foto-escolhida-em-falta`): o PDF não pode pôr outra no lugar dela, e um
+ * lugar vazio na proposta do casal é um erro — 14/11, ver
+ * `pdf-editorial/embutir.ts`.
+ */
+export interface FotoEscolhidaEmFalta {
+  /** O caminho tal como está no documento (`tema:…` ou `<pedido>/<uuid>.jpg`). */
+  ref: string;
+  /** A página onde ela a pôs, pelo nome do plano («Cerimónia», «Índice»…). */
+  pagina: string;
+  /** O nome do tema da Biblioteca de onde vinha, se se sabe. */
+  tema: string | null;
+  /** Está na Reciclagem (e pode repor-se)? */
+  naReciclagem: boolean;
+}
+
 export interface VerificacaoDeFotos {
   /** Quantas fotografias o documento declara. */
   total: number;
   emFalta: FotoEmFalta[];
+  /**
+   * As de `emFalta` que ela escolheu para uma página do PDF, com a página e o
+   * tema — as que TRAVAM o envio. Ausente numa resposta antiga.
+   */
+  escolhidasQueFaltam?: FotoEscolhidaEmFalta[];
   /**
    * As que estão lá e não deviam ir assim: medida de site de partilha, ou
    * pequenas demais para o sítio onde são desenhadas. Não impedem nada — ver

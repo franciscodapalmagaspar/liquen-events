@@ -5,6 +5,7 @@ import { camposPorTraduzir } from "./proposal-doc-bilingue";
 import { camposDoDocumento, lerCampo } from "./proposal-ortografia";
 import { eur } from "./money";
 import { hojeNoEstudio } from "./fuso";
+import type { FotoEscolhidaEmFalta } from "./proposta-fotos-verificacao-tipos";
 
 /**
  * ONDE ESTOU, O QUE JÁ ESTÁ FEITO, E O QUE FALTA PARA PODER ENVIAR.
@@ -230,6 +231,13 @@ export interface ContextoDoEnvio {
    * por isso que ninguém dá por ela até o PDF sair com um buraco.
    */
   imagensQueFaltam?: readonly string[];
+  /**
+   * As fotografias que ELA escolheu para uma página do PDF e que já não
+   * existem (a verificação do armazenamento: `fotosEscolhidasQueFaltam`).
+   * Só contam as que AINDA estão no documento — trocada a foto, o aviso cai
+   * sozinho, sem esperar por outra verificação.
+   */
+  fotosEscolhidasQueFaltam?: readonly FotoEscolhidaEmFalta[];
   /** O email do cliente. Sem ele gera-se, mas não se envia. */
   emailDoCliente?: string;
   /**
@@ -543,6 +551,22 @@ export function oQueFaltaParaEnviar(
     });
   }
   /**
+   * ── A FOTO ESCOLHIDA QUE JÁ NÃO EXISTE (14/11) ────────────────────────────
+   *
+   * O PDF punha OUTRA no lugar dela, em silêncio — aconteceu em propostas
+   * enviadas. Já não põe (o lugar fica vazio), e um lugar vazio na proposta do
+   * casal também é um erro: trava, e diz onde ir.
+   */
+  const escolhidasQueFaltam = fotosEscolhidasAindaNoDocumento(doc, ctx.fotosEscolhidasQueFaltam);
+  if (escolhidasQueFaltam.length > 0) {
+    faltas.push({
+      id: "foto-escolhida-em-falta",
+      seccao: "envio",
+      texto: fraseDaFotoEscolhidaEmFalta(escolhidasQueFaltam),
+      trava: true,
+    });
+  }
+  /**
    * O PDF final por ver. Vem no fim da lista porque é o último passo — com
    * erros, o PDF final nem sai (sai o rascunho). Mas vale SEMPRE, e não só
    * quando o resto está certo: a rota do envio confere só uma parte dos erros
@@ -655,6 +679,37 @@ export function oQueFaltaParaEnviar(
   }
 
   return faltas;
+}
+
+/** As que ainda estão escritas em `fotosDasPaginas` — as outras já foram trocadas. */
+function fotosEscolhidasAindaNoDocumento(
+  doc: ProposalDoc,
+  lista: readonly FotoEscolhidaEmFalta[] | undefined,
+): FotoEscolhidaEmFalta[] {
+  if (!lista?.length) return [];
+  const noDocumento = new Set(
+    Object.values(doc.fotosDasPaginas ?? {}).flatMap((e) => e?.fotos ?? []),
+  );
+  return lista.filter((f) => noDocumento.has(f.ref));
+}
+
+/** «A foto do separador «Cerimónia» do tema «Natal» já não existe (está na Reciclagem) — …». */
+export function fraseDaFotoEscolhidaEmFalta(lista: readonly FotoEscolhidaEmFalta[]): string {
+  if (lista.length === 1) {
+    const f = lista[0];
+    const tema = f.tema ? ` do tema «${f.tema}»` : "";
+    return f.naReciclagem
+      ? `A foto da página «${f.pagina}»${tema} já não existe (está na Reciclagem) — escolhe outra ou repõe-na`
+      : `A foto da página «${f.pagina}»${tema} já não existe — escolhe outra`;
+  }
+  const paginas = [...new Set(lista.map((f) => `«${f.pagina}»`))].slice(0, 3).join(", ");
+  const reciclagem = lista.every((f) => f.naReciclagem)
+    ? " (estão na Reciclagem)"
+    : lista.some((f) => f.naReciclagem)
+      ? " (algumas estão na Reciclagem)"
+      : "";
+  const repor = lista.some((f) => f.naReciclagem) ? " ou repõe-nas" : "";
+  return `${lista.length} fotos escolhidas para as páginas ${paginas} já não existem${reciclagem} — escolhe outras${repor}`;
 }
 
 /** Pode enviar? A MESMA fonte que a lista acima, para não poderem discordar. */

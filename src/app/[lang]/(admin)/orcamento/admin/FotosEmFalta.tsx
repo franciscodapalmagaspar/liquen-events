@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 // Dos TIPOS e não do módulo do Storage: este componente corre no browser, e o
 // `proposta-fotos-verificacao.ts` importa `server-only`. Ver o cabeçalho de lá.
@@ -8,6 +8,7 @@ import {
   PORQUE_FALTA,
   PORQUE_SUSPEITA,
   type MotivoDeFalta,
+  type FotoEscolhidaEmFalta,
   type MotivoSuspeito,
   type VerificacaoDeFotos,
 } from "@/lib/proposta-fotos-verificacao-tipos";
@@ -43,9 +44,28 @@ import { ESTADO, PRESSAO } from "./ui/movimento";
 
 const CAIXA = "mt-3 rounded-lg px-3 py-2.5 text-[12px] leading-snug";
 
-export default function FotosEmFalta({ quoteId, doc }: { quoteId: string; doc: ProposalDoc }) {
+export default function FotosEmFalta({
+  quoteId,
+  doc,
+  onEscolhidasQueFaltam,
+}: {
+  quoteId: string;
+  doc: ProposalDoc;
+  /**
+   * As fotos escolhidas para as páginas que já não existem (14/11): o estúdio
+   * passa-as a `oQueFaltaParaEnviar`, onde TRAVAM o envio. Só com uma
+   * verificação que correu — nunca durante a espera (seria travar por uma
+   * corrida, ver «O QUE O DOCUMENTO NÃO SABE DE SI PRÓPRIO» no estúdio).
+   */
+  onEscolhidasQueFaltam?: (lista: FotoEscolhidaEmFalta[]) => void;
+}) {
   const [estado, setEstado] = useState<"a-ver" | "respondeu" | "falhou">("a-ver");
   const [r, setR] = useState<VerificacaoDeFotos | null>(null);
+  // Numa ref: a função muda a cada desenho do estúdio, e a verificação não.
+  const avisar = useRef(onEscolhidasQueFaltam);
+  useEffect(() => {
+    avisar.current = onEscolhidasQueFaltam;
+  }, [onEscolhidasQueFaltam]);
 
   const verificar = useCallback(async () => {
     try {
@@ -55,8 +75,10 @@ export default function FotosEmFalta({ quoteId, doc }: { quoteId: string; doc: P
         body: JSON.stringify({ doc }),
       });
       if (!res.ok) throw new Error(String(res.status));
-      setR((await res.json()) as VerificacaoDeFotos);
+      const resposta = (await res.json()) as VerificacaoDeFotos;
+      setR(resposta);
       setEstado("respondeu");
+      if (resposta.verificou) avisar.current?.(resposta.escolhidasQueFaltam ?? []);
     } catch {
       setEstado("falhou");
     }
@@ -85,7 +107,11 @@ export default function FotosEmFalta({ quoteId, doc }: { quoteId: string; doc: P
       <div className={`${CAIXA} bg-[var(--bo-tinta-6)] text-[var(--bo-text-muted)]`}>
         Não foi possível confirmar as fotografias.{" "}
         <strong className="font-medium">Isto não quer dizer que estejam bem.</strong>{" "}
-        <button type="button" onClick={() => void verificar()} className={`alvo-toque underline ${ESTADO} ${PRESSAO}`}>
+        <button
+          type="button"
+          onClick={() => void verificar()}
+          className={`alvo-toque underline ${ESTADO} ${PRESSAO}`}
+        >
           Tentar outra vez
         </button>
       </div>

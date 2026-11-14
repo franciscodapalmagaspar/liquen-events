@@ -7,9 +7,10 @@
 > guardam o PDF e as outras guardam a «receita» (o documento exacto). O PDF
 > refaz-se a pedido, e o binário só sai quando se prova que a receita dá os
 > mesmos bytes (`pdf_sha256`).
-> **Estado:** investigação. **Nada foi apagado.** A única alteração de código é
-> a correcção do determinismo (ver §1). Mexe no PDF sem mudar o aspecto, e
-> precisa da aprovação dela antes de entrar num lote.
+> **Estado (14/11, tarde):** fase 1 (determinismo) e fase 2 (desmontado ao
+> lado) **aprovadas por ele e por ela, e feitas** — ver §9. **Nada foi
+> apagado.** A fase 2 está DESLIGADA até ele decidir (passaria dos 20 MB, §9).
+> E a foto escolhida que caía em silêncio para outra (§3) foi corrigida — §10.
 
 ---
 
@@ -349,3 +350,109 @@ As três perguntas da regra 7, para a fase 2:
   - a quota de uma conta de serviço no Google Drive;
   - o determinismo entre máquinas diferentes. Aqui foi Linux x64 com o mesmo
     `node_modules`; a Vercel também é Linux x64, mas não foi medido lá.
+
+---
+
+## 9. Fase 2, feita (14/11): o desmontado AO LADO, sem apagar nada
+
+**O código** (`src/lib/arquivo-de-pdfs/`):
+
+| ficheiro | o que faz |
+|---|---|
+| `desmontar.ts` | puro: desmonta (as JPEG `DCTDecode` cortadas pelo resumo), serializa o esqueleto (`LQESQ1` + cabeçalho JSON + resto, gzip sem data), remonta e **prova** |
+| `guardar.ts` | desmonta → prova (a partir do esqueleto SERIALIZADO) → mede o balde → tecto → sobe as imagens novas → sobe o esqueleto em ÚLTIMO; `remontarDoArquivo` para a fase 3 |
+| `arquivo.ts` | o lado do servidor; só corre com `ARQUIVO_DE_PDFS=ligado` |
+| `protegidos.ts` | a lista ÚNICA do que nenhuma limpeza pode apagar (`img/` e `esq/` do arquivo) |
+
+- **Onde corre:** `guardarPdfDaProposta`, quando um PDF NOVO fica guardado
+  em `proposal-pdfs` (no envio, ou quando o link do casal o desenha), depois
+  da resposta (`after`). Um «já existe» não se volta a desmontar.
+- **O balde:** `proposal-pdfs-arquivo`, privado, **criado à mão** (o código não
+  o cria). Sem ele, regista «sem-bucket» e não faz nada.
+  - `img/<sha256>.jpg` — cada imagem uma vez;
+  - `esq/<proposta>__<chave>.gz` — o esqueleto (plano, para uma listagem
+    medir o balde todo).
+- **A prova falhada** regista um aviso e não guarda NADA. O original fica sempre.
+- **A rota do PDF continua a servir o ORIGINAL.** A remontagem
+  (`remontarPdfDoArquivo`) está pronta e testada, sem uso.
+- **As limpezas:** `limpar-fotos-tratadas`, `limpar-pdfs-substituidos`,
+  `juntar-fotos-duplicadas` e `apagarPastaDoPedido` passam os caminhos por
+  `semProtegidos`; um teste prende que o fazem. Nenhuma lista o balde do
+  arquivo. Para um dia libertar imagens: `imagensCitadasPor` lê os esqueletos.
+- **O balde é medido todas as noites** (`BUCKETS_QUE_CRESCEM`).
+- **A recolha dos antigos:** `scripts/arquivo-de-pdfs.mjs` — ensaio por
+  omissão (desmonta, prova, mede a partilha, NÃO escreve); `--aplicar` escreve
+  e pára no tecto. Usa as mesmas funções do servidor.
+
+**Medido** (aqui, com 25 fotografias de `public/imagens`, 18 páginas):
+
+| | PDF | imagens cortadas | esqueleto | nas imagens | acrescenta ao balde | desmontar + provar |
+|---|---|---|---|---|---|---|
+| v1 | 2 142 578 B | 51 | 44 737 B | 97,6 % | 2 136 172 B | 29 ms (44 ms de CPU) |
+| v2, outro preço | 2 142 731 B | 51 | 44 887 B | 97,6 % | **44 887 B** | 22 ms (34 ms) |
+| v3, menos uma foto | 2 150 309 B | 50 | 44 602 B | 97,6 % | 314 167 B | 23 ms (39 ms) |
+| **as três** | 6,44 MB | | | | **2,50 MB (−61 %)** | |
+
+Sha256 igual depois de remontar em todos (e nos 3 PDF dos testes, um deles
+com fotografias repetidas).
+
+**Porque está DESLIGADO — o pedido dele: «se passar de ~20 MB, para e avisa».**
+- Um PDF novo sem versões acrescenta ~100 % do seu tamanho (2–3 MB) enquanto
+  o original fica: ao ritmo de ~36 envios por mês, os 20 MB enchem-se em
+  **1 a 2 semanas** (menos com versões da mesma proposta, que custam ~45 KB).
+- A recolha dos 65 antigos (138 MB) acrescentaria, pela estimativa do §5,
+  **~60–90 MB** — muito acima dos 20. O ensaio do script dá o número exacto.
+- O espaço a mais só deixa de ser «a mais» na fase 3 (quando um original sai).
+  Até lá, ligar é pagar espaço duas vezes, num plano que ia a 997 MB a 13/11.
+
+Ligar: criar o balde e `ARQUIVO_DE_PDFS=ligado` na Vercel. Mesmo ligado, o
+tecto é duro (20 MB medidos no balde antes de cada escrita; aviso aos 16 MB).
+
+As três perguntas da regra 7:
+1. **Quantas vezes corre:** uma por PDF novo guardado (~1–2 por dia), e só
+   ligado. A recolha, uma vez, no computador de quem a corre.
+2. **Quanto processador:** ~25 ms de relógio, ~40 ms de CPU por PDF de 2 MB
+   (medido), mais duas listagens do balde e as escritas.
+3. **Guardar / build / navegador:** guarda-se — é o próprio arquivo.
+
+## 10. A foto escolhida que caía para outra, em silêncio (corrigido a 14/11)
+
+**Medido em produção (só SELECT):** não eram 2, eram **4 propostas** (3
+enviadas, 1 aceite) em 2 pedidos, todas com a foto em `fotosDasPaginas`
+(separadores), e todas enviadas DEPOIS de a foto ir para a Reciclagem:
+
+| foto (Reciclagem) | foi | propostas | lugar |
+|---|---|---|---|
+| «Natal», `8990318f…/bbd2fa5c….jpg` | 6/11 01:07 | `39f1a314` (aceite, 6/11 10:54), `cbec4522` (12/11) | `separador:tema-7`, `-8` |
+| «Casamento Contemporâneo», `26baa446…/1d9e9759….jpg` | 4/11 22:58 | `0bd0b71e`, `b5905acc` (12/11) | `separador:jantar` |
+
+**Correcção:**
+- `resolveImages` marca a escolhida que não se deixou buscar
+  (`em-falta:<caminho>`), em vez de `""` (que é «automático»);
+- o desenho guarda-lhe o lugar e não o desenha (fica a Tinta de fundo, como
+  qualquer foto que não se desenha); nenhuma outra o ocupa. O plano sem bytes
+  (miniaturas, proposta online) faz o mesmo: os três dizem o mesmo;
+- regista `pdf editorial: fotos escolhidas que já não existem` com os caminhos;
+- **trava o envio** — `oQueFaltaParaEnviar`, id `foto-escolhida-em-falta`:
+  «A foto da página «X» do tema «Y» já não existe (está na Reciclagem) —
+  escolhe outra ou repõe-na». No estúdio vem da verificação do passo do envio
+  (`FotosEmFalta`); na rota, de `fotosEscolhidasQueFaltam` (uma listagem por
+  pasta). Trocada a foto, o aviso cai sozinho.
+
+**Ainda por resolver (achado, não mexido):** as linhas de `biblioteca_fotos`
+das fotos na Reciclagem continuam lá. A proposta online (sem bytes) mede pela
+biblioteca, por isso para ela essas fotos «existem»: as páginas guardadas
+(`proposta-web:conteudo:*`) das 4 propostas citam-nas — no link do casal o
+lugar deve sair partido. A correcção é a página online confirmar a existência
+(como a rota faz), ou a Reciclagem tirar/marcar a linha da biblioteca.
+
+**Avisar ao reciclar uma foto usada em propostas enviadas?** Medido: os 48
+documentos enviados usam **961 fotos distintas da Biblioteca** (2 127 usos),
+de 1 355 linhas da biblioteca — quase três em cada quatro. E a Reciclagem já
+protege as enviadas: `materializarAntesDeApagar` copia a foto para a pasta do
+pedido e troca o caminho ANTES de a levar. Nas 4 propostas acima isso não
+salvou nada porque **a foto foi escolhida DEPOIS de estar na Reciclagem** (a
+propostas criadas depois). Um aviso ao reciclar tocaria quase sempre e não
+teria apanhado nenhum destes casos. **Proposta:** não avisar ao reciclar; o
+travão é no envio (feito). Se ela quiser, o seletor de fotos pode esconder as
+que estão na Reciclagem (por confirmar como é que lá chegaram).

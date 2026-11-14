@@ -63,6 +63,12 @@ export interface Contexto {
   cortes: DocTruncation[];
   /** Fotografias (pela origem) que chegaram e não se conseguiram desenhar. */
   naoDesenhadas: Set<string>;
+  /**
+   * As fotografias escolhidas que já não existem (o caminho de cada uma): o
+   * lugar fica vazio, e quem gera o PDF regista o aviso. Opcional para quem
+   * monta um contexto à mão.
+   */
+  emFalta?: Set<string>;
   /** As imagens já preparadas e embutidas — ver {@link fotoNaCaixa}. */
   embutidas: Map<string, Promise<PDFImage | null>>;
   /**
@@ -137,6 +143,13 @@ export async function fotoNaCaixa(
   densidade = 1.7,
 ): Promise<boolean> {
   if (!foto) return false;
+  // A escolhida que já não existe: o lugar fica como fica sem fotografia (a
+  // Tinta por baixo), e não se põe outra. Já foi contada como em falta na
+  // resolução, por isso não entra em `naoDesenhadas` (seria contada duas vezes).
+  if (foto.emFalta) {
+    if (foto.ref) ctx.emFalta?.add(foto.ref);
+    return false;
+  }
   const { w, h } = pixeisDaCaixa(caixa.w, caixa.h, lado, densidade);
   // O enquadramento é da FOTOGRAFIA (escolhido à mão para ela), e não da página.
   if (foto.foco) t = { ...t, foco: foto.foco };

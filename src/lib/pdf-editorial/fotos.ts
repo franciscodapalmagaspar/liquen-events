@@ -33,6 +33,11 @@ export interface Foto {
   foco?: Foco;
   /** O caminho no armazenamento, quando se sabe — o que a identifica no estúdio. */
   ref?: string;
+  /**
+   * Uma foto que ELA escolheu e que já não existe (`em-falta:` em `embutir.ts`).
+   * Guarda o seu lugar e não se desenha: nunca outra no lugar dela.
+   */
+  emFalta?: true;
 }
 
 /** Lê o tamanho do cabeçalho — sem descodificar a imagem. */

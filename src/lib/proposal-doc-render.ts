@@ -46,6 +46,7 @@ import {
   type FotosDoPdf,
   type Medida,
 } from "@/lib/pdf-editorial/montar";
+import { marcaDeFotoEmFalta } from "@/lib/pdf-editorial/embutir";
 import type { ConteudoWeb } from "@/lib/pdf-editorial/conteudo-web";
 import { formasDeCaminhosOuErro } from "@/lib/biblioteca-fotos-store";
 import { focoAutomatico, LADO_PAGINA, pixeisDaCaixa, type Foco } from "@/lib/pdf-editorial/imagens";
@@ -525,7 +526,19 @@ async function resolveImages(
       const obtidas = await mapLimit(lista, FETCH_CONCURRENCY, (ref) =>
         ref && ref.trim() ? buscarComTecto(ref, null) : Promise.resolve(null),
       );
-      paginas[chave] = { ...e, fotos: obtidas.map((r) => (r ? r.bytes.toString("base64") : "")) };
+      // A que ela escolheu e NÃO se deixou buscar não volta a ser `""` (que é
+      // «automático»): fica marcada, e o desenho deixa-lhe o lugar vazio em
+      // vez de pôr lá outra em silêncio (14/11, `embutir.ts`).
+      paginas[chave] = {
+        ...e,
+        fotos: obtidas.map((r, k) =>
+          r
+            ? r.bytes.toString("base64")
+            : lista[k] && lista[k].trim()
+              ? marcaDeFotoEmFalta(lista[k])
+              : "",
+        ),
+      };
       refsDasPaginas[chave] = lista.map((ref, k) => (obtidas[k] ? ref : null));
     }
   }
@@ -797,12 +810,15 @@ export async function renderStoredEditorialPdfWithReport(
   const withDefaults = withProposalDefaults(doc);
   const { doc: resolved, missing, refs } = await resolveImages(withDefaults, { originais: true });
   const medidas = await medidasDaBiblioteca(caminhosDoDocumento(withDefaults));
-  const { bytes, truncations, undrawnImages, fotos, paginas } = await renderEditorialPdf(
-    resolved,
-    idioma,
-    opcoes,
-    { refs, medidas },
-  );
+  const { bytes, truncations, undrawnImages, fotos, paginas, fotosEscolhidasEmFalta } =
+    await renderEditorialPdf(resolved, idioma, opcoes, { refs, medidas });
+  if (fotosEscolhidasEmFalta.length > 0) {
+    // Já contadas em `missing` (a resolução não as encontrou). O aviso diz
+    // QUAIS, e que o lugar saiu vazio — nunca com outra foto.
+    log.warn("pdf editorial: fotos escolhidas que já não existem — o lugar saiu vazio", {
+      fotos: fotosEscolhidasEmFalta,
+    });
+  }
   return {
     pdf: Buffer.from(bytes),
     missingImages: missing + undrawnImages,
