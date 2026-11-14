@@ -85,6 +85,15 @@ describe("aplicarPaletas", () => {
     expect(r.resumo).toContain("1 sem cor conhecida");
   });
 
+  it("não etiqueta as fotos das PROPOSTAS, que também têm cor nesta tabela", async () => {
+    st.fotos.push({ path: "LIQ-MT7CWVWU-C4BFD3877E978CFF/x.jpg", cor: "#3d5a40" });
+    const r = await aplicarPaletas();
+    expect(r.plano.aAplicar.map((a) => a.path)).not.toContain(
+      "LIQ-MT7CWVWU-C4BFD3877E978CFF/x.jpg",
+    );
+    expect(st.ligacoes.some((l) => l.path.startsWith("LIQ-"))).toBe(false);
+  });
+
   it("correr duas vezes não muda nada da segunda", async () => {
     await aplicarPaletas();
     const segunda = await aplicarPaletas();
