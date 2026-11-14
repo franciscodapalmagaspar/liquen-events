@@ -74,7 +74,7 @@ const percentagem = (taxa: number) => String(Math.round(taxa * 10000) / 100).rep
  */
 export function taxaDe(c: Pick<Correccoes, "taxa">): number | null {
   if (c.taxa === undefined) return DEFAULT_VAT_RATE;
-  const t = c.taxa.replace("%", "").replace(",", ".").trim();
+  const t = c.taxa.replace(/%/g, "").replace(/,/g, ".").trim();
   const n = Number(t);
   return t && Number.isFinite(n) && n >= 0 && n <= 30 ? Math.round(n * 100) / 10000 : null;
 }
