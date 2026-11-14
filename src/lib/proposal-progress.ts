@@ -5,6 +5,8 @@ import { camposPorTraduzir } from "./proposal-doc-bilingue";
 import { camposDoDocumento, lerCampo } from "./proposal-ortografia";
 import { eur } from "./money";
 import { hojeNoEstudio } from "./fuso";
+import type { FotoEscolhidaEmFalta } from "./proposta-fotos-verificacao-tipos";
+import { fotosEscolhidasDoDocumento } from "./fotos-escolhidas";
 
 /**
  * ONDE ESTOU, O QUE JÁ ESTÁ FEITO, E O QUE FALTA PARA PODER ENVIAR.
@@ -230,6 +232,13 @@ export interface ContextoDoEnvio {
    * por isso que ninguém dá por ela até o PDF sair com um buraco.
    */
   imagensQueFaltam?: readonly string[];
+  /**
+   * As fotografias que ELA escolheu para uma página do PDF e que já não
+   * existem (a verificação do armazenamento: `fotosEscolhidasQueFaltam`).
+   * Só contam as que AINDA estão no documento — trocada a foto, o aviso cai
+   * sozinho, sem esperar por outra verificação.
+   */
+  fotosEscolhidasQueFaltam?: readonly FotoEscolhidaEmFalta[];
   /** O email do cliente. Sem ele gera-se, mas não se envia. */
   emailDoCliente?: string;
   /**
@@ -543,6 +552,22 @@ export function oQueFaltaParaEnviar(
     });
   }
   /**
+   * ── A FOTO ESCOLHIDA QUE JÁ NÃO EXISTE (14/11) ────────────────────────────
+   *
+   * O PDF punha OUTRA no lugar dela, em silêncio — aconteceu em propostas
+   * enviadas. Já não põe (o lugar fica vazio), e um lugar vazio na proposta do
+   * casal também é um erro: trava, e diz onde ir.
+   */
+  const escolhidasQueFaltam = fotosEscolhidasAindaNoDocumento(doc, ctx.fotosEscolhidasQueFaltam);
+  if (escolhidasQueFaltam.length > 0) {
+    faltas.push({
+      id: "foto-escolhida-em-falta",
+      seccao: "envio",
+      texto: fraseDaFotoEscolhidaEmFalta(escolhidasQueFaltam),
+      trava: true,
+    });
+  }
+  /**
    * O PDF final por ver. Vem no fim da lista porque é o último passo — com
    * erros, o PDF final nem sai (sai o rascunho). Mas vale SEMPRE, e não só
    * quando o resto está certo: a rota do envio confere só uma parte dos erros
@@ -655,6 +680,67 @@ export function oQueFaltaParaEnviar(
   }
 
   return faltas;
+}
+
+/**
+ * As que AINDA estão escolhidas para uma página que o PDF desenha (ou para a
+ * capa) — as outras já foram trocadas, ou a página saiu do plano. A lista é a
+ * de `fotosEscolhidasDoDocumento`, a mesma da verificação: uma chave órfã
+ * (`tema:0:3` depois de o tema ficar com duas páginas) não trava nada.
+ */
+function fotosEscolhidasAindaNoDocumento(
+  doc: ProposalDoc,
+  lista: readonly FotoEscolhidaEmFalta[] | undefined,
+): FotoEscolhidaEmFalta[] {
+  if (!lista?.length) return [];
+  const noDocumento = new Set(fotosEscolhidasDoDocumento(doc).map((f) => f.ref));
+  return lista.filter((f) => noDocumento.has(f.ref));
+}
+
+const ondeEsta = (f: FotoEscolhidaEmFalta) =>
+  f.capa ? "A fotografia de capa" : `A foto da página «${f.pagina}»`;
+
+/** As que já não existem (na Reciclagem, ou saídas de vez). */
+function fraseDasQueJaNaoExistem(lista: readonly FotoEscolhidaEmFalta[]): string {
+  if (lista.length === 1) {
+    const f = lista[0];
+    const tema = f.tema ? ` do tema «${f.tema}»` : "";
+    return f.naReciclagem
+      ? `${ondeEsta(f)}${tema} já não existe (está na Reciclagem) — escolhe outra ou repõe-na`
+      : `${ondeEsta(f)}${tema} já não existe — escolhe outra`;
+  }
+  const paginas = [...new Set(lista.map((f) => `«${f.pagina}»`))].slice(0, 3).join(", ");
+  const reciclagem = lista.every((f) => f.naReciclagem)
+    ? " (estão na Reciclagem)"
+    : lista.some((f) => f.naReciclagem)
+      ? " (algumas estão na Reciclagem)"
+      : "";
+  const repor = lista.some((f) => f.naReciclagem) ? " ou repõe-nas" : "";
+  return `${lista.length} fotos escolhidas para as páginas ${paginas} já não existem${reciclagem} — escolhe outras${repor}`;
+}
+
+/**
+ * As que ainda estão a ser copiadas (`pending:`). Não «já não existem»: a
+ * cópia não chegou ainda, e o que se faz é esperar e voltar a confirmar.
+ */
+function fraseDasQueEstaoACopiar(lista: readonly FotoEscolhidaEmFalta[]): string {
+  if (lista.length === 1) {
+    return `${ondeEsta(lista[0])} ainda está a ser copiada — espera um momento e volta a confirmar, ou escolhe outra`;
+  }
+  const paginas = [...new Set(lista.map((f) => `«${f.pagina}»`))].slice(0, 3).join(", ");
+  return `${lista.length} fotos escolhidas para as páginas ${paginas} ainda estão a ser copiadas — espera um momento e volta a confirmar, ou escolhe outras`;
+}
+
+/** «A foto da página «Cerimónia» do tema «Natal» já não existe (está na Reciclagem) — …». */
+export function fraseDaFotoEscolhidaEmFalta(lista: readonly FotoEscolhidaEmFalta[]): string {
+  const aCopiar = lista.filter((f) => f.porCopiar);
+  const jaNao = lista.filter((f) => !f.porCopiar);
+  return [
+    ...(jaNao.length ? [fraseDasQueJaNaoExistem(jaNao)] : []),
+    ...(aCopiar.length ? [fraseDasQueEstaoACopiar(aCopiar)] : []),
+  ]
+    .map((t, i) => (i === 0 ? t : t.charAt(0).toLowerCase() + t.slice(1)))
+    .join("; ");
 }
 
 /** Pode enviar? A MESMA fonte que a lista acima, para não poderem discordar. */

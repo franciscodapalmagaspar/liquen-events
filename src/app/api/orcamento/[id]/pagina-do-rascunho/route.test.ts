@@ -93,7 +93,9 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
     expect(st.render).toHaveBeenCalledTimes(1);
     const [, idioma, opcoes] = st.render.mock.calls[0];
     expect(idioma).toBe("en");
-    expect(opcoes).toEqual({ soPaginas: [3] });
+    // Com memória das listagens: cada página desenhada perguntava de novo ao
+    // armazenamento que fotos já não existem (revisão de 14/11, 2.ª, n.º 1).
+    expect(opcoes).toEqual({ soPaginas: [3], memoria: true });
   });
 
   it("a mesma página do mesmo rascunho vem da memória — não se desenha outra vez", async () => {

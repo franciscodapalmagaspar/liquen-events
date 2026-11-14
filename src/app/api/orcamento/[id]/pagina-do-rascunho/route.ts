@@ -119,6 +119,10 @@ async function POST_semMedida(
           desenhou = true;
           const r = await renderStoredEditorialPdfWithReport(doc as ProposalDoc, idioma, {
             soPaginas: [n],
+            // As fotos que já não existem perguntam-se com memória, e a
+            // pergunta em curso é partilhada: as páginas desenhadas ao mesmo
+            // tempo fazem UMA listagem por pasta (revisão de 14/11, 2.ª, n.º 1).
+            memoria: true,
           });
           paginas = r.paginas;
           return r.pdf;

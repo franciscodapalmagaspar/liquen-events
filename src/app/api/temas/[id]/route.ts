@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
 import { getTheme, updateTheme, listThemes } from "@/lib/themes-store";
 import { isThemePath, themeIdOfPath, themeFolder } from "@/lib/theme-storage";
-import { NaoDeuParaApagar, enviarParaAReciclagem, quemApagou } from "@/lib/reciclagem";
+import {
+  NaoDeuParaApagar,
+  enviarParaAReciclagem,
+  oQueOsTemasTemNaReciclagem,
+  quemApagou,
+} from "@/lib/reciclagem";
 import { isUniqueViolation } from "@/lib/invoices-store";
 import { isMissingTable, isPersistenceUnavailable } from "@/lib/repository";
 import {
@@ -10,6 +15,7 @@ import {
   MAX_THEME_NAME,
   MAX_THEME_NOTES,
   normalizedThemeName,
+  ordemComAsDaReciclagem,
   themeNameTakenError,
 } from "@/lib/theme-types";
 import { log } from "@/lib/logger";
@@ -98,7 +104,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         order.push(path);
         if (order.length >= MAX_PHOTO_ORDER) break;
       }
-      patch.photoOrder = order;
+      // As da Reciclagem não estão na grelha, e por isso não vêm nesta ordem:
+      // guardam o seu lugar para quando forem repostas (revisão de 14/11, n.º
+      // 7). Só se lê a Reciclagem quando a ordem nova deixou alguma de fora.
+      // Uma lista vazia continua a limpar tudo.
+      if (order.length > 0) {
+        const antiga = (await getTheme(id))?.photoOrder ?? [];
+        if (antiga.some((p) => !seen.has(p))) {
+          const { fotos } = await oQueOsTemasTemNaReciclagem().catch(() => ({
+            fotos: new Set<string>(),
+          }));
+          patch.photoOrder = ordemComAsDaReciclagem(antiga, order, fotos);
+        } else patch.photoOrder = order;
+      } else patch.photoOrder = order;
     }
 
     if (body?.coverPath !== undefined) {

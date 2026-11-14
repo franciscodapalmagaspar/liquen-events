@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 // Dos TIPOS e não do módulo do Storage: este componente corre no browser, e o
 // `proposta-fotos-verificacao.ts` importa `server-only`. Ver o cabeçalho de lá.
@@ -8,6 +8,7 @@ import {
   PORQUE_FALTA,
   PORQUE_SUSPEITA,
   type MotivoDeFalta,
+  type FotoEscolhidaEmFalta,
   type MotivoSuspeito,
   type VerificacaoDeFotos,
 } from "@/lib/proposta-fotos-verificacao-tipos";
@@ -43,27 +44,68 @@ import { ESTADO, PRESSAO } from "./ui/movimento";
 
 const CAIXA = "mt-3 rounded-lg px-3 py-2.5 text-[12px] leading-snug";
 
-export default function FotosEmFalta({ quoteId, doc }: { quoteId: string; doc: ProposalDoc }) {
+export default function FotosEmFalta({
+  quoteId,
+  doc,
+  onEscolhidasQueFaltam,
+  onRefsQueFaltam,
+}: {
+  quoteId: string;
+  doc: ProposalDoc;
+  /**
+   * Os caminhos de todas as que SE SABE que já não existem (revisão de 14/11,
+   * n.º 6): o estúdio deixa de as oferecer nas alternativas. A mesma resposta
+   * do armazenamento que trava o envio — e não uma segunda pergunta.
+   */
+  onRefsQueFaltam?: (refs: string[]) => void;
+  /**
+   * As fotos escolhidas para as páginas que já não existem (14/11): o estúdio
+   * passa-as a `oQueFaltaParaEnviar`, onde TRAVAM o envio. Só com uma
+   * verificação que correu — nunca durante a espera (seria travar por uma
+   * corrida, ver «O QUE O DOCUMENTO NÃO SABE DE SI PRÓPRIO» no estúdio).
+   */
+  onEscolhidasQueFaltam?: (lista: FotoEscolhidaEmFalta[]) => void;
+}) {
   const [estado, setEstado] = useState<"a-ver" | "respondeu" | "falhou">("a-ver");
   const [r, setR] = useState<VerificacaoDeFotos | null>(null);
+  // Numa ref: a função muda a cada desenho do estúdio, e a verificação não.
+  const avisar = useRef(onEscolhidasQueFaltam);
+  const avisarRefs = useRef(onRefsQueFaltam);
+  // E o documento ACTUAL, também numa ref (revisão de 14/11, n.º 7): a
+  // verificação não corre a cada tecla, mas quando corre — «Já corrigi —
+  // voltar a confirmar» — tem de confirmar o documento de agora, e não o do
+  // primeiro desenho. Com o `doc` preso no `useCallback`, ela trocava a foto e
+  // o botão voltava a dizer que faltava.
+  const docAtual = useRef(doc);
+  useEffect(() => {
+    avisar.current = onEscolhidasQueFaltam;
+    avisarRefs.current = onRefsQueFaltam;
+    docAtual.current = doc;
+  }, [onEscolhidasQueFaltam, onRefsQueFaltam, doc]);
 
   const verificar = useCallback(async () => {
     try {
       const res = await fetch(`/api/orcamento/${encodeURIComponent(quoteId)}/fotos-em-falta`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc }),
+        body: JSON.stringify({ doc: docAtual.current }),
       });
       if (!res.ok) throw new Error(String(res.status));
-      setR((await res.json()) as VerificacaoDeFotos);
+      const resposta = (await res.json()) as VerificacaoDeFotos;
+      setR(resposta);
       setEstado("respondeu");
+      // Mesmo com uma pasta por confirmar (`verificou: false`), as que SE SABE
+      // que faltam vêm na lista e travam — «não sei» de uma pasta não apaga
+      // o que as outras disseram.
+      if (resposta.escolhidasQueFaltam) avisar.current?.(resposta.escolhidasQueFaltam);
+      else if (resposta.verificou) avisar.current?.([]);
+      avisarRefs.current?.(resposta.refsEmFalta ?? []);
     } catch {
       setEstado("falhou");
     }
-    // `doc` de fora das dependências DE PROPÓSITO: ele muda a cada tecla, e a
-    // verificação lista pastas do armazenamento. Corre ao entrar no passo e
-    // quando ela pedir — ver o efeito abaixo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // O `doc` lê-se de `docAtual` e não entra nas dependências DE PROPÓSITO:
+    // ele muda a cada tecla, e a verificação lista pastas do armazenamento.
+    // Corre ao entrar no passo e quando ela pedir — ver o efeito abaixo.
   }, [quoteId]);
 
   /**

@@ -17,6 +17,12 @@ export interface FocoNaPagina {
 export interface FotoNaPagina {
   ref: string | null;
   foco?: FocoNaPagina;
+  /**
+   * A foto que ELA escolheu para este lugar e que já não existe (14/11): o PDF
+   * deixa o lugar vazio, e o estúdio tem de mostrar o mesmo — um lugar vazio
+   * com aviso, nunca uma miniatura partida.
+   */
+  emFalta?: true;
 }
 
 /**

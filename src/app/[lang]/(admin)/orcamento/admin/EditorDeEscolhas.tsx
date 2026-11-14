@@ -8,6 +8,7 @@ import {
   type Escolha,
   type OpcaoDeEscolha,
 } from "@/lib/proposta-escolhas";
+import { isPendingImage } from "@/lib/proposal-doc";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 
 /**
@@ -81,6 +82,30 @@ export interface FotoDisponivel {
   url?: string;
   /** De que board veio — é assim que ela lhe chama. */
   onde: string;
+}
+
+/**
+ * As fotografias que uma alternativa pode usar: as que JÁ estão nos mood
+ * boards desta proposta, sem as ainda por copiar (`pending:`) e sem as que SE
+ * SABE que já não existem (`refsQueFaltam`, da verificação do armazenamento —
+ * a mesma fonte, a pasta, do escolhedor dos temas). Uma foto na Reciclagem
+ * oferecida aqui seria uma escolha que já nasce em falta (revisão de 14/11,
+ * n.º 6).
+ */
+export function fotosParaAsEscolhas(
+  moodBoards: readonly { title?: string; images?: readonly string[] }[],
+  assetUrls: Readonly<Record<string, string | undefined>>,
+  refsQueFaltam: ReadonlySet<string>,
+): FotoDisponivel[] {
+  return moodBoards.flatMap((b) =>
+    (b.images ?? [])
+      .filter((caminho) => !!caminho && !isPendingImage(caminho) && !refsQueFaltam.has(caminho))
+      .map((caminho) => ({
+        caminho,
+        url: assetUrls[caminho],
+        onde: (b.title ?? "").trim() || "Mood board",
+      })),
+  );
 }
 
 const CAIXA =

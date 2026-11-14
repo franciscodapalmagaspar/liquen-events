@@ -245,6 +245,46 @@ export const MAX_THEME_NOTES = 300;
 export const MAX_PHOTO_ORDER = 500;
 
 /**
+ * A ordem nova, com as fotos da RECICLAGEM de volta no seu sítio.
+ *
+ * Revisão de 14/11, n.º 7: uma foto na Reciclagem não aparece na grelha, por
+ * isso a ordem que o ecrã envia ao reordenar já não a traz — e a foto perdia o
+ * lugar arrumado; reposta, ia para a cauda. Aqui volta a entrar logo a seguir
+ * à arrumada que a precedia na ordem antiga (ou à frente, se não havia
+ * nenhuma). Só as que estão na Reciclagem: uma foto apagada de vez, ou que ela
+ * tirou da ordem, não volta.
+ *
+ * No tecto ({@link MAX_PHOTO_ORDER}) a ordem nova DELA manda: vem inteira, e
+ * das da Reciclagem só entram as que ainda cabem (pela ordem antiga). Antes
+ * entravam no meio e o corte final levava a cauda da ordem que ela acabara de
+ * arrumar (revisão de 14/11, menor n.º 5).
+ */
+export function ordemComAsDaReciclagem(
+  antiga: readonly string[],
+  nova: readonly string[],
+  naReciclagem: ReadonlySet<string>,
+): string[] {
+  const saida = nova.slice(0, MAX_PHOTO_ORDER);
+  const ja = new Set(saida);
+  let cabem = MAX_PHOTO_ORDER - saida.length;
+  antiga.forEach((p, i) => {
+    if (cabem <= 0 || ja.has(p) || !naReciclagem.has(p)) return;
+    cabem -= 1;
+    let onde = 0;
+    for (let k = i - 1; k >= 0; k--) {
+      const antes = saida.indexOf(antiga[k]);
+      if (antes >= 0) {
+        onde = antes + 1;
+        break;
+      }
+    }
+    saida.splice(onde, 0, p);
+    ja.add(p);
+  });
+  return saida;
+}
+
+/**
  * Compara nomes de temas como a equipa os lê: sem acentos, sem maiúsculas e
  * sem espaços a mais. "Itália", "italia" e "  ITALIA " são o MESMO tema — sem
  * isto a biblioteca enche-se de pares quase iguais que ninguém distingue no

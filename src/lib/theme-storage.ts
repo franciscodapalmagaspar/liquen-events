@@ -38,6 +38,7 @@ import {
   themeIdOfPath,
 } from "./theme-ref";
 import { log } from "./logger";
+import { esquecerListagemDaPasta } from "./memoria-das-listagens";
 import { lqipsECoresDeCaminhos } from "./biblioteca-fotos-store";
 import type { ThemeImage, ThemeImagePage } from "./theme-types";
 import { THEME_PAGE_SIZE, MAX_THEME_PAGE_SIZE } from "./theme-types";
@@ -813,7 +814,129 @@ function writeCount(
  */
 export function invalidateThemeCount(themeId: string): void {
   const folder = themeFolder(themeId);
-  if (folder) countMemo.delete(folder);
+  if (folder) {
+    countMemo.delete(folder);
+    nomesMemo.delete(folder);
+    // E a listagem que a pré-visualização do estúdio guardou desta pasta: a
+    // foto levada ou trazida da Reciclagem conta já nas páginas ainda por
+    // desenhar, nesta instância; as já desenhadas guardam-se pela chave do
+    // rascunho e só mudam com ele (revisão de 14/11, 2.ª, menor n.º 6).
+    esquecerListagemDaPasta(THEME_BUCKET, folder);
+    for (const p of ausentesConfirmadas.keys()) {
+      if (p.startsWith(`${folder}/`)) ausentesConfirmadas.delete(p);
+    }
+  }
+}
+
+/**
+ * ── OS NOMES DA PASTA, PARA A ORDEM ARRUMADA À MÃO (14/11) ─────────────────
+ *
+ * A ordem arrumada à mão (`photoOrder`, no tema) vem à frente da grelha, e
+ * NÃO passava pela pasta: uma foto que foi para a Reciclagem saía da pasta mas
+ * ficava na ordem — e o escolhedor do estúdio continuava a oferecê-la, com a
+ * miniatura (que fica, para a foto voltar a encontrá-la). Foi assim que quatro
+ * propostas escolheram fotos que já não existiam.
+ *
+ * A pasta é a fonte da verdade: as arrumadas só entram se a pasta as tiver.
+ * Custo: NENHUMA ida a mais. Com ordem arrumada a grelha já contava a pasta
+ * inteira (`countThemeFiles`) em cada página; agora lê os NOMES nessa mesma
+ * volta, e a contagem sai deles. A mesma memória de 60 s, deitada fora pelas
+ * mesmas escritas (`invalidateThemeCount` — também ao levar e ao trazer da
+ * Reciclagem). Uma pasta que não se deixa ler, ou maior do que o tecto, dá
+ * `null`: não se esconde nada por não se saber.
+ */
+const nomesMemo = new Map<string, { at: number; nomes: Set<string> }>();
+
+/**
+ * As arrumadas que a memória dá como ausentes, CONFIRMADAS ao armazenamento
+ * há pouco (caminho → quando). Ver «A MEMÓRIA DE OUTRA INSTÂNCIA» abaixo.
+ */
+const ausentesConfirmadas = new Map<string, number>();
+/**
+ * O mesmo prazo da memória da pasta (`COUNT_TTL_MS`): a confirmação não pode
+ * valer menos do que a listagem que ela confirma — com 10 s, uma foto na
+ * Reciclagem ainda na ordem custava uma pergunta a cada 10 s por grelha aberta
+ * (revisão de 14/11, 2.ª, menor n.º 4).
+ */
+const AUSENTE_CONFIRMADA_MS = COUNT_TTL_MS;
+/** Quantas ausentes se confirmam uma a uma por página — as outras esperam a memória caducar. */
+const MAX_CONFIRMACOES = 10;
+
+/**
+ * ── A MEMÓRIA DE OUTRA INSTÂNCIA (revisão de 14/11, n.º 7) ────────────────
+ *
+ * Carregar e repor deitam fora a memória (`invalidateThemeCount`) — mas só na
+ * instância do servidor que fez a escrita. Noutra, a memória de há 50 s ainda
+ * não conhece a foto reposta (ou a carregada que já estava na ordem): ela
+ * saía da ordem arrumada e aparecia na CAUDA da grelha, pela listagem fresca
+ * da pasta, até a memória caducar.
+ *
+ * Por isso uma arrumada que a MEMÓRIA dá como ausente confirma-se por
+ * ficheiro (`fotoExisteNoTema`, uma pergunta pelo nome) antes de sair da
+ * ordem. Custo: zero quando nenhuma arrumada falta (o caso normal); com uma
+ * foto na Reciclagem ainda na ordem, uma pergunta por foto, no máximo uma vez
+ * a cada 60 s por foto, e nunca mais de 10 por página.
+ */
+async function nomesConfirmados(themeId: string, arrumadas: readonly string[]) {
+  const folder = themeFolder(themeId);
+  const lidos = await nomesDoTema(themeId);
+  if (!lidos || !lidos.daMemoria) return lidos?.nomes ?? null;
+  const agora = Date.now();
+  const porConfirmar = arrumadas
+    .filter((p) => !lidos.nomes.has(p.slice(folder.length + 1)))
+    .filter((p) => agora - (ausentesConfirmadas.get(p) ?? -Infinity) > AUSENTE_CONFIRMADA_MS)
+    .slice(0, MAX_CONFIRMACOES);
+  const respostas = await Promise.all(porConfirmar.map((p) => fotoExisteNoTema(p)));
+  // As caducadas saem antes de se escrever: o mapa não cresce sem fim numa
+  // instância que fica viva dias.
+  for (const [p, quando] of ausentesConfirmadas) {
+    if (agora - quando > AUSENTE_CONFIRMADA_MS) ausentesConfirmadas.delete(p);
+  }
+  porConfirmar.forEach((p, i) => {
+    // Está lá: a memória estava velha — passa a sabê-lo (e a contagem dela
+    // também deixou de valer).
+    if (respostas[i] === true) {
+      lidos.nomes.add(p.slice(folder.length + 1));
+      countMemo.delete(folder);
+    } else if (respostas[i] === false) ausentesConfirmadas.set(p, agora);
+  });
+  return lidos.nomes;
+}
+
+/** Só para os testes: quantas ausentes confirmadas a memória guarda. */
+export function quantasAusentesConfirmadas(): number {
+  return ausentesConfirmadas.size;
+}
+
+/** Só para os testes. */
+export function esquecerNomesDosTemas(): void {
+  nomesMemo.clear();
+  ausentesConfirmadas.clear();
+}
+
+async function nomesDoTema(
+  themeId: string,
+): Promise<{ nomes: Set<string>; daMemoria: boolean } | null> {
+  const folder = themeFolder(themeId);
+  if (!folder) return null;
+  const hit = nomesMemo.get(folder);
+  if (hit && Date.now() - hit.at <= COUNT_TTL_MS) return { nomes: hit.nomes, daMemoria: true };
+  const nomes = new Set<string>();
+  for (let pagina = 0; pagina < MAX_COUNT_PAGES; pagina++) {
+    const listed = await listThemeFiles(themeId, COUNT_PAGE, pagina * COUNT_PAGE);
+    if (!listed.ok) return null;
+    for (const n of listed.names) nomes.add(n);
+    if (!listed.truncated) {
+      nomesMemo.set(folder, { at: Date.now(), nomes });
+      writeCount(themeId, MAX_COUNT_PAGES, COUNT_PAGE, {
+        total: nomes.size,
+        ok: true,
+        truncated: false,
+      });
+      return { nomes, daMemoria: false };
+    }
+  }
+  return null;
 }
 
 // ── O ÍNDICE DE REPETIDAS ──────────────────────────────────────────────────
@@ -1123,7 +1246,13 @@ export async function listThemeImagePage(
   // Sem ordem manual, o caminho é o de sempre: uma leitura da pasta, uma
   // página. Com ordem manual, as arrumadas vêm à frente e a pasta continua
   // atrás — saltando as que já foram mostradas no prefixo.
-  const arranged = order.filter((p) => themeIdOfPath(p) === folder);
+  let arranged = order.filter((p) => themeIdOfPath(p) === folder);
+  // Só as que a pasta ainda tem (ver `nomesDoTema`): uma foto na Reciclagem
+  // deixa de ser oferecida, e volta a sê-lo quando se repõe.
+  if (arranged.length > 0) {
+    const nomes = await nomesConfirmados(themeId, arranged);
+    if (nomes) arranged = arranged.filter((p) => nomes.has(p.slice(folder.length + 1)));
+  }
   const plan = planOrderedPage(arranged, size, from);
   const arrangedSet = new Set(arranged);
 

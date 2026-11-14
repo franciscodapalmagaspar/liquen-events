@@ -553,3 +553,111 @@ describe("ver o PDF final antes de enviar (14/10)", () => {
     expect(semValor).toContain("visto");
   });
 });
+
+/**
+ * 14/11: uma foto que ela escolheu para uma página do PDF estava na Reciclagem,
+ * e o PDF punha OUTRA no lugar dela em silêncio. Agora trava o envio.
+ */
+describe("a foto escolhida para uma página que já não existe", () => {
+  const comEscolha = {
+    ...COMPLETO,
+    fotosDasPaginas: { "separador:cerimonia": { fotos: ["tema:t/a.jpg"] } },
+  } as unknown as ProposalDoc;
+  const falta = { ref: "tema:t/a.jpg", pagina: "Cerimónia", tema: "Natal", naReciclagem: true };
+
+  it("trava, e diz a página, o tema e que está na Reciclagem", () => {
+    const f = oQueFaltaParaEnviar(comEscolha, 3250, { fotosEscolhidasQueFaltam: [falta] }).find(
+      (x) => x.id === "foto-escolhida-em-falta",
+    );
+    expect(f?.trava).toBe(true);
+    expect(f?.texto).toBe(
+      "A foto da página «Cerimónia» do tema «Natal» já não existe (está na Reciclagem) — escolhe outra ou repõe-na",
+    );
+    expect(podeEnviar(comEscolha, 3250, { fotosEscolhidasQueFaltam: [falta] })).toBe(false);
+  });
+
+  it("trocada a foto no documento, o aviso cai sem esperar por outra verificação", () => {
+    const trocada = {
+      ...comEscolha,
+      fotosDasPaginas: { "separador:cerimonia": { fotos: ["tema:t/outra.jpg"] } },
+    } as unknown as ProposalDoc;
+    const ids = oQueFaltaParaEnviar(trocada, 3250, { fotosEscolhidasQueFaltam: [falta] }).map(
+      (x) => x.id,
+    );
+    expect(ids).not.toContain("foto-escolhida-em-falta");
+  });
+
+  it("fora da Reciclagem não oferece «repõe-na»; várias dizem quantas", () => {
+    const fora = { ...falta, naReciclagem: false, tema: null };
+    expect(
+      oQueFaltaParaEnviar(comEscolha, 3250, { fotosEscolhidasQueFaltam: [fora] }).find(
+        (x) => x.id === "foto-escolhida-em-falta",
+      )?.texto,
+    ).toBe("A foto da página «Cerimónia» já não existe — escolhe outra");
+    const duas = {
+      ...COMPLETO,
+      fotosDasPaginas: { indice: { fotos: ["a.jpg"] }, total: { fotos: ["b.jpg"] } },
+    } as unknown as ProposalDoc;
+    const t = oQueFaltaParaEnviar(duas, 3250, {
+      fotosEscolhidasQueFaltam: [
+        { ref: "a.jpg", pagina: "Índice", tema: null, naReciclagem: true },
+        { ref: "b.jpg", pagina: "Total", tema: null, naReciclagem: false },
+      ],
+    }).find((x) => x.id === "foto-escolhida-em-falta")?.texto;
+    expect(t).toBe(
+      "2 fotos escolhidas para as páginas «Índice», «Total» já não existem (algumas estão na Reciclagem) — escolhe outras ou repõe-nas",
+    );
+  });
+  /**
+   * Revisão de 14/11, n.º 1: uma chave de uma página que já não está no plano
+   * (`tema:0:3` depois de o tema ficar com menos páginas) não sai no PDF — não
+   * pode travar o envio, nem pôr a chave crua na frase.
+   */
+  it("uma chave órfã não trava", () => {
+    const orfa = {
+      ...COMPLETO,
+      fotosDasPaginas: { "tema:0:3": { fotos: ["tema:t/a.jpg"] } },
+    } as unknown as ProposalDoc;
+    const ids = oQueFaltaParaEnviar(orfa, 3250, {
+      fotosEscolhidasQueFaltam: [{ ...falta, pagina: "tema:0:3" }],
+    }).map((x) => x.id);
+    expect(ids).not.toContain("foto-escolhida-em-falta");
+  });
+
+  /** N.º 8: uma foto ainda a copiar tem a sua frase — não «já não existe». */
+  it("uma foto ainda a copiar diz que espere, e não que já não existe", () => {
+    const aCopiar = {
+      ...COMPLETO,
+      fotosDasPaginas: { indice: { fotos: ["pending:LIQ-1/x.jpg"] } },
+    } as unknown as ProposalDoc;
+    const t = oQueFaltaParaEnviar(aCopiar, 3250, {
+      fotosEscolhidasQueFaltam: [
+        {
+          ref: "pending:LIQ-1/x.jpg",
+          pagina: "Índice",
+          tema: null,
+          naReciclagem: false,
+          porCopiar: true,
+        },
+      ],
+    }).find((x) => x.id === "foto-escolhida-em-falta");
+    expect(t?.trava).toBe(true);
+    expect(t?.texto).toBe(
+      "A foto da página «Índice» ainda está a ser copiada — espera um momento e volta a confirmar, ou escolhe outra",
+    );
+    expect(t?.texto).not.toMatch(/já não existe/);
+  });
+
+  /** N.º 3: a capa escolhida que falta trava, com a frase da capa. */
+  it("a fotografia de capa que já não existe trava", () => {
+    const t = oQueFaltaParaEnviar(COMPLETO, 3250, {
+      fotosEscolhidasQueFaltam: [
+        { ref: "capa.jpg", pagina: "Capa", tema: null, naReciclagem: true, capa: true },
+      ],
+    }).find((x) => x.id === "foto-escolhida-em-falta");
+    expect(t?.trava).toBe(true);
+    expect(t?.texto).toBe(
+      "A fotografia de capa já não existe (está na Reciclagem) — escolhe outra ou repõe-na",
+    );
+  });
+});

@@ -18,9 +18,33 @@ export async function embedImagem(pdf: PDFDocument, cru: Buffer): Promise<PDFIma
   }
 }
 
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * A FOTO ESCOLHIDA QUE JÁ NÃO EXISTE (14/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Em `fotosDasPaginas`, um lugar vazio (`""`) é «automático». Uma foto que ELA
+ * escolheu e que não se deixou buscar (foi para a Reciclagem, por exemplo)
+ * chegava ao desenho também como `""` — e a página escolhia OUTRA em silêncio.
+ * Aconteceu em propostas enviadas a 6/11 e 12/11 (`docs/ARQUIVO-DE-PDFS.md`,
+ * §3). A regra (`.claude/rules/propostas.md`): o PDF mostra exactamente o que
+ * está no «Fazer proposta» — nunca uma foto diferente.
+ *
+ * Por isso a resolução escreve `em-falta:<caminho>` nesse lugar, e o desenho
+ * guarda-lhe o sítio vazio em vez de o dar ao automático.
+ */
+export const PREFIXO_FOTO_EM_FALTA = "em-falta:";
+
+/** Este lugar tem uma foto escolhida que não se deixou buscar? */
+export const eFotoEmFalta = (dado: string | null | undefined): boolean =>
+  typeof dado === "string" && dado.startsWith(PREFIXO_FOTO_EM_FALTA);
+
+/** O lugar de uma foto escolhida que falta, com o caminho dela. */
+export const marcaDeFotoEmFalta = (ref: string) => `${PREFIXO_FOTO_EM_FALTA}${ref}`;
+
 /** Os bytes de uma foto do documento — base64, com ou sem o prefixo `data:`. */
 export function bytesDaFoto(dado: string | null | undefined): Buffer | null {
-  if (!dado) return null;
+  if (!dado || eFotoEmFalta(dado)) return null;
   const virgula = dado.startsWith("data:") ? dado.indexOf(",") : -1;
   const b64 = virgula >= 0 ? dado.slice(virgula + 1) : dado;
   try {

@@ -294,6 +294,29 @@ describe("PATCH /api/temas/[id] — ordem das fotos", () => {
     expect((await PATCH(...patchReq({ photoOrder: "t-1/a.jpg" }, "t-1"))).status).toBe(400);
   });
 
+  /**
+   * Revisão de 14/11, n.º 7: a foto na Reciclagem não está na grelha, e a
+   * ordem que o ecrã envia já não a traz. Guarda o lugar dela para quando for
+   * reposta; a que saiu de vez não volta.
+   */
+  it("reordenar com uma foto na Reciclagem não lhe tira o lugar", async () => {
+    st.authed = true;
+    st.themes = [
+      {
+        id: "t-1",
+        name: "Natal",
+        photoOrder: ["t-1/a.jpg", "t-1/foi.jpg", "t-1/apagada.jpg", "t-1/b.jpg"],
+      } as ProposalTheme,
+    ];
+    st.reciclagem = [{ id: "e-1", tipo: "foto-de-tema", origemId: "t-1/foi.jpg" }];
+    const res = await PATCH(...patchReq({ photoOrder: ["t-1/b.jpg", "t-1/a.jpg"] }, "t-1"));
+    expect(res.status).toBe(200);
+    expect(st.update).toHaveBeenCalledWith(
+      "t-1",
+      expect.objectContaining({ photoOrder: ["t-1/b.jpg", "t-1/a.jpg", "t-1/foi.jpg"] }),
+    );
+  });
+
   it("uma lista vazia limpa a arrumação", async () => {
     st.authed = true;
     await PATCH(...patchReq({ photoOrder: [] }, "t-1"));

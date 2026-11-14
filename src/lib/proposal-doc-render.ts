@@ -46,6 +46,11 @@ import {
   type FotosDoPdf,
   type Medida,
 } from "@/lib/pdf-editorial/montar";
+import { marcaDeFotoEmFalta } from "@/lib/pdf-editorial/embutir";
+import { semAsQueFaltam } from "@/lib/pdf-editorial/sem-as-que-faltam";
+import { refsQueJaNaoExistem } from "@/lib/proposta-fotos-verificacao";
+import { CHAVE_DA_CAPA, fotosEscolhidasDoDocumento } from "@/lib/fotos-escolhidas";
+import { aFaltaDaCapaTrava, haFotoNaInspiracao } from "@/lib/pdf-editorial/regra-da-capa";
 import type { ConteudoWeb } from "@/lib/pdf-editorial/conteudo-web";
 import { formasDeCaminhosOuErro } from "@/lib/biblioteca-fotos-store";
 import { focoAutomatico, LADO_PAGINA, pixeisDaCaixa, type Foco } from "@/lib/pdf-editorial/imagens";
@@ -231,9 +236,26 @@ async function resolveImages(
    * miniatura e original, aqui em baixo, mede-se contra caixas que lá não
    * existem.
    */
-  opcoes: { originais?: boolean } = {},
-): Promise<{ doc: ProposalDoc; missing: number; refs: NonNullable<FontesDasFotos["refs"]> }> {
+  /**
+   * `faltam`: as que SE SABE que já não existem (`refsQueJaNaoExistem`) — não
+   * se vão buscar, e saem como uma foto cujos bytes não vieram. É a mesma
+   * fonte com que o plano do estúdio e a página do casal as tiram antes do
+   * motor (`semAsQueFaltam`): os três vêem o mesmo documento, mesmo quando
+   * sobra uma derivada guardada de uma foto que foi para a Reciclagem.
+   */
+  opcoes: { originais?: boolean; faltam?: ReadonlySet<string> } = {},
+): Promise<{
+  doc: ProposalDoc;
+  missing: number;
+  /**
+   * Das `missing`, as que nem se foram buscar por se SABER que faltam
+   * (`opcoes.faltam`), uma por pedido. Repetir o desenho não as traz.
+   */
+  sabidas: string[];
+  refs: NonNullable<FontesDasFotos["refs"]>;
+}> {
   let remaining = MAX_IMAGES_PER_DOC;
+  const sabidas: string[] = [];
   // Quantas fotos foram PEDIDAS e não entraram. Uma proposta com fotos a menos
   // seguia para o cliente sem ninguém dar por isso; agora quem chama fica a
   // saber e pode dizê-lo. Ver o cabeçalho `X-Fotos-Em-Falta` na rota.
@@ -364,6 +386,11 @@ async function resolveImages(
       return null;
     }
     remaining--;
+    if (opcoes.faltam?.has(ref)) {
+      sabidas.push(ref);
+      missing++;
+      return null;
+    }
     const r = await buscar(ref, caixa);
     if (!r) missing++;
     return r;
@@ -525,7 +552,19 @@ async function resolveImages(
       const obtidas = await mapLimit(lista, FETCH_CONCURRENCY, (ref) =>
         ref && ref.trim() ? buscarComTecto(ref, null) : Promise.resolve(null),
       );
-      paginas[chave] = { ...e, fotos: obtidas.map((r) => (r ? r.bytes.toString("base64") : "")) };
+      // A que ela escolheu e NÃO se deixou buscar não volta a ser `""` (que é
+      // «automático»): fica marcada, e o desenho deixa-lhe o lugar vazio em
+      // vez de pôr lá outra em silêncio (14/11, `embutir.ts`).
+      paginas[chave] = {
+        ...e,
+        fotos: obtidas.map((r, k) =>
+          r
+            ? r.bytes.toString("base64")
+            : lista[k] && lista[k].trim()
+              ? marcaDeFotoEmFalta(lista[k])
+              : "",
+        ),
+      };
       refsDasPaginas[chave] = lista.map((ref, k) => (obtidas[k] ? ref : null));
     }
   }
@@ -538,6 +577,7 @@ async function resolveImages(
       ...(opcoes.originais ? { fotosDasPaginas: paginas } : {}),
     },
     missing,
+    sabidas,
     refs: { capa: refsDaCapa, temas: moodBoards.map((m) => m.refs), paginas: refsDasPaginas },
   };
 }
@@ -783,33 +823,108 @@ async function reduzirParaEditorial(bytes: Buffer): Promise<Buffer> {
 export async function renderStoredEditorialPdfWithReport(
   doc: ProposalDoc,
   idioma: IdiomaDaProposta = IDIOMA_POR_OMISSAO,
-  /** `soPaginas`: só estas páginas — ver `renderEditorialPdf`. */
-  opcoes: { rascunho?: boolean; soPaginas?: readonly number[] } = {},
+  /**
+   * `soPaginas`: só estas páginas — ver `renderEditorialPdf`.
+   *
+   * `memoria`: a pergunta «que fotografias já não existem» aceita a listagem
+   * guardada há pouco, e partilha a que estiver em curso (revisão de 14/11,
+   * 2.ª, importante n.º 1). SÓ os rascunhos e a pré-visualização real — cada
+   * página desenhada perguntava de novo, ~150 listagens por minuto a editar.
+   * O envio e a porta do casal ficam sem ela: perguntam sempre de fresco.
+   */
+  opcoes: { rascunho?: boolean; soPaginas?: readonly number[]; memoria?: boolean } = {},
 ): Promise<{
   pdf: Buffer<ArrayBuffer>;
   missingImages: number;
+  /**
+   * Das `missingImages`, as que SE SABE que já não existem (foram para a
+   * Reciclagem, saíram do armazenamento): uma segunda passagem não as traz,
+   * por isso não se repete o desenho por causa delas (revisão de 14/11, 2.ª,
+   * importante n.º 2). As restantes são passageiras até prova em contrário.
+   */
+  faltasSabidas: number;
+  /**
+   * Das sabidas, as das fotografias que ELA escolheu e que o PDF desenharia
+   * (`fotosEscolhidasDoDocumento`; a capa pela regra `aFaltaDaCapaTrava`): o
+   * PDF sai com o lugar vazio, e não é um documento completo. Uma foto de mood
+   * board sabida em falta NÃO conta — o motor faz o mosaico sem ela, como o
+   * estúdio e a página do casal já mostram.
+   */
+  faltasSabidasQueTravam: number;
   truncations: DocTruncation[];
   /** Que fotografia foi para cada página — o mesmo que `fotosDoEditorialDoDocumento`. */
   fotos: FotosDoPdf;
   /** As páginas do PDF inteiro, mesmo com `soPaginas`. */
   paginas: number;
 }> {
+  const { memoria, ...doDesenho } = opcoes;
   const withDefaults = withProposalDefaults(doc);
-  const { doc: resolved, missing, refs } = await resolveImages(withDefaults, { originais: true });
+  const faltam = await fotosQueSeSabeQueFaltam(withDefaults, { memoria: !!memoria });
+  const {
+    doc: resolved,
+    missing,
+    sabidas,
+    refs,
+  } = await resolveImages(withDefaults, {
+    originais: true,
+    faltam,
+  });
   const medidas = await medidasDaBiblioteca(caminhosDoDocumento(withDefaults));
-  const { bytes, truncations, undrawnImages, fotos, paginas } = await renderEditorialPdf(
-    resolved,
-    idioma,
-    opcoes,
-    { refs, medidas },
-  );
+  const { bytes, truncations, undrawnImages, fotos, paginas, fotosEscolhidasEmFalta } =
+    await renderEditorialPdf(resolved, idioma, doDesenho, { refs, medidas });
+  if (fotosEscolhidasEmFalta.length > 0) {
+    // Já contadas em `missing` (a resolução não as encontrou). O aviso diz
+    // QUAIS, e que o lugar saiu vazio — nunca com outra foto.
+    log.warn("pdf editorial: fotos escolhidas que já não existem — o lugar saiu vazio", {
+      fotos: fotosEscolhidasEmFalta,
+    });
+  }
+  // A CAPA escolhida que não se deixou buscar (revisão de 14/11, n.º 3). O
+  // desenho da capa não muda — cai para a melhor deitada da inspiração, como
+  // sempre que a dela não serve —, mas isto não pode passar em silêncio: fica
+  // registado aqui, e o envio já travou antes (`fotosEscolhidasQueFaltam`
+  // conta a capa na mesma lista das páginas).
+  const iCapa = (withDefaults.coverImages ?? []).findIndex((c) => c && c.trim());
+  if (iCapa >= 0 && !resolved.coverImages?.[iCapa]) {
+    log.warn("pdf editorial: a fotografia de capa escolhida já não existe — saiu outra", {
+      capa: withDefaults.coverImages[iCapa],
+    });
+  }
+  const travam = sabidas.length > 0 ? escolhidasQueTravam(withDefaults, faltam, medidas) : null;
   return {
     pdf: Buffer.from(bytes),
     missingImages: missing + undrawnImages,
+    faltasSabidas: sabidas.length,
+    faltasSabidasQueTravam: travam ? sabidas.filter((r) => travam.has(r)).length : 0,
     truncations,
     fotos,
     paginas,
   };
+}
+
+/**
+ * Das fotografias que se sabe que faltam, as que ela ESCOLHEU e que o PDF
+ * desenharia — a mesma lista do travão do envio (`fotosEscolhidasDoDocumento`)
+ * e a mesma regra da capa (`aFaltaDaCapaTrava`), com as medidas do desenho.
+ */
+function escolhidasQueTravam(
+  withDefaults: ProposalDoc,
+  faltam: ReadonlySet<string>,
+  medidas: ReadonlyMap<string, Medida>,
+): Set<string> {
+  const saida = new Set<string>();
+  for (const f of fotosEscolhidasDoDocumento(withDefaults)) {
+    if (!faltam.has(f.ref)) continue;
+    if (f.chave !== CHAVE_DA_CAPA) {
+      saida.add(f.ref);
+      continue;
+    }
+    const haOutra = haFotoNaInspiracao(withDefaults, (r) => faltam.has(r));
+    if (aFaltaDaCapaTrava(medidas.get(f.ref), withDefaults.capaMesmoAssim, haOutra)) {
+      saida.add(f.ref);
+    }
+  }
+  return saida;
 }
 
 /**
@@ -880,7 +995,13 @@ export async function planoDoEditorialDoDocumento(
   idioma: IdiomaDaProposta = IDIOMA_POR_OMISSAO,
 ): Promise<{ fotos: FotosDoPdf; daPaleta: string[] | null }> {
   const withDefaults = withProposalDefaults(doc);
-  return planoDoEditorial(withDefaults, idioma, await medidasDoDocumento(withDefaults));
+  const [medidas, faltam] = await Promise.all([
+    medidasDoDocumento(withDefaults),
+    // Com memória curta: esta rota corre ~2,5 s depois de cada gesto no
+    // estúdio. O travão do envio pergunta sempre de fresco.
+    fotosQueSeSabeQueFaltam(withDefaults, { memoria: true }),
+  ]);
+  return planoDoEditorial(semAsQueFaltam(withDefaults, faltam), idioma, medidas);
 }
 
 /**
@@ -890,9 +1011,31 @@ export async function planoDoEditorialDoDocumento(
 export async function conteudoWebDoDocumento(
   doc: ProposalDoc,
   idioma: IdiomaDaProposta = IDIOMA_POR_OMISSAO,
+  /**
+   * As que se sabe que faltam, quando quem chama já perguntou (a página do
+   * casal pergunta uma vez e usa a resposta para o conteúdo e para as fotos
+   * assinadas). Sem elas, pergunta-se aqui.
+   */
+  faltam?: ReadonlySet<string>,
 ): Promise<ConteudoWeb> {
   const withDefaults = withProposalDefaults(doc);
-  return conteudoDoEditorial(withDefaults, idioma, await medidasDoDocumento(withDefaults));
+  const [medidas, quais] = await Promise.all([
+    medidasDoDocumento(withDefaults),
+    faltam ?? fotosQueSeSabeQueFaltam(withDefaults),
+  ]);
+  return conteudoDoEditorial(semAsQueFaltam(withDefaults, quais), idioma, medidas);
+}
+
+/**
+ * As fotografias do documento que SE SABE que já não existem — a fonte única
+ * do PDF, do plano do estúdio e da página do casal (ver `semAsQueFaltam`).
+ * «Não sei» (uma pasta que não responde) não tira nada. Nunca lança.
+ */
+export function fotosQueSeSabeQueFaltam(
+  withDefaults: ProposalDoc,
+  opcoes: { memoria?: boolean } = {},
+): Promise<Set<string>> {
+  return refsQueJaNaoExistem(caminhosDoDocumento(withDefaults), opcoes);
 }
 
 /**

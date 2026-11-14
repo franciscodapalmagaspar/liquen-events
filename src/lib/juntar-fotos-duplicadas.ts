@@ -1,4 +1,5 @@
 import "server-only";
+import { semProtegidos } from "@/lib/arquivo-de-pdfs/protegidos";
 import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
 import { getSupabase } from "@/lib/supabase";
 import { getState, setState } from "@/lib/app-state";
@@ -615,7 +616,10 @@ async function apagarUma(sb: Cliente, c: CopiaASair): Promise<boolean> {
   );
   // 2. O original. Só com ele fora é que as derivadas saem.
   try {
-    const { data, error } = await sb.storage.from(PROPOSAL_BUCKET).remove([c.caminho]);
+    // O que nenhuma limpeza pode levar (`arquivo-de-pdfs/protegidos.ts`).
+    const podem = semProtegidos(PROPOSAL_BUCKET, [c.caminho]);
+    if (podem.length === 0) return false;
+    const { data, error } = await sb.storage.from(PROPOSAL_BUCKET).remove(podem);
     if (error || !Array.isArray(data) || data.length === 0) return false;
   } catch {
     return false;
@@ -626,7 +630,8 @@ async function apagarUma(sb: Cliente, c: CopiaASair): Promise<boolean> {
   await Promise.all(
     [...porBucket].map(async ([b, cs]) => {
       try {
-        await sb.storage.from(b).remove(cs);
+        const podem = semProtegidos(b, cs);
+        if (podem.length) await sb.storage.from(b).remove(podem);
       } catch {
         /* uma derivada órfã não estraga nada */
       }

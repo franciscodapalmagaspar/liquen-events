@@ -12,7 +12,7 @@ import {
   responde,
   type Procura,
 } from "@/lib/biblioteca-consulta";
-import { pastasDeTemasNaReciclagem } from "@/lib/reciclagem";
+import { oQueOsTemasTemNaReciclagem } from "@/lib/reciclagem";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     const [fotos, ligacoes, naReciclagem] = await Promise.all([
       listFotos(),
       listFotoEtiquetas(),
-      pastasDeTemasNaReciclagem(),
+      oQueOsTemasTemNaReciclagem(),
     ]);
     const etiquetasDe = porFoto(ligacoes);
     const adivinhadas = porConfirmarSet(ligacoes);
@@ -89,10 +89,13 @@ export async function GET(request: NextRequest) {
     // E as fotos das PROPOSTAS, que vivem na mesma tabela (cor, LQIP e forma
     // do estúdio — ver `ehFotoDaBiblioteca`), não são da Biblioteca: entravam
     // no total e saíam da página por não se assinarem no bucket dos temas.
+    // E uma FOTO na Reciclagem (14/11): saiu da pasta, mas a linha dela fica
+    // (é com ela que volta). Repor tira-a da Reciclagem, e ela volta a aparecer.
     const encontradas = fotos.filter(
       (f) =>
         ehFotoDaBiblioteca(f.path) &&
-        !naReciclagem.has(f.pasta) &&
+        !naReciclagem.pastas.has(f.pasta) &&
+        !naReciclagem.fotos.has(f.path) &&
         (!procura.pasta || f.pasta === procura.pasta) &&
         responde(etiquetasDe.get(f.path), procura, adivinhadas.has(f.path)),
     );
