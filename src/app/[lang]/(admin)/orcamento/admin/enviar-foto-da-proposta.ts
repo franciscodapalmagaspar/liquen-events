@@ -26,6 +26,8 @@ export interface FotoEnviada {
   cor?: string;
   /** Já estava guardada (nesta pasta ou na Biblioteca): não ocupou espaço. */
   jaExistia?: boolean;
+  /** Reconhecida pelo que mostra (outro ficheiro, a mesma fotografia). */
+  parecida?: boolean;
 }
 
 export type FotoParaEnviar = Pick<PreparedImage, "file" | "thumb"> &
@@ -37,6 +39,13 @@ export type FotoParaEnviar = Pick<PreparedImage, "file" | "thumb"> &
      * devolve o caminho dela em vez de guardar outra cópia (`fotos-resumo.ts`).
      */
     resumo?: string | null;
+    /**
+     * Ela disse «É outra» a uma parecida: o servidor não a troca pela que se
+     * parece (só procura pelos bytes). Ver `fotos-parecidas.ts`.
+     */
+    semParecidas?: boolean;
+    /** Vem da importação: passa pelo travão do espaço (90% do plano). */
+    importacao?: boolean;
   };
 
 export function formularioDaFoto(f: FotoParaEnviar, chave?: string): FormData {
@@ -47,6 +56,8 @@ export function formularioDaFoto(f: FotoParaEnviar, chave?: string): FormData {
   // ficheiro (auditoria de 13/11, estúdio n.º 18).
   if (chave) form.append("chaves", chave);
   if (f.resumo) form.append("resumos", f.resumo);
+  if (f.semParecidas) form.append("semParecidas", "1");
+  if (f.importacao) form.append("importacao", "1");
   // O LQIP — a mancha de cor que ocupa a célula enquanto a fotografia não
   // chega. Sai da MESMA descodificação que já calculou a cor e a miniatura
   // (`image-prep`), portanto não custa nada, e sem ele a página do casal

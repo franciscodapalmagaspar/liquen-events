@@ -129,45 +129,48 @@ describe("o tecto de fotografias NOVAS por importação", () => {
   ];
   const todas = new Set(fotos.map((x) => x.caminho));
 
-  it("é de 20", () => {
-    expect(MAX_FOTOS_POR_IMPORTACAO).toBe(20);
+  it("é de 200 (13/11): quem manda de facto é o travão do espaço (`fotosQueCabem`)", () => {
+    expect(MAX_FOTOS_POR_IMPORTACAO).toBe(200);
   });
 
+  // O tecto efectivo chega de fora (o travão do espaço); estes casos usam 20.
+  const T = 20;
+
   it("por omissão: a capa e as primeiras de cada secção, à vez, até 20", () => {
-    const e = escolhaPorOmissao(fotos, todas);
+    const e = escolhaPorOmissao(fotos, todas, undefined, T);
     expect(e).toHaveLength(20);
     expect(e.slice(0, 7)).toEqual(["capa", "c0", "m0", "b0", "c1", "m1", "b1"]);
   });
 
   it("só escolhe as que o navegador conseguiu ler", () => {
     const semAlgumas = new Set([...todas].filter((c) => c !== "capa" && c !== "m0"));
-    const e = escolhaPorOmissao(fotos, semAlgumas);
+    const e = escolhaPorOmissao(fotos, semAlgumas, undefined, T);
     expect(e).toHaveLength(20);
     expect(e).not.toContain("capa");
     expect(e).not.toContain("m0");
   });
 
   it("a 21.ª nova não liga; tirar uma deixa pôr outra", () => {
-    const vinte = new Set(escolhaPorOmissao(fotos, todas));
+    const vinte = new Set(escolhaPorOmissao(fotos, todas, undefined, T));
     const fora = fotos.map((x) => x.caminho).find((c) => !vinte.has(c))!;
-    expect(alternarFoto(vinte, fora)).toBeNull();
-    const dezanove = alternarFoto(vinte, "c0")!;
+    expect(alternarFoto(vinte, fora, undefined, T)).toBeNull();
+    const dezanove = alternarFoto(vinte, "c0", undefined, T)!;
     expect(dezanove.size).toBe(19);
-    expect(alternarFoto(dezanove, fora)?.size).toBe(20);
+    expect(alternarFoto(dezanove, fora, undefined, T)?.size).toBe(20);
   });
 
   it("nunca sobem mais de 20, mesmo que o conjunto traga mais", () => {
-    expect(fotosASubir(fotos, todas).map((x) => x.caminho)).toEqual(
+    expect(fotosASubir(fotos, todas, undefined, T).map((x) => x.caminho)).toEqual(
       fotos.slice(0, 20).map((x) => x.caminho),
     );
   });
 
   it("25 fotografias, 10 já guardadas: ficam as 25 escolhidas e sobem só as 15 novas", () => {
     const existentes = new Set(fotos.slice(0, 10).map((x) => x.caminho));
-    const escolhidas = new Set(escolhaPorOmissao(fotos, todas, existentes));
+    const escolhidas = new Set(escolhaPorOmissao(fotos, todas, existentes, T));
     expect(escolhidas.size).toBe(25);
     expect(quantasNovas(escolhidas, existentes)).toBe(15);
-    const sobem = fotosASubir(fotos, escolhidas, existentes);
+    const sobem = fotosASubir(fotos, escolhidas, existentes, T);
     expect(sobem).toHaveLength(15);
     expect(sobem.some((x) => existentes.has(x.caminho))).toBe(false);
   });
@@ -181,6 +184,6 @@ describe("o tecto de fotografias NOVAS por importação", () => {
         .map((x) => x.caminho),
     );
     expect(quantasNovas(cheias, existentes)).toBe(20);
-    expect(alternarFoto(cheias, "b3", existentes)?.has("b3")).toBe(true);
+    expect(alternarFoto(cheias, "b3", existentes, T)?.has("b3")).toBe(true);
   });
 });

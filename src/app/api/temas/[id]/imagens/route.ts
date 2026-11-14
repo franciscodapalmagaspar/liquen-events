@@ -11,6 +11,7 @@ import {
   type ThemeThumbInput,
 } from "@/lib/theme-storage";
 import { fingerprintOfFileName, isFingerprint } from "@/lib/theme-fingerprint";
+import { impressaoDosBytes, registarImpressao } from "@/lib/fotos-parecidas";
 import { dimensoesReais, garantirFormatoImprimivel, motivoDaRecusa } from "@/lib/proposal-image";
 import { recusaDeImagem } from "@/lib/recusa-de-imagem";
 import {
@@ -407,6 +408,10 @@ async function POST_semMedida(
       [resumoDosBytes(bytes), ...(doNome ? [doNome] : [])],
       refDeTema(res.image.path),
     );
+    // E a impressão visual, calculada aqui sobre os bytes guardados — é por ela
+    // que uma proposta antiga com esta fotografia recomprimida a reconhece
+    // (`fotos-parecidas.ts`). Melhor esforço, nunca lança.
+    await registarImpressao(refDeTema(res.image.path), await impressaoDosBytes(bytes));
     // O LQIP entra na linha da foto que acabou de nascer. Melhor esforço: a
     // fotografia já está guardada, e falhar aqui deixa-a sem placeholder —
     // exactamente como estão todas as anteriores a isto existir. Nunca é

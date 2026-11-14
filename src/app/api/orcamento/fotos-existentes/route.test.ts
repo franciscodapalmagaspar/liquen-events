@@ -4,12 +4,30 @@ import type { NextRequest } from "next/server";
 const st = vi.hoisted(() => ({
   authed: false,
   procurar: vi.fn(async (_r: unknown[], _q: string | null) => new Map<string, string>()),
+  parecidas: vi.fn(async (_i: unknown[], _q: string | null) => new Map<string, unknown>()),
 }));
 
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => st.authed }));
 vi.mock("@/lib/fotos-resumo", () => ({
   MAX_RESUMOS_POR_PERGUNTA: 60,
   procurarExistentes: (r: unknown[], q: string | null) => st.procurar(r, q),
+}));
+vi.mock("@/lib/fotos-parecidas", () => ({
+  MAX_IMPRESSOES_POR_PERGUNTA: 60,
+  procurarParecidas: (i: unknown[], q: string | null) => st.parecidas(i, q),
+}));
+vi.mock("@/lib/ocupacao-do-armazenamento", () => ({
+  lerEspaco: async () => ({
+    conhecido: true,
+    sobra: 123,
+    ocupado: 1,
+    travao: 2,
+    limite: 3,
+    medidoEm: null,
+  }),
+}));
+vi.mock("@/lib/proposal-assinaturas", () => ({
+  signProposalThumbs: async (p: string[]) => new Map(p.map((c) => [c, `https://x/${c}`])),
 }));
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 
@@ -40,9 +58,11 @@ describe("POST /api/orcamento/fotos-existentes", () => {
     st.procurar.mockResolvedValueOnce(new Map([["a".repeat(32), "tema:t1/x.jpg"]]));
     const res = await POST(pedido({ resumos: ["a".repeat(32), "b".repeat(32)] }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    expect(await res.json()).toMatchObject({
       ok: true,
       existentes: { ["a".repeat(32)]: "tema:t1/x.jpg" },
+      parecidas: {},
+      espaco: { conhecido: true, sobra: 123 },
     });
     // Sem pedido: só a Biblioteca conta.
     expect(st.procurar).toHaveBeenCalledWith(["a".repeat(32), "b".repeat(32)], null);
@@ -58,6 +78,38 @@ describe("POST /api/orcamento/fotos-existentes", () => {
     st.procurar.mockRejectedValueOnce(new Error("base de dados em baixo"));
     const res = await POST(pedido({ resumos: ["a".repeat(32)] }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, existentes: {} });
+    expect(await res.json()).toMatchObject({ ok: true, existentes: {} });
+  });
+
+  it("pelo que mostram: devolve a parecida com o veredicto e a miniatura para comparar", async () => {
+    const imp = "1".repeat(86);
+    st.parecidas.mockResolvedValueOnce(
+      new Map([
+        [
+          imp,
+          {
+            caminho: "tema:t1/y.jpg",
+            veredicto: "talvez",
+            distancias: { grossa: 8, fina: 40, cor: 1 },
+          },
+        ],
+      ]),
+    );
+    const res = await POST(pedido({ resumos: [], impressoes: [imp] }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).parecidas).toEqual({
+      [imp]: {
+        caminho: "tema:t1/y.jpg",
+        veredicto: "talvez",
+        distancias: { grossa: 8, fina: 40, cor: 1 },
+        miniatura: "https://x/tema:t1/y.jpg",
+      },
+    });
+    expect(st.parecidas).toHaveBeenCalledWith([imp], null);
+  });
+
+  it("recusa mais impressões do que o tecto", async () => {
+    const res = await POST(pedido({ resumos: [], impressoes: Array(61).fill("1".repeat(86)) }));
+    expect(res.status).toBe(400);
   });
 });

@@ -12,6 +12,8 @@ import { limparFotosTratadasVelhas } from "@/lib/limpar-fotos-tratadas";
 import { limparPastasDePedidosApagados } from "@/lib/limpar-pastas-orfas";
 import { juntarFotosDuplicadas } from "@/lib/juntar-fotos-duplicadas";
 import { limparPdfsSubstituidos } from "@/lib/limpar-pdfs-substituidos";
+import { preencherImpressoes } from "@/lib/fotos-parecidas";
+import { medirOcupacao } from "@/lib/ocupacao-do-armazenamento";
 import { limparRegistoAntigo } from "@/lib/registo-de-acoes";
 import { limparDiagnosticosDoVideo } from "@/lib/limpar-diagnosticos-video";
 import { isMissingTable } from "@/lib/repository";
@@ -453,6 +455,37 @@ async function GET_semMedida(request: NextRequest) {
       }
 
     /**
+     * As fotografias antigas entram no índice «pelo que mostram» (13/11, ver
+     * `fotos-parecidas.ts`): a impressão de cada original que ainda não a tem,
+     * calculada a partir da MINIATURA guardada (dezenas de KB, nunca o
+     * original), aos lotes, com tecto de 10 s e 600 fotos por noite. Com o
+     * manifesto que já se fez — nenhuma listagem a mais. Quando todas tiverem
+     * impressão, cada noite só lê o índice e não faz mais nada.
+     */
+    let impressoes: Awaited<ReturnType<typeof preencherImpressoes>> | null = null;
+    if (!parcial && fotos)
+      try {
+        impressoes = await preencherImpressoes(fotos.manifesto, { prazoMs: 10_000, maximo: 600 });
+      } catch (e) {
+        log.error("cron backup: o índice visual das fotografias falhou (a cópia seguiu)", e, {
+          dia,
+        });
+      }
+
+    /**
+     * E quanto o armazenamento ocupa, para o importador nunca passar dos 90% do
+     * plano (`ocupacao-do-armazenamento.ts`): os originais pelo manifesto (já
+     * feito), e os outros buckets enquanto houver tempo (tecto de 6 s).
+     */
+    let ocupacao: Awaited<ReturnType<typeof medirOcupacao>> = null;
+    if (!parcial)
+      try {
+        ocupacao = await medirOcupacao(fotos?.manifesto ?? null, new Date(), { prazoMs: 6_000 });
+      } catch (e) {
+        log.error("cron backup: a medição do armazenamento falhou (a cópia seguiu)", e, { dia });
+      }
+
+    /**
      * E os PDF de propostas que já foram substituídos por uma versão nova
      * (decisão dela, 10/11: «vou demorar bue tempo» a apagá-los à mão). O
      * enviado, o aceite e o mais recente de cada proposta ficam sempre — ver
@@ -557,6 +590,10 @@ async function GET_semMedida(request: NextRequest) {
       pastasOrfas,
       duplicados: duplicados ? { ...duplicados, plano: undefined } : null,
       pdfsSubstituidos,
+      impressoes,
+      ocupacao: ocupacao
+        ? { bytes: ocupacao.bytes, completo: ocupacao.completo, medidoEm: ocupacao.medidoEm }
+        : null,
       aquecimento,
     });
   } catch (err) {
