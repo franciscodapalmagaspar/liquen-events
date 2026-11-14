@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * A APARÊNCIA — TRÊS ESTADOS, E O AUTOMÁTICO É O DE OMISSÃO
+ * A APARÊNCIA — TRÊS ESTADOS, E O CLARO É O DE OMISSÃO (ver mais abaixo)
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * A Parte 5.3 do `docs/DESIGN-SYSTEM.md` é explícita, e diz também porquê: «a
@@ -46,7 +46,10 @@
  * não a omissão. O escuro fica em Definições → Aparência para quem o quiser.
  */
 
-/** Os três estados. `auto` é o de omissão e não escreve atributo nenhum. */
+/**
+ * Os três estados. O de omissão (sem cookie) é o `claro` — ver o bloco de cima.
+ * O `auto` é o único que não escreve atributo nenhum.
+ */
 export type Aparencia = "auto" | "claro" | "escuro";
 
 export const APARENCIAS: ReadonlyArray<{ id: Aparencia; rotulo: string }> = [
@@ -80,4 +83,31 @@ export function aparenciaValida(valor: string | undefined | null): Aparencia {
  */
 export function atributoDaAparencia(a: Aparencia): "claro" | "escuro" | undefined {
   return a === "auto" ? undefined : a;
+}
+
+/**
+ * A escolha gravada, lida do `document.cookie` (ou de um cabeçalho `Cookie`).
+ *
+ * ── PORQUE É QUE O SEGMENTO NÃO SE LÊ DO ATRIBUTO ─────────────────────────
+ * O `EscolherAparencia` lia o `data-aparencia` do elemento — e no Automático
+ * esse atributo NÃO EXISTE (ver «PORQUE É QUE O AUTOMÁTICO NÃO ESCREVE
+ * ATRIBUTO NENHUM»). Sem atributo, o `aparenciaValida` devolvia o de omissão,
+ * `claro`, e as Definições acendiam «Claro» com o painel em Automático
+ * (auditoria de 14/11, n.º 5). O cookie é o único sítio onde as três escolhas
+ * se distinguem, e é o mesmo que o servidor lê.
+ */
+export function aparenciaDoCookie(cookies: string | null | undefined): Aparencia {
+  for (const par of (cookies ?? "").split(";")) {
+    const i = par.indexOf("=");
+    if (i < 0) continue;
+    if (par.slice(0, i).trim() !== COOKIE_APARENCIA) continue;
+    let valor = par.slice(i + 1).trim();
+    try {
+      valor = decodeURIComponent(valor);
+    } catch {
+      // Um valor estragado vale o de omissão, como no servidor.
+    }
+    return aparenciaValida(valor);
+  }
+  return aparenciaValida(undefined);
 }

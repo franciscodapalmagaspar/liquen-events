@@ -38,6 +38,7 @@ import {
   agruparTarefas,
   contarPorLista,
   listasDeEvento,
+  type NomesDosPedidos,
   ordemVisivel,
   ordenarTarefas,
   pertenceALista,
@@ -835,8 +836,14 @@ const TaskRow = memo(function TaskRow({
 export default function Tarefas({
   defaultAssignee = "",
   pedidoDeNova = 0,
+  nomesDosPedidos,
 }: {
   defaultAssignee?: string;
+  /**
+   * O nome de cada pedido pelo id: uma tarefa gravada sem `clientName` vai
+   * buscá-lo aqui, em vez de cair em «Evento sem nome» (auditoria de 14/11).
+   */
+  nomesDosPedidos?: NomesDosPedidos;
   /**
    * Sobe de um sempre que a barra de cima pede uma tarefa nova — o botão
    * «Nova tarefa» ou o ⌘N. Ver a nota no `AdminClient`: é um contador e não um
@@ -1589,7 +1596,7 @@ export default function Tarefas({
    * O filtro por pessoa aperta o CONTEÚDO da lista escolhida; a barra continua
    * a contar a casa toda.
    */
-  const eventos = useMemo(() => listasDeEvento(tasks), [tasks]);
+  const eventos = useMemo(() => listasDeEvento(tasks, nomesDosPedidos), [tasks, nomesDosPedidos]);
   const contas = useMemo(
     () => contarPorLista(tasks, todayStr, eventos),
     [tasks, todayStr, eventos],
@@ -1628,8 +1635,8 @@ export default function Tarefas({
   /* Repartir é a outra pergunta, e é a última: agrupa-se o que já está
      ordenado, para a ordem escolhida valer DENTRO de cada cabeçalho. */
   const grupos = useMemo(
-    () => agruparTarefas(open, agrupamento, todayStr),
-    [open, agrupamento, todayStr],
+    () => agruparTarefas(open, agrupamento, todayStr, nomesDosPedidos),
+    [open, agrupamento, todayStr, nomesDosPedidos],
   );
 
   /* Quantas já passaram do prazo. É a metade da verdade que «8 por fazer»

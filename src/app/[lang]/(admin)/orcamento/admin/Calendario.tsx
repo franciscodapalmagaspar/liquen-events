@@ -34,6 +34,7 @@ import {
   DIAS_DA_SEMANA,
   MESES,
   anoDoCalendario,
+  contaParaOCalendario,
   fechadosNoAno,
   maisDias,
 } from "@/lib/orcamento/ano-do-calendario";
@@ -1210,7 +1211,8 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
     const vistos = new Set<string>();
     for (const [dia, doDia] of byDay) {
       if (!dia.startsWith(prefixo)) continue;
-      for (const q of doDia) vistos.add(`q:${q.id}`);
+      // Os perdidos desenham-se, mas não contam — a regra da vista de ano.
+      for (const q of doDia) if (contaParaOCalendario(q)) vistos.add(`q:${q.id}`);
     }
     for (const [dia, doDia] of eventsByDay) {
       if (!dia.startsWith(prefixo)) continue;
@@ -1426,7 +1428,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
   const contagemDaVista = useMemo(() => {
     const vistos = new Set<string>();
     for (const d of diasDaVista) {
-      for (const q of byDay.get(d) ?? []) vistos.add(`q:${q.id}`);
+      for (const q of byDay.get(d) ?? []) if (contaParaOCalendario(q)) vistos.add(`q:${q.id}`);
       for (const e of eventsByDay.get(d) ?? []) vistos.add(`e:${e.id}`);
     }
     return vistos.size;

@@ -1017,8 +1017,11 @@ export default function Propostas({
                 const pedido = pedidoDa(p);
                 const resumo = (
                   <>
-                    <span className="block text-sm font-medium text-[var(--bo-text)]">
-                      <span className="truncate align-middle">{p.clientName}</span>
+                    {/* `flex` + `min-w-0`: um `truncate` num <span> em linha não
+                        corta nada — o nome empurrava e encostava ao valor a 390
+                        (auditoria de 14/11, n.º 8). */}
+                    <span className="flex min-w-0 items-center text-sm font-medium text-[var(--bo-text)]">
+                      <span className="min-w-0 truncate">{p.clientName}</span>
                       {lugares.get(p.id) && <LugarDoCliente lugar={lugares.get(p.id)!} />}
                     </span>
                     <span className="mt-1 flex flex-wrap items-center gap-1.5">

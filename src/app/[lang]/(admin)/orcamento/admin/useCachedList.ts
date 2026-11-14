@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { porqueNaoLeu, porqueNaoLeuDoErro, type LeituraFalhada } from "@/lib/porque-nao-leu";
 
 /**
@@ -344,8 +344,39 @@ export function useCachedList<T>(
     void revalidate(false);
   }, [key, revalidate]);
 
+  /**
+   * ── O PRIMEIRO DESENHO É O DO SERVIDOR (auditoria de 14/11, n.º 9) ───────
+   * A cache deste módulo só existe no browser — o `prefetchList` enche-a antes
+   * de o ecrã montar —, e no servidor está sempre vazia. Arrancar com ela
+   * durante a HIDRATAÇÃO dava ao browser os números e ao servidor o esqueleto,
+   * no mesmo sítio: o erro de hidratação das Estatísticas, que o React resolve
+   * deitando fora o HTML do servidor.
+   *
+   * O `useSyncExternalStore` é a pergunta «estou a hidratar?» que o React sabe
+   * responder: durante a hidratação vale o `getServerSnapshot` (`false`) e o
+   * ecrã desenha o mesmo que o servidor; logo a seguir volta a desenhar com a
+   * cache. Montado DEPOIS da hidratação (trocar de secção), vale `true` de
+   * imediato — e a segunda visita continua sem esqueleto.
+   */
+  const depoisDaHidratacao = useSyncExternalStore(semInscricao, sempreVerdade, nuncaNoServidor);
+  if (!depoisDaHidratacao) {
+    return {
+      data: undefined,
+      setData,
+      loading: true,
+      error: false,
+      errorMessage: "",
+      falha: null,
+      refresh,
+    };
+  }
+
   return { data, setData, loading, error, errorMessage: falha?.mensagem ?? "", falha, refresh };
 }
+
+const semInscricao = () => () => {};
+const sempreVerdade = () => true;
+const nuncaNoServidor = () => false;
 
 /** Esquece tudo o que está em cache. Só para testes — o produto não precisa. */
 export function __resetListCache(): void {

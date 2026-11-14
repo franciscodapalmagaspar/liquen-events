@@ -82,6 +82,23 @@ describe("Calendário — contagem do mês", () => {
     expect(screen.getByText("1 evento este mês")).toBeInTheDocument();
   });
 
+  it("um pedido perdido desenha-se mas não conta — como no cartão do mês na vista de ano (auditoria de 14/11)", async () => {
+    await montar([
+      { ...NATAL_A_ANO_NOVO, date: "2026-01-09", endDate: undefined } as unknown as Quote,
+      {
+        ...NATAL_A_ANO_NOVO,
+        id: "LIQ-2",
+        name: "Rita Perdida",
+        status: "rejeitado",
+        date: "2026-01-20",
+        endDate: undefined,
+      } as unknown as Quote,
+    ]);
+
+    expect(screen.getAllByLabelText(/Abrir pedido de Rita Perdida/).length).toBeGreaterThan(0);
+    expect(screen.getByText("1 evento este mês")).toBeInTheDocument();
+  });
+
   it("uma data por marcar ('a definir') não entra na contagem — a grelha também não a desenha", async () => {
     await montar([
       { ...NATAL_A_ANO_NOVO, date: "a definir", endDate: undefined } as unknown as Quote,

@@ -85,7 +85,11 @@ export default function FotosEmFalta({ quoteId, doc }: { quoteId: string; doc: P
       <div className={`${CAIXA} bg-[var(--bo-tinta-6)] text-[var(--bo-text-muted)]`}>
         Não foi possível confirmar as fotografias.{" "}
         <strong className="font-medium">Isto não quer dizer que estejam bem.</strong>{" "}
-        <button type="button" onClick={() => void verificar()} className={`alvo-toque underline ${ESTADO} ${PRESSAO}`}>
+        <button
+          type="button"
+          onClick={() => void verificar()}
+          className={`alvo-toque underline ${ESTADO} ${PRESSAO}`}
+        >
           Tentar outra vez
         </button>
       </div>
@@ -138,11 +142,24 @@ export default function FotosEmFalta({ quoteId, doc }: { quoteId: string; doc: P
     </div>
   );
 
+  // Sem fotografia nenhuma não há nada «no sítio» para celebrar: «As 0
+  // fotografias estão todas no sítio» (auditoria de 14/11, n.º 12) lia-se como
+  // um visto a uma proposta ainda sem imagens.
+  if (r.total === 0) {
+    return (
+      <p className="mt-3 text-[12px] text-[var(--bo-text-muted)]">
+        Ainda não há fotografias na proposta.
+      </p>
+    );
+  }
+
   if (r.emFalta.length === 0) {
     return (
       <>
         <p className="mt-3 text-[12px] text-[var(--bo-accent-hover)]">
-          As {r.total} fotografias estão todas no sítio.
+          {r.total === 1
+            ? "A fotografia está no sítio."
+            : `As ${r.total} fotografias estão todas no sítio.`}
           {r.naoVerificaveis > 0 &&
             ` (${r.naoVerificaveis} ${r.naoVerificaveis === 1 ? "vem de um endereço de fora e não dá para confirmar daqui" : "vêm de endereços de fora e não dão para confirmar daqui"}.)`}
         </p>

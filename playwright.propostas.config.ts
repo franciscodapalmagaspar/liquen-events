@@ -32,6 +32,8 @@ export default defineConfig({
   testMatch: [
     "**/proposta-fluxos.spec.ts",
     "**/moodboards-arrasto.spec.ts",
+    // O total da barra de baixo em 1440/768/390 (auditoria de 14/11, n.º 1 e 2).
+    "**/o-total-nunca-sai.spec.ts",
     "**/sessao-admin.setup.ts",
   ],
   // Em série: os dois passeios criam pedidos e mexem na mesma lista.

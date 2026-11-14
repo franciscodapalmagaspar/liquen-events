@@ -105,3 +105,31 @@ describe("o estado de cada passo", () => {
     expect(estadoDosPassos(TUDO, [falta("total", true)], true).enviar).toBe("completo");
   });
 });
+
+/**
+ * Auditoria de 14/11, n.º 4: o «5 Rever e enviar» mostrava o visto enquanto a
+ * Conferência travava com «Falta ver o PDF final». O estúdio dava aos passos a
+ * lista SEM o «visto» e ao botão a lista COM ele. Uma lista só.
+ */
+describe("os passos e o botão de enviar lêem a mesma lista", () => {
+  it("só faltar ver o PDF final não deixa o passo 5 completo", () => {
+    const visto = {
+      id: "visto",
+      seccao: "envio",
+      texto: "Falta ver o PDF final e confirmar que está tudo certo",
+      trava: true,
+    } as Parameters<typeof estadoDosPassos>[1][number];
+    expect(estadoDosPassos([], [visto], false).enviar).toBe("erro");
+  });
+
+  it("o estúdio passa aos passos e ao índice a lista do envio (`faltasDoEnvio`)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const fonte = readFileSync(
+      new URL("../../app/[lang]/(admin)/orcamento/admin/ProposalStudio.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(fonte).toContain("estadoDosPassos(seccoes, faltasDoEnvio, sent)");
+    expect(fonte).not.toMatch(/estadoDosPassos\(seccoes, faltas,/);
+    expect(fonte).not.toMatch(/<NavEstudio[^>]*faltas=\{faltas\}/);
+  });
+});

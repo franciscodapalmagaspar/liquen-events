@@ -381,3 +381,48 @@ describe("useCachedList — voltar ao separador só relê quem o pede", () => {
     }
   });
 });
+
+/**
+ * Auditoria de 14/11, n.º 9: as Estatísticas davam um erro de hidratação. A
+ * cache deste módulo só existe no browser (o `prefetchList` enche-a antes de o
+ * ecrã montar); o servidor desenhava o esqueleto e o browser, a hidratar,
+ * desenhava logo os números.
+ */
+describe("useCachedList — hidratação", () => {
+  function Lista() {
+    const { data, loading } = useCachedList<{ id: string }[]>("hid", "/api/hid");
+    if (loading && !data) return <p>a ler</p>;
+    return <p>{(data ?? []).map((d) => d.id).join(",")}</p>;
+  }
+
+  it("o primeiro desenho no browser é o do servidor, mesmo com a cache já cheia", async () => {
+    const { renderToString } = await import("react-dom/server");
+    const { hydrateRoot } = await import("react-dom/client");
+
+    // O servidor: cache vazia, esqueleto.
+    const html = renderToString(<Lista />);
+    expect(html).toContain("a ler");
+
+    // O browser: a cache enche-se antes de o ecrã hidratar.
+    replies = [{ status: 200, body: [{ id: "a" }], etag: 'W/"v1"' }];
+    prefetchList("hid", "/api/hid");
+    await waitFor(() => expect(requests).toHaveLength(1));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const caixa = document.createElement("div");
+    caixa.innerHTML = html;
+    document.body.appendChild(caixa);
+    const erros: unknown[] = [];
+    replies = [{ status: 304, etag: 'W/"v1"' }];
+    await act(async () => {
+      hydrateRoot(caixa, <Lista />, { onRecoverableError: (e) => erros.push(e) });
+    });
+
+    expect(erros).toEqual([]);
+    // E logo a seguir, os dados da cache — sem ficar no esqueleto.
+    await waitFor(() => expect(caixa.textContent).toBe("a"));
+    caixa.remove();
+  });
+});
