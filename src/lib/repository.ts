@@ -495,7 +495,8 @@ export class SupabaseBackend<T> implements Backend<T> {
 
   /** For `touch` tables, `get` also selects updated_at so persist can CAS on it. */
   private get colsWithStamp() {
-    if (!this.m.touch || this.cols === "*") return this.cols;
+    // Uma lista que já traz o `updated_at` não o pede duas vezes.
+    if (!this.m.touch || this.cols === "*" || /\bupdated_at\b/.test(this.cols)) return this.cols;
     return `${this.cols}, updated_at`;
   }
 

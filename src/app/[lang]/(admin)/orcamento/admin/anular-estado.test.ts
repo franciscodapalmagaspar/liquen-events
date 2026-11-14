@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { reporEstadoDoPedido } from "./anular-estado";
 
+const relidas = vi.hoisted(() => ({ n: 0 }));
+vi.mock("./percentagem-do-sinal", () => ({
+  asPropostasMudaram: () => {
+    relidas.n++;
+  },
+}));
+
 function reply(status: number, body: unknown) {
   return { ok: status >= 200 && status < 300, status, json: async () => body } as Response;
 }
@@ -43,5 +50,40 @@ describe("reporEstadoDoPedido", () => {
     await expect(
       reporEstadoDoPedido({ quoteId: "Q", de: "cotado", para: "aceite" }),
     ).rejects.toThrow("Conflito.");
+  });
+});
+
+/** 2.ª revisão de 14/11: anular relê a lista leve de propostas, uma vez, depois do PATCH. */
+describe("reporEstadoDoPedido — a lista leve de propostas", () => {
+  it("relê-a depois de o PATCH acabar bem", async () => {
+    relidas.n = 0;
+    let antesDoFim = -1;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        antesDoFim = relidas.n;
+        return reply(200, { id: "Q" });
+      }),
+    );
+    await reporEstadoDoPedido({ quoteId: "Q", de: "cotado", para: "aceite" });
+    expect(antesDoFim).toBe(0);
+    expect(relidas.n).toBe(1);
+  });
+
+  it("não a relê quando o servidor recusa, nem com `semReler`", async () => {
+    relidas.n = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => reply(409, { error: "x" })),
+    );
+    await expect(
+      reporEstadoDoPedido({ quoteId: "Q", de: "cotado", para: "aceite" }),
+    ).rejects.toThrow();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => reply(200, { id: "Q" })),
+    );
+    await reporEstadoDoPedido({ quoteId: "Q", de: "cotado", para: "aceite", semReler: true });
+    expect(relidas.n).toBe(0);
   });
 });

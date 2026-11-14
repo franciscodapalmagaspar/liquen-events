@@ -1020,6 +1020,9 @@ create table if not exists public.biblioteca_fotos (
 -- Para instalações que já tinham a tabela antes de a cor existir.
 alter table public.biblioteca_fotos add column if not exists cor text;
 -- E antes de os endereços assinados passarem a ser guardados (ver a coluna).
+-- Migração: db/migracoes/20261114_biblioteca_fotos_urls.sql. O código só a
+-- escreve com UPDATE em linhas que já existem (ver `guardarUrls`): a cache
+-- nunca cria linhas nesta tabela, que é a lista da Biblioteca.
 alter table public.biblioteca_fotos add column if not exists urls jsonb;
 
 create index if not exists biblioteca_fotos_pasta_idx on public.biblioteca_fotos (pasta);

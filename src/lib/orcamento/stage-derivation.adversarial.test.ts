@@ -128,21 +128,38 @@ describe("deriveStage — quote.status as a first-class won signal", () => {
   });
 
   it("won quote, event passed, saldo paid → 'concluido'", () => {
+    // 20 000 € + IVA (o «Preço final» é sem IVA): o casal paga 24 600 €.
     const d = data({
       quote: makeQuote({
         status: "aceite",
         date: "2026-07-01",
         quotedPrice: 20000,
-        payments: [{ id: "p1", kind: "saldo", amount: 20000, date: "2026-06-10", paid: true }],
+        payments: [{ id: "p1", kind: "saldo", amount: 24600, date: "2026-06-10", paid: true }],
       }),
     });
     expect(deriveStage(d, TODAY)).toBe("concluido");
   });
 
-  it("sem proposta (o indicador da lista), a estimativa não prende um evento todo pago em produção", () => {
+  it("sem proposta mas com preço: uma linha de saldo recebida NÃO fecha o evento (14/11)", () => {
+    // Auditoria de 14/11: bastava uma linha de saldo recebida — de 1 € — para
+    // a lista dizer «Concluído» num casamento de 20 000 € + IVA.
+    for (const saldo of [1, 20000, 24599.99]) {
+      const d = data({
+        quote: makeQuote({
+          status: "aceite",
+          date: "2026-07-01",
+          quotedPrice: 20000,
+          payments: [{ id: "p1", kind: "saldo", amount: saldo, date: "2026-06-10", paid: true }],
+        }),
+      });
+      expect(deriveStage(d, TODAY)).not.toBe("concluido");
+    }
+  });
+
+  it("a estimativa não prende um evento todo pago em produção — com a proposta à frente", () => {
     // Revisão de 13/11: a estimativa era 25.000 €, o casal aceitou 20.000 € e
-    // pagou-os (sinal + saldo). O indicador chama sem proposta; o dossiê diz
-    // «concluído», e a lista tem de dizer o mesmo.
+    // pagou-os (sinal + saldo). Desde 14/11 a lista também dá a proposta
+    // (`faseDoPedido`): é o total dela que manda, e fecha.
     const d = data({
       quote: makeQuote({
         status: "aceite",
@@ -153,6 +170,7 @@ describe("deriveStage — quote.status as a first-class won signal", () => {
           { id: "f", kind: "saldo", amount: 14000, date: "2026-06-10", paid: true },
         ],
       }),
+      proposal: { status: "aceite", total: 20000, subtotal: 16260.16, vatRate: 0.23 } as Proposal,
     });
     expect(deriveStage(d, TODAY)).toBe("concluido");
   });

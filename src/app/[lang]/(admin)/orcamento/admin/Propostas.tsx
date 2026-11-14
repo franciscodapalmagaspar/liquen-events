@@ -1,5 +1,6 @@
 "use client";
 
+import { asPropostasMudaram } from "./percentagem-do-sinal";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { Proposal, ProposalStatus, Quote } from "@/lib/orcamento/types";
 import { SkeletonList } from "./Skeleton";
@@ -322,6 +323,8 @@ export default function Propostas({
         toast(porqueFalhou(oQue, res, await res.json().catch(() => null)).mensagem, "error");
         return;
       }
+      // A lista leve (fase do pedido, Pagamentos, Cobranças) relê-se uma vez.
+      asPropostasMudaram();
       /**
        * ── O PEDIDO JÁ VEM MOVIDO ────────────────────────────────────────────
        *
@@ -370,6 +373,7 @@ export default function Propostas({
                 de: pedidoAntes,
                 para: pedido.status,
                 actor: userName,
+                semReler: true,
               });
               if (reposto) onQuoteUpdated?.(reposto);
             }
@@ -383,6 +387,7 @@ export default function Propostas({
               }),
             });
             if (!r.ok) throw new Error("Não foi possível repor a proposta.");
+            asPropostasMudaram();
             const { pedido: _p, ...reposta } = (await r.json()) as Proposal & { pedido?: Quote };
             void _p;
             setProposals((prev) => prev.map((x) => (x.id === id ? reposta : x)));
@@ -459,7 +464,10 @@ export default function Propostas({
       }
       const corpo = await res.json().catch(() => null);
       if (!res.ok) reverter(porqueFalhou(oQue, res, corpo));
-      else depoisDeApagar(corpo, "Proposta apagada.", () => void retryLoad());
+      else {
+        asPropostasMudaram();
+        depoisDeApagar(corpo, "Proposta apagada.", () => void retryLoad());
+      }
       setActionBusy(null);
     },
     [setProposals, toast, depoisDeApagar, retryLoad],

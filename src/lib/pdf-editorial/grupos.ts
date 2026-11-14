@@ -40,7 +40,10 @@ export const ORDEM_DOS_GRUPOS: readonly Grupo[] = [
  * «bolo» é do jantar, também como no exemplo («Decor Floral Mesa Bolo»).
  */
 const REGRAS: readonly (readonly [Grupo, readonly string[]])[] = [
-  ["cerimonia", ["cerimonia", "altar", "corredor", "igreja", "ceremony", "aisle", "arco"]],
+  [
+    "cerimonia",
+    ["cerimonia", "cerimonial", "altar", "corredor", "igreja", "ceremony", "aisle", "arco"],
+  ],
   [
     "complementos",
     ["complemento", "ramo", "lapela", "bouquet", "boutonniere", "convite", "noiva", "noivo"],
@@ -65,6 +68,23 @@ const semAcentos = (s: string) =>
 const eAPalavra = (p: string, chave: string) =>
   p === chave || p === `${chave}s` || p === `${chave}es`;
 
+/**
+ * ── A MESA DOS NOIVOS É DO JANTAR (auditoria de 14/11) ─────────────────────
+ *
+ * «noiva» e «noivo» estão nos complementos por causa do «Ramo da noiva» e dos
+ * «Complementos dos Noivos» — e, como os complementos são testados antes do
+ * jantar, «Mesa dos noivos» e «Mesa de honra dos noivos» iam parar ao lado dos
+ * ramos e ficavam fora da paleta das mesas (`eDasMesas`). Uma mesa com os
+ * noivos, ou uma «mesa de honra», é uma mesa do jantar. O «Ramo da noiva» e as
+ * lapelas continuam nos complementos: não têm «mesa».
+ */
+const DA_MESA = ["mesa"];
+const DOS_NOIVOS = ["noivo", "noiva", "honra"];
+
+const eAMesaDosNoivos = (palavras: readonly string[]) =>
+  palavras.some((p) => DA_MESA.some((c) => eAPalavra(p, c))) &&
+  palavras.some((p) => DOS_NOIVOS.some((c) => eAPalavra(p, c)));
+
 /** O grupo de um tema, lido do título (e do subtítulo, se o título não chegar). */
 export function grupoDoTema(titulo: string, subtitulo = ""): Grupo {
   for (const texto of [titulo, subtitulo]) {
@@ -72,6 +92,9 @@ export function grupoDoTema(titulo: string, subtitulo = ""): Grupo {
       .split(/[^a-z0-9-]+/)
       .filter(Boolean);
     for (const [grupo, chaves] of REGRAS) {
+      // Depois da cerimónia («Mesa dos noivos no altar» é da cerimónia) e antes
+      // dos complementos, que o «noivos» apanharia.
+      if (grupo === "complementos" && eAMesaDosNoivos(palavras)) return "jantar";
       if (palavras.some((p) => chaves.some((c) => eAPalavra(p, c)))) return grupo;
     }
   }
@@ -107,6 +130,25 @@ export function eDoCocktailMesmo(titulo: string, subtitulo = ""): boolean {
   return palavrasDe(titulo, subtitulo).some((p) => DO_COCKTAIL_MESMO.some((c) => eAPalavra(p, c)));
 }
 
+/**
+ * ── SEM CERIMÓNIA, NÃO HÁ CAPÍTULO «CERIMÓNIA» (auditoria de 14/11) ────────
+ *
+ * O mesmo defeito do cocktail, do outro lado: «arco», «corredor» e «aisle»
+ * são da cerimónia por arrasto, e um «Arco floral» sozinho abria um separador
+ * «Cerimónia» e o capítulo no índice — numa proposta em que ela não pôs
+ * cerimónia nenhuma (ou de onde a tirou). O capítulo «Cerimónia» passa a
+ * existir só quando há um tema que é MESMO da cerimónia (cerimónia, igreja,
+ * altar); sem ele, o arco e o corredor vão para «Ambiente», que é onde o
+ * documento põe o que não encaixa (PDF-EDITORIAL, Parte −1).
+ */
+const DA_CERIMONIA_MESMO = ["cerimonia", "cerimonial", "ceremony", "igreja", "altar"];
+
+/** O tema é da cerimónia pelo nome, e não só por arrasto (arco, corredor…)? */
+export function eDaCerimoniaMesmo(titulo: string, subtitulo = ""): boolean {
+  if (grupoDoTema(titulo, subtitulo) !== "cerimonia") return false;
+  return palavrasDe(titulo, subtitulo).some((p) => DA_CERIMONIA_MESMO.some((c) => eAPalavra(p, c)));
+}
+
 type TemaComNome = { title?: string; subtitulo?: string };
 
 /**
@@ -118,6 +160,10 @@ export function grupoNoCasamento(tema: TemaComNome, todos: readonly TemaComNome[
   const titulo = tema.title ?? "";
   const sub = tema.subtitulo ?? "";
   const g = grupoDoTema(titulo, sub);
+  if (g === "cerimonia") {
+    const haCerimonia = todos.some((t) => eDaCerimoniaMesmo(t.title ?? "", t.subtitulo ?? ""));
+    return haCerimonia ? g : "ambiente";
+  }
   if (g !== "cocktail") return g;
   const haCocktail = todos.some((t) => eDoCocktailMesmo(t.title ?? "", t.subtitulo ?? ""));
   if (haCocktail) return g;
