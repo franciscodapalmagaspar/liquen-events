@@ -252,10 +252,17 @@ async function resolveImages(
    * (`opcoes.faltam`), uma por pedido. Repetir o desenho não as traz.
    */
   sabidas: string[];
+  /**
+   * Das `missing`, as que ficaram de fora por passarem do tecto
+   * `MAX_IMAGES_PER_DOC`. São faltas CERTAS: o mesmo documento passa sempre do
+   * tecto pelo mesmo número, por isso desenhar outra vez não as traz.
+   */
+  peloTecto: number;
   refs: NonNullable<FontesDasFotos["refs"]>;
 }> {
   let remaining = MAX_IMAGES_PER_DOC;
   const sabidas: string[] = [];
+  let peloTecto = 0;
   // Quantas fotos foram PEDIDAS e não entraram. Uma proposta com fotos a menos
   // seguia para o cliente sem ninguém dar por isso; agora quem chama fica a
   // saber e pode dizê-lo. Ver o cabeçalho `X-Fotos-Em-Falta` na rota.
@@ -381,8 +388,11 @@ async function resolveImages(
   const buscarComTecto = async (ref: string, caixa: CaixaPdf | null): Promise<Resolvida | null> => {
     if (remaining <= 0) {
       // O tecto também é uma perda silenciosa: uma proposta com mais de
-      // MAX_IMAGES_PER_DOC fotos perdia as últimas sem aviso.
+      // MAX_IMAGES_PER_DOC fotos perdia as últimas sem aviso. Conta como
+      // falta (o aviso continua a dizê-lo), mas CERTA, não passageira: uma
+      // segunda passagem esbarrava no mesmo tecto (revisão de 14/11, menor n.º 1).
       missing++;
+      peloTecto++;
       return null;
     }
     remaining--;
@@ -578,6 +588,7 @@ async function resolveImages(
     },
     missing,
     sabidas,
+    peloTecto,
     refs: { capa: refsDaCapa, temas: moodBoards.map((m) => m.refs), paginas: refsDasPaginas },
   };
 }
@@ -851,6 +862,12 @@ export async function renderStoredEditorialPdfWithReport(
    * estúdio e a página do casal já mostram.
    */
   faltasSabidasQueTravam: number;
+  /**
+   * Das `missingImages`, as que passaram do tecto de fotografias por documento.
+   * Também são certas: repetir o desenho não as traz, e o desenho não muda por
+   * isso pode guardar-se (revisão de 14/11, menor n.º 1).
+   */
+  faltasPeloTecto: number;
   truncations: DocTruncation[];
   /** Que fotografia foi para cada página — o mesmo que `fotosDoEditorialDoDocumento`. */
   fotos: FotosDoPdf;
@@ -864,6 +881,7 @@ export async function renderStoredEditorialPdfWithReport(
     doc: resolved,
     missing,
     sabidas,
+    peloTecto,
     refs,
   } = await resolveImages(withDefaults, {
     originais: true,
@@ -896,6 +914,7 @@ export async function renderStoredEditorialPdfWithReport(
     missingImages: missing + undrawnImages,
     faltasSabidas: sabidas.length,
     faltasSabidasQueTravam: travam ? sabidas.filter((r) => travam.has(r)).length : 0,
+    faltasPeloTecto: peloTecto,
     truncations,
     fotos,
     paginas,

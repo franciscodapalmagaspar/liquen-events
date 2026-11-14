@@ -22,7 +22,7 @@ let filaDeFaltas: number[] = [];
  * Das faltas de cada passagem, as que SE SABE que faltam, e dessas as das
  * fotos que ela escolheu à mão — por ordem, como `filaDeFaltas`.
  */
-let filaDeSabidas: { sabidas: number; travam: number }[] = [];
+let filaDeSabidas: { sabidas: number; travam: number; tecto?: number }[] = [];
 vi.mock("./proposal-doc-render", () => ({
   renderStoredEditorialPdfWithReport: async (...args: unknown[]) => {
     const pdf = await desenhar(...args);
@@ -30,7 +30,13 @@ vi.mock("./proposal-doc-render", () => ({
     return {
       pdf,
       missingImages: filaDeFaltas.shift() ?? 0,
-      ...(s ? { faltasSabidas: s.sabidas, faltasSabidasQueTravam: s.travam } : {}),
+      ...(s
+        ? {
+            faltasSabidas: s.sabidas,
+            faltasSabidasQueTravam: s.travam,
+            ...(s.tecto ? { faltasPeloTecto: s.tecto } : {}),
+          }
+        : {}),
       truncations: [],
     };
   },
@@ -224,6 +230,36 @@ describe("fotos que se sabe que faltam", () => {
     await expect(pdfDaPropostaEmCache(doc("LIQ-21"))).rejects.toThrow(/em falta/i);
     expect(desenhar).toHaveBeenCalledTimes(2);
     expect(estadoCachePdf().entradas).toBe(0);
+  });
+
+  it("as que passam do TECTO de fotos são certas: um desenho só, e guarda-se", async () => {
+    // Revisão de 14/11, menor n.º 1. Uma proposta com mais fotos do que o tecto
+    // por documento era desenhada DUAS vezes em cada visita (a segunda
+    // esbarrava no mesmo tecto) e nunca ficava guardada.
+    desenhar.mockResolvedValue(pdfDe(100));
+    filaDeFaltas = [10, 10];
+    filaDeSabidas = [
+      { sabidas: 0, travam: 0, tecto: 10 },
+      { sabidas: 0, travam: 0, tecto: 10 },
+    ];
+    const r = await pdfDaPropostaComEstado(doc("LIQ-24"));
+    expect(desenhar).toHaveBeenCalledTimes(1);
+    expect(r.completo).toBe(true);
+    expect(estadoCachePdf().entradas).toBe(1);
+    await pdfDaPropostaEmCache(doc("LIQ-24"));
+    expect(desenhar).toHaveBeenCalledTimes(1);
+  });
+
+  it("tecto E passageiras: repete-se pelas passageiras", async () => {
+    desenhar.mockResolvedValue(pdfDe(100));
+    filaDeFaltas = [12, 10];
+    filaDeSabidas = [
+      { sabidas: 0, travam: 0, tecto: 10 },
+      { sabidas: 0, travam: 0, tecto: 10 },
+    ];
+    const r = await pdfDaPropostaComEstado(doc("LIQ-25"));
+    expect(desenhar).toHaveBeenCalledTimes(2);
+    expect(r.completo).toBe(true);
   });
 
   it("sabidas E passageiras: repete-se pelas passageiras, como sempre", async () => {

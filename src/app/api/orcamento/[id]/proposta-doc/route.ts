@@ -22,7 +22,12 @@ import { eur, eurDocumento } from "@/lib/money";
 import { createProposal, updateProposal, listProposalsForQuote } from "@/lib/proposals-store";
 import { renderStoredEditorialPdfWithReport } from "@/lib/proposal-doc-render";
 import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
-import { chaveDaVersao, pdfFinalDaVersao, type RelatorioDoPdf } from "@/lib/proposal-preview-cache";
+import {
+  chaveDaVersao,
+  faltasPassageiras,
+  pdfFinalDaVersao,
+  type RelatorioDoPdf,
+} from "@/lib/proposal-preview-cache";
 import { guardarPdfDaProposta } from "@/lib/proposal-pdf-guardado";
 import { fotosEscolhidasQueFaltam } from "@/lib/proposta-fotos-verificacao";
 import { enderecoDoPdfDaProposta } from "@/lib/proposta-link-curto";
@@ -612,7 +617,7 @@ async function POST_semMedida(
     // de 14/11, 2.ª, n.º 2). As escolhidas dessas já travaram o envio acima.
     if (
       mode === "send" &&
-      relatorio.missingImages - (relatorio.faltasSabidas ?? 0) > 0 &&
+      faltasPassageiras(relatorio) > 0 &&
       resta() > FOLGA_DO_EMAIL_MS + FOLGA_DA_SEGUNDA_PASSAGEM_MS
     ) {
       log.warn("proposta-doc: fotos em falta no envio, a desenhar segunda vez", {

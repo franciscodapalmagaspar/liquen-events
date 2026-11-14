@@ -3,6 +3,7 @@ import {
   chaveDaVersao,
   esvaziarPdfsFinais,
   estadoDosPdfsFinais,
+  faltasPassageiras,
   pdfFinalDaVersao,
   type RelatorioDoPdf,
 } from "./proposal-preview-cache";
@@ -41,6 +42,19 @@ describe("pdfFinalDaVersao", () => {
     await pdfFinalDaVersao("k", desenhar);
     expect(desenhar).toHaveBeenCalledTimes(2);
     expect(estadoDosPdfsFinais().entradas).toBe(0);
+  });
+
+  it("as que passam do TECTO de fotos não impedem de guardar (menor n.º 1, 14/11)", async () => {
+    const desenhar = vi.fn(async () => ({ ...relatorio(10), faltasPeloTecto: 10 }));
+    await pdfFinalDaVersao("k", desenhar);
+    await pdfFinalDaVersao("k", desenhar);
+    expect(desenhar).toHaveBeenCalledTimes(1);
+  });
+
+  it("faltasPassageiras tira as sabidas e as do tecto", () => {
+    expect(faltasPassageiras({ missingImages: 5 })).toBe(5);
+    expect(faltasPassageiras({ missingImages: 5, faltasSabidas: 2, faltasPeloTecto: 3 })).toBe(0);
+    expect(faltasPassageiras({ missingImages: 6, faltasPeloTecto: 3 })).toBe(3);
   });
 
   it("um desenho que falhou não fica, nem fica a meio", async () => {
