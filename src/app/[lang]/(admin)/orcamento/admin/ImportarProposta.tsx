@@ -14,8 +14,12 @@ import {
   valoresQueVaoSerGravados,
   escolherModoDoIva,
   avisosDoEcra,
-  comServicosPostos,
-  escolherTotalDoDocumento,
+  candidatasOrdenadas,
+  eServico,
+  escolherTotal,
+  propostaConferida,
+  taxaDe,
+  taxaSugeridaDe,
   usarASoma,
   totalEscrito,
   montarDocumento,
@@ -310,8 +314,17 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
   };
   // Os avisos da soma vivem AQUI, com ou sem revisão: são eles que travam o criar.
   const avisosDaSoma = proposta && c ? avisosDoEcra(proposta, c) : [];
-  // A proposta com as linhas financeiras que ela pôs como serviço.
-  const pEf = proposta && c ? comServicosPostos(proposta, c) : proposta;
+  // A proposta como ela a conferiu (as linhas que ela deixou como serviço).
+  const pEf = proposta && c ? propostaConferida(proposta, c) : proposta;
+  const candidatas = proposta && c ? candidatasOrdenadas(proposta, c) : [];
+  const taxaSugerida = proposta ? taxaSugeridaDe(proposta) : undefined;
+  const semTotalPorConfirmar = Boolean(
+    c &&
+    !c.total.trim() &&
+    (candidatas.length
+      ? c.totalEscolhido !== undefined || c.totalTocado
+      : Boolean(proposta?.totalAmount)),
+  );
   const confirmar = (id: string, sim: boolean) =>
     setConfirmados((x) => {
       const n = new Set(x);
@@ -700,94 +713,123 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
 
           <section className="@container">
             <Titulo c={conf("total")}>Orçamento</Titulo>
-            {pEf && pEf.budgetItems.length > 0 && (
-              <ul className="mb-4 flex flex-col divide-y divide-[var(--bo-hairline)] rounded-xl border border-[var(--bo-hairline)]">
-                {pEf.budgetItems.map((item, k) => (
-                  <li
-                    key={k}
-                    className="flex items-baseline justify-between gap-3 px-3 py-2 text-footnote"
-                  >
-                    <span className="min-w-0 break-words text-[var(--bo-text)]">{item}</span>
-                    {aGravar.budgetAmounts[k] != null && (
-                      <span className="shrink-0 tabular-nums text-[var(--bo-tinta-72)]">
-                        {eur(aGravar.budgetAmounts[k] as number)}
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {proposta.valoresFinanceiros?.length ? (
-              <div className="mb-4" data-testid="valores-financeiros">
-                <p className="mb-1.5 text-footnote font-semibold text-[var(--bo-text-muted)]">
-                  Valores do documento que não entraram como serviço
-                </p>
-                <ul className="flex flex-col divide-y divide-[var(--bo-hairline)] rounded-xl border border-[var(--bo-hairline)]">
-                  {proposta.valoresFinanceiros.map((v, i) => {
-                    const posto = Boolean(c.servicosPostos?.includes(i));
-                    return (
-                      <li
-                        key={i}
-                        className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 py-2 text-footnote"
+            {/* A CONFERÊNCIA DO DINHEIRO (10.ª revisão): as heurísticas só
+                sugerem — cada linha tem o seu interruptor, o total escolhe-se
+                entre todas as candidatas, e a taxa é um campo. */}
+            {proposta.linhasDoDocumento?.length ? (
+              <ul
+                data-testid="linhas-do-documento"
+                className="mb-4 flex flex-col divide-y divide-[var(--bo-hairline)] rounded-xl border border-[var(--bo-hairline)]"
+              >
+                {proposta.linhasDoDocumento.map((l) => {
+                  const servico = eServico(l, c);
+                  const k = servico ? (pEf?.budgetItems.indexOf(l.rotulo) ?? -1) : -1;
+                  const convertido = k >= 0 ? aGravar.budgetAmounts[k] : null;
+                  return (
+                    <li
+                      key={l.chave}
+                      className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-2 text-footnote"
+                    >
+                      <span
+                        className={`min-w-0 break-words ${servico ? "text-[var(--bo-text)]" : "text-[var(--bo-text-muted)]"}`}
                       >
-                        <span className="min-w-0 break-words text-[var(--bo-text)]">
-                          {v.rotulo}
+                        {l.rotulo}
+                        {l.oferta ? " (oferta)" : l.opcional ? " (opcional)" : ""}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-3">
+                        <span className="tabular-nums text-[var(--bo-tinta-72)]">
+                          {eur(convertido ?? l.valor)}
                         </span>
-                        <span className="flex shrink-0 items-baseline gap-3">
-                          <span className="tabular-nums text-[var(--bo-tinta-72)]">
-                            {eur(v.valor)}
-                          </span>
-                          {posto && (
-                            <span className="text-caption text-[var(--bo-text-muted)]">
-                              posto como serviço
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setC((x) =>
-                                x
-                                  ? {
-                                      ...x,
-                                      servicosPostos: posto
-                                        ? (x.servicosPostos ?? []).filter((k) => k !== i)
-                                        : [...(x.servicosPostos ?? []), i],
-                                    }
-                                  : x,
-                              )
-                            }
-                            className={`font-semibold text-[var(--bo-accent)] underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
-                          >
-                            {posto ? "tirar" : "pôr como serviço"}
-                          </button>
+                        <Segmented<"sim" | "nao">
+                          ariaLabel={`«${l.rotulo}» é um serviço?`}
+                          size="sm"
+                          value={servico ? "sim" : "nao"}
+                          onChange={(v) =>
+                            setC((x) =>
+                              x
+                                ? {
+                                    ...x,
+                                    servicoDaLinha: { ...x.servicoDaLinha, [l.chave]: v === "sim" },
+                                  }
+                                : x,
+                            )
+                          }
+                          options={[
+                            { value: "sim", label: "serviço" },
+                            { value: "nao", label: "não é serviço" },
+                          ]}
+                        />
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              pEf &&
+              pEf.budgetItems.length > 0 && (
+                <ul className="mb-4 flex flex-col divide-y divide-[var(--bo-hairline)] rounded-xl border border-[var(--bo-hairline)]">
+                  {pEf.budgetItems.map((item, k) => (
+                    <li
+                      key={k}
+                      className="flex items-baseline justify-between gap-3 px-3 py-2 text-footnote"
+                    >
+                      <span className="min-w-0 break-words text-[var(--bo-text)]">{item}</span>
+                      {aGravar.budgetAmounts[k] != null && (
+                        <span className="shrink-0 tabular-nums text-[var(--bo-tinta-72)]">
+                          {eur(aGravar.budgetAmounts[k] as number)}
                         </span>
-                      </li>
-                    );
-                  })}
+                      )}
+                    </li>
+                  ))}
                 </ul>
-              </div>
-            ) : null}
-            {proposta.totalPorEscolher && proposta.totaisDoDocumento ? (
-              <div className="mb-4 flex min-w-0 flex-col gap-1.5">
-                <span className="text-footnote font-semibold text-[var(--bo-text-muted)]">
-                  O documento tem vários totais — qual é o total?
-                  {c.totalEscolhido === undefined && <Marca c="nada" />}
-                </span>
-                <Segmented<string>
-                  ariaLabel="Qual é o total do documento?"
-                  size="sm"
-                  value={c.totalEscolhido === undefined ? "" : String(c.totalEscolhido)}
-                  onChange={(v) => {
-                    if (!v) return;
-                    setC((x) => (x ? escolherTotalDoDocumento(proposta, x, Number(v)) : x));
-                    setModoAntes(null);
-                  }}
-                  options={proposta.totaisDoDocumento.map((v) => ({
-                    value: String(v),
-                    label: eur(v),
-                  }))}
-                />
-              </div>
+              )
+            )}
+            {candidatas.length ? (
+              <fieldset
+                className="mb-4 flex min-w-0 flex-col gap-1.5"
+                data-testid="candidatas-ao-total"
+              >
+                <legend className="mb-1 text-footnote font-semibold text-[var(--bo-text-muted)]">
+                  Qual é o total?
+                  {c.totalEscolhido === undefined && !c.totalTocado && <Marca c="nada" />}
+                </legend>
+                {candidatas.map((x) => (
+                  <label
+                    key={x.id}
+                    className="flex min-w-0 cursor-pointer items-baseline gap-2 text-footnote text-[var(--bo-text)]"
+                  >
+                    <input
+                      type="radio"
+                      name="total-do-documento"
+                      className="shrink-0 accent-[var(--bo-accent)]"
+                      checked={c.totalEscolhido === x.id}
+                      onChange={() => {
+                        setC((y) => (y ? escolherTotal(proposta, y, x.id) : y));
+                        setModoAntes(null);
+                      }}
+                    />
+                    <span className="min-w-0 break-words">
+                      {x.derivada ? x.rotulo : `${x.rotulo} — ${eur(x.valor)}`}
+                      {x.sugerida ? (
+                        <span className="font-semibold text-[var(--bo-accent)]">
+                          {" "}
+                          · sugerido pelo IVA que escolheste
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                ))}
+                <label className="flex cursor-pointer items-baseline gap-2 text-footnote text-[var(--bo-text)]">
+                  <input
+                    type="radio"
+                    name="total-do-documento"
+                    className="shrink-0 accent-[var(--bo-accent)]"
+                    checked={c.totalEscolhido === "outro" || c.totalEscolhido === "soma"}
+                    onChange={() => setC((y) => (y ? escolherTotal(proposta, y, "outro") : y))}
+                  />
+                  outro valor (escreve-o em baixo)
+                </label>
+              </fieldset>
             ) : null}
             <div className="grid grid-cols-1 items-end gap-x-4 gap-y-4 @min-[26rem]:grid-cols-2">
               <Field
@@ -797,12 +839,22 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                 value={c.total}
                 onChange={(e) => {
                   const total = e.target.value;
-                  setC((x) => (x ? { ...x, total, totalTocado: true, somaUsada: false } : x));
+                  setC((x) =>
+                    x
+                      ? {
+                          ...x,
+                          total,
+                          totalTocado: true,
+                          somaUsada: false,
+                          ...(candidatas.length ? { totalEscolhido: "outro" } : {}),
+                        }
+                      : x,
+                  );
                   setModoAntes(null);
                 }}
                 placeholder={pEf?.somaDasLinhas ? eur(pEf.somaDasLinhas) : "Sem total"}
                 hint={
-                  !proposta.totalAmount && (pEf?.somaDasLinhas ?? 0) > 0 && !c.total ? (
+                  (pEf?.somaDasLinhas ?? 0) > 0 && !c.total ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -822,8 +874,8 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                   className="text-footnote font-semibold text-[var(--bo-text-muted)]"
                 >
                   IVA
-                  {typeof proposta.vatRate === "number"
-                    ? ` a ${Math.round(proposta.vatRate * 10000) / 100}%`
+                  {Math.abs(taxaDe(c) - 0.23) > 1e-9
+                    ? ` a ${String(Math.round(taxaDe(c) * 10000) / 100).replace(".", ",")}%`
                     : ""}
                   {!c.totalVatMode && <Marca c="nada" />}
                 </span>
@@ -849,7 +901,34 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                   />
                 )}
               </div>
-              {proposta.totalAmount && !c.total.trim() ? (
+              {mostrarIva ? (
+                <Field
+                  variant="underline"
+                  label="Taxa do IVA (%)"
+                  inputMode="decimal"
+                  value={c.taxa ?? ""}
+                  onChange={(e) => {
+                    const taxa = e.target.value;
+                    setC((x) => (x ? { ...x, taxa, taxaConfirmada: true } : x));
+                  }}
+                  hint={
+                    taxaSugerida !== undefined && !c.taxaConfirmada ? (
+                      <span>
+                        O documento sugere{" "}
+                        {String(Math.round(taxaSugerida * 10000) / 100).replace(".", ",")}%.{" "}
+                        <button
+                          type="button"
+                          onClick={() => setC((x) => (x ? { ...x, taxaConfirmada: true } : x))}
+                          className={`font-semibold text-[var(--bo-accent)] underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
+                        >
+                          Confirmar {c.taxa}%
+                        </button>
+                      </span>
+                    ) : undefined
+                  }
+                />
+              ) : null}
+              {semTotalPorConfirmar ? (
                 <label className="flex items-center gap-2 text-footnote text-[var(--bo-text)] @min-[26rem]:col-span-2">
                   <input
                     type="checkbox"
@@ -859,8 +938,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                       setC((x) => (x ? { ...x, semTotalConfirmado: e.target.checked } : x))
                     }
                   />
-                  O documento tem total ({eur(proposta.totalAmount)}): confirmo que a proposta fica
-                  sem total.
+                  O documento tem total: confirmo que a proposta fica sem total.
                 </label>
               ) : null}
               {modoAntes && c.totalVatMode && c.totalVatMode !== modoAntes ? (

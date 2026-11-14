@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   datasDaLinha,
+  candidataPorPessoa,
   eCandidataATotal,
   eFinanceira,
   lerConvidados,
@@ -232,5 +233,60 @@ describe("o local, os convidados e o tipo", () => {
       confianca: "media",
     });
     expect(lerTipoDeEvento("Proposta", "flores")).toBeNull();
+  });
+});
+
+describe("10.ª revisão — as sugestões das linhas, do total e da taxa", () => {
+  it("reserva (só a da data, isolada ou «valor da»), liquidação, saldo e entrada não são serviço", () => {
+    for (const r of [
+      "Reserva da data",
+      "Reserva",
+      "Valor da reserva",
+      "Liquidação",
+      "Saldo",
+      "Entrada",
+    ]) {
+      expect(eFinanceira(r), r).toBe(true);
+    }
+    for (const r of ["Reserva do espaço", "Reserva de mesa", "Flores (IVA 6%)", "Oferta: velas"]) {
+      expect(eFinanceira(r), r).toBe(false);
+    }
+    // O IVA fora de parênteses continua a contar.
+    expect(eFinanceira("IVA (23%)")).toBe(true);
+    expect(eFinanceira("IVA")).toBe(true);
+  });
+
+  it("por pessoa: não é candidata; com a conta, a candidata é o último valor", () => {
+    for (const r of [
+      "Total por pessoa",
+      "Total p/ pessoa",
+      "Valor total /pax",
+      "Total por convidado",
+    ]) {
+      expect(eCandidataATotal(r), r).toBe(false);
+    }
+    expect(candidataPorPessoa("Total por pessoa: 95 € × 120 = 11 400 €")).toEqual({
+      rotulo: "Total por pessoa: 95 € × 120 = 11 400 €",
+      valor: 11400,
+    });
+    expect(candidataPorPessoa("Total por pessoa: 95 €")).toBeNull();
+  });
+
+  it("a taxa só se sugere colada a «IVA», e nunca numa frase de sinal, adjudicação, desconto…", () => {
+    expect(taxasDoIvaEscritas("IVA 6%")).toEqual([0.06]);
+    expect(taxasDoIvaEscritas("IVA à taxa de 6%")).toEqual([0.06]);
+    expect(taxasDoIvaEscritas("6% de IVA")).toEqual([0.06]);
+    for (const t of [
+      "30% de sinal, valores com IVA",
+      "50% na adjudicação (IVA 6%)",
+      "5% de desconto com IVA 13%",
+      "Reserva: 20% de IVA",
+      "Pagamento em prestações, IVA 6%",
+      "Entrada de 10% — IVA 6%",
+      "Valores com IVA. 30% de sinal",
+      "Valores com IVA, 30% de sinal na adjudicação",
+    ]) {
+      expect(taxasDoIvaEscritas(t), t).toEqual([]);
+    }
   });
 });

@@ -32,8 +32,8 @@ import {
   juntarCorreccoes,
   montarDocumento,
   oQueFalta,
-  totalEmTexto,
-  totalParaOModo,
+  candidatasOrdenadas,
+  escolherTotal,
   valoresQueVaoSerGravados,
 } from "../montar";
 import { INSTRUCOES, pedidoParaOClaude } from "./instrucoes";
@@ -167,20 +167,22 @@ describe("com a IA (duplo, sem chamadas reais)", () => {
     expect(r.proposta.budgetOpcional).toEqual([false, true]);
   });
 
-  it("IVA a 6%: passa para a proposta, e é sempre um aviso de dinheiro", async () => {
+  it("IVA a 6%: passa para a proposta, e ela confirma-a no campo da taxa", async () => {
     const r = await importarDocumento(propostaComIvaASeis(), {
       leituraCarregada: JSON.stringify(leituraComIvaASeis()),
     });
     expect(r.proposta.vatRate).toBe(0.06);
     expect(r.revisao?.contas?.sugestaoDasContas?.modo).toBe("sem_iva");
+    // 10.ª revisão: a taxa confirma-se no campo dela (não num aviso à parte).
     const a = r.revisao!.avisos.find((x) => x.id === "iva:taxa-diferente")!;
-    expect(a.dinheiro).toBe(true);
-    const doc = montarDocumento(
-      r.proposta,
-      escolherIva(r.proposta, "acrescer").c,
-      new Map(),
-      "t.docx",
+    expect(a.dinheiro).toBe(false);
+    const { c } = escolherIva(r.proposta, "acrescer");
+    expect(c.taxa).toBe("6");
+    expect(oQueFalta(c, r.proposta)).toContain("confirmar a taxa do IVA (o documento sugere 6%)");
+    expect(oQueFalta({ ...c, taxaConfirmada: true }, r.proposta)).not.toContain(
+      "confirmar a taxa do IVA (o documento sugere 6%)",
     );
+    const doc = montarDocumento(r.proposta, c, new Map(), "t.docx");
     expect(doc.vatRate).toBe(0.06);
     expect(doc.totalVatMode).toBe("acrescer");
   });
@@ -535,10 +537,9 @@ describe("6.ª revisão — as duas vias, a mesma regra do IVA", () => {
       budgetItems: r.proposta.budgetItems,
       budgetAmounts: r.proposta.budgetAmounts,
       linhasEscritas: r.proposta.linhasEscritas,
-      totalAmount: r.proposta.totalAmount,
       totalVatMode: r.proposta.totalVatMode,
       ivaPorEscolher: r.proposta.ivaPorEscolher,
-      totaisEscritos: r.proposta.totaisEscritos,
+      totais: (r.proposta.candidatasAoTotal ?? []).map((x) => x.valor).sort(),
     });
     expect(dinheiro(regras)).toEqual(dinheiro(json));
     // A «Base: 40,65 €» não é uma linha.
@@ -564,7 +565,7 @@ describe("6.ª revisão — as duas vias, a mesma regra do IVA", () => {
   });
 });
 
-describe("6.ª revisão — a escolha do IVA e o total", () => {
+describe("10.ª revisão — o total é sempre ela que o escolhe", () => {
   const prop = async () =>
     (
       await importarDocumento(propostaComIvaIncluido(), {
@@ -572,23 +573,28 @@ describe("6.ª revisão — a escolha do IVA e o total", () => {
       })
     ).proposta;
 
-  it("escolher o IVA muda o total para o do lado escolhido — se ela não lhe tocou", async () => {
+  it("nada vem escolhido; o IVA só marca a sugestão, e não toca no total", async () => {
     const p = await prop();
     const c = correccoesIniciais(p);
-    expect(escolherModoDoIva(p, c, "incluido").total).toBe("50,00");
-    expect(escolherModoDoIva(p, c, "acrescer").total).toBe("40,65");
-    // Ela apagou o total à mão: vazio, mas TOCADO — a escolha não o repõe.
-    const apagado = { ...c, total: "", totalTocado: true };
-    expect(escolherModoDoIva(p, apagado, "incluido").total).toBe("");
-    // Ela escreveu outro: fica o dela.
-    expect(escolherModoDoIva(p, { ...c, total: "45", totalTocado: true }, "acrescer").total).toBe(
-      "45",
-    );
+    expect(c.total).toBe("");
+    expect(oQueFalta(c, p)).toContain("escolher o total");
+    expect(candidatasOrdenadas(p, c).some((x) => x.sugerida)).toBe(false);
+    const com = escolherModoDoIva(p, c, "incluido");
+    expect(com.total).toBe("");
+    expect(candidatasOrdenadas(p, com)[0]).toMatchObject({ valor: 50, sugerida: true });
+    const sem = escolherModoDoIva(p, c, "acrescer");
+    expect(candidatasOrdenadas(p, sem)[0]).toMatchObject({ valor: 40.65, sugerida: true });
+    const escolhido = escolherTotal(p, com, candidatasOrdenadas(p, com)[0].id);
+    expect(escolhido.total).toBe("50,00");
+    expect(oQueFalta(escolhido, p)).not.toContain("escolher o total");
+    // Mudar o IVA depois não troca o total que ela escolheu.
+    expect(escolherModoDoIva(p, escolhido, "acrescer").total).toBe("50,00");
   });
 
   it("o documento tinha total e ela apagou-o: falta escrevê-lo ou confirmar que fica sem", async () => {
     const p = await prop();
-    const c = { ...escolherModoDoIva(p, correccoesIniciais(p), "incluido"), total: "" };
+    const { c: escolhido } = escolherIva(p, "incluido");
+    const c = { ...escolhido, total: "", totalTocado: true };
     const frase = "o total (o documento tem total — escreve-o ou confirma que fica sem total)";
     expect(oQueFalta(c, p)).toContain(frase);
     expect(oQueFalta({ ...c, semTotalConfirmado: true }, p)).not.toContain(frase);
@@ -597,45 +603,53 @@ describe("6.ª revisão — a escolha do IVA e o total", () => {
 
   it("depois da escolha, as linhas que não somam o total gravado são aviso de dinheiro", async () => {
     const p = await prop();
-    // «com IVA»: 20,33 + 20,32 = 40,65 = a base de 50 com IVA. Sem aviso.
-    expect(avisoDaSomaGravada(p, escolherModoDoIva(p, correccoesIniciais(p), "incluido"))).toBe(
-      null,
-    );
-    // «sem IVA»: as linhas ficam 25 + 25 = 50, e o total gravado é 40,65 + IVA.
-    const a = avisoDaSomaGravada(p, escolherModoDoIva(p, correccoesIniciais(p), "acrescer"))!;
+    // «com IVA» e 50: 20,33 + 20,32 = 40,65 = a base de 50 com IVA. Sem aviso.
+    expect(avisoDaSomaGravada(p, escolherIva(p, "incluido").c)).toBe(null);
+    // «sem IVA» e 40,65: as linhas ficam 25 + 25 = 50, e o total é 40,65 + IVA.
+    const a = avisoDaSomaGravada(p, escolherIva(p, "acrescer").c)!;
     expect(a.dinheiro).toBe(true);
     expect(a.texto).toMatch(/as linhas somam 50,00\s€ — o total é 40,65\s€ sem IVA/);
     // Sem escolha ainda, não há aviso (não há o que comparar).
     expect(avisoDaSomaGravada(p, correccoesIniciais(p))).toBe(null);
   });
 
-  it("recarregar com outra leitura: o total só fica se ela o escreveu à mão", async () => {
-    const p = await prop();
+  it("juntarCorreccoes: TODA a conferência dela fica ao reler", async () => {
+    const p = (await importarDocumento(propostaComIvaIncluido(), { chamar: null })).proposta;
     const inicial = correccoesIniciais(p);
-    const escolhido = escolherModoDoIva(p, inicial, "acrescer");
-    expect(escolhido.total).toBe("40,65");
-    // A leitura nova não leu a base: o total «sem IVA» passa a ser o único escrito.
-    const l2 = leituraComIvaIncluido();
-    l2.orcamento.totalSemIva = { valor: null, citacao: null };
-    l2.orcamento.valorDoIva = { valor: null, citacao: null };
-    const nova = (
-      await importarDocumento(propostaComIvaIncluido(), { leituraCarregada: JSON.stringify(l2) })
-    ).proposta;
-    // Não tocado: sai da leitura nova, pelo modo que ela escolheu.
-    const j = juntarCorreccoes(inicial, escolhido, correccoesIniciais(nova), nova);
-    expect(j.totalVatMode).toBe("acrescer");
-    expect(j.total).toBe(totalEmTexto(totalParaOModo(nova, "acrescer")));
-    expect(j.total).toBe("50,00");
-    // Tocado: fica o dela.
-    const dela = { ...escolhido, total: "47,00", totalTocado: true };
-    const k = juntarCorreccoes(inicial, dela, correccoesIniciais(nova), nova);
-    expect(k.total).toBe("47,00");
-    expect(k.totalTocado).toBe(true);
+    const linha = p.linhasDoDocumento!.find((l) => l.rotulo === "Velas TESTE")!;
+    let dela = escolherIva(p, "incluido").c;
+    dela = {
+      ...dela,
+      servicoDaLinha: { [linha.chave]: false },
+      taxa: "6",
+      taxaConfirmada: true,
+      somaUsada: true,
+    };
+    const nova = await prop();
+    const j = juntarCorreccoes(inicial, dela, correccoesIniciais(nova), nova);
+    expect(j).toMatchObject({
+      totalVatMode: "incluido",
+      total: dela.total,
+      servicoDaLinha: { [linha.chave]: false },
+      taxa: "6",
+      taxaConfirmada: true,
+      somaUsada: true,
+    });
+    expect(j.totalEscolhido).toBeDefined();
+    expect(oQueFalta(j, nova)).not.toContain("escolher o total");
+    // Uma candidata que a leitura nova não tem passa a «outro valor», com o mesmo total.
+    const outra = juntarCorreccoes(
+      inicial,
+      { ...dela, totalEscolhido: "c9", total: "47,00" },
+      correccoesIniciais(nova),
+      nova,
+    );
+    expect(outra).toMatchObject({ totalEscolhido: "outro", total: "47,00" });
   });
 });
 
-describe("10.ª revisão — sem IA, a taxa escrita (6 %) também converte as linhas", () => {
-  it("«com IVA»: as linhas convertem a 6 % e somam o total ao cêntimo, com o aviso da taxa", async () => {
+describe("sem IA, a taxa escrita (6 %) também converte as linhas", () => {
+  it("«com IVA»: as linhas convertem a 6 % e somam o total ao cêntimo", async () => {
     const doc = docx([
       { h: 1, t: "Orçamento" },
       "Livros TESTE: 106,00 €",
@@ -646,13 +660,15 @@ describe("10.ª revisão — sem IA, a taxa escrita (6 %) também converte as li
     ]);
     const r = await importarDocumento(doc, { chamar: null });
     expect(r.revisao?.via).toBe("regras");
-    expect(r.proposta.vatRate).toBe(0.06);
-    expect(r.proposta.totaisEscritos).toEqual({ sem: 200, com: 212 });
+    // A taxa é uma sugestão para o campo; ela confirma-a lá.
+    expect(r.proposta.taxaSugerida).toBe(0.06);
     expect(r.revisao?.contas?.vatRate).toBe(0.06);
-    const taxa = r.revisao!.avisos.find((a) => a.id === "iva:taxa-diferente")!;
-    expect(taxa.dinheiro).toBe(true);
-    expect(taxa.texto).toMatch(/IVA a 6%/);
-    const { c, gravar } = escolherIva(r.proposta, "incluido");
+    const { c: escolhido, gravar } = escolherIva(r.proposta, "incluido", 212);
+    expect(escolhido.taxa).toBe("6");
+    expect(oQueFalta(escolhido, r.proposta)).toContain(
+      "confirmar a taxa do IVA (o documento sugere 6%)",
+    );
+    const c = { ...escolhido, taxaConfirmada: true };
     // 106 com IVA a 6 % = 100 sem IVA, cada uma.
     expect(gravar.budgetAmounts).toEqual([100, 100]);
     expect(gravar).toMatchObject({ totalAmount: 212, totalVatMode: "incluido" });

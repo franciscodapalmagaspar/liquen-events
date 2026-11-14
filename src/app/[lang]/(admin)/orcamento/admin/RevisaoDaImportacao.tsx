@@ -10,7 +10,7 @@ import { pedidoParaOClaude } from "@/lib/importar-proposta/ia/instrucoes";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { Segmented } from "./ui";
 import {
-  comServicosPostos,
+  propostaConferida,
   valoresQueVaoSerGravados,
   type Correccoes,
 } from "@/lib/importar-proposta/montar";
@@ -329,7 +329,7 @@ export default function RevisaoDaImportacao({
         totalVatMode: proposta.totalVatMode,
       };
   // As linhas que se gravam, com as financeiras que ela pôs como serviço.
-  const linhasDaProposta = correccoes ? comServicosPostos(proposta, correccoes) : proposta;
+  const linhasDaProposta = correccoes ? propostaConferida(proposta, correccoes) : proposta;
   // SÓ o que vai ser gravado: se ela apagou o total, aqui não aparece o do documento.
   const total = gravar.totalAmount;
   return (

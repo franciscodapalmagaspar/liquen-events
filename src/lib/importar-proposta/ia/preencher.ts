@@ -1,6 +1,11 @@
 import { MOOD_BOARD_MAX_IMAGES, type ServiceGroup, type VatMode } from "../../proposal-doc";
-import { round2 } from "../../money";
-import { lerTipoDeEvento, type Confianca } from "../heuristicas";
+import { eur, round2 } from "../../money";
+import {
+  candidatasDerivadas,
+  lerTipoDeEvento,
+  type CandidataAoTotal,
+  type Confianca,
+} from "../heuristicas";
 import type {
   CampoImportado,
   FotoImportada,
@@ -122,6 +127,32 @@ export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImporta
     totalVatMode = modoDoTotal === "com_iva" ? "incluido" : null;
   }
 
+  // ── As candidatas ao total (ela escolhe SEMPRE; `montar.ts`) ──
+  const lidas: CandidataAoTotal[] = [];
+  if (base !== null) {
+    lidas.push({
+      id: "c0",
+      rotulo: o.totalSemIva.citacao ?? "Total sem IVA",
+      valor: base,
+      lado: "sem",
+    });
+  }
+  if (bruto !== null) {
+    lidas.push({
+      id: "c1",
+      rotulo: o.totalComIva.citacao ?? "Total com IVA",
+      valor: bruto,
+      lado: "com",
+    });
+  }
+  const iva = o.valorDoIva.valor;
+  const candidatasAoTotal = [
+    ...lidas,
+    ...(iva !== null
+      ? candidatasDerivadas(lidas, [{ rotulo: o.valorDoIva.citacao ?? "IVA", valor: iva }], eur)
+      : []),
+  ];
+
   // ── As fotografias ──
   const caminhoDe = new Map(d.imagens.map((i) => [i.id, i.caminho]));
   const fotos: FotoImportada[] = [];
@@ -213,7 +244,7 @@ export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImporta
           ivaPorEscolher: true,
           linhasEscritas: escritos,
           linhasNormais: normais,
-          totaisEscritos: { sem: base, com: bruto },
+          ...(candidatasAoTotal.length ? { candidatasAoTotal } : {}),
         }
       : {}),
     somaDasLinhas,

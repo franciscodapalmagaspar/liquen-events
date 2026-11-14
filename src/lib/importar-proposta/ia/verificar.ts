@@ -971,7 +971,8 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
         aviso({
           id: "iva:taxa-diferente",
           campo: "orcamento.iva",
-          dinheiro: true,
+          // Confirma-se no campo da taxa (`ImportarProposta`), não aqui.
+          dinheiro: false,
           gravidade: "aviso",
           texto: `O documento usa IVA a ${taxaLida}%, e não a ${DEFAULT_VAT_RATE * 100}% da casa. A proposta nova fica com ${taxaLida}%: confirma que ainda é a taxa certa.`,
         });

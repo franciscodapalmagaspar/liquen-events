@@ -9,9 +9,8 @@ import {
 } from "../proposal-doc";
 import { dataDoEventoPorExtenso, referenciaDoDocumento } from "../proposal-doc-textos";
 import { eur, round2 } from "../money";
-import type { PropostaImportada } from "./mapear";
+import type { CandidataAoTotal, LinhaDoDocumento, PropostaImportada } from "./mapear";
 import { valoresSemIvaDasLinhas } from "./ia/linhas";
-import { eDesconto } from "./heuristicas";
 
 /**
  * O passo final, no navegador: o que se leu, MAIS o que ela corrigiu na
@@ -34,52 +33,85 @@ export interface Correccoes {
   guests: string;
   /** O total como ela o escreve («3.200,00»); vazio = sem total. */
   total: string;
-  /**
-   * O modo do IVA. Só muda por `escolherModoDoIva` (que também acerta o total
-   * pelo lado escolhido); nunca por um campo à parte.
-   */
+  /** O modo do IVA dos valores do documento. Só muda por `escolherModoDoIva`. */
   totalVatMode: VatMode | null;
   /** Ela escreveu no campo do total À MÃO (apagar também conta). */
   totalTocado?: boolean;
   /** O documento tinha total e ela confirmou que a proposta fica sem ele. */
   semTotalConfirmado?: boolean;
-  /** Via das regras, com vários totais sem par: o que ela escolheu. */
-  totalEscolhido?: number;
-  /** Via das regras: as linhas financeiras (índices) que ela pôs como serviço. */
-  servicosPostos?: number[];
+  /**
+   * A candidata ao total que ela escolheu (o `id`), «outro» (escreveu outro
+   * valor) ou «soma» (usou a soma das linhas). Sem isto, o Criar espera.
+   */
+  totalEscolhido?: string;
+  /** Via das regras: o interruptor dela, linha a linha (`LinhaDoDocumento.chave`). */
+  servicoDaLinha?: Record<string, boolean>;
   /** O total veio do «Usar a soma das linhas». */
   somaUsada?: boolean;
+  /** A taxa do IVA, em %, como ela a escreve («23», «6»). */
+  taxa?: string;
+  /** Ela confirmou a taxa sugerida pelo documento (ou escreveu a sua). */
+  taxaConfirmada?: boolean;
+}
+
+/** Um aviso de dinheiro que nasce da conferência (com ou sem revisão). */
+export interface AvisoDoEcra {
+  id: string;
+  texto: string;
+  campo: string;
+  dinheiro: true;
+  gravidade: "erro";
+}
+
+const percentagem = (taxa: number) => String(Math.round(taxa * 10000) / 100).replace(".", ",");
+
+/**
+ * A taxa do IVA que vale: a do campo dela (0 a 30 %), ou 23 %. A do documento
+ * é só a sugestão com que o campo começa (`correccoesIniciais`).
+ */
+export function taxaDe(c: Pick<Correccoes, "taxa">): number {
+  const t = (c.taxa ?? "").replace("%", "").replace(",", ".").trim();
+  const n = Number(t);
+  return t && Number.isFinite(n) && n >= 0 && n <= 30
+    ? Math.round(n * 100) / 10000
+    : DEFAULT_VAT_RATE;
+}
+
+/** A taxa sugerida pelo documento, quando não é 23 % (as duas vias). */
+export function taxaSugeridaDe(p: PropostaImportada): number | undefined {
+  const t = p.taxaSugerida ?? p.vatRate;
+  return t !== undefined && Math.abs(t - DEFAULT_VAT_RATE) > 1e-9 ? t : undefined;
+}
+
+/** A linha é um serviço? A escolha dela, senão a sugestão da heurística. */
+export function eServico(l: LinhaDoDocumento, c: Pick<Correccoes, "servicoDaLinha">): boolean {
+  return c.servicoDaLinha?.[l.chave] ?? l.servico;
 }
 
 /**
- * As linhas financeiras que ela pôs como serviço passam a linhas do
- * orçamento (no fim, como as outras, à espera do IVA). Puro: o ecrã, o
+ * A proposta como ela a conferiu: na via das regras, as linhas do orçamento
+ * são as que ELA deixou como serviço. Puro: o ecrã, o
  * `valoresQueVaoSerGravados` e o `montarDocumento` vêem as mesmas linhas.
  */
-export function comServicosPostos(p: PropostaImportada, c: Correccoes): PropostaImportada {
-  const postos = (c.servicosPostos ?? [])
-    .map((i) => p.valoresFinanceiros?.[i])
-    .filter((x): x is { rotulo: string; valor: number } => Boolean(x));
-  if (!postos.length) return p;
-  const escritas = p.linhasEscritas ?? p.budgetAmounts;
+export function propostaConferida(p: PropostaImportada, c: Correccoes): PropostaImportada {
+  if (!p.linhasDoDocumento) return p;
+  const linhas = p.linhasDoDocumento.filter((l) => eServico(l, c));
   return {
     ...p,
-    budgetItems: [...p.budgetItems, ...postos.map((x) => x.rotulo)],
-    budgetAmounts: [...p.budgetAmounts, ...postos.map(() => null)],
-    ...(p.budgetOpcional
-      ? { budgetOpcional: [...p.budgetOpcional, ...postos.map(() => false)] }
-      : {}),
-    ivaPorEscolher: true,
-    linhasEscritas: [...escritas, ...postos.map((x) => x.valor)],
-    linhasNormais: [...(p.linhasNormais ?? escritas.map(() => true)), ...postos.map(() => true)],
-    valoresFinanceiros: p.valoresFinanceiros?.filter((_, i) => !c.servicosPostos?.includes(i)),
-    somaDasLinhas: round2(p.somaDasLinhas + postos.reduce((a, x) => a + x.valor, 0)),
+    budgetItems: linhas.map((l) => l.rotulo),
+    budgetAmounts: linhas.map(() => null),
+    ...(linhas.some((l) => l.opcional)
+      ? { budgetOpcional: linhas.map((l) => Boolean(l.opcional)) }
+      : { budgetOpcional: undefined }),
+    linhasEscritas: linhas.map((l) => l.valor),
+    linhasNormais: linhas.map((l) => !l.opcional),
+    somaDasLinhas: round2(linhas.filter((l) => !l.opcional).reduce((a, l) => a + l.valor, 0)),
   };
 }
 
-/** A soma dos SERVIÇOS (as linhas financeiras não entram; as postas como serviço sim). */
+/** A soma dos SERVIÇOS (os que ela deixou como serviço; os opcionais não). */
 export function somaDosServicos(p: PropostaImportada, c: Correccoes): number {
-  return comServicosPostos(p, c).somaDasLinhas;
+  return propostaConferida(p, c).somaDasLinhas;
 }
 
 /** «Usar a soma das linhas»: o total passa a ser a soma dos serviços. */
@@ -88,40 +120,66 @@ export function usarASoma(p: PropostaImportada, c: Correccoes): Correccoes {
     ...c,
     total: totalEmTexto(somaDosServicos(p, c)),
     totalTocado: true,
+    totalEscolhido: "soma",
     somaUsada: true,
   };
 }
 
-/** Via das regras, vários totais sem par: ela escolhe um deles. */
-export function escolherTotalDoDocumento(
+/**
+ * ── O TOTAL: TODAS AS CANDIDATAS, ORDENADAS, NADA ESCOLHIDO ──────────────
+ * O par pela taxa (uma a × (1 + taxa) = outra, ao cêntimo) e o IVA que ela
+ * escolheu só ORDENAM a lista e marcam a sugestão: «sem IVA» sugere o lado
+ * sem do par, «com IVA» o lado com. Nunca escolhem.
+ */
+export function candidatasOrdenadas(
   p: PropostaImportada,
   c: Correccoes,
-  valor: number,
-): Correccoes {
-  void p;
-  return { ...c, total: totalEmTexto(valor), totalEscolhido: valor, somaUsada: false };
+): (CandidataAoTotal & { sugerida: boolean })[] {
+  const cands = p.candidatasAoTotal ?? [];
+  const taxa = taxaDe(c);
+  const valores = [...new Set(cands.map((x) => x.valor))].sort((a, b) => a - b);
+  const pares: [number, number][] = [];
+  for (let i = 0; i < valores.length; i++) {
+    for (let j = i + 1; j < valores.length; j++) {
+      if (Math.round(valores[i] * (1 + taxa) * 100) === Math.round(valores[j] * 100)) {
+        pares.push([valores[i], valores[j]]);
+      }
+    }
+  }
+  const par = pares.length === 1 ? pares[0] : null;
+  const sugerido = par && c.totalVatMode ? (c.totalVatMode === "acrescer" ? par[0] : par[1]) : null;
+  const peso = (x: CandidataAoTotal) =>
+    x.valor === sugerido ? 0 : par && par.includes(x.valor) ? 1 : x.derivada ? 3 : 2;
+  return cands
+    .map((x, i) => ({ ...x, sugerida: x.valor === sugerido, i }))
+    .sort((a, b) => peso(a) - peso(b) || a.i - b.i)
+    .map(({ i: _i, ...x }) => x);
+}
+
+/** Ela escolhe uma candidata ao total (ou «outro valor», com `id` «outro»). */
+export function escolherTotal(p: PropostaImportada, c: Correccoes, id: string): Correccoes {
+  const cand = p.candidatasAoTotal?.find((x) => x.id === id);
+  return {
+    ...c,
+    totalEscolhido: cand ? id : "outro",
+    total: cand ? totalEmTexto(cand.valor) : c.totalEscolhido === "outro" ? c.total : "",
+    totalTocado: !cand,
+    somaUsada: false,
+  };
 }
 
 /**
  * ── A ÚNICA MANEIRA DE ESCOLHER O IVA ─────────────────────────────────────
- * Muda o modo e, se ela não tocou no total à mão, põe o total do lado
- * escolhido (`totalParaOModo`): «com IVA» com os dois totais no documento usa
- * o com IVA. Havia uma segunda escolha (o «O total inclui IVA?» de baixo) que
- * mudava o modo sem trocar o total, e gravava 40,65 € «incluído» em vez de 50.
+ * Muda só o modo. O total é escolhido à parte, por ela (`escolherTotal`).
  */
 export function escolherModoDoIva(p: PropostaImportada, c: Correccoes, modo: VatMode): Correccoes {
-  return {
-    ...c,
-    totalVatMode: modo,
-    // Com o total escolhido por ela entre vários (`totalPorEscolher`), o IVA
-    // não o troca: não há par que diga qual é o sem e qual é o com.
-    ...(c.totalTocado || p.totalPorEscolher
-      ? {}
-      : { total: totalEmTexto(totalParaOModo(p, modo)) }),
-  };
+  void p;
+  return { ...c, totalVatMode: modo };
 }
 
 export function correccoesIniciais(p: PropostaImportada): Correccoes {
+  const sugerida = taxaSugeridaDe(p);
+  const escolhe = Boolean(p.candidatasAoTotal?.length);
   return {
     clientNames: p.clientNames,
     email: p.email,
@@ -129,14 +187,31 @@ export function correccoesIniciais(p: PropostaImportada): Correccoes {
     location: p.location,
     eventType: p.eventType,
     guests: p.guests ? String(p.guests) : "",
-    total: totalEmTexto(p.totalAmount),
+    // Com candidatas, nada vem escolhido: o campo fica vazio até ela escolher.
+    total: escolhe ? "" : totalEmTexto(p.totalAmount),
     totalVatMode: p.totalVatMode,
+    taxa: percentagem(sugerida ?? DEFAULT_VAT_RATE),
   };
 }
 
+/** Os campos da conferência dela: ficam todos ao reler o documento. */
+const DA_CONFERENCIA = [
+  "total",
+  "totalVatMode",
+  "totalTocado",
+  "semTotalConfirmado",
+  "totalEscolhido",
+  "servicoDaLinha",
+  "somaUsada",
+  "taxa",
+  "taxaConfirmada",
+] as const;
+
 /**
- * Ao reler o documento (com a leitura em JSON), o que ela já corrigiu à mão
- * fica; só os campos que ela NÃO tocou passam a ser os da leitura nova.
+ * Ao reler o documento (com a leitura em JSON), o que ela já corrigiu fica:
+ * os campos do evento que ela tocou e TODA a conferência do dinheiro. Uma
+ * candidata escolhida que a leitura nova não tem passa a «outro valor», com
+ * o mesmo total.
  */
 export function juntarCorreccoes(
   inicialAntes: Correccoes,
@@ -144,22 +219,30 @@ export function juntarCorreccoes(
   novas: Correccoes,
   nova?: PropostaImportada,
 ): Correccoes {
-  const out = { ...novas };
+  const out: Correccoes = { ...novas };
+  const conferencia = new Set<string>(DA_CONFERENCIA);
   for (const k of Object.keys(novas) as (keyof Correccoes)[]) {
-    if (k === "total" || k === "totalVatMode") continue;
-    if (actual[k] !== inicialAntes[k]) (out as Record<string, unknown>)[k] = actual[k];
+    if (conferencia.has(k)) continue;
+    if (actual[k] !== inicialAntes[k]) (out as unknown as Record<string, unknown>)[k] = actual[k];
   }
-  // O total só fica se ela o escreveu à mão. Se veio da escolha do IVA, volta
-  // a sair da leitura nova — pelo mesmo modo que ela tinha escolhido.
-  if (actual.totalTocado) {
-    out.total = actual.total;
+  for (const k of DA_CONFERENCIA) {
+    if (k === "total" || k === "taxa") continue;
+    if (actual[k] !== undefined && actual[k] !== null) {
+      (out as unknown as Record<string, unknown>)[k] = actual[k];
+    }
+  }
+  if (actual.totalEscolhido !== undefined || actual.totalTocado) out.total = actual.total;
+  if (actual.taxaConfirmada || actual.taxa !== inicialAntes.taxa) out.taxa = actual.taxa;
+  if (
+    out.totalEscolhido &&
+    !["outro", "soma"].includes(out.totalEscolhido) &&
+    nova &&
+    !nova.candidatasAoTotal?.some(
+      (x) => x.id === out.totalEscolhido && totalEmTexto(x.valor) === out.total,
+    )
+  ) {
+    out.totalEscolhido = "outro";
     out.totalTocado = true;
-  }
-  if (actual.semTotalConfirmado) out.semTotalConfirmado = true;
-  if (actual.totalVatMode) {
-    return nova
-      ? escolherModoDoIva(nova, out, actual.totalVatMode)
-      : { ...out, totalVatMode: actual.totalVatMode };
   }
   return out;
 }
@@ -175,19 +258,23 @@ export function totalEscrito(texto: string): number | null {
 /** O que ainda impede criar. Vazio = pode criar. */
 export function oQueFalta(
   c: Correccoes,
-  p?: Pick<PropostaImportada, "ivaPorEscolher" | "totalAmount" | "totalPorEscolher">,
+  p?: Pick<
+    PropostaImportada,
+    "ivaPorEscolher" | "totalAmount" | "candidatasAoTotal" | "taxaSugerida" | "vatRate"
+  >,
 ): string[] {
   const falta: string[] = [];
-  if (p?.totalPorEscolher && c.totalEscolhido === undefined && !c.totalTocado) {
-    falta.push("escolher o total do documento");
-  }
-  // O IVA é SEMPRE ela que o diz (`ia/verificar.ts`) — mesmo sem total. Uma
-  // vez só: a mesma escolha vale para as linhas e para o total.
+  const temCandidatas = Boolean(p?.candidatasAoTotal?.length);
+  const escolheu = c.totalEscolhido !== undefined || c.totalTocado || c.semTotalConfirmado;
+  if (temCandidatas && !escolheu) falta.push("escolher o total");
+  // O IVA é SEMPRE ela que o diz — mesmo sem total. Uma vez só.
   const porEscolher = !c.totalVatMode && (p?.ivaPorEscolher || totalEscrito(c.total) !== null);
   // O documento tinha total e o campo ficou vazio: ou ela o escreve, ou diz
   // que a proposta fica mesmo sem total.
-  if (p?.totalAmount && !c.total.trim() && !c.semTotalConfirmado) {
-    falta.push("o total (o documento tem total — escreve-o ou confirma que fica sem total)");
+  if ((temCandidatas ? escolheu : Boolean(p?.totalAmount)) && !c.total.trim()) {
+    if (!c.semTotalConfirmado) {
+      falta.push("o total (o documento tem total — escreve-o ou confirma que fica sem total)");
+    }
   }
   if (porEscolher) {
     falta.push(
@@ -195,6 +282,10 @@ export function oQueFalta(
         ? "escolher se os valores do documento têm IVA"
         : "dizer se o total inclui IVA",
     );
+  }
+  const sugerida = p ? (p.taxaSugerida ?? p.vatRate) : undefined;
+  if (sugerida !== undefined && Math.abs(sugerida - DEFAULT_VAT_RATE) > 1e-9 && !c.taxaConfirmada) {
+    falta.push(`confirmar a taxa do IVA (o documento sugere ${percentagem(sugerida)}%)`);
   }
   if (!c.clientNames.trim()) falta.push("o nome do cliente");
   if (c.total.trim() && totalEscrito(c.total) === null) falta.push("um total que se leia");
@@ -204,33 +295,44 @@ export function oQueFalta(
 /**
  * ── DEPOIS DA ESCOLHA: AS LINHAS SOMAM O TOTAL? ───────────────────────────
  * As linhas convertidas (sem IVA) contra a base do total gravado, ao cêntimo
- * (`resolveProposalMoney`). Se não batem, é um aviso de dinheiro para ela
- * confirmar; o id leva os dois números, para mudar se ela mudar algum.
+ * (`resolveProposalMoney`). Se não batem, é um aviso de dinheiro — e, na via
+ * das regras, sugere o interruptor da linha suspeita (a que tem a diferença).
  */
-export function avisoDaSomaGravada(
-  p: PropostaImportada,
-  c: Correccoes,
-): { id: string; texto: string; campo: string; dinheiro: true; gravidade: "erro" } | null {
+export function avisoDaSomaGravada(p: PropostaImportada, c: Correccoes): AvisoDoEcra | null {
   if (!c.totalVatMode) return null;
-  p = comServicosPostos(p, c);
-  const g = valoresQueVaoSerGravados(p, { ...c, servicosPostos: [] });
+  const pc = propostaConferida(p, c);
+  const g = valoresQueVaoSerGravados(p, c);
   if (g.totalAmount === null || !g.totalVatMode) return null;
-  const normais = p.linhasNormais ?? g.budgetAmounts.map((_, i) => !p.budgetOpcional?.[i]);
+  const normais = pc.linhasNormais ?? g.budgetAmounts.map((_, i) => !pc.budgetOpcional?.[i]);
   const vals = g.budgetAmounts.filter((v, i): v is number => v !== null && normais[i] !== false);
   if (!vals.length) return null;
   const soma = round2(vals.reduce((a, b) => a + b, 0));
+  const taxa = taxaDe(c);
   const base = resolveProposalMoney({
     totalAmount: g.totalAmount,
     totalVatMode: g.totalVatMode,
-    vatRate: p.vatRate ?? DEFAULT_VAT_RATE,
+    vatRate: taxa,
   }).base;
   if (soma === base) return null;
+  // A linha suspeita: a que, sem IVA, vale a diferença.
+  const semIva = (v: number) => (c.totalVatMode === "incluido" ? round2(v / (1 + taxa)) : v);
+  const perto = (a: number, b: number) => Math.abs(a - b) <= 0.01;
+  const linhas = p.linhasDoDocumento ?? [];
+  const aMais = linhas.find(
+    (l) => eServico(l, c) && !l.opcional && perto(semIva(l.valor), soma - base),
+  );
+  const aMenos = linhas.find((l) => !eServico(l, c) && perto(semIva(l.valor), base - soma));
+  const dica = aMais
+    ? ` Talvez «${aMais.rotulo}» não seja um serviço.`
+    : aMenos
+      ? ` Talvez «${aMenos.rotulo}» seja um serviço.`
+      : "";
   return {
     id: `soma-depois:${soma}:${base}`,
     campo: "orcamento.total",
     dinheiro: true,
     gravidade: "erro",
-    texto: `Com o IVA que escolheste, as linhas somam ${eur(soma)} — o total é ${eur(base)} sem IVA.`,
+    texto: `Com o IVA que escolheste, as linhas somam ${eur(soma)} — o total é ${eur(base)} sem IVA.${dica}`,
   };
 }
 
@@ -238,13 +340,10 @@ export function avisoDaSomaGravada(
  * Ela usou a soma dos serviços como total, mas o documento tem um total
  * diferente: aviso de dinheiro, para ela confirmar qual vale.
  */
-export function avisoDaSomaUsada(
-  p: PropostaImportada,
-  c: Correccoes,
-): { id: string; texto: string; campo: string; dinheiro: true; gravidade: "erro" } | null {
+export function avisoDaSomaUsada(p: PropostaImportada, c: Correccoes): AvisoDoEcra | null {
   if (!c.somaUsada) return null;
   const soma = totalEscrito(c.total);
-  const doDocumento = p.totaisDoDocumento ?? [];
+  const doDocumento = [...new Set((p.candidatasAoTotal ?? []).map((x) => x.valor))];
   if (soma === null || !doDocumento.length || doDocumento.includes(soma)) return null;
   return {
     id: `soma-usada:${soma}:${doDocumento.join("|")}`,
@@ -259,18 +358,16 @@ export function avisoDaSomaUsada(
  * Via das regras: um desconto não entra no orçamento (as linhas não levam
  * valores negativos) — aviso de dinheiro, como o da leitura (`ia/verificar.ts`).
  */
-export function avisosDosDescontos(
-  p: PropostaImportada,
-): { id: string; texto: string; campo: string; dinheiro: true; gravidade: "erro" }[] {
-  return (p.valoresFinanceiros ?? []).flatMap((v, i) =>
-    eDesconto(v.rotulo)
+export function avisosDosDescontos(p: PropostaImportada, c?: Correccoes): AvisoDoEcra[] {
+  return (p.linhasDoDocumento ?? []).flatMap((l) =>
+    l.desconto && !(c && eServico(l, c))
       ? [
           {
-            id: `desconto-regras:${i}:${v.valor}`,
+            id: `desconto-regras:${l.chave}`,
             campo: "orcamento.total",
             dinheiro: true as const,
             gravidade: "erro" as const,
-            texto: `«${v.rotulo}»: desconto de ${eur(v.valor)} — põe à mão no Fazer proposta.`,
+            texto: `«${l.rotulo}»: desconto de ${eur(l.valor)} — põe à mão no Fazer proposta.`,
           },
         ]
       : [],
@@ -278,20 +375,10 @@ export function avisosDosDescontos(
 }
 
 /** Os avisos de dinheiro que nascem do que ela faz no ecrã (com ou sem revisão). */
-export function avisosDoEcra(p: PropostaImportada, c: Correccoes) {
-  return [...avisosDosDescontos(p), avisoDaSomaGravada(p, c), avisoDaSomaUsada(p, c)].filter(
-    (a): a is NonNullable<typeof a> => a !== null,
+export function avisosDoEcra(p: PropostaImportada, c: Correccoes): AvisoDoEcra[] {
+  return [...avisosDosDescontos(p, c), avisoDaSomaGravada(p, c), avisoDaSomaUsada(p, c)].filter(
+    (a): a is AvisoDoEcra => a !== null,
   );
-}
-
-/**
- * O total escrito que corresponde à escolha dela: com os dois no documento,
- * «sem IVA» usa o sem IVA e «com IVA» o com IVA; com um só, esse.
- */
-export function totalParaOModo(p: PropostaImportada, modo: VatMode): number | null {
-  const t = p.totaisEscritos;
-  if (!t) return p.totalAmount;
-  return modo === "acrescer" ? (t.sem ?? t.com) : (t.com ?? t.sem);
 }
 
 /** O total em texto, como o campo do ecrã o escreve. */
@@ -302,14 +389,14 @@ export function totalEmTexto(n: number | null): string {
 /**
  * ── O QUE VAI SER GRAVADO, NUMA FUNÇÃO SÓ ─────────────────────────────────
  * Os valores sem IVA das linhas, o total e o modo, a partir do que se leu e do
- * que ela escolheu. O ecrã mostra ISTO e o `montarDocumento` grava ISTO: os
+ * que ela conferiu. O ecrã mostra ISTO e o `montarDocumento` grava ISTO: os
  * dois nunca podem discordar.
  */
 export function valoresQueVaoSerGravados(
   p: PropostaImportada,
   c: Correccoes,
 ): { budgetAmounts: (number | null)[]; totalAmount: number | null; totalVatMode: VatMode | null } {
-  p = comServicosPostos(p, c);
+  p = propostaConferida(p, c);
   const total = totalEscrito(c.total);
   const modo = total !== null ? c.totalVatMode : null;
   const budgetAmounts =
@@ -319,7 +406,7 @@ export function valoresQueVaoSerGravados(
             p.linhasEscritas,
             p.linhasNormais ?? p.linhasEscritas.map(() => true),
             c.totalVatMode,
-            p.vatRate ?? DEFAULT_VAT_RATE,
+            taxaDe(c),
           )
         : p.linhasEscritas.map(() => null)
       : [...p.budgetAmounts];
@@ -372,7 +459,8 @@ export function montarDocumento(
   hoje = new Date(),
 ): DocDoEstudio {
   const amounts = valoresQueVaoSerGravados(p, c).budgetAmounts;
-  p = comServicosPostos(p, c);
+  p = propostaConferida(p, c);
+  const taxa = taxaDe(c);
   const total = totalEscrito(c.total);
   const modo = total !== null ? c.totalVatMode : null;
   // Os valores das linhas passam pelo que ELA escolheu — a mesma função do ecrã
@@ -411,7 +499,7 @@ export function montarDocumento(
     budgetItems: [...p.budgetItems],
     ...(amounts.some((v) => v !== null) ? { budgetAmounts: amounts } : {}),
     ...(p.budgetOpcional?.some(Boolean) ? { budgetOpcional: [...p.budgetOpcional] } : {}),
-    ...(typeof p.vatRate === "number" ? { vatRate: p.vatRate } : {}),
+    ...(Math.abs(taxa - DEFAULT_VAT_RATE) > 1e-9 ? { vatRate: taxa } : {}),
     budgetExtras: [],
     totalLabel: "Valor Total Decoração",
     totalText:

@@ -4,7 +4,13 @@ import { lerDocxCompleto, type DocumentoCompleto } from "../documento-completo";
 import type { Leitura } from "./esquema";
 import type { PropostaImportada } from "../mapear";
 import type { VatMode } from "../../proposal-doc";
-import { correccoesIniciais, escolherModoDoIva, valoresQueVaoSerGravados } from "../montar";
+import {
+  candidatasOrdenadas,
+  correccoesIniciais,
+  escolherModoDoIva,
+  escolherTotal,
+  valoresQueVaoSerGravados,
+} from "../montar";
 
 /**
  * Uma proposta INVENTADA (dados TESTE) e a leitura certa dela — o ponto de
@@ -210,11 +216,18 @@ export function leituraComIvaASeis(): Leitura {
 }
 
 /**
- * O que o ecrã faz quando ela escolhe o IVA: o modo, e o total do lado
- * escolhido (`totalParaOModo`). Devolve o que VAI ser gravado.
+ * O que ela faz na conferência, pelos mesmos caminhos do ecrã: escolhe o IVA
+ * (`escolherModoDoIva`) e o total — o que a lista lhe SUGERE para esse IVA
+ * (`candidatasOrdenadas`), ou, sem sugestão, a primeira candidata escrita
+ * (ou `total`, quando o teste o diz). Devolve o que VAI ser gravado.
  */
-export function escolherIva(p: PropostaImportada, modo: VatMode) {
-  // O mesmo caminho do ecrã: a escolha passa SEMPRE por `escolherModoDoIva`.
-  const c = escolherModoDoIva(p, correccoesIniciais(p), modo);
+export function escolherIva(p: PropostaImportada, modo: VatMode, total?: number) {
+  let c = escolherModoDoIva(p, correccoesIniciais(p), modo);
+  const lista = candidatasOrdenadas(p, c);
+  const escolhida =
+    total !== undefined
+      ? lista.find((x) => x.valor === total)
+      : (lista.find((x) => x.sugerida) ?? lista.find((x) => !x.derivada));
+  if (escolhida) c = escolherTotal(p, c, escolhida.id);
   return { c, gravar: valoresQueVaoSerGravados(p, c) };
 }

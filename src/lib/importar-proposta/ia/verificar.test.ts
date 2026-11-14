@@ -256,10 +256,10 @@ describe("achado 2 — a taxa de IVA tem de ter «%» e «IVA»", () => {
     expect(verificar(documentoDeTeste(), l).contas.vatRate).toBe(0.23);
   });
 
-  it("6% escrito ao lado de IVA vale — e é sempre aviso de dinheiro", () => {
+  it("6% escrito ao lado de IVA vale — e é um aviso (confirma-se no campo da taxa)", () => {
     const v = verificar(documentoDeTeste(propostaComIvaASeis()), leituraComIvaASeis());
     expect(v.contas.vatRate).toBe(0.06);
-    expect(v.avisos.map((a) => [a.id, a.dinheiro])).toEqual([["iva:taxa-diferente", true]]);
+    expect(v.avisos.map((a) => [a.id, a.dinheiro])).toEqual([["iva:taxa-diferente", false]]);
   });
 });
 
@@ -554,7 +554,7 @@ describe("4.ª revisão, 1 — o IVA aceite sem perguntar só com PROVA nas cont
     ];
     l.orcamento.totalComIva = { valor: 50, citacao: "Total: 50,00 € (IVA incluído)" };
     const { p } = porEscolher(d, l);
-    const c = { ...correccoesIniciais(p), totalVatMode: "incluido" as const };
+    const { c } = escolherIva(p, "incluido");
     const doc = montarDocumento(p, c, new Map(), "t.docx");
     expect(doc.budgetAmounts).toEqual([20.33, 20.32]);
     expect(doc.totalAmount).toBe(50);

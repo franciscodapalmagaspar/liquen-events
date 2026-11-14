@@ -250,22 +250,12 @@ function viaDasRegras(
   // O IVA, também nesta via: sempre por escolher, com as MESMAS sugestões.
   const escritos = (regras.linhasEscritas ?? []).filter((x): x is number => x !== null);
   const soma = escritos.length ? round2(escritos.reduce((a, b) => a + b, 0)) : null;
-  // A taxa escrita no documento (uma só) passa a `vatRate`, como na leitura:
-  // e o mesmo aviso de dinheiro quando não é a da casa.
-  const vatRate = regras.vatRate ?? DEFAULT_VAT_RATE;
-  if (Math.abs(vatRate - DEFAULT_VAT_RATE) > 1e-9) {
-    const taxa = Math.round(vatRate * 10000) / 100;
-    r.avisos.push({
-      id: "iva:taxa-diferente",
-      campo: "orcamento.iva",
-      dinheiro: true,
-      gravidade: "aviso",
-      texto: `O documento usa IVA a ${taxa}%, e não a ${DEFAULT_VAT_RATE * 100}% da casa. A proposta nova fica com ${taxa}%: confirma que ainda é a taxa certa.`,
-    });
-  }
+  // A taxa escrita no documento é só uma SUGESTÃO para o campo da taxa
+  // (ela confirma-a lá); as sugestões do IVA usam-na.
+  const vatRate = regras.taxaSugerida ?? DEFAULT_VAT_RATE;
   const analise = analisarIva(prepararDocumento(c), vatRate, {
     soma,
-    total: regras.totalAmount,
+    total: regras.candidatasAoTotal?.find((x) => !x.derivada)?.valor ?? null,
   });
   r.contas = {
     vatRate,
