@@ -10,7 +10,7 @@ import {
   themeFolder,
   type ThemeThumbInput,
 } from "@/lib/theme-storage";
-import { isFingerprint } from "@/lib/theme-fingerprint";
+import { fingerprintOfFileName, isFingerprint } from "@/lib/theme-fingerprint";
 import { dimensoesReais, garantirFormatoImprimivel, motivoDaRecusa } from "@/lib/proposal-image";
 import { recusaDeImagem } from "@/lib/recusa-de-imagem";
 import {
@@ -21,6 +21,8 @@ import {
 } from "@/lib/theme-types";
 import { isDatabaseConfigured } from "@/lib/supabase";
 import { NaoDeuParaApagar, enviarParaAReciclagem, quemApagou } from "@/lib/reciclagem";
+import { registarResumos, resumoDosBytes } from "@/lib/fotos-resumo";
+import { refDeTema } from "@/lib/theme-ref";
 import { log } from "@/lib/logger";
 import { lqipAceitavel } from "@/lib/lqip";
 import { corNormalizada } from "@/lib/cor";
@@ -343,6 +345,11 @@ async function POST_semMedida(
       const already = await findThemeImageByBytes(id, bytes);
       if (already) {
         duplicates.push({ name: file.name, path: already, reason: "no-tema" });
+        // A foto antiga entra no índice de graça: as propostas passam a
+        // reconhecê-la (ver `fotos-resumo.ts`).
+        // Só o resumo dos BYTES: foi o MD5 deles que a encontrou. O `hashes[i]`
+        // vem do navegador e não se escreve no índice sem prova.
+        await registarResumos([resumoDosBytes(bytes)], refDeTema(already));
         continue;
       }
     }
@@ -382,8 +389,24 @@ async function POST_semMedida(
     // existe — e o "Tentar novamente" voltaria a fazer o mesmo para sempre.
     if (res.kind === "duplicate") {
       duplicates.push({ name: file.name, path: res.path, reason: "no-tema" });
+      // Foi o NOME (= o resumo do cliente) que bateu: os bytes que chegaram não
+      // são prova de nada sobre a que lá está. Regista-se só o que o nome já
+      // diz — nenhuma informação nova entra no índice por aqui.
+      await registarResumos([hashes[i]], refDeTema(res.path));
       continue;
     }
+    // ── O ÍNDICE DOS RESUMOS (`fotos-resumo.ts`) ──────────────────────────
+    // Os bytes guardados e o original: é por aqui que uma proposta que receba
+    // esta mesma fotografia devolve `tema:<caminho>` em vez de a guardar outra
+    // vez. Melhor esforço — nunca lança.
+    // O resumo do original só quando o NOME do ficheiro o traz: é a mesma
+    // afirmação que a Biblioteca já faz ao dar-lhe esse nome (`theme-fingerprint`),
+    // e a cópia forçada (`<resumo>-<4 hex>`) também a faz.
+    const doNome = fingerprintOfFileName(res.image.path.slice(res.image.path.indexOf("/") + 1));
+    await registarResumos(
+      [resumoDosBytes(bytes), ...(doNome ? [doNome] : [])],
+      refDeTema(res.image.path),
+    );
     // O LQIP entra na linha da foto que acabou de nascer. Melhor esforço: a
     // fotografia já está guardada, e falhar aqui deixa-a sem placeholder —
     // exactamente como estão todas as anteriores a isto existir. Nunca é

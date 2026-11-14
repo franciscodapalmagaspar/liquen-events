@@ -21,6 +21,19 @@ vi.mock("./image-prep", () => ({
   })),
 }));
 
+// O resumo de cada fotografia (o SHA-256 do original, na vida real). As
+// fotografias fabricadas são todas o MESMO JPEG falso, por isso aqui o resumo
+// sai do NOME — o que interessa é distinguir umas das outras.
+const resumoDoNome = (nome: string) =>
+  Array.from(nome)
+    .map((c) => c.charCodeAt(0).toString(16))
+    .join("")
+    .padEnd(32, "0")
+    .slice(0, 32);
+vi.mock("@/lib/theme-fingerprint", () => ({
+  fingerprintBlob: vi.fn(async (f: File) => resumoDoNome(f.name)),
+}));
+
 import ImportarProposta from "./ImportarProposta";
 
 // Dados inventados.
@@ -41,7 +54,16 @@ interface Chamada {
   init?: RequestInit;
 }
 
-function preparar(semArmazenamento = false, ficheiro = FICHEIRO, rascunhoFalhaUmaVez = false) {
+function preparar(
+  semArmazenamento = false,
+  ficheiro = FICHEIRO,
+  rascunhoFalhaUmaVez = false,
+  /** Os nomes das fotografias que já estão guardadas na Biblioteca. */
+  jaGuardadas: readonly string[] = [],
+  /** As que, entre ler o ficheiro e gravar o rascunho, saíram da Biblioteca. */
+  morremAntesDeGravar: readonly string[] = [],
+) {
+  let perguntas = 0;
   let rascunhoFalhou = false;
   const chamadas: Chamada[] = [];
   const proposta = mapearConteudo(extrairConteudo(ficheiro));
@@ -50,6 +72,17 @@ function preparar(semArmazenamento = false, ficheiro = FICHEIRO, rascunhoFalhaUm
     chamadas.push({ url, init });
     const ok = (dados: unknown) => ({ ok: true, status: 200, json: async () => dados });
     if (url === "/api/orcamento/importar") return ok({ ok: true, proposta });
+    if (url === "/api/orcamento/fotos-existentes") {
+      const { resumos } = JSON.parse(init?.body as string) as { resumos: string[] };
+      const existentes: Record<string, string> = {};
+      perguntas++;
+      for (const nome of jaGuardadas) {
+        if (perguntas > 1 && morremAntesDeGravar.includes(nome)) continue;
+        const r = resumoDoNome(nome);
+        if (resumos.includes(r)) existentes[r] = `tema:t1/${r}.jpg`;
+      }
+      return ok({ ok: true, existentes });
+    }
     if (url === "/api/orcamento/manual") {
       return ok({ ok: true, quote: { id: "LIQ-IMP-1", name: "Inês Teste & Tiago Exemplo" } });
     }
@@ -131,7 +164,12 @@ describe("Importar proposta antiga", () => {
     const criar = screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ });
     await user.click(criar);
     expect(await screen.findByText(/Falta dizer se o total inclui IVA/)).toBeTruthy();
-    expect(chamadas.map((c) => c.url)).toEqual(["/api/orcamento/importar"]);
+    // Ler o ficheiro pergunta, pelos resumos, que fotografias já estão
+    // guardadas — antes de qualquer pedido existir.
+    expect(chamadas.map((c) => c.url)).toEqual([
+      "/api/orcamento/importar",
+      "/api/orcamento/fotos-existentes",
+    ]);
 
     // Tira uma das duas fotografias e escolhe o IVA.
     await user.click(screen.getAllByRole("button", { pressed: true })[1]);
@@ -143,11 +181,12 @@ describe("Importar proposta antiga", () => {
     const urls = chamadas.map((c) => c.url);
     expect(urls).toEqual([
       "/api/orcamento/importar",
+      "/api/orcamento/fotos-existentes",
       "/api/orcamento/manual",
       "/api/orcamento/LIQ-IMP-1/assets",
       "/api/orcamento/LIQ-IMP-1/proposta-rascunho",
     ]);
-    const pedido = JSON.parse(chamadas[1].init?.body as string);
+    const pedido = JSON.parse(chamadas[2].init?.body as string);
     expect(pedido).toMatchObject({
       name: "Inês Teste & Tiago Exemplo",
       date: "2027-07-04",
@@ -156,13 +195,15 @@ describe("Importar proposta antiga", () => {
     });
     expect(pedido.notes).toMatch(/importada de «antiga\.docx»/);
     // A fotografia vai com a miniatura e a cor, como no estúdio.
-    const form = chamadas[2].init?.body as FormData;
+    const form = chamadas[3].init?.body as FormData;
     expect(form.getAll("files")).toHaveLength(1);
+    // E o resumo do original, para o servidor reconhecer uma que já exista.
+    expect(form.get("resumos")).toBe(resumoDoNome("cer1.jpeg"));
     expect(form.getAll("thumbs")).toHaveLength(1);
     expect(form.get("cores")).toBe("#aabbcc");
 
-    const { doc } = JSON.parse(chamadas[3].init?.body as string);
-    expect(chamadas[3].init?.method).toBe("PUT");
+    const { doc } = JSON.parse(chamadas[4].init?.body as string);
+    expect(chamadas[4].init?.method).toBe("PUT");
     expect(doc.moodBoards).toEqual([
       { title: "Decoração da Cerimónia", images: ["LIQ-IMP-1/foto1.jpg"] },
     ]);
@@ -210,46 +251,121 @@ describe("Importar proposta antiga", () => {
     expect(doc.totalVatMode).toBe("incluido");
   });
 
-  it("com 13 fotografias: liga 8 por omissão, a 9.ª não liga, e sobem só 8", async () => {
-    // A capa e 4 fotografias em cada uma de três secções.
-    const seccao = (t: string, p: string) => [
-      { h: 1 as const, t },
-      { li: `Ponto de ${t}` },
-      ...Array.from({ length: 4 }, (_, i) => ({ img: `${p}${i}.jpeg` })),
-    ];
-    const muitas = docx([
-      "Casamento Inês Teste & Tiago Exemplo",
-      { img: "capa.jpeg" },
-      ...seccao("Cerimónia", "c"),
-      ...seccao("Mesas", "m"),
-      ...seccao("Bar", "b"),
-      { h: 1, t: "Orçamento" },
-      "Total 2.800 € + IVA",
-    ]);
-    const { chamadas, onCreated } = preparar(false, muitas);
-    const user = userEvent.setup();
-    await escolherFicheiro(muitas);
+  // A capa e 8 fotografias em cada uma de três secções = 25.
+  const seccao = (t: string, p: string) => [
+    { h: 1 as const, t },
+    { li: `Ponto de ${t}` },
+    ...Array.from({ length: 8 }, (_, i) => ({ img: `${p}${i}.jpeg` })),
+  ];
+  const VINTE_E_CINCO = docx([
+    "Casamento Inês Teste & Tiago Exemplo",
+    { img: "capa.jpeg" },
+    ...seccao("Cerimónia", "c"),
+    ...seccao("Mesas", "m"),
+    ...seccao("Bar", "b"),
+    { h: 1, t: "Orçamento" },
+    "Total 2.800 € + IVA",
+  ]);
 
-    expect(screen.getByText(/8 de 13 escolhidas/)).toBeTruthy();
-    expect(screen.getByText(/Máximo 8 — tira uma para pôr outra/)).toBeTruthy();
-    // A capa e as primeiras de cada secção, à vez: c0 m0 b0 c1 m1 b1 c2.
+  it("com 25 fotografias novas: liga 20 por omissão, a 21.ª não liga, e sobem só 20", async () => {
+    const { chamadas, onCreated } = preparar(false, VINTE_E_CINCO);
+    const user = userEvent.setup();
+    await escolherFicheiro(VINTE_E_CINCO);
+
+    expect(screen.getByText(/20 de 25 escolhidas/)).toBeTruthy();
+    expect(screen.getByText(/Máximo 20 novas — tira uma para pôr outra/)).toBeTruthy();
     const ligadas = screen
       .getAllByRole("button", { pressed: true })
       .map((b) => b.querySelector("img")?.getAttribute("alt"));
-    expect(ligadas).toHaveLength(8);
+    expect(ligadas).toHaveLength(20);
     expect(ligadas[0]).toBe("Fotografia da capa");
 
-    // A 9.ª não liga.
+    // A 21.ª não liga.
     const desligada = screen.getAllByRole("button", { pressed: false })[0];
     await user.click(desligada);
     expect(desligada.getAttribute("aria-pressed")).toBe("false");
-    expect(screen.getByText(/8 de 13 escolhidas/)).toBeTruthy();
+    expect(screen.getByText(/20 de 25 escolhidas/)).toBeTruthy();
 
     await user.click(
       screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
     );
     await waitFor(() => expect(onCreated).toHaveBeenCalled());
-    expect(chamadas.filter((c) => c.url.endsWith("/assets"))).toHaveLength(8);
+    expect(chamadas.filter((c) => c.url.endsWith("/assets"))).toHaveLength(20);
+  });
+
+  it("25 fotografias, 10 já guardadas: ficam as 25, sobem só as 15 novas, e as 10 entram pela Biblioteca", async () => {
+    const guardadas = [
+      "capa.jpeg",
+      ...Array.from({ length: 8 }, (_, i) => `c${i}.jpeg`),
+      "m0.jpeg",
+    ];
+    const { chamadas, onCreated } = preparar(false, VINTE_E_CINCO, false, guardadas);
+    const user = userEvent.setup();
+    await escolherFicheiro(VINTE_E_CINCO);
+
+    expect(screen.getByText(/25 de 25 escolhidas/)).toBeTruthy();
+    expect(screen.getByText(/10 já existem — não ocupam espaço/)).toBeTruthy();
+    expect(screen.getByText(/as 15 novas ocupam cerca de 14 MB/)).toBeTruthy();
+    expect(screen.queryByText(/Máximo 20 novas/)).toBeNull();
+
+    await user.click(
+      screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+    );
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    const enviadas = chamadas.filter((c) => c.url.endsWith("/assets"));
+    expect(enviadas).toHaveLength(15);
+    // Nenhuma das já guardadas subiu um byte.
+    const nomes = enviadas.map((c) => ((c.init?.body as FormData).get("files") as File).name);
+    expect(nomes.some((n) => guardadas.includes(n))).toBe(false);
+    // E entram na proposta pela referência à Biblioteca.
+    const { doc } = JSON.parse(
+      chamadas.find((c) => c.url.endsWith("/proposta-rascunho"))!.init?.body as string,
+    );
+    const refs = JSON.stringify(doc);
+    for (const n of guardadas) expect(refs).toContain(`tema:t1/${resumoDoNome(n)}.jpg`);
+  });
+
+  it("sem armazenamento, pára ao fim de 3 falhas — mesmo com fotografias já guardadas", async () => {
+    const guardadas = [
+      "capa.jpeg",
+      ...Array.from({ length: 8 }, (_, i) => `c${i}.jpeg`),
+      "m0.jpeg",
+    ];
+    const { chamadas, onCreated } = preparar(true, VINTE_E_CINCO, false, guardadas);
+    const user = userEvent.setup();
+    await escolherFicheiro(VINTE_E_CINCO);
+    await user.click(
+      screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+    );
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    // Duas vias: no máximo 4 tentativas antes de parar — não as 15.
+    expect(chamadas.filter((c) => c.url.endsWith("/assets")).length).toBeLessThanOrEqual(4);
+  });
+
+  it("uma foto da Biblioteca que saiu entretanto sobe como nova — o rascunho nunca leva um `tema:` morto", async () => {
+    const guardadas = [
+      "capa.jpeg",
+      ...Array.from({ length: 8 }, (_, i) => `c${i}.jpeg`),
+      "m0.jpeg",
+    ];
+    const { chamadas, onCreated } = preparar(false, VINTE_E_CINCO, false, guardadas, ["capa.jpeg"]);
+    const user = userEvent.setup();
+    await escolherFicheiro(VINTE_E_CINCO);
+    await user.click(
+      screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+    );
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    // Confirmou-se outra vez antes de gravar…
+    expect(chamadas.filter((c) => c.url === "/api/orcamento/fotos-existentes")).toHaveLength(2);
+    // …e a capa, que morreu, subiu: 15 novas + 1.
+    const enviadas = chamadas.filter((c) => c.url.endsWith("/assets"));
+    expect(enviadas).toHaveLength(16);
+    expect(
+      enviadas.some((c) => ((c.init?.body as FormData).get("files") as File).name === "capa.jpeg"),
+    ).toBe(true);
+    const texto = chamadas.find((c) => c.url.endsWith("/proposta-rascunho"))!.init?.body as string;
+    expect(texto).not.toContain(`tema:t1/${resumoDoNome("capa.jpeg")}.jpg`);
+    expect(texto).toContain(`tema:t1/${resumoDoNome("c0.jpeg")}.jpg`);
   });
 
   it("se o rascunho falha depois de o pedido criado, diz a verdade e o novo clique continua — sem 2.º pedido nem fotos repetidas", async () => {

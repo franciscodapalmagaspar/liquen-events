@@ -242,6 +242,7 @@ import { randomId } from "./util";
 import type { ActivityEntry, Quote, QuoteStatus } from "@/lib/orcamento/types";
 import { prepareImageWithThumb, type ImageKind } from "./image-prep";
 import { enviarFotoDaProposta } from "./enviar-foto-da-proposta";
+import { fingerprintBlob } from "@/lib/theme-fingerprint";
 import ThemePicker, { type ImportedImage, type ReservedImage } from "./ThemePicker";
 import ServicesEditor, { MoveBtns } from "./ServicesEditor";
 import CaixaInglesa from "./CaixaInglesa";
@@ -5748,11 +5749,12 @@ export default function ProposalStudio({
     cor?: string | null,
     lqip?: string | null,
     mid?: File | null,
+    resumo?: string | null,
   ): Promise<{ path: string; url: string; thumbUrl?: string; cor?: string }> {
     // O formulário, a repetição e as mensagens vivem em
     // `enviar-foto-da-proposta.ts`: a importação de propostas antigas carrega
     // as fotografias pelo MESMO caminho.
-    const im = await enviarFotoDaProposta(quote.id, { file, thumb, cor, lqip, mid });
+    const im = await enviarFotoDaProposta(quote.id, { file, thumb, cor, lqip, mid, resumo });
     // A grelha desenha pela miniatura quando existe; o original fica para o
     // detalhe e para o PDF.
     setAssetUrls((prev) => ({ ...prev, [im.path]: im.thumbUrl || im.url }));
@@ -5840,13 +5842,20 @@ export default function ProposalStudio({
         if (i >= files.length) return;
         const f = files[i];
         try {
-          const prepared = await prepareImageWithThumb(f, kind);
+          // O resumo do ORIGINAL (~40 ms), para o servidor reconhecer uma foto
+          // que já está na Biblioteca ou neste pedido e não guardar outra cópia
+          // (`fotos-resumo.ts`). `null` sem contexto seguro — sobe como antes.
+          const [prepared, resumo] = await Promise.all([
+            prepareImageWithThumb(f, kind),
+            fingerprintBlob(f),
+          ]);
           const im = await uploadOne(
             prepared.file,
             prepared.thumb,
             prepared.cor,
             prepared.lqip,
             prepared.mid,
+            resumo,
           );
           // Guardado pelo ÍNDICE: as vias acabam fora de ordem e a ordem das
           // fotos escolhidas é a que a Catarina vê no documento.

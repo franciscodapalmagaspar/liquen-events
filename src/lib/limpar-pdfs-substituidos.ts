@@ -151,7 +151,11 @@ export async function limparPdfsSubstituidos(agora: Date, prazoMs = 8_000): Prom
       .map((l, i) =>
         JSON.stringify(
           TABELAS_COM_CONTEUDO[i] === "app_state"
-            ? (l.data as { key?: string }[]).filter((r) => r.key !== CHAVE)
+            ? // O índice dos resumos (`fotos-resumo.ts`) nomeia pastas de pedidos
+              // por fotos que lá estiveram — não é uma menção.
+              (l.data as { key?: string }[]).filter(
+                (r) => r.key !== CHAVE && !String(r.key ?? "").startsWith("foto-resumo:"),
+              )
             : l.data,
         ),
       )

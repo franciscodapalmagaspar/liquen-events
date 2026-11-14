@@ -125,6 +125,9 @@ const MARGEM_MS = 5 * 60_000;
 const HORA_MS = 60 * 60_000;
 const DIA_MS = 24 * HORA_MS;
 const PREFIXO_CACHE_WEB = "proposta-web:";
+/** O índice dos resumos (`fotos-resumo.ts`) nomeia caminhos, mas não os usa:
+ *  um caminho que sai daqui é esquecido lá na primeira vez que se procura. */
+const PREFIXO_INDICE_DE_RESUMOS = "foto-resumo:";
 const PROPOSAL_COVER_BUCKET = "proposal-capas";
 const THEME_COVER_BUCKET = "theme-capas";
 const EM_PARALELO = 6;
@@ -276,7 +279,12 @@ async function lerTudo(sb: Cliente): Promise<Leitura | null> {
     }
     for (const l of linhas) {
       const chave = String(l.key ?? "");
-      if (chave === CHAVE || chave.startsWith(PREFIXO_CACHE_WEB)) continue;
+      if (
+        chave === CHAVE ||
+        chave.startsWith(PREFIXO_CACHE_WEB) ||
+        chave.startsWith(PREFIXO_INDICE_DE_RESUMOS)
+      )
+        continue;
       if (chave.startsWith(DRAFT_PREFIX)) {
         rascunhos.push({ chave, texto: JSON.stringify(l.value ?? null), valor: l.value });
       } else partes.push(JSON.stringify(l));

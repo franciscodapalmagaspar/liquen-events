@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { deflateRawSync } from "node:zlib";
 import {
   alternarFoto,
+  quantasNovas,
   dimensoesDoCabecalho,
   escolhaPorOmissao,
   fotosASubir,
@@ -113,57 +114,73 @@ describe("as fotografias, no navegador", () => {
   });
 });
 
-describe("o tecto de fotografias por importação", () => {
+describe("o tecto de fotografias NOVAS por importação", () => {
   const f = (caminho: string, seccao: string, destino: "capa" | "moodboard" = "moodboard") => ({
     caminho,
     seccao,
     destino,
   });
-  // A capa, 6 da Cerimónia, 4 das Mesas, 3 do Bar = 14.
+  // A capa, 12 da Cerimónia, 8 das Mesas, 4 do Bar = 25.
   const fotos = [
     f("capa", "Capa", "capa"),
-    ...Array.from({ length: 6 }, (_, i) => f(`c${i}`, "Cerimónia")),
-    ...Array.from({ length: 4 }, (_, i) => f(`m${i}`, "Mesas")),
-    ...Array.from({ length: 3 }, (_, i) => f(`b${i}`, "Bar")),
+    ...Array.from({ length: 12 }, (_, i) => f(`c${i}`, "Cerimónia")),
+    ...Array.from({ length: 8 }, (_, i) => f(`m${i}`, "Mesas")),
+    ...Array.from({ length: 4 }, (_, i) => f(`b${i}`, "Bar")),
   ];
   const todas = new Set(fotos.map((x) => x.caminho));
 
-  it("é de 8", () => {
-    expect(MAX_FOTOS_POR_IMPORTACAO).toBe(8);
+  it("é de 20", () => {
+    expect(MAX_FOTOS_POR_IMPORTACAO).toBe(20);
   });
 
-  it("por omissão: a capa e as primeiras de cada secção, à vez, até 8", () => {
-    expect(escolhaPorOmissao(fotos, todas)).toEqual([
-      "capa",
-      "c0",
-      "m0",
-      "b0",
-      "c1",
-      "m1",
-      "b1",
-      "c2",
-    ]);
+  it("por omissão: a capa e as primeiras de cada secção, à vez, até 20", () => {
+    const e = escolhaPorOmissao(fotos, todas);
+    expect(e).toHaveLength(20);
+    expect(e.slice(0, 7)).toEqual(["capa", "c0", "m0", "b0", "c1", "m1", "b1"]);
   });
 
   it("só escolhe as que o navegador conseguiu ler", () => {
     const semAlgumas = new Set([...todas].filter((c) => c !== "capa" && c !== "m0"));
     const e = escolhaPorOmissao(fotos, semAlgumas);
-    expect(e).toHaveLength(8);
+    expect(e).toHaveLength(20);
     expect(e).not.toContain("capa");
     expect(e).not.toContain("m0");
   });
 
-  it("a 9.ª não liga; tirar uma deixa pôr outra", () => {
-    const oito = new Set(escolhaPorOmissao(fotos, todas));
-    expect(alternarFoto(oito, "c5")).toBeNull();
-    const sete = alternarFoto(oito, "c0")!;
-    expect(sete.size).toBe(7);
-    expect(alternarFoto(sete, "c5")?.size).toBe(8);
+  it("a 21.ª nova não liga; tirar uma deixa pôr outra", () => {
+    const vinte = new Set(escolhaPorOmissao(fotos, todas));
+    const fora = fotos.map((x) => x.caminho).find((c) => !vinte.has(c))!;
+    expect(alternarFoto(vinte, fora)).toBeNull();
+    const dezanove = alternarFoto(vinte, "c0")!;
+    expect(dezanove.size).toBe(19);
+    expect(alternarFoto(dezanove, fora)?.size).toBe(20);
   });
 
-  it("nunca sobem mais de 8, mesmo que o conjunto traga mais", () => {
+  it("nunca sobem mais de 20, mesmo que o conjunto traga mais", () => {
     expect(fotosASubir(fotos, todas).map((x) => x.caminho)).toEqual(
-      fotos.slice(0, 8).map((x) => x.caminho),
+      fotos.slice(0, 20).map((x) => x.caminho),
     );
+  });
+
+  it("25 fotografias, 10 já guardadas: ficam as 25 escolhidas e sobem só as 15 novas", () => {
+    const existentes = new Set(fotos.slice(0, 10).map((x) => x.caminho));
+    const escolhidas = new Set(escolhaPorOmissao(fotos, todas, existentes));
+    expect(escolhidas.size).toBe(25);
+    expect(quantasNovas(escolhidas, existentes)).toBe(15);
+    const sobem = fotosASubir(fotos, escolhidas, existentes);
+    expect(sobem).toHaveLength(15);
+    expect(sobem.some((x) => existentes.has(x.caminho))).toBe(false);
+  });
+
+  it("uma já guardada liga sempre, mesmo com o tecto de novas cheio", () => {
+    const existentes = new Set(["b3"]);
+    const cheias = new Set(
+      fotos
+        .filter((x) => x.caminho !== "b3")
+        .slice(0, 20)
+        .map((x) => x.caminho),
+    );
+    expect(quantasNovas(cheias, existentes)).toBe(20);
+    expect(alternarFoto(cheias, "b3", existentes)?.has("b3")).toBe(true);
   });
 });

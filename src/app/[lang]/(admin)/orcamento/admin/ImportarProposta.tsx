@@ -26,6 +26,7 @@ import {
   alternarFoto,
   escolhaPorOmissao,
   fotosASubir,
+  quantasNovas,
   type FotoDoFicheiro,
   type FotosLidas,
 } from "@/lib/importar-proposta/no-navegador";
@@ -34,6 +35,7 @@ import { Button, EmCurso, Field, FolhaOuDialogo, Segmented } from "./ui";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { prepareImageWithThumb } from "./image-prep";
 import { enviarFotoDaProposta } from "./enviar-foto-da-proposta";
+import { fingerprintBlob } from "@/lib/theme-fingerprint";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -69,6 +71,54 @@ import { enviarFotoDaProposta } from "./enviar-foto-da-proposta";
 const MB_POR_FOTO = 0.9;
 /** Duas vias, como o estúdio (`UPLOAD_CONCURRENCY`). */
 const VIAS = 2;
+/** Resumos por pergunta a `/api/orcamento/fotos-existentes` (o tecto da rota). */
+const RESUMOS_POR_PERGUNTA = 60;
+
+/**
+ * ── «X JÁ EXISTEM — NÃO OCUPAM ESPAÇO» (13/11) ─────────────────────────────
+ *
+ * O resumo de cada fotografia do ficheiro (SHA-256 do original, como a
+ * Biblioteca — `fingerprintBlob`, ~40 ms por foto) é calculado AQUI, antes de
+ * preparar e subir, e perguntado ao servidor. As que já estão guardadas voltam
+ * com o caminho (`tema:<…>` na Biblioteca) e entram na proposta assim: não se
+ * preparam, não sobem um byte, não ocupam espaço e não contam para o tecto.
+ *
+ * Melhor esforço: sem contexto seguro (`crypto.subtle`) ou com a rota em baixo
+ * volta um mapa vazio, e tudo sobe como antes — o servidor ainda apanha, ao
+ * receber, a que já existir (`fotos-resumo.ts`).
+ */
+async function resumosDasFotos(fotos: readonly FotoDoFicheiro[]): Promise<Map<string, string>> {
+  const saida = new Map<string, string>();
+  for (const f of fotos) {
+    const r = await fingerprintBlob(f.ficheiro);
+    if (r) saida.set(f.caminho, r);
+  }
+  return saida;
+}
+
+async function quaisJaExistem(resumos: ReadonlyMap<string, string>): Promise<Map<string, string>> {
+  const existentes = new Map<string, string>();
+  const pares = [...resumos.entries()];
+  for (let i = 0; i < pares.length; i += RESUMOS_POR_PERGUNTA) {
+    const lote = pares.slice(i, i + RESUMOS_POR_PERGUNTA);
+    try {
+      const res = await fetch("/api/orcamento/fotos-existentes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumos: lote.map(([, r]) => r) }),
+      });
+      const dados = await res.json().catch(() => null);
+      const achados = (res.ok && dados?.existentes) || {};
+      for (const [caminho, r] of lote) {
+        const ref = achados[r];
+        if (typeof ref === "string" && ref) existentes.set(caminho, ref);
+      }
+    } catch {
+      /* não se sabe — sobem, como antes */
+    }
+  }
+  return existentes;
+}
 
 type Passo = "escolher" | "a-ler" | "rever" | "a-criar";
 
@@ -134,6 +184,11 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
   const [fotos, setFotos] = useState<FotoDoFicheiro[]>([]);
   const [deFora, setDeFora] = useState<FotosLidas["deFora"]>([]);
   const [escolhidas, setEscolhidas] = useState<Set<string>>(new Set());
+  /** caminho no ficheiro → resumo do original (`fingerprintBlob`). */
+  const [resumos, setResumos] = useState<Map<string, string>>(new Map());
+  /** caminho no ficheiro → onde a fotografia JÁ está guardada (`tema:<…>`). */
+  const [existentes, setExistentes] = useState<Map<string, string>>(new Map());
+  const jaGuardadas = useMemo(() => new Set(existentes.keys()), [existentes]);
   const [progresso, setProgresso] = useState<{ titulo: string; feito?: number; total?: number }>({
     titulo: "",
   });
@@ -168,6 +223,8 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     setC(null);
     setFotos([]);
     setDeFora([]);
+    setResumos(new Map());
+    setExistentes(new Map());
     setEscolhidas(new Set());
     setTentouCriar(false);
     if (inputRef.current) inputRef.current.value = "";
@@ -219,12 +276,23 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
         bytes,
         p.fotos.map((f) => f.caminho),
       );
+      // Antes de escolher: quais destas já estão guardadas (não gastam tecto).
+      const r = await resumosDasFotos(lidas.fotos);
+      const ja = await quaisJaExistem(r);
       setProposta(p);
       setC(correccoesIniciais(p));
       setFotos(lidas.fotos);
       setDeFora(lidas.deFora);
+      setResumos(r);
+      setExistentes(ja);
       setEscolhidas(
-        new Set(escolhaPorOmissao(p.fotos, new Set(lidas.fotos.map((f) => f.caminho)))),
+        new Set(
+          escolhaPorOmissao(
+            p.fotos,
+            new Set(lidas.fotos.map((f) => f.caminho)),
+            new Set(ja.keys()),
+          ),
+        ),
       );
       setPasso("rever");
     } catch (e) {
@@ -239,11 +307,11 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     setC((x) => (x ? { ...x, [k]: v } : x));
 
   function alternar(caminho: string) {
-    const n = alternarFoto(escolhidas, caminho);
+    const n = alternarFoto(escolhidas, caminho, jaGuardadas);
     if (n) setEscolhidas(n);
     else {
       toast(
-        `No máximo ${MAX_FOTOS_POR_IMPORTACAO} fotografias por importação — tira uma para pôr outra.`,
+        `No máximo ${MAX_FOTOS_POR_IMPORTACAO} fotografias novas por importação — tira uma para pôr outra.`,
         "info",
       );
     }
@@ -275,39 +343,85 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       // 2. As fotografias escolhidas, reduzidas no navegador e carregadas como
       // no estúdio. Uma que falhe não deita fora as outras.
       // As que já subiram numa tentativa anterior não sobem outra vez.
-      const aSubir = fotosASubir(fotos, escolhidas);
+      // As que já estão guardadas entram pelo caminho que já têm — zero bytes.
+      for (const f of fotos) {
+        const ref = existentes.get(f.caminho);
+        if (ref && escolhidas.has(f.caminho)) carregadas.set(f.caminho, ref);
+      }
+      const aSubir = fotosASubir(fotos, escolhidas, jaGuardadas);
       const porSubir = aSubir.filter((f) => !carregadas.has(f.caminho));
+      /** As que têm de ficar na pasta do pedido (as novas e as que morreram). */
+      const deviamSubir: FotoDoFicheiro[] = [...aSubir];
+      let total = aSubir.length;
       let feitas = aSubir.length - porSubir.length;
       let porque = "";
-      setProgresso({ titulo: "A carregar as fotografias", feito: feitas, total: aSubir.length });
+      setProgresso({ titulo: "A carregar as fotografias", feito: feitas, total });
       let falhasAgora = 0;
-      let proxima = 0;
-      const via = async () => {
-        for (;;) {
-          const i = proxima++;
-          if (i >= porSubir.length) return;
-          // Três falhas sem nenhuma a passar é o armazenamento que não está
-          // lá (não uma foto má): parar, em vez de tentar as outras.
-          if (falhasAgora >= 3 && carregadas.size === 0) return;
-          const f = porSubir[i];
-          try {
-            const preparada = await prepareImageWithThumb(f.ficheiro, "board");
-            const im = await enviarFotoDaProposta(quote.id, preparada);
-            carregadas.set(f.caminho, im.path);
-          } catch (e) {
-            falhasAgora++;
-            if (!porque && e instanceof Error) porque = e.message;
-          } finally {
-            feitas++;
-            setProgresso({
-              titulo: "A carregar as fotografias",
-              feito: feitas,
-              total: aSubir.length,
-            });
+      // As que subiram NESTA importação. `carregadas` não serve para isto: já
+      // traz as que estavam guardadas, e a paragem nunca disparava.
+      let subiramAgora = 0;
+      const subir = async (lista: readonly FotoDoFicheiro[]) => {
+        let proxima = 0;
+        const via = async () => {
+          for (;;) {
+            const i = proxima++;
+            if (i >= lista.length) return;
+            // Três falhas sem nenhuma a passar é o armazenamento que não está
+            // lá (não uma foto má): parar, em vez de tentar as outras.
+            if (falhasAgora >= 3 && subiramAgora === 0) return;
+            const f = lista[i];
+            try {
+              const preparada = await prepareImageWithThumb(f.ficheiro, "board");
+              const im = await enviarFotoDaProposta(quote.id, {
+                ...preparada,
+                resumo: resumos.get(f.caminho) ?? null,
+              });
+              carregadas.set(f.caminho, im.path);
+              subiramAgora++;
+            } catch (e) {
+              falhasAgora++;
+              if (!porque && e instanceof Error) porque = e.message;
+            } finally {
+              feitas++;
+              setProgresso({ titulo: "A carregar as fotografias", feito: feitas, total });
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(VIAS, lista.length) }, via));
+      };
+      await subir(porSubir);
+
+      // 2b. As da Biblioteca outra vez, mesmo antes de gravar: entre ler o
+      // ficheiro e chegar aqui podem ter passado minutos, e a foto pode ter
+      // sido apagada ou movida. Um `tema:` morto no rascunho é uma célula
+      // vazia; a que já não está sobe como nova. Não se conseguir confirmar
+      // conta como morta — guardar uma cópia é melhor do que perder a foto.
+      const daBiblioteca = fotos.filter(
+        (f) => escolhidas.has(f.caminho) && carregadas.get(f.caminho)?.startsWith("tema:"),
+      );
+      if (daBiblioteca.length > 0) {
+        const aConfirmar = new Map<string, string>();
+        for (const f of daBiblioteca) {
+          const r = resumos.get(f.caminho);
+          if (r) aConfirmar.set(f.caminho, r);
+        }
+        const vivas = await quaisJaExistem(aConfirmar);
+        const mortas: FotoDoFicheiro[] = [];
+        for (const f of daBiblioteca) {
+          const ref = vivas.get(f.caminho);
+          if (ref) carregadas.set(f.caminho, ref);
+          else {
+            carregadas.delete(f.caminho);
+            mortas.push(f);
           }
         }
-      };
-      await Promise.all(Array.from({ length: Math.min(VIAS, porSubir.length) }, via));
+        if (mortas.length > 0) {
+          total += mortas.length;
+          deviamSubir.push(...mortas);
+          setProgresso({ titulo: "A carregar as fotografias", feito: feitas, total });
+          await subir(mortas);
+        }
+      }
 
       // 3. O rascunho do estúdio — o que o «Fazer proposta» abre.
       setProgresso({ titulo: "A guardar o rascunho da proposta" });
@@ -321,13 +435,14 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
         const d = await r.json().catch(() => null);
         throw new Error(typeof d?.erro === "string" ? d.erro : "");
       }
-      if (carregadas.size === 0 && aSubir.length > 0) {
+      const subiram = deviamSubir.filter((f) => carregadas.has(f.caminho)).length;
+      if (subiram === 0 && deviamSubir.length > 0) {
         toast(
           `O pedido e a proposta foram criados, mas nenhuma fotografia carregou${porque ? ` (${porque})` : ""}. Podes juntá-las no Fazer proposta.`,
           "error",
         );
-      } else if (carregadas.size < aSubir.length) {
-        const n = aSubir.length - carregadas.size;
+      } else if (subiram < deviamSubir.length) {
+        const n = deviamSubir.length - subiram;
         toast(
           n === 1
             ? "Uma fotografia não carregou. As outras estão na proposta."
@@ -359,7 +474,9 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     acc[d.motivo] = (acc[d.motivo] ?? 0) + 1;
     return acc;
   }, {});
-  const acimaDoLimite = Math.max(0, fotos.length - MAX_FOTOS_POR_IMPORTACAO);
+  const acimaDoLimite = Math.max(0, fotos.length - jaGuardadas.size - MAX_FOTOS_POR_IMPORTACAO);
+  const novasEscolhidas = quantasNovas(escolhidas, jaGuardadas);
+  const jaEscolhidas = escolhidas.size - novasEscolhidas;
   const conf = (k: CampoImportado): Confianca => proposta?.confianca[k] ?? "nada";
 
   return (
@@ -441,7 +558,8 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
             </li>
             <li>
               As fotografias são reduzidas antes de subir, e sobem no máximo{" "}
-              {MAX_FOTOS_POR_IMPORTACAO}.
+              {MAX_FOTOS_POR_IMPORTACAO} novas. As que já estão guardadas não sobem nem ocupam
+              espaço.
             </li>
             <li>
               Os Word e PowerPoint antigos (.doc, .ppt) têm de ser guardados primeiro como .docx ou
@@ -643,14 +761,18 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
             ) : (
               <>
                 <p className="mb-3 text-footnote text-[var(--bo-text-muted)]">
-                  {escolhidas.size} de {fotos.length} escolhidas · ocupam cerca de{" "}
-                  {Math.max(1, Math.round(escolhidas.size * MB_POR_FOTO))} MB no armazenamento. Toca
-                  numa fotografia para a tirar ou voltar a pôr.
+                  {escolhidas.size} de {fotos.length} escolhidas
+                  {jaEscolhidas > 0 &&
+                    ` · ${jaEscolhidas === 1 ? "1 já existe" : `${jaEscolhidas} já existem`} — não ocupam espaço`}
+                  {novasEscolhidas > 0
+                    ? ` · ${novasEscolhidas === 1 ? "a nova ocupa" : `as ${novasEscolhidas} novas ocupam`} cerca de ${Math.max(1, Math.round(novasEscolhidas * MB_POR_FOTO))} MB no armazenamento`
+                    : " · nada novo no armazenamento"}
+                  . Toca numa fotografia para a tirar ou voltar a pôr.
                 </p>
-                {escolhidas.size >= MAX_FOTOS_POR_IMPORTACAO &&
-                  fotos.length > MAX_FOTOS_POR_IMPORTACAO && (
+                {novasEscolhidas >= MAX_FOTOS_POR_IMPORTACAO &&
+                  fotos.length - jaGuardadas.size > MAX_FOTOS_POR_IMPORTACAO && (
                     <p role="status" className="-mt-2 mb-3 text-footnote text-[var(--bo-aviso)]">
-                      Máximo {MAX_FOTOS_POR_IMPORTACAO} — tira uma para pôr outra.
+                      Máximo {MAX_FOTOS_POR_IMPORTACAO} novas — tira uma para pôr outra.
                     </p>
                   )}
                 <ul className="grid grid-cols-3 gap-2 @min-[30rem]:grid-cols-4 @min-[44rem]:grid-cols-6">
@@ -686,6 +808,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                                 ? "Capa"
                                 : ondeVai?.seccao
                               : "Fica de fora"}
+                            {on && jaGuardadas.has(f.caminho) && " · já guardada"}
                           </span>
                         </button>
                       </li>
@@ -699,8 +822,8 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                 {acimaDoLimite > 0 && (
                   <li>
                     O documento tem {fotos.length} fotografias; ficaram ligadas a capa e as
-                    primeiras de cada secção, até {MAX_FOTOS_POR_IMPORTACAO}, que é o máximo por
-                    importação (para não encher o armazenamento). As outras juntam-se depois no
+                    primeiras de cada secção, até {MAX_FOTOS_POR_IMPORTACAO} novas, que é o máximo
+                    por importação (para não encher o armazenamento). As outras juntam-se depois no
                     Fazer proposta, se quiseres.
                   </li>
                 )}

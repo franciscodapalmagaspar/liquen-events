@@ -77,6 +77,14 @@ vi.mock("@/lib/biblioteca-fotos-store", () => ({
   garantirFoto: st.garantirFoto,
   updateFoto: st.updateFoto,
 }));
+// O índice dos resumos tem testes próprios (`route.sem-duplicados.test.ts`);
+// aqui nunca encontra nada e nunca escreve — sem ele, o `app_state` de
+// desenvolvimento (um ficheiro) era escrito pelos testes.
+vi.mock("@/lib/fotos-resumo", () => ({
+  procurarExistentes: vi.fn(async () => new Map<string, string>()),
+  registarResumos: vi.fn(async () => {}),
+  resumoDosBytes: () => "0".repeat(32),
+}));
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 // The route reads image dimensions via sharp to reject decompression bombs.
 // Test fixtures are dummy bytes, so mock sharp to report a normal-sized image

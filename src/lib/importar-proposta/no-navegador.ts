@@ -20,17 +20,22 @@ export const MAX_BYTES_DO_FICHEIRO = 300 * 1024 * 1024;
 /** Por fotografia, já descomprimida. */
 export const MAX_BYTES_POR_FOTO = 40 * 1024 * 1024;
 /**
- * Quantas fotografias sobem por importação, no máximo.
+ * Quantas fotografias NOVAS sobem por importação, no máximo.
  *
- * O armazenamento é o plano gratuito do Supabase (1 GB) e ia em 928 MB a
- * 10/11 — sobram ~70 MB, e o pedido dela é ficar «MUITO abaixo». Cada
- * fotografia ocupa 0,6–1,3 MB depois de reduzida pelo caminho do estúdio (a de
- * 2200 px, a média de 1200 e a miniatura de 400): 8 fotografias são ~5–10 MB.
- * Com 24 (o tecto de antes) eram 15–30 MB, e 2 a 4 importações acabavam o
- * espaço. Oito chegam para a capa e uma ou duas por secção; o resto junta-se
- * depois no estúdio, se ela quiser, foto a foto.
+ * O armazenamento é o plano gratuito do Supabase (1 GB) e ia em 997 MB a
+ * 13/11 — o pedido dela é ficar «MUITO abaixo». Cada fotografia nova ocupa
+ * 0,6–1,3 MB depois de reduzida pelo caminho do estúdio (a de 2200 px, a média
+ * de 1200 e a miniatura de 400): 20 novas são ~12–26 MB.
+ *
+ * Era 8 e contava TODAS. Desde 13/11 («uma fotografia nunca se guarda duas
+ * vezes», `fotos-resumo.ts`) o navegador pergunta, pelo resumo, quais já estão
+ * guardadas na Biblioteca — essas entram na proposta pela referência `tema:`,
+ * não sobem e não ocupam espaço, e por isso NÃO contam para o tecto. O tecto
+ * passou a valer só para as novas, e subiu para 20.
  */
-export const MAX_FOTOS_POR_IMPORTACAO = 8;
+export const MAX_FOTOS_POR_IMPORTACAO = 20;
+
+const NENHUMA: ReadonlySet<string> = new Set();
 
 /** O mínimo que se precisa de saber de cada fotografia para a escolher. */
 export interface FotoParaEscolher {
@@ -42,22 +47,32 @@ export interface FotoParaEscolher {
 /**
  * As fotografias ligadas por omissão: a capa primeiro, e depois as primeiras
  * de cada secção À VEZ (a 1.ª de cada uma, depois a 2.ª de cada uma…), até ao
- * tecto. Pegar simplesmente nas oito primeiras do ficheiro dava oito da mesma
+ * tecto. Pegar simplesmente nas primeiras do ficheiro dava todas da mesma
  * secção e nenhuma das outras.
+ *
+ * As que já estão guardadas (`existentes`) entram sempre e não gastam tecto.
  *
  * @param fotos       pela ordem do documento (o que o servidor devolveu).
  * @param disponiveis os caminhos que o navegador conseguiu ler.
+ * @param existentes  os caminhos cujas fotografias já estão guardadas.
  */
 export function escolhaPorOmissao(
   fotos: readonly FotoParaEscolher[],
   disponiveis: ReadonlySet<string>,
+  existentes: ReadonlySet<string> = NENHUMA,
   maximo = MAX_FOTOS_POR_IMPORTACAO,
 ): string[] {
   const usaveis = fotos.filter((f) => disponiveis.has(f.caminho));
   const escolhidas: string[] = [];
-  for (const f of usaveis) {
-    if (f.destino === "capa" && escolhidas.length < maximo) escolhidas.push(f.caminho);
-  }
+  let novas = 0;
+  const tentar = (caminho: string) => {
+    if (existentes.has(caminho)) escolhidas.push(caminho);
+    else if (novas < maximo) {
+      escolhidas.push(caminho);
+      novas++;
+    }
+  };
+  for (const f of usaveis) if (f.destino === "capa") tentar(f.caminho);
   const porSeccao = new Map<string, string[]>();
   for (const f of usaveis) {
     if (f.destino === "capa") continue;
@@ -66,12 +81,12 @@ export function escolhaPorOmissao(
     porSeccao.set(f.seccao, lista);
   }
   const listas = [...porSeccao.values()];
-  for (let volta = 0; escolhidas.length < maximo; volta++) {
+  for (let volta = 0; ; volta++) {
     let houve = false;
     for (const l of listas) {
       if (volta < l.length) {
         houve = true;
-        if (escolhidas.length < maximo) escolhidas.push(l[volta]);
+        tentar(l[volta]);
       }
     }
     if (!houve) break;
@@ -79,13 +94,25 @@ export function escolhaPorOmissao(
   return escolhidas;
 }
 
+/** Quantas das escolhidas são NOVAS (as que gastam tecto e espaço). */
+export function quantasNovas(
+  escolhidas: ReadonlySet<string>,
+  existentes: ReadonlySet<string> = NENHUMA,
+): number {
+  let n = 0;
+  for (const c of escolhidas) if (!existentes.has(c)) n++;
+  return n;
+}
+
 /**
- * Liga ou desliga uma fotografia — e nunca deixa passar do tecto. Devolve
- * `null` quando a pedida seria a (máximo + 1).ª: o ecrã diz porquê.
+ * Liga ou desliga uma fotografia — e nunca deixa passar do tecto de NOVAS.
+ * Devolve `null` quando a pedida seria a (máximo + 1).ª nova: o ecrã diz
+ * porquê. Uma que já está guardada liga sempre.
  */
 export function alternarFoto(
   escolhidas: ReadonlySet<string>,
   caminho: string,
+  existentes: ReadonlySet<string> = NENHUMA,
   maximo = MAX_FOTOS_POR_IMPORTACAO,
 ): Set<string> | null {
   const n = new Set(escolhidas);
@@ -93,19 +120,26 @@ export function alternarFoto(
     n.delete(caminho);
     return n;
   }
-  if (n.size >= maximo) return null;
+  if (!existentes.has(caminho) && quantasNovas(n, existentes) >= maximo) return null;
   n.add(caminho);
   return n;
 }
 
-/** As que sobem, pela ordem do documento — e nunca mais do que o tecto. */
+/**
+ * As que SOBEM, pela ordem do documento: só as novas — as que já estão
+ * guardadas não sobem um byte — e nunca mais do que o tecto.
+ */
 export function fotosASubir<T extends { caminho: string }>(
   fotos: readonly T[],
   escolhidas: ReadonlySet<string>,
+  existentes: ReadonlySet<string> = NENHUMA,
   maximo = MAX_FOTOS_POR_IMPORTACAO,
 ): T[] {
-  return fotos.filter((f) => escolhidas.has(f.caminho)).slice(0, maximo);
+  return fotos
+    .filter((f) => escolhidas.has(f.caminho) && !existentes.has(f.caminho))
+    .slice(0, maximo);
 }
+
 /** Abaixo disto (lado mais curto) é um logótipo ou um ícone, não uma foto. */
 export const LADO_MINIMO = 300;
 
