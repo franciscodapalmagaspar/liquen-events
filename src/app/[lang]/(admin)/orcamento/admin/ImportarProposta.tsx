@@ -281,7 +281,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
   const porConfirmar = avisosPorConfirmar(revisao, confirmados).length;
   const falta = c
     ? [
-        ...oQueFalta(c),
+        ...oQueFalta(c, proposta ?? undefined),
         ...(porConfirmar > 0
           ? [
               porConfirmar === 1
@@ -537,6 +537,8 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
             <RevisaoDaImportacao
               revisao={revisao}
               proposta={proposta}
+              modoDoIva={c.totalVatMode}
+              onModoDoIva={(m) => set("totalVatMode", m)}
               imagens={imagensDoDocumento}
               confirmados={confirmados}
               onConfirmar={(id, sim) =>

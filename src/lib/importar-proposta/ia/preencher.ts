@@ -1,9 +1,4 @@
-import {
-  MOOD_BOARD_MAX_IMAGES,
-  resolveProposalMoney,
-  type ServiceGroup,
-  type VatMode,
-} from "../../proposal-doc";
+import { MOOD_BOARD_MAX_IMAGES, type ServiceGroup, type VatMode } from "../../proposal-doc";
 import { round2 } from "../../money";
 import { lerTipoDeEvento, type Confianca } from "../heuristicas";
 import type {
@@ -15,6 +10,7 @@ import type {
 import type { DocumentoCompleto } from "../documento-completo";
 import type { Leitura, LinhaLida } from "./esquema";
 import type { Verificacao } from "./verificar";
+import { valoresSemIvaDasLinhas } from "./linhas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -53,7 +49,7 @@ const ROTULO_DAS_NOTAS: Record<Leitura["notas"][number]["tipo"], string> = {
 
 export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImportada {
   const l = v.leitura;
-  const { vatRate, modoDasLinhas, modoDoTotal } = v.contas;
+  const { vatRate, modoDasLinhas, modoDoTotal, ivaPorEscolher } = v.contas;
   const o = l.orcamento;
 
   // ── Os serviços ──
@@ -84,8 +80,6 @@ export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImporta
         : null)
     );
   };
-  const baseDe = (g: number) =>
-    resolveProposalMoney({ totalAmount: g, totalVatMode: "incluido", vatRate }).base;
   const linhas = o.linhas.filter(
     (x) => x.descricao || x.totalDaLinha.valor !== null || x.precoUnitario.valor !== null,
   );
@@ -97,32 +91,19 @@ export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImporta
    * montante ≤ 0 como texto. Fica sem valor, com um aviso de dinheiro
    * (`desconto:` em `verificar.ts`) para ela o pôr à mão.
    */
-  const escritos = linhas.map((x) => {
-    const t = escritoDaLinha(x);
-    return t !== null && t < 0 ? null : t;
-  });
-  let budgetAmounts: (number | null)[];
-  if (modoDasLinhas === "sem_iva")
-    budgetAmounts = escritos.map((t) => (t === null ? null : round2(t)));
-  else if (modoDasLinhas === "com_iva") {
-    budgetAmounts = escritos.map((t) => (t === null ? null : baseDe(t)));
-    /**
-     * ── A SOMA DAS BASES TEM DE SER A BASE DA SOMA, AO CÊNTIMO ──────────────
-     * Duas linhas de 25,00 € com IVA dão 20,33 € + 20,33 € = 40,66 €, mas os
-     * 50,00 € do total são 40,65 € sem IVA. Folga zero (regras de dinheiro):
-     * o cêntimo que sobra (ou falta) vai para a ÚLTIMA linha normal com valor.
-     */
-    const normais = linhas
-      .map((x, i) => ({ x, i }))
-      .filter(({ x, i }) => x.tipo === "normal" && escritos[i] !== null && escritos[i]! > 0);
-    if (normais.length) {
-      const bruto = round2(normais.reduce((acc, { i }) => acc + escritos[i]!, 0));
-      const somaDasBases = round2(normais.reduce((acc, { i }) => acc + budgetAmounts[i]!, 0));
-      const resto = round2(baseDe(bruto) - somaDasBases);
-      const ultima = normais[normais.length - 1].i;
-      if (resto !== 0) budgetAmounts[ultima] = round2(budgetAmounts[ultima]! + resto);
-    }
-  } else budgetAmounts = escritos.map(() => null);
+  const escritos = linhas.map(escritoDaLinha);
+  const normais = linhas.map((x) => x.tipo === "normal");
+  // Com o modo provado pelas contas, os valores passam já; sem prova, vão os
+  // valores ESCRITOS, e o ecrã converte-os quando ela escolher.
+  const budgetAmounts: (number | null)[] =
+    modoDasLinhas === "desconhecido"
+      ? escritos.map(() => null)
+      : valoresSemIvaDasLinhas(
+          escritos,
+          normais,
+          modoDasLinhas === "sem_iva" ? "acrescer" : "incluido",
+          vatRate,
+        );
   const somaDasLinhas = round2(
     budgetAmounts.reduce<number>((s, x, i) => (x !== null && !budgetOpcional[i] ? s + x : s), 0),
   );
@@ -227,6 +208,13 @@ export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImporta
     ...(Math.abs(vatRate - 0.23) > 1e-9 ? { vatRate } : {}),
     totalAmount,
     totalVatMode,
+    ...(ivaPorEscolher
+      ? {
+          ivaPorEscolher: true,
+          linhasEscritas: escritos,
+          linhasNormais: normais,
+        }
+      : {}),
     somaDasLinhas,
     moodBoards,
     capa,

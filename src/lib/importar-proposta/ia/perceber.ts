@@ -250,6 +250,7 @@ export function juntarLeituras(leituras: Leitura[]): { leitura: Leitura; conflit
     escalar(actual.valor, novo.valor, nome);
     return actual;
   };
+  const ivaEmConflito = new Set<"valoresDasLinhas" | "valoresDoTotal">();
   for (const l of leituras) {
     out.cliente.nomes = escalar(out.cliente.nomes, l.cliente.nomes, "o nome do cliente");
     out.cliente.email = escalar(out.cliente.email, l.cliente.email, "o e-mail");
@@ -266,13 +267,15 @@ export function juntarLeituras(leituras: Leitura[]): { leitura: Leitura; conflit
     // O modo do IVA: duas partes que dizem coisas diferentes são um conflito.
     for (const k of ["valoresDasLinhas", "valoresDoTotal"] as const) {
       const novo = l.orcamento.iva[k];
-      if (novo.valor === "desconhecido") continue;
+      // Um conflito FICA: uma parte posterior não o apaga.
+      if (novo.valor === "desconhecido" || ivaEmConflito.has(k)) continue;
       if (o.iva[k].valor === "desconhecido") o.iva[k] = novo;
       else if (o.iva[k].valor !== novo.valor) {
         conflitos.push(
           `Partes diferentes do documento dizem coisas diferentes sobre o IVA ${k === "valoresDoTotal" ? "do total" : "das linhas"}: «${o.iva[k].valor}» e «${novo.valor}». O IVA fica por escolher.`,
         );
         o.iva[k] = { valor: "desconhecido", citacao: null };
+        ivaEmConflito.add(k);
       }
     }
     o.totalSemIva = citado(o.totalSemIva, l.orcamento.totalSemIva, "o total sem IVA");

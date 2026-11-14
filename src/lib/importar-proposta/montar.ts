@@ -1,4 +1,5 @@
 import {
+  DEFAULT_VAT_RATE,
   normaliseCoverImages,
   parseMoneyText,
   type MoodBoard,
@@ -8,6 +9,7 @@ import {
 import { dataDoEventoPorExtenso, referenciaDoDocumento } from "../proposal-doc-textos";
 import { eur } from "../money";
 import type { PropostaImportada } from "./mapear";
+import { valoresSemIvaDasLinhas } from "./ia/linhas";
 
 /**
  * O passo final, no navegador: o que se leu, MAIS o que ela corrigiu na
@@ -71,8 +73,11 @@ export function totalEscrito(texto: string): number | null {
 }
 
 /** O que ainda impede criar. Vazio = pode criar. */
-export function oQueFalta(c: Correccoes): string[] {
+export function oQueFalta(c: Correccoes, p?: Pick<PropostaImportada, "ivaPorEscolher">): string[] {
   const falta: string[] = [];
+  // Sem prova nas contas, o IVA é ELA que o diz — mesmo sem total.
+  if (p?.ivaPorEscolher && !c.totalVatMode)
+    falta.push("escolher se os valores do documento têm IVA");
   if (!c.clientNames.trim()) falta.push("o nome do cliente");
   if (c.total.trim() && totalEscrito(c.total) === null) falta.push("um total que se leia");
   if (totalEscrito(c.total) !== null && !c.totalVatMode) {
@@ -124,6 +129,16 @@ export function montarDocumento(
 ): DocDoEstudio {
   const total = totalEscrito(c.total);
   const modo = total !== null ? c.totalVatMode : null;
+  // Sem prova nas contas, os valores das linhas passam pelo que ELA escolheu.
+  const amounts =
+    p.ivaPorEscolher && p.linhasEscritas && c.totalVatMode
+      ? valoresSemIvaDasLinhas(
+          p.linhasEscritas,
+          p.linhasNormais ?? p.linhasEscritas.map(() => true),
+          c.totalVatMode,
+          p.vatRate ?? DEFAULT_VAT_RATE,
+        )
+      : [...p.budgetAmounts];
   const guests = Number.parseInt(c.guests, 10);
   const moodBoards: MoodBoard[] = p.moodBoards
     .map((b) => ({
@@ -156,7 +171,7 @@ export function montarDocumento(
     moodBoards,
     cronograma: [],
     budgetItems: [...p.budgetItems],
-    ...(p.budgetAmounts.some((v) => v !== null) ? { budgetAmounts: [...p.budgetAmounts] } : {}),
+    ...(amounts.some((v) => v !== null) ? { budgetAmounts: amounts } : {}),
     ...(p.budgetOpcional?.some(Boolean) ? { budgetOpcional: [...p.budgetOpcional] } : {}),
     ...(typeof p.vatRate === "number" ? { vatRate: p.vatRate } : {}),
     budgetExtras: [],

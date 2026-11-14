@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ToastProvider } from "./Toast";
 import { importarDocumento, type Importacao } from "@/lib/importar-proposta/ia/importar";
-import { leituraCerta, propostaDeTeste } from "@/lib/importar-proposta/ia/fixtures.testkit";
+import {
+  leituraCerta,
+  leituraSoDoOrcamento,
+  propostaDeTeste,
+} from "@/lib/importar-proposta/ia/fixtures.testkit";
+import { docx } from "@/lib/importar-proposta/fabricar.testkit";
 
 vi.mock("./image-prep", () => ({
   prepareImageWithThumb: vi.fn(async (file: File) => ({
@@ -83,7 +88,7 @@ describe("a revisão lado a lado", () => {
     expect(aviso).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
-    await screen.findByText(/Falta confirmar os 2 avisos de dinheiro/);
+    await screen.findByText(/Falta confirmar o aviso de dinheiro/);
     expect(urls).not.toContain("/api/orcamento/manual");
 
     // Cada aviso aparece no topo e junto do campo: confirma-se uma vez cada um.
@@ -161,5 +166,41 @@ describe("a revisão lado a lado", () => {
     });
     await screen.findByText(/sem custo\) e verificado/);
     expect(fotos().length).toBe(antes - 1);
+  });
+
+  it("sem prova nas contas, ela escolhe o IVA (nada pré-escolhido), e criar espera por ela", async () => {
+    const doc = docx([
+      "Decoração TESTE: 1.740,00 €",
+      "Total: 1.740,00 € + IVA",
+      "Os valores não têm IVA incluído.",
+    ]);
+    const l = leituraSoDoOrcamento();
+    l.cliente.nomes = "Decoração TESTE";
+    l.naoColocados = [{ id: "p3", motivo: "IVA" }];
+    l.orcamento.linhas = [
+      {
+        descricao: "Decoração TESTE",
+        quantidade: { valor: null, citacao: null },
+        precoUnitario: { valor: null, citacao: null },
+        totalDaLinha: { valor: 1740, citacao: "Decoração TESTE: 1.740,00 €" },
+        tipo: "normal",
+      },
+    ];
+    l.orcamento.totalSemIva = { valor: 1740, citacao: "Total: 1.740,00 € + IVA" };
+    const r = await importarDocumento(doc, { leituraCarregada: JSON.stringify(l) });
+    expect(r.proposta.ivaPorEscolher).toBe(true);
+    const { urls, corpos } = preparar(r);
+    await escolher();
+    const grupo = screen.getByRole("group", { name: /O IVA dos valores do documento/ });
+    expect(grupo.textContent).toMatch(/Os valores não têm IVA incluído/);
+    // Nada pré-escolhido: criar fica à espera dela.
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await screen.findByText(/escolher se os valores do documento têm IVA/);
+    expect(urls).not.toContain("/api/orcamento/manual");
+    // Ela escolhe «sem IVA» — e a linha passa com os 1.740 €.
+    fireEvent.click(within(grupo).getByRole("radio", { name: "sem IVA" }));
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await waitFor(() => expect(urls.some((u) => u.endsWith("/proposta-rascunho"))).toBe(true));
+    void corpos;
   });
 });

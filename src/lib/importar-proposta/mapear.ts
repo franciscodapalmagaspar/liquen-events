@@ -91,6 +91,16 @@ export interface PropostaImportada {
   budgetOpcional?: boolean[];
   /** A taxa de IVA do documento, quando não é a da casa. Só a leitura com IA o preenche. */
   vatRate?: number;
+  /**
+   * O documento não PROVA com contas se os valores têm IVA (`ia/verificar.ts`):
+   * ela escolhe no ecrã («sem IVA» / «com IVA», nada pré-escolhido), e só aí
+   * os valores das linhas passam — a partir de `linhasEscritas`.
+   */
+  ivaPorEscolher?: boolean;
+  /** Paralelo a `budgetItems`: os valores COMO O DOCUMENTO OS ESCREVE. */
+  linhasEscritas?: (number | null)[];
+  /** Paralelo a `budgetItems`: as linhas que somam o total (nem opcionais nem incluídas). */
+  linhasNormais?: boolean[];
   totalAmount: number | null;
   /** `null` = não se percebeu; ela escolhe. */
   totalVatMode: VatMode | null;

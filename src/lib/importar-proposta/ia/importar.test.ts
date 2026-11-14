@@ -111,10 +111,7 @@ describe("com a IA (duplo, sem chamadas reais)", () => {
     ]);
     expect(p.notasInternas).toMatch(/Validade: Validade da proposta: 30 dias\./);
     // O único aviso é o sinal fora das linhas (um «não usado» confirma-se sempre).
-    expect(r.revisao?.avisos.map((a) => a.id)).toEqual([
-      "iva:linhas:pela-soma",
-      "nao-usado:p10:52200",
-    ]);
+    expect(r.revisao?.avisos.map((a) => a.id)).toEqual(["nao-usado:p10:52200"]);
     expect(r.revisao?.custo?.dolares).toBeCloseTo(
       custoEmDolares([{ input_tokens: 3000, output_tokens: 2000, cache_read_input_tokens: 2500 }]),
     );
@@ -139,8 +136,9 @@ describe("com a IA (duplo, sem chamadas reais)", () => {
     // 25 € com IVA a 23% → 20,33 € cada; mas 50 € com IVA são 40,65 € de base:
     // o cêntimo a mais sai da última linha. Folga zero.
     expect(r.proposta.budgetAmounts).toEqual([20.33, 20.32]);
-    expect(r.proposta.totalAmount).toBe(50);
-    expect(r.proposta.totalVatMode).toBe("incluido");
+    // O total vai pela base provada (40,65 € + IVA = 50,00 €): o mesmo dinheiro.
+    expect(r.proposta.totalAmount).toBe(40.65);
+    expect(r.proposta.totalVatMode).toBe("acrescer");
     expect(r.revisao?.avisos).toEqual([]);
   });
 
@@ -201,7 +199,7 @@ describe("com a IA (duplo, sem chamadas reais)", () => {
     l.orcamento.totalSemIva = { valor: 1990, citacao: "Total | 1.990,00 € + IVA" };
     const { chamar } = duplo({ content: [{ type: "text", text: JSON.stringify(l) }] });
     const r = await importarDocumento(propostaDeTeste(), { chamar, reservar: reservaLivre });
-    expect(r.proposta.totalAmount).toBeNull();
+    expect(r.proposta.totalAmount).not.toBe(1990);
     expect(r.revisao?.inventados).toBeGreaterThan(0);
     expect(r.revisao?.avisos.some((a) => a.dinheiro && a.gravidade === "erro")).toBe(true);
   });
@@ -482,6 +480,16 @@ describe("3.ª revisão — partes que discordam do IVA", () => {
     const b = leituraCerta();
     b.orcamento.iva.valoresDoTotal = { valor: "com_iva", citacao: "x" };
     const j = juntarLeituras([a, b]);
+    expect(j.leitura.orcamento.iva.valoresDoTotal.valor).toBe("desconhecido");
+    expect(j.conflitos.join(" ")).toMatch(/IVA do total/);
+  });
+});
+
+describe("4.ª revisão, M2 — um conflito do IVA entre partes FICA", () => {
+  it("uma parte posterior não apaga o conflito", () => {
+    const [a, b, c] = [leituraCerta(), leituraCerta(), leituraCerta()];
+    b.orcamento.iva.valoresDoTotal = { valor: "com_iva", citacao: "x" };
+    const j = juntarLeituras([a, b, c]);
     expect(j.leitura.orcamento.iva.valoresDoTotal.valor).toBe("desconhecido");
     expect(j.conflitos.join(" ")).toMatch(/IVA do total/);
   });

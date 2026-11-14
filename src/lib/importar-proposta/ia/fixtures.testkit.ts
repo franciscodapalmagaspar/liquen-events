@@ -27,6 +27,8 @@ export function propostaDeTeste(): Uint8Array {
         ["Decoração da cerimónia", "1.200,00 €"],
         ["Centros de mesa", "12 x 45,00 € = 540,00 €"],
         ["Total", "1.740,00 € + IVA"],
+        ["IVA (23%)", "400,20 €"],
+        ["Total com IVA", "2.140,20 €"],
       ],
     },
     "Sinal de 30%: 522,00 €",
@@ -85,8 +87,9 @@ export function leituraCerta(): Leitura {
         valoresDoTotal: { valor: "sem_iva", citacao: "1.740,00 € + IVA" },
       },
       totalSemIva: { valor: 1740, citacao: "Total | 1.740,00 € + IVA" },
-      valorDoIva: { ...nada },
-      totalComIva: { ...nada },
+      // A prova do IVA está nas contas: 1.740 + 400,20 = 2.140,20 (23 %).
+      valorDoIva: { valor: 400.2, citacao: "IVA (23%) | 400,20 €" },
+      totalComIva: { valor: 2140.2, citacao: "Total com IVA | 2.140,20 €" },
       valoresNaoUsados: [
         { valor: 522, citacao: "Sinal de 30%: 522,00 €", motivo: "é o sinal, não uma linha" },
       ],
@@ -130,6 +133,7 @@ export function leituraSoDoOrcamento(): Leitura {
   l.orcamento.linhas = [];
   l.orcamento.valoresNaoUsados = [];
   l.orcamento.totalSemIva = { ...nada };
+  l.orcamento.valorDoIva = { ...nada };
   l.orcamento.totalComIva = { ...nada };
   l.orcamento.iva.valoresDasLinhas = { valor: "desconhecido", citacao: null };
   l.orcamento.iva.valoresDoTotal = { valor: "desconhecido", citacao: null };
@@ -152,6 +156,8 @@ export function propostaComIvaIncluido(): Uint8Array {
     "Flores TESTE: 25,00 €",
     "Velas TESTE: 25,00 €",
     "Total: 50,00 € (IVA incluído)",
+    "Base: 40,65 €",
+    "IVA (23%): 9,35 €",
   ]);
 }
 export function leituraComIvaIncluido(): Leitura {
@@ -165,6 +171,9 @@ export function leituraComIvaIncluido(): Leitura {
     linha("Velas TESTE", 25, "Velas TESTE: 25,00 €"),
   ];
   l.orcamento.totalComIva = { valor: 50, citacao: "Total: 50,00 € (IVA incluído)" };
+  // A prova nas contas: 40,65 + 9,35 = 50,00 (23 %); as linhas somam 50 (com IVA).
+  l.orcamento.totalSemIva = { valor: 40.65, citacao: "Base: 40,65 €" };
+  l.orcamento.valorDoIva = { valor: 9.35, citacao: "IVA (23%): 9,35 €" };
   l.orcamento.iva.valoresDasLinhas = { valor: "com_iva", citacao: "IVA incluído" };
   l.orcamento.iva.valoresDoTotal = { valor: "com_iva", citacao: "50,00 € (IVA incluído)" };
   return l;
@@ -176,7 +185,8 @@ export function propostaComIvaASeis(): Uint8Array {
     { h: 1, t: "Orçamento" },
     "Livros TESTE: 100,00 €",
     "Total: 100,00 € + IVA",
-    "IVA à taxa de 6%.",
+    "IVA à taxa de 6%: 6,00 €",
+    "Total com IVA: 106,00 €",
     "Os valores apresentados não incluem IVA.",
   ]);
 }
@@ -184,11 +194,13 @@ export function leituraComIvaASeis(): Leitura {
   const l = leituraSoDoOrcamento();
   l.naoColocados = [
     { id: "p1", motivo: "título" },
-    { id: "p5", motivo: "nota do IVA" },
+    { id: "p6", motivo: "nota do IVA" },
   ];
   l.orcamento.linhas = [linha("Livros TESTE", 100, "Livros TESTE: 100,00 €")];
   l.orcamento.totalSemIva = { valor: 100, citacao: "Total: 100,00 € + IVA" };
-  l.orcamento.iva.taxa = { valor: 6, citacao: "IVA à taxa de 6%." };
+  l.orcamento.iva.taxa = { valor: 6, citacao: "IVA à taxa de 6%: 6,00 €" };
+  l.orcamento.valorDoIva = { valor: 6, citacao: "IVA à taxa de 6%: 6,00 €" };
+  l.orcamento.totalComIva = { valor: 106, citacao: "Total com IVA: 106,00 €" };
   l.orcamento.iva.valoresDasLinhas = { valor: "sem_iva", citacao: "100,00 € + IVA" };
   l.orcamento.iva.valoresDoTotal = { valor: "sem_iva", citacao: "100,00 € + IVA" };
   return l;

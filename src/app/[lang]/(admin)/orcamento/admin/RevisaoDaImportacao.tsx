@@ -8,6 +8,8 @@ import type { Aviso } from "@/lib/importar-proposta/ia/verificar";
 import { documentoEmTexto, type UnidadeLida } from "@/lib/importar-proposta/documento-completo";
 import { pedidoParaOClaude } from "@/lib/importar-proposta/ia/instrucoes";
 import { ESTADO, PRESSAO } from "./ui/movimento";
+import { Segmented } from "./ui";
+import type { VatMode } from "@/lib/proposal-doc";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -42,6 +44,80 @@ interface Props {
   onConfirmar: (id: string, sim: boolean) => void;
   /** Carregar o JSON de uma leitura feita fora (custo zero). */
   onLeitura: (f: File) => void;
+  /** O que ela escolheu para o IVA (o mesmo campo do total), ou null. */
+  modoDoIva?: VatMode | null;
+  onModoDoIva?: (m: VatMode) => void;
+}
+
+const PARECE: Record<string, string> = {
+  sem: "parece dizer: sem IVA",
+  com: "parece dizer: com IVA",
+  ambos: "fala das duas coisas",
+  isento: "fala de isenção",
+};
+
+/**
+ * ── O IVA SEM PROVA NAS CONTAS: ELA ESCOLHE ──────────────────────────────
+ * O texto nunca decide o IVA sozinho (`ia/verificar.ts`). Quando as contas do
+ * documento não o provam, ela escolhe com um clique — nada pré-escolhido — e
+ * vê ao lado as frases do documento que falam de IVA e o que a leitura disse.
+ */
+function EscolherOIva({
+  revisao,
+  modo,
+  onModo,
+}: {
+  revisao: Revisao;
+  modo: VatMode | null;
+  onModo: (m: VatMode) => void;
+}) {
+  const contas = revisao.contas!;
+  const lido = (x: { valor: string; citacao: string | null }) =>
+    x.valor === "sem_iva" ? "sem IVA" : x.valor === "com_iva" ? "com IVA" : "não sabe";
+  return (
+    <div
+      role="group"
+      aria-label="O IVA dos valores do documento"
+      className="rounded-xl border border-[var(--bo-perigo)]/25 bg-[var(--bo-perigo-lavagem)]/50 px-4 py-3"
+    >
+      <p className="text-footnote font-semibold text-[var(--bo-perigo)]">
+        Os valores do documento são:
+      </p>
+      <div className="mt-2">
+        <Segmented<VatMode | "">
+          ariaLabel="Os valores do documento têm IVA?"
+          size="sm"
+          value={modo ?? ""}
+          onChange={(v) => v && onModo(v)}
+          options={[
+            { value: "acrescer", label: "sem IVA" },
+            { value: "incluido", label: "com IVA" },
+          ]}
+        />
+      </div>
+      <p className="mt-2 text-caption text-[var(--bo-text-muted)]">
+        As contas do documento não o provam, por isso escolhes tu. A leitura disse: linhas{" "}
+        {lido(contas.leituraDoIva.linhas)}, total {lido(contas.leituraDoIva.total)}.
+      </p>
+      {contas.frasesDoIva.length > 0 ? (
+        <ul className="mt-2 flex flex-col gap-1">
+          {contas.frasesDoIva.map((f) => (
+            <li key={f.unidade} className="break-words text-footnote text-[var(--bo-text)]">
+              «{f.texto}»
+              {f.parece ? (
+                <span className="text-caption text-[var(--bo-text-muted)]">
+                  {" "}
+                  — {PARECE[f.parece]}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-footnote text-[var(--bo-text)]">O documento não fala de IVA.</p>
+      )}
+    </div>
+  );
 }
 
 const VIA: Record<Revisao["via"], string> = {
@@ -115,6 +191,8 @@ export default function RevisaoDaImportacao({
   confirmados,
   onConfirmar,
   onLeitura,
+  modoDoIva,
+  onModoDoIva,
 }: Props) {
   const urls = useMemo(
     () => new Map([...imagens].map(([c, f]) => [c, URL.createObjectURL(f)])),
@@ -258,6 +336,15 @@ export default function RevisaoDaImportacao({
           </div>
         )}
       </div>
+
+      {proposta.ivaPorEscolher && revisao.contas && onModoDoIva && (
+        <EscolherOIva revisao={revisao} modo={modoDoIva ?? null} onModo={onModoDoIva} />
+      )}
+      {revisao.contas?.prova && (
+        <p className="text-footnote text-[var(--bo-text-muted)]">
+          IVA provado pelas contas: {revisao.contas.prova}
+        </p>
+      )}
 
       {revisao.avisos.length > 0 && (
         <div className="rounded-xl border border-[var(--bo-perigo)]/25 bg-[var(--bo-perigo-lavagem)]/50 px-4 py-3">
