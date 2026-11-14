@@ -184,18 +184,6 @@ function contractedTotal(d: DadosDaFase): number {
 }
 
 /**
- * O total COMBINADO com que a fase compara o recebido: o da proposta, senão o
- * «Preço final» do pedido (com IVA) — e NUNCA a estimativa do formulário
- * (`priceBreakdown`), que é um cálculo do site e não um preço aceite. Zero
- * quando não há nenhum: aí a fase lê a linha de saldo recebida.
- */
-function totalDaFase(d: DadosDaFase): number {
-  const temProposta = !!d.proposal && d.proposal.total != null && d.proposal.total > 0;
-  if (!temProposta && d.quote.quotedPrice == null) return 0;
-  return contractedTotal(d);
-}
-
-/**
  * Dinheiro RECEBIDO neste evento: a soma das linhas de `quote.payments` dadas
  * por recebidas.
  *
@@ -339,7 +327,7 @@ export function deriveStage(d: DadosDaFase, today: Date = new Date()): EventStag
   const eventDayEnd = quote.date ? Date.parse(`${quote.date.slice(0, 10)}T23:59:59`) : NaN;
   const eventPassed = !Number.isNaN(eventDayEnd) && eventDayEnd < today.getTime();
 
-  const contracted = totalDaFase(d);
+  const contracted = contractedTotal(d);
   const pago = paidTotal(quote);
 
   // Sinal e saldo lêem o registo de pagamentos, que é o único sítio onde o
@@ -365,11 +353,11 @@ export function deriveStage(d: DadosDaFase, today: Date = new Date()): EventStag
   // dossiê. A lista passou a dar a proposta que conta (`faseDoPedido`), e a
   // linha de saldo só decide quando não há total NENHUM com que comparar.
   //
-  // E «total» quer dizer um preço COMBINADO (revisão de 14/11): o da proposta
-  // ou o «Preço final» do pedido. A estimativa do formulário (`priceBreakdown`)
-  // é o que o site calculou antes de alguém falar com o casal, não o que ele
-  // aceitou — não serve para dizer que está tudo pago nem que falta dinheiro.
-  // Sem nenhum dos dois, decide a linha de saldo recebida (ver `totalDaFase`).
+  // O total é UM SÓ em todo o lado (revisão de 14/11): o de
+  // `contractedAmounts` — a proposta à frente de tudo, senão o «Preço final»,
+  // senão a estimativa —, o mesmo das Cobranças, das métricas e da próxima
+  // ação. Uma estimativa por cobrir não fica «concluída»: as Cobranças dizem
+  // que falta dinheiro, e a fase diz o mesmo. Corrige-se pondo o Preço final.
   //
   // `proposalDesconhecida`: quem chama ainda não sabe que proposta conta (a
   // lista leve não chegou, ou falhou). Não se pode afirmar «tudo pago» sem o

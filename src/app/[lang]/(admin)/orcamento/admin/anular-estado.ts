@@ -1,4 +1,5 @@
 import type { ActivityEntry, Quote, QuoteStatus } from "@/lib/orcamento/types";
+import { asPropostasMudaram } from "./percentagem-do-sinal";
 import { ROTULO_DO_ESTADO } from "@/lib/orcamento/estado-do-pedido";
 import { randomId } from "./util";
 
@@ -25,6 +26,7 @@ export async function reporEstadoDoPedido({
   para,
   actor,
   extra,
+  semReler,
 }: {
   quoteId: string;
   /** Outros campos a repor no mesmo gesto (ex.: o valor que o «Ganho» escreveu). */
@@ -34,6 +36,12 @@ export async function reporEstadoDoPedido({
   /** O estado que o gesto pôs — de onde se sai. */
   para: QuoteStatus;
   actor?: string;
+  /**
+   * Quem anula também a PROPOSTA a seguir (Propostas, Acompanhamento) relê a
+   * lista leve ele próprio, depois disso — senão eram duas leituras, e a
+   * primeira com a proposta ainda por repor.
+   */
+  semReler?: boolean;
 }): Promise<Quote | null> {
   const entrada: ActivityEntry = {
     id: randomId(),
@@ -54,5 +62,8 @@ export async function reporEstadoDoPedido({
   });
   const corpo = (await res.json().catch(() => null)) as (Quote & { error?: string }) | null;
   if (!res.ok) throw new Error(corpo?.error || `Não foi possível anular (${res.status}).`);
+  // Repor um «Ganho» ou um «Perdido» repõe também a proposta no servidor: a
+  // lista leve (fase do pedido, Pagamentos) relê-se, DEPOIS do PATCH.
+  if (!semReler) asPropostasMudaram();
   return corpo;
 }

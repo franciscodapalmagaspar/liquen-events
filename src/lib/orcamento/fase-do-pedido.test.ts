@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { deriveStage, faseDoPedido, type EventStage } from "./dossier";
-import { propostaQueConta, totalAPagarDaProposta } from "./proposta-que-conta";
+import { computeEventMetrics, deriveStage, faseDoPedido, type EventStage } from "./dossier";
+import { cobrancaDoPedido } from "./cobrancas";
+import { propostaParaCobrar, propostaQueConta, totalAPagarDaProposta } from "./proposta-que-conta";
 import type { Payment, Proposal, Quote } from "./types";
 import { deriveRequestLifecycle } from "@/app/[lang]/(admin)/orcamento/admin/LifecycleStepper";
 
@@ -181,19 +182,32 @@ describe("cenário (b): 20 000 € + IVA, sinal pago e um saldo de 1 € recebid
 });
 
 /**
- * Revisão de 14/11: sem proposta, a estimativa do formulário NÃO é o preço
- * aceite. O total da fase é o «Preço final»; sem ele, decide a linha de saldo.
+ * Revisão de 14/11 (2.ª): o total é UM SÓ em todo o lado — o de
+ * `contractedAmounts` (proposta → «Preço final» → estimativa), o mesmo das
+ * Cobranças e das métricas. Uma estimativa por cobrir não fica «concluída».
  */
-describe("sem proposta: o «Preço final» conta, a estimativa não", () => {
+describe("sem proposta: o total é o das Cobranças (Preço final, senão a estimativa)", () => {
   const ESTIMATIVA_12300 = { ...ESTIMATIVA_8000, subtotal: 10000, iva: 2300, total: 12300 };
 
-  it("estimativa de 12 300 €, sinal e saldo recebidos (10 000 €), evento passado → concluído", () => {
+  it("estimativa de 12 300 €, 3 000 + 7 000 recebidos, evento passado → em produção (faltam 2 300 €)", () => {
     const q = pedido({
       priceBreakdown: ESTIMATIVA_12300 as Quote["priceBreakdown"],
       payments: [pag("s", "sinal", 3000), pag("f", "saldo", 7000)],
     });
+    expect(faseNaLista(q, [])).toBe("em_producao");
+    expect(faseNoDossie(q, [])).toBe("em_producao");
+    const c = cobrancaDoPedido(q, [], "2026-07-18");
+    expect(c.emFalta).toBe(2300);
+    expect(c.fase).not.toBe("pago");
+  });
+
+  it("a mesma estimativa toda recebida → concluído, e as Cobranças dizem «pago»", () => {
+    const q = pedido({
+      priceBreakdown: ESTIMATIVA_12300 as Quote["priceBreakdown"],
+      payments: [pag("s", "sinal", 3690), pag("x", "pagamento", 8610)],
+    });
     expect(faseNaLista(q, [])).toBe("concluido");
-    expect(faseNoDossie(q, [])).toBe("concluido");
+    expect(cobrancaDoPedido(q, [], "2026-07-18").fase).toBe("pago");
   });
 
   it("Preço final de 10 000 € + IVA com 10 000 € recebidos → continua em produção", () => {
@@ -203,14 +217,6 @@ describe("sem proposta: o «Preço final» conta, a estimativa não", () => {
     });
     expect(faseNaLista(q, [])).toBe("em_producao");
     expect(faseNoDossie(q, [])).toBe("em_producao");
-  });
-
-  it("sem saldo recebido, a estimativa paga não fecha nada", () => {
-    const q = pedido({
-      priceBreakdown: ESTIMATIVA_12300 as Quote["priceBreakdown"],
-      payments: [pag("s", "sinal", 12300)],
-    });
-    expect(faseNaLista(q, [])).toBe("em_producao");
   });
 });
 
@@ -304,4 +310,72 @@ describe("paridade lista ↔ dossiê — a mesma função, a mesma proposta, o m
       }
     });
   }
+});
+
+/**
+ * Revisão de 14/11 (2.ª): a fase, as Cobranças e as métricas do dossiê dizem
+ * o mesmo total e o mesmo «pago» — num pedido ganho cuja proposta que conta é
+ * a aceite (ou que não tem nenhuma).
+ */
+describe("paridade fase × Cobranças × métricas", () => {
+  const doc = {
+    budgetItems: ["Decoração", "Cocktail"],
+    budgetAmounts: [8000, 4000],
+    budgetOpcional: [false, true],
+    totalAmount: 12000,
+    totalVatMode: "acrescer",
+    vatRate: 0.23,
+  } as unknown as ProposalDoc;
+  const cenarios: Proposal[][] = [
+    [],
+    [proposta()],
+    [
+      proposta({
+        doc,
+        versaoEscolhida: "base",
+        total: 14760,
+        subtotal: 12000,
+      } as Partial<Proposal>),
+    ],
+    [proposta({ doc, total: 14760, subtotal: 12000 } as Partial<Proposal>)],
+    [proposta({ id: "p2", status: "enviada", total: 50000 }), proposta()],
+    [proposta({ total: 0, subtotal: 0 })],
+  ];
+  const pedidos: Partial<Quote>[] = [
+    {},
+    { priceBreakdown: ESTIMATIVA_8000 },
+    { quotedPrice: 20000 },
+    { quotedPrice: 20000, priceBreakdown: ESTIMATIVA_8000 },
+  ];
+  const pagamentos: Payment[][] = [
+    [],
+    [pag("s", "sinal", 3000), pag("f", "saldo", 7000)],
+    [pag("s", "sinal", 2400), pag("x", "pagamento", 5600)],
+    [pag("s", "sinal", 9000), pag("f", "saldo", 5760)],
+    [pag("s", "sinal", 9000), pag("f", "saldo", 21000)],
+    [pag("x", "pagamento", 24600)],
+    [pag("x", "pagamento", 24599.99)],
+  ];
+
+  it("o mesmo total e o mesmo «pago» em todas as combinações", () => {
+    for (const ps of cenarios)
+      for (const over of pedidos)
+        for (const pg of pagamentos) {
+          const q = pedido({ ...over, payments: pg });
+          const p = propostaQueConta(ps);
+          const d = { quote: q, proposal: p ? comoNoDossie(p) : null, contract: null };
+          const c = cobrancaDoPedido(q, ps.map(propostaParaCobrar), "2026-07-18");
+          const m = computeEventMetrics(d, HOJE);
+          const fase = faseNaLista(q, ps);
+          const caso = { ps: ps.map((x) => x.total), over, pg };
+          if (c.total > 0) {
+            expect({ caso, total: m.contracted }).toEqual({ caso, total: c.total });
+            expect({ caso, concluido: fase === "concluido" }).toEqual({
+              caso,
+              concluido: c.fase === "pago",
+            });
+          }
+          expect(fase).toBe(faseNoDossie(q, ps));
+        }
+  });
 });

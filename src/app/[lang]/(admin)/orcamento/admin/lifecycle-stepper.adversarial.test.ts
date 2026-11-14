@@ -202,12 +202,9 @@ describe("deriveRequestLifecycle — a data passada não paga as contas", () => 
   });
 
   it("pago o contratado sem rótulo 'saldo' (transferências avulsas) também fecha", () => {
-    // Com um preço COMBINADO (o «Preço final», 10 000 € + IVA): a estimativa
-    // do formulário não é um preço aceite e não fecha nada (revisão de 14/11).
     const q = makeQuote({
       status: "aceite",
       date: "2026-07-01",
-      quotedPrice: 10000,
       payments: [pago("pagamento", 6150, "p1"), pago("pagamento", 6150, "p2")],
     });
     expect(pago("pagamento", 6150).amount * 2).toBe(CONTRATADO);

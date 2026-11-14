@@ -563,3 +563,61 @@ describe("faturacaoPorArtigo — os adicionais «IVA incluído» fecham ao cênt
     expect(faturacaoPorArtigo(d).fecha).toBe(false);
   });
 });
+
+/** 2.ª revisão de 14/11: o cêntimo não muda de artigo, nem tapa um engano. */
+describe("faturacaoPorArtigo — o cêntimo só vem dos «IVA incluído»", () => {
+  it("Mesa 1 000 € + IVA (Material) e 2 × 55 € IVA incluído (Transporte): Material 1 000,00 €, Transporte 89,43 €", () => {
+    const d = {
+      budgetItems: ["Flores"],
+      budgetAmounts: [0],
+      budgetArtigos: ["flores"],
+      budgetExtras: [
+        { label: "Mesa", valueText: "1.000,00 € + IVA", artigo: "material" },
+        { label: "Carrinha 1", valueText: "55,00 € IVA incluído", artigo: "transporte" },
+        { label: "Carrinha 2", valueText: "55,00 € IVA incluído", artigo: "transporte" },
+      ],
+      budgetExtrasSomam: true,
+      totalAmount: 0,
+      totalVatMode: "acrescer",
+      vatRate: 0.23,
+    } as unknown as DocParaFaturar;
+    const f = faturacaoPorArtigo(d);
+    expect(f.base).toBe(1089.43);
+    expect(f.fecha).toBe(true);
+    expect(f.artigos).toEqual([
+      { artigo: "material", nome: "Material", valor: 1000 },
+      { artigo: "transporte", nome: "Transporte", valor: 89.43 },
+    ]);
+  });
+
+  it("um total escrito de 5 000,01 € sobre linhas de 5 000 € não fecha", () => {
+    const d = {
+      budgetItems: ["Flores"],
+      budgetAmounts: [5000],
+      budgetArtigos: ["flores"],
+      budgetExtras: [],
+      totalAmount: 5000.01,
+      totalVatMode: "acrescer",
+      vatRate: 0.23,
+    } as unknown as DocParaFaturar;
+    const f = faturacaoPorArtigo(d);
+    expect(f.fecha).toBe(false);
+    expect(f.porqueNaoFecha).toHaveLength(1);
+    expect(f.porqueNaoFecha[0]).toMatch(/^Os artigos somam 0,01\s€ a menos do que o total\.$/);
+  });
+
+  it("com 2 cêntimos de diferença, diz que as linhas não dão o total (e não «por repartir»)", () => {
+    const d = {
+      budgetItems: ["Flores"],
+      budgetAmounts: [5000],
+      budgetArtigos: ["flores"],
+      budgetExtras: [],
+      totalAmount: 5000.02,
+      totalVatMode: "acrescer",
+      vatRate: 0.23,
+    } as unknown as DocParaFaturar;
+    const f = faturacaoPorArtigo(d);
+    expect(f.fecha).toBe(false);
+    expect(f.porqueNaoFecha[0]).toMatch(/As linhas somam 5\s?000,00\s€: 0,02\s€ a menos/);
+  });
+});

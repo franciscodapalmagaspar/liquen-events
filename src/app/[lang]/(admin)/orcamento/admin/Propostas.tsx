@@ -371,6 +371,7 @@ export default function Propostas({
                 de: pedidoAntes,
                 para: pedido.status,
                 actor: userName,
+                semReler: true,
               });
               if (reposto) onQuoteUpdated?.(reposto);
             }

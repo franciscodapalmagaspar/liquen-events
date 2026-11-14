@@ -1552,23 +1552,6 @@ export default function AdminClient({
     if (novo) abrirDetailTab(novo);
   }, [propostasLeves, selected, detailTab, abrirDetailTab]);
 
-  /**
-   * ── O DESFECHO DO PEDIDO ARRASTA A PROPOSTA ──────────────────────────────
-   * «Ganho» e «Perdido» gravados no pedido mudam também o estado da proposta
-   * no servidor (`/api/orcamento/[id]`). Sempre que o estado do pedido aberto
-   * muda (a resposta do servidor já cá está), a lista leve relê-se UMA vez,
-   * para a fase acompanhar. Um pedido por mudança de estado, nunca por linha.
-   */
-  const estadoVistoRef = useRef<{ id: string; status: string } | null>(null);
-  useEffect(() => {
-    if (!selected) {
-      estadoVistoRef.current = null;
-      return;
-    }
-    const antes = estadoVistoRef.current;
-    estadoVistoRef.current = { id: selected.id, status: selected.status };
-    if (antes && antes.id === selected.id && antes.status !== selected.status) asPropostasMudaram();
-  }, [selected]);
   // Scroll targets for the "Próxima ação" shortcut: the always-visible
   // management form and the tools (tabs) section.
   const gestaoRef = useRef<HTMLDivElement>(null);
@@ -2341,6 +2324,8 @@ export default function AdminClient({
         return;
       }
       marcarDesfecho(corpo as Quote);
+      // O PATCH acabou: o estado novo pode ter arrastado a proposta.
+      asPropostasMudaram();
       anular(`${q.name}: ${de} → ${para}`, async () => {
         const reposto = await reporEstadoDoPedido({
           quoteId: q.id,
@@ -4161,6 +4146,9 @@ export default function AdminClient({
           });
         }
         guardado = (await res.json()) as Quote;
+        // Um estado novo gravado pelo formulário («Ganho», «Perdido») arrasta
+        // a proposta no servidor: a lista leve relê-se, depois do PATCH.
+        if ("status" in body) asPropostasMudaram();
         return { estado: "guardado" } satisfies RespostaDoEnvio;
       });
       if (resultado.estado !== "guardado") {

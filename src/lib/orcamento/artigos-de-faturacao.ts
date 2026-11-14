@@ -1,5 +1,10 @@
 import type { ProposalDoc, SubpontoDoOrcamento } from "@/lib/proposal-doc";
-import { adicionarLinha, precosDe, somaDosExtrasSemIva } from "@/lib/proposal-budget";
+import {
+  adicionarLinha,
+  modoDeIvaDaLinha,
+  precosDe,
+  somaDosExtrasSemIva,
+} from "@/lib/proposal-budget";
 import { opcionaisDe, totalDaVersaoAceite, type VersaoEscolhida } from "./versoes-da-proposta";
 import { eur, round2, splitSinal } from "@/lib/money";
 
@@ -244,19 +249,12 @@ export function faturacaoPorArtigo(doc: DocParaFaturar, versao?: VersaoEscolhida
       nome: a.nome,
       cent: porArtigo.get(a.id)!,
     }));
-    // ── O CÊNTIMO DE ARREDONDAMENTO ───────────────────────────────────────
-    // O total arredonda a soma dos adicionais uma vez; as linhas arredondam
-    // cada um. `linhasDaFaturacao` já reparte essa diferença pelos
-    // adicionais, mas se mesmo assim sobrar EXACTAMENTE um cêntimo, vai para o
-    // artigo maior — como em `parcelasDaFatura`. Só com tudo o resto certo: um
-    // cêntimo nunca tapa um artigo negativo nem uma linha sem artigo. No fim,
-    // os artigos somam o total ao cêntimo (folga zero).
-    let difCent = baseCent - artigosCent.reduce((s, a) => s + a.cent, 0);
-    if (Math.abs(difCent) === 1 && porqueNaoFecha.length === 0 && artigosCent.length > 0) {
-      const maior = artigosCent.reduce((m, a, i) => (a.cent > artigosCent[m].cent ? i : m), 0);
-      artigosCent[maior].cent += difCent;
-      difCent = 0;
-    }
+    // ── NENHUM CÊNTIMO DE FOLGA (2.ª revisão de 14/11) ────────────────────
+    // O único cêntimo legítimo é o do arredondamento dos adicionais «IVA
+    // incluído», e esse já vem repartido por eles em `linhasDaFaturacao`.
+    // Qualquer outra diferença — um total escrito com 0,01 € a mais — é um
+    // engano: diz-se, e não fecha.
+    const difCent = baseCent - artigosCent.reduce((s, a) => s + a.cent, 0);
     const artigos = artigosCent.map((a) => ({
       artigo: a.artigo,
       nome: a.nome,
@@ -294,6 +292,14 @@ export function faturacaoPorArtigo(doc: DocParaFaturar, versao?: VersaoEscolhida
   const repartido = round2(artigos.reduce((s, a) => s + a.valor, 0));
   const falta = round2(t.base - repartido);
   if (t.base <= 0) porqueNaoFecha.push("A proposta ainda não tem total.");
+  else if (artigos.length === 0 && todasComPreco)
+    // Todas as linhas têm preço, mas não dão o total: «não está repartido»
+    // mandava-a repartir à mão uma proposta que só tem o total errado.
+    porqueNaoFecha.push(
+      somaCent < baseCent
+        ? `As linhas somam ${eur(somaCent / 100)}: ${eur((baseCent - somaCent) / 100)} a menos do que o total (${eur(t.base)}).`
+        : `As linhas somam ${eur(somaCent / 100)}: ${eur((somaCent - baseCent) / 100)} a mais do que o total (${eur(t.base)}).`,
+    );
   else if (artigos.length === 0)
     porqueNaoFecha.push("O total ainda não está repartido pelos artigos.");
   else if (Math.abs(falta) > 0.005)
@@ -359,19 +365,27 @@ export function linhasDaFaturacao(doc: DocParaFaturar, versao?: VersaoEscolhida)
   });
   const contexto = { mode: t.mode, vatRate: t.vatRate };
   const adicionais: LinhaFaturavel[] = [];
-  const comNumero: NonNullable<ProposalDoc["budgetExtras"]> = [];
+  // Só os «IVA incluído» se convertem (bruto → base) e só eles arredondam: os
+  // «+ IVA» são exactos e nunca recebem o cêntimo de outro (2.ª revisão).
+  type Extra = NonNullable<ProposalDoc["budgetExtras"]>[number];
+  const incluidos: LinhaFaturavel[] = [];
+  const extrasIncluidos: Extra[] = [];
   (doc.budgetExtras ?? []).forEach((e, i) => {
     if (!/\d/.test(e?.valueText ?? "")) return;
-    comNumero.push(e);
-    adicionais.push({
+    const linha: LinhaFaturavel = {
       origem: "adicional",
       indice: i,
       nome: (e?.label ?? "").trim() || `Valor adicional ${i + 1}`,
       valor: somaDosExtrasSemIva([e], contexto),
       artigo: eArtigo(e?.artigo) ? e.artigo : null,
-    });
+    };
+    adicionais.push(linha);
+    if ((modoDeIvaDaLinha(e?.valueText) ?? t.mode ?? "acrescer") === "incluido") {
+      incluidos.push(linha);
+      extrasIncluidos.push(e);
+    }
   });
-  repartirOArredondamento(adicionais, somaDosExtrasSemIva(comNumero, contexto));
+  repartirOArredondamento(incluidos, somaDosExtrasSemIva(extrasIncluidos, contexto));
   out.push(...adicionais);
   return out;
 }
@@ -381,7 +395,8 @@ export function linhasDaFaturacao(doc: DocParaFaturar, versao?: VersaoEscolhida)
  *
  * O total da proposta converte a SOMA dos adicionais «IVA incluído» e
  * arredonda uma vez; a faturação mostra cada adicional à parte, arredondado
- * por si. Dois de 55 € IVA incluído são 44,72 € cada (89,44 €), e a soma
+ * por si. Reparte-se SÓ pelos «IVA incluído» (2.ª revisão de 14/11): os
+ * «+ IVA» são exactos, e um cêntimo neles mudava-o de artigo. Dois de 55 € IVA incluído são 44,72 € cada (89,44 €), e a soma
  * convertida dá 89,43 €. Esse cêntimo (ou dois, com três adicionais) passa
  * para os próprios adicionais, a começar pelo maior, para a soma das linhas
  * dar o total ao cêntimo. Em cêntimos inteiros; só mexe quando a diferença
