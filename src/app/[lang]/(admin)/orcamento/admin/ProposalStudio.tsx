@@ -1,5 +1,6 @@
 "use client";
 
+import { asPropostasMudaram } from "./percentagem-do-sinal";
 import { useAccaoEstavel } from "./ui/accao-estavel";
 import {
   Fragment,
@@ -7984,6 +7985,8 @@ export default function ProposalStudio({
         return;
       }
       if (!res.ok) throw new Error(data?.error || porqueFalhouOEnvio(res.status));
+      // A proposta seguiu: a lista leve (fase do pedido, Pagamentos) relê-se.
+      asPropostasMudaram();
       setCortesPorConfirmar(null);
       // O envio também ensina a estimativa. Os bytes vêm do servidor: o PDF do
       // envio não passa pelo browser (segue em anexo), portanto sem esta linha

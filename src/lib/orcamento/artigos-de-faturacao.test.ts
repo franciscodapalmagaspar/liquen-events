@@ -506,3 +506,60 @@ describe("faturacaoPorArtigo — um artigo que soma zero ou menos não fecha", (
     expect(f.porqueNaoFecha.join(" ")).toMatch(/Serviço/);
   });
 });
+
+/**
+ * Revisão de 14/11: o total arredonda a SOMA dos adicionais «IVA incluído»
+ * uma vez, e a faturação arredondava cada um. A diferença de um cêntimo
+ * (que em euros chegava como 0,0100000001) mandava a proposta para o modo
+ * manual, ou — com a verificação de folga zero — recusava-a (422).
+ */
+describe("faturacaoPorArtigo — os adicionais «IVA incluído» fecham ao cêntimo", () => {
+  const comAdicionais = (k: number, v: number, modo: string) =>
+    ({
+      budgetItems: ["Flores"],
+      budgetAmounts: [5000],
+      budgetArtigos: ["flores"],
+      budgetExtras: Array.from({ length: k }, (_, i) => ({
+        label: `Adicional ${i + 1}`,
+        valueText: `${v},00 € ${modo}`,
+        artigo: "transporte",
+      })),
+      budgetExtrasSomam: true,
+      totalAmount: 5000,
+      totalVatMode: "acrescer",
+      vatRate: 0.23,
+    }) as unknown as DocParaFaturar;
+
+  for (const modo of ["IVA incluído", "+ IVA"])
+    for (const k of [1, 2, 3])
+      for (const v of [1, 55, 75, 95, 350])
+        it(`Flores 5 000 € + ${k} × ${v} € ${modo}: fecha, e os artigos somam o total`, () => {
+          const f = faturacaoPorArtigo(comAdicionais(k, v, modo));
+          expect(f.modo).toBe("linhas");
+          expect(f.porqueNaoFecha).toEqual([]);
+          expect(f.fecha).toBe(true);
+          expect(f.falta).toBe(0);
+          const cents = f.artigos.reduce((s, a) => s + Math.round(a.valor * 100), 0);
+          expect(cents).toBe(Math.round(f.base * 100));
+          const linhas = f.linhas.reduce((s, l) => s + Math.round((l.valor ?? 0) * 100), 0);
+          expect(linhas).toBe(Math.round(f.base * 100));
+        });
+
+  it("2 × 55 € IVA incluído: o cêntimo vai para um dos adicionais", () => {
+    const f = faturacaoPorArtigo(comAdicionais(2, 55, "IVA incluído"));
+    expect(f.base).toBe(5089.43);
+    expect(f.linhas.map((l) => l.valor)).toEqual([5000, 44.71, 44.72]);
+    expect(f.artigos.find((a) => a.artigo === "transporte")?.valor).toBe(89.43);
+  });
+
+  it("um cêntimo de arredondamento nunca tapa um artigo negativo", () => {
+    const d = {
+      ...comAdicionais(2, 55, "IVA incluído"),
+      budgetItems: ["Flores", "Desconto"],
+      budgetAmounts: [5000, -500],
+      budgetArtigos: ["flores", "servico"],
+      totalAmount: 4500,
+    } as unknown as DocParaFaturar;
+    expect(faturacaoPorArtigo(d).fecha).toBe(false);
+  });
+});

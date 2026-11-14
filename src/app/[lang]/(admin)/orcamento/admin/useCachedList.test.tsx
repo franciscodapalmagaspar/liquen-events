@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act, cleanup } from "@testing-library/react";
-import { useCachedList, prefetchList, __resetListCache } from "./useCachedList";
+import { useCachedList, prefetchList, revalidarLista, __resetListCache } from "./useCachedList";
 
 /**
  * O que estes testes protegem é a parte que se sente ao clicar: uma
@@ -413,5 +413,61 @@ describe("useCachedList — `pedir: false` só ouve a cache", () => {
     );
     await waitFor(() => expect(result.current.data).toEqual([7]));
     expect(requests).toHaveLength(1);
+  });
+});
+
+/**
+ * Revisão de 14/11: enviar, aceitar ou apagar uma proposta não mexia na cache
+ * leve, e a fase do pedido na lista ficava com a proposta de antes.
+ */
+describe("revalidarLista — um gesto que mudou a lista no servidor", () => {
+  it("relê UMA vez e quem só ouve recebe a lista nova", async () => {
+    replies = [{ status: 200, body: [1], etag: '"a"' }];
+    prefetchList("rev", "/api/r");
+    await waitFor(() => expect(requests).toHaveLength(1));
+    const { result } = renderHook(() => useCachedList<number[]>("rev", "/api/r", { pedir: false }));
+    await waitFor(() => expect(result.current.data).toEqual([1]));
+
+    replies = [{ status: 200, body: [1, 2], etag: '"b"' }];
+    await act(async () => {
+      revalidarLista("rev", "/api/r");
+    });
+    await waitFor(() => expect(result.current.data).toEqual([1, 2]));
+    expect(requests).toHaveLength(2);
+    expect(requests[1].ifNoneMatch).toBe('"a"');
+  });
+
+  it("com um pedido a meio (de antes do gesto), pergunta outra vez depois dele", async () => {
+    let soltar: (r: Response) => void = () => {};
+    const lento = new Promise<Response>((r) => (soltar = r));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        if (requests.length === 0) {
+          requests.push({ url, ifNoneMatch: null });
+          return lento;
+        }
+        return fetchMock(url, init);
+      }),
+    );
+    const { result } = renderHook(() => useCachedList<number[]>("rev2", "/api/r2"));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    replies = [{ status: 200, body: ["depois"], etag: '"d"' }];
+    revalidarLista("rev2", "/api/r2");
+    await act(async () => {
+      soltar({
+        ok: true,
+        status: 200,
+        headers: new Headers({ etag: '"antes"' }),
+        json: async () => ["antes"],
+      } as unknown as Response);
+    });
+    await waitFor(() => expect(result.current.data).toEqual(["depois"]));
+    expect(requests).toHaveLength(2);
+  });
+
+  it("ninguém a ouve nem a tem: não pergunta nada", () => {
+    revalidarLista("ninguem", "/api/n");
+    expect(requests).toHaveLength(0);
   });
 });

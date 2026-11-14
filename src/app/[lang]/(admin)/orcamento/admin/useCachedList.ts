@@ -192,6 +192,28 @@ export function prefetchList(key: string, url: string): void {
   void loadOnce(key, url).catch(() => {});
 }
 
+/**
+ * ── «ISTO MUDOU NO SERVIDOR» ────────────────────────────────────────────────
+ * Volta a perguntar UMA vez por uma lista que alguém tem à vista ou em cache,
+ * depois de um gesto que a mudou noutro sítio (enviar, aceitar, recusar ou
+ * apagar uma proposta). Quem a ouve recebe a resposta nova. Se já houver um
+ * pedido a meio, espera por ele e pergunta outra vez: esse partiu ANTES do
+ * gesto e traz o mundo de antes. Ninguém a ouve nem a tem: não pergunta nada.
+ * Um pedido por gesto, nunca por linha (revisão de 14/11).
+ */
+export function revalidarLista(key: string, url: string): void {
+  if (!cache.has(key) && !ouvintes.has(key)) return;
+  const depois = () => void loadOnce(key, url).catch(() => {});
+  const aMeio = inFlight.get(key);
+  if (!aMeio) return depois();
+  void aMeio
+    .catch(() => {})
+    .finally(() => {
+      if (inFlight.get(key) === aMeio) inFlight.delete(key);
+      depois();
+    });
+}
+
 export interface CachedList<T> {
   data: T | undefined;
   /** Update the list AND the cache (use for optimistic add/edit/delete). */

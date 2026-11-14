@@ -180,6 +180,40 @@ describe("cenário (b): 20 000 € + IVA, sinal pago e um saldo de 1 € recebid
   });
 });
 
+/**
+ * Revisão de 14/11: sem proposta, a estimativa do formulário NÃO é o preço
+ * aceite. O total da fase é o «Preço final»; sem ele, decide a linha de saldo.
+ */
+describe("sem proposta: o «Preço final» conta, a estimativa não", () => {
+  const ESTIMATIVA_12300 = { ...ESTIMATIVA_8000, subtotal: 10000, iva: 2300, total: 12300 };
+
+  it("estimativa de 12 300 €, sinal e saldo recebidos (10 000 €), evento passado → concluído", () => {
+    const q = pedido({
+      priceBreakdown: ESTIMATIVA_12300 as Quote["priceBreakdown"],
+      payments: [pag("s", "sinal", 3000), pag("f", "saldo", 7000)],
+    });
+    expect(faseNaLista(q, [])).toBe("concluido");
+    expect(faseNoDossie(q, [])).toBe("concluido");
+  });
+
+  it("Preço final de 10 000 € + IVA com 10 000 € recebidos → continua em produção", () => {
+    const q = pedido({
+      quotedPrice: 10000,
+      payments: [pag("s", "sinal", 3000), pag("f", "saldo", 7000)],
+    });
+    expect(faseNaLista(q, [])).toBe("em_producao");
+    expect(faseNoDossie(q, [])).toBe("em_producao");
+  });
+
+  it("sem saldo recebido, a estimativa paga não fecha nada", () => {
+    const q = pedido({
+      priceBreakdown: ESTIMATIVA_12300 as Quote["priceBreakdown"],
+      payments: [pag("s", "sinal", 12300)],
+    });
+    expect(faseNaLista(q, [])).toBe("em_producao");
+  });
+});
+
 describe("sem saber a proposta (a lista leve não chegou ou falhou), nunca «concluído»", () => {
   it("nem com tudo pago", () => {
     const q = pedido({ payments: [pag("s", "sinal", 9000), pag("f", "saldo", 21000)] });

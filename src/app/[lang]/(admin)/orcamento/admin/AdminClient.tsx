@@ -87,6 +87,7 @@ import {
   downloadEventIcs,
 } from "./export";
 import { prefetchList } from "./useCachedList";
+import { separadorQuandoAPropostaChega, type SeparadorPorDecidir } from "./separador-por-decidir";
 import {
   useGravacaoAutomatica,
   useTravaoDeSaida,
@@ -108,7 +109,11 @@ import { useCamadaDeHistoria } from "./useCamadaDeHistoria";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
 import EmptyState from "./EmptyState";
 import LifecycleStepper, { deriveRequestLifecycle } from "./LifecycleStepper";
-import { propostaDaFaseDoPedido, usePropostasLevesSoOuvir } from "./percentagem-do-sinal";
+import {
+  asPropostasMudaram,
+  propostaDaFaseDoPedido,
+  usePropostasLevesSoOuvir,
+} from "./percentagem-do-sinal";
 import type { PropostaParaAFase } from "@/lib/orcamento/dossier";
 import { NAV, CORE_NAV, MORE_NAV, BARRA_INFERIOR, ROTULO_CURTO, type View } from "./nav";
 import { useDesceu } from "./ui/adaptativo";
@@ -1526,6 +1531,44 @@ export default function AdminClient({
     setDetailTab(tab);
     setDetailTabsVisitados(new Set([tab]));
   }, []);
+
+  // Ver `separador-por-decidir.ts`: o separador escolhido antes de a lista
+  // leve de propostas chegar volta a escolher-se quando ela chega.
+  const separadorPorDecidirRef = useRef<SeparadorPorDecidir<DetailTab> | null>(null);
+  useEffect(() => {
+    const porDecidir = separadorPorDecidirRef.current;
+    if (!porDecidir || !selected || propostasLeves === undefined) return;
+    separadorPorDecidirRef.current = null;
+    const alvo = detailNextAction(
+      selected,
+      propostaDaFaseDoPedido(propostasLeves, selected.id),
+    ).tab;
+    const novo = separadorQuandoAPropostaChega(
+      porDecidir,
+      { quoteId: selected.id, tab: detailTab, em: Date.now() },
+      alvo === "gestao" ? "comunicacao" : alvo,
+    );
+    // `abrirDetailTab` ACRESCENTA: o separador de antes não desmonta.
+    if (novo) abrirDetailTab(novo);
+  }, [propostasLeves, selected, detailTab, abrirDetailTab]);
+
+  /**
+   * ── O DESFECHO DO PEDIDO ARRASTA A PROPOSTA ──────────────────────────────
+   * «Ganho» e «Perdido» gravados no pedido mudam também o estado da proposta
+   * no servidor (`/api/orcamento/[id]`). Sempre que o estado do pedido aberto
+   * muda (a resposta do servidor já cá está), a lista leve relê-se UMA vez,
+   * para a fase acompanhar. Um pedido por mudança de estado, nunca por linha.
+   */
+  const estadoVistoRef = useRef<{ id: string; status: string } | null>(null);
+  useEffect(() => {
+    if (!selected) {
+      estadoVistoRef.current = null;
+      return;
+    }
+    const antes = estadoVistoRef.current;
+    estadoVistoRef.current = { id: selected.id, status: selected.status };
+    if (antes && antes.id === selected.id && antes.status !== selected.status) asPropostasMudaram();
+  }, [selected]);
   // Scroll targets for the "Próxima ação" shortcut: the always-visible
   // management form and the tools (tabs) section.
   const gestaoRef = useRef<HTMLDivElement>(null);
@@ -3539,8 +3582,19 @@ export default function AdminClient({
     );
     // Open on the tools tab that matches where this pedido is in its lifecycle.
     // Pedido NOVO: os separadores visitados do anterior não valem para este.
-    const target = detailNextAction(q, propostaDaFaseDoPedido(propostasLeves, q.id)).tab;
-    abrirPrimeiroDetailTab(target === "gestao" ? "comunicacao" : target);
+    const daFase = propostaDaFaseDoPedido(propostasLeves, q.id);
+    const target = detailNextAction(q, daFase).tab;
+    const abre = target === "gestao" ? "comunicacao" : target;
+    abrirPrimeiroDetailTab(abre);
+    // A lista leve ainda não chegou: a escolha foi feita às cegas. Pede-se já
+    // (é o MESMO pedido do aquecimento em ociosidade, adiantado — não é um a
+    // mais) e, quando chegar, volta-se a escolher se ela não mexeu.
+    if (daFase === undefined) {
+      separadorPorDecidirRef.current = { quoteId: q.id, tab: abre, desde: Date.now() };
+      prefetchList("propostas-leves", "/api/propostas?semDoc=1");
+    } else {
+      separadorPorDecidirRef.current = null;
+    }
   }
   // Stable identity for the memoised QuoteCard's onOpen prop. `irFazerAProposta`
   // is a plain function (closes over discardGuard and many setters), so its

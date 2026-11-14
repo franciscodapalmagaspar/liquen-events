@@ -207,14 +207,20 @@ export function faturacaoPorArtigo(doc: DocParaFaturar, versao?: VersaoEscolhida
   // ── MODO «LINHAS»: tudo vem da proposta ──────────────────────────────────
   // Quando todas as linhas têm preço e a soma dá o total, os valores por
   // artigo saem feitos — não há contas nenhumas a fazer na faturação.
+  //
+  // Tudo em CÊNTIMOS inteiros (revisão de 14/11): em euros, um cêntimo de
+  // arredondamento chegava como 0,0100000001 e passava ao lado do `<= 0,01`
+  // — a proposta caía no modo «manual» sem razão que se visse.
+  const cent = (v: number | null) => Math.round((v ?? 0) * 100);
+  const baseCent = cent(t.base);
   const todasComPreco = linhas.length > 0 && linhas.every((l) => l.valor !== null);
-  const somaDasLinhas = round2(linhas.reduce((s, l) => s + (l.valor ?? 0), 0));
-  if (todasComPreco && t.base > 0 && Math.abs(somaDasLinhas - t.base) <= 0.01) {
+  const somaCent = linhas.reduce((s, l) => s + cent(l.valor), 0);
+  if (todasComPreco && baseCent > 0 && Math.abs(somaCent - baseCent) <= 1) {
     const porArtigo = new Map<ArtigoId, number>();
     for (const l of linhas) {
-      if (l.artigo) porArtigo.set(l.artigo, (porArtigo.get(l.artigo) ?? 0) + (l.valor ?? 0));
+      if (l.artigo) porArtigo.set(l.artigo, (porArtigo.get(l.artigo) ?? 0) + cent(l.valor));
     }
-    const semArtigo = linhas.filter((l) => !l.artigo && (l.valor ?? 0) !== 0);
+    const semArtigo = linhas.filter((l) => !l.artigo && cent(l.valor) !== 0);
     if (semArtigo.length > 0)
       porqueNaoFecha.push(frasePorFalta(semArtigo, "não tem artigo", "não têm artigo"));
     // ── UM ARTIGO QUE SOMA ZERO OU MENOS NÃO SE FATURA (auditoria de 14/11) ──
@@ -223,26 +229,44 @@ export function faturacaoPorArtigo(doc: DocParaFaturar, versao?: VersaoEscolhida
     // deitava-o fora, a repartição ficava 500 € acima do total — e dizia
     // «fecha». Não se fatura um artigo negativo; diz-se, e não fecha.
     const comLinhasComValor = new Set(
-      linhas.filter((l) => l.artigo && (l.valor ?? 0) !== 0).map((l) => l.artigo!),
+      linhas.filter((l) => l.artigo && cent(l.valor) !== 0).map((l) => l.artigo!),
     );
     for (const a of ARTIGOS) {
-      const v = round2(porArtigo.get(a.id) ?? 0);
+      const v = porArtigo.get(a.id) ?? 0;
       if (comLinhasComValor.has(a.id) && v <= 0)
         porqueNaoFecha.push(
-          `«${a.nome}» soma ${eur(v)}: um artigo não se fatura a zero nem a menos. ` +
+          `«${a.nome}» soma ${eur(v / 100)}: um artigo não se fatura a zero nem a menos. ` +
             `Põe o desconto no mesmo artigo do serviço a que se aplica.`,
         );
     }
-    const artigos = ARTIGOS.filter((a) => (porArtigo.get(a.id) ?? 0) > 0).map((a) => ({
+    const artigosCent = ARTIGOS.filter((a) => (porArtigo.get(a.id) ?? 0) > 0).map((a) => ({
       artigo: a.id,
       nome: a.nome,
-      valor: round2(porArtigo.get(a.id)!),
+      cent: porArtigo.get(a.id)!,
     }));
-    const repartido = round2(artigos.reduce((s, a) => s + a.valor, 0));
-    const faltaLinhas = round2(t.base - repartido);
-    if (Math.abs(faltaLinhas) > 0.005 && porqueNaoFecha.length === 0)
+    // ── O CÊNTIMO DE ARREDONDAMENTO ───────────────────────────────────────
+    // O total arredonda a soma dos adicionais uma vez; as linhas arredondam
+    // cada um. `linhasDaFaturacao` já reparte essa diferença pelos
+    // adicionais, mas se mesmo assim sobrar EXACTAMENTE um cêntimo, vai para o
+    // artigo maior — como em `parcelasDaFatura`. Só com tudo o resto certo: um
+    // cêntimo nunca tapa um artigo negativo nem uma linha sem artigo. No fim,
+    // os artigos somam o total ao cêntimo (folga zero).
+    let difCent = baseCent - artigosCent.reduce((s, a) => s + a.cent, 0);
+    if (Math.abs(difCent) === 1 && porqueNaoFecha.length === 0 && artigosCent.length > 0) {
+      const maior = artigosCent.reduce((m, a, i) => (a.cent > artigosCent[m].cent ? i : m), 0);
+      artigosCent[maior].cent += difCent;
+      difCent = 0;
+    }
+    const artigos = artigosCent.map((a) => ({
+      artigo: a.artigo,
+      nome: a.nome,
+      valor: a.cent / 100,
+    }));
+    const repartido = artigosCent.reduce((s, a) => s + a.cent, 0) / 100;
+    const faltaLinhas = difCent / 100;
+    if (difCent !== 0 && porqueNaoFecha.length === 0)
       porqueNaoFecha.push(
-        faltaLinhas > 0
+        difCent > 0
           ? `Os artigos somam ${eur(faltaLinhas)} a menos do que o total.`
           : `Os artigos somam ${eur(-faltaLinhas)} a mais do que o total.`,
       );
@@ -333,17 +357,54 @@ export function linhasDaFaturacao(doc: DocParaFaturar, versao?: VersaoEscolhida)
       artigo: artigos[i],
     });
   });
+  const contexto = { mode: t.mode, vatRate: t.vatRate };
+  const adicionais: LinhaFaturavel[] = [];
+  const comNumero: NonNullable<ProposalDoc["budgetExtras"]> = [];
   (doc.budgetExtras ?? []).forEach((e, i) => {
     if (!/\d/.test(e?.valueText ?? "")) return;
-    out.push({
+    comNumero.push(e);
+    adicionais.push({
       origem: "adicional",
       indice: i,
       nome: (e?.label ?? "").trim() || `Valor adicional ${i + 1}`,
-      valor: somaDosExtrasSemIva([e], { mode: t.mode, vatRate: t.vatRate }),
+      valor: somaDosExtrasSemIva([e], contexto),
       artigo: eArtigo(e?.artigo) ? e.artigo : null,
     });
   });
+  repartirOArredondamento(adicionais, somaDosExtrasSemIva(comNumero, contexto));
+  out.push(...adicionais);
   return out;
+}
+
+/**
+ * ── O ARREDONDAMENTO DOS ADICIONAIS, REPARTIDO (revisão de 14/11) ─────────
+ *
+ * O total da proposta converte a SOMA dos adicionais «IVA incluído» e
+ * arredonda uma vez; a faturação mostra cada adicional à parte, arredondado
+ * por si. Dois de 55 € IVA incluído são 44,72 € cada (89,44 €), e a soma
+ * convertida dá 89,43 €. Esse cêntimo (ou dois, com três adicionais) passa
+ * para os próprios adicionais, a começar pelo maior, para a soma das linhas
+ * dar o total ao cêntimo. Em cêntimos inteiros; só mexe quando a diferença
+ * é de arredondamento (no máximo um cêntimo por adicional).
+ */
+function repartirOArredondamento(adicionais: LinhaFaturavel[], alvo: number): void {
+  if (adicionais.length === 0) return;
+  const cents = adicionais.map((a) => Math.round((a.valor ?? 0) * 100));
+  let dif = Math.round(alvo * 100) - cents.reduce((s, c) => s + c, 0);
+  if (dif === 0 || Math.abs(dif) > adicionais.length) return;
+  const ordem = cents
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => Math.abs(b.c) - Math.abs(a.c) || a.i - b.i)
+    .map((x) => x.i);
+  for (let k = 0; dif !== 0; k++) {
+    const i = ordem[k % ordem.length];
+    const passo = Math.sign(dif);
+    cents[i] += passo;
+    dif -= passo;
+  }
+  adicionais.forEach((a, i) => {
+    a.valor = cents[i] / 100;
+  });
 }
 
 /** O artigo de cada linha do orçamento, ao tamanho das linhas. */

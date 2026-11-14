@@ -238,8 +238,11 @@ describe("deriveStage — o saldo que fecha o evento", () => {
   it("sem linha rotulada 'saldo': entradas avulsas que cobrem o total → concluido", () => {
     // Nem toda a gente usa o rótulo "Saldo final": duas transferências avulsas
     // que cobrem o contratado valem tanto como uma linha de saldo recebida.
+    // Com um preço COMBINADO (o «Preço final», 10 000 € + IVA): a estimativa
+    // do formulário não é um preço aceite e não fecha nada (revisão de 14/11).
     const d = data({
       quote: pastEvent({
+        quotedPrice: 10000,
         payments: [
           paid("pagamento", 6150, "pay-1"),
           { id: "pay-2", kind: "pagamento", amount: 6150, date: "2026-07-02", paid: true },

@@ -234,9 +234,25 @@ describe("contractedTotal — os três ramos na MESMA unidade (com IVA)", () => 
     },
   );
 
-  it.each(FONTES)("fonte %s: pagos os 24 600 € → concluído", (fonte) => {
-    const d = casamento(fonte, [pago("sinal", 7380), pago("pagamento", 17220, "pay-2")]);
-    expect(deriveStage(d, DEPOIS_DO_EVENTO)).toBe("concluido");
+  it.each(["proposta", "preco_cotado"] as const)(
+    "fonte %s: pagos os 24 600 € → concluído",
+    (fonte) => {
+      const d = casamento(fonte, [pago("sinal", 7380), pago("pagamento", 17220, "pay-2")]);
+      expect(deriveStage(d, DEPOIS_DO_EVENTO)).toBe("concluido");
+    },
+  );
+
+  // Revisão de 14/11: a estimativa do formulário não é um preço aceite. Sem
+  // proposta nem «Preço final», a fase não compara com ela: decide a linha de
+  // saldo recebida.
+  it("fonte estimativa: a fase não compara com ela — decide a linha de saldo", () => {
+    const avulsos = casamento("estimativa", [
+      pago("sinal", 7380),
+      pago("pagamento", 17220, "pay-2"),
+    ]);
+    expect(deriveStage(avulsos, DEPOIS_DO_EVENTO)).toBe("em_producao");
+    const comSaldo = casamento("estimativa", [pago("sinal", 7380), pago("saldo", 17220)]);
+    expect(deriveStage(comSaldo, DEPOIS_DO_EVENTO)).toBe("concluido");
   });
 
   it("a percentagem recebida compara com IVA dos dois lados (nunca 123%)", () => {

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { pctDoSinalDe, propostaQueContaDoPedido } from "@/lib/orcamento/proposta-que-conta";
 import type { ProposalStatus } from "@/lib/orcamento/types";
-import { useCachedList } from "./useCachedList";
+import { revalidarLista, useCachedList } from "./useCachedList";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -136,4 +136,13 @@ export function propostaDaFaseDoPedido(
 ): PropostaLeve | null | undefined {
   if (!Array.isArray(lista)) return undefined;
   return propostaQueConta(lista, quoteId);
+}
+
+/**
+ * Uma proposta mudou no servidor (enviada, aceite, recusada, apagada, ou o
+ * pedido mudou de desfecho e arrastou-a): a lista leve volta a ser lida UMA
+ * vez, para a fase da lista, os Pagamentos e as Cobranças acompanharem.
+ */
+export function asPropostasMudaram(): void {
+  revalidarLista("propostas-leves", "/api/propostas?semDoc=1");
 }
