@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * O PDF da proposta servido pelo LINK DO CLIENTE (/[lang]/proposta/[token]).
@@ -205,6 +207,24 @@ describe("GET /api/proposta/[token]/pdf", () => {
     for (let i = 0; i < 14; i++) estados.push((await mesmoIp()).status);
     expect(estados.slice(0, 12).every((s) => s === 200)).toBe(true);
     expect(estados.at(-1)).toBe(429);
+  });
+
+  it("com fotos em falta serve na mesma — e por isso não há ramo para a recusa (13/11)", async () => {
+    // A rota pede o documento com `servirIncompleto`: a recusa
+    // (`PropostaIncompleta`) nunca lhe chega. O ramo do 503 que a tratava era
+    // código morto, com um comentário a dizer o contrário do que acontece.
+    db.proposals.set("p1", { id: "p1", doc: { ref: "PO" } });
+    db.emFalta = 2;
+    try {
+      const res = await call();
+      expect(res.status).toBe(200);
+      expect((await res.arrayBuffer()).byteLength).toBeGreaterThan(0);
+    } finally {
+      db.emFalta = 0;
+    }
+    const fonte = readFileSync(join(__dirname, "route.ts"), "utf8");
+    expect(fonte).not.toMatch(/PropostaIncompleta/);
+    expect(fonte).not.toMatch(/status: 503/);
   });
 });
 

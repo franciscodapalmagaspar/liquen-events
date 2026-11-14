@@ -138,3 +138,27 @@ describe("o tema é das mesas? (a paleta e o ambiente, pedido dela a 20/10)", ()
     expect(eDasMesas("Proposta B", "Mesas de jantar")).toBe(true);
   });
 });
+
+describe("fotosQueDaoCor (13/11): as fotografias da página que dão cor à paleta", () => {
+  it("havendo temas das mesas, só as da página que são deles", async () => {
+    const { fotosQueDaoCor } = await import("./grupos");
+    const temas = [
+      { title: "Decoração Cerimónia", images: ["c1", "c2"] },
+      { title: "Mesas de Jantar", images: ["m1", "m2"] },
+    ];
+    expect(fotosQueDaoCor(["m1", "c1", "m2"], temas)).toEqual(["m1", "m2"]);
+  });
+
+  it("sem temas das mesas (ou nenhuma deles na página), todas as da página", async () => {
+    const { fotosQueDaoCor } = await import("./grupos");
+    expect(
+      fotosQueDaoCor(["c1", "c2"], [{ title: "Decoração Cerimónia", images: ["c1"] }]),
+    ).toEqual(["c1", "c2"]);
+    expect(fotosQueDaoCor(["c1"], [{ title: "Mesas de Jantar", images: ["m1"] }])).toEqual(["c1"]);
+  });
+
+  it("um tema das mesas só com texto não conta", async () => {
+    const { fotosQueDaoCor } = await import("./grupos");
+    expect(fotosQueDaoCor(["c1"], [{ title: "Mesas de Jantar", images: [] }])).toEqual(["c1"]);
+  });
+});

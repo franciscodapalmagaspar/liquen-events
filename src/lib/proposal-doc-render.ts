@@ -40,7 +40,7 @@ import { log } from "@/lib/logger";
 import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import {
   conteudoDoEditorial,
-  fotosDoEditorial,
+  planoDoEditorial,
   renderEditorialPdf,
   type FontesDasFotos,
   type FotosDoPdf,
@@ -739,6 +739,16 @@ async function fotoEditorial(
   return reduzida;
 }
 
+/**
+ * Os bytes que o PDF editorial desenha para esta fotografia — os mesmos de
+ * `resolveImages` com `originais` (a versão reduzida a {@link LADO_EDITORIAL},
+ * guardada). A paleta da proposta online e a sugestão do «Fazer proposta»
+ * (`lib/paleta-do-pdf.ts`) lêem ESTES, para darem as cores do PDF.
+ */
+export function bytesDaFotoNoPdf(ref: string): Promise<Buffer | null> {
+  return fotoEditorial(ref, fetchProposalImageBytes);
+}
+
 /** Só para os testes. */
 export function esvaziarFotosEditoriais(): void {
   fotosEditoriais.esvaziar();
@@ -857,8 +867,20 @@ export async function fotosDoEditorialDoDocumento(
   doc: ProposalDoc,
   idioma: IdiomaDaProposta = IDIOMA_POR_OMISSAO,
 ): Promise<FotosDoPdf> {
+  return (await planoDoEditorialDoDocumento(doc, idioma)).fotos;
+}
+
+/**
+ * O mesmo, e as referências das fotografias de onde o PDF tira a paleta
+ * (`daPaleta`, pela ordem do PDF) — o que a rota `fotos-do-pdf` responde ao
+ * estúdio, para a sugestão de cores dele ser a do PDF (13/11).
+ */
+export async function planoDoEditorialDoDocumento(
+  doc: ProposalDoc,
+  idioma: IdiomaDaProposta = IDIOMA_POR_OMISSAO,
+): Promise<{ fotos: FotosDoPdf; daPaleta: string[] | null }> {
   const withDefaults = withProposalDefaults(doc);
-  return fotosDoEditorial(withDefaults, idioma, await medidasDoDocumento(withDefaults));
+  return planoDoEditorial(withDefaults, idioma, await medidasDoDocumento(withDefaults));
 }
 
 /**

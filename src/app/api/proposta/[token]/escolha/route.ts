@@ -44,16 +44,29 @@ export const runtime = "nodejs";
  * apagada, proposta sem documento. Nunca 401 nem 403: um link privado não pode
  * revelar, pela resposta, se um identificador existe.
  */
+/** O tecto de escolhas por minuto e por IP — ver a nota no `POST`. */
+const ESCOLHAS_POR_MINUTO = 30;
+
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
   /**
-   * O token vive meses na caixa de correio do casal e é reencaminhável. Uma
-   * escolha é um gesto humano — dez por minuto é muito mais do que duas pessoas
-   * indecisas no sofá conseguem, e continua a fechar a porta a um ciclo que
-   * escrevesse na base de dados sem parar.
+   * O token vive meses na caixa de correio do casal e é reencaminhável, e um
+   * ciclo que escrevesse na base de dados sem parar tem de bater numa porta.
+   *
+   * Eram dez por minuto, e dez NÃO é muito: uma proposta com quatro perguntas
+   * e duas pessoas no sofá a mudar de ideias (a mesma casa, o mesmo IP) passa
+   * dos dez num minuto — e à décima primeira a página desfazia a escolha e
+   * dizia que não tinha seguido (auditoria de 13/11). Trinta é uma escolha a
+   * cada dois segundos, um minuto inteiro: mais do que um casal faz, e ainda
+   * um tecto para quem escreva num ciclo. Em memória, como todos os limites
+   * que não são portas de contas (`rate-limit.global.test.ts`).
    */
-  const limited = await rateLimit(`proposta-escolha:${clientIp(request)}`, 10, 60_000);
+  const limited = await rateLimit(
+    `proposta-escolha:${clientIp(request)}`,
+    ESCOLHAS_POR_MINUTO,
+    60_000,
+  );
   if (!limited.ok) return new NextResponse(null, { status: 429 });
 
   /** Só para o registo do `catch`. */

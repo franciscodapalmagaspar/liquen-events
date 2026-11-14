@@ -276,9 +276,22 @@ describe("o nome do ficheiro da proposta", () => {
     // segunda ficava «(1).pdf» na pasta de quem as recebesse.
     const dados = { clientNames: "Maria & Zé", eventDate: "12 de setembro de 2026", ref: "q1" };
     expect(nomeDoFicheiroDaProposta(dados, "en")).toBe(
-      "Proposal-Liquen-Events-Maria-e-Ze-12-09-2026.pdf",
+      "Proposal-Liquen-Events-Maria-and-Ze-12-09-2026.pdf",
     );
     expect(nomeDoFicheiroDaProposta(dados, "en")).not.toBe(nomeDoFicheiroDaProposta(dados, "pt"));
+  });
+
+  it("o «&» diz-se na língua da proposta: «Anna-and-John», não «Anna-e-John» (13/11)", () => {
+    const casal = { clientNames: "Anna & John", eventDate: "12 de setembro de 2026", ref: "q1" };
+    expect(nomeDoFicheiroDaProposta(casal, "en")).toBe(
+      "Proposal-Liquen-Events-Anna-and-John-12-09-2026.pdf",
+    );
+    expect(nomeDoFicheiroDaProposta(casal, "pt")).toBe(
+      "Proposta-Liquen-Events-Anna-e-John-12-09-2026.pdf",
+    );
+    expect(nomeDoFicheiroDaProposta({ ...casal, escolhido: "Anna & John" }, "en")).toBe(
+      "Anna-and-John.pdf",
+    );
   });
 
   it("nada de acentos, de «&» nem de espaços — o nome viaja num cabeçalho", () => {

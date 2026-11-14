@@ -18,6 +18,11 @@ export const maxDuration = 60;
  * `?v=` é a versão do conteúdo: com ela certa a imagem guarda-se no telemóvel
  * para sempre (`immutable`), porque uma revisão muda o endereço. Sem ela, ou
  * com uma antiga, serve-se a de agora e não se guarda.
+ *
+ * E só se o PDF veio COMPLETO. Um PDF a que falte uma fotografia serve-se na
+ * mesma (o casal vale mais do que um 503), mas a versão é a do conteúdo, e não
+ * muda quando ela repõe a fotografia: a página com o buraco ficava um ano no
+ * telemóvel do casal (auditoria de 13/11).
  */
 export async function GET(
   request: Request,
@@ -40,7 +45,7 @@ export async function GET(
     if (!pdf) return new NextResponse(null, { status: 404 });
     const imagem = await imagemDaPagina(pdf.chave, pdf.obterBytes, numero, largura);
     if (!imagem) return new NextResponse(null, { status: 404 });
-    const certa = url.searchParams.get("v") === versaoDaChave(pdf.chave);
+    const certa = url.searchParams.get("v") === versaoDaChave(pdf.chave) && pdf.completo();
     return new NextResponse(new Uint8Array(imagem), {
       headers: {
         "Content-Type": "image/webp",

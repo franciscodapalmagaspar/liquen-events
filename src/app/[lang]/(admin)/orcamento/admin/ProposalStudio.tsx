@@ -59,7 +59,7 @@ import {
   referenciaDoDocumento,
   type IdiomaDaProposta,
 } from "@/lib/proposal-doc-textos";
-import { grupoNoCasamento } from "@/lib/pdf-editorial/grupos";
+import { fotosQueDaoCor, grupoNoCasamento } from "@/lib/pdf-editorial/grupos";
 import {
   ordemDeSaida,
   eAOrdemEscrita,
@@ -109,8 +109,9 @@ import { ControlosDoEnvio, PainelDoEnvio, PastilhaDoEnvio } from "./BarraDoEnvio
 import VistaDeConjunto from "./VistaDeConjunto";
 import EscolherDisposicao from "./EscolherDisposicao";
 import PaginaEditorial, { fontesDasFolhas } from "./PaginaEditorial";
-import { useFotosDoPdf } from "./useFotosDoPdf";
+import { usePlanoDoPdf } from "./useFotosDoPdf";
 import EscolherFotoDaPagina from "./EscolherFotoDaPagina";
+import CoresDaPaleta from "./CoresDaPaleta";
 import { VerOPdfNoEcra } from "./VerOPdfNoEcra";
 import { useAnular } from "./ui/anular";
 import LupaDeFotos from "./LupaDeFotos";
@@ -189,7 +190,7 @@ import {
 } from "@/lib/pdf-editorial/plano";
 import { NOME_DA_DISPOSICAO, disposicaoDoTema, type Disposicao } from "@/lib/pdf-editorial/mosaico";
 import { avisoDeTituloParecido, titulosParecidos } from "@/lib/proposal-titulos-parecidos";
-import { depositPercentOf } from "@/lib/proposal-doc";
+import { depositPercentOf, paletaDaProposta } from "@/lib/proposal-doc";
 import { RepartoPorArtigo } from "./RepartoPorArtigo";
 import {
   ARTIGOS,
@@ -4342,8 +4343,12 @@ export default function ProposalStudio({
   const fotosPorBoard = doc.moodBoards.map((b) => b.images.length);
   const totalDeFotos = fotosPorBoard.reduce((a, b) => a + b, 0);
   const planoDoPdf = useMemo(() => planoDaProposta(doc as ProposalDoc), [doc]);
-  /** Que fotografia o PDF põe em cada página — perguntado ao PDF (`useFotosDoPdf`). */
-  const fotosDoPdf = useFotosDoPdf(quote.id, doc as ProposalDoc, idiomaDoPdf);
+  /**
+   * Que fotografia o PDF põe em cada página — perguntado ao PDF
+   * (`usePlanoDoPdf`) —, e de que fotografias o PDF tira a paleta.
+   */
+  const respostaDoPdf = usePlanoDoPdf(quote.id, doc as ProposalDoc, idiomaDoPdf);
+  const fotosDoPdf = respostaDoPdf?.fotos ?? null;
   /** De onde vêm as fotografias das miniaturas do PDF novo (`PaginaEditorial`). */
   const fontesDasMiniaturas = useMemo(
     () => fontesDasFolhas(doc as ProposalDoc, planoDoPdf, assetUrls, assetOriginais, fotosDoPdf),
@@ -4385,6 +4390,50 @@ export default function ProposalStudio({
       dela?.fotos[k]?.trim() ? (dela.focos?.[k] ?? f.foco ?? null) : (f.foco ?? null),
     );
   };
+  /**
+   * As cores da paleta escolhidas por ELA (`paletaDela`), com «Anular» —
+   * «a minha mãe quer ser ela a escolher as cores» (13/11). `null` volta às
+   * automáticas (a sugestão das flores das fotografias).
+   */
+  function mudarPaleta(cores: string[] | null, frase: string) {
+    const antes = doc.paletaDela;
+    patch({ paletaDela: cores && cores.length ? cores : undefined });
+    anular(frase, () => patch({ paletaDela: antes }));
+  }
+  /**
+   * As fotografias de onde saem as cores — as MESMAS que o PDF lê. Quem as diz
+   * é o próprio PDF (`daPaleta`, da rota `fotos-do-pdf`, pela ordem dele); e a
+   * SUGESTÃO de cores vem também do servidor, calculada sobre os bytes do PDF
+   * (`paleta-do-pdf`) — o navegador só as lê para o conta-gotas (13/11: a
+   * sugestão do estúdio dava outras cores, por outra ordem, do que o PDF).
+   * Enquanto o PDF não responde, a mesma regra feita aqui (`fotosQueDaoCor`)
+   * mostra as fotografias ao conta-gotas. Lê-se a fotografia inteira (a versão
+   * média) e não a miniatura, que é um recorte quadrado com outras cores.
+   */
+  const fotosDaPaleta = (() => {
+    const urlDe = (r: string) =>
+      assetMedias[r] ??
+      assetOriginais[r] ??
+      assetUrls[r] ??
+      (r.startsWith("data:") ? r : undefined);
+    if (respostaDoPdf?.daPaleta)
+      return respostaDoPdf.daPaleta.map((r) => ({ ref: r, url: urlDe(r) }));
+    // Pela ordem do PDF: o painel (o 6.º lugar) primeiro, depois a fila.
+    // Os seis lugares, mesmo numa proposta que gravou só cinco (antes de o
+    // 6.º ser o painel): o que falta é o que o PDF lá põe.
+    const auto = (fotosDoPdf?.ambiente ?? []).map((f) => f.ref);
+    const dela = lugaresDaPagina("ambiente");
+    const l = Array.from(
+      { length: Math.max(dela.length, auto.length, 6) },
+      (_, k) => dela[k] ?? auto[k] ?? null,
+    );
+    const pelaOrdemDoPdf = [l[5], ...l.slice(0, 5)].filter((r): r is string => !!r);
+    // A versão média («inside», sem recorte). O original pesava vários MB por
+    // fotografia, seis de cada vez.
+    return fotosQueDaoCor(pelaOrdemDoPdf, doc.moodBoards).map((r) => ({ ref: r, url: urlDe(r) }));
+  })();
+  /** As referências pelas quais se pede a sugestão ao servidor: só as do PDF. */
+  const refsDaPaleta = respostaDoPdf?.daPaleta ?? null;
   /**
    * Grava a escolha de uma página (ou apaga-a, com `null`), com «Anular». Os
    * focos vão com as fotos, lugar a lugar; sem `focos`, ficam os que havia.
@@ -10619,6 +10668,23 @@ export default function ProposalStudio({
                   </div>
                 </div>
 
+                {/* ── AS CORES DA PALETA, ESCOLHIDAS POR ELA (13/11) ─────────
+                  «A minha mãe quer ser ela a escolher as cores.» À vista, aqui,
+                  onde estão as fotografias — e não só no «Mudar fotografia» da
+                  página. As mesmas cores vão para o PDF e para a proposta
+                  online; sem escolha dela, saem as sugeridas pelas flores. */}
+                {fotosDaPaleta.length > 0 && (
+                  <div className="mt-8 border-t border-[var(--bo-hairline)] pt-6">
+                    <CoresDaPaleta
+                      quoteId={quote.id}
+                      fotos={fotosDaPaleta}
+                      refsDoPdf={refsDaPaleta}
+                      cores={paletaDaProposta(doc)}
+                      onMudar={mudarPaleta}
+                    />
+                  </div>
+                )}
+
                 {/* ── AS ALTERNATIVAS QUE O CASAL ESCOLHE (Fase 3) ───────────
                   Vive aqui dentro, e não numa secção própria: as alternativas
                   são visuais e as fotografias que as explicam já estão nestas
@@ -13874,6 +13940,19 @@ export default function ProposalStudio({
           aspetos={aspetosDasFotos}
           onFoco={(f) => enquadrarNaPagina(paginaDaFoto.chave, paginaDaFoto.nome, lugarDaFoto, f)}
           fotosDaProposta={fotosDaProposta}
+          paleta={
+            paginaDaFoto.chave === "ambiente" ? (
+              // As MESMAS fotografias e a mesma sugestão da secção de cima — as
+              // do PDF (13/11: aqui lia-se a miniatura, de outras fotografias).
+              <CoresDaPaleta
+                quoteId={quote.id}
+                fotos={fotosDaPaleta}
+                refsDoPdf={refsDaPaleta}
+                cores={paletaDaProposta(doc)}
+                onMudar={mudarPaleta}
+              />
+            ) : undefined
+          }
           carregar={
             <UploadArea
               label="Carregar uma fotografia"

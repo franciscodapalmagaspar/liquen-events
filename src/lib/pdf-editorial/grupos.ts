@@ -207,3 +207,25 @@ export function capitulos<T>(
   }
   return itens.map((t, i) => ({ chave: `tema-${i + 1}`, grupo: null, itens: [t] }));
 }
+
+/**
+ * As fotografias de uma página que DÃO COR à paleta (13/11), pelas
+ * referências: havendo temas das mesas com fotografias, só as da página que
+ * são deles (a decisão dela de 20/10: as cores são as das mesas — uma
+ * fotografia da cerimónia que entre na fila para a encher não dá cor); sem
+ * nenhuma, todas as da página. A MESMA regra no PDF (`montar.ts`) e no
+ * «Fazer proposta» (as sugestões e o conta-gotas), para a «Sugestão» que ela
+ * vê ser a paleta que o casal recebe.
+ */
+export function fotosQueDaoCor(
+  naPagina: readonly string[],
+  temas: readonly { title?: string; subtitulo?: string; images?: readonly string[] }[],
+): string[] {
+  const dasMesas = new Set(
+    temas
+      .filter((t) => (t.images?.length ?? 0) > 0 && eDasMesas(t.title ?? "", t.subtitulo ?? ""))
+      .flatMap((t) => t.images ?? []),
+  );
+  const destas = naPagina.filter((r) => dasMesas.has(r));
+  return dasMesas.size && destas.length ? destas : [...naPagina];
+}

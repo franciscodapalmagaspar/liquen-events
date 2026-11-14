@@ -119,11 +119,14 @@ export interface DadosDoNomeDoFicheiro {
  * O tecto é o mesmo do nome do casal, pela mesma razão: um nome que não cabe na
  * coluna do gestor de ficheiros não serve para arrumar nada.
  */
-export function nomeEscolhidoParaFicheiro(escrito: unknown): string {
+export function nomeEscolhidoParaFicheiro(
+  escrito: unknown,
+  idioma: IdiomaDaProposta = "pt",
+): string {
   const texto = String(escrito ?? "")
     .trim()
     .replace(/\.pdf$/i, "");
-  return paraNomeDeFicheiro(texto).slice(0, MAX_NOME_ESCOLHIDO).replace(/-+$/, "");
+  return paraNomeDeFicheiro(texto, idioma).slice(0, MAX_NOME_ESCOLHIDO).replace(/-+$/, "");
 }
 
 /**
@@ -135,8 +138,14 @@ export function nomeEscolhidoParaFicheiro(escrito: unknown): string {
  */
 const MAX_NOME_ESCOLHIDO = 80;
 
-/** Letras, números e hífenes, e mais nada — ver o porquê acima. */
-function paraNomeDeFicheiro(texto: string): string {
+/**
+ * Letras, números e hífenes, e mais nada — ver o porquê acima.
+ *
+ * O «&» diz-se na língua do documento: «Anna & John» numa proposta inglesa é
+ * `Anna-and-John`, e não `Anna-e-John` (auditoria de 13/11).
+ */
+function paraNomeDeFicheiro(texto: string, idioma: IdiomaDaProposta = "pt"): string {
+  const e = ehIdiomaDaProposta(idioma) && idioma === "en" ? " and " : " e ";
   return (
     texto
       .normalize("NFD")
@@ -146,7 +155,7 @@ function paraNomeDeFicheiro(texto: string): string {
       .replace(/[øØ]/g, "o")
       .replace(/[æÆ]/g, "ae")
       .replace(/ß/g, "ss")
-      .replace(/&/g, " e ")
+      .replace(/&/g, e)
       .replace(/[^A-Za-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
   );
@@ -179,11 +188,11 @@ export function nomeDoFicheiroDaProposta(
   // O nome dela primeiro. Não leva prefixo, nem casa, nem data: quem escreve o
   // nome de um ficheiro escreve-o inteiro, e acrescentar-lhe coisas seria
   // desfazer a escolha que este campo existe para permitir.
-  const dela = nomeEscolhidoParaFicheiro(dados.escolhido);
+  const dela = nomeEscolhidoParaFicheiro(dados.escolhido, idioma);
   if (dela) return `${dela}.pdf`;
 
   const prefixo = ehIdiomaDaProposta(idioma) && idioma === "en" ? "Proposal" : "Proposta";
-  const nomes = paraNomeDeFicheiro(dados.clientNames ?? "");
+  const nomes = paraNomeDeFicheiro(dados.clientNames ?? "", idioma);
   if (!nomes) return `${prefixo}-Liquen-${dados.ref}.pdf`;
   const cortado =
     nomes.length <= MAX_NOME
