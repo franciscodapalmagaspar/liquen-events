@@ -72,7 +72,11 @@ function cargaDoToken(token: string): { exp?: number } | null {
  * de formato de token) não pode fazer a grelha descartar o que tem e voltar a
  * descarregar tudo. Quem não sabe, não mexe.
  */
-export function assinaturaExpirada(url: string | undefined, agora = Date.now()): boolean {
+export function assinaturaExpirada(
+  url: string | undefined,
+  agora = Date.now(),
+  margem = MARGEM_MS,
+): boolean {
   if (!url) return false;
   let token: string | null;
   try {
@@ -86,7 +90,7 @@ export function assinaturaExpirada(url: string | undefined, agora = Date.now()):
   // 1970 e declarava tudo expirado — que é o erro que faz reabrir uma proposta
   // custar trinta downloads.
   if (!carga || typeof carga.exp !== "number" || !Number.isFinite(carga.exp)) return false;
-  return carga.exp * 1000 - MARGEM_MS <= agora;
+  return carga.exp * 1000 - margem <= agora;
 }
 
 /**
@@ -123,13 +127,31 @@ export function urlAindaBom(guardado: string | undefined, fresco: string): strin
  * a assinatura fresca. As que ainda servem entram, e a cache do browser
  * continua a valer como antes.
  */
-export function semAssinaturasMortas(mapa: unknown, agora = Date.now()): Record<string, string> {
+export function semAssinaturasMortas(
+  mapa: unknown,
+  agora = Date.now(),
+  margem = MARGEM_MS,
+): Record<string, string> {
   const saida: Record<string, string> = {};
   if (!mapa || typeof mapa !== "object") return saida;
   for (const [chave, url] of Object.entries(mapa as Record<string, unknown>)) {
-    if (typeof url === "string" && url && !assinaturaExpirada(url, agora)) saida[chave] = url;
+    if (typeof url === "string" && url && !assinaturaExpirada(url, agora, margem)) {
+      saida[chave] = url;
+    }
   }
   return saida;
+}
+
+/**
+ * Só o que JÁ morreu, sem margem nenhuma.
+ *
+ * É a regra para TIRAR do ecrã um URL que lá está: um que ainda tem quatro
+ * minutos de vida continua a desenhar a fotografia, e tirá-lo era apagar uma
+ * foto que se vê por causa de uma margem pensada para decidir se vale a pena
+ * PEDIR. A margem serve para escolher; para apagar, só a morte.
+ */
+export function semAssinaturasJaMortas(mapa: unknown, agora = Date.now()): Record<string, string> {
+  return semAssinaturasMortas(mapa, agora, 0);
 }
 
 /**

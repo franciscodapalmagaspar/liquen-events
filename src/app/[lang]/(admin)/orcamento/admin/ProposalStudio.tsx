@@ -85,7 +85,12 @@ import {
 } from "@/lib/orcamento/data";
 import { log } from "@/lib/logger";
 import { camposMudados, mesmoValor } from "@/lib/rascunho-juntar";
-import { haAssinaturaMorta, semAssinaturasMortas, urlAindaBom } from "./assinatura";
+import {
+  haAssinaturaMorta,
+  semAssinaturasJaMortas,
+  semAssinaturasMortas,
+  urlAindaBom,
+} from "./assinatura";
 import { relatarFalhaDeImagem } from "./relatar-falha";
 import { pedirVezDeImagemPesada } from "./fila-de-imagens";
 import PainelInterno from "./PainelInterno";
@@ -3419,15 +3424,23 @@ export default function ProposalStudio({
       if (aCaminho || document.visibilityState !== "visible") return;
       if (!haAssinaturaMorta(urlsNoEcra.current)) return;
       aCaminho = true;
-      void hidratarAssets().finally(() => {
-        aCaminho = false;
-        // O que a lista não trouxe de volta (uma foto que só está no rascunho
-        // deste computador) continuava morto — e voltar ao separador pedia a
-        // lista outra vez, de cada vez. Um URL morto não serve a ninguém: sai.
-        setAssetUrls((m) => semAssinaturasMortas(m));
-        setAssetOriginais((m) => semAssinaturasMortas(m));
-        setAssetMedias((m) => semAssinaturasMortas(m));
-      });
+      void hidratarAssets()
+        .then((fim) => {
+          // Só depois de a lista ter VINDO. Uma lista que falhou (sessão
+          // caducada, Storage em baixo, sem rede) não diz nada sobre as fotos:
+          // fica tudo como estava, e o próximo regresso volta a tentar.
+          if (fim !== "pronto") return;
+          // O que a lista não trouxe de volta (uma foto que só está no
+          // rascunho deste computador) continuava morto — e cada regresso
+          // pedia a lista outra vez. Sai só o que JÁ morreu: um URL dentro da
+          // margem de cinco minutos ainda desenha a fotografia.
+          setAssetUrls((m) => semAssinaturasJaMortas(m));
+          setAssetOriginais((m) => semAssinaturasJaMortas(m));
+          setAssetMedias((m) => semAssinaturasJaMortas(m));
+        })
+        .finally(() => {
+          aCaminho = false;
+        });
     };
     document.addEventListener("visibilitychange", aoVoltar);
     window.addEventListener("focus", aoVoltar);

@@ -159,6 +159,18 @@ describe("sem a coluna `urls` (42703 em produção)", () => {
     expect((await urlsGuardados(["a/1.jpg"])).has("a/1.jpg")).toBe(true);
   });
 
+  it("o PGRST002 (esquema por ler, passageiro) NÃO pausa — a visita seguinte volta a perguntar", async () => {
+    H.erroDaLeitura = {
+      code: "PGRST002",
+      message: "Could not query the database for the schema cache. Retrying.",
+    };
+    await urlsGuardados(["a/1.jpg"]);
+    H.erroDaLeitura = null;
+    H.linhas = [{ path: "a/1.jpg", urls: null }];
+    expect((await urlsGuardados(["a/1.jpg"])).has("a/1.jpg")).toBe(true);
+    expect(H.avisos.some((a) => a.includes("biblioteca_fotos.urls"))).toBe(false);
+  });
+
   it("um update recusado pela coluna (PGRST204) também pausa", async () => {
     H.linhas = [{ path: "a/1.jpg", urls: null }];
     const guardados = await urlsGuardados(["a/1.jpg"]);

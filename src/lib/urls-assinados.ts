@@ -1,7 +1,6 @@
 import "server-only";
 import { getSupabase } from "./supabase";
 import { log } from "./logger";
-import { isMissingTable } from "./repository";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -175,9 +174,25 @@ function colunaEmPausa(agora = Date.now()): boolean {
   return false;
 }
 
+/**
+ * Os códigos que querem dizer «falta a coluna (ou a tabela)», e só esses.
+ *
+ * Não se usa o `isMissingTable` do repositório: ele também reconhece pela
+ * MENSAGEM, e «schema cache» aparece no PGRST002 — o PostgREST sem conseguir
+ * ler o esquema, que é passageiro (uma base a reiniciar). Pausar seis horas por
+ * isso era desligar a cache por causa de um minuto mau (revisão de 14/11).
+ *
+ *   42703     coluna inexistente (Postgres, numa leitura)
+ *   PGRST204  coluna que o PostgREST não conhece (num `update`)
+ *   42P01     tabela inexistente (Postgres)
+ *   PGRST205  tabela que o PostgREST não conhece
+ */
+const FALTA_A_COLUNA = new Set(["42703", "PGRST204", "42P01", "PGRST205"]);
+
 /** Foi a falta da coluna? Então pausa e diz-se uma vez; e devolve `true`. */
 function seForAColunaEmFalta(erro: unknown): boolean {
-  if (!isMissingTable(erro)) return false;
+  const codigo = erro && typeof erro === "object" ? (erro as { code?: unknown }).code : undefined;
+  if (typeof codigo !== "string" || !FALTA_A_COLUNA.has(codigo)) return false;
   if (semColunaDesde === null) {
     log.warn(
       "urls-assinados: a coluna biblioteca_fotos.urls não existe — falta aplicar a migração " +
@@ -290,6 +305,13 @@ export async function guardarUrls(
     linhas.push({ path, urls: { ...(jaGuardados.get(path) ?? {}), ...deste } });
   }
   if (linhas.length === 0) return;
+  // UM `update` POR CAMINHO, e não um pedido só (revisão de 14/11). Cada linha
+  // leva um valor diferente, e o PostgREST só junta numa ida linhas com o
+  // MESMO valor; juntá-las exigia um `upsert` (que cria a linha que entretanto
+  // tenha sido apagada — o defeito que isto veio fechar) ou uma função SQL
+  // (outra migração). Quantos são: as fotos com linha que ficaram assinadas
+  // agora — as da proposta uma vez na vida delas, as dos temas no máximo uma
+  // vez a cada ~5,5 h por foto visitada. Zero numa visita que encontra tudo.
   try {
     const respostas = await Promise.all(
       linhas.map(({ path, urls }) => sb.from("biblioteca_fotos").update({ urls }).eq("path", path)),

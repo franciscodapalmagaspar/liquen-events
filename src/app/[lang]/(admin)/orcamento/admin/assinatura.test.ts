@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   assinaturaExpirada,
   haAssinaturaMorta,
+  semAssinaturasJaMortas,
   semAssinaturasMortas,
   urlAindaBom,
 } from "./assinatura";
@@ -118,5 +119,16 @@ describe("haAssinaturaMorta", () => {
   it("responde não com tudo a servir — é o que impede uma leitura por nada", () => {
     const bom = assinado(EM_SEGUNDOS + 3600);
     expect(haAssinaturaMorta([{ a: bom }, {}, { c: "data:x" }], AGORA)).toBe(false);
+  });
+});
+
+describe("semAssinaturasJaMortas", () => {
+  it("para APAGAR do ecrã não há margem: três minutos de vida ainda desenham", () => {
+    const aMorrer = assinado(EM_SEGUNDOS + 180);
+    const morto = assinado(EM_SEGUNDOS - 1);
+    // Com margem (escolher se vale a pena pedir), os dois saem…
+    expect(semAssinaturasMortas({ a: aMorrer, b: morto }, AGORA)).toEqual({});
+    // …para apagar o que já está no ecrã, só o que morreu.
+    expect(semAssinaturasJaMortas({ a: aMorrer, b: morto }, AGORA)).toEqual({ a: aMorrer });
   });
 });

@@ -2577,6 +2577,42 @@ describe("um rascunho guardado com assinaturas da Biblioteca já mortas", () => 
       relogio.mockRestore();
     }
   });
+
+  /**
+   * Revisão de 14/11: a limpeza dos URLs mortos corria num `.finally`, portanto
+   * também quando o `/assets` FALHAVA. Uma foto com três minutos de vida (ainda
+   * a desenhar) desaparecia do ecrã, e o regresso seguinte já não via nada
+   * morto e não voltava a tentar.
+   */
+  it("com a lista a falhar, não tira nada do ecrã e volta a tentar no regresso seguinte", async () => {
+    // Três minutos de vida: dentro da margem de cinco (conta como «a morrer»),
+    // mas ainda desenha. Vem da hidratação, e não do rascunho, porque o
+    // restauro já deixa de fora o que está dentro da margem.
+    const aMorrer = assinado("p/foto-0.jpg", 3 * 60);
+    seedDraft(1);
+    assetsServidor = [{ path: "board/foto-0.jpg", url: aMorrer, thumbUrl: aMorrer }];
+    renderStudio();
+    const leituras = () =>
+      pedidos.filter((p) => /\/assets(\?|$)/.test(p.url) && !p.init?.method).length;
+    await waitFor(() => expect(srcsNoEcra()).toContain(aMorrer));
+    expect(leituras()).toBe(1);
+
+    assetsFalham = true;
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await waitFor(() => expect(leituras()).toBe(2));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(srcsNoEcra(), "a foto que ainda desenhava saiu do ecrã").toContain(aMorrer);
+
+    // O regresso seguinte volta a perguntar — a falha não fechou a porta.
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await waitFor(() => expect(leituras()).toBe(3));
+  });
 });
 
 // ── A pré-visualização das fotos do documento ──────────────────────────────
