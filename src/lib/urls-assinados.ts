@@ -146,11 +146,79 @@ function origemDoStorage(): string | null {
 }
 
 /**
- * Os endereços guardados que ainda servem, por caminho e por balde.
+ * ════════════════════════════════════════════════════════════════════════════
+ * A COLUNA PODE AINDA NÃO EXISTIR — E ISSO NÃO PODE ENCHER OS REGISTOS (14/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * `biblioteca_fotos.urls` estava no `db/schema.sql` mas nunca teve migração, e
+ * a produção não a tinha: 16 erros 42703 numa semana, um por visita à página do
+ * casal. A migração é `db/migracoes/20261114_biblioteca_fotos_urls.sql`.
+ *
+ * Até ela ser aplicada isto tem de funcionar SEM a coluna: à primeira recusa
+ * (42703, ou o PGRST204 que o PostgREST devolve a um `update` com uma coluna
+ * que não conhece) regista-se UM aviso e deixa-se de perguntar — quem chama
+ * assina tudo, que é o que fazia antes de isto existir.
+ *
+ * Deixa-se de perguntar durante seis horas, e não para sempre: aplicada a
+ * migração, uma instância que já esteja quente volta a usar a cache sozinha,
+ * sem publicação nenhuma. Seis horas são, por instância, quatro consultas
+ * recusadas por dia no pior caso — contra uma por visita, como estava.
+ */
+const PAUSA_SEM_COLUNA_MS = 6 * 60 * 60 * 1000;
+let semColunaDesde: number | null = null;
+
+function colunaEmPausa(agora = Date.now()): boolean {
+  if (semColunaDesde === null) return false;
+  if (agora - semColunaDesde < PAUSA_SEM_COLUNA_MS) return true;
+  semColunaDesde = null;
+  return false;
+}
+
+/**
+ * Os códigos que querem dizer «falta a coluna (ou a tabela)», e só esses.
+ *
+ * Não se usa o `isMissingTable` do repositório: ele também reconhece pela
+ * MENSAGEM, e «schema cache» aparece no PGRST002 — o PostgREST sem conseguir
+ * ler o esquema, que é passageiro (uma base a reiniciar). Pausar seis horas por
+ * isso era desligar a cache por causa de um minuto mau (revisão de 14/11).
+ *
+ *   42703     coluna inexistente (Postgres, numa leitura)
+ *   PGRST204  coluna que o PostgREST não conhece (num `update`)
+ *   42P01     tabela inexistente (Postgres)
+ *   PGRST205  tabela que o PostgREST não conhece
+ */
+const FALTA_A_COLUNA = new Set(["42703", "PGRST204", "42P01", "PGRST205"]);
+
+/** Foi a falta da coluna? Então pausa e diz-se uma vez; e devolve `true`. */
+function seForAColunaEmFalta(erro: unknown): boolean {
+  const codigo = erro && typeof erro === "object" ? (erro as { code?: unknown }).code : undefined;
+  if (typeof codigo !== "string" || !FALTA_A_COLUNA.has(codigo)) return false;
+  if (semColunaDesde === null) {
+    log.warn(
+      "urls-assinados: a coluna biblioteca_fotos.urls não existe — falta aplicar a migração " +
+        "20261114_biblioteca_fotos_urls.sql. Assina-se tudo, como antes, e volta-se a tentar daqui a 6 h.",
+    );
+  }
+  semColunaDesde = Date.now();
+  return true;
+}
+
+/** Só para os testes: esquece a pausa. */
+export function _esquecerColunaEmFalta(): void {
+  semColunaDesde = null;
+}
+
+/**
+ * Os endereços guardados que ainda servem, por caminho.
  *
  * Uma consulta só, pela chave primária. Nunca lança: sem armazenamento, sem
- * tabela, ou com a leitura a falhar, devolve-se um mapa vazio — e quem chama
- * assina tudo, que é exactamente o que fazia antes disto existir.
+ * tabela, sem a coluna, ou com a leitura a falhar, devolve-se um mapa vazio — e
+ * quem chama assina tudo, que é exactamente o que fazia antes disto existir.
+ *
+ * ── TODAS AS LINHAS QUE EXISTEM VÊM NO MAPA, MESMO SEM ENDEREÇO NENHUM ──────
+ * Um caminho com linha na `biblioteca_fotos` aparece aqui, nem que seja com
+ * `{}`. É essa presença que o `guardarUrls` lê para saber onde PODE escrever:
+ * só em linhas que já existem. Ver lá porquê.
  */
 export async function urlsGuardados(
   paths: readonly string[],
@@ -158,22 +226,29 @@ export async function urlsGuardados(
   const saida = new Map<string, UrlsPorFamilia>();
   const base = origemDoStorage();
   const sb = getSupabase();
-  if (!sb || !base || paths.length === 0) return saida;
+  if (!sb || !base || paths.length === 0 || colunaEmPausa()) return saida;
   try {
     const { data, error } = await sb
       .from("biblioteca_fotos")
       .select("path, urls")
       .in("path", [...new Set(paths)]);
-    if (error || !data) return saida;
-    for (const linha of data as { path?: unknown; urls?: unknown }[]) {
-      const caminho = typeof linha.path === "string" ? linha.path : "";
-      const guardados = linha.urls;
-      if (!caminho || !guardados || typeof guardados !== "object") continue;
-      const bons: UrlsPorFamilia = {};
-      for (const [familia, url] of Object.entries(guardados as Record<string, unknown>)) {
-        if (typeof url === "string" && aindaServe(url, base)) bons[familia] = url;
+    if (error) {
+      if (!seForAColunaEmFalta(error)) {
+        log.warn("urls-assinados: não deu para ler os guardados", { erro: error.message });
       }
-      if (Object.keys(bons).length > 0) saida.set(caminho, bons);
+      return saida;
+    }
+    for (const linha of (data ?? []) as { path?: unknown; urls?: unknown }[]) {
+      const caminho = typeof linha.path === "string" ? linha.path : "";
+      if (!caminho) continue;
+      const bons: UrlsPorFamilia = {};
+      const guardados = linha.urls;
+      if (guardados && typeof guardados === "object") {
+        for (const [familia, url] of Object.entries(guardados as Record<string, unknown>)) {
+          if (typeof url === "string" && aindaServe(url, base)) bons[familia] = url;
+        }
+      }
+      saida.set(caminho, bons);
     }
   } catch (e) {
     log.warn("urls-assinados: não deu para ler os guardados", { erro: String(e) });
@@ -184,9 +259,30 @@ export async function urlsGuardados(
 /**
  * Guarda os endereços acabados de assinar, juntando-os aos que já lá estavam.
  *
- * `urls || excluded.urls` do lado do Postgres seria mais elegante, mas obrigava
- * a SQL cru; juntar aqui os que se acabaram de ler custa nada e mantém isto
- * dentro do cliente normal.
+ * ════════════════════════════════════════════════════════════════════════════
+ * SÓ EM LINHAS QUE JÁ EXISTEM — NUNCA NASCE UMA LINHA AQUI (14/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Isto era um `upsert`. A `biblioteca_fotos` é a tabela de onde a BIBLIOTECA
+ * lista as fotografias (`GET /api/biblioteca/fotos` → `listFotos()`), e a
+ * página do casal guarda aqui os endereços das fotografias da PROPOSTA — as
+ * que ela tirou num casamento e que não são inspiração de ninguém. Um `upsert`
+ * criava uma linha por cada uma que ainda não tivesse: com a coluna aplicada, a
+ * primeira visita de cada casal passava a meter as fotos dele na Biblioteca
+ * (a contar no total, a pesar na página, e a tentar assinar-se no balde dos
+ * temas).
+ *
+ * Agora é um `update` por caminho, e só para os caminhos que a leitura acabou
+ * de encontrar (`jaGuardados` traz todas as linhas que existem — ver
+ * `urlsGuardados`). Um `update` com `eq` não cria nada, nem numa corrida com
+ * um apagar. Um caminho sem linha simplesmente não fica guardado e é assinado
+ * de novo na visita seguinte, como era antes.
+ *
+ * E só endereços DESTE Storage: o `aindaServe` já recusa os outros à leitura,
+ * e não há razão para os escrever.
+ *
+ * Não toca no `updated_at`: é a marca que a Biblioteca usa para o
+ * compare-and-set das etiquetas, e um endereço guardado não é uma edição dela.
  *
  * Nunca lança: falhar a gravar custa uma assinatura repetida na visita
  * seguinte, e mais nada. Nunca escreve `pasta`, que é uma coluna gerada.
@@ -196,14 +292,34 @@ export async function guardarUrls(
   jaGuardados: Map<string, UrlsPorFamilia>,
 ): Promise<void> {
   const sb = getSupabase();
-  if (!sb || novos.size === 0) return;
+  const base = origemDoStorage();
+  if (!sb || !base || novos.size === 0 || colunaEmPausa()) return;
+  const linhas: { path: string; urls: UrlsPorFamilia }[] = [];
+  for (const [path, urls] of novos) {
+    if (!jaGuardados.has(path)) continue;
+    const deste: UrlsPorFamilia = {};
+    for (const [familia, url] of Object.entries(urls)) {
+      if (baldeDoEndereco(url, base)) deste[familia] = url;
+    }
+    if (Object.keys(deste).length === 0) continue;
+    linhas.push({ path, urls: { ...(jaGuardados.get(path) ?? {}), ...deste } });
+  }
+  if (linhas.length === 0) return;
+  // UM `update` POR CAMINHO, e não um pedido só (revisão de 14/11). Cada linha
+  // leva um valor diferente, e o PostgREST só junta numa ida linhas com o
+  // MESMO valor; juntá-las exigia um `upsert` (que cria a linha que entretanto
+  // tenha sido apagada — o defeito que isto veio fechar) ou uma função SQL
+  // (outra migração). Quantos são: as fotos com linha que ficaram assinadas
+  // agora — as da proposta uma vez na vida delas, as dos temas no máximo uma
+  // vez a cada ~5,5 h por foto visitada. Zero numa visita que encontra tudo.
   try {
-    const linhas = [...novos].map(([path, urls]) => ({
-      path,
-      urls: { ...(jaGuardados.get(path) ?? {}), ...urls },
-    }));
-    const { error } = await sb.from("biblioteca_fotos").upsert(linhas, { onConflict: "path" });
-    if (error) log.warn("urls-assinados: não ficaram guardados", { erro: error.message });
+    const respostas = await Promise.all(
+      linhas.map(({ path, urls }) => sb.from("biblioteca_fotos").update({ urls }).eq("path", path)),
+    );
+    const erro = respostas.find((r) => r.error)?.error;
+    if (erro && !seForAColunaEmFalta(erro)) {
+      log.warn("urls-assinados: não ficaram guardados", { erro: erro.message });
+    }
   } catch (e) {
     log.warn("urls-assinados: não ficaram guardados", { erro: String(e) });
   }
