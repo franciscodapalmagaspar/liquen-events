@@ -15,8 +15,10 @@ const st = vi.hoisted(() => ({
   falharEm: null as string | null,
 }));
 
-vi.mock("./biblioteca-fotos-store", () => ({
-  listFotos: vi.fn(async () => st.fotos),
+// A leitura das fotos DA BIBLIOTECA (já sem as de propostas — esse filtro tem
+// teste próprio em `paleta-aplicar.fotos-de-propostas.test.ts`).
+vi.mock("./biblioteca-fotos-da-biblioteca", () => ({
+  listFotosDaBiblioteca: vi.fn(async () => st.fotos),
 }));
 vi.mock("./biblioteca-foto-etiquetas-store", () => ({
   listFotoEtiquetas: vi.fn(async () => st.ligacoes),

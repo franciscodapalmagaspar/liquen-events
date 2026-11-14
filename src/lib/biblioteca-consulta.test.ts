@@ -6,6 +6,7 @@ import {
   porFoto,
   procuraVazia,
   responde,
+  soDaBiblioteca,
 } from "./biblioteca-consulta";
 import type { FotoEtiqueta, OrigemEtiqueta } from "./biblioteca-types";
 
@@ -115,5 +116,26 @@ describe("as contas dos chips", () => {
     // Um id sem dois-pontos não pertence a eixo nenhum — e o que não pode
     // acontecer é passar a valer como se pertencesse a todos.
     expect(eixoDe("solto")).toBe("");
+  });
+});
+
+describe("soDaBiblioteca — as fotos das propostas não são da Biblioteca (14/11)", () => {
+  const temas = new Set(["3f6c1b2e-9a4d-4c7e-8f10-aa11bb22cc33"]);
+  it("fica só com as pastas de temas que existem", () => {
+    const fotos = [
+      { path: "LIQ-2026-0412/a.jpg", pasta: "LIQ-2026-0412" },
+      {
+        path: "3f6c1b2e-9a4d-4c7e-8f10-aa11bb22cc33/b.jpg",
+        pasta: "3f6c1b2e-9a4d-4c7e-8f10-aa11bb22cc33",
+      },
+      { path: "orfa/c.jpg", pasta: "orfa" },
+      { path: "d.jpg", pasta: "" },
+    ];
+    expect(soDaBiblioteca(fotos, temas).map((f) => f.path)).toEqual([
+      "3f6c1b2e-9a4d-4c7e-8f10-aa11bb22cc33/b.jpg",
+    ]);
+  });
+  it("sem temas, a Biblioteca fica vazia — nunca cai para a tabela inteira", () => {
+    expect(soDaBiblioteca([{ path: "LIQ-1/a.jpg", pasta: "LIQ-1" }], new Set())).toEqual([]);
   });
 });

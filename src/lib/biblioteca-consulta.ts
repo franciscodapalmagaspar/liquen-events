@@ -89,3 +89,26 @@ export function contagemPorEtiqueta(ligacoes: readonly FotoEtiqueta[]): Map<stri
   for (const l of ligacoes) contas.set(l.etiquetaId, (contas.get(l.etiquetaId) ?? 0) + 1);
   return contas;
 }
+
+/**
+ * SÓ AS FOTOS DOS TEMAS — o filtro que separa a Biblioteca das propostas (14/11).
+ *
+ * A tabela `biblioteca_fotos` guarda a largura, a altura, a cor e o LQIP de
+ * fotografias de DOIS baldes: as dos temas (`theme-assets`, que são a
+ * Biblioteca) e as das propostas (`proposal-assets`, pastas `LIQ-…`), que o
+ * carregamento das propostas lá regista para o estúdio e o PDF as medirem
+ * (`formasDeCaminhos`, `coresDeCaminhos`). Medido em produção a 14/11: 158 de
+ * 1355 linhas eram de propostas.
+ *
+ * Quem LISTA a Biblioteca tem de deixar as de propostas de fora — senão
+ * contavam no total, falhavam ao assinar no balde dos temas e a página vinha
+ * com menos fotos do que o limite. A pergunta é «esta pasta é de um tema que
+ * existe?», e só isso: uma pasta que não seja de um tema não é da Biblioteca,
+ * venha ela de onde vier.
+ */
+export function soDaBiblioteca<T extends { pasta: string }>(
+  fotos: readonly T[],
+  pastasDeTemas: ReadonlySet<string>,
+): T[] {
+  return fotos.filter((f) => f.pasta !== "" && pastasDeTemas.has(f.pasta));
+}

@@ -1,5 +1,5 @@
 import "server-only";
-import { listFotos } from "./biblioteca-fotos-store";
+import { listFotosDaBiblioteca } from "./biblioteca-fotos-da-biblioteca";
 import { etiquetar, listFotoEtiquetas } from "./biblioteca-foto-etiquetas-store";
 import { planearPaletas, resumoDoPlano, type PlanoDePaletas } from "./paleta-etiquetar";
 
@@ -51,7 +51,12 @@ export interface ResultadoDaAplicacao {
  * pior dos dois estados possíveis.
  */
 export async function aplicarPaletas({ ensaio = false } = {}): Promise<ResultadoDaAplicacao> {
-  const [fotos, ligacoes] = await Promise.all([listFotos(), listFotoEtiquetas()]);
+  const [fotos, ligacoes] = await Promise.all([
+    // Só a Biblioteca: as fotos das propostas também têm linha (e cor) na
+    // tabela, mas não se etiquetam — ver `soDaBiblioteca`.
+    listFotosDaBiblioteca(),
+    listFotoEtiquetas(),
+  ]);
 
   const contarPaletas = (todas: typeof ligacoes) =>
     todas.filter((l) => l.etiquetaId.startsWith(PREFIXO_PALETA)).length;
