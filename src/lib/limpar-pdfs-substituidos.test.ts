@@ -202,6 +202,15 @@ describe("os PDF de proposta substituídos (10/11)", () => {
     expect(Object.keys(st.estado[CHAVE] as object)).not.toContain("prop-apagada/k7Qso.pdf");
   });
 
+  it("os índices das fotografias (`foto-resumo:`, `foto-visual:`) não são menções", async () => {
+    st.tabelas.app_state = [
+      { key: "foto-visual:07", value: { "prop-apagada/foto.jpg": "f".repeat(86) } },
+      { key: "foto-resumo:" + "b".repeat(32), value: ["prop-apagada/outra.jpg"] },
+    ];
+    await limparPdfsSubstituidos(dia1);
+    expect(Object.keys(st.estado[CHAVE] as object)).toContain("prop-apagada/k7Qso.pdf");
+  });
+
   it("se uma leitura falha, não apaga nem mexe na espera", async () => {
     await limparPdfsSubstituidos(dia1);
     st.tabelas.contracts = null;

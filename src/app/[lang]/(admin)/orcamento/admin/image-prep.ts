@@ -34,6 +34,7 @@ import {
   MID_QUALITY,
 } from "./image-worker";
 import { corDominanteDePixeis } from "@/lib/cor-dominante";
+import { LADO_DA_FOTO_DE_PROPOSTA } from "@/lib/derivadas-medidas";
 // A mesma explicação que o servidor dá, num sítio só. Este módulo não traz nada
 // de servidor atrás — ver `recusa-de-imagem`.
 import { CONSELHO_HEIC, nomeOuTipoDeHeic } from "@/lib/recusa-de-imagem";
@@ -139,10 +140,25 @@ const PRESETS: Record<ImageKind, { maxEdge: number; quality: number; keepBytes: 
  * onde o navegador o codifica, como as que o servidor já fabrica. NADA disto
  * mexe numa fotografia já guardada.
  *
+ * ── A CAPA FICA A 2 200 px (revisão de 13/11) ──────────────────────────────
+ *
+ * A capa da proposta online tem uma versão GRANDE, até 2 000 px
+ * (`CAPA_WEB_LADO`), para o ecrã largo. Medido com 8 fotos deitadas, a capa a
+ * toda a largura de um ecrã de 1 920 px contra a fonte:
+ *
+ *   original a 2 000 px → 36,5 dB (pior 30,3); AVIF grande 212 KB
+ *   original a 1 800 px → 29,5 dB (pior 23,2); AVIF grande 181 KB
+ *
+ * Sete decibéis é ver a diferença. A capa é UMA ou duas fotos por proposta,
+ * por isso as fotos de capa (`kind: "cover"`) continuam como estavam
+ * (2 200 px q0,90 — e 2 200 dá 37,6 dB no PDF, ao lado dos 38,0 das de
+ * 1 800): perde-se ~0,2 MB por proposta de poupança, e a capa não piora em
+ * lado nenhum. Só as fotos dos mood boards descem a 1 800.
+ *
  * A Biblioteca de Temas fica como estava (2 200 px): não foi pedido, e as
- * fotos dela também alimentam a capa web grande (até 2 000 px).
+ * fotos dela também alimentam a capa web grande.
  */
-export const PROPOSTA_MAX_EDGE = 1800;
+export const PROPOSTA_MAX_EDGE = LADO_DA_FOTO_DE_PROPOSTA;
 /**
  * Abaixo disto uma foto da proposta sobe sem ser recodificada (já é mais
  * pequena do que sairia daqui) — e não perde nada a uma segunda compressão.
@@ -158,6 +174,9 @@ export function presetDe(
   destino: DestinoDaFoto = "biblioteca",
 ): { maxEdge: number; quality: number; keepBytes: number; derivadas: "webp" | "jpeg" } {
   const base = PRESETS[kind];
+  // A capa da proposta continua a 2 200 px (ver acima): só muda o formato das
+  // derivadas.
+  if (destino === "proposta" && kind === "cover") return { ...base, derivadas: "webp" };
   if (destino === "proposta") {
     return {
       ...base,

@@ -22,8 +22,8 @@ import { coresDeCaminhos, garantirFoto, updateFoto } from "@/lib/biblioteca-foto
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
 import { procurarExistentes, registarResumos, resumoDosBytes } from "@/lib/fotos-resumo";
-import { impressaoDosBytes, procurarParecidas, registarImpressao } from "@/lib/fotos-parecidas";
-import { lerEspaco, somarCarregado } from "@/lib/ocupacao-do-armazenamento";
+import { impressaoDosBytes, registarImpressao } from "@/lib/fotos-parecidas";
+import { lerEspaco, MARGEM_DAS_DERIVADAS, somarCarregado } from "@/lib/ocupacao-do-armazenamento";
 import {
   PROPOSAL_BUCKET as PROPOSAL_BUCKET_DO_TRAVAO,
   PROPOSAL_MID_BUCKET,
@@ -383,19 +383,18 @@ async function POST_semMedida(
    * ele fica só o resumo dos bytes guardados, calculado abaixo.
    */
   /**
-   * ── PELO QUE MOSTRA (13/11, `fotos-parecidas.ts`) ─────────────────────────
+   * ── O TRAVÃO DO ESPAÇO (13/11, `ocupacao-do-armazenamento.ts`) ────────────
    *
-   * `semParecidas`: ela disse «é outra» a uma parecida (o importador
-   * perguntou), e então não se procura pelo que mostra — só pelos bytes.
    * `importacao`: o carregamento vem da importação de propostas antigas, e
-   * passa pelo travão do espaço (nunca acima de 90% do plano).
+   * passa pelo travão (nunca acima de 90% do plano). Conta-se o original e
+   * uma margem para a média e a miniatura que vêm com ele
+   * ({@link MARGEM_DAS_DERIVADAS}).
    */
-  const semParecidas = form.get("semParecidas") === "1";
   const daImportacao = form.get("importacao") === "1";
   if (daImportacao) {
     try {
       const espaco = await lerEspaco();
-      const pedidos = files.reduce((s, f) => s + f.size, 0);
+      const pedidos = Math.ceil(files.reduce((s, f) => s + f.size, 0) * MARGEM_DAS_DERIVADAS);
       if (espaco.conhecido && espaco.sobra < pedidos) {
         return NextResponse.json(
           {
@@ -424,8 +423,6 @@ async function POST_semMedida(
     cor?: string;
     /** Já estava guardada (nesta pasta ou na Biblioteca): zero bytes novos. */
     jaExistia?: true;
-    /** Reconhecida pelo que mostra (não pelos bytes) — ver `fotos-parecidas.ts`. */
-    parecida?: true;
   }[] = [];
   for (const [indice, file] of files.entries()) {
     if (!OK_TYPES.test(file.type)) {
@@ -518,23 +515,13 @@ async function POST_semMedida(
       // «Não sei» = guarda-se, como antes disto existir.
       log.warn("assets: índice dos resumos ilegível", { id, erro: String(e) });
     }
-    // A impressão visual dos bytes que IAM ser guardados — calculada AQUI (a
-    // do navegador nunca entra no índice). Se não houve resumo igual, procura
-    // pelo que a fotografia mostra: só uma «mesma» (quase certo) é usada sem
-    // perguntar; uma «talvez» guarda-se como nova (o estúdio não interrompe).
-    const impressao = await impressaoDosBytes(pronto.bytes);
-    let pelaImagem = false;
-    if (!jaGuardada && impressao && !semParecidas) {
-      try {
-        const p = (await procurarParecidas([impressao], id)).get(impressao);
-        if (p?.veredicto === "mesma") {
-          jaGuardada = p.caminho;
-          pelaImagem = true;
-        }
-      } catch (e) {
-        log.warn("assets: índice visual ilegível", { id, erro: String(e) });
-      }
-    }
+    // ── PELO QUE MOSTRA (`fotos-parecidas.ts`) ────────────────────────────
+    // Aqui, SEM PERGUNTAR, só se reutiliza com o resumo dos BYTES igual (o
+    // bloco de cima). Uma impressão «mesma» com bytes diferentes pode ser uma
+    // versão retocada, ou maior, da que está guardada — e o estúdio não tem
+    // onde perguntar: guarda-se a nova (revisão de 13/11). Quem pergunta é o
+    // importador, antes de enviar. A impressão calcula-se só para a foto que
+    // vai mesmo ser guardada, e entra no índice com o lado dela.
     if (jaGuardada) {
       const [urls, miniaturas] = await Promise.all([
         signProposalPaths([jaGuardada]),
@@ -573,7 +560,6 @@ async function POST_semMedida(
           thumbUrl,
           ...(cor ? { cor } : {}),
           jaExistia: true,
-          ...(pelaImagem ? { parecida: true as const } : {}),
         });
         continue;
       }
@@ -589,8 +575,13 @@ async function POST_semMedida(
     }
     // Entra no índice: a próxima vez que esta foto chegar, não se guarda.
     await registarResumos([resumoDosBytesGuardados], res.path);
-    // E no índice visual, com a impressão calculada aqui sobre estes bytes.
-    await registarImpressao(res.path, impressao);
+    // E no índice visual, com a impressão calculada aqui sobre estes bytes
+    // e o lado maior deles (uma foto pequena nunca substitui uma maior).
+    await registarImpressao(
+      res.path,
+      await impressaoDosBytes(pronto.bytes),
+      forma ? Math.max(forma.w, forma.h) : 0,
+    );
     // A miniatura só depois de o original estar guardado, e sempre em melhor
     // esforço: falhar aqui não pode fazer falhar um carregamento que já correu
     // bem. `uploadProposalThumb` nunca lança e devolve "" quando não dá.

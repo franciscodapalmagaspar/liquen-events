@@ -277,121 +277,132 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
 - **As fotografias pelo que mostram, e cada foto nova a ocupar o mínimo (13/11,
   pedido dele: «faz isso das fotografias pelo que mostram. e eu quero otimizar
   o máximo possível para ser possível colocar todas as fotos das propostas
-  antigas»; ramo `supabase/fotos-pelo-que-mostram`, a partir do #454).**
+  antigas»; ramo `supabase/fotos-pelo-que-mostram`, com as correcções da
+  revisão do mesmo dia).**
   · **Reconhecer pelo que mostra** (`impressao-visual.ts`, puro, igual no
-    navegador e no servidor). A impressão de uma foto tem três partes, sobre
-    uma versão de 128 px em tons de cinzento, sem as margens lisas (até 20% por
-    lado — a caixa branca do diapositivo): o pHash de 64 bits (DCT 8 × 8, a
-    composição), o de 256 bits (DCT 16 × 16, o pormenor) e a cor média (Cb, Cr
-    e croma, dentro da caixa). 86 hex. A redução final a 32 × 32 é feita pela
-    média das áreas no próprio código — nem o canvas nem o `sharp` decidem.
-    pHash e não dHash: medido, o dHash aguenta a recompressão igual mas com um
-    corte de 4% já se aproxima das fotos diferentes.
+    navegador e no servidor). Sobre uma versão de 128 px em tons de cinzento,
+    sem as margens lisas (até 20% por lado — a caixa branca do diapositivo),
+    reduzida a 32 × 32 pela média das áreas no próprio código: o pHash de 64
+    bits (a composição), o de 256 bits (o pormenor), a cor média (Cb, Cr,
+    croma), e a luz e o contraste (luma média e desvio-padrão). 90 hex.
+    pHash e não dHash: medido, o dHash aguenta a recompressão igual, mas com
+    um corte de 4% já se aproxima das fotos diferentes.
   · **As fronteiras, medidas com as 1 057 fotografias de `public/imagens`**
     (a pergunta como o navegador a faria, contra a MINIATURA de 400 px da
-    versão guardada a 2 200 px, que é o que a noite lê). «Mesma» (usa-se sem
-    perguntar) = composição ≤ 4 bits E pormenor ≤ 16 E cor ≤ 8; «talvez»
-    (pergunta-se) = composição ≤ 12; acima, outra.
+    versão guardada a 2 200 px, que é o que a noite lê). «Mesma» =
+    composição ≤ 4 bits E pormenor ≤ 16 E cor ≤ 2 E luz ≤ 4 E contraste ≤ 3;
+    «talvez» = composição ≤ 12; acima, outra.
 
-    | a mesma fotografia… | composição p50/p95 | pormenor p50/p95 | mesma | talvez | outra |
-    |---|---|---|---|---|---|
-    | o ficheiro tal e qual | 0 / 2 | 2 / 8 | 98,7% | 1,2% | 0,1% |
-    | recomprimida q40 | 0 / 2 | 2 / 8 | 98,4% | 1,5% | 0,1% |
-    | reduzida a 800 px q60 | 0 / 2 | 2 / 6 | 98,7% | 1,1% | 0,2% |
-    | passada a PNG | 0 / 2 | 2 / 8 | 98,8% | 1,1% | 0,1% |
-    | cortada 3% de cada lado | 6 / 12 | 48 / 62 | 0% | 97,7% | 2,3% |
-    | com faixa branca de 6% | 4 / 10 | 26 / 64 | 10,8% | 85,2% | 4,0% |
-    | corte 2% + 600 px + q50 | 4 / 6 | 24 / 34 | 10,6% | 89,2% | 0,2% |
+    | a mesma fotografia… | mesma | talvez | outra |
+    |---|---|---|---|
+    | o ficheiro tal e qual | 98,4% | 1,5% | 0,1% |
+    | recomprimida q40 | 98,1% | 1,8% | 0,1% |
+    | reduzida a 800 px q60 | 98,4% | 1,4% | 0,2% |
+    | passada a PNG | 98,5% | 1,4% | 0,1% |
+    | cortada 3% de cada lado | 0% | 97,7% | 2,3% |
+    | com faixa branca de 6% | 9,3% | 86,8% | 4,0% |
+    | **retocada:** exposição −10% / −20% / +10% | 0% / 0% / 0,6% | 99,8 / 99,4 / 98,6% | resto |
+    | **retocada:** contraste ×1,15 / ×1,3 | 0,9% / 0% | 98,3 / 98,7% | resto |
+    | **retocada:** branco mais quente (R×1,06, B×0,92) | 0,9% | 99,0% | 0,1% |
+    | **retocada, leve:** branco quente (R×1,03, B×0,96) | 20,7% | 79,2% | 0,1% |
+    | **retocada, leve:** saturação +20% | 39,9% | 60,0% | 0,1% |
 
-    Fotografias DIFERENTES: 1 116 192 pares (todos contra todos) → **48
-    «mesma», e todas eram a mesma fotografia** (24 pares: 18 ficheiros com os
-    bytes iguais — os «(1)» — e 6 vistos a olho: as cópias do WhatsApp e os
-    `matilde-e-tomas` / `matilde-tomas`); 82 «talvez» (41 pares); o resto
-    «outra». As diferentes mais parecidas, e porque não passam a «mesma»:
-    duas fotos em rajada (`stephanie-mizio-765/766`: composição 4, pormenor
-    30), a mesa um passo ao lado (`EW1_1393/1394`: 8 e 40), a versão a cores
-    e a preto e branco do mesmo instante (`stephanie-mizio-405/406`:
-    composição 0, pormenor 2, **cor 17** — é a cor que as separa). A margem:
-    o pormenor das «mesma» fica em ≤ 8 em 95% e chega a 16 no pior caso
-    visto; o das rajadas começa em 30. Com só o pHash de 64 bits a rajada
-    ficava a 4 e a cores/p&b a 0 — por isso as duas partes a mais.
+    Antes da revisão (sem a luz e o contraste, e cor ≤ 8), a exposição −20%
+    dava «mesma» em 96%, o contraste ×1,3 em 93% e o branco quente em 64% —
+    era o defeito. **Fica por resolver**: os retoques MUITO leves de cor
+    (saturação +20%, branco ligeiramente mais quente) ainda passam por «mesma»
+    em 20–40% dos casos; a cor média não tem resolução para os separar sem
+    começar a perguntar pela mesma foto recomprimida.
+    Fotografias DIFERENTES: 1 116 192 pares (todos contra todos) → 48
+    «mesma», e todas eram a mesma fotografia (24 pares: 18 com os bytes
+    iguais — os «(1)» — e 6 vistos a olho: as cópias do WhatsApp e os
+    `matilde-e-tomas` / `matilde-tomas`). As diferentes mais parecidas:
+    rajada (`stephanie-mizio-765/766`: composição 4, pormenor 30), a mesa um
+    passo ao lado (`EW1_1393/1394`: 8 e 40), a cores e a preto e branco
+    (`405/406`: composição 0, pormenor 2, cor 17).
+  · **No navegador a sério** (Chromium 153 pelo Playwright, o canvas com o
+    mesmo código do importador): 50 fotos, impressão do canvas contra a do
+    servidor sobre a miniatura guardada → 49 «mesma», 1 «talvez»; composição
+    p95 2 (máx. 4), pormenor p95 8, cor máx. 1, luz máx. 3, contraste máx. 3.
+    Num Safari não foi medido.
+  · **Quem decide sem perguntar** — a revisão apertou isto:
+    · o **estúdio** só reutiliza com o resumo dos BYTES igual
+      (`fotos-resumo.ts`). Uma «mesma» pela imagem com bytes diferentes pode
+      ser um retoque ou uma versão maior, e o estúdio não tem onde perguntar:
+      guarda a nova. A impressão só se calcula para a foto que vai mesmo ser
+      guardada;
+    · o **importador** usa a «mesma» sem perguntar, mas só se a guardada for
+      do tamanho que a nova precisa (o lado dela, até 1 800 num mood board e
+      2 200 na capa). Uma guardada mais pequena nunca a substitui — sobe a
+      nova; uma de lado desconhecido fica «talvez». A «talvez» mostra as duas
+      lado a lado com «É a mesma» / «É outra»; sem resposta é NOVA.
   · **O índice** (`fotos-parecidas.ts`): 64 linhas `foto-visual:<00–3f>` em
-    `app_state`, cada uma `caminho → impressão`; a linha é escolhida pelo
-    SHA-1 do caminho, e escrever é compare-and-set de UMA linha (~4 KB).
-    Escrevem SÓ: o carregamento (impressão calculada no servidor sobre os
-    bytes guardados — `assets` e Biblioteca) e a noite (sobre a miniatura
-    guardada). A impressão do navegador só serve para PROCURAR (a regra do
-    #454 para o resumo). Procurar lê o índice todo numa ida (~250 KB com
-    3 000 fotos), guardado 5 min na instância; devolve só a pasta deste pedido
-    ou a Biblioteca num tema vivo, com o ficheiro verificado (HEAD).
+    `app_state`, cada uma `caminho → "<impressão>:<lado>"` (o lado maior da
+    foto guardada). ~150–200 B por foto com a chave; escrever é compare-and-
+    set de UMA linha (~8–10 KB com 3 000 fotos). Escrevem SÓ o carregamento
+    (impressão calculada no servidor sobre os bytes guardados, com o lado
+    deles — `assets` e Biblioteca) e a noite (sobre a miniatura, com o lado
+    das medidas guardadas em `biblioteca_fotos`; 0 se não houver). A do
+    navegador só serve para procurar. Procurar lê o índice todo numa ida
+    (**~0,5 MB com 3 000 fotos**), guardado 5 min na instância; só a
+    importação procura. Os prefixos `foto-resumo:` e `foto-visual:` estão
+    numa lista só (`indices-de-fotos.ts`) que as três limpezas da noite
+    ignoram como menções — sem isso, o índice segurava todas as fotos e
+    nenhuma limpeza voltava a apagar nada (achado da revisão).
   · **A noite** (`cron/backup`, `preencherImpressoes`): com o manifesto que já
     se faz, cada original sem impressão lê a MINIATURA (se faltar, a média;
-    nunca o original), calcula e grava, em lotes de 20, até 600 fotos ou 10 s.
-    ~3 000 fotos → ~5 noites; depois, nada (só as que o carregamento não
-    registou). Sem miniatura nem média fica marcada com impressão vazia (não
-    volta a ser lida, nunca é encontrada). Com o manifesto completo, tira do
-    índice o que já não existe.
-  · **O importador**: calcula no navegador o resumo e a impressão de cada foto
-    e pergunta a `fotos-existentes`. Resumo igual ou «mesma» → «já existe —
-    não ocupa espaço». «Talvez» → mostra as duas lado a lado (a do ficheiro e
-    a miniatura da guardada) com «É a mesma» / «É outra»; sem resposta é NOVA.
-    «É outra» manda `semParecidas`, e o servidor não a troca.
-  · **O estúdio**: o `assets` procura pelo que mostra quando o resumo não
-    bate. Só a «mesma» é usada sem perguntar; a «talvez» guarda-se como nova
-    — nunca interrompe o estúdio.
-  · **Cada foto nova de proposta ocupa menos** (`image-prep.ts`,
-    `PROPOSTA_MAX_EDGE`). O PDF reduz TUDO a 1 800 px (`LADO_EDITORIAL`); a
-    proposta online usa a média de 1 200 e a miniatura. Medido com 49 fotos
-    reais de 2 400–2 560 px (original + média + miniatura):
-    antes 2 200 px q0,82 JPEG + JPEG + JPEG = **0,67 MB** (517 + 154 + 18 KB);
-    agora 1 800 px q0,82 JPEG + WebP + WebP = **0,47 MB** (354 + 112 + 15 KB),
-    −30%. Qualidade pelo caminho do PDF (original → 1 800 q86) contra a fonte:
-    37,6 → 38,0 dB (pior caso 32,1 → 32,9) — melhor, porque deixa de haver
-    uma segunda redução. 2 000 px foi pior (35,2 dB). E o PDF REAL, gerado com
-    as mesmas 8 fotografias guardadas à moda antiga e à nova (14 páginas), cada
-    página comparada com o PDF feito a partir das fontes: média 41,81 dB antes,
-    41,85 dB agora. O original continua JPEG (o servidor converte o resto para
-    JPEG, e o PDF lê-o com o `sharp`); a média e a miniatura passam a WebP onde
-    o navegador o codifica (no Safari saem JPEG, como antes: ~0,52 MB). Uma foto
-    até 450 KB sobe tal e qual (já é mais pequena do que sairia). NADA disto
-    mexe em fotografias já guardadas, e a Biblioteca fica a 2 200 px (não foi
-    pedido; as fotos dela alimentam a capa web grande, até 2 000 px).
-  · **Quanto cabe**: até ao travão de 90% (900 MB, contados em 10⁹ — o «GB»
-    menor, pelo lado seguro), com ~695 MB depois das limpezas, sobram ~205 MB
-    → **~410 fotos novas** a 0,5 MB (eram ~300 a 0,67), mais todas as que se
-    reconhecerem como já guardadas. No R2 (10 GB, 90% = 9 GB) seriam ~18 000.
-  · **O travão** (`ocupacao-do-armazenamento*.ts`): a noite grava em
-    `armazenamento:ocupacao` quanto ocupa cada bucket — os originais pelo
-    manifesto (custo zero) e os outros buckets, o de medição mais velha
-    primeiro, enquanto houver tempo (6 s; cada um volta a ser medido ao fim
-    de 7 dias, e só conta como medido até aos 14); o
-    `assets` soma em `armazenamento:desde-a-medicao` (por bucket, compare-and-
-    set) o que guarda depois disso. O importador lê as duas linhas, mostra
-    «Sobram X MB até ao travão — cabem cerca de N fotografias», e o tecto
-    passa de 20 a **200 novas por importação**, limitado pelo que cabe. Sem
-    medição completa fica o tecto antigo, 20. E o `assets` recusa (507) um
-    carregamento da importação que passasse do travão.
+    nunca o original), em lotes de 20, até 600 fotos ou 10 s. ~3 000 fotos →
+    ~5 noites. Uma leitura que falhe pela rede não marca nada (volta na
+    noite seguinte); só uma sem miniatura nem média, confirmado por HEAD,
+    fica marcada sem impressão. O que a junção dos duplicados apagou nessa
+    noite (depois do manifesto) não se calcula e sai do índice.
+  · **Cada foto nova de MOOD BOARD ocupa menos** (`image-prep.ts`). O PDF
+    reduz tudo a 1 800 px; a proposta online usa a média de 1 200 e a
+    miniatura. Medido com 49 fotos de 2 400–2 560 px (original + média +
+    miniatura): antes 2 200 px JPEG + JPEG + JPEG = **0,67 MB** (517 + 154 +
+    18 KB); agora 1 800 px q0,82 JPEG + WebP + WebP = **0,47 MB** (354 + 112
+    + 15 KB), −30%. PDF (original → 1 800 q86) contra a fonte: 37,6 → 38,0 dB
+    (pior 32,1 → 32,9). E o PDF real, gerado com 8 fotos à moda antiga e à
+    nova (14 páginas), comparado com o PDF das fontes: 41,81 → 41,85 dB.
+    Média e miniatura em WebP onde o navegador o codifica (Safari: JPEG,
+    ~0,52 MB). Nada disto mexe em fotos já guardadas; a Biblioteca fica a
+    2 200 px.
+  · **A CAPA fica a 2 200 px** (achado da revisão: a capa web grande pede
+    2 000). Medido com 8 fotos deitadas, a capa a toda a largura de um ecrã
+    de 1 920 px contra a fonte: original a 2 000 px → 36,5 dB (pior 30,3),
+    AVIF grande 212 KB; a 1 800 px → **29,5 dB** (pior 23,2), 181 KB. Sete
+    decibéis vêem-se. As fotos de capa (do estúdio e da capa de uma
+    importação) guardam-se como sempre (2 200 q0,90): perde-se ~0,2 MB de
+    poupança por proposta. **Limite**: uma foto de mood board escolhida
+    DEPOIS para capa tem 1 800 px, e a capa web grande dela sai a 1 800.
+  · **Quanto cabe**: até ao travão de 90% (900 MB, contados em 10⁹), com
+    ~695 MB depois das limpezas sobram ~205 MB → **~410 fotos novas** a 0,5
+    MB, mais todas as que já existem. No R2 (90% de 10 GB) seriam ~18 000.
+  · **O travão** (`ocupacao-do-armazenamento*.ts`): a noite grava quanto ocupa
+    cada bucket (os originais pelo manifesto; os outros, o de medição mais
+    velha primeiro, com 6 s), e o `assets` e a rota da Biblioteca somam por
+    bucket o que guardam depois disso (as derivadas que o servidor fabrica
+    sozinho não se somam: custava uma escrita por derivada; entram na
+    medição seguinte). Uma medição com mais de 50 h já não serve (volta o
+    tecto de 20). O importador sobe até **200 novas**, limitado pelo que
+    cabe; o `assets` recusa (507) um carregamento da importação que
+    passasse do travão, contando o original × 1,35 (média e miniatura); ao
+    primeiro 507 o importador pára e diz quantas ficaram de fora.
   · **As três perguntas do custo**:
-    1. *Quantas vezes corre*: a noite, uma vez (dentro da cópia, nenhum
-       agendamento novo); a impressão no servidor, uma vez por foto
-       carregada; a pergunta do importador, uma por importação.
-    2. *Quanto processador*: por foto carregada, um `sharp` a 128 px com
-       redução ao descodificar (~10–20 ms) e o pHash (<1 ms); a noite, ~5–10 ms
-       por miniatura, no máximo 600 por noite (≤ ~6 s) nas ~5 primeiras
-       noites e quase nada depois; a medição, ≤ 6 s de listagens por noite.
-       Leituras do Storage: as miniaturas uma vez (~3 000 × ~30 KB ≈ 90 MB de
-       saída, repartidos por ~5 noites — o maior custo, e único); listagens
-       ~0,4 KB por ficheiro listado, cada bucket uma vez por semana (~4 MB por
-       semana com os ~10 000 ficheiros de hoje). Base de dados:
-       ~150 B por foto (< 0,5 MB com 3 000); cada procura lê ~250 KB
-       (guardados 5 min na instância).
-    3. *Guardar / build / navegador*: a impressão da PERGUNTA calcula-se no
-       navegador; a do índice calcula-se uma vez e guarda-se; a ocupação mede-
-       se de noite e guarda-se.
-  · **O que não faz**: não reconhece cortes grandes (uma foto 3:2 cortada a
-    quadrado é «outra» — sobe como nova, que é o lado seguro); não junta as
-    cópias que já existem (isso é a junção da noite, pelos bytes); não mexe
-    na Biblioteca nem em fotografias já guardadas.
+    1. *Quantas vezes corre*: a noite, uma vez (dentro da cópia); a impressão
+       no servidor, uma vez por foto guardada; a pergunta do importador, uma
+       por lote de 60 fotos.
+    2. *Quanto processador*: por foto guardada, um `sharp` a 128 px (~10–20
+       ms) e o pHash (<1 ms); a noite, ~5–10 ms por miniatura, até 600 por
+       noite nas ~5 primeiras noites e quase nada depois; a medição, ≤ 6 s
+       por noite. Storage: as miniaturas uma vez (~3 000 × ~30 KB ≈ 90 MB de
+       saída em ~5 noites — o maior custo, e único); listagens ~0,4 KB por
+       ficheiro, cada bucket uma vez por semana (~4 MB por semana). Base de
+       dados: ~0,5 MB de índice com 3 000 fotos; cada procura lê-o (~0,5 MB),
+       guardado 5 min.
+    3. *Guardar / build / navegador*: a impressão da pergunta calcula-se no
+       navegador; a do índice uma vez, e guarda-se; a ocupação mede-se de
+       noite e guarda-se.
 - `proposal-pdfs` (121 MB): ela escolheu guardar o PDF actual e o aceite de
   cada proposta. Lista mostrada a 10/11: 9 ficheiros (~9 MB), incluindo as
   pastas de 2 propostas que já não existem. O Supabase não deixa apagar

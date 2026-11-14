@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { NextRequest } from "next/server";
 
@@ -76,11 +77,12 @@ const vis = vi.hoisted(() => ({
   veredicto: null as null | "mesma" | "talvez",
   procurar: vi.fn(),
   registar: vi.fn(async () => {}),
+  impressao: vi.fn(async (..._a: unknown[]) => "f".repeat(90)),
   sobra: 10_000_000_000,
   somar: vi.fn(async () => {}),
 }));
 vi.mock("@/lib/fotos-parecidas", () => ({
-  impressaoDosBytes: async () => "f".repeat(86),
+  impressaoDosBytes: (...a: unknown[]) => vis.impressao(...a),
   registarImpressao: vis.registar,
   procurarParecidas: async (imps: string[], id: string | null) => {
     vis.procurar(imps, id);
@@ -100,6 +102,7 @@ vi.mock("@/lib/fotos-parecidas", () => ({
 }));
 vi.mock("@/lib/ocupacao-do-armazenamento", () => ({
   lerEspaco: async () => ({ conhecido: true, sobra: vis.sobra }),
+  MARGEM_DAS_DERIVADAS: 1.35,
   somarCarregado: vis.somar,
 }));
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
@@ -135,33 +138,30 @@ beforeEach(() => {
 });
 
 describe("assets: pelo que mostram", () => {
-  it("«mesma» (quase certo): usa a guardada, não guarda nada", async () => {
+  it("no estúdio, uma «mesma» pela imagem com bytes DIFERENTES guarda a nova (pode ser um retoque)", async () => {
     vis.veredicto = "mesma";
     const { status, corpo } = await carregar();
     expect(status).toBe(200);
-    expect(corpo.images[0]).toMatchObject({
-      path: "tema:t1/igual.jpg",
-      jaExistia: true,
-      parecida: true,
-    });
-    expect(uploads.upload).not.toHaveBeenCalled();
-    expect(vis.somar).not.toHaveBeenCalled();
-  });
-
-  it("«talvez»: o estúdio não pergunta — guarda como nova, e regista a impressão do SERVIDOR", async () => {
-    vis.veredicto = "talvez";
-    const { corpo } = await carregar();
     expect(uploads.upload).toHaveBeenCalledTimes(1);
     expect(corpo.images[0].jaExistia).toBeUndefined();
-    expect(vis.registar).toHaveBeenCalledWith(corpo.images[0].path, "f".repeat(86));
+    expect(corpo.images[0].path).not.toBe("tema:t1/igual.jpg");
+  });
+
+  it("regista a impressão do SERVIDOR com o lado da foto guardada, e conta o espaço", async () => {
+    const { corpo } = await carregar();
+    expect(vis.registar).toHaveBeenCalledWith(corpo.images[0].path, "f".repeat(90), 1200);
     expect(vis.somar).toHaveBeenCalledWith(expect.objectContaining({ "proposal-assets": 6 }));
   });
 
-  it("«É outra» (`semParecidas`): nem procura pelo que mostra", async () => {
-    vis.veredicto = "mesma";
-    await carregar({ semParecidas: "1" });
-    expect(vis.procurar).not.toHaveBeenCalled();
-    expect(uploads.upload).toHaveBeenCalledTimes(1);
+  it("com o resumo dos bytes igual, reutiliza — e nem calcula a impressão", async () => {
+    const bytes = new TextEncoder().encode("foto-x");
+    const r = createHash("sha256").update(bytes).digest("hex").slice(0, 32);
+    st.estado.set(`foto-resumo:${r}`, ["q-1/velha.jpg"]);
+    st.ficheiros.add("proposal-assets/q-1/velha.jpg");
+    const { corpo } = await carregar();
+    expect(corpo.images[0]).toMatchObject({ path: "q-1/velha.jpg", jaExistia: true });
+    expect(uploads.upload).not.toHaveBeenCalled();
+    expect(vis.impressao).not.toHaveBeenCalled();
   });
 
   it("a importação pára no travão: sem espaço até aos 90%, não guarda", async () => {
@@ -172,5 +172,13 @@ describe("assets: pelo que mostram", () => {
     expect(uploads.upload).not.toHaveBeenCalled();
     // O estúdio (sem `importacao`) não é travado.
     expect((await carregar()).status).toBe(200);
+  });
+
+  it("o travão conta a margem das derivadas, não só o original", async () => {
+    // 6 bytes de foto: cabe à justa, mas não com a média e a miniatura (×1,35).
+    vis.sobra = 7;
+    expect((await carregar({ importacao: "1" })).status).toBe(507);
+    vis.sobra = 9;
+    expect((await carregar({ importacao: "1" })).status).toBe(200);
   });
 });

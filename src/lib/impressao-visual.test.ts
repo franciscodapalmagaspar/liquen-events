@@ -8,6 +8,7 @@ import {
   impressaoDePixeis,
   LIMITES,
   veredicto,
+  type Distancias,
   type Veredicto,
 } from "./impressao-visual";
 import { impressaoDosBytes } from "./fotos-parecidas";
@@ -125,6 +126,43 @@ describe("cortada ou com margens: reconhecida — e, sem certeza, PERGUNTA-SE", 
   });
 });
 
+describe("uma versão RETOCADA nunca é «a mesma» (revisão de 13/11) — pergunta-se", () => {
+  const edicoes: [string, (b: Buffer) => Promise<Buffer>][] = [
+    ["exposição −20%", (b) => sharp(b).linear(0.8, 0).jpeg({ quality: 90 }).toBuffer()],
+    ["exposição +10%", (b) => sharp(b).linear(1.1, 0).jpeg({ quality: 90 }).toBuffer()],
+    [
+      "contraste ×1,3",
+      (b) =>
+        sharp(b)
+          .linear(1.3, -0.3 * 128)
+          .jpeg({ quality: 90 })
+          .toBuffer(),
+    ],
+    [
+      "branco mais quente",
+      (b) =>
+        sharp(b)
+          .recomb([
+            [1.06, 0, 0],
+            [0, 1, 0],
+            [0, 0, 0.92],
+          ])
+          .jpeg({ quality: 90 })
+          .toBuffer(),
+    ],
+  ];
+  for (const [nome, editar] of edicoes) {
+    it(nome, async () => {
+      for (const f of FOTOS) {
+        const b = foto(f);
+        const v = await comparar(await editar(b), b);
+        expect(v, f).not.toBe("mesma");
+        expect(v, f).not.toBe("outra");
+      }
+    });
+  }
+});
+
 describe("duas fotografias DIFERENTES, muito parecidas, nunca são «a mesma»", () => {
   const pares: [string, string, string][] = [
     ["duas fotos em rajada (o mesmo beijo)", "stephanie-mizio-765.jpg", "stephanie-mizio-766.jpg"],
@@ -142,12 +180,23 @@ describe("duas fotografias DIFERENTES, muito parecidas, nunca são «a mesma»",
 
 describe("a regra das fronteiras", () => {
   it("a zona cinzenta pede confirmação: a composição parecida sem o pormenor igual é «talvez»", () => {
-    expect(veredicto({ grossa: 2, fina: 40, cor: 0 })).toBe("talvez");
-    expect(veredicto({ grossa: LIMITES.grossaTalvez, fina: 100, cor: 0 })).toBe("talvez");
+    const d = (x: Partial<Distancias>): Distancias => ({
+      grossa: 0,
+      fina: 0,
+      cor: 0,
+      luz: 0,
+      contraste: 0,
+      ...x,
+    });
+    expect(veredicto(d({ grossa: 2, fina: 40 }))).toBe("talvez");
+    expect(veredicto(d({ grossa: LIMITES.grossaTalvez, fina: 100 }))).toBe("talvez");
     // A mesma composição com outra cor (a cores / preto e branco): pergunta-se.
-    expect(veredicto({ grossa: 0, fina: 0, cor: 40 })).toBe("talvez");
-    expect(veredicto({ grossa: LIMITES.grossaTalvez + 2, fina: 0, cor: 0 })).toBe("outra");
-    expect(veredicto({ grossa: 0, fina: 4, cor: 1 })).toBe("mesma");
+    expect(veredicto(d({ cor: 40 }))).toBe("talvez");
+    // …com outra luz ou outro contraste (uma versão retocada): pergunta-se.
+    expect(veredicto(d({ luz: LIMITES.luzMesma + 1 }))).toBe("talvez");
+    expect(veredicto(d({ contraste: LIMITES.contrasteMesma + 1 }))).toBe("talvez");
+    expect(veredicto(d({ grossa: LIMITES.grossaTalvez + 2 }))).toBe("outra");
+    expect(veredicto(d({ fina: 4, cor: 1, luz: 1, contraste: 1 }))).toBe("mesma");
   });
 
   it("uma impressão mal formada nunca encontra nada", () => {

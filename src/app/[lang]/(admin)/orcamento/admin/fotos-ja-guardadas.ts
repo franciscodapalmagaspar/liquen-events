@@ -65,7 +65,8 @@ export async function perguntarGuardadas(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           resumos: lote.map((f) => f.resumo).filter(Boolean),
-          impressoes: lote.map((f) => f.impressao).filter(Boolean),
+          impressoes: lote.filter((f) => f.impressao).map((f) => f.impressao),
+          lados: lote.filter((f) => f.impressao).map((f) => f.lado ?? 0),
         }),
       });
       const dados = res.ok ? await res.json().catch(() => null) : null;

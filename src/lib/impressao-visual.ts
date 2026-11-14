@@ -11,20 +11,21 @@
  *
  * ── O QUE SE CALCULA ────────────────────────────────────────────────────────
  *
- * Um pHash de 64 bits (o «perceptual hash» de DCT), sobre a fotografia em tons
- * de cinzento:
+ * Sobre uma versão de {@link LADO_DE_TRABALHO} px em tons de cinzento (luma
+ * BT.601, transparência sobre branco), sem as margens lisas (até
+ * {@link MAX_APARAR} de cada lado — o que o PowerPoint e o Word acrescentam a
+ * uma foto colada numa caixa), reduzida a 32 × 32 pela MÉDIA das áreas (aqui,
+ * em aritmética simples, e não pelo canvas nem pelo `sharp`: o navegador e o
+ * servidor fazem as mesmas contas). Cinco partes, 90 hex:
  *
- *   1. tons de cinzento (luma BT.601), com a transparência sobre branco;
- *   2. as margens lisas tiram-se (até {@link MAX_APARAR} de cada lado) — é o
- *      que o PowerPoint e o Word acrescentam a uma foto colada numa caixa;
- *   3. reduz-se a 32 × 32 pela MÉDIA das áreas (feito aqui, em aritmética
- *      simples, e não pelo canvas nem pelo `sharp`: assim o navegador e o
- *      servidor fazem exactamente as mesmas contas);
- *   4. DCT 2D, e os 8 × 8 coeficientes de mais baixa frequência;
- *   5. um bit por coeficiente: acima ou abaixo da mediana dos 64.
- *
- * Duas fotografias comparam-se pela distância de Hamming (quantos dos 64 bits
- * diferem).
+ *   · o pHash de 64 bits (DCT 8 × 8 — a composição; aguenta cortes pequenos);
+ *   · o pHash de 256 bits (DCT 16 × 16 — o pormenor; separa as rajadas);
+ *   · a cor média: Cb, Cr e croma (separa a cores / preto e branco, e o
+ *     branco mais quente);
+ *   · a luz e o contraste: a luma média e o desvio-padrão dela (separa uma
+ *     versão mais clara, mais escura ou com mais contraste — a revisão de
+ *     13/11 viu uma exposição −20% passar por «mesma» em 96% dos casos sem
+ *     esta parte).
  *
  * ── PORQUÊ O pHASH E NÃO O dHASH ───────────────────────────────────────────
  *
@@ -40,11 +41,10 @@
  * ── O LIMITE HONESTO ───────────────────────────────────────────────────────
  *
  * Duas fotos da mesma mesa, tiradas com um passo de diferença, podem ter a
- * composição quase igual. Por isso há DUAS fronteiras ({@link QUASE_CERTO} e
- * {@link ZONA_CINZENTA}): abaixo da primeira é a mesma foto; entre as duas,
- * NINGUÉM decide sozinho — o importador mostra as duas lado a lado e ela
- * escolhe; o estúdio guarda como nova. Nunca se troca uma foto por outra sem
- * ser quase certo ou sem ela confirmar.
+ * composição quase igual. Por isso há DUAS fronteiras ({@link LIMITES}): a
+ * «mesma» e a «talvez»; entre as duas, NINGUÉM decide sozinho — o importador
+ * mostra as duas lado a lado e ela escolhe. Nunca se troca uma foto por outra
+ * sem ser quase certo ou sem ela confirmar.
  *
  * Este módulo é puro e não importa nada: o navegador e o servidor têm de
  * aplicar EXACTAMENTE a mesma regra.
@@ -66,11 +66,15 @@ export const MAX_APARAR = 0.2;
 /**
  * ── AS DUAS FRONTEIRAS (medidas — ver o documento) ──────────────────────────
  *
- * `≤ QUASE_CERTO`: a mesma fotografia, recomprimida, reduzida, convertida ou
- * com as margens cortadas. Usa-se a que já está guardada, sem perguntar.
+ * «mesma»: a mesma fotografia, recomprimida, reduzida ou convertida (98% dos
+ * casos nas 1 057 fotos); nenhuma das versões retocadas medidas passa por
+ * mais de 1% das vezes, salvo as mais leves (ver o documento). Só o
+ * IMPORTADOR a usa sem perguntar, e só se a guardada for do tamanho que a
+ * nova precisa (`fotos-parecidas.ts`). O estúdio, sem pergunta, só reutiliza
+ * com os BYTES iguais.
  *
- * `≤ ZONA_CINZENTA`: pode ser a mesma ou uma muito parecida (a mesma mesa
- * com outro enquadramento). O importador pergunta; o estúdio guarda como nova.
+ * «talvez»: pode ser a mesma ou uma muito parecida (outro corte, um retoque,
+ * a mesma mesa um passo ao lado). O importador mostra as duas e ela escolhe.
  *
  * Acima: é outra.
  */
@@ -79,8 +83,12 @@ export const LIMITES = {
   grossaMesma: 4,
   /** …E o pormenor também (separa as rajadas)… */
   finaMesma: 16,
-  /** …E a mesma cor (separa a cores / preto e branco). */
-  corMesma: 8,
+  /** …E a mesma cor (separa a cores / preto e branco, e o branco mais quente)… */
+  corMesma: 2,
+  /** …E a mesma luz (separa uma versão mais clara ou mais escura)… */
+  luzMesma: 4,
+  /** …E o mesmo contraste (separa uma versão com mais ou menos contraste). */
+  contrasteMesma: 3,
   /** «Talvez» (pergunta-se): a composição parecida. */
   grossaTalvez: 12,
 } as const;
@@ -90,15 +98,21 @@ export type Veredicto = "mesma" | "talvez" | "outra";
 /** O que as distâncias querem dizer — ver {@link LIMITES}. */
 export function veredicto(d: Distancias): Veredicto {
   if (!Number.isFinite(d.grossa)) return "outra";
-  if (d.grossa <= LIMITES.grossaMesma && d.fina <= LIMITES.finaMesma && d.cor <= LIMITES.corMesma)
+  if (
+    d.grossa <= LIMITES.grossaMesma &&
+    d.fina <= LIMITES.finaMesma &&
+    d.cor <= LIMITES.corMesma &&
+    d.luz <= LIMITES.luzMesma &&
+    d.contraste <= LIMITES.contrasteMesma
+  )
     return "mesma";
   if (d.grossa <= LIMITES.grossaTalvez) return "talvez";
   return "outra";
 }
 
-/** Uma impressão bem formada: 16 hex (64 bits). */
+/** Uma impressão bem formada: 90 hex (16 + 64 do pHash, 6 da cor, 4 da luz). */
 export function eImpressao(v: unknown): v is string {
-  return typeof v === "string" && /^[0-9a-f]{86}$/.test(v);
+  return typeof v === "string" && /^[0-9a-f]{90}$/.test(v);
 }
 
 /**
@@ -308,6 +322,37 @@ export function corMedia(
   return byte(128 + cb / n) + byte(128 + cr / n) + byte(croma / n);
 }
 
+/**
+ * A luz e o contraste (dentro da caixa): a luma média e o desvio-padrão dela.
+ * 4 hex. É o que separa uma versão RETOCADA (mais clara, mais escura, com
+ * mais contraste) da original — em pHash são iguais, porque o pHash só olha
+ * para a forma. Achado da revisão de 13/11: sem isto, uma exposição −20% dava
+ * «mesma» em 96% dos casos.
+ */
+export function luzEContraste(
+  cinz: Float64Array,
+  largura: number,
+  caixa: { x0: number; y0: number; x1: number; y1: number },
+): string {
+  let s = 0;
+  let s2 = 0;
+  let n = 0;
+  for (let y = caixa.y0; y < caixa.y1; y++)
+    for (let x = caixa.x0; x < caixa.x1; x++) {
+      const v = cinz[y * largura + x];
+      s += v;
+      s2 += v * v;
+      n++;
+    }
+  const media = s / Math.max(1, n);
+  const desvio = Math.sqrt(Math.max(0, s2 / Math.max(1, n) - media * media));
+  const byte = (v: number) =>
+    Math.max(0, Math.min(255, Math.round(v)))
+      .toString(16)
+      .padStart(2, "0");
+  return byte(media) + byte(desvio);
+}
+
 /** A impressão de píxeis RGBA (o `ImageData` do canvas) ou RGB (o `raw()` do `sharp`). */
 export function impressaoDePixeis(
   dados: ArrayLike<number>,
@@ -316,10 +361,13 @@ export function impressaoDePixeis(
   canais: 3 | 4,
 ): string {
   const cinz = cinzentoDePixeis(dados, largura, altura, canais);
-  // A cor mede-se DENTRO das margens: uma faixa branca à volta não é a fotografia.
+  // A cor, a luz e o contraste medem-se DENTRO das margens: uma faixa branca
+  // à volta não é a fotografia.
+  const caixa = caixaSemMargens(cinz, largura, altura);
   return (
     impressaoDeCinzento(cinz, largura, altura) +
-    corMedia(dados, largura, altura, canais, caixaSemMargens(cinz, largura, altura))
+    corMedia(dados, largura, altura, canais, caixa) +
+    luzEContraste(cinz, largura, caixa)
   );
 }
 
@@ -343,15 +391,23 @@ export interface Distancias {
   fina: number;
   /** A maior diferença entre as três medidas da cor (0–255). */
   cor: number;
+  /** Diferença da luma média (0–255): a exposição. */
+  luz: number;
+  /** Diferença do desvio-padrão da luma (0–255): o contraste. */
+  contraste: number;
 }
 
 export function distancias(a: string, b: string): Distancias {
-  if (!eImpressao(a) || !eImpressao(b)) return { grossa: Infinity, fina: Infinity, cor: Infinity };
+  if (!eImpressao(a) || !eImpressao(b))
+    return { grossa: Infinity, fina: Infinity, cor: Infinity, luz: Infinity, contraste: Infinity };
   const byte = (s: string, i: number) => parseInt(s.slice(80 + i * 2, 82 + i * 2), 16);
+  const dif = (i: number) => Math.abs(byte(a, i) - byte(b, i));
   return {
     grossa: hamming(a.slice(0, 16), b.slice(0, 16)),
     fina: hamming(a.slice(16, 80), b.slice(16, 80)),
-    cor: Math.max(...[0, 1, 2].map((i) => Math.abs(byte(a, i) - byte(b, i)))),
+    cor: Math.max(dif(0), dif(1), dif(2)),
+    luz: dif(3),
+    contraste: dif(4),
   };
 }
 

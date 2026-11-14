@@ -12,13 +12,18 @@ import {
   type Distancias,
   type Veredicto,
 } from "@/lib/impressao-visual";
-import { PROPOSAL_BUCKET, PROPOSAL_MID_BUCKET } from "@/lib/proposal-assinaturas";
-import { fetchProposalThumbBytes } from "@/lib/proposal-storage";
+import {
+  PROPOSAL_BUCKET,
+  PROPOSAL_MID_BUCKET,
+  PROPOSAL_THUMB_BUCKET,
+} from "@/lib/proposal-assinaturas";
+import { formasDeCaminhos } from "@/lib/biblioteca-fotos-store";
 import { getSupabase } from "@/lib/supabase";
 import { getTheme } from "@/lib/themes-store";
 import {
   THEME_BUCKET,
   THEME_MID_BUCKET,
+  THEME_THUMB_BUCKET,
   caminhoDoRefDeTema,
   ehRefDeTema,
   refDeTema,
@@ -39,10 +44,11 @@ import { log } from "@/lib/logger";
  * ── O índice ───────────────────────────────────────────────────────────────
  *
  * Em `app_state`, sem migração: 64 linhas `foto-visual:<00–3f>`, cada uma um
- * objecto `caminho → impressão` (86 hex). A linha de um caminho é escolhida
- * pelo SHA-1 dele, por isso escrever uma foto é ler e regravar UMA linha
- * pequena (~4 KB com 3 000 fotos), com compare-and-set — dois carregamentos
- * ao mesmo tempo não se apagam um ao outro.
+ * objecto `caminho → "<impressão>:<lado>"` (90 hex e o lado maior da foto
+ * guardada, 0 se não se sabe). ~150–200 B por foto com a chave. A linha de um
+ * caminho é escolhida pelo SHA-1 dele, por isso escrever uma foto é ler e
+ * regravar UMA linha pequena (~8–10 KB com 3 000 fotos), com compare-and-set
+ * — dois carregamentos ao mesmo tempo não se apagam um ao outro.
  *
  * Os caminhos são os do resto da casa: `<pedido>/<x>.jpg` (pasta de um
  * pedido) e `tema:<pasta>/<x>.jpg` (Biblioteca). Uma impressão vazia (`""`)
@@ -60,10 +66,15 @@ import { log } from "@/lib/logger";
  * ── PROCURAR ───────────────────────────────────────────────────────────────
  *
  * Não há atalho para «as que estão perto» numa distância de Hamming: lê-se o
- * índice todo (uma ida, `like 'foto-visual:%'`, ~250 KB com 3 000 fotos) e
+ * índice todo (uma ida, `like 'foto-visual:%'`, ~0,5 MB com 3 000 fotos) e
  * compara-se em memória (3 000 comparações por foto: microssegundos). A
- * leitura fica guardada {@link VALIDADE_DO_INDICE_MS} na instância — um lote
- * de 50 fotos do estúdio paga uma leitura, não 50.
+ * leitura fica guardada {@link VALIDADE_DO_INDICE_MS} na instância. Quem
+ * procura é a importação (uma pergunta por lote de 60 fotos); o estúdio já
+ * não procura — sem pergunta, só reutiliza com os bytes iguais.
+ *
+ * Uma guardada MAIS PEQUENA do que a nova precisa nunca é devolvida (uma foto
+ * de 900 px não substitui o original do fotógrafo); uma de lado desconhecido
+ * fica, no máximo, «talvez».
  *
  * As regras de quem pode ser devolvido são as de `fotos-resumo.ts`: a pasta
  * DESTE pedido, ou a Biblioteca num tema vivo e com o ficheiro lá; a pasta de
@@ -89,11 +100,31 @@ type Linha = Record<string, string>;
 /** Sem estreitar o tipo (o `ehRefDeTema` é um guarda de tipo). */
 const eTema = (c: string): boolean => ehRefDeTema(c);
 
+/**
+ * Uma entrada do índice: `"<impressão>:<lado maior>"` (o lado da fotografia
+ * GUARDADA, em px; 0 = não se sabe), ou `""` (não havia miniatura).
+ */
+export function entradaDoIndice(impressao: string, lado: number): string {
+  const l = Number.isFinite(lado) && lado > 0 ? Math.round(lado) : 0;
+  return `${impressao}:${l}`;
+}
+
+/** Lê uma entrada; `null` quando está vazia ou mal formada. */
+export function lerEntrada(v: string): { impressao: string; lado: number } | null {
+  const i = v.indexOf(":");
+  if (i < 0) return null;
+  const impressao = v.slice(0, i);
+  const lado = Number(v.slice(i + 1));
+  if (!eImpressao(impressao) || !Number.isFinite(lado) || lado < 0) return null;
+  return { impressao, lado };
+}
+
 function linhaValida(v: unknown): Linha {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: Linha = {};
   for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
-    if (typeof k === "string" && k && (x === "" || eImpressao(x))) out[k] = x as string;
+    if (typeof k === "string" && k && typeof x === "string" && (x === "" || lerEntrada(x)))
+      out[k] = x;
   }
   return out;
 }
@@ -212,10 +243,15 @@ async function mudarEntradas(mudancas: ReadonlyMap<string, string | null>): Prom
  * com uma impressão que ele próprio calculou sobre os bytes guardados.
  * Nunca lança.
  */
-export async function registarImpressao(caminho: string, impressao: string | null): Promise<void> {
+export async function registarImpressao(
+  caminho: string,
+  impressao: string | null,
+  /** O lado maior da fotografia guardada (0 = não se sabe). */
+  lado: number,
+): Promise<void> {
   if (!caminho || !impressao || !eImpressao(impressao)) return;
   try {
-    await mudarEntradas(new Map([[caminho, impressao]]));
+    await mudarEntradas(new Map([[caminho, entradaDoIndice(impressao, lado)]]));
   } catch (e) {
     log.warn("fotos-parecidas: impressão não registada", { caminho, erro: String(e) });
   }
@@ -244,17 +280,27 @@ export function candidatasNoIndice(
   impressao: string,
   indice: ReadonlyMap<string, string>,
   quoteId: string | null,
+  /**
+   * O lado de que a fotografia NOVA precisa (o lado dela, até ao que se
+   * guardaria). Uma guardada mais pequena nunca a substitui — nem pergunta:
+   * sobe a nova (revisão de 13/11). Uma guardada de lado desconhecido fica,
+   * no máximo, «talvez». Sem este valor não se filtra pelo lado.
+   */
+  ladoPedido = 0,
 ): Parecida[] {
   if (!eImpressao(impressao)) return [];
   const safeId = quoteId ? quoteId.replace(/[^a-zA-Z0-9_-]/g, "") : "";
   const out: Parecida[] = [];
-  for (const [caminho, imp] of indice) {
-    if (!imp) continue;
+  for (const [caminho, valor] of indice) {
+    const e = valor ? lerEntrada(valor) : null;
+    if (!e) continue;
     const daBiblioteca = eTema(caminho);
     if (!daBiblioteca && !(safeId && caminho.startsWith(`${safeId}/`))) continue;
-    const d = distancias(impressao, imp);
-    const v = veredicto(d);
+    if (ladoPedido > 0 && e.lado > 0 && e.lado < ladoPedido) continue;
+    const d = distancias(impressao, e.impressao);
+    let v = veredicto(d);
     if (v === "outra") continue;
+    if (v === "mesma" && ladoPedido > 0 && e.lado === 0) v = "talvez";
     out.push({ caminho, veredicto: v, distancias: d });
   }
   return out.sort(melhorPrimeiro);
@@ -269,6 +315,8 @@ export function candidatasNoIndice(
 export async function procurarParecidas(
   impressoes: readonly unknown[],
   quoteId: string | null,
+  /** impressão → o lado de que a nova precisa (ver `candidatasNoIndice`). */
+  lados: ReadonlyMap<string, number> = new Map(),
 ): Promise<Map<string, Parecida>> {
   const saida = new Map<string, Parecida>();
   const pedidas = [...new Set(impressoes.filter(eImpressao))].slice(0, MAX_IMPRESSOES_POR_PERGUNTA);
@@ -311,7 +359,10 @@ export async function procurarParecidas(
   };
 
   for (const imp of pedidas) {
-    const candidatas = candidatasNoIndice(imp, indice, quoteId).slice(0, CANDIDATAS_A_VERIFICAR);
+    const candidatas = candidatasNoIndice(imp, indice, quoteId, lados.get(imp) ?? 0).slice(
+      0,
+      CANDIDATAS_A_VERIFICAR,
+    );
     for (const c of candidatas) {
       if (await serve(c.caminho)) {
         saida.set(imp, c);
@@ -343,8 +394,10 @@ export interface ResultadoDoPreenchimento {
   jaTinham: number;
   /** Quantas se calcularam esta noite. */
   calculadas: number;
-  /** Quantas não tinham miniatura nem média (ficam marcadas, sem impressão). */
+  /** Quantas não têm miniatura nem média (ficam marcadas, sem impressão). */
   semMiniatura: number;
+  /** Quantas não se conseguiram ler (rede): não se marcam, voltam amanhã. */
+  falharam: number;
   /** Entradas de fotografias que já não existem, tiradas do índice. */
   esquecidas: number;
   /** Quantas faltam (ficam para a noite seguinte). */
@@ -353,6 +406,13 @@ export interface ResultadoDoPreenchimento {
   parou: "tempo" | "tecto" | null;
 }
 
+/**
+ * O que a leitura da miniatura devolve: os bytes; `"nao-existe"` quando o
+ * Storage diz que nem a miniatura nem a média existem; `null` quando não se
+ * conseguiu saber (rede) — e então não se marca nada.
+ */
+export type LeituraDaMiniatura = Buffer | "nao-existe" | null;
+
 export interface OpcoesDoPreenchimento {
   /** Tecto de tempo (ms) — a tarefa da noite tem mais que fazer. */
   prazoMs: number;
@@ -360,20 +420,31 @@ export interface OpcoesDoPreenchimento {
   maximo?: number;
   /** Quantas de cada vez (lê, calcula, grava). */
   lote?: number;
-  /** Para os testes: o relógio e a leitura dos bytes. */
+  /**
+   * Caminhos que saíram DEPOIS de o manifesto ser lido (a junção dos
+   * duplicados da mesma noite): não se calculam e saem do índice.
+   */
+  apagadosDepois?: readonly string[];
+  /** Para os testes: o relógio, a leitura dos bytes e a dos lados. */
   agora?: () => number;
-  lerMiniatura?: (caminho: string) => Promise<Buffer | null>;
+  lerMiniatura?: (caminho: string) => Promise<LeituraDaMiniatura>;
+  lerLados?: (caminhos: readonly string[]) => Promise<Map<string, number>>;
 }
 
-/** A média de 1 200 px guardada (~100–200 KB), ou `null`. Nunca lança. */
-async function lerMediaGuardada(caminho: string): Promise<Buffer | null> {
+function bucketsDe(caminho: string) {
+  const daBiblioteca = ehRefDeTema(caminho);
+  return {
+    caminho: daBiblioteca ? caminhoDoRefDeTema(caminho) : caminho,
+    miniatura: daBiblioteca ? THEME_THUMB_BUCKET : PROPOSAL_THUMB_BUCKET,
+    media: daBiblioteca ? THEME_MID_BUCKET : PROPOSAL_MID_BUCKET,
+  };
+}
+
+async function descarregar(bucket: string, caminho: string): Promise<Buffer | null> {
   const sb = getSupabase();
   if (!sb) return null;
-  const daBiblioteca = ehRefDeTema(caminho);
   try {
-    const { data, error } = await sb.storage
-      .from(daBiblioteca ? THEME_MID_BUCKET : PROPOSAL_MID_BUCKET)
-      .download(daBiblioteca ? caminhoDoRefDeTema(caminho) : caminho);
+    const { data, error } = await sb.storage.from(bucket).download(caminho);
     if (error || !data) return null;
     return Buffer.from(await data.arrayBuffer());
   } catch {
@@ -383,10 +454,29 @@ async function lerMediaGuardada(caminho: string): Promise<Buffer | null> {
 
 /**
  * Por omissão: a miniatura de 400 px (dezenas de KB) e, só se faltar, a média
- * de 1 200 px. Nunca o original.
+ * de 1 200 px. Nunca o original. Uma leitura falhada só conta como «não
+ * existe» se o Storage o confirmar (HEAD) para as duas.
  */
-async function lerMiniaturaGuardada(caminho: string): Promise<Buffer | null> {
-  return (await fetchProposalThumbBytes(caminho)) ?? (await lerMediaGuardada(caminho));
+async function lerMiniaturaGuardada(caminho: string): Promise<LeituraDaMiniatura> {
+  const b = bucketsDe(caminho);
+  const mini = await descarregar(b.miniatura, b.caminho);
+  if (mini) return mini;
+  const media = await descarregar(b.media, b.caminho);
+  if (media) return media;
+  const [hm, hd] = await Promise.all([existe(b.miniatura, b.caminho), existe(b.media, b.caminho)]);
+  return hm === false && hd === false ? "nao-existe" : null;
+}
+
+/** O lado maior de cada fotografia, pelas medidas guardadas (`biblioteca_fotos`). */
+async function ladosGuardados(caminhos: readonly string[]): Promise<Map<string, number>> {
+  const semTema = caminhos.map((c) => (ehRefDeTema(c) ? caminhoDoRefDeTema(c) : c));
+  const formas = await formasDeCaminhos(semTema);
+  const out = new Map<string, number>();
+  caminhos.forEach((c, i) => {
+    const f = formas.get(semTema[i]);
+    if (f) out.set(c, Math.max(f.largura, f.altura));
+  });
+  return out;
 }
 
 /**
@@ -396,12 +486,13 @@ async function lerMiniaturaGuardada(caminho: string): Promise<Buffer | null> {
  *
  * Usa o manifesto que a cópia da noite já fez (nenhuma listagem a mais). Para
  * cada original que ainda não está no índice, lê a MINIATURA guardada (400 px,
- * dezenas de KB — nunca o original), calcula a impressão e grava-a. Pára no
- * tecto de tempo ou de fotos; o que faltar fica para a noite seguinte. Com o
+ * dezenas de KB — nunca o original), calcula a impressão e grava-a com o lado
+ * maior do original (das medidas guardadas; 0 se não houver). Pára no tecto
+ * de tempo ou de fotos; o que faltar fica para a noite seguinte. Com o
  * manifesto completo, tira também do índice o que já não existe.
  *
- * Quando tudo tiver impressão, cada noite só faz as novas que o carregamento
- * não registou (nenhuma, normalmente) — e o custo cai para a leitura do índice.
+ * Uma leitura que falhe pela rede não marca nada: tenta-se na noite seguinte.
+ * Só uma foto sem miniatura nem média (confirmado) fica marcada sem impressão.
  */
 export async function preencherImpressoes(
   manifesto: Pick<ManifestoDeFotografias, "entradas" | "completo">,
@@ -412,6 +503,8 @@ export async function preencherImpressoes(
   const maximo = opcoes.maximo ?? 600;
   const lote = Math.max(1, opcoes.lote ?? 20);
   const ler = opcoes.lerMiniatura ?? lerMiniaturaGuardada;
+  const lerLados = opcoes.lerLados ?? ladosGuardados;
+  const apagados = new Set(opcoes.apagadosDepois ?? []);
 
   // O índice como está AGORA (sem a cópia da instância).
   esquecerIndiceVisual();
@@ -419,25 +512,26 @@ export async function preencherImpressoes(
   const existentes = new Set<string>();
   for (const e of manifesto.entradas) {
     const c = caminhoDaEntrada(e.chave);
-    if (c) existentes.add(c);
+    if (c && !apagados.has(c)) existentes.add(c);
   }
   const res: ResultadoDoPreenchimento = {
     fotos: existentes.size,
     jaTinham: 0,
     calculadas: 0,
     semMiniatura: 0,
+    falharam: 0,
     esquecidas: 0,
     faltam: 0,
     parou: null,
   };
 
   // O que já não existe sai — só com o manifesto completo (um incompleto faria
-  // dar por apagadas fotografias que existem).
-  if (manifesto.completo) {
-    const mortas = new Map<string, null>();
-    for (const k of indice.keys()) if (!existentes.has(k)) mortas.set(k, null);
-    if (mortas.size > 0) res.esquecidas = await mudarEntradas(mortas);
-  }
+  // dar por apagadas fotografias que existem). Os apagados depois do
+  // manifesto saem sempre.
+  const mortas = new Map<string, null>();
+  for (const k of indice.keys())
+    if (apagados.has(k) || (manifesto.completo && !existentes.has(k))) mortas.set(k, null);
+  if (mortas.size > 0) res.esquecidas = await mudarEntradas(mortas);
 
   const porFazer: string[] = [];
   for (const c of existentes) {
@@ -448,8 +542,9 @@ export async function preencherImpressoes(
   porFazer.sort();
 
   let i = 0;
+  let vistas = 0;
   while (i < porFazer.length) {
-    if (res.calculadas + res.semMiniatura >= maximo) {
+    if (vistas >= maximo) {
       res.parou = "tecto";
       break;
     }
@@ -457,20 +552,31 @@ export async function preencherImpressoes(
       res.parou = "tempo";
       break;
     }
-    const fatia = porFazer.slice(i, i + Math.min(lote, maximo - res.calculadas - res.semMiniatura));
+    const fatia = porFazer.slice(i, i + Math.min(lote, maximo - vistas));
     i += fatia.length;
-    const novas = new Map<string, string>();
+    vistas += fatia.length;
+    const lidas: { c: string; imp: string | "" }[] = [];
     for (const c of fatia) {
       const bytes = await ler(c).catch(() => null);
-      const imp = bytes ? await impressaoDosBytes(bytes) : null;
-      novas.set(c, imp ?? "");
+      if (bytes === null) {
+        res.falharam++;
+        continue;
+      }
+      const imp = bytes === "nao-existe" ? null : await impressaoDosBytes(bytes);
+      lidas.push({ c, imp: imp ?? "" });
     }
+    const lados = await lerLados(lidas.filter((l) => l.imp).map((l) => l.c)).catch(
+      () => new Map<string, number>(),
+    );
+    const novas = new Map<string, string>();
+    for (const { c, imp } of lidas)
+      novas.set(c, imp ? entradaDoIndice(imp, lados.get(c) ?? 0) : "");
     await mudarEntradas(novas);
     for (const v of novas.values()) {
       if (v) res.calculadas++;
       else res.semMiniatura++;
     }
   }
-  res.faltam = porFazer.length - i;
+  res.faltam = porFazer.length - i + res.falharam;
   return res;
 }

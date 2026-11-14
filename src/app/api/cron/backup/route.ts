@@ -465,7 +465,12 @@ async function GET_semMedida(request: NextRequest) {
     let impressoes: Awaited<ReturnType<typeof preencherImpressoes>> | null = null;
     if (!parcial && fotos)
       try {
-        impressoes = await preencherImpressoes(fotos.manifesto, { prazoMs: 10_000, maximo: 600 });
+        impressoes = await preencherImpressoes(fotos.manifesto, {
+          prazoMs: 10_000,
+          maximo: 600,
+          // O manifesto foi lido ANTES da junção: o que ela apagou não conta.
+          apagadosDepois: duplicados?.caminhosApagados ?? [],
+        });
       } catch (e) {
         log.error("cron backup: o índice visual das fotografias falhou (a cópia seguiu)", e, {
           dia,
@@ -588,7 +593,9 @@ async function GET_semMedida(request: NextRequest) {
       fotosTratadas,
       diagnosticos,
       pastasOrfas,
-      duplicados: duplicados ? { ...duplicados, plano: undefined } : null,
+      duplicados: duplicados
+        ? { ...duplicados, plano: undefined, caminhosApagados: undefined }
+        : null,
       pdfsSubstituidos,
       impressoes,
       ocupacao: ocupacao

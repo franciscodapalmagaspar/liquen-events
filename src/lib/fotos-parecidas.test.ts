@@ -31,7 +31,7 @@ const existe = vi.fn(async () => true as boolean | null);
 vi.mock("@/lib/fotos-resumo", () => ({ existe: (...a: unknown[]) => existe(...(a as [])) }));
 const getTheme = vi.fn(async (id: string) => ({ id, arquivado: false }) as unknown);
 vi.mock("@/lib/themes-store", () => ({ getTheme: (id: string) => getTheme(id) }));
-vi.mock("@/lib/proposal-storage", () => ({ fetchProposalThumbBytes: async () => null }));
+vi.mock("@/lib/biblioteca-fotos-store", () => ({ formasDeCaminhos: async () => new Map() }));
 vi.mock("@/lib/supabase", () => ({ getSupabase: () => null }));
 
 const M = await import("./fotos-parecidas");
@@ -65,10 +65,11 @@ beforeEach(() => {
 describe("quem pode ser devolvido", () => {
   it("a Biblioteca e a pasta DESTE pedido; a pasta de outro pedido nunca", async () => {
     const a = await imp(1);
+    const e = M.entradaDoIndice(a, 2200);
     const indice = new Map([
-      ["outro/x.jpg", a],
-      ["tema:casamentos/y.jpg", a],
-      ["este/z.jpg", a],
+      ["outro/x.jpg", e],
+      ["tema:casamentos/y.jpg", e],
+      ["este/z.jpg", e],
     ]);
     const deste = M.candidatasNoIndice(a, indice, "este").map((c) => c.caminho);
     expect(deste).toContain("tema:casamentos/y.jpg");
@@ -84,8 +85,8 @@ describe("quem pode ser devolvido", () => {
     const a = await imp(1);
     const b = await imp(7);
     const indice = new Map([
-      ["tema:t/b.jpg", b],
-      ["tema:t/a.jpg", a],
+      ["tema:t/b.jpg", M.entradaDoIndice(b, 2200)],
+      ["tema:t/a.jpg", M.entradaDoIndice(a, 2200)],
     ]);
     const c = M.candidatasNoIndice(a, indice, null);
     expect(c[0]).toMatchObject({ caminho: "tema:t/a.jpg", veredicto: "mesma" });
@@ -94,8 +95,8 @@ describe("quem pode ser devolvido", () => {
 
   it("procurar só devolve o que está vivo: tema arquivado ou ficheiro em falta não serve", async () => {
     const a = await imp(2);
-    await M.registarImpressao("tema:arquivado/a.jpg", a);
-    await M.registarImpressao("tema:vivo/a.jpg", a);
+    await M.registarImpressao("tema:arquivado/a.jpg", a, 2200);
+    await M.registarImpressao("tema:vivo/a.jpg", a, 2200);
     getTheme.mockImplementation(async (id: string) => ({ id, arquivado: id === "arquivado" }));
     const r = await M.procurarParecidas([a], null);
     expect(r.get(a)?.caminho).toBe("tema:vivo/a.jpg");
@@ -167,7 +168,7 @@ describe("o preenchimento da noite", () => {
   it("uma sem miniatura fica marcada (não volta a ser lida) e nunca é encontrada", async () => {
     const r = await M.preencherImpressoes(manifesto(3), {
       prazoMs: 60_000,
-      lerMiniatura: async () => null,
+      lerMiniatura: async () => "nao-existe",
     });
     expect(r).toMatchObject({ semMiniatura: 3, calculadas: 0, faltam: 0 });
     const ind = await M.lerIndiceVisual();
@@ -175,8 +176,45 @@ describe("o preenchimento da noite", () => {
     expect(M.candidatasNoIndice(await imp(1), ind!, null)).toEqual([]);
   });
 
+  it("uma leitura que FALHA (rede) não marca nada: volta a ser tentada na noite seguinte", async () => {
+    const r1 = await M.preencherImpressoes(manifesto(3), {
+      prazoMs: 60_000,
+      lerMiniatura: async () => null,
+    });
+    expect(r1).toMatchObject({ falharam: 3, semMiniatura: 0, calculadas: 0, faltam: 3 });
+    expect((await M.lerIndiceVisual())?.size).toBe(0);
+    const ler = vi.fn(miniatura);
+    const r2 = await M.preencherImpressoes(manifesto(3), { prazoMs: 60_000, lerMiniatura: ler });
+    expect(r2).toMatchObject({ calculadas: 3, faltam: 0 });
+    expect(ler).toHaveBeenCalledTimes(3);
+  });
+
+  it("grava o lado maior da fotografia (das medidas guardadas)", async () => {
+    await M.preencherImpressoes(manifesto(2), {
+      prazoMs: 60_000,
+      lerMiniatura: miniatura,
+      lerLados: async (cs) => new Map(cs.map((c) => [c, 2200])),
+    });
+    const ind = await M.lerIndiceVisual();
+    for (const v of ind!.values()) expect(M.lerEntrada(v)?.lado).toBe(2200);
+  });
+
+  it("o que a junção apagou DEPOIS do manifesto não se calcula e sai do índice", async () => {
+    await M.registarImpressao("tema:tema0/f0000.jpg", await imp(4), 2200);
+    const ler = vi.fn(miniatura);
+    const r = await M.preencherImpressoes(manifesto(3), {
+      prazoMs: 60_000,
+      lerMiniatura: ler,
+      apagadosDepois: ["tema:tema0/f0000.jpg", "tema:tema1/f0001.jpg"],
+    });
+    expect(ler).toHaveBeenCalledTimes(1);
+    expect(r.esquecidas).toBe(1);
+    const ind = await M.lerIndiceVisual();
+    expect([...ind!.keys()]).toEqual(["tema:tema2/f0002.jpg"]);
+  });
+
   it("com o manifesto completo, tira do índice o que já não existe", async () => {
-    await M.registarImpressao("tema:velho/x.jpg", await imp(3));
+    await M.registarImpressao("tema:velho/x.jpg", await imp(3), 2200);
     const r = await M.preencherImpressoes(manifesto(2), {
       prazoMs: 60_000,
       lerMiniatura: miniatura,
@@ -187,7 +225,7 @@ describe("o preenchimento da noite", () => {
   });
 
   it("com o manifesto INCOMPLETO, não tira nada", async () => {
-    await M.registarImpressao("tema:velho/x.jpg", await imp(3));
+    await M.registarImpressao("tema:velho/x.jpg", await imp(3), 2200);
     const r = await M.preencherImpressoes(
       { ...manifesto(2), completo: false },
       { prazoMs: 60_000, lerMiniatura: miniatura },
@@ -196,10 +234,34 @@ describe("o preenchimento da noite", () => {
   });
 });
 
+describe("uma fotografia pequena nunca substitui uma maior (revisão de 13/11)", () => {
+  it("guardada mais pequena do que a nova precisa: nem é candidata", async () => {
+    const a = await imp(5);
+    const indice = new Map([["tema:t/pequena.jpg", M.entradaDoIndice(a, 900)]]);
+    expect(M.candidatasNoIndice(a, indice, null, 1800)).toEqual([]);
+    // Uma guardada do tamanho pedido serve.
+    const grande = new Map([["tema:t/grande.jpg", M.entradaDoIndice(a, 2200)]]);
+    expect(M.candidatasNoIndice(a, grande, null, 1800)[0]?.veredicto).toBe("mesma");
+  });
+
+  it("guardada de lado desconhecido: no máximo «talvez» (ela compara)", async () => {
+    const a = await imp(5);
+    const indice = new Map([["tema:t/x.jpg", M.entradaDoIndice(a, 0)]]);
+    expect(M.candidatasNoIndice(a, indice, null, 1800)[0]?.veredicto).toBe("talvez");
+  });
+});
+
+describe("as chaves do índice são índices, não menções", () => {
+  it("o prefixo está na lista que as limpezas da noite ignoram", async () => {
+    const { PREFIXOS_DE_INDICE_DE_FOTOS } = await import("./indices-de-fotos");
+    expect(PREFIXOS_DE_INDICE_DE_FOTOS).toContain(M.PREFIXO_DO_INDICE_VISUAL);
+  });
+});
+
 describe("o que entra no índice", () => {
   it("só impressões bem formadas — nada mais se escreve", async () => {
-    await M.registarImpressao("tema:t/a.jpg", "isto-nao-e-uma-impressao");
-    await M.registarImpressao("tema:t/b.jpg", null);
+    await M.registarImpressao("tema:t/a.jpg", "isto-nao-e-uma-impressao", 2200);
+    await M.registarImpressao("tema:t/b.jpg", null, 2200);
     expect((await M.lerIndiceVisual())?.size).toBe(0);
   });
 });

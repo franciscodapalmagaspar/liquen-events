@@ -12,7 +12,7 @@ import {
 /** O travão: a importação nunca deixa o armazenamento passar de 90% do plano. */
 
 const oc = (bytes: number, completo = true): Ocupacao => ({
-  medidoEm: "2026-11-13T03:00:00Z",
+  medidoEm: new Date(Date.now() - 3600_000).toISOString(),
   bytes,
   porBucket: {},
   completo,
@@ -49,5 +49,14 @@ describe("o travão do armazenamento", () => {
   it("sem medição (ou incompleta), fica o tecto prudente", () => {
     expect(fotosQueCabem(espacoQueSobra(null, {}), 200)).toBe(TECTO_SEM_MEDICAO);
     expect(fotosQueCabem(espacoQueSobra(oc(100_000_000, false), {}), 200)).toBe(TECTO_SEM_MEDICAO);
+  });
+
+  it("uma medição com mais de dois dias já não serve: volta o tecto prudente", () => {
+    const velha = { ...oc(100_000_000), medidoEm: "2026-11-10T03:00:00Z" };
+    const agora = Date.parse("2026-11-12T03:30:00Z");
+    expect(espacoQueSobra(velha, {}, agora).conhecido).toBe(true);
+    const depois = Date.parse("2026-11-13T03:00:00Z");
+    expect(espacoQueSobra(velha, {}, depois).conhecido).toBe(false);
+    expect(fotosQueCabem(espacoQueSobra(velha, {}, depois), 200)).toBe(TECTO_SEM_MEDICAO);
   });
 });

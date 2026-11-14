@@ -42,6 +42,7 @@ vi.mock("./fotos-ja-guardadas", async (orig) => ({
 const impressaoDoNome = (nome: string) => resumoDoNome(nome).repeat(3).slice(0, 86);
 
 import ImportarProposta from "./ImportarProposta";
+import { prepareImageWithThumb } from "./image-prep";
 
 // Dados inventados.
 const FICHEIRO = docx([
@@ -479,7 +480,7 @@ describe("Importar proposta antiga", () => {
       expect(rascunho(chamadas)).toContain("tema:t1/parecida.jpg");
     });
 
-    it("«É outra» sobe e diz ao servidor para não a trocar", async () => {
+    it("«É outra» sobe como nova", async () => {
       const { chamadas, onCreated } = comParecidas();
       await escolherFicheiro();
       const user = userEvent.setup();
@@ -489,9 +490,42 @@ describe("Importar proposta antiga", () => {
         screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
       );
       await waitFor(() => expect(onCreated).toHaveBeenCalled());
-      const e = enviadas(chamadas);
-      expect(e).toHaveLength(1);
-      expect(e[0].get("semParecidas")).toBe("1");
+      expect(enviadas(chamadas)).toHaveLength(1);
+      expect(rascunho(chamadas)).not.toContain("tema:t1/parecida.jpg");
     });
+  });
+
+  it("o armazenamento no travão (507): pára ao primeiro e diz quantas ficaram de fora", async () => {
+    const { chamadas, onCreated } = preparar(false, VINTE_E_CINCO);
+    const antes = globalThis.fetch as unknown as (u: string, i?: RequestInit) => Promise<unknown>;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.endsWith("/assets")) {
+          chamadas.push({ url, init });
+          return {
+            ok: false,
+            status: 507,
+            json: async () => ({ error: "travão", travao: true }),
+          };
+        }
+        return antes(url, init);
+      }),
+    );
+    const user = userEvent.setup();
+    await escolherFicheiro(VINTE_E_CINCO);
+    await user.click(
+      screen.getByRole("button", { name: /Criar o pedido e abrir no Fazer proposta/ }),
+    );
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    // Duas vias: no máximo os dois pedidos que já estavam a caminho.
+    expect(chamadas.filter((c) => c.url.endsWith("/assets")).length).toBeLessThanOrEqual(2);
+    expect(await screen.findByText(/chegou ao travão.*ficaram de fora/)).toBeTruthy();
+    // A capa prepara-se como capa (2 200 px — a capa web grande pede-os); o resto como mood board.
+    expect(prepareImageWithThumb).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "capa.jpeg" }),
+      "cover",
+      "proposta",
+    );
   });
 });

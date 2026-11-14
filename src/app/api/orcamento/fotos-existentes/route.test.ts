@@ -4,7 +4,10 @@ import type { NextRequest } from "next/server";
 const st = vi.hoisted(() => ({
   authed: false,
   procurar: vi.fn(async (_r: unknown[], _q: string | null) => new Map<string, string>()),
-  parecidas: vi.fn(async (_i: unknown[], _q: string | null) => new Map<string, unknown>()),
+  parecidas: vi.fn(
+    async (_i: unknown[], _q: string | null, _l?: Map<string, number>) =>
+      new Map<string, unknown>(),
+  ),
 }));
 
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => st.authed }));
@@ -14,7 +17,8 @@ vi.mock("@/lib/fotos-resumo", () => ({
 }));
 vi.mock("@/lib/fotos-parecidas", () => ({
   MAX_IMPRESSOES_POR_PERGUNTA: 60,
-  procurarParecidas: (i: unknown[], q: string | null) => st.parecidas(i, q),
+  procurarParecidas: (i: unknown[], q: string | null, l: Map<string, number>) =>
+    st.parecidas(i, q, l),
 }));
 vi.mock("@/lib/ocupacao-do-armazenamento", () => ({
   lerEspaco: async () => ({
@@ -95,7 +99,7 @@ describe("POST /api/orcamento/fotos-existentes", () => {
         ],
       ]),
     );
-    const res = await POST(pedido({ resumos: [], impressoes: [imp] }));
+    const res = await POST(pedido({ resumos: [], impressoes: [imp], lados: [1800] }));
     expect(res.status).toBe(200);
     expect((await res.json()).parecidas).toEqual({
       [imp]: {
@@ -105,7 +109,8 @@ describe("POST /api/orcamento/fotos-existentes", () => {
         miniatura: "https://x/tema:t1/y.jpg",
       },
     });
-    expect(st.parecidas).toHaveBeenCalledWith([imp], null);
+    // O lado de que a foto precisa vai com ela (uma guardada mais pequena não serve).
+    expect(st.parecidas).toHaveBeenCalledWith([imp], null, new Map([[imp, 1800]]));
   });
 
   it("recusa mais impressões do que o tecto", async () => {

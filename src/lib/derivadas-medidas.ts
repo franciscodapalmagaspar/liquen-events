@@ -58,3 +58,13 @@ export const MINIATURA = { lado: 400, qualidade: 78 } as const;
  * dela sem importar o `sharp` (`proposta-web/modelo.ts`).
  */
 export const CAPA_WEB_LADO = 2000;
+
+/**
+ * O lado maior a que se guarda uma fotografia NOVA de mood board de uma
+ * proposta (13/11): o que o PDF usa (`LADO_PAGINA`). A capa fica a 2 200 —
+ * ver `PROPOSTA_MAX_EDGE` em `image-prep.ts`.
+ */
+export const LADO_DA_FOTO_DE_PROPOSTA = 1800;
+
+/** O lado maior a que se guarda uma foto de CAPA (de proposta ou da Biblioteca). */
+export const LADO_DA_CAPA = 2200;

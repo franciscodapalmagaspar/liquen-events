@@ -5,6 +5,7 @@ import sharp, { type OutputInfo, type Sharp } from "sharp";
 import { presetDe, PROPOSTA_MAX_EDGE, THUMB_EDGE, THUMB_QUALITY } from "./image-prep";
 import { MID_EDGE, MID_QUALITY } from "./image-worker";
 import { LADO_PAGINA } from "@/lib/pdf-editorial/imagens";
+import { CAPA_WEB_LADO } from "@/lib/derivadas-medidas";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -63,7 +64,11 @@ describe("a fotografia nova de uma proposta", () => {
   it("guarda-se no lado que o PDF usa, nunca acima", () => {
     expect(PROPOSTA_MAX_EDGE).toBe(LADO_PAGINA);
     expect(presetDe("board", "proposta").maxEdge).toBeLessThan(presetDe("board").maxEdge);
-    expect(presetDe("cover", "proposta").maxEdge).toBe(PROPOSTA_MAX_EDGE);
+    // A CAPA fica a 2 200 px: a capa web grande pede 2 000 (revisão de 13/11 —
+    // a 1 800 perdia 7 dB num ecrã de 1 920).
+    expect(presetDe("cover", "proposta").maxEdge).toBe(CAPA_WEB_LADO + 200);
+    expect(presetDe("cover", "proposta").maxEdge).toBeGreaterThanOrEqual(CAPA_WEB_LADO);
+    expect(presetDe("cover", "proposta").derivadas).toBe("webp");
     expect(presetDe("board", "proposta").derivadas).toBe("webp");
     // A Biblioteca fica como estava.
     expect(presetDe("cover")).toMatchObject({ maxEdge: 2200, derivadas: "jpeg" });

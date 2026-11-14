@@ -127,6 +127,17 @@ describe("as fotografias de pedidos que já não existem (10/11)", () => {
     expect(st.estado[CHAVE]).toEqual({});
   });
 
+  it("os índices das fotografias (`foto-resumo:`, `foto-visual:`) não são menções: apaga na mesma", async () => {
+    st.tabelas.app_state = [
+      ...(st.tabelas.app_state ?? []),
+      { key: "foto-visual:2a", value: { "LIQ-APAGADO-1/b.jpg": "f".repeat(86) } },
+      { key: "foto-resumo:" + "a".repeat(32), value: ["LIQ-APAGADO-1/c.jpg"] },
+    ];
+    await limparPastasDePedidosApagados(dia1);
+    await limparPastasDePedidosApagados(dia9);
+    expect(st.apagadas).toEqual(["LIQ-APAGADO-1"]);
+  });
+
   it("se uma leitura da base de dados falha, não apaga nem mexe na espera", async () => {
     await limparPastasDePedidosApagados(dia1);
     st.tabelas.invoices = null;

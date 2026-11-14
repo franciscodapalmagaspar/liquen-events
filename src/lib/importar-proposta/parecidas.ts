@@ -37,6 +37,12 @@ export interface FotoAPerguntar {
   caminho: string;
   resumo?: string | null;
   impressao?: string | null;
+  /**
+   * O lado de que esta foto precisa: o lado maior dela, até ao que se
+   * guardaria (1 800 num mood board, 2 200 na capa). Uma guardada mais
+   * pequena nunca a substitui — sobe a nova.
+   */
+  lado?: number | null;
 }
 
 export interface Duvida {

@@ -34,7 +34,7 @@ import { useToast } from "./Toast";
 import { Button, EmCurso, Field, FolhaOuDialogo, Segmented } from "./ui";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { prepareImageWithThumb } from "./image-prep";
-import { enviarFotoDaProposta } from "./enviar-foto-da-proposta";
+import { ArmazenamentoNoTravao, enviarFotoDaProposta } from "./enviar-foto-da-proposta";
 import { fingerprintBlob } from "@/lib/theme-fingerprint";
 import {
   classificarGuardadas,
@@ -50,6 +50,7 @@ import {
   type EspacoNoArmazenamento,
 } from "@/lib/ocupacao-do-armazenamento-regras";
 import { impressaoDoFicheiro, perguntarGuardadas } from "./fotos-ja-guardadas";
+import { LADO_DA_CAPA, LADO_DA_FOTO_DE_PROPOSTA } from "@/lib/derivadas-medidas";
 import ParecidasParaConfirmar from "./ParecidasParaConfirmar";
 
 /**
@@ -121,12 +122,36 @@ function aPerguntar(
   caminhos: readonly string[],
   resumos: ReadonlyMap<string, string>,
   impressoes: ReadonlyMap<string, string>,
+  /** caminho → o lado de que a foto precisa (ver `FotoAPerguntar.lado`). */
+  lados: ReadonlyMap<string, number> = new Map(),
 ): FotoAPerguntar[] {
   return caminhos.map((caminho) => ({
     caminho,
     resumo: resumos.get(caminho) ?? null,
     impressao: impressoes.get(caminho) ?? null,
+    lado: lados.get(caminho) ?? null,
   }));
+}
+
+/**
+ * O lado de que cada foto precisa: o dela (pelo cabeçalho), até ao que se
+ * guardaria — a capa a 2 200, um mood board a 1 800 (`image-prep.ts`). Uma
+ * guardada mais pequena do que isto não a substitui.
+ */
+function ladosPedidos(
+  fotos: readonly FotoDoFicheiro[],
+  destinos: readonly { caminho: string; destino: "capa" | "moodboard" }[],
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const f of fotos) {
+    if (!f.largura || !f.altura) continue;
+    const capa = destinos.find((d) => d.caminho === f.caminho)?.destino === "capa";
+    out.set(
+      f.caminho,
+      Math.min(Math.max(f.largura, f.altura), capa ? LADO_DA_CAPA : LADO_DA_FOTO_DE_PROPOSTA),
+    );
+  }
+  return out;
 }
 
 type Passo = "escolher" | "a-ler" | "rever" | "a-criar";
@@ -303,10 +328,12 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       );
       // Antes de escolher: quais destas já estão guardadas (não gastam tecto).
       const { resumos: r, impressoes: im } = await resumosDasFotos(lidas.fotos);
+      const lados = ladosPedidos(lidas.fotos, p.fotos);
       const pergunta = aPerguntar(
         lidas.fotos.map((f) => f.caminho),
         r,
         im,
+        lados,
       );
       const { resposta, espaco: e } = await perguntarGuardadas(pergunta);
       const { existentes: ja, duvidas: d } = classificarGuardadas(pergunta, resposta);
@@ -395,6 +422,9 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       // As que subiram NESTA importação. `carregadas` não serve para isto: já
       // traz as que estavam guardadas, e a paragem nunca disparava.
       let subiramAgora = 0;
+      // O armazenamento chegou ao travão (507): pára tudo, e diz-se quantas
+      // ficaram de fora.
+      let noTravao = false;
       const subir = async (lista: readonly FotoDoFicheiro[]) => {
         let proxima = 0;
         const via = async () => {
@@ -404,19 +434,26 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
             // Três falhas sem nenhuma a passar é o armazenamento que não está
             // lá (não uma foto má): parar, em vez de tentar as outras.
             if (falhasAgora >= 3 && subiramAgora === 0) return;
+            if (noTravao) return;
             const f = lista[i];
             try {
-              const preparada = await prepareImageWithThumb(f.ficheiro, "board", "proposta");
+              // A capa guarda-se como capa (2 200 px — a capa web grande pede-os).
+              const capa = proposta.fotos.find((x) => x.caminho === f.caminho)?.destino === "capa";
+              const preparada = await prepareImageWithThumb(
+                f.ficheiro,
+                capa ? "cover" : "board",
+                "proposta",
+              );
               const im = await enviarFotoDaProposta(quote.id, {
                 ...preparada,
                 resumo: resumos.get(f.caminho) ?? null,
-                semParecidas: decisoes.get(f.caminho) === "outra",
                 importacao: true,
               });
               carregadas.set(f.caminho, im.path);
               subiramAgora++;
             } catch (e) {
               falhasAgora++;
+              if (e instanceof ArmazenamentoNoTravao) noTravao = true;
               if (!porque && e instanceof Error) porque = e.message;
             } finally {
               feitas++;
@@ -443,6 +480,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
           daBiblioteca.map((f) => f.caminho),
           resumos,
           impressoes,
+          ladosPedidos(daBiblioteca, proposta.fotos),
         );
         const { resposta } = await perguntarGuardadas(pergunta);
         const mortas: FotoDoFicheiro[] = [];
@@ -474,7 +512,15 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
         throw new Error(typeof d?.erro === "string" ? d.erro : "");
       }
       const subiram = deviamSubir.filter((f) => carregadas.has(f.caminho)).length;
-      if (subiram === 0 && deviamSubir.length > 0) {
+      if (noTravao) {
+        const n = deviamSubir.length - subiram;
+        toast(
+          `O armazenamento chegou ao travão (90% do plano): ${
+            n === 1 ? "uma fotografia ficou" : `${n} fotografias ficaram`
+          } de fora. As outras estão na proposta.`,
+          "error",
+        );
+      } else if (subiram === 0 && deviamSubir.length > 0) {
         toast(
           `O pedido e a proposta foram criados, mas nenhuma fotografia carregou${porque ? ` (${porque})` : ""}. Podes juntá-las no Fazer proposta.`,
           "error",

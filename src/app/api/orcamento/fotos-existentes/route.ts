@@ -45,7 +45,7 @@ export const maxDuration = 10;
  * responde também `parecidas`: a guardada mais parecida, com o veredicto
  * («mesma» → usa-se; «talvez» → ela compara as duas e escolhe) e a miniatura
  * assinada dela. E `espaco`: quanto sobra até ao travão de 90% do plano.
- * Custo a mais: a leitura do índice visual (64 linhas de `app_state`, ~250 KB
+ * Custo a mais: a leitura do índice visual (64 linhas de `app_state`, ~0,5 MB
  * com 3 000 fotos, guardada 5 min na instância), comparações em memória, um
  * HEAD por candidata e uma leitura de duas linhas para o espaço.
  */
@@ -56,6 +56,7 @@ async function POST_semMedida(request: NextRequest) {
   const corpo = (await request.json().catch(() => null)) as {
     resumos?: unknown;
     impressoes?: unknown;
+    lados?: unknown;
     quoteId?: unknown;
   } | null;
   const resumos = Array.isArray(corpo?.resumos) ? corpo.resumos : null;
@@ -76,13 +77,21 @@ async function POST_semMedida(request: NextRequest) {
     );
   }
   const quoteId = typeof corpo?.quoteId === "string" && corpo.quoteId ? corpo.quoteId : null;
+  // `lados[i]`: o lado de que a foto `impressoes[i]` precisa — uma guardada
+  // mais pequena nunca a substitui (`candidatasNoIndice`).
+  const ladosCrus = Array.isArray(corpo?.lados) ? corpo.lados : [];
+  const ladosPedidos = new Map<string, number>();
+  impressoes.forEach((imp, i) => {
+    const l = Number(ladosCrus[i]);
+    if (typeof imp === "string" && Number.isFinite(l) && l > 0) ladosPedidos.set(imp, l);
+  });
   const [existentes, parecidas, espaco] = await Promise.all([
     procurarExistentes(resumos, quoteId).catch((e) => {
       // Não saber não trava nada: o navegador sobe tudo, como antes.
       log.warn("fotos-existentes: índice ilegível", { erro: String(e) });
       return new Map<string, string>();
     }),
-    procurarParecidas(impressoes, quoteId).catch(() => new Map<string, Parecida>()),
+    procurarParecidas(impressoes, quoteId, ladosPedidos).catch(() => new Map<string, Parecida>()),
     lerEspaco().catch(() => null),
   ]);
   // A miniatura da que já está guardada, para ela comparar lado a lado.
