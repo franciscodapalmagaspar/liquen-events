@@ -69,4 +69,18 @@ describe("o tecto de fotos do PDF e os mood boards", () => {
     expect([...r.dentro].sort()).toEqual(["TESTE/a.jpg", "TESTE/b.jpg", "TESTE/capa.jpg"]);
     expect(r.aMais).toBe(0);
   });
+  it("a ★ de fora trava mesmo quando outra foto do board entrou (por ser a capa)", () => {
+    // 82 boards de 2 fotos; a capa é a 2.ª foto do último board. Entram a capa
+    // e 79 ★: a ★ do board 81 fica de fora, embora ele não fique vazio.
+    const doc = {
+      coverImages: ["TESTE/b81f1.jpg"],
+      moodBoards: boards(82, 2),
+    } as unknown as Partial<ProposalDoc>;
+    const r = fotosNoTectoDoPdf(doc);
+    expect(r.dentro.has("TESTE/b81f1.jpg")).toBe(true);
+    expect(r.dentro.has("TESTE/b81f0.jpg")).toBe(false);
+    expect(r.boardsVazios).toContain(81);
+    expect(r.queTravam.has("TESTE/b81f0.jpg")).toBe(true);
+    expect(r.queTravam.has("TESTE/b81f1.jpg")).toBe(false);
+  });
 });

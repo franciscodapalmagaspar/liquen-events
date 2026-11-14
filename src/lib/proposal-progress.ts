@@ -291,8 +291,8 @@ export function fraseDasFotosAMais(n: number): string {
  */
 export function fraseDosBoardsSemFotos(n: number): string {
   return n === 1
-    ? `1 mood board fica sem nenhuma fotografia no PDF (leva até ${FOTOS_NO_TECTO_DO_PDF} fotografias diferentes) — tira um mood board ou algumas das escolhidas para as páginas`
-    : `${n} mood boards ficam sem nenhuma fotografia no PDF (leva até ${FOTOS_NO_TECTO_DO_PDF} fotografias diferentes) — tira alguns mood boards ou algumas das escolhidas para as páginas`;
+    ? `1 mood board fica sem a sua fotografia principal no PDF (leva até ${FOTOS_NO_TECTO_DO_PDF} fotografias diferentes) — tira um mood board ou algumas das escolhidas para as páginas`
+    : `${n} mood boards ficam sem a sua fotografia principal no PDF (leva até ${FOTOS_NO_TECTO_DO_PDF} fotografias diferentes) — tira alguns mood boards ou algumas das escolhidas para as páginas`;
 }
 
 /** «2026-10-09» → «09/10/2026», para a frase. */

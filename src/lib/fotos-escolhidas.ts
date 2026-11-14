@@ -174,10 +174,14 @@ export function fotosNoTectoDoPdf(
     : fotosEscolhidasDoDocumento({ coverImages: doc.coverImages });
   const boards = doc.moodBoards ?? [];
   /** A ★ de cada board: a primeira com alguma coisa pela ordem do desenho. */
-  const principais = boards.flatMap((b) => {
-    if (!b || !Array.isArray(b.images)) return [];
+  const principalDe = (b: (typeof boards)[number]): string | undefined => {
+    if (!b || !Array.isArray(b.images)) return undefined;
     const k = ordemDoDesenho(b).find((i) => preenchida(b.images[i]));
-    return k === undefined ? [] : [b.images[k]];
+    return k === undefined ? undefined : b.images[k];
+  };
+  const principais = boards.flatMap((b) => {
+    const p = principalDe(b);
+    return p === undefined ? [] : [p];
   });
   const pelaOrdem: string[] = [
     ...escolhidas.map((f) => f.ref),
@@ -201,10 +205,17 @@ export function fotosNoTectoDoPdf(
   const queTravam = new Set(escolhidasDeFora.map((f) => f.ref));
   const boardsVazios: number[] = [];
   boards.forEach((b, i) => {
-    const fotos = (b?.images ?? []).filter(preenchida);
-    if (fotos.length === 0 || fotos.some((r) => dentro.has(r))) return;
+    // Um board trava quando a SUA ★ fica de fora — não só quando fica sem
+    // nenhuma foto. Uma outra foto dele pode ter entrado por ser escolhida à
+    // mão (ex.: a capa), e o motor desenhava-a no lugar da ★ sem ela a ter
+    // escolhido (4.ª revisão de 14/11, importante n.º 1).
+    const principal = principalDe(b);
+    if (principal === undefined || dentro.has(principal)) return;
     boardsVazios.push(i);
-    for (const r of fotos) queTravam.add(r);
+    for (const r of (b?.images ?? []).filter(preenchida)) {
+      if (!dentro.has(r)) queTravam.add(r);
+    }
+    queTravam.add(principal);
   });
   return {
     dentro,

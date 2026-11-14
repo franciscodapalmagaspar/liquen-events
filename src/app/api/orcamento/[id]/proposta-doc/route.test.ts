@@ -2676,7 +2676,7 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o envio recusa uma propo
     const r = await recusa(doc);
     expect(r.status).toBe(422);
     expect(r.ids).toContain("fotos-a-mais");
-    expect(r.error).toMatch(/6 mood boards ficam sem nenhuma fotografia no PDF/);
+    expect(r.error).toMatch(/6 mood boards ficam sem a sua fotografia principal no PDF/);
     expect(renderStoredEditorialPdfWithReport).not.toHaveBeenCalled();
     expect(sendMail).not.toHaveBeenCalled();
     const final = await POST(previewReq(doc), { params });

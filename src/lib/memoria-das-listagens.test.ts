@@ -50,26 +50,41 @@ describe("listagemComMemoria — `desde`", () => {
     expect(listar).toHaveBeenCalledTimes(2);
   });
 
-  it("a folga: uma listagem começada até 5 s antes do `desde` ainda serve; 6 s antes, não", async () => {
+  it("um `desde` novo renova UMA vez por instância, seja qual for o relógio do navegador", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(2_000_000);
     const listar = vi.fn(async () => ["x"]);
     await listagemComMemoria("b", "p", listar);
+    // Navegador ATRASADO 60 s: o `desde` parece «antes» da listagem guardada,
+    // mas a mudança aconteceu depois dela — tem de relistar.
     vi.setSystemTime(2_010_000);
-    await listagemComMemoria("b", "p", listar, { desde: 2_000_000 + FOLGA_DO_RELOGIO_MS });
-    expect(listar).toHaveBeenCalledTimes(1);
-    await listagemComMemoria("b", "p", listar, { desde: 2_000_000 + FOLGA_DO_RELOGIO_MS + 1_000 });
+    await listagemComMemoria("b", "p", listar, { desde: 2_010_000 - 60_000 });
+    expect(listar).toHaveBeenCalledTimes(2);
+    // O mesmo `desde` a seguir já não relista.
+    vi.setSystemTime(2_011_000);
+    await listagemComMemoria("b", "p", listar, { desde: 2_010_000 - 60_000 });
     expect(listar).toHaveBeenCalledTimes(2);
   });
 
-  it("um `desde` no futuro (relógio adiantado) conta como agora — não lista a cada pedido", async () => {
+  it("navegador ADIANTADO: a 1 pedido por segundo durante 3 min, lista UMA vez (e não de 5 em 5 s)", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(3_000_000);
+    const t0 = 3_000_000;
     const listar = vi.fn(async () => ["x"]);
-    const desde = 3_000_000 + 60_000;
-    await listagemComMemoria("b", "p", listar, { desde });
-    vi.setSystemTime(3_002_000);
-    await listagemComMemoria("b", "p", listar, { desde });
+    const desde = t0 + 60_000;
+    for (let s = 0; s < 180; s++) {
+      vi.setSystemTime(t0 + s * 1_000);
+      await listagemComMemoria("b", "p", listar, { desde });
+    }
+    expect(listar).toHaveBeenCalledTimes(1);
+  });
+
+  it("a folga: uma listagem começada pouco antes de o servidor ver o `desde` ainda serve", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(5_000_000);
+    const listar = vi.fn(async () => ["x"]);
+    await listagemComMemoria("b", "p", listar);
+    vi.setSystemTime(5_000_000 + FOLGA_DO_RELOGIO_MS - 1);
+    await listagemComMemoria("b", "p", listar, { desde: 42 });
     expect(listar).toHaveBeenCalledTimes(1);
   });
 

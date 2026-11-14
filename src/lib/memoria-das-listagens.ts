@@ -93,18 +93,44 @@ const RESPOSTAS: Loja = {
  * nova. Antes (`fresco=1`, 2.ª revisão) só renovava a instância que recebia o
  * primeiro pedido de cada página; as outras serviam a listagem velha.
  *
- * Um `desde` no futuro (relógio do navegador adiantado) conta como «agora»:
- * nunca se exige uma listagem mais nova do que o próprio servidor.
+ * O `desde` só identifica a mudança: o instante que conta é aquele em que
+ * esta instância o viu pela primeira vez (ver `primeiroVisto`), por isso um
+ * relógio do navegador adiantado ou atrasado não muda nada.
  */
 export interface OpcoesDaMemoria {
   desde?: number;
 }
 
+/**
+ * Quando ESTA instância viu cada `desde` pela primeira vez (relógio do
+ * servidor). O `desde` vem do relógio do navegador, que pode estar adiantado
+ * ou atrasado; compará-lo com o relógio do servidor fazia uma de duas coisas
+ * más (revisão de 14/11, 4.ª): adiantado, o limite andava com o «agora» e a
+ * pasta relistava-se de 5 em 5 s durante 3 min; atrasado, servia-se a
+ * listagem de antes da mudança. Ancorado no instante em que o servidor o viu,
+ * cada `desde` renova a pasta UMA vez por instância, com qualquer desvio.
+ */
+const primeiroVisto = new Map<number, number>();
+const MAX_DESDE = 500;
+/** Um `desde` vive 3 min no navegador; aqui guarda-se um pouco mais. */
+const VIDA_DO_DESDE_MS = 2 * MEMORIA_MS;
+
 /** O instante a partir do qual uma listagem serve, ou `null` se qualquer uma serve. */
 function limiteDe(opcoes: OpcoesDaMemoria, agora: number): number | null {
   const d = opcoes.desde;
   if (typeof d !== "number" || !Number.isFinite(d) || d <= 0) return null;
-  return Math.min(d, agora) - FOLGA_DO_RELOGIO_MS;
+  let visto = primeiroVisto.get(d);
+  if (visto === undefined || agora - visto > VIDA_DO_DESDE_MS) {
+    for (const [k, v] of primeiroVisto) if (agora - v > VIDA_DO_DESDE_MS) primeiroVisto.delete(k);
+    while (primeiroVisto.size >= MAX_DESDE) {
+      const maisVelho = primeiroVisto.keys().next().value;
+      if (maisVelho === undefined) break;
+      primeiroVisto.delete(maisVelho);
+    }
+    visto = agora;
+    primeiroVisto.set(d, visto);
+  }
+  return visto - FOLGA_DO_RELOGIO_MS;
 }
 
 /**
@@ -218,6 +244,7 @@ export function esquecerListagens(): void {
   respostas.clear();
   respostasEmCurso.clear();
   respostasMarca.clear();
+  primeiroVisto.clear();
 }
 
 /** Só para os testes: quantas pastas estão guardadas. */

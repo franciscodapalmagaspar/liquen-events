@@ -718,7 +718,7 @@ describe("as fotografias a mais para o PDF", () => {
     const f = oQueFaltaParaEnviar(doc, 3250).find((x) => x.id === "fotos-a-mais");
     expect(f?.trava).toBe(true);
     expect(f?.texto).toBe(
-      "6 mood boards ficam sem nenhuma fotografia no PDF (leva até 80 fotografias diferentes) — tira alguns mood boards ou algumas das escolhidas para as páginas",
+      "6 mood boards ficam sem a sua fotografia principal no PDF (leva até 80 fotografias diferentes) — tira alguns mood boards ou algumas das escolhidas para as páginas",
     );
     expect(podeEnviar(doc, 3250)).toBe(false);
   });
