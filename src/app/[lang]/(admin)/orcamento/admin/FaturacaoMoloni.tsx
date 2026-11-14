@@ -63,6 +63,8 @@ interface Dados {
     estado: "aceite" | "rascunho" | "enviada";
     /** Os valores de cada serviço vieram do estúdio (ver o GET da rota). */
     linhasDoEstudio?: boolean;
+    /** Porque é que as linhas do estúdio não se usaram (ver o GET da rota). */
+    porqueNaoUsouEstudio?: string | null;
     versaoEscolhida: VersaoEscolhida | null;
     doc: DocParaFaturar & { depositPercent?: number };
   } | null;
@@ -272,6 +274,11 @@ export default function FaturacaoMoloni({
       {podeFaturar && dados?.proposta?.linhasDoEstudio && (
         <p className="mb-3 text-[11px] leading-relaxed text-[var(--bo-text-faint)]">
           Os valores de cada serviço são os que estão no estúdio — o total é o da proposta aceite.
+        </p>
+      )}
+      {podeFaturar && dados?.proposta?.porqueNaoUsouEstudio && (
+        <p className="mb-3 text-[11px] leading-relaxed text-[var(--bo-text-faint)]">
+          {dados.proposta.porqueNaoUsouEstudio}
         </p>
       )}
 

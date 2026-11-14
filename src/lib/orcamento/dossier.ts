@@ -123,7 +123,10 @@ export interface ContractedAmounts {
  * a margem, que antes comparavam um total sem IVA com pagamentos/custos com IVA
  * (erro de ~23% nos negócios de preço manual).
  */
-export function contractedAmounts(quote: Quote, proposal?: Proposal | null): ContractedAmounts {
+export function contractedAmounts(
+  quote: Quote,
+  proposal?: Pick<Proposal, "total" | "subtotal" | "vatRate"> | null,
+): ContractedAmounts {
   /**
    * ── O IVA SAI SEMPRE POR SUBTRACÇÃO ──────────────────────────────────────
    * `net + iva` tem de dar `gross` ao cêntimo, venha o total de onde vier.
@@ -176,7 +179,7 @@ export function contractedAmounts(quote: Quote, proposal?: Proposal | null): Con
  * 20 000 € pagos e 4 600 € por cobrar — e a margem do evento, receita líquida
  * contra custos brutos, saía inflacionada na mesma proporção.
  */
-function contractedTotal(d: DossierData): number {
+function contractedTotal(d: DadosDaFase): number {
   return contractedAmounts(d.quote, d.proposal).gross;
 }
 
@@ -231,12 +234,83 @@ export function estaTudoPago(total: number, pago: number): boolean {
   return totalCent > 0 && pagoCent >= totalCent - Math.round(FOLGA_DO_PAGO * 100);
 }
 
+/** O que a fase lê da proposta: o estado e o dinheiro. Nada do documento. */
+export type PropostaDaFase = Partial<Pick<Proposal, "status">> &
+  Pick<Proposal, "total" | "subtotal" | "vatRate">;
+
+/**
+ * O que `deriveStage` lê. É o {@link DossierData} com a proposta reduzida ao
+ * que a fase usa, mais um aviso: `proposalDesconhecida` quando quem chama
+ * ainda não sabe que proposta conta (ver `faseDoPedido`).
+ */
+export interface DadosDaFase {
+  quote: Quote;
+  proposal: PropostaDaFase | null;
+  contract: DossierContract | null;
+  proposalDesconhecida?: boolean;
+}
+
+/**
+ * A proposta que conta, tal como chega à lista (`/api/propostas?semDoc=1`,
+ * com o `totalAPagar` da versão escolhida) ou ao dossiê (a proposta inteira,
+ * já com o total a pagar por cima — ver `evento/[id]/page.tsx`).
+ */
+export type PropostaParaAFase = Partial<
+  Pick<Proposal, "status" | "total" | "subtotal" | "vatRate">
+> & {
+  totalAPagar?: number;
+  subtotalAPagar?: number;
+};
+
+/** O primeiro número finito da lista, ou 0. */
+function primeiroNumero(...valores: (number | undefined)[]): number {
+  for (const v of valores) if (typeof v === "number" && Number.isFinite(v)) return v;
+  return 0;
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * A FASE DE UM PEDIDO — A MESMA NA LISTA E NO DOSSIÊ
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Auditoria de 14/11: a lista (o `LifecycleStepper`) chamava `deriveStage` sem
+ * proposta e o dossiê com ela — e davam fases diferentes ao mesmo casamento,
+ * com a lista a dizer «Concluído» havendo dinheiro por receber. As duas passam
+ * por aqui, com a MESMA proposta (`propostaQueConta`) e o MESMO total (o que o
+ * casal tem a pagar pela versão que escolheu).
+ *
+ * `proposta`:
+ *   · um objecto — a proposta que conta;
+ *   · `null`     — o pedido não tem proposta que conte (vale o preço do pedido);
+ *   · `undefined` — ainda não se sabe (a lista leve não chegou ou falhou):
+ *                   nunca se diz «concluído» às cegas.
+ */
+export function faseDoPedido(
+  quote: Quote,
+  proposta: PropostaParaAFase | null | undefined,
+  contract: DossierContract | null = null,
+  today: Date = new Date(),
+): EventStage {
+  const proposal: PropostaDaFase | null = proposta
+    ? {
+        status: proposta.status,
+        vatRate: primeiroNumero(proposta.vatRate),
+        total: primeiroNumero(proposta.totalAPagar, proposta.total),
+        subtotal: primeiroNumero(proposta.subtotalAPagar, proposta.subtotal),
+      }
+    : null;
+  return deriveStage(
+    { quote, proposal, contract, proposalDesconhecida: proposta === undefined },
+    today,
+  );
+}
+
 /**
  * Máquina de estados do Dossier. Calcula os booleanos e escolhe a fase mais
  * avançada alcançada (primeira coincidência ganha, topo = mais avançado).
  * A implementação segue à letra a tabela do plano.
  */
-export function deriveStage(d: DossierData, today: Date = new Date()): EventStage {
+export function deriveStage(d: DadosDaFase, today: Date = new Date()): EventStage {
   const { quote, proposal, contract } = d;
 
   const perdido = quote.status === "rejeitado" || proposal?.status === "rejeitada";
@@ -270,18 +344,26 @@ export function deriveStage(d: DossierData, today: Date = new Date()): EventStag
   // (auditoria de 13/11, n.º 5). Sem total nenhum, não há com que comparar, e
   // vale a linha de saldo recebida, como sempre.
   //
-  // Mas só com a PROPOSTA à frente. Sem ela (o indicador de fase da lista
-  // chama isto com `proposal: null`), o «contratado» seria a estimativa ou o
-  // preço cotado, que não são o que o casal aceitou — e um evento todo pago
-  // ficava preso em «em produção» na lista enquanto o dossiê dizia
-  // «concluído». Aí vale, como sempre, a linha de saldo recebida.
+  // E vale com OU sem proposta (auditoria de 14/11). Havia um ramo «sem
+  // proposta» em que bastava uma linha de saldo recebida — de 1 € que fosse —
+  // ou o recebido chegar à ESTIMATIVA do formulário para o evento passar a
+  // «concluído». O indicador da lista chamava isto sempre com
+  // `proposal: null`: um casamento aceite por 30 000 €, estimado em 8 000 € e
+  // com 9 000 € pagos aparecia «Concluído» na lista e «Em produção» no
+  // dossiê. A lista passou a dar a proposta que conta (`faseDoPedido`), e a
+  // linha de saldo só decide quando não há total NENHUM com que comparar.
+  //
+  // `proposalDesconhecida`: quem chama ainda não sabe que proposta conta (a
+  // lista leve não chegou, ou falhou). Não se pode afirmar «tudo pago» sem o
+  // total — fica por receber até se saber.
   const saldoLinhaRecebida = (quote.payments ?? []).some(
     (p) => p.kind === "saldo" && p.paid && p.amount > 0,
   );
-  const saldoPago =
-    proposal && contracted > 0
+  const saldoPago = d.proposalDesconhecida
+    ? false
+    : contracted > 0
       ? estaTudoPago(contracted, pago)
-      : saldoLinhaRecebida || (contracted > 0 && estaTudoPago(contracted, pago));
+      : saldoLinhaRecebida;
 
   const sinalPago = (quote.payments ?? []).some(
     (p) => p.kind === "sinal" && p.paid && p.amount > 0,

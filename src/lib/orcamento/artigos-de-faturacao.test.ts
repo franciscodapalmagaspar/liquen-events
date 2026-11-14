@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { seloDoConteudo } from "@/lib/proposta-versao";
 import {
+  aceiteComLinhasDoEstudio,
   artigoSugerido,
   definirArtigoDaLinha,
   definirArtigoDoAdicional,
@@ -392,5 +393,116 @@ describe("subpontos — só para nós (6/11)", () => {
     expect(seloDoConteudo({ doc: com, total: 6150 })).toBe(
       seloDoConteudo({ doc: sem, total: 6150 }),
     );
+  });
+});
+
+/**
+ * Auditoria de 14/11, n.º 2: as linhas do estúdio comparavam-se pela base da
+ * proposta INTEIRA — e o Moloni faturava a versão errada.
+ */
+describe("aceiteComLinhasDoEstudio — compara a VERSÃO aceite, e não a proposta inteira", () => {
+  // Aceite na versão BASE: 10 000 € escritos, o Cocktail (extra) a 2 000 € →
+  // o casal aceitou 8 000 € sem IVA. A Decoração não tem preço: não fecha.
+  const aceite = {
+    budgetItems: ["Decoração", "Cocktail"],
+    budgetAmounts: [null, 2000],
+    budgetOpcional: [false, true],
+    budgetArtigos: [null, null],
+    budgetExtras: [],
+    totalAmount: 10000,
+    totalVatMode: "acrescer",
+    vatRate: 0.23,
+  } as unknown as DocParaFaturar;
+  // O estúdio, preenchido depois: Decoração 6 000 € + Cocktail 4 000 € (extra).
+  // A proposta inteira dá os mesmos 10 000 €; a versão base dá 6 000 €.
+  const estudio = {
+    ...aceite,
+    budgetAmounts: [6000, 4000],
+    budgetArtigos: ["flores", "servico"],
+  } as unknown as DocParaFaturar;
+
+  it("não usa as linhas do estúdio quando a versão aceite não bate — e diz porquê", () => {
+    expect(faturacaoPorArtigo(aceite, "base").base).toBe(8000);
+    const r = aceiteComLinhasDoEstudio(aceite, estudio, "base");
+    expect(r.doEstudio).toBe(false);
+    expect(r.doc).toBe(aceite);
+    expect(r.porqueNao).toMatch(/6\s?000,00\s€.*8\s?000,00\s€/);
+    // O que o Moloni receberia: nada, até a faturação da aceite fechar.
+    expect(faturacaoPorArtigo(r.doc, "base").fecha).toBe(false);
+  });
+
+  it("usa-as quando a versão aceite bate ao cêntimo e fecham", () => {
+    const certo = {
+      ...estudio,
+      budgetAmounts: [8000, 2000],
+    } as unknown as DocParaFaturar;
+    const r = aceiteComLinhasDoEstudio(aceite, certo, "base");
+    expect(r.doEstudio).toBe(true);
+    expect(r.porqueNao).toBeUndefined();
+    const f = faturacaoPorArtigo(r.doc, "base");
+    expect(f.fecha).toBe(true);
+    expect(f.base).toBe(8000);
+  });
+
+  it("um cêntimo de diferença já não bate", () => {
+    const quase = { ...estudio, budgetAmounts: [7999.99, 2000.01] } as unknown as DocParaFaturar;
+    expect(aceiteComLinhasDoEstudio(aceite, quase, "base").doEstudio).toBe(false);
+  });
+
+  it("sem versão escolhida compara a proposta inteira, como sempre", () => {
+    const r = aceiteComLinhasDoEstudio(aceite, estudio, undefined);
+    // Inteira: 10 000 € dos dois lados, e o estúdio fecha (6 000 + 4 000).
+    expect(r.doEstudio).toBe(true);
+    expect(faturacaoPorArtigo(r.doc).base).toBe(10000);
+  });
+});
+
+/**
+ * Auditoria de 14/11, n.º 3: um desconto com artigo próprio deixava esse
+ * artigo negativo — era deitado fora, e a faturação «fechava» 500 € acima.
+ */
+describe("faturacaoPorArtigo — um artigo que soma zero ou menos não fecha", () => {
+  const comDesconto = (artigoDoDesconto: string) =>
+    ({
+      budgetItems: ["Flores", "Desconto"],
+      budgetAmounts: [5000, -500],
+      budgetArtigos: ["flores", artigoDoDesconto],
+      budgetExtras: [],
+      totalAmount: 4500,
+      totalVatMode: "acrescer",
+      vatRate: 0.23,
+    }) as unknown as DocParaFaturar;
+
+  it("Flores 5 000 € + Desconto −500 € no Serviço: não fecha, e diz porquê", () => {
+    const f = faturacaoPorArtigo(comDesconto("servico"));
+    expect(f.modo).toBe("linhas");
+    expect(f.base).toBe(4500);
+    expect(f.fecha).toBe(false);
+    expect(f.falta).toBe(-500);
+    expect(f.porqueNaoFecha.join(" ")).toMatch(/Serviço.*−?-?500,00\s€/);
+  });
+
+  it("o mesmo desconto no artigo das Flores fecha nos 4 500 €", () => {
+    const f = faturacaoPorArtigo(comDesconto("flores"));
+    expect(f.fecha).toBe(true);
+    expect(f.falta).toBe(0);
+    expect(f.artigos).toEqual([
+      { artigo: "flores", nome: "Flores e Elementos de Decoração", valor: 4500 },
+    ]);
+  });
+
+  it("um artigo que soma exactamente zero também não se fatura", () => {
+    const d = {
+      budgetItems: ["Flores", "Montagem", "Montagem oferecida"],
+      budgetAmounts: [5000, 300, -300],
+      budgetArtigos: ["flores", "servico", "servico"],
+      budgetExtras: [],
+      totalAmount: 5000,
+      totalVatMode: "acrescer",
+      vatRate: 0.23,
+    } as unknown as DocParaFaturar;
+    const f = faturacaoPorArtigo(d);
+    expect(f.fecha).toBe(false);
+    expect(f.porqueNaoFecha.join(" ")).toMatch(/Serviço/);
   });
 });

@@ -381,3 +381,37 @@ describe("useCachedList — voltar ao separador só relê quem o pede", () => {
     }
   });
 });
+
+/**
+ * Auditoria de 14/11 (custo): a fase do pedido na lista lê a lista leve de
+ * propostas SEM pedido próprio — cada leitura dessa rota lê a tabela inteira,
+ * mesmo quando responde 304.
+ */
+describe("useCachedList — `pedir: false` só ouve a cache", () => {
+  it("não faz pedido nenhum ao montar, e recebe os dados quando outro os traz", async () => {
+    const { result } = renderHook(() =>
+      useCachedList<number[]>("so-ouvir", "/api/x", { pedir: false }),
+    );
+    expect(requests).toHaveLength(0);
+    expect(result.current.data).toBeUndefined();
+
+    replies = [{ status: 200, body: [1, 2], etag: '"a"' }];
+    await act(async () => {
+      prefetchList("so-ouvir", "/api/x");
+    });
+    await waitFor(() => expect(result.current.data).toEqual([1, 2]));
+    expect(requests).toHaveLength(1);
+  });
+
+  it("com a cache já cheia, mostra-a logo e continua sem pedir", async () => {
+    replies = [{ status: 200, body: [7], etag: '"b"' }];
+    prefetchList("so-ouvir-2", "/api/y");
+    await waitFor(() => expect(requests).toHaveLength(1));
+    await new Promise((r) => setTimeout(r, 0));
+    const { result } = renderHook(() =>
+      useCachedList<number[]>("so-ouvir-2", "/api/y", { pedir: false }),
+    );
+    await waitFor(() => expect(result.current.data).toEqual([7]));
+    expect(requests).toHaveLength(1);
+  });
+});

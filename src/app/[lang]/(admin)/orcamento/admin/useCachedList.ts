@@ -226,6 +226,15 @@ export interface OpcoesDaLista {
    * tarefas do pedido).
    */
   revalidarAoVoltar?: boolean;
+  /**
+   * `false`: só OUVIR a cache, sem perguntar nada ao servidor ao montar. Para
+   * quem precisa de um facto de uma lista que outro já pede (o aquecimento em
+   * ociosidade do AdminClient, os painéis), e não pode pagar mais uma leitura
+   * da tabela inteira por isso — a fase do pedido na lista lê assim a lista
+   * leve de propostas (auditoria de 14/11). Recebe os dados quando alguém os
+   * trouxer. Por omissão, `true`: pergunta, como sempre.
+   */
+  pedir?: boolean;
 }
 
 export function useCachedList<T>(
@@ -234,6 +243,7 @@ export function useCachedList<T>(
   opcoes: OpcoesDaLista = {},
 ): CachedList<T> {
   const revalidarAoVoltar = opcoes.revalidarAoVoltar === true;
+  const pedir = opcoes.pedir !== false;
   const cached = cache.get(key) as Entry<T> | undefined;
   const [data, setDataState] = useState<T | undefined>(cached?.data);
   // Only the true first load (nothing cached) shows the skeleton.
@@ -275,9 +285,10 @@ export function useCachedList<T>(
     // Silent revalidation when we already have cached data (no skeleton). The
     // setState happens asynchronously inside revalidate() after the fetch — this
     // is the intended stale-while-revalidate flow, not a synchronous cascade.
+    if (!pedir) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     revalidate(cache.has(key));
-  }, [revalidate, key]);
+  }, [revalidate, key, pedir]);
 
   // Inscreve este ecrã na lista: o que outro ecrã escrever nela chega aqui.
   useEffect(() => {
@@ -285,11 +296,17 @@ export function useCachedList<T>(
     let daChave = ouvintes.get(key);
     if (!daChave) ouvintes.set(key, (daChave = new Set()));
     daChave.add(ouvir);
+    // Quem só ouve não volta a perguntar: se a cache se encheu entre o
+    // primeiro desenho e esta inscrição, o aviso já passou — apanha-se aqui.
+    if (!pedir) {
+      const agora = cache.get(key);
+      if (agora && agora.data !== dataRef.current) ouvir(agora.data);
+    }
     return () => {
       daChave.delete(ouvir);
       if (daChave.size === 0) ouvintes.delete(key);
     };
-  }, [key]);
+  }, [key, pedir]);
 
   /**
    * ── VOLTAR AO SEPARADOR É VOLTAR A PERGUNTAR ─────────────────────────────

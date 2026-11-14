@@ -108,6 +108,8 @@ import { useCamadaDeHistoria } from "./useCamadaDeHistoria";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
 import EmptyState from "./EmptyState";
 import LifecycleStepper, { deriveRequestLifecycle } from "./LifecycleStepper";
+import { propostaDaFaseDoPedido, usePropostasLevesSoOuvir } from "./percentagem-do-sinal";
+import type { PropostaParaAFase } from "@/lib/orcamento/dossier";
 import { NAV, CORE_NAV, MORE_NAV, BARRA_INFERIOR, ROTULO_CURTO, type View } from "./nav";
 import { useDesceu } from "./ui/adaptativo";
 import { Escolha } from "./ui/Escolha";
@@ -390,8 +392,11 @@ const DETAIL_TABS: { id: DetailTab; label: string; hint: string; icon: ReactNode
     ),
   },
 ];
-function detailNextAction(quote: Quote): { label: string; hint: string; tab: DetailTarget } {
-  const { perdido, currentIndex, allDone } = deriveRequestLifecycle(quote);
+function detailNextAction(
+  quote: Quote,
+  proposta: PropostaParaAFase | null | undefined,
+): { label: string; hint: string; tab: DetailTarget } {
+  const { perdido, currentIndex, allDone } = deriveRequestLifecycle(quote, proposta);
   if (perdido)
     return { label: "Reabrir pedido", hint: "Voltar a colocar em revisão", tab: "gestao" };
   if (allDone)
@@ -1317,6 +1322,9 @@ export default function AdminClient({
   // o elemento da lista passa a ser o pedido INTEIRO devolvido pelo servidor.
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes);
   const [selected, setSelected] = useState<Quote | null>(null);
+  // A lista leve de propostas, SÓ OUVIDA (sem pedido novo): a fase do pedido
+  // aberto lê dela o total a pagar da proposta que conta, como o dossiê.
+  const propostasLeves = usePropostasLevesSoOuvir();
 
   /**
    * ══════════════════════════════════════════════════════════════════════════
@@ -3531,7 +3539,7 @@ export default function AdminClient({
     );
     // Open on the tools tab that matches where this pedido is in its lifecycle.
     // Pedido NOVO: os separadores visitados do anterior não valem para este.
-    const target = detailNextAction(q).tab;
+    const target = detailNextAction(q, propostaDaFaseDoPedido(propostasLeves, q.id)).tab;
     abrirPrimeiroDetailTab(target === "gestao" ? "comunicacao" : target);
   }
   // Stable identity for the memoised QuoteCard's onOpen prop. `irFazerAProposta`
@@ -7698,7 +7706,10 @@ export default function AdminClient({
                         abaixo — nada fica escondido atrás de revelações. */}
                       <div className="mx-auto flex w-full max-w-3xl flex-col gap-[var(--bo-gap-vista)] px-3.5 py-3.5 sm:px-7 sm:py-8">
                         {/* Ciclo de vida — em que fase está o pedido, num relance. */}
-                        <LifecycleStepper quote={selected} />
+                        <LifecycleStepper
+                          quote={selected}
+                          proposta={propostaDaFaseDoPedido(propostasLeves, selected.id)}
+                        />
 
                         {/* ── «JÁ RESPONDERAM?», TAMBÉM AQUI ─────────────────
                           O mesmo gesto do cartão da lista, no sítio onde ela
@@ -7761,8 +7772,9 @@ export default function AdminClient({
                         {/* Próxima ação — o único passo seguinte, em destaque. Abre a
                           ferramenta certa dentro da área avançada. */}
                         {(() => {
-                          const na = detailNextAction(selected);
-                          const reopen = deriveRequestLifecycle(selected).perdido;
+                          const daFase = propostaDaFaseDoPedido(propostasLeves, selected.id);
+                          const na = detailNextAction(selected, daFase);
+                          const reopen = deriveRequestLifecycle(selected, daFase).perdido;
                           return (
                             <div>
                               <button

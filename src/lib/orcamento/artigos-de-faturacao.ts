@@ -1,10 +1,5 @@
 import type { ProposalDoc, SubpontoDoOrcamento } from "@/lib/proposal-doc";
-import {
-  adicionarLinha,
-  dinheiroDaProposta,
-  precosDe,
-  somaDosExtrasSemIva,
-} from "@/lib/proposal-budget";
+import { adicionarLinha, precosDe, somaDosExtrasSemIva } from "@/lib/proposal-budget";
 import { opcionaisDe, totalDaVersaoAceite, type VersaoEscolhida } from "./versoes-da-proposta";
 import { eur, round2, splitSinal } from "@/lib/money";
 
@@ -222,12 +217,35 @@ export function faturacaoPorArtigo(doc: DocParaFaturar, versao?: VersaoEscolhida
     const semArtigo = linhas.filter((l) => !l.artigo && (l.valor ?? 0) !== 0);
     if (semArtigo.length > 0)
       porqueNaoFecha.push(frasePorFalta(semArtigo, "não tem artigo", "não têm artigo"));
+    // ── UM ARTIGO QUE SOMA ZERO OU MENOS NÃO SE FATURA (auditoria de 14/11) ──
+    // Um desconto com artigo próprio (Flores 5 000 € + «Desconto» −500 € no
+    // Serviço) deixava o Serviço a −500 €. O filtro abaixo (só valores > 0)
+    // deitava-o fora, a repartição ficava 500 € acima do total — e dizia
+    // «fecha». Não se fatura um artigo negativo; diz-se, e não fecha.
+    const comLinhasComValor = new Set(
+      linhas.filter((l) => l.artigo && (l.valor ?? 0) !== 0).map((l) => l.artigo!),
+    );
+    for (const a of ARTIGOS) {
+      const v = round2(porArtigo.get(a.id) ?? 0);
+      if (comLinhasComValor.has(a.id) && v <= 0)
+        porqueNaoFecha.push(
+          `«${a.nome}» soma ${eur(v)}: um artigo não se fatura a zero nem a menos. ` +
+            `Põe o desconto no mesmo artigo do serviço a que se aplica.`,
+        );
+    }
     const artigos = ARTIGOS.filter((a) => (porArtigo.get(a.id) ?? 0) > 0).map((a) => ({
       artigo: a.id,
       nome: a.nome,
       valor: round2(porArtigo.get(a.id)!),
     }));
     const repartido = round2(artigos.reduce((s, a) => s + a.valor, 0));
+    const faltaLinhas = round2(t.base - repartido);
+    if (Math.abs(faltaLinhas) > 0.005 && porqueNaoFecha.length === 0)
+      porqueNaoFecha.push(
+        faltaLinhas > 0
+          ? `Os artigos somam ${eur(faltaLinhas)} a menos do que o total.`
+          : `Os artigos somam ${eur(-faltaLinhas)} a mais do que o total.`,
+      );
     return {
       fecha: porqueNaoFecha.length === 0,
       porqueNaoFecha,
@@ -235,7 +253,7 @@ export function faturacaoPorArtigo(doc: DocParaFaturar, versao?: VersaoEscolhida
       bruto: t.bruto,
       vatRate: t.vatRate,
       repartido,
-      falta: round2(t.base - repartido),
+      falta: faltaLinhas,
       artigos,
       modo: "linhas",
       linhas,
@@ -723,14 +741,21 @@ function linhasDosSubpontos(
  * Uma proposta aceite antes de haver preço por linha — ou aceite e só depois
  * preenchida no estúdio — tem os valores no rascunho do estúdio e não no
  * documento aceite. Usam-se as linhas do estúdio SÓ quando o dinheiro é o
- * mesmo: a base sem IVA igual ao cêntimo e a faturação a fechar. Senão fica a
- * aceite tal como está, e o cartão diz o que falta.
+ * mesmo: a base sem IVA DA VERSÃO ACEITE igual ao cêntimo e a faturação a
+ * fechar. Senão fica a aceite tal como está, e `porqueNao` diz porquê.
+ *
+ * ── A VERSÃO, E NÃO A PROPOSTA INTEIRA (auditoria de 14/11) ─────────────────
+ * Comparava-se a base da proposta INTEIRA. Com a versão base aceite por
+ * 8 000 € e o estúdio com Decoração 6 000 € + Cocktail 4 000 € (extra), as
+ * duas inteiras davam 10 000 € e «batiam» — e o rascunho do Moloni saía
+ * sobre 6 000 €, a base do estúdio, e não sobre os 8 000 € que o casal
+ * aceitou. Compara-se o que se vai faturar: a versão escolhida dos dois lados.
  */
 export function aceiteComLinhasDoEstudio(
   aceite: DocParaFaturar,
   estudio: DocParaFaturar | null | undefined,
   versao?: VersaoEscolhida,
-): { doc: DocParaFaturar; doEstudio: boolean } {
+): { doc: DocParaFaturar; doEstudio: boolean; porqueNao?: string } {
   if (!estudio || faturacaoPorArtigo(aceite, versao).fecha)
     return { doc: aceite, doEstudio: false };
   const junto = {
@@ -742,14 +767,26 @@ export function aceiteComLinhasDoEstudio(
     budgetOpcional: estudio.budgetOpcional,
     budgetExtras: estudio.budgetExtras,
   } as DocParaFaturar;
-  const igual =
-    Math.abs(
-      dinheiroDaProposta(junto as ProposalDoc).base -
-        dinheiroDaProposta(aceite as ProposalDoc).base,
-    ) < 0.005;
-  return igual && faturacaoPorArtigo(junto, versao).fecha
-    ? { doc: junto, doEstudio: true }
-    : { doc: aceite, doEstudio: false };
+  const doEstudio = totalDaVersaoAceite(junto, versao).base;
+  const daAceite = totalDaVersaoAceite(aceite, versao).base;
+  if (Math.round(doEstudio * 100) !== Math.round(daAceite * 100)) {
+    return {
+      doc: aceite,
+      doEstudio: false,
+      porqueNao:
+        `As linhas do estúdio dão ${eur(doEstudio)} sem IVA na versão aceite, e o casal ` +
+        `aceitou ${eur(daAceite)}: não se usam.`,
+    };
+  }
+  const fJunto = faturacaoPorArtigo(junto, versao);
+  if (!fJunto.fecha) {
+    return {
+      doc: aceite,
+      doEstudio: false,
+      porqueNao: ["As linhas do estúdio não fecham:", ...fJunto.porqueNaoFecha].join(" "),
+    };
+  }
+  return { doc: junto, doEstudio: true };
 }
 
 /** Os campos do documento que a faturação lê — e só esses. */
