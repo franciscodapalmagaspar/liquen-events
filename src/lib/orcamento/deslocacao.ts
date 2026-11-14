@@ -232,7 +232,11 @@ export function kmSugerido(
 }
 
 const eur = (n: number) =>
-  new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(n);
+  new Intl.NumberFormat("pt-PT", {
+    useGrouping: "always",
+    style: "currency",
+    currency: "EUR",
+  }).format(n);
 
 /**
  * Quanto cobrar para ir a este sítio.
@@ -323,6 +327,7 @@ export function rotuloDeslocacao(s: SugestaoDeslocacao): { label: string; valueT
   return {
     label: "Deslocação",
     valueText: `${new Intl.NumberFormat("pt-PT", {
+      useGrouping: "always",
       style: "currency",
       currency: "EUR",
       minimumFractionDigits: 2,

@@ -88,7 +88,11 @@ export function totalDaLinha(
 }
 
 const eur = (n: number) =>
-  new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(n || 0);
+  new Intl.NumberFormat("pt-PT", {
+    useGrouping: "always",
+    style: "currency",
+    currency: "EUR",
+  }).format(n || 0);
 
 /** "13 mesas × 45 €", "125 pessoas × 12 €". Vazio para as linhas fixas. */
 export function formulaDaLinha(escala: Escala | null, convidados: number, porMesa: number): string {

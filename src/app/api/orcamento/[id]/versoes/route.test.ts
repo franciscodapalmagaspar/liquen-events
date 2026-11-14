@@ -70,8 +70,8 @@ describe("a lista", () => {
     // O preço SUBIU de 8800 para 9500. Comparar ao contrário (que é o que a
     // ordem da store dá de graça) dizia o inverso, e essa frase ia ao telefone.
     const v3 = body.versoes[0];
-    expect(v3.resumo).toContain("8800");
-    expect(v3.resumo.indexOf("8800")).toBeLessThan(v3.resumo.indexOf("9500"));
+    expect(v3.resumo).toContain("8\u00A0800");
+    expect(v3.resumo.indexOf("8\u00A0800")).toBeLessThan(v3.resumo.indexOf("9\u00A0500"));
   });
 
   it("a primeira versão não inventa alterações", async () => {

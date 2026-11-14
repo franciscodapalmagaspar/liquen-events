@@ -38,6 +38,8 @@ import {
   agruparTarefas,
   contarPorLista,
   listasDeEvento,
+  nomeDoEvento,
+  type NomesDosPedidos,
   ordemVisivel,
   ordenarTarefas,
   pertenceALista,
@@ -415,6 +417,7 @@ function BarraDeListas({
 
 const TaskRow = memo(function TaskRow({
   t,
+  nomeDoCliente,
   overdue,
   arrastavel,
   escolhida,
@@ -429,6 +432,13 @@ const TaskRow = memo(function TaskRow({
   onArrastar,
 }: {
   t: Task;
+  /**
+   * O nome do evento: o do PEDIDO quando a tarefa o tem, senão o `clientName`
+   * (ver `nomeDoEvento`). Uma tarefa gravada sem `clientName` mostrava a linha
+   * sem nome nenhum, com o grupo por cima a dizê-lo (revisão de 14/11). Uma
+   * string, e não o mapa, para o `memo` da linha continuar a valer.
+   */
+  nomeDoCliente: string;
   overdue: boolean;
   /**
    * ── A COSTURA DO ARRASTAR, E ONDE ELA FICA ──────────────────────────────
@@ -667,7 +677,7 @@ const TaskRow = memo(function TaskRow({
               {t.area}
             </span>
           )}
-          {t.clientName && <span className="text-foreground/25">{t.clientName}</span>}
+          {nomeDoCliente && <span className="text-foreground/25">{nomeDoCliente}</span>}
         </div>
       </div>
       {/* ── A SEGUNDA LINHA DO CARTÃO ────────────────────────────────────────
@@ -835,8 +845,14 @@ const TaskRow = memo(function TaskRow({
 export default function Tarefas({
   defaultAssignee = "",
   pedidoDeNova = 0,
+  nomesDosPedidos,
 }: {
   defaultAssignee?: string;
+  /**
+   * O nome de cada pedido pelo id: uma tarefa gravada sem `clientName` vai
+   * buscá-lo aqui, em vez de cair em «Evento sem nome» (auditoria de 14/11).
+   */
+  nomesDosPedidos?: NomesDosPedidos;
   /**
    * Sobe de um sempre que a barra de cima pede uma tarefa nova — o botão
    * «Nova tarefa» ou o ⌘N. Ver a nota no `AdminClient`: é um contador e não um
@@ -1589,7 +1605,7 @@ export default function Tarefas({
    * O filtro por pessoa aperta o CONTEÚDO da lista escolhida; a barra continua
    * a contar a casa toda.
    */
-  const eventos = useMemo(() => listasDeEvento(tasks), [tasks]);
+  const eventos = useMemo(() => listasDeEvento(tasks, nomesDosPedidos), [tasks, nomesDosPedidos]);
   const contas = useMemo(
     () => contarPorLista(tasks, todayStr, eventos),
     [tasks, todayStr, eventos],
@@ -1628,8 +1644,8 @@ export default function Tarefas({
   /* Repartir é a outra pergunta, e é a última: agrupa-se o que já está
      ordenado, para a ordem escolhida valer DENTRO de cada cabeçalho. */
   const grupos = useMemo(
-    () => agruparTarefas(open, agrupamento, todayStr),
-    [open, agrupamento, todayStr],
+    () => agruparTarefas(open, agrupamento, todayStr, nomesDosPedidos),
+    [open, agrupamento, todayStr, nomesDosPedidos],
   );
 
   /* Quantas já passaram do prazo. É a metade da verdade que «8 por fazer»
@@ -2066,6 +2082,7 @@ export default function Tarefas({
       <TaskRow
         key={t.id}
         t={t}
+        nomeDoCliente={nomeDoEvento(t, nomesDosPedidos)}
         overdue={!!t.dueDate && !t.done && t.dueDate < todayStr}
         arrastavel={arrastavel}
         escolhida={escolhida === t.id}

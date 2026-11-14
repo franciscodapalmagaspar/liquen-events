@@ -1304,6 +1304,7 @@ function oQueSePerdeComOPedido(q: Quote | null): string[] {
   if (q.quotedPrice) {
     linhas.push(
       `o valor combinado, ${q.quotedPrice.toLocaleString("pt-PT", {
+        useGrouping: "always",
         style: "currency",
         currency: "EUR",
       })}`,
@@ -1326,6 +1327,11 @@ export default function AdminClient({
   // estado tem mesmo de ser `Quote[]`: assim que um pedido é aberto ou gravado,
   // o elemento da lista passa a ser o pedido INTEIRO devolvido pelo servidor.
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes);
+  // Para as Tarefas: o nome de cada pedido, pelo id (ver `NomesDosPedidos`).
+  const nomesDosPedidos = useMemo(
+    () => new Map(quotes.map((q) => [q.id, q.name] as const)),
+    [quotes],
+  );
   const [selected, setSelected] = useState<Quote | null>(null);
   // A lista leve de propostas, SÓ OUVIDA (sem pedido novo): a fase do pedido
   // aberto lê dela o total a pagar da proposta que conta, como o dossiê.
@@ -6622,7 +6628,11 @@ export default function AdminClient({
           {/* ── Tarefas ── */}
           {view === "tarefas" && (
             <div className={`${VIEW_WRAP} view-in`}>
-              <Tarefas defaultAssignee={userName} pedidoDeNova={pedidoDeNovaTarefa} />
+              <Tarefas
+                defaultAssignee={userName}
+                pedidoDeNova={pedidoDeNovaTarefa}
+                nomesDosPedidos={nomesDosPedidos}
+              />
             </div>
           )}
 

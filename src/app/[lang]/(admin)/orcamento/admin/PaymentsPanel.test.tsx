@@ -282,10 +282,10 @@ describe("PaymentsPanel — o sinal sugerido é o da proposta", () => {
       quotedPrice: 4.323,
     } as unknown as Quote);
 
-    await waitFor(() => expect(screen.getAllByText("5317,29 €").length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText("5 317,29 €").length).toBeGreaterThan(0));
     expect(screen.queryByText("5,32 €")).not.toBeInTheDocument();
     // O sinal de 30% sai do total aceite.
-    expect(screen.getByRole("button", { name: /Sinal 30%/ }).textContent).toMatch(/1595,19/);
+    expect(screen.getByRole("button", { name: /Sinal 30%/ }).textContent).toMatch(/1\s595,19/);
   });
 
   it("os meios habituais aparecem com ícone, e um clique escreve o método", async () => {

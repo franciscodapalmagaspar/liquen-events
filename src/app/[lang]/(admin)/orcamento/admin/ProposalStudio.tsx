@@ -112,6 +112,7 @@ type CanalDeEnvio = "email" | "whatsapp" | "ambos";
 const CANAL_GUARDADO = "liquen-canal-de-envio";
 import PorqueNaoDaParaEnviar from "./PorqueNaoDaParaEnviar";
 import { ControlosDoEnvio, PainelDoEnvio, PastilhaDoEnvio } from "./BarraDoEnvioCompacta";
+import { destinoDoEnvio } from "@/lib/orcamento/destino-do-envio";
 import VistaDeConjunto from "./VistaDeConjunto";
 import EscolherDisposicao from "./EscolherDisposicao";
 import PaginaEditorial, { fontesDasFolhas } from "./PaginaEditorial";
@@ -4637,7 +4638,7 @@ export default function ProposalStudio({
     // O número sai da MESMA lista que a vista de conjunto desenha. Eram duas
     // contas sobre o mesmo documento — «7 páginas» na vista e «cerca de 14» na
     // frase — e discordavam porque contavam coisas diferentes.
-    `PDF com cerca de ${planoDoPdf.length}${tempoDaProposta}`;
+    `PDF com cerca de ${planoDoPdf.length} ${planoDoPdf.length === 1 ? "página" : "páginas"}${tempoDaProposta}`;
 
   /**
    * ── OS TÍTULOS QUE SE LÊEM COMO O MESMO NOME ────────────────────────────
@@ -8742,7 +8743,10 @@ export default function ProposalStudio({
   );
   const faltasDoEnvio = oQueFaltaParaEnviar(doc as ProposalDoc, money.gross, contextoDoBotao);
   /** O sinal de cada passo na barra de cima — das mesmas duas listas. */
-  const estadosDosPassos = estadoDosPassos(seccoes, faltas, sent);
+  // A MESMA lista do botão de enviar e da Conferência (`faltasDoEnvio`), e não
+  // a de cima: com a de cima o «5 Rever e enviar» mostrava o visto enquanto a
+  // Conferência travava com «Falta ver o PDF final» (auditoria de 14/11, n.º 4).
+  const estadosDosPassos = estadoDosPassos(seccoes, faltasDoEnvio, sent);
   /** Os passos 1 a 4 partilham o MESMO contentor, sempre montado. */
   const noFormulario = PASSOS_DO_FORMULARIO.includes(step);
   // A regra das FOTOS POR CONFIRMAR fica aqui e não em `proposal-progress`:
@@ -8913,7 +8917,13 @@ export default function ProposalStudio({
           existe para o truncar deixar de empurrar, aqui deixava-o chegar a zero.
           É o padrão a evitar em todo o back office: texto e barra de acções na
           mesma linha só a partir de `sm`. */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      {/* ── E A FILA PERGUNTA À CAIXA (auditoria de 14/11, n.º 2) ─────────
+          Com `sm:` a fila abria aos 640 px de JANELA. A 768 o grupo dos botões
+          era `shrink-0` e pedia 794: a página ganhava scroll de lado, o
+          «Trocar de cliente» ficava cortado e o nome do cliente encolhia para
+          10 px. Os seis botões pedem ~740 px; a fila só abre quando a CAIXA
+          tem 64rem, e até lá empilha — o nome em cima, os botões por baixo. */}
+      <div className="mb-4 flex flex-col gap-3 @min-[64rem]:flex-row @min-[64rem]:items-start @min-[64rem]:justify-between">
         {/* ── O CABEÇALHO CUSTAVA UM TERÇO DO ECRÃ DELA ────────────────────
             Somando as classes num iPhone SE (375×667), gastavam-se ~702 px
             antes do primeiro campo onde ela escreve — ou seja, ele nascia
@@ -8961,7 +8971,7 @@ export default function ProposalStudio({
         </div>
         {/* `flex-wrap` e não `shrink-0`: com três botões a 375 px, um deles
             saía pela margem direita e ficava cortado ("Limpa…"). */}
-        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+        <div className="flex flex-wrap items-center gap-2 @min-[64rem]:shrink-0">
           {/* A acção principal desta secção: quase todas as propostas são uma
               variação de uma anterior. É a única aqui a verde. */}
           <Button
@@ -9308,7 +9318,7 @@ export default function ProposalStudio({
           {step !== "inspiracao" && (
             <NavEstudio
               seccoes={seccoes}
-              faltas={faltas}
+              faltas={faltasDoEnvio}
               onSeccaoActual={anotarSeccao}
               porTraduzir={traducoesPorSeccao}
               onIr={(seccao) => irParaAFalta(seccao)}
@@ -11162,7 +11172,7 @@ export default function ProposalStudio({
                                   }
                                   data-campo={`budgetArtigo:${i}`}
                                   aria-label={`Artigo do Moloni de ${l.item || "linha sem nome"}`}
-                                  className={`bo-input w-auto max-w-full px-2 py-1 text-[11px] ${
+                                  className={`bo-input w-auto min-w-0 max-w-full px-2 py-1 text-[11px] ${
                                     artigosDoDoc[i]
                                       ? "text-[var(--bo-tinta-72)]"
                                       : "border-dashed text-[var(--bo-text-muted)]"
@@ -11624,7 +11634,7 @@ export default function ProposalStudio({
                                   }
                                   data-campo={`extraArtigo:${i}`}
                                   aria-label={`Artigo do Moloni de ${ex.label?.trim() || "linha adicional sem nome"}`}
-                                  className={`bo-input w-auto max-w-full px-2 py-1 text-[11px] ${
+                                  className={`bo-input w-auto min-w-0 max-w-full px-2 py-1 text-[11px] ${
                                     artigoDoAdicional(ex)
                                       ? "text-[var(--bo-tinta-72)]"
                                       : "border-dashed text-[var(--bo-text-muted)]"
@@ -13139,7 +13149,22 @@ export default function ProposalStudio({
                 toda da barra, e `justify-end` para continuar encostado à
                 direita), e a linha e a divisória saem quando a caixa não dá
                 ~120 px à linha: 27rem com o «anterior», 20rem sem ele. */}
-            <div className="@container flex min-w-0 flex-1 items-center justify-end gap-3">
+            {/* ── E O TOTAL NUNCA SAI (auditoria de 14/11, n.º 1) ──────────
+                O `@container` deste grupo foi-se. Um contentor de tamanho
+                inline MEDE ZERO para quem o embrulha a abraçar o conteúdo — e
+                a barra, a partir de 40rem, é `w-fit`. MEDIDO a 1440 e a 768:
+                o grupo ficava com 0 px, o `@max-[20rem]:hidden` apagava o
+                total, e a barra encolhia para 26 px com os botões a sair por
+                fora. A 390, a partir do passo 2, o «anterior» tirava-lhe o
+                lugar na mesma.
+
+                Palavras dela: «não quero fazer scroll para saber quanto vai a
+                proposta». Por isso quem cede espaço numa caixa estreita são
+                os BOTÕES — o nome do passo passa a só se ouvir (`sr-only`) e
+                fica a seta —, e o total não cede nunca (`shrink-0`). As
+                perguntas de largura são feitas à caixa de cima, que é um
+                bloco e mede a sério. */}
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
               {/* ── A ETIQUETA VIAJA COM O NÚMERO ────────────────────────────
                     A escolha acima — no telemóvel, o que o CLIENTE paga — estava
                     certa. O que estava errado era a palavra: «Total» ficava FORA
@@ -13178,19 +13203,18 @@ export default function ProposalStudio({
                   a linha fica quieta. É o mesmo que o bloco de totais aqui em baixo
                   já faz (ver `LinhaDeTotal`). */}
               <p
-                className={`min-w-0 truncate text-xs tabular-nums text-[var(--bo-text-muted)] ${
-                  passoAoLado(step, -1) ? "@max-[27rem]:hidden" : "@max-[20rem]:hidden"
-                }`}
+                data-total-da-barra
+                className="shrink-0 whitespace-nowrap text-xs tabular-nums text-[var(--bo-text-muted)]"
               >
                 {money.base > 0 ? (
                   <>
-                    <span className="sm:hidden">
+                    <span className="@min-[48rem]:hidden">
                       <span className="text-foreground/45">A pagar</span>{" "}
                       <strong className="font-semibold text-[var(--bo-text)]">
                         {eur(totais.aPagar)}
                       </strong>
                     </span>
-                    <span className="hidden sm:inline">
+                    <span className="hidden @min-[48rem]:inline">
                       <span className="text-foreground/45">Total</span>{" "}
                       <strong className="font-semibold text-[var(--bo-text)]">
                         {eur(totais.total)}
@@ -13206,8 +13230,8 @@ export default function ProposalStudio({
                        o que fazer a seguir. Fica, numa versão curta que cabe na
                        barra sem ser cortada pelo `truncate` do `<p>`. */
                   <>
-                    <span className="sm:hidden">Preenche e avança.</span>
-                    <span className="hidden sm:inline">
+                    <span className="@min-[48rem]:hidden">Preenche e avança.</span>
+                    <span className="hidden @min-[48rem]:inline">
                       Preenche este passo e avança para o seguinte.
                     </span>
                   </>
@@ -13218,12 +13242,7 @@ export default function ProposalStudio({
                   da casa. Diz que o número e o botão são vizinhos de propósito e não
                   a mesma coisa — que é precisamente o que um espaço não conseguia
                   dizer. `aria-hidden` porque não há nada aqui para ouvir. */}
-              <span
-                aria-hidden
-                className={`h-5 w-px shrink-0 bg-[var(--bo-hairline-strong)] ${
-                  passoAoLado(step, -1) ? "@max-[27rem]:hidden" : "@max-[20rem]:hidden"
-                }`}
-              />
+              <span aria-hidden className="h-5 w-px shrink-0 bg-[var(--bo-hairline-strong)]" />
               {/* ══════════════════════════════════════════════════════════════
                 O «GUARDAR AGORA» SAIU — MENOS NO ÚNICO CASO EM QUE ERA A ÚNICA
                 MANEIRA DE GRAVAR
@@ -13270,18 +13289,37 @@ export default function ProposalStudio({
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="shrink-0"
                   onClick={() => setStep(passoAoLado(step, -1) as Step)}
+                  // O nome inteiro, dito de uma vez: com o nome do passo num
+                  // `<span>` à parte o Chromium lia «Seguinte : Serviços».
+                  aria-label={`← ${nomeDoPasso(passoAoLado(step, -1) as Step, !isDeco)}`}
                 >
-                  ← {nomeDoPasso(passoAoLado(step, -1) as Step, !isDeco)}
+                  {/* Um <span> só à volta: o botão é `flex` com `gap`, e cada
+                      filho solto ganhava um espaço à frente («Seguinte : …»). */}
+                  <span>
+                    ←
+                    <span className="@max-[36rem]:sr-only">
+                      {" "}
+                      {nomeDoPasso(passoAoLado(step, -1) as Step, !isDeco)}
+                    </span>
+                  </span>
                 </Button>
               )}
               <Button
                 size="sm"
                 variant="primary"
+                className="shrink-0"
                 onClick={() => setStep(passoAoLado(step, 1) as Step)}
                 iconRight={<span aria-hidden="true">→</span>}
+                aria-label={`Seguinte: ${nomeDoPasso(passoAoLado(step, 1) as Step, !isDeco)}`}
               >
-                Seguinte: {nomeDoPasso(passoAoLado(step, 1) as Step, !isDeco)}
+                <span>
+                  Seguinte
+                  <span className="@max-[36rem]:sr-only">
+                    : {nomeDoPasso(passoAoLado(step, 1) as Step, !isDeco)}
+                  </span>
+                </span>
               </Button>
             </div>
           </>
@@ -13746,10 +13784,17 @@ export default function ProposalStudio({
                  e prometer um número exacto seria mentir na última frase. */
               <div className="ml-auto flex max-w-lg flex-col items-end gap-2">
                 <p className="text-right text-sm leading-relaxed text-[var(--bo-tinta-72)]">
-                  Enviar para{" "}
-                  <strong className="font-medium text-[var(--bo-text)]">
-                    {quote.email || "o cliente"}
-                  </strong>
+                  {/* O canal e o contacto CERTOS (auditoria de 14/11, n.º 3):
+                      com «WhatsApp» isto perguntava pelo email. */}
+                  {destinoDoEnvio(canal, quote.email, quote.phone).map((p, i) =>
+                    p.contacto ? (
+                      <strong key={i} className="font-medium text-[var(--bo-text)]">
+                        {p.texto}
+                      </strong>
+                    ) : (
+                      p.texto
+                    ),
+                  )}
                   ? Vai um PDF de cerca de {planoDoPdf.length} páginas,{" "}
                   {idiomaDoPdf === "en" ? "em inglês" : "em português"}, com{" "}
                   <strong className="font-medium text-[var(--bo-text)]">
@@ -13807,6 +13852,24 @@ export default function ProposalStudio({
                     idioma={idiomaDoPdf}
                     onAbrir={() => setFolhaDoEnvio(true)}
                   />
+                )}
+                {/* ── O TOTAL TAMBÉM AQUI (auditoria de 14/11, n.º 1) ─────────
+                    «Não quero fazer scroll para saber quanto vai a proposta» —
+                    e o último passo é onde mais se pergunta. Fica encostado ao
+                    botão, como nos outros quatro; na barra compacta só o
+                    número se vê, e «A pagar» continua a ouvir-se. */}
+                {money.base > 0 && (
+                  <p
+                    data-total-da-barra
+                    className="shrink-0 whitespace-nowrap text-xs tabular-nums text-[var(--bo-text-muted)]"
+                  >
+                    <span className={barraCompacta ? "sr-only" : "text-foreground/45"}>
+                      A pagar{" "}
+                    </span>
+                    <strong className="font-semibold text-[var(--bo-text)]">
+                      {eur(totais.aPagar)}
+                    </strong>
+                  </p>
                 )}
                 {/* ── O BOTÃO QUE GUIA (14/10) ──────────────────────────────
                     Quando a ÚNICA coisa que falta é ver o PDF final, o botão
@@ -16789,7 +16852,7 @@ function SubpontosDaLinha({
             onChange={(e) => mudar(j, { artigo: eArtigo(e.target.value) ? e.target.value : null })}
             aria-label={`Artigo do Moloni de ${sp.nome.trim() || `subponto ${j + 1}`} (${nomeDaLinha})`}
             data-campo={`budgetSubArtigo:${i}:${j}`}
-            className={`bo-input w-auto max-w-full px-2 py-1.5 text-[11px] ${
+            className={`bo-input w-auto min-w-0 max-w-full px-2 py-1.5 text-[11px] ${
               sp.artigo ? "text-[var(--bo-tinta-72)]" : "border-dashed text-[var(--bo-text-muted)]"
             }`}
           >

@@ -554,6 +554,20 @@ describe("Biblioteca de Temas — estado sob concorrência", () => {
     expect(haCartaoDoTema(/Itália/)).toBe(true);
   });
 
+  it("«Novo tema» leva o foco ao nome, e o «Ainda não há temas» sai da frente (auditoria de 14/11)", async () => {
+    route("GET /api/temas", () => ok([]));
+    renderTemas();
+    await screen.findByText("Ainda não há temas");
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo tema" }));
+    expect(document.activeElement).toBe(screen.getByLabelText(/Nome do tema/));
+    expect(screen.queryByText("Ainda não há temas")).toBeNull();
+
+    // Cancelar devolve o estado vazio.
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByText("Ainda não há temas")).toBeTruthy();
+  });
+
   it("não cria dois temas quando o Enter é carregado duas vezes", async () => {
     route("GET /api/temas", () => ok([]));
     route("POST /api/temas", () =>

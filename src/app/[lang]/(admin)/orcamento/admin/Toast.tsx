@@ -613,10 +613,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           soma-a e passa a pousar-lhe em cima, à vista, sem tapar nada. Acima
           de `lg` a navegação do telemóvel desaparece mas a barra do estúdio
           fica, encostada ao fundo: por isso o `lg:` também a soma. */}
+      {/* ── E NÃO SAI PELA MARGEM DA ESQUERDA (auditoria de 14/11, n.º 14) ──
+          Só com `right-6`, um aviso de 384 px (`max-w-sm`) num ecrã de 390
+          começava no x = 0: colado ao bordo, sem a margem de 16 px que todo o
+          resto do ecrã tem. Com `left-4` a pilha tem os dois lados, e o
+          `items-end` mantém cada aviso encostado à direita e do tamanho do
+          texto — num ecrã largo nada muda. */}
       <div
         ref={pilhaRef}
         data-acima-dos-modais=""
-        className="fixed bottom-[calc(var(--bo-barra-inferior)+var(--bo-barra-accao,0px)+env(safe-area-inset-bottom)+0.75rem)] right-6 z-[80] flex flex-col gap-2 pointer-events-none"
+        className="fixed bottom-[calc(var(--bo-barra-inferior)+var(--bo-barra-accao,0px)+env(safe-area-inset-bottom)+0.75rem)] left-4 right-4 sm:right-6 z-[80] flex flex-col items-end gap-2 pointer-events-none"
       >
         {/* `relative` porque o aviso que sai passa a `absolute` DENTRO da sua
             região, no sítio exacto onde estava (ver o FLIP acima). Sem isto o

@@ -115,22 +115,38 @@ export function splitThirtySeventy(total: number): { sinal: number; saldo: numbe
  * dos Pagamentos chama isto 5 a 8 vezes por cartão, de cada vez que se abre ou
  * fecha um cliente. Ela: «quando se carrega num cliente está super travada».
  * O texto que sai é o mesmo: as mesmas opções, o mesmo idioma.
+ *
+ * ── E OS MILHARES AGRUPAM SEMPRE (decidido a 14/11) ───────────────────────
+ * O `Intl` de pt-PT só agrupa a partir de CINCO dígitos: no back office
+ * lia-se «15 129 €» ao lado de «3690 €» na mesma fila (auditoria de 14/11,
+ * n.º 18). Ela decidiu a 14/11: no back office os milhares levam SEMPRE o
+ * espaço — «1 000 €», «3 690 €»; 999 não leva. Com `useGrouping: "always"` o
+ * espaço é o MESMO que o `Intl` já punha nos números grandes (U+00A0, o
+ * inquebrável), e não um segundo espaço parecido. Todos os outros
+ * formatadores de números do back office levam a mesma opção.
+ *
+ * O que o CLIENTE lê não muda: o PDF e a proposta online passam o dinheiro
+ * pelo {@link milharesComPonto}, que troca esse espaço por ponto — era assim
+ * que os de cinco dígitos já lá chegavam. `money.test.ts` prende as duas
+ * coisas.
  */
 const EUR2 = new Intl.NumberFormat("pt-PT", {
+  useGrouping: "always",
   style: "currency",
   currency: "EUR",
   maximumFractionDigits: 2,
 });
 const EUR0 = new Intl.NumberFormat("pt-PT", {
+  useGrouping: "always",
   style: "currency",
   currency: "EUR",
   maximumFractionDigits: 0,
 });
 
-/** Formatador de euros pt-PT com 2 casas decimais (ex.: "1234,50 €"). */
+/** Formatador de euros pt-PT com 2 casas decimais (ex.: "1 234,50 €"). */
 export const eur = (n: number): string => EUR2.format(n || 0);
 
-/** Formatador de euros pt-PT sem casas decimais (ex.: "1235 €"). */
+/** Formatador de euros pt-PT sem casas decimais (ex.: "1 235 €"). */
 export const eur0 = (n: number): string => EUR0.format(n || 0);
 
 /**
@@ -168,10 +184,10 @@ export const eur0 = (n: number): string => EUR0.format(n || 0);
  * cliente (os dois PDFs de proposta, o PDF da factura, os emails que os
  * levam). Esses escrevem todos igual, e escrevem como ela escreve à mão.
  *
- * O back office continua com o {@link eur}: são dezenas de ecrãs internos onde
- * o formato do `Intl` nunca incomodou ninguém, e mudá-los é uma decisão de
- * produto, não a correcção de um defeito que o cliente vê. Se um dia se quiser
- * unificar, unifica-se apontando o `eur` para aqui — não copiando isto para lá.
+ * O back office continua com o {@link eur}. Mudar o formato dele era uma
+ * decisão de produto, e foi tomada a 14/11: os milhares agrupam sempre, com o
+ * espaço inquebrável do `Intl` (ver o bloco do `EUR2`). O ponto continua a ser
+ * só do que sai para o cliente.
  *
  * ── O ESPAÇO ANTES DO «€» FICA ─────────────────────────────────────────────
  * Só o separador de MILHARES vira ponto. O espaço antes do símbolo continua
