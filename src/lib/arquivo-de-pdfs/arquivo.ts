@@ -2,6 +2,7 @@ import "server-only";
 import { getSupabase } from "@/lib/supabase";
 import { log } from "@/lib/logger";
 import {
+  esqueletosDaProposta as listarEsqueletos,
   guardarDesmontado,
   remontarDoArquivo,
   type ClienteDoArquivo,
@@ -59,4 +60,15 @@ export async function remontarPdfDoArquivo(
   const sb = cliente();
   if (!sb) return null;
   return remontarDoArquivo(sb, proposalId, chave, esperado);
+}
+
+/**
+ * Os esqueletos de uma proposta no arquivo (`esq/<proposta>__*.gz`) — para
+ * quando um cliente pede que os seus dados saiam (`docs/ARQUIVO-DE-PDFS.md`,
+ * «Dados pessoais»). Só lista; apagar é uma tarefa à parte, com autorização.
+ */
+export async function esqueletosDaProposta(proposalId: string): Promise<string[] | null> {
+  const sb = cliente();
+  if (!sb) return null;
+  return listarEsqueletos(sb, proposalId);
 }

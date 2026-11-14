@@ -84,6 +84,12 @@ if (!balde && aplicar) {
   );
   process.exit(1);
 }
+if (balde?.public === true && aplicar) {
+  console.error(
+    `O balde «${BUCKET_DO_ARQUIVO}» é PÚBLICO. Leva dados pessoais: torna-o privado e volta a correr.`,
+  );
+  process.exit(1);
+}
 const ocupacao = balde
   ? await medirOcupacao(sb)
   : { bytes: 0, imagens: new Set(), esqueletos: new Set() };
@@ -93,10 +99,42 @@ if (!ocupacao) {
 }
 const antes = ocupacao.bytes;
 
+// ── As listagens, por páginas ───────────────────────────────────────────────
+// O PostgREST e o Storage devolvem no máximo 1000 de cada vez: sem páginas,
+// a 1001.ª proposta (ou o 1001.º PDF de uma pasta) ficava de fora em silêncio.
+const PAGINA = 1000;
+async function todasAsLinhas(tabela, colunas) {
+  const linhas = [];
+  for (let de = 0; ; de += PAGINA) {
+    const { data, error } = await sb
+      .from(tabela)
+      .select(colunas)
+      .order(colunas.split(",")[0].trim())
+      .range(de, de + PAGINA - 1);
+    if (error) {
+      console.error(`Não deu para ler ${tabela}:`, error.message);
+      process.exit(1);
+    }
+    linhas.push(...(data ?? []));
+    if (!data || data.length < PAGINA) return linhas;
+  }
+}
+async function tudoNaPasta(balde, pasta) {
+  const saida = [];
+  for (let de = 0; ; de += PAGINA) {
+    const { data, error } = await sb.storage
+      .from(balde)
+      .list(pasta, { limit: PAGINA, offset: de, sortBy: { column: "name", order: "asc" } });
+    if (error || !data) return { erro: error?.message ?? "sem resposta", entradas: saida };
+    saida.push(...data);
+    if (data.length < PAGINA) return { erro: null, entradas: saida };
+  }
+}
+
 // ── Os selos: o PDF que seguiu e o aceite, por proposta ────────────────────
-const [{ data: propostas }, { data: contratos }] = await Promise.all([
-  sb.from("proposals").select("id, pdf_sha256"),
-  sb.from("contracts").select("proposal_id, proposta_pdf_sha256"),
+const [propostas, contratos] = await Promise.all([
+  todasAsLinhas("proposals", "id, pdf_sha256"),
+  todasAsLinhas("contracts", "proposal_id, proposta_pdf_sha256"),
 ]);
 const selados = new Set(
   [
@@ -108,19 +146,22 @@ const selados = new Set(
 );
 
 // ── Os PDF guardados ───────────────────────────────────────────────────────
-const { data: raizDoBalde, error: erroRaiz } = await sb.storage
-  .from(BALDE)
-  .list("", { limit: 1000 });
-if (erroRaiz || !raizDoBalde) {
-  console.error("Não deu para listar proposal-pdfs:", erroRaiz?.message);
+const raizDoBalde = await tudoNaPasta(BALDE, "");
+if (raizDoBalde.erro) {
+  console.error("Não deu para listar proposal-pdfs:", raizDoBalde.erro);
   process.exit(1);
 }
 const ficheiros = [];
-for (const pasta of raizDoBalde.filter((e) => !e.id).map((e) => e.name)) {
-  const { data } = await sb.storage.from(BALDE).list(pasta, { limit: 1000 });
-  for (const f of data ?? []) {
+const pastasQueFalharam = [];
+for (const pasta of raizDoBalde.entradas.filter((e) => !e.id).map((e) => e.name)) {
+  const { erro, entradas } = await tudoNaPasta(BALDE, pasta);
+  if (erro) pastasQueFalharam.push(`${pasta} (${erro})`);
+  for (const f of entradas) {
     if (f.id && f.name.endsWith(".pdf")) ficheiros.push({ pasta, nome: f.name });
   }
+}
+if (pastasQueFalharam.length) {
+  console.warn(`Pastas que não se deixaram listar: ${pastasQueFalharam.join(", ")}`);
 }
 
 const registo = { info: () => {}, warn: (m, d) => detalhe && console.warn(`  ! ${m}`, d ?? "") };
@@ -142,6 +183,9 @@ for (const [i, f] of ficheiros.entries()) {
   const r = await guardarDesmontado(sb, registo, f.pasta, f.nome.replace(/\.pdf$/, ""), bytes, {
     ocupacao,
     ensaio: !aplicar,
+    // O selo, quando este PDF é o que seguiu (ou o aceite): a prova fica feita
+    // contra o valor SELADO na base de dados (ver `guardar.ts`).
+    ...(selados.has(resumo) ? { esperado: resumo } : {}),
     // No ensaio mede-se TUDO; a escrever, pára no tecto.
     tecto: aplicar ? TECTO_BYTES : Number.POSITIVE_INFINITY,
   });
@@ -156,8 +200,14 @@ for (const [i, f] of ficheiros.entries()) {
         `→ ${r.estado}, ${r.imagens} imagens (${r.imagensJaGuardadas} já guardadas), +${MB(r.bytesNovos)}`,
     );
   }
+  if (aplicar && r.estado === "balde-publico") {
+    console.log("O balde do arquivo é público: parou aqui. Nada foi escrito.");
+    break;
+  }
   if (aplicar && r.estado === "tecto") {
-    console.log("Chegou ao tecto de 20 MB: parou aqui. Nada foi apagado.");
+    console.log(
+      "Chegou ao tecto de 20 MB (menos a folga de um PDF): parou aqui. Nada foi apagado.",
+    );
     break;
   }
 }

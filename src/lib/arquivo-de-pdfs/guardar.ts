@@ -38,6 +38,14 @@ import { BUCKET_DO_ARQUIVO, PASTA_DAS_IMAGENS, PASTA_DOS_ESQUELETOS } from "./pr
 export const TECTO_BYTES = 20 * 1024 * 1024;
 /** A partir daqui avisa-se, em cada escrita. */
 export const AVISO_BYTES = 16 * 1024 * 1024;
+/**
+ * A folga de UM PDF abaixo do tecto (revisão de 14/11, n.º 10). A medida do
+ * balde é lida antes de escrever: dois envios ao mesmo tempo liam a mesma
+ * ocupação, e os dois cabiam — e o balde passava do tecto por um PDF. Pára-se
+ * quando a ocupação mais este passaria de `tecto − FOLGA_BYTES`: o que dois
+ * envios simultâneos acrescentam a mais cabe nesta folga.
+ */
+export const FOLGA_BYTES = 3 * 1024 * 1024;
 
 /** O mínimo do cliente do Supabase que isto usa (o do servidor e o do script). */
 export interface ClienteDoArquivo {
@@ -128,6 +136,8 @@ export type EstadoDoArquivo =
   | "prova-falhou"
   /** O balde não existe (é criado à mão) ou não se deixou medir. */
   | "sem-bucket"
+  /** O balde é público: nada se guarda lá (leva dados pessoais). */
+  | "balde-publico"
   /** Passaria do tecto: nada guardado. */
   | "tecto"
   /** Uma escrita falhou; o original está intacto. */
@@ -154,8 +164,10 @@ export interface ResultadoDoArquivo {
  * guardadas) — é assim que o ensaio mede a partilha entre PDFs sem escrever.
  * `ensaio`: faz tudo menos escrever.
  * `tecto`: só em ensaio — para o script medir o arquivo inteiro sem parar.
- * `esperado`: o sha256 que a remontagem tem de dar (por omissão, o destes bytes;
- * o script passa o `pdf_sha256` selado na proposta, quando há).
+ * `esperado`: o sha256 que a remontagem tem de dar (por omissão, o destes bytes).
+ * O script passa-o quando o PDF descarregado bate com um selo (`pdf_sha256` da
+ * proposta ou do aceite): a prova fica escrita contra o valor SELADO, e não só
+ * contra o que se acabou de descarregar.
  */
 export async function guardarDesmontado(
   sb: ClienteDoArquivo,
@@ -203,7 +215,12 @@ export async function guardarDesmontado(
   }
 
   let ocupacao = opcoes.ocupacao;
-  if (!ocupacao) {
+  // O balde tem de existir e tem de ser PRIVADO — sempre que se vai escrever,
+  // mesmo com a medida dada pelo script (revisão de 14/11, n.º 4). Os
+  // esqueletos levam o texto das propostas (nomes, datas, valores) e as
+  // imagens são as fotografias delas: num balde público, qualquer pessoa com o
+  // caminho as lia. Criado à mão; se alguém o puser público, isto pára.
+  if (!ocupacao || !opcoes.ensaio) {
     try {
       const { data, error } = await sb.storage.getBucket(BUCKET_DO_ARQUIVO);
       if (error || !data) {
@@ -212,9 +229,16 @@ export async function guardarDesmontado(
         });
         return { ...vazio, estado: "sem-bucket", imagens: d.cortes.length };
       }
-      ocupacao = (await medirOcupacao(sb)) ?? undefined;
+      if ((data as { public?: unknown }).public === true) {
+        registo.warn("arquivo de PDFs: o balde é PÚBLICO — nada guardado (tem de ser privado)", {
+          balde: BUCKET_DO_ARQUIVO,
+        });
+        return { ...vazio, estado: "balde-publico", imagens: d.cortes.length };
+      }
+      if (!ocupacao) ocupacao = (await medirOcupacao(sb)) ?? undefined;
     } catch {
-      ocupacao = undefined;
+      registo.warn("arquivo de PDFs: não deu para confirmar o balde — nada guardado");
+      return { ...vazio, estado: "sem-bucket", imagens: d.cortes.length };
     }
     if (!ocupacao) {
       registo.warn("arquivo de PDFs: não deu para medir o balde — nada guardado");
@@ -246,12 +270,15 @@ export async function guardarDesmontado(
     ocupacaoDepois: depois,
   };
   const tecto = opcoes.ensaio ? (opcoes.tecto ?? TECTO_BYTES) : TECTO_BYTES;
-  if (depois > tecto) {
-    registo.warn("arquivo de PDFs: passaria do tecto — nada guardado", {
+  // Com a folga de um PDF (`FOLGA_BYTES`): dois envios ao mesmo tempo não
+  // passam do tecto.
+  if (depois > tecto - FOLGA_BYTES) {
+    registo.warn("arquivo de PDFs: passaria do tecto (com a folga de um PDF) — nada guardado", {
       proposalId,
       ocupacao: ocupacao.bytes,
       acrescentaria: bytesNovos,
       tecto: TECTO_BYTES,
+      folga: FOLGA_BYTES,
     });
     return { ...resultado, estado: "tecto", ocupacaoDepois: ocupacao.bytes };
   }
@@ -332,4 +359,24 @@ export async function remontarDoArquivo(
   } catch {
     return null;
   }
+}
+
+/**
+ * Os esqueletos de UMA proposta (`esq/<proposta>__*.gz`), pelo nome — para
+ * saber o que há dela no arquivo quando um cliente pede que os seus dados
+ * saiam (`docs/ARQUIVO-DE-PDFS.md`, «Dados pessoais»). Só LISTA: não apaga
+ * nada. `null` se a pasta não se deixou listar.
+ */
+export async function esqueletosDaProposta(
+  sb: ClienteDoArquivo,
+  proposalId: string,
+): Promise<string[] | null> {
+  const id = seguro(proposalId);
+  if (!id) return [];
+  const lista = await listar(sb, PASTA_DOS_ESQUELETOS.replace(/\/$/, ""));
+  if (!lista) return null;
+  return lista
+    .map((f) => `${PASTA_DOS_ESQUELETOS}${f.nome}`)
+    .filter((c) => c.startsWith(`${PASTA_DOS_ESQUELETOS}${id}__`))
+    .sort();
 }

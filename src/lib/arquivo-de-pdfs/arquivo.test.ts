@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -13,8 +13,10 @@ import {
   sha256,
 } from "./desmontar";
 import {
+  FOLGA_BYTES,
   TECTO_BYTES,
   caminhoDaImagem,
+  esqueletosDaProposta,
   caminhoDoEsqueleto,
   guardarDesmontado,
   medirOcupacao,
@@ -116,14 +118,14 @@ beforeAll(async () => {
 });
 
 /** Um balde em memória com a forma do cliente do Supabase. */
-function baldeEmMemoria(existe = true) {
+function baldeEmMemoria(existe = true, publico = false) {
   const ficheiros = new Map<string, Buffer>();
   const escritas: string[] = [];
   const sb: ClienteDoArquivo = {
     storage: {
       getBucket: async (id) =>
         existe && id === BUCKET_DO_ARQUIVO
-          ? { data: { id }, error: null }
+          ? { data: { id, public: publico }, error: null }
           : { data: null, error: { message: "Bucket not found" } },
       from: (bucket) => {
         expect(bucket).toBe(BUCKET_DO_ARQUIVO);
@@ -284,6 +286,55 @@ describe("guardar o desmontado ao lado", () => {
     expect(reg.warn).toHaveBeenCalledWith(expect.stringMatching(/tecto/), expect.anything());
   });
 
+  /**
+   * Revisão de 14/11, n.º 10: a medida do balde lê-se antes de escrever, e dois
+   * envios ao mesmo tempo liam a mesma — cabiam os dois, e o balde passava do
+   * tecto por um PDF. Pára-se com a folga de um PDF.
+   */
+  it("o tecto deixa a folga de um PDF: perto dele, já não guarda", async () => {
+    const { sb, ficheiros } = baldeEmMemoria();
+    // Cabia no tecto (fica ~2 MB abaixo), mas não na folga de 3 MB.
+    ficheiros.set("esq/ocupa__x.gz", Buffer.alloc(TECTO_BYTES - 2 * 1024 * 1024));
+    const r = await guardarDesmontado(sb, registo(), "p", "c", V1);
+    expect(r.bytesNovos).toBeLessThan(1024 * 1024);
+    expect(r.estado).toBe("tecto");
+    expect(ficheiros.size).toBe(1);
+    // Com a folga livre, guarda.
+    ficheiros.set("esq/ocupa__x.gz", Buffer.alloc(TECTO_BYTES - FOLGA_BYTES - 2 * 1024 * 1024));
+    expect((await guardarDesmontado(sb, registo(), "p", "c", V1)).estado).toBe("guardado");
+  });
+
+  /**
+   * Revisão de 14/11, n.º 4: os esqueletos levam o texto da proposta e as
+   * imagens são as fotografias dela. Num balde público, nada se escreve —
+   * também com a medida dada (o script).
+   */
+  it("num balde PÚBLICO não escreve nada, e regista porquê", async () => {
+    const { sb, ficheiros } = baldeEmMemoria(true, true);
+    const reg = registo();
+    expect((await guardarDesmontado(sb, reg, "p", "c", V1)).estado).toBe("balde-publico");
+    expect(ficheiros.size).toBe(0);
+    expect(reg.warn).toHaveBeenCalledWith(expect.stringMatching(/PÚBLICO/), expect.anything());
+    const ocupacao = (await medirOcupacao(sb))!;
+    expect((await guardarDesmontado(sb, reg, "p", "c", V1, { ocupacao })).estado).toBe(
+      "balde-publico",
+    );
+    expect(ficheiros.size).toBe(0);
+  });
+
+  it("os esqueletos de uma proposta listam-se pelo prefixo — sem apagar nada", async () => {
+    const { sb, ficheiros } = baldeEmMemoria();
+    await guardarDesmontado(sb, registo(), "prop-1", "v1", V1);
+    await guardarDesmontado(sb, registo(), "prop-1", "v2", V2);
+    await guardarDesmontado(sb, registo(), "prop-10", "v1", V1);
+    const antes = ficheiros.size;
+    expect(await esqueletosDaProposta(sb, "prop-1")).toEqual([
+      caminhoDoEsqueleto("prop-1", "v1"),
+      caminhoDoEsqueleto("prop-1", "v2"),
+    ]);
+    expect(ficheiros.size).toBe(antes);
+  });
+
   it("o ensaio mede a partilha sem escrever", async () => {
     const { sb, ficheiros } = baldeEmMemoria();
     const ocupacao = (await medirOcupacao(sb))!;
@@ -327,5 +378,49 @@ describe("as limpezas da noite não tocam no arquivo", () => {
     const src = readFileSync(join(process.cwd(), "src/lib", f), "utf8");
     expect(src).toMatch(/import \{ semProtegidos \} from/);
     expect(src).not.toContain(BUCKET_DO_ARQUIVO);
+  });
+
+  /**
+   * Revisão de 14/11, n.º 11: a lista de cima é à mão — uma limpeza nova
+   * noutro ficheiro escapava. Aqui procura-se em TODO o `src/`: só alcança o
+   * balde do arquivo quem o NOMEIA (o nome, a constante, ou um prefixo que o
+   * monte), ou quem descobre os baldes sozinho (`listBuckets`). Nenhum desses
+   * pode ter um `.remove(` sem `semProtegidos`, e dentro do próprio arquivo
+   * não há `.remove(` nenhum.
+   */
+  it("nenhum .remove( em todo o src/ pode alcançar o balde do arquivo", () => {
+    const raiz = join(process.cwd(), "src");
+    const ficheiros: string[] = [];
+    const andar = (d: string) => {
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        const c = join(d, e.name);
+        if (e.isDirectory()) andar(c);
+        else if (/\.(ts|tsx|mjs|js)$/.test(e.name) && !/\.test\.|\.spec\./.test(e.name))
+          ficheiros.push(c);
+      }
+    };
+    andar(raiz);
+    expect(ficheiros.length).toBeGreaterThan(100);
+    const removeDeStorage =
+      /storage[\s\S]{0,400}?\.remove\(|\.from\([^)]*\)\s*\.remove\(|balde\.remove\(/;
+    const culpados: string[] = [];
+    for (const f of ficheiros) {
+      const src = readFileSync(f, "utf8");
+      const rel = f.slice(raiz.length + 1);
+      const doArquivo = rel.startsWith(join("lib", "arquivo-de-pdfs"));
+      if (doArquivo) {
+        if (/\.remove\(/.test(src)) culpados.push(`${rel}: .remove( dentro do arquivo`);
+        continue;
+      }
+      const nomeia =
+        src.includes(BUCKET_DO_ARQUIVO) ||
+        /\bBUCKET_DO_ARQUIVO\b/.test(src) ||
+        /pdfs-arquivo|-arquivo["'`]/.test(src) ||
+        /\blistBuckets\(/.test(src);
+      if (nomeia && removeDeStorage.test(src) && !/\bsemProtegidos\(/.test(src)) {
+        culpados.push(`${rel}: alcança o balde e apaga sem semProtegidos`);
+      }
+    }
+    expect(culpados).toEqual([]);
   });
 });

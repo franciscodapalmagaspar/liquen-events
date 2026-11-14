@@ -368,7 +368,9 @@ As três perguntas da regra 7, para a fase 2:
   em `proposal-pdfs` (no envio, ou quando o link do casal o desenha), depois
   da resposta (`after`). Um «já existe» não se volta a desmontar.
 - **O balde:** `proposal-pdfs-arquivo`, privado, **criado à mão** (o código não
-  o cria). Sem ele, regista «sem-bucket» e não faz nada.
+  o cria). Sem ele, regista «sem-bucket» e não faz nada. **Se estiver público**
+  (`public: true` no `getBucket`), regista «balde-publico» e não escreve nada —
+  em cada escrita, também na recolha do script (ver §11).
   - `img/<sha256>.jpg` — cada imagem uma vez;
   - `esq/<proposta>__<chave>.gz` — o esqueleto (plano, para uma listagem
     medir o balde todo).
@@ -406,7 +408,11 @@ com fotografias repetidas).
   Até lá, ligar é pagar espaço duas vezes, num plano que ia a 997 MB a 13/11.
 
 Ligar: criar o balde e `ARQUIVO_DE_PDFS=ligado` na Vercel. Mesmo ligado, o
-tecto é duro (20 MB medidos no balde antes de cada escrita; aviso aos 16 MB).
+tecto é duro (20 MB medidos no balde antes de cada escrita; aviso aos 16 MB),
+**com a folga de um PDF**: pára quando a ocupação mais este PDF passaria de
+20 MB − 3 MB (`FOLGA_BYTES`). A medida lê-se antes de escrever, e dois envios
+ao mesmo tempo liam a mesma — sem a folga, o balde podia passar do tecto por
+um PDF.
 
 As três perguntas da regra 7:
 1. **Quantas vezes corre:** uma por PDF novo guardado (~1–2 por dia), e só
@@ -439,12 +445,42 @@ enviadas, 1 aceite) em 2 pedidos, todas com a foto em `fotosDasPaginas`
   (`FotosEmFalta`); na rota, de `fotosEscolhidasQueFaltam` (uma listagem por
   pasta). Trocada a foto, o aviso cai sozinho.
 
-**Ainda por resolver (achado, não mexido):** as linhas de `biblioteca_fotos`
-das fotos na Reciclagem continuam lá. A proposta online (sem bytes) mede pela
-biblioteca, por isso para ela essas fotos «existem»: as páginas guardadas
-(`proposta-web:conteudo:*`) das 4 propostas citam-nas — no link do casal o
-lugar deve sair partido. A correcção é a página online confirmar a existência
-(como a rota faz), ou a Reciclagem tirar/marcar a linha da biblioteca.
+**Corrigido depois (revisão de 14/11):**
+- **«Escolhidas» é uma lista só** (`src/lib/fotos-escolhidas.ts`): a capa e
+  as de `fotosDasPaginas` das páginas que o plano AINDA tem. Uma chave órfã
+  (`tema:0:3` depois de o tema ficar com menos páginas) já não trava o envio.
+  A Conferência, a rota e a verificação lêem a mesma lista, e a rota e o
+  estúdio a mesma conta (`procurarAsQueFaltam`); uma pasta que não se deixa
+  listar deixa por acusar só as suas fotos.
+- **A capa escolhida em falta** entra na mesma lista (trava, «A fotografia de
+  capa já não existe…») e fica registada no desenho. O desenho da capa não
+  mudou: no rascunho sai a melhor deitada, como sempre.
+- **A foto ainda a copiar** (`pending:`) tem frase própria («ainda está a ser
+  copiada — espera um momento e volta a confirmar»).
+- **O PDF final** (pré-visualização sem rascunho) também não sai com uma foto
+  escolhida em falta.
+- **As miniaturas do estúdio** mostram o lugar vazio com «Foto em falta», e
+  não a miniatura partida do caminho que já não existe.
+- **Como lá chegaram:** a foto ia para a Reciclagem e saía da pasta, mas
+  ficava na ordem arrumada à mão do tema (`photoOrder`) — e o escolhedor do
+  estúdio lê essa ordem à frente da pasta, com a miniatura (que fica). Agora a
+  ordem só oferece o que a pasta tem (`listThemeImagePage`, sem idas a mais:
+  os nomes vêm da contagem que já se fazia). A Biblioteca (`/api/biblioteca/
+  fotos`, que lê a tabela) esconde as fotos na Reciclagem pela MESMA leitura
+  da Reciclagem que já fazia. A linha da `biblioteca_fotos` NÃO se apaga: é
+  com ela (etiquetas, cor, medidas) que a foto volta. Repor tira a entrada da
+  Reciclagem e devolve a foto à pasta — e ela volta a contar nos dois sítios.
+- **A proposta online** pergunta ao armazenamento, ao MONTAR a página (no
+  envio, e quando o retrato expira — nunca por visita), que fotos já não
+  existem (`refsQueJaNaoExistem`, uma listagem por pasta), e faz como o PDF:
+  o lugar vazio, a fila sem ela; «não sei» não esconde nada. O retrato subiu
+  de versão (10 → 11), por isso as 4 propostas acima remontam-se na próxima
+  visita, já sem a imagem partida.
+- **Fica por fazer:** uma foto que SAI de vez da Reciclagem (aos 30 dias)
+  deixa a linha na tabela (é assim desde sempre, também ao apagar sem
+  Reciclagem). O escolhedor e a página online já não a mostram (lêem a pasta);
+  a lista da Biblioteca (revisão de etiquetas) sim — com a miniatura já
+  apagada.
 
 **Avisar ao reciclar uma foto usada em propostas enviadas?** Medido: os 48
 documentos enviados usam **961 fotos distintas da Biblioteca** (2 127 usos),
@@ -456,3 +492,39 @@ propostas criadas depois). Um aviso ao reciclar tocaria quase sempre e não
 teria apanhado nenhum destes casos. **Proposta:** não avisar ao reciclar; o
 travão é no envio (feito). Se ela quiser, o seletor de fotos pode esconder as
 que estão na Reciclagem (por confirmar como é que lá chegaram).
+
+## 11. Dados pessoais no arquivo
+
+**O que lá fica.** O esqueleto (`esq/<proposta>__<chave>.gz`) é o PDF sem as
+fotografias: leva **o texto da proposta** — os nomes do casal ou do cliente, a
+data e o local do evento, os valores, as notas. As imagens (`img/<sha256>.jpg`)
+são as fotografias que seguiram no PDF, algumas da pasta do pedido. É o mesmo
+conteúdo do PDF original (que continua em `proposal-pdfs`), só guardado de
+outra maneira — mas é uma segunda cópia, e tem de se saber apagar.
+
+**Por isso o balde é privado, e o código recusa um balde público:** antes de
+cada escrita, `guardarDesmontado` lê o balde (`getBucket`) e, com
+`public: true`, regista «balde-publico» e não escreve nada. O script de
+recolha pára pela mesma razão.
+
+**Quando um cliente pede que os seus dados saiam** (o que hoje se faz à mão
+para o pedido, a proposta e os PDFs originais), no arquivo é assim:
+
+1. **Os esqueletos dele** listam-se pelo prefixo da proposta:
+   `esqueletosDaProposta(id)` (em `arquivo.ts`, ou `guardar.ts` com o cliente
+   do Supabase) devolve os caminhos `esq/<proposta>__*.gz` de cada proposta do
+   pedido. Esses apagam-se todos — só têm dados dele.
+2. **As imagens são partilhadas:** a mesma fotografia da Biblioteca pode estar
+   nos PDF de vários casais, guardada uma vez. Uma imagem só sai quando
+   **nenhum esqueleto que fica** a cita: lêem-se os esqueletos que ficam
+   (`imagensCitadasPor`, em `desmontar.ts`) e apagam-se as imagens que eram
+   citadas pelos esqueletos dele e por mais nenhum. As fotos da pasta do
+   pedido dele, que só os PDF dele usam, saem por esta regra.
+3. **Pela ordem:** primeiro os esqueletos, depois as imagens órfãs — nunca o
+   contrário (um esqueleto sem as suas imagens já não remonta).
+
+**O que NÃO está feito, de propósito:** nenhum apagar automático. As limpezas
+da noite não tocam no arquivo (`protegidos.ts`, e um teste procura em todo o
+`src/` qualquer `.remove(` que o possa alcançar). Apagar os dados de um cliente
+é um pedido dele, feito por quem tem a autorização, com estes passos.
+
