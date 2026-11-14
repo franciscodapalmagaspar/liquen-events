@@ -5,6 +5,7 @@ import { ESTADO, PRESSAO } from "./ui/movimento";
 import type { AccaoDeItem } from "./ui";
 import { SeparadorDoMenu, separadorAntesDe, teclasDoMenu } from "./ui/MenuDeAccoes";
 import { SAIDA, useSaidaDeUmSo } from "./ui/saida";
+import { fecharSoAoTocarFora } from "./ui/fechar-por-fora";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -154,13 +155,13 @@ export function MenuDeContexto({
    * sem isto, rolar a grelha deixava o menu parado no ar sobre outro tema.
    *
    * `pointerdown` e não `click`, como no menu do «⋯»: com `click` o menu só
-   * fechava depois de a acção de baixo já ter disparado.
+   * fechava depois de a acção de baixo já ter disparado. E o toque que fecha
+   * SÓ fecha — o `click` que vem a seguir é engolido (`fecharSoAoTocarFora`):
+   * um toque noutro dia, com o menu aberto, abria «Novo no calendário»
+   * (revisão de 14/11).
    */
   useEffect(() => {
     if (!pedido) return;
-    const fora = (e: PointerEvent) => {
-      if (painelRef.current && !painelRef.current.contains(e.target as Node)) onFechar();
-    };
     const tecla = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         // Parar aqui: com selecção activa, o `Escape` da grelha limpa-a — e
@@ -176,19 +177,19 @@ export function MenuDeContexto({
       else origem.current = null;
       onFechar();
     };
-    const foraEsquece = (e: PointerEvent) => {
-      // Carregar fora: o foco vai para onde se carregou, e a origem esquece-se.
-      if (painelRef.current && !painelRef.current.contains(e.target as Node)) {
+    // Carregar fora: o foco vai para onde se carregou, e a origem esquece-se.
+    const largarFora = fecharSoAoTocarFora(
+      (alvo) => !painelRef.current || painelRef.current.contains(alvo),
+      () => {
         origem.current = null;
-      }
-      fora(e);
-    };
-    document.addEventListener("pointerdown", foraEsquece);
+        onFechar();
+      },
+    );
     document.addEventListener("keydown", tecla, true);
     window.addEventListener("scroll", mexeu, true);
     window.addEventListener("resize", mexeu);
     return () => {
-      document.removeEventListener("pointerdown", foraEsquece);
+      largarFora();
       document.removeEventListener("keydown", tecla, true);
       window.removeEventListener("scroll", mexeu, true);
       window.removeEventListener("resize", mexeu);

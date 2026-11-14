@@ -757,6 +757,61 @@ describe("notas presas a cada secção", () => {
   });
 });
 
+/**
+ * ── O PASSO QUE CHEGA MOSTRA-SE PELO PRINCÍPIO (revisão de 14/11) ──────────
+ * O jsdom não tem disposição: aqui finge-se que o início do passo ficou 900 px
+ * ACIMA do ecrã (ela estava no fundo do passo anterior) e regista-se para onde
+ * a página é levada. Quem muda de passo sem passar pelo `irParaPasso` não
+ * pede rolo nenhum — e é isso que estes casos apanham. O gesto, com o dedo,
+ * mede-se no browser (`e2e/o-iphone-com-barras.spec.ts`).
+ */
+/** O botão do passo `n` (1–5) na barra dos passos. */
+function botaoDoPasso(n: number): HTMLElement {
+  const barra = screen.getByRole("navigation", { name: "Passos da proposta" });
+  return within(barra).getAllByRole("button")[n - 1];
+}
+
+function comOPassoLaEmCima() {
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  const rect = vi
+    .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+    .mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("@container/estudio")) {
+        return {
+          top: -900,
+          bottom: -100,
+          left: 0,
+          right: 390,
+          width: 390,
+          height: 800,
+          x: 0,
+          y: -900,
+          toJSON() {},
+        } as DOMRect;
+      }
+      return original.call(this);
+    });
+  const tinha = Object.prototype.hasOwnProperty.call(Element.prototype, "scrollIntoView");
+  const antes = Element.prototype.scrollIntoView;
+  const rolo = vi.fn();
+  Element.prototype.scrollIntoView = rolo;
+  return {
+    /** Quantas vezes a página foi levada ao INÍCIO do formulário dos passos. */
+    subidasAoPasso: () =>
+      rolo.mock.contexts.filter(
+        (el, i) =>
+          (el as HTMLElement).classList?.contains("@container/estudio") &&
+          (rolo.mock.calls[i]?.[0] as ScrollIntoViewOptions | undefined)?.block === "start",
+      ).length,
+    esquecer: () => rolo.mockClear(),
+    repor: () => {
+      rect.mockRestore();
+      if (tinha) Element.prototype.scrollIntoView = antes;
+      else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    },
+  };
+}
+
 describe("o trabalho que uma gravação esmagou", () => {
   /** Uma gravação que sobrepôs alguém, tal como o servidor a responde. */
   function gravacaoQueSobrepos(opcoes: { resgate?: string; quem?: string } = {}) {
@@ -990,6 +1045,21 @@ describe("limpar o rascunho pode ser anulado", () => {
     expect(await screen.findByText(/Pode anular durante/i)).toBeTruthy();
     // E limpou mesmo: o grupo que lá estava desapareceu.
     expect(screen.queryByDisplayValue("Decoração Floral")).toBeNull();
+  });
+
+  it("limpar leva ao INÍCIO do Evento, e não a meio dele", async () => {
+    seedComConteudo();
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(botaoDoPasso(3));
+    const passo = comOPassoLaEmCima();
+    try {
+      await user.click(await screen.findByRole("button", { name: /Limpar rascunho/ }));
+      await waitFor(() => expect(passo.subidasAoPasso()).toBe(1));
+      expect(botaoDoPasso(1)).toHaveAttribute("aria-current", "step");
+    } finally {
+      passo.repor();
+    }
   });
 
   it("anular devolve o que lá estava", async () => {
@@ -2058,6 +2128,85 @@ describe("aviso antes de a proposta seguir para o cliente", () => {
       "aria-current",
       "step",
     );
+  });
+
+  it("«voltar e corrigir» chega ao INÍCIO do passo do corte — pela porta da barra dos passos", async () => {
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
+    await verEConfirmar();
+    propostaDoc = reply({
+      ok: false,
+      status: 409,
+      json: {
+        precisaConfirmarCortes: true,
+        truncations: [{ where: "Mood board «Cerimónia»", dropped: 3, unit: "fotos" }],
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: /Gerar e enviar ao cliente/ }));
+    await confirmarEnvio(user);
+    const voltar = await screen.findByRole("button", { name: /Voltar e corrigir/ });
+    const passo = comOPassoLaEmCima();
+    try {
+      await user.click(voltar);
+      await waitFor(() => expect(passo.subidasAoPasso()).toBe(1));
+      // As fotos a mais corrigem-se na Inspiração.
+      expect(botaoDoPasso(3)).toHaveAttribute("aria-current", "step");
+    } finally {
+      passo.repor();
+    }
+  });
+
+  it("«Repor esta versão» (no Rever e enviar) leva ao INÍCIO do Evento", async () => {
+    versoesServidor = [
+      {
+        id: "v1",
+        enviadaEm: "2026-06-01T10:00:00.000Z",
+        total: 3690,
+        estado: "enviada",
+        mudancas: [],
+        resumo: "Primeira versão enviada",
+      },
+    ];
+    docsDeVersao.v1 = {
+      template: "decoracao",
+      ref: "PO Decoração",
+      clientNames: "Maria & Zé",
+      serviceGroups: [{ letter: "a)", title: "TESTE versão reposta", items: [] }],
+      moodBoards: [],
+      budgetItems: [],
+      coverImages: ["", ""],
+    };
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(botaoDoPasso(5));
+    const repor = await screen.findByRole("button", { name: "Repor esta versão" });
+    const passo = comOPassoLaEmCima();
+    try {
+      await user.click(repor);
+      await screen.findByDisplayValue("TESTE versão reposta");
+      await waitFor(() => expect(passo.subidasAoPasso()).toBe(1));
+      expect(botaoDoPasso(1)).toHaveAttribute("aria-current", "step");
+    } finally {
+      passo.repor();
+    }
+  });
+
+  it("a barra dos passos e o «Seguinte» também — o controlo dos de cima", async () => {
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    const passo = comOPassoLaEmCima();
+    try {
+      await user.click(botaoDoPasso(2));
+      await waitFor(() => expect(passo.subidasAoPasso()).toBe(1));
+      await user.click(screen.getAllByRole("button", { name: /^Seguinte:/ })[0]);
+      await waitFor(() => expect(passo.subidasAoPasso()).toBe(2));
+    } finally {
+      passo.repor();
+    }
   });
 });
 

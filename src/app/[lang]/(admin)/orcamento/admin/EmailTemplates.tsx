@@ -957,7 +957,7 @@ function EditorClassico() {
                   spellCheck={false}
                   rows={16}
                   placeholder="<div>…</div>"
-                  className={`${inputCls} w-full font-mono !text-xs leading-relaxed resize-y`}
+                  className={`${inputCls} w-full font-mono !text-xs pointer-coarse:!text-base leading-relaxed resize-y`}
                   aria-label="HTML do email"
                 />
                 <p className="text-[11px] text-foreground/40 mt-2 leading-relaxed">

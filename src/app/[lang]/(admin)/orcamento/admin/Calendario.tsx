@@ -46,6 +46,8 @@ import { useArrastoDeMarcacoes } from "./useArrastoDeMarcacoes";
 import MudarDeDia from "./MudarDeDia";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
 import { ESTADO, PRESSAO } from "./ui/movimento";
+import { rolarAteCaberPorCima } from "@/lib/motion/rolar";
+import { SEM_LUPA, useToqueLongo } from "./ui/adaptativo";
 import { AvisoDeFalha } from "./AvisoDeFalha";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { comMaiuscula, diaPorExtenso } from "@/lib/data-curta";
@@ -671,6 +673,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
   const [tipoDoModal, setTipoDoModal] = useState<CalendarEventKind>("evento");
   /** O menu do botão direito, quando há um aberto. Fase 10, ponto 17. */
   const [menu, setMenu] = useState<PedidoDeMenu | null>(null);
+  const toqueLongo = useToqueLongo();
   const fecharMenu = useCallback(() => setMenu(null), []);
   /**
    * ── ARRASTAR (fase 09) ──────────────────────────────────────────────────
@@ -722,6 +725,22 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
   const [aRemover, setARemover] = useState<{ id: string; title: string } | null>(null);
   // Day peek: the day whose events are expanded in the panel under the grid.
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  /**
+   * ── O DIA QUE SE ESCOLHE MOSTRA-SE ────────────────────────────────────────
+   * O painel do dia nasce por baixo da grelha. No telemóvel isso é a y≈635 de
+   * 664, exactamente por baixo da barra de destinos: tocar num dia com evento
+   * só o realçava, e parecia que o toque não tinha feito nada (auditoria de
+   * 14/11). Ao escolher um dia, leva-se o painel até se ver por cima da barra —
+   * só se não se vê, portanto quem já o vê inteiro não é sacudido, e o
+   * `scroll-mb` do painel desconta a barra de baixo.
+   */
+  const espreitarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!selectedDay) return;
+    // Um fotograma depois: o painel acabou de nascer e ainda está a assentar.
+    const f = requestAnimationFrame(() => rolarAteCaberPorCima(espreitarRef.current));
+    return () => cancelAnimationFrame(f);
+  }, [selectedDay]);
   /** O dia da grelha do mês com o foco — ver «O FOCO ITINERANTE». */
   const [focoDia, setFocoDia] = useState<string | null>(null);
   const grelhaRef = useRef<HTMLDivElement>(null);
@@ -2106,10 +2125,17 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                          etiquetas lá dentro têm menu próprio e travam a bolha
                          (ver o `onMenu` do `ChipDoDia`), portanto este só
                          dispara no espaço do dia. */
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setMenu(menuDoDia(key, e.clientX, e.clientY));
-                          }}
+                          /* E o toque longo, que o Safari do iPhone não
+                         traduz em `contextmenu` (auditoria de 14/11): o
+                         mesmo menu, no sítio do dedo, sem o clique que abria
+                         «Adicionar ao calendário» por baixo dele. */
+                          {...toqueLongo(
+                            (p) => setMenu(menuDoDia(key, p.x, p.y)),
+                            (e) => {
+                              e.preventDefault();
+                              setMenu(menuDoDia(key, e.clientX, e.clientY));
+                            },
+                          )}
                           /* A largada de uma marcação (fase 09). Só quando há
                              uma no ar: arrastar ficheiros ou texto por cima
                              do calendário não realça dia nenhum. `Alt`
@@ -2120,7 +2146,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                          decidir a mesma altura é como uma delas fica para
                          trás. */
                           data-realcado={key === diaRealcado ? "" : undefined}
-                          className={`group relative bg-[var(--bo-surface)] p-1 sm:p-1.5 ${ESTADO} ${PRESSAO} focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600/60 ${
+                          className={`group relative bg-[var(--bo-surface)] p-1 sm:p-1.5 ${SEM_LUPA} ${ESTADO} ${PRESSAO} focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600/60 ${
                             isSelected
                               ? "ring-1 ring-inset ring-sage-600/45 bg-sage-600/[0.04]"
                               : key === arrasto.destino
@@ -2339,7 +2365,10 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                Se um dia isto mudar de forma — sair do fluxo, passar a folha no
                telemóvel — a resposta muda com ela, e o arnês está lá para se
                voltar a correr. */
-                <div className="bo-entrada mt-5 rounded-xl border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] overflow-hidden">
+                <div
+                  ref={espreitarRef}
+                  className="bo-entrada mt-5 scroll-mt-[var(--bo-cabecalho,0px)] scroll-mb-[calc(var(--bo-barra-inferior)+var(--bo-barra-folga))] rounded-xl border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] overflow-hidden"
+                >
                   <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--bo-hairline)]">
                     <p className="bo-eyebrow">{dayLabelLong(selectedDay)}</p>
                     <div className="flex items-center gap-1">

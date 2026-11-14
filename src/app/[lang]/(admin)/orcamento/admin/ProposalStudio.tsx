@@ -2350,6 +2350,38 @@ export default function ProposalStudio({
   const enviada = useRef<{ id: string | null; pdf: Promise<PdfPronto> | null } | null>(null);
   // Fluxo guiado: Conteúdo → Pré-visualizar → Enviar.
   const [step, setStep] = useState<Step>("evento");
+  /**
+   * ── MUDAR DE PASSO SOBE AO TOPO DO PASSO NOVO ─────────────────────────────
+   * O `setStep` sozinho trocava o conteúdo sem mexer no rolo: vinda do fundo
+   * do passo 1, ela aterrava a meio do passo 2, com o título dele 175–230 px
+   * acima do ecrã (auditoria do telemóvel, 14/11). A barra dos passos e o
+   * «Anterior / Seguinte» passam por aqui; os saltos para uma falta ou um campo
+   * (`irParaAFalta`, `irParaCampo`) NÃO, porque esses levam a vista ao campo.
+   *
+   * O rolo é feito no efeito logo a seguir, depois de o passo novo estar
+   * desenhado — antes disso o contentor ainda tem a altura do anterior.
+   */
+  // Um contador e não uma bandeira: tocar no passo onde já se está não muda o
+  // `step`, e uma bandeira ficava levantada até ao próximo salto para uma falta.
+  const [subidaAoPasso, setSubidaAoPasso] = useState(0);
+  const formularioDosPassos = useRef<HTMLDivElement>(null);
+  const passoDoEnvio = useRef<HTMLDivElement>(null);
+  const irParaPasso = useCallback((p: Step) => {
+    setStep(p);
+    setSubidaAoPasso((n) => n + 1);
+  }, []);
+  useEffect(() => {
+    if (!subidaAoPasso) return;
+    const alvo = step === "enviar" ? passoDoEnvio.current : formularioDosPassos.current;
+    if (!alvo) return;
+    // Só sobe se o início do passo ficou ACIMA do que se vê por baixo das
+    // barras coladas (o `scroll-mt` dele é essa altura). Quem já está no topo
+    // não é sacudido.
+    const margem = parseFloat(getComputedStyle(alvo).scrollMarginTop) || 0;
+    if (alvo.getBoundingClientRect().top < margem - 1) rolarAteVer(alvo, { block: "start" });
+    // O `step` é lido no momento do pedido; quem manda correr é o contador.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subidaAoPasso]);
   // Qual o destino das fotos escolhidas na biblioteca de temas (null = fechado).
   const [picker, setPicker] = useState<
     // `substituir` é a posição a TROCAR no lugar: a foto escolhida entra ali em
@@ -5490,7 +5522,9 @@ export default function ProposalStudio({
     setRefEdited(true);
     setConfirmSend(false);
     setSent(false);
-    setStep("evento");
+    // Muda de passo como a barra dos passos: sobe ao início do Evento se ele
+    // ficou acima (ver «MUDAR DE PASSO SOBE AO TOPO DO PASSO NOVO»).
+    irParaPasso("evento");
     // Só se o preço tiver MESMO mudado: repor uma versão com o mesmo valor não
     // é um acontecimento do dinheiro, e uma linha por cada não-mudança ensina a
     // saltar o histórico todo.
@@ -5769,7 +5803,8 @@ export default function ProposalStudio({
     setRefEdited(false);
     setConfirmSend(false);
     setSent(false);
-    setStep("evento");
+    // Recomeçar é recomeçar no topo do Evento — não a meio dele.
+    irParaPasso("evento");
     /**
      * Limpar deita o total fora com o resto — e o total é o preço do pedido.
      * Fica no histórico pela mesma razão que o «Usar X €»: um preço que muda
@@ -9250,7 +9285,12 @@ export default function ProposalStudio({
 
       {/* Passos do fluxo — sempre visível, dá o sentido de "onde estou / o que
           fazer a seguir". Clicável para saltar entre passos. */}
-      <StepNav step={step} onSelect={setStep} estados={estadosDosPassos} organizacao={!isDeco} />
+      <StepNav
+        step={step}
+        onSelect={irParaPasso}
+        estados={estadosDosPassos}
+        organizacao={!isDeco}
+      />
 
       {/* ══════════ PASSOS 1 a 4 · Evento, Serviços, Inspiração, Orçamento ══════════ */}
       {/* ── A FOLGA POR BAIXO É A ALTURA MEDIDA DA BARRA, NÃO UM NÚMERO ─────
@@ -9320,7 +9360,11 @@ export default function ProposalStudio({
           transform pendurado, que é o que quebraria o `position: fixed` de uma
           folha aberta aqui dentro. A barra `sticky` do fundo é IRMÃ destes
           três e não está lá dentro, portanto não a apanha. */}
-      <div className={`@container/estudio ${noFormulario ? "view-in" : ""}`} hidden={!noFormulario}>
+      <div
+        ref={formularioDosPassos}
+        className={`@container/estudio scroll-mt-[var(--bo-colado-topo)] ${noFormulario ? "view-in" : ""}`}
+        hidden={!noFormulario}
+      >
         <div
           ref={filaDasColunas}
           /* 40rem (640 px) é o mínimo para uma fila fazer sentido: o índice pede
@@ -12647,7 +12691,11 @@ export default function ProposalStudio({
       )}
 
       {/* ══════════ PASSO 5 · Rever e enviar — o envio ══════════ */}
-      <div className={step === "enviar" ? "view-in" : undefined} hidden={step !== "enviar"}>
+      <div
+        ref={passoDoEnvio}
+        className={`scroll-mt-[var(--bo-colado-topo)] ${step === "enviar" ? "view-in" : ""}`}
+        hidden={step !== "enviar"}
+      >
         {sent ? (
           <Section title="Enviar ao cliente">
             {/* ── O FIM DA JORNADA MERECE SER VISTO ────────────────────────
@@ -13312,7 +13360,7 @@ export default function ProposalStudio({
                   size="sm"
                   variant="ghost"
                   className="shrink-0"
-                  onClick={() => setStep(passoAoLado(step, -1) as Step)}
+                  onClick={() => irParaPasso(passoAoLado(step, -1) as Step)}
                   // O nome inteiro, dito de uma vez: com o nome do passo num
                   // `<span>` à parte o Chromium lia «Seguinte : Serviços».
                   aria-label={`← ${nomeDoPasso(passoAoLado(step, -1) as Step, !isDeco)}`}
@@ -13332,7 +13380,7 @@ export default function ProposalStudio({
                 size="sm"
                 variant="primary"
                 className="shrink-0"
-                onClick={() => setStep(passoAoLado(step, 1) as Step)}
+                onClick={() => irParaPasso(passoAoLado(step, 1) as Step)}
                 iconRight={<span aria-hidden="true">→</span>}
                 aria-label={`Seguinte: ${nomeDoPasso(passoAoLado(step, 1) as Step, !isDeco)}`}
               >
@@ -13352,7 +13400,7 @@ export default function ProposalStudio({
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setStep("orcamento")}
+              onClick={() => irParaPasso("orcamento")}
               // A meio de um envio, voltar atrás não cancela nada — o pedido já
               // está a correr no servidor — e só serve para ela deixar de ver o
               // que está a acontecer.
@@ -13743,7 +13791,9 @@ export default function ProposalStudio({
                       // capa (o passo do Evento), e as outras linhas cortadas
                       // são de serviços.
                       const corte = cortesPorConfirmar?.[0];
-                      setStep(
+                      // Pela mesma porta da barra dos passos: chega ao
+                      // INÍCIO do passo, não a meio dele (revisão de 14/11).
+                      irParaPasso(
                         !corte
                           ? "evento"
                           : corte.unit === "fotos"
@@ -13966,7 +14016,7 @@ export default function ProposalStudio({
 
         {step === "enviar" && sent && (
           <>
-            <Button size="sm" variant="ghost" onClick={() => setStep("evento")}>
+            <Button size="sm" variant="ghost" onClick={() => irParaPasso("evento")}>
               ← Voltar ao evento
             </Button>
             {fimDoPdf.mostrar ? (

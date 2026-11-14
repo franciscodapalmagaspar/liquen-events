@@ -148,7 +148,17 @@ import { useDescarga } from "./ui/descarregar";
  */
 const FILTRO_CLASSES =
   "bg-[var(--bo-surface)] border border-[var(--bo-hairline)] rounded-xl px-3 py-2.5 " +
-  "text-xs text-[var(--bo-tinta-72)] focus:outline-none focus:border-foreground/25";
+  "text-xs text-[var(--bo-tinta-72)] focus:outline-none focus:border-foreground/25 " +
+  // ── NA GRELHA DO TELEMÓVEL, O FILTRO ENCOLHE À CÉLULA ──────────────────────
+  // No dedo a `Escolha` é um `<select>` a 16 px, e «Todas as categorias» mais a
+  // reserva da seta pedia 207 px numa célula de ~171: a página inteira passava
+  // a deslizar 8–16 px para o lado (auditoria do telemóvel, 14/11). O `min-w-0`
+  // deixa-o encolher e o texto corta-se dentro do campo; no computador (`lg:`)
+  // os filtros são uma fila que embrulha, e cada um volta à largura dele.
+  "min-w-0 max-lg:w-full";
+/** A caixa da `Escolha` à volta de cada filtro: é ELA que ocupa a célula da
+ *  grelha, portanto é ela que tem de poder encolher (ver `FILTRO_CLASSES`). */
+const FILTRO_CAIXA = "min-w-0 max-lg:w-full";
 import { useMarcaQueAnda } from "./ui/useMarcaQueAnda";
 /* A outra metade do vocabulário: a `.bo-saida` é a palavra em CSS, e este hook
    é a parte que o CSS não pode fazer sozinho — segurar o nó montado os 200 ms
@@ -5083,7 +5093,7 @@ export default function AdminClient({
             role={navOpen ? "dialog" : undefined}
             aria-modal={navOpen || undefined}
             aria-label={navOpen ? "Menu" : undefined}
-            className={`bo-material-faixa bo-material-desfoque pointer-events-auto fixed top-0 z-40 h-screen w-64 shrink-0 flex flex-col border-r border-[var(--bo-hairline)] motion-safe:transition-[transform,box-shadow] motion-safe:duration-300 ${
+            className={`bo-material-faixa bo-material-desfoque pointer-events-auto fixed top-0 z-40 h-dvh w-64 shrink-0 flex flex-col overflow-y-auto overscroll-contain border-r border-[var(--bo-hairline)] motion-safe:transition-[transform,box-shadow] motion-safe:duration-300 ${
               navOpen
                 ? "translate-x-0 shadow-[var(--bo-sombra-modal)]"
                 : "-translate-x-full shadow-none"
@@ -5113,7 +5123,16 @@ export default function AdminClient({
               quem está aqui dentro já sabe onde está, e o rótulo só roubava
               espaço ao único elemento que identifica a casa. O nome continua a
               ser anunciado por leitores de ecrã através do `alt` da imagem. */}
-            <div className="w-full px-3 pt-5 pb-6 flex justify-center">
+            {/* ── NUM ECRÃ BAIXO, O LOGÓTIPO DÁ O LUGAR AOS DESTINOS ──────────
+                Medido num iPhone 14 com as barras do Safari (390×664): a
+                largura toda dava ao logótipo ~138 px de altura, e com o rodapé
+                da conta colado ao fundo só se viam 4 dos 10 destinos — a lista
+                acabava num fio e parecia completa (auditoria, 14/11). Abaixo de
+                760 px de altura o logótipo fica numa faixa de 64 px; e a gaveta
+                passou a rolar INTEIRA (`overflow-y-auto` no `aside`), com os
+                destinos primeiro e a conta depois, em vez de uma lista que rola
+                presa entre os dois. */}
+            <div className="w-full shrink-0 px-3 pt-5 pb-6 flex justify-center [@media(max-height:760px)]:pb-2">
               <Image
                 src="/logo-liquen.png"
                 alt="Líquen Events"
@@ -5128,7 +5147,7 @@ export default function AdminClient({
                  * Amarrando à LARGURA (`w-full`) e deixando a altura seguir o
                  * rácio, passa a encher a barra de margem a margem — é a marca
                  * que abre o dia de trabalho, não um ícone. */
-                className="w-full h-auto object-contain"
+                className="w-full h-auto object-contain [@media(max-height:760px)]:h-16 [@media(max-height:760px)]:w-auto"
               />
             </div>
 
@@ -5164,7 +5183,7 @@ export default function AdminClient({
                  confusão que a regra do `soNoComputador` já evitava do outro
                  lado. Abaixo de `lg` a barra só leva quatro, e esta lista
                  continua a ser onde os outros vivem. */
-              className="relative lg:hidden flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto"
+              className="relative lg:hidden shrink-0 px-3 py-4 flex flex-col gap-1"
             >
               {/* O filete que anda. `aria-hidden` porque não diz nada que o
                   `aria-current="page"` de cada destino não diga melhor — é
@@ -5238,8 +5257,9 @@ export default function AdminClient({
               </div>
             </nav>
 
-            {/* User */}
-            <div className="px-2.5 pb-5 pt-3 border-t border-[var(--bo-hairline)]">
+            {/* User — `mt-auto` cola-o ao fundo quando sobra altura; quando não
+                sobra, vem a seguir aos destinos, dentro do mesmo rolo. */}
+            <div className="mt-auto shrink-0 px-2.5 pb-5 pt-3 border-t border-[var(--bo-hairline)]">
               <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--bo-surface-hover)] mb-2">
                 <div className="w-8 h-8 rounded-full bg-[var(--bo-accent)] flex items-center justify-center text-white text-xs font-bold shrink-0">
                   {userName.slice(0, 1).toUpperCase()}
@@ -6911,6 +6931,7 @@ export default function AdminClient({
                     `<label for>`. */}
                 <Escolha
                   variante="nua"
+                  containerClassName={FILTRO_CAIXA}
                   className={FILTRO_CLASSES}
                   valor={filterCategory}
                   aoMudar={setFilterCategory}
@@ -6922,6 +6943,7 @@ export default function AdminClient({
                 />
                 <Escolha
                   variante="nua"
+                  containerClassName={FILTRO_CAIXA}
                   className={FILTRO_CLASSES}
                   valor={filterEspera}
                   aoMudar={(v) => setFilterEspera(v as typeof filterEspera)}
@@ -6935,6 +6957,7 @@ export default function AdminClient({
                 {mesesDisponiveis.length > 1 && (
                   <Escolha
                     variante="nua"
+                    containerClassName={FILTRO_CAIXA}
                     className={FILTRO_CLASSES}
                     valor={filterMes}
                     aoMudar={setFilterMes}
@@ -6948,6 +6971,7 @@ export default function AdminClient({
                 {regioesDisponiveis.length > 1 && (
                   <Escolha
                     variante="nua"
+                    containerClassName={FILTRO_CAIXA}
                     className={FILTRO_CLASSES}
                     valor={filterRegiao}
                     aoMudar={setFilterRegiao}
@@ -6961,6 +6985,7 @@ export default function AdminClient({
                 {plannersDisponiveis.length > 0 && (
                   <Escolha
                     variante="nua"
+                    containerClassName={FILTRO_CAIXA}
                     className={FILTRO_CLASSES}
                     valor={filterPlanner}
                     aoMudar={setFilterPlanner}
@@ -6977,7 +7002,7 @@ export default function AdminClient({
                      cabe em meia largura, e um selector com o rótulo cortado
                      não diz por que ordem a lista está. Vai no `containerClassName`
                      porque quem ocupa a célula da grelha é a caixa, não o botão. */
-                  containerClassName="col-span-2 flex-1 lg:flex-none"
+                  containerClassName="col-span-2 min-w-0 flex-1 lg:flex-none"
                   className={`w-full ${FILTRO_CLASSES}`}
                   valor={sort}
                   aoMudar={(v) => setSort(v as typeof sort)}

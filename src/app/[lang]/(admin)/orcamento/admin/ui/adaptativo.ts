@@ -292,73 +292,191 @@ export function useDesceu(limiar = 24, voltaAos = 8): boolean {
  *
  * Num computador, as acções de uma linha vivem num menu que aparece ao passar
  * o rato ou ao carregar com o botão direito. Num telemóvel não há nem uma coisa
- * nem outra, e a saída habitual é encher a linha de ícones — que foi
- * exactamente o que fez o cabeçalho de cada grupo de serviços ocupar três
- * linhas num ecrã de 375 px.
+ * nem outra — e o Safari do iPhone NÃO dispara `contextmenu` no toque longo.
+ * Medido na auditoria do telemóvel (14/11): com os menus só em `onContextMenu`,
+ * o toque longo num dia, numa marcação ou numa tarefa fazia o mesmo que um
+ * toque curto (abria «Adicionar ao calendário», abria a tarefa).
  *
- * Devolve o que se espalha por um elemento para lhe dar um toque longo. O que
- * está aqui e não é óbvio:
+ * UMA peça para todos, e por isso devolve uma FÁBRICA: um gancho por lista, e
+ * `toqueLongo(aoDisparar, aoMenuDoRato)` por alvo — as 42 células do mês não
+ * podem chamar um gancho cada uma, e a lista das tarefas delega num contentor
+ * só. Só há um dedo a carregar de cada vez, portanto um temporizador chega.
+ *
+ * O que está aqui e não é óbvio:
  *
  * · **550 ms.** É o que o iOS usa para o menu de contexto. Menos e dispara a
  *   quem só estava a pousar o dedo para rolar; mais e parece que não responde.
- * · **Um dedo a mover-se cancela.** Sem isto, começar a rolar a lista com o
- *   dedo pousado num cabeçalho abria o menu a meio do gesto. Dez píxeis de
- *   folga porque um dedo nunca está completamente parado.
- * · **Só quando há toque a sério.** Com rato, `pointerdown` também dispara, e
- *   manter o botão carregado num campo de texto passaria a abrir um menu em
- *   vez de seleccionar texto.
+ * · **Um dedo a mover-se cancela** (mais de 10 px), **e a página a deslizar
+ *   também** — um rolo de um contentor lá dentro não move o dedo em relação ao
+ *   ecrã, mas é um gesto de rolar, não de carregar.
+ * · **Só com toque a sério.** Com rato, `pointerdown` também dispara, e manter
+ *   o botão carregado passaria a abrir um menu em vez de seleccionar texto. O
+ *   rato continua a ter o botão direito, que segue para `aoMenuDoRato`.
+ * · **Num campo de texto não dispara**: pousar o dedo e não largar é como se
+ *   põe o cursor a meio de uma palavra no iOS.
+ * · **Depois do toque longo não há clique.** O dedo levanta-se e o browser
+ *   manda o `click` do costume — que abria o dia ou a tarefa por baixo do menu
+ *   que acabou de abrir. Engole-se UM clique, em captura na janela (o menu vive
+ *   num portal, fora do alvo), e a bandeira cai no próximo `pointerdown`.
+ * · **O alvo é o primeiro que o reclama.** Uma marcação dentro de um dia: as
+ *   duas têm toque longo, e só a de dentro pode abrir o seu menu — é o mesmo
+ *   `stopPropagation` que o botão direito já fazia.
+ * · **Onde o Android dispara `contextmenu`** ao fim do toque longo, o menu
+ *   abre uma vez só: quem chegar primeiro, o temporizador ou o browser, ganha.
  * · **Não substitui nada.** O toque longo é um atalho; a acção tem sempre outro
  *   caminho visível (ver NO-KEYBOARD.md — a mesma regra, outro dispositivo).
+ *
+ * `aoDisparar` devolve `false` quando o toque não era com ele (a lista das
+ * tarefas, num sítio sem tarefa): então não há menu e o clique segue.
  */
-export function useToqueLongo(aoDisparar: () => void, ms = 550) {
-  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const origem = useRef<{ x: number; y: number } | null>(null);
+export type PontoDoToque = { x: number; y: number };
+export type AoToqueLongo = (ponto: PontoDoToque, alvo: HTMLElement) => boolean | void;
 
+/** O desenho de um alvo de toque longo: sem lupa nem selecção de texto no dedo. */
+export const SEM_LUPA = "pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none]";
+
+const RECLAMADOS = new WeakSet<Event>();
+
+/**
+ * Quanto tempo o `contextmenu` que chega depois de um toque longo se conta
+ * como DELE. O do Android chega na mesma fracção de segundo; um segundo cobre-o
+ * com folga, e depois disso um `contextmenu` é outra coisa (a tecla de menu).
+ */
+export const DISPARO_VALE_MS = 1000;
+
+export function useToqueLongo(ms = 550) {
+  const temporizador = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const origem = useRef<PontoDoToque | null>(null);
+  const aoRolar = useRef<(() => void) | null>(null);
+  const engolirClique = useRef<((e: Event) => void) | null>(null);
+  /** Um toque longo disparou e o `contextmenu` que o Android manda a seguir é dele. */
+  const disparou = useRef(false);
+  /** Baixa o `disparou` passado um segundo (ver `DISPARO_VALE_MS`). */
+  const baixarDisparo = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const largarRolo = useCallback(() => {
+    if (aoRolar.current) window.removeEventListener("scroll", aoRolar.current, true);
+    aoRolar.current = null;
+  }, []);
   const cancelar = useCallback(() => {
     if (temporizador.current) clearTimeout(temporizador.current);
     temporizador.current = null;
     origem.current = null;
+    largarRolo();
+  }, [largarRolo]);
+  const largarClique = useCallback(() => {
+    if (engolirClique.current) {
+      window.removeEventListener("click", engolirClique.current, true);
+      window.removeEventListener("pointerdown", engolirClique.current, true);
+    }
+    engolirClique.current = null;
   }, []);
 
-  // Um `ref` para o callback: sem isto, um `aoDisparar` novo a cada desenho
-  // (que é o caso normal, é sempre uma arrow function) recriava os handlers e
-  // o temporizador era limpo a meio da contagem.
-  // Actualizado num efeito e não a meio do desenho: escrever num `ref` durante
-  // o render é o que parte o modo concorrente do React (o desenho pode ser
-  // deitado fora e refeito, e a escrita fica lá).
-  const guardado = useRef(aoDisparar);
-  useEffect(() => {
-    guardado.current = aoDisparar;
-  });
+  const esquecerDisparo = useCallback(() => {
+    if (baixarDisparo.current) clearTimeout(baixarDisparo.current);
+    baixarDisparo.current = null;
+    disparou.current = false;
+  }, []);
 
-  useEffect(() => cancelar, [cancelar]);
+  useEffect(
+    () => () => {
+      cancelar();
+      largarClique();
+      esquecerDisparo();
+    },
+    [cancelar, largarClique, esquecerDisparo],
+  );
 
-  return {
-    onPointerDown: (e: React.PointerEvent) => {
-      if (e.pointerType !== "touch") return;
-      // Pousar o dedo num campo de texto e não largar é como se põe o cursor a
-      // meio de uma palavra no iOS. Abrir aqui um menu tirava-lhe isso — e o
-      // gesto seria disparado sempre que ela hesitasse a escrever.
-      if (
-        (e.target as HTMLElement | null)?.closest("input, textarea, [contenteditable], button, a")
-      )
-        return;
-      origem.current = { x: e.clientX, y: e.clientY };
-      temporizador.current = setTimeout(() => {
-        temporizador.current = null;
-        guardado.current();
-      }, ms);
+  return useCallback(
+    (aoDisparar: AoToqueLongo, aoMenuDoRato?: (e: React.MouseEvent<HTMLElement>) => void) => {
+      /** Abre o menu; `false` quando o toque não era com quem o recebeu. */
+      const disparar = (ponto: PontoDoToque, alvo: HTMLElement): boolean => {
+        if (aoDisparar(ponto, alvo) === false) return false;
+        disparou.current = true;
+        // A bandeira só serve o `contextmenu` que o Android manda logo a
+        // seguir ao toque longo. Levantada até ao próximo `pointerdown` NESTE
+        // alvo, engolia a tecla de menu (ou o ⇧F10) de um híbrido com
+        // teclado — que também chega como `contextmenu` (revisão de 14/11).
+        if (baixarDisparo.current) clearTimeout(baixarDisparo.current);
+        baixarDisparo.current = setTimeout(() => {
+          baixarDisparo.current = null;
+          disparou.current = false;
+        }, DISPARO_VALE_MS);
+        largarClique();
+        // Um `pointerdown` em QUALQUER sítio também a deita abaixo: o iOS nem
+        // sempre manda o clique depois do toque longo, e uma bandeira que
+        // ficasse levantada engolia o próximo toque noutro alvo.
+        const engolir = (e: Event) => {
+          if (e.type === "click") {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+          largarClique();
+        };
+        engolirClique.current = engolir;
+        window.addEventListener("click", engolir, true);
+        window.addEventListener("pointerdown", engolir, true);
+        return true;
+      };
+      return {
+        onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+          // Um toque novo: o clique que ficou por engolir (o iOS nem sempre o
+          // manda) não pode levar este.
+          largarClique();
+          esquecerDisparo();
+          if (e.pointerType !== "touch" || RECLAMADOS.has(e.nativeEvent)) return;
+          if (
+            (e.target as HTMLElement | null)?.closest?.(
+              "input, textarea, select, [contenteditable]",
+            )
+          )
+            return;
+          RECLAMADOS.add(e.nativeEvent);
+          cancelar();
+          const ponto = { x: e.clientX, y: e.clientY };
+          const alvo = e.target as HTMLElement;
+          origem.current = ponto;
+          aoRolar.current = cancelar;
+          window.addEventListener("scroll", cancelar, { capture: true, passive: true });
+          temporizador.current = setTimeout(() => {
+            temporizador.current = null;
+            origem.current = null;
+            largarRolo();
+            disparar(ponto, alvo);
+          }, ms);
+        },
+        onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
+          const o = origem.current;
+          if (!o) return;
+          if (Math.abs(e.clientX - o.x) > 10 || Math.abs(e.clientY - o.y) > 10) cancelar();
+        },
+        onPointerUp: cancelar,
+        onPointerCancel: cancelar,
+        onContextMenu: (e: React.MouseEvent<HTMLElement>) => {
+          // O toque longo já abriu o menu: o do browser (e o nosso outra vez)
+          // não abrem por cima.
+          if (disparou.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          // O browser chegou primeiro (Android): conta como o toque longo —
+          // se for com ele. Quando `aoDisparar` diz que não (a lista das
+          // tarefas, fora de uma tarefa), o menu do browser fica e segue para
+          // o do rato, como seguia antes de haver toque longo.
+          if (origem.current) {
+            const ponto = origem.current;
+            cancelar();
+            if (disparar(ponto, e.target as HTMLElement)) {
+              e.preventDefault();
+              e.stopPropagation();
+              return;
+            }
+          }
+          aoMenuDoRato?.(e);
+        },
+      };
     },
-    onPointerMove: (e: React.PointerEvent) => {
-      const o = origem.current;
-      if (!o) return;
-      if (Math.abs(e.clientX - o.x) > 10 || Math.abs(e.clientY - o.y) > 10) cancelar();
-    },
-    onPointerUp: cancelar,
-    onPointerCancel: cancelar,
-    // O menu de contexto do browser abriria por cima do nosso.
-    onContextMenu: (e: React.MouseEvent) => {
-      if (temporizador.current || origem.current) e.preventDefault();
-    },
-  };
+    [cancelar, largarClique, largarRolo, esquecerDisparo, ms],
+  );
 }
