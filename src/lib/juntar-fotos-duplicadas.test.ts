@@ -273,6 +273,19 @@ describe("as portas que prendem uma cópia", () => {
     expect(st.apagados).toEqual([]);
   });
 
+  it("os índices das fotografias (`foto-resumo:`, `foto-visual:`) não a seguram: sai na mesma", async () => {
+    st.estado["foto-visual:1c"] = {
+      value: { [`${PEDIDO}/nova.jpg`]: "f".repeat(86), [`${PEDIDO}/velha.jpg`]: "e".repeat(86) },
+      updated_at: "x",
+    };
+    st.estado["foto-resumo:" + "c".repeat(32)] = { value: [`${PEDIDO}/nova.jpg`], updated_at: "x" };
+    const { b } = await duasNoites();
+    expect(b).toMatchObject({ fase: "B", apagadas: 1 });
+    expect(st.apagados).toContain(`proposal-assets/${PEDIDO}/nova.jpg`);
+    // E diz quais saíram (o índice visual da mesma noite não as calcula).
+    expect(b.caminhosApagados).toEqual([`${PEDIDO}/nova.jpg`]);
+  });
+
   it("referida noutra chave do app_state: fica", async () => {
     st.estado["modelo:casamento"] = { value: { capa: `${PEDIDO}/nova.jpg` }, updated_at: "x" };
     st.tabelas.proposals = [{ id: "p1", doc: [`${PEDIDO}/velha.jpg`] }];

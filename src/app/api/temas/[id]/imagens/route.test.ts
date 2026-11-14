@@ -38,6 +38,26 @@ const st = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => st.authed }));
+// O índice dos resumos tem testes próprios (`route.sem-duplicados.test.ts`);
+// aqui nunca encontra nada e nunca escreve — sem ele, o `app_state` de
+// desenvolvimento (um ficheiro) era escrito pelos testes.
+const indice = vi.hoisted(() => ({ registar: vi.fn(async (_r: unknown[], _c: string) => {}) }));
+vi.mock("@/lib/fotos-resumo", () => ({
+  procurarExistentes: vi.fn(async () => new Map<string, string>()),
+  registarResumos: indice.registar,
+  resumoDosBytes: () => "0".repeat(32),
+}));
+// O índice visual e o contador do espaço têm testes próprios; aqui só se
+// prova que a Biblioteca os alimenta.
+const espaco = vi.hoisted(() => ({
+  somar: vi.fn(async (_p: Record<string, number>) => {}),
+  registar: vi.fn(async (_c: string, _i: string | null, _l: number) => {}),
+}));
+vi.mock("@/lib/ocupacao-do-armazenamento", () => ({ somarCarregado: espaco.somar }));
+vi.mock("@/lib/fotos-parecidas", () => ({
+  impressaoDosBytes: async () => "a".repeat(90),
+  registarImpressao: espaco.registar,
+}));
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@/lib/supabase", () => ({ isDatabaseConfigured: () => st.dbConfigured }));
 vi.mock("@/lib/themes-store", () => ({
@@ -340,6 +360,22 @@ describe("POST /api/temas/[id]/imagens", () => {
     );
   });
 
+  it("conta o espaço que guardou (o travão da importação) e regista a impressão com o lado", async () => {
+    espaco.somar.mockClear();
+    espaco.registar.mockClear();
+    const res = await POST(...post([jpg("a.jpg")], "t-1", [jpg("ta.jpg", 4)]));
+    expect(res.status).toBe(200);
+    expect(espaco.somar).toHaveBeenCalledTimes(1);
+    const contado = espaco.somar.mock.calls[0][0];
+    expect(contado["theme-assets"]).toBeGreaterThan(0);
+    expect(contado["theme-thumbs"]).toBeGreaterThan(0);
+    expect(espaco.registar).toHaveBeenCalledWith(
+      "tema:t-1/nova.jpg",
+      "a".repeat(90),
+      expect.any(Number),
+    );
+  });
+
   it("aceita as miniaturas emparelhadas pela ordem", async () => {
     const res = await POST(
       ...post([jpg("a.jpg"), jpg("b.jpg")], "t-1", [jpg("ta.jpg", 4), jpg("tb.jpg", 5)]),
@@ -519,6 +555,39 @@ describe("POST /api/temas/[id]/imagens — repetidas", () => {
       images: [],
       duplicates: [{ name: "praia.jpg", path: "t-1/ja-la-estava.jpg", reason: "no-tema" }],
     });
+  });
+
+  it("cada foto (nova ou repetida) entra no índice dos resumos como `tema:`", async () => {
+    // É por aqui que uma proposta que receba esta MESMA foto devolve a
+    // referência à Biblioteca em vez de guardar outra cópia (`fotos-resumo.ts`).
+    const res = await POST(...post([jpg("nova.jpg")]));
+    const [nova] = (await res.json()).images;
+    expect(indice.registar).toHaveBeenCalledWith(["0".repeat(32)], `tema:${nova.path}`);
+  });
+
+  it("o resumo do CLIENTE nunca liga os bytes que chegaram a uma foto que lá estava", async () => {
+    // Repetida pelo NOME (= o resumo que o navegador mandou): os bytes que
+    // chegaram não provam nada sobre a que lá está. Só o que o nome já diz.
+    st.upload.mockResolvedValueOnce({ kind: "duplicate", path: "t-1/ja-la-estava.jpg" } as never);
+    await POST(...post([jpg("praia.jpg")], "t-1", undefined, { hashes: [H1] }));
+    expect(indice.registar).toHaveBeenCalledWith([H1], "tema:t-1/ja-la-estava.jpg");
+    expect(JSON.stringify(indice.registar.mock.calls)).not.toContain("0".repeat(32));
+
+    // Repetida pelo MD5 dos bytes: aí são os bytes a prova, e o resumo do
+    // cliente fica de fora.
+    indice.registar.mockClear();
+    st.byBytes.mockResolvedValueOnce("t-1/antiga.jpg");
+    await POST(...post([jpg("praia.jpg")], "t-1", undefined, { hashes: [H1] }));
+    expect(indice.registar).toHaveBeenCalledWith(["0".repeat(32)], "tema:t-1/antiga.jpg");
+
+    // Nova com o resumo no NOME: o original entra, porque o nome já o afirma.
+    indice.registar.mockClear();
+    st.upload.mockResolvedValueOnce({
+      kind: "created",
+      image: { path: `t-1/${H1}.jpg`, url: "u" },
+    } as never);
+    await POST(...post([jpg("praia.jpg")], "t-1", undefined, { hashes: [H1] }));
+    expect(indice.registar).toHaveBeenCalledWith(["0".repeat(32), H1], `tema:t-1/${H1}.jpg`);
   });
 
   it("meio lote repetido: as boas entram e as repetidas são contadas à parte", async () => {

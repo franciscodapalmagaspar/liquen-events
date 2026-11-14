@@ -33,6 +33,29 @@ export interface WorkerRequest {
   wantThumb: boolean;
   thumbEdge: number;
   thumbQuality: number;
+  /**
+   * O formato da miniatura e da média (13/11). `"webp"` nas fotografias das
+   * PROPOSTAS: ~25% menos bytes à mesma qualidade (medido —
+   * `docs/GASTAR-POUCO-DESDE-O-INICIO.md`). Um navegador que não codifique
+   * WebP (o Safari) devolve outro tipo, e aí sai JPEG, como antes.
+   */
+  formatoDerivadas?: "webp" | "jpeg";
+}
+
+/**
+ * Codifica uma derivada no formato pedido; se o navegador devolver outro tipo
+ * (o Safari não codifica WebP e devolve PNG em silêncio), volta ao JPEG.
+ */
+export async function codificarDerivada(
+  canvas: OffscreenCanvas,
+  quality: number,
+  formato: "webp" | "jpeg" = "jpeg",
+): Promise<Blob | null> {
+  if (formato === "webp") {
+    const w = await canvas.convertToBlob({ type: "image/webp", quality }).catch(() => null);
+    if (w && w.type === "image/webp") return w;
+  }
+  return canvas.convertToBlob({ type: "image/jpeg", quality }).catch(() => null);
 }
 
 /** A resposta. `ok: false` NÃO é um erro fatal — quem chamou tenta o caminho
@@ -302,11 +325,7 @@ export async function prepareInWorker(req: WorkerRequest): Promise<{
       const canvas = drawTo(base, t.w, t.h);
       // A miniatura é derivada e dispensável: falhar aqui nunca deita fora a
       // foto — a grelha cai no original, como já faz com as fotos antigas.
-      if (canvas) {
-        thumb = await canvas
-          .convertToBlob({ type: "image/jpeg", quality: req.thumbQuality })
-          .catch(() => null);
-      }
+      if (canvas) thumb = await codificarDerivada(canvas, req.thumbQuality, req.formatoDerivadas);
     }
 
     // A MICRO, do mesmo canvas. Derivada e dispensável como a miniatura:
@@ -335,11 +354,7 @@ export async function prepareInWorker(req: WorkerRequest): Promise<{
     if (req.wantThumb && planThumb(bw, bh, MID_EDGE)) {
       const d = planResize(bw, bh, MID_EDGE);
       const canvas = drawTo(base, d.w, d.h);
-      if (canvas) {
-        mid = await canvas
-          .convertToBlob({ type: "image/jpeg", quality: MID_QUALITY })
-          .catch(() => null);
-      }
+      if (canvas) mid = await codificarDerivada(canvas, MID_QUALITY, req.formatoDerivadas);
     }
 
     // Do MESMO canvas já reduzido, como a miniatura. Sempre — uma foto sem

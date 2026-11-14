@@ -250,7 +250,13 @@ vi.mock("@/lib/email-templates-store", () =>
     "MODELOS_DE_ORIGEM",
   ]),
 );
-vi.mock("@/lib/app-state", () => H.build("app-state", ["getState", "setState"]));
+vi.mock("@/lib/app-state", () => H.build("app-state", ["getState", "getStates", "setState"]));
+vi.mock("@/lib/fotos-resumo", () =>
+  H.build("fotos-resumo", ["procurarExistentes", "registarResumos"], {
+    MAX_RESUMOS_POR_PERGUNTA: 60,
+    resumoDosBytes: () => "0".repeat(32),
+  }),
+);
 vi.mock("@/lib/mail", () =>
   H.build("mail", ["sendMail"], { esc: (s: string) => s, MAIL_TO: "team@liquen.test" }),
 );
@@ -631,6 +637,10 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // Ler uma proposta antiga (Word/PowerPoint). Não grava nada, mas devolve o
   // conteúdo de um documento de uma cliente — só para a sessão admin.
   { path: "./orcamento/importar/route", methods: ["POST"] },
+  // «Quais destas fotografias já estão guardadas?» (13/11). Só devolve
+  // caminhos da Biblioteca e do pedido, mas é o armazenamento da casa — sem
+  // sessão, nem uma pergunta.
+  { path: "./orcamento/fotos-existentes/route", methods: ["POST"] },
   // A biblioteca visual: o vocabulário de etiquetas, a procura por etiquetas e
   // o etiquetar em lote. Tudo isto lê e escreve o trabalho de arrumação da
   // equipa, e as fotos que devolve são URLs assinados de um bucket PRIVADO.

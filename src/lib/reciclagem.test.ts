@@ -230,7 +230,7 @@ describe("Reciclagem — a limpeza dos 30 dias", () => {
     await store.guardarNaReciclagem({ ...base, id: "no-limite", apagadoEm: dias(29) });
     await store.guardarNaReciclagem({ ...base, id: "nova", apagadoEm: dias(1) });
 
-    expect(await reciclagem.limparExpiradas()).toEqual({ apagadas: 1, ficaram: 0 });
+    expect(await reciclagem.limparExpiradas()).toMatchObject({ apagadas: 1, ficaram: 0 });
     expect((await store.listarReciclagem()).map((e) => e.id).sort()).toEqual(["no-limite", "nova"]);
   });
 
