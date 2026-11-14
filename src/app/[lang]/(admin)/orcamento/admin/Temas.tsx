@@ -1819,7 +1819,6 @@ export default function Temas() {
                     coverFallbackUrl: r.coverFallbackUrl,
                     coverLqip: r.coverLqip,
                     coverCor: r.coverCor,
-                    coverAvif: r.coverAvif,
                   }
                 : t;
             }),
@@ -2767,7 +2766,6 @@ export default function Temas() {
                   {t.coverUrl && t.imageCount !== 0 && (
                     <ImagemComPlanoB
                       src={t.coverUrl}
-                      avif={t.coverAvif}
                       planoB={t.coverFallbackUrl}
                       lqip={t.coverLqip}
                       /* ── SEM `scale` NO HOVER ──────────────────────────

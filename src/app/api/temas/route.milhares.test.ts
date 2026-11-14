@@ -34,11 +34,14 @@ vi.mock("@/lib/theme-storage", async () => {
     }),
     signThemePaths: vi.fn(async (p: string[]) => new Map(p.map((x) => [x, `https://s/${x}`]))),
     signThemeThumbs: vi.fn(async () => new Map()),
-    signThemeAvif: vi.fn(async () => new Map()),
   };
 });
 vi.mock("@/lib/biblioteca-fotos-store", () => ({
-  lqipsECoresDeCaminhos: vi.fn(async () => ({ lqips: new Map(), cores: new Map(), formas: new Map() })),
+  lqipsECoresDeCaminhos: vi.fn(async () => ({
+    lqips: new Map(),
+    cores: new Map(),
+    formas: new Map(),
+  })),
 }));
 vi.mock("@/lib/invoices-store", () => ({ isUniqueViolation: () => false }));
 
@@ -76,7 +79,10 @@ describe("GET /api/temas com milhares de temas", () => {
     ).json();
     expect(r).toHaveLength(2000);
     expect(st.listagens).toBe(LIMIAR_DE_RESUMOS);
-    const resumidos = r.filter((t) => !t.resumoPendente).map((t) => t.name).sort();
+    const resumidos = r
+      .filter((t) => !t.resumoPendente)
+      .map((t) => t.name)
+      .sort();
     expect(resumidos[0]).toBe("Tema 0000");
     expect(resumidos).toHaveLength(LIMIAR_DE_RESUMOS);
     // Por contar não é ilegível: o nome e o resto chegam, a contagem não.

@@ -759,107 +759,30 @@ describe("um mood board é uma parte do capítulo, não um capítulo", () => {
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
- * A OFERTA EM AVIF — «quero que as fotos sejam muito mais rápidas a carregar»
+ * UM FICHEIRO POR TAMANHO: A DE 1200 JÁ NÃO SE OFERECE EM AVIF (14/11)
  * ════════════════════════════════════════════════════════════════════════════
  *
- * MEDIDO com o `sharp` deste projecto e seis fotografias reais do sítio, média
- * por fotografia:
- *
- *     lado    webp      avif     densidade num telemóvel de 390 pt
- *      400   22,5 KB   17,2 KB    1,1x
- *     1200  130,1 KB  105,3 KB    3,3x   ← a que o telemóvel escolhe
- *
- * Numa proposta de quarenta e seis: 5,8 MB em WebP contra 4,7 MB em AVIF.
- *
- * ── A ARMADILHA QUE O `media` EVITA, E QUE ESTE FICHEIRO GUARDA ──────────
- *
- * Um `<source>` que casa DESLIGA o `srcset` do `<img>`. Como a oferta só tem
- * o candidato de 1200, num ecrã de densidade 1 — onde o navegador escolheria a
- * de 400, que pesa 22 KB — servir a de 1200 em AVIF seria CINCO VEZES PIOR.
- *
- * O `media="(min-resolution: 2dppx)"` é o que garante que a oferta só existe
- * onde a de 1200 já era a escolhida. Tirá-lo faz cair um teste aqui.
+ * A AVIF de 1200 era a mesma fotografia, ao mesmo tamanho, num segundo
+ * ficheiro (`derivadas.ts`, «E JÁ NÃO HÁ AVIF AO LADO»), e a limpeza vai
+ * apagá-la. Um `<source type="image/avif">` para um ficheiro apagado dá 404 e o
+ * navegador NÃO recua para o `<img>`: a célula ficava vazia. Por isso a página
+ * não a oferece nem quando um objecto guardado de antes ainda traz o campo.
  */
-describe("a oferta em AVIF das fotografias grandes", () => {
-  const COM_AVIF: Record<string, FotoDaProposta> = {
-    a: { ...FOTOS.a, media: "media/a", mediaAvif: "avif/a" },
-    b: FOTOS.b,
-    c: FOTOS.c,
-  };
-  const comAvif = () =>
-    render(<Inspiracao boards={[BOARD]} fotosIniciais={COM_AVIF} token="tk" textos={T} />);
-
-  it("CONTROLO POSITIVO: sem `mediaAvif` não se propõe nada, e a página desenha na mesma", () => {
-    // É o caso NORMAL de tudo o que foi carregado antes do bucket existir.
-    // Sem este controlo, um `<picture>` que nunca propusesse nada passava no
-    // teste de baixo por dizer o mesmo que uma implementação a funcionar.
-    desenhar();
-    expect(document.querySelectorAll("source")).toHaveLength(0);
-    expect(screen.getAllByRole("button", { name: /Ampliar/ }).length).toBeGreaterThan(0);
-  });
-
-  it("propõe o AVIF quando ele existe, e o `<img>` de sempre continua lá", () => {
-    comAvif();
-    const fonte = document.querySelector('source[type="image/avif"]');
-    expect(fonte, "não se propôs AVIF nenhum").not.toBeNull();
-    expect(fonte!.getAttribute("srcset")).toBe("avif/a");
-    // A oferta NÃO substitui: o `<img>` tem de continuar a ser servível.
-    const imagem = fonte!.parentElement!.querySelector("img");
-    expect(imagem?.getAttribute("src")).toBe("mini/a");
-  });
-
-  /**
-   * A OFERTA NÃO VALE EM TODO O LADO — E O NÚMERO MUDOU, DE PROPÓSITO.
-   *
-   * Este caso guardava `2dppx`. O portão desceu para `1,5`, e vale a pena
-   * dizer porquê em vez de trocar o número em silêncio.
-   *
-   * A razão do portão nunca foi o «2»: é a FRONTEIRA a partir da qual o
-   * navegador já escolhia a de 1200 sozinho. Abaixo dela ele escolheria a de
-   * 400 (22 KB) e nós passaríamos a impor-lhe a de 1200 em AVIF (105 KB) —
-   * cinco vezes pior, exactamente ao contrário do que isto existe para fazer.
-   * Refeita a conta com as fatias que esta casa serve, essa fronteira é
-   * 1,36 dppx (a pior é a grelha a 92vw num ecrã de 320 pontos). O 2 era
-   * prudente de mais: deixava de fora um portátil Windows a 150% de escala,
-   * que reporta exactamente 1,5 — que é como se vê uma proposta num
-   * escritório.
-   *
-   * O número em si passou a ser guardado onde a conta vive, e não aqui:
-   * `portao-do-avif.test.ts` REFAZ a fronteira a partir das `sizes` do código
-   * e reprova se o portão ficar abaixo dela. Um número pregado não sabe porque
-   * é que está certo — no dia em que alguém alargar uma fatia, a fronteira
-   * mexe-se e só a conta dá por isso.
-   *
-   * O que fica aqui é o que este ficheiro é responsável por guardar: que a
-   * oferta TEM um portão, e que ele não casa num ecrã de densidade 1.
-   */
-  it("A OFERTA NÃO VALE NUM ECRÃ DE DENSIDADE 1", () => {
-    comAvif();
-    const fonte = document.querySelector('source[type="image/avif"]');
-    const media = fonte!.getAttribute("media") ?? "";
-    const dppx = Number(media.match(/min-resolution:\s*([\d.]+)dppx/)?.[1]);
-    expect(media, "a oferta em AVIF deixou de ter portão nenhum").toMatch(/min-resolution/);
-    expect(dppx, "o portão passou a casar num ecrã de densidade 1").toBeGreaterThan(1);
-  });
-
-  it("sem `srcset` no `<img>` não há oferta — a cascata já caiu para o plano B", () => {
-    /**
-     * Depois de a cascata cair para o original, o que interessa é servir ALGUMA
-     * COISA. Uma oferta em AVIF nessa altura era deixar o navegador voltar a
-     * escolher por conta própria, quando a primeira escolha acabou de falhar.
-     */
-    const soOriginal: Record<string, FotoDaProposta> = {
-      a: { id: "a", marca: "ma", original: "orig/a", mediaAvif: "avif/a" },
-    };
+describe("a de 1200 já não se oferece em AVIF", () => {
+  it("nem com um `mediaAvif` velho no objecto: só o `<img>`, que existe sempre", () => {
+    const velho = { ...FOTOS.a, media: "media/a", mediaAvif: "avif/a" } as FotoDaProposta;
     render(
       <Inspiracao
-        boards={[{ ...BOARD, fotos: ["a"] }]}
-        fotosIniciais={soOriginal}
+        boards={[BOARD]}
+        fotosIniciais={{ a: velho, b: FOTOS.b, c: FOTOS.c }}
         token="tk"
         textos={T}
       />,
     );
     expect(document.querySelectorAll('source[type="image/avif"]')).toHaveLength(0);
+    expect(document.body.innerHTML).not.toContain("avif/a");
+    // CONTROLO POSITIVO: a fotografia continua desenhada, pela miniatura.
+    expect(document.querySelector('img[src="mini/a"]')).not.toBeNull();
   });
 });
 

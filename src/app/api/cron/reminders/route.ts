@@ -116,9 +116,9 @@ async function apanharDerivadasEmAtraso(desdeMs: number): Promise<void> {
   // que não acaba nada é uma ida ao Storage para nada.
   if (restante < 5_000) return;
   try {
-    // Sem papel: faz as ESSENCIAIS primeiro em toda a biblioteca e só depois o
-    // AVIF — a ordem está explicada no `gerarLoteDeDerivadas`, e é a que faz
-    // parar a meio deixar as coisas melhores do que estavam.
+    // Sem papel: as ESSENCIAIS (miniatura, micro e média). Desde 14/11 já não
+    // há AVIF ao lado para fazer depois — um ficheiro por tamanho
+    // (`derivadas.ts`, «E JÁ NÃO HÁ AVIF AO LADO»).
     const r = await gerarLoteDeDerivadas(undefined, { tectoMs: restante });
     if (r.fotografiasFeitas > 0 || r.falhas.length > 0) {
       log.info("cron reminders: derivadas apanhadas de caminho", {

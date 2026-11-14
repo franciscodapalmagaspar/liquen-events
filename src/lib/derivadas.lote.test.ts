@@ -134,12 +134,12 @@ describe("um lote de derivadas", () => {
   it("descarrega a fotografia UMA vez, e não uma vez por derivada", async () => {
     tema("tema-a", 3);
 
-    await gerarLoteDeDerivadas("leve");
+    await gerarLoteDeDerivadas("essencial");
 
-    // Três fotografias, TRÊS derivadas AVIF cada (400, micro e 1200): nove
-    // escritas, três downloads. Eram duas até a de 1200 em AVIF existir — e é
-    // o número dos downloads que este passeio guarda, não o das escritas: uma
-    // família nova tem de sair do MESMO ficheiro descarregado.
+    // Três fotografias, TRÊS derivadas cada (400, micro e 1200): nove
+    // escritas, três downloads. É o número dos downloads que este passeio
+    // guarda, não o das escritas: cada família tem de sair do MESMO ficheiro
+    // descarregado. (Eram as três AVIF «leves» até 14/11.)
     expect(st.escritos).toHaveLength(9);
     expect(st.descarregados).toHaveLength(3);
     expect(new Set(st.descarregados).size).toBe(3);
@@ -286,17 +286,16 @@ describe("a versão de 1200 px, que é a que a proposta mostra", () => {
     expect(st.escritos).toContain(`${PROPOSAL_MID_BUCKET}/ped-1/f0.jpg`);
   });
 
-  it("conta como avaria, e não fica à espera do AVIF", async () => {
+  it("o papel `leve` já não tem nada para fazer: não há AVIF ao lado (14/11)", async () => {
     tema("tema-a", 1);
 
     const r = await gerarLoteDeDerivadas("leve");
 
-    // A de 1200 px não é ganho: é o que evita descarregar os 2,6 MB do
-    // original. Se andasse com o AVIF, quem quisesse só arranjar a avaria
-    // tinha de esperar pelas codificações caras — que é a razão de os dois
-    // papéis existirem.
-    expect(st.escritos.some((c) => c.startsWith(`${THEME_MID_BUCKET}/`))).toBe(false);
-    expect(r.geradas).toBeGreaterThan(0);
+    // Até 14/11 isto fabricava as três AVIF da fotografia. Um ficheiro por
+    // tamanho: a passagem `leve` fica vazia, e não escreve nem descarrega.
+    expect(st.escritos).toEqual([]);
+    expect(st.descarregados).toEqual([]);
+    expect(r.geradas).toBe(0);
   });
 
   it("uma foto que já a tem não a refaz", async () => {

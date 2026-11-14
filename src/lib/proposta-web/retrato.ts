@@ -86,7 +86,9 @@ type PropostaParaORetrato = { id: string; doc: ProposalDoc; sentAt?: string; cre
  * `capa-web.ts`, `tamanhos.ts`, `ponto-de-interesse.ts`). O
  * `retrato.test.ts` falha se um desses ficheiros mudar sem isto subir.
  */
-export const VERSAO_DO_RETRATO = 10;
+// 11 (14/11): as fotografias deixam de levar a AVIF de 1200 (`mediaAvif`); só
+// a capa a tem. Um retrato v10 apontava para ficheiros que a limpeza apaga.
+export const VERSAO_DO_RETRATO = 11;
 
 /** `proposta-web:retrato:<proposta>:<impressão>` — com a versão do retrato. */
 export function chaveDoRetrato(proposta: PropostaParaORetrato, idioma: IdiomaDaProposta): string {

@@ -97,61 +97,11 @@ import { textosDaPagina, fase, type SeccaoDobravel } from "./textos-da-pagina";
  * As DATAS já eram localizadas e continuam.
  */
 
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * A OFERTA EM AVIF DE UMA FOTOGRAFIA GRANDE
- * ════════════════════════════════════════════════════════════════════════════
- *
- * MEDIDO com o `sharp` deste projecto e seis fotografias reais do sítio, média
- * por fotografia:
- *
- *     lado    webp      avif     densidade num telemóvel de 390 pt
- *      400   22,5 KB   17,2 KB    1,1x
- *     1200  130,1 KB  105,3 KB    3,3x   ← a que o telemóvel escolhe hoje
- *
- * Numa proposta de quarenta e seis fotografias são 5,8 MB em WebP contra
- * 4,7 MB em AVIF: 19% menos, com os MESMOS pixéis. Não se mexe na resolução de
- * propósito — a queixa de fotografias «desfocadas» veio de servir MENOS pixéis
- * (a de 400 numa fatia que pedia 1030) e não se volta lá.
- *
- * ── `min-resolution: 1.5dppx`, e não «sempre» ─────────────────────────
- *
- * A oferta em AVIF só tem o candidato de 1200 (não há AVIF de 400 do lado
- * das propostas). Um `<source>` que casa DESLIGA o `srcset` do `<img>` — e
- * num ecrã de densidade 1, onde o navegador escolheria a de 400 (22 KB),
- * passar a servir a de 1200 em AVIF (105 KB) seria cinco vezes pior.
- *
- * A pergunta é então: a partir de que densidade é que a de 1200 JÁ ERA a
- * escolhida? O navegador escolhe a de 1200 quando a fatia pede mais de 400
- * pixéis, portanto a fronteira é `400 ÷ largura-da-fatia-em-pontos`. Com as
- * fatias que esta casa serve:
- *
- *     ecrã     fatia (pontos)   fronteira
- *      320 pt      294 (92vw)     1,36 dppx
- *      360 pt      331 (92vw)     1,21 dppx
- *      390 pt      359 (92vw)     1,11 dppx
- *      640 pt      294 (46vw)     1,36 dppx
- *     1024 pt     1024            0,39 dppx
- *
- * A pior de todas é 1,36. Um portão a 1,5 fica acima de todas elas: onde
- * ele casa, a de 1200 já era a escolhida, e a troca é estritamente melhor.
- *
- * ── E PORQUE É QUE DESCEU DE 2 PARA 1,5 ──────────────────────────────────
- *
- * Porque a 2 ficava de fora uma densidade inteira de gente: um portátil
- * Windows a 150% de escala reporta exactamente 1,5. Não é um caso de
- * laboratório — é como se vê uma proposta num escritório. E a conta acima
- * mostra que a 1,5 não há ecrã nenhum onde a troca piore alguma coisa.
- *
- * Guardado pelo `portao-do-avif.test.ts`, com esta aritmética lá dentro.
- *
- * `null` — nenhuma oferta — é o caso NORMAL de tudo o que foi carregado antes
- * de o bucket existir. O `<img>` ao lado existe sempre.
+/*
+ * A OFERTA EM AVIF DAS FOTOGRAFIAS GRANDES saiu a 14/11: a de 1200 px em AVIF
+ * era um segundo ficheiro do mesmo tamanho da WebP (`derivadas.ts`, «E JÁ NÃO
+ * HÁ AVIF AO LADO»). O `<img>` serve a WebP, que existe sempre.
  */
-function OfertaAvif({ foto }: { foto?: { mediaAvif?: string } }) {
-  if (!foto?.mediaAvif) return null;
-  return <source type="image/avif" media="(min-resolution: 1.5dppx)" srcSet={foto.mediaAvif} />;
-}
 
 /** Um bloco de texto corrido — as notas, as condições, as observações. */
 function Lista({ itens }: { itens?: readonly string[] }) {
@@ -866,7 +816,6 @@ export default function Documento({
             />
           )}
           <picture>
-            <OfertaAvif foto={capa} />
             {}
             <img
               src={capa.miniatura ?? capaMedia}
@@ -1447,7 +1396,6 @@ export default function Documento({
             />
           )}
           <picture>
-            <OfertaAvif foto={fecho} />
             {}
             <img
               src={fecho.miniatura ?? fecho.original}

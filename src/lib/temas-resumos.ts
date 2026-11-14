@@ -4,7 +4,6 @@ import {
   listThemeFiles,
   signThemePaths,
   signThemeThumbs,
-  signThemeAvif,
   themeFolder,
   isThemePath,
 } from "@/lib/theme-storage";
@@ -176,18 +175,13 @@ export async function resumirTemas(themes: readonly ProposalTheme[]): Promise<Th
        (`lqipsECoresDeCaminhos`), dentro do mesmo orçamento: estourado o
        tempo, o cartão fica sem cor e cai no esqueleto cinzento, nunca num
        erro. */
-  const [urls, thumbs, avifs, { lqips, cores }] = await comOrcamento(
-    Promise.all([
-      signThemePaths(todos),
-      signThemeThumbs(todos),
-      // A oferta em AVIF, quando existe. O Supabase só assina o que lá está,
-      // e é isso que a torna segura: um `<source>` que dá 404 não faz o
-      // navegador recuar para o `<img>`. Ver `signThemeAvif`.
-      signThemeAvif(todos),
-      lqipsECoresDeCaminhos(todos),
-    ]),
+  // Sem a oferta em AVIF (14/11): era a mesma miniatura de 400 px num segundo
+  // ficheiro (`derivadas.ts`, «E JÁ NÃO HÁ AVIF AO LADO») e uma assinatura a
+  // mais por cada abertura da lista.
+  const [urls, thumbs, { lqips, cores }] = await comOrcamento(
+    Promise.all([signThemePaths(todos), signThemeThumbs(todos), lqipsECoresDeCaminhos(todos)]),
     limite - Date.now(),
-    [vazio(), vazio(), vazio(), { lqips: vazio(), cores: vazio(), formas: new Map() }],
+    [vazio(), vazio(), { lqips: vazio(), cores: vazio(), formas: new Map() }],
     "assinatura das capas",
   );
   /** O melhor que existe para a capa do cartão (~128 px). */
@@ -204,10 +198,6 @@ export async function resumirTemas(themes: readonly ProposalTheme[]): Promise<Th
     const coverFallbackUrl = capa ? urls.get(capa) : undefined;
     const coverLqip = capa ? lqips.get(capa) : undefined;
     const coverCor = capa ? cores.get(capa) : undefined;
-    // Só se oferece o AVIF do tamanho que se está a servir: um AVIF de 400 px
-    // proposto ao lado de uma micro de 96 seria mandar buscar dezassete vezes
-    // os pixéis, com um cabeçalho a dizer que era uma poupança.
-    const coverAvif = capa && thumbs.get(capa) ? avifs.get(capa) : undefined;
     return {
       ...t,
       imageCount: ok ? names.length : null,
@@ -216,7 +206,6 @@ export async function resumirTemas(themes: readonly ProposalTheme[]): Promise<Th
       ...(coverFallbackUrl ? { coverFallbackUrl } : {}),
       ...(coverLqip ? { coverLqip } : {}),
       ...(coverCor ? { coverCor } : {}),
-      ...(coverAvif ? { coverAvif } : {}),
     };
   });
   /**

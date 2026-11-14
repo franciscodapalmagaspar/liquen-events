@@ -199,25 +199,6 @@ export interface ThemeSummary extends ProposalTheme {
    */
   coverLqip?: string;
   /**
-   * ═══════════════════════════════════════════════════════════════════════
-   * A OFERTA EM AVIF
-   * ═══════════════════════════════════════════════════════════════════════
-   *
-   * Um AVIF pesa menos 25% do que o WebP com a mesma fidelidade — medido, e a
-   * tabela está em `derivadas.ts`. Mas o Safari só o lê desde o iOS 16 — e estas fotografias são
-   * também as que um casal abre na página da proposta, no telemóvel que tiver.
-   *
-   * Por isso viaja SEPARADO e é uma proposta, não uma troca: o `<picture>`
-   * oferece-o primeiro e quem não o souber ler pede o `coverUrl`, que existe
-   * sempre.
-   *
-   * Ausente quer dizer «não há» — e é uma ausência de confiança, não uma
-   * suposição: o Supabase só assina o que está lá. Isso importa porque um
-   * `<source>` que dá 404 NÃO faz o navegador recuar para o `<img>`.
-   *
-   */
-  coverAvif?: string;
-  /**
    * A cor dominante da capa, em `#rrggbb` — a mesma `ThemeImage.cor`.
    *
    * É o que o cartão pinta no lugar da fotografia enquanto ela não chega, e o

@@ -10,12 +10,7 @@ import { isPendingImage, type ProposalDoc } from "./proposal-doc";
  * função, e desarma o passo que tira as bibliotecas nativas de imagem das
  * rotas que não as usam.
  */
-import {
-  signProposalMids,
-  signProposalMidsAvif,
-  signProposalPaths,
-  signProposalThumbs,
-} from "./proposal-assinaturas";
+import { signProposalMids, signProposalPaths, signProposalThumbs } from "./proposal-assinaturas";
 import { ehRefDeTema, caminhoDoRefDeTema } from "./theme-ref";
 import { formasDeCaminhos, lqipsDeCaminhos } from "./biblioteca-fotos-store";
 import { urlsGuardados, guardarUrls } from "./urls-assinados";
@@ -108,19 +103,15 @@ export interface FotoDaProposta {
    * passa a ser o de arranque.
    */
   media?: string;
-  /**
-   * A MESMA de 1200 px, em AVIF — uma OFERTA, não uma substituição.
-   *
-   * Quem desenha propõe-a primeiro num `<picture>`; o navegador que não a
-   * souber ler pede a `media`, que existe sempre. Ausente é o caso NORMAL de
-   * tudo o que foi carregado antes de este bucket existir, e não é erro
-   * nenhum: sem ela a página fica exactamente como estava.
-   *
-   * Os mesmos pixéis da `media`, em ~28% menos bytes — a medição está no
-   * `derivadas.ts`. Não se mexe na resolução de propósito: a queixa de
-   * fotografias «desfocadas» veio de servir MENOS pixéis, e não se volta lá.
+  /*
+   * Já não há `mediaAvif` (14/11): a mesma de 1200 px em AVIF era um segundo
+   * ficheiro do mesmo tamanho (`derivadas.ts`, «E JÁ NÃO HÁ AVIF AO LADO»).
+   * Fica a `media`, que existe sempre e que todos os navegadores lêem. E não se
+   * lê nem a guardada: um endereço de dez anos para um ficheiro que a limpeza
+   * vai apagar era um `<source type="image/avif">` a dar 404 — e o navegador
+   * NÃO recua para o `<img>` nesse caso. Só a capa continua em AVIF, e assina
+   * a sua (`capa-web.ts`).
    */
-  mediaAvif?: string;
   /** O URL do ficheiro grande. É o que a lupa abre, e SÓ isso. */
   original?: string;
   /** Largura do ficheiro em pixels, quando se sabe (ver `formasDeCaminhos`). */
@@ -279,15 +270,12 @@ export async function fotosDaProposta(
   /** As que ainda não têm endereço guardado nesta família são as que se assinam. */
   const emFalta = (familia: string) => porAssinar.filter((r) => !doCache(r, familia));
 
-  const [originais, miniaturas, medias, mediasAvif, formas, lqips] = await Promise.all([
+  const [originais, miniaturas, medias, formas, lqips] = await Promise.all([
     signProposalPaths(emFalta("original")),
     signProposalThumbs(emFalta("miniatura")),
     // A de 1200 px assinada, quando já existe: é ela que a capa e a galeria
     // pedem num telemóvel, e era a única que fazia o desvio pela nossa função.
     signProposalMids(emFalta("media")),
-    // E a oferta em AVIF da mesma, quando existir. Vai no mesmo lote de
-    // assinaturas: uma ida a mais ao armazenamento por página, não por foto.
-    signProposalMidsAvif(emFalta("mediaAvif")),
     formasDeCaminhos(caminhos),
     lqipsDeCaminhos(caminhos),
   ]);
@@ -309,7 +297,6 @@ export async function fotosDaProposta(
     ["original", originais],
     ["miniatura", miniaturas],
     ["media", medias],
-    ["mediaAvif", mediasAvif],
   ] as const) {
     for (const ref of porAssinar) {
       const url = frescos.get(ref);
@@ -333,9 +320,6 @@ export async function fotosDaProposta(
         ? { miniatura: enderecoDe(ref, "miniatura", miniaturas) }
         : {}),
       ...(enderecoDe(ref, "media", medias) ? { media: enderecoDe(ref, "media", medias) } : {}),
-      ...(enderecoDe(ref, "mediaAvif", mediasAvif)
-        ? { mediaAvif: enderecoDe(ref, "mediaAvif", mediasAvif) }
-        : {}),
       ...(enderecoDe(ref, "original", originais)
         ? { original: enderecoDe(ref, "original", originais) }
         : {}),

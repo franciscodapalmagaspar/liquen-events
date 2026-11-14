@@ -262,8 +262,9 @@ export async function propostaWeb(
   const refDaCapa = conteudo.capa.fundo?.ref;
   let capa: CapaWeb | undefined;
   if (refDaCapa) {
-    const i = inventarioDeFotos(proposta.doc).findIndex((e) => e.ref === refDaCapa);
-    const agora = await capaWebEmAvif(refDaCapa, i >= 0 ? assinadas[i]?.mediaAvif : undefined);
+    // A AVIF de 1200 da capa assina-a o `capa-web.ts`: o `fotosDaProposta` já
+    // não assina AVIF nenhuma (14/11) — a capa é a única que a guarda.
+    const agora = await capaWebEmAvif(refDaCapa);
     capa = agora.capa;
     if (agora.porFazer) aoFicarACapaPorFazer?.(agora.porFazer);
   }
@@ -322,7 +323,8 @@ export async function montarPropostaWeb(
         largura: a.largura ?? 2000,
       },
     ]);
-    const avif1200 = capaWebDela?.avif ?? a.mediaAvif;
+    // Só a capa tem AVIF (14/11): as outras são um ficheiro por tamanho, a WebP.
+    const avif1200 = capaWebDela?.avif;
     const avifGrande = capaWebDela?.grande;
     const avif = srcSetComLarguras([
       { url: avif1200, largura: w(MEDIA_LADO) },

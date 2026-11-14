@@ -434,7 +434,6 @@ export default function ThemeCopyDialog({
                   {t.coverUrl && (
                     <ImagemComPlanoB
                       src={t.coverUrl}
-                      avif={t.coverAvif}
                       planoB={t.coverFallbackUrl}
                       lqip={t.coverLqip}
                       className="h-full w-full object-cover"

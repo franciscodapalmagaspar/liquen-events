@@ -6,16 +6,15 @@ import type { ThemeImage, ThemeSummary } from "@/lib/theme-types";
  * ════════════════════════════════════════════════════════════════════════════
  *
  * O cartão de um tema não desenha UM endereço: desenha quatro, que têm de ser
- * da MESMA fotografia — a derivada que se pede (`coverUrl`), a oferta em AVIF
- * que o `<picture>` põe à frente dela (`coverAvif`), o original para quando a
+ * da MESMA fotografia — a derivada que se pede (`coverUrl`), o original para quando a
  * derivada dá 404 (`coverFallbackUrl`) e o borrão que se pinta enquanto se
  * espera (`coverLqip`) — mais a cor que pinta o lugar quando nem o borrão
  * existe (`coverCor`).
  *
- * Trocar a capa mudava só o primeiro. O AVIF ficava da fotografia ANTIGA, e
- * como o `<source>` ganha ao `<img>` em qualquer navegador que leia AVIF, o
- * cartão continuava a mostrar a capa de antes — com o servidor a dizer que a
- * nova estava gravada. O borrão e o plano B ficavam também desencontrados.
+ * Trocar a capa mudava só o primeiro, e o borrão e o plano B ficavam
+ * desencontrados. (Havia também um `coverAvif`, que saiu a 14/11 — ver
+ * `derivadas.ts`, «E JÁ NÃO HÁ AVIF AO LADO». Um cartão guardado de antes que
+ * ainda o traga sai dele aqui, e ninguém o desenha.)
  *
  * Por isso a troca passa por aqui, e só por aqui: os campos da capa saem
  * TODOS do cartão e entram todos os da fotografia nova. Um campo que a
@@ -23,7 +22,7 @@ import type { ThemeImage, ThemeSummary } from "@/lib/theme-types";
  */
 export type CapaDoCartao = Pick<
   ThemeSummary,
-  "coverUrl" | "coverAvif" | "coverFallbackUrl" | "coverLqip" | "coverCor"
+  "coverUrl" | "coverFallbackUrl" | "coverLqip" | "coverCor"
 >;
 
 /**
@@ -59,7 +58,7 @@ function semAssinatura(url: string | undefined): string {
  *
  * Abrir a pasta devolve a capa que ela vê, e quase sempre é a mesma que o
  * cartão já tinha — só que assinada outra vez, com outro `?token=`. Trocar aí
- * deitava fora o AVIF (que a pasta não conhece) por nada. A pergunta é feita
+ * deitava fora o plano B e o borrão por nada. A pergunta é feita
  * ao FICHEIRO, sem a assinatura: o mesmo ficheiro deixa o cartão como está.
  */
 export function comCapa<T extends ThemeSummary>(t: T, capa: CapaDoCartao): T {
@@ -67,11 +66,12 @@ export function comCapa<T extends ThemeSummary>(t: T, capa: CapaDoCartao): T {
   // Os campos saem todos, e só depois entram os da fotografia nova.
   const {
     coverUrl: _url,
+    // O de antes de 14/11, se um cartão guardado ainda o trouxer.
     coverAvif: _avif,
     coverFallbackUrl: _planoB,
     coverLqip: _lqip,
     coverCor: _cor,
     ...resto
-  } = t;
+  } = t as T & { coverAvif?: string };
   return { ...resto, ...capa } as T;
 }

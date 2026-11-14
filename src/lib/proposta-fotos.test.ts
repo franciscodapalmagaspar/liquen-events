@@ -302,7 +302,6 @@ describe("os endereços das fotografias não mudam a cada visita", () => {
       ["original", H.pedidosOriginais],
       ["miniatura", H.pedidosMiniaturas],
       ["media", H.pedidosMedias],
-      ["mediaAvif", H.pedidosMediasAvif],
     ] as const) {
       const jaTinham = pedidos.flat().filter((ref) => H.guardados.get(caminhoDe(ref))?.[familia]);
       expect(
@@ -321,33 +320,53 @@ describe("os endereços das fotografias não mudam a cada visita", () => {
   });
 
   it("uma família em falta assina-se sozinha, sem arrastar as outras", async () => {
-    // O caso de uma fotografia que ganhou derivada AVIF depois de já ter sido
-    // assinada: assina-se só essa família, e não tudo de novo.
+    // O caso de uma fotografia que ganhou miniatura depois de já ter sido
+    // assinada: assina-se só essa família, e não tudo de novo. (Este caso
+    // usava a `mediaAvif`, que saiu a 14/11.)
     await fotosDaProposta(DOC);
-    const semAvif = new Map(
+    const semMiniatura = new Map(
       [...H.gravados].map(([c, fam]) => {
         const resto = { ...fam };
-        delete resto.mediaAvif;
+        delete resto.miniatura;
         return [c, resto] as const;
       }),
     );
-    H.guardados = new Map(semAvif);
+    H.guardados = new Map(semMiniatura);
     H.pedidosOriginais = [];
     H.pedidosMiniaturas = [];
-    H.pedidosMediasAvif = [];
 
     await fotosDaProposta(DOC);
 
-    // A `sem-miniatura` está sempre em falta e volta sempre — ver o caso acima.
     const jaTinha = (pedidos: string[][], familia: string) =>
       pedidos.flat().filter((ref) => H.guardados.get(ref.replace(/^tema:/, ""))?.[familia]);
     expect(jaTinha(H.pedidosOriginais, "original"), "reassinou originais que já tinha").toEqual([]);
-    expect(jaTinha(H.pedidosMiniaturas, "miniatura"), "reassinou miniaturas que já tinha").toEqual(
-      [],
-    );
-    expect(H.pedidosMediasAvif.flat().length, "não foi assinar a família em falta").toBeGreaterThan(
+    expect(H.pedidosMiniaturas.flat().length, "não foi assinar a família em falta").toBeGreaterThan(
       0,
     );
+  });
+
+  /**
+   * UM FICHEIRO POR TAMANHO (14/11): a de 1200 em AVIF já não se assina nem se
+   * devolve — nem a que ficou GUARDADA de antes, com dez anos de validade. A
+   * limpeza apaga esses ficheiros, e um `<source type="image/avif">` que dá 404
+   * não recua para o `<img>`.
+   */
+  it("não assina a AVIF de 1200, e não devolve a guardada de antes", async () => {
+    await fotosDaProposta(DOC);
+    const comAvifVelha = new Map(
+      [...H.gravados].map(([c, fam]) => [c, { ...fam, mediaAvif: `velha/${c}` }] as const),
+    );
+    // CONTROLO POSITIVO: há mesmo fotografias com a família velha guardada.
+    expect(comAvifVelha.size).toBeGreaterThan(0);
+    H.guardados = comAvifVelha;
+    H.pedidosMediasAvif = [];
+    for (const c of comAvifVelha.keys()) H.mediasAvif.set(c, `fresca/${c}`);
+
+    const fotos = await fotosDaProposta(DOC);
+
+    expect(H.pedidosMediasAvif.flat()).toEqual([]);
+    expect(fotos.length).toBeGreaterThan(0);
+    for (const f of fotos) expect(f).not.toHaveProperty("mediaAvif");
   });
 
   it("sem nada guardado, comporta-se exactamente como antes", async () => {

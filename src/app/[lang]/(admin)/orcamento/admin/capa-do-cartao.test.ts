@@ -7,7 +7,8 @@ import { capaDaFoto, comCapa } from "./capa-do-cartao";
  * a ponta (escolher a capa na pasta e voltar à grelha) está no
  * `Temas.test.tsx`; aqui ficam as duas regras que ele não isola.
  */
-const cartao: ThemeSummary = {
+// `coverAvif` saiu a 14/11; um cartão guardado de antes ainda o pode trazer.
+const cartao: ThemeSummary & { coverAvif?: string } = {
   id: "t1",
   name: "Terracotta",
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -32,7 +33,7 @@ describe("a capa do cartão", () => {
       }),
     );
     expect(com.coverCor).toBe("#203040");
-    expect(com.coverAvif).toBeUndefined();
+    expect(com).not.toHaveProperty("coverAvif");
     expect(com.coverLqip).toBeUndefined();
 
     // Uma fotografia sem cor não herda a da antiga.
@@ -43,7 +44,7 @@ describe("a capa do cartão", () => {
     expect(sem).not.toHaveProperty("coverFallbackUrl");
   });
 
-  it("a MESMA fotografia reassinada não troca nada — o AVIF fica", () => {
+  it("a MESMA fotografia reassinada não troca nada", () => {
     const igual = comCapa(
       cartao,
       capaDaFoto({

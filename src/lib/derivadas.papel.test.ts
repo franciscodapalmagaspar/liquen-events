@@ -120,24 +120,22 @@ describe("a contagem separa a avaria do ganho", () => {
     const c = await contarDerivadasEmFalta();
 
     expect(c.fotos).toBe(3);
-    // Três fotos × SEIS derivadas de tema = dezoito em falta ao todo. Eram
-    // cinco até a de 1200 px em AVIF existir.
-    expect(c.emFalta).toBe(18);
+    // Três fotos × TRÊS derivadas de tema = nove em falta ao todo. Foram seis
+    // (com as três AVIF) até 14/11: um ficheiro por tamanho.
+    expect(c.emFalta).toBe(9);
     // …das quais NOVE são essenciais — a miniatura de 400, o micro de 96 e a
     // de 1200 px, que é a que a página do casal mostra e que durante muito
     // tempo não era fabricada por lote nenhum.
     expect(c.emFaltaEssenciais).toBe(9);
-    // E NOVE são o ganho por cobrar: os mesmos três tamanhos em AVIF. Que este
-    // número suba sem o de cima subir é a prova de que uma família nova entrou
-    // como ganho e não como avaria.
-    expect(c.emFaltaLeves).toBe(9);
+    // E já não há ganho por cobrar: as AVIF ao lado saíram (14/11).
+    expect(c.emFaltaLeves).toBe(0);
     // Mas as FOTOGRAFIAS mal são três, e não seis: é este o número que se diz
     // em voz alta, e o que a versão anterior não sabia dizer.
     expect(c.fotosSemMiniatura).toBe(3);
-    expect(c.fotosSemVersaoLeve).toBe(3);
+    expect(c.fotosSemVersaoLeve).toBe(0);
   });
 
-  it("uma foto com miniatura e sem AVIF não conta como avaria", async () => {
+  it("uma foto com miniatura, micro e média e sem AVIF está completa (um ficheiro por tamanho)", async () => {
     temaSemNada("tema-a", 2);
     st.conteudo[THEME_THUMB_BUCKET] = new Set(["tema-a/f0.jpg", "tema-a/f1.jpg"]);
     st.conteudo[THEME_MICRO_BUCKET] = new Set(["tema-a/f0.jpg", "tema-a/f1.jpg"]);
@@ -147,14 +145,12 @@ describe("a contagem separa a avaria do ganho", () => {
 
     expect(c.fotosSemMiniatura).toBe(0);
     expect(c.emFaltaEssenciais).toBe(0);
-    // O ganho continua por cobrar, e é dito — SEM ser dado como avaria. Que o
-    // `emFaltaEssenciais` acima continue em zero é o que aqui interessa: a de
-    // 1200 em AVIF entrou como `leve`, e uma família nova não pode transformar
-    // uma biblioteca sã numa biblioteca avariada.
-    expect(c.fotosSemVersaoLeve).toBe(2);
-    // Seis e não quatro: três alvos leves por fotografia (400, micro e 1200
-    // em AVIF), duas fotografias.
-    expect(c.emFaltaLeves).toBe(6);
+    // Sem AVIF não falta nada: o tamanho já tem o seu ficheiro (14/11). Até
+    // aqui contavam-se seis «leves» em falta, e o lote ia fabricá-las.
+    expect(c.fotosSemVersaoLeve).toBe(0);
+    expect(c.emFaltaLeves).toBe(0);
+    expect(c.emFalta).toBe(0);
+    expect(c.linhas).toEqual([]);
   });
 
   it("uma pasta sem nada em falta não gera linha nenhuma", async () => {
@@ -179,33 +175,26 @@ describe("a contagem separa a avaria do ganho", () => {
   it("a lista põe à frente o tema com mais fotografias a servir o original", async () => {
     temaSemNada("poucas", 1);
     temaSemNada("muitas", 5);
-    // «poucas» já tem as miniaturas: só lhe falta o ganho.
-    st.conteudo[THEME_THUMB_BUCKET] = new Set(["poucas/f0.jpg"]);
-    st.conteudo[THEME_MICRO_BUCKET] = new Set(["poucas/f0.jpg"]);
-    st.conteudo[THEME_MID_BUCKET] = new Set(["poucas/f0.jpg"]);
-
     const c = await contarDerivadasEmFalta();
 
     expect(c.linhas[0].pasta).toBe("muitas");
     expect(c.linhas[0].semMiniatura).toBe(5);
-    expect(c.linhas[1].semMiniatura).toBe(0);
+    expect(c.linhas[1].pasta).toBe("poucas");
+    expect(c.linhas[1].semMiniatura).toBe(1);
   });
 });
 
 describe("a geração faz primeiro o que dói", () => {
-  it("nenhum AVIF é escrito antes de a última miniatura da biblioteca estar feita", async () => {
+  it("o lote inteiro (sem papel) não escreve AVIF nenhum: um ficheiro por tamanho", async () => {
     temaSemNada("tema-a", 2);
     temaSemNada("tema-b", 2);
+    st.conteudo["proposal-assets"] = new Set(["LIQ-1/p0.jpg"]);
 
     await gerarLoteDeDerivadas();
 
-    const primeiroAvif = st.escritos.findIndex((c) => c.startsWith("theme-avif"));
-    const ultimaEssencial = st.escritos.reduce(
-      (ultima, c, i) => (c.startsWith("theme-avif") ? ultima : i),
-      -1,
-    );
-    expect(primeiroAvif).toBeGreaterThan(-1);
-    expect(ultimaEssencial).toBeLessThan(primeiroAvif);
+    // CONTROLO POSITIVO: o lote correu e fabricou as essenciais todas.
+    expect(st.escritos).toHaveLength(4 * 3 + 2);
+    expect(st.escritos.filter((c) => c.includes("avif"))).toEqual([]);
   });
 
   it("`essencial` não escreve um único AVIF", async () => {

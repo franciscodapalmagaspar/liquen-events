@@ -114,7 +114,6 @@ function Capa({ tema }: { tema: ThemeSummary }) {
       {lugar}
       <ImagemComPlanoB
         src={tema.coverUrl}
-        avif={tema.coverAvif}
         planoB={tema.coverFallbackUrl}
         lqip={tema.coverLqip}
         className="relative h-full w-full object-cover"

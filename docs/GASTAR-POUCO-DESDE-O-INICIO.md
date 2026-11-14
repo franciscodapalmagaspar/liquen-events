@@ -232,6 +232,23 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
   cada proposta. Lista mostrada a 10/11: 9 ficheiros (~9 MB), incluindo as
   pastas de 2 propostas que já não existem. O Supabase não deixa apagar
   ficheiros por SQL (`storage.protect_delete`), por isso apagam-se no painel.
+- **Um ficheiro por tamanho (14/11, ramo `supabase/um-formato-por-tamanho`)**.
+  Medido em `storage.objects`: dentro de cada bucket cada chave é UM objecto
+  (o «jpeg» e o «webp» de `theme-medias`/`theme-thumbs` são fotografias
+  DIFERENTES — as antigas JPEG do navegador, as novas WebP do servidor). A
+  repetição estava só nos buckets AVIF ao lado: `theme-avif` (152, 1,7 MB),
+  `theme-avif-micro` (153, 0,1 MB), `theme-avif-medias` (167 de 1200 px,
+  9,6 MB) e `proposal-avif-medias` (1) — todos com o irmão presente. Deixam de
+  se fabricar e de se ler; fica a WebP/JPEG, que todos os navegadores lêem e
+  que existia sempre. Fica a capa da proposta online em AVIF (decisão dela,
+  27/10: a grande de 2000 px é o único ficheiro desse tamanho, e a de 1200 da
+  capa, 19 ficheiros ≈ 1,5 MB). Limpeza: `scripts/limpar-formatos-redundantes.mjs`
+  (ensaio por omissão; `--apagar` só com aprovação) — **~10 MB**. A micro fica
+  ficheiro: em base64 na resposta da lista seria reenviada a cada abertura
+  (75 tiras × ~2,2 KB ≈ 165 KB por lista), em vez de ficar no service worker,
+  para poupar 3,3 MB de 1 GB. Os volumes grandes são outros: originais
+  (`theme-assets` 295 MB, `proposal-assets` 147 MB), `fotos-editoriais`
+  (197 MB, cache de 30 dias) e `proposal-pdfs` (132 MB).
 - **Fotografias de pedidos apagados (autorizado por ela a 10/11)**: pastas de
   `proposal-assets` (+ derivadas) de pedidos apagados em julho e agosto, antes
   de a Reciclagem limpar as fotos. Ela pediu logo a seguir: «verifica tudo… não

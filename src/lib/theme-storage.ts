@@ -1051,27 +1051,11 @@ export function signThemeMicros(paths: string[]): Promise<Map<string, string>> {
   return signThemePaths(paths, THEME_MICRO_BUCKET);
 }
 
-/**
- * ── A OFERTA EM AVIF, E O QUE A TORNA SEGURA ─────────────────────────────
- *
- * Um `<source type="image/avif">` que dá 404 NÃO faz o navegador recuar para o
- * `<img>`: a escolha faz-se pelo `type`, uma vez, antes de haver resposta.
- * Oferecer um AVIF que não existe é uma célula vazia, sem recurso.
- *
- * O que torna isto seguro é a mesma propriedade em que as miniaturas já
- * assentam: o Supabase **só assina o que lá está**. Um caminho sem AVIF
- * simplesmente não vem no mapa, e quem desenha não o oferece. Não é uma
- * suposição — é o mesmo mecanismo que faz `signThemeThumbs` devolver um mapa
- * esparso para as fotos anteriores às miniaturas.
+/*
+ * Havia aqui `signThemeAvif` e `signThemeAvifMicros` — a oferta em AVIF das de
+ * 400 e das de 96. Saíram a 14/11 com a geração delas (`derivadas.ts`, «E JÁ
+ * NÃO HÁ AVIF AO LADO»): ninguém as pedia senão a lista de temas.
  */
-export function signThemeAvif(paths: string[]): Promise<Map<string, string>> {
-  return signThemePaths(paths, THEME_AVIF_BUCKET);
-}
-
-/** O irmão das micro, em AVIF. Ver `signThemeAvif`. */
-export function signThemeAvifMicros(paths: string[]): Promise<Map<string, string>> {
-  return signThemePaths(paths, THEME_AVIF_MICRO_BUCKET);
-}
 
 /**
  * Os caminhos de uma página, já com a ordem manual à frente (puro — testado).
