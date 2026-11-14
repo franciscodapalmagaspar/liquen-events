@@ -1,5 +1,6 @@
 import "server-only";
 import { listFotos } from "./biblioteca-fotos-store";
+import { ehFotoDaBiblioteca } from "./biblioteca-consulta";
 import { etiquetar, listFotoEtiquetas } from "./biblioteca-foto-etiquetas-store";
 import { planearPaletas, resumoDoPlano, type PlanoDePaletas } from "./paleta-etiquetar";
 
@@ -61,8 +62,11 @@ export async function aplicarPaletas({ ensaio = false } = {}): Promise<Resultado
     ligacoes.filter((l) => l.etiquetaId.startsWith(PREFIXO_PALETA)).map((l) => l.path),
   );
 
+  // Só as fotos da Biblioteca: as das propostas também têm cor nesta tabela,
+  // mas uma etiqueta de paleta numa foto de um pedido não aparece em lado
+  // nenhum (ver `ehFotoDaBiblioteca`).
   const plano = planearPaletas(
-    fotos.map((f) => ({ path: f.path, cor: f.cor })),
+    fotos.filter((f) => ehFotoDaBiblioteca(f.path)).map((f) => ({ path: f.path, cor: f.cor })),
     jaComPaleta,
   );
 
