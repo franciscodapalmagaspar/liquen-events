@@ -18,12 +18,19 @@ const st = vi.hoisted(() => ({
     fotos: {},
   })),
   imagens: new Map<string, Buffer>(),
+  /** O que o armazenamento diz que já não existe (com a memória de 3 min). */
+  faltam: new Set<string>(),
+  perguntas: [] as unknown[],
 }));
 
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => st.authed }));
 vi.mock("@/lib/quotes-store", () => ({ getQuote: async () => st.quote }));
 vi.mock("@/lib/proposal-doc-render", () => ({
   renderStoredEditorialPdfWithReport: st.render,
+  fotosQueSeSabeQueFaltam: async (_doc: unknown, opcoes: unknown) => {
+    st.perguntas.push(opcoes);
+    return new Set(st.faltam);
+  },
 }));
 vi.mock("@/lib/paginas-do-pdf", () => ({
   larguraPedida: (n: number) => (n <= 800 ? 800 : n <= 1200 ? 1200 : 1600),
@@ -62,6 +69,8 @@ beforeEach(() => {
   st.quote = { id: "q1" };
   st.render.mockClear();
   st.imagens.clear();
+  st.faltam = new Set();
+  st.perguntas = [];
 });
 
 describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
@@ -95,7 +104,9 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
     expect(idioma).toBe("en");
     // Com memória das listagens: cada página desenhada perguntava de novo ao
     // armazenamento que fotos já não existem (revisão de 14/11, 2.ª, n.º 1).
-    expect(opcoes).toEqual({ soPaginas: [3], memoria: true });
+    // E as que faltam são as da chave, passadas ao motor (menor n.º 4).
+    expect(opcoes).toEqual({ soPaginas: [3], memoria: true, faltam: new Set() });
+    expect(st.perguntas).toEqual([{ memoria: true }]);
   });
 
   it("a mesma página do mesmo rascunho vem da memória — não se desenha outra vez", async () => {
@@ -108,6 +119,24 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
     await pedir({ doc: DOC, n: 4 });
     await pedir({ doc: { ...DOC, clientNames: "TESTE Ana & TESTE Rita" }, n: 3 });
     expect(st.render).toHaveBeenCalledTimes(3);
+  });
+
+  /**
+   * Revisão de 14/11, menor n.º 4: repor uma foto da Reciclagem (ou levá-la)
+   * não muda o rascunho — e a página já desenhada continuava a vir da memória.
+   */
+  it("levar ou repor uma foto muda a chave: a página desenha-se outra vez", async () => {
+    await pedir({ doc: DOC, n: 3 });
+    st.faltam = new Set(["tema:t/foi.jpg"]);
+    const levada = await pedir({ doc: DOC, n: 3 });
+    expect(levada.headers.get("Server-Timing")).toMatch(/^desenho;/);
+    expect(st.render).toHaveBeenCalledTimes(2);
+    expect(st.render.mock.calls[1][2]).toMatchObject({ faltam: new Set(["tema:t/foi.jpg"]) });
+    // Reposta: volta a ser a primeira — essa já estava desenhada.
+    st.faltam = new Set();
+    const reposta = await pedir({ doc: DOC, n: 3 });
+    expect(reposta.headers.get("Server-Timing")).toMatch(/^memoria;/);
+    expect(st.render).toHaveBeenCalledTimes(2);
   });
 
   it("uma língua estranha cai no português", async () => {

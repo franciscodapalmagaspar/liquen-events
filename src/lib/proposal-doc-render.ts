@@ -843,7 +843,18 @@ export async function renderStoredEditorialPdfWithReport(
    * página desenhada perguntava de novo, ~150 listagens por minuto a editar.
    * O envio e a porta do casal ficam sem ela: perguntam sempre de fresco.
    */
-  opcoes: { rascunho?: boolean; soPaginas?: readonly number[]; memoria?: boolean } = {},
+  opcoes: {
+    rascunho?: boolean;
+    soPaginas?: readonly number[];
+    memoria?: boolean;
+    /**
+     * As que se sabe que faltam, já perguntadas por quem chama — para a chave
+     * de quem guarda o desenho e o próprio desenho usarem a MESMA resposta
+     * (`pagina-do-rascunho`, revisão de 14/11, menor n.º 4). Sem ela,
+     * pergunta-se aqui.
+     */
+    faltam?: ReadonlySet<string>;
+  } = {},
 ): Promise<{
   pdf: Buffer<ArrayBuffer>;
   missingImages: number;
@@ -874,9 +885,10 @@ export async function renderStoredEditorialPdfWithReport(
   /** As páginas do PDF inteiro, mesmo com `soPaginas`. */
   paginas: number;
 }> {
-  const { memoria, ...doDesenho } = opcoes;
+  const { memoria, faltam: jaPerguntadas, ...doDesenho } = opcoes;
   const withDefaults = withProposalDefaults(doc);
-  const faltam = await fotosQueSeSabeQueFaltam(withDefaults, { memoria: !!memoria });
+  const faltam =
+    jaPerguntadas ?? (await fotosQueSeSabeQueFaltam(withDefaults, { memoria: !!memoria }));
   const {
     doc: resolved,
     missing,

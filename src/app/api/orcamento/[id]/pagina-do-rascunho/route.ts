@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { isAuthed } from "@/lib/admin-auth";
 import { getQuote } from "@/lib/quotes-store";
-import { MAX_PROPOSAL_DOC_BYTES, type ProposalDoc } from "@/lib/proposal-doc";
-import { renderStoredEditorialPdfWithReport } from "@/lib/proposal-doc-render";
+import { MAX_PROPOSAL_DOC_BYTES, withProposalDefaults, type ProposalDoc } from "@/lib/proposal-doc";
+import {
+  fotosQueSeSabeQueFaltam,
+  renderStoredEditorialPdfWithReport,
+} from "@/lib/proposal-doc-render";
 import { imagemDaPagina, larguraPedida } from "@/lib/paginas-do-pdf";
 import {
   ehIdiomaDaProposta,
@@ -100,12 +103,20 @@ async function POST_semMedida(
   const largura = larguraPedida(Number(body?.largura) || 800);
 
   try {
-    const chave = `rascunho:${createHash("sha256")
-      .update(`${idioma}\u0000${n}\u0000${JSON.stringify(doc)}`)
-      .digest("hex")}`;
+    /**
+     * ── A CHAVE LEVA AS FOTOS QUE FALTAM (revisão de 14/11, menor n.º 4) ──
+     *
+     * O rascunho sozinho não chega: repor uma foto da Reciclagem (ou levá-la)
+     * não muda o rascunho, e a página já desenhada continuava a vir da
+     * memória — sem a foto, ou com ela. As que faltam são as MESMAS que o
+     * desenho usa (passam-se ao motor), com a memória de 3 min e a pergunta
+     * em curso partilhada: nenhuma ida a mais quando o desenho corre, e uma
+     * listagem por pasta a cada 3 min quando a página vem da memória.
+     */
     const comecou = Date.now();
     let paginas: number | null = null;
     let desenhou = false;
+    let chave = "";
     // A confirmação de que o pedido existe e o desenho correm AO MESMO TEMPO
     // (9/11, «tem que ser ultra rápida»): a ida à base de dados deixava de
     // esperar à frente do desenho. Um pedido que não existe continua a dar
@@ -113,24 +124,36 @@ async function POST_semMedida(
     // instância, e quem o pede já passou o `isAuthed`.
     const [existe, imagem] = await Promise.all([
       getQuote(id),
-      imagemDaPagina(
-        chave,
-        async () => {
-          desenhou = true;
-          const r = await renderStoredEditorialPdfWithReport(doc as ProposalDoc, idioma, {
-            soPaginas: [n],
-            // As fotos que já não existem perguntam-se com memória, e a
-            // pergunta em curso é partilhada: as páginas desenhadas ao mesmo
-            // tempo fazem UMA listagem por pasta (revisão de 14/11, 2.ª, n.º 1).
-            memoria: true,
-          });
-          paginas = r.paginas;
-          return r.pdf;
-        },
-        // O PDF devolvido tem SÓ a página pedida: é a primeira dele.
-        1,
-        largura,
-      ),
+      (async () => {
+        const faltam = await fotosQueSeSabeQueFaltam(withProposalDefaults(doc as ProposalDoc), {
+          memoria: true,
+        });
+        chave = `rascunho:${createHash("sha256")
+          .update(
+            `${idioma}\u0000${n}\u0000${JSON.stringify(doc)}\u0000${resumoDasQueFaltam(faltam)}`,
+          )
+          .digest("hex")}`;
+        return imagemDaPagina(
+          chave,
+          async () => {
+            desenhou = true;
+            const r = await renderStoredEditorialPdfWithReport(doc as ProposalDoc, idioma, {
+              soPaginas: [n],
+              // As fotos que já não existem perguntam-se com memória, e a
+              // pergunta em curso é partilhada: as páginas desenhadas ao mesmo
+              // tempo fazem UMA listagem por pasta (revisão de 14/11, 2.ª, n.º 1).
+              // E são as MESMAS da chave: passam-se ao motor.
+              memoria: true,
+              faltam,
+            });
+            paginas = r.paginas;
+            return r.pdf;
+          },
+          // O PDF devolvido tem SÓ a página pedida: é a primeira dele.
+          1,
+          largura,
+        );
+      })(),
     ]);
     if (!existe) {
       return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
@@ -171,6 +194,11 @@ async function POST_semMedida(
       { status: 500 },
     );
   }
+}
+
+/** As que faltam, por ordem — a mesma lista dá sempre o mesmo resumo. */
+function resumoDasQueFaltam(faltam: ReadonlySet<string>): string {
+  return [...faltam].sort().join("\u0001");
 }
 
 // Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.

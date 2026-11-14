@@ -675,6 +675,45 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.useRealTimers();
   });
 
+  it("uma foto que entra ou sai da Reciclagem faz pedir outra vez a página à vista (menor n.º 4, 14/11)", async () => {
+    // O rascunho não muda quando ela repõe uma foto — e a página guardada
+    // continuava a ser «desta versão», sem a foto. O aviso que a Biblioteca e
+    // a Reciclagem já dão muda a geração das fotos; só ENTÃO se pede outra vez.
+    vi.useFakeTimers();
+    comUrls();
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
+    for (let k = 0; k < 20; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+    }
+    const pedidos = f.mock.calls.length;
+    const aVer = JSON.parse(String(f.mock.calls[0][1]?.body)).n;
+    // Sem mudança nenhuma, nada se pede.
+    for (let k = 0; k < 10; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+    }
+    expect(f.mock.calls.length).toBe(pedidos);
+    await act(async () => {
+      window.dispatchEvent(new Event("liquen:biblioteca-alterada"));
+    });
+    for (let k = 0; k < 20; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+    }
+    const novos = f.mock.calls.slice(pedidos).map((c) => JSON.parse(String(c[1]?.body)).n);
+    // A que se vê primeiro, e só as que estão perto dela.
+    expect(novos[0]).toBe(aVer);
+    expect(novos.length).toBeGreaterThan(0);
+    expect(novos.every((n: number) => Math.abs(n - aVer) <= 2)).toBe(true);
+    vi.useRealTimers();
+  });
+
   it("se o servidor falha, diz que a página não chegou — sem aproximação", async () => {
     vi.useFakeTimers();
     comUrls();

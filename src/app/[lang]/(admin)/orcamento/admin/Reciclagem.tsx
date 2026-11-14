@@ -91,6 +91,10 @@ export default function Reciclagem() {
     });
     if (!ok) return;
     toast(`«${e.rotulo}» reposto.`, "success");
+    // Uma foto (ou um tema) que volta muda o que a Biblioteca, o escolhedor e
+    // as páginas já desenhadas do estúdio mostram — o mesmo aviso do ecrã dos
+    // Temas (revisão de 14/11, menor n.º 4).
+    window.dispatchEvent(new Event("liquen:biblioteca-alterada"));
     void refresh();
   }
 

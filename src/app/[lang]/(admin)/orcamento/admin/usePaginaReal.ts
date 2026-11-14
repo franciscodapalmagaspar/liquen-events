@@ -223,6 +223,56 @@ function corpoDe(doc: ProposalDoc, idioma: IdiomaDaProposta, n: number, largura:
   return JSON.stringify({ doc, idioma, n, largura });
 }
 
+/**
+ * ── E AS FOTOS QUE ENTRAM OU SAEM DA RECICLAGEM (revisão de 14/11, menor n.º 4)
+ *
+ * Levar uma foto para a Reciclagem, ou repô-la, não muda o rascunho — e a
+ * página guardada aqui (na memória e no `caches`) continuava a ser «desta
+ * versão», sem a foto ou com ela. O servidor já põe as que faltam na chave
+ * dele; o navegador não as sabe sem perguntar.
+ *
+ * Por isso há uma GERAÇÃO das fotos, que entra nas chaves de cá: muda quando
+ * a Biblioteca ou a Reciclagem dizem que mudaram (`liquen:biblioteca-alterada`)
+ * e passa aos outros separadores pelo `localStorage`. Nenhum pedido a mais:
+ * só depois de uma mudança a sério as páginas à volta da que se vê se pedem
+ * outra vez — como depois de mudar uma vírgula.
+ */
+const CHAVE_DA_GERACAO = "liquen-fotos-geracao";
+
+function lerGeracao(): string {
+  try {
+    return typeof localStorage === "undefined"
+      ? ""
+      : (localStorage.getItem(CHAVE_DA_GERACAO) ?? "");
+  } catch {
+    return "";
+  }
+}
+
+let geracaoDasFotos = lerGeracao();
+
+/** As fotos mudaram (nesta aba, ou noutra com `nova`): as páginas guardadas deixam de ser desta versão. */
+export function fotosMudaram(nova?: string) {
+  geracaoDasFotos = nova ?? String(Date.now());
+  if (nova === undefined) {
+    try {
+      localStorage.setItem(CHAVE_DA_GERACAO, geracaoDasFotos);
+    } catch {
+      // Sem armazenamento, muda só nesta aba.
+    }
+  }
+  for (const p of preparadores.values()) p.fotosMudaram();
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("liquen:biblioteca-alterada", () => fotosMudaram());
+  window.addEventListener("storage", (e) => {
+    if (e.key === CHAVE_DA_GERACAO && e.newValue && e.newValue !== geracaoDasFotos) {
+      fotosMudaram(e.newValue);
+    }
+  });
+}
+
 class FalhaTemporaria extends Error {}
 
 /**
@@ -260,7 +310,9 @@ class Preparador {
   }
 
   chave(n: number, doc: ProposalDoc | null = this.doc) {
-    return doc ? `${this.quoteId}\u0000${corpoDe(doc, this.idioma, n, this.largura)}` : "";
+    return doc
+      ? `${this.quoteId}\u0000${geracaoDasFotos}\u0000${corpoDe(doc, this.idioma, n, this.largura)}`
+      : "";
   }
   chaveDaPagina(n: number, totalDoPlano: number | null) {
     return `${this.quoteId}\u0000${this.idioma}\u0000${this.largura}\u0000${totalDoPlano ?? ""}\u0000${n}`;
@@ -344,7 +396,9 @@ class Preparador {
     this.emCurso.set(p, controlo);
     const chave = this.chave(p, doc);
     const corpo = corpoDe(doc, this.idioma, p, this.largura);
-    const estaVersao = impressao(corpo);
+    // A geração das fotos também conta: uma página guardada antes de uma foto
+    // entrar ou sair da Reciclagem já não é desta versão.
+    const estaVersao = impressao(`${geracaoDasFotos}\u0000${corpo}`);
     const daPagina = this.chaveDaPagina(p, this.planoTotal);
     try {
       // Já está no navegador, desta versão (de antes de recarregar)?
@@ -384,6 +438,14 @@ class Preparador {
   }
 
   retomar() {
+    this.bombear();
+  }
+
+  /** Uma foto entrou ou saiu: as páginas à volta da que se vê pedem-se outra vez. */
+  fotosMudaram() {
+    this.tentativas.clear();
+    this.raio = RAIO_DEPOIS_DE_MUDAR;
+    this.avisar();
     this.bombear();
   }
 }

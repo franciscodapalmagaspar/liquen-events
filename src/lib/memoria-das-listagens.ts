@@ -20,8 +20,9 @@
  *
  * E esquece-se a pasta quando uma escrita a muda nesta instância — levar ou
  * trazer uma foto da Reciclagem, carregar, apagar (`invalidateThemeCount`):
- * as páginas ainda por desenhar já a mostram, sem esperar o prazo (as que já
- * estão desenhadas guardam-se pela chave do rascunho e só mudam com ele).
+ * as páginas ainda por desenhar já a mostram, sem esperar o prazo. As já
+ * desenhadas também: a chave delas leva as que faltam (revisão de 14/11,
+ * menor n.º 4 — `pagina-do-rascunho`).
  *
  * Sem `server-only` e sem importar nada: o `theme-storage` chama-o sem trazer
  * o motor do PDF atrás.
