@@ -13,7 +13,10 @@ import {
   juntarCorreccoes,
   valoresQueVaoSerGravados,
   escolherModoDoIva,
-  avisoDaSomaGravada,
+  avisosDoEcra,
+  comServicosPostos,
+  escolherTotalDoDocumento,
+  usarASoma,
   totalEscrito,
   montarDocumento,
   oQueFalta,
@@ -149,7 +152,9 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
   // avisos da verificação, e os de dinheiro que ela já confirmou.
   const [revisao, setRevisao] = useState<Revisao | null>(null);
   const [confirmados, setConfirmados] = useState<Set<string>>(new Set());
-  const [notaDoIva, setNotaDoIva] = useState(false);
+  // O modo que estava quando ela escreveu o total e mudou o IVA: a nota
+  // «Mudaste o IVA» some quando ela volta a ele.
+  const [modoAntes, setModoAntes] = useState<VatMode | null>(null);
   const [imagensDoDocumento, setImagensDoDocumento] = useState<Map<string, File>>(new Map());
   const original = useRef<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -186,7 +191,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     setTentouCriar(false);
     setRevisao(null);
     setConfirmados(new Set());
-    setNotaDoIva(false);
+    setModoAntes(null);
     setImagensDoDocumento(new Map());
     original.current = null;
     if (inputRef.current) inputRef.current.value = "";
@@ -258,7 +263,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       );
       setRevisao(rev);
       setConfirmados(new Set());
-      setNotaDoIva(false);
+      setModoAntes(null);
       setImagensDoDocumento(new Map(lidas.fotos.map((f) => [f.caminho, f.ficheiro])));
       setFotos(lidas.fotos.filter((f) => naProposta.has(f.caminho)));
       setDeFora(lidas.deFora.filter((f) => naProposta.has(f.caminho)));
@@ -296,14 +301,17 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       c.total.trim() &&
       semLinhasComValor &&
       c.totalVatMode &&
-      c.totalVatMode !== m
+      c.totalVatMode !== m &&
+      !modoAntes
     ) {
-      setNotaDoIva(true);
+      setModoAntes(c.totalVatMode);
     }
     setC((x) => (x && proposta ? escolherModoDoIva(proposta, x, m) : x));
   };
-  // O aviso da soma vive AQUI, com ou sem revisão: é ele que trava o criar.
-  const avisoDaSoma = proposta && c ? avisoDaSomaGravada(proposta, c) : null;
+  // Os avisos da soma vivem AQUI, com ou sem revisão: são eles que travam o criar.
+  const avisosDaSoma = proposta && c ? avisosDoEcra(proposta, c) : [];
+  // A proposta com as linhas financeiras que ela pôs como serviço.
+  const pEf = proposta && c ? comServicosPostos(proposta, c) : proposta;
   const confirmar = (id: string, sim: boolean) =>
     setConfirmados((x) => {
       const n = new Set(x);
@@ -313,11 +321,11 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     });
   const porConfirmar =
     avisosPorConfirmar(revisao, confirmados).length +
-    (avisoDaSoma && !confirmados.has(avisoDaSoma.id) ? 1 : 0);
+    avisosDaSoma.filter((a) => !confirmados.has(a.id)).length;
   const mostrarIva = Boolean(
     proposta &&
     c &&
-    (proposta.ivaPorEscolher || totalEscrito(c.total) !== null || proposta.somaDasLinhas > 0),
+    (pEf?.ivaPorEscolher || totalEscrito(c.total) !== null || (pEf?.somaDasLinhas ?? 0) > 0),
   );
   const falta = c
     ? [
@@ -585,7 +593,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
               correccoes={c}
               modoDoIva={c.totalVatMode}
               onModoDoIva={escolherIva}
-              avisosExtra={avisoDaSoma ? [avisoDaSoma] : []}
+              avisosExtra={avisosDaSoma}
               mostrarIva={mostrarIva}
               imagens={imagensDoDocumento}
               confirmados={confirmados}
@@ -692,9 +700,9 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
 
           <section className="@container">
             <Titulo c={conf("total")}>Orçamento</Titulo>
-            {proposta.budgetItems.length > 0 && (
+            {pEf && pEf.budgetItems.length > 0 && (
               <ul className="mb-4 flex flex-col divide-y divide-[var(--bo-hairline)] rounded-xl border border-[var(--bo-hairline)]">
-                {proposta.budgetItems.map((item, k) => (
+                {pEf.budgetItems.map((item, k) => (
                   <li
                     key={k}
                     className="flex items-baseline justify-between gap-3 px-3 py-2 text-footnote"
@@ -709,6 +717,65 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                 ))}
               </ul>
             )}
+            {proposta.valoresFinanceiros?.length ? (
+              <div className="mb-4" data-testid="valores-financeiros">
+                <p className="mb-1.5 text-footnote font-semibold text-[var(--bo-text-muted)]">
+                  Valores do documento que não entraram como serviço
+                </p>
+                <ul className="flex flex-col divide-y divide-[var(--bo-hairline)] rounded-xl border border-[var(--bo-hairline)]">
+                  {proposta.valoresFinanceiros.map((v, i) =>
+                    c.servicosPostos?.includes(i) ? null : (
+                      <li
+                        key={i}
+                        className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 py-2 text-footnote"
+                      >
+                        <span className="min-w-0 break-words text-[var(--bo-text)]">
+                          {v.rotulo}
+                        </span>
+                        <span className="flex shrink-0 items-baseline gap-3">
+                          <span className="tabular-nums text-[var(--bo-tinta-72)]">
+                            {eur(v.valor)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setC((x) =>
+                                x ? { ...x, servicosPostos: [...(x.servicosPostos ?? []), i] } : x,
+                              )
+                            }
+                            className={`font-semibold text-[var(--bo-accent)] underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
+                          >
+                            pôr como serviço
+                          </button>
+                        </span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </div>
+            ) : null}
+            {proposta.totalPorEscolher && proposta.totaisDoDocumento ? (
+              <div className="mb-4 flex min-w-0 flex-col gap-1.5">
+                <span className="text-footnote font-semibold text-[var(--bo-text-muted)]">
+                  O documento tem vários totais — qual é o total?
+                  {c.totalEscolhido === undefined && <Marca c="nada" />}
+                </span>
+                <Segmented<string>
+                  ariaLabel="Qual é o total do documento?"
+                  size="sm"
+                  value={c.totalEscolhido === undefined ? "" : String(c.totalEscolhido)}
+                  onChange={(v) => {
+                    if (!v) return;
+                    setC((x) => (x ? escolherTotalDoDocumento(proposta, x, Number(v)) : x));
+                    setModoAntes(null);
+                  }}
+                  options={proposta.totaisDoDocumento.map((v) => ({
+                    value: String(v),
+                    label: eur(v),
+                  }))}
+                />
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 items-end gap-x-4 gap-y-4 @min-[26rem]:grid-cols-2">
               <Field
                 variant="underline"
@@ -717,28 +784,21 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                 value={c.total}
                 onChange={(e) => {
                   const total = e.target.value;
-                  setC((x) => (x ? { ...x, total, totalTocado: true } : x));
-                  setNotaDoIva(false);
+                  setC((x) => (x ? { ...x, total, totalTocado: true, somaUsada: false } : x));
+                  setModoAntes(null);
                 }}
-                placeholder={proposta.somaDasLinhas ? eur(proposta.somaDasLinhas) : "Sem total"}
+                placeholder={pEf?.somaDasLinhas ? eur(pEf.somaDasLinhas) : "Sem total"}
                 hint={
-                  !proposta.totalAmount && proposta.somaDasLinhas > 0 && !c.total ? (
+                  !proposta.totalAmount && (pEf?.somaDasLinhas ?? 0) > 0 && !c.total ? (
                     <button
                       type="button"
-                      onClick={() =>
-                        setC((x) =>
-                          x
-                            ? {
-                                ...x,
-                                total: proposta.somaDasLinhas.toFixed(2).replace(".", ","),
-                                totalTocado: true,
-                              }
-                            : x,
-                        )
-                      }
+                      onClick={() => {
+                        setC((x) => (x ? usarASoma(proposta, x) : x));
+                        setModoAntes(null);
+                      }}
                       className={`font-semibold text-[var(--bo-accent)] underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
                     >
-                      Usar a soma das linhas ({eur(proposta.somaDasLinhas)})
+                      Usar a soma das linhas ({eur(pEf?.somaDasLinhas ?? 0)})
                     </button>
                   ) : undefined
                 }
@@ -787,7 +847,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                   sem total.
                 </label>
               ) : null}
-              {notaDoIva && c.totalVatMode ? (
+              {modoAntes && c.totalVatMode && c.totalVatMode !== modoAntes ? (
                 <p
                   role="status"
                   className="text-footnote font-semibold text-[var(--bo-aviso)] @min-[26rem]:col-span-2"
@@ -796,9 +856,16 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                   {c.totalVatMode === "incluido" ? "com" : "sem"} IVA.
                 </p>
               ) : null}
-              {!revisao && avisoDaSoma ? (
+              {!revisao && avisosDaSoma.length ? (
                 <ul className="flex flex-col gap-1.5 @min-[26rem]:col-span-2">
-                  <AvisoLinha a={avisoDaSoma} confirmados={confirmados} onConfirmar={confirmar} />
+                  {avisosDaSoma.map((a) => (
+                    <AvisoLinha
+                      key={a.id}
+                      a={a}
+                      confirmados={confirmados}
+                      onConfirmar={confirmar}
+                    />
+                  ))}
                 </ul>
               ) : null}
             </div>

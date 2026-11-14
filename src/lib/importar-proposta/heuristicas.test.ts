@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   datasDaLinha,
-  escolherTotal,
+  eCandidataATotal,
+  eFinanceira,
   lerConvidados,
   lerData,
   lerEmail,
@@ -10,7 +11,6 @@ import {
   lerModoDoIva,
   lerNomes,
   lerTipoDeEvento,
-  tipoDaLinha,
 } from "./heuristicas";
 
 describe("os nomes", () => {
@@ -102,22 +102,51 @@ describe("o dinheiro", () => {
     expect(lerLinhaDeDinheiro("150 convidados")).toBeNull();
   });
 
-  it("distingue total, IVA, pagamentos e linhas", () => {
-    expect(tipoDaLinha("Valor Total")).toBe("total");
-    expect(tipoDaLinha("Subtotal")).toBe("pagamento");
-    expect(tipoDaLinha("IVA 23%")).toBe("iva");
-    expect(tipoDaLinha("Sinal de 30%")).toBe("pagamento");
-    expect(tipoDaLinha("Arco floral")).toBe("item");
+  it("as linhas financeiras: uma lista só, e nunca são serviços", () => {
+    for (const r of [
+      "Valor Total",
+      "Subtotal",
+      "IVA 23%",
+      "VAT",
+      "Sinal de 30%",
+      "Líquido a pagar",
+      "Montante a pagar",
+      "Valor sem taxas",
+      "Valor com taxas",
+      "Base tributável",
+      "Liquido",
+      "Pagamento final",
+      "2.ª prestação",
+      "Adjudicação",
+      "Valor sem IVA",
+      "Valor com IVA",
+      "Base tributável (s/ IVA)",
+      "Base",
+      "Líquido (s/ IVA)",
+      "Valor líquido do sinal",
+      "Total sem IVA",
+    ]) {
+      expect(eFinanceira(r), r).toBe(true);
+    }
+    for (const r of ["Arco floral", "Reserva do espaço", "Base de bolo em madeira", "Totó"]) {
+      expect(eFinanceira(r), r).toBe(false);
+    }
   });
 
-  it("de vários totais, o sem IVA; sem regra, o último com confiança baixa", () => {
-    const a = { rotulo: "Total", valor: 3000, linha: "Total 3.000 € + IVA" };
-    const b = { rotulo: "Total com IVA", valor: 3690, linha: "Total com IVA 3.690 €" };
-    expect(escolherTotal([a, b])).toEqual({ valor: a, confianca: "media" });
-    const c = { rotulo: "Total A", valor: 1, linha: "x" };
-    const d = { rotulo: "Total B", valor: 2, linha: "y" };
-    expect(escolherTotal([c, d])).toEqual({ valor: d, confianca: "baixa" });
-    expect(escolherTotal([])).toBeNull();
+  it("o total só sai de linhas financeiras com total, valor com/sem IVA, base ou líquido", () => {
+    for (const r of [
+      "Total",
+      "Total com IVA",
+      "Valor sem IVA",
+      "Base",
+      "Base tributável (s/ IVA)",
+      "Líquido a pagar",
+    ]) {
+      expect(eCandidataATotal(r), r).toBe(true);
+    }
+    for (const r of ["Subtotal", "IVA (23%)", "Sinal", "Base de bolo", "Arco floral"]) {
+      expect(eCandidataATotal(r), r).toBe(false);
+    }
   });
 
   it("o IVA: a linha do total manda; o resto só com confiança média; nada = não decide", () => {

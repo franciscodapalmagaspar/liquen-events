@@ -419,3 +419,97 @@ describe("7.ª revisão — o IVA e o aviso da soma em todos os caminhos", () =>
     await waitFor(() => expect(urls).toContain("/api/orcamento/manual"));
   });
 });
+
+describe("8.ª revisão — sem IA: as linhas financeiras, os totais e a soma", () => {
+  const regras = (frases: Parameters<typeof docx>[0]) =>
+    importarDocumento(docx(["Casamento Ana Teste & Rui Exemplo", ...frases]), { chamar: null });
+
+  it("as linhas financeiras ficam à vista, e «pôr como serviço» passa-as às linhas", async () => {
+    preparar(
+      await regras([
+        "Flores TESTE: 1.000,00 €",
+        "Pagamento do transporte: 230,00 €",
+        "Total: 1.230,00 €",
+      ]),
+    );
+    await escolher();
+    const lista = screen.getByTestId("valores-financeiros");
+    expect(lista.textContent).toMatch(/Valores do documento que não entraram como serviço/);
+    expect(lista.textContent).toMatch(/Pagamento do transporte/);
+    expect(lista.textContent).toMatch(/Total/);
+    const nova = () => screen.getByText("Na proposta nova").parentElement!.textContent ?? "";
+    expect(nova()).not.toMatch(/Pagamento do transporte/);
+    const linha = within(lista).getByText("Pagamento do transporte").closest("li")!;
+    fireEvent.click(within(linha).getByRole("button", { name: "pôr como serviço" }));
+    expect(nova()).toMatch(/Pagamento do transporte/);
+    expect(
+      within(screen.getByTestId("valores-financeiros")).queryByText("Pagamento do transporte"),
+    ).toBeNull();
+  });
+
+  it("vários totais sem par: ela escolhe o total (nada pré-escolhido) antes de criar", async () => {
+    const { urls } = preparar(
+      await regras(["Flores TESTE: 1.000,00 €", "Total: 1.000,00 €", "Valor com IVA: 1.300,00 €"]),
+    );
+    await escolher();
+    const grupo = screen.getByRole("radiogroup", { name: "Qual é o total do documento?" });
+    for (const r of within(grupo).getAllByRole("radio")) {
+      expect(r.getAttribute("aria-checked")).not.toBe("true");
+    }
+    expect(screen.queryByText(/Escolhi/)).toBeNull();
+    fireEvent.click(
+      within(screen.getByRole("group", { name: /O IVA dos valores do documento/ })).getByRole(
+        "radio",
+        { name: "sem IVA" },
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await screen.findByText(/escolher o total do documento/);
+    expect(urls).not.toContain("/api/orcamento/manual");
+    // 1.000 sem IVA: as linhas batem, e não há aviso da soma.
+    fireEvent.click(within(grupo).getByRole("radio", { name: eur(1000) }));
+    expect((screen.getByLabelText(/Valor total/) as HTMLInputElement).value).toBe("1000,00");
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await waitFor(() => expect(urls).toContain("/api/orcamento/manual"));
+  });
+
+  it("«Usar a soma das linhas» com outro total no documento: aviso de dinheiro que trava", async () => {
+    const { urls } = preparar(
+      await regras([
+        "Flores TESTE: 500,00 €",
+        "Velas TESTE: 250,00 €",
+        "Total: 800,00 €",
+        "Valor com IVA: 1.100,00 €",
+      ]),
+    );
+    await escolher();
+    fireEvent.click(screen.getByRole("button", { name: /Usar a soma das linhas \(750,00/ }));
+    expect(screen.getAllByText(/Usaste a soma das linhas \(750,00\s€\)/).length).toBeGreaterThan(0);
+    fireEvent.click(
+      within(screen.getByRole("group", { name: /O IVA dos valores do documento/ })).getByRole(
+        "radio",
+        { name: "sem IVA" },
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
+    await screen.findByText(/confirmar o aviso de dinheiro/);
+    expect(urls).not.toContain("/api/orcamento/manual");
+  });
+
+  it("a nota «Mudaste o IVA» some quando ela volta ao modo de antes", async () => {
+    preparar(
+      await importarDocumento(
+        docx(["Casamento Ana TESTE & Rui TESTE", { h: 1, t: "Cerimónia" }, "Arco de flores"]),
+        { chamar: null },
+      ),
+    );
+    await escolher();
+    fireEvent.change(screen.getByLabelText(/Valor total/), { target: { value: "1.000" } });
+    const grupo = screen.getByRole("group", { name: /O IVA dos valores do documento/ });
+    fireEvent.click(within(grupo).getByRole("radio", { name: "sem IVA" }));
+    fireEvent.click(within(grupo).getByRole("radio", { name: "com IVA" }));
+    expect(screen.getByText(/Mudaste o IVA/)).toBeTruthy();
+    fireEvent.click(within(grupo).getByRole("radio", { name: "sem IVA" }));
+    expect(screen.queryByText(/Mudaste o IVA/)).toBeNull();
+  });
+});

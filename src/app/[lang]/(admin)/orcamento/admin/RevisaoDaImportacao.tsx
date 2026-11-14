@@ -9,7 +9,11 @@ import { documentoEmTexto, type UnidadeLida } from "@/lib/importar-proposta/docu
 import { pedidoParaOClaude } from "@/lib/importar-proposta/ia/instrucoes";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { Segmented } from "./ui";
-import { valoresQueVaoSerGravados, type Correccoes } from "@/lib/importar-proposta/montar";
+import {
+  comServicosPostos,
+  valoresQueVaoSerGravados,
+  type Correccoes,
+} from "@/lib/importar-proposta/montar";
 import type { VatMode } from "@/lib/proposal-doc";
 
 /**
@@ -324,6 +328,8 @@ export default function RevisaoDaImportacao({
         totalAmount: proposta.totalAmount,
         totalVatMode: proposta.totalVatMode,
       };
+  // As linhas que se gravam, com as financeiras que ela pôs como serviço.
+  const linhasDaProposta = correccoes ? comServicosPostos(proposta, correccoes) : proposta;
   // SÓ o que vai ser gravado: se ela apagou o total, aqui não aparece o do documento.
   const total = gravar.totalAmount;
   return (
@@ -476,12 +482,12 @@ export default function RevisaoDaImportacao({
             <div>
               <p className="bo-eyebrow mb-1">Orçamento (valores sem IVA)</p>
               <ul className="flex flex-col divide-y divide-[var(--bo-hairline)]">
-                {proposta.budgetItems.map((item, k) => (
+                {linhasDaProposta.budgetItems.map((item, k) => (
                   <li key={k} className="py-1">
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="min-w-0 break-words text-[var(--bo-text)]">
                         {item || "— sem descrição —"}
-                        {proposta.budgetOpcional?.[k] ? " (opcional)" : ""}
+                        {linhasDaProposta.budgetOpcional?.[k] ? " (opcional)" : ""}
                       </span>
                       <span className="shrink-0 tabular-nums text-[var(--bo-tinta-72)]">
                         {gravar.budgetAmounts[k] != null

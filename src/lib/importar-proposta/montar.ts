@@ -42,6 +42,63 @@ export interface Correccoes {
   totalTocado?: boolean;
   /** O documento tinha total e ela confirmou que a proposta fica sem ele. */
   semTotalConfirmado?: boolean;
+  /** Via das regras, com vários totais sem par: o que ela escolheu. */
+  totalEscolhido?: number;
+  /** Via das regras: as linhas financeiras (índices) que ela pôs como serviço. */
+  servicosPostos?: number[];
+  /** O total veio do «Usar a soma das linhas». */
+  somaUsada?: boolean;
+}
+
+/**
+ * As linhas financeiras que ela pôs como serviço passam a linhas do
+ * orçamento (no fim, como as outras, à espera do IVA). Puro: o ecrã, o
+ * `valoresQueVaoSerGravados` e o `montarDocumento` vêem as mesmas linhas.
+ */
+export function comServicosPostos(p: PropostaImportada, c: Correccoes): PropostaImportada {
+  const postos = (c.servicosPostos ?? [])
+    .map((i) => p.valoresFinanceiros?.[i])
+    .filter((x): x is { rotulo: string; valor: number } => Boolean(x));
+  if (!postos.length) return p;
+  const escritas = p.linhasEscritas ?? p.budgetAmounts;
+  return {
+    ...p,
+    budgetItems: [...p.budgetItems, ...postos.map((x) => x.rotulo)],
+    budgetAmounts: [...p.budgetAmounts, ...postos.map(() => null)],
+    ...(p.budgetOpcional
+      ? { budgetOpcional: [...p.budgetOpcional, ...postos.map(() => false)] }
+      : {}),
+    ivaPorEscolher: true,
+    linhasEscritas: [...escritas, ...postos.map((x) => x.valor)],
+    linhasNormais: [...(p.linhasNormais ?? escritas.map(() => true)), ...postos.map(() => true)],
+    valoresFinanceiros: p.valoresFinanceiros?.filter((_, i) => !c.servicosPostos?.includes(i)),
+    somaDasLinhas: round2(p.somaDasLinhas + postos.reduce((a, x) => a + x.valor, 0)),
+  };
+}
+
+/** A soma dos SERVIÇOS (as linhas financeiras não entram; as postas como serviço sim). */
+export function somaDosServicos(p: PropostaImportada, c: Correccoes): number {
+  return comServicosPostos(p, c).somaDasLinhas;
+}
+
+/** «Usar a soma das linhas»: o total passa a ser a soma dos serviços. */
+export function usarASoma(p: PropostaImportada, c: Correccoes): Correccoes {
+  return {
+    ...c,
+    total: totalEmTexto(somaDosServicos(p, c)),
+    totalTocado: true,
+    somaUsada: true,
+  };
+}
+
+/** Via das regras, vários totais sem par: ela escolhe um deles. */
+export function escolherTotalDoDocumento(
+  p: PropostaImportada,
+  c: Correccoes,
+  valor: number,
+): Correccoes {
+  void p;
+  return { ...c, total: totalEmTexto(valor), totalEscolhido: valor, somaUsada: false };
 }
 
 /**
@@ -55,7 +112,11 @@ export function escolherModoDoIva(p: PropostaImportada, c: Correccoes, modo: Vat
   return {
     ...c,
     totalVatMode: modo,
-    ...(c.totalTocado ? {} : { total: totalEmTexto(totalParaOModo(p, modo)) }),
+    // Com o total escolhido por ela entre vários (`totalPorEscolher`), o IVA
+    // não o troca: não há par que diga qual é o sem e qual é o com.
+    ...(c.totalTocado || p.totalPorEscolher
+      ? {}
+      : { total: totalEmTexto(totalParaOModo(p, modo)) }),
   };
 }
 
@@ -113,9 +174,12 @@ export function totalEscrito(texto: string): number | null {
 /** O que ainda impede criar. Vazio = pode criar. */
 export function oQueFalta(
   c: Correccoes,
-  p?: Pick<PropostaImportada, "ivaPorEscolher" | "totalAmount">,
+  p?: Pick<PropostaImportada, "ivaPorEscolher" | "totalAmount" | "totalPorEscolher">,
 ): string[] {
   const falta: string[] = [];
+  if (p?.totalPorEscolher && c.totalEscolhido === undefined && !c.totalTocado) {
+    falta.push("escolher o total do documento");
+  }
   // O IVA é SEMPRE ela que o diz (`ia/verificar.ts`) — mesmo sem total. Uma
   // vez só: a mesma escolha vale para as linhas e para o total.
   const porEscolher = !c.totalVatMode && (p?.ivaPorEscolher || totalEscrito(c.total) !== null);
@@ -147,7 +211,8 @@ export function avisoDaSomaGravada(
   c: Correccoes,
 ): { id: string; texto: string; campo: string; dinheiro: true; gravidade: "erro" } | null {
   if (!c.totalVatMode) return null;
-  const g = valoresQueVaoSerGravados(p, c);
+  p = comServicosPostos(p, c);
+  const g = valoresQueVaoSerGravados(p, { ...c, servicosPostos: [] });
   if (g.totalAmount === null || !g.totalVatMode) return null;
   const normais = p.linhasNormais ?? g.budgetAmounts.map((_, i) => !p.budgetOpcional?.[i]);
   const vals = g.budgetAmounts.filter((v, i): v is number => v !== null && normais[i] !== false);
@@ -166,6 +231,34 @@ export function avisoDaSomaGravada(
     gravidade: "erro",
     texto: `Com o IVA que escolheste, as linhas somam ${eur(soma)} — o total é ${eur(base)} sem IVA.`,
   };
+}
+
+/**
+ * Ela usou a soma dos serviços como total, mas o documento tem um total
+ * diferente: aviso de dinheiro, para ela confirmar qual vale.
+ */
+export function avisoDaSomaUsada(
+  p: PropostaImportada,
+  c: Correccoes,
+): { id: string; texto: string; campo: string; dinheiro: true; gravidade: "erro" } | null {
+  if (!c.somaUsada) return null;
+  const soma = totalEscrito(c.total);
+  const doDocumento = p.totaisDoDocumento ?? [];
+  if (soma === null || !doDocumento.length || doDocumento.includes(soma)) return null;
+  return {
+    id: `soma-usada:${soma}:${doDocumento.join("|")}`,
+    campo: "orcamento.total",
+    dinheiro: true,
+    gravidade: "erro",
+    texto: `Usaste a soma das linhas (${eur(soma)}), mas o documento tem ${doDocumento.length === 1 ? "um total de" : "os totais"} ${doDocumento.map((v) => eur(v)).join(", ")}.`,
+  };
+}
+
+/** Os avisos de dinheiro que nascem do que ela faz no ecrã (com ou sem revisão). */
+export function avisosDoEcra(p: PropostaImportada, c: Correccoes) {
+  return [avisoDaSomaGravada(p, c), avisoDaSomaUsada(p, c)].filter(
+    (a): a is NonNullable<typeof a> => a !== null,
+  );
 }
 
 /**
@@ -193,6 +286,7 @@ export function valoresQueVaoSerGravados(
   p: PropostaImportada,
   c: Correccoes,
 ): { budgetAmounts: (number | null)[]; totalAmount: number | null; totalVatMode: VatMode | null } {
+  p = comServicosPostos(p, c);
   const total = totalEscrito(c.total);
   const modo = total !== null ? c.totalVatMode : null;
   const budgetAmounts =
@@ -254,10 +348,12 @@ export function montarDocumento(
   nomeDoFicheiro: string,
   hoje = new Date(),
 ): DocDoEstudio {
+  const amounts = valoresQueVaoSerGravados(p, c).budgetAmounts;
+  p = comServicosPostos(p, c);
   const total = totalEscrito(c.total);
   const modo = total !== null ? c.totalVatMode : null;
-  // Os valores das linhas passam pelo que ELA escolheu — a mesma função do ecrã.
-  const amounts = valoresQueVaoSerGravados(p, c).budgetAmounts;
+  // Os valores das linhas passam pelo que ELA escolheu — a mesma função do ecrã
+  // (lá em cima, antes de juntar as linhas postas como serviço, que ela faz).
   const guests = Number.parseInt(c.guests, 10);
   const moodBoards: MoodBoard[] = p.moodBoards
     .map((b) => ({

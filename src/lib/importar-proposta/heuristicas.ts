@@ -252,49 +252,44 @@ export function lerLinhaDeDinheiro(linha: string): LinhaDeDinheiro | null {
   return { rotulo, valor, linha };
 }
 
-export type TipoDeLinha = "total" | "iva" | "pagamento" | "item";
+/**
+ * ── AS LINHAS FINANCEIRAS: UMA LISTA SÓ ───────────────────────────────────
+ * Uma linha cujo rótulo tenha QUALQUER uma destas palavras é «financeira» e
+ * nunca entra como serviço do orçamento (aparece à parte, no ecrã, com
+ * «pôr como serviço»). Fechada de propósito: cada rótulo novo remendado à
+ * parte deixava passar outro («Líquido a pagar», «Valor com IVA»…).
+ */
+export const PALAVRAS_FINANCEIRAS: readonly RegExp[] = [
+  /\btotal/, // total, totais
+  /sub-?\s?total/,
+  /\biva\b/,
+  /\bvat\b/,
+  /liquido/, // líquido, sem acentos
+  /\ba pagar\b/,
+  /pagamento/,
+  /prestac/, // prestação, prestações
+  /\bsinal\b/,
+  /adjudica/, // adjudicação
+  /\bvalor sem\b/,
+  /\bvalor com\b/,
+  /base tributavel/,
+  /^base$/, // exatamente «Base» — nunca «Base de bolo»
+];
+
+/** O rótulo (já sem o «:» e sem o valor, `lerLinhaDeDinheiro`) é financeiro. */
+export function eFinanceira(rotulo: string): boolean {
+  const r = semAcentos(rotulo).replace(/\s+/g, " ").trim();
+  return PALAVRAS_FINANCEIRAS.some((p) => p.test(r));
+}
 
 /**
- * O rótulo é EXATAMENTE o de uma base do total («Base», «Base tributável»,
- * «Valor sem IVA», «Valor líquido», «Líquido») — nunca «Base de bolo…».
- * O rótulo já vem sem o «:» e sem o valor (`lerLinhaDeDinheiro`).
+ * Uma linha financeira que pode ser o total: o rótulo tem «total», «valor
+ * com/sem IVA», «base» ou «líquido». O «Subtotal» NUNCA é o total.
  */
-export function eRotuloDeBase(rotulo: string): boolean {
-  return /^(?:base|base tributavel|valor sem iva|valor liquido|liquido)$/.test(
-    semAcentos(rotulo).trim(),
-  );
-}
-
-/** O rótulo é exatamente «Valor com IVA». */
-export function eRotuloComIva(rotulo: string): boolean {
-  return /^valor com iva$/.test(semAcentos(rotulo).trim());
-}
-
-export function tipoDaLinha(rotulo: string): TipoDeLinha {
-  const r = semAcentos(rotulo);
-  if (/\bsub-?\s?total/.test(r)) return "pagamento"; // não é linha nem total
-  // Só os rótulos EXATOS de uma base. Se a prova pela taxa falhar, o
-  // `mapear` devolve-a às linhas (`ia/../mapear.ts`, «a base do total»).
-  if (eRotuloDeBase(rotulo) || eRotuloComIva(rotulo)) return "pagamento";
-  if (/\btotal\b|valor global|valor final|investimento (?:total|global)/.test(r)) return "total";
-  if (/^\s*iva\b|\biva\s*\(?\s*\d+\s*%/.test(r)) return "iva";
-  if (/sinal|adjudica|pagamento|prestac|restante|reserva|liquida|caucao|desconto/.test(r)) {
-    return "pagamento";
-  }
-  return "item";
-}
-
-/** De várias linhas de total, a que vale. */
-export function escolherTotal(totais: readonly LinhaDeDinheiro[]): Lido<LinhaDeDinheiro> | null {
-  if (!totais.length) return null;
-  if (totais.length === 1) return { valor: totais[0], confianca: "alta" };
-  const distintos = new Set(totais.map((t) => t.valor));
-  if (distintos.size === 1) return { valor: totais[0], confianca: "alta" };
-  const semIva = totais.find((t) => /sem iva|s\/\s*iva|\+\s*iva|mais iva|base/i.test(t.linha));
-  if (semIva) return { valor: semIva, confianca: "media" };
-  const geral = totais.find((t) => /geral|final|global|proposta/i.test(t.rotulo));
-  if (geral) return { valor: geral, confianca: "media" };
-  return { valor: totais[totais.length - 1], confianca: "baixa" };
+export function eCandidataATotal(rotulo: string): boolean {
+  const r = semAcentos(rotulo).replace(/\s+/g, " ").trim();
+  if (!eFinanceira(rotulo) || /sub-?\s?total/.test(r)) return false;
+  return /\btotal|\bvalor (?:com|sem) iva\b|\bbase\b|liquido/.test(r);
 }
 
 const DIZ_QUE_ACRESCE =
