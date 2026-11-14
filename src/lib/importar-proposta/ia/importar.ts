@@ -31,6 +31,7 @@ import {
   type Verificacao,
 } from "./verificar";
 import { preencher } from "./preencher";
+import { round2 } from "../../money";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -333,9 +334,14 @@ export async function importarDocumento(
       `${e.message} Usei a importação sem IA — nada da resposta da IA foi usado.`,
       tecto,
     );
-    // Só se acerta o que se SABE: com o prazo ou a rede a cortar, a reserva fica.
-    if (e.uso.length && e.motivo !== "tempo" && e.motivo !== "erro")
-      await acertar(custoEmDolares(e.uso));
+    // Acerta-se pelo que se SABE: o uso somado das partes que responderam,
+    // mais a reserva INTEIRA das que pararam sem uso conhecido (prazo, rede).
+    if (e.partesSemUso.length < pedacos.length || e.uso.length) {
+      const semUso = e.partesSemUso.length
+        ? custoMaximoEmDolares(e.partesSemUso.map((k) => pedacos[k]))
+        : 0;
+      await acertar(Math.min(reservado, round2(custoEmDolares(e.uso) + semUso)));
+    }
     if (r.revisao && e.uso.length)
       r.revisao.custo = { dolares: custoEmDolares(e.uso), uso: e.uso, partes: 0 };
     return r;

@@ -116,75 +116,207 @@ function curto(s: string, n = 90): string {
 // ── Números ──────────────────────────────────────────────────────────────────
 
 /**
- * Um número INTEIRO à portuguesa, num texto já normalizado: milhares com «.»
- * ou com espaço, decimais com «,». Nunca um bocado de outro número: «740»
- * não é um token de «1.740,00», nem «250» de «1 250,00», nem «7» de «2027».
+ * ════════════════════════════════════════════════════════════════════════════
+ * OS NÚMEROS — INTEIROS, COM SINAL, E NO FORMATO DA PROPOSTA
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Um token é um número INTEIRO, num texto já normalizado: nunca um bocado de
+ * outro («740» não é um token de «1.740,00», nem «7» de «2027»).
+ *
+ *  · À portuguesa: milhares com «.» (ou com espaço), decimais com «,».
+ *    À inglesa (`idioma: "en"`, ou números como «1,740.00» no documento):
+ *    milhares com «,», decimais com «.».
+ *  · O ESPAÇO é ambíguo: «Mesas 2 120,00 €» tanto pode ser 2 120 € como duas
+ *    mesas a 120 €. O token guarda os DOIS candidatos (`valores`), e aceita-se
+ *    o que bater com o valor lido; um aviso nunca mostra um número que não está
+ *    lá — mostra o texto tal como está escrito.
+ *  · SINAL: «-100,00 €», «− 100 €» ou «(100,00 €)» são −100. O hífen só conta
+ *    como sinal no princípio, depois de um espaço, «(» ou «:» — nunca entre
+ *    números («12-06-2027»).
  */
-const TOKEN =
+export type FormatoDosNumeros = "pt" | "en";
+
+const TOKEN_PT =
   /(?<![\d.,])(?:\d{1,3}(?:\.\d{3})+|\d{1,3}(?: \d{3})+(?!\d)|\d+)(?:,\d{1,2})?(?!\d|[.,]\d)/g;
+const TOKEN_EN = /(?<![\d.,])(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?(?!\d|[.,]\d)/g;
+
+/**
+ * Um valor possível de um token. Com o espaço ambíguo («2 120,00»): o inteiro
+ * (2 120), o da DIREITA (120 — só vale se a mesma linha disser quantidade 2,
+ * a da esquerda) e o da ESQUERDA (2 — só vale como quantidade).
+ */
+export interface Candidato {
+  valor: number;
+  ini: number;
+  fim: number;
+  papel?: "direita" | "esquerda";
+  esquerda?: number;
+}
 
 export interface Token {
+  /** O valor principal (o número inteiro como está escrito, com sinal). */
   valor: number;
+  /** Todos os valores possíveis: com o espaço de milhar ambíguo, também o da direita. */
+  valores: number[];
+  /** Os mesmos candidatos com o sítio de cada um (o da direita começa depois do espaço). */
+  candidatos: Candidato[];
   ini: number;
   fim: number;
   texto: string;
 }
 
-export function tokensDe(normalizado: string): Token[] {
+function lerNumero(texto: string, formato: FormatoDosNumeros): number {
+  const [inteiro, dec = ""] = formato === "pt" ? texto.split(",") : texto.split(".");
+  const limpo = inteiro.replace(formato === "pt" ? /[. ]/g : /[, ]/g, "");
+  return Number(`${limpo}.${dec || "0"}`);
+}
+
+export function tokensDe(normalizado: string, formato: FormatoDosNumeros = "pt"): Token[] {
   const out: Token[] = [];
-  for (const m of normalizado.matchAll(TOKEN)) {
-    const [inteiro, dec = ""] = m[0].split(",");
-    const valor = Number(`${inteiro.replace(/[. ]/g, "")}.${dec || "0"}`);
-    if (Number.isFinite(valor)) {
-      out.push({ valor: round2(valor), ini: m.index!, fim: m.index! + m[0].length, texto: m[0] });
+  for (const m of normalizado.matchAll(formato === "pt" ? TOKEN_PT : TOKEN_EN)) {
+    let ini = m.index!;
+    let fim = ini + m[0].length;
+    const base = lerNumero(m[0], formato);
+    if (!Number.isFinite(base)) continue;
+    // O sinal.
+    let sinal = 1;
+    const antes = normalizado.slice(Math.max(0, ini - 3), ini);
+    const sm = /(^|[\s(:])-\s?$/.exec(antes);
+    if (sm && (sm[1] !== "" || ini <= 2)) {
+      sinal = -1;
+      ini -= sm[0].length - sm[1].length;
+    } else if (
+      normalizado[ini - 1] === "(" &&
+      /^\s?(?:€|eur\b|euros?\b)?\s?\)/.test(normalizado.slice(fim, fim + 9))
+    ) {
+      sinal = -1;
+      ini -= 1;
+      fim = normalizado.indexOf(")", fim) + 1;
     }
+    const candidatos: Candidato[] = [{ valor: round2(sinal * base), ini, fim }];
+    // O espaço de milhar ambíguo: o grupo da direita também é um candidato.
+    if (formato === "pt" && / /.test(m[0])) {
+      const k = m[0].lastIndexOf(" ") + 1;
+      const esquerda = lerNumero(m[0].slice(0, k - 1), formato);
+      candidatos.push({
+        valor: round2(lerNumero(m[0].slice(k), formato)),
+        ini: m.index! + k,
+        fim: m.index! + m[0].length,
+        papel: "direita",
+        esquerda,
+      });
+      candidatos.push({ valor: esquerda, ini: m.index!, fim: m.index! + k - 1, papel: "esquerda" });
+    }
+    out.push({
+      valor: candidatos[0].valor,
+      valores: candidatos.filter((c) => c.papel !== "esquerda").map((c) => c.valor),
+      candidatos,
+      ini,
+      fim,
+      texto: normalizado.slice(ini, fim),
+    });
   }
   return out;
 }
 
-/** Os valores dos tokens de um texto (normaliza primeiro). */
-export function numerosDe(texto: string): number[] {
-  return tokensDe(normalizar(texto)).map((t) => t.valor);
+/** Os valores dos tokens de um texto (normaliza primeiro), todos os candidatos. */
+export function numerosDe(texto: string, formato: FormatoDosNumeros = "pt"): number[] {
+  return tokensDe(normalizar(texto), formato).flatMap((t) => t.valores);
 }
 
-const CABECA_DE_DINHEIRO = /€|eur\b|euros|pre[cç]o|valor|total|montante|custo|investimento/i;
-const EURO_DEPOIS = /^\s?(?:€|eur\b|euros?\b)/;
-const EURO_ANTES = /(?:€|eur)\s?$/;
+/** O documento escreve números à inglesa («1,740.00»)? */
+export function pareceInglesNosNumeros(textos: readonly string[]): boolean {
+  let en = 0;
+  let pt = 0;
+  for (const t of textos) {
+    en += (
+      t.match(/\d{1,3}(?:,\d{3})+\.\d{2}(?!\d)|(?<![\d,.])\d+\.\d{2}\s?€|€\s?\d+\.\d{2}(?!\d)/g) ??
+      []
+    ).length;
+    pt += (
+      t.match(/\d{1,3}(?:\.\d{3})+,\d{2}(?!\d)|(?<![\d,.])\d+,\d{2}\s?€|€\s?\d+,\d{2}(?!\d)/g) ?? []
+    ).length;
+  }
+  return en > pt;
+}
+
+const CABECA_DE_DINHEIRO =
+  /€|eur\b|euros|pre[cç]o|valor|total|montante|custo|investimento|price|amount/i;
+const EURO_DEPOIS = /^\s?\)?\s?(?:€|eur\b|euros?\b)/;
+const EURO_ANTES = /(?:€|eur)\s?-?\s?$/;
 
 /** Os valores em euros de uma unidade (texto normalizado), com a posição. */
 function valoresEmEuros(
   u: UnidadeLida,
   n: string,
+  tokens: Token[],
   tabelaComDinheiro: boolean,
-): { valor: number; trecho: string }[] {
-  const out: { valor: number; trecho: string }[] = [];
-  for (const t of tokensDe(n)) {
-    if (!(t.valor > 0)) continue;
+): Token[] {
+  return tokens.filter((t) => {
+    if (t.valor === 0) return false;
     const euro =
-      EURO_DEPOIS.test(n.slice(t.fim, t.fim + 7)) ||
-      EURO_ANTES.test(n.slice(Math.max(0, t.ini - 5), t.ini));
+      EURO_DEPOIS.test(n.slice(t.fim, t.fim + 8)) ||
+      EURO_ANTES.test(n.slice(Math.max(0, t.ini - 6), t.ini));
     // Numa tabela de preços, as células sem «€» mas com cara de dinheiro.
     const naTabela =
       u.tipo === "linha-de-tabela" &&
       tabelaComDinheiro &&
       u.linha > 0 &&
-      /,\d{2}$|\./.test(t.texto) &&
+      /[.,]\d{2}\)?$|\d[.,]\d{3}/.test(t.texto) &&
       !/%/.test(n.slice(t.fim, t.fim + 2));
-    if (euro || naTabela)
-      out.push({ valor: t.valor, trecho: n.slice(Math.max(0, t.ini - 30), t.fim + 6).trim() });
-  }
-  return out;
+    return euro || naTabela;
+  });
 }
 
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O QUE O TEXTO DIZ DO IVA — A NEGAÇÃO PRIMEIRO
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * «Não inclui IVA» contém «inclui IVA». Lido ao contrário, uma proposta de
+ * 1.230 € «não inclui IVA» passava como 1.000 € + IVA: 230 € perdidos. Por
+ * isso tiram-se PRIMEIRO todas as frases que dizem «sem IVA» (com a negação),
+ * e só no que sobra se procura o «com IVA». Se sobram as duas, é contradição.
+ * «IVA à taxa legal em vigor», sozinho, não diz nada; «acresce IVA à taxa
+ * legal» diz sem IVA. «Isento de IVA» é um caso próprio.
+ */
+const SEM_IVA = [
+  /\bnao\s+(?:se\s+)?inclu\w*\s+(?:o\s+|de\s+)?(?:iva|vat)\b/g,
+  /\b(?:iva|vat)\s+(?:nao\s+inclu\w*|excluid\w*)/g,
+  /\bexcl\w*\.?\s+(?:de\s+|o\s+)?(?:iva|vat)\b/g,
+  /\bsem\s+(?:o\s+)?(?:iva|vat)\b/g,
+  /\bs\/\s*(?:iva|vat)\b/g,
+  /\+\s*(?:iva|vat)\b/g,
+  /\bmais\s+(?:iva|vat)\b/g,
+  /\bacresc\w*\s+(?:de\s+|o\s+|a\s+)*(?:iva|vat)\b/g,
+  /\b(?:iva|vat)\s+a\s+acrescer\b/g,
+  /\bplus\s+vat\b/g,
+  /\bvat\s+not\s+included\b/g,
+];
+const ISENTO =
+  /\b(?:isent\w*|exempt\w*)\s+(?:de\s+|from\s+)?(?:iva|vat)\b|\b(?:iva|vat)\s*:?\s*isent/;
 const COM_IVA =
-  /iva\s*inclu|c\/\s*iva|com\s+(?:o\s+)?iva|inclu(?:i|em|indo|ido|idos)\s+(?:o\s+)?iva|iva\s+incl/;
-const SEM_IVA =
-  /\+\s*iva|mais\s+iva|acresc\w*\s+(?:de\s+|o\s+)*iva|iva\s+a\s+acrescer|s\/\s*iva|sem\s+(?:o\s+)?iva|iva\s+nao\s+inclu|nao\s+inclu\w*\s+(?:o\s+)?iva/;
+  /\b(?:iva|vat)\s*inclu|\bc\/\s*(?:iva|vat)\b|\bcom\s+(?:o\s+)?(?:iva|vat)\b|\binclu(?:i|em|indo|ido|idos|ding|des|ded)\s+(?:o\s+)?(?:iva|vat)\b|\b(?:iva|vat)\s+incl\b|\bincl\.?\s+(?:iva|vat)\b/;
+
+export type ModoNoTexto = "sem" | "com" | "ambos" | "isento" | null;
+
+export function modoDoIvaNoTexto(texto: string): ModoNoTexto {
+  let t = semAcentos(texto);
+  if (ISENTO.test(t)) return "isento";
+  let sem = false;
+  for (const r of SEM_IVA) {
+    if (r.test(t)) sem = true;
+    r.lastIndex = 0;
+    t = t.replace(r, " ¬ ");
+  }
+  const com = COM_IVA.test(t);
+  return sem && com ? "ambos" : sem ? "sem" : com ? "com" : null;
+}
 export function dizComIva(t: string): boolean {
-  return COM_IVA.test(semAcentos(t));
+  return modoDoIvaNoTexto(t) === "com";
 }
 export function dizSemIva(t: string): boolean {
-  return SEM_IVA.test(semAcentos(t));
+  return modoDoIvaNoTexto(t) === "sem";
 }
 
 // ── A verificação ────────────────────────────────────────────────────────────
@@ -199,11 +331,59 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
 
   const unidades = d.unidades;
   const normDe = new Map(unidades.map((u) => [u.id, normalizar(textoDaUnidade(u))]));
-  const tokensDaUnidade = new Map(unidades.map((u) => [u.id, tokensDe(normDe.get(u.id)!)]));
-  /** Cada linha do texto está, contígua, dentro de UMA unidade (não a saltar de uma para a outra). */
+  // O formato dos números: o da proposta. À inglesa lê-se à inglesa — e diz-se.
+  const formato: FormatoDosNumeros =
+    entrada.evento.idioma === "en" || pareceInglesNosNumeros([...normDe.values()]) ? "en" : "pt";
+  if (formato === "en") {
+    aviso({
+      id: "numeros:ingles",
+      campo: "orcamento",
+      dinheiro: true,
+      gravidade: "aviso",
+      texto:
+        "A proposta escreve os números à inglesa (1,740.00): os valores foram lidos assim. Confirma-os com o documento.",
+    });
+  }
+  const tokensDaUnidade = new Map(
+    unidades.map((u) => [u.id, tokensDe(normDe.get(u.id)!, formato)]),
+  );
+  const unidadesDeTexto = unidades.filter((u) => u.tipo !== "imagem");
+  /**
+   * Um texto copiado: cada linha contígua numa unidade, e as linhas pela ORDEM
+   * do documento — na mesma unidade, a seguir, ou na unidade de texto seguinte.
+   * Nunca uma frase montada com bocados de sítios diferentes.
+   */
   const existe = (texto: string): boolean => {
     const ss = segmentos(texto);
-    return ss.length > 0 && ss.every((s) => unidades.some((u) => normDe.get(u.id)!.includes(s)));
+    if (!ss.length) return false;
+    if (ss.join(" ").replace(/[^\p{L}\p{N}]/gu, "").length < 3) return false;
+    const vistos = new Set<string>();
+    const seguir = (k: number, iu: number, desde: number): boolean => {
+      if (k === ss.length) return true;
+      const chave = `${k}:${iu}:${desde}`;
+      if (vistos.has(chave)) return false;
+      vistos.add(chave);
+      const n = normDe.get(unidadesDeTexto[iu].id)!;
+      // Na mesma unidade, depois do que já se casou…
+      for (let p = n.indexOf(ss[k], desde); p >= 0; p = n.indexOf(ss[k], p + 1)) {
+        if (seguir(k + 1, iu, p + ss[k].length)) return true;
+      }
+      // … ou na unidade de texto seguinte.
+      const prox = unidadesDeTexto[iu + 1];
+      if (!prox) return false;
+      const m = normDe.get(prox.id)!;
+      for (let p = m.indexOf(ss[k]); p >= 0; p = m.indexOf(ss[k], p + 1)) {
+        if (seguir(k + 1, iu + 1, p + ss[k].length)) return true;
+      }
+      return false;
+    };
+    return unidadesDeTexto.some((u, iu) => {
+      const n = normDe.get(u.id)!;
+      for (let p = n.indexOf(ss[0]); p >= 0; p = n.indexOf(ss[0], p + 1)) {
+        if (seguir(1, iu, p + ss[0].length)) return true;
+      }
+      return false;
+    });
   };
   const normCitacao = (c: string) =>
     normalizar(c)
@@ -226,15 +406,25 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
    * As unidades onde o valor é um token INTEIRO dentro da citação (e a citação
    * está, inteira, nessa unidade). Vazio = o valor não está onde a citação diz.
    */
-  const ligar = (valor: number, c: string, comPercentagem = false): string[] => {
+  const ligar = (
+    valor: number,
+    c: string,
+    comPercentagem = false,
+    contexto: { quantidade?: boolean; quantidadeDaLinha?: number | null } = {},
+  ): string[] => {
     const v = round2(valor);
     const ids = new Set<string>();
     for (const o of ocorrencias(c)) {
       const n = normDe.get(o.u.id)!;
       for (const t of tokensDaUnidade.get(o.u.id)!) {
-        if (t.valor !== v || t.ini < o.k || t.fim > o.fim) continue;
-        if (comPercentagem && !/^\s?%/.test(n.slice(t.fim, t.fim + 2))) continue;
-        ids.add(o.u.id);
+        for (const c of t.candidatos) {
+          if (c.valor !== v || c.ini < o.k || c.fim > o.fim) continue;
+          // O espaço ambíguo: «2 120,00» só é «2 × 120» se a linha o disser.
+          if (c.papel === "esquerda" && !contexto.quantidade) continue;
+          if (c.papel === "direita" && contexto.quantidadeDaLinha !== c.esquerda) continue;
+          if (comPercentagem && !/^\s?%/.test(n.slice(c.fim, c.fim + 2))) continue;
+          ids.add(o.u.id);
+        }
       }
     }
     return [...ids];
@@ -292,6 +482,7 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     nome: string,
     dinheiro: boolean,
     usado?: "linha" | "total",
+    contexto: { quantidade?: boolean; quantidadeDaLinha?: number | null } = {},
   ): Citado => {
     if (c.valor === null) return { valor: null, citacao: c.citacao };
     const falha = (porque: string) => {
@@ -308,7 +499,7 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     if (!c.citacao || !c.citacao.trim()) return falha("não diz de onde veio");
     if (!citacaoNumaUnidade(c.citacao))
       return falha(`vem de «${curto(c.citacao, 60)}», que não está no documento`);
-    const onde = ligar(c.valor, c.citacao);
+    const onde = ligar(c.valor, c.citacao, false, contexto);
     if (!onde.length) return falha(`não está escrito em «${curto(c.citacao, 60)}»`);
     if (usado) ligacoes.push({ valor: round2(c.valor), unidades: onde, usado });
     return c;
@@ -423,17 +614,22 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
   o.linhas = o.linhas.map((l, i): LinhaLida => {
     const campo = `orcamento.linhas.${i}`;
     const nome = l.descricao ? `A linha «${curto(l.descricao, 40)}»` : `A linha ${i + 1}`;
+    const quantidade = numeroCitado(l.quantidade, campo, `${nome}: a quantidade`, true, undefined, {
+      quantidade: true,
+    });
+    const daLinha = { quantidadeDaLinha: quantidade.valor };
     return {
       descricao: literal(l.descricao, campo, "A linha do orçamento", true),
-      quantidade: numeroCitado(l.quantidade, campo, `${nome}: a quantidade`, true),
+      quantidade,
       precoUnitario: numeroCitado(
         l.precoUnitario,
         campo,
         `${nome}: o preço unitário`,
         true,
         "linha",
+        daLinha,
       ),
-      totalDaLinha: numeroCitado(l.totalDaLinha, campo, `${nome}: o total`, true, "linha"),
+      totalDaLinha: numeroCitado(l.totalDaLinha, campo, `${nome}: o total`, true, "linha", daLinha),
       tipo: l.tipo,
     };
   });
@@ -462,6 +658,16 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     return round2(q * l.precoUnitario.valor);
   };
   o.linhas.forEach((l, i) => {
+    const v = valorDaLinha(l);
+    if (v !== null && v < 0) {
+      aviso({
+        id: `desconto:${i}`,
+        campo: `orcamento.linhas.${i}`,
+        dinheiro: true,
+        gravidade: "erro",
+        texto: `A linha «${curto(l.descricao ?? `${i + 1}`, 40)}» é um desconto de ${eur(-v)}: o orçamento da proposta nova não leva linhas negativas, por isso não passou — põe o desconto à mão no Fazer proposta.`,
+      });
+    }
     const q = l.quantidade.valor;
     const p = l.precoUnitario.valor;
     const t = l.totalDaLinha.valor;
@@ -521,14 +727,27 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
 
   // ── O modo do IVA: tem de estar ESCRITO, e não pode contradizer o sítio dos valores ──
   type Modo = "sem_iva" | "com_iva" | "desconhecido";
+  /** O texto da unidade diz OUTRA coisa (ou as duas, ou «isento»): é contradição. */
   const dizOutro = (modo: "sem_iva" | "com_iva", id: string) => {
-    const n = normDe.get(id)!;
-    return modo === "sem_iva" ? dizComIva(n) && !dizSemIva(n) : dizSemIva(n) && !dizComIva(n);
+    const m = modoDoIvaNoTexto(normDe.get(id)!);
+    if (m === null) return false;
+    return m !== (modo === "sem_iva" ? "sem" : "com");
   };
   const contradicao = (modo: "sem_iva" | "com_iva", ids: string[], campo: string, oQue: string) => {
     const mau = ids.find((id) => dizOutro(modo, id));
     if (!mau) return false;
     const u = unidades.find((x) => x.id === mau)!;
+    const no = modoDoIvaNoTexto(normDe.get(mau)!);
+    if (no === "isento") {
+      aviso({
+        id: `iva:isento:${campo}`,
+        campo,
+        dinheiro: true,
+        gravidade: "erro",
+        texto: `O documento diz que ${oQue} é ISENTO de IVA («${curto(textoDaUnidade(u), 70)}»). A proposta nova não tem esse caso: o IVA fica por escolher.`,
+      });
+      return true;
+    }
     aviso({
       id: `iva:contradicao:${campo}`,
       campo,
@@ -544,8 +763,14 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     oQue: string,
   ): Modo => {
     if (m.valor === "desconhecido") return "desconhecido";
-    const diz = m.valor === "sem_iva" ? dizSemIva : dizComIva;
-    if (m.citacao && citacaoNumaUnidade(m.citacao) && diz(normalizar(m.citacao))) return m.valor;
+    // A citação tem de dizer ISSO e só isso (sem negação ao contrário, sem os dois).
+    const esperado = m.valor === "sem_iva" ? "sem" : "com";
+    if (
+      m.citacao &&
+      citacaoNumaUnidade(m.citacao) &&
+      modoDoIvaNoTexto(normalizar(m.citacao)) === esperado
+    )
+      return m.valor;
     aviso({
       id: `iva:sem-citacao:${campo}`,
       campo,
@@ -684,37 +909,50 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
   // (o token inteiro, dentro da citação). Os «não usados» só valem na unidade
   // onde a citação deles está — e cada um é um aviso de dinheiro para ela
   // confirmar: um valor verdadeiro arrumado ali era um valor perdido.
+  // Um total que o documento repete (no resumo e no fim) é a MESMA quantia:
+  // se o valor é o de um total aceite, não há aviso nenhum.
+  const totaisAceites = [o.totalSemIva.valor, o.totalComIva.valor, o.valorDoIva.valor]
+    .filter((x): x is number => x !== null)
+    .map(round2);
   const valores: ValorDoDocumento[] = [];
   for (const u of unidades) {
     const tabela = u.tipo === "linha-de-tabela" && tabelasComDinheiro.has(u.tabela);
-    for (const v of valoresEmEuros(u, normDe.get(u.id)!, tabela)) {
-      const campo = ligacoes.find((c) => c.valor === v.valor && c.unidades.includes(u.id));
-      const nu = campo
-        ? undefined
-        : naoUsadosLigados.find((x) => x.valor === v.valor && x.unidades.includes(u.id));
-      const usado: ValorDoDocumento["usado"] = campo?.usado ?? (nu ? "nao-usado" : null);
+    const n = normDe.get(u.id)!;
+    for (const t of valoresEmEuros(u, n, tokensDaUnidade.get(u.id)!, tabela)) {
+      const bate = (x: number) => t.valores.includes(x);
+      const campo = ligacoes.find((c) => bate(c.valor) && c.unidades.includes(u.id));
+      const repetido = !campo && totaisAceites.some(bate);
+      const nu =
+        campo || repetido
+          ? undefined
+          : naoUsadosLigados.find((x) => bate(x.valor) && x.unidades.includes(u.id));
+      const usado: ValorDoDocumento["usado"] =
+        campo?.usado ?? (repetido ? "total" : nu ? "nao-usado" : null);
+      // O valor que se mostra é o que está ESCRITO (com o espaço ambíguo, o texto tal e qual).
+      const escrito = t.valores.length > 1 ? `«${t.texto}»` : eur(t.valor);
+      const valor = campo?.valor ?? nu?.valor ?? t.valor;
       valores.push({
         unidade: u.id,
-        valor: v.valor,
-        trecho: v.trecho,
+        valor,
+        trecho: n.slice(Math.max(0, t.ini - 30), t.fim + 6).trim(),
         usado,
         ...(nu ? { motivo: nu.motivo } : {}),
       });
       if (nu) {
         aviso({
-          id: `nao-usado:${u.id}:${Math.round(v.valor * 100)}`,
+          id: `nao-usado:${u.id}:${Math.round(nu.valor * 100)}`,
           campo: "orcamento",
           dinheiro: true,
           gravidade: "aviso",
-          texto: `O documento tem ${eur(v.valor)} em «${curto(textoDaUnidade(u), 70)}» (${nomeDaParte(d, u.parte)}), que ficou FORA das linhas e do total: «${curto(nu.motivo, 60)}».`,
+          texto: `O documento tem ${eur(nu.valor)} em «${curto(textoDaUnidade(u), 70)}» (${nomeDaParte(d, u.parte)}), que ficou FORA das linhas e do total: «${curto(nu.motivo, 60)}».`,
         });
       } else if (!usado) {
         aviso({
-          id: `valor:${u.id}:${Math.round(v.valor * 100)}`,
+          id: `valor:${u.id}:${Math.round(t.valor * 100)}`,
           campo: "orcamento",
           dinheiro: true,
           gravidade: "erro",
-          texto: `O documento tem ${eur(v.valor)} em «${curto(textoDaUnidade(u), 70)}» (${nomeDaParte(d, u.parte)}) e esse valor não está em nenhuma linha nem total.`,
+          texto: `O documento tem ${escrito} em «${curto(textoDaUnidade(u), 70)}» (${nomeDaParte(d, u.parte)}) e esse valor não está em nenhuma linha nem total.`,
         });
       }
     }

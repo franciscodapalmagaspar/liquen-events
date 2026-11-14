@@ -206,7 +206,8 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     }
     // Com a leitura (JSON) é uma releitura: guarda-se o que ela tinha, para
     // não lho apagar nem se a releitura falhar.
-    const antes = leitura && proposta && c ? { inicial: correccoesIniciais(proposta), c } : null;
+    const antes =
+      leitura && proposta && c ? { inicial: correccoesIniciais(proposta), c, escolhidas } : null;
     const antesDela = antes !== null;
     setPasso("a-ler");
     setNome(ficheiro.name);
@@ -254,8 +255,14 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       setImagensDoDocumento(new Map(lidas.fotos.map((f) => [f.caminho, f.ficheiro])));
       setFotos(lidas.fotos.filter((f) => naProposta.has(f.caminho)));
       setDeFora(lidas.deFora.filter((f) => naProposta.has(f.caminho)));
+      // A escolha das fotografias dela também fica (as que continuam na proposta).
+      const naNova = new Set(
+        lidas.fotos.filter((f) => naProposta.has(f.caminho)).map((f) => f.caminho),
+      );
       setEscolhidas(
-        new Set(escolhaPorOmissao(p.fotos, new Set(lidas.fotos.map((f) => f.caminho)))),
+        antes
+          ? new Set([...antes.escolhidas].filter((x) => naNova.has(x)))
+          : new Set(escolhaPorOmissao(p.fotos, new Set(lidas.fotos.map((f) => f.caminho)))),
       );
       setPasso("rever");
     } catch (e) {

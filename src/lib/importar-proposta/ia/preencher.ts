@@ -91,7 +91,16 @@ export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImporta
   );
   const budgetItems = linhas.map((x) => x.descricao ?? "");
   const budgetOpcional = linhas.map((x) => x.tipo === "opcional");
-  const escritos = linhas.map(escritoDaLinha);
+  /**
+   * Um DESCONTO (linha negativa) não entra: o orçamento do estúdio não tem
+   * linhas negativas, e a regra do total (`resolveProposalMoney`) lê um
+   * montante ≤ 0 como texto. Fica sem valor, com um aviso de dinheiro
+   * (`desconto:` em `verificar.ts`) para ela o pôr à mão.
+   */
+  const escritos = linhas.map((x) => {
+    const t = escritoDaLinha(x);
+    return t !== null && t < 0 ? null : t;
+  });
   let budgetAmounts: (number | null)[];
   if (modoDasLinhas === "sem_iva")
     budgetAmounts = escritos.map((t) => (t === null ? null : round2(t)));
@@ -105,7 +114,7 @@ export function preencher(d: DocumentoCompleto, v: Verificacao): PropostaImporta
      */
     const normais = linhas
       .map((x, i) => ({ x, i }))
-      .filter(({ x, i }) => x.tipo === "normal" && escritos[i] !== null);
+      .filter(({ x, i }) => x.tipo === "normal" && escritos[i] !== null && escritos[i]! > 0);
     if (normais.length) {
       const bruto = round2(normais.reduce((acc, { i }) => acc + escritos[i]!, 0));
       const somaDasBases = round2(normais.reduce((acc, { i }) => acc + budgetAmounts[i]!, 0));

@@ -111,11 +111,14 @@ async function POST_semMedida(request: NextRequest) {
   if (recusa) return NextResponse.json({ error: recusa }, { status: 415 });
 
   try {
+    const agora = new Date();
     const { proposta, revisao } = await importarDocumento(bytes, {
       leituraCarregada: leitura,
       chamar: chamarModeloSeHouverChave(),
-      reservar: (custoMaximo) => reservarImportacaoComIa(custoMaximo),
-      acertar: (reservado, real) => acertarImportacaoComIa(reservado, real),
+      // O mês é o da RESERVA: uma leitura que acaba depois da meia-noite do
+      // último dia acerta a linha do mês em que reservou, não a do seguinte.
+      reservar: (custoMaximo) => reservarImportacaoComIa(custoMaximo, agora),
+      acertar: (reservado, real) => acertarImportacaoComIa(reservado, real, agora),
     });
     if (revisao?.custo) {
       // Só números: nem o texto do documento nem a chave vão para os registos.

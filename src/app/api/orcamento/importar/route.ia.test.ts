@@ -10,10 +10,24 @@ vi.mock("@anthropic-ai/sdk", () => ({
     constructor() {
       sdk.construido();
     }
+    beta = {
+      messages: {
+        stream: () => ({
+          finalMessage: async () => ({
+            stop_reason: "end_turn",
+            content: [{ type: "text", text: JSON.stringify(leituraCerta()) }],
+            usage: { input_tokens: 1000, output_tokens: 1000 },
+          }),
+        }),
+      },
+    };
   },
 }));
-const tecto = vi.hoisted(() => ({ reservar: vi.fn() }));
-vi.mock("@/lib/importar-proposta/ia/tecto", () => ({ reservarImportacaoComIa: tecto.reservar }));
+const tecto = vi.hoisted(() => ({ reservar: vi.fn(), acertar: vi.fn() }));
+vi.mock("@/lib/importar-proposta/ia/tecto", () => ({
+  reservarImportacaoComIa: tecto.reservar,
+  acertarImportacaoComIa: tecto.acertar,
+}));
 
 import { POST } from "./route";
 
@@ -97,5 +111,22 @@ describe("POST /api/orcamento/importar — as vias da leitura", () => {
       }),
     );
     expect(res.status).toBe(413);
+  });
+
+  it("o acerto do tecto usa o MÊS DA RESERVA (o mesmo instante), não o da resposta", async () => {
+    process.env.ANTHROPIC_API_KEY = "chave-de-teste-que-nao-existe";
+    tecto.reservar.mockResolvedValue({
+      ok: true,
+      usadas: 1,
+      maximo: 30,
+      dolares: 0.5,
+      maxDolares: 5,
+    });
+    tecto.acertar.mockResolvedValue(true);
+    const res = await POST(req({ ficheiro: new File([propostaDeTeste() as BlobPart], "p.docx") }));
+    expect((await res.json()).revisao.via).toBe("ia");
+    const quandoReservou = tecto.reservar.mock.calls[0][1];
+    expect(quandoReservou).toBeInstanceOf(Date);
+    expect(tecto.acertar.mock.calls[0][2]).toBe(quandoReservou);
   });
 });

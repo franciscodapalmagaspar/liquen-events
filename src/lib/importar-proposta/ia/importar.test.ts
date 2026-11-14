@@ -24,7 +24,7 @@ import {
 } from "./fixtures.testkit";
 import { docx } from "../fabricar.testkit";
 import { montarDocumento, correccoesIniciais } from "../montar";
-import { pedidoParaOClaude } from "./instrucoes";
+import { INSTRUCOES, pedidoParaOClaude } from "./instrucoes";
 import { esquemaJson, lerLeitura } from "./esquema";
 import { documentoEmTexto } from "../documento-completo";
 
@@ -400,5 +400,74 @@ describe("o esquema tem limites", () => {
 
   it("o esquema que segue para a API não leva os limites que ela não aceita", () => {
     expect(JSON.stringify(esquemaJson())).not.toMatch(/maxLength|maxItems/);
+  });
+});
+
+describe("2.ª revisão, 2 — o tecto não liberta a reserva das partes abortadas", () => {
+  /** Duas partes: a 1.ª recusa (com uso), a 2.ª fica pendurada até ser parada. */
+  const chamarDuas: ChamarModelo = async (p, { signal }) => {
+    if (p.messages[0].content.includes("PARTE 1 de")) {
+      return {
+        stop_reason: "refusal",
+        content: [],
+        usage: { input_tokens: 2000, output_tokens: 100 },
+      };
+    }
+    return new Promise((_r, rej) =>
+      signal.addEventListener("abort", () => rej(new Error("aborted"))),
+    );
+  };
+
+  it("o erro leva o uso SOMADO das partes que correram, e diz quais pararam sem uso", async () => {
+    const e = await perceber(chamarDuas, ["[p1] a", "[p2] b"]).catch((x) => x);
+    expect(e).toBeInstanceOf(LeituraFalhou);
+    expect(e.motivo).toBe("recusa");
+    expect(e.uso).toEqual([{ input_tokens: 2000, output_tokens: 100 }]);
+    expect(e.partesSemUso).toEqual([1]);
+  });
+
+  it("acerta pelo uso conhecido MAIS a reserva inteira das partes sem uso", async () => {
+    const grande = docx(
+      Array.from({ length: 40 }, (_, i) => [
+        { h: 1 as const, t: `Secção TESTE ${i}` },
+        `${"palavra ".repeat(130)}`,
+      ]).flat(),
+    );
+    const pedacos = partirEmPedacos(documentoDeTeste(grande));
+    expect(pedacos.length).toBe(2);
+    const acertar = vi.fn(async () => true);
+    const r = await importarDocumento(grande, {
+      chamar: chamarDuas,
+      reservar: reservaLivre,
+      acertar,
+    });
+    expect(r.revisao?.via).toBe("regras");
+    const esperado =
+      Math.round(
+        (custoEmDolares([{ input_tokens: 2000, output_tokens: 100 }]) +
+          custoMaximoEmDolares([pedacos[1]])) *
+          100,
+      ) / 100;
+    expect(acertar).toHaveBeenCalledWith(custoMaximoEmDolares(pedacos), esperado);
+  });
+});
+
+describe("2.ª revisão, 7 — a reserva cobre a repetição no recurso, pelo preço do modelo", () => {
+  it("reserva o DOBRO (entrada e saída) ao preço mais caro", () => {
+    const um = custoMaximoEmDolares(["x".repeat(3500)]);
+    const fixo = Math.ceil((INSTRUCOES.length + JSON.stringify(esquemaJson()).length) / 3.5);
+    const esperado = (2 * ((fixo + 1000 + 200) * 6.25 + maxTokensPara(3500) * 25)) / 1_000_000;
+    expect(um).toBeCloseTo(Math.ceil(esperado * 10_000) / 10_000, 6);
+  });
+
+  it("cada iteração conta pelo preço do SEU modelo; um modelo desconhecido pelo mais caro", () => {
+    const it = (model: string) => ({
+      input_tokens: 0,
+      output_tokens: 0,
+      iterations: [{ type: "fallback_message", model, input_tokens: 0, output_tokens: 1_000_000 }],
+    });
+    expect(custoEmDolares([it("claude-opus-5-5")])).toBe(20);
+    expect(custoEmDolares([it("claude-opus-4-8")])).toBe(25);
+    expect(custoEmDolares([it("claude-desconhecido")])).toBe(25);
   });
 });

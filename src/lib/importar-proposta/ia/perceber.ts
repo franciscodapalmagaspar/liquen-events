@@ -43,6 +43,8 @@ export const MAX_PARTES = 6;
  * cai-se nas regras e diz-se porquê — com 60 s de folga para o resto da rota.
  */
 export const PRAZO_MS = 240_000;
+const PRAZO_ESGOTADO = "prazo";
+const PARADA_POR_OUTRA = "outra-parte-falhou";
 
 /**
  * O `max_tokens` de cada parte, à medida dela: as descrições copiam-se
@@ -75,7 +77,7 @@ interface UsoBase {
 }
 export interface Uso extends UsoBase {
   /** Um por modelo que correu nesta resposta, quando o recurso entrou. */
-  iterations?: (UsoBase & { type?: string })[] | null;
+  iterations?: (UsoBase & { type?: string; model?: string })[] | null;
 }
 
 /** A forma mínima de uma resposta da API — a do SDK, sem depender dele aqui. */
@@ -110,7 +112,10 @@ export class LeituraFalhou extends Error {
   constructor(
     message: string,
     readonly motivo: "recusa" | "max_tokens" | "incompleta" | "forma" | "erro" | "grande" | "tempo",
+    /** O uso SOMADO de todas as partes que chegaram a responder (pagam-se). */
     readonly uso: Uso[] = [],
+    /** As partes (índices) que pararam SEM uso conhecido: a reserva delas fica inteira. */
+    readonly partesSemUso: number[] = [],
   ) {
     super(message);
     this.name = "LeituraFalhou";
@@ -183,10 +188,12 @@ async function lerUmaParte(
     r = await chamar(pedidoAoModelo(texto, parte), { signal });
   } catch (e) {
     if (signal.aborted) {
-      throw new LeituraFalhou(
-        `A leitura com IA passou do prazo (${PRAZO_MS / 1000} s) e foi interrompida.`,
-        "tempo",
-      );
+      throw signal.reason === PARADA_POR_OUTRA
+        ? new LeituraFalhou("Esta parte parou porque outra parte falhou.", "erro")
+        : new LeituraFalhou(
+            `A leitura com IA passou do prazo (${PRAZO_MS / 1000} s) e foi interrompida.`,
+            "tempo",
+          );
     }
     throw new LeituraFalhou(
       `A leitura com IA não respondeu${e instanceof Error && e.message ? ` (${e.message.slice(0, 160)})` : ""}.`,
@@ -295,15 +302,39 @@ export async function perceber(
   // Um prazo para TUDO, e as partes todas ao mesmo tempo. Se uma falha, as
   // outras param logo (não se pagam tokens de uma leitura que não se usa).
   const controlo = new AbortController();
-  const relogio = setTimeout(() => controlo.abort(), opcoes.prazoMs ?? PRAZO_MS);
+  const relogio = setTimeout(() => controlo.abort(PRAZO_ESGOTADO), opcoes.prazoMs ?? PRAZO_MS);
   try {
-    const todas = await Promise.all(
+    const resultados = await Promise.allSettled(
       pedacos.map((t, k) =>
         lerUmaParte(chamar, t, { i: k + 1, n }, controlo.signal).catch((e) => {
-          controlo.abort();
+          if (!controlo.signal.aborted) controlo.abort(PARADA_POR_OUTRA);
           throw e;
         }),
       ),
+    );
+    const falhas = resultados.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (falhas.length) {
+      // O que se pagou: as partes que acabaram e as que falharam COM uso
+      // (uma recusa, uma resposta cortada). As que pararam sem uso ficam à parte.
+      const uso: Uso[] = [];
+      const partesSemUso: number[] = [];
+      resultados.forEach((r, k) => {
+        if (r.status === "fulfilled") uso.push(r.value.uso);
+        else if (r.reason instanceof LeituraFalhou && r.reason.uso.length)
+          uso.push(...r.reason.uso);
+        else partesSemUso.push(k);
+      });
+      // A causa: a primeira falha que não é «parou por causa de outra».
+      const causa =
+        falhas
+          .map((f) => f.reason)
+          .find((e) => !(e instanceof LeituraFalhou && e.message.startsWith("Esta parte parou"))) ??
+        falhas[0].reason;
+      if (!(causa instanceof LeituraFalhou)) throw causa;
+      throw new LeituraFalhou(causa.message, causa.motivo, uso, partesSemUso);
+    }
+    const todas = resultados.map(
+      (r) => (r as PromiseFulfilledResult<{ leitura: Leitura; uso: Uso }>).value,
     );
     const { leitura, conflitos } = juntarLeituras(todas.map((x) => x.leitura));
     return { leitura, conflitos, uso: todas.map((x) => x.uso), partes: n };
@@ -312,9 +343,23 @@ export async function perceber(
   }
 }
 
-/** Quanto custou, em dólares, pelos preços de {@link PRECO}. */
+/**
+ * Os preços de cada modelo que pode correr (o pedido e o recurso), em dólares
+ * por milhão de tokens. Um modelo que não esteja aqui conta pelo mais caro.
+ */
+export const PRECOS_POR_MODELO: Record<string, Preco> = {
+  "claude-opus-5-5": PRECO,
+  "claude-opus-5": PRECO_DE_RECURSO,
+  "claude-opus-4-8": PRECO_DE_RECURSO,
+};
+type Preco = { entrada: number; saida: number; escritaNaCache: number; leituraDaCache: number };
+export const PRECO_MAIS_CARO: Preco = Object.values(PRECOS_POR_MODELO).reduce((a, b) =>
+  b.saida > a.saida ? b : a,
+);
+
+/** Quanto custou, em dólares: cada iteração pelo preço do SEU modelo. */
 export function custoEmDolares(usos: readonly Uso[]): number {
-  const de = (u: UsoBase, p: typeof PRECO | typeof PRECO_DE_RECURSO) =>
+  const de = (u: UsoBase, p: Preco) =>
     (u.input_tokens * p.entrada +
       u.output_tokens * p.saida +
       (u.cache_creation_input_tokens ?? 0) * p.escritaNaCache +
@@ -326,7 +371,8 @@ export function custoEmDolares(usos: readonly Uso[]): number {
     // todos (o que recusou também se paga), e o do recurso pelo preço de cima.
     if (u.iterations?.length) {
       for (const it of u.iterations) {
-        c += de(it, it.type === "fallback_message" ? PRECO_DE_RECURSO : PRECO);
+        const p = it.model ? PRECOS_POR_MODELO[it.model] : undefined;
+        c += de(it, p ?? (it.type === "fallback_message" ? PRECO_MAIS_CARO : PRECO));
       }
     } else c += de(u, PRECO);
   }
@@ -340,11 +386,15 @@ export function custoEmDolares(usos: readonly Uso[]): number {
  */
 export function custoMaximoEmDolares(pedacos: readonly string[]): number {
   const fixo = estimarTokens(INSTRUCOES.length + JSON.stringify(esquemaJson()).length);
+  // Com `fallbacks: "default"`, uma recusa a meio repete o pedido noutro
+  // modelo: no pior caso paga-se a entrada e a saída DUAS vezes, ao mais caro.
+  const vezes = 2;
   let c = 0;
   for (const p of pedacos) {
     c +=
-      ((fixo + estimarTokens(p.length) + 200) * PRECO_DE_RECURSO.escritaNaCache +
-        maxTokensPara(p.length) * PRECO_DE_RECURSO.saida) /
+      (vezes *
+        ((fixo + estimarTokens(p.length) + 200) * PRECO_MAIS_CARO.escritaNaCache +
+          maxTokensPara(p.length) * PRECO_MAIS_CARO.saida)) /
       1_000_000;
   }
   return Math.ceil(c * 10_000) / 10_000;

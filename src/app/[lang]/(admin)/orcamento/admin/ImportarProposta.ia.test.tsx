@@ -134,4 +134,24 @@ describe("a revisão lado a lado", () => {
     );
     expect((screen.getByLabelText(/Data do evento/) as HTMLInputElement).value).toBe("2027-06-12");
   });
+
+  it("recarregar com a leitura mantém a escolha das fotografias dela", async () => {
+    const semIa = await importarDocumento(propostaDeTeste(), { chamar: null });
+    const comJson = await importarDocumento(propostaDeTeste(), {
+      leituraCarregada: JSON.stringify(leituraCerta()),
+    });
+    preparar(semIa, [comJson]);
+    await escolher();
+    const fotos = () => screen.getAllByRole("button", { pressed: true });
+    const antes = fotos().length;
+    expect(antes).toBeGreaterThan(0);
+    // Ela tira a primeira.
+    fireEvent.click(fotos()[0]);
+    expect(fotos().length).toBe(antes - 1);
+    fireEvent.change(screen.getByLabelText(/Carregar a leitura/) as HTMLInputElement, {
+      target: { files: [new File([JSON.stringify(leituraCerta())], "l.json")] },
+    });
+    await screen.findByText(/sem custo\) e verificado/);
+    expect(fotos().length).toBe(antes - 1);
+  });
 });
