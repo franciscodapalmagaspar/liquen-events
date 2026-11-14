@@ -608,6 +608,12 @@ export function analisarIva(
     entre = entre.replace(/\b(?:iva|vat|eur|euros?)\b/g, " ");
     return entre.length <= 40 && /^[\s€()[\]=:/;,.+\-%\d]*$/.test(entre.replace(/\d+\s?%/g, ""));
   };
+  // O modo do IVA de cada unidade lê-se UMA vez (era relido por cada par).
+  const modoDe = new Map<string, ReturnType<typeof modoDoIvaNoTexto>>();
+  const modoDaUnidade = (u: UnidadeLida) => {
+    if (!modoDe.has(u.id)) modoDe.set(u.id, modoDoIvaNoTexto(normDe.get(u.id)!));
+    return modoDe.get(u.id)!;
+  };
   for (const u of unidadesDeTexto) {
     const n = normDe.get(u.id)!;
     const dinheiro = dinheiroDa(u).filter((t) => t.valor > 0);
@@ -620,7 +626,7 @@ export function analisarIva(
       if (!linhaDeTabela && !ligados(n, a, b)) continue;
       if (batemPelaTaxa(a.valor, b.valor)) marcarPar(a, b, u.id);
       else if (batemPelaTaxa(b.valor, a.valor)) marcarPar(b, a, u.id);
-      else if (!linhaDeTabela && modoDoIvaNoTexto(n) === "ambos") {
+      else if (!linhaDeTabela && modoDaUnidade(u) === "ambos") {
         avisos.push({
           id: `iva:par-nao-bate:${u.id}`,
           campo: "orcamento",
@@ -638,9 +644,34 @@ export function analisarIva(
         .filter((t) => t.valor > 0)
         .map((t) => ({ t, iu, id: u.id })),
     );
+    // Os índices de cada valor (em cêntimos): para um par (i, j), o terceiro
+    // só pode valer a soma ou a diferença dos dois — procura-se, em vez de
+    // tentar todos os k. Era cúbico: 7 s com 1 000 valores no documento. As
+    // condições e a ORDEM (i, j, k crescentes) são as de antes.
+    const cent = (v: number) => Math.round(v * 100);
+    const indicesDe = new Map<number, number[]>();
+    seq.forEach((x, idx) => {
+      const k = cent(x.t.valor);
+      const l = indicesDe.get(k);
+      if (l) l.push(idx);
+      else indicesDe.set(k, [idx]);
+    });
+    // (Os valores são cêntimos exatos: «x + y = t» ao cêntimo é a mesma
+    // conta em inteiros.)
+    const terceiros = (i: number, j: number): number[] => {
+      const a = cent(seq[i].t.valor);
+      const b = cent(seq[j].t.valor);
+      const ks: number[] = [];
+      for (const alvo of [a + b, a - b, b - a]) {
+        for (const k of indicesDe.get(alvo) ?? []) {
+          if (k > j && seq[k].iu - seq[i].iu <= 4 && !ks.includes(k)) ks.push(k);
+        }
+      }
+      return ks.length > 1 ? ks.sort((x, y) => x - y) : ks;
+    };
     for (let i = 0; i < seq.length; i++) {
       for (let j = i + 1; j < seq.length && seq[j].iu - seq[i].iu <= 4; j++) {
-        for (let k = j + 1; k < seq.length && seq[k].iu - seq[i].iu <= 4; k++) {
+        for (const k of terceiros(i, j)) {
           // Em qualquer ordem: o maior é o total; os outros dois somam-no, e
           // um deles (a base) dá o total pela taxa.
           const [x, y, t] = [seq[i], seq[j], seq[k]].sort((a, b) => a.t.valor - b.t.valor);
@@ -678,7 +709,7 @@ export function analisarIva(
   }
   // As frases do documento que falam de IVA, para ela ver ao escolher.
   const frasesDoIva = unidadesDeTexto
-    .map((u) => ({ u, m: modoDoIvaNoTexto(normDe.get(u.id)!) }))
+    .map((u) => ({ u, m: modoDaUnidade(u) }))
     .filter((x) => x.m !== null || /\b(?:iva|vat)\b/.test(normDe.get(x.u.id)!))
     .map((x) => ({ unidade: x.u.id, texto: textoDaUnidade(x.u), parece: x.m }));
   const modosDasFrases = new Set(

@@ -414,6 +414,48 @@ describe("o tamanho da resposta", () => {
     expect(r.revisao?.documento.unidades).toEqual([]);
     expect(r.revisao?.avisosDaLeitura.join(" ")).toMatch(/grande demais para o mostrar/);
   });
+
+  // Orçamento de tempo (processador pago na Vercel). Aqui: ~0,2 s no enorme e
+  // ~12 ms na típica; os limites têm folga para o CI. Antes, o email (uma regex
+  // quadrática sobre «xxxx…») levava 8 s no enorme.
+  it("orçamento de tempo: o enorme (1,6 MB) < 3 s, uma proposta típica (~30 000 caracteres) < 1 s", async () => {
+    const enorme = docx(
+      Array.from({ length: 160 }, (_, i) => `Parágrafo TESTE ${i} ${"x".repeat(10_000)}`),
+    );
+    let t = performance.now();
+    await importarDocumento(enorme, { chamar: null });
+    expect(performance.now() - t).toBeLessThan(3000);
+    const tipica = docx([
+      ...Array.from(
+        { length: 60 },
+        (_, i) =>
+          `Serviço TESTE ${i}: flores, velas e tecidos para a mesa ${i}. ${"Texto descritivo. ".repeat(20)}`,
+      ),
+      ...Array.from({ length: 25 }, (_, i) => `Linha ${i} TESTE: ${100 + i},00 €`),
+      "Total: 3.000,00 € + IVA",
+    ]);
+    t = performance.now();
+    await importarDocumento(tipica, { chamar: null });
+    expect(performance.now() - t).toBeLessThan(1000);
+  });
+
+  it("orçamento de tempo: muitos valores por parágrafo, e algarismos sem fim, < 3 s cada", async () => {
+    // Os trios de IVA eram procurados em O(n³): 7,8 s com 1 000 valores.
+    const valores = docx(
+      Array.from(
+        { length: 10 },
+        (_, i) => `Parágrafo TESTE ${i}: ${"1.234,00 € IVA 23% ".repeat(100)}`,
+      ),
+    );
+    let t = performance.now();
+    await importarDocumento(valores, { chamar: null });
+    expect(performance.now() - t).toBeLessThan(3000);
+    // Uma sequência de algarismos sem «€» era lida a partir de cada um.
+    const algarismos = docx(Array.from({ length: 10 }, () => "9".repeat(40_000)));
+    t = performance.now();
+    await importarDocumento(algarismos, { chamar: null });
+    expect(performance.now() - t).toBeLessThan(3000);
+  });
 });
 
 describe("o esquema tem limites", () => {

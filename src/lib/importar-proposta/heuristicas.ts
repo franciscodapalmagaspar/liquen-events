@@ -131,10 +131,15 @@ export function lerNomes(
 
 // ── EMAIL ───────────────────────────────────────────────────────────────────
 
-const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+// O lookbehind faz cada tentativa começar só no INÍCIO de uma palavra: sem
+// ele, uma sequência longa sem «@» («xxxx…», 10 000 letras) era percorrida a
+// partir de cada letra — quadrático (8 s num documento de 1,6 MB). Os emails
+// encontrados são os mesmos: o mais à esquerda começa sempre num início.
+const EMAIL = /(?<![A-Z0-9._%+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 
 /** O email do cliente: os da casa (Líquen) ficam de fora. */
 export function lerEmail(texto: string): Lido<string> | null {
+  if (!texto.includes("@")) return null;
   const vistos = [...new Set((texto.match(EMAIL) ?? []).map((e) => e.toLowerCase()))].filter(
     (e) => !/liquen/.test(e),
   );
@@ -238,6 +243,9 @@ export interface LinhaDeDinheiro {
 
 /** Uma linha com um valor em euros → o rótulo e o valor. `null` se não tem. */
 export function lerLinhaDeDinheiro(linha: string): LinhaDeDinheiro | null {
+  // Sem «€» nem «eur» não há valor (a `VALOR` exige um dos dois) — e assim uma
+  // sequência longa de algarismos não é percorrida a partir de cada um.
+  if (!/€|eur/i.test(linha)) return null;
   const m = VALOR.exec(linha);
   if (!m) return null;
   const valor = parseMoneyText(m[1] ?? m[2]);

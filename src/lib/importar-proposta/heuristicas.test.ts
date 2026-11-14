@@ -301,3 +301,17 @@ describe("12.ª revisão — a reserva sem parênteses nem «de X%»", () => {
     }
   });
 });
+
+describe("o email, em linear", () => {
+  it("uma sequência longa sem «@» não é quadrática, e os emails são os mesmos", () => {
+    const t = performance.now();
+    expect(lerEmail("x".repeat(200_000))).toBeNull();
+    expect(lerEmail(`${"x".repeat(50_000)} ana.teste@exemplo.pt`)?.valor).toBe(
+      "ana.teste@exemplo.pt",
+    );
+    expect(performance.now() - t).toBeLessThan(500);
+    expect(lerEmail("Contacto: ana.teste@exemplo.pt · info@liquen-events.com")?.valor).toBe(
+      "ana.teste@exemplo.pt",
+    );
+  });
+});
