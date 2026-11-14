@@ -11,11 +11,15 @@ import { NextRequest } from "next/server";
  * página vinha com buracos (pedia-se 60, chegavam menos).
  */
 
-type F = { path: string; pasta: string };
+type F = { path: string; pasta: string; updatedAt?: string };
 const H = vi.hoisted(() => ({
   fotos: [] as F[],
   /** As fotografias de tema na Reciclagem, pelo caminho de origem. */
   fotosNaReciclagem: new Set<string>(),
+  /** Os caminhos cujo ficheiro já não está na pasta (saíram de vez da Reciclagem). */
+  foraDaPasta: new Set<string>(),
+  /** Com que opções se perguntou à pasta. */
+  perguntas: [] as unknown[],
 }));
 
 vi.mock("server-only", () => ({}));
@@ -27,6 +31,12 @@ vi.mock("@/lib/reciclagem", () => ({
     pastas: new Set<string>(),
     fotos: H.fotosNaReciclagem,
   }),
+}));
+vi.mock("@/lib/proposta-fotos-verificacao", () => ({
+  refsQueJaNaoExistem: async (refs: readonly string[], opcoes?: unknown) => {
+    H.perguntas.push(opcoes);
+    return new Set(refs.filter((r) => H.foraDaPasta.has(r.replace(/^[^:]+:/, ""))));
+  },
 }));
 // O bucket dos temas só assina o que lá existe: um caminho de pedido não.
 const assina = async (caminhos: string[]) =>
@@ -40,12 +50,16 @@ const pedir = async (qs = "") => {
   return (await r.json()) as { total: number; fotos: { path: string }[] };
 };
 
+const HA_UM_DIA = new Date(Date.now() - 86_400_000).toISOString();
+
 beforeEach(() => {
   H.fotosNaReciclagem = new Set();
+  H.foraDaPasta = new Set();
+  H.perguntas = [];
   // Intercaladas, como na tabela (ordenada por data): tema, pedido, tema, pedido…
   H.fotos = Array.from({ length: 6 }, (_, i) =>
     i % 2 === 0
-      ? { path: `0b6f2c1e-tema/${i}.jpg`, pasta: "0b6f2c1e-tema" }
+      ? { path: `0b6f2c1e-tema/${i}.jpg`, pasta: "0b6f2c1e-tema", updatedAt: HA_UM_DIA }
       : { path: `LIQ-MT7CWVWU-C4BFD3877E978CFF/${i}.jpg`, pasta: "LIQ-MT7CWVWU-C4BFD3877E978CFF" },
   );
 });
@@ -75,5 +89,33 @@ describe("GET /api/biblioteca/fotos", () => {
     expect(r.fotos.map((f) => f.path)).toEqual(["0b6f2c1e-tema/0.jpg", "0b6f2c1e-tema/4.jpg"]);
     H.fotosNaReciclagem = new Set();
     expect((await pedir()).total).toBe(3);
+  });
+
+  /**
+   * Revisão de 14/11, menor n.º 2: aos 30 dias a foto sai DE VEZ da
+   * Reciclagem — o ficheiro vai-se, a linha fica (nada se apaga na base). A
+   * Biblioteca deixava de a ter na Reciclagem e voltava a contá-la.
+   */
+  it("uma foto que saiu de vez da Reciclagem não conta nem abre buracos", async () => {
+    H.foraDaPasta = new Set(["0b6f2c1e-tema/2.jpg"]);
+    const r = await pedir("?limit=2&offset=0");
+    expect(r.total).toBe(2);
+    expect(r.fotos.map((f) => f.path)).toEqual(["0b6f2c1e-tema/0.jpg", "0b6f2c1e-tema/4.jpg"]);
+    // Pergunta com a memória das listagens: nenhuma ida a mais por página.
+    expect(H.perguntas).toEqual([{ memoria: true }]);
+  });
+
+  it("uma linha mexida há menos de 3 min não se esconde (memória de outra instância)", async () => {
+    H.foraDaPasta = new Set(["0b6f2c1e-tema/2.jpg"]);
+    H.fotos = H.fotos.map((f) =>
+      f.path === "0b6f2c1e-tema/2.jpg" ? { ...f, updatedAt: new Date().toISOString() } : f,
+    );
+    expect((await pedir()).total).toBe(3);
+  });
+
+  it("não pergunta à pasta quando não há fotos de tema na resposta", async () => {
+    H.fotos = H.fotos.filter((f) => f.path.startsWith("LIQ-"));
+    expect((await pedir()).total).toBe(0);
+    expect(H.perguntas).toEqual([]);
   });
 });
