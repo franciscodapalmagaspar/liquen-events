@@ -180,16 +180,34 @@ describe("fotos em falta", () => {
  * ficar guardado, em todas as visitas a seguir.
  */
 describe("fotos que se sabe que faltam", () => {
-  it("só de mood board: UM desenho, guarda-se, e a visita seguinte não desenha", async () => {
+  it("só de mood board: UM desenho por visita, serve-se — mas NÃO se guarda", async () => {
     desenhar.mockResolvedValue(pdfDe(100));
-    filaDeFaltas = [2];
-    filaDeSabidas = [{ sabidas: 2, travam: 0 }];
+    filaDeFaltas = [2, 2];
+    filaDeSabidas = [
+      { sabidas: 2, travam: 0 },
+      { sabidas: 2, travam: 0 },
+    ];
     const a = await pdfDaPropostaComEstado(doc("LIQ-20"));
-    expect(a.completo).toBe(true);
+    expect(a.completo).toBe(false);
+    expect(a.pdf.byteLength).toBeGreaterThan(0);
     expect(desenhar).toHaveBeenCalledTimes(1);
-    expect(estadoCachePdf().entradas).toBe(1);
+    // Guardado pela chave do conteúdo, ficava sem a foto mesmo depois de ela a
+    // repor — e a discordar da página online, que pergunta de fresco.
+    expect(estadoCachePdf().entradas).toBe(0);
     await pdfDaPropostaComEstado(doc("LIQ-20"));
-    expect(desenhar).toHaveBeenCalledTimes(1);
+    expect(desenhar).toHaveBeenCalledTimes(2);
+  });
+
+  it("reposta a foto, a visita seguinte desenha-a e então guarda-se", async () => {
+    desenhar.mockResolvedValue(pdfDe(100));
+    filaDeFaltas = [1, 0];
+    filaDeSabidas = [
+      { sabidas: 1, travam: 0 },
+      { sabidas: 0, travam: 0 },
+    ];
+    expect((await pdfDaPropostaComEstado(doc("LIQ-23"))).completo).toBe(false);
+    expect((await pdfDaPropostaComEstado(doc("LIQ-23"))).completo).toBe(true);
+    expect(estadoCachePdf().entradas).toBe(1);
   });
 
   it("uma escolhida à mão: um desenho por visita, nunca dois — incompleto, e não se guarda", async () => {
@@ -217,7 +235,8 @@ describe("fotos que se sabe que faltam", () => {
     ];
     const r = await pdfDaPropostaComEstado(doc("LIQ-22"));
     expect(desenhar).toHaveBeenCalledTimes(2);
-    expect(r.completo).toBe(true);
+    expect(r.completo).toBe(false);
+    expect(estadoCachePdf().entradas).toBe(0);
   });
 });
 

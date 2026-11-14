@@ -818,8 +818,9 @@ export function invalidateThemeCount(themeId: string): void {
     countMemo.delete(folder);
     nomesMemo.delete(folder);
     // E a listagem que a pré-visualização do estúdio guardou desta pasta: a
-    // foto levada ou trazida da Reciclagem vê-se já, nesta instância (revisão
-    // de 14/11, 2.ª, menor n.º 6).
+    // foto levada ou trazida da Reciclagem conta já nas páginas ainda por
+    // desenhar, nesta instância; as já desenhadas guardam-se pela chave do
+    // rascunho e só mudam com ele (revisão de 14/11, 2.ª, menor n.º 6).
     esquecerListagemDaPasta(THEME_BUCKET, folder);
     for (const p of ausentesConfirmadas.keys()) {
       if (p.startsWith(`${folder}/`)) ausentesConfirmadas.delete(p);

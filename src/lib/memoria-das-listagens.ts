@@ -20,7 +20,8 @@
  *
  * E esquece-se a pasta quando uma escrita a muda nesta instância — levar ou
  * trazer uma foto da Reciclagem, carregar, apagar (`invalidateThemeCount`):
- * ela repõe a foto e a pré-visualização mostra-a logo, sem esperar o prazo.
+ * as páginas ainda por desenhar já a mostram, sem esperar o prazo (as que já
+ * estão desenhadas guardam-se pela chave do rascunho e só mudam com ele).
  *
  * Sem `server-only` e sem importar nada: o `theme-storage` chama-o sem trazer
  * o motor do PDF atrás.
@@ -28,6 +29,8 @@
 
 /** Quanto vale uma listagem guardada. 3 min: um rascunho não precisa de mais fresco. */
 export const MEMORIA_MS = 3 * 60_000;
+/** Quanto se espera por uma listagem partilhada antes de a dar por «por confirmar». */
+export const ESPERA_MAX_MS = 10_000;
 /** Tecto de pastas guardadas — uma pasta por tema ou pedido; folga larga. */
 const MAX_PASTAS = 500;
 
@@ -57,12 +60,20 @@ export async function listagemComMemoria<T>(
   // escrita nesta instância), o que vier pode já estar velho e não se guarda.
   const marca = {};
   emCursoMarca.set(chave, marca);
-  const nova = listar()
+  // Uma listagem pendurada não prende as outras perguntas desta pasta até ao
+  // timeout do fetch (~300 s): ao fim de {@link ESPERA_MAX_MS} vale `null`
+  // («por confirmar»), que não se guarda.
+  let relogio: ReturnType<typeof setTimeout> | undefined;
+  const limite = new Promise<null>((r) => {
+    relogio = setTimeout(() => r(null), ESPERA_MAX_MS);
+  });
+  const nova = Promise.race([listar(), limite])
     .then((valor) => {
       if (valor !== null && emCursoMarca.get(chave) === marca) guardar(chave, valor);
       return valor;
     })
     .finally(() => {
+      clearTimeout(relogio);
       if (emCursoMarca.get(chave) === marca) {
         emCurso.delete(chave);
         emCursoMarca.delete(chave);

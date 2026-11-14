@@ -308,6 +308,20 @@ export async function pdfDaPropostaComEstado(
     throw new PropostaIncompleta(ultimo.missingImages);
   }
 
+  /**
+   * Uma foto de mood board que se SABE em falta: o documento serve-se (sem
+   * buraco: o mosaico já não a conta), mas NÃO se guarda. A chave é só o
+   * conteúdo; se ela repuser a foto, a chave não muda — e um PDF guardado sem
+   * ela (e as páginas `immutable` no telemóvel do casal) ficavam a discordar
+   * da página online, que pergunta de fresco (revisão final de 14/11, n.º 1).
+   */
+  if ((ultimo.faltasSabidas ?? 0) > 0) {
+    log.warn("proposta-pdf: servido sem guardar — há fotos que se sabe que faltam", {
+      faltasSabidas: ultimo.faltasSabidas,
+    });
+    return { pdf: ultimo.pdf, completo: false };
+  }
+
   guardar(chave, ultimo.pdf);
   // E fica também no Storage, para o próximo processo não voltar a desenhar.
   // Sem `await` no caminho de leitura seria uma escrita a apanhar o fim da
