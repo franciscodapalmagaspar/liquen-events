@@ -72,18 +72,57 @@ export interface Verificacao {
 
 // ── Normalizar ───────────────────────────────────────────────────────────────
 
-export function normalizar(s: string): string {
+/**
+ * O texto normalizado COM as células das tabelas separadas (« | »). É neste
+ * que se lêem os números: «1 | 250,00» são duas células, nunca 1 250.
+ */
+export function normalizarComCelulas(s: string): string {
   return s
     .normalize("NFC")
-    .replace(/[­​-‍﻿]/g, "")
-    .replace(/[‘’‚‛´`]/g, "'")
-    .replace(/[“”„«»]/g, '"')
-    .replace(/[‐‑‒–—―−]/g, "-")
-    .replace(/…/g, "...")
-    .replace(/[⏎|]/g, " ")
-    .replace(/[\s ]+/g, " ")
+    .replace(/[\u00ad\u200b-\u200d\ufeff]/g, "")
+    .replace(/[\u2018\u2019\u201a\u201b\u00b4`]/g, "'")
+    .replace(/[\u201c\u201d\u201e\u00ab\u00bb]/g, '"')
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\u23ce/g, " ")
+    .replace(/\|/g, " | ")
+    .replace(/[\s\u00a0]+/g, " ")
     .toLowerCase()
     .trim();
+}
+
+/**
+ * O mesmo texto sem as barras das células (é contra este que se procuram as
+ * citações e os textos copiados: a IA nem sempre copia o «|»), e, para cada
+ * posição do texto com células, a posição correspondente neste.
+ */
+export function plano(comCelulas: string): { texto: string; deCan: Int32Array } {
+  const deCan = new Int32Array(comCelulas.length + 1);
+  let out = "";
+  let i = 0;
+  while (i < comCelulas.length) {
+    if (comCelulas.startsWith(" | ", i)) {
+      deCan[i] = deCan[i + 1] = deCan[i + 2] = out.length;
+      out += " ";
+      i += 3;
+    } else if (comCelulas[i] === "|") {
+      deCan[i] = out.length;
+      i += 1;
+    } else {
+      deCan[i] = out.length;
+      out += comCelulas[i];
+      i += 1;
+    }
+  }
+  deCan[comCelulas.length] = out.length;
+  const t = out.trim();
+  const corte = out.length - out.trimStart().length;
+  if (corte) for (let k = 0; k < deCan.length; k++) deCan[k] = Math.max(0, deCan[k] - corte);
+  return { texto: t, deCan };
+}
+
+export function normalizar(s: string): string {
+  return plano(normalizarComCelulas(s)).texto;
 }
 
 /** Uma linha de um texto, sem o marcador de lista da ponta. */
@@ -117,28 +156,30 @@ function curto(s: string, n = 90): string {
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
- * OS NÚMEROS — INTEIROS, COM SINAL, E NO FORMATO DA PROPOSTA
+ * OS NÚMEROS — INTEIROS, COM SINAL, E O FORMATO DECIDIDO NÚMERO A NÚMERO
  * ════════════════════════════════════════════════════════════════════════════
  *
- * Um token é um número INTEIRO, num texto já normalizado: nunca um bocado de
- * outro («740» não é um token de «1.740,00», nem «7» de «2027»).
+ * Um token é um número INTEIRO: nunca um bocado de outro («740» não é um
+ * token de «1.740,00», nem «7» de «2027»), e nunca atravessa uma célula.
  *
- *  · À portuguesa: milhares com «.» (ou com espaço), decimais com «,».
- *    À inglesa (`idioma: "en"`, ou números como «1,740.00» no documento):
- *    milhares com «,», decimais com «.».
- *  · O ESPAÇO é ambíguo: «Mesas 2 120,00 €» tanto pode ser 2 120 € como duas
- *    mesas a 120 €. O token guarda os DOIS candidatos (`valores`), e aceita-se
- *    o que bater com o valor lido; um aviso nunca mostra um número que não está
- *    lá — mostra o texto tal como está escrito.
- *  · SINAL: «-100,00 €», «− 100 €» ou «(100,00 €)» são −100. O hífen só conta
- *    como sinal no princípio, depois de um espaço, «(» ou «:» — nunca entre
- *    números («12-06-2027»).
+ * O formato decide-se pelo PRÓPRIO número, não pelo idioma da proposta (uma
+ * proposta portuguesa tem preços colados do Excel, uma inglesa tem números
+ * portugueses):
+ *
+ *  · «1.000,00» — os dois separadores: o último é o decimal (português);
+ *  · «1,740.00» — idem (inglês);
+ *  · «45,00» / «45.00» — um separador com 1–2 dígitos depois: é o decimal;
+ *  · «1.200» / «1,740» — um separador com 3 dígitos depois: AMBÍGUO. Ficam os
+ *    dois candidatos (1 200 e 1,2), e vale o que bater com a leitura;
+ *  · «2 120,00» — o espaço de milhar também é ambíguo: 2 120, ou o 120 da
+ *    direita (só se a mesma linha disser quantidade 2), ou o 2 da esquerda
+ *    (só como quantidade). Um aviso mostra o texto escrito, nunca um número
+ *    que lá não está.
+ *
+ * SINAL: «-100,00 €», «− 100 €» ou «(100,00 €)» são −100. O hífen só conta
+ * como sinal no princípio, depois de um espaço, «(» ou «:» — nunca entre
+ * números («12-06-2027»).
  */
-export type FormatoDosNumeros = "pt" | "en";
-
-const TOKEN_PT =
-  /(?<![\d.,])(?:\d{1,3}(?:\.\d{3})+|\d{1,3}(?: \d{3})+(?!\d)|\d+)(?:,\d{1,2})?(?!\d|[.,]\d)/g;
-const TOKEN_EN = /(?<![\d.,])(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?(?!\d|[.,]\d)/g;
 
 /**
  * Um valor possível de um token. Com o espaço ambíguo («2 120,00»): o inteiro
@@ -154,30 +195,57 @@ export interface Candidato {
 }
 
 export interface Token {
-  /** O valor principal (o número inteiro como está escrito, com sinal). */
+  /** O valor principal. */
   valor: number;
-  /** Todos os valores possíveis: com o espaço de milhar ambíguo, também o da direita. */
+  /** Todos os valores possíveis (sem o «da esquerda», que só serve para quantidades). */
   valores: number[];
-  /** Os mesmos candidatos com o sítio de cada um (o da direita começa depois do espaço). */
   candidatos: Candidato[];
   ini: number;
   fim: number;
   texto: string;
+  /** Em que célula da linha da tabela está (0 fora das tabelas). */
+  celula: number;
 }
 
-function lerNumero(texto: string, formato: FormatoDosNumeros): number {
-  const [inteiro, dec = ""] = formato === "pt" ? texto.split(",") : texto.split(".");
-  const limpo = inteiro.replace(formato === "pt" ? /[. ]/g : /[, ]/g, "");
-  return Number(`${limpo}.${dec || "0"}`);
+const NUMERO_CRU =
+  /(?<![\d.,])(?:\d{1,3}(?: \d{3})+(?:,\d{1,2})?(?![\d]|[.,]\d)|\d+(?:[.,]\d+)*)(?!\d)/g;
+
+/** Os valores possíveis de um número escrito sem espaços, pelo próprio número. */
+export function valoresDoNumero(cru: string): number[] {
+  const n = (x: string) => Number(x);
+  const ponto = cru.includes(".");
+  const virgula = cru.includes(",");
+  if (ponto && virgula) {
+    const pt = cru.lastIndexOf(",") > cru.lastIndexOf(".");
+    const [int, dec] = pt
+      ? [cru.slice(0, cru.lastIndexOf(",")), cru.slice(cru.lastIndexOf(",") + 1)]
+      : [cru.slice(0, cru.lastIndexOf(".")), cru.slice(cru.lastIndexOf(".") + 1)];
+    const sep = pt ? "." : ",";
+    if (!new RegExp(`^\\d{1,3}(?:\\${sep}\\d{3})*$`).test(int) || !/^\d{1,2}$/.test(dec)) return [];
+    return [n(`${int.split(sep).join("")}.${dec}`)];
+  }
+  if (virgula || ponto) {
+    const sep = virgula ? "," : ".";
+    const partes = cru.split(sep);
+    if (partes.length === 2 && /^\d{1,2}$/.test(partes[1])) return [n(`${partes[0]}.${partes[1]}`)];
+    if (partes.slice(1).every((x) => x.length === 3) && partes[0].length <= 3) {
+      const milhares = n(partes.join(""));
+      // Um só separador com três dígitos: também pode ser um decimal.
+      return partes.length === 2 ? [milhares, n(`${partes[0]}.${partes[1]}`)] : [milhares];
+    }
+    return [];
+  }
+  return [n(cru)];
 }
 
-export function tokensDe(normalizado: string, formato: FormatoDosNumeros = "pt"): Token[] {
+export function tokensDe(normalizado: string): Token[] {
   const out: Token[] = [];
-  for (const m of normalizado.matchAll(formato === "pt" ? TOKEN_PT : TOKEN_EN)) {
+  for (const m of normalizado.matchAll(NUMERO_CRU)) {
     let ini = m.index!;
     let fim = ini + m[0].length;
-    const base = lerNumero(m[0], formato);
-    if (!Number.isFinite(base)) continue;
+    const comEspaco = m[0].includes(" ");
+    const basicos = comEspaco ? valoresDoNumero(m[0].replace(/ /g, "")) : valoresDoNumero(m[0]);
+    if (!basicos.length) continue;
     // O sinal.
     let sinal = 1;
     const antes = normalizado.slice(Math.max(0, ini - 3), ini);
@@ -193,18 +261,20 @@ export function tokensDe(normalizado: string, formato: FormatoDosNumeros = "pt")
       ini -= 1;
       fim = normalizado.indexOf(")", fim) + 1;
     }
-    const candidatos: Candidato[] = [{ valor: round2(sinal * base), ini, fim }];
-    // O espaço de milhar ambíguo: o grupo da direita também é um candidato.
-    if (formato === "pt" && / /.test(m[0])) {
+    const candidatos: Candidato[] = basicos.map((v) => ({ valor: round2(sinal * v), ini, fim }));
+    if (comEspaco) {
       const k = m[0].lastIndexOf(" ") + 1;
-      const esquerda = lerNumero(m[0].slice(0, k - 1), formato);
-      candidatos.push({
-        valor: round2(lerNumero(m[0].slice(k), formato)),
-        ini: m.index! + k,
-        fim: m.index! + m[0].length,
-        papel: "direita",
-        esquerda,
-      });
+      const esquerda = Number(m[0].slice(0, k - 1).replace(/ /g, ""));
+      const direita = valoresDoNumero(m[0].slice(k));
+      for (const v of direita) {
+        candidatos.push({
+          valor: round2(v),
+          ini: m.index! + k,
+          fim: m.index! + m[0].length,
+          papel: "direita",
+          esquerda,
+        });
+      }
       candidatos.push({ valor: esquerda, ini: m.index!, fim: m.index! + k - 1, papel: "esquerda" });
     }
     out.push({
@@ -214,30 +284,32 @@ export function tokensDe(normalizado: string, formato: FormatoDosNumeros = "pt")
       ini,
       fim,
       texto: normalizado.slice(ini, fim),
+      celula: (normalizado.slice(0, ini).match(/ \| /g) ?? []).length,
     });
   }
   return out;
 }
 
-/** Os valores dos tokens de um texto (normaliza primeiro), todos os candidatos. */
-export function numerosDe(texto: string, formato: FormatoDosNumeros = "pt"): number[] {
-  return tokensDe(normalizar(texto), formato).flatMap((t) => t.valores);
+/**
+ * Os tokens de uma unidade lidos no texto COM células e postos nas posições do
+ * texto plano (onde as citações se procuram).
+ */
+export function tokensDoTexto(texto: string): { plano: string; tokens: Token[] } {
+  const can = normalizarComCelulas(texto);
+  const { texto: p, deCan } = plano(can);
+  const mapa = (i: number) => deCan[i];
+  const tokens = tokensDe(can).map((t) => ({
+    ...t,
+    ini: mapa(t.ini),
+    fim: mapa(t.fim - 1) + 1,
+    candidatos: t.candidatos.map((c) => ({ ...c, ini: mapa(c.ini), fim: mapa(c.fim - 1) + 1 })),
+  }));
+  return { plano: p, tokens };
 }
 
-/** O documento escreve números à inglesa («1,740.00»)? */
-export function pareceInglesNosNumeros(textos: readonly string[]): boolean {
-  let en = 0;
-  let pt = 0;
-  for (const t of textos) {
-    en += (
-      t.match(/\d{1,3}(?:,\d{3})+\.\d{2}(?!\d)|(?<![\d,.])\d+\.\d{2}\s?€|€\s?\d+\.\d{2}(?!\d)/g) ??
-      []
-    ).length;
-    pt += (
-      t.match(/\d{1,3}(?:\.\d{3})+,\d{2}(?!\d)|(?<![\d,.])\d+,\d{2}\s?€|€\s?\d+,\d{2}(?!\d)/g) ?? []
-    ).length;
-  }
-  return en > pt;
+/** Os valores dos tokens de um texto, todos os candidatos. */
+export function numerosDe(texto: string): number[] {
+  return tokensDoTexto(texto).tokens.flatMap((t) => t.valores);
 }
 
 const CABECA_DE_DINHEIRO =
@@ -296,27 +368,56 @@ const SEM_IVA = [
 const ISENTO =
   /\b(?:isent\w*|exempt\w*)\s+(?:de\s+|from\s+)?(?:iva|vat)\b|\b(?:iva|vat)\s*:?\s*isent/;
 const COM_IVA =
-  /\b(?:iva|vat)\s*inclu|\bc\/\s*(?:iva|vat)\b|\bcom\s+(?:o\s+)?(?:iva|vat)\b|\binclu(?:i|em|indo|ido|idos|ding|des|ded)\s+(?:o\s+)?(?:iva|vat)\b|\b(?:iva|vat)\s+incl\b|\bincl\.?\s+(?:iva|vat)\b/;
+  /\b(?:iva|vat)\s*inclu\w*|\bc\/\s*(?:iva|vat)\b|\bcom\s+(?:o\s+)?(?:iva|vat)\b|\binclu(?:i|em|indo|ido|idos|ding|des|ded)\s+(?:o\s+)?(?:iva|vat)\b|\b(?:iva|vat)\s+incl\b|\bincl\.?\s+(?:iva|vat)\b/g;
+
+export interface MarcaDoIva {
+  modo: "sem" | "com";
+  ini: number;
+  fim: number;
+}
+
+/**
+ * As marcas de IVA de um texto INTEIRO, com o sítio de cada uma. As de «sem
+ * IVA» (com a negação) tiram-se PRIMEIRO, e só no que sobra se procura o «com
+ * IVA» — «não inclui IVA» nunca é um «inclui IVA».
+ */
+export function marcasDoIva(texto: string): { marcas: MarcaDoIva[]; isento: boolean } {
+  const original = semAcentos(texto);
+  // As posições têm de ser as do texto dado: sem acentos tem o mesmo tamanho
+  // no português; se não tiver, as marcas ficam sem sítio (valem para tudo).
+  const mesmoTamanho = original.length === texto.length;
+  if (ISENTO.test(original)) return { marcas: [], isento: true };
+  const marcas: MarcaDoIva[] = [];
+  let t = original;
+  for (const r of SEM_IVA) {
+    for (const m of t.matchAll(r)) {
+      marcas.push({
+        modo: "sem",
+        ini: mesmoTamanho ? m.index! : 0,
+        fim: mesmoTamanho ? m.index! + m[0].length : 0,
+      });
+    }
+    t = t.replace(r, (x) => " ".repeat(x.length));
+  }
+  for (const m of t.matchAll(COM_IVA)) {
+    marcas.push({
+      modo: "com",
+      ini: mesmoTamanho ? m.index! : 0,
+      fim: mesmoTamanho ? m.index! + m[0].length : 0,
+    });
+  }
+  return { marcas: marcas.sort((a, b) => a.ini - b.ini), isento: false };
+}
 
 export type ModoNoTexto = "sem" | "com" | "ambos" | "isento" | null;
 
+/** O que um texto INTEIRO diz do IVA (nunca um pedaço dele). */
 export function modoDoIvaNoTexto(texto: string): ModoNoTexto {
-  let t = semAcentos(texto);
-  if (ISENTO.test(t)) return "isento";
-  let sem = false;
-  for (const r of SEM_IVA) {
-    if (r.test(t)) sem = true;
-    r.lastIndex = 0;
-    t = t.replace(r, " ¬ ");
-  }
-  const com = COM_IVA.test(t);
+  const { marcas, isento } = marcasDoIva(texto);
+  if (isento) return "isento";
+  const sem = marcas.some((m) => m.modo === "sem");
+  const com = marcas.some((m) => m.modo === "com");
   return sem && com ? "ambos" : sem ? "sem" : com ? "com" : null;
-}
-export function dizComIva(t: string): boolean {
-  return modoDoIvaNoTexto(t) === "com";
-}
-export function dizSemIva(t: string): boolean {
-  return modoDoIvaNoTexto(t) === "sem";
 }
 
 // ── A verificação ────────────────────────────────────────────────────────────
@@ -330,23 +431,25 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
   };
 
   const unidades = d.unidades;
-  const normDe = new Map(unidades.map((u) => [u.id, normalizar(textoDaUnidade(u))]));
-  // O formato dos números: o da proposta. À inglesa lê-se à inglesa — e diz-se.
-  const formato: FormatoDosNumeros =
-    entrada.evento.idioma === "en" || pareceInglesNosNumeros([...normDe.values()]) ? "en" : "pt";
-  if (formato === "en") {
-    aviso({
-      id: "numeros:ingles",
-      campo: "orcamento",
-      dinheiro: true,
-      gravidade: "aviso",
-      texto:
-        "A proposta escreve os números à inglesa (1,740.00): os valores foram lidos assim. Confirma-os com o documento.",
-    });
-  }
-  const tokensDaUnidade = new Map(
-    unidades.map((u) => [u.id, tokensDe(normDe.get(u.id)!, formato)]),
+  const lidas = new Map(unidades.map((u) => [u.id, tokensDoTexto(textoDaUnidade(u))]));
+  const normDe = new Map([...lidas].map(([id, l]) => [id, l.plano]));
+  const tokensDaUnidade = new Map([...lidas].map(([id, l]) => [id, l.tokens]));
+  const tabelasComDinheiro = new Set(
+    unidades
+      .filter(
+        (u): u is Extract<UnidadeLida, { tipo: "linha-de-tabela" }> => u.tipo === "linha-de-tabela",
+      )
+      .filter((u) => u.linha === 0 && CABECA_DE_DINHEIRO.test(u.celulas.join(" ")))
+      .map((u) => u.tabela),
   );
+  /** Os tokens de dinheiro de uma unidade (com «€», ou numa coluna de preços). */
+  const dinheiroDa = (u: UnidadeLida) =>
+    valoresEmEuros(
+      u,
+      normDe.get(u.id)!,
+      tokensDaUnidade.get(u.id)!,
+      u.tipo === "linha-de-tabela" && tabelasComDinheiro.has(u.tabela),
+    );
   const unidadesDeTexto = unidades.filter((u) => u.tipo !== "imagem");
   /**
    * Um texto copiado: cada linha contígua numa unidade, e as linhas pela ORDEM
@@ -725,96 +828,238 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     });
   }
 
-  // ── O modo do IVA: tem de estar ESCRITO, e não pode contradizer o sítio dos valores ──
+  // ════════════════════════════════════════════════════════════════════════
+  // O MODO DO IVA É O QUE O DOCUMENTO DIZ — NÃO O QUE A LEITURA CITA
+  // ════════════════════════════════════════════════════════════════════════
+  //
+  // A citação da IA pode cortar o «não» («incluem IVA» de «não incluem IVA»).
+  // Por isso o modo decide-se por uma varredura ao documento, unidade a
+  // unidade, sempre com o texto INTEIRO de cada uma:
+  //  · na própria unidade do valor («1.740,00 € + IVA»);
+  //  · numa unidade com os DOIS («1.740,00 € + IVA (2.140,20 € com IVA)»):
+  //    cada valor fica com a marca mais perto, e os dois têm de bater pela
+  //    taxa, ao cêntimo — senão é contradição;
+  //  · nas colunas de uma tabela («s/ IVA» | «c/ IVA» na cabeça);
+  //  · ou numa NOTA geral (um parágrafo sem valores: «Os valores
+  //    apresentados não incluem IVA»).
+  // A leitura (da IA ou do JSON) só pode coincidir com isto: o que disser de
+  // diferente é um aviso de dinheiro, e o IVA fica por escolher.
   type Modo = "sem_iva" | "com_iva" | "desconhecido";
-  /** O texto da unidade diz OUTRA coisa (ou as duas, ou «isento»): é contradição. */
-  const dizOutro = (modo: "sem_iva" | "com_iva", id: string) => {
-    const m = modoDoIvaNoTexto(normDe.get(id)!);
-    if (m === null) return false;
-    return m !== (modo === "sem_iva" ? "sem" : "com");
-  };
-  const contradicao = (modo: "sem_iva" | "com_iva", ids: string[], campo: string, oQue: string) => {
-    const mau = ids.find((id) => dizOutro(modo, id));
-    if (!mau) return false;
-    const u = unidades.find((x) => x.id === mau)!;
-    const no = modoDoIvaNoTexto(normDe.get(mau)!);
-    if (no === "isento") {
+  type ModoLocal = "sem" | "com" | "isento" | "contradicao";
+  const cabecaDaTabela = new Map<string, Extract<UnidadeLida, { tipo: "linha-de-tabela" }>>();
+  for (const u of unidades) {
+    if (u.tipo === "linha-de-tabela" && u.linha === 0) cabecaDaTabela.set(u.tabela, u);
+  }
+  const distancia = (t: Token, m: MarcaDoIva) =>
+    t.fim <= m.ini ? m.ini - t.fim : t.ini >= m.fim ? t.ini - m.fim + 0.5 : 0;
+  const batemPelaTaxa = (s: number, c: number) =>
+    s > 0 && (brutoDaBase(s) === round2(c) || baseDoBruto(c) === round2(s));
+  /** O modo de cada token de cada unidade, e o valor do par (sem↔com) quando o tem. */
+  const modoDoToken = new Map<string, Map<Token, ModoLocal>>();
+  const parDoToken = new Map<Token, number>();
+  const comPares = (u: UnidadeLida, modos: Map<Token, ModoLocal>, dinheiro: Token[]) => {
+    const sems = dinheiro.filter((t) => modos.get(t) === "sem");
+    const coms = dinheiro.filter((t) => modos.get(t) === "com");
+    if (!sems.length || !coms.length) return;
+    const ok =
+      sems.every((s) => coms.some((c) => batemPelaTaxa(s.valor, c.valor))) &&
+      coms.every((c) => sems.some((s) => batemPelaTaxa(s.valor, c.valor)));
+    if (!ok) {
+      for (const t of modos.keys()) modos.set(t, "contradicao");
       aviso({
-        id: `iva:isento:${campo}`,
+        id: `iva:contradicao:${u.id}`,
+        campo: "orcamento",
+        dinheiro: true,
+        gravidade: "erro",
+        texto: `O documento diz «${curto(textoDaUnidade(u), 80)}»: os valores sem e com IVA não batem pela taxa de ${Math.round(vatRate * 100)}%. O IVA fica por escolher.`,
+      });
+      return;
+    }
+    for (const s of sems)
+      parDoToken.set(s, coms.find((c) => batemPelaTaxa(s.valor, c.valor))!.valor);
+    for (const c of coms)
+      parDoToken.set(c, sems.find((s) => batemPelaTaxa(s.valor, c.valor))!.valor);
+  };
+  for (const u of unidadesDeTexto) {
+    const tokens = tokensDaUnidade.get(u.id)!;
+    const dinheiro = dinheiroDa(u);
+    const { marcas, isento } = marcasDoIva(normDe.get(u.id)!);
+    const modos = new Map<Token, ModoLocal>();
+    if (isento) for (const t of tokens) modos.set(t, "isento");
+    else if (marcas.length) {
+      const tipos = new Set(marcas.map((m) => m.modo));
+      if (tipos.size === 1) for (const t of tokens) modos.set(t, marcas[0].modo);
+      else {
+        // Cada marca é do valor IMEDIATAMENTE antes dela («1.000,00 € + IVA»),
+        // sem outra marca pelo meio; se não houver, do que vem logo a seguir
+        // («c/ IVA: 1.230,00 €»). Os valores que ficam sem marca levam a mais perto.
+        const entre = (a: number, b: number) => marcas.some((x) => x.ini >= a && x.fim <= b);
+        for (const m of marcas) {
+          const antes = tokens
+            .filter((t) => t.fim <= m.ini && !modos.has(t) && !entre(t.fim, m.ini))
+            .sort((a, b) => b.fim - a.fim)[0];
+          const depois = tokens
+            .filter((t) => t.ini >= m.fim && !modos.has(t) && !entre(m.fim, t.ini))
+            .sort((a, b) => a.ini - b.ini)[0];
+          const t = antes ?? depois;
+          if (t) modos.set(t, m.modo);
+        }
+        for (const t of tokens) {
+          if (modos.has(t)) continue;
+          const perto = [...marcas].sort((a, b) => distancia(t, a) - distancia(t, b))[0];
+          modos.set(t, perto.modo);
+        }
+        comPares(u, modos, dinheiro);
+      }
+    } else if (u.tipo === "linha-de-tabela" && u.linha > 0) {
+      const cab = cabecaDaTabela.get(u.tabela);
+      if (cab) {
+        const colunas = cab.celulas.map((c) => modoDoIvaNoTexto(normalizar(c)));
+        for (const t of tokens) {
+          const m = colunas[t.celula];
+          if (m === "sem" || m === "com") modos.set(t, m);
+        }
+        comPares(u, modos, dinheiro);
+      }
+    }
+    modoDoToken.set(u.id, modos);
+  }
+  // As notas gerais: parágrafos SEM valores que dizem alguma coisa do IVA.
+  const notas = unidadesDeTexto
+    .filter((u) => u.tipo === "paragrafo" && dinheiroDa(u).length === 0)
+    .flatMap((u) => {
+      const m = modoDoIvaNoTexto(normDe.get(u.id)!);
+      return m ? [{ u, m }] : [];
+    });
+  const modosDasNotas = new Set(notas.map((x) => (x.m === "ambos" ? "contradicao" : x.m)));
+  const notaGeral: ModoLocal | null =
+    modosDasNotas.size === 0
+      ? null
+      : modosDasNotas.size === 1
+        ? ([...modosDasNotas][0] as ModoLocal)
+        : "contradicao";
+  if (notaGeral === "contradicao") {
+    aviso({
+      id: "iva:notas",
+      campo: "orcamento.iva",
+      dinheiro: true,
+      gravidade: "erro",
+      texto: `O documento diz coisas diferentes sobre o IVA: ${notas
+        .slice(0, 3)
+        .map((x) => `«${curto(textoDaUnidade(x.u), 60)}»`)
+        .join(", ")}. O IVA fica por escolher.`,
+    });
+  }
+  /** O modo de um valor numa unidade: o da unidade, ou o da nota geral — e se discordam, contradição. */
+  const modoDe = (id: string, v: number): ModoLocal | null => {
+    const modos = modoDoToken.get(id);
+    const t = tokensDaUnidade.get(id)?.find((x) => x.valores.includes(round2(v)));
+    const local = (t && modos?.get(t)) ?? null;
+    if (local === "contradicao" || notaGeral === "contradicao") return "contradicao";
+    if (local && notaGeral && local !== notaGeral) return "contradicao";
+    return local ?? notaGeral;
+  };
+  /** O modo de um valor em TODO o documento (as repetições também contam). */
+  const valoresEmConflito = new Set<number>();
+  const modoDoValor = (v: number, ligadas: string[]): ModoLocal | null => {
+    const ids = new Set(ligadas);
+    for (const u of unidadesDeTexto) {
+      if (dinheiroDa(u).some((t) => t.valores.includes(round2(v)))) ids.add(u.id);
+    }
+    const modos = new Set(
+      [...ids].map((id) => modoDe(id, v)).filter((m): m is ModoLocal => m !== null),
+    );
+    if (modos.has("contradicao") || (modos.has("sem") && modos.has("com"))) {
+      valoresEmConflito.add(round2(v));
+      return "contradicao";
+    }
+    if (modos.has("isento")) return "isento";
+    return modos.size ? [...modos][0] : null;
+  };
+  const avisoDoValor = (
+    campo: string,
+    oQue: string,
+    v: number,
+    m: ModoLocal,
+    lido: "sem" | "com",
+  ) => {
+    const texto =
+      m === "isento"
+        ? `O documento diz que ${oQue} (${eur(v)}) é ISENTO de IVA. A proposta nova não tem esse caso: o IVA fica por escolher.`
+        : m === "contradicao"
+          ? `O documento diz coisas contrárias sobre o IVA de ${oQue} (${eur(v)}) — por exemplo, o mesmo valor «+ IVA» num sítio e «IVA incluído» noutro. O IVA fica por escolher.`
+          : `A leitura pôs ${oQue} (${eur(v)}) ${lido === "sem" ? "SEM IVA" : "COM IVA"}, mas o documento diz que ${m === "sem" ? "não tem" : "já tem"} IVA. Assim ${lido === "sem" ? "o IVA seria cobrado duas vezes" : "o IVA ficava por cobrar"}. O IVA fica por escolher.`;
+    aviso({
+      id: m === "isento" ? `iva:isento:${campo}` : `iva:contradicao:${campo}`,
+      campo,
+      dinheiro: true,
+      gravidade: "erro",
+      texto,
+    });
+  };
+  const unidadesDe = (v: { citacao: string | null; valor: number | null }, q?: number | null) =>
+    v.valor !== null && v.citacao ? ligar(v.valor, v.citacao, false, { quantidadeDaLinha: q }) : [];
+  /** Uma citação de modo só conta se a unidade INTEIRA onde está disser o mesmo. */
+  const citacaoDoModo = (m: { valor: Modo; citacao: string | null }, campo: string) => {
+    if (m.valor === "desconhecido" || !m.citacao) return;
+    const esperado = m.valor === "sem_iva" ? "sem" : "com";
+    const mau = ocorrencias(m.citacao).find((o) => {
+      const no = modoDoIvaNoTexto(normDe.get(o.u.id)!);
+      return no !== esperado && no !== "ambos";
+    });
+    if (mau) {
+      aviso({
+        id: `iva:citacao:${campo}`,
         campo,
         dinheiro: true,
         gravidade: "erro",
-        texto: `O documento diz que ${oQue} é ISENTO de IVA («${curto(textoDaUnidade(u), 70)}»). A proposta nova não tem esse caso: o IVA fica por escolher.`,
+        texto: `A leitura cita «${curto(m.citacao, 50)}», mas a frase inteira do documento é «${curto(textoDaUnidade(mau.u), 80)}», que não diz isso.`,
       });
-      return true;
     }
-    aviso({
-      id: `iva:contradicao:${campo}`,
-      campo,
-      dinheiro: true,
-      gravidade: "erro",
-      texto: `A leitura pôs ${oQue} ${modo === "sem_iva" ? "SEM IVA" : "COM IVA"}, mas o documento diz «${curto(textoDaUnidade(u), 70)}». Assim ${modo === "sem_iva" ? "o IVA seria cobrado duas vezes" : "o IVA ficava por cobrar"}. O IVA fica por escolher.`,
-    });
-    return true;
   };
-  const modoEscrito = (
-    m: { valor: Modo; citacao: string | null },
-    campo: string,
-    oQue: string,
-  ): Modo => {
-    if (m.valor === "desconhecido") return "desconhecido";
-    // A citação tem de dizer ISSO e só isso (sem negação ao contrário, sem os dois).
-    const esperado = m.valor === "sem_iva" ? "sem" : "com";
-    if (
-      m.citacao &&
-      citacaoNumaUnidade(m.citacao) &&
-      modoDoIvaNoTexto(normalizar(m.citacao)) === esperado
-    )
-      return m.valor;
-    aviso({
-      id: `iva:sem-citacao:${campo}`,
-      campo,
-      dinheiro: true,
-      gravidade: "erro",
-      texto: `A leitura diz que ${oQue} ${m.valor === "sem_iva" ? "não têm IVA" : "já têm IVA"}, mas não mostra onde o documento o escreve${m.citacao ? ` («${curto(m.citacao, 50)}» não o diz)` : ""}. O IVA fica por escolher.`,
-    });
-    return "desconhecido";
-  };
-  const unidadesDe = (v: { citacao: string | null; valor: number | null }) =>
-    v.valor !== null && v.citacao ? ligar(v.valor, v.citacao) : [];
+  citacaoDoModo(o.iva.valoresDoTotal, "orcamento.iva");
+  citacaoDoModo(o.iva.valoresDasLinhas, "orcamento");
 
   // O total.
-  const contraSem =
-    base !== null &&
-    contradicao("sem_iva", unidadesDe(o.totalSemIva), "orcamento.total", `o total (${eur(base)})`);
-  const contraCom =
-    bruto !== null &&
-    contradicao("com_iva", unidadesDe(o.totalComIva), "orcamento.total", `o total (${eur(bruto)})`);
   let modoDoTotal: Modo = "desconhecido";
-  if (!contraSem && !contraCom) {
-    if (base !== null && bruto !== null) modoDoTotal = "sem_iva";
-    else if (base !== null || bruto !== null) {
-      const escrito = modoEscrito(o.iva.valoresDoTotal, "orcamento.iva", "os valores do total");
-      const doCampo: Modo = base !== null ? "sem_iva" : "com_iva";
-      if (escrito !== "desconhecido" && escrito !== doCampo) {
-        aviso({
-          id: "iva:contradicao:campo-do-total",
-          campo: "orcamento.total",
-          dinheiro: true,
-          gravidade: "erro",
-          texto: `A leitura pôs o total ${eur((base ?? bruto)!)} como ${base !== null ? "SEM" : "COM"} IVA, mas diz que o total ${escrito === "sem_iva" ? "não tem" : "tem"} IVA. O IVA fica por escolher.`,
-        });
-      } else if (escrito === doCampo) modoDoTotal = doCampo;
+  {
+    const mb = base !== null ? modoDoValor(base, unidadesDe(o.totalSemIva)) : null;
+    const mg = bruto !== null ? modoDoValor(bruto, unidadesDe(o.totalComIva)) : null;
+    let mau = false;
+    if (base !== null && mb && mb !== "sem") {
+      avisoDoValor("orcamento.total", "o total", base, mb, "sem");
+      mau = true;
     }
-  }
-  if ((base !== null || bruto !== null) && modoDoTotal === "desconhecido") {
-    aviso({
-      id: "iva:total",
-      campo: "orcamento.total",
-      dinheiro: true,
-      gravidade: "erro",
-      texto: `Não se confirmou no documento se o total (${eur((base ?? bruto)!)}) inclui IVA. Escolhe abaixo se acresce ou se está incluído.`,
-    });
+    if (bruto !== null && mg && mg !== "com") {
+      avisoDoValor("orcamento.total", "o total", bruto, mg, "com");
+      mau = true;
+    }
+    if (!mau) {
+      if (base !== null && bruto !== null) {
+        if (batemPelaTaxa(base, bruto) && (mb === "sem" || mg === "com")) modoDoTotal = "sem_iva";
+      } else if (base !== null && mb === "sem") modoDoTotal = "sem_iva";
+      else if (bruto !== null && mg === "com") modoDoTotal = "com_iva";
+    }
+    const lido = o.iva.valoresDoTotal.valor;
+    if (modoDoTotal !== "desconhecido" && lido !== "desconhecido" && lido !== modoDoTotal) {
+      aviso({
+        id: "iva:leitura:orcamento.total",
+        campo: "orcamento.total",
+        dinheiro: true,
+        gravidade: "erro",
+        texto: `A leitura diz que o total ${lido === "sem_iva" ? "não tem" : "já tem"} IVA, mas o documento diz o contrário. O IVA fica por escolher.`,
+      });
+      modoDoTotal = "desconhecido";
+    }
+    if ((base !== null || bruto !== null) && modoDoTotal === "desconhecido") {
+      aviso({
+        id: "iva:total",
+        campo: "orcamento.total",
+        dinheiro: true,
+        gravidade: "erro",
+        texto: `O documento não diz de forma clara se o total (${eur((base ?? bruto)!)}) inclui IVA. Escolhe abaixo se acresce ou se está incluído.`,
+      });
+    }
   }
 
   // As linhas.
@@ -823,16 +1068,66 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
   );
   let modoDasLinhas: Modo = "desconhecido";
   if (temValores) {
-    const escrito = modoEscrito(o.iva.valoresDasLinhas, "orcamento", "os valores das linhas");
-    const ids = o.linhas.flatMap((l) => [
-      ...unidadesDe(l.totalDaLinha),
-      ...unidadesDe(l.precoUnitario),
-    ]);
-    if (
-      escrito !== "desconhecido" &&
-      !contradicao(escrito, ids, "orcamento", "os valores das linhas")
-    ) {
-      modoDasLinhas = escrito;
+    const modos = new Set<ModoLocal>();
+    let semModo = 0;
+    for (const l of o.linhas) {
+      for (const f of [l.totalDaLinha, l.precoUnitario]) {
+        if (f.valor === null) continue;
+        for (const id of unidadesDe(f, l.quantidade.valor)) {
+          const m = modoDe(id, f.valor);
+          if (m) modos.add(m);
+          else semModo++;
+        }
+      }
+    }
+    const lido = o.iva.valoresDasLinhas.valor;
+    const doTotal: "sem" | "com" | null =
+      modoDoTotal === "sem_iva" ? "sem" : modoDoTotal === "com_iva" ? "com" : null;
+    if (modos.has("contradicao") || modos.has("isento") || (modos.has("sem") && modos.has("com"))) {
+      aviso({
+        id: "iva:linhas:contraditorio",
+        campo: "orcamento",
+        dinheiro: true,
+        gravidade: "erro",
+        texto:
+          "As linhas do documento dizem coisas diferentes sobre o IVA. Os valores das linhas NÃO passam para a proposta nova (só as descrições): escreve-os no Fazer proposta.",
+      });
+    } else if (modos.size === 1) {
+      const m = [...modos][0] as "sem" | "com";
+      modoDasLinhas = m === "sem" ? "sem_iva" : "com_iva";
+      if (semModo > 0) {
+        aviso({
+          id: "iva:linhas:parcial",
+          campo: "orcamento",
+          dinheiro: true,
+          gravidade: "aviso",
+          texto: `Só algumas linhas dizem que ${m === "sem" ? "não têm" : "têm"} IVA; as outras passaram da mesma maneira. Confirma.`,
+        });
+      }
+    } else if (doTotal && soma !== null) {
+      // As linhas não dizem nada: valem como o total SE somarem o total nesse modo.
+      const alvo =
+        doTotal === "sem" ? (base ?? baseDoBruto(bruto!)) : (bruto ?? brutoDaBase(base!));
+      if (soma === round2(alvo)) {
+        modoDasLinhas = doTotal === "sem" ? "sem_iva" : "com_iva";
+        aviso({
+          id: "iva:linhas:pela-soma",
+          campo: "orcamento",
+          dinheiro: true,
+          gravidade: "aviso",
+          texto: `As linhas não dizem se têm IVA; somam o total ${doTotal === "sem" ? "sem" : "com"} IVA (${eur(soma)}), e passaram assim. Confirma.`,
+        });
+      }
+    }
+    if (modoDasLinhas !== "desconhecido" && lido !== "desconhecido" && lido !== modoDasLinhas) {
+      aviso({
+        id: "iva:leitura:linhas",
+        campo: "orcamento",
+        dinheiro: true,
+        gravidade: "erro",
+        texto: `A leitura diz que as linhas ${lido === "sem_iva" ? "não têm" : "já têm"} IVA, mas o documento diz o contrário.`,
+      });
+      modoDasLinhas = "desconhecido";
     }
     if (modoDasLinhas === "desconhecido") {
       aviso({
@@ -897,14 +1192,6 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
   }
 
   // ── (b) Cada valor em € do documento tem sítio ──
-  const tabelasComDinheiro = new Set(
-    unidades
-      .filter(
-        (u): u is Extract<UnidadeLida, { tipo: "linha-de-tabela" }> => u.tipo === "linha-de-tabela",
-      )
-      .filter((u) => u.linha === 0 && CABECA_DE_DINHEIRO.test(u.celulas.join(" ")))
-      .map((u) => u.tabela),
-  );
   // Um valor do documento está «usado» quando um campo o PRENDE nessa unidade
   // (o token inteiro, dentro da citação). Os «não usados» só valem na unidade
   // onde a citação deles está — e cada um é um aviso de dinheiro para ela
@@ -915,22 +1202,39 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     .filter((x): x is number => x !== null)
     .map(round2);
   const valores: ValorDoDocumento[] = [];
+  const cobertosPorPares: { id: string; ini: number; fim: number }[] = [];
   for (const u of unidades) {
     const tabela = u.tipo === "linha-de-tabela" && tabelasComDinheiro.has(u.tabela);
     const n = normDe.get(u.id)!;
     for (const t of valoresEmEuros(u, n, tokensDaUnidade.get(u.id)!, tabela)) {
       const bate = (x: number) => t.valores.includes(x);
       const campo = ligacoes.find((c) => bate(c.valor) && c.unidades.includes(u.id));
-      const repetido = !campo && totaisAceites.some(bate);
+      // A mesma quantia repetida — só se o documento não a contradiz (D).
+      const repetido = !campo && totaisAceites.some((x) => bate(x) && !valoresEmConflito.has(x));
+      // O outro lado de um par sem/com IVA da mesma unidade é a mesma quantia.
+      const par = parDoToken.get(t);
+      const doPar =
+        !campo && !repetido && par !== undefined
+          ? ligacoes.find((c) => c.valor === par && c.unidades.includes(u.id))
+          : undefined;
       const nu =
-        campo || repetido
+        campo || repetido || doPar
           ? undefined
           : naoUsadosLigados.find((x) => bate(x.valor) && x.unidades.includes(u.id));
       const usado: ValorDoDocumento["usado"] =
-        campo?.usado ?? (repetido ? "total" : nu ? "nao-usado" : null);
+        campo?.usado ?? doPar?.usado ?? (repetido ? "total" : nu ? "nao-usado" : null);
       // O valor que se mostra é o que está ESCRITO (com o espaço ambíguo, o texto tal e qual).
       const escrito = t.valores.length > 1 ? `«${t.texto}»` : eur(t.valor);
       const valor = campo?.valor ?? nu?.valor ?? t.valor;
+      // O par sem/com IVA que se usou conta como texto colocado (mais a marca
+      // de IVA dele), para o parágrafo não aparecer como «perdido».
+      if (doPar) {
+        const fimDoEuro = n.slice(t.fim).match(/^\s?(?:€|eur\b|euros?\b)?/)![0].length;
+        const marca = marcasDoIva(n).marcas.find(
+          (m) => m.ini >= t.fim && m.ini - (t.fim + fimDoEuro) <= 2,
+        );
+        cobertosPorPares.push({ id: u.id, ini: t.ini, fim: marca ? marca.fim : t.fim + fimDoEuro });
+      }
       valores.push({
         unidade: u.id,
         valor,
@@ -1092,6 +1396,7 @@ export function verificar(d: DocumentoCompleto, entrada: Leitura): Verificacao {
     const n = normDe.get(u.id)!;
     if (!n) continue;
     const coberto = new Uint8Array(n.length);
+    for (const c of cobertosPorPares) if (c.id === u.id) coberto.fill(1, c.ini, c.fim);
     for (const s of segs) {
       if (s.includes(n)) {
         coberto.fill(1);

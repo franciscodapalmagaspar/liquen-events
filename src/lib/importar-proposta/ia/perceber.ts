@@ -263,10 +263,18 @@ export function juntarLeituras(leituras: Leitura[]): { leitura: Leitura; conflit
     const o = out.orcamento;
     o.linhas.push(...l.orcamento.linhas);
     o.iva.taxa = citado(o.iva.taxa, l.orcamento.iva.taxa, "a taxa de IVA");
-    if (o.iva.valoresDasLinhas.valor === "desconhecido")
-      o.iva.valoresDasLinhas = l.orcamento.iva.valoresDasLinhas;
-    if (o.iva.valoresDoTotal.valor === "desconhecido")
-      o.iva.valoresDoTotal = l.orcamento.iva.valoresDoTotal;
+    // O modo do IVA: duas partes que dizem coisas diferentes são um conflito.
+    for (const k of ["valoresDasLinhas", "valoresDoTotal"] as const) {
+      const novo = l.orcamento.iva[k];
+      if (novo.valor === "desconhecido") continue;
+      if (o.iva[k].valor === "desconhecido") o.iva[k] = novo;
+      else if (o.iva[k].valor !== novo.valor) {
+        conflitos.push(
+          `Partes diferentes do documento dizem coisas diferentes sobre o IVA ${k === "valoresDoTotal" ? "do total" : "das linhas"}: «${o.iva[k].valor}» e «${novo.valor}». O IVA fica por escolher.`,
+        );
+        o.iva[k] = { valor: "desconhecido", citacao: null };
+      }
+    }
     o.totalSemIva = citado(o.totalSemIva, l.orcamento.totalSemIva, "o total sem IVA");
     o.valorDoIva = citado(o.valorDoIva, l.orcamento.valorDoIva, "o valor do IVA");
     o.totalComIva = citado(o.totalComIva, l.orcamento.totalComIva, "o total com IVA");

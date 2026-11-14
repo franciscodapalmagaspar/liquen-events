@@ -148,6 +148,7 @@ const linha = (descricao: string, valor: number, citacao: string) => ({
 export function propostaComIvaIncluido(): Uint8Array {
   return docx([
     { h: 1, t: "Orçamento" },
+    "Os valores apresentados incluem IVA.",
     "Flores TESTE: 25,00 €",
     "Velas TESTE: 25,00 €",
     "Total: 50,00 € (IVA incluído)",
@@ -155,7 +156,10 @@ export function propostaComIvaIncluido(): Uint8Array {
 }
 export function leituraComIvaIncluido(): Leitura {
   const l = leituraSoDoOrcamento();
-  l.naoColocados = [{ id: "p1", motivo: "título" }];
+  l.naoColocados = [
+    { id: "p1", motivo: "título" },
+    { id: "p2", motivo: "nota do IVA" },
+  ];
   l.orcamento.linhas = [
     linha("Flores TESTE", 25, "Flores TESTE: 25,00 €"),
     linha("Velas TESTE", 25, "Velas TESTE: 25,00 €"),
@@ -173,11 +177,15 @@ export function propostaComIvaASeis(): Uint8Array {
     "Livros TESTE: 100,00 €",
     "Total: 100,00 € + IVA",
     "IVA à taxa de 6%.",
+    "Os valores apresentados não incluem IVA.",
   ]);
 }
 export function leituraComIvaASeis(): Leitura {
   const l = leituraSoDoOrcamento();
-  l.naoColocados = [{ id: "p1", motivo: "título" }];
+  l.naoColocados = [
+    { id: "p1", motivo: "título" },
+    { id: "p5", motivo: "nota do IVA" },
+  ];
   l.orcamento.linhas = [linha("Livros TESTE", 100, "Livros TESTE: 100,00 €")];
   l.orcamento.totalSemIva = { valor: 100, citacao: "Total: 100,00 € + IVA" };
   l.orcamento.iva.taxa = { valor: 6, citacao: "IVA à taxa de 6%." };

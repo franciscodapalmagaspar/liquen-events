@@ -8,6 +8,7 @@ import {
   LeituraFalhou,
   custoEmDolares,
   custoMaximoEmDolares,
+  juntarLeituras,
   maxTokensPara,
   type ChamarModelo,
   type PedidoAoModelo,
@@ -110,7 +111,10 @@ describe("com a IA (duplo, sem chamadas reais)", () => {
     ]);
     expect(p.notasInternas).toMatch(/Validade: Validade da proposta: 30 dias\./);
     // O único aviso é o sinal fora das linhas (um «não usado» confirma-se sempre).
-    expect(r.revisao?.avisos.map((a) => a.id)).toEqual(["nao-usado:p10:52200"]);
+    expect(r.revisao?.avisos.map((a) => a.id)).toEqual([
+      "iva:linhas:pela-soma",
+      "nao-usado:p10:52200",
+    ]);
     expect(r.revisao?.custo?.dolares).toBeCloseTo(
       custoEmDolares([{ input_tokens: 3000, output_tokens: 2000, cache_read_input_tokens: 2500 }]),
     );
@@ -469,5 +473,16 @@ describe("2.ª revisão, 7 — a reserva cobre a repetição no recurso, pelo pr
     expect(custoEmDolares([it("claude-opus-5-5")])).toBe(20);
     expect(custoEmDolares([it("claude-opus-4-8")])).toBe(25);
     expect(custoEmDolares([it("claude-desconhecido")])).toBe(25);
+  });
+});
+
+describe("3.ª revisão — partes que discordam do IVA", () => {
+  it("duas partes com modos diferentes dão conflito e o modo fica desconhecido", () => {
+    const a = leituraCerta();
+    const b = leituraCerta();
+    b.orcamento.iva.valoresDoTotal = { valor: "com_iva", citacao: "x" };
+    const j = juntarLeituras([a, b]);
+    expect(j.leitura.orcamento.iva.valoresDoTotal.valor).toBe("desconhecido");
+    expect(j.conflitos.join(" ")).toMatch(/IVA do total/);
   });
 });

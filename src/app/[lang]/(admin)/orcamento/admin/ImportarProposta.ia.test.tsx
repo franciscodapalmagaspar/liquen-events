@@ -83,10 +83,18 @@ describe("a revisão lado a lado", () => {
     expect(aviso).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
-    await screen.findByText(/Falta confirmar o aviso de dinheiro/);
+    await screen.findByText(/Falta confirmar os 2 avisos de dinheiro/);
     expect(urls).not.toContain("/api/orcamento/manual");
 
-    fireEvent.click(screen.getAllByRole("checkbox")[0]);
+    // Cada aviso aparece no topo e junto do campo: confirma-se uma vez cada um.
+    const vistos = new Set<string>();
+    for (const c of screen.getAllByRole("checkbox")) {
+      const t = c.parentElement?.textContent ?? "";
+      if (!vistos.has(t)) {
+        vistos.add(t);
+        fireEvent.click(c);
+      }
+    }
     fireEvent.click(screen.getByRole("button", { name: /Criar o pedido/ }));
     await waitFor(() => expect(urls).toContain("/api/orcamento/manual"));
   });

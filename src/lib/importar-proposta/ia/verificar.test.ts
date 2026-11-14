@@ -17,7 +17,11 @@ const ids = (v: ReturnType<typeof verificar>) => v.avisos.map((a) => a.id);
 describe("a verificação, com a leitura certa", () => {
   it("não inventa avisos: tudo bate, nada se perde (só o sinal fora das linhas, a confirmar)", () => {
     const v = verificar(documentoDeTeste(), leituraCerta());
-    expect(v.avisos.map((a) => [a.id, a.dinheiro])).toEqual([["nao-usado:p10:52200", true]]);
+    // As linhas não dizem se têm IVA (só o total diz «+ IVA»): passam pela soma, a confirmar.
+    expect(v.avisos.map((a) => [a.id, a.dinheiro])).toEqual([
+      ["iva:linhas:pela-soma", true],
+      ["nao-usado:p10:52200", true],
+    ]);
     expect(v.inventados).toBe(0);
     expect(v.contas.somaDasLinhas).toBe(1740);
     expect(v.valores.every((x) => x.usado)).toBe(true);
@@ -278,7 +282,8 @@ describe("achado 1 — o IVA cobrado duas vezes", () => {
   it("o modo sem citação que o diga não vale (e é um aviso de dinheiro)", () => {
     const d = documentoDeTeste(bytes());
     const v = verificar(d, leituraErrada());
-    expect(v.avisos.find((x) => x.id === "iva:sem-citacao:orcamento")?.dinheiro).toBe(true);
+    // A citação «Total 1.740,00 €» está numa frase que diz «IVA incluído».
+    expect(v.avisos.find((x) => x.id === "iva:citacao:orcamento")?.dinheiro).toBe(true);
     expect(v.contas.modoDasLinhas).toBe("desconhecido");
     expect(preencher(d, v).budgetAmounts).toEqual([null]);
   });
@@ -391,6 +396,8 @@ describe("achado 8 — o aviso das linhas sem modo diz a verdade", () => {
   it("diz que os valores NÃO passam, e não passam", () => {
     const l = leituraCerta();
     l.orcamento.iva.valoresDasLinhas = { valor: "desconhecido", citacao: null };
+    // Sem o total, nada no documento diz o IVA das linhas.
+    l.orcamento.totalSemIva = { valor: null, citacao: null };
     const d = documentoDeTeste();
     const v = verificar(d, l);
     expect(v.avisos.find((a) => a.id === "iva:linhas")?.texto).toMatch(/NÃO passam/);
@@ -446,18 +453,24 @@ describe("2.ª revisão, BLOQUEANTE — a negação do IVA lê-se primeiro", () 
     const v = verificar(d, l);
     const dinheiro = v.avisos.filter((a) => a.dinheiro).map((a) => a.id);
     expect(dinheiro).toEqual(
-      expect.arrayContaining(["iva:contradicao:orcamento.total", "iva:sem-citacao:orcamento"]),
+      expect.arrayContaining([
+        "iva:contradicao:orcamento.total",
+        "iva:citacao:orcamento.iva",
+        "iva:linhas",
+      ]),
     );
     const p = preencher(d, v);
     expect(p.budgetAmounts).toEqual([null]);
     expect(p.totalVatMode).toBeNull();
   });
 
-  it("uma unidade que diz as duas coisas é sempre contradição", () => {
-    const d = documentoDeTeste(docx(["Total: 1.000,00 € + IVA (1.230,00 € com IVA)"]));
+  // Na 3.ª revisão: as duas na MESMA unidade só são contradição quando os
+  // valores NÃO batem pela taxa (1.000 € + IVA são 1.230 €, não 1.250 €).
+  it("uma unidade que diz as duas coisas com valores que não batem é contradição", () => {
+    const d = documentoDeTeste(docx(["Total: 1.000,00 € + IVA (1.250,00 € com IVA)"]));
     const l = leituraSoDoOrcamento();
     l.orcamento.totalSemIva = { valor: 1000, citacao: "Total: 1.000,00 € + IVA" };
-    l.orcamento.totalComIva = { valor: 1230, citacao: "1.230,00 € com IVA" };
+    l.orcamento.totalComIva = { valor: 1250, citacao: "1.250,00 € com IVA" };
     const v = verificar(d, l);
     expect(v.avisos.find((a) => a.id === "iva:contradicao:orcamento.total")?.dinheiro).toBe(true);
   });
@@ -496,7 +509,7 @@ describe("2.ª revisão, 3 — descontos negativos", () => {
     l.orcamento.iva.valoresDasLinhas = { valor: "sem_iva", citacao: "900,00 € + IVA" };
     l.orcamento.iva.valoresDoTotal = { valor: "sem_iva", citacao: "900,00 € + IVA" };
     const v = verificar(d, l);
-    expect(v.avisos.map((a) => a.id)).toEqual(["desconto:1"]);
+    expect(v.avisos.map((a) => a.id)).toEqual(["desconto:1", "iva:linhas:pela-soma"]);
     expect(v.avisos[0].texto).toMatch(/desconto de 100,00\s€.*põe o desconto à mão/);
     expect(preencher(d, v).budgetAmounts).toEqual([1000, null]);
     // Sem o sinal na citação, o −100 não está lá.
@@ -561,18 +574,18 @@ describe("2.ª revisão, 5 — propostas em inglês", () => {
     x.orcamento.iva.valoresDoTotal = { valor: "sem_iva", citacao: "€1,740.00 + VAT" };
     return x;
   };
-  it("com idioma «en» os números lêem-se à inglesa, e pede-se para confirmar", () => {
+  it("com idioma «en» os números à inglesa lêem-se como estão", () => {
     const x = l();
     x.evento.idioma = "en";
     const v = verificar(d(), x);
     expect(v.inventados).toBe(0);
     expect(v.leitura.orcamento.totalSemIva.valor).toBe(1740);
-    expect(v.avisos.map((a) => a.id)).toEqual(["numeros:ingles"]);
+    expect(v.avisos.map((a) => a.id)).toEqual(["iva:linhas:pela-soma"]);
   });
   it("mesmo sem o idioma, números à inglesa não passam por inventados", () => {
     const v = verificar(d(), l());
     expect(v.inventados).toBe(0);
-    expect(v.avisos.find((a) => a.id === "numeros:ingles")?.dinheiro).toBe(true);
+    expect(v.avisos.map((a) => a.id)).toEqual(["iva:linhas:pela-soma"]);
   });
 });
 
@@ -609,6 +622,188 @@ describe("2.ª revisão, 10 — um total repetido é a mesma quantia", () => {
       { valor: 1740, citacao: "Resumo: 1.740,00 € + IVA", motivo: "resumo" },
     ];
     const v = verificar(d, l);
+    expect(v.avisos.map((a) => a.id)).toEqual(["iva:linhas:pela-soma"]);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// REGRESSÕES DA TERCEIRA REVISÃO (14/11): O IVA DECIDE-O O DOCUMENTO
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("3.ª revisão, BLOQUEANTE — a citação que corta o «não»", () => {
+  const lerComIva = (citTotal: string) => {
+    const l = leituraSoDoOrcamento();
+    l.orcamento.linhas = [linhaCom("Decoração TESTE", 1740, "Decoração TESTE: 1.740,00 €")];
+    l.orcamento.totalComIva = { valor: 1740, citacao: citTotal };
+    l.orcamento.iva.valoresDasLinhas = { valor: "com_iva", citacao: "incluem IVA" };
+    l.orcamento.iva.valoresDoTotal = { valor: "com_iva", citacao: "incluem IVA" };
+    return l;
+  };
+
+  it("noutro parágrafo: «Os valores apresentados não incluem IVA» → não passa como incluído", () => {
+    const d = documentoDeTeste(
+      docx([
+        "Os valores apresentados não incluem IVA.",
+        "Decoração TESTE: 1.740,00 €",
+        "Total: 1.740,00 €",
+      ]),
+    );
+    const l = lerComIva("Total: 1.740,00 €");
+    l.naoColocados = [{ id: "p1", motivo: "nota" }];
+    const v = verificar(d, l);
+    const ids = v.avisos.filter((a) => a.dinheiro).map((a) => a.id);
+    expect(ids).toEqual(
+      expect.arrayContaining(["iva:citacao:orcamento.iva", "iva:contradicao:orcamento.total"]),
+    );
+    const p = preencher(d, v);
+    // Se passasse como «incluído», faltavam 400,20 € (1.740 + 23 %).
+    expect(p.totalVatMode).toBeNull();
+    expect(p.budgetAmounts).toEqual([null]);
+  });
+
+  it("na mesma frase: «Total: 1.740,00 € — os valores não incluem IVA»", () => {
+    const d = documentoDeTeste(
+      docx(["Decoração TESTE: 1.740,00 €", "Total: 1.740,00 € — os valores não incluem IVA"]),
+    );
+    const v = verificar(d, lerComIva("Total: 1.740,00 €"));
+    expect(v.avisos.map((a) => a.id)).toEqual(
+      expect.arrayContaining(["iva:citacao:orcamento.iva", "iva:contradicao:orcamento.total"]),
+    );
+    expect(preencher(d, v).totalVatMode).toBeNull();
+  });
+
+  it("as frases da ronda anterior continuam certas", () => {
+    expect(modoDoIvaNoTexto("Os valores apresentados não incluem o IVA")).toBe("sem");
+    expect(modoDoIvaNoTexto("Total: 1.230,00 € (não inclui IVA)")).toBe("sem");
+    expect(modoDoIvaNoTexto("IVA incluído")).toBe("com");
+    expect(modoDoIvaNoTexto("IVA à taxa legal em vigor")).toBeNull();
+    expect(modoDoIvaNoTexto("acresce IVA à taxa legal")).toBe("sem");
+  });
+});
+
+describe("3.ª revisão, C — «+ IVA (… com IVA)» na mesma unidade", () => {
+  const d = (c: string) =>
+    documentoDeTeste(
+      docx([
+        "Flores TESTE: 1.000,00 € + IVA (1.230,00 € c/ IVA)",
+        "Velas TESTE: 740,00 € + IVA (910,20 € c/ IVA)",
+        `Total: 1.740,00 € + IVA (${c} com IVA)`,
+      ]),
+    );
+  const l = () => {
+    const x = leituraSoDoOrcamento();
+    x.orcamento.linhas = [
+      linhaCom("Flores TESTE", 1000, "Flores TESTE: 1.000,00 € + IVA"),
+      linhaCom("Velas TESTE", 740, "Velas TESTE: 740,00 € + IVA"),
+    ];
+    x.orcamento.totalSemIva = { valor: 1740, citacao: "Total: 1.740,00 € + IVA" };
+    x.orcamento.iva.valoresDasLinhas = { valor: "sem_iva", citacao: "+ IVA" };
+    x.orcamento.iva.valoresDoTotal = { valor: "sem_iva", citacao: "1.740,00 € + IVA" };
+    return x;
+  };
+
+  it("valores que batem pela taxa: aceites sem aviso, e as linhas passam", () => {
+    const doc = d("2.140,20 €");
+    const v = verificar(doc, l());
     expect(v.avisos).toEqual([]);
+    const p = preencher(doc, v);
+    expect(p.budgetAmounts).toEqual([1000, 740]);
+    expect(p.totalVatMode).toBe("acrescer");
+  });
+
+  it("valores que NÃO batem pela taxa: contradição, com aviso de dinheiro", () => {
+    const v = verificar(d("2.150,00 €"), l());
+    expect(v.avisos.some((a) => a.id.startsWith("iva:contradicao:") && a.dinheiro)).toBe(true);
+    expect(v.contas.modoDoTotal).toBe("desconhecido");
+  });
+
+  it("colunas «s/ IVA» e «c/ IVA» de uma tabela", () => {
+    const doc = documentoDeTeste(
+      docx([
+        {
+          tabela: [
+            ["Serviço", "Valor s/ IVA", "Valor c/ IVA"],
+            ["Flores TESTE", "1.000,00 €", "1.230,00 €"],
+            ["Total", "1.000,00 €", "1.230,00 €"],
+          ],
+        },
+      ]),
+    );
+    const x = leituraSoDoOrcamento();
+    x.naoColocados = [{ id: "l1", motivo: "cabeça" }];
+    x.orcamento.linhas = [linhaCom("Flores TESTE", 1000, "Flores TESTE | 1.000,00 €")];
+    x.orcamento.totalSemIva = { valor: 1000, citacao: "Total | 1.000,00 €" };
+    const v = verificar(doc, x);
+    expect(v.contas.modoDoTotal).toBe("sem_iva");
+    expect(v.contas.modoDasLinhas).toBe("sem_iva");
+    expect(v.avisos.filter((a) => a.dinheiro)).toEqual([]);
+  });
+});
+
+describe("3.ª revisão, D — um total repetido com o IVA ao contrário", () => {
+  it("«+ IVA» num sítio e «(IVA incluído)» noutro: contradição, com aviso", () => {
+    const doc = documentoDeTeste(
+      docx([
+        "Decoração TESTE: 1.740,00 €",
+        "Total: 1.740,00 € + IVA",
+        "Valor final: 1.740,00 € (IVA incluído)",
+      ]),
+    );
+    const x = leituraSoDoOrcamento();
+    x.orcamento.linhas = [linhaCom("Decoração TESTE", 1740, "Decoração TESTE: 1.740,00 €")];
+    x.orcamento.totalSemIva = { valor: 1740, citacao: "Total: 1.740,00 € + IVA" };
+    x.orcamento.iva.valoresDoTotal = { valor: "sem_iva", citacao: "1.740,00 € + IVA" };
+    const v = verificar(doc, x);
+    expect(v.avisos.find((a) => a.id === "iva:contradicao:orcamento.total")?.dinheiro).toBe(true);
+    expect(preencher(doc, v).totalVatMode).toBeNull();
+    // E a repetição contraditória NÃO é dispensada como «a mesma quantia».
+    expect(v.valores.find((x) => x.unidade === "p3")?.usado).toBeNull();
+  });
+});
+
+describe("3.ª revisão, E — o formato decide-se número a número", () => {
+  it.each([
+    ["1.000,00", [1000]],
+    ["1,740.00", [1740]],
+    ["45.00", [45]],
+    ["45,00", [45]],
+    ["1.200", [1200, 1.2]],
+    ["1,740", [1740, 1.74]],
+  ])("«%s» → %j", (t, v) => {
+    expect(numerosDe(`${t} €`)).toEqual(v);
+  });
+
+  it("uma proposta em inglês com números portugueses não tem falsos «inventados»", () => {
+    const doc = documentoDeTeste(docx(["Decoration TEST: 1.740,00 €", "Total: 1.740,00 € + VAT"]));
+    const x = leituraSoDoOrcamento();
+    x.evento.idioma = "en";
+    x.orcamento.linhas = [linhaCom("Decoration TEST", 1740, "Decoration TEST: 1.740,00 €")];
+    x.orcamento.totalSemIva = { valor: 1740, citacao: "Total: 1.740,00 € + VAT" };
+    const v = verificar(doc, x);
+    expect(v.inventados).toBe(0);
+    expect(v.contas.modoDoTotal).toBe("sem_iva");
+  });
+
+  it("uma proposta portuguesa com um preço à Excel («45.00 €») também não", () => {
+    const doc = documentoDeTeste(
+      docx(["Velas TESTE: 45.00 €", "Flores TESTE: 1.200,00 €", "Total: 1.245,00 € + IVA"]),
+    );
+    const x = leituraSoDoOrcamento();
+    x.orcamento.linhas = [
+      linhaCom("Velas TESTE", 45, "Velas TESTE: 45.00 €"),
+      linhaCom("Flores TESTE", 1200, "Flores TESTE: 1.200,00 €"),
+    ];
+    x.orcamento.totalSemIva = { valor: 1245, citacao: "Total: 1.245,00 € + IVA" };
+    const v = verificar(doc, x);
+    expect(v.inventados).toBe(0);
+    expect(v.avisos.some((a) => a.id.startsWith("valor:"))).toBe(false);
+  });
+
+  it("células coladas: «1 | 250,00 €» nunca é 1 250", () => {
+    expect(numerosDe("Mesas TESTE | 1 | 250,00 €")).not.toContain(1250);
+    const doc = documentoDeTeste(docx([{ tabela: [["Mesas TESTE", "1", "250,00 €"]] }]));
+    const x = leituraSoDoOrcamento();
+    x.orcamento.linhas = [linhaCom("Mesas TESTE", 1250, "1 | 250,00 €")];
+    expect(verificar(doc, x).leitura.orcamento.linhas[0].totalDaLinha.valor).toBeNull();
   });
 });
