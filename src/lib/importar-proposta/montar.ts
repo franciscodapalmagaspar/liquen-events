@@ -141,6 +141,8 @@ export function montarDocumento(
     cronograma: [],
     budgetItems: [...p.budgetItems],
     ...(p.budgetAmounts.some((v) => v !== null) ? { budgetAmounts: [...p.budgetAmounts] } : {}),
+    ...(p.budgetOpcional?.some(Boolean) ? { budgetOpcional: [...p.budgetOpcional] } : {}),
+    ...(typeof p.vatRate === "number" ? { vatRate: p.vatRate } : {}),
     budgetExtras: [],
     totalLabel: "Valor Total Decoração",
     totalText:

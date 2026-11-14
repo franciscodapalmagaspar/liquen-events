@@ -34,6 +34,8 @@ import { Button, EmCurso, Field, FolhaOuDialogo, Segmented } from "./ui";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { prepareImageWithThumb } from "./image-prep";
 import { enviarFotoDaProposta } from "./enviar-foto-da-proposta";
+import type { Revisao } from "@/lib/importar-proposta/ia/importar";
+import RevisaoDaImportacao, { avisosPorConfirmar } from "./RevisaoDaImportacao";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -138,6 +140,12 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     titulo: "",
   });
   const [tentouCriar, setTentouCriar] = useState(false);
+  // A revisão lado a lado (`RevisaoDaImportacao`): o documento inteiro, os
+  // avisos da verificação, e os de dinheiro que ela já confirmou.
+  const [revisao, setRevisao] = useState<Revisao | null>(null);
+  const [confirmados, setConfirmados] = useState<Set<string>>(new Set());
+  const [imagensDoDocumento, setImagensDoDocumento] = useState<Map<string, File>>(new Map());
+  const original = useRef<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   /**
    * ── O QUE JÁ FICOU FEITO, PARA UM SEGUNDO CLIQUE NÃO O REPETIR ───────────
@@ -170,6 +178,10 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     setDeFora([]);
     setEscolhidas(new Set());
     setTentouCriar(false);
+    setRevisao(null);
+    setConfirmados(new Set());
+    setImagensDoDocumento(new Map());
+    original.current = null;
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -183,7 +195,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     onClose();
   }
 
-  async function ler(ficheiro: File) {
+  async function ler(ficheiro: File, leitura?: File) {
     setErro(null);
     if (ficheiro.size > MAX_BYTES_DO_FICHEIRO) {
       setErro(
@@ -193,6 +205,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     }
     setPasso("a-ler");
     setNome(ficheiro.name);
+    original.current = ficheiro;
     try {
       const bytes = new Uint8Array(await ficheiro.arrayBuffer());
       let magro: Uint8Array;
@@ -209,20 +222,27 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
       }
       const form = new FormData();
       form.append("ficheiro", new File([magro as BlobPart], ficheiro.name));
+      if (leitura) form.append("leitura", leitura);
       const res = await fetch("/api/orcamento/importar", { method: "POST", body: form });
       const dados = await res.json().catch(() => null);
       if (!res.ok || !dados?.proposta) {
         throw new Error(dados?.error || "Não foi possível ler este ficheiro.");
       }
       const p = dados.proposta as PropostaImportada;
-      const lidas = await fotosDoFicheiro(
-        bytes,
-        p.fotos.map((f) => f.caminho),
-      );
+      const rev = (dados.revisao ?? null) as Revisao | null;
+      // As da proposta, e as outras do documento só para as miniaturas da revisão.
+      const naProposta = new Set(p.fotos.map((f) => f.caminho));
+      const lidas = await fotosDoFicheiro(bytes, [
+        ...naProposta,
+        ...(rev?.imagens ?? []).map((i) => i.caminho).filter((c) => !naProposta.has(c)),
+      ]);
       setProposta(p);
       setC(correccoesIniciais(p));
-      setFotos(lidas.fotos);
-      setDeFora(lidas.deFora);
+      setRevisao(rev);
+      setConfirmados(new Set());
+      setImagensDoDocumento(new Map(lidas.fotos.map((f) => [f.caminho, f.ficheiro])));
+      setFotos(lidas.fotos.filter((f) => naProposta.has(f.caminho)));
+      setDeFora(lidas.deFora.filter((f) => naProposta.has(f.caminho)));
       setEscolhidas(
         new Set(escolhaPorOmissao(p.fotos, new Set(lidas.fotos.map((f) => f.caminho)))),
       );
@@ -234,7 +254,19 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
     }
   }
 
-  const falta = c ? oQueFalta(c) : [];
+  const porConfirmar = avisosPorConfirmar(revisao, confirmados).length;
+  const falta = c
+    ? [
+        ...oQueFalta(c),
+        ...(porConfirmar > 0
+          ? [
+              porConfirmar === 1
+                ? "confirmar o aviso de dinheiro"
+                : `confirmar os ${porConfirmar} avisos de dinheiro`,
+            ]
+          : []),
+      ]
+    : [];
   const set = <K extends keyof Correccoes>(k: K, v: Correccoes[K]) =>
     setC((x) => (x ? { ...x, [k]: v } : x));
 
@@ -373,7 +405,7 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
           ? `Lido de «${nome}». Nada está guardado ainda.`
           : "O sistema lê o documento e prepara o pedido e a proposta. Nada é enviado ao cliente."
       }
-      largura="lg"
+      largura={revisao && passo === "rever" ? "largo" : "lg"}
       nivel={86}
       bloqueado={passo === "a-criar"}
       accoesQuebram
@@ -476,6 +508,25 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
               criar outro pedido nem voltar a carregar as fotografias que já subiram. Os campos do
               pedido já não mudam aqui — muda-os no próprio pedido.
             </p>
+          )}
+          {revisao && (
+            <RevisaoDaImportacao
+              revisao={revisao}
+              proposta={proposta}
+              imagens={imagensDoDocumento}
+              confirmados={confirmados}
+              onConfirmar={(id, sim) =>
+                setConfirmados((x) => {
+                  const n = new Set(x);
+                  if (sim) n.add(id);
+                  else n.delete(id);
+                  return n;
+                })
+              }
+              onLeitura={(f) => {
+                if (original.current && !pedidoCriado) void ler(original.current, f);
+              }}
+            />
           )}
           {proposta.avisos.length > 0 && (
             <div className="rounded-xl border border-[var(--bo-aviso-tom)]/25 bg-[var(--bo-aviso-tom)]/[0.06] px-4 py-3">

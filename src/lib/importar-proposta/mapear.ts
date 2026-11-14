@@ -87,6 +87,10 @@ export interface PropostaImportada {
   budgetItems: string[];
   /** Paralelo a `budgetItems`; `null` onde a linha não tinha valor. */
   budgetAmounts: (number | null)[];
+  /** Paralelo a `budgetItems`: as linhas opcionais (extra). Só a leitura com IA o preenche. */
+  budgetOpcional?: boolean[];
+  /** A taxa de IVA do documento, quando não é a da casa. Só a leitura com IA o preenche. */
+  vatRate?: number;
   totalAmount: number | null;
   /** `null` = não se percebeu; ela escolhe. */
   totalVatMode: VatMode | null;
