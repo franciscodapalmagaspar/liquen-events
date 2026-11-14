@@ -13,6 +13,7 @@ import {
   tirarDaReciclagem,
   type EntradaDaReciclagem,
 } from "./reciclagem-store";
+import { marcarFotoMexida } from "./biblioteca-fotos-store";
 import { deleteTask, listTasks, obterTarefa, reporTarefa } from "./tasks-store";
 import { deleteSupplier, obterFornecedor, reporFornecedor } from "./suppliers-store";
 import { deleteCalendarEvent, obterEvento, reporEvento } from "./calendar-store";
@@ -525,6 +526,11 @@ export const TIPOS = {
       const como = await trazerFotoDaReciclagem(f.path, f.naReciclagem);
       if (como === "existe") throw new NaoDaParaRepor("Esta fotografia já voltou a estar no tema.");
       if (como === "falhou") throw new Error("O armazenamento não devolveu a fotografia.");
+      // A foto voltou à pasta, e a linha dela na Biblioteca ficou como estava:
+      // uma listagem de outra instância, de quando ela não estava lá, escondia-a
+      // até 3 min. «Mexida agora» é o que a guarda da Biblioteca lê (2.ª
+      // revisão de 14/11, importante n.º 3).
+      await marcarFotoMexida(f.path);
     },
     async largar(e) {
       const f = primeiro<FotoNaReciclagem>(e.retrato as Retrato, "principal");

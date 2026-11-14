@@ -4,6 +4,7 @@ import { renderStoredEditorialPdfWithReport } from "@/lib/proposal-doc-render";
 import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import { guardarPdfDaProposta, lerPdfDaProposta } from "@/lib/proposal-pdf-guardado";
 import { log } from "@/lib/logger";
+import { faltasPassageiras } from "@/lib/proposal-preview-cache";
 import { chaveDoPdf, PropostaIncompleta } from "@/lib/proposal-pdf-chave";
 
 /**
@@ -262,7 +263,9 @@ export async function pdfDaPropostaComEstado(
    * documento incompleto: uma de mood board sai do mosaico, exactamente como
    * o estúdio e a página do casal já a mostram, e o documento guarda-se.
    */
-  const passageiras = (r: typeof ultimo) => r.missingImages - (r.faltasSabidas ?? 0);
+  // E as que passam do tecto de fotos por documento também não (revisão de
+  // 14/11, menor n.º 1): o mesmo documento passa-o sempre pelo mesmo número.
+  const passageiras = faltasPassageiras;
   if (passageiras(ultimo) > 0) {
     log.warn("proposta-pdf: fotos em falta, a tentar segunda vez", {
       emFalta: ultimo.missingImages,
@@ -271,7 +274,14 @@ export async function pdfDaPropostaComEstado(
     // que sai: MESMO documento, MESMA língua.
     ultimo = await renderStoredEditorialPdfWithReport(doc, idioma);
   }
-  if (passageiras(ultimo) > 0 || (ultimo.faltasSabidasQueTravam ?? 0) > 0) {
+  // Uma escolhida à mão (ou a capa) que o tecto de fotos cortou também deixa
+  // o documento incompleto — a mesma saída das escolhidas que já não existem:
+  // nunca se guarda (2.ª revisão de 14/11, importante n.º 1).
+  if (
+    passageiras(ultimo) > 0 ||
+    (ultimo.faltasSabidasQueTravam ?? 0) > 0 ||
+    (ultimo.faltasPeloTectoQueTravam ?? 0) > 0
+  ) {
     /**
      * ── E AQUI A REGRA MUDOU, POR UMA RAZÃO MEDIDA NO TELEMÓVEL DELA ──────
      *

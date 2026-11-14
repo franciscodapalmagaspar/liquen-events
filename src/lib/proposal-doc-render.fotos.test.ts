@@ -276,6 +276,33 @@ describe("plano, PDF e página do casal escolhem as mesmas fotos quando uma foto
 describe("o relatório separa as faltas sabidas das passageiras", () => {
   const FOI = "proposal-assets/TESTE/sabida.jpg";
 
+  it("as que passam do tecto de fotos por documento contam À PARTE (menor n.º 1)", async () => {
+    // Revisão de 14/11, menor n.º 1: eram contadas como passageiras, e um
+    // documento com fotos a mais era desenhado duas vezes e nunca se guardava.
+    const pequena = await sharp({
+      create: { width: 60, height: 40, channels: 3, background: "#667788" },
+    })
+      .jpeg({ quality: 40 })
+      .toBuffer();
+    const muitas = Array.from({ length: 90 }, (_, i) => `proposal-assets/TESTE/muitas-${i}.jpg`);
+    for (const r of muitas) bytesPorRef.set(r, pequena);
+    try {
+      const d = doc({
+        coverImages: [],
+        moodBoards: Array.from({ length: 9 }, (_, b) => ({
+          title: `Board ${b}`,
+          images: muitas.slice(b * 10, b * 10 + 10),
+        })),
+      });
+      const r = await renderStoredEditorialPdfWithReport(d, "pt");
+      expect(r.faltasPeloTecto).toBe(10);
+      expect(r.faltasSabidas).toBe(0);
+      expect(r.missingImages).toBeGreaterThanOrEqual(10);
+    } finally {
+      for (const r of muitas) bytesPorRef.delete(r);
+    }
+  });
+
   it("uma de mood board sabida: conta, mas não trava", async () => {
     NoArmazenamento.faltam = new Set([FOI]);
     try {

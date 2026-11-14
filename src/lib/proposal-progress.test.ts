@@ -661,3 +661,77 @@ describe("a foto escolhida para uma página que já não existe", () => {
     );
   });
 });
+
+/**
+ * 2.ª revisão de 14/11, importante n.º 1: o PDF leva no máximo 80 fotografias
+ * diferentes. As escolhidas à mão (e a capa) cabem primeiro; se mesmo assim
+ * uma ficar de fora, o PDF sai com o lugar vazio — trava, como a escolhida que
+ * já não existe. Mood boards cortados pelo tecto não travam.
+ */
+describe("as fotografias a mais para o PDF", () => {
+  /** `n` temas sem fotos, cada um com a SUA foto escolhida (a página do tema tem um lugar). */
+  const comEscolhidas = (n: number) =>
+    ({
+      ...COMPLETO,
+      moodBoards: Array.from({ length: n }, (_, i) => ({ title: `Tema ${i}`, images: [] })),
+      fotosDasPaginas: Object.fromEntries(
+        Array.from({ length: n }, (_, i) => [`tema:${i}`, { fotos: [`t${i}.jpg`] }]),
+      ),
+    }) as unknown as ProposalDoc;
+
+  it("escolhidas a mais travam, e dizem quantas e o que tirar", () => {
+    // A capa e 85 escolhidas: 86 diferentes, 6 a mais.
+    const f = oQueFaltaParaEnviar(comEscolhidas(85), 3250).find((x) => x.id === "fotos-a-mais");
+    expect(f?.trava).toBe(true);
+    expect(f?.texto).toBe(
+      "Esta proposta tem 6 fotografias a mais para o PDF — tira algumas das escolhidas para as páginas",
+    );
+    expect(podeEnviar(comEscolhidas(85), 3250)).toBe(false);
+  });
+
+  it("até ao tecto, nada", () => {
+    expect(oQueFaltaParaEnviar(comEscolhidas(79), 3250).map((x) => x.id)).not.toContain(
+      "fotos-a-mais",
+    );
+  });
+
+  it("mood boards a mais não travam — o mosaico faz-se sem as últimas", () => {
+    const muitos = {
+      ...COMPLETO,
+      moodBoards: Array.from({ length: 12 }, (_, b) => ({
+        title: `B${b}`,
+        images: Array.from({ length: 10 }, (_, k) => `b${b}f${k}.jpg`),
+      })),
+      fotosDasPaginas: { indice: { fotos: ["escolhida.jpg"] } },
+    } as unknown as ProposalDoc;
+    expect(oQueFaltaParaEnviar(muitos, 3250).map((x) => x.id)).not.toContain("fotos-a-mais");
+  });
+
+  // 3.ª revisão de 14/11, importante n.º 1: um board que fica sem NENHUMA foto
+  // no PDF trava — a página do tema sairia só com o título.
+  it("boards que ficam sem nenhuma foto travam, com frase própria", () => {
+    const doc = {
+      ...COMPLETO,
+      coverImages: ["capa.jpg"],
+      moodBoards: Array.from({ length: 85 }, (_, b) => ({ title: `B${b}`, images: [`b${b}.jpg`] })),
+    } as unknown as ProposalDoc;
+    const f = oQueFaltaParaEnviar(doc, 3250).find((x) => x.id === "fotos-a-mais");
+    expect(f?.trava).toBe(true);
+    expect(f?.texto).toBe(
+      "6 mood boards ficam sem a sua fotografia principal no PDF (leva até 80 fotografias diferentes) — tira alguns mood boards ou algumas das escolhidas para as páginas",
+    );
+    expect(podeEnviar(doc, 3250)).toBe(false);
+  });
+
+  it("capa + 9 boards de 10 (91 fotos): nenhum board fica vazio, não trava", () => {
+    const doc = {
+      ...COMPLETO,
+      coverImages: ["capa.jpg"],
+      moodBoards: Array.from({ length: 9 }, (_, b) => ({
+        title: `B${b}`,
+        images: Array.from({ length: 10 }, (_, k) => `b${b}f${k}.jpg`),
+      })),
+    } as unknown as ProposalDoc;
+    expect(oQueFaltaParaEnviar(doc, 3250).map((x) => x.id)).not.toContain("fotos-a-mais");
+  });
+});

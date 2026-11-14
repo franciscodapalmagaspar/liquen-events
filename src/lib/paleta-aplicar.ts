@@ -3,6 +3,8 @@ import { listFotos } from "./biblioteca-fotos-store";
 import { ehFotoDaBiblioteca } from "./biblioteca-consulta";
 import { etiquetar, listFotoEtiquetas } from "./biblioteca-foto-etiquetas-store";
 import { planearPaletas, resumoDoPlano, type PlanoDePaletas } from "./paleta-etiquetar";
+import { refsQueJaNaoExistem } from "./proposta-fotos-verificacao";
+import { isThemePath, refDeTema } from "./theme-ref";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -65,8 +67,21 @@ export async function aplicarPaletas({ ensaio = false } = {}): Promise<Resultado
   // Só as fotos da Biblioteca: as das propostas também têm cor nesta tabela,
   // mas uma etiqueta de paleta numa foto de um pedido não aparece em lado
   // nenhum (ver `ehFotoDaBiblioteca`).
+  //
+  // E só as que ainda lá estão (revisão de 14/11, menor n.º 3): uma foto na
+  // Reciclagem, ou que já saiu dela de vez, deixa a linha nesta tabela — e
+  // ganhava uma etiqueta de paleta para uma fotografia que não existe. A
+  // MESMA fonte das que faltam no PDF e na Biblioteca (`refsQueJaNaoExistem`),
+  // de fresco: corre à mão, uma listagem por pasta. «Não sei» não tira nada.
+  const daBiblioteca = fotos.filter((f) => ehFotoDaBiblioteca(f.path));
+  const verificaveis = daBiblioteca.filter((f) => isThemePath(f.path));
+  const jaNaoExistem = verificaveis.length
+    ? await refsQueJaNaoExistem(verificaveis.map((f) => refDeTema(f.path)))
+    : new Set<string>();
   const plano = planearPaletas(
-    fotos.filter((f) => ehFotoDaBiblioteca(f.path)).map((f) => ({ path: f.path, cor: f.cor })),
+    daBiblioteca
+      .filter((f) => !jaNaoExistem.has(refDeTema(f.path)))
+      .map((f) => ({ path: f.path, cor: f.cor })),
     jaComPaleta,
   );
 

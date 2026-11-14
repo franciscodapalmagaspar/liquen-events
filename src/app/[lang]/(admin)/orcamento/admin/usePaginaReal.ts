@@ -223,6 +223,69 @@ function corpoDe(doc: ProposalDoc, idioma: IdiomaDaProposta, n: number, largura:
   return JSON.stringify({ doc, idioma, n, largura });
 }
 
+/**
+ * ── E AS FOTOS QUE ENTRAM OU SAEM DA RECICLAGEM (revisão de 14/11, menor n.º 4)
+ *
+ * Levar uma foto para a Reciclagem, ou repô-la, não muda o rascunho — e a
+ * página guardada aqui (na memória e no `caches`) continuava a ser «desta
+ * versão», sem a foto ou com ela. O servidor já põe as que faltam na chave
+ * dele; o navegador não as sabe sem perguntar.
+ *
+ * Por isso há uma GERAÇÃO das fotos, que entra nas chaves de cá: muda quando
+ * a Biblioteca ou a Reciclagem dizem que mudaram (`liquen:biblioteca-alterada`)
+ * e passa aos outros separadores pelo `localStorage`. Nenhum pedido a mais:
+ * só depois de uma mudança a sério as páginas à volta da que se vê se pedem
+ * outra vez — como depois de mudar uma vírgula.
+ */
+const CHAVE_DA_GERACAO = "liquen-fotos-geracao";
+
+function lerGeracao(): string {
+  try {
+    return typeof localStorage === "undefined"
+      ? ""
+      : (localStorage.getItem(CHAVE_DA_GERACAO) ?? "");
+  } catch {
+    return "";
+  }
+}
+
+let geracaoDasFotos = lerGeracao();
+
+/**
+ * Quanto vale, no servidor, a listagem guardada de uma pasta
+ * (`MEMORIA_MS` de `memoria-das-listagens.ts`). Uma geração mais nova do que
+ * isto pode ser mais nova do que a memória de alguma instância.
+ */
+const MEMORIA_DO_SERVIDOR_MS = 3 * 60_000;
+
+/** A geração é o instante da mudança (`Date.now()`): ainda dentro da memória do servidor? */
+function geracaoRecente(g: string = geracaoDasFotos): boolean {
+  const quando = Number(g);
+  return Number.isFinite(quando) && quando > 0 && Date.now() - quando < MEMORIA_DO_SERVIDOR_MS;
+}
+
+/** As fotos mudaram (nesta aba, ou noutra com `nova`): as páginas guardadas deixam de ser desta versão. */
+export function fotosMudaram(nova?: string) {
+  geracaoDasFotos = nova ?? String(Date.now());
+  if (nova === undefined) {
+    try {
+      localStorage.setItem(CHAVE_DA_GERACAO, geracaoDasFotos);
+    } catch {
+      // Sem armazenamento, muda só nesta aba.
+    }
+  }
+  for (const p of preparadores.values()) p.fotosMudaram();
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("liquen:biblioteca-alterada", () => fotosMudaram());
+  window.addEventListener("storage", (e) => {
+    if (e.key === CHAVE_DA_GERACAO && e.newValue && e.newValue !== geracaoDasFotos) {
+      fotosMudaram(e.newValue);
+    }
+  });
+}
+
 class FalhaTemporaria extends Error {}
 
 /**
@@ -244,7 +307,6 @@ class Preparador {
   private espera: ReturnType<typeof setTimeout> | null = null;
   private parado = false;
   private ouvintes = new Set<() => void>();
-
   constructor(
     private quoteId: string,
     private idioma: IdiomaDaProposta,
@@ -260,7 +322,9 @@ class Preparador {
   }
 
   chave(n: number, doc: ProposalDoc | null = this.doc) {
-    return doc ? `${this.quoteId}\u0000${corpoDe(doc, this.idioma, n, this.largura)}` : "";
+    return doc
+      ? `${this.quoteId}\u0000${geracaoDasFotos}\u0000${corpoDe(doc, this.idioma, n, this.largura)}`
+      : "";
   }
   chaveDaPagina(n: number, totalDoPlano: number | null) {
     return `${this.quoteId}\u0000${this.idioma}\u0000${this.largura}\u0000${totalDoPlano ?? ""}\u0000${n}`;
@@ -344,7 +408,9 @@ class Preparador {
     this.emCurso.set(p, controlo);
     const chave = this.chave(p, doc);
     const corpo = corpoDe(doc, this.idioma, p, this.largura);
-    const estaVersao = impressao(corpo);
+    // A geração das fotos também conta: uma página guardada antes de uma foto
+    // entrar ou sair da Reciclagem já não é desta versão.
+    const estaVersao = impressao(`${geracaoDasFotos}\u0000${corpo}`);
     const daPagina = this.chaveDaPagina(p, this.planoTotal);
     try {
       // Já está no navegador, desta versão (de antes de recarregar)?
@@ -353,12 +419,28 @@ class Preparador {
       if (noNavegador?.rascunho === estaVersao) {
         guardar(chave, noNavegador);
       } else {
-        const res = await fetch(`/api/orcamento/${this.quoteId}/pagina-do-rascunho`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: corpo,
-          signal: controlo.signal,
-        });
+        /**
+         * ── `desde`: TODOS OS PEDIDOS NOS 3 MIN SEGUINTES A UMA MUDANÇA ──
+         *
+         * A geração muda a chave de cá, e a página pede-se outra vez — mas
+         * pode cair numa instância do servidor com a listagem da pasta de
+         * ANTES da mudança guardada (3 min), e voltava velha. Cada pedido
+         * dessa janela leva o instante da mudança, e o servidor só aceita uma
+         * listagem começada depois dele: cada instância renova a pasta uma vez
+         * por mudança, e as seguintes lêem a memória nova (3.ª revisão de
+         * 14/11, importante n.º 2 — o `fresco=1` de antes só ia no primeiro
+         * pedido de cada página, e só renovava a instância que o recebia).
+         */
+        const desde = geracaoRecente() ? geracaoDasFotos : null;
+        const res = await fetch(
+          `/api/orcamento/${this.quoteId}/pagina-do-rascunho${desde ? `?desde=${encodeURIComponent(desde)}` : ""}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: corpo,
+            signal: controlo.signal,
+          },
+        );
         const paginas = Number(res.headers.get("X-Paginas")) || null;
         if (!res.ok) throw new FalhaTemporaria(String(res.status));
         const g: Guardada = { imagem: await res.blob(), paginas, rascunho: estaVersao };
@@ -384,6 +466,14 @@ class Preparador {
   }
 
   retomar() {
+    this.bombear();
+  }
+
+  /** Uma foto entrou ou saiu: as páginas à volta da que se vê pedem-se outra vez. */
+  fotosMudaram() {
+    this.tentativas.clear();
+    this.raio = RAIO_DEPOIS_DE_MUDAR;
+    this.avisar();
     this.bombear();
   }
 }

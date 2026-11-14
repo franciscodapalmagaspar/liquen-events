@@ -36,7 +36,7 @@ import { lqipAceitavel } from "@/lib/lqip";
 import { corNormalizada } from "@/lib/cor";
 import { idDaPaleta, paletaDaCor } from "@/lib/paleta-da-cor";
 import { etiquetar } from "@/lib/biblioteca-foto-etiquetas-store";
-import { garantirFoto, updateFoto } from "@/lib/biblioteca-fotos-store";
+import { garantirFoto, marcarFotoMexida, updateFoto } from "@/lib/biblioteca-fotos-store";
 import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
@@ -463,6 +463,11 @@ async function POST_semMedida(
     if (Object.keys(dados).length > 0) {
       try {
         await garantirFoto(res.image.path, dados);
+        // Também põe o `updated_at` a agora (o `touch` do repositório): o
+        // mesmo ficheiro carregado outra vez cai no MESMO caminho (o nome é a
+        // impressão digital), e a linha de antes não se esconde da Biblioteca
+        // por uma listagem velha de outra instância (2.ª revisão de 14/11,
+        // importante n.º 3).
         await updateFoto(res.image.path, dados);
       } catch (e) {
         log.warn("temas: LQIP/cor/forma não guardados", {
@@ -470,6 +475,9 @@ async function POST_semMedida(
           erro: String(e),
         });
       }
+    } else {
+      // Sem nada a gravar, a linha que já houver fica na mesma «mexida agora».
+      await marcarFotoMexida(res.image.path);
     }
     // ── A ETIQUETA DE PALETA, DE GRAÇA ────────────────────────────────────
     //

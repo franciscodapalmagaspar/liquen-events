@@ -2638,6 +2638,52 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o envio recusa uma propo
     }
   });
 
+  /**
+   * 2.ª revisão de 14/11, importante n.º 1: escolhidas à mão a mais para o
+   * tecto de fotos do PDF. A rota recusa o mesmo que a Conferência — e o PDF
+   * final também não sai (sairia com lugares vazios); o rascunho sai.
+   */
+  it("escolhidas a mais para o tecto do PDF: 422 no envio e no PDF final, nada desenhado", async () => {
+    const doc = baseDoc({
+      totalAmount: 3000,
+      moodBoards: Array.from({ length: 85 }, (_, i) => ({ title: `Tema ${i}`, images: [] })),
+      fotosDasPaginas: Object.fromEntries(
+        Array.from({ length: 85 }, (_, i) => [`tema:${i}`, { fotos: [`TESTE/t${i}.jpg`] }]),
+      ),
+    });
+    const r = await recusa(doc);
+    expect(r.status).toBe(422);
+    expect(r.ids).toContain("fotos-a-mais");
+    expect(r.error).toMatch(/fotografias a mais para o PDF/);
+    expect(renderStoredEditorialPdfWithReport).not.toHaveBeenCalled();
+    expect(sendMail).not.toHaveBeenCalled();
+    const final = await POST(previewReq(doc), { params });
+    expect(final.status).toBe(422);
+    expect((await final.json()).error).toMatch(/só sai com as fotografias todas/);
+  });
+
+  // 3.ª revisão de 14/11, importante n.º 1: boards a mais para uma foto cada.
+  // A rota recusa o mesmo que a Conferência e o motor contam como «trava».
+  it("mood boards que ficariam sem nenhuma foto no PDF: 422 no envio e no PDF final", async () => {
+    const doc = baseDoc({
+      totalAmount: 3000,
+      coverImages: ["TESTE/capa.jpg"],
+      moodBoards: Array.from({ length: 85 }, (_, b) => ({
+        title: `Tema ${b}`,
+        images: [`TESTE/b${b}.jpg`],
+      })),
+    });
+    const r = await recusa(doc);
+    expect(r.status).toBe(422);
+    expect(r.ids).toContain("fotos-a-mais");
+    expect(r.error).toMatch(/6 mood boards ficam sem a sua fotografia principal no PDF/);
+    expect(renderStoredEditorialPdfWithReport).not.toHaveBeenCalled();
+    expect(sendMail).not.toHaveBeenCalled();
+    const final = await POST(previewReq(doc), { params });
+    expect(final.status).toBe(422);
+    expect((await final.json()).error).toMatch(/só sai com as fotografias todas/);
+  });
+
   it("sem email no pedido, um envio por email é recusado", async () => {
     const { getQuote } = await import("@/lib/quotes-store");
     vi.mocked(getQuote).mockResolvedValueOnce({ id: "q1", email: "", status: "pendente" } as never);

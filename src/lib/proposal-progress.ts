@@ -6,7 +6,11 @@ import { camposDoDocumento, lerCampo } from "./proposal-ortografia";
 import { eur } from "./money";
 import { hojeNoEstudio } from "./fuso";
 import type { FotoEscolhidaEmFalta } from "./proposta-fotos-verificacao-tipos";
-import { fotosEscolhidasDoDocumento } from "./fotos-escolhidas";
+import {
+  FOTOS_NO_TECTO_DO_PDF,
+  fotosEscolhidasDoDocumento,
+  fotosNoTectoDoPdf,
+} from "./fotos-escolhidas";
 
 /**
  * ONDE ESTOU, O QUE JÁ ESTÁ FEITO, E O QUE FALTA PARA PODER ENVIAR.
@@ -265,6 +269,31 @@ export interface ContextoDoEnvio {
 
 /** O mesmo critério do passo do envio (`emailDoCliente` no estúdio). */
 const EMAIL_VALIDO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/**
+ * «Esta proposta tem 3 fotografias a mais para o PDF — …». Só chega aqui quando
+ * as escolhidas à mão SOZINHAS passam do tecto (os mood boards já saíram
+ * primeiro), por isso o conselho é tirar escolhidas: tirar fotos dos mood
+ * boards não faria caber nenhuma delas.
+ */
+export function fraseDasFotosAMais(n: number): string {
+  return n === 1
+    ? "Esta proposta tem 1 fotografia a mais para o PDF — tira uma das escolhidas para as páginas"
+    : `Esta proposta tem ${n} fotografias a mais para o PDF — tira algumas das escolhidas para as páginas`;
+}
+
+/**
+ * «2 mood boards ficam sem nenhuma fotografia no PDF — …» (3.ª revisão de
+ * 14/11, importante n.º 1). A ★ de cada board cabe logo a seguir às
+ * escolhidas, por isso um board só fica vazio quando as escolhidas MAIS uma
+ * foto por board passam do tecto: tirar fotos do meio dos boards não faz caber
+ * nenhuma ★. O conselho é tirar boards inteiros, ou escolhidas.
+ */
+export function fraseDosBoardsSemFotos(n: number): string {
+  return n === 1
+    ? `1 mood board fica sem a sua fotografia principal no PDF (leva até ${FOTOS_NO_TECTO_DO_PDF} fotografias diferentes) — tira um mood board ou algumas das escolhidas para as páginas`
+    : `${n} mood boards ficam sem a sua fotografia principal no PDF (leva até ${FOTOS_NO_TECTO_DO_PDF} fotografias diferentes) — tira alguns mood boards ou algumas das escolhidas para as páginas`;
+}
 
 /** «2026-10-09» → «09/10/2026», para a frase. */
 const diaEscrito = (iso: string) => iso.split("-").reverse().join("/");
@@ -564,6 +593,33 @@ export function oQueFaltaParaEnviar(
       id: "foto-escolhida-em-falta",
       seccao: "envio",
       texto: fraseDaFotoEscolhidaEmFalta(escolhidasQueFaltam),
+      trava: true,
+    });
+  }
+  /**
+   * ── AS ESCOLHIDAS QUE O TECTO DE FOTOS DO PDF DEIXA DE FORA (14/11) ──────
+   *
+   * O PDF leva no máximo 80 fotografias diferentes, e as escolhidas à mão (e a
+   * capa) cabem primeiro (`fotosNoTectoDoPdf`, a MESMA regra do motor). Se
+   * mesmo assim uma ficar de fora, o PDF sai com o lugar vazio: trava, como a
+   * escolhida que já não existe. Os mood boards cortados pelo tecto não travam
+   * — o mosaico faz-se sem elas —, a não ser que um fique sem NENHUMA.
+   */
+  const noTecto = fotosNoTectoDoPdf(doc, { comPaginas: true });
+  const deFora = new Set(noTecto.escolhidasDeFora.map((f) => f.ref));
+  // E um mood board que fica sem NENHUMA foto (3.ª revisão de 14/11,
+  // importante n.º 1): a página do tema sairia só com o título.
+  const frasesDoTecto = [
+    ...(deFora.size > 0 ? [fraseDasFotosAMais(deFora.size)] : []),
+    ...(noTecto.boardsVazios.length > 0
+      ? [fraseDosBoardsSemFotos(noTecto.boardsVazios.length)]
+      : []),
+  ];
+  if (frasesDoTecto.length > 0) {
+    faltas.push({
+      id: "fotos-a-mais",
+      seccao: "envio",
+      texto: frasesDoTecto.join("; "),
       trava: true,
     });
   }

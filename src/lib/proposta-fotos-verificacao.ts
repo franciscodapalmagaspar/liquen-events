@@ -16,7 +16,7 @@ import { LARGURAS_DE_PARTILHA, type FotoSuspeita } from "./proposta-fotos-verifi
 import { avaliarFoto, type LugarDaFoto } from "./qualidade-da-foto";
 import { marcaDaRef } from "./proposta-fotos";
 import { log } from "./logger";
-import { listagemComMemoria } from "./memoria-das-listagens";
+import { listagemComMemoria, respostaComMemoria } from "./memoria-das-listagens";
 import type {
   FotoEmFalta,
   FotoEscolhidaEmFalta,
@@ -187,11 +187,42 @@ interface Listagem {
  * Sem ela — o travão do envio e a porta do casal —, de fresco, e nada se
  * guarda: «já corrigi — voltar a confirmar» tem de ver o que está lá agora.
  */
-function nomesNaPasta(bucket: string, pasta: string, comMemoria = false): Promise<Listagem | null> {
-  return comMemoria
-    ? listagemComMemoria(bucket, pasta, () => listarAPasta(bucket, pasta))
+function nomesNaPasta(
+  bucket: string,
+  pasta: string,
+  memoria: OpcoesDaPergunta = {},
+): Promise<Listagem | null> {
+  return memoria.memoria || memoria.desde !== undefined
+    ? listagemComMemoria(bucket, pasta, () => listarAPasta(bucket, pasta), {
+        desde: memoria.desde,
+      })
     : listarAPasta(bucket, pasta);
 }
+
+/**
+ * Como se pergunta ao armazenamento:
+ *  · `memoria` — aceita a resposta guardada há pouco (`MEMORIA_MS`), e
+ *    partilha a pergunta em curso: os rascunhos, a pré-visualização, o plano
+ *    e a Biblioteca;
+ *  · `desde` — só aceita uma resposta guardada (ou em curso) que tenha
+ *    começado depois deste instante; senão pergunta AGORA e guarda por cima
+ *    (os pedidos da pré-visualização nos 3 min seguintes a uma foto entrar ou
+ *    sair da Reciclagem — 3.ª revisão de 14/11, importante n.º 2; ver
+ *    `memoria-das-listagens.ts`).
+ * Sem nenhuma — o travão do envio e a porta do casal —, de fresco, e nada se
+ * guarda.
+ */
+export interface OpcoesDaPergunta {
+  memoria?: boolean;
+  desde?: number;
+}
+
+/**
+ * Quantas listagens de pastas ao mesmo tempo (revisão de 14/11, menor n.º 4):
+ * a Biblioteca pode ter fotos de dezenas de temas numa página, e eram todas
+ * de uma vez. O mesmo 4 do resto (`PERGUNTAS_EM_PARALELO`, `mapLimit`).
+ */
+const LISTAGENS_EM_PARALELO = 4;
 
 async function listarAPasta(bucket: string, pasta: string): Promise<Listagem | null> {
   const sb = getSupabase();
@@ -223,6 +254,25 @@ async function listarAPasta(bucket: string, pasta: string): Promise<Listagem | n
  * O `search` do Storage procura pelo começo do nome; confere-se o nome exacto.
  * Se a resposta vier cheia sem o nome lá dentro, também não se sabe.
  */
+/**
+ * {@link existeNaPasta} com a mesma memória das listagens quando quem pergunta
+ * a aceita (revisão de 14/11, menor n.º 4): nas pastas maiores do que o tecto
+ * da listagem, cada foto era uma pergunta ao Storage EM CADA página da
+ * Biblioteca. `null` («não sei») não se guarda.
+ */
+function existeNaPastaComMemoria(
+  bucket: string,
+  pasta: string,
+  nome: string,
+  memoria: OpcoesDaPergunta,
+): Promise<boolean | null> {
+  return memoria.memoria || memoria.desde !== undefined
+    ? respostaComMemoria(bucket, pasta, nome, () => existeNaPasta(bucket, pasta, nome), {
+        desde: memoria.desde,
+      })
+    : existeNaPasta(bucket, pasta, nome);
+}
+
 async function existeNaPasta(bucket: string, pasta: string, nome: string): Promise<boolean | null> {
   const sb = getSupabase();
   if (!sb) return null;
@@ -289,7 +339,7 @@ const caminhoDe = (ref: string) => (ehRefDeTema(ref) ? caminhoDoRefDeTema(ref) :
 
 async function procurarAsQueFaltam(
   entradas: readonly Entrada[],
-  opcoes: { memoria?: boolean } = {},
+  opcoes: OpcoesDaPergunta = {},
 ): Promise<Procura> {
   const emFalta: FotoEmFalta[] = [];
   const porConfirmar: Entrada[] = [];
@@ -335,13 +385,11 @@ async function procurarAsQueFaltam(
     porPasta.set(chave, grupo);
   }
 
-  // UMA ida ao Storage por pasta, e todas ao mesmo tempo.
-  const listagens = await Promise.all(
-    [...porPasta.values()].map(async (g) => ({
-      ...g,
-      listagem: await nomesNaPasta(g.bucket, g.pasta, opcoes.memoria).catch(() => null),
-    })),
-  );
+  // UMA ida ao Storage por pasta, no máximo LISTAGENS_EM_PARALELO de cada vez.
+  const listagens = await mapLimit([...porPasta.values()], LISTAGENS_EM_PARALELO, async (g) => ({
+    ...g,
+    listagem: await nomesNaPasta(g.bucket, g.pasta, opcoes).catch(() => null),
+  }));
 
   const acusar = (e: Entrada) =>
     emFalta.push({
@@ -380,7 +428,7 @@ async function procurarAsQueFaltam(
     porConfirmar.push(...umaAUma.splice(MAX_PERGUNTAS_POR_FICHEIRO).map((x) => x.e));
   }
   const respostas = await mapLimit(umaAUma, PERGUNTAS_EM_PARALELO, ({ g, nome }) =>
-    existeNaPasta(g.bucket, g.pasta, nome),
+    existeNaPastaComMemoria(g.bucket, g.pasta, nome, opcoes),
   );
   umaAUma.forEach(({ e }, i) => {
     if (respostas[i] === false) acusar(e);
@@ -531,8 +579,9 @@ export async function refsQueJaNaoExistem(
   /**
    * `memoria`: aceita uma listagem guardada há pouco (`MEMORIA_MS`), e partilha
    * a que estiver em curso — só os rascunhos, a pré-visualização e o plano.
+   * `desde`: só uma listagem começada depois disso — ver {@link OpcoesDaPergunta}.
    */
-  opcoes: { memoria?: boolean } = {},
+  opcoes: OpcoesDaPergunta = {},
 ): Promise<Set<string>> {
   const unicas = [...new Set(refs.filter((r) => r && !isPendingImage(r)))];
   if (unicas.length === 0) return new Set();

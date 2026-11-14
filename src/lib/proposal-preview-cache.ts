@@ -51,7 +51,23 @@ export interface RelatorioDoPdf {
   faltasSabidas?: number;
   /** Das sabidas, as escolhidas por ela que o PDF desenharia. */
   faltasSabidasQueTravam?: number;
+  /** Das `missingImages`, as que passaram do tecto de fotografias por documento. */
+  faltasPeloTecto?: number;
+  /** Das que passaram do tecto, as escolhidas por ela (ou a capa): nunca se guarda. */
+  faltasPeloTectoQueTravam?: number;
   truncations: DocTruncation[];
+}
+
+/**
+ * As faltas que uma segunda passagem PODE trazer: tudo o que falta menos o que
+ * se sabe que falta (foi para a Reciclagem) e o que passou do tecto de fotos
+ * por documento. Essas duas são certas — desenhar outra vez dava o mesmo
+ * (revisão de 14/11, 2.ª, n.º 2, e menor n.º 1).
+ */
+export function faltasPassageiras(
+  r: Pick<RelatorioDoPdf, "missingImages" | "faltasSabidas" | "faltasPeloTecto">,
+): number {
+  return Math.max(0, r.missingImages - (r.faltasSabidas ?? 0) - (r.faltasPeloTecto ?? 0));
 }
 
 /** ~32 MB: cabem umas dezenas de propostas típicas (0,5–3 MB) sem apertar a
@@ -87,7 +103,16 @@ export async function pdfFinalDaVersao(
   aDesenhar.set(chave, promessa);
   try {
     const relatorio = await promessa;
-    if (relatorio.missingImages === 0) prontos.guardar(chave, relatorio);
+    // As que passaram do tecto não impedem de guardar: o desenho não muda por
+    // as repetir (revisão de 14/11, menor n.º 1). Menos uma escolhida à mão
+    // (ou a capa) cortada pelo tecto: o documento não está completo, e não se
+    // guarda (2.ª revisão de 14/11, importante n.º 1).
+    if (
+      relatorio.missingImages - (relatorio.faltasPeloTecto ?? 0) === 0 &&
+      (relatorio.faltasPeloTectoQueTravam ?? 0) === 0
+    ) {
+      prontos.guardar(chave, relatorio);
+    }
     return { relatorio, daMemoria: false };
   } finally {
     aDesenhar.delete(chave);

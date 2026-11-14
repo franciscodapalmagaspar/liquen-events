@@ -13,6 +13,9 @@ import {
   type Procura,
 } from "@/lib/biblioteca-consulta";
 import { oQueOsTemasTemNaReciclagem } from "@/lib/reciclagem";
+import { refsQueJaNaoExistem } from "@/lib/proposta-fotos-verificacao";
+import { isThemePath, refDeTema } from "@/lib/theme-ref";
+import { MEMORIA_MS } from "@/lib/memoria-das-listagens";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -91,7 +94,7 @@ export async function GET(request: NextRequest) {
     // no total e saíam da página por não se assinarem no bucket dos temas.
     // E uma FOTO na Reciclagem (14/11): saiu da pasta, mas a linha dela fica
     // (é com ela que volta). Repor tira-a da Reciclagem, e ela volta a aparecer.
-    const encontradas = fotos.filter(
+    const candidatas = fotos.filter(
       (f) =>
         ehFotoDaBiblioteca(f.path) &&
         !naReciclagem.pastas.has(f.pasta) &&
@@ -99,6 +102,37 @@ export async function GET(request: NextRequest) {
         (!procura.pasta || f.pasta === procura.pasta) &&
         responde(etiquetasDe.get(f.path), procura, adivinhadas.has(f.path)),
     );
+    /**
+     * ── E UMA FOTO QUE SAIU DE VEZ DA RECICLAGEM (revisão de 14/11, menor n.º 2)
+     *
+     * Aos 30 dias (ou «Apagar de vez») o ficheiro sai do armazenamento, mas a
+     * linha fica — nada se apaga na base por causa disto. Contava no `total` e
+     * abria buracos na página (não se assina o que não existe). A pasta é a
+     * fonte da verdade, como no escolhedor e na página do casal: a MESMA
+     * pergunta (`refsQueJaNaoExistem`), com a memória de 3 min das listagens.
+     *
+     * Custo: uma listagem por pasta com fotos na resposta, e só quando a
+     * memória dessa pasta caducou (3 min, por instância; esquecida ao levar,
+     * trazer ou carregar uma foto nessa pasta). Uma pasta que não responde não
+     * esconde nada: «não sei» nunca tira uma foto da Biblioteca.
+     *
+     * E a memória pode ser de OUTRA instância, de antes de um carregamento:
+     * uma linha mexida há menos do que o prazo da memória nunca se esconde
+     * (uma foto acabada de carregar não desaparece por a listagem ser velha).
+     */
+    const desde = Date.now() - MEMORIA_MS;
+    const verificaveis = candidatas.filter(
+      (f) => isThemePath(f.path) && !(Date.parse(f.updatedAt) > desde),
+    );
+    const jaNaoExistem = verificaveis.length
+      ? await refsQueJaNaoExistem(
+          verificaveis.map((f) => refDeTema(f.path)),
+          { memoria: true },
+        )
+      : new Set<string>();
+    const encontradas = jaNaoExistem.size
+      ? candidatas.filter((f) => !jaNaoExistem.has(refDeTema(f.path)))
+      : candidatas;
     const pagina = encontradas.slice(inicio, inicio + limite);
     const caminhos = pagina.map((f) => f.path);
 

@@ -30,6 +30,10 @@ const H = vi.hoisted(() => ({
   buscas: [] as string[],
   buscaFalha: false,
   temSupabase: true,
+  /** Quanto demora cada listagem (ms), e quantas estiveram em voo ao mesmo tempo. */
+  atraso: 0,
+  emVoo: 0,
+  maxEmVoo: 0,
 }));
 
 vi.mock("server-only", () => ({}));
@@ -73,6 +77,12 @@ vi.mock("./supabase", () => ({
                   };
                 }
                 H.listagens.push(`${bucket}::${pasta}`);
+                if (H.atraso) {
+                  H.emVoo += 1;
+                  H.maxEmVoo = Math.max(H.maxEmVoo, H.emVoo);
+                  await new Promise((r) => setTimeout(r, H.atraso));
+                  H.emVoo -= 1;
+                }
                 if (nomes === null) return { data: null, error: new Error("storage em baixo") };
                 // Paginado como o Storage: `limit` de cada vez, a partir de `offset`.
                 const de = opts.offset ?? 0;
@@ -100,6 +110,9 @@ beforeEach(() => {
   H.buscas.length = 0;
   H.buscaFalha = false;
   H.temSupabase = true;
+  H.atraso = 0;
+  H.emVoo = 0;
+  H.maxEmVoo = 0;
   esquecerListagens();
 });
 
@@ -574,6 +587,20 @@ describe("uma pasta maior do que o tecto da listagem (importante n.º 2)", () =>
     expect(await refsQueJaNaoExistem(["tema:grande/nao-ha.jpg"])).toEqual(new Set());
   });
 
+  /** Revisão de 14/11, menor n.º 4: com a memória, a resposta por ficheiro também fica 3 min. */
+  it("com a memória, a pergunta por ficheiro também se guarda — e esquece-se com a pasta", async () => {
+    naBiblioteca("grande", MUITOS);
+    await refsQueJaNaoExistem(["tema:grande/f5100.jpg"], { memoria: true });
+    await refsQueJaNaoExistem(["tema:grande/f5100.jpg"], { memoria: true });
+    expect(H.buscas).toEqual(["theme-assets::grande/f5100.jpg"]);
+    expect(H.listagens.length).toBe(25);
+    // Uma escrita nesta instância esquece a pasta: as respostas dela também.
+    const { esquecerListagemDaPasta } = await import("./memoria-das-listagens");
+    esquecerListagemDaPasta("theme-assets", "grande");
+    await refsQueJaNaoExistem(["tema:grande/f5100.jpg"], { memoria: true });
+    expect(H.buscas.length).toBe(2);
+  });
+
   it("numa pasta normal não há pergunta por ficheiro nenhuma", async () => {
     naBiblioteca("t1", ["fica.jpg"]);
     await refsQueJaNaoExistem(["tema:t1/fica.jpg", "tema:t1/foi.jpg"]);
@@ -772,5 +799,59 @@ describe("levar ou trazer da Reciclagem esquece a listagem dessa pasta", () => {
     esquecerListagemDaPasta("theme-assets", "t1");
     const r2 = await refsQueJaNaoExistem(["tema:t1/foi.jpg"], { memoria: true });
     expect([...r2]).toEqual([]);
+  });
+});
+
+/**
+ * Revisão de 14/11 (2.ª): a Biblioteca pergunta por dezenas de pastas de uma
+ * vez (menor n.º 4), e o primeiro pedido de cada página depois de uma foto
+ * mudar pergunta de fresco (importante n.º 2).
+ */
+describe("quantas listagens, e quando se renovam", () => {
+  it("no máximo 4 pastas listadas ao mesmo tempo", async () => {
+    const refs = Array.from({ length: 12 }, (_, i) => {
+      naBiblioteca(`t${i}`, ["a.jpg"]);
+      return `tema:t${i}/a.jpg`;
+    });
+    H.atraso = 5;
+    await refsQueJaNaoExistem(refs, { memoria: true });
+    expect(H.listagens.length).toBe(12);
+    expect(H.maxEmVoo).toBeLessThanOrEqual(4);
+    expect(H.maxEmVoo).toBeGreaterThan(1);
+  });
+
+  it("`desde` lista de novo e guarda por cima — os seguintes com o MESMO `desde` lêem a resposta nova", async () => {
+    naBiblioteca("t1", []);
+    expect(await refsQueJaNaoExistem(["tema:t1/a.jpg"], { memoria: true })).toEqual(
+      new Set(["tema:t1/a.jpg"]),
+    );
+    // A foto voltou (noutra instância): a memória desta ainda diz que falta.
+    naBiblioteca("t1", ["a.jpg"]);
+    expect(await refsQueJaNaoExistem(["tema:t1/a.jpg"], { memoria: true })).toEqual(
+      new Set(["tema:t1/a.jpg"]),
+    );
+    expect(H.listagens.length).toBe(1);
+    // A mudança foi DEPOIS da listagem guardada (mais do que a folga dos relógios).
+    const desde = Date.now() + 10_000;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(desde);
+    expect(await refsQueJaNaoExistem(["tema:t1/a.jpg"], { desde })).toEqual(new Set());
+    expect(H.listagens.length).toBe(2);
+    // Os pedidos seguintes da mesma janela (o mesmo `desde`): da memória nova.
+    expect(await refsQueJaNaoExistem(["tema:t1/a.jpg"], { desde })).toEqual(new Set());
+    expect(await refsQueJaNaoExistem(["tema:t1/a.jpg"], { memoria: true })).toEqual(new Set());
+    expect(H.listagens.length).toBe(2);
+    vi.useRealTimers();
+  });
+
+  it("pedidos com `desde` ao mesmo tempo partilham UMA listagem por pasta", async () => {
+    naBiblioteca("t1", ["a.jpg"]);
+    H.atraso = 5;
+    const desde = Date.now();
+    await Promise.all([
+      refsQueJaNaoExistem(["tema:t1/a.jpg"], { desde }),
+      refsQueJaNaoExistem(["tema:t1/a.jpg"], { desde }),
+    ]);
+    expect(H.listagens.length).toBe(1);
   });
 });
