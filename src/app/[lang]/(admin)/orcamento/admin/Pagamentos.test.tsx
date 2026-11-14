@@ -110,7 +110,7 @@ describe("Pagamentos — o lembrete", () => {
     expect(escrever).toHaveBeenCalledTimes(1);
     const texto = String((escrever.mock.calls as unknown as string[][])[0][0]);
     expect(texto).toContain("o sinal de 30%");
-    expect(texto).toContain("1\u00A0595,19");
+    expect(texto).toContain("1.595,19");
 
     await waitFor(() =>
       expect(
