@@ -434,6 +434,26 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
   cada proposta. Lista mostrada a 10/11: 9 ficheiros (~9 MB), incluindo as
   pastas de 2 propostas que já não existem. O Supabase não deixa apagar
   ficheiros por SQL (`storage.protect_delete`), por isso apagam-se no painel.
+  **Medido a 14/11: 65 PDF, 132 MB, em 58 pastas.** A limpeza
+  (`limpar-pdfs-substituidos.ts`) corria todas as noites mas só tinha 1
+  ficheiro em espera: 12 PDF de 9 propostas APAGADAS (11,6 MB) ficavam presos
+  porque o id delas aparecia em linhas de `app_state` que só apontam para a
+  proposta (o link curto, a cópia do email, o aquecimento, a cache da proposta
+  online). Essas deixaram de contar como menção. O que a limpeza liberta:
+  13 PDF, **12,7 MB**, em duas noites depois dos 7 dias de espera. Ensaio sem
+  apagar: `node scripts/ensaio-pdfs-substituidos.mjs`. Os outros ~117 MB são
+  UM PDF por proposta viva (48), o enviado — que é o que o link do casal abre
+  e não se pode refazer igual (o desenho mudou a 23/10 e a chave é só o
+  conteúdo). E é aí que cresce: ~2,7 MB por proposta enviada, ~50 MB na
+  primeira quinzena de novembro. As imagens já vão a ~154 ppp na página
+  inteira, JPEG 72 com mozjpeg: comprimir mais muda o aspecto e precisa dela.
+  Revisão de 15/11, antes de a ligar (ele autorizou: «Sim, pode apagar»):
+  fica também o PDF do documento ATUAL de cada proposta (a chave que o link
+  e a página online pedem), mesmo que não seja o mais recente; uma proposta
+  na Reciclagem guarda a pasta inteira; o aceite de um contrato sem
+  `proposal_id` vale em todas as pastas; o Storage lista-se às páginas; e há
+  um tecto de 20 descargas por noite (saída do Supabase). Os números de cima
+  são de antes desta revisão: voltar a medir com o ensaio.
 - **Fotografias de pedidos apagados (autorizado por ela a 10/11)**: pastas de
   `proposal-assets` (+ derivadas) de pedidos apagados em julho e agosto, antes
   de a Reciclagem limpar as fotos. Ela pediu logo a seguir: «verifica tudo… não
