@@ -1021,8 +1021,10 @@ test.describe("9 · as barras do «Fazer proposta» encolhem ao descer, no iPhon
   });
 
   /* 4. e 5. Com o foco no «← anterior», encolher escondia-o e o foco caía no
-        `body`; e o cabeçalho escondido continuava no Tab e no leitor de ecrã. */
-  test("com o foco no «anterior» não encolhem; e escondido, o cabeçalho fica inerte", async ({
+        `body`; e o cabeçalho escondido continuava no Tab e no leitor de ecrã.
+        O foco que segura é o do TECLADO (`:focus-visible`): chega-se lá com
+        Tab, como quem usa um teclado ligado ao tablet. */
+  test("com o foco do teclado no «anterior» não encolhem; e escondido, o cabeçalho fica inerte", async ({
     page,
   }) => {
     const cdp = await page.context().newCDPSession(page);
@@ -1036,14 +1038,19 @@ test.describe("9 · as barras do «Fazer proposta» encolhem ao descer, no iPhon
     await page.waitForTimeout(600);
     const anterior = page.getByRole("button", { name: /^← / }).first();
     await anterior.focus();
+    // Sai e volta pelo teclado: o foco passa a ser do teclado (`:focus-visible`).
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
     await page.evaluate(() => window.scrollTo(0, 500));
     await page.waitForTimeout(700);
     const comFoco = await page.evaluate(() => ({
       estado: document.documentElement.getAttribute("data-barras"),
       focado: document.activeElement?.textContent ?? "",
+      doTeclado: document.activeElement?.matches(":focus-visible") ?? false,
     }));
-    expect(comFoco.estado, "com o foco num acessório, não encolhem").toBe("inteiras");
     expect(comFoco.focado).toMatch(/←/);
+    expect(comFoco.doTeclado, "o foco veio do teclado").toBe(true);
+    expect(comFoco.estado, "com o foco do teclado num acessório, não encolhem").toBe("inteiras");
     await expect(anterior).toBeVisible();
 
     // O foco sai; o gesto seguinte encolhe — e o cabeçalho fica inerte.
@@ -1068,6 +1075,170 @@ test.describe("9 · as barras do «Fazer proposta» encolhem ao descer, no iPhon
       ),
       "ao subir, volta",
     ).toBe(false);
+  });
+
+  /* 2.ª revisão de 15/11: no Chrome do Android um TOQUE dá o foco ao botão, e
+     rolar não o tira. Com o foco a segurar as barras fosse de onde fosse,
+     depois de tocar no «← anterior» nunca mais encolhiam. */
+  test("depois de TOCAR no «anterior», as barras continuam a encolher ao descer", async ({
+    page,
+  }) => {
+    const erros = errosDaConsola(page);
+    const cdp = await page.context().newCDPSession(page);
+    await abrirOEstudioComTotal(page);
+    // No passo 3: o «anterior» leva ao 2, que também o tem — o botão fica.
+    await tocar(
+      page,
+      page.locator("nav[aria-label='Passos da proposta']").getByRole("button").nth(2),
+    );
+    await page.waitForTimeout(1000);
+    await tocar(page, page.getByRole("button", { name: /^← / }).first());
+    await page.waitForTimeout(1200);
+    const focado = await page.evaluate(() => ({
+      texto: document.activeElement?.textContent ?? "",
+      doTeclado: document.activeElement?.matches(":focus-visible") ?? false,
+    }));
+    // O cenário do defeito: o botão tocado ficou com o foco, sem ser do teclado.
+    expect(focado.texto, "o toque deu o foco ao «anterior»").toMatch(/←/);
+    expect(focado.doTeclado).toBe(false);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(600);
+    for (let i = 0; i < 3; i += 1) {
+      await deslizar(cdp, 200, 460, 300);
+      await page.waitForTimeout(500);
+    }
+    expect(
+      await page.evaluate(() => document.documentElement.getAttribute("data-barras")),
+      "um foco de toque não segura as barras",
+    ).toBe("encolhidas");
+    expect(erros).toEqual([]);
+  });
+
+  /* 2.ª revisão de 15/11: a região da gravação trocava `aria-live`
+     polite→assertive no instante do alarme (há leitores que anunciam com o
+     valor antigo). Agora são duas fixas: nenhuma muda de atributo, e o alarme
+     cai na `assertive`. */
+  test("o alarme da gravação cai na região `assertive`, e nenhuma região troca de `aria-live`", async ({
+    page,
+  }) => {
+    await abrirOEstudioComTotal(page);
+    await page.evaluate(() => {
+      const w = window as unknown as { __mudancasDoAriaLive: string[] };
+      w.__mudancasDoAriaLive = [];
+      const obs = new MutationObserver((ms) =>
+        ms.forEach((m) =>
+          w.__mudancasDoAriaLive.push(
+            `${m.oldValue}→${(m.target as Element).getAttribute("aria-live")}`,
+          ),
+        ),
+      );
+      obs.observe(document.body, {
+        subtree: true,
+        attributes: true,
+        attributeOldValue: true,
+        attributeFilter: ["aria-live"],
+      });
+    });
+    // O servidor deixa de aceitar o rascunho: fica «só neste computador».
+    await page.route("**/proposta-rascunho**", (r) =>
+      r.request().method() === "GET"
+        ? r.continue()
+        : r.fulfill({ status: 500, contentType: "application/json", body: '{"error":"TESTE"}' }),
+    );
+    const campo = page.locator("main textarea, main input[type='text']").first();
+    await campo.scrollIntoViewIfNeeded();
+    await campo.fill("TESTE alarme da gravação");
+    const alarme = page.locator("[data-estado-da-gravacao][aria-live='assertive']");
+    await expect(alarme).toContainText(/neste computador|não chegou|por guardar/, {
+      timeout: 20_000,
+    });
+    const regioes = await page.evaluate(() =>
+      [...document.querySelectorAll("[data-estado-da-gravacao]")].map((e) => ({
+        live: e.getAttribute("aria-live"),
+        texto: e.textContent ?? "",
+      })),
+    );
+    expect(
+      regioes
+        .filter((r) => r.live === "polite")
+        .every((r) => !/neste computador|não chegou/.test(r.texto)),
+      "o alarme não vai pela região educada",
+    ).toBe(true);
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __mudancasDoAriaLive: string[] }).__mudancasDoAriaLive,
+      ),
+      "nenhuma região troca de `aria-live`",
+    ).toEqual([]);
+  });
+});
+
+/* 2.ª revisão de 15/11: num TABLET de toque (≥ 640 px), no passo 5 com nada a
+   travar e o painel fechado, o grupo da pastilha/idioma/canal/PDF ficava vazio
+   ao descer — e continuava a somar um `gap` de 8 px na barra de acção. */
+test.describe("9 · tablet de toque, passo 5: o grupo vazio sai com os filhos", () => {
+  test.use({ viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true });
+  test.beforeEach(async ({ page }) => {
+    exigirLogin(await entrarNoBackOffice(page));
+  });
+
+  test("encolhidas, nenhum item da barra de acção fica vazio a ocupar um intervalo", async ({
+    page,
+  }) => {
+    // Desenhar o PDF final no servidor de desenvolvimento leva o seu tempo.
+    test.setTimeout(180_000);
+    const cdp = await page.context().newCDPSession(page);
+    await abrirOEstudioComTotal(page);
+    await tocar(
+      page,
+      page.locator("nav[aria-label='Passos da proposta']").getByRole("button").nth(4),
+    );
+    await page.waitForTimeout(1200);
+    // Nada a travar: a única falta deste rascunho é ver o PDF final — vê-se,
+    // como ela o faz, e confirma-se.
+    const descarregar = page.getByRole("button", { name: "Descarregar o PDF final" });
+    await tocar(page, descarregar);
+    // O PDF abre por cima, página a página; fecha-se e confirma-se.
+    const oPdf = page.getByRole("dialog", { name: "O PDF final" });
+    await expect(oPdf).toBeVisible({ timeout: 120_000 });
+    await tocar(page, oPdf.getByRole("button", { name: "Fechar" }));
+    await expect(oPdf).toBeHidden();
+    const confirmar = page.getByRole("checkbox", { name: "Vi a proposta e está tudo certo" });
+    await tocar(page, page.getByText("Vi a proposta e está tudo certo"));
+    await expect(confirmar).toBeChecked();
+    await expect(page.getByRole("button", { name: /^Antes de enviar: .*pronto/ })).toBeVisible();
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(600);
+    await deslizar(cdp, 300, 700, 400);
+    await page.waitForTimeout(900);
+    const r = await page.evaluate(() => {
+      const total = [...document.querySelectorAll<HTMLElement>("[data-total-da-barra]")].find(
+        (e) => e.offsetParent !== null,
+      );
+      const barra = total?.closest(".bo-material");
+      // Todos os itens de flex da barra: um item visível sem nada visível lá
+      // dentro é um intervalo a mais.
+      const vazios: string[] = [];
+      for (const el of barra?.querySelectorAll<HTMLElement>("*") ?? []) {
+        const pai = el.parentElement;
+        if (!(el instanceof HTMLElement)) continue;
+        if (!pai || !/flex/.test(getComputedStyle(pai).display)) continue;
+        if (getComputedStyle(el).display === "none" || el.offsetParent === null) continue;
+        if (el.matches("[aria-live], [data-acessorio-so-a-vista], .sr-only")) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width > 0) continue;
+        vazios.push(el.outerHTML.slice(0, 120));
+      }
+      const pastilha = document.querySelector("[aria-label^='Antes de enviar']");
+      return {
+        estado: document.documentElement.getAttribute("data-barras"),
+        vazios,
+        pastilha: pastilha?.getAttribute("aria-label") ?? "",
+      };
+    });
+    expect(r.estado).toBe("encolhidas");
+    expect(r.vazios, "nenhum grupo vazio a somar intervalo").toEqual([]);
   });
 });
 

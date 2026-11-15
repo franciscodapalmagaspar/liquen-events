@@ -54,6 +54,26 @@ export const ONDE_ENCOLHEM = `(pointer: coarse) and (max-width: ${CORTES.desktop
  */
 const SEGURA_O_FOCO = "[data-acessorio-da-barra], [data-barra-do-topo]";
 
+/**
+ * O foco SEGURA as barras só quando veio do TECLADO (`:focus-visible`).
+ *
+ * No Chrome do Android um TOQUE num botão dá-lhe o foco, e rolar não lho
+ * tira: depois de tocar em «← anterior», num botão do cabeçalho ou na pastilha
+ * do passo 5 (cuja folha devolve o foco ao fechar), as barras nunca mais
+ * encolhiam (2.ª revisão de 15/11). Um foco de toque não tem quem o perca de
+ * vista — o dedo já saiu dali —; o do teclado tem: o próximo Tab ia parar a
+ * um botão escondido.
+ */
+export function focoSeguraAsBarras(focado: Element | null): boolean {
+  if (!focado || focado === document.body || !focado.closest?.(SEGURA_O_FOCO)) return false;
+  try {
+    return focado.matches(":focus-visible");
+  } catch {
+    // Um motor sem `:focus-visible` (muito antigo): mais vale segurar.
+    return true;
+  }
+}
+
 export interface EstadoDasBarras {
   encolhidas: boolean;
   /**
@@ -132,8 +152,7 @@ export function useBarrasQueEncolhem(): void {
       const fundo = document.documentElement.scrollHeight - window.innerHeight;
       const novo = proximoEstado(estado, window.scrollY, { fundo });
       if (novo.encolhidas && !estado.encolhidas) {
-        const focado = document.activeElement;
-        if (focado && focado !== document.body && focado.closest?.(SEGURA_O_FOCO)) return;
+        if (focoSeguraAsBarras(document.activeElement)) return;
       }
       if (novo.encolhidas !== estado.encolhidas) aplicar(novo.encolhidas);
       estado = novo;

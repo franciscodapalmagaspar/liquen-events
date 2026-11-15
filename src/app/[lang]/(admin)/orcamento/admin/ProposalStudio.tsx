@@ -86,6 +86,7 @@ import {
 } from "@/lib/orcamento/data";
 import { log } from "@/lib/logger";
 import { camposMudados, mesmoValor } from "@/lib/rascunho-juntar";
+import { EstadoDaGravacaoNaBarra } from "./EstadoDaGravacaoNaBarra";
 import {
   haAssinaturaMorta,
   semAssinaturasJaMortas,
@@ -13146,7 +13147,7 @@ export default function ProposalStudio({
                 o `sr-only`), e não com `display: none`. Uma região `aria-live`
                 fora da árvore de acessibilidade não anuncia nada quando volta
                 a entrar com o alarme já lá dentro: o alarme chegava calado.
-                Pela mesma razão as duas regiões abaixo existem SEMPRE (vazias
+                Pela mesma razão as regiões abaixo existem SEMPRE (vazias
                 quando não há nada a dizer), e é o conteúdo que muda. */}
             <p
               className="mr-auto min-w-0 truncate text-xs text-[var(--bo-text-muted)]"
@@ -13210,41 +13211,23 @@ export default function ProposalStudio({
                         ? "nao-dura-ao-deploy"
                         : "guardado";
                 const t = textoDaGravacao(estado, gravadoEm);
-                const alarme = estado === "so-neste-computador" || estado === "nao-dura-ao-deploy";
                 return (
-                  // A região existe sempre; o que se vê (e se ouve) só com
-                  // um estado para dizer.
-                  <span aria-live={alarme ? "assertive" : "polite"} data-estado-da-gravacao="">
-                    {haEstado && (
-                      <span
-                        // O aviso não pode ter o cinzento discreto dos outros dois:
-                        // este é para dar nas vistas, e o `aria-live` faz com que
-                        // também seja anunciado a quem não olha para aqui.
-                        className={`${precoPorChegar ? "ml-2" : ""} ${
-                          alarme
-                            ? "rounded-full bg-[var(--bo-perigo)]/12 px-2 py-0.5 text-[11px] font-semibold text-[var(--bo-perigo)]"
-                            : "text-[11px] text-foreground/35"
-                        }`}
-                        title={
-                          estado === "so-neste-computador" && soNesteComputador?.porque
-                            ? `${t.longo} — ${soNesteComputador.porque}`
-                            : estado === "nao-dura-ao-deploy" && naoDuraAoDeploy?.aviso
-                              ? `${t.longo} — ${naoDuraAoDeploy.aviso}`
-                              : t.longo
-                        }
-                      >
-                        {/* No telemóvel os outros dois estados são um glifo; este
-                          NÃO, e é de propósito: um triângulo sozinho não avisa
-                          de nada. */}
-                        <span aria-hidden className="sm:hidden">
-                          {t.curto}
-                        </span>
-                        <span className="hidden sm:inline">{t.longo}</span>
-                        {/* O visto sozinho não diz nada a quem usa leitor de ecrã. */}
-                        <span className="sr-only">{t.leitor}</span>
-                      </span>
-                    )}
-                  </span>
+                  // Duas regiões fixas — uma `polite`, uma `assertive` só para
+                  // os alarmes —, e nunca uma que troca de `aria-live`. Ver
+                  // `EstadoDaGravacaoNaBarra`.
+                  <EstadoDaGravacaoNaBarra
+                    haEstado={haEstado}
+                    estado={estado}
+                    texto={t}
+                    comMargem={!!precoPorChegar}
+                    titulo={
+                      estado === "so-neste-computador" && soNesteComputador?.porque
+                        ? `${t.longo} — ${soNesteComputador.porque}`
+                        : estado === "nao-dura-ao-deploy" && naoDuraAoDeploy?.aviso
+                          ? `${t.longo} — ${naoDuraAoDeploy.aviso}`
+                          : t.longo
+                    }
+                  />
                 );
               })()}
             </p>
@@ -13692,7 +13675,13 @@ export default function ProposalStudio({
                 que se ouvem são os de sempre — «Idioma da proposta», «Por onde
                 segue (em baixo)», «Descarregar PDF» —, só o que se VÊ encolhe. */}
             {busy !== "send" && !barraCompacta && (
-              <div className="flex min-w-0 items-center gap-2">
+              <div
+                className="flex min-w-0 items-center gap-2"
+                // Quando TODOS os filhos saem (painel fechado, nada trava), o
+                // grupo sai também: vazio, continuava a ser um item da fila e
+                // somava mais um `gap` ao lado do botão (2.ª revisão de 15/11).
+                data-acessorio-da-barra={painelDoEnvio || oEnvioTrava ? undefined : ""}
+              >
                 {/* Com o painel da pastilha aberto, fica tudo: não se fecha um
                     painel debaixo do dedo só porque a página andou. E com uma
                     falta que trava, a pastilha fica (é um alarme); o resto sai. */}

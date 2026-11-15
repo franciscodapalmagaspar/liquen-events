@@ -153,9 +153,20 @@ describe("useBarrasQueEncolhem", () => {
     cabecalho.remove();
   });
 
+  /** O jsdom não conhece a modalidade: `:focus-visible` nunca casa. Diz-se à mão
+   *  se o foco veio do teclado (casa) ou de um toque (não casa). */
+  function focarComo(el: HTMLElement, como: "teclado" | "toque") {
+    const original = Element.prototype.matches;
+    el.matches = function (this: Element, seletor: string) {
+      if (seletor === ":focus-visible") return como === "teclado" && document.activeElement === el;
+      return original.call(this, seletor);
+    };
+    el.focus();
+  }
+
   // N.º 4: com o foco no «← anterior» (um acessório), encolher escondia-o e o
-  // foco caía no `body`. Enquanto o foco lá estiver, não encolhem.
-  it("com o foco num acessório da barra (ou no cabeçalho), não encolhem", () => {
+  // foco caía no `body`. Enquanto o foco DO TECLADO lá estiver, não encolhem.
+  it("com o foco do teclado num acessório da barra (ou no cabeçalho), não encolhem", () => {
     ecra(true);
     const { cabecalho, botao: noCabecalho } = cabecalhoComBotao();
     const anterior = document.createElement("button");
@@ -163,16 +174,39 @@ describe("useBarrasQueEncolhem", () => {
     document.body.appendChild(anterior);
     rolar(0);
     const { unmount } = renderHook(() => useBarrasQueEncolhem());
-    anterior.focus();
+    focarComo(anterior, "teclado");
     rolar(400);
     expect(document.documentElement.getAttribute(ATRIBUTO)).toBe("inteiras");
     expect(document.activeElement).toBe(anterior);
-    noCabecalho.focus();
+    focarComo(noCabecalho, "teclado");
     rolar(800);
     expect(document.documentElement.getAttribute(ATRIBUTO)).toBe("inteiras");
     // O foco sai dali: o gesto seguinte já as encolhe.
     noCabecalho.blur();
     rolar(1200);
+    expect(document.documentElement.getAttribute(ATRIBUTO)).toBe("encolhidas");
+    unmount();
+    anterior.remove();
+    cabecalho.remove();
+  });
+
+  // 2.ª revisão de 15/11: no Chrome do Android um TOQUE dá o foco ao botão e
+  // rolar não o tira. Segurar com esse foco era nunca mais encolher.
+  it("com o foco de um TOQUE (sem `:focus-visible`) num acessório ou no cabeçalho, encolhem", () => {
+    ecra(true);
+    const { cabecalho, botao: noCabecalho } = cabecalhoComBotao();
+    const anterior = document.createElement("button");
+    anterior.setAttribute("data-acessorio-da-barra", "");
+    document.body.appendChild(anterior);
+    rolar(0);
+    const { unmount } = renderHook(() => useBarrasQueEncolhem());
+    focarComo(anterior, "toque");
+    rolar(400);
+    expect(document.documentElement.getAttribute(ATRIBUTO)).toBe("encolhidas");
+    rolar(0);
+    expect(document.documentElement.getAttribute(ATRIBUTO)).toBe("inteiras");
+    focarComo(noCabecalho, "toque");
+    rolar(400);
     expect(document.documentElement.getAttribute(ATRIBUTO)).toBe("encolhidas");
     unmount();
     anterior.remove();
