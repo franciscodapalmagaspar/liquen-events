@@ -66,6 +66,12 @@ formulário. Só por `translate` (nada empurra o formulário), só no telemóvel
 num tablet de toque, e com «reduzir movimento» muda sem animar
 (`ui/barras-que-encolhem.ts`, «As barras que encolhem» no `admin.css`, caso 9
 do `e2e/o-iphone-com-barras.spec.ts`).
+Da revisão de 15/11: os passos mudam o `top` onde colam (a seco, com um
+`translate` de ida e volta só quando se mexem), e não sobem antes de colar; a
+pastilha «Antes de enviar» com uma falta que trava é um alarme e fica; a linha
+da gravação esconde-se só à vista (as regiões `aria-live` ficam na árvore);
+com o foco num acessório não encolhem; o cabeçalho escondido fica `inert`; e
+só com toque (`pointer: coarse`) — uma janela de computador estreita não muda.
 
 Tudo o resto do documento vale como está escrito, com uma segunda ressalva, que
 veio depois:

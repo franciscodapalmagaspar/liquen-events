@@ -115,8 +115,7 @@ describe("useBarrasQueEncolhem", () => {
     expect(document.documentElement.hasAttribute(ATRIBUTO)).toBe(false);
   });
 
-  it("o foco a entrar no cabeçalho escondido devolve-o", () => {
-    ecra(true);
+  function cabecalhoComBotao() {
     Object.defineProperty(document.documentElement, "scrollHeight", {
       configurable: true,
       value: 5000,
@@ -126,15 +125,67 @@ describe("useBarrasQueEncolhem", () => {
     const botao = document.createElement("button");
     cabecalho.appendChild(botao);
     document.body.appendChild(cabecalho);
-    const { unmount } = renderHook(() => useBarrasQueEncolhem());
+    return { cabecalho, botao };
+  }
+  const rolar = (y: number) =>
     act(() => {
-      window.scrollY = 400;
+      window.scrollY = y;
       window.dispatchEvent(new Event("scroll"));
     });
+
+  // Revisão de 15/11, n.º 5: escondido, o cabeçalho continuava no leitor de
+  // ecrã e no Tab. Fica `inert` enquanto está escondido, e volta ao subir.
+  it("o cabeçalho escondido fica inerte (fora do Tab e do leitor de ecrã); ao subir volta", () => {
+    ecra(true);
+    const { cabecalho } = cabecalhoComBotao();
+    rolar(0);
+    const { unmount } = renderHook(() => useBarrasQueEncolhem());
+    expect(cabecalho.hasAttribute("inert")).toBe(false);
+    rolar(400);
     expect(document.documentElement.getAttribute(ATRIBUTO)).toBe("encolhidas");
-    act(() => botao.focus());
+    expect(cabecalho.hasAttribute("inert")).toBe(true);
+    rolar(0);
     expect(document.documentElement.getAttribute(ATRIBUTO)).toBe("inteiras");
+    expect(cabecalho.hasAttribute("inert")).toBe(false);
+    rolar(400);
     unmount();
+    expect(cabecalho.hasAttribute("inert"), "ao sair do estúdio, nada fica inerte").toBe(false);
     cabecalho.remove();
+  });
+
+  // N.º 4: com o foco no «← anterior» (um acessório), encolher escondia-o e o
+  // foco caía no `body`. Enquanto o foco lá estiver, não encolhem.
+  it("com o foco num acessório da barra (ou no cabeçalho), não encolhem", () => {
+    ecra(true);
+    const { cabecalho, botao: noCabecalho } = cabecalhoComBotao();
+    const anterior = document.createElement("button");
+    anterior.setAttribute("data-acessorio-da-barra", "");
+    document.body.appendChild(anterior);
+    rolar(0);
+    const { unmount } = renderHook(() => useBarrasQueEncolhem());
+    anterior.focus();
+    rolar(400);
+    expect(document.documentElement.getAttribute(ATRIBUTO)).toBe("inteiras");
+    expect(document.activeElement).toBe(anterior);
+    noCabecalho.focus();
+    rolar(800);
+    expect(document.documentElement.getAttribute(ATRIBUTO)).toBe("inteiras");
+    // O foco sai dali: o gesto seguinte já as encolhe.
+    noCabecalho.blur();
+    rolar(1200);
+    expect(document.documentElement.getAttribute(ATRIBUTO)).toBe("encolhidas");
+    unmount();
+    anterior.remove();
+    cabecalho.remove();
+  });
+});
+
+// N.º 6: uma janela de computador estreita (rato) não pode ver o cabeçalho
+// desaparecer. Só ecrãs de toque abaixo do computador.
+describe("ONDE_ENCOLHEM", () => {
+  it("pede toque em todos os ramos", () => {
+    for (const ramo of ONDE_ENCOLHEM.split(",")) {
+      expect(ramo).toMatch(/\(pointer: coarse\)/);
+    }
   });
 });

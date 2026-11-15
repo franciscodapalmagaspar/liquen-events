@@ -40,10 +40,19 @@ export const HISTERESE = 10;
 export const TOPO = 24;
 
 /**
- * Onde isto vale: telemóvel (estreito), ou tablet de toque. Num computador —
- * rato, ou um ecrã largo — nada muda.
+ * Onde isto vale: num ecrã de TOQUE abaixo do computador — telemóvel ou
+ * tablet. Uma janela de computador estreita (rato) não muda: dizia só
+ * `max-width` para o telemóvel, e um computador com a janela a 600 px via o
+ * cabeçalho desaparecer debaixo do rato (revisão de 15/11).
  */
-export const ONDE_ENCOLHEM = `(max-width: ${CORTES.telemovel - 0.02}px), (pointer: coarse) and (max-width: ${CORTES.desktop - 0.02}px)`;
+export const ONDE_ENCOLHEM = `(pointer: coarse) and (max-width: ${CORTES.desktop - 0.02}px)`;
+
+/**
+ * O que, estando focado, segura as barras inteiras: os acessórios que saem
+ * (o «anterior», os comandos do envio) e o cabeçalho. Encolher com o foco lá
+ * dentro escondia o elemento focado — e o foco caía no `body`.
+ */
+const SEGURA_O_FOCO = "[data-acessorio-da-barra], [data-barra-do-topo]";
 
 export interface EstadoDasBarras {
   encolhidas: boolean;
@@ -90,37 +99,59 @@ export function useBarrasQueEncolhem(): void {
     let estado: EstadoDasBarras = { encolhidas: false, ancora: window.scrollY };
     let pedido = 0;
 
-    const aplicar = (e: boolean) => raiz.setAttribute(ATRIBUTO, e ? "encolhidas" : "inteiras");
+    const cabecalho = () => document.querySelector<HTMLElement>("[data-barra-do-topo]");
+    const aplicar = (e: boolean) => {
+      /* ── OS PASSOS DESLIZAM, MAS SÓ SE SE MEXEM (FLIP) ──────────────────
+         O CSS muda o `top` onde os passos colam, a seco. Se estavam colados,
+         isso salta-os ~60 px; se ainda não tinham colado, não os mexe. Mede-se
+         antes e depois e, só quando mudaram de sítio, põe-se um `translate`
+         da diferença que a transição do CSS leva a zero. */
+      const passos = document.querySelector<HTMLElement>("[data-passos-da-proposta]");
+      const antes = passos?.getBoundingClientRect().top;
+      raiz.setAttribute(ATRIBUTO, e ? "encolhidas" : "inteiras");
+      /* Escondido, o cabeçalho sai também do teclado e do leitor de ecrã: um
+         Tab não pode ir parar fora do ecrã, e não se lê o que não se vê. */
+      cabecalho()?.toggleAttribute("inert", e);
+      if (passos && antes != null) {
+        // Sem transição ao medir: uma ida e volta ainda a meio deixava o
+        // «depois» a meio caminho, e a diferença saía curta.
+        const transicao = passos.style.transition;
+        passos.style.transition = "none";
+        passos.style.translate = "";
+        const d = antes - passos.getBoundingClientRect().top;
+        if (Math.abs(d) > 0.5) {
+          passos.style.translate = `0 ${d}px`;
+          void passos.getBoundingClientRect();
+        }
+        passos.style.transition = transicao;
+        passos.style.translate = "";
+      }
+    };
     const ver = () => {
       pedido = 0;
       const fundo = document.documentElement.scrollHeight - window.innerHeight;
       const novo = proximoEstado(estado, window.scrollY, { fundo });
+      if (novo.encolhidas && !estado.encolhidas) {
+        const focado = document.activeElement;
+        if (focado && focado !== document.body && focado.closest?.(SEGURA_O_FOCO)) return;
+      }
       if (novo.encolhidas !== estado.encolhidas) aplicar(novo.encolhidas);
       estado = novo;
     };
     const aoRolar = () => {
       if (!pedido) pedido = requestAnimationFrame(ver);
     };
-    /* O foco do teclado (um tablet com teclado, ou o Tab) a entrar no
-       cabeçalho escondido devolve-o: nada focado pode ficar fora do ecrã. */
-    const aoFocar = (e: FocusEvent) => {
-      if (!estado.encolhidas) return;
-      if (!(e.target as Element | null)?.closest?.("[data-barra-do-topo]")) return;
-      estado = { encolhidas: false, ancora: window.scrollY };
-      aplicar(false);
-    };
     const ligar = () => {
       window.removeEventListener("scroll", aoRolar);
-      document.removeEventListener("focusin", aoFocar);
       if (pedido) cancelAnimationFrame(pedido);
       pedido = 0;
       estado = { encolhidas: false, ancora: window.scrollY };
       if (mq?.matches) {
         aplicar(false);
         window.addEventListener("scroll", aoRolar, { passive: true });
-        document.addEventListener("focusin", aoFocar);
       } else {
         raiz.removeAttribute(ATRIBUTO);
+        cabecalho()?.removeAttribute("inert");
       }
     };
     ligar();
@@ -128,9 +159,9 @@ export function useBarrasQueEncolhem(): void {
     return () => {
       mq?.removeEventListener?.("change", ligar);
       window.removeEventListener("scroll", aoRolar);
-      document.removeEventListener("focusin", aoFocar);
       if (pedido) cancelAnimationFrame(pedido);
       raiz.removeAttribute(ATRIBUTO);
+      cabecalho()?.removeAttribute("inert");
     };
   }, []);
 }

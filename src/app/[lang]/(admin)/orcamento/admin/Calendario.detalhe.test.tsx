@@ -109,6 +109,38 @@ describe("um toque numa marcação", () => {
     );
   });
 
+  // Revisão de 15/11, n.º 8: «Remover» → confirmar fecha o detalhe, e ele não
+  // volta — nem quando o servidor recusa e a marcação regressa à grelha.
+  it("«Remover» → confirmar fecha o detalhe, e ele não volta mesmo que o servidor recuse", async () => {
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        Promise.resolve(
+          !init?.method || init.method === "GET"
+            ? resposta(200, [PROVA])
+            : resposta(500, { error: "TESTE falhou" }),
+        ),
+    );
+    const user = userEvent.setup();
+    await user.click(await desenhar());
+    const detalhe = await screen.findByRole("dialog", { name: /TESTE Prova de bolo/ });
+    await user.click(within(detalhe).getByRole("button", { name: /^Remover$/ }));
+    const pergunta = await screen.findByRole("dialog", {
+      name: "Remover «TESTE Prova de bolo» do calendário?",
+    });
+    // Uma folha só: a pergunta entra, o detalhe sai.
+    await waitFor(() => expect(screen.getAllByRole("dialog")).toHaveLength(1));
+    await user.click(within(pergunta).getByRole("button", { name: /^Remover$/ }));
+    await waitFor(() =>
+      expect(escritas().map((c) => (c[1] as RequestInit).method)).toEqual(["DELETE"]),
+    );
+    // A recusa devolve a marcação à grelha…
+    expect(await screen.findByLabelText(/Abrir Reunião: TESTE Prova de bolo/)).toBeInTheDocument();
+    // …e o detalhe continua fechado.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await new Promise((r) => setTimeout(r, 300));
+    expect(screen.queryByRole("dialog", { name: /TESTE Prova de bolo/ })).toBeNull();
+  });
+
   it("«Fechar» fecha o detalhe e não mexe em nada", async () => {
     const user = userEvent.setup();
     await user.click(await desenhar());

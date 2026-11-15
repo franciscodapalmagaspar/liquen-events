@@ -111,7 +111,12 @@ type CanalDeEnvio = "email" | "whatsapp" | "ambos";
 /** Onde fica a última escolha dela. */
 const CANAL_GUARDADO = "liquen-canal-de-envio";
 import PorqueNaoDaParaEnviar from "./PorqueNaoDaParaEnviar";
-import { ControlosDoEnvio, PainelDoEnvio, PastilhaDoEnvio } from "./BarraDoEnvioCompacta";
+import {
+  ControlosDoEnvio,
+  estadoDoEnvio,
+  PainelDoEnvio,
+  PastilhaDoEnvio,
+} from "./BarraDoEnvioCompacta";
 import { useBarrasQueEncolhem } from "./ui/barras-que-encolhem";
 import { destinoDoEnvio } from "@/lib/orcamento/destino-do-envio";
 import VistaDeConjunto from "./VistaDeConjunto";
@@ -8814,6 +8819,13 @@ export default function ProposalStudio({
   // a de cima: com a de cima o «5 Rever e enviar» mostrava o visto enquanto a
   // Conferência travava com «Falta ver o PDF final» (auditoria de 14/11, n.º 4).
   const estadosDosPassos = estadoDosPassos(seccoes, faltasDoEnvio, sent);
+  /**
+   * A pastilha «Antes de enviar» está vermelha (alguma coisa trava o envio)?
+   * Então é um ALARME e não um acessório: ao descer no telemóvel fica à vista,
+   * senão o botão principal ficava apagado sem dizer porquê. A mesma regra da
+   * pastilha (`estadoDoEnvio`), para as duas não discordarem.
+   */
+  const oEnvioTrava = estadoDoEnvio(faltasDoEnvio, fotosPorConfirmar, idiomaDoPdf).trava;
   /** Os passos 1 a 4 partilham o MESMO contentor, sempre montado. */
   const noFormulario = PASSOS_DO_FORMULARIO.includes(step);
   // A regra das FOTOS POR CONFIRMAR fica aqui e não em `proposal-progress`:
@@ -13128,9 +13140,17 @@ export default function ProposalStudio({
                 encostam o seu grupo de acções à direita (`ml-auto`), e a acção
                 principal a saltar de sítio entre passos custa mais do que o vazio
                 alguma vez custou. Quem viaja é o número. */}
+            {/* ── OS ALARMES TÊM DE SER OUVIDOS, E NÃO SÓ VISTOS ───────────
+                Ao descer no telemóvel, esta linha sai quando está tudo bem —
+                mas SÓ À VISTA (`data-acessorio-so-a-vista`, que a esconde como
+                o `sr-only`), e não com `display: none`. Uma região `aria-live`
+                fora da árvore de acessibilidade não anuncia nada quando volta
+                a entrar com o alarme já lá dentro: o alarme chegava calado.
+                Pela mesma razão as duas regiões abaixo existem SEMPRE (vazias
+                quando não há nada a dizer), e é o conteúdo que muda. */}
             <p
               className="mr-auto min-w-0 truncate text-xs text-[var(--bo-text-muted)]"
-              data-acessorio-da-barra={
+              data-acessorio-so-a-vista={
                 precoPorChegar || soNesteComputador || naoDuraAoDeploy ? undefined : ""
               }
             >
@@ -13149,79 +13169,84 @@ export default function ProposalStudio({
                   roupa: ela precisa de ver QUE valor ficou por gravar para
                   saber se o cartão do pedido está certo ou não.
               */}
-              {precoPorChegar && (
-                <span
-                  className="ml-2 inline-flex first:ml-0 items-center gap-1.5 rounded-full bg-[var(--bo-perigo)]/12 px-2 py-0.5 text-[11px] font-semibold text-[var(--bo-perigo)]"
-                  aria-live="assertive"
-                  title={
-                    precoPorChegar.porque ??
-                    "A proposta continua certa; o que não ficou gravado foi o valor no pedido."
-                  }
-                >
-                  <span>
-                    {precoPorChegar.base == null
-                      ? "O pedido ficou com o valor antigo"
-                      : `O pedido ficou sem o valor de ${eur(precoPorChegar.base)}`}
+              <span aria-live="assertive" data-alarme-do-preco="">
+                {precoPorChegar && (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[var(--bo-perigo)]/12 px-2 py-0.5 text-[11px] font-semibold text-[var(--bo-perigo)]"
+                    title={
+                      precoPorChegar.porque ??
+                      "A proposta continua certa; o que não ficou gravado foi o valor no pedido."
+                    }
+                  >
+                    <span>
+                      {precoPorChegar.base == null
+                        ? "O pedido ficou com o valor antigo"
+                        : `O pedido ficou sem o valor de ${eur(precoPorChegar.base)}`}
+                    </span>
+                    {precoPorChegar.valeTentarDeNovo && (
+                      <button
+                        type="button"
+                        className={`alvo-toque foco-largo underline underline-offset-2 disabled:opacity-60 ${ESTADO} ${PRESSAO}`}
+                        disabled={precoAGravar}
+                        onClick={() => void tentarGravarOPreco(precoPorChegar.base)}
+                      >
+                        {precoAGravar ? "A tentar…" : "Tentar de novo"}
+                      </button>
+                    )}
                   </span>
-                  {precoPorChegar.valeTentarDeNovo && (
-                    <button
-                      type="button"
-                      className={`alvo-toque foco-largo underline underline-offset-2 disabled:opacity-60 ${ESTADO} ${PRESSAO}`}
-                      disabled={precoAGravar}
-                      onClick={() => void tentarGravarOPreco(precoPorChegar.base)}
-                    >
-                      {precoAGravar ? "A tentar…" : "Tentar de novo"}
-                    </button>
-                  )}
-                </span>
-              )}
-              {(gravadoEm || porGravar || soNesteComputador || naoDuraAoDeploy) &&
-                (() => {
-                  const estado: EstadoDaGravacaoNoEcra =
-                    porGravar || aGravarNoServidor > 0
-                      ? "a-guardar"
-                      : soNesteComputador
-                        ? "so-neste-computador"
-                        : // Depois do `so-neste-computador` e não antes: não
-                          // chegar ao servidor é pior do que chegar a um sítio
-                          // que não dura, e o indicador só diz uma coisa.
-                          naoDuraAoDeploy
-                          ? "nao-dura-ao-deploy"
-                          : "guardado";
-                  const t = textoDaGravacao(estado, gravadoEm);
-                  const alarme =
-                    estado === "so-neste-computador" || estado === "nao-dura-ao-deploy";
-                  return (
-                    <span
-                      // O aviso não pode ter o cinzento discreto dos outros dois:
-                      // este é para dar nas vistas, e o `aria-live` faz com que
-                      // também seja anunciado a quem não olha para aqui.
-                      className={
-                        alarme
-                          ? "ml-2 first:ml-0 rounded-full bg-[var(--bo-perigo)]/12 px-2 py-0.5 text-[11px] font-semibold text-[var(--bo-perigo)]"
-                          : "ml-2 first:ml-0 text-[11px] text-foreground/35"
-                      }
-                      aria-live={alarme ? "assertive" : "polite"}
-                      title={
-                        estado === "so-neste-computador" && soNesteComputador?.porque
-                          ? `${t.longo} — ${soNesteComputador.porque}`
-                          : estado === "nao-dura-ao-deploy" && naoDuraAoDeploy?.aviso
-                            ? `${t.longo} — ${naoDuraAoDeploy.aviso}`
-                            : t.longo
-                      }
-                    >
-                      {/* No telemóvel os outros dois estados são um glifo; este
+                )}
+              </span>
+              {(() => {
+                const haEstado = !!(gravadoEm || porGravar || soNesteComputador || naoDuraAoDeploy);
+                const estado: EstadoDaGravacaoNoEcra =
+                  porGravar || aGravarNoServidor > 0
+                    ? "a-guardar"
+                    : soNesteComputador
+                      ? "so-neste-computador"
+                      : // Depois do `so-neste-computador` e não antes: não
+                        // chegar ao servidor é pior do que chegar a um sítio
+                        // que não dura, e o indicador só diz uma coisa.
+                        naoDuraAoDeploy
+                        ? "nao-dura-ao-deploy"
+                        : "guardado";
+                const t = textoDaGravacao(estado, gravadoEm);
+                const alarme = estado === "so-neste-computador" || estado === "nao-dura-ao-deploy";
+                return (
+                  // A região existe sempre; o que se vê (e se ouve) só com
+                  // um estado para dizer.
+                  <span aria-live={alarme ? "assertive" : "polite"} data-estado-da-gravacao="">
+                    {haEstado && (
+                      <span
+                        // O aviso não pode ter o cinzento discreto dos outros dois:
+                        // este é para dar nas vistas, e o `aria-live` faz com que
+                        // também seja anunciado a quem não olha para aqui.
+                        className={`${precoPorChegar ? "ml-2" : ""} ${
+                          alarme
+                            ? "rounded-full bg-[var(--bo-perigo)]/12 px-2 py-0.5 text-[11px] font-semibold text-[var(--bo-perigo)]"
+                            : "text-[11px] text-foreground/35"
+                        }`}
+                        title={
+                          estado === "so-neste-computador" && soNesteComputador?.porque
+                            ? `${t.longo} — ${soNesteComputador.porque}`
+                            : estado === "nao-dura-ao-deploy" && naoDuraAoDeploy?.aviso
+                              ? `${t.longo} — ${naoDuraAoDeploy.aviso}`
+                              : t.longo
+                        }
+                      >
+                        {/* No telemóvel os outros dois estados são um glifo; este
                           NÃO, e é de propósito: um triângulo sozinho não avisa
                           de nada. */}
-                      <span aria-hidden className="sm:hidden">
-                        {t.curto}
+                        <span aria-hidden className="sm:hidden">
+                          {t.curto}
+                        </span>
+                        <span className="hidden sm:inline">{t.longo}</span>
+                        {/* O visto sozinho não diz nada a quem usa leitor de ecrã. */}
+                        <span className="sr-only">{t.leitor}</span>
                       </span>
-                      <span className="hidden sm:inline">{t.longo}</span>
-                      {/* O visto sozinho não diz nada a quem usa leitor de ecrã. */}
-                      <span className="sr-only">{t.leitor}</span>
-                    </span>
-                  );
-                })()}
+                    )}
+                  </span>
+                );
+              })()}
             </p>
             {/* ── UM `mr-auto` SÓ, E NÃO DOIS AUTOS FRENTE A FRENTE ──────────
                 A folga livre da fila é dada ao `mr-auto` acima, que a absorve toda e
@@ -13667,13 +13692,14 @@ export default function ProposalStudio({
                 que se ouvem são os de sempre — «Idioma da proposta», «Por onde
                 segue (em baixo)», «Descarregar PDF» —, só o que se VÊ encolhe. */}
             {busy !== "send" && !barraCompacta && (
-              <div
-                className="flex min-w-0 items-center gap-2"
-                // Com o painel da pastilha aberto, fica: não se fecha um painel
-                // debaixo do dedo só porque a página andou.
-                data-acessorio-da-barra={painelDoEnvio ? undefined : ""}
-              >
-                <span className="inline-flex">
+              <div className="flex min-w-0 items-center gap-2">
+                {/* Com o painel da pastilha aberto, fica tudo: não se fecha um
+                    painel debaixo do dedo só porque a página andou. E com uma
+                    falta que trava, a pastilha fica (é um alarme); o resto sai. */}
+                <span
+                  className="inline-flex"
+                  data-acessorio-da-barra={painelDoEnvio || oEnvioTrava ? undefined : ""}
+                >
                   <PastilhaDoEnvio
                     ref={pastilhaDoEnvio}
                     aberta={painelDoEnvio}
@@ -13712,58 +13738,60 @@ export default function ProposalStudio({
                     />
                   )}
                 </PainelDoEnvio>
-                <Segmented
-                  size="sm"
-                  ariaLabel="Idioma da proposta"
-                  value={idiomaDoPdf}
-                  onChange={setIdiomaDoPdf}
-                  options={[
-                    { value: "pt", label: "PT", ariaLabel: "Português" },
-                    {
-                      value: "en",
-                      label: "EN",
-                      ariaLabel:
-                        "Inglês — o documento, o email ao cliente e a página onde ele responde saem em inglês; os campos que preencheste, incluindo a data do evento, ficam como os escreveste",
-                    },
-                  ]}
-                />
-                <Segmented
-                  size="sm"
-                  ariaLabel="Por onde segue (em baixo)"
-                  value={canal}
-                  onChange={escolherCanal}
-                  options={OPCOES_DO_CANAL.map((o) => ({
-                    value: o.value,
-                    label: "",
-                    icon: o.icon,
-                    ariaLabel: o.label,
-                  }))}
-                />
-                {fimDoPdf.mostrar ? (
-                  <EmCurso
-                    emLinha
-                    concluido={fimDoPdf.concluido}
-                    pronto="PDF pronto"
-                    titulo={idiomaDoPdf === "en" ? "A gerar o PDF em inglês…" : "A gerar o PDF…"}
-                    estimadoMs={tempoEstimado(totalDeFotos, amostras)}
-                  />
-                ) : (
-                  <Button
+                <span className="contents" data-acessorio-da-barra={painelDoEnvio ? undefined : ""}>
+                  <Segmented
                     size="sm"
-                    variant="ghost"
-                    onClick={() => preview({ rascunho: temErros })}
-                    disabled={busy !== null}
-                    aria-label={temErros ? "Descarregar rascunho" : "Descarregar PDF"}
-                    title={
-                      temErros
-                        ? "Há erros por resolver em «Rever e enviar». O PDF final fica disponível quando a lista estiver sem erros; o rascunho sai com «RASCUNHO» no rodapé."
-                        : "Descarregar o PDF"
-                    }
-                    iconLeft={<span aria-hidden="true">↓</span>}
-                  >
-                    {temErros ? "Rascunho" : "PDF"}
-                  </Button>
-                )}
+                    ariaLabel="Idioma da proposta"
+                    value={idiomaDoPdf}
+                    onChange={setIdiomaDoPdf}
+                    options={[
+                      { value: "pt", label: "PT", ariaLabel: "Português" },
+                      {
+                        value: "en",
+                        label: "EN",
+                        ariaLabel:
+                          "Inglês — o documento, o email ao cliente e a página onde ele responde saem em inglês; os campos que preencheste, incluindo a data do evento, ficam como os escreveste",
+                      },
+                    ]}
+                  />
+                  <Segmented
+                    size="sm"
+                    ariaLabel="Por onde segue (em baixo)"
+                    value={canal}
+                    onChange={escolherCanal}
+                    options={OPCOES_DO_CANAL.map((o) => ({
+                      value: o.value,
+                      label: "",
+                      icon: o.icon,
+                      ariaLabel: o.label,
+                    }))}
+                  />
+                  {fimDoPdf.mostrar ? (
+                    <EmCurso
+                      emLinha
+                      concluido={fimDoPdf.concluido}
+                      pronto="PDF pronto"
+                      titulo={idiomaDoPdf === "en" ? "A gerar o PDF em inglês…" : "A gerar o PDF…"}
+                      estimadoMs={tempoEstimado(totalDeFotos, amostras)}
+                    />
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => preview({ rascunho: temErros })}
+                      disabled={busy !== null}
+                      aria-label={temErros ? "Descarregar rascunho" : "Descarregar PDF"}
+                      title={
+                        temErros
+                          ? "Há erros por resolver em «Rever e enviar». O PDF final fica disponível quando a lista estiver sem erros; o rascunho sai com «RASCUNHO» no rodapé."
+                          : "Descarregar o PDF"
+                      }
+                      iconLeft={<span aria-hidden="true">↓</span>}
+                    >
+                      {temErros ? "Rascunho" : "PDF"}
+                    </Button>
+                  )}
+                </span>
               </div>
             )}
             {/* ── ENQUANTO ESTÁ A IR ──────────────────────────────────────
@@ -13945,7 +13973,9 @@ export default function ProposalStudio({
                  cima sozinha (`flex-wrap`) — aí a altura é a mensagem. */
               <div className="ml-auto flex items-center gap-x-3">
                 {barraCompacta && (
-                  <span data-acessorio-da-barra="" className="contents">
+                  // Com uma falta que trava, a pastilha é um alarme e fica: o
+                  // botão ao lado está apagado, e é ela que diz porquê.
+                  <span data-acessorio-da-barra={oEnvioTrava ? undefined : ""} className="contents">
                     <PastilhaDoEnvio
                       faltas={faltasDoEnvio}
                       fotosPorConfirmar={fotosPorConfirmar}

@@ -701,9 +701,19 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
    * longo, o botão direito, o Delete e o arrasto ficam como estavam.
    */
   const [aVer, setAVer] = useState<CalendarEvent | null>(null);
-  /* A versão DE AGORA dessa marcação, pelo id: se entretanto mudou de dia
-     (arrasto, «Anular») o detalhe diz o dia novo, e se saiu da lista o detalhe
-     fecha-se em vez de mostrar uma marcação que já não há. */
+  /* A versão DE AGORA dessa marcação, pelo id, na lista QUE ESTE ECRÃ TEM:
+     se mudou de dia aqui (arrasto, «Mudar de dia…», «Anular») o detalhe diz o
+     dia novo, e se saiu desta lista (removida aqui, ou numa leitura nova) o
+     detalhe fecha-se.
+
+     O que ele NÃO sabe: que outro aparelho a apagou ou mudou. A lista do
+     calendário só volta a perguntar ao servidor quando é lida outra vez (abrir
+     a vista de novo, recarregar, «Tentar de novo») — não pergunta ao regressar
+     ao separador (`revalidarAoVoltar` fica desligado: cada pergunta lê a tabela
+     inteira, e a regra do custo manda poupar), e não há sondagem. Até lá o
+     detalhe mostra-a como estava; o que ela fizer lá dentro vai ao servidor
+     com o id de uma marcação que já não existe (o «Mudar de dia…» responde que
+     não a encontrou). */
   const marcacaoAVer = aVer ? (events.find((e) => e.id === aVer.id) ?? null) : null;
   /**
    * O dia que um próximo evento aponta na grelha (fase 05, ponto 25): passar

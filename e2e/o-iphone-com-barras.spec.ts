@@ -899,11 +899,184 @@ test.describe("9 · as barras do «Fazer proposta» encolhem ao descer, no iPhon
     expect(duracao).not.toContain("translate");
     expect(b.totalAVista).toBe(true);
   });
+
+  /* ── REVISÃO DE 15/11 ────────────────────────────────────────────────────
+     1. Os passos subiam ~61 px também quando ainda não tinham colado (a página
+        a 30–160 px do topo) e ficavam soltos a meio do ecrã com um buraco por
+        baixo. Mede-se a cada altura: nunca há buraco entre os passos e o
+        formulário, e colados ficam no topo. */
+  test("os passos nunca ficam soltos: a 45, 60, 100, 160 px e depois, estão sempre no sítio", async ({
+    page,
+  }) => {
+    const erros = errosDaConsola(page);
+    await abrirOEstudioComTotal(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(600);
+    const medidas: { y: number; estado: string | null; topo: number; buraco: number }[] = [];
+    for (const y of [45, 60, 100, 160, 260, 400]) {
+      await page.evaluate((yy) => window.scrollTo(0, yy), y);
+      await page.waitForTimeout(700);
+      medidas.push(
+        await page.evaluate(() => {
+          const nav = document.querySelector<HTMLElement>("[data-passos-da-proposta]")!;
+          const r = nav.getBoundingClientRect();
+          const seguinte = nav.nextElementSibling!.getBoundingClientRect();
+          const mb = parseFloat(getComputedStyle(nav).marginBottom);
+          return {
+            y: Math.round(scrollY),
+            estado: document.documentElement.getAttribute("data-barras"),
+            topo: r.top,
+            // O que fica entre o fundo dos passos e o que vem a seguir, além
+            // da margem deles. Soltos, era o salto inteiro (~61 px).
+            buraco: seguinte.top - r.bottom - mb,
+          };
+        }),
+      );
+    }
+    for (const m of medidas) {
+      expect(m.estado, `a ${m.y} px`).toBe("encolhidas");
+      expect(m.buraco, `a ${m.y} px não há buraco por baixo dos passos`).toBeLessThanOrEqual(1);
+      expect(m.topo, `a ${m.y} px os passos estão no ecrã`).toBeGreaterThanOrEqual(-8);
+    }
+    // Lá em baixo, colados ao topo.
+    expect(medidas.at(-1)!.topo).toBeLessThanOrEqual(0.5);
+    expect(erros).toEqual([]);
+  });
+
+  /* 2. A pastilha «Antes de enviar: Falta N» saía ao descer, e o botão
+        principal ficava apagado sem dizer porquê. Uma falta que trava é um
+        alarme: fica. */
+  test("no passo 5 com uma falta, a pastilha «Antes de enviar» fica à vista ao descer", async ({
+    page,
+  }) => {
+    const erros = errosDaConsola(page);
+    const cdp = await page.context().newCDPSession(page);
+    await abrirOEstudioComTotal(page);
+    await tocar(
+      page,
+      page.locator("nav[aria-label='Passos da proposta']").getByRole("button").nth(4),
+    );
+    await page.waitForTimeout(1200);
+    const pastilha = page.getByRole("button", { name: /^Antes de enviar: Falta/ });
+    await expect(pastilha).toBeVisible();
+    await deslizar(cdp, 200, 460, 200);
+    await page.waitForTimeout(900);
+    expect(await page.evaluate(() => document.documentElement.getAttribute("data-barras"))).toBe(
+      "encolhidas",
+    );
+    await expect(pastilha, "a falta que trava continua à vista").toBeVisible();
+    const caixa = (await pastilha.boundingBox())!;
+    expect(caixa.y + caixa.height).toBeLessThanOrEqual(IPHONE_COM_BARRAS.height);
+    expect(erros).toEqual([]);
+  });
+
+  /* 3. A região `aria-live` dos alarmes da gravação ficava em `display: none`
+        com tudo bem — fora da árvore de acessibilidade, e o alarme chegava
+        calado. Encolhida, a linha esconde-se só à vista: as regiões ficam. */
+  test("encolhidas, as regiões que anunciam os alarmes da gravação continuam na árvore", async ({
+    page,
+  }) => {
+    const cdp = await page.context().newCDPSession(page);
+    await abrirOEstudioComTotal(page);
+    await deslizar(cdp, 200, 460, 200);
+    await page.waitForTimeout(900);
+    const regioes = await page.evaluate(() => {
+      const naArvore = (el: Element | null) => {
+        for (let e = el; e; e = e.parentElement) {
+          const cs = getComputedStyle(e);
+          if (cs.display === "none" || cs.visibility === "hidden") return false;
+        }
+        return true;
+      };
+      return {
+        estado: document.documentElement.getAttribute("data-barras"),
+        preco: [...document.querySelectorAll("[data-alarme-do-preco][aria-live]")].map(naArvore),
+        gravacao: [...document.querySelectorAll("[data-estado-da-gravacao][aria-live]")].map(
+          naArvore,
+        ),
+        // Todas as regiões que a barra de acção tem, sejam quais forem.
+        naBarra: [
+          ...([...document.querySelectorAll<HTMLElement>("[data-total-da-barra]")]
+            .find((e) => e.offsetParent !== null)
+            ?.closest(".bo-material")
+            ?.querySelectorAll("[aria-live]") ?? []),
+        ].map(naArvore),
+        // E à vista não ocupam lugar nenhum.
+        largura: Math.max(
+          0,
+          ...[...document.querySelectorAll("[data-acessorio-so-a-vista]")].map(
+            (e) => e.getBoundingClientRect().width,
+          ),
+        ),
+      };
+    });
+    expect(regioes.estado).toBe("encolhidas");
+    expect(regioes.naBarra.length, "a barra tem regiões que anunciam").toBeGreaterThan(0);
+    expect(regioes.naBarra.every(Boolean), "nenhuma fica fora da árvore").toBe(true);
+    expect(regioes.preco.length, "a região do preço existe sempre").toBeGreaterThan(0);
+    expect(regioes.gravacao.length, "a região da gravação existe sempre").toBeGreaterThan(0);
+    expect(regioes.preco.every(Boolean), "e continua na árvore").toBe(true);
+    expect(regioes.gravacao.every(Boolean), "e continua na árvore").toBe(true);
+    expect(regioes.largura).toBeLessThanOrEqual(1);
+  });
+
+  /* 4. e 5. Com o foco no «← anterior», encolher escondia-o e o foco caía no
+        `body`; e o cabeçalho escondido continuava no Tab e no leitor de ecrã. */
+  test("com o foco no «anterior» não encolhem; e escondido, o cabeçalho fica inerte", async ({
+    page,
+  }) => {
+    const cdp = await page.context().newCDPSession(page);
+    await abrirOEstudioComTotal(page);
+    await tocar(
+      page,
+      page.locator("nav[aria-label='Passos da proposta']").getByRole("button").nth(1),
+    );
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(600);
+    const anterior = page.getByRole("button", { name: /^← / }).first();
+    await anterior.focus();
+    await page.evaluate(() => window.scrollTo(0, 500));
+    await page.waitForTimeout(700);
+    const comFoco = await page.evaluate(() => ({
+      estado: document.documentElement.getAttribute("data-barras"),
+      focado: document.activeElement?.textContent ?? "",
+    }));
+    expect(comFoco.estado, "com o foco num acessório, não encolhem").toBe("inteiras");
+    expect(comFoco.focado).toMatch(/←/);
+    await expect(anterior).toBeVisible();
+
+    // O foco sai; o gesto seguinte encolhe — e o cabeçalho fica inerte.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    // Do topo outra vez: a 500 px a página do passo 2 pode já estar no fundo,
+    // e lá em baixo as barras não decidem (o fundo não é gesto).
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(600);
+    await deslizar(cdp, 200, 460, 200);
+    await page.waitForTimeout(900);
+    const semFoco = await page.evaluate(() => ({
+      estado: document.documentElement.getAttribute("data-barras"),
+      inerte: document.querySelector("[data-barra-do-topo]")!.hasAttribute("inert"),
+    }));
+    expect(semFoco.estado).toBe("encolhidas");
+    expect(semFoco.inerte, "escondido, fora do Tab e do leitor de ecrã").toBe(true);
+    await deslizar(cdp, 200, 200, 320);
+    await page.waitForTimeout(900);
+    expect(
+      await page.evaluate(() =>
+        document.querySelector("[data-barra-do-topo]")!.hasAttribute("inert"),
+      ),
+      "ao subir, volta",
+    ).toBe(false);
+  });
 });
 
 for (const tamanho of [
   { width: 1440, height: 900 },
   { width: 768, height: 1024 },
+  // Revisão de 15/11, n.º 6: uma janela de computador ESTREITA (rato) também
+  // não muda — o telemóvel conhece-se pelo toque, não só pela largura.
+  { width: 600, height: 800 },
 ]) {
   test.describe(`9 · no computador (rato, ${tamanho.width} px), nada muda`, () => {
     test.use({ viewport: tamanho, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });

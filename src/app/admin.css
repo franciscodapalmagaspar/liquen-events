@@ -3256,7 +3256,8 @@ body:is(.admin-mode, .bo) :is(:disabled, [aria-disabled="true"]) {
    bordo do ecrã). Fica só a fila dos passos. A barra de destinos fica como
    está — «Fica a barra de baixo».
 
-   SÓ `translate`. Nada muda de altura, nada empurra o conteúdo, e o
+   Só `translate` (e o `top` da colagem dos passos, que não empurra nada —
+   ver abaixo). Nada muda de altura, nada empurra o conteúdo, e o
    `--bo-cabecalho`/`--bo-passos` medidos continuam a ser a verdade do layout.
    A curva é a de reposicionar (sem ressalto: uma barra larga que salta parece
    um erro, Parte 2.4); com «reduzir movimento», muda sem animar.
@@ -3283,9 +3284,16 @@ html[data-barras="encolhidas"] [data-barra-do-topo] {
   translate: 0 -100%;
 }
 
+/* Os passos mudam o sítio onde COLAM, e não o sítio onde estão: com um
+   `translate` fixo subiam também quando ainda não tinham colado (a página a
+   30–160 px do topo) e ficavam soltos a meio do ecrã, com um buraco por baixo
+   (revisão de 15/11). Com o `top` da colagem, enquanto não colam ficam no
+   lugar deles no formulário, e colados ficam no topo. O `top` muda a seco
+   (animar `top` é proibido, Parte 18): o deslize é um `translate` de ida e
+   volta que o `ui/barras-que-encolhem.ts` põe só quando os passos se mexem de
+   facto (FLIP). Fora de `@layer`, ganha ao `top-[…]` do utilitário. */
 html[data-barras="encolhidas"] [data-passos-da-proposta] {
-  translate: 0
-    calc(env(safe-area-inset-top) - var(--bo-cabecalho, 0px) - var(--spacing));
+  top: calc(env(safe-area-inset-top) - var(--spacing));
 }
 
 /* E a barra de acção fica só com o essencial — o total «A pagar» e o botão
@@ -3295,4 +3303,20 @@ html[data-barras="encolhidas"] [data-passos-da-proposta] {
    ganha ao `inline-flex` do `Button` sem depender da ordem dos utilitários. */
 html[data-barras="encolhidas"] [data-acessorio-da-barra] {
   display: none;
+}
+
+/* O mesmo, mas só para os olhos: o que é (ou contém) uma região `aria-live`
+   não pode sair da árvore de acessibilidade — voltaria com o alarme já lá
+   dentro e o leitor de ecrã não o anunciava. Sai do fluxo e da vista, como o
+   `sr-only`, e continua a ser ouvido. */
+html[data-barras="encolhidas"] [data-acessorio-so-a-vista] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border-width: 0;
 }
