@@ -5,7 +5,7 @@ import { ChipDoDia } from "./ChipDoDia";
 
 /**
  * Fase 10 do `docs/APPLE-CALENDARIO.md`, ponto 18: «`Delete` com Anular». Com
- * o foco numa marcação, `Delete` (ou `⌫`) abre a mesma pergunta do clique —
+ * o foco numa marcação, `Delete` (ou `⌫`) abre a pergunta de remover —
  * a remoção e o «Anular» são os da casa. Um pedido não se apaga daqui.
  */
 
@@ -16,7 +16,7 @@ function chip(onApagar?: () => void) {
     <ChipDoDia
       cor="var(--bo-tinta-72)"
       titulo="Reunião"
-      rotulo="Remover Reunião: Reunião"
+      rotulo="Abrir Reunião: Reunião"
       dica="Reunião"
       onClick={() => {}}
       onApagar={onApagar}

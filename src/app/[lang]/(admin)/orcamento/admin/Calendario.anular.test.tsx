@@ -6,6 +6,7 @@ import type { CalendarEvent } from "@/lib/orcamento/types";
 import { ToastProvider } from "./Toast";
 import { __resetListCache } from "./useCachedList";
 import Calendario from "./Calendario";
+import { abrirAPerguntaPeloDetalhe } from "./calendario.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -83,8 +84,10 @@ describe("«Anular» no calendário", () => {
   it("remover anula-se recriando a marcação com tudo o que tinha", async () => {
     const user = userEvent.setup();
     desenhar();
-    await user.click(await screen.findByLabelText(/Remover Reunião: Prova de bolo/));
-    const caixa = await screen.findByRole("dialog");
+    const caixa = await abrirAPerguntaPeloDetalhe(
+      user,
+      await screen.findByLabelText(/Abrir Reunião: Prova de bolo/),
+    );
     await user.click(within(caixa).getByRole("button", { name: /^Remover$/ }));
     expect(await screen.findByText(/«Prova de bolo» removido do calendário/)).toBeTruthy();
 
@@ -99,13 +102,13 @@ describe("«Anular» no calendário", () => {
       date: PROVA.date,
     });
     expect(await screen.findByText("Anulado.")).toBeTruthy();
-    expect(await screen.findByLabelText(/Remover Reunião: Prova de bolo/)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Abrir Reunião: Prova de bolo/)).toBeInTheDocument();
   });
 
   it("acrescentar anula-se apagando a que se criou", async () => {
     const user = userEvent.setup();
     desenhar();
-    await screen.findByLabelText(/Remover Reunião: Prova de bolo/);
+    await screen.findByLabelText(/Abrir Reunião: Prova de bolo/);
     await user.click(screen.getByLabelText(new RegExp(`^Adicionar a 12 de `)));
     const caixa = await screen.findByRole("dialog");
     await user.type(within(caixa).getByLabelText("Título"), "Visita à quinta");
@@ -121,10 +124,11 @@ describe("«Anular» no calendário", () => {
   it("se o «Anular» falhar, diz-se — e não diz «Anulado.»", async () => {
     const user = userEvent.setup();
     desenhar();
-    await user.click(await screen.findByLabelText(/Remover Reunião: Prova de bolo/));
-    await user.click(
-      within(await screen.findByRole("dialog")).getByRole("button", { name: /^Remover$/ }),
+    const pergunta = await abrirAPerguntaPeloDetalhe(
+      user,
+      await screen.findByLabelText(/Abrir Reunião: Prova de bolo/),
     );
+    await user.click(within(pergunta).getByRole("button", { name: /^Remover$/ }));
     await screen.findByText(/removido do calendário/);
     (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(() =>
       Promise.resolve(resposta(500, { error: "A base de dados não respondeu." })),

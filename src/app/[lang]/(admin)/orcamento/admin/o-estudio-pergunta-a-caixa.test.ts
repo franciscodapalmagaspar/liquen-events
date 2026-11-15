@@ -29,8 +29,15 @@ import { describe, expect, it } from "vitest";
 
 const RAIZ = new URL(".", import.meta.url).pathname;
 
-/** Os três ficheiros que desenham o estúdio. */
-const FICHEIROS = ["ProposalStudio.tsx", "NavEstudio.tsx", "PainelDoEstudio.tsx"];
+/** Os ficheiros que desenham o estúdio. O estado da gravação saiu do
+ *  `ProposalStudio` para um ficheiro seu (2.ª revisão de 15/11) e continua
+ *  a ser o estúdio: as perguntas dele contam aqui. */
+const FICHEIROS = [
+  "ProposalStudio.tsx",
+  "NavEstudio.tsx",
+  "PainelDoEstudio.tsx",
+  "EstadoDaGravacaoNaBarra.tsx",
+];
 
 /**
  * ── A TABELA DAS EXCEPÇÕES ──────────────────────────────────────────────────

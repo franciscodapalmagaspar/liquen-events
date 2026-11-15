@@ -77,7 +77,7 @@ async function abrirODia() {
   );
   // Espera que as marcações do mês cheguem, e carrega no DIA — é isso que abre
   // o painel por baixo da grelha.
-  await screen.findByLabelText(/Remover Reunião: Prova de bolo/);
+  await screen.findByLabelText(/Abrir Reunião: Prova de bolo/);
   fireEvent.click(screen.getByRole("gridcell", { name: /, 10 de .*Enter para ver/ }));
   return screen.getByRole("button", { name: "Fechar dia" });
 }

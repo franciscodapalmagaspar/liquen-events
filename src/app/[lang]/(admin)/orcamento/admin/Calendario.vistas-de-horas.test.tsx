@@ -137,7 +137,7 @@ describe("a vista de dia", () => {
     // hora de início na ficha.
     expect(screen.getByLabelText(/Abrir pedido de Marta Nunes/)).toBeInTheDocument();
     // A marcação com hora leva-a à frente do título, como na grelha do mês.
-    const montagem = screen.getByLabelText("Remover Evento: Montagem Torre de Palma");
+    const montagem = screen.getByLabelText("Abrir Evento: Montagem Torre de Palma");
     expect(within(montagem).getByText("09:00")).toBeInTheDocument();
   });
 
@@ -184,8 +184,8 @@ describe("a vista de semana", () => {
     const user = await montar();
     await user.click(screen.getByRole("radio", { name: "Semana" }));
 
-    expect(screen.getByLabelText("Remover Evento: Montagem Torre de Palma")).toBeInTheDocument();
-    expect(screen.getByLabelText("Remover Data fechada: Férias da equipa")).toBeInTheDocument();
+    expect(screen.getByLabelText("Abrir Evento: Montagem Torre de Palma")).toBeInTheDocument();
+    expect(screen.getByLabelText("Abrir Data fechada: Férias da equipa")).toBeInTheDocument();
     expect(screen.getByText("4 eventos esta semana")).toBeInTheDocument();
   });
 
@@ -211,14 +211,14 @@ describe("os quatro calendários filtram as vistas novas como filtram as outras"
   it("desligar «Data fechada» tira as férias da semana", async () => {
     const user = await montar();
     await user.click(screen.getByRole("radio", { name: "Semana" }));
-    expect(screen.getByLabelText("Remover Data fechada: Férias da equipa")).toBeInTheDocument();
+    expect(screen.getByLabelText("Abrir Data fechada: Férias da equipa")).toBeInTheDocument();
 
     await user.click(screen.getByRole("checkbox", { name: /Data fechada/ }));
 
     await waitFor(() =>
-      expect(screen.queryByLabelText("Remover Data fechada: Férias da equipa")).toBeNull(),
+      expect(screen.queryByLabelText("Abrir Data fechada: Férias da equipa")).toBeNull(),
     );
     // E a reunião fica — desligou-se um calendário, não a semana.
-    expect(screen.getByLabelText("Remover Reunião: Prova de bolo")).toBeInTheDocument();
+    expect(screen.getByLabelText("Abrir Reunião: Prova de bolo")).toBeInTheDocument();
   });
 });
