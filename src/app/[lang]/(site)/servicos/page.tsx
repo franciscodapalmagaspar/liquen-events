@@ -148,7 +148,10 @@ function ServiceBand({
             >
               {service.title}
             </h3>
-            <p className="mt-4 text-white/70 text-[12.5px] leading-[1.6] max-w-xs">
+            {/* No telemóvel fica só o título de cada serviço (pedido de 15/11:
+                «retira estes textos […] no telemóvel. no pc deixa estar»). A
+                frase continua no HTML para o Google e para quem abre no PC. */}
+            <p className="hidden sm:block mt-4 text-white/70 text-[12.5px] leading-[1.6] max-w-xs">
               {service.desc}
             </p>
             <Link
