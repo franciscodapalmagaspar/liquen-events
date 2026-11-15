@@ -82,11 +82,9 @@ export interface EntradaDeHoras {
   onAbrir: () => void;
   /** O menu do botão direito desta entrada, quando o há. */
   onMenu?: (x: number, y: number) => void;
-  /** `Delete` com o foco na etiqueta faz o mesmo que o clique (só nas
-   *  marcações, cujo clique é a pergunta de remover — ver `ChipDoDia`). */
-  apagavel?: boolean;
-  /** Rasura ao passar o rato — as marcações abrem a pergunta de remover. */
-  riscarNoHover?: boolean;
+  /** `Delete` com o foco na etiqueta — só nas marcações, e abre a pergunta de
+   *  remover (ver `ChipDoDia`). O clique é o `onAbrir`: o detalhe. */
+  onApagar?: () => void;
 }
 
 export interface DiaDeHoras {
@@ -273,12 +271,11 @@ function Bloco({ entrada }: { entrada: DiaDisposto["comHora"][number] }) {
         rotulo={entrada.rotulo}
         dica={entrada.dica}
         onMenu={entrada.onMenu}
-        onApagar={entrada.apagavel ? entrada.onAbrir : undefined}
+        onApagar={entrada.onApagar}
         onClick={(e) => {
           e.stopPropagation();
           entrada.onAbrir();
         }}
-        className={entrada.riscarNoHover ? "hover:line-through" : undefined}
       />
     </div>
   );
@@ -543,12 +540,11 @@ export function VistaDeHoras({
                         rotulo={e.rotulo}
                         dica={e.dica}
                         onMenu={e.onMenu}
-                        onApagar={e.apagavel ? e.onAbrir : undefined}
+                        onApagar={e.onApagar}
                         onClick={(ev) => {
                           ev.stopPropagation();
                           e.onAbrir();
                         }}
-                        className={e.riscarNoHover ? "hover:line-through" : undefined}
                       />
                     ))}
                   </div>

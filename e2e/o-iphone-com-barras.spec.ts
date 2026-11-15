@@ -735,6 +735,282 @@ test.describe("o back office num iPhone com as barras do Safari", () => {
  * fechava-o e abria «Novo no calendário» lá. E no «⋯ Acções» das tarefas,
  * clicar noutra tarefa para fechar o menu abria-a.
  */
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * 9 · AS BARRAS DO «FAZER PROPOSTA» ENCOLHEM AO DESCER (15/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * MEDIDO antes, a 390 × 664: a descer, só 59 % do ecrã era formulário — o
+ * cabeçalho, a barra dos passos, a barra de acção e a de destinos ficavam com
+ * o resto. Ao DESCER: em cima só os passos (compactos); em baixo a de destinos
+ * fica («Fica a barra de baixo») e a de acção só com o total «A pagar» e o
+ * botão principal. Ao SUBIR, voltam inteiras. Tudo por `translate` — o
+ * formulário não salta.
+ */
+const RASCUNHO_COM_TOTAL = {
+  template: "decoracao",
+  ref: "PO TESTE",
+  clientNames: "TESTE Maria & Zé",
+  eventType: "Casamento",
+  eventDate: "12 de setembro de 2026",
+  location: "TESTE Évora",
+  guests: "80 pax",
+  serviceGroups: [{ letter: "a)", title: "TESTE Decoração", items: [{ label: "Cerimónia" }] }],
+  moodBoards: [{ title: "TESTE Cerimónia", annotation: "", images: [] }],
+  budgetItems: ["TESTE Decoração da cerimónia"],
+  budgetAmounts: [3000],
+  budgetArtigos: ["flores"],
+  coverImages: ["", ""],
+  totalAmount: 3000,
+  totalVatMode: "acrescer",
+};
+
+async function abrirOEstudioComTotal(page: Page, { rato = false }: { rato?: boolean } = {}) {
+  const { id, naLista } = await pedidoDoDia(page);
+  await vista(page, "pedidos");
+  await page.evaluate(([chave, rascunho]) => localStorage.setItem(chave, rascunho), [
+    `liquen-proposal-studio-${id}`,
+    JSON.stringify(RASCUNHO_COM_TOTAL),
+  ] as const);
+  if (rato) await page.getByText(naLista).first().click();
+  else await tocar(page, page.getByText(naLista).first());
+  await expect(page.locator("nav[aria-label='Passos da proposta']")).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.waitForTimeout(1500);
+}
+
+/** O que se vê das barras, e quanto ecrã sobra para o formulário. */
+async function asBarras(page: Page) {
+  return page.evaluate(() => {
+    const H = innerHeight;
+    const topo = document.querySelector("[data-barra-do-topo]")!.getBoundingClientRect();
+    const passos = document
+      .querySelector("nav[aria-label='Passos da proposta']")!
+      .getBoundingClientRect();
+    const total = [...document.querySelectorAll<HTMLElement>("[data-total-da-barra]")].find(
+      (e) => e.offsetParent !== null,
+    );
+    const accao = total?.closest(".bo-material")?.getBoundingClientRect() ?? null;
+    const destinos = document
+      .querySelector('nav[aria-label="Navegação do back office"]')!
+      .getBoundingClientRect();
+    const t = total?.getBoundingClientRect() ?? null;
+    const cimaLivre = Math.max(0, topo.bottom, passos.bottom);
+    const baixoLivre = Math.min(accao?.top ?? H, destinos.top);
+    const estudio = document.querySelector<HTMLElement>('[class~="@container/estudio"]')!;
+    return {
+      estado: document.documentElement.getAttribute("data-barras"),
+      topoDoCabecalho: topo.top,
+      fundoDoCabecalho: topo.bottom,
+      topoDosPassos: passos.top,
+      fundoDosPassos: passos.bottom,
+      total: total?.innerText.replace(/\s+/g, " ").trim() ?? null,
+      totalAVista: !!t && t.top >= 0 && t.bottom <= H && t.width > 0,
+      destinosAVista: destinos.top < H && destinos.bottom <= H + 1,
+      fracaoLivre: (baixoLivre - cimaLivre) / H,
+      // A posição do formulário NO DOCUMENTO: se uma barra o empurrasse, mudava.
+      formularioNoDocumento: estudio.getBoundingClientRect().top + scrollY,
+    };
+  });
+}
+
+test.describe("9 · as barras do «Fazer proposta» encolhem ao descer, no iPhone", () => {
+  test.beforeEach(async ({ page }) => {
+    exigirLogin(await entrarNoBackOffice(page));
+  });
+
+  test("a descer encolhem (> 60 % de formulário, o total sempre à vista); a subir voltam", async ({
+    page,
+  }) => {
+    const erros = errosDaConsola(page);
+    const cdp = await page.context().newCDPSession(page);
+    await abrirOEstudioComTotal(page);
+    // No passo 2, que já tem o «anterior» na barra de acção.
+    await tocar(
+      page,
+      page.locator("nav[aria-label='Passos da proposta']").getByRole("button").nth(1),
+    );
+    await page.waitForTimeout(1000);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(600);
+
+    const inteiras = await asBarras(page);
+    expect(inteiras.estado, "o estúdio liga as barras que encolhem").toBe("inteiras");
+    expect(inteiras.topoDoCabecalho).toBeGreaterThanOrEqual(0);
+    expect(inteiras.total).toMatch(/A pagar\s*3\s?690,00\s€/);
+    await expect(page.getByRole("button", { name: /^← / }).first()).toBeVisible();
+
+    // O dedo sobe: a página desce.
+    await deslizar(cdp, 200, 460, 200);
+    await page.waitForTimeout(900);
+    const encolhidas = await asBarras(page);
+    expect(encolhidas.estado).toBe("encolhidas");
+    expect(encolhidas.fundoDoCabecalho, "o cabeçalho saiu por cima").toBeLessThanOrEqual(0.5);
+    expect(encolhidas.topoDosPassos, "os passos subiram ao topo").toBeLessThanOrEqual(0);
+    expect(encolhidas.fundoDosPassos, "e ficaram compactos").toBeLessThanOrEqual(60);
+    expect(encolhidas.totalAVista, "o total «A pagar» nunca sai").toBe(true);
+    expect(encolhidas.total).toMatch(/A pagar\s*3\s?690,00\s€/);
+    expect(encolhidas.destinosAVista, "a barra de destinos fica").toBe(true);
+    await expect(page.getByRole("button", { name: /^Seguinte:/ }).first()).toBeVisible();
+    // Só o essencial: o «anterior» sai da barra de acção.
+    await expect(page.getByRole("button", { name: /^← / })).toHaveCount(0);
+    expect(
+      encolhidas.fracaoLivre,
+      `formulário à vista: ${Math.round(encolhidas.fracaoLivre * 100)} % do ecrã`,
+    ).toBeGreaterThan(0.6);
+
+    // O dedo desce: a página sobe — e as barras voltam inteiras.
+    await deslizar(cdp, 200, 200, 320);
+    await page.waitForTimeout(900);
+    const deVolta = await asBarras(page);
+    expect(deVolta.estado).toBe("inteiras");
+    expect(deVolta.topoDoCabecalho).toBeGreaterThanOrEqual(-0.5);
+    await expect(page.getByRole("button", { name: /^← / }).first()).toBeVisible();
+    // Encolher e voltar não empurrou o formulário: as duas medidas são da
+    // página já descida (o cabeçalho do back office encolhe 8 px aos 24 px de
+    // rolagem desde antes disto — é o `useDesceu`, e não estas barras).
+    expect(
+      Math.abs(deVolta.formularioNoDocumento - encolhidas.formularioNoDocumento),
+      "as barras a encolher não mexem no formulário",
+    ).toBeLessThanOrEqual(1);
+
+    const larguras = await page.evaluate(() => ({
+      documento: document.documentElement.scrollWidth,
+      janela: innerWidth,
+    }));
+    expect(larguras.documento, "sem scroll de lado").toBeLessThanOrEqual(larguras.janela);
+    expect(erros).toEqual([]);
+  });
+
+  test("com movimento reduzido, encolhem na mesma — sem animar", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const cdp = await page.context().newCDPSession(page);
+    await abrirOEstudioComTotal(page);
+    await deslizar(cdp, 200, 460, 200);
+    await page.waitForTimeout(150);
+    const b = await asBarras(page);
+    expect(b.estado).toBe("encolhidas");
+    // Sem transição a correr, 150 ms depois já está no sítio.
+    expect(b.fundoDoCabecalho).toBeLessThanOrEqual(0.5);
+    const duracao = await page
+      .locator("[data-barra-do-topo]")
+      .evaluate((h) => getComputedStyle(h).transitionProperty);
+    expect(duracao).not.toContain("translate");
+    expect(b.totalAVista).toBe(true);
+  });
+});
+
+for (const tamanho of [
+  { width: 1440, height: 900 },
+  { width: 768, height: 1024 },
+]) {
+  test.describe(`9 · no computador (rato, ${tamanho.width} px), nada muda`, () => {
+    test.use({ viewport: tamanho, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
+    test.beforeEach(async ({ page }) => {
+      exigirLogin(await entrarNoBackOffice(page));
+    });
+
+    test("a descer, o cabeçalho e os passos ficam onde estavam", async ({ page }) => {
+      const erros = errosDaConsola(page);
+      await abrirOEstudioComTotal(page, { rato: true });
+      await page.mouse.move(tamanho.width / 2, tamanho.height / 2);
+      await page.mouse.wheel(0, 600);
+      await page.waitForTimeout(900);
+      const b = await asBarras(page);
+      expect(b.estado, "fora do telemóvel o atributo nem existe").toBeNull();
+      expect(b.topoDoCabecalho).toBeGreaterThanOrEqual(-0.5);
+      expect(b.topoDosPassos).toBeGreaterThanOrEqual(b.fundoDoCabecalho - 1);
+      expect(b.totalAVista).toBe(true);
+      expect(erros).toEqual([]);
+    });
+  });
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * 10 · UM TOQUE NUMA MARCAÇÃO ABRE O DETALHE, E NÃO «REMOVER …?» (15/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O toque é a forma de perguntar o que é aquilo. «Remover» passa a estar lá
+ * dentro, pela pergunta e pela Reciclagem de sempre. O toque longo continua a
+ * abrir o menu (caso 6), e arrastar para outro dia continua a mover.
+ * NADA SE APAGA aqui: a pergunta é cancelada.
+ */
+async function verDia(page: Page) {
+  const vistaDia = page
+    .getByRole("radio", { name: "Dia", exact: true })
+    .or(page.getByRole("tab", { name: "Dia", exact: true }))
+    .or(page.getByRole("button", { name: "Dia", exact: true }))
+    .first();
+  await tocar(page, vistaDia);
+  await page.waitForTimeout(1000);
+}
+
+test.describe("10 · a marcação no iPhone", () => {
+  test.beforeEach(async ({ page }) => {
+    exigirLogin(await entrarNoBackOffice(page));
+  });
+
+  test("o toque abre o detalhe; «Remover» lá dentro pergunta; «Cancelar» não apaga", async ({
+    page,
+  }) => {
+    const erros = errosDaConsola(page);
+    await garantirMarcacaoDeHoje(page);
+    await vista(page, "calendario");
+    await verDia(page);
+    const chip = page.getByRole("button", { name: new RegExp(`^Abrir Reunião: ${MARCACAO}`) });
+    await tocar(page, chip.first());
+    await page.waitForTimeout(700);
+
+    const detalhe = page.getByRole("dialog", { name: new RegExp(MARCACAO) });
+    await expect(detalhe).toBeVisible();
+    await expect(detalhe.getByText("15:00")).toBeVisible();
+    await expect(page.getByText(/do calendário\?/)).toHaveCount(0);
+    // A folha nasce inteira, acima do fundo do ecrã.
+    const caixa = (await detalhe.boundingBox())!;
+    expect(caixa.y + caixa.height).toBeLessThanOrEqual(IPHONE_COM_BARRAS.height + 1);
+
+    await tocar(page, detalhe.getByRole("button", { name: /^Remover$/ }));
+    const pergunta = page.getByRole("dialog", { name: new RegExp(`Remover «${MARCACAO}»`) });
+    await expect(pergunta).toBeVisible();
+    await expect(pergunta.getByText(/Reciclagem/)).toBeVisible();
+    await tocar(page, pergunta.getByRole("button", { name: /^Cancelar$/ }));
+    await page.waitForTimeout(600);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(chip.first()).toBeVisible();
+
+    const larguras = await page.evaluate(() => ({
+      documento: document.documentElement.scrollWidth,
+      janela: innerWidth,
+    }));
+    expect(larguras.documento).toBeLessThanOrEqual(larguras.janela);
+    expect(erros).toEqual([]);
+  });
+
+  test("no mês, a linha da marcação no resumo do dia também abre o detalhe", async ({ page }) => {
+    const erros = errosDaConsola(page);
+    await garantirMarcacaoDeHoje(page);
+    await vista(page, "calendario");
+    const mes = page
+      .getByRole("radio", { name: "Mês", exact: true })
+      .or(page.getByRole("tab", { name: "Mês", exact: true }))
+      .or(page.getByRole("button", { name: "Mês", exact: true }))
+      .first();
+    await tocar(page, mes);
+    await page.waitForTimeout(800);
+    await tocar(page, page.locator(`[role="gridcell"][data-dia="${hojeISO()}"]`));
+    await page.waitForTimeout(1000);
+    await tocar(
+      page,
+      page.getByRole("button", { name: new RegExp(`^Abrir Reunião: ${MARCACAO}`) }).first(),
+    );
+    await expect(page.getByRole("dialog", { name: new RegExp(MARCACAO) })).toBeVisible();
+    await expect(page.getByText(/do calendário\?/)).toHaveCount(0);
+    expect(erros).toEqual([]);
+  });
+});
+
 test.describe("com rato, a 1440: o clique que fecha um menu só fecha", () => {
   test.use({
     viewport: { width: 1440, height: 900 },
@@ -801,6 +1077,99 @@ test.describe("com rato, a 1440: o clique que fecha um menu só fecha", () => {
       .first()
       .click();
     await expect(outra).toHaveAttribute("aria-current", "true");
+    expect(erros).toEqual([]);
+  });
+});
+
+const A_ARRASTAR = "TESTE e2e — marcação para arrastar";
+
+test.describe("10 · com rato, a 1440: clicar abre o detalhe, e arrastar continua a mover", () => {
+  test.use({
+    viewport: { width: 1440, height: 900 },
+    isMobile: false,
+    hasTouch: false,
+    deviceScaleFactor: 1,
+  });
+  test.beforeEach(async ({ page }) => {
+    exigirLogin(await entrarNoBackOffice(page));
+  });
+
+  test("o clique abre o detalhe; arrastar a etiqueta para outro dia move-a (e volta)", async ({
+    page,
+  }) => {
+    const erros = errosDaConsola(page);
+    // Dois dias deste mês longe de hoje E do «dia vazio» que o caso 6 usa
+    // (um dia com marcação deixa de ser vazio, e o toque curto lá abre o
+    // resumo do dia em vez de «acrescentar»).
+    const d = new Date();
+    const base = d.getDate() > 15 ? 8 : 20;
+    const doMes = (n: number) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(n).padStart(2, "0")}`;
+    const de = doMes(base);
+    const para = doMes(base + 1);
+    // A marcação de arrastar vive no dia `de` ou no `para`; se estiver noutro
+    // (uma corrida antiga), volta ao `de` pela mesma rota que o arrasto usa.
+    const lista = (await (await page.request.get("/api/calendario")).json()) as {
+      id: string;
+      title: string;
+      date: string;
+    }[];
+    const existente = lista.find((e) => e.title === A_ARRASTAR);
+    if (existente && existente.date !== de && existente.date !== para) {
+      const r = await page.request.patch(`/api/calendario/${existente.id}`, {
+        data: { date: de },
+      });
+      expect(r.ok(), `não voltou ao dia ${de}: ${r.status()}`).toBe(true);
+    }
+    if (!existente) {
+      const r = await page.request.post("/api/calendario", {
+        data: { title: A_ARRASTAR, kind: "evento", time: "", note: "", date: de },
+      });
+      expect(r.ok(), `não gravou a marcação: ${r.status()}`).toBe(true);
+    }
+    const ondeEsta = async () =>
+      (
+        (await (await page.request.get("/api/calendario")).json()) as {
+          title: string;
+          date: string;
+        }[]
+      ).find((e) => e.title === A_ARRASTAR)?.date;
+
+    await vista(page, "calendario");
+    await page
+      .getByRole("radio", { name: "Mês", exact: true })
+      .or(page.getByRole("button", { name: "Mês", exact: true }))
+      .first()
+      .click();
+    await page.waitForTimeout(600);
+
+    const dataInicial = (await ondeEsta())!;
+    const destino = dataInicial === para ? de : para;
+    const chip = page
+      .locator(`[role="gridcell"][data-dia="${dataInicial}"]`)
+      .getByRole("button", { name: new RegExp(`^Abrir Evento: ${A_ARRASTAR}`) });
+
+    // O clique abre o detalhe, e não a pergunta.
+    await chip.click();
+    const detalhe = page.getByRole("dialog", { name: new RegExp(A_ARRASTAR) });
+    await expect(detalhe).toBeVisible();
+    await expect(page.getByText(/do calendário\?/)).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    // Arrastar continua a mover.
+    await chip.dragTo(page.locator(`[role="gridcell"][data-dia="${destino}"]`));
+    await expect.poll(ondeEsta, { timeout: 10_000 }).toBe(destino);
+    // O ecrã também já sabe (o «Anular» chegou, e com ele a versão nova da
+    // marcação que o segundo arrasto vai mandar ao servidor).
+    await expect(page.getByRole("button", { name: "Anular" })).toBeVisible();
+    await page.waitForTimeout(800);
+    // E volta ao sítio, pelo mesmo gesto.
+    await page
+      .locator(`[role="gridcell"][data-dia="${destino}"]`)
+      .getByRole("button", { name: new RegExp(`^Abrir Evento: ${A_ARRASTAR}`) })
+      .dragTo(page.locator(`[role="gridcell"][data-dia="${dataInicial}"]`));
+    await expect.poll(ondeEsta, { timeout: 10_000 }).toBe(dataInicial);
     expect(erros).toEqual([]);
   });
 });

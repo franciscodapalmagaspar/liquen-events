@@ -6,6 +6,7 @@ import type { CalendarEvent } from "@/lib/orcamento/types";
 import { ToastProvider } from "./Toast";
 import { __resetListCache } from "./useCachedList";
 import Calendario from "./Calendario";
+import { abrirAPerguntaPeloDetalhe } from "./calendario.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -71,8 +72,9 @@ async function pedirParaRemover(user: ReturnType<typeof userEvent.setup>) {
       <Calendario quotes={[]} onOpen={() => {}} />
     </ToastProvider>,
   );
-  const marcacao = await screen.findByLabelText(/Remover Reunião: Prova de bolo/);
-  await user.click(marcacao);
+  const marcacao = await screen.findByLabelText(/Abrir Reunião: Prova de bolo/);
+  // O toque abre o detalhe (15/11); a pergunta está no «Remover» de lá.
+  await abrirAPerguntaPeloDetalhe(user, marcacao);
 }
 
 describe("a pergunta de remover uma marcação", () => {
@@ -102,7 +104,7 @@ describe("a pergunta de remover uma marcação", () => {
     await pedirParaRemover(user);
     const caixa = await screen.findByRole("dialog");
     await user.click(within(caixa).getByRole("button", { name: /^Cancelar$/ }));
-    expect(screen.getByLabelText(/Remover Reunião: Prova de bolo/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Abrir Reunião: Prova de bolo/)).toBeInTheDocument();
     const chamadas = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
     expect(
       chamadas.some((c) => (c[1] as RequestInit | undefined)?.method === "DELETE"),
@@ -116,7 +118,7 @@ describe("a pergunta de remover uma marcação", () => {
     const caixa = await screen.findByRole("dialog");
     await user.click(within(caixa).getByRole("button", { name: /^Remover$/ }));
     await waitFor(() =>
-      expect(screen.queryByLabelText(/Remover Reunião: Prova de bolo/)).not.toBeInTheDocument(),
+      expect(screen.queryByLabelText(/Abrir Reunião: Prova de bolo/)).not.toBeInTheDocument(),
     );
   });
 });

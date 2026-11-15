@@ -254,20 +254,20 @@ describe("o botão direito", () => {
 
   it("numa marcação abre o menu DELA, e não o do dia por baixo", async () => {
     await montar();
-    fireEvent.contextMenu(screen.getByLabelText("Remover Reunião: Prova de bolo"));
+    fireEvent.contextMenu(screen.getByLabelText("Abrir Reunião: Prova de bolo"));
 
     const menu = await screen.findByRole("menu");
     expect(menu).toHaveAttribute("aria-label", "Acções de Prova de bolo");
     expect(within(menu).getByRole("menuitem", { name: "Duplicar" })).toBeInTheDocument();
     // Um menu não é licença para apagar sem perguntar: «Remover» abre a
-    // pergunta da casa, como o clique na etiqueta.
+    // pergunta da casa, como o «Remover» do detalhe da etiqueta.
     expect(within(menu).getByRole("menuitem", { name: "Remover" })).toBeInTheDocument();
     expect(within(menu).queryByRole("menuitem", { name: "Novo evento" })).toBeNull();
   });
 
   it("«Remover» do menu passa pela pergunta, e não apaga logo", async () => {
     await montar();
-    fireEvent.contextMenu(screen.getByLabelText("Remover Reunião: Prova de bolo"));
+    fireEvent.contextMenu(screen.getByLabelText("Abrir Reunião: Prova de bolo"));
     const menu = await screen.findByRole("menu");
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Remover" }));
 

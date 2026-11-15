@@ -6,6 +6,7 @@ import { ToastProvider } from "./Toast";
 import { __resetListCache } from "./useCachedList";
 import Calendario from "./Calendario";
 import type { CalendarEvent } from "@/lib/orcamento/types";
+import { abrirAPerguntaPeloDetalhe } from "./calendario.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -86,7 +87,7 @@ function montar() {
       <Calendario quotes={[]} onOpen={() => {}} />
     </ToastProvider>,
   );
-  return screen.findByLabelText(/Remover Reunião: Prova de bolo/);
+  return screen.findByLabelText(/Abrir Reunião: Prova de bolo/);
 }
 
 /**
@@ -95,8 +96,7 @@ function montar() {
  * mais falta faz. O que estes testes medem não muda; muda o caminho até lá.
  */
 async function removerMesmo(user: ReturnType<typeof userEvent.setup>, alvo: HTMLElement) {
-  await user.click(alvo);
-  const caixa = await screen.findByRole("dialog");
+  const caixa = await abrirAPerguntaPeloDetalhe(user, alvo);
   await user.click(within(caixa).getByRole("button", { name: /^Remover$/ }));
 }
 
@@ -108,14 +108,14 @@ describe("Calendário — uma remoção que o servidor recusa", () => {
     // A remoção lenta da prova parte primeiro…
     await removerMesmo(user, prova);
     // … e, à espera dela, o ensaio é removido com sucesso.
-    await removerMesmo(user, screen.getByLabelText(/Remover Evento: Ensaio geral/));
+    await removerMesmo(user, screen.getByLabelText(/Abrir Evento: Ensaio geral/));
     await waitFor(() => expect(screen.queryByLabelText(/Ensaio geral/)).not.toBeInTheDocument());
 
     // Só agora o servidor recusa a primeira.
     recusarAProva();
 
     // A prova volta ao calendário — é a reposição a fazer o seu trabalho.
-    expect(await screen.findByLabelText(/Remover Reunião: Prova de bolo/)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Abrir Reunião: Prova de bolo/)).toBeInTheDocument();
     // O ensaio, esse, já não existe na base de dados: ressuscitá-lo no ecrã é
     // mostrar-lhe uma marcação que ninguém tem.
     expect(screen.queryByLabelText(/Ensaio geral/)).not.toBeInTheDocument();

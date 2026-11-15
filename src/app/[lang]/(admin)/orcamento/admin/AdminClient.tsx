@@ -5965,6 +5965,9 @@ export default function AdminClient({
               novo. */}
           <header
             ref={cabecalhoRef}
+            /* O «Fazer proposta» no telemóvel esconde-o ao descer — ver
+               `ui/barras-que-encolhem.ts` e o bloco no `admin.css`. */
+            data-barra-do-topo=""
             /* ── E O CABEÇALHO DIZ A SUA ALTURA A QUEM COLA POR BAIXO DELE ──
                Ele é `sticky top-0` com 81 px. Um `<h2 sticky top-0>` dentro de
                uma lista pede o MESMO zero — e a lista é a que perde: o

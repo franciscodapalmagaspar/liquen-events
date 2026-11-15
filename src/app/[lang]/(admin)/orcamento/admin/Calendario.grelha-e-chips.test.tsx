@@ -151,7 +151,7 @@ describe("fase 03 — as etiquetas", () => {
 
   it("a hora vem ANTES do título, e em `tabular-nums`", async () => {
     await montar([], [MONTAGEM]);
-    const etiqueta = screen.getAllByLabelText(/Remover Reunião: Montagem Torre de Palma/)[0];
+    const etiqueta = screen.getAllByLabelText(/Abrir Reunião: Montagem Torre de Palma/)[0];
     const hora = etiqueta.querySelector(".tabular-nums");
     expect(hora?.textContent).toBe("09:00");
     // A ordem no documento (Parte 4) é «▍09:00 Montagem Torre de Palma»: quem
@@ -164,7 +164,7 @@ describe("fase 03 — as etiquetas", () => {
 
   it("cada tipo leva a sua cor E o seu glifo — nunca só a cor", async () => {
     await montar([], [MONTAGEM]);
-    const etiqueta = screen.getAllByLabelText(/Remover Reunião: Montagem Torre de Palma/)[0];
+    const etiqueta = screen.getAllByLabelText(/Abrir Reunião: Montagem Torre de Palma/)[0];
     expect(etiqueta.getAttribute("style")).toContain("--tipo: var(--bo-info)");
     expect(
       etiqueta.querySelector("svg"),

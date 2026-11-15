@@ -44,6 +44,7 @@ import { SAIDA, SAIDA_FUNDO, useSaidaDeUmSo } from "./ui/saida";
 import { useCachedList } from "./useCachedList";
 import { useArrastoDeMarcacoes } from "./useArrastoDeMarcacoes";
 import MudarDeDia from "./MudarDeDia";
+import DetalheDaMarcacao from "./DetalheDaMarcacao";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { rolarAteCaberPorCima } from "@/lib/motion/rolar";
@@ -553,11 +554,14 @@ function LinhasDoDia({
   quotes,
   marcacoes,
   onAbrir,
+  onVer,
   onRemover,
 }: {
   quotes: Quote[];
   marcacoes: CalendarEvent[];
   onAbrir: (q: Quote) => void;
+  /** Abre o detalhe da marcação — o toque na linha (15/11). */
+  onVer: (ev: CalendarEvent) => void;
   onRemover: (id: string, title: string) => void;
 }) {
   return (
@@ -593,18 +597,27 @@ function LinhasDoDia({
         </button>
       ))}
       {marcacoes.map((ev) => (
-        <div key={ev.id} className="flex items-center gap-3 px-4 py-3">
-          <GlifoDoTipo kind={ev.kind} />
-          <span className="min-w-0 flex-1">
-            <span className="block text-[var(--bo-tinta-72)] text-xs font-medium truncate">
-              {ev.time ? `${ev.time} · ` : ""}
-              {ev.title}
+        <div key={ev.id} className="flex items-center gap-3 pe-4">
+          {/* A linha abre o detalhe, como a etiqueta na grelha; o «Remover» ao
+              lado continua a ser a porta directa para a pergunta. */}
+          <button
+            type="button"
+            onClick={() => onVer(ev)}
+            aria-label={`Abrir ${TIPO_META[ev.kind].label}: ${ev.title}`}
+            className={`flex min-w-0 flex-1 items-center gap-3 py-3 ps-4 text-left hover:bg-[var(--bo-tinta-3)] ${ESTADO} ${PRESSAO}`}
+          >
+            <GlifoDoTipo kind={ev.kind} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[var(--bo-tinta-72)] text-xs font-medium truncate">
+                {ev.time ? `${ev.time} · ` : ""}
+                {ev.title}
+              </span>
+              <span className="block text-foreground/40 text-[10px] truncate">
+                {TIPO_META[ev.kind].label}
+                {ev.note ? ` · ${ev.note}` : ""}
+              </span>
             </span>
-            <span className="block text-foreground/40 text-[10px] truncate">
-              {TIPO_META[ev.kind].label}
-              {ev.note ? ` · ${ev.note}` : ""}
-            </span>
-          </span>
+          </button>
           <button
             onClick={() => onRemover(ev.id, ev.title)}
             aria-label={`Remover ${TIPO_META[ev.kind].label}: ${ev.title}`}
@@ -682,6 +695,16 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
    * dia…» — a alternativa sem rato, que a Parte 5 manda haver sempre.
    */
   const [aMudarDeDia, setAMudarDeDia] = useState<CalendarEvent | null>(null);
+  /**
+   * A marcação aberta no detalhe (15/11). Um toque numa marcação abria logo
+   * «Remover …?»; passa a abrir o que ela é, com «Remover» lá dentro. O toque
+   * longo, o botão direito, o Delete e o arrasto ficam como estavam.
+   */
+  const [aVer, setAVer] = useState<CalendarEvent | null>(null);
+  /* A versão DE AGORA dessa marcação, pelo id: se entretanto mudou de dia
+     (arrasto, «Anular») o detalhe diz o dia novo, e se saiu da lista o detalhe
+     fecha-se em vez de mostrar uma marcação que já não há. */
+  const marcacaoAVer = aVer ? (events.find((e) => e.id === aVer.id) ?? null) : null;
   /**
    * O dia que um próximo evento aponta na grelha (fase 05, ponto 25): passar
    * o rato — ou o foco do teclado — por uma linha realça o dia dela, se o mês
@@ -1366,7 +1389,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
         id: "remover",
         rotulo: "Remover",
         destrutiva: true,
-        // Pela pergunta da casa, como o clique na etiqueta: um menu não é
+        // Pela pergunta da casa, como o «Remover» do detalhe: um menu não é
         // licença para apagar sem perguntar.
         onAccao: () => pedirParaRemover(ev.id, ev.title),
       },
@@ -1432,13 +1455,12 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
             marca: <GlifoDoTipo kind={ev.kind} />,
             hora: ev.time,
             titulo: ev.title,
-            rotulo: `Remover ${TIPO_META[ev.kind].label}: ${ev.title}`,
-            dica: `${TIPO_META[ev.kind].label}: ${ev.title} (clique para remover)`,
-            onAbrir: () => pedirParaRemover(ev.id, ev.title),
-            // `Delete` faz o mesmo que o clique numa marcação: a pergunta.
-            apagavel: true,
+            rotulo: `Abrir ${TIPO_META[ev.kind].label}: ${ev.title}`,
+            dica: `${TIPO_META[ev.kind].label}: ${ev.title}`,
+            // O toque abre o detalhe (15/11); `Delete` continua a perguntar.
+            onAbrir: () => setAVer(ev),
+            onApagar: () => pedirParaRemover(ev.id, ev.title),
             onMenu: (x: number, y: number) => setMenu(menuDaMarcacao(ev, x, y)),
-            riscarNoHover: true,
           })),
         ];
         return { data, entradas };
@@ -1575,7 +1597,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
     let ultimoG = 0;
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
-      if (modalDate !== null || aRemover || menu) return;
+      if (modalDate !== null || aRemover || menu || marcacaoAVer) return;
 
       const alvo = e.target as HTMLElement | null;
       const aEscrever =
@@ -1641,6 +1663,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
     modalDate,
     aRemover,
     menu,
+    marcacaoAVer,
     trocarDeVista,
     irParaHoje,
     navegar,
@@ -2227,16 +2250,15 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                                   marca={<GlifoDoTipo kind={ev.kind} />}
                                   hora={ev.time}
                                   titulo={ev.title}
-                                  rotulo={`Remover ${TIPO_META[ev.kind].label}: ${ev.title}`}
-                                  dica={`${TIPO_META[ev.kind].label}: ${ev.title} (clique para remover)`}
+                                  rotulo={`Abrir ${TIPO_META[ev.kind].label}: ${ev.title}`}
+                                  dica={`${TIPO_META[ev.kind].label}: ${ev.title}`}
                                   onMenu={(x, y) => setMenu(menuDaMarcacao(ev, x, y))}
                                   onApagar={() => pedirParaRemover(ev.id, ev.title)}
                                   {...arrasto.naEtiqueta(ev)}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    pedirParaRemover(ev.id, ev.title);
+                                    setAVer(ev);
                                   }}
-                                  className="hover:line-through"
                                 />
                               ) : null,
                             )}
@@ -2254,6 +2276,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                                   quotes={dayQuotes}
                                   marcacoes={dayEvents}
                                   onAbrir={abrir}
+                                  onVer={setAVer}
                                   onRemover={pedirParaRemover}
                                 />
                               </MaisDoDia>
@@ -2390,6 +2413,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                     quotes={selectedQuotes}
                     marcacoes={selectedEvents}
                     onAbrir={abrir}
+                    onVer={setAVer}
                     onRemover={pedirParaRemover}
                   />
                 </div>
@@ -2584,6 +2608,15 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
       <p role="status" aria-live="polite" className="sr-only">
         {arrasto.anuncio}
       </p>
+
+      {/* O detalhe de uma marcação — o que um toque abre. Ver `DetalheDaMarcacao.tsx`. */}
+      <DetalheDaMarcacao
+        marcacao={marcacaoAVer}
+        onFechar={() => setAVer(null)}
+        onRemover={(ev) => pedirParaRemover(ev.id, ev.title)}
+        onMudarDeDia={(ev) => setAMudarDeDia(ev)}
+        onVerNaVistaDeDia={(ev) => verNaVistaDeDia(ev.date)}
+      />
 
       {/* «Mudar de dia…» — ver `MudarDeDia.tsx`. */}
       <MudarDeDia

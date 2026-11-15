@@ -3240,3 +3240,59 @@ body:is(.admin-mode, .bo) :is(:disabled, [aria-disabled="true"]) {
 .bo-porta :is(button, input:not([type="checkbox"])) {
   border-radius: var(--bo-raio-controlo);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   AS BARRAS QUE ENCOLHEM AO DESCER — «Fazer proposta» no telemóvel (15/11)
+   ══════════════════════════════════════════════════════════════════════════
+
+   Quem liga isto é o estúdio (`ui/barras-que-encolhem.ts`): enquanto ele está
+   montado num telemóvel ou num tablet de toque, a raiz leva
+   `data-barras="inteiras"`; ao descer, `"encolhidas"`. No computador o
+   atributo nem existe, e nada daqui se aplica.
+
+   Encolhidas: o cabeçalho do back office sai por cima, e a barra dos passos
+   sobe para o lugar dele e deixa metade do ar de cima de fora (o `py-2` dela é
+   `--spacing` × 2; sai um `--spacing`, para os passos não ficarem colados ao
+   bordo do ecrã). Fica só a fila dos passos. A barra de destinos fica como
+   está — «Fica a barra de baixo».
+
+   SÓ `translate`. Nada muda de altura, nada empurra o conteúdo, e o
+   `--bo-cabecalho`/`--bo-passos` medidos continuam a ser a verdade do layout.
+   A curva é a de reposicionar (sem ressalto: uma barra larga que salta parece
+   um erro, Parte 2.4); com «reduzir movimento», muda sem animar.
+
+   O `transition-property` do cabeçalho repete o fio (`border-color`, o
+   `transition-colors` dele) porque esta regra, fora de `@layer`, substitui a
+   do utilitário — e o fio continuaria a mudar a seco. */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-barras] [data-barra-do-topo] {
+    transition-property: border-color, translate;
+    transition-duration: var(--transition-duration-interactive),
+      var(--transition-duration-reposition);
+    transition-timing-function: var(--ease-interactive), var(--ease-reposition);
+  }
+
+  html[data-barras] [data-passos-da-proposta] {
+    transition-property: translate;
+    transition-duration: var(--transition-duration-reposition);
+    transition-timing-function: var(--ease-reposition);
+  }
+}
+
+html[data-barras="encolhidas"] [data-barra-do-topo] {
+  translate: 0 -100%;
+}
+
+html[data-barras="encolhidas"] [data-passos-da-proposta] {
+  translate: 0
+    calc(env(safe-area-inset-top) - var(--bo-cabecalho, 0px) - var(--spacing));
+}
+
+/* E a barra de acção fica só com o essencial — o total «A pagar» e o botão
+   principal. O que sai leva `data-acessorio-da-barra` no `ProposalStudio`
+   (o «anterior», o estado da gravação quando está tudo bem, os comandos do
+   envio que a pastilha resume); um alarme não o leva e fica. Fora de `@layer`,
+   ganha ao `inline-flex` do `Button` sem depender da ordem dos utilitários. */
+html[data-barras="encolhidas"] [data-acessorio-da-barra] {
+  display: none;
+}

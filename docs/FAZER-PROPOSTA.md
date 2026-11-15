@@ -57,6 +57,16 @@ confirmação e abre a pergunta de sempre. A caixa «Antes de enviar» do corpo 
 passo continua, e a falta «ver o PDF» passou a saltar para ela (antes ia dar ao
 «Por onde segue»).
 
+**E no telemóvel as barras encolhem ao descer** (15/11, aprovado por ela). A
+390 × 664, a descer, só 59 % do ecrã era formulário. Agora, ao DESCER, o
+cabeçalho do back office sai por cima e ficam só os passos, compactos; a barra
+de destinos fica («Fica a barra de baixo») e a de acção fica só com o total «A
+pagar» e o botão principal. Ao SUBIR, ou no topo, volta tudo. Medido: 69 % de
+formulário. Só por `translate` (nada empurra o formulário), só no telemóvel ou
+num tablet de toque, e com «reduzir movimento» muda sem animar
+(`ui/barras-que-encolhem.ts`, «As barras que encolhem» no `admin.css`, caso 9
+do `e2e/o-iphone-com-barras.spec.ts`).
+
 Tudo o resto do documento vale como está escrito, com uma segunda ressalva, que
 veio depois:
 

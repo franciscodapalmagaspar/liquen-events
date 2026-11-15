@@ -112,6 +112,7 @@ type CanalDeEnvio = "email" | "whatsapp" | "ambos";
 const CANAL_GUARDADO = "liquen-canal-de-envio";
 import PorqueNaoDaParaEnviar from "./PorqueNaoDaParaEnviar";
 import { ControlosDoEnvio, PainelDoEnvio, PastilhaDoEnvio } from "./BarraDoEnvioCompacta";
+import { useBarrasQueEncolhem } from "./ui/barras-que-encolhem";
 import { destinoDoEnvio } from "@/lib/orcamento/destino-do-envio";
 import VistaDeConjunto from "./VistaDeConjunto";
 import EscolherDisposicao from "./EscolherDisposicao";
@@ -5199,6 +5200,20 @@ export default function ProposalStudio({
     return () => vv.removeEventListener("resize", ver);
   }, []);
   const barraEscondida = barraCompacta && tecladoNoEcra;
+  /**
+   * ── AO DESCER NO TELEMÓVEL, AS BARRAS ENCOLHEM (15/11) ──────────────────
+   * Em cima ficam só os passos; em baixo a barra de destinos fica, e esta fica
+   * só com o essencial — o total «A pagar» e o botão principal. Ao subir volta
+   * tudo. O que sai daqui leva `data-acessorio-da-barra`: o «anterior», o
+   * estado da gravação quando está tudo bem, e os comandos do envio que a
+   * pastilha já resume. Um ALARME (gravação que não chegou, preço que ficou
+   * por gravar) não o leva, e fica sempre.
+   *
+   * É o CSS que esconde (`admin.css`, pelo atributo da raiz), e não estado
+   * daqui: mudar de inteiras para encolhidas a meio de uma rolagem não pode
+   * voltar a desenhar este componente inteiro. Ver `ui/barras-que-encolhem.ts`.
+   */
+  useBarrasQueEncolhem();
   const [folgaDaBarra, setFolgaDaBarra] = useState(80);
   useEffect(() => {
     const el = barraDeBaixo.current;
@@ -13113,7 +13128,12 @@ export default function ProposalStudio({
                 encostam o seu grupo de acções à direita (`ml-auto`), e a acção
                 principal a saltar de sítio entre passos custa mais do que o vazio
                 alguma vez custou. Quem viaja é o número. */}
-            <p className="mr-auto min-w-0 truncate text-xs text-[var(--bo-text-muted)]">
+            <p
+              className="mr-auto min-w-0 truncate text-xs text-[var(--bo-text-muted)]"
+              data-acessorio-da-barra={
+                precoPorChegar || soNesteComputador || naoDuraAoDeploy ? undefined : ""
+              }
+            >
               {/* ══════════════════════════════════════════════════════════
                   O PREÇO QUE NÃO CHEGOU AO PEDIDO
                   ══════════════════════════════════════════════════════════
@@ -13357,6 +13377,7 @@ export default function ProposalStudio({
                   partir do 2.º. */}
               {passoAoLado(step, -1) && (
                 <Button
+                  data-acessorio-da-barra=""
                   size="sm"
                   variant="ghost"
                   className="shrink-0"
@@ -13398,6 +13419,7 @@ export default function ProposalStudio({
         {step === "enviar" && !sent && (
           <>
             <Button
+              data-acessorio-da-barra=""
               size="sm"
               variant="ghost"
               onClick={() => irParaPasso("orcamento")}
@@ -13645,7 +13667,12 @@ export default function ProposalStudio({
                 que se ouvem são os de sempre — «Idioma da proposta», «Por onde
                 segue (em baixo)», «Descarregar PDF» —, só o que se VÊ encolhe. */}
             {busy !== "send" && !barraCompacta && (
-              <div className="flex min-w-0 items-center gap-2">
+              <div
+                className="flex min-w-0 items-center gap-2"
+                // Com o painel da pastilha aberto, fica: não se fecha um painel
+                // debaixo do dedo só porque a página andou.
+                data-acessorio-da-barra={painelDoEnvio ? undefined : ""}
+              >
                 <span className="inline-flex">
                   <PastilhaDoEnvio
                     ref={pastilhaDoEnvio}
@@ -13918,12 +13945,14 @@ export default function ProposalStudio({
                  cima sozinha (`flex-wrap`) — aí a altura é a mensagem. */
               <div className="ml-auto flex items-center gap-x-3">
                 {barraCompacta && (
-                  <PastilhaDoEnvio
-                    faltas={faltasDoEnvio}
-                    fotosPorConfirmar={fotosPorConfirmar}
-                    idioma={idiomaDoPdf}
-                    onAbrir={() => setFolhaDoEnvio(true)}
-                  />
+                  <span data-acessorio-da-barra="" className="contents">
+                    <PastilhaDoEnvio
+                      faltas={faltasDoEnvio}
+                      fotosPorConfirmar={fotosPorConfirmar}
+                      idioma={idiomaDoPdf}
+                      onAbrir={() => setFolhaDoEnvio(true)}
+                    />
+                  </span>
                 )}
                 {/* ── O TOTAL TAMBÉM AQUI (auditoria de 14/11, n.º 1) ─────────
                     «Não quero fazer scroll para saber quanto vai a proposta» —
@@ -15325,6 +15354,9 @@ function StepNav({
     <nav
       ref={barraRef}
       aria-label="Passos da proposta"
+      // Ao descer no telemóvel, sobe para o lugar do cabeçalho e fica compacta
+      // (`ui/barras-que-encolhem.ts`, `admin.css`).
+      data-passos-da-proposta=""
       className="sticky top-[var(--bo-cabecalho,0px)] z-10 -mx-1 mb-5 flex flex-nowrap items-center gap-1.5 overflow-x-auto border-b border-[var(--bo-hairline)] bg-[var(--bo-surface)] px-1 py-2 [scrollbar-width:none] [&>button]:shrink-0"
     >
       {PASSOS.map((p, i) => {

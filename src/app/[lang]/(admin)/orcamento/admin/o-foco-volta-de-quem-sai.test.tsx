@@ -219,7 +219,7 @@ describe("o «Novo no calendário» devolve o foco a quem o abriu", () => {
         <Calendario quotes={[]} onOpen={() => {}} />
       </ToastProvider>,
     );
-    await screen.findByLabelText(/Remover Reunião: Prova de bolo/);
+    await screen.findByLabelText(/Abrir Reunião: Prova de bolo/);
     fireEvent.click(screen.getByRole("gridcell", { name: /, 10 de .*Enter para ver/ }));
     const abridor = screen.getByRole("button", { name: "Adicionar" });
     abridor.focus();
