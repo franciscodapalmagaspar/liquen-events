@@ -1,0 +1,33 @@
+-- ════════════════════════════════════════════════════════════════════════════
+-- A coluna `biblioteca_fotos.urls` — os endereços assinados guardados (14/11)
+-- ════════════════════════════════════════════════════════════════════════════
+--
+-- POR APLICAR. Autorizada por ela; aplica-se depois da revisão, pela
+-- ferramenta de migrações do Supabase — o mesmo SQL, sem `begin`/`commit`.
+--
+-- Porque é que falta: a coluna está em db/schema.sql desde que a página do
+-- casal passou a guardar os endereços assinados (ver src/lib/urls-assinados.ts),
+-- mas nunca teve migração. Em produção não existe, e cada visita a uma proposta
+-- dava um 42703 (16 numa semana). O código já sobrevive sem ela — à primeira
+-- recusa deixa de perguntar durante seis horas —, portanto aplicar isto não tem
+-- pressa nem ordem com nenhuma publicação.
+--
+-- O que muda: a tabela ganha uma coluna `jsonb` vazia (`null` em todas as
+-- linhas). Não apaga, não muda e NÃO CRIA nenhuma linha. Também o código não
+-- cria: o `guardarUrls` escreve com `update … where path = …`, só em linhas que
+-- já existem, e por isso a Biblioteca (que lista a partir desta tabela) não
+-- ganha fotografias de propostas por causa disto.
+--
+-- Quanto ocupa: ~420 caracteres por endereço, até quatro por fotografia
+-- (original, miniatura, 1200 px, AVIF) → ~1,7 KB por linha no máximo. Com as
+-- 1355 linhas de 14/11, ~2,3 MB no pior caso, num plano de 500 MB. Tecto
+-- natural: uma linha por ficheiro que já existe, e cada escrita SUBSTITUI o
+-- mapa da linha em vez de o acumular.
+--
+-- Se a chave JWT do Supabase for rodada, os endereços guardados morrem todos
+-- de uma vez. A reparação é uma linha:
+--     update public.biblioteca_fotos set urls = null;
+--
+-- `if not exists`: pode correr-se mais do que uma vez.
+
+alter table public.biblioteca_fotos add column if not exists urls jsonb;

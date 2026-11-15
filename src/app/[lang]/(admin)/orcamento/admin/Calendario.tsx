@@ -34,6 +34,7 @@ import {
   DIAS_DA_SEMANA,
   MESES,
   anoDoCalendario,
+  contaParaOCalendario,
   fechadosNoAno,
   maisDias,
 } from "@/lib/orcamento/ano-do-calendario";
@@ -45,6 +46,8 @@ import { useArrastoDeMarcacoes } from "./useArrastoDeMarcacoes";
 import MudarDeDia from "./MudarDeDia";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
 import { ESTADO, PRESSAO } from "./ui/movimento";
+import { rolarAteCaberPorCima } from "@/lib/motion/rolar";
+import { SEM_LUPA, useToqueLongo } from "./ui/adaptativo";
 import { AvisoDeFalha } from "./AvisoDeFalha";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { comMaiuscula, diaPorExtenso } from "@/lib/data-curta";
@@ -670,6 +673,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
   const [tipoDoModal, setTipoDoModal] = useState<CalendarEventKind>("evento");
   /** O menu do botão direito, quando há um aberto. Fase 10, ponto 17. */
   const [menu, setMenu] = useState<PedidoDeMenu | null>(null);
+  const toqueLongo = useToqueLongo();
   const fecharMenu = useCallback(() => setMenu(null), []);
   /**
    * ── ARRASTAR (fase 09) ──────────────────────────────────────────────────
@@ -721,6 +725,22 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
   const [aRemover, setARemover] = useState<{ id: string; title: string } | null>(null);
   // Day peek: the day whose events are expanded in the panel under the grid.
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  /**
+   * ── O DIA QUE SE ESCOLHE MOSTRA-SE ────────────────────────────────────────
+   * O painel do dia nasce por baixo da grelha. No telemóvel isso é a y≈635 de
+   * 664, exactamente por baixo da barra de destinos: tocar num dia com evento
+   * só o realçava, e parecia que o toque não tinha feito nada (auditoria de
+   * 14/11). Ao escolher um dia, leva-se o painel até se ver por cima da barra —
+   * só se não se vê, portanto quem já o vê inteiro não é sacudido, e o
+   * `scroll-mb` do painel desconta a barra de baixo.
+   */
+  const espreitarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!selectedDay) return;
+    // Um fotograma depois: o painel acabou de nascer e ainda está a assentar.
+    const f = requestAnimationFrame(() => rolarAteCaberPorCima(espreitarRef.current));
+    return () => cancelAnimationFrame(f);
+  }, [selectedDay]);
   /** O dia da grelha do mês com o foco — ver «O FOCO ITINERANTE». */
   const [focoDia, setFocoDia] = useState<string | null>(null);
   const grelhaRef = useRef<HTMLDivElement>(null);
@@ -1205,19 +1225,31 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
    * `byDay`/`eventsByDay`, uma data por marcar ("a definir") fica de fora sem
    * regra à parte: se a grelha não a desenha, também não a conta.
    */
-  const monthTotal = useMemo(() => {
+  /*
+   * Os PERDIDOS desenham-se na grelha mas não contam como eventos — a regra da
+   * vista de ano (`contaParaOCalendario`, auditoria de 14/11, n.º 17). Por isso
+   * contam-se à parte: o estado vazio pergunta se a grelha desenha ALGUMA
+   * coisa (eventos OU perdidos), e não se a contagem de eventos é zero. Com só
+   * um pedido perdido no mês, o «Mês sem eventos» voltava a abrir por baixo do
+   * cartão dele — o defeito que o bloco de cima diz ter fechado.
+   */
+  const contasDoMes = useMemo(() => {
     const prefixo = `${year}-${pad2(month + 1)}`;
     const vistos = new Set<string>();
+    const perdidos = new Set<string>();
     for (const [dia, doDia] of byDay) {
       if (!dia.startsWith(prefixo)) continue;
-      for (const q of doDia) vistos.add(`q:${q.id}`);
+      for (const q of doDia) (contaParaOCalendario(q) ? vistos : perdidos).add(`q:${q.id}`);
     }
     for (const [dia, doDia] of eventsByDay) {
       if (!dia.startsWith(prefixo)) continue;
       for (const e of doDia) vistos.add(`e:${e.id}`);
     }
-    return vistos.size;
+    return { eventos: vistos.size, perdidos: perdidos.size };
   }, [byDay, eventsByDay, year, month]);
+  const monthTotal = contasDoMes.eventos;
+  /** A grelha do mês desenha alguma coisa — é isto que decide o estado vazio. */
+  const mesDesenhaAlgo = contasDoMes.eventos + contasDoMes.perdidos > 0;
 
   /**
    * Quantas marcações de cada tipo tem a unidade à vista — o mês, ou o ano.
@@ -1423,14 +1455,19 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
    * `monthTotal`: um casamento de três dias que atravesse a semana é UM evento
    * e não três.
    */
-  const contagemDaVista = useMemo(() => {
+  const contasDaVista = useMemo(() => {
     const vistos = new Set<string>();
+    const perdidos = new Set<string>();
     for (const d of diasDaVista) {
-      for (const q of byDay.get(d) ?? []) vistos.add(`q:${q.id}`);
+      for (const q of byDay.get(d) ?? [])
+        (contaParaOCalendario(q) ? vistos : perdidos).add(`q:${q.id}`);
       for (const e of eventsByDay.get(d) ?? []) vistos.add(`e:${e.id}`);
     }
-    return vistos.size;
+    return { eventos: vistos.size, perdidos: perdidos.size };
   }, [diasDaVista, byDay, eventsByDay]);
+  const contagemDaVista = contasDaVista.eventos;
+  /** «· 1 perdido» quando a vista desenha perdidos — nunca «nada marcado» por cima deles. */
+  const comPerdidos = (n: number) => (n > 0 ? ` · ${n} perdido${n !== 1 ? "s" : ""}` : "");
 
   /**
    * O TÍTULO da vista é a unidade que ela mostra — a regra que o documento fixa
@@ -1471,18 +1508,22 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
           "Nenhum dia fechado este ano"
         : `${fechadosDoAno} dia${fechadosDoAno !== 1 ? "s" : ""} fechado${fechadosDoAno !== 1 ? "s" : ""} este ano`
       : vista === "mes"
-        ? monthTotal === 0
-          ? "Sem eventos este mês"
-          : `${monthTotal} evento${monthTotal !== 1 ? "s" : ""} este mês`
+        ? (monthTotal === 0
+            ? "Sem eventos este mês"
+            : `${monthTotal} evento${monthTotal !== 1 ? "s" : ""} este mês`) +
+          comPerdidos(contasDoMes.perdidos)
         : vista === "dia"
           ? `${nomeDoDiaDaSemana(diaAncora)} · ${
               contagemDaVista === 0
-                ? "nada marcado"
+                ? contasDaVista.perdidos > 0
+                  ? "sem eventos"
+                  : "nada marcado"
                 : `${contagemDaVista} evento${contagemDaVista !== 1 ? "s" : ""}`
-            }`
-          : contagemDaVista === 0
-            ? "Sem eventos esta semana"
-            : `${contagemDaVista} evento${contagemDaVista !== 1 ? "s" : ""} esta semana`;
+            }${comPerdidos(contasDaVista.perdidos)}`
+          : (contagemDaVista === 0
+              ? "Sem eventos esta semana"
+              : `${contagemDaVista} evento${contagemDaVista !== 1 ? "s" : ""} esta semana`) +
+            comPerdidos(contasDaVista.perdidos);
 
   /* ── QUEM SEGURA O «NOVO NO CALENDÁRIO» OS 200 MS ────────────────────────
      O estado é daqui, portanto o nó é segurado daqui. O `modalDate` cai para
@@ -2084,10 +2125,17 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                          etiquetas lá dentro têm menu próprio e travam a bolha
                          (ver o `onMenu` do `ChipDoDia`), portanto este só
                          dispara no espaço do dia. */
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setMenu(menuDoDia(key, e.clientX, e.clientY));
-                          }}
+                          /* E o toque longo, que o Safari do iPhone não
+                         traduz em `contextmenu` (auditoria de 14/11): o
+                         mesmo menu, no sítio do dedo, sem o clique que abria
+                         «Adicionar ao calendário» por baixo dele. */
+                          {...toqueLongo(
+                            (p) => setMenu(menuDoDia(key, p.x, p.y)),
+                            (e) => {
+                              e.preventDefault();
+                              setMenu(menuDoDia(key, e.clientX, e.clientY));
+                            },
+                          )}
                           /* A largada de uma marcação (fase 09). Só quando há
                              uma no ar: arrastar ficheiros ou texto por cima
                              do calendário não realça dia nenhum. `Alt`
@@ -2098,7 +2146,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                          decidir a mesma altura é como uma delas fica para
                          trás. */
                           data-realcado={key === diaRealcado ? "" : undefined}
-                          className={`group relative bg-[var(--bo-surface)] p-1 sm:p-1.5 ${ESTADO} ${PRESSAO} focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600/60 ${
+                          className={`group relative bg-[var(--bo-surface)] p-1 sm:p-1.5 ${SEM_LUPA} ${ESTADO} ${PRESSAO} focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600/60 ${
                             isSelected
                               ? "ring-1 ring-inset ring-sage-600/45 bg-sage-600/[0.04]"
                               : key === arrasto.destino
@@ -2317,7 +2365,10 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
                Se um dia isto mudar de forma — sair do fluxo, passar a folha no
                telemóvel — a resposta muda com ela, e o arnês está lá para se
                voltar a correr. */
-                <div className="bo-entrada mt-5 rounded-xl border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] overflow-hidden">
+                <div
+                  ref={espreitarRef}
+                  className="bo-entrada mt-5 scroll-mt-[var(--bo-cabecalho,0px)] scroll-mb-[calc(var(--bo-barra-inferior)+var(--bo-barra-folga))] rounded-xl border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] overflow-hidden"
+                >
                   <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--bo-hairline)]">
                     <p className="bo-eyebrow">{dayLabelLong(selectedDay)}</p>
                     <div className="flex items-center gap-1">
@@ -2345,7 +2396,7 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
               )}
 
               {/* ── Empty month ── */}
-              {monthTotal === 0 && (
+              {!mesDesenhaAlgo && (
                 <EmptyState
                   icon={
                     <svg

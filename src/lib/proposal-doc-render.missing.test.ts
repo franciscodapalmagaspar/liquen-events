@@ -147,6 +147,40 @@ describe("contagem de fotos em falta", () => {
     expect(missingImages).toBe(10); // 90 pedidas, tecto de 80
   });
 
+  it("o tecto corta SEMPRE as últimas pela ordem do documento (menor n.º 1, 14/11)", async () => {
+    // Era um contador gasto à medida que as idas começavam: com dois mood
+    // boards em paralelo, quem acabava primeiro decidia que fotos ficavam de
+    // fora — o mesmo documento dava PDFs diferentes. Aqui as idas demoram ao
+    // ritmos diferentes, e o corte tem de ser o mesmo na mesma.
+    const boards = Array.from({ length: 9 }, (_, b) => ({
+      title: `B${b}`,
+      images: Array.from({ length: 10 }, (_, k) => `b${b}f${k}.jpg`),
+    }));
+    const pedidas = new Set<string>();
+    fetchMock.mockImplementation(async (ref: string) => {
+      pedidas.add(ref);
+      // O penúltimo board é lento: o último começa enquanto ele ainda espera.
+      if (ref.startsWith("b7")) await new Promise((r) => setTimeout(r, 30));
+      return Buffer.from("x");
+    });
+    const { missingImages } = await renderStoredProposalDocPdfWithReport({
+      ref: "LIQ-TESTE",
+      clientNames: "Teste",
+      coverImages: [],
+      moodBoards: boards,
+    } as unknown as Parameters<typeof renderStoredProposalDocPdfWithReport>[0]);
+    expect(missingImages).toBe(10);
+    // A ★ de cada board primeiro (3.ª revisão de 14/11: nenhum board fica
+    // vazio), depois as outras pela ordem dela — saem as 10 últimas.
+    const deFora = new Set(["b7f9.jpg", ...Array.from({ length: 9 }, (_, k) => `b8f${k + 1}.jpg`)]);
+    expect([...pedidas].sort()).toEqual(
+      boards
+        .flatMap((b) => b.images)
+        .filter((r) => !deFora.has(r))
+        .sort(),
+    );
+  });
+
   it("a foto que RESOLVE e não se consegue DESENHAR também conta como em falta", async () => {
     // Era a perda mais invisível de todas: a foto existia no armazenamento,
     // descarregava bem — e depois o gerador não a conseguia embutir (um WebP do

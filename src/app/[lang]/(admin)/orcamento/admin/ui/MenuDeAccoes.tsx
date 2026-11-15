@@ -11,6 +11,7 @@ import {
 } from "react";
 import { cn } from "./cn";
 import { ESTADO, PRESSAO } from "./movimento";
+import { fecharSoAoTocarFora } from "./fechar-por-fora";
 import { SAIDA, useSaidaDeUmSo } from "./saida";
 
 /**
@@ -335,22 +336,24 @@ export function MenuDeAccoes({
   };
 
   // Fechar ao clicar fora e ao Escape. `pointerdown` e não `click`: com `click`
-  // o menu fechava só depois de a acção de baixo já ter disparado.
+  // o menu fechava só depois de a acção de baixo já ter disparado. E o toque
+  // que fecha SÓ fecha: o clique que vem a seguir é engolido — clicar noutra
+  // tarefa para fechar o menu abria-a (revisão de 14/11; `fechar-por-fora.ts`).
   useEffect(() => {
     if (!aberto) return;
-    const foraDaqui = (e: PointerEvent) => {
-      if (caixaRef.current && !caixaRef.current.contains(e.target as Node)) setAberto(false);
-    };
+    const largarFora = fecharSoAoTocarFora(
+      (alvo) => !caixaRef.current || caixaRef.current.contains(alvo),
+      () => setAberto(false),
+    );
     const escape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setAberto(false);
         abridorRef.current?.focus();
       }
     };
-    document.addEventListener("pointerdown", foraDaqui);
     document.addEventListener("keydown", escape);
     return () => {
-      document.removeEventListener("pointerdown", foraDaqui);
+      largarFora();
       document.removeEventListener("keydown", escape);
     };
   }, [aberto]);

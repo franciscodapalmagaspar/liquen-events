@@ -44,7 +44,23 @@ vi.mock("@/lib/biblioteca-fotos-store", () => {
   };
 });
 
-const { renderStoredEditorialPdfWithReport, fotosDoEditorialDoDocumento } =
+/**
+ * O que o armazenamento diz que já não existe (`refsQueJaNaoExistem`) — a
+ * fonte única do PDF, do plano e da página do casal. Vazio por omissão.
+ */
+const NoArmazenamento = vi.hoisted(() => ({
+  faltam: new Set<string>(),
+  /** Com que opções se perguntou, de cada vez. */
+  perguntas: [] as unknown[],
+}));
+vi.mock("@/lib/proposta-fotos-verificacao", () => ({
+  refsQueJaNaoExistem: async (refs: readonly string[], opcoes?: unknown) => {
+    NoArmazenamento.perguntas.push(opcoes);
+    return new Set(refs.filter((r) => NoArmazenamento.faltam.has(r)));
+  },
+}));
+
+const { renderStoredEditorialPdfWithReport, fotosDoEditorialDoDocumento, conteudoWebDoDocumento } =
   await import("./proposal-doc-render");
 
 const FORMAS: [number, number][] = [
@@ -125,6 +141,39 @@ describe("as miniaturas e o PDF que segue: as mesmas fotografias", () => {
   });
 });
 
+describe("uma foto escolhida que já não existe não é trocada por outra (14/11)", () => {
+  it("o lugar fica dela, conta como em falta, e o aviso diz qual", async () => {
+    const d = doc({ fotosDasPaginas: { indice: { fotos: ["proposal-assets/TESTE/foi.jpg"] } } });
+    const pdf = await renderStoredEditorialPdfWithReport(d, "pt");
+    expect(pdf.fotos.indice).toEqual([{ ref: "proposal-assets/TESTE/foi.jpg", emFalta: true }]);
+    expect(pdf.missingImages).toBe(1);
+  });
+
+  /**
+   * Revisão de 14/11, n.º 3: a CAPA escolhida que não se deixa buscar. O
+   * desenho da capa não muda (sai a melhor deitada, como sempre que a dela não
+   * serve) — mas não em silêncio: fica registado, e o envio trava antes
+   * (`fotosEscolhidasQueFaltam` conta a capa na mesma lista).
+   */
+  it("a capa escolhida em falta fica registada (o desenho da capa não muda)", async () => {
+    const { log } = await import("@/lib/logger");
+    const aviso = vi.spyOn(log, "warn");
+    try {
+      const pdf = await renderStoredEditorialPdfWithReport(
+        doc({ coverImages: ["proposal-assets/TESTE/capa-foi.jpg"] }),
+        "pt",
+      );
+      expect(pdf.fotos.capa[0].ref).not.toBe("proposal-assets/TESTE/capa-foi.jpg");
+      expect(aviso).toHaveBeenCalledWith(
+        expect.stringMatching(/fotografia de capa escolhida já não existe/),
+        { capa: "proposal-assets/TESTE/capa-foi.jpg" },
+      );
+    } finally {
+      aviso.mockRestore();
+    }
+  });
+});
+
 describe("uma leitura falhada das medidas não troca fotografias (9/11)", () => {
   // Ela: «alterei agora uma palavra e ele alterou uma foto». Sem as medidas
   // da biblioteca o desenho media as fotos reduzidas, e duas de medidas quase
@@ -136,5 +185,189 @@ describe("uma leitura falhada das medidas não troca fotografias (9/11)", () => 
     } finally {
       leituraFalha = false;
     }
+  });
+});
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * A FOTO NA RECICLAGEM: PLANO, PDF E PÁGINA DO CASAL ESCOLHEM O MESMO (14/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Revisão de 14/11, importante n.º 1. A linha da `biblioteca_fotos` fica
+ * quando a foto vai para a Reciclagem (com a medida), por isso o motor sem
+ * bytes a dava como presente: o plano punha-a na capa e nos separadores, o
+ * PDF (sem bytes) punha outras, e a página do casal tirava-a DEPOIS do motor
+ * e escolhia outras ainda. Agora os três tiram-na ANTES (`semAsQueFaltam`).
+ */
+describe("plano, PDF e página do casal escolhem as mesmas fotos quando uma foto já não existe", () => {
+  const CAPA_FOI = "proposal-assets/TESTE/capa-reciclagem.jpg";
+  const BOARD_FOI = "proposal-assets/TESTE/board-reciclagem.jpg";
+  /** Na Reciclagem, mas com a derivada guardada: os bytes ainda vinham. */
+  const COM_BYTES = "proposal-assets/TESTE/derivada-ficou.jpg";
+
+  beforeAll(async () => {
+    // A medida fica na biblioteca (a linha não se apaga) — e são as maiores
+    // deitadas do documento: as que o álbum escolheria para tudo.
+    naBiblioteca.set(CAPA_FOI, { largura: 5000, altura: 3333 });
+    naBiblioteca.set(BOARD_FOI, { largura: 5200, altura: 3466 });
+    naBiblioteca.set(COM_BYTES, { largura: 5400, altura: 3600 });
+    bytesPorRef.set(
+      COM_BYTES,
+      await sharp({ create: { width: 2700, height: 1800, channels: 3, background: "#884422" } })
+        .jpeg({ quality: 50 })
+        .toBuffer(),
+    );
+  });
+
+  it("capa, mood board e uma com bytes ainda guardados: os três dizem o mesmo", async () => {
+    NoArmazenamento.faltam = new Set([CAPA_FOI, BOARD_FOI, COM_BYTES]);
+    try {
+      const d = doc({
+        coverImages: [CAPA_FOI],
+        moodBoards: [
+          { title: "Cerimónia", images: [BOARD_FOI, ref(0), ref(1), ref(2)], principal: 0 },
+          { title: "Cocktail", images: [ref(3), COM_BYTES, ref(4), ref(5)] },
+          { title: "Mesas de Jantar", images: [ref(6), ref(7), ref(8), ref(9)] },
+        ],
+      });
+      const pdf = await renderStoredEditorialPdfWithReport(d, "pt");
+      const plano = await fotosDoEditorialDoDocumento(d, "pt");
+      const web = await conteudoWebDoDocumento(d, "pt");
+
+      expect(plano).toEqual(pdf.fotos);
+      const usadas = JSON.stringify(pdf.fotos);
+      for (const r of [CAPA_FOI, BOARD_FOI, COM_BYTES]) {
+        expect(usadas).not.toContain(r);
+        expect(JSON.stringify(web)).not.toContain(r);
+      }
+      // A capa da página do casal é a do PDF — e tem fundo.
+      expect(pdf.fotos.capa[0].ref).toBeTruthy();
+      expect(web.capa.fundo?.ref).toBe(pdf.fotos.capa[0].ref);
+      // A contracapa e a citação também.
+      const fechoNoPdf = Object.entries(pdf.fotos).find(([k]) => k.startsWith("contracapa"))?.[1];
+      if (fechoNoPdf?.[0]?.ref) expect(web.fecho.fundo?.ref).toBe(fechoNoPdf[0].ref);
+      const citacaoNoPdf = Object.entries(pdf.fotos).find(([k]) => k.startsWith("citacao"))?.[1];
+      if (citacaoNoPdf?.[0]?.ref) expect(web.citacao?.foto?.ref ?? null).toBe(citacaoNoPdf[0].ref);
+    } finally {
+      NoArmazenamento.faltam = new Set();
+    }
+  });
+
+  it("uma escolhida à mão que foi para a Reciclagem: o lugar fica vazio nos três", async () => {
+    NoArmazenamento.faltam = new Set([COM_BYTES]);
+    try {
+      const d = doc({ fotosDasPaginas: { indice: { fotos: [COM_BYTES] } } });
+      const pdf = await renderStoredEditorialPdfWithReport(d, "pt");
+      const plano = await fotosDoEditorialDoDocumento(d, "pt");
+      expect(plano).toEqual(pdf.fotos);
+      expect(pdf.fotos.indice).toEqual([{ ref: COM_BYTES, emFalta: true }]);
+    } finally {
+      NoArmazenamento.faltam = new Set();
+    }
+  });
+});
+
+/**
+ * Revisão de 14/11 (2.ª), importantes n.º 1 e n.º 2: o desenho diz À PARTE
+ * quantas das fotos em falta SE SABE que faltam (não vale a pena repetir por
+ * elas), e quantas dessas são escolhidas à mão (o documento não está
+ * completo). E só o rascunho/a pré-visualização pergunta com memória.
+ */
+describe("o relatório separa as faltas sabidas das passageiras", () => {
+  const FOI = "proposal-assets/TESTE/sabida.jpg";
+
+  it("as que passam do tecto de fotos por documento contam À PARTE (menor n.º 1)", async () => {
+    // Revisão de 14/11, menor n.º 1: eram contadas como passageiras, e um
+    // documento com fotos a mais era desenhado duas vezes e nunca se guardava.
+    const pequena = await sharp({
+      create: { width: 60, height: 40, channels: 3, background: "#667788" },
+    })
+      .jpeg({ quality: 40 })
+      .toBuffer();
+    const muitas = Array.from({ length: 90 }, (_, i) => `proposal-assets/TESTE/muitas-${i}.jpg`);
+    for (const r of muitas) bytesPorRef.set(r, pequena);
+    try {
+      const d = doc({
+        coverImages: [],
+        moodBoards: Array.from({ length: 9 }, (_, b) => ({
+          title: `Board ${b}`,
+          images: muitas.slice(b * 10, b * 10 + 10),
+        })),
+      });
+      const r = await renderStoredEditorialPdfWithReport(d, "pt");
+      expect(r.faltasPeloTecto).toBe(10);
+      expect(r.faltasSabidas).toBe(0);
+      expect(r.missingImages).toBeGreaterThanOrEqual(10);
+    } finally {
+      for (const r of muitas) bytesPorRef.delete(r);
+    }
+  });
+
+  it("uma de mood board sabida: conta, mas não trava", async () => {
+    NoArmazenamento.faltam = new Set([FOI]);
+    try {
+      const d = doc({
+        moodBoards: [
+          { title: "Cerimónia", images: [FOI, ref(0), ref(1)] },
+          { title: "Cocktail", images: [ref(3), ref(4)] },
+        ],
+      });
+      const r = await renderStoredEditorialPdfWithReport(d, "pt");
+      expect(r.missingImages).toBe(1);
+      expect(r.faltasSabidas).toBe(1);
+      expect(r.faltasSabidasQueTravam).toBe(0);
+    } finally {
+      NoArmazenamento.faltam = new Set();
+    }
+  });
+
+  it("uma escolhida à mão sabida: trava; uma que não se deixou buscar não é «sabida»", async () => {
+    NoArmazenamento.faltam = new Set([FOI]);
+    try {
+      const d = doc({
+        fotosDasPaginas: {
+          indice: { fotos: [FOI] },
+          total: { fotos: ["proposal-assets/TESTE/sumiu.jpg"] },
+        },
+      });
+      const r = await renderStoredEditorialPdfWithReport(d, "pt");
+      expect(r.faltasSabidas).toBe(1);
+      expect(r.faltasSabidasQueTravam).toBe(1);
+      // A outra (sem bytes, mas que ninguém sabe que falta) é passageira.
+      expect(r.missingImages).toBe(2);
+    } finally {
+      NoArmazenamento.faltam = new Set();
+    }
+  });
+
+  it("a capa sabida em falta, pequena: só trava sem inspiração para pôr no lugar (n.º 3)", async () => {
+    const CAPA = "proposal-assets/TESTE/capa-sabida.jpg";
+    naBiblioteca.set(CAPA, { largura: 900, altura: 600 });
+    try {
+      NoArmazenamento.faltam = new Set([CAPA]);
+      const comInspiracao = await renderStoredEditorialPdfWithReport(
+        doc({ coverImages: [CAPA] }),
+        "pt",
+      );
+      expect(comInspiracao.faltasSabidasQueTravam).toBe(0);
+      // A inspiração toda também em falta: o PDF ficava sem capa — trava.
+      const board = [ref(0), ref(1)];
+      NoArmazenamento.faltam = new Set([CAPA, ...board]);
+      const semNada = await renderStoredEditorialPdfWithReport(
+        doc({ coverImages: [CAPA], moodBoards: [{ title: "Cerimónia", images: board }] }),
+        "pt",
+      );
+      expect(semNada.faltasSabidasQueTravam).toBe(1);
+    } finally {
+      NoArmazenamento.faltam = new Set();
+      naBiblioteca.delete(CAPA);
+    }
+  });
+
+  it("só com `memoria` a pergunta aceita a listagem guardada — o envio pergunta de fresco", async () => {
+    NoArmazenamento.perguntas = [];
+    await renderStoredEditorialPdfWithReport(doc(), "pt", { soPaginas: [1], memoria: true });
+    await renderStoredEditorialPdfWithReport(doc(), "pt");
+    expect(NoArmazenamento.perguntas).toEqual([{ memoria: true }, { memoria: false }]);
   });
 });

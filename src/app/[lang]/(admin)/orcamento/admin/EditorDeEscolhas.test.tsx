@@ -397,3 +397,20 @@ describe("apagar a opção — anular, e não pergunta", () => {
     expect(screen.queryByText(/Pode anular durante/)).toBeNull();
   });
 });
+
+/**
+ * Revisão de 14/11 (2.ª), n.º 6: uma foto de mood board que foi para a
+ * Reciclagem continuava a ser oferecida como alternativa — uma escolha que já
+ * nascia em falta. A fonte é a verificação do armazenamento (`refsEmFalta`).
+ */
+describe("as fotografias oferecidas às alternativas", () => {
+  it("não oferece as que se sabe que já não existem, nem as por copiar", async () => {
+    const { fotosParaAsEscolhas } = await import("./EditorDeEscolhas");
+    const r = fotosParaAsEscolhas(
+      [{ title: "Cerimónia", images: ["tema:t1/foi.jpg", "tema:t1/fica.jpg", "pending:x"] }],
+      { "tema:t1/fica.jpg": "https://u/fica" },
+      new Set(["tema:t1/foi.jpg"]),
+    );
+    expect(r).toEqual([{ caminho: "tema:t1/fica.jpg", url: "https://u/fica", onde: "Cerimónia" }]);
+  });
+});

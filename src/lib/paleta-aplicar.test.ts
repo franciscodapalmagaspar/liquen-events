@@ -13,12 +13,19 @@ const st = vi.hoisted(() => ({
   fotos: [] as Array<{ path: string; cor?: string | null }>,
   ligacoes: [] as Array<{ path: string; etiquetaId: string }>,
   falharEm: null as string | null,
+  /** Caminhos cujo ficheiro já não está na pasta (Reciclagem, ou saiu de vez). */
+  foraDaPasta: new Set<string>(),
 }));
 
-// A leitura das fotos DA BIBLIOTECA (já sem as de propostas — esse filtro tem
-// teste próprio em `paleta-aplicar.fotos-de-propostas.test.ts`).
-vi.mock("./biblioteca-fotos-da-biblioteca", () => ({
-  listFotosDaBiblioteca: vi.fn(async () => st.fotos),
+vi.mock("./proposta-fotos-verificacao", () => ({
+  refsQueJaNaoExistem: vi.fn(
+    async (refs: readonly string[]) =>
+      new Set(refs.filter((r) => st.foraDaPasta.has(r.replace(/^[^:]+:/, "")))),
+  ),
+}));
+
+vi.mock("./biblioteca-fotos-store", () => ({
+  listFotos: vi.fn(async () => st.fotos),
 }));
 vi.mock("./biblioteca-foto-etiquetas-store", () => ({
   listFotoEtiquetas: vi.fn(async () => st.ligacoes),
@@ -40,6 +47,7 @@ beforeEach(() => {
   ];
   st.ligacoes = [];
   st.falharEm = null;
+  st.foraDaPasta = new Set();
 });
 
 describe("aplicarPaletas", () => {
@@ -51,6 +59,13 @@ describe("aplicarPaletas", () => {
     expect(r.antes).toBe(0);
     expect(r.depois).toBe(0);
     expect(r.resumo).toContain("ENSAIO");
+  });
+
+  it("uma foto na Reciclagem (ou que já saiu de vez) não entra na paleta (menor n.º 3, 14/11)", async () => {
+    st.foraDaPasta = new Set(["t/verde.jpg"]);
+    const r = await aplicarPaletas();
+    expect(r.plano.aAplicar.map((a) => a.path)).toEqual(["t/creme.jpg"]);
+    expect(st.ligacoes.map((l) => l.path)).toEqual(["t/creme.jpg"]);
   });
 
   it("aplicado, escreve e as contas da TABELA batem certo", async () => {
@@ -85,6 +100,15 @@ describe("aplicarPaletas", () => {
     const r = await aplicarPaletas({ ensaio: true });
     expect(r.plano.semCor).toBe(1);
     expect(r.resumo).toContain("1 sem cor conhecida");
+  });
+
+  it("não etiqueta as fotos das PROPOSTAS, que também têm cor nesta tabela", async () => {
+    st.fotos.push({ path: "LIQ-MT7CWVWU-C4BFD3877E978CFF/x.jpg", cor: "#3d5a40" });
+    const r = await aplicarPaletas();
+    expect(r.plano.aAplicar.map((a) => a.path)).not.toContain(
+      "LIQ-MT7CWVWU-C4BFD3877E978CFF/x.jpg",
+    );
+    expect(st.ligacoes.some((l) => l.path.startsWith("LIQ-"))).toBe(false);
   });
 
   it("correr duas vezes não muda nada da segunda", async () => {

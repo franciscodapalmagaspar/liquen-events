@@ -53,6 +53,8 @@ const st = vi.hoisted(() => ({
   listagens: 0,
   /** Derivadas órfãs apagadas, por caminho de origem. */
   derivadasApagadas: [] as string[],
+  /** As linhas da Biblioteca marcadas «mexidas agora» (`marcarFotoMexida`). */
+  mexidas: [] as string[],
 }));
 
 vi.mock("./reciclagem-store", () => ({
@@ -79,6 +81,9 @@ vi.mock("./biblioteca-fotos-store", () => ({
   deleteFoto: async (path: string) => {
     st.fotos.delete(path);
     st.etiquetas = st.etiquetas.filter((e) => e.path !== path);
+  },
+  marcarFotoMexida: async (path: string) => {
+    st.mexidas.push(path);
   },
 }));
 
@@ -189,6 +194,7 @@ beforeEach(() => {
   st.apagouPasta = [];
   st.transferencias = [];
   st.fotos = new Map();
+  st.mexidas = [];
   st.etiquetas = [];
   st.reciclagem = [];
   st.listagens = 0;
@@ -488,6 +494,17 @@ describe("moverFotosDaBiblioteca", () => {
     const [r] = await moverFotosDaBiblioteca(["boho/a.jpg"], "campestre");
     expect(r.outcome).toBe("failed");
     expect(st.apagouFoto).toEqual([]);
+  });
+
+  /**
+   * 2.ª revisão de 14/11, importante n.º 3: o ficheiro chega a um caminho que
+   * JÁ tinha linha (a foto já lá esteve e saiu). A linha fica «mexida agora»,
+   * para a Biblioteca não a esconder por uma listagem velha de outra instância.
+   */
+  it("um destino que já tinha linha fica marcado como mexido; um novo não", async () => {
+    st.fotos.set("campestre/c.jpg", { path: "campestre/c.jpg" });
+    await moverFotosDaBiblioteca(["boho/c.jpg", "boho/d.jpg"], "campestre");
+    expect(st.mexidas).toEqual(["campestre/c.jpg"]);
   });
 
   it("varredura incompleta: nada sai do sítio", async () => {

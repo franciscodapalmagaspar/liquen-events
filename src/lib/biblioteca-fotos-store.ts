@@ -1,6 +1,7 @@
 import "server-only";
 import { createRepository, type Mapper } from "./repository";
 import type { Foto } from "./biblioteca-types";
+import { log } from "./logger";
 
 /**
  * As FOTOS da biblioteca — uma linha por ficheiro do bucket `theme-assets`.
@@ -11,10 +12,9 @@ import type { Foto } from "./biblioteca-types";
  * (pastas `LIQ-…`), que o estúdio e o PDF lêem por caminho
  * (`formasDeCaminhos`, `coresDeCaminhos`); e a cache de URLs assinados
  * (`urls-assinados.ts`, chamada por `proposta-fotos.ts`) cria linhas dessas só
- * com os URLs. Por isso o `listFotos` devolve a tabela INTEIRA: fora deste
- * módulo, só a cópia de segurança, a reposição e o `listFotosDaBiblioteca`
- * (`biblioteca-fotos-da-biblioteca.ts`, que filtra as pastas de temas) o usam.
- * Para LISTAR a Biblioteca usa-se este último; um teste prende isto.
+ * com os URLs. Por isso o `listFotos` devolve a tabela INTEIRA: quem lista a
+ * Biblioteca filtra com `ehFotoDaBiblioteca` (`biblioteca-consulta.ts`), como
+ * fazem a rota da Biblioteca e o passe das paletas.
  *
  * ── O que esta tabela NÃO é ──────────────────────────────────────────────
  * Não é a fonte de verdade do que existe. A PASTA continua a mandar nisso (ver
@@ -43,6 +43,19 @@ export const mapper: Mapper<Foto> = {
   // via nada, e em produção a LQIP e a COR de cada foto nunca chegavam a ser
   // gravadas, e etiquetar respondia «não instalado». Ver `Mapper.idColumn`.
   idColumn: "path",
+  // AS COLUNAS, ESCRITAS UMA A UMA — e nunca `*` (revisão de 14/11).
+  //
+  // A tabela tem uma coluna que esta lista não usa: `urls`, a cache dos
+  // endereços assinados da página do casal (ver `urls-assinados.ts`), até
+  // ~1,7 KB por linha. Com `*`, cada página da Biblioteca — que lê a tabela
+  // INTEIRA — arrastava esses quilobytes de todas as linhas para a função, e o
+  // que sai do Supabase paga-se no plano gratuito. Uma coluna que se acrescente
+  // à tabela só passa a ser lida quando alguém a puser aqui.
+  //
+  // `updated_at` está na lista porque é o carimbo do compare-and-set (`touch`)
+  // e o `fromRow` lê-o; o `get` não o volta a pedir (ver `colsWithStamp`).
+  selectColumns:
+    "path, pasta, fingerprint, md5, largura, altura, lqip, cor, created_at, updated_at",
   // `pasta` NÃO se escreve: é calculada pela base de dados a partir do `path`
   // (coluna gerada). Escrevê-la seria arriscar duas versões da mesma verdade.
   toRow: (f) => ({
@@ -113,6 +126,32 @@ export const updateFoto = (
   path: string,
   patch: Partial<Pick<Foto, "fingerprint" | "md5" | "largura" | "altura" | "lqip" | "cor">>,
 ): Promise<Foto | null> => repo.update(path, patch);
+
+/**
+ * ── O FICHEIRO VOLTOU A ESTE CAMINHO: A LINHA FICA «MEXIDA AGORA» ─────────
+ *
+ * 2.ª revisão de 14/11, importante n.º 3. A Biblioteca esconde a linha cuja
+ * foto a pasta diz que já não existe — com a listagem guardada 3 min por
+ * instância (`memoria-das-listagens.ts`). Uma listagem de OUTRA instância, de
+ * antes de a foto voltar, escondia-a; a guarda é «uma linha mexida há menos de
+ * 3 min nunca se esconde» (`api/biblioteca/fotos`). Repor uma foto da
+ * Reciclagem — ou outra escrita que traga um ficheiro de volta a um caminho
+ * que já tinha linha — não mexia na linha, e a guarda não a apanhava.
+ *
+ * É uma escrita normal da aplicação: o `updated_at` passa a agora (o `touch`
+ * do repositório). Sem linha não faz nada (a Biblioteca nem a lista). Nunca
+ * lança: a foto já voltou, e a linha é acessória.
+ */
+export async function marcarFotoMexida(path: string): Promise<void> {
+  try {
+    await repo.update(path, { updatedAt: new Date().toISOString() });
+  } catch (e) {
+    log.warn("biblioteca: a linha da foto não ficou marcada como mexida", {
+      path,
+      erro: String(e),
+    });
+  }
+}
 
 /**
  * Os LQIP de um conjunto de caminhos, num pedido só.

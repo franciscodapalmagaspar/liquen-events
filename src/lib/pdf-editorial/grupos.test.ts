@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { agrupar, capitulos, eDasMesas, grupoDoTema, grupoNoCasamento } from "./grupos";
+import {
+  agrupar,
+  capitulos,
+  eDaCerimoniaMesmo,
+  eDasMesas,
+  grupoDoTema,
+  grupoNoCasamento,
+} from "./grupos";
 import { primeirosNomes } from "./textos";
 
 describe("o grupo lê-se do nome do tema", () => {
@@ -64,9 +71,18 @@ describe("os capítulos: casamento pelo dia, o resto pelo mood board", () => {
   });
 
   it("num casamento, continuam os capítulos do dia", () => {
-    const c = capitulos([{ title: "Cocktail" }, ...temas], (t) => t, true);
+    const c = capitulos([{ title: "Cerimónia" }, { title: "Cocktail" }, ...temas], (t) => t, true);
     expect(c.map((x) => x.grupo)).toEqual(["cerimonia", "cocktail", "jantar"]);
+    expect(c[0].itens.map((t) => t.title)).toEqual(["Cerimónia", "Arco de abóboras"]);
     expect(c[1].itens.map((t) => t.title)).toEqual(["Cocktail", "Bar"]);
+  });
+
+  it("num casamento sem tema da cerimónia, o arco não abre «Cerimónia» (14/11)", () => {
+    // Até 14/11 este caso dava ["cerimonia", "cocktail", "jantar"]: o «Arco de
+    // abóboras» sozinho criava o capítulo.
+    const c = capitulos([{ title: "Cocktail" }, ...temas], (t) => t, true);
+    expect(c.map((x) => x.grupo)).toEqual(["cocktail", "jantar", "ambiente"]);
+    expect(c[2].itens.map((t) => t.title)).toEqual(["Arco de abóboras"]);
   });
 });
 
@@ -160,5 +176,116 @@ describe("fotosQueDaoCor (13/11): as fotografias da página que dão cor à pale
   it("um tema das mesas só com texto não conta", async () => {
     const { fotosQueDaoCor } = await import("./grupos");
     expect(fotosQueDaoCor(["c1"], [{ title: "Mesas de Jantar", images: [] }])).toEqual(["c1"]);
+  });
+});
+
+/**
+ * Auditoria de 14/11, defeito 1: os complementos são testados antes do jantar,
+ * e «noivos» é palavra dos complementos — «Mesa dos noivos» ia parar ao lado
+ * dos ramos, e ficava fora da paleta das mesas.
+ */
+describe("a mesa dos noivos é do jantar, e o ramo da noiva continua nos complementos", () => {
+  it.each([
+    ["Mesa dos noivos", "jantar"],
+    ["Mesa de honra dos noivos", "jantar"],
+    ["Mesa de honra", "jantar"],
+    ["Decoração Mesa dos Noivos", "jantar"],
+    ["Mesas dos noivos e padrinhos", "jantar"],
+    ["MESA DA NOIVA", "jantar"],
+    // O que já estava certo fica.
+    ["Ramo da noiva", "complementos"],
+    ["Ramo da Noiva e lapelas", "complementos"],
+    ["Lapelas dos noivos", "complementos"],
+    ["Complementos dos Noivos", "complementos"],
+    ["Mesa da cerimónia", "cerimonia"],
+    ["Mesa dos noivos no altar", "cerimonia"],
+  ])("«%s» → %s", (titulo, grupo) => {
+    expect(grupoDoTema(titulo)).toBe(grupo);
+    const todos = [{ title: titulo }, { title: "Decoração Cerimónia" }];
+    expect(grupoNoCasamento(todos[0], todos)).toBe(grupo);
+  });
+
+  it("e entra na paleta das mesas", () => {
+    expect(eDasMesas("Mesa dos noivos")).toBe(true);
+    expect(eDasMesas("Mesa de honra dos noivos")).toBe(true);
+    expect(eDasMesas("Ramo da noiva")).toBe(false);
+  });
+
+  it("no subtítulo também", () => {
+    expect(grupoDoTema("Proposta A", "Mesa dos noivos")).toBe("jantar");
+  });
+});
+
+/**
+ * Auditoria de 14/11, defeito 2: o mesmo padrão do cocktail de 12/11, do lado
+ * da cerimónia — um «Arco floral» sozinho abria o capítulo «Cerimónia».
+ */
+describe("sem tema da cerimónia, não há capítulo «Cerimónia»", () => {
+  it("o arco e o corredor, sem cerimónia, vão para «Ambiente»", () => {
+    const todos = [
+      { title: "Arco floral" },
+      { title: "Corredor nupcial" },
+      { title: "Aisle" },
+      { title: "Mesa dos noivos" },
+    ];
+    expect(todos.map((t) => grupoNoCasamento(t, todos))).toEqual([
+      "ambiente",
+      "ambiente",
+      "ambiente",
+      "jantar",
+    ]);
+    expect(capitulos(todos, (t) => t, true).map((c) => c.grupo)).toEqual(["jantar", "ambiente"]);
+  });
+
+  it.each(["Decoração Cerimónia", "Igreja", "Altar", "Ceremony", "Arco cerimonial"])(
+    "com «%s», o arco e o corredor continuam na «Cerimónia»",
+    (daCerimonia) => {
+      const todos = [{ title: "Arco floral" }, { title: "Corredor" }, { title: daCerimonia }];
+      expect(todos.map((t) => grupoNoCasamento(t, todos))).toEqual([
+        "cerimonia",
+        "cerimonia",
+        "cerimonia",
+      ]);
+    },
+  );
+
+  it("a cerimónia pode vir no subtítulo", () => {
+    const todos = [{ title: "Arco floral" }, { title: "Proposta A", subtitulo: "Cerimónia" }];
+    expect(grupoNoCasamento(todos[0], todos)).toBe("cerimonia");
+  });
+
+  it("o exemplo dela fica igual: o corredor ao lado da «Decoração Cerimónia»", () => {
+    const todos = [
+      { title: "Decoração Cerimónia" },
+      { title: "Corredor nupcial" },
+      { title: "Decor Cocktail" },
+      { title: "Seating Plan" },
+      { title: "Decoração e Decor Floral Mesas Jantar" },
+      { title: "Decor Floral Mesa Bolo" },
+      { title: "Complementos dos Noivos" },
+    ];
+    expect(todos.map((t) => grupoNoCasamento(t, todos))).toEqual([
+      "cerimonia",
+      "cerimonia",
+      "cocktail",
+      "cocktail",
+      "jantar",
+      "jantar",
+      "complementos",
+    ]);
+  });
+
+  it.each([
+    ["Arco floral", false],
+    ["Corredor", false],
+    ["Aisle", false],
+    ["Decoração Cerimónia", true],
+    ["Mesa da cerimónia", true],
+    ["Igreja", true],
+    ["Altar", true],
+    ["Arco cerimonial", true],
+    ["Mesas de jantar", false],
+  ])("eDaCerimoniaMesmo(«%s») → %s", (titulo, sim) => {
+    expect(eDaCerimoniaMesmo(titulo)).toBe(sim);
   });
 });

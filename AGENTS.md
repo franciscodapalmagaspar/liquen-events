@@ -42,3 +42,22 @@ Consequências práticas, se um passeio ficar vermelho sem razão aparente:
   · o que dependa de hidratar depois de um recarregar sem rede não se pode
     provar em `dev` — tem guarda próprio contra produção
     (`e2e/o-ecra-volta-vivo-sem-rede.spec.ts`).
+
+**E o `ECONNRESET` dos pedidos cortados também é do Next, não nosso** (medido
+a 14/11, na 16.3.8). Quando o browser corta um pedido a MEIO DO CORPO (um
+upload, um POST grande), o servidor escreve `Error: aborted` com
+`code: 'ECONNRESET'`. Medido com o mesmo código nos dois servidores, cortando
+uploads JSON e multipart, PDFs a meio do desenho, o `/assets`, páginas RSC em
+streaming e o `/_next/image`:
+
+|  | `next dev` | `next start` |
+|---|---|---|
+| upload cortado a meio do corpo | `⨯ Error: aborted`; duas vezes, a meio de uma recompilação, `⨯ uncaughtException: Error: aborted` | `Error: aborted` no registo, e o servidor continua a servir |
+| resposta cortada (PDF, `/assets`, streaming, imagem) | nada | nada |
+
+Em produção aparece **igual numa rota que não existe** (`POST /api/rota-que-nao-existe`)
+e em pedidos recusados com 401 antes de a rota ler o corpo: é o Next a ler o
+corpo do pedido, antes do nosso código. Não temos streams próprios
+(`ReadableStream`, `.pipe`) nas rotas, e o `proxy.ts` não lê corpos. O
+`uncaughtException` só se viu no `dev`. Não há nada a corrigir do nosso lado:
+não se «trata» este erro nas rotas, porque nenhuma delas chega a vê-lo.

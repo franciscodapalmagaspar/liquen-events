@@ -103,6 +103,9 @@ export default defineConfig({
         // aqui em silêncio, que é a armadilha que este ficheiro acabou de fechar.
         "**/guiao-do-dia.spec.ts",
         "**/caca/a02-editor-stress.spec.ts",
+        // Cria uma marcação e tarefas «TESTE e2e» para tocar nelas com o dedo.
+        // Corre em `npm run test:e2e:movel`, que tem servidor que grava.
+        "**/o-iphone-com-barras.spec.ts",
       ],
       use: { ...devices["Desktop Chrome"], storageState: ESTADO_ADMIN },
       dependencies: ["sessao"],

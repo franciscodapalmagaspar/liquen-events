@@ -44,6 +44,21 @@ describe("quando está tudo no sítio", () => {
     expect(await screen.findByText(/3 fotografias estão todas no sítio/i)).toBeTruthy();
   });
 
+  it("sem fotografia nenhuma não diz que estão «todas no sítio» (auditoria de 14/11)", async () => {
+    responde = () =>
+      ok({ total: 0, emFalta: [], suspeitas: [], naoVerificaveis: 0, verificou: true });
+    render(<FotosEmFalta quoteId="LIQ-9" doc={DOC} />);
+    expect(await screen.findByText("Ainda não há fotografias na proposta.")).toBeTruthy();
+    expect(screen.queryByText(/0 fotografias/)).toBeNull();
+  });
+
+  it("com uma só, fala no singular", async () => {
+    responde = () =>
+      ok({ total: 1, emFalta: [], suspeitas: [], naoVerificaveis: 0, verificou: true });
+    render(<FotosEmFalta quoteId="LIQ-9" doc={DOC} />);
+    expect(await screen.findByText("A fotografia está no sítio.")).toBeTruthy();
+  });
+
   it("as fotos de fora contam-se à parte", async () => {
     responde = () =>
       ok({ total: 3, emFalta: [], suspeitas: [], naoVerificaveis: 1, verificou: true });
@@ -226,5 +241,72 @@ describe("as fotografias que vão sair pior do que deviam", () => {
     render(<FotosEmFalta quoteId="LIQ-9" doc={DOC} />);
     await screen.findByText(/estão todas no sítio/i);
     expect(screen.queryByText(/vão sair pior/i)).toBeNull();
+  });
+});
+
+/**
+ * Revisão de 14/11, n.º 7: a verificação estava presa ao documento do PRIMEIRO
+ * desenho. Ela trocava a foto em falta, carregava em «Já corrigi — voltar a
+ * confirmar», e o botão confirmava o documento velho — a foto continuava «em
+ * falta» e o envio travado.
+ */
+describe("voltar a confirmar confirma o documento de AGORA", () => {
+  it("depois de ela trocar a foto, o pedido leva o documento novo", async () => {
+    responde = () =>
+      ok({
+        total: 1,
+        suspeitas: [],
+        naoVerificaveis: 0,
+        verificou: true,
+        emFalta: [{ id: "b0f0", onde: "Mood board «A» · foto 1", motivo: "saiu-da-biblioteca" }],
+      });
+    const velho = { moodBoards: [{ title: "A", images: ["tema:t/velha.jpg"] }] };
+    const novo = { moodBoards: [{ title: "A", images: ["tema:t/nova.jpg"] }] };
+    const { rerender } = render(
+      <FotosEmFalta quoteId="LIQ-9" doc={velho as unknown as ProposalDoc} />,
+    );
+    const botao = await screen.findByRole("button", { name: /Já corrigi/ });
+    rerender(<FotosEmFalta quoteId="LIQ-9" doc={novo as unknown as ProposalDoc} />);
+    await userEvent.click(botao);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const corpo = (n: number) =>
+      JSON.parse(String((fetchMock.mock.calls[n] as unknown as [string, RequestInit])[1].body));
+    expect(corpo(0).doc.moodBoards[0].images).toEqual(["tema:t/velha.jpg"]);
+    expect(corpo(1).doc.moodBoards[0].images).toEqual(["tema:t/nova.jpg"]);
+  });
+
+  it("as escolhidas que SE SABE que faltam passam ao estúdio mesmo com uma pasta por confirmar", async () => {
+    const lista = [{ ref: "tema:t/a.jpg", pagina: "Índice", tema: null, naReciclagem: true }];
+    responde = () =>
+      ok({
+        total: 2,
+        suspeitas: [],
+        naoVerificaveis: 0,
+        verificou: false,
+        emFalta: [],
+        escolhidasQueFaltam: lista,
+      });
+    const avisar = vi.fn();
+    render(<FotosEmFalta quoteId="LIQ-9" doc={DOC} onEscolhidasQueFaltam={avisar} />);
+    await waitFor(() => expect(avisar).toHaveBeenCalledWith(lista));
+  });
+});
+
+describe("as que faltam chegam ao estúdio (revisão de 14/11, n.º 6)", () => {
+  it("passa os caminhos das que já não existem, para as alternativas não as oferecerem", async () => {
+    responde = () =>
+      ok({
+        total: 2,
+        emFalta: [
+          { id: "b0f0", onde: "Mood board «Cerimónia» · foto 1", motivo: "saiu-da-biblioteca" },
+        ],
+        refsEmFalta: ["tema:t1/foi.jpg"],
+        suspeitas: [],
+        naoVerificaveis: 0,
+        verificou: true,
+      });
+    const aoSaber = vi.fn();
+    render(<FotosEmFalta quoteId="LIQ-9" doc={DOC} onRefsQueFaltam={aoSaber} />);
+    await waitFor(() => expect(aoSaber).toHaveBeenCalledWith(["tema:t1/foi.jpg"]));
   });
 });

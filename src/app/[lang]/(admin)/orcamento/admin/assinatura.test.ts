@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { assinaturaExpirada, urlAindaBom } from "./assinatura";
+import {
+  assinaturaExpirada,
+  haAssinaturaMorta,
+  semAssinaturasJaMortas,
+  semAssinaturasMortas,
+  urlAindaBom,
+} from "./assinatura";
 
 /**
  * O que aqui se guarda é a decisão de MANTER a cache: substituir sempre a
@@ -73,5 +79,56 @@ describe("urlAindaBom", () => {
   it("com um guardado morto, entra o fresco", () => {
     const morto = assinado(Math.floor(Date.now() / 1000) - 10);
     expect(urlAindaBom(morto, "fresco")).toBe("fresco");
+  });
+});
+
+/**
+ * O DEFEITO DE 13/11: o rascunho do `localStorage` trazia para o ecrã URLs da
+ * Biblioteca assinados sete dias antes (validade de seis horas), e cada célula
+ * pagava um 400 do Storage por degrau da cascata antes de a hidratação chegar.
+ */
+describe("semAssinaturasMortas", () => {
+  it("o que já morreu não entra; o que serve entra igual", () => {
+    const morto = assinado(EM_SEGUNDOS - 7 * 24 * 3600);
+    const bom = assinado(EM_SEGUNDOS + 3600);
+    expect(semAssinaturasMortas({ "tema:a/1.jpg": morto, "q/2.jpg": bom }, AGORA)).toEqual({
+      "q/2.jpg": bom,
+    });
+  });
+
+  it("o que não se consegue ler fica — quem não sabe, não mexe", () => {
+    expect(semAssinaturasMortas({ a: "data:image/jpeg;base64,xx" }, AGORA)).toEqual({
+      a: "data:image/jpeg;base64,xx",
+    });
+  });
+
+  it("lixo no lugar do mapa dá um mapa vazio, e valores que não são texto saem", () => {
+    expect(semAssinaturasMortas(null, AGORA)).toEqual({});
+    expect(semAssinaturasMortas("x", AGORA)).toEqual({});
+    expect(semAssinaturasMortas({ a: 3, b: "" }, AGORA)).toEqual({});
+  });
+});
+
+describe("haAssinaturaMorta", () => {
+  it("responde sim quando um só dos mapas tem um URL morto", () => {
+    const bom = assinado(EM_SEGUNDOS + 3600);
+    const morto = assinado(EM_SEGUNDOS - 60);
+    expect(haAssinaturaMorta([{ a: bom }, { b: morto }], AGORA)).toBe(true);
+  });
+
+  it("responde não com tudo a servir — é o que impede uma leitura por nada", () => {
+    const bom = assinado(EM_SEGUNDOS + 3600);
+    expect(haAssinaturaMorta([{ a: bom }, {}, { c: "data:x" }], AGORA)).toBe(false);
+  });
+});
+
+describe("semAssinaturasJaMortas", () => {
+  it("para APAGAR do ecrã não há margem: três minutos de vida ainda desenham", () => {
+    const aMorrer = assinado(EM_SEGUNDOS + 180);
+    const morto = assinado(EM_SEGUNDOS - 1);
+    // Com margem (escolher se vale a pena pedir), os dois saem…
+    expect(semAssinaturasMortas({ a: aMorrer, b: morto }, AGORA)).toEqual({});
+    // …para apagar o que já está no ecrã, só o que morreu.
+    expect(semAssinaturasJaMortas({ a: aMorrer, b: morto }, AGORA)).toEqual({ a: aMorrer });
   });
 });

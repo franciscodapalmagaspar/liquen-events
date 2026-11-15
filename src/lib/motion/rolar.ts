@@ -81,3 +81,30 @@ export function rolarAJanela(opcoes: Omit<ScrollToOptions, "behavior">): void {
   if (typeof window === "undefined") return;
   window.scrollBy({ ...opcoes, behavior: comportamentoDoRolo() });
 }
+
+/**
+ * ── ATÉ SE VER INTEIRO, POR CIMA DA BARRA DE BAIXO ──────────────────────────
+ *
+ * Para o que NASCE por baixo do que se tocou (o resumo do dia no calendário, a
+ * linha de escrever uma tarefa): se o fundo dele fica por baixo da barra fixa
+ * de baixo — dita pelo `scroll-margin-bottom` do próprio alvo —, sobe o
+ * mínimo para o fundo assentar por cima dela. Se já se vê, não mexe.
+ *
+ * Não é o `block: "nearest"` porque esse, MEDIDO num Chromium (auditoria do
+ * telemóvel de 14/11), parava 40 px antes: com o alvo a 975 px e uma margem de
+ * 98, o `nearest` deixava o fundo a 606 num ecrã de 664 — por baixo da barra.
+ * O `end` respeita a margem, e é a conta que aqui se faz à mão primeiro.
+ *
+ * Quando o alvo é mais alto do que o que sobra, encosta-se o TOPO (o princípio
+ * é o que interessa ler primeiro).
+ */
+export function rolarAteCaberPorCima(alvo: Element | null | undefined): void {
+  if (!alvo || typeof window === "undefined") return;
+  const r = alvo.getBoundingClientRect();
+  const estilo = getComputedStyle(alvo);
+  const chao = window.innerHeight - (parseFloat(estilo.scrollMarginBottom) || 0);
+  if (r.bottom <= chao + 0.5) return;
+  // O que sobra entre o que está colado em cima (o `scroll-margin-top`) e a barra.
+  const sobra = chao - (parseFloat(estilo.scrollMarginTop) || 0);
+  rolarAteVer(alvo, { block: r.height > sobra ? "start" : "end" });
+}

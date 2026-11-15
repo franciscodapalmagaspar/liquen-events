@@ -37,7 +37,11 @@ const ESTADO: Record<string, string> = {
 };
 
 const eur = (n: number) =>
-  new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(n || 0);
+  new Intl.NumberFormat("pt-PT", {
+    useGrouping: "always",
+    style: "currency",
+    currency: "EUR",
+  }).format(n || 0);
 
 export default function PropostasDoPedido({ quoteId }: { quoteId: string }) {
   const [versoes, setVersoes] = useState<Versao[] | null>(null);

@@ -39,7 +39,11 @@ const baseURL = `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: ["**/admin-mobile.spec.ts", "**/sessao-admin.setup.ts"],
+  testMatch: [
+    "**/admin-mobile.spec.ts",
+    "**/o-iphone-com-barras.spec.ts",
+    "**/sessao-admin.setup.ts",
+  ],
   // Em série: os passeios criam pedidos e mexem na mesma lista.
   fullyParallel: false,
   forbidOnly: !!process.env.CI,

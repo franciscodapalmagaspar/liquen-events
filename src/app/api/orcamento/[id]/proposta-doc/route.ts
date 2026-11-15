@@ -22,8 +22,14 @@ import { eur, eurDocumento } from "@/lib/money";
 import { createProposal, updateProposal, listProposalsForQuote } from "@/lib/proposals-store";
 import { renderStoredEditorialPdfWithReport } from "@/lib/proposal-doc-render";
 import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
-import { chaveDaVersao, pdfFinalDaVersao, type RelatorioDoPdf } from "@/lib/proposal-preview-cache";
+import {
+  chaveDaVersao,
+  faltasPassageiras,
+  pdfFinalDaVersao,
+  type RelatorioDoPdf,
+} from "@/lib/proposal-preview-cache";
 import { guardarPdfDaProposta } from "@/lib/proposal-pdf-guardado";
+import { fotosEscolhidasQueFaltam } from "@/lib/proposta-fotos-verificacao";
 import { enderecoDoPdfDaProposta } from "@/lib/proposta-link-curto";
 import {
   ehIdiomaDaProposta,
@@ -70,6 +76,13 @@ const TRAVAM_NO_SERVIDOR: ReadonlySet<string> = new Set([
   "precos-das-linhas",
   "artigos-moloni",
   "soma",
+  // Uma foto que ela escolheu para uma página e que já não existe (14/11): o
+  // PDF deixava de a mostrar e punha outra em silêncio. Confere-se aqui, no
+  // armazenamento, com `fotosEscolhidasQueFaltam`.
+  "foto-escolhida-em-falta",
+  // Uma escolhida (ou a capa) que o tecto de fotos do PDF deixaria de fora
+  // (14/11): a mesma regra pura do motor, `fotosNoTectoDoPdf`.
+  "fotos-a-mais",
 ]);
 
 /**
@@ -85,6 +98,10 @@ const TRAVAM_O_PDF_FINAL: ReadonlySet<string> = new Set([
   "precos-das-linhas",
   "artigos-moloni",
   "soma",
+  // A foto que ela escolheu e já não existe: o PDF final sairia com o lugar
+  // vazio. O estúdio já só oferece o rascunho nesse caso (a mesma lista).
+  "foto-escolhida-em-falta",
+  "fotos-a-mais",
 ]);
 
 export const runtime = "nodejs";
@@ -476,8 +493,12 @@ async function POST_semMedida(
      * minuto deitado fora.
      */
     if (mode === "send") {
+      // A MESMA conta do estúdio (`fotosEscolhidasQueFaltam`). Uma pasta que
+      // não responde deixa por acusar só as fotos dela; as outras contam.
+      const escolhidasEmFalta = await fotosEscolhidasQueFaltam(doc);
       const travam = oQueFaltaParaEnviar(doc, dinheiroDaProposta(doc).gross, {
         idioma,
+        fotosEscolhidasQueFaltam: escolhidasEmFalta,
         canal: body?.porEmail === false ? "whatsapp" : "email",
         emailDoCliente: quote.email,
         pdfVisto: typeof body?.pdfVisto === "string" && body.pdfVisto === chaveDoQueChegou,
@@ -489,7 +510,7 @@ async function POST_semMedida(
         });
         return NextResponse.json(
           {
-            error: `A proposta não pode seguir: ${travam.map((f) => f.texto.toLowerCase()).join("; ")}.`,
+            error: `A proposta não pode seguir: ${travam.map((f) => f.texto.charAt(0).toLowerCase() + f.texto.slice(1)).join("; ")}.`,
             faltas: travam,
           },
           { status: 422 },
@@ -514,6 +535,7 @@ async function POST_semMedida(
     if (mode === "preview" && !rascunho) {
       const travam = oQueFaltaParaEnviar(doc, dinheiroDaProposta(doc).gross, {
         idioma,
+        fotosEscolhidasQueFaltam: await fotosEscolhidasQueFaltam(doc),
         canal: "email",
         emailDoCliente: quote.email,
         pdfVisto: false,
@@ -523,7 +545,11 @@ async function POST_semMedida(
           {
             // Só a primeira letra desce: o resto leva os nomes dos serviços,
             // que se escrevem como ela os escreveu.
-            error: `O PDF final só sai com os valores todos: ${travam
+            error: `O PDF final só sai com ${
+              travam.every((f) => f.id === "foto-escolhida-em-falta" || f.id === "fotos-a-mais")
+                ? "as fotografias todas"
+                : "os valores todos"
+            }: ${travam
               .map((f) => f.texto.charAt(0).toLowerCase() + f.texto.slice(1))
               .join("; ")}. Até lá, descarrega o rascunho.`,
             faltas: travam,
@@ -544,7 +570,13 @@ async function POST_semMedida(
     // segundo.
     let pdfDaMemoria = false;
     if (rascunho) {
-      relatorio = await renderStoredEditorialPdfWithReport(doc, idioma, { rascunho });
+      // O rascunho aceita a listagem das pastas guardada há pouco (revisão de
+      // 14/11, 2.ª, n.º 1). O PDF final — que o envio reaproveita — pergunta
+      // de fresco.
+      relatorio = await renderStoredEditorialPdfWithReport(doc, idioma, {
+        rascunho,
+        memoria: true,
+      });
     } else {
       const versao = await pdfFinalDaVersao(chaveDaVersao(chaveDoQueChegou, doc.validUntil), () =>
         renderStoredEditorialPdfWithReport(doc, idioma, { rascunho }),
@@ -584,9 +616,12 @@ async function POST_semMedida(
      * A pré-visualização não repete: é onde ela DESCOBRE o que falta, e é para
      * ser rápida.
      */
+    // As que se SABE que faltam (foram para a Reciclagem) não voltam numa
+    // segunda passagem: só as outras justificam desenhar outra vez (revisão
+    // de 14/11, 2.ª, n.º 2). As escolhidas dessas já travaram o envio acima.
     if (
       mode === "send" &&
-      relatorio.missingImages > 0 &&
+      faltasPassageiras(relatorio) > 0 &&
       resta() > FOLGA_DO_EMAIL_MS + FOLGA_DA_SEGUNDA_PASSAGEM_MS
     ) {
       log.warn("proposta-doc: fotos em falta no envio, a desenhar segunda vez", {

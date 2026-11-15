@@ -6,7 +6,7 @@ import {
   APARENCIAS,
   COOKIE_APARENCIA,
   VALIDADE_APARENCIA_S,
-  aparenciaValida,
+  aparenciaDoCookie,
 } from "./ui/aparencia";
 import type { Aparencia } from "./ui/aparencia";
 
@@ -15,10 +15,10 @@ import type { Aparencia } from "./ui/aparencia";
  * CLARO, ESCURO, OU O QUE O COMPUTADOR DISSER
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Três estados, com Automático por omissão — é o que a Parte 5.3 do
- * `docs/DESIGN-SYSTEM.md` manda, e a razão está lá: a Apple desaconselha que
- * uma aplicação imponha uma aparência, porque quem põe o computador em escuro
- * ao fim da tarde quer que TUDO acompanhe, e não ter de ir a cada aplicação.
+ * Três estados. A Parte 5.3 do `docs/DESIGN-SYSTEM.md` manda o Automático por
+ * omissão, mas ela pediu o fundo branco («eu quero o fundo branco atenção!»):
+ * sem escolha gravada o painel é CLARO, e o Automático é uma escolha que se faz
+ * aqui. A razão inteira está no topo de `ui/aparencia.ts`.
  *
  * ── O QUE ESTE COMPONENTE FAZ, E O QUE NÃO FAZ ────────────────────────────
  *
@@ -50,15 +50,18 @@ export function EscolherAparencia() {
     que o React resolve deitando fora o que o servidor fez.
 
     Começa em `auto` — o mesmo dos dois lados — e alinha-se no primeiro efeito,
-    lendo o atributo que o servidor JÁ PINTOU. O que se vê é, quando muito, o
-    segmento certo a acender um fotograma depois; as CORES não piscam, porque
-    quem manda nelas é o atributo, e esse chegou no HTML.
+    lendo o COOKIE, que é o que o servidor também lê. O que se vê é, quando
+    muito, o segmento certo a acender um fotograma depois; as CORES não piscam,
+    porque quem manda nelas é o atributo, e esse chegou no HTML.
+
+    Do cookie e não do atributo (auditoria de 14/11, n.º 5): no Automático o
+    atributo não existe, e lê-lo dava o de omissão — «Claro» aceso com o painel
+    em Automático. Ver `aparenciaDoCookie`.
   */
   const [aparencia, setAparencia] = useState<Aparencia>("auto");
 
   useEffect(() => {
-    const alvo = document.querySelector<HTMLElement>("[data-admin-mode]");
-    setAparencia(aparenciaValida(alvo?.dataset.aparencia));
+    setAparencia(aparenciaDoCookie(document.cookie));
   }, []);
 
   function escolher(nova: Aparencia) {
@@ -76,8 +79,7 @@ export function EscolherAparencia() {
 
     // E fica: `SameSite=Lax` porque isto nunca precisa de viajar num pedido de
     // outro sítio, e `path=/` para valer em todo o back office.
-    document.cookie =
-      `${COOKIE_APARENCIA}=${nova}; path=/; max-age=${VALIDADE_APARENCIA_S}; SameSite=Lax`;
+    document.cookie = `${COOKIE_APARENCIA}=${nova}; path=/; max-age=${VALIDADE_APARENCIA_S}; SameSite=Lax`;
   }
 
   return (

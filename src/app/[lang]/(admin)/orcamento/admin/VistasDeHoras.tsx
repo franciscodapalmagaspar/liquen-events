@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "./ui";
 import { ESTADO, PRESSAO } from "./ui/movimento";
+import { SEM_LUPA, useToqueLongo } from "./ui/adaptativo";
 import { ChipDoDia } from "./ChipDoDia";
 import { DIAS_DA_SEMANA } from "@/lib/orcamento/ano-do-calendario";
 import { horaDoMinuto, minutosDe } from "@/lib/orcamento/guiao-do-dia";
@@ -118,6 +119,53 @@ export interface VistaDeHorasProps {
  * mancha.
  */
 const LARGURA_DAS_HORAS = 48;
+
+/**
+ * ── ONDE A SEMANA ABRE, NA LARGURA — SEMPRE NO INÍCIO DE UM DIA ────────────
+ *
+ * Abria com a coluna de hoje encostada às horas, e isso falhava no fim da
+ * semana: num sábado, encostar o sábado pedia 480 px de rolo numa caixa que só
+ * rola 377, o browser travava no fim, e a semana abria com a quinta cortada a
+ * meio («…ui 12 · Sex 13 · Sáb 14 · Dom 15» — auditoria do telemóvel, 14/11).
+ *
+ * Agora pede-se o início da coluna de hoje; se o rolo não chega lá, o início do
+ * último dia a que ele chega. A coluna da esquerda é sempre um dia inteiro, e
+ * hoje continua inteiro à vista (num sábado: quinta, sexta e sábado, com a
+ * ponta do domingo a dizer que há mais).
+ *
+ * Exportada para se testar sem browser: lê só `offsetLeft`, `scrollWidth` e
+ * `clientWidth`.
+ */
+export function inicioDoDiaAVista(caixa: HTMLElement, hoje: HTMLElement): number {
+  const maximo = Math.max(0, caixa.scrollWidth - caixa.clientWidth);
+  const colunas = [...(hoje.parentElement?.children ?? [])] as HTMLElement[];
+  // `offsetLeft` das colunas conta a partir da fila delas, que começa depois
+  // da coluna das horas — e é esse o zero do rolo útil.
+  const inicios = colunas.map((col) => col.offsetLeft - (colunas[0]?.offsetLeft ?? 0));
+  const meu = hoje.offsetLeft - (colunas[0]?.offsetLeft ?? 0);
+  // Um píxel de folga: as colunas podem ter largura fraccionária
+  // (`chaoComDiasInteiros`), e o `offsetLeft` vem arredondado.
+  if (meu <= maximo + 1) return Math.min(meu, maximo);
+  return inicios.filter((i) => i <= maximo + 1).reduce((a, b) => Math.max(a, b), 0);
+}
+
+/**
+ * E PARA ISSO SER POSSÍVEL, UM ECRÃ LEVA DIAS INTEIROS. Com colunas de 96 numa
+ * largura útil de 295, o fim do rolo (377) cai a meio de um dia — e então ou a
+ * coluna da esquerda vem cortada, ou o domingo nunca se vê inteiro ao abrir.
+ * Quando a semana não cabe, cada coluna alarga até a largura útil ser um número
+ * inteiro delas (295 → três de 98,3): o fim do rolo passa a ser o início de um
+ * dia. Quando cabe, não se mexe em nada.
+ */
+export function chaoComDiasInteiros(chaos: number[], larguraUtil: number | null): number[] {
+  if (!larguraUtil || larguraUtil <= 0 || chaos.length === 0) return chaos;
+  const total = chaos.reduce((s, c) => s + c, 0);
+  if (total <= larguraUtil) return chaos;
+  const menor = Math.min(...chaos);
+  const porEcra = Math.max(1, Math.floor(larguraUtil / menor));
+  const fatia = larguraUtil / porEcra;
+  return chaos.map((c) => Math.max(c, fatia));
+}
 
 /**
  * O tecto da caixa, e porque é que ela tem rolo próprio.
@@ -279,6 +327,7 @@ export function VistaDeHoras({
   onAbrirDia,
 }: VistaDeHorasProps) {
   const caixaRef = useRef<HTMLDivElement>(null);
+  const toqueLongo = useToqueLongo();
   const minuto = useMinutoDoRelogio();
   const minutoVisivel =
     minuto !== null && minuto >= INICIO_DA_JANELA && minuto <= FIM_DA_JANELA ? minuto : null;
@@ -302,8 +351,22 @@ export function VistaDeHoras({
    * previsível através de um `flex`, e o que se ganha em elegância perde-se
    * numa coluna que encolhe abaixo do que se mediu.
    */
-  const modeloDeColunas = dispostos.map((d) => `minmax(${chaoDaColuna(d)}px, 1fr)`).join(" ");
-  const larguraTotal = LARGURA_DAS_HORAS + dispostos.reduce((s, d) => s + chaoDaColuna(d), 0);
+  /* A largura útil da caixa (sem a coluna das horas), medida: é ela que diz
+     quantos dias inteiros cabem num ecrã — ver `chaoComDiasInteiros`. */
+  const [larguraUtil, setLarguraUtil] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const caixa = caixaRef.current;
+    if (!caixa) return;
+    const medir = () => setLarguraUtil(caixa.clientWidth - LARGURA_DAS_HORAS);
+    medir();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(caixa);
+    return () => ro.disconnect();
+  }, []);
+  const chaos = chaoComDiasInteiros(dispostos.map(chaoDaColuna), larguraUtil);
+  const modeloDeColunas = chaos.map((c) => `minmax(${c}px, 1fr)`).join(" ");
+  const larguraTotal = LARGURA_DAS_HORAS + chaos.reduce((s, c) => s + c, 0);
 
   /**
    * A caixa abre-se com o «agora» a um terço do topo — e não no cimo das
@@ -346,8 +409,10 @@ export function VistaDeHoras({
     const r = coluna.getBoundingClientRect();
     const c = caixa.getBoundingClientRect();
     if (r.right <= c.right && r.left >= c.left + LARGURA_DAS_HORAS) return;
-    caixa.scrollLeft = Math.max(0, r.left - c.left + caixa.scrollLeft - LARGURA_DAS_HORAS);
-  }, [chaveDosDias, hoje]);
+    caixa.scrollLeft = inicioDoDiaAVista(caixa, coluna);
+    // A largura útil entra porque as colunas só ficam certas depois de ela se
+    // medir (e voltam a mudar ao rodar o telemóvel); não muda a ler.
+  }, [chaveDosDias, hoje, larguraUtil]);
 
   return (
     <div
@@ -539,6 +604,7 @@ export function VistaDeHoras({
                      número do cabeçalho é um disco cheio e há `aria-current`. */
                   className={cn(
                     "relative border-s border-[var(--bo-hairline)]",
+                    onMenuDoDia && SEM_LUPA,
                     ehHoje && "bg-[color-mix(in_oklab,var(--bo-accent-lavagem)_40%,transparent)]",
                   )}
                   style={{ height: `${HORAS_DA_COLUNA.length * PX_POR_HORA}px` }}
@@ -546,14 +612,19 @@ export function VistaDeHoras({
                      célula da grelha do mês já tem (Parte 4 do documento), e é
                      a razão de não haver aqui texto nenhum a explicá-la. */
                   onDoubleClick={() => onAdicionar(d.data)}
-                  onContextMenu={
-                    onMenuDoDia
-                      ? (e) => {
+                  /* O botão direito e o toque longo abrem o mesmo menu — ver
+                     `useToqueLongo` (o Safari do iPhone não dispara
+                     `contextmenu`). As marcações lá dentro reclamam o toque
+                     primeiro, como o botão direito já fazia. */
+                  {...(onMenuDoDia
+                    ? toqueLongo(
+                        (p) => onMenuDoDia(d.data, p.x, p.y),
+                        (e) => {
                           e.preventDefault();
                           onMenuDoDia(d.data, e.clientX, e.clientY);
-                        }
-                      : undefined
-                  }
+                        },
+                      )
+                    : null)}
                 >
                   {/* As faixas das horas. `aria-hidden` porque a coluna da
                       esquerda já as nomeia — repetir dezassete horas por cada

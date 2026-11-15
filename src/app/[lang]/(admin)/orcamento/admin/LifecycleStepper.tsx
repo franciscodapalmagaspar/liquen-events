@@ -19,7 +19,7 @@
  * nenhum `*-store.ts` nem `server-only`.
  */
 import type { Quote } from "@/lib/orcamento/types";
-import { deriveStage, type EventStage } from "@/lib/orcamento/dossier";
+import { faseDoPedido, type EventStage, type PropostaParaAFase } from "@/lib/orcamento/dossier";
 /* Só `ESTADO`, e sem `PRESSAO`: a escada é um INDICADOR, não um comando —
    nada aqui recebe um toque (os passos vivem dentro de um `<div>`, não de um
    botão), e um `active:scale` num sítio onde não se carrega seria movimento
@@ -65,16 +65,23 @@ const STAGE_STEP: Record<Exclude<EventStage, "perdido">, number> = {
  * (ver `paidTotal`); é ele que está certo. O estúdio corria a lista, via tudo
  * verde e um "Rever produção do evento" em casamentos com o saldo por receber.
  *
- * Só precisa do Quote: o dinheiro recebido vive todo em `quote.payments`, que a
- * lista do back office já tem à mão. (Enquanto houve livro de facturas, esta
- * função aceitava-o à parte, porque um casamento podia estar pago só do lado do
- * livro e a lista não o sabia.)
+ * O dinheiro recebido vive todo em `quote.payments`, que a lista já tem à
+ * mão; o que ela NÃO tinha era o total a receber. Chamava o Dossier sem
+ * proposta, e o Dossier comparava o recebido com a ESTIMATIVA do formulário —
+ * ou bastava-lhe uma linha de saldo recebida, de 1 € que fosse. Um casamento
+ * aceite por 30 000 €, estimado em 8 000 €, com 9 000 € pagos e a data
+ * passada, saía «Concluído» aqui e «Em produção» no dossiê (auditoria de
+ * 14/11). Agora recebe a proposta que conta, da lista leve
+ * (`/api/propostas?semDoc=1`, já em cache — nenhum pedido por linha), e passa
+ * pela MESMA função do dossiê (`faseDoPedido`). `undefined` = a lista ainda
+ * não chegou: nunca «concluído» às cegas.
  */
 export function deriveRequestLifecycle(
   quote: Quote,
+  proposta: PropostaParaAFase | null | undefined,
   today: Date = new Date(),
 ): { perdido: boolean; currentIndex: number; allDone: boolean } {
-  const stage = deriveStage({ quote, proposal: null, contract: null }, today);
+  const stage = faseDoPedido(quote, proposta, null, today);
   if (stage === "perdido") return { perdido: true, currentIndex: 0, allDone: false };
   return { perdido: false, currentIndex: STAGE_STEP[stage], allDone: stage === "concluido" };
 }
@@ -95,8 +102,15 @@ function CheckIcon() {
   );
 }
 
-export default function LifecycleStepper({ quote }: { quote: Quote }) {
-  const { perdido, currentIndex, allDone } = deriveRequestLifecycle(quote, new Date());
+export default function LifecycleStepper({
+  quote,
+  proposta,
+}: {
+  quote: Quote;
+  /** A proposta que conta (ver `deriveRequestLifecycle`); `undefined` = por saber. */
+  proposta: PropostaParaAFase | null | undefined;
+}) {
+  const { perdido, currentIndex, allDone } = deriveRequestLifecycle(quote, proposta, new Date());
 
   if (perdido) {
     return (

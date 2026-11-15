@@ -13,6 +13,7 @@ import {
   tirarDaReciclagem,
   type EntradaDaReciclagem,
 } from "./reciclagem-store";
+import { marcarFotoMexida } from "./biblioteca-fotos-store";
 import { deleteTask, listTasks, obterTarefa, reporTarefa } from "./tasks-store";
 import { deleteSupplier, obterFornecedor, reporFornecedor } from "./suppliers-store";
 import { deleteCalendarEvent, obterEvento, reporEvento } from "./calendar-store";
@@ -525,6 +526,11 @@ export const TIPOS = {
       const como = await trazerFotoDaReciclagem(f.path, f.naReciclagem);
       if (como === "existe") throw new NaoDaParaRepor("Esta fotografia já voltou a estar no tema.");
       if (como === "falhou") throw new Error("O armazenamento não devolveu a fotografia.");
+      // A foto voltou à pasta, e a linha dela na Biblioteca ficou como estava:
+      // uma listagem de outra instância, de quando ela não estava lá, escondia-a
+      // até 3 min. «Mexida agora» é o que a guarda da Biblioteca lê (2.ª
+      // revisão de 14/11, importante n.º 3).
+      await marcarFotoMexida(f.path);
     },
     async largar(e) {
       const f = primeiro<FotoNaReciclagem>(e.retrato as Retrato, "principal");
@@ -873,11 +879,31 @@ export async function apagarDeVez(entradaId: string): Promise<boolean> {
  * vez se não a escondesse. Sem a tabela não há nada a esconder.
  */
 export async function pastasDeTemasNaReciclagem(): Promise<Set<string>> {
+  return (await oQueOsTemasTemNaReciclagem()).pastas;
+}
+
+/**
+ * As pastas dos temas na Reciclagem E as fotografias de tema na Reciclagem
+ * (`foto-de-tema`, pelo caminho de origem), da MESMA leitura.
+ *
+ * 14/11: uma foto levada para a Reciclagem sai da pasta, mas a linha dela na
+ * `biblioteca_fotos` fica (com as etiquetas, a cor e as medidas — é com elas
+ * que volta). A Biblioteca lê a tabela e continuava a mostrá-la. Não se apaga
+ * a linha (seria perder as etiquetas ao repor): filtra-se por aqui, e quando
+ * ela repõe a foto a entrada sai da Reciclagem e a foto volta a contar.
+ */
+export async function oQueOsTemasTemNaReciclagem(): Promise<{
+  pastas: Set<string>;
+  fotos: Set<string>;
+}> {
   try {
     const todas = await listarReciclagem();
-    return new Set(todas.filter((e) => e.tipo === "tema").map((e) => themeFolder(e.origemId)));
+    return {
+      pastas: new Set(todas.filter((e) => e.tipo === "tema").map((e) => themeFolder(e.origemId))),
+      fotos: new Set(todas.filter((e) => e.tipo === "foto-de-tema").map((e) => e.origemId)),
+    };
   } catch (err) {
-    if (isMissingTable(err)) return new Set();
+    if (isMissingTable(err)) return { pastas: new Set(), fotos: new Set() };
     throw err;
   }
 }

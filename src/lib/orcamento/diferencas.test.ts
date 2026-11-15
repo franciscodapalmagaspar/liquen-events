@@ -14,8 +14,8 @@ describe("o total", () => {
       doc({ totalAmount: 9500, budgetItems: ["Flores"], budgetAmounts: [2500] }),
     );
     expect(m[0].onde).toBe("Total");
-    expect(m[0].texto).toContain("8000");
-    expect(m[0].texto).toContain("9500");
+    expect(m[0].texto).toContain("8\u00A0000");
+    expect(m[0].texto).toContain("9\u00A0500");
   });
 
   it("cêntimos de arredondamento não são uma alteração", () => {
@@ -351,7 +351,7 @@ describe("o resumo", () => {
       doc({ totalAmount: 8000, budgetItems: ["a"], budgetAmounts: [1] }),
       doc({ totalAmount: 9000, budgetItems: ["b"], budgetAmounts: [2] }),
     );
-    expect(resumo(m)).toContain("9000");
+    expect(resumo(m)).toContain("9\u00A0000");
   });
 
   it("uma alteração só lê-se por extenso", () => {

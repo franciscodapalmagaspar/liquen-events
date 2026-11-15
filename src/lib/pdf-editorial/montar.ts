@@ -36,7 +36,7 @@ import {
   repartir,
   type Peca,
 } from "./colunas";
-import { bytesDaFoto, embedImagem } from "./embutir";
+import { PREFIXO_FOTO_EM_FALTA, bytesDaFoto, eFotoEmFalta, embedImagem } from "./embutir";
 import { Album, comMedida, medir, type Foto } from "./fotos";
 import { capitulos as capitulosDaInspiracao, eDasMesas } from "./grupos";
 import { eCasamento } from "../proposal-evento";
@@ -51,7 +51,7 @@ import type { FotosDoPdf, Medida } from "./fotos-do-pdf";
 import type { ConteudoWeb, FotoWeb } from "./conteudo-web";
 
 export type { FotoNaPagina, FotosDoPdf, Medida } from "./fotos-do-pdf";
-import { problemaDaCapa } from "./regra-da-capa";
+import { aCapaDelaVaiNoPdf } from "./regra-da-capa";
 import {
   alturaDasColunas,
   comoTitulo,
@@ -110,12 +110,26 @@ export async function renderEditorialPdf(
      * das outras. O PDF devolvido tem só as pedidas, pela ordem do documento.
      */
     soPaginas?: readonly number[];
+    /**
+     * A data de criação gravada nas propriedades do PDF (`CreationDate` e
+     * `ModDate`, ao segundo). Sem ela, como sempre, é o instante do desenho —
+     * e é a ÚNICA coisa que muda entre duas gerações do mesmo documento. Com
+     * ela, o mesmo documento dá os mesmos bytes: é o que deixa provar que um
+     * PDF guardado se refaz igual (`docs/ARQUIVO-DE-PDFS.md`). Não se vê em
+     * nenhuma página.
+     */
+    criadoEm?: Date;
   } = {},
   fontes: FontesDasFotos = {},
 ): Promise<{
   bytes: Uint8Array;
   truncations: DocTruncation[];
   undrawnImages: number;
+  /**
+   * As fotografias que ELA escolheu para uma página e que já não existem (o
+   * caminho de cada uma). O lugar sai vazio — nunca com outra foto.
+   */
+  fotosEscolhidasEmFalta: string[];
   /** Que fotografia foi para cada lugar de cada página — ver `fotosDoEditorial`. */
   fotos: FotosDoPdf;
   /** Quantas páginas tem o PDF inteiro (com `soPaginas`, as que não se desenharam contam). */
@@ -132,6 +146,7 @@ export async function renderEditorialPdf(
     bytes,
     truncations: m.ctx.cortes,
     undrawnImages: m.ctx.naoDesenhadas.size,
+    fotosEscolhidasEmFalta: [...(m.ctx.emFalta ?? [])].sort(),
     fotos: fotosDoPlano(m.plano),
     paginas: m.plano.length,
   };
@@ -231,6 +246,9 @@ function fotosDoPlano(plano: readonly Passo[]): FotosDoPdf {
     saida[p.chave] = p.fotos.map((f) => ({
       ref: f?.ref ?? null,
       ...(f?.foco ? { foco: f.foco } : {}),
+      // Marcada: o estúdio desenha o lugar vazio com aviso, e não a miniatura
+      // de um caminho que já não tem ficheiro (revisão de 14/11, n.º 9).
+      ...(f?.emFalta ? { emFalta: true as const } : {}),
     }));
   }
   return saida;
@@ -239,7 +257,7 @@ function fotosDoPlano(plano: readonly Passo[]): FotosDoPdf {
 async function motor(
   original: ProposalDoc,
   idioma: IdiomaDaProposta,
-  { rascunho = false }: { rascunho?: boolean },
+  { rascunho = false, criadoEm }: { rascunho?: boolean; criadoEm?: Date },
   fontes: FontesDasFotos,
 ) {
   const doc = docNaLingua(original, idioma);
@@ -256,6 +274,11 @@ async function motor(
   const eurDoc = (n: number) => dinheiro(eurDocumento(n));
 
   const pdf = await PDFDocument.create();
+  // Por cima das que o `create` pôs: as mesmas chaves, no mesmo sítio.
+  if (criadoEm) {
+    pdf.setCreationDate(criadoEm);
+    pdf.setModificationDate(criadoEm);
+  }
   pdf.setTitle(
     `${rascunho ? `${te.rascunho} · ` : ""}${te.rodapeModelo(org)} · ${doc.clientNames}`,
   );
@@ -275,6 +298,7 @@ async function motor(
     logo: await logotipo(pdf),
     cortes: [],
     naoDesenhadas: new Set(),
+    emFalta: new Set(),
     embutidas: new Map(),
   };
 
@@ -357,12 +381,15 @@ async function motor(
   // ── As fotografias que ELA escolheu para cada página (`fotosDasPaginas`) ──
   // Uma que já esteja num tema é a MESMA foto para o álbum (o mesmo `id`): o
   // automático deixa de a pôr na página ao lado. Uma da biblioteca ou carregada
-  // só para aqui entra como foto nova. Uma que não se deixe buscar cai — e a
-  // página volta a escolher sozinha.
+  // só para aqui entra como foto nova. Uma que não se deixe buscar NÃO cai
+  // para o automático (até 14/11 caía, e o PDF saía com outra foto em
+  // silêncio): o lugar dela fica vazio, e o envio trava antes disso
+  // (`oQueFaltaParaEnviar`, `foto-escolhida-em-falta`).
   //
   // CADA UMA NO SEU LUGAR (23/10): na paleta, o 6.º lugar é o painel grande e
   // os outros cinco são a fila. Um lugar vazio (`""`) é «automático»; uma foto
-  // que não chegou deixa o SEU lugar vazio — não puxa as seguintes, e o foco
+  // que não chegou deixa o SEU lugar vazio — não puxa as seguintes, não é
+  // trocada por outra, e o foco
   // de cada uma continua a ser o dela.
   const porLugar = new Map<string, (Foto | null)[]>();
   for (const [chave, e] of Object.entries(original.fotosDasPaginas ?? {})) {
@@ -372,11 +399,37 @@ async function motor(
         lugares.push(null);
         continue;
       }
-      const ref = fontes.semBytes ? dado : fontes.refs?.paginas[chave]?.[k];
-      const ja = ref ? inspiracao.find((f) => f.ref === ref) : undefined;
-      const f = ja ?? (await medida(dado, `Página «${chave}» · foto ${k + 1}`, null, ref));
+      // A que ELA escolheu e já não existe (marcada `em-falta:` pela resolução,
+      // ou, no plano sem bytes, sem medida — a que o desenho também não
+      // conseguiria buscar): guarda o SEU lugar, vazio no desenho, e o
+      // automático NÃO o enche com outra (14/11, `embutir.ts`). O PDF, as
+      // miniaturas do estúdio e a página online dizem o mesmo: falta.
+      const emFalta = eFotoEmFalta(dado);
+      const ref = emFalta
+        ? dado.slice(PREFIXO_FOTO_EM_FALTA.length)
+        : fontes.semBytes
+          ? dado
+          : fontes.refs?.paginas[chave]?.[k];
+      const ja = !emFalta && ref ? inspiracao.find((f) => f.ref === ref) : undefined;
+      const f = emFalta
+        ? null
+        : (ja ?? (await medida(dado, `Página «${chave}» · foto ${k + 1}`, null, ref)));
+      if (!f) {
+        lugares.push({
+          ...comMedida(
+            Buffer.alloc(0),
+            `Página «${chave}» · foto ${k + 1} (já não existe)`,
+            proximoId++,
+            null,
+            (ref ? fontes.medidas?.get(ref) : undefined) ?? { w: 3, h: 2 },
+            ref || undefined,
+          ),
+          emFalta: true,
+        });
+        continue;
+      }
       const foco = e.focos?.[k];
-      lugares.push(f ? (foco ? { ...f, foco } : f) : null);
+      lugares.push(foco ? { ...f, foco } : f);
     }
     if (lugares.some(Boolean)) porLugar.set(chave, lugares);
   }
@@ -404,7 +457,9 @@ async function motor(
 
   // ── O mesmo conteúdo, para a proposta online (`conteudoDoEditorial`) ──
   const fw = (f: Foto | null | undefined): FotoWeb | null =>
-    f?.ref ? { ref: f.ref, aspecto: f.aspecto, ...(f.foco ? { foco: f.foco } : {}) } : null;
+    f?.ref && !f.emFalta
+      ? { ref: f.ref, aspecto: f.aspecto, ...(f.foco ? { foco: f.foco } : {}) }
+      : null;
   const fws = (l: readonly (Foto | null | undefined)[]): FotoWeb[] =>
     l.map(fw).filter((f): f is FotoWeb => f !== null);
   const web: ConteudoWeb = {
@@ -433,7 +488,7 @@ async function motor(
   // O enquadramento escolhido à mão (`focoDaCapa`) é da fotografia DELA: só
   // vai com ela, nunca com a deitada que a substitui.
   const fundoDaCapa =
-    fotoDaCapa && (doc.capaMesmoAssim || !problemaDaCapa(fotoDaCapa.w, fotoDaCapa.h))
+    fotoDaCapa && aCapaDelaVaiNoPdf(fotoDaCapa, doc.capaMesmoAssim)
       ? doc.focoDaCapa
         ? { ...fotoDaCapa, foco: doc.focoDaCapa }
         : fotoDaCapa
@@ -635,7 +690,8 @@ async function motor(
     // encher não dá cor à paleta.
     // Pelas REFERÊNCIAS, e não pelo objecto: uma fotografia que ela escolheu
     // ou enquadrou chega como um objecto novo, e era deixada de fora.
-    const naPagina = [painel, ...fila].filter((f): f is Foto => !!f);
+    // A que falta não tem cor nenhuma para dar.
+    const naPagina = [painel, ...fila].filter((f): f is Foto => !!f && !f.emFalta);
     const refsDasMesas = new Set(daPaleta.flatMap((f) => (f.ref ? [f.ref] : [])));
     const dasMesasNaPagina = dasMesas.length
       ? naPagina.filter((f) => (f.ref ? refsDasMesas.has(f.ref) : daPaleta.includes(f)))

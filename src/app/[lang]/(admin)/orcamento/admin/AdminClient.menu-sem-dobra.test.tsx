@@ -225,18 +225,24 @@ describe("e o estado do grupo não ficou pendurado", () => {
     expect(chave, "sobrou a dobra na chave que manda remedir").not.toContain("moreNavOpen");
   });
 
-  it("a lista da gaveta continua a rolar quando os onze não couberem", () => {
-    // Com tudo à vista a lista ficou mais alta, e num ecrã baixo ela passa a
-    // rolar. Quem rola é o `<nav>`, e o rodapé (quem está com a sessão, os
-    // dispositivos, sair) fica FORA dele — senão o botão de sair desaparecia
-    // pelo fundo em vez de ficar onde está sempre.
-    //
-    // «Mais destinos» e não «Navegação do back office»: os nomes trocaram de
-    // peça quando a coluna acabou. Esta é a lista DA GAVETA — a que no
-    // telemóvel leva os destinos que não cabem nos quatro da barra.
+  it("num ecrã baixo a gaveta rola INTEIRA, com os destinos antes da conta", () => {
+    // Era o `<nav>` que rolava, preso entre o logótipo e o rodapé da conta, para
+    // o «Sair» ficar sempre no mesmo sítio. MEDIDO num iPhone 14 com as barras
+    // do Safari (390×664, auditoria de 14/11): o `<nav>` ficava com 243 px para
+    // 533 de destinos, viam-se 4 dos 10, e a lista acabava num fio que parecia
+    // o fim. Os destinos são o que ela vem cá buscar; o rodapé vem a seguir a
+    // eles, no mesmo rolo, e num ecrã alto continua colado ao fundo (`mt-auto`).
+    // O passeio que o mede é o `e2e/o-iphone-com-barras.spec.ts`.
     const nav = CODIGO.match(/aria-label="Mais destinos"[\s\S]{0,300}?className="([^"]+)"/);
     expect(nav, "a lista de destinos da gaveta mudou de forma").not.toBeNull();
-    expect(nav![1]).toContain("flex-1");
-    expect(nav![1]).toContain("overflow-y-auto");
+    expect(nav![1]).not.toContain("overflow-y-auto");
+    expect(nav![1]).not.toContain("flex-1");
+    const gaveta = CODIGO.split("\n").find((l) => l.includes("fixed top-0") && l.includes("w-64"));
+    expect(gaveta).toContain("overflow-y-auto");
+    expect(gaveta).toContain("h-dvh");
+    const destinos = CODIGO.indexOf('aria-label="Mais destinos"');
+    const conta = CODIGO.indexOf('className="mt-auto shrink-0 px-2.5 pb-5 pt-3');
+    expect(conta, "o rodapé da conta deixou de se colar ao fundo").toBeGreaterThan(0);
+    expect(conta, "o rodapé da conta passou para antes dos destinos").toBeGreaterThan(destinos);
   });
 });

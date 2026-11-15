@@ -72,7 +72,7 @@ describe("Pagamentos — o quadro por fases", () => {
     ]);
     const sinal = await screen.findByRole("region", { name: /Sinal por receber/ });
     await waitFor(() => expect(within(sinal).getByText("TESTE q1")).toBeInTheDocument());
-    expect(within(sinal).getByText(/1595,19/)).toBeInTheDocument();
+    expect(within(sinal).getByText(/1\s595,19/)).toBeInTheDocument();
     expect(screen.queryByText(/5,32/)).not.toBeInTheDocument();
     const saldo = screen.getByRole("region", { name: /Saldo por receber/ });
     expect(within(saldo).getByText("TESTE q2")).toBeInTheDocument();
@@ -110,7 +110,7 @@ describe("Pagamentos — o lembrete", () => {
     expect(escrever).toHaveBeenCalledTimes(1);
     const texto = String((escrever.mock.calls as unknown as string[][])[0][0]);
     expect(texto).toContain("o sinal de 30%");
-    expect(texto).toContain("1595,19");
+    expect(texto).toContain("1.595,19");
 
     await waitFor(() =>
       expect(

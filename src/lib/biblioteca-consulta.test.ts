@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   contagemPorEtiqueta,
+  ehFotoDaBiblioteca,
   eixoDe,
   porConfirmarSet,
   porFoto,
   procuraVazia,
   responde,
-  soDaBiblioteca,
 } from "./biblioteca-consulta";
 import type { FotoEtiqueta, OrigemEtiqueta } from "./biblioteca-types";
 
@@ -119,23 +119,17 @@ describe("as contas dos chips", () => {
   });
 });
 
-describe("soDaBiblioteca — as fotos das propostas não são da Biblioteca (14/11)", () => {
-  const temas = new Set(["3f6c1b2e-9a4d-4c7e-8f10-aa11bb22cc33"]);
-  it("fica só com as pastas de temas que existem", () => {
-    const fotos = [
-      { path: "LIQ-2026-0412/a.jpg", pasta: "LIQ-2026-0412" },
-      {
-        path: "3f6c1b2e-9a4d-4c7e-8f10-aa11bb22cc33/b.jpg",
-        pasta: "3f6c1b2e-9a4d-4c7e-8f10-aa11bb22cc33",
-      },
-      { path: "orfa/c.jpg", pasta: "orfa" },
-      { path: "d.jpg", pasta: "" },
-    ];
-    expect(soDaBiblioteca(fotos, temas).map((f) => f.path)).toEqual([
-      "3f6c1b2e-9a4d-4c7e-8f10-aa11bb22cc33/b.jpg",
-    ]);
+describe("ehFotoDaBiblioteca", () => {
+  it("uma foto de um tema (pasta UUID) é da Biblioteca", () => {
+    expect(ehFotoDaBiblioteca("0b6f2c1e-8c1d-4a3e-9f00-1234567890ab/a1b2.jpg")).toBe(true);
+    expect(ehFotoDaBiblioteca("italia/foto.jpg")).toBe(true);
   });
-  it("sem temas, a Biblioteca fica vazia — nunca cai para a tabela inteira", () => {
-    expect(soDaBiblioteca([{ path: "LIQ-1/a.jpg", pasta: "LIQ-1" }], new Set())).toEqual([]);
+  it("uma foto de uma proposta (pasta de pedido `LIQ-…`) não é", () => {
+    expect(ehFotoDaBiblioteca("LIQ-MT7CWVWU-C4BFD3877E978CFF/uuid.jpg")).toBe(false);
+    expect(ehFotoDaBiblioteca("LIQ-1a2b3c-0123456789abcdef/mood-2.webp")).toBe(false);
+  });
+  it("um caminho sem pasta não é", () => {
+    expect(ehFotoDaBiblioteca("")).toBe(false);
+    expect(ehFotoDaBiblioteca("/solta.jpg")).toBe(false);
   });
 });

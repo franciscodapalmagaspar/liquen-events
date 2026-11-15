@@ -1,4 +1,5 @@
 import "server-only";
+import { semProtegidos } from "./arquivo-de-pdfs/protegidos";
 import { oSharp } from "./sharp-adiado";
 import { opcoesDeCarregamento } from "./cache-das-fotos";
 import { randomUUID } from "node:crypto";
@@ -666,11 +667,13 @@ export async function apagarPastaDoPedido(quoteId: string): Promise<boolean> {
       if (data.length < PAGINA_DA_LISTAGEM) break;
     }
     // Apagar à medida que se lista mexeria nos índices da paginação: primeiro
-    // tudo, depois em lotes do tamanho da página.
-    for (let i = 0; i < paths.length; i += PAGINA_DA_LISTAGEM) {
+    // tudo, depois em lotes do tamanho da página. Sem o que nenhuma limpeza
+    // pode levar (`arquivo-de-pdfs/protegidos.ts`).
+    const podem = semProtegidos(PROPOSAL_BUCKET, paths);
+    for (let i = 0; i < podem.length; i += PAGINA_DA_LISTAGEM) {
       const { error } = await sb.storage
         .from(PROPOSAL_BUCKET)
-        .remove(paths.slice(i, i + PAGINA_DA_LISTAGEM));
+        .remove(podem.slice(i, i + PAGINA_DA_LISTAGEM));
       if (error) return false;
     }
   } catch (e) {

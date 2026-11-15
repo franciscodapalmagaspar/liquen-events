@@ -92,7 +92,10 @@ export function estadoDoEnvio(
 ): { texto: string; trava: boolean } {
   if (fotosPorConfirmar > 0) return { texto: "Fotos a entrar", trava: true };
   const travam = faltas.filter((f) => f.trava);
-  if (travam.length === 1 && travam[0].id === "visto") return { texto: "Ver o PDF", trava: true };
+  // Só falta ver o PDF: a pastilha diz «Falta 1» como em qualquer outra falta
+  // única. Dizia «Ver o PDF ›», ao lado do botão «Ver o PDF ↓» — dois nomes
+  // quase iguais para duas coisas diferentes (abrir a lista; descarregar o PDF),
+  // auditoria de 14/11, n.º 13. A acção é o botão; a pastilha é o estado.
   if (travam.length === 1) return { texto: "Falta 1", trava: true };
   if (travam.length > 1) return { texto: `Faltam ${travam.length}`, trava: true };
   return { texto: `${idioma.toUpperCase()} · pronto`, trava: false };

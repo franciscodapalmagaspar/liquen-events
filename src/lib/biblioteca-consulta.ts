@@ -35,6 +35,30 @@ export function porFoto(ligacoes: readonly FotoEtiqueta[]): Map<string, Set<stri
   return mapa;
 }
 
+/**
+ * A forma do nome de um pedido (`LIQ-…`, ver `quotes-store.ts`) — a mesma que
+ * o `limpar-pastas-orfas.ts` usa para reconhecer a pasta de um pedido.
+ */
+const PASTA_DE_PEDIDO = /^LIQ-[A-Za-z0-9-]+$/;
+
+/**
+ * Esta linha da `biblioteca_fotos` é uma foto da BIBLIOTECA (de um tema)?
+ *
+ * A tabela guarda também as fotos das PROPOSTAS (`<pedido>/<uuid>.jpg`): o
+ * carregamento do estúdio (`api/orcamento/[id]/assets`) grava lá a cor, o LQIP
+ * e a forma de cada uma, e quem as lê são a grelha do estúdio, a página do
+ * casal, a verificação pré-envio e o desenho do PDF (`formasDeCaminhosOuErro`).
+ * Por isso essas linhas FICAM — mas não são fotos da Biblioteca: contá-las
+ * inflacionava o total, e assiná-las no bucket dos temas falhava, o que
+ * deixava buracos nas páginas. Um tema nunca tem pasta com esta forma (o id é
+ * um UUID, ver `newThemeId`).
+ */
+export function ehFotoDaBiblioteca(path: string): boolean {
+  const corte = path.indexOf("/");
+  const pasta = corte < 0 ? path : path.slice(0, corte);
+  return pasta !== "" && !PASTA_DE_PEDIDO.test(pasta);
+}
+
 /** Os caminhos cuja etiqueta ainda está por confirmar (veio da migração). */
 export function porConfirmarSet(ligacoes: readonly FotoEtiqueta[]): Set<string> {
   const s = new Set<string>();
@@ -88,27 +112,4 @@ export function contagemPorEtiqueta(ligacoes: readonly FotoEtiqueta[]): Map<stri
   const contas = new Map<string, number>();
   for (const l of ligacoes) contas.set(l.etiquetaId, (contas.get(l.etiquetaId) ?? 0) + 1);
   return contas;
-}
-
-/**
- * SÓ AS FOTOS DOS TEMAS — o filtro que separa a Biblioteca das propostas (14/11).
- *
- * A tabela `biblioteca_fotos` guarda a largura, a altura, a cor e o LQIP de
- * fotografias de DOIS baldes: as dos temas (`theme-assets`, que são a
- * Biblioteca) e as das propostas (`proposal-assets`, pastas `LIQ-…`), que o
- * carregamento das propostas lá regista para o estúdio e o PDF as medirem
- * (`formasDeCaminhos`, `coresDeCaminhos`). Medido em produção a 14/11: 158 de
- * 1355 linhas eram de propostas.
- *
- * Quem LISTA a Biblioteca tem de deixar as de propostas de fora — senão
- * contavam no total, falhavam ao assinar no balde dos temas e a página vinha
- * com menos fotos do que o limite. A pergunta é «esta pasta é de um tema que
- * existe?», e só isso: uma pasta que não seja de um tema não é da Biblioteca,
- * venha ela de onde vier.
- */
-export function soDaBiblioteca<T extends { pasta: string }>(
-  fotos: readonly T[],
-  pastasDeTemas: ReadonlySet<string>,
-): T[] {
-  return fotos.filter((f) => f.pasta !== "" && pastasDeTemas.has(f.pasta));
 }

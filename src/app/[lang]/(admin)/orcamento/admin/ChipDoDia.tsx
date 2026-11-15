@@ -11,6 +11,7 @@ import {
 } from "react";
 import { cn } from "./ui";
 import { ESTADO, PRESSAO } from "./ui/movimento";
+import { SEM_LUPA, useToqueLongo } from "./ui/adaptativo";
 import { SAIDA, useSaidaDeUmSo } from "./ui/saida";
 
 /**
@@ -115,6 +116,21 @@ export function ChipDoDia({
   bloco,
   className,
 }: ChipDoDiaProps) {
+  // O menu também abre com o toque longo — o Safari do iPhone não dispara
+  // `contextmenu` (ver `useToqueLongo`). O botão direito segue o mesmo caminho.
+  const toqueLongo = useToqueLongo();
+  const menu = onMenu
+    ? toqueLongo(
+        (p) => onMenu(p.x, p.y),
+        (e) => {
+          e.preventDefault();
+          // A célula por baixo tem menu próprio (o do DIA). Sem esta cerca, o
+          // botão direito numa etiqueta abria os dois.
+          e.stopPropagation();
+          onMenu(e.clientX, e.clientY);
+        },
+      )
+    : null;
   return (
     <button
       type="button"
@@ -134,20 +150,11 @@ export function ChipDoDia({
             }
           : undefined
       }
-      onContextMenu={
-        onMenu
-          ? (e) => {
-              e.preventDefault();
-              // A célula por baixo tem menu próprio (o do DIA). Sem esta
-              // cerca, o botão direito numa etiqueta abria os dois.
-              e.stopPropagation();
-              onMenu(e.clientX, e.clientY);
-            }
-          : undefined
-      }
+      {...menu}
       style={{ "--tipo": cor } as CSSProperties}
       className={cn(
         "group/chip flex w-full min-w-0 gap-1 overflow-hidden pe-1 text-start",
+        onMenu && SEM_LUPA,
         /* 20 px visuais e 24 px de ALVO no dedo — os números da Parte 8 do
            `docs/APPLE-CALENDARIO.md` («chips com 20 px visuais e 24 px de alvo,
            com 4 px de folga entre eles»). O `pointer-coarse:` cresce só onde o

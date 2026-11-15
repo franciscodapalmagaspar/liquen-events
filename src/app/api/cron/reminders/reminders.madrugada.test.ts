@@ -91,7 +91,7 @@ describe("GET /api/cron/reminders — à 00h30 de Lisboa o dia já virou", () =>
 
   it("o evento que é daqui a três dias cabe na janela", async () => {
     // 21 de Julho + 3 = 24 de Julho, o topo inclusivo da janela.
-    data.quotes = [{ id: "e", name: "Casamento", date: "2026-07-24" }];
+    data.quotes = [{ id: "e", name: "Casamento", date: "2026-07-24", status: "aceite" }];
     await GET(req());
     expect(pushBody()).toContain("1 evento nos próximos 3 dias");
   });
@@ -99,7 +99,7 @@ describe("GET /api/cron/reminders — à 00h30 de Lisboa o dia já virou", () =>
   it("o casamento de ontem já não é «dos próximos 3 dias»", async () => {
     // Aconteceu no dia 20, que em Lisboa já passou. Anunciá-lo como futuro é
     // pior do que não dizer nada: manda-a preparar uma coisa que já foi.
-    data.quotes = [{ id: "e", name: "Casamento de ontem", date: "2026-07-20" }];
+    data.quotes = [{ id: "e", name: "Casamento de ontem", date: "2026-07-20", status: "aceite" }];
     const res = await GET(req());
     expect(await res.json()).toEqual({ sent: 0, reason: "nada a notificar" });
     expect(sendPushToAll).not.toHaveBeenCalled();

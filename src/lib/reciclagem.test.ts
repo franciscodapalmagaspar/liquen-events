@@ -695,3 +695,28 @@ describe("Reciclagem — tema (R3b)", () => {
     expect(await r.temas.getTheme(tema.id)).toMatchObject({ name: "TESTE Terracota" });
   });
 });
+
+describe("Reciclagem — fotografia de tema (14/11)", () => {
+  /**
+   * A foto sai da pasta mas a linha da `biblioteca_fotos` fica (é com ela que
+   * volta). Quem lê a tabela pergunta aqui o que está na Reciclagem — e uma
+   * foto reposta (a entrada sai) volta a contar.
+   */
+  it("as fotografias de tema na Reciclagem sabem-se da mesma leitura das pastas", async () => {
+    const r = await carregarR3b();
+    await r.store.guardarNaReciclagem({
+      id: "entrada-foto-1",
+      tipo: "foto-de-tema",
+      rotulo: "Fotografia de «TESTE»",
+      origemId: "tema-teste-9/foto.jpg",
+      apagadoEm: "2026-11-14T10:00:00.000Z",
+      retrato: {},
+      ficheiros: [],
+    });
+    const antes = await r.reciclagem.oQueOsTemasTemNaReciclagem();
+    expect(antes.fotos).toEqual(new Set(["tema-teste-9/foto.jpg"]));
+    expect(antes.pastas.has("tema-teste-9")).toBe(false);
+    await r.store.tirarDaReciclagem("entrada-foto-1");
+    expect((await r.reciclagem.oQueOsTemasTemNaReciclagem()).fotos.size).toBe(0);
+  });
+});

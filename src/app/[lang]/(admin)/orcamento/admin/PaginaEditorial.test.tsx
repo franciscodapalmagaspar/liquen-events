@@ -77,3 +77,41 @@ describe("as páginas dos temas", () => {
     expect(container.querySelector("[data-folha-do-cliente]")).not.toBeNull();
   });
 });
+
+/**
+ * Revisão de 14/11, n.º 9: a foto escolhida que já não existe vinha do plano
+ * com o caminho e sem marca — a miniatura pedia-a ao armazenamento e saía
+ * partida. O PDF deixa o lugar vazio; a miniatura mostra o mesmo, com aviso.
+ */
+describe("a foto escolhida que já não existe, na miniatura", () => {
+  const doc = {
+    template: "decoracao",
+    clientNames: "TESTE A & TESTE B",
+    serviceGroups: [],
+    budgetItems: [],
+    coverImages: [],
+    moodBoards: [],
+  } as unknown as ProposalDoc;
+
+  it("é um lugar vazio com aviso, e nunca uma imagem do caminho que falta", () => {
+    const plano = planoDaProposta(doc);
+    const i = plano.findIndex((p) => p.tipo === "indice");
+    const urls = { "TESTE/apagada.jpg": "/assinada-mas-nao-existe" };
+    const fontes = fontesDasFolhas(
+      doc,
+      plano,
+      urls,
+      {},
+      {
+        indice: [{ ref: "TESTE/apagada.jpg", emFalta: true }],
+      },
+    );
+    expect(fontes.outrasDa(i)(0)).toEqual({ emFalta: true });
+    const { container, getAllByText } = render(
+      <PaginaEditorial pagina={plano[i]} doc={doc} outras={fontes.outrasDa(i)} />,
+    );
+    expect(container.querySelector("img")).toBeNull();
+    // Uma vez, na moldura (o fundo arrastado fica liso).
+    expect(getAllByText("Foto em falta")).toHaveLength(1);
+  });
+});

@@ -137,7 +137,7 @@ describe("a faixa do cabeçalho", () => {
      * coluna encostada tinha.
      */
     const linha = ADMIN.split("\n").find(
-      (l) => l.includes("fixed top-0") && l.includes("h-screen w-64"),
+      (l) => l.includes("fixed top-0") && l.includes("h-dvh w-64"),
     );
     expect(linha, "não encontrei a gaveta — o selector desta busca envelheceu").toBeDefined();
     expect(linha, "a gaveta deixou de levar a faixa").toContain("bo-material-faixa");

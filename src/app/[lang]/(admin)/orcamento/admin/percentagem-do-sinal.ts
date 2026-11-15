@@ -2,7 +2,8 @@
 
 import { useMemo } from "react";
 import { pctDoSinalDe, propostaQueContaDoPedido } from "@/lib/orcamento/proposta-que-conta";
-import { useCachedList } from "./useCachedList";
+import type { ProposalStatus } from "@/lib/orcamento/types";
+import { revalidarLista, useCachedList } from "./useCachedList";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -29,9 +30,9 @@ import { useCachedList } from "./useCachedList";
  */
 
 /** O que esta leitura precisa da lista leve. O resto dos campos ignora-se. */
-interface PropostaLeve {
+export interface PropostaLeve {
   quoteId?: string;
-  status?: string;
+  status?: ProposalStatus;
   pctSinal?: number;
   total?: number;
   subtotal?: number;
@@ -102,4 +103,46 @@ export function useDinheiroAceite(quoteId: string | null | undefined): DinheiroA
     if (!Number.isFinite(total) || total <= 0) return null;
     return { total, subtotal: Number.isFinite(subtotal) ? subtotal : 0, vatRate };
   }, [total, subtotal, vatRate]);
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * A PROPOSTA QUE CONTA, PARA A FASE DO PEDIDO NA LISTA (auditoria de 14/11)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * A lista de Pedidos (o `LifecycleStepper` e a «próxima ação») passou a pedir
+ * a fase com a proposta que conta, como o dossiê — sem ela, dizia «Concluído»
+ * a casamentos com dinheiro por receber.
+ *
+ * SÓ OUVE a cache (`pedir: false`): a lista leve já é aquecida em ociosidade
+ * pelo AdminClient e revalidada pelos painéis que a usam (Pagamentos, …). Uma
+ * leitura nova aqui seria mais uma leitura da tabela inteira de propostas por
+ * cada vez que o back office abre. Nenhum pedido por linha, nenhum pedido novo.
+ */
+export function usePropostasLevesSoOuvir(): PropostaLeve[] | undefined {
+  return useCachedList<PropostaLeve[]>("propostas-leves", "/api/propostas?semDoc=1", {
+    pedir: false,
+  }).data;
+}
+
+/**
+ * A proposta que conta para a fase de um pedido: a proposta, `null` se o
+ * pedido não tem nenhuma que conte, ou `undefined` se a lista ainda não chegou
+ * (e então a fase nunca diz «concluído» às cegas — ver `faseDoPedido`).
+ */
+export function propostaDaFaseDoPedido(
+  lista: readonly PropostaLeve[] | undefined,
+  quoteId: string | null | undefined,
+): PropostaLeve | null | undefined {
+  if (!Array.isArray(lista)) return undefined;
+  return propostaQueConta(lista, quoteId);
+}
+
+/**
+ * Uma proposta mudou no servidor (enviada, aceite, recusada, apagada, ou o
+ * pedido mudou de desfecho e arrastou-a): a lista leve volta a ser lida UMA
+ * vez, para a fase da lista, os Pagamentos e as Cobranças acompanharem.
+ */
+export function asPropostasMudaram(): void {
+  revalidarLista("propostas-leves", "/api/propostas?semDoc=1");
 }

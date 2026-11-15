@@ -46,7 +46,12 @@ do prompt aqui em baixo é o atualizado, que acompanha o exemplo novo.
 
 - **Grupos de inspiração: «Pelo nome do tema».** O sistema não guarda o grupo
   de cada tema; lê-se das palavras do título (`grupos.ts`). Nenhum campo novo.
-  O que não encaixa vai para «Ambiente».
+  O que não encaixa vai para «Ambiente». Dois capítulos só existem quando há
+  um tema que é MESMO deles: sem «cocktail/welcome/aperitivo», o seating vai
+  para o «Jantar» e o bar para «Ambiente» (12/11); sem «cerimónia/igreja/
+  altar», o arco e o corredor vão para «Ambiente» (14/11). E uma mesa com os
+  noivos («Mesa dos noivos», «Mesa de honra») é do «Jantar», não dos
+  complementos (14/11).
 - **A paleta e o ambiente vêm das mesas (20/10).** A colaboradora viu que as
   cinco cores batiam com a cerimónia e não com as mesas: as cores saíam das 40
   primeiras fotografias, e a cerimónia vem primeiro. Ela: «muitas vezes as

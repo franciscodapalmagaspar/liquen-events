@@ -1,5 +1,6 @@
 "use client";
 
+import { asPropostasMudaram } from "./percentagem-do-sinal";
 import { useAccaoEstavel } from "./ui/accao-estavel";
 import {
   Fragment,
@@ -85,7 +86,12 @@ import {
 } from "@/lib/orcamento/data";
 import { log } from "@/lib/logger";
 import { camposMudados, mesmoValor } from "@/lib/rascunho-juntar";
-import { urlAindaBom } from "./assinatura";
+import {
+  haAssinaturaMorta,
+  semAssinaturasJaMortas,
+  semAssinaturasMortas,
+  urlAindaBom,
+} from "./assinatura";
 import { relatarFalhaDeImagem } from "./relatar-falha";
 import { pedirVezDeImagemPesada } from "./fila-de-imagens";
 import PainelInterno from "./PainelInterno";
@@ -106,6 +112,7 @@ type CanalDeEnvio = "email" | "whatsapp" | "ambos";
 const CANAL_GUARDADO = "liquen-canal-de-envio";
 import PorqueNaoDaParaEnviar from "./PorqueNaoDaParaEnviar";
 import { ControlosDoEnvio, PainelDoEnvio, PastilhaDoEnvio } from "./BarraDoEnvioCompacta";
+import { destinoDoEnvio } from "@/lib/orcamento/destino-do-envio";
 import VistaDeConjunto from "./VistaDeConjunto";
 import EscolherDisposicao from "./EscolherDisposicao";
 import PaginaEditorial, { fontesDasFolhas } from "./PaginaEditorial";
@@ -161,7 +168,7 @@ import {
 } from "@/lib/orcamento/escala";
 import CriarAPartirDe, { type Escolha } from "./CriarAPartirDe";
 import ModelosParciais from "./ModelosParciais";
-import EditorDeEscolhas, { type FotoDisponivel } from "./EditorDeEscolhas";
+import EditorDeEscolhas, { fotosParaAsEscolhas, type FotoDisponivel } from "./EditorDeEscolhas";
 import NavEstudio from "./NavEstudio";
 import NotasInternas from "./NotasInternas";
 import { MenuDeAccoes } from "./ui/MenuDeAccoes";
@@ -248,6 +255,7 @@ import ServicesEditor, { MoveBtns } from "./ServicesEditor";
 import CaixaInglesa from "./CaixaInglesa";
 import PorTraduzir from "./PorTraduzir";
 import FotosEmFalta from "./FotosEmFalta";
+import type { FotoEscolhidaEmFalta } from "@/lib/proposta-fotos-verificacao-tipos";
 import {
   aplicarTraducao,
   estadoDaTraducao,
@@ -2342,6 +2350,38 @@ export default function ProposalStudio({
   const enviada = useRef<{ id: string | null; pdf: Promise<PdfPronto> | null } | null>(null);
   // Fluxo guiado: Conteúdo → Pré-visualizar → Enviar.
   const [step, setStep] = useState<Step>("evento");
+  /**
+   * ── MUDAR DE PASSO SOBE AO TOPO DO PASSO NOVO ─────────────────────────────
+   * O `setStep` sozinho trocava o conteúdo sem mexer no rolo: vinda do fundo
+   * do passo 1, ela aterrava a meio do passo 2, com o título dele 175–230 px
+   * acima do ecrã (auditoria do telemóvel, 14/11). A barra dos passos e o
+   * «Anterior / Seguinte» passam por aqui; os saltos para uma falta ou um campo
+   * (`irParaAFalta`, `irParaCampo`) NÃO, porque esses levam a vista ao campo.
+   *
+   * O rolo é feito no efeito logo a seguir, depois de o passo novo estar
+   * desenhado — antes disso o contentor ainda tem a altura do anterior.
+   */
+  // Um contador e não uma bandeira: tocar no passo onde já se está não muda o
+  // `step`, e uma bandeira ficava levantada até ao próximo salto para uma falta.
+  const [subidaAoPasso, setSubidaAoPasso] = useState(0);
+  const formularioDosPassos = useRef<HTMLDivElement>(null);
+  const passoDoEnvio = useRef<HTMLDivElement>(null);
+  const irParaPasso = useCallback((p: Step) => {
+    setStep(p);
+    setSubidaAoPasso((n) => n + 1);
+  }, []);
+  useEffect(() => {
+    if (!subidaAoPasso) return;
+    const alvo = step === "enviar" ? passoDoEnvio.current : formularioDosPassos.current;
+    if (!alvo) return;
+    // Só sobe se o início do passo ficou ACIMA do que se vê por baixo das
+    // barras coladas (o `scroll-mt` dele é essa altura). Quem já está no topo
+    // não é sacudido.
+    const margem = parseFloat(getComputedStyle(alvo).scrollMarginTop) || 0;
+    if (alvo.getBoundingClientRect().top < margem - 1) rolarAteVer(alvo, { block: "start" });
+    // O `step` é lido no momento do pedido; quem manda correr é o contador.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subidaAoPasso]);
   // Qual o destino das fotos escolhidas na biblioteca de temas (null = fechado).
   const [picker, setPicker] = useState<
     // `substituir` é a posição a TROCAR no lugar: a foto escolhida entra ali em
@@ -2720,17 +2760,23 @@ export default function ProposalStudio({
       const rawMeta = localStorage.getItem(SIDE_KEY);
       if (rawMeta) {
         const meta = JSON.parse(rawMeta);
-        if (meta?.urls && typeof meta.urls === "object") setAssetUrls(meta.urls);
+        // Só as assinaturas que AINDA SERVEM: as da Biblioteca duram seis
+        // horas, e um rascunho de ontem trazia-as mortas para o ecrã — um 400
+        // do Storage por célula e por degrau, antes de a hidratação chegar.
+        // Ver `semAssinaturasMortas` em `assinatura.ts`.
+        if (meta?.urls && typeof meta.urls === "object") {
+          setAssetUrls(semAssinaturasMortas(meta.urls));
+        }
         // Rascunhos gravados antes de o plano B existir não o têm: abrem na
         // mesma, e a hidratação preenche-o assim que responder.
         if (meta?.originais && typeof meta.originais === "object") {
-          setAssetOriginais(meta.originais);
+          setAssetOriginais(semAssinaturasMortas(meta.originais));
         }
         // O degrau do meio viaja com o rascunho pela mesma razão que o plano B,
         // e rascunhos gravados antes de ele existir não o têm: abrem na mesma,
         // com a cascata de dois degraus, até a hidratação responder.
         if (meta?.medias && typeof meta.medias === "object") {
-          setAssetMedias(meta.medias);
+          setAssetMedias(semAssinaturasMortas(meta.medias));
         }
         // Rascunhos guardados antes de as cores existirem não as têm: abrem na
         // mesma, e a hidratação preenche-as assim que o servidor responder.
@@ -3385,6 +3431,57 @@ export default function ProposalStudio({
     void hidratarAssets(() => alive);
     return () => {
       alive = false;
+    };
+  }, [hidratarAssets]);
+
+  /**
+   * ── O ESTÚDIO ABERTO DE UM DIA PARA O OUTRO (14/11) ────────────────────
+   * A hidratação corria UMA vez, à entrada. Com o separador aberto mais de
+   * seis horas, as assinaturas da Biblioteca morriam com o ecrã à frente dela,
+   * e cada célula nova (um passo aberto, uma pré-visualização) pedia ao
+   * Storage um URL que ele recusa com 400.
+   *
+   * Ao voltar ao separador pergunta-se aos URLs que estão no ecrã se algum já
+   * morreu; só então se pede a lista outra vez, e o `urlAindaBom` troca os
+   * mortos e deixa os bons (a cache do browser continua a valer). Custo: zero
+   * pedidos enquanto tudo serve; uma leitura do `/assets` por regresso depois
+   * de expirar. Nenhum relógio a bater.
+   */
+  const urlsNoEcra = useRef<Record<string, string>[]>([]);
+  useEffect(() => {
+    urlsNoEcra.current = [assetUrls, assetOriginais, assetMedias];
+  }, [assetUrls, assetOriginais, assetMedias]);
+  useEffect(() => {
+    // O `focus` e o `visibilitychange` chegam os dois no mesmo regresso: uma
+    // leitura só, não duas.
+    let aCaminho = false;
+    const aoVoltar = () => {
+      if (aCaminho || document.visibilityState !== "visible") return;
+      if (!haAssinaturaMorta(urlsNoEcra.current)) return;
+      aCaminho = true;
+      void hidratarAssets()
+        .then((fim) => {
+          // Só depois de a lista ter VINDO. Uma lista que falhou (sessão
+          // caducada, Storage em baixo, sem rede) não diz nada sobre as fotos:
+          // fica tudo como estava, e o próximo regresso volta a tentar.
+          if (fim !== "pronto") return;
+          // O que a lista não trouxe de volta (uma foto que só está no
+          // rascunho deste computador) continuava morto — e cada regresso
+          // pedia a lista outra vez. Sai só o que JÁ morreu: um URL dentro da
+          // margem de cinco minutos ainda desenha a fotografia.
+          setAssetUrls((m) => semAssinaturasJaMortas(m));
+          setAssetOriginais((m) => semAssinaturasJaMortas(m));
+          setAssetMedias((m) => semAssinaturasJaMortas(m));
+        })
+        .finally(() => {
+          aCaminho = false;
+        });
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+    window.addEventListener("focus", aoVoltar);
+    return () => {
+      document.removeEventListener("visibilitychange", aoVoltar);
+      window.removeEventListener("focus", aoVoltar);
     };
   }, [hidratarAssets]);
 
@@ -4574,7 +4671,7 @@ export default function ProposalStudio({
     // O número sai da MESMA lista que a vista de conjunto desenha. Eram duas
     // contas sobre o mesmo documento — «7 páginas» na vista e «cerca de 14» na
     // frase — e discordavam porque contavam coisas diferentes.
-    `PDF com cerca de ${planoDoPdf.length}${tempoDaProposta}`;
+    `PDF com cerca de ${planoDoPdf.length} ${planoDoPdf.length === 1 ? "página" : "páginas"}${tempoDaProposta}`;
 
   /**
    * ── OS TÍTULOS QUE SE LÊEM COMO O MESMO NOME ────────────────────────────
@@ -5425,7 +5522,9 @@ export default function ProposalStudio({
     setRefEdited(true);
     setConfirmSend(false);
     setSent(false);
-    setStep("evento");
+    // Muda de passo como a barra dos passos: sobe ao início do Evento se ele
+    // ficou acima (ver «MUDAR DE PASSO SOBE AO TOPO DO PASSO NOVO»).
+    irParaPasso("evento");
     // Só se o preço tiver MESMO mudado: repor uma versão com o mesmo valor não
     // é um acontecimento do dinheiro, e uma linha por cada não-mudança ensina a
     // saltar o histórico todo.
@@ -5704,7 +5803,8 @@ export default function ProposalStudio({
     setRefEdited(false);
     setConfirmSend(false);
     setSent(false);
-    setStep("evento");
+    // Recomeçar é recomeçar no topo do Evento — não a meio dele.
+    irParaPasso("evento");
     /**
      * Limpar deita o total fora com o resto — e o total é o preço do pedido.
      * Fica no histórico pela mesma razão que o «Usar X €»: um preço que muda
@@ -7984,6 +8084,8 @@ export default function ProposalStudio({
         return;
       }
       if (!res.ok) throw new Error(data?.error || porqueFalhouOEnvio(res.status));
+      // A proposta seguiu: a lista leve (fase do pedido, Pagamentos) relê-se.
+      asPropostasMudaram();
       setCortesPorConfirmar(null);
       // O envio também ensina a estimativa. Os bytes vêm do servidor: o PDF do
       // envio não passa pelo browser (segue em anexo), portanto sem esta linha
@@ -8578,15 +8680,20 @@ export default function ProposalStudio({
    * apontasse para uma foto ainda por copiar ficava com um caminho que nunca
    * vai existir, e o casal via um buraco onde devia estar a paleta.
    */
-  const fotosParaEscolhas: FotoDisponivel[] = (doc.moodBoards ?? []).flatMap((b) =>
-    (b.images ?? [])
-      .filter((caminho) => !!caminho && !isPendingImage(caminho))
-      .map((caminho) => ({
-        caminho,
-        url: assetUrls[caminho],
-        onde: (b.title ?? "").trim() || "Mood board",
-      })),
+  const [escolhidasQueFaltam, setEscolhidasQueFaltam] = useState<FotoEscolhidaEmFalta[]>([]);
+  // As que SE SABE que já não existem (na Reciclagem, ou saídas da pasta): a
+  // mesma resposta do armazenamento que trava o envio (`FotosEmFalta`), e a
+  // mesma fonte do escolhedor dos temas — a pasta. Não se oferecem como
+  // alternativa (revisão de 14/11, n.º 6): seriam uma escolha que já nasce
+  // em falta.
+  const [refsQueFaltam, setRefsQueFaltam] = useState<ReadonlySet<string>>(() => new Set());
+  const aoSaberQueFaltam = useCallback((refs: string[]) => setRefsQueFaltam(new Set(refs)), []);
+  const fotosParaEscolhas: FotoDisponivel[] = fotosParaAsEscolhas(
+    doc.moodBoards ?? [],
+    assetUrls,
+    refsQueFaltam,
   );
+
   /**
    * ── O QUE O DOCUMENTO NÃO SABE DE SI PRÓPRIO ──────────────────────────────
    *
@@ -8613,9 +8720,20 @@ export default function ProposalStudio({
   // Sem email, uma proposta por email não chega a ninguém. O documento dela
   // pô-lo entre os erros; com «só WhatsApp» não trava — é o caso normal de
   // um pedido que entrou por telefone.
+  //
+  // ── E AS FOTOS ESCOLHIDAS QUE JÁ NÃO EXISTEM (14/11) ─────────────────────
+  // Estas sim, alimentadas daqui: vêm de uma verificação do armazenamento que
+  // CORREU (o `FotosEmFalta` do passo do envio), nunca de uma ausência no mapa
+  // — por isso não há corrida. E só contam enquanto a foto continuar escrita
+  // no documento (`oQueFaltaParaEnviar` confere): trocada, o aviso cai.
   const contextoDoEnvio = useMemo(
-    () => ({ idioma: idiomaDoPdf, canal, emailDoCliente: quote.email }),
-    [idiomaDoPdf, canal, quote.email],
+    () => ({
+      idioma: idiomaDoPdf,
+      canal,
+      emailDoCliente: quote.email,
+      fotosEscolhidasQueFaltam: escolhidasQueFaltam,
+    }),
+    [idiomaDoPdf, canal, quote.email, escolhidasQueFaltam],
   );
   /**
    * Há alguma coisa que TRAVA? É o que separa o PDF final do rascunho, no
@@ -8677,7 +8795,10 @@ export default function ProposalStudio({
   );
   const faltasDoEnvio = oQueFaltaParaEnviar(doc as ProposalDoc, money.gross, contextoDoBotao);
   /** O sinal de cada passo na barra de cima — das mesmas duas listas. */
-  const estadosDosPassos = estadoDosPassos(seccoes, faltas, sent);
+  // A MESMA lista do botão de enviar e da Conferência (`faltasDoEnvio`), e não
+  // a de cima: com a de cima o «5 Rever e enviar» mostrava o visto enquanto a
+  // Conferência travava com «Falta ver o PDF final» (auditoria de 14/11, n.º 4).
+  const estadosDosPassos = estadoDosPassos(seccoes, faltasDoEnvio, sent);
   /** Os passos 1 a 4 partilham o MESMO contentor, sempre montado. */
   const noFormulario = PASSOS_DO_FORMULARIO.includes(step);
   // A regra das FOTOS POR CONFIRMAR fica aqui e não em `proposal-progress`:
@@ -8848,7 +8969,13 @@ export default function ProposalStudio({
           existe para o truncar deixar de empurrar, aqui deixava-o chegar a zero.
           É o padrão a evitar em todo o back office: texto e barra de acções na
           mesma linha só a partir de `sm`. */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      {/* ── E A FILA PERGUNTA À CAIXA (auditoria de 14/11, n.º 2) ─────────
+          Com `sm:` a fila abria aos 640 px de JANELA. A 768 o grupo dos botões
+          era `shrink-0` e pedia 794: a página ganhava scroll de lado, o
+          «Trocar de cliente» ficava cortado e o nome do cliente encolhia para
+          10 px. Os seis botões pedem ~740 px; a fila só abre quando a CAIXA
+          tem 64rem, e até lá empilha — o nome em cima, os botões por baixo. */}
+      <div className="mb-4 flex flex-col gap-3 @min-[64rem]:flex-row @min-[64rem]:items-start @min-[64rem]:justify-between">
         {/* ── O CABEÇALHO CUSTAVA UM TERÇO DO ECRÃ DELA ────────────────────
             Somando as classes num iPhone SE (375×667), gastavam-se ~702 px
             antes do primeiro campo onde ela escreve — ou seja, ele nascia
@@ -8896,7 +9023,7 @@ export default function ProposalStudio({
         </div>
         {/* `flex-wrap` e não `shrink-0`: com três botões a 375 px, um deles
             saía pela margem direita e ficava cortado ("Limpa…"). */}
-        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+        <div className="flex flex-wrap items-center gap-2 @min-[64rem]:shrink-0">
           {/* A acção principal desta secção: quase todas as propostas são uma
               variação de uma anterior. É a única aqui a verde. */}
           <Button
@@ -9158,7 +9285,12 @@ export default function ProposalStudio({
 
       {/* Passos do fluxo — sempre visível, dá o sentido de "onde estou / o que
           fazer a seguir". Clicável para saltar entre passos. */}
-      <StepNav step={step} onSelect={setStep} estados={estadosDosPassos} organizacao={!isDeco} />
+      <StepNav
+        step={step}
+        onSelect={irParaPasso}
+        estados={estadosDosPassos}
+        organizacao={!isDeco}
+      />
 
       {/* ══════════ PASSOS 1 a 4 · Evento, Serviços, Inspiração, Orçamento ══════════ */}
       {/* ── A FOLGA POR BAIXO É A ALTURA MEDIDA DA BARRA, NÃO UM NÚMERO ─────
@@ -9228,7 +9360,11 @@ export default function ProposalStudio({
           transform pendurado, que é o que quebraria o `position: fixed` de uma
           folha aberta aqui dentro. A barra `sticky` do fundo é IRMÃ destes
           três e não está lá dentro, portanto não a apanha. */}
-      <div className={`@container/estudio ${noFormulario ? "view-in" : ""}`} hidden={!noFormulario}>
+      <div
+        ref={formularioDosPassos}
+        className={`@container/estudio scroll-mt-[var(--bo-colado-topo)] ${noFormulario ? "view-in" : ""}`}
+        hidden={!noFormulario}
+      >
         <div
           ref={filaDasColunas}
           /* 40rem (640 px) é o mínimo para uma fila fazer sentido: o índice pede
@@ -9243,7 +9379,7 @@ export default function ProposalStudio({
           {step !== "inspiracao" && (
             <NavEstudio
               seccoes={seccoes}
-              faltas={faltas}
+              faltas={faltasDoEnvio}
               onSeccaoActual={anotarSeccao}
               porTraduzir={traducoesPorSeccao}
               onIr={(seccao) => irParaAFalta(seccao)}
@@ -11097,7 +11233,7 @@ export default function ProposalStudio({
                                   }
                                   data-campo={`budgetArtigo:${i}`}
                                   aria-label={`Artigo do Moloni de ${l.item || "linha sem nome"}`}
-                                  className={`bo-input w-auto max-w-full px-2 py-1 text-[11px] ${
+                                  className={`bo-input w-auto min-w-0 max-w-full px-2 py-1 text-[11px] ${
                                     artigosDoDoc[i]
                                       ? "text-[var(--bo-tinta-72)]"
                                       : "border-dashed text-[var(--bo-text-muted)]"
@@ -11559,7 +11695,7 @@ export default function ProposalStudio({
                                   }
                                   data-campo={`extraArtigo:${i}`}
                                   aria-label={`Artigo do Moloni de ${ex.label?.trim() || "linha adicional sem nome"}`}
-                                  className={`bo-input w-auto max-w-full px-2 py-1 text-[11px] ${
+                                  className={`bo-input w-auto min-w-0 max-w-full px-2 py-1 text-[11px] ${
                                     artigoDoAdicional(ex)
                                       ? "text-[var(--bo-tinta-72)]"
                                       : "border-dashed text-[var(--bo-text-muted)]"
@@ -12466,7 +12602,12 @@ export default function ProposalStudio({
                   Foi o defeito que a fez escrever: quatro fotos que não
                   existiam seguiram numa proposta, e a primeira pessoa a dar por
                   isso foi o casal. */}
-          <FotosEmFalta quoteId={quote.id} doc={doc as ProposalDoc} />
+          <FotosEmFalta
+            quoteId={quote.id}
+            doc={doc as ProposalDoc}
+            onEscolhidasQueFaltam={setEscolhidasQueFaltam}
+            onRefsQueFaltam={aoSaberQueFaltam}
+          />
 
           {/* Os acentos que faltam nos campos que saem impressos. Aqui, ao
                   pé da Conferência, e não a meio de escrever: a palavra ainda
@@ -12550,7 +12691,11 @@ export default function ProposalStudio({
       )}
 
       {/* ══════════ PASSO 5 · Rever e enviar — o envio ══════════ */}
-      <div className={step === "enviar" ? "view-in" : undefined} hidden={step !== "enviar"}>
+      <div
+        ref={passoDoEnvio}
+        className={`scroll-mt-[var(--bo-colado-topo)] ${step === "enviar" ? "view-in" : ""}`}
+        hidden={step !== "enviar"}
+      >
         {sent ? (
           <Section title="Enviar ao cliente">
             {/* ── O FIM DA JORNADA MERECE SER VISTO ────────────────────────
@@ -13074,7 +13219,22 @@ export default function ProposalStudio({
                 toda da barra, e `justify-end` para continuar encostado à
                 direita), e a linha e a divisória saem quando a caixa não dá
                 ~120 px à linha: 27rem com o «anterior», 20rem sem ele. */}
-            <div className="@container flex min-w-0 flex-1 items-center justify-end gap-3">
+            {/* ── E O TOTAL NUNCA SAI (auditoria de 14/11, n.º 1) ──────────
+                O `@container` deste grupo foi-se. Um contentor de tamanho
+                inline MEDE ZERO para quem o embrulha a abraçar o conteúdo — e
+                a barra, a partir de 40rem, é `w-fit`. MEDIDO a 1440 e a 768:
+                o grupo ficava com 0 px, o `@max-[20rem]:hidden` apagava o
+                total, e a barra encolhia para 26 px com os botões a sair por
+                fora. A 390, a partir do passo 2, o «anterior» tirava-lhe o
+                lugar na mesma.
+
+                Palavras dela: «não quero fazer scroll para saber quanto vai a
+                proposta». Por isso quem cede espaço numa caixa estreita são
+                os BOTÕES — o nome do passo passa a só se ouvir (`sr-only`) e
+                fica a seta —, e o total não cede nunca (`shrink-0`). As
+                perguntas de largura são feitas à caixa de cima, que é um
+                bloco e mede a sério. */}
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
               {/* ── A ETIQUETA VIAJA COM O NÚMERO ────────────────────────────
                     A escolha acima — no telemóvel, o que o CLIENTE paga — estava
                     certa. O que estava errado era a palavra: «Total» ficava FORA
@@ -13113,19 +13273,18 @@ export default function ProposalStudio({
                   a linha fica quieta. É o mesmo que o bloco de totais aqui em baixo
                   já faz (ver `LinhaDeTotal`). */}
               <p
-                className={`min-w-0 truncate text-xs tabular-nums text-[var(--bo-text-muted)] ${
-                  passoAoLado(step, -1) ? "@max-[27rem]:hidden" : "@max-[20rem]:hidden"
-                }`}
+                data-total-da-barra
+                className="shrink-0 whitespace-nowrap text-xs tabular-nums text-[var(--bo-text-muted)]"
               >
                 {money.base > 0 ? (
                   <>
-                    <span className="sm:hidden">
+                    <span className="@min-[48rem]:hidden">
                       <span className="text-foreground/45">A pagar</span>{" "}
                       <strong className="font-semibold text-[var(--bo-text)]">
                         {eur(totais.aPagar)}
                       </strong>
                     </span>
-                    <span className="hidden sm:inline">
+                    <span className="hidden @min-[48rem]:inline">
                       <span className="text-foreground/45">Total</span>{" "}
                       <strong className="font-semibold text-[var(--bo-text)]">
                         {eur(totais.total)}
@@ -13141,8 +13300,8 @@ export default function ProposalStudio({
                        o que fazer a seguir. Fica, numa versão curta que cabe na
                        barra sem ser cortada pelo `truncate` do `<p>`. */
                   <>
-                    <span className="sm:hidden">Preenche e avança.</span>
-                    <span className="hidden sm:inline">
+                    <span className="@min-[48rem]:hidden">Preenche e avança.</span>
+                    <span className="hidden @min-[48rem]:inline">
                       Preenche este passo e avança para o seguinte.
                     </span>
                   </>
@@ -13153,12 +13312,7 @@ export default function ProposalStudio({
                   da casa. Diz que o número e o botão são vizinhos de propósito e não
                   a mesma coisa — que é precisamente o que um espaço não conseguia
                   dizer. `aria-hidden` porque não há nada aqui para ouvir. */}
-              <span
-                aria-hidden
-                className={`h-5 w-px shrink-0 bg-[var(--bo-hairline-strong)] ${
-                  passoAoLado(step, -1) ? "@max-[27rem]:hidden" : "@max-[20rem]:hidden"
-                }`}
-              />
+              <span aria-hidden className="h-5 w-px shrink-0 bg-[var(--bo-hairline-strong)]" />
               {/* ══════════════════════════════════════════════════════════════
                 O «GUARDAR AGORA» SAIU — MENOS NO ÚNICO CASO EM QUE ERA A ÚNICA
                 MANEIRA DE GRAVAR
@@ -13205,18 +13359,37 @@ export default function ProposalStudio({
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => setStep(passoAoLado(step, -1) as Step)}
+                  className="shrink-0"
+                  onClick={() => irParaPasso(passoAoLado(step, -1) as Step)}
+                  // O nome inteiro, dito de uma vez: com o nome do passo num
+                  // `<span>` à parte o Chromium lia «Seguinte : Serviços».
+                  aria-label={`← ${nomeDoPasso(passoAoLado(step, -1) as Step, !isDeco)}`}
                 >
-                  ← {nomeDoPasso(passoAoLado(step, -1) as Step, !isDeco)}
+                  {/* Um <span> só à volta: o botão é `flex` com `gap`, e cada
+                      filho solto ganhava um espaço à frente («Seguinte : …»). */}
+                  <span>
+                    ←
+                    <span className="@max-[36rem]:sr-only">
+                      {" "}
+                      {nomeDoPasso(passoAoLado(step, -1) as Step, !isDeco)}
+                    </span>
+                  </span>
                 </Button>
               )}
               <Button
                 size="sm"
                 variant="primary"
-                onClick={() => setStep(passoAoLado(step, 1) as Step)}
+                className="shrink-0"
+                onClick={() => irParaPasso(passoAoLado(step, 1) as Step)}
                 iconRight={<span aria-hidden="true">→</span>}
+                aria-label={`Seguinte: ${nomeDoPasso(passoAoLado(step, 1) as Step, !isDeco)}`}
               >
-                Seguinte: {nomeDoPasso(passoAoLado(step, 1) as Step, !isDeco)}
+                <span>
+                  Seguinte
+                  <span className="@max-[36rem]:sr-only">
+                    : {nomeDoPasso(passoAoLado(step, 1) as Step, !isDeco)}
+                  </span>
+                </span>
               </Button>
             </div>
           </>
@@ -13227,7 +13400,7 @@ export default function ProposalStudio({
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setStep("orcamento")}
+              onClick={() => irParaPasso("orcamento")}
               // A meio de um envio, voltar atrás não cancela nada — o pedido já
               // está a correr no servidor — e só serve para ela deixar de ver o
               // que está a acontecer.
@@ -13618,7 +13791,9 @@ export default function ProposalStudio({
                       // capa (o passo do Evento), e as outras linhas cortadas
                       // são de serviços.
                       const corte = cortesPorConfirmar?.[0];
-                      setStep(
+                      // Pela mesma porta da barra dos passos: chega ao
+                      // INÍCIO do passo, não a meio dele (revisão de 14/11).
+                      irParaPasso(
                         !corte
                           ? "evento"
                           : corte.unit === "fotos"
@@ -13681,10 +13856,17 @@ export default function ProposalStudio({
                  e prometer um número exacto seria mentir na última frase. */
               <div className="ml-auto flex max-w-lg flex-col items-end gap-2">
                 <p className="text-right text-sm leading-relaxed text-[var(--bo-tinta-72)]">
-                  Enviar para{" "}
-                  <strong className="font-medium text-[var(--bo-text)]">
-                    {quote.email || "o cliente"}
-                  </strong>
+                  {/* O canal e o contacto CERTOS (auditoria de 14/11, n.º 3):
+                      com «WhatsApp» isto perguntava pelo email. */}
+                  {destinoDoEnvio(canal, quote.email, quote.phone).map((p, i) =>
+                    p.contacto ? (
+                      <strong key={i} className="font-medium text-[var(--bo-text)]">
+                        {p.texto}
+                      </strong>
+                    ) : (
+                      p.texto
+                    ),
+                  )}
                   ? Vai um PDF de cerca de {planoDoPdf.length} páginas,{" "}
                   {idiomaDoPdf === "en" ? "em inglês" : "em português"}, com{" "}
                   <strong className="font-medium text-[var(--bo-text)]">
@@ -13742,6 +13924,24 @@ export default function ProposalStudio({
                     idioma={idiomaDoPdf}
                     onAbrir={() => setFolhaDoEnvio(true)}
                   />
+                )}
+                {/* ── O TOTAL TAMBÉM AQUI (auditoria de 14/11, n.º 1) ─────────
+                    «Não quero fazer scroll para saber quanto vai a proposta» —
+                    e o último passo é onde mais se pergunta. Fica encostado ao
+                    botão, como nos outros quatro; na barra compacta só o
+                    número se vê, e «A pagar» continua a ouvir-se. */}
+                {money.base > 0 && (
+                  <p
+                    data-total-da-barra
+                    className="shrink-0 whitespace-nowrap text-xs tabular-nums text-[var(--bo-text-muted)]"
+                  >
+                    <span className={barraCompacta ? "sr-only" : "text-foreground/45"}>
+                      A pagar{" "}
+                    </span>
+                    <strong className="font-semibold text-[var(--bo-text)]">
+                      {eur(totais.aPagar)}
+                    </strong>
+                  </p>
                 )}
                 {/* ── O BOTÃO QUE GUIA (14/10) ──────────────────────────────
                     Quando a ÚNICA coisa que falta é ver o PDF final, o botão
@@ -13816,7 +14016,7 @@ export default function ProposalStudio({
 
         {step === "enviar" && sent && (
           <>
-            <Button size="sm" variant="ghost" onClick={() => setStep("evento")}>
+            <Button size="sm" variant="ghost" onClick={() => irParaPasso("evento")}>
               ← Voltar ao evento
             </Button>
             {fimDoPdf.mostrar ? (
@@ -16724,7 +16924,7 @@ function SubpontosDaLinha({
             onChange={(e) => mudar(j, { artigo: eArtigo(e.target.value) ? e.target.value : null })}
             aria-label={`Artigo do Moloni de ${sp.nome.trim() || `subponto ${j + 1}`} (${nomeDaLinha})`}
             data-campo={`budgetSubArtigo:${i}:${j}`}
-            className={`bo-input w-auto max-w-full px-2 py-1.5 text-[11px] ${
+            className={`bo-input w-auto min-w-0 max-w-full px-2 py-1.5 text-[11px] ${
               sp.artigo ? "text-[var(--bo-tinta-72)]" : "border-dashed text-[var(--bo-text-muted)]"
             }`}
           >

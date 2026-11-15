@@ -1,6 +1,7 @@
 import "server-only";
 import { getSupabase } from "@/lib/supabase";
 import { BUCKET_EDITORIAL } from "@/lib/fotos-editoriais-guardadas";
+import { semProtegidos } from "@/lib/arquivo-de-pdfs/protegidos";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -62,9 +63,11 @@ export async function limparFotosTratadasVelhas(
       )
     ).flat();
     vistas += lote.length;
-    for (let j = 0; j < velhas.length; j += 100) {
-      const { error } = await balde.remove(velhas.slice(j, j + 100));
-      if (!error) apagadas += Math.min(100, velhas.length - j);
+    // O que nenhuma limpeza pode levar (`arquivo-de-pdfs/protegidos.ts`).
+    const podem = semProtegidos(BUCKET_EDITORIAL, velhas);
+    for (let j = 0; j < podem.length; j += 100) {
+      const { error } = await balde.remove(podem.slice(j, j + 100));
+      if (!error) apagadas += Math.min(100, podem.length - j);
     }
   }
   return { apagadas, pastas: vistas, acabou: true };
