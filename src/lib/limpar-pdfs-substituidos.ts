@@ -50,19 +50,35 @@ import type { ProposalDoc } from "@/lib/proposal-doc";
  *
  * Os pontos 2 e 3 comparam o tamanho primeiro e só descarregam o ficheiro
  * para calcular o `sha256` quando o tamanho coincide (ou não se sabe). Se a
- * descarga falhar, o ficheiro fica. O `sha256` calculado guarda-se no estado
- * ({@link Comparado}) e o ficheiro não volta a descarregar-se: o caminho tem o
- * conteúdo na chave e o upload é `upsert: false`, portanto não muda.
+ * descarga falhar — ou vier com outro tamanho que o do Storage —, o ficheiro
+ * fica, e a falha fica registada ({@link Falha}) para não se repetir todas as
+ * noites nem tapar os outros. O `sha256` calculado guarda-se no estado
+ * ({@link Comparado}) e o ficheiro não volta a descarregar-se para ESPERAR: o
+ * caminho tem o conteúdo na chave e o upload é `upsert: false`.
  *
- * Mesmo antes do `remove`, uma releitura curta de `proposals` (só as pastas a
- * apagar) tira do lote o que entretanto passou a ser o documento atual, ou a
- * pasta de uma proposta que voltou ou foi apagada a meio.
+ * Mas a cache nunca decide sozinha uma remoção (revisão de 15/11, 2.ª
+ * passagem, n.º 1): uma descarga estragada do mesmo tamanho gravava um
+ * `sha256` errado, e o PDF selado saía passados 7 dias. Mesmo antes do
+ * `remove`, cada ficheiro do lote que PODE ser um selado (tamanho igual, ou
+ * desconhecido) descarrega-se outra vez; só sai se o `sha256` de agora for o
+ * mesmo da cache e diferente de todos os selos. Se não confirmar, fica.
+ *
+ * Antes dessa confirmação, uma releitura curta (só as pastas a apagar) de
+ * `proposals` e de `contracts` tira do lote o que entretanto passou a ser o
+ * documento atual, o enviado ou o aceite, uma proposta com um contrato novo
+ * sem selo, ou a pasta de uma proposta que voltou ou foi apagada a meio.
  *
  * Se UMA leitura falhar, não se apaga nada. As listagens do Storage e as
  * tabelas lêem-se às páginas (mais de 1000 não esconde nada). No máximo
- * {@link POR_NOITE} ficheiros por noite e {@link DESCARGAS_POR_NOITE}
- * descargas para comparar, cada apagado no log. Só se apaga no balde
- * `proposal-pdfs`, e só caminhos `<pasta>/<chave>.pdf`. Nada disto lança.
+ * {@link POR_NOITE} ficheiros por noite, {@link DESCARGAS_POR_NOITE}
+ * descargas para comparar e outras tantas como o lote para confirmar; cada
+ * apagado (segundo o que o Storage DIZ que apagou) no log. Só se apaga no
+ * balde `proposal-pdfs`, e só caminhos `<pasta>/<chave>.pdf`.
+ *
+ * Uma descarga que lança conta como descarga falhada. Outra exceção (uma
+ * listagem que lança, por ex.) só sai depois de todos os pedidos em curso
+ * terem parado ({@link aosPoucos}) e antes de qualquer `remove` — quem chama
+ * (o cron) apanha-a, e nada se apagou.
  *
  * ── PORQUE É QUE NÃO APAGAVA (medido a 14/11) ─────────────────────────────
  *
@@ -98,12 +114,18 @@ import type { ProposalDoc } from "@/lib/proposal-doc";
  * não falhar em silêncio todas as noites. Os `sha256` já calculados ficam
  * gravados, e a noite seguinte continua daí. As pastas listam-se 8 de cada
  * vez e as descargas 4 de cada vez; medido no teste com 65 PDF em 50 pastas.
+ * Nas noites em que algum já cumpriu a espera, as descargas para comparar
+ * deixam {@link RESERVA_PARA_APAGAR_MS} livres para a releitura, a confirmação
+ * e o `remove` (sem isso, a pior noite medida eram 7 s).
  *
  * Custo: uma listagem da raiz, uma por proposta (dezenas), e três leituras de
  * colunas pequenas. Os textos das tabelas só se lêem nas noites com
  * candidatos; os PDF só se descarregam quando o tamanho coincide com o de um
- * enviado ou aceite, e cada um uma vez na vida. Uma escrita do estado por
- * noite (duas nas noites que apagam), uma releitura e um `remove` só para o lote.
+ * enviado ou aceite — para comparar, cada um uma vez na vida (até
+ * {@link DESCARGAS_POR_NOITE} por noite; uma falha descansa 1–8 noites); e
+ * outra vez, para confirmar, os do lote que podem ser selados (até
+ * {@link POR_NOITE}, só nas noites que apagam). Uma escrita do estado por
+ * noite (duas nas noites que apagam), duas releituras e um `remove` só para o lote.
  */
 export const DIAS = 30;
 export const ESPERA_DIAS = 7;
@@ -130,6 +152,13 @@ export const INTERVALO_MAXIMO_MS = 36 * 60 * 60_000;
  * balde tinha 65 PDF; cada entrada são ~150 bytes de `app_state`.
  */
 export const TECTO_COMPARADOS = 500;
+/**
+ * Uma descarga que falhou não se repete logo: espera 1, 2, 4 e depois 8
+ * noites (`2^(n-1)`, no máximo isto). Assim um ficheiro que falha sempre não
+ * gasta descargas todas as noites nem tapa os outros no tecto (revisão de
+ * 15/11, 2.ª passagem, n.º 3).
+ */
+export const PAUSA_MAXIMA_NOITES = 8;
 export const CHAVE = "limpeza:pdfs-substituidos";
 
 const BUCKET = "proposal-pdfs";
@@ -145,10 +174,23 @@ const TECTO_DE_PAGINAS = 50;
 const LISTAGENS_EM_PARALELO = 8;
 /** Descargas ao mesmo tempo: 4 × ~3 MB em memória, no máximo. */
 const DESCARGAS_EM_PARALELO = 4;
+/**
+ * Nas noites em que algum ficheiro já cumpriu a espera, as descargas para
+ * comparar deixam este tempo livre no fim: a releitura, a confirmação (até
+ * {@link POR_NOITE} descargas, 4 de cada vez), o `remove` e as gravações. Sem
+ * ele, 20 descargas novas + o lote eram ~7 s (medido no teste). O que fica
+ * por descarregar não está provado — fica, e tenta-se na noite seguinte.
+ */
+const RESERVA_PARA_APAGAR_MS = 3_500;
 /** O único formato que esta limpeza apaga: `<pasta>/<chave>.pdf`. */
 const CAMINHO_APAGAVEL = /^[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.pdf$/;
 /** As línguas em que uma proposta pode estar (`proposal-doc-textos.ts`). */
 const IDIOMAS = ["pt", "en"] as const;
+/**
+ * `proposals.id` é `uuid`: um valor noutro formato num `.in("id", …)` faz o
+ * PostgREST recusar o pedido inteiro (22P02) — e a releitura falhava sempre.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** O nome da pasta de uma proposta — o mesmo saneamento de `proposal-pdf-guardado.ts`. */
 const pastaDe = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "");
@@ -189,17 +231,28 @@ async function listarTudo(
   }
 }
 
-/** `fn` sobre cada item, no máximo `n` de cada vez; o resultado na ordem dos itens. */
-async function aosPoucos<T, R>(itens: readonly T[], n: number, fn: (t: T) => Promise<R>) {
+/**
+ * `fn` sobre cada item, no máximo `n` de cada vez; o resultado na ordem dos
+ * itens. Se um `fn` lançar, nenhum trabalhador pega no item seguinte, e a
+ * exceção só sai depois de os pedidos em curso acabarem — nunca fica um a
+ * correr por trás de quem já desistiu (revisão de 15/11, 2.ª passagem, n.º 6).
+ */
+export async function aosPoucos<T, R>(itens: readonly T[], n: number, fn: (t: T) => Promise<R>) {
   const saida = new Array<R>(itens.length);
   let proximo = 0;
+  let erro: { e: unknown } | null = null;
   const trabalhador = async () => {
-    while (proximo < itens.length) {
+    while (!erro && proximo < itens.length) {
       const i = proximo++;
-      saida[i] = await fn(itens[i]);
+      try {
+        saida[i] = await fn(itens[i]);
+      } catch (e) {
+        erro ??= { e };
+      }
     }
   };
   await Promise.all(Array.from({ length: Math.min(n, itens.length) }, trabalhador));
+  if (erro) throw (erro as { e: unknown }).e;
   return saida;
 }
 
@@ -240,11 +293,16 @@ export type EmEspera = Record<string, { desde: string; visto: string }>;
  */
 export type Comparado = { sha: string; bytes: number | null; criado: string };
 
+/** Descargas falhadas de um ficheiro: quantas seguidas, e a última (ISO). */
+export type Falha = { n: number; ultima: string };
+
 /** O que a limpeza guarda em `app_state`, na {@link CHAVE}. */
 export type EstadoDaLimpeza = {
   v: 2;
   espera: EmEspera;
   comparados: Record<string, Comparado>;
+  /** As descargas que falharam, para não se repetirem todas as noites. */
+  falhas?: Record<string, Falha>;
   /** A última noite: se acabou, e onde parou se não acabou. */
   ultimaNoite?: { quando: string; acabou: boolean; parou?: string };
 };
@@ -280,6 +338,13 @@ export function lerEstado(bruto: unknown): EstadoDaLimpeza {
       (x.bytes === null || typeof x.bytes === "number")
     ) {
       vazio.comparados[c] = { sha: x.sha, bytes: x.bytes, criado: x.criado };
+    }
+  }
+  const falhas = (o.falhas ?? {}) as Record<string, unknown>;
+  for (const [c, e] of Object.entries(falhas)) {
+    const x = e as { n?: unknown; ultima?: unknown } | null;
+    if (x && typeof x.n === "number" && x.n >= 1 && eTexto(x.ultima)) {
+      (vazio.falhas ??= {})[c] = { n: x.n, ultima: x.ultima };
     }
   }
   const u = o.ultimaNoite as EstadoDaLimpeza["ultimaNoite"] | undefined;
@@ -379,6 +444,8 @@ export async function limparPdfsSubstituidos(
   const antes = lerEstado(lido.v);
   /** Os `sha256` já calculados; cresce com as descargas desta noite. */
   const comparados: Record<string, Comparado> = { ...antes.comparados };
+  /** As descargas falhadas; muda com as descargas desta noite. */
+  const falhas: Record<string, Falha> = { ...antes.falhas };
 
   /**
    * A noite não acabou: nada se apaga e a espera fica como estava (a noite
@@ -397,6 +464,7 @@ export async function limparPdfsSubstituidos(
       await setState(CHAVE, {
         ...antes,
         comparados: aparar(comparados),
+        falhas: apararFalhas(falhas),
         ultimaNoite: { quando: hoje, acabou: false, parou },
       } satisfies EstadoDaLimpeza);
     }
@@ -510,6 +578,10 @@ export async function limparPdfsSubstituidos(
       delete comparados[c];
     }
   }
+  for (const c of Object.keys(falhas)) {
+    const pasta = pastaDoCaminho(c);
+    if (!naRaiz.has(pasta) || (pastasLidas.has(pasta) && !vistos.has(c))) delete falhas[c];
+  }
 
   // ── Porta 4: menções em qualquer tabela ─────────────────────────────────
   if (candidatos.length > 0) {
@@ -562,28 +634,63 @@ export async function limparPdfsSubstituidos(
     if (!c || c.bytes !== f.bytes || Date.parse(c.criado) !== f.criado) return null;
     return c.sha;
   };
-  const podeSerDe = (f: Ficheiro) =>
-    [...(selos.get(pastaDoCaminho(f.caminho)) ?? []), ...selosSemPasta].filter(
+  const podeSerDe = (f: Ficheiro, mais: readonly Selo[] = []) =>
+    [...(selos.get(pastaDoCaminho(f.caminho)) ?? []), ...selosSemPasta, ...mais].filter(
       (s) => s.bytes === null || f.bytes === null || s.bytes === f.bytes,
     );
+  /**
+   * Descarrega e calcula o `sha256`. `null` se a descarga falhar, lançar, ou
+   * vier com outro tamanho que o da listagem — uma descarga cortada ou trocada
+   * não pode gravar um `sha256` (revisão de 15/11, 2.ª passagem, n.º 1).
+   */
+  const shaDescarregado = async (f: Ficheiro): Promise<string | null> => {
+    try {
+      const { data, error } = await sb.storage.from(BUCKET).download(f.caminho);
+      if (error || !data) return null;
+      const buf = Buffer.from(await data.arrayBuffer());
+      if (f.bytes !== null && buf.byteLength !== f.bytes) return null;
+      return createHash("sha256").update(buf).digest("hex");
+    } catch {
+      return null;
+    }
+  };
+  const registarFalha = (f: Ficheiro) => {
+    falhas[f.caminho] = { n: (falhas[f.caminho]?.n ?? 0) + 1, ultima: hoje };
+  };
+  /** Falhou há pouco: espera 1, 2, 4, 8 noites antes de se tentar de novo. */
+  const emPausa = (f: Ficheiro) => {
+    const x = falhas[f.caminho];
+    if (!x) return false;
+    const noites = Math.min(2 ** (x.n - 1), PAUSA_MAXIMA_NOITES);
+    // Meia noite de folga: o cron não corre sempre à mesma hora.
+    return agora.getTime() - Date.parse(x.ultima) < (noites - 0.5) * DIA_MS;
+  };
   // Sem descarga não há prova: o que passa do tecto fica, e tenta-se depois.
+  // Primeiro os que nunca falharam, depois os que falharam há mais tempo — e
+  // os que falharam há pouco descansam ({@link PAUSA_MAXIMA_NOITES}).
   const aDescarregar = candidatos
-    .filter((f) => podeSerDe(f).length > 0 && shaGuardado(f) === null)
+    .filter((f) => podeSerDe(f).length > 0 && shaGuardado(f) === null && !emPausa(f))
+    .map((f, i) => ({ f, i, u: falhas[f.caminho] ? Date.parse(falhas[f.caminho].ultima) : -1 }))
+    .sort((a, b) => a.u - b.u || a.i - b.i)
+    .map((x) => x.f)
     .slice(0, DESCARGAS_POR_NOITE);
+  const haDeHaverLote = Object.values(antes.espera).some(
+    (e) => agora.getTime() - Date.parse(e.desde) >= ESPERA_DIAS * DIA_MS,
+  );
+  const reserva = haDeHaverLote ? RESERVA_PARA_APAGAR_MS : 0;
   await aosPoucos(aDescarregar, DESCARGAS_EM_PARALELO, async (f) => {
     if (semTempo()) {
       acabouOTempo = true;
       return;
     }
-    const { data, error } = await sb.storage.from(BUCKET).download(f.caminho);
-    if (error || !data) return;
-    comparados[f.caminho] = {
-      sha: createHash("sha256")
-        .update(Buffer.from(await data.arrayBuffer()))
-        .digest("hex"),
-      bytes: f.bytes,
-      criado: new Date(f.criado).toISOString(),
-    };
+    if (Date.now() > fim - reserva) return;
+    const sha = await shaDescarregado(f);
+    if (sha === null) {
+      registarFalha(f);
+      return;
+    }
+    delete falhas[f.caminho];
+    comparados[f.caminho] = { sha, bytes: f.bytes, criado: new Date(f.criado).toISOString() };
   });
   if (acabouOTempo) return pararAMeio("descargas para comparar", candidatos.length);
 
@@ -613,25 +720,75 @@ export async function limparPdfsSubstituidos(
         // Só um PDF de uma pasta de proposta, e nunca o que nenhuma limpeza
         // pode levar (`arquivo-de-pdfs/protegidos.ts`).
         CAMINHO_APAGAVEL.test(f.caminho) &&
-        semProtegidos(BUCKET, [f.caminho]).length > 0,
+        semProtegidos(BUCKET, [f.caminho]).length > 0 &&
+        // Uma confirmação que falhou há pouco não ocupa o lugar dos outros.
+        !emPausa(f),
     )
     .slice(0, POR_NOITE);
 
-  // ── A corrida curta: relê as propostas das pastas a apagar ──────────────
+  // ── A corrida curta: relê as propostas e os contratos das pastas a apagar
   // Entre a leitura de cima e o `remove`, ela pode ter voltado o documento a
-  // uma versão antiga (o ficheiro desse caminho passa a ser o ATUAL) ou uma
-  // proposta pode ter voltado da Reciclagem. Uma leitura, só destas pastas.
+  // uma versão antiga (o ficheiro desse caminho passa a ser o ATUAL), enviado
+  // esse documento, um casal pode tê-lo aceite, ou uma proposta pode ter
+  // voltado da Reciclagem. Duas leituras, só destas pastas.
   let releuMal = false;
+  /** Selos que a releitura encontrou, por pasta (os de cima continuam a valer). */
+  const selosNovos = new Map<string, Selo[]>();
   if (lote.length > 0) {
     const pastasDoLote = [...new Set(lote.map((f) => pastaDoCaminho(f.caminho)))];
-    const ids = [...new Set(pastasDoLote.flatMap((p) => [p, ...(idsDaPasta.get(p) ?? [])]))];
-    const { data, error } = await sb.from("proposals").select("id, doc, idioma").in("id", ids);
-    if (error || !data) {
+    const reais = pastasDoLote.flatMap((p) => idsDaPasta.get(p) ?? []);
+    const ids = [...new Set([...pastasDoLote, ...reais])];
+    // Os ids reais vieram da própria coluna; um nome de pasta só se pergunta
+    // se tiver a forma de um `uuid`. Um nome noutro formato nunca pode ser o
+    // id de uma proposta — não pode «voltar» —, e mandá-lo fazia o PostgREST
+    // recusar a releitura inteira (22P02).
+    const idsDeProposta = [...new Set([...reais, ...pastasDoLote.filter((p) => UUID.test(p))])];
+    const [rp, rc] = await Promise.all([
+      idsDeProposta.length > 0
+        ? sb
+            .from("proposals")
+            .select("id, doc, idioma, pdf_sha256, pdf_bytes")
+            .in("id", idsDeProposta)
+            .then(
+              (r) => r,
+              (e: unknown) => ({ data: null, error: e }),
+            )
+        : { data: [], error: null },
+      // `contracts.proposal_id` é texto: aqui qualquer nome serve.
+      sb
+        .from("contracts")
+        .select("proposal_id, proposta_pdf_sha256, proposta_pdf_bytes")
+        .in("proposal_id", ids)
+        .then(
+          (r) => r,
+          (e: unknown) => ({ data: null, error: e }),
+        ),
+    ]);
+    if (rp.error || !rp.data || rc.error || !rc.data) {
       releuMal = true;
       lote = [];
     } else {
-      const linhas = data as LinhaDoc[];
+      const linhas = rp.data as (LinhaDoc & { pdf_sha256?: unknown; pdf_bytes?: unknown })[];
       const { atuais, semChave } = osAtuais(linhas);
+      const novo = (id: unknown, sha: unknown, bytes: unknown) => {
+        if (!eTexto(sha)) return;
+        const pasta = pastaDe(String(id ?? ""));
+        selosNovos.set(pasta, [
+          ...(selosNovos.get(pasta) ?? []),
+          { sha: sha.toLowerCase(), bytes: typeof bytes === "number" ? bytes : null },
+        ]);
+      };
+      for (const l of linhas) novo(l.id, l.pdf_sha256, l.pdf_bytes);
+      /** Pastas com um contrato (novo ou antigo) sem selo: ficam inteiras. */
+      const semSeloAgora = new Set<string>();
+      for (const c of rc.data as {
+        proposal_id?: unknown;
+        proposta_pdf_sha256?: unknown;
+        proposta_pdf_bytes?: unknown;
+      }[]) {
+        if (!eTexto(c.proposta_pdf_sha256)) semSeloAgora.add(pastaDe(String(c.proposal_id ?? "")));
+        novo(c.proposal_id, c.proposta_pdf_sha256, c.proposta_pdf_bytes);
+      }
       /** Pastas de propostas que eram apagadas e agora existem: ficam inteiras. */
       const voltaram = new Set(
         linhas.map((l) => pastaDe(String(l.id ?? ""))).filter((p) => !existe.has(p)),
@@ -644,9 +801,56 @@ export async function limparPdfsSubstituidos(
       lote = lote.filter((f) => {
         const pasta = pastaDoCaminho(f.caminho);
         if (existe.has(pasta) && !vieram.has(pasta)) return false;
+        if (semSeloAgora.has(pasta)) return false;
         return !atuais.has(f.caminho) && !semChave.has(pasta) && !voltaram.has(pasta);
       });
     }
+  }
+
+  // ── A confirmação: a cache nunca decide sozinha uma remoção ─────────────
+  // Cada ficheiro do lote que pode ser um selado (com os selos da releitura
+  // também) descarrega-se de novo. Só sai se o `sha256` de agora for o da
+  // cache e não for o de nenhum selo; uma descarga que falhe, venha com outro
+  // tamanho ou dê outro `sha256` deixa-o ficar. No máximo {@link POR_NOITE}.
+  let semTempoNaConfirmacao = false;
+  if (lote.length > 0) {
+    const confirmados = await aosPoucos(lote, DESCARGAS_EM_PARALELO, async (f) => {
+      const podeSer = podeSerDe(f, selosNovos.get(pastaDoCaminho(f.caminho)));
+      if (podeSer.length === 0) return true;
+      if (semTempo()) {
+        semTempoNaConfirmacao = true;
+        return false;
+      }
+      const agoraSha = await shaDescarregado(f);
+      if (agoraSha === null) {
+        registarFalha(f);
+        return false;
+      }
+      const daCache = shaGuardado(f);
+      const igualAUmSelo = podeSer.some((x) => x.sha === agoraSha);
+      if (igualAUmSelo || (daCache !== null && daCache !== agoraSha)) {
+        // A cache estava errada (ou o ficheiro é um selado): corrige-se, e a
+        // espera dele recomeça — se ainda for candidato, a próxima noite vê-o.
+        comparados[f.caminho] = {
+          sha: agoraSha,
+          bytes: f.bytes,
+          criado: new Date(f.criado).toISOString(),
+        };
+        delete espera[f.caminho];
+        if (daCache !== null && daCache !== agoraSha) {
+          log.warn("limpeza dos PDF: o sha256 guardado não confirmou — o ficheiro fica", {
+            ficheiro: f.caminho,
+          });
+        }
+        return false;
+      }
+      delete falhas[f.caminho];
+      return true;
+    });
+    lote = lote.filter((_, i) => confirmados[i]);
+  }
+  if (semTempoNaConfirmacao) {
+    return pararAMeio("confirmação antes de apagar", prontos.length);
   }
 
   if (ensaio) {
@@ -672,6 +876,7 @@ export async function limparPdfsSubstituidos(
     v: 2,
     espera,
     comparados: aparar(comparados),
+    falhas: apararFalhas(falhas),
     ultimaNoite: releuMal
       ? { quando: hoje, acabou: false, parou: "releitura das propostas" }
       : { quando: hoje, acabou: true },
@@ -695,9 +900,22 @@ export async function limparPdfsSubstituidos(
   // Um pedido só, para o lote inteiro.
   let apagados = 0;
   if (lote.length > 0) {
-    const { error } = await sb.storage.from(BUCKET).remove(lote.map((f) => f.caminho));
+    const { data, error } = await sb.storage.from(BUCKET).remove(lote.map((f) => f.caminho));
     if (!error) {
+      // Conta-se o que o Storage DIZ que apagou, não o que se pediu (revisão
+      // de 15/11, 2.ª passagem, n.º 4). Um que não venha fica na espera; se
+      // tiver mesmo saído, a listagem de amanhã já não o vê e sai de lá.
+      const saiu = new Set(
+        ((data ?? []) as { name?: unknown }[]).map((o) => String(o?.name ?? "")),
+      );
+      if (saiu.size < lote.length) {
+        log.warn("limpeza dos PDF: o Storage não confirmou todos os apagados", {
+          pedidos: lote.length,
+          confirmados: lote.filter((f) => saiu.has(f.caminho)).length,
+        });
+      }
       for (const f of lote) {
+        if (!saiu.has(f.caminho)) continue;
         apagados++;
         const visto = espera[f.caminho];
         delete espera[f.caminho];
@@ -729,6 +947,13 @@ export async function limparPdfsSubstituidos(
  * (os antigos são os que mais depressa saem do balde). Um que caia daqui
  * apenas se volta a descarregar — nunca se apaga nada por isso.
  */
+function apararFalhas(falhas: Record<string, Falha>): Record<string, Falha> {
+  const entradas = Object.entries(falhas);
+  if (entradas.length <= TECTO_COMPARADOS) return falhas;
+  entradas.sort((a, b) => Date.parse(b[1].ultima) - Date.parse(a[1].ultima));
+  return Object.fromEntries(entradas.slice(0, TECTO_COMPARADOS));
+}
+
 function aparar(comparados: Record<string, Comparado>): Record<string, Comparado> {
   const entradas = Object.entries(comparados);
   if (entradas.length <= TECTO_COMPARADOS) return comparados;
