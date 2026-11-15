@@ -1130,6 +1130,10 @@ describe("os PDF de proposta substituídos (10/11)", () => {
         ...pdf("k7Qenviado.pdf", "2026-08-10T10:00:00Z", enviado, "prop-viva"),
         metadata: {} as { size: number },
       },
+      // Um ficheiro com o tamanho do selo (conhecido), para a pasta não ficar
+      // inteira pela regra «selo sem ficheiro do mesmo tamanho» e se testar a
+      // descarga estragada.
+      pdf("k7Qirmao.pdf", "2026-08-09T10:00:00Z", "%PDF-1.7\no que segZiu\n%%EOF\n", "prop-viva"),
       pdf("k7Qatual.pdf", "2026-09-02T10:00:00Z", "versao-2", "prop-viva"),
     ];
     st.tabelas.proposals = (st.tabelas.proposals as { id: string }[]).map((p) =>
@@ -1172,6 +1176,18 @@ describe("os PDF de proposta substituídos (10/11)", () => {
       expect.stringContaining("selo sem ficheiro"),
       expect.objectContaining({ pastas: 1 }),
     );
+  });
+
+  it("4.ª n.º 1 — um ficheiro sem tamanho na pasta não anula a regra: a pasta continua inteira", async () => {
+    st.tabelas.proposals = (st.tabelas.proposals as { id: string }[]).map((p) =>
+      p.id === "prop-viva" ? { ...p, pdf_sha256: sha("o-que-seguiu"), pdf_bytes: 99 } : p,
+    );
+    st.pastas["prop-viva"].unshift({
+      ...pdf("k7Qsemtam.pdf", "2026-08-20T10:00:00Z", "sem-tamanho", "prop-viva"),
+      metadata: {} as { size: number },
+    });
+    await noites(0, 10);
+    expect(st.apagados.filter((c) => c.startsWith("prop-viva/"))).toEqual([]);
   });
 
   it("3.ª n.º 3 — um selo assim que aparece na releitura também guarda a pasta", async () => {

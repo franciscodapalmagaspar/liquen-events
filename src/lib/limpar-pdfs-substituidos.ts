@@ -574,7 +574,8 @@ export async function limparPdfsSubstituidos(
 
   /**
    * Um selo com tamanho para o qual nenhum ficheiro da pasta tem esse tamanho
-   * (nem tamanho desconhecido): o ficheiro que ela enviou não é nenhum dos que
+   * CONHECIDO (um ficheiro sem tamanho não prova nada — 4.ª passagem, n.º 1:
+   * contá-lo como «talvez» deixava sair os outros da pasta): o ficheiro que ela enviou não é nenhum dos que
    * lá estão — ou é, e a listagem ou o selo dizem outra coisa. Medido em
    * produção a 15/11: 6 dos 56 selos estavam assim (o envio desenha de novo e
    * sela, mas grava com `upsert: false` numa chave que já existia). «Não sei
@@ -585,7 +586,7 @@ export async function limparPdfsSubstituidos(
    */
   const seloSemFicheiro = (ss: readonly Selo[] | undefined, fs: readonly Ficheiro[]) =>
     (ss ?? []).some(
-      (s) => s.bytes !== null && !fs.some((f) => f.bytes === null || f.bytes === s.bytes),
+      (s) => s.bytes !== null && !fs.some((f) => f.bytes === s.bytes),
     );
   /** Os PDF de cada pasta lida, para a releitura voltar a aplicar a regra de cima. */
   const ficheirosDaPasta = new Map<string, Ficheiro[]>();
