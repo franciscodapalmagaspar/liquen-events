@@ -80,6 +80,36 @@ async function tocar(page: Page, seletor: ReturnType<Page["locator"]>) {
   await page.touchscreen.tap(b!.x + b!.width / 2, b!.y + b!.height / 2);
 }
 
+/**
+ * Toca no CENTRO do ecrã, e não onde o `scrollIntoViewIfNeeded` o deixar.
+ *
+ * O `scrollIntoViewIfNeeded` não conhece as barras fixas: deixa o alvo rente à
+ * margem de baixo, DEBAIXO da barra de destinos — e o toque caía em «Visão
+ * Geral» (CI de 15/11, PR #470: o passeio 9 do tablet saía do estúdio em vez
+ * de pedir o PDF; só se via quando o rascunho deixado pelo passeio anterior
+ * mudava a altura do passo 5). Antes de tocar confirma-se que é mesmo o alvo
+ * que está debaixo do dedo.
+ */
+async function tocarAoCentro(page: Page, seletor: ReturnType<Page["locator"]>) {
+  await seletor.evaluate((el) => el.scrollIntoView({ block: "center", inline: "center" }));
+  await page.waitForTimeout(300);
+  const b = await seletor.boundingBox();
+  expect(b, "o alvo do toque não tem caixa").not.toBeNull();
+  const x = b!.x + b!.width / 2;
+  const y = b!.y + b!.height / 2;
+  expect(
+    await seletor.evaluate(
+      (el, [px, py]) => {
+        const topo = document.elementFromPoint(px, py);
+        return !!topo && (el === topo || el.contains(topo));
+      },
+      [x, y] as const,
+    ),
+    "o alvo está tapado (por uma barra fixa?) no sítio do toque",
+  ).toBe(true);
+  await page.touchscreen.tap(x, y);
+}
+
 /** O dedo pousado `ms` milissegundos sem se mexer — o que o rato não prova. */
 async function toqueLongo(cdp: CDPSession, x: number, y: number, ms = 800) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
@@ -1197,14 +1227,14 @@ test.describe("9 · tablet de toque, passo 5: o grupo vazio sai com os filhos", 
     // Nada a travar: a única falta deste rascunho é ver o PDF final — vê-se,
     // como ela o faz, e confirma-se.
     const descarregar = page.getByRole("button", { name: "Descarregar o PDF final" });
-    await tocar(page, descarregar);
+    await tocarAoCentro(page, descarregar);
     // O PDF abre por cima, página a página; fecha-se e confirma-se.
     const oPdf = page.getByRole("dialog", { name: "O PDF final" });
     await expect(oPdf).toBeVisible({ timeout: 120_000 });
     await tocar(page, oPdf.getByRole("button", { name: "Fechar" }));
     await expect(oPdf).toBeHidden();
     const confirmar = page.getByRole("checkbox", { name: "Vi a proposta e está tudo certo" });
-    await tocar(page, page.getByText("Vi a proposta e está tudo certo"));
+    await tocarAoCentro(page, page.getByText("Vi a proposta e está tudo certo"));
     await expect(confirmar).toBeChecked();
     await expect(page.getByRole("button", { name: /^Antes de enviar: .*pronto/ })).toBeVisible();
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
