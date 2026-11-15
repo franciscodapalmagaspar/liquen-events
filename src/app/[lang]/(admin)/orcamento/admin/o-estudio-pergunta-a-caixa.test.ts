@@ -52,10 +52,12 @@ const COM_MOTIVO: Record<string, string> = {
   "sm:inline": "dívida conhecida — embrulho de texto, por medir",
   "sm:hidden": "dívida conhecida — embrulho de texto, por medir",
   "sm:grid-cols-2": "dívida conhecida — grelha estreita, por medir",
-  "sm:flex-row": "dívida conhecida — fila curta, por medir",
-  "sm:shrink-0": "dívida conhecida — fila curta, por medir",
-  "sm:items-start": "dívida conhecida — alinhamento, por medir",
-  "sm:justify-between": "dívida conhecida — alinhamento, por medir",
+  /*
+   * Saíram desta tabela a 14/11 o `sm:flex-row`, o `sm:shrink-0`, o
+   * `sm:items-start` e o `sm:justify-between` — eram os quatro do cabeçalho do
+   * estúdio, e foram eles que a 768 davam scroll de lado (794 > 768) e cortavam
+   * o «Trocar de cliente». Passaram a perguntar à caixa (`@min-[64rem]:`).
+   */
 };
 
 /**
@@ -102,8 +104,11 @@ describe("o estúdio pergunta à caixa onde vive, e não à janela", () => {
      * de ser uma classe que esteja mesmo lá — escolhe-se outra que esteja, e o
      * mínimo aqui em baixo continua a guardar a segunda metade.
      */
-    expect(todas).toContain("sm:flex-row");
-    expect(todas.length).toBeGreaterThan(5);
+    expect(todas).toContain("sm:grid-cols-2");
+    // Eram seis; a 14/11 o cabeçalho levou quatro para o contentor. As que
+    // sobram (`sm:hidden`, `sm:inline`, `sm:grid-cols-2`) chegam para o
+    // controlo — se o instrumento partir, encontra zero.
+    expect(todas.length).toBeGreaterThan(2);
   });
 
   /**

@@ -213,7 +213,7 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
           meio píxel entre painéis não mostrarem branco. */}
       <section
         data-paineis-escuros
-        className="relative -mt-24 min-h-[var(--ecra)] flex flex-col justify-end overflow-hidden"
+        className="recuo-consentimento relative -mt-24 min-h-[var(--ecra)] flex flex-col justify-end overflow-hidden"
       >
         <Parallax speed={0.14} className="absolute inset-0">
           <HeroImage

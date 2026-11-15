@@ -156,6 +156,18 @@ execução se afastou do texto — as entrelinhas, as condições que encolhem e
 de passarem a uma 4.ª página, os contactos lado a lado, o quadro do orçamento
 depois do total. Lê-a antes de «corrigir» uma medida para a do texto.
 
+# E o arquivo dos PDFs também
+
+`docs/ARQUIVO-DE-PDFS.md` estuda como guardar menos PDFs sem apagar nenhuma
+proposta: o PDF passou a dar os mesmos bytes para o mesmo documento, e o
+arquivo «desmontado» (`src/lib/arquivo-de-pdfs/`: cada imagem uma vez, mais um
+esqueleto por PDF, provado pelo sha256) existe mas está **DESLIGADO** — só
+corre com `ARQUIVO_DE_PDFS=ligado`, num balde privado criado à mão, e pára no
+tecto de 20 MB. **Nada se apaga**: os originais ficam e são eles que as rotas
+servem, e nenhuma limpeza toca no arquivo (`protegidos.ts`). A fase 3 (servir
+do arquivo e libertar originais) espera pela autorização dele; a §11 diz como
+se apagam os dados de um cliente que o peça.
+
 # E o plano do site e da galeria, também
 
 `docs/PLANO-SITE-E-GALERIA.md` junta quatro análises de 11/10 (galeria, site

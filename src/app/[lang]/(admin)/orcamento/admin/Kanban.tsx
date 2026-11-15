@@ -1,5 +1,6 @@
 "use client";
 
+import { asPropostasMudaram } from "./percentagem-do-sinal";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
 import { CATEGORIES, EVENT_TYPES_BY_CATEGORY } from "@/lib/orcamento/data";
@@ -517,6 +518,9 @@ export default function Kanban({
       // We reuse onStatusChange only for status; for the full updated quote we
       // call it once and the parent syncs state (activityLog will be on next open).
       onStatusChange(q.id, (corpo as { status?: QuoteStatus } | null)?.status ?? status);
+      // O PATCH acabou: «Ganho»/«Perdido» arrastam a proposta no servidor, e a
+      // lista leve relê-se uma vez — com o pedido aberto ou não.
+      asPropostasMudaram();
       // Com volta atrás: «Anular» repõe a coluna de onde veio (e, se foi para
       // Ganho, o contrato e a proposta que isso arrastou). Ver `anular-estado.ts`.
       anular(`${q.name} → ${toLabel}`, async () => {

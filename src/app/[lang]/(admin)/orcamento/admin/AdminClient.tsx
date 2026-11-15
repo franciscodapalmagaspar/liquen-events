@@ -87,6 +87,7 @@ import {
   downloadEventIcs,
 } from "./export";
 import { prefetchList } from "./useCachedList";
+import { separadorQuandoAPropostaChega, type SeparadorPorDecidir } from "./separador-por-decidir";
 import {
   useGravacaoAutomatica,
   useTravaoDeSaida,
@@ -108,6 +109,12 @@ import { useCamadaDeHistoria } from "./useCamadaDeHistoria";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
 import EmptyState from "./EmptyState";
 import LifecycleStepper, { deriveRequestLifecycle } from "./LifecycleStepper";
+import {
+  asPropostasMudaram,
+  propostaDaFaseDoPedido,
+  usePropostasLevesSoOuvir,
+} from "./percentagem-do-sinal";
+import type { PropostaParaAFase } from "@/lib/orcamento/dossier";
 import { NAV, CORE_NAV, MORE_NAV, BARRA_INFERIOR, ROTULO_CURTO, type View } from "./nav";
 import { useDesceu } from "./ui/adaptativo";
 import { Escolha } from "./ui/Escolha";
@@ -141,7 +148,17 @@ import { useDescarga } from "./ui/descarregar";
  */
 const FILTRO_CLASSES =
   "bg-[var(--bo-surface)] border border-[var(--bo-hairline)] rounded-xl px-3 py-2.5 " +
-  "text-xs text-[var(--bo-tinta-72)] focus:outline-none focus:border-foreground/25";
+  "text-xs text-[var(--bo-tinta-72)] focus:outline-none focus:border-foreground/25 " +
+  // ── NA GRELHA DO TELEMÓVEL, O FILTRO ENCOLHE À CÉLULA ──────────────────────
+  // No dedo a `Escolha` é um `<select>` a 16 px, e «Todas as categorias» mais a
+  // reserva da seta pedia 207 px numa célula de ~171: a página inteira passava
+  // a deslizar 8–16 px para o lado (auditoria do telemóvel, 14/11). O `min-w-0`
+  // deixa-o encolher e o texto corta-se dentro do campo; no computador (`lg:`)
+  // os filtros são uma fila que embrulha, e cada um volta à largura dele.
+  "min-w-0 max-lg:w-full";
+/** A caixa da `Escolha` à volta de cada filtro: é ELA que ocupa a célula da
+ *  grelha, portanto é ela que tem de poder encolher (ver `FILTRO_CLASSES`). */
+const FILTRO_CAIXA = "min-w-0 max-lg:w-full";
 import { useMarcaQueAnda } from "./ui/useMarcaQueAnda";
 /* A outra metade do vocabulário: a `.bo-saida` é a palavra em CSS, e este hook
    é a parte que o CSS não pode fazer sozinho — segurar o nó montado os 200 ms
@@ -390,8 +407,11 @@ const DETAIL_TABS: { id: DetailTab; label: string; hint: string; icon: ReactNode
     ),
   },
 ];
-function detailNextAction(quote: Quote): { label: string; hint: string; tab: DetailTarget } {
-  const { perdido, currentIndex, allDone } = deriveRequestLifecycle(quote);
+function detailNextAction(
+  quote: Quote,
+  proposta: PropostaParaAFase | null | undefined,
+): { label: string; hint: string; tab: DetailTarget } {
+  const { perdido, currentIndex, allDone } = deriveRequestLifecycle(quote, proposta);
   if (perdido)
     return { label: "Reabrir pedido", hint: "Voltar a colocar em revisão", tab: "gestao" };
   if (allDone)
@@ -1294,6 +1314,7 @@ function oQueSePerdeComOPedido(q: Quote | null): string[] {
   if (q.quotedPrice) {
     linhas.push(
       `o valor combinado, ${q.quotedPrice.toLocaleString("pt-PT", {
+        useGrouping: "always",
         style: "currency",
         currency: "EUR",
       })}`,
@@ -1316,7 +1337,15 @@ export default function AdminClient({
   // estado tem mesmo de ser `Quote[]`: assim que um pedido é aberto ou gravado,
   // o elemento da lista passa a ser o pedido INTEIRO devolvido pelo servidor.
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes);
+  // Para as Tarefas: o nome de cada pedido, pelo id (ver `NomesDosPedidos`).
+  const nomesDosPedidos = useMemo(
+    () => new Map(quotes.map((q) => [q.id, q.name] as const)),
+    [quotes],
+  );
   const [selected, setSelected] = useState<Quote | null>(null);
+  // A lista leve de propostas, SÓ OUVIDA (sem pedido novo): a fase do pedido
+  // aberto lê dela o total a pagar da proposta que conta, como o dossiê.
+  const propostasLeves = usePropostasLevesSoOuvir();
 
   /**
    * ══════════════════════════════════════════════════════════════════════════
@@ -1518,6 +1547,27 @@ export default function AdminClient({
     setDetailTab(tab);
     setDetailTabsVisitados(new Set([tab]));
   }, []);
+
+  // Ver `separador-por-decidir.ts`: o separador escolhido antes de a lista
+  // leve de propostas chegar volta a escolher-se quando ela chega.
+  const separadorPorDecidirRef = useRef<SeparadorPorDecidir<DetailTab> | null>(null);
+  useEffect(() => {
+    const porDecidir = separadorPorDecidirRef.current;
+    if (!porDecidir || !selected || propostasLeves === undefined) return;
+    separadorPorDecidirRef.current = null;
+    const alvo = detailNextAction(
+      selected,
+      propostaDaFaseDoPedido(propostasLeves, selected.id),
+    ).tab;
+    const novo = separadorQuandoAPropostaChega(
+      porDecidir,
+      { quoteId: selected.id, tab: detailTab, em: Date.now() },
+      alvo === "gestao" ? "comunicacao" : alvo,
+    );
+    // `abrirDetailTab` ACRESCENTA: o separador de antes não desmonta.
+    if (novo) abrirDetailTab(novo);
+  }, [propostasLeves, selected, detailTab, abrirDetailTab]);
+
   // Scroll targets for the "Próxima ação" shortcut: the always-visible
   // management form and the tools (tabs) section.
   const gestaoRef = useRef<HTMLDivElement>(null);
@@ -2290,6 +2340,8 @@ export default function AdminClient({
         return;
       }
       marcarDesfecho(corpo as Quote);
+      // O PATCH acabou: o estado novo pode ter arrastado a proposta.
+      asPropostasMudaram();
       anular(`${q.name}: ${de} → ${para}`, async () => {
         const reposto = await reporEstadoDoPedido({
           quoteId: q.id,
@@ -3531,8 +3583,19 @@ export default function AdminClient({
     );
     // Open on the tools tab that matches where this pedido is in its lifecycle.
     // Pedido NOVO: os separadores visitados do anterior não valem para este.
-    const target = detailNextAction(q).tab;
-    abrirPrimeiroDetailTab(target === "gestao" ? "comunicacao" : target);
+    const daFase = propostaDaFaseDoPedido(propostasLeves, q.id);
+    const target = detailNextAction(q, daFase).tab;
+    const abre = target === "gestao" ? "comunicacao" : target;
+    abrirPrimeiroDetailTab(abre);
+    // A lista leve ainda não chegou: a escolha foi feita às cegas. Pede-se já
+    // (é o MESMO pedido do aquecimento em ociosidade, adiantado — não é um a
+    // mais) e, quando chegar, volta-se a escolher se ela não mexeu.
+    if (daFase === undefined) {
+      separadorPorDecidirRef.current = { quoteId: q.id, tab: abre, desde: Date.now() };
+      prefetchList("propostas-leves", "/api/propostas?semDoc=1");
+    } else {
+      separadorPorDecidirRef.current = null;
+    }
   }
   // Stable identity for the memoised QuoteCard's onOpen prop. `irFazerAProposta`
   // is a plain function (closes over discardGuard and many setters), so its
@@ -4099,6 +4162,9 @@ export default function AdminClient({
           });
         }
         guardado = (await res.json()) as Quote;
+        // Um estado novo gravado pelo formulário («Ganho», «Perdido») arrasta
+        // a proposta no servidor: a lista leve relê-se, depois do PATCH.
+        if ("status" in body) asPropostasMudaram();
         return { estado: "guardado" } satisfies RespostaDoEnvio;
       });
       if (resultado.estado !== "guardado") {
@@ -5027,7 +5093,7 @@ export default function AdminClient({
             role={navOpen ? "dialog" : undefined}
             aria-modal={navOpen || undefined}
             aria-label={navOpen ? "Menu" : undefined}
-            className={`bo-material-faixa bo-material-desfoque pointer-events-auto fixed top-0 z-40 h-screen w-64 shrink-0 flex flex-col border-r border-[var(--bo-hairline)] motion-safe:transition-[transform,box-shadow] motion-safe:duration-300 ${
+            className={`bo-material-faixa bo-material-desfoque pointer-events-auto fixed top-0 z-40 h-dvh w-64 shrink-0 flex flex-col overflow-y-auto overscroll-contain border-r border-[var(--bo-hairline)] motion-safe:transition-[transform,box-shadow] motion-safe:duration-300 ${
               navOpen
                 ? "translate-x-0 shadow-[var(--bo-sombra-modal)]"
                 : "-translate-x-full shadow-none"
@@ -5057,7 +5123,16 @@ export default function AdminClient({
               quem está aqui dentro já sabe onde está, e o rótulo só roubava
               espaço ao único elemento que identifica a casa. O nome continua a
               ser anunciado por leitores de ecrã através do `alt` da imagem. */}
-            <div className="w-full px-3 pt-5 pb-6 flex justify-center">
+            {/* ── NUM ECRÃ BAIXO, O LOGÓTIPO DÁ O LUGAR AOS DESTINOS ──────────
+                Medido num iPhone 14 com as barras do Safari (390×664): a
+                largura toda dava ao logótipo ~138 px de altura, e com o rodapé
+                da conta colado ao fundo só se viam 4 dos 10 destinos — a lista
+                acabava num fio e parecia completa (auditoria, 14/11). Abaixo de
+                760 px de altura o logótipo fica numa faixa de 64 px; e a gaveta
+                passou a rolar INTEIRA (`overflow-y-auto` no `aside`), com os
+                destinos primeiro e a conta depois, em vez de uma lista que rola
+                presa entre os dois. */}
+            <div className="w-full shrink-0 px-3 pt-5 pb-6 flex justify-center [@media(max-height:760px)]:pb-2">
               <Image
                 src="/logo-liquen.png"
                 alt="Líquen Events"
@@ -5072,7 +5147,7 @@ export default function AdminClient({
                  * Amarrando à LARGURA (`w-full`) e deixando a altura seguir o
                  * rácio, passa a encher a barra de margem a margem — é a marca
                  * que abre o dia de trabalho, não um ícone. */
-                className="w-full h-auto object-contain"
+                className="w-full h-auto object-contain [@media(max-height:760px)]:h-16 [@media(max-height:760px)]:w-auto"
               />
             </div>
 
@@ -5108,7 +5183,7 @@ export default function AdminClient({
                  confusão que a regra do `soNoComputador` já evitava do outro
                  lado. Abaixo de `lg` a barra só leva quatro, e esta lista
                  continua a ser onde os outros vivem. */
-              className="relative lg:hidden flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto"
+              className="relative lg:hidden shrink-0 px-3 py-4 flex flex-col gap-1"
             >
               {/* O filete que anda. `aria-hidden` porque não diz nada que o
                   `aria-current="page"` de cada destino não diga melhor — é
@@ -5182,8 +5257,9 @@ export default function AdminClient({
               </div>
             </nav>
 
-            {/* User */}
-            <div className="px-2.5 pb-5 pt-3 border-t border-[var(--bo-hairline)]">
+            {/* User — `mt-auto` cola-o ao fundo quando sobra altura; quando não
+                sobra, vem a seguir aos destinos, dentro do mesmo rolo. */}
+            <div className="mt-auto shrink-0 px-2.5 pb-5 pt-3 border-t border-[var(--bo-hairline)]">
               <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--bo-surface-hover)] mb-2">
                 <div className="w-8 h-8 rounded-full bg-[var(--bo-accent)] flex items-center justify-center text-white text-xs font-bold shrink-0">
                   {userName.slice(0, 1).toUpperCase()}
@@ -6572,7 +6648,11 @@ export default function AdminClient({
           {/* ── Tarefas ── */}
           {view === "tarefas" && (
             <div className={`${VIEW_WRAP} view-in`}>
-              <Tarefas defaultAssignee={userName} pedidoDeNova={pedidoDeNovaTarefa} />
+              <Tarefas
+                defaultAssignee={userName}
+                pedidoDeNova={pedidoDeNovaTarefa}
+                nomesDosPedidos={nomesDosPedidos}
+              />
             </div>
           )}
 
@@ -6851,6 +6931,7 @@ export default function AdminClient({
                     `<label for>`. */}
                 <Escolha
                   variante="nua"
+                  containerClassName={FILTRO_CAIXA}
                   className={FILTRO_CLASSES}
                   valor={filterCategory}
                   aoMudar={setFilterCategory}
@@ -6862,6 +6943,7 @@ export default function AdminClient({
                 />
                 <Escolha
                   variante="nua"
+                  containerClassName={FILTRO_CAIXA}
                   className={FILTRO_CLASSES}
                   valor={filterEspera}
                   aoMudar={(v) => setFilterEspera(v as typeof filterEspera)}
@@ -6875,6 +6957,7 @@ export default function AdminClient({
                 {mesesDisponiveis.length > 1 && (
                   <Escolha
                     variante="nua"
+                    containerClassName={FILTRO_CAIXA}
                     className={FILTRO_CLASSES}
                     valor={filterMes}
                     aoMudar={setFilterMes}
@@ -6888,6 +6971,7 @@ export default function AdminClient({
                 {regioesDisponiveis.length > 1 && (
                   <Escolha
                     variante="nua"
+                    containerClassName={FILTRO_CAIXA}
                     className={FILTRO_CLASSES}
                     valor={filterRegiao}
                     aoMudar={setFilterRegiao}
@@ -6901,6 +6985,7 @@ export default function AdminClient({
                 {plannersDisponiveis.length > 0 && (
                   <Escolha
                     variante="nua"
+                    containerClassName={FILTRO_CAIXA}
                     className={FILTRO_CLASSES}
                     valor={filterPlanner}
                     aoMudar={setFilterPlanner}
@@ -6917,7 +7002,7 @@ export default function AdminClient({
                      cabe em meia largura, e um selector com o rótulo cortado
                      não diz por que ordem a lista está. Vai no `containerClassName`
                      porque quem ocupa a célula da grelha é a caixa, não o botão. */
-                  containerClassName="col-span-2 flex-1 lg:flex-none"
+                  containerClassName="col-span-2 min-w-0 flex-1 lg:flex-none"
                   className={`w-full ${FILTRO_CLASSES}`}
                   valor={sort}
                   aoMudar={(v) => setSort(v as typeof sort)}
@@ -7698,7 +7783,10 @@ export default function AdminClient({
                         abaixo — nada fica escondido atrás de revelações. */}
                       <div className="mx-auto flex w-full max-w-3xl flex-col gap-[var(--bo-gap-vista)] px-3.5 py-3.5 sm:px-7 sm:py-8">
                         {/* Ciclo de vida — em que fase está o pedido, num relance. */}
-                        <LifecycleStepper quote={selected} />
+                        <LifecycleStepper
+                          quote={selected}
+                          proposta={propostaDaFaseDoPedido(propostasLeves, selected.id)}
+                        />
 
                         {/* ── «JÁ RESPONDERAM?», TAMBÉM AQUI ─────────────────
                           O mesmo gesto do cartão da lista, no sítio onde ela
@@ -7761,8 +7849,9 @@ export default function AdminClient({
                         {/* Próxima ação — o único passo seguinte, em destaque. Abre a
                           ferramenta certa dentro da área avançada. */}
                         {(() => {
-                          const na = detailNextAction(selected);
-                          const reopen = deriveRequestLifecycle(selected).perdido;
+                          const daFase = propostaDaFaseDoPedido(propostasLeves, selected.id);
+                          const na = detailNextAction(selected, daFase);
+                          const reopen = deriveRequestLifecycle(selected, daFase).perdido;
                           return (
                             <div>
                               <button

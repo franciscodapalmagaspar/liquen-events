@@ -757,6 +757,61 @@ describe("notas presas a cada secção", () => {
   });
 });
 
+/**
+ * ── O PASSO QUE CHEGA MOSTRA-SE PELO PRINCÍPIO (revisão de 14/11) ──────────
+ * O jsdom não tem disposição: aqui finge-se que o início do passo ficou 900 px
+ * ACIMA do ecrã (ela estava no fundo do passo anterior) e regista-se para onde
+ * a página é levada. Quem muda de passo sem passar pelo `irParaPasso` não
+ * pede rolo nenhum — e é isso que estes casos apanham. O gesto, com o dedo,
+ * mede-se no browser (`e2e/o-iphone-com-barras.spec.ts`).
+ */
+/** O botão do passo `n` (1–5) na barra dos passos. */
+function botaoDoPasso(n: number): HTMLElement {
+  const barra = screen.getByRole("navigation", { name: "Passos da proposta" });
+  return within(barra).getAllByRole("button")[n - 1];
+}
+
+function comOPassoLaEmCima() {
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  const rect = vi
+    .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+    .mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains("@container/estudio")) {
+        return {
+          top: -900,
+          bottom: -100,
+          left: 0,
+          right: 390,
+          width: 390,
+          height: 800,
+          x: 0,
+          y: -900,
+          toJSON() {},
+        } as DOMRect;
+      }
+      return original.call(this);
+    });
+  const tinha = Object.prototype.hasOwnProperty.call(Element.prototype, "scrollIntoView");
+  const antes = Element.prototype.scrollIntoView;
+  const rolo = vi.fn();
+  Element.prototype.scrollIntoView = rolo;
+  return {
+    /** Quantas vezes a página foi levada ao INÍCIO do formulário dos passos. */
+    subidasAoPasso: () =>
+      rolo.mock.contexts.filter(
+        (el, i) =>
+          (el as HTMLElement).classList?.contains("@container/estudio") &&
+          (rolo.mock.calls[i]?.[0] as ScrollIntoViewOptions | undefined)?.block === "start",
+      ).length,
+    esquecer: () => rolo.mockClear(),
+    repor: () => {
+      rect.mockRestore();
+      if (tinha) Element.prototype.scrollIntoView = antes;
+      else delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    },
+  };
+}
+
 describe("o trabalho que uma gravação esmagou", () => {
   /** Uma gravação que sobrepôs alguém, tal como o servidor a responde. */
   function gravacaoQueSobrepos(opcoes: { resgate?: string; quem?: string } = {}) {
@@ -990,6 +1045,21 @@ describe("limpar o rascunho pode ser anulado", () => {
     expect(await screen.findByText(/Pode anular durante/i)).toBeTruthy();
     // E limpou mesmo: o grupo que lá estava desapareceu.
     expect(screen.queryByDisplayValue("Decoração Floral")).toBeNull();
+  });
+
+  it("limpar leva ao INÍCIO do Evento, e não a meio dele", async () => {
+    seedComConteudo();
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(botaoDoPasso(3));
+    const passo = comOPassoLaEmCima();
+    try {
+      await user.click(await screen.findByRole("button", { name: /Limpar rascunho/ }));
+      await waitFor(() => expect(passo.subidasAoPasso()).toBe(1));
+      expect(botaoDoPasso(1)).toHaveAttribute("aria-current", "step");
+    } finally {
+      passo.repor();
+    }
   });
 
   it("anular devolve o que lá estava", async () => {
@@ -1444,12 +1514,15 @@ describe("a barra do fundo chama cada número pelo seu nome", () => {
     // Uma margem é arranjo e muda quando o desenho muda. O que NÃO muda é o que
     // define este parágrafo: é o único da barra com os dois ramos de largura
     // como filhos directos, um para o telemóvel e outro para o computador.
-    const barra = [...container.querySelectorAll("p")].find((el) =>
-      [...el.children].some((f) => f.className.includes("sm:hidden")),
-    )!;
+    //
+    // E a 14/11 os ramos deixaram de perguntar à janela (`sm:`) e passaram a
+    // perguntar à caixa (`@min-[48rem]:`); o parágrafo ganhou um nome próprio,
+    // `data-total-da-barra`, para nenhum destes localizadores voltar a depender
+    // de uma classe de largura.
+    const barra = container.querySelector<HTMLElement>("p[data-total-da-barra]")!;
     const ramos = [...barra.querySelectorAll(":scope > span")];
-    const estreito = ramos.find((el) => el.className.includes("sm:hidden"));
-    const largo = ramos.find((el) => el.className.includes("sm:inline"));
+    const estreito = ramos.find((el) => el.className.includes("@min-[48rem]:hidden"));
+    const largo = ramos.find((el) => el.className.includes("@min-[48rem]:inline"));
     return { esperado, estreito, largo };
   }
 
@@ -2056,6 +2129,85 @@ describe("aviso antes de a proposta seguir para o cliente", () => {
       "step",
     );
   });
+
+  it("«voltar e corrigir» chega ao INÍCIO do passo do corte — pela porta da barra dos passos", async () => {
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
+    await verEConfirmar();
+    propostaDoc = reply({
+      ok: false,
+      status: 409,
+      json: {
+        precisaConfirmarCortes: true,
+        truncations: [{ where: "Mood board «Cerimónia»", dropped: 3, unit: "fotos" }],
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: /Gerar e enviar ao cliente/ }));
+    await confirmarEnvio(user);
+    const voltar = await screen.findByRole("button", { name: /Voltar e corrigir/ });
+    const passo = comOPassoLaEmCima();
+    try {
+      await user.click(voltar);
+      await waitFor(() => expect(passo.subidasAoPasso()).toBe(1));
+      // As fotos a mais corrigem-se na Inspiração.
+      expect(botaoDoPasso(3)).toHaveAttribute("aria-current", "step");
+    } finally {
+      passo.repor();
+    }
+  });
+
+  it("«Repor esta versão» (no Rever e enviar) leva ao INÍCIO do Evento", async () => {
+    versoesServidor = [
+      {
+        id: "v1",
+        enviadaEm: "2026-06-01T10:00:00.000Z",
+        total: 3690,
+        estado: "enviada",
+        mudancas: [],
+        resumo: "Primeira versão enviada",
+      },
+    ];
+    docsDeVersao.v1 = {
+      template: "decoracao",
+      ref: "PO Decoração",
+      clientNames: "Maria & Zé",
+      serviceGroups: [{ letter: "a)", title: "TESTE versão reposta", items: [] }],
+      moodBoards: [],
+      budgetItems: [],
+      coverImages: ["", ""],
+    };
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(botaoDoPasso(5));
+    const repor = await screen.findByRole("button", { name: "Repor esta versão" });
+    const passo = comOPassoLaEmCima();
+    try {
+      await user.click(repor);
+      await screen.findByDisplayValue("TESTE versão reposta");
+      await waitFor(() => expect(passo.subidasAoPasso()).toBe(1));
+      expect(botaoDoPasso(1)).toHaveAttribute("aria-current", "step");
+    } finally {
+      passo.repor();
+    }
+  });
+
+  it("a barra dos passos e o «Seguinte» também — o controlo dos de cima", async () => {
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    const passo = comOPassoLaEmCima();
+    try {
+      await user.click(botaoDoPasso(2));
+      await waitFor(() => expect(passo.subidasAoPasso()).toBe(1));
+      await user.click(screen.getAllByRole("button", { name: /^Seguinte:/ })[0]);
+      await waitFor(() => expect(passo.subidasAoPasso()).toBe(2));
+    } finally {
+      passo.repor();
+    }
+  });
 });
 
 /**
@@ -2484,6 +2636,137 @@ describe("linhas que escalam com os convidados", () => {
   });
 });
 
+// ── As assinaturas de seis horas da Biblioteca (registos de 13/11) ──────────
+/**
+ * Às 20:44 de 13/11 ela abriu uma proposta e o browser pediu ao Storage
+ * miniaturas, derivadas e originais da Biblioteca assinados a 6/11 — sete dias
+ * antes, para uma validade de seis horas. Cada um deu `400 InvalidJWT`. Vinham
+ * do rascunho do `localStorage`, posto no ecrã antes de a hidratação chegar.
+ */
+describe("um rascunho guardado com assinaturas da Biblioteca já mortas", () => {
+  /** Um URL assinado à maneira do Supabase, a morrer `daquiASegundos` depois de agora. */
+  function assinado(nome: string, daquiASegundos: number): string {
+    const exp = Math.floor(Date.now() / 1000) + daquiASegundos;
+    const carga = btoa(JSON.stringify({ url: `theme-thumbs/${nome}`, exp }))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    return `https://storage.test/storage/v1/object/sign/theme-thumbs/${nome}?token=cab.${carga}.ass`;
+  }
+
+  beforeEach(() => {
+    class ImagemQueCarrega {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      decoding = "";
+      set src(_v: string) {
+        setTimeout(() => this.onload?.(), 0);
+      }
+    }
+    vi.stubGlobal("Image", ImagemQueCarrega);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const srcsNoEcra = () =>
+    Array.from(document.querySelectorAll("img")).map((i) => i.getAttribute("src") ?? "");
+
+  it("não põe no ecrã o que já morreu — espera pela assinatura fresca", async () => {
+    const morta = assinado("p/foto-0.jpg", -7 * 24 * 3600);
+    const mortaOriginal = assinado("p/foto-0-original.jpg", -7 * 24 * 3600);
+    const fresca = assinado("p/foto-0-fresca.jpg", 6 * 3600);
+    seedDraft(1);
+    localStorage.setItem(
+      `${DRAFT_KEY}:meta`,
+      JSON.stringify({
+        urls: { "board/foto-0.jpg": morta },
+        originais: { "board/foto-0.jpg": mortaOriginal },
+        medias: { "board/foto-0.jpg": mortaOriginal },
+      }),
+    );
+    assetsServidor = [{ path: "board/foto-0.jpg", url: fresca, thumbUrl: fresca }];
+    const abrir = segurarOsAssets();
+    renderStudio();
+    // A lista ainda não chegou: é este o segundo em que o Edge pagava os 400.
+    await waitFor(() => expect(pedidos.some((p) => p.url.includes("/assets"))).toBe(true));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(srcsNoEcra()).not.toContain(morta);
+    expect(srcsNoEcra()).not.toContain(mortaOriginal);
+    abrir();
+    await waitFor(() => expect(srcsNoEcra()).toContain(fresca));
+  });
+
+  it("aberto de um dia para o outro: ao voltar ao separador, pede a lista outra vez", async () => {
+    const quaseNoFim = assinado("p/foto-0.jpg", 6 * 3600);
+    seedDraft(1);
+    localStorage.setItem(
+      `${DRAFT_KEY}:meta`,
+      JSON.stringify({ urls: { "board/foto-0.jpg": quaseNoFim } }),
+    );
+    assetsServidor = [{ path: "board/foto-0.jpg", url: quaseNoFim, thumbUrl: quaseNoFim }];
+    renderStudio();
+    const leituras = () =>
+      pedidos.filter((p) => /\/assets(\?|$)/.test(p.url) && !p.init?.method).length;
+    await waitFor(() => expect(leituras()).toBe(1));
+
+    // Voltar com tudo a servir não custa pedido nenhum.
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(leituras()).toBe(1);
+
+    // Sete horas depois, a assinatura já morreu com o ecrã à frente dela.
+    const real = Date.now();
+    const relogio = vi.spyOn(Date, "now").mockReturnValue(real + 7 * 3600 * 1000);
+    try {
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new Event("focus"));
+      });
+      await waitFor(() => expect(leituras()).toBe(2));
+    } finally {
+      relogio.mockRestore();
+    }
+  });
+
+  /**
+   * Revisão de 14/11: a limpeza dos URLs mortos corria num `.finally`, portanto
+   * também quando o `/assets` FALHAVA. Uma foto com três minutos de vida (ainda
+   * a desenhar) desaparecia do ecrã, e o regresso seguinte já não via nada
+   * morto e não voltava a tentar.
+   */
+  it("com a lista a falhar, não tira nada do ecrã e volta a tentar no regresso seguinte", async () => {
+    // Três minutos de vida: dentro da margem de cinco (conta como «a morrer»),
+    // mas ainda desenha. Vem da hidratação, e não do rascunho, porque o
+    // restauro já deixa de fora o que está dentro da margem.
+    const aMorrer = assinado("p/foto-0.jpg", 3 * 60);
+    seedDraft(1);
+    assetsServidor = [{ path: "board/foto-0.jpg", url: aMorrer, thumbUrl: aMorrer }];
+    renderStudio();
+    const leituras = () =>
+      pedidos.filter((p) => /\/assets(\?|$)/.test(p.url) && !p.init?.method).length;
+    await waitFor(() => expect(srcsNoEcra()).toContain(aMorrer));
+    expect(leituras()).toBe(1);
+
+    assetsFalham = true;
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await waitFor(() => expect(leituras()).toBe(2));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(srcsNoEcra(), "a foto que ainda desenhava saiu do ecrã").toContain(aMorrer);
+
+    // O regresso seguinte volta a perguntar — a falha não fechou a porta.
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await waitFor(() => expect(leituras()).toBe(3));
+  });
+});
+
 // ── A pré-visualização das fotos do documento ──────────────────────────────
 describe("uma célula que não conseguiu desenhar a foto", () => {
   /**
@@ -2851,9 +3134,9 @@ describe("os valores adicionais somam ao total", () => {
     // números vivem noutros filhos do mesmo parágrafo.
     const nota = (await screen.findByText(/só os serviços/i)).closest("p");
     expect(nota).not.toBeNull();
-    expect(nota!.textContent).toMatch(/3000,00/);
+    expect(nota!.textContent).toMatch(/3\s000,00/);
     expect(nota!.textContent).toMatch(/140,00/);
-    expect(nota!.textContent).toMatch(/3140,00/);
+    expect(nota!.textContent).toMatch(/3\s140,00/);
   });
 
   /**
@@ -2937,9 +3220,9 @@ describe("os valores adicionais somam ao total", () => {
     // `findAllByText`: estes números aparecem em mais do que um sítio do ecrã
     // de propósito (o quadro de totais e a barra do fundo dizem o mesmo), e o
     // que se está a afirmar é que aparecem, não que aparecem uma só vez.
-    expect((await screen.findAllByText(/6875,00/)).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText(/1550,00/)).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText(/8425,00/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/6\s875,00/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/1\s550,00/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/8\s425,00/)).length).toBeGreaterThan(0);
   });
 
   /**
@@ -7964,7 +8247,9 @@ describe("o que falta para enviar, no passo de enviar", () => {
     // pastilha do envio (auditoria de 13/11, n.º 5 — «Faltam 4» vs «3 coisas»).
     expect(await screen.findByText(/2 coisas impedem o envio/)).toBeTruthy();
     expect(screen.getByText("Nome dos clientes")).toBeTruthy();
-    expect(screen.getByText(/Falta ver o PDF final/)).toBeTruthy();
+    // Na Conferência e no índice: os dois lêem a mesma lista (auditoria de
+    // 14/11, n.º 4).
+    expect(screen.getAllByText(/Falta ver o PDF final/).length).toBeGreaterThan(0);
   });
 
   it("tocar na linha volta ao conteúdo e põe o cursor no campo", async () => {
@@ -8899,7 +9184,8 @@ describe("acções irreversíveis: pergunta ou anulação, nunca nada", () => {
     await verEConfirmar();
     await user.click(await screen.findByRole("button", { name: /Gerar e enviar ao cliente/ }));
 
-    const resumo = (await screen.findByText(/Enviar para/)).textContent ?? "";
+    // «por email»: a pergunta diz o canal (auditoria de 14/11, n.º 3).
+    const resumo = (await screen.findByText(/Enviar por email para/)).textContent ?? "";
     // PARA QUEM.
     expect(resumo).toContain("maria@example.pt");
     // QUANTAS PÁGINAS — com o «cerca de» que a contagem promete, e não um
@@ -10422,15 +10708,27 @@ describe("os cinco passos do estúdio", () => {
     expect(screen.getByRole("button", { name: /^1\s*Evento/ }).textContent).toMatch(/com erros/);
   });
 
-  it("o sinal do «Rever e enviar» bate com o botão de descarregar", async () => {
+  /*
+   * Este dizia «o sinal do Rever e enviar bate com o botão de DESCARREGAR»
+   * (rascunho ⇔ erro). Era a lista errada: o descarregar lê as faltas SEM o
+   * «ver o PDF final» — de propósito, senão o PDF final nunca se podia ver —, e
+   * com essa lista o passo 5 punha o visto enquanto a Conferência travava com
+   * «Falta ver o PDF final» (auditoria de 14/11, n.º 4). O passo lê agora a
+   * MESMA lista do botão de enviar e da Conferência.
+   */
+  it("o sinal do «Rever e enviar» bate com a Conferência e o botão de enviar", async () => {
     seedDraft(1);
     renderStudio("Rever e enviar");
-    const descarregar = await screen.findByRole("button", { name: /^Descarregar (PDF|rascunho)$/ });
-    const estado = screen
-      .getByRole("button", { name: /^5\s*Rever e enviar/ })
-      .getAttribute("data-estado");
-    // A mesma lista decide as duas coisas: rascunho ⇔ erro.
-    expect(estado === "erro").toBe(/rascunho/.test(descarregar.textContent ?? ""));
+    // Só falta ver o PDF: descarrega-se o PDF final (não o rascunho)…
+    await screen.findByRole("button", { name: /^Descarregar PDF$/ });
+    // … mas a Conferência trava, e o passo 5 não pode dizer que está completo.
+    // Também não fica a vermelho: ver o PDF é o passo seguinte, não um erro
+    // (revisão de 14/11). E o botão guia esse passo, coerente com o sinal.
+    expect(await screen.findAllByText(/Falta ver o PDF final/)).not.toHaveLength(0);
+    expect(
+      screen.getByRole("button", { name: /^5\s*Rever e enviar/ }).getAttribute("data-estado"),
+    ).toBe("incompleto");
+    expect(screen.getByRole("button", { name: "Ver o PDF final" })).toBeEnabled();
   });
 
   it("na Inspiração o índice da esquerda sai, e volta no passo seguinte", async () => {
@@ -10549,7 +10847,7 @@ describe("a barra do envio, numa caixa estreita", () => {
     expect(screen.queryByRole("radiogroup", { name: "Idioma da proposta" })).toBeNull();
     expect(screen.queryByText(/Não dá para enviar/)).toBeNull();
 
-    const pastilha = screen.getByRole("button", { name: /^Antes de enviar: Ver o PDF/ });
+    const pastilha = screen.getByRole("button", { name: /^Antes de enviar: Falta 1/ });
     await user.click(pastilha);
     const folha = await screen.findByRole("dialog", { name: "Antes de enviar" });
     expect(
@@ -10594,7 +10892,7 @@ describe("ver o PDF final antes de enviar", () => {
     // Só falta ver o PDF: o botão principal guia esse passo em vez de estar
     // apagado (14/10), e a pastilha diz o que falta.
     expect(await screen.findByRole("button", { name: "Ver o PDF final" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: /^Antes de enviar: Ver o PDF/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Antes de enviar: Falta 1/ })).toBeInTheDocument();
 
     // O caminho pela caixa do corpo do passo continua a valer.
     await user.click(screen.getByRole("button", { name: "Descarregar o PDF final" }));

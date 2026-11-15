@@ -402,3 +402,41 @@ describe("ordenar", () => {
     });
   });
 });
+
+/**
+ * Auditoria de 14/11, n.º 16: «Evento sem nome» quando o pedido tinha nome. As
+ * listas só liam o `clientName` da tarefa — e uma tarefa criada a partir de um
+ * pedido pode ter sido gravada sem ele.
+ */
+describe("o nome do evento vem do pedido", () => {
+  const nomes = new Map([["LIQ-1", "Ana e Rui"]]);
+
+  it("a lista de evento usa o nome do pedido quando a tarefa não o traz", () => {
+    const listas = listasDeEvento([tarefa({ id: "a", quoteId: "LIQ-1" })], nomes);
+    expect(listas).toEqual([{ id: "evento:q:LIQ-1", rotulo: "Ana e Rui" }]);
+  });
+
+  it("e o grupo «por evento» também", () => {
+    const grupos = agruparTarefas(
+      [tarefa({ id: "a", quoteId: "LIQ-1", clientName: "" })],
+      "evento",
+      QUARTA,
+      nomes,
+    );
+    expect(grupos[0].titulo).toBe("Ana e Rui");
+  });
+
+  it("uma primeira tarefa sem nome não fica com o lugar de uma segunda que o tem", () => {
+    const listas = listasDeEvento([
+      tarefa({ id: "a", quoteId: "LIQ-2" }),
+      tarefa({ id: "b", quoteId: "LIQ-2", clientName: "Marta" }),
+    ]);
+    expect(listas[0].rotulo).toBe("Marta");
+  });
+
+  it("sem nome em lado nenhum, continua a dizer «Evento sem nome»", () => {
+    expect(listasDeEvento([tarefa({ id: "a", quoteId: "LIQ-3" })], nomes)[0].rotulo).toBe(
+      "Evento sem nome",
+    );
+  });
+});

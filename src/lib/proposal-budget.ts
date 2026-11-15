@@ -283,7 +283,7 @@ export function somaDosExtras(extras: ProposalDoc["budgetExtras"]): number {
  * dizer «com IVA», está a não dizer nada. A diferença entre «não diz» e «diz
  * incluído» é o que permite cair para o modo do DOCUMENTO em vez de adivinhar.
  */
-function modoDeIvaDaLinha(texto: string | undefined): "acrescer" | "incluido" | null {
+export function modoDeIvaDaLinha(texto: string | undefined): "acrescer" | "incluido" | null {
   if (!texto) return null;
   const t = texto.toLowerCase();
   if (/\+\s*iva|mais\s+iva|acresce\s+(?:o\s+)?iva|iva\s+n[aã]o\s+inclu|s\/\s*iva|sem\s+iva/.test(t))

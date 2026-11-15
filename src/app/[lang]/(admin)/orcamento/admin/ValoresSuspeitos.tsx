@@ -75,7 +75,12 @@ interface Suspeita {
 }
 
 const eur = (n: number) =>
-  n.toLocaleString("pt-PT", { style: "currency", currency: "EUR", minimumFractionDigits: 2 });
+  n.toLocaleString("pt-PT", {
+    useGrouping: "always",
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+  });
 
 const dia = (iso: string) => {
   const d = new Date(iso);
@@ -213,7 +218,9 @@ export default function ValoresSuspeitos() {
                         <p className="font-medium text-[var(--bo-text)]">
                           {c.nome}
                           {c.enviada && (
-                            <span className="ml-2 text-[var(--bo-perigo)]">já seguiu para o cliente</span>
+                            <span className="ml-2 text-[var(--bo-perigo)]">
+                              já seguiu para o cliente
+                            </span>
                           )}
                         </p>
                         <p className="mt-1 leading-relaxed text-[var(--bo-tinta-72)]">

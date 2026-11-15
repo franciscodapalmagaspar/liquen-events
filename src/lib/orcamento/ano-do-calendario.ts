@@ -176,8 +176,16 @@ function diasDoPedido(q: Quote): string[] {
   return dias;
 }
 
-/** Um pedido que conta para o calendário — nem arquivado, nem perdido. */
-function contaParaOCalendario(q: Quote): boolean {
+/**
+ * Um pedido que conta para o calendário — nem arquivado, nem perdido.
+ *
+ * Exportada (auditoria de 14/11, n.º 17): as contagens do mês, da semana e do
+ * dia somavam os pedidos PERDIDOS que a grelha desenha a cinzento, e o cartão
+ * do mesmo mês na vista de ano não os somava — «2 eventos este mês» num mês
+ * que o ano dizia ter um dia com marcações. A regra fica aqui, e as quatro
+ * vistas contam por ela.
+ */
+export function contaParaOCalendario(q: Quote): boolean {
   return !q.archived && q.status !== "rejeitado";
 }
 

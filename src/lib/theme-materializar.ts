@@ -15,7 +15,7 @@ import {
   type ThemeTransferOutcome,
 } from "./theme-storage";
 import { caminhoDoRefDeTema, ehRefDeTema, refDeTema, themeIdOfPath } from "./theme-ref";
-import { deleteFoto, garantirFoto, getFoto } from "./biblioteca-fotos-store";
+import { deleteFoto, garantirFoto, getFoto, marcarFotoMexida } from "./biblioteca-fotos-store";
 import { desetiquetar, etiquetar, etiquetasDaFoto } from "./biblioteca-foto-etiquetas-store";
 import { log } from "./logger";
 
@@ -424,7 +424,12 @@ const CONCORRENCIA_AO_MOVER = 5;
 async function copiarLinhasDaBiblioteca(
   from: string,
   to: string,
-): Promise<{ desfazer: () => Promise<void>; apagarAntigas: () => Promise<void> } | null> {
+): Promise<{
+  desfazer: () => Promise<void>;
+  apagarAntigas: () => Promise<void>;
+  /** O destino já tinha linha (a foto já lá esteve) — ver `marcarFotoMexida`. */
+  destinoJaTinhaLinha: boolean;
+} | null> {
   try {
     const [foto, etiquetas, jaNoDestino] = await Promise.all([
       getFoto(from),
@@ -478,7 +483,7 @@ async function copiarLinhasDaBiblioteca(
         log.warn("mover: linhas antigas por limpar", { from, erro: String(e) });
       }
     };
-    return { desfazer, apagarAntigas };
+    return { desfazer, apagarAntigas, destinoJaTinhaLinha: !!jaNoDestino };
   } catch (e) {
     log.error("mover: não foi possível ler as linhas da Biblioteca — a foto fica", e, { from });
     return null;
@@ -544,6 +549,10 @@ export async function moverFotosDaBiblioteca(
         resultados[i] = r;
         continue;
       }
+      // O ficheiro chegou a um caminho que já tinha linha (a foto já lá
+      // esteve, e saiu): a linha fica «mexida agora», para a Biblioteca não a
+      // esconder por uma listagem velha (2.ª revisão de 14/11, importante n.º 3).
+      if (linhas.destinoJaTinhaLinha) await marcarFotoMexida(r.to);
       if (referenciada) {
         porFechar.set(from, { i, to: r.to, linhas });
         resultados[i] = r;

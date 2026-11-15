@@ -187,15 +187,36 @@ export function pertenceALista(t: Task, lista: ListaId, hoje: string): boolean {
  * espera de segundo e meio da fase 04 existe para não ter. Alfabética não se
  * mexe.
  */
-export function listasDeEvento(tarefas: readonly Task[]): Lista[] {
+/**
+ * O nome de cada pedido, pelo id — para as tarefas que só têm o `quoteId`.
+ *
+ * Auditoria de 14/11, n.º 16: «Evento sem nome» quando o pedido tinha nome.
+ * Uma tarefa criada a partir de um pedido pode ter sido gravada sem
+ * `clientName` (ou com ele vazio), e as listas só olhavam para esse campo. O
+ * nome do pedido manda — é o mesmo que a chave já usa para juntar as tarefas.
+ */
+export type NomesDosPedidos = ReadonlyMap<string, string>;
+
+/** O nome que um evento mostra, ou "" se ninguém o souber. */
+export function nomeDoEvento(t: Task, nomes?: NomesDosPedidos): string {
+  const doPedido = t.quoteId ? (nomes?.get(t.quoteId) ?? "").trim() : "";
+  return doPedido || (t.clientName ?? "").trim();
+}
+
+const SEM_NOME = "Evento sem nome";
+
+export function listasDeEvento(tarefas: readonly Task[], nomes?: NomesDosPedidos): Lista[] {
   const rotulos = new Map<string, string>();
   for (const t of tarefas) {
     const chave = chaveDoEvento(t);
-    if (!chave || rotulos.has(chave)) continue;
-    rotulos.set(chave, (t.clientName ?? "").trim() || "Evento sem nome");
+    if (!chave) continue;
+    // Um nome vazio NÃO fica com o lugar: a tarefa seguinte do mesmo evento
+    // pode trazer o nome que esta não tem.
+    if (rotulos.get(chave)) continue;
+    rotulos.set(chave, nomeDoEvento(t, nomes));
   }
   return [...rotulos.entries()]
-    .map(([chave, rotulo]): Lista => ({ id: `evento:${chave}`, rotulo }))
+    .map(([chave, rotulo]): Lista => ({ id: `evento:${chave}`, rotulo: rotulo || SEM_NOME }))
     .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-PT"));
 }
 
@@ -284,7 +305,12 @@ function degrauDaData(t: Task, hoje: string): (typeof DEGRAUS_DE_DATA)[number] {
  * Grupos vazios não saem. É a Parte 8, letra por letra: «contador de zero como
  * cabeçalho» e «separador por baixo de um cabeçalho sem conteúdo».
  */
-export function agruparTarefas(tarefas: readonly Task[], modo: Agrupamento, hoje: string): Grupo[] {
+export function agruparTarefas(
+  tarefas: readonly Task[],
+  modo: Agrupamento,
+  hoje: string,
+  nomes?: NomesDosPedidos,
+): Grupo[] {
   if (modo === "nenhum") {
     return tarefas.length ? [{ id: "todas", titulo: null, tarefas: [...tarefas] }] : [];
   }
@@ -318,17 +344,19 @@ export function agruparTarefas(tarefas: readonly Task[], modo: Agrupamento, hoje
       semChave.push(t);
       continue;
     }
-    const titulo = modo === "evento" ? (t.clientName ?? "").trim() || "Evento sem nome" : chave;
+    const titulo = modo === "evento" ? nomeDoEvento(t, nomes) : chave;
     const balde = baldes.get(chave);
-    if (balde) balde.tarefas.push(t);
-    else baldes.set(chave, { titulo, tarefas: [t] });
+    if (balde) {
+      balde.tarefas.push(t);
+      if (!balde.titulo) balde.titulo = titulo;
+    } else baldes.set(chave, { titulo, tarefas: [t] });
   }
 
   const grupos: Grupo[] = [...baldes.entries()]
     .map(
       ([chave, { titulo, tarefas: lista }]): Grupo => ({
         id: chave,
-        titulo,
+        titulo: titulo || SEM_NOME,
         tarefas: lista,
       }),
     )

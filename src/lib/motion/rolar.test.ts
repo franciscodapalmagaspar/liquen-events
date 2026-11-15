@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { comportamentoDoRolo, rolarAJanela, rolarAteVer } from "./rolar";
+import { comportamentoDoRolo, rolarAJanela, rolarAteCaberPorCima, rolarAteVer } from "./rolar";
 
 /**
  * A porta por onde passa todo o rolo animado do back office.
@@ -104,5 +104,56 @@ describe("quem pediu para não animar não leva a página a passear", () => {
     movimentoReduzido = true;
     rolarAJanela({ top: 120 });
     expect(rolar).toHaveBeenLastCalledWith({ top: 120, behavior: "auto" });
+  });
+});
+
+/**
+ * O que nasce por baixo do que se tocou tem de se ver por cima da barra de
+ * baixo (auditoria do telemóvel, 14/11: o resumo do dia e a linha de escrever
+ * uma tarefa nasciam POR BAIXO dela). O `nearest` do Chromium parava 40 px
+ * antes, por isso a conta faz-se aqui.
+ */
+describe("rolarAteCaberPorCima", () => {
+  function alvo(top: number, altura: number, margem = 98) {
+    const el = document.createElement("div");
+    el.style.scrollMarginBottom = `${margem}px`;
+    el.style.scrollMarginTop = "57px"; // o cabeçalho colado, medido a 390 px
+    document.body.appendChild(el);
+    el.getBoundingClientRect = () =>
+      ({ top, bottom: top + altura, height: altura, left: 0, right: 0, width: 0 }) as DOMRect;
+    const chamadas: ScrollIntoViewOptions[] = [];
+    el.scrollIntoView = (o?: boolean | ScrollIntoViewOptions) => {
+      chamadas.push(o as ScrollIntoViewOptions);
+    };
+    return { el, chamadas };
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal("innerHeight", 664);
+  });
+
+  it("um alvo que acaba por baixo da barra sobe até o fundo assentar por cima dela", () => {
+    const { el, chamadas } = alvo(512, 463);
+    rolarAteCaberPorCima(el);
+    expect(chamadas).toEqual([{ block: "end", behavior: "smooth" }]);
+  });
+
+  it("um alvo que já se vê inteiro por cima da barra não mexe a página", () => {
+    const { el, chamadas } = alvo(100, 400); // acaba a 500, a barra começa a 566
+    rolarAteCaberPorCima(el);
+    expect(chamadas).toEqual([]);
+  });
+
+  it("um alvo mais alto do que o que sobra encosta o TOPO, que é o que se lê primeiro", () => {
+    const { el, chamadas } = alvo(600, 700);
+    rolarAteCaberPorCima(el);
+    expect(chamadas).toEqual([{ block: "start", behavior: "smooth" }]);
+  });
+
+  it("e com movimento reduzido salta, não anima", () => {
+    movimentoReduzido = true;
+    const { el, chamadas } = alvo(512, 463);
+    rolarAteCaberPorCima(el);
+    expect(chamadas[0]?.behavior).toBe("auto");
   });
 });

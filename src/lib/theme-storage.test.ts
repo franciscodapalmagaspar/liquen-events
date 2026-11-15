@@ -513,6 +513,134 @@ describe("countThemeFiles", () => {
 
 // ── Uma página, assinada (originais + miniaturas) ──────────────────────────
 describe("listThemeImagePage", () => {
+  /**
+   * 14/11: uma foto que vai para a Reciclagem sai da pasta, mas ficava na
+   * ordem arrumada à mão (`photoOrder`) — e o escolhedor do estúdio continuava
+   * a oferecê-la, com a miniatura (que fica). Quatro propostas escolheram
+   * assim fotos que já não existiam. A pasta manda; reposta, volta.
+   */
+  it("a ordem arrumada só oferece o que a pasta tem — e a foto reposta volta", async () => {
+    st.list.mockResolvedValue(page(["fica.jpg", "outra.jpg"]));
+    const { listThemeImagePage, trazerFotoDaReciclagem } = await load();
+    const ordem = ["t-1/foi.jpg", "t-1/fica.jpg"];
+    const r = await listThemeImagePage("t-1", 10, 0, ordem);
+    expect(r.images.map((i) => i.path)).toEqual(["t-1/fica.jpg", "t-1/outra.jpg"]);
+    expect(r.total).toBe(2);
+    // Nenhuma ida a mais: a página e a pasta (que já se contava), e mais nada.
+    expect(st.list).toHaveBeenCalledTimes(2);
+
+    // Reposta: volta à pasta (o mesmo caminho) e volta a ser oferecida já —
+    // repor deita fora a memória curta da pasta.
+    expect(await trazerFotoDaReciclagem("t-1/foi.jpg", "reciclagem/e-1/foi.jpg")).toBe("ok");
+    st.list.mockResolvedValue(page(["fica.jpg", "outra.jpg", "foi.jpg"]));
+    const depois = await listThemeImagePage("t-1", 10, 0, ordem);
+    expect(depois.images.map((i) => i.path)).toEqual([
+      "t-1/foi.jpg",
+      "t-1/fica.jpg",
+      "t-1/outra.jpg",
+    ]);
+  });
+
+  /**
+   * Revisão de 14/11, n.º 7: repor ou carregar deita fora a memória da pasta
+   * — mas só na instância do servidor que fez a escrita. Noutra, a memória de
+   * há 50 s ainda não conhece a foto, e ela saía da ordem arrumada para a
+   * CAUDA da grelha (a listagem da página é fresca). Uma arrumada que a
+   * memória dá como ausente confirma-se por ficheiro antes de sair.
+   */
+  it("a foto reposta noutra instância aparece no seu lugar arrumado, e não na cauda", async () => {
+    let nomes = ["fica.jpg", "outra.jpg"];
+    st.list.mockImplementation(async (_pasta: string, opts?: { search?: string }) =>
+      page(opts?.search ? nomes.filter((n) => n.startsWith(opts.search!)) : nomes),
+    );
+    const { listThemeImagePage } = await load();
+    const ordem = ["t-1/foi.jpg", "t-1/fica.jpg"];
+    const antes = await listThemeImagePage("t-1", 10, 0, ordem);
+    expect(antes.images.map((i) => i.path)).toEqual(["t-1/fica.jpg", "t-1/outra.jpg"]);
+
+    // Reposta NOUTRA instância: esta não ouviu a escrita (a memória fica).
+    nomes = ["fica.jpg", "outra.jpg", "foi.jpg"];
+    const depois = await listThemeImagePage("t-1", 10, 0, ordem);
+    expect(depois.images.map((i) => i.path)).toEqual([
+      "t-1/foi.jpg",
+      "t-1/fica.jpg",
+      "t-1/outra.jpg",
+    ]);
+  });
+
+  it("uma arrumada que continua na Reciclagem confirma-se uma vez, e não a cada página", async () => {
+    st.list.mockImplementation(async (_pasta: string, opts?: { search?: string }) =>
+      page(opts?.search ? [] : ["fica.jpg"]),
+    );
+    const { listThemeImagePage } = await load();
+    const ordem = ["t-1/foi.jpg", "t-1/fica.jpg"];
+    await listThemeImagePage("t-1", 10, 0, ordem);
+    await listThemeImagePage("t-1", 10, 0, ordem);
+    await listThemeImagePage("t-1", 10, 0, ordem);
+    const buscas = st.list.mock.calls.filter((c) => (c[1] as { search?: string })?.search);
+    expect(buscas).toHaveLength(1);
+  });
+
+  /**
+   * Revisão de 14/11 (2.ª), menor n.º 4: a confirmação de uma ausente vale o
+   * mesmo que a memória da pasta (60 s, `COUNT_TTL_MS`) — com 10 s, uma foto
+   * na Reciclagem ainda na ordem custava uma pergunta a cada 10 s por grelha
+   * aberta. E as confirmações caducadas saem do mapa, que não cresce sem fim.
+   */
+  it("uma ausente confirmada vale 60 s, e as caducadas saem do mapa", async () => {
+    vi.useFakeTimers();
+    try {
+      st.list.mockImplementation(async (_pasta: string, opts?: { search?: string }) =>
+        page(opts?.search ? [] : ["fica.jpg"]),
+      );
+      const { listThemeImagePage, quantasAusentesConfirmadas } = await load();
+      const ordem = ["t-1/foi.jpg", "t-1/fica.jpg"];
+      const buscas = () =>
+        st.list.mock.calls.filter((c) => (c[1] as { search?: string })?.search).length;
+      await listThemeImagePage("t-1", 10, 0, ordem); // lista a pasta, fresca
+      await listThemeImagePage("t-1", 10, 0, ordem); // memória: confirma uma vez
+      expect(buscas()).toBe(1);
+      vi.advanceTimersByTime(15_000);
+      await listThemeImagePage("t-1", 10, 0, ordem);
+      expect(buscas()).toBe(1);
+      expect(quantasAusentesConfirmadas()).toBe(1);
+
+      // Passado o minuto, a confirmação de «t-1» caducou: ao confirmar outra
+      // (noutro tema), a velha sai do mapa.
+      vi.advanceTimersByTime(61_000);
+      const outra = ["t-2/foi.jpg", "t-2/fica.jpg"];
+      await listThemeImagePage("t-2", 10, 0, outra);
+      await listThemeImagePage("t-2", 10, 0, outra);
+      expect(quantasAusentesConfirmadas()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /**
+   * Revisão de 14/11 (2.ª), menor n.º 6: levar ou trazer uma foto da
+   * Reciclagem esquece também a listagem que a pré-visualização do estúdio
+   * guardou dessa pasta (`memoria-das-listagens.ts`) — nesta instância, ela
+   * vê a foto reposta logo, sem esperar os 3 min.
+   */
+  it("levar e trazer da Reciclagem esquecem a listagem guardada da pasta", async () => {
+    const { levarFotoParaAReciclagem, trazerFotoDaReciclagem } = await load();
+    const mem = await import("./memoria-das-listagens");
+    const guardarAs = () =>
+      Promise.all([
+        mem.listagemComMemoria("theme-assets", "t-1", async () => ["foi.jpg"]),
+        mem.listagemComMemoria("theme-assets", "t-2", async () => ["outra.jpg"]),
+      ]);
+    await guardarAs();
+    expect(mem.quantasListagensGuardadas()).toBe(2);
+    expect(await trazerFotoDaReciclagem("t-1/foi.jpg", "reciclagem/e-1/foi.jpg")).toBe("ok");
+    // Só a pasta mexida; a do outro tema fica.
+    expect(mem.quantasListagensGuardadas()).toBe(1);
+    await guardarAs();
+    expect(await levarFotoParaAReciclagem("t-1/foi.jpg", "reciclagem/e-2/foi.jpg")).toBe(true);
+    expect(mem.quantasListagensGuardadas()).toBe(1);
+  });
+
   it("assina SÓ a página pedida, num pedido por bucket", async () => {
     st.list.mockResolvedValue(page(["a.jpg", "b.png"]));
     const { listThemeImagePage } = await load();

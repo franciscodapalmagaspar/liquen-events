@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   contagemPorEtiqueta,
+  ehFotoDaBiblioteca,
   eixoDe,
   porConfirmarSet,
   porFoto,
@@ -115,5 +116,20 @@ describe("as contas dos chips", () => {
     // Um id sem dois-pontos não pertence a eixo nenhum — e o que não pode
     // acontecer é passar a valer como se pertencesse a todos.
     expect(eixoDe("solto")).toBe("");
+  });
+});
+
+describe("ehFotoDaBiblioteca", () => {
+  it("uma foto de um tema (pasta UUID) é da Biblioteca", () => {
+    expect(ehFotoDaBiblioteca("0b6f2c1e-8c1d-4a3e-9f00-1234567890ab/a1b2.jpg")).toBe(true);
+    expect(ehFotoDaBiblioteca("italia/foto.jpg")).toBe(true);
+  });
+  it("uma foto de uma proposta (pasta de pedido `LIQ-…`) não é", () => {
+    expect(ehFotoDaBiblioteca("LIQ-MT7CWVWU-C4BFD3877E978CFF/uuid.jpg")).toBe(false);
+    expect(ehFotoDaBiblioteca("LIQ-1a2b3c-0123456789abcdef/mood-2.webp")).toBe(false);
+  });
+  it("um caminho sem pasta não é", () => {
+    expect(ehFotoDaBiblioteca("")).toBe(false);
+    expect(ehFotoDaBiblioteca("/solta.jpg")).toBe(false);
   });
 });

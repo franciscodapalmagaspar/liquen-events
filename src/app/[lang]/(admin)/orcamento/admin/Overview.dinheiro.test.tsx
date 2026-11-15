@@ -125,7 +125,7 @@ describe("os três números em cima", () => {
      * Recebido = 600 €, que já era bruto e não muda.
      */
     expect(within(painel).getByText("12 300 €")).toBeInTheDocument();
-    expect(within(painel).getByText("5658 €")).toBeInTheDocument();
+    expect(within(painel).getByText("5 658 €")).toBeInTheDocument();
     expect(within(painel).getByText("600 €")).toBeInTheDocument();
   });
 
@@ -170,7 +170,7 @@ describe("à espera de resposta", () => {
     expect(within(lista).queryByText("Sofia")).toBeNull();
     // Com IVA (4600 + 23 %), como o quadrado «À espera» lá em cima — pedido
     // dela de 14/10: os números de um ecrã têm de bater com os do outro.
-    expect(within(lista).getByText("5658 €")).toBeInTheDocument();
+    expect(within(lista).getByText("5 658 €")).toBeInTheDocument();
   });
 
   it("diz quantos dias espera cada uma e quanto está pendurado ao todo", () => {
@@ -186,7 +186,7 @@ describe("à espera de resposta", () => {
     const seccao = screen.getByRole("region", { name: /à espera de resposta/i });
     expect(within(seccao).getByText(/há 13 dias/i)).toBeInTheDocument();
     // (4600 + 2400) com IVA.
-    expect(within(seccao).getByText(/8610 €/)).toBeInTheDocument();
+    expect(within(seccao).getByText(/8\s610 €/)).toBeInTheDocument();
   });
 
   it("sem nenhuma pendurada, a secção não aparece", () => {

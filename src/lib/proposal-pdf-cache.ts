@@ -4,6 +4,7 @@ import { renderStoredEditorialPdfWithReport } from "@/lib/proposal-doc-render";
 import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import { guardarPdfDaProposta, lerPdfDaProposta } from "@/lib/proposal-pdf-guardado";
 import { log } from "@/lib/logger";
+import { faltasPassageiras } from "@/lib/proposal-preview-cache";
 import { chaveDoPdf, PropostaIncompleta } from "@/lib/proposal-pdf-chave";
 
 /**
@@ -252,7 +253,20 @@ export async function pdfDaPropostaComEstado(
    * apareceu na cache de fotografias e na célula do estúdio.
    */
   let ultimo = await renderStoredEditorialPdfWithReport(doc, idioma);
-  if (ultimo.missingImages > 0) {
+  /**
+   * ── AS QUE SE SABE QUE FALTAM NÃO SE REPETEM (revisão de 14/11, 2.ª, n.º 2)
+   *
+   * Uma foto que foi para a Reciclagem não volta numa segunda passagem: era
+   * um desenho inteiro a dobrar em CADA visita, e o documento nunca ficava
+   * guardado. Só as outras faltas — passageiras até prova em contrário —
+   * justificam repetir. E das sabidas, só as que ELA escolheu à mão deixam o
+   * documento incompleto: uma de mood board sai do mosaico, exactamente como
+   * o estúdio e a página do casal já a mostram, e o documento guarda-se.
+   */
+  // E as que passam do tecto de fotos por documento também não (revisão de
+  // 14/11, menor n.º 1): o mesmo documento passa-o sempre pelo mesmo número.
+  const passageiras = faltasPassageiras;
+  if (passageiras(ultimo) > 0) {
     log.warn("proposta-pdf: fotos em falta, a tentar segunda vez", {
       emFalta: ultimo.missingImages,
     });
@@ -260,7 +274,14 @@ export async function pdfDaPropostaComEstado(
     // que sai: MESMO documento, MESMA língua.
     ultimo = await renderStoredEditorialPdfWithReport(doc, idioma);
   }
-  if (ultimo.missingImages > 0) {
+  // Uma escolhida à mão (ou a capa) que o tecto de fotos cortou também deixa
+  // o documento incompleto — a mesma saída das escolhidas que já não existem:
+  // nunca se guarda (2.ª revisão de 14/11, importante n.º 1).
+  if (
+    passageiras(ultimo) > 0 ||
+    (ultimo.faltasSabidasQueTravam ?? 0) > 0 ||
+    (ultimo.faltasPeloTectoQueTravam ?? 0) > 0
+  ) {
     /**
      * ── E AQUI A REGRA MUDOU, POR UMA RAZÃO MEDIDA NO TELEMÓVEL DELA ──────
      *
@@ -295,6 +316,20 @@ export async function pdfDaPropostaComEstado(
       emFalta: ultimo.missingImages,
     });
     throw new PropostaIncompleta(ultimo.missingImages);
+  }
+
+  /**
+   * Uma foto de mood board que se SABE em falta: o documento serve-se (sem
+   * buraco: o mosaico já não a conta), mas NÃO se guarda. A chave é só o
+   * conteúdo; se ela repuser a foto, a chave não muda — e um PDF guardado sem
+   * ela (e as páginas `immutable` no telemóvel do casal) ficavam a discordar
+   * da página online, que pergunta de fresco (revisão final de 14/11, n.º 1).
+   */
+  if ((ultimo.faltasSabidas ?? 0) > 0) {
+    log.warn("proposta-pdf: servido sem guardar — há fotos que se sabe que faltam", {
+      faltasSabidas: ultimo.faltasSabidas,
+    });
+    return { pdf: ultimo.pdf, completo: false };
   }
 
   guardar(chave, ultimo.pdf);

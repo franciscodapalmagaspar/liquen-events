@@ -136,6 +136,17 @@ describe("mensagemDeLembrete", () => {
     expect(m).not.toMatch(/IBAN|PT50/);
   });
 
+  it("o valor sai como no PDF que o cliente tem («1.500,00 €»), sem espaço nos milhares", () => {
+    const c = cobrancaDoPedido(
+      pedido("a", {}, [{ id: "x", kind: "sinal", amount: 1500, date: "2026-11-20", paid: false }]),
+      [aceite("a", 5000)],
+      HOJE,
+    );
+    const m = mensagemDeLembrete(c, HOJE)!;
+    expect(m).toContain("1.500,00");
+    expect(m).not.toMatch(/1[\u00a0\u202f ]500/);
+  });
+
   it("nada para lembrar a quem já pagou tudo", () => {
     const c = cobrancaDoPedido(pedido("a", {}, [pago(1000)]), [aceite("a", 1000)], HOJE);
     expect(mensagemDeLembrete(c, HOJE)).toBeNull();

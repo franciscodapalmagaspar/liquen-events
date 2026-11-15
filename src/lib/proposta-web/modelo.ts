@@ -10,6 +10,7 @@ import type {
 import { conteudoWebDoDocumento } from "@/lib/proposal-doc-render";
 import { paletaDoPdfPelasRefs } from "@/lib/paleta-do-pdf";
 import { fotosDaProposta, inventarioDeFotos, type FotoDaProposta } from "@/lib/proposta-fotos";
+import { refsQueJaNaoExistem } from "@/lib/proposta-fotos-verificacao";
 import { SITE } from "@/lib/site";
 import { log } from "@/lib/logger";
 import { mosaicoDoCapitulo, type FormaDaCelula } from "./mosaico";
@@ -220,10 +221,23 @@ function coresDaPaleta(
 export function conteudoGuardado(
   proposta: { id: string; doc: ProposalDoc },
   idioma: IdiomaDaProposta,
+  /**
+   * As que se sabe que já não existem (`refsQueJaNaoExistem`): o motor corre
+   * SEM elas, como o PDF (`semAsQueFaltam`). Entram na chave só quando há —
+   * as propostas que estão bem guardam a mesma chave de sempre.
+   */
+  faltam: ReadonlySet<string> = new Set(),
 ): Promise<ConteudoWeb> {
+  const quais = [...faltam].sort();
   return guardadoOuCalculado(
-    chaveDoGuardado("conteudo", proposta.id, idioma, JSON.stringify(proposta.doc)),
-    () => conteudoWebDoDocumento(proposta.doc, idioma),
+    chaveDoGuardado(
+      "conteudo",
+      proposta.id,
+      idioma,
+      JSON.stringify(proposta.doc),
+      ...(quais.length ? [`faltam:${quais.join("\u0000")}`] : []),
+    ),
+    () => conteudoWebDoDocumento(proposta.doc, idioma, faltam),
   );
 }
 
@@ -252,16 +266,34 @@ export async function propostaWeb(
   aoFicarACapaPorFazer?: (porFazer: Promise<number>) => void,
 ): Promise<PropostaWeb> {
   const t = textosWeb(idioma);
-  const [conteudo, assinadas] = await Promise.all([
-    conteudoGuardado(proposta, idioma),
+  /**
+   * ── A FOTOGRAFIA QUE JÁ NÃO EXISTE (14/11) ──────────────────────────────
+   *
+   * Assinar um caminho não prova que o ficheiro lá está (`proposta-fotos.ts`):
+   * uma foto que foi para a Reciclagem da Biblioteca continuava a sair aqui,
+   * e o casal via uma imagem partida. Pergunta-se ao armazenamento — uma
+   * listagem por PASTA, só quando a página se MONTA (no envio, e quando o
+   * retrato expira), nunca por visita — e a que falta sai como no PDF: o
+   * lugar vazio, a fila sem ela. «Não sei» (uma pasta que não responde) não
+   * esconde nada.
+   *
+   * E pergunta-se ANTES do motor (revisão de 14/11, importante n.º 1): o
+   * conteúdo calcula-se já sem elas (`semAsQueFaltam`), como o PDF e o plano
+   * do estúdio — senão o motor escolhia-as (a linha da biblioteca fica, com a
+   * medida) e esta página tirava-as depois, a escolher outras ainda.
+   */
+  const faltamP = refsQueJaNaoExistem(inventarioDeFotos(proposta.doc).map((e) => e.ref));
+  const [conteudo, assinadas, faltam] = await Promise.all([
+    faltamP.then((f) => conteudoGuardado(proposta, idioma, f)),
     fotosDaProposta(proposta.doc),
+    faltamP,
   ]);
   // A capa em AVIF (27/10): fabricada uma vez por fotografia, porque isto só
   // corre quando a página é montada — no envio, ou sem retrato. A montagem não
   // espera por ela (28/10): leva o que já existe e passa o resto a quem monta.
   const refDaCapa = conteudo.capa.fundo?.ref;
   let capa: CapaWeb | undefined;
-  if (refDaCapa) {
+  if (refDaCapa && !faltam.has(refDaCapa)) {
     const i = inventarioDeFotos(proposta.doc).findIndex((e) => e.ref === refDaCapa);
     const agora = await capaWebEmAvif(refDaCapa, i >= 0 ? assinadas[i]?.mediaAvif : undefined);
     capa = agora.capa;
@@ -277,7 +309,7 @@ export async function propostaWeb(
       return url ? [{ ref: e.ref, url }] : [];
     }),
   );
-  return montarPropostaWeb(conteudo, proposta, token, idioma, t, assinadas, capa, pontos);
+  return montarPropostaWeb(conteudo, proposta, token, idioma, t, assinadas, capa, pontos, faltam);
 }
 
 /** A parte sem idas à rede — testável. */
@@ -291,6 +323,8 @@ export async function montarPropostaWeb(
   capaWeb?: CapaWeb,
   /** Onde recortar as fotos sem foco dela (`ponto-de-interesse.ts`). */
   pontos?: ReadonlyMap<string, PontoDeInteresse>,
+  /** As fotografias que SE SABE que já não existem (`refsQueJaNaoExistem`). */
+  faltam: ReadonlySet<string> = new Set(),
 ): Promise<PropostaWeb> {
   const base = `/api/proposta/${encodeURIComponent(token)}`;
   // O inventário e as assinadas estão pela mesma ordem.
@@ -298,8 +332,11 @@ export async function montarPropostaWeb(
   const porRef = new Map<string, FotoDaProposta>();
   inventario.forEach((e, i) => {
     const f = assinadas[i];
-    if (f && !porRef.has(e.ref)) porRef.set(e.ref, f);
+    // A que já não existe não tem endereço: `imagem` e `fundo` dão `null`, e o
+    // lugar fica vazio — nunca uma imagem partida.
+    if (f && !porRef.has(e.ref) && !faltam.has(e.ref)) porRef.set(e.ref, f);
   });
+  const existe = (f: FotoWeb) => !faltam.has(f.ref);
 
   const pct = (v: number) => Math.round(v * 1000) / 10;
   const imagem = (f: FotoWeb | null | undefined, capaWebDela?: CapaWeb): ImagemWeb | null => {
@@ -348,7 +385,7 @@ export async function montarPropostaWeb(
       : null;
   };
   const outraQue = (evitar: FotoWeb | null, ...candidatas: (FotoWeb | null | undefined)[]) =>
-    candidatas.find((f) => f && f.ref !== evitar?.ref) ?? evitar;
+    candidatas.find((f) => f && f.ref !== evitar?.ref && existe(f)) ?? evitar;
 
   /**
    * As molduras da página são AO ALTO (4:5 em «A proposta» e no fecho, 3:4
@@ -392,7 +429,9 @@ export async function montarPropostaWeb(
   const saudacao = t.ola(aQuemSeFala(c.capa.nomes, c.casamento, idioma));
 
   // ── A proposta, sobre o fundo de OUTRA fotografia ──
-  const todasDosCapitulos = c.capitulos.flatMap((k) => k.temas.flatMap((x) => x.fotos));
+  const todasDosCapitulos = c.capitulos.flatMap((k) =>
+    k.temas.flatMap((x) => x.fotos.filter(existe)),
+  );
   const fotoDaProposta = paraMoldura(
     c.proposta.foto,
     todasDosCapitulos,
@@ -434,7 +473,10 @@ export async function montarPropostaWeb(
   // ── Capítulos: o ecrã de abertura e um mosaico por tema ──
   const lingua = idioma === "en" ? "en" : "pt-PT";
   const capitulos: CapituloPronto[] = c.capitulos.map((k, ci) => {
-    const fotos = k.temas.flatMap((x) => x.fotos);
+    // A fila de cada tema SEM as que já não existem (como no PDF, que as deixa
+    // de fora do mosaico) — uma célula vazia a meio do mosaico era um buraco.
+    const temas = k.temas.map((x) => ({ ...x, fotos: x.fotos.filter(existe) }));
+    const fotos = temas.flatMap((x) => x.fotos);
     /**
      * ── CADA TEMA COM O SEU TEXTO, UMA VEZ ─────────────────────────────────
      *
@@ -448,7 +490,7 @@ export async function montarPropostaWeb(
      * tiver título), como antes. Um tema seguinte sem texto nenhum não a leva:
      * repetir o nome do capítulo a meio das fotografias não diz nada.
      */
-    const mosaicos = k.temas
+    const mosaicos = temas
       .map((x, ti) => {
         const temTexto = !!(x.titulo || x.subtitulo || x.nota);
         if (!x.fotos.length && !temTexto) return [];
@@ -481,7 +523,8 @@ export async function montarPropostaWeb(
         );
       })
       .filter((m) => m.length > 0);
-    const molduraDoCapitulo = paraMoldura(k.fotos[0], [...k.fotos, ...fotos]);
+    const fotosDoCapitulo = k.fotos.filter(existe);
+    const molduraDoCapitulo = paraMoldura(fotosDoCapitulo[0], [...fotosDoCapitulo, ...fotos]);
     return {
       id: `cap${ci + 1}`,
       numero: String(k.numero).padStart(2, "0"),
@@ -490,7 +533,7 @@ export async function montarPropostaWeb(
       nota: k.nota,
       foto: imagem(molduraDoCapitulo),
       fundo: fundo(
-        outraQue(molduraDoCapitulo, k.fotos[1], k.fotos[0], ...fotos) ?? fotos[0],
+        outraQue(molduraDoCapitulo, fotosDoCapitulo[1], fotosDoCapitulo[0], ...fotos) ?? fotos[0],
         0.62,
         [-14, -24, -8][ci % 3],
       ),

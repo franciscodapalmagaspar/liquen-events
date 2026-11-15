@@ -38,13 +38,13 @@ describe("o passo que chega apresenta-se", () => {
   it("os passos 1 a 4 entram com a classe, e o formulário continua montado quando sai", () => {
     // A classe depende do passo, e o `hidden` também: os dois no mesmo nó.
     expect(FONTE).toMatch(
-      /className=\{`@container\/estudio \$\{noFormulario \? "view-in" : ""\}`\}\s*hidden=\{!noFormulario\}/,
+      /className=\{`@container\/estudio [^`]*\$\{noFormulario \? "view-in" : ""\}`\}\s*hidden=\{!noFormulario\}/,
     );
   });
 
   it("o passo 3 entra com a classe, e continua montado quando sai", () => {
     expect(FONTE).toMatch(
-      /className=\{step === "enviar" \? "view-in" : undefined\}\s+hidden=\{step !== "enviar"\}/,
+      /className=\{`[^`]*\$\{step === "enviar" \? "view-in" : ""\}`\}\s+hidden=\{step !== "enviar"\}/,
     );
   });
 
@@ -91,6 +91,15 @@ describe("o passo que chega apresenta-se", () => {
  * O gesto não é novo: é o mesmo que o CASAL vê ao pedir orçamento. Passar a
  * usá-lo dos dois lados é uma decisão sobre a casa, não sobre esta tela — e é
  * isso que este bloco prende, para ninguém os deixar divergir.
+ */
+/*
+ * O PASSO QUE CHEGA MOSTRA-SE PELO PRINCÍPIO (auditoria do telemóvel, 14/11)
+ * já não se prende aqui com expressões sobre o código: uma regex passava com
+ * um quinto caminho a fazer `setStep` ao lado (o «Voltar e corrigir» fazia-o).
+ * Prende-se a EXERCER o `irParaPasso` — em `ProposalStudio.casos.test.tsx`,
+ * os casos com «INÍCIO» no nome (barra, «Seguinte», «Voltar e corrigir»,
+ * «Repor esta versão», «Limpar rascunho», com `comOPassoLaEmCima`) — e com o
+ * dedo no passeio `e2e/o-iphone-com-barras.spec.ts`.
  */
 describe("o fim da jornada desenha-se", () => {
   it("a confirmação do envio usa o mesmo visto que o casal vê", () => {

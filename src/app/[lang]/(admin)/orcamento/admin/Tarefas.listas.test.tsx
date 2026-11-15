@@ -317,3 +317,20 @@ describe("agrupar e ordenar (fase 06)", () => {
     });
   });
 });
+
+/**
+ * Revisão de 14/11: a LINHA de uma tarefa sem `clientName` mostrava-se sem
+ * nome, com o grupo por cima já a dizer o do pedido. Lêem o mesmo sítio.
+ */
+describe("a linha da tarefa mostra o nome do pedido", () => {
+  it("sem `clientName`, vai buscar o nome ao pedido", async () => {
+    tarefas = [{ ...ATRASADA, clientName: undefined }];
+    render(
+      <ToastProvider>
+        <Tarefas nomesDosPedidos={new Map([["q1", "Melanie e Sebastien"]])} />
+      </ToastProvider>,
+    );
+    const linha = (await screen.findByText("Pedir orçamento ao florista")).closest("li")!;
+    expect(within(linha).getByText("Melanie e Sebastien")).toBeInTheDocument();
+  });
+});

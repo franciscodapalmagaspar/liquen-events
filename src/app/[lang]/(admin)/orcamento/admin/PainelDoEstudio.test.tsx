@@ -675,6 +675,115 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.useRealTimers();
   });
 
+  it("uma foto que entra ou sai da Reciclagem faz pedir outra vez a página à vista (menor n.º 4, 14/11)", async () => {
+    // O rascunho não muda quando ela repõe uma foto — e a página guardada
+    // continuava a ser «desta versão», sem a foto. O aviso que a Biblioteca e
+    // a Reciclagem já dão muda a geração das fotos; só ENTÃO se pede outra vez.
+    vi.useFakeTimers();
+    comUrls();
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
+    for (let k = 0; k < 20; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+    }
+    const pedidos = f.mock.calls.length;
+    const aVer = JSON.parse(String(f.mock.calls[0][1]?.body)).n;
+    // Sem mudança nenhuma, nada se pede.
+    for (let k = 0; k < 10; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+    }
+    expect(f.mock.calls.length).toBe(pedidos);
+    await act(async () => {
+      window.dispatchEvent(new Event("liquen:biblioteca-alterada"));
+    });
+    for (let k = 0; k < 20; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(50);
+      });
+    }
+    const novos = f.mock.calls.slice(pedidos).map((c) => JSON.parse(String(c[1]?.body)).n);
+    // A que se vê primeiro, e só as que estão perto dela.
+    expect(novos[0]).toBe(aVer);
+    expect(novos.length).toBeGreaterThan(0);
+    expect(novos.every((n: number) => Math.abs(n - aVer) <= 2)).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("depois de uma foto mudar, TODOS os pedidos dos 3 min seguintes levam `desde` — e depois deixam de levar (3.ª revisão de 14/11)", async () => {
+    // A página pode cair em qualquer instância do servidor, com a listagem da
+    // pasta de antes da mudança guardada. O `fresco=1` de antes só ia no
+    // primeiro pedido de cada página: o segundo, noutra instância, voltava
+    // velho. Agora cada pedido da janela diz DESDE QUANDO a listagem serve.
+    vi.useFakeTimers();
+    comUrls();
+    const f = respostaWebp();
+    vi.stubGlobal("fetch", f);
+    const { rerender } = desenhar({ doc, activa: 1, quoteId: "q1", idioma: "pt" });
+    const andar = async (vezes = 20) => {
+      for (let k = 0; k < vezes; k++) {
+        await act(async () => {
+          vi.advanceTimersByTime(50);
+        });
+      }
+    };
+    const mostrar = (d: typeof doc) =>
+      rerender(
+        <PainelDoEstudio
+          cabe
+          paginas={paginas}
+          urls={{ "p/a.jpg": "u/a", "p/b.jpg": "u/b" }}
+          originais={{}}
+          aspetos={{ "p/a.jpg": 1.5, "p/b.jpg": 0.7 }}
+          onSaltar={() => {}}
+          doc={d}
+          activa={1}
+          quoteId="q1"
+          idioma="pt"
+        />,
+      );
+    await andar();
+    const antes = f.mock.calls.length;
+    const quando = Date.now();
+    await act(async () => {
+      window.dispatchEvent(new Event("liquen:biblioteca-alterada"));
+    });
+    await andar();
+    const depois = f.mock.calls.slice(antes);
+    expect(depois.length).toBeGreaterThan(0);
+    const comDesde = (url: unknown) => {
+      const m = /\?desde=(\d+)$/.exec(String(url));
+      return m ? Number(m[1]) : null;
+    };
+    const desde = comDesde(depois[0][0]);
+    expect(desde).not.toBeNull();
+    expect(Math.abs((desde ?? 0) - quando)).toBeLessThan(2_000);
+    expect(depois.every(([url]) => comDesde(url) === desde)).toBe(true);
+    // O rascunho muda: as mesmas páginas pedem-se outra vez — e continuam a
+    // levar o MESMO `desde` (podem cair noutra instância).
+    const n = f.mock.calls.length;
+    mostrar({ ...doc, clientNames: "TESTE Ana & TESTE Rui!" } as typeof doc);
+    await andar();
+    const seguintes = f.mock.calls.slice(n);
+    expect(seguintes.length).toBeGreaterThan(0);
+    expect(seguintes.every(([url]) => comDesde(url) === desde)).toBe(true);
+    // Passados os 3 min da memória do servidor, já não é preciso.
+    await act(async () => {
+      vi.advanceTimersByTime(3 * 60_000);
+    });
+    const m = f.mock.calls.length;
+    mostrar({ ...doc, clientNames: "TESTE Ana & TESTE Rui!!" } as typeof doc);
+    await andar();
+    const tarde = f.mock.calls.slice(m);
+    expect(tarde.length).toBeGreaterThan(0);
+    expect(tarde.every(([url]) => String(url).endsWith("/pagina-do-rascunho"))).toBe(true);
+    vi.useRealTimers();
+  });
+
   it("se o servidor falha, diz que a página não chegou — sem aproximação", async () => {
     vi.useFakeTimers();
     comUrls();

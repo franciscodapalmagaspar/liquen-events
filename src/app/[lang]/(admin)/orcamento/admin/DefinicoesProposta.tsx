@@ -37,7 +37,11 @@ interface Parametros {
 }
 
 const eur = (n: number) =>
-  new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(n || 0);
+  new Intl.NumberFormat("pt-PT", {
+    useGrouping: "always",
+    style: "currency",
+    currency: "EUR",
+  }).format(n || 0);
 
 /** "há 4 meses", "hoje", "nunca" — a idade de um número, dita como se fala. */
 function idade(iso: string | undefined): string {

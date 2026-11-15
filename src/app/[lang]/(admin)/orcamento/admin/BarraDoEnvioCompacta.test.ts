@@ -14,8 +14,9 @@ describe("estadoDoEnvio — o que a pastilha da barra compacta diz", () => {
     expect(estadoDoEnvio([falta("valor")], 0, "pt").texto).toBe("Falta 1");
   });
 
-  it("quando só falta ver o PDF, di-lo", () => {
-    expect(estadoDoEnvio([falta("visto")], 0, "pt").texto).toBe("Ver o PDF");
+  it("quando só falta ver o PDF, conta-o como as outras — o nome «Ver o PDF» é do botão", () => {
+    // Não «Ver o PDF»: era o nome do botão ao lado (auditoria de 14/11, n.º 13).
+    expect(estadoDoEnvio([falta("visto")], 0, "pt").texto).toBe("Falta 1");
   });
 
   it("as fotos a entrar vêm primeiro — é uma espera, não um erro dela", () => {

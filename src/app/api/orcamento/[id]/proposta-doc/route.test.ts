@@ -20,6 +20,8 @@ const renderMock = vi.hoisted(() => ({
   /** Contagens a devolver POR CHAMADA, para poder testar a segunda tentativa
    *  do envio: a primeira falha, a segunda resolve. Vazio = usa `missing`. */
   sequencia: [] as number[],
+  /** Das faltas de cada chamada, as que SE SABE que faltam (Reciclagem). */
+  sabidas: 0,
   chamadas: 0,
 }));
 /** O que foi gravado no pedido (para verificar o "Preço final (sem IVA)"), e o
@@ -106,6 +108,7 @@ vi.mock("@/lib/proposal-doc-render", () => ({
       missingImages: renderMock.sequencia.length
         ? (renderMock.sequencia[i] ?? 0)
         : renderMock.missing,
+      ...(renderMock.sabidas ? { faltasSabidas: renderMock.sabidas } : {}),
       truncations: renderMock.truncations,
     };
   }),
@@ -170,6 +173,14 @@ const copia = vi.hoisted(() => ({
 vi.mock("@/lib/envios-de-proposta", () => ({
   registarEnvio: copia.registar,
   listarEnvios: vi.fn(async () => copia.lista),
+}));
+
+/** As fotos escolhidas para as páginas que já não existem — por caso. */
+const escolhidas = vi.hoisted(() => ({
+  emFalta: [] as { ref: string; pagina: string; tema: string | null; naReciclagem: boolean }[],
+}));
+vi.mock("@/lib/proposta-fotos-verificacao", () => ({
+  fotosEscolhidasQueFaltam: vi.fn(async () => escolhidas.emFalta),
 }));
 
 import { GET, POST } from "./route";
@@ -665,7 +676,28 @@ describe("POST /api/orcamento/[id]/proposta-doc — a segunda tentativa do envio
     renderMock.missing = 0;
     renderMock.truncations = [];
     renderMock.sequencia = [];
+    renderMock.sabidas = 0;
     renderMock.chamadas = 0;
+  });
+
+  /**
+   * Revisão de 14/11 (2.ª), importante n.º 2: uma foto de mood board que foi
+   * para a Reciclagem não volta numa segunda passagem — repetir era pagar o
+   * desenho inteiro a dobrar, para sair o mesmo.
+   */
+  it("faltas que se SABE que faltam não se repetem; com passageiras à mistura, sim", async () => {
+    renderMock.missing = 2;
+    renderMock.sabidas = 2;
+    const res = await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    expect(res.status).toBe(200);
+    expect(renderStoredEditorialPdfWithReport).toHaveBeenCalledTimes(1);
+    expect((await res.json()).missingImages).toBe(2);
+
+    vi.mocked(renderStoredEditorialPdfWithReport).mockClear();
+    renderMock.missing = 3;
+    renderMock.sabidas = 1;
+    await POST(sendReq(baseDoc({ totalAmount: 3001 })), { params });
+    expect(renderStoredEditorialPdfWithReport).toHaveBeenCalledTimes(2);
   });
 
   it("uma falha passageira é apanhada: a segunda tentativa resolve", async () => {
@@ -2584,6 +2616,74 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o envio recusa uma propo
     expect(sendMail).not.toHaveBeenCalled();
   });
 
+  // 14/11: o PDF punha OUTRA foto no lugar de uma escolhida que estava na
+  // Reciclagem. A rota recusa, com a mesma frase do estúdio.
+  it("uma foto escolhida para uma página que já não existe: 422, nada desenhado nem enviado", async () => {
+    escolhidas.emFalta = [
+      { ref: "tema:x/y.jpg", pagina: "Cerimónia", tema: "Natal", naReciclagem: true },
+    ];
+    try {
+      const doc = baseDoc({
+        totalAmount: 3000,
+        fotosDasPaginas: { indice: { fotos: ["tema:x/y.jpg"] } },
+      });
+      const r = await recusa(doc);
+      expect(r.status).toBe(422);
+      expect(r.ids).toEqual(["foto-escolhida-em-falta"]);
+      expect(r.error).toMatch(/Natal.*já não existe \(está na Reciclagem\)/);
+      expect(renderStoredEditorialPdfWithReport).not.toHaveBeenCalled();
+      expect(sendMail).not.toHaveBeenCalled();
+    } finally {
+      escolhidas.emFalta = [];
+    }
+  });
+
+  /**
+   * 2.ª revisão de 14/11, importante n.º 1: escolhidas à mão a mais para o
+   * tecto de fotos do PDF. A rota recusa o mesmo que a Conferência — e o PDF
+   * final também não sai (sairia com lugares vazios); o rascunho sai.
+   */
+  it("escolhidas a mais para o tecto do PDF: 422 no envio e no PDF final, nada desenhado", async () => {
+    const doc = baseDoc({
+      totalAmount: 3000,
+      moodBoards: Array.from({ length: 85 }, (_, i) => ({ title: `Tema ${i}`, images: [] })),
+      fotosDasPaginas: Object.fromEntries(
+        Array.from({ length: 85 }, (_, i) => [`tema:${i}`, { fotos: [`TESTE/t${i}.jpg`] }]),
+      ),
+    });
+    const r = await recusa(doc);
+    expect(r.status).toBe(422);
+    expect(r.ids).toContain("fotos-a-mais");
+    expect(r.error).toMatch(/fotografias a mais para o PDF/);
+    expect(renderStoredEditorialPdfWithReport).not.toHaveBeenCalled();
+    expect(sendMail).not.toHaveBeenCalled();
+    const final = await POST(previewReq(doc), { params });
+    expect(final.status).toBe(422);
+    expect((await final.json()).error).toMatch(/só sai com as fotografias todas/);
+  });
+
+  // 3.ª revisão de 14/11, importante n.º 1: boards a mais para uma foto cada.
+  // A rota recusa o mesmo que a Conferência e o motor contam como «trava».
+  it("mood boards que ficariam sem nenhuma foto no PDF: 422 no envio e no PDF final", async () => {
+    const doc = baseDoc({
+      totalAmount: 3000,
+      coverImages: ["TESTE/capa.jpg"],
+      moodBoards: Array.from({ length: 85 }, (_, b) => ({
+        title: `Tema ${b}`,
+        images: [`TESTE/b${b}.jpg`],
+      })),
+    });
+    const r = await recusa(doc);
+    expect(r.status).toBe(422);
+    expect(r.ids).toContain("fotos-a-mais");
+    expect(r.error).toMatch(/6 mood boards ficam sem a sua fotografia principal no PDF/);
+    expect(renderStoredEditorialPdfWithReport).not.toHaveBeenCalled();
+    expect(sendMail).not.toHaveBeenCalled();
+    const final = await POST(previewReq(doc), { params });
+    expect(final.status).toBe(422);
+    expect((await final.json()).error).toMatch(/só sai com as fotografias todas/);
+  });
+
   it("sem email no pedido, um envio por email é recusado", async () => {
     const { getQuote } = await import("@/lib/quotes-store");
     vi.mocked(getQuote).mockResolvedValueOnce({ id: "q1", email: "", status: "pendente" } as never);
@@ -2628,6 +2728,32 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o envio recusa uma propo
     expect(rascunho.status).toBe(200);
   });
 
+  /**
+   * Revisão de 14/11, n.º 6: o PDF final com uma foto escolhida em falta sairia
+   * com o lugar vazio — e descarregá-lo e mandá-lo por fora é enviar. Só o
+   * rascunho sai, como no estúdio.
+   */
+  it("o PDF final não sai com uma foto escolhida em falta — o rascunho sai", async () => {
+    escolhidas.emFalta = [
+      { ref: "tema:x/y.jpg", pagina: "Índice", tema: "Natal", naReciclagem: true },
+    ];
+    try {
+      const doc = baseDoc({
+        totalAmount: 3000,
+        fotosDasPaginas: { indice: { fotos: ["tema:x/y.jpg"] } },
+      });
+      const final = await POST(previewReq(doc), { params });
+      expect(final.status).toBe(422);
+      expect((await final.json()).error).toMatch(
+        /O PDF final só sai com as fotografias todas: a foto da página «Índice» do tema «Natal» já não existe/,
+      );
+      const rascunho = await POST(req({ mode: "preview", rascunho: true, doc }), { params });
+      expect(rascunho.status).toBe(200);
+    } finally {
+      escolhidas.emFalta = [];
+    }
+  });
+
   it("e um orçamento sem serviço nenhum também não dá PDF final", async () => {
     const res = await POST(
       previewReq(baseDoc({ totalAmount: 3000, budgetItems: [], budgetAmounts: [] })),
@@ -2655,8 +2781,11 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o rascunho", () => {
     const res = await pedir({ mode: "preview", doc: baseDoc({ totalAmount: 0 }), rascunho: true });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Disposition")).toContain("proposta-preview-rascunho.pdf");
+    // O rascunho aceita a listagem das pastas guardada há pouco (revisão de
+    // 14/11, 2.ª, n.º 1); o PDF final, aqui em baixo, pergunta de fresco.
     expect(vi.mocked(renderStoredEditorialPdfWithReport).mock.calls[0][2]).toEqual({
       rascunho: true,
+      memoria: true,
     });
   });
 

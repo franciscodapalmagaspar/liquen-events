@@ -72,7 +72,11 @@ function cargaDoToken(token: string): { exp?: number } | null {
  * de formato de token) não pode fazer a grelha descartar o que tem e voltar a
  * descarregar tudo. Quem não sabe, não mexe.
  */
-export function assinaturaExpirada(url: string | undefined, agora = Date.now()): boolean {
+export function assinaturaExpirada(
+  url: string | undefined,
+  agora = Date.now(),
+  margem = MARGEM_MS,
+): boolean {
   if (!url) return false;
   let token: string | null;
   try {
@@ -86,7 +90,7 @@ export function assinaturaExpirada(url: string | undefined, agora = Date.now()):
   // 1970 e declarava tudo expirado — que é o erro que faz reabrir uma proposta
   // custar trinta downloads.
   if (!carga || typeof carga.exp !== "number" || !Number.isFinite(carga.exp)) return false;
-  return carga.exp * 1000 - MARGEM_MS <= agora;
+  return carga.exp * 1000 - margem <= agora;
 }
 
 /**
@@ -98,4 +102,71 @@ export function assinaturaExpirada(url: string | undefined, agora = Date.now()):
 export function urlAindaBom(guardado: string | undefined, fresco: string): string {
   if (!guardado) return fresco;
   return assinaturaExpirada(guardado) ? fresco : guardado;
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O RASCUNHO GUARDADO NÃO PODE TRAZER ASSINATURAS MORTAS PARA O ECRÃ (14/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Os registos do Supabase de 13/11 mostram o defeito ao vivo: às 20:44:08 ela
+ * abriu uma proposta e o Edge pediu ao Storage miniaturas, derivadas e
+ * originais da Biblioteca com tokens ASSINADOS A 6/11 — sete dias antes, para
+ * uma validade de seis horas. Cada um deu `400 InvalidJWT "exp"`, e cada célula
+ * desceu a cascata inteira (miniatura → 1200 px → original) a pagar um 400 por
+ * degrau. Um segundo depois chegava a hidratação, o `urlAindaBom` trocava tudo
+ * por assinaturas frescas, e os 400 paravam.
+ *
+ * O que os trazia era o restauro do rascunho: `meta.urls`, `meta.originais` e
+ * `meta.medias` saíam do `localStorage` direitos para o estado, sem ninguém
+ * perguntar ao token se ainda servia. O `urlAindaBom` só corria quando a
+ * hidratação respondesse — tarde demais para as células que já tinham pedido.
+ *
+ * Aqui faz-se a pergunta ANTES: o que já morreu não entra. A célula fica com o
+ * LQIP (ou sem nada) durante o segundo que a hidratação demora, e depois recebe
+ * a assinatura fresca. As que ainda servem entram, e a cache do browser
+ * continua a valer como antes.
+ */
+export function semAssinaturasMortas(
+  mapa: unknown,
+  agora = Date.now(),
+  margem = MARGEM_MS,
+): Record<string, string> {
+  const saida: Record<string, string> = {};
+  if (!mapa || typeof mapa !== "object") return saida;
+  for (const [chave, url] of Object.entries(mapa as Record<string, unknown>)) {
+    if (typeof url === "string" && url && !assinaturaExpirada(url, agora, margem)) {
+      saida[chave] = url;
+    }
+  }
+  return saida;
+}
+
+/**
+ * Só o que JÁ morreu, sem margem nenhuma.
+ *
+ * É a regra para TIRAR do ecrã um URL que lá está: um que ainda tem quatro
+ * minutos de vida continua a desenhar a fotografia, e tirá-lo era apagar uma
+ * foto que se vê por causa de uma margem pensada para decidir se vale a pena
+ * PEDIR. A margem serve para escolher; para apagar, só a morte.
+ */
+export function semAssinaturasJaMortas(mapa: unknown, agora = Date.now()): Record<string, string> {
+  return semAssinaturasMortas(mapa, agora, 0);
+}
+
+/**
+ * Algum destes mapas já tem um URL que morreu (ou está a cinco minutos de
+ * morrer)?
+ *
+ * É a pergunta que o estúdio faz quando ela VOLTA ao separador: com o estúdio
+ * aberto de um dia para o outro, as assinaturas de seis horas da Biblioteca
+ * morrem com o ecrã à frente dela, e nada voltava a pedir a lista. Só quando a
+ * resposta é «sim» se pede a lista outra vez — uma leitura, e não um relógio a
+ * bater de x em x minutos.
+ */
+export function haAssinaturaMorta(
+  mapas: readonly Record<string, string>[],
+  agora = Date.now(),
+): boolean {
+  return mapas.some((m) => Object.values(m).some((u) => assinaturaExpirada(u, agora)));
 }

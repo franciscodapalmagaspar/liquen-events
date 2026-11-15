@@ -151,8 +151,8 @@ describe("GET /api/cron/reminders — digest logic (clock pinned 2026-07-20)", (
 
   it("counts events in the next 3 days (from quotes + calendar) and excludes those beyond", async () => {
     data.quotes = [
-      { id: "a", name: "Casamento", date: "2026-07-22" }, // in window
-      { id: "b", name: "Longínquo", date: "2026-07-25" }, // beyond +3
+      { id: "a", name: "Casamento", date: "2026-07-22", status: "aceite" }, // in window
+      { id: "b", name: "Longínquo", date: "2026-07-25", status: "aceite" }, // beyond +3
     ];
     data.events = [{ date: "2026-07-20", title: "Sessão hoje" }];
     const res = await GET(req());
@@ -163,6 +163,41 @@ describe("GET /api/cron/reminders — digest logic (clock pinned 2026-07-20)", (
     };
     // 2 upcoming (one quote in-window + one calendar event), not the far one.
     expect(push.body).toContain("2 eventos nos próximos 3 dias");
+  });
+
+  // Auditoria de 14/11: um pedido «pendente» ou «rejeitado» com data nos
+  // próximos 3 dias não é um evento — só os ganhos contam.
+  it("only WON quotes count as events — pending, rejected and quoted ones do not", async () => {
+    data.quotes = [
+      { id: "a", name: "Ganho", date: "2026-07-21", status: "aceite" },
+      {
+        id: "b",
+        name: "Novo",
+        date: "2026-07-21",
+        status: "pendente",
+        submittedAt: "2026-07-20T10:00:00Z",
+      },
+      { id: "c", name: "Perdido", date: "2026-07-22", status: "rejeitado" },
+      { id: "d", name: "Cotado", date: "2026-07-22", status: "cotado" },
+      {
+        id: "e",
+        name: "Em revisão",
+        date: "2026-07-23",
+        status: "em_revisao",
+        submittedAt: "2026-07-20T10:00:00Z",
+      },
+    ];
+    const res = await GET(req());
+    expect(res.status).toBe(200);
+    const push = (sendPushToAll as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0][0] as { body: string };
+    expect(push.body).toContain("1 evento nos próximos 3 dias");
+  });
+
+  it("a rejected quote alone in the window is nothing to notify", async () => {
+    data.quotes = [{ id: "c", name: "Perdido", date: "2026-07-22", status: "rejeitado" }];
+    const res = await GET(req());
+    expect(await res.json()).toEqual({ sent: 0, reason: "nada a notificar" });
   });
 
   it("ignores archived quotes entirely", async () => {

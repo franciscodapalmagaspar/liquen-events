@@ -834,7 +834,7 @@ export default function EmailTemplatesBilingue() {
               onFocus={() => (campoActivo.current = "corpo")}
               spellCheck={false}
               rows={14}
-              className={`${inputCls} w-full font-mono !text-xs leading-relaxed resize-y`}
+              className={`${inputCls} w-full font-mono !text-xs pointer-coarse:!text-base leading-relaxed resize-y`}
             />
 
             {erros.length > 0 && (

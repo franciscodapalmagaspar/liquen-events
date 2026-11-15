@@ -60,6 +60,11 @@ export interface FotoDaFolha {
   original?: string;
   /** O enquadramento escolhido (fracções, o `object-position`). */
   foco?: { x: number; y: number };
+  /**
+   * A foto que ela escolheu para este lugar já não existe (14/11): o PDF deixa
+   * o lugar vazio, e a miniatura mostra o mesmo — vazio, com aviso.
+   */
+  emFalta?: true;
 }
 
 /**
@@ -81,7 +86,18 @@ function Foto({
 }) {
   return (
     <span className="absolute overflow-hidden bg-[var(--bo-papel-pdf)]" style={estilo}>
-      {foto?.url && (
+      {/* O fundo «arrastado» de uma foto que falta fica liso: o aviso vai na
+          moldura nítida, uma vez só por página. */}
+      {foto?.emFalta && arrastada === undefined && (
+        <span
+          title="A foto escolhida para este lugar já não existe — escolhe outra"
+          className="absolute inset-0 flex items-center justify-center border border-dashed border-[var(--bo-aviso)] bg-[var(--bo-aviso)]/10 text-center text-[var(--bo-aviso)]"
+          style={{ fontSize: cq(22) }}
+        >
+          Foto em falta
+        </span>
+      )}
+      {foto?.url && !foto.emFalta && (
         <span
           className="block h-full w-full"
           style={
@@ -666,10 +682,14 @@ export function fontesDasFolhas(
   return {
     capa: daRef(doPdf?.capa?.[0]?.ref ?? capaRef),
     fotosDoTema: (bi: number, k: number) => daRef(doc.moodBoards[bi]?.images?.[k]),
-    outrasDa: (i: number) => (n: number) => {
-      const f = doPdf?.[chaves[i]]?.[n];
-      const d = daRef(f?.ref);
-      return d && f?.foco ? { ...d, foco: f.foco } : d;
-    },
+    outrasDa:
+      (i: number) =>
+      (n: number): FotoDaFolha | undefined => {
+        const f = doPdf?.[chaves[i]]?.[n];
+        // A que falta não se pede ao armazenamento: o caminho já não tem ficheiro.
+        if (f?.emFalta) return { emFalta: true };
+        const d = daRef(f?.ref);
+        return d && f?.foco ? { ...d, foco: f.foco } : d;
+      },
   };
 }

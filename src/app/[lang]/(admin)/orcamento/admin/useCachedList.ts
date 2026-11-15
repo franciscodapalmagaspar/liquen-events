@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { porqueNaoLeu, porqueNaoLeuDoErro, type LeituraFalhada } from "@/lib/porque-nao-leu";
 
 /**
@@ -192,6 +192,28 @@ export function prefetchList(key: string, url: string): void {
   void loadOnce(key, url).catch(() => {});
 }
 
+/**
+ * ── «ISTO MUDOU NO SERVIDOR» ────────────────────────────────────────────────
+ * Volta a perguntar UMA vez por uma lista que alguém tem à vista ou em cache,
+ * depois de um gesto que a mudou noutro sítio (enviar, aceitar, recusar ou
+ * apagar uma proposta). Quem a ouve recebe a resposta nova. Se já houver um
+ * pedido a meio, espera por ele e pergunta outra vez: esse partiu ANTES do
+ * gesto e traz o mundo de antes. Ninguém a ouve nem a tem: não pergunta nada.
+ * Um pedido por gesto, nunca por linha (revisão de 14/11).
+ */
+export function revalidarLista(key: string, url: string): void {
+  if (!cache.has(key) && !ouvintes.has(key)) return;
+  const depois = () => void loadOnce(key, url).catch(() => {});
+  const aMeio = inFlight.get(key);
+  if (!aMeio) return depois();
+  void aMeio
+    .catch(() => {})
+    .finally(() => {
+      if (inFlight.get(key) === aMeio) inFlight.delete(key);
+      depois();
+    });
+}
+
 export interface CachedList<T> {
   data: T | undefined;
   /** Update the list AND the cache (use for optimistic add/edit/delete). */
@@ -226,6 +248,15 @@ export interface OpcoesDaLista {
    * tarefas do pedido).
    */
   revalidarAoVoltar?: boolean;
+  /**
+   * `false`: só OUVIR a cache, sem perguntar nada ao servidor ao montar. Para
+   * quem precisa de um facto de uma lista que outro já pede (o aquecimento em
+   * ociosidade do AdminClient, os painéis), e não pode pagar mais uma leitura
+   * da tabela inteira por isso — a fase do pedido na lista lê assim a lista
+   * leve de propostas (auditoria de 14/11). Recebe os dados quando alguém os
+   * trouxer. Por omissão, `true`: pergunta, como sempre.
+   */
+  pedir?: boolean;
 }
 
 export function useCachedList<T>(
@@ -234,6 +265,7 @@ export function useCachedList<T>(
   opcoes: OpcoesDaLista = {},
 ): CachedList<T> {
   const revalidarAoVoltar = opcoes.revalidarAoVoltar === true;
+  const pedir = opcoes.pedir !== false;
   const cached = cache.get(key) as Entry<T> | undefined;
   const [data, setDataState] = useState<T | undefined>(cached?.data);
   // Only the true first load (nothing cached) shows the skeleton.
@@ -275,9 +307,10 @@ export function useCachedList<T>(
     // Silent revalidation when we already have cached data (no skeleton). The
     // setState happens asynchronously inside revalidate() after the fetch — this
     // is the intended stale-while-revalidate flow, not a synchronous cascade.
+    if (!pedir) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     revalidate(cache.has(key));
-  }, [revalidate, key]);
+  }, [revalidate, key, pedir]);
 
   // Inscreve este ecrã na lista: o que outro ecrã escrever nela chega aqui.
   useEffect(() => {
@@ -285,11 +318,17 @@ export function useCachedList<T>(
     let daChave = ouvintes.get(key);
     if (!daChave) ouvintes.set(key, (daChave = new Set()));
     daChave.add(ouvir);
+    // Quem só ouve não volta a perguntar: se a cache se encheu entre o
+    // primeiro desenho e esta inscrição, o aviso já passou — apanha-se aqui.
+    if (!pedir) {
+      const agora = cache.get(key);
+      if (agora && agora.data !== dataRef.current) ouvir(agora.data);
+    }
     return () => {
       daChave.delete(ouvir);
       if (daChave.size === 0) ouvintes.delete(key);
     };
-  }, [key]);
+  }, [key, pedir]);
 
   /**
    * ── VOLTAR AO SEPARADOR É VOLTAR A PERGUNTAR ─────────────────────────────
@@ -344,8 +383,39 @@ export function useCachedList<T>(
     void revalidate(false);
   }, [key, revalidate]);
 
+  /**
+   * ── O PRIMEIRO DESENHO É O DO SERVIDOR (auditoria de 14/11, n.º 9) ───────
+   * A cache deste módulo só existe no browser — o `prefetchList` enche-a antes
+   * de o ecrã montar —, e no servidor está sempre vazia. Arrancar com ela
+   * durante a HIDRATAÇÃO dava ao browser os números e ao servidor o esqueleto,
+   * no mesmo sítio: o erro de hidratação das Estatísticas, que o React resolve
+   * deitando fora o HTML do servidor.
+   *
+   * O `useSyncExternalStore` é a pergunta «estou a hidratar?» que o React sabe
+   * responder: durante a hidratação vale o `getServerSnapshot` (`false`) e o
+   * ecrã desenha o mesmo que o servidor; logo a seguir volta a desenhar com a
+   * cache. Montado DEPOIS da hidratação (trocar de secção), vale `true` de
+   * imediato — e a segunda visita continua sem esqueleto.
+   */
+  const depoisDaHidratacao = useSyncExternalStore(semInscricao, sempreVerdade, nuncaNoServidor);
+  if (!depoisDaHidratacao) {
+    return {
+      data: undefined,
+      setData,
+      loading: true,
+      error: false,
+      errorMessage: "",
+      falha: null,
+      refresh,
+    };
+  }
+
   return { data, setData, loading, error, errorMessage: falha?.mensagem ?? "", falha, refresh };
 }
+
+const semInscricao = () => () => {};
+const sempreVerdade = () => true;
+const nuncaNoServidor = () => false;
 
 /** Esquece tudo o que está em cache. Só para testes — o produto não precisa. */
 export function __resetListCache(): void {

@@ -118,7 +118,7 @@ describe("os outros sítios que leem dinheiro leem o mesmo", () => {
     const doTotal = mudancas.find((m) => m.onde === "Total");
     // O espaço antes do símbolo é inquebrável (o `Intl` de pt-PT), por isso a
     // asserção é sobre os números e não sobre a frase inteira.
-    expect(doTotal?.texto).toContain("3690,00");
-    expect(doTotal?.texto).toContain("3862,20");
+    expect(doTotal?.texto).toContain("3\u00A0690,00");
+    expect(doTotal?.texto).toContain("3\u00A0862,20");
   });
 });
