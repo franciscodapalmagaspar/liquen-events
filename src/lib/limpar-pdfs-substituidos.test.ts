@@ -11,6 +11,10 @@ const st = vi.hoisted(() => ({
   estado: {} as Record<string, unknown>,
   apagados: [] as string[],
   descarregados: [] as string[],
+  /** Os baldes a que a limpeza pediu alguma coisa. */
+  baldes: [] as string[],
+  /** Pastas cuja listagem falha. */
+  listaFalha: new Set<string>(),
 }));
 vi.mock("@/lib/app-state", () => ({
   getState: vi.fn(async (k: string) => st.estado[k] ?? null),
@@ -22,24 +26,34 @@ vi.mock("@/lib/app-state", () => ({
 vi.mock("@/lib/supabase", () => ({
   getSupabase: () => ({
     storage: {
-      from: () => ({
-        list: async (pasta: string) => ({
-          data:
-            pasta === ""
-              ? Object.keys(st.pastas).map((n) => ({ id: null, name: n }))
-              : st.pastas[pasta],
-          error: null,
-        }),
-        download: async (caminho: string) => {
-          st.descarregados.push(caminho);
-          const t = st.conteudo[caminho] ?? "?";
-          return { data: new Blob([t]), error: null };
-        },
-        remove: async (caminhos: string[]) => {
-          st.apagados.push(...caminhos);
-          return { data: [], error: null };
-        },
-      }),
+      from: (balde: string) => {
+        st.baldes.push(balde);
+        return {
+          // Como o Storage: devolve no máximo o `limit` (100 por omissão), a
+          // partir do `offset`.
+          list: async (pasta: string, o?: { limit?: number; offset?: number }) => {
+            if (st.listaFalha.has(pasta)) return { data: null, error: { message: "falhou" } };
+            const todas =
+              pasta === ""
+                ? Object.keys(st.pastas).map((n) => ({ id: null, name: n }))
+                : (st.pastas[pasta] ?? []);
+            const desde = o?.offset ?? 0;
+            return {
+              data: todas.slice(desde, desde + Math.min(o?.limit ?? 100, 1000)),
+              error: null,
+            };
+          },
+          download: async (caminho: string) => {
+            st.descarregados.push(caminho);
+            const t = st.conteudo[caminho] ?? "?";
+            return { data: new Blob([t]), error: null };
+          },
+          remove: async (caminhos: string[]) => {
+            st.apagados.push(...caminhos);
+            return { data: [], error: null };
+          },
+        };
+      },
     },
     from: (tabela: string) => ({
       // Como o PostgREST: `order`/`range`, e NUNCA mais de 1000 por resposta.
@@ -73,7 +87,15 @@ vi.mock("@/lib/supabase", () => ({
   }),
 }));
 
-import { CHAVE, limparPdfsSubstituidos } from "./limpar-pdfs-substituidos";
+import { BUCKET_DO_ARQUIVO } from "@/lib/arquivo-de-pdfs/protegidos";
+import type { ProposalDoc } from "@/lib/proposal-doc";
+import { chaveDoPdf } from "@/lib/proposal-pdf-chave";
+import {
+  CHAVE,
+  DESCARGAS_POR_NOITE,
+  POR_NOITE,
+  limparPdfsSubstituidos,
+} from "./limpar-pdfs-substituidos";
 
 const dia1 = new Date("2026-11-11T03:00:00Z");
 const dia9 = new Date("2026-11-19T03:00:00Z");
@@ -87,6 +109,8 @@ describe("os PDF de proposta substituídos (10/11)", () => {
   beforeEach(() => {
     st.apagados = [];
     st.descarregados = [];
+    st.baldes = [];
+    st.listaFalha = new Set();
     st.estado = {};
     st.conteudo = {};
     st.pastas = {
@@ -265,5 +289,191 @@ describe("os PDF de proposta substituídos (10/11)", () => {
     expect(st.apagados).toEqual([]);
     expect(r9.lista?.every((f) => f.saiaHoje)).toBe(true);
     expect(Object.keys(st.estado[CHAVE] as object)).toHaveLength(3);
+  });
+
+  // ── O que um casal ainda pode abrir (revisão de 15/11) ───────────────────
+
+  it("o PDF do documento ATUAL fica, mesmo quando não é o mais recente (o link, a página online e o back office servem-no)", async () => {
+    // Ela reviu (v2) e voltou atrás (v1): a chave é o conteúdo e o upload não
+    // reescreve, portanto o ficheiro da v1 continua com a data de agosto.
+    const doc = { clientNames: "Ana & João", versao: 1 } as unknown as ProposalDoc;
+    const atual = `${chaveDoPdf(doc, "pt")}.pdf`;
+    st.pastas["prop-voltou"] = [
+      pdf(atual, "2026-08-10T10:00:00Z", "v1-desenhada", "prop-voltou"),
+      pdf("k7Qv2.pdf", "2026-08-20T10:00:00Z", "v2-desenhada", "prop-voltou"),
+    ];
+    (st.tabelas.proposals as object[]).push({
+      id: "prop-voltou",
+      pdf_sha256: null,
+      pdf_bytes: null,
+      doc,
+      idioma: "pt",
+    });
+    // Os ponteiros dela também lá estão — mas já não contam como menção: o
+    // que a guarda tem de ser o documento atual.
+    st.tabelas.app_state = [
+      { key: "ligacao-de-proposta:prop-voltou", value: { codigo: "x" } },
+      { key: "aquecimento-pdf:estado", value: { feitas: { "prop-voltou": atual } } },
+      { key: "proposta-web:retrato:prop-voltou:abc", value: { json: "{}" } },
+    ];
+    await limparPdfsSubstituidos(dia1);
+    await limparPdfsSubstituidos(dia9);
+    expect(st.apagados).not.toContain(`prop-voltou/${atual}`);
+  });
+
+  it("o PDF ENVIADO (`proposals.pdf_sha256`) fica, mesmo mais antigo do que outro desenhado depois", async () => {
+    st.pastas["prop-enviada"] = [
+      pdf("k7Qenviado.pdf", "2026-08-10T10:00:00Z", "o-que-seguiu", "prop-enviada"),
+      pdf("k7Qdepois.pdf", "2026-08-20T10:00:00Z", "visto-no-estudio", "prop-enviada"),
+    ];
+    (st.tabelas.proposals as object[]).push({
+      id: "prop-enviada",
+      pdf_sha256: sha("o-que-seguiu"),
+      pdf_bytes: 12,
+    });
+    await limparPdfsSubstituidos(dia1);
+    await limparPdfsSubstituidos(dia9);
+    expect(st.apagados).not.toContain("prop-enviada/k7Qenviado.pdf");
+  });
+
+  it("uma proposta na Reciclagem guarda a pasta INTEIRA — pode voltar, com o PDF enviado", async () => {
+    st.pastas["prop-na-reciclagem"] = [
+      pdf("k7Qenviado.pdf", "2026-08-10T10:00:00Z", "enviado", "prop-na-reciclagem"),
+      pdf("k7Qr.pdf", "2026-08-25T10:00:00Z", "z", "prop-na-reciclagem"),
+    ];
+    await limparPdfsSubstituidos(dia1);
+    await limparPdfsSubstituidos(dia9);
+    expect(st.apagados.filter((c) => c.startsWith("prop-na-reciclagem/"))).toEqual([]);
+  });
+
+  it("o aceite de um contrato sem `proposal_id` fica, em qualquer pasta", async () => {
+    (st.tabelas.contracts as object[]).push({
+      proposal_id: null,
+      proposta_pdf_sha256: sha("versao-1"),
+      proposta_pdf_bytes: 8,
+    });
+    await limparPdfsSubstituidos(dia1);
+    await limparPdfsSubstituidos(dia9);
+    expect(st.apagados).not.toContain("prop-viva/k7Qvelho.pdf");
+  });
+
+  it("uma proposta cujo id leva caracteres que a pasta tira continua a existir (não se apaga o atual)", async () => {
+    // `proposal-pdf-guardado.ts` guarda em `<id sem [^a-zA-Z0-9_-]>/…`.
+    st.pastas["propcomponto"] = [
+      pdf("k7Qantigo.pdf", "2026-08-10T10:00:00Z", "a", "propcomponto"),
+      pdf("k7Qunico.pdf", "2026-08-20T10:00:00Z", "b", "propcomponto"),
+    ];
+    (st.tabelas.proposals as object[]).push({
+      id: "prop.com.ponto",
+      pdf_sha256: null,
+      pdf_bytes: null,
+    });
+    await limparPdfsSubstituidos(dia1);
+    await limparPdfsSubstituidos(dia9);
+    expect(st.apagados).not.toContain("propcomponto/k7Qunico.pdf");
+  });
+
+  it("com mais de 1000 pastas, a 1001.ª também é vista (o Storage lista às páginas)", async () => {
+    for (let i = 0; i < 1100; i++) st.pastas[`a-${String(i).padStart(4, "0")}`] = [];
+    // Como o Storage, por nome: «z-…» fica para a segunda página.
+    st.pastas["z-apagada"] = [pdf("k7Qz.pdf", "2026-08-10T10:00:00Z", "zz", "z-apagada")];
+    await limparPdfsSubstituidos(dia1);
+    expect(Object.keys(st.estado[CHAVE] as object)).toContain("z-apagada/k7Qz.pdf");
+  });
+
+  it("numa pasta com mais de 1000 PDF, o mais recente (na 2.ª página) fica e os de trás são vistos", async () => {
+    const muitos: F[] = [];
+    for (let i = 0; i < 1001; i++) {
+      const n = `k7Q${String(i).padStart(5, "0")}.pdf`;
+      // O mais recente é o último por nome — só aparece na segunda página.
+      const quando = new Date(Date.parse("2026-07-01T00:00:00Z") + i * 60_000).toISOString();
+      muitos.push(pdf(n, quando, `m${i}`, "prop-viva"));
+    }
+    st.pastas["prop-viva"] = muitos;
+    st.tabelas.proposals = (st.tabelas.proposals as { id: string }[]).map((p) =>
+      p.id === "prop-viva" ? { ...p, pdf_sha256: null, pdf_bytes: null } : p,
+    );
+    await limparPdfsSubstituidos(dia1);
+    const espera = Object.keys(st.estado[CHAVE] as object);
+    expect(espera).not.toContain("prop-viva/k7Q01000.pdf");
+    expect(espera).toContain("prop-viva/k7Q00999.pdf");
+    expect(espera.filter((c) => c.startsWith("prop-viva/"))).toHaveLength(1000);
+  });
+
+  it("se a listagem da raiz falha, não apaga nem mexe na espera", async () => {
+    await limparPdfsSubstituidos(dia1);
+    st.listaFalha.add("");
+    const r = await limparPdfsSubstituidos(dia9);
+    expect(st.apagados).toEqual([]);
+    expect(Object.keys(st.estado[CHAVE] as object)).toHaveLength(3);
+    expect(r.acabou).toBe(false);
+  });
+
+  it("se a listagem de uma pasta falha, nada dessa pasta sai", async () => {
+    await limparPdfsSubstituidos(dia1);
+    st.listaFalha.add("prop-apagada");
+    await limparPdfsSubstituidos(dia9);
+    expect(st.apagados.filter((c) => c.startsWith("prop-apagada/"))).toEqual([]);
+  });
+
+  it("se a leitura das menções falha (porta 4), não apaga nada", async () => {
+    await limparPdfsSubstituidos(dia1);
+    st.tabelas.tasks = null;
+    const r = await limparPdfsSubstituidos(dia9);
+    expect(st.apagados).toEqual([]);
+    expect(r.acabou).toBe(false);
+  });
+
+  it("só fala com o balde `proposal-pdfs` — nunca com o arquivo nem com outro", async () => {
+    await limparPdfsSubstituidos(dia1);
+    await limparPdfsSubstituidos(dia9);
+    expect(st.apagados.length).toBeGreaterThan(0);
+    expect(new Set(st.baldes)).toEqual(new Set(["proposal-pdfs"]));
+    expect(st.baldes).not.toContain(BUCKET_DO_ARQUIVO);
+  });
+
+  it("só apaga caminhos `<pasta>/<chave>.pdf`", async () => {
+    st.pastas["prop-apagada"].push(
+      pdf("nome com espaço.pdf", "2026-08-10T10:00:00Z", "w", "prop-apagada"),
+    );
+    await limparPdfsSubstituidos(dia1);
+    await limparPdfsSubstituidos(dia9);
+    expect(st.apagados).toContain("prop-apagada/k7Qso.pdf");
+    expect(st.apagados).not.toContain("prop-apagada/nome com espaço.pdf");
+  });
+
+  it(`no máximo ${POR_NOITE} por noite`, async () => {
+    st.pastas["prop-apagada"] = Array.from({ length: 15 }, (_, i) =>
+      pdf(`k7Qx${i}.pdf`, "2026-08-10T10:00:00Z", `x${i}`, "prop-apagada"),
+    );
+    await limparPdfsSubstituidos(dia1);
+    await limparPdfsSubstituidos(dia9);
+    expect(st.apagados).toHaveLength(POR_NOITE);
+  });
+
+  it(`no máximo ${DESCARGAS_POR_NOITE} descargas por noite — o que não se provou fica`, async () => {
+    // 30 PDF com o tamanho do enviado: cada um teria de se descarregar.
+    st.pastas["prop-viva"] = [
+      ...Array.from({ length: 30 }, (_, i) =>
+        pdf(
+          `k7Qd${String(i).padStart(2, "0")}.pdf`,
+          "2026-08-01T10:00:00Z",
+          `d-${String(i).padStart(4, "0")}`,
+          "prop-viva",
+        ),
+      ),
+      pdf("k7Qatual.pdf", "2026-09-02T10:00:00Z", "versao-2", "prop-viva"),
+    ];
+    st.tabelas.proposals = (st.tabelas.proposals as { id: string }[]).map((p) =>
+      p.id === "prop-viva" ? { ...p, pdf_sha256: sha("versao-2"), pdf_bytes: 6 } : p,
+    );
+    await limparPdfsSubstituidos(dia1);
+    expect(st.descarregados.filter((c) => c.startsWith("prop-viva/"))).toHaveLength(
+      DESCARGAS_POR_NOITE,
+    );
+    const espera = Object.keys(st.estado[CHAVE] as object).filter((c) =>
+      c.startsWith("prop-viva/"),
+    );
+    expect(espera).toHaveLength(DESCARGAS_POR_NOITE);
   });
 });

@@ -447,6 +447,13 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
   conteúdo). E é aí que cresce: ~2,7 MB por proposta enviada, ~50 MB na
   primeira quinzena de novembro. As imagens já vão a ~154 ppp na página
   inteira, JPEG 72 com mozjpeg: comprimir mais muda o aspecto e precisa dela.
+  Revisão de 15/11, antes de a ligar (ele autorizou: «Sim, pode apagar»):
+  fica também o PDF do documento ATUAL de cada proposta (a chave que o link
+  e a página online pedem), mesmo que não seja o mais recente; uma proposta
+  na Reciclagem guarda a pasta inteira; o aceite de um contrato sem
+  `proposal_id` vale em todas as pastas; o Storage lista-se às páginas; e há
+  um tecto de 20 descargas por noite (saída do Supabase). Os números de cima
+  são de antes desta revisão: voltar a medir com o ensaio.
 - **Fotografias de pedidos apagados (autorizado por ela a 10/11)**: pastas de
   `proposal-assets` (+ derivadas) de pedidos apagados em julho e agosto, antes
   de a Reciclagem limpar as fotos. Ela pediu logo a seguir: «verifica tudo… não

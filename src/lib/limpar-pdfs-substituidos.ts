@@ -7,6 +7,9 @@ import { getSupabase } from "@/lib/supabase";
 import { getState, setState } from "@/lib/app-state";
 import { log } from "@/lib/logger";
 import { TABELAS_COM_CONTEUDO } from "@/lib/limpar-pastas-orfas";
+import { chaveDoPdf } from "@/lib/proposal-pdf-chave";
+import { idiomaDaProposta } from "@/lib/proposta-idioma";
+import type { ProposalDoc } from "@/lib/proposal-doc";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -23,11 +26,17 @@ import { TABELAS_COM_CONTEUDO } from "@/lib/limpar-pastas-orfas";
  * E vale a regra que ela pôs nesse dia: nada sai que depois faça falta. Um PDF
  * fica SEMPRE que for qualquer uma destas coisas:
  *
- *   1. o mais recente da sua proposta, se a proposta existe (ou está na
- *      Reciclagem, e pode voltar);
+ *   1. o mais recente da sua proposta, se a proposta existe; e o do documento
+ *      ATUAL dela (`chaveDoPdf(doc, idioma)`), que é o que o link, a página
+ *      online e o back office servem — mesmo quando não é o mais recente (um
+ *      documento que voltou a uma versão anterior encontra o ficheiro antigo,
+ *      porque a chave é o conteúdo e o `upsert` é `false`). Uma proposta na
+ *      Reciclagem guarda a pasta INTEIRA: pode voltar, e o selo do envio dela
+ *      já não está em `proposals` para o reconhecer;
  *   2. o que foi ACEITE: o `sha256` dele está selado no contrato
  *      (`contracts.proposta_pdf_sha256`). Um contrato sem selo guarda a pasta
- *      inteira — «não sei qual foi» não autoriza apagar nenhum;
+ *      inteira — «não sei qual foi» não autoriza apagar nenhum; e um selo de
+ *      um contrato sem `proposal_id` vale para TODAS as pastas;
  *   3. o último ENVIADO (`proposals.pdf_sha256`);
  *   4. mencionado em qualquer tabela com conteúdo (o nome do ficheiro, ou o id
  *      de uma proposta que já não existe — um resgate na Reciclagem, por ex.).
@@ -42,8 +51,11 @@ import { TABELAS_COM_CONTEUDO } from "@/lib/limpar-pastas-orfas";
  * para calcular o `sha256` quando o tamanho coincide (ou não se sabe). Se a
  * descarga falhar, o ficheiro fica.
  *
- * Se UMA leitura falhar, não se apaga nada. No máximo {@link POR_NOITE}
- * ficheiros por noite, cada um no log. Nada disto lança.
+ * Se UMA leitura falhar, não se apaga nada. As listagens do Storage e as
+ * tabelas lêem-se às páginas (mais de 1000 não esconde nada). No máximo
+ * {@link POR_NOITE} ficheiros por noite e {@link DESCARGAS_POR_NOITE}
+ * descargas para comparar, cada apagado no log. Só se apaga no balde
+ * `proposal-pdfs`, e só caminhos `<pasta>/<chave>.pdf`. Nada disto lança.
  *
  * ── PORQUE É QUE NÃO APAGAVA (medido a 14/11) ─────────────────────────────
  *
@@ -78,10 +90,61 @@ import { TABELAS_COM_CONTEUDO } from "@/lib/limpar-pastas-orfas";
 export const DIAS = 30;
 export const ESPERA_DIAS = 7;
 export const POR_NOITE = 10;
+/**
+ * Descargas para comparar o `sha256` (portas 2 e 3), por noite. Um PDF anda
+ * pelos 0,5–4 MB e a saída do Supabase gratuito são 5 GB por mês: sem tecto,
+ * uma pasta de propostas antigas sem `pdf_bytes` descarregava-se inteira todas
+ * as noites. O que fica de fora não está provado — fica, e tenta-se depois.
+ */
+export const DESCARGAS_POR_NOITE = 20;
 export const CHAVE = "limpeza:pdfs-substituidos";
 
 const BUCKET = "proposal-pdfs";
 const DIA_MS = 24 * 60 * 60_000;
+/** Uma página de listagem do Storage. */
+const PAGINA = 1000;
+/** Nunca girar para sempre numa listagem: o erro faz a limpeza parar. */
+const TECTO_DE_PAGINAS = 50;
+/** O único formato que esta limpeza apaga: `<pasta>/<chave>.pdf`. */
+const CAMINHO_APAGAVEL = /^[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.pdf$/;
+/** As línguas em que uma proposta pode estar (`proposal-doc-textos.ts`). */
+const IDIOMAS = ["pt", "en"] as const;
+
+/** O nome da pasta de uma proposta — o mesmo saneamento de `proposal-pdf-guardado.ts`. */
+const pastaDe = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "");
+
+type Entrada = {
+  id?: string | null;
+  name: string;
+  created_at?: string | null;
+  metadata?: { size?: unknown } | null;
+};
+
+/**
+ * Uma pasta do Storage INTEIRA, às páginas. O `list` do Storage devolve no
+ * máximo o `limit` pedido: lida só a primeira página, uma pasta com mais de
+ * 1000 entradas ficava a meio — e as que faltassem não entravam nas contas.
+ */
+async function listarTudo(
+  sb: NonNullable<ReturnType<typeof getSupabase>>,
+  pasta: string,
+): Promise<{ data: Entrada[] | null; error: unknown }> {
+  const todas: Entrada[] = [];
+  for (let offset = 0, paginas = 0; ; paginas++) {
+    if (paginas >= TECTO_DE_PAGINAS) return { data: null, error: new Error("demasiadas páginas") };
+    const { data, error } = await sb.storage.from(BUCKET).list(pasta, {
+      limit: PAGINA,
+      offset,
+      sortBy: { column: "name", order: "asc" },
+    });
+    if (error || !data) return { data: null, error: error ?? new Error("sem dados") };
+    todas.push(...(data as Entrada[]));
+    // Uma página curta é o fim. Se o servidor cortasse abaixo das 1000, o que
+    // ficasse por ler não entrava em `candidatos` — o lado seguro.
+    if (data.length < PAGINA) return { data: todas, error: null };
+    offset += data.length;
+  }
+}
 
 /**
  * Chaves de `app_state` que nomeiam uma proposta sem precisarem do PDF dela.
@@ -143,7 +206,7 @@ export async function limparPdfsSubstituidos(
   const fim = Date.now() + prazoMs;
   const limite = agora.getTime() - DIAS * DIA_MS;
 
-  const { data: raiz, error: erroRaiz } = await sb.storage.from(BUCKET).list("", { limit: 1000 });
+  const { data: raiz, error: erroRaiz } = await listarTudo(sb, "");
   if (erroRaiz || !raiz) return falhou;
   const pastas = raiz.filter((e) => !e.id).map((e) => e.name);
   if (pastas.length === 0) return nada;
@@ -158,17 +221,24 @@ export async function limparPdfsSubstituidos(
   ]);
   if ([propostas, contratos, reciclagem].some((r) => r.error || !r.data)) return falhou;
 
-  const existe = new Set<string>([
-    ...(propostas.data as { id: string }[]).map((p) => p.id),
-    ...(reciclagem.data as { origem_id: string | null }[]).map((r) => r.origem_id ?? ""),
-  ]);
+  // Tudo pelo nome da PASTA (o id saneado), que é o que a listagem devolve.
+  const existe = new Set<string>((propostas.data as { id: string }[]).map((p) => pastaDe(p.id)));
+  /** Na Reciclagem: pode voltar — a pasta inteira fica. */
+  const naReciclagem = new Set<string>(
+    (reciclagem.data as { origem_id: string | null }[])
+      .map((r) => pastaDe(r.origem_id ?? ""))
+      .filter(Boolean),
+  );
   /** Por proposta, os PDF que não podem sair: o último enviado e o aceite. */
   const selos = new Map<string, Selo[]>();
   /** Propostas com um contrato sem selo: a pasta inteira fica. */
   const semSelo = new Set<string>();
+  /** Aceites de contratos sem `proposal_id`: valem para qualquer pasta. */
+  const selosSemPasta: Selo[] = [];
   const juntar = (id: string, sha: string | null, bytes: number | null) => {
     if (!sha) return;
-    selos.set(id, [...(selos.get(id) ?? []), { sha: sha.toLowerCase(), bytes }]);
+    const pasta = pastaDe(id);
+    selos.set(pasta, [...(selos.get(pasta) ?? []), { sha: sha.toLowerCase(), bytes }]);
   };
   for (const p of propostas.data as {
     id: string;
@@ -182,8 +252,16 @@ export async function limparPdfsSubstituidos(
     proposta_pdf_sha256: string | null;
     proposta_pdf_bytes: number | null;
   }[]) {
-    if (!c.proposal_id) continue;
-    if (!c.proposta_pdf_sha256) semSelo.add(c.proposal_id);
+    if (!c.proposal_id) {
+      if (c.proposta_pdf_sha256) {
+        selosSemPasta.push({
+          sha: c.proposta_pdf_sha256.toLowerCase(),
+          bytes: c.proposta_pdf_bytes,
+        });
+      }
+      continue;
+    }
+    if (!c.proposta_pdf_sha256) semSelo.add(pastaDe(c.proposal_id));
     juntar(c.proposal_id, c.proposta_pdf_sha256, c.proposta_pdf_bytes);
   }
 
@@ -191,8 +269,8 @@ export async function limparPdfsSubstituidos(
   let candidatos: Ficheiro[] = [];
   for (const pasta of pastas) {
     if (Date.now() > fim) return { ...falhou, candidatos: candidatos.length };
-    if (semSelo.has(pasta)) continue;
-    const { data: lista, error } = await sb.storage.from(BUCKET).list(pasta, { limit: 1000 });
+    if (semSelo.has(pasta) || naReciclagem.has(pasta)) continue;
+    const { data: lista, error } = await listarTudo(sb, pasta);
     if (error || !lista) continue;
     const pdfs = lista
       .filter((f) => f.id && f.name.endsWith(".pdf"))
@@ -219,6 +297,35 @@ export async function limparPdfsSubstituidos(
       TABELAS_COM_CONTEUDO.map((t) => lerTodasAsLinhas(sb, t, "*")),
     );
     if (leituras.some((l) => l.error || !l.data)) return falhou;
+
+    // ── Porta 1, segunda metade: o ficheiro do documento ATUAL ─────────────
+    // É o que as rotas do PDF servem (`chaveDoPdf(doc, idioma)`). As linhas de
+    // `proposals` já vieram inteiras, com o `doc`: não custa leitura nenhuma.
+    const atuais = new Set<string>();
+    /** Uma proposta cuja chave não se consegue calcular guarda a pasta. */
+    const semChave = new Set<string>();
+    const linhasDePropostas = leituras[TABELAS_COM_CONTEUDO.indexOf("proposals")].data as {
+      id: string;
+      doc?: unknown;
+      idioma?: unknown;
+    }[];
+    for (const p of linhasDePropostas) {
+      const pasta = pastaDe(String(p.id ?? ""));
+      if (!pasta || !p.doc || typeof p.doc !== "object") continue;
+      try {
+        // A língua gravada primeiro; e as outras também, que são contas de
+        // processador sem leitura nenhuma — se ela mudar a língua de volta, o
+        // ficheiro ainda lá está.
+        const linguas = new Set([idiomaDaProposta(p), ...IDIOMAS]);
+        for (const l of linguas) atuais.add(`${pasta}/${chaveDoPdf(p.doc as ProposalDoc, l)}.pdf`);
+      } catch {
+        semChave.add(pasta);
+      }
+    }
+    candidatos = candidatos.filter(
+      (f) => !atuais.has(f.caminho) && !semChave.has(f.caminho.split("/")[0]),
+    );
+
     const texto = leituras
       .map((l, i) =>
         JSON.stringify(
@@ -244,14 +351,18 @@ export async function limparPdfsSubstituidos(
 
   // ── Portas 2 e 3: o enviado e o aceite, pelo sha256 ──────────────────────
   const prontos: Ficheiro[] = [];
+  let descargas = 0;
   for (const f of candidatos) {
     if (Date.now() > fim) return { ...falhou, candidatos: candidatos.length };
     const pasta = f.caminho.split("/")[0];
-    const daPasta = selos.get(pasta) ?? [];
+    const daPasta = [...(selos.get(pasta) ?? []), ...selosSemPasta];
     const podeSer = daPasta.filter(
       (s) => s.bytes === null || f.bytes === null || s.bytes === f.bytes,
     );
     if (podeSer.length > 0) {
+      // Sem descarga não há prova: fica, e volta a tentar-se noutra noite.
+      if (descargas >= DESCARGAS_POR_NOITE) continue;
+      descargas++;
       const { data, error } = await sb.storage.from(BUCKET).download(f.caminho);
       if (error || !data) continue;
       const sha = createHash("sha256")
@@ -298,7 +409,9 @@ export async function limparPdfsSubstituidos(
     const visto = espera[f.caminho];
     const desde = Date.parse(visto);
     if (Number.isNaN(desde) || agora.getTime() - desde < ESPERA_DIAS * DIA_MS) continue;
-    // O que nenhuma limpeza pode levar (`arquivo-de-pdfs/protegidos.ts`).
+    // Só um PDF de uma pasta de proposta, e nunca o que nenhuma limpeza pode
+    // levar (`arquivo-de-pdfs/protegidos.ts`).
+    if (!CAMINHO_APAGAVEL.test(f.caminho)) continue;
     if (semProtegidos(BUCKET, [f.caminho]).length === 0) continue;
     const { error } = await sb.storage.from(BUCKET).remove([f.caminho]);
     if (error) continue;
