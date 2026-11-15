@@ -585,9 +585,7 @@ export async function limparPdfsSubstituidos(
    * comparam-se pelo `sha256`.
    */
   const seloSemFicheiro = (ss: readonly Selo[] | undefined, fs: readonly Ficheiro[]) =>
-    (ss ?? []).some(
-      (s) => s.bytes !== null && !fs.some((f) => f.bytes === s.bytes),
-    );
+    (ss ?? []).some((s) => s.bytes !== null && !fs.some((f) => f.bytes === s.bytes));
   /** Os PDF de cada pasta lida, para a releitura voltar a aplicar a regra de cima. */
   const ficheirosDaPasta = new Map<string, Ficheiro[]>();
   /** As pastas guardadas inteiras por {@link seloSemFicheiro}. */

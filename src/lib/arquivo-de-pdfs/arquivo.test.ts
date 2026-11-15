@@ -115,7 +115,10 @@ beforeAll(async () => {
       ],
     } as Partial<ProposalDoc>),
   );
-});
+  // Três PDF inteiros desenhados de raiz: num executor de CI carregado
+  // passaram dos 10 s do `hookTimeout` por omissão (15/11, #465). O tempo é
+  // do desenho, não de uma espera: 60 s de folga.
+}, 60_000);
 
 /** Um balde em memória com a forma do cliente do Supabase. */
 function baldeEmMemoria(existe = true, publico = false) {
