@@ -33,6 +33,17 @@ const st = vi.hoisted(() => ({
   /** Como o PostgREST com `proposals.id` uuid: um não-uuid no `.in` dá 22P02. */
   idsSoUuid: false,
 }));
+/**
+ * Como a base: a coluna `doc` vem sempre. Uma linha de teste que não a traz
+ * recebe um documento qualquer — `doc: null` explícito é que é o caso feio
+ * (3.ª passagem, n.º 7).
+ */
+const comDoc = (tabela: string, linhas: unknown[]) =>
+  tabela !== "proposals"
+    ? linhas
+    : (linhas as Record<string, unknown>[]).map((l) =>
+        "doc" in l ? l : { ...l, doc: { clientNames: `doc de ${String(l.id)}` } },
+      );
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Cada ida espera a latência simulada (nada, fora do teste do tempo). */
 const ida = async (o: string, ms = st.lat.ida) => {
@@ -126,7 +137,7 @@ vi.mock("@/lib/supabase", () => ({
                   error: { code: "22P02", message: "invalid input syntax for type uuid" },
                 });
               }
-              const linhas = (st.tabelas[tabela] ?? []) as Record<string, unknown>[];
+              const linhas = comDoc(tabela, st.tabelas[tabela] ?? []) as Record<string, unknown>[];
               return resolve({
                 data: linhas.filter((l) => ids.includes(String(l[colunaIn]))),
                 error: null,
@@ -136,7 +147,7 @@ vi.mock("@/lib/supabase", () => ({
               return resolve({ data: null, error: { message: "falhou" } });
             }
             const todas = [
-              ...(st.tabelas[tabela] ?? []),
+              ...comDoc(tabela, st.tabelas[tabela] ?? []),
               ...(tabela === "app_state"
                 ? Object.entries(st.estado).map(([key, value]) => ({ key, value }))
                 : []),
@@ -160,6 +171,8 @@ import {
   DESCARGAS_POR_NOITE,
   POR_NOITE,
   limparPdfsSubstituidos,
+  pareceUmPdfInteiro,
+  proximoTamanhoDoLote,
 } from "./limpar-pdfs-substituidos";
 
 const dia1 = new Date("2026-11-11T03:00:00Z");
@@ -290,12 +303,13 @@ describe("os PDF de proposta substituídos (10/11)", () => {
     expect(espera()).toEqual([]);
   });
 
-  it("só descarrega para comparar quando o tamanho coincide com o de um selado", async () => {
+  it("descarrega para comparar os PDF das pastas com selo, seja qual for o tamanho (3.ª, n.º 1); os das pastas sem selo, não", async () => {
     await limparPdfsSubstituidos(dia1);
-    // O aceite (17 bytes) descarrega-se; o rascunho (11) e o velho (8 = o
-    // tamanho do enviado!) — o velho coincide no tamanho e descarrega-se.
+    // O aceite (17), o rascunho (11, nenhum selo desse tamanho — mas a pasta
+    // tem selos) e o velho (8). O da proposta apagada (sem selos), não.
     expect(st.descarregados.sort()).toEqual([
       "prop-aceite/k7Qassinado.pdf",
+      "prop-aceite/k7Qrascunho.pdf",
       "prop-viva/k7Qvelho.pdf",
     ]);
   });
@@ -591,7 +605,9 @@ describe("os PDF de proposta substituídos (10/11)", () => {
       proposta_pdf_bytes: null,
     });
     await noites(2, 9);
-    expect(st.descarregados).toEqual([]);
+    // (As confirmações das noites que apagam descarregam outros da pasta
+    // `prop-aceite`, que tem selos — este não.)
+    expect(st.descarregados).not.toContain("prop-viva/k7Qvelho.pdf");
     expect(st.apagados).not.toContain("prop-viva/k7Qvelho.pdf");
   });
 
@@ -734,7 +750,14 @@ describe("os PDF de proposta substituídos (10/11)", () => {
       pdf(doVelho, "2026-08-10T10:00:00Z", "v1", "prop-voltou"),
       pdf("k7Qv2.pdf", "2026-08-20T10:00:00Z", "v2-desenhada", "prop-voltou"),
     ];
-    const linha = { id: "prop-voltou", pdf_sha256: null, pdf_bytes: null, doc: null as unknown };
+    // Um documento atual que não é nenhum dos dois ficheiros (um `doc` nulo
+    // guardava a pasta inteira — 3.ª passagem, n.º 7).
+    const linha = {
+      id: "prop-voltou",
+      pdf_sha256: null,
+      pdf_bytes: null,
+      doc: { clientNames: "Rita", versao: 3 } as unknown,
+    };
     (st.tabelas.proposals as object[]).push(linha);
     await noites(0, 6);
     st.antesDaReleitura = () => {
@@ -839,7 +862,7 @@ describe("os PDF de proposta substituídos (10/11)", () => {
     expect(st.descarregados).not.toContain("prop-apagada/k7Qso.pdf");
   });
 
-  it("2.ª n.º 1b — sem tempo a meio da confirmação, não apaga nada e regista onde parou", async () => {
+  it("3.ª n.º 4 — sem tempo a meio da confirmação (descargas de 1,5 s), saem os já confirmados, fica registado, e a noite seguinte pede metade do lote", async () => {
     st.pastas["prop-apagada"] = Array.from({ length: 15 }, (_, i) =>
       pdf(`k7Qx${String(i).padStart(2, "0")}.pdf`, "2026-08-10T10:00:00Z", `x${i}`, "prop-apagada"),
     );
@@ -850,18 +873,58 @@ describe("os PDF de proposta substituídos (10/11)", () => {
       proposta_pdf_bytes: null,
     });
     await noites(0, 6);
-    vi.useFakeTimers({ now: noite(7) });
-    try {
-      // Tudo já comparado: só a confirmação descarrega, 1 s cada, 4 de cada vez.
-      st.lat = { ida: 10, descarga: 1_000 };
-      const p = limparPdfsSubstituidos(noite(7), 1_500);
-      await vi.runAllTimersAsync();
-      const r = await p;
-      expect(r).toMatchObject({ acabou: false, parou: "confirmação antes de apagar", apagados: 0 });
-      expect(st.apagados).toEqual([]);
-    } finally {
-      vi.useRealTimers();
-    }
+    const correr = async (n: number, prazo: number) => {
+      vi.useFakeTimers({ now: noite(n) });
+      try {
+        // Tudo já comparado: só a confirmação descarrega, 1,5 s cada, 4 de cada vez.
+        st.lat = { ida: 10, descarga: 1_500 };
+        st.descarregados = [];
+        const p = limparPdfsSubstituidos(noite(n), prazo);
+        await vi.runAllTimersAsync();
+        return await p;
+      } finally {
+        vi.useRealTimers();
+        st.lat = { ida: 0, descarga: 0 };
+      }
+    };
+    // Duas voltas de 4 cabem antes dos 2 s; a terceira já não começa.
+    const r = await correr(7, 2_000);
+    expect(r).toMatchObject({ acabou: false, parou: "confirmação antes de apagar", apagados: 8 });
+    expect(st.apagados).toHaveLength(8);
+    expect(st.descarregados).toHaveLength(8);
+    const e = st.estado[CHAVE] as {
+      lote?: number;
+      ultimaNoite: { acabou: boolean; parou?: string };
+      espera: Record<string, unknown>;
+    };
+    // O progresso fica gravado: os apagados saem da espera, os outros ficam.
+    expect(e.ultimaNoite).toMatchObject({ acabou: false, parou: "confirmação antes de apagar" });
+    for (const c of st.apagados) expect(e.espera[c]).toBeUndefined();
+    // 17 prontos (15 desta pasta, o velho e o rascunho): 8 saíram, 9 esperam.
+    expect(Object.keys(e.espera)).toHaveLength(9);
+    expect(e.lote).toBe(POR_NOITE / 2);
+    expect(vi.mocked(log.warn)).toHaveBeenCalledWith(
+      expect.stringContaining("sem tempo na confirmação"),
+      expect.objectContaining({ confirmados: 8 }),
+    );
+    // A noite seguinte pede metade: 5 descargas, e cabem.
+    st.apagados = [];
+    const r2 = await correr(8, 6_000);
+    expect(st.descarregados).toHaveLength(POR_NOITE / 2);
+    expect(r2).toMatchObject({ acabou: true, apagados: POR_NOITE / 2 });
+    // Confirmou tudo: o lote volta a crescer.
+    expect((st.estado[CHAVE] as { lote?: number }).lote).toBeUndefined();
+  });
+
+  it("3.ª n.º 4 — o lote desce para metade, nunca abaixo de 2, e volta a crescer", () => {
+    expect(proximoTamanhoDoLote(POR_NOITE, true)).toBe(5);
+    expect(proximoTamanhoDoLote(5, true)).toBe(2);
+    expect(proximoTamanhoDoLote(3, true)).toBe(2);
+    expect(proximoTamanhoDoLote(2, true)).toBe(2);
+    expect(proximoTamanhoDoLote(2, false)).toBe(4);
+    expect(proximoTamanhoDoLote(4, false)).toBe(8);
+    expect(proximoTamanhoDoLote(5, false)).toBeUndefined();
+    expect(proximoTamanhoDoLote(POR_NOITE, false)).toBeUndefined();
   });
 
   it("2.ª n.º 2 — com `proposals.id` uuid, uma pasta com outro nome não faz a releitura falhar (22P02)", async () => {
@@ -985,6 +1048,213 @@ describe("os PDF de proposta substituídos (10/11)", () => {
     await new Promise((r) => setTimeout(r, 60));
     expect(st.idas.length).toBe(depois);
     expect(st.apagados).toEqual([]);
+  });
+
+  // ── 3.ª revisão independente (15/11) ─────────────────────────────────────
+
+  it("3.ª n.º 1 — um selo com `bytes` errado não decide «diferente»: o PDF aceite fica", async () => {
+    // O contrato diz 14 bytes para o que ela assinou (17 na verdade) — o
+    // tamanho do outro selo da pasta, para a regra do n.º 3 não a guardar.
+    st.tabelas.contracts = [
+      {
+        proposal_id: "prop-aceite",
+        proposta_pdf_sha256: sha("o-que-ela-assinou"),
+        proposta_pdf_bytes: 14,
+      },
+    ];
+    await noites(0, 9);
+    expect(st.apagados).not.toContain("prop-aceite/k7Qassinado.pdf");
+    expect(espera()).not.toContain("prop-aceite/k7Qassinado.pdf");
+    expect(st.apagados).toContain("prop-aceite/k7Qrascunho.pdf");
+  });
+
+  it("3.ª n.º 1 — na confirmação contam TODOS os selos sem pasta, sem filtro de tamanho", async () => {
+    // Um aceite sem `proposal_id` com o conteúdo do PDF da proposta apagada,
+    // mas com um tamanho errado: a comparação passa-lhe ao lado (filtra os
+    // sem pasta pelo tamanho), a confirmação antes do `remove` não.
+    (st.tabelas.contracts as object[]).push({
+      proposal_id: null,
+      proposta_pdf_sha256: sha("y"),
+      proposta_pdf_bytes: 99,
+    });
+    await noites(0, 6);
+    st.descarregados = [];
+    await limparPdfsSubstituidos(noite(7));
+    expect(st.descarregados).toContain("prop-apagada/k7Qso.pdf");
+    expect(st.apagados).not.toContain("prop-apagada/k7Qso.pdf");
+    expect(espera()).not.toContain("prop-apagada/k7Qso.pdf");
+    // E nas noites seguintes o `sha256` guardado já o reconhece, sem descarga.
+    st.descarregados = [];
+    await noites(8, 16);
+    expect(st.apagados).not.toContain("prop-apagada/k7Qso.pdf");
+    expect(st.descarregados).not.toContain("prop-apagada/k7Qso.pdf");
+  });
+
+  it("3.ª n.º 2 — sem tamanho na listagem, uma descarga que não é um PDF inteiro é falha", async () => {
+    const corpo = (fim: string) => `%PDF-1.7\nconteudo\n${fim}`;
+    st.pastas["prop-viva"] = [
+      {
+        ...pdf("k7Qcortado.pdf", "2026-08-10T10:00:00Z", corpo("sem fim"), "prop-viva"),
+        metadata: {} as { size: number },
+      },
+      {
+        ...pdf("k7Qinteiro.pdf", "2026-08-11T10:00:00Z", corpo("%%EOF\n"), "prop-viva"),
+        metadata: {} as { size: number },
+      },
+      {
+        ...pdf("k7Qnaoepdf.pdf", "2026-08-12T10:00:00Z", "<html>erro</html>%%EOF", "prop-viva"),
+        metadata: {} as { size: number },
+      },
+      pdf("k7Qatual.pdf", "2026-09-02T10:00:00Z", "versao-2", "prop-viva"),
+    ];
+    await limparPdfsSubstituidos(noite(0));
+    const e = st.estado[CHAVE] as {
+      comparados: Record<string, unknown>;
+      falhas?: Record<string, { n: number }>;
+    };
+    expect(e.falhas?.["prop-viva/k7Qcortado.pdf"]?.n).toBe(1);
+    expect(e.falhas?.["prop-viva/k7Qnaoepdf.pdf"]?.n).toBe(1);
+    expect(e.comparados["prop-viva/k7Qcortado.pdf"]).toBeUndefined();
+    expect(e.comparados["prop-viva/k7Qnaoepdf.pdf"]).toBeUndefined();
+    expect(e.comparados["prop-viva/k7Qinteiro.pdf"]).toBeDefined();
+    expect(espera()).toContain("prop-viva/k7Qinteiro.pdf");
+    expect(espera()).not.toContain("prop-viva/k7Qcortado.pdf");
+    expect(espera()).not.toContain("prop-viva/k7Qnaoepdf.pdf");
+  });
+
+  it("3.ª n.º 2 — sem tamanho na listagem, uma descarga do tamanho de um selo com outro `sha256` é falha (pode ser o selado estragado)", async () => {
+    const enviado = "%PDF-1.7\no que seguiu\n%%EOF\n";
+    const estragado = "%PDF-1.7\no que segXiu\n%%EOF\n";
+    st.pastas["prop-viva"] = [
+      {
+        ...pdf("k7Qenviado.pdf", "2026-08-10T10:00:00Z", enviado, "prop-viva"),
+        metadata: {} as { size: number },
+      },
+      pdf("k7Qatual.pdf", "2026-09-02T10:00:00Z", "versao-2", "prop-viva"),
+    ];
+    st.tabelas.proposals = (st.tabelas.proposals as { id: string }[]).map((p) =>
+      p.id === "prop-viva" ? { ...p, pdf_sha256: sha(enviado), pdf_bytes: enviado.length } : p,
+    );
+    st.corrompe["prop-viva/k7Qenviado.pdf"] = estragado;
+    await limparPdfsSubstituidos(noite(0));
+    const e = st.estado[CHAVE] as {
+      comparados: Record<string, unknown>;
+      falhas?: Record<string, { n: number }>;
+    };
+    expect(e.falhas?.["prop-viva/k7Qenviado.pdf"]?.n).toBe(1);
+    expect(e.comparados["prop-viva/k7Qenviado.pdf"]).toBeUndefined();
+    expect(espera()).not.toContain("prop-viva/k7Qenviado.pdf");
+  });
+
+  it("pareceUmPdfInteiro: `%PDF-` no início e `%%EOF` nos últimos 1024 bytes", () => {
+    const b = (t: string) => new TextEncoder().encode(t);
+    expect(pareceUmPdfInteiro(b("%PDF-1.4\n…\n%%EOF"))).toBe(true);
+    expect(pareceUmPdfInteiro(b("%PDF-1.4\n…\n%%EOF\r\n"))).toBe(true);
+    expect(pareceUmPdfInteiro(b("%PDF-1.4\n…"))).toBe(false);
+    expect(pareceUmPdfInteiro(b("PDF-1.4\n%%EOF"))).toBe(false);
+    expect(pareceUmPdfInteiro(b(""))).toBe(false);
+    expect(pareceUmPdfInteiro(b(`%PDF-1.4\n%%EOF${" ".repeat(1100)}`))).toBe(false);
+  });
+
+  it("3.ª n.º 3 — uma pasta com um selo de tamanho que nenhum ficheiro tem fica inteira, sem descargas", async () => {
+    // Como em produção: o envio selou um PDF de 99 bytes, mas a chave já
+    // existia (`upsert: false`) e o que lá está é outro.
+    st.tabelas.proposals = (st.tabelas.proposals as { id: string }[]).map((p) =>
+      p.id === "prop-viva" ? { ...p, pdf_sha256: sha("o-que-seguiu"), pdf_bytes: 99 } : p,
+    );
+    await noites(0, 9);
+    expect(st.apagados.filter((c) => c.startsWith("prop-viva/"))).toEqual([]);
+    expect(espera().filter((c) => c.startsWith("prop-viva/"))).toEqual([]);
+    expect(st.descarregados.filter((c) => c.startsWith("prop-viva/"))).toEqual([]);
+    // As outras pastas seguem a vida.
+    expect(st.apagados).toContain("prop-apagada/k7Qso.pdf");
+    expect(vi.mocked(log.info)).toHaveBeenCalledWith(
+      expect.stringContaining("selo sem ficheiro"),
+      expect.objectContaining({ pastas: 1 }),
+    );
+  });
+
+  it("3.ª n.º 3 — um selo assim que aparece na releitura também guarda a pasta", async () => {
+    await noites(0, 6);
+    st.antesDaReleitura = () => {
+      st.tabelas.proposals = (st.tabelas.proposals as { id: string }[]).map((p) =>
+        p.id === "prop-viva" ? { ...p, pdf_sha256: sha("o-que-seguiu"), pdf_bytes: 99 } : p,
+      );
+    };
+    await limparPdfsSubstituidos(noite(7));
+    expect(st.apagados).not.toContain("prop-viva/k7Qvelho.pdf");
+    expect(st.apagados).toContain("prop-apagada/k7Qso.pdf");
+  });
+
+  it("3.ª n.º 5 — o `remove` sem `data` (nem `error`): o `log.warn` leva os caminhos pedidos", async () => {
+    await noites(0, 6);
+    for (const c of [
+      "prop-viva/k7Qvelho.pdf",
+      "prop-apagada/k7Qso.pdf",
+      "prop-aceite/k7Qrascunho.pdf",
+    ])
+      st.removeIgnora.add(c);
+    const r = await limparPdfsSubstituidos(noite(7));
+    expect(r.apagados).toBe(0);
+    expect(vi.mocked(log.warn)).toHaveBeenCalledWith(
+      expect.stringContaining("não confirmou"),
+      expect.objectContaining({
+        pedidos: 3,
+        confirmados: 0,
+        caminhos: expect.arrayContaining([
+          "prop-viva/k7Qvelho.pdf",
+          "prop-apagada/k7Qso.pdf",
+          "prop-aceite/k7Qrascunho.pdf",
+        ]),
+      }),
+    );
+  });
+
+  it("3.ª n.º 6 — um `remove` recusado em silêncio descansa 1, 2, 4 noites (não repete a confirmação todas as noites)", async () => {
+    await noites(0, 6);
+    st.removeIgnora.add("prop-viva/k7Qvelho.pdf");
+    const pedido: number[] = [];
+    for (let n = 7; n <= 15; n++) {
+      st.descarregados = [];
+      st.idas = [];
+      await limparPdfsSubstituidos(noite(n));
+      // O velho tem o tamanho do enviado: cada noite em que vai no lote
+      // descarrega-se para confirmar.
+      if (st.descarregados.includes("prop-viva/k7Qvelho.pdf")) pedido.push(n);
+    }
+    expect(pedido).toEqual([7, 8, 10, 14]);
+    // Continua na espera (não saiu), e o registo do descanso está no estado.
+    expect(espera()).toContain("prop-viva/k7Qvelho.pdf");
+    const e = st.estado[CHAVE] as { recusados?: Record<string, { n: number }> };
+    expect(e.recusados?.["prop-viva/k7Qvelho.pdf"]?.n).toBe(4);
+    // Quando o Storage deixar de recusar, sai, e o registo desaparece.
+    st.removeIgnora.clear();
+    await noites(16, 24);
+    expect(st.apagados).toContain("prop-viva/k7Qvelho.pdf");
+    const depois = st.estado[CHAVE] as { recusados?: Record<string, unknown> };
+    expect(depois.recusados?.["prop-viva/k7Qvelho.pdf"]).toBeUndefined();
+  });
+
+  it("3.ª n.º 7 — uma proposta que existe com `doc` nulo guarda a pasta inteira (o atual pode não ser o mais recente)", async () => {
+    st.tabelas.proposals = (st.tabelas.proposals as { id: string }[]).map((p) =>
+      p.id === "prop-viva" ? { ...p, doc: null } : p,
+    );
+    await noites(0, 9);
+    expect(st.apagados.filter((c) => c.startsWith("prop-viva/"))).toEqual([]);
+    expect(espera().filter((c) => c.startsWith("prop-viva/"))).toEqual([]);
+    expect(st.apagados).toContain("prop-apagada/k7Qso.pdf");
+  });
+
+  it("3.ª n.º 7 — e se o `doc` ficar nulo na releitura, também", async () => {
+    await noites(0, 6);
+    st.antesDaReleitura = () => {
+      st.tabelas.proposals = (st.tabelas.proposals as { id: string }[]).map((p) =>
+        p.id === "prop-viva" ? { ...p, doc: null } : p,
+      );
+    };
+    await limparPdfsSubstituidos(noite(7));
+    expect(st.apagados).not.toContain("prop-viva/k7Qvelho.pdf");
+    expect(st.apagados).toContain("prop-apagada/k7Qso.pdf");
   });
 
   it("n.º 6 — o pior caso típico (65 PDF em 50 pastas) cabe nos 6 s do cron", async () => {
