@@ -85,6 +85,7 @@ import {
   CHAVE_DAS_SESSOES_REVOGADAS,
   MAX_TERMINADAS,
   esquecerRevogacoesEmMemoria,
+  estadoDaSessao,
   revogarSessoesDaConta,
   sessaoValida,
   terminarSessao,
@@ -199,5 +200,41 @@ describe("revisão de 13/11", () => {
     expect(chaves.filter((k) => k.startsWith("valida-"))).toHaveLength(MAX_TERMINADAS + 50);
     expect(chaves.filter((k) => k.startsWith("expirada-"))).toHaveLength(0);
     expect(chaves).toHaveLength(MAX_TERMINADAS + 51);
+  });
+});
+
+/**
+ * Auditoria de 16/11, n.º 7: com a leitura falhada e nada em memória, a
+ * revogação deixava passar TUDO — também o que muda dados. Agora quem muda
+ * sabe que não se sabe («indisponivel»); quem só lê continua a passar.
+ */
+describe("leitura falhada sem nada em memória (n.º 7 de 16/11)", () => {
+  it("o que MUDA dados fica «indisponivel»; o que só lê continua a valer", async () => {
+    const t = createSession("TESTE Ana");
+    H.pendurado = true;
+    expect(await estadoDaSessao(t, { muda: true })).toBe("indisponivel");
+    // A falha fica em memória (5 s): a pergunta seguinte responde o mesmo, sem
+    // voltar a pendurar-se na base.
+    expect(await estadoDaSessao(t, { muda: true })).toBe("indisponivel");
+    expect(await estadoDaSessao(t, { muda: false })).toBe("valida");
+    expect(await sessaoValida(t)).toEqual({ name: "TESTE Ana" });
+  }, 10_000);
+
+  it("com um registo já lido em memória, uma falha a seguir não fecha nada", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-16T10:00:00Z"));
+    const t = createSession("TESTE Ana");
+    expect(await estadoDaSessao(t, { muda: true })).toBe("valida");
+    // Passa o minuto da memória e a base pendura-se: vale o que estava lido.
+    vi.setSystemTime(new Date("2026-11-16T10:02:00Z"));
+    H.pendurado = true;
+    expect(await estadoDaSessao(t, { muda: true })).toBe("valida");
+  }, 10_000);
+
+  it("uma sessão revogada continua revogada para os dois", async () => {
+    const t = createSession("TESTE Ana");
+    await terminarSessao(t);
+    expect(await estadoDaSessao(t, { muda: true })).toBe("revogada");
+    expect(await estadoDaSessao(t, { muda: false })).toBe("revogada");
   });
 });

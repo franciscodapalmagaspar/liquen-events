@@ -35,9 +35,11 @@ import { log } from "./logger";
  * instância. Na instância que fez a mudança, vale logo; nas outras, no máximo
  * um minuto depois.
  *
- * Uma leitura que falha não fecha a porta a ninguém (vale o que estava em
+ * Uma leitura que falha não fecha a porta a quem só lê (vale o que estava em
  * memória, ou nada): fechar o back office inteiro por uma falha passageira do
- * Supabase seria pior do que o minuto de atraso que se aceita aqui.
+ * Supabase seria pior do que o minuto de atraso que se aceita aqui. A quem MUDA
+ * dados, sem nada em memória, a resposta é «não se sabe» — ver
+ * `estadoDaSessao` (auditoria de 16/11, n.º 7).
  */
 
 export const CHAVE_DAS_SESSOES_REVOGADAS = "sessoes-revogadas";
@@ -95,18 +97,23 @@ function chaveDaConta(nome: string): string {
  *  · a falha também fica em memória ({@link ESPERA_DEPOIS_DE_FALHAR_MS}): sem
  *    isso, com a base em baixo, N pedidos eram N leituras penduradas;
  *  · pedidos simultâneos partilham a leitura que já está no ar.
- * A regra continua a mesma: uma leitura que falha não fecha a porta a ninguém.
+ * Uma leitura que falha não fecha a porta a quem só LÊ; ao que muda dados,
+ * sem nada em memória, responde-se «indisponível» — ver `estadoDaSessao`.
  */
 export const TECTO_DA_LEITURA_MS = 1_500;
 export const ESPERA_DEPOIS_DE_FALHAR_MS = 5_000;
 
 let falhouEm: number | null = null;
-let leituraNoAr: Promise<RegistoDeRevogacoes> | null = null;
+let leituraNoAr: Promise<RegistoDeRevogacoes | null> | null = null;
 
-async function lerRegisto(agora: number): Promise<RegistoDeRevogacoes> {
+/**
+ * O registo, e se ele é CONHECIDO. `null` quando não há nada em memória e a
+ * leitura falhou ou passou do prazo — não se sabe quem está revogado.
+ */
+async function lerRegisto(agora: number): Promise<RegistoDeRevogacoes | null> {
   if (emMemoria && agora - emMemoria.lidoEm < VALIDADE_DA_CACHE_MS) return emMemoria.registo;
   if (falhouEm !== null && agora - falhouEm < ESPERA_DEPOIS_DE_FALHAR_MS) {
-    return emMemoria?.registo ?? normalizar(null);
+    return emMemoria?.registo ?? null;
   }
   if (leituraNoAr) return leituraNoAr;
   leituraNoAr = (async () => {
@@ -123,8 +130,9 @@ async function lerRegisto(agora: number): Promise<RegistoDeRevogacoes> {
       falhouEm = Date.now();
       log.warn("sessões: não foi possível ler as revogações — vale o que está em memória", {
         erro: String(err),
+        haMemoria: Boolean(emMemoria),
       });
-      return emMemoria?.registo ?? normalizar(null);
+      return emMemoria?.registo ?? null;
     } finally {
       leituraNoAr = null;
     }
@@ -133,19 +141,58 @@ async function lerRegisto(agora: number): Promise<RegistoDeRevogacoes> {
 }
 
 /**
+ * ════════════════════════════════════════════════════════════════════════════
+ * E QUANDO NÃO SE SABE? (auditoria de 16/11, n.º 7)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Com o registo lido (agora ou há pouco), sabe-se. O caso difícil é a instância
+ * acabada de nascer com o Supabase lento: nada em memória, e a leitura falhou
+ * ou passou do tecto. Antes, aí, valia tudo — também uma sessão terminada com
+ * «Sair» a apagar ou a mudar dados.
+ *
+ * A escolha, dividida pelo que o pedido faz:
+ *  · o que MUDA dados (`muda: true`) fica «indisponivel»: quem chama responde
+ *    503 com {@link MENSAGEM_REVOGACAO_INDISPONIVEL}, e a pessoa tenta outra
+ *    vez daí a uns segundos. Não se grava nada em nome de uma sessão que pode
+ *    já ter sido fechada;
+ *  · o que só LÊ continua a passar, como até aqui: uma lentidão do Supabase
+ *    não pode deixar a Catarina sem back office na manhã de um evento, e ler
+ *    não estraga nada que uma sessão fechada não tenha já visto.
+ *
+ * Com um registo em memória (mesmo com mais de um minuto), vale esse registo
+ * para os dois casos — sabe-se o que se sabia há pouco.
+ */
+export type EstadoDaSessao = "valida" | "revogada" | "indisponivel";
+
+export const MENSAGEM_REVOGACAO_INDISPONIVEL =
+  "Não foi possível confirmar a sessão neste momento. Nada foi gravado — tenta outra vez daqui a uns segundos.";
+
+export async function estadoDaSessao(
+  token: string | undefined | null,
+  opcoes: { muda: boolean },
+  agora: number = Date.now(),
+): Promise<EstadoDaSessao> {
+  const s = lerSessao(token);
+  if (!s || !token) return "valida";
+  const registo = await lerRegisto(agora);
+  if (!registo) return opcoes.muda ? "indisponivel" : "valida";
+  const desde = registo.desde[chaveDaConta(s.name)];
+  if (typeof desde === "number" && s.iat < desde) return "revogada";
+  return Object.prototype.hasOwnProperty.call(registo.terminadas, resumoDaSessao(token))
+    ? "revogada"
+    : "valida";
+}
+
+/**
  * Esta sessão foi revogada? `false` para um token que nem é sessão (quem
- * chama já o recusa por si).
+ * chama já o recusa por si). É a pergunta de LEITURA: sem registo conhecido,
+ * deixa passar — ver {@link estadoDaSessao} para o que muda dados.
  */
 export async function sessaoRevogada(
   token: string | undefined | null,
   agora: number = Date.now(),
 ): Promise<boolean> {
-  const s = lerSessao(token);
-  if (!s || !token) return false;
-  const registo = await lerRegisto(agora);
-  const desde = registo.desde[chaveDaConta(s.name)];
-  if (typeof desde === "number" && s.iat < desde) return true;
-  return Object.prototype.hasOwnProperty.call(registo.terminadas, resumoDaSessao(token));
+  return (await estadoDaSessao(token, { muda: false }, agora)) === "revogada";
 }
 
 /** `readSession` mais as revogações — para quem pode esperar (as páginas). */
