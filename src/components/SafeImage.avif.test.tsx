@@ -5,6 +5,10 @@ import SafeImage from "./SafeImage";
 import HeroImage from "./HeroImage";
 import siteImageLoader from "@/lib/site-image-loader";
 import { heroAvifSrcSet } from "@/lib/hero-image-loader";
+import {
+  GALLERY_WEBP_WIDTHS,
+  GALLERY_WIDTHS,
+} from "@/app/[lang]/(site)/galeria/gallery-image-loader";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -31,7 +35,8 @@ const FOTO = "/imagens/EW1_1100.jpg";
 /** Uma fotografia de largura total: escada dos heróis. */
 const CAPA = "/imagens/hd-edited.jpg";
 
-const fonte = (c: HTMLElement) => c.querySelector<HTMLSourceElement>('picture > source[type="image/avif"]');
+const fonte = (c: HTMLElement) =>
+  c.querySelector<HTMLSourceElement>('picture > source[type="image/avif"]');
 const candidatos = (srcset: string) => srcset.split(", ").map((c) => c.split(" ")[0]);
 
 describe("SafeImage — o AVIF à frente do WebP", () => {
@@ -51,19 +56,33 @@ describe("SafeImage — o AVIF à frente do WebP", () => {
     expect(s!.getAttribute("sizes")).toBe(img.getAttribute("sizes"));
   });
 
-  it("cada candidato AVIF é o gémeo de um ficheiro que o carregador do WebP serve", () => {
+  it("cada candidato AVIF é a MESMA fotografia que o carregador do WebP serve, num degrau que existe", () => {
+    // Desde 16/11 o WebP da galeria só existe em 384 e 1280 (a reserva de quem
+    // não lê AVIF): o gémeo é a mesma fotografia, não a mesma largura.
     const { container } = render(
       <div className="relative h-40 w-40">
         <SafeImage src={FOTO} alt="Foto" fill sizes="100vw" />
       </div>,
     );
-    const webp = new Set(
-      [16, 32, 64, 96, 128, 256, 360, 384, 480, 640, 768, 1024, 1280, 1536, 1920, 3840].map((w) =>
-        siteImageLoader({ src: FOTO, width: w }),
-      ),
-    );
+    const LARGURAS_DO_NEXT = [
+      16, 32, 64, 96, 128, 256, 360, 384, 480, 640, 768, 1024, 1280, 1536, 1920, 3840,
+    ];
+    const semLargura = (u: string) => u.replace(/-\d+\.(?:avif|webp)$/, "");
+    const webp = LARGURAS_DO_NEXT.map((w) => siteImageLoader({ src: FOTO, width: w }));
+    for (const u of webp) {
+      const w = Number(/-(\d+)\.webp$/.exec(u)?.[1]);
+      expect(
+        (GALLERY_WEBP_WIDTHS as readonly number[]).includes(w),
+        `${u}: WebP que não existe`,
+      ).toBe(true);
+    }
+    const fotos = new Set(webp.map(semLargura));
     for (const u of candidatos(fonte(container)!.getAttribute("srcset")!)) {
-      expect(webp.has(u.replace(/\.avif$/, ".webp")), `${u} não tem gémeo WebP`).toBe(true);
+      expect(fotos.has(semLargura(u)), `${u} não é a fotografia do WebP`).toBe(true);
+      const w = Number(/-(\d+)\.avif$/.exec(u)?.[1]);
+      expect((GALLERY_WIDTHS as readonly number[]).includes(w), `${u}: AVIF que não existe`).toBe(
+        true,
+      );
     }
   });
 
@@ -105,13 +124,7 @@ describe("SafeImage — o AVIF à frente do WebP", () => {
   it("um carregador que serve OUTRO ficheiro desliga o AVIF em vez de o desencontrar", () => {
     const { container } = render(
       <div className="relative h-40 w-40">
-        <SafeImage
-          src={FOTO}
-          alt="Foto"
-          fill
-          sizes="100vw"
-          initialLoader={({ src }) => src}
-        />
+        <SafeImage src={FOTO} alt="Foto" fill sizes="100vw" initialLoader={({ src }) => src} />
       </div>,
     );
     expect(container.querySelector("source")).toBeNull();
@@ -171,8 +184,12 @@ describe("HeroImage — o mesmo mecanismo, a mesma escada de sempre", () => {
     expect(avif.length, "não houve pré-carregamento AVIF").toBeGreaterThan(0);
     expect(avif[0].getAttribute("imagesrcset")).toBe(heroAvifSrcSet(CAPA));
     // Nenhum pré-carregamento do mesmo herói em WebP ao lado.
-    expect(preloads.some((l) => /hd-edited.*\.webp|_next\/image.*hd-edited/.test(
-      `${l.getAttribute("href")} ${l.getAttribute("imagesrcset")}`,
-    ))).toBe(false);
+    expect(
+      preloads.some((l) =>
+        /hd-edited.*\.webp|_next\/image.*hd-edited/.test(
+          `${l.getAttribute("href")} ${l.getAttribute("imagesrcset")}`,
+        ),
+      ),
+    ).toBe(false);
   });
 });

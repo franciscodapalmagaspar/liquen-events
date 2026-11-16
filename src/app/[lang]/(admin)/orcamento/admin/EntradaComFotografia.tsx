@@ -95,16 +95,19 @@ import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
  * `scripts/pregen-gallery.mjs` já produz para TODA a fotografia de
  * `public/imagens/` — este componente não gera ficheiro nenhum, serve os que
  * já existem em `/_img/g/`. O painel é 50vw: num ecrã de 1440 são 720 CSS px,
- * ou seja 768 a DPR 1 e 1280 (o tecto) a DPR 2.
+ * ou seja 1024 a DPR 1 e 1280 (o tecto) a DPR 2. (Era 768 a DPR 1: o 768
+ * saiu da escada da galeria a 16/11 e o degrau seguinte é o de cima.)
  */
-export const ESCADA_PAINEL = [640, 768, 1024, 1280] as const;
+export const ESCADA_PAINEL = [640, 1024, 1280] as const;
 
 /**
- * E as do telemóvel. A faixa é larga mas tem 160 px de alto: o tecto fica em
- * 768, a mesma regra (e a mesma razão) da grelha da galeria — acima de ~2x o
- * tamanho de exibição o olho não distingue e os bytes triplicam.
+ * E as do telemóvel. A faixa é larga mas tem 160 px de alto: o tecto era 768,
+ * a mesma regra (e a mesma razão) da grelha da galeria — acima de ~2x o
+ * tamanho de exibição o olho não distingue e os bytes triplicam. O 768 saiu da
+ * escada a 16/11; o tecto passou ao degrau de cima, 1024, como na galeria
+ * (`ESCADA_TELEMOVEL`): nunca menos nitidez do que antes.
  */
-export const ESCADA_FAIXA = [384, 640, 768] as const;
+export const ESCADA_FAIXA = [384, 640, 1024] as const;
 
 /** O ponto onde a faixa do topo dá lugar ao painel de metade do ecrã (`lg`). */
 const CORTE_PAINEL = "(min-width: 1024px)";

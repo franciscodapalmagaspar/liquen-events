@@ -1,4 +1,9 @@
-import { GALLERY_WIDTHS, galleryKey } from "./gallery-image-loader";
+import {
+  GALLERY_WIDTHS,
+  galleryKey,
+  snapGalleryWebpWidth,
+  snapGalleryWidth,
+} from "./gallery-image-loader";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -22,7 +27,8 @@ import { GALLERY_WIDTHS, galleryKey } from "./gallery-image-loader";
  *      768 px →  40,7 KB       (0,62× — ou seja, 1,86 de densidade efectiva)
  *
  * Ao telemóvel passa a ir no máximo **768**: −69 % dos bytes, com a fotografia
- * ainda a 1,86 de densidade efectiva. Quem quiser ver a fotografia a sério
+ * ainda a 1,86 de densidade efectiva. (A 16/11 o 768 saiu da escada e o tecto
+ * do telemóvel subiu para 1024 — ver `ESCADA_TELEMOVEL`.) Quem quiser ver a fotografia a sério
  * abre-a — e aí o lightbox serve a resolução inteira, que é onde a nitidez
  * conta e onde o visitante está mesmo a olhar.
  *
@@ -41,8 +47,15 @@ import { GALLERY_WIDTHS, galleryKey } from "./gallery-image-loader";
  * tecto, e a conta do browser continua a ser a honesta dentro dela.
  */
 
-/** Larguras que a grelha oferece a um telemóvel (mosaico a 100vw). */
-export const ESCADA_TELEMOVEL = GALLERY_WIDTHS.filter((w) => w <= 768);
+/**
+ * Larguras que a grelha oferece a um telemóvel (mosaico a 100vw).
+ *
+ * O tecto era 768. O 768 saiu da escada a 16/11 (ver `GALLERY_WEBP_WIDTHS`),
+ * e o degrau de baixo (640, 1,55 de densidade a 412 px) era perder nitidez:
+ * o tecto subiu para o degrau de cima, 1024. Mais bytes num telemóvel, a
+ * mesma ou melhor fotografia — nunca pior.
+ */
+export const ESCADA_TELEMOVEL = GALLERY_WIDTHS.filter((w) => w <= 1024);
 /** Larguras que a grelha oferece de `sm` para cima (mosaico a 50vw / 33vw). */
 export const ESCADA_ECRA_GRANDE = GALLERY_WIDTHS.filter((w) => w <= 1024);
 
@@ -51,9 +64,17 @@ export const CORTE_TELEMOVEL = "(max-width: 639px)";
 
 export type FormatoDaGaleria = "avif" | "webp";
 
-/** `/_img/g/<chave>-<largura>.<formato>` — o que o pré-gerador escreve. */
+/**
+ * `/_img/g/<chave>-<largura>.<formato>` — o que o pré-gerador escreve.
+ *
+ * A largura arredonda PARA CIMA até um degrau que existe NESSE formato: o AVIF
+ * tem a escada toda (`GALLERY_WIDTHS`), o WebP só a reserva
+ * (`GALLERY_WEBP_WIDTHS`). Quem pedir `-1024.webp` recebe `-1280.webp` — nunca
+ * um ficheiro que o pré-gerador não escreveu.
+ */
 export function ficheiroDaGaleria(src: string, largura: number, formato: FormatoDaGaleria): string {
-  return `/_img/g/${galleryKey(src)}-${largura}.${formato}`;
+  const w = formato === "webp" ? snapGalleryWebpWidth(largura) : snapGalleryWidth(largura);
+  return `/_img/g/${galleryKey(src)}-${w}.${formato}`;
 }
 
 /**
@@ -69,7 +90,15 @@ export function srcsetDaGaleria(
   formato: FormatoDaGaleria,
   sufixo = "",
 ): string {
-  return escada.map((w) => `${ficheiroDaGaleria(src, w, formato)}${sufixo} ${w}w`).join(", ");
+  // Cada candidato diz a largura VERDADEIRA do seu ficheiro, e os repetidos
+  // saem: na escada do WebP, 640 e 1024 caem os dois no ficheiro de 1280.
+  const porFicheiro = new Map<string, string>();
+  for (const w of escada) {
+    const url = ficheiroDaGaleria(src, w, formato);
+    const real = formato === "webp" ? snapGalleryWebpWidth(w) : snapGalleryWidth(w);
+    if (!porFicheiro.has(url)) porFicheiro.set(url, `${url}${sufixo} ${real}w`);
+  }
+  return [...porFicheiro.values()].join(", ");
 }
 
 /**

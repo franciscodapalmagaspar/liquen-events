@@ -21,8 +21,10 @@
  * exactamente onde ele estava a ser visto. A regra passa a ser simples e sem
  * excepções: TODO o ficheiro de imagem em public/imagens/ tem escada estática.
  *
- * SAÍDA. public/_img/g/<chave>-<largura>.webp, para todos os ficheiros de
- * imagem de public/imagens/ nas larguras de GALLERY_WIDTHS. NÃO é versionado
+ * SAÍDA. public/_img/g/<chave>-<largura>.avif nas larguras de GALLERY_WIDTHS e
+ * <chave>-<largura>.webp só em GALLERY_WEBP_WIDTHS (384 e 1280, a reserva de
+ * quem não lê AVIF), para todos os ficheiros de imagem de public/imagens/.
+ * NÃO é versionado
  * (ver .gitignore): são ~220 MB de WebP incompressível (gzip -1 poupa 0,2%) que
  * o build regenera de graça.
  *
@@ -77,9 +79,32 @@ const IMAGE_EXT = /\.(jpe?g|png|webp)$/i;
  */
 const SKIP_DIRS = new Set(["_intake"]);
 
-// Em sincronia com GALLERY_WIDTHS / GALLERY_QUALITY do loader.
-const WIDTHS = [384, 640, 768, 1024, 1280];
+// Em sincronia com GALLERY_WIDTHS / GALLERY_QUALITY do loader. É a escada do
+// AVIF; o WebP só tem `WEBP_WIDTHS` (ver lá). O 768 saiu a 16/11.
+const WIDTHS = [384, 640, 1024, 1280];
 const QUALITY = 65;
+
+/**
+ * O WebP só em 384 e 1280 (16/11) — em sincronia com GALLERY_WEBP_WIDTHS.
+ *
+ * Cada publicação guarda `public/_img/g` inteiro, e guardar publicações era
+ * uma das duas maiores linhas da fatura de 3–15/11. O WebP é a reserva de quem
+ * não lê AVIF (o `<picture>` dá o AVIF a todos os outros); para essa reserva
+ * chegam duas larguras. Medido antes/depois na descrição do PR.
+ */
+const WEBP_WIDTHS = [384, 1280];
+
+/**
+ * O pedaço das larguras no CARIMBO da cache fica o de antes, de propósito.
+ * Mudá-lo invalidava as 1057 entradas e recodificava tudo na construção
+ * seguinte (a linha mais cara da fatura é precisamente construir) — para
+ * escrever ficheiros iguais aos que já lá estão: tirar larguras não muda os
+ * píxeis das que ficam. Uma largura NOVA não precisa do carimbo: a cache só é
+ * aceite se todos os ficheiros pedidos existirem (ver `cached`), e a que falta
+ * força a recodificação dessa foto. Mudar a QUALIDADE, essa sim, muda o
+ * carimbo (`QUALITY`, `AVIF_QUALITY`, `AVIF_EFFORT`).
+ */
+const LARGURAS_DO_CARIMBO = "384,640,768,1024,1280";
 
 /**
  * ── AVIF, ao lado do WebP ──────────────────────────────────────────────────
@@ -125,9 +150,19 @@ const AVIF_QUALITY = 52;
 const AVIF_EFFORT = 3;
 /** As duas famílias, para os sítios que percorrem a escada toda. */
 const FORMATOS = [
-  { ext: "webp", encode: (s) => s.webp({ quality: QUALITY }) },
-  { ext: "avif", encode: (s) => s.avif({ quality: AVIF_QUALITY, effort: AVIF_EFFORT }) },
+  { ext: "webp", larguras: WEBP_WIDTHS, encode: (s) => s.webp({ quality: QUALITY }) },
+  {
+    ext: "avif",
+    larguras: WIDTHS,
+    encode: (s) => s.avif({ quality: AVIF_QUALITY, effort: AVIF_EFFORT }),
+  },
 ];
+
+/** Os ficheiros que uma foto tem de ter: cada formato na SUA escada. */
+function ficheirosDe(chave) {
+  return FORMATOS.flatMap((f) => f.larguras.map((w) => ({ w, f, nome: `${chave}-${w}.${f.ext}` })));
+}
+const FICHEIROS_POR_FOTO = FORMATOS.reduce((n, f) => n + f.larguras.length, 0);
 
 // sharp já é multi-thread no seu próprio pool; mais workers do que núcleos só
 // serve para manter o pool cheio enquanto uns fazem I/O.
@@ -271,7 +306,7 @@ async function juntarOPacote(atual) {
     if (junto[chave] || !byKey.has(chave)) continue;
     // Só entra se TODOS os ficheiros da chave vieram no pacote; senão a
     // entrada fica de fora e a foto é codificada como antes.
-    const nomes = WIDTHS.flatMap((w) => FORMATOS.map((f) => `${chave}-${w}.${f.ext}`));
+    const nomes = ficheirosDe(chave).map((x) => x.nome);
     const temTudo = (
       await Promise.all(
         nomes.map((n) =>
@@ -327,7 +362,7 @@ function stamp(conteudo) {
   // invalidar a cache, senão o build seguinte serve ficheiros da qualidade
   // anterior e ninguém dá por isso.
   const resumo = createHash("sha1").update(conteudo).digest("hex");
-  return `${resumo}:${conteudo.length}:${WIDTHS.join(",")}:${QUALITY}:a${AVIF_QUALITY}e${AVIF_EFFORT}`;
+  return `${resumo}:${conteudo.length}:${LARGURAS_DO_CARIMBO}:${QUALITY}:a${AVIF_QUALITY}e${AVIF_EFFORT}`;
 }
 
 const nextIndex = {};
@@ -335,9 +370,9 @@ const t0 = Date.now();
 let encoded = 0;
 let reused = 0;
 let i = 0;
-const bytesByWidth = Object.fromEntries(WIDTHS.map((w) => [w, 0]));
+const bytesByWidth = Object.fromEntries(WEBP_WIDTHS.map((w) => [w, 0]));
 const bytesAvifByWidth = Object.fromEntries(WIDTHS.map((w) => [w, 0]));
-const countByWidth = Object.fromEntries(WIDTHS.map((w) => [w, 0]));
+const countByWidth = Object.fromEntries(WEBP_WIDTHS.map((w) => [w, 0]));
 const failures = [];
 /** src -> cor média, escrito em tile-colors.json (ver mais abaixo). */
 const colors = {};
@@ -448,16 +483,13 @@ async function worker() {
       let cached = entry?.stamp === want && typeof entry.color === "string";
       if (cached) color = entry.color;
       if (cached) {
-        for (const w of WIDTHS) {
-          for (const f of FORMATOS) {
-            try {
-              await fs.access(path.join(CACHE_DIR, `${key}-${w}.${f.ext}`));
-            } catch {
-              cached = false;
-              break;
-            }
+        for (const { nome } of ficheirosDe(key)) {
+          try {
+            await fs.access(path.join(CACHE_DIR, nome));
+          } catch {
+            cached = false;
+            break;
           }
-          if (!cached) break;
         }
       }
 
@@ -493,6 +525,7 @@ async function worker() {
             .resize(target, null, { withoutEnlargement: true })
             .toColourspace("srgb");
           for (const f of FORMATOS) {
+            if (!f.larguras.includes(w)) continue;
             const buf = await f.encode(base.clone()).toBuffer();
             await fs.writeFile(path.join(CACHE_DIR, `${key}-${w}.${f.ext}`), buf);
             if (f.ext === "webp") smallest ??= buf;
@@ -524,19 +557,16 @@ async function worker() {
       await fh.close();
     }
 
-    for (const w of WIDTHS) {
-      for (const f of FORMATOS) {
-        const cacheFile = path.join(CACHE_DIR, `${key}-${w}.${f.ext}`);
-        await link(cacheFile, path.join(OUT_DIR, `${key}-${w}.${f.ext}`));
-        const s = await fs.stat(cacheFile);
-        // O relatório continua a contar o WebP: é a linha comparável com todas
-        // as medições anteriores. O AVIF tem contagem própria.
-        if (f.ext === "webp") {
-          bytesByWidth[w] += s.size;
-          countByWidth[w]++;
-        } else {
-          bytesAvifByWidth[w] += s.size;
-        }
+    for (const { w, f, nome } of ficheirosDe(key)) {
+      const cacheFile = path.join(CACHE_DIR, nome);
+      await link(cacheFile, path.join(OUT_DIR, nome));
+      const s = await fs.stat(cacheFile);
+      // O relatório conta os dois formatos à parte.
+      if (f.ext === "webp") {
+        bytesByWidth[w] += s.size;
+        countByWidth[w]++;
+      } else {
+        bytesAvifByWidth[w] += s.size;
       }
     }
     nextIndex[key] = { stamp: want, color, ...(analise ? { analise } : {}) };
@@ -574,19 +604,17 @@ const missing = [];
 const badKeys = new Set();
 for (const src of sources) {
   const key = galleryKey(src);
-  for (const w of WIDTHS) {
-    for (const f of FORMATOS) {
-      const out = path.join(OUT_DIR, `${key}-${w}.${f.ext}`);
-      try {
-        const s = await fs.stat(out);
-        if (s.size === 0) {
-          missing.push(`${key}-${w}.${f.ext} (0 bytes)`);
-          badKeys.add(key);
-        }
-      } catch {
-        missing.push(`${key}-${w}.${f.ext}`);
+  for (const { nome } of ficheirosDe(key)) {
+    const out = path.join(OUT_DIR, nome);
+    try {
+      const s = await fs.stat(out);
+      if (s.size === 0) {
+        missing.push(`${nome} (0 bytes)`);
         badKeys.add(key);
       }
+    } catch {
+      missing.push(nome);
+      badKeys.add(key);
     }
   }
 }
@@ -603,16 +631,14 @@ if (missing.length) {
    * de fazer) e o próximo regenera-as sozinho.
    */
   for (const key of badKeys) {
-    for (const w of WIDTHS) {
-      for (const f of FORMATOS) {
-        await fs.rm(path.join(CACHE_DIR, `${key}-${w}.${f.ext}`), { force: true });
-        await fs.rm(path.join(OUT_DIR, `${key}-${w}.${f.ext}`), { force: true });
-      }
+    for (const { nome } of ficheirosDe(key)) {
+      await fs.rm(path.join(CACHE_DIR, nome), { force: true });
+      await fs.rm(path.join(OUT_DIR, nome), { force: true });
     }
   }
   console.error(
     `pregen-gallery: ${missing.length} ficheiro(s) em falta na saída, de ` +
-      `${sources.length * WIDTHS.length * FORMATOS.length} esperados:`,
+      `${sources.length * FICHEIROS_POR_FOTO} esperados:`,
   );
   for (const m of missing.slice(0, 20)) console.error(`  - ${m}`);
   console.error(
@@ -624,8 +650,7 @@ if (missing.length) {
 // Limpeza: ficheiros de fotos que já não existem em public/imagens/, tanto na
 // saída como na cache (senão a cache cresce para sempre).
 const wanted = new Set();
-for (const key of byKey.keys())
-  for (const w of WIDTHS) for (const f of FORMATOS) wanted.add(`${key}-${w}.${f.ext}`);
+for (const key of byKey.keys()) for (const { nome } of ficheirosDe(key)) wanted.add(nome);
 let pruned = 0;
 for (const dir of [OUT_DIR, CACHE_DIR]) {
   for (const name of await fs.readdir(dir)) {
@@ -746,17 +771,26 @@ console.log(
 // nenhum, só a cor média de cada foto. Ver a nota em `galeria/page.tsx`.)
 
 const seconds = (Date.now() - t0) / 1000;
-const totalBytes = Object.values(bytesByWidth).reduce((a, b) => a + b, 0);
+const totalBytes =
+  Object.values(bytesByWidth).reduce((a, b) => a + b, 0) +
+  Object.values(bytesAvifByWidth).reduce((a, b) => a + b, 0);
 console.log(
   `pregen-gallery: ${sources.length} fotos (${gallerySources.length} na galeria) x ` +
-    `${WIDTHS.length} larguras = ${sources.length * WIDTHS.length} ficheiros ` +
+    `${FICHEIROS_POR_FOTO} ficheiros (AVIF ${WIDTHS.join("/")}, WebP ${WEBP_WIDTHS.join("/")}) = ` +
+    `${sources.length * FICHEIROS_POR_FOTO} ficheiros ` +
     `(${(totalBytes / 1048576).toFixed(1)} MB) em ${seconds.toFixed(1)}s — ` +
     `${encoded} encodadas, ${reused} reaproveitadas da cache` +
     (pruned ? `, ${pruned} obsoletas removidas` : ""),
 );
 console.log(
   "  " +
-    WIDTHS.map(
-      (w) => `w=${w}: ${(bytesByWidth[w] / countByWidth[w] / 1024).toFixed(1)}KB média`,
-    ).join("  "),
+    [
+      ...WEBP_WIDTHS.map(
+        (w) => `webp ${w}: ${(bytesByWidth[w] / countByWidth[w] / 1024).toFixed(1)}KB média`,
+      ),
+      ...WIDTHS.map(
+        (w) =>
+          `avif ${w}: ${(bytesAvifByWidth[w] / Math.max(1, sources.length) / 1024).toFixed(1)}KB média`,
+      ),
+    ].join("  "),
 );

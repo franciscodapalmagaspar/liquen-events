@@ -122,11 +122,12 @@ describe("GalleryImage: um mosaico falhado volta a ser pedido", () => {
     expect(tipos).toEqual(["image/avif", "image/webp", "image/avif", "image/webp"]);
   });
 
-  it("o telemóvel não recebe candidatos acima de 768 px", () => {
+  it("o telemóvel não recebe AVIF acima de 1024 px", () => {
     // O achado da Fase 0: servia-se 1280 px para caixas de 412 CSS px (3,11x)
     // em 374 de 374 fotos, e isso sozinho era 55 MB por travessia. O tecto do
-    // telemóvel é o que corta -69% dos bytes sem se ver diferença — e não pode
-    // ser reintroduzido por distracção num `sizes`.
+    // telemóvel era 768; o 768 saiu da escada a 16/11 e o tecto passou ao
+    // degrau de cima (1024), para não perder nitidez — mas o 1280 continua de
+    // fora. O WebP (a reserva de quem não lê AVIF) só existe em 384 e 1280.
     renderTile();
     const doTelemovel = [...document.querySelectorAll("source")].filter((s) =>
       (s.getAttribute("media") ?? "").includes("max-width: 639px"),
@@ -137,7 +138,11 @@ describe("GalleryImage: um mosaico falhado volta a ser pedido", () => {
         Number(m[1]),
       );
       expect(larguras.length).toBeGreaterThan(0);
-      expect(Math.max(...larguras)).toBeLessThanOrEqual(768);
+      if (s.getAttribute("type") === "image/avif") {
+        expect(Math.max(...larguras)).toBeLessThanOrEqual(1024);
+      } else {
+        expect(larguras.every((w) => w === 384 || w === 1280)).toBe(true);
+      }
     }
   });
 

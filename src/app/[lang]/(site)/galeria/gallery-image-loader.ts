@@ -50,7 +50,28 @@ import type { ImageLoaderProps } from "next/image";
  * servidos a 175 KB em vez de ~107 KB (+63%). Com 1024 na escada o degrau
  * desaparece e os bytes ficam iguais aos do optimizador.
  */
-export const GALLERY_WIDTHS = [384, 640, 768, 1024, 1280] as const;
+export const GALLERY_WIDTHS = [384, 640, 1024, 1280] as const;
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O WebP SÓ EM DUAS LARGURAS — É A RESERVA, NÃO O FORMATO DO SÍTIO (16/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Cada publicação guarda `public/_img/g` inteiro, e guardar publicações era
+ * uma das duas maiores linhas da fatura de 3–15/11 (~2,8 $). Eram 5 larguras
+ * × (WebP + AVIF) = 10 570 ficheiros, 639 MB. Mas quem tem AVIF — quase toda
+ * a gente — nunca chega a pedir o WebP: o `<picture>` escolhe o AVIF pelo
+ * `type`. O WebP só serve quem não lê AVIF, e para esses chegam duas
+ * larguras: 384 (miniaturas e tira) e 1280 (tudo o resto).
+ *
+ * O 768 saiu das duas famílias. A escada do AVIF ficou com 4 degraus e o que
+ * pedia 768 passa a receber 1024 — nunca menos nitidez do que antes.
+ *
+ * Todos os URLs de WebP passam por `snapGalleryWebpWidth` (aqui e no
+ * `ficheiroDaGaleria`), portanto nenhum pede um ficheiro que deixou de existir.
+ * Em sincronia com `FORMATOS` de scripts/pregen-gallery.mjs (há teste).
+ */
+export const GALLERY_WEBP_WIDTHS = [384, 1280] as const;
 
 /** A qualidade WebP com que os ficheiros são gerados (fica cozida no ficheiro). */
 export const GALLERY_QUALITY = 65;
@@ -84,9 +105,17 @@ export function snapGalleryWidth(width: number): number {
   return GALLERY_WIDTHS.find((w) => w >= width) ?? GALLERY_WIDTHS[GALLERY_WIDTHS.length - 1];
 }
 
-/** O ficheiro estático a que uma foto + largura corresponde. */
+/** Arredonda para cima até à largura WebP que existe (384 ou 1280). */
+export function snapGalleryWebpWidth(width: number): number {
+  return (
+    GALLERY_WEBP_WIDTHS.find((w) => w >= width) ??
+    GALLERY_WEBP_WIDTHS[GALLERY_WEBP_WIDTHS.length - 1]
+  );
+}
+
+/** O ficheiro WebP estático a que uma foto + largura corresponde. */
 export function galleryImageUrl(src: string, width: number): string {
-  return `/_img/g/${galleryKey(src)}-${snapGalleryWidth(width)}.webp`;
+  return `/_img/g/${galleryKey(src)}-${snapGalleryWebpWidth(width)}.webp`;
 }
 
 /**

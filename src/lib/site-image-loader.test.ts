@@ -10,11 +10,12 @@ import siteImageLoader, {
   siteImageAvifUrl,
 } from "./site-image-loader";
 import {
+  GALLERY_WEBP_WIDTHS,
   GALLERY_WIDTHS,
   galleryKey,
   galleryImageLoader,
 } from "../app/[lang]/(site)/galeria/gallery-image-loader";
-import { heroKey, HERO_SOURCES, HERO_WIDTHS } from "./hero-image-loader";
+import { heroKey, HERO_SOURCES, HERO_WIDTHS, isHeroSrc } from "./hero-image-loader";
 import nextConfig from "../../next.config";
 
 const ROOT = path.join(__dirname, "..", "..");
@@ -22,8 +23,12 @@ const PREGEN_LOGOS = path.join(ROOT, "scripts", "pregen-logos.mjs");
 
 describe("site-image-loader: nenhuma imagem local depende do optimizador", () => {
   it("as fotos (/imagens/) vão para um WebP estático, nunca para o /_next/image", () => {
+    // O WebP é a reserva de quem não lê AVIF: só existe em 384 e 1280 (16/11).
     expect(siteImageLoader({ src: "/imagens/20_10_2025_0044.jpg", width: 640, quality: 75 })).toBe(
-      "/_img/g/20_10_2025_0044-640.webp",
+      "/_img/g/20_10_2025_0044-1280.webp",
+    );
+    expect(siteImageLoader({ src: "/imagens/20_10_2025_0044.jpg", width: 300, quality: 75 })).toBe(
+      "/_img/g/20_10_2025_0044-384.webp",
     );
     expect(
       siteImageLoader({ src: "/imagens/20_10_2025_0044.jpg", width: 640, quality: 75 }),
@@ -123,8 +128,9 @@ describe("site-image-loader: as escadas", () => {
 
   it("as escadas do contrato não mudam sem que alguém repare", () => {
     expect([...LOGO_WIDTHS]).toEqual([64, 128, 256, 384, 512]);
-    expect([...GALLERY_WIDTHS]).toEqual([384, 640, 768, 1024, 1280]);
-    for (const ladder of [LOGO_WIDTHS, GALLERY_WIDTHS]) {
+    expect([...GALLERY_WIDTHS]).toEqual([384, 640, 1024, 1280]);
+    expect([...GALLERY_WEBP_WIDTHS]).toEqual([384, 1280]);
+    for (const ladder of [LOGO_WIDTHS, GALLERY_WIDTHS, GALLERY_WEBP_WIDTHS]) {
       expect([...ladder], "escada por ordem crescente").toEqual([...ladder].sort((a, b) => a - b));
     }
   });
@@ -241,7 +247,7 @@ describe("site-image-loader: contrato com o resto do sistema", () => {
     // imagem servida (não muda: o WebP já está escrito).
     for (const q of [50, 55, 65, 70, 72, 75, undefined]) {
       expect(siteImageLoader({ src: "/imagens/a.jpg", width: 640, quality: q })).toBe(
-        "/_img/g/a-640.webp",
+        "/_img/g/a-1280.webp",
       );
       expect(siteImageLoader({ src: "/logo-liquen.png", width: 256, quality: q })).toBe(
         "/_img/l/logo-liquen-256.webp",
@@ -329,12 +335,18 @@ describe("site-image-loader: o gémeo AVIF (a <source> do SafeImage)", () => {
    */
   const LARGURAS = [16, 64, 256, 360, 384, 640, 768, 1024, 1080, 1280, 1536, 1920, 3840];
 
-  it("é o WebP do carregador com outra extensão, largura a largura, nos dois ramos com gémeo", () => {
+  it("é a mesma fotografia que o WebP do carregador, nos dois ramos com gémeo", () => {
+    // Nos heróis, largura a largura; na galeria, o WebP só existe em 384 e
+    // 1280 (16/11), portanto pode ser um degrau acima — nunca abaixo.
+    const largura = (u: string) => Number(/-(\d+)\.(?:avif|webp)$/.exec(u)?.[1]);
     for (const src of ["/imagens/EW1_1100.jpg", "/imagens/M&F0678.jpg", "/imagens/hd-edited.jpg"]) {
       for (const w of LARGURAS) {
         const avif = siteImageAvifUrl(src, w);
+        const webp = siteImageLoader({ src, width: w });
         expect(avif, `${src} @${w}`).not.toBeNull();
-        expect(avif!.replace(/\.avif$/, ".webp")).toBe(siteImageLoader({ src, width: w }));
+        expect(avif!.replace(/-\d+\.avif$/, "")).toBe(webp.replace(/-\d+\.webp$/, ""));
+        if (isHeroSrc(src)) expect(avif!.replace(/\.avif$/, ".webp")).toBe(webp);
+        else expect(largura(webp)).toBeGreaterThanOrEqual(largura(avif!));
       }
     }
   });

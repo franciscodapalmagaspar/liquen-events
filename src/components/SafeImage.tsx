@@ -264,8 +264,9 @@ export type SafeImageProps = Omit<ImageProps, "src" | "loader" | "onError" | "on
  * isso, para cada candidato, exige-se duas coisas:
  *   · que haja AVIF para aquela origem (`siteImageAvifUrl`, que só diz que sim
  *     onde um pré-gerador garante o ficheiro e falha o build se faltar);
- *   · que esse AVIF seja o gémeo EXACTO do WebP que o `<img>` vai pedir — mesmo
- *     caminho, mesma largura, só a extensão diferente. É isto que torna seguro
+ *   · que esse AVIF seja o gémeo do WebP que o `<img>` vai pedir — mesmo
+ *     caminho, só a largura e a extensão podem diferir (o WebP da galeria só
+ *     existe em 384 e 1280 — ver `semLarguraNemFormato`). É isto que torna seguro
  *     um `initialLoader` (o do herói): se um dia um carregador servir outro
  *     ficheiro, a comparação falha e a fotografia fica-se pelo WebP, inteira.
  * Basta UM candidato falhar para não haver `<source>` nenhuma.
@@ -280,6 +281,18 @@ export type SafeImageProps = Omit<ImageProps, "src" | "loader" | "onError" | "on
  * é este portão — o WebP continua por baixo, intacto.
  */
 type FonteAvif = { srcSet: string; sizes?: string; maior: string };
+
+/**
+ * O caminho sem o `-<largura>.<formato>` do fim — o que um gémeo AVIF e o seu
+ * WebP têm de ter igual. A LARGURA já não entra na comparação (16/11): o WebP
+ * da galeria passou a existir só em 384 e 1280, como reserva para quem não lê
+ * AVIF, e o carregador arredonda-o para cima; o AVIF continua com a escada
+ * toda. Mesma fotografia, mesma pasta, larguras que podem diferir. Um
+ * carregador que sirva OUTRO ficheiro continua a falhar a comparação.
+ */
+function semLarguraNemFormato(url: string): string {
+  return url.replace(/-\d+\.(?:avif|webp)$/, "");
+}
 
 /** As duas caixas do `<picture>` — ver o porquê junto do `return`. Fora do
     componente para não criar um objecto novo por render. */
@@ -308,7 +321,8 @@ function fonteAvif(
     quality: p.quality,
     loader: (q) => {
       const avif = siteImageAvifUrl(q.src, q.width);
-      if (avif === null || avif.replace(/\.avif$/, ".webp") !== primeiro(q)) gemeos = false;
+      if (avif === null || semLarguraNemFormato(avif) !== semLarguraNemFormato(primeiro(q)))
+        gemeos = false;
       return avif ?? q.src;
     },
   });
