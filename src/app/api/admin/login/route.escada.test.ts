@@ -241,3 +241,66 @@ describe("o corpo antigo (`name`) continua a ser aceite", () => {
     expect(res.status).toBe(200);
   });
 });
+
+/**
+ * A escada conta POR PESSOA, e não por aquilo que foi escrito na caixa. Se o
+ * nome e o email da mesma conta tivessem escadas diferentes, quem tenta tinha o
+ * dobro das tentativas; se cada identificador inventado abrisse a sua, o modo
+ * de palavra-passe partilhada (onde qualquer nome serve) não tinha tecto.
+ */
+describe("a escada é da conta, não do que se escreveu", () => {
+  const chavesDaEscada = () => [...rl.contagens.keys()].filter((k) => k.startsWith("login-conta"));
+
+  it("o nome e o email da mesma conta gastam a mesma escada", async () => {
+    for (let i = 0; i < 3; i++) {
+      await POST(entrar({ name: "Catarina", password: `errada-${i}` }));
+    }
+    for (let i = 0; i < 2; i++) {
+      await POST(entrar({ email: "catarina@liquen-events.com", password: `errada-e${i}` }));
+    }
+    // A 6.ª falha, seja por onde for, já bate no primeiro degrau.
+    const res = await POST(entrar({ name: "catarina", password: "outra" }));
+    expect(res.status).toBe(429);
+  }, 60_000);
+
+  it("o TOTP errado gasta a escada da conta resolvida", async () => {
+    process.env.ADMIN_USERS = JSON.stringify([
+      {
+        name: "Catarina",
+        email: "catarina@liquen-events.com",
+        passwordHash: bcrypt.hashSync("cat-pass", 4),
+        totpSecret: "JBSWY3DPEHPK3PXP",
+      },
+    ]);
+    await POST(entrar({ name: "Catarina", password: "cat-pass", code: "000000" }));
+    await POST(entrar({ email: "catarina@liquen-events.com", password: "cat-pass", code: "1" }));
+    expect(new Set(chavesDaEscada().map((k) => k.split(":").slice(1).join(":")))).toEqual(
+      new Set(["catarina@liquen-events.com"]),
+    );
+    expect(rl.contagens.get("login-conta-curto:catarina@liquen-events.com")).toBe(2);
+  }, 60_000);
+
+  it("identificadores que não existem partilham uma chave, e não abrem escadas novas", async () => {
+    for (let i = 0; i < 6; i++) {
+      await POST(entrar({ email: `inventado-${i}@exemplo.pt`, password: "x" }));
+    }
+    expect(new Set(chavesDaEscada().map((k) => k.split(":").slice(1).join(":")))).toEqual(
+      new Set(["desconhecida"]),
+    );
+  }, 60_000);
+
+  it("sem ADMIN_USERS, a escada é uma só — mudar de nome não compra tentativas", async () => {
+    delete process.env.ADMIN_USERS;
+    process.env.ADMIN_PASSWORD_HASH = bcrypt.hashSync("partilhada-certa", 4);
+    const estados: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      const res = await POST(entrar({ name: `nome-${i}`, password: `errada-${i}` }));
+      estados.push(res.status);
+    }
+    expect(estados.slice(0, 5)).toEqual([401, 401, 401, 401, 401]);
+    expect(estados[5]).toBe(429);
+    expect(new Set(chavesDaEscada().map((k) => k.split(":").slice(1).join(":")))).toEqual(
+      new Set(["partilhada"]),
+    );
+  }, 60_000);
+});

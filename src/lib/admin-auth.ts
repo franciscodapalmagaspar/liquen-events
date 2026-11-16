@@ -445,6 +445,35 @@ function encontrarConta(users: AdminUser[], identificador: string): ContaEncontr
   return null;
 }
 
+/**
+ * A chave da ESCADA DO BLOQUEIO da entrada (`api/admin/login`): de QUEM se está
+ * a tentar a conta, e não do que foi escrito na caixa.
+ *
+ *  · sem `ADMIN_USERS` (palavra-passe partilhada) qualquer nome serve, portanto
+ *    só há uma porta, e uma escada: `partilhada`. Com a chave a seguir o que se
+ *    escreveu, cada nome novo trazia tentativas novas à mesma palavra-passe;
+ *  · com contas, a conta RESOLVIDA (o email dela, ou o nome se não o tiver): o
+ *    nome e o email da mesma pessoa gastam a mesma escada;
+ *  · um identificador que não é de ninguém vai para uma chave fixa comum,
+ *    `desconhecida` — não abre uma escada nova por cada endereço inventado.
+ *
+ * Uma conta chamada «desconhecida» (sem email) partilharia a escada com os
+ * identificadores inexistentes. Isso só aperta, nunca alarga.
+ *
+ * O QUE ISTO DEIXA À VISTA: com a escada comum cheia, um identificador que não
+ * existe leva 429 onde uma conta real, com a escada vazia, leva 401. É o preço
+ * de não abrir uma escada por cada endereço inventado; as contas da casa são
+ * duas ou três, e o caminho que importa — adivinhar a palavra-passe — fica
+ * mais apertado, não menos.
+ */
+export function chaveDaEscadaDeEntrada(identificador: string): string {
+  const users = configuredUsers();
+  if (!users) return "partilhada";
+  const achada = encontrarConta(users, identificador);
+  if (!achada) return "desconhecida";
+  return normalizarIdentificador(achada.user.email ?? achada.user.name);
+}
+
 /** A conta com este email, para a recuperação. Null quando não existe. */
 function contaPorEmail(email: string): AdminUser | null {
   const users = configuredUsers();
