@@ -3,6 +3,7 @@ import { pdfDoLink, versaoDaChave } from "@/lib/paginas-da-proposta";
 import { formasDasPaginas, textoDasPaginas } from "@/lib/paginas-do-pdf";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,7 +13,7 @@ export const maxDuration = 60;
  * o que a página do casal precisa para pôr as imagens no sítio antes de
  * chegarem (nada salta) e para o leitor de ecrã. Ver `PaginasDoPdf.tsx`.
  */
-export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
+async function GET_semMedida(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const limited = await rateLimit(`proposta-paginas:${clientIp(request)}`, 30, 60_000);
   if (!limited.ok) return new NextResponse(null, { status: 429 });
   const { token } = await params;
@@ -35,3 +36,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     return new NextResponse(null, { status: 500 });
   }
 }
+
+export const GET = comCpu("proposta-paginas GET", GET_semMedida);

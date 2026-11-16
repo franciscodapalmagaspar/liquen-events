@@ -4,6 +4,7 @@ import { isDatabaseConfigured } from "@/lib/supabase";
 import { miniaturaAPedidoComMotivo } from "@/lib/derivadas";
 import { ehRefDeTema } from "@/lib/theme-ref";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 // `sharp` precisa do runtime de Node.
 export const runtime = "nodejs";
@@ -74,7 +75,10 @@ function recusa(motivo: string, mensagem: string, estado: number): NextResponse 
   );
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function GET_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) {
     return recusa("sem-sessao", "Não autorizado", 401);
   }
@@ -133,3 +137,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   }
 }
+
+export const GET = comCpu("miniatura GET", GET_semMedida);

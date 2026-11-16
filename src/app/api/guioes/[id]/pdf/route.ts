@@ -5,6 +5,7 @@ import { listSuppliers } from "@/lib/suppliers-store";
 import { eventTagLabel } from "@/lib/orcamento/data";
 import { horarioEmPdf } from "@/lib/orcamento/horario-pdf";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,7 +74,10 @@ async function fornecedoresDoEvento(
   });
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function GET_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const { id } = await params;
   try {
@@ -155,3 +159,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+export const GET = comCpu("guiao-pdf GET", GET_semMedida);
