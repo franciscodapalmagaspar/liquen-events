@@ -76,6 +76,7 @@ import {
   totalAte,
   type Contagem,
 } from "@/lib/tempo-activo";
+import { criarEnvioDoTempo, PASSO_DO_ECRA_MS, type EnvioDoTempo } from "@/lib/tempo-activo-envio";
 import { ehRefDeTema } from "@/lib/theme-ref";
 import { linhasDeOrcamento } from "@/lib/orcamento/decoracao";
 import {
@@ -2456,10 +2457,9 @@ export default function ProposalStudio({
    * enviasse o total, dois separadores abertos na mesma proposta escreviam um
    * por cima do outro e ficava só o do último a falar.
    *
-   * O que já foi enviado vive numa `ref`: é o ponto de referência do próximo
-   * incremento, e não tem nada que redesenhar o ecrã quando muda.
+   * Quando se envia (de 5 em 5 min, ao esconder e ao fechar) e como se junta
+   * por secção está em `tempo-activo-envio.ts`, com relógio falso nos testes.
    */
-  const tempoEnviado = useRef(0);
   /**
    * A secção onde ela está agora, vinda da coluna lateral (que já a calcula).
    *
@@ -2471,15 +2471,9 @@ export default function ProposalStudio({
   const anotarSeccao = useCallback((id: string | null) => {
     seccaoActivaRef.current = id;
   }, []);
-  const reportarTempo = useCallback(
-    (total: number, aFechar = false) => {
-      const delta = Math.round(total - tempoEnviado.current);
-      // Menos de um segundo não vale um pedido. A `ref` não avança, portanto
-      // este bocadinho não se perde: vai no envio seguinte.
-      if (delta < 1000) return;
-      tempoEnviado.current = total;
-      const seccao = seccaoActivaRef.current;
-      const corpo = JSON.stringify({ ms: delta, ...(seccao ? { seccao } : {}) });
+  const enviarPedaco = useCallback(
+    (ms: number, seccao: string | null, aFechar: boolean) => {
+      const corpo = JSON.stringify({ ms, ...(seccao ? { seccao } : {}) });
       const url = `/api/orcamento/${quote.id}/tempo-activo`;
       if (aFechar && typeof navigator !== "undefined" && navigator.sendBeacon) {
         // O beacon sobrevive à página; um `fetch` não.
@@ -2504,13 +2498,43 @@ export default function ProposalStudio({
     },
     [quote.id],
   );
+  /**
+   * O envio vive numa `ref` do componente, como vivia o «já enviado»: trocar
+   * de cliente não recomeça a conta do zero (a contagem `tempo` também não
+   * recomeça), senão o total já enviado subia outra vez, para o cliente novo.
+   * Quem recebe é sempre o `enviarPedaco` de AGORA — e a limpeza do efeito,
+   * ao trocar, ainda corre com o do cliente anterior (as limpezas correm
+   * antes deste efeito actualizar a `ref`).
+   */
+  const enviarPedacoRef = useRef(enviarPedaco);
+  const envioRef = useRef<EnvioDoTempo | null>(null);
   useEffect(() => {
+    enviarPedacoRef.current = enviarPedaco;
+  }, [enviarPedaco]);
+  useEffect(() => {
+    envioRef.current ??= criarEnvioDoTempo(
+      (ms, seccao, aFechar) => enviarPedacoRef.current(ms, seccao, aFechar),
+      Date.now(),
+    );
+    const envio = envioRef.current;
     const sinal = (tipo: "vida" | "pausa") => () => {
       tempo.current = comAcontecimento(tempo.current, { tipo, em: Date.now() });
     };
     const vivo = sinal("vida");
     const parado = sinal("pausa");
-    const aoMudarDeFoco = () => (document.hidden ? parado() : vivo());
+    /** Envia já o que houver por enviar (ao esconder, ao fechar, ao trocar). */
+    const despejar = () => {
+      const agora = Date.now();
+      envio.despejar(totalAte(tempo.current, agora), seccaoActivaRef.current, agora);
+    };
+    const aoMudarDeFoco = () => {
+      if (document.hidden) {
+        parado();
+        // Num telemóvel uma página escondida pode não voltar: o que estava
+        // por enviar sobe já, pelo beacon.
+        despejar();
+      } else vivo();
+    };
     for (const ev of ["pointerdown", "keydown", "wheel", "scroll"] as const) {
       window.addEventListener(ev, vivo, { passive: true });
     }
@@ -2519,18 +2543,19 @@ export default function ProposalStudio({
     document.addEventListener("visibilitychange", aoMudarDeFoco);
     vivo();
     // Meio minuto: o número mostrado é em minutos, portanto qualquer passo mais
-    // curto seria trabalho para não mudar nada no ecrã. É também o passo a que
-    // o tempo sobe para o servidor — o mesmo relógio serve as duas coisas.
+    // curto seria trabalho para não mudar nada no ecrã. O envio ao servidor
+    // anota a cada passo e só sobe de 5 em 5 minutos (`tempo-activo-envio.ts`).
     const relogio = setInterval(() => {
-      const total = totalAte(tempo.current, Date.now());
+      const agora = Date.now();
+      const total = totalAte(tempo.current, agora);
       setTempoMostrado(total);
-      reportarTempo(total);
-    }, 30_000);
+      envio.passo(total, seccaoActivaRef.current, agora);
+    }, PASSO_DO_ECRA_MS);
     /**
      * ── AO FECHAR, O QUE FALTAVA ─────────────────────────────────────────
      *
-     * O passo é de meio minuto, portanto fechar o separador deixava sempre
-     * para trás até meio minuto — e, num dia de trabalho partido em muitas
+     * O envio é de cinco em cinco minutos (era de meio minuto), portanto
+     * fechar o separador deixava sempre para trás até cinco minutos — e, num dia de trabalho partido em muitas
      * aberturas curtas, «até meio minuto de cada vez» deixa de ser arredondar
      * e passa a ser um viés sempre para baixo.
      *
@@ -2538,7 +2563,7 @@ export default function ProposalStudio({
      * cancelado com a página. O beacon é entregue pelo browser depois de o
      * separador morrer, que é precisamente o que aqui se quer.
      */
-    const aoFechar = () => reportarTempo(totalAte(tempo.current, Date.now()), true);
+    const aoFechar = despejar;
     window.addEventListener("pagehide", aoFechar);
     return () => {
       for (const ev of ["pointerdown", "keydown", "wheel", "scroll"] as const) {
@@ -2553,7 +2578,7 @@ export default function ProposalStudio({
       // último passo ficava por contar em todas as trocas.
       aoFechar();
     };
-  }, [reportarTempo]);
+  }, [enviarPedaco]);
 
   /**
    * O campo a que o aviso de ortografia mandou ir, à espera de ser desenhado.
