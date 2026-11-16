@@ -245,6 +245,13 @@ de construção e mais uma versão guardada), ou quando ela pede para ver no sit
 Só o site em baixo, a segurança ou um erro que um cliente esteja a ver passam à
 frente. E um commit em `main` dá UM deployment: confirma em `list_deployments`.
 
+**Agora é o código que o faz cumprir** (16/11, `scripts/vercel-construir.mjs`):
+em produção só constrói o commit cuja mensagem começa por «Lote », contém
+`lote/`, ou traz `[publicar]` ou `[urgente]`; os outros commits no `main`
+saltam a construção e chegam ao site com o lote seguinte. Para forçar uma
+publicação, põe `[publicar]` (ou `[urgente]`) no título do PR que entra em
+squash, ou num commit vazio no `main`.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
