@@ -172,27 +172,56 @@ function prenderAoPedido(trabalho: Promise<unknown>): void {
 // single recurring error from flooding the channel.
 const recentAlerts = new Map<string, number>();
 
+/**
+ * Origens cujo texto vem de FORA (um browser anónimo, por exemplo): todas as
+ * mensagens com um destes prefixos partilham UMA chave de travão. Sem isto,
+ * cada mensagem diferente abria a sua própria janela, e o travão não travava
+ * nada. Hoje a rota `erro-do-site` já escreve como aviso (não alerta); a chave
+ * fica aqui para o dia em que alguém a volte a pôr como erro.
+ */
+const ORIGENS_DE_FORA = ["site no browser:"];
+
+/** A chave de travão de uma mensagem: a própria mensagem, ou o prefixo da
+ *  origem de fora a que pertence. */
+export function chaveDeTravao(message: string): string {
+  return ORIGENS_DE_FORA.find((p) => message.startsWith(p)) ?? message;
+}
+
+/**
+ * Tira ao texto do alerta o que o Slack e o Discord leem como comando: `<…>`
+ * (menções `<@id>`, `<!channel>`, ligações) e `@` (`@everyone`, `@here`).
+ * Troca-os por parecidos inofensivos, para a linha continuar legível.
+ */
+export function neutralizarParaCanal(texto: string): string {
+  return texto.replace(/</g, "‹").replace(/>/g, "›").replace(/@/g, "＠");
+}
+
 function alertWebhook(message: string, context: Context | undefined, err: unknown) {
   const url = process.env.ERROR_WEBHOOK_URL;
   if (!url || process.env.NODE_ENV !== "production") return;
 
   const now = Date.now();
-  const last = recentAlerts.get(message);
+  const chave = chaveDeTravao(message);
+  const last = recentAlerts.get(chave);
   if (last && now - last < 60_000) return;
   if (recentAlerts.size > 200) recentAlerts.clear();
-  recentAlerts.set(message, now);
+  recentAlerts.set(chave, now);
 
   const detail =
     err instanceof Error ? `${err.name}: ${err.message}` : err !== undefined ? String(err) : "";
   const ctx = context && Object.keys(context).length ? ` · ${JSON.stringify(context)}` : "";
-  const text = `🔴 Líquen — ${message}${detail ? `\n${detail}` : ""}${ctx}`.slice(0, 1500);
+  const text = neutralizarParaCanal(
+    `🔴 Líquen — ${message}${detail ? `\n${detail}` : ""}${ctx}`.slice(0, 1500),
+  );
 
   // Slack reads `text`, Discord reads `content` — send both so either works.
+  // `allowed_mentions` vazio: o Discord não transforma nada em menção, mesmo
+  // que escape alguma coisa à neutralização.
   prenderAoPedido(
     fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, content: text }),
+      body: JSON.stringify({ text, content: text, allowed_mentions: { parse: [] } }),
       signal: AbortSignal.timeout(5000),
     }).then(
       () => {},
@@ -214,10 +243,11 @@ function sentryCapture(message: string, context: Context | undefined, err: unkno
   const [, key, host, projectId] = m;
 
   const now = Date.now();
-  const last = recentSentry.get(message);
+  const chave = chaveDeTravao(message);
+  const last = recentSentry.get(chave);
   if (last && now - last < 30_000) return;
   if (recentSentry.size > 200) recentSentry.clear();
-  recentSentry.set(message, now);
+  recentSentry.set(chave, now);
 
   const eventId = globalThis.crypto.randomUUID().replace(/-/g, "");
   const sentAt = new Date().toISOString();

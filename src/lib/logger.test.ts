@@ -178,3 +178,45 @@ describe("log.error — o alerta é prendido ao pedido (waitUntil)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * O canal de alertas recebe texto que pode ter vindo de fora (a mensagem de um
+ * erro, o contexto de um pedido). Uma menção lá dentro não pode virar um aviso
+ * a toda a gente no Slack/Discord, e os erros do browser de um visitante não
+ * podem abrir uma chave de travão por cada mensagem diferente.
+ */
+describe("log — o alerta não deixa texto de fora mandar no canal", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fetchMock = vi.fn(() => Promise.resolve({ ok: true } as Response));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.ERROR_WEBHOOK_URL = "https://hooks.example.com/abc";
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    delete process.env.ERROR_WEBHOOK_URL;
+  });
+
+  it("neutraliza <, > e @ e desliga as menções", () => {
+    log.error("mencoes <!channel> @everyone <@123>", new Error("<@here>"), { a: "@x" });
+    const corpo = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body));
+    for (const campo of [corpo.text, corpo.content]) {
+      expect(campo).not.toMatch(/[<>@]/);
+      expect(campo).toContain("everyone");
+    }
+    expect(corpo.allowed_mentions).toEqual({ parse: [] });
+  });
+
+  it("os erros do browser do site partilham uma só chave de travão", () => {
+    log.error("site no browser: primeira-mensagem-xyz");
+    log.error("site no browser: segunda-mensagem-xyz");
+    log.error("site no browser: terceira-mensagem-xyz");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

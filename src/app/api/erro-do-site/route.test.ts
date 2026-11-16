@@ -10,6 +10,7 @@ import type { NextRequest } from "next/server";
 const st = vi.hoisted(() => ({
   ritmoOk: true,
   registado: [] as Array<{ mensagem: string; contexto: Record<string, unknown> }>,
+  erros: 0,
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -18,9 +19,13 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/lib/logger", () => ({
   log: {
-    error: (mensagem: string, _e: unknown, contexto: Record<string, unknown>) =>
+    // `log.error` é o que alerta (webhook, Sentry). Esta porta é anónima: o que
+    // ela escreve vai como aviso, e um `error` aqui é o defeito a apanhar.
+    error: () => {
+      st.erros += 1;
+    },
+    warn: (mensagem: string, contexto: Record<string, unknown>) =>
       st.registado.push({ mensagem, contexto }),
-    warn: vi.fn(),
     info: vi.fn(),
   },
 }));
@@ -37,6 +42,7 @@ const req = (corpo: unknown) =>
 beforeEach(() => {
   st.ritmoOk = true;
   st.registado = [];
+  st.erros = 0;
 });
 
 describe("POST /api/erro-do-site", () => {
@@ -48,6 +54,12 @@ describe("POST /api/erro-do-site", () => {
     expect(st.registado).toHaveLength(1);
     expect(st.registado[0]!.mensagem).toBe("site no browser: x is undefined");
     expect(st.registado[0]!.contexto.onde).toBe("/proposta/[token]");
+  });
+
+  it("vai como aviso, que não chega ao canal de alertas nem ao Sentry", async () => {
+    await POST(req({ mensagem: "olhem para isto" }));
+    expect(st.erros).toBe(0);
+    expect(st.registado).toHaveLength(1);
   });
 
   it("só leva os cinco campos, e cortados", async () => {
