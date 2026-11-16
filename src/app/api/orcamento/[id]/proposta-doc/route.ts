@@ -923,7 +923,10 @@ async function POST_semMedida(
     const JANELA_DE_REPETICAO_MS = 3 * 60_000;
     let jaSeguiu = irmasAnteriores.find(
       (p) =>
-        p.status === "enviada" &&
+        // «aceite» também: num pedido já ganho, a que acabou de seguir passa
+        // logo a aceite (`aceitarSeOPedidoJaEstaGanho`), e o segundo toque no
+        // botão não a reconhecia — saía um segundo email ao casal.
+        (p.status === "enviada" || p.status === "aceite") &&
         !!p.versaoSelo &&
         p.versaoSelo === proposal.versaoSelo &&
         !!p.sentAt &&

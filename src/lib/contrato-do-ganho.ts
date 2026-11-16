@@ -90,6 +90,21 @@ export async function aceitarSeOPedidoJaEstaGanho(
   if (irmas.some((p) => p.id !== proposta.id && p.status === "aceite")) return false;
   const aceite = await updateProposal(proposta.id, { status: "aceite", respondedAt: agora });
   if (!aceite) return false;
+  // Dois envios em voo ao mesmo tempo podiam aceitar cada um a sua: relê-se, e
+  // fica a que foi aceite primeiro (empate: o id menor). A outra volta a
+  // «enviada» — uma revisão por responder — e não nasce segundo contrato.
+  const depois = await listProposalsForQuote(quoteId);
+  const primeira = depois
+    .filter((p) => p.status === "aceite")
+    .sort(
+      (a, b) =>
+        String(a.respondedAt ?? "").localeCompare(String(b.respondedAt ?? "")) ||
+        a.id.localeCompare(b.id),
+    )[0];
+  if (primeira && primeira.id !== proposta.id) {
+    await updateProposal(proposta.id, { status: "enviada", respondedAt: "" });
+    return false;
+  }
   await nascerContratoDoGanho(quoteId, { ...proposta, ...aceite });
   return true;
 }

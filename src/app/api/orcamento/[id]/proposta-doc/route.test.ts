@@ -96,6 +96,16 @@ vi.mock("@/lib/proposals-store", () => ({
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
   ),
 }));
+/** Os contratos que nasceram (um pedido já ganho aceita a proposta que segue). */
+const contratos = vi.hoisted(() => ({ criados: [] as { proposalId: string; quoteId: string }[] }));
+vi.mock("@/lib/contracts-store", () => ({
+  newContractId: () => `c${contratos.criados.length + 1}`,
+  createContractIfAbsent: vi.fn(async (c: { proposalId: string; quoteId: string }) => {
+    if (!contratos.criados.some((x) => x.proposalId === c.proposalId)) contratos.criados.push(c);
+  }),
+  deleteContract: vi.fn(async () => undefined),
+  getContractByProposal: vi.fn(async () => null),
+}));
 // The real renderer is server-only + rasterises a PDF; stub it to a byte or two.
 vi.mock("@/lib/proposal-doc-render", () => ({
   renderStoredProposalDocPdf: vi.fn(async () => Buffer.from("%PDF-1.4")),
@@ -925,6 +935,33 @@ describe("POST /api/orcamento/[id]/proposta-doc — o estado nunca anda para tr�
     // Sem transição não se escreve linha nenhuma: uma entrada «Ganho → Ganho»
     // seria ruído a esconder o que interessa numa lista que já é longa.
     expect(updated.last).not.toHaveProperty("activityLog");
+  });
+
+  it("num pedido já ganho, a proposta que segue fica aceite e nasce o contrato (Rita & Ricardo, 16/11)", async () => {
+    updated.estado = "aceite";
+    store.linhas.clear();
+    contratos.criados.length = 0;
+    vi.mocked(createProposal).mockImplementation(async (p: Proposal) => {
+      created.last = p;
+      store.linhas.set(p.id, { ...p });
+    });
+    const res = await POST(sendReq(baseDoc({ totalAmount: 5000, totalVatMode: "acrescer" })), {
+      params,
+    });
+    expect(res.status).toBe(200);
+    const [p] = [...store.linhas.values()];
+    expect(p.status).toBe("aceite");
+    expect(contratos.criados).toEqual([expect.objectContaining({ proposalId: p.id })]);
+
+    // E o segundo toque no botão não manda um segundo email ao casal.
+    const emails = vi.mocked(sendMail).mock.calls.length;
+    const outra = await POST(sendReq(baseDoc({ totalAmount: 5000, totalVatMode: "acrescer" })), {
+      params,
+    });
+    expect((await outra.json()).repetido).toBe(true);
+    expect(vi.mocked(sendMail).mock.calls.length).toBe(emails);
+    expect(store.linhas.size).toBe(1);
+    expect(contratos.criados).toHaveLength(1);
   });
 
   it("deixa no histórico a linha que explica a mudança automática", async () => {

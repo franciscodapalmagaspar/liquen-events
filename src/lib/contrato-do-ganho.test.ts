@@ -69,6 +69,36 @@ describe("a proposta enviada depois do «Ganho»", () => {
     expect(contratos).toHaveLength(0);
   });
 
+  it("dois envios ao mesmo tempo: fica aceite a primeira, e um contrato só", async () => {
+    propostas.set("p1", proposta("p1", "enviada"));
+    propostas.set("p2", proposta("p2", "enviada"));
+    // O outro envio aceitou a p1 entre a leitura e a escrita deste.
+    const corrida = await import("@/lib/proposals-store");
+    const original = corrida.updateProposal;
+    let uma = true;
+    vi.spyOn(corrida, "updateProposal").mockImplementation(async (id, patch) => {
+      if (uma) {
+        uma = false;
+        propostas.set("p1", {
+          ...propostas.get("p1")!,
+          status: "aceite",
+          respondedAt: "2026-11-16T18:59:59.000Z",
+        });
+      }
+      return original(id, patch);
+    });
+    const ok = await aceitarSeOPedidoJaEstaGanho(
+      "LIQ-1",
+      "aceite",
+      propostas.get("p2")!,
+      "2026-11-16T19:00:00.000Z",
+    );
+    expect(ok).toBe(false);
+    expect(propostas.get("p2")!.status).toBe("enviada");
+    expect(contratos).toHaveLength(0);
+    vi.restoreAllMocks();
+  });
+
   it("uma revisão depois de uma proposta aceite continua por responder", async () => {
     propostas.set("p1", proposta("p1", "aceite"));
     propostas.set("p2", proposta("p2", "enviada"));
