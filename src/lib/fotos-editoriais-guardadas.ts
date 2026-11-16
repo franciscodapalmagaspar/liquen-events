@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { createHash } from "node:crypto";
 import { getSupabase } from "@/lib/supabase";
 import { garantirBucketDeDerivadas } from "@/lib/theme-storage";
@@ -48,7 +49,7 @@ export async function lerFotoEditorialGuardada(
   const sb = getSupabase();
   if (!sb) return null;
   try {
-    const { data } = await sb.storage.from(BUCKET_EDITORIAL).download(chaveEditorial(ref, receita));
+    const { data } = await balde(BUCKET_EDITORIAL, sb).download(chaveEditorial(ref, receita));
     return data ? Buffer.from(await data.arrayBuffer()) : null;
   } catch {
     return null;
@@ -68,9 +69,11 @@ export async function guardarFotoEditorial(
   if (!sb) return;
   try {
     if (!(await garantirBucketDeDerivadas(BUCKET_EDITORIAL))) return;
-    const { error } = await sb.storage
-      .from(BUCKET_EDITORIAL)
-      .upload(chaveEditorial(ref, receita), bytes, opcoesDeCarregamento("image/jpeg", true));
+    const { error } = await balde(BUCKET_EDITORIAL, sb).upload(
+      chaveEditorial(ref, receita),
+      bytes,
+      opcoesDeCarregamento("image/jpeg", true),
+    );
     if (error) log.warn("fotos-editoriais: não ficou guardada", { erro: error.message });
   } catch (e) {
     log.warn("fotos-editoriais: não ficou guardada", { erro: String(e) });

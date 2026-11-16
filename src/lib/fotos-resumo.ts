@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { createHash } from "crypto";
 import { getState, getStates, setState } from "@/lib/app-state";
 import { getSupabase } from "@/lib/supabase";
@@ -136,7 +137,7 @@ export async function existe(bucket: string, path: string): Promise<boolean | nu
   try {
     // storage-js 2.106: um HEAD. `data: false` (com erro) só para 400/404 —
     // «não existe»; qualquer outra avaria lança e cai no `catch` («não sei»).
-    const { data } = await sb.storage.from(bucket).exists(path);
+    const { data } = await balde(bucket, sb).exists(path);
     if (data === true) return true;
     if (data === false) return false;
     return null;

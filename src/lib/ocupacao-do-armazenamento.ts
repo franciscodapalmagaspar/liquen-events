@@ -3,6 +3,9 @@ import { getStates, gravarEstadoSeNaoMudou, lerEstadoComVersao, setState } from 
 import { getSupabase } from "@/lib/supabase";
 import type { ManifestoDeFotografias } from "@/lib/manifesto-de-fotografias";
 import { log } from "@/lib/logger";
+import { blobConfigurado, ehBaldeDoBlob } from "@/lib/armazenamento/baldes";
+import { modosDosBaldes } from "@/lib/armazenamento/modos";
+import { avisosDoUso } from "@/lib/armazenamento/uso";
 import {
   espacoQueSobra,
   medirPorOrdem,
@@ -41,9 +44,14 @@ export const CHAVE_DESDE = "armazenamento:desde-a-medicao";
 
 /** O espaço como está agora. `null` nunca: sem medição, `conhecido: false`. */
 export async function lerEspaco(): Promise<EspacoNoArmazenamento> {
-  const m = await getStates<unknown>([CHAVE_OCUPACAO, CHAVE_DESDE]);
+  const [m, avisosBlob] = await Promise.all([
+    getStates<unknown>([CHAVE_OCUPACAO, CHAVE_DESDE]),
+    // Sem o token do Blob não se lê nada (nem a linha do contador).
+    blobConfigurado() ? avisosDoUso().catch(() => []) : Promise.resolve([] as string[]),
+  ]);
   const oc = m.get(CHAVE_OCUPACAO) as Ocupacao | undefined;
-  return espacoQueSobra(oc ?? null, m.get(CHAVE_DESDE) ?? null);
+  const espaco = espacoQueSobra(oc ?? null, m.get(CHAVE_DESDE) ?? null);
+  return avisosBlob.length > 0 ? { ...espaco, avisosBlob } : espaco;
 }
 
 type Contador = Record<string, number>;
@@ -162,7 +170,12 @@ export async function medirOcupacao(
     const iso = agora.toISOString();
     const originais = new Set<string>();
     if (manifesto?.completo) {
+      // O manifesto lista pelo `balde()`, que num balde em modo `espelho` ou
+      // `blob` também vê o que está no Vercel Blob. Aqui mede-se o SUPABASE:
+      // esses baldes medem-se pela listagem dele, como os outros.
+      const modos = await modosDosBaldes();
       for (const b of manifesto.buckets) {
+        if (ehBaldeDoBlob(b.bucket) && modos[b.bucket] !== "supabase") continue;
         porBucket[b.bucket] = { bytes: b.bytes, medidoEm: iso };
         originais.add(b.bucket);
       }

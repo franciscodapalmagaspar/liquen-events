@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { opcoesDeCarregamento } from "./cache-das-fotos";
 import type { Sharp } from "sharp";
 import { oSharp } from "./sharp-adiado";
@@ -305,7 +306,7 @@ type Cliente = NonNullable<ReturnType<typeof getSupabase>>;
 
 /** As pastas de um bucket (os temas, ou os pedidos). */
 async function pastas(sb: Cliente, bucket: string): Promise<string[]> {
-  const { data, error } = await sb.storage.from(bucket).list("", { limit: PAGINA });
+  const { data, error } = await balde(bucket, sb).list("", { limit: PAGINA });
   if (error) throw new Error(`${bucket}: ${error.message}`);
   // Uma "pasta" no Storage é uma entrada sem `id`. A `reciclagem` não é um
   // tema: guarda fotos removidas, à espera de voltar (`reciclagem.ts`).
@@ -316,7 +317,7 @@ async function pastas(sb: Cliente, bucket: string): Promise<string[]> {
 async function ficheiros(sb: Cliente, bucket: string, pasta: string): Promise<string[]> {
   const out: string[] = [];
   for (let offset = 0; ; offset += PAGINA) {
-    const { data, error } = await sb.storage.from(bucket).list(pasta, { limit: PAGINA, offset });
+    const { data, error } = await balde(bucket, sb).list(pasta, { limit: PAGINA, offset });
     if (error) throw new Error(`${bucket}/${pasta}: ${error.message}`);
     const lote = data ?? [];
     out.push(...lote.filter((e) => ehFoto(e.name)).map((e) => `${pasta}/${e.name}`));
@@ -811,7 +812,7 @@ async function gerarAsDeUmaFoto(
 
   let bytes: Buffer;
   try {
-    const { data, error } = await sb.storage.from(origem).download(caminho);
+    const { data, error } = await balde(origem, sb).download(caminho);
     if (error || !data) throw new Error("sem original");
     bytes = Buffer.from(await data.arrayBuffer());
   } catch {
@@ -848,9 +849,11 @@ async function gerarAsDeUmaFoto(
           // o contrário do que isto serve.
           .resize(alvo.lado, alvo.lado, { fit: "inside", withoutEnlargement: true });
         const bytesDerivada = await codificar(derivada, alvo.qualidade, alvo.avif).toBuffer();
-        const { error: erroSubida } = await sb.storage
-          .from(alvo.bucket)
-          .upload(caminho, bytesDerivada, opcoesDeCarregamento(tipoDe(alvo.avif)));
+        const { error: erroSubida } = await balde(alvo.bucket, sb).upload(
+          caminho,
+          bytesDerivada,
+          opcoesDeCarregamento(tipoDe(alvo.avif)),
+        );
         return erroSubida ? `${alvo.bucket}/${caminho}` : null;
       } catch {
         return `${alvo.bucket}/${caminho}`;
@@ -937,14 +940,14 @@ export async function miniaturaAPedidoComMotivo(caminho: string): Promise<Result
   // Já lá está? É o caso normal a partir da segunda vez, e custa um download em
   // vez de um download + um `sharp` + um upload.
   try {
-    const { data } = await sb.storage.from(destino).download(chave);
+    const { data } = await balde(destino, sb).download(chave);
     if (data) return { bytes: Buffer.from(await data.arrayBuffer()), motivo: "ok" };
   } catch {
     /* segue para gerar */
   }
 
   try {
-    const { data, error } = await sb.storage.from(origem).download(chave);
+    const { data, error } = await balde(origem, sb).download(chave);
     if (error || !data) {
       // Duas coisas diferentes com a mesma cara, e com resoluções opostas: o
       // ficheiro que já não está no bucket, e o Storage que não respondeu. A
@@ -977,9 +980,11 @@ export async function miniaturaAPedidoComMotivo(caminho: string): Promise<Result
     // e sem isto cada abertura voltava a pagar o `sharp` de cada fotografia,
     // para sempre, sem nada no ecrã a dizer porquê.
     if (daBiblioteca) {
-      const { error: erroSubida } = await sb.storage
-        .from(destino)
-        .upload(chave, derivada, opcoesDeCarregamento(FORMATO.contentType));
+      const { error: erroSubida } = await balde(destino, sb).upload(
+        chave,
+        derivada,
+        opcoesDeCarregamento(FORMATO.contentType),
+      );
       if (erroSubida && !/exist/i.test(erroSubida.message)) {
         log.warn("derivadas: miniatura a pedido não ficou guardada", {
           destino,
@@ -1034,14 +1039,14 @@ export async function derivadaMediaAPedido(
   // Já lá está? É o caso normal a partir da segunda visita, e custa um download
   // em vez de um download + um `sharp` + um upload.
   try {
-    const { data } = await sb.storage.from(destino).download(chave);
+    const { data } = await balde(destino, sb).download(chave);
     if (data) return { bytes: Buffer.from(await data.arrayBuffer()), motivo: "ok" };
   } catch {
     /* segue para gerar */
   }
 
   try {
-    const { data, error } = await sb.storage.from(origem).download(chave);
+    const { data, error } = await balde(origem, sb).download(chave);
     if (error || !data) {
       const dito = error?.message ?? "sem dados";
       const semResposta = /fetch failed|network|timeout|ENOTFOUND|ECONNREFUSED/i.test(dito);
@@ -1061,9 +1066,11 @@ export async function derivadaMediaAPedido(
     // Guardar é melhor esforço, como na miniatura: falhar só quer dizer que a
     // visita seguinte volta a pagar o `sharp`.
     if (daBiblioteca) {
-      const { error: erroSubida } = await sb.storage
-        .from(destino)
-        .upload(chave, derivada, opcoesDeCarregamento(FORMATO.contentType));
+      const { error: erroSubida } = await balde(destino, sb).upload(
+        chave,
+        derivada,
+        opcoesDeCarregamento(FORMATO.contentType),
+      );
       if (erroSubida && !/exist/i.test(erroSubida.message)) {
         log.warn("derivadas: intermédia a pedido não ficou guardada", {
           destino,
@@ -1179,7 +1186,7 @@ export async function fabricarCapaWebEmAvif(
 
   try {
     if (!(await garantirBucketDeDerivadas(bucket).catch(() => false))) return 0;
-    const { data, error } = await sb.storage.from(origem).download(chave);
+    const { data, error } = await balde(origem, sb).download(chave);
     if (error || !data) return 0;
     const bytes = Buffer.from(await data.arrayBuffer());
     const sharp = await oSharp();
@@ -1190,9 +1197,11 @@ export async function fabricarCapaWebEmAvif(
             .rotate()
             .resize(alvo.lado, alvo.lado, { fit: "inside", withoutEnlargement: true });
           const avif = await codificar(pipeline, MEDIA.qualidade, true).toBuffer();
-          const { error: erroSubida } = await sb.storage
-            .from(bucket)
-            .upload(alvo.caminho, avif, opcoesDeCarregamento(tipoDe(true)));
+          const { error: erroSubida } = await balde(bucket, sb).upload(
+            alvo.caminho,
+            avif,
+            opcoesDeCarregamento(tipoDe(true)),
+          );
           return !erroSubida || /exist/i.test(erroSubida.message);
         } catch {
           return false;

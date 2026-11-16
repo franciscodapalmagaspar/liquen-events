@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
 import { getSupabase } from "@/lib/supabase";
 import { apagarPastaDoPedido } from "@/lib/proposal-storage";
@@ -98,7 +99,7 @@ export async function limparPastasDePedidosApagados(
   const limiteFicheiros = agora.getTime() - DIAS * DIA_MS;
 
   // ── Portas 1 e 2 ─────────────────────────────────────────────────────────
-  const { data: raiz, error: erroRaiz } = await sb.storage.from(BUCKET).list("", { limit: 1000 });
+  const { data: raiz, error: erroRaiz } = await balde(BUCKET, sb).list("", { limit: 1000 });
   if (erroRaiz || !raiz) return falhou;
   const pastas = raiz.filter((e) => !e.id && FORMA_DE_PEDIDO.test(e.name)).map((e) => e.name);
 
@@ -150,7 +151,7 @@ export async function limparPastasDePedidosApagados(
   const prontas: { pasta: string; ficheiros: number }[] = [];
   for (const pasta of candidatas) {
     if (Date.now() > fim) return { ...falhou, candidatas: candidatas.length };
-    const { data: ficheiros, error } = await sb.storage.from(BUCKET).list(pasta, { limit: 1000 });
+    const { data: ficheiros, error } = await balde(BUCKET, sb).list(pasta, { limit: 1000 });
     if (error || !ficheiros) continue;
     const recente = ficheiros.some(
       (f) =>

@@ -10,6 +10,8 @@ import {
   THEME_SIGNED_TTL,
   THEME_THUMB_BUCKET,
 } from "@/lib/theme-ref";
+import { BALDES_DO_BLOB } from "@/lib/armazenamento/baldes";
+import { PREFIXO_DA_ROTA } from "@/lib/armazenamento/url-estavel";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -59,6 +61,19 @@ const ENDERECO_DE_TEMA = new RegExp(
   "g",
 );
 
+/**
+ * O endereço de uma fotografia que mora no Vercel Blob (16/11, ver
+ * `armazenamento/url-estavel.ts`): `/api/ficheiro/<balde>/<caminho>?token=…`,
+ * com o prazo do balde de origem. Também vira marcador — o de um tema tem seis
+ * horas e morria no retrato como os do Supabase, e o de uma proposta depende
+ * do token do Blob, que se pode trocar. Ao ler, assina-se de novo pelo
+ * `balde()`, que sabe onde a fotografia está.
+ */
+const ENDERECO_DO_BLOB = new RegExp(
+  `(?:https?://[^"\\s?/]+)?${escapar(PREFIXO_DA_ROTA)}(${BALDES_DO_BLOB.map(escapar).join("|")})/([^"\\s?]+)\\?token=[\\w-]+\\.[\\w-]+\\.[\\w-]+`,
+  "g",
+);
+
 /** `]` e `|` nunca aparecem por codificar num caminho de URL. */
 const MARCADOR = /~LIQUEN-TEMA\[([a-z0-9-]+)\|([^\]]+)\]~/g;
 
@@ -66,9 +81,9 @@ const marcador = (bucket: string, caminho: string) => `~LIQUEN-TEMA[${bucket}|${
 
 /** Troca cada endereço assinado de tema pelo seu marcador. */
 export function tirarAssinaturasDeTema(json: string): string {
-  return json.replace(ENDERECO_DE_TEMA, (_, bucket: string, caminho: string) =>
-    marcador(bucket, caminho),
-  );
+  return json
+    .replace(ENDERECO_DE_TEMA, (_, bucket: string, caminho: string) => marcador(bucket, caminho))
+    .replace(ENDERECO_DO_BLOB, (_, bucket: string, caminho: string) => marcador(bucket, caminho));
 }
 
 export function temAssinaturasPorFazer(json: string): boolean {

@@ -493,6 +493,10 @@ const ADMIN: Array<{ path: string; methods: string[] }> = [
   // O plano das fotografias repetidas (a seco): lista caminhos de fotografias
   // de casais e lê as tabelas todas. Só lê — mas o que lê é a base inteira.
   { path: "./admin/fotos-duplicadas/route", methods: ["GET"] },
+  // A mudança para o Vercel Blob (16/11): copia, muda o modo de um balde e
+  // APAGA do Supabase o que já está no Blob com prova. Sem sessão, 401 antes
+  // de ler o corpo.
+  { path: "./admin/armazenamento-blob/route", methods: ["POST"] },
   // «Porque é que as fotografias não aparecem?» — a rota que responde. Nomeia
   // as variáveis do Supabase, os buckets, o papel da chave e a política de
   // segurança que esta instalação serve: é o mapa da instalação, e vai buscar
@@ -870,6 +874,12 @@ describe("a auditoria cobre TODAS as rotas de src/app/api", () => {
       // confiança do PDF: são o MESMO ficheiro, aos bocados.
       "./proposta/[token]/pagina/[n]/route",
       "./proposta/[token]/paginas/route",
+      // Uma fotografia do Vercel Blob (16/11). PÚBLICA como as fotografias da
+      // proposta: o casal não tem sessão. O que a fecha é o `token` assinado
+      // pelo servidor para UM balde e UM caminho, com prazo
+      // (`armazenamento/url-estavel.ts`) — sem ele, 403; e só redirecciona,
+      // os bytes vêm do Blob.
+      "./ficheiro/[balde]/[...caminho]/route",
       "./proposta/route",
       "./cron/reminders/route",
       // A cópia de segurança automática. Mesmo guarda das irmãs (Bearer com
@@ -1021,6 +1031,12 @@ describe("TOKEN-guarded routes deny a bad token", () => {
     for (const rota of [
       "./proposta/[token]/pagina/[n]/route",
       "./proposta/[token]/paginas/route",
+      // Uma fotografia do Vercel Blob (16/11). PÚBLICA como as fotografias da
+      // proposta: o casal não tem sessão. O que a fecha é o `token` assinado
+      // pelo servidor para UM balde e UM caminho, com prazo
+      // (`armazenamento/url-estavel.ts`) — sem ele, 403; e só redirecciona,
+      // os bytes vêm do Blob.
+      "./ficheiro/[balde]/[...caminho]/route",
     ]) {
       const fn = await handler(rota, "GET");
       const res = await fn(req("GET"), { params: Promise.resolve({ token: "bad-token", n: "1" }) });
