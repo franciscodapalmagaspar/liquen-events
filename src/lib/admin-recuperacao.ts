@@ -1,6 +1,11 @@
 import "server-only";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { getState, setState, type ResultadoDeEscrita } from "./app-state";
+import {
+  getState,
+  gravarEstadoSeNaoMudou,
+  lerEstadoComVersao,
+  type VersaoDoEstado,
+} from "./app-state";
 import { log } from "./logger";
 
 /**
@@ -165,11 +170,7 @@ function soInstantes(origem: unknown): Record<string, number> {
   return limpa;
 }
 
-export async function lerRegisto(): Promise<RegistoDeRecuperacao> {
-  // Para MUDAR e voltar a gravar: uma leitura falhada lança em vez de dar um
-  // registo vazio — senão o pedido seguinte gravava-o vazio e as
-  // palavras-passe redefinidas desapareciam (auditoria de 13/11).
-  const guardado = await getState<Partial<RegistoDeRecuperacao>>(CHAVE_ESTADO, { ouFalha: true });
+function registoDe(guardado: Partial<RegistoDeRecuperacao> | null): RegistoDeRecuperacao {
   if (!guardado || typeof guardado !== "object") return registoVazio();
   return {
     pedidos: tabelaSemHeranca<PedidoDeRecuperacao>(guardado.pedidos),
@@ -178,16 +179,74 @@ export async function lerRegisto(): Promise<RegistoDeRecuperacao> {
   };
 }
 
+/** Só para LER (a entrada, as passkeys). Para mudar, {@link mudarRegisto}. */
+export async function lerRegisto(): Promise<RegistoDeRecuperacao> {
+  // Uma leitura falhada lança em vez de dar um registo vazio: quem lê tem de
+  // saber que não sabe (auditoria de 13/11).
+  const guardado = await getState<Partial<RegistoDeRecuperacao>>(CHAVE_ESTADO, { ouFalha: true });
+  return registoDe(guardado);
+}
+
 /**
- * Grava, e diz onde ficou.
+ * ════════════════════════════════════════════════════════════════════════════
+ * LER-MUDAR-GRAVAR, COM ESCRITA CONDICIONAL (auditoria de 16/11, n.º 4)
+ * ════════════════════════════════════════════════════════════════════════════
  *
- * Quem chama TEM de olhar para o resultado: em produção sem Supabase a escrita
- * cai no disco efémero da função (`duradouro: false`) e um token que não
- * sobrevive ao pedido seguinte é um email que promete uma coisa que não existe.
- * Ver o comentário grande do `app-state.ts`.
+ * O registo é UM documento com todos os pedidos e todas as senhas. Gravá-lo
+ * inteiro sem olhar fazia com que dois pedidos ao mesmo tempo partissem do
+ * mesmo registo, e o segundo a gravar apagasse o que o primeiro escreveu: uma
+ * ligação que já ia no email deixava de abrir, ou uma palavra-passe acabada de
+ * definir desaparecia.
+ *
+ * Agora, como nas `sessoes-revogadas`: lê-se com a versão, aplica-se a
+ * mudança, e grava-se SÓ se ninguém tiver escrito entretanto. Se escreveu,
+ * relê-se e aplica-se a mudança outra vez, por cima do que lá está (até
+ * {@link TENTATIVAS_DE_ESCRITA}). Por isso `mudar` tem de poder correr mais de
+ * uma vez sobre registos diferentes — não guarda nada fora de si a não ser o
+ * que for igual em todas as voltas.
+ *
+ * `mudar` diz se há o que gravar. «falhou» quando a escrita não se fez ou não
+ * DURA (em produção sem Supabase, o disco efémero da função: um token que não
+ * sobrevive ao pedido seguinte é um email que promete o que não existe).
  */
-export async function gravarRegisto(registo: RegistoDeRecuperacao): Promise<ResultadoDeEscrita> {
-  return setState(CHAVE_ESTADO, registo);
+const TENTATIVAS_DE_ESCRITA = 4;
+const TECTO_DA_ESCRITA_MS = 3_000;
+
+export type ResultadoDaMudanca<T> =
+  | { estado: "gravado"; valor: T }
+  | { estado: "sem-escrita"; valor: T }
+  | { estado: "sem-leitura" }
+  | { estado: "falhou" };
+
+export async function mudarRegisto<T>(
+  mudar: (registo: RegistoDeRecuperacao, agora: number) => { gravar: boolean; valor: T },
+): Promise<ResultadoDaMudanca<T>> {
+  for (let tentativa = 1; tentativa <= TENTATIVAS_DE_ESCRITA; tentativa++) {
+    let lido: { valor: Partial<RegistoDeRecuperacao> | null; versao: VersaoDoEstado };
+    try {
+      lido = await lerEstadoComVersao<Partial<RegistoDeRecuperacao>>(
+        CHAVE_ESTADO,
+        TECTO_DA_ESCRITA_MS,
+      );
+    } catch (err) {
+      // Sem ler, não se grava por cima: perder-se-iam as senhas que lá estão.
+      log.error("recuperação: não foi possível ler o registo — nada se grava", err);
+      return { estado: "sem-leitura" };
+    }
+    const registo = registoDe(lido.valor);
+    const agora = Date.now();
+    limparExpirados(registo, agora);
+    const { gravar, valor } = mudar(registo, agora);
+    if (!gravar) return { estado: "sem-escrita", valor };
+
+    const r = await gravarEstadoSeNaoMudou(CHAVE_ESTADO, registo, lido.versao, TECTO_DA_ESCRITA_MS);
+    if (r === "gravado") return { estado: "gravado", valor };
+    if (r === "falhou") return { estado: "falhou" };
+    // Conflito: alguém escreveu entretanto. Pausa curta e desigual, e outra vez.
+    await new Promise((res) => setTimeout(res, tentativa * 10 + Math.random() * 20));
+  }
+  log.error("recuperação: o registo não parou de mudar — nada se gravou");
+  return { estado: "falhou" };
 }
 
 /**

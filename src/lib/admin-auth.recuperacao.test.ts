@@ -43,6 +43,7 @@ vi.mock("./app-state", () => ({
     return v === undefined ? null : JSON.parse(JSON.stringify(v));
   }),
   setState: vi.fn(async (k: string, v: unknown) => {
+    await new Promise((r) => process.nextTick(r));
     estado.escritas++;
     if (estado.recusaEscrita) {
       return { gravado: false, duradouro: false, onde: "nenhures", motivo: "escrita-recusada" };
@@ -55,15 +56,21 @@ vi.mock("./app-state", () => ({
   // A leitura com versão e a escrita condicional (o registo das sessões
   // revogadas). A versão é o valor em JSON, como no ficheiro.
   lerEstadoComVersao: vi.fn(async (k: string) => {
+    if (estado.falhaLeitura) throw new Error("leitura falhou");
     const v = estado.mapa.get(k);
     return v === undefined
       ? { valor: null, versao: null }
       : { valor: JSON.parse(JSON.stringify(v)), versao: JSON.stringify(v) };
   }),
+  // Como o verdadeiro: um disco que não DURA (o efémero da função) é «falhou».
   gravarEstadoSeNaoMudou: vi.fn(async (k: string, v: unknown, versao: string | null) => {
+    // Uma volta ao ciclo de eventos, como uma ida à base de dados: é o que
+    // deixa dois pedidos ao mesmo tempo lerem antes de qualquer um gravar.
+    await new Promise((r) => process.nextTick(r));
     const atual = estado.mapa.get(k);
     if ((atual === undefined ? null : JSON.stringify(atual)) !== versao) return "conflito";
-    if (estado.recusaEscrita) return "falhou";
+    estado.escritas++;
+    if (estado.recusaEscrita || !estado.duradouro) return "falhou";
     estado.mapa.set(k, JSON.parse(JSON.stringify(v)));
     return "gravado";
   }),
@@ -257,6 +264,40 @@ describe("recuperação — a ligação", () => {
       "ligacao-invalida",
     );
     expect((await definirPalavraPasseComToken(segunda.token, "palavra-passe-nova-1")).estado).toBe(
+      "definida",
+    );
+  });
+
+  it("dois pedidos ao mesmo tempo não se apagam um ao outro (escrita condicional)", async () => {
+    // Os dois leem o mesmo registo; sem escrita condicional, o segundo a gravar
+    // deitava fora o pedido do primeiro — e a ligação que já ia no email dele
+    // deixava de abrir, sem ninguém saber porquê.
+    const [a, b] = await Promise.all([
+      pedirRecuperacao("catarina@liquen-events.com"),
+      pedirRecuperacao("rui@liquen-events.com"),
+    ]);
+    if (a.estado !== "emitido" || b.estado !== "emitido") throw new Error("esperava dois tokens");
+    const guardado = estado.mapa.get("admin-recuperacao") as { pedidos: Record<string, unknown> };
+    expect(Object.keys(guardado.pedidos).sort()).toEqual([
+      "catarina@liquen-events.com",
+      "rui@liquen-events.com",
+    ]);
+  });
+
+  it("uma definição e um pedido ao mesmo tempo não se apagam um ao outro", async () => {
+    const r = await pedirRecuperacao("catarina@liquen-events.com");
+    if (r.estado !== "emitido") throw new Error("esperava um token");
+    const [definida, doRui] = await Promise.all([
+      definirPalavraPasseComToken(r.token, "a-minha-frase-nova"),
+      pedirRecuperacao("rui@liquen-events.com"),
+    ]);
+    expect(definida.estado).toBe("definida");
+    expect(doRui.estado).toBe("emitido");
+    expect(
+      await verifyCredentials("catarina@liquen-events.com", "a-minha-frase-nova"),
+    ).toMatchObject({ name: "Catarina" });
+    if (doRui.estado !== "emitido") return;
+    expect((await definirPalavraPasseComToken(doRui.token, "frase-nova-do-rui")).estado).toBe(
       "definida",
     );
   });

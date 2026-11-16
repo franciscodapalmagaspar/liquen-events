@@ -744,20 +744,8 @@ export async function pedirRecuperacao(email: string): Promise<ResultadoDoPedido
   // sobre ninguém — é uma característica da instalação, não de uma pessoa.
   if (!users || !users.some((u) => u.email)) return { estado: "sem-recuperacao" };
 
-  const { lerRegisto, gravarRegisto, limparExpirados, novoToken, resumoDoToken, VALIDADE_MS } =
+  const { mudarRegisto, novoToken, resumoDoToken, VALIDADE_MS } =
     await import("./admin-recuperacao");
-
-  // Sem conseguir ler o registo não se grava nada por cima dele: a mesma
-  // resposta de «não consegui gravar», igual para qualquer endereço.
-  let registo;
-  try {
-    registo = await lerRegisto();
-  } catch (err) {
-    log.error("recuperação: não foi possível ler o registo — nada se grava", err);
-    return { estado: "sem-persistencia" };
-  }
-  const agora = Date.now();
-  limparExpirados(registo, agora);
 
   const conta = contaPorEmail(email);
   /**
@@ -777,19 +765,23 @@ export async function pedirRecuperacao(email: string): Promise<ResultadoDoPedido
    * à propriedade nasce da configuração da casa.
    */
   const token = conta ? novoToken() : null;
-  if (conta?.email && token) {
-    registo.pedidos[normalizarIdentificador(conta.email)] = {
-      resumo: resumoDoToken(token),
-      expiraEm: agora + VALIDADE_MS,
-      pedidoEm: agora,
-    };
-  }
 
-  const escrita = await gravarRegisto(registo);
-  if (!escrita.gravado || !escrita.duradouro) {
+  // Escrita CONDICIONAL (n.º 4 de 16/11): ver `mudarRegisto`. Sem conseguir ler
+  // o registo, ou sem a escrita durar, a mesma resposta de «não consegui
+  // gravar», igual para qualquer endereço.
+  const escrita = await mudarRegisto((registo, agora) => {
+    if (conta?.email && token) {
+      registo.pedidos[normalizarIdentificador(conta.email)] = {
+        resumo: resumoDoToken(token),
+        expiraEm: agora + VALIDADE_MS,
+        pedidoEm: agora,
+      };
+    }
+    return { gravar: true, valor: null };
+  });
+  if (escrita.estado !== "gravado") {
     log.error("recuperação: não foi possível guardar o pedido", undefined, {
-      onde: escrita.onde,
-      motivo: escrita.motivo,
+      motivo: escrita.estado,
     });
     return { estado: "sem-persistencia" };
   }
@@ -824,63 +816,71 @@ export async function definirPalavraPasseComToken(
   const users = configuredUsers();
   if (!users) return { estado: "ligacao-invalida" };
 
-  const { lerRegisto, gravarRegisto, limparExpirados, emailDoToken } =
-    await import("./admin-recuperacao");
-
-  let registo;
-  try {
-    registo = await lerRegisto();
-  } catch (err) {
-    log.error("recuperação: não foi possível ler o registo — nada se grava", err);
-    return { estado: "sem-persistencia" };
-  }
-  const agora = Date.now();
-  limparExpirados(registo, agora);
-
-  const email = emailDoToken(registo, token, agora);
-  if (!email) return { estado: "ligacao-invalida" };
-
-  const conta = contaPorEmail(email);
-  if (!conta?.email) {
-    // A conta saiu do ADMIN_USERS entre o pedido e o clique. O pedido morre com
-    // ela — nada de deixar uma ligação viva para uma conta que já não existe.
-    delete registo.pedidos[email];
-    await gravarRegisto(registo);
-    return { estado: "ligacao-invalida" };
-  }
-
+  const { mudarRegisto, emailDoToken } = await import("./admin-recuperacao");
   const { hashSync } = (await import("bcryptjs")).default;
-  // Factor 12 — o mesmo que o `ENTRADA.md` manda usar para gerar os hashes do
-  // ADMIN_USERS. Custos diferentes entre contas medem-se pelo tempo de resposta
-  // (ver o compare-fantasma acima), por isso não se mistura.
-  registo.senhas[normalizarIdentificador(conta.email)] = {
-    hash: hashSync(nova, 12),
-    definidaEm: agora,
-    /**
-     * O hash do AMBIENTE, que numa conta sem `passwordHash` próprio é o
-     * partilhado da instalação.
-     *
-     * O `?? ""` falha para o lado seguro: uma cadeia vazia nunca é igual a um
-     * hash real, portanto se algum dia isto acontecesse a palavra-passe
-     * guardada simplesmente não seria honrada e valia a do ambiente — em vez
-     * de valer uma redefinição que já ninguém consegue invalidar.
-     */
-    substituiu: hashDoAmbiente(conta) ?? "",
-  };
-  // As passkeys desta conta registadas até agora deixam de valer (auditoria de
-  // 16/11, n.º 3): quem teve a palavra-passe pode ter registado um aparelho
-  // seu. Vai na MESMA escrita da palavra-passe — ou ficam as duas, ou nenhuma.
-  registo.passkeysDesde[normalizarIdentificador(conta.email)] = agora;
-  delete registo.pedidos[email];
 
-  const escrita = await gravarRegisto(registo);
-  if (!escrita.gravado || !escrita.duradouro) {
+  // O bcrypt faz-se UMA vez, e só quando a ligação é boa — se a escrita
+  // condicional tiver de dar outra volta, reaproveita-se.
+  let hashNovo: string | null = null;
+
+  type Desfecho =
+    | { tipo: "invalida" }
+    | { tipo: "definida"; conta: { name: string; email: string } };
+
+  // Escrita CONDICIONAL (n.º 4 de 16/11): ver `mudarRegisto`. Uma definição e um
+  // pedido ao mesmo tempo já não apagam um o que o outro gravou.
+  const escrita = await mudarRegisto<Desfecho>((registo, agora) => {
+    const email = emailDoToken(registo, token, agora);
+    if (!email) return { gravar: false, valor: { tipo: "invalida" } };
+
+    const conta = contaPorEmail(email);
+    if (!conta?.email) {
+      // A conta saiu do ADMIN_USERS entre o pedido e o clique. O pedido morre
+      // com ela — nada de deixar uma ligação viva para uma conta que já não
+      // existe.
+      delete registo.pedidos[email];
+      return { gravar: true, valor: { tipo: "invalida" } };
+    }
+
+    // Factor 12 — o mesmo que o `ENTRADA.md` manda usar para gerar os hashes do
+    // ADMIN_USERS. Custos diferentes entre contas medem-se pelo tempo de
+    // resposta (ver o compare-fantasma acima), por isso não se mistura.
+    hashNovo ??= hashSync(nova, 12);
+    registo.senhas[normalizarIdentificador(conta.email)] = {
+      hash: hashNovo,
+      definidaEm: agora,
+      /**
+       * O hash do AMBIENTE, que numa conta sem `passwordHash` próprio é o
+       * partilhado da instalação.
+       *
+       * O `?? ""` falha para o lado seguro: uma cadeia vazia nunca é igual a um
+       * hash real, portanto se algum dia isto acontecesse a palavra-passe
+       * guardada simplesmente não seria honrada e valia a do ambiente — em vez
+       * de valer uma redefinição que já ninguém consegue invalidar.
+       */
+      substituiu: hashDoAmbiente(conta) ?? "",
+    };
+    // As passkeys desta conta registadas até agora deixam de valer (auditoria
+    // de 16/11, n.º 3): quem teve a palavra-passe pode ter registado um
+    // aparelho seu. Vai na MESMA escrita da palavra-passe — ou ficam as duas,
+    // ou nenhuma.
+    registo.passkeysDesde[normalizarIdentificador(conta.email)] = agora;
+    delete registo.pedidos[email];
+    return {
+      gravar: true,
+      valor: { tipo: "definida", conta: { name: conta.name, email: conta.email } },
+    };
+  });
+
+  if (escrita.estado === "sem-escrita") return { estado: "ligacao-invalida" };
+  if (escrita.estado !== "gravado") {
     log.error("recuperação: não foi possível guardar a palavra-passe nova", undefined, {
-      onde: escrita.onde,
-      motivo: escrita.motivo,
+      motivo: escrita.estado,
     });
     return { estado: "sem-persistencia" };
   }
+  if (escrita.valor.tipo === "invalida") return { estado: "ligacao-invalida" };
+  const conta = escrita.valor.conta;
 
   log.info("recuperação: palavra-passe redefinida", { conta: conta.name });
 
