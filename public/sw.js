@@ -381,6 +381,33 @@ self.addEventListener("fetch", (event) => {
   // Anything else: default to the network (no respondWith).
 });
 
+// ── «Sair» (auditoria de 16/11, n.º 6) ──────────────────────────────────────
+//
+// Ao sair, a página pede (`limpar-back-office`) que o que este guião guardou do
+// back office desapareça do aparelho: o invólucro da vista de carregamento e as
+// fotografias da biblioteca. O site público fica — é dele o modo sem rede. A
+// página faz também a mesma limpeza directamente (`limpar-caches-ao-sair.ts`),
+// e um teste prende os dois ao mesmo resultado.
+
+/** Um caminho do back office (o mesmo critério do `limpar-caches-ao-sair.ts`). */
+function ehDoBackOffice(url) {
+  return /^\/(?:en\/)?orcamento(?:\/|$)/.test(url.pathname);
+}
+
+async function limparCachesDoBackOffice() {
+  await Promise.all([caches.delete(CACHE_FOTOS), caches.delete(CACHE_ORIGINAIS)]);
+  const cache = await caches.open(CACHE);
+  const pedidos = await cache.keys();
+  await Promise.all(
+    pedidos.filter((r) => ehDoBackOffice(new URL(r.url))).map((r) => cache.delete(r)),
+  );
+}
+
+self.addEventListener("message", (event) => {
+  if (!event.data || event.data.tipo !== "limpar-back-office") return;
+  event.waitUntil(limparCachesDoBackOffice().catch(() => undefined));
+});
+
 // ── Web Push (back office) ──────────────────────────────────────────────────
 
 // Incoming push → show a notification
