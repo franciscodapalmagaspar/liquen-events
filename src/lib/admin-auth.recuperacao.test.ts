@@ -29,6 +29,7 @@ const estado = vi.hoisted(() => ({
   escritas: 0,
   recusaEscrita: false,
   duradouro: true,
+  falhaLeitura: false,
 }));
 
 vi.mock("./app-state", () => ({
@@ -37,6 +38,7 @@ vi.mock("./app-state", () => ({
   // referência guardada fazia uma escrita RECUSADA parecer aplicada — o
   // contrário exacto do que estes testes existem para provar.
   getState: vi.fn(async (k: string) => {
+    if (estado.falhaLeitura) throw new Error("leitura falhou");
     const v = estado.mapa.get(k);
     return v === undefined ? null : JSON.parse(JSON.stringify(v));
   }),
@@ -75,6 +77,7 @@ import {
   nomeVisivel,
   pedirRecuperacao,
   definirPalavraPasseComToken,
+  passkeyAindaVale,
   subKey,
 } from "./admin-auth";
 
@@ -101,6 +104,7 @@ beforeEach(() => {
   estado.escritas = 0;
   estado.recusaEscrita = false;
   estado.duradouro = true;
+  estado.falhaLeitura = false;
   comContas(CONTAS);
 });
 
@@ -294,6 +298,26 @@ describe("recuperação — a palavra-passe nova", () => {
     expect((await redefinir("a-minha-frase-nova")).estado).toBe("definida");
     expect(await sessaoValida(antiga)).toBeNull();
     expect(await sessaoValida(doRui)).toEqual({ name: "Rui" });
+  });
+
+  it("as passkeys da conta registadas ANTES deixam de valer; as outras continuam", async () => {
+    // Muda-se a palavra-passe pela recuperação quando se desconfia de quem a
+    // tem — e quem a teve pode ter registado um aparelho seu entretanto.
+    const antes = new Date(Date.now() - 60_000).toISOString();
+    expect(await passkeyAindaVale("Catarina", antes)).toBe(true);
+    expect((await redefinir("a-minha-frase-nova")).estado).toBe("definida");
+    expect(await passkeyAindaVale("Catarina", antes)).toBe(false);
+    // A do Rui não é desta conta.
+    expect(await passkeyAindaVale("Rui", antes)).toBe(true);
+    // Registada depois (ela volta a registar o aparelho): vale.
+    expect(await passkeyAindaVale("Catarina", new Date(Date.now() + 1000).toISOString())).toBe(
+      true,
+    );
+  });
+
+  it("sem conseguir ler o registo, a passkey de uma conta com recuperação não entra", async () => {
+    estado.falhaLeitura = true;
+    expect(await passkeyAindaVale("Catarina", new Date().toISOString())).toBe(false);
   });
 
   it("não toca nas outras contas", async () => {

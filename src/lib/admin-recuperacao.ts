@@ -78,6 +78,15 @@ export interface RegistoDeRecuperacao {
   pedidos: Record<string, PedidoDeRecuperacao>;
   /** email normalizado → palavra-passe redefinida. */
   senhas: Record<string, SenhaRedefinida>;
+  /**
+   * email normalizado → instante da última redefinição pela recuperação. As
+   * passkeys dessa conta registadas ANTES dele deixam de abrir a porta.
+   *
+   * Separado da `senhas` de propósito: rodar o hash no `ADMIN_USERS` desliga a
+   * palavra-passe redefinida (ver `substituiu`), mas não pode ressuscitar um
+   * aparelho que se fechou por desconfiança.
+   */
+  passkeysDesde: Record<string, number>;
 }
 
 /** 32 bytes de aleatoriedade criptográfica — 43 caracteres seguros num URL. */
@@ -140,7 +149,20 @@ function tabelaSemHeranca<T>(origem: unknown): Record<string, T> {
 }
 
 export function registoVazio(): RegistoDeRecuperacao {
-  return { pedidos: tabelaSemHeranca(null), senhas: tabelaSemHeranca(null) };
+  return {
+    pedidos: tabelaSemHeranca(null),
+    senhas: tabelaSemHeranca(null),
+    passkeysDesde: tabelaSemHeranca(null),
+  };
+}
+
+/** Só os instantes que são números: o que vem da base não decide forma nenhuma. */
+function soInstantes(origem: unknown): Record<string, number> {
+  const limpa = tabelaSemHeranca<number>(null);
+  for (const [k, v] of Object.entries(tabelaSemHeranca<unknown>(origem))) {
+    if (typeof v === "number" && Number.isFinite(v)) limpa[k] = v;
+  }
+  return limpa;
 }
 
 export async function lerRegisto(): Promise<RegistoDeRecuperacao> {
@@ -152,6 +174,7 @@ export async function lerRegisto(): Promise<RegistoDeRecuperacao> {
   return {
     pedidos: tabelaSemHeranca<PedidoDeRecuperacao>(guardado.pedidos),
     senhas: tabelaSemHeranca<SenhaRedefinida>(guardado.senhas),
+    passkeysDesde: soInstantes(guardado.passkeysDesde),
   };
 }
 

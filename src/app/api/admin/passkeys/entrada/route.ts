@@ -11,6 +11,7 @@ import {
   contaExiste,
   createSession,
   duracaoDaSessao,
+  passkeyAindaVale,
 } from "@/lib/admin-auth";
 import { contadorRetrocedeu, getPasskey, marcarUso } from "@/lib/passkeys-store";
 import {
@@ -149,6 +150,13 @@ export async function POST(req: NextRequest) {
   // registado. Tirar alguém da lista tem de fechar TAMBÉM esta porta.
   if (!contaExiste(credencial.userName)) {
     log.warn("passkeys: conta já não existe", { ip, conta: credencial.userName });
+    return gastandoODesafio(NextResponse.json({ error: RECUSA }, { status: 401 }));
+  }
+
+  // Redefinir a palavra-passe pela recuperação fecha os aparelhos que a conta
+  // tinha registado até ali — ver `passkeyAindaVale`. A mesma frase de recusa.
+  if (!(await passkeyAindaVale(credencial.userName, credencial.createdAt))) {
+    log.warn("passkeys: registada antes da última recuperação", { ip, conta: credencial.userName });
     return gastandoODesafio(NextResponse.json({ error: RECUSA }, { status: 401 }));
   }
 

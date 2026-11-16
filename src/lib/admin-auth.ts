@@ -867,6 +867,10 @@ export async function definirPalavraPasseComToken(
      */
     substituiu: hashDoAmbiente(conta) ?? "",
   };
+  // As passkeys desta conta registadas até agora deixam de valer (auditoria de
+  // 16/11, n.º 3): quem teve a palavra-passe pode ter registado um aparelho
+  // seu. Vai na MESMA escrita da palavra-passe — ou ficam as duas, ou nenhuma.
+  registo.passkeysDesde[normalizarIdentificador(conta.email)] = agora;
   delete registo.pedidos[email];
 
   const escrita = await gravarRegisto(registo);
@@ -897,6 +901,40 @@ export async function definirPalavraPasseComToken(
     log.error("recuperação: as sessões antigas não foram revogadas", err, { conta: conta.name });
   }
   return { estado: "definida", conta: { name: conta.name, email: conta.email } };
+}
+
+/**
+ * Esta passkey ainda pode abrir a porta? (auditoria de 16/11, n.º 3)
+ *
+ * Redefinir a palavra-passe pela recuperação fecha as passkeys DESSA conta que
+ * foram registadas antes: muda-se a palavra-passe quando se desconfia de quem a
+ * tem, e quem a teve podia ter registado um aparelho seu. Depois de entrar com
+ * a palavra-passe nova, ela regista outra vez os aparelhos que quer.
+ *
+ * `userName` é o nome guardado com a credencial; `criadaEm` é a data dela.
+ *
+ * SE A LEITURA DO REGISTO FALHAR, NÃO ENTRA — numa conta que tenha email (as
+ * outras não têm recuperação, portanto nada para ler). Deixar passar seria
+ * abrir a porta precisamente ao aparelho que a recuperação fechou, no momento
+ * em que a base de dados está lenta. A palavra-passe continua a servir.
+ */
+export async function passkeyAindaVale(userName: string, criadaEm: string): Promise<boolean> {
+  const users = configuredUsers();
+  if (!users) return true;
+  const conta = encontrarConta(users, userName)?.user;
+  if (!conta?.email) return true;
+
+  let desde: number | undefined;
+  try {
+    const { lerRegisto } = await import("./admin-recuperacao");
+    desde = (await lerRegisto()).passkeysDesde[normalizarIdentificador(conta.email)];
+  } catch (err) {
+    log.error("passkeys: não foi possível ler o registo da recuperação — não entra", err);
+    return false;
+  }
+  if (typeof desde !== "number") return true;
+  const criada = Date.parse(criadaEm);
+  return Number.isFinite(criada) && criada >= desde;
 }
 
 // --- Sessions -------------------------------------------------------------
