@@ -11,6 +11,7 @@ import {
   PREFIXO_DO_LEMBRETE,
   precisaDeMim,
   previsaoDeEntradas,
+  mesPorExtenso,
   quadroDeCobrancas,
   type Cobranca,
   type FaseDaCobranca,
@@ -116,7 +117,7 @@ export default function Pagamentos({ quotes, userName, onOpenQuote, onQuoteUpdat
     () => quadroDeCobrancas(quotes, Array.isArray(propostas) ? propostas : [], hoje),
     [quotes, propostas, hoje],
   );
-  const previsao = useMemo(() => previsaoDeEntradas(quadro, hoje, 6), [quadro, hoje]);
+  const previsao = useMemo(() => previsaoDeEntradas(quadro, hoje), [quadro, hoje]);
   const [filtro, setFiltro] = useState<Filtro>("tudo");
   const [procura, setProcura] = useState("");
   const [aberto, setAberto] = useState<string | null>(null);
@@ -155,7 +156,7 @@ export default function Pagamentos({ quotes, userName, onOpenQuote, onQuoteUpdat
   return (
     <div className="flex flex-col gap-[var(--bo-gap-vista)]">
       {/* ── As três respostas, e a previsão ── */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-[1fr_1fr_1fr_1.6fr]">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Numero rotulo="Por receber" valor={eur0(quadro.porReceber)} />
         <Numero
           rotulo={
@@ -167,43 +168,73 @@ export default function Pagamentos({ quotes, userName, onOpenQuote, onQuoteUpdat
           alerta={quadro.emAtraso.clientes > 0}
         />
         <Numero rotulo="Recebido" valor={eur0(quadro.recebido)} sucesso />
-        <section
-          aria-labelledby="previsao-titulo"
-          className="bo-card flex flex-col gap-2 p-[var(--bo-p-cartao)] sm:col-span-3 lg:col-span-1"
-        >
+      </div>
+
+      {/* ── A previsão: TODOS os meses até ao último pagamento ──────────────
+          Até 16/11 eram seis colunas fixas, e o saldo de um casamento em
+          setembro sumia do quadro («então e o resto? Onde é que está?»). Agora
+          é uma fila do mês de hoje até ao último pagamento previsto, a toda a
+          largura; quando não cabe, desliza de lado (com o ano a marcar onde
+          muda), e a soma da fila é o «Por receber», ao cêntimo. */}
+      <section
+        aria-labelledby="previsao-titulo"
+        className="bo-card flex min-w-0 flex-col gap-3 p-[var(--bo-p-cartao)]"
+      >
+        <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h3 id="previsao-titulo" className="bo-eyebrow text-foreground/45">
             Vai entrar
           </h3>
-          <ol className="grid grid-cols-6 items-end gap-2" aria-label="Previsão por mês">
-            {previsao.map((m, i) => (
-              <li key={m.mes} className="flex min-w-0 flex-col items-center gap-1">
-                <span className="text-[10px] tabular-nums text-[var(--bo-text-muted)]">
-                  {m.valor > 0 ? eur0(m.valor) : "—"}
-                </span>
-                <span
-                  className="flex h-12 w-full items-end overflow-hidden rounded-md bg-[var(--bo-tinta-6)]"
-                  aria-hidden="true"
+          <p className="text-xs tabular-nums text-[var(--bo-text-muted)]">
+            {eur0(quadro.porReceber)} até {mesPorExtenso(previsao[previsao.length - 1].mes)}
+          </p>
+        </header>
+        <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 pb-1">
+          <ol
+            className="grid min-w-full auto-cols-[minmax(3.5rem,1fr)] grid-flow-col items-end gap-2"
+            aria-label="Previsão por mês"
+          >
+            {previsao.map((m, i) => {
+              const [ano] = m.mes.split("-");
+              const mudaDeAno = i > 0 && previsao[i - 1].mes.slice(0, 4) !== ano;
+              return (
+                <li
+                  key={m.mes}
+                  className={`flex min-w-0 flex-col items-center gap-1 ${
+                    mudaDeAno ? "border-l border-[var(--bo-hairline)] pl-2" : ""
+                  }`}
+                  aria-label={`${mesPorExtenso(m.mes)}: ${m.valor > 0 ? eur0(m.valor) : "nada previsto"}`}
                 >
+                  <span className="whitespace-nowrap text-[10px] tabular-nums text-[var(--bo-text-muted)]">
+                    {m.valor > 0 ? eur0(m.valor) : "—"}
+                  </span>
                   <span
-                    className={`block w-full origin-bottom rounded-md ${
-                      i === 0 && quadro.emAtraso.clientes > 0
-                        ? "bg-[var(--bo-perigo)]/70"
-                        : "bg-sage-600"
-                    } ${PROGRESSO}`}
-                    style={{ height: "100%", transform: `scaleY(${m.valor / maxPrevisao})` }}
-                  />
-                </span>
-                {/* O ano numa linha só dele (vazia no ano corrente): «jan 2027»
-                    partia em duas no telemóvel e desalinhava as barras. */}
-                <span className="flex flex-col items-center text-[11px] leading-tight text-[var(--bo-text-faint)]">
-                  <span>{mesCurto(m.mes, hoje).split(" ")[0]}</span>
-                  <span>{mesCurto(m.mes, hoje).split(" ")[1] ?? "\u00a0"}</span>
-                </span>
-              </li>
-            ))}
+                    className="flex h-12 w-full items-end overflow-hidden rounded-md bg-[var(--bo-tinta-6)]"
+                    aria-hidden="true"
+                  >
+                    <span
+                      className={`block w-full origin-bottom rounded-md ${
+                        i === 0 && quadro.emAtraso.clientes > 0
+                          ? "bg-[var(--bo-perigo)]/70"
+                          : "bg-sage-600"
+                      } ${PROGRESSO}`}
+                      style={{ height: "100%", transform: `scaleY(${m.valor / maxPrevisao})` }}
+                    />
+                  </span>
+                  {/* O ano só onde muda (e no primeiro mês de outro ano), numa
+                      linha dele: «jan 2027» partia em duas e desalinhava. */}
+                  <span
+                    className="flex flex-col items-center text-[11px] leading-tight text-[var(--bo-text-faint)]"
+                    aria-hidden="true"
+                  >
+                    <span>{mesCurto(m.mes, hoje).split(" ")[0]}</span>
+                    <span>{i === 0 || mudaDeAno ? ano : "\u00a0"}</span>
+                  </span>
+                </li>
+              );
+            })}
           </ol>
-        </section>
-      </div>
+        </div>
+      </section>
 
       {/* ── Filtro e procura ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
