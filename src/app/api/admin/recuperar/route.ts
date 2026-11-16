@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { pedirRecuperacao, normalizarIdentificador } from "@/lib/admin-auth";
 import { VALIDADE_MS } from "@/lib/admin-recuperacao";
-import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
+import { rateLimit, clientIp, sweep, limiteEsgotado } from "@/lib/rate-limit";
 import { sendMail } from "@/lib/mail";
 import { EMAIL_LOGO_CID, emailLogoAttachment } from "@/lib/email-logo";
 import {
@@ -96,35 +96,45 @@ export async function POST(request: NextRequest) {
    *  • 5 pedidos por hora e por ENDEREÇO DE ORIGEM: impede que um sítio só
    *    ande a disparar pedidos para descobrir contas ou a encher caixas de
    *    correio;
-   *  • 3 pedidos por hora e por CONTA: é o tecto contra o bombardeamento da
+   *  • 3 EMAILS por hora e por CONTA: é o tecto contra o bombardeamento da
    *    caixa de correio de uma pessoa. Três chega para quem não recebeu o
    *    primeiro email e volta a tentar.
    *
-   * O tecto por conta tem um custo que se assume de olhos abertos: um estranho
-   * pode gastá-lo e deixar a própria sem poder pedir a ligação durante uma
-   * hora. Aqui — ao contrário do que acontecia na entrada — esse mal é pequeno:
-   * a pessoa continua a poder entrar com a palavra-passe ou com o aparelho
-   * registado, e o que se evita do outro lado (mil emails na caixa de correio
-   * de quem gere a empresa) é bem pior.
+   * O TECTO DA CONTA CONTA SÓ OS EMAILS QUE SAEM, E NÃO RESPONDE 429 (auditoria
+   * de 16/11, n.º 5). Antes, qualquer pedido o gastava e acima dele vinha um
+   * 429: três pedidos de um estranho deixavam a dona sem poder pedir a ligação
+   * durante uma hora. Agora, acima do tecto, não sai email nem se emite ligação
+   * nova — a do último email continua a valer — e a resposta é a neutra de
+   * sempre. Os pedidos para endereços que não são de ninguém não gastam nada.
+   *
+   * O tecto por ENDEREÇO DE ORIGEM continua a responder 429: é sobre quem está
+   * a pedir, não sobre a conta, e não deixa ninguém fechar a porta a outro.
    */
   const chaveConta = normalizarIdentificador(email);
-  const [porIp, porConta] = await Promise.all([
-    rateLimit(`recuperar-ip:${ip}`, 5, 60 * 60_000, { global: true }),
-    rateLimit(`recuperar-conta:${chaveConta}`, 3, 60 * 60_000, { global: true }),
-  ]);
-  const travado = !porIp.ok ? porIp : !porConta.ok ? porConta : null;
-  if (travado) {
+  const CHAVE_DA_CONTA = `recuperar-conta:${chaveConta}`;
+  const TECTO_DA_CONTA = 3;
+  const porIp = await rateLimit(`recuperar-ip:${ip}`, 5, 60 * 60_000, { global: true });
+  if (!porIp.ok) {
     log.warn("recuperação: pedido com tecto de tentativas", { ip });
     await esperarAtePiso(inicio);
     return NextResponse.json(
       { error: "Demasiados pedidos. Tenta daqui a bocado." },
-      { status: 429, headers: { "Retry-After": String(travado.retryAfter ?? 3600) } },
+      { status: 429, headers: { "Retry-After": String(porIp.retryAfter ?? 3600) } },
     );
   }
 
   // Um endereço sem arroba nunca é conta nenhuma: poupa-se a leitura e a
   // escrita, e não se perde neutralidade — a resposta é a mesma de sempre.
   if (!chaveConta.includes("@")) {
+    await esperarAtePiso(inicio);
+    return NextResponse.json({ ok: true, mensagem: NEUTRA });
+  }
+
+  // Só pergunta, sem gastar: o que gasta é o email que sai (ver o `after`).
+  // Acima do tecto não se toca no registo — a ligação que já foi enviada
+  // continua a ser a boa. O piso esconde a diferença de tempo.
+  if (!(await limiteEsgotado(CHAVE_DA_CONTA, TECTO_DA_CONTA)).ok) {
+    log.warn("recuperação: conta com o tecto de emails — nada enviado", { ip });
     await esperarAtePiso(inicio);
     return NextResponse.json({ ok: true, mensagem: NEUTRA });
   }
@@ -225,7 +235,10 @@ export async function POST(request: NextRequest) {
           attachments: [emailLogoAttachment()],
           headers: { "Auto-Submitted": "auto-generated" },
         });
-        if (!sent) {
+        if (sent) {
+          // Só agora conta para o tecto da conta: um email que saiu mesmo.
+          await rateLimit(CHAVE_DA_CONTA, TECTO_DA_CONTA, 60 * 60_000, { global: true });
+        } else {
           // SMTP por configurar. O token está guardado e válido, mas ninguém o
           // vai receber. Fica no registo como ERRO — é uma avaria de instalação,
           // não um caso normal — e a resposta continua a ser a neutra: mudar de
