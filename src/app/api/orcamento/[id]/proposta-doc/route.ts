@@ -55,6 +55,7 @@ import {
 import { resolverLigacaoDaProposta } from "@/lib/email-ligacao-reservada";
 import { listarEnvios, registarEnvio } from "@/lib/envios-de-proposta";
 import { log } from "@/lib/logger";
+import { aceitarSeOPedidoJaEstaGanho } from "@/lib/contrato-do-ganho";
 import { eCasamento } from "@/lib/proposal-evento";
 import { comCpu } from "@/lib/medir-cpu";
 import { fecharTrinco, type Trinco } from "@/lib/trinco";
@@ -922,7 +923,10 @@ async function POST_semMedida(
     const JANELA_DE_REPETICAO_MS = 3 * 60_000;
     let jaSeguiu = irmasAnteriores.find(
       (p) =>
-        p.status === "enviada" &&
+        // «aceite» também: num pedido já ganho, a que acabou de seguir passa
+        // logo a aceite (`aceitarSeOPedidoJaEstaGanho`), e o segundo toque no
+        // botão não a reconhecia — saía um segundo email ao casal.
+        (p.status === "enviada" || p.status === "aceite") &&
         !!p.versaoSelo &&
         p.versaoSelo === proposal.versaoSelo &&
         !!p.sentAt &&
@@ -1888,7 +1892,7 @@ async function POST_semMedida(
        * decidido, é dele que vivem a margem e a proposta seguinte, e nada nele
        * depende de o correio ter funcionado.
        */
-      await updateQuoteWith(id, (actual) => {
+      const pedidoDepois = await updateQuoteWith(id, (actual) => {
         const transicao = seguiu
           ? transicaoDoPedido({
               acontecimento: "proposta_enviada",
@@ -1907,6 +1911,15 @@ async function POST_semMedida(
             : {}),
         };
       });
+      // O pedido já estava «Ganho» antes de esta proposta seguir: ela é a que
+      // o casal aceitou — fica aceite, e o contrato nasce (16/11).
+      if (seguiu && estado === "enviada") {
+        try {
+          await aceitarSeOPedidoJaEstaGanho(id, pedidoDepois?.status, proposal);
+        } catch (e) {
+          log.error("proposta-doc: aceitar a proposta de um pedido já ganho falhou", e, { id });
+        }
+      }
     } catch (e) {
       log.error("proposta-doc: actualizar pedido falhou", e);
       /**

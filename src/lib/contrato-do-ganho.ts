@@ -63,6 +63,50 @@ export function nascerContratoDoGanho(quoteId: string, proposta: Proposal) {
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
+ * A PROPOSTA QUE SEGUE DEPOIS DO «GANHO» JÁ NASCE ACEITE
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O «Ganho» aceita a proposta que o pedido TEM nesse momento. Quando ela marca
+ * «Ganho» primeiro (o casal disse que sim ao telefone) e só depois envia o
+ * documento, não havia proposta nenhuma para aceitar — e a que seguiu a seguir
+ * ficava «enviada» para sempre, sem contrato, fora das Propostas Aceites.
+ * Aconteceu (16/11): «nem estão aqui as propostas todas aceites».
+ *
+ * Só quando NENHUMA outra proposta do pedido está aceite: uma revisão enviada
+ * depois de uma proposta aceite é isso mesmo — uma revisão por responder — e a
+ * aceite continua a ser a que conta (`propostaQueConta`).
+ *
+ * Devolve se aceitou. Quem chama trata isto como melhor esforço: o envio já
+ * aconteceu e não se desfaz por causa disto.
+ */
+export async function aceitarSeOPedidoJaEstaGanho(
+  quoteId: string,
+  estadoDoPedido: string | undefined,
+  proposta: Proposal,
+  agora: string = new Date().toISOString(),
+): Promise<boolean> {
+  if (estadoDoPedido !== "aceite") return false;
+  const irmas = await listProposalsForQuote(quoteId);
+  if (irmas.some((p) => p.id !== proposta.id && p.status === "aceite")) return false;
+  const aceite = await updateProposal(proposta.id, { status: "aceite", respondedAt: agora });
+  if (!aceite) return false;
+  // Dois envios em voo ao mesmo tempo podiam aceitar cada um a sua: relê-se, e
+  // se houver OUTRA aceite, esta cede sempre — volta a «enviada», sem
+  // contrato. Sem desempate de propósito: um desempate só funciona se os dois
+  // se virem um ao outro, e com relógios de instâncias diferentes nem sempre
+  // vêem. O pior caso é ficarem as duas «enviada» (o estado de antes, à vista
+  // e corrigível com o «Ganho»); nunca dois contratos.
+  const depois = await listProposalsForQuote(quoteId);
+  if (depois.some((p) => p.id !== proposta.id && p.status === "aceite")) {
+    await updateProposal(proposta.id, { status: "enviada", respondedAt: "" });
+    return false;
+  }
+  await nascerContratoDoGanho(quoteId, { ...proposta, ...aceite });
+  return true;
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
  * DESFAZER UM «GANHO» MARCADO POR ENGANO — E O QUE ELE ARRASTOU
  * ════════════════════════════════════════════════════════════════════════════
  *
