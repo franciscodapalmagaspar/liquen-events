@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Proposal } from "@/lib/orcamento/types";
 
 const propostas = new Map<string, Proposal>();
@@ -46,6 +46,36 @@ describe("a proposta enviada depois do «Ganho»", () => {
   beforeEach(() => {
     propostas.clear();
     contratos.length = 0;
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("a outra aceite DEPOIS deste relógio (instâncias diferentes): esta cede na mesma", async () => {
+    propostas.set("p1", proposta("p1", "enviada"));
+    propostas.set("p2", proposta("p2", "enviada"));
+    const loja = await import("@/lib/proposals-store");
+    const original = loja.updateProposal;
+    let uma = true;
+    vi.spyOn(loja, "updateProposal").mockImplementation(async (id, patch) => {
+      if (uma) {
+        uma = false;
+        // A aceitou a p1 com um relógio MAIS À FRENTE do que o deste envio.
+        propostas.set("p1", {
+          ...propostas.get("p1")!,
+          status: "aceite",
+          respondedAt: "2026-11-16T19:00:05.000Z",
+        });
+      }
+      return original(id, patch);
+    });
+    const ok = await aceitarSeOPedidoJaEstaGanho(
+      "LIQ-1",
+      "aceite",
+      propostas.get("p2")!,
+      "2026-11-16T19:00:00.000Z",
+    );
+    expect(ok).toBe(false);
+    expect(propostas.get("p2")!.status).toBe("enviada");
+    expect(contratos).toHaveLength(0);
   });
 
   it("fica aceite e nasce o contrato quando o pedido já estava ganho (caso Rita & Ricardo)", async () => {
@@ -96,7 +126,6 @@ describe("a proposta enviada depois do «Ganho»", () => {
     expect(ok).toBe(false);
     expect(propostas.get("p2")!.status).toBe("enviada");
     expect(contratos).toHaveLength(0);
-    vi.restoreAllMocks();
   });
 
   it("uma revisão depois de uma proposta aceite continua por responder", async () => {

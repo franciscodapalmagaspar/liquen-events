@@ -91,17 +91,13 @@ export async function aceitarSeOPedidoJaEstaGanho(
   const aceite = await updateProposal(proposta.id, { status: "aceite", respondedAt: agora });
   if (!aceite) return false;
   // Dois envios em voo ao mesmo tempo podiam aceitar cada um a sua: relê-se, e
-  // fica a que foi aceite primeiro (empate: o id menor). A outra volta a
-  // «enviada» — uma revisão por responder — e não nasce segundo contrato.
+  // se houver OUTRA aceite, esta cede sempre — volta a «enviada», sem
+  // contrato. Sem desempate de propósito: um desempate só funciona se os dois
+  // se virem um ao outro, e com relógios de instâncias diferentes nem sempre
+  // vêem. O pior caso é ficarem as duas «enviada» (o estado de antes, à vista
+  // e corrigível com o «Ganho»); nunca dois contratos.
   const depois = await listProposalsForQuote(quoteId);
-  const primeira = depois
-    .filter((p) => p.status === "aceite")
-    .sort(
-      (a, b) =>
-        String(a.respondedAt ?? "").localeCompare(String(b.respondedAt ?? "")) ||
-        a.id.localeCompare(b.id),
-    )[0];
-  if (primeira && primeira.id !== proposta.id) {
+  if (depois.some((p) => p.id !== proposta.id && p.status === "aceite")) {
     await updateProposal(proposta.id, { status: "enviada", respondedAt: "" });
     return false;
   }
