@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { NextRequest } from "next/server";
 import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
+import { createRequire } from "node:module";
 import { config, proxy } from "./proxy";
 import { REDIRECIONAMENTOS_DA_LINGUA, REESCRITAS_DA_LINGUA } from "./lib/rotas-da-lingua";
 
@@ -70,9 +71,79 @@ function reescritaPara(res: Response): string | null {
   return raw ? new URL(raw).pathname : null;
 }
 
+/**
+ * O `matcher` passado pelo MESMO compilador que o Next usa no build
+ * (`getMiddlewareMatchers`), e casado como o servidor casa: `true` se o proxy
+ * corre neste caminho.
+ */
+// Os tipos do Next não exportam esta função (o JS exporta): lê-se pelo require.
+const { getMiddlewareMatchers } = createRequire(import.meta.url)(
+  "next/dist/build/analysis/get-page-static-info",
+) as {
+  getMiddlewareMatchers: (m: unknown, c: { basePath: string }) => { regexp: string }[];
+};
+const MATCHERS = getMiddlewareMatchers(config.matcher, { basePath: "" }).map(
+  (m: { regexp: string }) => new RegExp(m.regexp),
+);
+function casaComOMatcher(caminho: string): boolean {
+  return MATCHERS.some((r: RegExp) => r.test(caminho));
+}
+
+describe("proxy — as leituras públicas ficam de fora (16/11)", () => {
+  it("as leituras do link do casal não passam pelo proxy", () => {
+    const T = "eyJwIjoiYWJjIn0.QmFzZTY0VXJsU2Vt";
+    for (const c of [
+      `/api/proposta/${T}/pagina/3`,
+      `/api/proposta/${T}/foto/b0f2`,
+      `/api/proposta/${T}/fundo/c0`,
+      `/api/proposta/${T}/paginas`,
+      "/api/vitals",
+      "/api/health",
+      "/api/erro-do-site",
+      "/api/security/csp-report",
+    ]) {
+      expect(casaComOMatcher(c), c).toBe(false);
+    }
+  });
+
+  it("o resto de /api continua a passar — o CSRF da escolha e do PDF incluído", () => {
+    const T = "eyJwIjoiYWJjIn0.QmFzZTY0VXJsU2Vt";
+    for (const c of [
+      `/api/proposta/${T}/escolha`,
+      `/api/proposta/${T}/pdf`,
+      `/api/proposta/${T}/fotos`,
+      "/api/cron/backup",
+      "/api/cron/reminders",
+      "/api/admin/login",
+      "/api/orcamento/123",
+      "/api/vitalsx",
+      "/api/healthcheck",
+      "/api/security/outra",
+      "/api/proposta/paginas",
+    ]) {
+      expect(casaComOMatcher(c), c).toBe(true);
+    }
+  });
+
+  it("e quando passa, o CSRF da escolha continua a recusar outra origem", async () => {
+    const r = new NextRequest(new URL("https://liquen.test/api/proposta/T.x/escolha"), {
+      method: "POST",
+      headers: { origin: "https://mau.example", host: "liquen.test" },
+    });
+    const res = await proxy(r);
+    expect(res.status).toBe(403);
+  });
+});
+
 describe("proxy — só /api e /en", () => {
   it("o matcher deixa de fora as páginas portuguesas (já não há função por visita)", () => {
-    expect(config.matcher).toEqual(["/api/:path*", "/en", "/en/:path*"]);
+    const passa = casaComOMatcher;
+    for (const c of ["/", "/servicos", "/galeria", "/proposta/abc.def", "/orcamento/admin"]) {
+      expect(passa(c), c).toBe(false);
+    }
+    for (const c of ["/en", "/en/servicos", "/api", "/api/orcamento/123"]) {
+      expect(passa(c), c).toBe(true);
+    }
   });
 
   it("não sequestra os /api/admin/* (é o ramo da api)", async () => {
