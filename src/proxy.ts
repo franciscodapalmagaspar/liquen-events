@@ -5,7 +5,8 @@ import { CABECALHO_DA_LINGUA } from "@/lib/lingua-do-pedido";
 import { COOKIE_DA_LINGUA as LANG_COOKIE } from "@/lib/rotas-da-lingua";
 
 /**
- * Proxy (Next.js 16 — antes «middleware»). Corre SÓ em `/api` e `/en`.
+ * Proxy (Next.js 16 — antes «middleware»). Corre SÓ em `/api` e `/en` — e,
+ * dentro de `/api`, não nas leituras públicas (ver o `matcher`, lá em baixo).
  *
  *  1. `/en`, `/en/*` — já é o segmento `[lang=en]`; serve-se como está. Numa
  *     navegação a sério grava o cookie `liquen-lang`, que as regras de
@@ -138,11 +139,41 @@ function comLingua(req: NextRequest, lang: "pt" | "en"): Headers {
   return h;
 }
 
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * AS LEITURAS PÚBLICAS NÃO PASSAM POR AQUI (16/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Cada passagem pelo proxy é uma invocação a mais. Nestes caminhos ele não
+ * fazia nada além do `x-request-id` — conferido rota a rota:
+ *   · `proposta/<token>/(pagina|foto|fundo|paginas)` — só GET, a autorização
+ *     é o token; nenhuma lê a sessão nem o cookie, e é o casal a ver a
+ *     proposta (dezenas de pedidos por visita);
+ *   · `vitals`, `erro-do-site`, `security/csp-report` — POST anónimos de
+ *     telemetria: não há sessão a defender de um CSRF, e não leem cookies;
+ *   · `health` — GET, com a sua própria chave, sem sessão.
+ * O CSRF de tudo o resto continua aqui — `proposta/<token>/escolha` incluído.
+ *
+ * O `cron` FICA: as duas tarefas aceitam também a sessão do back office
+ * (`isAuthed`, para as correr à mão), e é este proxy que tira o cookie de uma
+ * sessão revogada (ponto 5, lá em cima). Sem ele, uma sessão terminada ainda
+ * corria a cópia de segurança. Correm duas vezes por dia: não há o que poupar.
+ *
+ * Os testes em `proxy.test.ts` passam cada caminho pelo MESMO compilador de
+ * `matcher` que o Next usa no build.
+ */
 export const config = {
   // Só `/api` (CSRF, id do pedido) e `/en` (o cookie que lembra o inglês).
   // Antes corria em todas as páginas, para reescrever os caminhos nus para
   // `/{lang}/…` — isso passou a ser uma regra do `next.config.ts`
   // (`src/lib/rotas-da-lingua.ts`, 10/11): uma visita a uma página portuguesa
-  // já não invoca função nenhuma.
-  matcher: ["/api/:path*", "/en", "/en/:path*"],
+  // já não invoca função nenhuma. E de `/api` saem as leituras públicas.
+  //
+  // O Next lê o `matcher` no build, de forma ESTÁTICA: tem de ser um literal.
+  matcher: [
+    "/api",
+    "/api/((?!proposta/[^/]+/(?:pagina|foto|fundo|paginas)(?:/|$)|vitals(?:/|$)|health(?:/|$)|erro-do-site(?:/|$)|security/csp-report(?:/|$)).*)",
+    "/en",
+    "/en/:path*",
+  ],
 };

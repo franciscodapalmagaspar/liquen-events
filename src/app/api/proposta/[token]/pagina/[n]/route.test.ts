@@ -55,6 +55,22 @@ describe("a cache da página do PDF do casal", () => {
     const res = await pedir();
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toContain("immutable");
+    // E a CDN da Vercel guarda-a UMA HORA (17/11: não sabe quando um link é cortado); o browser continua a ver `private`.
+    expect(res.headers.get("Vercel-CDN-Cache-Control")).toBe("max-age=3600");
+    expect(res.headers.get("Cache-Control")).toMatch(/^private,/);
+  });
+
+  it("com uma versão antiga ou sem versão: nada na CDN", async () => {
+    H.completo = true;
+    for (const qs of ["?v=antiga", ""]) {
+      esquecerLinksLidos();
+      const res = await GET(new Request(`https://liquen.test/api/proposta/bom/pagina/1${qs}`), {
+        params: Promise.resolve({ token: "bom", n: "1" }),
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe("private, no-cache");
+      expect(res.headers.get("Vercel-CDN-Cache-Control")).toBeNull();
+    }
   });
 
   it("incompleto: serve-se, mas não se guarda", async () => {
@@ -62,5 +78,6 @@ describe("a cache da página do PDF do casal", () => {
     const res = await pedir();
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("private, no-cache");
+    expect(res.headers.get("Vercel-CDN-Cache-Control")).toBeNull();
   });
 });

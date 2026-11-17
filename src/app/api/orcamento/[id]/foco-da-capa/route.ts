@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
 import { focoAutomaticoDaCapa } from "@/lib/proposal-doc-render";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 // O sharp precisa do runtime Node.
 export const runtime = "nodejs";
@@ -14,7 +15,10 @@ export const runtime = "nodejs";
  * fotografia e o PDF recortava pela «atenção» do sharp. Com isto, a caixa da
  * capa mostra a escolha do PDF, e ela arrasta a partir daí se não gostar.
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function GET_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const { id } = await params;
   const caminho = request.nextUrl.searchParams.get("caminho") ?? "";
@@ -36,3 +40,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+export const GET = comCpu("foco-da-capa GET", GET_semMedida);

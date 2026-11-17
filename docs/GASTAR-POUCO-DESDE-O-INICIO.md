@@ -108,6 +108,29 @@ junto. Ela pediu a 4/11: **«passa a juntar as alterações em lotes»**.
   maiores linhas, e as duas crescem com cada publicação.
 - **Fora do lote, logo:** o site em baixo, uma falha de segurança, ou um erro
   que um cliente está a ver neste momento.
+- **Agora é o código que faz cumprir o lote** (16/11). O
+  `scripts/vercel-construir.mjs` (o `ignoreCommand` do `vercel.json`) só deixa
+  construir produção quando a mensagem do commit no `main` começa por
+  «Lote», «Urgente» ou «Revert» (sem distinguir maiúsculas; 17/11: os
+  urgentes e as reversões já entravam assim), ou contém `lote/` (o merge de
+  um ramo `lote/AAAA-MM-DD`), ou traz `[publicar]` ou `[urgente]`. Qualquer outro commit no `main` salta a
+  construção: fica no `main` e chega ao site com o lote seguinte. Sem
+  mensagem, constrói (na dúvida, constrói). Os testes estão em
+  `scripts/vercel-construir.test.ts`.
+- **Só a primeira linha da mensagem conta** (17/11). A Vercel diz que
+  `VERCEL_GIT_COMMIT_MESSAGE` é a mensagem do commit, cortada aos 2048 bytes —
+  pode vir com o corpo, e o corpo de um squash lista os commits do PR. Por
+  isso **o lote entra no `main` de uma de duas formas**, as duas com o sinal
+  no título:
+  1. **merge commit** — «Merge pull request #N from …/lote/AAAA-MM-DD» (vale
+     também para um lote com um só commit);
+  2. **squash** com o título do PR a começar por «Lote …».
+
+  Um `lote/…` ou um `[publicar]` que só apareça no corpo não publica.
+- **Para forçar uma publicação** fora do lote (ela pediu para ver, ou é uma
+  das três urgências de cima): `[publicar]` (ou `[urgente]`, para as
+  urgências) no título do PR que entra em squash, ou num commit vazio —
+  `git commit --allow-empty -m "Publica já [publicar]"`.
 - **O que mexe no PDF continua a precisar da aprovação dela antes de entrar no
   lote** — o lote não é atalho.
 - **Os ramos de trabalho não arrancam construções na Vercel** (9/11). Uma
