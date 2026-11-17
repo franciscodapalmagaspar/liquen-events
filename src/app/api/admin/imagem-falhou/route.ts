@@ -64,11 +64,33 @@ export async function POST(request: NextRequest) {
   const limpo = url.includes("?") ? url.slice(0, url.indexOf("?")) : url;
 
   const estado = typeof d.estado === "number" && Number.isFinite(d.estado) ? d.estado : null;
-  log.warn("estúdio: imagem não desenhou no browser", {
+  /**
+   * ── «EXPIROU» NÃO É «NÃO EXISTE» (registos de 10–13/11) ─────────────────
+   *
+   * As ~30 desses dias eram TODAS 400 sobre ficheiros que existem no Storage
+   * (verificado um a um): assinaturas de 6 h já mortas, que a hidratação troca
+   * sozinha. No mesmo aviso que um ficheiro apagado, afogavam o caso que
+   * importa. O browser diz se o prazo do token já tinha passado (`expirada`);
+   * esse vai como informação, e o resto continua aviso, com a causa escrita.
+   */
+  const contexto = {
     onde: texto(d.onde, 40) || "desconhecido",
     ref: texto(d.ref, 200),
     url: limpo,
     estado,
-  });
+    causa: causaDaFalha(d.expirada === true, estado),
+  };
+  if (d.expirada === true) log.info("estúdio: imagem com assinatura expirada", contexto);
+  else log.warn("estúdio: imagem não desenhou no browser", contexto);
   return NextResponse.json({ ok: true });
+}
+
+function causaDaFalha(expirada: boolean, estado: number | null): string {
+  if (expirada) return "assinatura expirada";
+  if (estado === 404) return "ficheiro em falta";
+  // O Storage do Supabase responde 400 também a um objecto que não existe, e a
+  // um token recusado; com o prazo em dia, não se sabe qual dos dois.
+  if (estado === 400 || estado === 403) return "recusado pelo Storage";
+  if (estado === null) return "sem resposta";
+  return `estado ${estado}`;
 }

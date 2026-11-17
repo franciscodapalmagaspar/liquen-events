@@ -99,4 +99,24 @@ describe("relatarFalhaDeImagem", () => {
       relatarFalhaDeImagem({ onde: "capa-direita", url: ASSINADO }),
     ).resolves.toBeUndefined();
   });
+  it("uma assinatura que JÁ expirou diz-se como tal, sem ir buscar o código (registos de 10–13/11)", async () => {
+    // As ~30 «imagem não desenhou» de 10–13/11 eram TODAS 400 sobre ficheiros
+    // que existem (verificado no Storage): assinaturas de 6 h já mortas, que
+    // a hidratação troca sozinha. Diz-se `expirada`, para o registo as separar
+    // de um ficheiro em falta — e poupa-se a ida que só servia para o código.
+    const carga = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 })).toString(
+      "base64url",
+    );
+    const morto = `https://abc.supabase.co/storage/v1/object/sign/theme-assets/t/a.jpg?token=eyJhbGciOi.${carga}.xxx`;
+    const sonda = vi.mocked(fetch);
+    await relatarFalhaDeImagem({ onde: "mood-board", ref: "tema:t/a.jpg", url: morto });
+    expect(pedidos).toHaveLength(1);
+    expect(pedidos[0].corpo).toMatchObject({ expirada: true, estado: null });
+    expect(sonda.mock.calls.filter(([u]) => String(u) === morto)).toHaveLength(0);
+  });
+
+  it("uma assinatura em dia não se diz expirada", async () => {
+    await relatarFalhaDeImagem({ onde: "capa", url: ASSINADO });
+    expect(pedidos[0].corpo.expirada).toBe(false);
+  });
 });
