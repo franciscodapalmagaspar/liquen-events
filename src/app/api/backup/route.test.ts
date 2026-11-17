@@ -284,6 +284,28 @@ describe("GET /api/backup", () => {
     expect(json.incomplete).toEqual(["suppliers"]);
   });
 
+  it("uma recusa PASSAGEIRA de um conjunto tenta outra vez, e a cópia sai COMPLETA (registos de 13 e 16/11)", async () => {
+    // «backup: conjunto falhou a leitura — cópia INCOMPLETA»: `eventMaterial`
+    // a 13/11 e `proposalEmails` a 16/11, ambos com PGRST303 («JWT issued at
+    // future» — o relógio do PostgREST uns segundos atrás). Passa sozinho num
+    // segundo; sem nova tentativa, a cópia da noite saía incompleta.
+    const relogio = Object.assign(new Error("JWT issued at future"), { code: "PGRST303" });
+    stores.eventMaterial.mockRejectedValueOnce(relogio).mockResolvedValue([{ id: "em1" }]);
+    stores.proposalEmails
+      .mockRejectedValueOnce(new Error("tempo esgotado"))
+      .mockResolvedValue([{ key: "envio-de-proposta:1" }]);
+    const json = await (await GET(get())).json();
+    expect(json.incomplete).toEqual([]);
+    expect(json.counts.eventMaterial).toBe(1);
+    expect(json.counts.proposalEmails).toBe(1);
+  });
+
+  it("uma avaria que NÃO é passageira não se repete às cegas", async () => {
+    stores.suppliers.mockRejectedValue(new Error("db down"));
+    await GET(get());
+    expect(stores.suppliers).toHaveBeenCalledTimes(1);
+  });
+
   it("contadores de numeração: erro do Supabase marca a cópia como incompleta", async () => {
     sb.fails = true;
     const json = await (await GET(get())).json();
