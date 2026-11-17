@@ -1,6 +1,8 @@
 "use client";
 
 import { FolhaOuDialogo } from "./ui";
+import { VIEW_KEYS } from "./atalhos";
+import { NAV, type View } from "./nav";
 
 interface Props {
   open: boolean;
@@ -25,11 +27,30 @@ interface Props {
  * mesmo padrão do `AjudaGlossario`, que esconde as menções ao «?» e ao Escape
  * pela mesma razão.
  */
-const GROUPS: {
+/** O nome de cada destino do acorde «G», como o menu o escreve. */
+const ROTULO_DO_DESTINO: Partial<Record<View, string>> = {
+  ...Object.fromEntries(NAV.map((n) => [n.id, n.label])),
+  // Fora do menu (a pedido dela), mas a Visão Geral leva lá — ver `atalhos.ts`.
+  kanban: "Organização de propostas",
+};
+
+type Grupo = {
   title: string;
   soTeclado?: boolean;
   items: { keys: string[]; label: string }[];
-}[] = [
+};
+
+/**
+ * ── O QUE ESTA FOLHA MOSTRA, DESDE BO 4 ───────────────────────────────────
+ *
+ * Os atalhos que EXISTEM, e não só os do cabeçalho: as Tarefas, o Calendário
+ * e a Biblioteca de temas tinham os seus (⌘N, ↑↓, ⌘⌫; ⌘1–4, ⌘T, setas; ⌘A,
+ * ⇧+clique) e esta folha não falava de nenhum — um atalho que só quem leu o
+ * código conhece não existe. O acorde «G» lê a tabela do ouvinte
+ * (`VIEW_KEYS`), por isso a folha não pode voltar a prometer uma letra que
+ * não faz nada.
+ */
+export const GROUPS: Grupo[] = [
   {
     title: "Geral",
     items: [
@@ -37,8 +58,8 @@ const GROUPS: {
       // do back office e grava TODOS os ecrãs com trabalho por gravar — é o
       // mesmo gesto do botão «Guardar tudo» do cabeçalho, com a mesma resposta.
       { keys: ["⌘", "S"], label: "Guardar tudo o que está por gravar" },
-      { keys: ["⌘", "K"], label: "Pesquisar / comandos" },
-      { keys: ["/"], label: "Procurar nos pedidos" },
+      { keys: ["⌘", "K"], label: "Procurar em tudo e comandos" },
+      { keys: ["/"], label: "Procurar na vista aberta" },
       { keys: ["N"], label: "Novo pedido" },
       { keys: ["?"], label: "Mostrar atalhos" },
       { keys: ["Esc"], label: "Fechar janelas" },
@@ -47,16 +68,52 @@ const GROUPS: {
   {
     title: "Navegar — pressiona G, depois…",
     soTeclado: true,
+    items: Object.entries(VIEW_KEYS).map(([letra, vista]) => ({
+      keys: ["G", letra.toUpperCase()],
+      label: ROTULO_DO_DESTINO[vista] ?? vista,
+    })),
+  },
+  {
+    title: "Pedidos",
+    soTeclado: true,
     items: [
-      { keys: ["G", "O"], label: "Visão Geral" },
-      { keys: ["G", "P"], label: "Pedidos" },
-      { keys: ["G", "K"], label: "Organização de propostas" },
-      { keys: ["G", "C"], label: "Clientes" },
-      { keys: ["G", "A"], label: "Calendário" },
-      { keys: ["G", "R"], label: "Propostas" },
-      { keys: ["G", "T"], label: "Tarefas" },
-      { keys: ["G", "F"], label: "Fornecedores" },
-      { keys: ["G", "E"], label: "Estatísticas" },
+      { keys: ["⌘", "A"], label: "Selecionar os que estão à vista" },
+      { keys: ["Esc"], label: "Limpar a seleção" },
+    ],
+  },
+  {
+    title: "Tarefas",
+    soTeclado: true,
+    items: [
+      { keys: ["⌘", "N"], label: "Nova tarefa" },
+      { keys: ["↑", "↓"], label: "Tarefa anterior e seguinte" },
+      { keys: ["⌘", "⌫"], label: "Eliminar a tarefa" },
+      { keys: ["⇧", "clique"], label: "Selecionar várias seguidas" },
+      { keys: ["⌘", "clique"], label: "Juntar à seleção" },
+      { keys: ["⌘", "A"], label: "Selecionar as que estão à vista" },
+      { keys: ["Esc"], label: "Limpar a seleção" },
+    ],
+  },
+  {
+    title: "Calendário",
+    soTeclado: true,
+    items: [
+      { keys: ["⌘", "1–4"], label: "Dia, semana, mês, ano" },
+      { keys: ["⌘", "T"], label: "Hoje (também T)" },
+      { keys: ["⌘", "N"], label: "Novo evento" },
+      { keys: ["←", "→"], label: "Anterior e seguinte" },
+      { keys: ["⌥", "← →"], label: "Mês anterior e seguinte" },
+    ],
+  },
+  {
+    title: "Biblioteca de temas",
+    soTeclado: true,
+    items: [
+      { keys: ["⌘", "A"], label: "Selecionar todas as fotos" },
+      { keys: ["⇧", "clique"], label: "Selecionar várias seguidas" },
+      { keys: ["⌘", "clique"], label: "Juntar à seleção" },
+      { keys: ["Espaço"], label: "Ver a foto em grande" },
+      { keys: ["Esc"], label: "Limpar a seleção" },
     ],
   },
   {
