@@ -16,7 +16,7 @@ type OpcoesDoLote = {
   tectoMs?: number;
   retoma?: unknown;
   sinal?: AbortSignal;
-  posicao?: { atual: unknown };
+  posicao?: { atual: unknown; passos?: number; listando?: unknown };
 };
 const H = vi.hoisted(() => ({
   lerPedidos: null as null | (() => Promise<unknown[]>),
@@ -196,5 +196,74 @@ describe("o prazo das derivadas PÁRA o lote, e a retoma avança", () => {
     };
     await correr();
     expect(H.gravado.filter((g) => g.key.includes("retoma"))).toHaveLength(0);
+  });
+});
+
+/**
+ * 2.ª revisão de 17/11, n.os 2 e 3: só se marca `pendurada` o que não andou
+ * desde o sinal; as marcas de antes não se perdem; e uma listagem de pastas
+ * pendurada salta a família na noite seguinte.
+ */
+describe("pendurado é só o que deixou de andar", () => {
+  const P = { papel: "essencial", origem: "theme-assets", pasta: "tema-07", caminho: "f3.jpg" };
+
+  it("um bloco lento mas a andar depois do sinal não fica pendurado", async () => {
+    H.lote = (opcoes) => {
+      const posicao = opcoes.posicao!;
+      posicao.atual = P;
+      // Uma fotografia acabada por segundo, mesmo depois do sinal.
+      setInterval(() => (posicao.passos = (posicao.passos ?? 0) + 1), 1_000);
+      return nunca();
+    };
+    await correr();
+    expect(H.gravado.at(-1)?.valor).toEqual(P);
+    vi.clearAllTimers();
+  });
+
+  it("pendurado a caminho de uma pasta a saltar, a marca fica", async () => {
+    const S = { ...P, caminho: "", saltar: true };
+    H.estado.set("cron-reminders:retoma-das-derivadas", S);
+    // O lote não dá passo nenhum: a posição é a retoma que recebeu.
+    H.lote = () => nunca();
+    await correr();
+    expect(H.chamadasAoLote[0]!.retoma).toEqual(S);
+    expect(H.gravado.at(-1)?.valor).toEqual(S);
+  });
+
+  it("pendurado na listagem das pastas: regista-o, e a noite seguinte salta a família", async () => {
+    const { log } = await import("@/lib/logger");
+    vi.mocked(log.warn).mockClear();
+    H.lote = (opcoes) => {
+      opcoes.posicao!.atual = P;
+      opcoes.posicao!.listando = { papel: "essencial", origem: "proposal-assets" };
+      return nunca();
+    };
+    await correr();
+    const F = {
+      papel: "essencial",
+      origem: "proposal-assets",
+      pasta: "",
+      caminho: "",
+      saltarFamilia: true,
+    };
+    expect(H.gravado.at(-1)?.valor).toEqual(F);
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("listagem"),
+      expect.objectContaining({ familia: "essencial/proposal-assets" }),
+    );
+    H.lote = null;
+    await correr();
+    expect(H.chamadasAoLote[1]!.retoma).toEqual(F);
+  });
+
+  it('uma retoma guardada com `pasta: ""` (de antes) não se segue', async () => {
+    H.estado.set("cron-reminders:retoma-das-derivadas", {
+      papel: "essencial",
+      origem: "theme-assets",
+      pasta: "",
+      caminho: "",
+    });
+    await correr();
+    expect(H.chamadasAoLote[0]!.retoma).toBeNull();
   });
 });

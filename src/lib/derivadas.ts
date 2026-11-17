@@ -477,6 +477,35 @@ export interface Retoma {
   pendurada?: boolean;
   /** Recomeça na pasta A SEGUIR a `pasta`, que pendurou duas noites seguidas. */
   saltar?: boolean;
+  /**
+   * A LISTAGEM das pastas de `origem` pendurou (2.ª revisão de 17/11): a
+   * noite seguinte salta a família inteira e começa na seguinte. É a única
+   * retoma com `pasta: ""` — e quem a escreve também é a rotina.
+   */
+  saltarFamilia?: boolean;
+}
+
+/**
+ * Onde o lote vai, escrito à medida que avança (ver `gerarLoteDeDerivadas`).
+ * `passos` conta tudo o que ele acaba (uma pasta começada, uma fotografia
+ * feita): quem chama sabe se está pendurado ou só lento. `listando` diz que
+ * está à espera da listagem das pastas de uma família.
+ */
+export interface PosicaoDoLote {
+  atual: Retoma | null;
+  passos?: number;
+  listando?: { papel: Papel; origem: string } | null;
+}
+
+/** Uma retoma que se pode seguir: só a de saltar a família vem sem pasta. */
+export function retomaValida(r: Retoma | null | undefined): r is Retoma {
+  return (
+    !!r &&
+    typeof r.origem === "string" &&
+    typeof r.pasta === "string" &&
+    typeof r.caminho === "string" &&
+    (r.pasta !== "" || r.saltarFamilia === true)
+  );
 }
 
 export interface ResultadoDoLote {
@@ -594,7 +623,7 @@ export async function gerarLoteDeDerivadas(
      * Onde o lote vai, escrito à medida que avança: se nem o sinal o parar (uma
      * ida ao Storage que nunca responde), quem chama sabe em que pasta ficou.
      */
-    posicao?: { atual: Retoma | null };
+    posicao?: PosicaoDoLote;
   },
 ): Promise<ResultadoDoLote> {
   const sb = getSupabase();
@@ -612,16 +641,26 @@ export async function gerarLoteDeDerivadas(
 
   const agora = opcoes?.agora ?? Date.now;
   const ate = agora() + (opcoes?.tectoMs ?? TECTO_DO_LOTE_MS);
-  const alvo = opcoes?.retoma ?? null;
+  // Uma retoma sem pasta (e sem ser a de saltar a família) não aponta para
+  // sítio nenhum: começa-se do princípio, que é o que ela dava por acaso.
+  const alvo = retomaValida(opcoes?.retoma) ? opcoes.retoma : null;
   const sinal = opcoes?.sinal;
   const cancelado = () => sinal?.aborted === true;
-  /** Por onde se vai — o que se devolve se o sinal chegar fora de uma pasta. */
-  let ultima: Retoma | null = alvo
-    ? { papel: alvo.papel, origem: alvo.origem, pasta: alvo.pasta, caminho: alvo.caminho }
-    : null;
+  /**
+   * Por onde se vai — o que se devolve se o sinal chegar fora de uma pasta.
+   * Começa na retoma recebida TAL COMO VEIO, com as marcas: cancelado antes de
+   * lá chegar, a `pendurada` e o `saltar` ficam para a noite seguinte (2.ª
+   * revisão de 17/11) — senão uma pasta que pendura nunca chegava a saltar-se.
+   */
+  let ultima: Retoma | null = alvo ? { ...alvo } : null;
+  const posicao = opcoes?.posicao;
+  const andou = () => {
+    if (posicao) posicao.passos = (posicao.passos ?? 0) + 1;
+  };
   const dizer = (r: Retoma) => {
     ultima = r;
-    if (opcoes?.posicao) opcoes.posicao.atual = r;
+    if (posicao) posicao.atual = r;
+    andou();
   };
 
   const falhas: string[] = [];
@@ -662,24 +701,46 @@ export async function gerarLoteDeDerivadas(
       // Cancelado antes de chegar a uma pasta desta família: devolve-se o
       // último sítio por onde se passou (ou a retoma recebida), e a próxima
       // volta refaz só as listagens desse.
+      //
+      // Sem sítio nenhum (nada começado, nenhuma retoma): `null`, que para a
+      // rotina é «começa do princípio» — o mesmo, sem uma retoma com
+      // `pasta: ""` que não aponta para pasta nenhuma (2.ª revisão de 17/11).
       if (cancelado()) {
         return {
           geradas,
           falhas,
           fotografiasFeitas,
-          retoma: ultima ?? { papel: passagem, origem: familia.origem, pasta: "", caminho: "" },
+          retoma: ultima,
           restantes: 0,
           restantesEssenciais: 0,
           fotografiasRestantes: 0,
           papel,
         };
       }
+      // A listagem desta família pendurou na noite anterior: salta-se a
+      // família inteira, sem a listar, e segue-se na seguinte.
+      if (
+        aSaltar &&
+        alvo!.saltarFamilia &&
+        alvo!.papel === passagem &&
+        alvo!.origem === familia.origem
+      ) {
+        aSaltar = false;
+        encontrou = true;
+        continue;
+      }
       let asPastas: string[];
+      // Quem chama fica a saber que se está à espera DESTA listagem: se ela
+      // pendurar, a culpa não é da pasta onde se ia.
+      if (posicao) posicao.listando = { papel: passagem, origem: familia.origem };
       try {
         // Ordenadas: a retoma só funciona se a travessia for sempre a mesma.
         asPastas = (await pastas(sb, familia.origem)).sort();
       } catch {
         continue;
+      } finally {
+        if (posicao) posicao.listando = null;
+        andou();
       }
       for (const pasta of asPastas) {
         if (
@@ -715,11 +776,21 @@ export async function gerarLoteDeDerivadas(
          * menos uma — senão um tecto curto nunca saía do mesmo sítio.
          */
         if (!aSaltar && (cancelado() || (pastasPercorridas > 0 && agora() >= ate))) {
+          // A pasta da retoma, ainda por começar, volta com as marcas dela.
+          const daRetoma =
+            alvo !== null &&
+            !alvo.saltar &&
+            alvo.papel === passagem &&
+            alvo.origem === familia.origem &&
+            alvo.pasta === pasta &&
+            fotografiasFeitas === 0;
           return {
             geradas,
             falhas,
             fotografiasFeitas,
-            retoma: { papel: passagem, origem: familia.origem, pasta, caminho: "" },
+            retoma: daRetoma
+              ? { ...alvo! }
+              : { papel: passagem, origem: familia.origem, pasta, caminho: "" },
             restantes: 0,
             restantesEssenciais: 0,
             fotografiasRestantes: 0,
@@ -819,9 +890,13 @@ export async function gerarLoteDeDerivadas(
           // fotografia que falhe devolve os caminhos dela em `falhas` e deixa
           // as irmãs acabar. Rejeitar aqui deitava fora um bloco inteiro por
           // causa de uma.
+          // Cada fotografia acabada conta como um passo: um bloco lento mas a
+          // andar não se confunde com um pendurado (2.ª revisão de 17/11).
           const feitos = await Promise.all(
             bloco.map((t) =>
-              gerarAsDeUmaFoto(sb, familia.origem, t.caminho, t.emFalta, bucketsProntos),
+              gerarAsDeUmaFoto(sb, familia.origem, t.caminho, t.emFalta, bucketsProntos).finally(
+                andou,
+              ),
             ),
           );
           for (const r of feitos) {
