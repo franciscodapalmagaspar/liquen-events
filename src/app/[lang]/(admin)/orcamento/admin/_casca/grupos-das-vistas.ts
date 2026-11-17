@@ -5,6 +5,7 @@ import { type LeituraFalhada } from "@/lib/porque-nao-leu";
 import { type AccoesDosPedidos } from "../_pedidos/accoes-dos-pedidos";
 import { type View } from "../nav";
 import { type PedidoDaPaleta } from "../procura-em-tudo";
+import { type PedidoDeNovaTarefa } from "./useNovaTarefa";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -47,8 +48,5 @@ export interface NavegacaoDasVistas {
   propostaPara: string | null;
   setPropostaPara: Dispatch<SetStateAction<string | null>>;
   setNewQuoteOpen: Dispatch<SetStateAction<boolean>>;
-  pedidoDeNovaTarefa: number;
-  /** O último pedido de nova tarefa que as Tarefas já serviram. */
-  novaTarefaServida: number;
-  setNovaTarefaServida: Dispatch<SetStateAction<number>>;
+  novaTarefa: PedidoDeNovaTarefa;
 }

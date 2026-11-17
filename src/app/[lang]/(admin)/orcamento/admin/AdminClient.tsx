@@ -18,8 +18,7 @@ import {
 import { mesesDeEvento, plannersDe, regioesDe } from "@/lib/orcamento/espera";
 import { useToast } from "./Toast";
 import CommandPalette, { type Command } from "./CommandPalette";
-// Quatro janelas que só se abrem a pedido: fora do pacote inicial do painel,
-// aquecidas depois do `load` — ver `janela-a-pedido.tsx`.
+// Janelas que só se abrem a pedido, fora do pacote inicial (`janela-a-pedido.tsx`).
 import {
   AjudaGlossario,
   aquecerJanelas,
@@ -27,8 +26,7 @@ import {
   RestoreDialog,
   ShortcutsModal,
 } from "./janela-a-pedido";
-// O «Novo pedido» fica no pacote, como o ⌘K: abre-se com o «n» e ela escreve
-// logo a seguir — uma letra antes de a caixa existir perdia-se.
+// O «Novo pedido» fica no pacote, como o ⌘K: abre-se com o «n» e escreve-se logo.
 import NewQuoteModal from "./NewQuoteModal";
 import SessaoExpirada from "./SessaoExpirada";
 import { downloadCsv, quotesToCsvRows, dateStamp } from "./export";
@@ -107,6 +105,7 @@ import { Vistas } from "./_casca/Vistas";
 import { BarraDeDestinos } from "./_casca/BarraDeDestinos";
 import { MenuLateral } from "./_casca/MenuLateral";
 import { Cabecalho } from "./_casca/Cabecalho";
+import { useNovaTarefa } from "./_casca/useNovaTarefa";
 import { dominiosConhecidos, sugerirEmail } from "@/lib/dominio-parecido";
 /* O que é dos pedidos e já não vive neste ficheiro (fase 7 de
    `docs/ESTRUTURA-DO-CODIGO.md`): as regras puras em `lib/orcamento/pedidos/`,
@@ -1696,6 +1695,8 @@ export default function AdminClient({
     else setPaletteOpen(true);
   }, []);
 
+  // O «+ Nova tarefa» da barra, servido pelas Tarefas (ver `useNovaTarefa`).
+  const { pedirNovaTarefa, novaTarefa } = useNovaTarefa(view);
   // Global keyboard shortcuts. ⌘K works anywhere; the rest are ignored while
   // typing so they never fight with form fields.
   useEffect(() => {
@@ -1717,7 +1718,7 @@ export default function AdminClient({
       ) {
         if (janelaAbertaRef.current || paletteAbertaRef.current) return;
         e.preventDefault();
-        setPedidoDeNovaTarefa((n) => n + 1);
+        pedirNovaTarefa();
         return;
       }
 
@@ -1795,7 +1796,7 @@ export default function AdminClient({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focarProcuraDaVista]);
+  }, [focarProcuraDaVista, pedirNovaTarefa]);
 
   // Escape dismisses the open drawer/nav — but only when no modal is capturing
   // it (the palette / new-quote / shortcuts dialogs handle their own Escape).
@@ -2473,34 +2474,6 @@ export default function AdminClient({
 
   const mostrarAccoesDePedidos = ACOES_DE_PEDIDOS.has(view);
 
-  /**
-   * ── A ACÇÃO PRIMÁRIA DAS TAREFAS VIVE NA BARRA, COMO NAS OUTRAS VISTAS ──
-   *
-   * «Não há ação primária na toolbar. Todos os outros ecrãs têm "+ Novo".
-   * Este não tem — porque a criação está num cartão permanente no conteúdo.»
-   *
-   * A regra é uma acção primária e uma só, sempre no fim da barra, e a
-   * consistência entre ecrãs é o que faz um produto ler-se como um produto.
-   *
-   * O que passa daqui para baixo é um CONTADOR e não uma função: a caixa de
-   * escrever vive dentro das `Tarefas` (é a última linha da lista, ver a fase
-   * 03 do documento dela), e o que a barra faz é pedir-lhe que abra. Um
-   * contador porque carregar duas vezes seguidas tem de pedir duas vezes — um
-   * booleano ficava preso a `true` e o segundo toque não fazia nada.
-   */
-  const [pedidoDeNovaTarefa, setPedidoDeNovaTarefa] = useState(0);
-  const pedirNovaTarefa = useCallback(() => setPedidoDeNovaTarefa((n) => n + 1), []);
-  /* O último pedido que as Tarefas já serviram: um toque dado enquanto o
-     código delas ainda chega fica à espera e é servido quando montam. */
-  const [novaTarefaServida, setNovaTarefaServida] = useState(0);
-  /* Um toque que ficou à espera e a pessoa saiu das Tarefas antes de elas
-     montarem: dá-se por servido, para não abrir a linha de escrever horas
-     depois, ao voltar (revisão independente do lote de 17/11). Ajusta-se o
-     estado durante o desenho, que é o padrão do React para isto. */
-  if (view !== "tarefas" && novaTarefaServida !== pedidoDeNovaTarefa) {
-    setNovaTarefaServida(pedidoDeNovaTarefa);
-  }
-
   return (
     <>
       {/* Houve aqui um `-mt-24` a cancelar o `pt-24` do `<main>` do cromado do
@@ -2856,9 +2829,7 @@ export default function AdminClient({
               propostaPara,
               setPropostaPara,
               setNewQuoteOpen,
-              pedidoDeNovaTarefa,
-              novaTarefaServida,
-              setNovaTarefaServida,
+              novaTarefa,
             }}
             userName={userName}
           />

@@ -10,7 +10,8 @@ import { useToast } from "./Toast";
  * O painel tem um tecto de JavaScript (`scripts/peso-das-rotas.mjs`, 520 KB
  * crus). A 17/11 passou-o (526 KB), e uma boa parte do que lá estava eram
  * janelas que ela abre de vez em quando — repor uma cópia, as chaves de
- * acesso, a folha dos atalhos, o glossário — e que vinham
+ * acesso, a folha dos atalhos, o glossário, e o painel da sessão que caiu
+ * (que só se abre depois de um 401) — e que vinham
  * todas no primeiro descarregamento, fechadas, sem desenhar nada.
  *
  * `janelaAPedido` tira cada uma do pacote inicial SEM mudar o que se vê:
@@ -131,18 +132,21 @@ const repor = janelaAPedido(() => import("./RestoreDialog"));
 const chaves = janelaAPedido(() => import("./PasskeysDialog"));
 const atalhos = janelaAPedido(() => import("./ShortcutsModal"));
 const glossario = janelaAPedido(() => import("./AjudaGlossario"));
+const sessao = janelaAPedido(() => import("./PainelDaSessaoExpirada"));
 
 export const RestoreDialog = repor.Janela;
 export const PasskeysDialog = chaves.Janela;
 export const ShortcutsModal = atalhos.Janela;
 export const AjudaGlossario = glossario.Janela;
+/** O painel de reautenticação: o vigia (`SessaoExpirada`) fica no pacote. */
+export const PainelDaSessaoExpirada = sessao.Janela;
 
-/** Pela ordem de quem ela abre mais. */
-const ORDEM = [atalhos, glossario, chaves, repor];
+/** Pela ordem de quem ela abre mais; a sessão a cair é a mais rara. */
+const ORDEM = [atalhos, glossario, chaves, repor, sessao];
 
 /**
- * Aquece as quatro janelas, uma por janela de inatividade, depois do `load`.
- * Corre também em desenvolvimento — ao contrário das vistas, são quatro ficheiros
+ * Aquece as cinco janelas, uma por janela de inatividade, depois do `load`.
+ * Corre também em desenvolvimento — ao contrário das vistas, são cinco ficheiros
  * pequenos, e é o que deixa os passeios medirem o mesmo que ela vê.
  * Devolve um cancelador.
  */
