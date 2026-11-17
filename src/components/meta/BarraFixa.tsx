@@ -51,7 +51,7 @@ export default function BarraFixa({
 }) {
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-white/12 bg-[#0c0e0b]/95 backdrop-blur-sm px-3 py-3"
+      className="vidro-cede fixed inset-x-0 bottom-0 z-50 border-t border-white/12 bg-[#0c0e0b]/95 backdrop-blur-sm px-3 py-3"
       style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
     >
       <div className="mx-auto flex max-w-2xl items-stretch gap-2.5">

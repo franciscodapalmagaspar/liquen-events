@@ -288,7 +288,7 @@ function HoverOverlay({ caption, sub }: { caption: string; sub?: string }) {
             </span>
           )}
         </span>
-        <span className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+        <span className="vidro-cede w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
           <svg
             className="w-3.5 h-3.5 text-white"
             fill="none"
@@ -1466,7 +1466,7 @@ export default function GaleriaClient({
         aria-label={dict.backToTop}
         title={dict.backToTop}
         inert={!(showTop && lb === null)}
-        className={`fixed z-40 grid h-11 w-11 place-items-center rounded-full bg-black/50 text-white/80 ring-1 ring-white/15 backdrop-blur-md transition-all duration-300 hover:scale-105 hover:bg-black/70 hover:text-white active:scale-95 ${
+        className={`vidro-cede fixed z-40 grid h-11 w-11 place-items-center rounded-full bg-black/50 text-white/80 ring-1 ring-white/15 backdrop-blur-md transition-all duration-300 hover:scale-105 hover:bg-black/70 hover:text-white active:scale-95 ${
           showTop && lb === null
             ? "translate-y-0 opacity-100"
             : "pointer-events-none translate-y-3 opacity-0"
