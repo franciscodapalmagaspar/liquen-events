@@ -202,4 +202,11 @@ describe("/api/ficheiro", () => {
     expect(r.headers.get("content-type")).toBe("application/octet-stream");
     expect(r.headers.get("content-disposition")).toBe("attachment");
   });
+
+  it("2.ª passagem, n.º 3: um PDF vai sem `sandbox` (o leitor de PDF do Safari), mas com default-src 'none' e nosniff", async () => {
+    const r = await pedir(url(), { range: "bytes=0-2" }); // o duplo devolve application/pdf no pedaço
+    expect(r.headers.get("content-type")).toBe("application/pdf");
+    expect(r.headers.get("content-security-policy")).toBe("default-src 'none'");
+    expect(r.headers.get("x-content-type-options")).toBe("nosniff");
+  });
 });

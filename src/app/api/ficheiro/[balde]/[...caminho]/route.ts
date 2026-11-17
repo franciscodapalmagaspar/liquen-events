@@ -53,7 +53,8 @@ export const dynamic = "force-dynamic";
  * E o que sai da NOSSA origem é tratado como conteúdo não confiável (4.ª
  * revisão, n.º 8): só imagens e PDF com o tipo deles; tudo o resto vai como
  * `application/octet-stream` e em anexo; sempre com `nosniff` e uma CSP
- * `sandbox; default-src 'none'`, para um ficheiro nunca correr como página.
+ * `default-src 'none'`, mais `sandbox` em tudo o que não for PDF, para um
+ * ficheiro nunca correr como página.
  */
 type Contexto = { params: Promise<{ balde: string; caminho: string[] }> };
 
@@ -102,14 +103,21 @@ async function conferir(
 
 /** Os cabeçalhos de segurança e de cache de tudo o que sai daqui com bytes. */
 function cabecalhosSeguros(tipo: string | null, etag: string): Headers {
-  const permitido = tipo && TIPOS_PERMITIDOS.has(tipo.split(";")[0].trim().toLowerCase());
+  const base = tipo?.split(";")[0].trim().toLowerCase() ?? "";
+  const permitido = TIPOS_PERMITIDOS.has(base);
   const h = new Headers({
     "Content-Type": permitido ? tipo! : "application/octet-stream",
     "Cache-Control": CACHE,
     ETag: etag,
     "Accept-Ranges": "bytes",
     "X-Content-Type-Options": "nosniff",
-    "Content-Security-Policy": "sandbox; default-src 'none'",
+    // Um PDF vai SEM `sandbox` (2.ª passagem de 17/11, n.º 3): por precaução
+    // com o leitor de PDF do Safari, que não se conseguiu testar. O
+    // `default-src 'none'` e o `nosniff` valem para tudo.
+    "Content-Security-Policy":
+      permitido && base === "application/pdf"
+        ? "default-src 'none'"
+        : "sandbox; default-src 'none'",
   });
   if (!permitido) h.set("Content-Disposition", "attachment");
   return h;

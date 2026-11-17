@@ -14,6 +14,9 @@ const H = vi.hoisted(() => ({
   leiturasDosModos: 0,
   /** Corre antes de cada compare-and-set (simula outra escrita a meio). */
   antesDeGravar: null as null | (() => void),
+  falharGravacaoDaOcupacao: false,
+  mexeuNoContador: false,
+  baldes: [] as string[],
 }));
 vi.mock("@/lib/armazenamento/modos", () => ({
   modosDosBaldes: async () => ({
@@ -31,10 +34,18 @@ vi.mock("@/lib/app-state", () => ({
     H.chaves.push(ks);
     return new Map(H.ocupacao ? [["armazenamento:ocupacao", H.ocupacao]] : []);
   },
-  gravarEstadoSeNaoMudou: vi.fn(async (_k: string, v: unknown, versao: string) => {
+  gravarEstadoSeNaoMudou: vi.fn(async (k: string, v: unknown, versao: string) => {
+    if (k === "armazenamento:desde-a-medicao") {
+      H.mexeuNoContador = true;
+      return "gravado";
+    }
+    if (H.falharGravacaoDaOcupacao) return "falhou";
     if (H.antesDeGravar) {
       const f = H.antesDeGravar;
       H.antesDeGravar = null;
+      H.falharGravacaoDaOcupacao = false;
+      H.mexeuNoContador = false;
+      H.baldes = [];
       f();
     }
     if (versao !== String(H.versao)) return "conflito";
@@ -50,7 +61,11 @@ vi.mock("@/lib/app-state", () => ({
   }),
 }));
 vi.mock("@/lib/supabase", () => ({
-  getSupabase: () => ({ storage: { listBuckets: async () => ({ data: [], error: null }) } }),
+  getSupabase: () => ({
+    storage: {
+      listBuckets: async () => ({ data: H.baldes.map((name) => ({ name })), error: null }),
+    },
+  }),
 }));
 
 import { gravarMarcadorDoBlob, lerEspaco, medirOcupacao } from "./ocupacao-do-armazenamento";
@@ -114,5 +129,35 @@ describe("lerEspaco com o Blob desligado", () => {
     };
     await medirOcupacao(null, new Date(), { prazoMs: 1000 });
     expect((H.ocupacao as { blobEmUso?: boolean }).blobEmUso).toBe(true);
+  });
+
+  it("2.ª passagem, n.º 2: A grava false enquanto B pôs Y em blob — A relê e corrige para true", async () => {
+    // A lê os modos (sem blob) e conclui false; B, entretanto, pôs Y em blob,
+    // viu true === true e saiu sem gravar. Depois de gravar, A relê: true.
+    H.ocupacao = { medidoEm: "", bytes: 0, porBucket: {}, completo: false, blobEmUso: true };
+    H.modos = [{ "theme-assets": "supabase" }, { "proposal-pdfs": "blob" }];
+    expect(await gravarMarcadorDoBlob()).toBe(true);
+    expect((H.ocupacao as { blobEmUso: boolean }).blobEmUso).toBe(true);
+  });
+
+  it("2.ª passagem, n.º 1: se a gravação da medição FALHA, o «carregado desde» não se zera", async () => {
+    process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_Loja1234_s";
+    H.ocupacao = { medidoEm: "", bytes: 0, porBucket: {}, completo: false };
+    H.falharGravacaoDaOcupacao = true;
+    H.baldes = ["proposal-thumbs"];
+    await medirOcupacao(
+      { completo: true, buckets: [{ bucket: "proposal-thumbs", bytes: 5 }] } as never,
+      new Date(),
+      { prazoMs: 1000 },
+    );
+    expect(H.mexeuNoContador).toBe(false);
+    // Controlo: com a gravação boa, zera.
+    H.falharGravacaoDaOcupacao = false;
+    await medirOcupacao(
+      { completo: true, buckets: [{ bucket: "proposal-thumbs", bytes: 5 }] } as never,
+      new Date(),
+      { prazoMs: 1000 },
+    );
+    expect(H.mexeuNoContador).toBe(true);
   });
 });
