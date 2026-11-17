@@ -722,7 +722,23 @@ export type ResultadoDoPedido =
   /** Não há contas com email nesta instalação — a recuperação não está montada. */
   | { estado: "sem-recuperacao" }
   /** Havia o que gravar e não houve onde. Não se pode prometer um email. */
-  | { estado: "sem-persistencia" };
+  | { estado: "sem-persistencia" }
+  /**
+   * A conta existe mas já passou do tecto de emails: não se emite ligação nova
+   * (a do último email continua a valer). Quem chama responde EXACTAMENTE o
+   * mesmo que a "emitido".
+   */
+  | { estado: "acima-do-tecto" };
+
+export interface OpcoesDoPedido {
+  /**
+   * Reserva um envio no tecto da conta, de forma ATÓMICA (um INCR), e diz se
+   * ainda cabe. Chamada só quando o endereço é de uma conta, e ANTES de emitir
+   * a ligação — é isto que faz uma rajada de pedidos ao mesmo tempo não passar
+   * do tecto (n.º 1 da revisão de 16/11).
+   */
+  reservarEnvio?: () => Promise<boolean>;
+}
 
 /**
  * Emite (ou substitui) a ligação de recuperação de uma conta.
@@ -737,7 +753,10 @@ export type ResultadoDoPedido =
  *    gravar» aparecia só nos endereços verdadeiros — e passava a ser, ele
  *    próprio, a resposta que diz quais os endereços que existem.
  */
-export async function pedirRecuperacao(email: string): Promise<ResultadoDoPedido> {
+export async function pedirRecuperacao(
+  email: string,
+  opcoes: OpcoesDoPedido = {},
+): Promise<ResultadoDoPedido> {
   const users = configuredUsers();
   // Sem contas individuais não há a quem recuperar o quê: o modo de
   // palavra-passe partilhada não tem endereços. Dizer isto não revela nada
@@ -764,7 +783,10 @@ export async function pedirRecuperacao(email: string): Promise<ResultadoDoPedido
    * o que todos os objectos herdam), não a origem. Agora o valor que dá o nome
    * à propriedade nasce da configuração da casa.
    */
-  const token = conta ? novoToken() : null;
+  // Acima do tecto não se emite nada, mas a escrita (sem pedido novo) faz-se
+  // na mesma: é o que mantém a resposta igual à de um endereço desconhecido.
+  const cabe = conta ? (opcoes.reservarEnvio ? await opcoes.reservarEnvio() : true) : false;
+  const token = conta && cabe ? novoToken() : null;
 
   // Escrita CONDICIONAL (n.º 4 de 16/11): ver `mudarRegisto`. Sem conseguir ler
   // o registo, ou sem a escrita durar, a mesma resposta de «não consegui
@@ -786,7 +808,8 @@ export async function pedirRecuperacao(email: string): Promise<ResultadoDoPedido
     return { estado: "sem-persistencia" };
   }
 
-  if (!conta || !token) return { estado: "sem-conta" };
+  if (!conta) return { estado: "sem-conta" };
+  if (!token) return { estado: "acima-do-tecto" };
   return { estado: "emitido", token, conta: { name: conta.name, email: conta.email! } };
 }
 

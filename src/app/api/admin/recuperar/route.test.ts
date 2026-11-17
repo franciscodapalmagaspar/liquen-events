@@ -239,8 +239,9 @@ describe("POST /api/admin/recuperar — tectos", () => {
     expect(
       (await definirPalavraPasseComToken(decodeURIComponent(ultima), "frase-nova-comprida")).estado,
     ).toBe("definida");
-    // A chave é a da conta, sem o endereço de origem.
-    expect(rl.contagens.get("recuperar-conta:catarina@liquen-events.com")).toBe(3);
+    // A chave é a da conta, sem o endereço de origem. O 4.º pedido também
+    // incrementa (a reserva é atómica: é o INCR que diz que já não cabe).
+    expect(rl.contagens.get("recuperar-conta:catarina@liquen-events.com")).toBe(4);
     expect([...rl.contagens.keys()].some((k) => k.includes("recuperar-conta:test-ip"))).toBe(false);
   });
 
@@ -249,13 +250,29 @@ describe("POST /api/admin/recuperar — tectos", () => {
     expect(rl.contagens.has("recuperar-conta:ninguem@exemplo.pt")).toBe(false);
   });
 
-  it("SMTP por configurar: nada saiu, nada se conta", async () => {
-    correio.resultado = { sent: false };
-    for (let i = 0; i < 4; i++) {
-      await POST(pedido({ email: "catarina@liquen-events.com" }));
-      await correrDepois();
-    }
-    expect(rl.contagens.get("recuperar-conta:catarina@liquen-events.com") ?? 0).toBe(0);
+  it("uma rajada AO MESMO TEMPO não passa do tecto: 3 emails, e só 3 ligações emitidas", async () => {
+    // A conta conta-se no momento da decisão, de forma atómica — e não depois
+    // do SMTP: senão N pedidos simultâneos passavam todos a pergunta, e cada um
+    // emitia uma ligação nova (que mata a anterior) e mandava um email.
+    const respostas = await Promise.all(
+      Array.from({ length: 5 }, () => POST(pedido({ email: "catarina@liquen-events.com" }))),
+    );
+    expect(respostas.map((r) => r.status)).toEqual([200, 200, 200, 200, 200]);
+    expect(depois.tarefas).toHaveLength(3);
+    await correrDepois();
+    expect(correio.enviados).toHaveLength(3);
+    // As duas de fora não tocaram no registo da conta: a ligação guardada é a
+    // de um dos três emails que saíram.
+    const guardado = estado.mapa.get("admin-recuperacao") as {
+      pedidos: Record<string, { resumo: string }>;
+    };
+    const { createHash } = await import("node:crypto");
+    const resumos = correio.enviados.map((m) =>
+      createHash("sha256")
+        .update(decodeURIComponent(m.text!.match(/token=([^\s&"]+)/)![1]), "utf8")
+        .digest("hex"),
+    );
+    expect(resumos).toContain(guardado.pedidos["catarina@liquen-events.com"].resumo);
   });
 });
 

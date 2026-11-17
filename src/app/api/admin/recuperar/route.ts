@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { pedirRecuperacao, normalizarIdentificador } from "@/lib/admin-auth";
 import { VALIDADE_MS } from "@/lib/admin-recuperacao";
-import { rateLimit, clientIp, sweep, limiteEsgotado } from "@/lib/rate-limit";
+import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
 import { sendMail } from "@/lib/mail";
 import { EMAIL_LOGO_CID, emailLogoAttachment } from "@/lib/email-logo";
 import {
@@ -100,12 +100,13 @@ export async function POST(request: NextRequest) {
    *    caixa de correio de uma pessoa. Três chega para quem não recebeu o
    *    primeiro email e volta a tentar.
    *
-   * O TECTO DA CONTA CONTA SÓ OS EMAILS QUE SAEM, E NÃO RESPONDE 429 (auditoria
+   * O TECTO DA CONTA CONTA SÓ OS ENVIOS DECIDIDOS, E NÃO RESPONDE 429 (auditoria
    * de 16/11, n.º 5). Antes, qualquer pedido o gastava e acima dele vinha um
    * 429: três pedidos de um estranho deixavam a dona sem poder pedir a ligação
-   * durante uma hora. Agora, acima do tecto, não sai email nem se emite ligação
-   * nova — a do último email continua a valer — e a resposta é a neutra de
-   * sempre. Os pedidos para endereços que não são de ninguém não gastam nada.
+   * durante uma hora. Agora conta-se, de forma atómica, só quando o endereço é
+   * de uma conta e antes de emitir a ligação; acima do tecto não sai email nem
+   * se emite ligação nova — a do último email continua a valer — e a resposta
+   * é a neutra de sempre. Os endereços que não são de ninguém não gastam nada.
    *
    * O tecto por ENDEREÇO DE ORIGEM continua a responder 429: é sobre quem está
    * a pedir, não sobre a conta, e não deixa ninguém fechar a porta a outro.
@@ -130,16 +131,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, mensagem: NEUTRA });
   }
 
-  // Só pergunta, sem gastar: o que gasta é o email que sai (ver o `after`).
-  // Acima do tecto não se toca no registo — a ligação que já foi enviada
-  // continua a ser a boa. O piso esconde a diferença de tempo.
-  if (!(await limiteEsgotado(CHAVE_DA_CONTA, TECTO_DA_CONTA)).ok) {
+  // O tecto da conta conta-se NO MOMENTO DA DECISÃO, de forma atómica (um
+  // INCR), e só quando o endereço é de uma conta — ver `reservarEnvio`. Antes
+  // perguntava-se aqui e contava-se depois do SMTP, e uma rajada de pedidos ao
+  // mesmo tempo passava toda a pergunta (revisão de 16/11, n.º 1). Acima do
+  // tecto não se emite ligação nem se envia; a resposta é a neutra.
+  const resultado = await pedirRecuperacao(email, {
+    reservarEnvio: async () =>
+      (await rateLimit(CHAVE_DA_CONTA, TECTO_DA_CONTA, 60 * 60_000, { global: true })).ok,
+  });
+  if (resultado.estado === "acima-do-tecto") {
     log.warn("recuperação: conta com o tecto de emails — nada enviado", { ip });
-    await esperarAtePiso(inicio);
-    return NextResponse.json({ ok: true, mensagem: NEUTRA });
   }
-
-  const resultado = await pedirRecuperacao(email);
 
   if (resultado.estado === "sem-recuperacao") {
     // Verdade sobre a INSTALAÇÃO, não sobre a pessoa: não há contas com email
@@ -235,10 +238,7 @@ export async function POST(request: NextRequest) {
           attachments: [emailLogoAttachment()],
           headers: { "Auto-Submitted": "auto-generated" },
         });
-        if (sent) {
-          // Só agora conta para o tecto da conta: um email que saiu mesmo.
-          await rateLimit(CHAVE_DA_CONTA, TECTO_DA_CONTA, 60 * 60_000, { global: true });
-        } else {
+        if (!sent) {
           // SMTP por configurar. O token está guardado e válido, mas ninguém o
           // vai receber. Fica no registo como ERRO — é uma avaria de instalação,
           // não um caso normal — e a resposta continua a ser a neutra: mudar de
