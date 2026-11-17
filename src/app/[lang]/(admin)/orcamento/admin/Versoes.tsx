@@ -1,5 +1,6 @@
 "use client";
 
+import { lerPartilhado } from "@/lib/orcamento/estudio/leitura-partilhada";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { diferencas, type Mudanca } from "@/lib/orcamento/diferencas";
@@ -132,7 +133,7 @@ export default function Versoes({
 
   const carregar = useCallback(async () => {
     try {
-      const res = await fetch(`/api/orcamento/${quoteId}/versoes`, { cache: "no-store" });
+      const res = await lerPartilhado(`/api/orcamento/${quoteId}/versoes`, { cache: "no-store" });
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as { versoes?: VersaoEnviada[] };
       setVersoes(data.versoes ?? []);
@@ -142,9 +143,8 @@ export default function Versoes({
        *
        * As duas coisas mostram-se juntas — a lista do que seguiu, e se aqueles
        * endereços ainda abrem —, portanto pedem-se juntas. Um segundo efeito
-       * só para isto acrescentaria mais uma gravação de estado dentro de um
-       * `useEffect`, que é o aviso que esta página já tem uma vez e não precisa
-       * de ter duas.
+       * só para isto acrescentaria mais uma gravação de estado num `useEffect`
+       * (o aviso que esta página já tem uma vez, e não precisa de ter duas).
        *
        * À PARTE do `try` de cima na prática, porque uma falha aqui não pode
        * levar a lista de versões atrás: quem não conseguiu perguntar pelo corte
@@ -153,7 +153,7 @@ export default function Versoes({
        * dizer que estão abertos seria a mentira que este ecrã não pode contar.
        */
       try {
-        const r = await fetch(`/api/orcamento/${quoteId}/links`, { cache: "no-store" });
+        const r = await lerPartilhado(`/api/orcamento/${quoteId}/links`, { cache: "no-store" });
         if (r.ok) {
           const c = (await r.json()) as { corte?: { cortadoEm: string; por?: string } | null };
           setCorte(c.corte ?? null);

@@ -1,5 +1,6 @@
 "use client";
 
+import { lerPartilhado } from "@/lib/orcamento/estudio/leitura-partilhada";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import type { Quote } from "@/lib/orcamento/types";
@@ -324,13 +325,12 @@ export default function PainelInterno({
     null,
   );
 
-  // A memória de preços. Vem do servidor porque a conta atravessa TODAS as
-  // propostas já enviadas — mandá-las para cá eram três megabytes de números de
-  // outros clientes por causa de uma sugestão. Lê-se uma vez por pedido: o que
-  // já foi cobrado não muda enquanto se escreve.
+  // A memória de preços: do servidor, porque a conta atravessa TODAS as propostas
+  // já enviadas (cá seriam três megabytes de outros clientes). Uma leitura por
+  // pedido, partilhada (`lerPartilhado`): o que já foi cobrado não muda.
   useEffect(() => {
     let vivo = true;
-    fetch(`/api/orcamento/${quote.id}/memoria`)
+    lerPartilhado(`/api/orcamento/${quote.id}/memoria`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (vivo && j) setMemoria({ historico: j.historico ?? [], habituais: j.habituais ?? [] });

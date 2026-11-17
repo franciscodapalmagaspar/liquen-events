@@ -1,5 +1,9 @@
 "use client";
 
+import { lerPartilhado } from "@/lib/orcamento/estudio/leitura-partilhada";
+import { estadoNoEcra } from "@/lib/orcamento/estudio/estado-da-gravacao";
+import { useEstadoDaGravacao } from "./estudio/gravacao/useEstadoDaGravacao";
+import { useAmostrasDeGeracao } from "./estudio/envio/useAmostrasDeGeracao";
 import { asPropostasMudaram } from "./percentagem-do-sinal";
 import { useAccaoEstavel } from "./ui/accao-estavel";
 import { useCallback, useEffect, useMemo, useRef, useState, useReducer } from "react";
@@ -78,8 +82,6 @@ import { passoParaCorrigir, usePerguntasDoEnvio } from "./usePerguntasDoEnvio";
 import { guardarPdfVisto, lerPdfVisto, type PdfVisto } from "./pdf-visto";
 import { BotaoWhatsApp } from "./ui/BotaoWhatsApp";
 
-/** Onde fica a última escolha dela. */
-const CANAL_GUARDADO = "liquen-canal-de-envio";
 import PorqueNaoDaParaEnviar from "./PorqueNaoDaParaEnviar";
 import {
   ControlosDoEnvio,
@@ -115,12 +117,7 @@ import {
   type CampoPublicado,
 } from "@/lib/proposal-ortografia";
 import { fotosQueDestoam, ordemPorCor } from "@/lib/cor-dominante";
-import {
-  comNovaAmostra,
-  tamanhoEstimado,
-  tempoEstimado,
-  type AmostraDeGeracao,
-} from "@/lib/custo-do-pdf";
+import { tamanhoEstimado, tempoEstimado } from "@/lib/custo-do-pdf";
 import Versoes, { type VersaoEnviada } from "./Versoes";
 import { comoSeDiz, noMesmoEspaco, type FotoRepetida } from "@/lib/orcamento/fotos-repetidas";
 import { marcarExtra, opcionaisDe, totaisDasVersoes } from "@/lib/orcamento/versoes-da-proposta";
@@ -299,7 +296,7 @@ import {
   REMOVE_BTN,
   TITULO_DO_BOARD,
 } from "./estudio/classes";
-import { type CanalDeEnvio, OPCOES_DO_CANAL } from "./estudio/envio/canal-de-envio";
+import { OPCOES_DO_CANAL, useCanalDeEnvio } from "./estudio/envio/canal-de-envio";
 import {
   type PdfPronto,
   guardarNoDisco,
@@ -625,38 +622,8 @@ export default function ProposalStudio({
   const DRAFT_KEY = `liquen-proposal-studio-${quote.id}`;
   const SIDE_KEY = `${DRAFT_KEY}:meta`;
 
-  /**
-   * ── O QUE AS GERAÇÕES ANTERIORES ENSINARAM ──────────────────────────────
-   *
-   * Cada PDF gerado deixa uma amostra `{fotos, ms, bytes}`, e é dela que sai a
-   * estimativa que aparece antes do botão. Vive fora do rascunho e SEM o id do
-   * pedido: o que se aprende com uma proposta serve para a seguinte — é a
-   * mesma máquina, a mesma ligação e o mesmo servidor.
-   */
-  const [amostras, setAmostras] = useState<AmostraDeGeracao[]>([]);
-  useEffect(() => {
-    try {
-      const cru = localStorage.getItem(AMOSTRAS_KEY);
-      const lidas = cru ? JSON.parse(cru) : null;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (Array.isArray(lidas)) setAmostras(lidas.filter((x) => x && typeof x.ms === "number"));
-    } catch {
-      /* sem amostras — a estimativa usa o modelo de arranque */
-    }
-  }, []);
-
-  /** Aponta uma geração e guarda-a para a próxima estimativa. */
-  const apontarGeracao = useCallback((fotos: number, ms: number, bytes: number) => {
-    setAmostras((antes) => {
-      const proximas = comNovaAmostra(antes, { fotos, ms, bytes });
-      try {
-        localStorage.setItem(AMOSTRAS_KEY, JSON.stringify(proximas));
-      } catch {
-        /* sem espaço: a estimativa desta sessão continua a valer */
-      }
-      return proximas;
-    });
-  }, []);
+  /** As gerações anteriores ensinam a estimativa do PDF — ver o gancho. */
+  const { amostras, apontarGeracao } = useAmostrasDeGeracao();
 
   /**
    * Todas as escritas do documento passam por aqui para as fotos escolhidas das
@@ -721,31 +688,23 @@ export default function ProposalStudio({
   /** Há alterações à espera do debounce? É o que o aviso de saída lê. */
   const [porGravar, setPorGravar] = useState(false);
   /**
-   * ── O TERCEIRO ESTADO DO INDICADOR ────────────────────────────────────────
-   *
-   * O indicador tinha dois: «a guardar…» e «guardado às 14:32». Faltava o que
-   * de facto acontecia quando o servidor recusava a gravação — o rascunho ficava
-   * no `localStorage` DESTE computador e em mais lado nenhum, e o ecrã dizia
-   * «guardado», que é a palavra que faz uma pessoa fechar o portátil descansada.
-   *
-   * É por isso que este estado existe e é por isso que o que ele mostra tem de
-   * ser lido de longe: quem está a trabalhar não vai investigar um visto cinzento
-   * — só muda de comportamento se lhe disserem, com estas palavras, que o
-   * trabalho está guardado SÓ NESTE COMPUTADOR.
-   *
-   * `porque` é o que se sabe da causa (a tabela em falta, as permissões), para o
-   * aviso poder dizer o que resolver em vez de só que não deu.
+   * Onde está o trabalho dela: a caminho, no servidor, só neste computador, ou
+   * num servidor que o próximo deploy apaga — uma máquina de estados
+   * (`estado-da-gravacao.ts`), com os avisos grandes que falam uma vez.
    */
-  const [soNesteComputador, setSoNesteComputador] = useState<{ porque?: string } | null>(null);
-  /** Já dissemos isto em voz alta? O indicador diz-o sempre; o aviso grande
-   *  aparece UMA vez, para não virar ruído a cada 800 ms. */
-  const avisouSoLocal = useRef(false);
-  /**
-   * O rascunho CHEGOU ao servidor e o próximo deploy apaga-o (produção sem base
-   * de dados — ver `duradouro` em `ResultadoDaGravacao`). `aviso` é a frase que
-   * o servidor manda, com o nome das variáveis que resolvem.
-   */
-  const [naoDuraAoDeploy, setNaoDuraAoDeploy] = useState<{ aviso?: string } | null>(null);
+  const {
+    gravacao,
+    soNesteComputador,
+    naoDuraAoDeploy,
+    aGravarNoServidor,
+    registarSoLocal,
+    marcarGuardadoNoServidor,
+    registarNaoDura,
+    marcarQueDura,
+    partiu: partiuUmaGravacao,
+    voltou: voltouUmaGravacao,
+    avisoDoSoLocalPorDar,
+  } = useEstadoDaGravacao(toast);
   /**
    * O preço da proposta que não chegou ao pedido — ver `mandarPrecoAoPedido`.
    * `null` é o normal: ou nunca falhou, ou a última tentativa passou.
@@ -756,19 +715,6 @@ export default function ProposalStudio({
     valeTentarDeNovo: boolean;
   } | null>(null);
   const [precoAGravar, setPrecoAGravar] = useState(false);
-  /** O mesmo contrato do `avisouSoLocal`: o indicador di-lo sempre, o aviso
-   *  grande uma vez. */
-  const avisouNaoDura = useRef(false);
-  /**
-   * Quantas gravações estão AGORA a caminho do servidor.
-   *
-   * Sem isto havia uma janela em que o ecrã dizia «guardado às 14:32» sem
-   * ninguém saber ainda se tinha ficado guardado: a cópia local corre primeiro
-   * e é síncrona, o pedido ao servidor demora — e com as repetições demora
-   * mais. Uma contagem e não um booleano porque a gravação de saída (a da
-   * desmontagem) pode sobrepor-se à do debounce.
-   */
-  const [aGravarNoServidor, setAGravarNoServidor] = useState(0);
   /**
    * O rascunho que o "Limpar" deitou fora, à espera de ser resgatado.
    *
@@ -1200,58 +1146,8 @@ export default function ProposalStudio({
   const traducaoLigada = traducao === "ligada";
   const [confirmSend, setConfirmSend] = useState(false);
 
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * POR ONDE É QUE A PROPOSTA SEGUE
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * «Quero colocar aqui a opção de enviar por email e por WhatsApp. E quero que
-   * seja possível escolher enviar apenas só para o email, apenas só para o
-   * WhatsApp, ou para os dois.»
-   *
-   * ── OS DOIS CANAIS NÃO FUNCIONAM DA MESMA MANEIRA, E ISSO VÊ-SE ─────────
-   *
-   * O **email** sai do SERVIDOR: leva o PDF em anexo e parte sozinho quando ela
-   * carrega em enviar.
-   *
-   * O **WhatsApp** não. Nenhuma página consegue mandar uma mensagem por
-   * alguém — o que se pode é abrir o WhatsApp com a mensagem escrita e a lista
-   * de contactos à espera. Ou seja, o WhatsApp é sempre um SEGUNDO gesto, dela,
-   * a seguir a este. E não pode ser automático: uma janela aberta depois de um
-   * `await` é bloqueada pelo browser (a mesma razão pela qual o «Imprimir folha
-   * do dia» vive onde vive).
-   *
-   * Por isso a escolha faz duas coisas diferentes: decide se o email SAI, e
-   * decide se o passo do WhatsApp fica em destaque no fim. Não finge que os
-   * dois são a mesma coisa.
-   *
-   * ── E LEMBRA-SE DA ÚLTIMA ──────────────────────────────────────────────
-   *
-   * A omissão é «Email», que é como isto sempre funcionou — ninguém que não
-   * peça nada pode passar a ter uma janela do WhatsApp a abrir-se. Mas se ela
-   * escolher WhatsApp, é isso que encontra da próxima: uma escolha que se
-   * repete todos os dias e se pede todos os dias é uma escolha mal feita.
-   */
-  const [canal, setCanal] = useState<CanalDeEnvio>("email");
-  useEffect(() => {
-    try {
-      const guardado = localStorage.getItem(CANAL_GUARDADO);
-      if (guardado === "email" || guardado === "whatsapp" || guardado === "ambos") {
-        setCanal(guardado);
-      }
-    } catch {
-      /* Uma janela privada ou o armazenamento desligado dão erro aqui. A
-         omissão serve, e não vale um ecrã partido. */
-    }
-  }, []);
-  const escolherCanal = useCallback((c: CanalDeEnvio) => {
-    setCanal(c);
-    try {
-      localStorage.setItem(CANAL_GUARDADO, c);
-    } catch {
-      /* Ver acima: não poder lembrar-se não é razão para não obedecer agora. */
-    }
-  }, []);
+  /** Por onde a proposta segue, e a última escolha dela — ver `useCanalDeEnvio`. */
+  const { canal, escolherCanal } = useCanalDeEnvio();
   /**
    * ── O EMAIL QUE VAI SAIR ─────────────────────────────────────────────────
    *
@@ -1885,74 +1781,6 @@ export default function ProposalStudio({
   }, []);
 
   /**
-   * O rascunho não chegou ao servidor. Duas coisas acontecem, e são diferentes
-   * de propósito:
-   *
-   *  1. o INDICADOR passa a dizê-lo, e continua a dizê-lo enquanto for verdade —
-   *     é o que está à vista quando ela olha para o ecrã;
-   *  2. um aviso grande, UMA vez. À segunda seria ruído a cada 800 ms, e um
-   *     aviso que aparece sempre é um aviso que se aprende a ignorar.
-   */
-  const registarSoLocal = useCallback(
-    (porque?: string, sessaoExpirada = false) => {
-      setSoNesteComputador({ porque });
-      if (avisouSoLocal.current) return;
-      avisouSoLocal.current = true;
-      // Achado n.º 34: com a sessão caída, «fala com quem gere a instalação»
-      // mandava procurar uma avaria que não existe. Basta entrar outra vez.
-      toast(
-        sessaoExpirada
-          ? "A tua sessão expirou e este rascunho ficou guardado SÓ NESTE COMPUTADOR. Não feches o separador: entra outra vez e continua — a gravação seguinte já chega ao servidor."
-          : `Este rascunho está guardado SÓ NESTE COMPUTADOR — não chegou ao servidor.${
-              porque ? ` ${porque}` : ""
-            } Não feche o separador sem falar com quem gere a instalação: noutro dispositivo esta proposta não existe.`,
-        "error",
-      );
-    },
-    [toast],
-  );
-
-  /** A gravação chegou ao servidor. Limpa o aviso E rearma-o: se voltar a
-   *  falhar mais tarde, ela tem de ouvir outra vez — a rede pode ter voltado a
-   *  cair e o segundo silêncio custaria tanto como o primeiro. */
-  const marcarGuardadoNoServidor = useCallback(() => {
-    setSoNesteComputador(null);
-    avisouSoLocal.current = false;
-  }, []);
-
-  /**
-   * O rascunho chegou ao servidor, e o servidor disse que o sítio não dura.
-   *
-   * Mesmo desenho do `registarSoLocal`, e de propósito: o indicador passa a
-   * dizê-lo enquanto for verdade, e o aviso grande sai UMA vez. A frase é a do
-   * servidor — quem lê isto é quem vai ter com quem gere a instalação, e uma
-   * frase com o nome da variável poupa-lhe a viagem de descobrir qual é.
-   *
-   * NÃO se oferece «tentar outra vez»: a tentativa seguinte cai no mesmo disco.
-   * O que resolve isto é ligar a base de dados, e é isso que a frase diz.
-   */
-  const registarNaoDura = useCallback(
-    (aviso?: string) => {
-      setNaoDuraAoDeploy({ aviso });
-      if (avisouNaoDura.current) return;
-      avisouNaoDura.current = true;
-      toast(
-        aviso ??
-          "Este rascunho ficou guardado apenas no disco do servidor, que é apagado no próximo deploy.",
-        "error",
-      );
-    },
-    [toast],
-  );
-
-  /** O sítio voltou a durar (ligaram a base de dados). Limpa e rearma, pela
-   *  mesma razão do `marcarGuardadoNoServidor`. */
-  const marcarQueDura = useCallback(() => {
-    setNaoDuraAoDeploy(null);
-    avisouNaoDura.current = false;
-  }, []);
-
-  /**
    * Manda o rascunho ao servidor e ARRUMA a verdade que voltar: o carimbo, o
    * indicador, o aviso. Está num sítio só porque são dois os caminhos que
    * gravam — o debounce de cada alteração e o resgate da abertura — e um deles
@@ -1961,7 +1789,7 @@ export default function ProposalStudio({
    */
   const gravarUmaVez = useCallback(
     async (docGravavel: unknown): Promise<ResultadoDaGravacao> => {
-      setAGravarNoServidor((n) => n + 1);
+      partiuUmaGravacao();
       try {
         // O que mudou desde a última conversa com o servidor — é isto que lhe
         // deixa juntar esta gravação com a de outra pessoa campo a campo, em
@@ -2010,7 +1838,7 @@ export default function ProposalStudio({
         }
         return r;
       } finally {
-        setAGravarNoServidor((n) => Math.max(0, n - 1));
+        voltouUmaGravacao();
       }
     },
     [
@@ -2020,6 +1848,8 @@ export default function ProposalStudio({
       registarNaoDura,
       marcarQueDura,
       onEstadoDoPedido,
+      partiuUmaGravacao,
+      voltouUmaGravacao,
     ],
   );
 
@@ -2091,7 +1921,7 @@ export default function ProposalStudio({
       let leituraOk = false;
       let draft: { doc?: unknown; updatedAt?: string } | null = null;
       try {
-        const res = await fetch(`/api/orcamento/${quote.id}/proposta-rascunho`, {
+        const res = await lerPartilhado(`/api/orcamento/${quote.id}/proposta-rascunho`, {
           cache: "no-store",
         });
         if (res.ok) {
@@ -2291,7 +2121,7 @@ export default function ProposalStudio({
         // como «falhou» até responder era um botão que parece não fazer nada.
         setEstadoDosUrls("a-caminho");
         try {
-          const res = await fetch(`/api/orcamento/${quote.id}/assets`);
+          const res = await lerPartilhado(`/api/orcamento/${quote.id}/assets`);
           if (!res.ok) {
             // Um 401 (sessão caducada) e um 500 (Storage em baixo) davam os
             // dois a mesma coisa: nada. O registo diz qual foi, e o ecrã diz
@@ -2482,7 +2312,8 @@ export default function ProposalStudio({
    */
   useEffect(() => {
     let vivo = true;
-    void estadoDaTraducao().then((estado) => {
+    // Pela leitura partilhada: o `StrictMode` (e um segundo estúdio) pedia-a duas vezes.
+    void estadoDaTraducao((url, init) => lerPartilhado(String(url), init)).then((estado) => {
       if (vivo) setTraducao(estado);
     });
     return () => {
@@ -2929,7 +2760,7 @@ export default function ProposalStudio({
       }
       // Lido ANTES da gravação: é o que distingue «o aviso grande vai falar» de
       // «o aviso grande já falou e agora é comigo».
-      const avisoGrandeVaiFalar = !avisouSoLocal.current;
+      const avisoGrandeVaiFalar = avisoDoSoLocalPorDar();
       setAGuardarAgora(true);
       try {
         const r = await flushDraft.current();
@@ -2942,7 +2773,7 @@ export default function ProposalStudio({
         setAGuardarAgora(false);
       }
     })();
-  }, [toast, soNesteComputador, aGravarNoServidor]);
+  }, [toast, soNesteComputador, aGravarNoServidor, avisoDoSoLocalPorDar]);
 
   /**
    * ════════════════════════════════════════════════════════════════════════
@@ -5050,7 +4881,7 @@ export default function ProposalStudio({
     let vivo = true;
     void (async () => {
       try {
-        const res = await fetch(`/api/orcamento/${quote.id}/fotos-repetidas`);
+        const res = await lerPartilhado(`/api/orcamento/${quote.id}/fotos-repetidas`);
         if (!res.ok) return;
         const data = (await res.json()) as { fotos?: FotoRepetida[] };
         if (!vivo || !Array.isArray(data.fotos)) return;
@@ -7259,8 +7090,8 @@ export default function ProposalStudio({
   useEffect(() => {
     let vivo = true;
     Promise.all([
-      fetch("/api/propostas?resumo=1").then((r) => (r.ok ? r.json() : [])),
-      fetch("/api/propostas/preferencias").then((r) => (r.ok ? r.json() : null)),
+      lerPartilhado("/api/propostas?resumo=1").then((r) => (r.ok ? r.json() : [])),
+      lerPartilhado("/api/propostas/preferencias").then((r) => (r.ok ? r.json() : null)),
     ])
       .then(([lista, prefs]) => {
         if (!vivo) return;
@@ -7301,7 +7132,7 @@ export default function ProposalStudio({
    */
   useEffect(() => {
     let vivo = true;
-    fetch(`/api/orcamento/${quote.id}/proposta-doc`, { cache: "no-store" })
+    lerPartilhado(`/api/orcamento/${quote.id}/proposta-doc`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { acceptUrl?: string | null } | null) => {
         if (vivo && data?.acceptUrl) setLinkDaProposta(data.acceptUrl);
@@ -7353,7 +7184,7 @@ export default function ProposalStudio({
     const aPagarAqui = round2(totais.aPagar);
     (async () => {
       try {
-        const r = await fetch(`/api/orcamento/${quote.id}/versoes`, { cache: "no-store" });
+        const r = await lerPartilhado(`/api/orcamento/${quote.id}/versoes`, { cache: "no-store" });
         if (!r.ok || !vivo) return;
         const dados = (await r.json()) as { versoes?: VersaoEnviada[] } | null;
         const ultima = dados?.versoes?.[0];
@@ -12187,17 +12018,7 @@ export default function ProposalStudio({
               </span>
               {(() => {
                 const haEstado = !!(gravadoEm || porGravar || soNesteComputador || naoDuraAoDeploy);
-                const estado: EstadoDaGravacaoNoEcra =
-                  porGravar || aGravarNoServidor > 0
-                    ? "a-guardar"
-                    : soNesteComputador
-                      ? "so-neste-computador"
-                      : // Depois do `so-neste-computador` e não antes: não
-                        // chegar ao servidor é pior do que chegar a um sítio
-                        // que não dura, e o indicador só diz uma coisa.
-                        naoDuraAoDeploy
-                        ? "nao-dura-ao-deploy"
-                        : "guardado";
+                const estado = estadoNoEcra(porGravar, gravacao);
                 const t = textoDaGravacao(estado, gravadoEm);
                 return (
                   // Duas regiões fixas — uma `polite`, uma `assertive` só para
@@ -13247,30 +13068,3 @@ export default function ProposalStudio({
     </div>
   );
 }
-
-// ── Small presentational helpers ──
-
-/**
- * As páginas que uma proposta tem SEM contar com a inspiração.
- *
- * MEDIDO, não estimado: gerou-se o PDF de um documento com 0, 1 e 3 mood
- * boards e contaram-se as folhas — 7, 8 e 10. Sete fixas, mais uma por página
- * de inspiração.
- *
- * Um texto muito longo (condições reescritas à mão, uma lista de serviços
- * enorme) pode empurrar uma secção para a folha seguinte. Daí o «cerca de» na
- * frase que mostra este número: é um piso honesto, não uma promessa.
- */
-
-/**
- * As medições das gerações de PDF, partilhadas por TODAS as propostas.
- *
- * Sem o id do pedido de propósito: o que se aprende numa proposta serve para a
- * seguinte — é a mesma máquina, a mesma ligação e o mesmo servidor. Preso à
- * proposta, a primeira geração de cada uma seria sempre uma adivinha.
- *
- * A chave mudou com o desenho novo do PDF (`pdf-editorial`): as medições do
- * antigo — ~1 s e ~190 KB por foto — ensinavam a recta errada ao novo, que
- * custa quase tudo à cabeça. As antigas ficam esquecidas no navegador.
- */
-const AMOSTRAS_KEY = "liquen-proposal-studio:geracoes-editorial";
