@@ -223,8 +223,26 @@ describe("o pedido da paleta", () => {
     await waitFor(() => expect(screen.getByLabelText("Nova tarefa")).toHaveFocus());
   });
 
-  it("voltar às Tarefas com um ⌘N antigo no contador NÃO reabre a linha", async () => {
-    montar({ pedidoDeNova: 3 });
+  /* O contrato do contador (17/11): o AdminClient põe-no a 0 quando se sai
+     das Tarefas (`usePedidoDeNovaTarefa`), e por isso um valor diferente de
+     zero com que o ecrã MONTA é um pedido por servir — feito com a vista ainda
+     a carregar, enquanto o esqueleto estava à frente. */
+  it("um toque em «Nova tarefa» com a vista a carregar abre a linha quando ela monta", async () => {
+    montar({ pedidoDeNova: 1 });
+    await screen.findByText(A.title);
+    await waitFor(() => expect(screen.getByLabelText("Nova tarefa")).toHaveFocus());
+  });
+
+  it("voltar às Tarefas depois de um ⌘N (o contador voltou a 0) NÃO reabre a linha", async () => {
+    const { rerender } = montar({ pedidoDeNova: 1 });
+    await waitFor(() => expect(screen.getByLabelText("Nova tarefa")).toHaveFocus());
+    // Sai-se: o ecrã desmonta e o AdminClient põe o contador a 0.
+    rerender(<ToastProvider>{null}</ToastProvider>);
+    rerender(
+      <ToastProvider>
+        <Tarefas pedidoDeNova={0} />
+      </ToastProvider>,
+    );
     await screen.findByText(A.title);
     expect(screen.queryByLabelText("Nova tarefa")).toBeNull();
   });

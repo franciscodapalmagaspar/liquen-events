@@ -1085,16 +1085,21 @@ export default function Tarefas({
    */
   const queroFoco = useRef(false);
   /**
-   * ── O PEDIDO QUE JÁ VINHA AO MONTAR NÃO É UM PEDIDO ─────────────────────
+   * ── O PEDIDO QUE JÁ VINHA AO MONTAR É UM PEDIDO POR SERVIR ──────────────
    *
    * O contador sobe com o botão da barra e com o ⌘N, e os dois só existem com
-   * as Tarefas à frente — portanto este ecrã está sempre montado quando ele
-   * sobe. O valor com que o ecrã MONTA é o de um pedido antigo, já servido:
-   * sair das Tarefas e voltar mais tarde reabria a linha de escrever, com o
-   * cursor lá dentro, sem ninguém a ter pedido. Só conta o que mudar depois.
+   * as Tarefas à frente — mas este ecrã carrega a pedido (`lazy.tsx`), e
+   * enquanto o código não chega quem está no ecrã é o esqueleto. Um toque
+   * nesse intervalo sobe o contador antes de haver quem o ouça; perdê-lo era
+   * a linha de escrever não abrir (visto a 17/11, no passeio do telemóvel com
+   * o `next dev` a frio).
+   *
+   * Por isso o valor com que o ecrã MONTA também se serve, se não for 0. O
+   * que impede de reabrir a linha ao sair e voltar mais tarde é a outra
+   * metade do contrato: o AdminClient põe o contador a 0 quando se sai das
+   * Tarefas (`pedido-de-nova-tarefa.ts`).
    * (A paleta, que chega com as Tarefas ainda fechadas, usa o `pedidoDaPaleta`.)
    */
-  const novaAoMontar = useRef(pedidoDeNova);
   const abrirLinhaDeEscrever = useCallback(() => {
     if (campoDoTitulo.current) {
       campoDoTitulo.current.focus();
@@ -1104,7 +1109,7 @@ export default function Tarefas({
     setAEscrever(true);
   }, []);
   useEffect(() => {
-    if (!pedidoDeNova || pedidoDeNova === novaAoMontar.current) return;
+    if (!pedidoDeNova) return;
     abrirLinhaDeEscrever();
   }, [pedidoDeNova, abrirLinhaDeEscrever]);
   /* E se a lista ainda estiver a chegar (a paleta pode abrir as Tarefas pela

@@ -234,6 +234,7 @@ import {
   EventTasks,
   ImportarProposta,
 } from "./lazy";
+import { usePedidoDeNovaTarefa } from "./pedido-de-nova-tarefa";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
 import { linkDaConversa } from "@/lib/whatsapp";
 import { dominiosConhecidos, sugerirEmail } from "@/lib/dominio-parecido";
@@ -2987,6 +2988,8 @@ export default function AdminClient({
     else setPaletteOpen(true);
   }, []);
 
+  const { pedido: pedidoDeNovaTarefa, pedir: pedirNovaTarefa } = usePedidoDeNovaTarefa(view);
+
   // Global keyboard shortcuts. ⌘K works anywhere; the rest are ignored while
   // typing so they never fight with form fields.
   useEffect(() => {
@@ -3008,7 +3011,7 @@ export default function AdminClient({
       ) {
         if (janelaAbertaRef.current || paletteAbertaRef.current) return;
         e.preventDefault();
-        setPedidoDeNovaTarefa((n) => n + 1);
+        pedirNovaTarefa();
         return;
       }
 
@@ -3086,7 +3089,7 @@ export default function AdminClient({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focarProcuraDaVista]);
+  }, [focarProcuraDaVista, pedirNovaTarefa]);
 
   // Escape dismisses the open drawer/nav — but only when no modal is capturing
   // it (the palette / new-quote / shortcuts dialogs handle their own Escape).
@@ -5173,12 +5176,11 @@ export default function AdminClient({
    *
    * O que passa daqui para baixo é um CONTADOR e não uma função: a caixa de
    * escrever vive dentro das `Tarefas` (é a última linha da lista, ver a fase
-   * 03 do documento dela), e o que a barra faz é pedir-lhe que abra. Um
-   * contador porque carregar duas vezes seguidas tem de pedir duas vezes — um
-   * booleano ficava preso a `true` e o segundo toque não fazia nada.
+   * 03 do documento dela), e o que a barra faz é pedir-lhe que abra. O
+   * contador e o contrato dele (volta a 0 ao sair, porque o pedido pode chegar
+   * antes de a vista carregar) estão em `pedido-de-nova-tarefa.ts`, e é
+   * declarado lá em cima, antes dos atalhos, porque o ⌘N também o usa.
    */
-  const [pedidoDeNovaTarefa, setPedidoDeNovaTarefa] = useState(0);
-  const pedirNovaTarefa = useCallback(() => setPedidoDeNovaTarefa((n) => n + 1), []);
 
   const VIEW_TITLES: Record<View, string> = {
     overview: "Visão Geral",
