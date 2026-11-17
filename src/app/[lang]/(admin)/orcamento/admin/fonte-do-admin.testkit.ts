@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 
 /**
@@ -113,18 +113,22 @@ export function fonteDaCasa(
  * escada de entrada de uma vista, por exemplo — continuarem a ler pela ordem do
  * ecrã depois de a vista se partir em componentes.
  *
- * Só cola chamadas que se fecham sozinhas (`<Nome … />`) de componentes
- * importados de uma pasta privada (`./_casa/…`) ou de uma das `PECAS_SOLTAS`;
- * é a forma de todas as que as partições criaram. O fim da chamada acha-se
- * contando `{}` e `()`, por isso uma prop com `=>`, `<` ou `>` lá dentro (um
- * `cartao={(q) => <QuoteCard … />}`, um `a > b`) não a esconde. `porFicheiro`
- * corre em cada ficheiro antes de colar.
+ * Cola componentes importados de uma pasta privada (`./_casa/…`) ou de uma das
+ * `PECAS_SOLTAS`. O ficheiro do componente entra LOGO A SEGUIR à etiqueta de
+ * abertura, e o texto da chamada FICA: as props dela continuam a ser lidas
+ * (uma `--cena` posta na chamada não desaparece), e uma chamada dentro das
+ * props de outra (`cartao={(q) => <QuoteCard … />}`) também se cola. Uma
+ * etiqueta com filhos (`<LinhaDeEscrever …>…</LinhaDeEscrever>`) cola-se do
+ * mesmo modo, à frente dos filhos. O fim da etiqueta acha-se contando `{}` e
+ * `()` e saltando aspas e comentários (`fimDaEtiqueta`). `porFicheiro` corre em
+ * cada ficheiro antes de colar.
  */
 export function fonteComposta(
   rel: string,
   porFicheiro: (texto: string) => string = (t) => t,
   vistos: ReadonlySet<string> = new Set(),
 ): string {
+  confirmarPecasSoltas();
   const abs = join(ADMIN, rel);
   const texto = porFicheiro(readFileSync(abs, "utf8"));
   const componentes = new Map<string, string>();
@@ -132,22 +136,29 @@ export function fonteComposta(
     const destino = relative(ADMIN, join(dirname(abs), m[2]));
     const daCasa = destino.split("/").some((parte) => parte.startsWith("_"));
     if (!daCasa && !PECAS_SOLTAS.includes(`${destino}.tsx`)) continue;
+    // Um `.ts` (tipos, constantes) não desenha nada: só os `.tsx` se colam.
+    if (!existsSync(join(ADMIN, `${destino}.tsx`))) continue;
     for (const nome of m[1].split(",").map((n) => n.replace(/^type /, "").trim())) {
       if (/^[A-Z]/.test(nome)) componentes.set(nome, `${destino}.tsx`);
     }
   }
-  let saida = "";
-  let k = 0;
+  const colas: { onde: number; texto: string }[] = [];
   for (const m of texto.matchAll(/<([A-Z]\w*)\b/g)) {
-    const inicio = m.index;
-    if (inicio < k) continue; // dentro de uma chamada já colada
     const ficheiro = componentes.get(m[1]);
     if (!ficheiro || vistos.has(ficheiro)) continue;
-    const fim = fimDaEtiqueta(texto, inicio);
-    if (fim === null) continue; // abre com `>` (tem filhos): não se cola
-    saida += texto.slice(k, inicio);
-    saida += fonteComposta(ficheiro, porFicheiro, new Set([...vistos, rel, ficheiro]));
-    k = fim;
+    const etiqueta = fimDaEtiqueta(texto, m.index);
+    if (etiqueta === null) continue;
+    colas.push({
+      onde: etiqueta.fim,
+      texto: fonteComposta(ficheiro, porFicheiro, new Set([...vistos, rel, ficheiro])),
+    });
+  }
+  colas.sort((a, b) => a.onde - b.onde);
+  let saida = "";
+  let k = 0;
+  for (const { onde, texto: colado } of colas) {
+    saida += texto.slice(k, onde) + "\n" + colado + "\n";
+    k = onde;
   }
   return saida + texto.slice(k);
 }
@@ -162,21 +173,53 @@ export const PECAS_SOLTAS: readonly string[] = [
   "FornecedoresIcones.tsx",
 ];
 
+/** Uma peça renomeada deixava de ser colada em silêncio: falha alto, como o `daPasta`. */
+function confirmarPecasSoltas(): void {
+  const faltam = PECAS_SOLTAS.filter((p) => !existsSync(join(ADMIN, p)));
+  if (faltam.length > 0) {
+    throw new Error(`fonte-do-admin: PECAS_SOLTAS que já não existem: ${faltam.join(", ")}`);
+  }
+}
+
 /**
- * O índice logo depois do `/>` que fecha a etiqueta aberta em `inicio`, ao nível
- * dela (fora de `{}` e `()`); `null` se ela fechar com `>` (tem filhos) ou não
- * fechar. Um `>` à fundura zero só é o fim se não vier de `=>`.
+ * Onde acaba a etiqueta de abertura que começa em `inicio` (o índice logo
+ * depois do `>` ou do `/>`), e se ela se fecha sozinha. Conta `{}` e `()`, salta
+ * o que está entre aspas (`"`, `'`, `` ` ``) e os comentários dentro das
+ * expressões, e um `>` só fecha se não vier de `=>`. `null` se não fechar, ou
+ * se aparecer outra etiqueta antes de fechar (não é JSX que se perceba).
  */
-export function fimDaEtiqueta(texto: string, inicio: number): number | null {
+export function fimDaEtiqueta(
+  texto: string,
+  inicio: number,
+): { fim: number; sozinha: boolean } | null {
   let fundura = 0;
+  let aspas: string | null = null;
   for (let i = inicio + 1; i < texto.length; i++) {
     const c = texto[i];
-    if (c === "{" || c === "(") fundura++;
+    if (aspas) {
+      if (c === "\\") i++;
+      else if (c === aspas) aspas = null;
+      continue;
+    }
+    if (fundura > 0 && c === "/" && texto[i + 1] === "/") {
+      const nl = texto.indexOf("\n", i);
+      if (nl < 0) return null;
+      i = nl;
+      continue;
+    }
+    if (c === "/" && texto[i + 1] === "*") {
+      const fecho = texto.indexOf("*/", i + 2);
+      if (fecho < 0) return null;
+      i = fecho + 1;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") aspas = c;
+    else if (c === "{" || c === "(") fundura++;
     else if (c === "}" || c === ")") fundura--;
     else if (fundura === 0) {
-      if (c === "/" && texto[i + 1] === ">") return i + 2;
-      if (c === ">" && texto[i - 1] !== "=") return null;
-      if (c === "<") return null; // outra etiqueta antes de fechar: não é JSX que se perceba
+      if (c === "/" && texto[i + 1] === ">") return { fim: i + 2, sozinha: true };
+      if (c === ">" && texto[i - 1] !== "=") return { fim: i + 1, sozinha: false };
+      if (c === "<") return null;
     }
   }
   return null;
