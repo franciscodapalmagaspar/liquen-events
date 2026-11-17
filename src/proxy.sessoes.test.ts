@@ -38,8 +38,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function pedido(token: string, method = "GET"): NextRequest {
-  return new NextRequest(new URL("https://liquen.test/api/orcamento?resumo=1"), {
+function pedido(token: string, method = "GET", caminho = "/api/orcamento/abc"): NextRequest {
+  return new NextRequest(new URL(`https://liquen.test${caminho}?resumo=1`), {
     method,
     headers: { cookie: `${ADMIN_COOKIE}=${token}; liquen-lang=pt` },
   });
@@ -95,5 +95,49 @@ describe("o proxy e as sessões revogadas", () => {
       new NextRequest(new URL("https://liquen.test/api/orcamento"), { method: "POST" }),
     );
     expect(res.status).toBe(200);
+  });
+
+  it("sem o registo, «Sair», as entradas e as rotas públicas passam com sessão aberta", async () => {
+    H.semRegisto = true;
+    const token = createSession("TESTE Ana");
+    for (const caminho of [
+      "/api/admin/logout",
+      "/api/admin/login",
+      "/api/admin/recuperar",
+      "/api/admin/recuperar/definir",
+      "/api/admin/passkeys/entrada",
+      "/api/admin/erro-do-cliente",
+      "/api/admin/imagem-falhou",
+      "/api/orcamento",
+      "/api/orcamento/abc/tempo-activo",
+      "/api/meta",
+      "/api/proposta/tok/escolha",
+    ]) {
+      const res = await proxy(pedido(token, "POST", caminho));
+      expect(res.status, caminho).toBe(200);
+      expect(res.headers.get("x-middleware-next"), caminho).toBe("1");
+    }
+  });
+
+  it("a lista de isenções não deixa passar as gravações do back office", async () => {
+    H.semRegisto = true;
+    const token = createSession("TESTE Ana");
+    for (const caminho of [
+      "/api/orcamento/abc",
+      "/api/orcamento/abc/proposta-rascunho",
+      "/api/admin/equipa",
+      "/api/admin/passkeys/registo",
+      "/api/admin/logout/x",
+      "/api/temas",
+    ]) {
+      const res = await proxy(pedido(token, "POST", caminho));
+      expect(res.status, caminho).toBe(503);
+    }
+  });
+
+  it("o 503 traz o X-Request-ID", async () => {
+    H.semRegisto = true;
+    const res = await proxy(pedido(createSession("TESTE Ana"), "PATCH"));
+    expect(res.headers.get("x-request-id")).toBeTruthy();
   });
 });
