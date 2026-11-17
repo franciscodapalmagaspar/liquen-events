@@ -41,6 +41,11 @@ antes e depois (linhas, complexidade, peso das rotas).
 - **Fase 4**, as secções grandes: «Mood boards» (~790 linhas, 59 variáveis do estúdio), «Orçamento Proposto» (~910, 45), «Total e validade» (~440, 22) e a barra de baixo (~1 080). Partidas hoje dariam componentes com 45–60 propriedades cada — o contrário do que se quer. A ordem certa é: primeiro os ganchos da fase 3 (que juntam essas variáveis por domínio), e só depois estas quatro, cada uma em duas ou três peças com menos de 250 linhas.
 - **Duas leituras ainda saem duas vezes** no `dev` (`fotos-em-falta`, um `POST`, e o `pagina-do-rascunho`, sete `POST` ao abrir): são escritas, ou leituras com corpo, e não se juntam sem mudar o contrato da rota. A montagem dupla do estúdio (o «Fazer proposta» e o separador Comunicação) não se viu no percurso medido — o separador só monta o estúdio quando é aberto —, e por isso não se mexeu nela.
 
+- **Três achados da revisão que são comportamento, e por isso ficam escritos e não feitos** (a regra é ela não ver nada mudar; cada um pede o sim dela):
+  1. `aplicarBase` (`lib/orcamento/estudio/dinheiro-do-documento.ts`), quando o documento não tem modo de IVA nem texto do total, cai em «IVA incluído» (`detectVatMode("")`), enquanto o resto do estúdio cai em «+ IVA». Um rascunho antigo sem modo, aberto num pedido com preço, pode mudar de modo sozinho.
+  2. O efeito que acompanha o «Preço final» do pedido (`ProposalStudio`, à procura de `quotedPrice`) tem uma cópia à mão do `aplicarBase`, com a mesma queda; há também o `composeTotalText`. Três sítios a compor o mesmo texto do total — devia ser um.
+  3. O indicador da gravação não acende com uma gravação a caminho sozinha (a primeira da sessão, depois de o debounce apagar o «por gravar»): `haQueMostrar` copia essa regra tal e qual. Numa rede lenta, a primeira gravação passa sem «A guardar…».
+
 **Lições das fases 2 a 4** (também na Parte 4):
 
 - **Partir com uma ferramenta, não à mão.** Os blocos de topo saíram por um guião que lê as declarações e os comentários colados, reescreve as importações e marca o que passa a `export`; as secções de JSX saíram com o *type checker* do TypeScript a dizer que variáveis do estúdio cada uma usa, e com que tipo. À mão, numa função de 7 000 linhas, esquece-se sempre uma.

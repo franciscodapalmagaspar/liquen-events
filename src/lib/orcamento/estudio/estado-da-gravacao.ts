@@ -96,8 +96,12 @@ export function estadoNoEcra(porGravar: boolean, g: EstadoDaGravacao): EstadoDaG
 /**
  * O indicador tem alguma coisa a dizer? Nada ainda, enquanto não se gravou nada
  * nem há nada por gravar — e sempre que houver um alarme, mesmo sem gravação
- * nesta sessão. Lê a mesma máquina que o `estadoNoEcra`, para os dois não se
- * poderem desencontrar.
+ * nesta sessão. Lê a mesma máquina que o `estadoNoEcra`.
+ *
+ * É a regra que o estúdio já tinha, tal e qual: uma gravação a caminho, sozinha
+ * (a primeira da sessão, com o «por gravar» já apagado pelo debounce), não
+ * acende o indicador. Mudar isso é mudar o que ela vê — fica escrito, e não
+ * feito, em `docs/ESTRUTURA-DO-CODIGO.md`.
  */
 export function haQueMostrar(
   gravadoEm: Date | null,

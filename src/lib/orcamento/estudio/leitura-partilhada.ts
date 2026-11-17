@@ -58,7 +58,11 @@ function emVooDe(f: typeof fetch): Map<string, EmVoo> {
 
 /** A chave, ou `null` quando o pedido não se pode juntar a outro. */
 function chaveDe(url: string, init?: RequestInit): string | null {
-  if (init && Object.keys(init).some((k) => k !== "cache")) return null;
+  for (const [k, v] of Object.entries(init ?? {})) {
+    if (v === undefined || k === "cache") continue;
+    if (k === "method" && typeof v === "string" && v.toUpperCase() === "GET") continue;
+    return null;
+  }
   return `${init?.cache ?? ""} ${url}`;
 }
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { lerPartilhado } from "@/lib/orcamento/estudio/leitura-partilhada";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { diferencas, type Mudanca } from "@/lib/orcamento/diferencas";
@@ -133,7 +132,7 @@ export default function Versoes({
 
   const carregar = useCallback(async () => {
     try {
-      const res = await lerPartilhado(`/api/orcamento/${quoteId}/versoes`, { cache: "no-store" });
+      const res = await fetch(`/api/orcamento/${quoteId}/versoes`, { cache: "no-store" });
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as { versoes?: VersaoEnviada[] };
       setVersoes(data.versoes ?? []);
@@ -153,7 +152,7 @@ export default function Versoes({
        * dizer que estão abertos seria a mentira que este ecrã não pode contar.
        */
       try {
-        const r = await lerPartilhado(`/api/orcamento/${quoteId}/links`, { cache: "no-store" });
+        const r = await fetch(`/api/orcamento/${quoteId}/links`, { cache: "no-store" });
         if (r.ok) {
           const c = (await r.json()) as { corte?: { cortadoEm: string; por?: string } | null };
           setCorte(c.corte ?? null);

@@ -138,4 +138,14 @@ describe("lerPartilhado", () => {
     ]);
     expect(fetchFalso).toHaveBeenCalledTimes(3);
   });
+
+  it('um `method: "GET"` explícito, ou uma opção a `undefined`, junta-se na mesma', async () => {
+    const { fetchFalso, soltar } = respostaDepois({});
+    vi.stubGlobal("fetch", fetchFalso);
+    const a = lerPartilhado("/api/g", { method: "get", cache: "no-store" });
+    const b = lerPartilhado("/api/g", { cache: "no-store", signal: undefined });
+    soltar();
+    await Promise.all([a, b]);
+    expect(fetchFalso).toHaveBeenCalledTimes(1);
+  });
 });

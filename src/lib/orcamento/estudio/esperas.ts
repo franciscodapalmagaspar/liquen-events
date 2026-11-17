@@ -37,6 +37,8 @@ export function esperaDaTraducao(campos: number): number {
   return TRADUCAO_MS_FIXOS + TRADUCAO_MS_POR_LOTE * lotes;
 }
 
+const COPIA_FOTOS_EM_PARALELO = 8;
+
 /**
  * Quanto demora copiar `fotos` fotografias de um modelo para este pedido.
  *
@@ -46,8 +48,6 @@ export function esperaDaTraducao(campos: number): number {
  * observável daqui. O palpite é essa aritmética, com a folga de sempre para a
  * rede de quem espera.
  */
-const COPIA_FOTOS_EM_PARALELO = 8;
-
 export function esperaDaCopiaDeFotos(fotos: number): number {
   const lotes = Math.max(1, Math.ceil(Math.max(0, fotos) / COPIA_FOTOS_EM_PARALELO));
   return 900 + 1_500 * lotes;

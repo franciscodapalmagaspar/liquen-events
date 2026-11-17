@@ -45,7 +45,9 @@ describe("os campos que decidem o dinheiro — e só esses", () => {
 
 describe("a data do envio por extenso", () => {
   it("escreve o dia, o mês e o ano", () => {
-    expect(dataDoEnvioPorExtenso("2026-09-12T10:00:00Z")).toBe("em 12 de setembro de 2026");
+    // Meio-dia LOCAL: o mesmo dia em qualquer fuso onde o teste corra.
+    const meioDia = new Date(2026, 8, 12, 12).toISOString();
+    expect(dataDoEnvioPorExtenso(meioDia)).toBe("em 12 de setembro de 2026");
   });
   it("uma data ilegível não se escreve", () => {
     expect(dataDoEnvioPorExtenso("não é data")).toBe("num envio anterior");

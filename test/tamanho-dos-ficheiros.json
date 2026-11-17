@@ -63,7 +63,7 @@
   "src/app/[lang]/(admin)/orcamento/admin/ThemeCopyDialog.tsx": 455,
   "src/app/[lang]/(admin)/orcamento/admin/ThemePicker.tsx": 3181,
   "src/app/[lang]/(admin)/orcamento/admin/Toast.tsx": 837,
-  "src/app/[lang]/(admin)/orcamento/admin/Versoes.tsx": 494,
+  "src/app/[lang]/(admin)/orcamento/admin/Versoes.tsx": 493,
   "src/app/[lang]/(admin)/orcamento/admin/VistasDeHoras.tsx": 691,
   "src/app/[lang]/(admin)/orcamento/admin/carregamento/[eventId]/Carregamento.tsx": 591,
   "src/app/[lang]/(admin)/orcamento/admin/evento/[id]/DossierHeader.tsx": 460,
