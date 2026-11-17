@@ -1,4 +1,5 @@
-import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
+import type { Quote } from "@/lib/orcamento/types";
+import type { PainelDoPedido } from "./painel-do-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -11,23 +12,6 @@ import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
  * divisão entre o que grava sozinho e o que pede um clique está explicada em
  * `notas-automaticas.ts`.
  */
-
-/** Os campos do painel tal e qual como estão escritos (o preço já lido). */
-export interface PainelPorGravar {
-  estado: QuoteStatus;
-  /** O preço lido do campo; `undefined` se vazio ou ilegível. */
-  preco: number | undefined;
-  notas: string;
-  responsavel: string;
-  motivoDePerda: string;
-  data: string;
-  /** O que está ESCRITO no campo dos convidados, por ler. */
-  convidados: string;
-  local: string;
-  nome: string;
-  email: string;
-  telefone: string;
-}
 
 export interface OQueFaltaGravar {
   /**
@@ -48,7 +32,7 @@ const NADA: OQueFaltaGravar = {
   porEscrever: false,
 };
 
-export function oQueFaltaGravar(antes: Quote | null, e: PainelPorGravar): OQueFaltaGravar {
+export function oQueFaltaGravar(antes: Quote | null, e: PainelDoPedido): OQueFaltaGravar {
   if (!antes) return NADA;
   const motivoVaiComADecisao = e.estado !== antes.status;
   const motivoMudou = e.motivoDePerda !== (antes.lostReason ?? "");

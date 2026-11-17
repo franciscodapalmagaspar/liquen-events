@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Quote } from "@/lib/orcamento/types";
-import { oQueFaltaGravar, type PainelPorGravar } from "./o-que-falta-gravar";
+import { oQueFaltaGravar } from "./o-que-falta-gravar";
+import type { PainelDoPedido } from "./painel-do-pedido";
 
 const PEDIDO = {
   id: "LQ-1",
@@ -17,7 +18,7 @@ const PEDIDO = {
   phone: "+351910000000",
 } as Quote;
 
-const IGUAL: PainelPorGravar = {
+const IGUAL: PainelDoPedido = {
   estado: "pendente",
   preco: 1000,
   notas: "notas",
@@ -31,7 +32,7 @@ const IGUAL: PainelPorGravar = {
   telefone: "+351910000000",
 };
 
-const falta = (e: Partial<PainelPorGravar>, antes: Quote | null = PEDIDO) =>
+const falta = (e: Partial<PainelDoPedido>, antes: Quote | null = PEDIDO) =>
   oQueFaltaGravar(antes, { ...IGUAL, ...e });
 
 describe("oQueFaltaGravar", () => {
@@ -52,7 +53,7 @@ describe("oQueFaltaGravar", () => {
   });
 
   it("cada campo de decisão pede um clique", () => {
-    const campos: Partial<PainelPorGravar>[] = [
+    const campos: Partial<PainelDoPedido>[] = [
       { estado: "cotado" },
       { preco: 999 },
       { preco: undefined },
