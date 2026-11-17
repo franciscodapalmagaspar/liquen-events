@@ -2156,6 +2156,9 @@ body:is(.bo, .admin-mode)
 body:is(.bo, .admin-mode) input[data-sem-anel]:focus-visible {
   outline-color: transparent;
   box-shadow: none;
+  /* Sem a transição de 150 ms do anel global: com ela, o anel aparecia e
+     desvanecia ao focar (lote de 17/11, visto a 390 px em escuro). */
+  transition: none;
 }
 
 @media (forced-colors: active) {

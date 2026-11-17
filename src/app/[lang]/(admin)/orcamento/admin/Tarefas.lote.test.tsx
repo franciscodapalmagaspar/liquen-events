@@ -146,6 +146,9 @@ describe("as três acções, com «Anular»", () => {
     montar();
     await screen.findByText(A.title);
     fireEvent.keyDown(document.body, { key: "a", metaKey: true });
+    // Com a máquina carregada (CI), a barra do lote desenha-se um ciclo depois
+    // do ⌘A: espera-se por ela em vez de a ler logo (falhou assim a 17/11).
+    await screen.findByRole("toolbar", { name: "Ações nas tarefas selecionadas" });
   }
 
   it("«Concluir (N)» marca as por fazer e «Anular» desmarca-as", async () => {

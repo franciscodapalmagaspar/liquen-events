@@ -104,6 +104,9 @@
   "overrides": {
     "sharp": "^0.35.4",
     "postcss": "^8.5.10",
-    "deepmerge-ts": "^8.0.1"
+    "deepmerge-ts": "^8.0.1",
+    "@vercel/cli-config": {
+      "zod": "$zod"
+    }
   }
 }
