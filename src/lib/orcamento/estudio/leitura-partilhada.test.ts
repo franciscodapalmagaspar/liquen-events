@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { leiturasEmVoo, lerPartilhado } from "./leitura-partilhada";
+import { JUNTAR_ATE_MS, leiturasEmVoo, lerPartilhado } from "./leitura-partilhada";
 
 function respostaDepois(corpo: unknown, status = 200) {
   let soltar!: () => void;
@@ -13,6 +13,7 @@ function respostaDepois(corpo: unknown, status = 200) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("lerPartilhado", () => {
@@ -88,5 +89,53 @@ describe("lerPartilhado", () => {
     );
     const r = await lerPartilhado("/api/duplo");
     expect(r).toBe(duplo);
+  });
+
+  it("com um chamador só, recebe a resposta original — não se copia nada", async () => {
+    const original = new Response("{}");
+    const clonar = vi.spyOn(original, "clone");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => original),
+    );
+    expect(await lerPartilhado("/api/um")).toBe(original);
+    expect(clonar).not.toHaveBeenCalled();
+  });
+
+  it("não se junta a um pedido preso há mais de JUNTAR_ATE_MS (pode ser anterior a uma escrita)", async () => {
+    const { fetchFalso, soltar } = respostaDepois({ v: 1 });
+    vi.stubGlobal("fetch", fetchFalso);
+    let agora = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => agora);
+    const velho = lerPartilhado("/api/preso");
+    agora += JUNTAR_ATE_MS + 1;
+    const novo = lerPartilhado("/api/preso");
+    expect(fetchFalso).toHaveBeenCalledTimes(2);
+    soltar();
+    await Promise.all([velho, novo]);
+  });
+
+  it("dentro da janela, junta-se", async () => {
+    const { fetchFalso, soltar } = respostaDepois({ v: 1 });
+    vi.stubGlobal("fetch", fetchFalso);
+    let agora = 1_000_000;
+    vi.spyOn(Date, "now").mockImplementation(() => agora);
+    const a = lerPartilhado("/api/junto");
+    agora += JUNTAR_ATE_MS - 1;
+    const b = lerPartilhado("/api/junto");
+    expect(fetchFalso).toHaveBeenCalledTimes(1);
+    soltar();
+    await Promise.all([a, b]);
+  });
+
+  it("opções além do `cache` (cabeçalhos, credenciais) nunca se juntam", async () => {
+    const fetchFalso = vi.fn(async () => new Response("{}"));
+    vi.stubGlobal("fetch", fetchFalso);
+    await Promise.all([
+      lerPartilhado("/api/h", { headers: { Accept: "text/plain" } }),
+      lerPartilhado("/api/h", { headers: { Accept: "application/json" } }),
+      lerPartilhado("/api/h", { credentials: "omit" }),
+    ]);
+    expect(fetchFalso).toHaveBeenCalledTimes(3);
   });
 });

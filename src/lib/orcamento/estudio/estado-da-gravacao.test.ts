@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   estadoNoEcra,
+  haQueMostrar,
   GRAVACAO_INICIAL,
   transicaoDaGravacao,
   type AccaoDaGravacao,
@@ -86,5 +87,20 @@ describe("o que o indicador diz", () => {
     ["não chegar é pior do que não durar", false, ambos, "so-neste-computador"],
   ])("%s", (_, porGravar, g, esperado) => {
     expect(estadoNoEcra(porGravar, g)).toBe(esperado);
+  });
+});
+
+describe("o indicador tem alguma coisa a dizer?", () => {
+  const quando = new Date(0);
+  it.each<[string, Date | null, boolean, EstadoDaGravacao, boolean]>([
+    ["nada ainda: abriu e não mexeu", null, false, GRAVACAO_INICIAL, false],
+    ["já gravou", quando, false, GRAVACAO_INICIAL, true],
+    ["há alterações por gravar", null, true, GRAVACAO_INICIAL, true],
+    ["um alarme sem gravação nesta sessão", null, false, correr({ tipo: "ficou-so-aqui" }), true],
+    ["o deploy apaga", null, false, correr({ tipo: "nao-dura" }), true],
+    // Igual ao de antes da máquina: uma gravação a caminho, sozinha, não acende.
+    ["só uma gravação a caminho", null, false, correr({ tipo: "partiu" }), false],
+  ])("%s", (_, gravadoEm, porGravar, g, esperado) => {
+    expect(haQueMostrar(gravadoEm, porGravar, g)).toBe(esperado);
   });
 });

@@ -1,3 +1,4 @@
+import { ficheirosDoEstudio } from "../../../../../../test/ficheiros-do-estudio";
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -58,7 +59,9 @@ const FICHEIRO = "src/app/[lang]/(admin)/orcamento/admin/ProposalStudio.tsx";
  */
 const PASTA_DO_ESTUDIO = "src/lib/orcamento/estudio";
 const FICHEIROS = [
-  FICHEIRO,
+  // O componente e as peças que saíram dele para `admin/estudio/` (fases 2 a 4):
+  // o orçamento e o «Está pronta?» vivem lá agora.
+  ...ficheirosDoEstudio().map((f) => `src/app/[lang]/(admin)/orcamento/admin/${f}`),
   // Com subpastas e `.tsx`: o próximo ficheiro que sair para lá não pode ficar
   // fora da varredura por ter outra extensão ou outra profundidade.
   ...(readdirSync(join(process.cwd(), PASTA_DO_ESTUDIO), { recursive: true }) as string[])

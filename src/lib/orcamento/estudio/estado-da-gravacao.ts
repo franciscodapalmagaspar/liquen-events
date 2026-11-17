@@ -92,3 +92,17 @@ export function estadoNoEcra(porGravar: boolean, g: EstadoDaGravacao): EstadoDaG
   if (!g.duracao.dura) return "nao-dura-ao-deploy";
   return "guardado";
 }
+
+/**
+ * O indicador tem alguma coisa a dizer? Nada ainda, enquanto não se gravou nada
+ * nem há nada por gravar — e sempre que houver um alarme, mesmo sem gravação
+ * nesta sessão. Lê a mesma máquina que o `estadoNoEcra`, para os dois não se
+ * poderem desencontrar.
+ */
+export function haQueMostrar(
+  gravadoEm: Date | null,
+  porGravar: boolean,
+  g: EstadoDaGravacao,
+): boolean {
+  return !!gravadoEm || porGravar || g.destino.onde === "so-neste-computador" || !g.duracao.dura;
+}

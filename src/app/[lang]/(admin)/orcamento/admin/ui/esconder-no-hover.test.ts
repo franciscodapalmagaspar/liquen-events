@@ -83,13 +83,12 @@ const POR_LARGURA = /\b(sm|md|lg|xl|2xl):opacity-0\b/;
 /**
  * O que ainda falta, e está com outra pessoa.
  *
- * `ProposalStudio.tsx` tem um «Remover imagem» com o mesmo defeito. Não entra
- * nesta correcção porque está a ser mexido noutro sítio ao mesmo tempo, e duas
- * mãos no mesmo ficheiro é como se perde trabalho. Fica NOMEADO em vez de
- * silenciado — e a asserção é de SUBCONJUNTO, para que o dia em que ele for
- * corrigido não parta este teste.
+ * Esteve aqui o `ProposalStudio.tsx`, pelo «Remover imagem» da miniatura. Esse
+ * botão saiu para `estudio/fotos/Thumb.tsx` (fase 2 de
+ * `docs/ESTRUTURA-DO-CODIGO.md`) e já tem a saída para o dedo (`com-rato:`), por
+ * isso a lista ficou vazia — e este teste passa a prender todos, sem excepção.
  */
-const POR_CORRIGIR = [`${DIR}/ProposalStudio.tsx`];
+const POR_CORRIGIR: string[] = [];
 
 describe("as acções escondidas no hover", () => {
   const todos = ficheiros(DIR).flatMap((f) =>

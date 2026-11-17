@@ -1,7 +1,7 @@
 "use client";
 
 import { lerPartilhado } from "@/lib/orcamento/estudio/leitura-partilhada";
-import { estadoNoEcra } from "@/lib/orcamento/estudio/estado-da-gravacao";
+import { estadoNoEcra, haQueMostrar } from "@/lib/orcamento/estudio/estado-da-gravacao";
 import { useEstadoDaGravacao } from "./estudio/gravacao/useEstadoDaGravacao";
 import { useAmostrasDeGeracao } from "./estudio/envio/useAmostrasDeGeracao";
 import { asPropostasMudaram } from "./percentagem-do-sinal";
@@ -302,6 +302,14 @@ import { EnviarAoCliente } from "./estudio/passos/rever/EnviarAoCliente";
 import { EstaPronta } from "./estudio/passos/rever/EstaPronta";
 import { PorOndeSegue } from "./estudio/passos/rever/PorOndeSegue";
 import { SeccaoDoCronograma } from "./estudio/passos/inspiracao/SeccaoDoCronograma";
+import { dataDoEnvioPorExtenso } from "@/lib/orcamento/estudio/data-do-envio";
+import {
+  aplicarBase,
+  baseDoDoc,
+  dinheiroDoDocumento,
+} from "@/lib/orcamento/estudio/dinheiro-do-documento";
+import { esperaDaCopiaDeFotos, esperaDaTraducao } from "@/lib/orcamento/estudio/esperas";
+import { idsTirados, move } from "@/lib/orcamento/estudio/listas";
 
 /*
  * A lógica pura do estúdio vive em `lib/orcamento/estudio/` (fase 1 de
@@ -390,135 +398,8 @@ const LARGURA_DA_BARRA_INTEIRA = 640;
  */
 const UPLOAD_CONCURRENCY = 4;
 
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * QUANTO DEMORA UMA TRADUÇÃO — E PORQUE É QUE ISTO É UM PALPITE E NÃO UMA CONTA
- * ════════════════════════════════════════════════════════════════════════════
- *
- * A espera da tradução é OPACA vista daqui, e não por preguiça: o estúdio faz
- * UM pedido à rota (`motorPelaRota` só parte em vários acima de 300 campos, e
- * uma proposta pesada tem ~218). Os lotes de 50 que se veem no código são do
- * outro lado da rota — é o motor do serviço que os manda, um a seguir ao
- * outro, e do lado de cá não há nenhum sinal de que o terceiro acabou.
- *
- * Partir o pedido aqui para poder contar os lotes seria trocar um pedido por
- * cinco: mais viagens na rede dela para desenhar uma barra. Uma animação que
- * atrasa a tarefa que retrata não se faz, e por isso isto fica um palpite.
- *
- * O palpite, escrito para poder ser corrigido: uma ida à rota mais a resposta
- * do serviço rondam o segundo, e cada lote de 50 campos que o serviço manda a
- * seguir custa outro tanto. Sobra por cima do que se mede num portátil, porque
- * quem espera está numa quinta com 4G — e a curva do `EmCurso` perdoa um erro
- * de dois para um: o que ela não perdoa é uma barra que chega ao fim e fica lá.
- */
-const TRADUCAO_MS_FIXOS = 800;
-const TRADUCAO_MS_POR_LOTE = 1_500;
-/** O tamanho do lote do motor do serviço (`MAX_TEXTOS_POR_PEDIDO`, no DeepL). */
-const TRADUCAO_CAMPOS_POR_LOTE = 50;
-
-/** Quanto tempo, mais ou menos, traduzir `campos` campos de prosa. */
-function esperaDaTraducao(campos: number): number {
-  const lotes = Math.max(1, Math.ceil(Math.max(0, campos) / TRADUCAO_CAMPOS_POR_LOTE));
-  return TRADUCAO_MS_FIXOS + TRADUCAO_MS_POR_LOTE * lotes;
-}
-
-/**
- * Quanto demora copiar `fotos` fotografias de um modelo para este pedido.
- *
- * Também opaca, e também um pedido só (`/api/propostas/copiar`): o servidor
- * copia OITO de cada vez (`EM_PARALELO`, em `proposal-storage`), cada foto são
- * duas cópias no armazenamento — o original e a miniatura —, e nada disso é
- * observável daqui. O palpite é essa aritmética, com a folga de sempre para a
- * rede de quem espera.
- */
-const COPIA_FOTOS_EM_PARALELO = 8;
-function esperaDaCopiaDeFotos(fotos: number): number {
-  const lotes = Math.max(1, Math.ceil(Math.max(0, fotos) / COPIA_FOTOS_EM_PARALELO));
-  return 900 + 1_500 * lotes;
-}
-
 /** Os passos do formulário — os quatro que vivem no contentor sempre montado. */
 const PASSOS_DO_FORMULARIO: readonly Step[] = ["evento", "servicos", "inspiracao", "orcamento"];
-
-/**
- * Põe a BASE (o "Preço final (sem IVA)" do pedido) no documento, respeitando o
- * modo de IVA em vigor.
- *
- * `resolveProposalMoney` lê `totalAmount` como a base em "acrescer" e como o
- * BRUTO em "incluído" — por isso o valor guardado tem de ser derivado, para a
- * base ser sempre o número do pedido nos dois modos.
- */
-function aplicarBase(d: StudioDoc, base: number): StudioDoc {
-  const mode: VatMode = d.totalVatMode ?? detectVatMode(d.totalText || d.totalEstimatedText);
-  const rate = d.vatRate ?? DEFAULT_VAT_RATE;
-  // A conta é a partilhada, e não uma cópia: arredondar a base ANTES de a
-  // multiplicar é o que faz base → bruto → base devolver o mesmo número. Feita
-  // à mão aqui, uma base com mais de dois decimais perdia um cêntimo em cada
-  // ida e volta, e o campo mudava sozinho debaixo dos dedos dela.
-  const amount = totalAmountParaBase(base, mode, rate);
-  const text = mode === "acrescer" ? `${eur(amount)} + IVA` : eur(amount);
-  return d.template === "organizacao"
-    ? { ...d, totalAmount: amount, totalVatMode: mode, totalEstimatedText: text }
-    : { ...d, totalAmount: amount, totalVatMode: mode, totalText: text };
-}
-
-/**
- * A BASE (sem IVA) de um documento, seja qual for o modo.
- *
- * O campo do estúdio mostra SEMPRE a base — é o número que o pedido guarda e o
- * que o rótulo "(sem IVA)" promete. Mas `totalAmount` só é a base em modo
- * "acrescer"; em "incluído" é o BRUTO. Encher o campo com o valor cru mostrava
- * 9963 onde o pedido dizia 8100. Medido.
- */
-function baseDoDoc(d: Partial<StudioDoc>): number | undefined {
-  const m = resolveProposalMoney(d as StudioDoc);
-  return m.base > 0 ? m.base : undefined;
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * OS CAMPOS QUE DECIDEM O DINHEIRO — E SÓ ESSES
- * ════════════════════════════════════════════════════════════════════════════
- *
- * É o conjunto exacto que `totaisDaProposta` lê para desenhar o quadro do PDF:
- * o valor, o modo e a taxa de IVA, os textos de display, as linhas adicionais e
- * a regra com que elas contam, e a percentagem do sinal. Nada mais.
- *
- * Existe para repor o dinheiro de uma proposta ENVIADA sem lhe repor o resto: o
- * texto, as fotografias e os mood boards podem ter sido escritos DEPOIS do
- * envio, são trabalho dela, e nunca estiveram em causa. «Se falhar, não perder
- * trabalho» é a regra da casa, e trocar o documento inteiro para acertar um
- * número era perdê-lo.
- *
- * Os campos são copiados MESMO QUANDO NÃO EXISTEM no documento enviado (fica
- * `undefined`), e é de propósito: uma proposta que seguiu sem `vatRate` não
- * pode ficar com a taxa que o rascunho deste aparelho entretanto ganhou.
- */
-/** «em 12 de setembro de 2026». Uma data sem dia lê-se mal ao lado de dois
- *  números; uma data ilegível não se escreve de todo. */
-function dataDoEnvioPorExtenso(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "num envio anterior";
-  return `em ${d.toLocaleDateString("pt-PT", { day: "numeric", month: "long", year: "numeric" })}`;
-}
-
-const CAMPOS_DO_DINHEIRO = [
-  "totalAmount",
-  "totalVatMode",
-  "vatRate",
-  "totalText",
-  "totalEstimatedText",
-  "budgetExtras",
-  "budgetExtrasSomam",
-  "depositPercent",
-] as const;
-
-function dinheiroDoDocumento(d: Partial<StudioDoc>): Partial<StudioDoc> {
-  const saida: Record<string, unknown> = {};
-  const origem = d as unknown as Record<string, unknown>;
-  for (const campo of CAMPOS_DO_DINHEIRO) saida[campo] = origem[campo];
-  return saida as Partial<StudioDoc>;
-}
 
 /**
  * Quantos passos atrás o Cmd+Z consegue ir.
@@ -529,22 +410,6 @@ function dinheiroDoDocumento(d: Partial<StudioDoc>): Partial<StudioDoc> {
  * boards (os documentos guardam caminhos de fotos, não bytes).
  */
 const MAX_HISTORICO = 50;
-
-function move<T>(arr: T[], i: number, dir: -1 | 1): T[] {
-  const j = i + dir;
-  if (j < 0 || j >= arr.length) return arr;
-  const copy = arr.slice();
-  [copy[i], copy[j]] = [copy[j], copy[i]];
-  return copy;
-}
-
-/** Os ids das linhas e grupos que estavam em `antes` e não estão em `next`. */
-function idsTirados(antes: StudioDoc["serviceGroups"], next: StudioDoc["serviceGroups"]): string[] {
-  const ficam = new Set(next.flatMap((g) => [g.id, ...g.items.map((it) => it.id)]));
-  return antes
-    .flatMap((g) => [g.id, ...g.items.map((it) => it.id)])
-    .filter((id): id is string => !!id && !ficam.has(id));
-}
 
 /**
  * Quanto tempo a pergunta do envio tem de estar à vista antes de o «Confirmar»
@@ -850,9 +715,6 @@ export default function ProposalStudio({
    * tecla, que é a razão de o histórico continuar num `ref`.
    */
   const [podeDesfazer, setPodeDesfazer] = useState(false);
-  /** O modo de arrumar a ordem dos grupos de serviços. Só existe no telemóvel
-   *  — a razão está escrita ao lado do botão "Reordenar". */
-  /** Qual o grupo cujo menu de acções está aberto (por toque longo). */
   /**
    * O que ela já escreveu antes, para não voltar a escrever.
    *
@@ -1894,7 +1756,9 @@ export default function ProposalStudio({
       let leituraOk = false;
       let draft: { doc?: unknown; updatedAt?: string } | null = null;
       try {
-        const res = await lerPartilhado(`/api/orcamento/${quote.id}/proposta-rascunho`, {
+        // `fetch` e não `lerPartilhado`: dá a BASE das gravações (`serverStamp`),
+        // e juntá-la a um pedido anterior a uma gravação dava uma base velha.
+        const res = await fetch(`/api/orcamento/${quote.id}/proposta-rascunho`, {
           cache: "no-store",
         });
         if (res.ok) {
@@ -2088,13 +1952,19 @@ export default function ProposalStudio({
   // parcial traz fotos de outro pedido e elas são recopiadas para cá. Sem uma
   // segunda leitura, as células ficavam sem miniatura até recarregar a página.
   const hidratarAssets = useCallback(
-    async (vivo: () => boolean = () => true): Promise<EstadoDosUrls> => {
+    async (
+      vivo: () => boolean = () => true,
+      /** Só a da ABERTURA se junta a outra em voo: as outras (o «Tentar», depois
+       *  de copiar fotos) existem para trazer uma lista NOVA (revisão de 17/11). */
+      { daAbertura = false }: { daAbertura?: boolean } = {},
+    ): Promise<EstadoDosUrls> => {
       {
         // «A caminho» também no reenvio: uma segunda tentativa que aparecesse
         // como «falhou» até responder era um botão que parece não fazer nada.
         setEstadoDosUrls("a-caminho");
         try {
-          const res = await lerPartilhado(`/api/orcamento/${quote.id}/assets`);
+          const url = `/api/orcamento/${quote.id}/assets`;
+          const res = await (daAbertura ? lerPartilhado(url) : fetch(url));
           if (!res.ok) {
             // Um 401 (sessão caducada) e um 500 (Storage em baixo) davam os
             // dois a mesma coisa: nada. O registo diz qual foi, e o ecrã diz
@@ -2213,7 +2083,7 @@ export default function ProposalStudio({
 
   useEffect(() => {
     let alive = true;
-    void hidratarAssets(() => alive);
+    void hidratarAssets(() => alive, { daAbertura: true });
     return () => {
       alive = false;
     };
@@ -11176,7 +11046,7 @@ export default function ProposalStudio({
                 )}
               </span>
               {(() => {
-                const haEstado = !!(gravadoEm || porGravar || soNesteComputador || naoDuraAoDeploy);
+                const haEstado = haQueMostrar(gravadoEm, porGravar, gravacao);
                 const estado = estadoNoEcra(porGravar, gravacao);
                 const t = textoDaGravacao(estado, gravadoEm);
                 return (
