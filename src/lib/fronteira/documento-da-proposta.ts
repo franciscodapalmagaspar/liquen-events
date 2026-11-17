@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { MODELOS_DO_DOCUMENTO, MODOS_DE_IVA } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -72,7 +73,7 @@ const listaDeTextos = z.array(z.string());
 
 /** O documento tal como o estúdio o manda (ver o cabeçalho). */
 export const esquemaDoDocumentoQueChega = z.looseObject({
-  template: z.enum(["decoracao", "organizacao"]).optional(),
+  template: z.enum(MODELOS_DO_DOCUMENTO).optional(),
   ref: texto,
   clientNames: texto,
   headerTitle: textoOpcional,
@@ -114,7 +115,7 @@ export const esquemaDoDocumentoQueChega = z.looseObject({
   budgetNote: textoOpcional,
   budgetNoteEn: textoOpcional,
   totalAmount: z.number().optional(),
-  totalVatMode: textoOpcional,
+  totalVatMode: z.enum(MODOS_DE_IVA).optional(),
   vatRate: z.number().optional(),
   depositPercent: z.number().optional(),
   validUntil: textoOpcional,

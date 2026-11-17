@@ -1,3 +1,5 @@
+import { pareceEmail } from "./parece-email";
+
 /**
  * ════════════════════════════════════════════════════════════════════════════
  * PARA QUEM É QUE ESTA PROPOSTA VAI, AFINAL
@@ -60,8 +62,6 @@ export interface Destinatario {
   aviso: string | null;
 }
 
-const PARECE_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-
 /**
  * O que dizer sobre o destinatário deste envio.
  *
@@ -82,7 +82,7 @@ export function destinatarioDoEnvio(email: string | undefined | null): Destinata
         "Este pedido não tem email de cliente: por email não sai — escolhe «WhatsApp» ou acrescenta o email no pedido.",
     };
   }
-  if (!PARECE_EMAIL.test(endereco)) {
+  if (!pareceEmail(endereco)) {
     return {
       endereco,
       valido: false,

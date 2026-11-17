@@ -68,10 +68,9 @@ import {
   referenciaNaLingua,
   rotuloDoTotalNaLingua,
   textosDaProposta,
-  IDIOMA_POR_OMISSAO,
   type CampoDoEvento,
-  type IdiomaDaProposta,
 } from "@/lib/proposal-doc-textos";
+import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { docNaLingua } from "@/lib/proposal-doc-bilingue";
 
 /**

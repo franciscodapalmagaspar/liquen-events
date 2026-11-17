@@ -1,8 +1,8 @@
 import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
-import type { RespostaDoEnvio } from "./contrato";
+import type { EnvioFeito } from "./contrato";
 import type { DepoisDoEmail } from "./depois-do-email";
 import type { PropostaGravada } from "./gravar-a-proposta";
-import type { ResultadoDoEmail } from "./mandar-o-email";
+import type { SaidaDoEmail } from "./mandar-o-email";
 
 /**
  * Etapa 13, a última (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o que o envio
@@ -12,23 +12,23 @@ import type { ResultadoDoEmail } from "./mandar-o-email";
 export function respostaDoEnvio(r: {
   propostaId: string;
   acceptUrl: string;
-  saida: ResultadoDoEmail;
+  saida: SaidaDoEmail;
   depois: DepoisDoEmail;
   gravada: PropostaGravada;
   relatorio: Pick<RelatorioDoPdf, "missingImages" | "truncations" | "pdf">;
   pdfDaMemoria: boolean;
-}): RespostaDoEnvio {
+}): EnvioFeito {
   const { saida, depois, gravada } = r;
   return {
     ok: true,
     id: r.propostaId,
-    emailed: saida.emailed,
-    emailError: saida.emailError,
+    emailed: saida.tipo === "saiu",
+    emailError: saida.tipo === "naoSaiu" ? saida.erro : undefined,
     /* «Não saiu email» tem duas causas muito diferentes, e o ecrã tem de as
        separar: uma é uma avaria (o `emailError`), a outra é a escolha dela.
        Sem esta linha, escolher «só WhatsApp» dava um aviso cor de laranja a
        dizer que alguma coisa correu mal. */
-    ...(saida.semEmailPorEscolha ? { semEmailPorEscolha: true as const } : {}),
+    ...(saida.tipo === "porEscolha" ? { semEmailPorEscolha: true as const } : {}),
     /**
      * O estado em que a proposta FICOU. Vai na resposta porque é a resposta a
      * «e agora, o que é que ela vê no quadro?»: com o email fora, é

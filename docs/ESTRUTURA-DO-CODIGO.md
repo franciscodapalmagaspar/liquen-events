@@ -106,7 +106,8 @@ antes e depois (linhas, complexidade, peso das rotas).
    o resto passa a viver nos testes das etapas. Até lá, um `-u` neste ficheiro é uma
    mudança de comportamento e diz-se no PR. No mesmo PR apaga-se
    `route.contra-a-antiga.test.ts`, que compara com a rota do `main` (`e8a4a94b`, a
-   que está em produção). **Prazo: 31/12/2026** (escrito no teste, `PRAZO`):
+   que está em produção), e com ele as três reexportações `@deprecated` da língua em
+   `proposal-doc-textos.ts` (só a rota antiga ainda as importa). **Prazo: 31/12/2026** (escrito no teste, `PRAZO`):
    depois disso a comparação deixa de correr e o CI põe uma anotação de aviso a
    pedir este desvio — sem bloquear ninguém — em cada corrida que carregue o teste:
    as completas, depois de juntar, e os PRs que mexam no grafo da rota (os outros
@@ -118,8 +119,9 @@ antes e depois (linhas, complexidade, peso das rotas).
    duplos dentro da fábrica — a ordem dos imports não conta, e um teste em cada ficheiro
    confere que nenhum duplo ficou por declarar (`duplosEsquecidos`).
 9. **O contrato da rota (`envio/contrato.ts`) só em parte é lido pelo estúdio**: os
-   NOMES dos cabeçalhos da pré-visualização já são um só, escritos e lidos pelas mesmas
-   constantes (`CABECALHOS_DA_PRE_VISUALIZACAO`); os CORPOS das respostas o
+   NOMES dos cabeçalhos da pré-visualização e a codificação dos cortes já são uma só,
+   escritas e lidas pelas mesmas peças (`CABECALHOS_DA_PRE_VISUALIZACAO`,
+   `cortesEmCabecalho`/`cortesDoCabecalhoCru`, o tipo `Corte`); os CORPOS das respostas o
    `ProposalStudio.tsx` ainda os lê à mão (`data?.precisaConfirmarFotos`). Tipá-los é
    o primeiro passo da fase em que o estúdio se parte.
 10. **A garantia da assinatura está no `mandarOEmail`, não no `sendMail`.** Só um
@@ -184,6 +186,12 @@ antes e depois (linhas, complexidade, peso das rotas).
   documento (`dinheiroDe`), contado uma vez e só quando alguém o pede. Guardado ao
   lado do documento, podia discordar dele; contado cedo, partia o rascunho, que a
   rota antiga nunca contava (a 2.ª passagem à ronda do júri achou-o).
+- **A casca lê o relógio, as etapas recebem-no**: o `Contexto` traz `agora`, e a
+  validade, a pergunta das fotos, a montagem, a versão, a janela da repetição e o
+  `sentAt` leem-no daí — nenhuma etapa chama `new Date()` nem `Date.now()`.
+- **Um resultado é uma união, não um saco de booleanos**: o correio sai, não sai por
+  escolha, ou não sai com um porquê (`SaidaDoEmail`); a resposta do envio é feita ou
+  repetida (`EnvioFeito | EnvioRepetido`). O JSON que viaja é o mesmo.
 - **A prova compara com o que está em produção**: quando o `main` mudou a rota antiga
   (o «sim» antigo às fotos, o rodapé legal), a comparação passou a tirar a rota do
   `main` e não a do commit do retrato.

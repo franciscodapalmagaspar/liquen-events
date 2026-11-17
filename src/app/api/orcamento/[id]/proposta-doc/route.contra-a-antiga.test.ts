@@ -218,6 +218,7 @@ describe.skipIf(!HA_ROTA_ANTIGA)(
           return await retrato(await post(fazer(), { params }));
         } finally {
           vi.mocked(Date.now).mockRestore?.();
+          vi.useRealTimers();
         }
       };
       const antiga = await correr(postAntigo);

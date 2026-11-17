@@ -37,7 +37,7 @@ import {
 } from "@/lib/proposal-image";
 import { TECTO_DA_ROTA_MS } from "@/lib/custo-do-pdf";
 import { log } from "@/lib/logger";
-import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import {
   conteudoDoEditorial,
   planoDoEditorial,

@@ -88,8 +88,6 @@ export const esquemaDoPedidoGuardado = z.looseObject({
  */
 export function lerPedidoGuardado(data: unknown): Quote {
   const id = data && typeof data === "object" ? (data as { id?: unknown }).id : undefined;
-  observar(esquemaDoPedidoGuardado, data, "um pedido guardado (quotes.data)", {
-    id: typeof id === "string" ? id : undefined,
-  });
+  observar(esquemaDoPedidoGuardado, data, "um pedido guardado (quotes.data)", { id });
   return data as Quote;
 }

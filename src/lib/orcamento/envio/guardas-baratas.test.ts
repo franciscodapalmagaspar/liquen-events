@@ -24,7 +24,7 @@ beforeEach(() => {
 
 describe("as guardas baratas, pela ordem", () => {
   it("o que passa segue com o documento e a chave, e SÓ ENTÃO vai ao registo", () => {
-    const r = guardasBaratas("q1", comDesvio({}));
+    const r = guardasBaratas("q1", comDesvio({}), new Date());
     expect(r.segue).toBe(true);
     expect(r.segue && r.valor.doc.ref).toBe("R");
     expect(r.segue && r.valor.chaveDoQueChegou).toMatch(/\S/);
@@ -32,7 +32,11 @@ describe("as guardas baratas, pela ordem", () => {
   });
 
   it("o texto do email grande demais é 400, e não vai ao registo", () => {
-    const r = guardasBaratas("q1", comDesvio({ corpo: "a".repeat(MAXIMO_CORPO_ESCRITO + 1) }));
+    const r = guardasBaratas(
+      "q1",
+      comDesvio({ corpo: "a".repeat(MAXIMO_CORPO_ESCRITO + 1) }),
+      new Date(),
+    );
     expect(r).toMatchObject({
       segue: false,
       desfecho: { tipo: "recusa", recusa: { status: 400 } },
@@ -41,7 +45,7 @@ describe("as guardas baratas, pela ordem", () => {
   });
 
   it("o documento incompleto é 400, não diz a língua e não vai ao registo", () => {
-    const r = guardasBaratas("q1", comDesvio({ doc: { ref: "R" }, idioma: "fr" }));
+    const r = guardasBaratas("q1", comDesvio({ doc: { ref: "R" }, idioma: "fr" }), new Date());
     expect(r).toMatchObject({
       segue: false,
       desfecho: { recusa: { corpo: { error: "Proposta incompleta: falta o nome dos clientes." } } },
@@ -52,7 +56,7 @@ describe("as guardas baratas, pela ordem", () => {
 
   it("o documento grande demais é 413 — a língua já se disse, o registo não", () => {
     const enorme = { ref: "R", clientNames: "A", notes: "x".repeat(MAX_PROPOSAL_DOC_BYTES) };
-    const r = guardasBaratas("q1", comDesvio({ doc: enorme, idioma: "fr" }));
+    const r = guardasBaratas("q1", comDesvio({ doc: enorme, idioma: "fr" }), new Date());
     expect(r).toMatchObject({
       segue: false,
       desfecho: { tipo: "recusa", recusa: { status: 413 } },
@@ -62,7 +66,7 @@ describe("as guardas baratas, pela ordem", () => {
   });
 
   it("a língua estranha diz-se uma vez, com o valor; sem o campo, nada", () => {
-    guardasBaratas("q1", comDesvio({ idioma: "fr" }));
+    guardasBaratas("q1", comDesvio({ idioma: "fr" }), new Date());
     expect(aviso).toHaveBeenCalledWith(
       "proposta-doc: idioma desconhecido, a desenhar em português",
       {
@@ -71,7 +75,11 @@ describe("as guardas baratas, pela ordem", () => {
       },
     );
     aviso.mockClear();
-    guardasBaratas("q1", corpoLido({ mode: "send", doc: { ref: "R", clientNames: "A" } }));
+    guardasBaratas(
+      "q1",
+      corpoLido({ mode: "send", doc: { ref: "R", clientNames: "A" } }),
+      new Date(),
+    );
     expect(aviso).not.toHaveBeenCalled();
   });
 });

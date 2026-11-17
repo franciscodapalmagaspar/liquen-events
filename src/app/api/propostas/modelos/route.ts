@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
   // id do modelo, quando o ecrã o manda — NUNCA o nome: um modelo nasce de uma
   // proposta real e pode chamar-se pelo nome do casal.
   observar(esquemaDoCorpoDoModeloDeProposta, body, "o corpo do POST propostas/modelos", {
-    id: typeof (body as { id?: unknown }).id === "string" ? (body as { id: string }).id : undefined,
+    id: (body as { id?: unknown }).id,
   });
 
   try {

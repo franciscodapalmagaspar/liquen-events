@@ -72,6 +72,9 @@ export interface Contexto {
   corpo: CorpoLido;
   /** Quantos ms sobram do orçamento deste pedido HTTP (`relogioDoEnvio`). */
   resta: () => number;
+  /** O relógio — o ÚNICO que as etapas leem: lido aqui, na casca, cada vez
+   *  que uma etapa precisa da hora, e passado a ela (as etapas são puras). */
+  agora: () => Date;
   /** Quem carregou em «Enviar» — só se lê no envio. */
   assinatura: () => { nome: string; cargo: string };
   /** Corre trabalho depois de a resposta sair (o `after` do Next). O nome
@@ -160,7 +163,7 @@ async function enviar(c: Contexto, corpo: CorpoDoEnvio): Promise<Desfecho> {
     pedidoId,
     missingImages,
     corpo.fotosEmFaltaConfirmadas,
-    Date.now(),
+    c.agora().getTime(),
   );
   if (!fotos.segue) return fotos.desfecho;
   const cortes = perguntaDosCortes(pedidoId, truncations, corpo.cortesConfirmados);
@@ -169,7 +172,7 @@ async function enviar(c: Contexto, corpo: CorpoDoEnvio): Promise<Desfecho> {
 
   const { irmas, porEnviar } = await irmasDoPedido(pedidoId);
   // O instante e o id novo nascem aqui, na casca: a montagem e o carimbo são puros.
-  const agora = new Date();
+  const agora = c.agora();
   const linha = montarAProposta({ ...envio, pdf, porEnviar, agora, idNovo: randomUUID() });
   const { proposal, anteriores } = comAVersao(linha, irmas, agora);
 
@@ -179,6 +182,7 @@ async function enviar(c: Contexto, corpo: CorpoDoEnvio): Promise<Desfecho> {
     irmasAnteriores: anteriores,
     porEmail: corpo.porEmail,
     relatorio,
+    agora: c.agora().getTime(),
   });
   if (!repetido.segue) return repetido.desfecho;
 
@@ -208,11 +212,11 @@ async function enviar(c: Contexto, corpo: CorpoDoEnvio): Promise<Desfecho> {
   const depois = await depoisDoEmail({
     ...envio,
     proposal,
-    emailed: saida.emailed,
-    semEmailPorEscolha: saida.semEmailPorEscolha,
+    saida,
     email,
     modelo: corpo.modelo,
     pdf,
+    agora: c.agora(),
   });
   prepararAPaginaOnline(proposal.id, c.depoisDaResposta);
 
@@ -247,7 +251,7 @@ async function prepararEDesenhar(
   porta: Porta,
 ): Promise<Passo<{ envio: EnvioDaProposta; desenho: PdfDesenhado; chaveDoQueChegou: string }>> {
   const { pedidoId, quote, corpo } = c;
-  const guardas = guardasBaratas(pedidoId, corpo);
+  const guardas = guardasBaratas(pedidoId, corpo, c.agora());
   if (!guardas.segue) return guardas;
   const { doc, chaveDoQueChegou } = guardas.valor;
   /** O envio, montado UMA vez — cada etapa lê dele o que precisa. */

@@ -2,7 +2,7 @@ import "server-only";
 import type { Proposal } from "@/lib/orcamento/types";
 import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
 import { listarEnvios } from "@/lib/envios-de-proposta";
-import type { RespostaDoEnvio } from "./contrato";
+import type { EnvioRepetido } from "./contrato";
 import { paraComResposta, SEGUE, type Passo } from "./passo";
 import { enderecoDaProposta } from "@/lib/proposta-link-curto";
 import { log } from "@/lib/logger";
@@ -47,6 +47,8 @@ export interface ParaVerSeRepete {
   /** `false` só quando ela escolheu o WhatsApp (`ler-o-corpo.ts`). */
   porEmail: boolean;
   relatorio: Pick<RelatorioDoPdf, "missingImages" | "truncations" | "pdf">;
+  /** O instante do pedido (ms): a janela de repetição conta-se a partir dele. */
+  agora: number;
 }
 
 /**
@@ -68,7 +70,7 @@ export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<Passo> {
       !!p.versaoSelo &&
       p.versaoSelo === proposal.versaoSelo &&
       !!p.sentAt &&
-      Date.now() - Date.parse(p.sentAt) < JANELA_DE_REPETICAO_MS,
+      r.agora - Date.parse(p.sentAt) < JANELA_DE_REPETICAO_MS,
   );
   /**
    * ── «ENVIADA» JÁ NÃO QUER DIZER SÓ «O EMAIL SAIU» ──────────────────────
@@ -122,7 +124,7 @@ export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<Passo> {
         (e) =>
           e.propostaId === proposal.id &&
           !!e.enviadoEm &&
-          Date.now() - Date.parse(e.enviadoEm) < JANELA_DE_REPETICAO_MS,
+          r.agora - Date.parse(e.enviadoEm) < JANELA_DE_REPETICAO_MS,
       );
     } catch (e) {
       log.warn("proposta-doc: não deu para ler os envios registados", {
@@ -184,7 +186,7 @@ async function respostaRepetida(
   r: ParaVerSeRepete,
   propostaId: string,
   { emailSaiu, aviso }: { emailSaiu: boolean; aviso: string },
-): Promise<RespostaDoEnvio> {
+): Promise<EnvioRepetido> {
   return {
     ok: true,
     id: propostaId,

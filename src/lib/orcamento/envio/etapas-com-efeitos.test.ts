@@ -109,6 +109,7 @@ describe("a repetição do envio", () => {
         irmasAnteriores: [antes],
         porEmail: true,
         relatorio,
+        agora: Date.now(),
       }),
     );
     expect(r).toMatchObject({ ok: true, id: "p0", emailed: true, repetido: true });
@@ -124,6 +125,7 @@ describe("a repetição do envio", () => {
       irmasAnteriores: [antes],
       porEmail: true,
       relatorio,
+      agora: Date.now(),
     });
     expect(passo).toEqual(SEGUE);
     expect(falsos.envios).toHaveBeenCalledTimes(1);
@@ -139,6 +141,7 @@ describe("a repetição do envio", () => {
         irmasAnteriores: [antes],
         porEmail: true,
         relatorio,
+        agora: Date.now(),
       }),
     );
     expect(r).toMatchObject({ id: "p0", emailed: true, repetido: true });
@@ -157,6 +160,7 @@ describe("a repetição do envio", () => {
       irmasAnteriores: [],
       porEmail: true,
       relatorio,
+      agora: Date.now(),
     });
     expect(passo).toEqual(SEGUE);
     expect(falsos.envios).toHaveBeenCalledTimes(1);
@@ -175,6 +179,7 @@ describe("a repetição do envio", () => {
         irmasAnteriores: [],
         porEmail: true,
         relatorio,
+        agora: Date.now(),
       }),
     );
     expect(Object.keys(r)).toEqual([
@@ -201,6 +206,7 @@ describe("a repetição do envio", () => {
         irmasAnteriores: [antes],
         porEmail: false,
         relatorio,
+        agora: Date.now(),
       }),
     );
     expect(Object.keys(r)).toEqual([
@@ -228,6 +234,7 @@ describe("a repetição do envio", () => {
       irmasAnteriores: [antes],
       porEmail: true,
       relatorio,
+      agora: Date.now(),
     });
     expect(passo).toEqual(SEGUE);
   });
@@ -252,28 +259,25 @@ describe("mandar o email", () => {
   };
 
   it("sai, com o PDF junto aos anexos da assinatura", async () => {
-    expect(await mandarOEmail(base)).toEqual({ emailed: true, semEmailPorEscolha: false });
+    expect(await mandarOEmail(base)).toEqual({ tipo: "saiu" });
     const enviado = falsos.mandar.mock.calls[0][0] as { attachments: { filename: string }[] };
     expect(enviado.attachments.map((a) => a.filename)).toEqual(["Proposta.pdf"]);
   });
 
   it("pelo WhatsApp não sai nada, e não é uma avaria", async () => {
-    expect(await mandarOEmail({ ...base, porEmail: false })).toEqual({
-      emailed: false,
-      semEmailPorEscolha: true,
-    });
+    expect(await mandarOEmail({ ...base, porEmail: false })).toEqual({ tipo: "porEscolha" });
     expect(falsos.mandar).not.toHaveBeenCalled();
   });
 
   it("sem 25 s pela frente não começa; sem destinatário não tenta; SMTP a rebentar diz-se", async () => {
-    expect((await mandarOEmail({ ...base, resta: () => 10_000 })).emailError).toMatch(
-      /carregue outra vez/,
-    );
-    expect((await mandarOEmail({ ...base, para: "sem-arroba" })).emailError).toMatch(
-      /email de cliente/,
-    );
+    const erro = async (p: typeof base) => {
+      const saida = await mandarOEmail(p);
+      return saida.tipo === "naoSaiu" ? saida.erro : null;
+    };
+    expect(await erro({ ...base, resta: () => 10_000 })).toMatch(/carregue outra vez/);
+    expect(await erro({ ...base, para: "sem-arroba" })).toMatch(/email de cliente/);
     falsos.mandar.mockRejectedValueOnce(new Error("smtp"));
-    expect((await mandarOEmail(base)).emailError).toMatch(/o email ao cliente falhou/);
+    expect(await erro(base)).toMatch(/o email ao cliente falhou/);
     expect(falsos.mandar).toHaveBeenCalledTimes(1);
   });
 });

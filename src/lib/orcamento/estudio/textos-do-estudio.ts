@@ -5,6 +5,7 @@
  * o componente reexporta o que já exportava, para nenhum chamador mudar.
  */
 import { quandoGravado } from "@/lib/quando-gravado";
+import { cortesDoCabecalhoCru, type Corte } from "@/lib/orcamento/envio/contrato";
 
 // ── O que o PDF não leva ──
 //
@@ -19,13 +20,9 @@ import { quandoGravado } from "@/lib/quando-gravado";
 // sucesso, e simplesmente nunca desenhadas. Vem agora do gerador já com o sítio
 // e a quantidade; aqui só se escreve a frase.
 
-/** Uma perda por composição, tal como o gerador a relata (o tipo vive em
- *  `proposal-doc-pdf`, que é `server-only` e por isso não se importa aqui). */
-export interface Corte {
-  where: string;
-  dropped: number;
-  unit: "fotos" | "linhas";
-}
+/** Uma perda por composição, tal como o gerador a relata — o tipo do
+ *  contrato da rota (`orcamento/envio/contrato.ts`, só tipos para o browser). */
+export type { Corte };
 
 /** Aceita só o que tem forma de corte — o resto é ignorado em vez de rebentar
  *  a mensagem (uma resposta estranha nunca pode tapar o aviso). */
@@ -45,13 +42,7 @@ export function normalizaCortes(raw: unknown): Corte[] {
 /** Lê o cabeçalho `X-Conteudo-Cortado` da pré-visualização (JSON em base64 —
  *  o corpo da resposta é o PDF e os nomes dos campos trazem acentos). */
 export function cortesDoCabecalho(header: string | null): Corte[] {
-  if (!header) return [];
-  try {
-    const bytes = Uint8Array.from(atob(header), (ch) => ch.charCodeAt(0));
-    return normalizaCortes(JSON.parse(new TextDecoder().decode(bytes)));
-  } catch {
-    return [];
-  }
+  return header ? normalizaCortes(cortesDoCabecalhoCru(header)) : [];
 }
 
 /** "Mood board «Cerimónia»: 3 fotos não entram no PDF". */

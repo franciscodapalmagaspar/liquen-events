@@ -10,6 +10,7 @@ import { guardarPdfDaProposta } from "@/lib/proposal-pdf-guardado";
 import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
 import { log } from "@/lib/logger";
 import type { EmailDaProposta } from "./email-da-proposta";
+import type { SaidaDoEmail } from "./mandar-o-email";
 import type { BytesDoPdf, EnvioDaProposta } from "./envio-da-proposta";
 
 /**
@@ -27,14 +28,14 @@ export interface DepoisDoEmail {
 
 export interface ParaDepoisDoEmail extends EnvioDaProposta {
   proposal: Proposal;
-  /** `true` quando o correio saiu. */
-  emailed: boolean;
-  /** `true` quando ela escolheu o WhatsApp. */
-  semEmailPorEscolha: boolean;
+  /** Como acabou o correio: saiu, ela escolheu o WhatsApp, ou não saiu. */
+  saida: SaidaDoEmail;
   email: EmailDaProposta;
   /** A chave do modelo de que o corpo partiu (vazia sem ela). */
   modelo: string;
   pdf: BytesDoPdf;
+  /** O instante em que o correio acabou: é o `sentAt` que fica gravado. */
+  agora: Date;
 }
 
 /**
@@ -50,13 +51,14 @@ export interface ParaDepoisDoEmail extends EnvioDaProposta {
  * (`registarEnvio`) continua só para o email: não houve email a copiar.
  */
 export async function depoisDoEmail(p: ParaDepoisDoEmail): Promise<DepoisDoEmail> {
-  const seguiu = p.emailed || p.semEmailPorEscolha;
+  const emailSaiu = p.saida.tipo === "saiu";
+  const seguiu = emailSaiu || p.saida.tipo === "porEscolha";
   /** (Uma variável e não `proposal.status`: o objecto já foi entregue à camada
    *  de gravação, e mudá-lo por baixo dela seria mentir a quem o guardou.) */
   const r: DepoisDoEmail = { estado: p.proposal.status };
   if (seguiu) {
-    const sentAt = new Date().toISOString();
-    if (p.emailed) r.copiaError = await guardarACopia(p, sentAt);
+    const sentAt = p.agora.toISOString();
+    if (emailSaiu) r.copiaError = await guardarACopia(p, sentAt);
     r.estadoError = await marcarEnviada(p, sentAt);
     if (!r.estadoError) r.estado = "enviada";
   }
@@ -135,7 +137,7 @@ async function marcarEnviada(p: ParaDepoisDoEmail, sentAt: string): Promise<stri
       id: p.pedidoId,
       proposta: p.proposal.id,
     });
-    return p.emailed
+    return p.saida.tipo === "saiu"
       ? "O email seguiu para o cliente — ele JÁ a recebeu. O que falhou foi a marcação " +
           "deste lado: a proposta ficou como «por enviar» e o Quadro pode não a mostrar na " +
           "coluna certa. Não é preciso reenviar nada."

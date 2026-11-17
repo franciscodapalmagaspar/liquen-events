@@ -3,6 +3,7 @@ import { z } from "zod";
 import { esquemaDoDocumentoQueChega } from "@/lib/fronteira/documento-da-proposta";
 import { observar } from "@/lib/fronteira/observar";
 import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-fechadas";
+import { MODOS_DO_PEDIDO } from "./ler-o-corpo";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -27,7 +28,7 @@ import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-fechadas";
  */
 export const esquemaDoCorpo = z.looseObject({
   /** O que não se reconhece vale a pré-visualização — nunca um envio. */
-  mode: z.enum(["preview", "send"]),
+  mode: z.enum(MODOS_DO_PEDIDO),
   doc: esquemaDoDocumentoQueChega,
   /** O que não se reconhece cai em português, e diz-se (`guardas-baratas.ts`). */
   idioma: z.enum(IDIOMAS_DA_PROPOSTA).optional(),

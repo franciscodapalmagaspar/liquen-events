@@ -164,11 +164,11 @@ describe("o que fica depois do email", () => {
     depoisDoEmail({
       ...envio,
       proposal,
-      emailed: true,
-      semEmailPorEscolha: false,
+      saida: { tipo: "saiu" } as const,
       email,
       modelo: "",
       pdf: Buffer.from("%PDF"),
+      agora: new Date(),
       ...over,
     });
 
@@ -179,7 +179,9 @@ describe("o que fica depois do email", () => {
   });
 
   it("o email não saiu: fica «rascunho», sem cópia — mas o preço grava-se", async () => {
-    expect(await depois({ emailed: false })).toEqual({ estado: "rascunho" });
+    expect(await depois({ saida: { tipo: "naoSaiu", erro: "smtp" } })).toEqual({
+      estado: "rascunho",
+    });
     expect(f.copia).not.toHaveBeenCalled();
     expect(f.marcar).not.toHaveBeenCalled();
     expect(f.pedido).toHaveBeenCalledTimes(1);

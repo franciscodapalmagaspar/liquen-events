@@ -117,13 +117,14 @@ export function desviosDe(erro: z.ZodError): Desvio[] {
  * campo novo que o esquema ainda não tenha não pode desaparecer pelo caminho.
  *
  * @param onde nome estável do sítio (entra na mensagem e na deduplicação)
- * @param contexto o que ajuda a encontrar o caso — um id, nunca dados pessoais
+ * @param contexto o id do caso, tal como veio: só um texto conta (e entra no
+ *   registo); outra coisa vale «sem id». Nunca dados pessoais.
  */
 export function observar(
   esquema: z.ZodType,
   valor: unknown,
   onde: string,
-  contexto: Record<string, unknown> = {},
+  contexto: { id?: unknown } = {},
 ): boolean {
   const r = esquema.safeParse(valor);
   if (r.success) return true;
@@ -148,7 +149,7 @@ export function observar(
     return false;
   }
   log.warn(`fronteira: ${onde} não bate com o esquema (modo de observar, segue tal e qual)`, {
-    ...contexto,
+    ...(caso === null ? {} : { id: caso }),
     desvios,
   });
   return false;

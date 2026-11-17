@@ -74,8 +74,18 @@ describe("a fronteira em modo de observar", () => {
   it("sem id, cada ocorrência é um caso — não se cala a segunda (modelos novos)", () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
     observar(esquema, { nome: 1 }, "teste");
-    observar(esquema, { nome: 1 }, "teste", { tipo: "decoracao" });
+    observar(esquema, { nome: 1 }, "teste", { id: 7 });
     expect(aviso).toHaveBeenCalledTimes(2);
+  });
+
+  it("um id que não é texto vale «sem id», e não entra no registo", () => {
+    const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
+    observar(esquema, { nome: 1 }, "teste", { id: { nome: "Ana Secreta" } });
+    expect(aviso.mock.calls[0][1]).toEqual({
+      desvios: [{ campo: "nome", problema: "invalid_type" }],
+    });
+    observar(esquema, { nome: 2 }, "outro", { id: "q9" });
+    expect(aviso.mock.calls[1][1]).toMatchObject({ id: "q9" });
   });
 
   it("as ocorrências sem id não gastam os lugares dos casos com id", () => {

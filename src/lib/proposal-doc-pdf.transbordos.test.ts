@@ -4,7 +4,7 @@ import path from "node:path";
 import { PDFDocument, PDFPage, type PDFFont, type PDFImage } from "pdf-lib";
 import { renderProposalDocPdf } from "./proposal-doc-pdf";
 import { withProposalDefaults, type ProposalDoc } from "./proposal-doc";
-import type { IdiomaDaProposta } from "./proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

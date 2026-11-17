@@ -112,6 +112,8 @@ async function POST_semMedida(
         quote,
         corpo: await lerOCorpo(request),
         resta,
+        // O relógio de parede, por `Date.now` — o mesmo que conta o `resta`.
+        agora: () => new Date(Date.now()),
         assinatura: () => assinaturaDeQuemEnvia(request),
         depoisDaResposta,
       }),

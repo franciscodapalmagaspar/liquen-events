@@ -1,4 +1,9 @@
-import { CABECALHOS_DA_PRE_VISUALIZACAO as CABECALHO, type Truncagens } from "./contrato";
+import {
+  CABECALHOS_DA_PRE_VISUALIZACAO as CABECALHO,
+  cortesEmCabecalho,
+  type CabecalhosDaPreVisualizacao,
+  type Truncagens,
+} from "./contrato";
 import type { IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /*
@@ -19,7 +24,7 @@ export function cabecalhosDaPreVisualizacao(p: {
   truncations: Truncagens;
   chaveDoQueChegou: string;
   pdfDaMemoria: boolean;
-}): Record<string, string> {
+}): CabecalhosDaPreVisualizacao {
   const en = p.idioma === "en";
   return {
     "Content-Type": "application/pdf",
@@ -38,9 +43,7 @@ export function cabecalhosDaPreVisualizacao(p: {
     // terceira linha do "Local"…) — a mesma perda, por outro caminho.
     // Vai em base64 porque o corpo desta resposta é o PDF e um cabeçalho
     // HTTP não transporta com segurança os acentos dos nomes dos campos.
-    [CABECALHO.conteudoCortado]: Buffer.from(JSON.stringify(p.truncations), "utf8").toString(
-      "base64",
-    ),
+    [CABECALHO.conteudoCortado]: cortesEmCabecalho(p.truncations),
     // A chave do que se está a ver — só no PDF FINAL. O rascunho não
     // conta como visto: é o PDF que ainda não pode seguir.
     ...(p.rascunho ? {} : { [CABECALHO.chaveDoPdf]: p.chaveDoQueChegou }),

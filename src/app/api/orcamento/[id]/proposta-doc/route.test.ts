@@ -5,7 +5,7 @@ import { splitThirtySeventy } from "@/lib/money";
 import { resolveValidUntil, type ProposalDoc } from "@/lib/proposal-doc";
 import { chaveDoPdf } from "@/lib/proposal-pdf-chave";
 import { desalinhamento, dinheiroDaProposta } from "@/lib/proposal-budget";
-import { ehIdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { ehIdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 // ── Mock the auth + data layer + heavy PDF/mail side effects; keep the money
 //    math (proposal-doc) and the route logic real ──

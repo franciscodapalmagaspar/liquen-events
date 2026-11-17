@@ -55,8 +55,12 @@ import {
 } from "./orcamento/data";
 
 /** As línguas em que o documento se sabe desenhar. */
-export type { IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
+
+/** @deprecated A casa é `orcamento/listas-fechadas`. Fica pela rota antiga da
+ *  prova, `moldura.ts` e `proposta-web/` (desvio 8 de `ESTRUTURA-DO-CODIGO.md`). */
+export { ehIdiomaDaProposta, IDIOMA_POR_OMISSAO } from "@/lib/orcamento/listas-fechadas";
+export type { IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    O PRAZO DO SALDO — UM NÚMERO SÓ PARA AS DUAS LÍNGUAS
@@ -77,17 +81,6 @@ export const MESES_ANTES_DO_SALDO = 1;
 /** «1 mês» / «2 meses» — o prazo escrito como a frase o recebe. */
 const mesesPt = (n: number) => `${n} ${n === 1 ? "mês" : "meses"}`;
 const mesesEn = (n: number) => `${n} ${n === 1 ? "month" : "months"}`;
-
-export { ehIdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
-
-/**
- * A língua por omissão.
- *
- * É português, e é de propósito: todos os chamadores que existiam antes desta
- * funcionalidade continuam a desenhar exactamente o que desenhavam. Uma
- * proposta antiga, reaberta, sai como saiu.
- */
-export { IDIOMA_POR_OMISSAO } from "@/lib/orcamento/listas-fechadas";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    AS DATAS E O DINHEIRO — AS DUAS DECISÕES QUE NÃO SÃO DE TRADUÇÃO

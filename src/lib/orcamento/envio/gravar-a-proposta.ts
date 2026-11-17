@@ -98,8 +98,9 @@ async function guardar(pedidoId: string, p: Proposal, porEnviar: Proposal | null
  * dar uma volta infinita. Chegando lá, cai-se no resgate largo de antes,
  * que é o comportamento que esta casa já tinha.
  */
-/** Coluna da base → campo do `Proposal` que a escreve. */
-const CAMPO_DA_COLUNA: Readonly<Record<string, keyof Proposal>> = {
+/** Coluna da base → campo do `Proposal` que a escreve (todos opcionais: são
+ *  os que uma base mais antiga pode não ter). */
+const COLUNAS_RECENTES = {
   doc: "doc",
   pdf_sha256: "pdfSha256",
   pdf_bytes: "pdfBytes",
@@ -107,9 +108,18 @@ const CAMPO_DA_COLUNA: Readonly<Record<string, keyof Proposal>> = {
   versao_selo: "versaoSelo",
   versao_numero: "versaoNumero",
   versao_em: "versaoEm",
-};
+} as const satisfies Record<string, keyof Proposal>;
+type CampoRecente = (typeof COLUNAS_RECENTES)[keyof typeof COLUNAS_RECENTES];
+const CAMPO_DA_COLUNA = new Map<string, CampoRecente>(Object.entries(COLUNAS_RECENTES));
 /** Tudo o que se pode tirar, quando não se sabe o que tirar. */
-const TUDO_O_QUE_E_RECENTE: readonly (keyof Proposal)[] = Object.values(CAMPO_DA_COLUNA);
+const TUDO_O_QUE_E_RECENTE: readonly CampoRecente[] = Object.values(COLUNAS_RECENTES);
+
+/** A proposta sem estes campos — só os recentes, que são opcionais. */
+function semOsCampos(proposal: Proposal, campos: readonly CampoRecente[]): Proposal {
+  const sem = { ...proposal };
+  for (const campo of campos) sem[campo] = undefined;
+  return sem;
+}
 
 /**
  * Tira uma coluna de cada vez, até a base aceitar. Devolve as colunas que
@@ -134,7 +144,7 @@ async function gravarTirandoOQueFalta(
     } catch (e) {
       if (!isMissingTable(e)) throw e;
       const coluna = nomeDaColunaEmFalta(e);
-      const campo = coluna ? CAMPO_DA_COLUNA[coluna] : undefined;
+      const campo = coluna ? CAMPO_DA_COLUNA.get(coluna) : undefined;
       if (!coluna || !campo) throw e;
       /**
        * PROGRESSO OU NADA FEITO.
@@ -156,7 +166,7 @@ async function gravarTirandoOQueFalta(
         coluna,
       });
       colunasPerdidas.push(coluna);
-      candidata = { ...candidata, [campo]: undefined };
+      candidata = semOsCampos(candidata, [campo]);
       ultimoErro = e;
     }
   }
@@ -206,12 +216,10 @@ export async function gravarAProposta(
       { id: pedidoId },
     );
     try {
-      const semNada = { ...proposal };
-      for (const campo of TUDO_O_QUE_E_RECENTE) semNada[campo] = undefined as never;
-      await guardar(pedidoId, semNada, porEnviar);
+      await guardar(pedidoId, semOsCampos(proposal, TUDO_O_QUE_E_RECENTE), porEnviar);
       return segue({
         docSaved: false,
-        docError: avisoDeColunasPerdidas(Object.keys(CAMPO_DA_COLUNA)),
+        docError: avisoDeColunasPerdidas(Object.keys(COLUNAS_RECENTES)),
       });
     } catch (e2) {
       log.error("proposta-doc: guardar falhou mesmo sem os campos novos", e2, { id: pedidoId });

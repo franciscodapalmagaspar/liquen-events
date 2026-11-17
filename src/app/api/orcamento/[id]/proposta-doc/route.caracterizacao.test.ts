@@ -88,6 +88,7 @@ describe("o retrato de cada resposta da rota (fase 5)", () => {
     preparar();
     const res = await POST(fazer(), { params });
     vi.mocked(Date.now).mockRestore?.();
+    vi.useRealTimers();
     expect(await retrato(res)).toMatchSnapshot();
   });
 
@@ -95,6 +96,7 @@ describe("o retrato de cada resposta da rota (fase 5)", () => {
     preparar?.();
     const res = await POST(fazer(), { params });
     vi.mocked(Date.now).mockRestore?.();
+    vi.useRealTimers();
     expect(await retrato(res)).toMatchSnapshot();
   });
 

@@ -3,7 +3,8 @@
  * O CONTRATO DA ROTA DA PROPOSTA — O QUE ELA RESPONDE
  * ════════════════════════════════════════════════════════════════════════════
  *
- * Tipos, e os nomes dos cabeçalhos — mais nada: este ficheiro não importa
+ * Tipos, os nomes dos cabeçalhos e a codificação dos cortes — mais nada:
+ * este ficheiro não importa
  * nada que corra (nem o zod, nem o servidor), por isso o estúdio, que corre no
  * browser, lê-o sem levar um byte a mais.
  *
@@ -32,8 +33,45 @@ export const CABECALHOS_DA_PRE_VISUALIZACAO = {
   pdfDaMemoria: "X-Pdf-Da-Memoria",
 } as const;
 
+/** Os cabeçalhos da resposta da pré-visualização: os do HTTP e os nossos,
+ *  pelos nomes do contrato (um nome mal escrito não compila). */
+export type CabecalhosDaPreVisualizacao = Record<"Content-Type" | "Content-Disposition", string> &
+  Partial<
+    Record<
+      (typeof CABECALHOS_DA_PRE_VISUALIZACAO)[keyof typeof CABECALHOS_DA_PRE_VISUALIZACAO],
+      string
+    >
+  >;
+
 /** O que o desenho deixou de fora (a sétima foto de um mood board…). */
 export type Truncagens = RelatorioDoPdf["truncations"];
+/** Uma dessas perdas: onde, quantas, e de quê («fotos» ou «linhas»). */
+export type Corte = Truncagens[number];
+
+/**
+ * Os cortes no cabeçalho {@link CABECALHOS_DA_PRE_VISUALIZACAO}.conteudoCortado:
+ * JSON em base64 sobre UTF-8 — o corpo da resposta é o PDF, e um cabeçalho
+ * HTTP não transporta com segurança os acentos dos nomes dos campos. Os dois
+ * lados (`pre-visualizacao.ts` e o estúdio) usam este par, e só este.
+ */
+export function cortesEmCabecalho(cortes: Truncagens): string {
+  let binario = "";
+  for (const byte of new TextEncoder().encode(JSON.stringify(cortes))) {
+    binario += String.fromCharCode(byte);
+  }
+  return btoa(binario);
+}
+
+/** O inverso de {@link cortesEmCabecalho}: o JSON lido, ainda por conferir —
+ *  ou `null` quando o cabeçalho não é base64 de JSON. */
+export function cortesDoCabecalhoCru(cabecalho: string): unknown {
+  try {
+    const bytes = Uint8Array.from(atob(cabecalho), (ch) => ch.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Cada etapa devolve um `Passo` (`passo.ts`): segue, ou pára o pedido já com
@@ -72,11 +110,8 @@ export interface Falha {
   corpo: { error: string };
 }
 
-/**
- * O que um ENVIO responde (200), seja o envio a sério ou uma repetição
- * reconhecida (`repeticao-do-envio.ts`). (A pré-visualização responde o PDF.)
- */
-export interface RespostaDoEnvio {
+/** O que as duas respostas 200 do envio têm em comum. */
+interface OQueOEnvioResponde {
   ok: true;
   id: string;
   /** O correio saiu. */
@@ -87,18 +122,35 @@ export interface RespostaDoEnvio {
   semEmailPorEscolha?: true;
   /** O estado em que a proposta FICOU. */
   estado: Proposal["status"];
+  missingImages: number;
+  truncations: Truncagens;
+  pdfBytes: number;
+}
+
+/** O envio a sério (`resposta-do-envio.ts`). */
+export interface EnvioFeito extends OQueOEnvioResponde {
   estadoError?: string;
   copiaError?: string;
   pedidoError?: string;
   /** O link do casal — só quando a proposta seguiu mesmo. */
   acceptUrl: string | null;
-  missingImages: number;
-  truncations: Truncagens;
-  pdfBytes: number;
   pdfDaMemoria?: true;
+  /** Só quando a linha não se guardou inteira — e então com o porquê. */
   docSaved?: false;
   docError?: string;
-  /** Este envio já tinha acontecido há instantes: não se enviou outra vez. */
-  repetido?: true;
-  repetidoAviso?: string;
 }
+
+/** Uma repetição reconhecida (`repeticao-do-envio.ts`): não se enviou outra vez. */
+export interface EnvioRepetido extends OQueOEnvioResponde {
+  /** O link que o casal JÁ recebeu. */
+  acceptUrl: string;
+  repetido: true;
+  /** A frase que o ecrã mostra em vez de fingir um envio. */
+  repetidoAviso: string;
+}
+
+/**
+ * O que um ENVIO responde (200): o envio a sério, ou uma repetição
+ * reconhecida — distinguíveis pelo `repetido`. (A pré-visualização responde o PDF.)
+ */
+export type RespostaDoEnvio = EnvioFeito | EnvioRepetido;

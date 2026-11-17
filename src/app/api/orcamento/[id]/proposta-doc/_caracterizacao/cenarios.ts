@@ -211,15 +211,16 @@ export const ESTRANHOS: Array<[string, () => NextRequest, (() => void)?]> = [
   ],
   /*
    * O «sim» antigo (`true`) vale até ao fim de 18/11 e depois não
-   * (`FIM_DO_SIM_ANTIGO`): os dois lados, com o relógio parado, para o retrato
-   * não mudar sozinho no dia 19.
+   * (`FIM_DO_SIM_ANTIGO`): os dois lados, com o relógio parado — o `Date`
+   * inteiro, e não só o `Date.now`, como numa função a sério —, para o
+   * retrato não mudar sozinho no dia 19.
    */
   [
     "fotos a true, com fotos em falta, a 18/11 às 23:59",
     () => envio(doc(), { fotosEmFaltaConfirmadas: true }),
     () => {
       ctl.missing = 1;
-      vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-18T23:59:00Z"));
+      vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-11-18T23:59:00Z") });
     },
   ],
   [
@@ -227,7 +228,7 @@ export const ESTRANHOS: Array<[string, () => NextRequest, (() => void)?]> = [
     () => envio(doc(), { fotosEmFaltaConfirmadas: true }),
     () => {
       ctl.missing = 1;
-      vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-19T00:00:00Z"));
+      vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-11-19T00:00:00Z") });
     },
   ],
   [

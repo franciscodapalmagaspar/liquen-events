@@ -50,13 +50,12 @@ import {
   type MoodBoard,
   type VatMode,
 } from "@/lib/proposal-doc";
+import { camposDoEventoNaLingua, isoDaDataPorExtenso } from "@/lib/proposal-doc-textos";
 import {
   IDIOMA_POR_OMISSAO,
-  camposDoEventoNaLingua,
   ehIdiomaDaProposta,
-  isoDaDataPorExtenso,
   type IdiomaDaProposta,
-} from "@/lib/proposal-doc-textos";
+} from "@/lib/orcamento/listas-fechadas";
 import { fotosQueDaoCor } from "@/lib/pdf-editorial/grupos";
 import { ordemDeSaida, eAOrdemEscrita, aplicarOrdem, ORDEM_EXPLICITA } from "@/lib/proposal-ordem";
 import {

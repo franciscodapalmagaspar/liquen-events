@@ -1,5 +1,6 @@
 import { type ProposalDoc, withProposalDefaults } from "./proposal-doc";
 import { desalinhamento, dinheiroDaProposta } from "./proposal-budget";
+import { pareceEmail } from "./parece-email";
 import { faltasDaFaturacao } from "./orcamento/artigos-de-faturacao";
 import { camposPorTraduzir } from "./proposal-doc-bilingue";
 import { camposDoDocumento, lerCampo } from "./proposal-ortografia";
@@ -272,9 +273,6 @@ export interface ContextoDoEnvio {
   fotosEmFaltaNoPdf?: number;
 }
 
-/** O mesmo critério do passo do envio (`emailDoCliente` no estúdio). */
-const EMAIL_VALIDO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-
 /**
  * «Esta proposta tem 3 fotografias a mais para o PDF — …». Só chega aqui quando
  * as escolhidas à mão SOZINHAS passam do tecto (os mood boards já saíram
@@ -394,7 +392,7 @@ export function oQueFaltaParaEnviar(
    * gravada e o email não saía. Com «só WhatsApp» não ter email é o caso
    * normal de um pedido que entrou por telefone, e não trava.
    */
-  if (ctx.canal && ctx.canal !== "whatsapp" && !EMAIL_VALIDO.test(ctx.emailDoCliente ?? "")) {
+  if (ctx.canal && ctx.canal !== "whatsapp" && !pareceEmail(ctx.emailDoCliente)) {
     faltas.push({
       id: "email",
       seccao: "envio",

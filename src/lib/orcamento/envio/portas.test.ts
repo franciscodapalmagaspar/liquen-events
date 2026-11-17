@@ -30,6 +30,7 @@ const contexto = (corpo: unknown): Contexto => ({
   quote: { id: "q1", email: "c@x.pt", status: "pendente" } as Quote,
   corpo: corpoLido(corpo),
   resta: () => 60_000,
+  agora: () => new Date(),
   assinatura: () => ({ nome: "", cargo: "" }),
   depoisDaResposta: vi.fn(),
 });

@@ -27,7 +27,7 @@ export interface DocumentoDoEnvio {
 export function prepararODocumento(
   raw: ProposalDoc,
   idioma: IdiomaDaProposta,
-  agora: Date = new Date(),
+  agora: Date,
 ): DocumentoDoEnvio {
   /**
    * ── A CHAVE DO QUE FOI VISTO ─────────────────────────────────────────

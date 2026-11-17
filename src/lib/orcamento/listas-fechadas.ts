@@ -1,7 +1,8 @@
-import { todosOsValores } from "@/lib/todos-os-valores";
+import { ehUmDe, todosOsValores } from "@/lib/todos-os-valores";
 import type { MotivoDeRecusa, ProposalStatus, QuoteStatus } from "./types";
 import type { VersaoEscolhida } from "./versoes-da-proposta";
 import type { TipoModelo } from "@/lib/proposal-templates";
+import type { ProposalDoc, VatMode } from "@/lib/proposal-doc";
 
 /**
  * As listas fechadas do pedido e da proposta, UMA vez cada, presas aos tipos
@@ -48,16 +49,25 @@ export const VERSOES_ESCOLHIDAS = todosOsValores<VersaoEscolhida>()(["base", "ex
 
 export const TIPOS_DE_MODELO = todosOsValores<TipoModelo>()(["completo", "grupo", "moodboard"]);
 
+/** Os dois desenhos do documento (`ProposalDoc.template`). */
+export const MODELOS_DO_DOCUMENTO = todosOsValores<NonNullable<ProposalDoc["template"]>>()([
+  "decoracao",
+  "organizacao",
+]);
+
+/** Como se lê o total escrito: com o IVA já dentro, ou a acrescer. */
+export const MODOS_DE_IVA = todosOsValores<VatMode>()(["incluido", "acrescer"]);
+
 /** As línguas em que a proposta se desenha: o tipo SAI da lista, e a regra lê-a. */
 export const IDIOMAS_DA_PROPOSTA = ["pt", "en"] as const;
 export type IdiomaDaProposta = (typeof IDIOMAS_DA_PROPOSTA)[number];
-/** A língua em que a proposta é ESCRITA, e a que vale quando nada a diz. */
+/** A língua em que a proposta é ESCRITA, e a que vale quando nada a diz — de
+ *  propósito: uma proposta antiga, reaberta, sai como saiu. */
 export const IDIOMA_POR_OMISSAO: IdiomaDaProposta = "pt";
 
 /** `true` para o que é mesmo uma das línguas — para validar o que chega de
  *  fora (o corpo do envio, o rascunho, o link do casal). Uma língua nova
- *  acrescenta-se UMA vez, na lista acima: o tipo e esta regra seguem-na.
- *  (`proposal-doc-textos.ts` reexporta os dois, para quem já os lia de lá.) */
+ *  acrescenta-se UMA vez, na lista acima: o tipo e esta regra seguem-na. */
 export function ehIdiomaDaProposta(v: unknown): v is IdiomaDaProposta {
-  return (IDIOMAS_DA_PROPOSTA as readonly unknown[]).includes(v);
+  return ehUmDe(IDIOMAS_DA_PROPOSTA, v);
 }

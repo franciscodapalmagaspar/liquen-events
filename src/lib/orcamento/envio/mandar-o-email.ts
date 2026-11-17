@@ -1,6 +1,7 @@
 import "server-only";
 import { sendMail, MAIL_TO } from "@/lib/mail";
 import { log } from "@/lib/logger";
+import { pareceEmail } from "@/lib/parece-email";
 import { FOLGA_DO_EMAIL_MS } from "./orcamento-de-tempo";
 import type { EmailDaProposta } from "./email-da-proposta";
 import type { BytesDoPdf } from "./envio-da-proposta";
@@ -16,12 +17,13 @@ import type { BytesDoPdf } from "./envio-da-proposta";
  * email devolve 200 com emailed:false + motivo, para a UI explicar o que
  * aconteceu.
  */
-export interface ResultadoDoEmail {
-  emailed: boolean;
-  emailError?: string;
-  /** Não saiu email porque ela ESCOLHEU que não saísse — e não porque falhou. */
-  semEmailPorEscolha: boolean;
-}
+export type SaidaDoEmail =
+  /** O correio saiu. */
+  | { tipo: "saiu" }
+  /** Não saiu porque ela ESCOLHEU o WhatsApp — e não porque falhou. */
+  | { tipo: "porEscolha" }
+  /** Não saiu, por avaria: a frase diz porquê. */
+  | { tipo: "naoSaiu"; erro: string };
 
 export interface ParaMandar {
   /** O id do PEDIDO. */
@@ -37,8 +39,9 @@ export interface ParaMandar {
   resta: () => number;
 }
 
-export async function mandarOEmail(p: ParaMandar): Promise<ResultadoDoEmail> {
-  const temDestinatario = !!p.para && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.para);
+export async function mandarOEmail(p: ParaMandar): Promise<SaidaDoEmail> {
+  // A forma do endereço é a regra da trava do envio (`pareceEmail`).
+  const para = pareceEmail(p.para) ? p.para : null;
   if (!p.porEmail) {
     /* Sem `emailError`: a diferença entre «não saiu» e «não saiu por culpa
        de alguma coisa» é a diferença entre um ecrã calmo e um ecrã que
@@ -48,14 +51,10 @@ export async function mandarOEmail(p: ParaMandar): Promise<ResultadoDoEmail> {
       id: p.pedidoId,
       proposta: p.propostaId,
     });
-    return { emailed: false, semEmailPorEscolha: true };
+    return { tipo: "porEscolha" };
   }
-  if (!temDestinatario) {
-    return {
-      emailed: false,
-      emailError: "O pedido não tem um email de cliente válido.",
-      semEmailPorEscolha: false,
-    };
+  if (para === null) {
+    return { tipo: "naoSaiu", erro: "O pedido não tem um email de cliente válido." };
   }
   if (p.resta() < FOLGA_DO_EMAIL_MS) {
     log.warn("proposta-doc: sem tempo para o email, não se começa", {
@@ -63,16 +62,14 @@ export async function mandarOEmail(p: ParaMandar): Promise<ResultadoDoEmail> {
       restaMs: p.resta(),
     });
     return {
-      emailed: false,
-      emailError:
-        "O documento demorou mais do que o costume e o email não chegou a sair. A proposta ficou gravada: carregue outra vez em enviar.",
-      semEmailPorEscolha: false,
+      tipo: "naoSaiu",
+      erro: "O documento demorou mais do que o costume e o email não chegou a sair. A proposta ficou gravada: carregue outra vez em enviar.",
     };
   }
   const { emoldurado } = p.email;
   try {
     const mail = await sendMail({
-      to: p.para as string,
+      to: para,
       replyTo: MAIL_TO,
       // Sem o identificador interno — a mesma decisão da rota irmã
       // (`orcamento/[id]/proposta`), onde está escrita por extenso: o
@@ -99,18 +96,10 @@ export async function mandarOEmail(p: ParaMandar): Promise<ResultadoDoEmail> {
       ],
     });
     return mail.sent
-      ? { emailed: true, semEmailPorEscolha: false }
-      : {
-          emailed: false,
-          emailError: "Envio de email não configurado.",
-          semEmailPorEscolha: false,
-        };
+      ? { tipo: "saiu" }
+      : { tipo: "naoSaiu", erro: "Envio de email não configurado." };
   } catch (e) {
     log.error("proposta-doc: envio de email falhou", e, { id: p.pedidoId });
-    return {
-      emailed: false,
-      emailError: "A proposta foi guardada, mas o email ao cliente falhou.",
-      semEmailPorEscolha: false,
-    };
+    return { tipo: "naoSaiu", erro: "A proposta foi guardada, mas o email ao cliente falhou." };
   }
 }

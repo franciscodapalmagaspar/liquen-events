@@ -98,9 +98,9 @@ describe("as perguntas antes do envio", () => {
     const h = cabecalhosDaPreVisualizacao(base);
     expect(h["Content-Disposition"]).toBe('inline; filename="proposal-preview-draft.pdf"');
     expect(h["X-Chave-Do-Pdf"]).toBeUndefined();
-    expect(JSON.parse(Buffer.from(h["X-Conteudo-Cortado"], "base64").toString("utf8"))).toEqual(
-      base.truncations,
-    );
+    expect(
+      JSON.parse(Buffer.from(h["X-Conteudo-Cortado"] ?? "", "base64").toString("utf8")),
+    ).toEqual(base.truncations);
     const f = cabecalhosDaPreVisualizacao({
       ...base,
       idioma: "pt",
@@ -144,8 +144,8 @@ describe("o documento e a linha que se grava", () => {
   });
 
   it("a chave é do documento que CHEGOU, sem as fotos de biblioteca", () => {
-    const a = prepararODocumento({ ...doc }, "pt");
-    const b = prepararODocumento({ ...doc, fotosDeBiblioteca: ["x.jpg"] }, "pt");
+    const a = prepararODocumento({ ...doc }, "pt", AGORA_DATA);
+    const b = prepararODocumento({ ...doc, fotosDeBiblioteca: ["x.jpg"] }, "pt", AGORA_DATA);
     expect(a.chaveDoQueChegou).toBe(b.chaveDoQueChegou);
     expect(a.doc.validUntil).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(a.grandeDemais).toBe(false);

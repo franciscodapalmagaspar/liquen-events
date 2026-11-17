@@ -34,6 +34,7 @@ import { paraComRecusa, segue, type Passo } from "./passo";
 export function guardasBaratas(
   pedidoId: string,
   corpo: CorpoLido,
+  agora: Date,
 ): Passo<{ doc: DocumentoPreparado; chaveDoQueChegou: string }> {
   // O texto escrito à mão recusa-se por tamanho ANTES de se desenhar o PDF:
   // recusar depois é gastar o desenho por nada. O resto dele (o
@@ -48,7 +49,11 @@ export function guardasBaratas(
   const completo = documentoCompleto(corpo.doc);
   if (!completo.ok) return paraComRecusa(400, { error: completo.error });
   avisarDoIdiomaDesconhecido(corpo, pedidoId);
-  const { chaveDoQueChegou, doc, grandeDemais } = prepararODocumento(completo.doc, corpo.idioma);
+  const { chaveDoQueChegou, doc, grandeDemais } = prepararODocumento(
+    completo.doc,
+    corpo.idioma,
+    agora,
+  );
   if (grandeDemais) {
     return paraComRecusa(413, { error: "Proposta demasiado grande para ser guardada." });
   }

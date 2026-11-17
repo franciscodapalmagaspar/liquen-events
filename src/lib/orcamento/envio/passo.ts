@@ -1,4 +1,10 @@
-import type { CorpoDaRecusa, Falha, Recusa, RespostaDoEnvio } from "./contrato";
+import type {
+  CabecalhosDaPreVisualizacao,
+  CorpoDaRecusa,
+  Falha,
+  Recusa,
+  RespostaDoEnvio,
+} from "./contrato";
 import type { BytesDoPdf } from "./envio-da-proposta";
 
 /**
@@ -21,7 +27,7 @@ import type { BytesDoPdf } from "./envio-da-proposta";
 export type Desfecho =
   | { tipo: "recusa"; recusa: Recusa }
   | { tipo: "falha"; falha: Falha }
-  | { tipo: "pdf"; pdf: BytesDoPdf; cabecalhos: Record<string, string> }
+  | { tipo: "pdf"; pdf: BytesDoPdf; cabecalhos: CabecalhosDaPreVisualizacao }
   | { tipo: "envio"; resposta: RespostaDoEnvio };
 
 /** Uma etapa que pára o pedido — serve qualquer `Passo<T>`, porque não chega a produzir `T`. */
@@ -49,7 +55,7 @@ export const desfecho = Object.freeze({
     recusa: { status, corpo },
   }),
   falha: (falha: Falha): Desfecho => ({ tipo: "falha", falha }),
-  pdf: (pdf: BytesDoPdf, cabecalhos: Record<string, string>): Desfecho => ({
+  pdf: (pdf: BytesDoPdf, cabecalhos: CabecalhosDaPreVisualizacao): Desfecho => ({
     tipo: "pdf",
     pdf,
     cabecalhos,
