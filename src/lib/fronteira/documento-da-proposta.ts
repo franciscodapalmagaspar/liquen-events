@@ -16,10 +16,11 @@ import { z } from "zod";
  *
  * A regra de ouro é o tipo sair do esquema (`z.infer`). Aqui não pode: o
  * `ProposalDoc` é lido pelo estúdio, que corre no browser, e o zod não pode ir
- * no pacote do browser (`.claude/rules/custo.md`, regra de ferro da fase 6).
- * Fica o contrário, preso pelo compilador: `documento-da-proposta.test.ts`
- * prova que tudo o que o tipo aceita, o esquema também aceita — senão o modo
- * de observar acusaria documentos que estão certos.
+ * no pacote do browser (a regra de custo da fase 6 de
+ * `docs/ESTRUTURA-DO-CODIGO.md`: o que o browser descarrega não engorda).
+ * Fica o contrário, preso pelo compilador: `esquemas.test.ts` («o tipo
+ * ProposalDoc cabe no esquema») prova que tudo o que o tipo aceita, o esquema
+ * também aceita — senão o modo de observar acusaria documentos certos.
  *
  * O esquema é LARGO de propósito: confere o tipo de cada campo que existe, e
  * deixa passar campos que não conhece (`looseObject`). Um campo novo no

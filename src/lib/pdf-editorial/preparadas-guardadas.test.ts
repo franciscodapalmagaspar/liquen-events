@@ -3,9 +3,7 @@ import sharp from "sharp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const guardadas = new Map<string, Buffer>();
-const ler = vi.fn(
-  async (ref: string, receita: string) => guardadas.get(`${receita}|${ref}`) ?? null,
-);
+const ler = vi.fn(async (ref: string, receita: string) => guardadas.get(`${receita}|${ref}`) ?? null);
 const guardar = vi.fn(async (ref: string, receita: string, b: Buffer) => {
   guardadas.set(`${receita}|${ref}`, b);
 });
@@ -15,8 +13,9 @@ vi.mock("@/lib/fotos-editoriais-guardadas", () => ({
 }));
 
 const { preparar, BRILHO } = await import("./imagens");
-const { prepararGuardado, esquecerPreparadas, VERSAO_DO_TRATAMENTO } =
-  await import("./preparadas-guardadas");
+const { prepararGuardado, esquecerPreparadas, VERSAO_DO_TRATAMENTO } = await import(
+  "./preparadas-guardadas"
+);
 
 /** Uma fotografia de referência: um degradé com cor, sempre igual. */
 async function referencia(): Promise<Buffer> {
@@ -30,9 +29,7 @@ async function referencia(): Promise<Buffer> {
       px[i + 1] = (y * 255) / h;
       px[i + 2] = ((x + y) * 255) / (w + h);
     }
-  return sharp(px, { raw: { width: w, height: h, channels: 3 } })
-    .jpeg({ quality: 90 })
-    .toBuffer();
+  return sharp(px, { raw: { width: w, height: h, channels: 3 } }).jpeg({ quality: 90 }).toBuffer();
 }
 
 const TRATAMENTO = { arrastado: { angulo: -14 }, brilho: BRILHO.texto, saturacao: 0.6 };

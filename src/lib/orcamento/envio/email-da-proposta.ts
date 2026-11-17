@@ -1,7 +1,4 @@
 import "server-only";
-import type { Quote } from "@/lib/orcamento/types";
-import type { ProposalDoc } from "@/lib/proposal-doc";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import type { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { eurDocumento } from "@/lib/money";
 import { esc } from "@/lib/mail";
@@ -14,6 +11,7 @@ import { textosDoEmailDaProposta } from "@/lib/email-proposta-textos";
 import { eCasamento } from "@/lib/proposal-evento";
 import { log } from "@/lib/logger";
 import { cartaoDoPdf } from "./cartao-do-pdf";
+import type { OEnvio } from "./o-envio";
 
 /**
  * Etapa 10 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o email que vai
@@ -51,11 +49,21 @@ import { cartaoDoPdf } from "./cartao-do-pdf";
  * Sai o texto da casa em inglês, e fica REGISTADO: ela guardou um modelo e o
  * email que saiu não foi o dela; isso tem de se poder ver.
  */
-export interface PedidoDoEmail {
-  id: string;
-  quote: Quote;
-  doc: ProposalDoc;
-  idioma: IdiomaDaProposta;
+declare const emoldurado: unique symbol;
+
+/**
+ * Um email que passou pelo `emailAoCliente` — a assinatura de quem envia, a
+ * faixa da casa e as redes (instrução dela, 20/08: «qualquer mensagem que
+ * seja mandada tenha isto sempre predefinido»). Só {@link emoldurar} o cria, e
+ * `mandar-o-email.ts` só aceita este: um email montado à mão não compila.
+ */
+export type EmailEmoldurado = ReturnType<typeof emailAoCliente> & { readonly [emoldurado]: true };
+
+function emoldurar(partes: Parameters<typeof emailAoCliente>[0]): EmailEmoldurado {
+  return emailAoCliente(partes) as EmailEmoldurado;
+}
+
+export interface PedidoDoEmail extends OEnvio {
   mensagem: string;
   /** O `corpo` e o `assunto` escritos à mão, quando vieram (`corpo-do-pedido.ts`). */
   corpo: string | null;
@@ -67,7 +75,7 @@ export interface PedidoDoEmail {
 }
 
 export interface EmailDaProposta {
-  email: ReturnType<typeof emailAoCliente>;
+  email: EmailEmoldurado;
   assunto: string;
   /** O texto que fica na CÓPIA do envio (`registarEnvio`). */
   textoDaCopia: string;
@@ -123,12 +131,12 @@ export async function escreverOEmail(p: PedidoDoEmail): Promise<EmailDaProposta>
     escolhido: doc.nomeDoFicheiro,
     clientNames: doc.clientNames,
     eventDate: doc.eventDate,
-    ref: p.id,
+    ref: p.pedidoId,
   });
   const cartao = cartaoDoPdf(acceptUrl, t, nomeDoAnexo);
 
   const email = escrito
-    ? emailAoCliente({
+    ? emoldurar({
         /**
          * O CORPO ESCRITO NO ECRÃ TAMBÉM PASSA PELA ARRUMAÇÃO DO LINK. MEDIDO
          * num email real: o endereço saiu por extenso, cinco linhas de token —
@@ -141,12 +149,12 @@ export async function escreverOEmail(p: PedidoDoEmail): Promise<EmailDaProposta>
         quem,
       })
     : corpoDoModelo
-      ? emailAoCliente({
+      ? emoldurar({
           html: `${corpoDoModelo}${cartao.html}`,
           texto: [textoDoCorpo(corpoDoModelo), ...cartao.texto].join("\n"),
           quem,
         })
-      : emailAoCliente({ quem, ...corpoDaCasa(t, doc.clientNames, mensagem, acceptUrl, cartao) });
+      : emoldurar({ quem, ...corpoDaCasa(t, doc.clientNames, mensagem, acceptUrl, cartao) });
 
   return {
     email,
@@ -173,7 +181,7 @@ async function modeloDela(p: PedidoDoEmail, escritoAMao: boolean) {
   if (idioma !== "pt" && !mensagem && !escritoAMao) {
     log.warn(
       "proposta-doc: proposta noutra língua — o modelo «proposta-enviada» não é consultado, sai o texto da casa",
-      { id: p.id, idioma },
+      { id: p.pedidoId, idioma },
     );
   }
   if (escritoAMao || mensagem || idioma !== "pt") return null;

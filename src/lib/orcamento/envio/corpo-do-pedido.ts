@@ -1,10 +1,10 @@
 import "server-only";
 import { z } from "zod";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { IDIOMA_POR_OMISSAO } from "@/lib/proposal-doc-textos";
 import { esquemaDoDocumentoQueChega } from "@/lib/fronteira/documento-da-proposta";
 import { observar } from "@/lib/fronteira/observar";
-import { todosOsValores } from "@/lib/fronteira/todos-os-valores";
+import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-da-proposta";
 import { log } from "@/lib/logger";
 
 /**
@@ -29,9 +29,6 @@ import { log } from "@/lib/logger";
  * segunda.
  */
 
-/** As duas línguas da proposta, presas ao tipo (falta uma → não compila). */
-const IDIOMAS = todosOsValores<IdiomaDaProposta>()(["pt", "en"]);
-
 /**
  * O corpo que o estúdio manda HOJE. Largo (`looseObject`): um campo a mais
  * não é um desvio.
@@ -41,7 +38,7 @@ export const esquemaDoCorpo = z.looseObject({
   mode: z.enum(["preview", "send"]),
   doc: esquemaDoDocumentoQueChega,
   /** Ver {@link avisarDoIdiomaDesconhecido}: o que não se reconhece vale português. */
-  idioma: z.enum(IDIOMAS).optional(),
+  idioma: z.enum(IDIOMAS_DA_PROPOSTA).optional(),
   /** A mensagem pessoal do passo «Enviar» — OPCIONAL A SÉRIO: vazia, só com
    *  espaços ou de um tipo que não é texto, o email sai como saía antes de
    *  esta caixa existir. Um envio nunca pára pela nota de acompanhamento. */
@@ -133,7 +130,7 @@ export type PedidoDeProposta = ReturnType<typeof pedidoDoCorpo>;
 
 /**
  * Lê o corpo. Um corpo que não é JSON vale `null`, como sempre valeu (a
- * resposta é o «falta o documento» de {@link porQueEstaIncompleta}).
+ * resposta é o «falta o documento» de {@link documentoCompleto}).
  */
 export async function lerOPedido(request: Request, id: string): Promise<PedidoDeProposta> {
   const cru: unknown = await request.json().catch(() => null);
@@ -142,11 +139,13 @@ export async function lerOPedido(request: Request, id: string): Promise<PedidoDe
 }
 
 /**
- * Sem `doc`, sem `ref` ou sem `clientNames` a proposta não se desenha.
- * Devolve a frase do 400, ou `null` quando está tudo.
+ * Sem `doc`, sem `ref` ou sem `clientNames` a proposta não se desenha: o
+ * documento, quando está, ou a frase do 400.
  */
-export function porQueEstaIncompleta(raw: ProposalDoc | undefined): string | null {
-  if (raw && raw.ref && raw.clientNames) return null;
+export function documentoCompleto(
+  raw: ProposalDoc | undefined,
+): { ok: true; doc: ProposalDoc } | { ok: false; error: string } {
+  if (raw && raw.ref && raw.clientNames) return { ok: true, doc: raw };
   // Dizer O QUE falta (auditoria de 13/11, estúdio n.º 19): «Proposta
   // incompleta.» sozinho deixava-a a adivinhar.
   const falta = !raw
@@ -154,7 +153,7 @@ export function porQueEstaIncompleta(raw: ProposalDoc | undefined): string | nul
     : [!raw.ref ? "a referência" : null, !raw.clientNames ? "o nome dos clientes" : null]
         .filter(Boolean)
         .join(" e ");
-  return `Proposta incompleta: falta ${falta}.`;
+  return { ok: false, error: `Proposta incompleta: falta ${falta}.` };
 }
 
 /**

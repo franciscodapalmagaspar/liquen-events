@@ -6,7 +6,7 @@ import {
   avisarDoIdiomaDesconhecido,
   lerOPedido,
   pedidoDoCorpo,
-  porQueEstaIncompleta,
+  documentoCompleto,
   type CorpoDoPedido,
 } from "./corpo-do-pedido";
 
@@ -38,7 +38,10 @@ describe("o corpo do pedido à rota da proposta", () => {
   it("um corpo nulo é uma pré-visualização sem documento", () => {
     const p = pedidoDoCorpo(null);
     expect(p).toMatchObject({ modo: "preview", doc: undefined, porEmail: true, rascunho: false });
-    expect(porQueEstaIncompleta(p.doc)).toBe("Proposta incompleta: falta o documento.");
+    expect(documentoCompleto(p.doc)).toEqual({
+      ok: false,
+      error: "Proposta incompleta: falta o documento.",
+    });
   });
 
   it("a mensagem perde os espaços das pontas, e o modo desconhecido é pré-visualização", () => {
@@ -49,13 +52,16 @@ describe("o corpo do pedido à rota da proposta", () => {
 
   it("diz o que falta no documento", () => {
     const d = (o: object) => o as ProposalDoc;
-    expect(porQueEstaIncompleta(d({ ref: "", clientNames: "A" }))).toBe(
-      "Proposta incompleta: falta a referência.",
-    );
-    expect(porQueEstaIncompleta(d({ ref: "", clientNames: "" }))).toBe(
+    const erro = (o: object) => {
+      const r = documentoCompleto(d(o));
+      return r.ok ? null : r.error;
+    };
+    expect(erro({ ref: "", clientNames: "A" })).toBe("Proposta incompleta: falta a referência.");
+    expect(erro({ ref: "", clientNames: "" })).toBe(
       "Proposta incompleta: falta a referência e o nome dos clientes.",
     );
-    expect(porQueEstaIncompleta(d({ ref: "R", clientNames: "A" }))).toBeNull();
+    const bom = d({ ref: "R", clientNames: "A" });
+    expect(documentoCompleto(bom)).toEqual({ ok: true, doc: bom });
   });
 
   it("a língua: sem campo é português calado; um valor estranho é português e diz-se", () => {

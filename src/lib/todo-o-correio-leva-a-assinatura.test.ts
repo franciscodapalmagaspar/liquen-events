@@ -43,9 +43,10 @@ const SO_PARA_DENTRO_DE_CASA: Readonly<Record<string, string>> = {
  * Fase 5 de `docs/ESTRUTURA-DO-CODIGO.md`: o envio da proposta partiu-se em
  * etapas, e quem escreve o email (`email-da-proposta.ts`, que passa pelo
  * `emailAoCliente`) deixou de ser quem o manda (`mandar-o-email.ts`, que só
- * recebe o `EmailDaProposta` pronto). A regra continua a mesma — é o
- * ficheiro que ESCREVE o email que tem de passar pelo `emailAoCliente`, e é
- * esse que se lê.
+ * recebe o `EmailDaProposta` pronto). Aqui a guarda é o TIPO: o
+ * `mandarOEmail` só aceita um `EmailEmoldurado`, que só o `emoldurar` (por
+ * cima do `emailAoCliente`) cria — um email montado à mão não compila. Este
+ * mapa diz à guarda de texto onde está esse ficheiro, para ela o ler também.
  */
 const EMOLDURADO_POR: Readonly<Record<string, string>> = {
   "src/lib/orcamento/envio/mandar-o-email.ts": "src/lib/orcamento/envio/email-da-proposta.ts",

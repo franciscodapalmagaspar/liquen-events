@@ -66,6 +66,17 @@ describe("a fronteira em modo de observar", () => {
     expect(aviso).toHaveBeenCalledTimes(CASOS_POR_DESVIO);
   });
 
+  it("o mesmo defeito noutro sítio da lista é o mesmo desvio — mas o registo diz o sítio", () => {
+    const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
+    const lista = z.looseObject({ fotos: z.array(z.string()) });
+    observar(lista, { fotos: ["a", 1] }, "teste", { id: "q1" });
+    observar(lista, { fotos: [2, "b"] }, "teste", { id: "q1" });
+    expect(aviso).toHaveBeenCalledTimes(1);
+    expect(aviso.mock.calls[0][1]).toMatchObject({
+      desvios: [{ campo: "fotos.1", problema: "invalid_type" }],
+    });
+  });
+
   it("nunca muda o valor: quem chama continua com o objecto original", () => {
     vi.spyOn(log, "warn").mockImplementation(() => {});
     const original = { nome: 1, campoNovo: { a: 1 } };
@@ -78,55 +89,43 @@ describe("a fronteira em modo de observar", () => {
 /**
  * ── O CUSTO (regra 7) ─────────────────────────────────────────────────────
  *
- * Medido aqui, e não estimado: um documento de proposta grande (80 fotos,
- * 12 grupos de 10 linhas, 20 linhas de orçamento) e a lista de pedidos inteira
- * (46 na base a 17/11; mede-se com 500). O tecto do teste é largo de propósito
- * (máquinas de CI lentas) — o número medido vai no documento.
+ * Medido à parte e escrito em `docs/ESTRUTURA-DO-CODIGO.md` (Parte −1, fase 6):
+ * ~30 µs por corpo de envio grande, ~5 µs por pedido guardado. Aqui não se
+ * afirma com o relógio — um CI carregado não pode pôr um PR a vermelho por uma
+ * pausa do GC. Prova-se o que não depende dele: um documento grande (80 fotos,
+ * 12 grupos de 10 linhas, 20 linhas de orçamento) BATE com o esquema, para o
+ * caminho normal nunca escrever no registo.
  */
-describe("o custo de conferir", () => {
-  const docGrande = {
-    ref: "PO",
-    clientNames: "A & B",
-    serviceGroups: Array.from({ length: 12 }, (_, g) => ({
-      title: `Grupo ${g}`,
-      items: Array.from({ length: 10 }, (_, i) => ({ label: `L${i}`, desc: "texto ".repeat(20) })),
-    })),
-    moodBoards: Array.from({ length: 10 }, (_, b) => ({
-      title: `Board ${b}`,
-      images: Array.from({ length: 8 }, (_, i) => `temas/${b}/foto-${i}.jpg`),
-    })),
-    budgetItems: Array.from({ length: 20 }, (_, i) => `Item ${i}`),
-    budgetAmounts: Array.from({ length: 20 }, (_, i) => (i % 3 ? i * 100 : null)),
-    coverImages: ["capa.jpg"],
-  };
-  const pedido = {
-    id: "LIQ-X",
-    status: "cotado",
-    submittedAt: "2026-01-01T00:00:00.000Z",
-    name: "N",
-    email: "e@x.pt",
-    phone: "1",
-    date: "2027-01-01",
-    location: "L",
-    notes: "",
-    activityLog: Array.from({ length: 30 }, () => ({ at: "x", kind: "nota" })),
-  };
-
-  it("um documento grande confere-se em bem menos de 1 ms", () => {
-    for (let i = 0; i < 50; i++) esquemaDoDocumentoQueChega.safeParse(docGrande);
-    const n = 500;
-    const t0 = performance.now();
-    for (let i = 0; i < n; i++) esquemaDoDocumentoQueChega.safeParse(docGrande);
-    const porDoc = (performance.now() - t0) / n;
+describe("o caminho normal não escreve nada", () => {
+  it("um documento grande e um pedido com histórico batem com os esquemas", () => {
+    const docGrande = {
+      ref: "PO",
+      clientNames: "A & B",
+      serviceGroups: Array.from({ length: 12 }, (_, g) => ({
+        title: `Grupo ${g}`,
+        items: Array.from({ length: 10 }, (_, i) => ({ label: `L${i}`, desc: "texto" })),
+      })),
+      moodBoards: Array.from({ length: 10 }, (_, b) => ({
+        title: `Board ${b}`,
+        images: Array.from({ length: 8 }, (_, i) => `temas/${b}/foto-${i}.jpg`),
+      })),
+      budgetItems: Array.from({ length: 20 }, (_, i) => `Item ${i}`),
+      budgetAmounts: Array.from({ length: 20 }, (_, i) => (i % 3 ? i * 100 : null)),
+      coverImages: ["capa.jpg"],
+    };
+    const pedido = {
+      id: "LIQ-X",
+      status: "cotado",
+      submittedAt: "2026-01-01T00:00:00.000Z",
+      name: "N",
+      email: "e@x.pt",
+      phone: "1",
+      date: "2027-01-01",
+      location: "L",
+      notes: "",
+      activityLog: Array.from({ length: 30 }, () => ({ at: "x", kind: "nota" })),
+    };
     expect(esquemaDoDocumentoQueChega.safeParse(docGrande).success).toBe(true);
-    expect(porDoc).toBeLessThan(2);
-  });
-
-  it("500 pedidos conferem-se em poucos milissegundos", () => {
-    for (let i = 0; i < 50; i++) esquemaDoPedidoGuardado.safeParse(pedido);
-    const t0 = performance.now();
-    for (let i = 0; i < 500; i++) esquemaDoPedidoGuardado.safeParse(pedido);
     expect(esquemaDoPedidoGuardado.safeParse(pedido).success).toBe(true);
-    expect(performance.now() - t0).toBeLessThan(100);
   });
 });

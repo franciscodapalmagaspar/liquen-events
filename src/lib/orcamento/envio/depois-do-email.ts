@@ -1,7 +1,5 @@
 import "server-only";
-import type { Proposal, Quote } from "@/lib/orcamento/types";
-import type { ProposalDoc } from "@/lib/proposal-doc";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import type { Proposal } from "@/lib/orcamento/types";
 import type { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { eur } from "@/lib/money";
 import { updateProposal } from "@/lib/proposals-store";
@@ -13,6 +11,7 @@ import { guardarPdfDaProposta } from "@/lib/proposal-pdf-guardado";
 import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
 import { log } from "@/lib/logger";
 import type { EmailDaProposta } from "./email-da-proposta";
+import type { OEnvio } from "./o-envio";
 
 /**
  * Etapa 12 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): as escritas
@@ -27,12 +26,8 @@ export interface DepoisDoEmail {
   pedidoError?: string;
 }
 
-export interface PedidoDepoisDoEmail {
-  id: string;
-  quote: Quote;
+export interface PedidoDepoisDoEmail extends OEnvio {
   proposal: Proposal;
-  doc: ProposalDoc;
-  idioma: IdiomaDaProposta;
   money: ReturnType<typeof dinheiroDaProposta>;
   /** `true` quando o correio saiu. */
   emailed: boolean;
@@ -93,7 +88,7 @@ export async function depoisDoEmail(p: PedidoDepoisDoEmail): Promise<DepoisDoEma
  */
 async function guardarACopia(p: PedidoDepoisDoEmail, sentAt: string): Promise<string | undefined> {
   try {
-    await registarEnvio(p.id, {
+    await registarEnvio(p.pedidoId, {
       enviadoEm: sentAt,
       para: String(p.quote.email ?? ""),
       porQuem: p.escrito.quem.nome,
@@ -108,7 +103,7 @@ async function guardarACopia(p: PedidoDepoisDoEmail, sentAt: string): Promise<st
     });
     return undefined;
   } catch (e) {
-    log.error("proposta-doc: o email saiu mas a cópia não ficou guardada", e, { id: p.id });
+    log.error("proposta-doc: o email saiu mas a cópia não ficou guardada", e, { id: p.pedidoId });
     return (
       "O email seguiu para o cliente, mas a CÓPIA do que lhe escrevemos não ficou " +
       "guardada. O envio está feito; o que se perde é poder reler o texto mais tarde."
@@ -139,7 +134,7 @@ async function marcarEnviada(p: PedidoDepoisDoEmail, sentAt: string): Promise<st
     return undefined;
   } catch (e) {
     log.error("proposta-doc: o email saiu mas a proposta ficou por marcar como enviada", e, {
-      id: p.id,
+      id: p.pedidoId,
       proposta: p.proposal.id,
     });
     return p.emailed
@@ -179,7 +174,7 @@ async function actualizarOPedido(
   estado: Proposal["status"],
 ): Promise<string | undefined> {
   try {
-    const pedidoDepois = await updateQuoteWith(p.id, (actual) => {
+    const pedidoDepois = await updateQuoteWith(p.pedidoId, (actual) => {
       const transicao = seguiu
         ? transicaoDoPedido({
             acontecimento: "proposta_enviada",
@@ -202,9 +197,11 @@ async function actualizarOPedido(
     // o casal aceitou — fica aceite, e o contrato nasce (16/11).
     if (seguiu && estado === "enviada") {
       try {
-        await aceitarSeOPedidoJaEstaGanho(p.id, pedidoDepois?.status, p.proposal);
+        await aceitarSeOPedidoJaEstaGanho(p.pedidoId, pedidoDepois?.status, p.proposal);
       } catch (e) {
-        log.error("proposta-doc: aceitar a proposta de um pedido já ganho falhou", e, { id: p.id });
+        log.error("proposta-doc: aceitar a proposta de um pedido já ganho falhou", e, {
+          id: p.pedidoId,
+        });
       }
     }
     return undefined;

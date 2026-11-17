@@ -1,6 +1,4 @@
 import "server-only";
-import type { ProposalDoc } from "@/lib/proposal-doc";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import { renderStoredEditorialPdfWithReport } from "@/lib/proposal-doc-render";
 import {
   chaveDaVersao,
@@ -10,16 +8,14 @@ import {
 } from "@/lib/proposal-preview-cache";
 import { log } from "@/lib/logger";
 import { FOLGA_DA_SEGUNDA_PASSAGEM_MS, FOLGA_DO_EMAIL_MS } from "./orcamento-de-tempo";
+import type { OEnvio } from "./o-envio";
 
 /**
  * Etapa 5 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o desenho do PDF,
  * e a segunda passagem quando uma foto não resolveu e ainda há tempo
  * (`orcamento-de-tempo.ts`).
  */
-export interface PedidoDeDesenho {
-  id: string;
-  doc: ProposalDoc;
-  idioma: IdiomaDaProposta;
+export interface PedidoDeDesenho extends Pick<OEnvio, "pedidoId" | "doc" | "idioma"> {
   modo: "preview" | "send";
   rascunho: boolean;
   chaveDoQueChegou: string;
@@ -100,7 +96,7 @@ export async function desenharOPdf(p: PedidoDeDesenho): Promise<PdfDesenhado> {
     p.resta() > FOLGA_DO_EMAIL_MS + FOLGA_DA_SEGUNDA_PASSAGEM_MS
   ) {
     log.warn("proposta-doc: fotos em falta no envio, a desenhar segunda vez", {
-      id: p.id,
+      id: p.pedidoId,
       emFalta: relatorio.missingImages,
     });
     // A segunda tentativa é o MESMO documento na MESMA língua: repetir é para

@@ -1,13 +1,11 @@
 import "server-only";
-import type { ProposalDoc } from "@/lib/proposal-doc";
-import type { Quote } from "@/lib/orcamento/types";
 import { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { oQueFaltaParaEnviar, type Impedimento } from "@/lib/proposal-progress";
 import { fotosEscolhidasQueFaltam } from "@/lib/proposta-fotos-verificacao";
 import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import { log } from "@/lib/logger";
 import { recusa, type Recusa } from "./recusa";
+import type { OEnvio } from "./o-envio";
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -84,11 +82,7 @@ function emMinuscula(f: Impedimento): string {
 }
 
 /** O que ENVIAR precisa, com o que o pedido diz. */
-export interface ContextoDaTrava {
-  id: string;
-  doc: ProposalDoc;
-  quote: Quote;
-  idioma: IdiomaDaProposta;
+export interface ContextoDaTrava extends OEnvio {
   /** `false` só quando ela escolheu o WhatsApp (`corpo-do-pedido.ts`). */
   porEmail: boolean;
   /** A chave do PDF final visto, tal como o envio a trouxe. */
@@ -114,7 +108,7 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Recusa | null> {
   }).filter((f) => f.trava && TRAVAM_NO_SERVIDOR.has(f.id));
   if (travam.length > 0) {
     log.warn("proposta-doc: envio recusado, a proposta tem erros", {
-      id: c.id,
+      id: c.pedidoId,
       erros: travam.map((f) => f.id),
     });
     return recusa(422, {
@@ -131,7 +125,7 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Recusa | null> {
     const semDominio = await porqueOEmailNaoSegue(c.quote.email);
     if (semDominio) {
       log.warn("proposta-doc: envio recusado, o domínio do email não recebe correio", {
-        id: c.id,
+        id: c.pedidoId,
       });
       return recusa(422, { error: semDominio, campo: "email" });
     }
@@ -144,7 +138,7 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Recusa | null> {
  * vê o que falta). `null` quando pode sair.
  */
 export async function travaDoPdfFinal(
-  c: Pick<ContextoDaTrava, "doc" | "quote" | "idioma">,
+  c: Pick<OEnvio, "doc" | "quote" | "idioma">,
 ): Promise<Recusa | null> {
   const travam = oQueFaltaParaEnviar(c.doc, dinheiroDaProposta(c.doc).gross, {
     idioma: c.idioma,

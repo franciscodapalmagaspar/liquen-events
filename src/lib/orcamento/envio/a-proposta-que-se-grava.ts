@@ -1,12 +1,11 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import type { Proposal, Quote } from "@/lib/orcamento/types";
-import type { ProposalDoc } from "@/lib/proposal-doc";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import type { Proposal } from "@/lib/orcamento/types";
 import type { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { listProposalsForQuote } from "@/lib/proposals-store";
 import { proximaVersao, seloDoConteudo } from "@/lib/proposta-versao";
 import { log } from "@/lib/logger";
+import type { OEnvio } from "./o-envio";
 
 /**
  * Etapa 7 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): a linha que se
@@ -51,11 +50,7 @@ export async function irmasDoPedido(
   }
 }
 
-export interface Montagem {
-  id: string;
-  quote: Quote;
-  doc: ProposalDoc;
-  idioma: IdiomaDaProposta;
+export interface Montagem extends OEnvio {
   money: ReturnType<typeof dinheiroDaProposta>;
   validUntil: string;
   pdf: Buffer;
@@ -66,7 +61,7 @@ export interface Montagem {
 export function montarAProposta(m: Montagem): Proposal {
   return {
     id: m.porEnviar?.id ?? randomUUID(),
-    quoteId: m.id,
+    quoteId: m.pedidoId,
     clientName: m.doc.clientNames,
     clientEmail: m.quote.email,
     currency: "EUR",

@@ -23,7 +23,8 @@ export interface DesfechoDoEmail {
 }
 
 export interface PedidoDeEnvio {
-  id: string;
+  /** O id do PEDIDO. */
+  pedidoId: string;
   propostaId: string;
   para: string | undefined;
   /** `false` só quando ela escolheu o WhatsApp (`corpo-do-pedido.ts`). */
@@ -43,7 +44,7 @@ export async function mandarOEmail(p: PedidoDeEnvio): Promise<DesfechoDoEmail> {
        parece avariado. A proposta fica gravada e o link do casal nasce à
        mesma — é ele que vai no WhatsApp. */
     log.info("proposta-doc: envio sem email, por escolha de quem enviou", {
-      id: p.id,
+      id: p.pedidoId,
       proposta: p.propostaId,
     });
     return { emailed: false, semEmailPorEscolha: true };
@@ -57,7 +58,7 @@ export async function mandarOEmail(p: PedidoDeEnvio): Promise<DesfechoDoEmail> {
   }
   if (p.resta() < FOLGA_DO_EMAIL_MS) {
     log.warn("proposta-doc: sem tempo para o email, não se começa", {
-      id: p.id,
+      id: p.pedidoId,
       restaMs: p.resta(),
     });
     return {
@@ -104,7 +105,7 @@ export async function mandarOEmail(p: PedidoDeEnvio): Promise<DesfechoDoEmail> {
           semEmailPorEscolha: false,
         };
   } catch (e) {
-    log.error("proposta-doc: envio de email falhou", e, { id: p.id });
+    log.error("proposta-doc: envio de email falhou", e, { id: p.pedidoId });
     return {
       emailed: false,
       emailError: "A proposta foi guardada, mas o email ao cliente falhou.",

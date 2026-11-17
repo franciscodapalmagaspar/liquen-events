@@ -3,14 +3,16 @@ import { isAuthed } from "@/lib/admin-auth";
 import { assinaturaDeQuemEnvia } from "@/lib/email-quem-assina";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
+import { getQuote } from "@/lib/quotes-store";
 import { atenderOPedido, type Desfecho } from "@/lib/orcamento/envio/atender-o-pedido";
+import { lerOPedido } from "@/lib/orcamento/envio/corpo-do-pedido";
 import { relogioDoEnvio } from "@/lib/orcamento/envio/orcamento-de-tempo";
 import { linkDaUltimaEnviada } from "@/lib/orcamento/envio/ultima-enviada";
 
 /*
  * A rota da proposta só faz o que é da rota: a sessão, a medida do
- * processador (`comCpu`), e traduzir o desfecho do pedido em HTTP. O pedido
- * em si — ler, recusar, desenhar, perguntar, gravar, mandar — vive em
+ * processador (`comCpu`), LER (o pedido e o corpo) e traduzir o desfecho em
+ * HTTP. O que se decide — recusar, desenhar, perguntar, gravar, mandar — vive em
  * `lib/orcamento/envio/` (fase 5 de `docs/ESTRUTURA-DO-CODIGO.md`), e começa
  * em `atender-o-pedido.ts`.
  */
@@ -98,12 +100,16 @@ async function POST_semMedida(
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
   const { id } = await params;
+  const resta = relogioDoEnvio(Date.now());
   try {
+    const quote = await getQuote(id);
+    if (!quote) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
     return emHttp(
       await atenderOPedido({
-        id,
-        request,
-        resta: relogioDoEnvio(Date.now()),
+        pedidoId: id,
+        quote,
+        pedido: await lerOPedido(request, id),
+        resta,
         assinatura: () => assinaturaDeQuemEnvia(request),
         depoisDaResposta,
       }),

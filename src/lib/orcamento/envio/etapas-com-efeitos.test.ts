@@ -91,7 +91,7 @@ describe("a repetição do envio", () => {
     const antes = proposta({ id: "p0", status: "enviada", sentAt: agora() });
     falsos.envios.mockResolvedValue([{ enviadoEm: agora(), propostaId: "p0" }]);
     const r = await repeticaoDoEnvio({
-      id: "q",
+      pedidoId: "q",
       proposal: proposta(),
       irmasAnteriores: [antes],
       porEmail: true,
@@ -106,7 +106,7 @@ describe("a repetição do envio", () => {
     const antes = proposta({ id: "p0", status: "enviada", sentAt: agora() });
     falsos.envios.mockResolvedValue([]);
     const r = await repeticaoDoEnvio({
-      id: "q",
+      pedidoId: "q",
       proposal: proposta(),
       irmasAnteriores: [antes],
       porEmail: true,
@@ -120,7 +120,7 @@ describe("a repetição do envio", () => {
   it("um documento diferente nunca é repetição", async () => {
     const antes = proposta({ id: "p0", status: "enviada", sentAt: agora(), versaoSelo: "outro" });
     const r = await repeticaoDoEnvio({
-      id: "q",
+      pedidoId: "q",
       proposal: proposta(),
       irmasAnteriores: [antes],
       porEmail: true,
@@ -140,7 +140,7 @@ describe("mandar o email", () => {
     quem: { nome: "", cargo: "", destinatario: "A" },
   } as unknown as EmailDaProposta;
   const base = {
-    id: "q",
+    pedidoId: "q",
     propostaId: "p1",
     para: "c@x.pt",
     porEmail: true,

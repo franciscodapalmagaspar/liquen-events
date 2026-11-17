@@ -1,9 +1,8 @@
 import "server-only";
 import type { Quote } from "@/lib/orcamento/types";
-import { resolveValidUntil, type ProposalDoc } from "@/lib/proposal-doc";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
+import { resolveValidUntil } from "@/lib/proposal-doc";
 import { dinheiroDaProposta } from "@/lib/proposal-budget";
-import { getQuote } from "@/lib/quotes-store";
 import { excedeOTecto, MAXIMO_CORPO_ESCRITO } from "@/lib/email-corpo-escrito";
 import { enderecoDaProposta } from "@/lib/proposta-link-curto";
 import { aquecerDerivadasDaCapa } from "@/lib/derivadas";
@@ -11,14 +10,12 @@ import { log } from "@/lib/logger";
 import { comTrinco } from "@/lib/trinco";
 import {
   avisarDoIdiomaDesconhecido,
-  lerOPedido,
-  porQueEstaIncompleta,
+  documentoCompleto,
   type PedidoDeProposta,
 } from "./corpo-do-pedido";
 import { prepararODocumento } from "./documento-do-envio";
 import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
-import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
 import {
   cabecalhosDaPreVisualizacao,
   perguntaDasFotos,
@@ -38,6 +35,7 @@ import { depoisDoEmail } from "./depois-do-email";
 import { respostaDoEnvio, type RespostaDoEnvio } from "./resposta-do-envio";
 import { TECTO_DO_ENVIO_S } from "./orcamento-de-tempo";
 import { recusa, type Recusa } from "./recusa";
+import type { OEnvio } from "./o-envio";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -47,7 +45,7 @@ import { recusa, type Recusa } from "./recusa";
  * Estas duas funções só dizem a ORDEM; cada etapa vive, com a sua razão por
  * extenso, no seu ficheiro desta pasta:
  *
- *   1. o corpo do pedido ............ `corpo-do-pedido.ts` (esquema, modo de observar)
+ *   1. o corpo do pedido ............ `corpo-do-pedido.ts` (lido pela rota; esquema, modo de observar)
  *   2. o trinco ..................... `lib/trinco.ts` (`comTrinco`)
  *   3. o documento e a chave ........ `documento-do-envio.ts`
  *   4. o que trava .................. `travas-do-envio.ts`
@@ -74,10 +72,15 @@ export type Desfecho =
   | { tipo: "pdf"; pdf: RelatorioDoPdf["pdf"]; cabecalhos: Record<string, string> }
   | { tipo: "envio"; resposta: RespostaDoEnvio };
 
-/** O que a rota dá ao pedido: o que só ela sabe ler, e o relógio. */
+/**
+ * O que a rota dá ao pedido: o pedido e o corpo JÁ LIDOS (a rota lê, o
+ * domínio decide — Parte 4, lição 9), o relógio, e o que só ela sabe fazer.
+ */
 export interface Contexto {
-  id: string;
-  request: Request;
+  /** O id do PEDIDO. */
+  pedidoId: string;
+  quote: Quote;
+  pedido: PedidoDeProposta;
   /** Quantos ms sobram do orçamento do pedido (`relogioDoEnvio`). */
   resta: () => number;
   /** Quem carregou em «Enviar» — só se lê no envio. */
@@ -105,23 +108,16 @@ const A_SER_ENVIADA = recusa(409, {
 });
 
 export async function atenderOPedido(c: Contexto): Promise<Desfecho> {
-  const quote = await getQuote(c.id);
-  if (!quote) return recusado(recusa(404, { error: "Pedido não encontrado" }));
-  const pedido = await lerOPedido(c.request, c.id);
-  if (pedido.modo === "preview") return desenharOuRecusar(c, quote, pedido);
-  const r = await comTrinco(`envio-da-proposta:${c.id}`, VALIDADE_DO_TRINCO_MS, () =>
-    desenharOuRecusar(c, quote, pedido),
+  if (c.pedido.modo === "preview") return desenharOuRecusar(c);
+  const r = await comTrinco(`envio-da-proposta:${c.pedidoId}`, VALIDADE_DO_TRINCO_MS, () =>
+    desenharOuRecusar(c),
   );
   return r.ok ? r.valor : recusado(A_SER_ENVIADA);
 }
 
 /** Da leitura ao PDF desenhado: tudo o que se recusa, recusa-se aqui. */
-async function desenharOuRecusar(
-  c: Contexto,
-  quote: Quote,
-  pedido: PedidoDeProposta,
-): Promise<Desfecho> {
-  const { id } = c;
+async function desenharOuRecusar(c: Contexto): Promise<Desfecho> {
+  const { pedidoId, quote, pedido } = c;
   // O corpo escrito à mão recusa-se por tamanho ANTES de se desenhar o PDF:
   // recusar depois é gastar o desenho por nada. O resto dele (o
   // `{{link_proposta}}`) só se resolve depois de a proposta estar gravada.
@@ -134,41 +130,38 @@ async function desenharOuRecusar(
       }),
     );
   }
-  const incompleta = porQueEstaIncompleta(pedido.doc);
-  if (incompleta || !pedido.doc) return recusado(recusa(400, { error: incompleta }));
-  avisarDoIdiomaDesconhecido(pedido, id);
+  const completo = documentoCompleto(pedido.doc);
+  if (!completo.ok) return recusado(recusa(400, { error: completo.error }));
+  avisarDoIdiomaDesconhecido(pedido, pedidoId);
   const { idioma } = pedido;
-  const { chaveDoQueChegou, doc, grandeDemais } = prepararODocumento(pedido.doc, idioma);
+  const { chaveDoQueChegou, doc, grandeDemais } = prepararODocumento(completo.doc, idioma);
   if (grandeDemais) {
     return recusado(recusa(413, { error: "Proposta demasiado grande para ser guardada." }));
   }
+  /** O envio, montado UMA vez — cada etapa lê dele o que precisa. */
+  const envio: OEnvio = { pedidoId, quote, doc, idioma };
 
   const trava =
     pedido.modo === "send"
       ? await travaDoEnvio({
-          id,
-          doc,
-          quote,
-          idioma,
+          ...envio,
           porEmail: pedido.porEmail,
           pdfVisto: pedido.pdfVisto,
           chaveDoQueChegou,
         })
       : pedido.rascunho
         ? null
-        : await travaDoPdfFinal({ doc, quote, idioma });
+        : await travaDoPdfFinal(envio);
   if (trava) return recusado(trava);
 
   const desenho = await desenharOPdf({
-    id,
-    doc,
-    idioma,
+    ...envio,
     modo: pedido.modo,
     rascunho: pedido.rascunho,
     chaveDoQueChegou,
     resta: c.resta,
   });
-  if (pedido.modo === "send") return enviar({ c, quote, pedido, doc, idioma, desenho });
+  if (pedido.modo === "send") return enviar(c, envio, desenho);
   const { pdf, missingImages, truncations } = desenho.relatorio;
   return {
     tipo: "pdf",
@@ -185,27 +178,20 @@ async function desenharOuRecusar(
 }
 
 /** Do PDF desenhado ao email: pergunta, grava, manda, e conta o que fez. */
-async function enviar(e: {
-  c: Contexto;
-  quote: Quote;
-  pedido: PedidoDeProposta;
-  doc: ProposalDoc;
-  idioma: IdiomaDaProposta;
-  desenho: PdfDesenhado;
-}): Promise<Desfecho> {
-  const { c, quote, pedido, doc, idioma } = e;
-  const { id } = c;
-  const { relatorio, pdfDaMemoria } = e.desenho;
+async function enviar(c: Contexto, envio: OEnvio, desenho: PdfDesenhado): Promise<Desfecho> {
+  const { pedidoId, quote, doc } = envio;
+  const { pedido } = c;
+  const { relatorio, pdfDaMemoria } = desenho;
   const { pdf, missingImages, truncations } = relatorio;
   const pergunta =
-    perguntaDasFotos(id, missingImages, pedido.fotosEmFaltaConfirmadas) ??
-    perguntaDosCortes(id, truncations, pedido.cortesConfirmados);
+    perguntaDasFotos(pedidoId, missingImages, pedido.fotosEmFaltaConfirmadas) ??
+    perguntaDosCortes(pedidoId, truncations, pedido.cortesConfirmados);
   if (pergunta) return recusado(pergunta);
   // Só aqui é «segue com fotos a menos»: ela respondeu às duas perguntas
   // (fotos e cortes). Antes disso, o envio ainda podia parar (revisão de 17/11).
   if (missingImages > 0) {
     log.warn("proposta-doc: a proposta segue com fotos a menos, confirmado por ela", {
-      id,
+      id: pedidoId,
       emFalta: missingImages,
     });
   }
@@ -215,12 +201,9 @@ async function enviar(e: {
   // trazer. Senão o PDF dizia 3.862,20 € e o sinal continuava a ser calculado
   // sobre 3.690 € — o documento e a cobrança a discordarem em silêncio.
   const money = dinheiroDaProposta(doc);
-  const { irmas, porEnviar } = await irmasDoPedido(id);
+  const { irmas, porEnviar } = await irmasDoPedido(pedidoId);
   const linha = montarAProposta({
-    id,
-    quote,
-    doc,
-    idioma,
+    ...envio,
     money,
     // Honra a data que `prepararODocumento` escreveu no doc — o /proposta
     // recusa aceitar uma proposta expirada.
@@ -231,7 +214,7 @@ async function enviar(e: {
   const anteriores = propostasAnteriores(linha, irmas);
   const proposal = { ...linha, ...versaoDaProposta(linha, anteriores) };
   const repetido = await repeticaoDoEnvio({
-    id,
+    pedidoId,
     proposal,
     irmasAnteriores: anteriores,
     porEmail: pedido.porEmail,
@@ -240,15 +223,12 @@ async function enviar(e: {
   });
   if (repetido) return { tipo: "envio", resposta: repetido };
 
-  const gravada = await gravarAProposta(id, proposal, porEnviar);
+  const gravada = await gravarAProposta(pedidoId, proposal, porEnviar);
   if (!gravada.ok) return recusado(gravada.recusa);
 
-  const acceptUrl = await enderecoDaProposta(proposal.id, id);
+  const acceptUrl = await enderecoDaProposta(proposal.id, pedidoId);
   const escrito = await escreverOEmail({
-    id,
-    quote,
-    doc,
-    idioma,
+    ...envio,
     mensagem: pedido.mensagem,
     corpo: pedido.corpo,
     assunto: pedido.assunto,
@@ -264,7 +244,7 @@ async function enviar(e: {
      intervalo derrubaria o processo. */
   const capaAQuecer = aquecerDerivadasDaCapa(doc.coverImages ?? []).catch(() => 0);
   const desfecho = await mandarOEmail({
-    id,
+    pedidoId,
     propostaId: proposal.id,
     para: quote.email,
     porEmail: pedido.porEmail,
@@ -275,11 +255,8 @@ async function enviar(e: {
   // Nunca lança e tem tecto próprio: se passou dele, fica para a visita.
   await capaAQuecer;
   const depois = await depoisDoEmail({
-    id,
-    quote,
+    ...envio,
     proposal,
-    doc,
-    idioma,
     money,
     emailed: desfecho.emailed,
     semEmailPorEscolha: desfecho.semEmailPorEscolha,

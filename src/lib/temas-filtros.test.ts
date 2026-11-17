@@ -81,7 +81,9 @@ describe("os âmbitos da Biblioteca de Temas", () => {
     expect(ambitoResponde("este-ano", USOS)).toBe(false);
     expect(ambitoResponde("este-ano", { usos: {}, usosEsteAno: { terracotta: 2 } })).toBe(true);
     expect(
-      ids(filtrarPorAmbito(BIBLIOTECA, "este-ano", { usos: {}, usosEsteAno: { terracotta: 2 } })),
+      ids(
+        filtrarPorAmbito(BIBLIOTECA, "este-ano", { usos: {}, usosEsteAno: { terracotta: 2 } }),
+      ),
     ).toEqual(["terracotta"]);
   });
 

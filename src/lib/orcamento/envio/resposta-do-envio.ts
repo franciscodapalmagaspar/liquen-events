@@ -1,41 +1,10 @@
-import type { Proposal } from "@/lib/orcamento/types";
 import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
+import type { RespostaDoEnvio } from "./contrato";
+
+export type { RespostaDoEnvio };
 import type { DepoisDoEmail } from "./depois-do-email";
 import type { ProposalGravada } from "./gravar-a-proposta";
 import type { DesfechoDoEmail } from "./mandar-o-email";
-
-/**
- * O que um ENVIO responde (200), seja o envio a sério ou uma repetição
- * reconhecida (`repeticao-do-envio.ts`). É o contrato com o estúdio: um tipo
- * só, e não um `Record` a cada saída. (As pré-visualizações respondem o PDF;
- * as recusas, uma `Recusa`.)
- */
-export interface RespostaDoEnvio {
-  ok: true;
-  id: string;
-  /** O correio saiu. */
-  emailed: boolean;
-  /** Porque é que não saiu, quando foi avaria (e não escolha). */
-  emailError?: string;
-  /** Não saiu email porque ela escolheu o WhatsApp. */
-  semEmailPorEscolha?: true;
-  /** O estado em que a proposta FICOU. */
-  estado: Proposal["status"];
-  estadoError?: string;
-  copiaError?: string;
-  pedidoError?: string;
-  /** O link do casal — só quando a proposta seguiu mesmo. */
-  acceptUrl: string | null;
-  missingImages: number;
-  truncations: RelatorioDoPdf["truncations"];
-  pdfBytes: number;
-  pdfDaMemoria?: true;
-  docSaved?: false;
-  docError?: string;
-  /** Este envio já tinha acontecido há instantes: não se enviou outra vez. */
-  repetido?: true;
-  repetidoAviso?: string;
-}
 
 /**
  * Etapa 13, a última (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o que o envio

@@ -16,6 +16,7 @@ import {
 } from "./perguntas-antes-do-envio";
 import { montarAProposta, propostasAnteriores, versaoDaProposta } from "./a-proposta-que-se-grava";
 import { prepararODocumento } from "./documento-do-envio";
+import type { EmailEmoldurado } from "./email-da-proposta";
 
 vi.spyOn(log, "warn").mockImplementation(() => {});
 
@@ -96,7 +97,7 @@ describe("o documento e a linha que se grava", () => {
     const porEnviar = { id: "p-antiga", createdAt: "2026-01-01T00:00:00.000Z" } as Proposal;
     const pdf = Buffer.from("%PDF");
     const p = montarAProposta({
-      id: "q",
+      pedidoId: "q",
       quote,
       doc,
       idioma: "en",
@@ -120,7 +121,7 @@ describe("o documento e a linha que se grava", () => {
   it("a versão: o mesmo conteúdo não sobe; mudar sobe sobre o maior número", () => {
     const novaLinha = () =>
       montarAProposta({
-        id: "q",
+        pedidoId: "q",
         quote: { id: "q", email: "" } as Quote,
         doc,
         idioma: "pt",
@@ -153,5 +154,15 @@ describe("o documento e a linha que se grava", () => {
     const lista = [p("a", "2026-01-01"), p("eu", "2026-06-01"), p("c", "2026-03-01")];
     expect(propostasAnteriores(p("eu", ""), lista).map((x) => x.id)).toEqual(["c", "a"]);
     expect(lista.map((x) => x.id)).toEqual(["a", "eu", "c"]);
+  });
+});
+
+describe("o email que se manda", () => {
+  it("só o que passou pelo `emailAoCliente` se pode mandar (prova-o o `tsc`)", () => {
+    const aMao = { html: "<p>x</p>", text: "x", attachments: [] };
+    // @ts-expect-error — um email montado à mão não leva a assinatura, e não compila.
+    const _naoPassa: EmailEmoldurado = aMao;
+    void _naoPassa;
+    expect(true).toBe(true);
   });
 });

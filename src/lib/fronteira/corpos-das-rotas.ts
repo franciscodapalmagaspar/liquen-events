@@ -5,10 +5,12 @@ import {
   esquemaDoGrupoDeServicos,
   esquemaDoMoodBoard,
 } from "./documento-da-proposta";
-import { todosOsValores } from "./todos-os-valores";
-import type { MotivoDeRecusa, ProposalStatus } from "@/lib/orcamento/types";
-import type { VersaoEscolhida } from "@/lib/orcamento/versoes-da-proposta";
-import type { TipoModelo } from "@/lib/proposal-templates";
+import {
+  ESTADOS_DA_PROPOSTA,
+  MOTIVOS_DE_RECUSA,
+  TIPOS_DE_MODELO,
+  VERSOES_ESCOLHIDAS,
+} from "@/lib/orcamento/listas-da-proposta";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -42,24 +44,6 @@ export const esquemaDoCorpoDoRascunho = z.looseObject({
   base: z.looseObject({}).optional(),
 });
 
-/* As listas fechadas, presas aos tipos do domínio (`todos-os-valores.ts`). */
-const ESTADOS_DA_PROPOSTA = todosOsValores<ProposalStatus>()([
-  "rascunho",
-  "enviada",
-  "em_negociacao",
-  "aceite",
-  "rejeitada",
-]);
-const MOTIVOS = todosOsValores<MotivoDeRecusa>()([
-  "preco",
-  "data",
-  "escolheram-outro",
-  "sem-resposta",
-  "outro",
-]);
-const VERSOES = todosOsValores<VersaoEscolhida>()(["base", "extras"]);
-const TIPOS_DE_MODELO = todosOsValores<TipoModelo>()(["completo", "grupo", "moodboard"]);
-
 /** Um texto, ou o vazio/`null` com que o ecrã limpa o campo. */
 const textoOuLimpo = z.string().nullable().optional();
 
@@ -73,12 +57,12 @@ export const esquemaDoCorpoDaProposta = z.looseObject({
   followUpAt: textoOuLimpo,
   followUpNote: textoOuLimpo,
   lostReason: z
-    .union([z.enum(MOTIVOS), z.literal("")])
+    .union([z.enum(MOTIVOS_DE_RECUSA), z.literal("")])
     .nullable()
     .optional(),
   lostNote: textoOuLimpo,
   versaoEscolhida: z
-    .union([z.enum(VERSOES), z.literal("")])
+    .union([z.enum(VERSOES_ESCOLHIDAS), z.literal("")])
     .nullable()
     .optional(),
   actor: z.string().optional(),

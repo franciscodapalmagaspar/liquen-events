@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { dinheiroDaProposta } from "./proposal-budget";
-import { baseParaOEstudio, degrauDosAdicionais, precoDoPedidoParaBase } from "./preco-do-pedido";
+import {
+  baseParaOEstudio,
+  degrauDosAdicionais,
+  precoDoPedidoParaBase,
+} from "./preco-do-pedido";
 import { resolveProposalMoney, type ProposalDoc } from "./proposal-doc";
 
 /**

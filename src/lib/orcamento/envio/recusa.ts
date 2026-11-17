@@ -1,16 +1,15 @@
+import type { CorpoDaRecusa, Recusa } from "./contrato";
+
+export type { CorpoDaRecusa, Recusa };
+
 /**
  * O que uma etapa do envio devolve quando o envio PÁRA ali: o código HTTP e
- * o corpo JSON, tal e qual a rota os responde.
+ * o corpo, com o tipo do contrato (`contrato.ts`).
  *
  * As etapas não conhecem o `NextResponse` (são testáveis sem o Next); quem
  * transforma uma recusa em resposta é a rota, numa linha só
  * (`app/api/orcamento/[id]/proposta-doc/route.ts`).
  */
-export interface Recusa {
-  status: number;
-  corpo: Record<string, unknown>;
-}
-
-export function recusa(status: number, corpo: Record<string, unknown>): Recusa {
+export function recusa(status: Recusa["status"], corpo: CorpoDaRecusa): Recusa {
   return { status, corpo };
 }

@@ -39,7 +39,8 @@ import { log } from "@/lib/logger";
 export const JANELA_DE_REPETICAO_MS = 3 * 60_000;
 
 export interface PedidoDeRepeticao {
-  id: string;
+  /** O id do PEDIDO. */
+  pedidoId: string;
   proposal: Proposal;
   irmasAnteriores: Proposal[];
   /** `false` só quando ela escolheu o WhatsApp (`corpo-do-pedido.ts`). */
@@ -53,7 +54,7 @@ export interface PedidoDeRepeticao {
  * sério e segue.
  */
 export async function repeticaoDoEnvio(r: PedidoDeRepeticao): Promise<RespostaDoEnvio | null> {
-  const { id, proposal } = r;
+  const { pedidoId: id, proposal } = r;
   /** O registo de envios, lido UMA vez e só se for preciso (as duas travas
    *  abaixo consultam-no; antes liam-no cada uma, duas idas à base). */
   let registo: ReturnType<typeof listarEnvios> | undefined;
