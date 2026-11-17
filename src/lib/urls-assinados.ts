@@ -1,8 +1,12 @@
 import "server-only";
 import { getSupabase } from "./supabase";
 import { log } from "./logger";
-import { ehBaldeDoBlob } from "./armazenamento/baldes";
-import { PREFIXO_DA_ROTA } from "./armazenamento/url-estavel";
+import { blobConfigurado, ehBaldeDoBlob } from "./armazenamento/baldes";
+import {
+  PREFIXO_DA_ROTA,
+  conferirUrlEstavel,
+  segredoDosEnderecos,
+} from "./armazenamento/url-estavel";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -146,9 +150,43 @@ function expiraEm(url: string): number | null {
 function aindaServe(url: string, base: string): boolean {
   const balde = baldeDoEndereco(url, base);
   if (!balde) return false;
+  // Um endereço do Vercel Blob só serve se ESTE servidor o abrir AGORA: com o
+  // token configurado e a assinatura conferida com o segredo actual (2.ª
+  // revisão de 17/11, n.º 2). Trocar o `SESSION_SECRET`, definir o
+  // `BLOB_URL_SECRET` ou tirar o token deixava-o aceite pelo `exp` e partido
+  // durante anos. Não serve → assina-se de novo pelo `balde()`, que sem token
+  // assina no Supabase.
+  if (url.startsWith(PREFIXO_DA_ROTA) && !abreAgora(url)) return false;
   const fim = expiraEm(url);
   if (fim === null) return false;
   return fim - Date.now() > margemDoBalde(balde);
+}
+
+/** O endereço `/api/ficheiro/<balde>/<caminho>?token=…` abre-se com o que este servidor tem agora? */
+function abreAgora(url: string): boolean {
+  if (!blobConfigurado()) return false;
+  try {
+    const u = new URL(url, "http://x");
+    const [balde, ...partes] = u.pathname.slice(PREFIXO_DA_ROTA.length).split("/");
+    const caminho = partes.map((p) => decodeURIComponent(p)).join("/");
+    return conferirUrlEstavel(balde, caminho, u.searchParams.get("token"), segredoDosEnderecos())
+      .ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Um endereço do Blob com mais de 7 dias de vida NÃO se guarda nas caches
+ * persistentes (2.ª revisão de 17/11, n.º 2): ficava lá anos, preso a um
+ * segredo e a um token que podem mudar. Guarda-se o caminho (que já lá está)
+ * e assina-se na leitura — localmente, sem ida a lado nenhum.
+ */
+const MAX_GUARDADO_DO_BLOB_MS = 7 * 24 * 3600_000;
+function guardavel(url: string): boolean {
+  if (!url.startsWith(PREFIXO_DA_ROTA)) return true;
+  const fim = expiraEm(url);
+  return fim !== null && fim - Date.now() <= MAX_GUARDADO_DO_BLOB_MS;
 }
 
 /** A origem do Storage deste ambiente, para conferir de onde vêm os endereços. */
@@ -311,7 +349,7 @@ export async function guardarUrls(
     if (!jaGuardados.has(path)) continue;
     const deste: UrlsPorFamilia = {};
     for (const [familia, url] of Object.entries(urls)) {
-      if (baldeDoEndereco(url, base)) deste[familia] = url;
+      if (baldeDoEndereco(url, base) && guardavel(url)) deste[familia] = url;
     }
     if (Object.keys(deste).length === 0) continue;
     linhas.push({ path, urls: { ...(jaGuardados.get(path) ?? {}), ...deste } });
