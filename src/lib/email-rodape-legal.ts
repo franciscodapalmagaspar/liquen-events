@@ -38,8 +38,8 @@ import {
 /** Para que se tratam os dados, consoante o e-mail. */
 export type Finalidade = "pedido" | "proposta" | "faturacao";
 
-const ICONE_ESCURO = "/logos/livro-de-reclamacoes-email-escuro.png";
-const ICONE_CLARO = "/logos/livro-de-reclamacoes-email-claro.png";
+const ICONE_ESCURO = "/email/livro-de-reclamacoes-escuro.png";
+const ICONE_CLARO = "/email/livro-de-reclamacoes-claro.png";
 /** O tamanho em que se mostra (os ficheiros têm o dobro, 240×97). */
 const ICONE_L = 120;
 const ICONE_A = 48;

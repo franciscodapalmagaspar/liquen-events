@@ -160,7 +160,11 @@ export function motivoDeSpam(texto: TextoDoPedido): MotivoDeSpam | null {
   const dominios = ligacoes.map(dominioDe).filter(Boolean);
   if (dominios.some((d) => TLD_DE_SPAM.has(d.split(".").pop() ?? ""))) return "dominio-de-spam";
   // Três ou mais ligações a sítios que não são de inspiração nem de ficheiros.
-  if (dominios.filter((d) => !eDeConfianca(d)).length >= 3) return "ligacoes";
+  // Os `.pt` não contam: uns noivos a comparar três quintas mandam três
+  // ligações portuguesas, e o spam quase nunca vem de um domínio `.pt`.
+  if (dominios.filter((d) => !eDeConfianca(d) && !d.endsWith(".pt")).length >= 3) {
+    return "ligacoes";
+  }
 
   if (PALAVRAS_FORTES.some((r) => r.test(minusculas))) return "palavras-de-spam";
   if (PALAVRAS_FRACAS.filter((r) => r.test(minusculas)).length >= 2) return "palavras-de-spam";

@@ -65,6 +65,14 @@ describe("pedidos verdadeiros passam", () => {
         mensagem: "Wedding for 80 guests in Sintra, September 2027. Thank you! 谢谢",
       },
     ],
+    [
+      "três quintas portuguesas a comparar",
+      {
+        nome: "Marta",
+        mensagem:
+          "Estamos indecisos entre https://www.quintadaaveleda.pt, https://www.herdadedoesporao.pt/eventos e www.monteda-ravasqueira.pt",
+      },
+    ],
     ["sem mensagem", { nome: "Maria", mensagem: "" }],
     [
       "um site .pt com caminho",

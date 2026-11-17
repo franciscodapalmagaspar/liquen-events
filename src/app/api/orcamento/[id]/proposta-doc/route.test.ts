@@ -3115,5 +3115,5 @@ describe("o domínio do email do cliente", () => {
 
 /** O ícone do Livro de Reclamações do rodapé legal vai por URL, por instrução do dono (17/11). */
 function semIconeDoLivro(html: string): string {
-  return html.replace(/<img[^>]+livro-de-reclamacoes-email-(?:escuro|claro)\.png"[^>]*>/g, "");
+  return html.replace(/<img[^>]+livro-de-reclamacoes-(?:escuro|claro)\.png"[^>]*>/g, "");
 }

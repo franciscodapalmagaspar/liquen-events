@@ -33,7 +33,12 @@ const ROTAS: Array<[string, string]> = [
 ];
 
 async function confirmarFimLegal(page: Page, en: boolean) {
-  const livro = page.locator('a[href^="https://www.livroreclamacoes.pt/"]').last();
+  // A peça VISÍVEL: no `/orcamento` o rodapé do sítio está no HTML mas
+  // escondido, e um `toBeAttached` passava por ele mesmo sem a peça do fluxo.
+  const aviso = page.locator("[data-aviso-legal]:visible").last();
+  await aviso.scrollIntoViewIfNeeded();
+  await expect(aviso).toBeVisible();
+  const livro = aviso.locator('a[href^="https://www.livroreclamacoes.pt/"]');
   await expect(livro).toBeAttached();
   await expect(livro).toHaveAttribute("target", "_blank");
   await expect(livro).toHaveAttribute(
@@ -44,9 +49,9 @@ async function confirmarFimLegal(page: Page, en: boolean) {
   );
   // O ícone oficial (os WebP pré-gerados de `public/logos/livro-de-reclamacoes.png`).
   await expect(livro.locator("img")).toHaveAttribute("src", /livro-de-reclamacoes/);
-  await expect(page.locator('a[href="https://www.cniacc.pt/"]').last()).toBeAttached();
-  await expect(page.locator('a[href="https://www.consumidor.gov.pt/"]').last()).toBeAttached();
-  const aviso = page.locator("[data-aviso-legal]").last();
+  await expect(livro.locator("img")).toBeVisible();
+  await expect(aviso.locator('a[href="https://www.cniacc.pt/"]')).toBeVisible();
+  await expect(aviso.locator('a[href="https://www.consumidor.gov.pt/"]')).toBeVisible();
   await expect(aviso.locator('a[href$="/privacidade"]')).toHaveCount(1);
   await expect(aviso.locator('a[href$="/privacidade#cookies"]')).toHaveCount(1);
   await expect(aviso.locator('a[href$="/termos"]')).toHaveCount(1);

@@ -32,7 +32,7 @@ describe("o rodapé legal dos e-mails (17/11, docs/LEGAL-EMAILS.md)", () => {
     // modo escuro ficava a 2,6:1 sobre o branco.
     const { html } = rodapeLegalDoEmail({ lingua: "pt", finalidade: "proposta" });
     expect(html.match(/<img[^>]*>/g)).toHaveLength(1);
-    expect(html).toContain("livro-de-reclamacoes-email-escuro.png");
+    expect(html).toContain("livro-de-reclamacoes-escuro.png");
     expect(html).not.toContain("prefers-color-scheme");
   });
 
