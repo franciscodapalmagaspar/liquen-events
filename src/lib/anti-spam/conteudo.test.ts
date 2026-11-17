@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { motivoDeSpam } from "./conteudo";
+import { deConfianca, motivoDeSpam } from "./conteudo";
 
 /**
  * O filtro de conteúdo (17/11). Já não descarta nada: quando diz «spam», o
@@ -323,5 +323,54 @@ describe("spam é apanhado", () => {
   ];
   it.each(falsos)("%s", (_nome, texto, motivo) => {
     expect(motivoDeSpam(texto)).toBe(motivo);
+  });
+});
+
+/**
+ * O CodeQL do lote de 17/11 apontou a regra das marcas «de país» (`pinterest.`,
+ * `google.`): fazia uma expressão regular com o nome da marca escapando só os
+ * pontos («incomplete string escaping» e «incomplete regular expression for
+ * hostnames»). Qualquer outro carácter especial do nome virava regra da
+ * expressão. Agora compara-se rótulo a rótulo, sem expressão nenhuma.
+ */
+describe("a marca de confiança compara rótulos, não uma expressão regular", () => {
+  it("um carácter especial no nome da marca vale como letra, não como regra", () => {
+    const mais = deConfianca("a+b.");
+    expect(mais("a+b.com")).toBe(true);
+    expect(mais("aaab.com")).toBe(false);
+    const ponto = deConfianca("a.b.");
+    expect(ponto("a.b.pt")).toBe(true);
+    expect(ponto("x.a.b.co.uk")).toBe(true);
+    expect(ponto("axb.pt")).toBe(false);
+  });
+
+  it("as marcas da casa continuam a dizer o mesmo", () => {
+    const google = deConfianca("google.");
+    const sim = [
+      "google.com",
+      "google.pt",
+      "google.co.uk",
+      "google.com.br",
+      "maps.google.com",
+      "google.ru",
+      "google.cn",
+    ];
+    for (const d of sim) expect(google(d), d).toBe(true);
+    const nao = [
+      "google.top",
+      "google.com.ru",
+      "google.spam1.com",
+      "google.abc.de",
+      "notgoogle.com",
+      "google.info",
+      "google",
+      "google.c0m",
+    ];
+    for (const d of nao) expect(google(d), d).toBe(false);
+    const pin = deConfianca("pinterest.");
+    expect(pin("pinterest.pt")).toBe(true);
+    expect(pin("pinterest.com.ru")).toBe(false);
+    expect(deConfianca("pin.it")("pin.it")).toBe(true);
+    expect(deConfianca("pin.it")("xpin.it")).toBe(false);
   });
 });
