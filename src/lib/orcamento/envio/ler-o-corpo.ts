@@ -79,8 +79,8 @@ export const esquemaDoCorpo = z.looseObject({
   pdfVisto: z.string().optional(),
 });
 
-/** O corpo como o estúdio o escreve (para os testes e os chamadores). */
-export type CorpoDoPedido = z.input<typeof esquemaDoCorpo>;
+/** O corpo como o estúdio o escreve (o protocolo; para os testes e os chamadores). */
+export type CorpoDoEstudio = z.input<typeof esquemaDoCorpo>;
 
 /** O sítio, tal como aparece no registo e na deduplicação. */
 export const ONDE_O_CORPO_E_OBSERVADO = "o corpo do POST proposta-doc";
@@ -160,8 +160,10 @@ export function documentoCompleto(
   cru: unknown,
 ): { ok: true; doc: ProposalDoc } | { ok: false; error: string } {
   // O que se confere é o que sempre se conferiu (a referência e os nomes); o
-  // resto do documento passa como chegou — tolerar é a regra desta rota.
-  const raw = cru && typeof cru === "object" ? (cru as Partial<ProposalDoc>) : undefined;
+  // resto do documento passa como chegou — tolerar é a regra desta rota. Um
+  // `doc` que não é objecto («x», 5, `true`) responde o que sempre respondeu:
+  // «falta a referência e o nome dos clientes» (ler `.ref` de um texto dá nada).
+  const raw = cru ? (cru as Partial<ProposalDoc>) : undefined;
   if (raw && raw.ref && raw.clientNames) return { ok: true, doc: raw as ProposalDoc };
   // Dizer O QUE falta (auditoria de 13/11, estúdio n.º 19): «Proposta
   // incompleta.» sozinho deixava-a a adivinhar.
@@ -203,10 +205,10 @@ export function documentoCompleto(
  * pedido sem documento não chega a ser desenhado em língua nenhuma. Um
  * pedido SEM o campo é o caminho de sempre, e não regista nada.
  */
-export function avisarDoIdiomaDesconhecido(pedido: CorpoLido, id: string): void {
-  if (pedido.idiomaDesconhecido === null) return;
+export function avisarDoIdiomaDesconhecido(corpo: CorpoLido, pedidoId: string): void {
+  if (corpo.idiomaDesconhecido === null) return;
   log.warn("proposta-doc: idioma desconhecido, a desenhar em português", {
-    id,
-    recebido: pedido.idiomaDesconhecido,
+    id: pedidoId,
+    recebido: corpo.idiomaDesconhecido,
   });
 }

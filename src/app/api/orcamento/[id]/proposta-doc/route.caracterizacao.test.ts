@@ -446,12 +446,49 @@ const CENARIOS: Array<[string, () => void, () => NextRequest]> = [
   ],
 ];
 
+/**
+ * Os corpos ESTRANHOS — o que nenhum ecrã manda, e é onde uma leitura nova se
+ * engana sem dar por isso (a revisão de 17/11 apanhou um: um `doc` que é texto
+ * passou a responder «falta o documento»). Estes retratos foram tirados depois
+ * de partir a rota, mas comparados um a um, nesse dia, com a rota ANTIGA a
+ * correr lado a lado no mesmo teste (67 casos, todos iguais).
+ */
+const ESTRANHOS: Array<[string, () => NextRequest]> = [
+  ["doc texto", () => pedido({ mode: "send", doc: "x" })],
+  ["doc número", () => pedido({ mode: "send", doc: 5 })],
+  ["doc true", () => pedido({ mode: "preview", doc: true })],
+  ["doc lista", () => pedido({ mode: "send", doc: [] })],
+  ["corpo lista", () => pedido([1, 2])],
+  ["corpo número", () => pedido(7)],
+  ["corpo texto", () => pedido("ola")],
+  ["mode número", () => pedido({ mode: 1, doc: doc() })],
+  ["idioma objecto", () => pedido({ mode: "preview", doc: doc(), idioma: { a: 1 } })],
+  ["idioma null", () => pedido({ mode: "preview", doc: doc(), idioma: null })],
+  ["rascunho texto", () => pedido({ mode: "preview", doc: doc(), rascunho: "true" })],
+  ["porEmail 0", () => envio(doc(), { porEmail: 0 })],
+  ["porEmail null", () => envio(doc(), { porEmail: null })],
+  ["pdfVisto número", () => envio(doc(), { pdfVisto: 5 })],
+  ["corpo número no email", () => envio(doc(), { corpo: 42 })],
+  ["assunto sem corpo", () => envio(doc(), { assunto: "So o assunto" })],
+  ["modelo número", () => envio(doc(), { modelo: 3, corpo: "Olá" })],
+  ["mensagem só espaços", () => envio(doc(), { mensagem: "   " })],
+  ["fotos negativas", () => envio(doc(), { fotosEmFaltaConfirmadas: -1 })],
+  ["cortes texto", () => envio(doc(), { cortesConfirmados: "true" })],
+  ["ref número", () => envio(doc({ ref: 7 }))],
+  ["clientNames lista", () => envio(doc({ clientNames: ["a"] }))],
+  ["doc sem nada", () => envio({})],
+];
+
 describe("o retrato de cada resposta da rota (fase 5)", () => {
   it.each(CENARIOS)("%s", async (_nome, preparar, fazer) => {
     preparar();
     const res = await POST(fazer(), { params });
     vi.mocked(Date.now).mockRestore?.();
     expect(await retrato(res)).toMatchSnapshot();
+  });
+
+  it.each(ESTRANHOS)("corpo estranho: %s", async (_nome, fazer) => {
+    expect(await retrato(await POST(fazer(), { params }))).toMatchSnapshot();
   });
 
   it("o segundo envio do mesmo documento é uma repetição", async () => {

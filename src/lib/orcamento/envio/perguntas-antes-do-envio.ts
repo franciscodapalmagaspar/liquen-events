@@ -43,13 +43,13 @@ export function fotosEmFaltaAceites(emFalta: number, confirmadas: number | null)
  * e segue — sabendo.
  */
 export function perguntaDasFotos(
-  id: string,
+  pedidoId: string,
   missingImages: number,
   confirmadas: number | null,
 ): Recusa | null {
   if (fotosEmFaltaAceites(missingImages, confirmadas)) return null;
   log.warn("proposta-doc: envio parado para confirmar as fotos em falta", {
-    id,
+    id: pedidoId,
     emFalta: missingImages,
   });
   return recusa(409, {
@@ -83,13 +83,13 @@ export function perguntaDasFotos(
  * `cortesConfirmados` (só `true` conta).
  */
 export function perguntaDosCortes(
-  id: string,
+  pedidoId: string,
   truncations: Truncagens,
   confirmados: boolean,
 ): Recusa | null {
   if (truncations.length === 0 || confirmados) return null;
   log.warn("proposta-doc: envio parado para confirmar o que ficou cortado", {
-    id,
+    id: pedidoId,
     cortado: truncations.map((t) => `${t.where}: -${t.dropped} ${t.unit}`),
   });
   return recusa(409, {

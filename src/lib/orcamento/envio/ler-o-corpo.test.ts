@@ -8,7 +8,7 @@ import {
   observarOCorpo,
   corpoLido,
   documentoCompleto,
-  type CorpoDoPedido,
+  type CorpoDoEstudio,
 } from "./ler-o-corpo";
 
 const pedir = (corpo: string) =>
@@ -26,7 +26,7 @@ describe("o corpo do pedido à rota da proposta", () => {
       mensagem: 42,
       porEmail: "não",
       rascunho: true,
-    } as unknown as CorpoDoPedido);
+    } as unknown as CorpoDoEstudio);
     expect(p.modo).toBe("send");
     // Uma mensagem que não é texto não pára o envio: vale vazia.
     expect(p.mensagem).toBe("");
@@ -46,7 +46,7 @@ describe("o corpo do pedido à rota da proposta", () => {
   });
 
   it("a mensagem perde os espaços das pontas, e o modo desconhecido é pré-visualização", () => {
-    const p = corpoLido({ mode: "outro", mensagem: "  olá  " } as unknown as CorpoDoPedido);
+    const p = corpoLido({ mode: "outro", mensagem: "  olá  " } as unknown as CorpoDoEstudio);
     expect(p.modo).toBe("preview");
     expect(p.mensagem).toBe("olá");
   });
@@ -61,13 +61,17 @@ describe("o corpo do pedido à rota da proposta", () => {
     expect(erro({ ref: "", clientNames: "" })).toBe(
       "Proposta incompleta: falta a referência e o nome dos clientes.",
     );
+    // Um `doc` que não é objecto responde o que a rota antiga respondia.
+    expect(erro("x" as unknown as object)).toBe(
+      "Proposta incompleta: falta a referência e o nome dos clientes.",
+    );
     const bom = d({ ref: "R", clientNames: "A" });
     expect(documentoCompleto(bom)).toEqual({ ok: true, doc: bom });
   });
 
   it("a língua: sem campo é português calado; um valor estranho é português e diz-se", () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
-    const corpo = (idioma: unknown) => ({ idioma }) as unknown as CorpoDoPedido;
+    const corpo = (idioma: unknown) => ({ idioma }) as unknown as CorpoDoEstudio;
     for (const [recebido, idioma] of [
       [undefined, "pt"],
       ["en", "en"],
@@ -98,7 +102,7 @@ describe("o corpo do pedido à rota da proposta", () => {
       pdfVisto: 1,
       fotosEmFaltaConfirmadas: true,
       cortesConfirmados: "sim",
-    } as unknown as CorpoDoPedido);
+    } as unknown as CorpoDoEstudio);
     expect(p).toMatchObject({
       textoDoEmail: null,
       assuntoDoEmail: null,
@@ -108,7 +112,7 @@ describe("o corpo do pedido à rota da proposta", () => {
       cortesConfirmados: false,
     });
     expect(
-      corpoLido({ fotosEmFaltaConfirmadas: Number.NaN } as CorpoDoPedido).fotosEmFaltaConfirmadas,
+      corpoLido({ fotosEmFaltaConfirmadas: Number.NaN } as CorpoDoEstudio).fotosEmFaltaConfirmadas,
     ).toBeNull();
     const bom = corpoLido({
       corpo: "Olá",
@@ -117,7 +121,7 @@ describe("o corpo do pedido à rota da proposta", () => {
       pdfVisto: "k",
       fotosEmFaltaConfirmadas: 3,
       cortesConfirmados: true,
-    } as CorpoDoPedido);
+    } as CorpoDoEstudio);
     expect(bom).toMatchObject({
       textoDoEmail: "Olá",
       assuntoDoEmail: "A proposta",

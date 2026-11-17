@@ -54,11 +54,11 @@ export interface ParaVerSeRepete {
  * sério e segue.
  */
 export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<RespostaDoEnvio | null> {
-  const { pedidoId: id, proposal } = r;
+  const { pedidoId, proposal } = r;
   /** O registo de envios, lido UMA vez e só se for preciso (as duas travas
    *  abaixo consultam-no; antes liam-no cada uma, duas idas à base). */
   let registo: ReturnType<typeof listarEnvios> | undefined;
-  const envios = () => (registo ??= listarEnvios(id));
+  const envios = () => (registo ??= listarEnvios(pedidoId));
   let jaSeguiu = r.irmasAnteriores.find(
     (p) =>
       // «aceite» também: num pedido já ganho, a que acabou de seguir passa
@@ -125,13 +125,16 @@ export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<RespostaDoEn
           Date.now() - Date.parse(e.enviadoEm) < JANELA_DE_REPETICAO_MS,
       );
     } catch (e) {
-      log.warn("proposta-doc: não deu para ler os envios registados", { id, erro: String(e) });
+      log.warn("proposta-doc: não deu para ler os envios registados", {
+        id: pedidoId,
+        erro: String(e),
+      });
     }
   }
   const { missingImages, truncations } = r.relatorio;
   if (!jaSeguiu && jaSeguiuPeloRegisto) {
     log.warn("proposta-doc: o email já tinha saído (registo de envios) — não se enviou outra vez", {
-      id,
+      id: pedidoId,
       proposta: proposal.id,
     });
     return {
@@ -139,7 +142,7 @@ export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<RespostaDoEn
       id: proposal.id,
       emailed: true,
       estado: "enviada",
-      acceptUrl: await enderecoDaProposta(proposal.id, id),
+      acceptUrl: await enderecoDaProposta(proposal.id, pedidoId),
       missingImages,
       truncations,
       pdfBytes: r.pdfBytes,
@@ -159,7 +162,7 @@ export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<RespostaDoEn
       emailed: false,
       semEmailPorEscolha: true,
       estado: "enviada",
-      acceptUrl: await enderecoDaProposta(jaSeguiu.id, id),
+      acceptUrl: await enderecoDaProposta(jaSeguiu.id, pedidoId),
       missingImages,
       truncations,
       pdfBytes: r.pdfBytes,
@@ -171,7 +174,7 @@ export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<RespostaDoEn
   }
   if (jaSeguiu) {
     log.warn("proposta-doc: envio repetido do mesmo documento — não se enviou outra vez", {
-      id,
+      id: pedidoId,
       proposta: jaSeguiu.id,
     });
     return {
@@ -182,7 +185,7 @@ export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<RespostaDoEn
       /** O link que o casal RECEBEU — não um segundo, que ninguém tem. É
        *  literalmente o mesmo: o código curto de uma proposta é cunhado uma
        *  vez e reaproveitado daí em diante. */
-      acceptUrl: await enderecoDaProposta(jaSeguiu.id, id),
+      acceptUrl: await enderecoDaProposta(jaSeguiu.id, pedidoId),
       missingImages,
       truncations,
       pdfBytes: r.pdfBytes,

@@ -21,7 +21,7 @@ import { log } from "@/lib/logger";
 import { cartaoDoPdf } from "./cartao-do-pdf";
 import type { OEnvio } from "./o-envio";
 
-/**
+/*
  * Etapa 10 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o email que vai
  * sair, inteiro, antes de sair. Não manda nada — isso é `mandar-o-email.ts`.
  *
@@ -57,6 +57,7 @@ import type { OEnvio } from "./o-envio";
  * Sai o texto da casa em inglês, e fica REGISTADO: ela guardou um modelo e o
  * email que saiu não foi o dela; isso tem de se poder ver.
  */
+
 /**
  * O texto escrito à mão recusa-se por tamanho ANTES de se desenhar o PDF:
  * recusar depois é gastar o desenho por nada. O resto dele (o

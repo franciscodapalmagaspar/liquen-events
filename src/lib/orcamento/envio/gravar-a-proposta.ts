@@ -46,7 +46,7 @@ export type PropostaGravada =
  * portanto não há duplicado nenhum a criar. Cria-se uma. É a correcção que
  * mantém a regra da casa — uma proposta que não sai é um negócio parado.
  */
-async function guardar(id: string, p: Proposal, porEnviar: Proposal | null): Promise<void> {
+async function guardar(pedidoId: string, p: Proposal, porEnviar: Proposal | null): Promise<void> {
   if (!porEnviar) {
     await createProposal(p);
     return;
@@ -54,7 +54,7 @@ async function guardar(id: string, p: Proposal, porEnviar: Proposal | null): Pro
   const gravado = await updateProposal(p.id, p);
   if (gravado) return;
   log.warn("proposta-doc: a proposta por enviar desapareceu a meio — cria-se de novo", {
-    id,
+    id: pedidoId,
     proposta: p.id,
   });
   await createProposal(p);
@@ -123,7 +123,7 @@ const TUDO_O_QUE_E_RECENTE: readonly (keyof Proposal)[] = [
  * ficaram de fora; atira o erro quando não há progresso possível.
  */
 async function gravarTirandoOQueFalta(
-  id: string,
+  pedidoId: string,
   proposal: Proposal,
   porEnviar: Proposal | null,
 ): Promise<string[]> {
@@ -136,7 +136,7 @@ async function gravarTirandoOQueFalta(
   // uma e ainda sobra a última tentativa.
   for (let tentativa = 0; tentativa < 8; tentativa += 1) {
     try {
-      await guardar(id, candidata, porEnviar);
+      await guardar(pedidoId, candidata, porEnviar);
       return colunasPerdidas;
     } catch (e) {
       if (!isMissingTable(e)) throw e;
@@ -159,7 +159,7 @@ async function gravarTirandoOQueFalta(
        */
       if (candidata[campo] === undefined) throw e;
       log.warn("proposta-doc: coluna em falta — tira-se só essa e tenta-se de novo", {
-        id,
+        id: pedidoId,
         coluna,
       });
       colunasPerdidas.push(coluna);
@@ -175,17 +175,17 @@ async function gravarTirandoOQueFalta(
 }
 
 export async function gravarAProposta(
-  id: string,
+  pedidoId: string,
   proposal: Proposal,
   porEnviar: Proposal | null,
 ): Promise<PropostaGravada> {
   try {
-    const colunasPerdidas = await gravarTirandoOQueFalta(id, proposal, porEnviar);
+    const colunasPerdidas = await gravarTirandoOQueFalta(pedidoId, proposal, porEnviar);
     if (colunasPerdidas.length === 0) return { ok: true, docSaved: true };
     log.error(
       "proposta-doc: colunas em falta na tabela `proposals` — proposta guardada sem elas; corra db/schema.sql",
       null,
-      { id, colunas: colunasPerdidas },
+      { id: pedidoId, colunas: colunasPerdidas },
     );
     return {
       ok: true,
@@ -194,7 +194,7 @@ export async function gravarAProposta(
     };
   } catch (e) {
     if (!isMissingTable(e)) {
-      log.error("proposta-doc: guardar falhou", e, { id });
+      log.error("proposta-doc: guardar falhou", e, { id: pedidoId });
       return {
         ok: false,
         falha: {
@@ -214,19 +214,19 @@ export async function gravarAProposta(
     log.error(
       "proposta-doc: a base recusou os campos novos sem dizer qual — proposta guardada sem eles; corra db/schema.sql",
       e,
-      { id },
+      { id: pedidoId },
     );
     try {
       const semNada = { ...proposal };
       for (const campo of TUDO_O_QUE_E_RECENTE) semNada[campo] = undefined as never;
-      await guardar(id, semNada, porEnviar);
+      await guardar(pedidoId, semNada, porEnviar);
       return {
         ok: true,
         docSaved: false,
         docError: avisoDeColunasPerdidas(Object.keys(CAMPO_DA_COLUNA)),
       };
     } catch (e2) {
-      log.error("proposta-doc: guardar falhou mesmo sem os campos novos", e2, { id });
+      log.error("proposta-doc: guardar falhou mesmo sem os campos novos", e2, { id: pedidoId });
       return {
         ok: false,
         falha: {

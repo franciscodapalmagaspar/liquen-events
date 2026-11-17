@@ -30,7 +30,7 @@ export type Truncagens = RelatorioDoPdf["truncations"];
  * cada uma traz (e pelo código HTTP, que vai ao lado na {@link Recusa}).
  */
 export type CorpoDaRecusa =
-  /** 400, 404, 413, 503: a frase, e mais nada. */
+  /** 400, 413: a frase, e mais nada. */
   | { error: string }
   /** 409: outro pedido está a enviar esta proposta neste momento. */
   | { error: string; aEnviar: true }
@@ -46,7 +46,7 @@ export type CorpoDaRecusa =
 /** Uma recusa — o pedido não pode seguir, e é uma DECISÃO: o código HTTP e
  *  o corpo, tal e qual a rota os responde. */
 export interface Recusa {
-  status: 400 | 404 | 409 | 413 | 422;
+  status: 400 | 409 | 413 | 422;
   corpo: CorpoDaRecusa;
 }
 

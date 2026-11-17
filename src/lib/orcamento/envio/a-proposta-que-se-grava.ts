@@ -35,17 +35,20 @@ import type { OEnvio } from "./o-envio";
  * que é exactamente o que a rota fazia antes.
  */
 export async function irmasDoPedido(
-  id: string,
+  pedidoId: string,
 ): Promise<{ irmas: Proposal[]; porEnviar: Proposal | null }> {
   try {
-    const irmas = await listProposalsForQuote(id);
+    const irmas = await listProposalsForQuote(pedidoId);
     const porEnviar =
       irmas
         .filter((p) => p.status === "rascunho")
         .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0] ?? null;
     return { irmas, porEnviar };
   } catch (e) {
-    log.warn("proposta-doc: não deu para procurar uma proposta por enviar", { id, erro: e });
+    log.warn("proposta-doc: não deu para procurar uma proposta por enviar", {
+      id: pedidoId,
+      erro: e,
+    });
     return { irmas: [], porEnviar: null };
   }
 }
