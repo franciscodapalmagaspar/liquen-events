@@ -1,18 +1,38 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const H = vi.hoisted(() => ({ recusa: false, chamadas: [] as unknown[] }));
-vi.mock("@/lib/armazenamento/blob", () => {
-  class BlobRecusado extends Error {}
-  return {
-    BlobRecusado,
-    MAX_VALIDADE_MS: 24 * 3600_000,
-    urlDeLeituraDoBlob: vi.fn(async (...a: unknown[]) => {
-      H.chamadas.push(a);
-      if (H.recusa) throw new BlobRecusado("transferencia");
-      return "https://loja.private.blob.vercel-storage.com/proposal-assets/LIQ-3/a.jpg?vercel-blob-signature=x";
-    }),
-  };
-});
+const H = vi.hoisted(() => ({
+  recusa: false,
+  chamadas: [] as unknown[],
+  noSupabase: true,
+}));
+vi.mock("@/lib/armazenamento/blob", () => ({
+  urlDoNavegadorNoBlob: vi.fn(async (...a: unknown[]) => {
+    H.chamadas.push(a);
+    if (H.recusa) throw new Error("recusado");
+    return {
+      url: "https://loja.private.blob.vercel-storage.com/proposal-assets/LIQ-3/a.jpg?vercel-blob-signature=x",
+      ate: Date.now() + 20 * 3600_000,
+      nova: true,
+    };
+  }),
+}));
+vi.mock("@/lib/supabase", () => ({
+  getSupabase: () => ({
+    storage: {
+      from: (b: string) => ({
+        createSignedUrl: async (c: string) =>
+          H.noSupabase
+            ? {
+                data: {
+                  signedUrl: `https://sb.supabase.co/storage/v1/object/sign/${b}/${c}?token=t`,
+                },
+                error: null,
+              }
+            : { data: null, error: { message: "Object not found", statusCode: "404" } },
+      }),
+    },
+  }),
+}));
 
 import { GET } from "./route";
 import { urlEstavel } from "@/lib/armazenamento/url-estavel";
@@ -29,6 +49,7 @@ beforeEach(() => {
   process.env.BLOB_READ_WRITE_TOKEN = TOKEN;
   H.recusa = false;
   H.chamadas = [];
+  H.noSupabase = true;
 });
 afterEach(() => {
   delete process.env.BLOB_READ_WRITE_TOKEN;
@@ -40,21 +61,14 @@ describe("/api/ficheiro — o redireccionamento para o Blob", () => {
     expect((await pedir("/api/ficheiro/proposal-assets/a/b.jpg?token=x.y.z")).status).toBe(404);
   });
 
-  it("um endereço válido redirecciona para o Blob, conta o tamanho, e fica na cache do navegador", async () => {
+  it("um endereço válido redirecciona para o Blob e fica na cache do navegador", async () => {
     const r = await pedir(
       urlEstavel("proposal-assets", "LIQ-3/a.jpg", 1234, 3600 * 24 * 365, TOKEN),
     );
     expect(r.status).toBe(302);
     expect(r.headers.get("location")).toMatch(/^https:\/\/loja\.private\.blob/);
     expect(r.headers.get("cache-control")).toMatch(/^private, max-age=\d+$/);
-    expect(H.chamadas[0]).toEqual(["proposal-assets/LIQ-3/a.jpg", expect.any(Number), 1234]);
-  });
-
-  it("o destino nunca dura mais do que o endereço nosso", async () => {
-    const r = await pedir(urlEstavel("theme-assets", "t/a.jpg", 1, 120, TOKEN));
-    const ate = (H.chamadas[0] as [string, number])[1];
-    expect(ate - Date.now()).toBeLessThanOrEqual(120_000);
-    expect(r.status).toBe(302);
+    expect(H.chamadas[0]).toEqual(["proposal-assets/LIQ-3/a.jpg", 1234]);
   });
 
   it("assinatura de outro ficheiro: 403, e o Blob nem é tocado", async () => {
@@ -71,10 +85,36 @@ describe("/api/ficheiro — o redireccionamento para o Blob", () => {
     expect((await pedir(url)).status).toBe(410);
   });
 
-  it("acima do tecto do mês: 503 — o travão", async () => {
+  it("acima do tecto, com cópia no Supabase: vai ao Supabase, nunca 503 (revisão 17/11, n.º 1)", async () => {
     H.recusa = true;
-    expect((await pedir(urlEstavel("proposal-assets", "LIQ-3/a.jpg", 1, 3600, TOKEN))).status).toBe(
-      503,
+    const r = await pedir(urlEstavel("proposal-assets", "LIQ-3/a.jpg", 1, 3600, TOKEN));
+    expect(r.status).toBe(302);
+    expect(r.headers.get("location")).toMatch(
+      /supabase\.co\/storage\/v1\/object\/sign\/proposal-assets\/LIQ-3\/a\.jpg/,
     );
+  });
+
+  it("acima do tecto e sem cópia nenhuma: 503 — o travão", async () => {
+    H.recusa = true;
+    H.noSupabase = false;
+    const r = await pedir(urlEstavel("proposal-assets", "LIQ-3/a.jpg", 1, 3600, TOKEN));
+    expect(r.status).toBe(503);
+  });
+
+  it("o limite por IP é realista: o 121.º pedido no mesmo minuto dá 429", async () => {
+    const url = urlEstavel("proposal-assets", "LIQ-3/a.jpg", 1, 3600, TOKEN);
+    const req = () =>
+      GET(
+        new Request(new URL(url, "https://liquen.pt"), {
+          headers: { "x-forwarded-for": "9.9.9.9" },
+        }),
+        {
+          params: Promise.resolve({ balde: "proposal-assets", caminho: ["LIQ-3", "a.jpg"] }),
+        },
+      );
+    const estados: number[] = [];
+    for (let i = 0; i < 121; i++) estados.push((await req()).status);
+    expect(estados.slice(0, 120).every((s) => s === 302)).toBe(true);
+    expect(estados[120]).toBe(429);
   });
 });

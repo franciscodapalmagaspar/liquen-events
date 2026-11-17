@@ -177,7 +177,10 @@ export async function lerRespostaDoBlob(
   cabecalhos: Record<string, string> = {},
   tamanhoPrevisto = 0,
 ): Promise<Response | null> {
-  const recusa = await travao({ simples: 1, transferencia: tamanhoPrevisto });
+  // Tamanho desconhecido conta 1 byte na pergunta: com o tecto já passado,
+  // recusa (revisão de 17/11, n.º 4) — sem isto, uma leitura sem tamanho
+  // passava sempre, mesmo com a transferência do mês esgotada.
+  const recusa = await travao({ simples: 1, transferencia: Math.max(1, tamanhoPrevisto) });
   if (recusa) throw new BlobRecusado(recusa);
   let res: Response;
   try {
@@ -250,9 +253,9 @@ async function testemunhoValido(): Promise<NonNullable<typeof testemunho>> {
 }
 
 /**
- * Um endereço de leitura com prazo, direto ao Blob. Conta uma operação
- * simples e a transferência do tamanho do ficheiro — o pior caso: quem pede o
- * endereço vai lê-lo uma vez, sem cache.
+ * Um endereço de leitura com prazo, direto ao Blob, para o SERVIDOR (prazos
+ * curtos: ler um cabeçalho, confirmar um carregamento). Conta uma operação
+ * simples e a transferência do tamanho do ficheiro — o pior caso.
  */
 export async function urlDeLeituraDoBlob(
   chave: string,
@@ -260,7 +263,7 @@ export async function urlDeLeituraDoBlob(
   tamanho: number,
 ): Promise<string> {
   const t = await testemunhoValido();
-  return comTravao({ simples: 1, transferencia: tamanho }, "presign", async () => {
+  return comTravao({ simples: 1, transferencia: Math.max(1, tamanho) }, "presign", async () => {
     const { presignedUrl } = await presignUrl(t, {
       operation: "get",
       pathname: chave,
@@ -271,7 +274,39 @@ export async function urlDeLeituraDoBlob(
   });
 }
 
+/**
+ * ── O ENDEREÇO DO NAVEGADOR, UM POR FICHEIRO E POR JANELA ─────────────────
+ *
+ * Revisão de 17/11, n.º 1: contar o ficheiro inteiro a CADA pedido deixava
+ * qualquer pessoa gastar o tecto do mês repetindo o mesmo endereço. Agora o
+ * tempo divide-se em janelas de 12 h alinhadas ao relógio; dentro de uma
+ * janela, o mesmo ficheiro dá SEMPRE o mesmo endereço do Blob (em cache nesta
+ * instância), válido até ao fim da janela seguinte. Conta-se só quando se
+ * assina de novo: uma vez por ficheiro, por janela e por instância — que é,
+ * no pior caso, quantas vezes a rede da Vercel o pode ir buscar à origem.
+ * Repetir o pedido não gasta nada, e o navegador guarda o mesmo endereço.
+ */
+export const JANELA_MS = 12 * 3600_000;
+const LIMITE_DA_CACHE = 5_000;
+const assinadosPorJanela = new Map<string, { url: string; ate: number; janela: number }>();
+
+export async function urlDoNavegadorNoBlob(
+  chave: string,
+  tamanho: number,
+  agoraMs: number = Date.now(),
+): Promise<{ url: string; ate: number; nova: boolean }> {
+  const janela = Math.floor(agoraMs / JANELA_MS);
+  const ja = assinadosPorJanela.get(chave);
+  if (ja && ja.janela === janela) return { url: ja.url, ate: ja.ate, nova: false };
+  const ate = (janela + 2) * JANELA_MS;
+  const url = await urlDeLeituraDoBlob(chave, ate, tamanho);
+  if (assinadosPorJanela.size >= LIMITE_DA_CACHE) assinadosPorJanela.clear();
+  assinadosPorJanela.set(chave, { url, ate, janela });
+  return { url, ate, nova: true };
+}
+
 /** Só para os testes. */
 export function esquecerTestemunho(): void {
   testemunho = null;
+  assinadosPorJanela.clear();
 }

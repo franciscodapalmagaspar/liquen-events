@@ -2,6 +2,7 @@ import "server-only";
 import { log } from "./logger";
 import { chaveNoBlob } from "./armazenamento/baldes";
 import { modoDoBalde } from "./armazenamento/modos";
+import { lerDoIndice } from "./armazenamento/indice";
 import { BlobRecusado, lerRespostaDoBlob } from "./armazenamento/blob";
 
 /**
@@ -198,19 +199,28 @@ export async function pdfGuardadoEmFluxo(
      * Supabase como sempre — e um 404 também lá cai para o desenho. Sem o
      * token do Blob, `modoDoBalde` diz `supabase` sem ir à base de dados.
      */
-    const doBlob =
+    // O tamanho vem do índice, para o tecto de transferência o ver ANTES de
+    // ler (revisão de 17/11, n.º 4). Sem linha no índice, o PDF não está no
+    // Blob: nem se pergunta lá (poupa uma operação).
+    const linha =
       (await modoDoBalde(BUCKET)) === "blob"
-        ? await lerRespostaDoBlob(
-            chaveNoBlob(BUCKET, caminho),
-            pedacoValido ? { Range: pedacoValido } : {},
-          ).catch((e) => {
-            log.warn("pdf da proposta: o Blob não deu, vai ao Supabase", {
-              proposalId,
-              motivo: e instanceof BlobRecusado ? e.motivo : "avaria",
-            });
-            return null;
-          })
+        ? await lerDoIndice(BUCKET, [caminho])
+            .then((m) => m.get(caminho) ?? null)
+            .catch(() => null)
         : null;
+    const doBlob = linha
+      ? await lerRespostaDoBlob(
+          chaveNoBlob(BUCKET, caminho),
+          pedacoValido ? { Range: pedacoValido } : {},
+          linha.t,
+        ).catch((e) => {
+          log.warn("pdf da proposta: o Blob não deu, vai ao Supabase", {
+            proposalId,
+            motivo: e instanceof BlobRecusado ? e.motivo : "avaria",
+          });
+          return null;
+        })
+      : null;
     doArmazenamento =
       doBlob ??
       (await fetch(endereco, {

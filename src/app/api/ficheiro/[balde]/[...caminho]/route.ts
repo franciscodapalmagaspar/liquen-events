@@ -3,7 +3,8 @@ import { log } from "@/lib/logger";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { blobConfigurado, chaveNoBlob } from "@/lib/armazenamento/baldes";
 import { conferirUrlEstavel } from "@/lib/armazenamento/url-estavel";
-import { BlobRecusado, MAX_VALIDADE_MS, urlDeLeituraDoBlob } from "@/lib/armazenamento/blob";
+import { urlDoNavegadorNoBlob } from "@/lib/armazenamento/blob";
+import { getSupabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,10 +20,13 @@ export const dynamic = "force-dynamic";
  * do Blob acabado de assinar. Os bytes vão do Blob ao navegador sem passar por
  * aqui — esta função só escreve um cabeçalho.
  *
- * É também aqui que cada leitura do navegador conta para o tecto do mês
- * (`urlDeLeituraDoBlob`): uma operação simples e o tamanho do ficheiro, que é
- * o pior caso (sem cache nenhuma). Passado o tecto, responde 503 e a
- * fotografia não aparece — é o travão que a regra de custo manda ter.
+ * É também aqui que as leituras do navegador contam para o tecto do mês, UMA
+ * vez por ficheiro e por janela de 12 h (`urlDoNavegadorNoBlob`; revisão de
+ * 17/11, n.º 1): repetir o mesmo endereço mil vezes não gasta mais nada.
+ *
+ * Passado o tecto (ou com o Blob a falhar), a fotografia vem do SUPABASE se
+ * ainda lá estiver — é o que a migração promete. Só sem cópia nenhuma é que
+ * responde 503 e a fotografia não aparece: é o travão da regra de custo.
  *
  * O redireccionamento fica na cache do navegador até perto do fim do endereço
  * de destino, por isso ver a mesma fotografia outra vez não volta aqui.
@@ -37,7 +41,7 @@ export async function GET(
   { params }: { params: Promise<{ balde: string; caminho: string[] }> },
 ) {
   if (!blobConfigurado()) return new NextResponse(null, { status: 404 });
-  const limitado = await rateLimit(`ficheiro:${clientIp(request)}`, 600, 60_000);
+  const limitado = await rateLimit(`ficheiro:${clientIp(request)}`, 120, 60_000);
   if (!limitado.ok) return new NextResponse(null, { status: 429 });
 
   const { balde, caminho } = await params;
@@ -59,17 +63,21 @@ export async function GET(
     return new NextResponse(null, { status: ok.motivo === "expirado" ? 410 : 403 });
   }
 
-  // O destino vale até ao fim do dia seguinte, ou até ao prazo do nosso, o que vier primeiro.
-  const ate = Math.min(ok.expiraEm, Date.now() + MAX_VALIDADE_MS);
   let destino: string;
+  let ate: number;
   try {
-    destino = await urlDeLeituraDoBlob(chaveNoBlob(ok.balde, ok.caminho), ate, ok.tamanho);
-  } catch (e) {
-    if (e instanceof BlobRecusado) {
-      return new NextResponse(null, { status: 503, headers: { "Retry-After": "86400" } });
+    const r = await urlDoNavegadorNoBlob(chaveNoBlob(ok.balde, ok.caminho), ok.tamanho);
+    destino = r.url;
+    ate = r.ate;
+  } catch {
+    // Tecto, contador ilegível ou avaria: o Supabase, se ainda tiver a cópia.
+    const doSupabase = await assinarNoSupabase(ok.balde, ok.caminho);
+    if (!doSupabase) {
+      log.warn("ficheiro: sem Blob e sem cópia no Supabase", { balde: ok.balde });
+      return new NextResponse(null, { status: 503, headers: { "Retry-After": "3600" } });
     }
-    log.warn("ficheiro: não se assinou o destino", { balde: ok.balde });
-    return new NextResponse(null, { status: 502 });
+    destino = doSupabase;
+    ate = Date.now() + PRAZO_DO_SUPABASE_S * 1000;
   }
   const segundos = Math.max(0, Math.floor((ate - Date.now()) / 1000) - 600);
   return new NextResponse(null, {
@@ -80,4 +88,21 @@ export async function GET(
       "Referrer-Policy": "no-referrer",
     },
   });
+}
+
+/** Uma hora: o bastante para a página acabar de carregar, sem guardar um endereço velho. */
+const PRAZO_DO_SUPABASE_S = 3600;
+
+/** O endereço do Supabase, se o ficheiro ainda lá estiver (o Supabase recusa assinar o que não existe). */
+async function assinarNoSupabase(balde: string, caminho: string): Promise<string | null> {
+  const sb = getSupabase();
+  if (!sb) return null;
+  try {
+    const { data, error } = await sb.storage
+      .from(balde)
+      .createSignedUrl(caminho, PRAZO_DO_SUPABASE_S);
+    return !error && data?.signedUrl ? data.signedUrl : null;
+  } catch {
+    return null;
+  }
 }
