@@ -1,5 +1,6 @@
 "use client";
 
+import type { MudancasDosPedidos } from "@/lib/orcamento/pedidos/lista-de-pedidos";
 import Link from "next/link";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import { localizeHref } from "@/lib/i18n/config";
@@ -21,9 +22,8 @@ import { statusBadge } from "../PastilhaDoEstado";
  * `AdminClient.tsx` na fase 7 da estrutura do código, tal e qual.)
  */
 export interface CabecalhoDoPainelProps {
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
+  pedidos: MudancasDosPedidos;
   selected: Quote;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
   setAApagar: Dispatch<SetStateAction<Quote | null>>;
   toast: ReturnType<typeof useToast>["toast"];
   detailTitleRef: RefObject<HTMLHeadingElement | null>;
@@ -33,9 +33,8 @@ export interface CabecalhoDoPainelProps {
 }
 
 export function CabecalhoDoPainel({
-  setQuotes,
+  pedidos,
   selected,
-  setSelected,
   setAApagar,
   toast,
   detailTitleRef,
@@ -169,8 +168,7 @@ export function CabecalhoDoPainel({
                     return;
                   }
                   const updated = corpo as Quote;
-                  setQuotes((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
-                  setSelected(updated);
+                  pedidos.substituir(updated);
                   toast(next ? "Pedido arquivado" : "Pedido restaurado", "success");
                 },
                 icon: (

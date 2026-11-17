@@ -1,6 +1,6 @@
 "use client";
 
-import { type Dispatch, type SetStateAction } from "react";
+import type { MudancasDosPedidos } from "@/lib/orcamento/pedidos/lista-de-pedidos";
 import { textoDoPreco } from "@/lib/orcamento/pedidos/textos-do-pedido";
 import { type ActivityEntry, type Quote, type QuoteStatus } from "@/lib/orcamento/types";
 import { resumoDoEnvio } from "../../envio-da-mensagem";
@@ -16,9 +16,8 @@ import { type EdicaoDoPedido } from "../useEdicaoDoPedido";
 export interface SeparadorDaPropostaProps {
   edicao: EdicaoDoPedido;
   userName: string;
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
+  pedidos: MudancasDosPedidos;
   selected: Quote;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
   gavetaDoHistorico: Gaveta;
   appendActivity: (quoteId: string, entries: ActivityEntry[], oQue?: string) => Promise<boolean>;
   refletirEstadoDoEstudio: (id: string, status: QuoteStatus) => void;
@@ -28,9 +27,8 @@ export interface SeparadorDaPropostaProps {
 export function SeparadorDaProposta({
   edicao,
   userName,
-  setQuotes,
+  pedidos,
   selected,
-  setSelected,
   gavetaDoHistorico,
   appendActivity,
   refletirEstadoDoEstudio,
@@ -55,8 +53,7 @@ export function SeparadorDaProposta({
           // de mostrar o mesmo número sem ser preciso
           // recarregar nada.
           onQuoteUpdated={(q) => {
-            setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-            setSelected((prev) => (prev?.id === q.id ? q : prev));
+            pedidos.substituir(q);
             // `textoDoPreco` e não a verdade do valor:
             // um total de ZERO é um preço escrito, e
             // lido como «sem preço» deixava o campo
@@ -67,10 +64,7 @@ export function SeparadorDaProposta({
           }}
           onEstadoDoPedido={(status) => refletirEstadoDoEstudio(selected.id, status)}
           onSent={() => {
-            setQuotes((prev) =>
-              prev.map((q) => (q.id === selected.id ? { ...q, status: "cotado" } : q)),
-            );
-            setSelected((prev) => (prev ? { ...prev, status: "cotado" } : prev));
+            pedidos.mudar(selected.id, { status: "cotado" });
             setEditStatus("cotado");
             // A proposta JÁ seguiu — o que pode
             // falhar aqui é a linha do histórico, e a
@@ -102,8 +96,7 @@ export function SeparadorDaProposta({
         quote={selected}
         onSent={(messages, envio) => {
           const prev_count = selected.messages?.length ?? 0;
-          setQuotes((prev) => prev.map((q) => (q.id === selected.id ? { ...q, messages } : q)));
-          setSelected((prev) => (prev ? { ...prev, messages } : prev));
+          pedidos.mudar(selected.id, { messages });
           if (messages.length > prev_count) {
             // A mensagem JÁ saiu; o que pode falhar
             // aqui é a linha do histórico.
