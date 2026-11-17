@@ -38,7 +38,7 @@ import { desenharOPdf } from "./desenhar-o-pdf";
 import { escreverOEmail } from "./email-da-proposta";
 import { depoisDoEmail } from "./depois-do-email";
 import { esvaziarPdfsFinais } from "@/lib/proposal-preview-cache";
-import type { DocumentoPreparado } from "./documento-do-envio";
+import type { DocumentoPreparado } from "./envio-da-proposta";
 import { SEGUE } from "./passo";
 
 const doc = {

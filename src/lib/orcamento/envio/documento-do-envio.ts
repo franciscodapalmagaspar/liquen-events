@@ -9,12 +9,6 @@ import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
 import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import type { DocumentoPreparado } from "./envio-da-proposta";
 
-/**
- * Etapa 3 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): do documento que
- * chegou ao documento que se desenha. Pura — não lê nem grava nada.
- */
-export type { DocumentoPreparado };
-
 export interface DocumentoDoEnvio {
   /** A chave do que foi visto — ver a nota longa em {@link prepararODocumento}. */
   chaveDoQueChegou: string;
@@ -24,6 +18,11 @@ export interface DocumentoDoEnvio {
   grandeDemais: boolean;
 }
 
+/**
+ * Etapa 3 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): do documento que
+ * chegou ao documento que se desenha. Não lê nem grava nada fora dele: escreve
+ * NO documento a validade (que lê do relógio quando falta — ver a nota abaixo).
+ */
 export function prepararODocumento(raw: ProposalDoc, idioma: IdiomaDaProposta): DocumentoDoEnvio {
   /**
    * ── A CHAVE DO QUE FOI VISTO ─────────────────────────────────────────

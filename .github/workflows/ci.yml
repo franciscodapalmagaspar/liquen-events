@@ -184,13 +184,6 @@ jobs:
         parte: [1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
-      # A prova da fase 5 (`proposta-doc/route.contra-a-antiga.test.ts`) corre a
-      # rota antiga, tirada do commit de caracterização. O checkout é raso, por
-      # isso traz-se só esse commit. A prova tem prazo escrito no teste
-      # (`PRAZO`): nesse dia apaga-se com este passo (desvio 8). Se a busca
-      # falhar, não pára nada — o teste salta.
-      - name: A rota antiga da fase 5, para a comparação
-        run: git fetch --no-tags --depth=1 origin 25180ccdf3f40ea43ecdde48d072d86e76c0364a || true
       - uses: ./.github/actions/preparar
         with:
           miniaturas: "false"

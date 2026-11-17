@@ -94,8 +94,12 @@ describe("a porta do envio", () => {
     );
   });
 
-  it("nunca desenha um rascunho, mesmo que o corpo o peça", async () => {
-    await atenderOEstudio(contexto({ mode: "send", doc, rascunho: true }));
+  it("nunca desenha um rascunho, mesmo que o corpo lido o traga", async () => {
+    // Montado à mão: a leitura (`corpoLido`) já não deixa sair um rascunho no
+    // envio, e é a PORTA que este teste prova — tirada a regra da leitura, o
+    // envio continua a não desenhar rascunhos.
+    const c = contexto({ mode: "send", doc });
+    await atenderOEstudio({ ...c, corpo: { ...c.corpo, rascunho: true } });
     expect(espias.desenharOPdf).toHaveBeenCalledWith(expect.objectContaining({ rascunho: false }));
   });
 });

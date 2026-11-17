@@ -9,15 +9,15 @@
  * com os mesmos duplos, e exige o mesmo retrato, letra a letra.
  *
  * Corre SEMPRE que o clone tem esse commit: aqui, num clone inteiro feito
- * enquanto o ramo existir, e no CI — o checkout lá é raso, mas o passo «A rota
- * antiga da fase 5» (`.github/workflows/ci.yml`) traz só esse commit. Depois
+ * enquanto o ramo existir, e no CI — o checkout lá é raso, e o próprio teste
+ * vai buscar só esse commit ({@link HA_ROTA_ANTIGA}). Depois
  * de o ramo entrar por squash, o GitHub continua a servir o commit (pelo
  * `refs/pull/…`): é por isso que o fim vem do prazo, e não da falta do commit.
  * Num clone sem o commit, salta — dito no nome do teste. `COMPARAR_COM_A_ROTA_ANTIGA=0`
  * desliga-o.
  *
  * TEM PRAZO, e cumpre-se sozinho ({@link PRAZO}): depois desse dia o teste
- * falha a pedir o desvio 8. Antes disso pode acabar mais cedo — a rota antiga
+ * deixa de correr e o nome e o registo pedem o desvio 8. Antes disso pode acabar mais cedo — a rota antiga
  * importa os módulos de HOJE, e um dia um deles muda de forma e ela deixa de
  * carregar, ou responde diferente sem que a nova tenha mudado. A mensagem da falha di-lo ({@link SE_FALHAR}):
  * esse dia é o do desvio 8 de `docs/ESTRUTURA-DO-CODIGO.md` — o retrato
@@ -75,15 +75,22 @@ vi.mock("@/lib/proposal-pdf-guardado", async () =>
 );
 
 /**
- * O PRAZO da prova: depois deste dia ela já não corre — falha, a dizer que é
- * altura do desvio 8. Não salta em silêncio: um prazo que ninguém vê passar
- * não é um prazo. Mudá-lo é uma decisão, e diz-se no PR.
+ * O PRAZO da prova. Depois deste dia ela deixa de correr, e DI-LO: o nome do
+ * teste passa a pedir o desvio 8 e o registo do CI leva um aviso. Não
+ * bloqueia — um PR urgente não pode ficar vermelho por causa de um andaime —,
+ * mas também não se cala. Mudá-lo é uma decisão, e diz-se no PR.
  */
 const PRAZO = "2027-01-31";
 const PASSOU_O_PRAZO = new Date().toISOString().slice(0, 10) > PRAZO;
+const PEDIDO_DO_PRAZO =
+  `o prazo desta prova (${PRAZO}) passou: aplicar o desvio 8 de ` +
+  "docs/ESTRUTURA-DO-CODIGO.md (reduzir o retrato, apagar este ficheiro)";
+if (PASSOU_O_PRAZO) console.warn(`route.contra-a-antiga: ${PEDIDO_DO_PRAZO}`);
 
 /** O commit de caracterização (a rota é a mesma no pai, `bfd82ccf`). */
 const COMMIT_DA_CARACTERIZACAO = "25180ccd";
+/** O mesmo, por inteiro: é o que o `git fetch` de um só commit pede. */
+const COMMIT_COMPLETO = "25180ccdf3f40ea43ecdde48d072d86e76c0364a";
 /** A rota, relativa à raiz do repositório (o que o `git show` pede). */
 const ROTA = "src/app/api/orcamento/[id]/proposta-doc/route.ts";
 /**
@@ -104,11 +111,21 @@ function git(...args: string[]): string | null {
   }
 }
 const RAIZ = git("rev-parse", "--show-toplevel") ?? "";
-/** Há rota antiga para tirar? (Num clone raso, ou sem git, não há.) */
+/** O commit está no clone? */
+const temOCommit = () => git("cat-file", "-e", `${COMMIT_DA_CARACTERIZACAO}^{commit}`) !== null;
+/**
+ * Há rota antiga para tirar? No CI o checkout é raso: busca-se só este commit,
+ * e só na parte do CI que corre este teste (uma ida ao GitHub, não cinco). Se a
+ * busca falhar, salta — dito no nome.
+ */
 const HA_ROTA_ANTIGA =
   process.env.COMPARAR_COM_A_ROTA_ANTIGA !== "0" &&
+  !PASSOU_O_PRAZO &&
   RAIZ !== "" &&
-  git("cat-file", "-e", `${COMMIT_DA_CARACTERIZACAO}^{commit}`) !== null;
+  (temOCommit() ||
+    (!!process.env.CI &&
+      git("fetch", "--no-tags", "--depth=1", "origin", COMMIT_COMPLETO) !== null &&
+      temOCommit()));
 /** Uma pasta por corrida: duas corridas ao mesmo tempo não se pisam. */
 const CACHE = path.join(RAIZ, "node_modules", ".cache");
 
@@ -121,20 +138,15 @@ const SE_FALHAR =
 
 type Post = typeof POST;
 
-describe.skipIf(!HA_ROTA_ANTIGA)(
-  `a rota nova responde o mesmo que a antiga (${COMMIT_DA_CARACTERIZACAO}; salta num clone raso)`,
+describe.skipIf(PASSOU_O_PRAZO || !HA_ROTA_ANTIGA)(
+  PASSOU_O_PRAZO
+    ? `(SALTA) ${PEDIDO_DO_PRAZO}`
+    : `a rota nova responde o mesmo que a antiga (${COMMIT_DA_CARACTERIZACAO}; salta sem o commit)`,
   () => {
     let postAntigo: Post;
     let pasta = "";
 
     beforeAll(async () => {
-      if (PASSOU_O_PRAZO) {
-        throw new Error(
-          `O prazo desta prova (${PRAZO}) passou. É o dia do desvio 8 de ` +
-            "docs/ESTRUTURA-DO-CODIGO.md: reduzir o retrato aos casos de fronteira, " +
-            "apagar este ficheiro e o passo «A rota antiga da fase 5» do CI.",
-        );
-      }
       const antiga = execFileSync("git", ["show", `${COMMIT_DA_CARACTERIZACAO}:${ROTA}`], {
         cwd: RAIZ,
       });

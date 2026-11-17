@@ -7,7 +7,7 @@ import type { CorpoLido } from "./ler-o-corpo";
 import { guardasBaratas } from "./guardas-baratas";
 import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
-import { paraComRecusa, SEGUE, segue, type Desfecho, type Passo } from "./passo";
+import { SEGUE, segue, type Desfecho, type Passo } from "./passo";
 import {
   avisarQueSegueComFotosAMenos,
   perguntaDasFotos,
@@ -89,11 +89,17 @@ export interface Contexto {
  * mais uma margem — se ela morrer a meio, vence.
  */
 const VALIDADE_DO_TRINCO_MS = (TECTO_DO_ENVIO_S + 15) * 1000;
-const A_SER_ENVIADA = paraComRecusa(409, {
-  error:
-    "Esta proposta já está a ser enviada (carregou duas vezes, ou noutro separador). Espere uns segundos: se não aparecer como enviada, volte a carregar em enviar.",
-  aEnviar: true,
-});
+const A_SER_ENVIADA: Desfecho = {
+  tipo: "recusa",
+  recusa: {
+    status: 409,
+    corpo: {
+      error:
+        "Esta proposta já está a ser enviada (carregou duas vezes, ou noutro separador). Espere uns segundos: se não aparecer como enviada, volte a carregar em enviar.",
+      aEnviar: true,
+    },
+  },
+};
 
 /**
  * O estúdio pediu: pré-visualizar ou enviar. «Pedido», nesta pasta, é sempre o
@@ -104,15 +110,19 @@ export async function atenderOEstudio(c: Contexto): Promise<Desfecho> {
   const r = await comTrinco(`envio-da-proposta:${c.pedidoId}`, VALIDADE_DO_TRINCO_MS, () =>
     enviar(c),
   );
-  return r.ok ? r.valor : A_SER_ENVIADA.desfecho;
+  return r.ok ? r.valor : A_SER_ENVIADA;
 }
 
 /** Etapas 3 a 5, e o PDF como resposta. O rascunho não trava: é onde ela vê o que falta. */
 async function preVisualizar(c: Contexto): Promise<Desfecho> {
+  // Se é rascunho, decide-o a LEITURA (`corpoLido`: só na pré-visualização, e
+  // só com `true`). Daqui em diante é um valor só, para a trava, o desenho e
+  // os cabeçalhos.
+  const { rascunho } = c.corpo;
   const preparado = await prepararEDesenhar(c, {
-    trava: (envio) => (c.corpo.rascunho ? SEGUE : travaDoPdfFinal(envio)),
+    trava: (envio) => (rascunho ? SEGUE : travaDoPdfFinal(envio)),
     segundaPassagem: false,
-    rascunho: c.corpo.rascunho,
+    rascunho,
   });
   if (!preparado.segue) return preparado.desfecho;
   const { envio, desenho, chaveDoQueChegou } = preparado.valor;
@@ -122,7 +132,7 @@ async function preVisualizar(c: Contexto): Promise<Desfecho> {
     pdf,
     cabecalhos: cabecalhosDaPreVisualizacao({
       idioma: envio.idioma,
-      rascunho: c.corpo.rascunho,
+      rascunho,
       missingImages,
       truncations,
       chaveDoQueChegou,
@@ -226,9 +236,10 @@ async function enviar(c: Contexto): Promise<Desfecho> {
 }
 
 /**
- * O que muda entre as duas portas — e SÓ aqui: a trava, se o desenho pode
- * repetir, e se sai marcado «RASCUNHO» (só a pré-visualização o pede; o envio
- * nunca manda um rascunho ao casal). `portas.test.ts` prende cada uma.
+ * O que muda entre as duas portas: a trava, se o desenho pode repetir, e se
+ * sai marcado «RASCUNHO» (a pré-visualização passa o que a leitura decidiu; o
+ * envio passa sempre `false` — nunca manda um rascunho ao casal, seja o que
+ * for que o corpo traga). `portas.test.ts` prende cada uma.
  */
 interface Porta {
   trava: (envio: EnvioDaProposta, chaveDoQueChegou: string) => Passo | Promise<Passo>;

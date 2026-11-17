@@ -2,7 +2,8 @@ import "server-only";
 import { log } from "@/lib/logger";
 import { documentoCompleto, type CorpoLido } from "./ler-o-corpo";
 import { observarOCorpo } from "./esquema-do-corpo";
-import { prepararODocumento, type DocumentoPreparado } from "./documento-do-envio";
+import { prepararODocumento } from "./documento-do-envio";
+import type { DocumentoPreparado } from "./envio-da-proposta";
 import { excedeOTecto, MAXIMO_CORPO_ESCRITO } from "@/lib/email-corpo-escrito";
 import { paraComRecusa, segue, type Passo } from "./passo";
 

@@ -21,7 +21,7 @@ import {
 } from "./a-proposta-que-se-grava";
 import { prepararODocumento } from "./documento-do-envio";
 import type { EmailEmoldurado } from "./email-da-proposta";
-import type { DocumentoPreparado } from "./documento-do-envio";
+import type { DocumentoPreparado } from "./envio-da-proposta";
 import { SEGUE } from "./passo";
 
 vi.spyOn(log, "warn").mockImplementation(() => {});
@@ -164,33 +164,40 @@ describe("o documento e a linha que se grava", () => {
   });
 
   it("comAVersao: a linha carimbada, e as irmãs anteriores (sem ela, a mais recente primeiro)", () => {
-    const linha = montarAProposta({
-      pedidoId: "q",
-      quote: { id: "q", email: "" } as Quote,
-      doc,
-      idioma: "pt",
-      dinheiro: dinheiroDaProposta(doc),
-      pdf: Buffer.from("x"),
-      porEnviar: null,
-    });
-    const velha = {
-      ...linha,
-      id: "v1",
-      createdAt: "2026-01-01T00:00:00.000Z",
-      versaoNumero: 1,
-      total: 1,
-    };
-    const nova = {
-      ...linha,
-      id: "v2",
-      createdAt: "2026-02-01T00:00:00.000Z",
-      versaoNumero: 2,
-      total: 2,
-    };
-    const { proposal, anteriores } = comAVersao(linha, [velha, linha, nova]);
-    expect(anteriores.map((p) => p.id)).toEqual(["v2", "v1"]);
-    expect(proposal).toEqual({ ...linha, ...versaoDaProposta(linha, anteriores) });
-    expect(proposal.versaoNumero).toBe(3);
+    // O `versaoEm` é o instante do carimbo: com o relógio parado, duas
+    // chamadas dão o mesmo.
+    vi.useFakeTimers({ now: new Date("2026-11-17T12:00:00.000Z") });
+    try {
+      const linha = montarAProposta({
+        pedidoId: "q",
+        quote: { id: "q", email: "" } as Quote,
+        doc,
+        idioma: "pt",
+        dinheiro: dinheiroDaProposta(doc),
+        pdf: Buffer.from("x"),
+        porEnviar: null,
+      });
+      const velha = {
+        ...linha,
+        id: "v1",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        versaoNumero: 1,
+        total: 1,
+      };
+      const nova = {
+        ...linha,
+        id: "v2",
+        createdAt: "2026-02-01T00:00:00.000Z",
+        versaoNumero: 2,
+        total: 2,
+      };
+      const { proposal, anteriores } = comAVersao(linha, [velha, linha, nova]);
+      expect(anteriores.map((p) => p.id)).toEqual(["v2", "v1"]);
+      expect(proposal).toEqual({ ...linha, ...versaoDaProposta(linha, anteriores) });
+      expect(proposal.versaoNumero).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("as anteriores vêm da mais recente para a mais antiga, e sem a própria", () => {

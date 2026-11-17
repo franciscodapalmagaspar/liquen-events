@@ -1,7 +1,6 @@
 import "server-only";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
-import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-fechadas";
+import { IDIOMA_POR_OMISSAO, ehIdiomaDaProposta } from "@/lib/proposal-doc-textos";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -23,10 +22,6 @@ import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-fechadas";
 /** Um texto, ou nada. */
 const texto = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
-/** Uma das línguas da proposta (a lista fechada, a mesma do esquema), ou nada. */
-const lingua = (v: unknown): IdiomaDaProposta | undefined =>
-  (IDIOMAS_DA_PROPOSTA as readonly unknown[]).includes(v) ? (v as IdiomaDaProposta) : undefined;
-
 /** Uma contagem que ela viu: um número finito, não negativo — ou nada. */
 const contagem = (v: unknown): number | undefined =>
   typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined;
@@ -43,7 +38,9 @@ export function corpoLido(cru: unknown) {
     cru && typeof cru === "object" && !Array.isArray(cru) ? (cru as Record<string, unknown>) : {};
   /** O que não se reconhece vale a pré-visualização — nunca um envio. */
   const modo: "preview" | "send" = corpo.mode === "send" ? "send" : "preview";
-  const idiomaConhecido = lingua(corpo.idioma);
+  // A regra da casa (`ehIdiomaDaProposta`). O esquema lê a lista fechada; que
+  // as duas digam o mesmo prende-o `esquema-do-corpo.test.ts`.
+  const idiomaConhecido = ehIdiomaDaProposta(corpo.idioma) ? corpo.idioma : undefined;
   return {
     /** O corpo tal e qual chegou — só para o registo (`esquema-do-corpo.ts`). */
     cru,
