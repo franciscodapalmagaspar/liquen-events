@@ -80,6 +80,7 @@ import { getDictionary } from "@/lib/i18n";
 import { sendMail } from "@/lib/mail";
 import { sendPushToAll } from "@/lib/push";
 import { enviarEventos } from "@/lib/meta/capi";
+import { log } from "@/lib/logger";
 
 const sendMailMock = vi.mocked(sendMail);
 const pushMock = vi.mocked(sendPushToAll);
@@ -530,6 +531,166 @@ describe("POST /api/orcamento", () => {
     expect(json.status).toBe("ok"); // indistinguishable from success, to the bot
     expect(store.create).not.toHaveBeenCalled();
     expect(sendMailMock).not.toHaveBeenCalled();
+  });
+
+  // ── O anti-spam de 17/11: só o isco descarta; o resto grava com a marca ───
+  describe("anti-spam: nada se perde, o que é suspeito leva a marca", () => {
+    /** O assunto do e-mail à equipa (o que não tem `to`: vai para a caixa da casa). */
+    function assuntoDaEquipa(): string {
+      const daEquipa = sendMailMock.mock.calls
+        .map(([m]) => m as { to?: string; subject?: string })
+        .find((m) => !m.to);
+      return daEquipa?.subject ?? "";
+    }
+    function gravado(): Record<string, unknown> {
+      const calls = store.create.mock.calls as unknown as Array<[Record<string, unknown>]>;
+      return calls[0][0];
+    }
+
+    it("o isco preenchido é a ÚNICA coisa que finge sucesso sem gravar", async () => {
+      const res = await enviarTudo({ form: validForm, website: "http://bot.example" });
+      expect((await res.json()).status).toBe("ok");
+      expect(store.create).not.toHaveBeenCalled();
+      expect(sendMailMock).not.toHaveBeenCalled();
+    });
+
+    it("um pedido em cirílico, com ligações e com um selo inválido É GRAVADO e notificado", async () => {
+      const aviso = vi.spyOn(log, "warn");
+      const res = await enviarTudo({
+        form: {
+          ...validForm,
+          name: "Олена Шевченко",
+          email: "olena@ukr.example",
+          partnerA: "Олена Шевченко",
+          partnerB: "Тарас Коваленко",
+          notes:
+            "Добрий день! Плануємо весілля в Сінтрі у червні 2027 року, приблизно 80 гостей. Наші ідеї: https://1drv.ms/f/s!Abc https://www.zola.com/wedding/olena https://pin.it/xyz https://ivanphoto.ru/portfolio",
+        },
+        selo: "1700000000000.assinatura-de-um-segredo-antigo",
+        submissionId: "sub_cirilico_123",
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()).status).toBe("ok");
+      expect(store.create).toHaveBeenCalledTimes(1);
+      // Uma pessoa verdadeira: nem a marca leva.
+      expect(gravado().possivelSpam).toBeUndefined();
+      expect(assuntoDaEquipa()).not.toBe("");
+      expect(assuntoDaEquipa()).not.toContain("possível spam");
+      // E a confirmação segue para ela.
+      expect(
+        sendMailMock.mock.calls.some(([m]) => (m as { to?: string }).to === "olena@ukr.example"),
+      ).toBe(true);
+      expect(aviso).not.toHaveBeenCalledWith(
+        expect.stringContaining("possível spam"),
+        expect.anything(),
+      );
+      aviso.mockRestore();
+    });
+
+    it("um envio relâmpago (selo de agora) GRAVA, com a marca «depressa»", async () => {
+      const { criarSelo } = await import("@/lib/anti-spam/selo");
+      const res = await enviarTudo({ form: validForm, website: "", selo: criarSelo(Date.now()) });
+      expect(res.status).toBe(200);
+      expect(store.create).toHaveBeenCalledTimes(1);
+      expect(gravado().possivelSpam).toEqual({ motivo: "depressa" });
+      expect(assuntoDaEquipa()).toMatch(/^\[possível spam\] /);
+    });
+
+    it("um selo adulterado conta como sem selo: grava, sem marca", async () => {
+      const res = await enviarTudo({ form: validForm, selo: "1700000000000.forjado" });
+      expect((await res.json()).status).toBe("ok");
+      expect(store.create).toHaveBeenCalledTimes(1);
+      expect(gravado().possivelSpam).toBeUndefined();
+    });
+
+    it("conteúdo de spam GRAVA com a marca, avisa a equipa e confirma ao cliente", async () => {
+      const aviso = vi.spyOn(log, "warn");
+      const res = await enviarTudo({
+        form: {
+          ...validForm,
+          email: "robo@spam-mail.example",
+          notes: "We sell cheap backlinks, visit https://x.xyz/now",
+        },
+        submissionId: "sub_spam_456",
+      });
+      expect((await res.json()).status).toBe("ok");
+      expect(store.create).toHaveBeenCalledTimes(1);
+      expect(gravado().possivelSpam).toEqual({ motivo: "palavras-de-spam" });
+      expect(assuntoDaEquipa()).toMatch(/^\[possível spam\] Pedido de orçamento/);
+      expect(
+        sendMailMock.mock.calls.some(
+          ([m]) => (m as { to?: string }).to === "robo@spam-mail.example",
+        ),
+      ).toBe(true);
+      // O registo: o `submissionId` e o domínio do e-mail — nunca o endereço.
+      expect(aviso).toHaveBeenCalledWith(
+        expect.stringContaining("possível spam"),
+        expect.objectContaining({
+          submissionId: "sub_spam_456",
+          dominio: "spam-mail.example",
+          motivo: "palavras-de-spam",
+        }),
+      );
+      const registado = JSON.stringify(aviso.mock.calls);
+      expect(registado).not.toContain("robo@");
+      aviso.mockRestore();
+    });
+
+    it("um pedido marcado não vai à Meta como Lead, e o e-mail à equipa diz porquê no HTML", async () => {
+      await enviarTudo({
+        form: {
+          ...validForm,
+          leadEventId: "evt-spam-1",
+          notes: "We sell cheap backlinks, visit https://x.xyz/now",
+        },
+      });
+      expect(gravado().possivelSpam).toEqual({ motivo: "palavras-de-spam" });
+      expect(metaMock).not.toHaveBeenCalled();
+      const daEquipa = sendMailMock.mock.calls
+        .map(([m]) => m as { to?: string; html?: string })
+        .find((m) => !m.to);
+      expect(daEquipa?.html).toContain("Possível spam (palavras típicas de spam)");
+    });
+
+    it("um pedido urgente com a marca não perde a linha da urgência", async () => {
+      const { criarSelo } = await import("@/lib/anti-spam/selo");
+      await enviarTudo({ form: { ...validForm, urgency: "urgente" }, selo: criarSelo(Date.now()) });
+      const semMarca = sendMailMock.mock.calls
+        .map(([m]) => m as { to?: string; html?: string })
+        .find((m) => !m.to)?.html;
+      expect(semMarca).toContain("Possível spam (");
+      expect(semMarca).toContain("O cliente pediu resposta com urgência");
+    });
+
+    it("o cliente não consegue pôr nem tirar a marca pelo formulário", async () => {
+      await enviarTudo({ form: { ...validForm, possivelSpam: { motivo: "ligacoes" } } });
+      expect(gravado().possivelSpam).toBeUndefined();
+    });
+
+    it.each([
+      ["com selo de há 40 s", -40_000],
+      ["sem selo (página antiga em cache)", null],
+    ])(
+      "um pedido português verdadeiro, com Pinterest, é GRAVADO sem marca — %s",
+      async (_n, desvio) => {
+        const { criarSelo } = await import("@/lib/anti-spam/selo");
+        const selo = desvio === null ? undefined : criarSelo(Date.now() + desvio);
+        const res = await enviarTudo({
+          form: {
+            ...validForm,
+            name: "Inês Conceição Gonçalves",
+            notes:
+              "Olá! Casamos em junho, na Quinta da Aveleda, ~120 convidados. A nossa inspiração: https://pin.it/3xYz9AbC e https://www.pinterest.pt/ines/casamento/ — tons de pêssego. Obrigada!",
+          },
+          selo,
+        });
+        expect(res.status).toBe(200);
+        expect(store.create).toHaveBeenCalledTimes(1);
+        expect(gravado().possivelSpam).toBeUndefined();
+        expect(sendMailMock).toHaveBeenCalled();
+        expect(assuntoDaEquipa()).not.toContain("possível spam");
+      },
+    );
   });
 
   it("rejects an invalid payload (name too short) with 400", async () => {

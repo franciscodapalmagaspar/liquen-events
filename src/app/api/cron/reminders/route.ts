@@ -7,7 +7,12 @@ import { listCalendarEvents } from "@/lib/calendar-store";
 import { sendPushToAll } from "@/lib/push";
 import { isAuthed } from "@/lib/admin-auth";
 import { log } from "@/lib/logger";
-import { gerarLoteDeDerivadas, type Retoma } from "@/lib/derivadas";
+import {
+  gerarLoteDeDerivadas,
+  retomaValida,
+  type PosicaoDoLote,
+  type Retoma,
+} from "@/lib/derivadas";
 import { getState, setState } from "@/lib/app-state";
 import { getSupabase } from "@/lib/supabase";
 import { comPrazo, TempoEsgotado } from "@/lib/prazo";
@@ -145,6 +150,16 @@ const CHAVE_RETOMA = "cron-reminders:retoma-das-derivadas";
 /** Quanto se espera pelo lote depois de lhe dar o sinal para parar. */
 const FOLGA_DEPOIS_DO_SINAL_MS = 5_000;
 
+/** A noite anterior já tinha pendurado NESTA pasta? Uma regra só, para os dois casos. */
+function jaPenduradaAqui(anterior: Retoma | null, atual: Retoma): boolean {
+  return (
+    anterior?.pendurada === true &&
+    anterior.papel === atual.papel &&
+    anterior.origem === atual.origem &&
+    anterior.pasta === atual.pasta
+  );
+}
+
 /**
  * Onde recomeçar quando o lote nem ao sinal respondeu. A primeira vez numa
  * pasta, tenta-se outra vez (`pendurada`); se a noite anterior já tinha
@@ -152,25 +167,76 @@ const FOLGA_DEPOIS_DO_SINAL_MS = 5_000;
  */
 function retomaDaPastaPendurada(anterior: Retoma | null, atual: Retoma | null): Retoma | null {
   if (!atual) return anterior;
+  // Pendurou ainda a caminho de uma pasta a saltar (ou de uma família a
+  // saltar): as marcas ficam, senão a pasta voltava a ser tentada (2.ª
+  // revisão de 17/11).
+  if (atual.saltar || atual.saltarFamilia) return atual;
   const base: Retoma = {
     papel: atual.papel,
     origem: atual.origem,
     pasta: atual.pasta,
     caminho: atual.caminho,
   };
-  const mesmaPasta =
-    anterior?.pendurada === true &&
-    anterior.papel === atual.papel &&
-    anterior.origem === atual.origem &&
-    anterior.pasta === atual.pasta;
-  return mesmaPasta ? { ...base, caminho: "", saltar: true } : { ...base, pendurada: true };
+  return jaPenduradaAqui(anterior, atual)
+    ? { ...base, caminho: "", saltar: true }
+    : { ...base, pendurada: true };
+}
+
+/**
+ * O lote não respondeu nem depois do sinal. Três casos (2.ª revisão de 17/11):
+ *
+ *  - pendurou na LISTAGEM das pastas de uma família: regista-se, e a noite
+ *    seguinte salta a família inteira (`saltarFamilia`);
+ *  - continuou a dar passos depois do sinal (um bloco lento, mas a andar):
+ *    não está pendurado — recomeça onde ia, sem marca NOVA. Mas a `pendurada`
+ *    da noite anterior na MESMA pasta fica: uma fotografia presa num bloco de
+ *    irmãs que acabam não pode apagar a marca noite após noite (revisão
+ *    independente de 17/11);
+ *  - não deu passo nenhum desde o sinal: a pasta é marcada `pendurada` (ou,
+ *    à segunda, `saltar`) — ver `retomaDaPastaPendurada`.
+ */
+function ondeRecomecarSemResposta(
+  anterior: Retoma | null,
+  posicao: PosicaoDoLote,
+  passosNoSinal: number,
+): { retoma: Retoma | null; mensagem: string; familia?: string } {
+  if (posicao.listando) {
+    const { papel, origem } = posicao.listando;
+    return {
+      retoma: { papel, origem, pasta: "", caminho: "", saltarFamilia: true },
+      mensagem:
+        "cron reminders: a listagem das pastas pendurou — a noite seguinte salta esta família",
+      familia: `${papel}/${origem}`,
+    };
+  }
+  const atual = posicao.atual;
+  if ((posicao.passos ?? 0) > passosNoSinal && atual && !atual.saltar && !atual.saltarFamilia) {
+    const jaPendurada = jaPenduradaAqui(anterior, atual);
+    return {
+      retoma: {
+        papel: atual.papel,
+        origem: atual.origem,
+        pasta: atual.pasta,
+        caminho: atual.caminho,
+        ...(jaPendurada ? { pendurada: true } : {}),
+      },
+      mensagem:
+        "cron reminders: as derivadas estavam lentas, mas a andar — a noite seguinte continua",
+    };
+  }
+  return {
+    retoma: retomaDaPastaPendurada(anterior, atual),
+    mensagem: "cron reminders: as derivadas penduraram numa pasta",
+  };
 }
 
 /** Onde a apanha da noite anterior parou. Sem Supabase não há onde guardar. */
 async function retomaDaNoiteAnterior(): Promise<Retoma | null> {
   if (!getSupabase()) return null;
   const r = await getState<Retoma>(CHAVE_RETOMA).catch(() => null);
-  return r && typeof r.pasta === "string" && typeof r.caminho === "string" ? r : null;
+  // A mesma regra do lote (`retomaValida`): uma retoma sem pasta só vale se for
+  // a de saltar a família; as de antes, com `pasta: ""`, recomeçam do princípio.
+  return retomaValida(r) ? r : null;
 }
 
 async function guardarRetoma(retoma: Retoma | null): Promise<void> {
@@ -211,23 +277,27 @@ async function apanharDerivadasEmAtraso(desdeMs: number): Promise<void> {
      * pendurar no MESMO sítio salta-a e segue.
      */
     const parar = new AbortController();
-    const posicao: { atual: Retoma | null } = { atual: retoma };
+    const posicao: PosicaoDoLote = { atual: retoma, passos: 0, listando: null };
     const lote = gerarLoteDeDerivadas(undefined, { tectoMs, retoma, sinal: parar.signal, posicao });
+    /** Quantos passos o lote tinha dado quando recebeu o sinal. */
+    let passosNoSinal = 0;
     // Só o tempo esgotado espera pela folga: uma avaria do lote segue para o
     // `catch` de baixo, como sempre — não é uma pasta pendurada.
     const r = await comPrazo(lote, prazo, "derivadas em atraso", parar).catch((err) => {
       if (!(err instanceof TempoEsgotado)) throw err;
+      passosNoSinal = posicao.passos ?? 0;
       return comPrazo(lote, FOLGA_DEPOIS_DO_SINAL_MS, "derivadas depois do sinal").catch((e) => {
         if (!(e instanceof TempoEsgotado)) throw e;
         return null;
       });
     });
     if (!r) {
-      const onde = retomaDaPastaPendurada(retoma, posicao.atual);
-      await comPrazo(guardarRetoma(onde), 3_000, "guardar a retoma").catch(() => undefined);
-      log.warn("cron reminders: as derivadas penduraram numa pasta", {
-        pasta: onde ? `${onde.origem}/${onde.pasta}` : null,
-        aSaltar: onde?.saltar === true,
+      const onde = ondeRecomecarSemResposta(retoma, posicao, passosNoSinal);
+      await comPrazo(guardarRetoma(onde.retoma), 3_000, "guardar a retoma").catch(() => undefined);
+      log.warn(onde.mensagem, {
+        pasta: onde.retoma ? `${onde.retoma.origem}/${onde.retoma.pasta}` : null,
+        aSaltar: onde.retoma?.saltar === true,
+        ...(onde.familia ? { familia: onde.familia } : {}),
       });
       return;
     }

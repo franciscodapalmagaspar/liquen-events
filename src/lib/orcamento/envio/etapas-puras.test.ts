@@ -10,6 +10,7 @@ import { log } from "@/lib/logger";
 import { cabecalhosDaPreVisualizacao } from "./pre-visualizacao";
 import {
   fotosEmFaltaAceites,
+  FIM_DO_SIM_ANTIGO,
   perguntaDasFotos,
   perguntaDosCortes,
 } from "./perguntas-antes-do-envio";
@@ -49,6 +50,12 @@ describe("as perguntas antes do envio", () => {
     expect(fotosEmFaltaAceites(9, 3)).toBe(false);
     // Um «sim» que não era número chega como `null` (ler-o-corpo.test.ts).
     expect(fotosEmFaltaAceites(1, null)).toBe(false);
+  });
+
+  it("o «sim» antigo (`true`) vale até 18/11 às 23:59 em Lisboa, e depois não", () => {
+    expect(fotosEmFaltaAceites(9, true, Date.parse("2026-11-18T23:59:59Z"))).toBe(true);
+    expect(fotosEmFaltaAceites(9, true, FIM_DO_SIM_ANTIGO)).toBe(false);
+    expect(fotosEmFaltaAceites(0, true, FIM_DO_SIM_ANTIGO)).toBe(true);
   });
 
   it("as fotos perguntam com 409 e dizem quantas; os cortes só com `true`", () => {

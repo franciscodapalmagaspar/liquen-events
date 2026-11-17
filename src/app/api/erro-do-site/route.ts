@@ -17,8 +17,13 @@ export const dynamic = "force-dynamic";
  * página do orçamento rebentar no telemóvel ia-se embora, e ninguém sabia.
  * (Veio da base de sites, onde nasceu ao mesmo tempo.)
  *
- * O erro sai daqui pelo mesmo `log.error`, e por isso pela mesma redacção do
- * RGPD (emails, telefones, tokens) e para os mesmos sítios.
+ * O erro sai daqui pelo `log.error`, e por isso pela mesma redacção do RGPD
+ * (emails, telefones, tokens) e para os mesmos sítios — é para avisar quem o
+ * pode resolver. Como o texto é escrito por um browser anónimo, duas coisas no
+ * `logger.ts` seguram o canal: todas as mensagens desta porta partilham UMA
+ * chave de travão (`chaveDeTravao`: um alerta por janela, não um por mensagem
+ * inventada), e o texto vai sem os caracteres que o Slack/Discord leem como
+ * menção, com `allowed_mentions` vazio.
  *
  * ── PORQUE É QUE NÃO PEDE SESSÃO, E O QUE A PROTEGE ───────────────────────
  *
@@ -53,7 +58,9 @@ export async function POST(request: NextRequest) {
     // que ainda estão em cache nos telemóveis (ver `ruido-do-browser`).
     if (eRuidoDeFora(mensagem, rasto)) return vazio();
     const onde = texto(corpo.onde, 300);
-    log.error(`site no browser: ${mensagem}`, null, {
+    // O prefixo «site no browser:» É a chave de travão partilhada — ver
+    // `chaveDeTravao` no `logger.ts`. Não se lhe muda o texto.
+    log.error(`site no browser: ${mensagem}`, undefined, {
       marca: texto(corpo.marca, 80),
       onde: onde ? sanitizeTelemetryPath(onde) : undefined,
       aparelho: texto(corpo.aparelho, 200),

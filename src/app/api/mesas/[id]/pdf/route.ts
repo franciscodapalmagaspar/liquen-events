@@ -3,6 +3,7 @@ import { isAuthed } from "@/lib/admin-auth";
 import { getQuote } from "@/lib/quotes-store";
 import { log } from "@/lib/logger";
 import { pdfDoMapa } from "@/lib/orcamento/mapa-de-mesas-pdf";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,10 @@ export const dynamic = "force-dynamic";
  * `?ver=1` devolve-o `inline` em vez de `attachment` — é o «Imprimir», que o
  * abre num separador para o diálogo de impressão do browser.
  */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function GET_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const { id } = await params;
   try {
@@ -50,3 +54,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+export const GET = comCpu("mesas-pdf GET", GET_semMedida);

@@ -5,7 +5,8 @@ import { CABECALHO_DA_LINGUA } from "@/lib/lingua-do-pedido";
 import { COOKIE_DA_LINGUA as LANG_COOKIE } from "@/lib/rotas-da-lingua";
 
 /**
- * Proxy (Next.js 16 — antes «middleware»). Corre SÓ em `/api` e `/en`.
+ * Proxy (Next.js 16 — antes «middleware»). Corre SÓ em `/api` e `/en` — e,
+ * dentro de `/api`, não nas leituras públicas (ver o `matcher`, lá em baixo).
  *
  *  1. `/en`, `/en/*` — já é o segmento `[lang=en]`; serve-se como está. Numa
  *     navegação a sério grava o cookie `liquen-lang`, que as regras de
@@ -21,6 +22,31 @@ import { COOKIE_DA_LINGUA as LANG_COOKIE } from "@/lib/rotas-da-lingua";
  * invoca função nenhuma.
  */
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/**
+ * Pedidos que NUNCA levam 503 por não se saber das revogações (revisão de
+ * 17/11): ou não usam a sessão para gravar nada (o formulário público, o
+ * beacon da Meta, a escolha na proposta do casal, as entradas), ou são
+ * inofensivos em nome de uma sessão fechada («Sair», que só apaga e revoga; e
+ * os relatos de erros do back office, que só escrevem nos registos). O tempo
+ * ativo NÃO está aqui: grava no pedido, e perder um pedaço de medição num
+ * minuto de base em baixo é aceitável. O cookie de admin vai em todos os pedidos ao
+ * site (`path=/`), por isso sem esta lista a Catarina ficava sem poder sair, e
+ * sem poder testar o formulário, num minuto de Supabase lento.
+ */
+const NUNCA_503 = [
+  /^\/api\/admin\/(logout|login|recuperar(\/definir)?|passkeys\/entrada)$/,
+  /^\/api\/admin\/(erro-do-cliente|imagem-falhou)$/,
+  /^\/api\/orcamento$/,
+  /^\/api\/meta$/,
+  /^\/api\/proposta\/[^/]+\/escolha$/,
+];
+
+/** Este pedido pode receber o 503 de «não foi possível confirmar a sessão»? */
+function podeLevar503(method: string, pathname: string): boolean {
+  if (!MUTATING.has(method)) return false;
+  return !NUNCA_503.some((r) => r.test(pathname));
+}
 
 export async function proxy(req: NextRequest, event?: NextFetchEvent) {
   const { pathname } = req.nextUrl;
@@ -62,8 +88,20 @@ export async function proxy(req: NextRequest, event?: NextFetchEvent) {
     let sessao = readSession(token);
     let revogada = false;
     if (sessao) {
-      const { sessaoRevogada } = await import("@/lib/sessoes-revogadas");
-      if (await sessaoRevogada(token)) {
+      const { estadoDaSessao, MENSAGEM_REVOGACAO_INDISPONIVEL } =
+        await import("@/lib/sessoes-revogadas");
+      // Auditoria de 16/11, n.º 7: sem o registo das revogações (instância nova
+      // e Supabase lento), o que MUDA dados não passa em nome de uma sessão que
+      // pode já ter sido fechada — 503, e tenta-se daí a uns segundos. O que só
+      // lê continua a passar.
+      const estado = await estadoDaSessao(token, { muda: podeLevar503(req.method, pathname) });
+      if (estado === "indisponivel") {
+        const r = NextResponse.json({ error: MENSAGEM_REVOGACAO_INDISPONIVEL }, { status: 503 });
+        r.headers.set("Retry-After", "5");
+        r.headers.set("X-Request-ID", requestId);
+        return r;
+      }
+      if (estado === "revogada") {
         revogada = true;
         sessao = null;
         requestHeaders.set("cookie", semCookie(req.headers.get("cookie") ?? "", ADMIN_COOKIE));
@@ -138,11 +176,41 @@ function comLingua(req: NextRequest, lang: "pt" | "en"): Headers {
   return h;
 }
 
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * AS LEITURAS PÚBLICAS NÃO PASSAM POR AQUI (16/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Cada passagem pelo proxy é uma invocação a mais. Nestes caminhos ele não
+ * fazia nada além do `x-request-id` — conferido rota a rota:
+ *   · `proposta/<token>/(pagina|foto|fundo|paginas)` — só GET, a autorização
+ *     é o token; nenhuma lê a sessão nem o cookie, e é o casal a ver a
+ *     proposta (dezenas de pedidos por visita);
+ *   · `vitals`, `erro-do-site`, `security/csp-report` — POST anónimos de
+ *     telemetria: não há sessão a defender de um CSRF, e não leem cookies;
+ *   · `health` — GET, com a sua própria chave, sem sessão.
+ * O CSRF de tudo o resto continua aqui — `proposta/<token>/escolha` incluído.
+ *
+ * O `cron` FICA: as duas tarefas aceitam também a sessão do back office
+ * (`isAuthed`, para as correr à mão), e é este proxy que tira o cookie de uma
+ * sessão revogada (ponto 5, lá em cima). Sem ele, uma sessão terminada ainda
+ * corria a cópia de segurança. Correm duas vezes por dia: não há o que poupar.
+ *
+ * Os testes em `proxy.test.ts` passam cada caminho pelo MESMO compilador de
+ * `matcher` que o Next usa no build.
+ */
 export const config = {
   // Só `/api` (CSRF, id do pedido) e `/en` (o cookie que lembra o inglês).
   // Antes corria em todas as páginas, para reescrever os caminhos nus para
   // `/{lang}/…` — isso passou a ser uma regra do `next.config.ts`
   // (`src/lib/rotas-da-lingua.ts`, 10/11): uma visita a uma página portuguesa
-  // já não invoca função nenhuma.
-  matcher: ["/api/:path*", "/en", "/en/:path*"],
+  // já não invoca função nenhuma. E de `/api` saem as leituras públicas.
+  //
+  // O Next lê o `matcher` no build, de forma ESTÁTICA: tem de ser um literal.
+  matcher: [
+    "/api",
+    "/api/((?!proposta/[^/]+/(?:pagina|foto|fundo|paginas)(?:/|$)|vitals(?:/|$)|health(?:/|$)|erro-do-site(?:/|$)|security/csp-report(?:/|$)).*)",
+    "/en",
+    "/en/:path*",
+  ],
 };

@@ -93,6 +93,10 @@ export default function DefinirPalavraPasse({ token }: { token: string }) {
               <p className="text-sm leading-relaxed text-[var(--bo-tinta-72)]">
                 Pronto. A palavra-passe nova já está a valer — usa-a na página de entrada.
               </p>
+              <p className="text-sm leading-relaxed text-[var(--bo-tinta-72)]">
+                Por segurança, os aparelhos que entravam sem palavra-passe (rosto, impressão digital
+                ou PIN) deixaram de servir. Depois de entrares, regista-os outra vez.
+              </p>
               <Button
                 type="button"
                 size="lg"

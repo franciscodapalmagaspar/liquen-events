@@ -46,6 +46,15 @@ const eventoSchema = z.object({
   contexto: z.string().max(120).optional(),
   fbp: z.string().max(200).optional(),
   fbc: z.string().max(600).optional(),
+  /**
+   * Aceites no corpo SÓ para um separador antigo continuar a ser lido sem
+   * «pedido-invalido» — e DESCARTADOS a seguir (auditoria de 16/11, n.º 8).
+   * Esta rota é pública: um email, um telefone ou um nome vindos daqui podiam
+   * ser de qualquer pessoa, escritos por qualquer pessoa, e iam colados aos
+   * eventos da conta dela. Os dados pessoais só seguem nos eventos que nascem
+   * no servidor (o `Lead` de `/api/orcamento` e o `Purchase` do back office),
+   * que não passam por aqui.
+   */
   email: z.string().max(160).optional(),
   telefone: z.string().max(40).optional(),
   nomeDaPessoa: z.string().max(120).optional(),
@@ -124,12 +133,10 @@ export async function POST(request: NextRequest) {
       url: e.url ? limparUrl(e.url) : undefined,
       fonte: "website",
       contexto: e.contexto,
+      // Sem email, telefone nem nome: ver o `eventoSchema`.
       pessoa: {
         fbp: e.fbp,
         fbc: e.fbc,
-        email: e.email,
-        telefone: e.telefone,
-        nome: e.nomeDaPessoa,
         ip: ip || undefined,
         agente: agente || undefined,
       },

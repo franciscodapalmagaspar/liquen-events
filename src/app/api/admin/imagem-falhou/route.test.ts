@@ -64,6 +64,13 @@ describe("POST /api/admin/imagem-falhou", () => {
     expect(st.avisos[0]!.c).toMatchObject({ causa: "ficheiro em falta", estado: 404 });
   });
 
+  it("um 404 é aviso mesmo com a assinatura expirada (2.ª revisão de 17/11)", async () => {
+    await pedir({ onde: "capa", url: URL_, estado: 404, expirada: true });
+    expect(st.infos).toHaveLength(0);
+    expect(st.avisos).toHaveLength(1);
+    expect(st.avisos[0]!.c).toMatchObject({ causa: "ficheiro em falta", estado: 404 });
+  });
+
   it("o token nunca chega ao registo", async () => {
     await pedir({ onde: "capa", url: URL_, estado: 403 });
     expect(JSON.stringify([...st.avisos, ...st.infos])).not.toContain("SEGREDO");

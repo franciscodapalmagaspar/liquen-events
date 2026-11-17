@@ -209,10 +209,26 @@ export const ESTRANHOS: Array<[string, () => NextRequest, (() => void)?]> = [
     () => envio(doc(), { fotosEmFaltaConfirmadas: -1 }),
     () => (ctl.missing = 1),
   ],
+  /*
+   * O «sim» antigo (`true`) vale até ao fim de 18/11 e depois não
+   * (`FIM_DO_SIM_ANTIGO`): os dois lados, com o relógio parado, para o retrato
+   * não mudar sozinho no dia 19.
+   */
   [
-    "fotos a true, com fotos em falta",
+    "fotos a true, com fotos em falta, a 18/11 às 23:59",
     () => envio(doc(), { fotosEmFaltaConfirmadas: true }),
-    () => (ctl.missing = 1),
+    () => {
+      ctl.missing = 1;
+      vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-18T23:59:00Z"));
+    },
+  ],
+  [
+    "fotos a true, com fotos em falta, a 19/11",
+    () => envio(doc(), { fotosEmFaltaConfirmadas: true }),
+    () => {
+      ctl.missing = 1;
+      vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-19T00:00:00Z"));
+    },
   ],
   [
     "cortes em texto, com um corte",

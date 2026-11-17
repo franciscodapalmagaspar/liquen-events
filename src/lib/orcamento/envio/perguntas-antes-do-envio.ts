@@ -17,13 +17,34 @@ import { paraComRecusa, SEGUE, type Passo } from "./passo";
  * A resposta «envia assim mesmo» às fotos em falta (17/11) é o NÚMERO de fotos
  * que ela viu a faltar. Vale enquanto o PDF do envio não tiver MAIS em falta do
  * que esse: um «sim» a 3 não pode mandar um documento com 9 (revisão de 17/11).
- * Um booleano, ou qualquer outra coisa que não um número, já chega aqui como
- * `null` (`ler-o-corpo.ts`) — e não conta.
+ * Qualquer outra coisa que não um número já chega aqui como `null`
+ * (`ler-o-corpo.ts`) e não conta — com UMA exceção, por pouco tempo
+ * ({@link FIM_DO_SIM_ANTIGO}).
  */
-export function fotosEmFaltaAceites(emFalta: number, confirmadas: number | null): boolean {
+export function fotosEmFaltaAceites(
+  emFalta: number,
+  confirmadas: number | true | null,
+  agora: number = Date.now(),
+): boolean {
   if (emFalta <= 0) return true;
+  if (confirmadas === true) return agora < FIM_DO_SIM_ANTIGO;
   return confirmadas !== null && emFalta <= confirmadas;
 }
+
+/**
+ * ── O «SIM» ANTIGO, ATÉ 18/11/2026 ÀS 23:59 EM LISBOA (2.ª revisão de 17/11) ──
+ *
+ * Antes da publicação de 17/11 a resposta era `fotosEmFaltaConfirmadas: true`.
+ * Um separador do estúdio aberto antes disso continua a mandá-la, e ficava sem
+ * conseguir enviar até ela recarregar a página. Até ao fim de 18/11 (hora de
+ * Lisboa; em novembro é UTC+0) o booleano vale como dantes; a partir daí, só
+ * o número.
+ *
+ * TIRAR depois de 18/11/2026: apagar esta constante, o ramo do `true` em
+ * {@link fotosEmFaltaAceites}, o `true` da leitura (`ler-o-corpo.ts`) e do
+ * esquema (`esquema-do-corpo.ts`), e os testes do «sim» antigo.
+ */
+export const FIM_DO_SIM_ANTIGO = Date.parse("2026-11-19T00:00:00Z");
 
 /**
  * ════════════════════════════════════════════════════════════════════════
@@ -44,7 +65,7 @@ export function fotosEmFaltaAceites(emFalta: number, confirmadas: number | null)
 export function perguntaDasFotos(
   pedidoId: string,
   missingImages: number,
-  confirmadas: number | null,
+  confirmadas: number | true | null,
 ): Passo {
   if (fotosEmFaltaAceites(missingImages, confirmadas)) return SEGUE;
   log.warn("proposta-doc: envio parado para confirmar as fotos em falta", {

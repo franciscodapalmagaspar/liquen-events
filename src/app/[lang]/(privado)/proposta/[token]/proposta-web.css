@@ -1022,17 +1022,21 @@ html:has(.pw) {
   display: flex;
   gap: 8px;
 }
-/* O Livro de Reclamações (auditoria legal, 17/11): discreto, por baixo das
-   redes. A altura e a silhueta vêm do componente, em `style`. */
-.pw-foot .pw-livro {
+/* O fim legal (17/11): o Livro de Reclamações, as ligações legais e a
+   resolução de litígios, discretos, por baixo das redes. A peça é a de todas
+   as páginas (`AvisoLegal.tsx`); aqui só a distância e a tinta. */
+.pw-foot .pw-aviso-legal {
   margin-top: 18px;
-  min-height: 44px;
-  opacity: 0.6;
-  transition: opacity 0.3s;
+  color: var(--on-dark-2);
 }
-.pw-foot .pw-livro:hover,
-.pw-foot .pw-livro:focus-visible {
-  opacity: 1;
+.pw-foot .pw-aviso-legal a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.pw-foot .pw-aviso-legal p a {
+  min-height: 0;
+  display: inline;
 }
 .pw-redes a {
   width: 44px;

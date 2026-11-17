@@ -1,6 +1,8 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { semProtegidos } from "@/lib/arquivo-de-pdfs/protegidos";
 import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
+import { CHAVE_DOS_DUPLICADOS } from "@/lib/registos-das-limpezas";
 import { getSupabase } from "@/lib/supabase";
 import { getState, setState } from "@/lib/app-state";
 import { DRAFT_PREFIX, draftKey } from "@/lib/proposal-drafts";
@@ -115,7 +117,7 @@ import { log } from "@/lib/logger";
  * dezenas de KB) — e só escreve quando encontra um caminho que saiu. A releitura
  * da corrida, na Fase B, são duas leituras do mesmo género por lote de 6.
  */
-export const CHAVE = "limpeza:fotos-duplicadas";
+export const CHAVE = CHAVE_DOS_DUPLICADOS;
 export const ESPERA_HORAS = 24;
 export const INTERVALO_DIAS = 7;
 /** Quanto tempo depois de sair uma cópia se continua a vigiar, todas as
@@ -608,7 +610,7 @@ async function apagarUma(sb: Cliente, c: CopiaASair): Promise<boolean> {
   await Promise.all(
     ds.map(async (d) => {
       try {
-        await sb.storage.from(d.de).copy(d.c, d.p, { destinationBucket: d.para });
+        await balde(d.de, sb).copy(d.c, d.p, { destinationBucket: d.para });
       } catch {
         /* refaz-se a pedido */
       }
@@ -619,7 +621,7 @@ async function apagarUma(sb: Cliente, c: CopiaASair): Promise<boolean> {
     // O que nenhuma limpeza pode levar (`arquivo-de-pdfs/protegidos.ts`).
     const podem = semProtegidos(PROPOSAL_BUCKET, [c.caminho]);
     if (podem.length === 0) return false;
-    const { data, error } = await sb.storage.from(PROPOSAL_BUCKET).remove(podem);
+    const { data, error } = await balde(PROPOSAL_BUCKET, sb).remove(podem);
     if (error || !Array.isArray(data) || data.length === 0) return false;
   } catch {
     return false;
@@ -631,7 +633,7 @@ async function apagarUma(sb: Cliente, c: CopiaASair): Promise<boolean> {
     [...porBucket].map(async ([b, cs]) => {
       try {
         const podem = semProtegidos(b, cs);
-        if (podem.length) await sb.storage.from(b).remove(podem);
+        if (podem.length) await balde(b, sb).remove(podem);
       } catch {
         /* uma derivada órfã não estraga nada */
       }

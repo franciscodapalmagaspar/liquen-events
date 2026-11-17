@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { getSupabase } from "./supabase";
 import { log } from "./logger";
 import { after } from "next/server";
@@ -125,7 +126,7 @@ export async function guardarPdfDaProposta(
   const sb = getSupabase();
   if (!sb || !(await garantirBucket())) return false;
   try {
-    const { error } = await sb.storage.from(BUCKET).upload(caminho(proposalId, chave), bytes, {
+    const { error } = await balde(BUCKET, sb).upload(caminho(proposalId, chave), bytes, {
       contentType: "application/pdf",
       upsert: false,
       // Um ano: o conteúdo está na chave, portanto este ficheiro nunca muda.
@@ -167,7 +168,7 @@ export async function lerPdfDaProposta(proposalId: string, chave: string): Promi
   const sb = getSupabase();
   if (!sb) return null;
   try {
-    const { data, error } = await sb.storage.from(BUCKET).download(caminho(proposalId, chave));
+    const { data, error } = await balde(BUCKET, sb).download(caminho(proposalId, chave));
     if (error || !data) return null;
     const bytes = Buffer.from(await data.arrayBuffer());
     return bytes.byteLength > 0 ? bytes : null;
@@ -199,9 +200,10 @@ export async function existePdfDaProposta(proposalId: string, chave: string): Pr
   if (!sb) return false;
   const alvo = `${chave}.pdf`;
   try {
-    const { data, error } = await sb.storage
-      .from(BUCKET)
-      .list(proposalId.replace(/[^a-zA-Z0-9_-]/g, ""), { search: alvo, limit: 1 });
+    const { data, error } = await balde(BUCKET, sb).list(
+      proposalId.replace(/[^a-zA-Z0-9_-]/g, ""),
+      { search: alvo, limit: 1 },
+    );
     if (error || !data) return false;
     return data.some((f) => f.name === alvo);
   } catch {

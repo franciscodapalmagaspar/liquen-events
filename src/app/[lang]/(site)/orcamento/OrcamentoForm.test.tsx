@@ -2,7 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup, renderToString } from "react-dom/server";
+import { act } from "react";
+import { hydrateRoot, type Root } from "react-dom/client";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { getDictionary, pickChromeDict } from "@/lib/i18n";
 import { quoteFormSchema } from "@/lib/validation";
@@ -34,6 +36,12 @@ import OrcamentoForm from "./OrcamentoForm";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("next/image", () => ({ default: () => null }));
+// O selo do anti-spam (17/11) pede-se ao montar, com o seu próprio `fetch`.
+// Estes testes contam os `fetch` do ENVIO; o selo prova-se em
+// `anti-spam/selo.test.ts` e na rota.
+vi.mock("@/lib/anti-spam/useSeloDoFormulario", () => ({
+  useSeloDoFormulario: () => async () => "SELO-DE-TESTE",
+}));
 
 const dict = getDictionary("pt");
 const to = dict.orcamento;
@@ -683,5 +691,34 @@ describe("OrcamentoForm — a coordenação do dia", () => {
       dayCoordination: true,
     });
     expect(r.success && r.data.dayCoordination).toBe(true);
+  });
+});
+
+describe("antes de hidratar, «Enviar» não recarrega a página", () => {
+  // Revisão de 17/11: antes da hidratação, um toque em «Enviar» ou um Enter
+  // num campo faziam o GET nativo do <form>; a página recarregava e ela perdia
+  // tudo o que tinha escrito. O botão de envio vem desligado do servidor (com
+  // o botão de envio desligado, o Enter também não submete) e liga-se ao
+  // hidratar. Com `renderToString` + `hydrateRoot`, o caminho da página.
+  const envio = (c: HTMLElement) => c.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+
+  it("no HTML do servidor o botão de envio vem desligado, com a alternativa sem JavaScript", () => {
+    const caixa = document.createElement("div");
+    caixa.innerHTML = renderToString(<Formulario />);
+    expect(envio(caixa).disabled).toBe(true);
+    expect(caixa.querySelector("noscript")?.innerHTML).toContain("mailto:");
+  });
+
+  it("depois de hidratar o botão de envio liga-se", async () => {
+    const caixa = document.createElement("div");
+    caixa.innerHTML = renderToString(<Formulario />);
+    document.body.appendChild(caixa);
+    let raiz: Root | null = null;
+    await act(async () => {
+      raiz = hydrateRoot(caixa, <Formulario />);
+    });
+    expect(envio(caixa).disabled).toBe(false);
+    act(() => raiz!.unmount());
+    caixa.remove();
   });
 });

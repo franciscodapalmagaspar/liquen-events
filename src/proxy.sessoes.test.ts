@@ -6,10 +6,18 @@ import { NextRequest } from "next/server";
  * redefinida) chega às rotas da `/api` SEM o cookie de sessão — e todas a
  * tratam como quem não entrou.
  */
-const H = vi.hoisted(() => ({ revogada: false }));
+const H = vi.hoisted(() => ({
+  revogada: false,
+  /** Sem registo das revogações (instância nova, Supabase lento). */
+  semRegisto: false,
+}));
 
 vi.mock("@/lib/sessoes-revogadas", () => ({
-  sessaoRevogada: vi.fn(async () => H.revogada),
+  MENSAGEM_REVOGACAO_INDISPONIVEL: "Não foi possível confirmar a sessão neste momento.",
+  estadoDaSessao: vi.fn(async (_t: string, o: { muda: boolean }) => {
+    if (H.semRegisto) return o.muda ? "indisponivel" : "valida";
+    return H.revogada ? "revogada" : "valida";
+  }),
 }));
 vi.mock("@/lib/registo-de-acoes", () => ({
   deveRegistar: () => false,
@@ -23,14 +31,16 @@ beforeEach(() => {
   vi.stubEnv("SESSION_SECRET", "test-secret-please-change-1234567890");
   vi.stubEnv("ADMIN_USERS", "");
   H.revogada = false;
+  H.semRegisto = false;
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function pedido(token: string): NextRequest {
-  return new NextRequest(new URL("https://liquen.test/api/orcamento?resumo=1"), {
+function pedido(token: string, method = "GET", caminho = "/api/orcamento/abc"): NextRequest {
+  return new NextRequest(new URL(`https://liquen.test${caminho}?resumo=1`), {
+    method,
     headers: { cookie: `${ADMIN_COOKIE}=${token}; liquen-lang=pt` },
   });
 }
@@ -57,5 +67,79 @@ describe("o proxy e as sessões revogadas", () => {
     // Sem mudança, o proxy não reescreve o cookie (ou reescreve-o igual).
     if (segue !== null) expect(segue).toContain(`${ADMIN_COOKIE}=${token}`);
     expect(res.headers.get("set-cookie") ?? "").not.toContain(`${ADMIN_COOKIE}=;`);
+  });
+
+  // Auditoria de 16/11, n.º 7.
+  it("sem o registo das revogações, o que MUDA dados recebe 503 e não chega à rota", async () => {
+    H.semRegisto = true;
+    for (const m of ["POST", "PUT", "PATCH", "DELETE"]) {
+      const res = await proxy(pedido(createSession("TESTE Ana"), m));
+      expect(res.status, m).toBe(503);
+      expect(res.headers.get("x-middleware-next"), m).toBeNull();
+      expect(res.headers.get("retry-after"), m).toBe("5");
+      expect((await res.json()).error, m).toMatch(/confirmar a sessão/);
+    }
+  });
+
+  it("sem o registo das revogações, o que só LÊ continua a passar", async () => {
+    H.semRegisto = true;
+    const token = createSession("TESTE Ana");
+    const res = await proxy(pedido(token, "GET"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-middleware-next")).toBe("1");
+  });
+
+  it("sem sessão, um POST sem registo não é travado (o formulário público)", async () => {
+    H.semRegisto = true;
+    const res = await proxy(
+      new NextRequest(new URL("https://liquen.test/api/orcamento"), { method: "POST" }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("sem o registo, «Sair», as entradas e as rotas públicas passam com sessão aberta", async () => {
+    H.semRegisto = true;
+    const token = createSession("TESTE Ana");
+    for (const caminho of [
+      "/api/admin/logout",
+      "/api/admin/login",
+      "/api/admin/recuperar",
+      "/api/admin/recuperar/definir",
+      "/api/admin/passkeys/entrada",
+      "/api/admin/erro-do-cliente",
+      "/api/admin/imagem-falhou",
+      "/api/orcamento",
+      "/api/meta",
+      "/api/proposta/tok/escolha",
+    ]) {
+      const res = await proxy(pedido(token, "POST", caminho));
+      expect(res.status, caminho).toBe(200);
+      expect(res.headers.get("x-middleware-next"), caminho).toBe("1");
+    }
+  });
+
+  it("a lista de isenções não deixa passar as gravações do back office", async () => {
+    H.semRegisto = true;
+    const token = createSession("TESTE Ana");
+    for (const caminho of [
+      "/api/orcamento/abc",
+      "/api/orcamento/abc/proposta-rascunho",
+      "/api/admin/equipa",
+      "/api/admin/passkeys/registo",
+      "/api/admin/logout/x",
+      "/api/orcamento/abc/tempo-activo",
+      "/api/admin/recuperar/outra",
+      "/api/admin/passkeys/entrada/x",
+      "/api/temas",
+    ]) {
+      const res = await proxy(pedido(token, "POST", caminho));
+      expect(res.status, caminho).toBe(503);
+    }
+  });
+
+  it("o 503 traz o X-Request-ID", async () => {
+    H.semRegisto = true;
+    const res = await proxy(pedido(createSession("TESTE Ana"), "PATCH"));
+    expect(res.headers.get("x-request-id")).toBeTruthy();
   });
 });

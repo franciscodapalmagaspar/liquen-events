@@ -71,8 +71,12 @@ export function corpoLido(cru: unknown) {
     modelo: texto(corpo.modelo) ?? "",
     /** A chave do PDF final visto — a que a pré-visualização devolveu. */
     pdfVisto: texto(corpo.pdfVisto) ?? null,
-    /** «Já sei que faltam N fotografias»: o NÚMERO que ela viu. */
-    fotosEmFaltaConfirmadas: contagem(corpo.fotosEmFaltaConfirmadas) ?? null,
+    /** «Já sei que faltam N fotografias»: o NÚMERO que ela viu — ou o `true`
+     *  de um separador aberto antes de 17/11, que só vale até ao fim de 18/11
+     *  (`fotosEmFaltaAceites`). Qualquer outra coisa é «ainda não respondeu». */
+    fotosEmFaltaConfirmadas:
+      contagem(corpo.fotosEmFaltaConfirmadas) ??
+      (corpo.fotosEmFaltaConfirmadas === true ? (true as const) : null),
     /** «Já vi o que fica cortado»: só `true` conta. */
     cortesConfirmados: corpo.cortesConfirmados === true,
   };

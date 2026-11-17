@@ -4,9 +4,9 @@
  *
  * Os retratos de `route.caracterizacao.test.ts` foram tirados com a rota ainda
  * inteira, excepto os dos CORPOS ESTRANHOS, que vieram depois. Este teste é o
- * que os certifica: tira a rota antiga do git (`25180ccd`, o commit de
- * caracterização), põe-na ao lado da nova, corre os mesmos cenários nas duas
- * com os mesmos duplos, e exige o mesmo retrato, letra a letra.
+ * que os certifica: tira a rota antiga do git ({@link COMMIT_DA_ROTA_ANTIGA}),
+ * põe-na ao lado da nova, corre os mesmos cenários nas duas com os mesmos
+ * duplos, e exige o mesmo retrato, letra a letra.
  *
  * Corre SEMPRE que o clone tem esse commit: aqui, num clone inteiro feito
  * enquanto o ramo existir, e no CI — o checkout lá é raso, e o próprio teste
@@ -97,10 +97,16 @@ function avisar(porque: string): void {
   }
 }
 
-/** O commit de caracterização (a rota é a mesma no pai, `bfd82ccf`). */
-const COMMIT_DA_CARACTERIZACAO = "25180ccd";
+/**
+ * A rota antiga é a do `main` (o lote de 17/11, `e8a4a94b`): a do commit de
+ * caracterização (`25180ccd`) mais as duas coisas que o `main` lhe juntou
+ * depois — o «sim» antigo às fotos em falta (até ao fim de 18/11) e o rodapé
+ * legal dos emails. Compara-se com a que está em produção, e não com a de
+ * quando se tirou o retrato.
+ */
+const COMMIT_DA_ROTA_ANTIGA = "e8a4a94b";
 /** O mesmo, por inteiro: é o que o `git fetch` de um só commit pede. */
-const COMMIT_COMPLETO = "25180ccdf3f40ea43ecdde48d072d86e76c0364a";
+const COMMIT_COMPLETO = "e8a4a94b2eba1fd0245c3e2d1e4f0b368c5ceefa";
 /** A rota, relativa à raiz do repositório (o que o `git show` pede). */
 const ROTA = "src/app/api/orcamento/[id]/proposta-doc/route.ts";
 /**
@@ -124,7 +130,7 @@ function git(...args: string[]): string | null {
 }
 const RAIZ = git("rev-parse", "--show-toplevel") ?? "";
 /** O commit está no clone? */
-const temOCommit = () => git("cat-file", "-e", `${COMMIT_DA_CARACTERIZACAO}^{commit}`) !== null;
+const temOCommit = () => git("cat-file", "-e", `${COMMIT_DA_ROTA_ANTIGA}^{commit}`) !== null;
 /**
  * Há rota antiga para tirar? No CI o checkout é raso: busca-se só este commit,
  * e só na parte do CI que corre este teste (uma ida ao GitHub, não cinco). Se a
@@ -144,8 +150,8 @@ else if (!HA_ROTA_ANTIGA && process.env.COMPARAR_COM_A_ROTA_ANTIGA !== "0") {
     RAIZ === ""
       ? "não há git (ou isto não é um repositório) — a comparação saltou"
       : process.env.CI
-        ? `o commit ${COMMIT_DA_CARACTERIZACAO} não veio (o fetch falhou ou passou dos 15 s) — a comparação saltou`
-        : `este clone não tem o commit ${COMMIT_DA_CARACTERIZACAO} (raso?) — a comparação saltou`,
+        ? `o commit ${COMMIT_DA_ROTA_ANTIGA} não veio (o fetch falhou ou passou dos 15 s) — a comparação saltou`
+        : `este clone não tem o commit ${COMMIT_DA_ROTA_ANTIGA} (raso?) — a comparação saltou`,
   );
 }
 /** Uma pasta por corrida: duas corridas ao mesmo tempo não se pisam. */
@@ -163,13 +169,13 @@ type Post = typeof POST;
 describe.skipIf(!HA_ROTA_ANTIGA)(
   PASSOU_O_PRAZO
     ? `(SALTA) ${PEDIDO_DO_PRAZO}`
-    : `a rota nova responde o mesmo que a antiga (${COMMIT_DA_CARACTERIZACAO}; salta sem o commit)`,
+    : `a rota nova responde o mesmo que a antiga (${COMMIT_DA_ROTA_ANTIGA}; salta sem o commit)`,
   () => {
     let postAntigo: Post;
     let pasta = "";
 
     beforeAll(async () => {
-      const antiga = execFileSync("git", ["show", `${COMMIT_DA_CARACTERIZACAO}:${ROTA}`], {
+      const antiga = execFileSync("git", ["show", `${COMMIT_DA_ROTA_ANTIGA}:${ROTA}`], {
         cwd: RAIZ,
       });
       mkdirSync(CACHE, { recursive: true });

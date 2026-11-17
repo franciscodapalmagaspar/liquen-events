@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { servirUmaVez, type PedidoDaPaleta } from "./procura-em-tudo";
 import type { Quote, CalendarEvent, CalendarEventKind } from "@/lib/orcamento/types";
 import { CATEGORIES, EVENT_TYPES_BY_CATEGORY } from "@/lib/orcamento/data";
 import { useToast } from "./Toast";
@@ -251,6 +252,12 @@ function exportIcs(quotes: Quote[]) {
 interface Props {
   quotes: Quote[];
   onOpen: (q: Quote) => void;
+  /**
+   * A paleta (⌘K) pediu alguma coisa a este ecrã (BO 4): abrir uma marcação
+   * (`id` — vai ao dia dela e abre o detalhe) ou começar uma nova (`novo` — o
+   * mesmo «Novo no calendário» do ⌘N, para hoje). Servido uma vez.
+   */
+  pedidoDaPaleta?: PedidoDaPaleta;
   /**
    * ── O QUE ABRE DA LISTA DOS PRÓXIMOS EVENTOS ──────────────────────────
    *
@@ -657,7 +664,7 @@ export function agruparPorMes<T extends { date: string }>(
   return grupos;
 }
 
-export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
+export default function Calendario({ quotes, onOpen, onFazerProposta, pedidoDaPaleta }: Props) {
   /** A porta de TODOS os toques num cliente — ver `onFazerProposta`. */
   const abrir = onFazerProposta ?? onOpen;
   const { toast } = useToast();
@@ -1105,6 +1112,25 @@ export default function Calendario({ quotes, onOpen, onFazerProposta }: Props) {
     );
     setSelectedDay(null);
   }, []);
+
+  /* O pedido da paleta. A marcação só se serve quando está na lista — que vem
+     da mesma memória de onde a paleta a tirou, portanto está lá no primeiro
+     desenho; se entretanto foi removida, não há nada para abrir. */
+  useEffect(() => {
+    if (pedidoDaPaleta?.id && !events.some((e) => e.id === pedidoDaPaleta.id)) return;
+    servirUmaVez(pedidoDaPaleta, (p) => {
+      if (p.novo) {
+        abridorDoModal.current = document.activeElement as HTMLElement | null;
+        setTipoDoModal("evento");
+        setModalDate(todayKey());
+        return;
+      }
+      const ev = events.find((e) => e.id === p.id);
+      if (!ev) return;
+      irParaDia(ev.date);
+      setAVer(ev);
+    });
+  }, [pedidoDaPaleta, events, irParaDia]);
 
   /** Os dias que a vista à frente mostra. Vazio no mês e no ano. */
   const diasDaVista = useMemo(() => {

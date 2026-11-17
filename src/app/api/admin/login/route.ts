@@ -11,7 +11,7 @@ import {
   verifyCredentials,
   totpRequired,
   checkTotp,
-  normalizarIdentificador,
+  chaveDaEscadaDeEntrada,
 } from "@/lib/admin-auth";
 import { rateLimit, clientIp, sweep, limiteEsgotado } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
@@ -142,12 +142,13 @@ export async function POST(request: NextRequest) {
   // logo é sempre contado, e continua preso às vinte por hora. O que deixa de
   // acontecer é um estranho poder fechar a porta a quem sabe a palavra-passe.
   //
-  // A chave usa o identificador tal como foi escrito, em minúsculas e truncado.
-  // Não abre um oráculo de enumeração: uma conta inexistente e uma palavra-passe
-  // errada seguem exactamente o mesmo caminho (`!user`), gastam o mesmo contador
-  // e devolvem a mesma resposta. Só escapa ao contador quem já acertou nas
-  // credenciais — e esse já sabe o que o oráculo lhe diria.
-  const conta = normalizarIdentificador(identificador);
+  // A chave é a da CONTA, e não o que foi escrito (ver `chaveDaEscadaDeEntrada`):
+  // o nome e o email da mesma pessoa gastam a mesma escada; sem `ADMIN_USERS`
+  // há uma só escada, porque qualquer nome serve; e um identificador que não é
+  // de ninguém tem a sua, como uma conta — é isso que mantém «não existe» igual
+  // a «palavra-passe errada». É a mesma chave no degrau da palavra-passe e no
+  // do código de 6 dígitos.
+  const conta = chaveDaEscadaDeEntrada(identificador);
 
   /** 429 do degrau mais alto que a conta já pisou, gastando uma tentativa. */
   async function gastarTentativaDaConta(): Promise<NextResponse | null> {

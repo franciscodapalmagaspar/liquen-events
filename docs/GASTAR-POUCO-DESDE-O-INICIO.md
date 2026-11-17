@@ -108,6 +108,29 @@ junto. Ela pediu a 4/11: **«passa a juntar as alterações em lotes»**.
   maiores linhas, e as duas crescem com cada publicação.
 - **Fora do lote, logo:** o site em baixo, uma falha de segurança, ou um erro
   que um cliente está a ver neste momento.
+- **Agora é o código que faz cumprir o lote** (16/11). O
+  `scripts/vercel-construir.mjs` (o `ignoreCommand` do `vercel.json`) só deixa
+  construir produção quando a mensagem do commit no `main` começa por
+  «Lote», «Urgente» ou «Revert» (sem distinguir maiúsculas; 17/11: os
+  urgentes e as reversões já entravam assim), ou contém `lote/` (o merge de
+  um ramo `lote/AAAA-MM-DD`), ou traz `[publicar]` ou `[urgente]`. Qualquer outro commit no `main` salta a
+  construção: fica no `main` e chega ao site com o lote seguinte. Sem
+  mensagem, constrói (na dúvida, constrói). Os testes estão em
+  `scripts/vercel-construir.test.ts`.
+- **Só a primeira linha da mensagem conta** (17/11). A Vercel diz que
+  `VERCEL_GIT_COMMIT_MESSAGE` é a mensagem do commit, cortada aos 2048 bytes —
+  pode vir com o corpo, e o corpo de um squash lista os commits do PR. Por
+  isso **o lote entra no `main` de uma de duas formas**, as duas com o sinal
+  no título:
+  1. **merge commit** — «Merge pull request #N from …/lote/AAAA-MM-DD» (vale
+     também para um lote com um só commit);
+  2. **squash** com o título do PR a começar por «Lote …».
+
+  Um `lote/…` ou um `[publicar]` que só apareça no corpo não publica.
+- **Para forçar uma publicação** fora do lote (ela pediu para ver, ou é uma
+  das três urgências de cima): `[publicar]` (ou `[urgente]`, para as
+  urgências) no título do PR que entra em squash, ou num commit vazio —
+  `git commit --allow-empty -m "Publica já [publicar]"`.
 - **O que mexe no PDF continua a precisar da aprovação dela antes de entrar no
   lote** — o lote não é atalho.
 - **Os ramos de trabalho não arrancam construções na Vercel** (9/11). Uma
@@ -466,3 +489,281 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
   (`limpeza:pastas-de-pedidos-apagados`): só sai o que continuar candidato.
   As fotografias não têm cópia dos bytes — o que sai não volta.
 
+### As manhas grátis antes do Blob (17/11)
+
+Ele: «É o Vercel, nada mais» e «mesmo no Vercel é custo mínimo maior
+possível». Antes de o Blob (desligado) custar um cêntimo, esgotar o que liberta
+espaço no Supabase sem perder qualidade nem dados. Ramo `custo/supabase-espaco`.
+
+**Medido a 17/11 (SQL a `storage.objects`, só tamanhos; «MB» = MiB, como no
+painel):** **912,7 MB em 10 422 ficheiros** (957,0 MB decimais).
+
+| balde | ficheiros | MB | o que é |
+|---|---|---|---|
+| theme-assets | 1 565 | 300,9 | originais da Biblioteca (1 414 JPEG 253 MB, 129 PNG 44 MB, 22 WebP) |
+| proposal-pdfs | 75 | 147,1 | o PDF enviado/actual/aceite de cada proposta |
+| theme-medias | 1 564 | 127,8 | derivadas 1 200 px (1 192 WebP, 221 JPEG antigas) |
+| fotos-editoriais | 1 912 | 122,3 | **cache** do PDF (reduzidas e «preparadas») |
+| proposal-assets | 461 | 110,8 | originais das pastas dos pedidos |
+| proposal-medias | 464 | 35,7 | derivadas |
+| theme-thumbs | 1 565 | 31,9 | miniaturas |
+| theme-avif-medias | 228 | 13,7 | derivadas AVIF |
+| proposal-thumbs | 464 | 8,3 | miniaturas |
+| proposal-pdfs-arquivo | 156 | 6,0 | o arquivo desmontado (2 PDF, todos de 16/11) |
+| as outras 7 | 2 010 | 8,2 | micro, AVIF, capas |
+
+**O que se encontrou:**
+
+1. **68 MB de pastas de pedidos apagados presos por um registo de limpeza.**
+   De 10 pastas sem pedido, as 6 que ela autorizou a 10/11 deviam estar a
+   sair. Só 4 (10 MB) estavam na espera; as outras duas (50 + 4 MB de
+   originais, **65 MB com as derivadas**, 103 fotografias de julho) nunca lá
+   chegavam. Procurei a menção em todas as tabelas: era SÓ o caderno da junção
+   dos duplicados (`limpeza:fotos-duplicadas`, campo `feitos`) — as 58 cópias
+   que ela própria já tinha tirado de DENTRO dessas pastas a 14/11. Ficavam
+   presas 60 dias (`FEITOS_DIAS`) por uma limpeza a lembrar-se do que fez.
+   **Corrigido:** `registos-das-limpezas.ts` (irmão do `indices-de-fotos.ts`)
+   lista os cadernos das limpezas, e `limpar-pastas-orfas` não os conta como
+   menção. Um rascunho, uma proposta ou outra tabela continuam a proteger a
+   pasta (teste). As 7 portas e a espera de 7 dias ficam iguais.
+2. **A cache `fotos-editoriais` sem tecto.** 122 MB com a regra dos 7 dias, e
+   85 MB nasceram num só dia (16/11) — mais do que a folga de 40 MB que o
+   travão reserva por dia. Nas 24 h medidas: 1 342 leituras certas, 1 187 em
+   falta, 1 537 escritas — trabalha, e por isso não se esvazia. **Novo:** além
+   dos 7 dias, um tecto de **64 MB**; acima dele saem as mais VELHAS até caber
+   (`queSaiDaCache`, pura). Sem ter lido as 256 pastas (tempo esgotado), só a
+   idade conta — não se sabe o total. **Provado que se refaz**
+   (`proposal-doc-render.guardadas.test.ts`): a cache apagada inteira, o PDF
+   sai sem faltar nenhuma fotografia e volta a guardar os MESMOS bytes, as
+   reduzidas e as preparadas.
+3. **Já em curso, não mexi:** a limpeza dos PDF substituídos tem 13 PDF
+   (12,7 MB) em espera desde 17/11 → saem a 24–25/11. A junção dos duplicados
+   tirou 86 cópias (36,3 MB) a 14/11 e volta a calcular a 21/11.
+4. **Duplicados que restam** (eTag + tamanho): ~115 MB, quase tudo nas
+   categorias que a junção deixa de fora DE PROPÓSITO (ver acima): a mesma foto
+   em dois temas (originais 24 MB + médias 13 + miniaturas 3), cópias usadas
+   por propostas gravadas (14,2 MB — reescrever uma proposta enviada muda-lhe o
+   selo e a chave do PDF), a galeria de um pedido vivo (4 MB) e as pastas de
+   pedidos apagados com rascunho (ficam por regra). As 154 imagens iguais entre
+   `fotos-editoriais` e o arquivo (6 MB) são o arquivo a guardar a mesma JPEG
+   que a cache — saem com a cache.
+5. **Órfãos derivados** (média/miniatura/AVIF sem original): 40 ficheiros,
+   3,1 MB. Pequeno; fica proposto.
+
+**Antes e depois** (o «depois» é o que a tarefa da noite faz sozinha depois de
+o lote entrar no `main` — daqui não há chave do Storage, e o SQL não apaga
+ficheiros; nada se apagou à mão):
+
+| | MB | quando |
+|---|---|---|
+| antes (17/11) | **912,7** | |
+| tecto da cache `fotos-editoriais` (122 → ≤ 64) | −58 | a 1.ª noite depois do lote |
+| 4 pastas órfãs já em espera | −10 | 18/11 (já estava a correr) |
+| 2 pastas órfãs desbloqueadas | −65 | 7 noites depois do lote (a espera) |
+| 13 PDF substituídos | −13 | 24–25/11 (já estava a correr) |
+| **depois (esperado)** | **~766** | até ~26/11 |
+
+**O que se ganha por mês:** o tecto não abranda o crescimento dos originais —
+tira de vez ~60 MB à cache e impede os picos de um dia (85 MB a 16/11) de
+encherem o plano. O crescimento continua a ser o de antes: ~60 MB/mês de PDF
+enviados e ~50–70 MB/mês de originais da Biblioteca (out.–nov.). Com ~766 MB
+ficam ~258 MB livres até 1 GB, mas só ~92 MB até ao travão do importador (900 MB
+contados em 10⁹ = 858 MB): **~1 mês** de folga antes de o travão voltar a
+apertar — o que fica proposto abaixo é o passo seguinte.
+
+**As três perguntas da regra 7:** (1) as duas limpezas já corriam todas as
+noites; nada novo corre. (2) Processador: o tecto lê as mesmas 256 pastas que
+a idade já lia e ordena ~2 000 entradas (< 1 ms); a cache que sai refaz-se —
+um PDF de uma proposta com mais de ~5 dias sem uso volta a preparar as fotos
+uma vez (~5–10 s). (3) Guardar/build/navegador: é a própria regra de guardar
+menos.
+
+**Ficou só proposto, e porquê:**
+
+- **Recomprimir sem perda os PNG da Biblioteca** (129, 44 MB, ~14 bits por
+  píxel: fotografias guardadas em PNG). Medido aqui com 30 fotografias de
+  `public/imagens` passadas a PNG pelo `sharp`: o mesmo PNG com compressão 9 e
+  filtros adaptativos (sem paleta) fica **31,6% menor com os píxeis iguais em
+  30 de 30**; WebP sem perda, 51,7%. Os PNG reais vêm de outras ferramentas:
+  estimo 2–14 MB. Não feito: precisa da chave do Storage, e mexer nos bytes de
+  um original mexe no `md5`/`fingerprint` da `biblioteca_fotos`, no índice
+  `foto-resumo:` e no nome-resumo da Biblioteca. O mesmo, para as novas: hoje
+  um PNG até 1–1,5 MB guarda-se tal e qual (`keepOriginal`); o servidor podia
+  passá-lo pela compressão 9 antes de calcular o resumo.
+- **JPEG sem perda** (`jpegtran -optimize`, 359 MB de originais a 1,2 bits por
+  píxel): costuma dar 2–8%, mas o `sharp` não o faz e não há o binário aqui
+  nem na Vercel. Não medido.
+- **Os duplicados entre temas e os das propostas gravadas** (~60 MB com
+  derivadas): só com um «apelido» lido no servidor (o caminho antigo resolve
+  para a cópia que fica) sem reescrever o documento da proposta. Mexe em
+  todos os leitores de fotografias — trabalho à parte.
+- **As 221 médias JPEG antigas em WebP** (~10 MB): refazê-las do original
+  custava ~550 MB de saída do Supabase (11% do mês). Não compensa agora.
+- **As pastas de pedidos apagados com rascunho** (4 pastas, 17 MB de originais): ficam por
+  regra; saem se ela apagar esses rascunhos.
+
+
+## O Blob (16/11)
+
+O Supabase gratuito tem 1 GB de ficheiros e ia em **913 MB**; os PDF das
+propostas crescem ~100 MB/mês. O dono recusou o Cloudflare R2 (pede cartão) e
+escolheu o **Vercel Blob, store PRIVADO**, pago do crédito mensal do Pro que já
+tem. Está construído e **DESLIGADO**: sem `BLOB_READ_WRITE_TOKEN` (que a Vercel
+cria sozinha ao ligar o store ao projecto), o `balde()` devolve o balde do
+Supabase tal e qual e nada muda.
+
+**O desenho** (`src/lib/armazenamento/`):
+
+- **Saem** `proposal-pdfs` (~145 MB), `theme-assets` (~301 MB) e
+  `proposal-assets` (~146 MB) — os ficheiros grandes que não se refazem. As
+  derivadas (médias, miniaturas, AVIF, capas, fotos tratadas) **ficam** no
+  Supabase: são elas que o navegador lê quase sempre.
+- `balde(nome, sb)` substitui `sb.storage.from(nome)` no servidor, com a mesma
+  forma e os mesmos `{ data, error }`. O nome do balde passa a prefixo da chave
+  no Blob (`proposal-pdfs/<caminho>`).
+- **Modo por balde** em `app_state` (`armazenamento-blob`, 60 s de cache):
+  `supabase` (como hoje) · `espelho` (escreve nos dois, lê do Supabase) ·
+  `blob` (escreve e lê no Blob; um 404 ou o tecto voltam ao Supabase; uma
+  escrita recusada vai para o Supabase — nunca se perde uma fotografia).
+- **O Blob nunca se lista no dia a dia.** Uma listagem é uma operação
+  avançada paga, e o Supabase lista centenas de pastas por dia (961 da
+  `theme-assets` a 10/11). O que está no Blob fica num **índice** em
+  `app_state` (`blob:i:<balde>/<caminho>`, ~150 B por ficheiro, ~0,5 MB para
+  os ~3 000 de hoje), e a listagem junta o Supabase com o índice.
+- **Leitura pelo navegador:** o endereço de uma fotografia no Blob é
+  `/api/ficheiro/<balde>/<caminho>?token=…`, com o prazo de sempre (10 anos
+  numa proposta, 6 h na biblioteca). A rota confere o token, **lê o ficheiro
+  do Blob no servidor e devolve-o em fluxo**, com `Range` (o leitor de PDF
+  pede aos pedaços), `ETag` e `Cache-Control: private, max-age=31536000,
+  immutable` (os caminhos nunca mudam de conteúdo). O navegador NUNCA recebe
+  um endereço do Blob (ver «3.ª revisão» abaixo).
+- **Quem lê originais no navegador:** o visualizador e a pré-visualização do
+  seletor da biblioteca (118 MB/dia a 10/11, antes da cache do service
+  worker) e, raramente, uma proposta sem média. A grelha lê miniaturas e
+  médias, que ficam no Supabase.
+- **Envio directo do navegador** (`createSignedUploadUrl`): fica no Supabase
+  em qualquer modo. Nenhum ecrã o usa hoje (as rotas `…/url` existem, nenhum
+  cliente as chama); o que lá cair passa ao Blob pela migração.
+- **CSP:** com o token, a origem exacta do store
+  (`https://<loja>.private.blob.vercel-storage.com`, o identificador tirado do
+  token, sem o segredo) entra na `img-src` e na `connect-src`
+  (`csp-imagens.ts`). O `next/image` não é usado com estes endereços.
+
+**Os tectos** (`tectos.ts`, contador em `app_state` `armazenamento-blob:uso`):
+
+| | aviso | travão |
+|---|---|---|
+| guardado | 1,5 GB | 2 GB |
+| operações avançadas / mês (carregar, copiar, listar, testemunho de assinatura) | 40 000 | 50 000 |
+| operações simples / mês (HEAD e cada leitura — contada sempre como falha de cache) | 240 000 | 300 000 |
+| transferência / mês (cada leitura conta o ficheiro inteiro) | 4 GB | 5 GB |
+
+Escrita recusada → Supabase. Leitura recusada → Supabase, ou, se já lá não
+estiver, a fotografia não aparece (a rota responde 503) até ao mês seguinte —
+é o travão que a regra de custo manda ter. **Um contador que não se lê fecha
+o travão** (`contador-ilegivel`): tudo vai ao Supabase. Um gasto que não se
+grava fica na fila e continua a contar.
+
+Revisão de 17/11 (PR #479):
+- (2.ª revisão) cada leitura do navegador passava pelo travão; mas um
+  endereço do Blob entregue num 302 ainda se podia descarregar muitas vezes
+  sem passar por nós — resolvido na 3.ª revisão, abaixo;
+- o endereço `/api/ficheiro` tem o fim arredondado a uma grelha (o mesmo
+  ficheiro dá o mesmo endereço) e o `urls-assinados.ts` guarda-o;
+- a assinatura usa `BLOB_URL_SECRET`, ou o `SESSION_SECRET` noutro contexto —
+  nunca o token do Blob, para trocar o token não matar endereços;
+- o índice `blob:i:` vai na cópia de segurança (a reposição JUNTA, não apaga)
+  e não conta como menção nas limpezas da noite;
+- os avisos dos tectos aparecem no bloco «Hoje» e na janela «Importar
+  proposta», e vão aos registos no máximo uma vez por hora;
+- **desligado, igual a `main`** (2.ª revisão): sem o token não há uma única
+  leitura nova à base de dados nem pedido novo. Por isso o ERRO «há
+  ficheiros no Blob mas o token não está configurado» só aparece na janela
+  «Importar proposta», a partir de um marcador (`blobEmUso`) que a medição da
+  noite grava na ocupação enquanto há token — não no «Hoje», que para o
+  saber teria de ler mais uma linha;
+- os endereços do Blob guardados na `biblioteca_fotos.urls` conferem-se com
+  o segredo e o token de AGORA, e os de mais de 7 dias não se guardam.
+
+**A ordem da migração** (`POST /api/admin/armazenamento-blob`, só admin, cada
+chamada ≤ 40 s, `comCpu`):
+
+1. `configurar` — confirma que o token abre o store (um HEAD). Um store
+   privado lido por endereços assinados não precisa de CORS;
+2. `modo` → `espelho` — o Blob passa a receber as escritas novas, sem que nada
+   dependa dele;
+3. `ensaio`, depois `copiar` (até 50 por chamada, a repetir com `depois` =
+   `proximo` até vir `null`) — cada cópia é relida do Blob e conferida por
+   tamanho e sha256 antes de o índice a marcar `v: true`;
+4. `modo` → `blob`;
+5. verificar no ecrã (propostas, biblioteca, PDF do casal) e voltar a correr
+   `copiar` para apanhar o que entrou pelo Supabase entretanto;
+6. `libertar` (até 100 por chamada) — apaga do **Supabase** só o que tem
+   `v: true`, o mesmo tamanho e o mesmo MD5 que quando foi copiado, um HEAD no
+   Blob com o tamanho certo, e não está em `protegidos.ts`. Nunca apaga do Blob.
+
+Sair do modo `blob` com ficheiros no índice é recusado: as leituras voltavam só
+ao Supabase e os que só estão no Blob sumiam.
+
+**As três perguntas da regra 7**, com os preços do Blob (armazenamento
+0,023 $/GB-mês, simples 0,40 $/milhão, avançadas 5 $/milhão, transferência
+0,05 $/GB) e o uso esperado (~600 MB, ~36 PDF novos por mês):
+
+1. **Quantas vezes corre.** As escritas: ~36 PDF + algumas centenas de
+   fotografias por mês (~500 avançadas → 0,003 $). As leituras do navegador:
+   uma por fotografia original vista (o 302 fica na cache dele) — ~800/dia no
+   pior caso medido a 10/11, ~24 000 simples/mês → 0,01 $. A migração, uma vez:
+   ~3 000 cópias (3 000 avançadas + 3 000 simples + 0,6 GB relidos → ~0,05 $).
+2. **Quanto processador.** A rota do redireccionamento: ~1 ms (dois HMAC) mais
+   uma escrita no contador. O `balde()`: uma leitura do índice (base de dados)
+   por operação. Uma cópia: ler ~3 MB, sha256 (~10 ms), escrever e reler.
+3. **Guardado / build / navegador.** É armazenamento: guarda-se. O build não
+   pode assinar (o destino expira), e o navegador não tem o token. A
+   transferência no pior caso medido (~2,7–3,5 GB/mês de originais + ~0,5 GB
+   de PDF) custa ~0,2 $ de Blob Data Transfer (+ Fast Origin Transfer nas
+   falhas de cache); o armazenamento, 0,6 GB → 0,014 $/mês. **Total esperado:
+   bem abaixo de 1 $/mês**, e o Supabase deixa de pagar essa saída (que a
+   10/11 ia acima dos 5 GB do plano).
+
+O que **não** se verificou (não há token neste ambiente): o Blob a sério — os
+testes usam duplos do SDK e do `fetch`; que o 302 para o Blob passa a CSP num
+navegador; o tempo real de uma chamada `copiar` com 50 ficheiros; e se a
+Vercel conta o `issueSignedToken` como operação (aqui conta-se como avançada).
+
+### 3.ª revisão de 17/11: o navegador deixa de receber endereços do Blob
+
+Um endereço assinado do Blob entregue ao navegador descarrega-se as vezes que
+se quiser sem passar por nós: o leitor de PDF pede aos pedaços, a cache do
+navegador expira, alguém copia o `Location`. Nenhum prazo resolve isso, e um
+travão que não vê o gasto não cumpre a regra de custo. Por isso
+`/api/ficheiro` passou a **servir os bytes**: lê do Blob com o token
+(`lerRespostaDoBlob`) e conta a transferência EXACTA — o `content-length` do
+Blob, ou os bytes contados à medida que passam. Acima do tecto: o original do
+Supabase, depois a média de 1200 px do Supabase, depois 503. O limite por IP
+é 300 por minuto (o escritório inteiro está atrás do mesmo IP); quem protege o
+custo é o travão do mês. Os endereços directos do Blob só existem do lado do
+servidor (prazos de menos de 1 h: ler um cabeçalho, confirmar um
+carregamento).
+
+As três perguntas da regra 7:
+1. **Quantas vezes corre:** uma por ficheiro do Blob visto num navegador; a
+   resposta é imutável e fica na cache dele um ano (`ETag` + `immutable`),
+   e um `If-None-Match` responde 304 sem ir ao Blob. ~800 originais/dia no
+   pior caso medido a 10/11.
+2. **Quanto processador:** passar bytes em fluxo, sem os guardar em memória.
+   A linha `cpu-da-rota` «ficheiro GET» (`comCpu`) mede só até a resposta
+   começar a sair (conferir, pedir ao Blob, os cabeçalhos) — o fluxo que
+   corre depois não entra nela.
+   O preço novo é a **Fast Data Transfer** da Vercel (função → navegador; o
+   Pro inclui 1 TB por mês, e o pior caso aqui são ~3–4 GB) além da Blob Data
+   Transfer (Blob → função), e algum tempo de função por ficheiro.
+3. **Guardado / build / navegador:** não. O navegador não tem o token, e um
+   endereço do Blob nas mãos dele é precisamente o que escapa ao travão.
+
+Notas da 4.ª revisão (17/11): o `HEAD` não vai ao Blob (responde com o que o
+endereço já traz); um `416` do Blob segue como `416`; a leitura pede os bytes
+sem compressão (`Accept-Encoding: identity`) para o `content-length` bater
+certo; e o que sai da nossa origem leva `nosniff`, uma CSP `sandbox` e só
+imagens e PDF com o tipo deles. **O leitor de PDF do Chrome pede o ficheiro
+mais do que uma vez (aos pedaços e por inteiro), e conta-se ~2× o tamanho de
+um PDF aberto** — fica assim: é o lado seguro do travão.

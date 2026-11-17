@@ -93,7 +93,9 @@ describe("o retrato de cada resposta da rota (fase 5)", () => {
 
   it.each(ESTRANHOS)("corpo estranho: %s", async (_nome, fazer, preparar) => {
     preparar?.();
-    expect(await retrato(await POST(fazer(), { params }))).toMatchSnapshot();
+    const res = await POST(fazer(), { params });
+    vi.mocked(Date.now).mockRestore?.();
+    expect(await retrato(res)).toMatchSnapshot();
   });
 
   it.each(SEQUENCIAS)("sequência: %s", async (_nome, preparar, pedidos) => {

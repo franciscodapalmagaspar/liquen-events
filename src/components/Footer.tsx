@@ -4,11 +4,11 @@ import SafeImage from "@/components/SafeImage";
 import TrackedLink from "@/components/TrackedLink";
 import TrackedAnchor from "@/components/ads/TrackedAnchor";
 import ManageCookiesLink from "@/components/ManageCookiesLink";
-import LivroDeReclamacoes from "@/components/LivroDeReclamacoes";
+import AvisoLegal from "@/components/AvisoLegal";
 import { blurFor } from "@/lib/blur";
 import WhatsAppIcon from "./WhatsAppIcon";
 import { WHATSAPP_HREF } from "@/data";
-import { SITE, identificacaoLegal } from "@/lib/site";
+import { SITE } from "@/lib/site";
 import { getDictionary, localizeHref, type Locale } from "@/lib/i18n";
 
 // Editorial footer background — a long-table photo from João & Pedro's wedding
@@ -44,7 +44,6 @@ const serviceSlugs = [
 
 export default function Footer({ locale = "pt" }: { locale?: Locale }) {
   const t = getDictionary(locale);
-  const legal = identificacaoLegal(locale);
   return (
     <footer className="rodape-do-site relative overflow-hidden bg-[#0c0e0b] text-white">
       {/* ── Background photo + dark veil ── */}
@@ -213,45 +212,25 @@ export default function Footer({ locale = "pt" }: { locale?: Locale }) {
 
         {/* ── Copyright bar ── */}
         <div className="border-t border-white/12 py-5">
-          <div className="max-w-7xl mx-auto px-6 lg:px-16 flex flex-col sm:flex-row justify-between items-center gap-3 text-center">
-            <div className="text-[11px] text-white/55 tracking-wide">
-              <p>
-                © {new Date().getFullYear()} Líquen Events. {t.footer.rights}
-              </p>
-              {/* A identificação legal (denominação, NIF, sede), quando o dono
-                  a preencher em `src/lib/site.ts` (`EMPRESA`). Vazia, não há
-                  linha nenhuma. */}
-              {legal ? <p className="mt-1">{legal}</p> : null}
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-[11px] text-white/55 tracking-wide">
-              {/* ── Livro de Reclamações Eletrónico ──
-                  Obrigatório para quem presta serviços a consumidores: o
-                  acesso à plataforma oficial, visível, em todas as páginas.
-                  Ela (17/10): «no canto, ao lado da privacidade, e
-                  transparente como está tudo no cabeçalho» — por isso o
-                  logótipo oficial vai em silhueta branca, com a mesma
-                  transparência dos links ao lado (as letras do círculo ficam
-                  vazadas, e lêem-se no fundo escuro). A peça é a mesma
-                  das páginas sem este rodapé (`LivroDeReclamacoes.tsx`). */}
-              <LivroDeReclamacoes
-                rotulo={t.footer.livroReclamacoes}
-                novaJanela={t.common.newWindow}
-                className="alvo-toque opacity-70 hover:opacity-100 transition-opacity duration-300"
-              />
-              <Link
-                href={localizeHref("/privacidade", locale)}
-                className="alvo-toque link-line pointer-fine:pt-2 pointer-fine:-mt-2 hover:text-white transition-colors"
-              >
-                {t.footer.privacidade}
-              </Link>
-              <Link
-                href={localizeHref("/termos", locale)}
-                className="alvo-toque link-line pointer-fine:pt-2 pointer-fine:-mt-2 hover:text-white transition-colors"
-              >
-                {t.footer.termos}
-              </Link>
-              <ManageCookiesLink locale={locale} />
-            </div>
+          <div className="max-w-7xl mx-auto px-6 lg:px-16 flex flex-col sm:flex-row justify-between items-center sm:items-start gap-4 text-center">
+            <p className="text-[11px] text-white/55 tracking-wide sm:pt-2.5">
+              © {new Date().getFullYear()} Líquen Events. {t.footer.rights}
+            </p>
+            {/* ── O fim legal (17/11, `docs/LEGAL-FORMULARIO.md`) ──
+                O Livro de Reclamações, as ligações legais e a resolução de
+                litígios: a MESMA peça de todas as páginas sem este rodapé
+                (`AvisoLegal.tsx`). O Livro continua onde ela o quis (17/10:
+                «no canto, ao lado da privacidade, e transparente»), em
+                silhueta branca; o «Gerir cookies» junta-se às ligações. */}
+            <AvisoLegal
+              lingua={locale}
+              sobre="escuro"
+              alturaDoLivro={40}
+              alinhar="fim"
+              className="text-white/60 sm:max-w-[34rem]"
+              classeDasLigacoes="alvo-toque link-line pointer-fine:pt-2 pointer-fine:-mt-2 hover:text-white transition-colors"
+              acoes={<ManageCookiesLink locale={locale} />}
+            />
           </div>
         </div>
       </div>

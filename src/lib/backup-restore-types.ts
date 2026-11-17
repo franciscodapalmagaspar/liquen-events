@@ -58,6 +58,11 @@ export interface DatasetPlan {
   newerThanBackup: number;
   /** Preenchido quando o conjunto NÃO vai ser reposto — com a razão, por extenso. */
   skipped?: string;
+  /**
+   * A reposição deste conjunto JUNTA e não apaga nada (o índice do Vercel
+   * Blob): `removed` é sempre 0 e o ecrã diz «junta, não apaga».
+   */
+  junta?: boolean;
 }
 
 /** O contador de numeração fiscal de um ano, e porque vai ficar no valor que vai ficar. */

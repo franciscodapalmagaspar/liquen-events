@@ -549,9 +549,6 @@ export const en: Dict = {
     // Ver `pt.ts` para o porquê.
     requiredNote: "All fields are required, except the mobile number.",
     submitReassure: "A tailored proposal, crafted in detail.",
-    privacyPre: "By submitting, you accept our ",
-    privacyLinkLabel: "Privacy Policy",
-    privacyPost: ". We do not sell your data.",
   },
 
   servicos: {
@@ -796,6 +793,5 @@ export const en: Dict = {
     legal: "Legal",
     privacidade: "Privacy",
     termos: "Terms",
-    livroReclamacoes: "Complaints Book (Livro de Reclamações)",
   },
 };

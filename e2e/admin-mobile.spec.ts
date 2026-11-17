@@ -171,6 +171,9 @@ async function garantirUmPedido(page: Page): Promise<void> {
  * Duas linhas resolvem-no: o esqueleto (`data-view-skeleton`, posto pelo
  * `ViewSkeleton`) tem de ter saído, e o `<main>` tem de ter conteúdo próprio.
  */
+/** Ver «O ESQUELETO TEM DE SAIR», em `esperarPelaVista`. */
+const PRAZO_DA_VISTA_EM_DEV_MS = 30_000;
+
 async function esperarPelaVista(page: Page, label: string) {
   /**
    * PRIMEIRO, ESPERAR QUE O PAINEL TENHA HIDRATADO.
@@ -192,11 +195,30 @@ async function esperarPelaVista(page: Page, label: string) {
     page.locator("body.admin-mode"),
     `"${label}": o painel ainda não hidratou (\`body.admin-mode\` por chegar).`,
   ).toHaveCount(1);
+  /**
+   * O ESQUELETO TEM DE SAIR — mas com o tempo do servidor de DESENVOLVIMENTO.
+   *
+   * Este passeio corre no `next dev` (ver `playwright.movel.config.ts`), onde o
+   * código de cada vista só é compilado quando alguém o pede. MEDIDO a 17/11:
+   * logo a seguir ao estúdio, a vista «Propostas» ficava 15,2 s no esqueleto
+   * com o servidor a frio, 5,5 s à segunda passagem e 0,9 s à terceira. O
+   * pedaço da vista (26 KB) chegava com o cabeçalho em 0,1 s e o CORPO em 15 s:
+   * o Turbopack estava a compilar as onze rotas que o estúdio pede ao abrir
+   * (`proposta-doc`, `assets`, `fotos-em-falta`…), e o pedaço esperava na fila.
+   * Com os 5 s de omissão o passeio ficava vermelho a dizer «a vista não
+   * montou» — em todas as tentativas do CI do lote de 17/11 — quando a vista
+   * montava, só que depois.
+   *
+   * No produto não há compilação: o pedaço é um ficheiro estático. Por isso o
+   * prazo cresce SÓ aqui, e a regra continua inteira — o esqueleto tem de sair
+   * e o `<main>` tem de ter conteúdo próprio antes de se medir. Uma vista que
+   * fique presa no esqueleto continua a pôr isto vermelho, com o nome dela.
+   */
   await expect(
     page.locator("[data-view-skeleton]"),
     `"${label}": o esqueleto ainda está no ecrã — a vista não montou, e medi-la agora ` +
       `mede a moldura da navegação em vez do conteúdo.`,
-  ).toHaveCount(0);
+  ).toHaveCount(0, { timeout: PRAZO_DA_VISTA_EM_DEV_MS });
   await expect
     .poll(() => page.locator("main :is(a[href],button,input,select,textarea,summary)").count(), {
       message:
@@ -418,6 +440,12 @@ test.describe("Back office — mobile", () => {
   test("@movel phone: every view mounts, touch ergonomics hold, no runtime errors", async ({
     page,
   }) => {
+    // Onze vistas, mais o estúdio, cada uma auditada — num `next dev` que
+    // compila cada vista e cada rota à primeira vez que alguém as pede. Medido
+    // a frio a 17/11: os 30 s de omissão acabavam a meio da gaveta (nas
+    // «Temas»), sem nenhuma vista em falta. O triplo é o tempo da passagem, não
+    // uma tolerância a mais em nenhuma das regras.
+    test.slow();
     const errors = collectErrors(page);
     await garantirUmPedido(page);
     const loggedIn = await login(page);
@@ -587,6 +615,11 @@ test.describe("Back office — mobile", () => {
    * facturação passou a ser feita noutro programa.)
    */
   test("@movel phone: o painel de um pedido também se toca com o dedo", async ({ page }) => {
+    // Este passeio abre o estúdio DUAS vezes (o ecrã de fazer proposta, e o
+    // separador Comunicação do painel) antes de chegar ao Financeiro, e no
+    // `next dev` cada abertura são dezenas de rotas. Os 30 s de omissão
+    // chegavam à justa; ver a espera do Financeiro, mais abaixo.
+    test.slow();
     const errors = collectErrors(page);
     await garantirUmPedido(page);
     const loggedIn = await login(page);
@@ -651,6 +684,42 @@ test.describe("Back office — mobile", () => {
     const financeiro = page.getByRole("tab", { name: /Financeiro/i });
     await expect(financeiro, "O painel do pedido perdeu o separador «Financeiro».").toHaveCount(1);
     await financeiro.tap();
+
+    /**
+     * ── PRIMEIRO, QUE O CÓDIGO DO SEPARADOR TENHA CHEGADO ─────────────────
+     *
+     * O `PaymentsPanel` e o `EventCosts` são `dynamic()`: até o pedaço de JS
+     * chegar, o separador mostra o título «Pagamentos» e um esqueleto marcado
+     * `data-painel-a-carregar` (ver `PanelLoading`, em `lazy.tsx`). A medição
+     * só pode começar depois de ele sair.
+     *
+     * Sem esta espera o passeio era instável no CI, e mentia sobre a causa:
+     * dizia «perdeu o controlo Já pago» com o painel ainda a carregar. MEDIDO a
+     * 17/11, do toque no Financeiro até «Já pago» aparecer:
+     *   · `next dev`, dois passeios em paralelo (como o CI): 6,3 a 11,3 s — os
+     *     pedaços de JS, já compilados, levavam 10 a 12 s a descer, atrás das
+     *     ~60 rotas que as duas montagens do estúdio pedem (a dobrar no `dev`,
+     *     pelo StrictMode). Com os 5 s de omissão: 0 de 10;
+     *   · `next dev`, um passeio só: 1,6 a 3,8 s;
+     *   · build de produção, processador 4× mais lento, 150 ms de latência e
+     *     1,6 Mb/s: 0,6 a 0,8 s.
+     * Ou seja: é o servidor de DESENVOLVIMENTO, não o produto. Os 30 s são o
+     * tecto da espera por um sinal, não uma pausa — o passeio segue no
+     * instante em que o esqueleto sai.
+     *
+     * Se a marca desaparecer de `PanelLoading`, esta espera passa logo e a
+     * instabilidade volta — por isso `lazy.test.tsx` prende-a.
+     */
+    // Visível PRIMEIRO: o `hidden` sai no mesmo desenho em que o separador
+    // monta o que tem dentro (esqueleto ou painel), portanto daqui em diante
+    // «zero esqueletos» quer dizer «chegou», e não «ainda nem começou».
+    const separadorFinanceiro = page.locator("#detail-panel-financeiro");
+    await expect(separadorFinanceiro).toBeVisible();
+    await expect(
+      separadorFinanceiro.locator("[data-painel-a-carregar]"),
+      "O separador Financeiro não acabou de carregar: o código do registo de pagamentos " +
+        "não chegou ao telemóvel.",
+    ).toHaveCount(0, { timeout: 30_000 });
 
     for (const nome of [/^Já pago$/, /^Hoje$/, /^Ontem$/]) {
       const alvo = page

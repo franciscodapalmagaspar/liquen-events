@@ -801,6 +801,44 @@ describe("A1 — a página REAL, pedida ao servidor", () => {
     vi.useRealTimers();
   });
 
+  it("um 503 com `Retry-After` espera o que o servidor pede antes de voltar (2.ª revisão de 17/11)", async () => {
+    vi.useFakeTimers();
+    comUrls();
+    let primeira = true;
+    const f = vi.fn(async (_url: string, _init?: RequestInit) => {
+      const cheia = primeira;
+      primeira = false;
+      return {
+        ok: !cheia,
+        status: cheia ? 503 : 200,
+        headers: new Headers(cheia ? { "Retry-After": "3" } : { "X-Paginas": "14" }),
+        blob: async () => new Blob(["WEBP"], { type: "image/webp" }),
+      };
+    });
+    vi.stubGlobal("fetch", f);
+    desenhar({ doc, activa: 0, quoteId: "q1" });
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    const n = JSON.parse(String(f.mock.calls[0][1]?.body)).n;
+    const daMesma = () =>
+      f.mock.calls.filter(([, init]) => JSON.parse(String(init?.body)).n === n).length;
+    expect(daMesma()).toBe(1);
+    for (let k = 0; k < 25; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+    }
+    expect(daMesma(), "voltou antes do Retry-After").toBe(1);
+    for (let k = 0; k < 10; k++) {
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+    }
+    expect(daMesma()).toBe(2);
+    vi.useRealTimers();
+  });
+
   it("na vista «Todas» não se pede página nenhuma", async () => {
     const f = respostaWebp();
     vi.stubGlobal("fetch", f);

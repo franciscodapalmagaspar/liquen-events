@@ -26,6 +26,7 @@ import { listarDefinicoes } from "@/lib/proposta-definicoes-store";
 import { listarServicos } from "@/lib/servicos-catalogo-store";
 import { listProposalDrafts } from "@/lib/proposal-drafts";
 import { listEnviosDeProposta } from "@/lib/envios-de-proposta";
+import { listIndiceDoBlob } from "@/lib/armazenamento/indice-na-copia";
 import { registarCopiaEnviada } from "@/lib/copia-de-seguranca-marcador";
 import { getSupabase } from "@/lib/supabase";
 import { log } from "@/lib/logger";
@@ -189,6 +190,14 @@ export const BACKUP_DATASETS: readonly BackupDataset[] = [
     table: "app_state",
     list: listEnviosDeProposta,
   },
+  // O índice do Vercel Blob (`blob:i:…`, 17/11): a única lista do que está no
+  // Blob, que nunca se lista no dia a dia. Sem ele, uma base reposta deixava
+  // os ficheiros lá, pagos e invisíveis. Ver `armazenamento/indice-na-copia.ts`.
+  {
+    key: "indiceDoBlob",
+    table: "app_state",
+    list: listIndiceDoBlob,
+  },
 ] as const;
 
 /**
@@ -229,7 +238,7 @@ export const NOT_BACKED_UP: Readonly<Record<string, string>> = {
  */
 export const PARTIALLY_BACKED_UP: Readonly<Record<string, string>> = {
   app_state:
-    "Desta tabela vão na cópia APENAS dois espaços de nomes: os rascunhos do Estúdio de Propostas (chaves `proposal-draft:…`, conjunto `proposalDrafts`), porque as propostas por acabar são trabalho de horas que não existe em mais lado nenhum; e as cópias dos emails de proposta enviados (chaves `envio-de-proposta:…`, conjunto `proposalEmails`), porque o que foi escrito ao casal também não existe em mais lado nenhum — o modelo guardado é o ponto de partida e pode ter sido reescrito para aquele casal. Fica DE FORA todo o resto, que são marcadores de funcionamento — os fechos já enviados à Meta e o contador de faturas de DESENVOLVIMENTO (em produção a numeração está em `invoice_counters`, essa sim na cópia, e é a que tem valor legal). Fica de fora também o tempo activo por proposta (chaves `tempo-activo:…`, ver `tempo-activo-servidor.ts`): é uma MEDIÇÃO de como a casa trabalha, não trabalho da casa — perdida, volta a acumular-se a partir do zero na proposta seguinte, e nenhuma proposta fica pior por causa disso. Copiá-la obrigaria a repor números de esforço ao lado de dados de negócio numa reposição em que a atenção tem de estar toda nos segundos. Ficam de fora, por fim, os MODELOS reutilizáveis — os de proposta (chave `proposal-templates`) e os de guião do dia (chave `guiao-templates`): são pontos de partida e não trabalho de um cliente, e cada um deles refaz-se em segundos a partir de uma proposta ou de um guião reais, que esses vão na cópia. Não é esquecimento: repor marcadores de operação de há dois meses faz a Meta receber conversões repetidas — ruído numa reposição em que a atenção tem de estar toda nos dados. Perdidos, refazem-se sozinhos com um aviso repetido, no máximo.",
+    "Desta tabela vão na cópia APENAS três espaços de nomes: os rascunhos do Estúdio de Propostas (chaves `proposal-draft:…`, conjunto `proposalDrafts`), porque as propostas por acabar são trabalho de horas que não existe em mais lado nenhum; e as cópias dos emails de proposta enviados (chaves `envio-de-proposta:…`, conjunto `proposalEmails`), porque o que foi escrito ao casal também não existe em mais lado nenhum — o modelo guardado é o ponto de partida e pode ter sido reescrito para aquele casal; e o índice do Vercel Blob (chaves `blob:i:…`, conjunto `indiceDoBlob`), a única lista do que lá está — sem ele, os ficheiros ficavam no Blob, pagos e invisíveis. Fica DE FORA todo o resto, que são marcadores de funcionamento — os fechos já enviados à Meta e o contador de faturas de DESENVOLVIMENTO (em produção a numeração está em `invoice_counters`, essa sim na cópia, e é a que tem valor legal). Fica de fora também o tempo activo por proposta (chaves `tempo-activo:…`, ver `tempo-activo-servidor.ts`): é uma MEDIÇÃO de como a casa trabalha, não trabalho da casa — perdida, volta a acumular-se a partir do zero na proposta seguinte, e nenhuma proposta fica pior por causa disso. Copiá-la obrigaria a repor números de esforço ao lado de dados de negócio numa reposição em que a atenção tem de estar toda nos segundos. Ficam de fora, por fim, os MODELOS reutilizáveis — os de proposta (chave `proposal-templates`) e os de guião do dia (chave `guiao-templates`): são pontos de partida e não trabalho de um cliente, e cada um deles refaz-se em segundos a partir de uma proposta ou de um guião reais, que esses vão na cópia. Não é esquecimento: repor marcadores de operação de há dois meses faz a Meta receber conversões repetidas — ruído numa reposição em que a atenção tem de estar toda nos dados. Perdidos, refazem-se sozinhos com um aviso repetido, no máximo.",
 };
 
 /**

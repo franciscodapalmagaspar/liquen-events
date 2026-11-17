@@ -232,3 +232,66 @@ describe("sem a coluna `urls` (42703 em produção)", () => {
     expect(H.avisos.some((a) => a.includes("não ficaram guardados"))).toBe(true);
   });
 });
+
+describe("os endereços das fotografias no Vercel Blob (revisões de 17/11)", () => {
+  const SEGREDO = "segredo-das-sessoes-de-teste-com-32-caracteres";
+  beforeEach(() => {
+    vi.stubEnv("SESSION_SECRET", SEGREDO);
+    vi.stubEnv("BLOB_READ_WRITE_TOKEN", "vercel_blob_rw_Loja1234_s");
+  });
+
+  it("um endereço /api/ficheiro de prazo curto guarda-se e volta a servir", async () => {
+    const { urlEstavel } = await import("./armazenamento/url-estavel");
+    const original = urlEstavel("theme-assets", "tema-a/x.jpg", 10, 6 * 3600, SEGREDO);
+    H.linhas = [{ path: "tema-a/x.jpg", urls: null }];
+    const guardados = await urlsGuardados(["tema-a/x.jpg"]);
+    await guardarUrls(new Map([["tema-a/x.jpg", { original }]]), guardados);
+    expect(H.chamadas.filter((c) => c.op === "update")).toEqual([
+      { op: "update", valor: { urls: { original } }, filtro: "tema-a/x.jpg" },
+    ]);
+    H.linhas = [{ path: "tema-a/x.jpg", urls: { original } }];
+    expect((await urlsGuardados(["tema-a/x.jpg"])).get("tema-a/x.jpg")).toEqual({ original });
+  });
+
+  it("2.ª revisão, n.º 2: com o segredo trocado, o guardado já não serve (assina-se de novo)", async () => {
+    const { urlEstavel } = await import("./armazenamento/url-estavel");
+    const original = urlEstavel("theme-assets", "tema-a/x.jpg", 10, 6 * 3600, "segredo-antigo");
+    H.linhas = [{ path: "tema-a/x.jpg", urls: { original } }];
+    expect((await urlsGuardados(["tema-a/x.jpg"])).get("tema-a/x.jpg")).toEqual({});
+  });
+
+  it("2.ª revisão, n.º 2: sem o token, o guardado já não serve", async () => {
+    const { urlEstavel } = await import("./armazenamento/url-estavel");
+    const original = urlEstavel("theme-assets", "tema-a/x.jpg", 10, 6 * 3600, SEGREDO);
+    vi.stubEnv("BLOB_READ_WRITE_TOKEN", "");
+    H.linhas = [{ path: "tema-a/x.jpg", urls: { original } }];
+    expect((await urlsGuardados(["tema-a/x.jpg"])).get("tema-a/x.jpg")).toEqual({});
+  });
+
+  it("2.ª revisão, n.º 2: um endereço do Blob de anos NÃO se guarda", async () => {
+    const { urlEstavel } = await import("./armazenamento/url-estavel");
+    const original = urlEstavel(
+      "proposal-assets",
+      "LIQ-1/a.jpg",
+      10,
+      10 * 365 * 24 * 3600,
+      SEGREDO,
+    );
+    H.linhas = [{ path: "LIQ-1/a.jpg", urls: null }];
+    const guardados = await urlsGuardados(["LIQ-1/a.jpg"]);
+    await guardarUrls(new Map([["LIQ-1/a.jpg", { original }]]), guardados);
+    expect(H.chamadas.filter((c) => c.op === "update")).toEqual([]);
+  });
+
+  it("um endereço /api/ficheiro de um balde fora dos três não se guarda", async () => {
+    H.linhas = [{ path: "tema-a/x.jpg", urls: null }];
+    const guardados = await urlsGuardados(["tema-a/x.jpg"]);
+    await guardarUrls(
+      new Map([
+        ["tema-a/x.jpg", { miniatura: "/api/ficheiro/theme-thumbs/tema-a/x.jpg?token=a.b.c" }],
+      ]),
+      guardados,
+    );
+    expect(H.chamadas.filter((c) => c.op === "update")).toEqual([]);
+  });
+});

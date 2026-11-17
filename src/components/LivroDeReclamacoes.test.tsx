@@ -24,6 +24,7 @@ import LivroDeReclamacoes, {
   LIVRO_DE_RECLAMACOES_2X,
 } from "./LivroDeReclamacoes";
 import { SITE } from "@/lib/site";
+import { ROTULO_DO_LIVRO } from "@/lib/legal/textos-legais";
 import { LocaleProvider } from "./LocaleProvider";
 import { getDictionary } from "@/lib/i18n";
 import NaoEncontradoSocial from "@/app/[lang]/s/NaoEncontradoSocial";
@@ -38,17 +39,15 @@ const ENDERECO = 'href="https://www.livroreclamacoes.pt/Inicio/"';
 
 describe("a peça", () => {
   it("leva à plataforma oficial, numa janela nova, com nome", () => {
-    const html = renderToStaticMarkup(
-      <LivroDeReclamacoes
-        rotulo="Livro de Reclamações Eletrónico"
-        novaJanela="abre em nova janela"
-      />,
-    );
+    const html = renderToStaticMarkup(<LivroDeReclamacoes lingua="pt" />);
     expect(SITE.livroReclamacoes).toBe("https://www.livroreclamacoes.pt/Inicio/");
     expect(html).toContain(ENDERECO);
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noopener noreferrer"');
-    expect(html).toContain('aria-label="Livro de Reclamações Eletrónico (abre em nova janela)"');
+    expect(html).toContain('aria-label="Livro de Reclamações Eletrónico (abre noutro separador)"');
+    expect(renderToStaticMarkup(<LivroDeReclamacoes lingua="en" />)).toContain(
+      'aria-label="Complaints Book (opens in a new tab)"',
+    );
     expect(html).toContain(LIVRO_DE_RECLAMACOES_1X);
   });
 
@@ -61,10 +60,8 @@ describe("a peça", () => {
   });
 
   it("num fundo claro vai em silhueta escura, num escuro em branca", () => {
-    const claro = renderToStaticMarkup(
-      <LivroDeReclamacoes rotulo="x" novaJanela="y" sobre="claro" />,
-    );
-    const escuro = renderToStaticMarkup(<LivroDeReclamacoes rotulo="x" novaJanela="y" />);
+    const claro = renderToStaticMarkup(<LivroDeReclamacoes lingua="pt" sobre="claro" />);
+    const escuro = renderToStaticMarkup(<LivroDeReclamacoes lingua="pt" />);
     expect(claro).toContain("filter:brightness(0)");
     expect(claro).not.toContain("invert");
     expect(escuro).toContain("invert(1)");
@@ -82,9 +79,7 @@ describe("as páginas sem o rodapé do sítio também o têm", () => {
       );
       const a = container.querySelector(`a[href="${SITE.livroReclamacoes}"]`);
       expect(a, `sem Livro de Reclamações no 404 de /s (${locale})`).toBeTruthy();
-      expect(a?.getAttribute("aria-label")).toBe(
-        `${dict.footer.livroReclamacoes} (${dict.common.newWindow})`,
-      );
+      expect(a?.getAttribute("aria-label")).toBe(ROTULO_DO_LIVRO[locale].rotulo);
       cleanup();
     }
   });
@@ -100,14 +95,11 @@ describe("as páginas sem o rodapé do sítio também o têm", () => {
         params: Promise.resolve({ lang }),
       });
       const html = renderToStaticMarkup(arvore);
-      const dict = getDictionary(lang);
       expect(html).toContain("data-orcamento-mode");
       const iForm = html.indexOf('id="o-formulario"');
       const iLivro = html.indexOf(ENDERECO);
       expect(iLivro, "sem Livro de Reclamações no /orcamento").toBeGreaterThan(iForm);
-      expect(html).toContain(
-        `aria-label="${dict.footer.livroReclamacoes} (${dict.common.newWindow})"`,
-      );
+      expect(html).toContain(`aria-label="${ROTULO_DO_LIVRO[lang].rotulo}"`);
       expect(html).not.toMatch(
         /class="[^"]*\b(fixed|sticky|absolute)\b[^"]*"[^>]*>\s*<a[^>]*livroreclamacoes/,
       );
@@ -131,10 +123,10 @@ describe("as páginas sem o rodapé do sítio também o têm", () => {
       "a proposta online (erros e quadro antigo)",
       "src/app/[lang]/(privado)/proposta/[token]/page.tsx",
     ],
-  ])("%s monta a peça", (_nome, ficheiro) => {
+  ])("%s monta a peça (o fim legal inteiro, `AvisoLegal`)", (_nome, ficheiro) => {
     const fonte = ler(ficheiro);
-    expect(fonte).toMatch(/import LivroDeReclamacoes from "@\/components\/LivroDeReclamacoes"/);
-    expect(fonte).toMatch(/<LivroDeReclamacoes\b/);
+    expect(fonte).toMatch(/import AvisoLegal from "@\/components\/AvisoLegal"/);
+    expect(fonte).toMatch(/<AvisoLegal\b/);
   });
 
   it("e ninguém escreve a ligação à mão: o endereço só sai da peça", () => {

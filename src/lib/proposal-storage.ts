@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { semProtegidos } from "./arquivo-de-pdfs/protegidos";
 import { oSharp } from "./sharp-adiado";
 import { opcoesDeCarregamento } from "./cache-das-fotos";
@@ -158,7 +159,7 @@ export interface UploadTicket {
  * "não", para a rota mandar o cliente pelo caminho multipart de sempre.
  */
 function canMintUploadUrls(sb: NonNullable<ReturnType<typeof getSupabase>>): boolean {
-  return typeof sb.storage.from(PROPOSAL_BUCKET).createSignedUploadUrl === "function";
+  return typeof balde(PROPOSAL_BUCKET, sb).createSignedUploadUrl === "function";
 }
 
 /**
@@ -192,9 +193,9 @@ export async function createProposalUploadTickets(
     const tickets = await Promise.all(
       wanted.map(async (type) => {
         const path = `${safeId}/${randomUUID()}.${extFor(type)}`;
-        const { data, error } = await sb.storage
-          .from(PROPOSAL_BUCKET)
-          .createSignedUploadUrl(path, { upsert: false });
+        const { data, error } = await balde(PROPOSAL_BUCKET, sb).createSignedUploadUrl(path, {
+          upsert: false,
+        });
         if (error || !data) return null;
         return { path, uploadUrl: data.signedUrl, token: data.token };
       }),
@@ -286,7 +287,7 @@ async function fetchHeader(bucket: string, path: string): Promise<Buffer | null>
   const sb = getSupabase();
   if (!sb) return null;
   try {
-    const { data } = await sb.storage.from(bucket).createSignedUrl(path, 60);
+    const { data } = await balde(bucket, sb).createSignedUrl(path, 60);
     if (!data?.signedUrl) return null;
     return lerCabecalho(data.signedUrl, bucket, path);
   } catch (e) {
@@ -378,7 +379,7 @@ export async function removeStoredObject(bucket: string, path: string): Promise<
   const sb = getSupabase();
   if (!sb) return;
   try {
-    await sb.storage.from(bucket).remove([path]);
+    await balde(bucket, sb).remove([path]);
   } catch (e) {
     log.warn("storage: objeto recusado não foi apagado", { bucket, path, erro: String(e) });
   }
@@ -457,7 +458,7 @@ export async function confirmProposalUploads(
   if (good.length === 0) return { images, rejected };
 
   try {
-    const { data } = await sb.storage.from(PROPOSAL_BUCKET).createSignedUrls(good, SIGNED_TTL);
+    const { data } = await balde(PROPOSAL_BUCKET, sb).createSignedUrls(good, SIGNED_TTL);
     for (const s of data ?? []) {
       if (s.path && s.signedUrl) images.push({ path: s.path, url: s.signedUrl });
     }
@@ -531,19 +532,21 @@ export async function uploadProposalImage(
   const safeId = quoteId.replace(/[^a-zA-Z0-9_-]/g, "");
   const nome = chave && CHAVE_DE_CARREGAMENTO.test(chave) ? chave.toLowerCase() : randomUUID();
   const path = `${safeId}/${nome}.${extFor(contentType)}`;
-  const { error } = await sb.storage
-    .from(PROPOSAL_BUCKET)
-    .upload(path, bytes, opcoesDeCarregamento(contentType));
+  const { error } = await balde(PROPOSAL_BUCKET, sb).upload(
+    path,
+    bytes,
+    opcoesDeCarregamento(contentType),
+  );
   if (error && chave && jaExiste(error)) {
     // A tentativa anterior chegou: é a mesma foto, no mesmo caminho.
-    const { data } = await sb.storage.from(PROPOSAL_BUCKET).createSignedUrl(path, SIGNED_TTL);
+    const { data } = await balde(PROPOSAL_BUCKET, sb).createSignedUrl(path, SIGNED_TTL);
     return { path, url: data?.signedUrl ?? "" };
   }
   if (error) {
     log.error("proposal-storage: upload falhou", error, { quoteId });
     return null;
   }
-  const { data } = await sb.storage.from(PROPOSAL_BUCKET).createSignedUrl(path, SIGNED_TTL);
+  const { data } = await balde(PROPOSAL_BUCKET, sb).createSignedUrl(path, SIGNED_TTL);
   return { path, url: data?.signedUrl ?? "" };
 }
 
@@ -579,7 +582,7 @@ export async function listProposalImages(quoteId: string): Promise<UploadedImage
     const objectos: { id?: string | null; name: string }[] = [];
     let pagina = 0;
     for (; pagina < MAX_PAGINAS; pagina++) {
-      const { data, error } = await sb.storage.from(PROPOSAL_BUCKET).list(safeId, {
+      const { data, error } = await balde(PROPOSAL_BUCKET, sb).list(safeId, {
         limit: PAGINA_DA_LISTAGEM,
         offset: pagina * PAGINA_DA_LISTAGEM,
         sortBy: { column: "created_at", order: "desc" },
@@ -616,9 +619,10 @@ export async function listProposalImages(quoteId: string): Promise<UploadedImage
     // enorme. Continua a ser uma ida ao servidor por LOTE, nunca por foto.
     const signed: { path?: string | null; signedUrl?: string | null }[] = [];
     for (let i = 0; i < paths.length; i += PAGINA_DA_LISTAGEM) {
-      const { data: lote } = await sb.storage
-        .from(PROPOSAL_BUCKET)
-        .createSignedUrls(paths.slice(i, i + PAGINA_DA_LISTAGEM), SIGNED_TTL);
+      const { data: lote } = await balde(PROPOSAL_BUCKET, sb).createSignedUrls(
+        paths.slice(i, i + PAGINA_DA_LISTAGEM),
+        SIGNED_TTL,
+      );
       signed.push(...(lote ?? []));
     }
     const imagens = signed
@@ -656,7 +660,7 @@ export async function apagarPastaDoPedido(quoteId: string): Promise<boolean> {
   const paths: string[] = [];
   try {
     for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
-      const { data, error } = await sb.storage.from(PROPOSAL_BUCKET).list(safeId, {
+      const { data, error } = await balde(PROPOSAL_BUCKET, sb).list(safeId, {
         limit: PAGINA_DA_LISTAGEM,
         offset: pagina * PAGINA_DA_LISTAGEM,
       });
@@ -671,9 +675,9 @@ export async function apagarPastaDoPedido(quoteId: string): Promise<boolean> {
     // pode levar (`arquivo-de-pdfs/protegidos.ts`).
     const podem = semProtegidos(PROPOSAL_BUCKET, paths);
     for (let i = 0; i < podem.length; i += PAGINA_DA_LISTAGEM) {
-      const { error } = await sb.storage
-        .from(PROPOSAL_BUCKET)
-        .remove(podem.slice(i, i + PAGINA_DA_LISTAGEM));
+      const { error } = await balde(PROPOSAL_BUCKET, sb).remove(
+        podem.slice(i, i + PAGINA_DA_LISTAGEM),
+      );
       if (error) return false;
     }
   } catch (e) {
@@ -688,7 +692,7 @@ export async function apagarPastaDoPedido(quoteId: string): Promise<boolean> {
   ]) {
     for (let i = 0; i < paths.length; i += PAGINA_DA_LISTAGEM) {
       try {
-        await sb.storage.from(bucket).remove(paths.slice(i, i + PAGINA_DA_LISTAGEM));
+        await balde(bucket, sb).remove(paths.slice(i, i + PAGINA_DA_LISTAGEM));
       } catch {
         /* derivada órfã: lixo invisível, não decide nada */
       }
@@ -699,9 +703,7 @@ export async function apagarPastaDoPedido(quoteId: string): Promise<boolean> {
   const capasWeb = paths.map(chaveDaCapaWeb);
   for (let i = 0; i < capasWeb.length; i += PAGINA_DA_LISTAGEM) {
     try {
-      await sb.storage
-        .from(PROPOSAL_AVIF_MID_BUCKET)
-        .remove(capasWeb.slice(i, i + PAGINA_DA_LISTAGEM));
+      await balde(PROPOSAL_AVIF_MID_BUCKET, sb).remove(capasWeb.slice(i, i + PAGINA_DA_LISTAGEM));
     } catch {
       /* idem */
     }
@@ -885,7 +887,7 @@ async function descarregar(
        * eterna.
        */
       const { data, error } = await Promise.race([
-        sb.storage.from(bucket).download(caminho),
+        balde(bucket, sb).download(caminho),
         new Promise<never>((_, rejeitar) =>
           setTimeout(() => rejeitar(new Error("tempo esgotado")), TEMPO_POR_TENTATIVA_MS),
         ),
@@ -929,7 +931,7 @@ export async function fetchProposalThumbBytes(ref: string): Promise<Buffer | nul
   const caminho = daBiblioteca ? caminhoDoRefDeTema(ref) : ref;
   if (!caminho) return null;
   try {
-    const { data, error } = await sb.storage.from(bucket).download(caminho);
+    const { data, error } = await balde(bucket, sb).download(caminho);
     if (error || !data) return null;
     return Buffer.from(await data.arrayBuffer());
   } catch {
@@ -1065,9 +1067,11 @@ export async function uploadProposalMid(
   if (!sb || !path) return false;
   try {
     if (!(await ensureMidBucket())) return false;
-    const { error } = await sb.storage
-      .from(PROPOSAL_MID_BUCKET)
-      .upload(path, bytes, opcoesDeCarregamento(contentType, true));
+    const { error } = await balde(PROPOSAL_MID_BUCKET, sb).upload(
+      path,
+      bytes,
+      opcoesDeCarregamento(contentType, true),
+    );
     if (error && !/exist/i.test(error.message)) {
       log.warn("proposal-storage: intermédia não guardada", { path, erro: error.message });
       return false;
@@ -1096,14 +1100,16 @@ export async function uploadProposalThumb(
   if (!sb || !path) return "";
   try {
     if (!(await ensureThumbBucket())) return "";
-    const { error } = await sb.storage
-      .from(PROPOSAL_THUMB_BUCKET)
-      .upload(path, bytes, opcoesDeCarregamento(contentType, true));
+    const { error } = await balde(PROPOSAL_THUMB_BUCKET, sb).upload(
+      path,
+      bytes,
+      opcoesDeCarregamento(contentType, true),
+    );
     if (error) {
       log.warn("proposal-storage: miniatura não guardada", { path, erro: error.message });
       return "";
     }
-    const { data } = await sb.storage.from(PROPOSAL_THUMB_BUCKET).createSignedUrl(path, SIGNED_TTL);
+    const { data } = await balde(PROPOSAL_THUMB_BUCKET, sb).createSignedUrl(path, SIGNED_TTL);
     return data?.signedUrl ?? "";
   } catch (e) {
     log.warn("proposal-storage: miniatura não guardada", { path, erro: String(e) });
@@ -1194,9 +1200,11 @@ export async function uploadProposalCover(ref: string, bytes: Buffer): Promise<b
     // de uma optimização: passados 5 segundos desiste-se, e a derivada será
     // escrita da próxima vez.
     const { error } = await Promise.race([
-      sb.storage
-        .from(destino.bucket)
-        .upload(destino.caminho, bytes, opcoesDeCarregamento("image/jpeg", true)),
+      balde(destino.bucket, sb).upload(
+        destino.caminho,
+        bytes,
+        opcoesDeCarregamento("image/jpeg", true),
+      ),
       new Promise<{ error: { message: string } }>((r) =>
         setTimeout(() => r({ error: { message: "tempo esgotado" } }), 5000),
       ),
@@ -1227,7 +1235,7 @@ export async function fetchProposalCoverBytes(ref: string): Promise<Buffer | nul
   const destino = destinoDaCapa(ref);
   if (!sb || !destino) return null;
   try {
-    const { data, error } = await sb.storage.from(destino.bucket).download(destino.caminho);
+    const { data, error } = await balde(destino.bucket, sb).download(destino.caminho);
     if (error || !data) return null;
     return Buffer.from(await data.arrayBuffer());
   } catch {
@@ -1316,7 +1324,7 @@ export async function duplicarFotosParaPedido(
       lote.map(async (origem) => {
         const novo = `${destino}/${randomUUID()}.${extDe(origem)}`;
         try {
-          const { error } = await sb.storage.from(PROPOSAL_BUCKET).copy(origem, novo);
+          const { error } = await balde(PROPOSAL_BUCKET, sb).copy(origem, novo);
           if (error) {
             log.warn("proposal-storage: cópia da foto falhou", { origem, erro: error.message });
             return;
@@ -1329,7 +1337,7 @@ export async function duplicarFotosParaPedido(
         // A miniatura é melhor esforço: sem ela a grelha cai para o original,
         // que é feio mas funciona. Falhar aqui não pode perder a foto.
         try {
-          await sb.storage.from(PROPOSAL_THUMB_BUCKET).copy(origem, novo);
+          await balde(PROPOSAL_THUMB_BUCKET, sb).copy(origem, novo);
         } catch {
           /* a foto entra na mesma */
         }

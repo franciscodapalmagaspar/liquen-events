@@ -82,7 +82,7 @@ describe("o corpo do pedido à rota da proposta", () => {
       assunto: ["x"],
       modelo: 7,
       pdfVisto: 1,
-      fotosEmFaltaConfirmadas: true,
+      fotosEmFaltaConfirmadas: "3",
       cortesConfirmados: "sim",
     });
     expect(p).toMatchObject({
@@ -94,6 +94,10 @@ describe("o corpo do pedido à rota da proposta", () => {
       cortesConfirmados: false,
     });
     expect(corpoLido({ fotosEmFaltaConfirmadas: Number.NaN }).fotosEmFaltaConfirmadas).toBeNull();
+    expect(corpoLido({ fotosEmFaltaConfirmadas: false }).fotosEmFaltaConfirmadas).toBeNull();
+    // O «sim» antigo segue tal e qual: quem decide se ainda vale é a pergunta
+    // das fotos (`FIM_DO_SIM_ANTIGO`), não a leitura.
+    expect(corpoLido({ fotosEmFaltaConfirmadas: true }).fotosEmFaltaConfirmadas).toBe(true);
     const bom = corpoLido({
       corpo: "Olá",
       assunto: "A proposta",
@@ -125,7 +129,8 @@ describe("o corpo do pedido à rota da proposta", () => {
  *   pdfVisto .................. `typeof === "string"` (e só então se compara)
  *   fotosEmFaltaConfirmadas ... `typeof === "number" && Number.isFinite`; um
  *                               negativo nunca chegava às fotos em falta, que é
- *                               o mesmo que não ter vindo
+ *                               o mesmo que não ter vindo; e `true`, o «sim»
+ *                               antigo, até ao fim de 18/11 (`e8a4a94b`)
  *   cortesConfirmados ......... `=== true`
  */
 describe("a leitura é a da rota antiga, campo a campo", () => {
@@ -168,7 +173,8 @@ describe("a leitura é a da rota antiga, campo a campo", () => {
       pdfVisto: ehTexto ? v : null,
       textoDoEmail: ehTexto ? v : null,
       assuntoDoEmail: ehTexto ? v : null,
-      fotosEmFaltaConfirmadas: typeof v === "number" && v >= 0 ? v : null,
+      fotosEmFaltaConfirmadas:
+        typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : v === true ? true : null,
       cortesConfirmados: v === true,
     });
   });

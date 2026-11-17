@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { createHash } from "crypto";
 import sharp from "sharp";
 import { gravarEstadoSeNaoMudou, lerEstadoComVersao, listStateByPrefix } from "@/lib/app-state";
@@ -481,7 +482,7 @@ async function descarregar(bucket: string, caminho: string): Promise<Buffer | nu
   const sb = getSupabase();
   if (!sb) return null;
   try {
-    const { data, error } = await sb.storage.from(bucket).download(caminho);
+    const { data, error } = await balde(bucket, sb).download(caminho);
     if (error || !data) return null;
     return Buffer.from(await data.arrayBuffer());
   } catch {

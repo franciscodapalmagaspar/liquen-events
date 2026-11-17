@@ -335,6 +335,14 @@ describe("os PDF de proposta substituídos (10/11)", () => {
     expect(espera()).toContain("prop-apagada/k7Qso.pdf");
   });
 
+  it("as linhas do índice do Vercel Blob (`blob:i:`) não são menções (revisão 17/11, n.º 3)", async () => {
+    st.tabelas.app_state = [
+      { key: "blob:i:proposal-pdfs/prop-apagada/k7Qso.pdf", value: { t: 1, c: "x" } },
+    ];
+    await limparPdfsSubstituidos(dia1);
+    expect(espera()).toContain("prop-apagada/k7Qso.pdf");
+  });
+
   it("se uma leitura falha, não apaga nem mexe na espera", async () => {
     await noites(0, 6);
     st.tabelas.contracts = null;

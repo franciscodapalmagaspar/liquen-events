@@ -136,6 +136,11 @@ export async function escreverOEmail(p: ParaEscrever): Promise<EmailDaProposta> 
     ref: p.pedidoId,
   });
   const cartao = cartaoDoPdf(acceptUrl, t, nomeDoAnexo);
+  /**
+   * O rodapé legal (17/11): a língua da proposta, e a finalidade de quem
+   * recebe uma proposta — prepará-la e executá-la (`email-rodape-legal.ts`).
+   */
+  const rodapeLegal = { lingua: idioma === "en" ? "en" : "pt", finalidade: "proposta" } as const;
 
   const emoldurado = escrito
     ? emoldurar({
@@ -149,14 +154,20 @@ export async function escreverOEmail(p: ParaEscrever): Promise<EmailDaProposta> 
         // O TEXTO SIMPLES fica com o endereço — não há `href` onde o esconder.
         texto: [escrito.texto, ...cartao.texto].join("\n"),
         quem,
+        rodapeLegal,
       })
     : corpoDoModelo
       ? emoldurar({
           html: `${corpoDoModelo}${cartao.html}`,
           texto: [textoDoCorpo(corpoDoModelo), ...cartao.texto].join("\n"),
           quem,
+          rodapeLegal,
         })
-      : emoldurar({ quem, ...corpoDaCasa(t, doc.clientNames, mensagem, acceptUrl, cartao) });
+      : emoldurar({
+          quem,
+          rodapeLegal,
+          ...corpoDaCasa(t, doc.clientNames, mensagem, acceptUrl, cartao),
+        });
 
   return {
     emoldurado,

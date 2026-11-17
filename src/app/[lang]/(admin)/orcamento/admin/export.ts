@@ -3,7 +3,7 @@
  *  - CSV download (Excel/Numbers/Sheets friendly, UTF-8 BOM + ; separator for PT)
  *  - Printable run-sheet for an event (opens an isolated print window)
  */
-import type { Quote, TimelineItem } from "@/lib/orcamento/types";
+import type { Proposal, Quote, TimelineItem } from "@/lib/orcamento/types";
 import { CATEGORIES, EVENT_TYPES_BY_CATEGORY, PACKAGES } from "@/lib/orcamento/data";
 import { contractedAmounts, effectiveVatRate } from "@/lib/orcamento/dossier";
 import { eur0, round2 } from "@/lib/money";
@@ -196,6 +196,50 @@ export function quotesToCsvRows(quotes: Quote[]): (string | number)[][] {
     q.contractRef ?? "",
     q.lostReason ?? "",
     q.archived ? "Sim" : "",
+  ]);
+  return [header, ...rows];
+}
+
+const ESTADO_DA_PROPOSTA: Record<string, string> = {
+  rascunho: "Por enviar",
+  enviada: "Enviada",
+  em_negociacao: "Em negociação",
+  aceite: "Aceite",
+  rejeitada: "Recusada",
+};
+
+/**
+ * As propostas escolhidas, para a folha de cálculo (BO 4, «Exportar CSV» das
+ * Propostas). Os valores vão em número, arredondados ao cêntimo, para a folha
+ * os poder somar; as datas vão como o resto do export (`AAAA-MM-DD`).
+ */
+export function propostasToCsvRows(propostas: readonly Proposal[]): (string | number)[][] {
+  const header = [
+    "ID",
+    "Pedido",
+    "Cliente",
+    "Email",
+    "Estado",
+    "Criada",
+    "Enviada",
+    "Validade",
+    "Subtotal (€)",
+    "IVA (€)",
+    "Total c/ IVA (€)",
+  ];
+  const dia = (iso?: string) => (iso ? iso.slice(0, 10) : "");
+  const rows = propostas.map((p) => [
+    p.id,
+    p.quoteId,
+    p.clientName,
+    p.clientEmail,
+    ESTADO_DA_PROPOSTA[p.status] ?? p.status,
+    dia(p.createdAt),
+    dia(p.sentAt),
+    dia(p.validUntil),
+    round2(p.subtotal ?? 0),
+    round2(p.vat ?? 0),
+    round2(p.total ?? 0),
   ]);
   return [header, ...rows];
 }

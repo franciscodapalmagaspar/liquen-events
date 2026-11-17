@@ -1,4 +1,9 @@
-import { GALLERY_WIDTHS, galleryKey } from "./gallery-image-loader";
+import {
+  GALLERY_WIDTHS,
+  galleryKey,
+  snapGalleryWebpWidth,
+  snapGalleryWidth,
+} from "./gallery-image-loader";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -41,7 +46,11 @@ import { GALLERY_WIDTHS, galleryKey } from "./gallery-image-loader";
  * tecto, e a conta do browser continua a ser a honesta dentro dela.
  */
 
-/** Larguras que a grelha oferece a um telemóvel (mosaico a 100vw). */
+/**
+ * Larguras que a grelha oferece a um telemóvel (mosaico a 100vw). O tecto é o
+ * 768 (a 16/11 subiu ao 1024 e o telemóvel pagava +150 % de bytes na galeria;
+ * voltou a 17/11). Em AVIF; o WebP de reserva arredonda para 384 ou 1280.
+ */
 export const ESCADA_TELEMOVEL = GALLERY_WIDTHS.filter((w) => w <= 768);
 /** Larguras que a grelha oferece de `sm` para cima (mosaico a 50vw / 33vw). */
 export const ESCADA_ECRA_GRANDE = GALLERY_WIDTHS.filter((w) => w <= 1024);
@@ -51,9 +60,17 @@ export const CORTE_TELEMOVEL = "(max-width: 639px)";
 
 export type FormatoDaGaleria = "avif" | "webp";
 
-/** `/_img/g/<chave>-<largura>.<formato>` — o que o pré-gerador escreve. */
+/**
+ * `/_img/g/<chave>-<largura>.<formato>` — o que o pré-gerador escreve.
+ *
+ * A largura arredonda PARA CIMA até um degrau que existe NESSE formato: o AVIF
+ * tem a escada toda (`GALLERY_WIDTHS`), o WebP só a reserva
+ * (`GALLERY_WEBP_WIDTHS`). Quem pedir `-1024.webp` recebe `-1280.webp` — nunca
+ * um ficheiro que o pré-gerador não escreveu.
+ */
 export function ficheiroDaGaleria(src: string, largura: number, formato: FormatoDaGaleria): string {
-  return `/_img/g/${galleryKey(src)}-${largura}.${formato}`;
+  const w = formato === "webp" ? snapGalleryWebpWidth(largura) : snapGalleryWidth(largura);
+  return `/_img/g/${galleryKey(src)}-${w}.${formato}`;
 }
 
 /**
@@ -69,7 +86,15 @@ export function srcsetDaGaleria(
   formato: FormatoDaGaleria,
   sufixo = "",
 ): string {
-  return escada.map((w) => `${ficheiroDaGaleria(src, w, formato)}${sufixo} ${w}w`).join(", ");
+  // Cada candidato diz a largura VERDADEIRA do seu ficheiro, e os repetidos
+  // saem: na escada do WebP, 640 e 1024 caem os dois no ficheiro de 1280.
+  const porFicheiro = new Map<string, string>();
+  for (const w of escada) {
+    const url = ficheiroDaGaleria(src, w, formato);
+    const real = formato === "webp" ? snapGalleryWebpWidth(w) : snapGalleryWidth(w);
+    if (!porFicheiro.has(url)) porFicheiro.set(url, `${url}${sufixo} ${real}w`);
+  }
+  return [...porFicheiro.values()].join(", ");
 }
 
 /**

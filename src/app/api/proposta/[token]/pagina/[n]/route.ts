@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { pdfDoLink, versaoDaChave } from "@/lib/paginas-da-proposta";
-import { imagemDaPagina, larguraPedida } from "@/lib/paginas-do-pdf";
+import {
+  imagemDaPagina,
+  larguraPedida,
+  PedidoCortado,
+  SemVagaParaDocumentos,
+} from "@/lib/paginas-do-pdf";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
+import { CDN_DO_LINK_DO_CASAL } from "@/lib/cdn-do-link-do-casal";
 
 export const runtime = "nodejs";
 /** Abrir o PDF a frio (do armazenamento, ou desenhá-lo) e depois a página. */
@@ -23,8 +30,19 @@ export const maxDuration = 60;
  * mesma (o casal vale mais do que um 503), mas a versão é a do conteúdo, e não
  * muda quando ela repõe a fotografia: a página com o buraco ficava um ano no
  * telemóvel do casal (auditoria de 13/11).
+ *
+ * ── E NA CDN DA VERCEL, PELAS MESMAS DUAS CONDIÇÕES (16/11) ─────────────
+ * Cada pedido aqui abre o PDF e desenha uma página — é das rotas que mais
+ * processador gastam. Com a versão certa e o PDF completo, o endereço diz
+ * exactamente que bytes são, para sempre (uma revisão muda o `?v=`); por isso
+ * `Vercel-CDN-Cache-Control` guarda-a na CDN e o pedido seguinte nem acorda a
+ * função — UMA HORA, e não um ano: a CDN não sabe quando um link é cortado
+ * (ver `cdn-do-link-do-casal.ts`). O browser continua a ver só o `Cache-Control` (`private`):
+ * a Vercel consome o cabeçalho dela e não o passa. A chave da CDN é o
+ * endereço inteiro, com o token — só quem já tem o link chega lá.
+ * Sem a versão certa ou com o PDF incompleto, nada se guarda, como antes.
  */
-export async function GET(
+async function GET_semMedida(
   request: Request,
   { params }: { params: Promise<{ token: string; n: string }> },
 ) {
@@ -43,7 +61,9 @@ export async function GET(
   try {
     const pdf = await pdfDoLink(token);
     if (!pdf) return new NextResponse(null, { status: 404 });
-    const imagem = await imagemDaPagina(pdf.chave, pdf.obterBytes, numero, largura);
+    const imagem = await imagemDaPagina(pdf.chave, pdf.obterBytes, numero, largura, {
+      signal: request.signal,
+    });
     if (!imagem) return new NextResponse(null, { status: 404 });
     const certa = url.searchParams.get("v") === versaoDaChave(pdf.chave) && pdf.completo();
     return new NextResponse(new Uint8Array(imagem), {
@@ -51,11 +71,23 @@ export async function GET(
         "Content-Type": "image/webp",
         "Content-Length": String(imagem.length),
         "Cache-Control": certa ? "private, max-age=31536000, immutable" : "private, no-cache",
+        ...(certa ? { "Vercel-CDN-Cache-Control": CDN_DO_LINK_DO_CASAL } : {}),
         "X-Robots-Tag": "noindex",
       },
     });
   } catch (err) {
+    // A fila dos documentos (2.ª revisão de 17/11): um pedido cortado não é
+    // avaria, e a fila cheia durante 15 s diz «tenta outra vez».
+    if (err instanceof PedidoCortado || request.signal.aborted) {
+      return new NextResponse(null, { status: 499 });
+    }
+    if (err instanceof SemVagaParaDocumentos) {
+      log.warn("proposta: sem vaga para abrir o documento", { pagina: numero });
+      return new NextResponse(null, { status: 503, headers: { "Retry-After": "2" } });
+    }
     log.error("proposta: página do PDF falhou", err, { pagina: numero });
     return new NextResponse(null, { status: 500 });
   }
 }
+
+export const GET = comCpu("proposta-pagina GET", GET_semMedida);

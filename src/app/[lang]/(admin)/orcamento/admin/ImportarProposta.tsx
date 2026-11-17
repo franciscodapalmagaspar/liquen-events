@@ -1223,6 +1223,15 @@ export default function ImportarProposta({ open, onClose, onCreated }: Props) {
                     novas.
                   </p>
                 )}
+                {espaco?.avisosBlob?.map((aviso) => (
+                  <p
+                    key={aviso}
+                    role="status"
+                    className="-mt-2 mb-3 text-footnote text-[var(--bo-aviso)]"
+                  >
+                    {aviso}
+                  </p>
+                ))}
                 <ParecidasParaConfirmar
                   duvidas={duvidas}
                   decisoes={decisoes}

@@ -69,11 +69,18 @@ import {
 } from "@/lib/orcamento/data";
 import { useToast } from "./Toast";
 import CommandPalette, { type Command } from "./CommandPalette";
-import ShortcutsModal from "./ShortcutsModal";
-import AjudaGlossario from "./AjudaGlossario";
+// Quatro janelas que só se abrem a pedido: fora do pacote inicial do painel,
+// aquecidas depois do `load` — ver `janela-a-pedido.tsx`.
+import {
+  AjudaGlossario,
+  aquecerJanelas,
+  PasskeysDialog,
+  RestoreDialog,
+  ShortcutsModal,
+} from "./janela-a-pedido";
+// O «Novo pedido» fica no pacote, como o ⌘K: abre-se com o «n» e ela escreve
+// logo a seguir — uma letra antes de a caixa existir perdia-se.
 import NewQuoteModal from "./NewQuoteModal";
-import RestoreDialog from "./RestoreDialog";
-import PasskeysDialog from "./PasskeysDialog";
 import SessaoExpirada from "./SessaoExpirada";
 import NotificationBell from "./NotificationBell";
 import NotaDaProposta from "./NotaDaProposta";
@@ -86,7 +93,16 @@ import {
   printEventDossier,
   downloadEventIcs,
 } from "./export";
-import { prefetchList } from "./useCachedList";
+import { lerDaCache, prefetchList } from "./useCachedList";
+import { temasEmCache } from "./theme-picker-cache";
+import {
+  montarGruposDaProcura,
+  type GrupoDaProcura,
+  type PedidoDaPaleta,
+  type PropostaDaProcura,
+} from "./procura-em-tudo";
+import { aEscrever, dentroDeUmaJanela, procuraDaVista, VIEW_KEYS } from "./atalhos";
+import { comLimite, ESCRITAS_EM_SIMULTANEO } from "./com-limite";
 import { separadorQuandoAPropostaChega, type SeparadorPorDecidir } from "./separador-por-decidir";
 import {
   useGravacaoAutomatica,
@@ -100,6 +116,7 @@ import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravac
 import BotaoGuardarTudo from "./GuardarTudo";
 import { onIdle } from "@/lib/onIdle";
 import { marcarSaidaDeProposito } from "./entrada-destino";
+import { limparCachesAoSair } from "@/lib/limpar-caches-ao-sair";
 import { diasDesde, eventCountdown, parseMoney, randomId, eur, todayKey } from "./util";
 import { useAnular } from "./ui/anular";
 import { useDepoisDeApagar, useDepoisDeApagarVarios } from "./ui/depois-de-apagar";
@@ -122,6 +139,7 @@ import { EscolhaDoEstado } from "./EscolhaDoEstado";
 import {
   Button,
   EmCurso,
+  FolhaOuDialogo,
   PerguntaDestrutiva,
   SectionCard,
   TabelaOuCartoes,
@@ -221,9 +239,12 @@ import { linkDaConversa } from "@/lib/whatsapp";
 import { dominiosConhecidos, sugerirEmail } from "@/lib/dominio-parecido";
 import CampoTelefone from "@/components/CampoTelefone";
 import { APARENCIA_DO_BACK_OFFICE, TELEFONE_EM_CAIXA } from "./ui/aparencia-do-telefone";
+import { EtiquetaPossivelSpam } from "./EtiquetaPossivelSpam";
 
 // Quantos pedidos a lista renderiza de cada vez ("Mostrar mais" carrega o resto).
 const LIST_PAGE_SIZE = 50;
+/** Até quantos pedidos se arquivam de uma vez sem perguntar (revisão · 3). */
+const ARQUIVAR_SEM_PERGUNTAR = 10;
 
 // Shared content shell for the main column: a comfortable centred max-width with
 // consistent horizontal padding + vertical rhythm, so screens stay readable
@@ -454,18 +475,8 @@ function detailNextAction(
   }
 }
 
-// Single-key destinations for the "g then <key>" navigation chord.
-const VIEW_KEYS: Record<string, View> = {
-  o: "overview",
-  p: "pedidos",
-  k: "kanban",
-  c: "clientes",
-  a: "calendario",
-  r: "propostas",
-  t: "tarefas",
-  f: "fornecedores",
-  e: "estatisticas",
-};
+// The "g then <key>" navigation chord lives in `atalhos.ts` (VIEW_KEYS), so the
+// shortcuts sheet reads the same table the listener does.
 const VIEW_STORAGE_KEY = "liquen-admin-view";
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -712,6 +723,7 @@ function COLUNAS_DE_PEDIDOS(ctx: {
             {q.name}
           </span>
           <span className="block truncate text-[11px] text-foreground/45">{q.email}</span>
+          <EtiquetaPossivelSpam valor={q.possivelSpam} className="mt-1" />
         </span>
       ),
     },
@@ -967,6 +979,7 @@ const QuoteCard = memo(function QuoteCard({
             </p>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <p className="text-[13px] bo-text-muted truncate">{q.email}</p>
+              <EtiquetaPossivelSpam valor={q.possivelSpam} />
               {q.assignedTo && (
                 <span className="shrink-0 text-[9px] tracking-[0.08em] uppercase px-1.5 py-0.5 rounded bg-sage-600/10 text-sage-600 font-medium whitespace-nowrap">
                   {q.assignedTo}
@@ -1337,6 +1350,11 @@ export default function AdminClient({
   // estado tem mesmo de ser `Quote[]`: assim que um pedido é aberto ou gravado,
   // o elemento da lista passa a ser o pedido INTEIRO devolvido pelo servidor.
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes);
+  /** A lista de AGORA, para quem corre mais tarde (o «Anular» de um lote). */
+  const quotesRef = useRef(quotes);
+  useEffect(() => {
+    quotesRef.current = quotes;
+  }, [quotes]);
   // Para as Tarefas: o nome de cada pedido, pelo id (ver `NomesDosPedidos`).
   const nomesDosPedidos = useMemo(
     () => new Map(quotes.map((q) => [q.id, q.name] as const)),
@@ -1372,6 +1390,9 @@ export default function AdminClient({
     setFilterRegiao("all");
     setFilterPlanner("all");
     setMineOnly(false);
+    // A lista dos arquivados também esconde pedidos (revisão · 1): «ver
+    // todos» é a lista normal.
+    setShowArchived(false);
   }
 
   /**
@@ -1386,6 +1407,7 @@ export default function AdminClient({
     if (search.trim()) partes.push(`a pesquisa «${search.trim()}»`);
     if (filterStatus !== "all") partes.push("um estado");
     if (tagFilter) partes.push(`a etiqueta «${tagFilter}»`);
+    if (showArchived) partes.push("os arquivados");
     if (filtrosActivos > 0) {
       partes.push(
         filtrosActivos === 1 ? "um filtro do painel" : `${filtrosActivos} filtros do painel`,
@@ -1579,9 +1601,24 @@ export default function AdminClient({
   /** Quando foi a última revalidação, para não a repetir a cada piscar de olhos. */
   const ultimaRevalidacao = useRef(0);
   const [view, setView] = useState<View>(vistaInicial ?? "overview");
-  /** A procura com que «Propostas» abre quando se chega lá a partir de outra
-   *  vista («Ver em Propostas» do Fazer proposta). */
-  const [procuraEmPropostas, setProcuraEmPropostas] = useState("");
+  /* A procura com que «Propostas» abre quando se chega lá de outra vista
+     («Ver em Propostas», ⌘K) viaja no `pedidoDaPaleta`, servido uma vez —
+     era um estado à parte e ficava presa ao voltar pelo menu (revisão · 7). */
+  /**
+   * O que a paleta pediu a uma vista (BO 4): abrir uma tarefa, uma marcação, um
+   * tema, ou abrir a vista já filtrada. Um objecto novo por escolha — a vista
+   * serve-o uma vez (`servirUmaVez`), e voltar a ela mais tarde não o repete.
+   */
+  const [pedidoDaPaleta, setPedidoDaPaleta] = useState<{
+    vista: View;
+    pedido: PedidoDaPaleta;
+  } | null>(null);
+  const pedidoPara = (v: View): PedidoDaPaleta | undefined =>
+    pedidoDaPaleta?.vista === v ? pedidoDaPaleta.pedido : undefined;
+  const irComPedido = useCallback((vista: View, pedido: PedidoDaPaleta) => {
+    setPedidoDaPaleta({ vista, pedido: { ...pedido } });
+    setView(vista);
+  }, []);
   const [navOpen, setNavOpen] = useState(false);
   // A gaveta é modal: com ela aberta, o Tab passeava pelo fundo desfocado
   // (Ajuda → Tudo guardado → Pesquisar → Novo) e o foco ficava no botão que a
@@ -1709,6 +1746,7 @@ export default function AdminClient({
   const [passkeysOpen, setPasskeysOpen] = useState(false);
   const [ajudaOpen, setAjudaOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const haSeleccao = selectedIds.size > 0;
   /**
    * O LOTE QUE ESTÁ A CORRER, E QUANTOS JÁ LÁ VÃO.
    *
@@ -1875,6 +1913,13 @@ export default function AdminClient({
    */
   const [aApagar, setAApagar] = useState<Quote | null>(null);
   const [aApagarLote, setAApagarLote] = useState<string[] | null>(null);
+  /** Arquivar mais de `ARQUIVAR_SEM_PERGUNTAR` pede confirmação (revisão · 3). */
+  const [aArquivarLote, setAArquivarLote] = useState<string[] | null>(null);
+  /* O último lote perguntado, para o título e os nomes durante os 200 ms em
+     que a pergunta se fecha — sem ele lia-se «Arquivar 0 pedidos?» a sair
+     (2.ª revisão · 5). Ajustado no desenho, como o React deixa. */
+  const [loteDaPergunta, setLoteDaPergunta] = useState<string[]>([]);
+  if (aArquivarLote && aArquivarLote !== loteDaPergunta) setLoteDaPergunta(aArquivarLote);
   const [aSair, setASair] = useState(false);
   const [filterEspera, setFilterEspera] = useState<"all" | "3" | "7">("all");
   const [filterMes, setFilterMes] = useState<string>("all");
@@ -1936,7 +1981,11 @@ export default function AdminClient({
     (filterRegiao !== "all" ? 1 : 0) +
     (filterPlanner !== "all" ? 1 : 0);
   const haFiltroAActuar =
-    filtrosActivos > 0 || search.trim() !== "" || filterStatus !== "all" || tagFilter !== null;
+    filtrosActivos > 0 ||
+    search.trim() !== "" ||
+    filterStatus !== "all" ||
+    tagFilter !== null ||
+    showArchived;
 
   /**
    * ── A ALTURA DA COLUNA DE DETALHE, MEDIDA E NÃO PRESUMIDA ─────────────────
@@ -2649,6 +2698,9 @@ export default function AdminClient({
     return () => document.body.classList.remove("admin-mode");
   }, []);
 
+  // As janelas a pedido chegam antes de ela as pedir (ver `janela-a-pedido.tsx`).
+  useEffect(() => aquecerJanelas(), []);
+
   // Warm the caches of the high-traffic API views during idle after first
   // paint, so the first click on Propostas / Tarefas / Calendário is
   // instant instead of a cold round-trip. Uses the same shared cache the views
@@ -2876,12 +2928,6 @@ export default function AdminClient({
     }
   }, [filterStatus, sort]);
 
-  // Jump straight to Pedidos and focus the search box.
-  const focusSearch = useCallback(() => {
-    setView("pedidos");
-    requestAnimationFrame(() => searchRef.current?.focus());
-  }, []);
-
   /**
    * ── UMA JANELA À FRENTE CALA OS ATALHOS DE UMA TECLA ──────────────────────
    *
@@ -2903,11 +2949,43 @@ export default function AdminClient({
      desenho. Sem isto, o ⌘N das Tarefas ou nunca disparava ou disparava em
      todas as vistas — conforme a que estivesse aberta ao montar. */
   const viewRef = useRef(view);
+  /** Os pedidos DESENHADOS (filtrados e já paginados), para o ⌘A — ver o
+   *  ouvinte de teclado e a revisão · 3. */
+  const filtradosRef = useRef<string[]>([]);
+  /** O painel de um pedido está POR CIMA da lista (gaveta) — o ⌘A não escolhe
+   *  por trás dele. Ao lado (xl), a lista vê-se e o ⌘A é dela. */
+  const painelPorCimaRef = useRef(false);
   useEffect(() => {
     janelaAbertaRef.current = janelaAberta;
     paletteAbertaRef.current = paletteOpen;
     viewRef.current = view;
   }, [janelaAberta, paletteOpen, view]);
+
+  /**
+   * ── O `/` FOCA A PROCURA DA VISTA ONDE SE ESTÁ (BO 4) ─────────────────────
+   *
+   * Era sempre o `focusSearch`: ia para os Pedidos e focava a procura deles,
+   * estivesse ela onde estivesse. Agora foca o campo de procura da vista aberta
+   * (`procuraDaVista`, em `atalhos.ts`); nos Pedidos continua a ser o mesmo
+   * campo de sempre. Numa vista sem procura — ou com ela fora do ecrã, como
+   * dentro de uma pasta de tema — abre a procura em tudo, que é a que serve
+   * qualquer sítio.
+   */
+  const focarProcuraDaVista = useCallback(() => {
+    const vista = viewRef.current;
+    if (vista === "pedidos" && searchRef.current) {
+      searchRef.current.focus();
+      return;
+    }
+    const seletor = procuraDaVista(vista);
+    const campo = seletor
+      ? [...document.querySelectorAll<HTMLInputElement>(seletor)].find(
+          (c) => !c.disabled && !c.closest("[inert], [aria-hidden='true']"),
+        )
+      : undefined;
+    if (campo) campo.focus();
+    else setPaletteOpen(true);
+  }, []);
 
   // Global keyboard shortcuts. ⌘K works anywhere; the rest are ignored while
   // typing so they never fight with form fields.
@@ -2944,13 +3022,36 @@ export default function AdminClient({
         return;
       }
 
-      const el = e.target as HTMLElement | null;
-      const typing =
-        !!el &&
-        (el.tagName === "INPUT" ||
-          el.tagName === "TEXTAREA" ||
-          el.tagName === "SELECT" ||
-          el.isContentEditable);
+      const typing = aEscrever(e.target);
+
+      /* ── ⌘A NOS PEDIDOS SELECIONA O QUE ESTÁ À VISTA (BO 4) ──────────────
+         O que está FILTRADO, e não a lista inteira: é o mesmo conjunto que o
+         «Selecionar todos (N)» da barra do lote já selecciona, e o mesmo sobre
+         que os botões do lote agem (`seleccionadosAVista`). Num campo o ⌘A é
+         do campo — seleccionar o texto que se escreveu —, e com uma janela à
+         frente é dela. Noutras vistas é do browser, ou da vista (os Temas e as
+         Tarefas têm o seu). */
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === "a" &&
+        viewRef.current === "pedidos"
+      ) {
+        if (typing || janelaAbertaRef.current || paletteAbertaRef.current) return;
+        // A mesma regra das Tarefas (revisão · 8): nunca atrás de uma janela
+        // aberta, nem com o painel de um pedido POR CIMA da lista. Com o painel
+        // AO LADO (xl) a lista está à vista e o ⌘A escolhe-a — e o
+        // `preventDefault` de baixo impede o browser de escolher a página
+        // inteira (2.ª revisão · 4).
+        if (dentroDeUmaJanela(e.target) || painelPorCimaRef.current) return;
+        const ids = filtradosRef.current;
+        if (ids.length === 0) return;
+        e.preventDefault();
+        setSelectedIds(new Set(ids));
+        return;
+      }
+
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
       if (janelaAbertaRef.current || paletteAbertaRef.current) return;
 
@@ -2974,7 +3075,7 @@ export default function AdminClient({
         setNewQuoteOpen(true);
       } else if (e.key === "/") {
         e.preventDefault();
-        focusSearch();
+        focarProcuraDaVista();
       } else if (e.key === "?") {
         e.preventDefault();
         setShortcutsOpen(true);
@@ -2985,7 +3086,7 @@ export default function AdminClient({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focusSearch]);
+  }, [focarProcuraDaVista]);
 
   // Escape dismisses the open drawer/nav — but only when no modal is capturing
   // it (the palette / new-quote / shortcuts dialogs handle their own Escape).
@@ -2997,12 +3098,21 @@ export default function AdminClient({
       // IME, tira o foco), nunca fecha o painel inteiro — fechar o detalhe a
       // meio da escrita descartava trabalho (ex.: um contractRef por gravar).
       const t = e.target as HTMLElement | null;
-      if (t && ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) {
+      /* Com um pedido aberto, QUALQUER controlo de formulário — uma caixa
+         como o «Já pago» incluída — só perde o foco: fechar o painel a meio
+         deitava fora o que ela estava a preencher (2.ª revisão · 1). Sem
+         painel, a caixa não é escrita e o Esc é do lote (revisão · 2). */
+      const controlo = !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+      if (t && (selected ? controlo : aEscrever(t))) {
         t.blur();
         return;
       }
+      // Uma janela aberta POR CIMA do painel (uma pergunta, um menu) é dona do
+      // seu Esc; o próprio painel em gaveta também é uma janela, e esse não.
+      const janela = t?.closest?.('[role="dialog"], [role="alertdialog"]') ?? null;
+      const outraJanela = !!janela && janela !== drawerRef.current;
       if (navOpen) setNavOpen(false);
-      else if (selected) {
+      else if (selected && !outraJanela) {
         if (
           !dirtyRef.current ||
           window.confirm("Tem alterações por guardar neste pedido. Descartar?")
@@ -3012,6 +3122,20 @@ export default function AdminClient({
           // pisca no outro lê-se como duas coisas diferentes.
           sairDoPainel(selected.id);
         }
+      } else if (
+        viewRef.current === "pedidos" &&
+        haSeleccao &&
+        aApagarLote === null &&
+        aArquivarLote === null &&
+        // Com o lote a correr, os que falharem vão ficar selecionados: limpar
+        // agora fazia o aviso mentir (2.ª revisão · 7).
+        !bulkBusy &&
+        // Nunca atrás de uma janela aberta (revisão · 8): o Esc é dela.
+        !dentroDeUmaJanela(t)
+      ) {
+        // A camada de topo, quando não há painel nem gaveta, é a selecção do
+        // lote: o Esc limpa-a (BO 4), como nos Temas e nas Tarefas.
+        setSelectedIds(new Set());
       }
     };
     window.addEventListener("keydown", onEsc);
@@ -3025,6 +3149,11 @@ export default function AdminClient({
     navOpen,
     selected,
     sairDoPainel,
+    haSeleccao,
+    aApagarLote,
+    aArquivarLote,
+    bulkBusy,
+    drawerRef,
   ]);
 
   // Lock background scroll while the mobile nav drawer is open. O trinco é o
@@ -3206,6 +3335,47 @@ export default function AdminClient({
     };
   }, [selected, isDetailOverlay]);
 
+  /**
+   * ── A PROCURA EM TUDO, LIDA DA MEMÓRIA NO INSTANTE EM QUE A PALETA ABRE ──
+   *
+   * BO 4. Cada grupo vem de uma lista que o back office JÁ tem — as que o
+   * aquecimento em ociosidade traz (propostas leves, tarefas, calendário), a
+   * dos temas, e as dos contratos, fornecedores e material quando alguém já as
+   * abriu. `lerDaCache` só lê o `Map`: a paleta não faz pedido nenhum ao
+   * servidor nem leitura nenhuma ao Supabase. O que não está na memória não
+   * aparece — e não se vai buscar só para isto (ver `procura-em-tudo.ts`).
+   *
+   * Lido ao ABRIR (e não a cada render): a cache não avisa este ecrã quando
+   * muda, e uma paleta aberta é um instante. Reabrir lê outra vez.
+   */
+  const gruposDaProcura: GrupoDaProcura[] = useMemo(() => {
+    if (!paletteOpen) return [];
+    return montarGruposDaProcura(
+      {
+        propostas: lerDaCache<PropostaDaProcura[]>("propostas-leves"),
+        tarefas: lerDaCache("tarefas"),
+        calendario: lerDaCache("calendario"),
+        temas: temasEmCache(),
+        contratos: lerDaCache("contratos"),
+        fornecedores: lerDaCache("fornecedores"),
+        material: lerDaCache("material"),
+      },
+      {
+        // As Propostas não têm detalhe próprio: abrem filtradas pelo nome do
+        // casal, pela mesma porta do «Ver em Propostas» do Fazer proposta.
+        // O pedido leva a procura e é servido UMA vez: voltar às Propostas pelo
+        // menu já não a traz presa (revisão · 7).
+        proposta: (p) => irComPedido("propostas", { procura: p.clientName ?? "" }),
+        tarefa: (t) => irComPedido("tarefas", { id: t.id }),
+        marcacao: (e) => irComPedido("calendario", { id: e.id }),
+        tema: (t) => irComPedido("temas", { id: t.id }),
+        contrato: (c) => irComPedido("contratos", { procura: c.clientName ?? "" }),
+        fornecedor: (f) => irComPedido("fornecedores", { procura: f.name }),
+        material: (m) => irComPedido("material", { procura: m.name }),
+      },
+    );
+  }, [paletteOpen, irComPedido]);
+
   const paletteCommands: Command[] = useMemo(
     () => [
       {
@@ -3240,14 +3410,45 @@ export default function AdminClient({
         group: "Ações",
         run: () => setRestoreOpen(true),
       },
-      ...NAV.map((item) => ({
+      /* ── OS QUATRO COMANDOS DE BO 4 ──────────────────────────────────────
+         Cada um faz o que o botão da sua vista faz, pela mesma porta: a
+         tarefa abre a linha de escrever das Tarefas, o evento abre o «Novo no
+         calendário», a proposta leva ao Fazer proposta, e os atalhos abrem a
+         folha que o «?» abre. */
+      {
+        id: "action-new-task",
+        label: "Nova tarefa",
+        group: "Ações",
+        run: () => irComPedido("tarefas", { novo: true }),
+      },
+      {
+        id: "action-new-event",
+        label: "Novo evento",
+        group: "Ações",
+        run: () => irComPedido("calendario", { novo: true }),
+      },
+      {
+        id: "action-fazer-proposta",
+        label: "Fazer proposta",
+        group: "Ações",
+        run: () => setView("fazer-proposta"),
+      },
+      {
+        id: "action-shortcuts",
+        label: "Atalhos de teclado",
+        group: "Ações",
+        run: () => setShortcutsOpen(true),
+      },
+      // O «Fazer proposta» já está nas Ações, por cima: no Navegar seria a
+      // mesma linha duas vezes.
+      ...NAV.filter((item) => item.id !== "fazer-proposta").map((item) => ({
         id: `nav-${item.id}`,
         label: item.label,
         group: "Navegar",
         run: () => setView(item.id),
       })),
     ],
-    [quotes, toast, descarregarCopia],
+    [quotes, toast, descarregarCopia, irComPedido],
   );
 
   /**
@@ -3810,6 +4011,9 @@ export default function AdminClient({
   async function sairMesmo() {
     setASair(false);
     await fetch("/api/admin/logout", { method: "POST" });
+    // O que o service worker guardou do back office sai do aparelho com a
+    // sessão (n.º 6 de 16/11). Nunca atira e nunca prende mais de 1,5 s.
+    await limparCachesAoSair();
     // Sair é uma decisão, e tem de aguentar a chegada ao ecrã de entrada: sem
     // esta marca, a entrada automática pela passkey voltava a abrir a sessão
     // sozinha (ver `consumirMarcaDeSaida`).
@@ -4355,54 +4559,172 @@ export default function AdminClient({
     // O estado de cada um ANTES — é para onde o «Anular» os leva de volta.
     const antes = new Map(quotes.filter((q) => ids.includes(q.id)).map((q) => [q.id, q.status]));
     try {
-      const results = await Promise.all(
-        ids.map((id) =>
-          fetch(`/api/orcamento/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status }),
-          })
-            .then((r) => (r.ok ? r.json() : null))
-            .catch(() => null)
-            // A contagem sobe à medida que cada pedido responde — e não há
-            // outra maneira de a ter, porque um `Promise.all` puro só fala no
-            // fim. Isto é uma nota à passagem: os N pedidos já foram todos
-            // lançados na linha acima, continuam a correr ao mesmo tempo, e
-            // ninguém espera por ninguém. A espera não atrasa o trabalho.
-            .then((v) => {
-              contarMaisUmNoLote();
-              return v;
-            }),
-        ),
+      // N de cada vez (revisão · 3): ver `com-limite.ts`. A contagem sobe à
+      // medida que cada pedido responde.
+      const results = await comLimite(ids, ESCRITAS_EM_SIMULTANEO, (id) =>
+        fetch(`/api/orcamento/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        })
+          .then((r) => (r.ok ? (r.json() as Promise<Quote>) : null))
+          .catch(() => null)
+          .then((v) => {
+            contarMaisUmNoLote();
+            return v;
+          }),
       );
-      const updated = new Map<string, Quote>(results.filter(Boolean).map((u: Quote) => [u.id, u]));
+      const updated = new Map<string, Quote>();
+      results.forEach((u, i) => {
+        if (u && typeof u === "object") updated.set(ids[i], { ...u, id: u.id ?? ids[i] });
+      });
       if (updated.size > 0) {
         setQuotes((prev) => prev.map((q) => updated.get(q.id) ?? q));
         setSelected((prev) => (prev && updated.has(prev.id) ? updated.get(prev.id)! : prev));
       }
       const ok = updated.size;
       const failed = ids.length - ok;
-      if (failed === 0) {
+      // Os que ficaram têm «Anular», mesmo que outros tenham falhado: o que
+      // aconteceu tem de se poder desfazer (revisão · 3).
+      if (ok > 0) {
         // «Anular» repõe cada um no estado em que estava (e desfaz o Ganho dos
         // que lá foram por este gesto). Ver `anular-estado.ts`.
         anular(`${ok} pedido${ok !== 1 ? "s" : ""} atualizado${ok !== 1 ? "s" : ""}`, async () => {
-          const repostos = await Promise.all(
-            [...updated.keys()].map((id) => {
-              const de = antes.get(id);
-              if (!de || de === status) return Promise.resolve(null);
-              return reporEstadoDoPedido({ quoteId: id, de, para: status, actor: userName });
-            }),
+          /* Só volta quem AINDA está no estado que este gesto pôs, e tinha
+             outro antes. Um «Anular» carregado depois de o pedido ter mudado
+             outra vez repunha-o por cima do gesto novo — e desfazia um «Ganho»
+             que já não era deste gesto (2.ª revisão · 6). */
+          const agora = new Map(quotesRef.current.map((q) => [q.id, q.status] as const));
+          const aRepor = [...updated.keys()].filter((id) => {
+            const de = antes.get(id);
+            return !!de && de !== status;
+          });
+          const mudaramOutraVez = aRepor.filter((id) => agora.get(id) !== status);
+          const vaoVoltar = aRepor.filter((id) => agora.get(id) === status);
+          const repostos = await comLimite(vaoVoltar, ESCRITAS_EM_SIMULTANEO, (id) =>
+            reporEstadoDoPedido({ quoteId: id, de: antes.get(id)!, para: status, actor: userName }),
           );
+          // Os que voltaram aplicam-se SEMPRE, mesmo que outros falhem
+          // (2.ª revisão · 2): `comLimite` dá um resultado por item.
           const porId = new Map(
             repostos.filter((q): q is Quote => !!q).map((q) => [q.id, q] as const),
           );
           setQuotes((prev) => prev.map((q) => porId.get(q.id) ?? q));
           setSelected((prev) => (prev && porId.has(prev.id) ? porId.get(prev.id)! : prev));
+          const avisos: string[] = [];
+          if (mudaramOutraVez.length > 0) {
+            const n = mudaramOutraVez.length;
+            avisos.push(
+              `${n} pedido${n !== 1 ? "s" : ""} já tinha${n !== 1 ? "m" : ""} mudado outra vez e ficou como está.`,
+            );
+          }
+          if (porId.size < vaoVoltar.length) {
+            avisos.push(
+              `${porId.size} de ${vaoVoltar.length} voltaram. Tenta outra vez no painel de cada pedido.`,
+            );
+          }
+          if (avisos.length > 0) throw new Error(avisos.join(" "));
         });
-      } else {
-        toast(`${ok} atualizado(s), ${failed} falhou(ram)`, "error");
       }
-      esquecerDaSeleccao(ids);
+      if (failed > 0) {
+        toast(
+          `${failed} pedido${failed !== 1 ? "s" : ""} não mudaram e ficam selecionados. Verifica a ligação e tenta outra vez.`,
+          "error",
+        );
+      }
+      // Só saem da selecção os que mudaram: os que falharam ficam lá para ela
+      // tentar outra vez com um toque (revisão · 3).
+      esquecerDaSeleccao([...updated.keys()]);
+    } finally {
+      setLote(null);
+    }
+  }
+
+  /**
+   * ── ARQUIVAR E RESTAURAR EM LOTE (BO 4) ────────────────────────────────────
+   *
+   * O mesmo gesto do «Arquivar pedido» do painel, a N pedidos de uma vez: o
+   * mesmo `PATCH { archived }`, o mesmo contador do lote (`EmCurso`, a subir a
+   * cada um que responde), e o «Anular» da casa, que devolve ao estado de
+   * antes só os que mudaram.
+   *
+   * Revisão · 3: até 10, sem pergunta — o «Anular» chega. Acima de 10 pergunta
+   * primeiro, com o número («Arquivar 37 pedidos?»), porque um ⌘A num ecrã de
+   * cinquenta tira cinquenta pedidos da frente de uma vez. As escritas vão
+   * `ESCRITAS_EM_SIMULTANEO` de cada vez; se algumas falham, só essas ficam
+   * selecionadas, e as que ficaram têm o seu «Anular».
+   */
+  function pedirParaArquivar(arquivar: boolean, ids: string[]) {
+    if (ids.length === 0 || bulkBusy) return;
+    if (arquivar && ids.length > ARQUIVAR_SEM_PERGUNTAR) {
+      setAArquivarLote(ids);
+      return;
+    }
+    void applyBulkArchive(arquivar, ids);
+  }
+
+  async function applyBulkArchive(arquivar: boolean, ids: string[]) {
+    if (ids.length === 0 || bulkBusy) return;
+    setLote({
+      titulo: arquivar ? "A arquivar os pedidos…" : "A restaurar os pedidos…",
+      feito: 0,
+      total: ids.length,
+    });
+    const mudar = (id: string, archived: boolean) =>
+      fetch(`/api/orcamento/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived }),
+      })
+        .then((r) => (r.ok ? (r.json() as Promise<Quote>) : null))
+        .catch(() => null);
+    try {
+      const results = await comLimite(ids, ESCRITAS_EM_SIMULTANEO, (id) =>
+        mudar(id, arquivar).then((v) => {
+          contarMaisUmNoLote();
+          return v;
+        }),
+      );
+      const updated = new Map<string, Quote>();
+      results.forEach((u, i) => {
+        if (u && typeof u === "object") updated.set(ids[i], { ...u, id: u.id ?? ids[i] });
+      });
+      if (updated.size > 0) {
+        setQuotes((prev) => prev.map((q) => updated.get(q.id) ?? q));
+        setSelected((prev) => (prev && updated.has(prev.id) ? updated.get(prev.id)! : prev));
+      }
+      const ok = updated.size;
+      const failed = ids.length - ok;
+      const nome = `pedido${ok !== 1 ? "s" : ""}`;
+      const feito = arquivar
+        ? `arquivado${ok !== 1 ? "s" : ""}`
+        : `restaurado${ok !== 1 ? "s" : ""}`;
+      if (ok > 0) {
+        anular(`${ok} ${nome} ${feito}.`, async () => {
+          const voltaram = await comLimite([...updated.keys()], ESCRITAS_EM_SIMULTANEO, (id) =>
+            mudar(id, !arquivar),
+          );
+          const porId = new Map(
+            voltaram
+              .filter((q): q is Quote => !!q && typeof q.id === "string")
+              .map((q) => [q.id, q]),
+          );
+          setQuotes((prev) => prev.map((q) => porId.get(q.id) ?? q));
+          setSelected((prev) => (prev && porId.has(prev.id) ? porId.get(prev.id)! : prev));
+          if (porId.size < updated.size) {
+            throw new Error(
+              `${porId.size} de ${updated.size} voltaram. Tenta outra vez no painel de cada pedido.`,
+            );
+          }
+        });
+      }
+      if (failed > 0) {
+        toast(
+          `${failed} pedido${failed !== 1 ? "s" : ""} não ${arquivar ? "foram arquivados" : "foram restaurados"} e ficam selecionados. Verifica a ligação e tenta outra vez.`,
+          "error",
+        );
+      }
+      esquecerDaSeleccao([...updated.keys()]);
     } finally {
       setLote(null);
     }
@@ -4477,6 +4799,12 @@ export default function AdminClient({
   }
 
   const archivedCount = useMemo(() => quotes.filter((q) => q.archived).length, [quotes]);
+  /* ── SEM ARQUIVADOS, NÃO HÁ LISTA DE ARQUIVADOS (revisão · 1) ────────────
+     Restaurar o último deixava os Pedidos na lista dos arquivados, vazia, e o
+     botão que a fecha («Arquivados · N») só existe com N > 0 — não havia saída.
+     Corrige-se no próprio desenho, que é onde o React deixa ajustar estado a
+     partir de outro sem um segundo passo. */
+  if (showArchived && archivedCount === 0) setShowArchived(false);
 
   /**
    * «Ver os arquivados» — a saída dos vazios da Visão Geral e do Kanban.
@@ -4666,6 +4994,14 @@ export default function AdminClient({
     () => filtered.filter((q) => selectedIds.has(q.id)).map((q) => q.id),
     [filtered, selectedIds],
   );
+  useEffect(() => {
+    // Os DESENHADOS, e não a lista filtrada inteira (revisão · 3): o ⌘A não
+    // escolhe o que ela não vê. Os outros oferecem-se à parte, na barra.
+    filtradosRef.current = visibleQuotes.map((q) => q.id);
+  }, [visibleQuotes]);
+  useEffect(() => {
+    painelPorCimaRef.current = !!selected && isDetailOverlay;
+  }, [selected, isDetailOverlay]);
 
   // «Por responder» inclui a proposta que se está a preparar: o casal ainda
   // não recebeu nada, portanto a bola continua do nosso lado.
@@ -4843,6 +5179,16 @@ export default function AdminClient({
    */
   const [pedidoDeNovaTarefa, setPedidoDeNovaTarefa] = useState(0);
   const pedirNovaTarefa = useCallback(() => setPedidoDeNovaTarefa((n) => n + 1), []);
+  /* O último pedido que as Tarefas já serviram: um toque dado enquanto o
+     código delas ainda chega fica à espera e é servido quando montam. */
+  const [novaTarefaServida, setNovaTarefaServida] = useState(0);
+  /* Um toque que ficou à espera e a pessoa saiu das Tarefas antes de elas
+     montarem: dá-se por servido, para não abrir a linha de escrever horas
+     depois, ao voltar (revisão independente do lote de 17/11). Ajusta-se o
+     estado durante o desenho, que é o padrão do React para isto. */
+  if (view !== "tarefas" && novaTarefaServida !== pedidoDeNovaTarefa) {
+    setNovaTarefaServida(pedidoDeNovaTarefa);
+  }
 
   const VIEW_TITLES: Record<View, string> = {
     overview: "Visão Geral",
@@ -4957,6 +5303,8 @@ export default function AdminClient({
             setRestoreOpen(false);
             void revalidarPedidos(true);
           }}
+          // Se o código da janela não chegou, nada foi reposto: fecha só.
+          aoNaoChegar={() => setRestoreOpen(false)}
           toast={toast}
         />
         {/* A cópia de segurança a chegar. Pedida da barra lateral OU da
@@ -4987,6 +5335,7 @@ export default function AdminClient({
           quotes={quotes}
           onOpenQuote={abrirCliente}
           recentQuotes={recentQuotes}
+          grupos={gruposDaProcura}
         />
         <NewQuoteModal
           open={newQuoteOpen}
@@ -6423,6 +6772,43 @@ export default function AdminClient({
             onConfirmar={() => apagarMesmo(aApagarLote ?? [])}
           />
 
+          {/* Arquivar MUITOS pergunta primeiro, com o número e os nomes
+              (revisão · 3). Não é destrutivo — o «Anular» repõe-nos, e os
+              arquivados estão a um toque — por isso a pergunta é a da casa
+              com o verbo no botão, e não a vermelha de apagar. */}
+          <FolhaOuDialogo
+            aberto={aArquivarLote !== null}
+            onFechar={() => setAArquivarLote(null)}
+            titulo={`Arquivar ${loteDaPergunta.length} pedidos?`}
+            largura="sm"
+            accoes={
+              <>
+                <Button variant="ghost" onClick={() => setAArquivarLote(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    const ids = aArquivarLote ?? [];
+                    setAArquivarLote(null);
+                    void applyBulkArchive(true, ids);
+                  }}
+                >
+                  {`Arquivar ${loteDaPergunta.length} pedidos`}
+                </Button>
+              </>
+            }
+          >
+            <ul className="space-y-1 text-sm text-[var(--bo-tinta-72)]">
+              {nomesDoLote(loteDaPergunta).map((nome, i) => (
+                <li key={i}>{nome}</li>
+              ))}
+            </ul>
+            <p className="mt-3 text-sm text-[var(--bo-text-muted)]">
+              Saem da lista principal e ficam nos arquivados, de onde voltam com um toque.
+            </p>
+          </FolhaOuDialogo>
+
           <PerguntaDestrutiva
             aberto={aSair}
             onFechar={() => setASair(false)}
@@ -6538,6 +6924,7 @@ export default function AdminClient({
                 quotes={activeQuotes}
                 onOpen={abrirCliente}
                 onFazerProposta={abrirCliente}
+                pedidoDaPaleta={pedidoPara("calendario")}
               />
             </div>
           )}
@@ -6557,10 +6944,9 @@ export default function AdminClient({
                 // pela mesma porta de todos (não o painel).
                 onAbrirOutro={abrirCliente}
                 // As propostas já feitas não estão nesta lista — estão lá.
-                onIrParaPropostas={(procura) => {
-                  setProcuraEmPropostas(procura ?? "");
-                  setView("propostas");
-                }}
+                onIrParaPropostas={(procura) =>
+                  irComPedido("propostas", { procura: procura ?? "" })
+                }
                 onNovoPedido={() => setNewQuoteOpen(true)}
                 onQuoteUpdated={(q) => {
                   setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
@@ -6588,7 +6974,7 @@ export default function AdminClient({
               <Propostas
                 quotes={quotes}
                 userName={userName}
-                procuraInicial={procuraEmPropostas}
+                pedidoDaPaleta={pedidoPara("propostas")}
                 onOpenQuote={abrirCliente}
                 onQuoteUpdated={(q) => {
                   setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
@@ -6654,6 +7040,9 @@ export default function AdminClient({
               <Tarefas
                 defaultAssignee={userName}
                 pedidoDeNova={pedidoDeNovaTarefa}
+                pedidoDeNovaServido={novaTarefaServida}
+                onPedidoDeNovaServido={setNovaTarefaServida}
+                pedidoDaPaleta={pedidoPara("tarefas")}
                 nomesDosPedidos={nomesDosPedidos}
               />
             </div>
@@ -6662,7 +7051,7 @@ export default function AdminClient({
           {/* ── Fornecedores ── */}
           {view === "fornecedores" && (
             <div className={`${VIEW_WRAP} view-in`}>
-              <Fornecedores />
+              <Fornecedores pedidoDaPaleta={pedidoPara("fornecedores")} />
             </div>
           )}
 
@@ -6692,14 +7081,14 @@ export default function AdminClient({
           {/* ── Material de logística ── */}
           {view === "material" && (
             <div className={`${VIEW_WRAP} view-in`}>
-              <Material />
+              <Material pedidoDaPaleta={pedidoPara("material")} />
             </div>
           )}
 
           {/* ── Biblioteca de temas ── */}
           {view === "temas" && (
             <div className={`${VIEW_WRAP} view-in`}>
-              <Temas />
+              <Temas pedidoDaPaleta={pedidoPara("temas")} />
             </div>
           )}
 
@@ -6765,7 +7154,11 @@ export default function AdminClient({
           {/* ── Contratos ── */}
           {view === "contratos" && (
             <div className={`${VIEW_WRAP} view-in`}>
-              <Contratos quotes={quotes} onOpenQuote={abrirCliente} />
+              <Contratos
+                quotes={quotes}
+                onOpenQuote={abrirCliente}
+                pedidoDaPaleta={pedidoPara("contratos")}
+              />
             </div>
           )}
 
@@ -7161,9 +7554,14 @@ export default function AdminClient({
                 {seleccionadosAVista.length < filtered.length && (
                   <button
                     onClick={() => setSelectedIds(new Set(filtered.map((q) => q.id)))}
-                    className={`text-foreground/40 text-xs hover:text-sage-600 ${ESTADO} ${PRESSAO}`}
+                    className={`text-[var(--bo-text-muted)] text-xs hover:text-sage-600 ${ESTADO} ${PRESSAO}`}
                   >
-                    Selecionar todos ({filtered.length})
+                    {/* Com mais filtrados do que desenhados, di-lo: o ⌘A só
+                        escolhe o que se vê, e os outros pedem-se aqui, à
+                        vista (revisão · 3). */}
+                    {filtered.length > visibleQuotes.length
+                      ? `Selecionar todos os ${filtered.length} filtrados`
+                      : `Selecionar todos (${filtered.length})`}
                   </button>
                 )}
                 <div className="flex items-center gap-2">
@@ -7191,7 +7589,7 @@ export default function AdminClient({
                       quotesToCsvRows(filtered.filter((q) => selectedIds.has(q.id))),
                     )
                   }
-                  className={`flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bo-surface)] border border-[var(--bo-hairline-strong)] text-foreground/45 text-[10px] tracking-[0.12em] uppercase rounded-lg hover:text-sage-600 ${ESTADO} ${PRESSAO} `}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bo-surface)] border border-[var(--bo-hairline-strong)] text-[var(--bo-text-muted)] text-[10px] tracking-[0.12em] uppercase rounded-lg hover:text-sage-600 ${ESTADO} ${PRESSAO} `}
                 >
                   Exportar seleção
                 </button>
@@ -7203,13 +7601,22 @@ export default function AdminClient({
                   return (
                     <a
                       href={`mailto:?bcc=${encodeURIComponent(emails.join(","))}`}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bo-surface)] border border-[var(--bo-hairline-strong)] text-foreground/45 text-[10px] tracking-[0.12em] uppercase rounded-lg hover:text-sage-600 ${ESTADO} ${PRESSAO} `}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bo-surface)] border border-[var(--bo-hairline-strong)] text-[var(--bo-text-muted)] text-[10px] tracking-[0.12em] uppercase rounded-lg hover:text-sage-600 ${ESTADO} ${PRESSAO} `}
                       title={`Compor email para ${emails.length} cliente(s) (em bcc)`}
                     >
                       Email ({emails.length})
                     </a>
                   );
                 })()}
+                {/* Arquivar ou restaurar, conforme a lista que está à frente:
+                    na dos arquivados só faz sentido trazê-los de volta (BO 4). */}
+                <button
+                  onClick={() => pedirParaArquivar(!showArchived, seleccionadosAVista)}
+                  disabled={bulkBusy}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bo-surface)] border border-[var(--bo-hairline-strong)] text-[var(--bo-text-muted)] text-[10px] tracking-[0.12em] uppercase rounded-lg hover:text-sage-600 ${ESTADO} ${PRESSAO} disabled:opacity-50`}
+                >
+                  {showArchived ? "Restaurar" : "Arquivar"} ({seleccionadosAVista.length})
+                </button>
                 {/* Hard delete for the whole selection — restrained terracotta,
                     always behind a single confirm; disabled while a batch runs. */}
                 <button

@@ -128,6 +128,7 @@ describe("emailAoCliente", () => {
     const { html, text, attachments } = emailAoCliente({
       html: "<p>Segue a proposta.</p>",
       texto: "Segue a proposta.",
+      rodapeLegal: null,
     });
     expect(html).toContain("<p>Segue a proposta.</p>");
     expect(html).toContain(ASSINATURA_NOME);
@@ -142,7 +143,7 @@ describe("emailAoCliente", () => {
    * cabeçalho — que o Gmail deita fora de qualquer forma.
    */
   it("não usa flexbox, grid nem <style> no cabeçalho", () => {
-    const { html } = emailAoCliente({ html: "<p>Olá.</p>", texto: "Olá." });
+    const { html } = emailAoCliente({ html: "<p>Olá.</p>", texto: "Olá.", rodapeLegal: null });
     expect(html).not.toContain("display:flex");
     expect(html).not.toContain("display:grid");
     expect(html).not.toContain("<style");
@@ -235,6 +236,7 @@ describe("quem assina", () => {
       html: "<p>Segue.</p>",
       texto: "Segue.",
       quem: { nome: "Rui Belo", destinatario: "Mónica Teófilo" },
+      rodapeLegal: null,
     });
     expect(html).toContain("Rui Belo");
     expect(text).toContain("Rui Belo");
@@ -272,7 +274,11 @@ describe("os cid: e os anexos andam sempre juntos", () => {
   });
 
   it("no email inteiro que sai para o cliente", () => {
-    const { html, attachments } = emailAoCliente({ html: "<p>Olá.</p>", texto: "Olá." });
+    const { html, attachments } = emailAoCliente({
+      html: "<p>Olá.</p>",
+      texto: "Olá.",
+      rodapeLegal: null,
+    });
     for (const cid of cidsDe(html)) {
       expect(
         attachments.some((a) => a.cid === cid),

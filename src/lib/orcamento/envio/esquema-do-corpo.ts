@@ -47,8 +47,10 @@ export const esquemaDoCorpo = z.looseObject({
    *  Só `true` conta: qualquer outra coisa é «ainda não respondeu». */
   cortesConfirmados: z.boolean().optional(),
   /** «Já sei que faltam N fotografias, envia à mesma». É o NÚMERO que ela viu:
-   *  um PDF com mais em falta do que esse pergunta outra vez. */
-  fotosEmFaltaConfirmadas: z.number().nonnegative().optional(),
+   *  um PDF com mais em falta do que esse pergunta outra vez. O `true` é o
+   *  «sim» antigo de um separador aberto antes de 17/11, que vale até ao fim
+   *  de 18/11 (`FIM_DO_SIM_ANTIGO`, em `perguntas-antes-do-envio.ts`). */
+  fotosEmFaltaConfirmadas: z.union([z.number().nonnegative(), z.literal(true)]).optional(),
   /**
    * ── POR ONDE É QUE A PROPOSTA SEGUE ────────────────────────────────
    *

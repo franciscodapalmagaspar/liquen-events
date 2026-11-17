@@ -106,6 +106,8 @@ export default defineConfig({
         // Cria uma marcação e tarefas «TESTE e2e» para tocar nelas com o dedo.
         // Corre em `npm run test:e2e:movel`, que tem servidor que grava.
         "**/o-iphone-com-barras.spec.ts",
+        // BO 4: semeia e arquiva. Corre em `npm run test:e2e:dados`.
+        "**/bo4-procura-lotes-atalhos.spec.ts",
       ],
       use: { ...devices["Desktop Chrome"], storageState: ESTADO_ADMIN },
       dependencies: ["sessao"],

@@ -264,8 +264,9 @@ export type SafeImageProps = Omit<ImageProps, "src" | "loader" | "onError" | "on
  * isso, para cada candidato, exige-se duas coisas:
  *   · que haja AVIF para aquela origem (`siteImageAvifUrl`, que só diz que sim
  *     onde um pré-gerador garante o ficheiro e falha o build se faltar);
- *   · que esse AVIF seja o gémeo EXACTO do WebP que o `<img>` vai pedir — mesmo
- *     caminho, mesma largura, só a extensão diferente. É isto que torna seguro
+ *   · que esse AVIF seja o gémeo do WebP que o `<img>` vai pedir — mesmo
+ *     caminho, só a largura e a extensão podem diferir (o WebP da galeria só
+ *     existe em 384 e 1280 — ver `ehGemeoDoWebp`). É isto que torna seguro
  *     um `initialLoader` (o do herói): se um dia um carregador servir outro
  *     ficheiro, a comparação falha e a fotografia fica-se pelo WebP, inteira.
  * Basta UM candidato falhar para não haver `<source>` nenhuma.
@@ -280,6 +281,23 @@ export type SafeImageProps = Omit<ImageProps, "src" | "loader" | "onError" | "on
  * é este portão — o WebP continua por baixo, intacto.
  */
 type FonteAvif = { srcSet: string; sizes?: string; maior: string };
+
+/**
+ * O AVIF é o gémeo do WebP que o `<img>` vai pedir?
+ *
+ * Em todo o lado, gémeo EXACTO: mesmo caminho, mesma largura, só a extensão
+ * diferente. A única excepção é a pasta da galeria (`/_img/g/`): aí o WebP só
+ * existe em 384 e 1280, como reserva para quem não lê AVIF (16/11), e o
+ * carregador arredonda-o para cima — a LARGURA pode diferir, a fotografia não.
+ * Um carregador que sirva outro ficheiro, ou outra largura fora da galeria
+ * (17/11: a regra larga valia para todos), falha a comparação.
+ */
+export function ehGemeoDoWebp(avif: string, webp: string): boolean {
+  if (avif.replace(/\.avif$/, ".webp") === webp) return true;
+  const GALERIA = /^\/_img\/g\/[^/]+-\d+\.(?:avif|webp)$/;
+  if (!GALERIA.test(avif) || !GALERIA.test(webp)) return false;
+  return avif.replace(/-\d+\.avif$/, "") === webp.replace(/-\d+\.webp$/, "");
+}
 
 /** As duas caixas do `<picture>` — ver o porquê junto do `return`. Fora do
     componente para não criar um objecto novo por render. */
@@ -308,7 +326,7 @@ function fonteAvif(
     quality: p.quality,
     loader: (q) => {
       const avif = siteImageAvifUrl(q.src, q.width);
-      if (avif === null || avif.replace(/\.avif$/, ".webp") !== primeiro(q)) gemeos = false;
+      if (avif === null || !ehGemeoDoWebp(avif, primeiro(q))) gemeos = false;
       return avif ?? q.src;
     },
   });

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import {
+  GALLERY_WEBP_WIDTHS,
   GALLERY_WIDTHS,
   GALLERY_QUALITY,
   galleryKey,
@@ -18,8 +19,9 @@ const PREGEN_SCRIPT = readFileSync(path.join(ROOT, "scripts", "pregen-gallery.mj
 
 describe("gallery-image-loader: a grelha não depende do optimizador", () => {
   it("devolve sempre um ficheiro estático para as fotos da galeria", () => {
+    // O WebP só existe em 384 e 1280 (16/11): 640 sobe ao ficheiro de 1280.
     const url = galleryImageLoader({ src: "/imagens/EW1_1330.jpg", width: 640, quality: 65 });
-    expect(url).toBe("/_img/g/EW1_1330-640.webp");
+    expect(url).toBe("/_img/g/EW1_1330-1280.webp");
     expect(url).not.toContain("/_next/image");
   });
 
@@ -89,14 +91,17 @@ describe("gallery-image-loader: a grelha não depende do optimizador", () => {
 
   it("o URL é o que o script de pré-geração escreve", () => {
     expect(galleryImageUrl("/imagens/DaniGui_Preview20.jpg", 800)).toBe(
-      "/_img/g/DaniGui_Preview20-1024.webp",
+      "/_img/g/DaniGui_Preview20-1280.webp",
+    );
+    expect(galleryImageUrl("/imagens/DaniGui_Preview20.jpg", 200)).toBe(
+      "/_img/g/DaniGui_Preview20-384.webp",
     );
     expect(PREGEN_SCRIPT).toContain('path.join(PUBLIC, "_img", "g")');
     // O nome do ficheiro passou a ter o formato como variável (`.${f.ext}`),
     // porque a escada emite AVIF **e** WebP. O que este teste prende continua a
     // ser o mesmo: que o padrão escrito pelo script é o padrão que o loader
     // constrói — chave, traço, largura, ponto, extensão.
-    expect(PREGEN_SCRIPT).toContain("`${key}-${w}.${f.ext}`");
+    expect(PREGEN_SCRIPT).toContain("`${chave}-${w}.${f.ext}`");
   });
 
   it("o script gera as duas famílias, e o WebP continua a ser uma delas", () => {
@@ -117,6 +122,12 @@ describe("gallery-image-loader: a grelha não depende do optimizador", () => {
     const widths = PREGEN_SCRIPT.match(/^const WIDTHS = \[([^\]]+)\];$/m);
     expect(widths, "não encontrei `const WIDTHS = [...]` no script").not.toBeNull();
     expect(widths![1].split(",").map((s) => Number(s.trim()))).toEqual([...GALLERY_WIDTHS]);
+    const webp = PREGEN_SCRIPT.match(/^const WEBP_WIDTHS = \[([^\]]+)\];$/m);
+    expect(webp, "não encontrei `const WEBP_WIDTHS = [...]` no script").not.toBeNull();
+    expect(webp![1].split(",").map((s) => Number(s.trim()))).toEqual([...GALLERY_WEBP_WIDTHS]);
+    // E cada formato percorre a SUA escada.
+    expect(PREGEN_SCRIPT).toMatch(/ext: "webp", larguras: WEBP_WIDTHS/);
+    expect(PREGEN_SCRIPT).toMatch(/ext: "avif",\s+larguras: WIDTHS/);
 
     const quality = PREGEN_SCRIPT.match(/^const QUALITY = (\d+);$/m);
     expect(quality, "não encontrei `const QUALITY = N` no script").not.toBeNull();
@@ -170,12 +181,17 @@ describe("tile-colors.json: nenhum mosaico fica sem cor", () => {
  */
 const OUT_DIR = path.join(ROOT, "public", "_img", "g");
 describe.skipIf(!existsSync(OUT_DIR))("miniaturas pré-geradas presentes", () => {
-  it("as 427 fotos x 5 larguras existem em public/_img/g", () => {
+  it("as fotos da galeria têm o AVIF em cada degrau e o WebP em 384 e 1280", () => {
     const missing: string[] = [];
     for (const p of PHOTOS) {
-      for (const w of GALLERY_WIDTHS) {
-        const f = path.join(OUT_DIR, `${galleryKey(p.src)}-${w}.webp`);
-        if (!existsSync(f)) missing.push(path.basename(f));
+      for (const [formato, escada] of [
+        ["avif", GALLERY_WIDTHS],
+        ["webp", GALLERY_WEBP_WIDTHS],
+      ] as const) {
+        for (const w of escada) {
+          const f = path.join(OUT_DIR, `${galleryKey(p.src)}-${w}.${formato}`);
+          if (!existsSync(f)) missing.push(path.basename(f));
+        }
       }
     }
     expect(missing.slice(0, 10)).toEqual([]);
