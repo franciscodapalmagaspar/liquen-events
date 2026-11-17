@@ -50,7 +50,7 @@ import type { ImageLoaderProps } from "next/image";
  * servidos a 175 KB em vez de ~107 KB (+63%). Com 1024 na escada o degrau
  * desaparece e os bytes ficam iguais aos do optimizador.
  */
-export const GALLERY_WIDTHS = [384, 640, 1024, 1280] as const;
+export const GALLERY_WIDTHS = [384, 640, 768, 1024, 1280] as const;
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -59,13 +59,14 @@ export const GALLERY_WIDTHS = [384, 640, 1024, 1280] as const;
  *
  * Cada publicação guarda `public/_img/g` inteiro, e guardar publicações era
  * uma das duas maiores linhas da fatura de 3–15/11 (~2,8 $). Eram 5 larguras
- * × (WebP + AVIF) = 10 570 ficheiros, 639 MB. Mas quem tem AVIF — quase toda
+ * × (WebP + AVIF) = 10 570 ficheiros, 639 MB (medidas de 17/11 no PR #478). Mas quem tem AVIF — quase toda
  * a gente — nunca chega a pedir o WebP: o `<picture>` escolhe o AVIF pelo
  * `type`. O WebP só serve quem não lê AVIF, e para esses chegam duas
  * larguras: 384 (miniaturas e tira) e 1280 (tudo o resto).
  *
- * O 768 saiu das duas famílias. A escada do AVIF ficou com 4 degraus e o que
- * pedia 768 passa a receber 1024 — nunca menos nitidez do que antes.
+ * O AVIF fica com a escada toda, 768 incluído: é o tecto do telemóvel, e
+ * tirá-lo (16/11) fazia o telemóvel subir ao 1024 — +150 % de bytes na
+ * galeria. Voltou a 17/11; o que se poupa é o WebP de 640, 768 e 1024.
  *
  * Todos os URLs de WebP passam por `snapGalleryWebpWidth` (aqui e no
  * `ficheiroDaGaleria`), portanto nenhum pede um ficheiro que deixou de existir.

@@ -27,8 +27,7 @@ import {
  *      768 px →  40,7 KB       (0,62× — ou seja, 1,86 de densidade efectiva)
  *
  * Ao telemóvel passa a ir no máximo **768**: −69 % dos bytes, com a fotografia
- * ainda a 1,86 de densidade efectiva. (A 16/11 o 768 saiu da escada e o tecto
- * do telemóvel subiu para 1024 — ver `ESCADA_TELEMOVEL`.) Quem quiser ver a fotografia a sério
+ * ainda a 1,86 de densidade efectiva. Quem quiser ver a fotografia a sério
  * abre-a — e aí o lightbox serve a resolução inteira, que é onde a nitidez
  * conta e onde o visitante está mesmo a olhar.
  *
@@ -48,14 +47,11 @@ import {
  */
 
 /**
- * Larguras que a grelha oferece a um telemóvel (mosaico a 100vw).
- *
- * O tecto era 768. O 768 saiu da escada a 16/11 (ver `GALLERY_WEBP_WIDTHS`),
- * e o degrau de baixo (640, 1,55 de densidade a 412 px) era perder nitidez:
- * o tecto subiu para o degrau de cima, 1024. Mais bytes num telemóvel, a
- * mesma ou melhor fotografia — nunca pior.
+ * Larguras que a grelha oferece a um telemóvel (mosaico a 100vw). O tecto é o
+ * 768 (a 16/11 subiu ao 1024 e o telemóvel pagava +150 % de bytes na galeria;
+ * voltou a 17/11). Em AVIF; o WebP de reserva arredonda para 384 ou 1280.
  */
-export const ESCADA_TELEMOVEL = GALLERY_WIDTHS.filter((w) => w <= 1024);
+export const ESCADA_TELEMOVEL = GALLERY_WIDTHS.filter((w) => w <= 768);
 /** Larguras que a grelha oferece de `sm` para cima (mosaico a 50vw / 33vw). */
 export const ESCADA_ECRA_GRANDE = GALLERY_WIDTHS.filter((w) => w <= 1024);
 

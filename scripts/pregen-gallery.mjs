@@ -80,8 +80,8 @@ const IMAGE_EXT = /\.(jpe?g|png|webp)$/i;
 const SKIP_DIRS = new Set(["_intake"]);
 
 // Em sincronia com GALLERY_WIDTHS / GALLERY_QUALITY do loader. É a escada do
-// AVIF; o WebP só tem `WEBP_WIDTHS` (ver lá). O 768 saiu a 16/11.
-const WIDTHS = [384, 640, 1024, 1280];
+// AVIF (com o 768, o tecto do telemóvel); o WebP só tem `WEBP_WIDTHS`.
+const WIDTHS = [384, 640, 768, 1024, 1280];
 const QUALITY = 65;
 
 /**

@@ -128,7 +128,7 @@ describe("site-image-loader: as escadas", () => {
 
   it("as escadas do contrato não mudam sem que alguém repare", () => {
     expect([...LOGO_WIDTHS]).toEqual([64, 128, 256, 384, 512]);
-    expect([...GALLERY_WIDTHS]).toEqual([384, 640, 1024, 1280]);
+    expect([...GALLERY_WIDTHS]).toEqual([384, 640, 768, 1024, 1280]);
     expect([...GALLERY_WEBP_WIDTHS]).toEqual([384, 1280]);
     for (const ladder of [LOGO_WIDTHS, GALLERY_WIDTHS, GALLERY_WEBP_WIDTHS]) {
       expect([...ladder], "escada por ordem crescente").toEqual([...ladder].sort((a, b) => a - b));

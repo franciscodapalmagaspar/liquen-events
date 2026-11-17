@@ -37,7 +37,7 @@ import { LARGURA_DO_SITEMAP } from "@/app/sitemap";
  * ════════════════════════════════════════════════════════════════════════════
  *
  * A 16/11 a pasta `public/_img/g` emagreceu (cada publicação guarda-a
- * inteira): o 768 saiu, e o WebP ficou só em 384 e 1280, como reserva para
+ * inteira): o WebP ficou só em 384 e 1280, como reserva para
  * quem não lê AVIF. Um `<source type="image/webp">` a apontar para `-640.webp`
  * é um mosaico partido em todos esses browsers — e num Chromium moderno não se
  * vê, porque ele escolhe o AVIF. Daí este ficheiro: percorre TODOS os sítios
@@ -107,13 +107,15 @@ describe("as funções que montam URLs de /_img/g/", () => {
     }
   });
 
-  it("as escadas da grelha e da entrada só têm degraus do AVIF (o 768 saiu)", () => {
+  it("as escadas da grelha e da entrada só têm degraus do AVIF", () => {
     for (const escada of [ESCADA_TELEMOVEL, ESCADA_ECRA_GRANDE, ESCADA_PAINEL, ESCADA_FAIXA]) {
       for (const w of escada) expect((GALLERY_WIDTHS as readonly number[]).includes(w)).toBe(true);
     }
-    // Nunca menos nitidez do que antes: o tecto do telemóvel subiu de 768 para 1024.
-    expect(Math.max(...ESCADA_TELEMOVEL)).toBeGreaterThanOrEqual(768);
-    expect(Math.max(...ESCADA_FAIXA)).toBeGreaterThanOrEqual(768);
+    // O tecto do telemóvel e da faixa é o 768, em AVIF (17/11: no 1024 o
+    // telemóvel pagava +150 % de bytes na galeria).
+    expect(Math.max(...ESCADA_TELEMOVEL)).toBe(768);
+    expect(Math.max(...ESCADA_FAIXA)).toBe(768);
+    expect((GALLERY_WIDTHS as readonly number[]).includes(768)).toBe(true);
   });
 
   it("o mapa do site aponta para um WebP que existe", () => {
