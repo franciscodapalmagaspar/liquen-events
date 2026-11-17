@@ -52,25 +52,45 @@ async function lerFresco(agora: Date): Promise<UsoDoBlob | null> {
   }
 }
 
-/** O uso como esta instância o vê agora. `null` se não se conseguiu ler. */
-export async function usoAtual(agora: Date = new Date()): Promise<UsoDoBlob | null> {
-  if (!emMemoria || Date.now() - emMemoria.lidoEm > VIDA_MS) {
+/**
+ * A leitura em voo, partilhada (4.ª revisão de 17/11, n.º 1). Duas leituras ao
+ * mesmo tempo contavam a menos: a que começava depois podia acabar primeiro e
+ * podar um lote que a outra ainda precisava, e a mais velha escrevia por cima
+ * uma cópia mais antiga. Agora há só uma: quem chega a meio espera por ela.
+ */
+let leituraEmVoo: Promise<boolean> | null = null;
+
+function lerParaAMemoria(agora: Date): Promise<boolean> {
+  leituraEmVoo ??= (async () => {
     const inicio = Date.now();
     const fresco = await lerFresco(agora);
-    // Uma cópia velha não serve de travão: sem leitura fresca, não se sabe.
-    if (!fresco) return null;
+    if (!fresco) return false;
     emMemoria = { uso: fresco, lidoEm: Date.now() };
     /**
      * A linha lida já tem o que ficou gravado ANTES de a leitura começar. Por
      * cima dela conta: o que está na fila, o lote a meio de gravar, e os lotes
-     * que acabaram de gravar DESDE que a leitura começou (3.ª revisão de 17/11,
-     * n.º 5) — esses podem ter chegado à linha antes ou depois da leitura; na
-     * dúvida contam, que contar a mais é seguro e a menos não.
+     * que acabaram de gravar DESDE que a leitura começou (3.ª revisão, n.º 5) —
+     * esses podem ter chegado à linha antes ou depois da leitura; na dúvida
+     * contam, que contar a mais é seguro e a menos não. A lista NÃO se poda
+     * aqui (só por idade, em `gravarAFila`).
      */
-    gravadosRecentes = gravadosRecentes.filter((l) => l.em >= inicio);
-    desdeALeitura = gravadosRecentes.reduce((t, l) => juntar(t, l.gasto), juntar(porGravar, emVoo));
+    desdeALeitura = gravadosRecentes
+      .filter((l) => l.em >= inicio)
+      .reduce((t, l) => juntar(t, l.gasto), juntar(porGravar, emVoo));
+    return true;
+  })().finally(() => {
+    leituraEmVoo = null;
+  });
+  return leituraEmVoo;
+}
+
+/** O uso como esta instância o vê agora. `null` se não se conseguiu ler. */
+export async function usoAtual(agora: Date = new Date()): Promise<UsoDoBlob | null> {
+  if (!emMemoria || Date.now() - emMemoria.lidoEm > VIDA_MS) {
+    // Uma cópia velha não serve de travão: sem leitura fresca, não se sabe.
+    if (!(await lerParaAMemoria(agora))) return null;
   }
-  return somar(usoNormalizado(emMemoria.uso, agora), desdeALeitura);
+  return somar(usoNormalizado(emMemoria!.uso, agora), desdeALeitura);
 }
 
 /** Cabe? `null` quando cabe; o motivo quando não cabe (ou quando não se sabe). Nunca lança. */
@@ -245,4 +265,5 @@ export function esquecerUso(): void {
   porGravar = {};
   emVoo = {};
   gravadosRecentes = [];
+  leituraEmVoo = null;
 }

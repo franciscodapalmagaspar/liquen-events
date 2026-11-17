@@ -221,4 +221,24 @@ describe("o contador do Blob", () => {
     expect(u!.avancadas).toBe(50_000);
     expect(await travao({ avancadas: 1 })).toBe("operacoes-avancadas");
   });
+
+  it("4.ª revisão, n.º 1: duas leituras ao mesmo tempo não contam a menos (a ordem exacta)", async () => {
+    H.linha = { mes, avancadas: 0, simples: 0, transferencia: 0, bytes: 0 };
+    let soltarA!: () => void;
+    H.lerPendurado = new Promise((r) => (soltarA = r));
+    // A começa e vê 0…
+    const a = usoAtual();
+    H.lerPendurado = null;
+    // …grava-se um lote de 100…
+    await registar({ transferencia: 100 });
+    await gravacoesPendentes();
+    // …B começa (sozinha veria 100, e acabaria primeiro)…
+    const b = usoAtual();
+    await new Promise((r) => setTimeout(r, 0));
+    // …e A acaba no fim, com o 0 que viu ao começar.
+    soltarA();
+    await a;
+    expect((await b)!.transferencia).toBe(100);
+    expect((await usoAtual())!.transferencia).toBe(100);
+  });
 });
