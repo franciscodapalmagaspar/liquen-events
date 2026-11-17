@@ -27,7 +27,7 @@ const RUIDO = [
   /\/orcamento-linhas(\/|$)/,
   // Leituras que o estúdio faz por POST (levam o rascunho no corpo) e o
   // relógio do tempo activo: nenhuma muda nada que alguém tenha de auditar,
-  // e o estúdio chama-as a cada tecla ou de minutos a minutos (16/11).
+  // e o estúdio chama-as a cada tecla ou de 30 em 30 segundos (16/11).
   /^\/api\/orcamento\/[^/]+\/(tempo-activo|pagina-do-rascunho|paleta-do-pdf|fotos-do-pdf|fotos-em-falta)(\/|$)/,
   /^\/api\/temas\/resumos(\/|$)/,
   // O caminho é `security/csp-report`: o padrão antigo (`csp-report` logo a

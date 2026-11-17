@@ -33,10 +33,9 @@ import { getState, listStateByPrefix, setState, type ResultadoDeEscrita } from "
  * ── O que isto NÃO garante, dito antes de alguém descobrir ─────────────────
  * A soma é um ler-somar-escrever, e o `app_state` não tem incremento atómico.
  * Dois envios que se cruzem no mesmo instante podem perder um deles. O prejuízo
- * está limitado pelo tamanho do passo: o cliente reporta de cinco em cinco
- * minutos (17/11), com todas as secções num só pedido — o mesmo separador
- * nunca cruza envios consigo próprio; o pior caso são dois aparelhos na mesma
- * proposta no mesmo instante, num número que se lê em horas. Trocar isto por uma tabela com `update ... set ms = ms +
+ * está limitado pelo tamanho do passo: o cliente reporta de meio em meio
+ * minuto, portanto o pior caso é perder meio minuto de uma proposta, num número
+ * que se lê em horas. Trocar isto por uma tabela com `update ... set ms = ms +
  * $1` seria mais correcto e custava uma migração — o sítio dessa decisão é o
  * dia em que estes números começarem a ser usados para faturar, e não hoje.
  */
@@ -60,51 +59,26 @@ export interface TempoDaProposta {
   porSeccao?: Record<string, number>;
   /** Quando foi somado pela última vez (ISO). */
   updatedAt: string;
-  /**
-   * Os ids dos últimos lotes somados (17/11) — ver `acrescentarLotesDeTempo`.
-   * Só no armazenamento: as respostas não os levam.
-   */
-  ids?: string[];
-}
-
-/** Quantos ids de lote se guardam por proposta. Um lote devolvido volta a
- *  sair no envio seguinte (cinco minutos depois); vinte cobre uma hora e meia
- *  de envios falhados seguidos. */
-export const IDS_GUARDADOS = 20;
-
-/** Um lote do estúdio: o tempo por secção e, desde 17/11, um id. */
-export interface LoteDeTempo {
-  id?: string;
-  porSeccao: Record<string, number>;
 }
 
 /**
- * Um tecto por PEDIDO, para um cliente avariado (ou um relógio que saltou) não
+ * Um tecto por envio, para um cliente avariado (ou um relógio que saltou) não
  * conseguir inflacionar a medição.
  *
- * O estúdio envia de cinco em cinco minutos (17/11). Dez minutos é o dobro do
- * passo — folga para um envio que se atrasou — e é o TOTAL somado num pedido,
- * não o de cada secção: com o tecto por secção e até 50 secções por pedido, um
- * pedido chegava a 25 horas (revisão de 17/11). Era meia hora quando o envio
- * era de 30 em 30 s, com uma secção por pedido.
+ * Meia hora é muito acima do passo normal de reporte (meio minuto) e ainda
+ * assim é um número que uma pessoa pode mesmo ter trabalhado sem que o
+ * navegador reportasse — um separador que esteve a ser usado enquanto a rede
+ * estava em baixo, e que descarrega tudo de uma vez quando ela volta.
  */
-export const MAXIMO_POR_ENVIO = 10 * 60_000;
+export const MAXIMO_POR_ENVIO = 30 * 60_000;
 
 /** Quantas secções diferentes se guardam por proposta. É um tecto contra um
  *  cliente que inventasse nomes de secção sem fim; o estúdio tem meia dúzia. */
 const MAX_SECCOES = 40;
 
 /** O tempo desta proposta, ou `null` se ainda não foi medido nenhum. */
-export async function getTempoActivo(quoteId: string): Promise<TempoDaProposta | null> {
-  const t = await getState<TempoDaProposta>(chave(quoteId));
-  return t ? semIds(t) : t;
-}
-
-/** O tempo sem os ids dos lotes, que só servem ao armazenamento. */
-function semIds(t: TempoDaProposta): TempoDaProposta {
-  if (!("ids" in t)) return t;
-  const { ids: _ids, ...resto } = t;
-  return resto;
+export function getTempoActivo(quoteId: string): Promise<TempoDaProposta | null> {
+  return getState<TempoDaProposta>(chave(quoteId));
 }
 
 /**
@@ -123,55 +97,6 @@ export async function acrescentarTempoActivo(
   ms: number,
   seccao?: string,
 ): Promise<{ tempo: TempoDaProposta; persistencia: ResultadoDeEscrita | null }> {
-  return acrescentarTempoActivoPorSeccao(quoteId, { [seccao ?? ""]: ms });
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * VÁRIAS SECÇÕES NUMA SÓ ESCRITA (17/11)
- * ════════════════════════════════════════════════════════════════════════════
- *
- * O estúdio junta o tempo de cinco minutos e manda-o de uma vez, repartido por
- * secção (`tempo-activo-envio.ts`). Mandava um pedido por secção, ao mesmo
- * tempo — e cada um faz ler-somar-gravar sem trinco: os pedidos liam o mesmo
- * total, e só o último a gravar ficava. Agora é UM pedido e UMA escrita com
- * todas as secções. A chave `""` é o tempo sem secção (conta só no total).
- *
- * O tecto (`MAXIMO_POR_ENVIO`) é do pedido inteiro: as secções somam-se por
- * ordem e cada uma leva só o que ainda sobra. O tempo sem secção e o das
- * secções acima de `MAX_SECCOES` (que só contam no total) também gastam o
- * tecto. Os nomes normalizam-se (`trim`, 40 caracteres) antes de somar, e
- * dois nomes que dão o mesmo juntam-se.
- */
-export async function acrescentarTempoActivoPorSeccao(
-  quoteId: string,
-  pedacos: Record<string, number>,
-  id?: string,
-): Promise<{ tempo: TempoDaProposta; persistencia: ResultadoDeEscrita | null }> {
-  return acrescentarLotesDeTempo(quoteId, [{ id, porSeccao: pedacos }]);
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * O MESMO LOTE NUNCA CONTA DUAS VEZES (17/11)
- * ════════════════════════════════════════════════════════════════════════════
- *
- * Um envio que o estúdio leu como falhado volta a sair no seguinte. Mas
- * «falhado» do lado do browser não quer dizer «não gravado»: a escrita pode
- * acabar depois de o pedido desistir, ou a resposta perder-se com o ecrã a
- * bloquear. Sem mais nada, esse tempo contava duas vezes.
- *
- * Cada lote traz um id, e um lote devolvido volta a sair com o MESMO id. Os
- * últimos {@link IDS_GUARDADOS} ids ficam junto do tempo, na mesma escrita:
- * um id que já lá está é ignorado (e responde-se «guardado», que é verdade).
- * Os lotes sem id — o formato antigo — somam sempre, como antes.
- *
- * Vários lotes num pedido somam-se numa só escrita, cada um com o seu tecto.
- */
-export async function acrescentarLotesDeTempo(
-  quoteId: string,
-  lotes: LoteDeTempo[],
-): Promise<{ tempo: TempoDaProposta; persistencia: ResultadoDeEscrita | null }> {
   // Lido para somar e voltar a gravar: uma leitura falhada LANÇA (a rota
   // apanha e responde sem gravar) em vez de pôr o total a zero por cima do
   // verdadeiro (revisão de 13/11, n.º 10).
@@ -179,20 +104,11 @@ export async function acrescentarLotesDeTempo(
     ms: 0,
     updatedAt: "",
   };
+  const somar = Number.isFinite(ms) && ms > 0 ? Math.min(Math.round(ms), MAXIMO_POR_ENVIO) : 0;
 
-  const porSeccao = { ...(anterior.porSeccao ?? {}) };
-  const ids = [...(anterior.ids ?? [])];
-  let somado = 0;
-  for (const lote of lotes) {
-    if (lote.id && ids.includes(lote.id)) continue;
-    somado += somarComTecto(porSeccao, lote.porSeccao);
-    if (lote.id) ids.push(lote.id);
-  }
-
-  if (somado === 0) {
+  if (somar === 0) {
     // Nada a somar é nada a escrever: um envio de zero (a página esteve
-    // aberta e parada), ou um lote que já tinha sido somado, não gasta uma
-    // escrita nem mexe no `updatedAt`.
+    // aberta e parada) não tem de gastar uma escrita nem mexer no `updatedAt`.
     return {
       tempo: {
         ms: anterior.ms,
@@ -203,42 +119,19 @@ export async function acrescentarLotesDeTempo(
     };
   }
 
+  const porSeccao = { ...(anterior.porSeccao ?? {}) };
+  const nome = (seccao ?? "").trim().slice(0, 40);
+  if (nome && (nome in porSeccao || Object.keys(porSeccao).length < MAX_SECCOES)) {
+    porSeccao[nome] = (porSeccao[nome] ?? 0) + somar;
+  }
+
   const tempo: TempoDaProposta = {
-    ms: anterior.ms + somado,
+    ms: anterior.ms + somar,
     ...(Object.keys(porSeccao).length > 0 ? { porSeccao } : {}),
     updatedAt: new Date().toISOString(),
   };
-  const guardar: TempoDaProposta = {
-    ...tempo,
-    ...(ids.length > 0 ? { ids: ids.slice(-IDS_GUARDADOS) } : {}),
-  };
-  const persistencia = await setState(chave(quoteId), guardar);
+  const persistencia = await setState(chave(quoteId), tempo);
   return { tempo, persistencia };
-}
-
-/**
- * Soma um pedido a `porSeccao` (que altera) e devolve o total somado, nunca
- * acima de `MAXIMO_POR_ENVIO`. Ver `acrescentarTempoActivoPorSeccao`.
- */
-function somarComTecto(porSeccao: Record<string, number>, pedacos: Record<string, number>): number {
-  const normalizados = new Map<string, number>();
-  for (const [seccao, ms] of Object.entries(pedacos)) {
-    if (!Number.isFinite(ms) || ms <= 0) continue;
-    const nome = String(seccao).trim().slice(0, 40);
-    normalizados.set(nome, (normalizados.get(nome) ?? 0) + ms);
-  }
-  let restante = MAXIMO_POR_ENVIO;
-  let somado = 0;
-  for (const [nome, ms] of normalizados) {
-    const somar = Math.min(Math.round(ms), restante);
-    if (somar <= 0) continue;
-    restante -= somar;
-    somado += somar;
-    if (nome && (nome in porSeccao || Object.keys(porSeccao).length < MAX_SECCOES)) {
-      porSeccao[nome] = (porSeccao[nome] ?? 0) + somar;
-    }
-  }
-  return somado;
 }
 
 /**
@@ -254,7 +147,7 @@ export async function listTemposActivos(): Promise<Record<string, TempoDaPropost
     const { entradas } = await listStateByPrefix<TempoDaProposta>(TEMPO_PREFIX);
     for (const { key, value } of entradas) {
       if (!value || typeof value.ms !== "number") continue;
-      saida[key.slice(TEMPO_PREFIX.length)] = semIds(value);
+      saida[key.slice(TEMPO_PREFIX.length)] = value;
     }
   } catch {
     /* sem base de dados — ainda não há medições para mostrar */
