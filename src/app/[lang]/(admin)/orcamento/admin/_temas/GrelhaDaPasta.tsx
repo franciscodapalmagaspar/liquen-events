@@ -13,54 +13,63 @@ import type { Pending } from "./tipos-da-pasta";
 /** A grelha das fotografias de um tema — a carregar, vazia, ou cheia — com o
  *  arrasto para reordenar e para largar ficheiros. (Saiu da pasta do tema na
  *  fase 8 da estrutura do código, tal e qual.) */
-export interface GrelhaDaPastaProps {
-  theme: ThemeSummary;
+/** As fotografias da pasta e o carregamento delas. */
+export interface FotosDaPasta {
   images: ThemeImage[];
   truncated: boolean;
   falhaDaPasta: LeituraFalhada | null;
   loading: boolean;
   loadingMore: boolean;
+  unreadable: boolean;
+  remaining: number | null;
+  hasMore: boolean;
+  loadMore: () => Promise<void>;
   pending: Pending[];
-  setDrag: Dispatch<SetStateAction<boolean>>;
+}
+
+/** Largar ficheiros e pastas em cima da grelha. */
+export interface LargarNaPasta {
   drag: boolean;
+  setDrag: Dispatch<SetStateAction<boolean>>;
   /**
    * A profundidade do arrasto por cima da grelha (cada filho que o ponteiro
    * atravessa conta uma entrada e uma saída). Vive na pasta, que é dona dela;
    * a grelha só a faz andar — e sabe quando voltou a zero.
    */
   arrasto: { entrar: () => void; sair: () => number; zerar: () => void };
-  remaining: number | null;
-  hasMore: boolean;
   handleDrop: (entries: FileSystemEntry[], files: File[]) => Promise<void>;
-  loadMore: () => Promise<void>;
-  unreadable: boolean;
+}
+
+/** Como a grelha se desenha: o elemento, as colunas, e as células. */
+export interface DesenhoDaGrelha {
   grelha: RefObject<HTMLDivElement | null>;
   colunas: number;
   pendentes: JSX.Element[];
   celulaDaFoto: (im: ThemeImage, i: number) => JSX.Element;
 }
 
-export function GrelhaDaPasta({
-  theme,
-  images,
-  truncated,
-  falhaDaPasta,
-  loading,
-  loadingMore,
-  pending,
-  setDrag,
-  drag,
-  arrasto,
-  remaining,
-  hasMore,
-  handleDrop,
-  loadMore,
-  unreadable,
-  grelha,
-  colunas,
-  pendentes,
-  celulaDaFoto,
-}: GrelhaDaPastaProps) {
+export interface GrelhaDaPastaProps {
+  theme: ThemeSummary;
+  fotos: FotosDaPasta;
+  largar: LargarNaPasta;
+  desenho: DesenhoDaGrelha;
+}
+
+export function GrelhaDaPasta({ theme, fotos, largar, desenho }: GrelhaDaPastaProps) {
+  const {
+    images,
+    truncated,
+    falhaDaPasta,
+    loading,
+    loadingMore,
+    unreadable,
+    remaining,
+    hasMore,
+    loadMore,
+    pending,
+  } = fotos;
+  const { drag, setDrag, arrasto, handleDrop } = largar;
+  const { grelha, colunas, pendentes, celulaDaFoto } = desenho;
   return (
     <>
       <div

@@ -9,41 +9,50 @@ import { Button, EmCurso, Glass } from "../ui";
 /** A barra da selecção da pasta (transferir, copiar, descarregar, remover)
  *  e a espera do que ela mandou fazer. (Saiu da pasta do tema na fase 8 da
  *  estrutura do código, tal e qual.) */
-export interface BarraDaSeleccaoDaPastaProps {
+/** As fotografias escolhidas, e quantas são. */
+export interface SeleccaoDaPasta {
   images: ThemeImage[];
-  setCopyOpen: Dispatch<SetStateAction<boolean>>;
-  setCopyMode: Dispatch<SetStateAction<ThemeCopyMode>>;
   selected: Set<string>;
+  selectedCount: number;
+  clearSelection: () => void;
+  anuncio: string;
+}
+
+/** As acções em bloco a decorrer. */
+export interface AccoesEmCurso {
   bulkBusy: boolean;
   emBloco: AccaoEmBloco | null;
   aMover: { feito: number; total: number } | null;
-  anuncio: string;
-  clearSelection: () => void;
+  downloading: boolean;
+}
+
+/** O que se pode fazer com as escolhidas. */
+export interface AccoesDaSeleccao {
+  setCopyOpen: Dispatch<SetStateAction<boolean>>;
+  setCopyMode: Dispatch<SetStateAction<ThemeCopyMode>>;
   pedirParaRemoverAsSeleccionadas: () => void;
   setAsCover: (im: ThemeImage, comAnular?: boolean) => Promise<boolean>;
-  selectedCount: number;
   otherThemes: ThemeSummary[];
-  downloading: boolean;
   downloadSelected: () => Promise<void>;
 }
 
-export function BarraDaSeleccaoDaPasta({
-  images,
-  setCopyOpen,
-  setCopyMode,
-  selected,
-  bulkBusy,
-  emBloco,
-  aMover,
-  anuncio,
-  clearSelection,
-  pedirParaRemoverAsSeleccionadas,
-  setAsCover,
-  selectedCount,
-  otherThemes,
-  downloading,
-  downloadSelected,
-}: BarraDaSeleccaoDaPastaProps) {
+export interface BarraDaSeleccaoDaPastaProps {
+  seleccao: SeleccaoDaPasta;
+  emCurso: AccoesEmCurso;
+  accoes: AccoesDaSeleccao;
+}
+
+export function BarraDaSeleccaoDaPasta({ seleccao, emCurso, accoes }: BarraDaSeleccaoDaPastaProps) {
+  const { images, selected, selectedCount, clearSelection, anuncio } = seleccao;
+  const { bulkBusy, emBloco, aMover, downloading } = emCurso;
+  const {
+    setCopyOpen,
+    setCopyMode,
+    pedirParaRemoverAsSeleccionadas,
+    setAsCover,
+    otherThemes,
+    downloadSelected,
+  } = accoes;
   return (
     <>
       {/* A BARRA DA SELEÇÃO E A ESPERA DO QUE ELA MANDOU FAZER, no mesmo

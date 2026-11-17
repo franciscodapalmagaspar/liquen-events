@@ -29,19 +29,32 @@ import { VistasDaOperacao } from "./VistasDaOperacao";
  *
  * Saiu tal e qual do `AdminClient.tsx` (fase 7 de `docs/ESTRUTURA-DO-CODIGO.md`).
  */
-export interface VistasProps {
+/** O que as vistas mostram: os pedidos, quem está a trabalhar, e as contagens. */
+export interface DadosDasVistas {
   userName: string;
   falhaDosPedidos: LeituraFalhada | null;
   quotes: Quote[];
-  pedidos: MudancasDosPedidos;
+  activeQuotes: Quote[];
   nomesDosPedidos: Map<string, string>;
-  setEditPrice: Dispatch<SetStateAction<string>>;
+  archivedCount: number;
+  pedidoDeNovaTarefa: number;
+}
+
+/** Para onde se vai: a vista aberta, os pedidos que as vistas trocam entre si, a proposta a fazer. */
+export interface NavegacaoDasVistas {
   view: View;
   setView: Dispatch<SetStateAction<View>>;
   pedidoPara: (v: View) => PedidoDaPaleta | undefined;
   irComPedido: (vista: View, pedido: PedidoDaPaleta) => void;
   propostaPara: string | null;
   setPropostaPara: Dispatch<SetStateAction<string | null>>;
+  verArquivados: () => void;
+}
+
+/** O que as vistas podem fazer a um pedido — abrir, recarregar, marcar, criar. */
+export interface AccoesDasVistas {
+  pedidos: MudancasDosPedidos;
+  setEditPrice: Dispatch<SetStateAction<string>>;
   setNewQuoteOpen: Dispatch<SetStateAction<boolean>>;
   selectedRef: RefObject<Quote | null>;
   marcarDesfecho: (actualizado: Quote) => void;
@@ -50,38 +63,38 @@ export interface VistasProps {
   openQuote: (pedido: Quote) => Promise<void>;
   revalidarPedidos: (forcar?: boolean) => Promise<void>;
   refletirEstadoDoEstudio: (id: string, status: QuoteStatus) => void;
-  archivedCount: number;
-  verArquivados: () => void;
-  activeQuotes: Quote[];
-  pedidoDeNovaTarefa: number;
 }
 
-export function Vistas({
-  userName,
-  falhaDosPedidos,
-  quotes,
-  pedidos,
-  nomesDosPedidos,
-  setEditPrice,
-  view,
-  setView,
-  pedidoPara,
-  irComPedido,
-  propostaPara,
-  setPropostaPara,
-  setNewQuoteOpen,
-  selectedRef,
-  marcarDesfecho,
-  comPedidoInteiro,
-  abrirCliente,
-  openQuote,
-  revalidarPedidos,
-  refletirEstadoDoEstudio,
-  archivedCount,
-  verArquivados,
-  activeQuotes,
-  pedidoDeNovaTarefa,
-}: VistasProps) {
+export interface VistasProps {
+  dados: DadosDasVistas;
+  navegacao: NavegacaoDasVistas;
+  accoes: AccoesDasVistas;
+}
+
+export function Vistas({ dados, navegacao, accoes }: VistasProps) {
+  const {
+    userName,
+    falhaDosPedidos,
+    quotes,
+    activeQuotes,
+    nomesDosPedidos,
+    archivedCount,
+    pedidoDeNovaTarefa,
+  } = dados;
+  const { view, setView, pedidoPara, irComPedido, propostaPara, setPropostaPara, verArquivados } =
+    navegacao;
+  const {
+    pedidos,
+    setEditPrice,
+    setNewQuoteOpen,
+    selectedRef,
+    marcarDesfecho,
+    comPedidoInteiro,
+    abrirCliente,
+    openQuote,
+    revalidarPedidos,
+    refletirEstadoDoEstudio,
+  } = accoes;
   return (
     <>
       {/* ── Overview ── */}
@@ -228,17 +241,11 @@ export function Vistas({
       )}
 
       <VistasDaOperacao
-        userName={userName}
-        quotes={quotes}
         pedidos={pedidos}
-        nomesDosPedidos={nomesDosPedidos}
-        view={view}
-        setView={setView}
-        pedidoPara={pedidoPara}
         comPedidoInteiro={comPedidoInteiro}
         abrirCliente={abrirCliente}
-        activeQuotes={activeQuotes}
-        pedidoDeNovaTarefa={pedidoDeNovaTarefa}
+        dados={{ userName, quotes, activeQuotes, nomesDosPedidos, pedidoDeNovaTarefa }}
+        navegacao={{ view, setView, pedidoPara }}
       />
     </>
   );

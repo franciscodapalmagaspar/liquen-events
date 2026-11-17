@@ -16,18 +16,23 @@ import { type EdicaoDoPedido } from "../useEdicaoDoPedido";
 /** O topo do painel: o ciclo de vida, o «já responderam?», o que nasce com o
  *  «Ganho», a próxima acção, e as propostas que seguiram. (Saiu do painel na
  *  fase 7 da estrutura do código, tal e qual.) */
+/** Onde o topo leva: os separadores, as gavetas do painel, e o que está marcado. */
+export interface MarcasDoTopo {
+  abrirDetailTab: (tab: DetailTab) => void;
+  gestaoRef: RefObject<HTMLDivElement | null>;
+  toolsRef: RefObject<HTMLDivElement | null>;
+  marcadoNoPainel: string | null;
+  setMarcadoNoPainel: Dispatch<SetStateAction<string | null>>;
+}
+
 export interface TopoDoPainelProps {
   edicao: EdicaoDoPedido;
   userName: string;
   selected: Quote;
   propostasLeves: PropostaLeve[] | undefined;
-  marcadoNoPainel: string | null;
-  setMarcadoNoPainel: Dispatch<SetStateAction<string | null>>;
-  abrirDetailTab: (tab: DetailTab) => void;
-  gestaoRef: RefObject<HTMLDivElement | null>;
-  toolsRef: RefObject<HTMLDivElement | null>;
   marcarDesfecho: (actualizado: Quote) => void;
   recarregarPedido: (id: string) => Promise<void>;
+  marcas: MarcasDoTopo;
 }
 
 export function TopoDoPainel({
@@ -35,14 +40,11 @@ export function TopoDoPainel({
   userName,
   selected,
   propostasLeves,
-  marcadoNoPainel,
-  setMarcadoNoPainel,
-  abrirDetailTab,
-  gestaoRef,
-  toolsRef,
   marcarDesfecho,
   recarregarPedido,
+  marcas,
 }: TopoDoPainelProps) {
+  const { abrirDetailTab, gestaoRef, toolsRef, marcadoNoPainel, setMarcadoNoPainel } = marcas;
   const { setEditStatus } = edicao;
   return (
     <>

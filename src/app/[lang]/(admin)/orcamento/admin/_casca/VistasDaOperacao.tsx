@@ -32,33 +32,39 @@ import { VIEW_WRAP } from "./moldura-da-vista";
  * temas, timelines, mapa de mesas, propostas aceites e modelos de email.
  * (Saíram das `Vistas` na fase 7 de `docs/ESTRUTURA-DO-CODIGO.md`, tal e qual.)
  */
-export interface VistasDaOperacaoProps {
+/** O que as vistas da operação mostram. */
+export interface DadosDaOperacao {
   userName: string;
   quotes: Quote[];
-  pedidos: MudancasDosPedidos;
-  nomesDosPedidos: Map<string, string>;
-  view: View;
-  setView: Dispatch<SetStateAction<View>>;
-  pedidoPara: (v: View) => PedidoDaPaleta | undefined;
-  comPedidoInteiro: (q: Quote) => Promise<LeituraDoPedido>;
-  abrirCliente: (pedido: Quote) => void;
   activeQuotes: Quote[];
+  nomesDosPedidos: Map<string, string>;
   pedidoDeNovaTarefa: number;
 }
 
+/** Para onde se vai a partir delas. */
+export interface NavegacaoDaOperacao {
+  view: View;
+  setView: Dispatch<SetStateAction<View>>;
+  pedidoPara: (v: View) => PedidoDaPaleta | undefined;
+}
+
+export interface VistasDaOperacaoProps {
+  pedidos: MudancasDosPedidos;
+  comPedidoInteiro: (q: Quote) => Promise<LeituraDoPedido>;
+  abrirCliente: (pedido: Quote) => void;
+  dados: DadosDaOperacao;
+  navegacao: NavegacaoDaOperacao;
+}
+
 export function VistasDaOperacao({
-  userName,
-  quotes,
   pedidos,
-  nomesDosPedidos,
-  view,
-  setView,
-  pedidoPara,
   comPedidoInteiro,
   abrirCliente,
-  activeQuotes,
-  pedidoDeNovaTarefa,
+  dados,
+  navegacao,
 }: VistasDaOperacaoProps) {
+  const { userName, quotes, activeQuotes, nomesDosPedidos, pedidoDeNovaTarefa } = dados;
+  const { view, setView, pedidoPara } = navegacao;
   return (
     <>
       {/* ── Biblioteca de serviços ── */}

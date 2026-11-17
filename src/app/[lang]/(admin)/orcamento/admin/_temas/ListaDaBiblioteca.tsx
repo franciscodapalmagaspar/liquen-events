@@ -14,35 +14,35 @@ import { CartaoDoTema } from "./CartaoDoTema";
 /** A lista dos temas da biblioteca — os cartões (ou linhas), com a pasta
  *  aberta ao lado no computador. (Saiu da Biblioteca de Temas na fase 8 da
  *  estrutura do código, tal e qual.) */
-export interface ListaDaBibliotecaProps {
-  setAdding: Dispatch<SetStateAction<boolean>>;
-  setOpenId: Dispatch<SetStateAction<string | null>>;
+/** Os cartões a desenhar, e a sentinela que pede mais. */
+export interface CartoesDaLista {
+  cartoesADesenhar: readonly ThemeSummary[];
+  sentinelaDosCartoes: RefObject<HTMLDivElement | null>;
+  haMaisCartoes: boolean;
   densidade: Densidade;
   usos: Record<string, number> | null;
+  parecidos: Map<string, ThemeSummary[]>;
+}
+
+/** O que se faz a partir da lista: abrir, juntar, criar, e os menus. */
+export interface AccoesDaLista {
+  setAdding: Dispatch<SetStateAction<boolean>>;
+  setOpenId: Dispatch<SetStateAction<string | null>>;
   setAFundir: Dispatch<SetStateAction<ThemeSummary | null>>;
   setMenu: Dispatch<SetStateAction<PedidoDeMenu | null>>;
   accoesDoTema: (t: ThemeSummary, opcoes?: { naPasta?: boolean }) => AccaoDeItem[];
   accoesDaBiblioteca: AccaoDeItem[];
-  parecidos: Map<string, ThemeSummary[]>;
-  cartoesADesenhar: readonly ThemeSummary[];
-  sentinelaDosCartoes: RefObject<HTMLDivElement | null>;
-  haMaisCartoes: boolean;
 }
 
-export function ListaDaBiblioteca({
-  setAdding,
-  setOpenId,
-  densidade,
-  usos,
-  setAFundir,
-  setMenu,
-  accoesDoTema,
-  accoesDaBiblioteca,
-  parecidos,
-  cartoesADesenhar,
-  sentinelaDosCartoes,
-  haMaisCartoes,
-}: ListaDaBibliotecaProps) {
+export interface ListaDaBibliotecaProps {
+  cartoes: CartoesDaLista;
+  accoes: AccoesDaLista;
+}
+
+export function ListaDaBiblioteca({ cartoes, accoes }: ListaDaBibliotecaProps) {
+  const { cartoesADesenhar, sentinelaDosCartoes, haMaisCartoes, densidade, usos, parecidos } =
+    cartoes;
+  const { setAdding, setOpenId, setAFundir, setMenu, accoesDoTema, accoesDaBiblioteca } = accoes;
   return (
     <>
       <div

@@ -12,20 +12,25 @@ import { PlusIcon } from "./icones";
 /** O cabeçalho da pasta de um tema: o nome (que se renomeia ali), as contas,
  *  as notas, «Adicionar fotos» e o menu do tema. (Saiu da pasta do tema na fase
  *  8 da estrutura do código, tal e qual.) */
-export interface CabecalhoDaPastaProps {
-  theme: ThemeSummary;
-  accoes: readonly AccaoDeItem[];
-  usos: Record<string, number> | null | undefined;
-  loading: boolean;
-  uploadingCount: number;
+/** O nome do tema, e mudá-lo. */
+export interface NomeDaPasta {
   name: string;
   setName: Dispatch<SetStateAction<string>>;
   renaming: boolean;
   setRenaming: Dispatch<SetStateAction<boolean>>;
   inputRef: RefObject<HTMLInputElement | null>;
   rename: () => Promise<void>;
+}
+
+export interface CabecalhoDaPastaProps {
+  theme: ThemeSummary;
+  accoes: readonly AccaoDeItem[];
+  usos: Record<string, number> | null | undefined;
+  loading: boolean;
+  uploadingCount: number;
   leave: () => void;
   countLine: string;
+  nome: NomeDaPasta;
 }
 
 export function CabecalhoDaPasta({
@@ -34,15 +39,11 @@ export function CabecalhoDaPasta({
   usos,
   loading,
   uploadingCount,
-  name,
-  setName,
-  renaming,
-  setRenaming,
-  inputRef,
-  rename,
   leave,
   countLine,
+  nome,
 }: CabecalhoDaPastaProps) {
+  const { name, setName, renaming, setRenaming, inputRef, rename } = nome;
   return (
     <>
       {/* ══════════════════════════════════════════════════════════════

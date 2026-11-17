@@ -12,60 +12,69 @@ import type { Failure, Skipped, ThumbJob } from "./tipos-da-pasta";
 /** Os avisos da pasta: a verificar, a carregar, miniaturas em falta, o que
  *  falhou, o que já lá estava, e o que não foi levado para outro tema. (Saíram
  *  da pasta do tema na fase 8 da estrutura do código, tal e qual.) */
-export interface AvisosDaPastaProps {
-  theme: ThemeSummary;
+/** O envio de fotos para a pasta: o progresso, o que falhou e o que ficou de fora, e como se repete. */
+export interface EnvioDaPasta {
   progress: { done: number; total: number } | null;
+  pct: number;
   failed: Failure[];
   setFailed: Dispatch<SetStateAction<Failure[]>>;
   skipped: Skipped[];
   setSkipped: Dispatch<SetStateAction<Skipped[]>>;
+  trackUrl: (file: File) => string | undefined;
+  retryFailed: () => void;
+  addSkippedAnyway: () => void;
+}
+
+/** O que se sabe da pasta: se se lê, se está a ser verificada, e o que está escolhido. */
+export interface LeituraDaPasta {
   legacyPhotos: boolean;
   partialCheck: boolean;
   verifying: { done: number; total: number } | null;
+  unreadable: boolean;
+  selectedCount: number;
+}
+
+/** Copiar ou mover fotos para outro tema, e o relatório do que aconteceu. */
+export interface CopiaDaPasta {
   setCopyOpen: Dispatch<SetStateAction<boolean>>;
   setCopyMode: Dispatch<SetStateAction<ThemeCopyMode>>;
   copyReport: ThemeCopyOutcome | null;
   setCopyReport: Dispatch<SetStateAction<ThemeCopyOutcome | null>>;
+}
+
+/** As miniaturas em falta: o trabalho que as faz, quanto já vai, e como se pára. */
+export interface MiniaturasDaPasta {
   thumbJob: ThumbJob | null;
   /** Pede à geração de miniaturas que pare (no fim do lote que vai a meio). */
   pararMiniaturas: () => void;
-  trackUrl: (file: File) => string | undefined;
   runThumbJob: () => Promise<void>;
-  retryFailed: () => void;
-  addSkippedAnyway: () => void;
-  unreadable: boolean;
-  selectedCount: number;
-  pct: number;
   missingThumbs: boolean;
   thumbPct: number;
 }
 
-export function AvisosDaPasta({
-  theme,
-  progress,
-  failed,
-  setFailed,
-  skipped,
-  setSkipped,
-  legacyPhotos,
-  partialCheck,
-  verifying,
-  setCopyOpen,
-  setCopyMode,
-  copyReport,
-  setCopyReport,
-  thumbJob,
-  pararMiniaturas,
-  trackUrl,
-  runThumbJob,
-  retryFailed,
-  addSkippedAnyway,
-  unreadable,
-  selectedCount,
-  pct,
-  missingThumbs,
-  thumbPct,
-}: AvisosDaPastaProps) {
+export interface AvisosDaPastaProps {
+  theme: ThemeSummary;
+  envio: EnvioDaPasta;
+  leitura: LeituraDaPasta;
+  copia: CopiaDaPasta;
+  miniaturas: MiniaturasDaPasta;
+}
+
+export function AvisosDaPasta({ theme, envio, leitura, copia, miniaturas }: AvisosDaPastaProps) {
+  const {
+    progress,
+    pct,
+    failed,
+    setFailed,
+    skipped,
+    setSkipped,
+    trackUrl,
+    retryFailed,
+    addSkippedAnyway,
+  } = envio;
+  const { legacyPhotos, partialCheck, verifying, unreadable, selectedCount } = leitura;
+  const { setCopyOpen, setCopyMode, copyReport, setCopyReport } = copia;
+  const { thumbJob, pararMiniaturas, runThumbJob, missingThumbs, thumbPct } = miniaturas;
   return (
     <>
       {/* A VERIFICAR — a fase que acontece ANTES de preparar seja o que for.

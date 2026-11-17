@@ -15,45 +15,54 @@ import { RodapeDoMenu } from "./RodapeDoMenu";
  * dentro. Saiu tal e qual do `AdminClient.tsx` (fase 7 de
  * `docs/ESTRUTURA-DO-CODIGO.md`).
  */
-export interface MenuLateralProps {
-  userName: string;
-  view: View;
+/** A gaveta do menu no telemóvel: aberta ou fechada, e onde estão os destinos. */
+export interface GavetaDoMenu {
   navOpen: boolean;
   setNavOpen: Dispatch<SetStateAction<boolean>>;
   gavetaRef: RefObject<HTMLDivElement | null>;
   colunaDosDestinos: RefObject<HTMLElement | null>;
   marcaDoDestino: Marca | null;
   marcaPodeAndar: boolean;
+}
+
+/** Os diálogos que o rodapé do menu abre. */
+export interface DialogosDoMenu {
   setShortcutsOpen: Dispatch<SetStateAction<boolean>>;
   setRestoreOpen: Dispatch<SetStateAction<boolean>>;
   setPasskeysOpen: Dispatch<SetStateAction<boolean>>;
   setAjudaOpen: Dispatch<SetStateAction<boolean>>;
+}
+
+/** A cópia de segurança e a saída da conta. */
+export interface ContaNoMenu {
   copiaDeSeguranca: ReturnType<typeof useDescarga>;
   descarregarCopia: () => void;
   pedirParaSair: () => void;
+}
+
+export interface MenuLateralProps {
+  userName: string;
+  view: View;
   pendingCount: number;
   escolherDestino: (id: View) => void;
+  gaveta: GavetaDoMenu;
+  dialogos: DialogosDoMenu;
+  conta: ContaNoMenu;
 }
 
 export function MenuLateral({
   userName,
   view,
-  navOpen,
-  setNavOpen,
-  gavetaRef,
-  colunaDosDestinos,
-  marcaDoDestino,
-  marcaPodeAndar,
-  setShortcutsOpen,
-  setRestoreOpen,
-  setPasskeysOpen,
-  setAjudaOpen,
-  copiaDeSeguranca,
-  descarregarCopia,
-  pedirParaSair,
   pendingCount,
   escolherDestino,
+  gaveta,
+  dialogos,
+  conta,
 }: MenuLateralProps) {
+  const { navOpen, setNavOpen, gavetaRef, colunaDosDestinos, marcaDoDestino, marcaPodeAndar } =
+    gaveta;
+  const { setShortcutsOpen, setRestoreOpen, setPasskeysOpen, setAjudaOpen } = dialogos;
+  const { copiaDeSeguranca, descarregarCopia, pedirParaSair } = conta;
   return (
     <>
       {/* ── E A COLUNA DEIXOU DE SER UMA COLUNA ──────────────────────────

@@ -119,6 +119,7 @@ import {
 import { painelParaGravar } from "@/lib/orcamento/pedidos/painel-do-pedido";
 import { useEdicaoDoPedido } from "./_pedidos/useEdicaoDoPedido";
 import { useMudancasDosPedidos } from "./_pedidos/useMudancasDosPedidos";
+import { useLoteDaLista } from "./_pedidos/useLoteDaLista";
 import {
   mudarNaLista,
   substituirNaLista,
@@ -128,7 +129,7 @@ import { useFiltrosDosPedidos } from "./_pedidos/useFiltrosDosPedidos";
 import { VIEW_WRAP } from "./_casca/moldura-da-vista";
 import { ACOES_DE_PEDIDOS } from "./_casca/titulos-das-vistas";
 import { STATUS_OPTIONS } from "./_pedidos/PastilhaDoEstado";
-import { ARQUIVAR_SEM_PERGUNTAR, LIST_PAGE_SIZE } from "@/lib/orcamento/pedidos/lotes-da-lista";
+import { ARQUIVAR_SEM_PERGUNTAR } from "@/lib/orcamento/pedidos/lotes-da-lista";
 import { detailNextAction, type DetailTab } from "./_pedidos/separadores-do-painel";
 
 /** A chave da saída do painel do pedido — há um painel só, e a chave é uma. */
@@ -1003,6 +1004,7 @@ export default function AdminClient({
       // função continua a ser uma só.
     },
     [
+      pedidos,
       setEditAssigned,
       setEditDate,
       setEditEmail,
@@ -3354,48 +3356,18 @@ export default function AdminClient({
   const regioesDisponiveis = useMemo(() => regioesDe(activeQuotes), [activeQuotes]);
   const plannersDisponiveis = useMemo(() => plannersDe(activeQuotes), [activeQuotes]);
 
-  // Paginação incremental da lista: com centenas de pedidos, renderizar tudo
-  // degrada a página. Só o RENDER é paginado — exportar CSV, "selecionar
-  // todos" e contagens continuam a operar sobre a lista filtrada completa.
-  const [visibleCount, setVisibleCount] = useState(LIST_PAGE_SIZE);
-  /**
-   * ONDE COMEÇA O LOTE QUE O «MOSTRAR MAIS» ACABOU DE TRAZER.
-   *
-   * `null` quando não há lote novo nenhum — a primeira página, e tudo o que
-   * venha de uma mudança de filtro. É a diferença entre «isto acabou de
-   * chegar» e «isto sempre esteve aqui», e sem ela a entrada do lote animava
-   * a lista inteira a cada desenho.
-   *
-   * Um ÍNDICE e não um `Set` de ids: quem manda é a posição na lista filtrada
-   * nesse instante, e o `Set` deriva daqui. Guardar os ids era guardar duas
-   * verdades sobre a mesma coisa.
-   */
-  const [inicioDoLote, setInicioDoLote] = useState<number | null>(null);
-  useEffect(() => {
-    setVisibleCount(LIST_PAGE_SIZE);
-    // Uma lista que voltou ao princípio não tem lote novo nenhum: sem isto, a
-    // marca antiga ficava pendurada e as primeiras linhas de uma procura nova
-    // entravam como se tivessem acabado de ser acrescentadas.
-    setInicioDoLote(null);
-  }, [search, filterStatus, filterCategory, tagFilter, sort, showArchived, mineOnly]);
-  const visibleQuotes = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
-  /**
-   * Os ids do lote novo — e nada quando não há lote novo.
-   *
-   * Um `Set` e não um `indexOf` por linha: com centenas de pedidos, procurar
-   * cada linha na lista filtrada era uma varredura por linha desenhada.
-   */
-  const idsDoLoteNovo = useMemo(
-    () =>
-      inicioDoLote === null
-        ? null
-        : new Set(filtered.slice(inicioDoLote, visibleCount).map((q) => q.id)),
-    [filtered, inicioDoLote, visibleCount],
-  );
-  const ehDoLoteNovo = useCallback(
-    (q: Quote) => idsDoLoteNovo?.has(q.id) ?? false,
-    [idsDoLoteNovo],
-  );
+  // A paginação da lista e o lote do «Mostrar mais» (ver `useLoteDaLista`).
+  // Volta ao princípio quando muda a procura, um filtro ou a ordem.
+  const loteDaLista = useLoteDaLista(filtered, [
+    search,
+    filterStatus,
+    filterCategory,
+    tagFilter,
+    sort,
+    showArchived,
+    mineOnly,
+  ]);
+  const { visibleQuotes } = loteDaLista;
 
   /**
    * ── A SELECÇÃO SOBRE QUE OS BOTÕES DO LOTE AGEM ───────────────────────────
@@ -3594,21 +3566,18 @@ export default function AdminClient({
         <MenuLateral
           userName={userName}
           view={view}
-          navOpen={navOpen}
-          setNavOpen={setNavOpen}
-          gavetaRef={gavetaRef}
-          colunaDosDestinos={colunaDosDestinos}
-          marcaDoDestino={marcaDoDestino}
-          marcaPodeAndar={marcaPodeAndar}
-          setShortcutsOpen={setShortcutsOpen}
-          setRestoreOpen={setRestoreOpen}
-          setPasskeysOpen={setPasskeysOpen}
-          setAjudaOpen={setAjudaOpen}
-          copiaDeSeguranca={copiaDeSeguranca}
-          descarregarCopia={descarregarCopia}
-          pedirParaSair={pedirParaSair}
           pendingCount={pendingCount}
           escolherDestino={escolherDestino}
+          gaveta={{
+            navOpen,
+            setNavOpen,
+            gavetaRef,
+            colunaDosDestinos,
+            marcaDoDestino,
+            marcaPodeAndar,
+          }}
+          dialogos={{ setShortcutsOpen, setRestoreOpen, setPasskeysOpen, setAjudaOpen }}
+          conta={{ copiaDeSeguranca, descarregarCopia, pedirParaSair }}
         />
 
         <BarraDeDestinos
@@ -3794,30 +3763,36 @@ export default function AdminClient({
           )}
 
           <Vistas
-            userName={userName}
-            falhaDosPedidos={falhaDosPedidos}
-            quotes={quotes}
-            pedidos={pedidos}
-            nomesDosPedidos={nomesDosPedidos}
-            setEditPrice={setEditPrice}
-            view={view}
-            setView={setView}
-            pedidoPara={pedidoPara}
-            irComPedido={irComPedido}
-            propostaPara={propostaPara}
-            setPropostaPara={setPropostaPara}
-            setNewQuoteOpen={setNewQuoteOpen}
-            selectedRef={selectedRef}
-            marcarDesfecho={marcarDesfecho}
-            comPedidoInteiro={comPedidoInteiro}
-            abrirCliente={abrirCliente}
-            openQuote={openQuote}
-            revalidarPedidos={revalidarPedidos}
-            refletirEstadoDoEstudio={refletirEstadoDoEstudio}
-            archivedCount={archivedCount}
-            verArquivados={verArquivados}
-            activeQuotes={activeQuotes}
-            pedidoDeNovaTarefa={pedidoDeNovaTarefa}
+            dados={{
+              userName,
+              falhaDosPedidos,
+              quotes,
+              activeQuotes,
+              nomesDosPedidos,
+              archivedCount,
+              pedidoDeNovaTarefa,
+            }}
+            navegacao={{
+              view,
+              setView,
+              pedidoPara,
+              irComPedido,
+              propostaPara,
+              setPropostaPara,
+              verArquivados,
+            }}
+            accoes={{
+              pedidos,
+              setEditPrice,
+              setNewQuoteOpen,
+              selectedRef,
+              marcarDesfecho,
+              comPedidoInteiro,
+              abrirCliente,
+              openQuote,
+              revalidarPedidos,
+              refletirEstadoDoEstudio,
+            }}
           />
 
           {/* ── Pedidos ── */}
@@ -3864,19 +3839,17 @@ export default function AdminClient({
               <ListaDosPedidos
                 filtros={filtros}
                 userName={userName}
-                selected={selected}
                 setNewQuoteOpen={setNewQuoteOpen}
-                selectedIds={selectedIds}
-                marcarDesfecho={marcarDesfecho}
-                mudarEstadoNaLinha={mudarEstadoNaLinha}
-                toggleSelect={toggleSelect}
-                abrirDaLista={abrirDaLista}
-                visibleCount={visibleCount}
-                setVisibleCount={setVisibleCount}
-                setInicioDoLote={setInicioDoLote}
-                visibleQuotes={visibleQuotes}
-                ehDoLoteNovo={ehDoLoteNovo}
                 todayStr={todayStr}
+                lote={loteDaLista}
+                linha={{
+                  selected,
+                  selectedIds,
+                  toggleSelect,
+                  abrirDaLista,
+                  mudarEstadoNaLinha,
+                  marcarDesfecho,
+                }}
               />
 
               {/* Detail — in-grid sticky panel on desktop, slide-over drawer on mobile */}
@@ -4024,13 +3997,15 @@ export default function AdminClient({
                           userName={userName}
                           selected={selected}
                           propostasLeves={propostasLeves}
-                          marcadoNoPainel={marcadoNoPainel}
-                          setMarcadoNoPainel={setMarcadoNoPainel}
-                          abrirDetailTab={abrirDetailTab}
-                          gestaoRef={gestaoRef}
-                          toolsRef={toolsRef}
                           marcarDesfecho={marcarDesfecho}
                           recarregarPedido={recarregarPedido}
+                          marcas={{
+                            abrirDetailTab,
+                            gestaoRef,
+                            toolsRef,
+                            marcadoNoPainel,
+                            setMarcadoNoPainel,
+                          }}
                         />
 
                         <GestaoDoPedido
@@ -4052,15 +4027,11 @@ export default function AdminClient({
                           userName={userName}
                           pedidos={pedidos}
                           selected={selected}
-                          detailTab={detailTab}
-                          detailTabsVisitados={detailTabsVisitados}
-                          abrirDetailTab={abrirDetailTab}
-                          toolsRef={toolsRef}
-                          gavetaDoPlano={gavetaDoPlano}
-                          gavetaDoHistorico={gavetaDoHistorico}
                           appendActivity={appendActivity}
                           refletirEstadoDoEstudio={refletirEstadoDoEstudio}
                           activeQuotes={activeQuotes}
+                          separadores={{ detailTab, detailTabsVisitados, abrirDetailTab, toolsRef }}
+                          gavetas={{ gavetaDoPlano, gavetaDoHistorico }}
                         />
                       </div>
                       {/* A aresta que diz «há mais por baixo» — F-09 da auditoria. Última

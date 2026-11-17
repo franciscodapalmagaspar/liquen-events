@@ -13,43 +13,50 @@ import { guardarDensidade, guardarOrdem } from "./preferencias-guardadas";
 /** A barra da Biblioteca de Temas: procurar, as contas, a ordem, a
  *  densidade, o menu e «Novo tema». (Saiu da Biblioteca de Temas na fase 8 da
  *  estrutura do código, tal e qual.) */
-export interface BarraDaBibliotecaProps {
-  themes: ThemeSummary[];
-  loading: boolean;
-  adding: boolean;
-  setAdding: Dispatch<SetStateAction<boolean>>;
+/** A procura nos temas. */
+export interface ProcuraDaBiblioteca {
   search: string;
   setSearch: Dispatch<SetStateAction<string>>;
+  searchable: boolean;
+}
+
+/** Como a biblioteca se mostra: a densidade, a ordem, e o que a ordem precisa. */
+export interface VistaDaBiblioteca {
   densidade: Densidade;
   setDensidade: Dispatch<SetStateAction<Densidade>>;
   ordem: Ordem;
   setOrdem: Dispatch<SetStateAction<Ordem>>;
   usos: Record<string, number> | null;
+  estadoDaVista: string;
+}
+
+/** O «⋯» da barra e o tema novo. */
+export interface MenuDaBarra {
   menu: PedidoDeMenu | null;
   setMenu: Dispatch<SetStateAction<PedidoDeMenu | null>>;
   accoesDaBiblioteca: AccaoDeItem[];
-  estadoDaVista: string;
-  searchable: boolean;
+  adding: boolean;
+  setAdding: Dispatch<SetStateAction<boolean>>;
+}
+
+export interface BarraDaBibliotecaProps {
+  themes: ThemeSummary[];
+  loading: boolean;
+  procura: ProcuraDaBiblioteca;
+  vista: VistaDaBiblioteca;
+  menuDaBarra: MenuDaBarra;
 }
 
 export function BarraDaBiblioteca({
   themes,
   loading,
-  adding,
-  setAdding,
-  search,
-  setSearch,
-  densidade,
-  setDensidade,
-  ordem,
-  setOrdem,
-  usos,
-  menu,
-  setMenu,
-  accoesDaBiblioteca,
-  estadoDaVista,
-  searchable,
+  procura,
+  vista,
+  menuDaBarra,
 }: BarraDaBibliotecaProps) {
+  const { search, setSearch, searchable } = procura;
+  const { densidade, setDensidade, ordem, setOrdem, usos, estadoDaVista } = vista;
+  const { menu, setMenu, accoesDaBiblioteca, adding, setAdding } = menuDaBarra;
   return (
     <>
       {/* ── A ESCADA DESTA VISTA ────────────────────────────────────────────

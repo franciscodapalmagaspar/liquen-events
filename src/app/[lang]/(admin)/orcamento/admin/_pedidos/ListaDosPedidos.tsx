@@ -17,41 +17,45 @@ import { QuoteCard } from "./QuoteCard";
  * «Mostrar mais». (Saiu do `AdminClient.tsx` na fase 7 de
  * `docs/ESTRUTURA-DO-CODIGO.md`, tal e qual.)
  */
-export interface ListaDosPedidosProps {
-  filtros: FiltrosDaLista;
-  userName: string;
-  selected: Quote | null;
-  setNewQuoteOpen: Dispatch<SetStateAction<boolean>>;
-  selectedIds: Set<string>;
-  marcarDesfecho: (actualizado: Quote) => void;
-  mudarEstadoNaLinha: (q: Quote, status: QuoteStatus) => Promise<void>;
-  toggleSelect: (id: string) => void;
-  abrirDaLista: (q: Quote) => Promise<void>;
+/** Quantos pedidos se desenham, e o lote que o «Mostrar mais» acrescentou. */
+export interface LoteDaLista {
+  visibleQuotes: Quote[];
   visibleCount: number;
   setVisibleCount: Dispatch<SetStateAction<number>>;
   setInicioDoLote: Dispatch<SetStateAction<number | null>>;
-  visibleQuotes: Quote[];
   ehDoLoteNovo: (q: Quote) => boolean;
+}
+
+/** O que se faz numa linha: abrir, escolher, mudar o estado, marcar o desfecho. */
+export interface AccoesDaLinha {
+  selected: Quote | null;
+  selectedIds: Set<string>;
+  toggleSelect: (id: string) => void;
+  abrirDaLista: (q: Quote) => Promise<void>;
+  mudarEstadoNaLinha: (q: Quote, status: QuoteStatus) => Promise<void>;
+  marcarDesfecho: (actualizado: Quote) => void;
+}
+
+export interface ListaDosPedidosProps {
+  filtros: FiltrosDaLista;
+  userName: string;
+  setNewQuoteOpen: Dispatch<SetStateAction<boolean>>;
   todayStr: string;
+  lote: LoteDaLista;
+  linha: AccoesDaLinha;
 }
 
 export function ListaDosPedidos({
   filtros,
   userName,
-  selected,
   setNewQuoteOpen,
-  selectedIds,
-  marcarDesfecho,
-  mudarEstadoNaLinha,
-  toggleSelect,
-  abrirDaLista,
-  visibleCount,
-  setVisibleCount,
-  setInicioDoLote,
-  visibleQuotes,
-  ehDoLoteNovo,
   todayStr,
+  lote,
+  linha,
 }: ListaDosPedidosProps) {
+  const { visibleQuotes, visibleCount, setVisibleCount, setInicioDoLote, ehDoLoteNovo } = lote;
+  const { selected, selectedIds, toggleSelect, abrirDaLista, mudarEstadoNaLinha, marcarDesfecho } =
+    linha;
   const { haFiltroAActuar, limparFiltros, oQueEstaAFiltrar, filtered } = filtros;
   return (
     <>

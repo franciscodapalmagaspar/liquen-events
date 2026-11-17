@@ -18,20 +18,30 @@ import { SeparadoresDoPedido } from "./SeparadoresDoPedido";
  * é aberto, e nunca mais desmonta (ver `detailTabsVisitados`, no
  * `AdminClient.tsx`). Saiu do painel na fase 7 da estrutura do código, tal e qual.
  */
+/** Os separadores das ferramentas: o aberto, os já visitados, e como se abre outro. */
+export interface SeparadoresDasFerramentas {
+  detailTab: SeparadorDoPedido;
+  detailTabsVisitados: Set<SeparadorDoPedido>;
+  abrirDetailTab: (tab: DetailTab) => void;
+  toolsRef: RefObject<HTMLDivElement | null>;
+}
+
+/** As gavetas do plano e do histórico. */
+export interface GavetasDasFerramentas {
+  gavetaDoPlano: Gaveta;
+  gavetaDoHistorico: Gaveta;
+}
+
 export interface FerramentasDoPedidoProps {
   edicao: EdicaoDoPedido;
   userName: string;
   pedidos: MudancasDosPedidos;
   selected: Quote;
-  detailTab: SeparadorDoPedido;
-  detailTabsVisitados: Set<SeparadorDoPedido>;
-  abrirDetailTab: (tab: DetailTab) => void;
-  toolsRef: RefObject<HTMLDivElement | null>;
-  gavetaDoPlano: Gaveta;
-  gavetaDoHistorico: Gaveta;
   appendActivity: (quoteId: string, entries: ActivityEntry[], oQue?: string) => Promise<boolean>;
   refletirEstadoDoEstudio: (id: string, status: QuoteStatus) => void;
   activeQuotes: Quote[];
+  separadores: SeparadoresDasFerramentas;
+  gavetas: GavetasDasFerramentas;
 }
 
 export function FerramentasDoPedido({
@@ -39,16 +49,14 @@ export function FerramentasDoPedido({
   userName,
   pedidos,
   selected,
-  detailTab,
-  detailTabsVisitados,
-  abrirDetailTab,
-  toolsRef,
-  gavetaDoPlano,
-  gavetaDoHistorico,
   appendActivity,
   refletirEstadoDoEstudio,
   activeQuotes,
+  separadores,
+  gavetas,
 }: FerramentasDoPedidoProps) {
+  const { detailTab, detailTabsVisitados, abrirDetailTab, toolsRef } = separadores;
+  const { gavetaDoPlano, gavetaDoHistorico } = gavetas;
   return (
     <>
       {/* ── Ferramentas — sempre visíveis, organizadas em três

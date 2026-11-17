@@ -1319,20 +1319,9 @@ export default function Temas({
       <BarraDaBiblioteca
         themes={themes}
         loading={loading}
-        adding={adding}
-        setAdding={setAdding}
-        search={search}
-        setSearch={setSearch}
-        densidade={densidade}
-        setDensidade={setDensidade}
-        ordem={ordem}
-        setOrdem={setOrdem}
-        usos={usos}
-        menu={menu}
-        setMenu={setMenu}
-        accoesDaBiblioteca={accoesDaBiblioteca}
-        estadoDaVista={estadoDaVista}
-        searchable={searchable}
+        procura={{ search, setSearch, searchable }}
+        vista={{ densidade, setDensidade, ordem, setOrdem, usos, estadoDaVista }}
+        menuDaBarra={{ menu, setMenu, accoesDaBiblioteca, adding, setAdding }}
       />
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -1483,18 +1472,15 @@ export default function Temas({
            entrar um a um seria a lentidão que o tecto do sexto degrau existe
            para evitar. A grelha chega inteira. */
         <ListaDaBiblioteca
-          setAdding={setAdding}
-          setOpenId={setOpenId}
-          densidade={densidade}
-          usos={usos}
-          setAFundir={setAFundir}
-          setMenu={setMenu}
-          accoesDoTema={accoesDoTema}
-          accoesDaBiblioteca={accoesDaBiblioteca}
-          parecidos={parecidos}
-          cartoesADesenhar={cartoesADesenhar}
-          sentinelaDosCartoes={sentinelaDosCartoes}
-          haMaisCartoes={haMaisCartoes}
+          cartoes={{
+            cartoesADesenhar,
+            sentinelaDosCartoes,
+            haMaisCartoes,
+            densidade,
+            usos,
+            parecidos,
+          }}
+          accoes={{ setAdding, setOpenId, setAFundir, setMenu, accoesDoTema, accoesDaBiblioteca }}
         />
       )}
       {/* O menu do botão direito, um só para o ecrã inteiro. Fica no fim
@@ -3854,14 +3840,9 @@ function ThemeFolder({
         usos={usos}
         loading={loading}
         uploadingCount={uploadingCount}
-        name={name}
-        setName={setName}
-        renaming={renaming}
-        setRenaming={setRenaming}
-        inputRef={inputRef}
-        rename={rename}
         leave={leave}
         countLine={countLine}
+        nome={{ name, setName, renaming, setRenaming, inputRef, rename }}
       />
 
       <input
@@ -3878,49 +3859,41 @@ function ThemeFolder({
 
       <AvisosDaPasta
         theme={theme}
-        progress={progress}
-        failed={failed}
-        setFailed={setFailed}
-        skipped={skipped}
-        setSkipped={setSkipped}
-        legacyPhotos={legacyPhotos}
-        partialCheck={partialCheck}
-        verifying={verifying}
-        setCopyOpen={setCopyOpen}
-        setCopyMode={setCopyMode}
-        copyReport={copyReport}
-        setCopyReport={setCopyReport}
-        thumbJob={thumbJob}
-        pararMiniaturas={() => {
-          stopThumbs.current = true;
+        envio={{
+          progress,
+          pct,
+          failed,
+          setFailed,
+          skipped,
+          setSkipped,
+          trackUrl,
+          retryFailed,
+          addSkippedAnyway,
         }}
-        trackUrl={trackUrl}
-        runThumbJob={runThumbJob}
-        retryFailed={retryFailed}
-        addSkippedAnyway={addSkippedAnyway}
-        unreadable={unreadable}
-        selectedCount={selectedCount}
-        pct={pct}
-        missingThumbs={missingThumbs}
-        thumbPct={thumbPct}
+        leitura={{ legacyPhotos, partialCheck, verifying, unreadable, selectedCount }}
+        copia={{ setCopyOpen, setCopyMode, copyReport, setCopyReport }}
+        miniaturas={{
+          thumbJob,
+          pararMiniaturas: () => {
+            stopThumbs.current = true;
+          },
+          runThumbJob,
+          missingThumbs,
+          thumbPct,
+        }}
       />
 
       <BarraDaSeleccaoDaPasta
-        images={images}
-        setCopyOpen={setCopyOpen}
-        setCopyMode={setCopyMode}
-        selected={selected}
-        bulkBusy={bulkBusy}
-        emBloco={emBloco}
-        aMover={aMover}
-        anuncio={anuncio}
-        clearSelection={clearSelection}
-        pedirParaRemoverAsSeleccionadas={pedirParaRemoverAsSeleccionadas}
-        setAsCover={setAsCover}
-        selectedCount={selectedCount}
-        otherThemes={otherThemes}
-        downloading={downloading}
-        downloadSelected={downloadSelected}
+        seleccao={{ images, selected, selectedCount, clearSelection, anuncio }}
+        emCurso={{ bulkBusy, emBloco, aMover, downloading }}
+        accoes={{
+          setCopyOpen,
+          setCopyMode,
+          pedirParaRemoverAsSeleccionadas,
+          setAsCover,
+          otherThemes,
+          downloadSelected,
+        }}
       />
 
       {copiaNoEcra && (
@@ -3975,24 +3948,20 @@ function ThemeFolder({
 
       <GrelhaDaPasta
         theme={theme}
-        images={images}
-        truncated={truncated}
-        falhaDaPasta={falhaDaPasta}
-        loading={loading}
-        loadingMore={loadingMore}
-        pending={pending}
-        setDrag={setDrag}
-        drag={drag}
-        arrasto={arrasto}
-        remaining={remaining}
-        hasMore={hasMore}
-        handleDrop={handleDrop}
-        loadMore={loadMore}
-        unreadable={unreadable}
-        grelha={grelha}
-        colunas={colunas}
-        pendentes={pendentes}
-        celulaDaFoto={celulaDaFoto}
+        fotos={{
+          images,
+          truncated,
+          falhaDaPasta,
+          loading,
+          loadingMore,
+          unreadable,
+          remaining,
+          hasMore,
+          loadMore,
+          pending,
+        }}
+        largar={{ drag, setDrag, arrasto, handleDrop }}
+        desenho={{ grelha, colunas, pendentes, celulaDaFoto }}
       />
 
       {/* ── A PERGUNTA É A DA CASA ────────────────────────────────────────
