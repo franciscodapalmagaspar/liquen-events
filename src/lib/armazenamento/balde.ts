@@ -164,8 +164,14 @@ async function guardarNoBlob(
  * depois cortar a página. Quem pagina (`offset` 0, 200, 400…) relia tudo a
  * cada página. A junção fica 30 s nesta instância — o tempo de uma listagem
  * paginada ou de uma limpeza da noite —, e qualquer escrita no balde por esta
- * instância a apaga. Outra instância pode ver a pasta com até 30 s de atraso,
- * que é o mesmo que o Supabase já dá entre réplicas.
+ * instância a apaga.
+ *
+ * O PREÇO, e fica assim de propósito (2.ª revisão de 17/11, n.º 7): uma
+ * escrita feita por OUTRA instância não apaga esta cache, por isso aqui a
+ * pasta pode aparecer até 30 s atrasada — uma fotografia acabada de carregar
+ * noutro pedido pode faltar na listagem durante esse tempo, e uma apagada
+ * pode ainda lá aparecer (lê-la recua ao Supabase e dá «não existe»). Só em
+ * modo `blob`; nos outros a listagem é a do Supabase, como em `main`.
  */
 const VIDA_DA_JUNCAO_MS = 30_000;
 const juncoes = new Map<string, { entradas: unknown[]; em: number }>();
