@@ -7,7 +7,12 @@ import { listCalendarEvents } from "@/lib/calendar-store";
 import { sendPushToAll } from "@/lib/push";
 import { isAuthed } from "@/lib/admin-auth";
 import { log } from "@/lib/logger";
-import { gerarLoteDeDerivadas, type PosicaoDoLote, type Retoma } from "@/lib/derivadas";
+import {
+  gerarLoteDeDerivadas,
+  retomaValida,
+  type PosicaoDoLote,
+  type Retoma,
+} from "@/lib/derivadas";
 import { getState, setState } from "@/lib/app-state";
 import { getSupabase } from "@/lib/supabase";
 import { comPrazo, TempoEsgotado } from "@/lib/prazo";
@@ -176,7 +181,10 @@ function retomaDaPastaPendurada(anterior: Retoma | null, atual: Retoma | null): 
  *  - pendurou na LISTAGEM das pastas de uma família: regista-se, e a noite
  *    seguinte salta a família inteira (`saltarFamilia`);
  *  - continuou a dar passos depois do sinal (um bloco lento, mas a andar):
- *    não está pendurado — recomeça onde ia, sem marca nenhuma;
+ *    não está pendurado — recomeça onde ia, sem marca NOVA. Mas a `pendurada`
+ *    da noite anterior na MESMA pasta fica: uma fotografia presa num bloco de
+ *    irmãs que acabam não pode apagar a marca noite após noite (revisão
+ *    independente de 17/11);
  *  - não deu passo nenhum desde o sinal: a pasta é marcada `pendurada` (ou,
  *    à segunda, `saltar`) — ver `retomaDaPastaPendurada`.
  */
@@ -196,12 +204,18 @@ function ondeRecomecarSemResposta(
   }
   const atual = posicao.atual;
   if ((posicao.passos ?? 0) > passosNoSinal && atual && !atual.saltar && !atual.saltarFamilia) {
+    const jaPendurada =
+      anterior?.pendurada === true &&
+      anterior.papel === atual.papel &&
+      anterior.origem === atual.origem &&
+      anterior.pasta === atual.pasta;
     return {
       retoma: {
         papel: atual.papel,
         origem: atual.origem,
         pasta: atual.pasta,
         caminho: atual.caminho,
+        ...(jaPendurada ? { pendurada: true } : {}),
       },
       mensagem:
         "cron reminders: as derivadas estavam lentas, mas a andar — a noite seguinte continua",
@@ -217,16 +231,9 @@ function ondeRecomecarSemResposta(
 async function retomaDaNoiteAnterior(): Promise<Retoma | null> {
   if (!getSupabase()) return null;
   const r = await getState<Retoma>(CHAVE_RETOMA).catch(() => null);
-  // Uma retoma sem pasta só vale se for a de saltar a família (ver
-  // `Retoma.saltarFamilia`); as de antes, com `pasta: ""`, recomeçam do
-  // princípio — que era o que davam por acaso.
-  return r &&
-    typeof r.origem === "string" &&
-    typeof r.pasta === "string" &&
-    typeof r.caminho === "string" &&
-    (r.pasta !== "" || r.saltarFamilia === true)
-    ? r
-    : null;
+  // A mesma regra do lote (`retomaValida`): uma retoma sem pasta só vale se for
+  // a de saltar a família; as de antes, com `pasta: ""`, recomeçam do princípio.
+  return retomaValida(r) ? r : null;
 }
 
 async function guardarRetoma(retoma: Retoma | null): Promise<void> {

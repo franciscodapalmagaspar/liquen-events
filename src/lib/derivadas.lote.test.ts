@@ -394,6 +394,33 @@ describe("um lote de derivadas", () => {
     expect(posicao.passos).toBeGreaterThanOrEqual(3);
   });
 
+  it("a caminho da retoma, as famílias antes da dela não se listam (revisão independente)", async () => {
+    tema("tema-a", 1);
+    st.conteudo[PROPOSAL_BUCKET] = new Set(["prop-1/f0.jpg"]);
+    const listados: string[] = [];
+    const base = storageFalso();
+    st.cliente = {
+      storage: {
+        ...base.storage,
+        from(bucket: string) {
+          const b = base.storage.from(bucket);
+          return {
+            ...b,
+            async list(prefixo: string, o?: { limit?: number; offset?: number }) {
+              if (prefixo === "") listados.push(bucket);
+              return b.list(prefixo, o);
+            },
+          };
+        },
+      },
+    };
+    await gerarLoteDeDerivadas("essencial", {
+      retoma: { papel: "essencial", origem: PROPOSAL_BUCKET, pasta: "prop-1", caminho: "" },
+    });
+    expect(listados).toEqual([PROPOSAL_BUCKET]);
+    expect(st.descarregados).toEqual([`${PROPOSAL_BUCKET}/prop-1/f0.jpg`]);
+  });
+
   it("uma retoma para saltar a família não lista essa família e segue na seguinte", async () => {
     tema("tema-a", 1);
     st.conteudo[PROPOSAL_BUCKET] = new Set(["prop-1/f0.jpg"]);

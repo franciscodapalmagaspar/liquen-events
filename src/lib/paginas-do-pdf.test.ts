@@ -156,6 +156,9 @@ describe("as páginas do PDF como imagens", () => {
       expect(portas).toHaveLength(6);
       return {
         bytes,
+        soltarUm() {
+          portas.shift()!();
+        },
         async soltar() {
           for (const abrir of portas) abrir();
           await Promise.all(pedidos);
@@ -219,6 +222,49 @@ describe("as páginas do PDF como imagens", () => {
       await cheia.soltar();
       const webp = await doQueFicou;
       expect(webp!.subarray(8, 12).toString()).toBe("WEBP");
+    });
+
+    it("um fecho acorda todos, mas só UM toma o lugar livre (revisão independente de 17/11)", async () => {
+      const cheia = await encherComPendurados("manada");
+      // Três à espera, cada um com o seu documento.
+      const abrir = vi.fn(async () => cheia.bytes);
+      const esperam = [7, 8, 9].map((i) => formasDasPaginas(`manada-${i}`, abrir));
+      await new Promise((r) => setTimeout(r, 10));
+      expect(abrir).not.toHaveBeenCalled();
+      // Um dos pendurados acaba: abre-se UM lugar.
+      cheia.soltarUm();
+      await new Promise((r) => setTimeout(r, 30));
+      expect(abrir, "passaram vários pelo mesmo lugar livre").toHaveBeenCalledTimes(1);
+      expect(medidasDaMemoria().vivos).toBeLessThanOrEqual(6);
+      await cheia.soltar();
+      await Promise.all(esperam);
+    });
+
+    it("quem se junta ao desenho de outro tem o SEU prazo, não o do primeiro", async () => {
+      const cheia = await encherComPendurados("prazo-proprio");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+      let segundo: Promise<unknown>;
+      try {
+        const obter = async () => cheia.bytes;
+        const primeiro = imagemDaPagina("prazo-proprio-7", obter, 1, 800).then(
+          () => "abriu",
+          (e: unknown) => e,
+        );
+        await vi.advanceTimersByTimeAsync(PRAZO_DA_VAGA_MS - 200);
+        segundo = imagemDaPagina("prazo-proprio-7", obter, 1, 800).then(
+          (v) => v,
+          (e: unknown) => e,
+        );
+        await vi.advanceTimersByTimeAsync(400);
+        expect(await primeiro).toBeInstanceOf(SemVagaParaDocumentos);
+        const estado = await Promise.race([segundo, Promise.resolve("à espera")]);
+        expect(estado, "herdou o prazo do primeiro").toBe("à espera");
+      } finally {
+        vi.useRealTimers();
+      }
+      await cheia.soltar();
+      const webp = (await segundo!) as Buffer;
+      expect(webp.subarray(8, 12).toString()).toBe("WEBP");
     });
   });
 });

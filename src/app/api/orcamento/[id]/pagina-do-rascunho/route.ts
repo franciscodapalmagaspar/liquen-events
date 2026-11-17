@@ -232,8 +232,10 @@ async function POST_semMedida(
       return new NextResponse(null, { status: 499 });
     }
     if (err instanceof SemVagaParaDocumentos) {
-      // A fila dos documentos esteve cheia 15 s: o estúdio tenta outra vez
-      // sozinho (`usePaginaReal`), e não é uma avaria (2.ª revisão de 17/11).
+      // A fila dos documentos esteve cheia 15 s (2.ª revisão de 17/11). O
+      // estúdio trata-o como qualquer falha da página: tenta outra vez até
+      // `TENTATIVAS` (`usePaginaReal`, que não lê o `Retry-After`), e só
+      // depois a dá por falhada. O `Retry-After` fica para quem o ler.
       log.warn("pagina-do-rascunho: sem vaga para abrir o documento", { id, n });
       return NextResponse.json(
         { error: "O servidor está ocupado: tenta outra vez." },

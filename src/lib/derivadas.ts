@@ -729,6 +729,11 @@ export async function gerarLoteDeDerivadas(
         encontrou = true;
         continue;
       }
+      // Uma família ANTES da da retoma não se lista: todas as pastas dela
+      // seriam saltadas, e listá-la era uma ida ao Storage para nada — e uma
+      // listagem que pendurasse ali apagava a retoma de mais à frente
+      // (revisão independente de 17/11).
+      if (aSaltar && !(alvo!.papel === passagem && alvo!.origem === familia.origem)) continue;
       let asPastas: string[];
       // Quem chama fica a saber que se está à espera DESTA listagem: se ela
       // pendurar, a culpa não é da pasta onde se ia.
@@ -779,11 +784,9 @@ export async function gerarLoteDeDerivadas(
           // A pasta da retoma, ainda por começar, volta com as marcas dela.
           const daRetoma =
             alvo !== null &&
-            !alvo.saltar &&
             alvo.papel === passagem &&
             alvo.origem === familia.origem &&
-            alvo.pasta === pasta &&
-            fotografiasFeitas === 0;
+            alvo.pasta === pasta;
           return {
             geradas,
             falhas,

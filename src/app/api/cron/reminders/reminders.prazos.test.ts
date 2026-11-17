@@ -38,7 +38,9 @@ const RESULTADO = {
   papel: null,
 };
 
-vi.mock("@/lib/derivadas", () => ({
+vi.mock("@/lib/derivadas", async (importOriginal) => ({
+  // A regra verdadeira: a rotina e o lote têm de concordar sobre que retoma se segue.
+  retomaValida: (await importOriginal<typeof import("@/lib/derivadas")>()).retomaValida,
   gerarLoteDeDerivadas: vi.fn(async (_papel: unknown, opcoes: OpcoesDoLote) => {
     H.chamadasAoLote.push(opcoes);
     return H.lote ? H.lote(opcoes) : RESULTADO;
@@ -265,5 +267,19 @@ describe("pendurado é só o que deixou de andar", () => {
     });
     await correr();
     expect(H.chamadasAoLote[0]!.retoma).toBeNull();
+  });
+
+  it("a andar, a `pendurada` da noite anterior na mesma pasta fica (revisão independente)", async () => {
+    const A = { ...P, pendurada: true };
+    H.estado.set("cron-reminders:retoma-das-derivadas", A);
+    H.lote = (opcoes) => {
+      const posicao = opcoes.posicao!;
+      posicao.atual = P;
+      setInterval(() => (posicao.passos = (posicao.passos ?? 0) + 1), 1_000);
+      return nunca();
+    };
+    await correr();
+    expect(H.gravado.at(-1)?.valor).toEqual(A);
+    vi.clearAllTimers();
   });
 });

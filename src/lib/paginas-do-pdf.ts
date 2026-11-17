@@ -117,34 +117,34 @@ function cabe(chave: string): boolean {
   return abertos.has(chave) || documentosVivos() < TECTO_DE_DOCUMENTOS;
 }
 
-async function vagaPara(chave: string, signal?: AbortSignal): Promise<void> {
-  if (signal?.aborted) throw new PedidoCortado();
-  if (cabe(chave)) return;
-  const fim = Date.now() + PRAZO_DA_VAGA_MS;
-  while (!cabe(chave)) {
-    const restante = fim - Date.now();
-    if (restante <= 0) throw new SemVagaParaDocumentos();
-    await new Promise<void>((seguir, desistir) => {
-      const acordar = () => {
-        limpar();
-        seguir();
-      };
-      const sair = (erro: Error) => {
-        limpar();
-        const i = aEsperarVaga.indexOf(acordar);
-        if (i >= 0) aEsperarVaga.splice(i, 1);
-        desistir(erro);
-      };
-      const cortado = () => sair(new PedidoCortado());
-      const relogio = setTimeout(() => sair(new SemVagaParaDocumentos()), restante);
-      function limpar() {
-        clearTimeout(relogio);
-        signal?.removeEventListener("abort", cortado);
-      }
-      aEsperarVaga.push(acordar);
-      signal?.addEventListener("abort", cortado, { once: true });
-    });
-  }
+/**
+ * Espera UMA vez que um documento feche — ou o prazo `fim`, ou o corte. Quem
+ * acorda volta a ver se cabe: ver `comDocumento`.
+ */
+function esperarUmFecho(fim: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((seguir, desistir) => {
+    const acordar = () => {
+      limpar();
+      seguir();
+    };
+    const sair = (erro: Error) => {
+      limpar();
+      const i = aEsperarVaga.indexOf(acordar);
+      if (i >= 0) aEsperarVaga.splice(i, 1);
+      desistir(erro);
+    };
+    const cortado = () => sair(new PedidoCortado());
+    const relogio = setTimeout(
+      () => sair(new SemVagaParaDocumentos()),
+      Math.max(0, fim - Date.now()),
+    );
+    function limpar() {
+      clearTimeout(relogio);
+      signal?.removeEventListener("abort", cortado);
+    }
+    aEsperarVaga.push(acordar);
+    signal?.addEventListener("abort", cortado, { once: true });
+  });
 }
 
 function fechar(entrada: Entrada): void {
@@ -233,9 +233,18 @@ async function comDocumento<T>(
   obterBytes: () => Promise<Uint8Array>,
   trabalho: (a: Aberto) => Promise<T>,
   signal?: AbortSignal,
+  fim: number = Date.now() + PRAZO_DA_VAGA_MS,
 ): Promise<T> {
-  await vagaPara(chave, signal);
-  // Sem `await` entre a vaga e a contagem: ninguém a toma entretanto.
+  if (signal?.aborted) throw new PedidoCortado();
+  // A verificação e a contagem ficam no MESMO tique (revisão independente de
+  // 17/11): um fecho acorda todos os que esperam, e com um `await` entre ver
+  // que cabe e entrar, vários passavam pelo mesmo lugar livre e o tecto
+  // ultrapassava-se. Assim o primeiro a acordar toma-o, e os outros voltam a
+  // esperar.
+  while (!cabe(chave)) {
+    if (Date.now() >= fim) throw new SemVagaParaDocumentos();
+    await esperarUmFecho(fim, signal);
+  }
   const e = entrada(chave, obterBytes);
   e.emUso += 1;
   try {
@@ -300,6 +309,8 @@ export async function imagemDaPagina(
   { signal }: OpcoesDoPedido = {},
 ): Promise<Buffer | null> {
   const id = `${chave}:${n}:${largura}`;
+  // O prazo é DESTE pedido, também quando se junta ao desenho de outro.
+  const fim = Date.now() + PRAZO_DA_VAGA_MS;
   for (;;) {
     const feita = imagens.get(id);
     if (feita) {
@@ -312,16 +323,20 @@ export async function imagemDaPagina(
       try {
         return await esperarComSinal(emCurso, signal);
       } catch (erro) {
-        // O desenho partilhado era de outro pedido, que foi cortado na fila:
-        // este continua cá, e pede-o de novo.
-        if (erro instanceof PedidoCortado && !signal?.aborted) {
+        // O desenho partilhado era de outro pedido, que foi cortado na fila
+        // ou chegou ao fim do SEU prazo: este continua cá, com o prazo dele
+        // por gastar, e pede-o de novo.
+        const deOutro =
+          (erro instanceof PedidoCortado && !signal?.aborted) ||
+          (erro instanceof SemVagaParaDocumentos && Date.now() < fim);
+        if (deOutro) {
           if (aDesenhar.get(id) === emCurso) aDesenhar.delete(id);
           continue;
         }
         throw erro;
       }
     }
-    const desenho = desenharPagina(chave, obterBytes, n, largura, id, signal);
+    const desenho = desenharPagina(chave, obterBytes, n, largura, id, signal, fim);
     aDesenhar.set(id, desenho);
     try {
       return await desenho;
@@ -358,6 +373,7 @@ async function desenharPagina(
   largura: Largura,
   id: string,
   signal: AbortSignal | undefined,
+  fim: number,
 ): Promise<Buffer | null> {
   const webp = await comDocumento(
     chave,
@@ -378,6 +394,7 @@ async function desenharPagina(
       return canvas.encode("webp", QUALIDADE);
     },
     signal,
+    fim,
   );
   if (!webp) return null;
 
