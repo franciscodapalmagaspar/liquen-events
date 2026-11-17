@@ -29,6 +29,17 @@ import { withProposalDefaults, type ProposalDoc } from "@/lib/proposal-doc";
  * JPEG dependem da biblioteca compilada para a máquina. O CI e a Vercel são
  * Linux x64, e é lá que o número foi tirado; noutra máquina o teste salta,
  * em vez de ficar vermelho por uma razão que não é o desenho.
+ *
+ * ── E QUANDO SOBE UMA DEPENDÊNCIA QUE ESCREVE OS BYTES ────────────────────
+ *
+ * Pela mesma razão, subir o `sharp` (ou o libvips que ele traz, mesmo sem o
+ * `sharp` mudar), o `pdf-lib`, o `@pdf-lib/fontkit` ou uma letra embutida pode
+ * mudar os três números sem mudar um pixel do desenho — e não só pelas
+ * fotografias fabricadas aqui: o próprio PDF passa cada fotografia pelo
+ * `sharp`. Nesse PR, e só nesse, os números novos escrevem-se aqui depois de
+ * ver as páginas lado a lado (antes e depois) e de dizer no PR que não há
+ * diferença à vista. Num PR que não mexa em nenhuma delas (nem no
+ * `package-lock.json`), um número diferente é o desenho que mudou.
  */
 
 vi.setConfig({ testTimeout: 180_000 });

@@ -31,6 +31,13 @@ export const CICLOS_CONHECIDOS = [
 
 /**
  * Compara os ciclos encontrados com os conhecidos.
+ *
+ * `cego` é o caso em que o `madge` não viu ciclo NENHUM, nem os conhecidos:
+ * é muito mais provável que tenha deixado de ler o grafo (um `tsconfig` que
+ * não resolve, ficheiros saltados) do que os três terem desaparecido juntos.
+ * Uma varredura tem de provar que varre; se um dia os três se resolverem
+ * mesmo, a lista fica vazia e isto deixa de se aplicar.
+ *
  * @param {string[][]} encontrados a saída `--json` do `madge --circular`
  * @param {string[]} conhecidos
  */
@@ -39,25 +46,54 @@ export function compararCiclos(encontrados, conhecidos = CICLOS_CONHECIDOS) {
   return {
     novos: vistos.filter((c) => !conhecidos.includes(c)),
     resolvidos: conhecidos.filter((c) => !vistos.includes(c)),
+    cego: conhecidos.length > 0 && vistos.length === 0,
   };
+}
+
+/**
+ * A lista de ciclos que o `madge` devolveu, ou `null` se não devolveu uma.
+ *
+ * Um `npx` que nem arranca deixa `stdout` a `null`, e `JSON.parse(null)` dá
+ * `null` sem atirar: a pergunta é se veio uma LISTA de listas, não se o texto
+ * se leu.
+ *
+ * @param {{ error?: unknown, stdout?: string | null }} r o resultado do `spawnSync`
+ * @returns {string[][] | null}
+ */
+export function lerCiclosDoMadge(r) {
+  if (r.error || typeof r.stdout !== "string") return null;
+  let lido;
+  try {
+    lido = JSON.parse(r.stdout);
+  } catch {
+    return null;
+  }
+  return Array.isArray(lido) && lido.every((c) => Array.isArray(c)) ? lido : null;
 }
 
 function principal() {
   // O `madge` sai com 1 sempre que encontra um ciclo, conhecido ou não: quem
-  // decide é a comparação, não o código de saída dele.
+  // decide é a comparação, não o código de saída dele. O tecto de tempo é
+  // para um registo de pacotes que pendure o `npx`: sem ele, o job ficava
+  // parado até ao limite do GitHub em vez de falhar com uma frase.
   const r = spawnSync(
     "npx",
     ["--yes", "madge@8.0.0", "--circular", "--json", "--no-spinner", "src"],
-    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, timeout: 180_000 },
   );
-  let encontrados;
-  try {
-    encontrados = JSON.parse(r.stdout);
-  } catch {
-    console.error("O madge não devolveu JSON:\n", r.stdout, r.stderr, r.error ?? "");
+  const encontrados = lerCiclosDoMadge(r);
+  if (!encontrados) {
+    console.error("O madge não devolveu a lista de ciclos:\n", r.stdout, r.stderr, r.error ?? "");
     process.exit(1);
   }
-  const { novos, resolvidos } = compararCiclos(encontrados);
+  const { novos, resolvidos, cego } = compararCiclos(encontrados);
+  if (cego) {
+    console.error(
+      "O madge não encontrou ciclo nenhum, nem os conhecidos: é mais provável que tenha deixado de ler o grafo. " +
+        "Se os conhecidos se resolveram mesmo, esvazia CICLOS_CONHECIDOS.",
+    );
+    process.exit(1);
+  }
   if (resolvidos.length) {
     console.log("Estes ciclos já não existem — tira-os de CICLOS_CONHECIDOS:");
     for (const c of resolvidos) console.log(`  · ${c}`);
