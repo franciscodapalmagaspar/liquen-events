@@ -38,7 +38,7 @@ interface Row {
 }
 
 const rowMapper: Mapper<Row> = {
-  table: "rows",
+  table: "inventory_items",
   fileName: "rows.json",
   getId: (r) => r.id,
   toRow: (r) => ({ id: r.id, name: r.name, qty: r.qty }),

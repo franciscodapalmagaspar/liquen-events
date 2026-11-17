@@ -39,7 +39,7 @@ export function quoteIdFor(submissionId: string): string {
  * column (with status/name/email mirrored for listing/searching); the file
  * fallback stores the quote object verbatim.
  */
-export const mapper: Mapper<Quote> = {
+export const mapper: Mapper<Quote, "quotes"> = {
   table: "quotes",
   fileName: "quotes.json",
   selectColumns: "data",
@@ -120,7 +120,7 @@ export async function getQuoteStatus(id: string): Promise<Quote["status"] | null
   const { data, error } = await sb.from(mapper.table).select("status").eq("id", id).maybeSingle();
   if (error) throw error;
   if (!data) return undefined;
-  const status = (data as { status?: unknown }).status;
+  const status: unknown = data.status;
   return typeof status === "string" ? (status as Quote["status"]) : null;
 }
 export const updateQuote = (id: string, updates: Partial<Quote>): Promise<Quote | null> =>
@@ -176,7 +176,7 @@ export async function assinaturaDaListaDePedidos(): Promise<string | null> {
         .limit(1),
     );
     if (error || typeof count !== "number") return null;
-    const ultima = (data?.[0] as { updated_at?: unknown } | undefined)?.updated_at;
+    const ultima: unknown = data?.[0]?.updated_at;
     const ultimaTxt = typeof ultima === "string" ? ultima : "";
     if (ultimaTxt && Date.now() - Date.parse(ultimaTxt) < JANELA_RECENTE_MS) return null;
     return `${count}:${ultimaTxt}`;

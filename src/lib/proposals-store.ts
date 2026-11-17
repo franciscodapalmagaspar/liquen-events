@@ -3,7 +3,7 @@ import type { Proposal } from "@/lib/orcamento/types";
 import { ehIdiomaDaProposta } from "@/lib/proposal-doc-textos";
 import { createRepository, type Mapper } from "./repository";
 
-export const mapper: Mapper<Proposal> = {
+export const mapper: Mapper<Proposal, "proposals"> = {
   table: "proposals",
   fileName: "proposals.json",
   getId: (p) => p.id,

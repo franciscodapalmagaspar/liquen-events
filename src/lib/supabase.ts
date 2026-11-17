@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/db/base";
 
 /**
  * Server-side Supabase client built from environment variables. Uses the
@@ -11,14 +12,20 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  *   SUPABASE_URL                e.g. https://xxxx.supabase.co
  *   SUPABASE_SERVICE_ROLE_KEY   the service_role secret (NOT the anon key)
  */
-let cached: SupabaseClient | null = null;
+/** O cliente com o tipo da base de dados VIVA (`src/lib/db/tipos-da-base.ts`,
+ *  gerado — docs/ESTRUTURA-DOS-DADOS.md, P1): uma coluna escrita com o nome ou
+ *  o tipo errado passa a ser um erro do compilador, e não um `undefined` três
+ *  ecrãs depois. */
+export type ClienteDaBase = SupabaseClient<Database>;
 
-export function getSupabase(): SupabaseClient | null {
+let cached: ClienteDaBase | null = null;
+
+export function getSupabase(): ClienteDaBase | null {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   if (!cached) {
-    cached = createClient(url, key, { auth: { persistSession: false } });
+    cached = createClient<Database>(url, key, { auth: { persistSession: false } });
   }
   return cached;
 }

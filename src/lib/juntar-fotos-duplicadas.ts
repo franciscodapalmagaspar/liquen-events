@@ -391,7 +391,7 @@ async function reescreverRascunho(
       .maybeSingle();
     if (error || !data) return falhou;
     const mudados: { campo: (string | number)[]; antes: string; depois: string }[] = [];
-    const novo = trocar((data as Linha).value, mapa, [], mudados);
+    const novo = trocar(data.value, mapa, [], mudados);
     const texto = JSON.stringify(novo);
     // O que continuar mencionado depois da troca (dentro de um endereço, de um
     // texto) não se consegue garantir: essa cópia fica.
@@ -401,7 +401,7 @@ async function reescreverRascunho(
       novo && typeof novo === "object" && !Array.isArray(novo)
         ? { ...(novo as Linha), updatedAt: new Date().toISOString() }
         : novo;
-    const lido = (data as Linha).updated_at;
+    const lido = data.updated_at;
     const base = sb
       .from("app_state")
       .update({ value: valorNovo, updated_at: new Date().toISOString() })
@@ -506,8 +506,7 @@ async function rascunhosDesde(
         .order("key", { ascending: true })
         .range(de, de + 999);
       if (error || !data) return null;
-      for (const l of data as Linha[])
-        saida.push({ chave: String(l.key), texto: JSON.stringify(l.value ?? null) });
+      for (const l of data) saida.push({ chave: l.key, texto: JSON.stringify(l.value ?? null) });
       if (data.length < 1000) return saida;
     }
     return null;

@@ -2,6 +2,7 @@ import "server-only";
 import { promises as fs } from "fs";
 import path from "path";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { NomeDaTabela } from "./db/base";
 import { getSupabase } from "./supabase";
 import { log } from "./logger";
 
@@ -29,9 +30,9 @@ import { log } from "./logger";
  * domain objects verbatim. Both satisfy the same `Backend<T>` contract, so the
  * Repository (and the update read-merge-write) is written and tested once.
  */
-export interface Mapper<T> {
-  /** Supabase table name. */
-  table: string;
+export interface Mapper<T, N extends NomeDaTabela = NomeDaTabela> {
+  /** A tabela, conferida contra os tipos gerados da base de dados viva. */
+  table: N;
   /** JSON file name under data/ for the dev fallback. */
   fileName: string;
   /** Stable identity of an entity. */

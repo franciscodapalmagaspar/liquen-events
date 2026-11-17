@@ -22,7 +22,7 @@ interface Widget {
 }
 
 const widgetMapper: Mapper<Widget> = {
-  table: "widgets",
+  table: "inventory_items",
   fileName: "widgets.json",
   getId: (w) => w.id,
   toRow: (w) => ({ id: w.id, name: w.name, qty: w.qty }),
@@ -639,7 +639,7 @@ interface Ficheiro {
 }
 
 const ficheiroMapper: Mapper<Ficheiro> = {
-  table: "ficheiros",
+  table: "inventory_items",
   fileName: "ficheiros.json",
   getId: (f) => f.path,
   idColumn: "path",

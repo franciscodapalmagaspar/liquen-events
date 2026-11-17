@@ -36,7 +36,7 @@ interface Coisa {
 }
 
 const mapper: Mapper<Coisa> = {
-  table: "coisas",
+  table: "inventory_items",
   fileName: "coisas.json",
   getId: (c) => c.id,
   toRow: (c) => ({ id: c.id, nome: c.nome }),

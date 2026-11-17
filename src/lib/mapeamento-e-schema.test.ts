@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { promises as fs } from "fs";
 import path from "path";
 import type { Mapper } from "./repository";
+import { esquemaDoSql } from "./db/comparar-esquemas";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -42,38 +43,19 @@ import type { Mapper } from "./repository";
  */
 
 // ── O ficheiro de esquema, lido a sério ───────────────────────────────────
+// Pelo MESMO leitor que o compara com os tipos gerados da base viva
+// (`tipos-da-base.test.ts`): dois leitores do mesmo ficheiro acabavam por
+// discordar sobre o que lá está.
+
+async function esquema() {
+  const sql = await fs.readFile(path.join(process.cwd(), "db", "schema.sql"), "utf-8");
+  return esquemaDoSql(sql);
+}
 
 /** As colunas de cada tabela, tal como `db/schema.sql` as garante. */
 async function colunasPorTabela(): Promise<Map<string, Set<string>>> {
-  const sql = await fs.readFile(path.join(process.cwd(), "db", "schema.sql"), "utf-8");
   const tabelas = new Map<string, Set<string>>();
-
-  // As que nascem com a tabela.
-  const criacao = /create table if not exists public\.(\w+)\s*\(([\s\S]*?)\n\);/gi;
-  for (let m = criacao.exec(sql); m; m = criacao.exec(sql)) {
-    const cols = new Set<string>();
-    for (const linha of m[2].split("\n")) {
-      const l = linha.trim();
-      if (!l || l.startsWith("--")) continue;
-      const c = /^([a-z_][a-z0-9_]*)\s+/i.exec(l);
-      if (!c) continue;
-      // `primary key (id)`, `constraint … check (…)` e companhia não são colunas.
-      if (["primary", "unique", "constraint", "check", "foreign"].includes(c[1].toLowerCase())) {
-        continue;
-      }
-      cols.add(c[1]);
-    }
-    tabelas.set(m[1], cols);
-  }
-
-  // …e as que chegam por migração idempotente a uma instalação que já existia.
-  const migracao = /alter table public\.(\w+)\s+add column if not exists\s+(\w+)/gi;
-  for (let m = migracao.exec(sql); m; m = migracao.exec(sql)) {
-    const cols = tabelas.get(m[1]) ?? new Set<string>();
-    cols.add(m[2]);
-    tabelas.set(m[1], cols);
-  }
-
+  for (const [t, cols] of await esquema()) tabelas.set(t, new Set(cols.keys()));
   return tabelas;
 }
 
@@ -84,32 +66,10 @@ async function colunasPorTabela(): Promise<Map<string, Set<string>>> {
  * objecto de domínio e o ramo condicional do `toRow` fica por exercitar.
  */
 async function tiposPorTabela(): Promise<Map<string, Map<string, string>>> {
-  const sql = await fs.readFile(path.join(process.cwd(), "db", "schema.sql"), "utf-8");
   const tabelas = new Map<string, Map<string, string>>();
-
-  const criacao = /create table if not exists public\.(\w+)\s*\(([\s\S]*?)\n\);/gi;
-  for (let m = criacao.exec(sql); m; m = criacao.exec(sql)) {
-    const tipos = new Map<string, string>();
-    for (const linha of m[2].split("\n")) {
-      const l = linha.trim();
-      if (!l || l.startsWith("--")) continue;
-      const c = /^([a-z_][a-z0-9_]*)\s+([a-z]+)/i.exec(l);
-      if (!c) continue;
-      if (["primary", "unique", "constraint", "check", "foreign"].includes(c[1].toLowerCase())) {
-        continue;
-      }
-      tipos.set(c[1], c[2].toLowerCase());
-    }
-    tabelas.set(m[1], tipos);
+  for (const [t, cols] of await esquema()) {
+    tabelas.set(t, new Map([...cols].map(([c, col]) => [c, col.tipoSql ?? ""])));
   }
-
-  const migracao = /alter table public\.(\w+)\s+add column if not exists\s+(\w+)\s+([a-z]+)/gi;
-  for (let m = migracao.exec(sql); m; m = migracao.exec(sql)) {
-    const tipos = tabelas.get(m[1]) ?? new Map<string, string>();
-    tipos.set(m[2], m[3].toLowerCase());
-    tabelas.set(m[1], tipos);
-  }
-
   return tabelas;
 }
 

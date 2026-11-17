@@ -77,7 +77,7 @@ export class StaleWriteError extends Error {
   }
 }
 
-export const mapper: Mapper<OverviewField> = {
+export const mapper: Mapper<OverviewField, "overview_settings"> = {
   table: "overview_settings",
   fileName: "overview-settings.json",
   getId: (f) => f.id,

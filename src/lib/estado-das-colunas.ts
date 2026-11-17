@@ -1,6 +1,7 @@
 import "server-only";
 import { getSupabase } from "./supabase";
 import { log } from "./logger";
+import type { Linha, NomeDaTabela } from "./db/base";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -53,8 +54,18 @@ import { log } from "./logger";
  * `...(x !== undefined ? { coluna: x } : {})`, acrescenta-a aqui. É o que
  * impede que a coluna seguinte se perca da mesma maneira.
  */
-export const COLUNAS_QUE_DESAPARECEM: Readonly<Record<string, readonly string[]>> = {
-  proposals: [
+/** Uma tabela e as colunas a vigiar — que o compilador confere contra os
+ *  tipos gerados da base de dados (docs/ESTRUTURA-DOS-DADOS.md, P1): vigiar
+ *  uma coluna com o nome errado era ficar a avisar, para sempre, que ela falta. */
+function vigiar<N extends NomeDaTabela>(
+  tabela: N,
+  colunas: readonly (keyof Linha<N> & string)[],
+): { tabela: N; colunas: readonly string[] } {
+  return { tabela, colunas };
+}
+
+export const COLUNAS_QUE_DESAPARECEM = [
+  vigiar("proposals", [
     // A mais cara de todas: sem ela o link do casal mostra um quadro de preço
     // em vez da proposta que foi enviada.
     "doc",
@@ -64,9 +75,9 @@ export const COLUNAS_QUE_DESAPARECEM: Readonly<Record<string, readonly string[]>
     "versao_selo",
     "versao_numero",
     "versao_em",
-  ],
-  contracts: ["proposta_versao_selo", "proposta_versao_numero", "idioma"],
-};
+  ]),
+  vigiar("contracts", ["proposta_versao_selo", "proposta_versao_numero", "idioma"]),
+] as const;
 
 /** O que o Postgres diz quando a coluna não existe. */
 function ehColunaDesconhecida(erro: { code?: string; message?: string } | null): boolean {
@@ -100,7 +111,7 @@ export async function colunasEmFalta(): Promise<string[]> {
   if (!sb) return [];
 
   const faltam: string[] = [];
-  for (const [tabela, colunas] of Object.entries(COLUNAS_QUE_DESAPARECEM)) {
+  for (const { tabela, colunas } of COLUNAS_QUE_DESAPARECEM) {
     try {
       /**
        * Uma pergunta por tabela no caso normal.

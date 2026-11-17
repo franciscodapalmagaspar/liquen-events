@@ -299,7 +299,7 @@ describe("cada tabela com touch tem mesmo a coluna updated_at em db/schema.sql",
     "./material-rules-store",
     "./event-material-store",
     "./event-material-items-store",
-      "./biblioteca-fotos-store",
+    "./biblioteca-fotos-store",
     "./biblioteca-etiquetas-store",
     "./overview-settings-store",
     "./themes-store",
@@ -335,7 +335,7 @@ describe("cada tabela com touch tem mesmo a coluna updated_at em db/schema.sql",
 // ── Uma colisão não pode acabar em silêncio nem em erro cru ───────────────
 describe("o que chega a quem chama quando a repetição não resolve", () => {
   const mapper: Mapper<{ id: string; nome: string }> = {
-    table: "widgets",
+    table: "inventory_items",
     fileName: "widgets.json",
     getId: (w) => w.id,
     toRow: (w) => ({ id: w.id, nome: w.nome }),
@@ -377,7 +377,7 @@ describe("o que chega a quem chama quando a repetição não resolve", () => {
     expect(String((err as ConflictError).current?.nome)).toMatch(/^intruso-/);
     // E o que a pessoa escreveu, que não pode desaparecer da resposta.
     expect((err as ConflictError).attempted).toMatchObject({ nome: "meu texto" });
-    expect((err as ConflictError).table).toBe("widgets");
+    expect((err as ConflictError).table).toBe("inventory_items");
   });
 
   it("a mensagem é dizível a uma pessoa, não um código", () => {
