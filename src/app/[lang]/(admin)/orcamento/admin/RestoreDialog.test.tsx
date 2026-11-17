@@ -155,6 +155,7 @@ describe("RestoreDialog", () => {
       respostaEnsaio({
         ...base,
         datasets: [
+          // `as never`: o plano falso é tipado pelos dois conjuntos de cima.
           ...base.datasets,
           {
             key: "indiceDoBlob",
@@ -167,7 +168,7 @@ describe("RestoreDialog", () => {
             removed: 0,
             newerThanBackup: 0,
             junta: true,
-          },
+          } as never,
         ],
       }),
     );
