@@ -8,9 +8,24 @@ const H = vi.hoisted(() => ({
   gravarFalha: false,
   conflitos: 0,
   pendurar: null as null | Promise<void>,
+  lerPendurado: null as null | Promise<void>,
+}));
+// O `after` do Next, apanhado: os testes decidem quando corre (como a Vercel,
+// depois de o pedido responder).
+const depois = vi.hoisted(() => ({ fila: [] as (() => Promise<unknown>)[], apanhar: false }));
+vi.mock("next/server", () => ({
+  after: (f: () => Promise<unknown>) => {
+    if (!depois.apanhar) throw new Error("fora de um pedido");
+    depois.fila.push(f);
+  },
 }));
 vi.mock("@/lib/app-state", () => ({
   lerEstadoComVersao: vi.fn(async () => {
+    const v = { valor: H.linha, versao: String(H.versao) };
+    if (H.lerPendurado) {
+      await H.lerPendurado;
+      return v; // o valor de quando a leitura COMEÇOU
+    }
     if (H.lerFalha) throw new Error("base em baixo");
     return { valor: H.linha, versao: String(H.versao) };
   }),
@@ -29,7 +44,14 @@ vi.mock("@/lib/app-state", () => ({
   }),
 }));
 
-import { esquecerUso, gravacoesPendentes, registar, travao, usoAtual } from "./uso";
+import {
+  _quandoAcabarOLote,
+  esquecerUso,
+  gravacoesPendentes,
+  registar,
+  travao,
+  usoAtual,
+} from "./uso";
 import { gravarEstadoSeNaoMudou } from "@/lib/app-state";
 import { GB, mesDe } from "./tectos";
 
@@ -43,6 +65,10 @@ beforeEach(() => {
   H.gravarFalha = false;
   H.conflitos = 0;
   H.pendurar = null;
+  H.lerPendurado = null;
+  depois.fila = [];
+  depois.apanhar = false;
+  _quandoAcabarOLote(null);
   vi.mocked(gravarEstadoSeNaoMudou).mockClear();
   esquecerUso();
 });
@@ -158,5 +184,41 @@ describe("o contador do Blob", () => {
     soltar();
     await gravacoesPendentes();
     expect((H.linha as { simples: number }).simples).toBe(3);
+  });
+
+  it("3.ª revisão, n.º 4: um gasto que chega quando a gravação já acabou o ciclo também se grava", async () => {
+    depois.apanhar = true;
+    await registar({ simples: 1 });
+    // O gasto chega no intervalo exacto: o ciclo da gravação já viu a fila
+    // vazia, mas a gravação ainda não se deu por terminada.
+    // E o `after` desse gasto corre logo ali, com a gravação ainda «em curso».
+    let doSegundo: Promise<unknown> = Promise.resolve();
+    _quandoAcabarOLote(() => {
+      _quandoAcabarOLote(null);
+      void registar({ simples: 10 });
+      doSegundo = depois.fila[depois.fila.length - 1]();
+    });
+    await depois.fila[0]();
+    await doSegundo;
+    expect((H.linha as { simples: number }).simples).toBe(11);
+  });
+
+  it("3.ª revisão, n.º 5: um lote gravado durante a leitura não fica de fora do travão", async () => {
+    H.linha = { mes, avancadas: 49_999, simples: 0, transferencia: 0, bytes: 0 };
+    let soltarLeitura!: () => void;
+    H.lerPendurado = new Promise((r) => (soltarLeitura = r));
+    // A leitura começa (e vê 49 999)…
+    const leitura = usoAtual();
+    // …e entretanto um gasto grava-se por completo noutra volta.
+    H.lerPendurado = null;
+    const lido = H.linha;
+    await registar({ avancadas: 1 });
+    await gravacoesPendentes();
+    H.lerPendurado = Promise.resolve();
+    H.linha = lido; // o que a leitura pendurada devolve é o de antes
+    soltarLeitura();
+    const u = await leitura;
+    expect(u!.avancadas).toBe(50_000);
+    expect(await travao({ avancadas: 1 })).toBe("operacoes-avancadas");
   });
 });

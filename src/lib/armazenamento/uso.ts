@@ -55,13 +55,20 @@ async function lerFresco(agora: Date): Promise<UsoDoBlob | null> {
 /** O uso como esta instância o vê agora. `null` se não se conseguiu ler. */
 export async function usoAtual(agora: Date = new Date()): Promise<UsoDoBlob | null> {
   if (!emMemoria || Date.now() - emMemoria.lidoEm > VIDA_MS) {
+    const inicio = Date.now();
     const fresco = await lerFresco(agora);
     // Uma cópia velha não serve de travão: sem leitura fresca, não se sabe.
     if (!fresco) return null;
     emMemoria = { uso: fresco, lidoEm: Date.now() };
-    // A linha lida já tem o que ficou gravado; o que ainda NÃO ficou (na fila
-    // ou a meio de gravar) continua a contar por cima dela.
-    desdeALeitura = juntar(porGravar, emVoo);
+    /**
+     * A linha lida já tem o que ficou gravado ANTES de a leitura começar. Por
+     * cima dela conta: o que está na fila, o lote a meio de gravar, e os lotes
+     * que acabaram de gravar DESDE que a leitura começou (3.ª revisão de 17/11,
+     * n.º 5) — esses podem ter chegado à linha antes ou depois da leitura; na
+     * dúvida contam, que contar a mais é seguro e a menos não.
+     */
+    gravadosRecentes = gravadosRecentes.filter((l) => l.em >= inicio);
+    desdeALeitura = gravadosRecentes.reduce((t, l) => juntar(t, l.gasto), juntar(porGravar, emVoo));
   }
   return somar(usoNormalizado(emMemoria.uso, agora), desdeALeitura);
 }
@@ -132,7 +139,9 @@ async function gravar(g: Gasto): Promise<boolean> {
  */
 let porGravar: Gasto = {};
 let emVoo: Gasto = {};
-let aGravar: Promise<void> | null = null;
+let aGravar: Promise<boolean> | null = null;
+/** Os lotes gravados há pouco, com a hora em que acabaram (ver `usoAtual`). */
+let gravadosRecentes: { gasto: Gasto; em: number }[] = [];
 
 /**
  * Grava a fila. Em ciclo, também por FORA (2.ª revisão, n.º 5): um gasto que
@@ -140,7 +149,7 @@ let aGravar: Promise<void> | null = null;
  * ficar pendurado. Pára num lote que não grava (a base em baixo) — o próximo
  * gasto volta a tentar com ele lá dentro.
  */
-function gravarAFila(): Promise<void> {
+function gravarAFila(): Promise<boolean> {
   if (aGravar) return aGravar;
   const esta = (async () => {
     while (temGasto(porGravar)) {
@@ -148,9 +157,18 @@ function gravarAFila(): Promise<void> {
       porGravar = {};
       const ok = await gravar(emVoo);
       if (!ok) porGravar = juntar(emVoo, porGravar);
+      else {
+        // Só interessam os que acabaram depois da próxima leitura começar; os
+        // de há mais de dois minutos já estão em qualquer leitura que venha.
+        const agora = Date.now();
+        gravadosRecentes = gravadosRecentes.filter((l) => l.em >= agora - 2 * VIDA_MS);
+        gravadosRecentes.push({ gasto: emVoo, em: agora });
+      }
       emVoo = {};
-      if (!ok) return;
+      if (!ok) return false;
     }
+    aoAcabarOLote?.();
+    return true;
   })();
   aGravar = esta.finally(() => {
     aGravar = null;
@@ -168,7 +186,11 @@ export async function registar(g: Gasto): Promise<void> {
   if (!temGasto(g)) return;
   desdeALeitura = juntar(desdeALeitura, g);
   porGravar = juntar(porGravar, g);
-  const correr = () => gravarAFila().catch(() => undefined);
+  // `gravacoesPendentes`, e não só a gravação em curso (3.ª revisão de 17/11,
+  // n.º 4): um gasto que chegue quando a gravação em curso já acabou o ciclo
+  // mas ainda não a deu por terminada ficava só na memória; assim, quem o
+  // registou volta a olhar para a fila depois de ela acabar.
+  const correr = () => gravacoesPendentes().catch(() => undefined);
   try {
     after(correr);
   } catch {
@@ -177,11 +199,19 @@ export async function registar(g: Gasto): Promise<void> {
   }
 }
 
+/** Só para os testes: corre no fim do ciclo de uma gravação, antes de ela se dar por terminada. */
+let aoAcabarOLote: (() => void) | null = null;
+export function _quandoAcabarOLote(f: (() => void) | null): void {
+  aoAcabarOLote = f;
+}
+
 /** Espera que a fila esteja gravada (para os testes e para a migração no fim). */
 export async function gravacoesPendentes(): Promise<void> {
   while (aGravar || temGasto(porGravar)) {
-    await gravarAFila();
-    if (!aGravar && temGasto(porGravar)) return; // não grava agora — fica na fila
+    // Uma gravação que FALHOU pára aqui (a base em baixo — fica na fila para o
+    // próximo gasto); uma que acabou bem volta a olhar para a fila, porque
+    // pode ter chegado um gasto depois de ela a ver vazia.
+    if (!(await gravarAFila())) return;
   }
 }
 
@@ -214,4 +244,5 @@ export function esquecerUso(): void {
   desdeALeitura = {};
   porGravar = {};
   emVoo = {};
+  gravadosRecentes = [];
 }
