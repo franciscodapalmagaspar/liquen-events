@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avisoDeTemaParecido, temasParecidos, type TemaComparavel } from "./temas-parecidos";
+import { avisoDeTemaParecido, temasParecidos, type TemaComparavel } from "./parecidos";
 
 const t = (id: string, name: string, arquivado = false): TemaComparavel => ({
   id,

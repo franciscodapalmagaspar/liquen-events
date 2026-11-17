@@ -21,7 +21,7 @@ import type { Quote } from "@/lib/orcamento/types";
 import PerguntaDeDesfecho from "../PerguntaDeDesfecho";
 import { ESTADO, PRESSAO } from "../ui/movimento";
 import { diasDesde, eventCountdown } from "../util";
-import { statusBadge } from "./estado-do-pedido";
+import { statusBadge } from "./PastilhaDoEstado";
 import { EtiquetaPossivelSpam } from "../EtiquetaPossivelSpam";
 
 // One quote card in the pedidos list. Extracted to MODULE scope and wrapped in

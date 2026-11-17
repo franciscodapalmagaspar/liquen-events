@@ -59,7 +59,7 @@ import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravac
 import { onIdle } from "@/lib/onIdle";
 import { marcarSaidaDeProposito } from "./entrada-destino";
 import { limparCachesAoSair } from "@/lib/limpar-caches-ao-sair";
-import { parseMoney as parsePriceInput, randomId, todayKey } from "./util";
+import { randomId, todayKey } from "./util";
 import { useAnular } from "./ui/anular";
 import { useDepoisDeApagar, useDepoisDeApagarVarios } from "./ui/depois-de-apagar";
 import { reporEstadoDoPedido } from "./anular-estado";
@@ -123,14 +123,14 @@ import {
   corpoDaGravacao,
   corpoDoAnular,
   linhasDoHistorico,
-  type PainelEscrito,
 } from "@/lib/orcamento/pedidos/gravar-o-pedido";
+import { painelParaGravar } from "@/lib/orcamento/pedidos/painel-do-pedido";
 import { useEdicaoDoPedido } from "./_pedidos/useEdicaoDoPedido";
 import { useFiltrosDosPedidos } from "./_pedidos/useFiltrosDosPedidos";
 import { VIEW_WRAP } from "./_casca/moldura-da-vista";
 import { ACOES_DE_PEDIDOS } from "./_casca/titulos-das-vistas";
-import { STATUS_OPTIONS } from "./_pedidos/estado-do-pedido";
-import { ARQUIVAR_SEM_PERGUNTAR, LIST_PAGE_SIZE } from "./_pedidos/pele-da-lista";
+import { STATUS_OPTIONS } from "./_pedidos/PastilhaDoEstado";
+import { ARQUIVAR_SEM_PERGUNTAR, LIST_PAGE_SIZE } from "@/lib/orcamento/pedidos/lotes-da-lista";
 import { detailNextAction, type DetailTab } from "./_pedidos/separadores-do-painel";
 
 /** A chave da saída do painel do pedido — há um painel só, e a chave é uma. */
@@ -295,6 +295,7 @@ export default function AdminClient({
     editTelefone,
     setEditTelefone,
     preencherCom,
+    painel,
     convidadosEscritos,
     erroDeConvidados,
     motivoVaiComADecisao,
@@ -2843,30 +2844,11 @@ export default function AdminClient({
       /**
        * As três decisões — que linhas entram no histórico, o que vai no corpo,
        * e (depois de gravar) o que o «Anular» devolve — são puras e vivem em
-       * `lib/orcamento/pedidos/gravar-o-pedido.ts`. Aqui fica a casca: ler o
-       * painel, mandar, mostrar.
-       *
-       * Um número de convidados que não serve NÃO é uma alteração: fica igual
-       * ao que está gravado e, por isso, nem vai no corpo nem se anuncia no
-       * histórico. É assim que o email escrito na mesma gravação deixa de ser
-       * arrastado abaixo por um sinal a menos.
+       * `lib/orcamento/pedidos/gravar-o-pedido.ts`; o painel lido, e o que
+       * fazer com convidados que não servem, em `painel-do-pedido.ts`. Aqui
+       * fica a casca: ler o painel, mandar, mostrar.
        */
-      const escrito: PainelEscrito = {
-        estado: editStatus,
-        preco: parsePriceInput(editPrice),
-        notas: editNotes,
-        responsavel: editAssigned,
-        motivoDePerda: editLostReason,
-        data: editDate,
-        convidados:
-          convidadosEscritos.ok && convidadosEscritos.valor !== null
-            ? convidadosEscritos.valor
-            : selected.guests,
-        local: editLocation,
-        nome: editNome,
-        email: editEmail,
-        telefone: editTelefone,
-      };
+      const escrito = painelParaGravar(painel, convidadosEscritos, selected);
       const linhas = linhasDoHistorico(selected, escrito, {
         actor: userName,
         agora: new Date().toISOString(),

@@ -10,7 +10,7 @@ import {
   fraseDoRegresso,
   lerCarga,
   trazFotos,
-} from "./temas-arrasto";
+} from "./arrasto";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

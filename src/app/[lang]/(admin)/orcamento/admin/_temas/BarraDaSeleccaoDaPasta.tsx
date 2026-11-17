@@ -2,7 +2,7 @@
 
 import { type Dispatch, type SetStateAction } from "react";
 import { type ThemeCopyMode, type ThemeImage, type ThemeSummary } from "@/lib/theme-types";
-import { type AccaoEmBloco } from "../../../../../../lib/temas/listas-de-fotos";
+import { type AccaoEmBloco } from "@/lib/temas/listas-de-fotos";
 import { plural } from "@/lib/plural";
 import { Button, EmCurso, Glass } from "../ui";
 

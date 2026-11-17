@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ROTULO_DO_ESTADO } from "@/lib/orcamento/estado-do-pedido";
-import { STATUS_OPTIONS } from "./estado-do-pedido";
+import { STATUS_OPTIONS } from "./PastilhaDoEstado";
 
 /**
  * Os rótulos dos estados eram duas listas escritas à mão — a da pastilha (aqui)

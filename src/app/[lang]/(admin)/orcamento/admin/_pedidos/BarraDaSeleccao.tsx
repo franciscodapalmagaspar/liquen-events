@@ -4,7 +4,7 @@ import { type Dispatch, type SetStateAction } from "react";
 import { type Quote, type QuoteStatus } from "@/lib/orcamento/types";
 import { dateStamp, downloadCsv, quotesToCsvRows } from "../export";
 import { EmCurso } from "../ui";
-import { STATUS_OPTIONS } from "./estado-do-pedido";
+import { STATUS_OPTIONS } from "./PastilhaDoEstado";
 import { type FiltrosDaLista } from "./useFiltrosDosPedidos";
 import { EscolhaDoEstado } from "../EscolhaDoEstado";
 import { ESTADO, PRESSAO } from "../ui/movimento";

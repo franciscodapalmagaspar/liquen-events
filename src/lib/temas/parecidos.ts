@@ -1,5 +1,5 @@
-import { essenciaDoNome } from "./essencia-do-nome";
-import { normalizedThemeName } from "./theme-types";
+import { essenciaDoNome } from "@/lib/essencia-do-nome";
+import { normalizedThemeName } from "@/lib/theme-types";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

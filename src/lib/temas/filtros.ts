@@ -1,4 +1,4 @@
-import type { ThemeSummary } from "./theme-types";
+import type { ThemeSummary } from "@/lib/theme-types";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

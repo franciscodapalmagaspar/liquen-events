@@ -1,4 +1,4 @@
-import { PALAVRAS_CERTAS } from "./proposal-ortografia";
+import { PALAVRAS_CERTAS } from "@/lib/proposal-ortografia";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

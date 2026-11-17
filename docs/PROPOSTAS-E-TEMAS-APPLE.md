@@ -66,7 +66,7 @@ E uma decisão do mesmo dia, sobre os Temas: **«sim à sombra, cantos a 12»** 
 | Fazer proposta / estúdio | `src/app/[lang]/(admin)/orcamento/admin/FazerProposta.tsx`, `PainelDoEstudio.tsx`, `NavEstudio.tsx`, `FolhaDaProposta.tsx`, `NotaDaProposta.tsx`, `AEnviarAProposta.tsx`, `DefinicoesProposta.tsx`, `definicoes-da-proposta.ts`, `Propostas.tsx` |
 | PDF da proposta | `src/lib/proposal-pdf.ts`, `src/lib/proposal-doc-pdf.ts`, `src/lib/pdf-text.ts`, `src/lib/proposal-pdf-cache.ts`, `src/app/api/proposta/[token]/pdf/route.ts` |
 | Proposta web (cliente) | `src/app/[lang]/(privado)/proposta/[token]/page.tsx`, `Documento.tsx`, `Inspiracao.tsx`, `Escolhas.tsx`, `MovimentoDaProposta.tsx` |
-| Temas | `src/app/[lang]/(admin)/orcamento/admin/Temas.tsx`, `ListaDeTemas.tsx`, `FundirTemas.tsx`, `prefetch-de-tema.ts`, `src/lib/temas-arrasto.ts`, `src/app/api/temas/**`, `src/app/api/biblioteca/{paletas,fotos,etiquetas,etiquetar}` |
+| Temas | `src/app/[lang]/(admin)/orcamento/admin/Temas.tsx`, `ListaDeTemas.tsx`, `FundirTemas.tsx`, `prefetch-de-tema.ts`, `src/lib/temas/arrasto.ts`, `src/app/api/temas/**`, `src/app/api/biblioteca/{paletas,fotos,etiquetas,etiquetar}` |
 
 ---
 
@@ -229,7 +229,7 @@ Mesmo conteúdo e ordem que o PDF: secções em altura de ecrã, fotos a sangrar
 - **Filtro por cor/paleta** em pílulas.
 - **Temas inteligentes**: Por usar · Usadas em propostas aceites · Recentes · Favoritas (usar `api/temas/uso`).
 - **Inspetor** (⌘I): dimensões, data, etiquetas, em que propostas a foto foi usada.
-- **Arrastar fotos** da biblioteca para uma secção da proposta no estúdio (`src/lib/temas-arrasto.ts`).
+- **Arrastar fotos** da biblioteca para uma secção da proposta no estúdio (`src/lib/temas/arrasto.ts`).
 - **Eliminar tema** só no menu "…", com confirmação que diz quantas fotos e propostas são afetadas; botão destrutivo vermelho, "Cancelar" como predefinido.
 
 ### Estrutura do ecrã

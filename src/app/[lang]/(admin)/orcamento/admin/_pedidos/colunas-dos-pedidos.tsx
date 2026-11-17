@@ -10,7 +10,7 @@ import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
 import PerguntaDeDesfecho from "../PerguntaDeDesfecho";
 import type { Coluna } from "../ui";
 import { eventCountdown } from "../util";
-import { PastilhaDoEstado } from "./estado-do-pedido";
+import { PastilhaDoEstado } from "./PastilhaDoEstado";
 import { EtiquetaPossivelSpam } from "../EtiquetaPossivelSpam";
 
 /**

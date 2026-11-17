@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ThemeSummary } from "./theme-types";
+import type { ThemeSummary } from "@/lib/theme-types";
 import {
   AMBITOS,
   ambitoResponde,
@@ -8,7 +8,7 @@ import {
   eAmbito,
   filtrarPorAmbito,
   type DadosDeUso,
-} from "./temas-filtros";
+} from "./filtros";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -81,9 +81,7 @@ describe("os âmbitos da Biblioteca de Temas", () => {
     expect(ambitoResponde("este-ano", USOS)).toBe(false);
     expect(ambitoResponde("este-ano", { usos: {}, usosEsteAno: { terracotta: 2 } })).toBe(true);
     expect(
-      ids(
-        filtrarPorAmbito(BIBLIOTECA, "este-ano", { usos: {}, usosEsteAno: { terracotta: 2 } }),
-      ),
+      ids(filtrarPorAmbito(BIBLIOTECA, "este-ano", { usos: {}, usosEsteAno: { terracotta: 2 } })),
     ).toEqual(["terracotta"]);
   });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
-import { avisoDeTemaParecido } from "@/lib/temas-parecidos";
+import { avisoDeTemaParecido } from "@/lib/temas/parecidos";
 import { type ThemeSummary } from "@/lib/theme-types";
 import { type PedidoDeMenu } from "../MenuDeContexto";
 import { MenuDeAccoes, type AccaoDeItem } from "../ui";
@@ -21,7 +21,7 @@ export interface ListaDaBibliotecaProps {
   usos: Record<string, number> | null;
   setAFundir: Dispatch<SetStateAction<ThemeSummary | null>>;
   setMenu: Dispatch<SetStateAction<PedidoDeMenu | null>>;
-  accoesDoTema: (t: ThemeSummary, { naPasta }?: { naPasta?: boolean }) => AccaoDeItem[];
+  accoesDoTema: (t: ThemeSummary, opcoes?: { naPasta?: boolean }) => AccaoDeItem[];
   accoesDaBiblioteca: AccaoDeItem[];
   parecidos: Map<string, ThemeSummary[]>;
   cartoesADesenhar: readonly ThemeSummary[];
