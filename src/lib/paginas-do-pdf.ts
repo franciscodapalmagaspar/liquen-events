@@ -302,7 +302,19 @@ export async function textoDasPaginas(
  * de um debaixo do desenho do outro, e contava os bytes duas vezes para o
  * tecto (revisão de 17/11).
  */
-const aDesenhar = new Map<string, Promise<Buffer | null>>();
+const aDesenhar = new Map<string, DesenhoEmCurso>();
+
+/**
+ * Um desenho a meio. O OBJECTO é a identidade da vez: quem o pôs no mapa só o
+ * tira de lá se ainda for o seu — entretanto outro pedido pode ter largado
+ * este e começado um desenho novo da mesma página.
+ */
+type DesenhoEmCurso = { readonly pagina: Promise<Buffer | null> };
+
+/** Tira o desenho do mapa, mas só se ainda for esta vez. */
+function largarSeAindaFor(id: string, vez: DesenhoEmCurso): void {
+  if (aDesenhar.get(id) === vez) aDesenhar.delete(id);
+}
 
 /** A página `n` (a contar de 1) em WebP, ou `null` se não existir. */
 export async function imagemDaPagina(
@@ -325,7 +337,7 @@ export async function imagemDaPagina(
     const emCurso = aDesenhar.get(id);
     if (emCurso) {
       try {
-        return await esperarComSinal(emCurso, signal);
+        return await esperarComSinal(emCurso.pagina, signal);
       } catch (erro) {
         // O desenho partilhado era de outro pedido, que foi cortado na fila
         // ou chegou ao fim do SEU prazo: este continua cá, com o prazo dele
@@ -334,18 +346,20 @@ export async function imagemDaPagina(
           (erro instanceof PedidoCortado && !signal?.aborted) ||
           (erro instanceof SemVagaParaDocumentos && Date.now() < fim);
         if (deOutro) {
-          if (aDesenhar.get(id) === emCurso) aDesenhar.delete(id);
+          largarSeAindaFor(id, emCurso);
           continue;
         }
         throw erro;
       }
     }
-    const desenho = desenharPagina(chave, obterBytes, n, largura, id, signal, fim);
-    aDesenhar.set(id, desenho);
+    const vez: DesenhoEmCurso = {
+      pagina: desenharPagina(chave, obterBytes, n, largura, id, signal, fim),
+    };
+    aDesenhar.set(id, vez);
     try {
-      return await desenho;
+      return await vez.pagina;
     } finally {
-      if (aDesenhar.get(id) === desenho) aDesenhar.delete(id);
+      largarSeAindaFor(id, vez);
     }
   }
 }

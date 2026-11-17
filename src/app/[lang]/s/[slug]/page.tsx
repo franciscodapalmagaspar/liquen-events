@@ -10,7 +10,6 @@ import VideoCiclo from "@/components/meta/VideoCiclo";
 import PedidoRelampago, { RELAMPAGO_PT, RELAMPAGO_EN } from "@/components/meta/PedidoRelampago";
 import { blurFor } from "@/lib/blur";
 import { getDictionary, normalizeLocale } from "@/lib/i18n";
-import { localizeHref } from "@/lib/i18n/config";
 import { SITE } from "@/lib/site";
 import {
   resolverVariante,
