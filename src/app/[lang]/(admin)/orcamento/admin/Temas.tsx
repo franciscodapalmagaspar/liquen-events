@@ -8,8 +8,6 @@ import PhotoLightbox from "./PhotoLightbox";
 import ThemeCopyDialog, { type ThemeCopyOutcome } from "./ThemeCopyDialog";
 import FundirTemas, { type ThemeMergeOutcome } from "./FundirTemas";
 import { temasParecidos } from "@/lib/temas/parecidos";
-import { downloadMany, downloadName } from "./photo-download";
-import { guardarBlob, useDescarga } from "./ui/descarregar";
 import {
   CHECK_CHUNK,
   MAX_PHOTO_ORDER,
@@ -54,6 +52,9 @@ import {
   type CargaDeFotos,
 } from "@/lib/temas/arrasto";
 import { vestirOArrasto } from "./_temas/arrasto";
+import { useColunasDaGrelha } from "./_temas/useColunasDaGrelha";
+import { useDescargasDaPasta } from "./_temas/useDescargasDaPasta";
+import { useLupaDaPasta } from "./_temas/useLupaDaPasta";
 import { ABOVE_FOLD, Photo, objectUrl, revokeUrl } from "./_temas/FotoDaGrelha";
 import { MAX_DROP_FILES, expandDropEntries, isImageFile } from "./_temas/largar-pastas";
 import { pool } from "@/lib/concorrencia";
@@ -3188,12 +3189,9 @@ function ThemeFolder({
   const otherThemes = useMemo(() => themes.filter((t) => t.id !== theme.id), [themes, theme.id]);
   // Ver uma foto em grande. `null` = fechado. Guarda-se também o elemento que
   // estava focado, para o foco voltar ao mosaico de onde se abriu.
-  const [zoomAt, setZoomAt] = useState<number | null>(null);
   /** O menu do botão direito desta pasta — um só, como na lista de temas. */
   const [menuDaFoto, setMenuDaFoto] = useState<PedidoDeMenu | null>(null);
   const fecharMenuDaFoto = useCallback(() => setMenuDaFoto(null), []);
-  const zoomOpener = useRef<HTMLElement | null>(null);
-  const [downloading, setDownloading] = useState(false);
 
   /**
    * ── DE ONDE É QUE A LUPA CRESCE ────────────────────────────────────────
@@ -3210,99 +3208,18 @@ function ThemeFolder({
    */
   const celulas = useRef(new Map<number, HTMLElement>());
 
-  /* ════════════════════════════════════════════════════════════════════════
-     A GRELHA PELO TECLADO — fase 11 (`docs/APPLE-TEMAS.md`, Parte 7)
-     ════════════════════════════════════════════════════════════════════════
-
-     O desenho do Calendário (`diaPelaTecla`): a grelha é UM sítio no fio do
-     Tab, e lá dentro as setas andam. Sessenta fotos eram sessenta paragens do
-     Tab — mais sessenta «⋯» — antes de se chegar ao que vem depois.
-
-     As colunas MEDEM-SE: o `GRELHA_DE_FOTOS` é `auto-fill`, e o número muda
-     com a largura da caixa (2 no telemóvel, 4 a 6 no computador). O browser
-     já fez a conta — o `grid-template-columns` calculado traz uma largura por
-     coluna —, e é essa conta que se lê. Sem `ResizeObserver` (jsdom) fica o 2
-     da base, que é o que a classe diz antes de qualquer `@container`. */
-  const grelha = useRef<HTMLDivElement | null>(null);
-  const [colunas, setColunas] = useState(2);
-  const [fotoComFoco, setFotoComFoco] = useState(0);
   const semFotos = images.length === 0;
-  useEffect(() => {
-    const el = grelha.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const medir = () => {
-      // `none` é o que o jsdom (e uma caixa sem `display: grid`) responde: não
-      // é uma coluna, é a ausência de grelha — fica o que estava.
-      const v = getComputedStyle(el).gridTemplateColumns;
-      if (!v || v === "none") return;
-      const n = v.split(" ").filter(Boolean).length;
-      if (n > 0) setColunas(n);
-    };
-    medir();
-    const ro = new ResizeObserver(medir);
-    ro.observe(el);
-    return () => ro.disconnect();
-    // A grelha só existe depois de carregar e com fotos: é quando ela aparece
-    // (e não a cada foto) que há uma caixa nova a medir.
-  }, [loading, semFotos]);
-  const [origemDaLupa, setOrigemDaLupa] = useState<DOMRect | null>(null);
-  const openZoom = useCallback((i: number) => {
-    zoomOpener.current = document.activeElement as HTMLElement | null;
-    const celula = celulas.current.get(i);
-    setOrigemDaLupa(celula?.getBoundingClientRect() ?? null);
-    setZoomAt(i);
-  }, []);
-  const closeZoom = useCallback(() => {
-    setZoomAt(null);
-    // O foco volta de onde veio; sem isto ficava no <body> e o teclado perdia-se.
-    zoomOpener.current?.focus?.();
-  }, []);
+  const { grelha, colunas, fotoComFoco, setFotoComFoco } = useColunasDaGrelha(loading, semFotos);
+  const { zoomAt, setZoomAt, origemDaLupa, openZoom, closeZoom } = useLupaDaPasta(celulas);
 
-  /** Transfere uma foto (a do visualizador ou a de um mosaico). */
-  // Uma foto é um original de vários MB: passa pelo `useDescarga`, que conta
-  // os bytes à medida que chegam (o visualizador mostra-os no botão).
-  const umaFoto = useDescarga();
-  const downloadImage = useCallback(
-    async (im: ThemeImage, i: number) => {
-      try {
-        const { blob } = await umaFoto.obter(im.url);
-        // O nome é o NOSSO (tema + número), não o do armazenamento.
-        guardarBlob(blob, downloadName(im, theme.name, i));
-      } catch {
-        toast("Não foi possível transferir a foto.", "error");
-      }
-    },
-    [theme.name, toast, umaFoto],
-  );
-
-  /** Transfere as fotos selecionadas, uma de cada vez (ver photo-download.ts). */
-  const downloadSelected = useCallback(async () => {
-    const chosen = images.map((im, i) => ({ im, i })).filter(({ im }) => selected.has(im.path));
-    if (chosen.length === 0) return;
-    setDownloading(true);
-    // O `downloadMany` já contava — e o `() => {}` que estava aqui deitava a
-    // conta fora. Quarenta fotos são um a dois minutos: sem isto, o que ela vê
-    // é um botão parado.
-    setEmBloco({ tipo: "transferir", feito: 0, total: chosen.length });
-    const res = await downloadMany(
-      chosen.map(({ im, i }) => ({ url: im.url, filename: downloadName(im, theme.name, i) })),
-      (p) => {
-        if (alive.current) setEmBloco({ tipo: "transferir", feito: p.done, total: p.total });
-      },
-    );
-    if (alive.current) setEmBloco(null);
-    setDownloading(false);
-    if (res.failed > 0) {
-      toast(
-        res.failed === res.total
-          ? "Não foi possível transferir as fotos."
-          : `${res.total - res.failed} de ${res.total} transferidas.`,
-        "error",
-      );
-    } else {
-      toast(plural(res.done, "foto transferida", "fotos transferidas"), "success");
-    }
-  }, [images, selected, theme.name, toast]);
+  const { umaFoto, downloading, downloadImage, downloadSelected } = useDescargasDaPasta({
+    images,
+    selected,
+    nomeDoTema: theme.name,
+    toast,
+    alive,
+    setEmBloco,
+  });
   const pct =
     progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
   /**
