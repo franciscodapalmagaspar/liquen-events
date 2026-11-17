@@ -44,12 +44,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Temas from "./Temas";
 import { fonteDe } from "./fonte-do-admin.testkit";
-// As puras e as constantes saíram do `Temas.tsx` na fase 8 da estrutura do
-// código; os testes importam-nas da casa nova, sem porta de reexportação.
-import { mergePage, moveItem, reinsertAt } from "@/lib/temas/listas-de-fotos";
-import { desdeQuando, fraseDeEliminar } from "@/lib/temas/textos-dos-temas";
+// As constantes da grelha saíram do `Temas.tsx` na fase 8 da estrutura do
+// código; os testes das funções puras vivem ao lado delas, em `lib/temas/`.
 import { GRELHA_DE_FOTOS, PISO_DA_CELULA_PX } from "./_temas/grelha-de-fotos";
-import { contarFotosDaBiblioteca, ordenarTemas, temPoucasFotos } from "@/lib/temas/ordem";
 import { COLUNAS } from "./_temas/pele-da-biblioteca";
 
 /**
@@ -2275,67 +2272,6 @@ describe("Biblioteca de Temas — seleção e ações em bloco", () => {
   });
 });
 
-describe("reordenar fotos à mão", () => {
-  it("tira a foto de onde está e põe-na onde deve ficar", () => {
-    expect(moveItem(["a", "b", "c", "d"], 2, 0)).toEqual(["c", "a", "b", "d"]);
-    expect(moveItem(["a", "b", "c", "d"], 0, 3)).toEqual(["b", "c", "d", "a"]);
-    expect(moveItem(["a", "b", "c"], 1, 1)).toEqual(["a", "b", "c"]);
-  });
-
-  it("nunca perde nem duplica uma foto", () => {
-    const list = ["a", "b", "c", "d", "e"];
-    for (let from = 0; from < list.length; from++) {
-      for (let to = 0; to < list.length; to++) {
-        const moved = moveItem(list, from, to);
-        expect([...moved].sort()).toEqual([...list].sort());
-        expect(moved).toHaveLength(list.length);
-      }
-    }
-  });
-
-  it("devolve a lista intacta para índices fora dela", () => {
-    const list = ["a", "b"];
-    expect(moveItem(list, -1, 0)).toBe(list);
-    expect(moveItem(list, 0, 5)).toBe(list);
-  });
-});
-
-describe("ajudantes puros da grelha", () => {
-  const a = photo(1);
-  const b = photo(2);
-  const c = photo(3);
-
-  it("mergePage não duplica o que já está na grelha", () => {
-    // Acontece de verdade: enquanto sobem fotos, a lista do servidor desloca-se
-    // e a página seguinte pode trazer de volta alguma que já mostramos.
-    expect(mergePage([a, b], [b, c])).toEqual([a, b, c]);
-    expect(mergePage([], [a])).toEqual([a]);
-  });
-
-  it("mergePage ignora entradas sem caminho", () => {
-    expect(mergePage([a], [{ path: "", url: "x" }])).toEqual([a]);
-  });
-
-  it("reinsertAt repõe cada foto no índice onde estava", () => {
-    const positions = new Map([
-      [a.path, 0],
-      [b.path, 1],
-      [c.path, 2],
-    ]);
-    expect(reinsertAt([b], [a, c], positions)).toEqual([a, b, c]);
-  });
-
-  it("reinsertAt não repete uma foto que já lá está", () => {
-    const positions = new Map([[a.path, 0]]);
-    expect(reinsertAt([a, b], [a], positions)).toEqual([a, b]);
-  });
-
-  it("reinsertAt aguenta um índice que já não existe na lista encolhida", () => {
-    const positions = new Map([[c.path, 9]]);
-    expect(reinsertAt([a], [c], positions)).toEqual([a, c]);
-  });
-});
-
 // ── NÃO REPETIR FOTOS QUE JÁ ESTÃO NO TEMA ─────────────────────────────────
 //
 // O pedido dela, pelas palavras dela: "quando eu adicionar fotos ele perceber
@@ -2803,144 +2739,6 @@ describe("Biblioteca de Temas — copiar e mover fotos entre temas", () => {
     // O diálogo fica aberto, com a razão à vista — e a grelha intacta.
     expect(screen.getByText("Não foi possível copiar as fotos.")).toBeInTheDocument();
     expect(photos()).toHaveLength(5);
-  });
-});
-
-describe("Biblioteca de Temas — ordem dos cartões", () => {
-  const tema = (over: Partial<ThemeSummary>): ThemeSummary => ({ ...THEME, ...over });
-  const nomes = (lista: ThemeSummary[]) => lista.map((t) => t.name);
-
-  const A = tema({ id: "a", name: "Alfa", updatedAt: "2026-01-01T00:00:00.000Z", imageCount: 5 });
-  const B = tema({ id: "b", name: "Beta", updatedAt: "2026-06-01T00:00:00.000Z", imageCount: 1 });
-  const C = tema({ id: "c", name: "Gama", updatedAt: "2026-03-01T00:00:00.000Z", imageCount: 9 });
-
-  it("A–Z, por data e por nº de fotos", () => {
-    expect(nomes(ordenarTemas([C, A, B], "alfabetica"))).toEqual(["Alfa", "Beta", "Gama"]);
-    expect(nomes(ordenarTemas([A, B, C], "recentes"))).toEqual(["Beta", "Gama", "Alfa"]);
-    expect(nomes(ordenarTemas([A, B, C], "fotos"))).toEqual(["Gama", "Alfa", "Beta"]);
-  });
-
-  /**
-   * O que FIXAR quer dizer: um tema que se usa em quase todas as propostas não
-   * pode mudar de sítio porque se ordenou por data. Sem isto, "fixar" era só
-   * uma estrela desenhada.
-   */
-  it("um favorito vem à frente seja qual for a ordem", () => {
-    const fixado = { ...C, favorito: true };
-    for (const ordem of ["alfabetica", "recentes", "fotos"] as const) {
-      expect(nomes(ordenarTemas([A, B, fixado], ordem))[0]).toBe("Gama");
-    }
-  });
-
-  /**
-   * Uma pasta ilegível não sabe quantas fotos tem. Contá-la como zero punha-a
-   * atrás de um tema com uma foto — ou seja, escondia no fim da lista
-   * precisamente o tema que tem um problema.
-   */
-  it("uma pasta por ler fica no fim de 'com mais fotos', não à frente do 1 foto", () => {
-    const ilegivel = tema({ id: "x", name: "Xis", imageCount: null });
-    expect(nomes(ordenarTemas([ilegivel, B], "fotos"))).toEqual(["Beta", "Xis"]);
-  });
-
-  it("não mexe na lista que recebe", () => {
-    const original = [C, A, B];
-    ordenarTemas(original, "alfabetica");
-    expect(nomes(original)).toEqual(["Gama", "Alfa", "Beta"]);
-  });
-});
-
-describe("desdeQuando", () => {
-  const agora = Date.parse("2026-08-05T12:00:00.000Z");
-  const dias = (n: number) => new Date(agora - n * 86_400_000).toISOString();
-
-  it("fala como se fala", () => {
-    expect(desdeQuando(dias(0), agora)).toBe("hoje");
-    expect(desdeQuando(dias(1), agora)).toBe("ontem");
-    expect(desdeQuando(dias(9), agora)).toBe("há 9 dias");
-    expect(desdeQuando(dias(29), agora)).toBe("há 29 dias");
-  });
-
-  /**
-   * Fase 02, ponto 13: «a partir de 30 dias mostra a data». Era «há 2 meses» e
-   * «há 1 ano» — dois temas com «há 1 ano» podiam estar onze meses afastados.
-   * Mudou de propósito; o formato é o da casa, `DD/MM/AAAA`.
-   */
-  it("a partir de 30 dias diz a data, e não «há N meses»", () => {
-    expect(desdeQuando(dias(30), agora)).toBe("06/07/2026");
-    expect(desdeQuando(dias(60), agora)).toBe("06/06/2026");
-    expect(desdeQuando(dias(400), agora)).toBe("01/07/2025");
-  });
-
-  /** Um relógio trocado (ou uma escrita acabada de acontecer) não pode produzir
-   *  "há -2 dias" no cartão. */
-  it("uma data no futuro conta como hoje", () => {
-    expect(desdeQuando(new Date(agora + 86_400_000).toISOString(), agora)).toBe("hoje");
-  });
-
-  it("sem data, ou com lixo, não diz nada", () => {
-    expect(desdeQuando(undefined, agora)).toBe("");
-    expect(desdeQuando("ontem à tarde", agora)).toBe("");
-  });
-});
-
-// ── Bloco 9: os números da biblioteca ──────────────────────────────────────
-
-describe("contarFotosDaBiblioteca", () => {
-  const t = (imageCount: number | null) => ({ imageCount }) as never;
-
-  it("soma as fotos e conta os temas", () => {
-    expect(contarFotosDaBiblioteca([t(10), t(4), t(0)])).toEqual({
-      fotos: 14,
-      temas: 3,
-      ilegiveis: 0,
-      porContar: 0,
-    });
-  });
-
-  it("uma pasta ilegível NÃO conta como zero — conta como desconhecida", () => {
-    // Somá-la a zero em silêncio dava uma biblioteca mais pequena do que é, e
-    // é assim que alguém conclui que faltam fotos e as volta a carregar.
-    expect(contarFotosDaBiblioteca([t(10), t(null), t(4)])).toEqual({
-      fotos: 14,
-      temas: 3,
-      ilegiveis: 1,
-      porContar: 0,
-    });
-  });
-
-  it("aguenta uma biblioteca vazia", () => {
-    expect(contarFotosDaBiblioteca([])).toEqual({
-      fotos: 0,
-      temas: 0,
-      ilegiveis: 0,
-      porContar: 0,
-    });
-  });
-
-  it("um tema por contar (milhares de temas, 9/11) não é uma pasta ilegível", () => {
-    // Acima de 150 temas, a contagem dos últimos chega depois: até lá o tema
-    // está «por contar», e o total diz-se como mínimo — nunca como avaria.
-    const porContar = { imageCount: null, resumoPendente: true } as never;
-    expect(contarFotosDaBiblioteca([t(10), porContar, t(4)])).toEqual({
-      fotos: 14,
-      temas: 3,
-      ilegiveis: 0,
-      porContar: 1,
-    });
-  });
-});
-
-describe("temPoucasFotos", () => {
-  it("avisa abaixo de três — o que não chega para ESCOLHER", () => {
-    expect(temPoucasFotos({ imageCount: 0 })).toBe(true);
-    expect(temPoucasFotos({ imageCount: 2 })).toBe(true);
-    expect(temPoucasFotos({ imageCount: 3 })).toBe(false);
-    expect(temPoucasFotos({ imageCount: 40 })).toBe(false);
-  });
-
-  it("cala-se quando não se sabe quantas são", () => {
-    // Um aviso a partir do que não se sabe é um aviso errado.
-    expect(temPoucasFotos({ imageCount: null })).toBe(false);
   });
 });
 
@@ -3821,31 +3619,6 @@ describe("Biblioteca de Temas — os menus da Fase 2", () => {
  * «as propostas já feitas com estas fotos não são afectadas» — sem número.
  */
 describe("Biblioteca de Temas — eliminar diz quantas fotos e propostas", () => {
-  it("as frases, no singular e no plural, e os casos sem número", () => {
-    expect(fraseDeEliminar({ imageCount: 5 }, 2)).toEqual({
-      fotos: "Leva 5 fotografias com ele.",
-      propostas: "Está em 2 propostas — essas guardam as fotos que usam e não mudam.",
-    });
-    expect(fraseDeEliminar({ imageCount: 1 }, 1)).toEqual({
-      fotos: "Leva 1 fotografia com ele.",
-      propostas: "Está em 1 proposta — essa guarda as fotos que usa e não muda.",
-    });
-    // Nenhuma proposta: não há nada a dizer sobre elas.
-    expect(fraseDeEliminar({ imageCount: 5 }, 0).propostas).toBeNull();
-    // A contagem truncada é um mínimo; a pasta ilegível não tem número.
-    expect(fraseDeEliminar({ imageCount: 500, truncated: true }, 0).fotos).toBe(
-      "Leva 500+ fotografias com ele.",
-    );
-    expect(fraseDeEliminar({ imageCount: null }, 0).fotos).toBe(
-      "As fotografias que estiverem lá dentro vão com ele.",
-    );
-    expect(fraseDeEliminar({ imageCount: 0 }, 0).fotos).toMatch(/vazia/);
-    // Sem a contagem de usos, fica a frase de antes — que continua verdadeira.
-    expect(fraseDeEliminar({ imageCount: 5 }, null).propostas).toBe(
-      "As propostas já feitas com estas fotos não são afectadas.",
-    );
-  });
-
   it("a confirmação mostra N fotografias e M propostas, e que fica na Reciclagem", async () => {
     route("GET /api/temas", () => ok([{ ...THEME, imageCount: 7 }]));
     route("GET /api/temas/uso", () => ok({ ok: true, usos: { t1: 3 } }));
