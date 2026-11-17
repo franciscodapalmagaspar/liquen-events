@@ -108,8 +108,41 @@ describe("o service worker, ao «Sair»", () => {
   });
 
   it("ouve o pedido da página", () => {
-    expect(fonte).toMatch(/addEventListener\("message"/);
+    expect(fonte).toMatch(/addEventListener\("message", aoReceberMensagem\)/);
     expect(fonte).toContain('"limpar-back-office"');
+  });
+
+  describe("só aceita o pedido de uma página da mesma origem (CodeQL, lote de 17/11)", () => {
+    function receber(evento: { origin: string; data: unknown }) {
+      const limpar = vi.fn(async () => undefined);
+      const esperas: Promise<unknown>[] = [];
+      const aoReceber = new Function(
+        "self",
+        "limparCachesDoBackOffice",
+        `${corpo("aoReceberMensagem")}\nreturn aoReceberMensagem;`,
+      )({ location: new URL(`${ORIGEM}/sw.js`) }, limpar) as (e: unknown) => void;
+      aoReceber({ ...evento, waitUntil: (p: Promise<unknown>) => esperas.push(p) });
+      return { limpar, esperas };
+    }
+
+    it("da mesma origem: limpa", () => {
+      const { limpar, esperas } = receber({ origin: ORIGEM, data: { tipo: "limpar-back-office" } });
+      expect(limpar).toHaveBeenCalledTimes(1);
+      expect(esperas).toHaveLength(1);
+    });
+
+    it("de outra origem, ou sem origem: não faz nada", () => {
+      for (const origin of ["https://outro.example", "", "null"]) {
+        const { limpar, esperas } = receber({ origin, data: { tipo: "limpar-back-office" } });
+        expect(limpar, origin).not.toHaveBeenCalled();
+        expect(esperas, origin).toHaveLength(0);
+      }
+    });
+
+    it("da mesma origem, mas com outro pedido: não faz nada", () => {
+      const { limpar } = receber({ origin: ORIGEM, data: { tipo: "outra-coisa" } });
+      expect(limpar).not.toHaveBeenCalled();
+    });
   });
 });
 
