@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
+import { createHash } from "node:crypto";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -120,12 +121,15 @@ function pedido(body: unknown): NextRequest {
   }) as unknown as NextRequest;
 }
 
-/** Quantos envios estão contados para esta conta (a chave é a da rota). */
+/** A chave do tecto de uma conta: pelo RESUMO do endereço, nunca o endereço. */
+function chaveDaConta(email: string): string {
+  const resumo = createHash("sha256").update(email.trim().toLowerCase(), "utf8").digest("hex");
+  return `recuperar-conta:${resumo.slice(0, 32)}`;
+}
+
+/** Quantos envios estão contados para esta conta. */
 function contaDaConta(email: string): number {
-  const chave = [...rl.contagens.keys()].find(
-    (k) => k.startsWith("recuperar-conta:") && rl.chamadas.includes(k) && k.includes(email),
-  );
-  return chave ? (rl.contagens.get(chave) ?? 0) : 0;
+  return rl.contagens.get(chaveDaConta(email)) ?? 0;
 }
 
 const KEYS = ["ADMIN_USERS", "SESSION_SECRET"];
@@ -254,13 +258,35 @@ describe("POST /api/admin/recuperar — tectos", () => {
     ).toBe("definida");
     // A chave é a da conta, sem o endereço de origem. O 4.º pedido também
     // incrementa (a reserva é atómica: é o INCR que diz que já não cabe).
-    expect(rl.contagens.get("recuperar-conta:catarina@liquen-events.com")).toBe(4);
+    expect(contaDaConta("catarina@liquen-events.com")).toBe(4);
     expect([...rl.contagens.keys()].some((k) => k.includes("recuperar-conta:test-ip"))).toBe(false);
   });
 
   it("pedidos sem envio (endereço que não existe) não gastam o tecto de conta nenhuma", async () => {
-    for (let i = 0; i < 5; i++) await POST(pedido({ email: "ninguem@exemplo.pt" }));
-    expect(rl.contagens.has("recuperar-conta:ninguem@exemplo.pt")).toBe(false);
+    for (let i = 0; i < 5; i++) {
+      await POST(pedido({ email: "ninguem@exemplo.pt" }));
+      await correrDepois();
+    }
+    expect(contaDaConta("ninguem@exemplo.pt")).toBe(0);
+  });
+
+  it("a MESMA ida ao Upstash para um endereço real e um inventado (revisão de 16/11, n.º 3)", async () => {
+    // Só com conta é que se ia ao Upstash, e essa ida separava as duas pelo
+    // tempo. Agora qualquer endereço com «@» faz a mesma reserva, numa chave
+    // pelo resumo do endereço; a de quem não existe volta depois da resposta.
+    const idasDentro = async (email: string) => {
+      rl.chamadas = [];
+      await POST(pedido({ email }));
+      const n = rl.chamadas.filter((k) => k.startsWith("recuperar-conta:")).length;
+      await correrDepois();
+      return n;
+    };
+    expect(await idasDentro("ninguem@exemplo.pt")).toBe(
+      await idasDentro("catarina@liquen-events.com"),
+    );
+    expect(await idasDentro("ninguem@exemplo.pt")).toBe(1);
+    // O endereço em claro não vai para o Upstash.
+    expect([...rl.contagens.keys()].some((k) => k.includes("@"))).toBe(false);
   });
 
   it("SMTP por configurar, ou em baixo: nada saiu, nada se conta", async () => {

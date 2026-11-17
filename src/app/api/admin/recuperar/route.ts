@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse, after } from "next/server";
 import { pedirRecuperacao, normalizarIdentificador } from "@/lib/admin-auth";
 import { VALIDADE_MS } from "@/lib/admin-recuperacao";
@@ -57,18 +58,22 @@ const NEUTRA =
 /**
  * Piso de tempo de resposta, em milissegundos.
  *
- * 300 ms cobre com folga o que sobrou dentro da resposta depois de o email ter
- * saído para o `after` — uma leitura e uma escrita no `app_state`, que numa
- * ligação normal ao Supabase andam pelos 40–120 ms. Era 900 ms enquanto o envio
- * do email era esperado aqui dentro; deixou de precisar de ser tão alto, e
- * baixar não custa nada a quem espera pelo ecrã.
+ * O que fica dentro da resposta depois de o email ter saído para o `after`:
+ * uma leitura e uma escrita no `app_state` (40–120 ms cada, numa ligação
+ * normal ao Supabase), a reserva no tecto da conta (um INCR no Upstash,
+ * 20–80 ms — revisão de 16/11, n.º 3) e, quando a escrita falha, a devolução
+ * (outro pedido ao Upstash). Somado, o caso normal mais lento anda pelos
+ * 400 ms; 700 ms cobre-o com folga. (Era 900 ms enquanto o envio do email era
+ * esperado aqui dentro, e 300 ms antes de a reserva passar para cá.) Uma base
+ * de dados pendurada passa de qualquer piso — mas pendura-se para os dois
+ * casos por igual.
  *
  * O piso não é decoração: sem ele, o ramo com conta (que ainda gera um token e
  * escreve mais um campo) e o ramo sem conta separavam-se por alguns
  * milissegundos consistentes — pouco para um cronómetro de browser, suficiente
  * para uma média de mil pedidos.
  */
-const PISO_MS = 300;
+const PISO_MS = 700;
 
 async function esperarAtePiso(inicio: number): Promise<void> {
   const falta = PISO_MS - (Date.now() - inicio);
@@ -112,7 +117,10 @@ export async function POST(request: NextRequest) {
    * a pedir, não sobre a conta, e não deixa ninguém fechar a porta a outro.
    */
   const chaveConta = normalizarIdentificador(email);
-  const CHAVE_DA_CONTA = `recuperar-conta:${chaveConta}`;
+  // Pelo RESUMO do endereço: a chave existe para qualquer endereço com «@»
+  // (n.º 3 de 16/11), e um endereço escrito por quem quer que seja não vai em
+  // claro para o Upstash.
+  const CHAVE_DA_CONTA = `recuperar-conta:${createHash("sha256").update(chaveConta, "utf8").digest("hex").slice(0, 32)}`;
   const TECTO_DA_CONTA = 3;
   const porIp = await rateLimit(`recuperar-ip:${ip}`, 5, 60 * 60_000, { global: true });
   if (!porIp.ok) {
@@ -132,19 +140,28 @@ export async function POST(request: NextRequest) {
   }
 
   // O tecto da conta conta-se NO MOMENTO DA DECISÃO, de forma atómica (um
-  // INCR), e só quando o endereço é de uma conta — ver `reservarEnvio`. Antes
-  // perguntava-se aqui e contava-se depois do SMTP, e uma rajada de pedidos ao
-  // mesmo tempo passava toda a pergunta (revisão de 16/11, n.º 1). Acima do
-  // tecto não se emite ligação nem se envia; a resposta é a neutra.
-  // Um lugar reservado que não deu email volta (revisão de 16/11, n.º 2).
-  const devolverEnvio = () => devolverTentativa(CHAVE_DA_CONTA, { global: true });
-  const resultado = await pedirRecuperacao(email, {
-    reservarEnvio: async () =>
-      (await rateLimit(CHAVE_DA_CONTA, TECTO_DA_CONTA, 60 * 60_000, { global: true })).ok,
-    devolverEnvio,
-  });
+  // INCR): uma rajada de pedidos ao mesmo tempo não passa dele (revisão de
+  // 16/11, n.º 1). E faz-se para QUALQUER endereço com «@», existindo ou não
+  // (n.º 3): se só as contas reais fossem ao Upstash, essa ida separava-as
+  // pelo tempo. Acima do tecto não se emite ligação nem se envia; a resposta é
+  // a neutra.
+  //
+  // Um lugar reservado que não deu email VOLTA (n.º 2): quando a leitura ou a
+  // escrita do registo falham (aqui, dentro da resposta, igual para os dois
+  // casos), quando o endereço não é de ninguém e quando o SMTP não envia (no
+  // `after`, fora da resposta).
+  const reserva = await rateLimit(CHAVE_DA_CONTA, TECTO_DA_CONTA, 60 * 60_000, { global: true });
+  const devolverEnvio = () =>
+    reserva.ok ? devolverTentativa(CHAVE_DA_CONTA, { global: true }) : Promise.resolve();
+  const resultado = await pedirRecuperacao(email, { podeEmitir: reserva.ok });
   if (resultado.estado === "acima-do-tecto") {
     log.warn("recuperação: conta com o tecto de emails — nada enviado", { ip });
+  }
+  if (resultado.estado === "sem-persistencia" || resultado.estado === "sem-recuperacao") {
+    await devolverEnvio().catch(() => undefined);
+  }
+  if (resultado.estado === "sem-conta") {
+    after(() => devolverEnvio().catch(() => undefined));
   }
 
   if (resultado.estado === "sem-recuperacao") {

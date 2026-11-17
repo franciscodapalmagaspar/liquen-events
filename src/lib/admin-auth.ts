@@ -732,18 +732,12 @@ export type ResultadoDoPedido =
 
 export interface OpcoesDoPedido {
   /**
-   * Reserva um envio no tecto da conta, de forma ATÓMICA (um INCR), e diz se
-   * ainda cabe. Chamada só quando o endereço é de uma conta, e ANTES de emitir
-   * a ligação — é isto que faz uma rajada de pedidos ao mesmo tempo não passar
-   * do tecto (n.º 1 da revisão de 16/11).
+   * Ainda cabe um envio no tecto desta conta? Quem chama RESERVA o lugar antes
+   * (um INCR atómico, para qualquer endereço com «@» — revisões de 16/11, n.º 1
+   * e n.º 3) e diz aqui o resultado. `false`: não se emite ligação nem se
+   * envia. Quem chama devolve a reserva quando nenhum email chega a sair.
    */
-  reservarEnvio?: () => Promise<boolean>;
-  /**
-   * Devolve a reserva quando, afinal, nada vai sair: a leitura ou a escrita do
-   * registo falharam (revisão de 16/11, n.º 2). Quem chama devolve também
-   * quando o SMTP não envia.
-   */
-  devolverEnvio?: () => Promise<void>;
+  podeEmitir?: boolean;
 }
 
 /**
@@ -791,7 +785,7 @@ export async function pedirRecuperacao(
    */
   // Acima do tecto não se emite nada, mas a escrita (sem pedido novo) faz-se
   // na mesma: é o que mantém a resposta igual à de um endereço desconhecido.
-  const cabe = conta ? (opcoes.reservarEnvio ? await opcoes.reservarEnvio() : true) : false;
+  const cabe = opcoes.podeEmitir ?? true;
   const token = conta && cabe ? novoToken() : null;
 
   // Escrita CONDICIONAL (n.º 4 de 16/11): ver `mudarRegisto`. Sem conseguir ler
@@ -818,9 +812,6 @@ export async function pedirRecuperacao(
     log.error("recuperação: não foi possível guardar o pedido", undefined, {
       motivo: escrita.estado,
     });
-    // Nenhuma ligação ficou guardada, portanto nenhum email vai sair: o lugar
-    // reservado no tecto volta.
-    if (token) await opcoes.devolverEnvio?.();
     return { estado: "sem-persistencia" };
   }
 
