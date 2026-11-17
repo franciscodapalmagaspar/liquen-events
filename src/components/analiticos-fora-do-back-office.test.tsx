@@ -170,7 +170,9 @@ describe("GoogleTag — nada de gtag dentro do back office", () => {
 
   it("continua montado no formulário público de orçamento", () => {
     // O controlo positivo que impede este ficheiro de passar por o gtag não
-    // montar em lado nenhum — e a fronteira que interessa mesmo.
+    // montar em lado nenhum — e a fronteira que interessa mesmo. Com «Aceitar»:
+    // sem ele a biblioteca não entra em lado nenhum (auditoria legal, 17/11).
+    localStorage.setItem("liquen-consent", "granted");
     for (const p of MEDIDOS) {
       pathname.value = p;
       render(<GoogleTag />);

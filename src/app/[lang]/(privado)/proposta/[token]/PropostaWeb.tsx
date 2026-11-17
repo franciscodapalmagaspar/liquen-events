@@ -4,6 +4,7 @@ import type { FormaDaCelula } from "@/lib/proposta-web/mosaico";
 import PropostaWebViva from "./PropostaWebViva";
 import RevealText from "@/components/motion/RevealText";
 import { IconeInstagram, IconeLinkedIn } from "@/components/IconesDasRedes";
+import LivroDeReclamacoes from "@/components/LivroDeReclamacoes";
 import { fatorParaCobrir, sizesParaCobrir } from "@/lib/proposta-web/tamanhos";
 
 /**
@@ -673,6 +674,17 @@ export default function PropostaWeb({
             </a>
           ) : null}
         </div>
+        {/* O Livro de Reclamações Eletrónico (auditoria legal, 17/11): é
+            obrigatório em todas as páginas, e esta não monta o rodapé do
+            sítio. A mesma peça do rodapé, em silhueta clara, discreta, por
+            baixo das redes. É uma ligação, não um pedido: não fala com
+            ninguém enquanto não for tocada (`zero-rastreio.test.ts`). */}
+        <LivroDeReclamacoes
+          rotulo={t.livroReclamacoes.nome}
+          novaJanela={t.livroReclamacoes.novaJanela}
+          altura={36}
+          className="pw-livro"
+        />
       </footer>
     </div>
   );

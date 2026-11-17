@@ -1,4 +1,5 @@
 import { carregarGtag } from "@/components/GoogleTag";
+import { temConsentimento } from "@/lib/meta/consentimento";
 
 /**
  * Fire the Google "lead" conversion event (Google Ads via the linked GA4
@@ -7,9 +8,9 @@ import { carregarGtag } from "@/components/GoogleTag";
  *
  * Sends the GA4 recommended `generate_lead` event through the Google tag (see
  * GoogleTag.tsx). The tag routes it to the linked GA4 property, where it's
- * marked a key event and imported into Google Ads as the conversion. Consent
- * Mode decides whether it's cookie-based or a cookieless modeled ping, so this
- * is always safe to call — no consent check needed here.
+ * marked a key event and imported into Google Ads as the conversion. ONLY
+ * with «Aceitar» (auditoria legal, 17/11): without consent nothing is queued
+ * or loaded — not even the cookieless modelled ping.
  *
  * Completely inert if the tag never loaded (`window.gtag` undefined), so it's
  * a no-op with no analytics configured. `dedupeKey` (the quote id) guards
@@ -43,9 +44,9 @@ function normalizePhone(raw: string): string {
  * email/phone to the Google tag via `gtag('set', 'user_data', …)` BEFORE the
  * event. The tag hashes it client-side (SHA-256) so Google can match the
  * conversion to the ad click far more reliably — the single biggest lever for
- * smart-bidding performance. Gated on the stored consent choice because this is
- * (hashed) contact data leaving to Google; with consent denied we send only the
- * plain, cookieless modelled conversion (no user data).
+ * smart-bidding performance. Without consent nothing at all is sent; if the
+ * visitor taps «Aceitar» later on the same page, the conversion is reported
+ * then (one listener, removed after the first choice).
  *
  * Inert if the tag never loaded. `dedupeKey` (the quote id) prevents a refresh
  * or re-open from double-counting within the tab.
@@ -54,6 +55,20 @@ export function reportLeadConversion(dedupeKey?: string, user?: LeadUserData): v
   if (typeof window === "undefined") return;
   const gtag = (window as unknown as { gtag?: Gtag }).gtag;
   if (typeof gtag !== "function") return;
+
+  // Sem «Aceitar», nada vai para a Google — nem a conversão sem cookies
+  // (auditoria legal, 17/11). Antes, esta função carregava a biblioteca à
+  // força e o `generate_lead` saía com `gcs=G100` depois de «Recusar». Se a
+  // pessoa aceitar a seguir, nesta mesma página, a conversão segue nessa
+  // altura; uma recusa desliga a espera.
+  if (!temConsentimento()) {
+    const aoEscolher = () => {
+      window.removeEventListener("liquen:consent-changed", aoEscolher);
+      if (temConsentimento()) reportLeadConversion(dedupeKey, user);
+    };
+    window.addEventListener("liquen:consent-changed", aoEscolher);
+    return;
+  }
 
   if (dedupeKey) {
     try {
@@ -66,16 +81,8 @@ export function reportLeadConversion(dedupeKey?: string, user?: LeadUserData): v
   }
 
   // Enhanced Conversions — only with explicit consent (hashed contact data to
-  // Google). Consent Mode's ad_user_data signal already reflects this choice;
-  // we additionally refuse to even provide the data unless the stored choice is
-  // "granted", so a denied or not-yet-decided visitor never has contact data set.
-  let consented = false;
-  try {
-    consented = localStorage.getItem("liquen-consent") === "granted";
-  } catch {
-    /* storage blocked — treat as not consented */
-  }
-  if (consented && user && (user.email || user.phone)) {
+  // Google); the early return above already guarantees it.
+  if (user && (user.email || user.phone)) {
     const userData: Record<string, string> = {};
     if (user.email) userData.email = user.email.trim().toLowerCase();
     if (user.phone) userData.phone_number = normalizePhone(user.phone);

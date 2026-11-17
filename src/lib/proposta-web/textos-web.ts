@@ -42,6 +42,8 @@ export interface TextosWeb {
   verPdf: string;
   /** O nome das ligações às redes, no rodapé (para o leitor de ecrã). */
   redes: { instagram: string; linkedin: string };
+  /** O Livro de Reclamações Eletrónico, no rodapé (auditoria legal, 17/11). */
+  livroReclamacoes: { nome: string; novaJanela: string };
   fechar: string;
   anterior: string;
   seguinte: string;
@@ -89,6 +91,10 @@ const PT: TextosWeb = {
     instagram: "Instagram da Líquen Events (abre numa janela nova)",
     linkedin: "LinkedIn da Líquen Events (abre numa janela nova)",
   },
+  livroReclamacoes: {
+    nome: "Livro de Reclamações Eletrónico",
+    novaJanela: "abre numa janela nova",
+  },
   fechar: "Fechar",
   anterior: "Anterior",
   seguinte: "Seguinte",
@@ -131,6 +137,10 @@ const EN: TextosWeb = {
   redes: {
     instagram: "Líquen Events on Instagram (opens in a new window)",
     linkedin: "Líquen Events on LinkedIn (opens in a new window)",
+  },
+  livroReclamacoes: {
+    nome: "Complaints Book (Livro de Reclamações)",
+    novaJanela: "opens in a new window",
   },
   fechar: "Close",
   anterior: "Previous",

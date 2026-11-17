@@ -7,6 +7,7 @@ import { CABECALHO_DA_LINGUA } from "@/lib/lingua-do-pedido";
 import { COOKIE_DA_LINGUA } from "@/lib/rotas-da-lingua";
 import { waHref } from "@/data";
 import NotFoundConteudo from "./[lang]/(site)/NotFoundConteudo";
+import LivroDeReclamacoes from "@/components/LivroDeReclamacoes";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -123,6 +124,18 @@ export default async function GlobalNotFound() {
           >
             {t.common.contactWhatsApp}
           </a>
+          {/* O Livro de Reclamações Eletrónico (auditoria legal, 17/11): este
+              404 não tem o rodapé do sítio. A mesma peça do rodapé — sem
+              componentes cliente, como o resto deste ficheiro. */}
+          <div className="mt-5 flex justify-center">
+            <LivroDeReclamacoes
+              rotulo={t.footer.livroReclamacoes}
+              novaJanela={t.common.newWindow}
+              sobre="claro"
+              altura={36}
+              className="alvo-toque opacity-55 hover:opacity-90 transition-opacity"
+            />
+          </div>
         </footer>
       </body>
     </html>

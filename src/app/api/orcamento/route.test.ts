@@ -193,6 +193,20 @@ describe("POST /api/orcamento", () => {
     expect(eventos[0]).toMatchObject({ nome: "Lead", eventId: "evt-2" });
   });
 
+  // Auditoria legal (17/11): o clique ficava gravado no pedido mesmo sem
+  // consentimento, e a CAPI do fecho (`conversoes-fecho.ts`) lia-o de lá.
+  it("sem leadEventId (sem consentimento) o clique da Meta não fica no pedido", async () => {
+    await enviarTudo({ form: { ...validForm, metaClick: "fbp=1;fbc=fb.1.2.IwAR_x" } });
+    const [gravado] = store.create.mock.calls[0] as unknown as [{ metaClick?: string }];
+    expect(gravado.metaClick ?? "").toBe("");
+  });
+
+  it("com leadEventId (houve «Aceitar») o clique fica no pedido", async () => {
+    await enviarTudo({ form: { ...validForm, leadEventId: "evt-9", metaClick: "fbp=1;fbc=2" } });
+    const [gravado] = store.create.mock.calls[0] as unknown as [{ metaClick?: string }];
+    expect(gravado.metaClick).toBe("fbp=1;fbc=2");
+  });
+
   it("sem leadEventId (sem consentimento) não vai Lead nenhum", async () => {
     await POST(req("POST", { form: { ...validForm, metaClick: "fbp=1;fbc=2" } }));
     await correrDepois();

@@ -778,6 +778,12 @@ async function POST_semMedida(request: NextRequest) {
       breakdown: PriceBreakdown;
     };
     const form: QuoteFormData = formLido;
+    // O clique da Meta (fbp/fbc) só se GUARDA com consentimento (auditoria
+    // legal, 17/11). A prova que a rota tem é o `leadEventId`: o formulário só
+    // o manda depois de «Aceitar» (`PedidoRelampago.tsx`). Sem ele o clique
+    // não fica no pedido — e o que não fica não chega à Meta mais tarde, pela
+    // CAPI do fecho (`conversoes-fecho.ts`), que lê o que ficou gravado.
+    if (!(form.leadEventId ?? "").trim()) form.metaClick = "";
 
     // O telefone guarda-se já em E.164 (+351912345678): é a forma que o
     // WhatsApp, a Meta e o Google Ads esperam, e o esquema já garantiu que,
