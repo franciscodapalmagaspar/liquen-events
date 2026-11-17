@@ -66,4 +66,16 @@ describe("POST /api/erro-do-site", () => {
     expect((await POST(req("{nao é json"))).status).toBe(204);
     expect(st.registado).toHaveLength(0);
   });
+  it("não regista o que a aplicação anfitriã injecta na página (registos de 14–16/11)", async () => {
+    await POST(
+      req({
+        mensagem: "undefined is not an object (evaluating 'window.webkit.messageHandlers')",
+        rasto: "setupIosCallbackHandler@https://liquen-events.com/:1:7358",
+        marca: "unhandledrejection",
+      }),
+    );
+    await POST(req({ mensagem: "ra", rasto: "qh@\nph@\nPr@\n@https://liquen-events.com/:415:45" }));
+    await POST(req({ mensagem: "ResizeObserver loop limit exceeded" }));
+    expect(st.registado).toHaveLength(0);
+  });
 });

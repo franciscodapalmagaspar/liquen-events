@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePublicPathname } from "@/lib/use-public-pathname";
 import { onIdle } from "@/lib/onIdle";
+import { semRecusa } from "@/lib/promessa-segura";
 import { heroAvifUrl, heroImageUrl } from "@/lib/hero-image-loader";
 
 /**
@@ -105,7 +106,8 @@ export function prepararHeroiDe(href: string): void {
     img.src = url;
     prontas.set(url, img);
     if (prontas.size > 6) prontas.delete(prontas.keys().next().value as string);
-    img.decode().catch(() => {});
+    // `decode` pode não existir, ou não devolver promessa: ver `promessa-segura`.
+    semRecusa(() => img.decode());
   });
 }
 

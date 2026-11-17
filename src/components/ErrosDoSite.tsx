@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { relatarErroPara } from "@/lib/relatar-erro";
+import { eRuidoDeFora } from "@/lib/ruido-do-browser";
 
 /**
  * Os erros do browser no site público, contados a `/api/erro-do-site`.
@@ -9,7 +10,9 @@ import { relatarErroPara } from "@/lib/relatar-erro";
  * Só os do NOSSO código: um erro de uma extensão do browser ou de um script de
  * terceiros (o ficheiro não é deste domínio, ou chega como «Script error.»
  * sem detalhe) não diz nada sobre o site e só enchia o registo. E no máximo
- * cinco por página — um ecrã em ciclo de erro repete o mesmo.
+ * cinco por página — um ecrã em ciclo de erro repete o mesmo. O que a
+ * aplicação anfitriã injecta na página (o browser do Instagram, o Chrome do
+ * iPad) e o aviso do ResizeObserver também ficam de fora: `ruido-do-browser`.
  *
  * Vive no cromado do site (`CromadoDoSitio`), e por isso nunca na proposta do
  * casal, que tem layout próprio.
@@ -22,6 +25,9 @@ export default function ErrosDoSite() {
     let contados = 0;
     const contar = (erro: unknown, marca: string) => {
       if (contados >= POR_PAGINA) return;
+      const e = erro as { message?: unknown; stack?: unknown } | null;
+      const mensagem = typeof e?.message === "string" ? e.message : erro;
+      if (eRuidoDeFora(mensagem, e?.stack)) return;
       contados++;
       relatarErroPara(ROTA, erro, marca);
     };
