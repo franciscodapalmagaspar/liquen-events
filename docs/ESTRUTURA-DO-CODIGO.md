@@ -21,7 +21,7 @@ para se poderem repetir e comparar.
 |---|---|
 | Parte 1, princípios com fontes | feito (17/11) |
 | Parte 2, raio-X medido | feito (17/11), commit `1f15511d` |
-| Parte 3, plano por fases | fases 0 e 1 feitas (17/11, ramo `codigo/fase-0-e-1`); fase 7 e a parte estrutural da 8 feitas (17/11, ramo `codigo/admin-e-temas`); as outras por começar |
+| Parte 3, plano por fases | fases 0 e 1 feitas (17/11, ramo `codigo/fase-0-e-1`); fase 7 e a parte estrutural da 8 feitas (17/11, ramo `codigo/admin-e-temas-local`, junto ao lote de 17/11); as outras por começar |
 | Parte 4, lições para projetos futuros | feito; cresce com cada lição (regra de `codigo.md`) |
 
 Cada fase que se fizer acrescenta aqui uma linha: a data, o PR, e as medidas
@@ -67,6 +67,46 @@ antes e depois (linhas, complexidade, peso das rotas).
   tectos desses onze ficaram no tamanho com que o BO 4 os deixou (é a
   fotografia do dia, não um crescimento novo); o do `AdminClient.tsx`, o do
   `Temas.tsx` e o do `ThemePicker.tsx` desceram para o tamanho de agora.
+
+**A junção com o lote de 17/11 (ramo `codigo/admin-e-temas-local`):**
+
+- **A base da junção.** O lote tirou a estrutura do `main` com um commit de
+  reversão (`72673634`, «entrou sem júri»). Juntar o `main` à linha da
+  estrutura com a base automática fazia a junção APLICAR a reversão. Usou-se a
+  base verdadeira — o `2700fb27`, onde esta linha saiu do lote — com
+  `git merge-tree --merge-base`, e o resultado ficou num commit de junção
+  normal (o `push` continua a ser só para a frente). Dois conflitos: o bloco
+  «o que o PDF não leva», que as duas linhas tinham tirado do estúdio para
+  sítios diferentes (fica um só, `lib/orcamento/estudio/conteudo-incompleto.ts`),
+  e quatro mudanças do lote ao `AdminClient` que foram para onde o código vive
+  agora (a etiqueta «possível spam» na `QuoteCard` e nas colunas, o
+  `limparCachesAoSair`, e o «+ Nova tarefa» servido, que virou o hook
+  `_casca/useNovaTarefa`).
+- **O peso.** Partido, o painel pesava 521 KB contra o tecto de 520 (o `main`,
+  509). O tecto não subiu: o `export.ts` (915 linhas) partiu-se pelo domínio —
+  o CSV em `exportar-em-csv.ts`, que a lista usa e fica no pacote; as folhas de
+  impressão e o iCalendar onde estavam —, e o cabeçalho do pedido passou a ir
+  buscar estas últimas a pedido (`lib/modulo-a-pedido.ts`): aquecidas quando o
+  painel abre, e chamadas no instante do clique, que é o que deixa a janela da
+  impressão abrir. Tentou-se primeiro pôr o painel de
+  reautenticação a pedido; a segunda revisão chumbou-o, e com razão: a barreira
+  da sessão caída tem de aparecer no MESMO fotograma do 401, e um código que
+  ainda vem a caminho (ou que um deploy apagou) deixava-a passar.
+- **Erros que o `main` já tinha, achados pela revisão independente e
+  corrigidos com teste:** o `alterarOAberto` punha no pedido aberto o remendo
+  de outro (pagamentos do A no B, se a resposta chegasse depois de ela mudar de
+  pedido); o «Anular» enchia os campos do pedido aberto com os do pedido
+  reposto; e uma leitura do pedido inteiro que o `recarregarPedido` tinha
+  substituído apagava, ao acabar, a leitura nova do mapa — e gravava por cima
+  dela o pedido de antes.
+- **Duplicados que a revisão apontou:** o `mergePage` do seletor passa a ser o
+  de `lib/temas/listas-de-fotos.ts` (o seletor deixa de mostrar uma foto sem
+  caminho, que de qualquer maneira não se desenhava); o `plural` do
+  `RestoreDialog` e o do «o que se perde com o pedido» passam ao de `lib/plural.ts`;
+  a pastilha das importações liga-se à vista, ao montar o `ThemePicker`, em vez
+  de por efeito escondido de carregar o módulo; o `ErroDaPagina` do seletor e o
+  `ErroDeLeitura` das listas eram a mesma classe e passam a uma só, em
+  `lib/porque-nao-leu.ts`; e o `Ahead` do seletor estende o da pasta.
 
 **Desvios da fase 1 ao texto:** além do que a tabela da fase 1 nomeia, saíram
 com as funções as ajudantes privadas de que elas precisam (`eventTypeLabel`,
@@ -948,6 +988,25 @@ acerto medido aqui.
     descarregam ao mesmo tempo); o passo sem risco foi primeiro dar-lhes O MESMO
     código, com uma instância cada uma. A decisão de as juntar passa a ser uma
     linha, e fica com quem a deve tomar.
+
+21. **Uma reversão no `main` muda a base de todas as junções seguintes.** Se o
+    `main` reverteu um ramo que ainda vai entrar, a junção desse ramo com a base
+    automática aplica a reversão em silêncio. Junta-se com a base certa
+    (`git merge-tree --write-tree --merge-base=<onde o ramo saiu>`), e
+    verifica-se no fim que o diff contra o `main` é só o do ramo.
+22. **Partir um componente custa bytes.** Os nomes das props e dos objectos que
+    os hooks devolvem não se encurtam no minificador: a estrutura do
+    `AdminClient` custou ~12 KB crus ao painel. Mede-se o peso das rotas em cada
+    fase, e paga-se com o que só se usa depois de um gesto: um módulo grande de
+    que o pacote inicial só usa uma ponta (o `export.ts`: a lista usava o CSV e
+    levava a impressão toda) parte-se pelo domínio, e a ponta rara vem a pedido.
+    Nunca uma barreira que tem de estar lá no instante (a da sessão caída), e
+    nunca código que abre uma janela sem estar já em memória quando ela clica.
+23. **Mover sem mudar também move os erros.** Copiar «tal e qual» é a regra
+    certa para o diff de estrutura, mas a revisão independente lê o código
+    movido com olhos novos: três erros antigos apareceram assim. Corrigem-se em
+    commits próprios, cada um com o seu teste, e nunca misturados com o
+    movimento.
 
 ---
 
