@@ -120,7 +120,7 @@ async function POST_semMedida(request: NextRequest) {
         if (!modos) return resposta({ error: "O modo não ficou gravado." }, 500);
         // O marcador «há ficheiros no Blob» fica gravado JÁ, e não só à noite
         // (3.ª revisão de 17/11, n.º 3): é ele que diz, sem o token, que falta.
-        const marcado = await gravarMarcadorDoBlob(Object.values(modos).includes("blob"));
+        const marcado = await gravarMarcadorDoBlob();
         if (!marcado) log.warn("blob: o marcador da ocupação não ficou gravado", { balde });
         log.info("blob: modo mudado", { balde, modo: corpo.modo });
         return resposta({ modos });

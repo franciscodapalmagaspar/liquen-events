@@ -100,10 +100,15 @@ export async function somarCarregado(porBucket: Readonly<Record<string, number>>
  * ainda não existe, nasce sem medição (`bytes: null` → `conhecido: false`).
  * Compare-and-set, como o contador ao lado. Devolve se ficou gravado.
  */
-export async function gravarMarcadorDoBlob(blobEmUso: boolean): Promise<boolean> {
+export async function gravarMarcadorDoBlob(): Promise<boolean> {
   for (let t = 0; t < 4; t++) {
     try {
       const { valor, versao } = await lerEstadoComVersao<Ocupacao>(CHAVE_OCUPACAO, 3_000);
+      // Os modos relêem-se DENTRO do ciclo (4.ª revisão de 17/11, n.º 9): duas
+      // mudanças de modo ao mesmo tempo não podem gravar a conclusão velha.
+      const modos = await modosLidosOuNull();
+      if (!modos) return false;
+      const blobEmUso = marcadorDoBlob(undefined, modos, true) === true;
       const linha =
         valor ??
         ({ medidoEm: "", bytes: null, porBucket: {}, completo: false } as unknown as Ocupacao);
@@ -235,11 +240,31 @@ export async function medirOcupacao(
     // Os modos para o marcador lêem-se AGORA e só com o token: o `modos` de
     // cima cai para «tudo no Supabase» quando a leitura falha, e isso não pode
     // pôr o marcador a `false` (3.ª revisão de 17/11, n.º 3).
-    const modosLidos = blobConfigurado() ? await modosLidosOuNull() : null;
-    const marcador = marcadorDoBlob(antes?.blobEmUso, modosLidos, blobConfigurado());
-    if (marcador !== undefined) ocupacao.blobEmUso = marcador;
+    let marcador: boolean | undefined;
+    if (!blobConfigurado()) {
+      // Sem token, como em `main`: a escrita de sempre, com o marcador que
+      // estava (nunca se sabe mais sem token).
+      marcador = antes?.blobEmUso;
+      if (marcador !== undefined) ocupacao.blobEmUso = marcador;
+      await setState(CHAVE_OCUPACAO, ocupacao);
+    } else {
+      // Com token: compare-and-set, com o marcador decidido DENTRO do ciclo
+      // contra a linha relida (4.ª revisão, n.º 9) — uma mudança de modo
+      // gravada a meio da medição não é apagada pela conclusão velha.
+      for (let t = 0; t < 4; t++) {
+        const { valor: agoraNaLinha, versao } = await lerEstadoComVersao<Ocupacao>(
+          CHAVE_OCUPACAO,
+          4_000,
+        );
+        const modosLidos = await modosLidosOuNull();
+        marcador = marcadorDoBlob(agoraNaLinha?.blobEmUso, modosLidos, true);
+        const linha: Ocupacao = { ...ocupacao };
+        if (marcador !== undefined) linha.blobEmUso = marcador;
+        const r = await gravarEstadoSeNaoMudou(CHAVE_OCUPACAO, linha, versao);
+        if (r !== "conflito") break;
+      }
+    }
     alertarSemToken(marcador);
-    await setState(CHAVE_OCUPACAO, ocupacao);
     // Os buckets medidos esta noite já contam o que se carregou até agora.
     const medidos = Object.entries(porBucket)
       .filter(([, m]) => m.medidoEm === iso)

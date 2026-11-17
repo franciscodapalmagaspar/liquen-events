@@ -33,8 +33,9 @@ vi.mock("@/lib/armazenamento/migracao", () => ({
 }));
 vi.mock("@/lib/armazenamento/uso", () => ({ usoAtual: async () => null }));
 vi.mock("@/lib/ocupacao-do-armazenamento", () => ({
-  gravarMarcadorDoBlob: vi.fn(async (v: boolean) => {
-    H.marcador = v;
+  // Lê os modos ele próprio (4.ª revisão, n.º 9): aqui basta saber que correu.
+  gravarMarcadorDoBlob: vi.fn(async () => {
+    H.marcador = true;
     return true;
   }),
 }));
