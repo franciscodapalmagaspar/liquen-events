@@ -69,16 +69,18 @@ import {
 } from "@/lib/orcamento/data";
 import { useToast } from "./Toast";
 import CommandPalette, { type Command } from "./CommandPalette";
-// Cinco janelas que só se abrem a pedido: fora do pacote inicial do painel,
+// Quatro janelas que só se abrem a pedido: fora do pacote inicial do painel,
 // aquecidas depois do `load` — ver `janela-a-pedido.tsx`.
 import {
   AjudaGlossario,
   aquecerJanelas,
-  NewQuoteModal,
   PasskeysDialog,
   RestoreDialog,
   ShortcutsModal,
 } from "./janela-a-pedido";
+// O «Novo pedido» fica no pacote, como o ⌘K: abre-se com o «n» e ela escreve
+// logo a seguir — uma letra antes de a caixa existir perdia-se.
+import NewQuoteModal from "./NewQuoteModal";
 import SessaoExpirada from "./SessaoExpirada";
 import NotificationBell from "./NotificationBell";
 import NotaDaProposta from "./NotaDaProposta";
@@ -5288,6 +5290,8 @@ export default function AdminClient({
             setRestoreOpen(false);
             void revalidarPedidos(true);
           }}
+          // Se o código da janela não chegou, nada foi reposto: fecha só.
+          aoNaoChegar={() => setRestoreOpen(false)}
           toast={toast}
         />
         {/* A cópia de segurança a chegar. Pedida da barra lateral OU da

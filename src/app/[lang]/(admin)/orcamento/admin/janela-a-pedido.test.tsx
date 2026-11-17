@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { janelaAPedido } from "./janela-a-pedido";
+import { AVISO_SEM_LIGACAO, janelaAPedido } from "./janela-a-pedido";
+
+const toast = vi.hoisted(() => vi.fn());
+vi.mock("./Toast", () => ({ useToast: () => ({ toast }) }));
 
 /**
  * As janelas que saíram do pacote do painel (`janela-a-pedido.tsx`).
@@ -17,7 +20,10 @@ function Falsa({ open, texto }: P) {
   return open ? <div role="dialog">{texto ?? "aberta"}</div> : <span data-testid="fechada" />;
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  toast.mockClear();
+});
 
 describe("janelaAPedido", () => {
   it("fechada e por pedir, não desenha nada nem vai buscar o código", () => {
@@ -69,6 +75,9 @@ describe("janelaAPedido", () => {
     // Sem isto o `open` de quem abriu ficava preso a verdadeiro, e carregar
     // outra vez no mesmo botão não mudava nada.
     expect(fechar).toHaveBeenCalledTimes(1);
+    // E não fica calada: ela carregou e tem de saber porque não abriu.
+    expect(toast).toHaveBeenCalledWith(AVISO_SEM_LIGACAO, "error");
+    expect(toast).toHaveBeenCalledTimes(1);
     rerender(<Janela open={false} onClose={fechar} />);
     rerender(<Janela open onClose={fechar} />);
     expect(await screen.findByRole("dialog")).toBeTruthy();
@@ -87,5 +96,29 @@ describe("janelaAPedido", () => {
     rerender(<Janela open={false} onClose={fechar} />);
     await act(async () => falhar(new Error("rede")));
     expect(fechar).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it("com `aoNaoChegar`, a falha fecha por ele e NÃO pelo `onClose` (o da cópia revalida tudo)", async () => {
+    const { Janela } = janelaAPedido<P>(() => Promise.reject(new Error("deploy")));
+    const fechar = vi.fn();
+    const naoChegou = vi.fn();
+    render(<Janela open onClose={fechar} aoNaoChegar={naoChegou} />);
+    await act(async () => {});
+    expect(naoChegou).toHaveBeenCalledTimes(1);
+    expect(fechar).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith(AVISO_SEM_LIGACAO, "error");
+  });
+
+  it("o `aoNaoChegar` não chega à janela verdadeira", async () => {
+    const recebidas = vi.fn();
+    function Espia(props: P) {
+      recebidas(Object.keys(props).sort());
+      return null;
+    }
+    const { Janela, aquecer } = janelaAPedido<P>(async () => ({ default: Espia }));
+    await act(() => aquecer());
+    render(<Janela open onClose={nada} aoNaoChegar={nada} />);
+    expect(recebidas).toHaveBeenLastCalledWith(["onClose", "open"]);
   });
 });

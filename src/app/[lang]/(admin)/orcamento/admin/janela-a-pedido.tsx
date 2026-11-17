@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore, type ComponentType } from "react";
 import { onIdle } from "@/lib/onIdle";
+import { useToast } from "./Toast";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -9,7 +10,7 @@ import { onIdle } from "@/lib/onIdle";
  * O painel tem um tecto de JavaScript (`scripts/peso-das-rotas.mjs`, 520 KB
  * crus). A 17/11 passou-o (526 KB), e uma boa parte do que lá estava eram
  * janelas que ela abre de vez em quando — repor uma cópia, as chaves de
- * acesso, o novo pedido, a folha dos atalhos, o glossário — e que vinham
+ * acesso, a folha dos atalhos, o glossário — e que vinham
  * todas no primeiro descarregamento, fechadas, sem desenhar nada.
  *
  * `janelaAPedido` tira cada uma do pacote inicial SEM mudar o que se vê:
@@ -27,23 +28,38 @@ import { onIdle } from "@/lib/onIdle";
  *   • depois de chegar, fica montada para sempre, como estava: as animações
  *     de saída e o que ficou escrito numa janela fechada continuam iguais.
  *
- * Uma falha de rede não fica colada: a janela devolve a vez com o `onClose`
- * dela — o estado de quem a abriu volta a «fechada» — e o próximo toque no
- * mesmo botão tenta outra vez. Sem isto, um «Novo pedido» que falhasse a
- * chegar deixava o `open` preso a verdadeiro, e carregar outra vez no botão
- * não mudava nada até recarregar a página.
+ * Uma falha de rede não fica colada nem calada: aparece o aviso «Sem ligação
+ * — tenta outra vez» (o toast do back office), e a janela devolve a vez — o
+ * estado de quem a abriu volta a «fechada» — para o próximo toque no mesmo
+ * botão tentar de novo. Sem isto, uma janela que falhasse a chegar (sem rede,
+ * ou depois de um deploy) deixava o `open` preso e ela carregava sem
+ * acontecer nada.
  *
- * O ⌘K NÃO passa por aqui, de propósito: é a janela que se abre com uma tecla
- * e onde se escreve logo a seguir. Uma letra carregada antes de a caixa
- * existir ia parar ao `body` — onde o «G»+letra navega. Fica no pacote.
+ * A vez devolve-se pelo `aoNaoChegar`, quando quem abre o passa, e só por
+ * omissão pelo `onClose`: o `onClose` de algumas janelas faz mais do que
+ * fechar (o da cópia de segurança revalida os pedidos todos, porque a janela
+ * pode ter trocado os dados) — e uma janela que nunca chegou não mudou nada.
+ *
+ * O ⌘K e o «Novo pedido» NÃO passam por aqui, de propósito: abrem-se com uma
+ * tecla («⌘K», «n») e escreve-se logo a seguir. Uma letra carregada antes de
+ * a caixa existir ia parar ao `body` — onde o «G»+letra navega. Ficam no
+ * pacote.
  */
 
 type Modulo<P> = { default: ComponentType<P> };
 
 type PropsDaJanela = { open: boolean; onClose: () => void };
 
+/** O que a janela a pedido acrescenta às props da janela verdadeira. */
+type PropsAPedido = {
+  /** Fecha quando o código não chega. Por omissão, o `onClose` da janela. */
+  aoNaoChegar?: () => void;
+};
+
+export const AVISO_SEM_LIGACAO = "Sem ligação — tenta outra vez";
+
 export interface JanelaAPedido<P extends PropsDaJanela> {
-  Janela: ComponentType<P>;
+  Janela: ComponentType<P & PropsAPedido>;
   /** Traz o módulo para memória. Idempotente; uma falha de rede não fica.
    *  Resolve com `true` se o módulo está cá. */
   aquecer: () => Promise<boolean>;
@@ -85,19 +101,24 @@ export function janelaAPedido<P extends PropsDaJanela>(
   // que o módulo desenharia; não há diferença de HTML a reconciliar.
   const leituraDoServidor = () => null;
 
-  function Janela(props: P) {
+  function Janela({ aoNaoChegar, ...resto }: P & PropsAPedido) {
+    const props = resto as unknown as P;
     const Componente = useSyncExternalStore(subscrever, leitura, leituraDoServidor);
+    const { toast } = useToast();
     const { open, onClose } = props;
+    const devolverAVez = aoNaoChegar ?? onClose;
     useEffect(() => {
       if (!open || Componente) return;
       let viva = true;
       void aquecer().then((chegou) => {
-        if (!chegou && viva) onClose();
+        if (chegou || !viva) return;
+        toast(AVISO_SEM_LIGACAO, "error");
+        devolverAVez();
       });
       return () => {
         viva = false;
       };
-    }, [open, Componente, onClose]);
+    }, [open, Componente, devolverAVez, toast]);
     if (!Componente) return null;
     return <Componente {...props} />;
   }
@@ -108,22 +129,20 @@ export function janelaAPedido<P extends PropsDaJanela>(
 
 const repor = janelaAPedido(() => import("./RestoreDialog"));
 const chaves = janelaAPedido(() => import("./PasskeysDialog"));
-const novoPedido = janelaAPedido(() => import("./NewQuoteModal"));
 const atalhos = janelaAPedido(() => import("./ShortcutsModal"));
 const glossario = janelaAPedido(() => import("./AjudaGlossario"));
 
 export const RestoreDialog = repor.Janela;
 export const PasskeysDialog = chaves.Janela;
-export const NewQuoteModal = novoPedido.Janela;
 export const ShortcutsModal = atalhos.Janela;
 export const AjudaGlossario = glossario.Janela;
 
-/** Pela ordem de quem ela abre mais: o novo pedido primeiro. */
-const ORDEM = [novoPedido, atalhos, glossario, chaves, repor];
+/** Pela ordem de quem ela abre mais. */
+const ORDEM = [atalhos, glossario, chaves, repor];
 
 /**
- * Aquece as cinco janelas, uma por janela de inatividade, depois do `load`.
- * Corre também em desenvolvimento — ao contrário das vistas, são cinco ficheiros
+ * Aquece as quatro janelas, uma por janela de inatividade, depois do `load`.
+ * Corre também em desenvolvimento — ao contrário das vistas, são quatro ficheiros
  * pequenos, e é o que deixa os passeios medirem o mesmo que ela vê.
  * Devolve um cancelador.
  */

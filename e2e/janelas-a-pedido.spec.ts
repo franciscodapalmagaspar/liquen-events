@@ -16,6 +16,8 @@ import { esperarQueACortinaSaia } from "./semear-pedido";
  *      pedido não vai buscar código à rede — chegam já desenhados;
  *   3. a frio (logo a seguir a hidratar, antes do aquecimento), a tecla «?»
  *      abre a folha na mesma, sem erro na consola.
+ *   4. o «Novo pedido» fica no pacote, como o ⌘K: a frio, o «n» abre-o e as
+ *      letras escritas logo a seguir caem todas no Nome.
  *
  * Só lê: não semeia nada.
  */
@@ -59,6 +61,21 @@ test("o ⌘K abre ao primeiro toque e não perde as letras escritas logo a segui
   const campo = page.getByRole("combobox", { name: "Pesquisar ou navegar" });
   await expect(campo).toBeFocused();
   await expect(campo).toHaveValue("tarefas");
+  expect(erros).toEqual([]);
+});
+
+test("a frio, o «n» abre o novo pedido e não perde as letras escritas logo a seguir", async ({
+  page,
+}) => {
+  const erros = vigiarErros(page);
+  await abrir(page);
+  await page.keyboard.press("n");
+  await page.keyboard.type("Ana");
+  const novo = page.getByRole("dialog", { name: /Novo pedido/ });
+  await expect(novo).toBeVisible();
+  await expect(novo.getByRole("textbox", { name: "Nome", exact: true })).toHaveValue("Ana");
+  await page.keyboard.press("Escape");
+  await expect(novo).toBeHidden();
   expect(erros).toEqual([]);
 });
 
