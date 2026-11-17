@@ -1,7 +1,6 @@
 import "server-only";
 import { sendMail, MAIL_TO } from "@/lib/mail";
 import { log } from "@/lib/logger";
-import type { emailAoCliente } from "@/lib/email-assinatura";
 import { FOLGA_DO_EMAIL_MS } from "./orcamento-de-tempo";
 import type { EmailDaProposta } from "./email-da-proposta";
 
@@ -29,10 +28,8 @@ export interface PedidoDeEnvio {
   para: string | undefined;
   /** Ver `querEmail`: só um `false` EXPLÍCITO cala o email. */
   querEmail: boolean;
-  /** O email inteiro, já com a moldura da casa: o `email` daqui é o que o
-   *  `emailAoCliente` devolveu (`email-da-proposta.ts`) — a assinatura, a
-   *  faixa e as redes vão sempre (`todo-o-correio-leva-a-assinatura.test.ts`). */
-  escrito: EmailDaProposta & { email: ReturnType<typeof emailAoCliente> };
+  /** O email inteiro, já com a moldura da casa (`email-da-proposta.ts`). */
+  escrito: EmailDaProposta;
   pdf: Buffer;
   /** Quantos ms sobram do orçamento do pedido, agora. */
   resta: () => number;

@@ -691,7 +691,7 @@ export default async function ProposalPage({
            * Fica o nome deles. O `h1` acima é a abertura inteira.
            *
            * A frase da casa continua a existir no EMAIL
-           * (`lib/orcamento/envio/email-da-proposta.ts`), onde um corpo só com dois nomes não se
+           * (`lib/email-proposta-textos.ts`), onde um corpo só com dois nomes não se
            * lê como uma mensagem. */}
         </header>
 

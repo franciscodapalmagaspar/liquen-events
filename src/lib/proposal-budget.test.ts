@@ -996,7 +996,8 @@ describe("o sinal é calculado sobre o total COM IVA", () => {
   });
 
   it("o sinal do documento é, ao cêntimo, o que a facturação emite", () => {
-    // `Proposal.total` é `resolveProposalMoney(doc).gross` — ver
+    // `Proposal.total` é `dinheiroDaProposta(doc).gross` (que, sem valores
+    // adicionais a somar, é o `resolveProposalMoney`) — ver
     // `src/lib/orcamento/envio/a-proposta-que-se-grava.ts`. As rotas de
     // facturação fazem `splitSinal(proposal.total, pct)`.
     for (const [totalAmount, modo] of [
