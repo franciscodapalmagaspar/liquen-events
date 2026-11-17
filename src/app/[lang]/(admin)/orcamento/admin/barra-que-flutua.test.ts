@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { achatar, racioDeContraste } from "./contraste-do-texto.test";
-import { fonteDaCasa, fonteDe } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -34,6 +33,7 @@ import { fonteDaCasa, fonteDe } from "./fonte-do-admin.testkit";
  * reserva) e o entalhe do iPhone.
  */
 
+const RAIZ = join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin");
 // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
 // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
 // o browser os aplica no back office.
@@ -113,16 +113,14 @@ function semComentarios(fonte: string): string {
 
 /** Só o bloco da `<nav>` da barra, sem a prosa. */
 function barra(): string {
-  const fonte = semComentarios(fonteDe("AdminClient.tsx"));
+  const fonte = semComentarios(readFileSync(join(RAIZ, "AdminClient.tsx"), "utf8"));
   // O nome trocou de peça quando a coluna acabou: a barra passou a ser a
   // navegação do back office nas duas larguras. Ver `a-barra-e-o-menu.test.tsx`.
   const i = fonte.indexOf('aria-label="Navegação do back office"');
   expect(i, "a barra de destinos desapareceu").toBeGreaterThan(-1);
   const f = fonte.indexOf("</nav>", i);
   expect(f, "a `<nav>` da barra não fecha").toBeGreaterThan(-1);
-  // Cada destino da cápsula é um `DestinoDaBarra` desde a fase 7 da estrutura
-  // do código: a pastilha e o rótulo vivem lá, e fazem parte da barra.
-  return fonte.slice(i, f) + "\n" + fonteDaCasa("_casca/DestinoDaBarra.tsx", semComentarios);
+  return fonte.slice(i, f);
 }
 
 describe("a cápsula é do material da casa, e não um vidro inventado", () => {

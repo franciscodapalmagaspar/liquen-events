@@ -104,7 +104,7 @@ e cada tabela é que manda, isto é só o mapa:
 Repara que a 11 do Calendário e a dos Temas são a mesma peça: passar a grelha de
 `role="button"` a `role="grid"` com `gridcell`. A do Calendário está feita
 (`Calendario.tsx`, com o `diaPelaTecla`); a dos Temas segue o mesmo desenho
-(`lib/temas/grelha.ts`, `fotoPelaTecla`) e também está feita — mas com UMA só
+(`lib/temas-grelha.ts`, `fotoPelaTecla`) e também está feita — mas com UMA só
 `role="row"` e a posição em `aria-rowindex`/`aria-colindex`: as colunas mudam
 com a largura, e linhas a sério desmontavam as células a cada mudança. (A das
 Tarefas NÃO era essa: a lista é `<ul>/<li>`, e a 11 foi percorrer a Parte 6 inteira.

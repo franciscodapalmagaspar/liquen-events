@@ -47,7 +47,7 @@ import { temasComPagina } from "./pdf-editorial/plano";
  *
  * Vive em `essencia-do-nome.ts` porque tem DOIS clientes que não se conhecem:
  * os títulos das páginas de inspiração (aqui) e os nomes dos temas da
- * biblioteca (`temas/parecidos.ts`). É a mesma pergunta — «isto lê-se como
+ * biblioteca (`temas-parecidos.ts`). É a mesma pergunta — «isto lê-se como
  * aquilo?» — e duas cópias eram duas oportunidades de só uma delas ganhar a
  * palavra vazia que faltava.
  */

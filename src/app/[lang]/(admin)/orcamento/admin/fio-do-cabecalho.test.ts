@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { fonteDe } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -33,7 +32,7 @@ import { fonteDe } from "./fonte-do-admin.testkit";
  * Playwright.
  */
 
-const FONTE = fonteDe("AdminClient.tsx");
+const FONTE = readFileSync("src/app/[lang]/(admin)/orcamento/admin/AdminClient.tsx", "utf8");
 
 /** O `<header>` colado ao topo, do `<header` até ao `>` que o fecha. */
 function cabecalho(): string {

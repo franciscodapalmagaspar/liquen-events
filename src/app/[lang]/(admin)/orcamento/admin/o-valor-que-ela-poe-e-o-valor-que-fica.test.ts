@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -50,25 +50,6 @@ import { join } from "node:path";
 const FICHEIRO = "src/app/[lang]/(admin)/orcamento/admin/ProposalStudio.tsx";
 
 /**
- * O estúdio é o componente MAIS a lógica que saiu dele para
- * `lib/orcamento/estudio/` (fase 1 de `docs/ESTRUTURA-DO-CODIGO.md`): o
- * `seedDefaults` e o `mandarPrecoAoPedido` vivem lá. Varrer só o componente
- * deixava de fora dois dos sítios por onde o preço passa — e a varredura
- * continuava verde, por já não os ver.
- */
-const PASTA_DO_ESTUDIO = "src/lib/orcamento/estudio";
-const FICHEIROS = [
-  FICHEIRO,
-  // Com subpastas e `.tsx`: o próximo ficheiro que sair para lá não pode ficar
-  // fora da varredura por ter outra extensão ou outra profundidade.
-  ...(readdirSync(join(process.cwd(), PASTA_DO_ESTUDIO), { recursive: true }) as string[])
-    .map((f) => f.split("\\").join("/"))
-    .filter((f) => /\.tsx?$/.test(f) && !/\.(test|spec)\./.test(f))
-    .sort()
-    .map((f) => `${PASTA_DO_ESTUDIO}/${f}`),
-];
-
-/**
  * Comentários fora, e as cadeias de texto também.
  *
  * Numa casa que comenta assim, uma varredura que não os tire encontra a avaria
@@ -92,8 +73,7 @@ function soOCodigo(fonte: string): string {
     .replace(/'(?:[^'\\]|\\.)*'/g, '""');
 }
 
-const PARTES = FICHEIROS.map((f) => soOCodigo(readFileSync(join(process.cwd(), f), "utf8")));
-const CODIGO = PARTES.join("\n");
+const CODIGO = soOCodigo(readFileSync(join(process.cwd(), FICHEIRO), "utf8"));
 
 /** As duas conversões, pelos nomes por que são chamadas neste ficheiro. */
 const CONVERSOES = ["baseDoPedidoParaOEcra", "baseParaOEstudio", "baseDoEcraParaOPedido"];
@@ -116,9 +96,7 @@ function apelidosDoPrecoDoPedido(codigo: string): string[] {
   return [...nomes];
 }
 
-// Por ficheiro: um apelido local de um ficheiro não é o preço do pedido nos outros.
-// E sem repetidos: o mesmo nome em dois ficheiros conta uma vez na guarda do «≥ 3».
-const APELIDOS = [...new Set(PARTES.flatMap((p) => apelidosDoPrecoDoPedido(p)))];
+const APELIDOS = apelidosDoPrecoDoPedido(CODIGO);
 
 /**
  * Onde é que um número vira o TOTAL do estúdio. Não é uma lista de estilo: é a
@@ -154,13 +132,8 @@ function linhaDe(codigo: string, indice: number): number {
   return codigo.slice(0, indice).split("\n").length;
 }
 
-/**
- * Todas as travessias pedido → total que o código de UM ficheiro contém. Os
- * apelidos são os desse ficheiro: um `const quotedPrice = quote.quotedPrice`
- * do `seedDefaults` não faz de um `quotedPrice` de outro ficheiro o preço do
- * pedido.
- */
-function travessiasSemConversao(codigo: string, ficheiro: string = FICHEIRO): string[] {
+/** Todas as travessias pedido → total que este código contém. */
+function travessiasSemConversao(codigo: string): string[] {
   const apelidos = apelidosDoPrecoDoPedido(codigo);
   const fontes = ["quote.quotedPrice", "quote?.quotedPrice", ...apelidos];
   const fora: string[] = [];
@@ -172,7 +145,7 @@ function travessiasSemConversao(codigo: string, ficheiro: string = FICHEIRO): st
       if (!fonte) continue;
       if (CONVERSOES.some((c) => texto.includes(c))) continue;
       fora.push(
-        `${ficheiro}:${linhaDe(codigo, indice)} — ${escoadouro}(…) recebe «${fonte}» em cru`,
+        `${FICHEIRO}:${linhaDe(codigo, indice)} — ${escoadouro}(…) recebe «${fonte}» em cru`,
       );
     }
   }
@@ -198,26 +171,9 @@ describe("o preço do pedido não chega ao total do estúdio em cru", () => {
     }
   });
 
-  /**
-   * E a varredura lê MESMO a casa nova: os ficheiros de `lib/orcamento/estudio`
-   * estão na lista, e um defeito escrito num deles é apontado com o nome dele.
-   * Sem isto, o componente sozinho chegava para as guardas de cima, e a casa
-   * nova podia sair da varredura (pasta renomeada, outra extensão) sem ninguém
-   * ver.
-   */
-  it("a varredura lê a lógica que saiu do componente", () => {
-    expect(FICHEIROS).toContain(`${PASTA_DO_ESTUDIO}/documento-inicial.ts`);
-    expect(FICHEIROS).toContain(`${PASTA_DO_ESTUDIO}/gravar.ts`);
-    const i = FICHEIROS.indexOf(`${PASTA_DO_ESTUDIO}/documento-inicial.ts`);
-    const comDefeito = `${PARTES[i]}\nfunction __ensaio() {\nconst quotedPrice = quote.quotedPrice;\ntotalAmountParaBase(quotedPrice, modo, next.vatRate);\n}\n`;
-    expect(travessiasSemConversao(comDefeito, FICHEIROS[i]).join("\n")).toContain(
-      `${PASTA_DO_ESTUDIO}/documento-inicial.ts:`,
-    );
-  });
-
   it("nenhum caminho leva o preço do pedido ao total sem passar pela conversão", () => {
     expect(
-      PARTES.flatMap((p, i) => travessiasSemConversao(p, FICHEIROS[i])),
+      travessiasSemConversao(CODIGO),
       "o preço do pedido (serviços + adicionais) está a ser escrito no campo que " +
         "significa só serviços — é a avaria que levou 3.000 a 3.420, uma soma por visita",
     ).toEqual([]);
@@ -244,7 +200,7 @@ describe("o preço do pedido não chega ao total do estúdio em cru", () => {
         "totalAmountParaBase(quotedPrice, modo, next.vatRate);",
     ],
   ])("e apanha o defeito de %s", (_nome, defeito) => {
-    const comDefeito = `${PARTES[0]}\nfunction __ensaio() {\n${defeito}\n}\n`;
+    const comDefeito = `${CODIGO}\nfunction __ensaio() {\n${defeito}\n}\n`;
     expect(travessiasSemConversao(comDefeito).length).toBeGreaterThan(0);
   });
 
@@ -257,7 +213,7 @@ describe("o preço do pedido não chega ao total do estúdio em cru", () => {
     ["a montagem", "setTotalInput(textoDoTotal(baseDoPedidoParaOEcra(quote.quotedPrice, d)));"],
     ["a hidratação", "return aplicarBase(limpo, baseDoPedidoParaOEcra(doPedido, limpo));"],
   ])("e não grita com %s feita como deve ser", (_nome, correcto) => {
-    const certo = `${PARTES[0]}\nfunction __ensaio() {\nconst doPedido = quote.quotedPrice;\n${correcto}\n}\n`;
+    const certo = `${CODIGO}\nfunction __ensaio() {\nconst doPedido = quote.quotedPrice;\n${correcto}\n}\n`;
     expect(travessiasSemConversao(certo)).toEqual([]);
   });
 });
@@ -308,6 +264,9 @@ describe("do estúdio para o pedido há uma porta só", () => {
     // `typeof quote.quotedPrice === "number" ? quote.quotedPrice : 0` acaba nos
     // mesmos caracteres e não escreve nada em lado nenhum.
     const escritas = [...CODIGO.matchAll(/[{,]\s*quotedPrice\s*:/g)];
-    expect(escritas.length, "há mais do que um sítio a escrever `quotedPrice` no estúdio").toBe(1);
+    expect(
+      escritas.length,
+      "há mais do que um sítio a escrever `quotedPrice` no estúdio",
+    ).toBe(1);
   });
 });

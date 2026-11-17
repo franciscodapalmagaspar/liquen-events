@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fonteDaCasa } from "./fonte-do-admin.testkit";
+import { readFileSync } from "node:fs";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -20,6 +20,8 @@ import { fonteDaCasa } from "./fonte-do-admin.testkit";
  * vezes começam no princípio e não saltam.
  */
 
+const FONTE = readFileSync("src/app/[lang]/(admin)/orcamento/admin/AdminClient.tsx", "utf8");
+
 /** Comentários fora, com as linhas de pé — a regra da casa. */
 function semComentarios(fonte: string): string {
   const vazio = (m: string) => m.replace(/[^\n]/g, "");
@@ -29,27 +31,13 @@ function semComentarios(fonte: string): string {
     .replace(/^[^\S\n]*\/\/.*$/gm, "");
 }
 
-/**
- * Os blocos do ecrã dos Pedidos que são componentes de `_pedidos/` desde a fase
- * 7 da estrutura do código, pela ordem em que o ecrã os desenha. As vezes deles
- * fazem parte da mesma cascata.
- */
-const BLOCOS_DOS_PEDIDOS = [
-  "_pedidos/ControlosDaLista.tsx",
-  "_pedidos/PastilhasDaLista.tsx",
-  "_pedidos/BarraDaSeleccao.tsx",
-  "_pedidos/ListaDosPedidos.tsx",
-];
-
 /** As vezes declaradas no ecrã dos Pedidos, pela ordem em que aparecem. */
 function vezes(): number[] {
-  const src = fonteDaCasa("AdminClient.tsx", semComentarios);
+  const src = semComentarios(FONTE);
   const i = src.indexOf('view === "pedidos"');
   expect(i, "não encontrei o ecrã dos Pedidos").toBeGreaterThan(-1);
-  const bloco = [
-    src.slice(i),
-    ...BLOCOS_DOS_PEDIDOS.map((rel) => fonteDaCasa(rel, semComentarios)),
-  ].join("\n");
+  const fim = src.indexOf('view === "kanban"', i);
+  const bloco = src.slice(i, fim > i ? fim : undefined);
   return [...bloco.matchAll(/"--cena":\s*(\d+)/g)].map((m) => Number(m[1]));
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { fraseDeCorte } from "@/lib/orcamento/estudio/textos-do-estudio";
+import { fraseDeCorte } from "./conteudo-incompleto";
 import type { Pergunta } from "./usePerguntasDoEnvio";
 import { Button } from "./ui";
 

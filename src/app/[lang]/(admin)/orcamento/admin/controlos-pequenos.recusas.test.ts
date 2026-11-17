@@ -48,16 +48,10 @@ describe("a paleta de comandos: o realce da escolha não esbate", () => {
 
     // O `ESTADO` não pode sequer estar importado: se estiver, alguém voltou a
     // pô-lo nalgum sítio deste ficheiro.
-    // E o ícone da linha, que saiu para o seu ficheiro, também não.
-    for (const [nome, fonte] of [
-      ["CommandPalette", codigo],
-      ["CommandPaletteIcone", semComentarios(ler("CommandPaletteIcone.tsx"))],
-    ]) {
-      expect(
-        fonte,
-        `o \`ESTADO\` (120 ms) voltou ao ${nome} — ver o ponto 3 do cabeçalho do CommandPalette`,
-      ).not.toMatch(/\bESTADO\b/);
-    }
+    expect(
+      codigo,
+      "o `ESTADO` (120 ms) voltou ao CommandPalette — ver o ponto 3 do cabeçalho de lá",
+    ).not.toMatch(/\bESTADO\b/);
   });
 
   /**

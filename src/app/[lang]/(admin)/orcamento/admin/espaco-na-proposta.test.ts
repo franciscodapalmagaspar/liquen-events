@@ -23,10 +23,8 @@ import { spaceTypeLabel } from "@/lib/orcamento/data";
  * um local mais completo é a mesma linha a dizer mais.
  */
 
-// O documento inicial saiu do componente para `lib/orcamento/estudio/` (fase 1
-// de `docs/ESTRUTURA-DO-CODIGO.md`); é lá que o local ganha o espaço.
 const ESTUDIO = fs.readFileSync(
-  path.join(process.cwd(), "src/lib/orcamento/estudio/documento-inicial.ts"),
+  path.join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin/ProposalStudio.tsx"),
   "utf8",
 );
 

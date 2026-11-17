@@ -68,12 +68,9 @@ const PROIBIDOS = new Set(["md", "xl", "2xl", "max-md", "max-xl", "max-2xl"]);
  * saíram — ficaram limpos enquanto isto se escrevia.)
  */
 const TECTO_POR_TRATAR = new Map<string, number>([
-  // O painel de detalhe do pedido (`xl:grid-cols`, `xl:hidden`, `xl:sticky`).
-  ["AdminClient.tsx", 3],
-  // A palavra «Pesquisar» do atalho (`hidden md:inline`). Era o quarto do
-  // `AdminClient.tsx` e mudou de casa com o cabeçalho na fase 7 da estrutura
-  // do código, que não mudou uma classe: a soma dos dois continua a ser 4.
-  ["_casca/AccoesDoCabecalho.tsx", 1],
+  // O painel de detalhe do pedido (`xl:grid-cols`, `xl:hidden`, `xl:sticky`) e
+  // a palavra «Pesquisar» do atalho (`hidden md:inline`).
+  ["AdminClient.tsx", 4],
   // (`ProposalStudio.tsx` esteve aqui com tecto 4 — o par PT/EN da nota do
   // orçamento (`xl:grid`) e a coluna do enquadramento das fotos
   // (`2xl:grid-cols-1` / `2xl:hidden`). Os quatro eram perguntas sobre a coluna

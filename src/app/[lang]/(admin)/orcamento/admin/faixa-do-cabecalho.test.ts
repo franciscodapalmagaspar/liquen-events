@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fonteDe } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -50,7 +49,10 @@ import { fonteDe } from "./fonte-do-admin.testkit";
 const CSS =
   readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8") +
   readFileSync(join(process.cwd(), "src/app/admin.css"), "utf8");
-const ADMIN = fonteDe("AdminClient.tsx");
+const ADMIN = readFileSync(
+  join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin/AdminClient.tsx"),
+  "utf8",
+);
 
 /** O corpo de uma regra, pelo selector — sem comentários pelo meio. */
 function corpoDaRegra(css: string, selector: string): string | null {

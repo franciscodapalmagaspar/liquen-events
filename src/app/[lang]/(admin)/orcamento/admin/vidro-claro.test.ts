@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { achatar, racioDeContraste } from "./contraste-do-texto.test";
-import { fonteDe } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -29,6 +28,7 @@ import { fonteDe } from "./fonte-do-admin.testkit";
  * claro é branco, portanto o que o apaga é uma fotografia clara.
  */
 
+const RAIZ = join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin");
 // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
 // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
 // o browser os aplica no back office.
@@ -76,18 +76,13 @@ function superficie(foto: RGB): RGB {
 
 function semComentarios(fonte: string): string {
   const guarda = (t: string) => t.replace(/[^\n]/g, " ");
-  // Uma string com «/*» dentro (o `accept="image/*,…"` do campo de ficheiros)
-  // abria um «comentário» que só fechava no `*/` seguinte — e desde que a pasta
-  // se partiu (fase 8) esse `*/` mudou de casa e o resto do ficheiro sumia.
-  // As strings de uma linha que trazem «/*» esvaziam-se primeiro.
   return fonte
-    .replace(/"[^"\n]*\/\*[^"\n]*"/g, '""')
     .replace(/\{\/\*[\s\S]*?\*\/\}/g, guarda)
     .replace(/\/\*[\s\S]*?\*\//g, guarda)
     .replace(/^[^\S\n]*\/\/.*$/gm, guarda);
 }
 
-const TEMAS = () => fonteDe("Temas.tsx", semComentarios);
+const TEMAS = () => semComentarios(readFileSync(join(RAIZ, "Temas.tsx"), "utf8"));
 
 describe("o vidro claro lê-se sobre a pior fotografia que há", () => {
   it("a rede está armada: o véu escurece mesmo, e o vidro é quase nada", () => {

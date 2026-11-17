@@ -98,9 +98,7 @@ describe("o aperto e o peso de um título do back office", () => {
     // degrau, fica com o aperto de um cabeçalho de secção a 40 px.
     const grandes = [
       `${RAIZ}orcamento/admin/Overview.tsx`,
-      // O título da vista mudou-se com o cabeçalho para `_casca/` (fase 7 da
-      // estrutura do código).
-      `${RAIZ}orcamento/admin/_casca/Cabecalho.tsx`,
+      `${RAIZ}orcamento/admin/AdminClient.tsx`,
     ];
     for (const f of grandes) {
       expect(

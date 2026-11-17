@@ -5,7 +5,6 @@ import {
   type ProposalDoc,
 } from "@/lib/proposal-doc";
 import { dinheiroDaProposta, precosDe } from "@/lib/proposal-budget";
-import { plural } from "@/lib/plural";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -93,6 +92,11 @@ function linhasPorNome(doc: ProposalDoc): Map<string, { nome: string; preco: num
 /** Os títulos dos grupos de serviços, para ver o que entrou e saiu. */
 function gruposDe(doc: ProposalDoc): string[] {
   return (doc.serviceGroups ?? []).map((g) => texto(g.title)).filter(Boolean);
+}
+
+/** "3 fotos" / "1 foto" — o plural certo, que é o que faz uma frase ser lida. */
+function plural(n: number, um: string, muitos: string): string {
+  return `${n} ${n === 1 ? um : muitos}`;
 }
 
 /** O que entrou e o que saiu entre duas listas, comparadas como conjuntos. */

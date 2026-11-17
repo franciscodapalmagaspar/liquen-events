@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fonteDe } from "./[lang]/(admin)/orcamento/admin/fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -40,18 +39,19 @@ const raiz = process.cwd();
  * serve. O mesmo vale para o CSS, onde o cabeçalho longo sobre camadas fala de
  * `@layer utilities` muito antes de a camada existir de facto.
  */
-const semComentarios = (texto: string) =>
-  texto.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-const ler = (...p: string[]) => semComentarios(readFileSync(join(raiz, ...p), "utf-8"));
+const ler = (...p: string[]) =>
+  readFileSync(join(raiz, ...p), "utf-8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
 
 const GRELHAS = [
   {
     onde: "seletor de temas (ThemePicker.tsx)",
-    fonte: fonteDe("ThemePicker.tsx", semComentarios),
+    fonte: ler("src", "app", "[lang]", "(admin)", "orcamento", "admin", "ThemePicker.tsx"),
   },
   {
     onde: "grelha de fotos de um tema (Temas.tsx)",
-    fonte: fonteDe("Temas.tsx", semComentarios),
+    fonte: ler("src", "app", "[lang]", "(admin)", "orcamento", "admin", "Temas.tsx"),
   },
 ];
 

@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import { STATUS_OPTIONS } from "./_pedidos/PastilhaDoEstado";
 import { describe, expect, it } from "vitest";
 import { GLOSSARY, LIFECYCLE } from "./glossario-data";
 
@@ -56,12 +55,17 @@ describe("LIFECYCLE — internal integrity", () => {
 });
 
 describe("map-closing: every request status label is explained in the glossary", () => {
-  // Cross-check against the REAL source of truth (STATUS_OPTIONS) rather than
-  // a hand-copied list, so renaming a status label without updating the
-  // glossary turns this red. It used to be read from the TEXT of AdminClient,
-  // where it was trapped and unexported; since phase 7 of the code structure it
-  // lives in `_pedidos/PastilhaDoEstado.tsx` and is imported for real.
-  const statusLabels = STATUS_OPTIONS.map((o) => o.label);
+  // Cross-check against the REAL source of truth (STATUS_OPTIONS in
+  // AdminClient) rather than a hand-copied list, so renaming a status label
+  // without updating the glossary turns this red. STATUS_OPTIONS is trapped in
+  // a large "use client" component and not exported, so we read its literals
+  // from source. The label set is small and stable (the QuoteStatus union).
+  const statusLabels = (() => {
+    const src = readFileSync(new URL("./AdminClient.tsx", import.meta.url), "utf8");
+    const block = src.match(/const STATUS_OPTIONS[\s\S]*?\];/);
+    expect(block, "STATUS_OPTIONS block should exist in AdminClient.tsx").toBeTruthy();
+    return [...block![0].matchAll(/label:\s*"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1]);
+  })();
 
   it("finds all six QuoteStatus labels in AdminClient (guards the regex)", () => {
     expect(statusLabels).toEqual([

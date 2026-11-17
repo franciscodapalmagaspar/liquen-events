@@ -22,7 +22,7 @@
  *
  * Os títulos das páginas de inspiração de uma proposta
  * (`proposal-titulos-parecidos.ts`) e os nomes dos temas da biblioteca
- * (`temas/parecidos.ts`). São a mesma pergunta sobre coisas diferentes, e por
+ * (`temas-parecidos.ts`). São a mesma pergunta sobre coisas diferentes, e por
  * isso a resposta vive aqui — num módulo que não importa nada, para os dois
  * lados da aplicação o poderem ler sem arrastar o outro atrás.
  */

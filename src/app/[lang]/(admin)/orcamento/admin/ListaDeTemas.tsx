@@ -12,7 +12,7 @@ import {
   lerCarga,
   trazFotos,
   type CargaDeFotos,
-} from "@/lib/temas/arrasto";
+} from "@/lib/temas-arrasto";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

@@ -10,7 +10,6 @@ import {
   type ThemeSummary,
 } from "@/lib/theme-types";
 import { Button, FolhaOuDialogo } from "./ui";
-import { plural } from "@/lib/plural";
 /* A escala de movimento da casa — ver `ui/movimento.ts`. `ESTADO` são os 120 ms
    do degrau `micro`; `PRESSAO` o toque a 20 ms; `PROGRESSO` os 250 ms do degrau
    `elemento`, que é o degrau de «uma coisa a mover-se» e não de um estado a
@@ -74,6 +73,10 @@ export interface ThemeCopyOutcome {
   thumbsMissing: number;
   /** Ela carregou em "Parar" — as que faltavam nem foram tentadas. */
   stopped: boolean;
+}
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
 }
 
 /** Quantas fotos tem o destino, sem mentir: `null` = pasta ilegível,

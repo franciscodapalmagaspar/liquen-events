@@ -11,7 +11,6 @@ import {
   fotosEscolhidasDoDocumento,
   fotosNoTectoDoPdf,
 } from "./fotos-escolhidas";
-import { plural } from "@/lib/plural";
 
 /**
  * ONDE ESTOU, O QUE JÁ ESTÁ FEITO, E O QUE FALTA PARA PODER ENVIAR.
@@ -87,6 +86,8 @@ function oQueTemODocumento(doc: ProposalDoc) {
 
 export function estadoDasSeccoes(doc: ProposalDoc): EstadoSeccao[] {
   const { deco, grupos, boards, linhas, capas, fases } = oQueTemODocumento(doc);
+
+  const plural = (n: number, um: string, muitos: string) => `${n} ${n === 1 ? um : muitos}`;
 
   const seccoes: EstadoSeccao[] = [
     {

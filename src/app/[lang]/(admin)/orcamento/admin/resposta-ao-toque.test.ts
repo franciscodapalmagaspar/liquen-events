@@ -205,8 +205,7 @@ const SEM_AFUNDAR: { ficheiro: string; marca: string; porque: string }[] = [
   // Os dois primeiros são véus; os dois `<label>` só travam a bolha; os dois
   // `<summary>` e os dois `<a>` são comandos a sério e DEVEM levar `PRESSAO`.
   {
-    // Mudou-se com o menu para `_casca/` na fase 7 da estrutura do código.
-    ficheiro: "orcamento/admin/_casca/MenuLateral.tsx",
+    ficheiro: "orcamento/admin/AdminClient.tsx",
     marca: "pointer-events-auto absolute inset-0 bg-black/60",
     porque: "véu da gaveta — dono noutra ronda",
   },
@@ -216,8 +215,7 @@ const SEM_AFUNDAR: { ficheiro: string; marca: string; porque: string }[] = [
     porque: "véu do painel — dono noutra ronda",
   },
   {
-    // Saiu com as colunas da tabela dos pedidos (fase 7 da estrutura do código).
-    ficheiro: "orcamento/admin/_pedidos/colunas-dos-pedidos.tsx",
+    ficheiro: "orcamento/admin/AdminClient.tsx",
     // A marca deixou de trazer `cursor-pointer`: a fase 07 do sistema de design
     // tirou a mãozinha de todos os 21 sítios onde ela estava no back office, e
     // este `<label>` era um deles. Um botão leva a SETA — o `pointer` é do
@@ -226,8 +224,7 @@ const SEM_AFUNDAR: { ficheiro: string; marca: string; porque: string }[] = [
     porque: "label que só trava a bolha — dono noutra ronda",
   },
   {
-    // Saiu com o cartão do pedido (fase 7 da estrutura do código).
-    ficheiro: "orcamento/admin/_pedidos/QuoteCard.tsx",
+    ficheiro: "orcamento/admin/AdminClient.tsx",
     marca: "absolute left-2 top-3.5 z-10",
     porque: "label que só trava a bolha — dono noutra ronda",
   },

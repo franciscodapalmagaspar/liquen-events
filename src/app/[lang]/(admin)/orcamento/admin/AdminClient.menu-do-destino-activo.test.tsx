@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import type { Quote } from "@/lib/orcamento/types";
 import { ToastProvider } from "./Toast";
 import AdminClient from "./AdminClient";
-import { fonteDe } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -97,6 +97,9 @@ vi.mock("next/image", () => ({
   ),
 }));
 
+const CAMINHO = "src/app/[lang]/(admin)/orcamento/admin/AdminClient.tsx";
+const FONTE = readFileSync(CAMINHO, "utf8");
+
 /** Comentários fora: a prosa desta casa CITA o que foi apagado, de propósito —
  *  as strings antigas continuam escritas nos comentários e uma leitura crua
  *  encontrava-as lá e dava-as por vivas. */
@@ -108,9 +111,7 @@ function semComentarios(fonte: string): string {
     .replace(/^[^\S\n]*\/\/.*$/gm, "");
 }
 
-// O menu saiu do `AdminClient.tsx` para `_casca/` (fase 7 da estrutura do
-// código): lê-se o componente e as casas dele, cada ficheiro sem comentários.
-const CODIGO = fonteDe("AdminClient.tsx", semComentarios);
+const CODIGO = semComentarios(FONTE);
 
 const pedido = (): Quote =>
   ({

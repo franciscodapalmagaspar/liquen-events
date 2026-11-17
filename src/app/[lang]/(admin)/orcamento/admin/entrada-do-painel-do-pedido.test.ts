@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { fonteDoAdmin } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -37,8 +36,8 @@ import { fonteDoAdmin } from "./fonte-do-admin.testkit";
  * `AdminClient.saida-da-gaveta.test.tsx`.
  */
 
-// O `AdminClient.tsx` e as casas para onde ele se partiu (ver o testkit).
-const FONTE = fonteDoAdmin();
+const RAIZ = "src/app/[lang]/(admin)/orcamento/admin/";
+const FONTE = readFileSync(RAIZ + "AdminClient.tsx", "utf8");
 // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
 // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
 // o browser os aplica no back office.
@@ -258,12 +257,7 @@ describe("2 · os dois «mais campos» do painel", () => {
      * desta casa e que ninguém escolheu. A `SETA_DA_GAVETA` traz-lha, e traz a
      * mesma a todas as setas do back office.
      */
-    // As duas setas, fora das importações (desde a fase 7 da estrutura do
-    // código as duas gavetas vivem em ficheiros diferentes, e cada um importa).
-    const usosDaPeca = CODIGO.split("\n").filter(
-      (l) => l.includes("SETA_DA_GAVETA") && !/^\s*(import\b|SETA_DA_GAVETA,$)/.test(l),
-    );
-    expect(usosDaPeca.length).toBe(2);
+    expect(CODIGO.match(/SETA_DA_GAVETA/g)?.length).toBe(3); // o import e as duas setas
     const rodam = CODIGO.match(/group-open:rotate/g)?.length ?? 0;
     expect(rodam, "uma seta a rodar sem a peça").toBe(2);
     // E a guarda é sobre a LISTA DE CLASSES da seta, não sobre o ficheiro: há
@@ -344,13 +338,8 @@ describe("4 · o lote do «Mostrar mais»", () => {
   it("e a lista continua SEM `key` — um `key` remonta e perde o rolo", () => {
     const i = CODIGO.indexOf("<TabelaOuCartoes");
     expect(i, "a lista de Pedidos mudou de componente").toBeGreaterThan(-1);
-    // Até ao «/>» que fecha a PRÓPRIA `TabelaOuCartoes`: conta-se a fundura de
-    // `{}` e `()`, porque o `cartao={…}` lá dentro tem um `<QuoteCard … />`
-    // cujo fecho não é o dela — e um `key` depois dele passava sem ser visto.
-    const chamada = CODIGO.slice(i, fimDaChamada(CODIGO, i));
+    const chamada = CODIGO.slice(i, CODIGO.indexOf("\n                  />", i));
     expect(chamada, "o instrumento não apanhou a chamada inteira").toContain('legenda="Pedidos"');
-    expect(chamada, "o instrumento parou antes das colunas").toContain("colunas={");
-    expect(chamada, "o instrumento parou antes do fim").toContain("aoAbrir={");
     expect(chamada, "a lista de Pedidos ganhou um `key`").not.toMatch(/\bkey=/);
   });
 
@@ -361,16 +350,3 @@ describe("4 · o lote do «Mostrar mais»", () => {
     expect(constante, "apareceu um atraso por linha no lote").not.toMatch(/--cena|animation-delay/);
   });
 });
-
-/** O índice logo depois do «/>» que fecha a etiqueta aberta em `inicio`, ao
- *  nível dela (fora de `{}` e `()`). Devolve o fim do texto se não fechar. */
-function fimDaChamada(texto: string, inicio: number): number {
-  let fundura = 0;
-  for (let k = inicio; k < texto.length; k++) {
-    const c = texto[k];
-    if (c === "{" || c === "(") fundura++;
-    else if (c === "}" || c === ")") fundura--;
-    else if (fundura === 0 && c === "/" && texto[k + 1] === ">") return k + 2;
-  }
-  return texto.length;
-}

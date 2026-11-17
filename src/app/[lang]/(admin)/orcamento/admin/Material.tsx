@@ -31,7 +31,6 @@ import { useCachedList } from "./useCachedList";
 import { AvisoDeFalha } from "./AvisoDeFalha";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { unidadeNaContagem } from "@/lib/unidade-na-contagem";
-import { EMPTY_FORM, fromItem, toPayload, type FormState } from "./material-formulario";
 
 /**
  * CATÁLOGO DE MATERIAL DE LOGÍSTICA.
@@ -105,6 +104,53 @@ interface Pergunta {
   /** O verbo, repetido no botão: «Remover do catálogo», não «Confirmar». */
   rotulo: string;
   fazer: () => void | Promise<void>;
+}
+
+interface FormState {
+  name: string;
+  category: string;
+  kind: MaterialKind;
+  unit: string;
+  stock: string;
+  minStock: string;
+  notes: string;
+}
+
+const EMPTY_FORM: FormState = {
+  name: "",
+  category: MATERIAL_CATEGORIES[0],
+  kind: "reutilizavel",
+  unit: "unidade",
+  stock: "1",
+  minStock: "",
+  notes: "",
+};
+
+function fromItem(i: MaterialItem): FormState {
+  return {
+    name: i.name,
+    category: i.category,
+    kind: i.kind,
+    unit: i.unit ?? "",
+    stock: String(i.stock),
+    minStock: typeof i.minStock === "number" ? String(i.minStock) : "",
+    notes: i.notes ?? "",
+  };
+}
+
+function toPayload(f: FormState) {
+  const min = f.minStock.trim();
+  return {
+    name: f.name.trim(),
+    category: f.category,
+    kind: f.kind,
+    unit: f.unit.trim(),
+    stock: Math.max(0, Number(f.stock.replace(",", ".")) || 0),
+    // Vazio vai como `null` — a instrução "não vigies este item" — e não como
+    // 0, que seria "avisa-me quando houver menos do que nenhum".
+    minStock: min === "" ? null : Math.max(0, Number(min.replace(",", ".")) || 0),
+    notes: f.notes.trim(),
+  };
 }
 
 function KindChip({ kind }: { kind: MaterialKind }) {

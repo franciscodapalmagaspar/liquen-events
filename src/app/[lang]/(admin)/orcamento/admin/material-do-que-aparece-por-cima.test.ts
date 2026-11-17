@@ -151,10 +151,6 @@ const FAMILIA = [
   "ui/Ajuda.tsx",
   "ModelosParciais.tsx",
   "CommandPalette.tsx",
-  // O quadrado do ícone de cada linha da paleta saiu para aqui (o ficheiro
-  // passou do tecto); as varreduras da família são todas NEGATIVAS, e sem ele
-  // um `text-foreground/40` de volta ao ícone passava sem ser visto.
-  "CommandPaletteIcone.tsx",
   "ui/FolhaOuDialogo.tsx",
 ];
 
