@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { arrumarNomeDeTema, arrumosDeNomes, nomePrecisaDeArrumo } from "./tema-nome";
+import { arrumarNomeDeTema, arrumosDeNomes, nomePrecisaDeArrumo } from "./nome";
 
 describe("arrumarNomeDeTema", () => {
   it("põe em caixa de título o que está em minúsculas", () => {

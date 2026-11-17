@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fotoPelaTecla } from "./temas-grelha";
+import { fotoPelaTecla } from "./grelha";
 
 // 10 fotos em 4 colunas:
 //  0 1 2 3

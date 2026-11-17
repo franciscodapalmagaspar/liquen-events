@@ -7,7 +7,7 @@ import type { ThemeCopyMode, ThemeImage, ThemeSummary } from "@/lib/theme-types"
 import PhotoLightbox from "./PhotoLightbox";
 import ThemeCopyDialog, { type ThemeCopyOutcome } from "./ThemeCopyDialog";
 import FundirTemas, { type ThemeMergeOutcome } from "./FundirTemas";
-import { temasParecidos } from "@/lib/temas-parecidos";
+import { temasParecidos } from "@/lib/temas/parecidos";
 import { downloadMany, downloadName } from "./photo-download";
 import { guardarBlob, useDescarga } from "./ui/descarregar";
 import {
@@ -39,11 +39,11 @@ import {
   filtrarPorAmbito,
   type Ambito,
   type DadosDeUso,
-} from "@/lib/temas-filtros";
+} from "@/lib/temas/filtros";
 import { porqueFalhou, porqueRebentou, type Falha } from "@/lib/porque-falhou";
 import { porqueNaoLeu, porqueNaoLeuDoErro, type LeituraFalhada } from "@/lib/porque-nao-leu";
 import ListaDeTemas from "./ListaDeTemas";
-import { fotoPelaTecla } from "@/lib/temas-grelha";
+import { fotoPelaTecla } from "@/lib/temas/grelha";
 import { bibliotecaAlterada, bibliotecaAlteradaEmLote } from "./biblioteca-alterada";
 import {
   escreverCarga,
@@ -52,18 +52,13 @@ import {
   fraseDoMovimento,
   fraseDoRegresso,
   type CargaDeFotos,
-} from "@/lib/temas-arrasto";
+} from "@/lib/temas/arrasto";
 import { vestirOArrasto } from "./_temas/arrasto";
 import { ABOVE_FOLD, Photo, objectUrl, revokeUrl } from "./_temas/FotoDaGrelha";
 import { MAX_DROP_FILES, expandDropEntries, isImageFile } from "./_temas/largar-pastas";
-import {
-  AccaoEmBloco,
-  mergePage,
-  moveItem,
-  pool,
-  reinsertAt,
-} from "../../../../../lib/temas/listas-de-fotos";
-import { fraseDeEliminar, photoCountLabel } from "../../../../../lib/temas/textos-dos-temas";
+import { pool } from "@/lib/concorrencia";
+import { AccaoEmBloco, mergePage, moveItem, reinsertAt } from "@/lib/temas/listas-de-fotos";
+import { fraseDeEliminar, photoCountLabel } from "@/lib/temas/textos-dos-temas";
 import { plural } from "@/lib/plural";
 import {
   contarFotosDaBiblioteca,
@@ -259,7 +254,7 @@ export default function Temas({
    * que aqui estava: o arquivo continua a ser uma VISTA e não um filtro que se
    * soma (era essa a regra, e não muda), e passa a ser um dos cinco âmbitos em
    * vez de um botão sozinho ao lado deles. As contas estão em
-   * `lib/temas-filtros.ts`.
+   * `lib/temas/filtros.ts`.
    *
    * Não se guarda entre sessões, ao contrário da ordem e da densidade: essas
    * são preferências de leitura («como é que eu gosto de ver isto»), e um
@@ -1001,7 +996,7 @@ export default function Temas({
    * Sobre a lista TODA e não sobre a filtrada: um par onde só uma das metades
    * corresponde à procura continua a ser um par, e escondê-lo por causa do
    * filtro era transformar o aviso numa coisa que aparece e desaparece
-   * consoante o que está escrito no campo. Ver `temas-parecidos.ts`.
+   * consoante o que está escrito no campo. Ver `temas/parecidos.ts`.
    */
   const parecidos = useMemo(() => temasParecidos(themes), [themes]);
 
@@ -1018,7 +1013,7 @@ export default function Temas({
    * propostas, sem data). Enquanto o servidor não mandar a contagem do ano, o
    * âmbito não aparece — a alternativa era oferecê-lo e devolver a lista toda
    * ou nenhuma, e um filtro que mente ensina a não usar os outros quatro.
-   * A conta já está escrita e testada em `lib/temas-filtros.ts`; falta-lhe o
+   * A conta já está escrita e testada em `lib/temas/filtros.ts`; falta-lhe o
    * número.
    */
   const ambitosNoEcra = useMemo(() => ambitosDisponiveis(themes, dadosDeUso), [themes, dadosDeUso]);

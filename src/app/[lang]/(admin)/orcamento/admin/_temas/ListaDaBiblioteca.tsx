@@ -1,7 +1,7 @@
 "use client";
 
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
-import { avisoDeTemaParecido } from "@/lib/temas-parecidos";
+import { avisoDeTemaParecido } from "@/lib/temas/parecidos";
 import { type ThemeSummary } from "@/lib/theme-types";
 import { type PedidoDeMenu } from "../MenuDeContexto";
 import { MenuDeAccoes, type AccaoDeItem } from "../ui";

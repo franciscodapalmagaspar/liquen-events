@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ThemeSummary } from "@/lib/theme-types";
-import { arrumosDeNomes } from "@/lib/tema-nome";
+import { arrumosDeNomes } from "@/lib/temas/nome";
 import { Button } from "./ui";
 
 /**
@@ -16,7 +16,7 @@ import { Button } from "./ui";
  *
  * ── O QUE JÁ EXISTIA, E PORQUE É QUE NÃO CHEGAVA ──────────────────────────
  *
- * O corrector existe (`tema-nome.ts`) e sabe que «Seatings Plans» é «Seating
+ * O corrector existe (`temas/nome.ts`) e sabe que «Seatings Plans» é «Seating
  * Plans». A `SugestaoDeNome` mostra-o ao lado do campo — mas SÓ enquanto se
  * escreve o nome. Um tema baptizado há seis meses nunca mais passa por esse
  * campo, portanto a correcção existia e não chegava a nenhum dos temas que

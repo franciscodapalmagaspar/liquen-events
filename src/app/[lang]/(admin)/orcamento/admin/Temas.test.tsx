@@ -933,7 +933,7 @@ describe("Biblioteca de Temas — juntar temas duplicados", () => {
    *
    * Sem isto, juntar duplicados exigia dar por eles: dois cartões com o mesmo
    * nome escrito de duas maneiras, numa grelha de 25. O critério está preso em
-   * `temas-parecidos.test.ts`; aqui prende-se que ele CHEGA ao cartão e que
+   * `temas/parecidos.test.ts`; aqui prende-se que ele CHEGA ao cartão e que
    * leva a algum lado.
    */
   it("aponta o par e abre a fusão a partir dele", async () => {
@@ -1051,7 +1051,7 @@ describe("Biblioteca de Temas — juntar temas duplicados", () => {
  *
  * «"por usar" é metadado sem filtro»: a informação mais accionável da grelha
  * estava escrita em cada cartão e não havia maneira de reduzir a lista por
- * ela. A aritmética está presa em `lib/temas-filtros.test.ts`; aqui prende-se
+ * ela. A aritmética está presa em `lib/temas/filtros.test.ts`; aqui prende-se
  * que ela CHEGA à barra e que carregar num âmbito muda a grelha.
  */
 describe("Biblioteca de Temas — os âmbitos", () => {

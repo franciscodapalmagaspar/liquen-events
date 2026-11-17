@@ -1,42 +1,19 @@
 import type { ThemeImage } from "@/lib/theme-types";
 
 /**
- * Listas de fotografias: correr trabalho com tecto, repor no sítio, juntar
- * páginas e mudar de lugar — puras.
+ * Listas de fotografias: repor no sítio, juntar páginas e mudar de lugar —
+ * puras. (O `pool`, que corria trabalho com tecto, não é de temas: vive em
+ * `lib/concorrencia.ts`.)
  * (Saiu do topo do `Temas.tsx` na fase 8 de `docs/ESTRUTURA-DO-CODIGO.md`,
  * tal e qual.)
  */
 
-/**
- * Corre `worker` sobre `items` com no máximo `limit` em voo, pela ordem em que
- * vêm. `worker` NUNCA deve lançar — quem chama trata cada falha dentro dele e
- * guarda-a, para que um ficheiro mau não deite fora os 299 que faltam.
- * `stop` é consultado antes de cada item: é assim que sair da pasta trava o
- * que ainda não começou, sem cortar o que já vai a caminho.
- */
 /**
  * O retrato de uma ação em bloco a decorrer, para o `EmCurso` da barra de
  * seleção. Transferir 40 fotos e remover 40 fotos são 40 coisas cada uma: há
  * sempre contagem, por isso a barra diz a verdade e nunca é uma estimativa.
  */
 export type AccaoEmBloco = { tipo: "transferir" | "remover"; feito: number; total: number };
-
-export async function pool<T>(
-  items: T[],
-  limit: number,
-  worker: (item: T) => Promise<void>,
-  stop: () => boolean = () => false,
-): Promise<void> {
-  let next = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    for (;;) {
-      const i = next++;
-      if (i >= items.length || stop()) return;
-      await worker(items[i]);
-    }
-  });
-  await Promise.all(runners);
-}
 
 /**
  * Repõe fotos numa lista, cada uma no índice onde estava (puro — testado).

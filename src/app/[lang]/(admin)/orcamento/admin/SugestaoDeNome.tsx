@@ -1,6 +1,6 @@
 "use client";
 
-import { arrumarNomeDeTema, nomePrecisaDeArrumo } from "@/lib/tema-nome";
+import { arrumarNomeDeTema, nomePrecisaDeArrumo } from "@/lib/temas/nome";
 /* A escala de movimento da casa — ver `ui/movimento.ts` para o censo que a
    motivou. `ESTADO` são os 120 ms do degrau `micro` numa lista fechada de
    propriedades (nenhuma delas força *layout*); `PRESSAO` é o toque a 20 ms.
@@ -12,7 +12,7 @@ import { ESTADO, PRESSAO } from "./ui/movimento";
  * «QUERES DIZER "SEATING PLANS"?» — a sugestão, ao lado do campo
  * ════════════════════════════════════════════════════════════════════════════
  *
- * A regra do corrector está no `tema-nome.ts` e é uma só: ele PROPÕE. Este
+ * A regra do corrector está no `temas/nome.ts` e é uma só: ele PROPÕE. Este
  * componente é a metade que faltava dessa frase — o sítio onde a proposta
  * aparece e onde se aceita com um clique.
  *
