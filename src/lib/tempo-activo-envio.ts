@@ -172,3 +172,22 @@ export async function entregarTempo(
     return false;
   }
 }
+
+/**
+ * Entrega os lotes e, se falharem, devolve-os ao envio — mas SÓ se o estúdio
+ * ainda estiver no mesmo cliente. A resposta chega depois; se entretanto ela
+ * abriu outro cliente, o envio (que é um só no componente) mandaria esse
+ * tempo para o cliente NOVO. Nesse caso o pedaço não volta: perde-se uma
+ * medição do cliente anterior, que é melhor do que somá-la a outro.
+ */
+export async function entregarOuDevolver(o: {
+  url: string;
+  lotes: Lote[];
+  aFechar: boolean;
+  meios: Parameters<typeof entregarTempo>[3];
+  aindaEOMesmoCliente: () => boolean;
+  devolver: (lotes: Lote[]) => void;
+}): Promise<void> {
+  const entregue = await entregarTempo(o.url, o.lotes, o.aFechar, o.meios);
+  if (!entregue && o.aindaEOMesmoCliente()) o.devolver(o.lotes);
+}

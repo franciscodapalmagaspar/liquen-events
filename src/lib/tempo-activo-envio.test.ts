@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { CONTAGEM_VAZIA, comAcontecimento, totalAte, type Contagem } from "./tempo-activo";
 import {
   criarEnvioDoTempo,
+  entregarOuDevolver,
   entregarTempo,
   PASSO_DO_ECRA_MS,
   PASSO_DO_ENVIO_MS,
@@ -289,5 +292,73 @@ describe("um envio que falha volta aos pendentes", () => {
     envio.devolver([lote]);
     envio.despejar(0, null, t0 + 1);
     expect(pedidos).toEqual([[lote]]);
+  });
+});
+
+/**
+ * 17/11 (revisão): o pedaço que falhou só volta ao envio se o estúdio ainda
+ * estiver no MESMO cliente — o envio é um só no componente, e devolvê-lo
+ * depois de trocar mandava esse tempo para o cliente novo.
+ */
+describe("um envio falhado não passa para outro cliente", () => {
+  const LOTES = [{ id: "id-lote-0001", porSeccao: { capa: 60_000 } }];
+  const semRede = { fetch: (async () => Promise.reject(new Error("rede"))) as typeof fetch };
+  const guardou = {
+    fetch: (async () => ({
+      ok: true,
+      json: async () => ({ guardado: true }),
+    })) as unknown as typeof fetch,
+  };
+
+  it("falhou e ainda é o mesmo cliente: volta ao envio", async () => {
+    const devolver = vi.fn();
+    await entregarOuDevolver({
+      url: "/u",
+      lotes: LOTES,
+      aFechar: false,
+      meios: semRede,
+      aindaEOMesmoCliente: () => true,
+      devolver,
+    });
+    expect(devolver).toHaveBeenCalledWith(LOTES);
+  });
+
+  it("falhou mas ela já abriu outro cliente: NÃO volta", async () => {
+    const devolver = vi.fn();
+    let clienteAgora = "LIQ-1";
+    const desde = clienteAgora;
+    const pedido = entregarOuDevolver({
+      url: "/u",
+      lotes: LOTES,
+      aFechar: false,
+      meios: semRede,
+      aindaEOMesmoCliente: () => clienteAgora === desde,
+      devolver,
+    });
+    clienteAgora = "LIQ-2"; // trocou de cliente antes de a resposta chegar
+    await pedido;
+    expect(devolver).not.toHaveBeenCalled();
+  });
+
+  it("entregue: nunca volta", async () => {
+    const devolver = vi.fn();
+    await entregarOuDevolver({
+      url: "/u",
+      lotes: LOTES,
+      aFechar: false,
+      meios: guardou,
+      aindaEOMesmoCliente: () => true,
+      devolver,
+    });
+    expect(devolver).not.toHaveBeenCalled();
+  });
+
+  it("o estúdio compara com o cliente de AGORA, guardado quando o envio saiu", () => {
+    const fonte = readFileSync(
+      path.join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin/ProposalStudio.tsx"),
+      "utf8",
+    );
+    expect(fonte).toContain("aindaEOMesmoCliente: () => quoteIdAgora.current === id,");
+    expect(fonte).toMatch(/quoteIdAgora\.current = quote\.id;/);
   });
 });

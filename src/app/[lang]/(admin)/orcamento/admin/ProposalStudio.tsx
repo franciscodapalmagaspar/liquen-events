@@ -78,7 +78,7 @@ import {
 } from "@/lib/tempo-activo";
 import {
   criarEnvioDoTempo,
-  entregarTempo,
+  entregarOuDevolver,
   PASSO_DO_ECRA_MS,
   type EnvioDoTempo,
   type Lote,
@@ -2486,18 +2486,23 @@ export default function ProposalStudio({
   const enviarPedaco = useCallback(
     (lotes: Lote[], aFechar: boolean) => {
       const id = quote.id;
-      void entregarTempo(`/api/orcamento/${id}/tempo-activo`, lotes, aFechar, {
-        fetch: (...a) => fetch(...a),
-        sendBeacon:
-          typeof navigator !== "undefined" && navigator.sendBeacon
-            ? (u, d) => navigator.sendBeacon(u, d)
-            : undefined,
-      }).then((entregue) => {
-        // Um envio falhado (rede, ou `guardado: false`) volta aos pendentes e
-        // vai no envio seguinte — de cinco em cinco minutos, perdê-lo era
-        // perder cinco minutos. Sem aviso nenhum: é uma MEDIÇÃO, não trabalho.
-        // Volta com os mesmos ids: se o servidor afinal gravou, ignora-os.
-        if (!entregue && quoteIdAgora.current === id) envioRef.current?.devolver(lotes);
+      // Um envio falhado (rede, ou `guardado: false`) volta ao envio seguinte
+      // com os mesmos ids — se o servidor afinal gravou, ignora-os — e só se
+      // ainda for este cliente (ver `entregarOuDevolver`). Sem aviso nenhum:
+      // é uma MEDIÇÃO, não trabalho.
+      void entregarOuDevolver({
+        url: `/api/orcamento/${id}/tempo-activo`,
+        lotes,
+        aFechar,
+        meios: {
+          fetch: (...a) => fetch(...a),
+          sendBeacon:
+            typeof navigator !== "undefined" && navigator.sendBeacon
+              ? (u, d) => navigator.sendBeacon(u, d)
+              : undefined,
+        },
+        aindaEOMesmoCliente: () => quoteIdAgora.current === id,
+        devolver: (l) => envioRef.current?.devolver(l),
       });
     },
     [quote.id],
