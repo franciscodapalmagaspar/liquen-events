@@ -4,8 +4,7 @@ import { createProposal, updateProposal } from "@/lib/proposals-store";
 import { isMissingTable, nomeDaColunaEmFalta } from "@/lib/repository";
 import { avisoDeColunasPerdidas } from "@/lib/estado-das-colunas";
 import { log } from "@/lib/logger";
-import { recusa } from "./recusa";
-import type { Recusa } from "./contrato";
+import type { Falha } from "./contrato";
 
 /**
  * Etapa 9 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): a proposta fica
@@ -18,7 +17,7 @@ import type { Recusa } from "./contrato";
  */
 export type PropostaGravada =
   | { ok: true; docSaved: boolean; docError?: string }
-  | { ok: false; recusa: Recusa };
+  | { ok: false; falha: Falha };
 
 /**
  * Gravar ESTA proposta: uma linha nova, ou a que ficou por enviar.
@@ -198,7 +197,10 @@ export async function gravarAProposta(
       log.error("proposta-doc: guardar falhou", e, { id });
       return {
         ok: false,
-        recusa: recusa(503, { error: "Não foi possível guardar a proposta. Tenta novamente." }),
+        falha: {
+          status: 503,
+          corpo: { error: "Não foi possível guardar a proposta. Tenta novamente." },
+        },
       };
     }
     /**
@@ -227,11 +229,14 @@ export async function gravarAProposta(
       log.error("proposta-doc: guardar falhou mesmo sem os campos novos", e2, { id });
       return {
         ok: false,
-        recusa: recusa(503, {
-          error:
-            "Não foi possível guardar a proposta — a base de dados recusou a gravação. " +
-            "Verifica se o db/schema.sql foi corrido nesta base.",
-        }),
+        falha: {
+          status: 503,
+          corpo: {
+            error:
+              "Não foi possível guardar a proposta — a base de dados recusou a gravação. " +
+              "Verifica se o db/schema.sql foi corrido nesta base.",
+          },
+        },
       };
     }
   }

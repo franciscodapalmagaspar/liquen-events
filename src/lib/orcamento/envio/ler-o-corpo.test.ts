@@ -100,8 +100,8 @@ describe("o corpo do pedido à rota da proposta", () => {
       cortesConfirmados: "sim",
     } as unknown as CorpoDoPedido);
     expect(p).toMatchObject({
-      corpo: null,
-      assunto: null,
+      textoDoEmail: null,
+      assuntoDoEmail: null,
       modelo: "",
       pdfVisto: null,
       fotosEmFaltaConfirmadas: null,
@@ -119,8 +119,8 @@ describe("o corpo do pedido à rota da proposta", () => {
       cortesConfirmados: true,
     } as CorpoDoPedido);
     expect(bom).toMatchObject({
-      corpo: "Olá",
-      assunto: "A proposta",
+      textoDoEmail: "Olá",
+      assuntoDoEmail: "A proposta",
       modelo: "registo-formal",
       pdfVisto: "k",
       fotosEmFaltaConfirmadas: 3,

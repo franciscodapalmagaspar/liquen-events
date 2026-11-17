@@ -16,7 +16,7 @@ vi.mock("@/lib/proposal-doc-render", () => ({
 }));
 vi.mock("@/lib/proposta-fotos-verificacao", () => ({ fotosEscolhidasQueFaltam: async () => [] }));
 
-import { atenderOPedido, type Contexto } from "./atender-o-pedido";
+import { atenderOEstudio, type Contexto } from "./atender-o-estudio";
 import { corpoLido } from "./ler-o-corpo";
 import { __limparTrincosEmMemoria, fecharTrinco } from "@/lib/trinco";
 import { esvaziarPdfsFinais } from "@/lib/proposal-preview-cache";
@@ -50,10 +50,10 @@ beforeEach(() => {
   vi.spyOn(log, "warn").mockImplementation(() => {});
 });
 
-describe("atenderOPedido", () => {
+describe("atenderOEstudio", () => {
   it("a pré-visualização devolve o PDF e os cabeçalhos — sem trinco", async () => {
     await fecharTrinco("envio-da-proposta:q1", 60_000); // um envio a decorrer não a trava
-    const d = await atenderOPedido(contexto({ mode: "preview", doc }));
+    const d = await atenderOEstudio(contexto({ mode: "preview", doc }));
     expect(d.tipo).toBe("pdf");
     if (d.tipo === "pdf") {
       expect(d.cabecalhos["Content-Type"]).toBe("application/pdf");
@@ -63,12 +63,12 @@ describe("atenderOPedido", () => {
 
   it("um envio com outro a decorrer é uma recusa 409 «a ser enviada»", async () => {
     await fecharTrinco("envio-da-proposta:q1", 60_000);
-    const d = await atenderOPedido(contexto({ mode: "send", doc }));
+    const d = await atenderOEstudio(contexto({ mode: "send", doc }));
     expect(d).toMatchObject({ tipo: "recusa", recusa: { status: 409, corpo: { aEnviar: true } } });
   });
 
   it("um documento incompleto é uma recusa 400 que diz o que falta — e solta o trinco", async () => {
-    const d = await atenderOPedido(contexto({ mode: "send", doc: { ...doc, ref: "" } }));
+    const d = await atenderOEstudio(contexto({ mode: "send", doc: { ...doc, ref: "" } }));
     expect(d).toEqual({
       tipo: "recusa",
       recusa: { status: 400, corpo: { error: "Proposta incompleta: falta a referência." } },
@@ -77,7 +77,7 @@ describe("atenderOPedido", () => {
   });
 
   it("um envio sem o PDF visto pára na trava, antes de desenhar", async () => {
-    const d = await atenderOPedido(contexto({ mode: "send", doc }));
+    const d = await atenderOEstudio(contexto({ mode: "send", doc }));
     expect(d).toMatchObject({ tipo: "recusa", recusa: { status: 422 } });
   });
 });

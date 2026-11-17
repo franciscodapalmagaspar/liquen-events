@@ -30,7 +30,7 @@ export interface ParaMandar {
   /** `false` só quando ela escolheu o WhatsApp (`ler-o-corpo.ts`). */
   porEmail: boolean;
   /** O email inteiro, já com a moldura da casa (`email-da-proposta.ts`). */
-  escrito: EmailDaProposta;
+  email: EmailDaProposta;
   pdf: Buffer;
   /** Quantos ms sobram do orçamento do pedido, agora. */
   resta: () => number;
@@ -68,7 +68,7 @@ export async function mandarOEmail(p: ParaMandar): Promise<ResultadoDoEmail> {
       semEmailPorEscolha: false,
     };
   }
-  const { email } = p.escrito;
+  const { emoldurado } = p.email;
   try {
     const mail = await sendMail({
       to: p.para as string,
@@ -76,13 +76,13 @@ export async function mandarOEmail(p: ParaMandar): Promise<ResultadoDoEmail> {
       // Sem o identificador interno — a mesma decisão da rota irmã
       // (`orcamento/[id]/proposta`), onde está escrita por extenso: o
       // `randomUUID()` da nossa base não é referência de ninguém.
-      subject: p.escrito.assunto,
-      html: email.html,
-      text: email.text,
+      subject: p.email.assunto,
+      html: emoldurado.html,
+      text: emoldurado.text,
       // O PDF junta-se aos anexos da assinatura; substituí-los deixava o
       // logótipo de fora e o `cid:` do HTML sem destino.
       attachments: [
-        ...email.attachments,
+        ...emoldurado.attachments,
         {
           // O nome do anexo também é a língua da proposta: ela manda as duas
           // versões (a portuguesa aos pais, a inglesa ao casal) e com o mesmo
@@ -91,7 +91,7 @@ export async function mandarOEmail(p: ParaMandar): Promise<ResultadoDoEmail> {
           // O NOME é o do casal e o da data do evento, e não o
           // identificador interno do pedido: é este ficheiro que fica na
           // pasta de transferências deles e que é reencaminhado aos pais.
-          filename: p.escrito.nomeDoAnexo,
+          filename: p.email.nomeDoAnexo,
           content: p.pdf,
           contentType: "application/pdf",
         },

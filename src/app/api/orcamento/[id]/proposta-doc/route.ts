@@ -4,7 +4,7 @@ import { assinaturaDeQuemEnvia } from "@/lib/email-quem-assina";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
 import { getQuote } from "@/lib/quotes-store";
-import { atenderOPedido, type Desfecho } from "@/lib/orcamento/envio/atender-o-pedido";
+import { atenderOEstudio, type Desfecho } from "@/lib/orcamento/envio/atender-o-estudio";
 import { lerOCorpo } from "@/lib/orcamento/envio/ler-o-corpo";
 import { relogioDoEnvio } from "@/lib/orcamento/envio/orcamento-de-tempo";
 import { linkDaUltimaEnviada } from "@/lib/orcamento/envio/ultima-enviada";
@@ -14,7 +14,7 @@ import { linkDaUltimaEnviada } from "@/lib/orcamento/envio/ultima-enviada";
  * processador (`comCpu`), LER (o pedido e o corpo) e traduzir o desfecho em
  * HTTP. O que se decide — recusar, desenhar, perguntar, gravar, mandar — vive em
  * `lib/orcamento/envio/` (fase 5 de `docs/ESTRUTURA-DO-CODIGO.md`), e começa
- * em `atender-o-pedido.ts`.
+ * em `atender-o-estudio.ts`.
  */
 
 export const runtime = "nodejs";
@@ -66,6 +66,8 @@ function emHttp(d: Desfecho): NextResponse {
   switch (d.tipo) {
     case "recusa":
       return NextResponse.json(d.recusa.corpo, { status: d.recusa.status });
+    case "falha":
+      return NextResponse.json(d.falha.corpo, { status: d.falha.status });
     case "pdf":
       return new NextResponse(d.pdf, { headers: d.cabecalhos });
     case "envio":
@@ -105,7 +107,7 @@ async function POST_semMedida(
     const quote = await getQuote(id);
     if (!quote) return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
     return emHttp(
-      await atenderOPedido({
+      await atenderOEstudio({
         pedidoId: id,
         quote,
         corpo: await lerOCorpo(request),

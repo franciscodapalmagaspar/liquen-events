@@ -33,7 +33,7 @@ export interface ParaDepoisDoEmail extends OEnvio {
   emailed: boolean;
   /** `true` quando ela escolheu o WhatsApp. */
   semEmailPorEscolha: boolean;
-  escrito: EmailDaProposta;
+  email: EmailDaProposta;
   /** A chave do modelo de que o corpo partiu (vazia sem ela). */
   modelo: string;
   pdf: Buffer;
@@ -91,14 +91,14 @@ async function guardarACopia(p: ParaDepoisDoEmail, sentAt: string): Promise<stri
     await registarEnvio(p.pedidoId, {
       enviadoEm: sentAt,
       para: String(p.quote.email ?? ""),
-      porQuem: p.escrito.quem.nome,
+      porQuem: p.email.quem.nome,
       // A chave do modelo de onde o corpo partiu, para se saber de que
       // texto se partiu. Vazia quando o envio não passou pelo ecrã novo.
       modelo: p.modelo,
       idioma: p.idioma === "en" ? "en" : "pt",
-      assunto: p.escrito.assunto,
-      texto: p.escrito.textoDaCopia,
-      anexo: { nome: p.escrito.nomeDoAnexo, bytes: p.pdf.byteLength },
+      assunto: p.email.assunto,
+      texto: p.email.textoDaCopia,
+      anexo: { nome: p.email.nomeDoAnexo, bytes: p.pdf.byteLength },
       propostaId: p.proposal.id,
     });
     return undefined;

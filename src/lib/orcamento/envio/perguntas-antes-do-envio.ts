@@ -102,6 +102,19 @@ export function perguntaDosCortes(
 }
 
 /**
+ * Só depois das duas respostas é «segue com fotos a menos»: antes delas, o
+ * envio ainda podia parar (revisão de 17/11). Fica registado que foi ela que
+ * confirmou.
+ */
+export function avisarQueSegueComFotosAMenos(pedidoId: string, missingImages: number): void {
+  if (missingImages <= 0) return;
+  log.warn("proposta-doc: a proposta segue com fotos a menos, confirmado por ela", {
+    id: pedidoId,
+    emFalta: missingImages,
+  });
+}
+
+/**
  * Os cabeçalhos da PRÉ-VISUALIZAÇÃO — o corpo é o PDF, e é por aqui que o
  * estúdio sabe o que o documento não leva.
  */

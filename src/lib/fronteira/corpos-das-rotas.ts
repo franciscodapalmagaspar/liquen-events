@@ -25,10 +25,9 @@ import {
  *
  * Todas em MODO DE OBSERVAR (`observar.ts`): a rota continua a decidir com as
  * verificações que já tinha, e o esquema só diz o que não bate. Cada esquema
- * descreve o que o ecrã manda HOJE, com as tolerâncias que a rota já aceita
- * escritas por extenso (um `""` para limpar, um `null` para apagar) — uma
- * tolerância que a rota aceita e o esquema não descrevesse seria um registo
- * falso a cada gesto normal.
+ * descreve o que o ecrã manda HOJE, com os vazios que ele manda de facto (um
+ * `""` para limpar, um `null` para apagar) — a regra de todos os esquemas
+ * desta casa está em `observar.ts`, «o que um esquema destes descreve».
  */
 
 /**

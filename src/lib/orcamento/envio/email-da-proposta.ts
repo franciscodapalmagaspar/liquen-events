@@ -5,7 +5,15 @@ import { esc } from "@/lib/mail";
 import { emailAoCliente } from "@/lib/email-assinatura";
 import { marcadoresDoPedido, modeloParaEnvioAutomatico, textoDoCorpo } from "@/lib/email-modelos";
 import { arrumarLigacao, ROTULO_DA_PROPOSTA } from "@/lib/email-ligacoes";
-import { assuntoEscritoAMao, corpoEscritoAMao, paragrafosDeTexto } from "@/lib/email-corpo-escrito";
+import {
+  assuntoEscritoAMao,
+  corpoEscritoAMao,
+  excedeOTecto,
+  MAXIMO_CORPO_ESCRITO,
+  paragrafosDeTexto,
+} from "@/lib/email-corpo-escrito";
+import { recusa } from "./recusa";
+import type { Recusa } from "./contrato";
 import { resolverLigacaoDaProposta } from "@/lib/email-ligacao-reservada";
 import { textosDoEmailDaProposta } from "@/lib/email-proposta-textos";
 import { eCasamento } from "@/lib/proposal-evento";
@@ -49,6 +57,20 @@ import type { OEnvio } from "./o-envio";
  * Sai o texto da casa em inglês, e fica REGISTADO: ela guardou um modelo e o
  * email que saiu não foi o dela; isso tem de se poder ver.
  */
+/**
+ * O texto escrito à mão recusa-se por tamanho ANTES de se desenhar o PDF:
+ * recusar depois é gastar o desenho por nada. O resto dele (o
+ * `{{link_proposta}}`) só se resolve depois de a proposta estar gravada.
+ */
+export function recusaDoTextoGrandeDemais(textoDoEmail: string | null): Recusa | null {
+  if (!excedeOTecto(textoDoEmail)) return null;
+  return recusa(400, {
+    error:
+      `O texto do email é demasiado longo (o máximo são ${MAXIMO_CORPO_ESCRITO} caracteres). ` +
+      `Encurta-o e volta a enviar — não foi enviado nada.`,
+  });
+}
+
 declare const emoldurado: unique symbol;
 
 /**
@@ -66,8 +88,8 @@ function emoldurar(partes: Parameters<typeof emailAoCliente>[0]): EmailEmoldurad
 export interface ParaEscrever extends OEnvio {
   mensagem: string;
   /** O `corpo` e o `assunto` escritos à mão, quando vieram (`ler-o-corpo.ts`). */
-  corpo: string | null;
-  assunto: string | null;
+  textoDoEmail: string | null;
+  assuntoDoEmail: string | null;
   acceptUrl: string;
   dinheiro: ReturnType<typeof dinheiroDaProposta>;
   /** Quem carregou em «Enviar» (`assinaturaDeQuemEnvia`). */
@@ -75,7 +97,7 @@ export interface ParaEscrever extends OEnvio {
 }
 
 export interface EmailDaProposta {
-  email: EmailEmoldurado;
+  emoldurado: EmailEmoldurado;
   assunto: string;
   /** O texto que fica na CÓPIA do envio (`registarEnvio`). */
   textoDaCopia: string;
@@ -93,7 +115,7 @@ export async function escreverOEmail(p: ParaEscrever): Promise<EmailDaProposta> 
    * um cliente avariado é `null` desde a leitura, e não vira um email com «42».
    */
   const escrito = corpoEscritoAMao(
-    p.corpo === null ? null : resolverLigacaoDaProposta(p.corpo, acceptUrl),
+    p.textoDoEmail === null ? null : resolverLigacaoDaProposta(p.textoDoEmail, acceptUrl),
   );
   /**
    * O assunto que o ecrã mostrou ANDA COM O CORPO, e é condição e não
@@ -101,7 +123,7 @@ export async function escreverOEmail(p: ParaEscrever): Promise<EmailDaProposta> 
    * reescrever a linha que o casal lê antes de abrir um email cujo texto
    * ninguém viu.
    */
-  const assuntoDoEcra = escrito ? assuntoEscritoAMao(p.assunto) : null;
+  const assuntoDoEcra = escrito ? assuntoEscritoAMao(p.assuntoDoEmail) : null;
 
   const doModelo = await modeloDela(p, !!escrito);
 
@@ -135,7 +157,7 @@ export async function escreverOEmail(p: ParaEscrever): Promise<EmailDaProposta> 
   });
   const cartao = cartaoDoPdf(acceptUrl, t, nomeDoAnexo);
 
-  const email = escrito
+  const emoldurado = escrito
     ? emoldurar({
         /**
          * O CORPO ESCRITO NO ECRÃ TAMBÉM PASSA PELA ARRUMAÇÃO DO LINK. MEDIDO
@@ -157,14 +179,14 @@ export async function escreverOEmail(p: ParaEscrever): Promise<EmailDaProposta> 
       : emoldurar({ quem, ...corpoDaCasa(t, doc.clientNames, mensagem, acceptUrl, cartao) });
 
   return {
-    email,
+    emoldurado,
     // O assunto ESCRITO no ecrã de envio ganha ao do modelo, e o do modelo
     // ganha ao da casa (que vem na língua da proposta): é a única linha que o
     // casal lê antes de decidir se abre.
     assunto: assuntoDoEcra ?? doModelo?.assunto ?? t.assunto,
     // O CORPO tal e qual, em texto, já com a ligação resolvida. Sem corpo
     // escrito à mão fica o texto simples do email que saiu.
-    textoDaCopia: escrito ? escrito.texto : email.text,
+    textoDaCopia: escrito ? escrito.texto : emoldurado.text,
     nomeDoAnexo,
     quem,
   };

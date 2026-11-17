@@ -6,8 +6,6 @@ import { resolveValidUntil, type ProposalDoc } from "@/lib/proposal-doc";
 import { chaveDoPdf } from "@/lib/proposal-pdf-chave";
 import { desalinhamento, dinheiroDaProposta } from "@/lib/proposal-budget";
 import { ehIdiomaDaProposta } from "@/lib/proposal-doc-textos";
-import fs from "node:fs";
-import path from "node:path";
 
 // ── Mock the auth + data layer + heavy PDF/mail side effects; keep the money
 //    math (proposal-doc) and the route logic real ──
@@ -2097,34 +2095,39 @@ describe("POST /api/orcamento/[id]/proposta-doc — o que vem do ecrã de envio"
    * nenhum caminho que a fixture consiga montar, e um teste que só mede o que a
    * fixture alcança deixava um por medir — que é como ele chegou aos 39.
    */
-  /** O email saiu da rota na fase 5 (`docs/ESTRUTURA-DO-CODIGO.md`): o botão
-   *  vive em `email-da-proposta.ts`, o cartão do PDF em `cartao-do-pdf.ts`. */
-  const fonteDoEmail = () =>
-    ["email-da-proposta.ts", "cartao-do-pdf.ts"]
-      .map((f) => fs.readFileSync(path.join(process.cwd(), "src/lib/orcamento/envio", f), "utf8"))
-      .join("\n");
+  /**
+   * Medido no EMAIL que sai, e não no texto do código (fase 5 de
+   * `docs/ESTRUTURA-DO-CODIGO.md`: uma guarda que lê o código engana-se quando
+   * ele muda de ficheiro). O texto da casa — o que sai sem modelo nem corpo
+   * escrito — é o caminho que leva os dois alvos juntos: o botão da página e o
+   * link do PDF.
+   */
+  const corpoDoEmailDaCasa = async () => {
+    modelo.get.mockResolvedValue(null);
+    await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    return enviado().html;
+  };
 
-  it("o botão e o link do email têm os 44 px de alvo", () => {
-    const fonte = fonteDoEmail();
+  it("o botão e o link do email têm os 44 px de alvo", async () => {
+    const corpo = await corpoDoEmailDaCasa();
     const alvos = [
-      ...fonte.matchAll(/padding:(\d+)px [^";]*;font-size:(\d+)px;line-height:(\d+)px/g),
+      ...corpo.matchAll(/<a [^>]*padding:(\d+)px [^";]*;font-size:(\d+)px;line-height:(\d+)px/g),
     ].map(([, pad, letra, lh]) => ({
       altura: Number(pad) * 2 + Number(lh),
       letra: Number(letra),
     }));
-    expect(
-      alvos.length,
-      "não encontrei o botão e o link do PDF na fonte da rota",
-    ).toBeGreaterThanOrEqual(2);
+    expect(alvos.length, "não encontrei o botão e o link do PDF no email").toBeGreaterThanOrEqual(
+      2,
+    );
     for (const a of alvos) {
       expect(a.altura, `um alvo do email tem ${a.altura} px de altura`).toBeGreaterThanOrEqual(44);
       expect(a.letra, `um alvo do email tem letra de ${a.letra} px`).toBeGreaterThanOrEqual(16);
     }
   });
 
-  it("e há UM só botão cheio — o segundo virou link", () => {
-    const fonte = fonteDoEmail();
-    const cheios = [...fonte.matchAll(/background:#4c6350;border-radius/g)];
+  it("e há UM só botão cheio — o segundo virou link", async () => {
+    const corpo = await corpoDoEmailDaCasa();
+    const cheios = [...corpo.matchAll(/background:#4c6350;border-radius/g)];
     expect(
       cheios.length,
       "voltou a haver dois rectângulos verdes iguais no mesmo email — não se distinguem",

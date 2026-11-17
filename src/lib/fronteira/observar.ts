@@ -17,10 +17,22 @@ import { log } from "@/lib/logger";
  * moradas de clientes). Os dados seguem tal e qual, como seguiam. Só depois de
  * uma semana sem registos é que um esquema passa a recusar (fase 5, «Prova»).
  *
+ * ── O QUE UM ESQUEMA DESTES DESCREVE (a mesma regra em todos) ──────────────
+ *
+ * O que os ecrãs mandam HOJE — com os vazios e os `null` que eles mandam de
+ * facto (um «Anular» que repõe `null`, um `""` que limpa um campo). NÃO
+ * descreve tudo o que a rota tolera: um valor tolerado que nenhum ecrã manda é
+ * exactamente o que o registo deve mostrar (um cliente avariado, um separador
+ * antigo). Por isso passar a RECUSAR nunca é trocar a leitura por um
+ * `.parse` às cegas: decide-se campo a campo, e as tolerâncias escritas como
+ * decisões ficam (a língua estranha cai em português, o modo desconhecido é a
+ * pré-visualização — `orcamento/envio/ler-o-corpo.ts`).
+ *
  * ── O QUE CUSTA ──────────────────────────────────────────────────────────
  *
- * Conferir é processador, e a regra 7 manda medi-lo: ver o teste de custo em
- * `observar.test.ts`. E um desvio repetido não pode encher o registo — cada
+ * Conferir é processador, e a regra 7 manda medi-lo: `custo.bench.ts`, nesta
+ * pasta (`npx vitest bench src/lib/fronteira`), e os números em
+ * `docs/ESTRUTURA-DO-CODIGO.md`, Parte −1, fase 6. E um desvio repetido não pode encher o registo — cada
  * pedido da lista de pedidos passa por aqui a cada leitura. Por isso cada
  * desvio diz-se uma vez por processo POR CASO (o `id` do contexto), até
  * {@link CASOS_POR_DESVIO} casos: a fase seguinte precisa de saber QUAIS

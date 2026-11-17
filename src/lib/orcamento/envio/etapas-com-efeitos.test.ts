@@ -69,7 +69,7 @@ describe("gravar a proposta", () => {
     const r = await gravarAProposta("q", proposta(), null);
     expect(r).toEqual({
       ok: false,
-      recusa: {
+      falha: {
         status: 503,
         corpo: { error: "Não foi possível guardar a proposta. Tenta novamente." },
       },
@@ -132,8 +132,8 @@ describe("a repetição do envio", () => {
 });
 
 describe("mandar o email", () => {
-  const escrito = {
-    email: { html: "<p>x</p>", text: "x", attachments: [] },
+  const email = {
+    emoldurado: { html: "<p>x</p>", text: "x", attachments: [] },
     assunto: "A proposta",
     textoDaCopia: "x",
     nomeDoAnexo: "Proposta.pdf",
@@ -144,7 +144,7 @@ describe("mandar o email", () => {
     propostaId: "p1",
     para: "c@x.pt",
     porEmail: true,
-    escrito,
+    email,
     pdf: Buffer.from("%PDF"),
     resta: () => 60_000,
   };

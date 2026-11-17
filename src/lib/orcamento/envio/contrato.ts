@@ -36,10 +36,18 @@ export type CorpoDaRecusa =
   /** 409: o desenho cortou conteúdo — outra pergunta. */
   | { error: string; precisaConfirmarCortes: true; truncations: Truncagens };
 
-/** Uma recusa: o código HTTP e o corpo, tal e qual a rota os responde. */
+/** Uma recusa — o pedido não pode seguir, e é uma DECISÃO: o código HTTP e
+ *  o corpo, tal e qual a rota os responde. */
 export interface Recusa {
-  status: 400 | 404 | 409 | 413 | 422 | 503;
+  status: 400 | 404 | 409 | 413 | 422;
   corpo: CorpoDaRecusa;
+}
+
+/** Uma falha — a base ou outro serviço não deixou: não é uma decisão sobre
+ *  a proposta, e conta-se à parte (métricas, alertas). */
+export interface Falha {
+  status: 503;
+  corpo: { error: string };
 }
 
 /**

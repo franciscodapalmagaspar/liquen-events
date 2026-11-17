@@ -31,8 +31,8 @@ antes e depois (linhas, complexidade, peso das rotas).
 |---|---|---|
 | 0 · guardas | 17/11 · `codigo/fase-0-e-1` | teste de ouro do PDF (`lib/pdf-editorial/ouro.test.ts`, três PDFs, `sha256` preso, Linux x64); catraca do tamanho (`test/tamanho-dos-ficheiros.test.ts` + `.json`, 193 ficheiros com tecto); `madge` só de valores no CI (`scripts/ci/ciclos-de-importacao.mjs`, os 3 ciclos de hoje na lista, ~14 s no job estático); `complexity` (30) e `max-lines-per-function` (400) em aviso no ESLint (137 avisos, 0 erros). Cada guarda foi vista a falhar de propósito: uma letra a mais na capa, um ciclo para o estúdio, o `ProposalStudio` a encolher sem descer o tecto. |
 | 1 · domínio do estúdio | 17/11 · `codigo/fase-0-e-1` | `ProposalStudio.tsx` 17 008 → 16 063 linhas; a função `ProposalStudio` fica igual (complexidade 279, 7 043 linhas de código — é a fase 3). Saíram para `lib/orcamento/estudio/` seis ficheiros (1 042 linhas, todos abaixo das 400). Peso das rotas igual (proposta 88 KB, painel 505 KB). Capturas do estúdio a 390/768/1440, claro e escuro: 0 píxeis diferentes. |
-| 5 · a rota da proposta | 17/11 · `codigo/rota-e-esquemas` | `proposta-doc/route.ts` 2 115 → 131 linhas; o `POST_semMedida` tinha **complexidade 168** e 723 linhas (163 no raio-X, +5 com os ramos `estabilidade/` e `legal/` juntados). Agora a rota só tem a sessão, o `comCpu`, LER (o pedido e o corpo) e traduzir o desfecho para HTTP (complexidade máxima 5). O resto vive em `lib/orcamento/envio/`: 19 ficheiros (o maior, `atender-o-pedido.ts`, 312 linhas); a função mais complexa tem 16 (`corpoLido`, `modeloDela`), o orquestrador 4. Prova: 53 retratos da rota (estado, corpo em texto, cabeçalhos, email, gravações e registo) tirados ANTES de partir, iguais letra a letra depois; os 185 casos da rota verdes; testes próprios das etapas (puras e com efeitos); teste de ouro do PDF verde. Peso das rotas 93 KB / 511 KB (o aumento desde a fase 1 vem dos dois ramos juntados: o diff desta fase não mexe em código de browser). |
-| 6 · a fronteira dos dados | 17/11 · `codigo/rota-e-esquemas` | Modo de OBSERVAR em todo o lado (`lib/fronteira/observar.ts`): diz o sítio e o tipo do desvio, nunca o valor, uma vez por processo e por caso (até 20), e só depois das guardas baratas. `quotes-store.ts:48` deixou de ser `r.data as Quote` às cegas (`fronteira/pedido-guardado.ts`, contorno medido na base e cruzado com o esquema de escrita). **Cinco rotas** passaram a ter esquema: `POST proposta-doc`, `PUT proposta-rascunho`, `PATCH propostas/[id]`, `POST`/`PUT email-templates`, `POST propostas/modelos`. Custo medido: ~30 µs a conferir o corpo de um envio grande (o PDF leva segundos), ~5 µs por pedido guardado (0,2 ms para os 46). O zod fica fora do browser: tudo o que importa o zod leva `server-only` (o build falha se o browser o pedir); o que pode ir ao browser são só tipos e listas (`envio/contrato.ts`, `envio/o-envio.ts`, `orcamento/listas-fechadas.ts`, `lib/todos-os-valores.ts`). O único pedaço com zod no browser já lá estava — o import dinâmico do `importar-proposta`. |
+| 5 · a rota da proposta | 17/11 · `codigo/rota-e-esquemas` | `proposta-doc/route.ts` 2 115 → 133 linhas; o `POST_semMedida` tinha **complexidade 168** e 723 linhas (163 no raio-X, +5 com os ramos `estabilidade/` e `legal/` juntados). Agora a rota só tem a sessão, o `comCpu`, LER (o pedido e o corpo) e traduzir o desfecho para HTTP (complexidade máxima 5). O resto vive em `lib/orcamento/envio/`: 19 ficheiros (o maior, `atender-o-estudio.ts`, 303 linhas); a função mais complexa tem 16 (`corpoLido`, `modeloDela`), o orquestrador 4. Prova: 53 retratos da rota (estado, corpo em texto, cabeçalhos, email, gravações e registo) tirados ANTES de partir, iguais letra a letra depois; os 185 casos da rota verdes; testes próprios das etapas (puras e com efeitos); teste de ouro do PDF verde. Peso das rotas 93 KB / 511 KB (o aumento desde a fase 1 vem dos dois ramos juntados: o diff desta fase não mexe em código de browser). |
+| 6 · a fronteira dos dados | 17/11 · `codigo/rota-e-esquemas` | Modo de OBSERVAR em todo o lado (`lib/fronteira/observar.ts`): diz o sítio e o tipo do desvio, nunca o valor, uma vez por processo e por caso (até 20), e só depois das guardas baratas. a leitura do `quotes-store.ts` (a linha 48 do raio-X, hoje a 51) deixou de ser `r.data as Quote` às cegas (`fronteira/pedido-guardado.ts`, contorno medido na base e cruzado com o esquema de escrita). **Cinco rotas** passaram a ter esquema: `POST proposta-doc`, `PUT proposta-rascunho`, `PATCH propostas/[id]`, `POST`/`PUT email-templates`, `POST propostas/modelos`. Custo medido com `npx vitest bench src/lib/fronteira` (`custo.bench.ts`): ≈ 15 µs a conferir o corpo de um envio grande (o PDF leva segundos; o `JSON.parse` do mesmo corpo leva ≈ 58 µs), ≈ 1 µs por pedido guardado (< 0,1 ms para os 46). O zod fica fora do browser: tudo o que importa o zod leva `server-only` (o build falha se o browser o pedir); o que pode ir ao browser são só tipos e listas (`envio/contrato.ts`, `envio/o-envio.ts`, `orcamento/listas-fechadas.ts`, `lib/todos-os-valores.ts`). O único pedaço com zod no browser já lá estava — o import dinâmico do `importar-proposta`. |
 
 **Desvios das fases 5 e 6 ao texto, e porquê:**
 
@@ -80,7 +80,6 @@ antes e depois (linhas, complexidade, peso das rotas).
 8. **O contrato da rota (`envio/contrato.ts`) ainda não é lido pelo estúdio**: o
    `ProposalStudio.tsx` não se podia tocar nesta tarefa. É o primeiro passo da fase
    em que o estúdio se parte.
-**Lições destas duas fases** (também na Parte 4):
 9. **A garantia da assinatura está no `mandarOEmail`, não no `sendMail`.** Só um
    `EmailEmoldurado` se pode mandar por ali; o `sendMail` (`lib/mail.ts`, de todo o
    correio da casa) continua a aceitar qualquer html, e a guarda de texto
@@ -89,19 +88,28 @@ antes e depois (linhas, complexidade, peso das rotas).
    clientes é o passo certo, e é de outra fase (mexe em todas as rotas que mandam
    correio).
 
+**Lições destas duas fases** (também na Parte 4):
+
 - **Retratar a resposta em TEXTO, não em objecto.** O `toMatchSnapshot` de um objecto
   ordena as chaves; o de `res.text()` guarda a ordem dos campos, que é o que viaja. E
   normalizar só o que muda sozinho (ids, datas, o relógio).
-- **Um orquestrador que não conhece o framework.** As etapas devolvem uma `Recusa` e o
-  pedido um `Desfecho` (recusa, PDF ou envio); a rota é um `switch` de seis linhas. Os
+- **Um orquestrador que não conhece o framework.** As etapas devolvem uma `Recusa` (uma
+  decisão) ou uma `Falha` (a base não deixou), e o pedido um `Desfecho` (recusa, falha,
+  PDF ou envio); a rota é um `switch` de seis linhas. Os
   testes das etapas não precisam do Next. E o orquestrador mostra a sequência:
   `preVisualizar` e `enviar` são as duas portas, e ambas começam pelo mesmo
   `prepararEDesenhar`.
 - **Um esquema de leitura cruza-se com o de escrita**, não só com a base: a base
   não tinha nenhum `quotedPrice: null`, mas o «Anular» de um «Ganho» escreve-o.
-- **Nomes que não se confundem**: `pedidoId` é sempre o pedido do cliente; o pedido
-  HTTP é o `corpo`; os parâmetros de cada etapa dizem para quê (`ParaDesenhar`,
-  `ParaMandar`…).
+- **Nomes que não se confundem**: «pedido» é sempre o pedido do CLIENTE (`pedidoId`);
+  o que o estúdio manda é o `corpo`, e o texto do email dentro dele é o
+  `textoDoEmail`; o email escrito é o `email`, o que o correio respondeu é a `saida`;
+  os parâmetros de cada etapa dizem para quê (`ParaDesenhar`, `ParaMandar`…).
+- **Um esquema descreve o que os ecrãs mandam, não tudo o que a rota tolera**
+  (`fronteira/observar.ts`): o tolerado que ninguém manda é o que o registo deve
+  mostrar, e passar a recusar decide-se campo a campo.
+- **Medir num `bench`, não num teste**: o custo tem o seu ficheiro e o seu comando, e
+  nenhum PR fica vermelho por uma pausa do GC.
 - **A marca no tipo vale mais do que a guarda de texto**: só um `EmailEmoldurado`
   (criado por cima do `emailAoCliente`) se pode mandar — um email montado à mão não
   compila.
@@ -950,7 +958,7 @@ acerto medido aqui.
 9. **Rotas finas:** a rota lê, valida, chama o domínio, responde. A orquestração
    vive em funções com nome, testáveis sem servidor, que devolvem um desfecho com
    tipo (recusa, ficheiro, resposta) e não conhecem o framework.
-   *(Aqui: `lib/orcamento/envio/atender-o-pedido.ts`, fase 5.)*
+   *(Aqui: `lib/orcamento/envio/atender-o-estudio.ts`, fase 5.)*
 
 ### Ao crescer
 

@@ -2,10 +2,8 @@ import "server-only";
 import type { Quote } from "@/lib/orcamento/types";
 import { resolveValidUntil } from "@/lib/proposal-doc";
 import { dinheiroDaProposta } from "@/lib/proposal-budget";
-import { excedeOTecto, MAXIMO_CORPO_ESCRITO } from "@/lib/email-corpo-escrito";
 import { enderecoDaProposta } from "@/lib/proposta-link-curto";
 import { aquecerDerivadasDaCapa } from "@/lib/derivadas";
-import { log } from "@/lib/logger";
 import { comTrinco } from "@/lib/trinco";
 import {
   avisarDoIdiomaDesconhecido,
@@ -18,6 +16,7 @@ import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
 import {
   cabecalhosDaPreVisualizacao,
+  avisarQueSegueComFotosAMenos,
   perguntaDasFotos,
   perguntaDosCortes,
 } from "./perguntas-antes-do-envio";
@@ -29,13 +28,13 @@ import {
 } from "./a-proposta-que-se-grava";
 import { repeticaoDoEnvio } from "./repeticao-do-envio";
 import { gravarAProposta } from "./gravar-a-proposta";
-import { escreverOEmail } from "./email-da-proposta";
+import { escreverOEmail, recusaDoTextoGrandeDemais } from "./email-da-proposta";
 import { mandarOEmail } from "./mandar-o-email";
 import { depoisDoEmail } from "./depois-do-email";
 import { respostaDoEnvio } from "./resposta-do-envio";
 import { TECTO_DO_ENVIO_S } from "./orcamento-de-tempo";
 import { recusa } from "./recusa";
-import type { Recusa, RespostaDoEnvio } from "./contrato";
+import type { Falha, Recusa, RespostaDoEnvio } from "./contrato";
 import type { OEnvio } from "./o-envio";
 
 /**
@@ -71,6 +70,7 @@ import type { OEnvio } from "./o-envio";
  */
 export type Desfecho =
   | { tipo: "recusa"; recusa: Recusa }
+  | { tipo: "falha"; falha: Falha }
   | { tipo: "pdf"; pdf: PdfDesenhado["relatorio"]["pdf"]; cabecalhos: Record<string, string> }
   | { tipo: "envio"; resposta: RespostaDoEnvio };
 
@@ -110,7 +110,11 @@ const A_SER_ENVIADA = recusa(409, {
   aEnviar: true,
 });
 
-export async function atenderOPedido(c: Contexto): Promise<Desfecho> {
+/**
+ * O estúdio pediu: pré-visualizar ou enviar. «Pedido», nesta pasta, é sempre o
+ * pedido do CLIENTE (`pedidoId`, o `Quote`); o pedido HTTP do estúdio é o `corpo`.
+ */
+export async function atenderOEstudio(c: Contexto): Promise<Desfecho> {
   if (c.corpo.modo === "preview") return preVisualizar(c);
   const r = await comTrinco(`envio-da-proposta:${c.pedidoId}`, VALIDADE_DO_TRINCO_MS, () =>
     enviar(c),
@@ -151,14 +155,7 @@ async function enviar(c: Contexto): Promise<Desfecho> {
     perguntaDasFotos(pedidoId, missingImages, corpo.fotosEmFaltaConfirmadas) ??
     perguntaDosCortes(pedidoId, truncations, corpo.cortesConfirmados);
   if (pergunta) return recusado(pergunta);
-  // Só aqui é «segue com fotos a menos»: ela respondeu às duas perguntas
-  // (fotos e cortes). Antes disso, o envio ainda podia parar (revisão de 17/11).
-  if (missingImages > 0) {
-    log.warn("proposta-doc: a proposta segue com fotos a menos, confirmado por ela", {
-      id: pedidoId,
-      emFalta: missingImages,
-    });
-  }
+  avisarQueSegueComFotosAMenos(pedidoId, missingImages);
 
   // `dinheiroDaProposta` e não `resolveProposalMoney`: quando os valores
   // adicionais somam ao valor escrito, o bruto que fica GRAVADO tem de os
@@ -188,14 +185,14 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   if (repetido) return { tipo: "envio", resposta: repetido };
 
   const gravada = await gravarAProposta(pedidoId, proposal, porEnviar);
-  if (!gravada.ok) return recusado(gravada.recusa);
+  if (!gravada.ok) return { tipo: "falha", falha: gravada.falha };
 
   const acceptUrl = await enderecoDaProposta(proposal.id, pedidoId);
-  const escrito = await escreverOEmail({
+  const email = await escreverOEmail({
     ...envio,
     mensagem: corpo.mensagem,
-    corpo: corpo.corpo,
-    assunto: corpo.assunto,
+    textoDoEmail: corpo.textoDoEmail,
+    assuntoDoEmail: corpo.assuntoDoEmail,
     acceptUrl,
     dinheiro,
     assinatura: c.assinatura(),
@@ -212,12 +209,12 @@ async function enviar(c: Contexto): Promise<Desfecho> {
      há um `await` pelo meio, e uma promessa rejeitada sem tratamento nesse
      intervalo derrubaria o processo. */
   const capaAQuecer = aquecerDerivadasDaCapa(doc.coverImages ?? []).catch(() => 0);
-  const email = await mandarOEmail({
+  const saida = await mandarOEmail({
     pedidoId,
     propostaId: proposal.id,
     para: quote.email,
     porEmail: corpo.porEmail,
-    escrito,
+    email,
     pdf,
     resta: c.resta,
   });
@@ -228,9 +225,9 @@ async function enviar(c: Contexto): Promise<Desfecho> {
     ...envio,
     proposal,
     dinheiro,
-    emailed: email.emailed,
-    semEmailPorEscolha: email.semEmailPorEscolha,
-    escrito,
+    emailed: saida.emailed,
+    semEmailPorEscolha: saida.semEmailPorEscolha,
+    email,
     modelo: corpo.modelo,
     pdf,
   });
@@ -245,7 +242,7 @@ async function enviar(c: Contexto): Promise<Desfecho> {
     resposta: respostaDoEnvio({
       propostaId: proposal.id,
       acceptUrl,
-      email,
+      saida,
       depois,
       gravada,
       relatorio,
@@ -262,19 +259,8 @@ async function prepararEDesenhar(
   | { ok: true; envio: OEnvio; desenho: PdfDesenhado; chaveDoQueChegou: string }
 > {
   const { pedidoId, quote, corpo } = c;
-  // O corpo escrito à mão recusa-se por tamanho ANTES de se desenhar o PDF:
-  // recusar depois é gastar o desenho por nada. O resto dele (o
-  // `{{link_proposta}}`) só se resolve depois de a proposta estar gravada.
-  if (excedeOTecto(corpo.corpo)) {
-    return {
-      ok: false,
-      recusa: recusa(400, {
-        error:
-          `O texto do email é demasiado longo (o máximo são ${MAXIMO_CORPO_ESCRITO} caracteres). ` +
-          `Encurta-o e volta a enviar — não foi enviado nada.`,
-      }),
-    };
-  }
+  const textoGrandeDemais = recusaDoTextoGrandeDemais(corpo.textoDoEmail);
+  if (textoGrandeDemais) return { ok: false, recusa: textoGrandeDemais };
   const completo = documentoCompleto(corpo.doc);
   if (!completo.ok) return { ok: false, recusa: recusa(400, { error: completo.error }) };
   avisarDoIdiomaDesconhecido(corpo, pedidoId);

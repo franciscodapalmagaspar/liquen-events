@@ -12,23 +12,23 @@ import type { ResultadoDoEmail } from "./mandar-o-email";
 export function respostaDoEnvio(r: {
   propostaId: string;
   acceptUrl: string;
-  email: ResultadoDoEmail;
+  saida: ResultadoDoEmail;
   depois: DepoisDoEmail;
   gravada: Extract<PropostaGravada, { ok: true }>;
   relatorio: Pick<RelatorioDoPdf, "missingImages" | "truncations" | "pdf">;
   pdfDaMemoria: boolean;
 }): RespostaDoEnvio {
-  const { email, depois, gravada } = r;
+  const { saida, depois, gravada } = r;
   return {
     ok: true,
     id: r.propostaId,
-    emailed: email.emailed,
-    emailError: email.emailError,
+    emailed: saida.emailed,
+    emailError: saida.emailError,
     /* «Não saiu email» tem duas causas muito diferentes, e o ecrã tem de as
        separar: uma é uma avaria (o `emailError`), a outra é a escolha dela.
        Sem esta linha, escolher «só WhatsApp» dava um aviso cor de laranja a
        dizer que alguma coisa correu mal. */
-    ...(email.semEmailPorEscolha ? { semEmailPorEscolha: true as const } : {}),
+    ...(saida.semEmailPorEscolha ? { semEmailPorEscolha: true as const } : {}),
     /**
      * O estado em que a proposta FICOU. Vai na resposta porque é a resposta a
      * «e agora, o que é que ela vê no quadro?»: com o email fora, é

@@ -60,10 +60,11 @@ export async function POST(request: NextRequest) {
   if (!conteudo || typeof conteudo !== "object") {
     return NextResponse.json({ error: "O modelo vem vazio" }, { status: 400 });
   }
-  // A fronteira, em modo de observar (fase 6), depois das guardas; o caso é o
-  // nome do modelo (dela, nunca dados de um cliente).
+  // A fronteira, em modo de observar (fase 6), depois das guardas. O caso é o
+  // id do modelo, quando o ecrã o manda — NUNCA o nome: um modelo nasce de uma
+  // proposta real e pode chamar-se pelo nome do casal.
   observar(esquemaDoCorpoDoModeloDeProposta, body, "o corpo do POST propostas/modelos", {
-    id: nomeLimpo,
+    id: typeof (body as { id?: unknown }).id === "string" ? (body as { id: string }).id : undefined,
   });
 
   try {

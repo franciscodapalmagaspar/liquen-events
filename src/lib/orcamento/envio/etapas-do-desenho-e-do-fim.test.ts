@@ -118,8 +118,8 @@ describe("o email escrito", () => {
     escreverOEmail({
       ...envio,
       mensagem: "",
-      corpo: null,
-      assunto: null,
+      textoDoEmail: null,
+      assuntoDoEmail: null,
       acceptUrl: "https://x/proposta/tok",
       dinheiro: dinheiroDaProposta(doc),
       assinatura: { nome: "Catarina", cargo: "" },
@@ -127,7 +127,10 @@ describe("o email escrito", () => {
     });
 
   it("o corpo escrito à mão ganha ao modelo, e leva o assunto que ela viu", async () => {
-    const e = await escrever({ corpo: "Olá {{link_proposta}}", assunto: "A vossa proposta" });
+    const e = await escrever({
+      textoDoEmail: "Olá {{link_proposta}}",
+      assuntoDoEmail: "A vossa proposta",
+    });
     expect(e.assunto).toBe("A vossa proposta");
     expect(e.textoDaCopia).toContain("https://x/proposta/tok");
     expect(f.modelo).not.toHaveBeenCalled();
@@ -135,8 +138,8 @@ describe("o email escrito", () => {
 
   it("sem corpo nem modelo sai o texto da casa, a saudar o casal — não a mãe da noiva", async () => {
     const e = await escrever();
-    expect(e.email.text).toContain("Maria & Zé");
-    expect(e.email.text).not.toContain("Mãe da Noiva");
+    expect(e.emoldurado.text).toContain("Maria & Zé");
+    expect(e.emoldurado.text).not.toContain("Mãe da Noiva");
     expect(e.quem.destinatario).toBe("Maria & Zé");
   });
 
@@ -149,8 +152,8 @@ describe("o email escrito", () => {
 
 describe("o que fica depois do email", () => {
   const proposal = { id: "p1", status: "rascunho" } as Proposal;
-  const escrito = {
-    email: { html: "", text: "texto", attachments: [] },
+  const email = {
+    emoldurado: { html: "", text: "texto", attachments: [] },
     assunto: "A proposta",
     textoDaCopia: "texto",
     nomeDoAnexo: "P.pdf",
@@ -163,7 +166,7 @@ describe("o que fica depois do email", () => {
       dinheiro: dinheiroDaProposta(doc),
       emailed: true,
       semEmailPorEscolha: false,
-      escrito,
+      email,
       modelo: "",
       pdf: Buffer.from("%PDF"),
       ...over,

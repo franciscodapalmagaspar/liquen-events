@@ -5,7 +5,7 @@ import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 /**
  * O que todas as etapas do envio sabem: de que pedido é, o pedido, o
  * documento já preparado (`documento-do-envio.ts`) e a língua em que se
- * desenha. Monta-se UMA vez, no orquestrador (`atender-o-pedido.ts`), e cada
+ * desenha. Monta-se UMA vez, no orquestrador (`atender-o-estudio.ts`), e cada
  * etapa diz o que mais precisa ao lado.
  */
 export interface OEnvio {

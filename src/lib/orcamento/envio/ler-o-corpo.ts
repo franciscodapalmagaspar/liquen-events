@@ -24,9 +24,11 @@ import { log } from "@/lib/logger";
  *    proposta que não segue é um negócio parado». Daqui para dentro ninguém
  *    volta a perguntar `typeof` (§1.7, «parse, don't validate»).
  *
- * Quando o modo de observar acabar (uma semana sem registos), recusar é trocar
- * a leitura tolerante por `esquemaDoCorpo.parse` — a mesma descrição, não uma
- * segunda.
+ * O esquema descreve o que o estúdio manda hoje, como todos os desta casa
+ * (`fronteira/observar.ts`, «o que um esquema destes descreve»). Quando o modo
+ * de observar acabar, recusar decide-se campo a campo, e as tolerâncias que
+ * estão aqui escritas como decisões — a língua estranha cai em português, o
+ * modo desconhecido é a pré-visualização — FICAM: não são um 400.
  */
 
 /**
@@ -118,8 +120,10 @@ export function corpoLido(cru: unknown) {
     /** O valor estranho que caiu em português, para o registo — ou `null`. */
     idiomaDesconhecido:
       corpo.idioma !== undefined && idioma === undefined ? String(corpo.idioma) : null,
-    corpo: lerCampo(corpo, "corpo") ?? null,
-    assunto: lerCampo(corpo, "assunto") ?? null,
+    /** O corpo e o assunto do EMAIL escritos à mão (os campos `corpo` e
+     *  `assunto` do protocolo). */
+    textoDoEmail: lerCampo(corpo, "corpo") ?? null,
+    assuntoDoEmail: lerCampo(corpo, "assunto") ?? null,
     modelo: lerCampo(corpo, "modelo") ?? "",
     pdfVisto: lerCampo(corpo, "pdfVisto") ?? null,
     fotosEmFaltaConfirmadas: lerCampo(corpo, "fotosEmFaltaConfirmadas") ?? null,
