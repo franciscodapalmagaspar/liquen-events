@@ -5179,6 +5179,9 @@ export default function AdminClient({
    */
   const [pedidoDeNovaTarefa, setPedidoDeNovaTarefa] = useState(0);
   const pedirNovaTarefa = useCallback(() => setPedidoDeNovaTarefa((n) => n + 1), []);
+  /* O último pedido que as Tarefas já serviram: um toque dado enquanto o
+     código delas ainda chega fica à espera e é servido quando montam. */
+  const [novaTarefaServida, setNovaTarefaServida] = useState(0);
 
   const VIEW_TITLES: Record<View, string> = {
     overview: "Visão Geral",
@@ -7030,6 +7033,8 @@ export default function AdminClient({
               <Tarefas
                 defaultAssignee={userName}
                 pedidoDeNova={pedidoDeNovaTarefa}
+                pedidoDeNovaServido={novaTarefaServida}
+                onPedidoDeNovaServido={setNovaTarefaServida}
                 pedidoDaPaleta={pedidoPara("tarefas")}
                 nomesDosPedidos={nomesDosPedidos}
               />
