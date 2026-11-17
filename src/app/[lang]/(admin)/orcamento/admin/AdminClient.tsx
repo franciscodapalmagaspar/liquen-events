@@ -5182,6 +5182,13 @@ export default function AdminClient({
   /* O último pedido que as Tarefas já serviram: um toque dado enquanto o
      código delas ainda chega fica à espera e é servido quando montam. */
   const [novaTarefaServida, setNovaTarefaServida] = useState(0);
+  /* Um toque que ficou à espera e a pessoa saiu das Tarefas antes de elas
+     montarem: dá-se por servido, para não abrir a linha de escrever horas
+     depois, ao voltar (revisão independente do lote de 17/11). Ajusta-se o
+     estado durante o desenho, que é o padrão do React para isto. */
+  if (view !== "tarefas" && novaTarefaServida !== pedidoDeNovaTarefa) {
+    setNovaTarefaServida(pedidoDeNovaTarefa);
+  }
 
   const VIEW_TITLES: Record<View, string> = {
     overview: "Visão Geral",
