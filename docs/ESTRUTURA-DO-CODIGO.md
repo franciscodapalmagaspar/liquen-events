@@ -76,9 +76,9 @@ seguinte. Ficaram feitos no mesmo ramo:
 - **As fronteiras passaram a ser verificadas.** `eslint.config.mjs`
   (`fronteirasDasCasas`): a lógica pura de `lib/orcamento/pedidos/` e
   `lib/temas/` não importa React, Next, Supabase nem nada de `app/`; uma casa
-  (`_casca/`, `_pedidos/`, `_temas/`, e a `_propostas/` que entrou no mesmo
-  dia) não importa o `AdminClient`, o `Temas`, o `ThemePicker` nem o
-  `Propostas`, nem o interior de outra casa. Vista a falhar de propósito:
+  (`_casca/`, `_pedidos/`, `_temas/`, e a `_propostas/` e a `_tarefas/` que
+  entraram no mesmo dia) não importa o `AdminClient`, o `Temas`, o
+  `ThemePicker`, o `Propostas` nem o `Tarefas`, nem o interior de outra casa. Vista a falhar de propósito:
   onze importações proibidas numa sonda, onze erros. Os testes ficam de fora.
   Atenção ao ESLint: um bloco que repete a regra substitui a de cima, por isso
   cada bloco repete a guarda do server-only.

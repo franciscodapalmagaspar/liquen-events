@@ -12,13 +12,13 @@ const SERVER_ONLY = {
 
 /** Os ecrãs que se partiram: uma casa nunca os importa (seria uma seta para cima). */
 const OS_DONOS = {
-  group: ["**/AdminClient", "**/Temas", "**/ThemePicker", "**/Propostas"],
+  group: ["**/AdminClient", "**/Temas", "**/ThemePicker", "**/Propostas", "**/Tarefas"],
   caseSensitive: true,
   message:
-    "Uma casa (`_casca/`, `_pedidos/`, `_temas/`, `_propostas/`) não importa o ecrã que a monta — as setas só descem. Passe o que precisa por props, ou leve a peça para a casa ou para `lib/`.",
+    "Uma casa (`_casca/`, `_pedidos/`, `_temas/`, `_propostas/`, `_tarefas/`) não importa o ecrã que a monta — as setas só descem. Passe o que precisa por props, ou leve a peça para a casa ou para `lib/`.",
 };
 
-const CASAS = ["_casca", "_pedidos", "_temas", "_propostas"];
+const CASAS = ["_casca", "_pedidos", "_temas", "_propostas", "_tarefas"];
 const TESTES = ["**/*.test.ts", "**/*.test.tsx", "**/*.testkit.ts"];
 
 /**
@@ -26,7 +26,7 @@ const TESTES = ["**/*.test.ts", "**/*.test.tsx", "**/*.testkit.ts"];
  *   · a lógica pura de `lib/orcamento/pedidos/` e `lib/temas/` não importa
  *     React, Next, o Supabase, nem nada de `app/`;
  *   · uma casa não importa o `AdminClient`, o `Temas`, o `ThemePicker` nem o
- *     `Propostas`;
+ *     `Propostas` nem o `Tarefas`;
  *   · uma casa não importa o interior de outra.
  * Os testes ficam de fora: provar uma casa pode precisar de montar o ecrã.
  */
@@ -65,6 +65,7 @@ function fronteirasDasCasas() {
                 "**/_pedidos/**",
                 "**/_temas/**",
                 "**/_propostas/**",
+                "**/_tarefas/**",
                 "**/admin/**",
               ],
               message:
