@@ -2947,6 +2947,13 @@ body:is(.bo, .admin-mode) ::-webkit-scrollbar-thumb:hover {
   .bo-vidro-claro {
     background: var(--bo-vidro-claro-opaco, #4d4d4d);
   }
+  /* O `<Glass>` do back office (barra dos Temas, editor das mesas) perde o
+     desfoque nestas preferências; sem fundo opaco ficava o que está por baixo,
+     nítido, atrás de uma tinta a 78 % — MAIS transparência para quem pediu
+     menos (revisão do lote de 18/11). */
+  .lg {
+    background: var(--bo-material-opaco, #ffffff);
+  }
 }
 
 /* Sem `backdrop-filter` não há material nenhum: o que passava era o que está

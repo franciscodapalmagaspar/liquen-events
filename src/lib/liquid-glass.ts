@@ -356,9 +356,15 @@ export function attach(el: HTMLElement, opts?: Partial<OpcoesDoVidro>): Vidro {
   let lh = -1;
   let lr = -1;
   let queued = false;
+  let agendado = 0;
+  /* Um `paint()` já pedido ao browser pode chegar DEPOIS do `destroy()` (a
+     janela muda de tamanho na mesma fotografia em que o vídeo volta ao ecrã):
+     sem esta marca, voltava a escrever o filtro numa superfície desmontada. */
+  let destruido = false;
 
   function paint() {
     queued = false;
+    if (destruido) return;
     const rc = el.getBoundingClientRect();
     const w = Math.round(rc.width);
     const h = Math.round(rc.height);
@@ -385,7 +391,7 @@ export function attach(el: HTMLElement, opts?: Partial<OpcoesDoVidro>): Vidro {
   function schedule() {
     if (queued) return;
     queued = true;
-    requestAnimationFrame(paint);
+    agendado = requestAnimationFrame(paint);
   }
 
   const ro = new ResizeObserver(schedule);
@@ -429,8 +435,10 @@ export function attach(el: HTMLElement, opts?: Partial<OpcoesDoVidro>): Vidro {
       paint();
     },
     destroy() {
+      destruido = true;
       ro.disconnect();
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(agendado);
       el.removeEventListener("transitionrun", aoTransitar);
       el.removeEventListener("transitionend", aoAcabar);
       f.remove();
