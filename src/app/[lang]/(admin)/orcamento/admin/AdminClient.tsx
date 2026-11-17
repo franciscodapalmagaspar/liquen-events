@@ -2,20 +2,16 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from "react";
 import { usePathname } from "next/navigation";
-import { localeDoCaminho, localizeHref } from "@/lib/i18n/config";
-import { navegarPara } from "./navegar";
+import { localeDoCaminho } from "@/lib/i18n/config";
 import { razaoDaRecusa, porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import type { LeituraFalhada } from "@/lib/porque-nao-leu";
 import type { Quote, QuoteSummary, QuoteStatus, ActivityEntry } from "@/lib/orcamento/types";
 import type { RecentQuote } from "./CommandPalette";
 import { AvisoDeArmazenamento } from "./AvisoDeArmazenamento";
 import { alturaQueSobraParaODetalhe, tecladoAberto } from "@/lib/orcamento/barra-de-destinos";
-import { porqueRecusou } from "@/lib/erro-do-servidor";
 import {
   esquecerRascunho,
   guardarRascunho,
-  haQuantoTempo,
-  lerRascunho,
   oQueMudou,
   type CamposDoPedido,
 } from "./rascunho-do-pedido";
@@ -38,17 +34,15 @@ import {
   type PropostaDaProcura,
 } from "./procura-em-tudo";
 import { aEscrever, dentroDeUmaJanela, procuraDaVista, VIEW_KEYS } from "./atalhos";
-import { comLimite, ESCRITAS_EM_SIMULTANEO } from "./com-limite";
 import { separadorQuandoAPropostaChega, type SeparadorPorDecidir } from "./separador-por-decidir";
 import {
   useGravacaoAutomatica,
   useTravaoDeSaida,
   fetchComTecto,
-  enviarComRepeticao,
   respostaDeHttp,
   type RespostaDoEnvio,
 } from "./useGravacaoAutomatica";
-import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravacoes";
+import { useInscricaoNoRegisto } from "./registo-de-gravacoes";
 import { onIdle } from "@/lib/onIdle";
 import { marcarSaidaDeProposito } from "./entrada-destino";
 import { randomId, todayKey } from "./util";
@@ -110,23 +104,21 @@ import { dominiosConhecidos, sugerirEmail } from "@/lib/dominio-parecido";
    `docs/ESTRUTURA-DO-CODIGO.md`): as regras puras em `lib/orcamento/pedidos/`,
    e as peças de interface da lista e do painel em `_pedidos/`. */
 import { contarPorEstado, etiquetasEmUso } from "@/lib/orcamento/pedidos/filtros-dos-pedidos";
-import type { LeituraDoPedido } from "@/lib/orcamento/pedidos/leitura-do-pedido";
 import { mesmasNotas, type NotasAutomaticas } from "@/lib/orcamento/pedidos/notas-automaticas";
 import { oQueSePerdeComOPedido, textoDoPreco } from "@/lib/orcamento/pedidos/textos-do-pedido";
-import {
-  corpoDaGravacao,
-  corpoDoAnular,
-  linhasDoHistorico,
-} from "@/lib/orcamento/pedidos/gravar-o-pedido";
 import { useEdicaoDoPedido } from "./_pedidos/useEdicaoDoPedido";
 import { useFiltrosDosPedidos } from "./_pedidos/useFiltrosDosPedidos";
 import { VIEW_WRAP } from "./_casca/moldura-da-vista";
 import { ACOES_DE_PEDIDOS } from "./_casca/titulos-das-vistas";
 import { STATUS_OPTIONS } from "./_pedidos/pastilha-do-estado";
-import { ARQUIVAR_SEM_PERGUNTAR, LIST_PAGE_SIZE } from "@/lib/orcamento/pedidos/regras-da-lista";
+import { LIST_PAGE_SIZE } from "@/lib/orcamento/pedidos/regras-da-lista";
 import { detailNextAction, type DetailTab } from "./_pedidos/separadores-do-painel";
 import { comPedidoAlterado, comPedidoSubstituido } from "@/lib/orcamento/pedidos/lista-de-pedidos";
-import { lerPainel } from "@/lib/orcamento/pedidos/painel-do-pedido";
+import { useAccoesEmLote } from "./_pedidos/useAccoesEmLote";
+import { useGravacaoDoPedido } from "./_pedidos/useGravacaoDoPedido";
+import { useHistoricoDoPedido } from "./_pedidos/useHistoricoDoPedido";
+import { useAberturaDoPedido } from "./_pedidos/useAberturaDoPedido";
+import { useLeituraDoPedido } from "./_pedidos/useLeituraDoPedido";
 
 /** A chave da saída do painel do pedido — há um painel só, e a chave é uma. */
 const SAIDA_DO_PAINEL = "painel-do-pedido";
@@ -225,9 +217,6 @@ interface Props {
   armazenamentoLigado?: boolean;
 }
 
-/** No máximo esta lista, e o resto contado. Trinta nomes não se leem. */
-const NOMES_A_MOSTRAR = 8;
-
 export default function AdminClient({
   initialQuotes,
   userName = "Catarina",
@@ -252,7 +241,12 @@ export default function AdminClient({
   const [selected, setSelected] = useState<Quote | null>(null);
   // O que os filhos recebem em vez do `setQuotes`/`setSelected` — ver
   // `_pedidos/accoes-dos-pedidos.ts`.
-  const { substituirPedido, alterarPedido } = accoesDosPedidos(setQuotes, setSelected);
+  // Estáveis (os dois `set*` do `useState` também o são): entram nas listas de
+  // dependências sem mudar a identidade de quem as usa.
+  const { substituirPedido, alterarPedido } = useMemo(
+    () => accoesDosPedidos(setQuotes, setSelected),
+    [setQuotes, setSelected],
+  );
   // A lista leve de propostas, SÓ OUVIDA (sem pedido novo): a fase do pedido
   // aberto lê dela o total a pagar da proposta que conta, como o dossiê.
   const propostasLeves = usePropostasLevesSoOuvir();
@@ -292,10 +286,6 @@ export default function AdminClient({
     setEditEmail,
     editTelefone,
     setEditTelefone,
-    preencherCom,
-    painel,
-    convidadosEscritos,
-    erroDeConvidados,
     motivoVaiComADecisao,
     alteracoesPorConfirmar,
     escritoPorGravar,
@@ -1001,6 +991,7 @@ export default function AdminClient({
       // função continua a ser uma só.
     },
     [
+      substituirPedido,
       setEditAssigned,
       setEditDate,
       setEditEmail,
@@ -2169,425 +2160,37 @@ export default function AdminClient({
     [quotes, toast, descarregarCopia, irComPedido],
   );
 
-  /**
-   * Devolve true para prosseguir; havendo alterações por confirmar, pergunta.
-   *
-   * Pergunta só pelo que AINDA EXIGE UM CLIQUE. O que se escreve já não se
-   * descarta — está no servidor, ou vai a caminho dele mal este gesto largue o
-   * painel (ver a `chave` da gravação automática). Continuar a perguntar por
-   * isso era ensinar-lhe que «Descartar» deita fora o que ela escreveu, quando
-   * não deita.
-   */
-  function discardGuard(): boolean {
-    if (!alteracoesPorConfirmar) return true;
-    return window.confirm("Tem alterações por guardar neste pedido. Descartar?");
-  }
-  function closeDetail() {
-    if (discardGuard()) sairDoPainel(selected?.id ?? null);
-  }
-
-  /**
-   * O PEDIDO INTEIRO, ANTES DE O PAINEL ABRIR.
-   *
-   * A lista chega em resumo (ver `resumirQuote`), sem convidados, checklist,
-   * plano de produção nem cronograma. Aqui vai-se buscar o resto — uma vez por
-   * pedido e por sessão.
-   *
-   * Porque é que se ESPERA em vez de mostrar já e completar por trás: o
-   * GuestList, o EventChecklist, o ProductionPlan e o EventTimeline copiam a
-   * colecção para estado interno no primeiro render (`useState(quote.guestList
-   * ?? [])`) e estão presos por `key` ao id do pedido — não voltam a ler a
-   * propriedade quando ela mudar. Abertos com o resumo, ficavam com uma lista
-   * VAZIA que a primeira edição gravava por cima da verdadeira. A diferença
-   * entre esperar e não esperar é um painel que abre um instante mais tarde
-   * contra uma lista de 150 convidados apagada sem ninguém dar por isso.
-   *
-   * Se a ida ao servidor falhar, NÃO se abre com o resumo — devolve-se null e
-   * quem chamou avisa. Uma falha visível é melhor do que um painel que parece
-   * completo e não está.
-   */
-  /**
-   * ── DUAS PORTAS PARA O MESMO PEDIDO NÃO PAGAM DUAS VIAGENS ────────────────
-   *
-   * O `completos` só sabe do que JÁ CHEGOU. Enquanto a leitura está a caminho
-   * não sabe nada — e desde que a lista de Pedidos leva ao ecrã da proposta
-   * (que lê o pedido por trás) há um segundo gesto possível antes de a primeira
-   * resposta chegar: o «Abrir o pedido». Duas leituras iguais do mesmo pedido,
-   * a mesma resposta duas vezes, no 4G dela.
-   *
-   * Quem pede um pedido que já vai a caminho recebe A MESMA promessa.
-   */
-  const leiturasEmCurso = useRef(new Map<string, Promise<LeituraDoPedido>>());
-
-  async function comPedidoInteiro(q: Quote): Promise<LeituraDoPedido> {
-    if (completos.current.has(q.id)) return { ok: true, quote: q };
-    const aCaminho = leiturasEmCurso.current.get(q.id);
-    if (aCaminho) return aCaminho;
-    const leitura = lerPedidoInteiro(q).finally(() => {
-      leiturasEmCurso.current.delete(q.id);
+  const { closeDetail, discardGuard, comPedidoInteiro, lembrarRecente, recarregarPedido } =
+    useLeituraDoPedido({
+      setQuotes,
+      quotes,
+      selected,
+      setRecentQuotes,
+      sairDoPainel,
+      completos,
+      absorverDoServidor,
+      edicao,
     });
-    leiturasEmCurso.current.set(q.id, leitura);
-    return leitura;
-  }
 
-  async function lerPedidoInteiro(q: Quote): Promise<LeituraDoPedido> {
-    const oQue = `abrir o pedido de ${q.name || "este cliente"}`;
-    let res: Response;
-    try {
-      res = await fetch(`/api/orcamento/${encodeURIComponent(q.id)}`, {
-        cache: "no-store",
-      });
-    } catch {
-      return { ok: false, porque: porqueRebentou(oQue).mensagem };
-    }
-    if (!res.ok) {
-      const corpo = await res.json().catch(() => null);
-      return { ok: false, porque: porqueFalhou(oQue, res, corpo).mensagem };
-    }
-    /**
-     * SESSÃO EXPIRADA RESPONDE 200. Esta rota é pública — a página de
-     * confirmação do casal lê-a — e sem sessão devolve uma lista curta de
-     * factos do evento que TAMBÉM tem `id` e TAMBÉM vem com 200. Aceitá-la
-     * era abrir o painel sem nome, sem contacto, sem pagamentos e sem
-     * convidados, e ainda substituir o pedido na lista por essa versão.
-     *
-     * O cabeçalho é a única marca fiável de que veio o pedido inteiro; a
-     * rota explica porquê. Sem ele, isto é uma falha — e uma falha visível é
-     * melhor do que um painel que parece completo e não está.
-     */
-    if (res.headers.get("x-pedido") !== "completo") {
-      // Este 200 não é um 200: é a sessão caída, e dizer «verifica a ligação»
-      // sobre ela mandava-a fazer a única coisa que não resolve nada.
-      return {
-        ok: false,
-        porque: `A sessão expirou — não deu para ${oQue}. Volta a entrar e tenta outra vez.`,
-      };
-    }
-    const inteiro = (await res.json().catch(() => null)) as Quote | null;
-    if (!inteiro?.id) {
-      return { ok: false, porque: `A resposta veio incompleta — não deu para ${oQue}. Repete.` };
-    }
-    completos.current.add(inteiro.id);
-    setQuotes((prev) => comPedidoSubstituido(prev, inteiro));
-    return { ok: true, quote: inteiro };
-  }
-
-  /**
-   * Voltar a ler o pedido INTEIRO do servidor, ignorando a cache de sessão.
-   *
-   * O `comPedidoInteiro` guarda o que já leu (`completos`) para não repetir a
-   * ida ao servidor a cada abertura. Isso é certo para abrir; é errado depois
-   * de uma acção que muda o pedido do lado de LÁ — a geração ao ganhar escreve
-   * o plano de montagem e as linhas de sinal e saldo no próprio pedido, e sem
-   * esta releitura o painel de Pagamentos ao lado continuava vazio até ela
-   * fechar e reabrir a ficha.
-   *
-   * Melhor esforço: uma leitura que falhe deixa o ecrã como estava. O trabalho
-   * foi feito no servidor de qualquer maneira.
-   */
-  async function recarregarPedido(id: string) {
-    const actual = quotes.find((q) => q.id === id);
-    if (!actual) return;
-    completos.current.delete(id);
-    // E a que vai a caminho: é dela que o `comPedidoInteiro` se serviria, e é
-    // exactamente a versão desactualizada que isto existe para deitar fora.
-    leiturasEmCurso.current.delete(id);
-    const r = await comPedidoInteiro(actual);
-    if (r.ok) absorverDoServidor(r.quote);
-  }
-
-  /**
-   * «Vistos recentemente», escrito num sítio só.
-   *
-   * Havia UMA porta para abrir um pedido e agora há duas — o painel de detalhe
-   * e a página inteira da proposta. Duas cópias desta escrita divergiam no dia
-   * em que uma delas ganhasse um campo, e o que se perde é a lista por onde ela
-   * volta a encontrar o que estava a fazer.
-   */
-  function lembrarRecente(q: Quote) {
-    try {
-      const entry: RecentQuote = { id: q.id, name: q.name, email: q.email, status: q.status };
-      const prev: RecentQuote[] = JSON.parse(localStorage.getItem("liquen-recent-quotes") ?? "[]");
-      const next = [entry, ...prev.filter((r) => r.id !== q.id)].slice(0, 6);
-      localStorage.setItem("liquen-recent-quotes", JSON.stringify(next));
-      setRecentQuotes(next);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * CARREGAR NUM CLIENTE DA LISTA É IR FAZER-LHE A PROPOSTA — NO ECRÃ TODO
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * Palavras dela: «quando se carrega na página dos pedidos e depois num
-   * cliente vai para a parte de fazer a proposta, mas eu quero que […] coloque
-   * apenas a página para fazer a proposta do cliente em que se carregou na
-   * página toda e não apenas ali de lado, como está na página de fazer
-   * propostas».
-   *
-   * Tinha razão, e o número diz porquê. O painel de detalhe abre-se ao lado da
-   * lista e tem tecto próprio (`max-w-3xl`): MEDIDO num Chromium, com a janela
-   * a 1440, o estúdio lá dentro tem 712 px de fila. A página inteira dá-lhe os
-   * 1600 do `VIEW_WRAP`. É o mesmo estúdio, com mais do dobro do sítio para a
-   * coluna onde ela escreve.
-   *
-   * ── E PORQUE É QUE ISTO NÃO ESTÁ NO `openQuote` ───────────────────────────
-   *
-   * Há seis portas para abrir um pedido — a lista, o Kanban, o Calendário, os
-   * Clientes, o Acompanhamento e a Visão Geral. Só UMA delas é «vou trabalhar
-   * nesta proposta»: a lista de Pedidos, que é onde ela escolhe o cliente
-   * seguinte. Quem carrega num dia do Calendário quer ver o pedido daquele dia,
-   * não ser levado para dentro de um editor — por isso o `openQuote` fica como
-   * está, e é só o caminho da lista que muda.
-   *
-   * (2/11: isto deixou de valer. Ela desfez a decisão do Calendário e depois a
-   * das outras portas — todas passam pelo `abrirCliente`, aqui em baixo, e o
-   * painel fica só atrás do «Abrir o pedido».)
-   *
-   * O painel continua a uma tecla de distância: a página tem «Abrir o pedido»
-   * ao lado de «Trocar de cliente», e leva ao painel com Produção, Financeiro e
-   * as mensagens.
-   */
-  async function irFazerAProposta(pedido: Quote) {
-    if (!discardGuard()) return;
-    /**
-     * ── A PÁGINA ENTRA JÁ, E O PEDIDO INTEIRO CHEGA POR TRÁS ────────────────
-     *
-     * A primeira versão disto esperava pelo `comPedidoInteiro` antes de mudar
-     * de ecrã, como faz o painel. MEDIDO num Chromium, do clique ao cabeçalho:
-     * **1609 ms**. Mil e seiscentos milissegundos a olhar para a lista antes de
-     * a animação sequer começar — e nenhuma animação salva uma espera dessas.
-     * A regra dela é essa mesma: nenhuma animação pode atrasar uma tarefa.
-     *
-     * E não é preciso esperar. O ecrã «Fazer proposta» SEMPRE abriu o estúdio
-     * sobre o pedido que está na lista — é o que faz desde que existe, pela
-     * porta da barra lateral. O que o `comPedidoInteiro` traz a mais são as
-     * colecções pesadas (convidados, material) que o PAINEL mostra e o estúdio
-     * não. Por isso aqui entra-se já, e a versão completa entra a seguir, sem
-     * ninguém à espera dela.
-     *
-     * ── E A VERSÃO COMPLETA ENTRA SOZINHA ──────────────────────────────────
-     *
-     * Não é preciso escrevê-la aqui: o `comPedidoInteiro` já põe o pedido
-     * inteiro na lista quando chega (`setQuotes`), e o ecrã lê a lista. Uma
-     * segunda escrita aqui seria uma segunda verdade sobre o mesmo pedido.
-     *
-     * Uma leitura que falhe não diz nada, e não é omissão: o ecrã está a
-     * funcionar com o pedido da lista, não há nada que ela possa fazer com o
-     * aviso, e é o mesmo «melhor esforço» do `recarregarPedido` aqui em cima.
-     * Se ela for ao painel, o «Abrir o pedido» tenta outra vez — e aí, sim,
-     * uma falha é dita, porque aí o painel PRECISA do pedido inteiro.
-     */
-    lembrarRecente(pedido);
-    setPropostaPara(pedido.id);
-    setView("fazer-proposta");
-
-    void comPedidoInteiro(pedido);
-  }
-
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * TODAS AS PORTAS PARA UM CLIENTE PASSAM POR AQUI (2/11)
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * Ela, com a captura do painel antigo aberto a partir do Calendário: «já
-   * não existe este formato no back office». E depois, perguntada: o painel
-   * fica SÓ atrás do «Abrir o pedido» da página da proposta, e um evento JÁ
-   * GANHO abre o Dossier do evento.
-   *
-   * Por isso a regra é uma e vive aqui:
-   *   · pedido ganho (`aceite`) → o Dossier (`/orcamento/admin/evento/<id>`,
-   *     o mesmo endereço do botão «Dossier» do painel) — é lá que vivem a
-   *     produção, os pagamentos, os convidados e o guião, o que se usa depois
-   *     de ganhar;
-   *   · os outros → a página de fazer a proposta, no ecrã todo
-   *     (`irFazerAProposta`).
-   *
-   * As portas: a Visão Geral (e os Lembretes e a Agenda lá dentro), o
-   * Kanban, os Clientes, o Calendário, as Propostas, o Acompanhamento, as
-   * Propostas Aceites, a paleta ⌘K e o «Novo pedido». A lista de Pedidos vai
-   * SEMPRE à página (ver `abrirDaListaRef`: é por ela que se chega ao painel
-   * de um pedido ganho). Fica de fora, de propósito, o «Abrir o pedido» da
-   * página — é ESSE o
-   * caminho para o painel (o `openQuote`), que guarda o que ainda só existe
-   * nele: a data, os convidados, o local, os contactos, o responsável, as notas
-   * internas, duplicar/arquivar/apagar.
-   */
-  function abrirCliente(pedido: Quote) {
-    if (pedido.status === "aceite") {
-      if (!discardGuard()) return;
-      lembrarRecente(pedido);
-      // Uma navegação inteira, e não o `useRouter`: o Dossier é outra rota
-      // (outra página, com o seu próprio carregamento), e o `useRouter` exige
-      // o router da app montado — o que os ~160 testes que montam este
-      // ficheiro sem ele não têm. Ver `navegar.ts`.
-      navegarPara(localizeHref(`/orcamento/admin/evento/${pedido.id}`, locale));
-      return;
-    }
-    void irFazerAProposta(pedido);
-  }
-
-  async function openQuote(pedido: Quote) {
-    if (!discardGuard()) return;
-    // Remember who opened the detail so focus can return there on close.
-    if (typeof document !== "undefined") {
-      detailOpenerRef.current = document.activeElement as HTMLElement | null;
-    }
-    // A vista muda JÁ — quem clicou num pedido no Calendário ou no Kanban vê a
-    // resposta ao clique no mesmo instante em que a dava antes. O que espera
-    // pelo servidor é só o painel de detalhe.
-    setView("pedidos");
-    /**
-     * ══════════════════════════════════════════════════════════════════════
-     * ABRIR UM PEDIDO ERA MUDO — SEIS VEZES
-     * ══════════════════════════════════════════════════════════════════════
-     *
-     * Do inventário: **seis portas para abrir um pedido — a lista, o Kanban, o
-     * Calendário, os Clientes, o Acompanhamento e a Visão Geral — e todas
-     * mudas.** Toca-se, e não acontece nada visível enquanto o servidor não
-     * responder. Num 4G de quinta são segundos, e o gesto seguinte é tocar
-     * outra vez.
-     *
-     * O painel espera de propósito e por boa razão (ver `comPedidoInteiro`:
-     * abrir com o resumo apagava listas de convidados). O que não pode é
-     * esperar em silêncio.
-     *
-     * As seis portas passam todas por aqui, portanto o aviso escreve-se uma
-     * vez. Fica por cima de todas as vistas, ao lado do
-     * `AvisoDeArmazenamento` — porque quem tocou pode ter tocado no
-     * Calendário, e é lá que ele tem de aparecer.
-     */
-    setAAbrir({ id: pedido.id, nome: pedido.name || "este pedido" });
-    const r = await comPedidoInteiro(pedido);
-    setAAbrir(null);
-    if (!r.ok) {
-      toast(r.porque, "error");
-      return;
-    }
-    const q = r.quote;
-    setSelected(q);
-    lembrarRecente(q);
-    preencherCom(q);
-
-    /**
-     * O que ficou por gravar da última vez que este pedido esteve aberto.
-     *
-     * Só se oferece quando é MESMO diferente do que o servidor tem agora: se
-     * ela gravou entretanto noutro sítio, ou se os valores calharam iguais,
-     * uma barra a perguntar seria ruído — e ruído numa barra destas ensina a
-     * carregar em «Descartar» sem ler.
-     */
-    const ficou = lerRascunho(q.id);
-    const diferencas = ficou ? oQueMudou(ficou.campos, camposDoPedido(q)) : [];
-    setRascunhoPorRepor(
-      ficou && diferencas.length > 0
-        ? {
-            campos: ficou.campos,
-            quando: haQuantoTempo(ficou.em, new Date()),
-            mudou: diferencas,
-          }
-        : null,
-    );
-    // Open on the tools tab that matches where this pedido is in its lifecycle.
-    // Pedido NOVO: os separadores visitados do anterior não valem para este.
-    const daFase = propostaDaFaseDoPedido(propostasLeves, q.id);
-    const target = detailNextAction(q, daFase).tab;
-    const abre = target === "gestao" ? "comunicacao" : target;
-    abrirPrimeiroDetailTab(abre);
-    // A lista leve ainda não chegou: a escolha foi feita às cegas. Pede-se já
-    // (é o MESMO pedido do aquecimento em ociosidade, adiantado — não é um a
-    // mais) e, quando chegar, volta-se a escolher se ela não mexeu.
-    if (daFase === undefined) {
-      separadorPorDecidirRef.current = { quoteId: q.id, tab: abre, desde: Date.now() };
-      prefetchList("propostas-leves", "/api/propostas?semDoc=1");
-    } else {
-      separadorPorDecidirRef.current = null;
-    }
-  }
-  // Stable identity for the memoised QuoteCard's onOpen prop. `irFazerAProposta`
-  // is a plain function (closes over discardGuard and many setters), so its
-  // reference changes every render — passing it directly would defeat QuoteCard's
-  // memo. A ref that always points at the latest one keeps behaviour identical
-  // while giving the row a callback whose identity never changes.
-  //
-  // O que está aqui dentro mudou de `openQuote` para `irFazerAProposta`: é ESTA
-  // a porta da lista de Pedidos.
-  //
-  // E fica no `irFazerAProposta` mesmo para um pedido GANHO (o `abrirCliente`
-  // mandá-lo-ia ao Dossier): a página da proposta só deixa ESCOLHER pedidos por
-  // fazer, e o «Abrir o pedido» dela é o único caminho para o painel — onde se
-  // muda a data, os contactos, as notas, ou se corrige o estado. Se a lista
-  // também fosse ao Dossier, o painel de um pedido ganho ficava sem porta.
-  const abrirDaListaRef = useRef(irFazerAProposta);
-  // Keep the ref pointing at the latest closure (updated in an effect, not
-  // during render). onOpen fires from a click, which is always after commit, so
-  // it reads the current closure.
-  useEffect(() => {
-    abrirDaListaRef.current = irFazerAProposta;
+  const { abrirCliente, openQuote, abrirDaLista, duplicateQuote } = useAberturaDoPedido({
+    setQuotes,
+    setSelected,
+    propostasLeves,
+    abrirPrimeiroDetailTab,
+    separadorPorDecidirRef,
+    setView,
+    setPropostaPara,
+    setAAbrir,
+    toast,
+    detailOpenerRef,
+    locale,
+    camposDoPedido,
+    setRascunhoPorRepor,
+    discardGuard,
+    comPedidoInteiro,
+    lembrarRecente,
+    edicao,
   });
-  const abrirDaLista = useCallback((q: Quote) => abrirDaListaRef.current(q), []);
-
-  // Clone an event's details into a fresh quote (e.g. a returning client).
-  // The date is intentionally left blank — it's a new event to schedule.
-  async function duplicateQuote(q: Quote) {
-    if (!discardGuard()) return;
-    try {
-      const res = await fetch("/api/orcamento/manual", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: q.name,
-          email: q.email,
-          phone: q.phone,
-          company: q.company,
-          category: q.category,
-          eventType: q.eventType,
-          eventName: q.eventName,
-          location: q.location,
-          guests: q.guests,
-          notes: q.notes,
-          referralSource: q.referralSource || "Cliente recorrente",
-          status: "em_revisao",
-          // Uma cópia: um telefone antigo, gravado antes das regras do país,
-          // fica como estava em vez de impedir a cópia (achado n.º 21).
-          duplicado: true,
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.quote) {
-        // A recusa do servidor diz o campo e o que fazer; o genérico só fica
-        // para quando não vem razão nenhuma.
-        toast(
-          typeof data?.error === "string" && data.error
-            ? `Não foi possível duplicar o pedido: ${data.error}`
-            : "Não foi possível duplicar o pedido",
-          "error",
-        );
-        return;
-      }
-      setQuotes((prev) => [data.quote, ...prev]);
-      setSelected(data.quote);
-      setEditPrice("");
-      setEditNotes("");
-      setEditStatus(data.quote.status);
-      setEditAssigned(data.quote.assignedTo ?? "");
-      setEditLostReason("");
-      setEditDate(data.quote.date ?? "");
-      setEditGuests(String(data.quote.guests ?? ""));
-      setEditLocation(data.quote.location ?? "");
-      setEditNome(data.quote.name ?? "");
-      setEditEmail(data.quote.email ?? "");
-      setEditTelefone(data.quote.phone ?? "");
-      // Pedido NOVO (é uma cópia): recomeça os separadores visitados.
-      abrirPrimeiroDetailTab("comunicacao");
-      toast("Pedido duplicado — define a nova data", "success");
-      if (typeof data.aviso === "string" && data.aviso) toast(data.aviso, "info");
-    } catch {
-      toast("Não foi possível duplicar o pedido", "error");
-    }
-  }
 
   /**
    * Vai buscar a lista de pedidos ao servidor, em silêncio.
@@ -2726,604 +2329,55 @@ export default function AdminClient({
     window.location.href = "/orcamento/admin";
   }
 
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * O HISTÓRICO DEIXA DE SE PERDER EM SILÊNCIO
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * Isto era `if (res.ok) { … }` sem `else`, e um `catch {}` vazio por baixo.
-   * Uma linha de histórico que não chegasse ao servidor desaparecia sem uma
-   * palavra — e o histórico é o que se lê meses depois para saber o que se
-   * disse a quem.
-   *
-   * O caso caro é o registo de uma CHAMADA: quem acaba de falar ao telefone
-   * escreve o que combinou, a caixa limpa-se como se tivesse gravado, e o que
-   * foi escrito não existe em lado nenhum. Ver o `ActivityLog`, que agora só
-   * limpa a caixa quando isto devolver `true`.
-   *
-   * O `oQue` importa aqui mais do que noutros sítios: nas chamadas vindas de um
-   * `onSent`, a acção principal JÁ correu bem — a proposta seguiu, a mensagem
-   * saiu. A frase tem de dizer que o que falhou foi a linha do histórico, e não
-   * o envio.
-   */
-  async function appendActivity(
-    quoteId: string,
-    entries: ActivityEntry[],
-    oQue = "escrever no histórico",
-  ): Promise<boolean> {
-    if (entries.length === 0) return true;
-    let res: Response;
-    try {
-      // Só as entradas NOVAS — o servidor junta ao histórico mais recente, para
-      // que duas ferramentas a gravar em simultâneo nunca se sobrescrevam.
-      res = await fetch(`/api/orcamento/${quoteId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activityLogAppend: entries }),
-      });
-    } catch {
-      toast(porqueRebentou(oQue).mensagem, "error");
-      return false;
-    }
-    const corpo = await res.json().catch(() => null);
-    if (!res.ok) {
-      toast(porqueFalhou(oQue, res, corpo).mensagem, "error");
-      return false;
-    }
-    const updated = corpo as Quote | null;
-    if (updated?.id) {
-      substituirPedido(updated);
-    }
-    return true;
-  }
+  const { appendActivity, refletirEstadoDoEstudio, refletirPedidoReposto } = useHistoricoDoPedido({
+    setQuotes,
+    setSelected,
+    substituirPedido,
+    toast,
+    selectedRef,
+    escritoNoServidor,
+    edicao,
+  });
+  const { guardarTudoDoPedido, guardarAgora } = useGravacaoDoPedido({
+    refletirPedidoReposto,
+    userName,
+    setQuotes,
+    setSelected,
+    selected,
+    setSaving,
+    toast,
+    anular,
+    escritoNoServidor,
+    acertarBaseDoConflito,
+    setRascunhoPorRepor,
+    gravacao,
+    edicao,
+  });
 
-  /**
-   * Confirma o que exige um clique.
-   *
-   * Devolve se ficou guardado, e sabe estar CALADO: quando é o gesto «Guardar
-   * tudo» a chamá-lo, quem dá a notícia é a resposta desse gesto — item a item,
-   * com o nome de cada um. Dois recados ao mesmo tempo sobre a mesma gravação
-   * seriam ruído, e o recado que sobra é sempre o menos exacto dos dois.
-   */
-  /**
-   * Põe no ecrã o pedido que o «Anular» repôs: a lista, a gaveta, cada campo de
-   * edição e a linha de base da gravação automática — como o «Guardar» faz com o
-   * que acabou de gravar. Sem isto, os campos ficavam com o valor anulado e o
-   * botão voltava a gravá-lo.
-   */
-  /**
-   * O estúdio gravou o rascunho e o servidor pôs o pedido em «A preparar
-   * proposta» (6/11). Muda-se SÓ o estado — o resto da cópia fica como está,
-   * pela razão do `onEstadoDoPedido` do estúdio.
-   *
-   * E o campo de estado do painel segue-o, mas só se ela não lhe tiver mexido:
-   * o «Guardar» compara `editStatus` com o estado do pedido, e um campo que
-   * ficasse em «Aguardar resposta» passava por uma escolha dela e desfazia o
-   * estado novo ao gravar o resto.
-   */
-  function refletirEstadoDoEstudio(id: string, status: QuoteStatus) {
-    setQuotes((prev) => comPedidoAlterado(prev, id, { status }));
-    const aberto = selectedRef.current;
-    if (aberto?.id === id) {
-      const anterior = aberto.status;
-      setEditStatus((e) => (e === anterior ? status : e));
-    }
-    setSelected((prev) => (prev?.id === id ? { ...prev, status } : prev));
-  }
-
-  function refletirPedidoReposto(q: Quote) {
-    substituirPedido(q);
-    preencherCom(q);
-    escritoNoServidor.current = {
-      id: q.id,
-      adminNotes: q.adminNotes ?? "",
-      lostReason: q.lostReason ?? "",
-    };
-  }
-
-  async function saveChanges(
-    opcoes: { silencioso?: boolean } = {},
-  ): Promise<{ ok: boolean; porque?: string }> {
-    if (!selected) return { ok: true };
-    const dizer = (mensagem: string, tipo: "success" | "error") => {
-      if (!opcoes.silencioso) toast(mensagem, tipo);
-    };
-    setSaving(true);
-    try {
-      /**
-       * As três decisões — que linhas entram no histórico, o que vai no corpo,
-       * e (depois de gravar) o que o «Anular» devolve — são puras e vivem em
-       * `lib/orcamento/pedidos/gravar-o-pedido.ts`. Aqui fica a casca: ler o
-       * painel, mandar, mostrar.
-       *
-       * Um número de convidados que não serve NÃO é uma alteração: fica igual
-       * ao que está gravado e, por isso, nem vai no corpo nem se anuncia no
-       * histórico. É assim que o email escrito na mesma gravação deixa de ser
-       * arrastado abaixo por um sinal a menos.
-       */
-      const escrito = lerPainel(painel, convidadosEscritos, selected);
-      const linhas = linhasDoHistorico(selected, escrito, {
-        actor: userName,
-        agora: new Date().toISOString(),
-        novoId: randomId,
-      });
-      // O texto de onde as notas partiram, como na gravação automática: o
-      // servidor recusa com 409 se outra pessoa gravou notas entretanto.
-      const lido = escritoNoServidor.current;
-      const body = corpoDaGravacao(selected, escrito, {
-        baseDasNotas:
-          lido && lido.id === selected.id ? lido.adminNotes : (selected.adminNotes ?? ""),
-        linhas,
-      });
-
-      // Nada mudou (o botão foi carregado depois de a gravação automática já ter
-      // feito o trabalho). Não se inventa um pedido para não fazer nada.
-      if (Object.keys(body).length === 0) {
-        // A não ser que o que ela mudou tenha sido justamente o que não serve:
-        // aí «já está tudo guardado» seria mentira.
-        if (erroDeConvidados) {
-          const porque = `Convidados não ficou guardado. ${erroDeConvidados}`;
-          dizer(porque, "error");
-          return { ok: false, porque };
-        }
-        dizer("Já está tudo guardado", "success");
-        return { ok: true };
-      }
-
-      /**
-       * ── O MESMO CUIDADO QUE A GRAVAÇÃO AUTOMÁTICA AO LADO ────────────────
-       *
-       * Este era o caminho MENOS resistente dos dois que vivem neste ficheiro.
-       * A gravação automática das notas já usava `fetchComTecto` (tecto de
-       * tempo) e `enviarComRepeticao` (três tentativas); o botão «Guardar» —
-       * por onde sai o preço, a data, os convidados e os contactos — fazia um
-       * `fetch` cru, sem `signal`, sem tecto e sem repetição.
-       *
-       * Numa quinta com 4G fraco isso não é um pormenor: uma rede que aceita a
-       * ligação e nunca responde deixa esse `fetch` pendurado até o Safari
-       * desistir sozinho, com o botão eternamente em «a guardar…», e uma única
-       * falha de rede devolvia «não foi possível» sem sequer tentar outra vez.
-       *
-       * A resposta do servidor tem de sair daqui de dentro: o
-       * `enviarComRepeticao` devolve se ficou guardado, não o corpo. Daí a
-       * variável apanhada no fecho.
-       */
-      let guardado: Quote | null = null;
-      const resultado = await enviarComRepeticao(async () => {
-        const res = await fetchComTecto(`/api/orcamento/${selected.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          /**
-           * O servidor já diz o que está mal — e era essa a frase que se
-           * deitava fora, para pôr no lugar «Não foi possível guardar as
-           * alterações», que não nomeia o campo nem diz o que fazer. Passa a
-           * ser a dele, em português (ver `erro-do-servidor`). Sem corpo
-           * aproveitável fica a frase genérica, que pelo menos não inventa uma
-           * razão.
-           *
-           * O `respostaDeHttp` decide também se vale a pena repetir: um 4xx é
-           * o pedido que está errado e repeti-lo dá exactamente o mesmo.
-           */
-          if (res.status === 409) await acertarBaseDoConflito(selected.id, res);
-          return respostaDeHttp(res.status, {
-            porque: (await porqueRecusou(res)) ?? undefined,
-          });
-        }
-        guardado = (await res.json()) as Quote;
-        // Um estado novo gravado pelo formulário («Ganho», «Perdido») arrasta
-        // a proposta no servidor: a lista leve relê-se, depois do PATCH.
-        if ("status" in body) asPropostasMudaram();
-        return { estado: "guardado" } satisfies RespostaDoEnvio;
-      });
-      if (resultado.estado !== "guardado") {
-        const porque = resultado.porque
-          ? `Não foi guardado. ${resultado.porque}`
-          : "Não foi possível guardar. Fica no telemóvel — volta a tentar quando houver rede.";
-        dizer(porque, "error");
-        return { ok: false, porque };
-      }
-      // O TypeScript não vê a atribuição que acontece dentro do fecho acima, e
-      // por isso continua a achar que isto é `null`. A leitura tem de ser
-      // explícita — e a verificação que se segue não é cerimónia: se o servidor
-      // respondesse 200 com um corpo ilegível, seguir em frente escrevia
-      // `undefined` por cima do pedido que está no ecrã.
-      // Chegou ao servidor: a cópia local deixa de ter razão de existir. O
-      // efeito acima também a apagaria assim que os campos re-sincronizassem,
-      // mas entre uma coisa e outra há uma janela — e uma rede de segurança que
-      // sobra é um aviso falso na abertura seguinte.
-      esquecerRascunho(selected.id);
-      setRascunhoPorRepor(null);
-      const updated = guardado as Quote | null;
-      if (updated === null) {
-        const porque = "Não foi guardado: o servidor respondeu sem o pedido.";
-        dizer(porque, "error");
-        return { ok: false, porque };
-      }
-      setQuotes((prev) => comPedidoSubstituido(prev, updated));
-      setSelected(updated);
-      // Re-sync EVERY edit field to what the server persisted, so the form can
-      // never sit dirty on a value the user did not type (e.g. price formatting).
-      // O campo por corrigir fica COMO ELA O ESCREVEU: substituí-lo pelo valor
-      // gravado apagava o que ela acabou de escrever e voltava a esconder o
-      // problema — que é o defeito de origem, ao contrário.
-      preencherCom(updated, { manterConvidados: !!erroDeConvidados });
-      // A linha de base da gravação automática move-se com este clique: sem
-      // isto, a gravação adiada que estivesse a caminho reenviava o texto que o
-      // botão acabou de gravar.
-      escritoNoServidor.current = {
-        id: updated.id,
-        adminNotes: updated.adminNotes ?? "",
-        lostReason: updated.lostReason ?? "",
-      };
-      if (erroDeConvidados) {
-        // Guardou-se o que se conseguia guardar, e diz-se o que ficou de fora
-        // e porquê. A barra continua em «Alterações por guardar» — porque
-        // continua mesmo a haver uma alteração por guardar.
-        const porque = `Convidados não ficou guardado. ${erroDeConvidados} O resto das alterações ficou.`;
-        dizer(porque, "error");
-        return { ok: false, porque };
-      }
-      /**
-       * ── «ANULAR» DE TUDO O QUE ESTE «GUARDAR» MUDOU ────────────────────────
-       *
-       * `selected` aqui ainda é o pedido de ANTES desta gravação (o fecho do
-       * clique). Para cada campo que foi no corpo, volta o valor que lá estava
-       * — com a mesma regra de `null`/`""` do envio, para apagar mesmo. Se o
-       * estado também mudou, vai tudo no mesmo gesto do `reporEstadoDoPedido`
-       * (que desfaz a cadeia do «Ganho»); senão, um PATCH com a linha no
-       * histórico.
-       */
-      const antes = selected;
-      const inverso = corpoDoAnular(antes, body);
-      const mudouEstado = updated.status !== antes.status;
-      if (opcoes.silencioso || (!mudouEstado && Object.keys(inverso).length === 0)) {
-        dizer("Pedido atualizado", "success");
-        return { ok: true };
-      }
-      anular("Pedido atualizado", async () => {
-        let reposto: Quote | null;
-        if (mudouEstado) {
-          reposto = await reporEstadoDoPedido({
-            quoteId: updated.id,
-            de: antes.status,
-            para: updated.status,
-            actor: userName,
-            extra: { ...inverso },
-          });
-        } else {
-          const res = await fetch(`/api/orcamento/${encodeURIComponent(updated.id)}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ...inverso,
-              activityLogAppend: [
-                {
-                  id: randomId(),
-                  at: new Date().toISOString(),
-                  kind: "note_added",
-                  actor: userName,
-                  summary: "Alterações anuladas",
-                },
-              ],
-            }),
-          });
-          const corpo = (await res.json().catch(() => null)) as (Quote & { error?: string }) | null;
-          if (!res.ok) throw new Error(corpo?.error || `Não foi possível anular (${res.status}).`);
-          reposto = corpo;
-        }
-        if (!reposto) return;
-        refletirPedidoReposto(reposto);
-      });
-      return { ok: true };
-    } catch {
-      const porque = "Não foi possível guardar as alterações";
-      dizer(porque, "error");
-      return { ok: false, porque };
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  /**
-   * O painel do pedido inteiro, gravado de uma vez.
-   *
-   * Faz as duas coisas pela ordem certa: primeiro descarrega o que grava
-   * sozinho (é o que ela está a tentar outra vez quando a gravação automática
-   * falhou), e só depois confirma o que exige um clique. Ao contrário, o clique
-   * gravava o texto e a gravação adiada voltava a mandá-lo a seguir.
-   *
-   * É esta a função que o botão «Guardar» do painel usa E a que o registo
-   * chama quando ela carrega em «Guardar tudo» — o mesmo trabalho pelo mesmo
-   * caminho, para os dois gestos não poderem divergir com o tempo.
-   *
-   * O que devolve não arredonda para melhor: basta uma das metades falhar para
-   * a resposta ser «não ficou guardado». Aqui não há cópia local nenhuma — o
-   * que não chega ao servidor não existe em mais lado nenhum, e é por isso que
-   * o desfecho é `nao-guardado` e não «só neste computador».
-   */
-  async function guardarTudoDoPedido(silencioso = false): Promise<ResultadoDoEcra> {
-    let porque: string | undefined;
-    let falhou = false;
-    if (gravacao.porGravar || gravacao.naoChegouAoServidor || escritoPorGravar) {
-      const r = await gravacao.gravarJa();
-      if (r.estado !== "guardado") {
-        falhou = true;
-        porque = r.porque;
-      }
-    }
-    if (alteracoesPorConfirmar) {
-      const r = await saveChanges({ silencioso });
-      if (!r.ok) {
-        falhou = true;
-        // A razão é a do próprio campo — «Convidados não ficou guardado. Não
-        // pode ser negativo…». Dizer «o servidor não aceitou as alterações»
-        // por cima disso era voltar ao recado que não diz nada.
-        porque = porque ?? r.porque ?? "O servidor não aceitou as alterações do pedido.";
-      }
-    }
-    return falhou ? { estado: "nao-guardado", porque } : { estado: "guardado" };
-  }
-
-  /** O botão «Guardar» da barra do painel. Fala por si (com `toast`), porque
-   *  aqui o gesto é dela e a resposta é sobre este pedido e mais nenhum. */
-  function guardarAgora() {
-    void guardarTudoDoPedido();
-  }
-
-  /**
-   * Apply a status to every selected pedido in one go.
-   *
-   * Os `ids` vêm de fora, e são sempre os que estão À VISTA (ver
-   * `seleccionadosAVista`). Lidos daqui de dentro eram a selecção crua — que
-   * inclui o que o filtro e a procura tiraram do ecrã.
-   */
-  async function applyBulkStatus(status: QuoteStatus, ids: string[]) {
-    if (ids.length === 0 || bulkBusy) return;
-    setLote({ titulo: "A marcar os pedidos…", feito: 0, total: ids.length });
-    // O estado de cada um ANTES — é para onde o «Anular» os leva de volta.
-    const antes = new Map(quotes.filter((q) => ids.includes(q.id)).map((q) => [q.id, q.status]));
-    try {
-      // N de cada vez (revisão · 3): ver `com-limite.ts`. A contagem sobe à
-      // medida que cada pedido responde.
-      const results = await comLimite(ids, ESCRITAS_EM_SIMULTANEO, (id) =>
-        fetch(`/api/orcamento/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status }),
-        })
-          .then((r) => (r.ok ? (r.json() as Promise<Quote>) : null))
-          .catch(() => null)
-          .then((v) => {
-            contarMaisUmNoLote();
-            return v;
-          }),
-      );
-      const updated = new Map<string, Quote>();
-      results.forEach((u, i) => {
-        if (u && typeof u === "object") updated.set(ids[i], { ...u, id: u.id ?? ids[i] });
-      });
-      if (updated.size > 0) {
-        setQuotes((prev) => prev.map((q) => updated.get(q.id) ?? q));
-        setSelected((prev) => (prev && updated.has(prev.id) ? updated.get(prev.id)! : prev));
-      }
-      const ok = updated.size;
-      const failed = ids.length - ok;
-      // Os que ficaram têm «Anular», mesmo que outros tenham falhado: o que
-      // aconteceu tem de se poder desfazer (revisão · 3).
-      if (ok > 0) {
-        // «Anular» repõe cada um no estado em que estava (e desfaz o Ganho dos
-        // que lá foram por este gesto). Ver `anular-estado.ts`.
-        anular(`${ok} pedido${ok !== 1 ? "s" : ""} atualizado${ok !== 1 ? "s" : ""}`, async () => {
-          /* Só volta quem AINDA está no estado que este gesto pôs, e tinha
-             outro antes. Um «Anular» carregado depois de o pedido ter mudado
-             outra vez repunha-o por cima do gesto novo — e desfazia um «Ganho»
-             que já não era deste gesto (2.ª revisão · 6). */
-          const agora = new Map(quotesRef.current.map((q) => [q.id, q.status] as const));
-          const aRepor = [...updated.keys()].filter((id) => {
-            const de = antes.get(id);
-            return !!de && de !== status;
-          });
-          const mudaramOutraVez = aRepor.filter((id) => agora.get(id) !== status);
-          const vaoVoltar = aRepor.filter((id) => agora.get(id) === status);
-          const repostos = await comLimite(vaoVoltar, ESCRITAS_EM_SIMULTANEO, (id) =>
-            reporEstadoDoPedido({ quoteId: id, de: antes.get(id)!, para: status, actor: userName }),
-          );
-          // Os que voltaram aplicam-se SEMPRE, mesmo que outros falhem
-          // (2.ª revisão · 2): `comLimite` dá um resultado por item.
-          const porId = new Map(
-            repostos.filter((q): q is Quote => !!q).map((q) => [q.id, q] as const),
-          );
-          setQuotes((prev) => prev.map((q) => porId.get(q.id) ?? q));
-          setSelected((prev) => (prev && porId.has(prev.id) ? porId.get(prev.id)! : prev));
-          const avisos: string[] = [];
-          if (mudaramOutraVez.length > 0) {
-            const n = mudaramOutraVez.length;
-            avisos.push(
-              `${n} pedido${n !== 1 ? "s" : ""} já tinha${n !== 1 ? "m" : ""} mudado outra vez e ficou como está.`,
-            );
-          }
-          if (porId.size < vaoVoltar.length) {
-            avisos.push(
-              `${porId.size} de ${vaoVoltar.length} voltaram. Tenta outra vez no painel de cada pedido.`,
-            );
-          }
-          if (avisos.length > 0) throw new Error(avisos.join(" "));
-        });
-      }
-      if (failed > 0) {
-        toast(
-          `${failed} pedido${failed !== 1 ? "s" : ""} não mudaram e ficam selecionados. Verifica a ligação e tenta outra vez.`,
-          "error",
-        );
-      }
-      // Só saem da selecção os que mudaram: os que falharam ficam lá para ela
-      // tentar outra vez com um toque (revisão · 3).
-      esquecerDaSeleccao([...updated.keys()]);
-    } finally {
-      setLote(null);
-    }
-  }
-
-  /**
-   * ── ARQUIVAR E RESTAURAR EM LOTE (BO 4) ────────────────────────────────────
-   *
-   * O mesmo gesto do «Arquivar pedido» do painel, a N pedidos de uma vez: o
-   * mesmo `PATCH { archived }`, o mesmo contador do lote (`EmCurso`, a subir a
-   * cada um que responde), e o «Anular» da casa, que devolve ao estado de
-   * antes só os que mudaram.
-   *
-   * Revisão · 3: até 10, sem pergunta — o «Anular» chega. Acima de 10 pergunta
-   * primeiro, com o número («Arquivar 37 pedidos?»), porque um ⌘A num ecrã de
-   * cinquenta tira cinquenta pedidos da frente de uma vez. As escritas vão
-   * `ESCRITAS_EM_SIMULTANEO` de cada vez; se algumas falham, só essas ficam
-   * selecionadas, e as que ficaram têm o seu «Anular».
-   */
-  function pedirParaArquivar(arquivar: boolean, ids: string[]) {
-    if (ids.length === 0 || bulkBusy) return;
-    if (arquivar && ids.length > ARQUIVAR_SEM_PERGUNTAR) {
-      setAArquivarLote(ids);
-      return;
-    }
-    void applyBulkArchive(arquivar, ids);
-  }
-
-  async function applyBulkArchive(arquivar: boolean, ids: string[]) {
-    if (ids.length === 0 || bulkBusy) return;
-    setLote({
-      titulo: arquivar ? "A arquivar os pedidos…" : "A restaurar os pedidos…",
-      feito: 0,
-      total: ids.length,
-    });
-    const mudar = (id: string, archived: boolean) =>
-      fetch(`/api/orcamento/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ archived }),
-      })
-        .then((r) => (r.ok ? (r.json() as Promise<Quote>) : null))
-        .catch(() => null);
-    try {
-      const results = await comLimite(ids, ESCRITAS_EM_SIMULTANEO, (id) =>
-        mudar(id, arquivar).then((v) => {
-          contarMaisUmNoLote();
-          return v;
-        }),
-      );
-      const updated = new Map<string, Quote>();
-      results.forEach((u, i) => {
-        if (u && typeof u === "object") updated.set(ids[i], { ...u, id: u.id ?? ids[i] });
-      });
-      if (updated.size > 0) {
-        setQuotes((prev) => prev.map((q) => updated.get(q.id) ?? q));
-        setSelected((prev) => (prev && updated.has(prev.id) ? updated.get(prev.id)! : prev));
-      }
-      const ok = updated.size;
-      const failed = ids.length - ok;
-      const nome = `pedido${ok !== 1 ? "s" : ""}`;
-      const feito = arquivar
-        ? `arquivado${ok !== 1 ? "s" : ""}`
-        : `restaurado${ok !== 1 ? "s" : ""}`;
-      if (ok > 0) {
-        anular(`${ok} ${nome} ${feito}.`, async () => {
-          const voltaram = await comLimite([...updated.keys()], ESCRITAS_EM_SIMULTANEO, (id) =>
-            mudar(id, !arquivar),
-          );
-          const porId = new Map(
-            voltaram
-              .filter((q): q is Quote => !!q && typeof q.id === "string")
-              .map((q) => [q.id, q]),
-          );
-          setQuotes((prev) => prev.map((q) => porId.get(q.id) ?? q));
-          setSelected((prev) => (prev && porId.has(prev.id) ? porId.get(prev.id)! : prev));
-          if (porId.size < updated.size) {
-            throw new Error(
-              `${porId.size} de ${updated.size} voltaram. Tenta outra vez no painel de cada pedido.`,
-            );
-          }
-        });
-      }
-      if (failed > 0) {
-        toast(
-          `${failed} pedido${failed !== 1 ? "s" : ""} não ${arquivar ? "foram arquivados" : "foram restaurados"} e ficam selecionados. Verifica a ligação e tenta outra vez.`,
-          "error",
-        );
-      }
-      esquecerDaSeleccao([...updated.keys()]);
-    } finally {
-      setLote(null);
-    }
-  }
-
-  /** Tira do lote os pedidos sobre que se acabou de agir, e só esses: o resto
-   *  da selecção é dela e não se apaga por causa de um gesto sobre outros. */
-  function esquecerDaSeleccao(ids: string[]) {
-    const feitos = new Set(ids);
-    setSelectedIds((prev) => new Set([...prev].filter((id) => !feitos.has(id))));
-  }
-
-  // Apaga cada pedido seleccionado — vão 30 dias para a Reciclagem, com um só
-  // «Anular» para todos (R3b). One confirm covers the whole batch; each id is
-  // DELETEd, then the successful ones are dropped from local state and the
-  // selection is cleared. Os `ids` são os que estão À VISTA — ver
-  // `applyBulkStatus`.
-  function deleteSelected(ids: string[]) {
-    if (ids.length === 0 || bulkBusy) return;
-    // A pergunta NOMEIA-OS. «Apagar 12 pedidos?» é um número que não se
-    // consegue verificar: quem o lê não sabe se a selecção é a que pensa que
-    // é, e a única maneira de saber era cancelar e contar à mão.
-    setAApagarLote(ids);
-  }
-
-  /** Os nomes dos pedidos seleccionados, cortados a `NOMES_A_MOSTRAR`. */
-  function nomesDoLote(ids: string[] | null): string[] {
-    if (!ids || ids.length === 0) return [];
-    const porId = new Map(quotes.map((q) => [q.id, q]));
-    const nomes = ids.map((id) => porId.get(id)?.name ?? id);
-    if (nomes.length <= NOMES_A_MOSTRAR) return nomes;
-    return [...nomes.slice(0, NOMES_A_MOSTRAR), `… e mais ${nomes.length - NOMES_A_MOSTRAR}`];
-  }
-
-  async function apagarMesmo(ids: string[]) {
-    setAApagarLote(null);
-    setLote({ titulo: "A apagar os pedidos…", feito: 0, total: ids.length });
-    try {
-      const results = await Promise.all(
-        ids.map((id) =>
-          fetch(`/api/orcamento/${id}`, { method: "DELETE" })
-            .then(async (r) => (r.ok ? { id, corpo: await r.json().catch(() => null) } : null))
-            .catch(() => null)
-            // Ver `applyBulkStatus`: conta à passagem, sem serializar nada.
-            .then((v) => {
-              contarMaisUmNoLote();
-              return v;
-            }),
-        ),
-      );
-      const apagados = results.filter((x): x is { id: string; corpo: unknown } => x !== null);
-      const removed = new Set(apagados.map((x) => x.id));
-      if (removed.size > 0) {
-        setQuotes((prev) => prev.filter((q) => !removed.has(q.id)));
-        setSelected((prev) => (prev && removed.has(prev.id) ? null : prev));
-      }
-      const ok = removed.size;
-      const failed = ids.length - ok;
-      if (failed === 0) {
-        depoisDeApagarVarios(
-          apagados.map((x) => x.corpo),
-          `${ok} pedido${ok !== 1 ? "s" : ""} apagado${ok !== 1 ? "s" : ""}.`,
-          () => void revalidarPedidos(true),
-        );
-      } else {
-        toast(`${ok} apagado(s), ${failed} falhou(ram)`, "error");
-      }
-      esquecerDaSeleccao(ids);
-    } finally {
-      setLote(null);
-    }
-  }
+  const {
+    nomesDoLote,
+    apagarMesmo,
+    applyBulkArchive,
+    applyBulkStatus,
+    pedirParaArquivar,
+    deleteSelected,
+  } = useAccoesEmLote({
+    userName,
+    quotes,
+    setQuotes,
+    quotesRef,
+    setSelected,
+    setSelectedIds,
+    setLote,
+    bulkBusy,
+    contarMaisUmNoLote,
+    setAApagarLote,
+    setAArquivarLote,
+    toast,
+    anular,
+    depoisDeApagarVarios,
+    revalidarPedidos,
+  });
 
   const archivedCount = useMemo(() => quotes.filter((q) => q.archived).length, [quotes]);
   /* ── SEM ARQUIVADOS, NÃO HÁ LISTA DE ARQUIVADOS (revisão · 1) ────────────
