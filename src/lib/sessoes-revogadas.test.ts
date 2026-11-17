@@ -222,6 +222,17 @@ describe("leitura falhada sem nada em memória (n.º 7 de 16/11)", () => {
 
   // Revisão de 17/11: o primeiro contacto de uma instância nova passa às vezes
   // do tecto de 1,5 s; antes de recusar uma gravação, lê-se outra vez com folga.
+  it("com a base em baixo, a segunda leitura não se repete a cada gravação", async () => {
+    const t = createSession("TESTE Ana");
+    H.pendurado = true;
+    expect(await estadoDaSessao(t, { muda: true })).toBe("indisponivel");
+    const leituras = H.leituras;
+    const inicio = Date.now();
+    expect(await estadoDaSessao(t, { muda: true })).toBe("indisponivel");
+    expect(Date.now() - inicio).toBeLessThan(500);
+    expect(H.leituras).toBe(leituras);
+  }, 20_000);
+
   it("uma base só LENTA (2,5 s) não recusa a gravação: a segunda leitura chega", async () => {
     const t = createSession("TESTE Ana");
     H.atrasoMs = 2_500;

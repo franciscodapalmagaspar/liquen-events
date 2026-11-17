@@ -109,7 +109,6 @@ describe("o proxy e as sessões revogadas", () => {
       "/api/admin/erro-do-cliente",
       "/api/admin/imagem-falhou",
       "/api/orcamento",
-      "/api/orcamento/abc/tempo-activo",
       "/api/meta",
       "/api/proposta/tok/escolha",
     ]) {
@@ -128,6 +127,9 @@ describe("o proxy e as sessões revogadas", () => {
       "/api/admin/equipa",
       "/api/admin/passkeys/registo",
       "/api/admin/logout/x",
+      "/api/orcamento/abc/tempo-activo",
+      "/api/admin/recuperar/outra",
+      "/api/admin/passkeys/entrada/x",
       "/api/temas",
     ]) {
       const res = await proxy(pedido(token, "POST", caminho));

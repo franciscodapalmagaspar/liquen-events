@@ -28,15 +28,16 @@ const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
  * 17/11): ou não usam a sessão para gravar nada (o formulário público, o
  * beacon da Meta, a escolha na proposta do casal, as entradas), ou são
  * inofensivos em nome de uma sessão fechada («Sair», que só apaga e revoga; e
- * as medições do back office). O cookie de admin vai em todos os pedidos ao
+ * os relatos de erros do back office, que só escrevem nos registos). O tempo
+ * ativo NÃO está aqui: grava no pedido, e perder um pedaço de medição num
+ * minuto de base em baixo é aceitável. O cookie de admin vai em todos os pedidos ao
  * site (`path=/`), por isso sem esta lista a Catarina ficava sem poder sair, e
  * sem poder testar o formulário, num minuto de Supabase lento.
  */
 const NUNCA_503 = [
-  /^\/api\/admin\/(logout|login|recuperar(\/.*)?|passkeys\/entrada(\/.*)?)$/,
+  /^\/api\/admin\/(logout|login|recuperar(\/definir)?|passkeys\/entrada)$/,
   /^\/api\/admin\/(erro-do-cliente|imagem-falhou)$/,
   /^\/api\/orcamento$/,
-  /^\/api\/orcamento\/[^/]+\/tempo-activo$/,
   /^\/api\/meta$/,
   /^\/api\/proposta\/[^/]+\/escolha$/,
 ];
