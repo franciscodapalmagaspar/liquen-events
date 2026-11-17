@@ -7,6 +7,8 @@ import {
   lerClique,
   serializar,
   desserializar,
+  aoMudarConsentimento,
+  esquecerClique,
 } from "./click-id";
 
 /**
@@ -26,7 +28,11 @@ const T0 = Date.parse("2026-03-01T10:00:00.000Z");
 const GCLID = "Cj0KCQjw1JeYBhD9ARIsAHtAtLLxLdummyvalue123";
 
 beforeEach(() => {
+  esquecerClique();
   localStorage.clear();
+  // Os testes de baixo são do caminho COM consentimento; os sem ele vivem no
+  // fim do ficheiro (auditoria legal, 17/11).
+  localStorage.setItem("liquen-consent", "granted");
 });
 
 describe("captura do identificador de clique", () => {
@@ -119,10 +125,10 @@ describe("captura do identificador de clique", () => {
     try {
       expect(() => lerClique(T0)).not.toThrow();
       expect(lerClique(T0)).toBeNull();
-      // A captura devolve à mesma o registo, para o formulário desta visita
-      // ainda conseguir levar o identificador consigo.
-      const c = capturarClique(`?gclid=${GCLID}`, "/", T0);
-      expect(c?.valor).toBe(GCLID);
+      // Sem armazenamento não se consegue ler o «Aceitar» — e negado é o lado
+      // seguro (17/11): nada sai, nem no formulário desta visita.
+      expect(() => capturarClique(`?gclid=${GCLID}`, "/", T0)).not.toThrow();
+      expect(capturarClique(`?gclid=${GCLID}`, "/", T0)).toBeNull();
     } finally {
       if (original) Object.defineProperty(window, "localStorage", original);
     }
@@ -143,5 +149,52 @@ describe("ida e volta pela forma compacta", () => {
     expect(desserializar("gclid:semdata")).toBeNull();
     expect(desserializar(`inventado:${GCLID}@2026-03-01T10:00:00.000Z`)).toBeNull();
     expect(desserializar(`gclid:${GCLID}@não é data`)).toBeNull();
+  });
+});
+
+/**
+ * Auditoria legal (17/11): o gclid ia para o localStorage à chegada, antes de
+ * a pessoa escolher no aviso de cookies, e viajava no formulário até à
+ * importação das conversões da Google. MEDIDO num Chromium em `/?gclid=…`.
+ */
+describe("sem consentimento, o gclid não toca no dispositivo nem sai", () => {
+  beforeEach(() => {
+    localStorage.removeItem("liquen-consent");
+  });
+
+  it("antes da escolha: nada guardado, e o formulário não o leva", () => {
+    expect(capturarClique(`?gclid=${GCLID}`, "/", T0)).toBeNull();
+    expect(JSON.stringify({ ...localStorage })).not.toContain(GCLID);
+    expect(lerClique(T0)).toBeNull();
+  });
+
+  it("aceitar NA MESMA VISITA grava o clique da entrada", () => {
+    capturarClique(`?gclid=${GCLID}`, "/servicos", T0);
+    localStorage.setItem("liquen-consent", "granted");
+    aoMudarConsentimento(true, T0 + 1000);
+    const c = lerClique(T0 + 1000);
+    expect(c?.valor).toBe(GCLID);
+    expect(c?.em).toBe(new Date(T0).toISOString()); // a hora do clique, não a do «Aceitar»
+    expect(localStorage.getItem(AD_CLICK_KEY)).toContain(GCLID);
+  });
+
+  it("recusar apaga a memória e o que tivesse ficado de uma aceitação anterior", () => {
+    localStorage.setItem("liquen-consent", "granted");
+    capturarClique(`?gclid=${GCLID}`, "/", T0);
+    expect(localStorage.getItem(AD_CLICK_KEY)).toContain(GCLID); // controlo positivo
+    localStorage.setItem("liquen-consent", "denied");
+    aoMudarConsentimento(false, T0);
+    expect(JSON.stringify({ ...localStorage })).not.toContain(GCLID);
+    localStorage.setItem("liquen-consent", "granted");
+    aoMudarConsentimento(true, T0);
+    expect(lerClique(T0)).toBeNull();
+  });
+
+  it("um clique guardado antes não se lê depois de retirar o consentimento", () => {
+    localStorage.setItem(
+      AD_CLICK_KEY,
+      JSON.stringify({ tipo: "gclid", valor: GCLID, em: new Date(T0).toISOString() }),
+    );
+    expect(lerClique(T0)).toBeNull();
   });
 });

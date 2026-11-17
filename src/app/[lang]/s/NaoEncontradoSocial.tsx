@@ -4,6 +4,7 @@ import Link from "next/link";
 import { localizeHref } from "@/lib/i18n/config";
 import { useTranslations } from "@/components/LocaleProvider";
 import { waHref } from "@/data";
+import LivroDeReclamacoes from "@/components/LivroDeReclamacoes";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -100,6 +101,17 @@ export default function NaoEncontradoSocial() {
           {t.common.voltarInicio}
         </Link>
       </div>
+
+      {/* O Livro de Reclamações Eletrónico (auditoria legal, 17/11): este ramo
+          não tem o rodapé do sítio, e a ligação é obrigatória em todas as
+          páginas. A mesma peça do rodapé, discreta, no fundo. */}
+      <LivroDeReclamacoes
+        rotulo={t.footer.livroReclamacoes}
+        novaJanela={t.common.newWindow}
+        sobre="claro"
+        altura={36}
+        className="alvo-toque opacity-55 hover:opacity-90 transition-opacity"
+      />
     </section>
   );
 }

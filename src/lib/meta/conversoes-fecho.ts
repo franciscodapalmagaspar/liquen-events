@@ -122,7 +122,12 @@ export function construirFechos(
       continue;
     }
 
-    const cru = (q.metaClick ?? "").trim();
+    // O clique da Meta só vale com consentimento, e a prova que fica no
+    // pedido é o `leadEventId`: o formulário só o manda depois de «Aceitar»
+    // (`PedidoRelampago.tsx`), e desde 17/11 a rota nem grava o clique sem
+    // ele. Os pedidos gravados ANTES disso podem ter o clique sem o
+    // consentimento — esses não seguem para a Meta (auditoria legal, 17/11).
+    const cru = (q.leadEventId ?? "").trim() ? (q.metaClick ?? "").trim() : "";
     if (!cru) {
       // O caso NORMAL: a maior parte dos casamentos não vem de um anúncio da
       // Meta. Passa-a-palavra, orgânico, Google, feiras.

@@ -551,7 +551,7 @@ export const en: Dict = {
     submitReassure: "A tailored proposal, crafted in detail.",
     privacyPre: "By submitting, you accept our ",
     privacyLinkLabel: "Privacy Policy",
-    privacyPost: ". We never share your details.",
+    privacyPost: ". We do not sell your data.",
   },
 
   servicos: {

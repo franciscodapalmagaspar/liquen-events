@@ -11,13 +11,20 @@ import {
   META_CLICK_KEY,
   JANELA_MS,
   INDICE_SUBDOMINIO,
+  aoMudarConsentimento,
+  esquecerClique,
 } from "./click-id";
+import { CHAVE_CONSENTIMENTO } from "./consentimento";
 
 const FBCLID = "IwAR0abcDEF123456789_-.xyz";
 const AGORA = Date.parse("2026-03-01T10:00:00.000Z");
 
 beforeEach(() => {
+  esquecerClique();
   localStorage.clear();
+  // Os testes de baixo são do caminho COM consentimento; os sem ele vivem no
+  // fim do ficheiro e tiram-no eles próprios.
+  localStorage.setItem(CHAVE_CONSENTIMENTO, "granted");
   // Limpa os cookies que os testes deixam.
   for (const c of document.cookie.split(";")) {
     const nome = c.split("=")[0]?.trim();
@@ -142,10 +149,9 @@ describe("serializar para viajar dentro do formulário", () => {
 });
 
 describe("armazenamento bloqueado", () => {
-  it("capturar continua a devolver o clique desta visita", () => {
-    // É o caso normal no browser interno do Instagram em contexto
-    // particionado: o formulário DESTA visita ainda tem de conseguir levar o
-    // identificador consigo, mesmo sem nada ficar guardado.
+  it("sem armazenamento não há consentimento provado: nada sai nem se grava", () => {
+    // Até 17/11 o clique viajava à mesma no formulário. Mas sem armazenamento
+    // não se consegue ler o «Aceitar» — e negado é o lado seguro.
     const original = Object.getOwnPropertyDescriptor(window, "localStorage");
     Object.defineProperty(window, "localStorage", {
       configurable: true,
@@ -154,11 +160,77 @@ describe("armazenamento bloqueado", () => {
       },
     });
     try {
-      const r = capturarClique(`?fbclid=${FBCLID}`, "/s/comporta", AGORA);
-      expect(r?.fbclid).toBe(FBCLID);
+      expect(capturarClique(`?fbclid=${FBCLID}`, "/s/comporta", AGORA)).toBeNull();
       expect(lerClique(AGORA)).toBeNull();
+      expect(lerIdentificadores(AGORA)).toEqual({ fbp: "", fbc: "" });
     } finally {
       if (original) Object.defineProperty(window, "localStorage", original);
     }
+  });
+});
+
+/**
+ * Auditoria legal (17/11): o `fbclid` ia para o localStorage à chegada, antes
+ * de a pessoa escolher no aviso de cookies. MEDIDO num Chromium em
+ * `/s/comporta?fbclid=…`: `liquen-meta-click` gravado antes de qualquer toque.
+ */
+describe("sem consentimento, o clique não toca no dispositivo", () => {
+  beforeEach(() => {
+    localStorage.removeItem(CHAVE_CONSENTIMENTO);
+  });
+
+  /** Tudo o que o browser guarda, numa cadeia, para procurar o fbclid. */
+  const tudoOQueFicou = () =>
+    JSON.stringify({ ls: { ...localStorage }, ss: { ...sessionStorage }, c: document.cookie });
+
+  it("antes da escolha: nada no localStorage, no sessionStorage nem em cookies", () => {
+    expect(capturarClique(`?fbclid=${FBCLID}`, "/s/comporta", AGORA)).toBeNull();
+    expect(tudoOQueFicou()).not.toContain(FBCLID);
+    expect(localStorage.getItem(META_CLICK_KEY)).toBeNull();
+    expect(lerIdentificadores(AGORA)).toEqual({ fbp: "", fbc: "" });
+  });
+
+  it("aceitar NA MESMA VISITA grava o clique da entrada, que estava só em memória", () => {
+    capturarClique(`?fbclid=${FBCLID}`, "/s/comporta", AGORA);
+    expect(localStorage.getItem(META_CLICK_KEY)).toBeNull();
+    localStorage.setItem(CHAVE_CONSENTIMENTO, "granted");
+    aoMudarConsentimento(true, AGORA + 5000);
+    expect(lerClique(AGORA + 5000)?.fbclid).toBe(FBCLID);
+    // A hora do clique é a da ENTRADA, não a do «Aceitar».
+    expect(lerIdentificadores(AGORA + 5000).fbc).toBe(`fb.${INDICE_SUBDOMINIO}.${AGORA}.${FBCLID}`);
+  });
+
+  it("recusar: nada gravado, nada a enviar, e a memória é apagada", () => {
+    capturarClique(`?fbclid=${FBCLID}`, "/s/comporta", AGORA);
+    localStorage.setItem(CHAVE_CONSENTIMENTO, "denied");
+    aoMudarConsentimento(false, AGORA);
+    expect(tudoOQueFicou()).not.toContain(FBCLID);
+    expect(lerIdentificadores(AGORA)).toEqual({ fbp: "", fbc: "" });
+    // Nem uma aceitação posterior ressuscita o clique esquecido.
+    localStorage.setItem(CHAVE_CONSENTIMENTO, "granted");
+    aoMudarConsentimento(true, AGORA);
+    expect(localStorage.getItem(META_CLICK_KEY)).toBeNull();
+  });
+
+  it("recusar depois de ter aceitado apaga o clique gravado e os cookies do pixel", () => {
+    localStorage.setItem(CHAVE_CONSENTIMENTO, "granted");
+    capturarClique(`?fbclid=${FBCLID}`, "/s/comporta", AGORA);
+    document.cookie = `_fbc=fb.1.${AGORA}.${FBCLID}; path=/`;
+    document.cookie = "_fbp=fb.1.123.456; path=/";
+    expect(lerIdentificadores(AGORA).fbc).toContain(FBCLID); // controlo positivo
+    localStorage.setItem(CHAVE_CONSENTIMENTO, "denied");
+    aoMudarConsentimento(false, AGORA);
+    expect(tudoOQueFicou()).not.toContain(FBCLID);
+    expect(document.cookie).not.toContain("_fbp");
+  });
+
+  it("um clique antigo gravado com consentimento não se lê depois de o retirar", () => {
+    localStorage.setItem(
+      META_CLICK_KEY,
+      JSON.stringify({ fbclid: FBCLID, em: new Date(AGORA).toISOString() }),
+    );
+    document.cookie = `_fbc=fb.1.${AGORA}.${FBCLID}; path=/`;
+    expect(lerClique(AGORA)).toBeNull();
+    expect(lerIdentificadores(AGORA)).toEqual({ fbp: "", fbc: "" });
   });
 });

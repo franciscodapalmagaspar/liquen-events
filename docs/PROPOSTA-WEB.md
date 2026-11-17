@@ -59,6 +59,7 @@ Isto **desfaz a decisão de 22/10** («a proposta online não tem nada a ver com
 7. **As cores da paleta** saem das miniaturas das fotografias das mesas (as mesmas que o PDF usa), e ficam guardadas em memória por proposta. Se falharem, a paleta aparece sem amostras.
 8. **A rede:** se a página não se deixar montar (o armazenamento em baixo, por exemplo), fica o visor das páginas do PDF de antes. O casal nunca fica sem proposta.
 9. **A introdução** («Pensámos cada pormenor…») é um texto da casa e não um campo. A 10/10 ela tirou o campo de intenção («não quero o campo, ponto final»), e não volta sem o «sim» dela. **Confirmado por ela (23/10):** «sim, a frase fica». E sobre a página, ao lado do protótipo: «está ótimo».
+11. **O Livro de Reclamações** (auditoria legal, 17/11) não está no protótipo e passa a estar no fecho, por baixo das redes: é obrigatório em todas as páginas e esta não monta o rodapé do sítio. É a mesma peça do rodapé (`components/LivroDeReclamacoes.tsx`), em silhueta clara a 60 %, com 36 px de altura; também nas páginas de erro e no quadro das propostas sem documento (`Shell` de `page.tsx`). Uma ligação, não um pedido: não fala com ninguém enquanto não for tocada. Muda o que o casal vê, por isso **ela vê no link de teste antes de se juntar**. O `VERSAO_DO_RETRATO` subiu para 13.
 
 ## Verificação
 

@@ -23,6 +23,8 @@ function pedido(over: Partial<Quote> = {}): Quote {
     email: "ana@exemplo.pt",
     phone: "919259820",
     metaClick: "fbp=fb.1.1700000000000.111;fbc=fb.1.1700000000000.CLIQUE",
+    // Houve «Aceitar»: o formulário só manda o `leadEventId` com consentimento.
+    leadEventId: "evt-consentido",
     // `quotedPrice` é o campo "Preço final (SEM IVA)" do ecrã de administração,
     // ou seja já é líquido (ver contractedAmounts em lib/orcamento/dossier.ts).
     // 20 000 € líquidos correspondem a 24 600 € a receber com IVA a 23%.
@@ -36,6 +38,20 @@ const semProposta = () => null as Proposal | null;
 const semContrato = () => undefined;
 
 describe("construir os fechos", () => {
+  // Auditoria legal (17/11), achado da revisão: um pedido gravado antes da
+  // correção podia ter o clique sem consentimento (sem `leadEventId`).
+  it("um pedido sem consentimento (sem leadEventId) não leva o clique à Meta", () => {
+    const r = construirFechos(
+      [pedido({ leadEventId: "" })],
+      semProposta,
+      semContrato,
+      new Set(),
+      AGORA,
+    );
+    expect(r.eventos).toHaveLength(0);
+    expect(r.excluidos[0]).toMatchObject({ ref: "ABC123XY", motivo: "sem-identificador" });
+  });
+
   it("um casamento fechado dentro da janela gera evento", () => {
     const r = construirFechos([pedido()], semProposta, semContrato, new Set(), AGORA);
     expect(r.examinados).toBe(1);

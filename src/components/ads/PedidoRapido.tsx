@@ -83,7 +83,7 @@ export const TEXTOS_PT: TextosPedidoRapido = {
   submeter: "Enviar pedido",
   aSubmeter: "A enviar",
   erro: "Não foi possível enviar. Tente novamente ou escreva para liquen.alentejo@gmail.com.",
-  privacidade: "Os dados servem apenas para responder ao pedido. Ver",
+  privacidade: "Não vendemos os seus dados. Ver",
   privacidadeLink: "política de privacidade",
   completo: "Prefere detalhar o pedido?",
 };
@@ -103,7 +103,7 @@ export const TEXTOS_EN: TextosPedidoRapido = {
   submeter: "Send request",
   aSubmeter: "Sending",
   erro: "We could not send this. Please try again or write to liquen.alentejo@gmail.com.",
-  privacidade: "Your details are used only to answer this request. See our",
+  privacidade: "We do not sell your data. See our",
   privacidadeLink: "privacy policy",
   completo: "Rather give us the full picture?",
 };

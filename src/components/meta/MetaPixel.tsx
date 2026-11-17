@@ -11,11 +11,12 @@ import { CHAVE_CONSENTIMENTO, temConsentimento } from "@/lib/meta/consentimento"
  *
  * ── DUAS COISAS, E SÓ UMA DELAS DEPENDE DE CONSENTIMENTO ───────────────────
  *
- *  1. **Apanhar o `fbclid` do URL.** Faz-se SEMPRE, com ou sem consentimento,
- *     e fica no dispositivo. Não é tratamento para publicidade: é guardar um
- *     parâmetro que a própria Meta pôs no URL, para o caso de a pessoa vir a
- *     submeter um formulário — momento em que ela decide, e em que o valor
- *     viaja dentro do que ela mesma enviou. Nada sai daqui em segundo plano.
+ *  1. **Apanhar o `fbclid` do URL.** Faz-se sempre, mas sem consentimento fica
+ *     SÓ EM MEMÓRIA (auditoria legal, 17/11): até então ia logo para o
+ *     localStorage, e gravar um identificador de publicidade no dispositivo
+ *     antes do «Aceitar» é o que a ePrivacy proíbe. Se ela aceitar na mesma
+ *     visita, grava-se nessa altura; se recusar, apaga-se. Ver o cabeçalho de
+ *     `click-id.ts`.
  *
  *  2. **Carregar o pixel.** Só com consentimento. O `fbevents.js` grava os
  *     cookies `_fbp` e `_fbc` e comunica com a Meta — é exactamente o que a
@@ -88,7 +89,7 @@ function carregarPixel(id: string): void {
 export default function MetaPixel({ contexto }: { contexto?: string }) {
   const [consentido, setConsentido] = useState(false);
 
-  // 1. O `fbclid`, sempre. Antes de tudo o resto e independente do consentimento.
+  // 1. O `fbclid`, sempre — em memória; no dispositivo só com consentimento.
   useEffect(() => {
     try {
       capturarClique(window.location.search, window.location.pathname);
@@ -99,6 +100,10 @@ export default function MetaPixel({ contexto }: { contexto?: string }) {
 
   // 2. O estado do consentimento, agora e quando mudar.
   useEffect(() => {
+    // Só o estado, para carregar o pixel. GRAVAR o clique ou APAGÁ-LO (e
+    // revogar o pixel) é do aviso de cookies, neste separador, e do
+    // `GoogleTag`, para escolhas feitas noutro — o `GoogleTag` está montado em
+    // todas as páginas do sítio, e este componente só nas dos anúncios.
     const ler = () => setConsentido(temConsentimento());
     ler();
     // O banner grava no localStorage e não emite evento próprio; o `storage`

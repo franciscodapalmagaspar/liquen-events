@@ -81,6 +81,9 @@ describe("GoogleTag — não é montado nas rotas com token", () => {
   beforeEach(() => {
     pathname.value = "/galeria";
     gtagNoDocumento()?.remove();
+    // Desde 17/11 (auditoria legal) a biblioteca só entra com «Aceitar»: o
+    // controlo positivo daqui é o de quem aceitou.
+    window.localStorage.setItem("liquen-consent", "granted");
   });
 
   it("monta normalmente numa rota pública", () => {

@@ -4,10 +4,11 @@ import SafeImage from "@/components/SafeImage";
 import TrackedLink from "@/components/TrackedLink";
 import TrackedAnchor from "@/components/ads/TrackedAnchor";
 import ManageCookiesLink from "@/components/ManageCookiesLink";
+import LivroDeReclamacoes from "@/components/LivroDeReclamacoes";
 import { blurFor } from "@/lib/blur";
 import WhatsAppIcon from "./WhatsAppIcon";
 import { WHATSAPP_HREF } from "@/data";
-import { SITE } from "@/lib/site";
+import { SITE, identificacaoLegal } from "@/lib/site";
 import { getDictionary, localizeHref, type Locale } from "@/lib/i18n";
 
 // Editorial footer background — a long-table photo from João & Pedro's wedding
@@ -43,6 +44,7 @@ const serviceSlugs = [
 
 export default function Footer({ locale = "pt" }: { locale?: Locale }) {
   const t = getDictionary(locale);
+  const legal = identificacaoLegal(locale);
   return (
     <footer className="rodape-do-site relative overflow-hidden bg-[#0c0e0b] text-white">
       {/* ── Background photo + dark veil ── */}
@@ -212,9 +214,15 @@ export default function Footer({ locale = "pt" }: { locale?: Locale }) {
         {/* ── Copyright bar ── */}
         <div className="border-t border-white/12 py-5">
           <div className="max-w-7xl mx-auto px-6 lg:px-16 flex flex-col sm:flex-row justify-between items-center gap-3 text-center">
-            <p className="text-[11px] text-white/55 tracking-wide">
-              © {new Date().getFullYear()} Líquen Events. {t.footer.rights}
-            </p>
+            <div className="text-[11px] text-white/55 tracking-wide">
+              <p>
+                © {new Date().getFullYear()} Líquen Events. {t.footer.rights}
+              </p>
+              {/* A identificação legal (denominação, NIF, sede), quando o dono
+                  a preencher em `src/lib/site.ts` (`EMPRESA`). Vazia, não há
+                  linha nenhuma. */}
+              {legal ? <p className="mt-1">{legal}</p> : null}
+            </div>
             <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-[11px] text-white/55 tracking-wide">
               {/* ── Livro de Reclamações Eletrónico ──
                   Obrigatório para quem presta serviços a consumidores: o
@@ -223,24 +231,13 @@ export default function Footer({ locale = "pt" }: { locale?: Locale }) {
                   transparente como está tudo no cabeçalho» — por isso o
                   logótipo oficial vai em silhueta branca, com a mesma
                   transparência dos links ao lado (as letras do círculo ficam
-                  vazadas, e lêem-se no fundo escuro). */}
-              <a
-                href={SITE.livroReclamacoes}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`${t.footer.livroReclamacoes} (${t.common.newWindow})`}
-                title={t.footer.livroReclamacoes}
-                className="alvo-toque inline-flex items-center opacity-70 hover:opacity-100 transition-opacity duration-300"
-              >
-                <SafeImage
-                  src="/logos/livro-de-reclamacoes.png"
-                  alt=""
-                  width={1012}
-                  height={408}
-                  sizes="100px"
-                  className="h-10 w-auto brightness-0 invert"
-                />
-              </a>
+                  vazadas, e lêem-se no fundo escuro). A peça é a mesma
+                  das páginas sem este rodapé (`LivroDeReclamacoes.tsx`). */}
+              <LivroDeReclamacoes
+                rotulo={t.footer.livroReclamacoes}
+                novaJanela={t.common.newWindow}
+                className="alvo-toque opacity-70 hover:opacity-100 transition-opacity duration-300"
+              />
               <Link
                 href={localizeHref("/privacidade", locale)}
                 className="alvo-toque link-line pointer-fine:pt-2 pointer-fine:-mt-2 hover:text-white transition-colors"

@@ -29,7 +29,12 @@ import { renderToString } from "react-dom/server";
 const pathname = vi.hoisted(() => ({ value: "/galeria" }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathname.value }));
 
-import GoogleTag, { GTAG_SOSSEGO_MS, GTAG_SRC } from "./GoogleTag";
+import GoogleTag, {
+  GA4_ID,
+  GTAG_SOSSEGO_MS,
+  GTAG_SRC,
+  aplicarConsentimentoGoogle,
+} from "./GoogleTag";
 
 const gtagsNoDocumento = () => document.querySelectorAll(`script[src="${GTAG_SRC}"]`);
 
@@ -41,6 +46,11 @@ function semComentarios(src: string): string {
 beforeEach(() => {
   pathname.value = "/galeria";
   for (const s of gtagsNoDocumento()) s.remove();
+  delete (window as { gtag?: unknown }).gtag;
+  delete (window as { dataLayer?: unknown }).dataLayer;
+  // Estes testes da carga são do caminho COM consentimento. Os sem ele estão
+  // no fim (auditoria legal, 17/11).
+  localStorage.setItem("liquen-consent", "granted");
 });
 afterEach(cleanup);
 
@@ -130,5 +140,139 @@ describe("GoogleTag — a biblioteca não compete com a primeira pintura", () =>
     pathname.value = "/pt/orcamento/admin";
     render(<GoogleTag />);
     expect(gtagsNoDocumento()).toHaveLength(0);
+  });
+});
+
+/**
+ * Auditoria legal (17/11). MEDIDO num Chromium antes desta mudança: depois de
+ * «Recusar», cada página pedia o gtag.js e mandava `g/collect` com `gcs=G100`
+ * (os pings «sem cookies» do Consent Mode). Ela quer que «Recusar» não deixe
+ * sair nada para a Google — e, antes da escolha, também nada.
+ */
+describe("GoogleTag — sem «Aceitar», a biblioteca da Google não entra", () => {
+  function gestoESossego() {
+    window.dispatchEvent(new Event("pointerdown"));
+    vi.advanceTimersByTime(GTAG_SOSSEGO_MS);
+    window.dispatchEvent(new Event("scroll"));
+    vi.advanceTimersByTime(60_000);
+  }
+
+  it("antes da escolha: nem com gestos", () => {
+    localStorage.removeItem("liquen-consent");
+    vi.useFakeTimers();
+    try {
+      render(<GoogleTag />);
+      gestoESossego();
+      expect(gtagsNoDocumento()).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("com «Recusar»: nem com gestos, nem a mudar de página", () => {
+    localStorage.setItem("liquen-consent", "denied");
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(<GoogleTag />);
+      gestoESossego();
+      pathname.value = "/sobre";
+      rerender(<GoogleTag />);
+      gestoESossego();
+      window.dispatchEvent(new Event("liquen:consent-changed"));
+      expect(gtagsNoDocumento()).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("aceitar a meio da visita (neste separador): entra logo, em «granted»", () => {
+    localStorage.removeItem("liquen-consent");
+    render(<GoogleTag />);
+    expect(gtagsNoDocumento()).toHaveLength(0);
+    // O que o aviso de cookies faz no toque em «Aceitar».
+    localStorage.setItem("liquen-consent", "granted");
+    aplicarConsentimentoGoogle(true);
+    window.dispatchEvent(new Event("liquen:consent-changed"));
+    expect(gtagsNoDocumento()).toHaveLength(1);
+    const fila = (window as unknown as { dataLayer: IArguments[] }).dataLayer.map((a) =>
+      Array.from(a),
+    );
+    const update = fila.find((a) => a[0] === "consent" && a[1] === "update");
+    expect(update?.[2]).toMatchObject({ analytics_storage: "granted", ad_storage: "granted" });
+  });
+});
+
+/** Achados da revisão independente (17/11). */
+describe("GoogleTag — a escolha feita a meio da visita, aqui ou noutro separador", () => {
+  const fila = () =>
+    (window as unknown as { dataLayer: IArguments[] }).dataLayer.map((a) => Array.from(a));
+  const ultimoUpdate = () =>
+    fila()
+      .filter((a) => a[0] === "consent" && a[1] === "update")
+      .at(-1)?.[2];
+
+  it("aceite noutro separador: aplica «granted», levanta o ga-disable e carrega", () => {
+    localStorage.setItem("liquen-consent", "denied");
+    render(<GoogleTag />);
+    aplicarConsentimentoGoogle(false); // a recusa que ficou desta visita
+    expect((window as unknown as Record<string, unknown>)[`ga-disable-${GA4_ID}`]).toBe(true);
+    localStorage.setItem("liquen-consent", "granted");
+    window.dispatchEvent(new StorageEvent("storage", { key: "liquen-consent" }));
+    expect(gtagsNoDocumento()).toHaveLength(1);
+    expect(ultimoUpdate()).toMatchObject({ analytics_storage: "granted" });
+    expect((window as unknown as Record<string, unknown>)[`ga-disable-${GA4_ID}`]).toBe(false);
+  });
+
+  it("recusado antes do gesto: a entrada que estava à espera é desarmada", () => {
+    vi.useFakeTimers();
+    try {
+      render(<GoogleTag />); // com consentimento (beforeEach): fica à espera do gesto
+      localStorage.setItem("liquen-consent", "denied");
+      window.dispatchEvent(new StorageEvent("storage", { key: "liquen-consent" }));
+      window.dispatchEvent(new Event("pointerdown"));
+      vi.advanceTimersByTime(60_000);
+      expect(gtagsNoDocumento()).toHaveLength(0);
+      expect(ultimoUpdate()).toMatchObject({ analytics_storage: "denied" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("recusar apaga os cookies da Google", () => {
+    document.cookie = "_ga=GA1.1.1.1; path=/";
+    document.cookie = "_ga_29CZZ76H6F=GS2.1; path=/";
+    document.cookie = "_gcl_au=1.1.1; path=/";
+    document.cookie = "liquen-lang=pt; path=/";
+    aplicarConsentimentoGoogle(false);
+    expect(document.cookie).not.toMatch(/_ga|_gcl/);
+    expect(document.cookie).toContain("liquen-lang=pt"); // o necessário fica
+    document.cookie = "liquen-lang=; max-age=0; path=/";
+  });
+
+  it("recusar a meio da visita cala a fila (o Ads incluído); aceitar devolve-a", () => {
+    render(<GoogleTag />);
+    const fila = (window as unknown as { dataLayer: unknown[] }).dataLayer;
+    const gtag = (window as unknown as { gtag: (...a: unknown[]) => void }).gtag;
+    aplicarConsentimentoGoogle(false);
+    const antes = fila.length;
+    gtag("event", "conversion", { send_to: "AW-x" });
+    expect(fila.length).toBe(antes); // calado
+    aplicarConsentimentoGoogle(true);
+    gtag("event", "conversion", { send_to: "AW-x" });
+    expect(Array.from(fila.at(-1) as IArguments)[1]).toBe("conversion");
+  });
+
+  it("uma recusa noutro separador também apaga o clique da Meta (o MetaPixel pode não estar montado)", async () => {
+    const meta = await import("@/lib/meta/click-id");
+    localStorage.setItem("liquen-consent", "granted");
+    meta.capturarClique("?fbclid=IwAR_outro_separador", "/s/x");
+    expect(localStorage.getItem(meta.META_CLICK_KEY)).toContain("IwAR_outro_separador");
+    render(<GoogleTag />);
+    localStorage.setItem("liquen-consent", "denied");
+    window.dispatchEvent(new StorageEvent("storage", { key: "liquen-consent" }));
+    expect(localStorage.getItem(meta.META_CLICK_KEY)).toBeNull();
+    localStorage.setItem("liquen-consent", "granted");
+    meta.aoMudarConsentimento(true);
+    expect(localStorage.getItem(meta.META_CLICK_KEY)).toBeNull(); // a memória também foi
   });
 });

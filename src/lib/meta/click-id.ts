@@ -35,12 +35,28 @@
  * Quando o pixel correu, o cookie `_fbc` que ele grava já tem esta forma e é
  * ESSE que se usa — é o valor canónico. O construído à mão é o recurso.
  *
- * ── RGPD ───────────────────────────────────────────────────────────────────
- * O `fbclid` é guardado no dispositivo. Só sai daqui dentro de um formulário
- * que a própria pessoa submete, e só é reenviado para a Meta se houver
- * consentimento. Ver o cabeçalho de `consentimento.ts`, que explica porque é
- * que não há "meio caminho" legítimo aqui.
+ * ── RGPD: NADA SE GRAVA SEM «ACEITAR» (auditoria legal, 17/11) ───────────
+ * O `fbclid` é um identificador de publicidade. Gravá-lo no dispositivo
+ * (localStorage, cookie) é o acesso ao terminal que a ePrivacy sujeita a
+ * consentimento PRÉVIO — e até 17/11 gravava-se logo à chegada, antes de a
+ * pessoa escolher. MEDIDO num Chromium: `/s/comporta?fbclid=…` deixava
+ * `liquen-meta-click` no localStorage antes de qualquer toque no aviso.
+ *
+ * Agora:
+ *   • sem consentimento, o clique fica SÓ EM MEMÓRIA (`cliqueDestaVisita`),
+ *     que morre ao fechar ou recarregar a página;
+ *   • se ela aceitar na mesma visita, `aoMudarConsentimento(true)` grava-o
+ *     nessa altura, a partir do que ficou em memória;
+ *   • se recusar, apaga-se o que houver (memória, localStorage e os cookies
+ *     `_fbc`/`_fbp` de uma aceitação anterior) e `lerIdentificadores` devolve
+ *     vazio: não viaja no formulário, não fica no pedido, e não chega à Meta
+ *     por caminho nenhum (nem pela CAPI do fecho, que lê o que ficou gravado).
+ * Ver o cabeçalho de `consentimento.ts`, que explica porque é que não há
+ * "meio caminho" legítimo aqui.
  */
+
+import { temConsentimento } from "./consentimento";
+import { apagarCookies } from "@/lib/apagar-cookies";
 
 /** Chave no localStorage. Prefixo `liquen-` como o resto do armazenamento. */
 export const META_CLICK_KEY = "liquen-meta-click";
@@ -81,8 +97,17 @@ export interface CliqueMeta {
  */
 const VALOR_VALIDO = /^[A-Za-z0-9_.-]{6,500}$/;
 
+/**
+ * O clique desta visita, em MEMÓRIA. É o único sítio onde o `fbclid` pode
+ * viver sem consentimento: não toca no dispositivo e desaparece com a página.
+ */
+let cliqueDestaVisita: CliqueMeta | null = null;
+
 /** Lê o clique guardado, se existir e ainda estiver dentro da janela. */
 export function lerClique(agora: number = Date.now()): CliqueMeta | null {
+  // Sem consentimento não se lê o dispositivo para fins de publicidade — nem
+  // o que lá tenha ficado de uma aceitação anterior entretanto retirada.
+  if (!temConsentimento()) return null;
   try {
     const cru = localStorage.getItem(META_CLICK_KEY);
     if (!cru) return null;
@@ -140,6 +165,18 @@ export function capturarClique(
     em: new Date(agora).toISOString(),
     pagina: pagina.slice(0, 200),
   };
+  // Primeiro toque vence também em memória: uma navegação dentro da visita
+  // com outro `fbclid` não substitui o da entrada.
+  // (Um da memória fora da janela já não conta.)
+  if (!cliqueDestaVisita || !(agora - Date.parse(cliqueDestaVisita.em) <= JANELA_MS)) {
+    cliqueDestaVisita = registo;
+  }
+  if (!temConsentimento()) return null;
+  return gravar(cliqueDestaVisita);
+}
+
+/** Grava no localStorage. Só se chama com consentimento. */
+function gravar(registo: CliqueMeta): CliqueMeta {
   try {
     localStorage.setItem(META_CLICK_KEY, JSON.stringify(registo));
   } catch {
@@ -148,6 +185,59 @@ export function capturarClique(
        conseguir levar o identificador consigo */
   }
   return registo;
+}
+
+/**
+ * A escolha do aviso de cookies mudou.
+ *
+ *   • «Aceitar»: grava o clique que ficou em memória desde a entrada (se o
+ *     dispositivo ainda não tiver um válido — primeiro toque vence);
+ *   • «Recusar»: apaga tudo o que identifique o clique ou o browser para a
+ *     Meta — a memória, o localStorage e os cookies `_fbc`/`_fbp` que o pixel
+ *     tenha gravado numa aceitação anterior.
+ *
+ * E o pixel, se já tiver entrado nesta visita: a API dele tem o seu próprio
+ * interruptor (`fbq('consent', 'revoke' | 'grant')`), e sem ele continuava a
+ * mandar e a regravar os cookies até recarregar.
+ *
+ * Chamado pelo aviso de cookies (no momento da escolha, neste separador) e
+ * pelo `MetaPixel` (quando a escolha chega de OUTRO separador). Idempotente;
+ * nunca lança.
+ */
+export function aoMudarConsentimento(aceitou: boolean, agora: number = Date.now()): void {
+  try {
+    const fbq = (window as unknown as { fbq?: (...a: unknown[]) => void }).fbq;
+    fbq?.("consent", aceitou ? "grant" : "revoke");
+  } catch {
+    /* idem */
+  }
+  try {
+    if (!aceitou) {
+      esquecerClique();
+      return;
+    }
+    if (!cliqueDestaVisita || lerClique(agora)) return;
+    if (agora - Date.parse(cliqueDestaVisita.em) > JANELA_MS) return;
+    gravar(cliqueDestaVisita);
+  } catch {
+    /* a medição nunca parte a página */
+  }
+}
+
+/** Apaga o clique da memória e do dispositivo, e os cookies do pixel. */
+export function esquecerClique(): void {
+  cliqueDestaVisita = null;
+  try {
+    localStorage.removeItem(META_CLICK_KEY);
+  } catch {
+    /* sem armazenamento — nada a apagar */
+  }
+  apagarCookiesDoPixel();
+}
+
+/** Os cookies do pixel (`_fbp`, `_fbc`), em todos os domínios onde possam estar. */
+function apagarCookiesDoPixel(): void {
+  apagarCookies((nome) => nome === "_fbc" || nome === "_fbp");
 }
 
 /** Constrói o `fbc` a partir de um clique guardado. */
@@ -191,10 +281,18 @@ export interface IdentificadoresMeta {
 }
 
 export function lerIdentificadores(agora: number = Date.now()): IdentificadoresMeta {
+  // Sem consentimento, nada: nem o cookie de uma aceitação antiga, nem o
+  // clique em memória. É isto que impede o `fbc` de ir no formulário, ficar
+  // gravado no pedido e chegar à Meta pela CAPI do fecho.
+  if (!temConsentimento()) return { fbp: "", fbc: "" };
   const fbp = lerCookie("_fbp");
   const doCookie = lerCookie("_fbc");
   if (doCookie) return { fbp, fbc: doCookie };
-  const clique = lerClique(agora);
+  const daMemoria =
+    cliqueDestaVisita && agora - Date.parse(cliqueDestaVisita.em) <= JANELA_MS
+      ? cliqueDestaVisita
+      : null;
+  const clique = lerClique(agora) ?? daMemoria;
   return { fbp, fbc: clique ? construirFbc(clique) : "" };
 }
 
