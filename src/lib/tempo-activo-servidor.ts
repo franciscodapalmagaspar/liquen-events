@@ -63,15 +63,16 @@ export interface TempoDaProposta {
 }
 
 /**
- * Um tecto por envio, para um cliente avariado (ou um relógio que saltou) não
+ * Um tecto por PEDIDO, para um cliente avariado (ou um relógio que saltou) não
  * conseguir inflacionar a medição.
  *
- * Meia hora é muito acima do passo normal de reporte (cinco minutos) e ainda
- * assim é um número que uma pessoa pode mesmo ter trabalhado sem que o
- * navegador reportasse — um separador que esteve a ser usado enquanto a rede
- * estava em baixo, e que descarrega tudo de uma vez quando ela volta.
+ * O estúdio envia de cinco em cinco minutos (17/11). Dez minutos é o dobro do
+ * passo — folga para um envio que se atrasou — e é o TOTAL somado num pedido,
+ * não o de cada secção: com o tecto por secção e até 50 secções por pedido, um
+ * pedido chegava a 25 horas (revisão de 17/11). Era meia hora quando o envio
+ * era de 30 em 30 s, com uma secção por pedido.
  */
-export const MAXIMO_POR_ENVIO = 30 * 60_000;
+export const MAXIMO_POR_ENVIO = 10 * 60_000;
 
 /** Quantas secções diferentes se guardam por proposta. É um tecto contra um
  *  cliente que inventasse nomes de secção sem fim; o estúdio tem meia dúzia. */
@@ -112,7 +113,11 @@ export async function acrescentarTempoActivo(
  * total, e só o último a gravar ficava. Agora é UM pedido e UMA escrita com
  * todas as secções. A chave `""` é o tempo sem secção (conta só no total).
  *
- * O tecto por envio aplica-se a cada pedaço, como antes.
+ * O tecto (`MAXIMO_POR_ENVIO`) é do pedido inteiro: as secções somam-se por
+ * ordem e cada uma leva só o que ainda sobra. O tempo sem secção e o das
+ * secções acima de `MAX_SECCOES` (que só contam no total) também gastam o
+ * tecto. Os nomes normalizam-se (`trim`, 40 caracteres) antes de somar, e
+ * dois nomes que dão o mesmo juntam-se.
  */
 export async function acrescentarTempoActivoPorSeccao(
   quoteId: string,
@@ -127,16 +132,7 @@ export async function acrescentarTempoActivoPorSeccao(
   };
 
   const porSeccao = { ...(anterior.porSeccao ?? {}) };
-  let somado = 0;
-  for (const [seccao, ms] of Object.entries(pedacos)) {
-    const somar = Number.isFinite(ms) && ms > 0 ? Math.min(Math.round(ms), MAXIMO_POR_ENVIO) : 0;
-    if (somar === 0) continue;
-    somado += somar;
-    const nome = seccao.trim().slice(0, 40);
-    if (nome && (nome in porSeccao || Object.keys(porSeccao).length < MAX_SECCOES)) {
-      porSeccao[nome] = (porSeccao[nome] ?? 0) + somar;
-    }
-  }
+  const somado = somarComTecto(porSeccao, pedacos);
 
   if (somado === 0) {
     // Nada a somar é nada a escrever: um envio de zero (a página esteve
@@ -158,6 +154,31 @@ export async function acrescentarTempoActivoPorSeccao(
   };
   const persistencia = await setState(chave(quoteId), tempo);
   return { tempo, persistencia };
+}
+
+/**
+ * Soma um pedido a `porSeccao` (que altera) e devolve o total somado, nunca
+ * acima de `MAXIMO_POR_ENVIO`. Ver `acrescentarTempoActivoPorSeccao`.
+ */
+function somarComTecto(porSeccao: Record<string, number>, pedacos: Record<string, number>): number {
+  const normalizados = new Map<string, number>();
+  for (const [seccao, ms] of Object.entries(pedacos)) {
+    if (!Number.isFinite(ms) || ms <= 0) continue;
+    const nome = String(seccao).trim().slice(0, 40);
+    normalizados.set(nome, (normalizados.get(nome) ?? 0) + ms);
+  }
+  let restante = MAXIMO_POR_ENVIO;
+  let somado = 0;
+  for (const [nome, ms] of normalizados) {
+    const somar = Math.min(Math.round(ms), restante);
+    if (somar <= 0) continue;
+    restante -= somar;
+    somado += somar;
+    if (nome && (nome in porSeccao || Object.keys(porSeccao).length < MAX_SECCOES)) {
+      porSeccao[nome] = (porSeccao[nome] ?? 0) + somar;
+    }
+  }
+  return somado;
 }
 
 /**

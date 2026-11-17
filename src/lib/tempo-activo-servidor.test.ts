@@ -161,14 +161,42 @@ describe("acrescentarTempoActivoPorSeccao", () => {
     expect(t?.porSeccao).toEqual({ capa: 70_000, "mood-boards": 90_000, orcamento: 30_000 });
   });
 
-  it("o tecto por envio aplica-se a cada pedaço, e o que não é tempo não conta", async () => {
+  it("o tecto é do PEDIDO inteiro, não de cada secção (revisão de 17/11)", async () => {
+    // Antes: tecto por secção × 50 secções = 25 horas num pedido.
+    const muitas = Object.fromEntries(
+      Array.from({ length: 50 }, (_, i) => [`s${i}`, MAXIMO_POR_ENVIO]),
+    );
+    await acrescentarTempoActivoPorSeccao("LIQ-9", muitas);
+    const t = await getTempoActivo("LIQ-9");
+    expect(t?.ms).toBe(MAXIMO_POR_ENVIO);
+    expect(Object.values(t?.porSeccao ?? {}).reduce((a, b) => a + b, 0)).toBe(MAXIMO_POR_ENVIO);
+  });
+
+  it("cada secção leva o que sobra do tecto; o tempo sem secção também o gasta", async () => {
     await acrescentarTempoActivoPorSeccao("LIQ-9", {
-      capa: MAXIMO_POR_ENVIO * 5,
+      "": MAXIMO_POR_ENVIO - 60_000,
+      capa: 120_000,
       x: -3,
       y: Number.NaN,
     });
     const t = await getTempoActivo("LIQ-9");
     expect(t?.ms).toBe(MAXIMO_POR_ENVIO);
-    expect(t?.porSeccao).toEqual({ capa: MAXIMO_POR_ENVIO });
+    expect(t?.porSeccao).toEqual({ capa: 60_000 });
+  });
+
+  it("as chaves normalizam-se com trim, e dois nomes iguais juntam-se", async () => {
+    await acrescentarTempoActivoPorSeccao("LIQ-9", { " capa ": 30_000, capa: 20_000, "  ": 5_000 });
+    const t = await getTempoActivo("LIQ-9");
+    expect(t?.ms).toBe(55_000);
+    expect(t?.porSeccao).toEqual({ capa: 50_000 });
+  });
+
+  it("as secções acima de MAX_SECCOES contam no total, dentro do tecto", async () => {
+    const quarenta = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`s${i}`, 1_000]));
+    await acrescentarTempoActivoPorSeccao("LIQ-9", quarenta);
+    await acrescentarTempoActivoPorSeccao("LIQ-9", { nova: MAXIMO_POR_ENVIO * 3 });
+    const t = await getTempoActivo("LIQ-9");
+    expect(t?.ms).toBe(40_000 + MAXIMO_POR_ENVIO);
+    expect(t?.porSeccao?.nova).toBeUndefined();
   });
 });
