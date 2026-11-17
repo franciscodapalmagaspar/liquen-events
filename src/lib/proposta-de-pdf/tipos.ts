@@ -186,8 +186,7 @@ export const NUNCA_NO_PDF: Readonly<Record<string, string>> = {
   budgetScales:
     "a escala de uma linha (por convidado, por mesa) é uma conta interna; o PDF só mostra o resultado.",
   convidadosPorMesa: "quantas pessoas por mesa não é impresso.",
-  budgetArtigos:
-    "o artigo do Moloni de cada linha é da faturação: o casal não tem nada que o ler.",
+  budgetArtigos: "o artigo do Moloni de cada linha é da faturação: o casal não tem nada que o ler.",
   budgetSubpontos:
     "os subpontos de cada linha (com o valor e o artigo de cada um) são só para nós — ela escolheu-o a 6/11; o PDF continua a mostrar a linha como sempre.",
   repartoPorArtigo:

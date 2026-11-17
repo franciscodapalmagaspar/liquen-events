@@ -15,7 +15,7 @@ import { log } from "@/lib/logger";
 import type { EmailDaProposta } from "./email-da-proposta";
 
 /**
- * Etapa 11 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): as escritas
+ * Etapa 12 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): as escritas
  * DEPOIS do correio. Todas são «melhor esforço»: o email já saiu e não se
  * desfaz. Mas cada uma que falha sai PELO NOME na resposta (`*Error`).
  */
@@ -39,8 +39,8 @@ export interface PedidoDepoisDoEmail {
   /** `true` quando ela escolheu o WhatsApp. */
   semEmailPorEscolha: boolean;
   escrito: EmailDaProposta;
-  /** A chave do modelo de que o corpo partiu, tal como chegou no pedido. */
-  modelo: unknown;
+  /** A chave do modelo de que o corpo partiu (vazia sem ela). */
+  modelo: string;
   pdf: Buffer;
 }
 
@@ -99,7 +99,7 @@ async function guardarACopia(p: PedidoDepoisDoEmail, sentAt: string): Promise<st
       porQuem: p.escrito.quem.nome,
       // A chave do modelo de onde o corpo partiu, para se saber de que
       // texto se partiu. Vazia quando o envio não passou pelo ecrã novo.
-      modelo: typeof p.modelo === "string" ? p.modelo : "",
+      modelo: p.modelo,
       idioma: p.idioma === "en" ? "en" : "pt",
       assunto: p.escrito.assunto,
       texto: p.escrito.textoDaCopia,

@@ -52,7 +52,15 @@ describe("calendário da data — as contas", () => {
   it("escreve em português e em inglês", () => {
     expect(tituloDoMes(2026, 9, "pt-PT")).toBe("Outubro 2026");
     expect(tituloDoMes(2026, 9, "en-GB")).toBe("October 2026");
-    expect(diasDaSemana("pt-PT").map((d) => d.inicial)).toEqual(["S", "T", "Q", "Q", "S", "S", "D"]);
+    expect(diasDaSemana("pt-PT").map((d) => d.inicial)).toEqual([
+      "S",
+      "T",
+      "Q",
+      "Q",
+      "S",
+      "S",
+      "D",
+    ]);
     expect(dataNoCampo("2027-07-24", "pt-PT")).toMatch(/24 de julho de 2027/);
   });
 });

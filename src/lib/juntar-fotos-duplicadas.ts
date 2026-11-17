@@ -60,7 +60,7 @@ import { log } from "@/lib/logger";
  * ── O que NUNCA se reescreve, e portanto prende a cópia onde está ──────────
  *
  *   · as PROPOSTAS GRAVADAS (`proposals.doc`). Uma proposta que seguiu não é
- *     reescrita (`proposta-doc/route.ts`), e mudar-lhe um caminho mudava-lhe o
+ *     reescrita (`lib/orcamento/envio/`), e mudar-lhe um caminho mudava-lhe o
  *     selo da versão (`proposta-versao.ts`: o casal com uma proposta aceite
  *     passava a ver «revista»), a chave do PDF guardado (`chaveDoPdf`: redesenho
  *     e um PDF a mais guardado) e contrariava o selo do contrato. Medido a

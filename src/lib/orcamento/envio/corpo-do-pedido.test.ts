@@ -3,7 +3,7 @@ import { log } from "@/lib/logger";
 import { __esquecerDesviosDitos } from "@/lib/fronteira/observar";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import {
-  idiomaDoPedido,
+  avisarDoIdiomaDesconhecido,
   lerOPedido,
   pedidoDoCorpo,
   porQueEstaIncompleta,
@@ -60,10 +60,20 @@ describe("o corpo do pedido à rota da proposta", () => {
 
   it("a língua: sem campo é português calado; um valor estranho é português e diz-se", () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
-    expect(idiomaDoPedido(undefined, "q1")).toBe("pt");
-    expect(idiomaDoPedido("en", "q1")).toBe("en");
+    const corpo = (idioma: unknown) => ({ idioma }) as unknown as CorpoDoPedido;
+    for (const [recebido, idioma] of [
+      [undefined, "pt"],
+      ["en", "en"],
+      ["pt", "pt"],
+    ] as const) {
+      const p = pedidoDoCorpo(corpo(recebido));
+      expect(p.idioma).toBe(idioma);
+      avisarDoIdiomaDesconhecido(p, "q1");
+    }
     expect(aviso).not.toHaveBeenCalled();
-    expect(idiomaDoPedido("fr", "q1")).toBe("pt");
+    const estranho = pedidoDoCorpo(corpo("fr"));
+    expect(estranho.idioma).toBe("pt");
+    avisarDoIdiomaDesconhecido(estranho, "q1");
     expect(aviso).toHaveBeenCalledWith(
       "proposta-doc: idioma desconhecido, a desenhar em português",
       {
@@ -71,6 +81,45 @@ describe("o corpo do pedido à rota da proposta", () => {
         recebido: "fr",
       },
     );
+  });
+
+  it("as respostas e os textos só contam com a forma certa — o resto é «não veio»", () => {
+    const p = pedidoDoCorpo({
+      corpo: 42,
+      assunto: ["x"],
+      modelo: 7,
+      pdfVisto: 1,
+      fotosEmFaltaConfirmadas: true,
+      cortesConfirmados: "sim",
+    } as unknown as CorpoDoPedido);
+    expect(p).toMatchObject({
+      corpo: null,
+      assunto: null,
+      modelo: "",
+      pdfVisto: null,
+      fotosEmFaltaConfirmadas: null,
+      cortesConfirmados: false,
+    });
+    expect(
+      pedidoDoCorpo({ fotosEmFaltaConfirmadas: Number.NaN } as CorpoDoPedido)
+        .fotosEmFaltaConfirmadas,
+    ).toBeNull();
+    const bom = pedidoDoCorpo({
+      corpo: "Olá",
+      assunto: "A proposta",
+      modelo: "registo-formal",
+      pdfVisto: "k",
+      fotosEmFaltaConfirmadas: 3,
+      cortesConfirmados: true,
+    } as CorpoDoPedido);
+    expect(bom).toMatchObject({
+      corpo: "Olá",
+      assunto: "A proposta",
+      modelo: "registo-formal",
+      pdfVisto: "k",
+      fotosEmFaltaConfirmadas: 3,
+      cortesConfirmados: true,
+    });
   });
 });
 

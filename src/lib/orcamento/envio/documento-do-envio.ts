@@ -9,7 +9,7 @@ import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
 import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 
 /**
- * Etapa 2 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): do documento que
+ * Etapa 3 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): do documento que
  * chegou ao documento que se desenha. Pura — não lê nem grava nada.
  */
 export interface DocumentoDoEnvio {

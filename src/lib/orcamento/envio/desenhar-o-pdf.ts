@@ -9,29 +9,13 @@ import {
   type RelatorioDoPdf,
 } from "@/lib/proposal-preview-cache";
 import { log } from "@/lib/logger";
+import { FOLGA_DA_SEGUNDA_PASSAGEM_MS, FOLGA_DO_EMAIL_MS } from "./orcamento-de-tempo";
 
 /**
- * ── O ORÇAMENTO DE TEMPO DESTE PEDIDO (A10-004, A10-005) ──────────────────
- *
- * Etapa 4 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5).
- *
- * Tudo isto cabe no `maxDuration` da rota (60 s) — o desenho do PDF (até duas
- * vezes, com fotografias que podem demorar 8 s cada), e depois o email, com
- * tempos de 8/8/20 s no SMTP. Ninguém contava o tempo que já tinha passado: um
- * PDF lento empurrava o SMTP para lá dos 60 s, a plataforma matava a função a
- * meio do envio, e ela via um erro sem saber se o email tinha saído.
- *
- * Duas regras, contadas a partir da chegada do pedido:
- *  · a SEGUNDA tentativa do PDF só corre se ainda houver tempo para ela e para
- *    o email depois dela;
- *  · o email só começa com {@link FOLGA_DO_EMAIL_MS} pela frente. Sem ela, não
- *    se começa: a proposta fica gravada como «gerada, por enviar» e a frase
- *    diz-lhe para carregar outra vez — um reenvio que já não paga o desenho.
+ * Etapa 5 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o desenho do PDF,
+ * e a segunda passagem quando uma foto não resolveu e ainda há tempo
+ * (`orcamento-de-tempo.ts`).
  */
-export const FOLGA_DO_EMAIL_MS = 25_000;
-/** O que uma segunda passagem do PDF costuma levar, com folga. */
-export const FOLGA_DA_SEGUNDA_PASSAGEM_MS = 15_000;
-
 export interface PedidoDeDesenho {
   id: string;
   doc: ProposalDoc;

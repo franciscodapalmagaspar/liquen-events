@@ -13,7 +13,7 @@ import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
 import { fecharTrinco, type Trinco } from "@/lib/trinco";
 import {
-  idiomaDoPedido,
+  avisarDoIdiomaDesconhecido,
   lerOPedido,
   porQueEstaIncompleta,
   type PedidoDeProposta,
@@ -39,6 +39,7 @@ import { depoisDoEmail } from "@/lib/orcamento/envio/depois-do-email";
 import { respostaDoEnvio } from "@/lib/orcamento/envio/resposta-do-envio";
 import { linkDaUltimaEnviada } from "@/lib/orcamento/envio/ultima-enviada";
 import type { Recusa } from "@/lib/orcamento/envio/recusa";
+import { relogioDoEnvio } from "@/lib/orcamento/envio/orcamento-de-tempo";
 
 export const runtime = "nodejs";
 
@@ -83,7 +84,6 @@ async function GET_semMedida(
  * proposta que morre a meio sem explicação.
  */
 export const maxDuration = 60;
-const ORCAMENTO_MS = maxDuration * 1000;
 
 /** Uma etapa que parou o envio, como resposta. */
 const responder = (r: Recusa) => NextResponse.json(r.corpo, { status: r.status });
@@ -100,14 +100,15 @@ const responder = (r: Recusa) => NextResponse.json(r.corpo, { status: r.status }
  *   2. o trinco ..................... `lib/trinco.ts`
  *   3. o documento e a chave ........ `documento-do-envio.ts`
  *   4. o que trava .................. `travas-do-envio.ts`
- *   5. o desenho, e a 2.ª passagem .. `desenhar-o-pdf.ts`
+ *   5. o desenho, e a 2.ª passagem .. `desenhar-o-pdf.ts` (e `orcamento-de-tempo.ts`)
  *   6. as duas perguntas ............ `perguntas-antes-do-envio.ts`
  *   7. a linha e a versão ........... `a-proposta-que-se-grava.ts`
  *   8. a repetição .................. `repeticao-do-envio.ts`
  *   9. a gravação ................... `gravar-a-proposta.ts`
- *  10. o email ...................... `email-da-proposta.ts`, `mandar-o-email.ts`
- *  11. o que fica depois ............ `depois-do-email.ts`
- *  12. a resposta ................... `resposta-do-envio.ts`
+ *  10. o email, escrito ............. `email-da-proposta.ts` (e `cartao-do-pdf.ts`)
+ *  11. o email, mandado ............. `mandar-o-email.ts`
+ *  12. o que fica depois ............ `depois-do-email.ts`
+ *  13. a resposta ................... `resposta-do-envio.ts`
  *
  * A ordem é a regra: recusa-se tudo o que se pode recusar ANTES de desenhar
  * (um PDF de um minuto que não pode seguir é um minuto deitado fora), e
@@ -123,8 +124,7 @@ async function POST_semMedida(
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
   const { id } = await params;
-  const chegou = Date.now();
-  const resta = () => ORCAMENTO_MS - (Date.now() - chegou);
+  const resta = relogioDoEnvio(Date.now());
   /** O trinco do envio. Solta-se no `finally`, aconteça o que acontecer. */
   const trinco: { fechado: Trinco | null } = { fechado: null };
   try {
@@ -194,7 +194,8 @@ async function atenderOPedido(
   }
   const incompleta = porQueEstaIncompleta(pedido.doc);
   if (incompleta || !pedido.doc) return NextResponse.json({ error: incompleta }, { status: 400 });
-  const idioma = idiomaDoPedido(pedido.idioma, id);
+  avisarDoIdiomaDesconhecido(pedido, id);
+  const idioma = pedido.idioma;
   const { chaveDoQueChegou, doc, grandeDemais } = prepararODocumento(pedido.doc, idioma);
   if (grandeDemais) {
     return NextResponse.json(
@@ -310,8 +311,8 @@ async function enviarAProposta(e: {
     doc,
     idioma,
     mensagem: pedido.mensagem,
-    corpoCru: pedido.corpo,
-    assuntoCru: pedido.assunto,
+    corpo: pedido.corpo,
+    assunto: pedido.assunto,
     acceptUrl,
     money,
     assinatura: assinaturaDeQuemEnvia(request),

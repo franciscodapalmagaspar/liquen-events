@@ -204,7 +204,7 @@ export function assinanteDoEmail(quem: QuemAssina = {}): { nome: string; cargo: 
  * Por isso a faixa voltou ao tamanho de antes — mais nítida, e o branco não
  * dependia dela. O que garante que o casal vê a proposta sem descer até ao
  * anexo é o cartão com o link do PDF no CORPO, acima da assinatura
- * (`cartaoDoPdf` em `proposta-doc/route.ts`). Não reduzas a faixa outra vez
+ * (`cartaoDoPdf`, em `lib/orcamento/envio/cartao-do-pdf.ts`). Não reduzas a faixa outra vez
  * por causa deste branco.
  */
 export const BANNER_EMAIL_CID = "liquen-banner";

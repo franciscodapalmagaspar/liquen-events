@@ -62,7 +62,8 @@ describe("todo o correio ao cliente leva a assinatura da casa", () => {
 
   it("encontrou mesmo os caminhos de correio (controlo positivo)", () => {
     expect(ficheiros.length).toBeGreaterThan(5);
-    expect(ficheiros).toContain("src/app/api/orcamento/[id]/proposta-doc/route.ts");
+    // O envio da proposta saiu da rota na fase 5 de `docs/ESTRUTURA-DO-CODIGO.md`.
+    expect(ficheiros).toContain("src/lib/orcamento/envio/mandar-o-email.ts");
   });
 
   for (const ficheiro of ficheiros) {

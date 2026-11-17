@@ -84,14 +84,39 @@ export const esquemaDoPedidoGuardado = z.looseObject({
 });
 
 /**
+ * As versões de pedidos já conferidas neste processo (`id|lastUpdated`).
+ *
+ * A lista de pedidos é lida por treze sítios (a página do back office, as
+ * tarefas da noite, os guiões…), e um pedido que já bateu não muda de forma
+ * enquanto não for gravado outra vez — e gravar muda o `lastUpdated`. Conferir
+ * só a versão nova tira o esquema do caminho quente: medido, 5 µs por pedido,
+ * mas pagos por cada pedido em cada leitura. Com tecto, como os desvios.
+ */
+const TECTO_DE_VERSOES_CONFERIDAS = 2_000;
+const conferidas = new Set<string>();
+
+/**
  * A linha da base, como `Quote`. Devolve SEMPRE o objecto original — o
  * esquema só observa (ver `observar.ts`). O id entra no registo para se
  * encontrar o pedido; nada mais dele sai.
  */
 export function lerPedidoGuardado(data: unknown): Quote {
-  const id = data && typeof data === "object" ? (data as { id?: unknown }).id : undefined;
-  observar(esquemaDoPedidoGuardado, data, "um pedido guardado (quotes.data)", {
-    id: typeof id === "string" ? id : undefined,
-  });
+  const linha = (data && typeof data === "object" ? data : {}) as {
+    id?: unknown;
+    lastUpdated?: unknown;
+  };
+  const id = typeof linha.id === "string" ? linha.id : undefined;
+  const versao = id ? `${id}|${String(linha.lastUpdated ?? "")}` : null;
+  if (versao && conferidas.has(versao)) return data as Quote;
+  observar(esquemaDoPedidoGuardado, data, "um pedido guardado (quotes.data)", { id });
+  if (versao) {
+    if (conferidas.size >= TECTO_DE_VERSOES_CONFERIDAS) conferidas.clear();
+    conferidas.add(versao);
+  }
   return data as Quote;
+}
+
+/** Para os testes: esquece as versões já conferidas. */
+export function __esquecerVersoesConferidas(): void {
+  conferidas.clear();
 }

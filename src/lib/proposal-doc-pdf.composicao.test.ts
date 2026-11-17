@@ -233,7 +233,10 @@ describe("o cabeçalho de um mood board", () => {
       }),
     );
     for (const e of escritas) {
-      expect(e.x + e.largura, `«${e.texto}» acaba em x=${(e.x + e.largura).toFixed(1)}`).toBeLessThanOrEqual(W - M + 0.5);
+      expect(
+        e.x + e.largura,
+        `«${e.texto}» acaba em x=${(e.x + e.largura).toFixed(1)}`,
+      ).toBeLessThanOrEqual(W - M + 0.5);
     }
   });
 
@@ -287,7 +290,9 @@ describe("a legenda de um mood board", () => {
         " comprimento que ela costuma escrever quando quer explicar a paleta ao casal.",
     ).join(" ");
     const escritas = await desenhar(
-      proposta({ moodBoards: [{ title: "Paleta", annotation: legenda, images: [FOTO], layout: "filas" }] }),
+      proposta({
+        moodBoards: [{ title: "Paleta", annotation: legenda, images: [FOTO], layout: "filas" }],
+      }),
     );
     const daLegenda = escritas.filter((e) => e.tamanho === 11 && e.texto.length > 20);
     expect(daLegenda.length, "não se encontrou a legenda").toBeGreaterThan(0);
@@ -381,8 +386,10 @@ describe("a lista de serviços", () => {
     const doServico = linhasDoServico(escritas);
     expect(doServico.length, "o serviço não partiu em linhas").toBeGreaterThan(1);
     for (const e of doServico) {
-      expect(e.x + e.largura, `«${e.texto.slice(0, 30)}…» chega a x=${e.x + e.largura}`)
-        .toBeLessThanOrEqual(M + 24 + 550 + 0.5);
+      expect(
+        e.x + e.largura,
+        `«${e.texto.slice(0, 30)}…» chega a x=${e.x + e.largura}`,
+      ).toBeLessThanOrEqual(M + 24 + 550 + 0.5);
     }
   });
 
@@ -401,7 +408,9 @@ describe("a lista de serviços", () => {
       0,
     );
     for (const e of seguintes) {
-      expect(e.largura / 550, `a linha «${e.texto.slice(0, 30)}…» enche pouco`).toBeGreaterThan(0.9);
+      expect(e.largura / 550, `a linha «${e.texto.slice(0, 30)}…» enche pouco`).toBeGreaterThan(
+        0.9,
+      );
     }
   });
 });

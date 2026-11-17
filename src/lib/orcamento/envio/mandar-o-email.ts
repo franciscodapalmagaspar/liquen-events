@@ -1,11 +1,12 @@
 import "server-only";
 import { sendMail, MAIL_TO } from "@/lib/mail";
 import { log } from "@/lib/logger";
-import { FOLGA_DO_EMAIL_MS } from "./desenhar-o-pdf";
+import type { emailAoCliente } from "@/lib/email-assinatura";
+import { FOLGA_DO_EMAIL_MS } from "./orcamento-de-tempo";
 import type { EmailDaProposta } from "./email-da-proposta";
 
 /**
- * Etapa 10 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o correio sai —
+ * Etapa 11 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o correio sai —
  * ou não sai, e diz-se porquê.
  *
  * A proposta JÁ foi guardada antes disto. O envio do email é um passo
@@ -28,7 +29,10 @@ export interface PedidoDeEnvio {
   para: string | undefined;
   /** Ver `querEmail`: só um `false` EXPLÍCITO cala o email. */
   querEmail: boolean;
-  escrito: EmailDaProposta;
+  /** O email inteiro, já com a moldura da casa: o `email` daqui é o que o
+   *  `emailAoCliente` devolveu (`email-da-proposta.ts`) — a assinatura, a
+   *  faixa e as redes vão sempre (`todo-o-correio-leva-a-assinatura.test.ts`). */
+  escrito: EmailDaProposta & { email: ReturnType<typeof emailAoCliente> };
   pdf: Buffer;
   /** Quantos ms sobram do orçamento do pedido, agora. */
   resta: () => number;

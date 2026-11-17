@@ -7,7 +7,7 @@ import { log } from "@/lib/logger";
 import { recusa, type Recusa } from "./recusa";
 
 /**
- * Etapa 8 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): a proposta fica
+ * Etapa 9 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): a proposta fica
  * guardada COM o documento (`doc`), antes de o email sair.
  *
  * É a única cópia DURÁVEL do que seguiu para o cliente (o rascunho do estúdio

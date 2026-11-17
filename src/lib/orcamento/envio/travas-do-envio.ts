@@ -14,7 +14,7 @@ import { recusa, type Recusa } from "./recusa";
  * O QUE TRAVA NO ESTÚDIO TAMBÉM TRAVA AQUI (B1)
  * ══════════════════════════════════════════════════════════════════════
  *
- * Etapa 3 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5).
+ * Etapa 4 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5).
  *
  * «Já saiu um PDF sem orçamento e sem condições, e nada no ecrã o
  * impediu.» O estúdio passou a desligar o botão — mas o botão é uma porta
@@ -91,8 +91,8 @@ export interface ContextoDaTrava {
   idioma: IdiomaDaProposta;
   /** `false` só quando ela escolheu o WhatsApp — ver `querEmail`. */
   porEmail: boolean;
-  /** A chave do PDF visto, tal como o envio a trouxe (só um texto conta). */
-  pdfVisto: unknown;
+  /** A chave do PDF final visto, tal como o envio a trouxe. */
+  pdfVisto: string | null;
   /** A chave do documento que chegou (`prepararODocumento`). */
   chaveDoQueChegou: string;
 }
@@ -110,7 +110,7 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Recusa | null> {
     fotosEscolhidasQueFaltam: escolhidasEmFalta,
     canal: c.porEmail ? "email" : "whatsapp",
     emailDoCliente: c.quote.email,
-    pdfVisto: typeof c.pdfVisto === "string" && c.pdfVisto === c.chaveDoQueChegou,
+    pdfVisto: c.pdfVisto !== null && c.pdfVisto === c.chaveDoQueChegou,
   }).filter((f) => f.trava && TRAVAM_NO_SERVIDOR.has(f.id));
   if (travam.length > 0) {
     log.warn("proposta-doc: envio recusado, a proposta tem erros", {

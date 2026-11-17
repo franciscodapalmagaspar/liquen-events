@@ -4,7 +4,7 @@ import type { ProposalGravada } from "./gravar-a-proposta";
 import type { DesfechoDoEmail } from "./mandar-o-email";
 
 /**
- * Etapa 12, a última (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o que o envio
+ * Etapa 13, a última (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o que o envio
  * conta ao estúdio. Pura. A ordem dos campos é a de sempre — está presa no
  * retrato de `route.caracterizacao.test.ts`, porque é texto que viaja.
  */

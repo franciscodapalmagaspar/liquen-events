@@ -10,7 +10,7 @@ import { log } from "@/lib/logger";
  * O MESMO ENVIO DUAS VEZES NÃO SÃO DOIS EMAILS AO CASAL
  * ══════════════════════════════════════════════════════════════════════
  *
- * Etapa 7 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5).
+ * Etapa 8 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5).
  *
  * MEDIDO: dois envios em voo do mesmo documento davam 2 propostas gravadas
  * e 2 emails ao casal — com DOIS links de aceitação diferentes, e duas

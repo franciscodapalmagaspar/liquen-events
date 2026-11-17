@@ -16,7 +16,7 @@ import { log } from "@/lib/logger";
 import { cartaoDoPdf } from "./cartao-do-pdf";
 
 /**
- * Etapa 9 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o email que vai
+ * Etapa 10 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o email que vai
  * sair, inteiro, antes de sair. Não manda nada — isso é `mandar-o-email.ts`.
  *
  * ══════════════════════════════════════════════════════════════════════
@@ -57,9 +57,9 @@ export interface PedidoDoEmail {
   doc: ProposalDoc;
   idioma: IdiomaDaProposta;
   mensagem: string;
-  /** O `corpo` e o `assunto` do pedido, tal como chegaram. */
-  corpoCru: unknown;
-  assuntoCru: unknown;
+  /** O `corpo` e o `assunto` escritos à mão, quando vieram (`corpo-do-pedido.ts`). */
+  corpo: string | null;
+  assunto: string | null;
   acceptUrl: string;
   money: ReturnType<typeof dinheiroDaProposta>;
   /** Quem carregou em «Enviar» (`assinaturaDeQuemEnvia`). */
@@ -81,19 +81,19 @@ export async function escreverOEmail(p: PedidoDoEmail): Promise<EmailDaProposta>
    * O MARCADOR DA LIGAÇÃO, TROCADO PELO ENDEREÇO QUE JÁ EXISTE. O corpo do
    * ecrã de envio traz o `{{link_proposta}}`, e o endereço é assinado sobre
    * o ID DA PROPOSTA, que só existe depois de gravada — o porquê inteiro está
-   * no `email-ligacao-reservada.ts`. A guarda do `typeof` é a de sempre: sem
-   * ela um `corpo: 42` de um cliente avariado virava um email com «42».
+   * no `email-ligacao-reservada.ts`. Só um texto chega aqui: um `corpo: 42` de
+   * um cliente avariado é `null` desde a leitura, e não vira um email com «42».
    */
-  const corpoComLigacao =
-    typeof p.corpoCru === "string" ? resolverLigacaoDaProposta(p.corpoCru, acceptUrl) : p.corpoCru;
-  const escrito = corpoEscritoAMao(corpoComLigacao);
+  const escrito = corpoEscritoAMao(
+    p.corpo === null ? null : resolverLigacaoDaProposta(p.corpo, acceptUrl),
+  );
   /**
    * O assunto que o ecrã mostrou ANDA COM O CORPO, e é condição e não
    * coincidência: os dois vêm do mesmo rascunho, e um assunto solto era
    * reescrever a linha que o casal lê antes de abrir um email cujo texto
    * ninguém viu.
    */
-  const assuntoDoEcra = escrito ? assuntoEscritoAMao(p.assuntoCru) : null;
+  const assuntoDoEcra = escrito ? assuntoEscritoAMao(p.assunto) : null;
 
   if (idioma !== "pt" && !mensagem && !escrito) {
     log.warn(

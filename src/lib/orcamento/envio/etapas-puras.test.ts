@@ -33,16 +33,16 @@ const doc = {
 
 describe("as perguntas antes do envio", () => {
   it("o «sim» às fotos vale para quantas ela viu, e só para um número", () => {
-    expect(fotosEmFaltaAceites(0, undefined)).toBe(true);
+    expect(fotosEmFaltaAceites(0, null)).toBe(true);
     expect(fotosEmFaltaAceites(3, 3)).toBe(true);
     expect(fotosEmFaltaAceites(3, 9)).toBe(true);
     expect(fotosEmFaltaAceites(9, 3)).toBe(false);
-    expect(fotosEmFaltaAceites(1, true)).toBe(false);
-    expect(fotosEmFaltaAceites(1, Number.NaN)).toBe(false);
+    // Um «sim» que não era número chega como `null` (corpo-do-pedido.test.ts).
+    expect(fotosEmFaltaAceites(1, null)).toBe(false);
   });
 
   it("as fotos perguntam com 409 e dizem quantas; os cortes só com `true`", () => {
-    expect(perguntaDasFotos("q", 1, undefined)).toEqual({
+    expect(perguntaDasFotos("q", 1, null)).toEqual({
       status: 409,
       corpo: {
         error: "Falta 1 fotografia no documento.",
@@ -51,9 +51,9 @@ describe("as perguntas antes do envio", () => {
       },
     });
     const corte = [{ where: "Capa", dropped: 1, unit: "linhas" as const }];
-    expect(perguntaDosCortes("q", corte, "sim")?.status).toBe(409);
+    expect(perguntaDosCortes("q", corte, false)?.status).toBe(409);
     expect(perguntaDosCortes("q", corte, true)).toBeNull();
-    expect(perguntaDosCortes("q", [], undefined)).toBeNull();
+    expect(perguntaDosCortes("q", [], false)).toBeNull();
   });
 
   it("os cabeçalhos: o rascunho não leva chave; o inglês muda o nome", () => {

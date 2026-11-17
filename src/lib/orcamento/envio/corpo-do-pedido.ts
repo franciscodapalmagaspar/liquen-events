@@ -26,7 +26,7 @@ export interface CorpoDoPedido {
   doc?: ProposalDoc;
   idioma?: unknown;
   mensagem?: unknown;
-  /** O corpo do email reescrito por quem envia — ver a nota mais abaixo.
+  /** O corpo do email reescrito por quem envia — ver `email-da-proposta.ts`.
    *  Ausente em todos os pedidos anteriores a esta caixa existir. */
   corpo?: unknown;
   /** A linha de assunto que o ecrã de envio mostrou. Só conta com `corpo`
@@ -36,11 +36,11 @@ export interface CorpoDoPedido {
    *  CÓPIA do envio. Não escolhe texto nenhum: o texto é o `corpo`. */
   modelo?: unknown;
   /** «Já vi o que fica cortado, envia à mesma» — ver a pergunta antes do
-   *  envio, mais abaixo. Só `true` conta: qualquer outra coisa é «ainda
-   *  não respondeu». */
+   *  envio (`perguntas-antes-do-envio.ts`). Só `true` conta: qualquer outra
+   *  coisa é «ainda não respondeu». */
   cortesConfirmados?: unknown;
   /** «Já sei que faltam N fotografias, envia à mesma» — ver a pergunta
-   *  das fotos em falta, mais abaixo. É o NÚMERO que ela viu: um PDF com
+   *  das fotos em falta (`perguntas-antes-do-envio.ts`). É o NÚMERO que ela viu: um PDF com
    *  mais em falta do que esse pergunta outra vez (`fotosEmFaltaAceites`). */
   fotosEmFaltaConfirmadas?: unknown;
   /**
@@ -92,12 +92,11 @@ export const ONDE_O_CORPO_E_OBSERVADO = "o corpo do POST proposta-doc";
 /**
  * O pedido já lido: cada campo com a sua tolerância aplicada UMA vez, aqui —
  * daqui para dentro ninguém volta a perguntar `typeof` (§1.7, «parse, don't
- * validate»). O que é a resposta a uma pergunta (`fotosEmFaltaConfirmadas`,
- * `cortesConfirmados`) e o que só se usa mais à frente (`corpo`, `assunto`,
- * `modelo`, `pdfVisto`, `idioma`) segue cru, e quem o lê aplica a regra que
- * tem ao lado.
+ * validate»). Cada campo diz, ao lado, a regra que o leu; as regras são as de
+ * sempre (`route.caracterizacao.test.ts` prova-o resposta a resposta).
  */
 export interface PedidoDeProposta {
+  /** O que não se reconhece vale a pré-visualização — nunca um envio. */
   modo: "preview" | "send";
   doc: ProposalDoc | undefined;
   /** Ver {@link mensagemDoPedido}. */
@@ -106,13 +105,22 @@ export interface PedidoDeProposta {
   porEmail: boolean;
   /** O rascunho só existe na pré-visualização: um envio nunca sai marcado. */
   rascunho: boolean;
-  idioma: unknown;
-  corpo: unknown;
-  assunto: unknown;
-  modelo: unknown;
-  pdfVisto: unknown;
-  fotosEmFaltaConfirmadas: unknown;
-  cortesConfirmados: unknown;
+  /** Ver {@link idiomaDoCorpo}: o que não se reconhece vale português. */
+  idioma: IdiomaDaProposta;
+  /** O valor estranho que caiu em português, para o registo — ou `null`. */
+  idiomaDesconhecido: string | null;
+  /** O corpo e o assunto escritos à mão. Só texto conta (o resto é «não veio»):
+   *  o tratamento deles é do `email-corpo-escrito`. */
+  corpo: string | null;
+  assunto: string | null;
+  /** A chave do modelo de que o corpo partiu, só para a cópia; vazia sem ela. */
+  modelo: string;
+  /** A chave do PDF final visto. Só texto conta. */
+  pdfVisto: string | null;
+  /** «Já sei que faltam N fotografias»: só um número finito conta. */
+  fotosEmFaltaConfirmadas: number | null;
+  /** «Já vi o que fica cortado»: só `true` conta. */
+  cortesConfirmados: boolean;
 }
 
 /**
@@ -129,19 +137,24 @@ export async function lerOPedido(request: Request, id: string): Promise<PedidoDe
 /** A parte pura de {@link lerOPedido}. */
 export function pedidoDoCorpo(body: CorpoDoPedido | null): PedidoDeProposta {
   const modo = body?.mode === "send" ? "send" : "preview";
+  const idioma = idiomaDoCorpo(body?.idioma);
+  const texto = (v: unknown): string | null => (typeof v === "string" ? v : null);
+  const confirmadas = body?.fotosEmFaltaConfirmadas;
   return {
     modo,
     doc: body?.doc,
     mensagem: mensagemDoPedido(body),
     porEmail: body?.porEmail !== false,
     rascunho: modo === "preview" && body?.rascunho === true,
-    idioma: body?.idioma,
-    corpo: body?.corpo,
-    assunto: body?.assunto,
-    modelo: body?.modelo,
-    pdfVisto: body?.pdfVisto,
-    fotosEmFaltaConfirmadas: body?.fotosEmFaltaConfirmadas,
-    cortesConfirmados: body?.cortesConfirmados,
+    idioma: idioma ?? IDIOMA_POR_OMISSAO,
+    idiomaDesconhecido: idioma === null ? String(body?.idioma) : null,
+    corpo: texto(body?.corpo),
+    assunto: texto(body?.assunto),
+    modelo: texto(body?.modelo) ?? "",
+    pdfVisto: texto(body?.pdfVisto),
+    fotosEmFaltaConfirmadas:
+      typeof confirmadas === "number" && Number.isFinite(confirmadas) ? confirmadas : null,
+    cortesConfirmados: body?.cortesConfirmados === true,
   };
 }
 
@@ -212,12 +225,20 @@ function mensagemDoPedido(body: CorpoDoPedido | null): string {
  * Um pedido SEM o campo não é um valor estranho — é o caminho de sempre, e
  * não regista nada.
  */
-export function idiomaDoPedido(idioma: unknown, id: string): IdiomaDaProposta {
+function idiomaDoCorpo(idioma: unknown): IdiomaDaProposta | null {
   if (idioma === undefined) return IDIOMA_POR_OMISSAO;
-  if (ehIdiomaDaProposta(idioma)) return idioma;
+  return ehIdiomaDaProposta(idioma) ? idioma : null;
+}
+
+/**
+ * Diz no registo a língua estranha que caiu em português. Chama-se depois de o
+ * documento estar completo, como sempre se chamou: um pedido sem documento não
+ * chega a ser desenhado em língua nenhuma.
+ */
+export function avisarDoIdiomaDesconhecido(pedido: PedidoDeProposta, id: string): void {
+  if (pedido.idiomaDesconhecido === null) return;
   log.warn("proposta-doc: idioma desconhecido, a desenhar em português", {
     id,
-    recebido: String(idioma),
+    recebido: pedido.idiomaDesconhecido,
   });
-  return IDIOMA_POR_OMISSAO;
 }

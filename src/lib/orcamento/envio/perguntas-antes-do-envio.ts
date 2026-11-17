@@ -4,7 +4,7 @@ import { log } from "@/lib/logger";
 import { recusa, type Recusa } from "./recusa";
 
 /**
- * Etapa 5 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): as duas perguntas
+ * Etapa 6 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): as duas perguntas
  * que o servidor faz com o PDF já desenhado, a proposta ainda por gravar e o
  * email ainda por sair — o último instante em que voltar atrás não custa nada.
  *
@@ -19,11 +19,12 @@ type Truncagens = RelatorioDoPdf["truncations"];
  * A resposta «envia assim mesmo» às fotos em falta (17/11) é o NÚMERO de fotos
  * que ela viu a faltar. Vale enquanto o PDF do envio não tiver MAIS em falta do
  * que esse: um «sim» a 3 não pode mandar um documento com 9 (revisão de 17/11).
- * Um booleano, ou qualquer outra coisa que não um número, não conta.
+ * Um booleano, ou qualquer outra coisa que não um número, já chega aqui como
+ * `null` (`corpo-do-pedido.ts`) — e não conta.
  */
-export function fotosEmFaltaAceites(emFalta: number, confirmadas: unknown): boolean {
+export function fotosEmFaltaAceites(emFalta: number, confirmadas: number | null): boolean {
   if (emFalta <= 0) return true;
-  return typeof confirmadas === "number" && Number.isFinite(confirmadas) && emFalta <= confirmadas;
+  return confirmadas !== null && emFalta <= confirmadas;
 }
 
 /**
@@ -45,7 +46,7 @@ export function fotosEmFaltaAceites(emFalta: number, confirmadas: unknown): bool
 export function perguntaDasFotos(
   id: string,
   missingImages: number,
-  confirmadas: unknown,
+  confirmadas: number | null,
 ): Recusa | null {
   if (fotosEmFaltaAceites(missingImages, confirmadas)) return null;
   log.warn("proposta-doc: envio parado para confirmar as fotos em falta", {
@@ -85,9 +86,9 @@ export function perguntaDasFotos(
 export function perguntaDosCortes(
   id: string,
   truncations: Truncagens,
-  confirmados: unknown,
+  confirmados: boolean,
 ): Recusa | null {
-  if (truncations.length === 0 || confirmados === true) return null;
+  if (truncations.length === 0 || confirmados) return null;
   log.warn("proposta-doc: envio parado para confirmar o que ficou cortado", {
     id,
     cortado: truncations.map((t) => `${t.where}: -${t.dropped} ${t.unit}`),

@@ -9,7 +9,7 @@ import { proximaVersao, seloDoConteudo } from "@/lib/proposta-versao";
 import { log } from "@/lib/logger";
 
 /**
- * Etapa 6 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): a linha que se
+ * Etapa 7 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): a linha que se
  * vai gravar, com o seu número de versão. A montagem e o carimbo são puros; só
  * {@link irmasDoPedido} lê a base.
  */

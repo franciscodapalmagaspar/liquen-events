@@ -136,7 +136,8 @@ function docVisivel(doc: unknown): unknown {
   // O artigo do Moloni de um valor adicional (5/11) vive DENTRO do adicional,
   // que o casal vê — mas o artigo não o vê. Tira-se antes de selar. Num
   // documento sem artigos nada muda, e os selos já guardados continuam a bater.
-  if (Array.isArray(saida.budgetExtras)) saida.budgetExtras = semArtigoNosAdicionais(saida.budgetExtras);
+  if (Array.isArray(saida.budgetExtras))
+    saida.budgetExtras = semArtigoNosAdicionais(saida.budgetExtras);
   return saida;
 }
 

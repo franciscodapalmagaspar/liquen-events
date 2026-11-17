@@ -15,6 +15,7 @@ import type { z } from "zod";
 import { log } from "@/lib/logger";
 import { mapper } from "@/lib/quotes-store";
 import { __esquecerDesviosDitos } from "./observar";
+import { __esquecerVersoesConferidas } from "./pedido-guardado";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { esquemaDoPedidoGuardado } from "./pedido-guardado";
 import { esquemaDoDocumentoQueChega } from "./documento-da-proposta";
@@ -231,14 +232,27 @@ describe("os corpos que os ecrãs mandam hoje", () => {
 describe("a leitura do quotes-store (o antigo `r.data as Quote`)", () => {
   it("devolve o MESMO objecto, bata ou não bata — e só o que não bate é dito", () => {
     __esquecerDesviosDitos();
+    __esquecerVersoesConferidas();
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
     const bom = { ...minimo };
     expect(mapper.fromRow({ data: bom })).toBe(bom);
     expect(aviso).not.toHaveBeenCalled();
-    const antigo = { ...minimo, status: "ganho", name: undefined };
+    const antigo = { ...minimo, id: "LIQ-ANTIGO", status: "ganho", name: undefined };
     expect(mapper.fromRow({ data: antigo })).toBe(antigo);
     expect(aviso).toHaveBeenCalledTimes(1);
-    expect(aviso.mock.calls[0][1]).toMatchObject({ id: "LIQ-1" });
+    expect(aviso.mock.calls[0][1]).toMatchObject({ id: "LIQ-ANTIGO" });
     aviso.mockRestore();
+  });
+
+  it("cada versão de um pedido confere-se UMA vez: ler outra vez não volta a pagar o esquema", () => {
+    __esquecerVersoesConferidas();
+    const conferir = vi.spyOn(esquemaDoPedidoGuardado, "safeParse");
+    const v1 = { ...minimo, id: "LIQ-2", lastUpdated: "2026-11-17T10:00:00.000Z" };
+    for (let i = 0; i < 20; i++) mapper.fromRow({ data: { ...v1 } });
+    expect(conferir).toHaveBeenCalledTimes(1);
+    // Gravar muda o `lastUpdated`: a versão nova confere-se.
+    mapper.fromRow({ data: { ...v1, lastUpdated: "2026-11-17T11:00:00.000Z" } });
+    expect(conferir).toHaveBeenCalledTimes(2);
+    conferir.mockRestore();
   });
 });

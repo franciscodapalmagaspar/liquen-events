@@ -156,12 +156,13 @@ async function PUT_semMedida(
     if (!body || typeof body !== "object" || !("doc" in body)) {
       return NextResponse.json({ error: "Rascunho em falta." }, { status: 400 });
     }
-    // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
-    observar(esquemaDoCorpoDoRascunho, body, "o corpo do PUT proposta-rascunho", { id });
     const serialised = JSON.stringify(body.doc ?? null);
     if (serialised.length > MAX_DRAFT_BYTES) {
       return NextResponse.json({ error: "Rascunho demasiado grande." }, { status: 413 });
     }
+    // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
+    // Depois do tecto: um rascunho que vai ser recusado não vale o trabalho.
+    observar(esquemaDoCorpoDoRascunho, body, "o corpo do PUT proposta-rascunho", { id });
 
     const chave = idDoRascunho(request, id);
     const current = await getProposalDraft(chave);

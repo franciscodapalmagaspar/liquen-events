@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { pedidoDoCorpo, type CorpoDoPedido } from "@/lib/orcamento/envio/corpo-do-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -17,8 +18,10 @@ import { describe, expect, it } from "vitest";
  * trazem, e nenhum deles pode deixar de enviar por causa disso.
  */
 
-/** A leitura que a rota faz, à letra (ver `proposta-doc/route.ts`). */
-const querEmail = (corpo: { porEmail?: unknown } | null) => corpo?.porEmail !== false;
+/** A leitura que a rota faz — a VERDADEIRA, e não uma cópia dela
+ *  (`lib/orcamento/envio/corpo-do-pedido.ts`, desde a fase 5). */
+const querEmail = (corpo: { porEmail?: unknown } | null) =>
+  pedidoDoCorpo(corpo as CorpoDoPedido | null).porEmail;
 
 describe("por onde a proposta segue", () => {
   it("sem o campo, envia — como sempre enviou", () => {

@@ -217,7 +217,7 @@ describe("os contratos que já existem não mudam de língua", () => {
     expect(texto).not.toContain("CONTRACT");
   });
 
-  it("com `idioma: \"pt\"` é exactamente o mesmo documento", async () => {
+  it('com `idioma: "pt"` é exactamente o mesmo documento', async () => {
     const semCampo = await textoDoPdf(await renderContractPdf(contrato()));
     const comPt = await textoDoPdf(await renderContractPdf(contrato({ idioma: "pt" })));
     expect(comPt).toBe(semCampo);
