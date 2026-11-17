@@ -2,242 +2,105 @@
 
 import { lerPartilhado } from "@/lib/leitura-partilhada";
 import { estadoNoEcra, haQueMostrar } from "@/lib/orcamento/estudio/estado-da-gravacao";
-import { useEstadoDaGravacao } from "./estudio/gravacao/useEstadoDaGravacao";
 import { useAmostrasDeGeracao } from "./estudio/envio/useAmostrasDeGeracao";
-import { asPropostasMudaram } from "./percentagem-do-sinal";
-import { useAccaoEstavel } from "./ui/accao-estavel";
-import { useCallback, useEffect, useMemo, useRef, useState, useReducer } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { quandoGravado } from "@/lib/quando-gravado";
-import { useSeccaoAVista } from "./useSeccaoAVista";
 import { rolarAteVer } from "@/lib/motion/rolar";
-import { useSaidaDeUmSo } from "./ui/saida";
 import { porqueFalhouOEnvio } from "./porque-falhou-o-envio";
-import { seguirASeleccao } from "./seleccao-de-fotos";
-import { porqueFalhou } from "@/lib/erro-do-servidor";
-import {
-  eTempoEsgotado,
-  sinalComTecto,
-  TECTO_DA_PRE_VISUALIZACAO_MS,
-  TECTO_DO_ENVIO_MS,
-} from "@/lib/tempo-esgotado";
 import { useToast } from "./Toast";
 import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravacoes";
 import {
   withProposalDefaults,
   DEFAULT_CONDICOES_GERAIS,
-  resolveProposalMoney,
-  totalAmountParaBase,
   detectVatMode,
   parseMoneyText,
-  normaliseCoverImages,
-  countPendingImages,
   isPendingImage,
-  PENDING_IMAGE_PREFIX,
   stripPendingImages,
   DEFAULT_VAT_RATE,
-  DEFAULT_VALID_DAYS,
   diasDeValidade,
   diaDoEvento,
   resolveValidUntil,
-  soMudaramOsIds,
   type MoodBoard,
   type VatMode,
 } from "@/lib/proposal-doc";
-import {
-  IDIOMA_POR_OMISSAO,
-  camposDoEventoNaLingua,
-  ehIdiomaDaProposta,
-  isoDaDataPorExtenso,
-  type IdiomaDaProposta,
-} from "@/lib/proposal-doc-textos";
-import { fotosQueDaoCor } from "@/lib/pdf-editorial/grupos";
-import { ordemDeSaida, eAOrdemEscrita, aplicarOrdem, ORDEM_EXPLICITA } from "@/lib/proposal-ordem";
-import {
-  CONTAGEM_VAZIA,
-  comAcontecimento,
-  emPalavras,
-  totalAte,
-  type Contagem,
-} from "@/lib/tempo-activo";
-import { ehRefDeTema } from "@/lib/theme-ref";
-import { log } from "@/lib/logger";
-import { camposMudados, mesmoValor } from "@/lib/rascunho-juntar";
+import { camposDoEventoNaLingua } from "@/lib/proposal-doc-textos";
+import { ordemDeSaida } from "@/lib/proposal-ordem";
 import { EstadoDaGravacaoNaBarra } from "./EstadoDaGravacaoNaBarra";
-import {
-  haAssinaturaMorta,
-  semAssinaturasJaMortas,
-  semAssinaturasMortas,
-  urlAindaBom,
-} from "./assinatura";
+import { haAssinaturaMorta, semAssinaturasJaMortas } from "./assinatura";
 import PainelInterno from "./PainelInterno";
-import { nomeDoFicheiroDaProposta } from "@/lib/email-proposta-textos";
 import MoodBoardIndice from "./MoodBoardIndice";
-import { useLarguraDaZona } from "./useMedida";
 import AEnviarAProposta from "./AEnviarAProposta";
 import PerguntaAntesDoEnvio from "./PerguntaAntesDoEnvio";
-import { passoParaCorrigir, usePerguntasDoEnvio } from "./usePerguntasDoEnvio";
-import { guardarPdfVisto, lerPdfVisto, type PdfVisto } from "./pdf-visto";
+import { passoParaCorrigir } from "./usePerguntasDoEnvio";
 
 import PorqueNaoDaParaEnviar from "./PorqueNaoDaParaEnviar";
-import {
-  ControlosDoEnvio,
-  estadoDoEnvio,
-  PainelDoEnvio,
-  PastilhaDoEnvio,
-} from "./BarraDoEnvioCompacta";
-import { useBarrasQueEncolhem } from "./ui/barras-que-encolhem";
+import { ControlosDoEnvio, PainelDoEnvio, PastilhaDoEnvio } from "./BarraDoEnvioCompacta";
 import { destinoDoEnvio } from "@/lib/orcamento/destino-do-envio";
 import EscolherDisposicao from "./EscolherDisposicao";
-import PaginaEditorial, { fontesDasFolhas } from "./PaginaEditorial";
-import { usePlanoDoPdf } from "./useFotosDoPdf";
+import PaginaEditorial from "./PaginaEditorial";
 import EscolherFotoDaPagina from "./EscolherFotoDaPagina";
 import CoresDaPaleta from "./CoresDaPaleta";
 import { VerOPdfNoEcra } from "./VerOPdfNoEcra";
 import { useAnular } from "./ui/anular";
 import LupaDeFotos from "./LupaDeFotos";
-import {
-  ArrastoDosMoodBoards,
-  CartaoDeBoard,
-  ListaDeBoards,
-  type LargadaDeFoto,
-} from "./MoodBoardFotos";
-import { fotoPrincipalDe, marcaDepoisDeMexer } from "@/lib/proposal-moodboard";
-import {
-  chaveDoCampo,
-  seccaoDoCampo,
-  type CampoDeTexto,
-  type CampoPublicado,
-} from "@/lib/proposal-ortografia";
-import { fotosQueDestoam, ordemPorCor } from "@/lib/cor-dominante";
+import { ArrastoDosMoodBoards, CartaoDeBoard, ListaDeBoards } from "./MoodBoardFotos";
+import { fotoPrincipalDe } from "@/lib/proposal-moodboard";
+import { chaveDoCampo, seccaoDoCampo, type CampoPublicado } from "@/lib/proposal-ortografia";
+import { fotosQueDestoam } from "@/lib/cor-dominante";
 import { tempoEstimado } from "@/lib/custo-do-pdf";
-import { type VersaoEnviada } from "./Versoes";
-import { comoSeDiz, noMesmoEspaco, type FotoRepetida } from "@/lib/orcamento/fotos-repetidas";
-import { marcarExtra, opcionaisDe, totaisDasVersoes } from "@/lib/orcamento/versoes-da-proposta";
+import { totaisDasVersoes } from "@/lib/orcamento/versoes-da-proposta";
 import { custosDe } from "@/lib/orcamento/margem";
 import {
   CONVIDADOS_POR_MESA_OMISSAO,
-  convidadosDoDoc,
-  escalasDe,
   formulaDaLinha,
-  recalcular,
   totalDaLinha,
   type TipoDeEscala,
 } from "@/lib/orcamento/escala";
-import CriarAPartirDe, { type Escolha } from "./CriarAPartirDe";
+import CriarAPartirDe from "./CriarAPartirDe";
 import ModelosParciais from "./ModelosParciais";
-import EditorDeEscolhas, { fotosParaAsEscolhas, type FotoDisponivel } from "./EditorDeEscolhas";
+import EditorDeEscolhas from "./EditorDeEscolhas";
 import NavEstudio from "./NavEstudio";
-import NotasInternas from "./NotasInternas";
 import { MenuDeAccoes } from "./ui/MenuDeAccoes";
-import { estadoDasSeccoes, oQueFaltaParaEnviar, podeEnviar } from "@/lib/proposal-progress";
 import { hojeNoEstudio } from "@/lib/fuso";
-import {
-  estadoDosPassos,
-  nomeDoPasso,
-  passoAoLado,
-  passoDaSeccao,
-} from "@/lib/orcamento/passos-do-estudio";
+import { nomeDoPasso, passoAoLado, passoDaSeccao } from "@/lib/orcamento/passos-do-estudio";
 import {
   capituloDoTema,
   composicaoEmPalavras,
   MAXIMO_POR_PAGINA,
   ordemDoDesenho,
   paginasDoTema,
-  planoDaProposta,
-  temasComPagina,
 } from "@/lib/pdf-editorial/plano";
-import { NOME_DA_DISPOSICAO, disposicaoDoTema, type Disposicao } from "@/lib/pdf-editorial/mosaico";
-import { avisoDeTituloParecido, titulosParecidos } from "@/lib/proposal-titulos-parecidos";
-import { depositPercentOf, paletaDaProposta } from "@/lib/proposal-doc";
+import { disposicaoDoTema } from "@/lib/pdf-editorial/mosaico";
+import { paletaDaProposta } from "@/lib/proposal-doc";
 import { RepartoPorArtigo } from "./RepartoPorArtigo";
 import {
   ARTIGOS,
   artigoDoAdicional,
-  artigosDasLinhas,
-  definirArtigoDaLinha,
-  definirArtigoDoAdicional,
   eArtigo,
-  definirSubpontos,
-  servicosForaDoOrcamento,
-  subpontosDe,
   sugerirArtigoDaLinha,
   trazerServicosParaOOrcamento,
-  type ArtigoId,
 } from "@/lib/orcamento/artigos-de-faturacao";
 import { ASPETO_POR_OMISSAO } from "@/lib/proposal-geometria";
-import { useTamanhoDoOriginal } from "./tamanhoDoOriginal";
-import { type Foco } from "./ArrastarParaEnquadrar";
-import { enquadrarNoLugar, trocarNoLugar } from "@/lib/pdf-editorial/lugares-escolhidos";
-import { tecladoAberto } from "@/lib/orcamento/barra-de-destinos";
-import type { ProposalDoc, SubpontoDoOrcamento } from "@/lib/proposal-doc";
-import type { CampoAMudar } from "@/lib/proposal-copy";
-import {
-  adicionarLinha,
-  definirItem,
-  definirPreco,
-  desalinhamento,
-  linhasDe,
-  normalizarValor,
-  precosDe,
-  removerLinha,
-  somaDosExtrasSemIva,
-  totaisDaProposta,
-  dinheiroDaProposta,
-  asDuasFormas,
-} from "@/lib/proposal-budget";
-import { eur, eurDocumento, montanteNaLingua, round2, SINAL_POR_OMISSAO } from "@/lib/money";
+import type { ProposalDoc } from "@/lib/proposal-doc";
+import { normalizarValor, somaDosExtrasSemIva } from "@/lib/proposal-budget";
+import { eur, eurDocumento, montanteNaLingua, round2 } from "@/lib/money";
 import { resumoDaPropostaParaCopiar } from "@/lib/email-proposta-textos";
-import { linkDoWhatsApp } from "@/lib/whatsapp";
 import { randomId } from "./util";
 import type { ActivityEntry, Quote, QuoteStatus } from "@/lib/orcamento/types";
-import { prepareImageWithThumb, type ImageKind } from "./image-prep";
-import { enviarFotoDaProposta } from "./enviar-foto-da-proposta";
-import { fingerprintBlob } from "@/lib/theme-fingerprint";
-import ThemePicker, { type ImportedImage, type ReservedImage } from "./ThemePicker";
-import CaixaInglesa from "./CaixaInglesa";
-import type { FotoEscolhidaEmFalta } from "@/lib/proposta-fotos-verificacao-tipos";
-import {
-  aplicarTraducao,
-  estadoDaTraducao,
-  motorPelaRota,
-  traduzirParaIngles,
-  type EstadoDaTraducao,
-} from "@/lib/proposal-traducao";
-import {
-  camposPorRever,
-  docTemIngles,
-  confirmarTraducao,
-  escreverEn,
-  estadoDoIngles,
-  lerEn,
-  porTraduzirPorSeccao,
-} from "@/lib/proposal-doc-bilingue";
-import { aquecerBiblioteca, aquecerFotosEmSegundoPlano } from "./theme-picker-cache";
+import ThemePicker from "./ThemePicker";
+import { estadoDaTraducao } from "@/lib/proposal-traducao";
+import { camposPorRever } from "@/lib/proposal-doc-bilingue";
+import { aquecerBiblioteca } from "./theme-picker-cache";
 // A espera desenhada de uma maneira só. Ver `ui/EmCurso.tsx`: uma barra, um
 // ponto a pulsar, e a contagem quando o código sabe contar — este ficheiro não
 // inventa nenhuma espera sua.
 import { Ajuda, Button, EmCurso, Field, Segmented } from "./ui";
-import { useFimVisivel } from "./ui/EmCurso";
-import { descarregar, type Avanco } from "./ui/descarregar";
 import { eCasamento } from "@/lib/proposal-evento";
-import {
-  degrauDosAdicionais,
-  precoDoPedidoParaBase,
-  type ContextoDoPreco,
-} from "@/lib/preco-do-pedido";
+import { degrauDosAdicionais, type ContextoDoPreco } from "@/lib/preco-do-pedido";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { useEnvioAdiado } from "./ui/envio-adiado";
 import { useAvisoDeQualidade } from "./AvisoDeQualidade";
-import { lugarDaChave } from "@/lib/qualidade-da-foto";
-import {
-  baseDoPedidoParaOEcra,
-  buildRef,
-  initialDoc,
-  mapImagePaths,
-  seedDefaults,
-  type StudioDoc,
-} from "@/lib/orcamento/estudio/documento-inicial";
-import { escreverODocumento } from "@/lib/orcamento/estudio/escrever-o-documento";
+import { buildRef, type StudioDoc } from "@/lib/orcamento/estudio/documento-inicial";
 import {
   semAsFotosNasPaginas,
   semOTema,
@@ -246,7 +109,6 @@ import {
 import {
   avisoDeConteudoIncompleto,
   cortesDoCabecalho,
-  normalizaCortes,
   textoDaGravacao,
   textoDoTotal,
   type EstadoDaGravacaoNoEcra,
@@ -272,13 +134,8 @@ import {
   REMOVE_BTN,
   TITULO_DO_BOARD,
 } from "./estudio/classes";
-import { OPCOES_DO_CANAL, useCanalDeEnvio } from "./estudio/envio/canal-de-envio";
-import {
-  type PdfPronto,
-  guardarNoDisco,
-  retratoDoPdf,
-  verPdfNoEcra,
-} from "./estudio/envio/pdf-no-ecra";
+import { OPCOES_DO_CANAL } from "./estudio/envio/canal-de-envio";
+import { guardarNoDisco } from "./estudio/envio/pdf-no-ecra";
 import { AvisoDasTraducoes, RESSALVA_DO_INGLES } from "./estudio/formulario/AvisoDasTraducoes";
 import { AvisoDeOrdem } from "./estudio/formulario/AvisoDeOrdem";
 import { DescricaoQueCresce } from "./estudio/formulario/DescricaoQueCresce";
@@ -286,7 +143,7 @@ import { Section } from "./estudio/formulario/Section";
 import { StepNav } from "./estudio/formulario/StepNav";
 import { BarraDaSeleccao } from "./estudio/fotos/BarraDaSeleccao";
 import { FantasmaDaFoto } from "./estudio/fotos/FantasmaDaFoto";
-import { type EventosDasFotos, FotosDoBoard } from "./estudio/fotos/FotosDoBoard";
+import { FotosDoBoard } from "./estudio/fotos/FotosDoBoard";
 import { UploadArea } from "./estudio/fotos/UploadArea";
 import { LinhaDeTotal } from "./estudio/orcamento/LinhaDeTotal";
 import { MargemDoNegocio } from "./estudio/orcamento/MargemDoNegocio";
@@ -294,7 +151,7 @@ import { ResumoDasLinhas } from "./estudio/orcamento/ResumoDasLinhas";
 import { SubpontosDaLinha } from "./estudio/orcamento/SubpontosDaLinha";
 import { CustoDaGeracao } from "./estudio/resumo/CustoDaGeracao";
 import { PreviewSummary } from "./estudio/resumo/PreviewSummary";
-import type { DestinoDaFoto, EstadoDosUrls, Step } from "./estudio/tipos";
+import type { Step } from "./estudio/tipos";
 import { PassoServicos } from "./estudio/passos/PassoServicos";
 import { SeccaoDaCapa } from "./estudio/passos/evento/SeccaoDaCapa";
 import { SeccaoDoEvento } from "./estudio/passos/evento/SeccaoDoEvento";
@@ -303,22 +160,59 @@ import { EstaPronta } from "./estudio/passos/rever/EstaPronta";
 import { PorOndeSegue } from "./estudio/passos/rever/PorOndeSegue";
 import { SeccaoDoCronograma } from "./estudio/passos/inspiracao/SeccaoDoCronograma";
 import { dataDoEnvioPorExtenso } from "@/lib/orcamento/estudio/data-do-envio";
-import {
-  aplicarBase,
-  baseDoDoc,
-  dinheiroDoDocumento,
-} from "@/lib/orcamento/estudio/dinheiro-do-documento";
 import { esperaDaCopiaDeFotos, esperaDaTraducao } from "@/lib/orcamento/estudio/esperas";
-import { idsTirados, move } from "@/lib/orcamento/estudio/listas";
-import { ehObjecto } from "@/lib/orcamento/estudio/eh-objecto";
-import { PASSOS_DO_FORMULARIO } from "./estudio/passos/passos-do-formulario";
-import {
-  CONFIRMAR_ENVIO_APOS_MS,
-  LARGURA_DA_BARRA_INTEIRA,
-  LARGURA_MINIMA_DA_FILA,
-  MAX_HISTORICO,
-  UPLOAD_CONCURRENCY,
-} from "./estudio/limites";
+import { CONFIRMAR_ENVIO_APOS_MS, MAX_HISTORICO } from "./estudio/limites";
+import { useDocumentoDoEstudio } from "./estudio/documento/useDocumentoDoEstudio";
+import { useAccoesReversiveis } from "./estudio/documento/useAccoesReversiveis";
+import { useFasesDoCronograma } from "./estudio/passos/inspiracao/useFasesDoCronograma";
+import { useCamposPorConfirmar } from "./estudio/versoes/useCamposPorConfirmar";
+import { useTotalDaProposta } from "./estudio/passos/orcamento/useTotalDaProposta";
+import { useSomarOTotal } from "./estudio/passos/orcamento/useSomarOTotal";
+import { useContasDoOrcamento } from "./estudio/passos/orcamento/useContasDoOrcamento";
+import { useMapasDasFotos } from "./estudio/fotos/useMapasDasFotos";
+import { useConfirmacoes } from "./estudio/documento/useConfirmacoes";
+import { useOrdemDoOrcamento } from "./estudio/passos/orcamento/useOrdemDoOrcamento";
+import { useAdicionaisDoOrcamento } from "./estudio/passos/orcamento/useAdicionaisDoOrcamento";
+import { useLinhasDoOrcamento } from "./estudio/passos/orcamento/useLinhasDoOrcamento";
+import { useTotalAcompanhaOPedido } from "./estudio/passos/orcamento/useTotalAcompanhaOPedido";
+import { useConferenciaComOEnviado } from "./estudio/versoes/useConferenciaComOEnviado";
+import { useCopiaEModelos } from "./estudio/versoes/useCopiaEModelos";
+import { useTraducoes } from "./estudio/traducoes/useTraducoes";
+import { useCapa } from "./estudio/passos/evento/useCapa";
+import { useSeleccaoDeFotos } from "./estudio/passos/inspiracao/useSeleccaoDeFotos";
+import { useDobrasDosBoards } from "./estudio/passos/inspiracao/useDobrasDosBoards";
+import { useMoodBoards } from "./estudio/passos/inspiracao/useMoodBoards";
+import { useArrumacaoDosBoards } from "./estudio/passos/inspiracao/useArrumacaoDosBoards";
+import { useFotosDosBoards } from "./estudio/passos/inspiracao/useFotosDosBoards";
+import { usePassosDoEstudio } from "./estudio/passos/usePassosDoEstudio";
+import { useTempoNaProposta } from "./estudio/passos/useTempoNaProposta";
+import { useEscolhaDeFotos } from "./estudio/fotos/useEscolhaDeFotos";
+import { useEstadoDoEnvio } from "./estudio/envio/useEstadoDoEnvio";
+import { useDesfazer } from "./estudio/documento/useDesfazer";
+import { useRestaurarVersao } from "./estudio/versoes/useRestaurarVersao";
+import { useNotaDaSeccao } from "./estudio/documento/useNotaDaSeccao";
+import { useLimparORascunho } from "./estudio/documento/useLimparORascunho";
+import { useRascunhoSobreposto } from "./estudio/gravacao/useRascunhoSobreposto";
+import { useRepeticoesDasFotos } from "./estudio/fotos/useRepeticoesDasFotos";
+import { usePaginasDaProposta } from "./estudio/pdf/usePaginasDaProposta";
+import { useFotosDaPagina } from "./estudio/pdf/useFotosDaPagina";
+import { useDisposicaoDasPaginas } from "./estudio/pdf/useDisposicaoDasPaginas";
+import { usePaletaDaProposta } from "./estudio/pdf/usePaletaDaProposta";
+import { useBarraDoEstudio } from "./estudio/barra/useBarraDoEstudio";
+import { useCarregarFotos } from "./estudio/fotos/useCarregarFotos";
+import { useBibliotecaDeFotos } from "./estudio/fotos/useBibliotecaDeFotos";
+import { useFotosUsadasNoutras } from "./estudio/fotos/useFotosUsadasNoutras";
+import { usePdfDaProposta } from "./estudio/envio/usePdfDaProposta";
+import { useSugestoesDoPedido } from "./estudio/passos/evento/useSugestoesDoPedido";
+import { useLinkDaPropostaEnviada } from "./estudio/envio/useLinkDaPropostaEnviada";
+import { useProntaParaEnviar } from "./estudio/envio/useProntaParaEnviar";
+import { useBotaoDoEnvio } from "./estudio/envio/useBotaoDoEnvio";
+import { useEnviarAProposta } from "./estudio/envio/useEnviarAProposta";
+import { usePainelDaProposta } from "./estudio/painel/usePainelDaProposta";
+import { useEstadoDoRascunho } from "./estudio/gravacao/useEstadoDoRascunho";
+import { useGravarNoServidor } from "./estudio/gravacao/useGravarNoServidor";
+import { useHidratarFotos } from "./estudio/fotos/useHidratarFotos";
+import { useAberturaDoEstudio } from "./estudio/gravacao/useAberturaDoEstudio";
 
 /*
  * A lógica pura do estúdio vive em `lib/orcamento/estudio/` (fase 1 de
@@ -394,14 +288,20 @@ export default function ProposalStudio({
 
   /** As gerações anteriores ensinam a estimativa do PDF — ver o gancho. */
   const { amostras, apontarGeracao } = useAmostrasDeGeracao();
-
-  /**
-   * Todas as escritas do documento passam por aqui para as fotos escolhidas das
-   * páginas acompanharem o TEMA e não a posição (`realinharChavesDosTemas`,
-   * auditoria de 12/11, n.º 1) — ver `escreverODocumento`. Um `useReducer` e
-   * não um `useState` embrulhado: o `dispatch` é estável e o React sabe-o.
-   */
-  const [doc, setDoc] = useReducer(escreverODocumento, quote, initialDoc);
+  const documento = useDocumentoDoEstudio({ quote });
+  const {
+    camposTocados,
+    doc,
+    docAssente,
+    docRef,
+    historico,
+    marcadoresResolvidos,
+    patch,
+    podeDesfazer,
+    semMarcadoresMortos,
+    setDoc,
+    setPodeDesfazer,
+  } = documento;
   // «É mesmo um casamento»: o aviso de baixo cala-se para este pedido — e
   // fica calado nas próximas vezes (um casamento metido à mão, sem tipo, não
   // pode ficar a perguntar o mesmo cada vez que se abre).
@@ -413,22 +313,6 @@ export default function ProposalStudio({
       return false;
     }
   });
-  /**
-   * O documento COMO ESTÁ AGORA, para quem volta de uma ida à rede.
-   *
-   * Uma função `async` guarda o `doc` que existia quando ela CARREGOU no botão.
-   * Se a resposta demorar segundos — e a tradução demora —, esse documento já é
-   * história: entretanto entraram fotos, saíram fotos, arrumou-se a grelha. Lê-lo
-   * para decidir o que dizer, ou pô-lo de volta no estado, é apagar tudo isso.
-   *
-   * Isto é só para LER (contar, comparar). Quem ESCREVE continua a escrever pela
-   * forma funcional do `setDoc`, que é a única que o React garante actualizada.
-   */
-  const docRef = useRef(doc);
-  useEffect(() => {
-    docRef.current = doc;
-  }, [doc]);
-  const [copiarAberto, setCopiarAberto] = useState(false);
   /** Quando apareceu a pergunta «Enviar para…?» — ver `CONFIRMAR_ENVIO_APOS_MS`. */
   const perguntaDoEnvioDesde = useRef(0);
   /**
@@ -442,394 +326,39 @@ export default function ProposalStudio({
    */
   const envioAdiado = useEnvioAdiado();
   const enviarAgora = useRef<() => void>(() => {});
-  const [copiaSubstitui, setCopiaSubstitui] = useState<string | null>(null);
-  /**
-   * Os campos que vieram de OUTRA proposta e ainda não foram confirmados.
-   *
-   * Depois de copiar, estes cinco são os únicos que mudam de casamento para
-   * casamento — e são exactamente aqueles cujo erro só se descobre com o PDF
-   * já enviado. Ficam marcados até ela lhes tocar.
-   */
-  const [porConfirmar, setPorConfirmar] = useState<Set<CampoAMudar>>(() => new Set());
-  /** Caixa do nome, aberta pelo "Guardar como modelo" do cabeçalho. */
-  const [nomeModelo, setNomeModelo] = useState<string | null>(null);
-  /** Quando foi gravado — para o indicador discreto "Guardado às 14:32". */
-  const [gravadoEm, setGravadoEm] = useState<Date | null>(null);
-  /** Há alterações à espera do debounce? É o que o aviso de saída lê. */
-  const [porGravar, setPorGravar] = useState(false);
-  /**
-   * Onde está o trabalho dela: a caminho, no servidor, só neste computador, ou
-   * num servidor que o próximo deploy apaga — uma máquina de estados
-   * (`estado-da-gravacao.ts`), com os avisos grandes que falam uma vez.
-   */
+  const camposPorConfirmar = useCamposPorConfirmar();
+  const { confirmado, realce, setPorConfirmar } = camposPorConfirmar;
+  const reversiveis = useAccoesReversiveis();
   const {
-    gravacao,
-    soNesteComputador,
-    naoDuraAoDeploy,
-    aGravarNoServidor,
-    registarSoLocal,
-    marcarGuardadoNoServidor,
-    registarNaoDura,
-    marcarQueDura,
-    partiu: partiuUmaGravacao,
-    voltou: voltouUmaGravacao,
-    avisoDoSoLocalPorDar,
-  } = useEstadoDaGravacao(toast);
-  /**
-   * O preço da proposta que não chegou ao pedido — ver `mandarPrecoAoPedido`.
-   * `null` é o normal: ou nunca falhou, ou a última tentativa passou.
-   */
-  const [precoPorChegar, setPrecoPorChegar] = useState<{
-    base: number | null;
-    porque?: string;
-    valeTentarDeNovo: boolean;
-  } | null>(null);
-  const [precoAGravar, setPrecoAGravar] = useState(false);
-  /**
-   * O rascunho que o "Limpar" deitou fora, à espera de ser resgatado.
-   *
-   * Dez segundos e um botão, em vez de uma caixa de confirmação. A caixa
-   * pergunta ANTES, quando ela ainda não viu o que ia perder, e a resposta
-   * certa é quase sempre "sim" — por isso carrega-se sem ler. A anulação
-   * pergunta DEPOIS, quando o ecrã já mostra o estrago.
-   */
-  const [limpo, setLimpo] = useState<{
-    doc: StudioDoc;
-    total: string;
-    segundos: number;
-    /** O que aconteceu, para o aviso poder dizê-lo. O "Limpar" não é o único
-     *  gesto que deita fora o que estava no ecrã: repor uma versão antiga
-     *  também, e um aviso a dizer "rascunho limpo" depois de um restauro
-     *  mandava procurar um problema que não houve. */
-    motivo: string;
-    /**
-     * Os mapas das fotografias, quando o gesto também os esvaziou (o
-     * «Limpar»). Sem eles, «Anular» devolvia o documento com as fotos a
-     * cinzento («não veio») e sem a origem das da biblioteca (auditoria de
-     * 13/11, estúdio n.º 11).
-     */
-    fotos?: {
-      urls: Record<string, string>;
-      originais: Record<string, string>;
-      medias: Record<string, string>;
-      cores: Record<string, string>;
-      origens: Record<string, string>;
-    };
-  } | null>(null);
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * UMA ACÇÃO QUE MEXE NO DINHEIRO PERGUNTA COM OS DOIS NÚMEROS À VISTA
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * Palavras dela sobre o «Usar X €»: «é um botão perigoso». E era: um clique
-   * substituía o preço final da proposta — o número de que saem a fatura, o
-   * sinal e o saldo — sem dizer o que ia sair dali para fora. O rótulo mostrava
-   * o valor NOVO; o valor que se perdia não estava escrito em lado nenhum.
-   *
-   * A pergunta traz os DOIS: «Substituir 2.460,00 € por 2.535,00 €?». É a única
-   * forma de a resposta ser uma decisão em vez de um reflexo — e é diferente de
-   * um «tem a certeza?», que se responde sem ler porque não acrescenta
-   * informação nenhuma.
-   *
-   * Depois de aplicada, a anulação de dez segundos (a mesma do «Limpar») fica
-   * disponível: a confirmação protege de carregar por engano, a anulação
-   * protege de confirmar por engano.
-   */
-  const [confirmacaoDeDinheiro, setConfirmacaoDeDinheiro] = useState<{
-    /** O que aparece na pergunta, já composto. */
-    pergunta: string;
-    /** O que fica no histórico do pedido quando for aplicada. */
-    registo: string;
-    /** O que a anulação dirá que foi desfeito. */
-    motivo: string;
-    /**
-     * O documento no instante em que a pergunta foi feita.
-     *
-     * A pergunta guarda o gesto que a vai aplicar, e esse gesto foi composto
-     * com os números desse instante. Se entretanto se escrever no formulário,
-     * «substituir 2.460,00 € por 2.535,00 €» passa a falar de um documento que
-     * já não existe — e aplicá-la escrevia por cima do que se acabou de
-     * escrever. Por isso a pergunta só se DESENHA enquanto o documento for este
-     * (ver a marcação); caducada, desaparece, e volta a perguntar-se se for
-     * preciso. Comparado por identidade porque o documento é imutável: cada
-     * alteração devolve um objecto novo.
-     */
-    docNoMomento: StudioDoc;
-    aplicar: () => void;
-  } | null>(null);
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * O QUE SE APAGA E NÃO VOLTA: OU UMA PERGUNTA QUE CONTA, OU UM «ANULAR»
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * A regra desta casa, escrita de uma vez para não ser decidida gesto a gesto:
-   *
-   *  · PERGUNTA-SE o que é RARO E CARO. Uma página de inspiração leva consigo
-   *    as fotografias todas que se escolheram para ela, uma a uma, e uma folha
-   *    do PDF; uma fase do cronograma leva as tarefas todas que lhe estão
-   *    dentro. Fazem-se poucas vezes por proposta e refazê-las é meia hora. A
-   *    pergunta NOMEIA a coisa, CONTA o que vai com ela e diz a consequência —
-   *    nunca «Tens a certeza?», que não acrescenta informação nenhuma e por
-   *    isso se responde sem ler.
-   *
-   *  · OFERECE-SE ANULAR o que é FREQUENTE E BARATO de refazer. Uma linha de
-   *    orçamento, uma tarefa do cronograma, uma fotografia de uma grelha: são
-   *    os gestos de que uma tarde de trabalho é feita, e uma caixa a perguntar
-   *    em cada um é um editor que ninguém usa. Faz-se, e fica o «Anular» dos
-   *    dez segundos (ver `limpo`) a dizer o que saiu.
-   *
-   * Uma coisa OU a outra, nunca as duas — a excepção está escrita em
-   * `confirmacaoDeDinheiro` e vale só para o dinheiro, onde a pergunta protege
-   * de carregar por engano e a anulação de confirmar por engano.
-   *
-   * E nada disto atrasa o que não é destrutivo: uma página em branco, uma fase
-   * sem título nem tarefas, uma linha por escrever — saem sem pergunta nenhuma
-   * e sem barra nenhuma. Perguntar por nada ensina a responder sem ler.
-   *
-   * ── PORQUE É QUE A PERGUNTA SE DESENHA ONDE O DEDO CARREGOU ───────────────
-   * Ao contrário da do dinheiro, que vive no topo do estúdio de propósito: as
-   * acções do dinheiro estão espalhadas por três secções e uma pergunta que
-   * aparecesse cada vez noutro sítio responder-se-ia sem se procurar o que ela
-   * diz. Estas são o contrário — com oito páginas escritas, o topo do estúdio
-   * está a metros do «×» que se carregou, e uma pergunta fora do ecrã é um
-   * botão que não fez nada. Portanto fica dentro do cartão, encostada ao gesto.
-   *
-   * `chave` é o que decide ONDE se desenha (`board:2`, `fase:0`), e o
-   * `docNoMomento` é a mesma cautela da pergunta do dinheiro: a frase foi
-   * composta com os números daquele instante, e se o documento mudar por baixo
-   * dela deixa de falar do que está no ecrã. Caducada, desaparece.
-   */
-  const [aRemover, setARemover] = useState<{
-    chave: string;
-    pergunta: string;
-    docNoMomento: StudioDoc;
-    aplicar: () => void;
-  } | null>(null);
-  /**
-   * Histórico para o Cmd+Z. Guardado num `ref` e não em estado: crescer o
-   * histórico não pode redesenhar a página, ou escrever numa caixa de texto
-   * passava a redesenhar o formulário inteiro a cada tecla.
-   */
-  const historico = useRef<StudioDoc[]>([]);
-  /** O documento «assente»: o da abertura, ou o da última fotografia. */
-  const docAssente = useRef<StudioDoc | null>(null);
-  /**
-   * Os marcadores provisórios que JÁ se resolveram (o caminho em que a foto
-   * assentou, ou `null` se falhou). Um documento reposto pelo ⌘Z ou pelo
-   * «Anular» pode trazer marcadores de uma fotografia tirada a meio de um
-   * carregamento — e um marcador que já não está em voo nunca mais assenta:
-   * as células ficavam a carregar para sempre e o envio preso (revisão de
-   * 13/11). Repor passa por aqui.
-   */
-  const marcadoresResolvidos = useRef<Map<string, string | null>>(new Map());
-  const semMarcadoresMortos = (d: StudioDoc): StudioDoc =>
-    marcadoresResolvidos.current.size === 0
-      ? d
-      : mapImagePaths(d, (p) =>
-          marcadoresResolvidos.current.has(p) ? (marcadoresResolvidos.current.get(p) ?? null) : p,
-        );
-  /**
-   * Há alguma coisa para desfazer? Isto É estado, ao contrário do histórico:
-   * é o que acende e apaga o botão "Desfazer".
-   *
-   * O botão existe porque o `Cmd+Z` não existe num telemóvel. Enquanto desfazer
-   * foi só um atalho de teclado, desfazer era uma coisa que só se podia fazer
-   * ao computador — e ela escreve propostas no telemóvel. Custa um redesenho a
-   * cada 800 ms (o mesmo instante em que o rascunho é gravado), não a cada
-   * tecla, que é a razão de o histórico continuar num `ref`.
-   */
-  const [podeDesfazer, setPodeDesfazer] = useState(false);
-  /**
-   * O que ela já escreveu antes, para não voltar a escrever.
-   *
-   * Sai das propostas anteriores em vez de um catálogo à parte: um catálogo
-   * precisava de ser mantido, e um catálogo que ninguém mantém fica pior do
-   * que não existir. O que ela usou é, por definição, o que ela usa.
-   */
-  const [sugestoes, setSugestoes] = useState<{ locais: string[] }>({ locais: [] });
-  // Free-typed mirror of the structured total, so pt-PT formatting ("3.000,00")
-  // survives keystrokes. Parsed into `doc.totalAmount` (the money source of truth).
-  const [totalInput, setTotalInput] = useState<string>("");
-  /** Porque é que o que está escrito no «Valor (sem IVA)» não conta — ver
-   *  `onTotalInput`. */
-  const [erroDoTotal, setErroDoTotal] = useState<string | null>(null);
-  /** O que está escrito na caixa do sinal enquanto não é uma percentagem
-   *  válida (achado n.º 17) — `null` mostra a do documento. */
-  const [sinalEscrito, setSinalEscrito] = useState<string | null>(null);
-  /** A percentagem do sinal quando ela entrou na caixa — é para lá que se volta
-   *  se o que escrever deixar de ser válido. */
-  const sinalAntes = useRef(SINAL_POR_OMISSAO);
-  // path → signed url, so freshly-uploaded images render as thumbnails.
-  const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * A HIDRATAÇÃO OU CORREU, OU AINDA VAI A CAMINHO, OU FALHOU — E ISSO VÊ-SE
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * Palavras dela: «estava a ver, pelo back office, se conseguia ver as imagens
-   * quando estava a fazer a proposta e não consigo» — e, nas capturas, células
-   * cinzentas com a palavra «Imagem».
-   *
-   * Essa caixa é o ramo do `Thumb` em que NÃO HÁ URL. Num telemóvel que nunca
-   * abriu esta proposta não há `localStorage` nenhum, portanto o mapa começa
-   * vazio e as células dependem inteiramente desta única leitura. E ela era
-   * silenciosa nos dois sentidos: enquanto ia a caminho a célula dizia
-   * «Imagem», e se falhasse (`!res.ok`, sessão caducada, rede a cair) a função
-   * fazia `return` e a célula dizia «Imagem» PARA SEMPRE. As duas coisas com o
-   * mesmo aspecto, e nenhuma delas com uma explicação ou uma saída.
-   *
-   * Com isto, a célula sabe distinguir «vem a caminho» de «não veio», e há um
-   * botão para tentar outra vez em vez de recarregar a página.
-   */
-  const [estadoDosUrls, setEstadoDosUrls] = useState<EstadoDosUrls>("a-caminho");
-  /**
-   * O ORIGINAL de cada foto — o plano B da célula.
-   *
-   * O `assetUrls` guarda o que é MELHOR desenhar (a miniatura, quando existe).
-   * Uma miniatura pode não existir: as fotos anteriores às miniaturas não têm
-   * nenhuma, e assinar um caminho no Storage não verifica que o ficheiro lá
-   * está — devolve um URL bem formado para um objecto que dá 404. Quem
-   * descobre isso é o navegador, e até aqui o que acontecia a seguir era a
-   * célula desistir e dizer "não foi possível pré-visualizar".
-   *
-   * Este mapa é para onde ela cai. É a mesma rede que a grelha dos temas e o
-   * seletor já tinham, e que só ao estúdio faltava.
-   */
-  const [assetOriginais, setAssetOriginais] = useState<Record<string, string>>({});
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * O DEGRAU DO MEIO: A DERIVADA DE 1200 px
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * A cascata de cada célula tinha DOIS degraus e nada entre eles — a miniatura
-   * e, a falhar essa, o ORIGINAL. Os pesos, medidos no estúdio a 1,6 Mbps com
-   * 24 células:
-   *
-   *     miniatura (400 px)     20 KB por célula   →   0,4 MB nas 24
-   *     derivada  (1200 px)  ~200 KB por célula   →   4,8 MB nas 24
-   *     original  (2200 px)   1099 KB por célula  →  26,4 MB nas 24
-   *
-   * E as células destas grelhas medem, medido no navegador: **~101 px aos 375,
-   * ~126 px entre 640 e 1023, ~92 px aos 1024** (as fotografias dos mood
-   * boards) — nenhuma delas com o que fazer a 2200 px de largura.
-   *
-   * Uma miniatura falha por coisas banais: a assinatura de seis horas de uma
-   * foto da Biblioteca que caducou, um pedido que expirou, um `sharp` que não
-   * correu. O que não era banal era a queda — de 20 KB para 1099 KB, na rede em
-   * que ela está a trabalhar. Daqui em diante cai-se para 150.
-   *
-   * Ausente quer dizer «essa derivada ainda não foi fabricada»: a célula cai
-   * directa ao original, como sempre caiu. Ver `mediasAssinadas` no `/assets`.
-   */
-  const [assetMedias, setAssetMedias] = useState<Record<string, string>>({});
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * OS URL QUE ESTA SESSÃO JÁ VIU MORRER
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * O `urlAindaBom` prefere o URL guardado ao fresco «enquanto servir», e quem
-   * decide se serve é o prazo escrito no token. Isso está certo para o caso que
-   * ele veio resolver (não deitar fora assinaturas boas e pagar trinta
-   * downloads ao reabrir um rascunho) e está errado para este: um URL pode ter
-   * o prazo em dia e mesmo assim dar 403 ou 404 — pasta mudada, objecto que
-   * nunca chegou a subir, chave do bucket rodada.
-   *
-   * Sem esta memória o «Tentar novamente» de uma célula morta era um beco
-   * fechado a três voltas: ia buscar a lista outra vez, recebia URLs frescos,
-   * e o mapa PREFERIA o mesmo URL morto que já tinha — a `string` não mudava,
-   * portanto o `useFotoComPlanoB` não via URL novo, portanto não recomeçava
-   * nada. O botão pedia ao servidor e não podia usar o que ele respondia.
-   *
-   * Uma `ref` e não estado: só é lida DENTRO da hidratação, e um redesenho por
-   * cada foto que morre numa grelha de vinte e quatro era um redesenho por
-   * nada.
-   */
-  const urlsMortos = useRef<Set<string>>(new Set());
-  /** Esta célula provou que este URL não abre. Ver `urlsMortos`. */
-  const marcarUrlMorto = useCallback((url: string) => {
-    urlsMortos.current.add(url);
-  }, []);
-  /**
-   * A cor dominante de cada fotografia, `caminho → "#rrggbb"`.
-   *
-   * Vem do servidor (que a leu da linha da foto), e não de um `canvas` daqui:
-   * estas fotos chegam por URLs assinados de OUTRO domínio, e ler-lhes os
-   * píxeis lançaria — ver o cabeçalho de `cor-dominante.ts`. É com isto que se
-   * avisa que uma foto destoa da paleta do board e se arruma um board por cor.
-   *
-   * As fotos anteriores a isto existir não estão no mapa, e não entram em
-   * nenhuma das duas coisas: nunca se inventa uma cor para poder arrumar.
-   */
-  const [assetCores, setAssetCores] = useState<Record<string, string>>({});
-  // Foto NESTA proposta → foto da BIBLIOTECA de onde foi copiada.
-  //
-  // A importação copia os bytes para um uuid novo, por isso o caminho de
-  // destino não guarda memória nenhuma da origem — e sem essa memória o
-  // seletor não consegue dizer "esta já está nesta proposta", que é
-  // exatamente o que evita o mesmo ramo de eucalipto duas vezes no mesmo mood
-  // board. Vive no lado ("meta") do rascunho e não no documento: é auxiliar,
-  // não vai para o PDF, e um rascunho antigo — que não o tem — abre na mesma,
-  // apenas sem as marcas.
-  const [themeOrigins, setThemeOrigins] = useState<Record<string, string>>({});
-  /**
-   * ── A FORMA DE CADA FOTO, MEDIDA NA CÉLULA QUE JÁ A MOSTRA ────────────────
-   *
-   * Os diagramas do selector de disposição precisam do aspecto (largura ÷
-   * altura) de cada fotografia: é isso que faz uma vertical sair vertical e é
-   * disso que `caixasDoMoodboard` vive. A informação já está no browser — a
-   * miniatura da grelha do estúdio está descodificada e sabe o seu
-   * `naturalWidth`/`naturalHeight` —, por isso mede-se ALI, no `onLoad` da
-   * célula (ver `Thumb`), e não se pede nada de novo ao servidor. Um pedido por
-   * foto só para saber a forma seria pagar outra vez o que já foi pago, e na
-   * ligação por onde ela está a trabalhar.
-   *
-   * Chave: o caminho no documento — a mesma foto usada em dois mood boards é
-   * medida uma vez só. Não vai para o rascunho: é uma medida do ficheiro, não
-   * uma decisão dela, e volta sozinha quando a célula carregar outra vez.
-   *
-   * O que fica de fora fica com {@link ASPETO_POR_OMISSAO}: as células são
-   * `loading="lazy"` e uma que nunca chegou ao ecrã não tem medidas.
-   */
-  const [aspetosDasFotos, setAspetosDasFotos] = useState<Record<string, number>>({});
-  /** Regista a medida de uma foto. Estável (o `Thumb` guarda-a numa `ref`) e
-   *  silencioso quando o valor não mudou, para medir não redesenhar a secção. */
-  const registarAspeto = useCallback((ref: string, aspeto: number) => {
-    setAspetosDasFotos((m) => (m[ref] === aspeto ? m : { ...m, [ref]: aspeto }));
-  }, []);
-  /** O lugar da fotografia da capa: a primeira que houver (ver a secção). */
-  const idxDaCapa = Math.max(0, (doc.coverImages ?? []).findIndex(Boolean));
-  const caminhoDaCapa = doc.coverImages?.[idxDaCapa] || undefined;
-  /** Os pixéis do original da capa — para o aviso «é pequena». */
-  const tamanhoDaCapa = useTamanhoDoOriginal(
-    caminhoDaCapa ? assetOriginais[caminhoDaCapa] : undefined,
-  );
-  /**
-   * O recorte que o PDF faria SOZINHO da fotografia da capa — perguntado ao
-   * servidor, que faz a mesma conta que o desenho (`focoAutomaticoDaCapa`).
-   *
-   * Palavras dela: «não ficou com o carro». A caixa mostrava o meio da
-   * fotografia e o PDF recortava pela «atenção» do sharp. Com isto mostra o
-   * mesmo — e é daqui que ela arrasta, se não gostar.
-   */
-  const [focoAutoDaCapa, setFocoAutoDaCapa] = useState<{
-    caminho: string;
-    foco: { x: number; y: number };
-  } | null>(null);
-  useEffect(() => {
-    if (!caminhoDaCapa || isPendingImage(caminhoDaCapa)) return;
-    let vivo = true;
-    fetch(
-      `/api/orcamento/${encodeURIComponent(quote.id)}/foco-da-capa?caminho=${encodeURIComponent(caminhoDaCapa)}`,
-    )
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: { foco?: { x: number; y: number } } | null) => {
-        if (vivo && j?.foco) setFocoAutoDaCapa({ caminho: caminhoDaCapa, foco: j.foco });
-      })
-      .catch(() => {});
-    return () => {
-      vivo = false;
-    };
-  }, [caminhoDaCapa, quote.id]);
+    aRemover,
+    confirmacaoDeDinheiro,
+    limpo,
+    setARemover,
+    setConfirmacaoDeDinheiro,
+    setLimpo,
+  } = reversiveis;
+  const fotos = useMapasDasFotos();
+  const {
+    aspetosDasFotos,
+    assetCores,
+    assetMedias,
+    assetOriginais,
+    assetUrls,
+    estadoDosUrls,
+    marcarUrlMorto,
+    registarAspeto,
+    setAssetCores,
+    setAssetMedias,
+    setAssetOriginais,
+    setAssetUrls,
+    setEstadoDosUrls,
+    setThemeOrigins,
+    themeOrigins,
+    urlsMortos,
+  } = fotos;
+  const capa = useCapa({ documento, fotos, quote });
+  const { caminhoDaCapa, focoAutoDaCapa, idxDaCapa, removeCoverAt, setCoverAt, tamanhoDaCapa } =
+    capa;
   const [refEdited, setRefEdited] = useState(false);
   /**
    * ── O CARREGAMENTO DE FOTOS, CONTADO ────────────────────────────────────
@@ -854,336 +383,65 @@ export default function ProposalStudio({
    */
   const [fotosACopiar, setFotosACopiar] = useState(0);
   const [busy, setBusy] = useState<null | "preview" | "send">(null);
-  /**
-   * ── A LÍNGUA ESCOLHE-SE AO GERAR ──────────────────────────────────────────
-   *
-   * Não entra no `doc` e não é gravada no rascunho, de propósito: o documento
-   * guardado é UM só, em português, e a língua é uma decisão que se toma sobre
-   * ESTE clique — como escolher a impressora. Guardá-la era passar a ter uma
-   * proposta com uma língua colada, que ninguém voltaria a rever.
-   */
-  // Parte da língua em que o casal FEZ o pedido (auditoria 13/11, estúdio n.º 9):
-  // noutro aparelho, sem o rascunho local, partia sempre do português — e uma
-  // proposta para um casal que pediu em inglês seguia em português.
-  const [idiomaDoPdf, setIdiomaDoPdf] = useState<IdiomaDaProposta>(() =>
-    ehIdiomaDaProposta(quote.locale) ? quote.locale : IDIOMA_POR_OMISSAO,
-  );
-  /**
-   * ── A PROPOSTA É BILINGUE: CADA CAMPO DE PROSA COM DUAS CAIXAS ────────────
-   *
-   * Estado do ECRÃ, não do documento — como as dobras dos mood boards, o
-   * `refEdited` e os mapas de URLs, e pela mesma razão: não diz nada sobre a
-   * proposta. Posto no `doc`, ia para a coluna `proposals.doc`, para a cópia de
-   * segurança, para a cópia entre pedidos e para a comparação de versões.
-   *
-   * Desligado por omissão, e desligado o ecrã é o de hoje ao pixel: o
-   * `ServicesEditor` é o ecrã mais escrito da casa, e dobrar-lhe a altura para
-   * toda a gente — incluindo as propostas que nunca vão a inglês — era pagar
-   * todos os dias por um caso ocasional.
-   *
-   * ── E ABRE LIGADO QUANDO O DOCUMENTO JÁ TRAZ INGLÊS ──────────────────────
-   * O `meta` fica neste computador. Abrir a proposta noutro portátil,
-   * restaurá-la do servidor ou copiá-la de outra deixa-o para trás — e sem essa
-   * regra os textos ingleses existiam no documento e o ecrã não os mostrava:
-   * invisíveis e editáveis por acidente, que é a pior combinação. A regra
-   * aplica-se no restauro (ver o efeito «CORRE UMA VEZ SÓ») e aqui, para a
-   * proposta que já abre com inglês vindo do pedido.
-   */
-  const [bilingue, setBilingue] = useState(() => docTemIngles(initialDoc(quote)));
-  /** A tradução automática está a correr. Trava o botão para não haver duas a
-   *  escrever no mesmo documento — a segunda escreveria por cima da primeira. */
-  const [aTraduzir, setATraduzir] = useState(false);
-  /**
-   * O servidor tem serviço de tradução configurado?
-   *
-   * Pergunta-se, não se adivinha: a chave vive do lado do servidor e o estúdio
-   * corre no navegador, onde ela nunca pode chegar. Começa em `"desligada"` — o
-   * lado seguro: um botão desligado que diz porquê é melhor do que um botão que
-   * promete uma tradução que não vai acontecer.
-   *
-   * ── E SÃO TRÊS ESTADOS E NÃO DOIS, PORQUE A FRASE MUDA ────────────────────
-   *
-   * `"indisponivel"` — a pergunta não chegou a ter resposta — desliga o botão
-   * exactamente como `"desligada"`, e isso está certo. O que não pode ser igual
-   * é o que se lê por baixo: «ainda não está ligada neste servidor» é uma
-   * afirmação sobre a CONFIGURAÇÃO, e dita sobre uma sessão caducada manda-a
-   * procurar uma chave em falta em vez de recarregar a página.
-   */
-  const [traducao, setTraducao] = useState<EstadoDaTraducao>("desligada");
-  const traducaoLigada = traducao === "ligada";
-  const [confirmSend, setConfirmSend] = useState(false);
-
-  /** Por onde a proposta segue, e a última escolha dela — ver `useCanalDeEnvio`. */
-  const { canal, escolherCanal } = useCanalDeEnvio();
-  /**
-   * ── O EMAIL QUE VAI SAIR ─────────────────────────────────────────────────
-   *
-   * O corpo, o assunto e o modelo de que eles partem vivem AQUI e não dentro do
-   * `EmailDoEnvio`, por uma razão só: é este componente que carrega no botão, e
-   * o que se envia tem de ser o que está na caixa nesse instante. O ecrã do
-   * email preenche-os a partir do servidor e deixa-os editar; o `send` lê-os.
-   *
-   * Não fazem parte do `doc`: são deste envio.
-   */
-  const [corpoDoEmail, setCorpoDoEmail] = useState("");
-  const [assuntoDoEmail, setAssuntoDoEmail] = useState("");
-  const [modeloDoEmail, setModeloDoEmail] = useState("");
-  /**
-   * Quantos bytes tinha o PDF da ÚLTIMA pré-visualização, para o ecrã do email
-   * poder confirmar o tamanho do anexo com um número medido em vez de estimado.
-   * `null` para quem foi direito ao passo 3 sem gerar nada — aí fica a
-   * estimativa, e diz-se que é uma estimativa.
-   */
-  const [bytesDoPdf, setBytesDoPdf] = useState<number | null>(null);
-  /**
-   * O FIM DA ESPERA DO PDF VÊ-SE (D2). `pdfSaiu` diz se a última descarga
-   * acabou bem, e o `useFimVisivel` mantém o `EmCurso` mais um instante com o
-   * visto e «PDF pronto» — antes, a espera desaparecia sem dizer como acabou.
-   */
-  const [pdfSaiu, setPdfSaiu] = useState(false);
-  const fimDoPdf = useFimVisivel(busy === "preview", pdfSaiu);
-  /** Os bytes do PDF ENVIADO a chegar (a rota do guardado diz o tamanho). */
-  const [avancoDaEnviada, setAvancoDaEnviada] = useState<Avanco | null>(null);
-  /**
-   * O link de aceitação da proposta MAIS RECENTE que saiu mesmo para o
-   * cliente, para o botão «Copiar resumo». `null` até se saber que existe —
-   * nunca um link a adivinhar. Vem de duas fontes: a leitura ao abrir o
-   * estúdio (`GET`, em baixo — cobre reabrir o estúdio de uma proposta já
-   * enviada numa sessão anterior) e a resposta do próprio envio (`send`, mais
-   * abaixo — actualiza-o já, sem esperar por um segundo pedido).
-   */
-  const [linkDaProposta, setLinkDaProposta] = useState<string | null>(null);
-  // Depois de um envio bem-sucedido, o formulário NÃO fica pronto a re-disparar:
-  // mostra um estado de confirmação e exige uma escolha consciente para reenviar.
-  const [sent, setSent] = useState(false);
-  /**
-   * ── VER O PDF FINAL ANTES DE ENVIAR (14/10) ────────────────────────────
-   *
-   * Pedido dela: «quero que haja algo que antes de enviar para os clientes
-   * obrigue os colaboradores da Líquen a verificar se está tudo bem». A
-   * escolha foi «Ver o PDF primeiro»: o envio só desbloqueia depois de
-   * descarregar o PDF FINAL desta versão e marcar «Vi a proposta e está tudo
-   * certo». `chave` é a que o servidor devolveu (`X-Chave-Do-Pdf`) e que o
-   * envio leva de volta; `retrato` é o documento tal como foi descarregado —
-   * mudar uma vírgula depois deixa de bater, e é preciso ver outra vez.
-   */
-  const [pdfVisto, setPdfVisto] = useState<PdfVisto | null>(() => lerPdfVisto(quote.id));
-  // Guardado nesta aba, por pedido (23/10) — ver `pdf-visto.ts`.
-  useEffect(() => {
-    guardarPdfVisto(quote.id, pdfVisto);
-  }, [quote.id, pdfVisto]);
-  /**
-   * O PDF aberto DENTRO do estúdio (`VerOPdfNoEcra`) — no telemóvel, em vez
-   * de o descarregar. Ver o comentário desse ficheiro.
-   */
-  const [pdfNoEcra, setPdfNoEcra] = useState<{
-    id: number;
-    blob: Blob;
-    nome: string;
-    rascunho: boolean;
-  } | null>(null);
-  /**
-   * O PDF FINAL da versão que está no ecrã, pedido antes de ela carregar no
-   * botão (ver o efeito «PREPARADO ANTES DE ELA CARREGAR»). `retrato` diz de
-   * que versão é; uma versão diferente não o usa.
-   */
-  const pdfPreparado = useRef<{ retrato: string; promessa: Promise<PdfPronto> } | null>(null);
-  /**
-   * O que seguiu no último envio: a proposta gravada (para ir buscar o PDF
-   * guardado) e, se ainda estiver à mão, o próprio ficheiro.
-   */
-  const enviada = useRef<{ id: string | null; pdf: Promise<PdfPronto> | null } | null>(null);
-  // Fluxo guiado: Conteúdo → Pré-visualizar → Enviar.
-  const [step, setStep] = useState<Step>("evento");
-  /**
-   * ── MUDAR DE PASSO SOBE AO TOPO DO PASSO NOVO ─────────────────────────────
-   * O `setStep` sozinho trocava o conteúdo sem mexer no rolo: vinda do fundo
-   * do passo 1, ela aterrava a meio do passo 2, com o título dele 175–230 px
-   * acima do ecrã (auditoria do telemóvel, 14/11). A barra dos passos e o
-   * «Anterior / Seguinte» passam por aqui; os saltos para uma falta ou um campo
-   * (`irParaAFalta`, `irParaCampo`) NÃO, porque esses levam a vista ao campo.
-   *
-   * O rolo é feito no efeito logo a seguir, depois de o passo novo estar
-   * desenhado — antes disso o contentor ainda tem a altura do anterior.
-   */
-  // Um contador e não uma bandeira: tocar no passo onde já se está não muda o
-  // `step`, e uma bandeira ficava levantada até ao próximo salto para uma falta.
-  const [subidaAoPasso, setSubidaAoPasso] = useState(0);
-  const formularioDosPassos = useRef<HTMLDivElement>(null);
-  const passoDoEnvio = useRef<HTMLDivElement>(null);
-  const irParaPasso = useCallback((p: Step) => {
-    setStep(p);
-    setSubidaAoPasso((n) => n + 1);
-  }, []);
-  useEffect(() => {
-    if (!subidaAoPasso) return;
-    const alvo = step === "enviar" ? passoDoEnvio.current : formularioDosPassos.current;
-    if (!alvo) return;
-    // Só sobe se o início do passo ficou ACIMA do que se vê por baixo das
-    // barras coladas (o `scroll-mt` dele é essa altura). Quem já está no topo
-    // não é sacudido.
-    const margem = parseFloat(getComputedStyle(alvo).scrollMarginTop) || 0;
-    if (alvo.getBoundingClientRect().top < margem - 1) rolarAteVer(alvo, { block: "start" });
-    // O `step` é lido no momento do pedido; quem manda correr é o contador.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subidaAoPasso]);
-  // Qual o destino das fotos escolhidas na biblioteca de temas (null = fechado).
-  /** Para onde vai a fotografia que se escolher na biblioteca de temas. */
-  const [picker, setPicker] = useState<DestinoDaFoto | null>(null);
-
-  /* ── A BIBLIOTECA DE TEMAS TAMBÉM SE FECHA ────────────────────────────────
-     Era a última folha da casa sem saída, e a única que precisava de uma
-     alteração DESTE lado: as outras desapareciam por um `return null` próprio,
-     esta desaparece porque o `picker` fica nulo aqui.
-
-     O `ultimoPicker` existe porque a folha continua a desenhar-se durante os
-     200 ms da saída e precisa de saber o que estava a mostrar — sem ele, lia
-     `picker.kind` de um nulo. Guarda-se no desenho e não num efeito: num efeito
-     o React já teria desenhado o nulo.
-
-     E é o MESMO nó a sair, nunca um recriado: esta folha rouba o foco ao
-     montar, e um nó novo a meio da saída roubava-o outra vez para uma caixa que
-     já se está a apagar. */
-  const aSairDoPicker = useSaidaDeUmSo(picker !== null);
-  const [ultimoPicker, setUltimoPicker] = useState(picker);
-  if (picker !== null && picker !== ultimoPicker) setUltimoPicker(picker);
-  const pickerNoEcra = picker ?? (aSairDoPicker ? ultimoPicker : null);
-  /** O que está a ser arrastado agora (identificador do dnd-kit), ou nada. */
-  /** As fotos de biblioteca já usadas noutras propostas, com onde e quando. */
-  const [repetidas, setRepetidas] = useState<FotoRepetida[]>([]);
-  const [aArrastar, setAArrastar] = useState<string | null>(null);
-  /** A fotografia aberta em grande: o board e a posição. */
-  const [lupa, setLupa] = useState<{ bi: number; ii: number } | null>(null);
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * O TEMPO QUE ESTA PROPOSTA CUSTOU MESMO
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * Palavras dela: «não relógio de parede: tempo com a página em foco».
-   *
-   * A contagem vive numa `ref` e não em estado: um acontecimento por tecla
-   * escrita a redesenhar o estúdio inteiro seria pagar em fluidez o preço de
-   * medir a fluidez. O ecrã lê-a de meio em meio minuto, que é o passo a que o
-   * número muda.
-   *
-   * A regra do que conta está em `tempo-activo.ts`, com relógio injectado e
-   * testes — incluindo o caso que estraga qualquer medição destas: o ecrã que
-   * ficou aberto enquanto ela foi ao telefone.
-   */
-  const tempo = useRef<Contagem>(CONTAGEM_VAZIA);
-  const [tempoMostrado, setTempoMostrado] = useState(0);
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * O TEMPO SOBE PARA O SERVIDOR — E SOBE EM PEDAÇOS, NÃO EM TOTAIS
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * A pergunta que motiva tudo isto é «que boards custam mais tempo?», e essa
-   * pergunta atravessa PROPOSTAS e APARELHOS. Guardado no `localStorage`, o
-   * total seria o deste computador — e uma proposta começada no portátil e
-   * acabada no tablet contaria metade em cada sítio.
-   *
-   * Envia-se o INCREMENTO desde o último envio, e o servidor soma. Se se
-   * enviasse o total, dois separadores abertos na mesma proposta escreviam um
-   * por cima do outro e ficava só o do último a falar.
-   *
-   * O que já foi enviado vive numa `ref`: é o ponto de referência do próximo
-   * incremento, e não tem nada que redesenhar o ecrã quando muda.
-   */
-  const tempoEnviado = useRef(0);
-  /**
-   * A secção onde ela está agora, vinda da coluna lateral (que já a calcula).
-   *
-   * Numa `ref` e não em estado: muda a cada scroll, e o número que ela alimenta
-   * só é lido de meio em meio minuto. Em estado, rolar a página redesenhava o
-   * estúdio inteiro para não mudar nada no ecrã.
-   */
-  const seccaoActivaRef = useRef<string | null>(null);
-  const anotarSeccao = useCallback((id: string | null) => {
-    seccaoActivaRef.current = id;
-  }, []);
-  const reportarTempo = useCallback(
-    (total: number, aFechar = false) => {
-      const delta = Math.round(total - tempoEnviado.current);
-      // Menos de um segundo não vale um pedido. A `ref` não avança, portanto
-      // este bocadinho não se perde: vai no envio seguinte.
-      if (delta < 1000) return;
-      tempoEnviado.current = total;
-      const seccao = seccaoActivaRef.current;
-      const corpo = JSON.stringify({ ms: delta, ...(seccao ? { seccao } : {}) });
-      const url = `/api/orcamento/${quote.id}/tempo-activo`;
-      if (aFechar && typeof navigator !== "undefined" && navigator.sendBeacon) {
-        // O beacon sobrevive à página; um `fetch` não.
-        try {
-          navigator.sendBeacon(url, new Blob([corpo], { type: "application/json" }));
-          return;
-        } catch {
-          /* sem beacon — tenta pelo caminho normal, que ainda pode chegar */
-        }
-      }
-      void fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: corpo,
-        keepalive: aFechar,
-      }).catch(() => {
-        // Sem rede o pedaço perde-se, e isso é aceitável: é uma MEDIÇÃO, não
-        // trabalho. Interromper quem está a montar uma proposta para lhe falar
-        // de um número que ela não pediu seria trocar o essencial pelo
-        // acessório.
-      });
-    },
-    [quote.id],
-  );
-  useEffect(() => {
-    const sinal = (tipo: "vida" | "pausa") => () => {
-      tempo.current = comAcontecimento(tempo.current, { tipo, em: Date.now() });
-    };
-    const vivo = sinal("vida");
-    const parado = sinal("pausa");
-    const aoMudarDeFoco = () => (document.hidden ? parado() : vivo());
-    for (const ev of ["pointerdown", "keydown", "wheel", "scroll"] as const) {
-      window.addEventListener(ev, vivo, { passive: true });
-    }
-    window.addEventListener("focus", vivo);
-    window.addEventListener("blur", parado);
-    document.addEventListener("visibilitychange", aoMudarDeFoco);
-    vivo();
-    // Meio minuto: o número mostrado é em minutos, portanto qualquer passo mais
-    // curto seria trabalho para não mudar nada no ecrã. É também o passo a que
-    // o tempo sobe para o servidor — o mesmo relógio serve as duas coisas.
-    const relogio = setInterval(() => {
-      const total = totalAte(tempo.current, Date.now());
-      setTempoMostrado(total);
-      reportarTempo(total);
-    }, 30_000);
-    /**
-     * ── AO FECHAR, O QUE FALTAVA ─────────────────────────────────────────
-     *
-     * O passo é de meio minuto, portanto fechar o separador deixava sempre
-     * para trás até meio minuto — e, num dia de trabalho partido em muitas
-     * aberturas curtas, «até meio minuto de cada vez» deixa de ser arredondar
-     * e passa a ser um viés sempre para baixo.
-     *
-     * `sendBeacon` e não `fetch`: um `fetch` disparado no `pagehide` é
-     * cancelado com a página. O beacon é entregue pelo browser depois de o
-     * separador morrer, que é precisamente o que aqui se quer.
-     */
-    const aoFechar = () => reportarTempo(totalAte(tempo.current, Date.now()), true);
-    window.addEventListener("pagehide", aoFechar);
-    return () => {
-      for (const ev of ["pointerdown", "keydown", "wheel", "scroll"] as const) {
-        window.removeEventListener(ev, vivo);
-      }
-      window.removeEventListener("focus", vivo);
-      window.removeEventListener("blur", parado);
-      document.removeEventListener("visibilitychange", aoMudarDeFoco);
-      window.removeEventListener("pagehide", aoFechar);
-      clearInterval(relogio);
-      // Trocar de cliente também fecha esta medição: sem isto, o tempo desde o
-      // último passo ficava por contar em todas as trocas.
-      aoFechar();
-    };
-  }, [reportarTempo]);
+  const traducoes = useTraducoes({ documento, quote, toast });
+  const {
+    aTraduzir,
+    bilingue,
+    caixaDeIngles,
+    idiomaDoPdf,
+    setBilingue,
+    setIdiomaDoPdf,
+    setTraducao,
+    traducao,
+    traducaoLigada,
+    traducoesPorSeccao,
+    traduzirTudo,
+  } = traducoes;
+  const envio = useEstadoDoEnvio({ busy, quote });
+  const {
+    assuntoDoEmail,
+    avancoDaEnviada,
+    bytesDoPdf,
+    canal,
+    confirmSend,
+    corpoDoEmail,
+    enviada,
+    escolherCanal,
+    fimDoPdf,
+    linkDaProposta,
+    modeloDoEmail,
+    pdfNoEcra,
+    pdfPreparado,
+    pdfVisto,
+    sent,
+    setAssuntoDoEmail,
+    setAvancoDaEnviada,
+    setBytesDoPdf,
+    setConfirmSend,
+    setCorpoDoEmail,
+    setLinkDaProposta,
+    setModeloDoEmail,
+    setPdfNoEcra,
+    setPdfSaiu,
+    setPdfVisto,
+    setSent,
+  } = envio;
+  const passos = usePassosDoEstudio();
+  const { formularioDosPassos, irParaPasso, passoDoEnvio, setStep, step } = passos;
+  const escolha = useEscolhaDeFotos();
+  const {
+    aArrastar,
+    lupa,
+    picker,
+    pickerNoEcra,
+    repetidas,
+    setAArrastar,
+    setLupa,
+    setPicker,
+    setRepetidas,
+  } = escolha;
+  const tempoNaProposta = useTempoNaProposta({ quote });
+  const { anotarSeccao, tempoMostrado } = tempoNaProposta;
 
   /**
    * O campo a que o aviso de ortografia mandou ir, à espera de ser desenhado.
@@ -1210,800 +468,89 @@ export default function ProposalStudio({
      *  está. */
     versao?: "pt" | "en";
   } | null>(null);
-  /** A vista com as páginas lado a lado está aberta? */
-  /** As fotos escolhidas para serem movidas em conjunto — chaves `bi:ii`. */
-  const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set());
-  /** A fotografia (o caminho) de cada escolha — ver o efeito «A ESCOLHA SEGUE
-   *  A FOTOGRAFIA», mais abaixo. */
-  const caminhoDaSeleccao = useRef<Map<string, string>>(new Map());
-  const hydrated = useRef(false);
-  /** `updatedAt` do rascunho do servidor tal como o lemos — é com isto que o
-   *  servidor deteta que alguém gravou por cima entretanto. */
-  const serverStamp = useRef<string | null>(null);
-  /** O documento tal como o servidor o tem, da última vez que se falou com
-   *  ele. É a base contra a qual se diz «mudei estes campos» — ver
-   *  `camposMudados`. */
-  const docDoServidor = useRef<Record<string, unknown> | null>(null);
-  /** Já avisámos desta gravação cruzada? (uma vez chega; não a cada gravação) */
-  const warnedOverwrite = useRef(false);
-  const avisouJuncao = useRef(false);
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * O TRABALHO QUE ESTA SESSÃO ESMAGOU, E DE ONDE SE VAI BUSCAR
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * O aviso da gravação cruzada é um `toast`, e um `toast` desaparece. Para
-   * dizer «ficou a tua versão» isso chega — é uma notícia, não uma tarefa.
-   *
-   * Isto é outra coisa: é trabalho de outra pessoa à espera de uma decisão.
-   * Uma notícia que se apaga sozinha ao fim de uns segundos não serve para
-   * uma decisão que a pessoa pode querer tomar dez minutos depois, quando
-   * perceber o que aconteceu. Por isso o `toast` continua a dar a notícia, e
-   * isto fica no ecrã até alguém resolver — repondo ou dispensando.
-   *
-   * Fica só em memória, de propósito: não é um estado do documento, é uma
-   * coisa desta sessão. Se ela fechar o separador sem decidir, o trabalho
-   * continua guardado no servidor e o próximo aviso de sobreposição volta a
-   * apontar para lá. O que se perde é o lembrete, não o trabalho.
-   */
-  const [sobreposto, setSobreposto] = useState<{
-    /** A gaveta, tal como o servidor a nomeou. */
-    chave: string;
-    /** Quem tinha escrito aquilo, quando se sabe. */
-    quem?: string;
-    /** Quando é que tinha sido gravado. */
-    quando?: string;
-  } | null>(null);
-  /** A repor: a leitura da gaveta demora, e o botão tem de o dizer. */
-  const [aRepor, setARepor] = useState(false);
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * O QUE SEGUIU PARA O CLIENTE, E O QUE ESTE APARELHO TEM
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * Palavras dela, com três pontos de exclamação: «eu quero igual o valor!!!
-   * até eu alterar por mim!». O PDF que o casal tem em mãos dizia 13.257,85 € a
-   * pagar; a proposta reabria a dizer 15.090,55 €.
-   *
-   * As contas que faziam o número mexer sozinho estão corrigidas (ver os três
-   * blocos «AQUI ESTAVA O VALOR A CRESCER SOZINHO» e o merge do rascunho do
-   * servidor). Isto é a REDE por baixo delas: o estúdio nunca olhava para o
-   * documento que SEGUIU. O que reabria era o rascunho deste aparelho com o
-   * «Preço final» do pedido por cima — dois números que ninguém obriga a
-   * continuar iguais ao terceiro, o que o casal recebeu.
-   *
-   * Agora, ao abrir, compara-se com a última proposta ENVIADA. Havendo
-   * diferença, ela aparece ESCRITA, com os dois números lado a lado, antes de
-   * qualquer decisão.
-   *
-   * ── PORQUE É QUE NÃO SE REPÕE SOZINHO ────────────────────────────────────
-   *
-   * Porque duas coisas legítimas produzem exactamente a mesma diferença, e o
-   * código não as distingue:
-   *
-   *   · o valor mexeu sozinho — e repor o enviado é o que ela quer;
-   *   · ela CORRIGIU o preço de propósito depois do envio, na Gestão do pedido
-   *     ou aqui, para a proposta seguinte — e repor o enviado apagava-lhe a
-   *     correcção sem uma palavra.
-   *
-   * Escolher por ela seria acertar em metade dos casos e destruir trabalho na
-   * outra metade, em silêncio nos dois. O que a rede garante é que nenhum dos
-   * dois números ganha sem ela saber: estão os dois no ecrã, com as datas, e o
-   * botão de repor é dela.
-   */
-  const [divergenciaDoEnviado, setDivergenciaDoEnviado] = useState<{
-    /** Quando é que a proposta seguiu para o cliente. */
-    enviadaEm: string;
-    /** O total a pagar (com IVA) que ia no PDF que ele recebeu. */
-    aPagarEnviado: number;
-    /** O total a pagar que este ecrã mostra agora. */
-    aPagarAqui: number;
-    /** O identificador da versão, para ir buscar o documento ao repor. */
-    versaoId: string;
-    /**
-     * ── A ÚNICA PERGUNTA QUE INTERESSA: FOI ELA? ──────────────────────────
-     *
-     * Palavras dela: «ISTO E SIMPLES, O VALOR NAO ALTERA CASO EU NAO MUDO».
-     *
-     * `false` — não há registo de ninguém ter mexido no preço depois do envio,
-     * portanto o número mexeu-se SOZINHO. Não há nada a perguntar: repõe-se o
-     * que seguiu para o cliente, com aviso e com dez segundos para anular.
-     *
-     * `true` — há um `price_set` no histórico do pedido posterior ao envio.
-     * Ela corrigiu o preço de propósito depois de a proposta ter saído, e esse
-     * é trabalho dela: repor por cima apagava-o em silêncio. Só nesse caso é
-     * que os dois números vão ao ecrã com a escolha.
-     */
-    elaMudou: boolean;
-  } | null>(null);
-  /** A ir buscar o documento que seguiu, para o repor. */
-  const [aReporOEnviado, setAReporOEnviado] = useState(false);
-  /** A conferência com o enviado corre UMA vez por abertura. */
-  const conferidoComOEnviado = useRef(false);
-  /** A abertura assentou (o rascunho local e o do servidor já foram lidos)?
-   *  Sem isto a conferência olhava para um ecrã a meio de ser montado. */
-  const [aberturaAssente, setAberturaAssente] = useState(false);
-
-  // ── Restore draft on mount ──
-  //
-  // ════════════════════════════════════════════════════════════════════════
-  // CORRE UMA VEZ SÓ, E O `return` DE CIMA É O QUE O GARANTE
-  // ════════════════════════════════════════════════════════════════════════
-  //
-  // As dependências vazias não chegam. Em desenvolvimento o React monta,
-  // limpa e volta a montar cada componente de propósito (`reactStrictMode`),
-  // e este efeito corria as duas vezes — mas a SEGUNDA já não lia o rascunho
-  // dela. Lia o que a gravação automática tinha entretanto escrito por cima.
-  //
-  // A sequência medida, com um rascunho de 2 boards no `localStorage`:
-  //
-  //   1ª passagem   lê 2 boards, põe `setDoc` na fila, `hydrated = true`
-  //   (a limpeza)   `hydrated` já é `true`, portanto a desmontagem simulada
-  //                 grava — e o documento que ela tem à mão ainda é o de
-  //                 ANTES do restauro: escreve 0 boards por cima dos 2
-  //   2ª passagem   lê os 0 boards que acabaram de ser escritos e mete-os
-  //                 na fila também
-  //   fim           as duas actualizações correm por ordem: 0 → 2 → 0
-  //
-  // Resultado: o estúdio abria vazio com o trabalho todo no `localStorage`, e
-  // a gravação seguinte tornava a perda definitiva. Era isto que impedia
-  // qualquer teste de ponta-a-ponta de partir de um rascunho semeado — a
-  // suite das propostas corre contra o servidor de DESENVOLVIMENTO, que é
-  // precisamente onde a segunda passagem existe.
-  //
-  // Um efeito de restauro tem de ser idempotente: correr outra vez não pode
-  // significar ler outra vez. Lido uma vez, fica lido.
-  useEffect(() => {
-    if (hydrated.current) return;
-    let hadDraft = false;
-    /** O rascunho deste aparelho, já lido — e a BASE que ele traz. Guardam-se
-     *  aqui fora porque o ramo do «o pedido ainda não tem preço», lá em baixo,
-     *  precisa dos dois: ler `totalInput` ali daria SEMPRE a cadeia vazia (o
-     *  `setTotalInput` de cima só entra em vigor na render seguinte), e a
-     *  conversão para o pedido precisa dos adicionais DO RASCUNHO, não dos do
-     *  documento em branco que ainda está no estado. */
-    let rascunhoLocal: StudioDoc | null = null;
-    let baseDoRascunho: number | undefined;
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object") {
-          hadDraft = true;
-          // Rascunhos antigos guardaram a capa esparsa (`[null, "foto"]`) ou
-          // curta (`["foto"]`) — normalizar já aqui mantém a foto da direita
-          // na posição da direita.
-          setDoc((d) => {
-            const merged = { ...d, ...parsed };
-            // `stripPendingImages` também aqui: gravar já os filtra, mas um
-            // rascunho escrito por uma versão anterior (ou por outra aba) não
-            // pode fazer aparecer no ecrã um caminho que nunca vai existir.
-            return stripPendingImages({
-              ...merged,
-              coverImages: normaliseCoverImages(merged.coverImages),
-            });
-          });
-          rascunhoLocal = parsed as StudioDoc;
-          // A BASE, não o `totalAmount` cru — ver `baseDoDoc`.
-          const base = baseDoDoc(parsed);
-          baseDoRascunho = base;
-          if (base != null) setTotalInput(textoDoTotal(base));
-          // Um rascunho que já traz traduções abre com as caixas inglesas à
-          // vista, haja `meta` ou não: texto que existe no documento e não
-          // aparece no ecrã é texto que se perde sem ninguém dar por isso.
-          if (docTemIngles(parsed)) setBilingue(true);
-        }
-      }
-      const rawMeta = localStorage.getItem(SIDE_KEY);
-      if (rawMeta) {
-        const meta = JSON.parse(rawMeta);
-        // Só as assinaturas que AINDA SERVEM: as da Biblioteca duram seis
-        // horas, e um rascunho de ontem trazia-as mortas para o ecrã — um 400
-        // do Storage por célula e por degrau, antes de a hidratação chegar.
-        // Ver `semAssinaturasMortas` em `assinatura.ts`.
-        if (meta?.urls && typeof meta.urls === "object") {
-          setAssetUrls(semAssinaturasMortas(meta.urls));
-        }
-        // Rascunhos gravados antes de o plano B existir não o têm: abrem na
-        // mesma, e a hidratação preenche-o assim que responder.
-        if (meta?.originais && typeof meta.originais === "object") {
-          setAssetOriginais(semAssinaturasMortas(meta.originais));
-        }
-        // O degrau do meio viaja com o rascunho pela mesma razão que o plano B,
-        // e rascunhos gravados antes de ele existir não o têm: abrem na mesma,
-        // com a cascata de dois degraus, até a hidratação responder.
-        if (meta?.medias && typeof meta.medias === "object") {
-          setAssetMedias(semAssinaturasMortas(meta.medias));
-        }
-        // Rascunhos guardados antes de as cores existirem não as têm: abrem na
-        // mesma, e a hidratação preenche-as assim que o servidor responder.
-        if (meta?.cores && typeof meta.cores === "object") setAssetCores(meta.cores);
-        // Rascunhos guardados antes de isto existir não têm `themeOrigins` —
-        // abrem na mesma, só sem as marcas de "já nesta proposta".
-        if (meta?.themeOrigins && typeof meta.themeOrigins === "object") {
-          setThemeOrigins(meta.themeOrigins);
-        }
-        if (typeof meta?.refEdited === "boolean") setRefEdited(meta.refEdited);
-        /**
-         * O interruptor «Proposta bilingue» volta com o rascunho — e lê-se AQUI
-         * pela razão que o bloco de cima conta: um `useEffect` novo a ler o
-         * `localStorage` é a porta por onde o defeito do restauro voltaria a
-         * entrar. Uma linha, no mesmo bloco, com a mesma tolerância a rascunhos
-         * antigos que não o têm.
-         *
-         * `if (…) setBilingue(true)` e não `setBilingue(meta.bilingue)`: um
-         * `meta` gravado com `false` não pode desligar um interruptor que o
-         * documento restaurado acabou de acender (ver logo a seguir).
-         */
-        if (meta?.bilingue === true) setBilingue(true);
-        /**
-         * ── A LÍNGUA ESCOLHIDA VOLTA COM O RASCUNHO ─────────────────────────
-         *
-         * Aqui dentro, no efeito que corre uma vez só, pela razão que o bloco
-         * de cima conta.
-         *
-         * E ao contrário do interruptor bilingue, esta lê-se NOS DOIS SENTIDOS
-         * (`setIdiomaDoPdf(meta.idioma)` e não `if (…=== "en")`): o interruptor
-         * tem uma segunda fonte — o documento com traduções lá dentro acende-o
-         * sozinho —, a língua não tem nenhuma. Guardar só o «en» era guardar
-         * metade da escolha, e voltar atrás para português deixava de pegar.
-         *
-         * Porque é que isto tem de sobreviver: a língua vai GRAVADA com o
-         * envio. Decide o email que o casal recebe, o nome do anexo, a página
-         * onde ele responde e a segunda descarga. Reposta em silêncio, uma
-         * proposta escrita e revista em inglês seguia em português para um
-         * casal que não lê português — e no ecrã nada tinha dito que a escolha
-         * se perdeu. Rascunhos guardados antes disto existir não trazem o
-         * campo: abrem em português, que é o que já faziam.
-         */
-        if (ehIdiomaDaProposta(meta?.idioma)) setIdiomaDoPdf(meta.idioma);
-      }
-    } catch {
-      /* ignore corrupt draft */
-    }
-    // Só semeia defaults quando NÃO havia rascunho guardado — um rascunho
-    // existente (mesmo sem grupos) nunca é sobrescrito.
-    if (!hadDraft) {
-      setDoc((d) => seedDefaults(d, quote));
-      // E NÃO marca nada. A razão está por extenso no `realce`, mais abaixo:
-      // marcar o que vem do pedido acendia seis anéis em TODAS as propostas, e
-      // um aviso que está sempre ligado deixa de ser um aviso.
-      setPorConfirmar(new Set());
-    }
-
-    // O VALOR é a excepção, e de propósito: vem SEMPRE do pedido, haja rascunho
-    // ou não. Era aqui que os dois números se separavam — com rascunho, o
-    // estúdio nunca mais olhava para o "Preço final", e uma alteração feita na
-    // Gestão do pedido não chegava ao PDF.
-    const doPedido = quote.quotedPrice;
-    if (typeof doPedido === "number" && doPedido > 0) {
-      precoEnviado.current = doPedido;
-      /**
-       * ── AQUI ESTAVA O VALOR A CRESCER SOZINHO ──────────────────────────
-       *
-       * Isto punha o preço do PEDIDO no campo do ESCRITO, sem lhe tirar os
-       * adicionais. O pedido guarda o que o casal paga (serviços + deslocação);
-       * o campo diz «Valor (sem IVA)» e significa só os serviços. Com os dois
-       * a receber o mesmo número, a gravação seguinte somava a deslocação
-       * outra vez — e a visita seguinte começava do número já inflacionado.
-       *
-       * 3.000 → 3.140 → 3.280 → 3.420. Uma soma por visita.
-       *
-       * A conversão é a mesma que o outro sentido da sincronização já fazia
-       * (ver o efeito de `quote.quotedPrice`). O que faltava era usá-la aqui.
-       *
-       * O `setTotalInput` vai DENTRO do `setDoc` porque a conversão precisa do
-       * documento — dos adicionais e do modo de IVA — e ler `doc` fora do
-       * actualizador daria o estado anterior à hidratação do rascunho.
-       */
-      setDoc((d) => {
-        const paraOEcra = baseDoPedidoParaOEcra(doPedido, d);
-        // `null` = a conta não dá. NÃO se esvazia o campo: um campo em branco
-        // numa proposta que tem preço é ela a ver desaparecer o que escreveu, e
-        // a gravação seguinte levava o branco à frente. Fica o que o documento
-        // já diz, e o aviso de desalinhamento explica a diferença.
-        if (paraOEcra == null) return d;
-        setTotalInput(textoDoTotal(paraOEcra));
-        return aplicarBase(d, paraOEcra);
-      });
-    } else if (hadDraft) {
-      // O pedido ainda não tem preço mas o rascunho tem um valor escrito antes
-      // de isto existir. Não se deita fora: adopta-se, e GRAVA-SE no pedido —
-      // é o que faz os dois convergirem numa verdade só, em vez de escolher
-      // uma e perder a outra.
-      //
-      // ── E LIA O CAMPO ERRADO ────────────────────────────────────────────
-      //
-      // Estava `parseMoneyText(totalInput)`, e `totalInput` aqui é SEMPRE "":
-      // começa vazio e o `setTotalInput` de cima só entra em vigor na render
-      // seguinte. O ramo nunca gravava nada — a promessa escrita nele («os dois
-      // convergem numa verdade só») não se cumpria uma única vez, e um pedido
-      // sem preço com uma proposta escrita continuava a aparecer sem dinheiro
-      // nenhum na Visão Geral, no Kanban e no dossier.
-      //
-      // Lê-se agora a base DO RASCUNHO, e a conversão para o pedido é feita
-      // contra o rascunho — que é quem tem os adicionais. Ver
-      // `baseDoEcraParaOPedido`.
-      if (baseDoRascunho != null && baseDoRascunho > 0) {
-        persistirPreco(baseDoRascunho, rascunhoLocal ? { doc: rascunhoLocal } : undefined);
-      }
-    }
-    hydrated.current = true;
-    // SÓ quando não havia rascunho nenhum. Ver o bloco «A ABERTURA TAMBÉM NÃO
-    // É TRABALHO POR GRAVAR»: abrir um pedido virgem é semear o que veio do
-    // pedido, e isso não se grava; abrir um pedido COM rascunho é outra coisa
-    // — o restauro corrige o que lá está (tira marcadores provisórios de fotos
-    // que nunca chegaram a existir, acerta o total pelo «Preço final» do
-    // pedido) e essas correcções TÊM de ficar gravadas.
-    if (!hadDraft) aAbrir.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /**
-   * Manda o rascunho ao servidor e ARRUMA a verdade que voltar: o carimbo, o
-   * indicador, o aviso. Está num sítio só porque são dois os caminhos que
-   * gravam — o debounce de cada alteração e o resgate da abertura — e um deles
-   * a esquecer-se de dizer que falhou é exactamente o problema que isto veio
-   * resolver.
-   */
-  const gravarUmaVez = useCallback(
-    async (docGravavel: unknown): Promise<ResultadoDaGravacao> => {
-      partiuUmaGravacao();
-      try {
-        // O que mudou desde a última conversa com o servidor — é isto que lhe
-        // deixa juntar esta gravação com a de outra pessoa campo a campo, em
-        // vez de a última escrita levar o documento inteiro (achado n.º 6).
-        const enviado = ehObjecto(docGravavel) ? docGravavel : null;
-        const desde = docDoServidor.current;
-        const r = await gravarRascunhoNoServidor(quote.id, {
-          doc: docGravavel,
-          baseUpdatedAt: serverStamp.current,
-          ...(enviado && desde ? camposMudados(desde, enviado) : {}),
-        });
-        if (r.estado === "guardado") {
-          if (r.updatedAt) serverStamp.current = r.updatedAt;
-          docDoServidor.current = r.doc ?? enviado;
-          // O que veio da outra pessoa vai para o ecrã — mas só nos campos em
-          // que esta não mexeu entretanto (a gravação demora; ela pode ter
-          // continuado a escrever).
-          const junto = r.doc;
-          if (junto && enviado) {
-            setDoc((d) => {
-              const atual = d as unknown as Record<string, unknown>;
-              const novo: Record<string, unknown> = { ...atual };
-              let mudou = false;
-              for (const k of new Set([...Object.keys(junto), ...Object.keys(enviado)])) {
-                if (mesmoValor(junto[k], enviado[k])) continue;
-                if (!mesmoValor(atual[k], enviado[k])) continue;
-                // Nunca se APAGA um campo do ecrã por causa de uma junção: o
-                // documento do estúdio tem a forma inteira, e um campo que lhe
-                // falte (os Serviços, por exemplo) deita abaixo o editor que o
-                // desenha. Vindo vazio do servidor, fica o que está.
-                if (junto[k] === undefined) continue;
-                novo[k] = junto[k];
-                mudou = true;
-              }
-              return mudou ? (novo as unknown as StudioDoc) : d;
-            });
-          }
-          marcarGuardadoNoServidor();
-          if (r.estadoDoPedido) onEstadoDoPedido?.(r.estadoDoPedido);
-          // Só um `false` EXPLÍCITO alarma — ver `duradouro`. Um servidor que
-          // não diga nada é tratado como sempre foi.
-          if (r.duradouro === false) registarNaoDura(r.aviso);
-          else marcarQueDura();
-        } else {
-          registarSoLocal(r.porque, r.sessaoExpirada);
-        }
-        return r;
-      } finally {
-        voltouUmaGravacao();
-      }
-    },
-    [
-      quote.id,
-      marcarGuardadoNoServidor,
-      registarSoLocal,
-      registarNaoDura,
-      marcarQueDura,
-      onEstadoDoPedido,
-      partiuUmaGravacao,
-      voltouUmaGravacao,
-    ],
-  );
-
-  /**
-   * ── UMA GRAVAÇÃO DE CADA VEZ, E SEMPRE A MAIS RECENTE ────────────────────
-   *
-   * Auditoria de 13/11 (estúdio, n.ºs 1 e 2). Com a rede lenta, a gravação dos
-   * 800 ms seguinte partia antes de a anterior voltar: as duas levavam o MESMO
-   * carimbo (`serverStamp`), e o servidor via a segunda como «alterada por
-   * outra pessoa» — aviso falso, gaveta de resgate estragada. E se a mais
-   * antiga chegasse depois da nova, era ela que ficava a valer: ao reabrir,
-   * perdiam-se as últimas alterações.
-   *
-   * Agora há uma fila: uma gravação só parte quando a anterior voltou (e com
-   * o carimbo que ela trouxe). Quando chega a vez, vai o documento MAIS RECENTE
-   * que foi pedido — as versões intermédias não interessam a ninguém —, e as
-   * que ficaram pelo caminho recebem o resultado dessa.
-   */
-  const filaDaGravacao = useRef<Promise<unknown> | null>(null);
-  const porEnviar = useRef<{ doc: unknown } | null>(null);
-  const ultimoResultado = useRef<ResultadoDaGravacao | null>(null);
-  const enviarParaServidor = useCallback(
-    (docGravavel: unknown): Promise<ResultadoDaGravacao> => {
-      porEnviar.current = { doc: docGravavel };
-      const umaVez = async (): Promise<ResultadoDaGravacao> => {
-        const pedido = porEnviar.current;
-        // Uma gravação anterior já levou este documento (ou um mais recente).
-        if (!pedido) return ultimoResultado.current ?? { estado: "so-local" };
-        porEnviar.current = null;
-        const r = await gravarUmaVez(pedido.doc);
-        ultimoResultado.current = r;
-        return r;
-      };
-      // Sem nada em voo, parte JÁ (sem esperar um passo da fila): a gravação
-      // de quando o ecrã fecha tem de sair enquanto o ecrã fecha.
-      const anterior = filaDaGravacao.current;
-      const vez = anterior ? anterior.then(umaVez) : umaVez();
-      const naFila = vez.catch(() => {});
-      filaDaGravacao.current = naFila;
-      void naFila.then(() => {
-        if (filaDaGravacao.current === naFila) filaDaGravacao.current = null;
-      });
-      return vez;
-    },
-    [gravarUmaVez],
-  );
-
-  // ── O rascunho que está no SERVIDOR ──
-  // A cópia local abre primeiro (é instantânea e funciona sem rede); logo a
-  // seguir vai-se buscar a do servidor e, se for mais recente, é essa que
-  // vale. É isto que faz começar no portátil e continuar no tablet — e que
-  // impede limpar o histórico de apagar trabalho.
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      // O que este navegador tem guardado, e de quando. Lê-se ANTES de falar
-      // com o servidor porque é isto que decide se há alguma coisa para
-      // resgatar — ver o bloco do resgate, mais abaixo.
-      let localStamp = 0;
-      let docLocal: unknown = null;
-      try {
-        localStamp = Number(localStorage.getItem(`${DRAFT_KEY}:at`) ?? 0);
-        const cru = localStorage.getItem(DRAFT_KEY);
-        if (cru) docLocal = JSON.parse(cru);
-      } catch {
-        /* localStorage indisponível ou rascunho ilegível — fica a valer o servidor */
-      }
-
-      let leituraOk = false;
-      let draft: { doc?: unknown; updatedAt?: string } | null = null;
-      try {
-        // `fetch` e não `lerPartilhado`: dá a BASE das gravações (`serverStamp`),
-        // e juntá-la a um pedido anterior a uma gravação dava uma base velha.
-        const res = await fetch(`/api/orcamento/${quote.id}/proposta-rascunho`, {
-          cache: "no-store",
-        });
-        if (res.ok) {
-          leituraOk = true;
-          const data = await res.json().catch(() => null);
-          const d = data?.draft;
-          if (d?.doc && typeof d.doc === "object") draft = d;
-        }
-      } catch {
-        /* sem rede: continua-se com a cópia local, como antes */
-      }
-      if (!active) return;
-      if (draft) {
-        serverStamp.current = typeof draft.updatedAt === "string" ? draft.updatedAt : null;
-        docDoServidor.current = ehObjecto(draft.doc) ? draft.doc : null;
-      }
-
-      const carimboDoServidor = draft ? Date.parse(draft.updatedAt ?? "") || 0 : 0;
-      const localMaisRecente = localStamp > carimboDoServidor;
-
-      /**
-       * ══════════════════════════════════════════════════════════════════════
-       * O RESGATE DO QUE FICOU PRESO NESTE NAVEGADOR
-       * ══════════════════════════════════════════════════════════════════════
-       *
-       * Este é o caminho por onde o trabalho da colaboradora volta. Enquanto o
-       * servidor recusou as gravações, tudo o que ela montou ficou no
-       * `localStorage` daquele portátil — intacto, e invisível para toda a
-       * gente. O estúdio abria, via que o servidor não tinha rascunho nenhum, e
-       * não fazia nada com essa informação: esperava pela próxima tecla.
-       *
-       * Agora, ao abrir, se a cópia deste navegador for mais recente do que a
-       * do servidor — ou se o servidor não tiver nenhuma e esta existir —
-       * tenta-se ENVIÁ-LA outra vez. É o gesto que a pessoa faria se soubesse
-       * que tinha de o fazer, feito sem ela ter de saber.
-       *
-       * Só quando a leitura CORREU BEM. Se o `GET` falhou não se sabe o que
-       * está lá; escrever por cima às cegas podia apagar uma versão mais
-       * recente feita noutro dispositivo, e trocar uma perda por outra não é
-       * resgate nenhum.
-       */
-      if (leituraOk && docLocal && typeof docLocal === "object" && (localMaisRecente || !draft)) {
-        // Os marcadores provisórios saem, como em qualquer gravação. Mas se o
-        // rascunho preso for de uma versão antiga e não tiver a forma toda, o
-        // que se envia é o que lá está: entre enviar com um marcador a mais e
-        // não enviar de todo, envia-se — é isto que está a resgatar trabalho.
-        let paraEnviar: unknown = docLocal;
-        try {
-          paraEnviar = stripPendingImages(docLocal as StudioDoc);
-        } catch {
-          /* fica o original */
-        }
-        void (async () => {
-          const r = await enviarParaServidor(paraEnviar);
-          // Dizer que o resgate aconteceu é metade do resgate: sem isto ela não
-          // tem como saber que o que estava preso já está a salvo, e continua a
-          // não fechar o portátil.
-          if (active && r.estado === "guardado") {
-            toast(
-              "O rascunho que estava guardado só neste computador foi enviado para o servidor. Já pode ser aberto noutro dispositivo.",
-              "success",
-            );
-          }
-        })();
-      }
-
-      if (!draft?.doc || typeof draft.doc !== "object") return;
-      // A local só ganha se for MESMO mais recente; em empate vale a do
-      // servidor, que é a que os outros dispositivos veem.
-      if (localMaisRecente) return;
-      // ── O VALOR É A EXCEPÇÃO, AQUI TAMBÉM ───────────────────────────
-      //
-      // A montagem aplica o "Preço final" do PEDIDO por cima do rascunho,
-      // de propósito e com a razão escrita lá em cima: é o mesmo número
-      // visto de dois sítios. Este merge, 100–300 ms depois, punha o
-      // `totalAmount` do rascunho por cima outra vez — e ganhava quase
-      // sempre, porque o carimbo local é escrito ANTES do PUT e o
-      // `updatedAt` do servidor DEPOIS, portanto a comparação de datas
-      // acima está estruturalmente a favor do servidor.
-      //
-      // O percurso: ela corrigia o preço de 8.100 para 9.400 na Gestão do
-      // pedido, voltava ao estúdio, e o campo voltava sozinho a 8.100. Ao
-      // enviar, gravava 8.100 e a correcção desaparecia dos DOIS lados.
-      //
-      // O rascunho traz o texto, as fotos e as condições — tudo menos o
-      // valor. Quem manda no valor é o pedido, e só quando ele tem um.
-      const doPedido = quote.quotedPrice;
-      const mandaOPedido = typeof doPedido === "number" && doPedido > 0;
-      const doDoServidor = draft.doc as Partial<StudioDoc>;
-      /**
-       * ── E OS CAMPOS EM QUE ELA JÁ ESTÁ COM AS MÃOS FICAM DE FORA ────────
-       *
-       * Ver o bloco do `camposTocados`, mais abaixo. Sem isto, escrever no
-       * primeiro segundo depois de o ecrã abrir perdia o princípio da frase —
-       * medido, sete rondas em oito.
-       */
-      const semOsQueElaTocou = Object.fromEntries(
-        Object.entries(doDoServidor).filter(([chave]) => !camposTocados.current.has(chave)),
-      ) as Partial<StudioDoc>;
-      // A abertura ACABA AQUI quando há rascunho no servidor.
-      //
-      // Sem isto, o que este merge produz — o rascunho do servidor com o preço
-      // do pedido por cima, e sem os marcadores provisórios — ficava por
-      // gravar: era «a abertura», e a abertura não se grava. Mas isto não é
-      // uma abertura derivada do pedido, é trabalho vindo de outro dispositivo
-      // com uma correcção aplicada em cima. Ver o bloco «A ABERTURA TAMBÉM NÃO
-      // É TRABALHO POR GRAVAR».
-      aAbrir.current = false;
-      setDoc((d) => {
-        const merged = { ...d, ...semOsQueElaTocou };
-        const limpo = stripPendingImages({
-          ...merged,
-          coverImages: normaliseCoverImages(merged.coverImages),
-        });
-        /**
-         * ── E O PREÇO DO PEDIDO ATRAVESSA PELA CONVERSÃO, COMO NA MONTAGEM ──
-         *
-         * Aqui estava `aplicarBase(limpo, doPedido)`: o «Preço final» do pedido
-         * — que é o que o casal paga, adicionais INCLUÍDOS — escrito em cru no
-         * campo que significa só os SERVIÇOS. `dinheiroDaProposta` somava-lhe
-         * a deslocação outra vez por baixo, e o total subia exactamente o valor
-         * dos adicionais. Medido numa proposta já enviada, com 895,00 € de
-         * deslocação: o PDF dizia 10.778,74 € sem IVA e o estúdio reabria a
-         * dizer 11.673,74 €.
-         *
-         * É o MESMO defeito que a montagem já tinha fechado (ver «AQUI ESTAVA
-         * O VALOR A CRESCER SOZINHO») — sobrevivia neste segundo efeito, que é
-         * o que corre quase sempre: o carimbo local é escrito ANTES do PUT e o
-         * `updatedAt` do servidor DEPOIS, portanto a comparação de datas está
-         * estruturalmente a favor do servidor. E é também o caminho do
-         * telemóvel que abre dias depois sem rascunho guardado nenhum.
-         *
-         * E ESCALAVA: o número inflacionado ficava no `totalAmount` do rascunho
-         * gravado a seguir, e a visita seguinte partia de lá.
-         *
-         * `null` = a conta não dá (o preço do pedido é menor do que os
-         * adicionais escritos). Deixa-se o documento como está, pela razão que
-         * está escrita em `baseParaOEstudio`: o aviso de desalinhamento já diz
-         * o que se passa, e inventar um número aqui fazia o preço do PEDIDO
-         * subir na gravação seguinte.
-         */
-        const paraOEcra = mandaOPedido ? baseDoPedidoParaOEcra(doPedido, limpo) : null;
-        // O campo do total é estado à parte e a conversão precisa do documento
-        // MERGIDO (dos adicionais e do modo de IVA que vieram do servidor), por
-        // isso lê-se aqui dentro — a mesma razão que a montagem tem escrita.
-        const base = mandaOPedido ? paraOEcra : (baseDoDoc(doDoServidor) ?? null);
-        if (base != null && !camposTocados.current.has("__total")) {
-          setTotalInput(textoDoTotal(base));
-        }
-        const adoptado = paraOEcra == null ? limpo : aplicarBase(limpo, paraOEcra);
-        // O ponto de partida do ⌘Z passa a ser ESTE documento: desfazer não
-        // pode voltar ao que estava no ecrã antes de o rascunho do servidor
-        // chegar (revisão de 13/11) — e a gravação seguinte escrevê-lo-ia por
-        // cima do trabalho bom.
-        docAssente.current = adoptado;
-        historico.current = [];
-        return adoptado;
-      });
-      // O que estava marcado como «vindo do pedido» deixou de estar no ecrã: o
-      // que se vê agora é o rascunho dela, feito noutro dispositivo. Manter os
-      // anéis pedia confirmação de texto que ela já escreveu — e o anel só vale
-      // enquanto quiser dizer «isto não é teu».
-      setPorConfirmar(new Set());
-      // O documento do servidor pode trazer traduções que este computador nunca
-      // viu — é o caso de abrir a proposta noutro portátil. As caixas inglesas
-      // acendem-se, pela mesma razão do restauro local.
-      if (docTemIngles(doDoServidor)) setBilingue(true);
-    })()
-      // A abertura ASSENTOU — o rascunho local já foi restaurado e o do
-      // servidor já foi lido (ou já se sabe que não há, ou que não dá para
-      // perguntar). É a partir daqui que a conferência com o documento que
-      // seguiu para o cliente pode olhar para números estáveis; antes disto
-      // olhava para um ecrã a meio de ser montado e acusava diferenças que se
-      // desfaziam sozinhas 200 ms depois.
-      .finally(() => {
-        if (active) setAberturaAssente(true);
-      });
-    return () => {
-      active = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quote.id]);
-
-  // ── Hydrate signed URLs for images already in this draft ──
-  // Fills in signed URLs for any image already used in the draft (covers / mood
-  // boards) so thumbnails render even on a fresh device or after the cached URL
-  // expired. Uploaded images are NOT offered back as a re-pickable gallery.
-  //
-  // É uma função e não só um efeito porque há um segundo momento em que a
-  // pasta do pedido ganha fotos SEM ser por carregamento: quando um modelo
-  // parcial traz fotos de outro pedido e elas são recopiadas para cá. Sem uma
-  // segunda leitura, as células ficavam sem miniatura até recarregar a página.
-  const hidratarAssets = useCallback(
-    async (
-      vivo: () => boolean = () => true,
-      /** Só a da ABERTURA se junta a outra em voo: as outras (o «Tentar», depois
-       *  de copiar fotos) existem para trazer uma lista NOVA (revisão de 17/11). */
-      { daAbertura = false }: { daAbertura?: boolean } = {},
-    ): Promise<EstadoDosUrls> => {
-      {
-        // «A caminho» também no reenvio: uma segunda tentativa que aparecesse
-        // como «falhou» até responder era um botão que parece não fazer nada.
-        setEstadoDosUrls("a-caminho");
-        try {
-          const url = `/api/orcamento/${quote.id}/assets`;
-          const res = await (daAbertura ? lerPartilhado(url) : fetch(url));
-          if (!res.ok) {
-            // Um 401 (sessão caducada) e um 500 (Storage em baixo) davam os
-            // dois a mesma coisa: nada. O registo diz qual foi, e o ecrã diz
-            // que não conseguiu — em vez de o esconder atrás de uma caixa
-            // cinzenta que se lê como «esta foto não existe».
-            log.warn("estúdio: não deu para ir buscar as fotografias", {
-              estado: res.status,
-            });
-            if (vivo()) setEstadoDosUrls("falhou");
-            return "falhou";
-          }
-          const data = await res.json().catch(() => null);
-          const imgs: {
-            path: string;
-            url: string;
-            thumbUrl?: string;
-            midUrl?: string;
-            cor?: string;
-          }[] = Array.isArray(data?.images) ? data.images : [];
-          // Saiu de cena a meio: não há veredicto nenhum a dar a ninguém.
-          if (!vivo()) return "a-caminho";
-          // Zero fotografias É uma resposta: uma proposta sem fotos nenhumas
-          // não tem células, e um pedido que respondeu vazio não é um pedido
-          // que falhou.
-          if (imgs.length === 0) {
-            setEstadoDosUrls("pronto");
-            return "pronto";
-          }
-          /**
-           * O guardado só conta se ainda for um candidato: um URL que uma
-           * célula desta sessão já viu morrer (403/404) não pode ganhar ao
-           * fresco só por ter o prazo em dia. Ver `urlsMortos`.
-           */
-          const vivo_ = (u?: string) => (u && urlsMortos.current.has(u) ? undefined : u);
-          setAssetUrls((prev) => {
-            const next = { ...prev };
-            // A miniatura ganha ao original: é este o caminho que corre quando se
-            // REABRE uma proposta, que é onde a grelha mais pesa.
-            //
-            // E o guardado só ganha ao fresco ENQUANTO SERVIR. Antes era um
-            // `!next[im.path]` seco, que deitava fora a assinatura fresca mesmo
-            // quando a guardada já estava morta — as fotos de tema assinam a 6
-            // horas, e um rascunho aberto de um dia para o outro voltava com a
-            // grelha inteira a pedir URLs que o Supabase recusa. Ver
-            // `assinatura.ts` para porque é que não bastava substituir sempre.
-            for (const im of imgs)
-              if (im.path && im.url)
-                next[im.path] = urlAindaBom(vivo_(next[im.path]), im.thumbUrl || im.url);
-            return next;
-          });
-          // O original fica guardado à parte, para a célula ter para onde cair
-          // quando a miniatura não existir.
-          setAssetOriginais((prev) => {
-            const next = { ...prev };
-            for (const im of imgs)
-              if (im.path && im.url) next[im.path] = urlAindaBom(vivo_(next[im.path]), im.url);
-            return next;
-          });
-          // O degrau do meio, pela mesma regra do original: o guardado só
-          // ganha ao fresco enquanto o prazo servir.
-          //
-          // Uma foto que volte SEM `midUrl` não apaga a que já se sabia: a
-          // ausência quer dizer «ainda não foi fabricada», e uma resposta que
-          // não a traz não é prova de que a que já se tinha morreu.
-          setAssetMedias((prev) => {
-            const next = { ...prev };
-            for (const im of imgs)
-              if (im.path && im.midUrl)
-                next[im.path] = urlAindaBom(vivo_(next[im.path]), im.midUrl);
-            return next;
-          });
-          // As cores não expiram (não são URLs assinados): uma vez conhecidas,
-          // ficam. Uma foto que volte sem cor não apaga a que já se sabia.
-          setAssetCores((prev) => {
-            const next = { ...prev };
-            for (const im of imgs) if (im.path && im.cor) next[im.path] = im.cor;
-            return next;
-          });
-          setEstadoDosUrls("pronto");
-          return "pronto";
-        } catch (e) {
-          // Offline, ou o Storage em baixo. O estúdio continua a servir para
-          // carregar fotos — o que não continua a servir é fingir que as que já
-          // lá estão simplesmente não existem.
-          log.warn("estúdio: não deu para ir buscar as fotografias", { erro: String(e) });
-          if (vivo()) setEstadoDosUrls("falhou");
-          return "falhou";
-        }
-      }
-    },
-    [quote.id],
-  );
-
-  /**
-   * O «Tentar» de uma célula que não carregou.
-   *
-   * ── QUANDO RESULTA, NÃO SE DIZ NADA ───────────────────────────────────────
-   * A fotografia aparece na própria célula onde ela carregou. Um aviso a dizer
-   * «pronto» por cima de uma foto que já se vê é ruído.
-   *
-   * ── QUANDO NÃO RESULTA, TEM DE SE DIZER ───────────────────────────────────
-   * E era este o buraco: falhar outra vez devolve exactamente a mesma caixa
-   * cinzenta de antes do clique — indistinguível de um botão que não fez nada.
-   * Ela carregava três, quatro vezes, sem maneira de saber se estava a pedir
-   * alguma coisa ao servidor.
-   */
-  const tentarBuscarFotos = useCallback(async () => {
-    const fim = await hidratarAssets();
-    if (fim === "falhou") {
-      toast(
-        "Também não deu desta vez. As fotografias estão guardadas — é a lista que não vem.",
-        "error",
-      );
-    }
-  }, [hidratarAssets, toast]);
+  const seleccao = useSeleccaoDeFotos({ documento });
+  const { alternarSeleccao, seleccionadas, setSeleccionadas } = seleccao;
+  const rascunho = useEstadoDoRascunho({ documento, refEdited, toast, traducoes });
+  const {
+    aAbrir,
+    aGravarNoServidor,
+    aberturaAssente,
+    avisoDoSoLocalPorDar,
+    avisouJuncao,
+    docDoServidor,
+    flushDraft,
+    gravacao,
+    gravadoEm,
+    hydrated,
+    jaGravou,
+    marcaDaAbertura,
+    marcaDoTrabalho,
+    marcarGuardadoNoServidor,
+    marcarQueDura,
+    montagem,
+    nadaPorGravar,
+    naoDuraAoDeploy,
+    partiuUmaGravacao,
+    porGravar,
+    porGravarRef,
+    registarNaoDura,
+    registarSoLocal,
+    serverStamp,
+    setAberturaAssente,
+    setGravadoEm,
+    setPorGravar,
+    soNesteComputador,
+    voltouUmaGravacao,
+    warnedOverwrite,
+  } = rascunho;
+  const total = useTotalDaProposta({ documento, onQuoteUpdated, quote });
+  const {
+    amountParaBase,
+    baseDoEcraParaOPedido,
+    composeTotalText,
+    desvio,
+    doPedidoVisto,
+    duasFormas,
+    erroDoTotal,
+    escrito,
+    money,
+    onTotalInput,
+    pctSinal,
+    persistirPreco,
+    precoAGravar,
+    precoEnviado,
+    precoPorChegar,
+    setSinalEscrito,
+    setTotalInput,
+    sinalAntes,
+    sinalEscrito,
+    split,
+    tentarGravarOPreco,
+    totais,
+    totalInput,
+    vatMode,
+    writeTotal,
+  } = total;
+  const rascunhoSobreposto = useRascunhoSobreposto({ documento, quote, reversiveis, toast, total });
+  const { aRepor, reporSobreposto, setSobreposto, sobreposto } = rascunhoSobreposto;
+  const servidor = useGravarNoServidor({ documento, onEstadoDoPedido, quote, rascunho });
+  const { enviarParaServidor } = servidor;
+  const hidratar = useHidratarFotos({ fotos, quote, toast });
+  const { hidratarAssets, tentarBuscarFotos } = hidratar;
+  useAberturaDoEstudio({
+    DRAFT_KEY,
+    SIDE_KEY,
+    camposPorConfirmar,
+    documento,
+    fotos,
+    quote,
+    rascunho,
+    servidor,
+    setRefEdited,
+    toast,
+    total,
+    traducoes,
+  });
 
   useEffect(() => {
     let alive = true;
@@ -2096,94 +643,6 @@ export default function ProposalStudio({
       return d.ref === next ? d : { ...d, ref: next };
     });
   }, [doc.template, doc.eventType, doc.clientNames, doc.eventDate, refEdited]);
-
-  // ── Debounced draft persistence ──
-  //
-  // `flushDraft` guarda a MESMA gravação que o debounce ia fazer, para o
-  // Ctrl/Cmd+Enter dos Serviços a poder disparar já (sem duplicar a lógica nem
-  // encurtar o debounce, que é o que segura a escrita durante a escrita).
-  // Devolve o que o SERVIDOR respondeu, e não `void`: é o que permite ao
-  // Ctrl/Cmd+Enter dizer «guardado» só quando o for mesmo, em vez de o dizer
-  // por ter escrito no `localStorage` — que era o erro original, em ponto
-  // pequeno.
-  const flushDraft = useRef<() => Promise<ResultadoDaGravacao>>(async () => ({
-    estado: "so-local",
-  }));
-
-  // Assim que o documento muda há trabalho por gravar. Volta a false quando a
-  // gravação local acontece, oitocentos milissegundos depois.
-  //
-  // O `ref` ao lado do estado existe para a limpeza da desmontagem (mais
-  // abaixo) o poder ler: essa corre uma vez só, com as dependências vazias, e
-  // portanto ficaria para sempre com o `porGravar` do primeiro desenho.
-  const porGravarRef = useRef(false);
-  /**
-   * A montagem NÃO é trabalho por gravar.
-   *
-   * Este efeito também corre no desenho da montagem, e ali o `doc` ainda é o
-   * de antes do restauro — o restauro deixou o `setDoc` na fila e ele só
-   * chega ao desenho seguinte. Marcar «por gravar» já aqui dava à limpeza da
-   * desmontagem (mais abaixo) autorização para gravar esse documento, que é
-   * o documento VAZIO: quem abrisse o estúdio e saísse no mesmo instante
-   * escrevia-o por cima do rascunho guardado.
-   *
-   * Saltar a primeira passagem não adia nada do que interessa: o restauro (ou
-   * o `seedDefaults`, quando não há rascunho) muda o documento e faz este
-   * efeito correr outra vez — aí sim, com a versão boa à mão. O que essa
-   * segunda passagem NÃO é está logo a seguir.
-   */
-  const montagem = useRef(true);
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * A ABERTURA TAMBÉM NÃO É TRABALHO POR GRAVAR
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * A segunda passagem deste efeito é sempre a da ABERTURA: o restauro do
-   * rascunho, ou — quando não há rascunho — o `seedDefaults` com o que veio do
-   * PEDIDO (os pontos de decoração que o casal marcou, o preço final, a regra
-   * dos adicionais). Nenhuma dessas coisas foi escrita por ela, e marcá-las
-   * como trabalho por gravar custava duas coisas:
-   *
-   *   1. cada pedido ABERTO PARA LER deixava uma linha de rascunho gravada, e
-   *      cada troca de separador pagava um PUT para reescrever o que já lá
-   *      estava — que é o que o comentário de cima já descrevia;
-   *   2. o «Guardar tudo (1)» acendia por nada, várias vezes por hora. É esse
-   *      botão que ela olha antes de fechar o portátil, e um alarme que mente é
-   *      um alarme que se deixa de ver.
-   *
-   * Nada se perde: a semeadura é DERIVADA do pedido e reabrir volta a produzir
-   * o mesmo documento, e o restauro é a leitura do que já está gravado. Assim
-   * que ela escrever a primeira letra, grava-se tudo — semeadura incluída.
-   *
-   * ── PORQUE É QUE ISTO NÃO PODE ENGOLIR TRABALHO A SÉRIO ───────────────────
-   *
-   * O silêncio só vale enquanto o documento for IGUAL ao da abertura, e só até
-   * à primeira gravação. Depois de haver rascunho gravado, voltar ao estado de
-   * abertura é uma alteração como outra qualquer — e tem de ser gravada, senão
-   * o que fica no servidor é a versão do meio.
-   */
-  const aAbrir = useRef(false);
-  const marcaDaAbertura = useRef<string | null>(null);
-  const jaGravou = useRef(false);
-  /** O que se compara com a abertura: só o que é TRABALHO DELA. Os mapas de
-   *  apoio (`assetUrls`, `themeOrigins`) ficam de fora de propósito — são
-   *  memória de endereços que a hidratação vai buscar ao servidor, e mudam
-   *  sozinhos depois de o ecrã abrir. */
-  const marcaDoTrabalho = useCallback(
-    () => JSON.stringify([doc, refEdited, bilingue, idiomaDoPdf]),
-    [doc, refEdited, bilingue, idiomaDoPdf],
-  );
-  /** Não há nada por gravar: o que está no ecrã é a abertura, e ainda não se
-   *  gravou nada. Vale para o indicador E para a gravação — se só valesse para
-   *  o indicador, o alarme calava-se e o PUT continuava a sair, que é meia
-   *  correcção com o aspecto de uma inteira. */
-  const nadaPorGravar = useCallback(
-    // `null` (a marca ainda não foi tirada) NUNCA é igual a uma marca: quando
-    // há rascunho guardado a abertura não se marca de todo, e o estúdio grava
-    // como sempre gravou.
-    () => !jaGravou.current && marcaDaAbertura.current === marcaDoTrabalho(),
-    [marcaDoTrabalho],
-  );
   /**
    * E a abertura acaba no PRIMEIRO GESTO DELA — não num relógio.
    *
@@ -2577,310 +1036,6 @@ export default function ProposalStudio({
         : { estado: "so-neste-computador", porque: r.porque };
     },
   });
-
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * O QUE ELA JÁ ESCREVEU NÃO É SUBSTITUÍDO PELO RASCUNHO QUE VEM A CAMINHO
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * O estúdio vai buscar o rascunho ao servidor ao abrir, e o merge chega
-   * 100–300 ms depois. Até aqui esse merge era `{ ...d, ...doServidor }` —
-   * campo a campo, o servidor ganhava. Se ela começasse a escrever nesse
-   * primeiro segundo, o princípio do que escreveu era apagado.
-   *
-   * MEDIDO: escrever `ABCDEFGHIJKLMNOPQRST` meio segundo depois de o ecrã
-   * abrir, oito rondas — SETE perderam texto. Ficaram coisas como
-   * `HIJKLMNOPQRST`, `MNOPQRST`, `QRST`. Em quatro caixas diferentes, e uma
-   * delas (a «Cerimónia») ficou COMPLETAMENTE vazia. Não há erro nem aviso: a
-   * frase fica truncada pela frente e é assim que vai no PDF para o casal.
-   *
-   * Guarda-se aqui QUE CAMPOS ela tocou desde que o ecrã abriu. O merge
-   * continua a trazer tudo o resto do rascunho — as fotos, as condições, as
-   * traduções feitas noutro computador — e deixa em paz só aquilo em que ela
-   * está com as mãos.
-   *
-   * Só marcam os caminhos por onde a PESSOA escreve (`patch` e o editor de
-   * serviços). Os `setDoc` do sistema — semear os textos fixos, aplicar o
-   * preço do pedido, o próprio merge — não marcam nada, de propósito.
-   */
-  const camposTocados = useRef<Set<string>>(new Set());
-
-  const patch = (p: Partial<StudioDoc>) => {
-    for (const chave of Object.keys(p)) camposTocados.current.add(chave);
-    setDoc((d) => ({ ...d, ...p }));
-  };
-
-  // ── Total estruturado + IVA ──
-  // O modo efetivo: explícito no doc, senão detetado a partir do texto livre
-  // (retrocompatibilidade com propostas antigas só com "3.000,00 € + IVA").
-  /**
-   * ── E UM DOCUMENTO NOVO NASCE EM «ACRESCE» ────────────────────────────
-   *
-   * O `detectVatMode` devolve "incluido" quando não há texto nenhum para ler —
-   * é a retrocompatibilidade com propostas antigas só com «3.000,00 €». Mas um
-   * documento ACABADO DE COMEÇAR também não tem texto, e caía nessa mesma
-   * porta: nascia em «IVA incluído», que é o modo que a casa deixou de usar.
-   *
-   * A detecção fica onde serve — havendo texto livre, é ele que manda.
-   */
-  const vatMode: VatMode =
-    doc.totalVatMode ??
-    (doc.totalText || doc.totalEstimatedText
-      ? detectVatMode(doc.totalText || doc.totalEstimatedText)
-      : "acrescer");
-
-  /** Compõe o texto de DISPLAY do PDF a partir do valor + modo estruturados,
-   *  no formato do estúdio ("3.000,00 € + IVA" ou "3.000,00 €"). */
-  function composeTotalText(amount: number | undefined, mode: VatMode): string {
-    if (amount == null || !(amount > 0)) return "";
-    return mode === "acrescer" ? `${eur(amount)} + IVA` : eur(amount);
-  }
-
-  /** Escreve o valor + modo estruturados e sincroniza o texto de display do
-   *  template ativo (totalText p/ Decoração, totalEstimatedText p/ Organização). */
-  function writeTotal(amount: number | undefined, mode: VatMode) {
-    const text = composeTotalText(amount, mode);
-    patch(
-      doc.template === "organizacao"
-        ? { totalAmount: amount, totalVatMode: mode, totalEstimatedText: text }
-        : { totalAmount: amount, totalVatMode: mode, totalText: text },
-    );
-  }
-
-  /**
-   * O VALOR É UM SÓ, e é o "Preço final (sem IVA)" do pedido.
-   *
-   * ── O que estava errado ─────────────────────────────────────────────────
-   * Havia duas caixas com o mesmo número: aqui e na Gestão do pedido. Pior do
-   * que duplicado — podiam DISCORDAR. O estúdio só copiava o preço do pedido
-   * quando ainda não havia rascunho (ver `seedDefaults`), e a partir daí
-   * alterar o preço na Gestão do pedido não mexia aqui. O PDF seguia para o
-   * cliente com o valor antigo, e nada no ecrã o dizia.
-   *
-   * Agora escrever aqui GRAVA no pedido, e uma alteração feita na Gestão do
-   * pedido aparece aqui. É o mesmo número, visto de dois sítios.
-   *
-   * ── E o IVA ─────────────────────────────────────────────────────────────
-   * O número partilhado é sempre a BASE, sem IVA — é o que o pedido diz que é.
-   * O modo de IVA muda o que o PDF MOSTRA (e portanto o que o cliente paga),
-   * e o `totalAmount` do documento é derivado da base: em "acrescer" é a
-   * própria base, em "incluído" é a base já com o IVA somado, porque é assim
-   * que `resolveProposalMoney` o lê. Em qualquer dos modos a base continua a
-   * ser o número do pedido, que é o que o rótulo "(sem IVA)" promete.
-   */
-  function amountParaBase(base: number, mode: VatMode): number {
-    return totalAmountParaBase(base, mode, money.vatRate);
-  }
-
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * O CAMPO DO ESTÚDIO E O PREÇO DO PEDIDO PODEM NÃO SER O MESMO NÚMERO
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * Enquanto os adicionais estavam DENTRO do valor escrito, eram o mesmo: ela
-   * escrevia 3.000, o pedido guardava 3.000, e a deslocação saía de lá de
-   * dentro.
-   *
-   * Com «estas linhas somam-se», o campo passa a ser SÓ os serviços e o que o
-   * casal paga é serviços mais adicionais. O «Preço final (sem IVA)» do pedido
-   * tem de continuar a ser o que o casal paga sem IVA — é dele que a Visão
-   * Geral, as Estatísticas e o dossier leem o dinheiro dos pedidos que ainda
-   * não têm proposta enviada. Guardar lá só os serviços fazia as deslocações
-   * DESAPARECEREM desses ecrãs, sem ninguém dar por isso.
-   *
-   * Por isso há duas conversões, e são inversas uma da outra:
-   *   escrito -> pedido   soma os adicionais
-   *   pedido  -> escrito  tira-os
-   *
-   * Quando os adicionais estão dentro do valor, as duas não fazem nada, e o
-   * comportamento é exactamente o de sempre.
-   */
-  /**
-   * A INVERSA da de cima, e vive no mesmo ficheiro que ela — ver
-   * `lib/preco-do-pedido`.
-   *
-   * ── O DOCUMENTO É UM ARGUMENTO, E TEM DE SER ────────────────────────────
-   *
-   * Lia `doc` da closure, e havia três chamadores em que `doc` é precisamente
-   * o documento ERRADO: repor uma versão, copiar uma proposta e anular uma
-   * limpeza trocam o documento inteiro com um `setDoc` e chamam isto na linha
-   * a seguir — quando `doc` ainda é o que se acabou de substituir. Os
-   * adicionais somados eram os do documento ANTIGO.
-   *
-   * Repor a versão que seguiu para o cliente é o caso que dói: a versão traz
-   * 1.490,00 € de adicionais, o rascunho no ecrã tinha 895,00 €, e o pedido
-   * ficava a 595,00 € de distância do que o casal recebeu — sem nada no ecrã
-   * a dizê-lo, e à espera da abertura seguinte para o mostrar.
-   */
-  function baseDoEcraParaOPedido(base: number, deQue: StudioDoc = doc): number {
-    return precoDoPedidoParaBase(base, deQue as unknown as ContextoDoPreco);
-  }
-
-  /** O que se grava no pedido, com a mão travada: escrever "3000" são quatro
-   *  teclas e não podem ser quatro gravações. */
-  const gravarPreco = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** O último valor que ESTE ecrã mandou gravar — para a resposta que volta do
-   *  servidor não disparar outra vez a sincronização e entrar em ciclo. */
-  const precoEnviado = useRef<number | undefined>(quote.quotedPrice);
-  /**
-   * ── E O QUE CHEGOU NO `quote`, QUE É COISA DIFERENTE ────────────────────
-   *
-   * O `precoEnviado` diz o que daqui SAIU; este diz o que de lá VEIO. Eram o
-   * mesmo ref, e a sincronização de baixo usava-o como detector de mudança do
-   * `quote.quotedPrice` — o que quer dizer que quem lhe MEXESSE fabricava uma
-   * mudança que nunca houve.
-   *
-   * E passou a haver quem lhe mexesse: o ramo do «o pedido ainda não tem
-   * preço» adopta o valor do rascunho e chama `persistirPreco`, que marca
-   * 3.250 como enviado. O PATCH só volta 600 ms depois, portanto a
-   * sincronização corre na montagem com `quotedPrice` ainda por preencher, lê
-   * `undefined ≠ 3.250`, conclui que o preço foi APAGADO na Gestão do pedido —
-   * e limpava o total do ecrã. Medido: o campo ficava em branco até a resposta
-   * chegar, e se a rede estivesse em baixo ficava em branco e era assim que o
-   * rascunho gravava. O valor dela desaparecia por não haver rede.
-   *
-   * Com os dois separados, a pergunta que a sincronização faz volta a ser a
-   * certa: «o número que veio é diferente do último que veio?». Na montagem
-   * não é — a hidratação já aplicou o que havia a aplicar.
-   */
-  const doPedidoVisto = useRef<number | undefined>(quote.quotedPrice);
-
-  function persistirPreco(
-    escrito: number | undefined,
-    opcoes?: {
-      /** O número já é o que o casal paga: não se lhe somam adicionais nenhuns. */
-      jaEfectivo?: boolean;
-      /** Contra que documento se faz a conversão. Ver `baseDoEcraParaOPedido`:
-       *  quem acabou de trocar o documento tem de o dizer, senão a soma é feita
-       *  com os adicionais do que já lá não está. */
-      doc?: StudioDoc;
-    },
-  ) {
-    const base =
-      escrito == null || opcoes?.jaEfectivo
-        ? escrito
-        : baseDoEcraParaOPedido(escrito, opcoes?.doc ?? doc);
-    precoEnviado.current = base;
-    if (gravarPreco.current) clearTimeout(gravarPreco.current);
-    gravarPreco.current = setTimeout(() => {
-      void tentarGravarOPreco(base ?? null);
-    }, 600);
-  }
-
-  /**
-   * A ida ao servidor, separada do travão das teclas — porque o botão «Tentar
-   * de novo» precisa de a chamar sem esperar 600 ms por nada.
-   */
-  async function tentarGravarOPreco(base: number | null) {
-    setPrecoAGravar(true);
-    try {
-      const r = await mandarPrecoAoPedido(quote.id, base);
-      // Auditoria de 13/11 (estúdio, n.º 10): uma resposta ATRASADA — ela já
-      // escreveu outro valor, que entretanto partiu — não pode voltar ao ecrã:
-      // o pedido com o preço antigo fazia a sincronização saltar o campo a meio
-      // da escrita. Só a resposta do último valor enviado conta.
-      if (base !== (precoEnviado.current ?? null)) return;
-      if (r.estado === "gravado") {
-        setPrecoPorChegar(null);
-        // `quote` pode faltar num 200 de corpo ilegível — ver `ResultadoDoPreco`.
-        if (r.quote) onQuoteUpdated?.(r.quote);
-        return;
-      }
-      /**
-       * ── E AQUI DEIXA DE SE CALAR ──────────────────────────────────────
-       *
-       * O comentário antigo dizia que avisar a cada tecla seria pior do que o
-       * problema — e tinha razão. Só que a alternativa que escolheu foi não
-       * avisar de todo, e o preço ficava a divergir em silêncio.
-       *
-       * O aviso não é por tecla: é UM estado, que fica enquanto o pedido tiver
-       * um valor diferente do da proposta, e desaparece sozinho assim que uma
-       * gravação passe. Enquanto ele estiver de pé, o ecrã mostra os dois
-       * números e um botão — que é o que ela precisa de ver para decidir.
-       */
-      setPrecoPorChegar({
-        base,
-        porque: r.porque,
-        valeTentarDeNovo: r.valeTentarDeNovo,
-      });
-    } finally {
-      setPrecoAGravar(false);
-    }
-  }
-
-  function onTotalInput(raw: string) {
-    // O total não vive no `doc` (é um texto à parte), mas a regra é a mesma:
-    // ver `camposTocados`. Sem esta marca, o merge do rascunho reescrevia a
-    // caixa do total a meio de ela estar a escrever o valor.
-    camposTocados.current.add("__total");
-    setTotalInput(raw);
-    /**
-     * ── O QUE NÃO É UM VALOR DIZ-SE, E NÃO SE GRAVA ─────────────────────────
-     *
-     * Achado n.º 5: «-500» via-se -500 e contava +500 (o `parseMoneyText` lê
-     * os algarismos e deixa o sinal de fora) — e era +500 que ia para o pedido.
-     * Achado n.º 16: «0» voltava sozinho ao valor anterior, sem uma palavra.
-     * Nos dois casos o campo fica com o que ela escreveu, diz porquê, e nada
-     * se grava até haver um valor a sério.
-     */
-    const negativo = /-\s*[\d.,]/.test(raw);
-    const lido = raw.trim() === "" ? undefined : parseMoneyText(raw);
-    if (negativo) {
-      setErroDoTotal(
-        "O valor não pode ser negativo. Um desconto escreve-se como linha do orçamento.",
-      );
-      return;
-    }
-    if (lido === 0) {
-      setErroDoTotal("Com 0 € não há proposta a enviar — escreve o valor dos serviços.");
-      return;
-    }
-    setErroDoTotal(null);
-    const base = lido;
-    writeTotal(base == null ? undefined : amountParaBase(base, vatMode), vatMode);
-    persistirPreco(base);
-  }
-
-  /**
-   * O dinheiro EFECTIVO deste documento: já com a regra dos valores adicionais
-   * aplicada (dentro do valor escrito, ou a somar-lhe). É o que o casal vai
-   * ver e pagar, portanto é o que o estúdio mostra e o que trava o envio.
-   *
-   * O `escrito` é o outro número, e existe para uma coisa só: o campo «Valor
-   * (sem IVA)» e o que se diz ao alinhá-lo com a soma das linhas. Aí o que
-   * interessa é o que ELA escreveu, não o total com os adicionais somados.
-   */
-  const money = dinheiroDaProposta(doc);
-  const escrito = resolveProposalMoney(doc);
-  // A percentagem do sinal é do DOCUMENTO, e é a mesma que as rotas de
-  // facturação leem quando emitem o sinal e o saldo (ver `depositPercentOf`).
-  // Sem isso, a proposta dizia 40% e a factura saía a 30% — que é pior do que
-  // não a poder mudar de todo.
-  const pctSinal = depositPercentOf(doc as ProposalDoc);
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * OS NÚMEROS DO ECRÃ SÃO OS NÚMEROS DO PAPEL — A MESMA FUNÇÃO, UMA VEZ SÓ
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * Palavras dela: «um bloco de totais inequívoco». O ecrã mostrava TRÊS somas
-   * ao mesmo tempo — «Soma das linhas: 2.400,00 €», «Somado ao total: 970,00 €»
-   * e, na barra do fundo, «Total 2.460,00 € · o cliente paga 3.025,80 € · soma
-   * das linhas 2.400,00 €» — e nenhuma delas era o quadro que o casal recebe.
-   * Três números a competir pela mesma pergunta ensinam a não confiar em
-   * nenhum.
-   *
-   * Agora há um bloco só, pela ordem do PDF, e sai de `totaisDaProposta` — a
-   * MESMA chamada que `proposal-doc-pdf.ts` faz para desenhar o quadro
-   * (`totaisDaProposta(doc, depositPercentOf(doc))`). Enquanto o ecrã fizesse
-   * as suas contas e o gerador as dele, o dia em que divergissem chegava — foi
-   * exactamente assim que a proposta da Tara e do Marty saiu com o sinal e o
-   * saldo a somarem 3.025,80 € e o «Valor Total» a dizer 2.950,79 €.
-   */
-  const totais = totaisDaProposta(doc, pctSinal);
-  // O sinal e o saldo saem daí também, e não de uma segunda chamada a
-  // `splitSinal`: eram a mesma divisão feita em dois sítios, e duas
-  // implementações da mesma divisão podem arredondar para lados diferentes.
-  const split = { sinal: totais.sinal, saldo: totais.saldo };
   /**
    * O resumo para o botão «Copiar resumo» — três ou quatro linhas prontas a
    * colar no WhatsApp. Os números são os de `totais` (`totaisDaProposta`),
@@ -2902,135 +1057,44 @@ export default function ProposalStudio({
       idiomaDoPdf,
     );
   const resumoParaCopiar = resumoComLink(linkDaProposta ?? undefined);
-  // O desvio do total escrito à mão. Vive aqui em cima porque é lido em dois
-  // sítios: na dica do campo e no aviso com o botão que o arruma.
-  const desvio = desalinhamento(doc, money.base);
-
-  /**
-   * ── O TOTAL É A SOMA (5/11) ─────────────────────────────────────────────
-   * Ela: «a pessoa que está a fazer a proposta vai colocando os serviços e o
-   * valor. E depois, no final, o sistema soma os valores todos, dos serviços
-   * todos, da deslocação e tudo mais, e dá o valor final.»
-   *
-   * Quando ELA muda o preço de uma linha (escrever, apagar a linha, mudar a
-   * escala), o total passa a ser a soma — com os adicionais, que já entravam
-   * no total pelo `definirExtras`. Só nesses gestos, e nunca ao abrir: uma
-   * proposta antiga com o total escrito à mão não muda sozinha por ser aberta
-   * (fica o aviso e o «Usar …» de sempre).
-   */
-  const somarOTotal = useRef(false);
-  useEffect(() => {
-    if (!somarOTotal.current) return;
-    somarOTotal.current = false;
-    const d = desalinhamento(doc, dinheiroDaProposta(doc).base);
-    if (!d || !(d.sugerido > 0)) return;
-    confirmado("totalAmount");
-    onTotalInput(textoDoTotal(d.sugerido));
-    // Só os preços das linhas disparam isto; as funções são as deste render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc.budgetAmounts, doc.budgetItems]);
-  /**
-   * Quantas linhas do orçamento já têm preço.
-   *
-   * Sai de `precosDe` e não de contar campos no ecrã: os preços são um array
-   * paralelo às linhas, e é a biblioteca que garante que os dois têm o mesmo
-   * comprimento.
-   */
-  const precos = precosDe(doc);
-  const contagem = contagemDePrecos(precos);
-  /** Quantas pessoas, lido do campo do documento ("125 pax" → 125). */
-  const convidados = convidadosDoDoc(doc as ProposalDoc);
-  const escalasDoDoc = escalasDe(doc as ProposalDoc);
-  const extrasDoDoc = opcionaisDe(doc as ProposalDoc);
-  // O artigo do Moloni de cada linha (5/11) — só para a faturação.
-  const artigosDoDoc = artigosDasLinhas(doc as ProposalDoc);
-  const subpontosDoDoc = subpontosDe(doc as ProposalDoc);
-  const servicosAOrcamentar =
-    doc.template !== "organizacao" ? servicosForaDoOrcamento(doc as ProposalDoc) : [];
-
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * A ORDEM QUE VAI SAIR IMPRESSA, MOSTRADA AQUI
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * Palavras dela, duas vezes: na lista de Serviços é Cerimónia →
-   * Complementos → Cocktail → Jantar, no Orçamento é Cerimónia → Cocktail →
-   * Jantar → Complementos. As mesmas rubricas, duas ordens.
-   *
-   * A regra que as alinha já existia — mas dentro de `proposal-doc-pdf.ts`,
-   * que é `server-only`. O PDF saía certo e o ECRÃ continuava a mostrar a
-   * ordem de escrita, portanto o que ela via era a divergência, sempre. A
-   * regra mudou-se para `proposal-ordem.ts` e é agora a MESMA chamada dos
-   * dois lados: estas duas linhas e as duas do gerador.
-   *
-   * As listas por baixo percorrem estes índices e não `map((_, i) =>`. O
-   * índice que sai daqui é o VERDADEIRO — o do array — e é esse que os
-   * botões recebem: o que muda é a ordem por que se desenham, não onde se
-   * escreve.
-   */
-  const linhasDoOrcamento = linhasDe(doc);
-  /*
-    ── SÓ SE RECALCULA QUANDO MUDA O QUE A DECIDE (10/11) ──────────────────
-    Ela: «está a travar imenso». A ordem depende dos TÍTULOS (dos grupos de
-    serviços, das linhas e das páginas) e da marca de ordem explícita — não do
-    texto de uma descrição. Corria a cada letra escrita em qualquer campo; o
-    perfil mostrou ~100 ms em 21 letras só aqui. Com a chave dos títulos, só
-    corre quando um título muda — e o array devolvido fica o MESMO entre
-    letras, o que deixa os filhos que o recebem sem razão para se redesenhar.
-  */
-  // `JSON.stringify` e não um `join`: com um `join`, nenhuma linha e UMA linha
-  // ainda sem nome davam a mesma chave, e a linha acabada de acrescentar não
-  // aparecia (apanhado pelo teste «mostra a conta ao lado do número»).
-  const chaveDosRotulosDoOrcamento = JSON.stringify(linhasDoOrcamento.map((l) => l.item ?? ""));
+  const somaDoTotal = useSomarOTotal({ camposPorConfirmar, documento, total });
+  const { somarOTotal } = somaDoTotal;
+  const contas = useContasDoOrcamento({ documento });
+  const {
+    artigosDoDoc,
+    chaveDosCapitulos,
+    contagem,
+    convidados,
+    escalasDoDoc,
+    extrasDoDoc,
+    linhasDoOrcamento,
+    ordemDoOrcamento,
+    servicosAOrcamentar,
+    subpontosDoDoc,
+  } = contas;
   const chaveDosTitulosDosBoards = JSON.stringify(doc.moodBoards.map((b) => b.title ?? ""));
-  // `ordemDosCapitulos` lê o título de cada grupo E os rótulos das linhas dele.
-  const chaveDosCapitulos = JSON.stringify(
-    (doc.serviceGroups ?? []).map((g) => [
-      g.title ?? "",
-      ...(g.items ?? []).map((it) => it.label ?? ""),
-    ]),
-  );
-  const ordemDoOrcamento = useMemo(
-    () => ordemDeSaida(doc as ProposalDoc, linhasDoOrcamento, (l) => l.item ?? ""),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- a chave diz o que decide
-    [chaveDosRotulosDoOrcamento, chaveDosCapitulos, doc.ordemExplicita],
-  );
   const ordemDosBoards = useMemo(
     () => ordemDeSaida(doc as ProposalDoc, doc.moodBoards, (b) => b.title ?? ""),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a chave diz o que decide
     [chaveDosTitulosDosBoards, chaveDosCapitulos, doc.ordemExplicita],
   );
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * QUANTO PESA ESTA PROPOSTA, SEMPRE À VISTA
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * Palavras dela: «Contagem de fotos por board e total da proposta, sempre
-   * visível. Número estimado de páginas do PDF.»
-   *
-   * As páginas de inspiração são exactamente uma por board COM fotos — um board
-   * vazio não imprime nada (o gerador salta-o, para nunca mostrar uma folha em
-   * branco a um cliente).
-   *
-   * O total do PDF sai do PLANO do desenho novo (`pdf-editorial/plano.ts`):
-   * a mesma sequência que o gerador desenha, presa a ele por um teste. Só o
-   * texto que transborda (o orçamento e as condições) é estimado, e é por isso
-   * que se diz «cerca de».
-   */
-  const fotosPorBoard = doc.moodBoards.map((b) => b.images.length);
-  const totalDeFotos = fotosPorBoard.reduce((a, b) => a + b, 0);
-  const planoDoPdf = useMemo(() => planoDaProposta(doc as ProposalDoc), [doc]);
-  /**
-   * Que fotografia o PDF põe em cada página — perguntado ao PDF
-   * (`usePlanoDoPdf`) —, e de que fotografias o PDF tira a paleta.
-   */
-  const respostaDoPdf = usePlanoDoPdf(quote.id, doc as ProposalDoc, idiomaDoPdf);
-  const fotosDoPdf = respostaDoPdf?.fotos ?? null;
-  /** De onde vêm as fotografias das miniaturas do PDF novo (`PaginaEditorial`). */
-  const fontesDasMiniaturas = useMemo(
-    () => fontesDasFolhas(doc as ProposalDoc, planoDoPdf, assetUrls, assetOriginais, fotosDoPdf),
-    [doc, planoDoPdf, assetUrls, assetOriginais, fotosDoPdf],
-  );
+  const paginasDaProposta = usePaginasDaProposta({
+    documento,
+    fotos,
+    quote,
+    tempoNaProposta,
+    traducoes,
+  });
+  const {
+    avisosDeTitulo,
+    contagemDosBoards,
+    fontesDasMiniaturas,
+    fotosDaProposta,
+    fotosDoPdf,
+    planoDoPdf,
+    respostaDoPdf,
+    totalDeFotos,
+  } = paginasDaProposta;
   /**
    * ── A FOTOGRAFIA DE UMA PÁGINA DO PDF, ESCOLHIDA POR ELA ──────────────────
    *
@@ -3040,528 +1104,28 @@ export default function ProposalStudio({
    * `fotosDasPaginas[chave]`. A capa continua a ser a «Fotografia da capa».
    */
   const anular = useAnular();
-  const [paginaDaFoto, setPaginaDaFoto] = useState<{
-    chave: string;
-    nome: string;
-    max: number;
-    /** A forma da caixa de cada lugar (`formasDosLugares`), para o enquadrar. */
-    formas?: readonly number[];
-  } | null>(null);
-  const [lugarDaFoto, setLugarDaFoto] = useState(0);
-  /**
-   * O que está AGORA em cada lugar de uma página: a escolha dela, ou a do PDF.
-   * Um lugar que ela deixou vazio (`""`, a paleta) mostra o que o PDF lá põe.
-   */
-  const lugaresDaPagina = (chave: string): (string | null)[] => {
-    if (chave === "capa") return [caminhoDaCapa ?? fotosDoPdf?.capa?.[0]?.ref ?? null];
-    const auto = (fotosDoPdf?.[chave] ?? []).map((f) => f.ref);
-    const dela = doc.fotosDasPaginas?.[chave]?.fotos;
-    if (!dela) return auto;
-    return dela.map((r, k) => (r && r.trim() ? r : (auto[k] ?? null)));
-  };
-  /** O enquadramento que se VÊ em cada lugar: o dela, ou o que o PDF escolheu. */
-  const focosDaPagina = (chave: string): (Foco | null)[] => {
-    if (chave === "capa") return [doc.focoDaCapa ?? fotosDoPdf?.capa?.[0]?.foco ?? null];
-    const dela = doc.fotosDasPaginas?.[chave];
-    return (fotosDoPdf?.[chave] ?? []).map((f, k) =>
-      dela?.fotos[k]?.trim() ? (dela.focos?.[k] ?? f.foco ?? null) : (f.foco ?? null),
-    );
-  };
-  /**
-   * As cores da paleta escolhidas por ELA (`paletaDela`), com «Anular» —
-   * «a minha mãe quer ser ela a escolher as cores» (13/11). `null` volta às
-   * automáticas (a sugestão das flores das fotografias).
-   */
-  function mudarPaleta(cores: string[] | null, frase: string) {
-    const antes = doc.paletaDela;
-    patch({ paletaDela: cores && cores.length ? cores : undefined });
-    anular(frase, () => patch({ paletaDela: antes }));
-  }
-  /**
-   * As fotografias de onde saem as cores — as MESMAS que o PDF lê. Quem as diz
-   * é o próprio PDF (`daPaleta`, da rota `fotos-do-pdf`, pela ordem dele); e a
-   * SUGESTÃO de cores vem também do servidor, calculada sobre os bytes do PDF
-   * (`paleta-do-pdf`) — o navegador só as lê para o conta-gotas (13/11: a
-   * sugestão do estúdio dava outras cores, por outra ordem, do que o PDF).
-   * Enquanto o PDF não responde, a mesma regra feita aqui (`fotosQueDaoCor`)
-   * mostra as fotografias ao conta-gotas. Lê-se a fotografia inteira (a versão
-   * média) e não a miniatura, que é um recorte quadrado com outras cores.
-   */
-  const fotosDaPaleta = (() => {
-    const urlDe = (r: string) =>
-      assetMedias[r] ??
-      assetOriginais[r] ??
-      assetUrls[r] ??
-      (r.startsWith("data:") ? r : undefined);
-    if (respostaDoPdf?.daPaleta)
-      return respostaDoPdf.daPaleta.map((r) => ({ ref: r, url: urlDe(r) }));
-    // Pela ordem do PDF: o painel (o 6.º lugar) primeiro, depois a fila.
-    // Os seis lugares, mesmo numa proposta que gravou só cinco (antes de o
-    // 6.º ser o painel): o que falta é o que o PDF lá põe.
-    const auto = (fotosDoPdf?.ambiente ?? []).map((f) => f.ref);
-    const dela = lugaresDaPagina("ambiente");
-    const l = Array.from(
-      { length: Math.max(dela.length, auto.length, 6) },
-      (_, k) => dela[k] ?? auto[k] ?? null,
-    );
-    const pelaOrdemDoPdf = [l[5], ...l.slice(0, 5)].filter((r): r is string => !!r);
-    // A versão média («inside», sem recorte). O original pesava vários MB por
-    // fotografia, seis de cada vez.
-    return fotosQueDaoCor(pelaOrdemDoPdf, doc.moodBoards).map((r) => ({ ref: r, url: urlDe(r) }));
-  })();
-  /** As referências pelas quais se pede a sugestão ao servidor: só as do PDF. */
-  const refsDaPaleta = respostaDoPdf?.daPaleta ?? null;
-  /**
-   * Grava a escolha de uma página (ou apaga-a, com `null`), com «Anular». Os
-   * focos vão com as fotos, lugar a lugar; sem `focos`, ficam os que havia.
-   */
-  function gravarFotosDaPagina(
-    chave: string,
-    fotos: string[] | null,
-    frase: string,
-    focos?: (Foco | null)[],
-  ) {
-    const antes = doc.fotosDasPaginas;
-    const seguintes = { ...(antes ?? {}) };
-    if (fotos && fotos.some((f) => f && f.trim())) {
-      const f = (focos ?? antes?.[chave]?.focos ?? []).slice(0, fotos.length);
-      seguintes[chave] = { fotos, ...(f.some(Boolean) ? { focos: f } : {}) };
-    } else delete seguintes[chave];
-    patch({ fotosDasPaginas: seguintes });
-    anular(frase, () => patch({ fotosDasPaginas: antes }));
-  }
-  /**
-   * O enquadramento de um lugar (ou o automático, com `null`), com «Anular».
-   * Pedido dela de 23/10: «ajustar a posição da foto» em qualquer página.
-   * Enquadrar uma foto que o sistema escolheu fixa-a nesse lugar — senão o
-   * enquadramento ficava preso a uma foto que o PDF podia trocar.
-   */
-  function enquadrarNaPagina(chave: string, nome: string, lugar: number, foco: Foco | null) {
-    if (chave === "capa") {
-      // A capa tem o seu campo de sempre (o mesmo do «Enquadrar» da capa).
-      const antes = doc.focoDaCapa;
-      patch({ focoDaCapa: foco ?? undefined });
-      anular(
-        foco ? "Enquadramento da capa mudado." : "A capa volta ao enquadramento automático.",
-        () => patch({ focoDaCapa: antes }),
-      );
-      return;
-    }
-    const novo = enquadrarNoLugar(
-      doc.fotosDasPaginas?.[chave],
-      lugaresDaPagina(chave),
-      lugar,
-      foco,
-    );
-    if (!novo) return;
-    gravarFotosDaPagina(
-      chave,
-      novo.fotos,
-      foco ? `Enquadramento de «${nome}» mudado.` : `«${nome}» volta ao enquadramento automático.`,
-      novo.focos ?? [],
-    );
-  }
-  /**
-   * A disposição das fotografias de um tema (ou a automática, com `null`), com
-   * «Anular». Ela pediu-a de volta a 15/10 — ver `EscolherDisposicao`.
-   */
-  function mudarDisposicao(bi: number, d: Disposicao | null) {
-    const antes = doc.moodBoards[bi]?.disposicao;
-    updateBoard(bi, { disposicao: d ?? undefined });
-    anular(d ? `Disposição: ${NOME_DA_DISPOSICAO[d]}.` : "Disposição automática.", () =>
-      updateBoard(bi, { disposicao: antes }),
-    );
-  }
-  /** A mesma disposição em todos os temas que não estão fechados, com «Anular». */
-  function disposicaoEmTodos(d: Disposicao) {
-    const antes = doc.moodBoards.map((b) => b.disposicao);
-    setDoc((x) => ({
-      ...x,
-      moodBoards: x.moodBoards.map((b) => (b.bloqueado ? b : { ...b, disposicao: d })),
-    }));
-    anular(`«${NOME_DA_DISPOSICAO[d]}» em todos os temas.`, () =>
-      setDoc((x) => ({
-        ...x,
-        moodBoards: x.moodBoards.map((b, i) => ({ ...b, disposicao: antes[i] })),
-      })),
-    );
-  }
-  /** Põe `ref` no lugar `lugar` da página — os outros lugares ficam como estão. */
-  function porFotoNaPagina(chave: string, nome: string, max: number, lugar: number, ref: string) {
-    if (chave === "capa") {
-      setCoverAt(idxDaCapa, ref);
-      return;
-    }
-    // Cada lugar fica no SEU sítio (na paleta, o 6.º é o painel grande): na
-    // paleta os outros lugares continuam automáticos; nas outras páginas fica
-    // o que lá estava, como sempre foi. Ver `lugares-escolhidos.ts`.
-    const novo = trocarNoLugar(
-      doc.fotosDasPaginas?.[chave],
-      lugaresDaPagina(chave),
-      lugar,
-      ref,
-      max,
-      chave.startsWith("ambiente"),
-    );
-    gravarFotosDaPagina(chave, novo.fotos, `Fotografia de «${nome}» trocada.`, novo.focos ?? []);
-  }
-  /** Uma ou duas no separador. */
-  function quantasNaPagina(chave: string, nome: string, n: 1 | 2) {
-    const agora = lugaresDaPagina(chave).filter((f): f is string => !!f);
-    let fotos = agora.slice(0, n);
-    if (n === 2 && fotos.length < 2) {
-      // A segunda: a que o PDF lá tinha, ou a primeira de outra que haja.
-      const outra = [
-        ...(fotosDoPdf?.[chave] ?? []).map((f) => f.ref),
-        ...doc.moodBoards.flatMap((b) => b.images),
-      ].find((r): r is string => !!r && !fotos.includes(r) && !isPendingImage(r));
-      if (outra) fotos = [...fotos, outra];
-    }
-    gravarFotosDaPagina(
-      chave,
-      fotos,
-      n === 1 ? `«${nome}» com uma fotografia.` : `«${nome}» com duas fotografias.`,
-    );
-    setLugarDaFoto(0);
-  }
-  /** As fotografias desta proposta, para escolher (capa e temas, sem repetir). */
-  const fotosDaProposta = useMemo(() => {
-    const vistas = new Set<string>();
-    const lista: { ref: string; url?: string; original?: string }[] = [];
-    for (const r of [
-      ...(doc.coverImages ?? []),
-      ...doc.moodBoards.flatMap((b) => b.images),
-      ...Object.values(doc.fotosDasPaginas ?? {}).flatMap((e) => e.fotos),
-    ]) {
-      if (!r || vistas.has(r) || isPendingImage(r)) continue;
-      vistas.add(r);
-      lista.push({
-        ref: r,
-        url: assetUrls[r] ?? (r.startsWith("data:") ? r : undefined),
-        original: assetOriginais[r],
-      });
-    }
-    return lista;
-  }, [doc.coverImages, doc.moodBoards, doc.fotosDasPaginas, assetUrls, assetOriginais]);
-  const paginasDeInspiracao = planoDoPdf.filter((p) => p.tipo === "tema").length;
-  const tempoDaProposta = tempoMostrado > 0 ? ` · ${emPalavras(tempoMostrado)} de trabalho` : "";
-  const contagemDosBoards =
-    `${paginasDeInspiracao} ${paginasDeInspiracao === 1 ? "página" : "páginas"} · ` +
-    `${totalDeFotos} ${totalDeFotos === 1 ? "foto" : "fotos"} · ` +
-    // O número sai da MESMA lista que a vista de conjunto desenha. Eram duas
-    // contas sobre o mesmo documento — «7 páginas» na vista e «cerca de 14» na
-    // frase — e discordavam porque contavam coisas diferentes.
-    `PDF com cerca de ${planoDoPdf.length} ${planoDoPdf.length === 1 ? "página" : "páginas"}${tempoDaProposta}`;
-
-  /**
-   * ── OS TÍTULOS QUE SE LÊEM COMO O MESMO NOME ────────────────────────────
-   *
-   * Um por board, e `undefined` na esmagadora maioria. Calculado uma vez para
-   * a lista toda e não board a board: a pergunta é sobre PARES, e fazê-la
-   * dentro do cartão dava um varrimento de todos os títulos por cada cartão
-   * desenhado — oito páginas, sessenta e quatro comparações, a cada tecla
-   * escrita num título.
-   */
-  const avisosDeTitulo = useMemo(() => {
-    const por: Record<number, string> = {};
-    for (const grupo of titulosParecidos(doc as ProposalDoc)) {
-      for (const bi of grupo.bis) {
-        const aviso = avisoDeTituloParecido(doc as ProposalDoc, bi);
-        if (aviso) por[bi] = aviso;
-      }
-    }
-    return por;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc.moodBoards, doc.serviceGroups, doc.ordemExplicita]);
-
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * ONDE É QUE ESTA FOTOGRAFIA JÁ ESTEVE
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * Duas perguntas diferentes, e só uma delas é um aviso:
-   *
-   *  · JÁ ESTÁ NOUTRO BOARD desta proposta — quase sempre um engano, e é o
-   *    único caso em que o casal vê a mesma fotografia duas vezes no mesmo
-   *    documento;
-   *  · JÁ FOI a outra proposta, e, dentro dessas, as que foram para um
-   *    casamento NO MESMO ESPAÇO. É a repetição que alguém nota: a equipa da
-   *    quinta, o fotógrafo da casa, os convidados que vão aos dois.
-   *
-   * As outras repetições — outro casal, outro sítio, outro mês — não são aviso
-   * nenhum: a biblioteca existe para ser usada.
-   */
-  // Pela CHAVE das fotografias e não pelo array das páginas: este muda a cada
-  // letra escrita num título ou numa descrição, e a contagem não (10/11).
-  const chaveDasFotosDosBoards = JSON.stringify(doc.moodBoards.map((b) => b.images));
-  const ondeEstaCadaFoto = useMemo(() => {
-    const contagem = new Map<string, number>();
-    for (const b of doc.moodBoards)
-      for (const p of b.images) {
-        if (p) contagem.set(p, (contagem.get(p) ?? 0) + 1);
-      }
-    return contagem;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- a chave diz o que decide
-  }, [chaveDasFotosDosBoards]);
-
-  const repetidasPorOrigem = useMemo(
-    () => new Map(repetidas.map((f) => [f.origem, f])),
-    [repetidas],
-  );
-
-  /**
-   * ── A ÚNICA REPETIÇÃO QUE SE DESENHA NA GRELHA ──────────────────────────
-   *
-   * A mesma fotografia em duas páginas do MESMO documento. É quase sempre um
-   * engano, é o único caso em que o casal vê a mesma fotografia duas vezes na
-   * proposta que recebe, e é a única das três perguntas que se resolve sem
-   * sair desta página — está ali, na grelha ao lado.
-   *
-   * Marcada NAS DUAS: a contagem é sobre o documento inteiro, portanto as duas
-   * células acendem. Assinalar só a segunda obrigava a procurar a primeira.
-   *
-   * ── E PORQUE É QUE AS OUTRAS DUAS NÃO ACENDEM AQUI ──────────────────────
-   * «Já usada noutro casamento» e «já usada no mesmo espaço» são verdadeiras e
-   * úteis, mas esta página já pode acender sete avisos ao mesmo tempo (página
-   * cheia, fotos fora do PDF, fila desequilibrada, fotos cortadas, foto que
-   * destoa da paleta…). Cada aviso novo torna os outros menos lidos. As duas
-   * vivem onde a decisão se toma — no selector da biblioteca, que já as mostra
-   * — e aqui contam-se ao rato, em `passadoDaFoto`, sem acender nada.
-   */
-  function repeticaoNestaProposta(caminho: string): { texto: string; grave: boolean } | null {
-    const vezesAqui = ondeEstaCadaFoto.get(caminho) ?? 0;
-    if (vezesAqui <= 1) return null;
-    // CURTO porque a tira é `truncate` e a célula, a 390 px numa grelha de três
-    // colunas, tem ~110 px de largura: «Esta fotografia está 2 vezes nesta
-    // proposta.» a 8 px sai «Esta fotografia es…», que é uma frase que não diz
-    // nada. A frase inteira fica no texto do rato, onde há espaço.
-    return { texto: `${vezesAqui}× nesta proposta`, grave: true };
-  }
-
-  /**
-   * O que se conta ao passar o rato: de que foto da biblioteca veio esta, e para
-   * onde ela já foi. Não acende nada no ecrã — é a resposta à pergunta «esta
-   * foto já não a usei?», dada a quem a faz.
-   */
-  function passadoDaFoto(caminho: string): string | undefined {
-    const origem = themeOrigins[caminho];
-    const f = origem ? repetidasPorOrigem.get(origem) : undefined;
-    if (!f) return origem;
-    const mesmoEspaco = noMesmoEspaco(f, quote.location || undefined);
-    // A repetição DENTRO desta proposta não vem aqui: a `CelulaDeFoto` já lhe
-    // cola o texto da tira ao fim do título. Repeti-la era dizer duas vezes a
-    // mesma coisa no mesmo balão.
-    return [
-      origem,
-      mesmoEspaco.length > 0
-        ? `Já foi para ${mesmoEspaco[0].cliente}, no mesmo espaço.`
-        : `Já usada — ${comoSeDiz(f)}.`,
-    ]
-      .filter(Boolean)
-      .join(" · ");
-  }
-
-  /*
-    ── O QUE A GRELHA DE CADA PÁGINA RECEBE, ESTÁVEL ENTRE LETRAS (10/11) ──
-    As duas perguntas acima, embrulhadas para mudarem só quando os dados delas
-    mudam (as fotografias da proposta, a origem e o passado de cada uma) — e não
-    a cada letra escrita num título ou numa descrição. É isso que deixa o `memo`
-    do `FotosDoBoard` saltar as 96 células de uma proposta com 8 páginas.
-  */
-  const historiaDaFoto = useCallback(
-    (caminho: string) => repeticaoNestaProposta(caminho),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- lê só `ondeEstaCadaFoto`
-    [ondeEstaCadaFoto],
-  );
-  const origemDaFoto = useCallback(
-    (caminho: string) => passadoDaFoto(caminho),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- lê só estes três
-    [themeOrigins, repetidasPorOrigem, quote.location],
-  );
-
-  /** Alguma das duas listas sai por ordem diferente da que está escrita? */
-  const ordemSugerida = !eAOrdemEscrita(ordemDoOrcamento) || !eAOrdemEscrita(ordemDosBoards);
-
-  /**
-   * Fixa no documento a ordem que está a ser mostrada.
-   *
-   * Escreve os arrays já ordenados e acende `ordemExplicita` — a partir daí a
-   * sugestão cala-se e a ordem escrita vale sozinha, aqui e no PDF. É o que
-   * torna o arrasto possível: enquanto a sugestão mandasse, arrastar um board
-   * era pô-lo num sítio e vê-lo voltar na página seguinte.
-   *
-   * Os preços, os custos, as escalas e as marcas de extra são arrays PARALELOS
-   * às linhas — viajam todos com a mesma permutação ou o orçamento trocava os
-   * preços de sítio, que é um erro que só se vê quando o cliente pergunta.
-   *
-   * ── PORQUE É QUE A LISTA NÃO SE ESCREVE AQUI À MÃO ────────────────────────
-   * Escrevia-se, e faltava-lhe um: o `budgetOpcional`. A marca de «extra»
-   * ficava para trás na permutação, portanto «Arrumar eu» deixava-a na rubrica
-   * errada — o PDF imprimia «extra» ao lado da linha que não era, e a versão
-   * sem extras ficava cem euros ao lado da verdade. Uma segunda lista dos
-   * arrays paralelos é uma lista que se esquece do array seguinte.
-   *
-   * A lista verdadeira é a de `proposal-budget` (o `PARALELOS` que o
-   * `adicionarLinha`/`removerLinha` usam). Não é exportada, mas o TIPO dela é
-   * alcançável pela assinatura do `adicionarLinha` — e com o `satisfies` lá em
-   * baixo a exigir que estejam cá todas, esquecer uma passa a ser erro de
-   * compilação em vez de um extra na linha errada.
-   */
-  type ArrayParaleloDaLinha = Omit<Parameters<typeof adicionarLinha>[0], "budgetItems">;
-
-  function arrumadoEExplicito(d: StudioDoc): StudioDoc {
-    const linhas = linhasDe(d);
-    const ordemL = ordemDeSaida(d as ProposalDoc, linhas, (l) => l.item ?? "");
-    const ordemB = ordemDeSaida(d as ProposalDoc, d.moodBoards, (b) => b.title ?? "");
-    const paralelo = <T,>(arr: T[] | undefined) =>
-      arr === undefined ? undefined : aplicarOrdem(arr, ordemL);
-    // `satisfies` e não uma anotação de tipo: exige que estejam cá TODAS as
-    // chaves paralelas, sem trocar o tipo exacto de cada array por um tipo
-    // comum — que era o que faria o spread lá em baixo deixar de casar.
-    const paralelos = {
-      budgetAmounts: paralelo(d.budgetAmounts),
-      budgetCosts: paralelo(d.budgetCosts),
-      budgetScales: paralelo(d.budgetScales),
-      budgetOpcional: paralelo(d.budgetOpcional),
-      // A rubrica em inglês vai com a rubrica. Sem esta linha, «Alinhar pelos
-      // Serviços» punha a tradução da Cerimónia na linha do Cocktail — e o PDF
-      // inglês saía com a rubrica errada, sem nada a assinalá-lo. Foi o
-      // `satisfies` daqui de baixo que obrigou a escrevê-la.
-      budgetItemsEn: paralelo(d.budgetItemsEn),
-      // O artigo do Moloni vai com a linha (5/11) — senão «Arrumar» faturava a
-      // Cerimónia como Transporte.
-      budgetArtigos: paralelo(d.budgetArtigos),
-      // E os subpontos internos (6/11), pela mesma razão.
-      budgetSubpontos: paralelo(d.budgetSubpontos),
-    } satisfies Record<keyof ArrayParaleloDaLinha, unknown>;
-    return {
-      ...d,
-      ordemExplicita: ORDEM_EXPLICITA,
-      budgetItems: aplicarOrdem(d.budgetItems ?? [], ordemL),
-      ...paralelos,
-      moodBoards: aplicarOrdem(d.moodBoards, ordemB),
-    };
-  }
-
-  /**
-   * Fixa no documento a ordem que está a ser mostrada.
-   *
-   * AS DUAS LISTAS DE UMA VEZ, sempre. Acender `ordemExplicita` a arrumar só
-   * os mood boards congelava o orçamento na ordem por arrumar — ressuscitava
-   * a divergência que isto veio fechar, e desta vez sem sugestão nenhuma a
-   * corrigi-la.
-   */
-  function fixarOrdem() {
-    setDoc(arrumadoEExplicito);
-    // ── O QUE ARRUMOU, E NÃO «PRONTO» ──────────────────────────────────────
-    // As duas listas JÁ estão à vista pela ordem de saída (é o que a sugestão
-    // faz), portanto o clique não mexe um pixel no ecrã: o que se vê é o aviso
-    // desaparecer. «Ordem fixada.» deixava por responder a única pergunta que
-    // se faz a seguir — o que é que isto foi arrumar?
-    //
-    // A conta é das que MUDARAM DE LUGAR, e não das que existem: numa lista de
-    // catorze linhas com duas trocadas, «14 linhas arrumadas» seria uma
-    // mentira pequena a estragar a confiança no resto dos avisos.
-    //
-    // As duas listas contam-se em separado porque o gesto arruma SEMPRE as
-    // duas (ver `arrumadoEExplicito`) e o botão vive só numa delas — quem
-    // carrega no aviso do orçamento tem de saber que os mood boards também
-    // andaram.
-    const linhas = ordemDoOrcamento.filter((idx, i) => idx !== i).length;
-    const paginas = ordemDosBoards.filter((idx, i) => idx !== i).length;
-    const partes = [
-      linhas > 0 ? `${linhas} ${linhas === 1 ? "linha do orçamento" : "linhas do orçamento"}` : "",
-      paginas > 0
-        ? `${paginas} ${paginas === 1 ? "página de inspiração" : "páginas de inspiração"}`
-        : "",
-    ].filter(Boolean);
-    const mudaram = linhas + paginas;
-    toast(
-      partes.length === 0
-        ? "Já estava tudo pela ordem dos Serviços. Daqui para a frente manda a ordem que aqui está."
-        : `${partes.join(" e ")} ${mudaram === 1 ? "mudou" : "mudaram"} de sítio. Daqui para a frente manda a ordem que aqui está.`,
-      "info",
-    );
-  }
-
-  /**
-   * Trocar o tipo de escala de uma linha.
-   *
-   * Ao passar a escalonável, o unitário nasce do preço que já lá estava
-   * dividido pelas unidades — para o total não dar um salto no instante em que
-   * ela escolhe a opção. Ao voltar a fixa, o preço fica onde está: era o
-   * resultado da última multiplicação, e é um número que ela reconhece.
-   */
-  function definirEscala(i: number, tipo: TipoDeEscala) {
-    somarOTotal.current = true;
-    setDoc((d) => {
-      const escalas = escalasDe(d as ProposalDoc);
-      const porMesa = d.convidadosPorMesa ?? CONVIDADOS_POR_MESA_OMISSAO;
-      const proximas = escalas.map((e, j) => {
-        if (j !== i) return e;
-        if (tipo === "fixa") return null;
-        const unidades =
-          tipo === "por-mesa"
-            ? Math.max(1, Math.ceil(convidados / porMesa))
-            : Math.max(1, convidados);
-        const precoActual = (d.budgetAmounts ?? [])[i];
-        const base =
-          typeof precoActual === "number" && precoActual > 0 ? precoActual / unidades : 0;
-        return { tipo, unitario: Math.round(base * 100) / 100 };
-      });
-      return recalcular({ ...d, budgetScales: proximas }, convidados);
-    });
-  }
-
-  function definirUnitario(i: number, texto: string) {
-    somarOTotal.current = true;
-    const n = normalizarValor(texto);
-    setDoc((d) => {
-      const escalas = escalasDe(d as ProposalDoc);
-      const proximas = escalas.map((e, j) => (j === i && e ? { ...e, unitario: n ?? 0 } : e));
-      return recalcular({ ...d, budgetScales: proximas }, convidados);
-    });
-  }
-  const duasFormas = asDuasFormas(money.base, doc.vatRate ?? DEFAULT_VAT_RATE);
-
-  // ── O preço mudou na Gestão do pedido: aparece aqui ─────────────────────
-  // O outro sentido do mesmo número. Sem isto voltava a haver duas verdades:
-  // alterar o "Preço final" no pedido não mexia no estúdio, e o PDF saía com o
-  // valor antigo.
-  //
-  // `precoEnviado` evita o ciclo: quando a mudança veio DAQUI, o valor que
-  // volta é o que acabámos de mandar e não há nada a fazer.
-  useEffect(() => {
-    const doPedido = quote.quotedPrice;
-    // Primeiro a pergunta certa: MUDOU o que vem de fora? A montagem também
-    // corre este efeito, e na montagem não mudou nada. Ver `doPedidoVisto`.
-    const mudou = doPedido !== doPedidoVisto.current;
-    doPedidoVisto.current = doPedido;
-    if (!hydrated.current) return;
-    if (!mudou) return;
-    if (doPedido === precoEnviado.current) return;
-    precoEnviado.current = doPedido;
-    setDoc((d) => {
-      const mode: VatMode = d.totalVatMode ?? detectVatMode(d.totalText || d.totalEstimatedText);
-      // O pedido guarda o que o casal paga sem IVA; o campo do estúdio mostra
-      // só a parte dos serviços quando os adicionais somam. Ver o par de
-      // conversões acima.
-      const paraOEcra =
-        typeof doPedido === "number" && doPedido > 0 ? baseDoPedidoParaOEcra(doPedido, d) : null;
-      // Pela mesma razão da abertura: quando a conta não dá, não se apaga o que
-      // lá está. Antes, o campo esvaziava-se e o total do documento ia com ele.
-      if (paraOEcra == null && typeof doPedido === "number" && doPedido > 0) return d;
-      setTotalInput(paraOEcra != null ? textoDoTotal(paraOEcra) : "");
-      const amount =
-        paraOEcra != null
-          ? totalAmountParaBase(paraOEcra, mode, d.vatRate ?? DEFAULT_VAT_RATE)
-          : undefined;
-      const text = amount == null ? "" : mode === "acrescer" ? `${eur(amount)} + IVA` : eur(amount);
-      return d.template === "organizacao"
-        ? { ...d, totalAmount: amount, totalVatMode: mode, totalEstimatedText: text }
-        : { ...d, totalAmount: amount, totalVatMode: mode, totalText: text };
-    });
-  }, [quote.quotedPrice]);
+  const repeticoes = useRepeticoesDasFotos({ documento, escolha, fotos, quote });
+  const { historiaDaFoto, origemDaFoto } = repeticoes;
+  const ordem = useOrdemDoOrcamento({ contas, documento, ordemDosBoards, toast });
+  const { arrumadoEExplicito, fixarOrdem, ordemSugerida } = ordem;
+  const linhas = useLinhasDoOrcamento({ contas, documento, reversiveis, somaDoTotal, total });
+  const {
+    addBudgetItem,
+    addBudgetRow,
+    definirEscala,
+    definirUnitario,
+    dividirEmSubpontos,
+    mudarSubpontos,
+    removeBudgetItem,
+    removeBudgetRow,
+    updateBudgetArtigo,
+    updateBudgetExtraFlag,
+    updateBudgetItem,
+    updateBudgetPrice,
+    updateBudgetRow,
+    updateExtraArtigo,
+  } = linhas;
+  useTotalAcompanhaOPedido({ documento, hydrated, quote, total });
 
   function setTemplate(t: "decoracao" | "organizacao") {
     setDoc((d) => {
@@ -3584,351 +1148,45 @@ export default function ProposalStudio({
       };
     });
   }
-
-  /**
-   * Volta ao documento anterior. Chamada pelo `Cmd/Ctrl+Z` e pelo botão
-   * "Desfazer" — o teclado é um atalho, não o caminho.
-   *
-   * O último elemento do histórico É o documento actual (foi lá posto pela
-   * gravação); por isso desfazer tira DOIS e usa o penúltimo.
-   */
-  function desfazer(): boolean {
-    const h = historico.current;
-    const ultimo = h[h.length - 1];
-    let anterior: StudioDoc;
-    /**
-     * Auditoria de 13/11 (estúdio, n.º 4): a fotografia só se tira 800 ms
-     * depois de ela parar. Desfazer ANTES disso (apagou uma linha e carregou
-     * logo ⌘Z) usava o penúltimo — e voltava DOIS passos atrás. Se o documento
-     * de agora ainda não está no histórico, volta-se ao último, e o histórico
-     * fica como está.
-     */
-    if (ultimo && JSON.stringify(ultimo) !== JSON.stringify(doc)) {
-      anterior = ultimo;
-    } else {
-      if (h.length < 2) return false;
-      anterior = h[h.length - 2];
-      historico.current = h.slice(0, -1);
-    }
-    setPodeDesfazer(historico.current.length >= 2);
-    anterior = semMarcadoresMortos(anterior);
-    setDoc(anterior);
-    // O campo do total é estado à parte (aceita texto a meio de ser escrito),
-    // por isso tem de acompanhar — senão desfazer devolvia o documento antigo
-    // e deixava o valor novo na caixa.
-    const base = baseDoDoc(anterior);
-    setTotalInput(base === undefined ? "" : textoDoTotal(base));
-    // E o PEDIDO também (n.º 5): o valor desfeito voltava ao ecrã e ao PDF, mas
-    // o «Preço final» do pedido — margem, Estatísticas, faturas — ficava com o
-    // número desfeito.
-    const doPedido = base == null ? undefined : baseDoEcraParaOPedido(base, anterior);
-    if (doPedido !== precoEnviado.current) persistirPreco(base, { doc: anterior });
-    return true;
-  }
-
-  useEffect(() => {
-    function aoTeclar(e: KeyboardEvent) {
-      const meta = e.metaKey || e.ctrlKey;
-      if (!meta) return;
-      /**
-       * ⌘/Ctrl+S — o MESMO gesto do botão «Guardar agora».
-       *
-       * É o atalho que toda a gente já tem nos dedos de outros programas, e o
-       * que o browser faz com ele por omissão («guardar a página») não serve
-       * aqui a ninguém — daí o `preventDefault`. Ao contrário do ⌘Z, vale
-       * TAMBÉM com o cursor dentro de uma caixa de texto: é precisamente a
-       * meio de escrever um parágrafo que apetece guardar, e não há um
-       * «guardar» do browser dentro de um campo para lhe ficar no caminho.
-       *
-       * DENTRO DO BACK OFFICE ESTE ATALHO NÃO É DAQUI. Passou a ser o gesto
-       * único, tratado pelo registo, que grava o estúdio E tudo o resto que
-       * tenha coisa por gravar — e responde por todos de uma vez. Dois
-       * tratadores para a mesma tecla dariam duas gravações e duas respostas
-       * diferentes ao mesmo gesto, que é como se ensina uma pessoa a
-       * desconfiar das duas.
-       *
-       * Fica aqui como recurso para quando o estúdio é montado FORA do registo
-       * (o dossier do evento, um teste): um atalho que desaparecesse em
-       * silêncio nesses sítios seria trocar uma duplicação por uma perda.
-       */
-      if (!oRegistoFalaPorMim && e.key.toLowerCase() === "s" && !e.shiftKey && !e.altKey) {
-        e.preventDefault();
-        guardarAgora();
-        return;
-      }
-      if (e.key.toLowerCase() !== "z" || e.shiftKey) return;
-      // Dentro de uma caixa de texto, o Cmd+Z do browser desfaz a escrita —
-      // que é o que ela espera. Só se assume o comando fora dos campos, ou
-      // quando o browser já não tem nada para desfazer nesse campo.
-      const alvo = e.target as HTMLElement | null;
-      const aEscrever =
-        alvo && (alvo.tagName === "INPUT" || alvo.tagName === "TEXTAREA" || alvo.isContentEditable);
-      if (aEscrever) return;
-      if (desfazer()) {
-        e.preventDefault();
-        toast("Desfeito.", "info");
-      }
-    }
-    document.addEventListener("keydown", aoTeclar);
-    return () => document.removeEventListener("keydown", aoTeclar);
+  const accaoDeDesfazer = useDesfazer({
+    documento,
+    guardarAgora,
+    oRegistoFalaPorMim,
+    toast,
+    total,
   });
-
-  /**
-   * Depois de o estúdio assentar, vai buscando as miniaturas da biblioteca em
-   * segundo plano. É neste ecrã que o seletor de temas se abre — uma vez por
-   * mood board —, e é aqui que faz sentido pagar esse trabalho adiantado.
-   *
-   * Os travões (dados poupados, ligação lenta) estão no próprio
-   * `aquecerFotosEmSegundoPlano`, não aqui: quem decide se vale a pena gastar
-   * bytes é quem sabe como está a rede, não quem sabe que ecrã é este.
-   */
-  useEffect(() => {
-    aquecerFotosEmSegundoPlano();
-  }, []);
-
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * A PRÉ-VISUALIZAÇÃO DA PÁGINA SÓ SE MONTA ONDE ELA SE VÊ
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * A miniatura de cada mood board era desenhada SEMPRE e escondida por CSS
-   * (`2xl:hidden`). É exactamente o que o `PainelDoEstudio.tsx:52-57` deixou de
-   * fazer, e a razão está lá escrita: numa proposta no tecto do gerador,
-   * desenhar as páginas num ecrã onde elas nem se veem foi o suficiente para o
-   * estúdio deixar de responder em cinco segundos. Aqui são SETE cópias — uma
-   * por mood board —, cada uma com as URLs de todas as fotografias. Num 4G, de
-   * pé numa quinta, isso é trabalho e são bytes que não dão nada em troca.
-   *
-   * E o número estava errado: o comentário justificava-se com «a partir de
-   * `2xl` o painel da direita mostra a mesma página», mas o painel passou a
-   * `CORTES.largo` (1440). Entre 1440 e 1535 apareciam AS DUAS.
-   *
-   * Como no painel, no servidor responde `false` — o HTML sai pelo caminho
-   * estreito (com a miniatura) e ela desaparece na hidratação. É o lado seguro
-   * dos dois: quem tem ecrã largo perde uma miniatura que já tinha ao lado,
-   * quem não tem nunca fica sem ela.
-   */
-  /**
-   * A fila das três colunas, para ela poder perguntar quanto mede a SI PRÓPRIA
-   * em vez de perguntar à janela. É a correcção de fundo — ver
-   * `LARGURA_MINIMA_DA_FILA`, e o `PainelDoEstudio`, que deixou de decidir.
-   *
-   * UM nome só para a resposta, e é este: o comentário aqui em cima conta o que
-   * custou haver dois sítios a responder à mesma pergunta com números
-   * diferentes. Continua a ser um número só; mudou a pergunta.
-   *
-   * Zero é a resposta do servidor e do primeiro fotograma, e quer dizer «ainda
-   * não sei» — aí o painel NÃO se monta. O caminho estreito nunca pode depender
-   * de haver espaço, que é a mesma regra do `useMedida`.
-   */
-  const filaDasColunas = useRef<HTMLDivElement | null>(null);
-  const painelLateralCabe = useLarguraDaZona(filaDasColunas) >= LARGURA_MINIMA_DA_FILA;
-
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * A FOLGA POR BAIXO DO FORMULÁRIO É A ALTURA MEDIDA DA BARRA
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * Ver o comentário ao lado do `paddingBottom`, na marcação. O que aqui se
-   * mede são duas coisas somadas: a altura da barra e a distância a que ela
-   * está do fundo do ecrã (o `bottom-[calc(56px+…)]` que a levanta por cima da
-   * navegação do telemóvel). Sem a segunda, a folga era curta exactamente nos
-   * ecrãs onde a barra está mais alta.
-   *
-   * Começa em 80 px — o número que aqui estava escrito à mão — para o primeiro
-   * desenho não ficar sem folga nenhuma antes de a medição correr.
-   */
-  const barraDeBaixo = useRef<HTMLDivElement | null>(null);
-  /**
-   * ── A BARRA COMPACTA DO TELEMÓVEL ─────────────────────────────────────────
-   *
-   * Palavras dela (14/10), com a captura do «Rever e enviar» num iPhone: «esta
-   * aba de enviar ao cliente no telemóvel tapa tudo… transforma isto em algo
-   * inteligente que se adapte». A barra levava o voltar, a língua, o
-   * descarregar, o «Vai para», a lista do que falta e o enviar — meio ecrã.
-   *
-   * Numa caixa estreita fica uma linha só: «←», uma pastilha com o estado
-   * («Faltam 3 ›») e «Enviar». A pastilha abre uma folha com tudo o resto,
-   * inteiro. A pergunta é à CAIXA do estúdio e não à janela (ver
-   * `o-estudio-pergunta-a-caixa`); uma largura ainda por medir (zero, no
-   * servidor e no jsdom) conta como larga, que é a barra de sempre.
-   */
-  const caixaDoEstudio = useRef<HTMLDivElement | null>(null);
-  const larguraDoEstudio = useLarguraDaZona(caixaDoEstudio);
-  const barraCompacta = larguraDoEstudio > 0 && larguraDoEstudio < LARGURA_DA_BARRA_INTEIRA;
-  const [folhaDoEnvio, setFolhaDoEnvio] = useState(false);
-  /** No ecrã largo: o painel da pastilha do estado, e a pastilha onde se ancora. */
-  const [painelDoEnvio, setPainelDoEnvio] = useState(false);
-  const pastilhaDoEnvio = useRef<HTMLButtonElement>(null);
-  const fecharPainelDoEnvio = useCallback(() => setPainelDoEnvio(false), []);
-  /**
-   * Com o teclado aberto, a barra compacta sai da frente: no telemóvel, o
-   * teclado e a barra juntos deixavam uma tira de ecrã para o campo onde ela
-   * está a escrever. É a mesma conta da cápsula dos destinos
-   * (`tecladoAberto`, em `barra-de-destinos.ts`); sem `visualViewport` (jsdom,
-   * browsers antigos) fica tudo como antes.
-   */
-  const [tecladoNoEcra, setTecladoNoEcra] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const ver = () => setTecladoNoEcra(tecladoAberto(window.innerHeight, vv.height));
-    ver();
-    vv.addEventListener("resize", ver);
-    return () => vv.removeEventListener("resize", ver);
-  }, []);
-  const barraEscondida = barraCompacta && tecladoNoEcra;
-  /**
-   * ── AO DESCER NO TELEMÓVEL, AS BARRAS ENCOLHEM (15/11) ──────────────────
-   * Em cima ficam só os passos; em baixo a barra de destinos fica, e esta fica
-   * só com o essencial — o total «A pagar» e o botão principal. Ao subir volta
-   * tudo. O que sai daqui leva `data-acessorio-da-barra`: o «anterior», o
-   * estado da gravação quando está tudo bem, e os comandos do envio que a
-   * pastilha já resume. Um ALARME (gravação que não chegou, preço que ficou
-   * por gravar) não o leva, e fica sempre.
-   *
-   * É o CSS que esconde (`admin.css`, pelo atributo da raiz), e não estado
-   * daqui: mudar de inteiras para encolhidas a meio de uma rolagem não pode
-   * voltar a desenhar este componente inteiro. Ver `ui/barras-que-encolhem.ts`.
-   */
-  useBarrasQueEncolhem();
-  const [folgaDaBarra, setFolgaDaBarra] = useState(80);
-  useEffect(() => {
-    const el = barraDeBaixo.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const medir = () => {
-      const r = el.getBoundingClientRect();
-      /**
-       * ── O QUE SOBRA POR BAIXO DA BARRA É O `bottom` DELA, E NÃO A DISTÂNCIA
-       *    AO FUNDO DA JANELA ────────────────────────────────────────────────
-       *
-       * Isto era `Math.max(0, window.innerHeight - r.bottom)`, e a intenção
-       * está escrita duas linhas acima: «a distância a que ela está do fundo do
-       * ecrã (o `bottom-[calc(56px+…)]` que a levanta por cima da navegação do
-       * telemóvel)». Ou seja — o `bottom` do `sticky`. A conta pela janela dá
-       * esse número só quando quem rola É a janela.
-       *
-       * MEDIDO num Chromium, no painel que abre a partir do cartão de um
-       * cliente, onde quem rola é o painel e não a janela: o fundo da barra
-       * ficava a 384 px e o fundo da caixa que rola a 876 — quase 500 px de
-       * diferença que entravam na conta como se fossem folga a reservar.
-       *
-       *     folga reservada    893 a 962 px
-       *     folga necessária   ~569 px
-       *
-       * E realimentava-se: mais folga faz a coluna mais alta, a barra sobe na
-       * janela, a distância ao fundo cresce, a folga cresce outra vez. Daí os
-       * valores a saltar entre larguras (420, 962, 421, 913, 893) e o vazio de
-       * quase mil píxeis no fim do passo 1.
-       *
-       * O `bottom` calculado é a mesma resposta sem depender de quem rola: é o
-       * que o `sticky` reserva por baixo, resolvido em píxeis, com o
-       * `env(safe-area-inset-bottom)` já dentro.
-       */
-      const porBaixo = Math.max(0, Number.parseFloat(getComputedStyle(el).bottom) || 0);
-      setFolgaDaBarra(Math.ceil(r.height + porBaixo + 12));
-      // ── E A MESMA MEDIDA SERVE A QUEM FLUTUA POR CIMA ──────────────────
-      // O aviso do `Toast.tsx` põe-se a uma distância fixa do fundo — a altura
-      // da navegação do telemóvel mais um respiro — e essa distância cai
-      // exactamente dentro desta barra, que pousa nessa mesma navegação. Sem
-      // isto, um aviso de gravação falhada nasce por cima do botão
-      // «Pré-visualizar» e come-lhe o toque durante quatro segundos.
-      // Publicamos a altura MEDIDA (a barra quebra em duas linhas quando o
-      // passo o pede, e aí é mais alta) para o aviso se afastar tanto quanto
-      // preciso e nem um pixel mais. Só existe enquanto o estúdio estiver
-      // aberto: a limpeza do efeito devolve-a a zero.
-      // Escondida pelo teclado, a barra não ocupa nada: o aviso desce.
-      const altura = barraEscondida ? 0 : Math.ceil(r.height);
-      // Só se escreve quando muda: uma variável no `<html>` herda-se por todos
-      // os elementos, e cada escrita refaz o estilo da página inteira.
-      const raiz = document.documentElement.style;
-      if (raiz.getPropertyValue("--bo-barra-accao") !== `${altura}px`) {
-        raiz.setProperty("--bo-barra-accao", `${altura}px`);
-      }
-    };
-    medir();
-    const observador = new ResizeObserver(medir);
-    observador.observe(el);
-    window.addEventListener("resize", medir);
-    return () => {
-      observador.disconnect();
-      window.removeEventListener("resize", medir);
-    };
-    // O passo muda o conteúdo da barra (e portanto a altura); remedir aí.
-  }, [step, barraEscondida]);
-  // ── A VARIÁVEL SAI QUANDO O ESTÚDIO FECHA, NÃO A CADA PASSO (10/11) ────────
-  // Estava na limpeza do efeito de cima, que corre a cada mudança de passo:
-  // tirar e voltar a pôr a variável no `<html>` refazia o estilo da página
-  // inteira duas vezes por passo — numa proposta com 9 mood boards, uma boa
-  // parte do tempo de abrir a Inspiração. Fechado o estúdio, volta a zero
-  // como antes (o aviso deixa de subir por uma barra que já não existe).
-  useEffect(
-    () => () => {
-      document.documentElement.style.removeProperty("--bo-barra-accao");
-    },
-    [],
-  );
-
-  // ── Aviso ao sair com trabalho por gravar ─────────────────────────────
-  // A janela é estreita (a gravação é a 800ms), mas existe: fechar o
-  // separador logo a seguir a escrever perdia essas últimas palavras.
-  //
-  // E também quando o rascunho ficou SÓ NESTE COMPUTADOR: aí a janela não é
-  // estreita nenhuma — é todo o tempo em que o servidor recusar as gravações.
-  // Fechar o separador nesse estado não perde o `localStorage`, mas perde a
-  // única pessoa que ainda podia fazer alguma coisa acerca disso.
-  //
-  // DENTRO DO BACK OFFICE QUEM TRAVA É O REGISTO: um travão só para todos os
-  // ecrãs, e capaz de nomear o que se perde («Proposta de Rita & Tomás») em vez
-  // de dizer apenas que se perde alguma coisa. Este continua a valer onde não
-  // há registo — o dossier do evento, um teste — porque um travão que
-  // desaparecesse em silêncio seria a pior troca possível.
-  useEffect(() => {
-    if (oRegistoFalaPorMim) return;
-    if (!porGravar && !soNesteComputador && aGravarNoServidor === 0) return;
-    const aviso = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", aviso);
-    return () => window.removeEventListener("beforeunload", aviso);
-  }, [oRegistoFalaPorMim, porGravar, soNesteComputador, aGravarNoServidor]);
-
-  // ── A contagem dos dez segundos para anular a limpeza ─────────────────
-  useEffect(() => {
-    if (!limpo) return;
-    if (limpo.segundos <= 0) {
-      setLimpo(null);
-      return;
-    }
-    const t = setTimeout(
-      () => setLimpo((l) => (l ? { ...l, segundos: l.segundos - 1 } : null)),
-      1000,
-    );
-    return () => clearTimeout(t);
-  }, [limpo]);
-
-  /** Devolve o rascunho que o "Limpar" deitou fora. */
-  function anularLimpeza() {
-    if (!limpo) return;
-    setDoc(semMarcadoresMortos(limpo.doc));
-    setTotalInput(limpo.total);
-    if (limpo.fotos) {
-      const f = limpo.fotos;
-      // O que entretanto chegou de novo fica; o que o «Limpar» levou volta.
-      setAssetUrls((agora) => ({ ...f.urls, ...agora }));
-      setAssetOriginais((agora) => ({ ...f.originais, ...agora }));
-      setAssetMedias((agora) => ({ ...f.medias, ...agora }));
-      setAssetCores((agora) => ({ ...f.cores, ...agora }));
-      setThemeOrigins((agora) => ({ ...f.origens, ...agora }));
-    }
-    // E o preço volta ao pedido com ele: quem repôs o rascunho repôs o valor
-    // que lá estava, e deixá-lo só no ecrã era voltar a ter duas verdades.
-    const base = parseMoneyText(limpo.total);
-    // Com o documento REPOSTO, e não com o que está a sair do ecrã — ver
-    // `baseDoEcraParaOPedido`.
-    persistirPreco(base > 0 ? base : undefined, { doc: limpo.doc });
-    setLimpo(null);
-    toast("Rascunho reposto.", "success");
-  }
+  const { desfazer } = accaoDeDesfazer;
+  const barra = useBarraDoEstudio({
+    aGravarNoServidor,
+    oRegistoFalaPorMim,
+    passos,
+    porGravar,
+    reversiveis,
+    soNesteComputador,
+  });
+  const {
+    barraCompacta,
+    barraDeBaixo,
+    barraEscondida,
+    caixaDoEstudio,
+    fecharPainelDoEnvio,
+    filaDasColunas,
+    folgaDaBarra,
+    folhaDoEnvio,
+    painelDoEnvio,
+    painelLateralCabe,
+    pastilhaDoEnvio,
+    setFolhaDoEnvio,
+    setPainelDoEnvio,
+  } = barra;
+  const confirmacoes = useConfirmacoes({ documento, fotos, quote, reversiveis, toast, total });
+  const {
+    anularLimpeza,
+    confirmarDinheiro,
+    pedirConfirmacaoDeDinheiro,
+    perguntaDeRemocao,
+    registarNoHistorico,
+  } = confirmacoes;
 
   /**
    * ════════════════════════════════════════════════════════════════════════
@@ -3973,1672 +1231,85 @@ export default function ProposalStudio({
       /* sem rede: a confirmação vale na mesma, fica é sem linha no histórico */
     });
   }
-
-  function registarNoHistorico(summary: string) {
-    const entrada: ActivityEntry = {
-      id: randomId(),
-      at: new Date().toISOString(),
-      kind: "price_set",
-      summary,
-    };
-    void fetch(`/api/orcamento/${quote.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activityLogAppend: [entrada] }),
-    }).catch(() => {
-      /* sem rede: a alteração vale na mesma, fica é sem linha no histórico */
-    });
-  }
-
-  /**
-   * Pede a confirmação de uma alteração drástica ao dinheiro, com os dois
-   * valores à vista — e, aplicada, deixa dez segundos para a anular.
-   *
-   * Um só caminho para todas elas (ver `confirmacaoDeDinheiro`): enquanto cada
-   * botão tivesse a sua maneira de perguntar, cada um respondia por si e
-   * nenhum ficava no histórico.
-   */
-  function pedirConfirmacaoDeDinheiro(p: {
-    de: number;
-    para: number;
-    /** O que se está a substituir, em palavras («o total», «a deslocação»). */
-    oQue: string;
-    registo: string;
-    motivo: string;
-    aplicar: () => void;
-  }) {
-    setConfirmacaoDeDinheiro({
-      pergunta: `Substituir ${p.oQue} de ${eur(p.de)} por ${eur(p.para)}?`,
-      registo: p.registo,
-      motivo: p.motivo,
-      docNoMomento: doc,
-      aplicar: p.aplicar,
-    });
-  }
-
-  /**
-   * A pergunta de remoção, desenhada no cartão que a levantou.
-   *
-   * Uma função e não um componente: fecha sobre `aRemover` e sobre o `doc`
-   * deste desenho, e um componente novo a cada tecla escrita num título
-   * remontava a caixa (e tirava-lhe o foco) por causa de uma identidade que
-   * muda. `rotulo` é o que o botão diz — «Remover a página», «Remover a fase» —
-   * porque um botão que diga só «Remover» ao lado de outros nove obriga a ler
-   * a frase toda outra vez para saber o que ele apaga.
-   */
-  function perguntaDeRemocao(chave: string, rotulo: string) {
-    if (!aRemover || aRemover.chave !== chave || aRemover.docNoMomento !== doc) return null;
-    return (
-      <div
-        role="alertdialog"
-        aria-live="assertive"
-        aria-label={rotulo}
-        className="mb-2 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--bo-aviso-tom)]/45 bg-[var(--bo-aviso-tom)]/[0.08] px-3 py-2.5"
-      >
-        <span className="min-w-[12rem] flex-1 text-xs leading-relaxed text-[var(--bo-text)]">
-          {aRemover.pergunta}
-        </span>
-        {/* Cancelar primeiro, e não escreve NADA: nem apaga, nem toca no
-            documento, nem deixa rasto no rascunho. Fecha a pergunta. */}
-        <Button variant="ghost" size="sm" onClick={() => setARemover(null)}>
-          Cancelar
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => {
-            aRemover.aplicar();
-            setARemover(null);
-          }}
-        >
-          {rotulo}
-        </Button>
-      </div>
-    );
-  }
-
-  /** Aplica o que estava por confirmar: escreve, regista e abre a anulação. */
-  function confirmarDinheiro() {
-    const c = confirmacaoDeDinheiro;
-    // A pergunta caducada não se aplica — nem sequer está desenhada.
-    if (!c || c.docNoMomento !== doc) return;
-    // A fotografia é tirada ANTES de aplicar — é ela que a anulação repõe.
-    setLimpo({ doc, total: totalInput, segundos: 10, motivo: c.motivo });
-    c.aplicar();
-    registarNoHistorico(c.registo);
-    setConfirmacaoDeDinheiro(null);
-  }
-
-  /**
-   * Repõe no estúdio uma versão que já tinha sido enviada.
-   *
-   * Passa pela MESMA anulação de dez segundos do "Limpar", e pela mesma razão:
-   * o gesto deita fora o que estava no ecrã, e quem carrega só vê o que perdeu
-   * depois de carregar. Uma caixa a perguntar "tem a certeza?" seria respondida
-   * sem ser lida.
-   *
-   * Não envia nada. Fica um rascunho igual ao que seguiu naquele dia, para se
-   * mexer e voltar a passar pelo Enviar.
-   *
-   * ── PORQUE É QUE ESTA NÃO GANHOU CAIXA DE CONFIRMAÇÃO ──────────────────
-   * É uma das acções que mudam o preço final, e portanto entra na lista das
-   * que têm de ser reversíveis e ficar no histórico — e ficam as duas coisas.
-   * O que não ganha é a PERGUNTA: a razão está escrita três linhas acima e não
-   * mudou. Perguntar antes de repor uma versão que ela acabou de escolher numa
-   * lista, pelo nome e pela data, era pedir para confirmar a leitura.
-   */
-  function restaurarVersao(antiga: ProposalDoc) {
-    setLimpo({
-      doc,
-      total: totalInput,
-      segundos: 10,
-      motivo: "Versão anterior reposta no rascunho.",
-    });
-    const reposto = antiga as StudioDoc;
-    setDoc(reposto);
-    // O campo do total é texto (aceita "1.500" e "1 500 €"), por isso não sai de
-    // graça do documento: deriva-se a base do que foi reposto, senão ficava com
-    // o número da versão que se acabou de substituir.
-    const base = baseDoDoc(reposto);
-    setTotalInput(typeof base === "number" && base > 0 ? textoDoTotal(base) : "");
-    // E GRAVA-SE no pedido. Escrever no campo do valor já gravava — é a
-    // promessa que está escrita ao lado dele, «Há um número só» — e repor uma
-    // versão trocava o documento inteiro, valor incluído, sem gravar nada. O
-    // estúdio passava a dizer 8.000 e a Gestão do pedido, o Kanban e o dossier
-    // continuavam a dizer 9.400 até ela enviar. Duas verdades sobre o mesmo
-    // negócio, e a errada era a que aparecia em todos os outros ecrãs.
-    // Com a versão REPOSTA, e não com o rascunho que ela acabou de substituir:
-    // os adicionais que contam são os da versão. Ver `baseDoEcraParaOPedido`.
-    persistirPreco(typeof base === "number" && base > 0 ? base : undefined, { doc: reposto });
-    // A referência é composta a partir dos campos ATÉ alguém lhe mexer. Uma
-    // versão reposta traz a referência com que seguiu, e recompô-la por cima
-    // trocava o número da proposta que o cliente tem em mãos.
-    setRefEdited(true);
-    setConfirmSend(false);
-    setSent(false);
-    // Muda de passo como a barra dos passos: sobe ao início do Evento se ele
-    // ficou acima (ver «MUDAR DE PASSO SOBE AO TOPO DO PASSO NOVO»).
-    irParaPasso("evento");
-    // Só se o preço tiver MESMO mudado: repor uma versão com o mesmo valor não
-    // é um acontecimento do dinheiro, e uma linha por cada não-mudança ensina a
-    // saltar o histórico todo.
-    const anterior = parseMoneyText(totalInput);
-    const novo = typeof base === "number" && base > 0 ? base : 0;
-    if (Math.abs(novo - anterior) > 0.01) {
-      registarNoHistorico(
-        `Versão anterior reposta no estúdio: preço final de ${eur(anterior)} para ${eur(novo)}.`,
-      );
-    }
-    toast("Versão reposta. Podes anular durante 10 segundos.", "info");
-  }
-
-  /**
-   * Insere o parágrafo do que mudou (painel Versões) na caixa "Mensagem para
-   * o cliente" — NUNCA directamente no email. É a mesma caixa que já viaja
-   * com o envio (ver `send`, mais abaixo), por isso não é preciso mais nada
-   * para ela poder acompanhar a proposta.
-   *
-   * Uma caixa vazia recebe o parágrafo tal como está. Uma caixa que já tem
-   * algo escrito por ela (uma nota pessoal, por exemplo) NÃO é substituída —
-   * o parágrafo entra a seguir, com uma linha em branco pelo meio, para não
-   * apagar trabalho.
-   */
-  function inserirParagrafoDoQueMudou(texto: string) {
-    /* A caixa da mensagem saiu do passo 5 (14/10): o parágrafo entra no TEXTO
-       do email, que é o que segue — a seguir ao «Olá …,», com uma linha em
-       branco de cada lado. Sem texto ainda (o rascunho do email está a vir),
-       diz-se e não se escreve por cima de nada. */
-    if (!corpoDoEmail.trim()) {
-      toast("O email ainda está a ser preparado — tenta daqui a um instante.", "info");
-      return;
-    }
-    const partes = corpoDoEmail.split(/\n\s*\n/);
-    const novo = [partes[0], texto, ...partes.slice(1)].join("\n\n");
-    setCorpoDoEmail(novo);
-    toast("Parágrafo inserido no email para o cliente. Revê antes de enviar.", "info");
-  }
-
-  /**
-   * O que o «Limpar» está prestes a deitar fora, em palavras e com os números.
-   *
-   * Só o que se conta e se perde mesmo, pela ordem por que custou a fazer. Uma
-   * proposta acabada de abrir não tem nada disto, e então a frase não diz nada
-   * — «rascunho limpo — 0 páginas, 0 fotografias» é ruído com aritmética.
-   */
-  function oQueOLimparLevou(d: StudioDoc): string {
-    const partes = trabalhoNoDocumento(d);
-    return partes.length === 0 ? "Rascunho limpo." : `Rascunho limpo — levou ${partes.join(", ")}.`;
-  }
-
-  /** O trabalho que o documento tem, dito por partes — para o «Rascunho
-   *  limpo — levou…» e para a pergunta do «Criar a partir de…». */
-  function trabalhoNoDocumento(d: StudioDoc): string[] {
-    const fotos = d.moodBoards.reduce((n, b) => n + b.images.length, 0);
-    const paginas = d.moodBoards.filter((b) => b.images.length > 0).length;
-    const servicos = (d.serviceGroups ?? []).reduce((n, g) => n + (g.items ?? []).length, 0);
-    const orcamento =
-      linhasDe(d).filter((l) => (l.item ?? "").trim() !== "").length +
-      (d.budgetRows ?? []).filter((r) => (r.item ?? "").trim() !== "").length;
-    const partes = [
-      paginas > 0 ? `${paginas} ${paginas === 1 ? "página" : "páginas"} de inspiração` : null,
-      fotos > 0 ? `${fotos} ${fotos === 1 ? "fotografia" : "fotografias"}` : null,
-      servicos > 0 ? `${servicos} ${servicos === 1 ? "serviço" : "serviços"}` : null,
-      orcamento > 0 ? `${orcamento} ${orcamento === 1 ? "linha" : "linhas"} de orçamento` : null,
-    ].filter((x): x is string => x !== null);
-    return partes;
-  }
-
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * REPOR O TRABALHO QUE ESTA SESSÃO ESMAGOU
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * A gaveta já existia e já estava cheia; o que faltava era isto e a porta do
-   * lado do servidor. Aqui vai-se buscar o documento pelo nome que a própria
-   * gravação devolveu.
-   *
-   * ── E REPOR NÃO É UM SENTIDO ÚNICO ────────────────────────────────────────
-   *
-   * Repor é, por definição, escrever por cima do que está no ecrã — ou seja, o
-   * mesmo gesto que criou este problema. Duas coisas impedem que seja uma
-   * troca de um estrago por outro:
-   *
-   *  1. O «desfazer» de dez segundos desta casa (`limpo`), que já existe para
-   *     os outros gestos que substituem o documento — o próprio código diz que
-   *     nasceu também para «repor uma versão antiga». Fica com o motivo
-   *     escrito, para a barra poder dizer o que aconteceu.
-   *
-   *  2. E a gravação seguinte volta a passar pelo mesmo mecanismo do servidor:
-   *     o documento que está agora no ecrã passa a ser ELE o sobreposto, e vai
-   *     para a mesma gaveta. Ou seja, o resgate protege nos dois sentidos sem
-   *     ninguém ter escrito código para isso.
-   */
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * A NOTA QUE PERTENCE A UMA SECÇÃO, E NÃO AO NEGÓCIO INTEIRO
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * O campo `notasPorSeccao` existia há muito: tipado no documento, protegido
-   * no gerador do PDF («as notas por secção nunca são desenhadas»), e limpo na
-   * cópia para outro pedido — três sítios a tratar bem de uma coisa que
-   * NINGUÉM ESCREVIA. Não havia caixa nenhuma no estúdio.
-   *
-   * O `notasInternas` que já existe é sobre o negócio: «recusaram em 2025 por
-   * preço». Estas são outra coisa e vivem noutra escala: «as capas são as duas
-   * do mesmo ângulo, trocar a segunda», «o cronograma tem de bater com a hora
-   * do padre», «esta linha é a que dá a margem toda». Escritas ao lado do
-   * campo geral, perdiam-se num parágrafo; escritas na secção, estão onde a
-   * dúvida nasce.
-   *
-   * ── E O DOCUMENTO NÃO PODE ENCHER-SE DE VAZIOS ─────────────────────────
-   *
-   * Uma caixa vazia por secção que gravasse `""` punha seis chaves em todos os
-   * documentos, todas sem conteúdo, e ainda por cima faziam o `resgate` e as
-   * comparações de versões acusarem diferenças que não existem. Apagar a
-   * entrada quando a nota fica vazia é o que mantém o documento igual ao que
-   * era antes desta funcionalidade existir — e é isso que o teste prende.
-   */
-  function notaDaSeccao(chave: string, titulo: string) {
-    const notas = doc.notasPorSeccao ?? {};
-    return (
-      <NotasInternas
-        compacta
-        fechadaSeVazia
-        titulo={titulo}
-        valor={notas[chave] ?? ""}
-        placeholder="Só para a equipa. Nunca sai na proposta."
-        onChange={(v) => {
-          const seguintes = { ...notas };
-          if (v.trim()) seguintes[chave] = v;
-          else delete seguintes[chave];
-          patch({
-            notasPorSeccao: Object.keys(seguintes).length > 0 ? seguintes : undefined,
-          });
-        }}
-      />
-    );
-  }
-
-  async function reporSobreposto() {
-    if (!sobreposto || aRepor) return;
-    setARepor(true);
-    try {
-      // A rota recebe a VARIANTE, não a chave inteira: a chave é
-      // `<pedido>--<variante>`, e é o servidor que a volta a montar.
-      const variante = sobreposto.chave.startsWith(`${quote.id}--`)
-        ? sobreposto.chave.slice(`${quote.id}--`.length)
-        : null;
-      if (!variante) {
-        toast("Não reconheço o sítio onde essa versão ficou guardada.", "error");
-        return;
-      }
-      const res = await fetch(
-        `/api/orcamento/${quote.id}/proposta-rascunho?variante=${encodeURIComponent(variante)}`,
-      );
-      const dados = await res.json().catch(() => null);
-      const recuperado = dados?.draft?.doc;
-      if (!res.ok || recuperado == null) {
-        // Dizer o que aconteceu e o que fazer, e NÃO limpar a barra: se não se
-        // conseguiu abrir agora, a gaveta continua lá e vale a pena insistir.
-        toast(
-          res.status === 401
-            ? "A sessão expirou. Entra outra vez e essa versão continua guardada."
-            : "Não consegui abrir essa versão agora. Ela continua guardada — tenta daqui a pouco.",
-          "error",
-        );
-        return;
-      }
-      setLimpo({
-        doc,
-        total: totalInput,
-        segundos: 10,
-        motivo: sobreposto.quem
-          ? `Reposta a versão de ${sobreposto.quem}.`
-          : "Reposta a versão que tinha sido substituída.",
-      });
-      const reposto = recuperado as StudioDoc;
-      setDoc(reposto);
-      // O total também (auditoria de 13/11, estúdio n.º 13): o campo é estado à
-      // parte, e ficava com o valor da versão que se acabou de substituir — o
-      // campo dizia um número e o PDF saía com outro. E grava-se no pedido,
-      // como em `restaurarVersao`.
-      const base = baseDoDoc(reposto);
-      setTotalInput(typeof base === "number" && base > 0 ? textoDoTotal(base) : "");
-      persistirPreco(typeof base === "number" && base > 0 ? base : undefined, { doc: reposto });
-      setSobreposto(null);
-    } catch {
-      toast("Não consegui abrir essa versão agora. Ela continua guardada.", "error");
-    } finally {
-      setARepor(false);
-    }
-  }
-
-  function clearDraft() {
-    /*
-     * ── CONTINUA SEM CAIXA DE CONFIRMAÇÃO, E DE PROPÓSITO ─────────────────
-     *
-     * A regra desta casa dá a cada acção irreversível UMA das duas coisas, e
-     * esta já tem a sua: dez segundos e um botão. A razão está escrita em
-     * `limpo` e não mudou — a caixa pergunta ANTES, quando ainda não se viu o
-     * que se ia perder, e a resposta certa é quase sempre «sim», por isso
-     * carrega-se sem ler. Pôr aqui as duas era pedir duas respostas ao mesmo
-     * gesto e ensinar a despachar ambas.
-     *
-     * O que faltava não era a pergunta: era o NÚMERO. A barra dizia «Rascunho
-     * limpo» — a frase mais vaga possível sobre o gesto mais largo do ecrã, e
-     * quem não sabe o que perdeu não sabe se vale a pena anular. Agora diz o
-     * que levou (`oQueOLimparLevou`), enquanto ainda dá para o trazer de volta.
-     */
-    setLimpo({
-      doc,
-      total: totalInput,
-      segundos: 10,
-      motivo: oQueOLimparLevou(doc),
-      fotos: {
-        urls: assetUrls,
-        originais: assetOriginais,
-        medias: assetMedias,
-        cores: assetCores,
-        origens: themeOrigins,
-      },
-    });
-    try {
-      localStorage.removeItem(DRAFT_KEY);
-      localStorage.removeItem(`${DRAFT_KEY}:at`);
-      localStorage.removeItem(SIDE_KEY);
-    } catch {
-      /* ignore */
-    }
-    // E no servidor — senão o rascunho limpo aqui reaparecia no dispositivo
-    // seguinte, que é precisamente o que guardá-lo lá veio resolver.
-    serverStamp.current = null;
-    docDoServidor.current = null;
-    warnedOverwrite.current = false;
-    void fetch(`/api/orcamento/${quote.id}/proposta-rascunho`, { method: "DELETE" }).catch(() => {
-      /* sem rede: fica para a próxima limpeza; nada se perde por isso */
-    });
-    const semente = seedDefaults(initialDoc(quote), quote);
-    setDoc(semente);
-    // Limpar volta a pôr no ecrã o que o pedido diz — e o que o pedido diz é o
-    // que ela acabou de pedir para ver. Nada a confirmar.
-    setPorConfirmar(new Set());
-    /**
-     * ── E O PREÇO DO PEDIDO ATRAVESSA PELA CONVERSÃO, COMO EM TODO O LADO ──
-     *
-     * Aqui estava `textoDoTotal(quote.quotedPrice)`: o «Preço final» do pedido
-     * — o que o casal paga, adicionais INCLUÍDOS — escrito em cru no campo que
-     * significa só os SERVIÇOS. É a MESMA expressão, letra por letra, que
-     * levou 3.000 a 3.140 a 3.280 a 3.420 na abertura, e que já foi fechada na
-     * montagem, na hidratação do rascunho do servidor e na sincronização com a
-     * Gestão do pedido.
-     *
-     * Neste sítio ela não crescia — mas por acidente, não por desenho: o
-     * `initialDoc` nasce com `budgetExtras: []`, portanto o degrau é zero e a
-     * conversão não tinha nada para tirar. Bastava um dia semear a deslocação
-     * do pedido no documento novo para este ser o quinto sítio da mesma avaria,
-     * e o dinheiro dela paga o preço de descobri-lo em produção.
-     *
-     * Com a conversão, o número deste sítio é hoje exactamente o mesmo e passa
-     * a estar certo por construção. O `o-valor-que-ela-poe-e-o-valor-que-fica`
-     * prende a regra: nenhum caminho leva o preço do pedido ao campo do estúdio
-     * sem passar pelo par.
-     */
-    const doPedidoAoLimpar = quote.quotedPrice;
-    const escritoAoLimpar =
-      typeof doPedidoAoLimpar === "number" && doPedidoAoLimpar > 0
-        ? baseDoPedidoParaOEcra(doPedidoAoLimpar, semente)
-        : null;
-    setTotalInput(escritoAoLimpar != null ? textoDoTotal(escritoAoLimpar) : "");
-    setAssetUrls({});
-    setAssetOriginais({});
-    setAssetMedias({});
-    setAssetCores({});
-    setThemeOrigins({});
-    setRefEdited(false);
-    setConfirmSend(false);
-    setSent(false);
-    // Recomeçar é recomeçar no topo do Evento — não a meio dele.
-    irParaPasso("evento");
-    /**
-     * Limpar deita o total fora com o resto — e o total é o preço do pedido.
-     * Fica no histórico pela mesma razão que o «Usar X €»: um preço que muda
-     * sozinho, visto três semanas depois, tem de ter um sítio onde se explique.
-     *
-     * ── E OS DOIS LADOS DA CONTA SÃO AGORA A MESMA MOEDA ──────────────────
-     *
-     * Estava `parseMoneyText(totalInput)` contra `quote.quotedPrice`: o campo
-     * do ESCRITO (só serviços) contra o preço do PEDIDO (serviços mais
-     * adicionais). Numa proposta com 140 € de deslocação os dois números
-     * diferem SEMPRE, e limpar o rascunho escrevia no histórico «preço final
-     * de 3.000,00 € para 3.140,00 €» — uma linha sobre dinheiro a dizer que o
-     * preço mudou, num gesto onde o preço do pedido não se mexeu um cêntimo.
-     * Ela lê o histórico para saber onde é que o valor mudou; uma linha falsa
-     * ali gasta-lhe a confiança nas verdadeiras.
-     *
-     * Os dois lados passam a ser lidos na unidade do PEDIDO — que é o número
-     * de que a frase fala.
-     */
-    const escritoAntes = parseMoneyText(totalInput);
-    // Sem nada escrito não há preço para converter: somar-lhe os adicionais
-    // dava um «de 140,00 € para 0,00 €» numa proposta que nunca teve preço.
-    const anterior = escritoAntes > 0 ? baseDoEcraParaOPedido(escritoAntes, doc) : 0;
-    const doPedido = typeof quote.quotedPrice === "number" ? quote.quotedPrice : 0;
-    if (Math.abs(doPedido - anterior) > 0.01) {
-      registarNoHistorico(
-        `Rascunho da proposta limpo: preço final de ${eur(anterior)} para ${eur(doPedido)}.`,
-      );
-    }
-    toast("Rascunho limpo", "info");
-  }
-
-  // ── Image upload ──
-  // Uma imagem por pedido: um lote inteiro num só POST rebentava o limite de
-  // corpo do alojamento (~4,5 MB) com fotos reais de telemóvel — o upload
-  // "às vezes não funcionava". Cada ficheiro é comprimido no navegador
-  // (image-prep) e enviado individualmente, com uma repetição automática em
-  // falha de rede; um ficheiro mau nunca deita fora os restantes.
-  async function uploadOne(
-    file: File,
-    thumb: File | null,
-    cor?: string | null,
-    lqip?: string | null,
-    mid?: File | null,
-    resumo?: string | null,
-  ): Promise<{ path: string; url: string; thumbUrl?: string; cor?: string }> {
-    // O formulário, a repetição e as mensagens vivem em
-    // `enviar-foto-da-proposta.ts`: a importação de propostas antigas carrega
-    // as fotografias pelo MESMO caminho.
-    const im = await enviarFotoDaProposta(quote.id, { file, thumb, cor, lqip, mid, resumo });
-    // A grelha desenha pela miniatura quando existe; o original fica para o
-    // detalhe e para o PDF.
-    setAssetUrls((prev) => ({ ...prev, [im.path]: im.thumbUrl || im.url }));
-    setAssetOriginais((prev) => ({ ...prev, [im.path]: im.url }));
-    if (im.cor) setAssetCores((prev) => ({ ...prev, [im.path]: im.cor as string }));
-    return im;
-  }
-
-  async function handleUpload(
-    key: string,
-    todas: File[],
-    onPaths: (paths: string[]) => void,
-    /**
-     * ── A FOTO OCUPA O LUGAR LOGO AO ESCOLHER (auditoria 13/11, n.ºs 6 e 7) ──
-     *
-     * Sem isto, as fotos só entravam no mood board quando acabavam de subir, e
-     * entravam no ÍNDICE que ele tinha no início: se ela apagasse, movesse ou
-     * duplicasse um tema entretanto, iam para o tema errado (ou sumiam). E o
-     * envio não sabia que havia fotos a caminho — seguia sem elas.
-     *
-     * Com `reservar`, cada ficheiro entra JÁ no documento como um marcador
-     * provisório (`pending:<uuid>`) — o mesmo das fotos da biblioteca. O
-     * marcador anda com o tema para onde ela o levar; ao subir, troca-se pelo
-     * caminho no sítio onde estiver; se falhar, sai. E o envio, que já espera
-     * por marcadores, espera também por estas.
-     */
-    reservar?: (marcadores: string[]) => void,
-  ) {
-    if (todas.length === 0) return;
-    // Ela (28/10): «que avise mesmo, não coloque esta foto porque vai ficar
-    // com uma qualidade péssima». As más ficam de fora, a não ser que ela diga
-    // «Usar na mesma» (`AvisoDeQualidade`).
-    const files = await avisoDeQualidade.filtrarFicheiros(todas, lugarDaChave(key));
-    if (files.length === 0) return;
-    const marcadores = reservar
-      ? files.map(() => `${PENDING_IMAGE_PREFIX}${crypto.randomUUID()}`)
-      : [];
-    const previas: string[] = [];
-    if (reservar) {
-      setAssetUrls((prev) => {
-        const next = { ...prev };
-        files.forEach((f, i) => {
-          try {
-            const url = URL.createObjectURL(f);
-            previas.push(url);
-            next[marcadores[i]] = url;
-          } catch {
-            /* sem pré-visualização: a célula mostra-se a carregar */
-          }
-        });
-        return next;
-      });
-      reservar(marcadores);
-    }
-    setUploading((u) => ({ ...u, [key]: { feito: 0, total: files.length } }));
-    /**
-     * Mais uma arrumada — e conta tanto a que subiu como a que falhou.
-     *
-     * A barra retrata o que JÁ NÃO SE ESPERA, e uma foto que falhou também
-     * deixou de se esperar: contar só as boas deixava a barra a faltar-lhe um
-     * bocado para sempre, num lote com um ficheiro mau. O que correu mal
-     * continua a ser dito pelo `toast`, no fim e com o número.
-     */
-    const maisUma = () =>
-      setUploading((u) => {
-        const p = u[key];
-        if (!p) return u;
-        return { ...u, [key]: { ...p, feito: Math.min(p.total, p.feito + 1) } };
-      });
-    // Cover photos print large (the document's hero) so they keep more pixels and
-    // a higher JPEG quality; mood-board photos render as small collage cells and
-    // use a tighter cap. The upload key encodes which is which ("cover-…"/"board-…").
-    const kind: ImageKind = key.startsWith("board-") ? "board" : "cover";
-    // Preparar e enviar em VIAS PARALELAS. Em sequência, o processador ficava
-    // parado à espera da rede e a rede parada à espera do processador; assim a
-    // foto N+1 é preparada enquanto a N sobe. A preparação em si já corre fora
-    // do fio principal (image-prep → image-worker), por isso a interface
-    // continua a responder durante o lote.
-    const results: ({ path: string } | null)[] = new Array(files.length).fill(null);
-    const errors: string[] = [];
-    let next = 0;
-    async function lane() {
-      for (;;) {
-        const i = next++;
-        if (i >= files.length) return;
-        const f = files[i];
-        try {
-          // O resumo do ORIGINAL (~40 ms), para o servidor reconhecer uma foto
-          // que já está na Biblioteca ou neste pedido e não guardar outra cópia
-          // (`fotos-resumo.ts`). `null` sem contexto seguro — sobe como antes.
-          const [prepared, resumo] = await Promise.all([
-            prepareImageWithThumb(f, kind, "proposta"),
-            fingerprintBlob(f),
-          ]);
-          const im = await uploadOne(
-            prepared.file,
-            prepared.thumb,
-            prepared.cor,
-            prepared.lqip,
-            prepared.mid,
-            resumo,
-          );
-          // Guardado pelo ÍNDICE: as vias acabam fora de ordem e a ordem das
-          // fotos escolhidas é a que a Catarina vê no documento.
-          results[i] = { path: im.path };
-        } catch (e) {
-          errors.push(
-            eTempoEsgotado(e)
-              ? `«${f.name}» demorou demasiado a subir (rede lenta).`
-              : porqueFalhou(e, `Sem ligação: «${f.name}» não subiu.`),
-          );
-        } finally {
-          maisUma();
-        }
-      }
-    }
-    try {
-      await Promise.all(Array.from({ length: Math.min(UPLOAD_CONCURRENCY, files.length) }, lane));
-      const paths = results.filter((r): r is { path: string } => r !== null).map((r) => r.path);
-      if (reservar) {
-        // Cada marcador dá lugar ao seu caminho, ONDE QUER QUE ESTEJA agora; o
-        // que falhou sai. Um marcador que ela já tirou não volta a entrar.
-        const trocas = new Map<string, string | null>();
-        marcadores.forEach((m, i) => trocas.set(m, results[i]?.path ?? null));
-        for (const [m, p] of trocas) marcadoresResolvidos.current.set(m, p);
-        setDoc((d) => mapImagePaths(d, (p) => (trocas.has(p) ? (trocas.get(p) ?? null) : p)));
-        setAssetUrls((prev) => {
-          const next = { ...prev };
-          for (const m of marcadores) delete next[m];
-          return next;
-        });
-        for (const u of previas) {
-          try {
-            URL.revokeObjectURL(u);
-          } catch {
-            /* nada a libertar */
-          }
-        }
-      } else if (paths.length > 0) onPaths(paths);
-      if (errors.length > 0) {
-        toast(
-          errors.length === files.length
-            ? errors[0]
-            : `${paths.length} de ${files.length} carregadas. ${errors[0]}`,
-          "error",
-        );
-      } else if (paths.length > 1) {
-        toast(`${paths.length} imagens carregadas`, "success");
-      }
-    } finally {
-      // A chave SAI do mapa: «não está a carregar nada» é a ausência, e não um
-      // `{feito, total}` velho à espera de ser lido como se fosse de agora.
-      setUploading((u) => {
-        if (!(key in u)) return u;
-        const resto = { ...u };
-        delete resto[key];
-        return resto;
-      });
-    }
-  }
-
-  // ── Biblioteca de temas ──
-  //
-  /** As fotos da biblioteca que já estão nesta proposta, para o seletor as
-   *  marcar. Sai do DOCUMENTO (capas + mood boards) e não do mapa de origens:
-   *  uma foto removida do rascunho deixa de contar no instante em que é
-   *  removida, mesmo que a origem fique lá guardada. */
-  /**
-   * Os caminhos de ORIGEM das fotos de biblioteca que estão neste documento.
-   *
-   * Origem e não caminho da proposta: as fotos da proposta são cópias com
-   * caminho próprio, e comparar cópias nunca diria que duas propostas mostraram
-   * a mesma imagem.
-   */
-  function origensNoDocumento(): string[] {
-    const noDoc = new Set<string>();
-    for (const p of doc.coverImages ?? []) if (p) noDoc.add(p);
-    for (const b of doc.moodBoards ?? []) for (const p of b.images) if (p) noDoc.add(p);
-    const origens = new Set<string>();
-    for (const p of noDoc) {
-      const de = themeOrigins[p];
-      if (de) origens.add(de);
-    }
-    return [...origens];
-  }
-
-  /**
-   * As fotos da biblioteca que já foram para OUTROS casamentos, e para onde.
-   *
-   * Lê-se uma vez por pedido: o que já foi enviado não muda enquanto se escreve
-   * esta proposta. Falhar não impede nada — sem a resposta a grelha é a de
-   * antes, e escolher uma foto repetida continua a ser possível, que é como
-   * deve ser.
-   */
-  const [usadasNoutras, setUsadasNoutras] = useState<Record<string, string>>({});
-  useEffect(() => {
-    let vivo = true;
-    void (async () => {
-      try {
-        const res = await lerPartilhado(`/api/orcamento/${quote.id}/fotos-repetidas`);
-        if (!res.ok) return;
-        const data = (await res.json()) as { fotos?: FotoRepetida[] };
-        if (!vivo || !Array.isArray(data.fotos)) return;
-        setUsadasNoutras(Object.fromEntries(data.fotos.map((f) => [f.origem, comoSeDiz(f)])));
-        // A lista inteira, e não só a frase: é dela que sai o aviso do MESMO
-        // ESPAÇO, que precisa do `local` de cada uso.
-        setRepetidas(data.fotos);
-      } catch {
-        /* a grelha fica a de antes */
-      }
-    })();
-    return () => {
-      vivo = false;
-    };
-  }, [quote.id]);
-
-  const usedThemePaths = useMemo(() => {
-    if (!picker) return [];
-    const inDoc = new Set<string>();
-    for (const p of doc.coverImages ?? []) if (p) inDoc.add(p);
-    for (const b of doc.moodBoards) for (const p of b.images) inDoc.add(p);
-    const sources: string[] = [];
-    for (const p of inDoc) {
-      const from = themeOrigins[p];
-      if (from) sources.push(from);
-    }
-    return sources;
-  }, [picker, doc.coverImages, doc.moodBoards, themeOrigins]);
-
-  /**
-   * O INSTANTE DO CLIQUE — a foto ocupa já o seu lugar.
-   *
-   * O seletor entrega um marcador por foto (`pending:<uuid>`), que não é
-   * caminho de coisa nenhuma, e a miniatura que ele JÁ tem desenhada em
-   * memória. O marcador entra no documento no sítio para onde o seletor foi
-   * aberto e o `assetUrls` aponta-o a essa miniatura: a foto aparece no mood
-   * board (ou na capa) sem um único pedido de rede novo, na célula certa e com
-   * o mesmo `aspect-ratio` das outras — nada salta quando ela assentar.
-   *
-   * A origem entra AQUI e não só na confirmação: uma foto a caminho já conta
-   * como "já nesta proposta" (ver `usedThemePaths`), senão dava para a escolher
-   * outra vez enquanto a primeira cópia ainda ia a caminho.
-   */
-  function onReservedFromLibrary(reservas: ReservedImage[]) {
-    if (reservas.length === 0) return;
-    setAssetUrls((prev) => {
-      const next = { ...prev };
-      for (const r of reservas) if (r.thumbUrl) next[r.marcador] = r.thumbUrl;
-      return next;
-    });
-    setThemeOrigins((prev) => {
-      const next = { ...prev };
-      for (const r of reservas) if (r.sourcePath) next[r.marcador] = r.sourcePath;
-      return next;
-    });
-    if (picker?.kind === "board" && picker.substituir !== undefined) {
-      substituirFotoDoBoard(picker.bi, picker.substituir, reservas[0].marcador);
-    } else if (picker?.kind === "board") {
-      addBoardImages(
-        picker.bi,
-        reservas.map((r) => r.marcador),
-      );
-    } else if (picker?.kind === "cover") {
-      setCoverAt(picker.idx, reservas[0].marcador);
-    } else if (picker?.kind === "pagina" && paginaDaFoto) {
-      porFotoNaPagina(
-        picker.chave,
-        paginaDaFoto.nome,
-        picker.max,
-        picker.lugar,
-        reservas[0].marcador,
-      );
-    }
-  }
-
-  // As fotos escolhidas vêm REFERENCIADAS (`tema:<caminho>`) pela rota
-  // /assets/importar — deixaram de ser copiadas. Para o documento é
-  // indiferente: continua a ser uma string por foto, e quem a resolve (a grelha
-  // aqui, o gerador de PDF lá) sabe ler as duas famílias. O porquê está em
-  // `src/lib/theme-ref.ts`.
-  //
-  // O seletor entrega as fotos LOTE A LOTE (é assim que a barra de progresso
-  // pode ser verdadeira), por isso isto corre várias vezes por importação.
-  //
-  // Cada foto que traz o seu `marcador` é uma TROCA NO LUGAR: o marcador provisório
-  // dá lugar ao caminho definitivo na mesma célula, sem reordenar nada. As que
-  // vêm sem `marcador` — quem não reservou lugar, ou um lote que o servidor não
-  // deixou emparelhar com segurança — são acrescentadas, como sempre foram.
-  //
-  // Um marcador que já não esteja no documento (ela removeu a foto enquanto a
-  // cópia ia a caminho) não volta a entrar: a decisão dela é mais recente.
-  function onPickedFromLibrary(images: ImportedImage[]) {
-    if (images.length === 0) return;
-    const trocas = new Map<string, string>();
-    const novas: ImportedImage[] = [];
-    for (const im of images) {
-      if (!im.path) continue;
-      if (im.marcador) trocas.set(im.marcador, im.path);
-      else novas.push(im);
-    }
-    setAssetUrls((prev) => {
-      const next = { ...prev };
-      // A miniatura é a DO TEMA — o mesmo `theme-thumbs/<pasta>/<x>.jpg` que o
-      // seletor acabou de mostrar. É esse o ganho da referência: o service
-      // worker já a tem no disco (guarda por caminho, sem marcador), portanto a
-      // célula desenha sem tocar na rede.
-      for (const im of images) if (im.path && im.url) next[im.path] = im.thumbUrl || im.url;
-      for (const marcador of trocas.keys()) delete next[marcador];
-      return next;
-    });
-    setAssetOriginais((prev) => {
-      const next = { ...prev };
-      for (const im of images) if (im.path && im.url) next[im.path] = im.url;
-      for (const marcador of trocas.keys()) delete next[marcador];
-      return next;
-    });
-    setThemeOrigins((prev) => {
-      const next = { ...prev };
-      for (const im of images) if (im.path && im.sourcePath) next[im.path] = im.sourcePath;
-      for (const marcador of trocas.keys()) delete next[marcador];
-      return next;
-    });
-    if (trocas.size > 0) {
-      for (const [m, p] of trocas) marcadoresResolvidos.current.set(m, p);
-      setDoc((d) => mapImagePaths(d, (p) => trocas.get(p) ?? p));
-    }
-    if (novas.length === 0) return;
-    if (picker?.kind === "board" && picker.substituir !== undefined) {
-      substituirFotoDoBoard(picker.bi, picker.substituir, novas[0].path);
-    } else if (picker?.kind === "board") {
-      addBoardImages(
-        picker.bi,
-        novas.map((im) => im.path),
-      );
-    } else if (picker?.kind === "cover") {
-      setCoverAt(picker.idx, novas[0].path);
-    } else if (picker?.kind === "pagina" && paginaDaFoto) {
-      porFotoNaPagina(picker.chave, paginaDaFoto.nome, picker.max, picker.lugar, novas[0].path);
-    }
-  }
-
-  /**
-   * A cópia falhou (ou foi parada): o lugar reservado desaparece.
-   *
-   * SEM AVISO NENHUM daqui — a pastilha do seletor já diz quantas não entraram,
-   * porquê, e oferece "Repetir". Um segundo aviso a dizer o mesmo só ensinaria
-   * a ignorar os dois.
-   */
-  function onDroppedFromLibrary(marcadores: string[]) {
-    if (marcadores.length === 0) return;
-    const perdidos = new Set(marcadores);
-    for (const m of marcadores) marcadoresResolvidos.current.set(m, null);
-    setDoc((d) => mapImagePaths(d, (p) => (perdidos.has(p) ? null : p)));
-    setAssetUrls((prev) => {
-      const next = { ...prev };
-      for (const t of marcadores) delete next[t];
-      return next;
-    });
-    setThemeOrigins((prev) => {
-      const next = { ...prev };
-      for (const t of marcadores) delete next[t];
-      return next;
-    });
-  }
-
-  // ── Serviços ──
-  // O editor da secção vive em `ServicesEditor.tsx` (teclado, arrasto, anular).
-  // Aqui fica só a ponte para o documento.
-  const levadosPelasLinhas = useRef<{
-    ids: string[];
-    moodBoards: StudioDoc["moodBoards"];
-    fotosDasPaginas: StudioDoc["fotosDasPaginas"];
-    depois: StudioDoc["moodBoards"];
-  } | null>(null);
-  const setServiceGroups = useCallback(
-    (update: (prev: StudioDoc["serviceGroups"]) => StudioDoc["serviceGroups"]) => {
-      // Ver `camposTocados`: o editor de serviços é o outro caminho por onde a
-      // PESSOA escreve, e é onde o texto perdido foi medido primeiro.
-      //
-      // MAS SÓ QUANDO ELA ESCREVEU. O editor também passa por aqui ao montar,
-      // para dar ids às linhas que vêm sem eles — e contar isso como escrita
-      // fazia o merge do rascunho do servidor pôr de lado os Serviços que ele
-      // trazia; a gravação seguinte apagava-os do servidor. Medido: abrir a
-      // proposta noutro computador deixava os Serviços vazios (relatório da
-      // auditoria, n.º 1). `soMudaramOsIds` separa as duas coisas.
-      //
-      // E TIRAR A LINHA TIRA O MOOD BOARD DELA (12/11): «tirar a linha tem de
-      // tirar o mood board sozinho». Só uma linha ou um grupo APAGADO conta (o
-      // id desapareceu) — mudar o nome de uma linha não leva nada —, e o mood
-      // board só sai quando casa com o que saiu e com nada do que fica
-      // (`temasQueSaemComAsLinhas`). O «Anular» devolve-o, com as fotos que
-      // tinha nas páginas.
-      // E o «Anular» da LINHA (o do editor dos Serviços) também o devolve:
-      // quando as linhas que o levaram voltam, ele volta com elas.
-      const antes = docRef.current;
-      const seguinte = update(antes.serviceGroups);
-      const saem = temasLevadosPelasLinhas(antes, seguinte);
-      const levado = levadosPelasLinhas.current;
-      const voltaram =
-        levado &&
-        antes.moodBoards === levado.depois &&
-        levado.ids.every((id) =>
-          seguinte.some((g) => g.id === id || g.items.some((it) => it.id === id)),
-        );
-      if (voltaram) levadosPelasLinhas.current = null;
-      setDoc((d) => {
-        const next = update(d.serviceGroups);
-        if (next === d.serviceGroups) return d;
-        if (!soMudaramOsIds(d.serviceGroups, next)) camposTocados.current.add("serviceGroups");
-        const comServicos = { ...d, serviceGroups: next };
-        if (voltaram && levado && d.moodBoards === levado.depois) {
-          return {
-            ...comServicos,
-            moodBoards: levado.moodBoards,
-            fotosDasPaginas: levado.fotosDasPaginas,
-          };
-        }
-        if (!saem.length || d.moodBoards !== antes.moodBoards) return comServicos;
-        const sem = [...saem]
-          .sort((a, b) => b - a)
-          .reduce((acc, bi) => semOTema(acc, bi), comServicos);
-        levadosPelasLinhas.current = {
-          ids: idsTirados(d.serviceGroups, next),
-          moodBoards: d.moodBoards,
-          fotosDasPaginas: d.fotosDasPaginas,
-          depois: sem.moodBoards,
-        };
-        return sem;
-      });
-      if (saem.length) {
-        const nomes = saem.map((bi) => `«${(antes.moodBoards[bi]?.title ?? "").trim()}»`);
-        anular(
-          saem.length === 1
-            ? `O mood board ${nomes[0]} saiu com a linha.`
-            : `Os mood boards ${nomes.join(", ")} saíram com a linha.`,
-          () => {
-            levadosPelasLinhas.current = null;
-            setDoc((d) => ({
-              ...d,
-              moodBoards: antes.moodBoards,
-              fotosDasPaginas: antes.fotosDasPaginas,
-            }));
-          },
-        );
-      }
-    },
-    [anular],
-  );
-
-  // ── Mood boards (decoracao) ──
-  /**
-   * Um mood board NOVO nasce a manter a forma das fotografias.
-   *
-   * O campo está no documento e não no código de desenho justamente para os
-   * documentos ANTIGOS não mudarem (o PDF é redesenhado a cada abertura do link
-   * do casal, e uma proposta já enviada não pode mudar de aspecto por baixo
-   * dele). Mas uma página que ainda não existe não tem passado nenhum a
-   * proteger — e o que ela pediu, por escrito e em duas páginas, foi que as
-   * fotografias deixassem de sair cortadas. Portanto o que nasce hoje nasce
-   * assim; o que já lá está muda quando ela quiser, no interruptor de cada
-   * bloco.
-   */
-  function addBoard() {
-    setDoc((d) => ({
-      ...d,
-      moodBoards: [
-        ...d.moodBoards,
-        { title: "", annotation: "", images: [], enquadramento: "forma-da-foto" },
-      ],
-    }));
-  }
-
-  /**
-   * ═══════════════════════════════════════════════════════════════════════
-   * INSERIR UM MOOD BOARD GUARDADO COMO MODELO
-   * ═══════════════════════════════════════════════════════════════════════
-   *
-   * ── Porque é que isto não é um `setDoc` de uma linha ────────────────────
-   * Era. E as fotos do modelo vêm com o caminho que tinham onde foram
-   * guardadas — `<quoteIdOrigem>/<uuid>.jpg`, debaixo de OUTRO pedido.
-   * Inseridas tal e qual, o documento novo ficava a apontar para a pasta
-   * alheia: as células abriam sem miniatura (a listagem de fotos é por
-   * pedido), e no dia em que esse pedido fosse apagado a proposta — a essa
-   * altura já enviada — ficava sem imagens, sem ninguém dar por nada.
-   *
-   * É o mesmo problema que o «Criar a partir de…» já resolvia com
-   * `duplicarFotosParaPedido`, e que ao inserir um BLOCO ninguém resolvia.
-   *
-   * ── O que NÃO se recopia ────────────────────────────────────────────────
-   * As referências à Biblioteca (`tema:…`) não vivem debaixo de pedido nenhum
-   * — são estáveis por construção e copiá-las seria desfazer o que a
-   * referência veio ganhar (ver `theme-ref.ts`). As embutidas (`data:`) viajam
-   * dentro do documento. E as que já são deste pedido ficam onde estão.
-   *
-   * ── E se a cópia falhar ─────────────────────────────────────────────────
-   * O bloco fica na mesma, com os caminhos de origem, e diz-se. É a mesma
-   * política do «Criar a partir de…»: uma proposta acoplada à pasta de outro
-   * pedido é pior do que uma proposta com fotos — mas é muito melhor do que um
-   * mood board vazio e um gesto que não fez nada.
-   */
-  async function inserirMoodBoardDeModelo(modelo: MoodBoard) {
-    const novo: MoodBoard = { ...modelo, images: [...(modelo.images ?? [])] };
-    setDoc((d) => ({ ...d, moodBoards: [...d.moodBoards, novo] }));
-
-    // ── ONDE É QUE O BLOCO FICOU ──────────────────────────────────────────
-    // O botão «De um modelo…» está ao FUNDO da secção e o bloco entra no fim
-    // do array — mas o que sai impresso obedece à ordem dos capítulos, e um
-    // bloco chamado «Cerimónia na igreja» aterra a meio da lista, muitas vezes
-    // acima da dobra. Num documento comprido, «bloco inserido» é a única coisa
-    // que não interessa saber: o que interessa é a página em que ele calhou.
-    //
-    // A posição SAI do `temasComPagina`, a mesma lista que o gerador do PDF
-    // usa — contar cartões no ecrã dizia «a 3.ª» de uma página que é a 5.ª no
-    // documento. Um tema sem fotografias e sem texto não chega a sair, e a
-    // frase di-lo em vez de inventar um número.
-    const depois = { ...doc, moodBoards: [...doc.moodBoards, novo] } as ProposalDoc;
-    const saem = temasComPagina(depois);
-    const pos = saem.indexOf(doc.moodBoards.length);
-    const nome = (novo.title ?? "").trim() || `Inspiração ${doc.moodBoards.length + 1}`;
-    toast(
-      pos >= 0
-        ? `«${nome}» entrou como a ${pos + 1}.ª das ${saem.length} páginas de inspiração do PDF.`
-        : `«${nome}» entrou no fim das páginas de inspiração. Sem fotografias nem texto, não sai no PDF.`,
-      "success",
-    );
-
-    // O predicado é uma função à parte, e a referência à Biblioteca fica para
-    // ÚLTIMO: `ehRefDeTema` é um type guard (`ref is string`), portanto negá-lo
-    // a meio estreita a string até `never` e o TypeScript recusa tudo o que
-    // venha a seguir sobre a mesma variável.
-    const precisaDeCopia = (p: string): boolean => {
-      if (!p || p.startsWith("data:") || isPendingImage(p)) return false;
-      if (p.startsWith(`${quote.id}/`)) return false;
-      return !ehRefDeTema(p);
-    };
-    const deOutroPedido = novo.images.filter(
-      (p): p is string => typeof p === "string" && precisaDeCopia(p),
-    );
-    if (deOutroPedido.length === 0) return;
-
-    // ── ISTO DEIXA DE SER MUDO ────────────────────────────────────────────
-    // O bloco aparece na proposta no instante do clique e as fotos vêm a
-    // seguir, num pedido só que demora de dois a vinte segundos. Não havia
-    // sinal nenhum disso — só um toast lá ao fim, e apenas quando corria mal.
-    setFotosACopiar((n) => n + deOutroPedido.length);
-    try {
-      const res = await fetch("/api/propostas/copiar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quoteId: quote.id, fotos: deOutroPedido }),
-      });
-      const dados = await res.json().catch(() => null);
-      const mapa = (dados?.fotos ?? {}) as Record<string, string>;
-      const copiadas = Object.keys(mapa);
-      if (!res.ok || copiadas.length === 0) throw new Error("sem cópias");
-      // A troca é feita no documento INTEIRO e por caminho: se ela já tiver
-      // mexido no bloco entretanto (arrastado, removido uma foto), a troca
-      // acompanha na mesma em vez de escrever por cima do que ela fez.
-      setDoc((d) => mapImagePaths(d, (p) => mapa[p] ?? p));
-      // As fotos novas ainda não têm assinatura nenhuma neste ecrã.
-      void hidratarAssets();
-      const ficaram = deOutroPedido.length - copiadas.length;
-      if (ficaram > 0) {
-        toast(`${ficaram} foto(s) do modelo ficaram na pasta da proposta de origem.`, "error");
-      }
-    } catch {
-      toast(
-        "As fotos deste modelo ficaram na pasta da proposta de origem — volta a escolhê-las se essa proposta for apagada.",
-        "error",
-      );
-    } finally {
-      setFotosACopiar((n) => Math.max(0, n - deOutroPedido.length));
-    }
-  }
-  function updateBoard(bi: number, p: Partial<StudioDoc["moodBoards"][number]>) {
-    setDoc((d) => ({
-      ...d,
-      moodBoards: d.moodBoards.map((b, i) => (i === bi ? { ...b, ...p } : b)),
-    }));
-  }
-  /**
-   * Remover uma página de inspiração — COM PERGUNTA, e a pergunta conta.
-   *
-   * É a acção mais cara do estúdio inteiro: leva com ela as fotografias todas
-   * daquela página, escolhidas uma a uma de entre a biblioteca e os mood boards
-   * (e às vezes carregadas do telemóvel à beira do cliente), mais a folha que
-   * elas ocupam no PDF. Refazê-la não é escrever outra vez um título — é voltar
-   * a curar uma página inteira.
-   *
-   * Por isso PERGUNTA e não anulação: é rara (uma proposta tem três a oito
-   * páginas e removem-se poucas), é cara, e dez segundos de «Anular» são pouco
-   * para quem só dá pelo estrago ao chegar à pré-visualização.
-   *
-   * A frase nomeia a página pelo nome que ela lhe deu, conta as fotografias e
-   * diz ONDE ela estava a sair no documento — que é a parte que decide a
-   * resposta, e a única que não se vê a olhar para o cartão.
-   *
-   * Uma página em branco (sem título, sem descrição e sem fotos) sai sem
-   * pergunta nenhuma: não há ali nada a perder, e perguntar por nada é ensinar
-   * a responder que sim sem ler.
-   */
-  function removeBoard(bi: number) {
-    const b = doc.moodBoards[bi];
-    const apagar = () => {
-      // A seleção para mover guarda posições («bi:ii»): depois de um tema sair,
-      // apontava para fotos de outro (auditoria de 12/11, n.º 10).
-      setSeleccionadas(new Set());
-      setDoc((d) => semOTema(d, bi));
-    };
-    if (!b) return;
-    const nome = (b.title ?? "").trim();
-    const fotos = b.images.length;
-    const temTexto = nome !== "" || (b.annotation ?? "").trim() !== "";
-    if (fotos === 0 && !temTexto) {
-      apagar();
-      return;
-    }
-    // A posição SAI da mesma lista que o gerador do PDF usa (`temasComPagina`),
-    // e não de contar cartões no ecrã: a ordem de saída respeita os capítulos
-    // dos serviços, e as páginas sem fotos não chegam a sair. Uma segunda
-    // contagem aqui dizia «a página 3» de uma página que é a 5.ª no documento.
-    const saem = temasComPagina(doc as ProposalDoc);
-    const pos = saem.indexOf(bi);
-    const conta =
-      fotos > 0
-        ? `Leva com ela ${fotos} ${fotos === 1 ? "fotografia" : "fotografias"}` +
-          (pos >= 0 ? `, e é a ${pos + 1}.ª das ${saem.length} páginas de inspiração do PDF.` : ".")
-        : "Ainda não tem fotografias nenhumas — leva o título e a descrição, e mais nada.";
-    setARemover({
-      chave: `board:${bi}`,
-      pergunta: `Remover a página «${nome || `Inspiração ${bi + 1}`}»? ${conta}`,
-      docNoMomento: doc,
-      aplicar: apagar,
-    });
-  }
-  /**
-   * Move o board que está NA POSIÇÃO `pos` do ecrã.
-   *
-   * Recebe a posição visível e não o índice do array porque, enquanto a ordem
-   * vier sugerida pelos Serviços, os dois números são diferentes — e mover
-   * «o terceiro que vejo» tem de mover o terceiro que se vê.
-   *
-   * Arrumar à mão é uma decisão: materializa a ordem mostrada e acende
-   * `ordemExplicita`. Sem isso, ela punha o board no sítio e a sugestão
-   * devolvia-o ao lugar de onde saiu.
-   */
-  function moveBoard(pos: number, dir: -1 | 1) {
-    setDoc((d) => {
-      const arrumado = arrumadoEExplicito(d);
-      return { ...arrumado, moodBoards: move(arrumado.moodBoards, pos, dir) };
-    });
-  }
-  function addBoardImages(bi: number, paths: string[]) {
-    setDoc((d) => ({
-      ...d,
-      moodBoards: d.moodBoards.map((b, i) =>
-        i === bi ? { ...b, images: [...b.images, ...paths] } : b,
-      ),
-    }));
-    // Quem passa das doze fotografias fica a saber nesse instante que o tema
-    // vai ocupar duas páginas no PDF — não é um erro (nenhuma fica de fora),
-    // mas é uma página a mais, e decide-se melhor a escolher do que no PDF.
-    const antes = doc.moodBoards[bi]?.images.length ?? 0;
-    const total = antes + paths.length;
-    const disposicao = disposicaoDoTema(doc.moodBoards[bi]);
-    if (paginasDoTema(total, disposicao) > paginasDoTema(antes, disposicao) && antes > 0) {
-      toast(
-        `Este tema fica com ${total} fotos e passa a ocupar ${paginasDoTema(total, disposicao)} páginas no PDF.`,
-        "info",
-      );
-    }
-  }
-  /**
-   * Remover uma foto — PELA POSIÇÃO, e com dez segundos para voltar atrás.
-   *
-   * Era por caminho (`filter((p) => p !== path)`), e a mesma fotografia pode
-   * estar duas vezes no mesmo board: remover uma removia as duas. Com a grelha
-   * a poder ser reordenada e a receber fotos de outros boards, a posição passou
-   * a ser a única coisa que identifica uma célula.
-   *
-   * A anulação é a mesma dos dez segundos do «Limpar» (`setLimpo`): guarda o
-   * documento inteiro antes de mexer. Sem diálogo a perguntar — é a regra desta
-   * casa, e uma pergunta antes de tirar uma foto de uma grelha de quarenta
-   * seria respondida sem ser lida.
-   */
-  function removeBoardImageAt(bi: number, ii: number) {
-    setSeleccionadas(new Set());
-    setLimpo({ doc, total: totalInput, segundos: 10, motivo: "Fotografia removida." });
-    setDoc((d) => {
-      const tirada = d.moodBoards[bi]?.images[ii];
-      return semAsFotosNasPaginas(
-        {
-          ...d,
-          moodBoards: d.moodBoards.map((b, i) =>
-            i === bi
-              ? {
-                  ...b,
-                  images: b.images.filter((_, j) => j !== ii),
-                  // A marca da principal acompanha: sem isto, tirar a foto de cima
-                  // fazia «a principal» passar a ser a que calhou àquele índice.
-                  principal: marcaDepoisDeMexer(b, (antigo) =>
-                    antigo === ii ? null : antigo > ii ? antigo - 1 : antigo,
-                  ),
-                }
-              : b,
-          ),
-        },
-        tirada ? [tirada] : [],
-      );
-    });
-  }
-
-  /**
-   * Trocar UMA fotografia no lugar.
-   *
-   * Palavras dela: «Substituir uma foto sem a apagar primeiro: abre a
-   * biblioteca e troca no lugar.» Sem isto, trocar era remover (perdendo a
-   * posição), escolher outra — que ia para o fim — e arrastá-la de volta.
-   *
-   * A marca da principal não se toca: o lugar continua a ser o mesmo, e quem
-   * troca a foto que manda na página quer que a nova mande na mesma.
-   */
-  function substituirFotoDoBoard(bi: number, ii: number, path: string) {
-    // A que sai deixa também as páginas onde ela a tinha posto (o lugar volta
-    // ao automático) — salvo se ainda estiver noutro tema.
-    setDoc((d) => {
-      const antiga = d.moodBoards[bi]?.images[ii];
-      return semAsFotosNasPaginas(
-        {
-          ...d,
-          moodBoards: d.moodBoards.map((b, i) =>
-            i === bi ? { ...b, images: b.images.map((p, j) => (j === ii ? path : p)) } : b,
-          ),
-        },
-        antiga && antiga !== path ? [antiga] : [],
-      );
-    });
-    setPicker(null);
-  }
-
-  /** Reordenar dentro do mesmo board. */
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * ARRUMAR UM BOARD POR COR
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * A ordem das fotos É a composição da página (ver `proposal-moodboard.ts`),
-   * e uma página lê-se melhor quando as cores fazem uma transição em vez de
-   * saltarem. Isto arruma-as por parecença — ver `ordemPorCor`, que encadeia
-   * cada foto com a mais próxima da anterior.
-   *
-   * Não é destrutivo nem definitivo: entra no histórico como qualquer outra
-   * alteração, e o Cmd+Z desfaz. Por isso não há caixa de confirmação.
-   *
-   * As fotos sem cor conhecida (as carregadas antes de a cor existir) ficam no
-   * fim, pela ordem em que estavam — nunca se lhes inventa uma cor.
-   */
-  function arrumarPorCor(bi: number) {
-    const board = doc.moodBoards[bi];
-    if (!board) return;
-    const ordem = ordemPorCor(board.images.map((p) => assetCores[p]));
-    if (ordem.every((idx, i) => idx === i)) {
-      toast("Esta página já está arrumada por cor.", "info");
-      return;
-    }
-    setDoc((d) => ({
-      ...d,
-      moodBoards: d.moodBoards.map((b, i) => {
-        if (i !== bi) return b;
-        return {
-          ...b,
-          images: ordem.map((idx) => b.images[idx]),
-          // A foto que manda na página continua a ser a MESMA fotografia, no
-          // sítio novo. Sem isto, arrumar por cor promovia a destaque outra
-          // foto qualquer — a que calhasse cair na posição marcada.
-          principal: marcaDepoisDeMexer(b, (antigo) => {
-            const novo = ordem.indexOf(antigo);
-            return novo < 0 ? antigo : novo;
-          }),
-        };
-      }),
-    }));
-    toast("Fotografias arrumadas por cor. Cmd+Z desfaz.", "success");
-  }
-
-  function reordenarFotos(bi: number, de: number, para: number) {
-    setDoc((d) => ({
-      ...d,
-      moodBoards: d.moodBoards.map((b, i) => {
-        if (i !== bi) return b;
-        const imagens = [...b.images];
-        const [foto] = imagens.splice(de, 1);
-        if (foto === undefined) return b;
-        imagens.splice(para, 0, foto);
-        return {
-          ...b,
-          images: imagens,
-          principal: marcaDepoisDeMexer(b, (antigo) => {
-            if (antigo === de) return para;
-            // As que ficam entre o sítio de onde saiu e aquele para onde foi
-            // deslizam uma posição — para que lado depende da direcção.
-            if (de < antigo && antigo <= para) return antigo - 1;
-            if (para <= antigo && antigo < de) return antigo + 1;
-            return antigo;
-          }),
-        };
-      }),
-    }));
-  }
-
-  /**
-   * Mover uma foto de um board para outro.
-   *
-   * `paraIndice = -1` quer dizer «no fim» — é o que chega de uma largada na
-   * grelha em vez de sobre uma foto, que é o único caminho possível quando o
-   * board de destino está vazio.
-   */
-  function moverFotoDeBoard(
-    deBoard: number,
-    deIndice: number,
-    paraBoard: number,
-    paraIndice: number,
-  ) {
-    setDoc((d) => {
-      const origem = d.moodBoards[deBoard];
-      const foto = origem?.images[deIndice];
-      if (foto === undefined) return d;
-      return {
-        ...d,
-        moodBoards: d.moodBoards.map((b, i) => {
-          if (i === deBoard) {
-            return {
-              ...b,
-              images: b.images.filter((_, j) => j !== deIndice),
-              principal: marcaDepoisDeMexer(b, (antigo) =>
-                antigo === deIndice ? null : antigo > deIndice ? antigo - 1 : antigo,
-              ),
-            };
-          }
-          if (i === paraBoard) {
-            const imagens = [...b.images];
-            const onde = paraIndice < 0 ? imagens.length : Math.min(paraIndice, imagens.length);
-            imagens.splice(onde, 0, foto);
-            return {
-              ...b,
-              images: imagens,
-              principal: marcaDepoisDeMexer(b, (antigo) => (antigo >= onde ? antigo + 1 : antigo)),
-            };
-          }
-          return b;
-        }),
-      };
-    });
-  }
-
-  /** Mover VÁRIAS de uma vez — a selecção múltipla, sem passar pela biblioteca. */
-  function moverSeleccaoParaBoard(paraBoard: number) {
-    const escolhidas = [...seleccionadas]
-      .map((k) => {
-        const [b, i] = k.split(":").map(Number);
-        return { bi: b, ii: i };
-      })
-      .filter((s) => s.bi !== paraBoard);
-    if (escolhidas.length === 0) {
-      setSeleccionadas(new Set());
-      return;
-    }
-    setLimpo({ doc, total: totalInput, segundos: 10, motivo: "Fotografias movidas." });
-    setDoc((d) => {
-      // Os caminhos são lidos ANTES de mexer em nada: mover uma foto muda os
-      // índices das outras, e uma lista de índices lida a meio do caminho
-      // apanharia as fotos erradas.
-      const caminhos = escolhidas
-        .map(({ bi, ii }) => ({ bi, ii, path: d.moodBoards[bi]?.images[ii] }))
-        .filter((c): c is { bi: number; ii: number; path: string } => typeof c.path === "string");
-      const aTirar = new Map<number, Set<number>>();
-      for (const c of caminhos) {
-        if (!aTirar.has(c.bi)) aTirar.set(c.bi, new Set());
-        aTirar.get(c.bi)!.add(c.ii);
-      }
-      return {
-        ...d,
-        moodBoards: d.moodBoards.map((b, i) => {
-          const tirar = aTirar.get(i);
-          const semAsQueSaem = tirar
-            ? {
-                ...b,
-                images: b.images.filter((_, j) => !tirar.has(j)),
-                principal: marcaDepoisDeMexer(b, (antigo) =>
-                  tirar.has(antigo) ? null : antigo - [...tirar].filter((j) => j < antigo).length,
-                ),
-              }
-            : b;
-          if (i !== paraBoard) return semAsQueSaem;
-          return {
-            ...semAsQueSaem,
-            images: [...semAsQueSaem.images, ...caminhos.map((c) => c.path)],
-          };
-        }),
-      };
-    });
-    setSeleccionadas(new Set());
-    toast(
-      escolhidas.length === 1
-        ? "Fotografia movida. Podes anular durante 10 segundos."
-        : `${escolhidas.length} fotografias movidas. Podes anular durante 10 segundos.`,
-      "info",
-    );
-  }
-
-  /**
-   * Uma foto foi largada — dentro do board ou noutro.
-   *
-   * Um só sítio a decidir, e é aqui e não dentro do contexto de arrasto: o
-   * `MoodBoardFotos.tsx` sabe de gestos e de identificadores, não sabe o que é
-   * um documento de proposta.
-   */
-  function aoLargarFoto(largada: LargadaDeFoto) {
-    if (largada.tipo === "reordenar") {
-      reordenarFotos(largada.bi, largada.de, largada.para);
-      return;
-    }
-    moverFotoDeBoard(largada.deBoard, largada.deIndice, largada.paraBoard, largada.paraIndice);
-  }
-
-  /** Um mood board largado noutra POSIÇÃO do ecrã — ver `moveBoard`. */
-  function moverBoardParaPosicao(de: number, para: number) {
-    setDoc((d) => {
-      const arrumado = arrumadoEExplicito(d);
-      const boards = [...arrumado.moodBoards];
-      const [board] = boards.splice(de, 1);
-      if (board === undefined) return d;
-      boards.splice(para, 0, board);
-      return { ...arrumado, moodBoards: boards };
-    });
-  }
-
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * OS BOARDS FECHADOS — NESTA SESSÃO, E SÓ NESTA
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * A mesma regra das secções (ver `Section`), e pela mesma razão: um mood
-   * board fechado é uma pilha de fotografias que não se vê, e reabrir a
-   * proposta tem de mostrar a proposta.
-   *
-   * Isto ficava guardado no `localStorage` por proposta. Um «Fechar todos» de
-   * há três semanas — feito uma vez para chegar depressa ao fundo da página —
-   * continuava a esconder as páginas de inspiração hoje, sem nada no ecrã que
-   * o explicasse. E foi a mesma memória que apareceu no relato dela como
-   * «secções colapsadas».
-   *
-   * O gesto fica: fechar um board, ou fechá-los todos, continua a valer
-   * enquanto ela lá está. Deixa é de atravessar visitas.
-   *
-   * A chave é o ID do board e não a posição: arrastar um board para outro
-   * sítio trocaria as dobras todas de lugar.
-   */
-  const [dobrados, setDobrados] = useState<Record<string, boolean>>({});
-
-  function escreverDobras(proximas: Record<string, boolean>) {
-    setDobrados(proximas);
-  }
-
-  /**
-   * O salto para o campo, DEPOIS de ele estar desenhado.
-   *
-   * O controlo leva a chave num `data-campo`; quando o campo não tem controlo
-   * próprio no editor — as linhas do quadro do orçamento são semeadas a partir
-   * do pedido — cai-se na SECÇÃO, que é onde a resposta está. Não fazer nada
-   * seria a pior das três hipóteses.
-   *
-   * `focus` depois do `scrollIntoView` e com `preventScroll`: o foco sozinho
-   * salta a página de golpe e sem margem nenhuma; assim o campo fica ao centro
-   * e a escrita começa onde ela está a olhar.
-   */
-  useEffect(() => {
-    if (!campoAVisitar) return;
-    // A caixa inglesa leva o mesmo `data-campo` com `:en` colado — o salto
-    // encontra-a com a maquinaria que já existe, sem uma segunda.
-    const chave = chaveDoCampo(campoAVisitar.campo) + (campoAVisitar.versao === "en" ? ":en" : "");
-    const alvo =
-      document.querySelector<HTMLElement>(`[data-campo="${chave}"]`) ??
-      document.getElementById(`seccao-${seccaoDoCampo(campoAVisitar.campo)}`);
-    rolarAteVer(alvo, { block: "center" });
-    if (alvo instanceof HTMLInputElement || alvo instanceof HTMLTextAreaElement) {
-      alvo.focus({ preventScroll: true });
-      alvo.select();
-    }
-  }, [campoAVisitar]);
-
-  /** O salto da Conferência, depois de a secção estar aberta e desenhada. */
-  useEffect(() => {
-    if (!faltaAVisitar) return;
-    const { seccao, campo } = faltaAVisitar;
-    const cartao = seccao ? document.getElementById(`seccao-${seccao}`) : null;
-    // `:scope > div >` e não um `querySelector` solto: dentro de uma secção há
-    // outros botões com `aria-expanded` (os mood boards têm as suas dobras), e
-    // o primeiro fechado que aparecesse era o que abria — que podia ser outro
-    // qualquer, algures no meio do cartão.
-    cartao
-      ?.querySelector<HTMLButtonElement>(':scope > div > button[aria-expanded="false"]')
-      ?.click();
-    // Num tique a seguir: o campo só está VISÍVEL depois de o clique acima ter
-    // sido processado, e focar um elemento escondido não faz nada.
-    const espera = setTimeout(() => {
-      const alvo =
-        (campo && document.querySelector<HTMLElement>(`[data-campo="${campo}"]`)) || cartao;
-      rolarAteVer(alvo, { block: "center" });
-      if (alvo instanceof HTMLInputElement || alvo instanceof HTMLTextAreaElement) {
-        alvo.focus({ preventScroll: true });
-        alvo.select();
-      }
-    }, 0);
-    return () => clearTimeout(espera);
-  }, [faltaAVisitar]);
-
-  function alternarDobra(id: string) {
-    escreverDobras({ ...dobrados, [id]: !dobrados[id] });
-  }
-
-  function dobrarTodos(fechar: boolean) {
-    const proximas: Record<string, boolean> = {};
-    for (const b of doc.moodBoards) if (b.id) proximas[b.id] = fechar;
-    escreverDobras(proximas);
-  }
-
-  /**
-   * ── IR AO CAMPO ONDE A PALAVRA ESTÁ ─────────────────────────────────────
-   *
-   * Do aviso de ortografia (que vive no passo do envio) até ao controlo (que
-   * vive no do conteúdo, e pode estar dentro de um mood board fechado).
-   *
-   * Três coisas antes do salto, e só a última é o salto: voltar ao conteúdo,
-   * abrir a dobra do board se for um campo de board — saltar para dentro de uma
-   * dobra fechada deixava-a a olhar para um cartão que «não abriu» —, e só
-   * então marcar o alvo, para o efeito o encontrar depois de desenhado.
-   */
-  /**
-   * A caixa inglesa de um campo — ou nada, com o interruptor desligado.
-   *
-   * Um só sítio a desenhá-las: são catorze famílias de campo espalhadas por
-   * duas secções e dois ficheiros, e catorze cópias desta caixa eram catorze
-   * sítios onde o `data-campo`, o `aria-label` ou a marca de «por traduzir`
-   * podiam divergir. Ver `CaixaInglesa.tsx`.
-   */
-  function caixaDeIngles(
-    campo: CampoDeTexto,
-    rotulo: string,
-    opts: {
-      className?: string;
-      as?: "input" | "textarea";
-      rows?: number;
-      /** A caixa cresce com o texto, a partir de uma linha — ver `CaixaInglesa`. */
-      cresce?: boolean;
-      readOnly?: boolean;
-      placeholder?: string;
-      /**
-       * Este par NÃO fica lado a lado.
-       *
-       * A marca é ao contrário — todas ficam, e diz-se quais não — porque o
-       * desenho normal passa a ser o par numa linha só, e uma excepção que se
-       * esquece de se declarar é uma caixa empilhada no meio de doze ao lado,
-       * que se vê. Uma que se esquecesse ao contrário era uma caixa ao lado de
-       * uma coisa que não é o seu par, que também se vê.
-       */
-      empilhada?: boolean;
-    } = {},
-  ) {
-    if (!bilingue) return null;
-    const en = lerEn(doc as ProposalDoc, campo) ?? "";
-    /**
-     * Vazia, para trás, ou em dia — e as três leem-se diferentes.
-     *
-     * Era `pt !== "" && en === ""`, que só sabia responder «vazia». Um inglês
-     * escrito contra um português que entretanto mudou passava por bom, e é
-     * esse o defeito que ela apanhou: «Reunião Inicial» com «Ceremony Decor».
-     */
-    const estado = estadoDoIngles(doc as ProposalDoc, campo);
-    // `empilhada` é desta função e não da caixa: separa-se antes de passar o
-    // resto, para não escorregar para o DOM como um atributo inventado.
-    const { empilhada, ...daCaixa } = opts;
-    return (
-      <CaixaInglesa
-        campo={campo}
-        rotulo={rotulo}
-        valor={en}
-        onChange={(texto) => setDoc((d) => escreverEn(d, campo, texto))}
-        porTraduzir={estado === "por-traduzir"}
-        desactualizada={estado === "desactualizado"}
-        aoConfirmar={() => setDoc((d) => confirmarTraducao(d, campo))}
-        aoLado={!empilhada}
-        {...daCaixa}
-      />
-    );
-  }
-
-  /**
-   * Manda traduzir tudo o que ainda não tem versão inglesa.
-   *
-   * O documento só muda se a resposta vier ALINHADA — a trava vive na fronteira
-   * (`traduzirParaIngles`), e a razão está lá escrita: uma resposta a que
-   * faltem textos punha a tradução de um campo noutro campo, em silêncio.
-   * Falhando, o que se vê é uma frase a dizê-lo e o documento como estava.
-   *
-   * ── E O QUE ELA FIZER ENQUANTO A TRADUÇÃO VEM A CAMINHO ──────────────────
-   *
-   * Fica. O relato que trouxe isto, à letra: «quando alterou para inglês, deu,
-   * mas já estava a alterar fotos». A tradução DEU — e as fotos que ela mexeu
-   * nos segundos da ida à rede desapareceram, porque o que voltava era o
-   * documento de há dez segundos, posto de volta inteiro. A gravação automática
-   * gravava a versão amputada logo a seguir, no `localStorage` e no servidor:
-   * trabalho perdido nos dois sítios, sem uma palavra.
-   *
-   * Por isso o que se aplica NÃO é o documento traduzido: são as traduções, uma
-   * a uma, escritas no documento como ele estiver neste instante — e só nos
-   * campos cujo português ainda é o que foi mandado traduzir (ver
-   * `aplicarTraducao`). É a mesma disciplina da cópia de fotos de um modelo
-   * parcial, aqui ao lado.
-   */
-  async function traduzirTudo() {
-    if (!traducaoLigada || aTraduzir) return;
-    setATraduzir(true);
-    try {
-      const r = await traduzirParaIngles(doc as ProposalDoc, motorPelaRota());
-      if (r.porqueFalhou) {
-        toast(`Não deu para traduzir: ${r.porqueFalhou}. O documento ficou como estava.`, "error");
-        return;
-      }
-      // «Não havia nada por traduzir» só é verdade quando não se pediu nada ao
-      // serviço. Pedir e não receber é outra coisa — e dizer-lhe que não havia
-      // nada a fazer sobre uma proposta que ficou inteira em português é a
-      // mentira mais cara que este botão pode contar.
-      if (r.escritos === 0 && r.naoVieram === 0) {
-        toast("Não havia nada por traduzir.", "info");
-        return;
-      }
-      // O documento de AGORA, e não o que foi mandado traduzir. A contagem sai
-      // daqui; a escrita passa pela forma funcional, que é a que o React
-      // garante actualizada mesmo que este `ref` esteja um instante atrás.
-      const antes = docRef.current;
-      const aplicado = aplicarTraducao(antes, r.escritas);
-      setDoc((d) => (d === antes ? aplicado.doc : aplicarTraducao(d, r.escritas).doc));
-      if (aplicado.escritos > 0) {
-        toast(
-          aplicado.escritos === 1
-            ? "1 campo traduzido. Vale a pena passar os olhos."
-            : `${aplicado.escritos} campos traduzidos. Vale a pena passar os olhos.`,
-          "success",
-        );
-      }
-      /**
-       * ── O QUE FOI PEDIDO AO SERVIÇO E NÃO VOLTOU ─────────────────────────
-       *
-       * O motor manda os textos em lotes de 50 e um lote que falhe volta VAZIO
-       * nas suas posições, de propósito: os que já vieram não se deitam fora
-       * nem se pagam duas vezes. Só atira quando NENHUM lote passa.
-       *
-       * Sem esta frase, uma proposta grande com um 429 (ou uma quota que acaba
-       * no segundo lote) mostrava «50 campos traduzidos», a verde, e deixava 70
-       * em português sem uma palavra. Do lado dela isso é «não está a dar» —
-       * dá numa proposta pequena e não dá numa grande, e o número que aparece
-       * está certo.
-       *
-       * Diz-se também que vale a pena insistir, porque vale: o que já veio está
-       * escrito, e a carregada seguinte só manda o que falta.
-       */
-      if (r.naoVieram > 0) {
-        toast(
-          r.naoVieram === 1
-            ? "1 campo não voltou do serviço de tradução e ficou em português. Carrega outra vez — o que já veio fica como está."
-            : `${r.naoVieram} campos não voltaram do serviço de tradução e ficaram em português. Carrega outra vez — o que já veio fica como está.`,
-          "error",
-        );
-      }
-      // Os campos que mudaram debaixo da tradução ficam por traduzir, e é isso
-      // que eles são. Dizê-lo aqui evita a única leitura errada possível — «eu
-      // traduzi isto» sobre um campo que ficou em português.
-      if (aplicado.ignorados.length > 0) {
-        toast(
-          aplicado.ignorados.length === 1
-            ? "1 campo mudou enquanto a tradução vinha e ficou por traduzir."
-            : `${aplicado.ignorados.length} campos mudaram enquanto a tradução vinha e ficaram por traduzir.`,
-          "info",
-        );
-      }
-    } finally {
-      setATraduzir(false);
-    }
-  }
+  const versoesAntigas = useRestaurarVersao({
+    confirmacoes,
+    documento,
+    envio,
+    passos,
+    reversiveis,
+    setRefEdited,
+    toast,
+    total,
+  });
+  const { inserirParagrafoDoQueMudou, restaurarVersao } = versoesAntigas;
+  const limpeza = useLimparORascunho({
+    DRAFT_KEY,
+    SIDE_KEY,
+    camposPorConfirmar,
+    confirmacoes,
+    docDoServidor,
+    documento,
+    envio,
+    fotos,
+    passos,
+    quote,
+    reversiveis,
+    serverStamp,
+    setRefEdited,
+    toast,
+    total,
+    warnedOverwrite,
+  });
+  const { clearDraft, trabalhoNoDocumento } = limpeza;
+  const nota = useNotaDaSeccao({ documento });
+  const { notaDaSeccao } = nota;
+  const carregar = useCarregarFotos({
+    avisoDeQualidade,
+    documento,
+    fotos,
+    quote,
+    setUploading,
+    toast,
+  });
+  const { handleUpload } = carregar;
+  const fotosUsadasNoutras = useFotosUsadasNoutras({ documento, escolha, fotos, quote });
+  const { origensNoDocumento, usadasNoutras, usedThemePaths } = fotosUsadasNoutras;
+  const moodBoards = useMoodBoards({
+    anular,
+    documento,
+    hidratarAssets,
+    quote,
+    reversiveis,
+    seleccao,
+    setFotosACopiar,
+    toast,
+  });
+  const { addBoard, inserirMoodBoardDeModelo, removeBoard, setServiceGroups, updateBoard } =
+    moodBoards;
+  const arrumacao = useArrumacaoDosBoards({ documento, ordem, toast });
+  const { alternarBloqueio, duplicarBoard, moveBoard, moverBoardParaPosicao } = arrumacao;
+  const fotosDosBoards = useFotosDosBoards({
+    documento,
+    fotos,
+    reversiveis,
+    seleccao,
+    setLupa,
+    setPicker,
+    tentarBuscarFotos,
+    toast,
+    total,
+  });
+  const {
+    addBoardImages,
+    aoLargarFoto,
+    arrumarPorCor,
+    eventosDasFotos,
+    moverSeleccaoParaBoard,
+    seleccionadasDoBoard,
+    substituirFotoDoBoard,
+  } = fotosDosBoards;
+  const dobras = useDobrasDosBoards({ campoAVisitar, documento, faltaAVisitar });
+  const { alternarDobra, dobrados, dobrarTodos, escreverDobras } = dobras;
 
   /**
    * ── IR AO SÍTIO ONDE A FALTA SE RESOLVE ─────────────────────────────────
@@ -5686,1871 +1357,205 @@ export default function ProposalStudio({
     }
     setCampoAVisitar((antes) => ({ campo, pedido: (antes?.pedido ?? 0) + 1, versao }));
   }
-
-  /**
-   * Duplicar um board inteiro — fotos, textos, disposição.
-   *
-   * As fotos são CAMINHOS, e o mesmo caminho pode estar em dois boards sem
-   * custo nenhum: não há bytes a copiar e o gerador resolve cada um por si. É
-   * o que torna «esta página outra vez, com duas fotos trocadas» num gesto.
-   *
-   * O id NÃO é copiado (`id: undefined`): dois boards com a mesma identidade
-   * partilhariam a dobra e a chave de React. É preenchido a partir da posição
-   * na gravação seguinte.
-   */
-  function duplicarBoard(bi: number) {
-    setDoc((d) => {
-      const original = d.moodBoards[bi];
-      if (!original) return d;
-      const copia = {
-        ...original,
-        id: undefined,
-        title: original.title?.trim() ? `${original.title} (cópia)` : "",
-        images: [...original.images],
-      };
-      const boards = [...d.moodBoards];
-      boards.splice(bi + 1, 0, copia);
-      return { ...d, moodBoards: boards };
-    });
-    // QUAL DELES, E ONDE FICOU A CÓPIA. «Mood board duplicado.» não dizia
-    // nenhuma das duas coisas, e numa secção de oito páginas são as duas que
-    // interessam: o botão é um ícone de 28 px repetido em cada cartão, e a
-    // cópia sai pela ordem dos capítulos como tudo o resto — num cartão alto
-    // (uma grelha de seis fotos mais os campos), ela nasce abaixo da dobra.
-    const original = doc.moodBoards[bi];
-    if (!original) return;
-    const nome = (original.title ?? "").trim() || `Inspiração ${bi + 1}`;
-    const copiado = { ...original, title: nome ? `${nome} (cópia)` : "" };
-    const depois = {
-      ...doc,
-      moodBoards: [...doc.moodBoards.slice(0, bi + 1), copiado, ...doc.moodBoards.slice(bi + 1)],
-    } as ProposalDoc;
-    const saem = temasComPagina(depois);
-    const pos = saem.indexOf(bi + 1);
-    toast(
-      pos >= 0
-        ? `«${nome}» duplicado — a cópia é a ${pos + 1}.ª das ${saem.length} páginas de inspiração do PDF.`
-        : `«${nome}» duplicado — a cópia ficou logo a seguir. Sem fotografias nem texto, não sai no PDF.`,
-      "info",
-    );
-  }
-
-  /** Fechar (ou reabrir) um board a alterações — ver `MoodBoard.bloqueado`. */
-  function alternarBloqueio(bi: number) {
-    setDoc((d) => ({
-      ...d,
-      moodBoards: d.moodBoards.map((b, i) =>
-        i === bi ? { ...b, bloqueado: b.bloqueado ? undefined : true } : b,
-      ),
-    }));
-  }
-
-  /** Escolher (ou desescolher) uma foto para o conjunto que se move de uma vez. */
-  function alternarSeleccao(bi: number, ii: number) {
-    const path = doc.moodBoards[bi]?.images[ii];
-    if (typeof path === "string") caminhoDaSeleccao.current.set(`${bi}:${ii}`, path);
-    setSeleccionadas((antes) => {
-      const proxima = new Set(antes);
-      const chave = `${bi}:${ii}`;
-      if (proxima.has(chave)) proxima.delete(chave);
-      else proxima.add(chave);
-      return proxima;
-    });
-  }
-
-  /**
-   * ── A ESCOLHA SEGUE A FOTOGRAFIA (auditoria de 13/11, estúdio n.º 8) ─────
-   *
-   * As escolhas guardam POSIÇÕES (`página:foto`). Arrastar, reordenar, apagar
-   * ou mover mudava as posições, e as escolhas ficavam a apontar para outras
-   * fotografias: «Mover para…» levava as erradas. Cada escolha lembra-se do
-   * caminho da fotografia; quando as posições mudam, a escolha vai atrás dela,
-   * e sai se ela já lá não está.
-   */
-  useEffect(() => {
-    if (seleccionadas.size === 0) return;
-    const r = seguirASeleccao(seleccionadas, caminhoDaSeleccao.current, doc.moodBoards);
-    caminhoDaSeleccao.current = r.caminhos;
-    if (r.mudou) setSeleccionadas(r.novas);
-  }, [doc.moodBoards, seleccionadas]);
-
-  /** A foto que manda na página — ver `proposal-moodboard.ts`. */
-  function marcarPrincipal(bi: number, ii: number) {
-    setDoc((d) => ({
-      ...d,
-      moodBoards: d.moodBoards.map((b, i) =>
-        // Voltar a carregar na que já é principal DESMARCA: sem isso, marcar
-        // seria uma porta de sentido único e a única saída era marcar a
-        // primeira à mão.
-        i === bi ? { ...b, principal: b.principal === ii ? undefined : ii } : b,
-      ),
-    }));
-  }
-
-  /** As fotografias escolhidas DESTA página, como texto («0,3») — um valor que
-   *  só muda quando a escolha desta página muda, para o `memo` da grelha. */
-  function seleccionadasDoBoard(bi: number): string {
-    const out: number[] = [];
-    for (const k of seleccionadas) {
-      const [b, i] = k.split(":");
-      if (Number(b) === bi) out.push(Number(i));
-    }
-    return out.sort((x, y) => x - y).join(",");
-  }
-
-  /*
-    ── AS ACÇÕES DAS FOTOGRAFIAS, NUM OBJECTO QUE NUNCA MUDA (10/11) ──────
-    A grelha de cada página é memorizada (`FotosDoBoard`), e um `memo` só serve
-    se as props não mudarem a cada desenho. As acções são funções deste
-    componente, refeitas a cada desenho; por isso a grelha recebe UM objecto
-    estável cujos métodos chamam sempre a versão mais recente (a ref é
-    actualizada em cada desenho). Nenhuma acção fica com dados velhos.
-  */
-  const accoesAtuais = useRef<EventosDasFotos | null>(null);
-  accoesAtuais.current = {
-    reordenar: (bi, de, para) => reordenarFotos(bi, de, para),
-    ampliar: (bi, ii) => setLupa({ bi, ii }),
-    substituir: (bi, ii) => setPicker({ kind: "board", bi, substituir: ii }),
-    principal: (bi, ii) => marcarPrincipal(bi, ii),
-    seleccionar: (bi, ii) => alternarSeleccao(bi, ii),
-    remover: (bi, ii) => removeBoardImageAt(bi, ii),
-    tentarDeNovo: () => void tentarBuscarFotos(),
-    morreu: (url) => marcarUrlMorto(url),
-    medida: (caminho, aspeto) => registarAspeto(caminho, aspeto),
-  };
-  const eventosDasFotos = useMemo<EventosDasFotos>(
-    () => ({
-      reordenar: (...a) => accoesAtuais.current!.reordenar(...a),
-      ampliar: (...a) => accoesAtuais.current!.ampliar(...a),
-      substituir: (...a) => accoesAtuais.current!.substituir(...a),
-      principal: (...a) => accoesAtuais.current!.principal(...a),
-      seleccionar: (...a) => accoesAtuais.current!.seleccionar(...a),
-      remover: (...a) => accoesAtuais.current!.remover(...a),
-      tentarDeNovo: () => accoesAtuais.current!.tentarDeNovo(),
-      morreu: (...a) => accoesAtuais.current!.morreu(...a),
-      medida: (...a) => accoesAtuais.current!.medida(...a),
-    }),
-    [],
-  );
-
-  // ── A fotografia da capa ──
-  // Escreve-se NA POSIÇÃO e não se compacta a lista: as propostas antigas têm
-  // duas, e a segunda fica guardada como estava (o PDF novo usa uma só).
-  function setCoverAt(idx: number, path: string) {
-    setDoc((d) => {
-      const cover = normaliseCoverImages(d.coverImages);
-      cover[idx] = path;
-      // «Usar esta na mesma» é sobre a fotografia que lá estava. Uma nova volta
-      // à regra até ela a ver e decidir — ver `capaMesmoAssim`.
-      return { ...d, coverImages: cover, capaMesmoAssim: undefined, focoDaCapa: undefined };
-    });
-  }
-  function removeCoverAt(idx: number) {
-    setCoverAt(idx, "");
-  }
-
-  // ── Cronograma (organizacao) ──
-  function addPhase() {
-    setDoc((d) => ({ ...d, cronograma: [...(d.cronograma ?? []), { title: "", items: [] }] }));
-  }
-  function updatePhase(pi: number, p: Partial<{ title: string; items: string[] }>) {
-    setDoc((d) => ({
-      ...d,
-      cronograma: (d.cronograma ?? []).map((ph, i) => (i === pi ? { ...ph, ...p } : ph)),
-    }));
-  }
-  /**
-   * Remover uma fase — COM PERGUNTA, pela mesma razão da página de inspiração.
-   *
-   * Uma fase não é uma linha: é um título e a lista de tarefas que lhe está
-   * dentro, e o «×» que a apaga fica ao lado dos «×» das tarefas, dois
-   * centímetros acima e do mesmo tamanho. Carregar no de cima em vez do de
-   * baixo levava seis tarefas escritas à mão sem dizer nada a ninguém.
-   *
-   * Rara (um cronograma tem três ou quatro fases, escritas uma vez) e cara
-   * (voltar a escrever a lista toda) — portanto pergunta. E a pergunta conta as
-   * tarefas, que é exactamente o que o cartão não mostra quando a fase está
-   * cheia e o ecrã cortado.
-   *
-   * A fase que ainda não tem nome nem tarefas sai sem perguntar: uma fase
-   * acabada de acrescentar por engano não é trabalho a proteger.
-   */
-  function removePhase(pi: number) {
-    const ph = (doc.cronograma ?? [])[pi];
-    const apagar = () =>
-      setDoc((d) => ({ ...d, cronograma: (d.cronograma ?? []).filter((_, i) => i !== pi) }));
-    if (!ph) return;
-    const nome = (ph.title ?? "").trim();
-    const escritas = (ph.items ?? []).filter((it) => (it ?? "").trim() !== "");
-    if (nome === "" && escritas.length === 0) {
-      apagar();
-      return;
-    }
-    // A MESMA regra do gerador: uma fase sem tarefas não imprime nada, e um
-    // cronograma sem nenhuma fase com tarefas não tem página nenhuma no PDF
-    // (o PDF salta-a — ver o cronograma em `pdf-editorial/plano.ts`). Se esta é a última que
-    // ainda tem tarefas, o documento perde uma folha inteira — e isso é a
-    // consequência que decide a resposta.
-    const comTarefas = (doc.cronograma ?? []).filter((f) =>
-      (f.items ?? []).some((it) => (it ?? "").trim() !== ""),
-    ).length;
-    const ultima = escritas.length > 0 && comTarefas === 1;
-    const conta =
-      escritas.length > 0
-        ? `Leva com ela ${escritas.length} ${escritas.length === 1 ? "tarefa" : "tarefas"}` +
-          (ultima ? ", e o cronograma deixa de ter página no PDF." : " do cronograma.")
-        : "Ainda não tem tarefas nenhumas — leva o título, e mais nada.";
-    setARemover({
-      chave: `fase:${pi}`,
-      pergunta: `Remover a fase «${nome || `fase ${pi + 1}`}»? ${conta}`,
-      docNoMomento: doc,
-      aplicar: apagar,
-    });
-  }
-  function movePhase(pi: number, dir: -1 | 1) {
-    setDoc((d) => ({ ...d, cronograma: move(d.cronograma ?? [], pi, dir) }));
-  }
-  function addPhaseItem(pi: number) {
-    setDoc((d) => ({
-      ...d,
-      cronograma: (d.cronograma ?? []).map((ph, i) =>
-        i === pi ? { ...ph, items: [...ph.items, ""] } : ph,
-      ),
-    }));
-  }
-  function updatePhaseItem(pi: number, ii: number, value: string) {
-    setDoc((d) => ({
-      ...d,
-      cronograma: (d.cronograma ?? []).map((ph, i) =>
-        i === pi ? { ...ph, items: ph.items.map((it, j) => (j === ii ? value : it)) } : ph,
-      ),
-    }));
-  }
-  /**
-   * Remover uma tarefa — ANULAR, e não pergunta.
-   *
-   * É o gesto frequente desta secção: escreve-se a lista de uma fase às
-   * apalpadelas, acrescentam-se cinco tarefas e tiram-se duas. Refazer uma é
-   * escrever outra vez meia dúzia de palavras. Uma caixa por cada «×» seria
-   * cinco caixas para compor uma fase — e uma caixa respondida cinco vezes
-   * seguidas deixa de ser lida, o que é o oposto do que ela existe para fazer.
-   *
-   * Vai pela anulação dos dez segundos que já serve o «Limpar» e o «×» das
-   * fotografias (`setLimpo`): guarda o documento inteiro antes de mexer, e a
-   * barra diz QUAL tarefa saiu e com quantas a fase fica.
-   *
-   * A tarefa em branco sai calada — não há nada para trazer de volta.
-   */
-  function removePhaseItem(pi: number, ii: number) {
-    const ph = (doc.cronograma ?? [])[pi];
-    const tarefa = (ph?.items ?? [])[ii] ?? "";
-    if (tarefa.trim() !== "") {
-      const ficam = (ph?.items ?? []).filter((_, j) => j !== ii).length;
-      const fase = (ph?.title ?? "").trim();
-      setLimpo({
-        doc,
-        total: totalInput,
-        segundos: 10,
-        motivo:
-          `Tarefa «${tarefa.trim()}» removida` +
-          (fase ? ` de «${fase}»` : "") +
-          ` — a fase fica com ${ficam}.`,
-      });
-    }
-    setDoc((d) => ({
-      ...d,
-      cronograma: (d.cronograma ?? []).map((ph2, i) =>
-        i === pi ? { ...ph2, items: ph2.items.filter((_, j) => j !== ii) } : ph2,
-      ),
-    }));
-  }
-
-  // ── Budget: decoracao (grouped) ──
-  // Tudo passa pelos ajudantes de `proposal-budget`: os nomes e os preços são
-  // dois arrays paralelos, e mexer num sem mexer no outro faz os preços
-  // deslizarem uma posição — o preço da cerimónia acabaria no ramo da noiva,
-  // sem nada a assinalar.
-  function addBudgetItem() {
-    setDoc((d) => adicionarLinha(d));
-  }
-  function updateBudgetItem(i: number, value: string) {
-    setDoc((d) => definirItem(d, i, value));
-  }
-  /**
-   * Remover uma linha do orçamento — ANULAR, e não pergunta.
-   *
-   * É o gesto mais repetido do estúdio: um orçamento de decoração compõe-se
-   * linha a linha com o cliente ao telefone, e tira-se e põe-se enquanto se
-   * fala. Perguntar em cada «×» é atrito diário, e o preço desse atrito
-   * paga-se todo no mesmo sítio: uma caixa que se despacha vinte vezes numa
-   * tarde é uma caixa que não protege nada na vigésima primeira.
-   *
-   * ── E PORQUE É QUE A LINHA ADICIONAL LEVA PERGUNTA E ESTA NÃO ────────────
-   * Parecem irmãs e não são. Apagar um VALOR ADICIONAL muda o preço final do
-   * pedido — e portanto o sinal e a factura que saem a seguir —, e por isso
-   * passa pela pergunta do dinheiro com os dois números à vista (ver
-   * `removeBudgetExtra`). Esta não: o total desta proposta é um campo escrito à
-   * parte, e tirar uma linha daqui mexe na soma das linhas, que o ecrã já
-   * mostra e assinala quando as duas divergem. É trabalho de escrita, não
-   * dinheiro cobrado.
-   *
-   * A barra diz o nome da linha e o que ela valia — sem isso, «linha removida»
-   * numa lista de catorze não diz qual.
-   */
-  function removeBudgetItem(i: number) {
-    const linha = linhasDe(doc)[i];
-    const nome = (linha?.item ?? "").trim();
-    const preco = precosDe(doc)[i];
-    if (nome !== "" || (typeof preco === "number" && preco > 0)) {
-      setLimpo({
-        doc,
-        total: totalInput,
-        segundos: 10,
-        motivo:
-          `Linha «${nome || `sem nome (${i + 1})`}» removida do orçamento` +
-          (typeof preco === "number" && preco > 0 ? ` — valia ${eur(preco)}.` : "."),
-      });
-    }
-    somarOTotal.current = true;
-    setDoc((d) => removerLinha(d, i));
-  }
-  function updateBudgetPrice(i: number, texto: string) {
-    somarOTotal.current = true;
-    setDoc((d) => definirPreco(d, i, normalizarValor(texto)));
-  }
-  /** O artigo do Moloni de uma linha (5/11) — só para a faturação. */
-  /**
-   * Os subpontos internos de uma linha (6/11). Lidos do documento DENTRO do
-   * `setDoc`, para dois gestos seguidos não se pisarem; e o total segue a soma.
-   */
-  function mudarSubpontos(
-    i: number,
-    mudar: (atuais: SubpontoDoOrcamento[]) => SubpontoDoOrcamento[],
-  ) {
-    somarOTotal.current = true;
-    setDoc((d) => definirSubpontos(d, i, mudar(subpontosDe(d as ProposalDoc)[i] ?? [])));
-  }
-  /** Dividir a linha: o primeiro subponto nasce com o preço e o artigo dela —
-   *  nada do que já estava escrito se perde. */
-  function dividirEmSubpontos(i: number) {
-    const preco = precosDe(doc)[i] ?? null;
-    const artigo = artigosDoDoc[i] ?? null;
-    mudarSubpontos(i, () => [{ nome: "", valor: preco, artigo }]);
-  }
-  function updateBudgetArtigo(i: number, artigo: ArtigoId | null) {
-    setDoc((d) => definirArtigoDaLinha(d, i, artigo));
-  }
-  /** O artigo do Moloni de um valor adicional (5/11). */
-  function updateExtraArtigo(i: number, artigo: ArtigoId | null) {
-    setDoc((d) => definirArtigoDoAdicional(d, i, artigo));
-  }
-  /**
-   * Marca (ou desmarca) uma linha como EXTRA.
-   *
-   * É isto que faz a mesma proposta ter uma versão base e uma versão com
-   * extras: o casal pede "uma coisa mais simples e outra com tudo", e a
-   * alternativa era duas propostas — dois documentos a divergir, e ao fim de
-   * duas semanas ninguém saber qual é a que vale.
-   */
-  function updateBudgetExtraFlag(i: number, extra: boolean) {
-    setDoc((d) => marcarExtra(d as ProposalDoc, i, extra) as StudioDoc);
-  }
-
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * MEXER NUM VALOR ADICIONAL MEXE NO TOTAL
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * Palavras dela: «colocámos a deslocação da equipa Líquen, que são mil
-   * quinhentos e cinquenta euros, e depois no total, naquela aba onde diz total
-   * IVA e validade, isto não soma. Eu quero que o back office tenha
-   * inteligência suficiente para ver os valores que nós colocamos em cada aba e
-   * faça a soma com o valor total.»
-   *
-   * O problema era maior do que o ecrã. Este total é também o PREÇO FINAL do
-   * pedido, e é dele que saem a factura, o sinal de 30% e o saldo: uma
-   * deslocação de 1.550 € escrita aqui aparecia na proposta que o cliente lê e
-   * não entrava em nada do que se cobra. O sinal era pedido a menos e a factura
-   * era emitida a menos.
-   *
-   * ── PORQUE É QUE SE SOMA A DIFERENÇA, E NÃO O TOTAL DOS EXTRAS ───────────
-   *
-   * Aplica-se ao total o que MUDOU (o depois menos o antes), e nunca o valor
-   * inteiro. É isso que torna a conta imune a ser feita duas vezes: escrever
-   * «1550» são quatro teclas, e quatro somas do valor inteiro dariam um total
-   * absurdo. Assim, cada tecla soma o que acrescentou e o resultado final é
-   * exactamente a diferença entre o que lá estava e o que ficou.
-   *
-   * Também é o que respeita um total escrito à mão: quem apagar um extra vê o
-   * total descer o mesmo que ele subiu, e mais nada é tocado.
-   */
-  function definirExtras(novos: { label: string; valueText: string }[]) {
-    /**
-     * ── O IVA QUE A LINHA DECLARA CONTA ─────────────────────────────────────
-     *
-     * Este campo é a base (o rótulo diz «Preço final (sem IVA)»), por isso o que
-     * se lhe soma tem de ser base. A soma pegava no número e somava-o tal e
-     * qual: «895,00 € + IVA» e «895,00 €» acabavam exactamente no mesmo sítio.
-     *
-     * Só a primeira estava certa. Numa proposta que se lê COM IVA, a segunda
-     * promete ao casal que aquela linha custa 895 — e fazia o total subir 895 de
-     * BASE, que são 1.101 do que eles vão pagar. A linha e o total a dizerem
-     * números diferentes sobre a mesma coisa, no mesmo documento.
-     *
-     * `somaDosExtrasSemIva` lê o que cada linha declara e, quando ela não
-     * declara nada, segue o modo do documento — que é a leitura que o casal faz,
-     * porque é a que está impressa ao lado do total.
-     */
-    const contexto = { mode: vatMode, vatRate: doc.vatRate };
-    const delta =
-      Math.round(
-        (somaDosExtrasSemIva(novos, contexto) -
-          somaDosExtrasSemIva(doc.budgetExtras ?? [], contexto)) *
-          100,
-      ) / 100;
-    setDoc((d) => ({ ...d, budgetExtras: novos }));
-    /**
-     * Quando os adicionais SOMAM ao valor escrito, o campo do total é só dos
-     * serviços e não se mexe: acrescentar uma deslocação de 140 deixa os 3.000
-     * onde estão e faz o total subir para 3.140. Enquanto isto não existia, o
-     * campo era empurrado para cima e os serviços encolhiam por baixo — que é
-     * exactamente o quadro que ela viu e que não queria.
-     */
-    if (doc.budgetExtrasSomam) {
-      /**
-       * O campo não mexe, mas o PEDIDO tem de mexer.
-       *
-       * O «Preço final (sem IVA)» do pedido é de onde a Visão Geral, as
-       * Estatísticas e o dossier leem o dinheiro dos pedidos que ainda não têm
-       * proposta enviada. Se ele ficasse com os serviços apenas, uma deslocação
-       * de 140 € deixava de aparecer nesses ecrãs — e o pior de tudo é que
-       * desaparecia em silêncio, num número que já ninguém confere.
-       *
-       * A soma é feita com os adicionais NOVOS, e não com os que estão no
-       * documento: o `setDoc` acima é assíncrono, e ler `doc` aqui daria o
-       * estado anterior. É a mesma armadilha que o `delta` já evita.
-       */
-      const escrito = parseMoneyText(totalInput);
-      const efectivo = Math.round((escrito + somaDosExtrasSemIva(novos, contexto)) * 100) / 100;
-      persistirPreco(efectivo > 0 ? efectivo : undefined, { jaEfectivo: true });
-      return;
-    }
-    if (delta === 0) return;
-    // Um total não pode ficar negativo por causa de um extra apagado.
-    const base = Math.max(0, Math.round((parseMoneyText(totalInput) + delta) * 100) / 100);
-    setTotalInput(base > 0 ? textoDoTotal(base) : "");
-    writeTotal(base > 0 ? amountParaBase(base, vatMode) : undefined, vatMode);
-    persistirPreco(base > 0 ? base : undefined);
-  }
-
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * TROCAR «COMO CONTAM OS ADICIONAIS» É MEXER NO DINHEIRO
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * O selector decide se a deslocação está DENTRO do valor escrito ou se lhe
-   * SOMA — ou seja, decide se o casal paga 3.000 ou 3.140. A frase debaixo
-   * dele diz isso mesmo, com os dois números.
-   *
-   * E era um `setDoc` a seco: mudava o total no ecrã e não gravava nada no
-   * pedido. A partir daí o estúdio dizia um número e o «Preço final» dizia
-   * outro, em silêncio — até à abertura seguinte, em que quem manda no valor é
-   * o pedido e o total saltava sozinho o valor inteiro dos adicionais. É «o
-   * valor está diferente do que enviámos», pela porta do lado.
-   *
-   * A conta é a do `definirExtras`, e de propósito a mesma: o campo do escrito
-   * NÃO mexe (é sempre só os serviços); o que muda é o efectivo, e é o
-   * efectivo que o pedido guarda.
-   */
-  function trocarModoDosAdicionais(somam: boolean) {
-    setDoc((d) => ({ ...d, budgetExtrasSomam: somam }));
-    const escrito = parseMoneyText(totalInput);
-    // Os adicionais do documento que está no ecrã — o `setDoc` acima é
-    // assíncrono e só mexe na REGRA, não nas linhas.
-    const adicionais = somaDosExtrasSemIva(doc.budgetExtras ?? [], {
-      mode: vatMode,
-      vatRate: doc.vatRate,
-    });
-    const efectivo = round2(somam ? escrito + adicionais : escrito);
-    persistirPreco(efectivo > 0 ? efectivo : undefined, { jaEfectivo: true });
-  }
-
-  // ── Budget extras: linhas adicionais (Deslocação, Coordenação, Tecidos…) ──
-  /**
-   * ── A TABELA ABRE COM UMA LINHA PRONTA ─────────────────────────────────
-   *
-   * Palavras dela, com a captura dos cabeçalhos sem nada por baixo: «eu quero
-   * que isto aqui esteja aberto por definição». Sem adicionais, a secção
-   * mostrava «Descrição · Valor · IVA» e um «+ Adicionar» — um clique a mais
-   * para começar a escrever.
-   *
-   * A linha vazia é SÓ do ecrã: não entra na proposta até se escrever nela
-   * (`updateBudgetExtra` cria-a nesse momento), e mesmo que entrasse vazia o
-   * PDF já salta as linhas sem descrição nem valor (`proposal-doc-pdf`).
-   */
-  const extrasAVista: { label: string; valueText: string }[] =
-    (doc.budgetExtras ?? []).length > 0 ? (doc.budgetExtras ?? []) : [{ label: "", valueText: "" }];
-  const soLinhaPorEscrever = (doc.budgetExtras ?? []).length === 0;
-
-  function addBudgetExtra() {
-    // Uma linha nova nasce vazia: não há valor nenhum para somar ainda.
-    definirExtras([...(doc.budgetExtras ?? []), { label: "", valueText: "" }]);
-  }
-  function updateBudgetExtra(i: number, p: Partial<{ label: string; valueText: string }>) {
-    const extras = doc.budgetExtras ?? [];
-    // A linha que se mostra aberta sem existir (ver `extrasAVista`): a primeira
-    // coisa escrita nela é o que a cria.
-    if (extras.length === 0 && i === 0) {
-      definirExtras([{ label: "", valueText: "", ...p }]);
-      return;
-    }
-    definirExtras(extras.map((r, j) => (j === i ? { ...r, ...p } : r)));
-  }
-  /**
-   * O valor escrito no campo numérico, já normalizado e com o IVA da linha.
-   *
-   * «1.500», «1500» e «1 500 €» dão os três 1500 — é o que a missão pede e é o
-   * que `normalizarValor` já sabia fazer para os preços das linhas. O que se
-   * GRAVA continua a ser texto, porque é ele que o PDF imprime; ver
-   * `textoDoAdicional`.
-   */
-  function definirValorDoAdicional(i: number, escrito: string) {
-    const linha = extrasAVista[i];
-    if (!linha) return;
-    const modo = modoDoAdicional(linha.valueText ?? "", doc.vatRate ?? DEFAULT_VAT_RATE);
-    updateBudgetExtra(i, { valueText: textoDoAdicional(escrito, modo) });
-  }
-  /** Troca o IVA que a linha declara, mantendo o número que lá está. */
-  function definirIvaDoAdicional(i: number, modo: ModoDeIvaDoAdicional) {
-    const linha = extrasAVista[i];
-    if (!linha) return;
-    updateBudgetExtra(i, { valueText: textoDoAdicional(linha.valueText ?? "", modo) });
-  }
-  /**
-   * Apagar um valor adicional TIRA-O do total — e portanto do sinal e da
-   * fatura. Uma deslocação de 1.550 € desaparecia do preço final com um clique
-   * num «×» de doze pixéis, sem pergunta e sem volta atrás; é exactamente o
-   * mesmo estrago do «Usar X €» e leva o mesmo tratamento.
-   *
-   * Uma linha sem valor legível (a que se acabou de acrescentar, ou uma que
-   * diga «a definir») sai sem perguntar: não mexe em dinheiro nenhum, e
-   * perguntar aí seria ensinar a responder que sim sem ler.
-   */
-  function removeBudgetExtra(i: number) {
-    const linha = (doc.budgetExtras ?? [])[i];
-    const contexto = { mode: vatMode, vatRate: doc.vatRate };
-    const vale = linha ? somaDosExtrasSemIva([linha], contexto) : 0;
-    const apagar = () => definirExtras((doc.budgetExtras ?? []).filter((_, j) => j !== i));
-    if (!linha || vale === 0) {
-      apagar();
-      return;
-    }
-    const escrito = parseMoneyText(totalInput);
-    /**
-     * Auditoria de 13/11 (estúdio, n.º 17). Com «estas linhas somam-se», o
-     * campo é SÓ a parte dos serviços, e o preço final é ele MAIS todos os
-     * adicionais: a pergunta mostrava «de [campo] para [campo − linha]», dois
-     * números que não eram o preço de antes nem o de depois.
-     */
-    const base = doc.budgetExtrasSomam
-      ? Math.round((escrito + somaDosExtrasSemIva(doc.budgetExtras ?? [], contexto)) * 100) / 100
-      : escrito;
-    const nome = linha.label?.trim() || "esta linha";
-    pedirConfirmacaoDeDinheiro({
-      oQue: "o total",
-      de: base,
-      para: Math.max(0, Math.round((base - vale) * 100) / 100),
-      registo: `«${nome}» removida dos valores adicionais no estúdio: preço final de ${eur(base)} para ${eur(Math.max(0, base - vale))}.`,
-      motivo: `«${nome}» removida dos valores adicionais.`,
-      aplicar: apagar,
-    });
-  }
-
-  // ── Budget: organizacao (per-item rows) ──
-  function addBudgetRow() {
-    setDoc((d) => ({ ...d, budgetRows: [...(d.budgetRows ?? []), { item: "", price: "" }] }));
-  }
-  function updateBudgetRow(i: number, p: Partial<{ item: string; price: string }>) {
-    setDoc((d) => ({
-      ...d,
-      budgetRows: (d.budgetRows ?? []).map((r, j) => (j === i ? { ...r, ...p } : r)),
-    }));
-  }
-  /**
-   * Remover uma linha do orçamento de organização — ANULAR, pela mesma razão
-   * escrita em `removeBudgetItem`: é frequente, é barato de refazer, e uma
-   * pergunta por linha é um editor que ninguém usa.
-   *
-   * Aqui o valor é TEXTO («1.500,00 €», às vezes «a combinar»), por isso a
-   * barra diz o que lá estava escrito, à letra, em vez de o tentar somar.
-   */
-  function removeBudgetRow(i: number) {
-    const linha = (doc.budgetRows ?? [])[i];
-    const nome = (linha?.item ?? "").trim();
-    const valor = (linha?.price ?? "").trim();
-    if (nome !== "" || valor !== "") {
-      setLimpo({
-        doc,
-        total: totalInput,
-        segundos: 10,
-        motivo:
-          `Linha «${nome || `sem nome (${i + 1})`}» removida do orçamento` +
-          (valor ? ` — valia ${valor}.` : "."),
-      });
-    }
-    setDoc((d) => ({ ...d, budgetRows: (d.budgetRows ?? []).filter((_, j) => j !== i) }));
-  }
-
-  // ── Actions ──
-  //
-  // ── FOTOS POR CONFIRMAR ──
-  //
-  // O documento que sai daqui NUNCA leva marcadores provisórios: o gerador não
-  // os sabe ir buscar e o resultado seria uma foto a menos, em silêncio, no PDF
-  // do cliente. `stripPendingImages` é a fronteira.
-  //
-  // Filtrar sozinho não chega — seria enviar com buracos e calar. Por isso:
-  //
-  //  · PRÉ-VISUALIZAR gera à mesma, sem elas, e DIZ-LO. É um PDF para ela ver,
-  //    volta a gerar-se daqui a dez segundos, e travar aqui só a impedia de ir
-  //    ver o resto da proposta enquanto as fotos assentam.
-  //
-  //  · ENVIAR ESPERA. É o gesto irreversível: o email sai uma vez e o noivo lê
-  //    o que lhe chegou. A cópia demora segundos; um PDF sem a foto que ela
-  //    escolheu dura para sempre. O botão fica desligado enquanto houver fotos
-  //    a caminho, com a razão escrita ao lado, e volta sozinho quando assentam.
-  /**
-   * ── O RASCUNHO (B1) ───────────────────────────────────────────────────────
-   * Com um erro por resolver, o PDF «final» não se descarrega — é a mesma
-   * regra do botão de enviar. Descarrega-se um RASCUNHO: o mesmo desenho, com
-   * «RASCUNHO» no rodapé de cada página e «(rascunho)» no nome do ficheiro,
-   * para nunca poder ser confundido com o que segue para o casal.
-   */
-  /**
-   * Pede o PDF ao servidor. É o mesmo pedido para o botão e para a preparação
-   * em segundo plano (mais abaixo), e por isso também é aqui que a geração
-   * ensina a estimativa — mas só quando o servidor DESENHOU: um PDF que veio da
-   * memória (`X-Pdf-Da-Memoria`) ensinava que desenhar leva um segundo.
-   */
-  async function pedirOPdf(
-    desenhado: ReturnType<typeof stripPendingImages<typeof doc>>,
-    rascunho: boolean,
-  ): Promise<PdfPronto> {
-    // De ponta a ponta, que é o que ela espera — e não o que o servidor demora
-    // a desenhar. É esta a medida que faz a estimativa valer alguma coisa.
-    const comecou = Date.now();
-    const res = await fetch(`/api/orcamento/${quote.id}/proposta-doc`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: sinalComTecto(TECTO_DA_PRE_VISUALIZACAO_MS),
-      // `idioma` vai SEMPRE, mesmo quando é o português. O servidor tem o
-      // português por omissão para os chamadores antigos, mas quem tem um
-      // botão para escolher diz o que escolheu — senão «pt» seria só a
-      // ausência de um campo, e o dia em que a omissão mudar de lado leva
-      // esta chamada atrás sem ninguém dar por isso.
-      body: JSON.stringify({
-        mode: "preview",
-        idioma: idiomaDoPdf,
-        doc: desenhado,
-        ...(rascunho ? { rascunho: true } : {}),
-      }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      throw new Error(err?.error || "Não foi possível gerar a pré-visualização.");
-    }
-    const blob = await res.blob();
-    // A geração que acabou de acontecer ensina a próxima estimativa: quantas
-    // fotos, quanto tempo, quantos bytes. Medido, não estimado.
-    if (res.headers.get("X-Pdf-Da-Memoria") !== "1") {
-      apontarGeracao(totalDeFotos, Date.now() - comecou, blob.size);
-    }
-    return {
-      blob,
-      chave: rascunho ? null : res.headers.get("X-Chave-Do-Pdf"),
-      emFalta: Number(res.headers.get("X-Fotos-Em-Falta") ?? "0"),
-      cortes: res.headers.get("X-Conteudo-Cortado"),
-    };
-  }
-
-  // A preparação em segundo plano corre num efeito, e o efeito quer sempre o
-  // `pedirOPdf` deste render (o idioma e o pedido de agora).
-  const pedirOPdfAgora = useRef(pedirOPdf);
-  useEffect(() => {
-    pedirOPdfAgora.current = pedirOPdf;
+  const fotosDaPagina = useFotosDaPagina({ anular, capa, documento, paginasDaProposta });
+  const {
+    enquadrarNaPagina,
+    focosDaPagina,
+    gravarFotosDaPagina,
+    lugarDaFoto,
+    lugaresDaPagina,
+    paginaDaFoto,
+    setLugarDaFoto,
+    setPaginaDaFoto,
+  } = fotosDaPagina;
+  const disposicao = useDisposicaoDasPaginas({
+    anular,
+    capa,
+    documento,
+    fotosDaPagina,
+    moodBoards,
+    paginasDaProposta,
   });
-
-  async function preview({ rascunho = false }: { rascunho?: boolean } = {}) {
-    if (busy) return;
-    setPdfSaiu(false);
-    setBusy("preview");
-    // O documento EXACTO que vai ser desenhado — é este que fica «visto».
-    const desenhado = stripPendingImages(doc);
-    const retrato = retratoDoPdf(desenhado, idiomaDoPdf);
-    try {
-      /**
-       * O PDF FINAL que o estúdio já preparou em segundo plano, se for desta
-       * versão (ver `pdfPreparado`) — pronto, ou ainda a caminho, e então
-       * espera-se por ele em vez de pedir outro. Se essa preparação falhou,
-       * pede-se agora, como antes: a preparação nunca pode ser a razão de o
-       * botão não dar nada.
-       */
-      const jaPedido =
-        !rascunho && pdfPreparado.current?.retrato === retrato
-          ? await pdfPreparado.current.promessa.catch(() => null)
-          : null;
-      const pdf = jaPedido ?? (await pedirOPdf(desenhado, rascunho));
-      if (!rascunho) pdfPreparado.current = { retrato, promessa: Promise.resolve(pdf) };
-      const { blob } = pdf;
-      // O tamanho serve o ecrã do email, que confirma o anexo antes de ele
-      // seguir: aqui é MEDIDO, e não a estimativa que se mostra sem isto.
-      setBytesDoPdf(blob.size);
-      // O nome do ficheiro diz a língua. Gerar as duas versões é coisa que
-      // acontece — ela manda a portuguesa aos pais e a inglesa ao casal — e com
-      // o mesmo nome a segunda ficava «proposta-Ana (1).pdf» na pasta de
-      // transferências, sem forma de saber qual é qual sem abrir as duas.
-      /**
-       * O MESMO NOME QUE O CASAL VAI VER.
-       *
-       * Isto compunha um nome só seu — `proposta-Ana.pdf` — e era o quarto nome
-       * diferente para o mesmo documento: um no botão daqui, um no anexo do
-       * email, um na descarga do link do casal e um no portal. Ela confere o
-       * PDF na pasta de transferências e envia-o a seguir; se o que confere não
-       * se chama como o que segue, a conferência não prova nada.
-       *
-       * Passa a sair da mesma função que o servidor usa — incluindo o nome que
-       * ela escreveu, quando escreveu.
-       */
-      const nome = nomeDoFicheiroDaProposta(
-        {
-          escolhido: doc.nomeDoFicheiro,
-          clientNames: doc.clientNames,
-          eventDate: doc.eventDate,
-          ref: quote.id,
-        },
-        idiomaDoPdf,
-      );
-      const nomeFinal = rascunho ? nome.replace(/\.pdf$/i, " (rascunho).pdf") : nome;
-      // No telemóvel o PDF abre DENTRO do estúdio (23/10): descarregá-lo
-      // tirava-a da página, e voltar recarregava o estúdio. No computador
-      // continua a ir para as transferências, como sempre.
-      const noEcra = verPdfNoEcra(barraCompacta);
-      if (noEcra) setPdfNoEcra({ id: Date.now(), blob, nome: nomeFinal, rascunho });
-      else guardarNoDisco(blob, nomeFinal);
-      setPdfSaiu(true);
-      // O gerador SALTA a foto que não consegue ir buscar E CORTA o que não
-      // cabe no desenho, por isso um PDF incompleto sai na mesma, com ar de
-      // estar bem. Sem este aviso, a primeira pessoa a dar pela falta era o
-      // cliente. O servidor conta as duas coisas e devolve-as nos cabeçalhos.
-      // Só o PDF FINAL conta como visto — o rascunho é o que ainda não pode
-      // seguir. Um PDF novo pede uma confirmação nova.
-      const chave = rascunho ? null : pdf.chave;
-      if (chave) setPdfVisto({ chave, retrato, confirmado: false, emFalta: pdf.emFalta });
-      const emFalta = pdf.emFalta;
-      const cortes = cortesDoCabecalho(pdf.cortes);
-      const aviso = avisoDeConteudoIncompleto(emFalta, cortes);
-      if (aviso) {
-        toast(`PDF gerado, mas ${aviso}. Verifica antes de enviar.`, "error");
-      } else if (fotosPorConfirmar > 0) {
-        toast(
-          fotosPorConfirmar === 1
-            ? "PDF gerado sem 1 foto que ainda está a entrar na proposta. Gera outra vez daqui a pouco."
-            : `PDF gerado sem ${fotosPorConfirmar} fotos que ainda estão a entrar na proposta. Gera outra vez daqui a pouco.`,
-          "info",
-        );
-      } else if (!noEcra) {
-        // No telemóvel a folha com o PDF já diz o que aconteceu; um aviso por
-        // cima tapava a primeira página.
-        toast(
-          rascunho
-            ? "Rascunho gerado (PDF descarregado, marcado como rascunho)"
-            : "Pré-visualização gerada (PDF descarregado)",
-          "success",
-        );
-      }
-    } catch (e) {
-      toast(
-        eTempoEsgotado(e)
-          ? "A pré-visualização demorou demasiado e foi interrompida. Tente outra vez."
-          : porqueFalhou(
-              e,
-              "Sem ligação ao servidor — a pré-visualização não foi gerada. Verifique a rede e tente outra vez.",
-            ),
-        "error",
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  /**
-   * ── «DESCARREGAR PDF» DEPOIS DE ENVIADA ──────────────────────────────────
-   *
-   * Desenhava o documento outra vez (10 a 60 s), quando o PDF que seguiu já
-   * existe duas vezes: no estúdio, se foi o que ela viu antes de enviar (e
-   * tinha de ver — é a verificação antes do envio), e guardado no
-   * armazenamento pelo envio. Agora entrega o primeiro que houver, que é
-   * EXACTAMENTE o que o cliente recebeu; só se nenhum responder é que se
-   * desenha, como antes.
-   */
-  async function descarregarAEnviada() {
-    if (busy) return;
-    setPdfSaiu(false);
-    setAvancoDaEnviada(null);
-    setBusy("preview");
-    let blob: Blob | null = null;
-    try {
-      const doEnvio = enviada.current;
-      blob = (await doEnvio?.pdf?.catch(() => null))?.blob ?? null;
-      if (!blob && doEnvio?.id) {
-        // Pelo `descarregar` da casa: a rota do guardado manda o tamanho, e a
-        // barra conta os bytes em vez de rodar às cegas.
-        blob = await descarregar(`/api/orcamento/${quote.id}/propostas/${doEnvio.id}/pdf`, {
-          init: { cache: "no-store" },
-          aoAvancar: setAvancoDaEnviada,
-        })
-          .then((r) => r.blob)
-          .catch(() => null);
-      }
-      if (blob) {
-        guardarNoDisco(
-          blob,
-          nomeDoFicheiroDaProposta(
-            {
-              escolhido: doc.nomeDoFicheiro,
-              clientNames: doc.clientNames,
-              eventDate: doc.eventDate,
-              ref: quote.id,
-            },
-            idiomaDoPdf,
-          ),
-        );
-        setPdfSaiu(true);
-        toast("PDF descarregado — o mesmo que seguiu para o cliente.", "success");
-      }
-    } catch {
-      blob = null;
-    } finally {
-      setBusy(null);
-    }
-    // Nada à mão e o guardado não respondeu: desenha-se, como antes.
-    if (!blob) await preview();
-  }
-
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * ENVIAR, DEPOIS DE VER O QUE FICA DE FORA
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * O gerador diz o que a composição cortou — o nome do casal que não coube na
-   * capa, a sétima foto de um mood board, a legenda que acaba a meio da frase.
-   * Isso chegava aqui DENTRO da resposta do envio, ou seja depois de o email
-   * ter saído: ela lia o aviso com o casal já a ter o documento.
-   *
-   * Agora o servidor pára e pergunta (409, `precisaConfirmarCortes`), e este
-   * é o segundo clique: o mesmo envio, com a resposta dada. Não é um botão
-   * diferente nem um caminho diferente — é o mesmo, com `cortesConfirmados`.
-   */
-  // A ref aponta sempre para o `send` deste render (o documento de agora).
-  useEffect(() => {
-    enviarAgora.current = () => void send();
+  const { disposicaoEmTodos, mudarDisposicao, porFotoNaPagina, quantasNaPagina } = disposicao;
+  const paleta = usePaletaDaProposta({
+    anular,
+    documento,
+    fotos,
+    fotosDaPagina,
+    paginasDaProposta,
   });
-  // Sair do passo do envio a meio da espera cancela: a faixa «A enviar em…»
-  // só existe neste passo, e nada sai sem ela estar a ver.
-  const cancelarEnvioAdiado = envioAdiado.cancelar;
-  useEffect(() => {
-    if (step !== "enviar" || sent) cancelarEnvioAdiado();
-  }, [step, sent, cancelarEnvioAdiado]);
-  async function send() {
-    if (busy) return;
-    // A trava do envio é o `canSend` (o botão nem chega a estar ligado), mas
-    // repete-se aqui: entre carregar em "Enviar" e carregar em "Confirmar" pode
-    // ter entrado outro lote de fotos, e o segundo clique não pode ser o que
-    // manda a proposta sem elas.
-    if (fotosPorConfirmar > 0) {
-      toast(
-        fotosPorConfirmar === 1
-          ? "Ainda há 1 foto a entrar na proposta. Assim que assentar, o envio fica disponível."
-          : `Ainda há ${fotosPorConfirmar} fotos a entrar na proposta. Assim que assentarem, o envio fica disponível.`,
-        "info",
-      );
-      setConfirmSend(false);
-      return;
-    }
-    setBusy("send");
-    setConfirmSend(false);
-    /**
-     * ── O WHATSAPP ABRE-SE AQUI, AINDA DENTRO DO CLIQUE ─────────────────────
-     *
-     * Achado n.º 4: com «Por onde segue: WhatsApp», o WhatsApp nunca abria. O
-     * link só existe quando o servidor responde, e um separador aberto DEPOIS
-     * de um `await` é bloqueado pelo browser (já não é o gesto dela). Abre-se
-     * vazio agora, e aponta-se para o WhatsApp quando o link chegar; se o envio
-     * não chegar lá, fecha-se.
-     */
-    let janelaDoWhatsApp: Window | null = null;
-    let whatsAppAberto = false;
-    if (canal === "whatsapp") {
-      try {
-        janelaDoWhatsApp = window.open("", "_blank") ?? null;
-        if (janelaDoWhatsApp) janelaDoWhatsApp.opener = null;
-      } catch {
-        janelaDoWhatsApp = null;
-      }
-    }
-    // O retrato do que vai seguir: se o PDF desta versão já estiver à mão, é o
-    // ficheiro que o «Descarregar PDF» de depois do envio entrega.
-    const retratoDoEnvio = retratoDoPdf(stripPendingImages(doc), idiomaDoPdf);
-    // Se a resposta do servidor CHEGOU, um erro a seguir não é «a resposta não
-    // chegou» — é outra coisa, e diz-se como tal (revisão de 13/11).
-    let respondeu = false;
-    try {
-      const comecou = Date.now();
-      const res = await fetch(`/api/orcamento/${quote.id}/proposta-doc`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: sinalComTecto(TECTO_DO_ENVIO_MS),
-        // As ORIGENS das fotos entram no documento no envio, e só no envio:
-        // é a partir daqui que a proposta seguinte pode saber que esta já usou
-        // aquele arco. Enquanto é rascunho, o mapa vive ao lado (SIDE_KEY) e
-        // não tem de viajar.
-        body: JSON.stringify({
-          mode: "send",
-          doc: { ...stripPendingImages(doc), fotosDeBiblioteca: origensNoDocumento() },
-          /**
-           * ── A LÍNGUA VAI COM O ENVIO, E FICA GRAVADA COM A PROPOSTA ──────
-           *
-           * Aqui não ia nenhuma, e a razão de então está escrita na rota: o
-           * email era português em qualquer caso, e um PDF inglês dentro de um
-           * email português seria pior do que os dois em português. Isso
-           * mudou — o email, a página do aceite, o portal e a segunda descarga
-           * seguem agora a língua da proposta —, e o que ficaria estranho é o
-           * contrário: pré-visualizar em inglês e o casal receber português.
-           *
-           * É a MESMA escolha do passo 2 (um só estado), por isso não há como
-           * enviar numa língua diferente daquela em que ela viu o documento.
-           */
-          idioma: idiomaDoPdf,
-          /**
-           * ── O EMAIL QUE ELA LEU NO ECRÃ É O EMAIL QUE SAI ────────────────
-           *
-           * O corpo e o assunto viajam JUNTOS e só quando há corpo: é o par que
-           * veio do mesmo rascunho, e a rota recusa um assunto solto (ver o
-           * `assuntoEscritoAMao`). Sem corpo — um estúdio antigo, uma leitura do
-           * rascunho que falhou — nada disto vai e o email sai exactamente como
-           * saía: o modelo dela, ou o texto da casa.
-           *
-           * O `modelo` não escolhe texto nenhum. Vai para a CÓPIA do envio, para
-           * daqui a três semanas se saber de que texto é que este partiu.
-           */
-          ...(corpoDoEmail.trim()
-            ? {
-                corpo: corpoDoEmail,
-                ...(assuntoDoEmail.trim() ? { assunto: assuntoDoEmail } : {}),
-                ...(modeloDoEmail ? { modelo: modeloDoEmail } : {}),
-              }
-            : {}),
-          // Só viaja quando é «sim»: um campo a dizer `false` em todos os
-          // envios normais era um campo a mais a explicar a quem lesse a rota.
-          // As respostas às perguntas do envio, só as dadas A ESTE documento
-          // (`usePerguntasDoEnvio`): as fotos levam QUANTAS ela aceitou.
-          ...perguntas.respostasPara(retratoDoEnvio),
-          /* Só viaja quando é «não», pela mesma razão do `cortesConfirmados`
-             aqui em cima — e porque a rota trata a AUSÊNCIA como «sim», para
-             nenhum envio antigo deixar de sair por causa de um campo novo. */
-          ...(canal === "whatsapp" ? { porEmail: false } : {}),
-          // A chave do PDF final que foi visto e confirmado — o servidor
-          // recusa o envio sem ela (ver `chaveDoQueChegou` na rota).
-          ...(pdfVisto?.confirmado ? { pdfVisto: pdfVisto.chave } : {}),
-        }),
-      });
-      respondeu = true;
-      const data = await res.json().catch(() => null);
-      /**
-       * ── O ENVIO PAROU PARA PERGUNTAR ────────────────────────────────────
-       *
-       * O documento está desenhado e a proposta ainda não foi gravada nem
-       * enviada: o servidor devolveu 409 com o que a composição cortou. Isto
-       * NÃO é uma falha — é a única altura em que voltar atrás não custa nada,
-       * e por isso não passa pelo `throw` (que pinta tudo de vermelho e diz
-       * «não foi possível enviar»).
-       */
-      if (res.status === 409 && data?.precisaConfirmarFotos) {
-        const n = Math.max(1, Math.floor(Number(data.missingImages)) || 1);
-        perguntas.perguntar({ tipo: "fotos", n, retrato: retratoDoEnvio });
-        return;
-      }
-      if (res.status === 409 && data?.precisaConfirmarCortes) {
-        const cortes = normalizaCortes(data.truncations);
-        perguntas.perguntar({ tipo: "cortes", cortes, retrato: retratoDoEnvio });
-        return;
-      }
-      perguntas.fechar();
-      if (!res.ok) throw new Error(data?.error || porqueFalhouOEnvio(res.status));
-      // A proposta seguiu: a lista leve (fase do pedido, Pagamentos) relê-se.
-      asPropostasMudaram();
-      perguntas.esquecer();
-      // O envio também ensina a estimativa. Os bytes vêm do servidor: o PDF do
-      // envio não passa pelo browser (segue em anexo), portanto sem esta linha
-      // metade das gerações não ensinava nada.
-      if (typeof data?.pdfBytes === "number" && data?.pdfDaMemoria !== true) {
-        apontarGeracao(totalDeFotos, Date.now() - comecou, data.pdfBytes);
-      }
-      // O link desta proposta, já pronto para o botão «Copiar resumo» — sem
-      // esperar pela leitura de abertura (`GET`, aqui em cima) que já correu
-      // há minutos, antes de haver o que enviar.
-      if (typeof data?.acceptUrl === "string") setLinkDaProposta(data.acceptUrl);
-      // A proposta ficou guardada em qualquer caso; a mensagem distingue enviada
-      // por email vs guardada-mas-sem-email, para a equipa saber o que fazer.
-      // O DOCUMENTO INCOMPLETO É O AVISO MAIS IMPORTANTE DOS TRÊS, por isso é o
-      // que fica no ecrã. Uma proposta que seguiu para o noivo com fotos a
-      // menos é o problema que originou esta contagem; saber que o email saiu
-      // é secundário quando o documento que ele leva está incompleto.
-      const emFalta = Number(data?.missingImages ?? 0);
-      const aviso = avisoDeConteudoIncompleto(emFalta, normalizaCortes(data?.truncations));
-      /**
-       * ══════════════════════════════════════════════════════════════════════
-       * «ENVIADA» SÓ QUANDO FOI MESMO ENVIADA
-       * ══════════════════════════════════════════════════════════════════════
-       *
-       * Um pedido sem email de cliente válido devolvia 200 com `emailed:false`
-       * — e o ecrã mostrava um aviso cinzento, marcava o passo como «Proposta
-       * enviada ✓» e seguia. Ela ficava convencida de que tinha ido; o casal
-       * não recebia nada. É, ao pé da letra, «não dá para mandar a proposta
-       * para o cliente» — e da pior maneira, porque nem sequer parecia falhar.
-       *
-       * O email não ter saído é um ERRO, não uma informação. E o passo só é
-       * dado por feito quando o email saiu: a proposta fica gravada na mesma
-       * (isso não se perde), mas o botão continua lá para ela poder corrigir o
-       * contacto e enviar a sério.
-       */
-      // E o WhatsApp que ela escolheu também conta como ter seguido (achado
-      // n.º 4): o servidor marca-a como «enviada» e devolve o link.
-      const saiu =
-        Boolean(data?.emailed) || (data?.semEmailPorEscolha === true && data?.estado === "enviada");
-      /**
-       * ══════════════════════════════════════════════════════════════════════
-       * PRIMEIRO O QUE ACONTECEU, DEPOIS O QUE ESTAVA LÁ DENTRO
-       * ══════════════════════════════════════════════════════════════════════
-       *
-       * Esta cadeia começava pelo `aviso` do conteúdo, e ele ganhava a tudo.
-       * A prioridade fazia sentido quando havia três desfechos («o documento
-       * incompleto é o mais importante dos três»); com cinco, produzia frases
-       * que afirmam o contrário do que aconteceu:
-       *
-       *  · com uma foto em falta E o SMTP em baixo, lia-se «No PDF que seguiu,
-       *    falta 1 foto. Verifica a proposta e reenvia» — e não seguiu PDF
-       *    nenhum, o casal não recebeu nada;
-       *  · com uma foto em falta E a marcação do estado a falhar, o
-       *    `estadoError` nunca chegava a ser mostrado.
-       *
-       * A ordem passa a ser: decide-se primeiro por SAIU ou não saiu — que é o
-       * facto — e só depois pelo conteúdo. E quando saiu, os avisos JUNTAM-SE
-       * em vez de se substituírem: não há razão para escolher entre dizer que
-       * faltou uma foto e dizer que o pedido não ficou actualizado.
-       */
-      if (!saiu) {
-        // O email NÃO saiu. Nada do que o documento tenha lá dentro interessa
-        // mais do que isto, e sobretudo nada pode dizer «que seguiu».
-        toast(
-          data?.emailError ||
-            "A proposta foi gravada mas o EMAIL NÃO SAIU — o cliente não recebeu nada.",
-          "error",
-        );
-      } else if (typeof data?.repetidoAviso === "string") {
-        /**
-         * O servidor reconheceu isto como uma REPETIÇÃO e não enviou nada
-         * (mesmo documento, há menos de três minutos). Acontece quando a rede
-         * tosse a meio, o ecrã diz que falhou, e ela carrega outra vez — o
-         * primeiro pedido acabou por seguir. Dizer «Proposta enviada» aqui era
-         * verdade só por acidente; dizer o que aconteceu é o que a impede de
-         * ficar à espera de perceber porque é que há duas linhas no quadro.
-         */
-        toast(data.repetidoAviso, "success");
-      } else {
-        /**
-         * O email saiu. Junta-se tudo o que correu mal DEPOIS disso, por ordem
-         * de gravidade, numa frase só — cada um destes campos só vem na
-         * resposta quando falhou mesmo.
-         *
-         * O `docError` (A9-003) nunca era lido: `grep docError` no cliente dava
-         * zero. É o pior dos quatro — sem documento gravado, o link que o casal
-         * acabou de receber não tem PDF nenhum para lhe mostrar.
-         */
-        const problemas = [
-          typeof data?.docError === "string" && data?.docSaved === false ? data.docError : "",
-          typeof data?.estadoError === "string" ? data.estadoError : "",
-          typeof data?.pedidoError === "string" ? data.pedidoError : "",
-          typeof data?.copiaError === "string" ? data.copiaError : "",
-          aviso ? `No PDF que seguiu, ${aviso}.` : "",
-        ].filter(Boolean);
-        if (problemas.length > 0) {
-          toast(problemas.join(" "), "error");
-        } else {
-          /* Com «só WhatsApp» não seguiu nada para ninguém — a proposta foi
-             GERADA. Um aviso a dizer «enviada» era a mentira que faria a
-             próxima pessoa não carregar no botão que falta. */
-          toast(
-            canal === "whatsapp"
-              ? janelaDoWhatsApp
-                ? "Proposta pronta — o WhatsApp abriu com o link. Escolhe o casal e carrega em enviar."
-                : "Proposta pronta — falta mandá-la: é o botão «Mandar por WhatsApp»."
-              : "Proposta enviada ao cliente",
-            "success",
-          );
-        }
-      }
-      // Trava contra reenvio acidental: o passo Enviar passa a mostrar a
-      // confirmação "Proposta enviada ✓" em vez do botão pronto a disparar.
-      // Só quando há mesmo o que confirmar.
-      if (saiu) {
-        enviada.current = {
-          id: typeof data?.id === "string" ? data.id : null,
-          pdf:
-            pdfPreparado.current?.retrato === retratoDoEnvio ? pdfPreparado.current.promessa : null,
-        };
-        setSent(true);
-        onSent?.();
-      }
-      if (saiu && janelaDoWhatsApp && typeof data?.acceptUrl === "string") {
-        janelaDoWhatsApp.location.href = linkDoWhatsApp(resumoComLink(data.acceptUrl));
-        whatsAppAberto = true;
-      }
-    } catch (e) {
-      // Tempo esgotado ou ligação cortada NÃO querem dizer «não seguiu»: o
-      // pedido pode ter chegado e o email ter saído — só a resposta é que não
-      // voltou. Diz-se isso, e não «erro», para ela ver antes de carregar outra
-      // vez (e, se carregar logo, o servidor responde que ainda está a enviar).
-      const semResposta = !respondeu && (eTempoEsgotado(e) || e instanceof TypeError);
-      toast(
-        semResposta
-          ? "A resposta do envio não chegou (rede lenta ou cortada). A proposta pode já ter seguido: confirme no pedido se aparece como enviada antes de voltar a enviar."
-          : porqueFalhou(e, "Erro ao enviar a proposta."),
-        "error",
-      );
-    } finally {
-      setBusy(null);
-      // Não seguiu (ou parou para perguntar pelos cortes): o separador vazio
-      // não fica aberto a fingir que alguma coisa vai acontecer.
-      if (janelaDoWhatsApp && !whatsAppAberto) {
-        try {
-          janelaDoWhatsApp.close();
-        } catch {
-          /* já fechado */
-        }
-      }
-    }
-  }
-
-  /**
-   * Há destinatário para esta proposta?
-   *
-   * A MESMA regra do servidor (ver a rota do envio): um endereço com arroba e
-   * um ponto no domínio. Não é uma validação a sério — é a que distingue «não
-   * há email nenhum» de «há». Se as duas discordassem, o ecrã dizia que ia
-   * seguir e o servidor não o mandava.
-   */
-  const emailDoCliente = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(quote.email ?? "");
-
-  // Sugestões e a validade por omissão. Uma leitura só, ao abrir; se falhar,
-  // o estúdio funciona como antes — nenhuma destas coisas é indispensável.
-  useEffect(() => {
-    let vivo = true;
-    Promise.all([
-      lerPartilhado("/api/propostas?resumo=1").then((r) => (r.ok ? r.json() : [])),
-      lerPartilhado("/api/propostas/preferencias").then((r) => (r.ok ? r.json() : null)),
-    ])
-      .then(([lista, prefs]) => {
-        if (!vivo) return;
-        const unicos = (vals: unknown[]) =>
-          [...new Set(vals.map((v) => String(v ?? "").trim()).filter(Boolean))].sort();
-        if (Array.isArray(lista)) {
-          setSugestoes({
-            locais: unicos(lista.map((p: { location?: string }) => p.location)),
-          });
-        }
-        // A validade só se aplica a um documento que ainda NÃO tem uma: mexer
-        // numa proposta já escrita porque a política mudou seria alterar-lhe
-        // as condições nas costas de quem a escreveu.
-        const dias = Number(prefs?.validUntilDays);
-        // A omissão NÃO se escreve: sem dias escritos, a validade sai da regra
-        // do evento (`diasDeValidadePeloEvento`), que dá os mesmos 60 quando o
-        // evento está longe. Escrevê-la chegava depois de o estúdio abrir e
-        // mudava o documento sozinho — e um PDF acabado de ver deixava de ser
-        // «o que se viu» (medido no browser, com «Ver o PDF primeiro»).
-        if (Number.isFinite(dias) && dias > 0 && dias !== DEFAULT_VALID_DAYS) {
-          setDoc((d) => (d.validUntilDays ? d : { ...d, validUntilDays: dias }));
-        }
-      })
-      .catch(() => {
-        /* sem sugestões e com a validade de sempre */
-      });
-    return () => {
-      vivo = false;
-    };
-  }, []);
-
-  /**
-   * O link da proposta já enviada, lido UMA vez ao abrir o estúdio — para o
-   * botão «Copiar resumo» funcionar mesmo sem passar pelo «Enviar» nesta
-   * sessão (reabrir o estúdio de uma proposta enviada ontem, por exemplo).
-   * Se falhar, o botão simplesmente sai sem o link — o resumo continua a
-   * servir sem ele, que é o comportamento normal de uma proposta por enviar.
-   */
-  useEffect(() => {
-    let vivo = true;
-    lerPartilhado(`/api/orcamento/${quote.id}/proposta-doc`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { acceptUrl?: string | null } | null) => {
-        if (vivo && data?.acceptUrl) setLinkDaProposta(data.acceptUrl);
-      })
-      .catch(() => {
-        /* sem link, o resumo sai sem ele */
-      });
-    return () => {
-      vivo = false;
-    };
-  }, [quote.id]);
-
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * A CONFERÊNCIA COM O QUE SEGUIU PARA O CLIENTE
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * Ver o bloco `divergenciaDoEnviado`, que conta o porquê. Aqui é a mecânica,
-   * e ela é de propósito barata: a LISTA das versões traz o total de cada
-   * envio (`total`, o bruto que ia no PDF) e mais nada. Quando bate certo — que
-   * é o caso normal — não se descarrega documento nenhum.
-   *
-   * `versoes[0]` é a mais recente: a rota devolve da mais nova para a mais
-   * velha, e está escrito lá.
-   */
-  const chaveDoEnviadoVisto = `${DRAFT_KEY}:enviado-visto`;
-  /** Esta MESMA diferença já lhe foi mostrada e ela ficou com o que tem? */
-  function divergenciaJaVista(aPagarAqui: number): boolean {
-    try {
-      const cru = localStorage.getItem(chaveDoEnviadoVisto);
-      return cru != null && Math.abs(Number(cru) - aPagarAqui) <= 0.01;
-    } catch {
-      // Sem `localStorage` a pergunta volta na abertura seguinte. É o lado
-      // certo para falhar: repetir uma pergunta custa um clique, calá-la custa
-      // o número que o casal recebeu.
-      return false;
-    }
-  }
-
-  useEffect(() => {
-    if (!aberturaAssente || conferidoComOEnviado.current) return;
-    // Enviar NESTA sessão põe no ecrã exactamente o documento que seguiu — não
-    // há nada para conferir, e a lista de versões ainda nem o conhece.
-    if (sent) return;
-    // Uma proposta a meio de ser escrita não tem total nenhum para comparar.
-    if (!(totais.aPagar > 0)) return;
-    conferidoComOEnviado.current = true;
-    let vivo = true;
-    const aPagarAqui = round2(totais.aPagar);
-    (async () => {
-      try {
-        const r = await lerPartilhado(`/api/orcamento/${quote.id}/versoes`, { cache: "no-store" });
-        if (!r.ok || !vivo) return;
-        const dados = (await r.json()) as { versoes?: VersaoEnviada[] } | null;
-        const ultima = dados?.versoes?.[0];
-        if (!ultima || !(Number(ultima.total) > 0)) return;
-        const enviado = round2(Number(ultima.total));
-        // Um cêntimo de tolerância, a mesma do resto da casa: os dois lados
-        // passaram por arredondamentos, e um cêntimo não é uma divergência.
-        if (Math.abs(enviado - aPagarAqui) <= 0.01) return;
-        if (divergenciaJaVista(aPagarAqui)) return;
-        if (!vivo) return;
-        /**
-         * O histórico do pedido é quem sabe. Cada alteração de preço feita à
-         * mão deixa lá um `price_set` (ver `registarNoHistorico`) — no estúdio
-         * e na Gestão do pedido. Uma posterior ao envio quer dizer que a
-         * mudança foi decidida; não havendo nenhuma, o número mexeu-se
-         * sozinho, e aí não há escolha nenhuma a oferecer-lhe.
-         */
-        const elaMudou = (quote.activityLog ?? []).some(
-          (e) => e.kind === "price_set" && e.at > ultima.enviadaEm,
-        );
-        setDivergenciaDoEnviado({
-          enviadaEm: ultima.enviadaEm,
-          aPagarEnviado: enviado,
-          aPagarAqui,
-          versaoId: ultima.id,
-          elaMudou,
-        });
-      } catch {
-        /* sem rede: o estúdio abre como sempre abriu, só sem a rede por baixo */
-      }
-    })();
-    return () => {
-      vivo = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aberturaAssente, sent, totais.aPagar, quote.id]);
-
-  /**
-   * Repõe no ecrã os VALORES que seguiram para o cliente — e só os valores.
-   *
-   * O texto, as fotografias e os mood boards ficam exactamente como estão: são
-   * trabalho dela, podem ser posteriores ao envio, e nunca estiveram em causa.
-   * O que volta é o conjunto de campos que decide o dinheiro — o mesmo que
-   * `totaisDaProposta` lê para desenhar o quadro do PDF.
-   *
-   * Reversível durante dez segundos, como todas as outras acções que mexem no
-   * preço, e com uma linha no histórico do pedido pela mesma razão: um valor
-   * que muda, visto três semanas depois, tem de ter onde se explicar.
-   */
-  async function reporOsValoresEnviados() {
-    const d = divergenciaDoEnviado;
-    if (!d || aReporOEnviado) return;
-    setAReporOEnviado(true);
-    try {
-      const res = await fetch(`/api/orcamento/${quote.id}/versoes?doc=${d.versaoId}`, {
-        cache: "no-store",
-      });
-      const dados = (await res.json().catch(() => null)) as { doc?: ProposalDoc } | null;
-      if (!res.ok || !dados?.doc) {
-        throw new Error(
-          "Não foi possível ir buscar a proposta que seguiu para o cliente. A ligação falhou ou a versão já não está no servidor — tenta outra vez daqui a pouco, ou fala com quem gere a instalação. Nada mudou no que está no ecrã.",
-        );
-      }
-      const enviado = dados.doc as StudioDoc;
-      setLimpo({
-        doc,
-        total: totalInput,
-        segundos: 10,
-        motivo: `Valores repostos como seguiram para o cliente — total a pagar de ${eur(d.aPagarAqui)} para ${eur(d.aPagarEnviado)}.`,
-      });
-      setDoc((dd) => ({ ...dd, ...dinheiroDoDocumento(enviado) }));
-      const base = baseDoDoc(enviado);
-      setTotalInput(typeof base === "number" && base > 0 ? textoDoTotal(base) : "");
-      // Com o documento ENVIADO, e não com o que estava no ecrã — ver
-      // `baseDoEcraParaOPedido`. É isto que volta a pôr o «Preço final» do
-      // pedido de acordo com o que o casal recebeu.
-      persistirPreco(typeof base === "number" && base > 0 ? base : undefined, { doc: enviado });
-      registarNoHistorico(
-        `Valores repostos no estúdio como seguiram para o cliente: total a pagar de ${eur(d.aPagarAqui)} para ${eur(d.aPagarEnviado)}.`,
-      );
-      /**
-       * ── E O «ANULAR» TEM DE FICAR ANULADO ────────────────────────────────
-       *
-       * A reposição é reversível durante dez segundos. Se ela a anular, o ecrã
-       * volta a `aPagarAqui` — e, sem esta linha, a abertura seguinte via outra
-       * vez uma divergência que ninguém tinha decidido e repunha de novo. Ela
-       * ficava a lutar com o ecrã, e a anulação não valia nada.
-       *
-       * Guardar `aPagarAqui` (o valor de ANTES) diz exactamente isto: «se
-       * acabares neste número, é porque o escolheste». Se não anular, o ecrã
-       * fica no valor enviado e não há divergência nenhuma para conferir.
-       */
-      try {
-        localStorage.setItem(chaveDoEnviadoVisto, String(d.aPagarAqui));
-      } catch {
-        /* sem `localStorage` a reposição vale na mesma; o que se perde é a
-           memória de ela a ter anulado */
-      }
-      setDivergenciaDoEnviado(null);
-      toast(
-        "Os valores voltaram ao que seguiu para o cliente. Podes anular durante 10 segundos.",
-        "success",
-      );
-    } catch (e) {
-      toast(
-        e instanceof Error ? e.message : "Não foi possível repor os valores enviados.",
-        "error",
-      );
-    } finally {
-      setAReporOEnviado(false);
-    }
-  }
-
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * O VALOR QUE SE MEXEU SOZINHO VOLTA SOZINHO — SEM PERGUNTAR NADA
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * Palavras dela: «eu quero que o valor enviado para o cliente seja o valor
-   * que fica na proposta e não quero depois se eu for à proposta no back
-   * office já esteja outro valor naquele pedido. ISTO É SIMPLES, O VALOR NÃO
-   * ALTERA CASO EU NÃO MUDO».
-   *
-   * Antes isto punha os dois números no ecrã e esperava por ela. A razão
-   * escrita era boa — duas causas diferentes dão a mesma diferença — mas a
-   * conclusão estava errada, e ela disse-o: nos dois casos QUEM DECIDE JÁ
-   * DECIDIU. Se mudou o preço, mudou-o de propósito e isso está no histórico.
-   * Se não mudou, o número que vale é o que o casal tem em mãos, e perguntar
-   * é fazê-la escolher entre um valor certo e um valor avariado.
-   *
-   * Portanto: `elaMudou === false` repõe, e a pergunta só sobrevive no caso em
-   * que responder por ela apagava trabalho dela.
-   *
-   * O que ela vê continua a ser tudo: o aviso do que aconteceu, o valor velho
-   * e o novo, dez segundos para anular e uma linha no histórico do pedido.
-   * Nada disto é silencioso — é só uma coisa a menos para decidir.
-   */
-  useEffect(() => {
-    if (!divergenciaDoEnviado || divergenciaDoEnviado.elaMudou) return;
-    if (aReporOEnviado) return;
-    void reporOsValoresEnviados();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [divergenciaDoEnviado]);
-
-  /** Fica o que está neste aparelho — e a pergunta não se repete enquanto o
-   *  número não voltar a mexer. */
-  function manterOsValoresDesteAparelho() {
-    const d = divergenciaDoEnviado;
-    if (!d) return;
-    try {
-      localStorage.setItem(chaveDoEnviadoVisto, String(d.aPagarAqui));
-    } catch {
-      /* sem `localStorage` a pergunta volta na abertura seguinte */
-    }
-    setDivergenciaDoEnviado(null);
-  }
-
-  /** O documento copiado passa a ser este, com os campos a confirmar marcados. */
-  /**
-   * Copiar uma proposta antiga para cima desta.
-   *
-   * Também mexe no preço final, e por isso também tem de ser reversível e
-   * ficar no histórico. A PERGUNTA já existe e é melhor do que uma caixa: o
-   * `CriarAPartirDe` mostra de quem é a proposta a copiar antes de a aplicar, e
-   * os cinco campos que mudam de casamento para casamento ficam marcados a
-   * laranja até ela lhes tocar (ver `porConfirmar`). Duas perguntas sobre o
-   * mesmo gesto seriam uma a mais.
-   */
-  function aplicarCopia(e: Escolha) {
-    const anterior = parseMoneyText(totalInput);
-    const copiado = e.doc as StudioDoc;
-    setLimpo({
-      doc,
-      total: totalInput,
-      segundos: 10,
-      motivo: `Proposta copiada de ${e.nomeDaOrigem}.`,
-    });
-    setDoc(copiado);
-    // As fotografias da cópia são caminhos que este ecrã ainda não conhece:
-    // sem ir buscar as miniaturas, ficavam a cinzento («não veio») até
-    // recarregar a página (auditoria de 13/11, estúdio n.º 12). O mesmo
-    // `hidratarAssets` da cópia de um mood board.
-    void hidratarAssets();
-    // O campo do valor é estado à parte (aceita texto a meio de ser escrito),
-    // por isso não acompanha o documento de graça: ficava a mostrar o número
-    // ANTERIOR enquanto o documento copiado já tinha outro — ou nenhum. E,
-    // como no repor, o valor GRAVA-SE no pedido: sem isto o estúdio dizia um
-    // número e a Gestão do pedido, o Kanban e o dossier diziam outro.
-    const base = baseDoDoc(copiado);
-    const temValor = typeof base === "number" && base > 0;
-    setTotalInput(temValor ? textoDoTotal(base!) : "");
-    // Com o documento COPIADO — ver `baseDoEcraParaOPedido`.
-    persistirPreco(temValor ? base : undefined, { doc: copiado });
-    setPorConfirmar(new Set(e.camposAMudar));
-    // O título interno volta a gerar-se sozinho: a cópia esvaziou-o de
-    // propósito para não ficar com o nome do casal anterior no cabeçalho.
-    setRefEdited(false);
-    const partilha =
-      e.fotosPartilhadas > 0
-        ? ` ${e.fotosPartilhadas} foto(s) ficaram na pasta da proposta antiga.`
-        : "";
-    if (Math.abs((temValor ? base! : 0) - anterior) > 0.01) {
-      registarNoHistorico(
-        `Proposta copiada de ${e.nomeDaOrigem} no estúdio: preço final de ${eur(anterior)} para ${eur(temValor ? base! : 0)}.`,
-      );
-    }
-    toast(
-      `Copiado de ${e.nomeDaOrigem}. Confirma o que está marcado.${partilha}`,
-      e.fotosPartilhadas > 0 ? "error" : "success",
-    );
-  }
-
-  /**
-   * O realce de um campo por confirmar, e a forma de o desmarcar.
-   *
-   * Laranja e não verde: é um AVISO de coisa por rever, não uma acção. O
-   * `DESIGN-TOKENS.md` fixa esta regra para a página toda.
-   *
-   * ── E ACENDE-SE NUMA OCASIÃO SÓ ──────────────────────────────────────────
-   *
-   * Quando a proposta foi COPIADA DE OUTRA. É aí que os campos trazem mesmo o
-   * casal de outra pessoa, e é a única forma de a duplicação fazer mal em vez
-   * de bem: uma proposta enviada com o nome ou a data de outro casamento. Esse
-   * caso fica marcado, e tem passeio próprio a guardá-lo.
-   *
-   * Acendia-se TAMBÉM ao abrir qualquer proposta, para assinalar o que o casal
-   * tinha escrito no formulário do pedido. A intenção era boa e o resultado não
-   * era: seis anéis à volta de seis campos, em todas as propostas, sempre — e
-   * ela a ter de tocar num a um para os apagar. Palavras dela: «fica com essas
-   * coisas à volta amarelas e eu quero tirar isso».
-   *
-   * Um aviso que está sempre ligado não é um aviso; é decoração que ensina a
-   * não olhar. E o que ele marcava ali não era perigoso: os dados do formulário
-   * são deste casal, estão certos, e ela lê-os no ecrã de qualquer maneira. O
-   * perigo é o outro caso, e esse continua marcado.
-   */
-  /**
-   * ── E UMA MARCA QUE NÃO É TINTA ────────────────────────────────────────
-   *
-   * A `bo-por-confirmar` não pinta nada — não tem regra nenhuma no CSS. É um
-   * GANCHO, e existe por uma avaria concreta: o passeio
-   * `e2e/proposta-fluxos.spec.ts` procurava estes campos por
-   * `.ring-\[\#c98a2e\]\/45`, ou seja, pela COR. Quando a fase 03 do sistema
-   * de design trocou o literal pelo token `--bo-aviso-tom`, o selector deixou
-   * de casar, o passeio contou zero campos marcados e o CI ficou vermelho — não
-   * porque o realce tivesse desaparecido, mas porque o teste estava a apontar
-   * para a tinta em vez de apontar para o significado.
-   *
-   * Um teste amarrado à cor chumba a cada mudança de cor. Esta classe é o que
-   * ele passa a procurar, e sobrevive à próxima.
-   */
-  const realce = (campo: CampoAMudar) =>
-    porConfirmar.has(campo)
-      ? "bo-por-confirmar rounded-lg ring-2 ring-[var(--bo-aviso-tom)]/45 ring-offset-2 ring-offset-white"
-      : undefined;
-  const confirmado = (campo: CampoAMudar) => {
-    // Tocar-lhe É a confirmação. Um botão "confirmar" ao lado de cada campo
-    // seria mais um clique para dizer o que o gesto já disse.
-    setPorConfirmar((atual) => {
-      if (!atual.has(campo)) return atual;
-      const proximo = new Set(atual);
-      proximo.delete(campo);
-      return proximo;
-    });
-  };
-
-  /**
-   * A validade desta proposta passa a ser a de todas as novas.
-   *
-   * A missão pede um valor por omissão «configurável», e a forma mais barata
-   * de o configurar é a partir do sítio onde ela já está a decidir o número —
-   * em vez de um ecrã de definições que é preciso ir procurar.
-   */
-  async function guardarValidadePadrao(dias: number) {
-    try {
-      const r = await fetch("/api/propostas/preferencias", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ validUntilDays: dias }),
-      });
-      const j = await r.json().catch(() => null);
-      if (!r.ok) throw new Error(j?.error ?? "Não deu para guardar.");
-      toast(`As propostas novas passam a valer ${dias} dias.`, "success");
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Não deu para guardar.", "error");
-    }
-  }
-
-  /** Guarda ESTA proposta como modelo reutilizável, com o nome que ela der. */
-  async function guardarComoModelo(nome: string) {
-    const limpo = nome.trim();
-    if (!limpo) return;
-    try {
-      const r = await fetch("/api/propostas/modelos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // O documento vai TAL COMO ESTÁ, com o nome e a data deste casal lá
-        // dentro. Não faz mal: quem o usar passa pelo `copiarParaPedido`, que
-        // é o mesmo caminho de qualquer proposta anterior e substitui tudo o
-        // que é de outra pessoa. Limpar aqui seria uma segunda regra a poder
-        // discordar da primeira.
-        body: JSON.stringify({ nome: limpo, tipo: "completo", doc, origem: doc.clientNames }),
-      });
-      const j = await r.json().catch(() => null);
-      if (!r.ok) throw new Error(j?.error ?? "Não deu para guardar o modelo.");
-      setNomeModelo(null);
-      toast(`Modelo «${limpo}» guardado.`, "success");
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Não deu para guardar o modelo.", "error");
-    }
-  }
-
-  const isDeco = doc.template !== "organizacao";
-  /** Fotos que ocupam já o seu lugar no documento mas ainda não têm caminho.
-   *  Nome distinto do `porConfirmar` dos CAMPOS (acima): são coisas diferentes
-   *  e partilhar o nome era o caminho para uma delas passar a mentir. */
-  const fotosPorConfirmar = countPendingImages(doc);
-  // O botão e o aviso lateral leem a MESMA lista, de propósito: escritos cada
-  // um à sua maneira, mais cedo ou mais tarde discordavam — o aviso dizia que
-  // faltava o valor e o botão deixava enviar na mesma. A regra (e a razão de
-  // cada exigência) está em `proposal-progress.ts`.
-  const seccoes = estadoDasSeccoes(doc as ProposalDoc);
-
-  /**
-   * As fotografias que uma alternativa pode usar: as que JÁ estão nos mood
-   * boards desta proposta.
-   *
-   * Sem carregamento novo e sem marcadores provisórios — uma opção que
-   * apontasse para uma foto ainda por copiar ficava com um caminho que nunca
-   * vai existir, e o casal via um buraco onde devia estar a paleta.
-   */
-  const [escolhidasQueFaltam, setEscolhidasQueFaltam] = useState<FotoEscolhidaEmFalta[]>([]);
-  // As que SE SABE que já não existem (na Reciclagem, ou saídas da pasta): a
-  // mesma resposta do armazenamento que trava o envio (`FotosEmFalta`), e a
-  // mesma fonte do escolhedor dos temas — a pasta. Não se oferecem como
-  // alternativa (revisão de 14/11, n.º 6): seriam uma escolha que já nasce
-  // em falta.
-  const [refsQueFaltam, setRefsQueFaltam] = useState<ReadonlySet<string>>(() => new Set());
-  const aoSaberQueFaltam = useCallback((refs: string[]) => setRefsQueFaltam(new Set(refs)), []);
-  const fotosParaEscolhas: FotoDisponivel[] = fotosParaAsEscolhas(
-    doc.moodBoards ?? [],
-    assetUrls,
-    refsQueFaltam,
-  );
-
-  /**
-   * ── O QUE O DOCUMENTO NÃO SABE DE SI PRÓPRIO ──────────────────────────────
-   *
-   * Por agora, só a LÍNGUA.
-   *
-   * O `oQueFaltaParaEnviar` também sabe travar por fotografias que não
-   * resolvem, e essa peça está escrita e testada — mas não é alimentada
-   * daqui, de propósito, e a razão é uma corrida:
-   *
-   * o `assetUrls` chega DEPOIS do documento. Entre abrir o estúdio e o mapa
-   * carregar, um `!assetUrls[caminho]` é verdadeiro para TODAS as fotografias
-   * da proposta — e o botão de enviar ficaria travado durante esse intervalo, a
-   * dizer que catorze fotografias não carregam quando o que se passa é que
-   * ainda não foram pedidas.
-   *
-   * Um bloqueio que dispara por uma corrida é pior do que não existir: ensina a
-   * ignorar a lista, e a lista é o que impede a próxima proposta errada de
-   * sair. Fica para um bloco próprio, alimentado por falhas REAIS de
-   * carregamento (o `ImagemComPlanoB` já as conhece) e não por uma ausência no
-   * mapa.
-   */
-  //
-  // ── E O CANAL, COM O EMAIL DO PEDIDO (B1) ────────────────────────────────
-  // Sem email, uma proposta por email não chega a ninguém. O documento dela
-  // pô-lo entre os erros; com «só WhatsApp» não trava — é o caso normal de
-  // um pedido que entrou por telefone.
-  //
-  // ── E AS FOTOS ESCOLHIDAS QUE JÁ NÃO EXISTEM (14/11) ─────────────────────
-  // Estas sim, alimentadas daqui: vêm de uma verificação do armazenamento que
-  // CORREU (o `FotosEmFalta` do passo do envio), nunca de uma ausência no mapa
-  // — por isso não há corrida. E só contam enquanto a foto continuar escrita
-  // no documento (`oQueFaltaParaEnviar` confere): trocada, o aviso cai.
-  const contextoDoEnvio = useMemo(
-    () => ({
-      idioma: idiomaDoPdf,
-      canal,
-      emailDoCliente: quote.email,
-      fotosEscolhidasQueFaltam: escolhidasQueFaltam,
-    }),
-    [idiomaDoPdf, canal, quote.email, escolhidasQueFaltam],
-  );
-  /**
-   * Há alguma coisa que TRAVA? É o que separa o PDF final do rascunho, no
-   * «Descarregar» do passo de pré-visualizar: o documento dela (B1) quer o
-   * mesmo bloqueio no envio e no descarregar o PDF «final», e um rascunho
-   * sempre disponível, marcado como tal.
-   */
-  const faltas = oQueFaltaParaEnviar(doc as ProposalDoc, money.gross, contextoDoEnvio);
-  const temErros = faltas.some((f) => f.trava);
-  /**
-   * O PDF final desta versão foi visto e confirmado? Conta-se só no passo do
-   * envio (é lá que se usa), para não serializar o documento a cada tecla
-   * nos outros passos.
-   */
-  const retratoAgora = useMemo(
-    () => (step === "enviar" ? retratoDoPdf(stripPendingImages(doc), idiomaDoPdf) : ""),
-    [step, doc, idiomaDoPdf],
-  );
-  const pdfVistoAgora = !!pdfVisto && pdfVisto.retrato === retratoAgora;
-  const perguntas = usePerguntasDoEnvio(retratoAgora);
-  const pdfConfirmado = pdfVistoAgora && !!pdfVisto?.confirmado;
-  /**
-   * ── PREPARADO ANTES DE ELA CARREGAR ──────────────────────────────────────
-   *
-   * No passo «Rever e enviar», sem erros, o PDF final desta versão pede-se em
-   * segundo plano 4 s depois de ela parar de mexer — uma vez por versão (era
-   * 1,5 s; subiu a 3/11, quando a conta da Vercel passou o limite de
-   * processador: cada pedido destes é um PDF inteiro).
-   * Quando ela carrega em «Descarregar o PDF final», ou já está pronto, ou já
-   * vai a meio; e o envio a seguir sai da memória do servidor em vez de o
-   * desenhar outra vez. Uma falha aqui não diz nada a ninguém: o botão volta a
-   * pedir, e é lá que um erro se mostra.
-   */
-  useEffect(() => {
-    if (step !== "enviar" || sent || temErros || fotosPorConfirmar > 0 || busy !== null) return;
-    if (!retratoAgora || pdfPreparado.current?.retrato === retratoAgora) return;
-    const espera = setTimeout(() => {
-      // Um PDF inteiro é o trabalho mais caro do servidor: não se desenha para
-      // um separador que ninguém está a ver (3/11).
-      if (document.hidden) return;
-      const desenhado = stripPendingImages(doc);
-      const retrato = retratoDoPdf(desenhado, idiomaDoPdf);
-      const promessa = pedirOPdfAgora.current(desenhado, false);
-      pdfPreparado.current = { retrato, promessa };
-      promessa.catch(() => {
-        if (pdfPreparado.current?.promessa === promessa) pdfPreparado.current = null;
-      });
-    }, 4000);
-    return () => clearTimeout(espera);
-  }, [step, sent, temErros, fotosPorConfirmar, busy, retratoAgora, doc, idiomaDoPdf]);
-  /**
-   * As faltas DO BOTÃO DE ENVIAR: as de cima mais «falta ver o PDF final».
-   * Ficam separadas de propósito — o `temErros` decide se se descarrega o
-   * rascunho ou o PDF final, e se o «ver o PDF» entrasse nele o PDF final
-   * nunca se podia descarregar para ser visto.
-   */
-  // E as fotos que o PDF final visto deixou de fora (17/11): uma linha na
-  // Conferência, para não ficarem só no aviso que passa.
-  const fotosEmFaltaNoPdf = pdfVistoAgora ? (pdfVisto?.emFalta ?? 0) : 0;
-  const contextoDoBotao = useMemo(
-    () => ({ ...contextoDoEnvio, pdfVisto: pdfConfirmado, fotosEmFaltaNoPdf }),
-    [contextoDoEnvio, pdfConfirmado, fotosEmFaltaNoPdf],
-  );
-  const faltasDoEnvio = oQueFaltaParaEnviar(doc as ProposalDoc, money.gross, contextoDoBotao);
-  /** O sinal de cada passo na barra de cima — das mesmas duas listas. */
-  // A MESMA lista do botão de enviar e da Conferência (`faltasDoEnvio`), e não
-  // a de cima: com a de cima o «5 Rever e enviar» mostrava o visto enquanto a
-  // Conferência travava com «Falta ver o PDF final» (auditoria de 14/11, n.º 4).
-  const estadosDosPassos = estadoDosPassos(seccoes, faltasDoEnvio, sent);
-  /**
-   * A pastilha «Antes de enviar» está vermelha (alguma coisa trava o envio)?
-   * Então é um ALARME e não um acessório: ao descer no telemóvel fica à vista,
-   * senão o botão principal ficava apagado sem dizer porquê. A mesma regra da
-   * pastilha (`estadoDoEnvio`), para as duas não discordarem.
-   */
-  const oEnvioTrava = estadoDoEnvio(faltasDoEnvio, fotosPorConfirmar, idiomaDoPdf).trava;
-  /** Os passos 1 a 4 partilham o MESMO contentor, sempre montado. */
-  const noFormulario = PASSOS_DO_FORMULARIO.includes(step);
-  // A regra das FOTOS POR CONFIRMAR fica aqui e não em `proposal-progress`:
-  // esse olha para o DOCUMENTO, e isto é um estado desta aba — a cópia que
-  // ainda vai a caminho só esta sessão a conhece. O email sai uma vez, e um
-  // PDF sem a foto escolhida dura para sempre.
-  const canSend =
-    podeEnviar(doc as ProposalDoc, money.gross, contextoDoBotao) && fotosPorConfirmar === 0;
-  /**
-   * O que o botão principal do «Rever e enviar» faz (ver «O BOTÃO QUE GUIA»,
-   * na barra): quando a ÚNICA falta que trava é ver o PDF final, guia esse
-   * passo em vez de ficar apagado.
-   */
-  const soFaltaVerOPdf =
-    fotosPorConfirmar === 0 &&
-    faltasDoEnvio.filter((f) => f.trava).length === 1 &&
-    faltasDoEnvio.some((f) => f.trava && f.id === "visto");
-  const modoDoBotao: "ver" | "confirmar" | "enviar" = soFaltaVerOPdf
-    ? pdfVistoAgora
-      ? "confirmar"
-      : "ver"
-    : "enviar";
-  /**
-   * Quantas traduções faltam em cada secção, para o índice.
-   *
-   * SÓ com a proposta a sair em inglês — é a mesma condição do painel «Por
-   * traduzir» do passo do envio, e pela mesma razão: numa proposta portuguesa
-   * não há nada por traduzir, e uma fila de contagens debaixo de cada secção
-   * seria ruído no índice de quem nunca faz propostas inglesas.
-   */
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * A DATA QUE ELA ESCREVE AQUI TAMBÉM PODE CHOCAR
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * O aviso de dia ocupado já existia, e disparava ao ESCOLHER o cliente — a
-   * partir do `quote.date`. Só que a data que sai impressa é a que está neste
-   * documento, e este campo é texto livre: o casal liga a mudar o dia, ela
-   * corrige aqui, e o aviso continuava a olhar para a data do formulário.
-   *
-   * ── CALA-SE QUANDO NÃO CONSEGUE LER A DATA ──────────────────────────────
-   * `isoDaDataPorExtenso` só reconhece a forma que o estúdio escreve («12 de
-   * setembro de 2026») e devolve `null` para tudo o resto: «a definir»,
-   * «18.09.2027», «Set.», ou uma data a meio de ser escrita. Um aviso ERRADO
-   * sobre uma data é pior do que nenhum — diz que há um casamento noutro dia,
-   * e o dia é inventado por uma leitura falhada.
-   *
-   * ── E CALA-SE QUANDO É A MESMA DATA DO PEDIDO ───────────────────────────
-   * Aí o aviso já está no ecrã, por cima do estúdio (ver `FazerProposta`). O
-   * mesmo cartão duas vezes na mesma página é a maneira de se aprender a
-   * saltar os dois.
-   */
-  const dataEscritaNoDoc = isoDaDataPorExtenso(doc.eventDate ?? "");
-  const pedidoComADataDoDoc = useMemo(
-    () =>
-      dataEscritaNoDoc && dataEscritaNoDoc !== quote.date
-        ? ({
-            ...quote,
-            date: dataEscritaNoDoc,
-            // O fim de um evento de vários dias é do PEDIDO e não desta data:
-            // arrastá-lo para aqui inventava um intervalo que ninguém escreveu.
-            endDate: "",
-            // E o local também é o do documento quando ele diz outro: a
-            // distância por estrada é metade da resposta.
-            location: doc.location || quote.location,
-          } as Quote)
-        : null,
-    [dataEscritaNoDoc, quote, doc.location],
-  );
-
-  /**
-   * A página que ela está a editar — para o painel da direita mostrar ESSA.
-   *
-   * Marcada quando o foco entra no cartão de um board, e não quando o rato lá
-   * passa: o rato atravessa cartões a caminho de outro sítio, e um painel que
-   * mudasse de página ao atravessar era um painel a piscar.
-   */
-  const [boardActivo, setBoardActivo] = useState<number | null>(null);
-
-  /**
-   * E a parte do formulário que está À VISTA — pedido dela de 9/11: «à medida
-   * que vamos fazendo scroll, as páginas vão mudando». O painel mostra a página
-   * da secção que se está a ler, e na Inspiração a do mood board que passa pelo
-   * meio do ecrã. O foco continua a mandar quando ela entra num campo.
-   */
-  const aVista = useSeccaoAVista(step);
-  useEffect(() => {
-    if (aVista.board != null) setBoardActivo(aVista.board);
-  }, [aVista.board]);
-
-  /** As páginas COM fotografias, pela ordem em que saem — a ordem do PDF. */
-  // A mesma ordem já calculada lá em cima (`ordemDosBoards`), em vez de outra
-  // volta à mesma conta a cada letra (10/11).
-  const paginasParaOPainel = useMemo(
-    () =>
-      ordemDosBoards
-        .map((bi) => ({ bi, board: (doc.moodBoards ?? [])[bi] }))
-        .filter((p) => p.board && (p.board.images ?? []).length > 0),
-    [ordemDosBoards, doc.moodBoards],
-  );
-
-  /*
-    ── O QUE SE VÊ AO LADO ACOMPANHA, MAS NÃO ATRASA A LETRA (10/11) ──────
-    Ela: «está a travar imenso e super pouco fluido». O painel «O que vai
-    sair» e a «Vista de conjunto» refazem o plano do PDF e desenham folhas
-    inteiras — e faziam-no DENTRO de cada letra escrita. Com o documento
-    ADIADO (`useDeferredValue`, DENTRO de cada um — ver `VistaAdiada` e
-    `PainelAdiado`; chamado aqui, obrigava o estúdio inteiro a desenhar-se duas
-    vezes por letra, medido), a letra aparece logo no campo, e eles
-    redesenham-se a seguir, num desenho que o React interrompe se ela escrever
-    outra letra entretanto. Mostram exactamente o mesmo; só chegam uma fracção
-    de segundo depois. (Os dois são `memo`, e por isso as acções que recebem
-    são estáveis — `useAccaoEstavel`.)
-  */
-  const painelSaltar = useAccaoEstavel((bi: number) =>
-    irParaAFalta("moodboards", `boardTitulo:${bi}`),
-  );
-  const painelEscolherFotos = useAccaoEstavel((bi: number) => setPicker({ kind: "board", bi }));
-  const vistaMudarFoto = useAccaoEstavel(
-    (chave: string, nome: string, max: number, formas: number[]) => {
-      setLugarDaFoto(0);
-      setPaginaDaFoto({ chave, nome, max, formas });
-    },
-  );
-  const vistaMover = useAccaoEstavel((de: number, para: number) => moverBoardParaPosicao(de, para));
-  const vistaSaltar = useAccaoEstavel((bi: number) => {
-    const id = doc.moodBoards[bi]?.id;
-    if (id && dobrados[id]) escreverDobras({ ...dobrados, [id]: false });
-    rolarAteVer(document.getElementById(`mood-board-${bi}`), { block: "start" });
+  const { fotosDaPaleta, mudarPaleta, refsDaPaleta } = paleta;
+  const biblioteca = useBibliotecaDeFotos({
+    capa,
+    disposicao,
+    documento,
+    escolha,
+    fotos,
+    fotosDaPagina,
+    fotosDosBoards,
   });
-  const vistaIrParaSeccao = useAccaoEstavel((seccao: Parameters<typeof irParaAFalta>[0]) =>
-    irParaAFalta(seccao),
-  );
-
-  const traducoesPorSeccao = useMemo(
-    () => (idiomaDoPdf === "en" ? porTraduzirPorSeccao(doc as ProposalDoc) : undefined),
-    [idiomaDoPdf, doc],
-  );
+  const { onDroppedFromLibrary, onPickedFromLibrary, onReservedFromLibrary } = biblioteca;
+  const fases = useFasesDoCronograma({ documento, reversiveis, totalInput });
+  const {
+    addPhase,
+    addPhaseItem,
+    movePhase,
+    removePhase,
+    removePhaseItem,
+    updatePhase,
+    updatePhaseItem,
+  } = fases;
+  const adicionais = useAdicionaisDoOrcamento({ confirmacoes, documento, total });
+  const {
+    addBudgetExtra,
+    definirExtras,
+    definirIvaDoAdicional,
+    definirValorDoAdicional,
+    extrasAVista,
+    removeBudgetExtra,
+    soLinhaPorEscrever,
+    trocarModoDosAdicionais,
+    updateBudgetExtra,
+  } = adicionais;
+  const pdfDaProposta = usePdfDaProposta({
+    apontarGeracao,
+    barra,
+    busy,
+    documento,
+    envio,
+    paginasDaProposta,
+    quote,
+    setBusy,
+    toast,
+    traducoes,
+  });
+  const { descarregarAEnviada, fotosPorConfirmar, pedirOPdfAgora, preview } = pdfDaProposta;
+  const sugestoesDoPedido = useSugestoesDoPedido({ documento });
+  const { sugestoes } = sugestoesDoPedido;
+  useLinkDaPropostaEnviada({ envio, quote });
+  const conferencia = useConferenciaComOEnviado({
+    DRAFT_KEY,
+    aberturaAssente,
+    confirmacoes,
+    documento,
+    quote,
+    reversiveis,
+    sent,
+    toast,
+    total,
+  });
+  const {
+    aReporOEnviado,
+    divergenciaDoEnviado,
+    manterOsValoresDesteAparelho,
+    reporOsValoresEnviados,
+  } = conferencia;
+  const copia = useCopiaEModelos({
+    camposPorConfirmar,
+    confirmacoes,
+    documento,
+    hidratarAssets,
+    reversiveis,
+    setRefEdited,
+    toast,
+    total,
+  });
+  const {
+    aplicarCopia,
+    copiaSubstitui,
+    copiarAberto,
+    guardarComoModelo,
+    guardarValidadePadrao,
+    nomeModelo,
+    setCopiaSubstitui,
+    setCopiarAberto,
+    setNomeModelo,
+  } = copia;
+  const pronta = useProntaParaEnviar({
+    busy,
+    documento,
+    envio,
+    fotos,
+    passos,
+    pdfDaProposta,
+    quote,
+    total,
+    traducoes,
+  });
+  const {
+    aoSaberQueFaltam,
+    contextoDoEnvio,
+    fotosParaEscolhas,
+    isDeco,
+    pdfConfirmado,
+    pdfVistoAgora,
+    perguntas,
+    seccoes,
+    setEscolhidasQueFaltam,
+    temErros,
+  } = pronta;
+  const enviar = useEnviarAProposta({
+    apontarGeracao,
+    busy,
+    documento,
+    enviarAgora,
+    envio,
+    envioAdiado,
+    fotosUsadasNoutras,
+    onSent,
+    paginasDaProposta,
+    passos,
+    pdfDaProposta,
+    pronta,
+    quote,
+    resumoComLink,
+    setBusy,
+    toast,
+    traducoes,
+  });
+  const { emailDoCliente, send } = enviar;
+  const botaoDoEnvio = useBotaoDoEnvio({
+    documento,
+    envio,
+    passos,
+    pdfDaProposta,
+    pronta,
+    total,
+    traducoes,
+  });
+  const {
+    canSend,
+    estadosDosPassos,
+    faltasDoEnvio,
+    modoDoBotao,
+    noFormulario,
+    oEnvioTrava,
+    soFaltaVerOPdf,
+  } = botaoDoEnvio;
+  const painel = usePainelDaProposta({
+    arrumacao,
+    dobras,
+    documento,
+    escolha,
+    fotosDaPagina,
+    irParaAFalta,
+    ordemDosBoards,
+    passos,
+    quote,
+  });
+  const {
+    aVista,
+    boardActivo,
+    paginasParaOPainel,
+    painelEscolherFotos,
+    painelSaltar,
+    pedidoComADataDoDoc,
+    setBoardActivo,
+    vistaIrParaSeccao,
+    vistaMover,
+    vistaMudarFoto,
+    vistaSaltar,
+  } = painel;
 
   /* ── `@container`: A CAIXA DE QUEM A BARRA DE BAIXO É FILHA ──────────────
      A barra de acção do estúdio é filha DESTE div, e não do
