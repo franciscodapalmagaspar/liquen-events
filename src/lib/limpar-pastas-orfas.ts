@@ -119,7 +119,11 @@ export async function limparPastasDePedidosApagados(
     ...(reciclagem.data as { origem_id: string | null }[]).map((r) => r.origem_id ?? ""),
     ...(propostas.data as { quote_id: string | null }[]).map((p) => p.quote_id ?? ""),
   ]);
-  const nomesDeChaves = (chaves.data as { key: string }[]).map((c) => c.key).join("\n");
+  // Os índices nomeiam todas as fotografias — não são menções (`indices-de-fotos.ts`).
+  const nomesDeChaves = (chaves.data as { key: string }[])
+    .map((c) => c.key)
+    .filter((k) => !eChaveDeIndiceDeFotos(k))
+    .join("\n");
   // Portas 3 e 4.
   let candidatas = pastas.filter((p) => !vivos.has(p) && !nomesDeChaves.includes(p));
 
