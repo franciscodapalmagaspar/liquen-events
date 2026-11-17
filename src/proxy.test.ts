@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { NextRequest } from "next/server";
 import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { config, proxy } from "./proxy";
 import { REDIRECIONAMENTOS_DA_LINGUA, REESCRITAS_DA_LINGUA } from "./lib/rotas-da-lingua";
 
@@ -88,6 +90,24 @@ const MATCHERS = getMiddlewareMatchers(config.matcher, { basePath: "" }).map(
 function casaComOMatcher(caminho: string): boolean {
   return MATCHERS.some((r: RegExp) => r.test(caminho));
 }
+
+/**
+ * 17/11 (revisão do PR #478): `vitals`, `erro-do-site` e `security/csp-report`
+ * são POST anónimos e, fora do proxy, perderam o filtro de `Origin`. Só podem
+ * ficar fora porque cada um tem o SEU limite de tentativas, em memória (nunca
+ * `global`: o Upstash fica só nas portas de contas e envios). Se um deles o
+ * perder, tem de voltar ao matcher — este teste é o que obriga a decidir.
+ */
+describe("proxy — a telemetria fora do proxy tem limite próprio, em memória", () => {
+  it.each(["vitals", "erro-do-site", "security/csp-report"])("%s", (rota) => {
+    const fonte = readFileSync(path.join(__dirname, "app", "api", rota, "route.ts"), "utf8");
+    expect(fonte, `${rota} sem rateLimit: volta ao matcher do proxy`).toMatch(
+      /await rateLimit\(`[^`]+`, \d+, \d[\d_]*\)/,
+    );
+    expect(fonte, `${rota}: o limite fica em memória`).not.toMatch(/global:\s*true/);
+    expect(casaComOMatcher(`/api/${rota}`)).toBe(false);
+  });
+});
 
 describe("proxy — as leituras públicas ficam de fora (16/11)", () => {
   it("as leituras do link do casal não passam pelo proxy", () => {
