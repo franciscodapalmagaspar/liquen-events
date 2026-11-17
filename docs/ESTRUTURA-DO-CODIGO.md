@@ -21,11 +21,29 @@ para se poderem repetir e comparar.
 |---|---|
 | Parte 1, princípios com fontes | feito (17/11) |
 | Parte 2, raio-X medido | feito (17/11), commit `1f15511d` |
-| Parte 3, plano por fases | proposto; **nenhuma fase começou** |
+| Parte 3, plano por fases | fases 0 e 1 feitas (17/11, ramo `codigo/fase-0-e-1`); da 2 em diante por começar |
 | Parte 4, lições para projetos futuros | feito; cresce com cada lição (regra de `codigo.md`) |
 
 Cada fase que se fizer acrescenta aqui uma linha: a data, o PR, e as medidas
 antes e depois (linhas, complexidade, peso das rotas).
+
+| Fase | Data · ramo | Antes → depois |
+|---|---|---|
+| 0 · guardas | 17/11 · `codigo/fase-0-e-1` | teste de ouro do PDF (`lib/pdf-editorial/ouro.test.ts`, três PDFs, `sha256` preso, Linux x64); catraca do tamanho (`test/tamanho-dos-ficheiros.test.ts` + `.json`, 193 ficheiros com tecto); `madge` só de valores no CI (`scripts/ci/ciclos-de-importacao.mjs`, os 3 ciclos de hoje na lista, ~14 s no job estático); `complexity` (30) e `max-lines-per-function` (400) em aviso no ESLint (137 avisos, 0 erros). Cada guarda foi vista a falhar de propósito: uma letra a mais na capa, um ciclo para o estúdio, o `ProposalStudio` a encolher sem descer o tecto. |
+| 1 · domínio do estúdio | 17/11 · `codigo/fase-0-e-1` | `ProposalStudio.tsx` 17 008 → 16 063 linhas; a função `ProposalStudio` fica igual (complexidade 279, 7 043 linhas de código — é a fase 3). Saíram para `lib/orcamento/estudio/` seis ficheiros (1 042 linhas, todos abaixo das 400). Peso das rotas igual (proposta 88 KB, painel 505 KB). Capturas do estúdio a 390/768/1440, claro e escuro: 0 píxeis diferentes. |
+
+**Desvios da fase 1 ao texto:** além do que a tabela da fase 1 nomeia, saíram
+com as funções as ajudantes privadas de que elas precisam (`eventTypeLabel`,
+`formatEventDate`, `buildRef`, `nomesDoCasal`, `baseDoPedidoParaOEcra`,
+`normalizaCortes`, `fraseDeCorte`, `marcarLimpas` e as duas memórias fracas do
+redutor, `fetchComTecto` e as constantes `GRAVACAO_*`), senão a casa nova
+importaria de volta o componente. Ficaram no componente as puras que a tabela
+não nomeia (`aplicarBase`, `baseDoDoc`, `dinheiroDoDocumento`,
+`dataDoEnvioPorExtenso`, `move`, `idsTirados`, `ehObjecto`), para a fase
+seguinte. Dois testes liam o TEXTO do componente e passaram a ler também a casa
+nova (`espaco-na-proposta.test.ts`, e a varredura do preço em
+`o-valor-que-ela-poe-e-o-valor-que-fica.test.ts`, agora por ficheiro); os que
+importam funções continuam a importá-las do `ProposalStudio`, que as reexporta.
 
 ---
 
