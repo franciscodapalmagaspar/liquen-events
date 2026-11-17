@@ -236,6 +236,12 @@ export default function PedidoRelampago({
     setErro("");
     setAEnviar(true);
 
+    // O selo: antes dos 3 s, espera o que falta, já com o «A enviar…»
+    // (`useSeloDoFormulario`). ANTES do `Lead` do pixel: se ela fechar a
+    // janela durante a espera, a Meta não pode ficar com um Lead sem pedido.
+    // E antes do relógio dos 25 s, que é só da rede.
+    const selo = await seloParaEnviar();
+
     // O `event_id` é gerado AQUI e viaja com o pedido: o servidor reenvia o
     // mesmo `Lead` pela CAPI com este identificador, e a Meta conta uma vez.
     const leadEventId = meta.lead({
@@ -311,9 +317,6 @@ export default function PedidoRelampago({
     // isto, uma rede que abre o socket e nunca responde deixa o botão a rodar
     // para sempre — que no browser interno do Instagram, onde a rede é pior, é
     // um desfecho bem mais provável do que no Safari.
-    // O selo: antes dos 3 s, espera o que falta, já com o «A enviar…»
-    // (`useSeloDoFormulario`). Antes do relógio dos 25 s, que é só da rede.
-    const selo = await seloParaEnviar();
     const controlador = new AbortController();
     const limite = setTimeout(() => controlador.abort(), 25000);
     try {

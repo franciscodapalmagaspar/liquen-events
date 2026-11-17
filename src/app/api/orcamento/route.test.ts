@@ -636,6 +636,22 @@ describe("POST /api/orcamento", () => {
       aviso.mockRestore();
     });
 
+    it("um pedido marcado não vai à Meta como Lead, e o e-mail à equipa diz porquê no HTML", async () => {
+      await enviarTudo({
+        form: {
+          ...validForm,
+          leadEventId: "evt-spam-1",
+          notes: "We sell cheap backlinks, visit https://x.xyz/now",
+        },
+      });
+      expect(gravado().possivelSpam).toEqual({ motivo: "palavras-de-spam" });
+      expect(metaMock).not.toHaveBeenCalled();
+      const daEquipa = sendMailMock.mock.calls
+        .map(([m]) => m as { to?: string; html?: string })
+        .find((m) => !m.to);
+      expect(daEquipa?.html).toContain("Possível spam (palavras típicas de spam)");
+    });
+
     it("o cliente não consegue pôr nem tirar a marca pelo formulário", async () => {
       await enviarTudo({ form: { ...validForm, possivelSpam: { motivo: "ligacoes" } } });
       expect(gravado().possivelSpam).toBeUndefined();

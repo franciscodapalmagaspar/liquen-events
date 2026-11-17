@@ -88,3 +88,22 @@ describe("useSeloDoFormulario", () => {
     expect(selo).toBe("");
   });
 });
+
+describe("os três formulários esperam pelo selo no sítio certo", () => {
+  it("antes do envio, e na ficha da Meta antes do `Lead` do pixel", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const f of [
+      "src/app/[lang]/(site)/orcamento/OrcamentoForm.tsx",
+      "src/components/ads/PedidoRapido.tsx",
+      "src/components/meta/PedidoRelampago.tsx",
+    ]) {
+      const fonte = readFileSync(f, "utf8");
+      const espera = fonte.indexOf("await seloParaEnviar()");
+      expect(espera, f).toBeGreaterThan(-1);
+      expect(espera, f).toBeLessThan(fonte.indexOf('fetch("/api/orcamento"'));
+      // A Meta conta o `Lead` no browser: se ela fechar a janela durante a
+      // espera, não pode ficar um Lead sem pedido nenhum.
+      if (fonte.includes("meta.lead(")) expect(espera, f).toBeLessThan(fonte.indexOf("meta.lead("));
+    }
+  });
+});

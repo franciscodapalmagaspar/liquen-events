@@ -565,7 +565,9 @@ function buildEmail(
     preheader,
     whatsapp: waHref,
     mailto: mailtoHref,
-    lembrete: nudge,
+    // Um pedido marcado diz porquê no CORPO que ela lê, e não só no assunto
+    // (que o telemóvel corta) e no texto simples (que o Gmail não mostra).
+    lembrete: avisoDeSpam || nudge,
     primeiroNome: firstName,
     respostaPara: form.email ?? "",
     pedido: linhasDoPedido,
@@ -1043,8 +1045,11 @@ async function POST_semMedida(request: NextRequest) {
       // Sem `leadEventId` não se envia NADA. Um `event_id` inventado aqui nunca
       // encontraria o par do browser e a conversão passaria a contar a dobrar —
       // que é exactamente a avaria que a deduplicação existe para evitar.
+      //
+      // E um pedido com a marca «possível spam» não vai: contá-lo à Meta como
+      // um Lead ensinava os anúncios a trazer mais do mesmo.
       try {
-        await reenviarLeadParaMeta(request, id, form);
+        if (!veredito.possivelSpam) await reenviarLeadParaMeta(request, id, form);
       } catch (metaErr) {
         log.error("orcamento: reenvio do Lead para a Meta falhou", metaErr, { id });
       }

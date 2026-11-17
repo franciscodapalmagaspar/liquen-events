@@ -1,4 +1,5 @@
 import type { MotivoDeSpam } from "./conteudo";
+import { MINIMO_MS } from "./tempo-minimo";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -28,7 +29,7 @@ const EXPLICACAO: Record<MotivoDePossivelSpam, string> = {
   "palavras-de-spam": "palavras típicas de spam",
   alfabeto: "mensagem longa noutro alfabeto, com ligações ou palavras suspeitas",
   "ligacao-no-nome": "uma ligação no lugar do nome",
-  depressa: "enviado menos de 3 segundos depois de abrir o formulário",
+  depressa: `enviado menos de ${MINIMO_MS / 1000} segundos depois de abrir o formulário`,
 };
 
 /** A frase que explica a marca (no `title` da etiqueta e no e-mail à equipa). */

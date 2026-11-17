@@ -157,15 +157,26 @@ const LETRA = /\p{L}/gu;
 
 function dominioDe(ligacao: string): string {
   const semEsquema = ligacao.replace(/^https?:\/\//i, "");
-  // A pontuação que fecha a frase não é do domínio («…quintadamalveira.com,»).
-  return (semEsquema.split(/[/?#:]/)[0] ?? "").toLowerCase().replace(/[.,;!?)\]]+$/, "");
+  // A pontuação que fecha a frase não é do domínio («…quintadamalveira.com,»),
+  // e o `www.` também não: `www.x.com` e `x.com` são o mesmo sítio.
+  return (semEsquema.split(/[/?#:]/)[0] ?? "")
+    .toLowerCase()
+    .replace(/[.,;!?)\]]+$/, "")
+    .replace(/^www\./, "");
 }
 
+/**
+ * Um domínio de confiança. As entradas que acabam em «.» (`pinterest.`,
+ * `google.`) valem para qualquer domínio de topo da casa (`pinterest.pt`,
+ * `google.co.uk`) — e SÓ para esse: `google.spam1.com` não é a Google, e
+ * `maps.google.com` é.
+ */
 function eDeConfianca(dominio: string): boolean {
-  const d = dominio.replace(/^www\./, "");
-  return DOMINIOS_DE_CONFIANCA.some((c) =>
-    c.endsWith(".") ? d.startsWith(c) || d.includes(`.${c}`) : d === c || d.endsWith(`.${c}`),
-  );
+  return DOMINIOS_DE_CONFIANCA.some((c) => {
+    if (!c.endsWith(".")) return dominio === c || dominio.endsWith(`.${c}`);
+    const marca = c.slice(0, -1).replace(/\./g, "\\.");
+    return new RegExp(`(^|\\.)${marca}\\.[a-z]{2,3}(\\.[a-z]{2})?$`).test(dominio);
+  });
 }
 
 /** A partir de quantos domínios DISTINTOS e desconhecidos as ligações contam. */
@@ -210,7 +221,9 @@ export function motivoDeSpam(texto: TextoDoPedido): MotivoDeSpam | null {
   if (desconhecidos.length >= LIGACOES_A_PARTIR_DE) return "ligacoes";
 
   if (PALAVRAS_FORTES.some((r) => r.test(minusculas))) return "palavras-de-spam";
-  if (ligacoes.length > 0 && PALAVRAS_COM_LIGACAO.some((r) => r.test(minusculas))) {
+  // Uma ligação a um sítio DESCONHECIDO: o Pinterest dos noivos ao lado de
+  // «podemos pagar em bitcoin?» não é um robô.
+  if (desconhecidos.length > 0 && PALAVRAS_COM_LIGACAO.some((r) => r.test(minusculas))) {
     return "palavras-de-spam";
   }
   if (fracas >= 2) return "palavras-de-spam";

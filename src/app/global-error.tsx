@@ -104,7 +104,12 @@ export default function GlobalError({
               páginas, e este ecrã substitui o layout inteiro, rodapé
               incluído. A mesma peça do rodapé, com o desenho em `style`
               porque aqui a folha do sítio pode não ter chegado. */}
-          <AvisoLegal lingua={lang} sobre="escuro" style={{ marginTop: 40, opacity: 0.7 }} />
+          <AvisoLegal
+            lingua={lang}
+            sobre="escuro"
+            navegacao="documento"
+            style={{ marginTop: 40, opacity: 0.7 }}
+          />
         </div>
       </body>
     </html>

@@ -177,6 +177,21 @@ describe("a tabela da revisão: verdadeiros que a primeira versão apanhava", ()
       { nome: "Satoshi", mensagem: "Can we pay in bitcoin? Wedding for 50 guests in Porto." },
     ],
     [
+      "bitcoin ao lado do Pinterest (ligação de confiança)",
+      {
+        nome: "Rita",
+        mensagem: "O nosso Pinterest: https://pin.it/abc — podemos pagar em bitcoin?",
+      },
+    ],
+    [
+      "www.x.com e x.com são o mesmo sítio",
+      {
+        nome: "Rui",
+        mensagem:
+          "https://www.quinta-a.com/x https://quinta-a.com/y https://www.quinta-b.com/z https://quinta-b.com/w https://fotografo.com/p",
+      },
+    ],
+    [
       "crypto sem ligação",
       {
         nome: "Amy",
@@ -241,6 +256,15 @@ describe("spam é apanhado", () => {
       "crypto com uma ligação",
       { nome: "Amy", mensagem: "Invest in crypto and double your money: https://coins-now.com/a" },
       "palavras-de-spam",
+    ],
+    [
+      "um domínio que só COMEÇA por google. não é a Google",
+      {
+        nome: "Bot",
+        mensagem:
+          "https://google.spam1.com/a https://google.spam2.com/b https://pinterest.spam3.com/c https://google.spam4.com/d https://pinterest.spam5.com/e",
+      },
+      "ligacoes",
     ],
     ["porno", { nome: "X", mensagem: "free porno videos" }, "palavras-de-spam"],
     [

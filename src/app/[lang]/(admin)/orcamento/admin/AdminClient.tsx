@@ -716,11 +716,7 @@ function COLUNAS_DE_PEDIDOS(ctx: {
             {q.name}
           </span>
           <span className="block truncate text-[11px] text-foreground/45">{q.email}</span>
-          {q.possivelSpam && (
-            <span className="mt-1 block">
-              <EtiquetaPossivelSpam valor={q.possivelSpam} />
-            </span>
-          )}
+          <EtiquetaPossivelSpam valor={q.possivelSpam} className="mt-1" />
         </span>
       ),
     },

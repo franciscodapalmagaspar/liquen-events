@@ -22,4 +22,17 @@ describe("o AvisoLegal: as ligações internas navegam pelo Next (C1)", () => {
     // As externas (CNIACC, Portal, Livro) continuam a abrir noutro separador.
     expect(html).toContain('href="https://www.cniacc.pt/" target="_blank"');
   });
+
+  it("no ecrã de erro global, ligações de documento inteiro (não se navega dentro da árvore partida)", () => {
+    const html = renderToStaticMarkup(<AvisoLegal lingua="pt" navegacao="documento" />);
+    expect(html).not.toContain("data-next-link");
+    expect(html).toContain('href="/privacidade"');
+    expect(html).toContain('href="/termos"');
+  });
+
+  it("o global-error pede ligações de documento inteiro", async () => {
+    const { readFileSync } = await import("node:fs");
+    const fonte = readFileSync("src/app/global-error.tsx", "utf8");
+    expect(fonte).toMatch(/<AvisoLegal[^>]*navegacao="documento"/);
+  });
 });

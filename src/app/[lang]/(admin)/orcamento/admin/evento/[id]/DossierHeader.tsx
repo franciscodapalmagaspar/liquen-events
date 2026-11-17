@@ -202,11 +202,7 @@ export default function DossierHeader({ data, stage, next, lang, onScrollTo }: P
             )}
             {/* «Possível spam» (17/11): discreta, ao pé da ficha. O pedido é
                 um pedido como os outros; isto é só uma nota para ela. */}
-            {!desceu && quote.possivelSpam && (
-              <p className="mt-1.5">
-                <EtiquetaPossivelSpam valor={quote.possivelSpam} />
-              </p>
-            )}
+            {!desceu && <EtiquetaPossivelSpam valor={quote.possivelSpam} className="mt-1.5" />}
 
             {/* Barra de ações — partilha / impressão / calendário. Só
                 ferramentas seguras e client-safe (export.ts + APIs do browser);

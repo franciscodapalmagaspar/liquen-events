@@ -31,8 +31,9 @@ import {
  * O essencial (letra pequena, centrado, a medida da linha) vai em `style`, e
  * a COR herda-se de quem a monta: cada fundo já tem a sua tinta suave, com o
  * contraste medido lá. Sem pedidos: é uma ligação, não fala com ninguém
- * enquanto não for tocada. O `<Link>` do Next serve no `global-error` e no 404
- * global também — os dois já são desenhados pelo React do Next.
+ * enquanto não for tocada. No `global-error` as ligações são de documento
+ * inteiro (`navegacao="documento"`): a árvore de cima rebentou, e uma
+ * navegação dentro dela podia dar no mesmo erro.
  *
  * `alinhar="fim"`: só no rodapé do sítio, que tem a folha de estilos — no
  * telemóvel centrado, a partir do `sm` encostado à direita.
@@ -46,6 +47,7 @@ export default function AvisoLegal({
   className,
   style,
   classeDasLigacoes = "",
+  navegacao = "next",
 }: {
   lingua: Lingua;
   /** A cor do fundo por trás (o logótipo vai em silhueta da cor oposta). */
@@ -58,6 +60,12 @@ export default function AvisoLegal({
   style?: CSSProperties;
   /** Classes de cada ligação (o `alvo-toque` e o realce de quem tem a folha). */
   classeDasLigacoes?: string;
+  /**
+   * `"documento"`: ligações que carregam a página inteira. Só no
+   * `global-error`, que aparece porque a árvore de cima rebentou — navegar
+   * dentro dela pelo `<Link>` podia voltar a dar no mesmo erro.
+   */
+  navegacao?: "next" | "documento";
 }) {
   const fim = alinhar === "fim";
   const eixo: CSSProperties = fim ? {} : { alignItems: "center", textAlign: "center" };
@@ -117,7 +125,7 @@ export default function AvisoLegal({
               // secção — inclusive quando já se está na política.
               return (
                 <li key={l.caminho}>
-                  {href.includes("#") ? (
+                  {href.includes("#") || navegacao === "documento" ? (
                     <a href={href} {...comum}>
                       {l.texto}
                     </a>

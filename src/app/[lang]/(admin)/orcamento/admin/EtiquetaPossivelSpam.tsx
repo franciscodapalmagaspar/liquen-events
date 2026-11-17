@@ -9,13 +9,20 @@ import { explicarPossivelSpam, lerPossivelSpam } from "@/lib/anti-spam/possivel-
  *
  * Sem marca, não desenha nada.
  */
-export function EtiquetaPossivelSpam({ valor }: { valor: unknown }) {
+export function EtiquetaPossivelSpam({
+  valor,
+  className = "",
+}: {
+  valor: unknown;
+  /** A margem de quem a monta: vive aqui, para não sobrar uma caixa vazia. */
+  className?: string;
+}) {
   const marca = lerPossivelSpam(valor);
   if (!marca) return null;
   const porque = explicarPossivelSpam(marca);
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-[0.06em] whitespace-nowrap text-[var(--bo-tinta-72)] uppercase ring-1 ring-[var(--bo-hairline)] ring-inset"
+      className={`${className} inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-[0.06em] whitespace-nowrap text-[var(--bo-tinta-72)] uppercase ring-1 ring-[var(--bo-hairline)] ring-inset`}
       title={`Possível spam: ${porque}`}
     >
       <svg
