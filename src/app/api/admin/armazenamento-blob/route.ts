@@ -14,6 +14,7 @@ import { indiceDebaixoDe } from "@/lib/armazenamento/indice";
 import { copiar, ensaio, libertar, verificarLigacao } from "@/lib/armazenamento/migracao";
 import { usoAtual } from "@/lib/armazenamento/uso";
 import { avisosDoBlob } from "@/lib/armazenamento/tectos";
+import { gravarMarcadorDoBlob } from "@/lib/ocupacao-do-armazenamento";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -117,6 +118,10 @@ async function POST_semMedida(request: NextRequest) {
         }
         const modos = await mudarModo(balde, corpo.modo);
         if (!modos) return resposta({ error: "O modo não ficou gravado." }, 500);
+        // O marcador «há ficheiros no Blob» fica gravado JÁ, e não só à noite
+        // (3.ª revisão de 17/11, n.º 3): é ele que diz, sem o token, que falta.
+        const marcado = await gravarMarcadorDoBlob(Object.values(modos).includes("blob"));
+        if (!marcado) log.warn("blob: o marcador da ocupação não ficou gravado", { balde });
         log.info("blob: modo mudado", { balde, modo: corpo.modo });
         return resposta({ modos });
       }

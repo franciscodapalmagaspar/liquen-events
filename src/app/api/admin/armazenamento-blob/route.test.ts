@@ -6,6 +6,7 @@ const H = vi.hoisted(() => ({
   modoEmCache: null as string | null,
   linhasNoIndice: 1,
   mudou: [] as unknown[],
+  marcador: null as null | boolean,
 }));
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => H.autenticado }));
 vi.mock("@/lib/armazenamento/modos", () => ({
@@ -31,6 +32,12 @@ vi.mock("@/lib/armazenamento/migracao", () => ({
   verificarLigacao: vi.fn(),
 }));
 vi.mock("@/lib/armazenamento/uso", () => ({ usoAtual: async () => null }));
+vi.mock("@/lib/ocupacao-do-armazenamento", () => ({
+  gravarMarcadorDoBlob: vi.fn(async (v: boolean) => {
+    H.marcador = v;
+    return true;
+  }),
+}));
 
 import { POST } from "./route";
 import { copiar } from "@/lib/armazenamento/migracao";
@@ -50,6 +57,7 @@ beforeEach(() => {
   H.modoEmCache = null;
   H.linhasNoIndice = 1;
   H.mudou = [];
+  H.marcador = null;
 });
 afterEach(() => {
   delete process.env.BLOB_READ_WRITE_TOKEN;
@@ -95,5 +103,11 @@ describe("POST /api/admin/armazenamento-blob", () => {
     const r = await pedir({ acao: "modo", balde: "theme-assets", modo: "supabase" });
     expect(r.status).toBe(409);
     expect(H.mudou).toEqual([]);
+  });
+
+  it("3.ª revisão, n.º 3: mudar um balde para blob grava o marcador JÁ", async () => {
+    H.modo = "espelho";
+    await pedir({ acao: "modo", balde: "theme-assets", modo: "blob" });
+    expect(H.marcador).toBe(true);
   });
 });

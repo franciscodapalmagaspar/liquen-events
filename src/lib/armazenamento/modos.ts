@@ -68,6 +68,15 @@ export async function modoDoBaldeFresco(balde: BaldeDoBlob): Promise<ModoDoBalde
   return modos[balde];
 }
 
+/** Os modos lidos AGORA, sem cache; `null` se a leitura falhar (nunca «tudo no Supabase» por engano). */
+export async function modosLidosOuNull(): Promise<Record<BaldeDoBlob, ModoDoBalde> | null> {
+  try {
+    return modosValidos(await getState<unknown>(CHAVE_DOS_MODOS, { ouFalha: true }));
+  } catch {
+    return null;
+  }
+}
+
 /** Muda o modo de um balde. Devolve os modos como ficaram, ou `null` se não gravou. */
 export async function mudarModo(
   balde: BaldeDoBlob,

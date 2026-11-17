@@ -11,13 +11,16 @@ vi.mock("@/lib/app-state", () => ({
     H.chaves.push(ks);
     return new Map(H.ocupacao ? [["armazenamento:ocupacao", H.ocupacao]] : []);
   },
-  gravarEstadoSeNaoMudou: vi.fn(),
-  lerEstadoComVersao: vi.fn(),
+  gravarEstadoSeNaoMudou: vi.fn(async (_k: string, v: unknown) => {
+    H.ocupacao = v;
+    return "gravado";
+  }),
+  lerEstadoComVersao: vi.fn(async () => ({ valor: H.ocupacao, versao: null })),
   setState: vi.fn(),
 }));
 vi.mock("@/lib/supabase", () => ({ getSupabase: () => null }));
 
-import { lerEspaco } from "./ocupacao-do-armazenamento";
+import { gravarMarcadorDoBlob, lerEspaco } from "./ocupacao-do-armazenamento";
 
 beforeEach(() => {
   H.chaves = [];
@@ -43,5 +46,12 @@ describe("lerEspaco com o Blob desligado", () => {
     const e = await lerEspaco();
     expect(e.avisosBlob?.[0]).toMatch(/token não está configurado/);
     expect(H.chaves).toHaveLength(1);
+  });
+
+  it("3.ª revisão, n.º 3: o marcador grava-se já (sem medição ainda) e o erro aparece sem token", async () => {
+    expect(await gravarMarcadorDoBlob(true)).toBe(true);
+    const e = await lerEspaco();
+    expect(e.conhecido).toBe(false); // a linha nova não finge uma medição
+    expect(e.avisosBlob?.[0]).toMatch(/token não está configurado/);
   });
 });

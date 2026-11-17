@@ -4,8 +4,8 @@ import { getSupabase } from "@/lib/supabase";
 import type { ManifestoDeFotografias } from "@/lib/manifesto-de-fotografias";
 import { log } from "@/lib/logger";
 import { blobConfigurado, ehBaldeDoBlob } from "@/lib/armazenamento/baldes";
-import { modosDosBaldes } from "@/lib/armazenamento/modos";
-import { estadoDoBlob, marcadorDoBlob } from "@/lib/armazenamento/saude";
+import { modosDosBaldes, modosLidosOuNull } from "@/lib/armazenamento/modos";
+import { alertarSemToken, estadoDoBlob, marcadorDoBlob } from "@/lib/armazenamento/saude";
 import {
   espacoQueSobra,
   medirPorOrdem,
@@ -92,6 +92,30 @@ export async function somarCarregado(porBucket: Readonly<Record<string, number>>
     for (const [b, n] of somar) c[b] = (c[b] ?? 0) + Math.round(n);
     return c;
   });
+}
+
+/**
+ * Grava o marcador `blobEmUso` na linha da ocupação, AGORA (3.ª revisão de
+ * 17/11, n.º 3): quando um balde muda de modo, e não só à noite. Se a linha
+ * ainda não existe, nasce sem medição (`bytes: null` → `conhecido: false`).
+ * Compare-and-set, como o contador ao lado. Devolve se ficou gravado.
+ */
+export async function gravarMarcadorDoBlob(blobEmUso: boolean): Promise<boolean> {
+  for (let t = 0; t < 4; t++) {
+    try {
+      const { valor, versao } = await lerEstadoComVersao<Ocupacao>(CHAVE_OCUPACAO, 3_000);
+      const linha =
+        valor ??
+        ({ medidoEm: "", bytes: null, porBucket: {}, completo: false } as unknown as Ocupacao);
+      if (linha.blobEmUso === blobEmUso) return true;
+      const r = await gravarEstadoSeNaoMudou(CHAVE_OCUPACAO, { ...linha, blobEmUso }, versao);
+      if (r === "gravado") return true;
+      if (r === "falhou") return false;
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 /** Quanto ocupa um bucket inteiro, com várias listagens em paralelo e tecto de tempo. */
@@ -208,8 +232,13 @@ export async function medirOcupacao(
       porBucket,
       completo,
     };
-    const marcador = marcadorDoBlob(antes?.blobEmUso, modos, blobConfigurado());
+    // Os modos para o marcador lêem-se AGORA e só com o token: o `modos` de
+    // cima cai para «tudo no Supabase» quando a leitura falha, e isso não pode
+    // pôr o marcador a `false` (3.ª revisão de 17/11, n.º 3).
+    const modosLidos = blobConfigurado() ? await modosLidosOuNull() : null;
+    const marcador = marcadorDoBlob(antes?.blobEmUso, modosLidos, blobConfigurado());
     if (marcador !== undefined) ocupacao.blobEmUso = marcador;
+    alertarSemToken(marcador);
     await setState(CHAVE_OCUPACAO, ocupacao);
     // Os buckets medidos esta noite já contam o que se carregou até agora.
     const medidos = Object.entries(porBucket)

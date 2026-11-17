@@ -81,20 +81,38 @@ export async function estadoDoBlob(blobEmUso?: boolean): Promise<EstadoDoBlob | 
 }
 
 /**
- * O marcador que a medição da noite guarda na ocupação: COM token, «algum
- * balde está em modo `blob`»; SEM token não se sabe — fica o que estava (é
- * precisamente o caso de alguém ter tirado o token depois da migração).
+ * O marcador que a medição da noite guarda na ocupação: COM token e com os
+ * modos LIDOS, «algum balde está em modo `blob`»; sem token, ou com a leitura
+ * dos modos falhada (`modos: null`), fica o que estava — um `true` nunca
+ * desce por uma leitura que não confirmou (3.ª revisão de 17/11, n.º 3).
  */
 export function marcadorDoBlob(
   antes: boolean | undefined,
-  modos: Readonly<Record<string, string>>,
+  modos: Readonly<Record<string, string>> | null,
   configurado: boolean,
 ): boolean | undefined {
-  if (!configurado) return antes;
+  if (!configurado || !modos) return antes;
   return BALDES_DO_BLOB.some((b) => modos[b] === "blob");
+}
+
+const ALERTA_DIARIO_MS = 24 * 3600_000;
+let alertadoEm = 0;
+
+/**
+ * Na medição da noite: o marcador diz que há ficheiros no Blob e o token não
+ * está — é um ALERTA (`log.error`), uma vez por dia (3.ª revisão, n.º 3).
+ */
+export function alertarSemToken(marcador: boolean | undefined): void {
+  if (marcador !== true || blobConfigurado()) return;
+  if (Date.now() - alertadoEm < ALERTA_DIARIO_MS) return;
+  alertadoEm = Date.now();
+  log.error("blob: há ficheiros no Vercel Blob e o token não está configurado", null, {
+    oQueFazer: "voltar a pôr BLOB_READ_WRITE_TOKEN (ligar o store ao projecto na Vercel)",
+  });
 }
 
 /** Só para os testes. */
 export function esquecerRegistos(): void {
   registadoEm.clear();
+  alertadoEm = 0;
 }
