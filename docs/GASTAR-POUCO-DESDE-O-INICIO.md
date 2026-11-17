@@ -525,8 +525,23 @@ Supabase tal e qual e nada muda.
 
 Escrita recusada → Supabase. Leitura recusada → Supabase, ou, se já lá não
 estiver, a fotografia não aparece (a rota responde 503) até ao mês seguinte —
-é o travão que a regra de custo manda ter. O aviso aparece no ecrã que já
-mostra o espaço do armazenamento (a janela «Importar proposta»).
+é o travão que a regra de custo manda ter. **Um contador que não se lê fecha
+o travão** (`contador-ilegivel`): tudo vai ao Supabase. Um gasto que não se
+grava fica na fila e continua a contar.
+
+Revisão de 17/11 (PR #479):
+- as leituras do navegador contam **uma vez por ficheiro e por janela de
+  12 h** (o mesmo endereço do Blob é reutilizado na janela), e a rota aceita
+  120 pedidos por minuto por IP — repetir um endereço já não gasta o tecto;
+- o endereço `/api/ficheiro` tem o fim arredondado a uma grelha (o mesmo
+  ficheiro dá o mesmo endereço) e o `urls-assinados.ts` guarda-o;
+- a assinatura usa `BLOB_URL_SECRET`, ou o `SESSION_SECRET` noutro contexto —
+  nunca o token do Blob, para trocar o token não matar endereços;
+- o índice `blob:i:` vai na cópia de segurança (a reposição JUNTA, não apaga)
+  e não conta como menção nas limpezas da noite;
+- os avisos (e o ERRO «há ficheiros no Blob mas o token não está
+  configurado») aparecem no bloco «Hoje» e na janela «Importar proposta», e
+  vão aos registos no máximo uma vez por hora.
 
 **A ordem da migração** (`POST /api/admin/armazenamento-blob`, só admin, cada
 chamada ≤ 40 s, `comCpu`):
