@@ -967,8 +967,14 @@ export async function passkeyAindaVale(
   return registadaAntesDoCorte(criadaEm, corte.desde) ? "antiga" : "vale";
 }
 
-/** Tecto da leitura do corte: quem espera está à porta, com o telemóvel na mão. */
+/**
+ * Tecto da leitura do corte: quem espera está à porta, com o telemóvel na mão.
+ * São DUAS tentativas de {@link TECTO_POR_TENTATIVA_DAS_PASSKEYS_MS} dentro do
+ * total (revisão de 16/11, n.º 5): uma falha passageira do Supabase não fecha
+ * a passkey, e uma base pendurada não prende ninguém mais de ~2,5 s.
+ */
 export const TECTO_DA_LEITURA_DAS_PASSKEYS_MS = 2_500;
+export const TECTO_POR_TENTATIVA_DAS_PASSKEYS_MS = 1_200;
 
 /**
  * O CORTE das passkeys de uma conta: o instante da última redefinição pela
@@ -987,7 +993,9 @@ export async function cortePasskeys(userName: string): Promise<CorteDasPasskeys>
   if (!conta?.email) return { ok: true, desde: null };
   try {
     const { lerRegistoComTecto } = await import("./admin-recuperacao");
-    const registo = await lerRegistoComTecto(TECTO_DA_LEITURA_DAS_PASSKEYS_MS);
+    const registo = await lerRegistoComTecto(TECTO_POR_TENTATIVA_DAS_PASSKEYS_MS).catch(() =>
+      lerRegistoComTecto(TECTO_POR_TENTATIVA_DAS_PASSKEYS_MS),
+    );
     const desde = registo.passkeysDesde[normalizarIdentificador(conta.email)];
     return { ok: true, desde: typeof desde === "number" ? desde : null };
   } catch (err) {

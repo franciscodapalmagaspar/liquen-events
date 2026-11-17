@@ -35,6 +35,8 @@ const estado = vi.hoisted(() => ({
   /** A escrita fica feita, mas a resposta chega depois do tecto («falhou»). */
   gravaMasFalha: false,
   leiturasComVersao: 0,
+  /** Quantas das próximas leituras com versão falham antes de responder. */
+  falhasSeguidas: 0,
   tectos: [] as number[],
 }));
 
@@ -64,6 +66,10 @@ vi.mock("./app-state", () => ({
   // revogadas). A versão é o valor em JSON, como no ficheiro.
   lerEstadoComVersao: vi.fn(async (k: string) => {
     estado.leiturasComVersao++;
+    if (estado.falhasSeguidas > 0) {
+      estado.falhasSeguidas--;
+      throw new Error("falha passageira");
+    }
     if (estado.leituraPendurada) return new Promise<never>(() => {});
     if (estado.falhaLeitura) throw new Error("leitura falhou");
     const v = estado.mapa.get(k);
@@ -127,6 +133,7 @@ beforeEach(() => {
   estado.falhaLeitura = false;
   estado.gravaMasFalha = false;
   estado.leiturasComVersao = 0;
+  estado.falhasSeguidas = 0;
   estado.leituraPendurada = false;
   estado.tectos = [];
   comContas(CONTAS);
@@ -375,6 +382,16 @@ describe("recuperação — a palavra-passe nova", () => {
 
   it("sem conseguir ler o registo, a passkey de uma conta com recuperação não entra", async () => {
     estado.falhaLeitura = true;
+    expect(await passkeyAindaVale("Catarina", new Date().toISOString())).toBe("indisponivel");
+  });
+
+  it("uma falha passageira na 1.ª leitura não fecha a passkey: há uma 2.ª tentativa (revisão de 16/11, n.º 5)", async () => {
+    expect((await redefinir("a-minha-frase-nova")).estado).toBe("definida");
+    estado.falhasSeguidas = 1;
+    expect(await passkeyAindaVale("Catarina", new Date(Date.now() + 1000).toISOString())).toBe(
+      "vale",
+    );
+    estado.falhasSeguidas = 2;
     expect(await passkeyAindaVale("Catarina", new Date().toISOString())).toBe("indisponivel");
   });
 
