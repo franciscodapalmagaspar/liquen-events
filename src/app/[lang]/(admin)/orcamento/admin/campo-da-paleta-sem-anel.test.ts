@@ -32,6 +32,14 @@ function seletorDaMoldura(): string {
 }
 
 describe("o campo do ⌘K não leva o rectângulo do foco", () => {
+  it("o campo marcado não herda a transição de 150 ms do anel global (lote de 17/11)", () => {
+    const i = css.indexOf("body:is(.bo, .admin-mode) input[data-sem-anel]:focus-visible {");
+    expect(i).toBeGreaterThan(-1);
+    const bloco = css.slice(i, css.indexOf("}", i));
+    expect(bloco).toContain("outline-color: transparent;");
+    expect(bloco).toContain("transition: none;");
+  });
+
   it("a regra da moldura deixa de fora os campos marcados `data-sem-anel`", () => {
     expect(seletorDaMoldura()).toContain(":not([data-sem-anel])");
   });
