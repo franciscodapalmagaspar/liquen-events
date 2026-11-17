@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
+import { ROTULO_DO_LIVRO } from "@/lib/legal/textos-legais";
 import { renderToStaticMarkup } from "react-dom/server";
 import Footer from "./Footer";
 import { SERVICES } from "@/lib/services-data";
@@ -67,14 +68,13 @@ describe("o rodapé leva ao Livro de Reclamações Eletrónico", () => {
   for (const locale of LOCALES) {
     it(`${locale}: ligação à plataforma oficial, numa janela nova, com nome`, () => {
       const html = rodape(locale);
-      const t = getDictionary(locale);
       const a = html.match(
         /<a[^>]*href="https:\/\/www\.livroreclamacoes\.pt\/Inicio\/"[^>]*>/,
       )?.[0];
       expect(a, "sem ligação ao livroreclamacoes.pt").toBeTruthy();
       expect(a).toContain('target="_blank"');
       expect(a).toContain('rel="noopener noreferrer"');
-      expect(a).toContain(`aria-label="${t.footer.livroReclamacoes} (${t.common.newWindow})"`);
+      expect(a).toContain(`aria-label="${ROTULO_DO_LIVRO[locale].rotulo}"`);
       expect(html).toContain("livro-de-reclamacoes");
     });
   }

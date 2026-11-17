@@ -87,7 +87,8 @@ type PropostaParaORetrato = { id: string; doc: ProposalDoc; sentAt?: string; cre
  * `retrato.test.ts` falha se um desses ficheiros mudar sem isto subir.
  */
 // 13 (17/11): o Livro de Reclamações no fecho da página (`textos-web.ts`).
-export const VERSAO_DO_RETRATO = 13;
+// 14 (17/11): o fim legal inteiro (`AvisoLegal`) e o nome do Livro saem de `textos-web.ts`.
+export const VERSAO_DO_RETRATO = 14;
 
 /** `proposta-web:retrato:<proposta>:<impressão>` — com a versão do retrato. */
 export function chaveDoRetrato(proposta: PropostaParaORetrato, idioma: IdiomaDaProposta): string {

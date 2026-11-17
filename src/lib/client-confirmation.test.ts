@@ -116,7 +116,9 @@ describe("buildClientConfirmation", () => {
     expect(noHtml.size).toBeGreaterThan(0);
     for (const cid of noHtml) expect(anexados, `«cid:${cid}» sem anexo`).toContain(cid);
     // E nenhuma imagem por endereço remoto.
-    expect(html).not.toMatch(/<img[^>]+src="https?:/);
+    // A única imagem por URL é o ícone do Livro de Reclamações do rodapé legal
+    // (instrução do dono, 17/11: PNG com URL absoluto). Tudo o resto viaja por `cid:`.
+    expect(semIconeDoLivro(html)).not.toMatch(/<img[^>]+src="https?:/);
   });
 
   it("builds an English contact confirmation (no reference, no steps)", () => {
@@ -326,3 +328,8 @@ describe("buildClientConfirmation — a saudação usa o primeiro nome", () => {
     expect(comprido.text).not.toContain("Carrelhas");
   });
 });
+
+/** O ícone do Livro de Reclamações do rodapé legal vai por URL, por instrução do dono (17/11). */
+function semIconeDoLivro(html: string): string {
+  return html.replace(/<img[^>]+livro-de-reclamacoes-sobre-(?:escuro|claro)\.png"[^>]*>/g, "");
+}

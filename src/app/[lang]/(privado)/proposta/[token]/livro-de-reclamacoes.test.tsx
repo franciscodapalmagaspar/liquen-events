@@ -15,6 +15,7 @@ vi.mock("@/lib/pdf-editorial/paleta-das-fotos", () => ({ paletaDasFotos: vi.fn(a
 import PropostaWeb from "./PropostaWeb";
 import { montarPropostaWeb } from "@/lib/proposta-web/modelo";
 import { textosWeb } from "@/lib/proposta-web/textos-web";
+import { ROTULO_DO_LIVRO } from "@/lib/legal/textos-legais";
 import { inventarioDeFotos } from "@/lib/proposta-fotos";
 import type { ConteudoWeb } from "@/lib/pdf-editorial/conteudo-web";
 import type { ProposalDoc } from "@/lib/proposal-doc";
@@ -98,9 +99,11 @@ describe("a proposta online leva ao Livro de Reclamações", () => {
     const html = renderToStaticMarkup(<PropostaWeb dados={dados} lang={idioma} datas="" />);
     const rodape = html.slice(html.indexOf('<footer class="pw-foot"'));
     expect(rodape).toContain('href="https://www.livroreclamacoes.pt/Inicio/"');
-    expect(rodape).toContain(
-      `aria-label="${t.livroReclamacoes.nome} (${t.livroReclamacoes.novaJanela})"`,
-    );
+    expect(rodape).toContain(`aria-label="${ROTULO_DO_LIVRO[idioma].rotulo}"`);
+    // E o resto do fim legal (17/11): o CNIACC, o Portal e as três ligações.
+    expect(rodape).toContain('href="https://www.cniacc.pt/"');
+    expect(rodape).toContain('href="https://www.consumidor.gov.pt/"');
+    expect(rodape).toContain("#cookies");
     expect(rodape).toContain('target="_blank"');
   });
 });

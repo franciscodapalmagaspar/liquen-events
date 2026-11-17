@@ -254,7 +254,9 @@ describe("POST /api/orcamento/[id]/mensagem — assinatura", () => {
     // O logótipo viaja com a mensagem: nada de imagens remotas.
     // A faixa da casa viaja COM a mensagem — nada de imagens remotas.
     expect(env.attachments?.some((a) => a.cid === "liquen-banner")).toBe(true);
-    expect(env.html).not.toMatch(/<img[^>]+src="https?:/);
+    // A única imagem por URL é o ícone do Livro de Reclamações do rodapé legal
+    // (instrução do dono, 17/11: PNG com URL absoluto). Tudo o resto viaja por `cid:`.
+    expect(semIconeDoLivro(env.html)).not.toMatch(/<img[^>]+src="https?:/);
   });
 
   it("deixou de escrever o rodapé à mão", async () => {
@@ -634,3 +636,8 @@ describe("POST /api/orcamento/[id]/mensagem — uma mensagem que não saiu não 
     expect(patch.status).toBe("em_revisao");
   });
 });
+
+/** O ícone do Livro de Reclamações do rodapé legal vai por URL, por instrução do dono (17/11). */
+function semIconeDoLivro(html: string): string {
+  return html.replace(/<img[^>]+livro-de-reclamacoes-sobre-(?:escuro|claro)\.png"[^>]*>/g, "");
+}

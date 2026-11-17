@@ -4,6 +4,7 @@ import { isAuthed } from "@/lib/admin-auth";
 import { getQuote, updateQuoteWith } from "@/lib/quotes-store";
 import { sendMail, esc, MAIL_TO } from "@/lib/mail";
 import { emailAoCliente } from "@/lib/email-assinatura";
+import { linguaDoPedido } from "@/lib/email-rodape-legal";
 import { assinaturaDeQuemEnvia } from "@/lib/email-quem-assina";
 import { pdfDoMapa } from "@/lib/orcamento/mapa-de-mesas-pdf";
 import type { ActivityEntry } from "@/lib/orcamento/types";
@@ -79,6 +80,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       html: `<p style="font-size:14px;line-height:1.7;color:#2a2620;white-space:pre-wrap">${esc(texto)}</p>`,
       texto,
       quem: { ...assinaturaDeQuemEnvia(request), destinatario: para },
+      // O rodapé legal (17/11) é do correio ao CLIENTE: vai quando o mapa
+      // segue para o casal do pedido, e não quando ela o muda para a quinta
+      // ou o catering — a esses, «recebeu porque fez um pedido» seria falso.
+      rodapeLegal:
+        para.toLowerCase() === (q.email ?? "").trim().toLowerCase()
+          ? { lingua: linguaDoPedido(q.locale), finalidade: "proposta" }
+          : null,
     });
 
     let enviado: { sent: boolean };

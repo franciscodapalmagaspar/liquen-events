@@ -1614,6 +1614,9 @@ async function POST_semMedida(
     // NOME da coisa, que é o que a etiqueta é.
     const pdfEmTexto = ["", `${t.anexoEtiqueta}: ${linkDoPdf}`];
 
+    // O rodapé legal (17/11): a língua da proposta, e a finalidade de quem
+    // recebe uma proposta — prepará-la e executá-la (`email-rodape-legal.ts`).
+    const rodapeLegal = { lingua: idioma === "en" ? "en" : "pt", finalidade: "proposta" } as const;
     const email = escrito
       ? emailAoCliente({
           /**
@@ -1645,15 +1648,18 @@ async function POST_semMedida(
            */
           texto: [escrito.texto, ...pdfEmTexto].join("\n"),
           quem,
+          rodapeLegal,
         })
       : corpoDoModelo
         ? emailAoCliente({
             html: `${corpoDoModelo}${cartaoDoPdf}`,
             texto: [textoDoCorpo(corpoDoModelo), ...pdfEmTexto].join("\n"),
             quem,
+            rodapeLegal,
           })
         : emailAoCliente({
             quem,
+            rodapeLegal,
             html: `<h2 style="font-size:18px;margin:0 0 12px">${esc(t.titulo)}</h2>
         <p style="font-size:14px;line-height:1.6">${esc(t.ola)} ${esc(doc.clientNames)},</p>
         ${mensagem ? `${paragrafosDaMensagem(mensagem)}\n        ` : ""}<p style="font-size:14px;line-height:1.6">${esc(t.intro)}</p>

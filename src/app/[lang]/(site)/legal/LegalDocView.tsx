@@ -50,7 +50,9 @@ export default function LegalDocView({
         <div className="mt-14 flex flex-col gap-12">
           {doc.sections.map((s, i) => (
             <AnimateIn key={s.heading} delay={staggerMs(i)}>
-              <div>
+              {/* `scroll-mt-32`: a ligação «Cookies» do rodapé (`#cookies`)
+                  não pode deixar o título por baixo do cabeçalho fixo. */}
+              <div id={s.id} className="scroll-mt-32">
                 <h2
                   className="text-foreground text-xl lg:text-2xl font-bold mb-4"
                   style={{ fontFamily: "var(--font-playfair)" }}

@@ -830,6 +830,10 @@ describe("a auditoria cobre TODAS as rotas de src/app/api", () => {
       // sem o segmento-token, e 204 sempre.
       "./erro-do-site/route",
       "./orcamento/route", // POST público + GET admin (ambos acima)
+      // O selo da armadilha de tempo do anti-spam (17/11). PÚBLICO: quem o
+      // pede é o formulário de quem visita, sem sessão. Não lê nem grava nada
+      // — só assina a hora com HMAC (`anti-spam/selo.ts`).
+      "./orcamento/selo/route",
       // A medição da Meta. É PÚBLICA de propósito: recebe os eventos que o
       // browser acabou de mandar ao pixel, e o browser não tem sessão nenhuma.
       // O que a protege não é autenticação — é a lista fechada de nomes de
@@ -912,6 +916,13 @@ describe("PUBLIC routes stay reachable without a session", () => {
     const fn = await handler("./health/route", "GET");
     const res = await fn(req("GET"), ctx());
     expect(res.status).toBe(200);
+  });
+
+  it("GET /api/orcamento/selo dá o selo sem sessão, e sem cache", async () => {
+    const fn = await handler("./orcamento/selo/route", "GET");
+    const res = await fn(req("GET"), ctx());
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toContain("no-store");
   });
 
   it("GET /api/admin/passkeys/entrada dá o desafio sem sessão nenhuma", async () => {

@@ -1,4 +1,5 @@
 import { esc } from "./mail";
+import { rodapeLegalDoEmail } from "./email-rodape-legal";
 import { longDate } from "./workdays";
 import { saudacaoDaCarta } from "./tratamento";
 
@@ -195,8 +196,6 @@ const TEXTOS = {
     casoNecessiteTexto:
       "Caso necessite de retificar alguma informação ou adicionar novos detalhes até lá, poderá responder diretamente a este e-mail ou contactar-nos através dos canais habituais.",
     cumprimentos: "Apresentamos os nossos melhores cumprimentos,",
-    porque: (ligacao: string) =>
-      `Líquen Events, Portugal. Recebeu este e-mail porque enviou um pedido de proposta em ${ligacao}.`,
   },
   en: {
     lang: "en",
@@ -233,8 +232,6 @@ const TEXTOS = {
     casoNecessiteTexto:
       "Should you need to correct any information or add further details in the meantime, you can reply directly to this email or contact us through the usual channels.",
     cumprimentos: "Kind regards,",
-    porque: (ligacao: string) =>
-      `Líquen Events, Portugal. You are receiving this email because you sent a proposal request at ${ligacao}.`,
   },
 } as const;
 
@@ -373,7 +370,14 @@ export function emailPedidoRecebido(d: DadosDoPedidoRecebido): {
     <p class="t2" style="margin:6px 0 0;font-size:17px;line-height:24px;color:#6e6e73;">${esc(subtitulo)}</p>`
     : "";
   const cargo = esc(d.casa.cargo ? `${d.casa.cargo}, Líquen Events` : "Líquen Events");
-  const ligacaoDoSite = `<a href="${site}" class="t3" style="color:#86868b;text-decoration:underline;">${esc(dominio)}</a>`;
+  // O rodapé legal de todo o correio ao cliente (17/11, `email-rodape-legal.ts`):
+  // proteção de dados, litígios, Livro de Reclamações e «Recebeu este e-mail porque…».
+  const legal = rodapeLegalDoEmail({
+    lingua: d.locale,
+    finalidade: "pedido",
+    base: d.casa.site,
+    modoEscuro: true,
+  });
 
   const html = `<!DOCTYPE html>
 <html lang="${t.lang}" xmlns="http://www.w3.org/1999/xhtml">
@@ -450,10 +454,10 @@ ${linhas}    </table>
 ${blocoDasRedes(d.imagens.redes)}  </td></tr>
 
 ${blocoDoBanner(d.imagens.banner, site)}  <!-- Rodapé legal -->
-  <tr><td class="pad" style="padding:28px 40px 48px;">
+  <tr><td class="pad" style="padding:4px 40px 48px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      <tr><td class="line" style="border-top:1px solid #d2d2d7;padding-top:16px;">
-        <p class="t3" style="margin:0;font-size:12px;line-height:17px;color:#86868b;">${t.porque(ligacaoDoSite)}</p>
+      <tr><td>
+${legal.html}
       </td></tr>
     </table>
   </td></tr>
@@ -496,7 +500,7 @@ ${blocoDoBanner(d.imagens.banner, site)}  <!-- Rodapé legal -->
     dominio,
     ...d.imagens.redes.map((r) => `${r.nome}: ${r.url}`),
     "",
-    t.porque(dominio),
+    legal.texto,
   ].join("\n");
 
   return { subject, html, text };

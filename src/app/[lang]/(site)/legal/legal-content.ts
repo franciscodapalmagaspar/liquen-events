@@ -11,6 +11,8 @@ import type { Locale } from "@/lib/i18n";
 
 export interface LegalSection {
   heading: string;
+  /** A âncora da secção, para as ligações do rodapé (`/privacidade#cookies`). */
+  id?: string;
   body: string[];
 }
 export interface LegalDoc {
@@ -130,6 +132,7 @@ function privacyPt(): LegalDoc {
         ],
       },
       {
+        id: "cookies",
         heading: "10. Cookies",
         body: [
           "Cookies estritamente necessários ao funcionamento, por exemplo «liquen-lang», que guarda o idioma escolhido, não requerem consentimento. A sua preferência de cookies é guardada no armazenamento local do navegador (localStorage), na chave «liquen-consent», e não num cookie.",
@@ -315,6 +318,7 @@ function privacyEn(): LegalDoc {
         ],
       },
       {
+        id: "cookies",
         heading: "10. Cookies",
         body: [
           "Strictly necessary cookies for the site to work, for example “liquen-lang”, which remembers your chosen language, do not require consent. Your cookie preference is stored in the browser's local storage (localStorage), under the key “liquen-consent”, not in a cookie.",

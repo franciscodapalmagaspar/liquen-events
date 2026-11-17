@@ -4,7 +4,7 @@ import type { FormaDaCelula } from "@/lib/proposta-web/mosaico";
 import PropostaWebViva from "./PropostaWebViva";
 import RevealText from "@/components/motion/RevealText";
 import { IconeInstagram, IconeLinkedIn } from "@/components/IconesDasRedes";
-import LivroDeReclamacoes from "@/components/LivroDeReclamacoes";
+import AvisoLegal from "@/components/AvisoLegal";
 import { fatorParaCobrir, sizesParaCobrir } from "@/lib/proposta-web/tamanhos";
 
 /**
@@ -674,16 +674,17 @@ export default function PropostaWeb({
             </a>
           ) : null}
         </div>
-        {/* O Livro de Reclamações Eletrónico (auditoria legal, 17/11): é
-            obrigatório em todas as páginas, e esta não monta o rodapé do
-            sítio. A mesma peça do rodapé, em silhueta clara, discreta, por
-            baixo das redes. É uma ligação, não um pedido: não fala com
-            ninguém enquanto não for tocada (`zero-rastreio.test.ts`). */}
-        <LivroDeReclamacoes
-          rotulo={t.livroReclamacoes.nome}
-          novaJanela={t.livroReclamacoes.novaJanela}
-          altura={36}
-          className="pw-livro"
+        {/* O fim legal (17/11): o Livro de Reclamações, a resolução de
+            litígios e as ligações legais são obrigatórios em todas as
+            páginas, e esta não monta o rodapé do sítio. A mesma peça do
+            rodapé (`AvisoLegal.tsx`), em silhueta clara, discreta, por baixo
+            das redes. São ligações, não pedidos: não falam com ninguém
+            enquanto não forem tocadas (`zero-rastreio.test.ts`). */}
+        <AvisoLegal
+          lingua={lang === "en" ? "en" : "pt"}
+          sobre="escuro"
+          alturaDoLivro={36}
+          className="pw-aviso-legal"
         />
       </footer>
     </div>

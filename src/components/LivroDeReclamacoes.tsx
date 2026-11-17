@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { SITE } from "@/lib/site";
+import { ROTULO_DO_LIVRO, type Lingua } from "@/lib/legal/textos-legais";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -19,6 +20,10 @@ import { SITE } from "@/lib/site";
  *
  * Por isso a ligação saiu do `Footer.tsx` para aqui, e o rodapé passou a usar
  * esta mesma peça: um endereço (`SITE.livroReclamacoes`), um logótipo, um nome.
+ *
+ * Desde o documento de 17/11 (`docs/LEGAL-FORMULARIO.md`) vive dentro do
+ * `AvisoLegal.tsx`, com a resolução de litígios e as ligações legais: é essa
+ * a peça que as páginas montam. O nome vem de `textos-legais.ts`.
  *
  * ── PORQUE É QUE NÃO É `SafeImage` NEM `next/image` ────────────────────────
  * Tem de poder entrar no 404 global, onde um componente de cliente vai para o
@@ -40,17 +45,14 @@ const LARGURA = 1012;
 const ALTURA = 408;
 
 export default function LivroDeReclamacoes({
-  rotulo,
-  novaJanela,
+  lingua,
   sobre = "escuro",
   altura = 40,
   className,
   style,
 }: {
-  /** O nome, na língua da página (`t.footer.livroReclamacoes`). */
-  rotulo: string;
-  /** «nova janela», na língua da página (`t.common.newWindow`). */
-  novaJanela: string;
+  /** A língua da página: dá o nome e o `aria-label` do documento de 17/11. */
+  lingua: Lingua;
   sobre?: "escuro" | "claro";
   /** Altura do logótipo, em px. */
   altura?: number;
@@ -62,8 +64,8 @@ export default function LivroDeReclamacoes({
       href={SITE.livroReclamacoes}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={`${rotulo} (${novaJanela})`}
-      title={rotulo}
+      aria-label={ROTULO_DO_LIVRO[lingua].rotulo}
+      title={ROTULO_DO_LIVRO[lingua].nome}
       className={className}
       style={{ display: "inline-flex", alignItems: "center", ...style }}
     >
