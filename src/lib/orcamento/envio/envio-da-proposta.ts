@@ -1,6 +1,10 @@
 import type { Quote } from "@/lib/orcamento/types";
 import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
-import type { DocumentoPreparado } from "./documento-do-envio";
+import type { ProposalDoc } from "@/lib/proposal-doc";
+
+/** O documento depois de preparado (`documento-do-envio.ts`): a validade já
+ *  lá está ESCRITA — é a data que o PDF mostra e a que a proposta grava. */
+export type DocumentoPreparado = ProposalDoc & { validUntil: string };
 
 /**
  * O que todas as etapas do envio sabem: de que pedido é, o pedido, o

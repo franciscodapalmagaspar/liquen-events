@@ -20,7 +20,7 @@ import { aquecerDerivadasDaCapa } from "@/lib/derivadas";
  * para a visita, como era antes.
  */
 export function comecarAAquecerACapa(coverImages: readonly string[] | undefined): Promise<void> {
-  return aquecerDerivadasDaCapa([...(coverImages ?? [])]).then(
+  return aquecerDerivadasDaCapa(coverImages ?? []).then(
     () => undefined,
     () => undefined,
   );

@@ -11,13 +11,15 @@
  * Corre SEMPRE que o clone tem esse commit: aqui, num clone inteiro feito
  * enquanto o ramo existir, e no CI — o checkout lá é raso, mas o passo «A rota
  * antiga da fase 5» (`.github/workflows/ci.yml`) traz só esse commit. Depois
- * de o ramo entrar por squash e desaparecer, não há rota antiga a tirar, e
- * salta — dito no nome do teste. `COMPARAR_COM_A_ROTA_ANTIGA=0`
+ * de o ramo entrar por squash, o GitHub continua a servir o commit (pelo
+ * `refs/pull/…`): é por isso que o fim vem do prazo, e não da falta do commit.
+ * Num clone sem o commit, salta — dito no nome do teste. `COMPARAR_COM_A_ROTA_ANTIGA=0`
  * desliga-o.
  *
- * TEM PRAZO, e está escrito: a rota antiga importa os módulos de HOJE, e um
- * dia um deles muda de forma e ela deixa de carregar, ou responde diferente
- * sem que a nova tenha mudado. A mensagem da falha di-lo ({@link SE_FALHAR}):
+ * TEM PRAZO, e cumpre-se sozinho ({@link PRAZO}): depois desse dia o teste
+ * falha a pedir o desvio 8. Antes disso pode acabar mais cedo — a rota antiga
+ * importa os módulos de HOJE, e um dia um deles muda de forma e ela deixa de
+ * carregar, ou responde diferente sem que a nova tenha mudado. A mensagem da falha di-lo ({@link SE_FALHAR}):
  * esse dia é o do desvio 8 de `docs/ESTRUTURA-DO-CODIGO.md` — o retrato
  * reduz-se aos casos de fronteira e este ficheiro apaga-se no mesmo PR; não se
  * «conserta» a rota antiga.
@@ -72,6 +74,14 @@ vi.mock("@/lib/proposal-pdf-guardado", async () =>
   (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/proposal-pdf-guardado"](),
 );
 
+/**
+ * O PRAZO da prova: depois deste dia ela já não corre — falha, a dizer que é
+ * altura do desvio 8. Não salta em silêncio: um prazo que ninguém vê passar
+ * não é um prazo. Mudá-lo é uma decisão, e diz-se no PR.
+ */
+const PRAZO = "2027-01-31";
+const PASSOU_O_PRAZO = new Date().toISOString().slice(0, 10) > PRAZO;
+
 /** O commit de caracterização (a rota é a mesma no pai, `bfd82ccf`). */
 const COMMIT_DA_CARACTERIZACAO = "25180ccd";
 /** A rota, relativa à raiz do repositório (o que o `git show` pede). */
@@ -118,6 +128,13 @@ describe.skipIf(!HA_ROTA_ANTIGA)(
     let pasta = "";
 
     beforeAll(async () => {
+      if (PASSOU_O_PRAZO) {
+        throw new Error(
+          `O prazo desta prova (${PRAZO}) passou. É o dia do desvio 8 de ` +
+            "docs/ESTRUTURA-DO-CODIGO.md: reduzir o retrato aos casos de fronteira, " +
+            "apagar este ficheiro e o passo «A rota antiga da fase 5» do CI.",
+        );
+      }
       const antiga = execFileSync("git", ["show", `${COMMIT_DA_CARACTERIZACAO}:${ROTA}`], {
         cwd: RAIZ,
       });

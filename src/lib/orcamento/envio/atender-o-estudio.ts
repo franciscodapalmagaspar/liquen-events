@@ -7,7 +7,7 @@ import type { CorpoLido } from "./ler-o-corpo";
 import { guardasBaratas } from "./guardas-baratas";
 import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
-import { recusado, SEGUE, segue, type Desfecho, type Passo } from "./passo";
+import { paraComRecusa, SEGUE, segue, type Desfecho, type Passo } from "./passo";
 import {
   avisarQueSegueComFotosAMenos,
   perguntaDasFotos,
@@ -89,7 +89,7 @@ export interface Contexto {
  * mais uma margem — se ela morrer a meio, vence.
  */
 const VALIDADE_DO_TRINCO_MS = (TECTO_DO_ENVIO_S + 15) * 1000;
-const A_SER_ENVIADA = recusado(409, {
+const A_SER_ENVIADA = paraComRecusa(409, {
   error:
     "Esta proposta já está a ser enviada (carregou duas vezes, ou noutro separador). Espere uns segundos: se não aparecer como enviada, volte a carregar em enviar.",
   aEnviar: true,
@@ -104,7 +104,7 @@ export async function atenderOEstudio(c: Contexto): Promise<Desfecho> {
   const r = await comTrinco(`envio-da-proposta:${c.pedidoId}`, VALIDADE_DO_TRINCO_MS, () =>
     enviar(c),
   );
-  return r.ok ? r.valor : A_SER_ENVIADA;
+  return r.ok ? r.valor : A_SER_ENVIADA.desfecho;
 }
 
 /** Etapas 3 a 5, e o PDF como resposta. O rascunho não trava: é onde ela vê o que falta. */
@@ -112,6 +112,7 @@ async function preVisualizar(c: Contexto): Promise<Desfecho> {
   const preparado = await prepararEDesenhar(c, {
     trava: (envio) => (c.corpo.rascunho ? SEGUE : travaDoPdfFinal(envio)),
     segundaPassagem: false,
+    rascunho: c.corpo.rascunho,
   });
   if (!preparado.segue) return preparado.desfecho;
   const { envio, desenho, chaveDoQueChegou } = preparado.valor;
@@ -142,6 +143,7 @@ async function enviar(c: Contexto): Promise<Desfecho> {
         chaveDoQueChegou,
       }),
     segundaPassagem: true,
+    rascunho: false,
   });
   if (!preparado.segue) return preparado.desfecho;
   const { envio, desenho } = preparado.valor;
@@ -223,10 +225,15 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   };
 }
 
-/** O que muda entre as duas portas: a trava, e se o desenho pode repetir. */
+/**
+ * O que muda entre as duas portas — e SÓ aqui: a trava, se o desenho pode
+ * repetir, e se sai marcado «RASCUNHO» (só a pré-visualização o pede; o envio
+ * nunca manda um rascunho ao casal). `portas.test.ts` prende cada uma.
+ */
 interface Porta {
   trava: (envio: EnvioDaProposta, chaveDoQueChegou: string) => Passo | Promise<Passo>;
   segundaPassagem: boolean;
+  rascunho: boolean;
 }
 
 /** Etapas 3 a 5: o que recusa antes de desenhar, e o desenho. */
@@ -247,7 +254,7 @@ async function prepararEDesenhar(
   const desenho = await desenharOPdf({
     ...envio,
     segundaPassagem: porta.segundaPassagem,
-    rascunho: corpo.rascunho,
+    rascunho: porta.rascunho,
     chaveDoQueChegou,
     resta: c.resta,
   });

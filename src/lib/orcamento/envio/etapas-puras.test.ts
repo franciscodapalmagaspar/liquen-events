@@ -13,7 +13,12 @@ import {
   perguntaDasFotos,
   perguntaDosCortes,
 } from "./perguntas-antes-do-envio";
-import { montarAProposta, propostasAnteriores, versaoDaProposta } from "./a-proposta-que-se-grava";
+import {
+  comAVersao,
+  montarAProposta,
+  propostasAnteriores,
+  versaoDaProposta,
+} from "./a-proposta-que-se-grava";
 import { prepararODocumento } from "./documento-do-envio";
 import type { EmailEmoldurado } from "./email-da-proposta";
 import type { DocumentoPreparado } from "./documento-do-envio";
@@ -156,6 +161,36 @@ describe("o documento e a linha que se grava", () => {
       { ...primeira, id: "v4", versaoNumero: 4 },
     ]);
     expect(versaoDaProposta(mudada, outras).versaoNumero).toBe(5);
+  });
+
+  it("comAVersao: a linha carimbada, e as irmãs anteriores (sem ela, a mais recente primeiro)", () => {
+    const linha = montarAProposta({
+      pedidoId: "q",
+      quote: { id: "q", email: "" } as Quote,
+      doc,
+      idioma: "pt",
+      dinheiro: dinheiroDaProposta(doc),
+      pdf: Buffer.from("x"),
+      porEnviar: null,
+    });
+    const velha = {
+      ...linha,
+      id: "v1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      versaoNumero: 1,
+      total: 1,
+    };
+    const nova = {
+      ...linha,
+      id: "v2",
+      createdAt: "2026-02-01T00:00:00.000Z",
+      versaoNumero: 2,
+      total: 2,
+    };
+    const { proposal, anteriores } = comAVersao(linha, [velha, linha, nova]);
+    expect(anteriores.map((p) => p.id)).toEqual(["v2", "v1"]);
+    expect(proposal).toEqual({ ...linha, ...versaoDaProposta(linha, anteriores) });
+    expect(proposal.versaoNumero).toBe(3);
   });
 
   it("as anteriores vêm da mais recente para a mais antiga, e sem a própria", () => {

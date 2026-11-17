@@ -38,14 +38,9 @@ export function segue<T>(valor: T): Passo<T> {
   return { segue: true, valor };
 }
 
-/** O desfecho de uma recusa: a proposta não pode seguir assim (400, 409, 413, 422). */
-export function recusado(status: Recusa["status"], corpo: CorpoDaRecusa): Desfecho {
-  return { tipo: "recusa", recusa: { status, corpo } };
-}
-
-/** Pára com uma recusa. */
+/** Pára com uma recusa: a proposta não pode seguir assim (400, 409, 413, 422). */
 export function paraComRecusa(status: Recusa["status"], corpo: CorpoDaRecusa): Paragem {
-  return { segue: false, desfecho: recusado(status, corpo) };
+  return { segue: false, desfecho: { tipo: "recusa", recusa: { status, corpo } } };
 }
 
 /** Pára: a base não deixou (503). */

@@ -7,13 +7,13 @@ import {
 } from "@/lib/proposal-doc";
 import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
 import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import type { DocumentoPreparado } from "./envio-da-proposta";
 
 /**
  * Etapa 3 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): do documento que
  * chegou ao documento que se desenha. Pura — não lê nem grava nada.
  */
-/** O documento depois de preparado: a validade já lá está ESCRITA. */
-export type DocumentoPreparado = ProposalDoc & { validUntil: string };
+export type { DocumentoPreparado };
 
 export interface DocumentoDoEnvio {
   /** A chave do que foi visto — ver a nota longa em {@link prepararODocumento}. */

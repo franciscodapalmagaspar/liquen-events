@@ -109,15 +109,7 @@ const CAMPO_DA_COLUNA: Readonly<Record<string, keyof Proposal>> = {
   versao_em: "versaoEm",
 };
 /** Tudo o que se pode tirar, quando não se sabe o que tirar. */
-const TUDO_O_QUE_E_RECENTE: readonly (keyof Proposal)[] = [
-  "doc",
-  "pdfSha256",
-  "pdfBytes",
-  "idioma",
-  "versaoSelo",
-  "versaoNumero",
-  "versaoEm",
-];
+const TUDO_O_QUE_E_RECENTE: readonly (keyof Proposal)[] = Object.values(CAMPO_DA_COLUNA);
 
 /**
  * Tira uma coluna de cada vez, até a base aceitar. Devolve as colunas que
