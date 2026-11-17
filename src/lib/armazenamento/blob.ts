@@ -1,5 +1,4 @@
 import "server-only";
-import { copy, del, head, issueSignedToken, presignUrl, put } from "@vercel/blob";
 import { log } from "@/lib/logger";
 import { idDaLoja } from "./baldes";
 import { registar, travao } from "./uso";
@@ -20,6 +19,17 @@ import type { Recusa } from "./tectos";
  * nossas, sem a mensagem crua do SDK (que pode trazer o endereço com a
  * assinatura). O store é PRIVADO: todas as escritas levam `access: "private"`.
  */
+
+/**
+ * O SDK só se carrega quando se fala mesmo com o Blob (revisão de 17/11,
+ * n.º 12): sem o token, nenhuma destas portas é chamada e o `@vercel/blob`
+ * (e o `undici` que ele traz) não pesa no arranque de nenhuma função.
+ */
+let oSdk: Promise<typeof import("@vercel/blob")> | null = null;
+function sdk(): Promise<typeof import("@vercel/blob")> {
+  oSdk ??= import("@vercel/blob");
+  return oSdk;
+}
 
 export class BlobRecusado extends Error {
   constructor(readonly motivo: Recusa) {
@@ -93,7 +103,9 @@ export async function porNoBlob(
   opcoes: { contentType?: string; sobrescrever: boolean; cacheSegundos?: number },
 ): Promise<{ etag: string | null }> {
   return comTravao({ avancadas: 1, bytes: bytes.byteLength }, "put", async () => {
-    const r = await put(chave, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), {
+    const r = await (
+      await sdk()
+    ).put(chave, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), {
       access: "private",
       token: token(),
       addRandomSuffix: false,
@@ -114,7 +126,9 @@ export async function cabecalhoNoBlob(
 ): Promise<{ tamanho: number; tipo: string; etag: string | null } | null> {
   try {
     return await comTravao({ simples: 1 }, "head", async () => {
-      const r = await head(chave, { token: token(), abortSignal: AbortSignal.timeout(TEMPO_MS) });
+      const r = await (
+        await sdk()
+      ).head(chave, { token: token(), abortSignal: AbortSignal.timeout(TEMPO_MS) });
       return { tamanho: r.size, tipo: r.contentType, etag: r.etag ?? null };
     });
   } catch (e) {
@@ -128,7 +142,9 @@ export async function apagarDoBlob(chaves: readonly string[], bytesQueSaem = 0):
   if (chaves.length === 0) return;
   try {
     for (let i = 0; i < chaves.length; i += 100) {
-      await del(chaves.slice(i, i + 100), {
+      await (
+        await sdk()
+      ).del(chaves.slice(i, i + 100), {
         token: token(),
         abortSignal: AbortSignal.timeout(TEMPO_MS),
       });
@@ -146,7 +162,9 @@ export async function copiarNoBlob(
   opcoes: { tamanho: number; sobrescrever: boolean; contentType?: string; cacheSegundos?: number },
 ): Promise<void> {
   await comTravao({ avancadas: 1, bytes: opcoes.tamanho }, "copy", async () => {
-    await copy(de, para, {
+    await (
+      await sdk()
+    ).copy(de, para, {
       access: "private",
       token: token(),
       addRandomSuffix: false,
@@ -243,8 +261,8 @@ export const MAX_VALIDADE_MS = 24 * 3600_000;
 async function testemunhoValido(): Promise<NonNullable<typeof testemunho>> {
   if (testemunho && testemunho.validUntil - Date.now() > MAX_VALIDADE_MS + 60_000)
     return testemunho;
-  testemunho = await comTravao({ avancadas: 1 }, "signed-token", () =>
-    issueSignedToken({
+  testemunho = await comTravao({ avancadas: 1 }, "signed-token", async () =>
+    (await sdk()).issueSignedToken({
       token: token(),
       pathname: "*",
       operations: ["get"],
@@ -267,7 +285,9 @@ export async function urlDeLeituraDoBlob(
 ): Promise<string> {
   const t = await testemunhoValido();
   return comTravao({ simples: 1, transferencia: Math.max(1, tamanho) }, "presign", async () => {
-    const { presignedUrl } = await presignUrl(t, {
+    const { presignedUrl } = await (
+      await sdk()
+    ).presignUrl(t, {
       operation: "get",
       pathname: chave,
       access: "private",
