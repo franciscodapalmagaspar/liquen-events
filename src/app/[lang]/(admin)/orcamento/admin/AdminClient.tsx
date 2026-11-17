@@ -92,6 +92,8 @@ import { ListaDosPedidos } from "./_pedidos/ListaDosPedidos";
 import { BarraDaSeleccao } from "./_pedidos/BarraDaSeleccao";
 import { PastilhasDaLista } from "./_pedidos/PastilhasDaLista";
 import { ControlosDaLista } from "./_pedidos/ControlosDaLista";
+import { accoesDosPedidos } from "./_pedidos/accoes-dos-pedidos";
+import { OPedidoAberto } from "./_pedidos/painel/pedido-aberto";
 import { PeDoPainel } from "./_pedidos/painel/PeDoPainel";
 import { TopoDoPainel } from "./_pedidos/painel/TopoDoPainel";
 import { RascunhoPorRepor } from "./_pedidos/painel/RascunhoPorRepor";
@@ -124,6 +126,7 @@ import { ACOES_DE_PEDIDOS } from "./_casca/titulos-das-vistas";
 import { STATUS_OPTIONS } from "./_pedidos/estado-do-pedido";
 import { ARQUIVAR_SEM_PERGUNTAR, LIST_PAGE_SIZE } from "./_pedidos/pele-da-lista";
 import { detailNextAction, type DetailTab } from "./_pedidos/separadores-do-painel";
+import { comPedidoAlterado, comPedidoSubstituido } from "@/lib/orcamento/pedidos/lista-de-pedidos";
 
 /** A chave da saída do painel do pedido — há um painel só, e a chave é uma. */
 const SAIDA_DO_PAINEL = "painel-do-pedido";
@@ -247,6 +250,9 @@ export default function AdminClient({
     [quotes],
   );
   const [selected, setSelected] = useState<Quote | null>(null);
+  // O que os filhos recebem em vez do `setQuotes`/`setSelected` — ver
+  // `_pedidos/accoes-dos-pedidos.ts`.
+  const { substituirPedido, alterarPedido } = accoesDosPedidos(setQuotes, setSelected);
   // A lista leve de propostas, SÓ OUVIDA (sem pedido novo): a fase do pedido
   // aberto lê dela o total a pagar da proposta que conta, como o dossiê.
   const propostasLeves = usePropostasLevesSoOuvir();
@@ -978,8 +984,7 @@ export default function AdminClient({
   const absorverDoServidor = useCallback(
     (updated: Quote) => {
       const antes = selectedRef.current;
-      setQuotes((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
-      setSelected((prev) => (prev?.id === updated.id ? updated : prev));
+      substituirPedido(updated);
       if (!antes || antes.id !== updated.id) return;
       setEditStatus((v) => (v === antes.status ? updated.status : v));
       setEditPrice((v) => (v === textoDoPreco(antes) ? textoDoPreco(updated) : v));
@@ -1036,7 +1041,7 @@ export default function AdminClient({
    */
   const marcarDesfecho = useCallback(
     (actualizado: Quote) => {
-      setQuotes((prev) => prev.map((q) => (q.id === actualizado.id ? actualizado : q)));
+      setQuotes((prev) => comPedidoSubstituido(prev, actualizado));
       if (selected?.id !== actualizado.id) return;
       setSelected(actualizado);
       setEditStatus(actualizado.status);
@@ -1072,7 +1077,7 @@ export default function AdminClient({
       if (q.status === status) return;
       const de = STATUS_OPTIONS.find((o) => o.id === q.status)?.label ?? q.status;
       const para = STATUS_OPTIONS.find((o) => o.id === status)?.label ?? status;
-      setQuotes((prev) => prev.map((x) => (x.id === q.id ? { ...x, status } : x)));
+      setQuotes((prev) => comPedidoAlterado(prev, q.id, { status }));
       const entrada: ActivityEntry = {
         id: randomId(),
         at: new Date().toISOString(),
@@ -1082,7 +1087,7 @@ export default function AdminClient({
       };
       const oQue = `mudar «${q.name}» para «${para}»`;
       const voltar = (mensagem: string) => {
-        setQuotes((prev) => prev.map((x) => (x.id === q.id ? { ...x, status: q.status } : x)));
+        setQuotes((prev) => comPedidoAlterado(prev, q.id, { status: q.status }));
         toast(`${mensagem} O estado ficou «${de}».`, "error");
       };
       let res: Response;
@@ -2262,7 +2267,7 @@ export default function AdminClient({
       return { ok: false, porque: `A resposta veio incompleta — não deu para ${oQue}. Repete.` };
     }
     completos.current.add(inteiro.id);
-    setQuotes((prev) => prev.map((x) => (x.id === inteiro.id ? inteiro : x)));
+    setQuotes((prev) => comPedidoSubstituido(prev, inteiro));
     return { ok: true, quote: inteiro };
   }
 
@@ -2766,8 +2771,7 @@ export default function AdminClient({
     }
     const updated = corpo as Quote | null;
     if (updated?.id) {
-      setQuotes((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-      setSelected((prev) => (prev?.id === updated.id ? updated : prev));
+      substituirPedido(updated);
     }
     return true;
   }
@@ -2797,7 +2801,7 @@ export default function AdminClient({
    * estado novo ao gravar o resto.
    */
   function refletirEstadoDoEstudio(id: string, status: QuoteStatus) {
-    setQuotes((prev) => prev.map((x) => (x.id === id ? { ...x, status } : x)));
+    setQuotes((prev) => comPedidoAlterado(prev, id, { status }));
     const aberto = selectedRef.current;
     if (aberto?.id === id) {
       const anterior = aberto.status;
@@ -2807,8 +2811,7 @@ export default function AdminClient({
   }
 
   function refletirPedidoReposto(q: Quote) {
-    setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-    setSelected((prev) => (prev?.id === q.id ? q : prev));
+    substituirPedido(q);
     preencherCom(q);
     escritoNoServidor.current = {
       id: q.id,
@@ -2953,7 +2956,7 @@ export default function AdminClient({
         dizer(porque, "error");
         return { ok: false, porque };
       }
-      setQuotes((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
+      setQuotes((prev) => comPedidoSubstituido(prev, updated));
       setSelected(updated);
       // Re-sync EVERY edit field to what the server persisted, so the form can
       // never sit dirty on a value the user did not type (e.g. price formatting).
@@ -3815,9 +3818,9 @@ export default function AdminClient({
             userName={userName}
             falhaDosPedidos={falhaDosPedidos}
             quotes={quotes}
-            setQuotes={setQuotes}
+            substituirPedido={substituirPedido}
             nomesDosPedidos={nomesDosPedidos}
-            setSelected={setSelected}
+            alterarPedido={alterarPedido}
             setEditPrice={setEditPrice}
             view={view}
             setView={setView}
@@ -4016,89 +4019,78 @@ export default function AdminClient({
                       } as React.CSSProperties
                     }
                   >
-                    <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
-                      <CabecalhoDoPainel
-                        setQuotes={setQuotes}
-                        selected={selected}
-                        setSelected={setSelected}
-                        setAApagar={setAApagar}
-                        toast={toast}
-                        detailTitleRef={detailTitleRef}
-                        locale={locale}
-                        closeDetail={closeDetail}
-                        duplicateQuote={duplicateQuote}
-                      />
+                    <OPedidoAberto
+                      selected={selected}
+                      edicao={edicao}
+                      userName={userName}
+                      locale={locale}
+                      toast={toast}
+                      setQuotes={setQuotes}
+                      setSelected={setSelected}
+                      abrirDetailTab={abrirDetailTab}
+                      gestaoRef={gestaoRef}
+                      toolsRef={toolsRef}
+                      appendActivity={appendActivity}
+                      refletirEstadoDoEstudio={refletirEstadoDoEstudio}
+                      activeQuotes={activeQuotes}
+                    >
+                      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+                        <CabecalhoDoPainel
+                          setAApagar={setAApagar}
+                          detailTitleRef={detailTitleRef}
+                          closeDetail={closeDetail}
+                          duplicateQuote={duplicateQuote}
+                        />
 
-                      <RascunhoPorRepor
-                        rascunhoPorRepor={rascunhoPorRepor}
-                        reporRascunho={reporRascunho}
-                        descartarRascunho={descartarRascunho}
-                      />
+                        <RascunhoPorRepor
+                          rascunhoPorRepor={rascunhoPorRepor}
+                          reporRascunho={reporRascunho}
+                          descartarRascunho={descartarRascunho}
+                        />
 
-                      {/* Tudo à vista: ciclo de vida, próxima ação, o formulário de
+                        {/* Tudo à vista: ciclo de vida, próxima ação, o formulário de
                         gestão sempre presente e as ferramentas em separadores logo
                         abaixo — nada fica escondido atrás de revelações. */}
-                      <div className="mx-auto flex w-full max-w-3xl flex-col gap-[var(--bo-gap-vista)] px-3.5 py-3.5 sm:px-7 sm:py-8">
-                        <TopoDoPainel
-                          edicao={edicao}
-                          userName={userName}
-                          selected={selected}
-                          propostasLeves={propostasLeves}
-                          marcadoNoPainel={marcadoNoPainel}
-                          setMarcadoNoPainel={setMarcadoNoPainel}
-                          abrirDetailTab={abrirDetailTab}
-                          gestaoRef={gestaoRef}
-                          toolsRef={toolsRef}
-                          marcarDesfecho={marcarDesfecho}
-                          recarregarPedido={recarregarPedido}
-                        />
+                        <div className="mx-auto flex w-full max-w-3xl flex-col gap-[var(--bo-gap-vista)] px-3.5 py-3.5 sm:px-7 sm:py-8">
+                          <TopoDoPainel
+                            propostasLeves={propostasLeves}
+                            marcadoNoPainel={marcadoNoPainel}
+                            setMarcadoNoPainel={setMarcadoNoPainel}
+                            marcarDesfecho={marcarDesfecho}
+                            recarregarPedido={recarregarPedido}
+                          />
 
-                        <GestaoDoPedido
-                          edicao={edicao}
-                          setQuotes={setQuotes}
-                          selected={selected}
-                          setSelected={setSelected}
-                          ganhoSemProposta={ganhoSemProposta}
-                          escolherEstado={escolherEstado}
-                          devolvidoAqui={devolvidoAqui}
-                          emailSugerido={emailSugerido}
-                          gestaoRef={gestaoRef}
-                          allTags={allTags}
-                        />
+                          <GestaoDoPedido
+                            ganhoSemProposta={ganhoSemProposta}
+                            escolherEstado={escolherEstado}
+                            devolvidoAqui={devolvidoAqui}
+                            emailSugerido={emailSugerido}
+                            allTags={allTags}
+                          />
 
-                        <ContactoDoCliente selected={selected} toast={toast} />
+                          <ContactoDoCliente />
 
-                        <FerramentasDoPedido
-                          edicao={edicao}
-                          userName={userName}
-                          setQuotes={setQuotes}
-                          selected={selected}
-                          setSelected={setSelected}
-                          detailTab={detailTab}
-                          detailTabsVisitados={detailTabsVisitados}
-                          abrirDetailTab={abrirDetailTab}
-                          toolsRef={toolsRef}
-                          gavetaDoPlano={gavetaDoPlano}
-                          gavetaDoHistorico={gavetaDoHistorico}
-                          appendActivity={appendActivity}
-                          refletirEstadoDoEstudio={refletirEstadoDoEstudio}
-                          activeQuotes={activeQuotes}
-                        />
-                      </div>
-                      {/* A aresta que diz «há mais por baixo» — F-09 da auditoria. Última
+                          <FerramentasDoPedido
+                            detailTab={detailTab}
+                            detailTabsVisitados={detailTabsVisitados}
+                            gavetaDoPlano={gavetaDoPlano}
+                            gavetaDoHistorico={gavetaDoHistorico}
+                          />
+                        </div>
+                        {/* A aresta que diz «há mais por baixo» — F-09 da auditoria. Última
                           filha do que rola, de propósito: é o `sticky` que a faz aparecer e
                           desaparecer sozinha, sem uma linha de JavaScript a ouvir o scroll.
                           O porquê inteiro está em `globals.css`, na regra. */}
-                      <div className="bo-ha-mais-abaixo" aria-hidden="true" />
-                    </div>
+                        <div className="bo-ha-mais-abaixo" aria-hidden="true" />
+                      </div>
 
-                    <PeDoPainel
-                      edicao={edicao}
-                      saving={saving}
-                      isDirty={isDirty}
-                      gravacao={gravacao}
-                      guardarAgora={guardarAgora}
-                    />
+                      <PeDoPainel
+                        saving={saving}
+                        isDirty={isDirty}
+                        gravacao={gravacao}
+                        guardarAgora={guardarAgora}
+                      />
+                    </OPedidoAberto>
                   </div>
                 </>
               ) : null}

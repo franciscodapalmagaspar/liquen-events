@@ -2,25 +2,20 @@
 
 import { contractedAmounts } from "@/lib/orcamento/dossier";
 import { type SeparadorDoPedido } from "@/lib/orcamento/pedidos/proxima-accao";
-import { type Quote } from "@/lib/orcamento/types";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
 import { eur } from "../../util";
-import { DETAIL_TABS, type DetailTab } from "../separadores-do-painel";
+import { DETAIL_TABS } from "../separadores-do-painel";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /** Os três separadores do pedido como cartões, com o contador de cada um e as
  *  setas do teclado (o padrão «tablist» do WAI-ARIA). (Saíram das ferramentas
  *  do pedido na fase 7 da estrutura do código, tal e qual.) */
 export interface SeparadoresDoPedidoProps {
-  selected: Quote;
   detailTab: SeparadorDoPedido;
-  abrirDetailTab: (tab: DetailTab) => void;
 }
 
-export function SeparadoresDoPedido({
-  selected,
-  detailTab,
-  abrirDetailTab,
-}: SeparadoresDoPedidoProps) {
+export function SeparadoresDoPedido({ detailTab }: SeparadoresDoPedidoProps) {
+  const { selected, abrirDetailTab } = usePedidoAberto();
   return (
     <>
       {/* Section tabs as cards — Arrow keys move between tabs

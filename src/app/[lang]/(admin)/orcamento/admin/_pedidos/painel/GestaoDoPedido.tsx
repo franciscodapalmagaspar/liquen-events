@@ -1,15 +1,14 @@
 "use client";
 
-import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import { formatPrice } from "@/lib/orcamento/pricing";
-import { type Quote, type QuoteStatus } from "@/lib/orcamento/types";
+import { type QuoteStatus } from "@/lib/orcamento/types";
 import NotaDaProposta from "../../NotaDaProposta";
 import { FollowUpField, TagsField } from "../../lazy";
 import { SectionCard } from "../../ui";
-import { type EdicaoDoPedido } from "../useEdicaoDoPedido";
 import { FactosDoEvento } from "./FactosDoEvento";
 import { CamposDoPedido } from "./CamposDoPedido";
 import { ContactosDoPedido } from "./ContactosDoPedido";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /**
  * A GESTÃO DO PEDIDO — o formulário de trabalho do painel, sempre à vista:
@@ -18,30 +17,21 @@ import { ContactosDoPedido } from "./ContactosDoPedido";
  * `AdminClient.tsx` na fase 7 de `docs/ESTRUTURA-DO-CODIGO.md`, tal e qual.)
  */
 export interface GestaoDoPedidoProps {
-  edicao: EdicaoDoPedido;
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
-  selected: Quote;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
   ganhoSemProposta: string | null;
   escolherEstado: (novo: QuoteStatus) => void;
   devolvidoAqui: { quoteId: string; endereco: string } | null;
   emailSugerido: string | null;
-  gestaoRef: RefObject<HTMLDivElement | null>;
   allTags: string[];
 }
 
 export function GestaoDoPedido({
-  edicao,
-  setQuotes,
-  selected,
-  setSelected,
   ganhoSemProposta,
   escolherEstado,
   devolvidoAqui,
   emailSugerido,
-  gestaoRef,
   allTags,
 }: GestaoDoPedidoProps) {
+  const { selected, edicao, gestaoRef, alterarOAberto } = usePedidoAberto();
   const { editNotes, setEditNotes, editStatus, editLostReason, setEditLostReason } = edicao;
   return (
     <>
@@ -50,20 +40,11 @@ export function GestaoDoPedido({
       <div ref={gestaoRef} className="scroll-mt-24">
         <SectionCard eyebrow="Gestão do pedido" padding="md">
           <div className="flex flex-col gap-5">
-            <FactosDoEvento selected={selected} />
+            <FactosDoEvento />
 
-            <CamposDoPedido
-              edicao={edicao}
-              selected={selected}
-              ganhoSemProposta={ganhoSemProposta}
-              escolherEstado={escolherEstado}
-            />
+            <CamposDoPedido ganhoSemProposta={ganhoSemProposta} escolherEstado={escolherEstado} />
 
-            <ContactosDoPedido
-              edicao={edicao}
-              devolvidoAqui={devolvidoAqui}
-              emailSugerido={emailSugerido}
-            />
+            <ContactosDoPedido devolvidoAqui={devolvidoAqui} emailSugerido={emailSugerido} />
 
             {/* Etiquetas + seguimento — gravam sozinhos. */}
             <div className="grid grid-cols-1 gap-4 border-t border-[var(--bo-hairline)] pt-4 sm:grid-cols-2">
@@ -72,18 +53,14 @@ export function GestaoDoPedido({
                 quote={selected}
                 suggestions={allTags}
                 onChange={(tags) => {
-                  setQuotes((prev) => prev.map((q) => (q.id === selected.id ? { ...q, tags } : q)));
-                  setSelected((prev) => (prev ? { ...prev, tags } : prev));
+                  alterarOAberto({ tags });
                 }}
               />
               <FollowUpField
                 key={`fu-${selected.id}`}
                 quote={selected}
                 onChange={(followUpAt) => {
-                  setQuotes((prev) =>
-                    prev.map((q) => (q.id === selected.id ? { ...q, followUpAt } : q)),
-                  );
-                  setSelected((prev) => (prev ? { ...prev, followUpAt } : prev));
+                  alterarOAberto({ followUpAt });
                 }}
               />
             </div>

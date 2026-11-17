@@ -2,20 +2,20 @@
 
 import { Button } from "../../ui";
 import { type GravacaoAutomatica } from "../../useGravacaoAutomatica";
-import { type EdicaoDoPedido } from "../useEdicaoDoPedido";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /** O pé do painel: a barra de gravação — o estado do que se escreve, e o
  *  «Guardar alterações» do que exige um clique. (Saiu do painel na fase 7 da
  *  estrutura do código, tal e qual.) */
 export interface PeDoPainelProps {
-  edicao: EdicaoDoPedido;
   saving: boolean;
   isDirty: boolean;
   gravacao: GravacaoAutomatica;
   guardarAgora: () => void;
 }
 
-export function PeDoPainel({ edicao, saving, isDirty, gravacao, guardarAgora }: PeDoPainelProps) {
+export function PeDoPainel({ saving, isDirty, gravacao, guardarAgora }: PeDoPainelProps) {
+  const { edicao } = usePedidoAberto();
   const { alteracoesPorConfirmar } = edicao;
   return (
     <>

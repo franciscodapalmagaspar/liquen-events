@@ -10,15 +10,13 @@ import {
   spaceTypeLabel,
 } from "@/lib/orcamento/data";
 import { rotularPontos } from "@/lib/orcamento/decoracao";
-import { type Quote } from "@/lib/orcamento/types";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /** Os factos do evento, compactos e só de leitura — o contexto por cima do
  *  formulário. (Saíram da gestão do pedido na fase 7 da estrutura do código.) */
-export interface FactosDoEventoProps {
-  selected: Quote;
-}
 
-export function FactosDoEvento({ selected }: FactosDoEventoProps) {
+export function FactosDoEvento() {
+  const { selected } = usePedidoAberto();
   return (
     <>
       {/* Factos do evento — contexto compacto, só leitura. */}

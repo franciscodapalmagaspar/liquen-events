@@ -1,21 +1,17 @@
 "use client";
 
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
-import { type Quote } from "@/lib/orcamento/types";
 import { linkDaConversa } from "@/lib/whatsapp";
-import { type useToast } from "../../Toast";
 import { SectionCard } from "../../ui";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /** Como falar com o cliente (email, telefone, WhatsApp), as notas que ele
  *  deixou no pedido, e quando o submeteu. (Saiu do painel do pedido na fase 7 da
  *  estrutura do código, tal e qual.) */
-export interface ContactoDoClienteProps {
-  selected: Quote;
-  toast: ReturnType<typeof useToast>["toast"];
-}
 
-export function ContactoDoCliente({ selected, toast }: ContactoDoClienteProps) {
+export function ContactoDoCliente() {
+  const { selected, toast } = usePedidoAberto();
   return (
     <>
       {/* Contacto — como falar com o cliente. */}

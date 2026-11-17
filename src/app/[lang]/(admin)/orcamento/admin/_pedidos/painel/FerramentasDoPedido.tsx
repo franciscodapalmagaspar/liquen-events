@@ -1,15 +1,12 @@
 "use client";
 
-import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import { type SeparadorDoPedido } from "@/lib/orcamento/pedidos/proxima-accao";
-import { type ActivityEntry, type Quote, type QuoteStatus } from "@/lib/orcamento/types";
 import { type Gaveta } from "../../ui/gaveta";
-import { type DetailTab } from "../separadores-do-painel";
-import { type EdicaoDoPedido } from "../useEdicaoDoPedido";
 import { SeparadorDeProducao } from "./SeparadorDeProducao";
 import { SeparadorFinanceiro } from "./SeparadorFinanceiro";
 import { SeparadorDaProposta } from "./SeparadorDaProposta";
 import { SeparadoresDoPedido } from "./SeparadoresDoPedido";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /**
  * AS FERRAMENTAS DO PEDIDO — os três separadores (Produção, Financeiro, Fazer
@@ -18,38 +15,19 @@ import { SeparadoresDoPedido } from "./SeparadoresDoPedido";
  * `AdminClient.tsx`). Saiu do painel na fase 7 da estrutura do código, tal e qual.
  */
 export interface FerramentasDoPedidoProps {
-  edicao: EdicaoDoPedido;
-  userName: string;
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
-  selected: Quote;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
   detailTab: SeparadorDoPedido;
   detailTabsVisitados: Set<SeparadorDoPedido>;
-  abrirDetailTab: (tab: DetailTab) => void;
-  toolsRef: RefObject<HTMLDivElement | null>;
   gavetaDoPlano: Gaveta;
   gavetaDoHistorico: Gaveta;
-  appendActivity: (quoteId: string, entries: ActivityEntry[], oQue?: string) => Promise<boolean>;
-  refletirEstadoDoEstudio: (id: string, status: QuoteStatus) => void;
-  activeQuotes: Quote[];
 }
 
 export function FerramentasDoPedido({
-  edicao,
-  userName,
-  setQuotes,
-  selected,
-  setSelected,
   detailTab,
   detailTabsVisitados,
-  abrirDetailTab,
-  toolsRef,
   gavetaDoPlano,
   gavetaDoHistorico,
-  appendActivity,
-  refletirEstadoDoEstudio,
-  activeQuotes,
 }: FerramentasDoPedidoProps) {
+  const { toolsRef } = usePedidoAberto();
   return (
     <>
       {/* ── Ferramentas — sempre visíveis, organizadas em três
@@ -67,11 +45,7 @@ export function FerramentasDoPedido({
           </p>
         </div>
 
-        <SeparadoresDoPedido
-          selected={selected}
-          detailTab={detailTab}
-          abrirDetailTab={abrirDetailTab}
-        />
+        <SeparadoresDoPedido detailTab={detailTab} />
 
         {/* Coluna única — as ferramentas do separador ativo */}
         <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
@@ -106,13 +80,7 @@ export function FerramentasDoPedido({
             }`}
           >
             {detailTabsVisitados.has("producao") && (
-              <SeparadorDeProducao
-                userName={userName}
-                setQuotes={setQuotes}
-                selected={selected}
-                setSelected={setSelected}
-                gavetaDoPlano={gavetaDoPlano}
-              />
+              <SeparadorDeProducao gavetaDoPlano={gavetaDoPlano} />
             )}
           </div>
 
@@ -126,13 +94,7 @@ export function FerramentasDoPedido({
               detailTab === "financeiro" ? "view-in" : ""
             }`}
           >
-            {detailTabsVisitados.has("financeiro") && (
-              <SeparadorFinanceiro
-                setQuotes={setQuotes}
-                selected={selected}
-                setSelected={setSelected}
-              />
-            )}
+            {detailTabsVisitados.has("financeiro") && <SeparadorFinanceiro />}
           </div>
 
           <div
@@ -146,17 +108,7 @@ export function FerramentasDoPedido({
             }`}
           >
             {detailTabsVisitados.has("comunicacao") && (
-              <SeparadorDaProposta
-                edicao={edicao}
-                userName={userName}
-                setQuotes={setQuotes}
-                selected={selected}
-                setSelected={setSelected}
-                gavetaDoHistorico={gavetaDoHistorico}
-                appendActivity={appendActivity}
-                refletirEstadoDoEstudio={refletirEstadoDoEstudio}
-                activeQuotes={activeQuotes}
-              />
+              <SeparadorDaProposta gavetaDoHistorico={gavetaDoHistorico} />
             )}
           </div>
         </div>

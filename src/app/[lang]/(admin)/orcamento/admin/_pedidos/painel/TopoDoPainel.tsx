@@ -1,6 +1,6 @@
 "use client";
 
-import { type Dispatch, type RefObject, type SetStateAction } from "react";
+import { type Dispatch, type SetStateAction } from "react";
 import { rolarAteVer } from "@/lib/motion/rolar";
 import { faltaODesfecho } from "@/lib/orcamento/desfecho";
 import { type Quote } from "@/lib/orcamento/types";
@@ -10,39 +10,28 @@ import PerguntaDeDesfecho from "../../PerguntaDeDesfecho";
 import PropostasDoPedido from "../../PropostasDoPedido";
 import { propostaDaFaseDoPedido, type PropostaLeve } from "../../percentagem-do-sinal";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
-import { detailNextAction, type DetailTab } from "../separadores-do-painel";
-import { type EdicaoDoPedido } from "../useEdicaoDoPedido";
+import { detailNextAction } from "../separadores-do-painel";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /** O topo do painel: o ciclo de vida, o «já responderam?», o que nasce com o
  *  «Ganho», a próxima acção, e as propostas que seguiram. (Saiu do painel na
  *  fase 7 da estrutura do código, tal e qual.) */
 export interface TopoDoPainelProps {
-  edicao: EdicaoDoPedido;
-  userName: string;
-  selected: Quote;
   propostasLeves: PropostaLeve[] | undefined;
   marcadoNoPainel: string | null;
   setMarcadoNoPainel: Dispatch<SetStateAction<string | null>>;
-  abrirDetailTab: (tab: DetailTab) => void;
-  gestaoRef: RefObject<HTMLDivElement | null>;
-  toolsRef: RefObject<HTMLDivElement | null>;
   marcarDesfecho: (actualizado: Quote) => void;
   recarregarPedido: (id: string) => Promise<void>;
 }
 
 export function TopoDoPainel({
-  edicao,
-  userName,
-  selected,
   propostasLeves,
   marcadoNoPainel,
   setMarcadoNoPainel,
-  abrirDetailTab,
-  gestaoRef,
-  toolsRef,
   marcarDesfecho,
   recarregarPedido,
 }: TopoDoPainelProps) {
+  const { selected, edicao, userName, abrirDetailTab, gestaoRef, toolsRef } = usePedidoAberto();
   const { setEditStatus } = edicao;
   return (
     <>

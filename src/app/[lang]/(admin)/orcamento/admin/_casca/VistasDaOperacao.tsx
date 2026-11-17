@@ -24,6 +24,7 @@ import {
 import { type View } from "../nav";
 import { type PedidoDaPaleta } from "../procura-em-tudo";
 import { VIEW_WRAP } from "./moldura-da-vista";
+import { type AccoesDosPedidos } from "../_pedidos/accoes-dos-pedidos";
 
 /**
  * As vistas do dia-a-dia da operação: serviços, definições, reciclagem,
@@ -34,9 +35,8 @@ import { VIEW_WRAP } from "./moldura-da-vista";
 export interface VistasDaOperacaoProps {
   userName: string;
   quotes: Quote[];
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
+  substituirPedido: AccoesDosPedidos["substituirPedido"];
   nomesDosPedidos: Map<string, string>;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
   view: View;
   setView: Dispatch<SetStateAction<View>>;
   pedidoPara: (v: View) => PedidoDaPaleta | undefined;
@@ -49,9 +49,8 @@ export interface VistasDaOperacaoProps {
 export function VistasDaOperacao({
   userName,
   quotes,
-  setQuotes,
+  substituirPedido,
   nomesDosPedidos,
-  setSelected,
   view,
   setView,
   pedidoPara,
@@ -91,8 +90,7 @@ export function VistasDaOperacao({
             onOpenQuote={abrirCliente}
             onFazerProposta={() => setView("fazer-proposta")}
             onQuoteAtualizado={(q) => {
-              setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-              setSelected((prev) => (prev?.id === q.id ? q : prev));
+              substituirPedido(q);
             }}
           />
         </div>
@@ -178,8 +176,7 @@ export function VistasDaOperacao({
                 : { ok: false as const, porque: r.porque };
             }}
             onQuoteAtualizado={(q) => {
-              setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-              setSelected((prev) => (prev?.id === q.id ? q : prev));
+              substituirPedido(q);
             }}
           />
         </div>
@@ -206,8 +203,7 @@ export function VistasDaOperacao({
                 : { ok: false as const, porque: r.porque };
             }}
             onQuoteAtualizado={(q) => {
-              setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-              setSelected((prev) => (prev?.id === q.id ? q : prev));
+              substituirPedido(q);
             }}
           />
         </div>

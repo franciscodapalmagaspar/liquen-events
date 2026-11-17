@@ -3,7 +3,7 @@
 import { type Dispatch, type JSX, type RefObject, type SetStateAction } from "react";
 import { type LeituraFalhada } from "@/lib/porque-nao-leu";
 import { THEME_PAGE_SIZE, type ThemeImage, type ThemeSummary } from "@/lib/theme-types";
-import { plural } from "../../../../../../lib/temas/textos-dos-temas";
+import { plural } from "@/lib/temas/textos-dos-temas";
 import { Button } from "../ui";
 import { ESTADO } from "../ui/movimento";
 import { GRELHA_DE_FOTOS } from "./grelha-de-fotos";

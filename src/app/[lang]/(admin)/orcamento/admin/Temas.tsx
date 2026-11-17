@@ -56,18 +56,8 @@ import {
 import { vestirOArrasto } from "./_temas/arrasto";
 import { ABOVE_FOLD, Photo, objectUrl, revokeUrl } from "./_temas/FotoDaGrelha";
 import { MAX_DROP_FILES, expandDropEntries, isImageFile } from "./_temas/largar-pastas";
-import {
-  AccaoEmBloco,
-  mergePage,
-  moveItem,
-  pool,
-  reinsertAt,
-} from "../../../../../lib/temas/listas-de-fotos";
-import {
-  fraseDeEliminar,
-  photoCountLabel,
-  plural,
-} from "../../../../../lib/temas/textos-dos-temas";
+import { AccaoEmBloco, mergePage, moveItem, pool, reinsertAt } from "@/lib/temas/listas-de-fotos";
+import { fraseDeEliminar, photoCountLabel, plural } from "@/lib/temas/textos-dos-temas";
 import {
   COLUNAS,
   Densidade,

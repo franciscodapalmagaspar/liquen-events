@@ -3,22 +3,18 @@
 import CampoTelefone from "@/components/CampoTelefone";
 import { APARENCIA_DO_BACK_OFFICE, TELEFONE_EM_CAIXA } from "../../ui/aparencia-do-telefone";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
-import { type EdicaoDoPedido } from "../useEdicaoDoPedido";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /** Os contactos do cliente — nome, email (com o aviso de devolução e a
  *  sugestão de domínio) e telefone. (Saíram da gestão do pedido na fase 7 da
  *  estrutura do código, tal e qual.) */
 export interface ContactosDoPedidoProps {
-  edicao: EdicaoDoPedido;
   devolvidoAqui: { quoteId: string; endereco: string } | null;
   emailSugerido: string | null;
 }
 
-export function ContactosDoPedido({
-  edicao,
-  devolvidoAqui,
-  emailSugerido,
-}: ContactosDoPedidoProps) {
+export function ContactosDoPedido({ devolvidoAqui, emailSugerido }: ContactosDoPedidoProps) {
+  const { edicao } = usePedidoAberto();
   const { editNome, setEditNome, editEmail, setEditEmail, editTelefone, setEditTelefone } = edicao;
   return (
     <>

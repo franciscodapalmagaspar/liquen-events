@@ -19,6 +19,7 @@ import { type View } from "../nav";
 import { type PedidoDaPaleta } from "../procura-em-tudo";
 import { VIEW_WRAP } from "./moldura-da-vista";
 import { VistasDaOperacao } from "./VistasDaOperacao";
+import { type AccoesDosPedidos } from "../_pedidos/accoes-dos-pedidos";
 
 /**
  * AS VISTAS DO BACK OFFICE — uma de cada vez, conforme o destino escolhido
@@ -32,9 +33,9 @@ export interface VistasProps {
   userName: string;
   falhaDosPedidos: LeituraFalhada | null;
   quotes: Quote[];
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
+  substituirPedido: AccoesDosPedidos["substituirPedido"];
   nomesDosPedidos: Map<string, string>;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
+  alterarPedido: AccoesDosPedidos["alterarPedido"];
   setEditPrice: Dispatch<SetStateAction<string>>;
   view: View;
   setView: Dispatch<SetStateAction<View>>;
@@ -60,9 +61,9 @@ export function Vistas({
   userName,
   falhaDosPedidos,
   quotes,
-  setQuotes,
+  substituirPedido,
   nomesDosPedidos,
-  setSelected,
+  alterarPedido,
   setEditPrice,
   view,
   setView,
@@ -123,8 +124,7 @@ export function Vistas({
                 onOpen={abrirCliente}
                 userName={userName}
                 onStatusChange={(id, status) => {
-                  setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, status } : q)));
-                  setSelected((prev) => (prev && prev.id === id ? { ...prev, status } : prev));
+                  alterarPedido(id, { status });
                 }}
                 falhaDeLeitura={quotes.length === 0 ? falhaDosPedidos : null}
                 aoTentarDeNovo={() => void revalidarPedidos()}
@@ -186,8 +186,7 @@ export function Vistas({
             onIrParaPropostas={(procura) => irComPedido("propostas", { procura: procura ?? "" })}
             onNovoPedido={() => setNewQuoteOpen(true)}
             onQuoteUpdated={(q) => {
-              setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-              setSelected((prev) => (prev?.id === q.id ? q : prev));
+              substituirPedido(q);
               // A MESMA guarda de id das duas linhas de cima. Sem ela, o
               // estúdio a gravar o preço do pedido B escrevia-o no campo do
               // pedido A que está aberto no painel — e o «Guardar tudo» do
@@ -196,10 +195,7 @@ export function Vistas({
             }}
             onEstadoDoPedido={(q, status) => refletirEstadoDoEstudio(q.id, status)}
             onSent={(q) => {
-              setQuotes((prev) =>
-                prev.map((x) => (x.id === q.id ? { ...x, status: "cotado" } : x)),
-              );
-              setSelected((prev) => (prev?.id === q.id ? { ...prev, status: "cotado" } : prev));
+              alterarPedido(q.id, { status: "cotado" });
             }}
           />
         </div>
@@ -214,8 +210,7 @@ export function Vistas({
             pedidoDaPaleta={pedidoPara("propostas")}
             onOpenQuote={abrirCliente}
             onQuoteUpdated={(q) => {
-              setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-              setSelected((prev) => (prev?.id === q.id ? q : prev));
+              substituirPedido(q);
             }}
           />
         </div>
@@ -228,8 +223,7 @@ export function Vistas({
             userName={userName}
             onOpenQuote={abrirCliente}
             onQuoteUpdated={(q) => {
-              setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-              setSelected((prev) => (prev?.id === q.id ? q : prev));
+              substituirPedido(q);
             }}
           />
         </div>
@@ -238,9 +232,8 @@ export function Vistas({
       <VistasDaOperacao
         userName={userName}
         quotes={quotes}
-        setQuotes={setQuotes}
+        substituirPedido={substituirPedido}
         nomesDosPedidos={nomesDosPedidos}
-        setSelected={setSelected}
         view={view}
         setView={setView}
         pedidoPara={pedidoPara}

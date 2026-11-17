@@ -8,11 +8,11 @@ import { quemPedeEOCasal } from "@/lib/orcamento/quem-pede";
 import { type Quote } from "@/lib/orcamento/types";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { MoreMenu } from "../../MoreMenu";
-import { type useToast } from "../../Toast";
 import { downloadEventIcs, printEventDossier, printRunSheet } from "../../export";
 import { Button } from "../../ui";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
 import { statusBadge } from "../estado-do-pedido";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /**
  * O CABEÇALHO DO PAINEL DO PEDIDO — o nome, o estado e a referência, e as
@@ -21,28 +21,19 @@ import { statusBadge } from "../estado-do-pedido";
  * `AdminClient.tsx` na fase 7 da estrutura do código, tal e qual.)
  */
 export interface CabecalhoDoPainelProps {
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
-  selected: Quote;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
   setAApagar: Dispatch<SetStateAction<Quote | null>>;
-  toast: ReturnType<typeof useToast>["toast"];
   detailTitleRef: RefObject<HTMLHeadingElement | null>;
-  locale: "pt" | "en";
   closeDetail: () => void;
   duplicateQuote: (q: Quote) => Promise<void>;
 }
 
 export function CabecalhoDoPainel({
-  setQuotes,
-  selected,
-  setSelected,
   setAApagar,
-  toast,
   detailTitleRef,
-  locale,
   closeDetail,
   duplicateQuote,
 }: CabecalhoDoPainelProps) {
+  const { selected, locale, toast, mostrarPedido } = usePedidoAberto();
   return (
     <div className="sticky top-0 z-10 border-b border-[var(--bo-hairline)] bg-[var(--bo-surface)] px-3.5 pt-3.5 sm:px-7 sm:pt-5">
       <div className="flex items-start justify-between gap-4">
@@ -168,8 +159,7 @@ export function CabecalhoDoPainel({
                     return;
                   }
                   const updated = corpo as Quote;
-                  setQuotes((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
-                  setSelected(updated);
+                  mostrarPedido(updated);
                   toast(next ? "Pedido arquivado" : "Pedido restaurado", "success");
                 },
                 icon: (

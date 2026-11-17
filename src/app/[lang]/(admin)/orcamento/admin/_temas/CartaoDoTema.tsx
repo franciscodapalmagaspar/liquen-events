@@ -2,12 +2,7 @@
 
 import { type Dispatch, type SetStateAction } from "react";
 import { type ThemeSummary } from "@/lib/theme-types";
-import {
-  dataPorExtenso,
-  desdeQuando,
-  photoCountLabel,
-  plural,
-} from "../../../../../../lib/temas/textos-dos-temas";
+import { dataPorExtenso, desdeQuando, photoCountLabel, plural } from "@/lib/temas/textos-dos-temas";
 import ImagemComPlanoB from "../ImagemComPlanoB";
 import { type PedidoDeMenu } from "../MenuDeContexto";
 import { adiantarTema } from "../prefetch-de-tema";

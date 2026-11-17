@@ -3,28 +3,22 @@
 import { round2 } from "@/lib/money";
 import { contractedAmounts, effectiveVatRate } from "@/lib/orcamento/dossier";
 import { formatPrice } from "@/lib/orcamento/pricing";
-import { type Quote, type QuoteStatus } from "@/lib/orcamento/types";
+import { type QuoteStatus } from "@/lib/orcamento/types";
 import { EscolhaDoEstado } from "../../EscolhaDoEstado";
 import { eventCountdown, parseMoney as parsePriceInput } from "../../util";
 import { STATUS_OPTIONS } from "../estado-do-pedido";
-import { type EdicaoDoPedido } from "../useEdicaoDoPedido";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /** Os campos de trabalho do pedido: estado, preço, data, convidados,
  *  responsável e local. (Saíram da gestão do pedido na fase 7 da estrutura do
  *  código, tal e qual.) */
 export interface CamposDoPedidoProps {
-  edicao: EdicaoDoPedido;
-  selected: Quote;
   ganhoSemProposta: string | null;
   escolherEstado: (novo: QuoteStatus) => void;
 }
 
-export function CamposDoPedido({
-  edicao,
-  selected,
-  ganhoSemProposta,
-  escolherEstado,
-}: CamposDoPedidoProps) {
+export function CamposDoPedido({ ganhoSemProposta, escolherEstado }: CamposDoPedidoProps) {
+  const { selected, edicao } = usePedidoAberto();
   const {
     editPrice,
     setEditPrice,

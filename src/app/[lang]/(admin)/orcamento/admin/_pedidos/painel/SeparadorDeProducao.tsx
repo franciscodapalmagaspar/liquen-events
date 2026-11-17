@@ -1,7 +1,5 @@
 "use client";
 
-import { type Dispatch, type SetStateAction } from "react";
-import { type Quote } from "@/lib/orcamento/types";
 import {
   EventChecklist,
   EventMaterial,
@@ -12,25 +10,17 @@ import {
 } from "../../lazy";
 import { SETA_DA_GAVETA, type Gaveta } from "../../ui/gaveta";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /** O separador «Produção» do pedido: tarefas, checklist, material, plano de
  *  decoração, guião do dia e convidados. (Saiu das ferramentas do pedido na fase
  *  7 da estrutura do código, tal e qual.) */
 export interface SeparadorDeProducaoProps {
-  userName: string;
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
-  selected: Quote;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
   gavetaDoPlano: Gaveta;
 }
 
-export function SeparadorDeProducao({
-  userName,
-  setQuotes,
-  selected,
-  setSelected,
-  gavetaDoPlano,
-}: SeparadorDeProducaoProps) {
+export function SeparadorDeProducao({ gavetaDoPlano }: SeparadorDeProducaoProps) {
+  const { selected, userName, alterarOAberto } = usePedidoAberto();
   return (
     <>
       {/* Preparação — the daily driver (tarefas + checklist),
@@ -45,8 +35,7 @@ export function SeparadorDeProducao({
         key={`cl-${selected.id}`}
         quote={selected}
         onChange={(checklist) => {
-          setQuotes((prev) => prev.map((q) => (q.id === selected.id ? { ...q, checklist } : q)));
-          setSelected((prev) => (prev ? { ...prev, checklist } : prev));
+          alterarOAberto({ checklist });
         }}
       />
 
@@ -94,10 +83,7 @@ export function SeparadorDeProducao({
             key={`prod-${selected.id}`}
             quote={selected}
             onChange={(productionPlan) => {
-              setQuotes((prev) =>
-                prev.map((q) => (q.id === selected.id ? { ...q, productionPlan } : q)),
-              );
-              setSelected((prev) => (prev ? { ...prev, productionPlan } : prev));
+              alterarOAberto({ productionPlan });
             }}
           />
 
@@ -106,8 +92,7 @@ export function SeparadorDeProducao({
             key={`tl-${selected.id}`}
             quote={selected}
             onChange={(timeline) => {
-              setQuotes((prev) => prev.map((q) => (q.id === selected.id ? { ...q, timeline } : q)));
-              setSelected((prev) => (prev ? { ...prev, timeline } : prev));
+              alterarOAberto({ timeline });
             }}
           />
 
@@ -116,10 +101,7 @@ export function SeparadorDeProducao({
             key={`guests-${selected.id}`}
             quote={selected}
             onChange={(guestList) => {
-              setQuotes((prev) =>
-                prev.map((q) => (q.id === selected.id ? { ...q, guestList } : q)),
-              );
-              setSelected((prev) => (prev ? { ...prev, guestList } : prev));
+              alterarOAberto({ guestList });
             }}
           />
         </div>

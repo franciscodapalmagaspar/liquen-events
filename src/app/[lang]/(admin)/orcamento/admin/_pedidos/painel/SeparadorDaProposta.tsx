@@ -1,41 +1,31 @@
 "use client";
 
-import { type Dispatch, type SetStateAction } from "react";
 import { textoDoPreco } from "@/lib/orcamento/pedidos/textos-do-pedido";
-import { type ActivityEntry, type Quote, type QuoteStatus } from "@/lib/orcamento/types";
 import { resumoDoEnvio } from "../../envio-da-mensagem";
 import { ActivityLog, ClientMessenger, ProposalStudio } from "../../lazy";
 import { SETA_DA_GAVETA, type Gaveta } from "../../ui/gaveta";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
 import { randomId } from "../../util";
-import { type EdicaoDoPedido } from "../useEdicaoDoPedido";
+import { usePedidoAberto } from "./pedido-aberto";
 
 /** O separador «Fazer proposta» do pedido: o estúdio, as mensagens ao
  *  cliente e o histórico. (Saiu das ferramentas do pedido na fase 7 da
  *  estrutura do código, tal e qual.) */
 export interface SeparadorDaPropostaProps {
-  edicao: EdicaoDoPedido;
-  userName: string;
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
-  selected: Quote;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
   gavetaDoHistorico: Gaveta;
-  appendActivity: (quoteId: string, entries: ActivityEntry[], oQue?: string) => Promise<boolean>;
-  refletirEstadoDoEstudio: (id: string, status: QuoteStatus) => void;
-  activeQuotes: Quote[];
 }
 
-export function SeparadorDaProposta({
-  edicao,
-  userName,
-  setQuotes,
-  selected,
-  setSelected,
-  gavetaDoHistorico,
-  appendActivity,
-  refletirEstadoDoEstudio,
-  activeQuotes,
-}: SeparadorDaPropostaProps) {
+export function SeparadorDaProposta({ gavetaDoHistorico }: SeparadorDaPropostaProps) {
+  const {
+    selected,
+    edicao,
+    userName,
+    appendActivity,
+    refletirEstadoDoEstudio,
+    activeQuotes,
+    alterarOAberto,
+    substituirPedido,
+  } = usePedidoAberto();
   const { setEditPrice, setEditStatus } = edicao;
   return (
     <>
@@ -55,8 +45,7 @@ export function SeparadorDaProposta({
           // de mostrar o mesmo número sem ser preciso
           // recarregar nada.
           onQuoteUpdated={(q) => {
-            setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-            setSelected((prev) => (prev?.id === q.id ? q : prev));
+            substituirPedido(q);
             // `textoDoPreco` e não a verdade do valor:
             // um total de ZERO é um preço escrito, e
             // lido como «sem preço» deixava o campo
@@ -67,10 +56,7 @@ export function SeparadorDaProposta({
           }}
           onEstadoDoPedido={(status) => refletirEstadoDoEstudio(selected.id, status)}
           onSent={() => {
-            setQuotes((prev) =>
-              prev.map((q) => (q.id === selected.id ? { ...q, status: "cotado" } : q)),
-            );
-            setSelected((prev) => (prev ? { ...prev, status: "cotado" } : prev));
+            alterarOAberto({ status: "cotado" });
             setEditStatus("cotado");
             // A proposta JÁ seguiu — o que pode
             // falhar aqui é a linha do histórico, e a
@@ -102,8 +88,7 @@ export function SeparadorDaProposta({
         quote={selected}
         onSent={(messages, envio) => {
           const prev_count = selected.messages?.length ?? 0;
-          setQuotes((prev) => prev.map((q) => (q.id === selected.id ? { ...q, messages } : q)));
-          setSelected((prev) => (prev ? { ...prev, messages } : prev));
+          alterarOAberto({ messages });
           if (messages.length > prev_count) {
             // A mensagem JÁ saiu; o que pode falhar
             // aqui é a linha do histórico.
