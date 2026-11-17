@@ -110,6 +110,7 @@ export default defineConfig({
         "**/caca/a02-editor-stress.spec.ts",
         // BO 4: semeia tarefas, uma marcação e dois pedidos «TESTE BO4».
         "**/bo4-procura-lotes-atalhos.spec.ts",
+        "**/janelas-a-pedido.spec.ts",
       ],
       use: { ...devices["Desktop Chrome"], storageState: ESTADO_ADMIN },
       dependencies: ["aquecer"],

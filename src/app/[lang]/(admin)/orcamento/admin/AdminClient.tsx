@@ -69,11 +69,16 @@ import {
 } from "@/lib/orcamento/data";
 import { useToast } from "./Toast";
 import CommandPalette, { type Command } from "./CommandPalette";
-import ShortcutsModal from "./ShortcutsModal";
-import AjudaGlossario from "./AjudaGlossario";
-import NewQuoteModal from "./NewQuoteModal";
-import RestoreDialog from "./RestoreDialog";
-import PasskeysDialog from "./PasskeysDialog";
+// Cinco janelas que só se abrem a pedido: fora do pacote inicial do painel,
+// aquecidas depois do `load` — ver `janela-a-pedido.tsx`.
+import {
+  AjudaGlossario,
+  aquecerJanelas,
+  NewQuoteModal,
+  PasskeysDialog,
+  RestoreDialog,
+  ShortcutsModal,
+} from "./janela-a-pedido";
 import SessaoExpirada from "./SessaoExpirada";
 import NotificationBell from "./NotificationBell";
 import NotaDaProposta from "./NotaDaProposta";
@@ -2687,6 +2692,9 @@ export default function AdminClient({
     document.body.classList.add("admin-mode");
     return () => document.body.classList.remove("admin-mode");
   }, []);
+
+  // As janelas a pedido chegam antes de ela as pedir (ver `janela-a-pedido.tsx`).
+  useEffect(() => aquecerJanelas(), []);
 
   // Warm the caches of the high-traffic API views during idle after first
   // paint, so the first click on Propostas / Tarefas / Calendário is
