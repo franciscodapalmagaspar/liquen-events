@@ -94,8 +94,9 @@ export function useLeituraDoPedido({
     if (completos.current.has(q.id)) return { ok: true, quote: q };
     const aCaminho = leiturasEmCurso.current.get(q.id);
     if (aCaminho) return aCaminho;
-    const leitura = lerPedidoInteiro(q).finally(() => {
-      leiturasEmCurso.current.delete(q.id);
+    const leitura: Promise<LeituraDoPedido> = lerPedidoInteiro(q).finally(() => {
+      // Só a sua: um `recarregarPedido` pode já ter posto outra leitura no lugar.
+      if (leiturasEmCurso.current.get(q.id) === leitura) leiturasEmCurso.current.delete(q.id);
     });
     leiturasEmCurso.current.set(q.id, leitura);
     return leitura;

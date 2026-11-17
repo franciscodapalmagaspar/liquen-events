@@ -8,7 +8,6 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
-import { comPedidoAlterado } from "@/lib/orcamento/pedidos/lista-de-pedidos";
 import { type ActivityEntry, type Quote, type QuoteStatus } from "@/lib/orcamento/types";
 import { type useToast } from "../../Toast";
 import { accoesDosPedidos } from "../accoes-dos-pedidos";
@@ -29,15 +28,15 @@ import { type EdicaoDoPedido } from "../useEdicaoDoPedido";
  * Agora as peças pedem o que usam a este contexto, e mudam o pedido por
  * ACÇÕES com nome:
  *
- *   · `alterarOAberto(remendo)` — muda campos do pedido aberto, na lista e no
- *     painel (a etiqueta, o plano, os pagamentos…);
+ *   · `alterarOAberto(remendo)` — muda campos do pedido aberto (a etiqueta, o
+ *     plano, os pagamentos…) na lista e, se ainda for o aberto, no painel;
  *   · `substituirPedido(q)` — o servidor devolveu o pedido inteiro: troca-o na
  *     lista, e no painel SÓ se ainda for esse o aberto;
  *   · `mostrarPedido(q)` — troca-o na lista E abre-o (o arquivar, que fica no
  *     pedido que se arquivou).
  *
- * Cada acção faz exactamente o que as cópias faziam — a diferença entre a
- * segunda e a terceira já existia, e ficou com nome.
+ * A diferença entre a segunda e a terceira já existia, e ficou com nome. A
+ * primeira deixou de mudar o painel quando o pedido aberto já é outro (17/11).
  *
  * Nenhum filho do painel usa `memo`: passar por contexto em vez de props não
  * muda quando nem o que se desenha.
@@ -77,16 +76,18 @@ type Fonte = Omit<PedidoAberto, "alterarOAberto" | "substituirPedido" | "mostrar
 /** O painel do pedido, com o pedido aberto à disposição de cada peça. */
 export function OPedidoAberto({ setQuotes, setSelected, children, ...resto }: Fonte) {
   const { selected } = resto;
-  const { substituirPedido, mostrarPedido } = accoesDosPedidos(setQuotes, setSelected);
+  const { substituirPedido, mostrarPedido, alterarPedido } = accoesDosPedidos(
+    setQuotes,
+    setSelected,
+  );
   const valor: PedidoAberto = {
     ...resto,
-    // NÃO é o `alterarPedido(selected.id, …)`: o painel aplicava o remendo ao
-    // que estiver aberto quando a resposta chega, sem comparar o id — e a
-    // regra fica a mesma (ver a nota em `docs/ESTRUTURA-DO-CODIGO.md`).
-    alterarOAberto: (remendo) => {
-      setQuotes((prev) => comPedidoAlterado(prev, selected.id, remendo));
-      setSelected((prev) => (prev ? { ...prev, ...remendo } : prev));
-    },
+    // O pedido é o deste desenho, e o remendo só chega ao painel se ele ainda
+    // for o aberto. Uma ferramenta que acaba de gravar DEPOIS de ela ter
+    // aberto outro pedido punha os pagamentos (ou os convidados, a checklist)
+    // do primeiro no segundo — e a gravação seguinte do segundo levava-os
+    // para o servidor (revisão independente de 17/11).
+    alterarOAberto: (remendo) => alterarPedido(selected.id, remendo),
     substituirPedido,
     mostrarPedido,
   };

@@ -124,6 +124,11 @@ export function useHistoricoDoPedido({
 
   function refletirPedidoReposto(q: Quote) {
     substituirPedido(q);
+    // Os campos e a linha de base são do pedido ABERTO: um «Anular» que chega
+    // com outro pedido aberto só muda a lista (revisão independente de 17/11 —
+    // sem isto, os campos do outro pedido ficavam com os dados deste, e o
+    // «Guardar» seguinte gravava-os por cima dele).
+    if (selectedRef.current?.id !== q.id) return;
     preencherCom(q);
     escritoNoServidor.current = {
       id: q.id,
