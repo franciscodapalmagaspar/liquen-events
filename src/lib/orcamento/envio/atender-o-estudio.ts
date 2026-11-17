@@ -5,13 +5,8 @@ import { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { enderecoDaProposta } from "@/lib/proposta-link-curto";
 import { aquecerDerivadasDaCapa } from "@/lib/derivadas";
 import { comTrinco } from "@/lib/trinco";
-import {
-  avisarDoIdiomaDesconhecido,
-  documentoCompleto,
-  observarOCorpo,
-  type CorpoLido,
-} from "./ler-o-corpo";
-import { prepararODocumento } from "./documento-do-envio";
+import type { CorpoLido } from "./ler-o-corpo";
+import { guardasBaratas } from "./guardas-baratas";
 import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
 import {
@@ -28,7 +23,7 @@ import {
 } from "./a-proposta-que-se-grava";
 import { repeticaoDoEnvio } from "./repeticao-do-envio";
 import { gravarAProposta } from "./gravar-a-proposta";
-import { escreverOEmail, recusaDoTextoGrandeDemais } from "./email-da-proposta";
+import { escreverOEmail } from "./email-da-proposta";
 import { mandarOEmail } from "./mandar-o-email";
 import { depoisDoEmail } from "./depois-do-email";
 import { respostaDoEnvio } from "./resposta-do-envio";
@@ -45,9 +40,9 @@ import type { OEnvio } from "./o-envio";
  * As funções deste ficheiro só dizem a ORDEM; cada etapa vive, com a sua
  * razão por extenso, no seu ficheiro desta pasta:
  *
- *   1. o corpo, lido pela rota ...... `ler-o-corpo.ts` (esquema, modo de observar)
+ *   1. o corpo, lido pela rota ...... `ler-o-corpo.ts` (o registo: `esquema-do-corpo.ts`)
  *   2. o trinco (só no envio) ....... `lib/trinco.ts` (`comTrinco`)
- *   3. o documento e a chave ........ `documento-do-envio.ts`
+ *   3. as guardas baratas ........... `guardas-baratas.ts` (e `documento-do-envio.ts`)
  *   4. o que trava .................. `travas-do-envio.ts`
  *   5. o desenho, e a 2.ª passagem .. `desenhar-o-pdf.ts` (e `orcamento-de-tempo.ts`)
  *   ── a pré-visualização acaba aqui: responde o PDF (`pre-visualizacao.ts`) ──
@@ -166,8 +161,9 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   const linha = montarAProposta({
     ...envio,
     dinheiro,
-    // Honra a data que `prepararODocumento` escreveu no doc — o /proposta
-    // recusa aceitar uma proposta expirada.
+    // A data que `prepararODocumento` já escreveu no doc (o `resolveValidUntil`
+    // devolve-a tal e qual; só calcula quando falta) — o /proposta recusa
+    // aceitar uma proposta expirada.
     validUntil: resolveValidUntil(doc),
     pdf,
     porEnviar,
@@ -259,25 +255,11 @@ async function prepararEDesenhar(
   | { ok: true; envio: OEnvio; desenho: PdfDesenhado; chaveDoQueChegou: string }
 > {
   const { pedidoId, quote, corpo } = c;
-  const textoGrandeDemais = recusaDoTextoGrandeDemais(corpo.textoDoEmail);
-  if (textoGrandeDemais) return { ok: false, recusa: textoGrandeDemais };
-  const completo = documentoCompleto(corpo.doc);
-  if (!completo.ok) return { ok: false, recusa: recusa(400, { error: completo.error }) };
-  avisarDoIdiomaDesconhecido(corpo, pedidoId);
-  const { idioma } = corpo;
-  const { chaveDoQueChegou, doc, grandeDemais } = prepararODocumento(completo.doc, idioma);
-  if (grandeDemais) {
-    return {
-      ok: false,
-      recusa: recusa(413, { error: "Proposta demasiado grande para ser guardada." }),
-    };
-  }
-  // Só agora o esquema confere o corpo: o que já foi recusado (trinco, tecto,
-  // documento incompleto ou grande demais) não vale o trabalho — a mesma
-  // regra da rota do rascunho.
-  observarOCorpo(corpo, pedidoId);
+  const guardas = guardasBaratas(pedidoId, corpo);
+  if (!guardas.ok) return guardas;
+  const { doc, chaveDoQueChegou } = guardas;
   /** O envio, montado UMA vez — cada etapa lê dele o que precisa. */
-  const envio: OEnvio = { pedidoId, quote, doc, idioma };
+  const envio: OEnvio = { pedidoId, quote, doc, idioma: corpo.idioma };
 
   const trava =
     corpo.modo === "send"

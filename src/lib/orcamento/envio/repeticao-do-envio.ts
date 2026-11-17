@@ -131,70 +131,69 @@ export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<RespostaDoEn
       });
     }
   }
-  const { missingImages, truncations } = r.relatorio;
   if (!jaSeguiu && jaSeguiuPeloRegisto) {
     log.warn("proposta-doc: o email já tinha saído (registo de envios) — não se enviou outra vez", {
       id: pedidoId,
       proposta: proposal.id,
     });
-    return {
-      ok: true,
-      id: proposal.id,
-      emailed: true,
-      estado: "enviada",
-      acceptUrl: await enderecoDaProposta(proposal.id, pedidoId),
-      missingImages,
-      truncations,
-      pdfBytes: r.pdfBytes,
-      repetido: true,
-      repetidoAviso:
+    return respostaRepetida(r, proposal.id, {
+      porEmail: true,
+      aviso:
         "O cliente JÁ recebeu esta proposta há instantes — o email saiu, e o que tinha " +
         "falhado foi só a marcação do estado deste lado. Não se enviou outra vez, e o " +
         "link é o mesmo que ele tem.",
-    };
+    });
   }
   if (jaSeguiu && !r.porEmail) {
     // A mesma proposta marcada duas vezes pelo WhatsApp: não se cria outra,
     // e não se diz que saiu um email que ninguém mandou.
-    return {
-      ok: true,
-      id: jaSeguiu.id,
-      emailed: false,
-      semEmailPorEscolha: true,
-      estado: "enviada",
-      acceptUrl: await enderecoDaProposta(jaSeguiu.id, pedidoId),
-      missingImages,
-      truncations,
-      pdfBytes: r.pdfBytes,
-      repetido: true,
-      repetidoAviso:
+    return respostaRepetida(r, jaSeguiu.id, {
+      porEmail: false,
+      aviso:
         "Esta proposta já tinha sido marcada como enviada pelo WhatsApp há instantes. " +
         "O link é o mesmo.",
-    };
+    });
   }
   if (jaSeguiu) {
     log.warn("proposta-doc: envio repetido do mesmo documento — não se enviou outra vez", {
       id: pedidoId,
       proposta: jaSeguiu.id,
     });
-    return {
-      ok: true,
-      id: jaSeguiu.id,
-      emailed: true,
-      estado: "enviada",
-      /** O link que o casal RECEBEU — não um segundo, que ninguém tem. É
-       *  literalmente o mesmo: o código curto de uma proposta é cunhado uma
-       *  vez e reaproveitado daí em diante. */
-      acceptUrl: await enderecoDaProposta(jaSeguiu.id, pedidoId),
-      missingImages,
-      truncations,
-      pdfBytes: r.pdfBytes,
-      /** Para o ecrã poder dizer o que aconteceu em vez de fingir um envio. */
-      repetido: true,
-      repetidoAviso:
+    return respostaRepetida(r, jaSeguiu.id, {
+      porEmail: true,
+      aviso:
         "Esta proposta já tinha seguido para o cliente há instantes, com este mesmo " +
         "documento. Não foi enviada outra vez — o link é o mesmo que ele recebeu.",
-    };
+    });
   }
   return null;
+}
+
+/**
+ * A resposta 200 de uma repetição — a mesma forma nos três casos, e o
+ * `semEmailPorEscolha` só quando foi pelo WhatsApp. A ordem dos campos é a
+ * da rota antiga (o retrato da rota prende-a).
+ */
+async function respostaRepetida(
+  r: ParaVerSeRepete,
+  propostaId: string,
+  { porEmail, aviso }: { porEmail: boolean; aviso: string },
+): Promise<RespostaDoEnvio> {
+  return {
+    ok: true,
+    id: propostaId,
+    emailed: porEmail,
+    ...(porEmail ? {} : { semEmailPorEscolha: true }),
+    estado: "enviada",
+    /** O link que o casal RECEBEU — não um segundo, que ninguém tem. É
+     *  literalmente o mesmo: o código curto de uma proposta é cunhado uma vez
+     *  e reaproveitado daí em diante. */
+    acceptUrl: await enderecoDaProposta(propostaId, r.pedidoId),
+    missingImages: r.relatorio.missingImages,
+    truncations: r.relatorio.truncations,
+    pdfBytes: r.pdfBytes,
+    /** Para o ecrã poder dizer o que aconteceu em vez de fingir um envio. */
+    repetido: true,
+    repetidoAviso: aviso,
+  };
 }

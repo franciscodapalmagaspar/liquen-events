@@ -31,8 +31,8 @@ antes e depois (linhas, complexidade, peso das rotas).
 |---|---|---|
 | 0 · guardas | 17/11 · `codigo/fase-0-e-1` | teste de ouro do PDF (`lib/pdf-editorial/ouro.test.ts`, três PDFs, `sha256` preso, Linux x64); catraca do tamanho (`test/tamanho-dos-ficheiros.test.ts` + `.json`, 193 ficheiros com tecto); `madge` só de valores no CI (`scripts/ci/ciclos-de-importacao.mjs`, os 3 ciclos de hoje na lista, ~14 s no job estático); `complexity` (30) e `max-lines-per-function` (400) em aviso no ESLint (137 avisos, 0 erros). Cada guarda foi vista a falhar de propósito: uma letra a mais na capa, um ciclo para o estúdio, o `ProposalStudio` a encolher sem descer o tecto. |
 | 1 · domínio do estúdio | 17/11 · `codigo/fase-0-e-1` | `ProposalStudio.tsx` 17 008 → 16 063 linhas; a função `ProposalStudio` fica igual (complexidade 279, 7 043 linhas de código — é a fase 3). Saíram para `lib/orcamento/estudio/` seis ficheiros (1 042 linhas, todos abaixo das 400). Peso das rotas igual (proposta 88 KB, painel 505 KB). Capturas do estúdio a 390/768/1440, claro e escuro: 0 píxeis diferentes. |
-| 5 · a rota da proposta | 17/11 · `codigo/rota-e-esquemas` | `proposta-doc/route.ts` 2 115 → 133 linhas; o `POST_semMedida` tinha **complexidade 168** e 723 linhas (163 no raio-X, +5 com os ramos `estabilidade/` e `legal/` juntados). Agora a rota só tem a sessão, o `comCpu`, LER (o pedido e o corpo) e traduzir o desfecho para HTTP (complexidade máxima 5). O resto vive em `lib/orcamento/envio/`: 20 ficheiros (o maior, `atender-o-estudio.ts`, 303 linhas); a função mais complexa tem 16 (`corpoLido`, `modeloDela`), o orquestrador 4. Prova: 53 retratos da rota (estado, corpo em texto, cabeçalhos, email, gravações e registo) tirados ANTES de partir, iguais letra a letra depois; e 68 casos (os 44 cenários e 24 corpos estranhos, os que perguntam já com fotos em falta, um corte ou um modelo guardado) corridos lado a lado contra a rota ANTIGA no mesmo teste, todos iguais — foi assim que se apanhou um `doc` que é texto a responder outra frase; os 185 casos da rota verdes; testes próprios das etapas (puras e com efeitos); teste de ouro do PDF verde. Peso das rotas 93 KB / 511 KB (o aumento desde a fase 1 vem dos dois ramos juntados: o diff desta fase não mexe em código de browser). |
-| 6 · a fronteira dos dados | 17/11 · `codigo/rota-e-esquemas` | Modo de OBSERVAR em todo o lado (`lib/fronteira/observar.ts`): diz o sítio e o tipo do desvio, nunca o valor, uma vez por processo e por caso (até 64 casos por desvio), e só depois das guardas baratas. a leitura do `quotes-store.ts` (a linha 48 do raio-X, hoje a 51) deixou de ser `r.data as Quote` às cegas (`fronteira/pedido-guardado.ts`, contorno medido na base e cruzado com o esquema de escrita). **Cinco rotas** passaram a ter esquema: `POST proposta-doc`, `PUT proposta-rascunho`, `PATCH propostas/[id]`, `POST`/`PUT email-templates`, `POST propostas/modelos`. Custo medido com `npx vitest bench src/lib/fronteira` (`custo.bench.ts`): ≈ 15 µs a conferir o corpo de um envio grande (o PDF leva segundos; o `JSON.parse` do mesmo corpo leva ≈ 58 µs), ≈ 1 µs por pedido guardado (< 0,1 ms para os 46). O zod fica fora do browser: tudo o que importa o zod leva `server-only` (o build falha se o browser o pedir); o que pode ir ao browser são só tipos e listas (`envio/contrato.ts`, `envio/o-envio.ts`, `orcamento/listas-fechadas.ts`, `lib/todos-os-valores.ts`). O único pedaço com zod no browser já lá estava — o import dinâmico do `importar-proposta`. |
+| 5 · a rota da proposta | 17/11 · `codigo/rota-e-esquemas` | `proposta-doc/route.ts` 2 115 → 133 linhas; o `POST_semMedida` tinha **complexidade 168** e 723 linhas (163 no raio-X, +5 com os ramos `estabilidade/` e `legal/` juntados). Agora a rota só tem a sessão, o `comCpu`, LER (o pedido e o corpo) e traduzir o desfecho para HTTP (complexidade máxima 5). O resto vive em `lib/orcamento/envio/`: 22 ficheiros (o maior, `atender-o-estudio.ts`, ≈ 290 linhas); a função mais complexa tem 16 (`corpoLido`, `modeloDela`), o orquestrador 4. A leitura do corpo (`ler-o-corpo.ts`, sem zod), o esquema que só regista (`esquema-do-corpo.ts`) e a ORDEM das guardas baratas que acaba no registo (`guardas-baratas.ts`) são três ficheiros, e cada papel tem o seu teste. Prova: 53 retratos da rota (estado, corpo em texto, cabeçalhos, email, gravações e registo) tirados ANTES de partir, iguais letra a letra depois; e 68 casos (os 44 cenários e 24 corpos estranhos, os que perguntam já com fotos em falta, um corte ou um modelo guardado) corridos lado a lado contra a rota ANTIGA, todos iguais — foi assim que se apanhou um `doc` que é texto a responder outra frase. Essa comparação ficou no repositório (`route.contra-a-antiga.test.ts`, a pedido: `COMPARAR_COM_A_ROTA_ANTIGA=1`), com o mesmo palco e os mesmos cenários do retrato (`proposta-doc/_caracterizacao/`); os 185 casos da rota verdes; testes próprios das etapas (puras e com efeitos); teste de ouro do PDF verde. Peso das rotas 93 KB / 511 KB (o aumento desde a fase 1 vem dos dois ramos juntados: o diff desta fase não mexe em código de browser). |
+| 6 · a fronteira dos dados | 17/11 · `codigo/rota-e-esquemas` | Modo de OBSERVAR em todo o lado (`lib/fronteira/observar.ts`): diz o sítio e o tipo do desvio, nunca o valor, uma vez por processo e por caso (até 64 casos por desvio; passado o tecto, uma linha de resumo de 64 em 64, e no tecto de 500 desvios esquece-se só o mais antigo), e só depois das guardas baratas. a leitura do `quotes-store.ts` (a linha 48 do raio-X, hoje a 51) deixou de ser `r.data as Quote` às cegas (`fronteira/pedido-guardado.ts`, contorno medido na base e cruzado com o esquema de escrita). **Cinco rotas** passaram a ter esquema: `POST proposta-doc`, `PUT proposta-rascunho`, `PATCH propostas/[id]`, `POST`/`PUT email-templates`, `POST propostas/modelos`. Custo medido com `npx vitest bench src/lib/fronteira` (`custo.bench.ts`): ≈ 15 µs a conferir o corpo de um envio grande (o PDF leva segundos; o `JSON.parse` do mesmo corpo leva ≈ 58 µs), ≈ 1 µs por pedido guardado (< 0,1 ms para os 46). O zod fica fora do browser: tudo o que importa o zod leva `server-only` (o build falha se o browser o pedir); o que pode ir ao browser são só tipos e listas (`envio/contrato.ts`, `envio/o-envio.ts`, `orcamento/listas-fechadas.ts`, `lib/todos-os-valores.ts`). O único pedaço com zod no browser já lá estava — o import dinâmico do `importar-proposta`. |
 
 **Desvios das fases 5 e 6 ao texto, e porquê:**
 
@@ -40,9 +40,12 @@ antes e depois (linhas, complexidade, peso das rotas).
    estúdio, que corre no browser, lê esses tipos, e o zod não pode ir no pacote do
    browser. Ficou o contrário, preso pelo compilador: `fronteira/esquemas.test.ts`
    prova que tudo o que o `ProposalDoc` aceita o esquema também aceita. No que é só
-   do servidor, o tipo sai: o pedido à rota da proposta é UM esquema
-   (`envio/ler-o-corpo.ts`), e dele saem o registo, a leitura tolerante (cada
-   campo lido pelo seu pedaço do esquema) e o tipo `CorpoLido` (`envio/ler-o-corpo.ts`).
+   do servidor, o tipo sai da LEITURA: `CorpoLido` é o que `corpoLido` devolve
+   (`envio/ler-o-corpo.ts`). O esquema do corpo (`envio/esquema-do-corpo.ts`) já
+   não decide valores — a 6.ª ronda do júri apanhou que, sendo o mesmo esquema o
+   do registo e o da leitura, apertar uma regra para ver mais no registo mudava o
+   envio. Agora são dois papéis, e prende-os um teste num sentido só: tudo o que
+   o esquema aceita, a leitura lê tal e qual (`esquema-do-corpo.test.ts`).
 2. **O contorno do `Quote` é o da base, não o do tipo.** Medido a 17/11 só por tipos
    (`jsonb_typeof` de cada campo, nenhum valor lido): 24 dos 46 pedidos não têm os
    campos do formulário do site que o `Quote` diz obrigatórios. Um esquema copiado do
@@ -74,17 +77,24 @@ antes e depois (linhas, complexidade, peso das rotas).
    depois de cada commit. Os commits contam a ordem (caracterização → partir →
    esquemas → revisões → júri) e podem ser revistos um a um. O que mudou por
    dentro sem mudar a resposta: o registo de envios lê-se uma vez por pedido
-   (eram duas), e o esquema do corpo confere-se depois das guardas baratas.
+   (eram duas; `etapas-com-efeitos.test.ts` conta as leituras, também quando o
+   registo não responde), e o esquema do corpo confere-se depois das guardas
+   baratas (`guardas-baratas.test.ts` prende a ordem).
 7. **Ficaram duas cópias de listas fechadas fora desta fase**: os estados do
    pedido e da proposta em `validation.ts` e `backup-restore.ts` (ambos acima do
    tecto da catraca — uma linha a mais para importar a lista partia-a, e a regra é
    partir primeiro), as etiquetas dos motivos no `Acompanhamento.tsx` (ecrã) e o
    `ehIdiomaDaProposta`. Tudo o que esta fase tocou lê `orcamento/listas-fechadas.ts`.
-8. **O retrato de 53 respostas (4,3 mil linhas) é andaime, não guarda permanente.**
-   Vive enquanto as fases seguintes mexerem no envio (a 3 e a 4 mexem no estúdio que
-   o chama); depois reduz-se a uma dúzia de casos de fronteira, e o resto fica com os
-   testes das etapas. Até lá, um `-u` neste ficheiro é uma mudança de comportamento
-   e diz-se no PR.
+8. **O retrato de 77 respostas (≈ 6 mil linhas de `.snap`) é andaime, não guarda
+   permanente.** Vive enquanto as fases seguintes mexerem no envio (a 3 e a 4 mexem
+   no estúdio que o chama). O critério para o reduzir é este: **no PR em que o
+   estúdio passar a ler `envio/contrato.ts`** (desvio 9), o retrato fica só com os
+   casos de fronteira — um por estado HTTP, os corpos estranhos e as repetições —, e
+   o resto passa a viver nos testes das etapas. Até lá, um `-u` neste ficheiro é uma
+   mudança de comportamento e diz-se no PR. O teste em si cumpre as 400 linhas: o
+   palco (duplos, pedido, retrato) e os cenários estão em `proposta-doc/_caracterizacao/`
+   (a pasta com `_` é privada para o Next, não vira rota), e os ficheiros de teste
+   ficam com ≈ 100 linhas cada.
 9. **O contrato da rota (`envio/contrato.ts`) ainda não é lido pelo estúdio**: o
    `ProposalStudio.tsx` não se podia tocar nesta tarefa. É o primeiro passo da fase
    em que o estúdio se parte.
@@ -123,6 +133,8 @@ antes e depois (linhas, complexidade, peso das rotas).
   compila.
 - **Fechar e soltar no mesmo sítio** (`comTrinco`): um trinco passado entre funções
   como parâmetro de saída é um `finally` à espera de ser esquecido.
+- **O esquema que observa não lê** (lição 18 da Parte 4), e **a prova contra o código
+  antigo fica no repositório** (lição 19).
 - **Antes de escrever um esquema, medir a base** — por tipos, sem ler um único valor. O
   tipo dizia uma coisa e metade dos dados dizia outra.
 - **O modo de observar tem de dizer QUAIS**, não só «algum»: deduplicar por desvio
@@ -989,6 +1001,14 @@ acerto medido aqui.
     valor — e diz QUAIS casos, com tecto.
 17. **Fechar e soltar no mesmo sítio** (um `comTrinco`, um `using`), nunca um
     recurso passado entre funções para alguém soltar.
+18. **O esquema que observa não lê.** Em modo de observar, o esquema só REGISTA; os
+    valores lê-os uma leitura própria, escrita à mão com as tolerâncias de sempre.
+    Se forem o mesmo, apertar uma regra para ver mais no registo muda o
+    comportamento sem ninguém dar por isso. Prendem-se num sentido só: tudo o que o
+    esquema aceita, a leitura lê igual.
+19. **A prova de equivalência fica no repositório.** Um retrato tirado DEPOIS de
+    mexer certifica-se a si próprio; o que o certifica é o código antigo a correr
+    ao lado (do git, a pedido), com os mesmos cenários.
 
 ---
 

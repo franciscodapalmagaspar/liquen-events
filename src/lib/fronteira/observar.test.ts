@@ -63,7 +63,38 @@ describe("a fronteira em modo de observar", () => {
     for (let i = 0; i < CASOS_POR_DESVIO + 30; i++) {
       observar(esquema, { nome: 1 }, "teste", { id: `q${i}` });
     }
-    expect(aviso).toHaveBeenCalledTimes(CASOS_POR_DESVIO);
+    // Os primeiros um a um, e UMA linha a dizer que o desvio continua.
+    expect(aviso).toHaveBeenCalledTimes(CASOS_POR_DESVIO + 1);
+    expect(aviso).toHaveBeenLastCalledWith(
+      `fronteira: teste — o mesmo desvio em mais de ${CASOS_POR_DESVIO} casos`,
+      { desvios: [{ campo: "nome", problema: "invalid_type" }], calados: 1 },
+    );
+  });
+
+  it("passado o tecto, o resumo volta de CASOS_POR_DESVIO em CASOS_POR_DESVIO — nunca finge que parou", () => {
+    const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
+    for (let i = 0; i < 3 * CASOS_POR_DESVIO; i++) {
+      observar(esquema, { nome: 1 }, "teste", { id: `q${i}` });
+    }
+    const resumos = aviso.mock.calls.filter((c) => String(c[0]).includes("o mesmo desvio em mais"));
+    expect(resumos.map((c) => (c[1] as { calados: number }).calados)).toEqual([
+      1,
+      CASOS_POR_DESVIO,
+      2 * CASOS_POR_DESVIO,
+    ]);
+  });
+
+  it("no tecto de desvios lembrados esquece-se só o mais antigo", () => {
+    const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
+    for (let i = 0; i < 500; i++) observar(esquema, { nome: 1 }, `sitio${i}`, { id: "q" });
+    // O 501.º empurra o primeiro para fora…
+    observar(esquema, { nome: 1 }, "sitio500", { id: "q" });
+    aviso.mockClear();
+    // …o segundo continua lembrado (calado), e o primeiro volta a dizer-se.
+    observar(esquema, { nome: 1 }, "sitio1", { id: "q" });
+    expect(aviso).not.toHaveBeenCalled();
+    observar(esquema, { nome: 1 }, "sitio0", { id: "q" });
+    expect(aviso).toHaveBeenCalledTimes(1);
   });
 
   it("o mesmo defeito noutro sítio da lista é o mesmo desvio — mas o registo diz o sítio", () => {

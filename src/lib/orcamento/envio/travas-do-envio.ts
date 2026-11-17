@@ -31,7 +31,14 @@ import type { OEnvio } from "./o-envio";
  * minuto deitado fora.
  */
 
-/** Os erros do estúdio que a rota também recusa — ver «O QUE TRAVA NO ESTÚDIO». */
+/**
+ * Os erros do estúdio que a rota também recusa — ver «O QUE TRAVA NO ESTÚDIO».
+ *
+ * São ids da regra (`oQueFaltaParaEnviar`), e o tipo não os prende
+ * (`Impedimento.id` é texto). Prende-os `travas-do-envio.test.ts`, pelo
+ * comportamento: cada id das duas listas tem de sair da regra, a travar. Um id
+ * renomeado lá, ou mal escrito aqui, põe esse teste a vermelho.
+ */
 export const TRAVAM_NO_SERVIDOR: ReadonlySet<string> = new Set([
   "nome",
   "valor",
@@ -78,6 +85,11 @@ export const TRAVAM_O_PDF_FINAL: ReadonlySet<string> = new Set([
 
 /** «Falta o valor» → «falta o valor»: só a primeira letra desce — o resto
  *  leva os nomes dos serviços, que se escrevem como ela os escreveu. */
+/** Das faltas que a regra encontrou, as que travam E que esta lista recusa. */
+function queTravam(faltas: Impedimento[], lista: ReadonlySet<string>): Impedimento[] {
+  return faltas.filter((f) => f.trava && lista.has(f.id));
+}
+
 function emMinuscula(f: Impedimento): string {
   return f.texto.charAt(0).toLowerCase() + f.texto.slice(1);
 }
@@ -100,13 +112,14 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Recusa | null> {
   // A MESMA conta do estúdio (`fotosEscolhidasQueFaltam`). Uma pasta que
   // não responde deixa por acusar só as fotos dela; as outras contam.
   const escolhidasEmFalta = await fotosEscolhidasQueFaltam(c.doc);
-  const travam = oQueFaltaParaEnviar(c.doc, dinheiroDaProposta(c.doc).gross, {
+  const faltas = oQueFaltaParaEnviar(c.doc, dinheiroDaProposta(c.doc).gross, {
     idioma: c.idioma,
     fotosEscolhidasQueFaltam: escolhidasEmFalta,
     canal: c.porEmail ? "email" : "whatsapp",
     emailDoCliente: c.quote.email,
     pdfVisto: c.pdfVisto !== null && c.pdfVisto === c.chaveDoQueChegou,
-  }).filter((f) => f.trava && TRAVAM_NO_SERVIDOR.has(f.id));
+  });
+  const travam = queTravam(faltas, TRAVAM_NO_SERVIDOR);
   if (travam.length > 0) {
     log.warn("proposta-doc: envio recusado, a proposta tem erros", {
       id: c.pedidoId,
@@ -141,13 +154,14 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Recusa | null> {
 export async function travaDoPdfFinal(
   c: Pick<OEnvio, "doc" | "quote" | "idioma">,
 ): Promise<Recusa | null> {
-  const travam = oQueFaltaParaEnviar(c.doc, dinheiroDaProposta(c.doc).gross, {
+  const faltas = oQueFaltaParaEnviar(c.doc, dinheiroDaProposta(c.doc).gross, {
     idioma: c.idioma,
     fotosEscolhidasQueFaltam: await fotosEscolhidasQueFaltam(c.doc),
     canal: "email",
     emailDoCliente: c.quote.email,
     pdfVisto: false,
-  }).filter((f) => f.trava && TRAVAM_O_PDF_FINAL.has(f.id));
+  });
+  const travam = queTravam(faltas, TRAVAM_O_PDF_FINAL);
   if (travam.length === 0) return null;
   const soFotos = travam.every(
     (f) => f.id === "foto-escolhida-em-falta" || f.id === "fotos-a-mais",

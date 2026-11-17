@@ -25,7 +25,7 @@ import {
   esquemaDoCorpoDoModeloDeProposta,
   esquemaDoCorpoDoRascunho,
 } from "./corpos-das-rotas";
-import { esquemaDoCorpo } from "@/lib/orcamento/envio/ler-o-corpo";
+import { esquemaDoCorpo } from "@/lib/orcamento/envio/esquema-do-corpo";
 
 const desvios = (r: { success: boolean; error?: z.ZodError }) =>
   r.success ? [] : r.error!.issues.map((i) => `${i.path.join(".")}:${i.code}`);

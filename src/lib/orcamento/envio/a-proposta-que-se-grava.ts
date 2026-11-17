@@ -7,6 +7,10 @@ import { proximaVersao, seloDoConteudo } from "@/lib/proposta-versao";
 import { log } from "@/lib/logger";
 import type { OEnvio } from "./o-envio";
 
+/** A ordem das irmãs de um pedido, em todo este ficheiro: a mais recente primeiro. */
+const maisRecentePrimeiro = (a: Proposal, b: Proposal): number =>
+  +new Date(b.createdAt) - +new Date(a.createdAt);
+
 /**
  * Etapa 7 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): a linha que se
  * vai gravar, com o seu número de versão. A montagem e o carimbo são puros; só
@@ -40,9 +44,7 @@ export async function irmasDoPedido(
   try {
     const irmas = await listProposalsForQuote(pedidoId);
     const porEnviar =
-      irmas
-        .filter((p) => p.status === "rascunho")
-        .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0] ?? null;
+      irmas.filter((p) => p.status === "rascunho").sort(maisRecentePrimeiro)[0] ?? null;
     return { irmas, porEnviar };
   } catch (e) {
     log.warn("proposta-doc: não deu para procurar uma proposta por enviar", {
@@ -169,7 +171,9 @@ export function versaoDaProposta(
   anteriores: readonly Proposal[],
 ): Pick<Proposal, "versaoSelo" | "versaoNumero" | "versaoEm"> {
   const maisRecente =
-    [...anteriores].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0] ?? null;
+    // Não confia na ordem de quem chama: é pura, e ordenar meia dúzia de linhas
+    // não custa nada.
+    [...anteriores].sort(maisRecentePrimeiro)[0] ?? null;
   const maiorNumero = anteriores.reduce(
     (maior, p) =>
       Number.isFinite(p.versaoNumero) ? Math.max(maior, Number(p.versaoNumero)) : maior,
@@ -197,7 +201,5 @@ export function versaoDaProposta(
  * repetição procura o mesmo envio (a primeira que bate é a mais recente).
  */
 export function propostasAnteriores(proposal: Proposal, irmas: readonly Proposal[]): Proposal[] {
-  return irmas
-    .filter((p) => p.id !== proposal.id)
-    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+  return irmas.filter((p) => p.id !== proposal.id).sort(maisRecentePrimeiro);
 }

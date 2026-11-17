@@ -7,7 +7,7 @@
  * é como se voltam a medir.
  */
 import { bench, describe } from "vitest";
-import { esquemaDoCorpo } from "@/lib/orcamento/envio/ler-o-corpo";
+import { esquemaDoCorpo } from "@/lib/orcamento/envio/esquema-do-corpo";
 import { esquemaDoPedidoGuardado } from "./pedido-guardado";
 
 /** Uma proposta grande: 12 grupos de 10 linhas, 10 mood boards de 8 fotos. */
