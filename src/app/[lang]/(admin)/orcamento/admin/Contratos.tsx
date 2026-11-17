@@ -1,13 +1,14 @@
 "use client";
 
 import { casaComAProcura } from "@/lib/procura";
-import { createContext, useContext, useMemo, useState, useDeferredValue } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useDeferredValue } from "react";
 // `import type` é totalmente apagado no build, por isso puxar a forma do store
 // server-only nunca arrasta o guard `server-only` (→ repository → fs) para o
 // bundle cliente. O tipo vive no módulo client-safe `contract-types`.
 import type { Contract, ContractStatus } from "@/lib/contract-types";
 import type { AceiteComContrato, AceiteSemContrato, ItemDosAceites } from "@/lib/orcamento/aceites";
 import type { Quote } from "@/lib/orcamento/types";
+import { servirUmaVez, type PedidoDaPaleta } from "./procura-em-tudo";
 import { TERMS_VERSION } from "@/lib/contract-terms";
 import { SkeletonList } from "./Skeleton";
 import { downloadCsv, dateStamp } from "./export";
@@ -329,10 +330,13 @@ function RegistarAceite({ contrato, feito }: { contrato: Contract; feito: () => 
 export default function Contratos({
   quotes = [],
   onOpenQuote,
+  pedidoDaPaleta,
 }: {
   /** Os pedidos que o back office já tem — para «Abrir pedido». */
   quotes?: Quote[];
   onOpenQuote?: (q: Quote) => void;
+  /** A paleta (⌘K) escolheu um contrato: abre filtrado pelo nome do cliente. */
+  pedidoDaPaleta?: PedidoDaPaleta;
 }) {
   const {
     data: itens = [],
@@ -367,6 +371,14 @@ export default function Contratos({
   // Defer so filtering + row reconcile runs off the keystroke; input stays instant.
   const dSearch = useDeferredValue(search);
   const [status, setStatus] = useState<Filtro>("all");
+  // A escolha da paleta ganha ao filtro de estado que lá estava (BO 4).
+  useEffect(() => {
+    servirUmaVez(pedidoDaPaleta, (p) => {
+      if (p.procura === undefined) return;
+      setSearch(p.procura);
+      setStatus("all");
+    });
+  }, [pedidoDaPaleta]);
   const [expanded, setExpanded] = useState<string | null>(null);
   /**
    * A MESMA PERGUNTA QUE O `TabelaOuCartoes` FAZ POR DENTRO — os termos
