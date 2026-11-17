@@ -1,6 +1,6 @@
 "use client";
 
-import { lerPartilhado } from "@/lib/orcamento/estudio/leitura-partilhada";
+import { lerPartilhado } from "@/lib/leitura-partilhada";
 import { estadoNoEcra, haQueMostrar } from "@/lib/orcamento/estudio/estado-da-gravacao";
 import { useEstadoDaGravacao } from "./estudio/gravacao/useEstadoDaGravacao";
 import { useAmostrasDeGeracao } from "./estudio/envio/useAmostrasDeGeracao";

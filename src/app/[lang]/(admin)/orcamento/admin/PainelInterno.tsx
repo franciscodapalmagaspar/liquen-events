@@ -1,6 +1,6 @@
 "use client";
 
-import { lerPartilhado } from "@/lib/orcamento/estudio/leitura-partilhada";
+import { lerPartilhado } from "@/lib/leitura-partilhada";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import type { Quote } from "@/lib/orcamento/types";
