@@ -21,7 +21,7 @@ para se poderem repetir e comparar.
 |---|---|
 | Parte 1, princípios com fontes | feito (17/11) |
 | Parte 2, raio-X medido | feito (17/11), commit `1f15511d` |
-| Parte 3, plano por fases | fases 0 e 1 feitas (17/11, ramo `codigo/fase-0-e-1`); da 2 em diante por começar |
+| Parte 3, plano por fases | fases 0 e 1 feitas (17/11, ramo `codigo/fase-0-e-1`); fase 7 e a parte estrutural da 8 feitas (17/11, ramo `codigo/admin-e-temas`); as outras por começar |
 | Parte 4, lições para projetos futuros | feito; cresce com cada lição (regra de `codigo.md`) |
 
 Cada fase que se fizer acrescenta aqui uma linha: a data, o PR, e as medidas
@@ -31,6 +31,42 @@ antes e depois (linhas, complexidade, peso das rotas).
 |---|---|---|
 | 0 · guardas | 17/11 · `codigo/fase-0-e-1` | teste de ouro do PDF (`lib/pdf-editorial/ouro.test.ts`, três PDFs, `sha256` preso, Linux x64); catraca do tamanho (`test/tamanho-dos-ficheiros.test.ts` + `.json`, 193 ficheiros com tecto); `madge` só de valores no CI (`scripts/ci/ciclos-de-importacao.mjs`, os 3 ciclos de hoje na lista, ~14 s no job estático); `complexity` (30) e `max-lines-per-function` (400) em aviso no ESLint (137 avisos, 0 erros). Cada guarda foi vista a falhar de propósito: uma letra a mais na capa, um ciclo para o estúdio, o `ProposalStudio` a encolher sem descer o tecto. |
 | 1 · domínio do estúdio | 17/11 · `codigo/fase-0-e-1` | `ProposalStudio.tsx` 17 008 → 16 063 linhas; a função `ProposalStudio` fica igual (complexidade 279, 7 043 linhas de código — é a fase 3). Saíram para `lib/orcamento/estudio/` seis ficheiros (1 042 linhas, todos abaixo das 400). Peso das rotas igual (proposta 88 KB, painel 505 KB). Capturas do estúdio a 390/768/1440, claro e escuro: 0 píxeis diferentes. |
+| 7 · `AdminClient` por secções | 17/11 · `codigo/admin-e-temas` | `AdminClient.tsx` 9 505 → 4 111 linhas (9 129 antes do merge do BO 4, que lhe juntou 376). A função `AdminClient`: complexidade 223 → 62, linhas de código 4 877 → 2 048. O `saveChanges`: complexidade 105 → abaixo de 30 (três passos puros em `lib/orcamento/pedidos/gravar-o-pedido.ts` e uma casca). O `QuoteCard`: 43 → 39. Saíram 25 ficheiros para `admin/_pedidos/` (a lista e o painel, este em `_pedidos/painel/`), 11 para `admin/_casca/` (menu, cabeçalho, barra de baixo, vistas) e 8 para `lib/orcamento/pedidos/` — todos abaixo das 400 linhas. Dois hooks de domínio: `useEdicaoDoPedido` (os onze campos do painel) e `useFiltrosDosPedidos` (os doze filtros e a lista filtrada). |
+| 8 · Temas e ThemePicker (sem a fila) | 17/11 · `codigo/admin-e-temas` | `Temas.tsx` 6 464 → 4 037 linhas; `ThemeFolder` complexidade 93 → abaixo de 30, linhas de código 2 020 → 1 599; `Temas` 38 → abaixo de 30, 1 121 → 823. `ThemePicker.tsx` 3 181 → 2 556 linhas; a função 72 → 50, 1 093 → 876. Saíram 20 ficheiros para `admin/_temas/` (com `_temas/seletor/`) e 2 para `lib/temas/`. A fila das fotografias pesadas passou a UM código (`criarFilaDeImagens`) com TRÊS instâncias, cada uma com o seu tecto de 3 — exactamente como antes; juntá-las numa só espera pela aprovação dela. |
+
+**Desvios das fases 7 e 8 ao texto:**
+
+- **O que ficou para a fase seguinte.** O `AdminClient` ainda é o dono do
+  estado partilhado e dos efeitos: abrir, gravar, apagar e arquivar pedidos, a
+  revalidação, os atalhos, o histórico do navegador. Partiu-se o JSX inteiro e
+  saiu o estado de dois domínios (edição e filtros); os efeitos ficaram onde
+  estavam, de propósito — a ordem dos efeitos é comportamento, e mudá-la é o
+  passo seguinte, com testes de caracterização próprios. O mesmo no `Temas.tsx`
+  (o `ThemeFolder` continua com o carregamento, a verificação e a geração de
+  miniaturas) e no `ThemePicker.tsx`: o «runtime» das importações (`runJob`, a
+  pastilha, as caches de módulo que o `__resetThemePickerState` limpa) e a
+  coluna dos temas, que depende dele, ficaram — partir estado de módulo sem
+  mudar o que os testes limpam é uma fase própria.
+- **Nomes.** Os nomes movidos ficam os de lá (`QuoteCard`, `editPrice`,
+  `filterStatus`, `Photo`…), mesmo os que estão em inglês: mudar o nome no
+  mesmo passo em que se muda a casa é o diff que não se revê (§3.0, regra 3).
+  Os nomes NOVOS (casas, componentes que nasceram de blocos, funções puras que
+  saíram de expressões soltas) são em português.
+- **Duas listas que eram uma.** `STATUS_OPTIONS` (as pastilhas) e
+  `ROTULO_DO_ESTADO` (o histórico) eram as mesmas seis palavras escritas duas
+  vezes, presas por um comentário. Os rótulos da pastilha passam a vir de
+  `ROTULO_DO_ESTADO`; um teste prende que são iguais.
+- **Os testes que leem o texto.** Quarenta testes liam o TEXTO do
+  `AdminClient.tsx`, do `Temas.tsx` ou do `ThemePicker.tsx`. Passaram a ler pela
+  porta `admin/fonte-do-admin.testkit.ts` (`fonteDe`, `fonteDaCasa`,
+  `fonteComposta`), que junta o ficheiro e as casas dele. Nenhuma asserção foi
+  afrouxada; as listas de excepções que nomeavam o `AdminClient.tsx` passaram a
+  nomear a casa nova, com a soma igual (`Cortes.contrato`: 4 = 3 + 1).
+- **A catraca e o BO 4.** O `bo4/procura-lotes-atalhos` foi escrito antes de a
+  catraca existir e fez crescer onze ficheiros acima do tecto dela. No merge, os
+  tectos desses onze ficaram no tamanho com que o BO 4 os deixou (é a
+  fotografia do dia, não um crescimento novo); o do `AdminClient.tsx`, o do
+  `Temas.tsx` e o do `ThemePicker.tsx` desceram para o tamanho de agora.
 
 **Desvios da fase 1 ao texto:** além do que a tabela da fase 1 nomeia, saíram
 com as funções as ajudantes privadas de que elas precisam (`eventTypeLabel`,
@@ -877,6 +913,41 @@ acerto medido aqui.
 14. **O porquê fica junto do código que explica**, com a data e a medição. É
     um dos pontos fortes desta casa; quando a função muda de ficheiro, o
     comentário vai com ela.
+
+15. **Partir um ficheiro gigante faz-se com o compilador, não à mão.** Nas
+    fases 7 e 8, cada bloco de JSX saiu por um script que pergunta ao
+    TypeScript que nomes o bloco usa e de que tipo são (a mesma pergunta que o
+    editor faz ao «Extrair componente»), e que escreve o componente e a chamada.
+    Três armadilhas que custaram tempo: (a) cada extracção acrescenta uma
+    importação no topo, por isso as linhas de baixo deslocam-se — calculam-se
+    sempre de novo, por âncoras de texto, e nunca de memória; (b) o tipo de uma
+    variável é o do SÍTIO do bloco (dentro de `{x ? (…)` o `x` já não é nulo), e
+    não o da declaração; (c) quando várias props vêm do mesmo hook, passa-se o
+    objecto do hook (`edicao`, `filtros`) — 26 props soltas não são uma
+    interface, são um sintoma.
+16. **O topo do ficheiro sai ANTES do JSX.** Um componente novo que importe
+    uma constante do ficheiro gigante de onde saiu cria um ciclo (o gigante
+    importa o componente). Primeiro mudam-se as constantes, os tipos e as
+    peças pequenas do topo para casas próprias; só depois o JSX que as usa.
+17. **Um teste que lê o texto de um ficheiro precisa de uma porta, não do
+    caminho.** Quarenta testes tinham o caminho do `AdminClient.tsx` escrito à
+    mão. Uma porta única (`fonte-do-admin.testkit.ts`) torna a mudança de casa
+    seguinte uma linha, e — mais importante — impede o teste de ficar verde por
+    deixar de encontrar o que procurava.
+18. **Removedores de comentários ingénuos mentem.** Uma string com «/*» (o
+    `accept="image/*"` de um campo de ficheiros) abria um «comentário» que só
+    fechava no `*/` seguinte; enquanto esse `*/` esteve no mesmo ficheiro, o
+    teste passava por acaso. Tira-se o comentário ficheiro a ficheiro, e as
+    strings primeiro.
+19. **A catraca e os ramos antigos.** Uma guarda nova (a catraca do tamanho)
+    encontra, no primeiro merge, ramos escritos antes dela. Decide-se uma vez,
+    por escrito, que os tectos desse merge são a fotografia do dia — e a
+    partir daí só descem.
+20. **Uma instância por dono, um código para todos.** A fila das fotografias
+    estava três vezes. Juntar as três numa só mudava um comportamento (quantas
+    descarregam ao mesmo tempo); o passo sem risco foi primeiro dar-lhes O MESMO
+    código, com uma instância cada uma. A decisão de as juntar passa a ser uma
+    linha, e fica com quem a deve tomar.
 
 ---
 
