@@ -9,7 +9,7 @@ import {
   ehModo,
   type BaldeDoBlob,
 } from "@/lib/armazenamento/baldes";
-import { modosDosBaldes, modoDoBalde, mudarModo } from "@/lib/armazenamento/modos";
+import { modosDosBaldes, modoDoBaldeFresco, mudarModo } from "@/lib/armazenamento/modos";
 import { indiceDebaixoDe } from "@/lib/armazenamento/indice";
 import { copiar, ensaio, libertar, verificarLigacao } from "@/lib/armazenamento/migracao";
 import { usoAtual } from "@/lib/armazenamento/uso";
@@ -100,7 +100,8 @@ async function POST_semMedida(request: NextRequest) {
         return resposta(await copiar(balde, { n, depois }));
       case "modo": {
         if (!ehModo(corpo.modo)) return resposta({ error: "Modo desconhecido." }, 400);
-        const atual = await modoDoBalde(balde);
+        // Fresco: a cache de 60 s podia dizer `espelho` com o balde já em `blob`.
+        const atual = await modoDoBaldeFresco(balde);
         if (atual === "blob" && corpo.modo !== "blob") {
           const { linhas, completa } = await indiceDebaixoDe(balde, "", 1);
           if (linhas.size > 0 || !completa) {

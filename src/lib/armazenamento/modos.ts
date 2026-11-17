@@ -57,6 +57,17 @@ export async function modoDoBalde(balde: string): Promise<ModoDoBalde> {
   return (await modosDosBaldes())[balde];
 }
 
+/**
+ * O modo lido AGORA da base de dados, sem a cache de 60 s — para as decisões
+ * que não podem assentar numa leitura velha (a guarda de sair do modo `blob`;
+ * revisão de 17/11, n.º 8). Lança se a leitura falhar: na dúvida, não se muda.
+ */
+export async function modoDoBaldeFresco(balde: BaldeDoBlob): Promise<ModoDoBalde> {
+  const modos = modosValidos(await getState<unknown>(CHAVE_DOS_MODOS, { ouFalha: true }));
+  cache = { modos, lidoEm: Date.now() };
+  return modos[balde];
+}
+
 /** Muda o modo de um balde. Devolve os modos como ficaram, ou `null` se não gravou. */
 export async function mudarModo(
   balde: BaldeDoBlob,

@@ -3,12 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const H = vi.hoisted(() => ({
   autenticado: true,
   modo: "blob" as string,
+  modoEmCache: null as string | null,
   linhasNoIndice: 1,
   mudou: [] as unknown[],
 }));
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => H.autenticado }));
 vi.mock("@/lib/armazenamento/modos", () => ({
-  modoDoBalde: async () => H.modo,
+  // A cache (até 60 s velha) e a linha fresca podem discordar.
+  modoDoBalde: async () => H.modoEmCache ?? H.modo,
+  modoDoBaldeFresco: async () => H.modo,
   modosDosBaldes: async () => ({}),
   mudarModo: async (b: string, m: string) => {
     H.mudou.push([b, m]);
@@ -44,6 +47,7 @@ beforeEach(() => {
   process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_Loja1234_segredo";
   H.autenticado = true;
   H.modo = "blob";
+  H.modoEmCache = null;
   H.linhasNoIndice = 1;
   H.mudou = [];
 });
@@ -84,5 +88,12 @@ describe("POST /api/admin/armazenamento-blob", () => {
   it("um cursor com travessia não passa", async () => {
     await pedir({ acao: "copiar", balde: "proposal-pdfs", n: 5, depois: "../x" });
     expect(copiar).toHaveBeenCalledWith("proposal-pdfs", { n: 5, depois: null });
+  });
+
+  it("a guarda lê o modo FRESCO, não a cache de 60 s (revisão 17/11, n.º 8)", async () => {
+    H.modoEmCache = "espelho"; // outra instância já passou o balde a `blob`
+    const r = await pedir({ acao: "modo", balde: "theme-assets", modo: "supabase" });
+    expect(r.status).toBe(409);
+    expect(H.mudou).toEqual([]);
   });
 });
