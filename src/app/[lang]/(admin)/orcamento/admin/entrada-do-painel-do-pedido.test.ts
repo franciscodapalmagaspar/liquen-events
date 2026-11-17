@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { fonteDoAdmin } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -37,7 +38,8 @@ import { readFileSync } from "node:fs";
  */
 
 const RAIZ = "src/app/[lang]/(admin)/orcamento/admin/";
-const FONTE = readFileSync(RAIZ + "AdminClient.tsx", "utf8");
+// O `AdminClient.tsx` e as casas para onde ele se partiu (ver o testkit).
+const FONTE = fonteDoAdmin();
 // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
 // todas as páginas públicas) para o `admin.css`. Lê-se o par, pela ordem em que
 // o browser os aplica no back office.

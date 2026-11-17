@@ -1,6 +1,5 @@
 "use client";
 
-import { casaComAProcura } from "@/lib/procura";
 import { resumoDoEnvio } from "./envio-da-mensagem";
 import { rolarAteVer } from "@/lib/motion/rolar";
 
@@ -11,16 +10,13 @@ import {
   useRef,
   useCallback,
   useDeferredValue,
-  memo,
   Fragment,
-  type ReactNode,
 } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { localeDoCaminho, localizeHref } from "@/lib/i18n/config";
 import { navegarPara } from "./navegar";
-import { dataCurta } from "@/lib/data-curta";
 import { razaoDaRecusa, porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import type { LeituraFalhada } from "@/lib/porque-nao-leu";
 import type { Quote, QuoteSummary, QuoteStatus, ActivityEntry } from "@/lib/orcamento/types";
@@ -35,7 +31,6 @@ import {
 } from "@/lib/orcamento/barra-de-destinos";
 import { contractedAmounts, effectiveVatRate } from "@/lib/orcamento/dossier";
 import { round2 } from "@/lib/money";
-import { lerNumero } from "@/lib/numero-escrito";
 import { porqueRecusou } from "@/lib/erro-do-servidor";
 import {
   esquecerRascunho,
@@ -46,16 +41,7 @@ import {
   oQueMudou,
   type CamposDoPedido,
 } from "./rascunho-do-pedido";
-import {
-  contextoDeLocal,
-  diasDeEspera,
-  esperaEmPalavras,
-  mesesDeEvento,
-  plannersDe,
-  porEspera,
-  regioesDe,
-  tomDeEspera,
-} from "@/lib/orcamento/espera";
+import { mesesDeEvento, plannersDe, regioesDe } from "@/lib/orcamento/espera";
 import { faltaODesfecho } from "@/lib/orcamento/desfecho";
 import PerguntaDeDesfecho from "./PerguntaDeDesfecho";
 import PainelGeracaoAoGanhar from "./PainelGeracaoAoGanhar";
@@ -109,7 +95,7 @@ import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravac
 import BotaoGuardarTudo from "./GuardarTudo";
 import { onIdle } from "@/lib/onIdle";
 import { marcarSaidaDeProposito } from "./entrada-destino";
-import { diasDesde, eventCountdown, parseMoney, randomId, eur, todayKey } from "./util";
+import { eventCountdown, parseMoney, randomId, eur, todayKey } from "./util";
 import { useAnular } from "./ui/anular";
 import { useDepoisDeApagar, useDepoisDeApagarVarios } from "./ui/depois-de-apagar";
 import { reporEstadoDoPedido } from "./anular-estado";
@@ -123,7 +109,6 @@ import {
   propostaDaFaseDoPedido,
   usePropostasLevesSoOuvir,
 } from "./percentagem-do-sinal";
-import type { PropostaParaAFase } from "@/lib/orcamento/dossier";
 import { NAV, CORE_NAV, MORE_NAV, BARRA_INFERIOR, ROTULO_CURTO, type View } from "./nav";
 import { useDesceu } from "./ui/adaptativo";
 import { Escolha } from "./ui/Escolha";
@@ -135,7 +120,6 @@ import {
   PerguntaDestrutiva,
   SectionCard,
   TabelaOuCartoes,
-  type Coluna,
 } from "./ui";
 /* ── A ESCALA DE MOVIMENTO DA CASA ─────────────────────────────────────────
    Ver `ui/movimento.ts` para o censo que a motivou. Duas velocidades e só
@@ -148,27 +132,6 @@ import {
 import { ESTADO, MARCA, PRESSAO } from "./ui/movimento";
 import { useDescarga } from "./ui/descarregar";
 
-/**
- * A pele dos seis filtros da lista de pedidos, escrita UMA vez.
- *
- * Era a mesma cadeia copiada seis vezes, e seis cópias de uma pele são seis
- * sítios onde ela se afasta — foi exactamente isso que aconteceu com as
- * alturas da barra de baixo. A `Escolha` leva `variante="nua"` porque a caixa
- * é esta, e não a do formulário.
- */
-const FILTRO_CLASSES =
-  "bg-[var(--bo-surface)] border border-[var(--bo-hairline)] rounded-xl px-3 py-2.5 " +
-  "text-xs text-[var(--bo-tinta-72)] focus:outline-none focus:border-foreground/25 " +
-  // ── NA GRELHA DO TELEMÓVEL, O FILTRO ENCOLHE À CÉLULA ──────────────────────
-  // No dedo a `Escolha` é um `<select>` a 16 px, e «Todas as categorias» mais a
-  // reserva da seta pedia 207 px numa célula de ~171: a página inteira passava
-  // a deslizar 8–16 px para o lado (auditoria do telemóvel, 14/11). O `min-w-0`
-  // deixa-o encolher e o texto corta-se dentro do campo; no computador (`lg:`)
-  // os filtros são uma fila que embrulha, e cada um volta à largura dele.
-  "min-w-0 max-lg:w-full";
-/** A caixa da `Escolha` à volta de cada filtro: é ELA que ocupa a célula da
- *  grelha, portanto é ela que tem de poder encolher (ver `FILTRO_CLASSES`). */
-const FILTRO_CAIXA = "min-w-0 max-lg:w-full";
 import { useMarcaQueAnda } from "./ui/useMarcaQueAnda";
 /* A outra metade do vocabulário: a `.bo-saida` é a palavra em CSS, e este hook
    é a parte que o CSS não pode fazer sozinho — segurar o nó montado os 200 ms
@@ -183,11 +146,6 @@ import { varrerDerivadasEmFundo } from "./varrer-derivadas";
 import { varrerAquecimentoEmFundo } from "./varrer-aquecimento";
 import ComPropostasParaContas from "./ComPropostasParaContas";
 import SafeImage from "@/components/SafeImage";
-import {
-  faltaADataDoEvento,
-  AVISO_SEM_DATA,
-  PORQUE_FALTA_A_DATA,
-} from "@/lib/orcamento/data-em-falta";
 import {
   Overview,
   Kanban,
@@ -231,11 +189,42 @@ import { linkDaConversa } from "@/lib/whatsapp";
 import { dominiosConhecidos, sugerirEmail } from "@/lib/dominio-parecido";
 import CampoTelefone from "@/components/CampoTelefone";
 import { APARENCIA_DO_BACK_OFFICE, TELEFONE_EM_CAIXA } from "./ui/aparencia-do-telefone";
-
-// Quantos pedidos a lista renderiza de cada vez ("Mostrar mais" carrega o resto).
-const LIST_PAGE_SIZE = 50;
-/** Até quantos pedidos se arquivam de uma vez sem perguntar (revisão · 3). */
-const ARQUIVAR_SEM_PERGUNTAR = 10;
+/* O que é dos pedidos e já não vive neste ficheiro (fase 7 de
+   `docs/ESTRUTURA-DO-CODIGO.md`): as regras puras em `lib/orcamento/pedidos/`,
+   e as peças de interface da lista e do painel em `_pedidos/`. */
+import {
+  contarPorEstado,
+  etiquetasEmUso,
+  filtrarEOrdenarPedidos,
+  filtrosDoPainelActivos,
+  haFiltroAActuar as haFiltroAActuarNaLista,
+  oQueEstaAFiltrar as descreverFiltros,
+} from "@/lib/orcamento/pedidos/filtros-dos-pedidos";
+import { mesmasNotas, type NotasAutomaticas } from "@/lib/orcamento/pedidos/notas-automaticas";
+import {
+  mesLegivel,
+  oQueSePerdeComOPedido,
+  shortRef,
+  textoDoPreco,
+} from "@/lib/orcamento/pedidos/textos-do-pedido";
+import {
+  corpoDaGravacao,
+  corpoDoAnular,
+  linhasDoHistorico,
+  type PainelEscrito,
+} from "@/lib/orcamento/pedidos/gravar-o-pedido";
+import { COLUNAS_DE_PEDIDOS } from "./_pedidos/colunas-dos-pedidos";
+import { useEdicaoDoPedido } from "./_pedidos/useEdicaoDoPedido";
+import { STATUS_OPTIONS, statusBadge } from "./_pedidos/estado-do-pedido";
+import {
+  ARQUIVAR_SEM_PERGUNTAR,
+  ENTRADA_DO_LOTE,
+  FILTRO_CAIXA,
+  FILTRO_CLASSES,
+  LIST_PAGE_SIZE,
+} from "./_pedidos/pele-da-lista";
+import { QuoteCard } from "./_pedidos/QuoteCard";
+import { DETAIL_TABS, detailNextAction, type DetailTab } from "./_pedidos/separadores-do-painel";
 
 // Shared content shell for the main column: a comfortable centred max-width with
 // consistent horizontal padding + vertical rhythm, so screens stay readable
@@ -251,220 +240,33 @@ const VIEW_WRAP =
 /** A chave da saída do painel do pedido — há um painel só, e a chave é uma. */
 const SAIDA_DO_PAINEL = "painel-do-pedido";
 
-/**
- * ══════════════════════════════════════════════════════════════════════════
- * O LOTE QUE O «MOSTRAR MAIS» ACRESCENTA
- * ══════════════════════════════════════════════════════════════════════════
- *
- * O botão fica onde estava e as linhas novas montavam-se sem gesto nenhum: a
- * única pista de que alguma coisa tinha acontecido era a barra de rolagem a
- * encolher. Carregar num botão e não ver nada acontecer é o defeito que faz
- * carregar segunda vez.
- *
- * ── SÓ O LOTE NOVO, E TODO ELE AO MESMO TEMPO ─────────────────────────────
- *
- * A lista que já lá estava NÃO se reanima — reanimá-la era dizer que também
- * ela acabou de chegar, e é mentira. E o lote novo entra como UM bloco, sem
- * escada: a regra da casa é escada por bloco e nunca por linha, e cinquenta
- * linhas escalonadas seriam exactamente a segunda coisa.
- *
- * ── PORQUE É QUE ISTO É UM `:has()` E NÃO UMA CLASSE NA LINHA ─────────────
- *
- * Porque a linha não é minha. Quem desenha o `<tr>` do computador e o `<li>`
- * do telemóvel é o `ui/TabelaOuCartoes.tsx`, e ele não aceita classe por
- * linha — o que eu escrevo são as CÉLULAS (`COLUNAS_DE_PEDIDOS`) e o CARTÃO
- * (`QuoteCard`). Animar célula a célula dava sete animações por linha e
- * deixava de fora o fio que separa as linhas, que é do `<tr>`/`<li>`:
- * viam-se os fios a aparecer a seco e o conteúdo a acender por dentro deles.
- *
- * Com `:has()` a marca vai onde eu chego (uma célula, o cartão) e a animação
- * vai onde ela pertence (a linha inteira, fio incluído). Uma marca por linha,
- * dois selectores, e o `TabelaOuCartoes` não precisa de saber que isto existe.
- *
- * ── E ISTO NÃO CONTRADIZ O «POR BLOCO, NUNCA POR LINHA» DA PRIMITIVA ──────
- *
- * O `ui/TabelaOuCartoes.tsx` tem hoje a sua própria entrada e uma regra
- * escrita: a classe entra no `<tbody>`/`<ul>`, uma vez, e NUNCA na linha —
- * porque cinquenta linhas a chegar UMA A UMA são a lentidão que o tecto do
- * sexto degrau existe para evitar. É a regra da ESCADA, e aqui não há escada
- * nenhuma: o lote inteiro parte no mesmo fotograma e lê-se como um bloco só.
- * O que se recusa é o desfasamento, não o número de nós que se movem.
- *
- * E as duas entradas nunca correm juntas, porque respondem a coisas
- * diferentes: a da primitiva dispara quando é a MESMA gente noutra ordem
- * (reordenar), e cala-se de propósito quando é OUTRA gente — que é o caso de
- * quem escreve na procura, e também o de acrescentar um lote. É precisamente
- * o buraco que esta deixa: de dentro, a primitiva não distingue «filtrou» de
- * «carregou no Mostrar mais»; de fora, quem carregou no botão sabe.
- *
- * ── E VÊM DE BAIXO, QUE É DE ONDE VÊM MESMO ──────────────────────────────
- *
- * O bloco da lista põe `--bo-entrada-y: 4px` (positivo), e a `@keyframes
- * bo-entrada` lê essa variável: o lote sobe para o lugar em vez de descer. É a
- * distância de omissão da casa, com o sinal trocado — «o movimento indica
- * direcção e origem», e a origem destas linhas é o fim da lista.
- *
- * ── E OS NÚMEROS SÃO OS DA CASA, ESCRITOS À MÃO CONTRA VONTADE ────────────
- *
- * `240ms cubic-bezier(0, 0, 0.2, 1)` é, letra por letra, a `.bo-entrada` do
- * `globals.css`. Repeti-los aqui não é uma escolha: uma variante do Tailwind
- * (aqui, um `[&…]:`) só sabe prefixar UTILITÁRIOS, e `bo-entrada` é uma classe
- * escrita à mão — `[&_tr:has(…)]:bo-entrada` não compila. Ou se declarava um
- * `--animate-*` no `@theme`, que é do `tema.css` e não é meu, ou se escreve o
- * atalho aqui. Fica escrito aqui, e o `entrada-do-painel-do-pedido.test.ts`
- * prende esta linha à regra do `globals.css`: afinar um dos lados põe o outro
- * vermelho.
- *
- * `motion-safe:` porque a guarda da `.bo-entrada` mora dentro da própria
- * classe e este atalho não a herda — sem isto animava para quem pediu para não
- * animar.
- */
-const ENTRADA_DO_LOTE =
-  "motion-safe:[&_li:has([data-lote-novo])]:animate-[bo-entrada_240ms_cubic-bezier(0,0,0.2,1)] " +
-  "motion-safe:[&_tr:has([data-lote-novo])]:animate-[bo-entrada_240ms_cubic-bezier(0,0,0.2,1)]";
-
 // Code-split views + detail-panel tools live in ./lazy — only the view the
 // user opens ships its JS, keeping the back-office's initial load lean.
-
-const STATUS_OPTIONS: { id: QuoteStatus; label: string; color: string }[] = [
-  { id: "pendente", label: "Novo", color: "bg-[var(--bo-tinta-10)] text-foreground/50" },
-  { id: "em_revisao", label: "Aguardar resposta", color: "bg-moss/15 text-moss" },
-  { id: "a_preparar", label: "A preparar proposta", color: "bg-moss/20 text-moss" },
-  { id: "cotado", label: "Proposta enviada", color: "bg-moss/25 text-moss" },
-  { id: "aceite", label: "Ganho", color: "bg-moss/35 text-moss" },
-  { id: "rejeitado", label: "Perdido", color: "bg-[var(--bo-tinta-10)] text-foreground/30" },
-];
-
-// Short, human-readable form of the long internal id (e.g.
-// "LIQ-MRR1L78R-438B649E86343C27" → "LIQ-MRR1L78R…C27"). The full id stays
-// available via title/tooltip; this is only for display.
-function shortRef(id: string): string {
-  const parts = id.split("-");
-  const last4 = id.slice(-4);
-  if (parts.length >= 2) return `${parts[0]}-${parts[1]}…${last4}`;
-  return id.length > 10 ? `${id.slice(0, 8)}…${last4}` : id;
-}
 
 // Preço final: aceita "1500", "1500,50", "1.500" — ver parseMoney em util.ts.
 const parsePriceInput = parseMoney;
 
-// The single "next action" surfaced on the pedido detail — derived from where
-// the request sits in its lifecycle, so a newcomer always sees the one sensible
-// thing to do next. It routes to the relevant tool tab, or to the always-visible
-// management form ("gestao") when the next step is a form edit (e.g. reopening).
-type DetailTab = "producao" | "financeiro" | "comunicacao";
-type DetailTarget = DetailTab | "gestao";
+/**
+ * O que se diz de uma gravação recusada, pelo código que voltou.
+ *
+ * A regra vive agora em `razaoDaRecusa` (`lib/porque-falhou.ts`), e este nome
+ * fica como o atalho local. Havia DUAS cópias disto — esta e a da
+ * `PerguntaDeDesfecho` — e tinham divergido: uma tratava o 413 e a outra o 404,
+ * portanto o mesmo 404 dizia «este pedido já não existe» num sítio e nada no
+ * outro, no mesmo ecrã.
+ */
+const porqueNaoGravou = razaoDaRecusa;
 
-// The pedido's tool tabs, each with an icon and a plain-language hint so it's
-// obvious what you do there. The tablist renders one card per tab (icon +
-// label + the hint as a one-line description inside the card).
-const DETAIL_TABS: { id: DetailTab; label: string; hint: string; icon: ReactNode }[] = [
-  {
-    id: "producao",
-    label: "Produção",
-    hint: "Prepare o evento: tarefas, checklist, plano e convidados.",
-    icon: (
-      <svg
-        width="15"
-        height="15"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-      >
-        <path d="M3 8l9-5 9 5v8l-9 5-9-5V8z" strokeLinejoin="round" />
-        <path d="M3 8l9 5 9-5M12 13v8" strokeLinecap="round" />
-      </svg>
-    ),
-  },
-  {
-    id: "financeiro",
-    label: "Financeiro",
-    hint: "Preço, custos, margem e pagamentos.",
-    icon: (
-      <svg
-        width="15"
-        height="15"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-      >
-        <circle cx="12" cy="12" r="9" />
-        <path
-          d="M15 9.5C14.5 8.5 13.3 8 12 8c-1.7 0-3 .9-3 2s1.3 2 3 2 3 .9 3 2-1.3 2-3 2c-1.3 0-2.5-.5-3-1.5M12 6.5v11"
-          strokeLinecap="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    id: "comunicacao",
-    label: "Fazer proposta",
-    hint: "Desenhar e enviar a proposta, e falar com o cliente.",
-    icon: (
-      <svg
-        width="15"
-        height="15"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-      >
-        <path
-          d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-];
-function detailNextAction(
-  quote: Quote,
-  proposta: PropostaParaAFase | null | undefined,
-): { label: string; hint: string; tab: DetailTarget } {
-  const { perdido, currentIndex, allDone } = deriveRequestLifecycle(quote, proposta);
-  if (perdido)
-    return { label: "Reabrir pedido", hint: "Voltar a colocar em revisão", tab: "gestao" };
-  if (allDone)
-    return {
-      label: "Rever produção do evento",
-      hint: "Guião, checklist e convidados",
-      tab: "producao",
-    };
-  switch (currentIndex) {
-    case 0:
-      return {
-        label: "Enviar proposta",
-        hint: "Criar e enviar a proposta ao cliente",
-        tab: "comunicacao",
-      };
-    case 1:
-      return {
-        label: "Acompanhar proposta",
-        hint: "Mensagens e registo de atividade",
-        tab: "comunicacao",
-      };
-    case 2:
-      return {
-        label: "Registar pagamento",
-        hint: "Sinal, saldo e custos do evento",
-        tab: "financeiro",
-      };
-    case 3:
-      return {
-        label: "Planear produção",
-        hint: "Checklist, plano de decoração e guião",
-        tab: "producao",
-      };
-    default:
-      return {
-        label: "Preparar o dia do evento",
-        hint: "Timeline, convidados e checklist",
-        tab: "producao",
-      };
-  }
-}
+/**
+ * O que a leitura de um pedido devolve.
+ *
+ * `Quote | null` não chegava: o `null` servia quatro avarias diferentes — rede
+ * em baixo, recusa do servidor, sessão caída (que responde **200**, ver abaixo)
+ * e resposta truncada — e quem chamava só sabia dizer «Verifica a ligação e
+ * tenta de novo». Numa sessão caída, essa frase manda fazer a única coisa que
+ * não resolve nada.
+ */
+type LeituraDoPedido = { ok: true; quote: Quote } | { ok: false; porque: string };
 
 // The "g then <key>" navigation chord lives in `atalhos.ts` (VIEW_KEYS), so the
 // shortcuts sheet reads the same table the listener does.
@@ -546,785 +348,6 @@ interface Props {
   armazenamentoLigado?: boolean;
 }
 
-// Status pill. Module-level (was inside AdminClient) so the memoised QuoteCard
-// can render it too — it's pure (status + the module-level STATUS_OPTIONS).
-/** "2027-05" → "maio de 2027", para o filtro dos meses ser legível. */
-function mesLegivel(yyyymm: string): string {
-  const d = new Date(`${yyyymm}-01T12:00:00`);
-  if (Number.isNaN(d.getTime())) return yyyymm;
-  return d.toLocaleDateString("pt-PT", { month: "long", year: "numeric" });
-}
-
-function statusBadge(status: QuoteStatus): ReactNode {
-  const s = STATUS_OPTIONS.find((o) => o.id === status);
-  return (
-    <span
-      className={`text-[9px] tracking-[0.15em] uppercase px-2 py-0.5 rounded-sm ${s?.color ?? "bg-[var(--bo-tinta-10)] text-foreground/30"}`}
-    >
-      {s?.label ?? status}
-    </span>
-  );
-}
-
-/**
- * ── O ESTADO MUDA-SE ONDE SE LÊ ─────────────────────────────────────────────
- *
- * Palavras dela, a 14/10, com a captura da coluna «Estado» da lista: «eu
- * quero a mudança de estado para ser feita ao carregar em cima do estado em
- * que está». A pastilha passa a ser o próprio selector: carrega-se, escolhe-se
- * o estado, e muda ali — com a linha no histórico e o «Anular», como no
- * quadro.
- *
- * Primeiro foi um `<select>` nativo com o aspecto da pastilha. No mesmo dia
- * ela mandou a lista que ele abria (azul e cinzenta, a do sistema): «coloca
- * isto ao estilo da apple transparente». Passou ao `EscolhaDoEstado` — o menu
- * de vidro da casa, também no dedo, desenhado no `<body>` para a última linha
- * da tabela não o cortar. A razão inteira está no cabeçalho dele.
- */
-function PastilhaDoEstado({
-  q,
-  onMudar,
-}: {
-  q: Quote;
-  onMudar: (q: Quote, status: QuoteStatus) => void;
-}) {
-  return (
-    <EscolhaDoEstado
-      forma="pastilha"
-      estados={STATUS_OPTIONS}
-      valor={q.status}
-      aoMudar={(status) => onMudar(q, status)}
-      aria-label={`Estado do pedido de ${q.name}`}
-    />
-  );
-}
-
-// One quote card in the pedidos list. Extracted to MODULE scope and wrapped in
-// React.memo so that typing in the detail edit panel — which only changes
-// AdminClient's editX state — no longer reconciles all ~50 cards on every
-// keystroke. All props are stable across a keystroke (the quote object comes
-// from the memoised visibleQuotes; isCurrent/isSelected are booleans; todayStr
-// is a stable string; onOpen/onToggle are stable callbacks), so memo skips
-// re-rendering each row. Saves, selection and filtering still update the list
-// because they change these props (via visibleQuotes / the booleans).
-
-/**
- * AS COLUNAS DOS PEDIDOS — a forma de computador da mesma lista.
- *
- * A lista de pedidos é o ecrã onde ela passa mais tempo, e num monitor uma
- * pilha de cartões grandes mostra oito pedidos onde cabiam vinte e cinco. A
- * tabela existe para isso: ver muitos ao mesmo tempo, ordenar por quem espera
- * há mais tempo, e varrer com os olhos.
- *
- * O CARTÃO continua a ser o do telemóvel, intacto — foi desenhado para o
- * polegar e auditado ao toque. Isto não o substitui; convive com ele.
- */
-function COLUNAS_DE_PEDIDOS(ctx: {
-  selectedIds: Set<string>;
-  toggleSelect: (id: string) => void;
-  todayStr: string;
-  atual?: string;
-  /** Quem está a marcar — vai para o histórico do pedido. */
-  userName: string;
-  /** O pedido gravado quando alguém marca o desfecho na própria linha. */
-  onDesfecho: (q: Quote) => void;
-  /** Mudar o estado na própria pastilha da coluna «Estado». */
-  onMudarEstado: (q: Quote, status: QuoteStatus) => void;
-  /**
-   * Este pedido veio no lote que o «Mostrar mais» acabou de acrescentar?
-   *
-   * Marca a LINHA, e não anima nada por si: quem anima é o `ENTRADA_DO_LOTE`,
-   * pousado no bloco da lista, que alcança o `<tr>` inteiro por `:has()`. Ver
-   * a nota da constante — a razão de ser assim e não uma classe na célula.
-   */
-  ehDoLoteNovo?: (q: Quote) => boolean;
-}): Coluna<Quote>[] {
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * UM CASAMENTO JÁ GANHO NÃO ESTÁ «À ESPERA» DE NADA
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * Isto contava os dias desde a submissão para TODOS os pedidos, e a coluna
-   * desenhava-os a todos. Debaixo de um cabeçalho que diz «À espera», um
-   * trabalho ganho em Maio aparecia com «104d» — e um perdido também.
-   *
-   * O número não estava errado; a pergunta é que era outra. «Há quanto tempo
-   * este pedido entrou» e «há quanto tempo isto está parado à espera de
-   * alguém» são coisas diferentes, e esta coluna existe para a segunda: é por
-   * ela que se ordena para responder a «a quem devo responder já».
-   *
-   * Um pedido em aberto está à espera de alguém — de nós enquanto não tem
-   * proposta (`pendente`, `em_revisao`, `a_preparar`), do casal depois de ela seguir
-   * (`cotado`). Um `aceite` e um `rejeitado` não estão à espera de ninguém:
-   * acabaram. Esses passam a mostrar «—», que é a mesma marca que o resto da
-   * tabela usa para «não se aplica».
-   *
-   * `null` e não zero, pela mesma razão que está escrita em `diasDeEspera`
-   * (`lib/orcamento/espera.ts`): zero é um número, e um número debaixo desta
-   * coluna é uma afirmação sobre quanto tempo alguém está à espera.
-   */
-  const diasAEsperar = (q: Quote): number | null => {
-    if (q.status === "aceite" || q.status === "rejeitado") return null;
-    return Math.floor((Date.now() - new Date(q.submittedAt).getTime()) / 86400000);
-  };
-  return [
-    {
-      chave: "sel",
-      cabecalho: "",
-      largura: "w-10",
-      interactiva: true,
-      celula: (q) => (
-        <label className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            checked={ctx.selectedIds.has(q.id)}
-            onChange={() => ctx.toggleSelect(q.id)}
-            className="h-4 w-4 accent-sage-600"
-            aria-label={`Selecionar pedido de ${q.name}`}
-          />
-        </label>
-      ),
-    },
-    {
-      chave: "nome",
-      cabecalho: "Cliente",
-      ordenar: (a, b) => a.name.localeCompare(b.name, "pt"),
-      celula: (q) => (
-        // A marca do lote novo vai aqui e não numa célula própria: esta é a
-        // coluna que existe sempre (as outras escondem-se abaixo de 1440), e
-        // um atributo vazio não desenha nada nem é lido por ninguém. Quem a
-        // usa é o `:has()` do `ENTRADA_DO_LOTE`, lá em cima.
-        //
-        // E o mesmo tecto que o «Local» (ver a nota lá): numa tabela de
-        // largura automática o `truncate` sozinho não corta. MEDIDO a 1440:
-        // um nome de 89 letras pôs a coluna com 630 px e a tabela com 1448
-        // numa caixa de 1358 — «À espera» escondida, sem pista de que havia
-        // mais. Fica no degrau de 420 da escala (§9.9: «420 — nome, local»),
-        // com o nome inteiro no `title`.
-        <span
-          className="block max-w-105"
-          title={q.name}
-          data-lote-novo={ctx.ehDoLoteNovo?.(q) ? "" : undefined}
-        >
-          <span
-            className={`block truncate ${
-              ctx.atual === q.id ? "font-semibold text-sage-600" : "text-[var(--bo-text)]"
-            }`}
-          >
-            {q.name}
-          </span>
-          <span className="block truncate text-[11px] text-foreground/45">{q.email}</span>
-        </span>
-      ),
-    },
-    {
-      /**
-       * ── «JÁ RESPONDERAM?» TAMBÉM NO COMPUTADOR ─────────────────────────
-       *
-       * No telemóvel a lista é uma pilha de cartões e o gesto vive no cartão;
-       * no computador é ESTA tabela. Sem isto, o gesto existia no telemóvel e
-       * desaparecia no portátil onde ela trabalha o dia inteiro.
-       *
-       * Vai por baixo do próprio estado, e NÃO numa coluna nova ao fundo: a
-       * tabela já pede mais largura do que a caixa tem num portátil de 1440 (é
-       * por isso que a caixa rola), e uma coluna nova no fim nascia fora do
-       * ecrã — que é o oposto de «à frente dela no momento em que se lembra».
-       * A pergunta é sobre o estado; fica colada a ele.
-       */
-      chave: "estado",
-      cabecalho: "Estado",
-      // A pastilha é um controlo (muda o estado): o botão que abre a linha
-      // pelo teclado vai para outra coluna — ver `interactiva`.
-      interactiva: true,
-      celula: (q) => (
-        // Um `div` e não um `span`: o componente traz a sua própria caixa de
-        // bloco, e um `div` dentro de um `span` é HTML inválido — o browser
-        // desfaz o aninhamento e a célula parte-se ao meio.
-        <div className="min-w-[9rem]">
-          <PastilhaDoEstado q={q} onMudar={ctx.onMudarEstado} />
-          {faltaODesfecho(q) && (
-            <PerguntaDeDesfecho
-              key={`desfecho-${q.id}`}
-              quote={q}
-              quem={ctx.userName}
-              onGravado={ctx.onDesfecho}
-              variante="linha"
-            />
-          )}
-        </div>
-      ),
-    },
-    {
-      chave: "data",
-      cabecalho: "Data do evento",
-      ordenar: (a, b) => (a.date ?? "").localeCompare(b.date ?? ""),
-      celula: (q) => {
-        const cd = eventCountdown(q.date);
-        return (
-          <span className="whitespace-nowrap">
-            {/* Era `q.date` cru: `2028-08-13`, o formato da base de dados, no
-                ÚNICO ecrã onde ele chegava à frente de alguém. Em todo o resto
-                da aplicação — cartões, calendário, propostas, dossier — a data
-                está escrita em português. Ver `dataCurta`. */}
-            {/* F-15 da auditoria: aqui estava só «—». Um travessão não é um
-                aviso — é um espaço em branco com um caracter dentro. Ver
-                `data-em-falta.ts` para a fronteira (só depois de a proposta
-                seguir). */}
-            {faltaADataDoEvento(q) ? (
-              <span
-                className="inline-flex items-center rounded-full bg-[var(--bo-aviso-tom)]/12 px-2 py-0.5 text-[11px] font-medium text-[var(--bo-aviso)]"
-                title={PORQUE_FALTA_A_DATA}
-              >
-                {AVISO_SEM_DATA}
-              </span>
-            ) : (
-              dataCurta(q.date) || "—"
-            )}
-            {cd && cd.tone !== "past" && (
-              <span
-                className={`ml-1.5 text-[10px] ${
-                  cd.tone === "today" || cd.tone === "soon"
-                    ? "font-medium text-[var(--bo-perigo)]"
-                    : "text-foreground/45"
-                }`}
-              >
-                {cd.label}
-              </span>
-            )}
-          </span>
-        );
-      },
-    },
-    {
-      chave: "local",
-      cabecalho: "Local",
-      soLargo: true,
-      // Numa tabela de largura automática o `truncate` sozinho não corta: o texto
-      // inteiro passa a ser a largura MÍNIMA da coluna. MEDIDO a 1440: um local
-      // comprido fez a coluna com 479 px e a tabela com 1457 numa caixa de 1358
-      // — «Pax» cortado e «À espera» só a deslizar. Fica no degrau de 240 da
-      // escala de larguras (DESIGN-SYSTEM §9.9), com o texto inteiro no `title`.
-      celula: (q) => (
-        <span className="block max-w-60 truncate" title={q.location || undefined}>
-          {q.location || "—"}
-        </span>
-      ),
-    },
-    {
-      chave: "pax",
-      cabecalho: "Pax",
-      soLargo: true,
-      alinharADireita: true,
-      ordenar: (a, b) => (a.guests ?? 0) - (b.guests ?? 0),
-      celula: (q) => <span className="tabular-nums">{q.guests || "—"}</span>,
-    },
-    {
-      // A coluna que ela pediu, e a que muda o que se faz a seguir: quem está
-      // à espera há mais tempo. Ordenar por aqui é a pergunta "a quem devo
-      // responder já", que na pilha de cartões não se conseguia fazer.
-      chave: "espera",
-      cabecalho: "À espera",
-      alinharADireita: true,
-      // Os fechados vão para o FIM da ordenação, e não para o princípio: ordenar
-      // por «à espera» é procurar o que está parado há mais tempo, e um trabalho
-      // acabado no topo dessa lista era ruído no sítio de maior atenção.
-      ordenar: (a, b) => (diasAEsperar(b) ?? -1) - (diasAEsperar(a) ?? -1),
-      celula: (q) => {
-        const d = diasAEsperar(q);
-        if (d === null) return <span className="text-foreground/40">—</span>;
-        const parado =
-          (q.status === "pendente" ||
-            q.status === "em_revisao" ||
-            q.status === "a_preparar" ||
-            q.status === "cotado") &&
-          d >= 14;
-        return (
-          <span
-            className={`tabular-nums whitespace-nowrap ${
-              parado ? "font-medium text-amber-600" : "text-[var(--bo-text-muted)]"
-            }`}
-          >
-            {d}d
-          </span>
-        );
-      },
-    },
-  ];
-}
-
-const QuoteCard = memo(function QuoteCard({
-  q,
-  isCurrent,
-  isSelected,
-  todayStr,
-  userName,
-  onOpen,
-  onToggle,
-  onDesfecho,
-  doLoteNovo = false,
-}: {
-  q: Quote;
-  isCurrent: boolean;
-  isSelected: boolean;
-  todayStr: string;
-  /** Quem está a marcar — vai para o histórico do pedido. */
-  userName: string;
-  onOpen: (q: Quote) => void;
-  onToggle: (id: string) => void;
-  /** O pedido gravado quando alguém marca aqui o desfecho. */
-  onDesfecho: (q: Quote) => void;
-  /**
-   * Veio no lote que o «Mostrar mais» acabou de acrescentar.
-   *
-   * Marca, e nada mais: quem anima é o `ENTRADA_DO_LOTE`, pousado no bloco da
-   * lista, que a partir daqui alcança o `<li>` inteiro — o da linha, com o fio
-   * que a separa da de cima — por `:has()`. Ver a nota da constante.
-   */
-  doLoteNovo?: boolean;
-}) {
-  const cat = CATEGORIES.find((c) => c.id === q.category);
-  const et =
-    q.category && q.eventType
-      ? EVENT_TYPES_BY_CATEGORY[q.category]?.find((e) => e.id === q.eventType)
-      : null;
-  // Lead parado: status ativo sem atividade há 14+ dias
-  const lastActivity = q.lastUpdated ?? q.submittedAt;
-  const daysSince = diasDesde(lastActivity, todayStr);
-  const isStale =
-    (q.status === "pendente" ||
-      q.status === "em_revisao" ||
-      q.status === "a_preparar" ||
-      q.status === "cotado") &&
-    daysSince >= 14;
-  const espera = diasDeEspera(q);
-  const tom = espera === null ? null : tomDeEspera(espera);
-  const ctx = contextoDeLocal(q);
-  /** Este cartão foi marcado agora, aqui. Ver o comentário lá em baixo. */
-  const [marcadoAqui, setMarcadoAqui] = useState(false);
-  return (
-    /* ── A MOLDURA DO CARTÃO É ESTA CAIXA, E NÃO O BOTÃO LÁ DENTRO ──────────
-       Estava no `<button>`: o risco, o fundo branco e a sombra eram dele. Com a
-       pergunta «já responderam?» a ter de ficar FORA desse botão (um botão
-       dentro de outro é HTML inválido), o gesto ficava a flutuar por baixo do
-       cartão, em cima do fundo da página, como se pertencesse ao pedido
-       seguinte. A moldura sobe um nível e passa a abraçar os dois. */
-    /* 120 ms e não 200: 200 não era degrau nenhum desta casa, e o que aqui
-       muda é cor de moldura e de fundo — um ESTADO, ou seja o degrau `micro`.
-       E sai o `transition-all`: o `all` põe o browser a considerar `width`,
-       `height` e `margin` a cada fotograma, numa lista que pode ter dezenas de
-       cartões. O `ESTADO` traz uma lista fechada, e o `motion-safe:` dele faz
-       o mesmo trabalho que o `motion-reduce:transition-none` que aqui estava. */
-    <div
-      data-lote-novo={doLoteNovo ? "" : undefined}
-      className={`relative rounded-xl border ${ESTADO} ${
-        isCurrent
-          ? "border-sage-600/45 bg-sage-600/[0.05] "
-          : isSelected
-            ? "border-sage-600/30 bg-sage-600/[0.03]"
-            : "border-[var(--bo-hairline)] hover:border-[var(--bo-hairline-strong)] bg-[var(--bo-surface)] "
-      }`}
-    >
-      {/* O `<input>` mede 16 px, mas quem se toca é o RÓTULO — o HTML manda o
-          toque no rótulo activar o controlo. 24 px chegavam para o rato e não
-          para o dedo; `alvo-toque` leva-o a 44 px no telemóvel sem mexer no
-          quadrado desenhado, que continua a ser o de 16 px. */}
-      <label
-        className="alvo-toque absolute left-2 top-3.5 z-10 flex items-center justify-center min-w-[24px] min-h-[24px]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => onToggle(q.id)}
-          className="w-4 h-4 accent-sage-600"
-          aria-label={`Selecionar pedido de ${q.name}`}
-        />
-      </label>
-      <button
-        type="button"
-        onClick={() => onOpen(q)}
-        className={`w-full text-left p-5 pl-12 rounded-xl ${ESTADO} ${PRESSAO}`}
-      >
-        {/* ── A HIERARQUIA, E PORQUE É QUE ELA NÃO EXISTIA ─────────────────
-            Palavras dela: «o nome do casal tem o mesmo peso visual que o email,
-            que a categoria e que a referência». Medido, era mesmo: 14 / 12 / 10
-            / 9 px, todos no mesmo cinzento a rondar `/70`. Quatro degraus tão
-            juntos que o olho não os separa — e numa lista o que se faz é
-            VARRER, não ler.
-
-            A ordem que o cartão passa a dizer, e que é a ordem por que se usa:
-            o NOME (o que se procura) · o ESTADO e a ESPERA (o que decide) · o
-            contexto (confirma) · a REFERÊNCIA (um detalhe, e só serve depois de
-            já se saber qual é). Tamanho, peso e tom, os três a dizer o mesmo —
-            um só não chega. */}
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <div className="min-w-0">
-            {/* Um tamanho só, sem variante `lg:`: este cartão NÃO EXISTE no
-                computador. O `TabelaOuCartoes` troca-o pela tabela a partir de
-                1024, portanto um `lg:` aqui seria uma regra que nunca chega a
-                aplicar-se — e a pior espécie de código morto é a que parece
-                cuidada. */}
-            <p className="text-[17px] font-semibold text-[var(--bo-text)] leading-snug truncate">
-              {q.name}
-            </p>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <p className="text-[13px] bo-text-muted truncate">{q.email}</p>
-              {q.assignedTo && (
-                <span className="shrink-0 text-[9px] tracking-[0.08em] uppercase px-1.5 py-0.5 rounded bg-sage-600/10 text-sage-600 font-medium whitespace-nowrap">
-                  {q.assignedTo}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-1 shrink-0">
-            {statusBadge(q.status)}
-            {/* HÁ QUANTO TEMPO ESPERA. A etiqueta "Novo" dizia o mesmo de um
-                pedido de ontem e de um de há nove dias — e é o de há nove dias
-                que já pediu orçamento a mais alguém. Só aparece para quem ainda
-                espera resposta nossa: uma proposta enviada está à espera DELES.
-                Cores: cinzento até 2 dias, âmbar de 3 a 6, vermelho a partir
-                dos 7. */}
-            {espera !== null && (
-              <span
-                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[9px] font-semibold tracking-[0.1em] uppercase ${
-                  tom === "urgente"
-                    ? "bg-[var(--bo-perigo)]/15 text-[var(--bo-perigo)]"
-                    : tom === "aviso"
-                      ? "bg-[var(--bo-aviso-tom)]/15 text-[var(--bo-aviso)]"
-                      : "bg-[var(--bo-tinta-6)] text-foreground/45"
-                }`}
-                title={
-                  espera <= 0
-                    ? "Entrou hoje e ainda não teve resposta"
-                    : `Entrou ${esperaEmPalavras(espera)} e ainda não teve resposta`
-                }
-              >
-                {esperaEmPalavras(espera)}
-              </span>
-            )}
-            {isStale && (
-              <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] tracking-[0.1em] uppercase font-semibold bg-amber-500/10 text-amber-600"
-                title={`Sem atividade há ${daysSince} dias`}
-              >
-                <span className="w-1 h-1 rounded-full bg-current" />
-                {daysSince}d parado
-              </span>
-            )}
-            {q.followUpAt &&
-              q.followUpAt <= todayStr &&
-              q.status !== "aceite" &&
-              q.status !== "rejeitado" && (
-                <span
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] tracking-[0.1em] uppercase font-semibold ${
-                    q.followUpAt < todayStr
-                      ? "bg-[var(--bo-perigo)]/15 text-[var(--bo-perigo)]"
-                      : "bg-[var(--bo-marca)]/15 text-sage-600"
-                  }`}
-                  title={q.followUpAt < todayStr ? "Seguimento em atraso" : "Seguimento hoje"}
-                >
-                  <span className="w-1 h-1 rounded-full bg-current" />
-                  Seguir
-                </span>
-              )}
-          </div>
-        </div>
-        {/* A FILA QUEBRA, e é por isso que o cartão cabe num telemóvel.
-            Categoria · tipo · convidados · região · contagem: são cinco factos
-            que num iPhone SE pedem 316 px numa caixa de 273 (o `pl-12` do risco
-            de estado come 48). Sem `flex-wrap` nada disto encolhe — a fila
-            esticava o cartão, o cartão esticava a página, e o que sobrava para
-            lá da margem («faltam 16 meses», e a própria barra de baixo) ficava
-            CORTADO, porque o `body` tem `overflow-x: clip` e não há como lá
-            chegar. `gap-y-1` e não `gap-3` na vertical: a segunda linha é a
-            continuação da mesma frase, não outro bloco. */}
-        {/* NO TELEMÓVEL SEPARA O ESPAÇO, NÃO O RISCO.
-            Os riscos são elementos próprios entre cada facto, e numa fila que
-            QUEBRA (é o que esta faz num telemóvel) um deles fica a fechar a
-            linha: lia-se «Eventos Particulares | Casamentos |» com um risco
-            pendurado no fim, que parece um erro. Não há CSS que esconda só o
-            último de cada linha — a linha é decidida na disposição, não na
-            folha de estilo.
-            Por isso os riscos vivem a partir de `sm`, onde a fila NÃO quebra, e
-            no telemóvel separa-se com mais ar (`gap-x-4`), que é o que os
-            cartões bem desenhados fazem. */}
-        <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-3 gap-y-1 bo-text-muted text-[10px]">
-          <span>{cat?.label ?? "—"}</span>
-          {et && (
-            <>
-              <span className="hidden sm:block w-px h-2.5 bg-[var(--bo-tinta-10)]" />
-              <span>{et.label}</span>
-            </>
-          )}
-          <span className="hidden sm:block w-px h-2.5 bg-[var(--bo-tinta-10)]" />
-          <span>{q.guests} convidados</span>
-          {/* ONDE É. A região reconhecida e a distância a Évora dizem, antes
-              de abrir seja o que for, se aquele casamento é ali ao lado ou se
-              obriga a dormir fora — que muda o preço e a equipa. */}
-          {ctx.regiao && (
-            <>
-              <span className="hidden sm:block w-px h-2.5 bg-[var(--bo-tinta-10)]" />
-              <span title={ctx.aproximado ? "Região, não morada" : undefined}>
-                {ctx.regiao}
-                {ctx.km !== null && ctx.km > 0 && ` · ≈ ${ctx.km} km`}
-              </span>
-            </>
-          )}
-          {(() => {
-            const cd = eventCountdown(q.date);
-            if (!cd || cd.tone === "past") return null;
-            return (
-              <>
-                <span className="hidden sm:block w-px h-2.5 bg-[var(--bo-tinta-10)]" />
-                {/* QUANDO É O EVENTO — «a data é o que decide». Era um de
-                    cinco factos todos iguais nesta fila; passa a ter peso
-                    sempre, e não só quando já está em cima. O vermelho continua
-                    reservado ao que urge: o peso diz «isto conta», a cor diz
-                    «isto conta AGORA», e as duas coisas não são a mesma. */}
-                <span
-                  className={
-                    cd.tone === "today" || cd.tone === "soon"
-                      ? "text-[var(--bo-perigo)] font-semibold"
-                      : "text-[var(--bo-text)] font-medium"
-                  }
-                >
-                  {cd.label}
-                </span>
-              </>
-            );
-          })()}
-        </div>
-        {/* PROVÁVEL CASAMENTO À DISTÂNCIA: sem data E sem sítio reconhecível.
-            Não é um diagnóstico — é um aviso de que aquele pedido se trabalha
-            de outra maneira (fuso horário, visita impossível, tudo por
-            escrito). Uma das ausências sozinha não bastava: datas por marcar há
-            às dezenas em casamentos de Évora. */}
-        {/* F-15: no cartão a data em falta nem «—» tinha — a fila de factos
-            simplesmente não a mencionava, e um facto que não aparece lê-se
-            como um facto que está bem. */}
-        {faltaADataDoEvento(q) && (
-          <div className="mt-2.5">
-            <span
-              className="inline-flex items-center rounded-full bg-[var(--bo-aviso-tom)]/12 px-2 py-0.5 text-[11px] font-medium text-[var(--bo-aviso)]"
-              title={PORQUE_FALTA_A_DATA}
-            >
-              {AVISO_SEM_DATA}
-            </span>
-          </div>
-        )}
-        {ctx.destination && (
-          <div className="mt-2.5">
-            <span
-              className="inline-flex items-center rounded-full bg-sage-600/10 px-2 py-0.5 text-[9px] font-medium tracking-wide text-sage-600"
-              title="Sem data e sem local concreto — normalmente organiza-se à distância"
-            >
-              Provável casamento à distância
-            </span>
-          </div>
-        )}
-        {q.tags && q.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2.5">
-            {q.tags.slice(0, 4).map((t) => (
-              <span
-                key={t}
-                className="px-2 py-0.5 rounded-full bg-sage-600/10 text-sage-600 text-[9px] font-medium tracking-wide"
-              >
-                {t}
-              </span>
-            ))}
-            {q.tags.length > 4 && (
-              <span className="text-foreground/30 text-[9px] px-1">+{q.tags.length - 4}</span>
-            )}
-          </div>
-        )}
-        {/* ── A REFERÊNCIA SAIU DAQUI ─────────────────────────────────────
-            Estava nesta linha, em `font-mono`, em TODOS os pedidos da lista.
-            Perguntei-lhe se precisava dela de relance ou só ao abrir o pedido,
-            e a resposta foi «retira a referência».
-
-            Tinha razão, e a defesa que aqui estava escrita dizia-o sem dar por
-            isso: «quando SE PRECISA dela é para a ler letra a letra ao
-            telefone». Uma coisa que só se usa com o pedido já aberto não tem de
-            estar em vinte linhas de lista — está no painel de detalhe, que é
-            onde ela está quando precisa de a ler.
-
-            O que fica nesta fila é o que decide: o VALOR e a data. Sem a
-            referência à esquerda deixa de haver duas pontas para separar, por
-            isso a fila deixa de ser `justify-between` e encosta ao fim, ao pé
-            do resto dos números. */}
-        <div className="flex items-center justify-end mt-3 pt-3 border-t border-[var(--bo-hairline)]">
-          <div className="flex items-center gap-3">
-            {q.quotedPrice ? (
-              <span className="text-sage-600 text-[13px] font-semibold">
-                {formatPrice(q.quotedPrice)}
-                {/* Achado n.º 29: este é SEM IVA, e as Propostas mostram o
-                    mesmo pedido COM IVA — sem o rótulo, eram dois números
-                    diferentes para a mesma coisa. */}
-                <span className="ml-1 text-[11px] font-normal text-[var(--bo-text-muted)]">
-                  s/ IVA
-                </span>
-              </span>
-            ) : q.priceBreakdown?.total ? (
-              <span className="bo-text-muted text-[13px]">
-                ≈ {formatPrice(q.priceBreakdown.rangeMin)}–{formatPrice(q.priceBreakdown.rangeMax)}
-              </span>
-            ) : null}
-            <span className="bo-text-faint text-[12px]">
-              {new Date(q.submittedAt).toLocaleDateString("pt-PT", {
-                // Achado n.º 20: o servidor (UTC) e o browser (Lisboa) escreviam dias
-                // diferentes entre a meia-noite e a uma — erro de hidratação.
-                timeZone: FUSO_DO_ESTUDIO,
-                day: "numeric",
-                month: "short",
-              })}
-            </span>
-          </div>
-        </div>
-      </button>
-      {/* ── «JÁ RESPONDERAM?» ───────────────────────────────────────────────
-          FORA do botão do cartão, e é obrigatório que assim seja: um <button>
-          dentro de outro <button> é HTML inválido, o browser desfaz o aninhamento
-          e o que sai é um cartão partido em pedaços com o gesto a abrir o pedido
-          em vez de o marcar.
-
-          A moldura só existe quando há pergunta a fazer: um `div` com margem
-          desenhado à mesma em todos os cartões punha 16 px de vazio por baixo
-          de cada pedido novo da lista.
-
-          O `|| marcadoAqui` é o que impede a moldura de desaparecer NO INSTANTE
-          da marcação: assim que o servidor responde, o pedido deixa de ter
-          proposta enviada e a condição de cima passa a falsa. Sem a segunda
-          metade, o recibo («Marcado como perdido») e o campo do motivo — que é
-          opcional e vem DEPOIS — nasciam e morriam no mesmo render. */}
-      {(faltaODesfecho(q) || marcadoAqui) && (
-        <div className="px-5 pb-4 -mt-2">
-          <PerguntaDeDesfecho
-            quote={q}
-            quem={userName}
-            onGravado={(actualizado) => {
-              setMarcadoAqui(true);
-              onDesfecho(actualizado);
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-});
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * O QUE O PAINEL DO PEDIDO GRAVA SOZINHO — E O QUE CONTINUA A PEDIR UM CLIQUE
- * ════════════════════════════════════════════════════════════════════════════
- *
- * O que acontecia: escreviam-se três mil caracteres nas notas internas, tocava
- * o telefone, fechava-se o separador, e não tinha sido enviado nada. Tudo o que
- * este painel edita vivia em estado do React até alguém carregar em «Guardar».
- *
- * A divisão não é «campos pequenos gravam-se, campos grandes não». É esta:
- *
- *  · **O que se ESCREVE grava-se sozinho** — as notas internas e o motivo de
- *    perda. É prosa, é dela, e o pior que uma gravação a meio produz é uma
- *    frase por acabar, que a gravação seguinte completa. Ficar por gravar é que
- *    é o estrago.
- *
- *  · **O que é uma DECISÃO, ou um FACTO que outros ecrãs lêem, continua a
- *    exigir um clique** — o estado, o preço, a data, os convidados, o local, o
- *    responsável. Três razões, e nenhuma delas é preguiça:
- *      1. metade de um número é um número errado: «8» a caminho de «80»
- *         gravado sozinho põe oitenta convidados a oito, e a data, o local e o
- *         preço aparecem no calendário, nas contas e na proposta;
- *      2. mudar o estado muda a coluna do quadro e o que conta como ganho —
- *         é uma coisa que se faz, não uma coisa que se rascunha;
- *      3. a rota trata a PRESENÇA de `status` no PATCH como «escolhido à mão»
- *         e desliga as transições automáticas por causa disso. Mandá-lo em cada
- *         gravação automática desligava-as em silêncio, para sempre.
- *
- * O motivo de perda é o caso de fronteira: é prosa, mas escrito no MESMO gesto
- * em que se marca o pedido como perdido é parte dessa decisão. Por isso grava-se
- * sozinho só quando não há uma mudança de estado à espera de confirmação.
- */
-interface NotasAutomaticas {
-  id: string;
-  adminNotes: string;
-  /** `null` quando o motivo de perda viaja com a decisão do estado e não sozinho. */
-  lostReason: string | null;
-}
-
-/**
- * Comparação por CAMPOS e não por identidade: o `selected` é substituído por
- * tudo o que grava neste painel (etiquetas, seguimento, pagamentos, a própria
- * revalidação da lista), e comparar objectos fazia cada uma dessas substituições
- * parecer uma alteração dela — uma gravação por cada redesenho.
- */
-function mesmasNotas(a: NotasAutomaticas, b: NotasAutomaticas): boolean {
-  return a.id === b.id && a.adminNotes === b.adminNotes && a.lostReason === b.lostReason;
-}
-
-/** O preço como o campo o mostra — para saber se o que lá está veio do pedido
- *  ou foi escrito por ela. */
-function textoDoPreco(q: Quote): string {
-  // `!= null` e não a verdade do valor: um preço de ZERO é um preço escrito (a
-  // criação manual chega a gravá-lo, ao aparar um valor negativo). Lido como
-  // «sem preço», o campo abria vazio, a comparação com `undefined` dava
-  // diferente, e o pedido nascia com «alterações por guardar» sem ninguém lhe
-  // ter tocado — com o aviso de saída da página a travar o fecho do separador.
-  return q.quotedPrice != null ? String(q.quotedPrice) : "";
-}
-
-/**
- * O que se diz de uma gravação recusada, pelo código que voltou.
- *
- * A regra vive agora em `razaoDaRecusa` (`lib/porque-falhou.ts`), e este nome
- * fica como o atalho local. Havia DUAS cópias disto — esta e a da
- * `PerguntaDeDesfecho` — e tinham divergido: uma tratava o 413 e a outra o 404,
- * portanto o mesmo 404 dizia «este pedido já não existe» num sítio e nada no
- * outro, no mesmo ecrã.
- */
-const porqueNaoGravou = razaoDaRecusa;
-
-/**
- * O que a leitura de um pedido devolve.
- *
- * `Quote | null` não chegava: o `null` servia quatro avarias diferentes — rede
- * em baixo, recusa do servidor, sessão caída (que responde **200**, ver abaixo)
- * e resposta truncada — e quem chamava só sabia dizer «Verifica a ligação e
- * tenta de novo». Numa sessão caída, essa frase manda fazer a única coisa que
- * não resolve nada.
- */
-type LeituraDoPedido = { ok: true; quote: Quote } | { ok: false; porque: string };
-
-/**
- * O que desaparece com um pedido — em linhas, com números.
- *
- * Só o que EXISTE entra na lista: uma pergunta com «0 pagamentos» a meio é
- * ruído, e ruído numa pergunta destrutiva é o que ensina a saltá-la. Um pedido
- * sem nada por baixo dá uma lista vazia, e aí a `PerguntaDestrutiva` mostra só
- * o título e o aviso — que continua a ser melhor do que «tens a certeza».
- */
-function oQueSePerdeComOPedido(q: Quote | null): string[] {
-  if (!q) return [];
-  const linhas: string[] = [];
-  const conta = (n: number, um: string, muitos: string) =>
-    n > 0 ? linhas.push(`${n} ${n === 1 ? um : muitos}`) : undefined;
-  conta(q.messages?.length ?? 0, "mensagem trocada", "mensagens trocadas");
-  conta(q.payments?.length ?? 0, "pagamento registado", "pagamentos registados");
-  conta(q.guestList?.length ?? 0, "convidado", "convidados");
-  conta(q.checklist?.length ?? 0, "linha da checklist", "linhas da checklist");
-  conta(q.productionPlan?.length ?? 0, "tarefa de produção", "tarefas de produção");
-  conta(q.activityLog?.length ?? 0, "entrada no histórico", "entradas no histórico");
-  if (q.quotedPrice) {
-    linhas.push(
-      `o valor combinado, ${q.quotedPrice.toLocaleString("pt-PT", {
-        useGrouping: "always",
-        style: "currency",
-        currency: "EUR",
-      })}`,
-    );
-  }
-  return linhas;
-}
-
 /** No máximo esta lista, e o resto contado. Trinta nomes não se leem. */
 const NOMES_A_MOSTRAR = 8;
 
@@ -1392,19 +415,10 @@ export default function AdminClient({
    * ou um filtro de mês escolhido noutro separador.
    */
   function oQueEstaAFiltrar(): string {
-    const partes: string[] = [];
-    if (search.trim()) partes.push(`a pesquisa «${search.trim()}»`);
-    if (filterStatus !== "all") partes.push("um estado");
-    if (tagFilter) partes.push(`a etiqueta «${tagFilter}»`);
-    if (showArchived) partes.push("os arquivados");
-    if (filtrosActivos > 0) {
-      partes.push(
-        filtrosActivos === 1 ? "um filtro do painel" : `${filtrosActivos} filtros do painel`,
-      );
-    }
-    if (partes.length === 0) return "";
-    if (partes.length === 1) return partes[0];
-    return `${partes.slice(0, -1).join(", ")} e ${partes[partes.length - 1]}`;
+    return descreverFiltros(
+      { procura: search, estado: filterStatus, etiqueta: tagFilter, arquivados: showArchived },
+      filtrosActivos,
+    );
   }
   const [saving, setSaving] = useState(false);
   /**
@@ -1415,9 +429,38 @@ export default function AdminClient({
    * cima do pedido seguinte.
    */
   const [marcadoNoPainel, setMarcadoNoPainel] = useState<string | null>(null);
-  const [editPrice, setEditPrice] = useState("");
-  const [editNotes, setEditNotes] = useState("");
-  const [editStatus, setEditStatus] = useState<QuoteStatus>("pendente");
+  /* Os onze campos editáveis do painel e as perguntas que se lhes fazem (o
+     número de convidados serve? o que falta gravar?) — ver o hook. */
+  const {
+    editPrice,
+    setEditPrice,
+    editNotes,
+    setEditNotes,
+    editStatus,
+    setEditStatus,
+    editAssigned,
+    setEditAssigned,
+    editLostReason,
+    setEditLostReason,
+    editDate,
+    setEditDate,
+    editGuests,
+    setEditGuests,
+    editLocation,
+    setEditLocation,
+    editNome,
+    setEditNome,
+    editEmail,
+    setEditEmail,
+    editTelefone,
+    setEditTelefone,
+    preencherCom,
+    convidadosEscritos,
+    erroDeConvidados,
+    motivoVaiComADecisao,
+    alteracoesPorConfirmar,
+    escritoPorGravar,
+  } = useEdicaoDoPedido(selected);
   /**
    * Achado n.º 19 da auditoria: pôr um pedido em «Ganho» à mão criava um
    * contrato ligado a uma proposta que nunca tinha chegado ao cliente — sem
@@ -1440,25 +483,6 @@ export default function AdminClient({
         /* sem resposta não se inventa um aviso */
       });
   };
-  const [editAssigned, setEditAssigned] = useState("");
-  const [editLostReason, setEditLostReason] = useState("");
-  const [editDate, setEditDate] = useState("");
-  const [editGuests, setEditGuests] = useState("");
-  const [editLocation, setEditLocation] = useState("");
-  /**
-   * ── OS DADOS DE CONTACTO, EDITÁVEIS ─────────────────────────────────────
-   *
-   * Palavras dela: «se criarmos um pedido novo e não colocarmos um email,
-   * depois quando quisermos alterar para colocar o email para enviarmos a
-   * proposta, não conseguimos editar».
-   *
-   * Um pedido nascido de um telefonema entra sem email, e é a rota do envio
-   * que dá pela falta: grava a proposta, não a manda a ninguém, e responde
-   * «acrescenta o email e reenvia». Não havia por onde. Estes três campos são
-   * esse «por onde», e gravam pelo mesmo botão que o resto do painel.
-   */
-  const [editNome, setEditNome] = useState("");
-  const [editEmail, setEditEmail] = useState("");
   /**
    * «Querias dizer …@adecco.com?» (9/11): a proposta da Adecco foi para
    * «addecco.com» e voltou. Os domínios dos OUTROS pedidos e os de correio
@@ -1511,7 +535,6 @@ export default function AdminClient({
       ),
     [editEmail, quotes],
   );
-  const [editTelefone, setEditTelefone] = useState("");
   // Which tools section of the detail panel is showing. Everything is visible
   // at once now — the management form always renders; only the heavier tool
   // groups (Produção / Financeiro / Comunicação) are tabbed for organisation.
@@ -1962,19 +985,18 @@ export default function AdminClient({
    * anuncia; esta inclui também o que está à vista, porque para a lista vazia
    * o que importa é se há ALGUMA razão para faltarem pedidos.
    */
-  const filtrosActivos =
-    (mineOnly ? 1 : 0) +
-    (filterCategory !== "all" ? 1 : 0) +
-    (filterEspera !== "all" ? 1 : 0) +
-    (filterMes !== "all" ? 1 : 0) +
-    (filterRegiao !== "all" ? 1 : 0) +
-    (filterPlanner !== "all" ? 1 : 0);
-  const haFiltroAActuar =
-    filtrosActivos > 0 ||
-    search.trim() !== "" ||
-    filterStatus !== "all" ||
-    tagFilter !== null ||
-    showArchived;
+  const filtrosActivos = filtrosDoPainelActivos({
+    soOsMeus: mineOnly,
+    categoria: filterCategory,
+    espera: filterEspera,
+    mes: filterMes,
+    regiao: filterRegiao,
+    planner: filterPlanner,
+  });
+  const haFiltroAActuar = haFiltroAActuarNaLista(
+    { procura: search, estado: filterStatus, etiqueta: tagFilter, arquivados: showArchived },
+    filtrosActivos,
+  );
 
   /**
    * ── A ALTURA DA COLUNA DE DETALHE, MEDIDA E NÃO PRESUMIDA ─────────────────
@@ -2110,93 +1132,6 @@ export default function AdminClient({
    */
   const locale = localeDoCaminho(pathname);
 
-  /**
-   * O motivo de perda acompanha a decisão do estado?
-   *
-   * Enquanto houver uma mudança de estado por confirmar, o motivo escrito faz
-   * parte dessa mudança e vai com ela no clique. Sem mudança nenhuma à espera
-   * (o pedido já está marcado como perdido e ela está a arrumar o texto), é
-   * prosa como as notas — e grava-se sozinho.
-   */
-  const motivoVaiComADecisao = !!selected && editStatus !== selected.status;
-
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * O NÚMERO DE CONVIDADOS, LIDO ANTES DE SAIR DO ECRÃ
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * `-50` era enviado tal e qual: o servidor respondia 400 com «Too small:
-   * expected number to be >=0», o painel dizia «Não foi possível guardar as
-   * alterações» — sem nomear o campo — e TUDO o que ia na mesma gravação (o
-   * estado, o email acabado de acrescentar) ficava por gravar. O `min={0}` do
-   * input era decoração: o teclado escreve o que quer lá dentro.
-   *
-   * É a mesma regra das definições da proposta, do mesmo módulo: o que não dá
-   * um número que sirva é dito no campo, e não segue.
-   *
-   * ── O CAMPO EM BRANCO AQUI NÃO É O MESMO QUE LÁ ──────────────────────────
-   * Um pedido pode ter entrado sem número de convidados (um telefonema, uma
-   * referência de terceiros), e continuar assim é um estado legítimo — em
-   * branco não há nada para gravar e não se reclama de um campo que ninguém
-   * tocou. Mas APAGAR um número que lá estava é outra coisa: é uma edição a
-   * meio, e o ecrã tem de o dizer em vez de gravar o velho por baixo.
-   */
-  const convidadosEscritos = lerNumero(editGuests, {
-    min: 0,
-    max: 100000,
-    inteiro: true,
-    vazioVale: selected?.guests == null,
-    nome: "número de convidados",
-    exemplo: "80",
-  });
-  const erroDeConvidados = convidadosEscritos.ok ? null : convidadosEscritos.porque;
-
-  /**
-   * As alterações que ainda esperam por um clique. São só os campos que NÃO
-   * gravam sozinhos — o que se escreve já foi (ou está a ser) gravado, e
-   * contá-lo aqui punha o painel a pedir para guardar o que já está guardado.
-   */
-  const alteracoesPorConfirmar =
-    !!selected &&
-    (editStatus !== selected.status ||
-      // Compare parsed values, not raw strings — "1500,50" vs "1500.5" or a
-      // trailing zero must not read as a phantom edit.
-      parsePriceInput(editPrice) !== (selected.quotedPrice ?? undefined) ||
-      editAssigned !== (selected.assignedTo ?? "") ||
-      (motivoVaiComADecisao && editLostReason !== (selected.lostReason ?? "")) ||
-      editDate !== (selected.date ?? "") ||
-      editGuests !== String(selected.guests ?? "") ||
-      // TRIMADOS DOS DOIS LADOS, como o corpo do PATCH os compara (ver
-      // `saveChanges`). Com as duas comparações diferentes, um espaço a mais no
-      // fim de um campo punha o painel a pedir para guardar uma alteração que a
-      // gravação depois não encontrava: respondia «já está tudo guardado» e a
-      // barra não limpava — e a partir daí fechar o pedido perguntava sempre
-      // «descartar?».
-      //
-      // ── E FALTAVA METADE ──────────────────────────────────────────────────
-      //
-      // Só o lado do ECRÃ estava aparado. O lado do SERVIDOR entrava tal e
-      // qual, portanto um pedido gravado com um espaço no fim do nome — o que
-      // acontece a toda a hora a quem cola de um email — dava sempre diferente:
-      // `"Maria".trim()` contra `"Maria "`. Abrir a ficha, sem lhe tocar,
-      // acendia «Guardar tudo (1)», e a partir daí fechá-la perguntava sempre
-      // «descartar?». É o achado F-08 de uma auditoria em produção, e MEDIDO:
-      // dos doze feitios de pedido que sondei, sujavam-se estes quatro, e só
-      // estes quatro — nome, email, telefone e local com espaço.
-      //
-      // Aparar os dois lados é o que torna a comparação a mesma pergunta que a
-      // gravação faz. Um espaço a mais não é uma alteração dela.
-      editLocation.trim() !== (selected.location ?? "").trim() ||
-      editNome.trim() !== (selected.name ?? "").trim() ||
-      editEmail.trim() !== (selected.email ?? "").trim() ||
-      editTelefone.trim() !== (selected.phone ?? "").trim());
-
-  /** O que se escreve e ainda não está igual ao que o servidor tem. */
-  const escritoPorGravar =
-    !!selected &&
-    (editNotes !== (selected.adminNotes ?? "") ||
-      (!motivoVaiComADecisao && editLostReason !== (selected.lostReason ?? "")));
-
   // Does the detail panel have edits not yet saved? Used to warn before
   // switching/closing a quote so work is never silently lost.
   const isDirty = alteracoesPorConfirmar || escritoPorGravar;
@@ -2281,7 +1216,20 @@ export default function AdminClient({
     setEditNome((v) => (v === (antes.name ?? "") ? (updated.name ?? "") : v));
     setEditEmail((v) => (v === (antes.email ?? "") ? (updated.email ?? "") : v));
     setEditTelefone((v) => (v === (antes.phone ?? "") ? (updated.phone ?? "") : v));
-  }, []);
+    // Os `set*` do `useEdicaoDoPedido` são os do `useState` — estáveis. Vão na
+    // lista porque a regra não os reconhece através do hook; a identidade desta
+    // função continua a ser uma só.
+  }, [
+    setEditAssigned,
+    setEditDate,
+    setEditEmail,
+    setEditGuests,
+    setEditLocation,
+    setEditNome,
+    setEditPrice,
+    setEditStatus,
+    setEditTelefone,
+  ]);
 
   /**
    * ════════════════════════════════════════════════════════════════════════
@@ -2333,7 +1281,7 @@ export default function AdminClient({
        * nada é apagado. Trocar isso pela regra desligada não valia a pena.
        */
     },
-    [selected?.id],
+    [selected?.id, setEditLostReason, setEditPrice, setEditStatus],
   );
 
   /**
@@ -3737,17 +2685,7 @@ export default function AdminClient({
     const q = r.quote;
     setSelected(q);
     lembrarRecente(q);
-    setEditPrice(textoDoPreco(q));
-    setEditNotes(q.adminNotes ?? "");
-    setEditStatus(q.status);
-    setEditAssigned(q.assignedTo ?? "");
-    setEditLostReason(q.lostReason ?? "");
-    setEditDate(q.date ?? "");
-    setEditGuests(String(q.guests ?? ""));
-    setEditLocation(q.location ?? "");
-    setEditNome(q.name ?? "");
-    setEditEmail(q.email ?? "");
-    setEditTelefone(q.phone ?? "");
+    preencherCom(q);
 
     /**
      * O que ficou por gravar da última vez que este pedido esteve aberto.
@@ -4093,17 +3031,7 @@ export default function AdminClient({
   function refletirPedidoReposto(q: Quote) {
     setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
     setSelected((prev) => (prev?.id === q.id ? q : prev));
-    setEditStatus(q.status);
-    setEditPrice(textoDoPreco(q));
-    setEditNotes(q.adminNotes ?? "");
-    setEditAssigned(q.assignedTo ?? "");
-    setEditLostReason(q.lostReason ?? "");
-    setEditDate(q.date ?? "");
-    setEditGuests(String(q.guests ?? ""));
-    setEditLocation(q.location ?? "");
-    setEditNome(q.name ?? "");
-    setEditEmail(q.email ?? "");
-    setEditTelefone(q.phone ?? "");
+    preencherCom(q);
     escritoNoServidor.current = {
       id: q.id,
       adminNotes: q.adminNotes ?? "",
@@ -4120,177 +3048,46 @@ export default function AdminClient({
     };
     setSaving(true);
     try {
-      const newEntries: ActivityEntry[] = [];
-      const now = new Date().toISOString();
-
-      if (editStatus !== selected.status) {
-        const from = STATUS_OPTIONS.find((s) => s.id === selected.status)?.label ?? selected.status;
-        const to = STATUS_OPTIONS.find((s) => s.id === editStatus)?.label ?? editStatus;
-        newEntries.push({
-          id: randomId(),
-          at: now,
-          kind: "status_change",
-          actor: userName,
-          summary: `${from} → ${to}`,
-        });
-      }
-      const newPrice = parsePriceInput(editPrice);
-      if (newPrice !== undefined && newPrice !== (selected.quotedPrice ?? 0)) {
-        newEntries.push({
-          id: randomId(),
-          at: now,
-          kind: "price_set",
-          actor: userName,
-          summary: `Preço: ${eur(newPrice)}`,
-        });
-      }
-      if (editNotes.trim() !== (selected.adminNotes ?? "").trim() && editNotes.trim()) {
-        newEntries.push({
-          id: randomId(),
-          at: now,
-          kind: "note_added",
-          actor: userName,
-          summary: "Notas internas atualizadas",
-        });
-      }
-      if (editAssigned.trim() !== (selected.assignedTo ?? "").trim()) {
-        const to = editAssigned.trim();
-        newEntries.push({
-          id: randomId(),
-          at: now,
-          kind: "assigned",
-          actor: userName,
-          summary: to ? `Atribuído a ${to}` : "Responsável removido",
-        });
-      }
-
-      const newDate = editDate || undefined;
       /**
-       * Um número que não serve NÃO é uma alteração: fica igual ao que está
-       * gravado e, por isso, nem vai no corpo nem se anuncia no registo de
-       * atividade. É assim que o email escrito na mesma gravação deixa de ser
-       * arrastado abaixo por um sinal a menos — o que se consegue guardar
-       * guarda-se, e o que não se consegue fica DITO no campo.
-       */
-      const newGuests =
-        convidadosEscritos.ok && convidadosEscritos.valor !== null
-          ? convidadosEscritos.valor
-          : selected.guests;
-      const newLocation = editLocation.trim();
-
-      if (newDate !== (selected.date ?? undefined) && newDate) {
-        newEntries.push({
-          id: randomId(),
-          at: now,
-          kind: "note_added",
-          actor: userName,
-          summary: `Data do evento alterada para ${new Date(newDate + "T12:00:00").toLocaleDateString("pt-PT")}`,
-        });
-      }
-      if (newGuests !== selected.guests) {
-        newEntries.push({
-          id: randomId(),
-          at: now,
-          kind: "note_added",
-          actor: userName,
-          summary: `Convidados: ${selected.guests} → ${newGuests}`,
-        });
-      }
-      if ((editLocation.trim() || "") !== (selected.location ?? "") && editLocation.trim()) {
-        newEntries.push({
-          id: randomId(),
-          at: now,
-          kind: "note_added",
-          actor: userName,
-          summary: `Local: ${editLocation.trim()}`,
-        });
-      }
-
-      /**
-       * O que mudou nos contactos fica no registo, como tudo o resto que se
-       * altera à mão. Acrescentar um email é a diferença entre uma proposta que
-       * chega e uma que fica gravada sem destinatário — e daqui a três meses
-       * ninguém se lembra de quem o acrescentou.
-       */
-      if (editEmail.trim() !== (selected.email ?? "")) {
-        const novo = editEmail.trim();
-        newEntries.push({
-          id: randomId(),
-          at: now,
-          kind: "note_added",
-          actor: userName,
-          summary: novo ? `Email do cliente: ${novo}` : "Email do cliente removido",
-        });
-      }
-      if (editTelefone.trim() !== (selected.phone ?? "")) {
-        const novo = editTelefone.trim();
-        newEntries.push({
-          id: randomId(),
-          at: now,
-          kind: "note_added",
-          actor: userName,
-          summary: novo ? `Telefone do cliente: ${novo}` : "Telefone do cliente removido",
-        });
-      }
-      if (editNome.trim() !== (selected.name ?? "") && editNome.trim()) {
-        newEntries.push({
-          id: randomId(),
-          at: now,
-          kind: "note_added",
-          actor: userName,
-          summary: `Nome do cliente: ${selected.name} → ${editNome.trim()}`,
-        });
-      }
-
-      /**
-       * ── SÓ O QUE FOI TOCADO ─────────────────────────────────────────────
+       * As três decisões — que linhas entram no histórico, o que vai no corpo,
+       * e (depois de gravar) o que o «Anular» devolve — são puras e vivem em
+       * `lib/orcamento/pedidos/gravar-o-pedido.ts`. Aqui fica a casca: ler o
+       * painel, mandar, mostrar.
        *
-       * Isto mandava os oito campos em todas as gravações, com os valores que
-       * ESTE ecrã tinha lido ao abrir. Duas pessoas no mesmo pedido escreviam
-       * por cima uma da outra sem nunca colidirem: bastava uma delas guardar
-       * para os oito campos voltarem ao que ela tinha à frente.
-       *
-       * Um campo que ninguém tocou não vai. Um campo LIMPO continua a ir (como
-       * `null`/`""`, nunca omitido): `undefined` desaparece no JSON e o merge
-       * parcial do servidor mantinha o valor antigo — apagar um responsável ou
-       * uma data nunca chegava a gravar.
-       *
-       * E o `status` é o mais importante de todos para não ir por hábito: a
-       * rota trata a presença dele como «estado escolhido à mão» e desliga as
-       * transições automáticas por causa disso.
+       * Um número de convidados que não serve NÃO é uma alteração: fica igual
+       * ao que está gravado e, por isso, nem vai no corpo nem se anuncia no
+       * histórico. É assim que o email escrito na mesma gravação deixa de ser
+       * arrastado abaixo por um sinal a menos.
        */
-      const body: Record<string, unknown> = {};
-      if (editStatus !== selected.status) body.status = editStatus;
-      if (newPrice !== (selected.quotedPrice ?? undefined)) body.quotedPrice = newPrice ?? null;
-      if (editNotes !== (selected.adminNotes ?? "")) {
-        body.adminNotes = editNotes;
-        // Como na gravação automática: o texto de onde partiu, para o servidor
-        // recusar com 409 se outra pessoa gravou notas entretanto.
-        const lido = escritoNoServidor.current;
-        body.base = {
-          adminNotes:
-            lido && lido.id === selected.id ? lido.adminNotes : (selected.adminNotes ?? ""),
-        };
-      }
-      if (editAssigned !== (selected.assignedTo ?? "")) {
-        body.assignedTo = editAssigned.trim() || null;
-      }
-      if (editLostReason !== (selected.lostReason ?? "")) {
-        body.lostReason = editLostReason.trim() || null;
-      }
-      if (editDate !== (selected.date ?? "")) body.date = editDate;
-      if (newGuests !== selected.guests) body.guests = newGuests;
-      if (newLocation !== (selected.location ?? "")) body.location = newLocation;
-      // Os contactos vão TRIMADOS e sempre que mudarem — incluindo para vazio:
-      // apagar um email errado tem de gravar, e um `undefined` desaparecia no
-      // JSON e deixava o antigo no lugar.
-      if (editNome.trim() !== (selected.name ?? "")) body.name = editNome.trim();
-      if (editEmail.trim() !== (selected.email ?? "")) body.email = editEmail.trim();
-      if (editTelefone.trim() !== (selected.phone ?? "")) body.phone = editTelefone.trim();
-      if (newEntries.length > 0) {
-        // Append server-side (nunca o array completo) — ver appendActivity.
-        body.activityLogAppend = newEntries;
-      }
+      const escrito: PainelEscrito = {
+        estado: editStatus,
+        preco: parsePriceInput(editPrice),
+        notas: editNotes,
+        responsavel: editAssigned,
+        motivoDePerda: editLostReason,
+        data: editDate,
+        convidados:
+          convidadosEscritos.ok && convidadosEscritos.valor !== null
+            ? convidadosEscritos.valor
+            : selected.guests,
+        local: editLocation,
+        nome: editNome,
+        email: editEmail,
+        telefone: editTelefone,
+      };
+      const linhas = linhasDoHistorico(selected, escrito, {
+        actor: userName,
+        agora: new Date().toISOString(),
+        novoId: randomId,
+      });
+      // O texto de onde as notas partiram, como na gravação automática: o
+      // servidor recusa com 409 se outra pessoa gravou notas entretanto.
+      const lido = escritoNoServidor.current;
+      const body = corpoDaGravacao(selected, escrito, {
+        baseDasNotas:
+          lido && lido.id === selected.id ? lido.adminNotes : (selected.adminNotes ?? ""),
+        linhas,
+      });
 
       // Nada mudou (o botão foi carregado depois de a gravação automática já ter
       // feito o trabalho). Não se inventa um pedido para não fazer nada.
@@ -4382,20 +3179,10 @@ export default function AdminClient({
       setSelected(updated);
       // Re-sync EVERY edit field to what the server persisted, so the form can
       // never sit dirty on a value the user did not type (e.g. price formatting).
-      setEditStatus(updated.status);
-      setEditPrice(textoDoPreco(updated));
-      setEditNotes(updated.adminNotes ?? "");
-      setEditAssigned(updated.assignedTo ?? "");
-      setEditLostReason(updated.lostReason ?? "");
-      setEditDate(updated.date ?? "");
       // O campo por corrigir fica COMO ELA O ESCREVEU: substituí-lo pelo valor
       // gravado apagava o que ela acabou de escrever e voltava a esconder o
       // problema — que é o defeito de origem, ao contrário.
-      if (!erroDeConvidados) setEditGuests(String(updated.guests ?? ""));
-      setEditLocation(updated.location ?? "");
-      setEditNome(updated.name ?? "");
-      setEditEmail(updated.email ?? "");
-      setEditTelefone(updated.phone ?? "");
+      preencherCom(updated, { manterConvidados: !!erroDeConvidados });
       // A linha de base da gravação automática move-se com este clique: sem
       // isto, a gravação adiada que estivesse a caminho reenviava o texto que o
       // botão acabou de gravar.
@@ -4423,17 +3210,7 @@ export default function AdminClient({
        * histórico.
        */
       const antes = selected;
-      const inverso: Record<string, unknown> = {};
-      if ("quotedPrice" in body) inverso.quotedPrice = antes.quotedPrice ?? null;
-      if ("adminNotes" in body) inverso.adminNotes = antes.adminNotes ?? "";
-      if ("assignedTo" in body) inverso.assignedTo = antes.assignedTo ?? null;
-      if ("lostReason" in body) inverso.lostReason = antes.lostReason ?? null;
-      if ("date" in body) inverso.date = antes.date ?? "";
-      if ("guests" in body) inverso.guests = antes.guests;
-      if ("location" in body) inverso.location = antes.location ?? "";
-      if ("name" in body) inverso.name = antes.name ?? "";
-      if ("email" in body) inverso.email = antes.email ?? "";
-      if ("phone" in body) inverso.phone = antes.phone ?? "";
+      const inverso = corpoDoAnular(antes, body);
       const mudouEstado = updated.status !== antes.status;
       if (opcoes.silencioso || (!mudouEstado && Object.keys(inverso).length === 0)) {
         dizer("Pedido atualizado", "success");
@@ -4447,7 +3224,7 @@ export default function AdminClient({
             de: antes.status,
             para: updated.status,
             actor: userName,
-            extra: inverso,
+            extra: { ...inverso },
           });
         } else {
           const res = await fetch(`/api/orcamento/${encodeURIComponent(updated.id)}`, {
@@ -4823,97 +3600,41 @@ export default function AdminClient({
   // keystroke never blocks on the whole-list recompute (janky at hundreds).
   const deferredSearch = useDeferredValue(search);
 
-  const filtered = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
-    let list = quotes.filter((x) => (showArchived ? x.archived : !x.archived));
-    if (!showArchived && filterStatus !== "all") {
-      list = list.filter((x) => x.status === filterStatus);
-    }
-    if (filterCategory !== "all") {
-      list = list.filter((x) => x.category === filterCategory);
-    }
-    if (mineOnly) {
-      list = list.filter((x) => x.assignedTo === userName);
-    }
-    if (filterEspera !== "all") {
-      const corte = Number(filterEspera);
-      list = list.filter((x) => (diasDeEspera(x) ?? -1) >= corte);
-    }
-    if (filterMes !== "all") {
-      list = list.filter((x) => (x.date ?? "").slice(0, 7) === filterMes);
-    }
-    if (filterRegiao !== "all") {
-      list = list.filter((x) => contextoDeLocal(x).regiao === filterRegiao);
-    }
-    if (filterPlanner !== "all") {
-      list = list.filter((x) => (x.company ?? "").trim() === filterPlanner);
-    }
-    if (tagFilter) {
-      list = list.filter((x) => (x.tags ?? []).includes(tagFilter));
-    }
-    if (q) {
-      // Sem acentos e com o telefone em qualquer formato — ver `procura.ts`
-      // (achado n.º 10: «evora» dava zero resultados).
-      list = list.filter((x) =>
-        casaComAProcura(q, [
-          x.name,
-          x.email,
-          x.phone,
-          x.company,
-          x.location,
-          x.id,
-          x.assignedTo,
-          x.contractRef,
-          ...(x.tags ?? []),
-        ]),
-      );
-    }
-    const sorted = [...list];
-    if (sort === "espera") sorted.sort((a, b) => porEspera(a, b));
-    else if (sort === "recent")
-      sorted.sort((a, b) => +new Date(b.submittedAt) - +new Date(a.submittedAt));
-    else if (sort === "old")
-      sorted.sort((a, b) => +new Date(a.submittedAt) - +new Date(b.submittedAt));
-    else if (sort === "followup")
-      // Leads needing a follow-up float to the top, soonest/most-overdue first;
-      // those without a follow-up date fall to the bottom (most recent among them).
-      sorted.sort((a, b) => {
-        const av = a.followUpAt ?? "9999-99-99";
-        const bv = b.followUpAt ?? "9999-99-99";
-        if (av !== bv) return av < bv ? -1 : 1;
-        return +new Date(b.submittedAt) - +new Date(a.submittedAt);
-      });
-    else if (sort === "eventdate")
-      // Upcoming events first (soonest at the top); undated quotes sink to the
-      // bottom, most recent among them.
-      sorted.sort((a, b) => {
-        const av = a.date || "9999-99-99";
-        const bv = b.date || "9999-99-99";
-        if (av !== bv) return av < bv ? -1 : 1;
-        return +new Date(b.submittedAt) - +new Date(a.submittedAt);
-      });
-    else
-      sorted.sort(
-        (a, b) =>
-          (b.quotedPrice ?? b.priceBreakdown?.total ?? 0) -
-          (a.quotedPrice ?? a.priceBreakdown?.total ?? 0),
-      );
-    return sorted;
-  }, [
-    quotes,
-    filterStatus,
-    filterCategory,
-    filterEspera,
-    filterMes,
-    filterRegiao,
-    filterPlanner,
-    tagFilter,
-    deferredSearch,
-    sort,
-    showArchived,
-    mineOnly,
-    userName,
-  ]);
+  const filtered = useMemo(
+    () =>
+      filtrarEOrdenarPedidos(
+        quotes,
+        {
+          estado: filterStatus,
+          etiqueta: tagFilter,
+          categoria: filterCategory,
+          espera: filterEspera,
+          mes: filterMes,
+          regiao: filterRegiao,
+          planner: filterPlanner,
+          arquivados: showArchived,
+          soOsMeus: mineOnly,
+          procura: deferredSearch,
+          ordem: sort,
+        },
+        userName,
+      ),
+    [
+      quotes,
+      filterStatus,
+      filterCategory,
+      filterEspera,
+      filterMes,
+      filterRegiao,
+      filterPlanner,
+      tagFilter,
+      deferredSearch,
+      sort,
+      showArchived,
+      mineOnly,
+      userName,
+    ],
+  );
 
   // Paginação incremental da lista: com centenas de pedidos, renderizar tudo
   // degrada a página. Só o RENDER é paginado — exportar CSV, "selecionar
@@ -4994,24 +3715,11 @@ export default function AdminClient({
 
   // Every tag in use across all quotes — feeds the tag editor suggestions and
   // the Pedidos tag filter.
-  const allTags = useMemo(() => {
-    const set = new Set<string>();
-    for (const q of quotes) for (const t of q.tags ?? []) set.add(t);
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [quotes]);
+  const allTags = useMemo(() => etiquetasEmUso(quotes), [quotes]);
 
   // Active-quote counts per status, computed once instead of one full
   // `quotes.filter()` per status pill on every render.
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    let activeTotal = 0;
-    for (const q of quotes) {
-      if (q.archived) continue;
-      activeTotal += 1;
-      counts[q.status] = (counts[q.status] ?? 0) + 1;
-    }
-    return { counts, activeTotal };
-  }, [quotes]);
+  const statusCounts = useMemo(() => contarPorEstado(quotes), [quotes]);
 
   const todayStr = todayKey();
 
