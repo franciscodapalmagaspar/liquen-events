@@ -547,9 +547,16 @@ Revisão de 17/11 (PR #479):
   nunca o token do Blob, para trocar o token não matar endereços;
 - o índice `blob:i:` vai na cópia de segurança (a reposição JUNTA, não apaga)
   e não conta como menção nas limpezas da noite;
-- os avisos (e o ERRO «há ficheiros no Blob mas o token não está
-  configurado») aparecem no bloco «Hoje» e na janela «Importar proposta», e
-  vão aos registos no máximo uma vez por hora.
+- os avisos dos tectos aparecem no bloco «Hoje» e na janela «Importar
+  proposta», e vão aos registos no máximo uma vez por hora;
+- **desligado, igual a `main`** (2.ª revisão): sem o token não há uma única
+  leitura nova à base de dados nem pedido novo. Por isso o ERRO «há
+  ficheiros no Blob mas o token não está configurado» só aparece na janela
+  «Importar proposta», a partir de um marcador (`blobEmUso`) que a medição da
+  noite grava na ocupação enquanto há token — não no «Hoje», que para o
+  saber teria de ler mais uma linha;
+- os endereços do Blob guardados na `biblioteca_fotos.urls` conferem-se com
+  o segredo e o token de AGORA, e os de mais de 7 dias não se guardam.
 
 **A ordem da migração** (`POST /api/admin/armazenamento-blob`, só admin, cada
 chamada ≤ 40 s, `comCpu`):
