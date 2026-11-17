@@ -1,6 +1,13 @@
 import "server-only";
 import { getSupabase } from "./supabase";
 import { log } from "./logger";
+import { blobConfigurado, ehBaldeDoBlob } from "./armazenamento/baldes";
+import {
+  PREFIXO_DA_ROTA,
+  conferirUrlEstavel,
+  segredoDosEnderecos,
+} from "./armazenamento/url-estavel";
+import { eRelogioAdiantado } from "./repository";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -82,6 +89,15 @@ const MARGEM_MS = {
  * julgado, diga o que disser quem o guardou.
  */
 function baldeDoEndereco(url: string, base: string): string | null {
+  // Uma fotografia no Vercel Blob (16/11): `/api/ficheiro/<balde>/<caminho>?token=…`,
+  // relativo à origem do site — o token tem o mesmo `exp` de um JWT (revisão
+  // de 17/11, n.º 2: sem isto, nunca se guardava e mudava a cada visita).
+  if (url.startsWith(PREFIXO_DA_ROTA)) {
+    const resto = url.slice(PREFIXO_DA_ROTA.length);
+    const barra = resto.indexOf("/");
+    const balde = barra > 0 ? resto.slice(0, barra) : "";
+    return ehBaldeDoBlob(balde) ? balde : null;
+  }
   const prefixo = `${base}/storage/v1/object/sign/`;
   if (!url.startsWith(prefixo)) return null;
   const resto = url.slice(prefixo.length);
@@ -102,7 +118,8 @@ function margemDoBalde(balde: string): number {
  */
 function expiraEm(url: string): number | null {
   try {
-    const token = new URL(url).searchParams.get("token");
+    // Com base: o endereço do Blob é relativo à origem do site.
+    const token = new URL(url, "http://x").searchParams.get("token");
     const meio = token?.split(".")[1];
     if (!meio) return null;
     const json = Buffer.from(meio.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
@@ -134,9 +151,43 @@ function expiraEm(url: string): number | null {
 function aindaServe(url: string, base: string): boolean {
   const balde = baldeDoEndereco(url, base);
   if (!balde) return false;
+  // Um endereço do Vercel Blob só serve se ESTE servidor o abrir AGORA: com o
+  // token configurado e a assinatura conferida com o segredo actual (2.ª
+  // revisão de 17/11, n.º 2). Trocar o `SESSION_SECRET`, definir o
+  // `BLOB_URL_SECRET` ou tirar o token deixava-o aceite pelo `exp` e partido
+  // durante anos. Não serve → assina-se de novo pelo `balde()`, que sem token
+  // assina no Supabase.
+  if (url.startsWith(PREFIXO_DA_ROTA) && !abreAgora(url)) return false;
   const fim = expiraEm(url);
   if (fim === null) return false;
   return fim - Date.now() > margemDoBalde(balde);
+}
+
+/** O endereço `/api/ficheiro/<balde>/<caminho>?token=…` abre-se com o que este servidor tem agora? */
+function abreAgora(url: string): boolean {
+  if (!blobConfigurado()) return false;
+  try {
+    const u = new URL(url, "http://x");
+    const [balde, ...partes] = u.pathname.slice(PREFIXO_DA_ROTA.length).split("/");
+    const caminho = partes.map((p) => decodeURIComponent(p)).join("/");
+    return conferirUrlEstavel(balde, caminho, u.searchParams.get("token"), segredoDosEnderecos())
+      .ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Um endereço do Blob com mais de 7 dias de vida NÃO se guarda nas caches
+ * persistentes (2.ª revisão de 17/11, n.º 2): ficava lá anos, preso a um
+ * segredo e a um token que podem mudar. Guarda-se o caminho (que já lá está)
+ * e assina-se na leitura — localmente, sem ida a lado nenhum.
+ */
+const MAX_GUARDADO_DO_BLOB_MS = 7 * 24 * 3600_000;
+function guardavel(url: string): boolean {
+  if (!url.startsWith(PREFIXO_DA_ROTA)) return true;
+  const fim = expiraEm(url);
+  return fim !== null && fim - Date.now() <= MAX_GUARDADO_DO_BLOB_MS;
 }
 
 /** A origem do Storage deste ambiente, para conferir de onde vêm os endereços. */
@@ -299,7 +350,7 @@ export async function guardarUrls(
     if (!jaGuardados.has(path)) continue;
     const deste: UrlsPorFamilia = {};
     for (const [familia, url] of Object.entries(urls)) {
-      if (baldeDoEndereco(url, base)) deste[familia] = url;
+      if (baldeDoEndereco(url, base) && guardavel(url)) deste[familia] = url;
     }
     if (Object.keys(deste).length === 0) continue;
     linhas.push({ path, urls: { ...(jaGuardados.get(path) ?? {}), ...deste } });
@@ -317,10 +368,36 @@ export async function guardarUrls(
       linhas.map(({ path, urls }) => sb.from("biblioteca_fotos").update({ urls }).eq("path", path)),
     );
     const erro = respostas.find((r) => r.error)?.error;
-    if (erro && !seForAColunaEmFalta(erro)) {
-      log.warn("urls-assinados: não ficaram guardados", { erro: erro.message });
-    }
+    if (erro && !seForAColunaEmFalta(erro)) avisarSeNaoForPassageira(erro);
   } catch (e) {
-    log.warn("urls-assinados: não ficaram guardados", { erro: String(e) });
+    avisarSeNaoForPassageira(e);
   }
+}
+
+/**
+ * ── UMA ESCRITA DE CACHE QUE FALHA DE PASSAGEM É ESPERADA (17/11) ─────────
+ *
+ * Registos de 10–12/11: 11 «urls-assinados: não ficaram guardados» em
+ * `/proposta/[token]`. Eram um problema REAL — a coluna `urls` por criar (a
+ * migração de 14/11, já aplicada: verificado a 17/11) — e esse já se diz uma
+ * vez só, em `seForAColunaEmFalta`.
+ *
+ * O que fica é o esperado: isto é uma CACHE, e uma escrita que falha de
+ * passagem (o relógio do PostgREST, a rede, um tempo esgotado) custa uma
+ * assinatura repetida na visita seguinte e mais nada. Não é aviso; uma recusa
+ * que se repetiria (permissão, outra coisa) continua a ser.
+ */
+function avisarSeNaoForPassageira(erro: unknown): void {
+  const e = erro as { code?: unknown; message?: unknown } | null;
+  const texto = `${String(e?.code ?? "")} ${String(e?.message ?? erro)}`;
+  if (
+    eRelogioAdiantado(erro) ||
+    /PGRST002|fetch failed|timeout|timed out|tempo esgotado|ECONNRESET|socket hang up/i.test(texto)
+  ) {
+    log.info("urls-assinados: não ficaram guardados desta vez (passageiro)", { erro: texto });
+    return;
+  }
+  log.warn("urls-assinados: não ficaram guardados", {
+    erro: typeof e?.message === "string" ? e.message : String(erro),
+  });
 }

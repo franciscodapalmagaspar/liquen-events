@@ -211,6 +211,33 @@ const ORCAMENTO_MS = maxDuration * 1000;
  */
 const paragrafosDaMensagem = paragrafosDeTexto;
 
+/**
+ * A resposta «envia assim mesmo» às fotos em falta (17/11) é o NÚMERO de fotos
+ * que ela viu a faltar. Vale enquanto o PDF do envio não tiver MAIS em falta do
+ * que esse: um «sim» a 3 não pode mandar um documento com 9 (revisão de 17/11).
+ * Qualquer outra coisa que não um número não conta — com UMA exceção, por
+ * pouco tempo (ver abaixo).
+ */
+function fotosEmFaltaAceites(emFalta: number, confirmadas: unknown): boolean {
+  if (emFalta <= 0) return true;
+  if (confirmadas === true && Date.now() < FIM_DO_SIM_ANTIGO) return true;
+  return typeof confirmadas === "number" && Number.isFinite(confirmadas) && emFalta <= confirmadas;
+}
+
+/**
+ * ── O «SIM» ANTIGO, ATÉ 18/11/2026 ÀS 23:59 EM LISBOA (2.ª revisão de 17/11) ──
+ *
+ * Antes da publicação de 17/11 a resposta era `fotosEmFaltaConfirmadas: true`.
+ * Um separador do estúdio aberto antes disso continua a mandá-la, e ficava sem
+ * conseguir enviar até ela recarregar a página. Até ao fim de 18/11 (hora de
+ * Lisboa; em novembro é UTC+0) o booleano vale como dantes; a partir daí, só
+ * o número.
+ *
+ * TIRAR depois de 18/11/2026: apagar esta constante e a linha do `true` em
+ * `fotosEmFaltaAceites` (e o teste «o «sim» antigo»).
+ */
+const FIM_DO_SIM_ANTIGO = Date.parse("2026-11-19T00:00:00Z");
+
 async function POST_semMedida(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -248,6 +275,10 @@ async function POST_semMedida(
        *  envio, mais abaixo. Só `true` conta: qualquer outra coisa é «ainda
        *  não respondeu». */
       cortesConfirmados?: unknown;
+      /** «Já sei que faltam N fotografias, envia à mesma» — ver a pergunta
+       *  das fotos em falta, mais abaixo. É o NÚMERO que ela viu: um PDF com
+       *  mais em falta do que esse pergunta outra vez (`fotosEmFaltaAceites`). */
+      fotosEmFaltaConfirmadas?: unknown;
       /**
        * ── POR ONDE É QUE A PROPOSTA SEGUE ────────────────────────────────
        *
@@ -633,15 +664,43 @@ async function POST_semMedida(
       // apanhar uma foto que não resolveu, não para mudar o que sai.
       const segunda = await renderStoredEditorialPdfWithReport(doc, idioma);
       if (segunda.missingImages < relatorio.missingImages) relatorio = segunda;
-      if (relatorio.missingImages > 0) {
-        log.error("proposta-doc: a proposta segue com fotos a menos", null, {
-          id,
-          emFalta: relatorio.missingImages,
-        });
-      }
     }
 
     const { pdf: pdfBuffer, missingImages, truncations } = relatorio;
+
+    /**
+     * ════════════════════════════════════════════════════════════════════════
+     * FOTOS A MENOS: UMA PERGUNTA ANTES DE SEGUIR, NÃO UM AVISO DEPOIS (17/11)
+     * ════════════════════════════════════════════════════════════════════════
+     *
+     * Registos de 12/11: «proposta-doc: a proposta segue com fotos a menos»,
+     * nove em falta, e o casal recebeu-a assim. O aviso do estúdio chegava
+     * DENTRO da resposta do envio — com o email já na caixa do casal.
+     *
+     * A decisão dela continua de pé: o envio NÃO se recusa («recusar seria
+     * pior — ela fica sem nada e sem perceber porquê»). O que muda é a ordem:
+     * como nos cortes, aqui em baixo, o servidor pára e PERGUNTA, com a
+     * proposta ainda por gravar e o email ainda por sair. Ela volta atrás e
+     * troca as fotos, ou responde «envia assim mesmo» (`fotosEmFaltaConfirmadas`)
+     * e segue — sabendo.
+     */
+    if (mode === "send" && !fotosEmFaltaAceites(missingImages, body?.fotosEmFaltaConfirmadas)) {
+      log.warn("proposta-doc: envio parado para confirmar as fotos em falta", {
+        id,
+        emFalta: missingImages,
+      });
+      return NextResponse.json(
+        {
+          error:
+            missingImages === 1
+              ? "Falta 1 fotografia no documento."
+              : `Faltam ${missingImages} fotografias no documento.`,
+          precisaConfirmarFotos: true,
+          missingImages,
+        },
+        { status: 409 },
+      );
+    }
 
     if (mode === "preview") {
       return new NextResponse(pdfBuffer, {
@@ -699,9 +758,8 @@ async function POST_semMedida(
      * todo — o que falta é uma decisão de quem envia. É o código que o estúdio
      * distingue de uma avaria (ver `porqueFalhouOEnvio`).
      *
-     * As FOTOS EM FALTA não passam por aqui, e é de propósito: essas são uma
-     * AVARIA (a foto devia estar e não está), já têm segunda tentativa aqui em
-     * cima, e a decisão escrita é que o envio não trava por causa delas.
+     * As FOTOS EM FALTA têm a sua própria pergunta, aqui em cima (17/11), com
+     * a segunda tentativa à frente dela.
      */
     const cortesConfirmados = body?.cortesConfirmados === true;
     if (mode === "send" && truncations.length > 0 && !cortesConfirmados) {
@@ -719,6 +777,14 @@ async function POST_semMedida(
         },
         { status: 409 },
       );
+    }
+    // Só aqui é «segue com fotos a menos»: ela respondeu às duas perguntas
+    // (fotos e cortes). Antes disso, o envio ainda podia parar (revisão de 17/11).
+    if (mode === "send" && missingImages > 0) {
+      log.warn("proposta-doc: a proposta segue com fotos a menos, confirmado por ela", {
+        id,
+        emFalta: missingImages,
+      });
     }
 
     // ── Send ──
@@ -1548,6 +1614,9 @@ async function POST_semMedida(
     // NOME da coisa, que é o que a etiqueta é.
     const pdfEmTexto = ["", `${t.anexoEtiqueta}: ${linkDoPdf}`];
 
+    // O rodapé legal (17/11): a língua da proposta, e a finalidade de quem
+    // recebe uma proposta — prepará-la e executá-la (`email-rodape-legal.ts`).
+    const rodapeLegal = { lingua: idioma === "en" ? "en" : "pt", finalidade: "proposta" } as const;
     const email = escrito
       ? emailAoCliente({
           /**
@@ -1579,15 +1648,18 @@ async function POST_semMedida(
            */
           texto: [escrito.texto, ...pdfEmTexto].join("\n"),
           quem,
+          rodapeLegal,
         })
       : corpoDoModelo
         ? emailAoCliente({
             html: `${corpoDoModelo}${cartaoDoPdf}`,
             texto: [textoDoCorpo(corpoDoModelo), ...pdfEmTexto].join("\n"),
             quem,
+            rodapeLegal,
           })
         : emailAoCliente({
             quem,
+            rodapeLegal,
             html: `<h2 style="font-size:18px;margin:0 0 12px">${esc(t.titulo)}</h2>
         <p style="font-size:14px;line-height:1.6">${esc(t.ola)} ${esc(doc.clientNames)},</p>
         ${mensagem ? `${paragrafosDaMensagem(mensagem)}\n        ` : ""}<p style="font-size:14px;line-height:1.6">${esc(t.intro)}</p>

@@ -88,11 +88,10 @@ describe("alvos de toque da variante social", () => {
       // Não passar por vacuidade: se a página deixar de desenhar âncoras
       // próprias, a regra abaixo fica verdadeira sem verificar nada.
       const ancoras = await ancorasDe(lang, "comporta");
-      expect(ancoras.map((a) => a.href).sort()).toEqual(
-        lang === "en"
-          ? ["/en/privacidade", "tel:+351919259820"]
-          : ["/privacidade", "tel:+351919259820"],
-      );
+      // As ligações legais (Privacidade · Cookies · Termos, o Livro e os
+      // litígios) saíram para a peça de todas as páginas, `AvisoLegal.tsx`
+      // (17/11), que dá o `alvo-toque` às suas: aparecem aqui por referência.
+      expect(ancoras.map((a) => a.href).sort()).toEqual(["tel:+351919259820"]);
     });
 
     it(`/${lang}/s/comporta dá 44 px a cada âncora em ponteiro grosso`, async () => {

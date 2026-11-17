@@ -1,5 +1,6 @@
 "use client";
 
+import { servirUmaVez, type PedidoDaPaleta } from "./procura-em-tudo";
 import { asPropostasMudaram } from "./percentagem-do-sinal";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { Proposal, ProposalStatus, Quote } from "@/lib/orcamento/types";
@@ -23,6 +24,7 @@ import { contasDosPedidos } from "@/lib/orcamento/dinheiro-dos-pedidos";
 import { dataCurta } from "@/lib/data-curta";
 import { useAccoesDaPropostaEnviada } from "./accoesDaPropostaEnviada";
 import { useAnular } from "./ui/anular";
+import { dateStamp, downloadCsv, propostasToCsvRows } from "./export";
 import { useDepoisDeApagar } from "./ui/depois-de-apagar";
 import { reporEstadoDoPedido } from "./anular-estado";
 
@@ -230,6 +232,11 @@ interface Props {
    * traz o nome que ela procurou lá, em vez de a deixar na lista inteira.
    */
   procuraInicial?: string;
+  /**
+   * A paleta (⌘K) escolheu uma proposta: abre-se filtrada pelo nome do casal,
+   * em todos os estados. Servido uma vez — ver `servirUmaVez`.
+   */
+  pedidoDaPaleta?: PedidoDaPaleta;
 }
 
 export default function Propostas({
@@ -238,6 +245,7 @@ export default function Propostas({
   onQuoteUpdated,
   userName,
   procuraInicial = "",
+  pedidoDaPaleta,
 }: Props) {
   const { toast } = useToast();
   const anular = useAnular();
@@ -260,6 +268,15 @@ export default function Propostas({
     refresh: retryLoad,
   } = useCachedList<Proposal[]>("propostas", "/api/propostas");
   const [filter, setFilter] = useState<ProposalStatus | "all">("all");
+  // A escolha da paleta ganha ao filtro que lá estava: uma proposta aceite
+  // procurada com o filtro em «Enviadas» seria uma lista vazia sem explicação.
+  useEffect(() => {
+    servirUmaVez(pedidoDaPaleta, (p) => {
+      if (p.procura === undefined) return;
+      setProcura(p.procura);
+      setFilter("all");
+    });
+  }, [pedidoDaPaleta]);
   // O chip acende-se já; a lista (202 linhas) é reconstruída a seguir, em
   // prioridade baixa. Medido: sem isto, um clique no filtro era um evento de
   // 104 ms — acima do limiar em que um clique deixa de parecer instantâneo.
@@ -502,6 +519,53 @@ export default function Propostas({
       .slice()
       .sort((a, b) => +new Date(quandoDe(b)) - +new Date(quandoDe(a)));
   }, [proposals, deferredFilter, procuraAdiada]);
+
+  /**
+   * ── ESCOLHER VÁRIAS, PARA EXPORTAR (BO 4) ───────────────────────────────
+   *
+   * Só para LER: a única acção do lote é «Exportar CSV». Mudar o estado de
+   * várias propostas de uma vez fica de fora de propósito — aceitar uma
+   * proposta cria o contrato e mexe no pedido, e isso é um gesto que se faz
+   * uma a uma, a olhar para cada uma.
+   *
+   * O lote é o que ela escolheu E continua à vista (a lição da barra dos
+   * Pedidos): a procura e o filtro podem mudar depois de escolher, e o CSV
+   * tem de ter o número que a barra diz.
+   */
+  const [seleccao, setSeleccao] = useState<ReadonlySet<string>>(() => new Set());
+  const seleccionadas = useMemo(
+    () => filtered.filter((p) => seleccao.has(p.id)),
+    [filtered, seleccao],
+  );
+  const alternarNaSeleccao = useCallback((id: string) => {
+    setSeleccao((antes) => {
+      const depois = new Set(antes);
+      if (depois.has(id)) depois.delete(id);
+      else depois.add(id);
+      return depois;
+    });
+  }, []);
+  const exportarSeleccao = () => {
+    if (seleccionadas.length === 0) return;
+    downloadCsv(`propostas-selecao-${dateStamp()}`, propostasToCsvRows(seleccionadas));
+    const n = seleccionadas.length;
+    toast(`${n} proposta${n === 1 ? "" : "s"} exportada${n === 1 ? "" : "s"}.`, "success");
+  };
+  /** A caixa de escolher, igual na tabela e no cartão — com alvo de dedo. */
+  const caixaDeEscolher = (p: Proposal) => (
+    <label
+      className={`alvo-toque relative -m-2 flex shrink-0 cursor-pointer items-center justify-center p-2 ${ESTADO} ${PRESSAO}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        type="checkbox"
+        checked={seleccao.has(p.id)}
+        onChange={() => alternarNaSeleccao(p.id)}
+        className="h-4 w-4 accent-sage-600"
+        aria-label={`Selecionar proposta de ${p.clientName}`}
+      />
+    </label>
+  );
 
   const stats = useMemo(() => {
     // Re-sending a proposal for the same couple creates a NEW row (a revision),
@@ -865,6 +929,40 @@ export default function Propostas({
         )}
       </div>
 
+      {/* ── A BARRA DO LOTE ── a mesma forma da dos Pedidos: opaca, por cima da
+          lista, com o número do que está À VISTA. */}
+      {seleccionadas.length > 0 && (
+        <div
+          role="toolbar"
+          aria-label="Ações nas propostas selecionadas"
+          className="flex flex-wrap items-center gap-2 rounded-xl border border-sage-600/25 bg-sage-600/[0.06] p-3"
+        >
+          <span role="status" className="mr-1 text-xs font-semibold text-[var(--bo-text)]">
+            {seleccionadas.length} selecionada{seleccionadas.length === 1 ? "" : "s"}
+          </span>
+          {seleccionadas.length < filtered.length && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSeleccao(new Set(filtered.map((p) => p.id)))}
+            >
+              Selecionar todas ({filtered.length})
+            </Button>
+          )}
+          <Button size="sm" variant="secondary" onClick={exportarSeleccao}>
+            Exportar CSV
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => setSeleccao(new Set())}
+          >
+            Limpar
+          </Button>
+        </div>
+      )}
+
       {/* List */}
       <Card
         padding="none"
@@ -920,6 +1018,13 @@ export default function Propostas({
                   : undefined
               }
               colunas={[
+                {
+                  chave: "sel",
+                  cabecalho: "",
+                  largura: "w-10",
+                  interactiva: true,
+                  celula: (p) => caixaDeEscolher(p),
+                },
                 {
                   chave: "cliente",
                   cabecalho: "Cliente",
@@ -1045,6 +1150,7 @@ export default function Propostas({
                 );
                 const linha = (
                   <div className="flex items-start gap-3 p-3.5">
+                    {caixaDeEscolher(p)}
                     {pedido ? (
                       <button
                         type="button"

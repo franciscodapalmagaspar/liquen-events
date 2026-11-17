@@ -5,7 +5,10 @@ import type { Task, TaskPriority } from "@/lib/orcamento/types";
 import { SkeletonList } from "./Skeleton";
 import { useToast } from "./Toast";
 import { useAnular } from "./ui/anular";
-import { useDepoisDeApagar } from "./ui/depois-de-apagar";
+import { useDepoisDeApagar, useDepoisDeApagarVarios } from "./ui/depois-de-apagar";
+import { servirUmaVez, type PedidoDaPaleta } from "./procura-em-tudo";
+import { seleccionarComModificadores } from "./seleccao-em-lista";
+import { aEscrever as aEscreverEm } from "./atalhos";
 import { todayKey } from "./util";
 import {
   Button,
@@ -32,6 +35,7 @@ import { tituloEPrazo } from "@/lib/tarefas/prazo";
 import {
   AGRUPAMENTOS,
   AGRUPAMENTO_POR_OMISSAO,
+  adiarUmaSemana,
   amanha,
   LISTAS_INTELIGENTES,
   LISTA_POR_OMISSAO,
@@ -461,6 +465,8 @@ const TaskRow = memo(function TaskRow({
   overdue,
   arrastavel,
   escolhida,
+  seleccionada,
+  aSeleccionar,
   marca,
   aArrastar,
   onToggle,
@@ -501,6 +507,14 @@ const TaskRow = memo(function TaskRow({
   arrastavel: boolean;
   /** A linha que o painel de detalhe está a mostrar. */
   escolhida: boolean;
+  /** Está no lote das acções em várias tarefas (BO 4). */
+  seleccionada: boolean;
+  /**
+   * Há um lote a ser escolhido — por ⇧/⌘+clique ou pelo botão «Selecionar»
+   * (o caminho do dedo). Enquanto há, tocar no título soma ou tira a tarefa
+   * do lote em vez de abrir o detalhe, e o título diz isso a quem ouve o ecrã.
+   */
+  aSeleccionar: boolean;
   /** Onde é que a linha arrastada vai entrar, se for aqui. */
   marca: "antes" | "depois" | null;
   /** Esta é a linha que está a ser arrastada neste momento. */
@@ -508,7 +522,7 @@ const TaskRow = memo(function TaskRow({
   onToggle: (t: Task) => void;
   onEdit: (t: Task) => void;
   onRemove: (id: string) => void;
-  onEscolher: (t: Task) => void;
+  onEscolher: (t: Task, mods?: { estender: boolean; somar: boolean }) => void;
   /** «Hoje» e «Amanhã» do menu — o prazo sem abrir o editor. */
   onPrazo: (t: Task, quando: "hoje" | "amanha") => void;
   /** A alternativa ao arrasto, que nunca pode ser o único caminho. [APPLE] */
@@ -561,8 +575,9 @@ const TaskRow = memo(function TaskRow({
       onDrop={arrastavel ? onArrastar.largar : undefined}
       onDragEnd={arrastavel ? onArrastar.acabar : undefined}
       aria-current={escolhida || undefined}
+      data-seleccionada={seleccionada || undefined}
       className={`group relative flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:items-center sm:px-5 sm:py-3.5 ${SEM_LUPA} ${ESTADO} ${
-        escolhida ? "bg-[var(--bo-accent-lavagem)]" : "hover:bg-[var(--bo-tinta-3)]"
+        escolhida || seleccionada ? "bg-[var(--bo-accent-lavagem)]" : "hover:bg-[var(--bo-tinta-3)]"
       } ${arrastavel ? "cursor-grab active:cursor-grabbing" : ""} ${aArrastar ? "opacity-50" : ""}`}
     >
       {/* ── A LINHA DE INSERÇÃO ────────────────────────────────────────────
@@ -661,8 +676,12 @@ const TaskRow = memo(function TaskRow({
         <button
           type="button"
           data-abrir
-          onClick={() => onEscolher(t)}
-          aria-label={`Abrir «${t.title}»`}
+          /* ⇧+clique estende o lote, ⌘/Ctrl+clique soma ou tira — como na
+             grelha dos Temas. Sem modificador abre o detalhe, a não ser que
+             haja um lote a ser escolhido (ver `aSeleccionar`). */
+          onClick={(e) => onEscolher(t, { estender: e.shiftKey, somar: e.metaKey || e.ctrlKey })}
+          aria-label={aSeleccionar ? `Selecionar «${t.title}»` : `Abrir «${t.title}»`}
+          aria-pressed={aSeleccionar ? seleccionada : undefined}
           title={t.title}
           /* ── E O ALVO ────────────────────────────────────────────────────
              `alvo-toque` porque isto é um controlo novo e o mínimo da casa são
@@ -688,6 +707,13 @@ const TaskRow = memo(function TaskRow({
             t.done ? "text-foreground/30 line-through" : "text-[var(--bo-tinta-72)]"
           }`}
         >
+          {/* A marca do lote: não só cor (a lavagem da linha) — um visto, à
+              frente do título, que se lê também a preto e branco. */}
+          {seleccionada && (
+            <span aria-hidden="true" className="mr-1.5 font-semibold text-[var(--bo-text)]">
+              ✓
+            </span>
+          )}
           {t.title}
         </button>
         <div className="text-[10px] mt-0.5 flex items-center gap-2 flex-wrap">
@@ -882,9 +908,41 @@ const TaskRow = memo(function TaskRow({
   );
 });
 
+/** Os títulos para a pergunta de eliminar o lote, cortados a seis. */
+function nomesAMostrar(tarefas: readonly Task[] | null): string[] {
+  if (!tarefas) return [];
+  const nomes = tarefas.map((t) => t.title || "Sem título");
+  return nomes.length <= 6 ? nomes : [...nomes.slice(0, 6), `… e mais ${nomes.length - 6}`];
+}
+
+/**
+ * Um pedido de uma acção em lote, sem aviso por pedido: quem chama junta as N
+ * respostas e diz UMA frase. Nunca atira — a rede em baixo é `ok: false`.
+ */
+async function pedirEmSilencio(
+  url: string,
+  method: "PATCH" | "DELETE",
+  corpo?: Record<string, unknown>,
+): Promise<{ ok: boolean; corpo: unknown }> {
+  try {
+    const res = await fetch(url, {
+      method,
+      ...(corpo
+        ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) }
+        : {}),
+    });
+    return { ok: res.ok, corpo: await res.json().catch(() => null) };
+  } catch {
+    return { ok: false, corpo: null };
+  }
+}
+
 export default function Tarefas({
   defaultAssignee = "",
   pedidoDeNova = 0,
+  pedidoDeNovaServido,
+  onPedidoDeNovaServido,
+  pedidoDaPaleta,
   nomesDosPedidos,
 }: {
   defaultAssignee?: string;
@@ -899,10 +957,25 @@ export default function Tarefas({
    * booleano porque dois toques seguidos têm de pedir duas vezes.
    */
   pedidoDeNova?: number;
+  /**
+   * O último `pedidoDeNova` que este ecrã já serviu, guardado por quem o
+   * monta. Sem ele, conta como servido o valor com que o ecrã monta — e um
+   * toque em «Nova tarefa» dado ENQUANTO o código das Tarefas ainda chegava
+   * perdia-se (passeio do telemóvel, lote de 17/11).
+   */
+  pedidoDeNovaServido?: number;
+  /** Avisa quem monta que o pedido `n` foi servido. */
+  onPedidoDeNovaServido?: (n: number) => void;
+  /**
+   * A paleta (⌘K) pediu alguma coisa (BO 4): abrir uma tarefa no detalhe
+   * (`id`) ou começar uma nova (`novo`). Servido uma vez — ver `servirUmaVez`.
+   */
+  pedidoDaPaleta?: PedidoDaPaleta;
 }) {
   const { toast } = useToast();
   const anular = useAnular();
   const depoisDeApagar = useDepoisDeApagar();
+  const depoisDeApagarVarias = useDepoisDeApagarVarios();
   const {
     data: tasks = [],
     setData: setTasks,
@@ -1022,20 +1095,39 @@ export default function Tarefas({
    * (⌘N outra vez, vindo de outro sítio), o campo existe e foca-se logo.
    */
   const queroFoco = useRef(false);
-  useEffect(() => {
-    if (!pedidoDeNova) return;
+  /**
+   * ── O PEDIDO QUE JÁ VINHA AO MONTAR NÃO É UM PEDIDO ─────────────────────
+   *
+   * O contador sobe com o botão da barra e com o ⌘N, e os dois só existem com
+   * as Tarefas à frente — portanto este ecrã está sempre montado quando ele
+   * sobe. O valor com que o ecrã MONTA é o de um pedido antigo, já servido:
+   * sair das Tarefas e voltar mais tarde reabria a linha de escrever, com o
+   * cursor lá dentro, sem ninguém a ter pedido. Só conta o que mudar depois.
+   * (A paleta, que chega com as Tarefas ainda fechadas, usa o `pedidoDaPaleta`.)
+   */
+  const novaAoMontar = useRef(pedidoDeNovaServido ?? pedidoDeNova);
+  const abrirLinhaDeEscrever = useCallback(() => {
     if (campoDoTitulo.current) {
       campoDoTitulo.current.focus();
       return;
     }
     queroFoco.current = true;
     setAEscrever(true);
-  }, [pedidoDeNova]);
+  }, []);
   useEffect(() => {
-    if (!aEscrever || !queroFoco.current) return;
+    if (!pedidoDeNova || pedidoDeNova === novaAoMontar.current) return;
+    novaAoMontar.current = pedidoDeNova;
+    abrirLinhaDeEscrever();
+    onPedidoDeNovaServido?.(pedidoDeNova);
+  }, [pedidoDeNova, abrirLinhaDeEscrever, onPedidoDeNovaServido]);
+  /* E se a lista ainda estiver a chegar (a paleta pode abrir as Tarefas pela
+     primeira vez), o campo só existe quando ela chega: espera-se por ele em
+     vez de gastar o pedido de foco num campo que ainda não está desenhado. */
+  useEffect(() => {
+    if (!aEscrever || !queroFoco.current || !campoDoTitulo.current) return;
     queroFoco.current = false;
-    campoDoTitulo.current?.focus();
-  }, [aEscrever]);
+    campoDoTitulo.current.focus();
+  }, [aEscrever, loading]);
   /**
    * ── E QUANDO O CAMPO FECHA, O FOCO NÃO CAI PARA O `<body>` ──────────────
    *
@@ -1204,6 +1296,46 @@ export default function Tarefas({
    * de ela lhe ter tocado — e a mostrar uma tarefa que já foi eliminada.
    */
   const [escolhida, setEscolhida] = useState<string | null>(null);
+
+  /* O pedido da paleta (BO 4): uma tarefa abre-se no detalhe, como um toque no
+     título dela; uma nova abre a linha de escrever, como o ⌘N. */
+  useEffect(() => {
+    servirUmaVez(pedidoDaPaleta, (p) => {
+      if (p.novo) abrirLinhaDeEscrever();
+      else if (p.id) setEscolhida(p.id);
+    });
+  }, [pedidoDaPaleta, abrirLinhaDeEscrever]);
+
+  /**
+   * ══════════════════════════════════════════════════════════════════════════
+   * O LOTE — ACÇÕES EM VÁRIAS TAREFAS (BO 4)
+   * ══════════════════════════════════════════════════════════════════════════
+   *
+   * Escolhe-se com ⇧+clique e ⌘+clique no título (a regra dos Temas, em
+   * `seleccao-em-lista.ts`), com ⌘A (as que estão à vista), ou — no telemóvel,
+   * onde não há tecla — com o botão «Selecionar», que passa os toques a somar
+   * ao lote em vez de abrir o detalhe. Esc e «Limpar» desfazem a escolha.
+   *
+   * Ids e não tarefas, como a `escolhida`: a lista é optimista e as tarefas
+   * mudam de identidade a cada gravação.
+   */
+  const [seleccao, setSeleccao] = useState<ReadonlySet<string>>(() => new Set());
+  const [modoDeSeleccao, setModoDeSeleccao] = useState(false);
+  const ancoraRef = useRef<string | null>(null);
+  /** Lido pelos manipuladores que se montam uma vez — ver `aSeleccionar`. */
+  const aSeleccionarRef = useRef(false);
+  /** A tarefa do detalhe, para o Esc saber qual é a camada de cima. */
+  const escolhidaRef = useRef<string | null>(null);
+  const largarSeleccao = useCallback(() => {
+    setSeleccao(new Set());
+    setModoDeSeleccao(false);
+    ancoraRef.current = null;
+  }, []);
+  /** Um lote a correr: os botões não aceitam um segundo toque até acabar. */
+  const [loteACorrer, setLoteACorrer] = useState(false);
+  const [aEliminarLote, setAEliminarLote] = useState<Task[] | null>(null);
+  /** A ordem do ECRÃ, para o ⇧+clique — preenchida onde os grupos se fazem. */
+  const ordemDoEcraRef = useRef<string[]>([]);
 
   /**
    * ── E O PAINEL VAI TER COM ELA, NO ECRÃ ESTREITO ────────────────────────
@@ -1742,6 +1874,236 @@ export default function Tarefas({
     if (v !== "nenhum" && ordenacao === "manual") setOrdenacao(ORDENACAO_POR_OMISSAO);
   };
 
+  /* A ordem do ecrã, de cima para baixo — os grupos pela ordem em que se
+     desenham, e as concluídas por baixo quando estão abertas. É a ordem do
+     ⇧+clique e do ⌘A do lote (BO 4). */
+  const ordemDoEcra = useMemo(
+    () => [...ordemVisivel(grupos), ...(showDone ? done.map((t) => t.id) : [])],
+    [grupos, done, showDone],
+  );
+  useEffect(() => {
+    ordemDoEcraRef.current = ordemDoEcra;
+  }, [ordemDoEcra]);
+
+  /**
+   * O lote sobre que os botões agem: o que ela escolheu E ainda está à vista.
+   * É a lição da barra dos Pedidos (`seleccionadosAVista`): um filtro que
+   * muda depois de escolher não pode deixar os botões a agir sobre linhas que
+   * já não se vêem — o número que a barra mostra e o número sobre que os
+   * botões agem têm de ser o mesmo.
+   */
+  const seleccionadas = useMemo(() => {
+    const porId = new Map(tasks.map((t) => [t.id, t] as const));
+    return ordemDoEcra
+      .filter((id) => seleccao.has(id))
+      .map((id) => porId.get(id))
+      .filter((t): t is Task => !!t);
+  }, [ordemDoEcra, seleccao, tasks]);
+
+  /* ── A SELECÇÃO SOBREVIVE AOS FILTROS, O MODO CONTA O QUE SE VÊ ─────────
+     Como nos Pedidos (2.ª revisão · 3): mudar de lista ou de pessoa não apaga
+     o que ela escolheu — voltar à lista de antes traz as escolhidas de volta.
+     O que deixa de existir é o MODO preso: `aSeleccionar` conta só as
+     escolhidas à vista (revisão · 5), e os botões agem só sobre elas. A
+     âncora do ⇧+clique que aponte para uma tarefa escondida é ignorada pelo
+     `seleccionarComModificadores` (não está na ordem do ecrã). */
+  const aSeleccionar = modoDeSeleccao || seleccionadas.length > 0;
+  useEffect(() => {
+    aSeleccionarRef.current = aSeleccionar;
+    escolhidaRef.current = escolhida;
+  }, [aSeleccionar, escolhida]);
+
+  /**
+   * ── AS TRÊS ACÇÕES DO LOTE ──────────────────────────────────────────────
+   *
+   * Todas optimistas como as de uma tarefa (a linha muda já, e volta se o
+   * servidor recusar — ESTA linha e não a lista, ver a nota em `toggle`), e
+   * todas com o «Anular» da casa. Os N pedidos saem ao mesmo tempo; a
+   * resposta é UM aviso, e não N — com a rede em baixo, dez avisos vermelhos
+   * empilhados não dizem mais do que um.
+   */
+  const concluirLote = useCallback(async () => {
+    const alvo = seleccionadas.filter((t) => !t.done);
+    if (alvo.length === 0 || loteACorrer) return;
+    setLoteACorrer(true);
+    const ids = new Set(alvo.map((t) => t.id));
+    setTasks((prev) => prev.map((t) => (ids.has(t.id) ? { ...t, done: true } : t)));
+    largarSeleccao();
+    try {
+      const res = await Promise.all(
+        alvo.map((t) => pedirEmSilencio(`/api/tarefas/${t.id}`, "PATCH", { done: true })),
+      );
+      const feitas = alvo.filter((_, i) => res[i].ok);
+      const falhadas = new Set(alvo.filter((_, i) => !res[i].ok).map((t) => t.id));
+      if (falhadas.size > 0) {
+        setTasks((prev) => prev.map((t) => (falhadas.has(t.id) ? { ...t, done: false } : t)));
+        toast(
+          `${feitas.length} concluída(s), ${falhadas.size} não. Verifica a ligação e tenta outra vez.`,
+          "error",
+        );
+        // As que FICARAM têm o seu «Anular», como nos Pedidos (2.ª revisão · 10).
+        if (feitas.length === 0) return;
+      }
+      const n = feitas.length;
+      anular(`${n} tarefa${n === 1 ? "" : "s"} concluída${n === 1 ? "" : "s"}.`, async () => {
+        const volta = new Set(feitas.map((t) => t.id));
+        setTasks((prev) => prev.map((t) => (volta.has(t.id) ? { ...t, done: false } : t)));
+        const r = await Promise.all(
+          feitas.map((t) => pedirEmSilencio(`/api/tarefas/${t.id}`, "PATCH", { done: false })),
+        );
+        const naoVoltaram = new Set(feitas.filter((_, i) => !r[i].ok).map((t) => t.id));
+        if (naoVoltaram.size > 0) {
+          setTasks((prev) => prev.map((t) => (naoVoltaram.has(t.id) ? { ...t, done: true } : t)));
+          throw new Error(`${naoVoltaram.size} continua(m) concluída(s). Tenta outra vez.`);
+        }
+      });
+    } finally {
+      setLoteACorrer(false);
+    }
+  }, [seleccionadas, loteACorrer, setTasks, largarSeleccao, toast, anular]);
+
+  const adiarLote = useCallback(async () => {
+    // As concluídas não mudam de prazo (revisão · 6): adiar uma coisa feita
+    // não quer dizer nada, e o «Anular» teria de desfazer o que ela não viu.
+    const alvo = seleccionadas.filter((t) => !t.done);
+    if (alvo.length === 0 || loteACorrer) return;
+    setLoteACorrer(true);
+    const antes = new Map(alvo.map((t) => [t.id, t.dueDate] as const));
+    const depois = new Map(alvo.map((t) => [t.id, adiarUmaSemana(t.dueDate, todayStr)] as const));
+    const porPrazo = (mapa: Map<string, string | undefined>) => (prev: Task[]) =>
+      prev.map((t) => (mapa.has(t.id) ? { ...t, dueDate: mapa.get(t.id) || undefined } : t));
+    setTasks(porPrazo(depois));
+    largarSeleccao();
+    try {
+      const res = await Promise.all(
+        alvo.map((t) =>
+          pedirEmSilencio(`/api/tarefas/${t.id}`, "PATCH", { dueDate: depois.get(t.id) }),
+        ),
+      );
+      const feitas = alvo.filter((_, i) => res[i].ok);
+      const falhadas = alvo.filter((_, i) => !res[i].ok);
+      if (falhadas.length > 0) {
+        setTasks(porPrazo(new Map(falhadas.map((t) => [t.id, antes.get(t.id)] as const))));
+        toast(
+          `${feitas.length} adiada(s), ${falhadas.length} não. Verifica a ligação e tenta outra vez.`,
+          "error",
+        );
+        // As que FICARAM têm o seu «Anular», como nos Pedidos (2.ª revisão · 10).
+        if (feitas.length === 0) return;
+      }
+      const n = feitas.length;
+      anular(
+        `${n} tarefa${n === 1 ? "" : "s"} adiada${n === 1 ? "" : "s"} uma semana.`,
+        async () => {
+          setTasks(porPrazo(new Map(feitas.map((t) => [t.id, antes.get(t.id)] as const))));
+          const r = await Promise.all(
+            feitas.map((t) =>
+              // `null` apaga o prazo de quem não tinha nenhum (o esquema aceita).
+              pedirEmSilencio(`/api/tarefas/${t.id}`, "PATCH", {
+                dueDate: antes.get(t.id) ?? null,
+              }),
+            ),
+          );
+          const naoVoltaram = feitas.filter((_, i) => !r[i].ok);
+          if (naoVoltaram.length > 0) {
+            setTasks(porPrazo(new Map(naoVoltaram.map((t) => [t.id, depois.get(t.id)] as const))));
+            throw new Error(`${naoVoltaram.length} ficou(aram) com a data nova. Tenta outra vez.`);
+          }
+        },
+      );
+    } finally {
+      setLoteACorrer(false);
+    }
+  }, [seleccionadas, loteACorrer, setTasks, largarSeleccao, toast, anular, todayStr]);
+
+  /** Eliminar pede primeiro — a mesma pergunta de uma tarefa, com os nomes. */
+  const pedirParaEliminarLote = useCallback(() => {
+    if (seleccionadas.length === 0 || loteACorrer) return;
+    setAEliminarLote(seleccionadas);
+  }, [seleccionadas, loteACorrer]);
+
+  const eliminarLote = useCallback(
+    async (alvo: Task[]) => {
+      if (alvo.length === 0) return;
+      setLoteACorrer(true);
+      const ids = new Set(alvo.map((t) => t.id));
+      setTasks((prev) => prev.filter((t) => !ids.has(t.id)));
+      largarSeleccao();
+      setEscolhida((e) => (e && ids.has(e) ? null : e));
+      try {
+        const res = await Promise.all(
+          alvo.map((t) => pedirEmSilencio(`/api/tarefas/${t.id}`, "DELETE")),
+        );
+        const falhadas = alvo.filter((_, i) => !res[i].ok);
+        const corpos = res.filter((r) => r.ok).map((r) => r.corpo);
+        if (falhadas.length > 0) {
+          // Voltam ESTAS, e só se não tiverem voltado por outro caminho.
+          setTasks((prev) => [
+            ...prev,
+            ...falhadas.filter((t) => !prev.some((x) => x.id === t.id)),
+          ]);
+          toast(
+            `${corpos.length} eliminada(s), ${falhadas.length} não. Verifica a ligação e tenta outra vez.`,
+            "error",
+          );
+          if (corpos.length === 0) return;
+        }
+        const n = corpos.length;
+        // Foram para a Reciclagem: um aviso, e um «Anular» que as repõe todas.
+        depoisDeApagarVarias(
+          corpos,
+          `${n} tarefa${n === 1 ? "" : "s"} eliminada${n === 1 ? "" : "s"}.`,
+          () => void refresh(),
+        );
+      } finally {
+        setLoteACorrer(false);
+      }
+    },
+    [setTasks, largarSeleccao, toast, depoisDeApagarVarias, refresh],
+  );
+
+  /**
+   * ── ⌘A ESCOLHE AS QUE ESTÃO À VISTA, ESC LARGA O LOTE ───────────────────
+   *
+   * Na janela, como nos Temas: o foco, nesta vista, pode estar em qualquer
+   * sítio (na barra das listas, no detalhe). O que não se rouba:
+   *  · o ⌘A de um CAMPO — lá selecciona o texto;
+   *  · as teclas de quem tem uma janela por cima (a pergunta de eliminar, a
+   *    paleta, a folha dos atalhos): fecha-se essa primeiro;
+   *  · o Esc sem lote nenhum — esse é do detalhe e da linha de escrever.
+   */
+  useEffect(() => {
+    const noTeclado = (e: KeyboardEvent) => {
+      if (aEscreverEm(e.target)) return;
+      const alvo = e.target as HTMLElement | null;
+      if (alvo?.closest?.('[role="dialog"], [role="alertdialog"]')) return;
+      if (aEliminar || aEliminarLote) return;
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "a") {
+        const ids = ordemDoEcraRef.current;
+        if (ids.length === 0) return;
+        e.preventDefault();
+        setSeleccao(new Set(ids));
+        ancoraRef.current = ids[ids.length - 1] ?? null;
+        return;
+      }
+      /* ── UM ESC, UMA CAMADA (revisão · 4) ───────────────────────────────
+         Com o detalhe aberto, o Esc fecha o detalhe e deixa o lote; só o
+         seguinte larga o lote. O contentor da lista também fecha o detalhe
+         (com o foco lá dentro) e marca o evento — aqui não se fecha duas
+         vezes nem se larga o lote por baixo. */
+      if (e.key === "Escape") {
+        if (e.defaultPrevented) return;
+        if (escolhidaRef.current) {
+          setEscolhida(null);
+          return;
+        }
+        if (aSeleccionarRef.current) largarSeleccao();
+      }
+    };
+    document.addEventListener("keydown", noTeclado);
+    return () => document.removeEventListener("keydown", noTeclado);
+  }, [aEliminar, aEliminarLote, largarSeleccao]);
+
   /* A ordem do que está à frente dela, e a ordem manual inteira, em refs: os
      manipuladores do arrasto montam-se uma vez e não podem fechar sobre o
      valor do primeiro desenho. */
@@ -1916,7 +2278,24 @@ export default function Tarefas({
     [gravarComAnular, todayStr],
   );
 
-  const escolher = useCallback((t: Task) => setEscolhida(t.id), []);
+  /**
+   * Tocar no título. Sem modificador e sem lote a ser escolhido, abre o
+   * detalhe (fase 08). Com ⇧ ou ⌘, ou com um lote já começado, soma ou tira
+   * a tarefa do lote. A ordem do intervalo é a do ecrã: as abertas e, se
+   * estiverem à vista, as concluídas por baixo.
+   */
+  const escolher = useCallback((t: Task, mods?: { estender: boolean; somar: boolean }) => {
+    const comModificador = !!mods && (mods.estender || mods.somar);
+    if (!comModificador && !aSeleccionarRef.current) {
+      setEscolhida(t.id);
+      return;
+    }
+    const ancora = ancoraRef.current;
+    ancoraRef.current = t.id;
+    setSeleccao((antes) =>
+      seleccionarComModificadores(antes, ordemDoEcraRef.current, t.id, ancora, !!mods?.estender),
+    );
+  }, []);
 
   /* A tarefa escolhida, tirada da lista VIVA e não guardada à parte: é o que
      faz o painel mostrar o que ela acabou de gravar, e desaparecer quando a
@@ -2136,6 +2515,8 @@ export default function Tarefas({
         overdue={!!t.dueDate && !t.done && t.dueDate < todayStr}
         arrastavel={arrastavel}
         escolhida={escolhida === t.id}
+        seleccionada={seleccao.has(t.id)}
+        aSeleccionar={aSeleccionar}
         /* A linha de inserção do arrasto. «Depois» só existe na ÚLTIMA linha
            visível — é a única maneira de dizer «no fim» com uma linha que se
            desenha entre duas. */
@@ -2181,8 +2562,10 @@ export default function Tarefas({
          linha de escrever e a de editar já o usam. */
       onKeyDown={(e) => {
         if (e.key !== "Escape" || !escolhida) return;
-        const alvo = e.target as HTMLElement | null;
-        if (alvo && /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName)) return;
+        if (aEscreverEm(e.target)) return;
+        // Marcado: o ouvinte do lote, mais acima, não larga o lote com o mesmo
+        // Esc (revisão · 4).
+        e.preventDefault();
         setEscolhida(null);
       }}
     >
@@ -2323,6 +2706,63 @@ export default function Tarefas({
               Tira-se o recorte, e arredondam-se em vez disso a primeira e a
               última linha: era só para isso que ele servia — para o fundo de
               uma linha em `hover` não esquadrar os cantos do cartão. */}
+              {/* ── A BARRA DO LOTE (BO 4) ──────────────────────────────────
+                  A mesma forma da barra do lote dos Pedidos — uma faixa
+                  opaca por cima da lista, e não vidro: «vidro só no que
+                  flutua». Conta o que está À VISTA e age sobre isso. */}
+              {aSeleccionar && (
+                <div
+                  role="toolbar"
+                  aria-label="Ações nas tarefas selecionadas"
+                  className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-sage-600/25 bg-sage-600/[0.06] p-3"
+                >
+                  <span role="status" className="mr-1 text-xs font-semibold text-[var(--bo-text)]">
+                    {seleccionadas.length === 0
+                      ? "Toca nas tarefas para as escolher"
+                      : `${seleccionadas.length} selecionada${seleccionadas.length === 1 ? "" : "s"}`}
+                  </span>
+                  {seleccionadas.length < ordemDoEcra.length && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSeleccao(new Set(ordemDoEcra))}
+                    >
+                      Selecionar todas ({ordemDoEcra.length})
+                    </Button>
+                  )}
+                  {seleccionadas.length > 0 && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={loteACorrer || seleccionadas.every((t) => t.done)}
+                        onClick={() => void concluirLote()}
+                      >
+                        Concluir ({seleccionadas.filter((t) => !t.done).length})
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={loteACorrer || seleccionadas.every((t) => t.done)}
+                        onClick={() => void adiarLote()}
+                      >
+                        Adiar uma semana
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={loteACorrer}
+                        onClick={pedirParaEliminarLote}
+                      >
+                        Eliminar ({seleccionadas.length})
+                      </Button>
+                    </>
+                  )}
+                  <Button size="sm" variant="ghost" className="ml-auto" onClick={largarSeleccao}>
+                    Limpar
+                  </Button>
+                </div>
+              )}
               <Card
                 padding="none"
                 className="[&>*:first-child]:rounded-t-2xl [&>*:last-child]:rounded-b-2xl"
@@ -2384,6 +2824,17 @@ export default function Tarefas({
                     a página inteira ficava com 453 px — encolhida, com uma faixa
                     branca à direita e a barra de baixo esticada. */}
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      {/* O caminho do DEDO para o lote (BO 4): no telemóvel
+                          não há ⇧ nem ⌘. Com ele ligado, tocar no título soma a
+                          tarefa ao lote em vez de a abrir. */}
+                      <Button
+                        size="sm"
+                        variant={aSeleccionar ? "primary" : "ghost"}
+                        aria-pressed={aSeleccionar}
+                        onClick={() => (aSeleccionar ? largarSeleccao() : setModoDeSeleccao(true))}
+                      >
+                        {aSeleccionar ? "Cancelar" : "Selecionar"}
+                      </Button>
                       <Escolha
                         aria-label="Agrupar por"
                         valor={agrupamento}
@@ -2749,6 +3200,26 @@ export default function Tarefas({
           />
         </div>
       </div>
+
+      {/* A pergunta do lote: a mesma peça, com os nomes — «Eliminar 6 tarefas?»
+          sozinho é um número que não se consegue conferir. */}
+      <PerguntaDestrutiva
+        aberto={!!aEliminarLote}
+        onFechar={() => setAEliminarLote(null)}
+        titulo={`Eliminar ${aEliminarLote?.length ?? 0} tarefa${
+          (aEliminarLote?.length ?? 0) === 1 ? "" : "s"
+        }?`}
+        oQueSePerde={nomesAMostrar(aEliminarLote)}
+        aviso="Ficam 30 dias na Reciclagem, de onde se repõem tal e qual."
+        rotuloConfirmar={`Eliminar ${aEliminarLote?.length ?? 0} tarefa${
+          (aEliminarLote?.length ?? 0) === 1 ? "" : "s"
+        }`}
+        onConfirmar={() => {
+          const alvo = aEliminarLote;
+          setAEliminarLote(null);
+          if (alvo) void eliminarLote(alvo);
+        }}
+      />
 
       {/* ── A PERGUNTA É A DA CASA ──────────────────────────────────────────
           `ui/PerguntaDestrutiva`: folha inferior no telemóvel (ao pé do

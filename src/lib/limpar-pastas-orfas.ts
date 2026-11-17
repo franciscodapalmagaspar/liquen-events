@@ -1,9 +1,11 @@
 import "server-only";
-import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
+import { balde } from "@/lib/armazenamento/balde";
+import { eChaveDeIndiceDeFotos, PREFIXO_DO_INDICE_DO_BLOB } from "@/lib/indices-de-fotos";
 import { getSupabase } from "@/lib/supabase";
 import { apagarPastaDoPedido } from "@/lib/proposal-storage";
 import { getState, setState } from "@/lib/app-state";
 import { lerTodasAsLinhas } from "./ler-todas-as-linhas";
+import { CHAVE_DAS_PASTAS_ORFAS, eRegistoDeLimpeza } from "@/lib/registos-das-limpezas";
 import { log } from "@/lib/logger";
 
 /**
@@ -48,7 +50,7 @@ import { log } from "@/lib/logger";
 export const DIAS = 30;
 export const ESPERA_DIAS = 7;
 export const POR_NOITE = 10;
-export const CHAVE = "limpeza:pastas-de-pedidos-apagados";
+export const CHAVE = CHAVE_DAS_PASTAS_ORFAS;
 
 const BUCKET = "proposal-assets";
 const FORMA_DE_PEDIDO = /^LIQ-[A-Za-z0-9-]+$/;
@@ -98,7 +100,7 @@ export async function limparPastasDePedidosApagados(
   const limiteFicheiros = agora.getTime() - DIAS * DIA_MS;
 
   // ── Portas 1 e 2 ─────────────────────────────────────────────────────────
-  const { data: raiz, error: erroRaiz } = await sb.storage.from(BUCKET).list("", { limit: 1000 });
+  const { data: raiz, error: erroRaiz } = await balde(BUCKET, sb).list("", { limit: 1000 });
   if (erroRaiz || !raiz) return falhou;
   const pastas = raiz.filter((e) => !e.id && FORMA_DE_PEDIDO.test(e.name)).map((e) => e.name);
 
@@ -118,7 +120,14 @@ export async function limparPastasDePedidosApagados(
     ...(reciclagem.data as { origem_id: string | null }[]).map((r) => r.origem_id ?? ""),
     ...(propostas.data as { quote_id: string | null }[]).map((p) => p.quote_id ?? ""),
   ]);
-  const nomesDeChaves = (chaves.data as { key: string }[]).map((c) => c.key).join("\n");
+  // As linhas do índice do Vercel Blob nomeiam TODOS os ficheiros do Blob —
+  // não são menções. SÓ essas: as outras chaves (também `foto-resumo:` e
+  // `foto-visual:`) continuam a contar aqui exactamente como em `main`
+  // (2.ª revisão de 17/11, n.º 3).
+  const nomesDeChaves = (chaves.data as { key: string }[])
+    .map((c) => c.key)
+    .filter((k) => !k.startsWith(PREFIXO_DO_INDICE_DO_BLOB))
+    .join("\n");
   // Portas 3 e 4.
   let candidatas = pastas.filter((p) => !vivos.has(p) && !nomesDeChaves.includes(p));
 
@@ -128,8 +137,9 @@ export async function limparPastasDePedidosApagados(
       TABELAS_COM_CONTEUDO.map((t) => lerTodasAsLinhas(sb, t, "*")),
     );
     if (leituras.some((l) => l.error || !l.data)) return falhou;
-    // A própria lista de espera (porta 7) vive em `app_state` e nomeia as
-    // pastas: lida como «menção», nenhuma pasta sairia nunca.
+    // Os cadernos das limpezas (`registos-das-limpezas.ts`): a própria lista
+    // de espera (porta 7) e o plano da junção dos duplicados nomeiam as
+    // pastas — lidos como «menção», nenhuma dessas pastas sairia nunca.
     const texto = leituras
       .map((l, i) =>
         JSON.stringify(
@@ -137,7 +147,7 @@ export async function limparPastasDePedidosApagados(
             ? // E o índice dos resumos (`fotos-resumo.ts`): nomeia fotos de
               // pedidos apagados até alguém as procurar — não é uma menção.
               (l.data as { key?: string }[]).filter(
-                (r) => r.key !== CHAVE && !eChaveDeIndiceDeFotos(r.key),
+                (r) => !eRegistoDeLimpeza(r.key) && !eChaveDeIndiceDeFotos(r.key),
               )
             : l.data,
         ),
@@ -150,7 +160,7 @@ export async function limparPastasDePedidosApagados(
   const prontas: { pasta: string; ficheiros: number }[] = [];
   for (const pasta of candidatas) {
     if (Date.now() > fim) return { ...falhou, candidatas: candidatas.length };
-    const { data: ficheiros, error } = await sb.storage.from(BUCKET).list(pasta, { limit: 1000 });
+    const { data: ficheiros, error } = await balde(BUCKET, sb).list(pasta, { limit: 1000 });
     if (error || !ficheiros) continue;
     const recente = ficheiros.some(
       (f) =>

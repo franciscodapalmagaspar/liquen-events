@@ -530,30 +530,41 @@ export interface MesDaPrevisao {
   valor: number;
 }
 
+/** O comprimento máximo da fila da previsão: três anos. */
+export const MESES_NO_MAXIMO = 36;
+
 /**
- * O que se espera receber em cada um dos próximos `meses` meses, pelo prazo de
- * cada próximo pagamento. O que está em atraso ou sem prazo conta no mês de
- * hoje — é dinheiro que já devia ter entrado. Depois do próximo pagamento de um
- * cliente em fase de sinal, vem o saldo dele: entra no mês do seu prazo (um mês
- * antes do evento), para a previsão não esquecer o dinheiro maior.
+ * O que se espera receber em cada mês, de hoje até ao ÚLTIMO pagamento
+ * previsto — nunca menos de `minimo` meses, para a fila não encolher a duas
+ * barras. Pelo prazo de cada próximo pagamento. O que está em atraso ou sem
+ * prazo conta no mês de hoje — é dinheiro que já devia ter entrado. Depois do
+ * próximo pagamento de um cliente em fase de sinal, vem o saldo dele: entra no
+ * mês do seu prazo (um mês antes do evento).
+ *
+ * Até 16/11 a janela era fixa em seis meses, e o que vencia depois sumia do
+ * quadro sem aviso. Palavras dele: «vai entrar esse dinheiro, mas depois em
+ * abril, então e o resto? Onde é que está?». Agora a soma da previsão é
+ * SEMPRE o «Por receber», ao cêntimo — há um teste que o prende.
  */
 export function previsaoDeEntradas(
   quadro: QuadroDeCobrancas,
   hoje: string,
-  meses = 6,
+  minimo = 6,
 ): MesDaPrevisao[] {
   const mesDeHoje = hoje.slice(0, 7);
-  const lista: MesDaPrevisao[] = [];
+  // Em cêntimos inteiros, como o resto do dinheiro: a soma tem de bater ao
+  // cêntimo com o «Por receber».
+  const cent = new Map<string, number>();
   const [ano, mes] = mesDeHoje.split("-").map(Number);
-  for (let k = 0; k < meses; k++) {
-    const d = new Date(Date.UTC(ano, mes - 1 + k, 1));
-    lista.push({ mes: d.toISOString().slice(0, 7), valor: 0 });
-  }
+  // Uma data escrita mal (ano 2207) não pode fazer uma fila de 2 000 meses: o
+  // que vier depois de três anos junta-se no último mês, e a soma fica certa.
+  const tecto = new Date(Date.UTC(ano, mes - 1 + MESES_NO_MAXIMO - 1, 1)).toISOString().slice(0, 7);
   const somar = (dia: string | null, valor: number) => {
-    if (valor <= 0) return;
-    const m = !dia || dia < hoje ? mesDeHoje : dia.slice(0, 7);
-    const alvo = lista.find((x) => x.mes === m);
-    if (alvo) alvo.valor = round2(alvo.valor + valor);
+    const c = Math.round(valor * 100);
+    if (c <= 0) return;
+    const bruto = !dia || dia < hoje ? mesDeHoje : dia.slice(0, 7);
+    const m = bruto > tecto ? tecto : bruto;
+    cent.set(m, (cent.get(m) ?? 0) + c);
   };
   for (const c of [...quadro.sinal, ...quadro.saldo]) {
     if (!c.proximo) continue;
@@ -563,6 +574,13 @@ export function previsaoDeEntradas(
       // O prazo do saldo da linha prevista, quando há (n.º 10 da auditoria).
       somar(c.prazoDoSaldo, saldo);
     }
+  }
+  const ultimo = [...cent.keys()].reduce((a, b) => (b > a ? b : a), mesDeHoje);
+  const lista: MesDaPrevisao[] = [];
+  for (let k = 0; ; k++) {
+    const m = new Date(Date.UTC(ano, mes - 1 + k, 1)).toISOString().slice(0, 7);
+    if (k >= Math.max(1, minimo) && m > ultimo) break;
+    lista.push({ mes: m, valor: (cent.get(m) ?? 0) / 100 });
   }
   return lista;
 }
@@ -587,4 +605,25 @@ export function mesCurto(mes: string, hoje: string): string {
   const [a, m] = mes.split("-").map(Number);
   const nome = MESES_CURTOS[m - 1];
   return String(a) === hoje.slice(0, 4) ? nome : `${nome} ${a}`;
+}
+
+const MESES_POR_EXTENSO = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+];
+
+/** «setembro de 2027» — para o leitor de ecrã e para o «até» da previsão. */
+export function mesPorExtenso(mes: string): string {
+  const [a, m] = mes.split("-").map(Number);
+  return `${MESES_POR_EXTENSO[m - 1]} de ${a}`;
 }

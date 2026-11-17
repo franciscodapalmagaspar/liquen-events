@@ -17,7 +17,16 @@ export const PREFIXOS_DE_INDICE_DE_FOTOS = [
   "foto-resumo:",
   /** `fotos-parecidas.ts`: caminho → impressão visual. */
   "foto-visual:",
+  /**
+   * `armazenamento/indice.ts`: o que está no Vercel Blob, uma linha por
+   * ficheiro (16/11). Nomeia TODOS os ficheiros do Blob — contá-la como
+   * menção travava as três limpezas (revisão de 17/11, n.º 3).
+   */
+  "blob:i:",
 ] as const;
+
+/** O prefixo do índice do Vercel Blob (`armazenamento/indice.ts`), à parte para quem só o quer a ele. */
+export const PREFIXO_DO_INDICE_DO_BLOB = "blob:i:";
 
 /** Esta chave de `app_state` é um índice de fotografias (não é uma menção)? */
 export function eChaveDeIndiceDeFotos(chave: unknown): boolean {

@@ -266,4 +266,45 @@ describe("o fluxo de trabalho", () => {
     expect(mesCurto("2027-01", HOJE)).toBe("jan 2027");
     expect(mesCurto("2026-12", HOJE)).toBe("dez");
   });
+
+  it("a previsão vai até ao ÚLTIMO pagamento, e soma sempre o «Por receber» ao cêntimo", () => {
+    // O caso de 16/11: a janela era de seis meses e um saldo de agosto de 2027
+    // sumia do quadro. Três clientes: um em atraso, um em abril, um em agosto.
+    const quadro = quadroDeCobrancas(
+      [
+        pedido("a", { date: "2027-02-20" }, [
+          { id: "x", kind: "sinal", amount: 300.33, date: "2026-10-01", paid: false },
+        ]),
+        pedido("b", { date: "2027-05-29" }),
+        pedido("c", { date: "2027-09-18" }, [pago(900.01)]),
+      ],
+      [aceite("a", 1000.07), aceite("b", 4281.63), aceite("c", 3000.03)],
+      HOJE,
+    );
+    const p = previsaoDeEntradas(quadro, HOJE);
+    expect(p[0].mes).toBe("2026-11");
+    expect(p.at(-1)!.mes).toBe("2027-08"); // o saldo do «c», um mês antes de 18/09
+    expect(p.length).toBe(10); // nada fica de fora, e nada a mais
+    const soma = p.reduce((s, m) => s + Math.round(m.valor * 100), 0);
+    expect(soma).toBe(Math.round(quadro.porReceber * 100));
+  });
+
+  it("a previsão nunca encolhe abaixo do mínimo, e uma data absurda não faz 2 000 meses", () => {
+    const vazia = previsaoDeEntradas(quadroDeCobrancas([], [], HOJE), HOJE);
+    expect(vazia).toHaveLength(6);
+    const quadro = quadroDeCobrancas(
+      [
+        pedido("a", {}, [
+          { id: "s", kind: "sinal", amount: 300, date: "2026-12-01", paid: false },
+          { id: "r", kind: "saldo", amount: 700, date: "2207-01-01", paid: false },
+        ]),
+      ],
+      [aceite("a", 1000)],
+      HOJE,
+    );
+    const p = previsaoDeEntradas(quadro, HOJE);
+    expect(p).toHaveLength(36);
+    expect(p.at(-1)!.valor).toBe(700);
+    expect(p.reduce((s, m) => s + m.valor, 0)).toBe(1000);
+  });
 });

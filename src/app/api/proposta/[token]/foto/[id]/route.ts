@@ -5,6 +5,8 @@ import { derivadaMediaAPedido } from "@/lib/derivadas";
 import { fetchProposalImageBytes } from "@/lib/proposal-storage";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
+import { CDN_DO_LINK_DO_CASAL } from "@/lib/cdn-do-link-do-casal";
 
 export const runtime = "nodejs";
 /** Um `sharp` sobre uma fotografia de 2200 px anda pelos 300–800 ms. */
@@ -42,7 +44,7 @@ export const maxDuration = 20;
  * Uma rota que aceitasse caminhos serviria, com o token de um casal, qualquer
  * ficheiro da Biblioteca de Temas — que é o activo do estúdio inteiro.
  */
-export async function GET(
+async function GET_semMedida(
   request: Request,
   { params }: { params: Promise<{ token: string; id: string }> },
 ) {
@@ -111,9 +113,10 @@ export async function GET(
         "Content-Length": String(finais.length),
         /**
          * `private` e não `public`: isto é a fotografia do casamento de um
-         * casal, servida por um link privado. Um cache partilhado (a CDN, o
-         * proxy de uma empresa) não a pode guardar para servir a quem pedir o
-         * mesmo caminho — é a mesma regra da página e do PDF.
+         * casal, servida por um link privado. Um cache partilhado de fora (o
+         * proxy de uma empresa, outra CDN) não a pode guardar para servir a
+         * quem pedir o mesmo caminho — é a mesma regra da página e do PDF. A
+         * CDN da própria Vercel é outra conversa: ver o cabeçalho a seguir.
          *
          * E NUNCA `immutable`, mesmo com a marca certa: os bytes deste
          * endereço mudam uma vez, e de propósito. À primeira visita a derivada
@@ -125,6 +128,18 @@ export async function GET(
         "Cache-Control": identifica
           ? "private, max-age=86400, must-revalidate"
           : "private, max-age=300, must-revalidate",
+        /**
+         * ── A CDN DA VERCEL, SÓ PARA A DERIVADA IDENTIFICADA (16/11) ───────
+         * Cada pedido aqui pode custar um `sharp` e uma leitura do Storage.
+         * Quando os bytes são a DERIVADA WebP (não o original, que muda para
+         * a derivada na visita seguinte) e a marca identifica a fotografia,
+         * o endereço é estável: guarda-se uma hora na CDN da Vercel (não mais:
+         * a CDN não sabe quando um link é cortado — `cdn-do-link-do-casal.ts`). A chave da
+         * CDN é o endereço inteiro, com o token do link — não serve a quem
+         * não o tem — e o browser continua a ver só o `private` de cima.
+         * O original nunca vai para a CDN.
+         */
+        ...(identifica && bytes ? { "Vercel-CDN-Cache-Control": CDN_DO_LINK_DO_CASAL } : {}),
       },
     });
   } catch (err) {
@@ -132,3 +147,5 @@ export async function GET(
     return new NextResponse(null, { status: 500 });
   }
 }
+
+export const GET = comCpu("proposta-foto GET", GET_semMedida);

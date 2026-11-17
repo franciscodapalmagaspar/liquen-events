@@ -1,3 +1,4 @@
+import { balde } from "@/lib/armazenamento/balde";
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 import { isAuthed } from "@/lib/admin-auth";
@@ -155,7 +156,7 @@ async function existingThumbNames(folder: string): Promise<Set<string> | null> {
   const names = new Set<string>();
   try {
     for (let page = 0; page < MAX_THUMB_PAGES; page++) {
-      const { data, error } = await sb.storage.from(THEME_THUMB_BUCKET).list(folder, {
+      const { data, error } = await balde(THEME_THUMB_BUCKET, sb).list(folder, {
         limit: THUMB_LIST_PAGE,
         offset: page * THUMB_LIST_PAGE,
       });
@@ -193,8 +194,7 @@ async function makeThumb(path: string): Promise<boolean> {
       .jpeg({ quality: MINIATURA.qualidade, progressive: false, chromaSubsampling: "4:2:0" })
       .toBuffer();
     if (thumb.byteLength === 0 || thumb.byteLength > MAX_THUMB_BYTES) return false;
-    const { error } = await sb.storage
-      .from(THEME_THUMB_BUCKET)
+    const { error } = await balde(THEME_THUMB_BUCKET, sb)
       // `upsert: true` porque isto é reentrante por desenho: repetir um lote
       // tem de dar o mesmo resultado, não um erro de "já existe".
       .upload(path, thumb, { contentType: "image/jpeg", upsert: true });

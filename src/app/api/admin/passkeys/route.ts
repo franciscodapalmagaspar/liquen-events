@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_COOKIE, isAuthed, readSession } from "@/lib/admin-auth";
 import { isMissingTable, isPersistenceUnavailable } from "@/lib/repository";
-import { listPasskeysFor } from "@/lib/passkeys-store";
+import { passkeysDaConta } from "@/lib/passkeys-da-conta";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -25,7 +25,9 @@ export async function GET(req: NextRequest) {
   if (!conta) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
-    const dispositivos = await listPasskeysFor(conta);
+    // Sem as anteriores a uma recuperação (que já não entram) — ver
+    // `passkeys-da-conta.ts`.
+    const dispositivos = await passkeysDaConta(conta);
     return NextResponse.json({
       dispositivos: dispositivos.map((p) => ({
         id: p.id,

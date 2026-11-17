@@ -555,6 +555,29 @@ describe("ver o PDF final antes de enviar (14/10)", () => {
 });
 
 /**
+ * 17/11 — registos de 12/11: uma proposta seguiu com nove fotografias a menos.
+ * O PDF final que ela viu já o dizia (cabeçalho `X-Fotos-Em-Falta`), mas só
+ * num aviso passageiro; a Conferência não tinha linha nenhuma. Passa a ter —
+ * como REPARO, porque a decisão dela é que as fotos em falta não recusam o
+ * envio (o servidor pergunta antes de seguir).
+ */
+describe("as fotos em falta no PDF final que ela viu", () => {
+  it("aparecem na Conferência, sem travar o envio", () => {
+    const f = oQueFaltaParaEnviar(COMPLETO, 3997.5, { pdfVisto: true, fotosEmFaltaNoPdf: 9 });
+    const linha = f.find((x) => x.id === "fotos-em-falta-no-pdf");
+    expect(linha).toMatchObject({ trava: false, texto: expect.stringContaining("9 fotografias") });
+    expect(podeEnviar(COMPLETO, 3997.5, { pdfVisto: true, fotosEmFaltaNoPdf: 9 })).toBe(true);
+  });
+
+  it("uma só diz-se no singular, e zero não diz nada", () => {
+    const uma = oQueFaltaParaEnviar(COMPLETO, 3997.5, { fotosEmFaltaNoPdf: 1 });
+    expect(uma.find((x) => x.id === "fotos-em-falta-no-pdf")?.texto).toContain("1 fotografia ");
+    const zero = oQueFaltaParaEnviar(COMPLETO, 3997.5, { fotosEmFaltaNoPdf: 0 });
+    expect(zero.some((x) => x.id === "fotos-em-falta-no-pdf")).toBe(false);
+  });
+});
+
+/**
  * 14/11: uma foto que ela escolheu para uma página do PDF estava na Reciclagem,
  * e o PDF punha OUTRA no lugar dela em silêncio. Agora trava o envio.
  */

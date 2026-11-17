@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { entrarNoBackOffice, exigirLogin, garantirPedido } from "./semear-pedido";
+import { entrarNoBackOffice, exigirLogin, garantirPedidoProprio } from "./semear-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -20,6 +20,25 @@ import { entrarNoBackOffice, exigirLogin, garantirPedido } from "./semear-pedido
  *
  * Nenhum teste em jsdom apanha isto — não há layout. Mede-se num browser.
  */
+
+/**
+ * ── O PEDIDO É DESTE PASSEIO, E COMEÇA SEM RASCUNHO ───────────────────────
+ *
+ * Abria «o primeiro da lista» e escrevia 3000 no «Valor (sem IVA)». No CI o
+ * primeiro é de outra suite — uma «Rita e Tomás» do `o-iphone-com-barras`, com
+ * um rascunho que tem uma linha de 3000 € COM PREÇO. Aí o total é a soma das
+ * linhas e o campo fica só de leitura (de propósito), e isso só se vê quando o
+ * rascunho do servidor chega: 2 a 6 s depois de o estúdio abrir, no `next dev`.
+ * Ganhava o `fill` ou ganhava o rascunho — e a 17/11 o rascunho ganhou as três
+ * tentativas («element is not editable» até aos 150 s). Ver
+ * `garantirPedidoProprio`, em `semear-pedido.ts`.
+ *
+ * Por isso: um pedido com nome e `submissionId` próprios, e o rascunho dele
+ * apagado antes de cada largura — cada uma começa do mesmo sítio, haja o que
+ * houver na `data/` que as suites anteriores do mesmo trabalho deixaram.
+ */
+const NOME = "Total à vista E2E";
+const SUBMISSION_ID = "e2e-o-total-nunca-sai";
 
 const LARGURAS = [
   { width: 1440, height: 900 },
@@ -52,7 +71,9 @@ for (const tamanho of LARGURAS) {
     test.setTimeout(150_000);
     await page.setViewportSize(tamanho);
     exigirLogin(await entrarNoBackOffice(page));
-    await garantirPedido(page);
+    const id = await garantirPedidoProprio(page, { nome: NOME, submissionId: SUBMISSION_ID });
+    const limpo = await page.request.delete(`/api/orcamento/${id}/proposta-rascunho`);
+    expect(limpo.ok(), `apagar o rascunho de ${id} respondeu ${limpo.status()}`).toBe(true);
 
     // Pelo endereço público, que o servidor resolve (ver o AGENTS.md), e à
     // espera da hidratação antes de clicar.
@@ -61,9 +82,9 @@ for (const tamanho of LARGURAS) {
       timeout: 60_000,
     });
     await expect(page.getByText(/Para quem é a proposta\?/)).toBeVisible({ timeout: 30_000 });
-    const clientes = page.locator("li button");
-    await expect(clientes.first()).toBeVisible({ timeout: 15_000 });
-    await clientes.first().click();
+    const cliente = page.locator("li button").filter({ hasText: NOME }).first();
+    await expect(cliente).toBeVisible({ timeout: 15_000 });
+    await cliente.click();
 
     await expect(page.getByRole("button", { name: /^Seguinte: Serviços/ })).toBeVisible({
       timeout: 30_000,

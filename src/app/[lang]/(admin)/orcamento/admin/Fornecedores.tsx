@@ -1,8 +1,9 @@
 "use client";
 
 import { casaComAProcura } from "@/lib/procura";
-import { useMemo, useState, useDeferredValue } from "react";
+import { useEffect, useMemo, useState, useDeferredValue } from "react";
 import type { Supplier } from "@/lib/orcamento/types";
+import { servirUmaVez, type PedidoDaPaleta } from "./procura-em-tudo";
 import { downloadCsv, dateStamp } from "./export";
 import { SkeletonCard } from "./Skeleton";
 import {
@@ -119,7 +120,12 @@ const PlusIcon = (
   </svg>
 );
 
-export default function Fornecedores() {
+export default function Fornecedores({
+  pedidoDaPaleta,
+}: {
+  /** A paleta (⌘K) escolheu um fornecedor: abre filtrado pelo nome dele. */
+  pedidoDaPaleta?: PedidoDaPaleta;
+}) {
   const { toast } = useToast();
   const anular = useAnular();
   const depoisDeApagar = useDepoisDeApagar();
@@ -136,6 +142,13 @@ export default function Fornecedores() {
   // Defer so the filter/row reconcile runs off the keystroke; input stays instant.
   const dSearch = useDeferredValue(search);
   const [cat, setCat] = useState("Todos");
+  useEffect(() => {
+    servirUmaVez(pedidoDaPaleta, (p) => {
+      if (p.procura === undefined) return;
+      setSearch(p.procura);
+      setCat("Todos");
+    });
+  }, [pedidoDaPaleta]);
   const [adding, setAdding] = useState(false);
 
   /**

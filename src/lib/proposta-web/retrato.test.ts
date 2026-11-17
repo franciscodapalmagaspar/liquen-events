@@ -273,7 +273,7 @@ describe("o retrato da proposta online", () => {
       tamanhos: impressao("src/lib/proposta-web/tamanhos.ts"),
       pontos: impressao("src/lib/proposta-web/ponto-de-interesse.ts"),
     }).toEqual({
-      versao: 12,
+      versao: 14,
       modelo: "16bcd54a3d66da03",
       mosaico: "397ad578deb7111f",
       textos: "71448f103c1b0275",

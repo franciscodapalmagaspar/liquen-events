@@ -1,0 +1,6 @@
+# Autonomia
+
+- O dono autoriza tudo (17/11, palavras dele: «eu permito tudo», «quero que sejas independente», «faz tu por ti»). Isto inclui as migrações da base de dados, as variáveis da Vercel e pausar projetos. Decide e faz sem pedir autorização a cada passo. Pergunta só quando a decisão for mesmo dele: gosto, dinheiro, o que um cliente vê de novo.
+- Autonomia não é descuido. Uma migração ou uma variável nova segue o mesmo padrão de tudo o resto: testada antes, reversível, com cópia ou plano de volta, e dita no relatório. Nunca se pausa um projeto em produção sem razão forte (por exemplo, gasto descontrolado), e quando acontece diz-se logo.
+- Continuam a valer as regras de sempre: nunca enviar emails ou mensagens a clientes reais, nunca escrever chaves em ficheiros, logs ou chat, não apagar dados de clientes sem pedido, e o custo dentro dos planos.
+- Mudanças VISUAIS (o que alguém vê no ecrã, no PDF ou nos e-mails: desenho, textos, cores, posições, avisos novos) só depois de lhe mostrar e ele dizer que sim. O que não se vê mas melhora a infraestrutura (código, estrutura, desempenho, segurança, testes, custo) faz-se sem perguntar. (correção 2026-11-17: «mudanças visuais tens que me dizer antes de fazer»)

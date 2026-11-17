@@ -1022,6 +1022,22 @@ html:has(.pw) {
   display: flex;
   gap: 8px;
 }
+/* O fim legal (17/11): o Livro de Reclamações, as ligações legais e a
+   resolução de litígios, discretos, por baixo das redes. A peça é a de todas
+   as páginas (`AvisoLegal.tsx`); aqui só a distância e a tinta. */
+.pw-foot .pw-aviso-legal {
+  margin-top: 18px;
+  color: var(--on-dark-2);
+}
+.pw-foot .pw-aviso-legal a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.pw-foot .pw-aviso-legal p a {
+  min-height: 0;
+  display: inline;
+}
 .pw-redes a {
   width: 44px;
   height: 44px;

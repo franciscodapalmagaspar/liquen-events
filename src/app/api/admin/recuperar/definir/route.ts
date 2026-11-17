@@ -60,7 +60,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         ok: true,
         email: resultado.conta.email,
-        mensagem: "Palavra-passe definida. Já podes entrar com ela.",
+        mensagem:
+          "Palavra-passe definida. Já podes entrar com ela. Os aparelhos que entravam sem palavra-passe deixaram de servir: depois de entrares, regista-os outra vez.",
       });
     case "fraca":
       return NextResponse.json(
