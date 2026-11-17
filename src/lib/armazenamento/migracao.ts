@@ -5,7 +5,14 @@ import { getSupabase } from "@/lib/supabase";
 import { semProtegidos } from "@/lib/arquivo-de-pdfs/protegidos";
 import { BALDES_DO_BLOB, chaveNoBlob, idDaLoja, type BaldeDoBlob } from "./baldes";
 import { modoDoBalde } from "./modos";
-import { gravarNoIndice, indiceDebaixoDe, lerDoIndice, type LinhaDoIndice } from "./indice";
+import {
+  chaveDoIndice,
+  indiceDebaixoDe,
+  lerDoIndice,
+  linhaValida,
+  type LinhaDoIndice,
+} from "./indice";
+import { gravarEstadoSeNaoMudou, lerEstadoComVersao } from "@/lib/app-state";
 import {
   BlobAvariado,
   BlobRecusado,
@@ -269,7 +276,17 @@ async function copiarUm(
   balde: BaldeDoBlob,
   o: ObjectoNoSupabase,
 ): Promise<"copiado" | "ja-estava"> {
-  const antes = (await lerDoIndice(balde, [o.caminho])).get(o.caminho);
+  /**
+   * ── COMPARE-AND-SET NO ÍNDICE (revisão de 17/11, n.º 10) ─────────────────
+   * Lê-se a linha COM a versão. Entre esta leitura e a escrita no fim, uma
+   * escrita em modo `blob` pode pôr no Blob uma versão mais nova do mesmo
+   * caminho. Por isso: (1) quando o índice não tem linha, escreve-se no Blob
+   * SEM sobrescrever — o que lá aparecer entretanto não é tocado; (2) a linha
+   * só se grava se a versão for a mesma que se leu.
+   */
+  const chaveIdx = chaveDoIndice(balde, o.caminho);
+  const lida = await lerEstadoComVersao<unknown>(chaveIdx, 4_000);
+  const antes = linhaValida(lida.valor) ? lida.valor : undefined;
   if (antes?.v && antes.t === o.tamanho && (!o.md5 || antes.m === o.md5)) return "ja-estava";
 
   const { data, error } = await sb.storage.from(balde).download(o.caminho);
@@ -284,15 +301,30 @@ async function copiarUm(
   if (antes?.s && antes.s !== resumo) throw new Error("no Blob há uma versão diferente");
 
   const chave = chaveNoBlob(balde, o.caminho);
-  await porNoBlob(chave, bytes, {
-    contentType: o.tipo,
-    sobrescrever: true,
-    cacheSegundos: o.cacheSegundos,
-  });
+  let escrevemos = false;
+  if (!antes) {
+    try {
+      await porNoBlob(chave, bytes, {
+        contentType: o.tipo,
+        sobrescrever: false,
+        cacheSegundos: o.cacheSegundos,
+      });
+      escrevemos = true;
+    } catch (e) {
+      // Já lá está um ficheiro sem linha no índice (uma cópia anterior que
+      // caiu a meio, ou uma escrita que chegou agora): não se toca — a
+      // releitura abaixo diz se é este.
+      if (!(e instanceof BlobAvariado && e.codigo === "ja-existe")) throw e;
+    }
+  }
   const relido = await lerDoBlob(chave, bytes.byteLength);
   if (!relido || relido.bytes.byteLength !== bytes.byteLength || sha256(relido.bytes) !== resumo) {
-    await apagarDoBlob([chave], bytes.byteLength).catch(() => undefined);
-    throw new Error("a cópia no Blob não bate certo — desfeita");
+    if (escrevemos) await apagarDoBlob([chave], bytes.byteLength).catch(() => undefined);
+    throw new Error(
+      escrevemos
+        ? "a cópia no Blob não bate certo — desfeita"
+        : "no Blob há outro conteúdo neste caminho — não se toca",
+    );
   }
   const linha: LinhaDoIndice = {
     t: bytes.byteLength,
@@ -304,10 +336,17 @@ async function copiarUm(
     v: true,
     vEm: new Date().toISOString(),
   };
-  if (!(await gravarNoIndice(balde, [{ caminho: o.caminho, linha }]))) {
-    // Sem a linha, o Blob tem um ficheiro que ninguém conhece: desfaz-se.
-    await apagarDoBlob([chave], bytes.byteLength).catch(() => undefined);
-    throw new Error("índice não gravado — cópia desfeita");
+  const r = await gravarEstadoSeNaoMudou(chaveIdx, linha, lida.versao, 4_000);
+  if (r !== "gravado") {
+    // Conflito: alguém mexeu na linha entretanto — a dele ganha. Falha: sem a
+    // linha, o Blob tem um ficheiro que ninguém conhece — desfaz-se, se fomos nós.
+    if (r === "falhou" && escrevemos)
+      await apagarDoBlob([chave], bytes.byteLength).catch(() => undefined);
+    throw new Error(
+      r === "conflito"
+        ? "o índice mudou durante a cópia — fica o que lá está"
+        : "índice não gravado — cópia desfeita",
+    );
   }
   return "copiado";
 }

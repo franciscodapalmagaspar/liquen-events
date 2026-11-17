@@ -15,11 +15,34 @@ const e = vi.hoisted(() => ({
   /** O Blob devolve outros bytes ao reler (corrupção). */
   corromper: false,
   removidos: [] as string[],
+  antesDeGravar: null as null | (() => void),
 }));
 
 vi.mock("./modos", () => ({ modoDoBalde: async () => e.modo }));
 vi.mock("./uso", () => ({ acertarBytes: vi.fn(async () => undefined) }));
+vi.mock("@/lib/app-state", () => ({
+  lerEstadoComVersao: async (k: string) => {
+    const c = k.replace(/^blob:i:proposal-pdfs\//, "");
+    const v = e.indice.get(c) ?? null;
+    return { valor: v, versao: v ? JSON.stringify(v) : null };
+  },
+  gravarEstadoSeNaoMudou: async (
+    k: string,
+    valor: Record<string, unknown>,
+    versao: string | null,
+  ) => {
+    const c = k.replace(/^blob:i:proposal-pdfs\//, "");
+    if (e.antesDeGravar) e.antesDeGravar();
+    const agora = e.indice.get(c);
+    if ((agora ? JSON.stringify(agora) : null) !== versao) return "conflito";
+    e.indice.set(c, valor);
+    return "gravado";
+  },
+}));
 vi.mock("./indice", () => ({
+  chaveDoIndice: (b: string, c: string) => `blob:i:${b}/${c}`,
+  linhaValida: (v: unknown) =>
+    !!v && typeof v === "object" && typeof (v as { t?: unknown }).t === "number",
   lerDoIndice: async (_b: string, cs: string[]) =>
     new Map(cs.filter((c) => e.indice.has(c)).map((c) => [c, e.indice.get(c)])),
   indiceDebaixoDe: async () => ({ linhas: new Map(e.indice), completa: true }),
@@ -34,11 +57,19 @@ vi.mock("./blob", () => {
       super("recusado");
     }
   }
-  class BlobAvariado extends Error {}
+  class BlobAvariado extends Error {
+    constructor(
+      readonly operacao = "",
+      readonly codigo = "",
+    ) {
+      super(codigo);
+    }
+  }
   return {
     BlobRecusado,
     BlobAvariado,
-    porNoBlob: vi.fn(async (k: string, b: Uint8Array) => {
+    porNoBlob: vi.fn(async (k: string, b: Uint8Array, o: { sobrescrever: boolean }) => {
+      if (!o.sobrescrever && e.blob.has(k)) throw new BlobAvariado("put", "ja-existe");
       e.blob.set(k, b);
       return { etag: null };
     }),
@@ -120,6 +151,7 @@ beforeEach(() => {
   e.indice.clear();
   e.corromper = false;
   e.removidos = [];
+  e.antesDeGravar = null;
   vi.clearAllMocks();
 });
 
@@ -272,5 +304,33 @@ describe("libertar", () => {
       expect.objectContaining({ cacheSegundos: 31536000 }),
     );
     expect(e.indice.get("p1/a.pdf")!.cc).toBe(31536000);
+  });
+
+  it("n.º 10: o índice mudou durante a cópia — não se escreve por cima", async () => {
+    pôr("p1/a.pdf", [1, 2, 3]);
+    e.antesDeGravar = () => {
+      e.indice.set("p1/a.pdf", { t: 9, c: "outra escrita", s: "b".repeat(64) });
+      e.antesDeGravar = null;
+    };
+    const r = await copiar("proposal-pdfs", { n: 10, depois: null });
+    expect(r.falhas[0].motivo).toMatch(/índice mudou/);
+    expect(e.indice.get("p1/a.pdf")).toMatchObject({ c: "outra escrita" });
+  });
+
+  it("n.º 10: um ficheiro DIFERENTE já no Blob sem linha no índice não é sobrescrito", async () => {
+    pôr("p1/a.pdf", [1, 2, 3]);
+    e.blob.set("proposal-pdfs/p1/a.pdf", new Uint8Array([7, 7, 7]));
+    const r = await copiar("proposal-pdfs", { n: 10, depois: null });
+    expect(r.falhas[0].motivo).toMatch(/outro conteúdo/);
+    expect([...e.blob.get("proposal-pdfs/p1/a.pdf")!]).toEqual([7, 7, 7]);
+    expect(e.indice.size).toBe(0);
+  });
+
+  it("n.º 10: o MESMO ficheiro já no Blob sem linha (cópia anterior caída) só ganha a linha", async () => {
+    pôr("p1/a.pdf", [1, 2, 3]);
+    e.blob.set("proposal-pdfs/p1/a.pdf", new Uint8Array([1, 2, 3]));
+    const r = await copiar("proposal-pdfs", { n: 10, depois: null });
+    expect(r.copiados).toBe(1);
+    expect(e.indice.get("p1/a.pdf")!.v).toBe(true);
   });
 });
