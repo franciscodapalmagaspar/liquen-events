@@ -111,8 +111,9 @@ junto. Ela pediu a 4/11: **«passa a juntar as alterações em lotes»**.
 - **Agora é o código que faz cumprir o lote** (16/11). O
   `scripts/vercel-construir.mjs` (o `ignoreCommand` do `vercel.json`) só deixa
   construir produção quando a mensagem do commit no `main` começa por
-  «Lote », ou contém `lote/` (o merge de um ramo `lote/AAAA-MM-DD`), ou traz
-  `[publicar]` ou `[urgente]`. Qualquer outro commit no `main` salta a
+  «Lote», «Urgente» ou «Revert» (sem distinguir maiúsculas; 17/11: os
+  urgentes e as reversões já entravam assim), ou contém `lote/` (o merge de
+  um ramo `lote/AAAA-MM-DD`), ou traz `[publicar]` ou `[urgente]`. Qualquer outro commit no `main` salta a
   construção: fica no `main` e chega ao site com o lote seguinte. Sem
   mensagem, constrói (na dúvida, constrói). Os testes estão em
   `scripts/vercel-construir.test.ts`.

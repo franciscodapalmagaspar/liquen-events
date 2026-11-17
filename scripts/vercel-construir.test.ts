@@ -99,6 +99,26 @@ descrever("produção constrói só o lote", () => {
     esperar(prod("Junta tudo (#480)\n\nramo lote/2026-11-16")).toBe(true);
   });
 
+  caso("17/11: os urgentes e as reversões que já estão no main publicam", () => {
+    esperar(
+      prod(
+        "Urgente: «Esqueci-me da palavra-passe» volta a funcionar + fotos já vistas guardadas no computador (#421)",
+      ),
+    ).toBe(true);
+    esperar(
+      prod('Revert "fix(back office): palavras inglesas da interface passam a português (n.º 16)"'),
+    ).toBe(true);
+    esperar(
+      prod(
+        "Revert «Site no telemóvel: troca de idioma suave, vídeo logo e sem barras…» (#326) (#329)",
+      ),
+    ).toBe(true);
+    esperar(prod("urgente: minúsculas também")).toBe(true);
+    esperar(prod("LOTE 17/11: maiúsculas também")).toBe(true);
+    esperar(prod("Reverte a cor do botão")).toBe(false);
+    esperar(prod("Urgentes da semana: lista")).toBe(false);
+  });
+
   caso("[publicar] e [urgente] forçam a construção", () => {
     esperar(prod("Site: mostra a página nova [publicar]")).toBe(true);
     esperar(prod("Segurança: fecha a porta X [urgente] (#481)")).toBe(true);

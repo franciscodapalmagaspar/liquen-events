@@ -13,8 +13,9 @@
  * A regra:
  *   · produção (o `main`) — constrói SÓ o lote (regra 9 de
  *     docs/GASTAR-POUCO-DESDE-O-INICIO.md, agora feita cumprir aqui): a
- *     mensagem do commit começa por «Lote », ou contém `lote/` (o merge de um
- *     ramo `lote/AAAA-MM-DD`), ou pede-o com `[publicar]` ou `[urgente]`.
+ *     mensagem do commit começa por «Lote», «Urgente» ou «Revert» (sem
+ *     distinguir maiúsculas), ou contém `lote/` (o merge de um ramo
+ *     `lote/AAAA-MM-DD`), ou pede-o com `[publicar]` ou `[urgente]`.
  *     Qualquer outro commit no `main` salta a construção — fica no `main` e
  *     entra no site com o lote seguinte;
  *   · pré-visualização — só quando se pede: um ramo `preview/…`, ou `[preview]`
@@ -31,7 +32,9 @@
 
 /** O que, na mensagem de um commit no `main`, pede uma construção de produção. */
 export function mensagemPedePublicacao(mensagem) {
-  if (/^\s*Lote /.test(mensagem)) return true;
+  // «Lote …», «Urgente: …» e as reversões («Revert "…"», «Revert «…»»): sem
+  // distinguir maiúsculas, e só a palavra inteira («Lotes de fotos» não é).
+  if (/^\s*(lote|urgente|revert)\b/i.test(mensagem)) return true;
   if (/lote\//i.test(mensagem)) return true;
   if (/\[publicar\]/i.test(mensagem)) return true;
   if (/\[urgente\]/i.test(mensagem)) return true;
