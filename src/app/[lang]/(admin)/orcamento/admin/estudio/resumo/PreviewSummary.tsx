@@ -1,8 +1,8 @@
 "use client";
 
-import { resolveProposalMoney, countPendingImages, isPendingImage } from "@/lib/proposal-doc";
 import { eur } from "@/lib/money";
 import { type StudioDoc } from "@/lib/orcamento/estudio/documento-inicial";
+import { resolveProposalMoney, countPendingImages, isPendingImage } from "@/lib/proposal-doc";
 import { Section } from "../formulario/Section";
 import { PreviewThumb } from "./PreviewThumb";
 

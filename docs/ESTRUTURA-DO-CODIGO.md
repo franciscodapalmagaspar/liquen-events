@@ -21,7 +21,7 @@ para se poderem repetir e comparar.
 |---|---|
 | Parte 1, princípios com fontes | feito (17/11) |
 | Parte 2, raio-X medido | feito (17/11), commit `1f15511d` |
-| Parte 3, plano por fases | fases 0 e 1 feitas (17/11, ramo `codigo/fase-0-e-1`); da 2 em diante por começar |
+| Parte 3, plano por fases | fases 0 e 1 feitas (17/11, ramo `codigo/fase-0-e-1`); fase 2 feita, fases 3 e 4 em parte (17/11, ramo `codigo/estudio-fases-2-a-4`) — ver a tabela e «O que falta» aqui em baixo |
 | Parte 4, lições para projetos futuros | feito; cresce com cada lição (regra de `codigo.md`) |
 
 Cada fase que se fizer acrescenta aqui uma linha: a data, o PR, e as medidas
@@ -31,6 +31,25 @@ antes e depois (linhas, complexidade, peso das rotas).
 |---|---|---|
 | 0 · guardas | 17/11 · `codigo/fase-0-e-1` | teste de ouro do PDF (`lib/pdf-editorial/ouro.test.ts`, três PDFs, `sha256` preso, Linux x64); catraca do tamanho (`test/tamanho-dos-ficheiros.test.ts` + `.json`, 193 ficheiros com tecto); `madge` só de valores no CI (`scripts/ci/ciclos-de-importacao.mjs`, os 3 ciclos de hoje na lista, ~14 s no job estático); `complexity` (30) e `max-lines-per-function` (400) em aviso no ESLint (137 avisos, 0 erros). Cada guarda foi vista a falhar de propósito: uma letra a mais na capa, um ciclo para o estúdio, o `ProposalStudio` a encolher sem descer o tecto. |
 | 1 · domínio do estúdio | 17/11 · `codigo/fase-0-e-1` | `ProposalStudio.tsx` 17 008 → 16 063 linhas; a função `ProposalStudio` fica igual (complexidade 279, 7 043 linhas de código — é a fase 3). Saíram para `lib/orcamento/estudio/` seis ficheiros (1 042 linhas, todos abaixo das 400). Peso das rotas igual (proposta 88 KB, painel 505 KB). Capturas do estúdio a 390/768/1440, claro e escuro: 0 píxeis diferentes. |
+
+| 2 · peças pequenas | 17/11 · `codigo/estudio-fases-2-a-4` | `ProposalStudio.tsx` 15 994 → 13 277 linhas (já com a junção de `estabilidade/erros-de-producao`). Saíram 30 ficheiros para `admin/estudio/` (`fotos/`, `formulario/`, `orcamento/`, `resumo/`, `envio/`, `classes.ts`, `tipos.ts`), o maior com 396 linhas. O `Thumb` (568 linhas, complexidade 42) partiu-se em `Thumb` + `useVezNaFila` + `CelulaSemFotografia` (complexidade 33). Capturas a 390/768/1440, claro e escuro, nos cinco passos: 0 píxeis diferentes; e2e de propostas 9/9. |
+| 3 · estado (parte) | 17/11 · `codigo/estudio-fases-2-a-4` | A gravação no servidor passa a máquina de estados pura (`lib/orcamento/estudio/estado-da-gravacao.ts`, teste de tabela) com a casca em `estudio/gravacao/useEstadoDaGravacao.ts`; saem `useCanalDeEnvio` e `useAmostrasDeGeracao`. Leituras partilhadas (`lib/orcamento/estudio/leitura-partilhada.ts`): ao abrir o estúdio, **32 → 22 pedidos à API** (medido em `next dev`). 13 277 → 13 070 linhas. |
+| 4 · passos (parte) | 17/11 · `codigo/estudio-fases-2-a-4` | Saem sete secções para `estudio/passos/` (`evento/SeccaoDoEvento`, `evento/SeccaoDaCapa`, `PassoServicos`, `inspiracao/SeccaoDoCronograma`, `rever/EstaPronta`, `rever/EnviarAoCliente`, `rever/PorOndeSegue`), sempre montadas. 13 070 → **12 229 linhas**; a função `ProposalStudio` passa de 7 016 para **6 317 linhas** e de complexidade **282 → 230**. |
+
+**O que as fases 2 a 4 deixaram por fazer (para a sessão seguinte):**
+
+- **Fase 3**, itens 2 a 5: `useEnvioDaProposta` (o `send`, complexidade 74, partido em passos puros), `useVersoesDaProposta`, `useFotosDoEstudio`, e os `fetch` num `lib/orcamento/estudio/api.ts` com zod. O resto do estado da gravação (`gravadoEm`, `porGravar`, o debounce, o rascunho no `localStorage`) continua no componente: mexe na ordem dos efeitos, e a ordem dos efeitos é comportamento — precisa da sua própria sessão com os casos feios no browser.
+- **Fase 4**, as secções grandes: «Mood boards» (~790 linhas, 59 variáveis do estúdio), «Orçamento Proposto» (~910, 45), «Total e validade» (~440, 22) e a barra de baixo (~1 080). Partidas hoje dariam componentes com 45–60 propriedades cada — o contrário do que se quer. A ordem certa é: primeiro os ganchos da fase 3 (que juntam essas variáveis por domínio), e só depois estas quatro, cada uma em duas ou três peças com menos de 250 linhas.
+- **Duas leituras ainda saem duas vezes** no `dev` (`fotos-em-falta`, um `POST`, e o `pagina-do-rascunho`, sete `POST` ao abrir): são escritas, ou leituras com corpo, e não se juntam sem mudar o contrato da rota. A montagem dupla do estúdio (o «Fazer proposta» e o separador Comunicação) não se viu no percurso medido — o separador só monta o estúdio quando é aberto —, e por isso não se mexeu nela.
+
+**Lições das fases 2 a 4** (também na Parte 4):
+
+- **Partir com uma ferramenta, não à mão.** Os blocos de topo saíram por um guião que lê as declarações e os comentários colados, reescreve as importações e marca o que passa a `export`; as secções de JSX saíram com o *type checker* do TypeScript a dizer que variáveis do estúdio cada uma usa, e com que tipo. À mão, numa função de 7 000 linhas, esquece-se sempre uma.
+- **O comentário de topo nem sempre é de quem está por baixo.** Cinco comentários grandes estavam colados ao vizinho errado (um bloco de 100 linhas sobre as acções da fotografia estava em cima das «vistas adiadas»). Mover por blocos teria levado a explicação para o ficheiro errado; corrigiu-se antes de mover.
+- **Um detetor de nomes por texto engana-se onde o JSX tem a última palavra.** Uma propriedade com o nome de uma função do módulo (`origemDe={…}`) parecia um uso, e um apóstrofo no texto do JSX parecia o início de uma cadeia — que cortou uma importação a sério (`DEFAULT_CONDICOES_GERAIS`). O `tsc` e o ESLint apanharam os dois; sem eles, um teria partido o ecrã.
+- **As capturas píxel a píxel só servem se forem deterministas.** Antes de comparar o depois com o antes, tiraram-se duas capturas do ANTES e confirmou-se 0 diferenças entre elas (relógio fixo, movimento reduzido, sem cursor). Uma vez, o painel «O que vai sair» ainda estava a desenhar a página quando a captura saiu: a repetição deu 0. Isto é do painel, que desenha a página no servidor, e não da mudança.
+- **Juntar pedidos em voo, não guardar respostas.** A leitura partilhada não é uma cache: só o segundo pedido IGUAL, feito enquanto o primeiro está a caminho, espera pela mesma resposta. Assim não há nada que possa vir velho, e não há nada para invalidar. O mapa é por `fetch`, para os testes (que trocam o `fetch` em cada caso) nunca herdarem um pedido pendurado de outro caso.
+- **Os testes que leem o código-fonte têm de seguir o código que sai.** Dois deles (`o-estudio-pergunta-a-caixa`, `escada-da-tinta`) deixavam de ver o que saiu do `ProposalStudio`; passaram a ler a lista de `test/ficheiros-do-estudio.ts`, que inclui as peças.
 
 **Desvios da fase 1 ao texto:** além do que a tabela da fase 1 nomeia, saíram
 com as funções as ajudantes privadas de que elas precisam (`eventTypeLabel`,
@@ -877,6 +896,17 @@ acerto medido aqui.
 14. **O porquê fica junto do código que explica**, com a data e a medição. É
     um dos pontos fortes desta casa; quando a função muda de ficheiro, o
     comentário vai com ela.
+15. **Partir com o compilador a ajudar.** Para tirar um pedaço de um
+    componente gigante, pergunta-se ao *type checker* que variáveis ele usa e
+    com que tipo; um guião escreve as importações. Depois, o `tsc` e o ESLint
+    dizem o que o guião errou. *(Fases 2 a 4: 37 ficheiros saíram assim, e os
+    dois erros do guião foram apanhados antes de chegarem ao ecrã.)*
+16. **Antes de comparar capturas, compara o antes consigo mesmo.** Se duas
+    capturas do mesmo código não dão 0 diferenças, a comparação não prova nada.
+17. **Partir pelos ganchos antes de partir pelo ecrã.** Uma secção de JSX que usa
+    50 variáveis do componente não se tira com 50 propriedades: tiram-se primeiro
+    os ganchos que juntam essas variáveis por domínio, e a secção sai depois com
+    meia dúzia.
 
 ---
 

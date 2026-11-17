@@ -1,8 +1,8 @@
 "use client";
 
 import { ARTIGOS, artigoSugerido, eArtigo } from "@/lib/orcamento/artigos-de-faturacao";
-import type { SubpontoDoOrcamento } from "@/lib/proposal-doc";
 import { normalizarValor } from "@/lib/proposal-budget";
+import type { SubpontoDoOrcamento } from "@/lib/proposal-doc";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
 import { INPUT_SM } from "../classes";
 

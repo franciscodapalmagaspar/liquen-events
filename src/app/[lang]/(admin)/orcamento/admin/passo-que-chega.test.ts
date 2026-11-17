@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { ficheirosDoEstudio } from "../../../../../../test/ficheiros-do-estudio";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -31,7 +32,10 @@ import { describe, expect, it } from "vitest";
  * Não prende que a animação SE VEJA: isso é o browser, e mede-se num browser.
  */
 
-const FONTE = readFileSync("src/app/[lang]/(admin)/orcamento/admin/ProposalStudio.tsx", "utf8");
+/** O estúdio inteiro: o `ProposalStudio` e as peças que saíram dele (`estudio/`). */
+const FONTE = ficheirosDoEstudio()
+  .map((f) => readFileSync(`src/app/[lang]/(admin)/orcamento/admin/${f}`, "utf8"))
+  .join("\n");
 const CSS = readFileSync("src/app/globals.css", "utf8");
 
 describe("o passo que chega apresenta-se", () => {

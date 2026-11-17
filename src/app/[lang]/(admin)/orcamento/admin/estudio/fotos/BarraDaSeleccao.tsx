@@ -1,7 +1,7 @@
 "use client";
 
-import { ESTADO, PRESSAO } from "../../ui/movimento";
 import { type StudioDoc } from "@/lib/orcamento/estudio/documento-inicial";
+import { ESTADO, PRESSAO } from "../../ui/movimento";
 
 /**
  * A barra do conjunto: «3 fotografias escolhidas → mover para…».

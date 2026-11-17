@@ -1,8 +1,8 @@
 "use client";
 
-import { type CampoPublicado } from "@/lib/proposal-ortografia";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { camposPorRever, camposPorTraduzir } from "@/lib/proposal-doc-bilingue";
+import { type CampoPublicado } from "@/lib/proposal-ortografia";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
 
 /** O que muda em inglês — a mesma frase na folha do telemóvel e no painel da pastilha. */

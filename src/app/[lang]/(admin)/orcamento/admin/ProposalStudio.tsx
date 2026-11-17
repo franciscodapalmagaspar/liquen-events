@@ -70,17 +70,13 @@ import {
   urlAindaBom,
 } from "./assinatura";
 import PainelInterno from "./PainelInterno";
-import Conferencia from "./Conferencia";
 import { nomeDoFicheiroDaProposta } from "@/lib/email-proposta-textos";
-import EmailDoEnvio from "./EmailDoEnvio";
-import Gralhas from "./Gralhas";
 import MoodBoardIndice from "./MoodBoardIndice";
 import { useLarguraDaZona } from "./useMedida";
 import AEnviarAProposta from "./AEnviarAProposta";
 import PerguntaAntesDoEnvio from "./PerguntaAntesDoEnvio";
 import { passoParaCorrigir, usePerguntasDoEnvio } from "./usePerguntasDoEnvio";
 import { guardarPdfVisto, lerPdfVisto, type PdfVisto } from "./pdf-visto";
-import { BotaoWhatsApp } from "./ui/BotaoWhatsApp";
 
 import PorqueNaoDaParaEnviar from "./PorqueNaoDaParaEnviar";
 import {
@@ -108,17 +104,13 @@ import {
 import { fotoPrincipalDe, marcaDepoisDeMexer } from "@/lib/proposal-moodboard";
 import {
   chaveDoCampo,
-  corrigirGralha,
-  corrigirTudo,
-  gralhasDoDocumento,
   seccaoDoCampo,
-  tirarSimbolos,
   type CampoDeTexto,
   type CampoPublicado,
 } from "@/lib/proposal-ortografia";
 import { fotosQueDestoam, ordemPorCor } from "@/lib/cor-dominante";
-import { tamanhoEstimado, tempoEstimado } from "@/lib/custo-do-pdf";
-import Versoes, { type VersaoEnviada } from "./Versoes";
+import { tempoEstimado } from "@/lib/custo-do-pdf";
+import { type VersaoEnviada } from "./Versoes";
 import { comoSeDiz, noMesmoEspaco, type FotoRepetida } from "@/lib/orcamento/fotos-repetidas";
 import { marcarExtra, opcionaisDe, totaisDasVersoes } from "@/lib/orcamento/versoes-da-proposta";
 import { custosDe } from "@/lib/orcamento/margem";
@@ -137,7 +129,6 @@ import EditorDeEscolhas, { fotosParaAsEscolhas, type FotoDisponivel } from "./Ed
 import NavEstudio from "./NavEstudio";
 import NotasInternas from "./NotasInternas";
 import { MenuDeAccoes } from "./ui/MenuDeAccoes";
-import AvisoDataOcupada from "./AvisoDataOcupada";
 import { estadoDasSeccoes, oQueFaltaParaEnviar, podeEnviar } from "@/lib/proposal-progress";
 import { hojeNoEstudio } from "@/lib/fuso";
 import {
@@ -173,15 +164,9 @@ import {
   trazerServicosParaOOrcamento,
   type ArtigoId,
 } from "@/lib/orcamento/artigos-de-faturacao";
-import { ASPETO_POR_OMISSAO, PERDA_QUE_SE_AVISA } from "@/lib/proposal-geometria";
-import {
-  LADO_MINIMO_DA_CAPA,
-  perdaNaFolha,
-  problemaDaCapa,
-  ASPETO_DA_FOLHA,
-} from "@/lib/pdf-editorial/regra-da-capa";
+import { ASPETO_POR_OMISSAO } from "@/lib/proposal-geometria";
 import { useTamanhoDoOriginal } from "./tamanhoDoOriginal";
-import { ArrastarParaEnquadrar, type Foco } from "./ArrastarParaEnquadrar";
+import { type Foco } from "./ArrastarParaEnquadrar";
 import { enquadrarNoLugar, trocarNoLugar } from "@/lib/pdf-editorial/lugares-escolhidos";
 import { tecladoAberto } from "@/lib/orcamento/barra-de-destinos";
 import type { ProposalDoc, SubpontoDoOrcamento } from "@/lib/proposal-doc";
@@ -209,10 +194,7 @@ import { prepareImageWithThumb, type ImageKind } from "./image-prep";
 import { enviarFotoDaProposta } from "./enviar-foto-da-proposta";
 import { fingerprintBlob } from "@/lib/theme-fingerprint";
 import ThemePicker, { type ImportedImage, type ReservedImage } from "./ThemePicker";
-import ServicesEditor, { MoveBtns } from "./ServicesEditor";
 import CaixaInglesa from "./CaixaInglesa";
-import PorTraduzir from "./PorTraduzir";
-import FotosEmFalta from "./FotosEmFalta";
 import type { FotoEscolhidaEmFalta } from "@/lib/proposta-fotos-verificacao-tipos";
 import {
   aplicarTraducao,
@@ -223,7 +205,6 @@ import {
 } from "@/lib/proposal-traducao";
 import {
   camposPorRever,
-  camposPorTraduzir,
   docTemIngles,
   confirmarTraducao,
   escreverEn,
@@ -238,12 +219,7 @@ import { aquecerBiblioteca, aquecerFotosEmSegundoPlano } from "./theme-picker-ca
 import { Ajuda, Button, EmCurso, Field, Segmented } from "./ui";
 import { useFimVisivel } from "./ui/EmCurso";
 import { descarregar, type Avanco } from "./ui/descarregar";
-import {
-  eCasamento,
-  pedidoECasamento,
-  SUGESTOES_DE_TIPO,
-  tipoDoEventoDoPedido,
-} from "@/lib/proposal-evento";
+import { eCasamento } from "@/lib/proposal-evento";
 import {
   degrauDosAdicionais,
   precoDoPedidoParaBase,
@@ -311,16 +287,21 @@ import { StepNav } from "./estudio/formulario/StepNav";
 import { BarraDaSeleccao } from "./estudio/fotos/BarraDaSeleccao";
 import { FantasmaDaFoto } from "./estudio/fotos/FantasmaDaFoto";
 import { type EventosDasFotos, FotosDoBoard } from "./estudio/fotos/FotosDoBoard";
-import { Thumb } from "./estudio/fotos/Thumb";
 import { UploadArea } from "./estudio/fotos/UploadArea";
 import { LinhaDeTotal } from "./estudio/orcamento/LinhaDeTotal";
 import { MargemDoNegocio } from "./estudio/orcamento/MargemDoNegocio";
 import { ResumoDasLinhas } from "./estudio/orcamento/ResumoDasLinhas";
 import { SubpontosDaLinha } from "./estudio/orcamento/SubpontosDaLinha";
-import { CopiarResumo } from "./estudio/resumo/CopiarResumo";
 import { CustoDaGeracao } from "./estudio/resumo/CustoDaGeracao";
 import { PreviewSummary } from "./estudio/resumo/PreviewSummary";
-import type { EstadoDosUrls, Step } from "./estudio/tipos";
+import type { DestinoDaFoto, EstadoDosUrls, Step } from "./estudio/tipos";
+import { PassoServicos } from "./estudio/passos/PassoServicos";
+import { SeccaoDaCapa } from "./estudio/passos/evento/SeccaoDaCapa";
+import { SeccaoDoEvento } from "./estudio/passos/evento/SeccaoDoEvento";
+import { EnviarAoCliente } from "./estudio/passos/rever/EnviarAoCliente";
+import { EstaPronta } from "./estudio/passos/rever/EstaPronta";
+import { PorOndeSegue } from "./estudio/passos/rever/PorOndeSegue";
+import { SeccaoDoCronograma } from "./estudio/passos/inspiracao/SeccaoDoCronograma";
 
 /*
  * A lógica pura do estúdio vive em `lib/orcamento/estudio/` (fase 1 de
@@ -1261,16 +1242,8 @@ export default function ProposalStudio({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subidaAoPasso]);
   // Qual o destino das fotos escolhidas na biblioteca de temas (null = fechado).
-  const [picker, setPicker] = useState<
-    // `substituir` é a posição a TROCAR no lugar: a foto escolhida entra ali em
-    // vez de ir para o fim. Sem isto, trocar uma foto era removê-la, escolher
-    // outra, e arrastá-la de volta ao sítio onde a primeira estava.
-    | { kind: "board"; bi: number; substituir?: number }
-    | { kind: "cover"; idx: number }
-    /** Uma página do PDF (`fotosDasPaginas`): a foto vai para o lugar `lugar`. */
-    | { kind: "pagina"; chave: string; lugar: number; max: number }
-    | null
-  >(null);
+  /** Para onde vai a fotografia que se escolher na biblioteca de temas. */
+  const [picker, setPicker] = useState<DestinoDaFoto | null>(null);
 
   /* ── A BIBLIOTECA DE TEMAS TAMBÉM SE FECHA ────────────────────────────────
      Era a última folha da casa sem saída, e a única que precisava de uma
@@ -8432,461 +8405,59 @@ export default function ProposalStudio({
             )}
 
             {/* Event fields */}
-            <Section title="Evento" id="evento" escondida={step !== "evento"}>
-              {/* ── «ESTE PEDIDO NÃO PARECE UM CASAMENTO» ──────────────────
-                O estúdio escrevia «Casamento» sozinho em qualquer pedido sem
-                tipo — e com isso o PDF punha «Noivos» e arrumava os mood boards
-                em Cerimónia e Cocktail numa proposta para um restaurante. Os
-                rascunhos feitos até 13/10 ficaram com essa palavra; o aviso é o
-                que os deixa corrigir com um toque, sem adivinhar. */}
-              {eCasamento(doc.eventType) &&
-                !pedidoECasamento(quote) &&
-                !eCasamento(tipoDoEventoDoPedido(quote)) &&
-                !(quote.partnerA || quote.partnerB) &&
-                !casamentoConfirmado && (
-                  <div
-                    role="status"
-                    className="mb-4 rounded-xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] p-3 text-sm"
-                  >
-                    <p className="font-medium">Este pedido não parece um casamento.</p>
-                    <p className="mt-1 text-xs leading-relaxed text-[var(--bo-text-muted)]">
-                      A proposta diz «{doc.eventType}», e por isso o PDF chama «Noivos» ao cliente e
-                      arruma os mood boards em Cerimónia, Cocktail e Jantar.
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          confirmado("eventType");
-                          patch({ eventType: tipoDoEventoDoPedido(quote) });
-                          document
-                            .querySelector<HTMLInputElement>('input[data-campo="eventType"]')
-                            ?.focus();
-                        }}
-                      >
-                        {tipoDoEventoDoPedido(quote)
-                          ? `Mudar para «${tipoDoEventoDoPedido(quote)}»`
-                          : "Escrever o tipo de evento"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setCasamentoConfirmado(true);
-                          try {
-                            localStorage.setItem(chaveDoCasamentoConfirmado, "1");
-                          } catch {
-                            /* sem localStorage: cala-se só até reabrir */
-                          }
-                        }}
-                      >
-                        É mesmo um casamento
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              {/* ── QUEM, QUANDO, ONDE (Fase 4 do redesenho, 10/11) ──────────
-                Eram oito caixas numa grelha só, pela ordem em que foram
-                acrescentadas. Agora três grupos com nome — os mesmos campos,
-                as mesmas chaves (`data-campo`), as mesmas marcas de «veio de
-                fora» (`realce`). Só a arrumação muda. */}
-              <div className="flex flex-col gap-5">
-                <fieldset className="min-w-0">
-                  <legend className="bo-eyebrow mb-2">Quem</legend>
-                  <div className="grid grid-cols-1 gap-4 @min-[26rem]:grid-cols-2">
-                    <Field
-                      label="Clientes"
-                      value={doc.clientNames ?? ""}
-                      onChange={(e) => {
-                        confirmado("clientNames");
-                        patch({ clientNames: e.target.value });
-                      }}
-                      containerClassName={realce("clientNames")}
-                      data-campo="clientNames"
-                      placeholder="Maria & Zé"
-                    />
-                    <Field
-                      label="Tipo de evento"
-                      value={doc.eventType ?? ""}
-                      onChange={(e) => {
-                        confirmado("eventType");
-                        patch({ eventType: e.target.value });
-                      }}
-                      containerClassName={realce("eventType")}
-                      data-campo="eventType"
-                      list="sug-tipos-de-evento"
-                      placeholder="Casamento, festa, jantar…"
-                      hint={
-                        eCasamento(doc.eventType)
-                          ? "Casamento: o PDF arruma os mood boards em Cerimónia, Cocktail, Jantar e Complementos."
-                          : "O PDF diz «Cliente», e cada mood board abre o seu capítulo, com o título que lhe deram."
-                      }
-                    />
-                    <Field
-                      label="Convidados"
-                      value={doc.guests ?? ""}
-                      onChange={(e) => {
-                        confirmado("guests");
-                        patch({ guests: e.target.value });
-                      }}
-                      containerClassName={realce("guests")}
-                      data-campo="guests"
-                      placeholder="150 pax"
-                    />
-                  </div>
-                </fieldset>
-                <fieldset className="min-w-0">
-                  <legend className="bo-eyebrow mb-2">Quando</legend>
-                  <div className="grid grid-cols-1 gap-4 @min-[26rem]:grid-cols-2">
-                    <Field
-                      label="Data"
-                      value={doc.eventDate ?? ""}
-                      onChange={(e) => {
-                        confirmado("eventDate");
-                        patch({ eventDate: e.target.value });
-                      }}
-                      containerClassName={realce("eventDate")}
-                      data-campo="eventDate"
-                      placeholder="12 de setembro de 2026"
-                    />
-                    {isDeco && (
-                      <Field
-                        label="Hora"
-                        value={doc.time ?? ""}
-                        onChange={(e) => {
-                          confirmado("time");
-                          patch({ time: e.target.value });
-                        }}
-                        containerClassName={realce("time")}
-                        data-campo="time"
-                        placeholder="A definir"
-                      />
-                    )}
-                  </div>
-                </fieldset>
-                <fieldset className="min-w-0">
-                  <legend className="bo-eyebrow mb-2">Onde</legend>
-                  <div className="grid grid-cols-1 gap-4 @min-[26rem]:grid-cols-2">
-                    <Field
-                      label="Local"
-                      list="sug-locais"
-                      value={doc.location ?? ""}
-                      onChange={(e) => {
-                        confirmado("location");
-                        patch({ location: e.target.value });
-                      }}
-                      containerClassName={realce("location")}
-                      data-campo="location"
-                      placeholder="Monte da Oliveirinha"
-                    />
-                    {/* Só num casamento — ou se já tiver texto, para não o
-                      esconder de quem o escreveu. */}
-                    {isDeco &&
-                      (eCasamento(doc.eventType) || (doc.ceremony ?? "").trim() !== "") && (
-                        <Field
-                          label="Cerimónia"
-                          value={doc.ceremony ?? ""}
-                          onChange={(e) => {
-                            confirmado("ceremony");
-                            patch({ ceremony: e.target.value });
-                          }}
-                          containerClassName={realce("ceremony")}
-                          data-campo="ceremony"
-                          placeholder="Civil, simbólica"
-                        />
-                      )}
-                  </div>
-                </fieldset>
-              </div>
-              {/* A Hora e a Cerimónia têm o anel de «veio de fora» (`realce`)
-                como os outros: a cerimónia vem do formulário do casal e a hora,
-                quando vem, de uma proposta copiada — texto de outra pessoa. */}
+            <SeccaoDoEvento
+              casamentoConfirmado={casamentoConfirmado}
+              chaveDoCasamentoConfirmado={chaveDoCasamentoConfirmado}
+              confirmado={confirmado}
+              doc={doc}
+              isDeco={isDeco}
+              patch={patch}
+              pedidoComADataDoDoc={pedidoComADataDoDoc}
+              quote={quote}
+              quotes={quotes}
+              realce={realce}
+              refEdited={refEdited}
+              setCasamentoConfirmado={setCasamentoConfirmado}
+              setDoc={setDoc}
+              setRefEdited={setRefEdited}
+              step={step}
+              sugestoes={sugestoes}
+            />
 
-              {/* O que já está marcado à volta da data que ESTÁ ESCRITA AQUI —
-                ver `pedidoComADataDoDoc`. O mesmo cartão do ecrã de escolher o
-                cliente, com a mesma leitura de distância por estrada. */}
-              {pedidoComADataDoDoc && (
-                <div className="mt-4">
-                  <AvisoDataOcupada
-                    quote={pedidoComADataDoDoc}
-                    quotes={quotes ?? []}
-                    motivo="Não impede nada — a decisão é tua. Esta é a data que escreveste na proposta, e não a do pedido."
-                  />
-                </div>
-              )}
-
-              {/* As sugestões. `datalist` e não um `select`: ela TEM de poder
-                escrever um espaço novo — a lista ajuda, não fecha a porta. */}
-              <datalist id="sug-tipos-de-evento">
-                {SUGESTOES_DE_TIPO.map((v) => (
-                  <option key={v} value={v} />
-                ))}
-              </datalist>
-              <datalist id="sug-locais">
-                {sugestoes.locais.map((v) => (
-                  <option key={v} value={v} />
-                ))}
-              </datalist>
-
-              {/* Reference (advanced) */}
-              <div className="mt-4">
-                {refEdited && (
-                  <div className="mb-1.5 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRefEdited(false);
-                        setDoc((d) => ({ ...d, ref: buildRef(d) }));
-                      }}
-                      className={`${ADD_BTN} ${ESTADO} ${PRESSAO}`}
-                    >
-                      ↺ Automática
-                    </button>
-                  </div>
-                )}
-                <Field
-                  label="Título interno (opcional)"
-                  value={doc.ref ?? ""}
-                  onChange={(e) => {
-                    setRefEdited(true);
-                    patch({ ref: e.target.value });
-                  }}
-                  data-campo="ref"
-                  hint="sobretudo para uso interno; aparece apenas em letra pequena no topo de cada página da proposta."
-                />
-              </div>
-
-              {/* ── O QUE SE SABE E NÃO SE ESCREVE AO CLIENTE ────────────────
-                «Quer ficar por baixo dos 8.000 €.» «Quem decide é a mãe.»
-                Frases que hoje vivem na cabeça de quem escreveu a proposta e
-                que se perdem quando é outra pessoa a pegar nela — ou quando são
-                seis meses depois.
-
-                Vive na secção do EVENTO e não ao pé do dinheiro: é sobre o
-                negócio inteiro, e é a primeira secção — a nota tem de estar
-                onde se dá com ela sem a procurar.
-
-                O aspecto de papel amarelo é a garantia de que não se confunde
-                com um campo que sai na proposta; o teste
-                (`notas-internas-ficam-em-casa.test.ts`) garante que não sai
-                mesmo. */}
-              <NotasInternas
-                valor={doc.notasInternas ?? ""}
-                onChange={(v) => patch({ notasInternas: v })}
-              />
-            </Section>
-
-            {/* ── A FOTOGRAFIA DA CAPA — uma, a cobrir a folha ──────────────
-                Eram duas, «Esquerda» e «Direita», as tiras altas do PDF antigo.
-                O desenho novo tem UMA fotografia a cobrir a folha deitada
-                inteira, e ela escolheu: «Usa a minha, com aviso». O PDF usa a
-                que ela escolher; se não servir para a página inteira (ao alto,
-                ou pequena), usa a melhor deitada dos temas — e isso diz-se
-                AQUI, ao lado da fotografia, antes de o PDF existir. A regra é a
-                mesma do servidor (`regra-da-capa.ts`).
-
-                O lugar é a primeira fotografia que houver: há propostas antigas
-                só com a «Direita». A segunda que exista fica guardada e não sai. */}
-            <Section
-              title="Fotografia da capa"
-              id="capas"
-              escondida={step !== "evento"}
-              rodape={notaDaSeccao("capas", "Nota sobre a capa")}
-            >
-              {(() => {
-                const idx = idxDaCapa;
-                const path = doc.coverImages?.[idx];
-                const aspeto = path ? aspetosDasFotos[path] : undefined;
-                const problema = tamanhoDaCapa
-                  ? problemaDaCapa(tamanhoDaCapa.w, tamanhoDaCapa.h)
-                  : aspeto && aspeto < 1
-                    ? "ao-alto"
-                    : null;
-                /** Ela disse «usa esta na mesma»: vai, recortada como aqui. */
-                const mesmoAssim = !!problema && !!doc.capaMesmoAssim;
-                /** A fotografia que se vê aqui NÃO é a que vai para o PDF. */
-                const naoVai = !!problema && !mesmoAssim;
-                const perda = aspeto && (!problema || mesmoAssim) ? perdaNaFolha(aspeto) : 0;
-                if (!path) {
-                  return (
-                    <div className="max-w-md">
-                      <UploadArea
-                        label="Fotografia da capa"
-                        progresso={uploading[`cover-${idx}`]}
-                        multiple={false}
-                        curto
-                        onFiles={(files) =>
-                          handleUpload(`cover-${idx}`, files.slice(0, 1), (paths) =>
-                            setCoverAt(idx, paths[0]),
-                          )
-                        }
-                      />
-                      <button
-                        type="button"
-                        className={`${ADD_BTN} mt-1.5 ${ESTADO} ${PRESSAO}`}
-                        onClick={() => setPicker({ kind: "cover", idx })}
-                        // Ao passar o rato já se vai buscar o que o diálogo
-                        // precisa. `focus` para o teclado, `touchstart` para o
-                        // telemóvel, onde não há hover nenhum.
-                        onPointerEnter={aquecerBiblioteca}
-                        onFocus={aquecerBiblioteca}
-                        onTouchStart={aquecerBiblioteca}
-                      >
-                        Da biblioteca de temas
-                      </button>
-                      <p className="mt-2 text-caption text-[var(--bo-text-muted)]">
-                        Uma fotografia deitada, a cobrir a primeira página e a última.
-                      </p>
-                    </div>
-                  );
-                }
-                /**
-                 * O enquadramento que se VÊ é o que sai: o escolhido à mão, ou
-                 * o que o PDF escolheria sozinho (perguntado ao servidor), ou o
-                 * centro enquanto a resposta não chega.
-                 */
-                const focoVisto = doc.focoDaCapa ??
-                  (focoAutoDaCapa?.caminho === path ? focoAutoDaCapa.foco : undefined) ?? {
-                    x: 0.5,
-                    y: 0.5,
-                  };
-                return (
-                  <div className="max-w-md">
-                    <ArrastarParaEnquadrar
-                      aspeto={aspeto}
-                      aspetoDaCaixa={ASPETO_DA_FOLHA}
-                      foco={focoVisto}
-                      activo={!naoVai}
-                      onFoco={(f) => patch({ focoDaCapa: f })}
-                    >
-                      {(posicao) => (
-                        <div className="relative">
-                          <Thumb
-                            posicao={naoVai ? undefined : posicao}
-                            url={assetUrls[path]}
-                            // A cascata, do mais leve para o mais pesado. Ver
-                            // `assetMedias`: o degrau do meio poupa ~900 KB por
-                            // célula sempre que a miniatura falha.
-                            planoB={[assetMedias[path], assetOriginais[path]]}
-                            estadoDosUrls={estadoDosUrls}
-                            aoTentarDeNovo={() => void tentarBuscarFotos()}
-                            aoMorrer={marcarUrlMorto}
-                            // A capa está no topo do passo: nunca espera pela fila
-                            // das fotos que estão fora do ecrã.
-                            priority
-                            onRemove={() => removeCoverAt(idx)}
-                            // A forma da folha do PDF (1123 × 794): o que se vê
-                            // aqui é o recorte que sai.
-                            className="aspect-[1123/794] w-full"
-                            onMedida={(a) => registarAspeto(path, a)}
-                            pendente={isPendingImage(path)}
-                            onde="capa"
-                            refDoc={path}
-                          />
-                          {/* ── O QUE SE VÊ AQUI TEM DE SER O QUE SAI ─────────────
-                          A caixa recorta-a deitada, e assim parece servir. Ela
-                          leu-a como a capa e o PDF saiu com outra. Quando não
-                          vai, di-lo em cima dela, e não só por baixo. */}
-                          {naoVai && (
-                            <span className="pointer-events-none absolute top-2 left-2 rounded-full bg-black/60 px-2.5 py-1 text-caption whitespace-nowrap text-white">
-                              Não vai para o PDF
-                            </span>
-                          )}
-                          {perda > PERDA_QUE_SE_AVISA && (
-                            <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/55 px-2.5 py-1 text-caption whitespace-nowrap text-white tabular-nums">
-                              perde {Math.round(perda * 100)}% da área
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </ArrastarParaEnquadrar>
-                    {doc.focoDaCapa && !naoVai && (
-                      <button
-                        type="button"
-                        className={`alvo-toque relative mt-1 text-caption font-medium text-sage-600 underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
-                        onClick={() => patch({ focoDaCapa: undefined })}
-                      >
-                        Voltar ao enquadramento automático
-                      </button>
-                    )}
-                    {mesmoAssim && (
-                      <p
-                        role="status"
-                        className="mt-2 flex items-start gap-1.5 rounded-xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]"
-                      >
-                        <span>
-                          {problema === "ao-alto"
-                            ? "Vai para a capa recortada para ficar deitada, como aqui. "
-                            : "Vai para a capa, e numa página inteira pode ver-se o grão. "}
-                          <button
-                            type="button"
-                            className={`alvo-toque relative font-medium underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
-                            onClick={() => patch({ capaMesmoAssim: undefined })}
-                          >
-                            Usar a melhor deitada dos temas
-                          </button>
-                        </span>
-                      </p>
-                    )}
-                    {naoVai && (
-                      <p
-                        role="status"
-                        className="mt-2 flex items-start gap-1.5 rounded-xl border border-[var(--bo-aviso-tom)]/35 bg-[var(--bo-aviso-tom)]/[0.06] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]"
-                      >
-                        <span aria-hidden="true">⚠</span>
-                        <span>
-                          {problema === "ao-alto"
-                            ? "É ao alto, e a capa é deitada. "
-                            : `É pequena para a capa (${Math.max(tamanhoDaCapa?.w ?? 0, tamanhoDaCapa?.h ?? 0)} px; pede ${LADO_MINIMO_DA_CAPA}). `}
-                          Por isso o PDF usa a melhor fotografia deitada dos temas, e não esta.{" "}
-                          <button
-                            type="button"
-                            className={`alvo-toque relative font-medium underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
-                            onClick={() => patch({ capaMesmoAssim: true })}
-                          >
-                            Usar esta na mesma
-                          </button>
-                          {" · "}
-                          <button
-                            type="button"
-                            className={`alvo-toque relative font-medium underline underline-offset-2 ${ESTADO} ${PRESSAO}`}
-                            onClick={() => setPicker({ kind: "cover", idx })}
-                            onPointerEnter={aquecerBiblioteca}
-                            onFocus={aquecerBiblioteca}
-                          >
-                            Trocar
-                          </button>
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                );
-              })()}
-            </Section>
+            {/* A fotografia da capa — ver `SeccaoDaCapa`. */}
+            <SeccaoDaCapa
+              aspetosDasFotos={aspetosDasFotos}
+              assetMedias={assetMedias}
+              assetOriginais={assetOriginais}
+              assetUrls={assetUrls}
+              doc={doc}
+              estadoDosUrls={estadoDosUrls}
+              focoAutoDaCapa={focoAutoDaCapa}
+              handleUpload={handleUpload}
+              idxDaCapa={idxDaCapa}
+              marcarUrlMorto={marcarUrlMorto}
+              notaDaSeccao={notaDaSeccao}
+              patch={patch}
+              registarAspeto={registarAspeto}
+              removeCoverAt={removeCoverAt}
+              setCoverAt={setCoverAt}
+              setPicker={setPicker}
+              step={step}
+              tamanhoDaCapa={tamanhoDaCapa}
+              tentarBuscarFotos={tentarBuscarFotos}
+              uploading={uploading}
+            />
 
             {/* Service groups */}
-            <Section
-              title="Serviços"
-              id="servicos"
-              escondida={step !== "servicos"}
-              rodape={notaDaSeccao("servicos", "Nota sobre os serviços")}
-            >
-              {/* O editor com teclado, arrasto e anular vive em ServicesEditor. */}
-              <ServicesEditor
-                groups={doc.serviceGroups}
-                onGroupsChange={setServiceGroups}
-                showDesc={!isDeco}
-                // O Ctrl/Cmd+Enter dos Serviços é o MESMO gesto do botão
-                // «Guardar agora» — e por isso a mesma função, não uma segunda
-                // gravação com outras regras e outras palavras.
-                onSave={guardarAgora}
-                // As caixas inglesas dos grupos e das linhas. O editor não sabe
-                // o que é uma proposta bilingue: recebe o interruptor e desenha
-                // uma caixa a mais por campo, com a mesma pega e o mesmo rótulo
-                // do resto da casa.
-                bilingue={bilingue}
-              />
-            </Section>
+            <PassoServicos
+              bilingue={bilingue}
+              doc={doc}
+              guardarAgora={guardarAgora}
+              isDeco={isDeco}
+              notaDaSeccao={notaDaSeccao}
+              setServiceGroups={setServiceGroups}
+              step={step}
+            />
 
             {/* Mood boards — decoracao only */}
             {isDeco && (
@@ -9687,89 +9258,19 @@ export default function ProposalStudio({
 
             {/* Cronograma — organizacao only */}
             {!isDeco && (
-              <Section
-                title="Cronograma de Organização"
-                id="cronograma"
-                escondida={step !== "inspiracao"}
-                rodape={notaDaSeccao("cronograma", "Nota sobre o cronograma")}
-              >
-                <div className="flex flex-col gap-3">
-                  {(doc.cronograma ?? []).map((ph, pi) => (
-                    <div
-                      key={pi}
-                      className="rounded-2xl border border-[var(--bo-hairline)] bg-[var(--bo-tinta-3)] p-4"
-                    >
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <input
-                          className="bo-input min-w-[12rem] flex-1 px-2.5 py-2 text-xs text-[var(--bo-tinta-72)]"
-                          value={ph.title}
-                          onChange={(e) => updatePhase(pi, { title: e.target.value })}
-                          placeholder="6-12 meses antes do casamento"
-                          aria-label="Título da fase"
-                          /* O salto das gralhas encontra o campo por aqui. Ver
-                           `chaveDoCampo` — o cronograma entrou na varredura
-                           depois de se medir que era texto dela a sair
-                           publicado sem passar por corrector nenhum. */
-                          data-campo={chaveDoCampo({ tipo: "cronogramaTitulo", pi })}
-                        />
-                        <MoveBtns
-                          onUp={() => movePhase(pi, -1)}
-                          onDown={() => movePhase(pi, 1)}
-                          disUp={pi === 0}
-                          disDown={pi === (doc.cronograma?.length ?? 0) - 1}
-                        />
-                        <button
-                          type="button"
-                          className={`${REMOVE_BTN} ${ESTADO} ${PRESSAO}`}
-                          onClick={() => removePhase(pi)}
-                          aria-label="Remover fase"
-                        >
-                          ×
-                        </button>
-                      </div>
-                      {/* Entre o título da fase e a lista de tarefas: a frase
-                        conta-as, e elas estão logo por baixo. Ver `aRemover`. */}
-                      {perguntaDeRemocao(`fase:${pi}`, "Remover a fase")}
-                      <div className="flex flex-col gap-2 pl-1">
-                        {ph.items.map((it, ii) => (
-                          <div key={ii} className="flex items-center gap-2">
-                            <input
-                              className={INPUT_SM}
-                              value={it}
-                              onChange={(e) => updatePhaseItem(pi, ii, e.target.value)}
-                              placeholder="Definição do conceito"
-                              aria-label="Tarefa"
-                              data-campo={chaveDoCampo({ tipo: "cronogramaItem", pi, ii })}
-                            />
-                            <button
-                              type="button"
-                              className={`${REMOVE_BTN} ${ESTADO} ${PRESSAO}`}
-                              onClick={() => removePhaseItem(pi, ii)}
-                              aria-label="Remover tarefa"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          className={`${ADD_BTN} ${ESTADO} ${PRESSAO}`}
-                          onClick={() => addPhaseItem(pi)}
-                        >
-                          + Adicionar tarefa
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className={`${ADD_BTN} mt-3 ${ESTADO} ${PRESSAO}`}
-                  onClick={addPhase}
-                >
-                  + Adicionar fase
-                </button>
-              </Section>
+              <SeccaoDoCronograma
+                addPhase={addPhase}
+                addPhaseItem={addPhaseItem}
+                doc={doc}
+                movePhase={movePhase}
+                notaDaSeccao={notaDaSeccao}
+                perguntaDeRemocao={perguntaDeRemocao}
+                removePhase={removePhase}
+                removePhaseItem={removePhaseItem}
+                step={step}
+                updatePhase={updatePhase}
+                updatePhaseItem={updatePhaseItem}
+              />
             )}
 
             {/* Budget */}
@@ -11349,171 +10850,30 @@ export default function ProposalStudio({
           traduzir —, depois ver o PDF final, depois o resumo e o email, e só
           no fim por onde segue. Substitui a ordem de 14/10, em que «Por onde
           segue» vinha em cima: ela escolheu «Está pronta?» primeiro. */}
-      <div
-        className={step === "enviar" && !sent ? "view-in mb-4" : undefined}
-        hidden={step !== "enviar" || sent}
-      >
-        <Section title="Está pronta?">
-          {/* As fotos a caminho têm a sua própria linha, e não a genérica
-                  dos campos por preencher: aqui não há nada a fazer senão
-                  esperar uns segundos — dizer-lhe para "preencher" seria
-                  mandá-la procurar um campo que está bem. */}
-          {fotosPorConfirmar > 0 && (
-            <p
-              aria-live="polite"
-              className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-[var(--bo-perigo)]"
-            >
-              <span aria-hidden="true">⏳</span>
-              <span>
-                {fotosPorConfirmar === 1
-                  ? "1 foto ainda está a entrar na proposta."
-                  : `${fotosPorConfirmar} fotos ainda estão a entrar na proposta.`}{" "}
-                O envio fica disponível mal ela assente — assim a proposta segue completa.
-              </span>
-            </p>
-          )}
-          {/* A PASSAGEM DE OLHOS. Depois do resumo (que diz o que vai
-                  seguir) e antes do botão (que o torna irreversível). */}
-          <Conferencia
-            doc={doc as ProposalDoc}
-            quote={quote}
-            quotes={quotes}
-            totalBruto={money.gross}
-            // A língua escolhida aqui ao lado. Sem ela, a lista falava do
-            // pedido que veio em inglês e calava-se sobre a metade da
-            // proposta que ia sair em português.
-            idioma={idiomaDoPdf}
-            // O canal e o email: sem eles a lista não sabia que uma
-            // proposta por email sem email não chega a ninguém (B1).
-            canal={canal}
-            emailDoCliente={quote.email}
-            // O «visto» do PDF, o mesmo do botão (`contextoDoBotao`): sem
-            // ele esta lista dizia «3 coisas impedem o envio» por cima de
-            // uma pastilha a dizer «Faltam 4». A regra é uma só, a de
-            // `oQueFaltaParaEnviar`, e as duas contam a partir dela.
-            pdfVisto={pdfConfirmado}
-            onIr={(v) => irParaAFalta(v.seccao, v.campo)}
-          />
-          {/* ── ANTES DE ENVIAR: VER O PDF FINAL (14/10) ───────────────
-                  «Quero que haja algo que antes de enviar para os clientes
-                  obrigue os colaboradores da Líquen a verificar se está tudo
-                  bem.» A escolha dela foi «Ver o PDF primeiro». O PDF final
-                  só sai sem erros (B1); depois de descarregado, pede-se a
-                  confirmação; e mudar o documento depois de o ver volta a
-                  pedir as duas coisas. O servidor confere a mesma chave. */}
-          <div
-            data-testid="ver-antes-de-enviar"
-            data-campo="pdf-visto"
-            className="mt-4 flex flex-col items-start gap-2 rounded-xl border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-3)] px-3 py-3"
-          >
-            <p className="bo-eyebrow text-[var(--bo-text-muted)]">Antes de enviar</p>
-            {temErros ? (
-              <p className="text-xs leading-relaxed text-[var(--bo-tinta-72)]">
-                Primeiro corrige o que está na lista acima — o PDF final só sai sem erros. Depois
-                descarrega-o e vê-o com atenção.
-              </p>
-            ) : !pdfVistoAgora ? (
-              <>
-                <p className="text-xs leading-relaxed text-[var(--bo-tinta-72)]">
-                  {pdfVisto
-                    ? "A proposta mudou depois de veres o PDF. Descarrega-o outra vez e vê-o antes de enviar."
-                    : "Descarrega o PDF final e vê-o com atenção, página a página — é exactamente o que o cliente vai receber."}
-                </p>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void preview()}
-                  disabled={busy !== null}
-                >
-                  {busy === "preview" ? "A gerar o PDF…" : "Descarregar o PDF final"}
-                </Button>
-              </>
-            ) : (
-              <label className="alvo-toque flex cursor-pointer items-start gap-2 text-sm leading-snug text-[var(--bo-text)]">
-                <input
-                  type="checkbox"
-                  checked={!!pdfVisto?.confirmado}
-                  onChange={(e) => confirmarPdfVisto(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-sage-600"
-                />
-                <span>Vi a proposta e está tudo certo</span>
-              </label>
-            )}
-          </div>
-          {/* ── AS FOTOGRAFIAS ESTÃO MESMO LÁ? ─────────────────────────
-                  Primeiro de todos os avisos deste passo, e é de propósito: é
-                  o único que fala de uma coisa que já não se vê no ecrã. As
-                  gralhas e as traduções lêem-se no documento; um ficheiro que
-                  desapareceu do armazenamento só se descobre perguntando.
-
-                  Foi o defeito que a fez escrever: quatro fotos que não
-                  existiam seguiram numa proposta, e a primeira pessoa a dar por
-                  isso foi o casal. */}
-          <FotosEmFalta
-            quoteId={quote.id}
-            doc={doc as ProposalDoc}
-            onEscolhidasQueFaltam={setEscolhidasQueFaltam}
-            onRefsQueFaltam={aoSaberQueFaltam}
-          />
-
-          {/* Os acentos que faltam nos campos que saem impressos. Aqui, ao
-                  pé da Conferência, e não a meio de escrever: a palavra ainda
-                  está a ser escrita quando o aviso apareceria. */}
-          <Gralhas
-            doc={doc as ProposalDoc}
-            onCorrigir={(g) => {
-              setDoc((d) => corrigirGralha(d, g));
-              // A palavra muda num campo que pode estar a catorze páginas
-              // daqui, dentro de uma secção que não se está a ver. No sítio
-              // do clique só se vê a linha sair desta lista — e uma linha a
-              // desaparecer não diz o que ficou escrito lá em cima.
-              //
-              // Com as duas palavras e o campo, é a mesma prestação de
-              // contas que o «Corrigir as N» ao lado já fazia com o número.
-              toast(`«${g.escrita}» passou a «${g.sugerida}» — ${g.rotulo}.`, "info");
-            }}
-            onIr={(g) => irParaCampo(g.campo)}
-            onTirarSimbolos={(s) => {
-              setDoc((d) => tirarSimbolos(d, s));
-              toast(`Tirei ${s.simbolos.join(" ")} — ${s.rotulo}.`, "info");
-            }}
-            onIrAosSimbolos={(s) => irParaCampo(s.campo)}
-            onCorrigirTudo={() => {
-              const quantas = gralhasDoDocumento(doc as ProposalDoc).length;
-              setDoc((d) => corrigirTudo(d));
-              toast(
-                quantas === 1 ? "1 palavra corrigida." : `${quantas} palavras corrigidas.`,
-                "info",
-              );
-            }}
-          />
-          {/* ── O QUE VAI SAIR EM PORTUGUÊS ─────────────────────────────
-                  Logo a seguir às Gralhas, e SÓ com «Inglês» escolhido: numa
-                  proposta portuguesa não há nada por traduzir, e uma secção
-                  vazia a dizê-lo era ruído no ecrã de toda a gente. */}
-          {idiomaDoPdf === "en" && (
-            <PorTraduzir
-              doc={doc as ProposalDoc}
-              onFicarEmPortugues={(c) => setDoc((d) => escreverEn(d, c.campo, c.texto))}
-              onFicarTodosEmPortugues={() => {
-                const faltam = camposPorTraduzir(doc as ProposalDoc);
-                setDoc((d) => {
-                  let saida = d;
-                  for (const c of faltam) saida = escreverEn(saida, c.campo, c.texto);
-                  return saida;
-                });
-                toast(
-                  faltam.length === 1
-                    ? "1 campo fica em português."
-                    : `${faltam.length} campos ficam em português.`,
-                  "info",
-                );
-              }}
-              onIr={(c) => irParaCampo(c.campo, "en")}
-            />
-          )}
-        </Section>
-      </div>
+      <EstaPronta
+        aoSaberQueFaltam={aoSaberQueFaltam}
+        busy={busy}
+        canal={canal}
+        confirmarPdfVisto={confirmarPdfVisto}
+        doc={doc}
+        fotosPorConfirmar={fotosPorConfirmar}
+        idiomaDoPdf={idiomaDoPdf}
+        irParaAFalta={irParaAFalta}
+        irParaCampo={irParaCampo}
+        money={money}
+        pdfConfirmado={pdfConfirmado}
+        pdfVisto={pdfVisto}
+        pdfVistoAgora={pdfVistoAgora}
+        preview={preview}
+        quote={quote}
+        quotes={quotes}
+        sent={sent}
+        setDoc={setDoc}
+        setEscolhidasQueFaltam={setEscolhidasQueFaltam}
+        step={step}
+        temErros={temErros}
+        toast={toast}
+      />
 
       {/* ══════════ PASSO 5 · Rever e enviar — o resumo, montado só aqui ══════════ */}
       {/* Only mount the preview while it's the active step. It was previously
@@ -11538,176 +10898,29 @@ export default function ProposalStudio({
       )}
 
       {/* ══════════ PASSO 5 · Rever e enviar — o envio ══════════ */}
-      <div
-        ref={passoDoEnvio}
-        className={`scroll-mt-[var(--bo-colado-topo)] ${step === "enviar" ? "view-in" : ""}`}
-        hidden={step !== "enviar"}
-      >
-        {sent ? (
-          <Section title="Enviar ao cliente">
-            {/* ── O FIM DA JORNADA MERECE SER VISTO ────────────────────────
-               Depois de uma barra a encher durante dezenas de segundos numa
-               quinta com 4G, a proposta dava-se por enviada num fotograma: um
-               `✓` de texto aparecia, e mais nada.
-
-               É o único momento do estúdio que pertence à banda de
-               apresentação (600–1500 ms), e é o único que não tinha nada. O
-               gesto já existe nesta casa e está a ser usado no ecrã que o
-               CASAL vê ao pedir orçamento (`ConfirmacaoClient.tsx`): o anel
-               desenha-se em 0,7 s e o traço do visto vem a seguir, em
-               `stroke-dashoffset` puro, sem JavaScript e com
-               `prefers-reduced-motion` já tratado no `globals.css`.
-
-               Passa a ser o mesmo dos dois lados — ela vê o que o casal vê. */}
-            <div className="bo-cena flex flex-col items-start gap-3 rounded-2xl border border-sage-600/25 bg-sage-600/[0.06] p-5">
-              <p className="flex items-center gap-2 font-display text-base text-sage-600">
-                <svg
-                  viewBox="0 0 52 52"
-                  className="h-5 w-5 shrink-0"
-                  fill="none"
-                  aria-hidden="true"
-                >
-                  <circle
-                    className="confirm-ring"
-                    cx="26"
-                    cy="26"
-                    r="24"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeOpacity="0.4"
-                  />
-                  <path
-                    className="confirm-check"
-                    d="M15 27l7.5 7.5L38 18"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>{" "}
-                {canal === "whatsapp" ? "Proposta pronta" : "Proposta enviada"}
-              </p>
-              {/* ── O QUE SE DIZ NO FIM DEPENDE DO QUE SE FEZ ──────────────
-                  «Não precisas de fazer mais nada» era verdade quando só havia
-                  email. Com o WhatsApp escolhido é falso — falta o gesto dela,
-                  e é o gesto que entrega a proposta. Uma frase que diz «está
-                  tudo feito» por cima de uma coisa por fazer é a maneira mais
-                  rápida de a proposta não chegar a ninguém. */}
-              <p className="text-sm leading-relaxed text-[var(--bo-text-muted)]">
-                {canal === "whatsapp"
-                  ? "A proposta está gerada e o link está pronto. Falta mandá-lo — é o botão aqui em baixo."
-                  : canal === "ambos"
-                    ? `O email seguiu para ${quote.email || "o cliente"}. Falta o WhatsApp, se o quiseres mandar também.`
-                    : `A proposta foi gerada e enviada para ${quote.email || "o cliente"}. Não precisas de fazer mais nada.`}
-              </p>
-              {/* ── QUANDO O CASAL PREFERE WHATSAPP ─────────────────────────
-                  A comunicação sai toda por email, e em Portugal é normal o
-                  casal preferir WhatsApp. É aqui, mesmo depois de enviar, que
-                  o link fica mais fresco — sem esperar por um segundo pedido.
-
-                  «E o mesmo quando enviamos proposta no fazer proposta.» O
-                  «Copiar resumo» já cá estava e obrigava-a a ir ao WhatsApp,
-                  abrir uma conversa e colar. O botão abre-o com a mensagem já
-                  escrita e a lista de contactos à espera — os mesmos dois
-                  passos, menos os três do meio. O copiar FICA, para quem quer
-                  o texto noutro sítio qualquer. */}
-              <div className="flex flex-wrap items-center gap-2">
-                <BotaoWhatsApp texto={resumoParaCopiar} />
-                <CopiarResumo texto={resumoParaCopiar} />
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setSent(false);
-                  setConfirmSend(false);
-                }}
-              >
-                Enviar de novo / nova revisão
-              </Button>
-            </div>
-          </Section>
-        ) : (
-          <div>
-            {/* ── O PASSO 5 FICOU SÓ COM O EMAIL (14/10) ──────────────────
-                  Pedido dela: tirar o bloco «Enviar ao cliente» — o resumo
-                  (Para, Clientes, Total, Sinal), o «Copiar resumo» e o
-                  WhatsApp de antes do envio, as notas do WhatsApp e da língua
-                  e a «Mensagem para o cliente» — e deixar só o email que o
-                  cliente vai receber. O que se escrevia na mensagem escreve-se
-                  agora no próprio texto do email, que é editável e é o que
-                  segue. O «Para» continua no cabeçalho do email; o total, o
-                  sinal e as faltas, na Conferência por baixo. Depois de
-                  enviada, o WhatsApp e o «Copiar resumo» continuam no painel
-                  do «Proposta enviada». */}
-            {/* ══════════════════════════════════════════════════════════
-                  O EMAIL, ANTES DE ALGUÉM CARREGAR EM ENVIAR
-                  ══════════════════════════════════════════════════════════
-
-                  Depois da mensagem (que é um dos dados de que o texto parte) e
-                  ANTES da conferência: a passagem de olhos do documento e a do
-                  email fazem-se seguidas, com o dedo já a caminho do botão.
-
-                  O `activo` existe porque este passo fica MONTADO enquanto se
-                  escreve o conteúdo — sem ele, cada tecla do passo 1 mandava
-                  uma leitura do rascunho para o servidor. */}
-            <EmailDoEnvio
-              quoteId={quote.id}
-              doc={doc as ProposalDoc}
-              idioma={idiomaDoPdf}
-              // A caixa da mensagem saiu (14/10): escreve-se no texto do email.
-              mensagem=""
-              activo={step === "enviar"}
-              corpo={corpoDoEmail}
-              onCorpo={setCorpoDoEmail}
-              assunto={assuntoDoEmail}
-              onAssunto={setAssuntoDoEmail}
-              onModelo={setModeloDoEmail}
-              // Medido quando houve pré-visualização; estimado quando não —
-              // e o ecrã diz qual dos dois é.
-              bytesDoAnexo={bytesDoPdf ?? tamanhoEstimado(totalDeFotos, amostras)}
-              bytesMedidos={bytesDoPdf !== null}
-              // Vazio quer dizer «compõe-o tu», e por isso o campo sai do
-              // documento em vez de lá ficar como cadeia vazia: um `""`
-              // gravado era indistinguível de uma escolha, e o dia em que a
-              // composição mudasse não chegava às propostas que passaram por
-              // aqui.
-              onNomeDoFicheiro={(nome) => patch({ nomeDoFicheiro: nome.trim() ? nome : undefined })}
-            />
-            {/* ── O QUE JÁ SEGUIU ────────────────────────────────────────
-                  Depois da conferência (que olha para ESTA proposta) e antes
-                  do botão: é aqui que a pergunta "o que é que eles vão ver de
-                  diferente?" se faz, com o dedo já a caminho do Enviar.
-
-                  O `key` muda quando se envia — assim o painel volta a ler o
-                  histórico e a proposta que acabou de sair aparece nele, em vez
-                  de ficar com a lista de antes do envio. */}
-            <Versoes
-              key={String(sent)}
-              quoteId={quote.id}
-              doc={doc as ProposalDoc}
-              onRestaurar={restaurarVersao}
-              // A língua escolhida ao lado (ver a Conferência, aqui em cima):
-              // o parágrafo do que mudou nasce na língua em que a proposta
-              // vai mesmo sair.
-              idioma={idiomaDoPdf}
-              onInserirNaMensagem={inserirParagrafoDoQueMudou}
-            />
-            {/* ── A FRASE ESTÁTICA SAIU DAQUI ──────────────────────────
-                  Dizia «Preenche clientes, referência e um total maior que 0
-                  (no passo «Conteúdo») antes de enviar» — sempre as mesmas
-                  palavras, mesmo quando só faltava uma das três, sem link para
-                  nenhuma e a repetir uma lista que já existia duas vezes (a
-                  Conferência aqui em cima e a coluna lateral, que só existe
-                  acima de 1280 px).
-
-                  Agora o que trava está na Conferência, em primeiro e a
-                  vermelho, com o nome do que falta e um link que põe o cursor
-                  dentro do campo. Uma lista, um vocabulário, e visível em
-                  qualquer largura — ver `conferencia.ts`. */}
-          </div>
-        )}
-      </div>
+      <EnviarAoCliente
+        amostras={amostras}
+        assuntoDoEmail={assuntoDoEmail}
+        bytesDoPdf={bytesDoPdf}
+        canal={canal}
+        corpoDoEmail={corpoDoEmail}
+        doc={doc}
+        idiomaDoPdf={idiomaDoPdf}
+        inserirParagrafoDoQueMudou={inserirParagrafoDoQueMudou}
+        passoDoEnvio={passoDoEnvio}
+        patch={patch}
+        quote={quote}
+        restaurarVersao={restaurarVersao}
+        resumoParaCopiar={resumoParaCopiar}
+        sent={sent}
+        setAssuntoDoEmail={setAssuntoDoEmail}
+        setConfirmSend={setConfirmSend}
+        setCorpoDoEmail={setCorpoDoEmail}
+        setModeloDoEmail={setModeloDoEmail}
+        setSent={setSent}
+        step={step}
+        totalDeFotos={totalDeFotos}
+      />
 
       {/* ══════════ PASSO 5 · Rever e enviar — por onde segue, NO FIM (10/11) ══════════
           Até 10/11 vinha logo em cima, por um pedido dela de 14/10 que o
@@ -11719,67 +10932,13 @@ export default function ProposalStudio({
           primeira escolha do envio era a última coisa que se via. Sempre
           montado e escondido como o envio aqui em baixo, para o salto de
           «Falta o email» (`#seccao-envio`) ter onde cair. */}
-      <div
-        className={step === "enviar" && !sent ? "view-in mt-4 mb-4" : undefined}
-        hidden={step !== "enviar" || sent}
-      >
-        <Section title="Por onde segue">
-          {/* ── POR ONDE SEGUE ────────────────────────────────────────────
-                  A escolha vem ANTES do resumo e do botão (e, desde 14/10, no
-                  topo do passo), porque muda o que o
-                  resumo quer dizer: com «só WhatsApp», a linha «Para: <email>»
-                  deixa de ser o destino e passa a ser só um dado do pedido.
-
-                  Os rótulos dizem o CANAL e não o verbo — «Email», «WhatsApp»,
-                  «Os dois» — porque o verbo já está no botão a seguir, e repetir
-                  «enviar» três vezes numa fila de três não ajuda a escolher. */}
-          <div className="scroll-mt-24" id="seccao-envio">
-            <Segmented
-              size="sm"
-              ariaLabel="Por onde é que a proposta segue"
-              value={canal}
-              onChange={escolherCanal}
-              options={OPCOES_DO_CANAL}
-            />
-            {/* ── O QUE CADA ESCOLHA FAZ, DITO ANTES DO GESTO ────────────
-                    Sem esta linha, «WhatsApp» prometia um envio automático que
-                    não existe: nenhuma página consegue mandar uma mensagem por
-                    alguém. O que acontece é o WhatsApp ABRIR com a mensagem
-                    escrita, e ser ela a escolher a quem — e isso é um segundo
-                    gesto, dela, depois deste. Dizê-lo aqui é a diferença entre
-                    uma expectativa cumprida e uma surpresa. */}
-            <p className="bo-text-muted mt-2 text-xs leading-relaxed">
-              {canal === "email"
-                ? "O cliente recebe a proposta em PDF por email."
-                : canal === "whatsapp"
-                  ? "Não sai email. A proposta é gerada e o link fica pronto — a seguir abres o WhatsApp e escolhes a quem o mandas."
-                  : "O cliente recebe o PDF por email, e a seguir abres o WhatsApp com o link para lho mandares também."}
-            </p>
-          </div>
-          {/* ── SEM DESTINATÁRIO, DIZ-SE AQUI E NÃO DEPOIS ──────────────
-                  Um pedido que entrou por telefone não tem email. Até aqui só
-                  se sabia DEPOIS de carregar em Enviar: a proposta ficava
-                  gravada, o email não saía, e o aviso vinha a seguir ao gesto.
-
-                  Agora está antes do dedo, e diz ONDE se resolve — no painel do
-                  pedido, que passou a deixar corrigir os contactos. */}
-          {/* ── E O AVISO DO EMAIL EM FALTA CALA-SE QUANDO NÃO É POR AÍ ──
-                  Com «só WhatsApp», não ter email de cliente deixou de ser um
-                  problema — é o caso NORMAL de um pedido que entrou por
-                  telefone. Um aviso cor de laranja a apontar para uma coisa
-                  que não faz falta ensina a ignorar avisos. */}
-          {!emailDoCliente && canal !== "whatsapp" && (
-            <p className="mt-3 flex items-start gap-1.5 rounded-xl border border-[var(--bo-aviso-tom)]/35 bg-[var(--bo-aviso-tom)]/[0.06] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]">
-              <span aria-hidden="true">⚠</span>
-              <span>
-                Este pedido não tem email de cliente, e sem ele a proposta não pode seguir por
-                email. Acrescenta-o nos <strong className="font-medium">contactos do pedido</strong>
-                , em Detalhes — ou escolhe «WhatsApp».
-              </span>
-            </p>
-          )}
-        </Section>
-      </div>
+      <PorOndeSegue
+        canal={canal}
+        emailDoCliente={emailDoCliente}
+        escolherCanal={escolherCanal}
+        sent={sent}
+        step={step}
+      />
 
       {/* Ação principal — muda conforme o passo, para haver sempre UMA próxima
           ação óbvia. */}

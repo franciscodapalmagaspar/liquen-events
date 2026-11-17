@@ -16,3 +16,16 @@ export type Step = Passo;
  * ecrã não tinha (ver `estadoDosUrls`).
  */
 export type EstadoDosUrls = "a-caminho" | "pronto" | "falhou";
+
+/**
+ * Para onde vai a fotografia que se escolher na biblioteca de temas.
+ *
+ * `substituir` é a posição a TROCAR no lugar: a foto escolhida entra ali em
+ * vez de ir para o fim. Sem isto, trocar uma foto era removê-la, escolher
+ * outra, e arrastá-la de volta ao sítio onde a primeira estava.
+ */
+export type DestinoDaFoto =
+  | { kind: "board"; bi: number; substituir?: number }
+  | { kind: "cover"; idx: number }
+  /** Uma página do PDF (`fotosDasPaginas`): a foto vai para o lugar `lugar`. */
+  | { kind: "pagina"; chave: string; lugar: number; max: number };

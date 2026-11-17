@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { margemTotal } from "@/lib/orcamento/margem";
-import { useDefinicoesDaProposta } from "../../definicoes-da-proposta";
-import type { ProposalDoc } from "@/lib/proposal-doc";
 import { eur } from "@/lib/money";
+import { margemTotal } from "@/lib/orcamento/margem";
+import type { ProposalDoc } from "@/lib/proposal-doc";
+import { useDefinicoesDaProposta } from "../../definicoes-da-proposta";
 
 /** Resumo em página: a "forma" da proposta (capa, serviços, total sem IVA/IVA/
  *  com IVA, sinal/saldo) sem ter de descarregar o PDF. */

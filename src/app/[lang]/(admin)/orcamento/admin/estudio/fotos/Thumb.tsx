@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { relatarFalhaDeImagem } from "../../relatar-falha";
 import { useFotoComPlanoB } from "@/lib/useFotoComPlanoB";
+import { relatarFalhaDeImagem } from "../../relatar-falha";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
 import type { EstadoDosUrls } from "../tipos";
 import { CelulaSemFotografia } from "./CelulaSemFotografia";

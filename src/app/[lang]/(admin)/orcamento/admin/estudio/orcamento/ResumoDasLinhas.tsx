@@ -1,7 +1,7 @@
 "use client";
 
-import { totaisDaProposta } from "@/lib/proposal-budget";
 import { eur } from "@/lib/money";
+import { totaisDaProposta } from "@/lib/proposal-budget";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
 
 /**
