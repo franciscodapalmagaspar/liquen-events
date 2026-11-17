@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CONTAGEM_VAZIA, comAcontecimento, totalAte, type Contagem } from "./tempo-activo";
-import { criarEnvioDoTempo, PASSO_DO_ECRA_MS, PASSO_DO_ENVIO_MS } from "./tempo-activo-envio";
+import {
+  criarEnvioDoTempo,
+  PASSO_DO_ECRA_MS,
+  PASSO_DO_ENVIO_MS,
+  type Enviar,
+} from "./tempo-activo-envio";
 
 /**
  * O envio do tempo activo passou de 30 em 30 s para 5 em 5 min (16/11). O
@@ -90,18 +95,26 @@ function esquemaAntigo() {
   return { enviados, total };
 }
 
+/** Desfaz cada envio (um por lote) em pedaços por secção, e conta os pedidos. */
+function recolher(enviados: Pedaco[], pedidos?: { n: number }): Enviar {
+  return (lote, aFechar) => {
+    if (pedidos) pedidos.n++;
+    for (const [seccao, ms] of Object.entries(lote)) {
+      enviados.push({ ms, seccao: seccao === "" ? null : seccao, aFechar });
+    }
+  };
+}
+
 function esquemaNovo() {
   const enviados: Pedaco[] = [];
-  const envio = criarEnvioDoTempo(
-    (ms, seccao, aFechar) => enviados.push({ ms, seccao, aFechar }),
-    Date.now(),
-  );
+  const pedidos = { n: 0 };
+  const envio = criarEnvioDoTempo(recolher(enviados, pedidos), Date.now());
   const total = sessao({
     aoPasso: (t, s, a) => envio.passo(t, s, a),
     aoEsconder: (t, s, a) => envio.despejar(t, s, a),
     aoFechar: (t, s, a) => envio.despejar(t, s, a),
   });
-  return { enviados, total };
+  return { enviados, total, pedidos: pedidos.n };
 }
 
 const somar = (p: Pedaco[]) => p.reduce((a, x) => a + x.ms, 0);
@@ -127,17 +140,14 @@ describe("o tempo activo sobe de 5 em 5 minutos, e conta o mesmo", () => {
 
   it("em muito menos pedidos", () => {
     const antigo = esquemaAntigo().enviados.length;
-    const novo = esquemaNovo().enviados.length;
+    const novo = esquemaNovo().pedidos;
     expect(novo).toBeLessThan(antigo / 3);
   });
 
   it("ao esconder a página, o que houver sobe logo, pelo beacon", () => {
     const enviados: Pedaco[] = [];
     const t0 = Date.now();
-    const envio = criarEnvioDoTempo(
-      (ms, seccao, aFechar) => enviados.push({ ms, seccao, aFechar }),
-      t0,
-    );
+    const envio = criarEnvioDoTempo(recolher(enviados), t0);
     envio.passo(30_000, "capa", t0 + 30_000);
     expect(enviados).toEqual([]); // ainda não passaram 5 minutos
     envio.despejar(42_000, "capa", t0 + 42_000);
@@ -147,10 +157,7 @@ describe("o tempo activo sobe de 5 em 5 minutos, e conta o mesmo", () => {
   it("um envio de 5 em 5 minutos, mesmo com o relógio do ecrã a 30 s", () => {
     const enviados: Pedaco[] = [];
     const t0 = Date.now();
-    const envio = criarEnvioDoTempo(
-      (ms, seccao, aFechar) => enviados.push({ ms, seccao, aFechar }),
-      t0,
-    );
+    const envio = criarEnvioDoTempo(recolher(enviados), t0);
     for (let k = 1; k <= 20; k++)
       envio.passo(k * PASSO_DO_ECRA_MS, "capa", t0 + k * PASSO_DO_ECRA_MS);
     // 20 passos = 10 minutos = 2 envios, de 5 minutos cada.
@@ -163,13 +170,30 @@ describe("o tempo activo sobe de 5 em 5 minutos, e conta o mesmo", () => {
   it("menos de um segundo não vale um pedido, e não se perde", () => {
     const enviados: Pedaco[] = [];
     const t0 = Date.now();
-    const envio = criarEnvioDoTempo(
-      (ms, seccao, aFechar) => enviados.push({ ms, seccao, aFechar }),
-      t0,
-    );
+    const envio = criarEnvioDoTempo(recolher(enviados), t0);
     envio.despejar(400, "capa", t0 + 400);
     expect(enviados).toEqual([]);
     envio.despejar(1_500, "capa", t0 + 1_500);
     expect(enviados).toEqual([{ ms: 1_500, seccao: "capa", aFechar: true }]);
+  });
+});
+
+/**
+ * 17/11: o envio de várias secções ia num pedido por secção, AO MESMO TEMPO,
+ * e o servidor (ler-somar-gravar sem trinco) ficava só com o último. Agora é
+ * um pedido com todas — e um envio falhado volta aos pendentes.
+ */
+describe("várias secções num só pedido", () => {
+  it("três secções em cinco minutos dão UM envio, com as três", () => {
+    const lotes: Record<string, number>[] = [];
+    const t0 = Date.now();
+    const envio = criarEnvioDoTempo((lote) => lotes.push(lote), t0);
+    envio.passo(60_000, "capa", t0 + 60_000);
+    envio.passo(150_000, "mood-boards", t0 + 150_000);
+    envio.passo(200_000, null, t0 + 200_000);
+    envio.passo(300_000, "orcamento", t0 + 300_000);
+    expect(lotes).toEqual([
+      { capa: 60_000, "mood-boards": 90_000, "": 50_000, orcamento: 100_000 },
+    ]);
   });
 });

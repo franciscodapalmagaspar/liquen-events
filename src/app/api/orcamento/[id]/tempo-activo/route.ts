@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
-import { acrescentarTempoActivo, getTempoActivo } from "@/lib/tempo-activo-servidor";
+import {
+  acrescentarTempoActivo,
+  acrescentarTempoActivoPorSeccao,
+  getTempoActivo,
+} from "@/lib/tempo-activo-servidor";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -47,19 +51,42 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
 
   const corpo = await request.json().catch(() => null);
+  /**
+   * Dois formatos (17/11). O de agora, `{ porSeccao: { capa: 12000, "": 3000 } }`
+   * — um pedido só com todas as secções de cinco minutos, somadas numa só
+   * escrita. E o de antes, `{ ms, seccao }`, que um separador aberto antes da
+   * publicação ainda manda.
+   */
+  const porSeccaoCru = (corpo as { porSeccao?: unknown } | null)?.porSeccao;
+  let porSeccao: Record<string, number> | null = null;
+  if (porSeccaoCru !== undefined) {
+    if (!porSeccaoCru || typeof porSeccaoCru !== "object" || Array.isArray(porSeccaoCru)) {
+      return NextResponse.json({ error: "Tempo inválido." }, { status: 400 });
+    }
+    const entradas = Object.entries(porSeccaoCru as Record<string, unknown>);
+    if (
+      entradas.length > 50 ||
+      entradas.some(([, v]) => typeof v !== "number" || !Number.isFinite(v) || v < 0)
+    ) {
+      return NextResponse.json({ error: "Tempo inválido." }, { status: 400 });
+    }
+    porSeccao = Object.fromEntries(entradas) as Record<string, number>;
+  }
   const ms = (corpo as { ms?: unknown } | null)?.ms;
   const seccaoCrua = (corpo as { seccao?: unknown } | null)?.seccao;
   const seccao = typeof seccaoCrua === "string" ? seccaoCrua : undefined;
 
-  if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) {
+  if (!porSeccao && (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0)) {
     return NextResponse.json({ error: "Tempo inválido." }, { status: 400 });
   }
 
   try {
-    const { tempo, persistencia } = await acrescentarTempoActivo(id, ms, seccao);
+    const { tempo, persistencia } = porSeccao
+      ? await acrescentarTempoActivoPorSeccao(id, porSeccao)
+      : await acrescentarTempoActivo(id, ms as number, seccao);
 
-    // Falhar a gravar NÃO é um erro para quem está a trabalhar: perde-se meio
-    // minuto de uma medição, não se perde trabalho nenhum. Fica registado do
+    // Falhar a gravar NÃO é um erro para quem está a trabalhar: o estúdio guarda
+    // o pedaço e manda-o no envio seguinte (`guardado: false`), não se perde trabalho nenhum. Fica registado do
     // lado do servidor, e a resposta diz a verdade sobre onde o número ficou —
     // sem obrigar o estúdio a interromper nada por causa disto.
     if (persistencia && !persistencia.gravado) {

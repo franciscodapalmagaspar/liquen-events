@@ -2472,8 +2472,9 @@ export default function ProposalStudio({
     seccaoActivaRef.current = id;
   }, []);
   const enviarPedaco = useCallback(
-    (ms: number, seccao: string | null, aFechar: boolean) => {
-      const corpo = JSON.stringify({ ms, ...(seccao ? { seccao } : {}) });
+    (porSeccao: Record<string, number>, aFechar: boolean) => {
+      // UM pedido com todas as secções: o servidor soma-as numa só escrita.
+      const corpo = JSON.stringify({ porSeccao });
       const url = `/api/orcamento/${quote.id}/tempo-activo`;
       if (aFechar && typeof navigator !== "undefined" && navigator.sendBeacon) {
         // O beacon sobrevive à página; um `fetch` não.
@@ -2513,7 +2514,7 @@ export default function ProposalStudio({
   }, [enviarPedaco]);
   useEffect(() => {
     envioRef.current ??= criarEnvioDoTempo(
-      (ms, seccao, aFechar) => enviarPedacoRef.current(ms, seccao, aFechar),
+      (porSeccao, aFechar) => enviarPedacoRef.current(porSeccao, aFechar),
       Date.now(),
     );
     const envio = envioRef.current;

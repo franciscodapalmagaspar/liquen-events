@@ -97,6 +97,26 @@ export async function acrescentarTempoActivo(
   ms: number,
   seccao?: string,
 ): Promise<{ tempo: TempoDaProposta; persistencia: ResultadoDeEscrita | null }> {
+  return acrescentarTempoActivoPorSeccao(quoteId, { [seccao ?? ""]: ms });
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * VÁRIAS SECÇÕES NUMA SÓ ESCRITA (17/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O estúdio junta o tempo de cinco minutos e manda-o de uma vez, repartido por
+ * secção (`tempo-activo-envio.ts`). Mandava um pedido por secção, ao mesmo
+ * tempo — e cada um faz ler-somar-gravar sem trinco: os pedidos liam o mesmo
+ * total, e só o último a gravar ficava. Agora é UM pedido e UMA escrita com
+ * todas as secções. A chave `""` é o tempo sem secção (conta só no total).
+ *
+ * O tecto por envio aplica-se a cada pedaço, como antes.
+ */
+export async function acrescentarTempoActivoPorSeccao(
+  quoteId: string,
+  pedacos: Record<string, number>,
+): Promise<{ tempo: TempoDaProposta; persistencia: ResultadoDeEscrita | null }> {
   // Lido para somar e voltar a gravar: uma leitura falhada LANÇA (a rota
   // apanha e responde sem gravar) em vez de pôr o total a zero por cima do
   // verdadeiro (revisão de 13/11, n.º 10).
@@ -104,9 +124,20 @@ export async function acrescentarTempoActivo(
     ms: 0,
     updatedAt: "",
   };
-  const somar = Number.isFinite(ms) && ms > 0 ? Math.min(Math.round(ms), MAXIMO_POR_ENVIO) : 0;
 
-  if (somar === 0) {
+  const porSeccao = { ...(anterior.porSeccao ?? {}) };
+  let somado = 0;
+  for (const [seccao, ms] of Object.entries(pedacos)) {
+    const somar = Number.isFinite(ms) && ms > 0 ? Math.min(Math.round(ms), MAXIMO_POR_ENVIO) : 0;
+    if (somar === 0) continue;
+    somado += somar;
+    const nome = seccao.trim().slice(0, 40);
+    if (nome && (nome in porSeccao || Object.keys(porSeccao).length < MAX_SECCOES)) {
+      porSeccao[nome] = (porSeccao[nome] ?? 0) + somar;
+    }
+  }
+
+  if (somado === 0) {
     // Nada a somar é nada a escrever: um envio de zero (a página esteve
     // aberta e parada) não tem de gastar uma escrita nem mexer no `updatedAt`.
     return {
@@ -119,14 +150,8 @@ export async function acrescentarTempoActivo(
     };
   }
 
-  const porSeccao = { ...(anterior.porSeccao ?? {}) };
-  const nome = (seccao ?? "").trim().slice(0, 40);
-  if (nome && (nome in porSeccao || Object.keys(porSeccao).length < MAX_SECCOES)) {
-    porSeccao[nome] = (porSeccao[nome] ?? 0) + somar;
-  }
-
   const tempo: TempoDaProposta = {
-    ms: anterior.ms + somar,
+    ms: anterior.ms + somado,
     ...(Object.keys(porSeccao).length > 0 ? { porSeccao } : {}),
     updatedAt: new Date().toISOString(),
   };

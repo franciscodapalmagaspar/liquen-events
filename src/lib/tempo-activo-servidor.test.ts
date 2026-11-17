@@ -27,6 +27,7 @@ vi.mock("./app-state", () => ({
 
 const {
   acrescentarTempoActivo,
+  acrescentarTempoActivoPorSeccao,
   getTempoActivo,
   listTemposActivos,
   MAXIMO_POR_ENVIO,
@@ -135,5 +136,39 @@ describe("listTemposActivos", () => {
 
   it("é um mapa vazio quando ainda não há medições", async () => {
     expect(await listTemposActivos()).toEqual({});
+  });
+});
+
+/**
+ * 17/11: o estúdio mandava um pedido por secção ao mesmo tempo, e cada um faz
+ * ler-somar-gravar sem trinco — ficava só o último. Agora vai tudo numa
+ * escrita.
+ */
+describe("acrescentarTempoActivoPorSeccao", () => {
+  it("três secções numa só escrita: nada se perde", async () => {
+    const { setState } = await import("./app-state");
+    await acrescentarTempoActivo("LIQ-9", 10_000, "capa");
+    const antes = vi.mocked(setState).mock.calls.length;
+    await acrescentarTempoActivoPorSeccao("LIQ-9", {
+      capa: 60_000,
+      "mood-boards": 90_000,
+      orcamento: 30_000,
+      "": 5_000,
+    });
+    expect(vi.mocked(setState).mock.calls.length - antes).toBe(1);
+    const t = await getTempoActivo("LIQ-9");
+    expect(t?.ms).toBe(10_000 + 60_000 + 90_000 + 30_000 + 5_000);
+    expect(t?.porSeccao).toEqual({ capa: 70_000, "mood-boards": 90_000, orcamento: 30_000 });
+  });
+
+  it("o tecto por envio aplica-se a cada pedaço, e o que não é tempo não conta", async () => {
+    await acrescentarTempoActivoPorSeccao("LIQ-9", {
+      capa: MAXIMO_POR_ENVIO * 5,
+      x: -3,
+      y: Number.NaN,
+    });
+    const t = await getTempoActivo("LIQ-9");
+    expect(t?.ms).toBe(MAXIMO_POR_ENVIO);
+    expect(t?.porSeccao).toEqual({ capa: MAXIMO_POR_ENVIO });
   });
 });
