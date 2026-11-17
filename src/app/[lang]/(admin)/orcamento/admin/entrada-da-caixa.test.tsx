@@ -13,6 +13,7 @@ import SessaoExpirada from "./SessaoExpirada";
 import { ToastProvider } from "./Toast";
 import { RegistoDeGravacoesProvider } from "./registo-de-gravacoes";
 import { __resetListCache } from "./useCachedList";
+import { fonteDe } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -245,8 +246,7 @@ describe("o calendário", () => {
 describe("a foto em grande é uma vista a substituir outra", () => {
   // `process.cwd()` e não o `import.meta.url`: em ambiente jsdom o segundo
   // chega relativo e o `readFileSync` procurava na raiz do disco.
-  const RAIZ = join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin");
-  const fonte = readFileSync(join(RAIZ, "ThemePicker.tsx"), "utf8");
+  const fonte = fonteDe("ThemePicker.tsx");
 
   it("usa a `.view-in`, e não a entrada do que aparece por cima da página", () => {
     // A chapa que tapa a grelha: `absolute inset-0` dentro do mesmo diálogo.

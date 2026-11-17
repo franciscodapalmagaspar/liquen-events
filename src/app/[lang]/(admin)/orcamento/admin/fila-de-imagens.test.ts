@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { pedirVezDeImagemPesada, limparFilaDeImagens, ESPERA_MAXIMA_MS } from "./fila-de-imagens";
+import {
+  criarFilaDeImagens,
+  pedirVezDeImagemPesada,
+  limparFilaDeImagens,
+  ESPERA_MAXIMA_MS,
+} from "./fila-de-imagens";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -124,5 +129,61 @@ describe("o relógio da fila", () => {
     expect(arrancaram).toEqual([0, 1, 2, 3, 4, 5]);
     vi.advanceTimersByTime(1);
     expect(arrancaram).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+});
+
+/**
+ * ── AS TRÊS GRELHAS, CADA UMA COM O SEU TECTO (fase 8) ───────────────────────
+ *
+ * A Biblioteca de Temas e o seletor do estúdio tinham cópias à mão desta fila.
+ * Passaram a instâncias de `criarFilaDeImagens` SEM mudar o comportamento: cada
+ * uma continua com o seu tecto de 3, e as duas não têm relógio interno (o delas
+ * vive na célula). Juntá-las espera pela aprovação dela — e estes casos são o
+ * que fica vermelho no dia em que alguém o fizer sem querer.
+ */
+describe("a fábrica da fila", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("duas filas não partilham o tecto: cada uma deixa passar as suas três", () => {
+    const a = criarFilaDeImagens({ limite: 3, esperaMaximaMs: null });
+    const b = criarFilaDeImagens({ limite: 3, esperaMaximaMs: null });
+    const arrancou: string[] = [];
+    for (let i = 0; i < 4; i++) a.pedirVez(() => arrancou.push(`a${i}`));
+    for (let i = 0; i < 4; i++) b.pedirVez(() => arrancou.push(`b${i}`));
+    pedirVezDeImagemPesada(() => arrancou.push("partilhada"));
+    expect(arrancou).toEqual(["a0", "a1", "a2", "b0", "b1", "b2", "partilhada"]);
+  });
+
+  it("sem relógio interno, uma vez concedida não volta sozinha à fila", () => {
+    vi.useFakeTimers();
+    const f = criarFilaDeImagens({ limite: 1, esperaMaximaMs: null });
+    const arrancou: number[] = [];
+    f.pedirVez(() => arrancou.push(1));
+    f.pedirVez(() => arrancou.push(2));
+    vi.advanceTimersByTime(10 * ESPERA_MAXIMA_MS);
+    expect(arrancou).toEqual([1]);
+  });
+
+  it("com relógio, a vez pendurada volta ao fim do tempo", () => {
+    vi.useFakeTimers();
+    const f = criarFilaDeImagens({ limite: 1, esperaMaximaMs: 1000 });
+    const arrancou: number[] = [];
+    f.pedirVez(() => arrancou.push(1));
+    f.pedirVez(() => arrancou.push(2));
+    vi.advanceTimersByTime(999);
+    expect(arrancou).toEqual([1]);
+    vi.advanceTimersByTime(1);
+    expect(arrancou).toEqual([1, 2]);
+  });
+
+  it("largar liberta a vaga para a seguinte, pela ordem", () => {
+    const f = criarFilaDeImagens({ limite: 1, esperaMaximaMs: null });
+    const arrancou: number[] = [];
+    const largar1 = f.pedirVez(() => arrancou.push(1));
+    f.pedirVez(() => arrancou.push(2));
+    f.pedirVez(() => arrancou.push(3));
+    largar1();
+    largar1();
+    expect(arrancou).toEqual([1, 2]);
   });
 });

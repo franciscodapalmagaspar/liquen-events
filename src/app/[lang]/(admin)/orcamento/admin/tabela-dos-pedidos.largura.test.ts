@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { fonteDoAdmin } from "./fonte-do-admin.testkit";
 
 /**
  * A TABELA DOS PEDIDOS NÃO PODE SER MAIS LARGA DO QUE A CAIXA A 1440
@@ -15,10 +14,9 @@ import { join } from "node:path";
  * tem um tecto (o degrau de 240 px da escala de larguras, DESIGN-SYSTEM §9.9)
  * e o texto inteiro no `title`, que é a «tooltip de expansão» do mesmo §9.9.
  */
-const FONTE = readFileSync(
-  join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin/AdminClient.tsx"),
-  "utf8",
-);
+// As colunas saíram para `_pedidos/colunas-dos-pedidos.tsx` (fase 7 da
+// estrutura do código); o testkit lê o componente e as casas dele.
+const FONTE = fonteDoAdmin();
 
 describe("a coluna Local da tabela dos pedidos", () => {
   const inicio = FONTE.indexOf('chave: "local"');

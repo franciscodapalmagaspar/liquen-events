@@ -20,12 +20,11 @@ import {
 } from "@/lib/theme-types";
 import { useToast } from "./Toast";
 import { MEDIDA_LG, MEDIDA_SM, useMedida } from "./useMedida";
-import { Ajuda, Button, FolhaOuDialogo } from "./ui";
+import { Button, FolhaOuDialogo } from "./ui";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { porqueNaoLeu, porqueNaoLeuDoErro, type LeituraFalhada } from "@/lib/porque-nao-leu";
 import { ESTADO, PRESSAO, PROGRESSO } from "./ui/movimento";
 import { rolarAteVer } from "@/lib/motion/rolar";
-import { CuradoriaDeFotos } from "./CuradoriaDeFotos";
 import { PaginaEmConstrucao, type FotoDaPagina } from "./PaginaEmConstrucao";
 import { avaliarFoto, type LugarDaFoto } from "@/lib/qualidade-da-foto";
 import {
@@ -39,6 +38,10 @@ import {
   temasEmCache,
   vaiRevalidar,
 } from "./theme-picker-cache";
+import { plural } from "@/lib/plural";
+import { Preview } from "./_temas/seletor/FotoDoSeletor";
+import { themeScroll } from "./_temas/seletor/posicao-do-rolo";
+import { FotosDoTema } from "./_temas/seletor/FotosDoTema";
 
 /**
  * Escolher fotos da Biblioteca de Temas para uma proposta.
@@ -107,19 +110,6 @@ import {
 /** Último tema usado, para abrir já no sítio certo na proposta seguinte. */
 const LAST_THEME_KEY = "liquen-tema-recente";
 
-/**
- * AS COLUNAS DA GRELHA DE FOTOS — a régua é a ZONA, não a janela.
- *
- * Uma constante e não duas cadeias soltas porque são DUAS grelhas: a das fotos
- * e o esqueleto que a precede. Com formas diferentes, o conteúdo saltava de
- * sítio no instante em que as fotos chegavam — e foi assim que estiveram, uma a
- * três colunas e outra a duas.
- *
- * A razão de ser `@min-[26rem]:` e um `minmax` está escrita por extenso na
- * grelha, onde estão as medidas.
- */
-const GRELHA_DE_FOTOS = "grid-cols-2 @min-[26rem]:grid-cols-[repeat(auto-fill,minmax(9rem,1fr))]";
-
 /** A partir de quantas fotos o rodapé passa a contar "X de 40": a meio do
  *  caminho, cedo o suficiente para o teto não aparecer de surpresa. */
 const COUNTDOWN_FROM = MAX_IMPORT_BATCH / 2;
@@ -147,30 +137,6 @@ const BIG_BATCH = 16;
  *  para se ler "8 fotos adicionadas", pouco para não virar mobília. */
 const DONE_LINGER_MS = 4000;
 
-/**
- * QUANTOS ORIGINAIS SE DESCARREGAM AO MESMO TEMPO nesta grelha.
- *
- * Uma foto sem miniatura (tudo o que foi carregado antes de elas existirem)
- * obriga a puxar o original: ~2,6 MB para desenhar uma célula de 150 px.
- * Medido em Chromium sobre HTTP/2, 60 fotos, 50 Mbit/s partilhados: com os 60
- * pedidos ao mesmo tempo — que é o que o browser faz, e o `loading="lazy"` não
- * trava — a PRIMEIRA foto aparece aos 26 351 ms, porque os 60 downloads
- * repartem o canal e acabam todos no fim. Com um tecto de 3 em voo, a primeira
- * aparece aos 1405 ms e a última não chega mais tarde do que chegava.
- *
- * Às fotos COM miniatura não se põe tecto nenhum: são ~25 KB, e medir mostrou
- * que aí um tecto só atrasa (1019 ms contra 350 ms para as 60).
- *
- * O número é o mesmo da Biblioteca de Temas (`Temas.tsx`) e a fila é a mesma
- * ideia — está aqui repetida, e não partilhada, para este diálogo do estúdio
- * não arrastar para o seu pacote o ecrã inteiro da biblioteca.
- */
-const HEAVY_IMAGE_CONCURRENCY = 3;
-
-/** Células da primeira dobra: carregam já e com prioridade (o diálogo mostra
- *  5 colunas, portanto duas linhas). */
-const ABOVE_FOLD = 10;
-
 /** Quantas miniaturas se aquecem ao adivinhar um tema (o rato passou por cima
  *  do separador, ou do botão que abre a biblioteca). É a primeira dobra e mais
  *  uma linha: o que ela vai VER antes de rolar. Só miniaturas — aquecer
@@ -181,50 +147,6 @@ const WARM_THUMBS = 15;
  *  buscar a seguinte. Ver `Temas.tsx`: a primeira página tem de chegar
  *  primeiro, senão estaríamos a repartir o canal outra vez. */
 const PREFETCH_DELAY_MS = 1500;
-
-/** Se um download ficar pendurado, a vez volta ao fim deste tempo. */
-const HEAVY_SLOT_TIMEOUT_MS = 30_000;
-
-interface HeavySlot {
-  start: () => void;
-  started: boolean;
-  released: boolean;
-}
-const heavyWaiting: HeavySlot[] = [];
-let heavyLive = 0;
-
-function pumpHeavy() {
-  while (heavyLive < HEAVY_IMAGE_CONCURRENCY && heavyWaiting.length > 0) {
-    const slot = heavyWaiting.shift();
-    if (!slot || slot.released) continue;
-    slot.started = true;
-    heavyLive += 1;
-    slot.start();
-  }
-}
-
-/** Pede vez para descarregar um original; devolve a função de a largar
- *  (acabou ou desistiu — é idempotente). */
-function queueHeavyImage(start: () => void): () => void {
-  const slot: HeavySlot = { start, started: false, released: false };
-  heavyWaiting.push(slot);
-  pumpHeavy();
-  return () => {
-    if (slot.released) return;
-    slot.released = true;
-    if (slot.started) {
-      heavyLive = Math.max(0, heavyLive - 1);
-      pumpHeavy();
-      return;
-    }
-    const i = heavyWaiting.indexOf(slot);
-    if (i >= 0) heavyWaiting.splice(i, 1);
-  };
-}
-
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
 
 /** O que a pastilha de um tema mostra a seguir ao nome. `imageCount` a `null` =
  *  a pasta não pôde ser lida — dizer "0" faria a equipa pensar que as fotos
@@ -325,8 +247,6 @@ function novoMarcador(): string {
 const cachedTheme = (themeId: string | null): PaginaTema | null =>
   themeId ? paginaEmCache(themeId) : null;
 
-/** Onde o rolo ficou, por tema. */
-const themeScroll = new Map<string, number>();
 /** O tema em que o diálogo estava quando fechou (a memória curta; o
  *  `localStorage` é a longa, entre sessões). */
 let lastThemeId: string | null = null;
@@ -769,10 +689,9 @@ async function runJob(job: ImportJob): Promise<void> {
       }
       const copied: ImportedImage[] = Array.isArray(data?.images) ? data.images : [];
       const failedHere: string[] = Array.isArray(data?.failed) ? data.failed : [];
-      // A ORIGEM de cada foto vem agora NA RESPOSTA (`sourcePath`), desde que a
-      // rota deixou de copiar bytes e passou a devolver referências à
-      // biblioteca: ela sabe-a de certeza e nós deixámos de a ter de deduzir
-      // pela posição.
+      // A ORIGEM de cada foto vem agora NA RESPOSTA (`sourcePath`), desde que a rota deixou de
+      // copiar bytes e passou a devolver referências à biblioteca: ela sabe-a de certeza e nós
+      // deixámos de a ter de deduzir pela posição.
       //
       // O emparelhamento posicional fica como plano B, para uma resposta antiga
       // (um separador aberto durante um deploy) que chegue sem o campo. Se nem
@@ -2527,387 +2446,42 @@ export default function ThemePicker({
             </div>
           )}
         </div>
-        {/* A coluna da direita: a barra de selecção e a grelha. Um invólucro só,
-            para que a coluna dos temas não empurre nada — e para que o `flex-1`
-            que a grelha já ocupava passe a ser desta coluna. */}
-        <div className="flex min-h-0 flex-1 flex-col">
-          {/* ── Barra de seleção ──────────────────────────────────────────────
-            Só faz sentido com várias fotos a escolher.
-
-            ── «SELECIONAR TODAS AS VISÍVEIS» NÃO DIZIA O QUE FAZIA ──────────
-            Palavras dela: «está solto e é ambíguo: seleciona as visíveis no
-            ecrã ou todas as do tema?». Nenhuma das duas — escolhe as que já
-            foram CARREGADAS, que com um tema pequeno são todas e com um tema
-            grande são as primeiras quarenta.
-
-            O rótulo passa a dizer o número e de onde ele vem, e muda com o
-            estado: «as 18 deste tema» quando não falta nenhuma, «as 40 já
-            mostradas» quando o tema tem mais e ainda não desceram. Um botão
-            que diz um número é também um botão que se pode recusar antes de
-            carregar nele. */}
-          {multiple && images.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--bo-hairline)] px-5 py-2.5">
-              <Button size="sm" variant="ghost" onClick={selectAllVisible} disabled={atLimit}>
-                {hasMore
-                  ? `Escolher as ${images.length} já mostradas`
-                  : `Escolher as ${images.length} deste tema`}
-              </Button>
-              {selected.length > 0 && (
-                <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
-                  Limpar seleção
-                </Button>
-              )}
-              {/* ── A PORTA DA CURADORIA ────────────────────────────────────
-                Só com fotos que cheguem para valer a pena: com seis, a grelha
-                mostra-as todas de uma vez e uma de cada vez seria mais lento.
-                É a partir de uma grelha que não cabe no ecrã que o modo ganha. */}
-              {images.length > 8 && (
-                <Button size="sm" variant="ghost" onClick={() => setCuradoria(true)}>
-                  Uma de cada vez
-                </Button>
-              )}
-              {/* ── TRÊS TEXTOS DE AJUDA A COMPETIR, E AGORA UM ─────────────
-                Palavras dela: «há três textos de ajuda a competir; devia ser
-                uma instrução curta e os atalhos atrás de um "?"».
-
-                Havia mesmo. Aqui em cima duas versões da MESMA frase, uma para
-                o dedo e outra para o rato, ambas sempre no ecrã; e lá em baixo,
-                no rodapé, «Toca nas fotos que queres usar.» a dizer a terceira
-                vez a mesma coisa. Nenhum dos três é falso — o problema é que
-                são úteis na primeira vez e ruído a partir da segunda, e quem
-                lê três instruções ao mesmo tempo não fica a saber mais.
-
-                Fica UMA, no rodapé, onde já está a contagem: é o mesmo sítio
-                para onde o olho vai ver quantas escolheu, e é a mesma frase que
-                explica porque é que o botão de adicionar está desligado. Os
-                atalhos — que são de teclado e não se adivinham de qualquer
-                maneira — mudam-se para aqui, atrás do «?», e continuam a estar
-                a um toque de quem os quiser.
-
-                `alinhar="direita"` porque o botão está encostado à margem: um
-                painel a crescer para a direita a partir daqui saía do diálogo. */}
-              <Ajuda sobre="como escolher fotos" alinhar="direita" className="ml-auto">
-                <span className="block text-[11px] font-medium text-[var(--bo-text)]">
-                  Como escolher
-                </span>
-                <ul className="mt-1.5 space-y-1">
-                  <li>Toca numa foto para a escolher. Toca outra vez para a tirar.</li>
-                  <li>A lupa de cada foto mostra-a em grande sem sair daqui.</li>
-                  <li>
-                    No computador: <strong>setas</strong> andam pela grelha e <strong>V</strong>{" "}
-                    mostra em grande.
-                  </li>
-                  <li>
-                    <strong>Shift</strong> + clique (ou Shift + seta) escolhe tudo o que está pelo
-                    meio.
-                  </li>
-                </ul>
-              </Ajuda>
-            </div>
-          )}
-
-          {/* ── UMA DE CADA VEZ, OU A GRELHA ─────────────────────────────────
-            Os dois modos partilham tudo o que interessa — a selecção, o tema, o
-            teto do lote — e por isso a troca é só uma questão de o que se
-            desenha. A curadoria substitui a grelha e mais nada: o cabeçalho, a
-            fila dos temas e o rodapé continuam onde estavam, e o botão de
-            confirmar conta o mesmo que contava. */}
-          {/* ── O CANTO ONDE A PÁGINA SE VÊ A COMPOR ────────────────────────
-            `relative` para o canto flutuar POR CIMA das fotos em vez de lhes
-            tirar uma linha — palavras dela: «não pode roubar espaço às fotos.
-            Pequena, num canto, e dispensável». O invólucro não muda nada do que
-            está cá dentro: era este `flex-1` que a grelha ocupava, e continua a
-            ser. */}
-          <div className="relative flex min-h-0 flex-1 flex-col">
-            {curadoria && multiple ? (
-              <CuradoriaDeFotos
-                images={images}
-                escolhidas={selectedSet}
-                usadas={usedSet}
-                podeEscolherMais={!atLimit}
-                aoDecidir={decidirNaCuradoria}
-                aoVerGrande={(i) => setPreviewIndex(i)}
-                aoSair={() => setCuradoria(false)}
-              />
-            ) : (
-              <>
-                {/* Fotos */}
-                <div
-                  ref={scrollRef}
-                  onScroll={(e) => {
-                    if (themeId) themeScroll.set(themeId, e.currentTarget.scrollTop);
-                  }}
-                  /* `@container`: a grelha aqui dentro passa a medir ESTA
-                     zona e não a janela. É este invólucro que lhe dá a régua —
-                     ver o comentário grande na grelha. */
-                  className="@container min-h-[10rem] flex-1 overflow-y-auto px-5 py-4"
-                >
-                  {loadingImages ? (
-                    // O esqueleto tem a MESMA forma que a grelha a seguir:
-                    // com colunas diferentes, as fotos saltavam de sítio no
-                    // instante em que chegavam.
-                    <div className={`grid gap-2 ${GRELHA_DE_FOTOS}`}>
-                      {Array.from({ length: 10 }).map((_, i) => (
-                        <div key={i} className="bo-skeleton aspect-square rounded-lg" aria-hidden />
-                      ))}
-                    </div>
-                  ) : !themeId ? null : unreadable || falhaFotos ? (
-                    // Falha de leitura NÃO é "tema sem fotos" — dizer-lhe que o tema
-                    // está vazio seria mentira, e mandava-a carregar tudo outra vez.
-                    <div className="py-8 text-center">
-                      <p className="text-sm text-[var(--bo-tinta-72)]">
-                        Não foi possível ler a pasta deste tema agora.
-                      </p>
-                      <p className="bo-text-muted mt-1 text-xs">
-                        {/* A razão, quando se sabe qual foi. O texto de reserva é
-                              para a pasta que o SERVIDOR leu e não conseguiu abrir
-                              (um 200 com `ok: false`): aí sabe-se mesmo só que a
-                              falha é do lado de lá e passageira. */}
-                        {falhaFotos?.mensagem ??
-                          "É uma falha temporária — as fotos não desapareceram. Tenta daqui a pouco."}
-                      </p>
-                    </div>
-                  ) : images.length === 0 ? (
-                    <p className="bo-text-muted py-8 text-center text-sm">
-                      Este tema ainda não tem fotos. Adiciona-as em <strong>Temas</strong>.
-                    </p>
-                  ) : (
-                    <>
-                      <div
-                        ref={gridRef}
-                        onKeyDown={onGridKeyDown}
-                        /* ── AS FOTOS MEDEM A ZONA DAS FOTOS, E NÃO A JANELA ─────
-                           Era `grid-cols-2 min-[480px]:grid-cols-3 sm:grid-cols-5`,
-                           e a conta que isso dá está entre as piores que este
-                           back office tinha. MEDIDO, num iPad ao alto:
-
-                             · a 639 px o painel é full-bleed (`p-0`), a grelha
-                               tem 599 px e três colunas — fotos de 194 px;
-                             · a 641 px entra o `sm:p-6`, o painel encolhe para
-                               593, a grelha para 553, e o `sm:` manda CINCO
-                               colunas — fotos de 102 px.
-
-                           A janela cresceu dois píxeis, o sítio onde as fotos
-                           vivem ENCOLHEU 46, e as fotografias ficaram com
-                           metade do tamanho. Nenhuma variante de ecrã evita
-                           isto, porque a pergunta que elas fazem — «que largura
-                           tem a janela?» — não é a que decide, que é «que
-                           largura tem esta zona?».
-
-                           Hoje a régua é o `@container` do invólucro:
-
-                             · abaixo de 26 rem de ZONA — um telemóvel — duas
-                               colunas fixas. Três a 390 px dariam 111 px por
-                               foto, pequenas de mais para escolher decoração,
-                               que é o que aqui se faz; e deixar a grelha fluir
-                               num ecrã de 320 px dava UMA coluna gigante.
-                             · daí para cima, tantas quantas caibam com 9 rem de
-                               lado. Não é um degrau, é um MÍNIMO — e por isso a
-                               contagem de colunas só pode SUBIR quando a zona
-                               cresce. A inversão de cima deixa de ser
-                               exprimível.
-
-                           O que devolve, nas mesmas medidas: 179 px aos 641
-                           (eram 102), 194 aos 639 como hoje, e a grelha deixa
-                           de mudar de forma ao atravessar os 640 px de janela,
-                           porque já não os vê. */
-                        className={`grid select-none gap-2 ${GRELHA_DE_FOTOS}`}
-                      >
-                        {images.map((im, i) => {
-                          const on = selectedSet.has(im.path);
-                          const going = pendingSet.has(im.path);
-                          const used = !going && usedSet.has(im.path);
-                          // "Já noutra proposta" só aparece quando NÃO está nesta: as
-                          // duas marcas no mesmo sítio tapavam-se uma à outra, e a que
-                          // interessa primeiro é a desta proposta.
-                          const noutra = !going && !used ? usadasNoutras?.[im.path] : undefined;
-                          const failed = failedPaths.includes(im.path);
-                          // No teto, as fotos por escolher ficam apagadas e anunciadas
-                          // como indisponíveis (aria-disabled, não `disabled`: o botão
-                          // continua alcançável pelo teclado). O mesmo para as que já
-                          // vão a caminho.
-                          const blocked = (atLimit && !on) || going;
-                          const qualidade = qualidadeDe(im);
-                          const ma = qualidade?.nivel === "ma";
-                          return (
-                            // `aspect-square` PASSOU PARA AQUI, do botão para o
-                            // invólucro. É o que torna a altura da célula independente
-                            // do que está lá dentro — e sem isso `content-visibility`
-                            // não podia saltar o conteúdo sem a célula encolher.
-                            <div
-                              key={im.path}
-                              className="celula-saltavel group relative aspect-square"
-                            >
-                              <button
-                                type="button"
-                                data-cell={i}
-                                tabIndex={i === focusIndex ? 0 : -1}
-                                aria-pressed={on}
-                                aria-disabled={blocked || undefined}
-                                // Nome ESTÁVEL: quem diz se está escolhida é o
-                                // aria-pressed. O "já nesta proposta" entra no nome
-                                // porque é a única forma de a marca visual chegar a
-                                // quem não vê a grelha.
-                                aria-label={`Foto ${i + 1} de ${images.length}${
-                                  going
-                                    ? " (a adicionar)"
-                                    : used
-                                      ? " (já nesta proposta)"
-                                      : noutra
-                                        ? ` (já usada em ${noutra})`
-                                        : ""
-                                }${failed ? " (não entrou)" : ""}${ma ? " (má qualidade)" : ""}`}
-                                onClick={(e) => toggleAt(i, e.shiftKey)}
-                                onFocus={() => setFocusIndex(i)}
-                                /* `h-full w-full` e não `aspect-square`: quem é
-                             quadrado agora é o INVÓLUCRO (ver `celula-saltavel`
-                             em globals.css) — é isso que deixa o browser saltar
-                             a célula sem ela colapsar. */
-                                className={`relative block h-full w-full overflow-hidden rounded-lg border bg-[var(--bo-tinta-6)] ${ESTADO} ${PRESSAO} ${
-                                  failed
-                                    ? "border-[var(--bo-perigo)]/60 ring-2 ring-[var(--bo-perigo)]/25"
-                                    : on
-                                      ? "border-sage-600 ring-2 ring-sage-600/35"
-                                      : "border-[var(--bo-hairline-strong)] hover:border-sage-600/45"
-                                } ${blocked ? "opacity-50" : ""}`}
-                              >
-                                <Photo image={im} priority={i < ABOVE_FOLD} />
-                                {ma && (
-                                  // O sinal vermelho, ANTES de escolher (28/10).
-                                  // À esquerda do visto, para não o tapar.
-                                  <span
-                                    aria-hidden
-                                    title={qualidade?.motivo ?? undefined}
-                                    className={`absolute top-1 flex h-5 items-center rounded-full bg-[var(--bo-perigo)] px-1.5 text-[10px] font-medium text-white ${
-                                      on ? "right-7" : "right-1"
-                                    }`}
-                                  >
-                                    Má qualidade
-                                  </span>
-                                )}
-                                {on && (
-                                  <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-sage-600 text-white">
-                                    <svg
-                                      width="12"
-                                      height="12"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="3"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      aria-hidden="true"
-                                    >
-                                      <path d="m5 13 4 4L19 7" />
-                                    </svg>
-                                  </span>
-                                )}
-                                {(used || going) && (
-                                  <span
-                                    aria-hidden
-                                    className="pointer-events-none absolute inset-x-1 bottom-1 truncate rounded-md bg-black/65 px-1.5 py-0.5 text-center text-[10px] uppercase tracking-[0.06em] text-white"
-                                  >
-                                    {going ? "A adicionar…" : "Já nesta proposta"}
-                                  </span>
-                                )}
-                                {noutra && (
-                                  <span
-                                    aria-hidden
-                                    title={`Já usada em ${noutra}`}
-                                    className="pointer-events-none absolute inset-x-1 bottom-1 truncate rounded-md bg-[var(--bo-aviso)]/85 px-1.5 py-0.5 text-center text-[10px] tracking-[0.04em] text-white"
-                                  >
-                                    {noutra}
-                                  </span>
-                                )}
-                              </button>
-                              {/* A lupa é o caminho do rato/toque para a foto em
-                            grande; pelo teclado é a tecla V. Só é focável na
-                            célula ativa, para o Tab não passar por 60 lupas. */}
-                              <button
-                                type="button"
-                                tabIndex={i === focusIndex ? 0 : -1}
-                                aria-label={`Ver a foto ${i + 1} em grande`}
-                                onClick={() => setPreviewIndex(i)}
-                                /* ── O ALVO CRESCE, O DISCO NÃO ──────────────────
-                             Isto levava `.alvo-toque`, que sob `(pointer:
-                             coarse)` força 44×44 — e num telemóvel, com células
-                             de 111 px, o disco preto passou a tapar o canto
-                             superior esquerdo de TODAS as fotografias, encostado
-                             à margem na primeira coluna. Palavras dela: «os
-                             ícones de lupa aparecem cortados pela borda esquerda
-                             e sobrepostos às imagens».
-
-                             O alvo de 44 px estava certo e continua lá — o que
-                             mudou é quem cresce: o `.alvo-invisivel` estende a
-                             área tocável com um `::after` transparente e deixa o
-                             desenho nos 24 px. Ver `globals.css`.
-
-                             Fica também mais discreto: um disco a 45% em vez de
-                             55%, e mais pequeno, porque a foto é que interessa. */
-                                className={`alvo-invisivel absolute left-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/45 text-white opacity-0 backdrop-blur-[2px] group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 ${ESTADO} ${PRESSAO}`}
-                              >
-                                <svg
-                                  width="13"
-                                  height="13"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.2"
-                                  strokeLinecap="round"
-                                  aria-hidden="true"
-                                >
-                                  <circle cx="11" cy="11" r="7" />
-                                  <path d="m20 20-3.5-3.5" />
-                                </svg>
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {hasMore ? (
-                        <div className="mt-4 flex flex-col items-center gap-1">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            loading={loadingMore}
-                            onClick={loadMore}
-                          >
-                            {remaining && remaining > 0
-                              ? `Mostrar mais (faltam ${remaining}${truncated ? "+" : ""})`
-                              : "Mostrar mais"}
-                          </Button>
-                          <p className="bo-text-muted text-xs">
-                            As mais recentes aparecem primeiro. A grelha mostra {THEME_PAGE_SIZE} de
-                            cada vez para o tema abrir depressa.
-                          </p>
-                        </div>
-                      ) : (
-                        images.length > THEME_PAGE_SIZE && (
-                          <p className="bo-text-muted mt-4 text-center text-xs">
-                            Fim do tema — {plural(images.length, "foto", "fotos")}.
-                          </p>
-                        )
-                      )}
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Sem coluna, o canto de sempre: aqui a alternativa seria
-                  roubar altura à grelha, que é o problema que a coluna
-                  acabou de resolver. */}
-            {paginaEmConstrucao && multiple && !largoQueChegue && (
-              <PaginaEmConstrucao
-                titulo={paginaEmConstrucao.titulo}
-                jaLa={paginaEmConstrucao.fotos}
-                aEntrar={aEntrar}
-                maximo={paginaEmConstrucao.maximo}
-              />
-            )}
-          </div>
-        </div>
+        <FotosDoTema
+          multiple={multiple}
+          usadasNoutras={usadasNoutras}
+          paginaEmConstrucao={paginaEmConstrucao}
+          themeId={themeId}
+          images={images}
+          truncated={truncated}
+          unreadable={unreadable}
+          falhaFotos={falhaFotos}
+          loadingImages={loadingImages}
+          loadingMore={loadingMore}
+          selected={selected}
+          setSelected={setSelected}
+          focusIndex={focusIndex}
+          setFocusIndex={setFocusIndex}
+          setPreviewIndex={setPreviewIndex}
+          gridRef={gridRef}
+          scrollRef={scrollRef}
+          selectedSet={selectedSet}
+          pendingSet={pendingSet}
+          usedSet={usedSet}
+          failedPaths={failedPaths}
+          aEntrar={aEntrar}
+          remaining={remaining}
+          hasMore={hasMore}
+          loadMore={loadMore}
+          setCuradoria={setCuradoria}
+          curadoria={curadoria}
+          largoQueChegue={largoQueChegue}
+          toggleAt={toggleAt}
+          selectAllVisible={selectAllVisible}
+          decidirNaCuradoria={decidirNaCuradoria}
+          onGridKeyDown={onGridKeyDown}
+          qualidadeDe={qualidadeDe}
+          atLimit={atLimit}
+        />
       </div>
 
       {/* O que não entrou da última vez — os caminhos ficam guardados e
@@ -2955,205 +2529,6 @@ export default function ThemePicker({
         />
       )}
     </FolhaOuDialogo>
-  );
-}
-
-/**
- * A miniatura de uma célula da grelha.
- *
- * Mostra `thumbUrl` e cai no original quando ela não existe — é o caso das
- * fotos carregadas ANTES de as miniaturas existirem, e continua a ser o caso
- * se a miniatura tiver desaparecido do bucket (é derivada e dispensável; o
- * original é que é o ativo). O `onError` é a segunda rede: um URL assinado
- * para um objeto que já lá não está falha no browser, e sem isto ficava uma
- * célula partida no meio de uma grelha que funciona.
- */
-function Photo({ image, priority }: { image: ThemeImage; priority?: boolean }) {
-  /** A miniatura falhou (foi apagada do bucket): fica o original. */
-  const [thumbBroken, setThumbBroken] = useState(false);
-  /** A fila deu a vez a esta célula. */
-  const [turn, setTurn] = useState(false);
-  /** A fotografia já chegou — é o que dispara o fade por cima do LQIP. */
-  const [pintada, setPintada] = useState(false);
-  /** Sem miniatura, esta célula puxa ~2,6 MB: espera pela vez. */
-  const heavy = !image.thumbUrl || thumbBroken;
-  const release = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    if (!heavy) return;
-    let timer = 0;
-    const free = queueHeavyImage(() => {
-      setTurn(true);
-      timer = window.setTimeout(() => release.current?.(), HEAVY_SLOT_TIMEOUT_MS);
-    });
-    release.current = () => {
-      window.clearTimeout(timer);
-      free();
-    };
-    return () => {
-      release.current?.();
-      release.current = null;
-    };
-  }, [heavy, image.url]);
-
-  // Sem vez, sem `src`: um `src` posto é um download começado, e é isso mesmo
-  // que a fila existe para espaçar.
-  const src = heavy ? (turn ? image.url : undefined) : image.thumbUrl;
-
-  const finished = () => {
-    release.current?.();
-    release.current = null;
-  };
-
-  return (
-    /**
-     * O LQIP É O FUNDO DA CÉLULA, e a fotografia entra por cima.
-     *
-     * Não é um segundo `<img>`: um `background-image` com um `data:` URI não é
-     * um pedido, não entra na fila de descarregamentos e está PINTADO no
-     * instante em que este elemento existe — que é o instante em que o JSON
-     * chega. Medido na linha de base: era aqui que se ficava 1032 a 2192 ms a
-     * olhar para uma caixa cinzenta.
-     *
-     * Sem `lqip` (fotos anteriores à migração) fica o fundo neutro de sempre.
-     */
-    <div
-      className="h-full w-full bg-[var(--bo-tinta-6)] bg-cover bg-center"
-      style={image.lqip ? { backgroundImage: `url("${image.lqip}")` } : undefined}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt=""
-        loading={heavy || priority ? "eager" : "lazy"}
-        fetchPriority={priority ? "high" : undefined}
-        decoding="async"
-        onLoad={() => {
-          finished();
-          setPintada(true);
-        }}
-        onError={() => {
-          finished();
-          if (!heavy) setThumbBroken(true);
-        }}
-        /* 200 ms de fade, e NUNCA um corte seco: a fotografia final entra por
-           cima da sua própria versão desfocada, que já lá está e já tem a cor
-           certa. `motion-safe` porque quem pede menos movimento não quer um
-           fade — quer a imagem. */
-        className={`h-full w-full object-cover motion-safe:transition-opacity motion-safe:duration-elemento ${
-          pintada || !image.lqip ? "opacity-100" : "opacity-0"
-        }`}
-      />
-    </div>
-  );
-}
-
-/**
- * A foto em grande, por cima da grelha.
- *
- * Uma miniatura de 400 px não distingue duas mesas de terracota — aqui puxa-se
- * o ORIGINAL, que é justamente a foto que vai para a proposta. Fica dentro do
- * diálogo (e da armadilha de foco), com ← → a passar de foto e Esc a voltar.
- */
-function Preview({
-  image,
-  index,
-  count,
-  selected,
-  used,
-  canSelect,
-  onToggle,
-  onStep,
-  onClose,
-}: {
-  image: ThemeImage;
-  index: number;
-  count: number;
-  selected: boolean;
-  used: boolean;
-  canSelect: boolean;
-  onToggle: () => void;
-  onStep: (dir: -1 | 1) => void;
-  onClose: () => void;
-}) {
-  const firstRef = useRef<HTMLButtonElement | null>(null);
-  useEffect(() => {
-    firstRef.current?.focus();
-  }, []);
-
-  return (
-    <div
-      role="group"
-      aria-label={`Foto ${index + 1} de ${count} em grande`}
-      onKeyDown={(e) => {
-        if (e.key === "ArrowLeft") {
-          e.preventDefault();
-          onStep(-1);
-        } else if (e.key === "ArrowRight") {
-          e.preventDefault();
-          onStep(1);
-        }
-      }}
-      /* ── UMA VISTA A SUBSTITUIR OUTRA DENTRO DO MESMO CROMADO ──────────
-         Carregar numa foto tapava a grelha de um fotograma para o outro: o
-         mosaico estava lá e, no seguinte, esta chapa branca por cima dele.
-         Não é uma caixa a APARECER por cima da página (essa é a
-         `.bo-entrada`) — o cromado do diálogo fica onde está e o que muda é
-         o conteúdo dentro dele, que é precisamente o que a `.view-in` da
-         casa diz: 240 ms, oito píxeis, a curva de quem apresenta.
-
-         E é `backwards` e não `both`, do lado do CSS, de propósito: não
-         deixa `transform` nenhum pendurado no fim. Um `transform`
-         persistente aqui criava um bloco de contenção e partia qualquer
-         `position: fixed` que viesse a nascer lá dentro — a mesma lição que
-         está escrita ao pé da regra no `globals.css`. */
-      className="view-in absolute inset-0 z-10 flex flex-col bg-[var(--bo-surface)]"
-    >
-      <div className="flex items-center justify-between gap-3 border-b border-[var(--bo-hairline)] px-5 py-3">
-        <p className="bo-text-muted text-xs">
-          Foto {index + 1} de {count}
-          {used ? " · já nesta proposta" : ""}
-        </p>
-        <Button ref={firstRef} size="sm" variant="ghost" onClick={onClose}>
-          Voltar à grelha
-        </Button>
-      </div>
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--bo-tinta-6)] p-3">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={image.url}
-          alt=""
-          decoding="async"
-          // É a foto que ela pediu para ver: passa à frente do que a grelha
-          // esteja a descarregar por trás.
-          fetchPriority="high"
-          className="max-h-full max-w-full object-contain"
-        />
-      </div>
-      <div className="flex items-center justify-between gap-2 border-t border-[var(--bo-hairline)] px-5 py-3">
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={() => onStep(-1)} disabled={index === 0}>
-            ← Anterior
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onStep(1)}
-            disabled={index === count - 1}
-          >
-            Seguinte →
-          </Button>
-        </div>
-        <Button
-          size="sm"
-          variant={selected ? "secondary" : "primary"}
-          onClick={onToggle}
-          disabled={!canSelect}
-        >
-          {selected ? "Retirar da seleção" : "Escolher esta foto"}
-        </Button>
-      </div>
-    </div>
   );
 }
 

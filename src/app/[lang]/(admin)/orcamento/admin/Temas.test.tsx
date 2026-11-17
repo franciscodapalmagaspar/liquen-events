@@ -42,19 +42,15 @@ async function confirmarRemocao() {
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import Temas, {
-  COLUNAS,
-  GRELHA_DE_FOTOS,
-  PISO_DA_CELULA_PX,
-  contarFotosDaBiblioteca,
-  desdeQuando,
-  fraseDeEliminar,
-  mergePage,
-  moveItem,
-  ordenarTemas,
-  reinsertAt,
-  temPoucasFotos,
-} from "./Temas";
+import Temas from "./Temas";
+import { fonteDe } from "./fonte-do-admin.testkit";
+// As puras e as constantes saíram do `Temas.tsx` na fase 8 da estrutura do
+// código; os testes importam-nas da casa nova, sem porta de reexportação.
+import { mergePage, moveItem, reinsertAt } from "@/lib/temas/listas-de-fotos";
+import { desdeQuando, fraseDeEliminar } from "@/lib/temas/textos-dos-temas";
+import { GRELHA_DE_FOTOS, PISO_DA_CELULA_PX } from "./_temas/grelha-de-fotos";
+import { contarFotosDaBiblioteca, ordenarTemas, temPoucasFotos } from "@/lib/temas/ordem";
+import { COLUNAS } from "./_temas/pele-da-biblioteca";
 
 /**
  * Rede de segurança da Biblioteca de Temas.
@@ -1655,10 +1651,9 @@ describe("Biblioteca de Temas — a barra de controlos", () => {
    * que este ficheiro não monta; lê-se o mapa onde ele está escrito.
    */
   it("a secção não tem subtítulo por cima do título", () => {
-    const fonte = readFileSync(
-      join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin/AdminClient.tsx"),
-      "utf8",
-    );
+    // O mapa saiu do `AdminClient.tsx` para `_casca/` na fase 7 da estrutura
+    // do código; a porta comum lê o componente e as casas dele.
+    const fonte = fonteDe("AdminClient.tsx");
     const inicio = fonte.indexOf("const VIEW_SUB");
     expect(inicio, "o mapa dos subtítulos mudou de nome").toBeGreaterThan(-1);
     const mapa = fonte.slice(inicio, fonte.indexOf("};", inicio));
@@ -3004,10 +2999,9 @@ describe("Grelha de fotos de um tema — ergonomia de toque", () => {
     // E o piso vale MESMO: está na célula, na que está a subir e no esqueleto
     // — as três têm de ter a mesma geometria, senão a grelha salta quando uma
     // se torna a outra.
-    const fonte = readFileSync(
-      join(process.cwd(), "src/app/[lang]/(admin)/orcamento/admin/Temas.tsx"),
-      "utf8",
-    );
+    // A grelha saiu para `_temas/` na fase 8 da estrutura do código; a porta
+    // comum lê o ecrã e as casas dele.
+    const fonte = fonteDe("Temas.tsx");
     const comRacio = fonte.match(/aspect-\[4\/3\][^"`]*/g) ?? [];
     // A capa do CARTÃO de tema também é 4:3 e não tem alvos por cima; as da
     // GRELHA são as que vivem numa célula com botões.

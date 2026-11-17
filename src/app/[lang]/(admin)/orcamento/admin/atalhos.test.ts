@@ -60,7 +60,9 @@ describe("VIEW_KEYS — o acorde «G»", () => {
 });
 
 describe("procuraDaVista — o «/»", () => {
-  const fontes = readdirSync(AQUI)
+  // Recursivo: os campos de procura vivem também nas pastas privadas das
+  // vistas (`_pedidos/`, `_temas/`…) desde as fases 7 e 8 da estrutura do código.
+  const fontes = (readdirSync(AQUI, { recursive: true }) as string[])
     .filter((f) => f.endsWith(".tsx") && !f.includes(".test."))
     .map((f) => readFileSync(join(AQUI, f), "utf8"))
     .join("\n");
