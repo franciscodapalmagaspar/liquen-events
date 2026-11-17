@@ -19,4 +19,17 @@ describe("a etiqueta «Possível spam»", () => {
     expect(html).toContain(`menos de ${(MINIMO_MS / 1000).toLocaleString("pt-PT")} segundos`);
     expect(html).toContain("<svg");
   });
+
+  it("segue os tokens do sistema de design: raio de badge e letra da escala", () => {
+    // Visto num browser a 17/11: era uma cápsula (`rounded-full`) com letra a
+    // 10 px fora da escala, que o piso do back office subia para 12 px. O
+    // DESIGN-SYSTEM (§ forma) dá aos badges `--radius-badge` (6 px) — cápsula
+    // é só para ações principais e chips de filtro — e nenhum tamanho, raio
+    // ou espaçamento pode viver fora dos tokens.
+    const html = renderToStaticMarkup(<EtiquetaPossivelSpam valor={{ motivo: "depressa" }} />);
+    const classe = /<span class="([^"]+)"/.exec(html)?.[1] ?? "";
+    expect(classe).toContain("rounded-badge");
+    expect(classe).toContain("text-caption");
+    expect(classe).not.toMatch(/rounded-full|text-\[\d|tracking-\[/);
+  });
 });

@@ -5,7 +5,9 @@ import { explicarPossivelSpam, lerPossivelSpam } from "@/lib/anti-spam/possivel-
  * um aviso nem conta nada (`.claude/rules/dados.md`) — é uma nota ao lado do
  * nome, para ela decidir se vale a chamada. O pedido continua na lista como
  * os outros. Cor + ícone + palavra (DESIGN-SYSTEM, «nunca só por cor»), em
- * tinta neutra: não é um erro do pedido.
+ * tinta neutra: não é um erro do pedido. Forma e letra dos tokens: o raio de
+ * badge (`rounded-badge`, 6 px — a cápsula é das ações principais) e o
+ * `text-caption` da escala, com o ícone à altura da letra.
  *
  * Sem marca, não desenha nada.
  */
@@ -22,12 +24,12 @@ export function EtiquetaPossivelSpam({
   const porque = explicarPossivelSpam(marca);
   return (
     <span
-      className={`${className} inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-[0.06em] whitespace-nowrap text-[var(--bo-tinta-72)] uppercase ring-1 ring-[var(--bo-hairline)] ring-inset`}
+      className={`${className} inline-flex shrink-0 items-center gap-1 rounded-badge px-1.5 py-0.5 text-caption font-medium whitespace-nowrap text-[var(--bo-tinta-72)] ring-1 ring-[var(--bo-hairline)] ring-inset`}
       title={`Possível spam: ${porque}`}
     >
       <svg
-        width="10"
-        height="10"
+        width="12"
+        height="12"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
