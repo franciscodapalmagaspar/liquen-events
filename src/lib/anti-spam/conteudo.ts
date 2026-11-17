@@ -24,7 +24,8 @@
  *   · um domínio de topo de spam (`.ru`, `.xyz`…) sozinho, numa ligação só,
  *     não conta — o fotógrafo do casal pode ser `ivanphoto.ru`;
  *   · «casino» sozinho não é spam (o Casino Estoril é um sítio de casamentos),
- *     e «bitcoin»/«crypto» só contam ao lado de uma ligação;
+ *     e «bitcoin»/«crypto» só contam ao lado de uma ligação que não seja de
+ *     inspiração (Pinterest, Instagram, um mapa…);
  *   · «SEO», «ranking», «outsourcing» só contam aos pares;
  *   · um alfabeto não latino nunca conta nos NOMES (Олена Шевченко é uma
  *     noiva), e na mensagem só conta quando ela é longa E vem com outro sinal.
@@ -167,17 +168,47 @@ function dominioDe(ligacao: string): string {
 
 /**
  * Um domínio de confiança. As entradas que acabam em «.» (`pinterest.`,
- * `google.`) valem para qualquer domínio de topo da casa (`pinterest.pt`,
- * `google.co.uk`) — e SÓ para esse: `google.spam1.com` não é a Google, e
- * `maps.google.com` é.
+ * `google.`) valem para os domínios de topo de um país ou genéricos da casa
+ * (`pinterest.pt`, `google.com`, `google.co.uk`, `google.com.br`) — e SÓ
+ * para esses: `google.spam1.com`, `google.abc.de` e `pinterest.com.ru` não
+ * são a Google nem o Pinterest. Um domínio de topo de spam nunca é de
+ * confiança, com uma exceção: o domínio de um país, direto (`google.ru`,
+ * `google.cn` — um mapa de um casal russo ou chinês). Já `google.top` e
+ * `google.com.ru` (que qualquer pessoa regista) não. Compilam-se uma vez.
  */
+const CONFIANCA: Array<(dominio: string) => boolean> = DOMINIOS_DE_CONFIANCA.map((c) => {
+  if (!c.endsWith(".")) return (d: string) => d === c || d.endsWith(`.${c}`);
+  const marca = c.slice(0, -1).replace(/\./g, "\\.");
+  const re = new RegExp(`(^|\\.)${marca}\\.((com|co)\\.)?([a-z]{2,3})$`);
+  return (d: string) => {
+    const m = re.exec(d);
+    if (!m) return false;
+    const tld = m[4];
+    const pais = tld.length === 2 && !m[2];
+    return pais || !TLD_DE_SPAM.has(tld);
+  };
+});
+
 function eDeConfianca(dominio: string): boolean {
-  return DOMINIOS_DE_CONFIANCA.some((c) => {
-    if (!c.endsWith(".")) return dominio === c || dominio.endsWith(`.${c}`);
-    const marca = c.slice(0, -1).replace(/\./g, "\\.");
-    return new RegExp(`(^|\\.)${marca}\\.[a-z]{2,3}(\\.[a-z]{2})?$`).test(dominio);
-  });
+  return CONFIANCA.some((e) => e(dominio));
 }
+
+/**
+ * Os sítios de INSPIRAÇÃO, onde ninguém publica uma página de venda: o que
+ * conta para «bitcoin»/«crypto» é uma ligação que não seja destas. As outras
+ * de confiança (Notion, Canva, Dropbox…) deixam qualquer pessoa publicar.
+ */
+const INSPIRACAO = [
+  "pinterest.",
+  "pin.it",
+  "instagram.com",
+  "instagr.am",
+  "google.",
+  "maps.app.goo.gl",
+];
+const DE_INSPIRACAO = DOMINIOS_DE_CONFIANCA.map((c, i) =>
+  INSPIRACAO.includes(c) ? CONFIANCA[i] : null,
+).filter((e): e is (d: string) => boolean => e !== null);
 
 /** A partir de quantos domínios DISTINTOS e desconhecidos as ligações contam. */
 const LIGACOES_A_PARTIR_DE = 5;
@@ -209,7 +240,10 @@ export function motivoDeSpam(texto: TextoDoPedido): MotivoDeSpam | null {
   const ligacoes = tudo.match(LIGACAO) ?? [];
   const distintos = [...new Set(ligacoes.map(dominioDe).filter(Boolean))];
   const desconhecidos = distintos.filter((d) => !eDeConfianca(d) && !d.endsWith(".pt"));
-  const deSpam = distintos.filter((d) => TLD_DE_SPAM.has(d.split(".").pop() ?? ""));
+  const deSpam = distintos.filter(
+    (d) => TLD_DE_SPAM.has(d.split(".").pop() ?? "") && !eDeConfianca(d),
+  );
+  const foraDaInspiracao = distintos.filter((d) => !DE_INSPIRACAO.some((e) => e(d)));
   const fracas = PALAVRAS_FRACAS.filter((r) => r.test(minusculas)).length;
 
   // Um domínio de topo de spam só conta acompanhado: de outra ligação a um
@@ -221,9 +255,9 @@ export function motivoDeSpam(texto: TextoDoPedido): MotivoDeSpam | null {
   if (desconhecidos.length >= LIGACOES_A_PARTIR_DE) return "ligacoes";
 
   if (PALAVRAS_FORTES.some((r) => r.test(minusculas))) return "palavras-de-spam";
-  // Uma ligação a um sítio DESCONHECIDO: o Pinterest dos noivos ao lado de
-  // «podemos pagar em bitcoin?» não é um robô.
-  if (desconhecidos.length > 0 && PALAVRAS_COM_LIGACAO.some((r) => r.test(minusculas))) {
+  // Uma ligação que não seja de inspiração: o Pinterest dos noivos ao lado de
+  // «podemos pagar em bitcoin?» não é um robô; uma página do Notion pode ser.
+  if (foraDaInspiracao.length > 0 && PALAVRAS_COM_LIGACAO.some((r) => r.test(minusculas))) {
     return "palavras-de-spam";
   }
   if (fracas >= 2) return "palavras-de-spam";

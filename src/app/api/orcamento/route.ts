@@ -567,7 +567,8 @@ function buildEmail(
     mailto: mailtoHref,
     // Um pedido marcado diz porquê no CORPO que ela lê, e não só no assunto
     // (que o telemóvel corta) e no texto simples (que o Gmail não mostra).
-    lembrete: avisoDeSpam || nudge,
+    // A urgência fica: um pedido urgente marcado continua a dizer que é urgente.
+    lembrete: avisoDeSpam ? `${avisoDeSpam} ${nudge}` : nudge,
     primeiroNome: firstName,
     respostaPara: form.email ?? "",
     pedido: linhasDoPedido,
@@ -1046,8 +1047,10 @@ async function POST_semMedida(request: NextRequest) {
       // encontraria o par do browser e a conversão passaria a contar a dobrar —
       // que é exactamente a avaria que a deduplicação existe para evitar.
       //
-      // E um pedido com a marca «possível spam» não vai: contá-lo à Meta como
-      // um Lead ensinava os anúncios a trazer mais do mesmo.
+      // E um pedido com a marca «possível spam» não se reenvia pelo servidor:
+      // contá-lo à Meta como Lead ensinava os anúncios a trazer mais do mesmo.
+      // (O pixel do browser já disparou antes de o servidor decidir; isso só
+      // se fecha mudando o pixel para depois da resposta — fica por fazer.)
       try {
         if (!veredito.possivelSpam) await reenviarLeadParaMeta(request, id, form);
       } catch (metaErr) {

@@ -9,16 +9,14 @@ describe("a etiqueta «Possível spam»", () => {
     expect(renderToStaticMarkup(<EtiquetaPossivelSpam valor={{ motivo: "inventado" }} />)).toBe("");
     // Nem a caixa à volta (a margem é da própria etiqueta): um `{}` gravado não
     // deixa um espaço vazio por baixo do e-mail.
-    expect(renderToStaticMarkup(<EtiquetaPossivelSpam valor={{}} className="mt-1 block" />)).toBe(
-      "",
-    );
+    expect(renderToStaticMarkup(<EtiquetaPossivelSpam valor={{}} className="mt-1" />)).toBe("");
   });
 
   it("com marca diz a palavra e o porquê (não só a cor)", () => {
     const html = renderToStaticMarkup(<EtiquetaPossivelSpam valor={{ motivo: "depressa" }} />);
     expect(html).toContain("Possível spam");
     // O número vem do mesmo sítio que a regra (`tempo-minimo.ts`).
-    expect(html).toContain(`menos de ${MINIMO_MS / 1000} segundos`);
+    expect(html).toContain(`menos de ${(MINIMO_MS / 1000).toLocaleString("pt-PT")} segundos`);
     expect(html).toContain("<svg");
   });
 });

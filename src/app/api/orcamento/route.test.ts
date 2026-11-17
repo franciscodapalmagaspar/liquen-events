@@ -652,6 +652,16 @@ describe("POST /api/orcamento", () => {
       expect(daEquipa?.html).toContain("Possível spam (palavras típicas de spam)");
     });
 
+    it("um pedido urgente com a marca não perde a linha da urgência", async () => {
+      const { criarSelo } = await import("@/lib/anti-spam/selo");
+      await enviarTudo({ form: { ...validForm, urgency: "urgente" }, selo: criarSelo(Date.now()) });
+      const semMarca = sendMailMock.mock.calls
+        .map(([m]) => m as { to?: string; html?: string })
+        .find((m) => !m.to)?.html;
+      expect(semMarca).toContain("Possível spam (");
+      expect(semMarca).toContain("O cliente pediu resposta com urgência");
+    });
+
     it("o cliente não consegue pôr nem tirar a marca pelo formulário", async () => {
       await enviarTudo({ form: { ...validForm, possivelSpam: { motivo: "ligacoes" } } });
       expect(gravado().possivelSpam).toBeUndefined();

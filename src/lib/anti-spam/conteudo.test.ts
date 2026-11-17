@@ -192,6 +192,14 @@ describe("a tabela da revisão: verdadeiros que a primeira versão apanhava", ()
       },
     ],
     [
+      "um mapa do google.ru e dois fornecedores",
+      {
+        nome: "Olga",
+        mensagem:
+          "https://www.google.ru/maps/place/x https://quinta-a.com/x https://fotografo.com/p",
+      },
+    ],
+    [
       "crypto sem ligação",
       {
         nome: "Amy",
@@ -265,6 +273,23 @@ describe("spam é apanhado", () => {
           "https://google.spam1.com/a https://google.spam2.com/b https://pinterest.spam3.com/c https://google.spam4.com/d https://pinterest.spam5.com/e",
       },
       "ligacoes",
+    ],
+    [
+      "sósias da Google e do Pinterest não são de confiança",
+      {
+        nome: "Bot",
+        mensagem:
+          "https://google.abc.de/a https://pinterest.abc.de/b https://google.xyz.ru/c https://pinterest.com.ru/d https://google.qqq.de/e",
+      },
+      "dominio-de-spam",
+    ],
+    [
+      "crypto com uma página do Notion",
+      {
+        nome: "Bot",
+        mensagem: "Invest in crypto and double your money: https://gains.notion.site/now",
+      },
+      "palavras-de-spam",
     ],
     ["porno", { nome: "X", mensagem: "free porno videos" }, "palavras-de-spam"],
     [
