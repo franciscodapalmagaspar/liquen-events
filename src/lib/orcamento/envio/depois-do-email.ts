@@ -1,6 +1,5 @@
 import "server-only";
 import type { Proposal } from "@/lib/orcamento/types";
-import type { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { eur } from "@/lib/money";
 import { updateProposal } from "@/lib/proposals-store";
 import { updateQuoteWith } from "@/lib/quotes-store";
@@ -11,7 +10,7 @@ import { guardarPdfDaProposta } from "@/lib/proposal-pdf-guardado";
 import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
 import { log } from "@/lib/logger";
 import type { EmailDaProposta } from "./email-da-proposta";
-import type { EnvioDaProposta } from "./envio-da-proposta";
+import { dinheiroDe, type BytesDoPdf, type EnvioDaProposta } from "./envio-da-proposta";
 
 /**
  * Etapa 12 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): as escritas
@@ -28,7 +27,6 @@ export interface DepoisDoEmail {
 
 export interface ParaDepoisDoEmail extends EnvioDaProposta {
   proposal: Proposal;
-  dinheiro: ReturnType<typeof dinheiroDaProposta>;
   /** `true` quando o correio saiu. */
   emailed: boolean;
   /** `true` quando ela escolheu o WhatsApp. */
@@ -36,7 +34,7 @@ export interface ParaDepoisDoEmail extends EnvioDaProposta {
   email: EmailDaProposta;
   /** A chave do modelo de que o corpo partiu (vazia sem ela). */
   modelo: string;
-  pdf: Buffer;
+  pdf: BytesDoPdf;
 }
 
 /**
@@ -179,12 +177,12 @@ async function actualizarOPedido(
         ? transicaoDoPedido({
             acontecimento: "proposta_enviada",
             estadoActual: actual.status,
-            detalhe: eur(p.dinheiro.gross),
+            detalhe: eur(dinheiroDe(p).gross),
           })
         : null;
       return {
         ...actual,
-        quotedPrice: p.dinheiro.base,
+        quotedPrice: dinheiroDe(p).base,
         ...(transicao
           ? {
               status: transicao.status,

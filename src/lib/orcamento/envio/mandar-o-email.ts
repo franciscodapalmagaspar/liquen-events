@@ -3,6 +3,7 @@ import { sendMail, MAIL_TO } from "@/lib/mail";
 import { log } from "@/lib/logger";
 import { FOLGA_DO_EMAIL_MS } from "./orcamento-de-tempo";
 import type { EmailDaProposta } from "./email-da-proposta";
+import type { BytesDoPdf } from "./envio-da-proposta";
 
 /**
  * Etapa 11 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o correio sai —
@@ -31,7 +32,7 @@ export interface ParaMandar {
   porEmail: boolean;
   /** O email inteiro, já com a moldura da casa (`email-da-proposta.ts`). */
   email: EmailDaProposta;
-  pdf: Buffer;
+  pdf: BytesDoPdf;
   /** Quantos ms sobram do orçamento do pedido, agora. */
   resta: () => number;
 }

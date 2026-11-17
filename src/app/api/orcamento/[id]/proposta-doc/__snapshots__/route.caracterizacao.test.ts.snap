@@ -3565,6 +3565,27 @@ exports[`o retrato de cada resposta da rota (fase 5) > corpo estranho: porEmail 
 }"
 `;
 
+exports[`o retrato de cada resposta da rota (fase 5) > corpo estranho: rascunho com um adicional nulo a somar 1`] = `
+"{
+  "estado": 200,
+  "cabecalhos": {
+    "content-type": "application/pdf",
+    "content-disposition": "inline; filename=\\"proposta-preview-rascunho.pdf\\"",
+    "x-fotos-em-falta": "0",
+    "x-conteudo-cortado": "W10=",
+    "x-chave-do-pdf": null,
+    "x-pdf-da-memoria": null
+  },
+  "corpo": "<pdf 23 bytes>",
+  "mail": [],
+  "criadas": [],
+  "actualizadas": [],
+  "pedido": [],
+  "copias": [],
+  "registo": []
+}"
+`;
+
 exports[`o retrato de cada resposta da rota (fase 5) > corpo estranho: rascunho texto 1`] = `
 "{
   "estado": 200,

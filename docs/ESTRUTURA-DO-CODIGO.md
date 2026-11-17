@@ -160,6 +160,16 @@ antes e depois (linhas, complexidade, peso das rotas).
 - **Uma guarda que lê o texto do código engana-se a si própria** quando o código muda
   de ficheiro. A da assinatura passou a saber quem escreve o email e quem o manda, em
   vez de procurar uma palavra no ficheiro que manda.
+- **Um construtor por desfecho, com o nome do `tipo`** (`desfecho.envio(…)` dá
+  `{ tipo: "envio" }`), e o que é partilhado entre pedidos (`SEGUE`, os construtores)
+  congelado: uma resposta não pode herdar o que outra mudou.
+- **O derivado não é um campo** (lição 20 da Parte 4): o dinheiro deriva do
+  documento (`dinheiroDe`), contado uma vez e só quando alguém o pede. Guardado ao
+  lado do documento, podia discordar dele; contado cedo, partia o rascunho, que a
+  rota antiga nunca contava (a 2.ª passagem à ronda do júri achou-o).
+- **A prova compara com o que está em produção**: quando o `main` mudou a rota antiga
+  (o «sim» antigo às fotos, o rodapé legal), a comparação passou a tirar a rota do
+  `main` e não a do commit do retrato.
 
 
 **Desvios da fase 1 ao texto:** além do que a tabela da fase 1 nomeia, saíram
@@ -1025,6 +1035,10 @@ acerto medido aqui.
 19. **A prova de equivalência fica no repositório.** Um retrato tirado DEPOIS de
     mexer certifica-se a si próprio; o que o certifica é o código antigo a correr
     ao lado (do git, a pedido), com os mesmos cenários.
+20. **O derivado calcula-se, não se guarda ao lado** — nem num objecto de contexto.
+    Um valor que deriva de outro e viaja ao lado dele pode discordar dele; uma
+    função com memória (por documento) dá o mesmo ganho sem essa porta. E calcula-se
+    onde o código antigo o calculava: mais cedo é mudar o que falha, e quando.
 
 ---
 

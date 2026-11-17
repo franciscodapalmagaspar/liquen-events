@@ -1,11 +1,10 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import type { Proposal } from "@/lib/orcamento/types";
-import type { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { listProposalsForQuote } from "@/lib/proposals-store";
 import { proximaVersao, seloDoConteudo } from "@/lib/proposta-versao";
 import { log } from "@/lib/logger";
-import type { EnvioDaProposta } from "./envio-da-proposta";
+import { dinheiroDe, type BytesDoPdf, type EnvioDaProposta } from "./envio-da-proposta";
 
 /** A ordem das irmãs de um pedido, em todo este ficheiro: a mais recente primeiro. */
 const maisRecentePrimeiro = (a: Proposal, b: Proposal): number =>
@@ -56,13 +55,13 @@ export async function irmasDoPedido(
 }
 
 export interface Montagem extends EnvioDaProposta {
-  dinheiro: ReturnType<typeof dinheiroDaProposta>;
-  pdf: Buffer;
+  pdf: BytesDoPdf;
   porEnviar: Proposal | null;
 }
 
 /** A linha da proposta, como se grava ANTES de o email sair. */
 export function montarAProposta(m: Montagem): Proposal {
+  const dinheiro = dinheiroDe(m);
   return {
     id: m.porEnviar?.id ?? randomUUID(),
     quoteId: m.pedidoId,
@@ -70,10 +69,10 @@ export function montarAProposta(m: Montagem): Proposal {
     clientEmail: m.quote.email,
     currency: "EUR",
     lineItems: [],
-    vatRate: m.dinheiro.vatRate,
-    subtotal: m.dinheiro.base,
-    vat: m.dinheiro.vat,
-    total: m.dinheiro.gross,
+    vatRate: dinheiro.vatRate,
+    subtotal: dinheiro.base,
+    vat: dinheiro.vat,
+    total: dinheiro.gross,
     // A data escrita no doc (a que o PDF mostra) — o /proposta recusa aceitar
     // uma proposta expirada.
     validUntil: m.doc.validUntil,

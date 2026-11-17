@@ -5,7 +5,6 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Proposal, Quote } from "@/lib/orcamento/types";
-import { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { log } from "@/lib/logger";
 
 const f = vi.hoisted(() => ({
@@ -62,7 +61,6 @@ const envio = {
   quote,
   doc,
   idioma: "pt" as const,
-  dinheiro: dinheiroDaProposta(doc),
 };
 
 beforeEach(() => {
@@ -130,7 +128,6 @@ describe("o email escrito", () => {
       textoDoEmail: null,
       assuntoDoEmail: null,
       acceptUrl: "https://x/proposta/tok",
-      dinheiro: dinheiroDaProposta(doc),
       assinatura: { nome: "Catarina", cargo: "" },
       ...over,
     });
@@ -172,7 +169,6 @@ describe("o que fica depois do email", () => {
     depoisDoEmail({
       ...envio,
       proposal,
-      dinheiro: dinheiroDaProposta(doc),
       emailed: true,
       semEmailPorEscolha: false,
       email,

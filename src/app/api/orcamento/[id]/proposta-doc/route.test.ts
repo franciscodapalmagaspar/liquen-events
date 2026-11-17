@@ -2903,6 +2903,23 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o envio recusa uma propo
   });
 
   /**
+   * 2.ª passagem à fase 5 (17/11): o dinheiro passou a ser contado antes da
+   * trava, também no rascunho — que nunca o lia. Um `budgetExtras` meio escrito
+   * (uma linha nula na lista) partia a pré-visualização do rascunho com
+   * um 500, quando a rota antiga a desenhava. O dinheiro conta-se só quando é
+   * pedido (`dinheiroDe`), como antes.
+   */
+  it("um rascunho com os adicionais meio escritos desenha-se, como na rota antiga", async () => {
+    const doc = {
+      ...baseDoc({ totalAmount: 3000 }),
+      budgetExtrasSomam: true,
+      budgetExtras: [null],
+    };
+    const rascunho = await POST(req({ mode: "preview", rascunho: true, doc }), { params });
+    expect(rascunho.status).toBe(200);
+  });
+
+  /**
    * Revisão de 14/11, n.º 6: o PDF final com uma foto escolhida em falta sairia
    * com o lugar vazio — e descarregá-lo e mandá-lo por fora é enviar. Só o
    * rascunho sai, como no estúdio.

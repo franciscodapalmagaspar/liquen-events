@@ -235,6 +235,16 @@ export const ESTRANHOS: Array<[string, () => NextRequest, (() => void)?]> = [
     () => envio(doc(), { cortesConfirmados: "true" }),
     () => (ctl.truncations = [{ where: "Capa", dropped: 1, unit: "linhas" }]),
   ],
+  [
+    // O rascunho nunca conta o dinheiro: um adicional nulo não o parte.
+    "rascunho com um adicional nulo a somar",
+    () =>
+      pedido({
+        mode: "preview",
+        rascunho: true,
+        doc: doc({ budgetExtrasSomam: true, budgetExtras: [null] }),
+      }),
+  ],
   ["ref número", () => envio(doc({ ref: 7 }))],
   ["clientNames lista", () => envio(doc({ clientNames: ["a"] }))],
   ["doc sem nada", () => envio({})],

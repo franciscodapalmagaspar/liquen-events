@@ -1,5 +1,4 @@
 import "server-only";
-import type { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { eurDocumento } from "@/lib/money";
 import { esc } from "@/lib/mail";
 import { emailAoCliente } from "@/lib/email-assinatura";
@@ -11,7 +10,7 @@ import { textosDoEmailDaProposta } from "@/lib/email-proposta-textos";
 import { eCasamento } from "@/lib/proposal-evento";
 import { log } from "@/lib/logger";
 import { cartaoDoPdf } from "./cartao-do-pdf";
-import type { EnvioDaProposta } from "./envio-da-proposta";
+import { dinheiroDe, type EnvioDaProposta } from "./envio-da-proposta";
 
 declare const marcaDoEmoldurado: unique symbol;
 
@@ -35,7 +34,6 @@ export interface ParaEscrever extends EnvioDaProposta {
   textoDoEmail: string | null;
   assuntoDoEmail: string | null;
   acceptUrl: string;
-  dinheiro: ReturnType<typeof dinheiroDaProposta>;
   /** Quem carregou em «Enviar» (`assinaturaDeQuemEnvia`). */
   assinatura: { nome: string; cargo: string };
 }
@@ -212,7 +210,7 @@ async function modeloDela(p: ParaEscrever, escritoAMao: boolean) {
         ? String(doc.clientNames ?? "").trim()
         : String(quote.name ?? "").trim() || String(doc.clientNames ?? "").trim(),
       link: acceptUrl,
-      valor: eurDocumento(p.dinheiro.gross),
+      valor: eurDocumento(dinheiroDe(p).gross),
       ...(String(doc.eventDate ?? "").trim() ? { data_evento: String(doc.eventDate).trim() } : {}),
       ...(String(doc.location ?? "").trim() ? { local: String(doc.location).trim() } : {}),
     }),

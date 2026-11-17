@@ -1,6 +1,5 @@
 import "server-only";
 import type { Quote } from "@/lib/orcamento/types";
-import { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { enderecoDaProposta } from "@/lib/proposta-link-curto";
 import { comTrinco } from "@/lib/trinco";
 import type { CorpoLido } from "./ler-o-corpo";
@@ -152,7 +151,7 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   });
   if (!preparado.segue) return preparado.desfecho;
   const { envio, desenho } = preparado.valor;
-  const { pedidoId, quote, doc, dinheiro } = envio;
+  const { pedidoId, quote, doc } = envio;
   const { relatorio, pdfDaMemoria } = desenho;
   const { pdf, missingImages, truncations } = relatorio;
 
@@ -163,7 +162,7 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   avisarQueSegueComFotosAMenos(pedidoId, missingImages);
 
   const { irmas, porEnviar } = await irmasDoPedido(pedidoId);
-  const linha = montarAProposta({ ...envio, dinheiro, pdf, porEnviar });
+  const linha = montarAProposta({ ...envio, pdf, porEnviar });
   const { proposal, anteriores } = comAVersao(linha, irmas);
 
   const repetido = await repeticaoDoEnvio({
@@ -185,7 +184,6 @@ async function enviar(c: Contexto): Promise<Desfecho> {
     textoDoEmail: corpo.textoDoEmail,
     assuntoDoEmail: corpo.assuntoDoEmail,
     acceptUrl,
-    dinheiro,
     assinatura: c.assinatura(),
   });
   const capa = comecarAAquecerACapa(doc.coverImages);
@@ -202,7 +200,6 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   const depois = await depoisDoEmail({
     ...envio,
     proposal,
-    dinheiro,
     emailed: saida.emailed,
     semEmailPorEscolha: saida.semEmailPorEscolha,
     email,
@@ -251,12 +248,6 @@ async function prepararEDesenhar(
     quote,
     doc,
     idioma: corpo.idioma,
-    // `dinheiroDaProposta` e não `resolveProposalMoney`: quando os valores
-    // adicionais somam ao valor escrito, o bruto que fica GRAVADO tem de os
-    // trazer. Senão o PDF dizia 3.862,20 € e o sinal continuava a ser
-    // calculado sobre 3.690 € — o documento e a cobrança a discordarem em
-    // silêncio. Calculado UMA vez: as travas, a linha e o email leem este.
-    dinheiro: dinheiroDaProposta(doc),
   };
 
   const trava = await porta.trava(envio, chaveDoQueChegou);

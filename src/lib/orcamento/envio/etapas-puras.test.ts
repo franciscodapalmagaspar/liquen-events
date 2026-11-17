@@ -5,7 +5,6 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import type { Proposal, Quote } from "@/lib/orcamento/types";
-import { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { log } from "@/lib/logger";
 import { cabecalhosDaPreVisualizacao } from "./pre-visualizacao";
 import {
@@ -139,7 +138,6 @@ describe("o documento e a linha que se grava", () => {
       quote,
       doc,
       idioma: "en",
-      dinheiro: dinheiroDaProposta(doc),
       pdf,
       porEnviar,
     });
@@ -162,7 +160,6 @@ describe("o documento e a linha que se grava", () => {
         quote: { id: "q", email: "" } as Quote,
         doc,
         idioma: "pt",
-        dinheiro: dinheiroDaProposta(doc),
         pdf: Buffer.from("x"),
         porEnviar: null,
       });
@@ -195,7 +192,6 @@ describe("o documento e a linha que se grava", () => {
         quote: { id: "q", email: "" } as Quote,
         doc,
         idioma: "pt",
-        dinheiro: dinheiroDaProposta(doc),
         pdf: Buffer.from("x"),
         porEnviar: null,
       });
@@ -225,8 +221,18 @@ describe("o documento e a linha que se grava", () => {
         versaoEm: "2026-11-17T12:00:00.000Z",
         versaoSelo: seloDoConteudo(linha),
       });
-      // O selo é o do CONTEÚDO dela — nunca o de uma irmã.
-      expect(proposal.versaoSelo).not.toBe("selo-da-nova");
+      // E o selo COMPARA-SE com o da irmã mais recente: com o mesmo conteúdo,
+      // a versão não sobe e a data fica a do conteúdo (a dela).
+      const igual = {
+        ...nova,
+        versaoSelo: seloDoConteudo(linha),
+        versaoEm: "2026-02-01T00:00:00.000Z",
+      };
+      expect(comAVersao(linha, [velha, igual]).proposal).toMatchObject({
+        versaoNumero: 2,
+        versaoEm: "2026-02-01T00:00:00.000Z",
+        versaoSelo: seloDoConteudo(linha),
+      });
       // Pura: a linha que entrou não ganhou a versão.
       expect(linha.versaoNumero).toBeUndefined();
     } finally {

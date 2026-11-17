@@ -115,22 +115,26 @@ const ROTA = "src/app/api/orcamento/[id]/proposta-doc/route.ts";
  * mas fora do `src/`: um Ctrl-C a meio não deixa lá um ficheiro que o `tsc` e
  * o `next build` apanhariam.
  */
-function git(...args: string[]): string | null {
+/** O prazo de um comando local; o da ida ao GitHub é {@link PRAZO_DA_BUSCA_MS}. */
+const PRAZO_LOCAL_MS = 15_000;
+/** Um runner lento a buscar um commit não pode fazer saltar a prova; uma rede
+ *  pendurada também não pode prender a parte do CI (o job tem 20 min). */
+const PRAZO_DA_BUSCA_MS = 60_000;
+function git(args: string[], prazoMs = PRAZO_LOCAL_MS): string | null {
   try {
     return execFileSync("git", args, {
       cwd: import.meta.dirname,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-      // Uma rede pendurada não pode prender a parte do CI (o job tem 20 min).
-      timeout: 15_000,
+      timeout: prazoMs,
     }).trim();
   } catch {
     return null;
   }
 }
-const RAIZ = git("rev-parse", "--show-toplevel") ?? "";
+const RAIZ = git(["rev-parse", "--show-toplevel"]) ?? "";
 /** O commit está no clone? */
-const temOCommit = () => git("cat-file", "-e", `${COMMIT_DA_ROTA_ANTIGA}^{commit}`) !== null;
+const temOCommit = () => git(["cat-file", "-e", `${COMMIT_DA_ROTA_ANTIGA}^{commit}`]) !== null;
 /**
  * Há rota antiga para tirar? No CI o checkout é raso: busca-se só este commit,
  * e só na parte do CI que corre este teste (uma ida ao GitHub, não cinco). Se a
@@ -142,7 +146,8 @@ const HA_ROTA_ANTIGA =
   RAIZ !== "" &&
   (temOCommit() ||
     (!!process.env.CI &&
-      git("fetch", "--no-tags", "--depth=1", "origin", COMMIT_COMPLETO) !== null &&
+      git(["fetch", "--no-tags", "--depth=1", "origin", COMMIT_COMPLETO], PRAZO_DA_BUSCA_MS) !==
+        null &&
       temOCommit()));
 if (PASSOU_O_PRAZO) avisar(PEDIDO_DO_PRAZO);
 else if (!HA_ROTA_ANTIGA && process.env.COMPARAR_COM_A_ROTA_ANTIGA !== "0") {
@@ -150,7 +155,7 @@ else if (!HA_ROTA_ANTIGA && process.env.COMPARAR_COM_A_ROTA_ANTIGA !== "0") {
     RAIZ === ""
       ? "não há git (ou isto não é um repositório) — a comparação saltou"
       : process.env.CI
-        ? `o commit ${COMMIT_DA_ROTA_ANTIGA} não veio (o fetch falhou ou passou dos 15 s) — a comparação saltou`
+        ? `o commit ${COMMIT_DA_ROTA_ANTIGA} não veio (o fetch falhou ou passou dos 60 s) — a comparação saltou`
         : `este clone não tem o commit ${COMMIT_DA_ROTA_ANTIGA} (raso?) — a comparação saltou`,
   );
 }

@@ -1,4 +1,5 @@
 import type { CorpoDaRecusa, Falha, Recusa, RespostaDoEnvio } from "./contrato";
+import type { BytesDoPdf } from "./envio-da-proposta";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -20,7 +21,7 @@ import type { CorpoDaRecusa, Falha, Recusa, RespostaDoEnvio } from "./contrato";
 export type Desfecho =
   | { tipo: "recusa"; recusa: Recusa }
   | { tipo: "falha"; falha: Falha }
-  | { tipo: "pdf"; pdf: Buffer<ArrayBuffer>; cabecalhos: Record<string, string> }
+  | { tipo: "pdf"; pdf: BytesDoPdf; cabecalhos: Record<string, string> }
   | { tipo: "envio"; resposta: RespostaDoEnvio };
 
 /** Uma etapa que pára o pedido — serve qualquer `Passo<T>`, porque não chega a produzir `T`. */
@@ -29,8 +30,9 @@ export type Paragem = { segue: false; desfecho: Desfecho };
 /** O resultado de uma etapa: segue com `valor`, ou pára com o `desfecho`. */
 export type Passo<T = undefined> = { segue: true; valor: T } | Paragem;
 
-/** Segue, sem nada a acrescentar (as travas e as perguntas que não travam). */
-export const SEGUE: Passo = { segue: true, valor: undefined };
+/** Segue, sem nada a acrescentar (as travas e as perguntas que não travam).
+ *  Partilhado por todos os pedidos — por isso congelado. */
+export const SEGUE: Passo = Object.freeze({ segue: true, valor: undefined });
 
 /** Segue, com o que a etapa produziu. */
 export function segue<T>(valor: T): Passo<T> {
@@ -41,19 +43,19 @@ export function segue<T>(valor: T): Passo<T> {
  * Os quatro desfechos, um construtor cada, com o nome do seu `tipo`
  * (`desfecho.envio(…)` dá `{ tipo: "envio", … }`).
  */
-export const desfecho = {
+export const desfecho = Object.freeze({
   recusa: (status: Recusa["status"], corpo: CorpoDaRecusa): Desfecho => ({
     tipo: "recusa",
     recusa: { status, corpo },
   }),
   falha: (falha: Falha): Desfecho => ({ tipo: "falha", falha }),
-  pdf: (pdf: Buffer<ArrayBuffer>, cabecalhos: Record<string, string>): Desfecho => ({
+  pdf: (pdf: BytesDoPdf, cabecalhos: Record<string, string>): Desfecho => ({
     tipo: "pdf",
     pdf,
     cabecalhos,
   }),
   envio: (resposta: RespostaDoEnvio): Desfecho => ({ tipo: "envio", resposta }),
-};
+});
 
 /** Pára com uma recusa: a proposta não pode seguir assim (400, 409, 413, 422). */
 export function paraComRecusa(status: Recusa["status"], corpo: CorpoDaRecusa): Paragem {
