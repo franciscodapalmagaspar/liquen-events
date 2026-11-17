@@ -12,11 +12,17 @@ import type { NextRequest } from "next/server";
  * morta. Estes testes prendem o orçamento de cada passo e a retoma das
  * derivadas de uma noite para a seguinte.
  */
+type OpcoesDoLote = {
+  tectoMs?: number;
+  retoma?: unknown;
+  sinal?: AbortSignal;
+  posicao?: { atual: unknown };
+};
 const H = vi.hoisted(() => ({
   lerPedidos: null as null | (() => Promise<unknown[]>),
   push: null as null | (() => Promise<unknown>),
-  lote: null as null | ((opcoes: unknown) => Promise<unknown>),
-  chamadasAoLote: [] as Array<{ tectoMs?: number; retoma?: unknown }>,
+  lote: null as null | ((opcoes: OpcoesDoLote) => Promise<unknown>),
+  chamadasAoLote: [] as OpcoesDoLote[],
   estado: new Map<string, unknown>(),
   gravado: [] as Array<{ key: string; valor: unknown }>,
 }));
@@ -33,12 +39,10 @@ const RESULTADO = {
 };
 
 vi.mock("@/lib/derivadas", () => ({
-  gerarLoteDeDerivadas: vi.fn(
-    async (_papel: unknown, opcoes: { tectoMs?: number; retoma?: unknown }) => {
-      H.chamadasAoLote.push(opcoes);
-      return H.lote ? H.lote(opcoes) : RESULTADO;
-    },
-  ),
+  gerarLoteDeDerivadas: vi.fn(async (_papel: unknown, opcoes: OpcoesDoLote) => {
+    H.chamadasAoLote.push(opcoes);
+    return H.lote ? H.lote(opcoes) : RESULTADO;
+  }),
 }));
 vi.mock("@/lib/supabase", () => ({ getSupabase: () => ({}) }));
 vi.mock("@/lib/app-state", () => ({
@@ -148,5 +152,49 @@ describe("o que não coube fica para a noite seguinte", () => {
     expect(H.chamadasAoLote[1]!.retoma).toEqual(retoma);
     // E acabada a travessia, a retoma limpa-se: a noite seguinte recomeça.
     expect(H.gravado.at(-1)?.valor).toBeNull();
+  });
+});
+
+/**
+ * Revisão de 17/11, n.º 2: o `comPrazo` deixava de esperar pelo lote, mas o
+ * lote continuava em fundo depois da resposta, e a retoma não avançava — a
+ * noite seguinte voltava ao mesmo sítio, e pendurava no mesmo sítio.
+ */
+describe("o prazo das derivadas PÁRA o lote, e a retoma avança", () => {
+  const P = { papel: "essencial", origem: "theme-assets", pasta: "tema-07", caminho: "" };
+
+  it("no fim do prazo o lote recebe o sinal, pára, e a retoma que ele devolve fica guardada", async () => {
+    const R = { ...P, pasta: "tema-09" };
+    H.lote = (opcoes) =>
+      new Promise((resolver) =>
+        opcoes.sinal!.addEventListener("abort", () => resolver({ ...RESULTADO, retoma: R })),
+      );
+    const { ms } = await correr();
+    expect(ms).toBeLessThanOrEqual(50_000);
+    expect(H.chamadasAoLote[0]!.sinal!.aborted).toBe(true);
+    expect(H.gravado.at(-1)?.valor).toEqual(R);
+  });
+
+  it("uma pasta que pendura (nem o sinal a pára) fica registada; à segunda, a noite seguinte salta-a", async () => {
+    H.lote = (opcoes) => {
+      opcoes.posicao!.atual = P;
+      return nunca();
+    };
+    const primeira = await correr();
+    expect(primeira.ms).toBeLessThanOrEqual(50_000);
+    expect(H.gravado.at(-1)?.valor).toEqual({ ...P, pendurada: true });
+
+    await correr();
+    expect(H.chamadasAoLote[1]!.retoma).toEqual({ ...P, pendurada: true });
+    expect(H.gravado.at(-1)?.valor).toEqual({ ...P, saltar: true });
+  });
+
+  it("uma AVARIA do lote não se confunde com uma pasta pendurada", async () => {
+    H.lote = async (opcoes) => {
+      opcoes.posicao!.atual = P;
+      throw new Error("sem rede");
+    };
+    await correr();
+    expect(H.gravado.filter((g) => g.key.includes("retoma"))).toHaveLength(0);
   });
 });

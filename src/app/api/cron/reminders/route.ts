@@ -10,7 +10,7 @@ import { log } from "@/lib/logger";
 import { gerarLoteDeDerivadas, type Retoma } from "@/lib/derivadas";
 import { getState, setState } from "@/lib/app-state";
 import { getSupabase } from "@/lib/supabase";
-import { comPrazo } from "@/lib/prazo";
+import { comPrazo, TempoEsgotado } from "@/lib/prazo";
 import { eur0 as eur } from "@/lib/money";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
 import { comCpu } from "@/lib/medir-cpu";
@@ -142,6 +142,29 @@ const FOLGA_DO_BLOCO_MS = 10_000;
 /** Menos do que isto não chega para um bloco com folga. */
 const MINIMO_DERIVADAS_MS = 15_000;
 const CHAVE_RETOMA = "cron-reminders:retoma-das-derivadas";
+/** Quanto se espera pelo lote depois de lhe dar o sinal para parar. */
+const FOLGA_DEPOIS_DO_SINAL_MS = 5_000;
+
+/**
+ * Onde recomeçar quando o lote nem ao sinal respondeu. A primeira vez numa
+ * pasta, tenta-se outra vez (`pendurada`); se a noite anterior já tinha
+ * pendurado NESSA pasta, salta-se (`saltar`) — senão ficava ali para sempre.
+ */
+function retomaDaPastaPendurada(anterior: Retoma | null, atual: Retoma | null): Retoma | null {
+  if (!atual) return anterior;
+  const base: Retoma = {
+    papel: atual.papel,
+    origem: atual.origem,
+    pasta: atual.pasta,
+    caminho: atual.caminho,
+  };
+  const mesmaPasta =
+    anterior?.pendurada === true &&
+    anterior.papel === atual.papel &&
+    anterior.origem === atual.origem &&
+    anterior.pasta === atual.pasta;
+  return mesmaPasta ? { ...base, caminho: "", saltar: true } : { ...base, pendurada: true };
+}
 
 /** Onde a apanha da noite anterior parou. Sem Supabase não há onde guardar. */
 async function retomaDaNoiteAnterior(): Promise<Retoma | null> {
@@ -173,12 +196,41 @@ async function apanharDerivadasEmAtraso(desdeMs: number): Promise<void> {
     // AVIF — a ordem está explicada no `gerarLoteDeDerivadas`, e é a que faz
     // parar a meio deixar as coisas melhores do que estavam.
     const tectoMs = ORCAMENTO_MS - (Date.now() - desdeMs) - FOLGA_DO_BLOCO_MS;
-    const prazo = ORCAMENTO_MS - (Date.now() - desdeMs) - 2_000;
-    const r = await comPrazo(
-      gerarLoteDeDerivadas(undefined, { tectoMs, retoma }),
-      prazo,
-      "derivadas em atraso",
-    );
+    const prazo = ORCAMENTO_MS - (Date.now() - desdeMs) - FOLGA_DEPOIS_DO_SINAL_MS - 3_000;
+    /**
+     * ── O PRAZO PÁRA O LOTE, NÃO SÓ A ESPERA (revisão de 17/11) ────────────
+     *
+     * Sem sinal, o `comPrazo` deixava de esperar, mas o lote continuava em
+     * fundo depois da resposta — e, sem resposta dele, não se guardava retoma
+     * nenhuma: a noite seguinte voltava ao mesmo sítio. Esgotado o prazo, o
+     * lote recebe o sinal, pára no próximo intervalo (entre pastas ou entre
+     * blocos) e devolve onde parou; dá-se-lhe `FOLGA_DEPOIS_DO_SINAL_MS`.
+     *
+     * Se nem assim responder — uma ida ao Storage que nunca volta —, guarda-se
+     * a pasta onde ele ia (`posicao`): a noite seguinte tenta-a outra vez, e se
+     * pendurar no MESMO sítio salta-a e segue.
+     */
+    const parar = new AbortController();
+    const posicao: { atual: Retoma | null } = { atual: retoma };
+    const lote = gerarLoteDeDerivadas(undefined, { tectoMs, retoma, sinal: parar.signal, posicao });
+    // Só o tempo esgotado espera pela folga: uma avaria do lote segue para o
+    // `catch` de baixo, como sempre — não é uma pasta pendurada.
+    const r = await comPrazo(lote, prazo, "derivadas em atraso", parar).catch((err) => {
+      if (!(err instanceof TempoEsgotado)) throw err;
+      return comPrazo(lote, FOLGA_DEPOIS_DO_SINAL_MS, "derivadas depois do sinal").catch((e) => {
+        if (!(e instanceof TempoEsgotado)) throw e;
+        return null;
+      });
+    });
+    if (!r) {
+      const onde = retomaDaPastaPendurada(retoma, posicao.atual);
+      await comPrazo(guardarRetoma(onde), 3_000, "guardar a retoma").catch(() => undefined);
+      log.warn("cron reminders: as derivadas penduraram numa pasta", {
+        pasta: onde ? `${onde.origem}/${onde.pasta}` : null,
+        aSaltar: onde?.saltar === true,
+      });
+      return;
+    }
     await comPrazo(guardarRetoma(r.retoma), 3_000, "guardar a retoma").catch(() => undefined);
     if (r.fotografiasFeitas > 0 || r.falhas.length > 0) {
       log.info("cron reminders: derivadas apanhadas de caminho", {
