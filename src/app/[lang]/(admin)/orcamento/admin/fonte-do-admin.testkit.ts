@@ -114,8 +114,11 @@ export function fonteDaCasa(
  * ecrã depois de a vista se partir em componentes.
  *
  * Só cola chamadas que se fecham sozinhas (`<Nome … />`) de componentes
- * importados de uma pasta privada (`./_casa/…`); é a forma de todas as que as
- * fases 7 e 8 criaram. `porFicheiro` corre em cada ficheiro antes de colar.
+ * importados de uma pasta privada (`./_casa/…`) ou de uma das `PECAS_SOLTAS`;
+ * é a forma de todas as que as partições criaram. O fim da chamada acha-se
+ * contando `{}` e `()`, por isso uma prop com `=>`, `<` ou `>` lá dentro (um
+ * `cartao={(q) => <QuoteCard … />}`, um `a > b`) não a esconde. `porFicheiro`
+ * corre em cada ficheiro antes de colar.
  */
 export function fonteComposta(
   rel: string,
@@ -127,14 +130,54 @@ export function fonteComposta(
   const componentes = new Map<string, string>();
   for (const m of texto.matchAll(/import \{([^}]*)\} from "(\.{1,2}\/[^"]+)";/g)) {
     const destino = relative(ADMIN, join(dirname(abs), m[2]));
-    if (!destino.split("/").some((parte) => parte.startsWith("_"))) continue;
+    const daCasa = destino.split("/").some((parte) => parte.startsWith("_"));
+    if (!daCasa && !PECAS_SOLTAS.includes(`${destino}.tsx`)) continue;
     for (const nome of m[1].split(",").map((n) => n.replace(/^type /, "").trim())) {
       if (/^[A-Z]/.test(nome)) componentes.set(nome, `${destino}.tsx`);
     }
   }
-  return texto.replace(/<([A-Z]\w*)\b(?:[^<>]|=>)*?\/>/g, (chamada, nome: string) => {
-    const ficheiro = componentes.get(nome);
-    if (!ficheiro || vistos.has(ficheiro)) return chamada;
-    return fonteComposta(ficheiro, porFicheiro, new Set([...vistos, rel, ficheiro]));
-  });
+  let saida = "";
+  let k = 0;
+  for (const m of texto.matchAll(/<([A-Z]\w*)\b/g)) {
+    const inicio = m.index;
+    if (inicio < k) continue; // dentro de uma chamada já colada
+    const ficheiro = componentes.get(m[1]);
+    if (!ficheiro || vistos.has(ficheiro)) continue;
+    const fim = fimDaEtiqueta(texto, inicio);
+    if (fim === null) continue; // abre com `>` (tem filhos): não se cola
+    saida += texto.slice(k, inicio);
+    saida += fonteComposta(ficheiro, porFicheiro, new Set([...vistos, rel, ficheiro]));
+    k = fim;
+  }
+  return saida + texto.slice(k);
+}
+
+/**
+ * Peças de um ecrã partido que ficaram ao lado dele, fora de uma pasta `_casa`
+ * (os ficheiros que voltaram abaixo do tecto a 17/11). Coladas como as das casas.
+ */
+export const PECAS_SOLTAS: readonly string[] = [
+  "CommandPaletteIcone.tsx",
+  "ContratosDetalhe.tsx",
+  "FornecedoresIcones.tsx",
+];
+
+/**
+ * O índice logo depois do `/>` que fecha a etiqueta aberta em `inicio`, ao nível
+ * dela (fora de `{}` e `()`); `null` se ela fechar com `>` (tem filhos) ou não
+ * fechar. Um `>` à fundura zero só é o fim se não vier de `=>`.
+ */
+export function fimDaEtiqueta(texto: string, inicio: number): number | null {
+  let fundura = 0;
+  for (let i = inicio + 1; i < texto.length; i++) {
+    const c = texto[i];
+    if (c === "{" || c === "(") fundura++;
+    else if (c === "}" || c === ")") fundura--;
+    else if (fundura === 0) {
+      if (c === "/" && texto[i + 1] === ">") return i + 2;
+      if (c === ">" && texto[i - 1] !== "=") return null;
+      if (c === "<") return null; // outra etiqueta antes de fechar: não é JSX que se perceba
+    }
+  }
+  return null;
 }
