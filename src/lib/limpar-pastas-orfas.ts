@@ -1,6 +1,6 @@
 import "server-only";
 import { balde } from "@/lib/armazenamento/balde";
-import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
+import { eChaveDeIndiceDeFotos, PREFIXO_DO_INDICE_DO_BLOB } from "@/lib/indices-de-fotos";
 import { getSupabase } from "@/lib/supabase";
 import { apagarPastaDoPedido } from "@/lib/proposal-storage";
 import { getState, setState } from "@/lib/app-state";
@@ -119,10 +119,13 @@ export async function limparPastasDePedidosApagados(
     ...(reciclagem.data as { origem_id: string | null }[]).map((r) => r.origem_id ?? ""),
     ...(propostas.data as { quote_id: string | null }[]).map((p) => p.quote_id ?? ""),
   ]);
-  // Os índices nomeiam todas as fotografias — não são menções (`indices-de-fotos.ts`).
+  // As linhas do índice do Vercel Blob nomeiam TODOS os ficheiros do Blob —
+  // não são menções. SÓ essas: as outras chaves (também `foto-resumo:` e
+  // `foto-visual:`) continuam a contar aqui exactamente como em `main`
+  // (2.ª revisão de 17/11, n.º 3).
   const nomesDeChaves = (chaves.data as { key: string }[])
     .map((c) => c.key)
-    .filter((k) => !eChaveDeIndiceDeFotos(k))
+    .filter((k) => !k.startsWith(PREFIXO_DO_INDICE_DO_BLOB))
     .join("\n");
   // Portas 3 e 4.
   let candidatas = pastas.filter((p) => !vivos.has(p) && !nomesDeChaves.includes(p));

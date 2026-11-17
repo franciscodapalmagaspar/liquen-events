@@ -25,6 +25,9 @@ export const PREFIXOS_DE_INDICE_DE_FOTOS = [
   "blob:i:",
 ] as const;
 
+/** O prefixo do índice do Vercel Blob (`armazenamento/indice.ts`), à parte para quem só o quer a ele. */
+export const PREFIXO_DO_INDICE_DO_BLOB = "blob:i:";
+
 /** Esta chave de `app_state` é um índice de fotografias (não é uma menção)? */
 export function eChaveDeIndiceDeFotos(chave: unknown): boolean {
   const k = String(chave ?? "");
