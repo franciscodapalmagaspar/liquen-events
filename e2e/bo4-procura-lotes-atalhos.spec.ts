@@ -19,7 +19,10 @@ import { entrarNoBackOffice, esperarQueACortinaSaia, exigirLogin } from "./semea
 const MARCA = String(Date.now()).slice(-5);
 const T = (n: number) => `TESTE BO4 tarefa ${n} ${MARCA}`;
 const MARCACAO = `TESTE BO4 prova ${MARCA}`;
-const PEDIDO = (n: string) => `TESTE BO4 ${n} ${MARCA}`;
+/** A marca vem logo a seguir ao prefixo: a procura é sempre por `PREFIXO_DOS_PEDIDOS`,
+ *  nunca por cinco algarismos soltos (que podiam casar com um telefone). */
+const PREFIXO_DOS_PEDIDOS = `TESTE BO4 ${MARCA}`;
+const PEDIDO = (n: string) => `${PREFIXO_DOS_PEDIDOS} ${n}`;
 
 const semeado = { tarefas: [] as string[], marcacoes: [] as string[], pedidos: [] as string[] };
 
@@ -214,8 +217,8 @@ test("os atalhos: «G»+letra, «/» na vista, e a folha mostra os escondidos", 
   await page.keyboard.press("Shift+?");
   const folha = page.getByRole("dialog", { name: "Atalhos de teclado" });
   await expect(folha).toBeVisible();
-  for (const t of ["Biblioteca de temas", "Dia, semana, mês, ano", "Eliminar a tarefa"]) {
-    await expect(folha.getByText(t)).toBeVisible();
+  for (const t of ["Biblioteca de temas", "Anterior e seguinte", "Eliminar a tarefa"]) {
+    await expect(folha.getByText(t, { exact: true })).toBeVisible();
   }
   await page.screenshot({ path: info.outputPath("atalhos-1440.png") });
   expect(erros).toEqual([]);
@@ -279,7 +282,7 @@ test("Pedidos: caixa marcada → ⌘A e Esc, e «Arquivar (N)» com «Anular» �
     esquema: "light",
   });
   await abrir(page, "pedidos");
-  await page.getByLabel("Procurar pedidos por nome, email, local ou ID").fill(MARCA);
+  await page.getByLabel("Procurar pedidos por nome, email, local ou ID").fill(PREFIXO_DOS_PEDIDOS);
   await expect(page.getByText(PEDIDO("Ana")).first()).toBeVisible();
   // Marca uma caixa (o foco fica NELA) e é daí que vem o ⌘A — o gesto real.
   await page.getByRole("checkbox", { name: `Selecionar pedido de ${PEDIDO("Ana")}` }).click();
@@ -318,7 +321,7 @@ test("Pedidos: restaurar os arquivados volta à lista normal — no ecrã e no s
   const botao = page.getByRole("button", { name: /^Arquivados · \d+$/ });
   const quantos = Number((await botao.textContent())?.match(/\d+/)?.[0] ?? 0);
   await botao.click();
-  await page.getByLabel("Procurar pedidos por nome, email, local ou ID").fill(MARCA);
+  await page.getByLabel("Procurar pedidos por nome, email, local ou ID").fill(PREFIXO_DOS_PEDIDOS);
   await page.getByRole("checkbox", { name: `Selecionar pedido de ${PEDIDO("Ana")}` }).click();
   await page.keyboard.press(`${MOD}+a`);
   await page.getByRole("button", { name: "Restaurar (2)" }).click();
@@ -363,10 +366,14 @@ for (const largura of [390, 1440]) {
       await page.screenshot({ path: info.outputPath(`paleta-foco-${largura}-${esquema}.png`) });
       const estilo = await campo.evaluate((el) => {
         const c = getComputedStyle(el);
-        return { sombra: c.boxShadow, contorno: c.outlineStyle };
+        return { sombra: c.boxShadow, estilo: c.outlineStyle, cor: c.outlineColor };
       });
       expect(estilo.sombra, "o rectângulo do foco voltou ao campo do ⌘K").toBe("none");
-      expect(estilo.contorno).toBe("none");
+      // O contorno existe mas sem cor (o `forced-colors` dá-lha) — 2.ª revisão · 8.
+      expect(
+        estilo.estilo === "none" || /rgba\(0, 0, 0, 0\)|transparent/.test(estilo.cor),
+        `o anel global voltou ao campo do ⌘K (${estilo.estilo} ${estilo.cor})`,
+      ).toBe(true);
       expect(erros).toEqual([]);
       await ctx.close();
     });
@@ -436,7 +443,9 @@ for (const largura of [390, 768, 1440]) {
         await semDeslocacaoHorizontal(page, `${vista} ${largura} ${esquema}`);
       }
       // Pedidos com a barra do lote.
-      await page.getByLabel("Procurar pedidos por nome, email, local ou ID").fill(MARCA);
+      await page
+        .getByLabel("Procurar pedidos por nome, email, local ou ID")
+        .fill(PREFIXO_DOS_PEDIDOS);
       const caixa = page.getByRole("checkbox", {
         name: new RegExp(`Selecionar pedido de ${PEDIDO("Ana")}`),
       });

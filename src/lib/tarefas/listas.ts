@@ -1,3 +1,4 @@
+import { hojeNoEstudio } from "@/lib/fuso";
 import type { Task, TaskPriority } from "@/lib/orcamento/types";
 import { diaDoPrazo } from "./prazo";
 
@@ -104,14 +105,29 @@ export function fimDaSemana(hoje: string): string {
  * seria deixá-la atrasada com outra data.
  */
 export function adiarUmaSemana(prazo: string | undefined, hoje: string): string {
-  // Pelo DIA: um prazo gravado com hora («2026-11-20T10:00…») conta pelo
-  // dia dele, e não como estragado (revisão · 6).
-  const dia = prazo?.slice(0, 10);
-  const base = dia && /^\d{4}-\d{2}-\d{2}$/.test(dia) && dia >= hoje ? dia : hoje;
+  const dia = diaDoPrazoEmLisboa(prazo);
+  const base = dia && dia >= hoje ? dia : hoje;
   const d = new Date(`${base}T12:00:00`);
   d.setDate(d.getDate() + 7);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * O DIA de um prazo, para o «Adiar uma semana». Reutiliza o `diaDoPrazo`
+ * (`prazo.ts`): um dia, ou um dia com hora de parede («2026-11-13T10:00»),
+ * vale pelo dia escrito. Só um INSTANTE com fuso («…Z», «…+01:00») é lido no
+ * fuso do estúdio, Lisboa — às 23:30 UTC de um dia de verão já é o dia
+ * seguinte cá, e cortar a cadeia dava o de UTC (2.ª revisão · 10).
+ */
+function diaDoPrazoEmLisboa(prazo: string | undefined): string | undefined {
+  if (!prazo) return undefined;
+  if (/(Z|[+-]\d{2}:?\d{2})$/.test(prazo)) {
+    const instante = new Date(prazo);
+    return Number.isNaN(instante.getTime()) ? undefined : hojeNoEstudio(instante);
+  }
+  const dia = diaDoPrazo(prazo);
+  return /^\d{4}-\d{2}-\d{2}$/.test(dia) ? dia : undefined;
 }
 
 /** O dia seguinte a `hoje`, em `YYYY-MM-DD`. */

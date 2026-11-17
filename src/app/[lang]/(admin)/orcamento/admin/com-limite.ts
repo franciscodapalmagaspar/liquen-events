@@ -9,20 +9,26 @@
  * esgotarem o tempo à espera dos últimos. Agora vão `limite` de cada vez: o
  * próximo sai quando um acaba, e a ordem das respostas é a ordem dos itens.
  *
- * Nunca rejeita por um item: quem chama decide o que é falhar (as escritas
- * do back office devolvem `null` em vez de atirar).
+ * Nunca rejeita por um item: o resultado é POR ITEM — o valor, ou `null`
+ * quando aquele item falhou (atirou ou rejeitou). Um item que atira não pode
+ * derrubar o lote inteiro: era o que deixava o «Anular» do «Marcar como» sem
+ * aplicar os que voltaram (2.ª revisão · 2).
  */
 export async function comLimite<T, R>(
   itens: readonly T[],
   limite: number,
   fazer: (item: T, indice: number) => Promise<R>,
-): Promise<R[]> {
-  const resultados: R[] = new Array(itens.length);
+): Promise<(R | null)[]> {
+  const resultados: (R | null)[] = new Array(itens.length).fill(null);
   let proximo = 0;
   const trabalhador = async () => {
     while (proximo < itens.length) {
       const i = proximo++;
-      resultados[i] = await fazer(itens[i], i);
+      try {
+        resultados[i] = await fazer(itens[i], i);
+      } catch {
+        resultados[i] = null;
+      }
     }
   };
   const quantos = Math.max(1, Math.min(limite, itens.length));

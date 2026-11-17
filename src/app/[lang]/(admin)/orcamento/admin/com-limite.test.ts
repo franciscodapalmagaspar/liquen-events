@@ -21,4 +21,12 @@ describe("comLimite", () => {
     expect(await comLimite([1, 2], 4, async (x) => x * 2)).toEqual([2, 4]);
     expect(await comLimite([], 4, async (x) => x)).toEqual([]);
   });
+
+  it("um item que rejeita não derruba o lote: fica `null`, e os outros chegam", async () => {
+    const r = await comLimite([1, 2, 3], 2, async (x) => {
+      if (x === 2) throw new Error("recusado");
+      return x * 10;
+    });
+    expect(r).toEqual([10, null, 30]);
+  });
 });

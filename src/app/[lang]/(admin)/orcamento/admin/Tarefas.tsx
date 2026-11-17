@@ -1887,29 +1887,18 @@ export default function Tarefas({
       .filter((t): t is Task => !!t);
   }, [ordemDoEcra, seleccao, tasks]);
 
-  /* ── UM LOTE ESCONDIDO NÃO É UM LOTE (revisão · 5) ───────────────────────
-     O ecrã ficava preso a escolher quando a lista mudava e as escolhidas
-     saíam de vista: a barra dizia «Toca nas tarefas para as escolher» e os
-     toques somavam a um lote invisível. Agora o modo conta só o que se vê, e
-     as escondidas saem do lote quando a lista muda — ajustado no próprio
-     desenho, como o React deixa fazer sem um segundo passo. */
+  /* ── A SELECÇÃO SOBREVIVE AOS FILTROS, O MODO CONTA O QUE SE VÊ ─────────
+     Como nos Pedidos (2.ª revisão · 3): mudar de lista ou de pessoa não apaga
+     o que ela escolheu — voltar à lista de antes traz as escolhidas de volta.
+     O que deixa de existir é o MODO preso: `aSeleccionar` conta só as
+     escolhidas à vista (revisão · 5), e os botões agem só sobre elas. A
+     âncora do ⇧+clique que aponte para uma tarefa escondida é ignorada pelo
+     `seleccionarComModificadores` (não está na ordem do ecrã). */
   const aSeleccionar = modoDeSeleccao || seleccionadas.length > 0;
   useEffect(() => {
     aSeleccionarRef.current = aSeleccionar;
     escolhidaRef.current = escolhida;
   }, [aSeleccionar, escolhida]);
-  // Pelo CONTEÚDO e não pela identidade: enquanto a lista carrega, o
-  // `tasks = []` por omissão é um array novo a cada desenho, e comparar
-  // identidades dava um ciclo de desenhos sem fim.
-  const chaveDaOrdem = ordemDoEcra.join("\u0000");
-  const [ordemConhecida, setOrdemConhecida] = useState(chaveDaOrdem);
-  if (ordemConhecida !== chaveDaOrdem) {
-    setOrdemConhecida(chaveDaOrdem);
-    const vistas = new Set(ordemDoEcra);
-    if ([...seleccao].some((id) => !vistas.has(id))) {
-      setSeleccao(new Set([...seleccao].filter((id) => vistas.has(id))));
-    }
-  }
 
   /**
    * ── AS TRÊS ACÇÕES DO LOTE ──────────────────────────────────────────────
@@ -1939,7 +1928,8 @@ export default function Tarefas({
           `${feitas.length} concluída(s), ${falhadas.size} não. Verifica a ligação e tenta outra vez.`,
           "error",
         );
-        return;
+        // As que FICARAM têm o seu «Anular», como nos Pedidos (2.ª revisão · 10).
+        if (feitas.length === 0) return;
       }
       const n = feitas.length;
       anular(`${n} tarefa${n === 1 ? "" : "s"} concluída${n === 1 ? "" : "s"}.`, async () => {
@@ -1985,7 +1975,8 @@ export default function Tarefas({
           `${feitas.length} adiada(s), ${falhadas.length} não. Verifica a ligação e tenta outra vez.`,
           "error",
         );
-        return;
+        // As que FICARAM têm o seu «Anular», como nos Pedidos (2.ª revisão · 10).
+        if (feitas.length === 0) return;
       }
       const n = feitas.length;
       anular(

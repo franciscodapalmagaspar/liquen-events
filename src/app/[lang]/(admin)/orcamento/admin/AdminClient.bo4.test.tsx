@@ -23,6 +23,30 @@ import AdminClient from "./AdminClient";
 
 /** As vistas preguiçosas viram uma etiqueta que diz o que lhes chegou. */
 vi.mock("./lazy", () => {
+  const VISTAS = new Set([
+    "overview",
+    "kanban",
+    "clientes",
+    "calendario",
+    "fazerproposta",
+    "propostas",
+    "pagamentos",
+    "acompanhamento",
+    "definicoesproposta",
+    "servicos",
+    "reciclagem",
+    "tarefas",
+    "fornecedores",
+    "statsdashboard",
+    "fechosmeta",
+    "emailtemplates",
+    "contratos",
+    "inventario",
+    "material",
+    "temas",
+    "guioes",
+    "mapademesas",
+  ]);
   const stub = (name: string) => {
     const C = (props: Record<string, unknown>) => (
       <div
@@ -32,6 +56,19 @@ vi.mock("./lazy", () => {
       >
         {name} stub
         {name === "propostas" && <input aria-label="Procurar propostas" />}
+        {/* As peças do painel do pedido trazem uma caixa: é sobre ela que se
+            prova o Esc dentro do painel (segunda revisão · 1). */}
+        {!VISTAS.has(name) && <input type="checkbox" aria-label={`caixa ${name}`} />}
+        {typeof props.onAbrirPedido === "function" && Array.isArray(props.quotes) && (
+          <button
+            type="button"
+            onClick={() =>
+              (props.onAbrirPedido as (q: unknown) => void)((props.quotes as unknown[])[0])
+            }
+          >
+            Abrir o pedido (stub)
+          </button>
+        )}
         {typeof props.onIrParaPropostas === "function" && (
           <button
             type="button"
@@ -172,6 +209,14 @@ beforeEach(() => {
       }
       return resposta({ ok: true });
     }
+    const um = /^\/api\/orcamento\/([^/?]+)$/.exec(u);
+    if (um && noServidor.has(decodeURIComponent(um[1])))
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ "x-pedido": "completo" }),
+        json: async () => noServidor.get(decodeURIComponent(um[1])),
+      } as Response;
     if (u.startsWith("/api/tarefas")) return resposta(TAREFAS);
     if (u.startsWith("/api/propostas")) return resposta(PROPOSTAS_LEVES);
     return resposta([]);
@@ -588,5 +633,120 @@ describe("revisão · 8 — ⌘A e Esc dos Pedidos nunca agem atrás de uma jane
     fireEvent.click(within(caixa).getByRole("button", { name: "Cancelar" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.getByText(/^1 selecionado$/)).toBeTruthy();
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SEGUNDA REVISÃO (às correções c0f34d81 / 175c7ad2) — um teste por achado
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** Abre o painel do primeiro pedido (no jsdom o painel fica AO LADO da lista). */
+async function abrirOPainelDoPrimeiro() {
+  tecla("g");
+  tecla("f");
+  fireEvent.click(await screen.findByRole("button", { name: "Abrir o pedido (stub)" }));
+  await screen.findByRole("button", { name: "Fechar" });
+}
+
+describe("2.ª revisão · 1 — o Esc numa caixa DENTRO do painel não o fecha", () => {
+  it("a caixa perde o foco e o painel fica", async () => {
+    renderAdmin([makeQuote({ id: "LQ-101", name: "Ana Marques" })]);
+    await abrirOPainelDoPrimeiro();
+    const caixa = screen.getAllByRole("checkbox", { name: /^caixa / })[0];
+    caixa.focus();
+    fireEvent.keyDown(caixa, { key: "Escape" });
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: "Fechar" })).toBeTruthy();
+    expect(caixa).not.toHaveFocus();
+  });
+});
+
+describe("2.ª revisão · 2 — o «Anular» do «Marcar como» com uma falha a meio", () => {
+  it("aplica os que voltaram e diz «X de Y voltaram»", async () => {
+    renderAdmin(muitos(3));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    escolherJa(screen.getByLabelText("Marcar pedidos selecionados como"), "Aguardar resposta");
+    expect(await screen.findByRole("button", { name: /Aguardar resposta · 3/ })).toBeTruthy();
+    recusar = new Set(["LQ-501"]);
+    fireEvent.click(screen.getByRole("button", { name: "Anular" }));
+    expect(await screen.findByText(/2 de 3 voltaram/)).toBeTruthy();
+    // O ecrã mostra os dois que voltaram — e o que não voltou como está.
+    expect(await screen.findByRole("button", { name: /Proposta enviada · 2/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Aguardar resposta · 1/ })).toBeTruthy();
+  });
+});
+
+describe("2.ª revisão · 4 — ⌘A com o painel AO LADO escolhe a lista", () => {
+  it("selecciona o que se vê e não deixa o browser escolher a página inteira", async () => {
+    renderAdmin([
+      makeQuote({ id: "LQ-101", name: "Ana Marques" }),
+      makeQuote({ id: "LQ-102", name: "Bruno Dias" }),
+    ]);
+    await abrirOPainelDoPrimeiro();
+    tecla("g");
+    tecla("p");
+    const ev = new KeyboardEvent("keydown", {
+      key: "a",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      document.body.dispatchEvent(ev);
+    });
+    expect(ev.defaultPrevented).toBe(true);
+    expect(await screen.findByText(/2 selecionados/)).toBeTruthy();
+  });
+});
+
+describe("2.ª revisão · 5 — a pergunta de arquivar não diz «0» enquanto fecha", () => {
+  it("o título guarda o número do lote até sair", async () => {
+    renderAdmin(muitos(12));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (12)" }));
+    const caixa = await screen.findByRole("dialog", { name: "Arquivar 12 pedidos?" });
+    fireEvent.click(within(caixa).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByText("Arquivar 0 pedidos?")).toBeNull();
+    expect(screen.queryByText(/0 pedidos/)).toBeNull();
+  });
+});
+
+describe("2.ª revisão · 6 — um «Anular» antigo salta os pedidos que já mudaram outra vez", () => {
+  it("não repõe quem já não está no estado que o gesto pôs, e diz quantos saltou", async () => {
+    renderAdmin(muitos(3));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    escolherJa(screen.getByLabelText("Marcar pedidos selecionados como"), "Aguardar resposta");
+    await screen.findByRole("button", { name: /Aguardar resposta · 3/ });
+    // Um deles muda OUTRA VEZ, por outro gesto.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar pedido de Cliente Lote 01" }));
+    escolherJa(screen.getByLabelText("Marcar pedidos selecionados como"), "Novo");
+    await screen.findByRole("button", { name: /Novo · 1/ });
+    escritas = [];
+    // O «Anular» do PRIMEIRO gesto.
+    fireEvent.click(screen.getAllByRole("button", { name: "Anular" })[0]);
+    expect(await screen.findByText(/1 pedido já tinha mudado/)).toBeTruthy();
+    expect(escritas.map((e) => e.url).sort()).toEqual([
+      "/api/orcamento/LQ-501",
+      "/api/orcamento/LQ-502",
+    ]);
+  });
+});
+
+describe("2.ª revisão · 7 — o Esc a meio de um lote não larga a selecção", () => {
+  it("os que falham ficam mesmo selecionados", async () => {
+    // Lento o bastante para o Esc chegar com o lote a meio.
+    atrasoMs = 400;
+    renderAdmin(muitos(3));
+    recusar = new Set(["LQ-501"]);
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (3)" }));
+    await screen.findByText("A arquivar os pedidos…");
+    tecla("Escape");
+    await waitFor(() => expect(screen.queryByText("A arquivar os pedidos…")).toBeNull());
+    expect(await screen.findByText(/^1 selecionado$/)).toBeTruthy();
   });
 });

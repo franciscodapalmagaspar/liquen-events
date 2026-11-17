@@ -25,6 +25,11 @@ describe("adiarUmaSemana", () => {
     expect(adiarUmaSemana("2026-11-01T23:00", HOJE)).toBe("2026-11-24");
   });
 
+  it("um instante conta pelo dia em LISBOA, e não pelo de UTC (2.ª revisão · 10)", () => {
+    // 23:30 UTC de 19 de julho já é dia 20 em Lisboa (UTC+1 no verão).
+    expect(adiarUmaSemana("2026-07-19T23:30:00.000Z", "2026-07-01")).toBe("2026-07-27");
+  });
+
   it("um prazo estragado conta como sem prazo", () => {
     expect(adiarUmaSemana("amanhã", HOJE)).toBe("2026-11-24");
   });

@@ -193,14 +193,15 @@ describe("as três acções, com «Anular»", () => {
     );
   });
 
-  it("se uma falhar, a linha volta e diz-se UMA vez, sem «Anular» a fingir", async () => {
+  it("se uma falhar, a linha volta, diz-se UMA vez, e as que ficaram têm «Anular»", async () => {
     falhar = (u, m) => m === "PATCH" && u.endsWith("t2");
     await escolherTodas();
     fireEvent.click(within(barra()!).getByRole("button", { name: "Concluir (3)" }));
     expect(await screen.findByText(/2 concluída\(s\), 1 não/)).toBeTruthy();
     const caixaDeB = screen.getByRole("checkbox", { name: B.title });
     expect(caixaDeB).not.toBeChecked();
-    expect(screen.queryByRole("button", { name: "Anular" })).toBeNull();
+    // O «Anular» é das duas que ficaram concluídas (2.ª revisão · 10).
+    expect(await screen.findByRole("button", { name: "Anular" })).toBeTruthy();
   });
 });
 
@@ -276,5 +277,40 @@ describe("revisão · 6 — «Adiar uma semana» deixa as concluídas de fora", 
     fireEvent.click(within(barra()!).getByRole("button", { name: "Adiar uma semana" }));
     await waitFor(() => expect(escritas).toHaveLength(2));
     expect(escritas.some((e) => e.url.endsWith("t3"))).toBe(false);
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SEGUNDA REVISÃO
+   ══════════════════════════════════════════════════════════════════════════ */
+
+describe("2.ª revisão · 3 — a selecção sobrevive aos filtros, como nos Pedidos", () => {
+  it("escolhida em «Todas», escondida em «Sem data», volta escolhida em «Todas»", async () => {
+    montar();
+    await screen.findByText(A.title);
+    fireEvent.click(titulo(A.title), { metaKey: true }); // A tem prazo
+    fireEvent.click(within(listas()).getByRole("button", { name: /Sem data/ }));
+    await waitFor(() => expect(barra()).toBeNull());
+    // A âncora (A) não está à vista: um ⇧+clique aqui é um clique simples.
+    fireEvent.click(titulo(B.title), { shiftKey: true });
+    expect(within(barra()!).getByText("1 selecionada")).toBeTruthy();
+    fireEvent.click(within(listas()).getByRole("button", { name: /^Todas/ }));
+    expect(await within(barra()!).findByText("2 selecionadas")).toBeTruthy();
+  });
+});
+
+describe("2.ª revisão · 10 — adiar com uma falha: as que ficaram têm «Anular»", () => {
+  it("o aviso diz a falha, e o «Anular» repõe as que mudaram", async () => {
+    falhar = (u, m) => m === "PATCH" && u.endsWith("t2") && escritas.length <= 3;
+    montar();
+    await screen.findByText(A.title);
+    fireEvent.keyDown(document.body, { key: "a", metaKey: true });
+    fireEvent.click(within(barra()!).getByRole("button", { name: "Adiar uma semana" }));
+    expect(await screen.findByText(/2 adiada\(s\), 1 não/)).toBeTruthy();
+    escritas = [];
+    falhar = () => false;
+    fireEvent.click(await screen.findByRole("button", { name: "Anular" }));
+    await waitFor(() => expect(escritas).toHaveLength(2));
+    expect(escritas.some((e) => e.url.endsWith("t2"))).toBe(false);
   });
 });

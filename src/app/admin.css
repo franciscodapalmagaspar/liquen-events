@@ -2149,17 +2149,20 @@ body:is(.bo, .admin-mode)
 
 /* O campo do ⌘K: sem a moldura de acento (que lhe desenhava um rectângulo de
    cantos vivos) E sem o anel global do `globals.css`, que de outro modo
-   voltava a apanhá-lo. Só fora do `forced-colors` — aí o contorno do sistema
-   de baixo vale para todos os campos, este incluído. */
-@media (forced-colors: none) {
-  body:is(.bo, .admin-mode) input[data-sem-anel]:focus-visible {
-    outline: none;
-    box-shadow: none;
-  }
+   voltava a apanhá-lo. `outline-color: transparent` e não `outline: none`, e
+   fora de qualquer media (2.ª revisão · 8): o contorno continua a existir, só
+   sem cor — o `forced-colors` de baixo repõe-lhe a do sistema, e um browser
+   que não conheça o `forced-colors` já não volta ao rectângulo. */
+body:is(.bo, .admin-mode) input[data-sem-anel]:focus-visible {
+  outline-color: transparent;
+  box-shadow: none;
 }
 
 @media (forced-colors: active) {
-  body:is(.bo, .admin-mode) :is(textarea, select, input):focus-visible {
+  /* O `input[data-sem-anel]` dentro do `:is` não abre excepção nenhuma: dá a
+     esta regra o mesmo peso da do campo do ⌘K, que está acima, e assim o
+     contorno do sistema ganha-lhe também. */
+  body:is(.bo, .admin-mode) :is(textarea, select, input, input[data-sem-anel]):focus-visible {
     outline: 2px solid CanvasText;
     outline-offset: 0;
   }

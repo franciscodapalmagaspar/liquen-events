@@ -36,13 +36,17 @@ describe("o campo do ⌘K não leva o rectângulo do foco", () => {
     expect(seletorDaMoldura()).toContain(":not([data-sem-anel])");
   });
 
-  it("e também sem o anel global, mas só fora do `forced-colors`", () => {
-    const i = css.indexOf("@media (forced-colors: none)");
+  it("e sem o anel global — com `outline-color: transparent`, fora de qualquer media (2.ª revisão · 8)", () => {
+    const i = css.indexOf("input[data-sem-anel]:focus-visible {");
     expect(i, "falta a regra que tira o anel global ao campo marcado").toBeGreaterThan(-1);
-    const bloco = css.slice(i, css.indexOf("}\n}", i) + 3);
-    expect(bloco).toContain("input[data-sem-anel]:focus-visible");
-    expect(bloco).toContain("outline: none");
-    expect(bloco).toContain("box-shadow: none");
+    const regra = css.slice(i, css.indexOf("}", i));
+    expect(regra).toContain("outline-color: transparent");
+    expect(regra).toContain("box-shadow: none");
+    expect(regra).not.toContain("outline: none");
+    // Fora de qualquer media: um browser sem `forced-colors` não volta ao rectângulo.
+    const antes = css.slice(0, i);
+    expect(antes.lastIndexOf("@media")).toBeLessThan(antes.lastIndexOf("}\n\n"));
+    expect(css).not.toContain("@media (forced-colors: none)");
   });
 
   it("o campo da paleta tem a marca", () => {
@@ -53,6 +57,7 @@ describe("o campo do ⌘K não leva o rectângulo do foco", () => {
     const bloco = css.slice(css.lastIndexOf("@media (forced-colors: active)"));
     const regra = bloco.slice(0, bloco.indexOf("}\n}") + 3);
     expect(regra).toContain("outline: 2px solid CanvasText");
-    expect(regra).not.toContain("data-sem-anel");
+    // Com o mesmo peso da regra do campo do ⌘K, para lhe ganhar também.
+    expect(regra).toContain("input[data-sem-anel]");
   });
 });

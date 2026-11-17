@@ -35,7 +35,8 @@ describe("ShortcutsModal — o que existe, e só isso", () => {
     render(<ShortcutsModal open onClose={vi.fn()} />);
     expect(screen.getByText("Tarefa anterior e seguinte")).toBeTruthy();
     expect(screen.getByText("Eliminar a tarefa")).toBeTruthy();
-    expect(screen.getByText("Dia, semana, mês, ano")).toBeTruthy();
+    // O ⌘1–4 só aparece na aplicação instalada (ver em baixo); as setas sempre.
+    expect(screen.getByText("Anterior e seguinte")).toBeTruthy();
     expect(screen.getByText("Selecionar todas as fotos")).toBeTruthy();
     expect(screen.getByText("Procurar na vista aberta")).toBeTruthy();
   });
@@ -70,5 +71,16 @@ describe("revisão · 9 — só o que o browser deixa chegar, e as teclas do sis
     const t = teclas(gruposDosAtalhos({ mac: false, app: false }));
     expect(t.some((x) => x.includes("⌘"))).toBe(false);
     expect(t).toContain("Ctrl+K Procurar em tudo e comandos");
+  });
+});
+
+describe("2.ª revisão — ⌘/Ctrl+1–4 é do browser num separador", () => {
+  it("só aparece na aplicação instalada", () => {
+    const tem14 = (app: boolean) =>
+      gruposDosAtalhos({ mac: true, app })
+        .flatMap((g) => g.items)
+        .some((i) => i.keys.includes("1–4"));
+    expect(tem14(false)).toBe(false);
+    expect(tem14(true)).toBe(true);
   });
 });

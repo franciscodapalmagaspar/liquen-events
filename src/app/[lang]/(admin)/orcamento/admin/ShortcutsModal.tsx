@@ -104,7 +104,9 @@ export const GROUPS: Grupo[] = [
     title: "Calendário",
     soTeclado: true,
     items: [
-      { keys: ["⌘", "1–4"], label: "Dia, semana, mês, ano" },
+      // ⌘/Ctrl+1–9 muda de SEPARADOR no Chrome e no Firefox, e o browser não
+      // os entrega à página (2.ª revisão): só na aplicação instalada.
+      { keys: ["⌘", "1–4"], label: "Dia, semana, mês, ano", soNaApp: true },
       { keys: ["T"], label: "Hoje" },
       { keys: ["⌘", "T"], label: "Hoje, na aplicação instalada", soNaApp: true },
       { keys: ["⌘", "N"], label: "Novo evento", soNaApp: true },
