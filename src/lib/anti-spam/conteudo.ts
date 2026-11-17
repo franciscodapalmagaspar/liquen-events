@@ -174,20 +174,34 @@ function dominioDe(ligacao: string): string {
  * são a Google nem o Pinterest. Um domínio de topo de spam nunca é de
  * confiança, com uma exceção: o domínio de um país, direto (`google.ru`,
  * `google.cn` — um mapa de um casal russo ou chinês). Já `google.top` e
- * `google.com.ru` (que qualquer pessoa regista) não. Compilam-se uma vez.
+ * `google.com.ru` (que qualquer pessoa regista) não.
+ *
+ * Compara-se RÓTULO a rótulo (o que está entre pontos), sem construir uma
+ * expressão regular com o nome da marca: o CodeQL do lote de 17/11 apontou a
+ * versão anterior, que só escapava os pontos — qualquer outro carácter
+ * especial do nome virava regra da expressão.
  */
-const CONFIANCA: Array<(dominio: string) => boolean> = DOMINIOS_DE_CONFIANCA.map((c) => {
+const TLD_CURTO = /^[a-z]{2,3}$/;
+
+export function deConfianca(c: string): (dominio: string) => boolean {
   if (!c.endsWith(".")) return (d: string) => d === c || d.endsWith(`.${c}`);
-  const marca = c.slice(0, -1).replace(/\./g, "\\.");
-  const re = new RegExp(`(^|\\.)${marca}\\.((com|co)\\.)?([a-z]{2,3})$`);
+  const marca = c.slice(0, -1).split(".");
+  /** A marca está nos rótulos de `partes`, a acabar logo antes de `fim`? */
+  const marcaAcabaEm = (partes: string[], fim: number) =>
+    fim - marca.length >= 0 && marca.every((r, i) => partes[fim - marca.length + i] === r);
   return (d: string) => {
-    const m = re.exec(d);
-    if (!m) return false;
-    const tld = m[4];
-    const pais = tld.length === 2 && !m[2];
+    const partes = d.split(".");
+    const tld = partes[partes.length - 1] ?? "";
+    if (!TLD_CURTO.test(tld)) return false;
+    // `marca.com.br`/`marca.co.uk` primeiro, como fazia a expressão antiga.
+    const meio = partes[partes.length - 2];
+    const comCo = (meio === "com" || meio === "co") && marcaAcabaEm(partes, partes.length - 2);
+    if (!comCo && !marcaAcabaEm(partes, partes.length - 1)) return false;
+    const pais = tld.length === 2 && !comCo;
     return pais || !TLD_DE_SPAM.has(tld);
   };
-});
+}
+const CONFIANCA: Array<(dominio: string) => boolean> = DOMINIOS_DE_CONFIANCA.map(deConfianca);
 
 function eDeConfianca(dominio: string): boolean {
   return CONFIANCA.some((e) => e(dominio));
