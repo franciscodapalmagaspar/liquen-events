@@ -1,4 +1,5 @@
 import type { Quote } from "@/lib/orcamento/types";
+import { plural } from "@/lib/plural";
 
 /**
  * Os textos que o ecrã dos pedidos escreve a partir de um pedido — puros, sem
@@ -50,7 +51,7 @@ export function oQueSePerdeComOPedido(q: Quote | null): string[] {
   if (!q) return [];
   const linhas: string[] = [];
   const conta = (n: number, um: string, muitos: string) =>
-    n > 0 ? linhas.push(`${n} ${n === 1 ? um : muitos}`) : undefined;
+    n > 0 ? linhas.push(plural(n, um, muitos)) : undefined;
   conta(q.messages?.length ?? 0, "mensagem trocada", "mensagens trocadas");
   conta(q.payments?.length ?? 0, "pagamento registado", "pagamentos registados");
   conta(q.guestList?.length ?? 0, "convidado", "convidados");

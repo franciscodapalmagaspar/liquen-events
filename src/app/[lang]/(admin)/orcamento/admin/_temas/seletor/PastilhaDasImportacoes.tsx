@@ -177,7 +177,15 @@ function ImportChip({ job }: { job: ImportJob }) {
   );
 }
 
-ligarAPastilha(syncOverlay);
+/**
+ * Liga a pastilha ao estado das importações: a partir daqui, cada mudança
+ * desenha-a. Chamado UMA vez, à vista, por quem abre o seletor (`ThemePicker`)
+ * — e não como efeito escondido de carregar este módulo, que um empacotador
+ * podia deitar fora sem ninguém ver (revisão independente de 17/11).
+ */
+export function ligarAPastilhaDasImportacoes(): void {
+  ligarAPastilha(syncOverlay);
+}
 
 /** Tira a pastilha do ecrã já. Só para testes (ver `__resetThemePickerState`). */
 export function desmontarPastilha(): void {

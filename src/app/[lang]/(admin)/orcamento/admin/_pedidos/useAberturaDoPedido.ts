@@ -18,7 +18,7 @@ import { type View } from "../nav";
 import type { LeituraDoPedido } from "@/lib/orcamento/pedidos/leitura-do-pedido";
 import { type EdicaoDoPedido } from "./useEdicaoDoPedido";
 import { detailNextAction, type DetailTab } from "./separadores-do-painel";
-import { type SeparadorDoPedido } from "../../../../../../lib/orcamento/pedidos/proxima-accao";
+import { type SeparadorDoPedido } from "@/lib/orcamento/pedidos/proxima-accao";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

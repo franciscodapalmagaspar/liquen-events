@@ -17,6 +17,7 @@ import { useTrincoDeScroll } from "./useTrincoDeScroll";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { Button, cn } from "./ui";
 import { SAIDA, SAIDA_FUNDO, useSaidaDeUmSo } from "./ui/saida";
+import { plural } from "@/lib/plural";
 
 /**
  * REPOR UMA CÓPIA DE SEGURANÇA — o ecrã da operação mais destrutiva da casa.
@@ -83,10 +84,6 @@ function descarregar(nome: string, conteudo: unknown): boolean {
     // guardada — quem chama mostra o botão manual.
     return false;
   }
-}
-
-function plural(n: number, um: string, muitos: string): string {
-  return `${n} ${n === 1 ? um : muitos}`;
 }
 
 /**

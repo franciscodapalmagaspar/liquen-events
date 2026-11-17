@@ -1,4 +1,5 @@
 import { type ThemeImage, type ThemeSummary } from "@/lib/theme-types";
+import { type LeituraFalhada } from "@/lib/porque-nao-leu";
 import {
   type PaginaTema,
   buscarPrimeiraPagina,
@@ -49,15 +50,6 @@ export function themeButtonLabel(theme: ThemeSummary): string {
   const n = theme.imageCount;
   const contagem = theme.truncated ? `mais de ${n} fotos` : n === 1 ? "1 foto" : `${n} fotos`;
   return `${theme.name}, ${contagem}`;
-}
-
-/** Junta uma página nova ao que já se mostra, sem repetir. A chave é o `path`
- *  (estável), não a aritmética dos offsets: se entretanto subirem fotos ao
- *  tema, o pior que acontece é uma foto vir duas vezes do servidor — e aqui
- *  fica só uma. */
-export function mergePage(prev: ThemeImage[], page: ThemeImage[]): ThemeImage[] {
-  const seen = new Set(prev.map((i) => i.path));
-  return [...prev, ...page.filter((i) => !seen.has(i.path))];
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -285,4 +277,28 @@ export function esquecerSeletor(): void {
   invalidateThemeLibraryCache();
   lastThemeId = null;
   miniaturaDe.clear();
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// As páginas da grelha
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Uma LEITURA da grelha que falhou: leva a razão apurada até ao `catch`,
+ *  em vez de lá chegar um «falhou» que não diz nem o estado nem o porquê. */
+export class ErroDaPagina extends Error {
+  constructor(readonly falha: LeituraFalhada) {
+    super(falha.mensagem);
+    this.name = "ErroDaPagina";
+  }
+}
+
+/** A página seguinte, pedida antes de ela a pedir. Guarda o tema e o offset com
+ *  que foi buscada: só encaixa onde foi pedida. */
+export interface Ahead {
+  themeId: string;
+  offset: number;
+  images: ThemeImage[];
+  total: number | null;
+  truncated: boolean;
+  full: boolean;
 }

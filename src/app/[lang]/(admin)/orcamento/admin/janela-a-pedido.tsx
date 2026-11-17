@@ -141,8 +141,14 @@ export const AjudaGlossario = glossario.Janela;
 /** O painel de reautenticação: o vigia (`SessaoExpirada`) fica no pacote. */
 export const PainelDaSessaoExpirada = sessao.Janela;
 
-/** Pela ordem de quem ela abre mais; a sessão a cair é a mais rara. */
-const ORDEM = [atalhos, glossario, chaves, repor, sessao];
+/**
+ * A sessão primeiro: é a única que não se abre por um gesto dela, e a que mais
+ * custa não chegar — um 401 depois de um deploy já não encontrava o código do
+ * painel, e o trabalho por gravar ficava sem barreira. Aquecida logo a seguir
+ * ao `load`, fica em memória o resto da sessão. As outras, pela ordem de quem
+ * ela abre mais.
+ */
+const ORDEM = [sessao, atalhos, glossario, chaves, repor];
 
 /**
  * Aquece as cinco janelas, uma por janela de inatividade, depois do `load`.

@@ -25,10 +25,12 @@ import {
   vaiRevalidar,
 } from "./theme-picker-cache";
 import { Preview } from "./_temas/seletor/FotoDoSeletor";
-import { themeScroll } from "./_temas/seletor/biblioteca-do-seletor";
 import { FotosDoTema } from "./_temas/seletor/FotosDoTema";
 import { plural } from "@/lib/plural";
-import { desmontarPastilha } from "./_temas/seletor/PastilhaDasImportacoes";
+import {
+  desmontarPastilha,
+  ligarAPastilhaDasImportacoes,
+} from "./_temas/seletor/PastilhaDasImportacoes";
 import { startImport } from "./_temas/seletor/lotes-de-importacao";
 import {
   ImportedImage,
@@ -37,26 +39,34 @@ import {
   failedFor,
   importedSources,
   pendingSources,
+  esquecerImportacoes,
   useImportRuntime,
 } from "./_temas/seletor/importacoes";
 import {
   LAST_THEME_KEY,
   cachedTheme,
+  esquecerSeletor,
   guardarMiniaturas,
-  mergePage,
+  lembrarTema,
   miniaturaDe,
   preferredThemeId,
   prefetchTheme,
+  temaLembrado,
   temaMaisUsado,
   themeButtonLabel,
   themeCountLabel,
+  themeScroll,
+  ErroDaPagina,
+  type Ahead,
 } from "./_temas/seletor/biblioteca-do-seletor";
-import { esquecerImportacoes } from "./_temas/seletor/importacoes";
-import { esquecerSeletor, lembrarTema, temaLembrado } from "./_temas/seletor/biblioteca-do-seletor";
+import { mergePage } from "@/lib/temas/listas-de-fotos";
 import { useSeleccaoDoSeletor } from "./_temas/seletor/useSeleccaoDoSeletor";
 
 // O estúdio (`ProposalStudio.tsx`) lê estes dois tipos daqui.
 export type { ImportedImage, ReservedImage } from "./_temas/seletor/importacoes";
+
+// A pastilha das importações desenha-se a cada mudança, desde já.
+ligarAPastilhaDasImportacoes();
 
 /**
  * Escolher fotos da Biblioteca de Temas para uma proposta.
@@ -130,26 +140,6 @@ const COUNTDOWN_FROM = MAX_IMPORT_BATCH / 2;
  *  buscar a seguinte. Ver `Temas.tsx`: a primeira página tem de chegar
  *  primeiro, senão estaríamos a repartir o canal outra vez. */
 const PREFETCH_DELAY_MS = 1500;
-
-/** O mesmo para as LEITURAS da grelha: leva a razão apurada até ao `catch`,
- *  em vez de lá chegar um «falhou» que não diz nem o estado nem o porquê. */
-class ErroDaPagina extends Error {
-  constructor(readonly falha: LeituraFalhada) {
-    super(falha.mensagem);
-    this.name = "ErroDaPagina";
-  }
-}
-
-/** A página seguinte, pedida antes de ela a pedir. Guarda o tema e o offset com
- *  que foi buscada: só encaixa onde foi pedida. */
-interface Ahead {
-  themeId: string;
-  offset: number;
-  images: ThemeImage[];
-  total: number | null;
-  truncated: boolean;
-  full: boolean;
-}
 
 interface Props {
   quoteId: string;

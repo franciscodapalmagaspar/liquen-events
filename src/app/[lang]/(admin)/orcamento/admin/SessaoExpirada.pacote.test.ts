@@ -25,6 +25,6 @@ describe("o painel da sessão que caiu fica fora do pacote", () => {
     expect(janelas).toMatch(
       /janelaAPedido\(\(\)\s*=>\s*import\(["']\.\/PainelDaSessaoExpirada["']\)\)/,
     );
-    expect(janelas).toMatch(/const ORDEM = \[[^\]]*\bsessao\b[^\]]*\]/);
+    expect(janelas).toMatch(/const ORDEM = \[sessao,/);
   });
 });
