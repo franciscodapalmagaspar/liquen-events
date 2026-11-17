@@ -1,6 +1,8 @@
 import "server-only";
 import { getSupabase } from "./supabase";
 import { log } from "./logger";
+import { ehBaldeDoBlob } from "./armazenamento/baldes";
+import { PREFIXO_DA_ROTA } from "./armazenamento/url-estavel";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -82,6 +84,15 @@ const MARGEM_MS = {
  * julgado, diga o que disser quem o guardou.
  */
 function baldeDoEndereco(url: string, base: string): string | null {
+  // Uma fotografia no Vercel Blob (16/11): `/api/ficheiro/<balde>/<caminho>?token=…`,
+  // relativo à origem do site — o token tem o mesmo `exp` de um JWT (revisão
+  // de 17/11, n.º 2: sem isto, nunca se guardava e mudava a cada visita).
+  if (url.startsWith(PREFIXO_DA_ROTA)) {
+    const resto = url.slice(PREFIXO_DA_ROTA.length);
+    const barra = resto.indexOf("/");
+    const balde = barra > 0 ? resto.slice(0, barra) : "";
+    return ehBaldeDoBlob(balde) ? balde : null;
+  }
   const prefixo = `${base}/storage/v1/object/sign/`;
   if (!url.startsWith(prefixo)) return null;
   const resto = url.slice(prefixo.length);
@@ -102,7 +113,8 @@ function margemDoBalde(balde: string): number {
  */
 function expiraEm(url: string): number | null {
   try {
-    const token = new URL(url).searchParams.get("token");
+    // Com base: o endereço do Blob é relativo à origem do site.
+    const token = new URL(url, "http://x").searchParams.get("token");
     const meio = token?.split(".")[1];
     if (!meio) return null;
     const json = Buffer.from(meio.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");

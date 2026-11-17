@@ -55,6 +55,27 @@ function assinar(dados: string, segredo: string): string {
   return createHmac("sha256", chave(segredo)).update(dados).digest("base64url");
 }
 
+/**
+ * ── O MESMO FICHEIRO DÁ O MESMO ENDEREÇO (revisão de 17/11, n.º 2) ─────────
+ *
+ * Com o `exp` = agora + prazo, cada visita assinava um endereço diferente e o
+ * navegador nunca reutilizava a sua cache (a chave da cache é o endereço
+ * inteiro — o defeito que `urls-assinados.ts` já tinha corrigido no
+ * Supabase). Agora o fim arredonda PARA CIMA a uma grelha alinhada ao
+ * relógio, com o passo do próprio prazo até ao máximo de 30 dias: dentro do
+ * mesmo passo, o mesmo ficheiro dá exactamente os mesmos bytes. O prazo real
+ * fica entre o pedido e o dobro dele (no máximo prazo + 30 dias) — nunca
+ * menos do que o pedido.
+ */
+const PASSO_MAXIMO_S = 30 * 24 * 3600;
+
+export function expAlinhado(agoraMs: number, validadeSegundos: number): number {
+  const prazo = Math.max(1, Math.floor(validadeSegundos));
+  const passo = Math.min(prazo, PASSO_MAXIMO_S);
+  const fim = Math.floor(agoraMs / 1000) + prazo;
+  return Math.ceil(fim / passo) * passo;
+}
+
 /** O endereço (relativo à origem do site) de um ficheiro do Blob. */
 export function urlEstavel(
   balde: BaldeDoBlob,
@@ -65,7 +86,7 @@ export function urlEstavel(
   agoraMs: number = Date.now(),
 ): string {
   const carga: Carga = {
-    exp: Math.floor(agoraMs / 1000) + Math.max(1, Math.floor(validadeSegundos)),
+    exp: expAlinhado(agoraMs, validadeSegundos),
     t: Math.max(0, Math.round(tamanho)),
     b: balde,
     c: caminho,

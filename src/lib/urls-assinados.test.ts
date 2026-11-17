@@ -187,3 +187,32 @@ describe("sem a coluna `urls` (42703 em produção)", () => {
     expect(H.chamadas).toEqual([]);
   });
 });
+
+describe("os endereços das fotografias no Vercel Blob (revisão de 17/11, n.º 2)", () => {
+  const SEGREDO = "segredo-de-teste";
+
+  it("um endereço /api/ficheiro guarda-se e volta a servir, com o prazo dele", async () => {
+    const { urlEstavel } = await import("./armazenamento/url-estavel");
+    const original = urlEstavel("theme-assets", "tema-a/x.jpg", 10, 6 * 3600, SEGREDO);
+    H.linhas = [{ path: "tema-a/x.jpg", urls: null }];
+    const guardados = await urlsGuardados(["tema-a/x.jpg"]);
+    await guardarUrls(new Map([["tema-a/x.jpg", { original }]]), guardados);
+    expect(H.chamadas.filter((c) => c.op === "update")).toEqual([
+      { op: "update", valor: { urls: { original } }, filtro: "tema-a/x.jpg" },
+    ]);
+    H.linhas = [{ path: "tema-a/x.jpg", urls: { original } }];
+    expect((await urlsGuardados(["tema-a/x.jpg"])).get("tema-a/x.jpg")).toEqual({ original });
+  });
+
+  it("um endereço /api/ficheiro de um balde fora dos três não se guarda", async () => {
+    H.linhas = [{ path: "tema-a/x.jpg", urls: null }];
+    const guardados = await urlsGuardados(["tema-a/x.jpg"]);
+    await guardarUrls(
+      new Map([
+        ["tema-a/x.jpg", { miniatura: "/api/ficheiro/theme-thumbs/tema-a/x.jpg?token=a.b.c" }],
+      ]),
+      guardados,
+    );
+    expect(H.chamadas.filter((c) => c.op === "update")).toEqual([]);
+  });
+});

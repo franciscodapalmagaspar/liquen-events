@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conferirUrlEstavel, urlEstavel } from "./url-estavel";
+import { conferirUrlEstavel, expAlinhado, urlEstavel } from "./url-estavel";
 import { blobConfigurado, caminhoValido, idDaLoja, origemDoBlob } from "./baldes";
 
 const SEGREDO = "vercel_blob_rw_AbCd1234_segredoQueNaoPodeSair";
@@ -102,6 +102,37 @@ describe("a configuração do Blob", () => {
     expect(caminhoValido("LIQ-3/ab.jpg")).toBe(true);
     for (const mau of ["", "/a", "a/", "a//b", "a/../b", "a\\b", "a?b", 5]) {
       expect(caminhoValido(mau)).toBe(false);
+    }
+  });
+});
+
+describe("o mesmo ficheiro dá o mesmo endereço (revisão de 17/11, n.º 2)", () => {
+  it("duas visitas no mesmo passo dão bytes iguais — o navegador usa a cache", () => {
+    const a = urlEstavel("proposal-assets", "LIQ-3/a.jpg", 9, 10 * 365 * 24 * 3600, SEGREDO, AGORA);
+    const b = urlEstavel(
+      "proposal-assets",
+      "LIQ-3/a.jpg",
+      9,
+      10 * 365 * 24 * 3600,
+      SEGREDO,
+      AGORA + 3600_000,
+    );
+    expect(b).toBe(a);
+    const c = urlEstavel("theme-assets", "t/a.jpg", 9, 6 * 3600, SEGREDO, AGORA + 60_000);
+    const d = urlEstavel("theme-assets", "t/a.jpg", 9, 6 * 3600, SEGREDO, AGORA + 3 * 3600_000);
+    expect(d).toBe(c);
+  });
+
+  it("o prazo nunca fica abaixo do pedido, nem passa do dobro (ou de +30 dias)", () => {
+    for (const prazo of [60, 6 * 3600, 10 * 365 * 24 * 3600]) {
+      for (const desvio of [0, 1234, 3 * 3600_000]) {
+        const agora = AGORA + desvio;
+        const exp = expAlinhado(agora, prazo) * 1000;
+        expect(exp - agora).toBeGreaterThanOrEqual(prazo * 1000);
+        expect(exp - agora).toBeLessThanOrEqual(
+          prazo * 1000 + Math.min(prazo, 30 * 24 * 3600) * 1000,
+        );
+      }
     }
   });
 });
