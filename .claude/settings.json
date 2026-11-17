@@ -18,13 +18,6 @@
       "mcp__Vercel",
       "mcp__Supabase"
     ],
-    "ask": [
-      "mcp__Supabase__apply_migration",
-      "mcp__Supabase__pause_project",
-      "mcp__Vercel__pause_project",
-      "mcp__Vercel__edit_project_env",
-      "mcp__Vercel__create_project_env"
-    ],
     "deny": [
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
