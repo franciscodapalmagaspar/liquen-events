@@ -675,7 +675,8 @@ export async function gerarLoteDeDerivadas(
             papel,
           };
         }
-        if (!aSaltar) pastasPercorridas += 1;
+        // Esta pasta vai ser percorrida (a da retoma também conta).
+        pastasPercorridas += 1;
         // AS LISTAGENS EM PARALELO — os originais e cada bucket de derivada não
         // dependem uns dos outros. Em série era a latência da rede vezes três,
         // por pasta, e a travessia tem dezenas de pastas.
