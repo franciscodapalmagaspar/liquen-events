@@ -40,7 +40,7 @@ interface PropsEstaPronta {
   pdfConfirmado: boolean;
   pdfVisto: PdfVisto | null;
   pdfVistoAgora: boolean;
-  preview: ({ rascunho }?: { rascunho?: boolean }) => Promise<void>;
+  preview: (opcoes?: { rascunho?: boolean }) => Promise<void>;
   quote: Quote;
   quotes: Quote[] | undefined;
   sent: boolean;
