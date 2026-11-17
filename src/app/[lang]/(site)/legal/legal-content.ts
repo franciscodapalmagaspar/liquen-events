@@ -5,9 +5,9 @@ import type { Locale } from "@/lib/i18n";
 // Kept out of the main i18n dictionaries so those stay focused on UI copy.
 //
 // ⚠️ Conteúdo-base, redigido segundo o RGPD (Regulamento (UE) 2016/679) e a Lei
-// n.º 58/2019. DEVE ser revisto por um advogado e completado com a identificação
-// legal exata do responsável pelo tratamento (denominação, NIF, morada e sede)
-// antes de considerado definitivo.
+// n.º 58/2019. Deve ser revisto por um advogado. A identificação legal da
+// empresa (denominação, NIF, morada) não entra, por decisão do dono
+// (`.claude/rules/legal.md`, 17/11).
 
 export interface LegalSection {
   heading: string;
