@@ -206,6 +206,70 @@ async function anuncio(page: Page): Promise<string> {
 }
 
 /**
+ * Espera que o gesto ASSENTE, e devolve o que o anúncio diz nessa altura.
+ *
+ * ── Porque é que trezentos milissegundos não chegavam ───────────────────────
+ * Aqui estava um `waitForTimeout(300)` depois de cada tecla. Medido a 17/11 (CI
+ * do lote de 18/11, e reproduzido aqui com o processador abrandado quatro
+ * vezes): com o board 2 no ecrã, o board 1 fica ACIMA da janela — cada cartão
+ * tem ~700 px numa janela de 720. A seta ↑ não move logo o board: o sensor de
+ * teclado do `dnd-kit` desloca a página com `scrollBy({ behavior: "smooth" })`
+ * e é o fim desse scroll que lhe diz sobre quem está pousado («the scroll
+ * adjustment alone will trigger logic to auto-detect the new container», no
+ * código dele). O `scrollY` foi de 691 a 0 em ~400 ms numa máquina folgada; no
+ * CI, mais. O anúncio «moved over board:0» chegava DEPOIS dos 300 ms.
+ *
+ * E o teste, a julgar que a seta tinha falhado, carregava na INVERSA a meio do
+ * scroll. Foi isso que se viu: ou a ↓ desfazia a ↑ e o anúncio ficava em
+ * `board:1` (tentativas 2 e 3), ou o anúncio dizia `board:0` a meio do scroll,
+ * a ↓ já ia na fila, e o Espaço largava em `board:1` — um não-gesto, e a ordem
+ * nunca chegava a gravar (tentativa 1).
+ *
+ * O sinal certo não é um tempo: é o gesto PARAR. A pega que vai na mão (o
+ * elemento focado) não mexe, a página não mexe e o anúncio não muda durante
+ * três amostras seguidas, cada uma tirada depois de dois fotogramas — numa
+ * máquina lenta as amostras atrasam-se com ela, em vez de chegarem cedo.
+ */
+async function esperarQueOGestoAssente(page: Page): Promise<string> {
+  const amostra = () =>
+    page.evaluate(
+      () =>
+        new Promise<string>((resolve) =>
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              const r = document.activeElement?.getBoundingClientRect();
+              const dito = Array.from(document.querySelectorAll("[role=status],[aria-live]"))
+                .map((n) => n.textContent ?? "")
+                .filter((t) => t.includes("Draggable item"));
+              resolve(
+                JSON.stringify([
+                  Math.round(scrollX),
+                  Math.round(scrollY),
+                  r ? Math.round(r.left) : null,
+                  r ? Math.round(r.top) : null,
+                  dito[0] ?? "",
+                ]),
+              );
+            }),
+          ),
+        ),
+    );
+  let anterior = await amostra();
+  let iguais = 0;
+  const limite = Date.now() + 15_000;
+  while (iguais < 3) {
+    if (Date.now() > limite) {
+      throw new Error(`o gesto não assentou em 15 s (última amostra: ${anterior})`);
+    }
+    await page.waitForTimeout(80);
+    const agora = await amostra();
+    iguais = agora === anterior ? iguais + 1 : 0;
+    anterior = agora;
+  }
+  return JSON.parse(anterior)[4] as string;
+}
+
+/**
  * Agarra a pega, caminha até ao alvo e larga.
  *
  * ── Porque não «uma seta e pronto» ─────────────────────────────────────────
@@ -234,13 +298,16 @@ async function arrastarComTeclado(
   // abaixo com a queixa errada.
   await expect(pega).toBeFocused();
 
-  // A pausa não é superstição: o sensor de teclado do `dnd-kit` MEDE as caixas
+  // Esperar não é superstição: o sensor de teclado do `dnd-kit` MEDE as caixas
   // no instante em que o Espaço agarra, e é dessa medição que a seta seguinte
   // se serve para saber quem é o vizinho. Encadeadas sem intervalo, a seta
-  // chega antes da medição e o gesto acaba onde começou.
+  // chega antes da medição e o gesto acaba onde começou. O sinal da medição
+  // feita é o primeiro anúncio («… was moved over <ela própria>»).
   await page.keyboard.press("Space");
-  await page.waitForTimeout(300);
-  expect(await anuncio(page), "o Espaço agarrou a fotografia").toContain("was moved over");
+  await expect
+    .poll(() => anuncio(page), { timeout: 10_000, message: "o Espaço agarrou a fotografia" })
+    .toContain("was moved over");
+  await esperarQueOGestoAssente(page);
 
   // Cada seta parte de ONDE SE ESTÁ, e não do princípio: uma seta que erre o
   // alvo deixa o item noutro sítio, e a seguinte já não está a fazer a pergunta
@@ -252,16 +319,18 @@ async function arrastarComTeclado(
     ArrowDown: "ArrowUp",
     ArrowUp: "ArrowDown",
   };
+  // E cada tentativa só se julga — e só se desfaz — depois de o gesto
+  // ASSENTAR (ver `esperarQueOGestoAssente`): uma inversa carregada a meio do
+  // scroll da seta anterior desfazia uma seta que tinha acertado.
   let chegou = false;
   for (const seta of setas) {
     await page.keyboard.press(seta);
-    await page.waitForTimeout(300);
-    if ((await anuncio(page)).includes(`droppable area ${alvo}.`)) {
+    if ((await esperarQueOGestoAssente(page)).includes(`droppable area ${alvo}.`)) {
       chegou = true;
       break;
     }
     await page.keyboard.press(inversa[seta]);
-    await page.waitForTimeout(300);
+    await esperarQueOGestoAssente(page);
   }
   expect(chegou, `chegou a ${alvo} (o anúncio diz: ${await anuncio(page)})`).toBe(true);
 
