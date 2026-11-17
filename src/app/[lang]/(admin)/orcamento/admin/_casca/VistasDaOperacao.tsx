@@ -1,8 +1,5 @@
 "use client";
 
-import { type Dispatch, type SetStateAction } from "react";
-import { type LeituraDoPedido } from "@/lib/orcamento/pedidos/leitura-do-pedido";
-import { type Quote } from "@/lib/orcamento/types";
 import ComPropostasParaContas from "../ComPropostasParaContas";
 import {
   Acompanhamento,
@@ -21,10 +18,8 @@ import {
   Tarefas,
   Temas,
 } from "../lazy";
-import { type View } from "../nav";
-import { type PedidoDaPaleta } from "../procura-em-tudo";
 import { VIEW_WRAP } from "./moldura-da-vista";
-import { type AccoesDosPedidos } from "../_pedidos/accoes-dos-pedidos";
+import { type PedidosDasVistas, type NavegacaoDasVistas } from "./grupos-das-vistas";
 
 /**
  * As vistas do dia-a-dia da operação: serviços, definições, reciclagem,
@@ -33,32 +28,21 @@ import { type AccoesDosPedidos } from "../_pedidos/accoes-dos-pedidos";
  * (Saíram das `Vistas` na fase 7 de `docs/ESTRUTURA-DO-CODIGO.md`, tal e qual.)
  */
 export interface VistasDaOperacaoProps {
+  pedidos: PedidosDasVistas;
+  navegacao: NavegacaoDasVistas;
   userName: string;
-  quotes: Quote[];
-  substituirPedido: AccoesDosPedidos["substituirPedido"];
-  nomesDosPedidos: Map<string, string>;
-  view: View;
-  setView: Dispatch<SetStateAction<View>>;
-  pedidoPara: (v: View) => PedidoDaPaleta | undefined;
-  comPedidoInteiro: (q: Quote) => Promise<LeituraDoPedido>;
-  abrirCliente: (pedido: Quote) => void;
-  activeQuotes: Quote[];
-  pedidoDeNovaTarefa: number;
 }
 
-export function VistasDaOperacao({
-  userName,
-  quotes,
-  substituirPedido,
-  nomesDosPedidos,
-  view,
-  setView,
-  pedidoPara,
-  comPedidoInteiro,
-  abrirCliente,
-  activeQuotes,
-  pedidoDeNovaTarefa,
-}: VistasDaOperacaoProps) {
+export function VistasDaOperacao({ pedidos, navegacao, userName }: VistasDaOperacaoProps) {
+  const {
+    quotes,
+    substituirPedido,
+    nomesDosPedidos,
+    comPedidoInteiro,
+    abrirCliente,
+    activeQuotes,
+  } = pedidos;
+  const { view, setView, pedidoPara, pedidoDeNovaTarefa } = navegacao;
   return (
     <>
       {/* ── Biblioteca de serviços ── */}

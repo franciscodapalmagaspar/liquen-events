@@ -1,10 +1,6 @@
 "use client";
 
-import { type Dispatch, type RefObject, type SetStateAction } from "react";
-import { type LeituraDoPedido } from "@/lib/orcamento/pedidos/leitura-do-pedido";
 import { textoDoPreco } from "@/lib/orcamento/pedidos/textos-do-pedido";
-import { type Quote, type QuoteStatus } from "@/lib/orcamento/types";
-import { type LeituraFalhada } from "@/lib/porque-nao-leu";
 import ComPropostasParaContas from "../ComPropostasParaContas";
 import {
   Calendario,
@@ -15,11 +11,9 @@ import {
   Pagamentos,
   Propostas,
 } from "../lazy";
-import { type View } from "../nav";
-import { type PedidoDaPaleta } from "../procura-em-tudo";
 import { VIEW_WRAP } from "./moldura-da-vista";
 import { VistasDaOperacao } from "./VistasDaOperacao";
-import { type AccoesDosPedidos } from "../_pedidos/accoes-dos-pedidos";
+import { type PedidosDasVistas, type NavegacaoDasVistas } from "./grupos-das-vistas";
 
 /**
  * AS VISTAS DO BACK OFFICE — uma de cada vez, conforme o destino escolhido
@@ -30,60 +24,30 @@ import { type AccoesDosPedidos } from "../_pedidos/accoes-dos-pedidos";
  * Saiu tal e qual do `AdminClient.tsx` (fase 7 de `docs/ESTRUTURA-DO-CODIGO.md`).
  */
 export interface VistasProps {
+  pedidos: PedidosDasVistas;
+  navegacao: NavegacaoDasVistas;
   userName: string;
-  falhaDosPedidos: LeituraFalhada | null;
-  quotes: Quote[];
-  substituirPedido: AccoesDosPedidos["substituirPedido"];
-  nomesDosPedidos: Map<string, string>;
-  alterarPedido: AccoesDosPedidos["alterarPedido"];
-  setEditPrice: Dispatch<SetStateAction<string>>;
-  view: View;
-  setView: Dispatch<SetStateAction<View>>;
-  pedidoPara: (v: View) => PedidoDaPaleta | undefined;
-  irComPedido: (vista: View, pedido: PedidoDaPaleta) => void;
-  propostaPara: string | null;
-  setPropostaPara: Dispatch<SetStateAction<string | null>>;
-  setNewQuoteOpen: Dispatch<SetStateAction<boolean>>;
-  selectedRef: RefObject<Quote | null>;
-  marcarDesfecho: (actualizado: Quote) => void;
-  comPedidoInteiro: (q: Quote) => Promise<LeituraDoPedido>;
-  abrirCliente: (pedido: Quote) => void;
-  openQuote: (pedido: Quote) => Promise<void>;
-  revalidarPedidos: (forcar?: boolean) => Promise<void>;
-  refletirEstadoDoEstudio: (id: string, status: QuoteStatus) => void;
-  archivedCount: number;
-  verArquivados: () => void;
-  activeQuotes: Quote[];
-  pedidoDeNovaTarefa: number;
 }
 
-export function Vistas({
-  userName,
-  falhaDosPedidos,
-  quotes,
-  substituirPedido,
-  nomesDosPedidos,
-  alterarPedido,
-  setEditPrice,
-  view,
-  setView,
-  pedidoPara,
-  irComPedido,
-  propostaPara,
-  setPropostaPara,
-  setNewQuoteOpen,
-  selectedRef,
-  marcarDesfecho,
-  comPedidoInteiro,
-  abrirCliente,
-  openQuote,
-  revalidarPedidos,
-  refletirEstadoDoEstudio,
-  archivedCount,
-  verArquivados,
-  activeQuotes,
-  pedidoDeNovaTarefa,
-}: VistasProps) {
+export function Vistas({ pedidos, navegacao, userName }: VistasProps) {
+  const {
+    falhaDosPedidos,
+    quotes,
+    substituirPedido,
+    alterarPedido,
+    setEditPrice,
+    selectedRef,
+    marcarDesfecho,
+    abrirCliente,
+    openQuote,
+    revalidarPedidos,
+    refletirEstadoDoEstudio,
+    archivedCount,
+    verArquivados,
+    activeQuotes,
+  } = pedidos;
+  const { view, setView, pedidoPara, irComPedido, propostaPara, setPropostaPara, setNewQuoteOpen } =
+    navegacao;
   return (
     <>
       {/* ── Overview ── */}
@@ -229,19 +193,7 @@ export function Vistas({
         </div>
       )}
 
-      <VistasDaOperacao
-        userName={userName}
-        quotes={quotes}
-        substituirPedido={substituirPedido}
-        nomesDosPedidos={nomesDosPedidos}
-        view={view}
-        setView={setView}
-        pedidoPara={pedidoPara}
-        comPedidoInteiro={comPedidoInteiro}
-        abrirCliente={abrirCliente}
-        activeQuotes={activeQuotes}
-        pedidoDeNovaTarefa={pedidoDeNovaTarefa}
-      />
+      <VistasDaOperacao pedidos={pedidos} navegacao={navegacao} userName={userName} />
     </>
   );
 }

@@ -1,71 +1,48 @@
 "use client";
 
-import { type Dispatch, type SetStateAction } from "react";
-import { type ThemeCopyMode, type ThemeSummary } from "@/lib/theme-types";
-import { type ThemeCopyOutcome } from "../ThemeCopyDialog";
+import { type ThemeSummary } from "@/lib/theme-types";
 import { Button, Card } from "../ui";
 import { PROGRESSO } from "../ui/movimento";
 import { SKIPPED_PREVIEWS, SkippedThumb } from "./FotoDaGrelha";
-import type { Failure, Skipped, ThumbJob } from "./tipos-da-pasta";
 import { plural } from "@/lib/plural";
+import { type EnvioDaPasta, type CopiaDaPasta, type MiniaturasDaPasta } from "./grupos-da-pasta";
 
 /** Os avisos da pasta: a verificar, a carregar, miniaturas em falta, o que
  *  falhou, o que já lá estava, e o que não foi levado para outro tema. (Saíram
  *  da pasta do tema na fase 8 da estrutura do código, tal e qual.) */
 export interface AvisosDaPastaProps {
+  envio: EnvioDaPasta;
+  copia: CopiaDaPasta;
+  miniaturas: MiniaturasDaPasta;
   theme: ThemeSummary;
-  progress: { done: number; total: number } | null;
-  failed: Failure[];
-  setFailed: Dispatch<SetStateAction<Failure[]>>;
-  skipped: Skipped[];
-  setSkipped: Dispatch<SetStateAction<Skipped[]>>;
-  legacyPhotos: boolean;
-  partialCheck: boolean;
-  verifying: { done: number; total: number } | null;
-  setCopyOpen: Dispatch<SetStateAction<boolean>>;
-  setCopyMode: Dispatch<SetStateAction<ThemeCopyMode>>;
-  copyReport: ThemeCopyOutcome | null;
-  setCopyReport: Dispatch<SetStateAction<ThemeCopyOutcome | null>>;
-  thumbJob: ThumbJob | null;
-  /** Pede à geração de miniaturas que pare (no fim do lote que vai a meio). */
-  pararMiniaturas: () => void;
-  trackUrl: (file: File) => string | undefined;
-  runThumbJob: () => Promise<void>;
-  retryFailed: () => void;
-  addSkippedAnyway: () => void;
   unreadable: boolean;
   selectedCount: number;
-  pct: number;
-  missingThumbs: boolean;
-  thumbPct: number;
 }
 
 export function AvisosDaPasta({
+  envio,
+  copia,
+  miniaturas,
   theme,
-  progress,
-  failed,
-  setFailed,
-  skipped,
-  setSkipped,
-  legacyPhotos,
-  partialCheck,
-  verifying,
-  setCopyOpen,
-  setCopyMode,
-  copyReport,
-  setCopyReport,
-  thumbJob,
-  pararMiniaturas,
-  trackUrl,
-  runThumbJob,
-  retryFailed,
-  addSkippedAnyway,
   unreadable,
   selectedCount,
-  pct,
-  missingThumbs,
-  thumbPct,
 }: AvisosDaPastaProps) {
+  const {
+    progress,
+    failed,
+    setFailed,
+    skipped,
+    setSkipped,
+    legacyPhotos,
+    partialCheck,
+    verifying,
+    trackUrl,
+    retryFailed,
+    addSkippedAnyway,
+    pct,
+  } = envio;
+  const { setCopyOpen, setCopyMode, copyReport, setCopyReport } = copia;
+  const { thumbJob, pararMiniaturas, runThumbJob, missingThumbs, thumbPct } = miniaturas;
   return (
     <>
       {/* A VERIFICAR — a fase que acontece ANTES de preparar seja o que for.

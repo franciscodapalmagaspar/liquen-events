@@ -1,7 +1,6 @@
 "use client";
 
-import { type Dispatch, type JSX, type RefObject, type SetStateAction } from "react";
-import { type LeituraFalhada } from "@/lib/porque-nao-leu";
+import { type JSX, type RefObject } from "react";
 import { THEME_PAGE_SIZE, type ThemeImage, type ThemeSummary } from "@/lib/theme-types";
 import { Button } from "../ui";
 import { ESTADO } from "../ui/movimento";
@@ -9,30 +8,16 @@ import { GRELHA_DE_FOTOS } from "./grelha-de-fotos";
 import { readDropEntries } from "./largar-pastas";
 import type { Pending } from "./tipos-da-pasta";
 import { plural } from "@/lib/plural";
+import { type LeituraDaPasta, type LargarNaPasta } from "./grupos-da-pasta";
 
 /** A grelha das fotografias de um tema — a carregar, vazia, ou cheia — com o
  *  arrasto para reordenar e para largar ficheiros. (Saiu da pasta do tema na
  *  fase 8 da estrutura do código, tal e qual.) */
 export interface GrelhaDaPastaProps {
+  leitura: LeituraDaPasta;
+  largar: LargarNaPasta;
   theme: ThemeSummary;
-  images: ThemeImage[];
-  truncated: boolean;
-  falhaDaPasta: LeituraFalhada | null;
-  loading: boolean;
-  loadingMore: boolean;
   pending: Pending[];
-  setDrag: Dispatch<SetStateAction<boolean>>;
-  drag: boolean;
-  /**
-   * A profundidade do arrasto por cima da grelha (cada filho que o ponteiro
-   * atravessa conta uma entrada e uma saída). Vive na pasta, que é dona dela;
-   * a grelha só a faz andar — e sabe quando voltou a zero.
-   */
-  arrasto: { entrar: () => void; sair: () => number; zerar: () => void };
-  remaining: number | null;
-  hasMore: boolean;
-  handleDrop: (entries: FileSystemEntry[], files: File[]) => Promise<void>;
-  loadMore: () => Promise<void>;
   unreadable: boolean;
   grelha: RefObject<HTMLDivElement | null>;
   colunas: number;
@@ -41,26 +26,19 @@ export interface GrelhaDaPastaProps {
 }
 
 export function GrelhaDaPasta({
+  leitura,
+  largar,
   theme,
-  images,
-  truncated,
-  falhaDaPasta,
-  loading,
-  loadingMore,
   pending,
-  setDrag,
-  drag,
-  arrasto,
-  remaining,
-  hasMore,
-  handleDrop,
-  loadMore,
   unreadable,
   grelha,
   colunas,
   pendentes,
   celulaDaFoto,
 }: GrelhaDaPastaProps) {
+  const { images, truncated, falhaDaPasta, loading, loadingMore, remaining, hasMore, loadMore } =
+    leitura;
+  const { setDrag, drag, arrasto, handleDrop } = largar;
   return (
     <>
       <div

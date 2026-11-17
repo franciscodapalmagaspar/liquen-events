@@ -2855,31 +2855,35 @@ export default function AdminClient({
           )}
 
           <Vistas
+            pedidos={{
+              quotes,
+              activeQuotes,
+              nomesDosPedidos,
+              archivedCount,
+              falhaDosPedidos,
+              selectedRef,
+              substituirPedido,
+              alterarPedido,
+              refletirEstadoDoEstudio,
+              marcarDesfecho,
+              revalidarPedidos,
+              verArquivados,
+              comPedidoInteiro,
+              abrirCliente,
+              openQuote,
+              setEditPrice,
+            }}
+            navegacao={{
+              view,
+              setView,
+              pedidoPara,
+              irComPedido,
+              propostaPara,
+              setPropostaPara,
+              setNewQuoteOpen,
+              pedidoDeNovaTarefa,
+            }}
             userName={userName}
-            falhaDosPedidos={falhaDosPedidos}
-            quotes={quotes}
-            substituirPedido={substituirPedido}
-            nomesDosPedidos={nomesDosPedidos}
-            alterarPedido={alterarPedido}
-            setEditPrice={setEditPrice}
-            view={view}
-            setView={setView}
-            pedidoPara={pedidoPara}
-            irComPedido={irComPedido}
-            propostaPara={propostaPara}
-            setPropostaPara={setPropostaPara}
-            setNewQuoteOpen={setNewQuoteOpen}
-            selectedRef={selectedRef}
-            marcarDesfecho={marcarDesfecho}
-            comPedidoInteiro={comPedidoInteiro}
-            abrirCliente={abrirCliente}
-            openQuote={openQuote}
-            revalidarPedidos={revalidarPedidos}
-            refletirEstadoDoEstudio={refletirEstadoDoEstudio}
-            archivedCount={archivedCount}
-            verArquivados={verArquivados}
-            activeQuotes={activeQuotes}
-            pedidoDeNovaTarefa={pedidoDeNovaTarefa}
           />
 
           {/* ── Pedidos ── */}

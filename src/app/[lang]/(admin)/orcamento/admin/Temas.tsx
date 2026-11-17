@@ -2736,32 +2736,33 @@ function ThemeFolder({
       />
 
       <AvisosDaPasta
-        theme={theme}
-        progress={progress}
-        failed={failed}
-        setFailed={setFailed}
-        skipped={skipped}
-        setSkipped={setSkipped}
-        legacyPhotos={legacyPhotos}
-        partialCheck={partialCheck}
-        verifying={verifying}
-        setCopyOpen={setCopyOpen}
-        setCopyMode={setCopyMode}
-        copyReport={copyReport}
-        setCopyReport={setCopyReport}
-        thumbJob={thumbJob}
-        pararMiniaturas={() => {
-          stopThumbs.current = true;
+        envio={{
+          progress,
+          failed,
+          setFailed,
+          skipped,
+          setSkipped,
+          legacyPhotos,
+          partialCheck,
+          verifying,
+          trackUrl,
+          retryFailed,
+          addSkippedAnyway,
+          pct,
         }}
-        trackUrl={trackUrl}
-        runThumbJob={runThumbJob}
-        retryFailed={retryFailed}
-        addSkippedAnyway={addSkippedAnyway}
+        copia={{ setCopyOpen, setCopyMode, copyReport, setCopyReport }}
+        miniaturas={{
+          thumbJob,
+          pararMiniaturas: () => {
+            stopThumbs.current = true;
+          },
+          runThumbJob,
+          missingThumbs,
+          thumbPct,
+        }}
+        theme={theme}
         unreadable={unreadable}
         selectedCount={selectedCount}
-        pct={pct}
-        missingThumbs={missingThumbs}
-        thumbPct={thumbPct}
       />
 
       <BarraDaSeleccaoDaPasta
@@ -2833,20 +2834,19 @@ function ThemeFolder({
       )}
 
       <GrelhaDaPasta
+        leitura={{
+          images,
+          truncated,
+          falhaDaPasta,
+          loading,
+          loadingMore,
+          remaining,
+          hasMore,
+          loadMore,
+        }}
+        largar={{ setDrag, drag, arrasto, handleDrop }}
         theme={theme}
-        images={images}
-        truncated={truncated}
-        falhaDaPasta={falhaDaPasta}
-        loading={loading}
-        loadingMore={loadingMore}
         pending={pending}
-        setDrag={setDrag}
-        drag={drag}
-        arrasto={arrasto}
-        remaining={remaining}
-        hasMore={hasMore}
-        handleDrop={handleDrop}
-        loadMore={loadMore}
         unreadable={unreadable}
         grelha={grelha}
         colunas={colunas}
