@@ -2510,10 +2510,13 @@ html.lightbox-aberta .barra-consentimento {
    o desfoque até ela sair — ficam com a tinta que já tinham, que é escura o
    bastante sem ele. O «Pedir orçamento» flutuante já sai do ecrã (ver
    `.cta-flutuante` mais abaixo), e o visualizador da galeria esconde a barra.
-   `vidro-do-site.test.ts` conta-os. */
-html:not(.consentimento-decidido) body:has(.barra-consentimento) .vidro-cede {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+   `vidro-do-site.test.ts` conta-os. Só com rato: no toque a barra não é
+   vidro, e tirar o desfoque aos outros era estragá-los sem razão. */
+@media (pointer: fine) {
+  html:not(.consentimento-decidido) body:has(.barra-consentimento) .vidro-cede {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* ── A BARRA FALA NA LETRA DO SISTEMA (1/11) ─────────────────────────────────

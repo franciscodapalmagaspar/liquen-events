@@ -114,6 +114,17 @@ export interface GlassProps extends Omit<HTMLAttributes<HTMLElement>, "className
   quando?: string;
   /** Esperar que o browser fique livre antes de carregar o motor. Para o que está no arranque das páginas públicas. */
   adiar?: boolean;
+  /**
+   * Falso enquanto o vidro não deve existir (a barra de cookies por cima do
+   * vídeo da entrada). Ao passar a falso, o vidro desmonta-se.
+   */
+  ativo?: boolean;
+  /**
+   * Onde o motor não pode entrar (Safari, Firefox), NÃO usar o desfoque de
+   * recurso: fica só a tinta. Para superfícies fixas no site, onde um
+   * `blur(12px)` permanente é o custo que se tirou a 29/10 e a 9/11.
+   */
+  soComMotor?: boolean;
 }
 
 export function Glass({
@@ -123,6 +134,8 @@ export function Glass({
   children,
   quando,
   adiar = false,
+  ativo = true,
+  soComMotor = false,
   ...resto
 }: GlassProps) {
   const ref = useRef<HTMLElement>(null);
@@ -144,6 +157,7 @@ export function Glass({
       el.style.position = posicaoOriginal;
     };
 
+    if (!ativo) return reporPosicao;
     if (corresponde(SEM_VIDRO)) return reporPosicao;
     if (quando !== undefined && !corresponde(quando)) return reporPosicao;
 
@@ -151,10 +165,17 @@ export function Glass({
     let desfazer: (() => void) | undefined;
 
     const montar = () => {
-      void import("@/lib/liquid-glass").then(({ attach, specular }) => {
-        if (!vivo) return;
-        desfazer = montarVidro(el, superficie, attach, specular);
-      });
+      import("@/lib/liquid-glass")
+        .then(({ attach, specular, suportado }) => {
+          if (!vivo) return;
+          if (soComMotor && !suportado()) return;
+          desfazer = montarVidro(el, superficie, attach, specular);
+        })
+        /* Um ChunkLoadError (rede que falha, publicação nova que apagou o
+           pedaço antigo) sem `.catch` subia a `unhandledrejection` e ia para
+           o `/api/erro-do-site`. Sem motor a superfície fica com a tinta: não
+           é um erro. */
+        .catch(() => {});
     };
 
     const cancelarEspera = adiar ? onIdle(montar) : (montar(), () => {});
@@ -164,7 +185,7 @@ export function Glass({
       desfazer?.();
       reporPosicao();
     };
-  }, [superficie, quando, adiar]);
+  }, [superficie, quando, adiar, ativo, soComMotor]);
 
   return (
     <Tag ref={ref} className={`lg ${className}`} {...resto}>

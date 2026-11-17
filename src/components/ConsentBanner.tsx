@@ -9,6 +9,7 @@ import { ALTURA_BARRA_FIXA_PX, ehRotaSocial } from "@/lib/meta/barra";
 import { aoMudarConsentimento } from "@/lib/meta/click-id";
 import { aplicarConsentimentoGoogle } from "@/components/GoogleTag";
 import { Glass } from "@/components/Glass";
+import { useEntradaEmVideoVisivel } from "@/components/useEntradaEmVideoVisivel";
 
 // Minimal RGPD cookie-consent bar. It only governs the Google tag's Consent
 // Mode signals (ad/analytics cookies) — the site's own first-party essentials
@@ -71,6 +72,8 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
    */
   const [show, setShow] = useState(true);
   const pathname = usePathname();
+  // Por cima do vídeo da entrada a barra não é vidro — ver «LIQUID GLASS» em baixo.
+  const entradaVisivel = useEntradaEmVideoVisivel(pathname);
   // The consent bar governs Google's public-visitor tracking; it has no place
   // over the authenticated back office (…/orcamento/admin[/…], locale-prefixed
   // in EN), where it would also sit on top of the mobile nav and intercept its
@@ -179,6 +182,8 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
     <Glass
       superficie="painel"
       quando="(pointer: fine)"
+      ativo={!entradaVisivel}
+      soComMotor
       adiar
       // role="region" (a labelled landmark), NOT "dialog": the bar is
       // non-modal — it doesn't trap focus or block the page, so a dialog role
@@ -189,6 +194,10 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
       // `barra-consentimento` é a alça do CSS que esconde isto a quem já
       // escolheu, antes da primeira pintura. Ver o script no `<head>`.
       /**
+       * (17/11: o que se segue CONTINUA a valer — por cima do vídeo a barra
+       * não tem desfoque nenhum. O vidro de 17/11 só se monta quando o vídeo
+       * sai do ecrã; ver «LIQUID GLASS» no fim deste comentário.)
+       *
        * SEM desfoque também no computador (29/10). Ela: «o site no PC está a
        * travar mesmo imenso, principalmente na parte do vídeo». O aviso
        * aparece por cima do vídeo da entrada, e aí o `backdrop-filter` volta a
@@ -279,6 +288,14 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
        * `docs/LIQUID-GLASS.md` (bisel 16, força 12, desfoque 2, saturação
        * 1,5): o fundo dobra na aresta em vez de só se desfocar.
        *
+       *  · NUNCA por cima do vídeo da entrada (`ativo`). As duas lições de
+       *    cima (29/10 e 9/11) continuam a mandar: um `backdrop-filter` fixo
+       *    por cima do vídeo é recalculado em cada fotograma dele. Enquanto o
+       *    vídeo está no ecrã (`useEntradaEmVideoVisivel`, um
+       *    IntersectionObserver) a barra é só tinta; o vidro monta-se quando
+       *    ele sai, e desmonta-se se ele voltar.
+       *  · Sem motor (Safari e Firefox), só tinta (`soComMotor`): o recurso
+       *    do motor seria um `blur(12px)` fixo — o mesmo custo outra vez.
        *  · Só com rato (`quando`). No toque fica a tinta e o rebordo, que
        *    são CSS: o desfoque num `fixed` já engasgou o deslize do iPhone
        *    (globals.css, «NO TOQUE, O AVISO NÃO DESFOCA»).

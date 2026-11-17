@@ -71,7 +71,7 @@ describe("a superfície de vidro", () => {
   });
 
   it("guarda as classes de quem a usa, e junta a sua", () => {
-    /* A `lg` é o que o `admin.css` procura para desenhar o rebordo, e é o que o
+    /* A `lg` é o que o `globals.css` procura para desenhar o rebordo, e é o que o
        `specular()` acende. Uma `className` que a substituísse deixava a barra
        com vidro e sem reflexo — e isso não dá erro nenhum, só fica feio. */
     const { container } = render(
@@ -154,5 +154,33 @@ describe("a superfície de vidro", () => {
     const { container } = render(<Glass superficie="barra">olá</Glass>);
     const el = container.querySelector<HTMLElement>(".lg")!;
     expect(el.style.position).toBe("relative");
+  });
+
+  it("com `ativo={false}` não se monta — e desmonta-se quando passa a falso", async () => {
+    const { container, rerender } = render(<Glass superficie="painel">olá</Glass>);
+    const el = container.querySelector<HTMLElement>(".lg")!;
+    await waitFor(() => expect(el.style.backdropFilter).not.toBe(""));
+    rerender(
+      <Glass superficie="painel" ativo={false}>
+        olá
+      </Glass>,
+    );
+    expect(el.style.backdropFilter).toBe("");
+    expect(el.dataset.lgFallback).toBeUndefined();
+  });
+
+  it("com `soComMotor`, onde o motor não pode entrar não há desfoque de recurso", async () => {
+    /* O jsdom é como o Safari: `suportado()` diz que não. O recurso seria um
+       `blur(12px)` — exactamente o desfoque fixo que se tirou da barra de
+       cookies por custo. Ali fica a tinta. */
+    const { container } = render(
+      <Glass superficie="painel" soComMotor>
+        olá
+      </Glass>,
+    );
+    const el = container.querySelector<HTMLElement>(".lg")!;
+    await new Promise((r) => setTimeout(r, 30));
+    expect(el.style.backdropFilter).toBe("");
+    expect(el.dataset.lgFallback).toBeUndefined();
   });
 });

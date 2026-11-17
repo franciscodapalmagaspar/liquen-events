@@ -406,8 +406,15 @@ export function attach(el: HTMLElement, opts?: Partial<OpcoesDoVidro>): Vidro {
     })();
   }
 
-  const aoTransitar = () => track(900);
-  const aoAcabar = () => paint();
+  /* Só as transições DO PRÓPRIO vidro: o `transitionrun` borbulha, e o
+     `hover` de cada botão lá dentro arrancava 900 ms de remedições a uma
+     superfície que não mudou de forma. */
+  const aoTransitar = (e: Event) => {
+    if (e.target === el) track(900);
+  };
+  const aoAcabar = (e: Event) => {
+    if (e.target === el) paint();
+  };
   if (o.live) {
     el.addEventListener("transitionrun", aoTransitar);
     el.addEventListener("transitionend", aoAcabar);

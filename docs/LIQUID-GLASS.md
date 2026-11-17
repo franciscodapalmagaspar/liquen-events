@@ -53,6 +53,15 @@ que o documento não previa, porque o site paga o que o back office não paga:
 - **O motor chega por `import()`**, e na barra só quando o browser fica livre
   (`adiar`). O JavaScript do arranque não cresce (o motor é um pedaço à parte,
   5,6 KB / 2,5 KB comprimido, que nunca vem no HTML).
+- **Por cima do vídeo da entrada não se monta, e sem motor também não.** A
+  29/10 e a 9/11 ela disse «o site no PC está a travar imenso»: um
+  `backdrop-filter` fixo por cima do vídeo é recalculado em cada fotograma
+  dele, mesmo com a página parada, e foi por isso que o desfoque saiu da barra
+  duas vezes. O vidro só se monta quando o vídeo sai do ecrã
+  (`useEntradaEmVideoVisivel`, um IntersectionObserver; `ativo` no `<Glass>`)
+  — por cima dele a barra é só tinta. E no Safari e no Firefox de computador
+  (`suportado()` diz que não) não entra o desfoque de recurso de 12 px
+  (`soComMotor`): seria o mesmo custo outra vez, sem a refracção que o paga.
 - **No toque não se monta** (`quando="(pointer: fine)"`): um `backdrop-filter`
   num elemento `fixed` já engasgou o deslize do iPhone uma vez
   (`scroll-no-iphone.contrato.test.ts`, ponto 4). No telemóvel a barra leva a

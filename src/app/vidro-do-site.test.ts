@@ -49,27 +49,41 @@ describe("o vidro do site público", () => {
   });
 
   it("todo o outro desfoque de fundo cede enquanto a barra está no ecrã", () => {
+    /* Revisão de 17/11: isto só lia `className="…"` e template literals — um
+       `cn("…", "backdrop-blur-md")` ou uma constante de classes escapava.
+       Agora lê QUALQUER literal (aspas, plicas ou crases) do código, sem os
+       comentários. */
     const semCeder: string[] = [];
     for (const f of publicos) {
       if (f.endsWith("Glass.tsx")) continue;
-      // As classes vivem em `className="…"` ou em `` className={`…`} ``: cada
-      // string que pede desfoque de fundo tem de pedir também para ceder.
-      for (const m of ler(f).matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`)/g)) {
-        // (Os comentários `// …` dentro de uma expressão não são classes.)
-        const classes = (m[1] ?? m[2]).replace(/\/\/.*$/gm, "");
+      const codigo = ler(f)
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+      for (const m of codigo.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)) {
+        const literal = m[1] ?? m[2] ?? m[3];
         if (
-          /\bbackdrop-(blur|saturate|brightness|filter)/.test(classes) &&
-          !/\bvidro-cede\b/.test(classes)
+          /\bbackdrop-(blur|saturate|brightness|filter)/.test(literal) &&
+          !/\bvidro-cede\b/.test(literal)
         )
-          semCeder.push(`${f}: ${classes.slice(0, 80)}`);
+          semCeder.push(`${f}: ${literal.slice(0, 80)}`);
       }
     }
     expect(semCeder).toEqual([]);
   });
 
-  it("o globals.css tira-lhes o desfoque enquanto a barra existe e ninguém escolheu", () => {
+  it("e o globals.css não desfoca nada por conta própria: todo o `backdrop-filter` lá é `none`", () => {
+    const declaracoes = [...css.matchAll(/(?:^|[^-])backdrop-filter:\s*([^;}]+)/g)].map((m) =>
+      m[1].trim(),
+    );
+    expect(declaracoes.length).toBeGreaterThan(0);
+    expect(declaracoes.filter((v) => !/^none( !important)?$/.test(v))).toEqual([]);
+  });
+
+  it("o globals.css tira-lhes o desfoque enquanto a barra existe e ninguém escolheu — só com rato", () => {
+    /* No toque a barra não é vidro (não se monta), e tirar o desfoque aos
+       outros era estragá-los sem razão. */
     const regra = css.match(
-      /html:not\(\.consentimento-decidido\) body:has\(\.barra-consentimento\) \.vidro-cede\s*\{([^}]*)\}/,
+      /@media \(pointer: fine\)\s*\{\s*html:not\(\.consentimento-decidido\) body:has\(\.barra-consentimento\) \.vidro-cede\s*\{([^}]*)\}/,
     );
     expect(regra?.[1]).toMatch(/(^|[^-])backdrop-filter:\s*none/);
     expect(regra?.[1]).toMatch(/-webkit-backdrop-filter:\s*none/);
@@ -87,6 +101,20 @@ describe("o vidro do site público", () => {
     expect(glass).toContain('quando="(pointer: fine)"');
     expect(glass).toMatch(/\badiar\b/);
     expect(glass).toContain('superficie="painel"');
+  });
+
+  it("por cima do vídeo da entrada não há vidro (29/10 e 9/11: «o site no PC está a travar»)", () => {
+    /* Um `backdrop-filter` fixo por cima do vídeo volta a ser calculado em
+       cada fotograma do vídeo. Enquanto ele está no ecrã, a barra é só tinta. */
+    const barra = ler("src/components/ConsentBanner.tsx");
+    const glass = barra.match(/<Glass\b([\s\S]*?)>/)?.[1] ?? "";
+    expect(barra).toMatch(/useEntradaEmVideoVisivel\(pathname\)/);
+    expect(glass).toMatch(/ativo=\{!entradaVisivel\}/);
+  });
+
+  it("sem o motor (Safari e Firefox) a barra fica só com a tinta, sem o desfoque de recurso", () => {
+    const glass = ler("src/components/ConsentBanner.tsx").match(/<Glass\b([\s\S]*?)>/)?.[1] ?? "";
+    expect(glass).toMatch(/\bsoComMotor\b/);
   });
 
   it("o motor não entra no JavaScript do arranque: nem a barra nem o <Glass> o importam de forma estática", () => {
