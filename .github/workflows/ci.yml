@@ -144,6 +144,13 @@ jobs:
           echo "lint=$l typecheck=$t"
           test $l -eq 0 && test $t -eq 0
 
+      # Nenhum ciclo de importação NOVO (só valores; a lista dos que já havia
+      # está no guião). Fase 0 de `docs/ESTRUTURA-DO-CODIGO.md`: é a guarda
+      # que apanha uma função que sai do estúdio e continua a importar de lá.
+      # ~15 s neste job, que já espera pelo build; não toca na Vercel.
+      - name: Ciclos de importação
+        run: node scripts/ci/ciclos-de-importacao.mjs
+
       - name: Build
         run: npm run build
         env:

@@ -82,6 +82,21 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-restricted-imports": "off",
     },
   },
+  // ── A COMPLEXIDADE À VISTA, EM AVISO (fase 0 de `docs/ESTRUTURA-DO-CODIGO.md`) ──
+  //
+  // Para se ver, não para parar: os gigantes de hoje (o `ProposalStudio`, com
+  // complexidade 279 e 7 043 linhas de código numa função) saem por fases, e
+  // um erro aqui deixava o lint vermelho até lá. Os números são os da medição
+  // da §2.11 do documento. Só no código de produção: um `describe` comprido
+  // não é o problema que isto mede.
+  {
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    ignores: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      complexity: ["warn", 30],
+      "max-lines-per-function": ["warn", { max: 400, skipComments: true, skipBlankLines: true }],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
