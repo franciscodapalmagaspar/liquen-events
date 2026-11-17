@@ -219,4 +219,20 @@ describe("log — o alerta não deixa texto de fora mandar no canal", () => {
     log.error("site no browser: terceira-mensagem-xyz");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("um `null` no lugar do erro não vai como «null» para o canal nem para o Sentry", () => {
+    process.env.SENTRY_DSN = "https://chave@sentry.example.com/123";
+    try {
+      log.error("erro-sem-objecto-xyz", null, { onde: "/x" });
+      const corpos = fetchMock.mock.calls.map((c) => String((c as [string, RequestInit])[1].body));
+      const webhook = corpos.find((b) => b.includes('"allowed_mentions"'))!;
+      expect(JSON.parse(webhook).text).not.toMatch(/\bnull\b/);
+      const sentry = corpos.find((b) => b.includes("erro-sem-objecto-xyz") && b !== webhook)!;
+      const evento = JSON.parse(sentry.split("\n")[2]);
+      // Sem `exception`: senão todos estes erros juntavam-se num só «Error: null».
+      expect(evento.exception).toBeUndefined();
+    } finally {
+      delete process.env.SENTRY_DSN;
+    }
+  });
 });

@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const onde = texto(corpo.onde, 300);
     // O prefixo «site no browser:» É a chave de travão partilhada — ver
     // `chaveDeTravao` no `logger.ts`. Não se lhe muda o texto.
-    log.error(`site no browser: ${mensagem}`, null, {
+    log.error(`site no browser: ${mensagem}`, undefined, {
       marca: texto(corpo.marca, 80),
       onde: onde ? sanitizeTelemetryPath(onde) : undefined,
       aparelho: texto(corpo.aparelho, 200),

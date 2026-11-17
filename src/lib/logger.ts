@@ -296,7 +296,10 @@ function emit(level: Level, rawMessage: string, rawContext?: Context, rawErr?: u
   // caminho por onde um dado pessoal saia sem passar por aqui.
   const message = redactString(rawMessage);
   const context = redactContext(rawContext);
-  const err = rawErr === undefined ? undefined : redactValue(rawErr);
+  // `null` conta como «sem erro» (revisão de 16/11, n.º 4): há quem chame
+  // `log.error(msg, null, ctx)`, e o `null` ia como «null» para o canal e, no
+  // Sentry, juntava todos esses erros num só «Error: null».
+  const err = rawErr === undefined || rawErr === null ? undefined : redactValue(rawErr);
 
   const entry: Record<string, unknown> = {
     level,

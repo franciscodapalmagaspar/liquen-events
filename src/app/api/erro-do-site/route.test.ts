@@ -11,6 +11,7 @@ const st = vi.hoisted(() => ({
   ritmoOk: true,
   registado: [] as Array<{ mensagem: string; contexto: Record<string, unknown> }>,
   avisos: 0,
+  erroPassado: [] as unknown[],
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
@@ -24,8 +25,10 @@ vi.mock("@/lib/logger", async (orig) => ({
   log: {
     // `log.error` é o que avisa (webhook, Sentry) — revisão de 16/11, n.º 5: um
     // erro no telemóvel de um visitante tem de chegar a quem o pode resolver.
-    error: (mensagem: string, _e: unknown, contexto: Record<string, unknown>) =>
-      st.registado.push({ mensagem, contexto }),
+    error: (mensagem: string, erro: unknown, contexto: Record<string, unknown>) => {
+      st.registado.push({ mensagem, contexto });
+      st.erroPassado.push(erro);
+    },
     warn: () => {
       st.avisos += 1;
     },
@@ -46,6 +49,7 @@ beforeEach(() => {
   st.ritmoOk = true;
   st.registado = [];
   st.avisos = 0;
+  st.erroPassado = [];
 });
 
 describe("POST /api/erro-do-site", () => {
@@ -69,6 +73,11 @@ describe("POST /api/erro-do-site", () => {
     // janela, não um por mensagem que um browser invente.
     const chaves = new Set(st.registado.map((r) => chaveDeTravao(r.mensagem)));
     expect(chaves).toEqual(new Set(["site no browser:"]));
+  });
+
+  it("não passa `null` como erro — ia como «null» para o canal e juntava tudo no Sentry", async () => {
+    await POST(req({ mensagem: "x is undefined" }));
+    expect(st.erroPassado).toEqual([undefined]);
   });
 
   it("só leva os cinco campos, e cortados", async () => {
