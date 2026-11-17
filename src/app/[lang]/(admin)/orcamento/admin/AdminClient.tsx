@@ -111,7 +111,6 @@ import { useFiltrosDosPedidos } from "./_pedidos/useFiltrosDosPedidos";
 import { VIEW_WRAP } from "./_casca/moldura-da-vista";
 import { ACOES_DE_PEDIDOS } from "./_casca/titulos-das-vistas";
 import { STATUS_OPTIONS } from "./_pedidos/pastilha-do-estado";
-import { LIST_PAGE_SIZE } from "@/lib/orcamento/pedidos/regras-da-lista";
 import { detailNextAction, type DetailTab } from "./_pedidos/separadores-do-painel";
 import { comPedidoAlterado, comPedidoSubstituido } from "@/lib/orcamento/pedidos/lista-de-pedidos";
 import { useAccoesEmLote } from "./_pedidos/useAccoesEmLote";
@@ -119,6 +118,7 @@ import { useGravacaoDoPedido } from "./_pedidos/useGravacaoDoPedido";
 import { useHistoricoDoPedido } from "./_pedidos/useHistoricoDoPedido";
 import { useAberturaDoPedido } from "./_pedidos/useAberturaDoPedido";
 import { useLeituraDoPedido } from "./_pedidos/useLeituraDoPedido";
+import { usePaginaDaLista } from "./_pedidos/usePaginaDaLista";
 
 /** A chave da saída do painel do pedido — há um painel só, e a chave é uma. */
 const SAIDA_DO_PAINEL = "painel-do-pedido";
@@ -735,19 +735,8 @@ export default function AdminClient({
   /* Os filtros da lista de pedidos — o estado, as contas e a lista filtrada
      e ordenada. As regras vivem em `lib/orcamento/pedidos/filtros-dos-pedidos.ts`. */
   const filtros = useFiltrosDosPedidos(quotes, userName);
-  const {
-    filterStatus,
-    setFilterStatus,
-    tagFilter,
-    filterCategory,
-    showArchived,
-    setShowArchived,
-    mineOnly,
-    search,
-    sort,
-    setSort,
-    filtered,
-  } = filtros;
+  const { filterStatus, setFilterStatus, showArchived, setShowArchived, sort, setSort, filtered } =
+    filtros;
   /** O pedido que está a ser aberto agora — ver `openQuote`. */
   const [aAbrir, setAAbrir] = useState<{ id: string; nome: string } | null>(null);
   /**
@@ -2415,48 +2404,8 @@ export default function AdminClient({
   const regioesDisponiveis = useMemo(() => regioesDe(activeQuotes), [activeQuotes]);
   const plannersDisponiveis = useMemo(() => plannersDe(activeQuotes), [activeQuotes]);
 
-  // Paginação incremental da lista: com centenas de pedidos, renderizar tudo
-  // degrada a página. Só o RENDER é paginado — exportar CSV, "selecionar
-  // todos" e contagens continuam a operar sobre a lista filtrada completa.
-  const [visibleCount, setVisibleCount] = useState(LIST_PAGE_SIZE);
-  /**
-   * ONDE COMEÇA O LOTE QUE O «MOSTRAR MAIS» ACABOU DE TRAZER.
-   *
-   * `null` quando não há lote novo nenhum — a primeira página, e tudo o que
-   * venha de uma mudança de filtro. É a diferença entre «isto acabou de
-   * chegar» e «isto sempre esteve aqui», e sem ela a entrada do lote animava
-   * a lista inteira a cada desenho.
-   *
-   * Um ÍNDICE e não um `Set` de ids: quem manda é a posição na lista filtrada
-   * nesse instante, e o `Set` deriva daqui. Guardar os ids era guardar duas
-   * verdades sobre a mesma coisa.
-   */
-  const [inicioDoLote, setInicioDoLote] = useState<number | null>(null);
-  useEffect(() => {
-    setVisibleCount(LIST_PAGE_SIZE);
-    // Uma lista que voltou ao princípio não tem lote novo nenhum: sem isto, a
-    // marca antiga ficava pendurada e as primeiras linhas de uma procura nova
-    // entravam como se tivessem acabado de ser acrescentadas.
-    setInicioDoLote(null);
-  }, [search, filterStatus, filterCategory, tagFilter, sort, showArchived, mineOnly]);
-  const visibleQuotes = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
-  /**
-   * Os ids do lote novo — e nada quando não há lote novo.
-   *
-   * Um `Set` e não um `indexOf` por linha: com centenas de pedidos, procurar
-   * cada linha na lista filtrada era uma varredura por linha desenhada.
-   */
-  const idsDoLoteNovo = useMemo(
-    () =>
-      inicioDoLote === null
-        ? null
-        : new Set(filtered.slice(inicioDoLote, visibleCount).map((q) => q.id)),
-    [filtered, inicioDoLote, visibleCount],
-  );
-  const ehDoLoteNovo = useCallback(
-    (q: Quote) => idsDoLoteNovo?.has(q.id) ?? false,
-    [idsDoLoteNovo],
-  );
+  const { visibleQuotes, visibleCount, setVisibleCount, setInicioDoLote, ehDoLoteNovo } =
+    usePaginaDaLista({ filtros });
 
   /**
    * ── A SELECÇÃO SOBRE QUE OS BOTÕES DO LOTE AGEM ───────────────────────────
