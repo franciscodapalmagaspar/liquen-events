@@ -71,6 +71,13 @@ describe("a fronteira em modo de observar", () => {
     );
   });
 
+  it("sem id, cada ocorrência é um caso — não se cala a segunda (modelos novos)", () => {
+    const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
+    observar(esquema, { nome: 1 }, "teste");
+    observar(esquema, { nome: 1 }, "teste", { tipo: "decoracao" });
+    expect(aviso).toHaveBeenCalledTimes(2);
+  });
+
   it("o resumo diz-se uma vez — a lista de pedidos relida não o repete", () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
     for (let leitura = 0; leitura < 5; leitura++) {

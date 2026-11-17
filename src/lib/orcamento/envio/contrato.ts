@@ -19,12 +19,8 @@ import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
 export type Truncagens = RelatorioDoPdf["truncations"];
 
 /**
- * ── DUAS CONVENÇÕES, E SÓ DUAS ───────────────────────────────────────────
- *
- *  · uma GUARDA devolve o que pára o envio, ou `null` para seguir
- *    (`travaDoEnvio`, `perguntaDasFotos`, `repeticaoDoEnvio`…);
- *  · um PASSO que produz alguma coisa devolve `{ ok: true, … }` ou
- *    `{ ok: false, … }` (`documentoCompleto`, `gravarAProposta`, `comTrinco`).
+ * Cada etapa devolve um `Passo` (`passo.ts`): segue, ou pára o pedido já com
+ * o desfecho. Este ficheiro diz a FORMA do que viaja até ao estúdio.
  *
  * O corpo de cada recusa, por forma. O estúdio distingue-as pelo campo que
  * cada uma traz (e pelo código HTTP, que vai ao lado na {@link Recusa}).

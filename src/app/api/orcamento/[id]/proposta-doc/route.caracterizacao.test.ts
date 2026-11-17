@@ -28,10 +28,45 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { NextRequest } from "next/server";
-// O palco ANTES da rota: é ele que regista os duplos (ver o cabeçalho dele).
-import { ctl, doc, envio, params, pedido, repor, retrato } from "./_caracterizacao/palco";
+import { ctl } from "./_caracterizacao/duplos";
+import { doc, envio, params, pedido, repor, retrato } from "./_caracterizacao/palco";
 import { GET, POST } from "./route";
 import { CENARIOS, ESTRANHOS } from "./_caracterizacao/cenarios";
+
+// Os duplos (`_caracterizacao/duplos.ts`); o vitest sobe estes `vi.mock` para o topo.
+vi.mock("@/lib/admin-auth", async () =>
+  (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/admin-auth"](),
+);
+vi.mock("@/lib/quotes-store", async () =>
+  (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/quotes-store"](),
+);
+vi.mock("@/lib/proposals-store", async () =>
+  (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/proposals-store"](),
+);
+vi.mock("@/lib/contracts-store", async () =>
+  (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/contracts-store"](),
+);
+vi.mock("@/lib/proposal-doc-render", async () =>
+  (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/proposal-doc-render"](),
+);
+vi.mock("@/lib/email-templates-store", async (original) =>
+  (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/email-templates-store"](original),
+);
+vi.mock("@/lib/proposta-link-curto", async () =>
+  (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/proposta-link-curto"](),
+);
+vi.mock("@/lib/mail", async () =>
+  (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/mail"](),
+);
+vi.mock("@/lib/envios-de-proposta", async () =>
+  (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/envios-de-proposta"](),
+);
+vi.mock("@/lib/proposta-fotos-verificacao", async () =>
+  (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/proposta-fotos-verificacao"](),
+);
+vi.mock("@/lib/proposal-pdf-guardado", async () =>
+  (await import("./_caracterizacao/duplos")).DUPLOS["@/lib/proposal-pdf-guardado"](),
+);
 
 beforeEach(repor);
 

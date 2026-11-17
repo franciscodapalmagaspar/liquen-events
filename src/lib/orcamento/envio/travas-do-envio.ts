@@ -5,8 +5,8 @@ import { fotosEscolhidasQueFaltam } from "@/lib/proposta-fotos-verificacao";
 import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 import { log } from "@/lib/logger";
 import { recusa } from "./recusa";
-import type { Recusa } from "./contrato";
-import type { OEnvio } from "./o-envio";
+import { paraComRecusa, SEGUE, type Passo } from "./passo";
+import type { EnvioDaProposta } from "./envio-da-proposta";
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -95,7 +95,7 @@ function emMinuscula(f: Impedimento): string {
 }
 
 /** O que ENVIAR precisa, com o que o pedido diz. */
-export interface ContextoDaTrava extends OEnvio {
+export interface ContextoDaTrava extends EnvioDaProposta {
   /** `false` só quando ela escolheu o WhatsApp (`ler-o-corpo.ts`). */
   porEmail: boolean;
   /** A chave do PDF final visto, tal como o envio a trouxe. */
@@ -108,7 +108,7 @@ export interface ContextoDaTrava extends OEnvio {
  * A trava do ENVIO: o que o estúdio também recusa e, pelo email, o domínio
  * que não recebe correio. `null` quando pode seguir.
  */
-export async function travaDoEnvio(c: ContextoDaTrava): Promise<Recusa | null> {
+export async function travaDoEnvio(c: ContextoDaTrava): Promise<Passo> {
   // A MESMA conta do estúdio (`fotosEscolhidasQueFaltam`). Uma pasta que
   // não responde deixa por acusar só as fotos dela; as outras contam.
   const escolhidasEmFalta = await fotosEscolhidasQueFaltam(c.doc);
@@ -125,10 +125,12 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Recusa | null> {
       id: c.pedidoId,
       erros: travam.map((f) => f.id),
     });
-    return recusa(422, {
-      error: `A proposta não pode seguir: ${travam.map(emMinuscula).join("; ")}.`,
-      faltas: travam,
-    });
+    return paraComRecusa(
+      recusa(422, {
+        error: `A proposta não pode seguir: ${travam.map(emMinuscula).join("; ")}.`,
+        faltas: travam,
+      }),
+    );
   }
   /**
    * O domínio do email do cliente tem de receber correio (pedido dela,
@@ -141,10 +143,10 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Recusa | null> {
       log.warn("proposta-doc: envio recusado, o domínio do email não recebe correio", {
         id: c.pedidoId,
       });
-      return recusa(422, { error: semDominio, campo: "email" });
+      return paraComRecusa(recusa(422, { error: semDominio, campo: "email" }));
     }
   }
-  return null;
+  return SEGUE;
 }
 
 /**
@@ -152,8 +154,8 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Recusa | null> {
  * vê o que falta). `null` quando pode sair.
  */
 export async function travaDoPdfFinal(
-  c: Pick<OEnvio, "doc" | "quote" | "idioma">,
-): Promise<Recusa | null> {
+  c: Pick<EnvioDaProposta, "doc" | "quote" | "idioma">,
+): Promise<Passo> {
   const faltas = oQueFaltaParaEnviar(c.doc, dinheiroDaProposta(c.doc).gross, {
     idioma: c.idioma,
     fotosEscolhidasQueFaltam: await fotosEscolhidasQueFaltam(c.doc),
@@ -162,14 +164,16 @@ export async function travaDoPdfFinal(
     pdfVisto: false,
   });
   const travam = queTravam(faltas, TRAVAM_O_PDF_FINAL);
-  if (travam.length === 0) return null;
+  if (travam.length === 0) return SEGUE;
   const soFotos = travam.every(
     (f) => f.id === "foto-escolhida-em-falta" || f.id === "fotos-a-mais",
   );
-  return recusa(422, {
-    error: `O PDF final só sai com ${
-      soFotos ? "as fotografias todas" : "os valores todos"
-    }: ${travam.map(emMinuscula).join("; ")}. Até lá, descarrega o rascunho.`,
-    faltas: travam,
-  });
+  return paraComRecusa(
+    recusa(422, {
+      error: `O PDF final só sai com ${
+        soFotos ? "as fotografias todas" : "os valores todos"
+      }: ${travam.map(emMinuscula).join("; ")}. Até lá, descarrega o rascunho.`,
+      faltas: travam,
+    }),
+  );
 }

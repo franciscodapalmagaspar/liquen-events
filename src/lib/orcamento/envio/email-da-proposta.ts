@@ -5,35 +5,13 @@ import { esc } from "@/lib/mail";
 import { emailAoCliente } from "@/lib/email-assinatura";
 import { marcadoresDoPedido, modeloParaEnvioAutomatico, textoDoCorpo } from "@/lib/email-modelos";
 import { arrumarLigacao, ROTULO_DA_PROPOSTA } from "@/lib/email-ligacoes";
-import {
-  assuntoEscritoAMao,
-  corpoEscritoAMao,
-  excedeOTecto,
-  MAXIMO_CORPO_ESCRITO,
-  paragrafosDeTexto,
-} from "@/lib/email-corpo-escrito";
-import { recusa } from "./recusa";
-import type { Recusa } from "./contrato";
+import { assuntoEscritoAMao, corpoEscritoAMao, paragrafosDeTexto } from "@/lib/email-corpo-escrito";
 import { resolverLigacaoDaProposta } from "@/lib/email-ligacao-reservada";
 import { textosDoEmailDaProposta } from "@/lib/email-proposta-textos";
 import { eCasamento } from "@/lib/proposal-evento";
 import { log } from "@/lib/logger";
 import { cartaoDoPdf } from "./cartao-do-pdf";
-import type { OEnvio } from "./o-envio";
-
-/**
- * O texto escrito à mão recusa-se por tamanho ANTES de se desenhar o PDF:
- * recusar depois é gastar o desenho por nada. O resto dele (o
- * `{{link_proposta}}`) só se resolve depois de a proposta estar gravada.
- */
-export function recusaDoTextoGrandeDemais(textoDoEmail: string | null): Recusa | null {
-  if (!excedeOTecto(textoDoEmail)) return null;
-  return recusa(400, {
-    error:
-      `O texto do email é demasiado longo (o máximo são ${MAXIMO_CORPO_ESCRITO} caracteres). ` +
-      `Encurta-o e volta a enviar — não foi enviado nada.`,
-  });
-}
+import type { EnvioDaProposta } from "./envio-da-proposta";
 
 declare const emoldurado: unique symbol;
 
@@ -49,7 +27,7 @@ function emoldurar(partes: Parameters<typeof emailAoCliente>[0]): EmailEmoldurad
   return emailAoCliente(partes) as EmailEmoldurado;
 }
 
-export interface ParaEscrever extends OEnvio {
+export interface ParaEscrever extends EnvioDaProposta {
   mensagem: string;
   /** O `corpo` e o `assunto` escritos à mão, quando vieram (`ler-o-corpo.ts`). */
   textoDoEmail: string | null;

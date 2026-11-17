@@ -5,7 +5,7 @@ import type { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { listProposalsForQuote } from "@/lib/proposals-store";
 import { proximaVersao, seloDoConteudo } from "@/lib/proposta-versao";
 import { log } from "@/lib/logger";
-import type { OEnvio } from "./o-envio";
+import type { EnvioDaProposta } from "./envio-da-proposta";
 
 /** A ordem das irmãs de um pedido, em todo este ficheiro: a mais recente primeiro. */
 const maisRecentePrimeiro = (a: Proposal, b: Proposal): number =>
@@ -55,7 +55,7 @@ export async function irmasDoPedido(
   }
 }
 
-export interface Montagem extends OEnvio {
+export interface Montagem extends EnvioDaProposta {
   dinheiro: ReturnType<typeof dinheiroDaProposta>;
   validUntil: string;
   pdf: Buffer;

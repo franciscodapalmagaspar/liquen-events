@@ -8,14 +8,14 @@ import {
 } from "@/lib/proposal-preview-cache";
 import { log } from "@/lib/logger";
 import { FOLGA_DA_SEGUNDA_PASSAGEM_MS, FOLGA_DO_EMAIL_MS } from "./orcamento-de-tempo";
-import type { OEnvio } from "./o-envio";
+import type { EnvioDaProposta } from "./envio-da-proposta";
 
 /**
  * Etapa 5 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o desenho do PDF,
  * e a segunda passagem quando uma foto não resolveu e ainda há tempo
  * (`orcamento-de-tempo.ts`).
  */
-export interface ParaDesenhar extends Pick<OEnvio, "pedidoId" | "doc" | "idioma"> {
+export interface ParaDesenhar extends Pick<EnvioDaProposta, "pedidoId" | "doc" | "idioma"> {
   modo: "preview" | "send";
   rascunho: boolean;
   chaveDoQueChegou: string;

@@ -17,6 +17,11 @@ import {
 import { montarAProposta, propostasAnteriores, versaoDaProposta } from "./a-proposta-que-se-grava";
 import { prepararODocumento } from "./documento-do-envio";
 import type { EmailEmoldurado } from "./email-da-proposta";
+import type { Passo } from "./passo";
+
+/** O que um `Passo` parado respondeu — a recusa, ou `null` se seguiu. */
+const recusaDe = (p: Passo<unknown>) =>
+  !p.ok && p.desfecho.tipo === "recusa" ? p.desfecho.recusa : null;
 
 vi.spyOn(log, "warn").mockImplementation(() => {});
 
@@ -43,7 +48,7 @@ describe("as perguntas antes do envio", () => {
   });
 
   it("as fotos perguntam com 409 e dizem quantas; os cortes só com `true`", () => {
-    expect(perguntaDasFotos("q", 1, null)).toEqual({
+    expect(recusaDe(perguntaDasFotos("q", 1, null))).toEqual({
       status: 409,
       corpo: {
         error: "Falta 1 fotografia no documento.",
@@ -52,14 +57,14 @@ describe("as perguntas antes do envio", () => {
       },
     });
     const corte = [{ where: "Capa", dropped: 1, unit: "linhas" as const }];
-    expect(perguntaDosCortes("q", corte, false)?.status).toBe(409);
-    expect(perguntaDosCortes("q", corte, true)).toBeNull();
-    expect(perguntaDosCortes("q", [], false)).toBeNull();
+    expect(recusaDe(perguntaDosCortes("q", corte, false))?.status).toBe(409);
+    expect(perguntaDosCortes("q", corte, true).ok).toBe(true);
+    expect(perguntaDosCortes("q", [], false).ok).toBe(true);
   });
 
   it("os cabeçalhos: o rascunho não leva chave; o inglês muda o nome", () => {
     const base = {
-      idioma: "en",
+      idioma: "en" as const,
       rascunho: true,
       missingImages: 2,
       truncations: [{ where: "Mood board «Ç»", dropped: 1, unit: "fotos" as const }],

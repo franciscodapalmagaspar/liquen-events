@@ -32,6 +32,11 @@ import { gravarAProposta } from "./gravar-a-proposta";
 import { repeticaoDoEnvio } from "./repeticao-do-envio";
 import { mandarOEmail } from "./mandar-o-email";
 import type { EmailDaProposta } from "./email-da-proposta";
+import type { Passo } from "./passo";
+
+/** A resposta de uma repetição, ou `null` se o envio seguiu. */
+const respostaDe = (p: Passo<unknown>) =>
+  !p.ok && p.desfecho.tipo === "envio" ? p.desfecho.resposta : null;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -53,7 +58,7 @@ describe("gravar a proposta", () => {
   it("tira só a coluna que falta, e diz que o documento ficou", async () => {
     falsos.criar.mockRejectedValueOnce(colunaEmFalta("versao_selo"));
     const r = await gravarAProposta("q", proposta(), null);
-    expect(r).toMatchObject({ ok: true, docSaved: true });
+    expect(r).toMatchObject({ ok: true, valor: { docSaved: true } });
     expect(falsos.criar).toHaveBeenCalledTimes(2);
     expect((falsos.criar.mock.calls[1][0] as Proposal).versaoSelo).toBeUndefined();
   });
@@ -62,7 +67,7 @@ describe("gravar a proposta", () => {
     falsos.criar.mockRejectedValueOnce(colunaEmFalta("doc"));
     expect(await gravarAProposta("q", proposta(), null)).toMatchObject({
       ok: true,
-      docSaved: false,
+      valor: { docSaved: false },
     });
   });
 
@@ -71,9 +76,12 @@ describe("gravar a proposta", () => {
     const r = await gravarAProposta("q", proposta(), null);
     expect(r).toEqual({
       ok: false,
-      falha: {
-        status: 503,
-        corpo: { error: "Não foi possível guardar a proposta. Tenta novamente." },
+      desfecho: {
+        tipo: "falha",
+        falha: {
+          status: 503,
+          corpo: { error: "Não foi possível guardar a proposta. Tenta novamente." },
+        },
       },
     });
   });
@@ -86,20 +94,21 @@ describe("gravar a proposta", () => {
 });
 
 describe("a repetição do envio", () => {
-  const relatorio = { missingImages: 0, truncations: [] };
+  const relatorio = { missingImages: 0, truncations: [], pdf: Buffer.alloc(9) };
   const agora = () => new Date().toISOString();
 
   it("o mesmo documento enviado há instantes não sai outra vez, e o registo lê-se UMA vez", async () => {
     const antes = proposta({ id: "p0", status: "enviada", sentAt: agora() });
     falsos.envios.mockResolvedValue([{ enviadoEm: agora(), propostaId: "p0" }]);
-    const r = await repeticaoDoEnvio({
-      pedidoId: "q",
-      proposal: proposta(),
-      irmasAnteriores: [antes],
-      porEmail: true,
-      relatorio,
-      pdfBytes: 9,
-    });
+    const r = respostaDe(
+      await repeticaoDoEnvio({
+        pedidoId: "q",
+        proposal: proposta(),
+        irmasAnteriores: [antes],
+        porEmail: true,
+        relatorio,
+      }),
+    );
     expect(r).toMatchObject({ ok: true, id: "p0", emailed: true, repetido: true });
     expect(falsos.envios).toHaveBeenCalledTimes(1);
   });
@@ -107,14 +116,15 @@ describe("a repetição do envio", () => {
   it("depois do WhatsApp, o email do mesmo documento é a sério — o registo lido serve as duas travas", async () => {
     const antes = proposta({ id: "p0", status: "enviada", sentAt: agora() });
     falsos.envios.mockResolvedValue([]);
-    const r = await repeticaoDoEnvio({
-      pedidoId: "q",
-      proposal: proposta(),
-      irmasAnteriores: [antes],
-      porEmail: true,
-      relatorio,
-      pdfBytes: 9,
-    });
+    const r = respostaDe(
+      await repeticaoDoEnvio({
+        pedidoId: "q",
+        proposal: proposta(),
+        irmasAnteriores: [antes],
+        porEmail: true,
+        relatorio,
+      }),
+    );
     expect(r).toBeNull();
     expect(falsos.envios).toHaveBeenCalledTimes(1);
   });
@@ -122,14 +132,15 @@ describe("a repetição do envio", () => {
   it("o registo que não responde, com uma irmã que já seguiu: a trava fica, calada, e lê-se UMA vez", async () => {
     const antes = proposta({ id: "p0", status: "enviada", sentAt: agora() });
     falsos.envios.mockRejectedValue(new Error("app_state em baixo"));
-    const r = await repeticaoDoEnvio({
-      pedidoId: "q",
-      proposal: proposta(),
-      irmasAnteriores: [antes],
-      porEmail: true,
-      relatorio,
-      pdfBytes: 9,
-    });
+    const r = respostaDe(
+      await repeticaoDoEnvio({
+        pedidoId: "q",
+        proposal: proposta(),
+        irmasAnteriores: [antes],
+        porEmail: true,
+        relatorio,
+      }),
+    );
     expect(r).toMatchObject({ id: "p0", emailed: true, repetido: true });
     expect(falsos.envios).toHaveBeenCalledTimes(1);
     expect(log.warn).not.toHaveBeenCalledWith(
@@ -140,14 +151,15 @@ describe("a repetição do envio", () => {
 
   it("o registo que não responde, sem irmã nenhuma: segue (é um envio a sério), e diz-se uma vez", async () => {
     falsos.envios.mockRejectedValue(new Error("app_state em baixo"));
-    const r = await repeticaoDoEnvio({
-      pedidoId: "q",
-      proposal: proposta(),
-      irmasAnteriores: [],
-      porEmail: true,
-      relatorio,
-      pdfBytes: 9,
-    });
+    const r = respostaDe(
+      await repeticaoDoEnvio({
+        pedidoId: "q",
+        proposal: proposta(),
+        irmasAnteriores: [],
+        porEmail: true,
+        relatorio,
+      }),
+    );
     expect(r).toBeNull();
     expect(falsos.envios).toHaveBeenCalledTimes(1);
     expect(log.warn).toHaveBeenCalledWith("proposta-doc: não deu para ler os envios registados", {
@@ -158,14 +170,15 @@ describe("a repetição do envio", () => {
 
   it("o email que já saiu mas ficou por marcar reconhece-se pelo registo, com a mesma forma de resposta", async () => {
     falsos.envios.mockResolvedValue([{ enviadoEm: agora(), propostaId: "p1" }]);
-    const r = await repeticaoDoEnvio({
-      pedidoId: "q",
-      proposal: proposta(),
-      irmasAnteriores: [],
-      porEmail: true,
-      relatorio,
-      pdfBytes: 9,
-    });
+    const r = respostaDe(
+      await repeticaoDoEnvio({
+        pedidoId: "q",
+        proposal: proposta(),
+        irmasAnteriores: [],
+        porEmail: true,
+        relatorio,
+      }),
+    );
     expect(Object.keys(r ?? {})).toEqual([
       "ok",
       "id",
@@ -183,14 +196,15 @@ describe("a repetição do envio", () => {
 
   it("a mesma proposta marcada duas vezes pelo WhatsApp: sem registo, e sem email que ninguém mandou", async () => {
     const antes = proposta({ id: "p0", status: "enviada", sentAt: agora() });
-    const r = await repeticaoDoEnvio({
-      pedidoId: "q",
-      proposal: proposta(),
-      irmasAnteriores: [antes],
-      porEmail: false,
-      relatorio,
-      pdfBytes: 9,
-    });
+    const r = respostaDe(
+      await repeticaoDoEnvio({
+        pedidoId: "q",
+        proposal: proposta(),
+        irmasAnteriores: [antes],
+        porEmail: false,
+        relatorio,
+      }),
+    );
     expect(Object.keys(r ?? {})).toEqual([
       "ok",
       "id",
@@ -210,14 +224,15 @@ describe("a repetição do envio", () => {
 
   it("um documento diferente nunca é repetição", async () => {
     const antes = proposta({ id: "p0", status: "enviada", sentAt: agora(), versaoSelo: "outro" });
-    const r = await repeticaoDoEnvio({
-      pedidoId: "q",
-      proposal: proposta(),
-      irmasAnteriores: [antes],
-      porEmail: true,
-      relatorio,
-      pdfBytes: 9,
-    });
+    const r = respostaDe(
+      await repeticaoDoEnvio({
+        pedidoId: "q",
+        proposal: proposta(),
+        irmasAnteriores: [antes],
+        porEmail: true,
+        relatorio,
+      }),
+    );
     expect(r).toBeNull();
   });
 });

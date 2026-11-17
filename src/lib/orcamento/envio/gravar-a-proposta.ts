@@ -4,7 +4,7 @@ import { createProposal, updateProposal } from "@/lib/proposals-store";
 import { isMissingTable, nomeDaColunaEmFalta } from "@/lib/repository";
 import { avisoDeColunasPerdidas } from "@/lib/estado-das-colunas";
 import { log } from "@/lib/logger";
-import type { Falha } from "./contrato";
+import { paraComFalha, segue, type Passo } from "./passo";
 
 /**
  * Etapa 9 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): a proposta fica
@@ -15,9 +15,10 @@ import type { Falha } from "./contrato";
  * sai o botão "ver a proposta em PDF" do link do cliente. `docSaved` diz se
  * isso aconteceu mesmo.
  */
-export type PropostaGravada =
-  | { ok: true; docSaved: boolean; docError?: string }
-  | { ok: false; falha: Falha };
+export interface PropostaGravada {
+  docSaved: boolean;
+  docError?: string;
+}
 
 /**
  * Gravar ESTA proposta: uma linha nova, ou a que ficou por enviar.
@@ -178,30 +179,26 @@ export async function gravarAProposta(
   pedidoId: string,
   proposal: Proposal,
   porEnviar: Proposal | null,
-): Promise<PropostaGravada> {
+): Promise<Passo<PropostaGravada>> {
   try {
     const colunasPerdidas = await gravarTirandoOQueFalta(pedidoId, proposal, porEnviar);
-    if (colunasPerdidas.length === 0) return { ok: true, docSaved: true };
+    if (colunasPerdidas.length === 0) return segue({ docSaved: true });
     log.error(
       "proposta-doc: colunas em falta na tabela `proposals` — proposta guardada sem elas; corra db/schema.sql",
       null,
       { id: pedidoId, colunas: colunasPerdidas },
     );
-    return {
-      ok: true,
+    return segue({
       docSaved: !colunasPerdidas.includes("doc"),
       docError: avisoDeColunasPerdidas(colunasPerdidas),
-    };
+    });
   } catch (e) {
     if (!isMissingTable(e)) {
       log.error("proposta-doc: guardar falhou", e, { id: pedidoId });
-      return {
-        ok: false,
-        falha: {
-          status: 503,
-          corpo: { error: "Não foi possível guardar a proposta. Tenta novamente." },
-        },
-      };
+      return paraComFalha({
+        status: 503,
+        corpo: { error: "Não foi possível guardar a proposta. Tenta novamente." },
+      });
     }
     /**
      * O RESGATE LARGO, para o caso em que o erro não nomeia a coluna.
@@ -220,24 +217,20 @@ export async function gravarAProposta(
       const semNada = { ...proposal };
       for (const campo of TUDO_O_QUE_E_RECENTE) semNada[campo] = undefined as never;
       await guardar(pedidoId, semNada, porEnviar);
-      return {
-        ok: true,
+      return segue({
         docSaved: false,
         docError: avisoDeColunasPerdidas(Object.keys(CAMPO_DA_COLUNA)),
-      };
+      });
     } catch (e2) {
       log.error("proposta-doc: guardar falhou mesmo sem os campos novos", e2, { id: pedidoId });
-      return {
-        ok: false,
-        falha: {
-          status: 503,
-          corpo: {
-            error:
-              "Não foi possível guardar a proposta — a base de dados recusou a gravação. " +
-              "Verifica se o db/schema.sql foi corrido nesta base.",
-          },
+      return paraComFalha({
+        status: 503,
+        corpo: {
+          error:
+            "Não foi possível guardar a proposta — a base de dados recusou a gravação. " +
+            "Verifica se o db/schema.sql foi corrido nesta base.",
         },
-      };
+      });
     }
   }
 }

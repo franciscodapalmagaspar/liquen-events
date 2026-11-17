@@ -11,7 +11,7 @@ import { guardarPdfDaProposta } from "@/lib/proposal-pdf-guardado";
 import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
 import { log } from "@/lib/logger";
 import type { EmailDaProposta } from "./email-da-proposta";
-import type { OEnvio } from "./o-envio";
+import type { EnvioDaProposta } from "./envio-da-proposta";
 
 /**
  * Etapa 12 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): as escritas
@@ -26,7 +26,7 @@ export interface DepoisDoEmail {
   pedidoError?: string;
 }
 
-export interface ParaDepoisDoEmail extends OEnvio {
+export interface ParaDepoisDoEmail extends EnvioDaProposta {
   proposal: Proposal;
   dinheiro: ReturnType<typeof dinheiroDaProposta>;
   /** `true` quando o correio saiu. */

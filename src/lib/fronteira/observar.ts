@@ -44,14 +44,16 @@ import { log } from "@/lib/logger";
 const TECTO_DE_DESVIOS_LEMBRADOS = 500;
 /** Quantos casos (ids) de um mesmo desvio se dizem, por processo. */
 export const CASOS_POR_DESVIO = 64;
-/** O que se lembra de um desvio: os casos já ditos (`""` quando o contexto
- *  não tem id), e se já se disse que passou do tecto. */
+/** O que se lembra de um desvio: os casos já ditos, e se já se disse que
+ *  passou do tecto. */
 interface Lembrado {
   casos: Set<string>;
   passouDoTecto: boolean;
 }
 /** Desvio → o que se lembra dele, do menos para o mais recentemente visto. */
 const jaDitos = new Map<string, Lembrado>();
+/** Para dar a cada ocorrência sem id um caso seu. */
+let ocorrenciasSemId = 0;
 
 /**
  * O que fazer com este caso deste desvio — e lembra-o:
@@ -126,7 +128,10 @@ export function observar(
     desvios.map((d) => `${d.campo.replace(/\.\d+(?=\.|$)/g, ".*")}:${d.problema}`),
   );
   const assinatura = `${onde}|${[...normalizados].sort().join(",")}`;
-  const caso = typeof contexto.id === "string" ? contexto.id : "";
+  // Sem id (um modelo novo, ainda sem nome guardado), cada ocorrência é um
+  // caso: não há como saber se é o mesmo, e calar as seguintes escondia
+  // QUAIS. O tecto de casos continua a valer.
+  const caso = typeof contexto.id === "string" ? contexto.id : `sem-id:${++ocorrenciasSemId}`;
   const fazer = oQueFazer(assinatura, caso);
   if (fazer === "calar") return false;
   if (fazer === "resumir") {

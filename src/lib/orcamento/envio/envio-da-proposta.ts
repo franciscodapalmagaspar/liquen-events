@@ -8,7 +8,7 @@ import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
  * desenha. Monta-se UMA vez, no orquestrador (`atender-o-estudio.ts`), e cada
  * etapa diz o que mais precisa ao lado.
  */
-export interface OEnvio {
+export interface EnvioDaProposta {
   /** O id do PEDIDO — nunca o da proposta (esse é `proposal.id`). */
   pedidoId: string;
   quote: Quote;

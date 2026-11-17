@@ -39,6 +39,11 @@ import { desenharOPdf } from "./desenhar-o-pdf";
 import { escreverOEmail } from "./email-da-proposta";
 import { depoisDoEmail } from "./depois-do-email";
 import { esvaziarPdfsFinais } from "@/lib/proposal-preview-cache";
+import type { Passo } from "./passo";
+
+/** O que um `Passo` parado respondeu — a recusa, ou `null` se seguiu. */
+const recusaDe = (p: Passo<unknown>) =>
+  !p.ok && p.desfecho.tipo === "recusa" ? p.desfecho.recusa : null;
 
 const doc = {
   ref: "PO",
@@ -69,17 +74,19 @@ beforeEach(() => {
 
 describe("a trava do envio", () => {
   it("sem o PDF visto não segue (422, com as faltas); com a chave certa segue", async () => {
-    const sem = await travaDoEnvio({
-      ...envio,
-      porEmail: true,
-      pdfVisto: null,
-      chaveDoQueChegou: "k",
-    });
+    const sem = recusaDe(
+      await travaDoEnvio({
+        ...envio,
+        porEmail: true,
+        pdfVisto: null,
+        chaveDoQueChegou: "k",
+      }),
+    );
     expect(sem?.status).toBe(422);
     expect(sem && "faltas" in sem.corpo && sem.corpo.faltas.map((x) => x.id)).toEqual(["visto"]);
     expect(
       await travaDoEnvio({ ...envio, porEmail: true, pdfVisto: "k", chaveDoQueChegou: "k" }),
-    ).toBeNull();
+    ).toEqual({ ok: true, valor: undefined });
   });
 });
 

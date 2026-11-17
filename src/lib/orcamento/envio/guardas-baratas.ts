@@ -4,9 +4,10 @@ import type { ProposalDoc } from "@/lib/proposal-doc";
 import { documentoCompleto, type CorpoLido } from "./ler-o-corpo";
 import { observarOCorpo } from "./esquema-do-corpo";
 import { prepararODocumento } from "./documento-do-envio";
-import { recusaDoTextoGrandeDemais } from "./email-da-proposta";
+import { excedeOTecto, MAXIMO_CORPO_ESCRITO } from "@/lib/email-corpo-escrito";
 import { recusa } from "./recusa";
 import type { Recusa } from "./contrato";
+import { paraComRecusa, segue, type Passo } from "./passo";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -29,21 +30,21 @@ import type { Recusa } from "./contrato";
 export function guardasBaratas(
   pedidoId: string,
   corpo: CorpoLido,
-): { ok: false; recusa: Recusa } | { ok: true; doc: ProposalDoc; chaveDoQueChegou: string } {
+): Passo<{ doc: ProposalDoc; chaveDoQueChegou: string; validUntil: string }> {
   const textoGrandeDemais = recusaDoTextoGrandeDemais(corpo.textoDoEmail);
-  if (textoGrandeDemais) return { ok: false, recusa: textoGrandeDemais };
+  if (textoGrandeDemais) return paraComRecusa(textoGrandeDemais);
   const completo = documentoCompleto(corpo.doc);
-  if (!completo.ok) return { ok: false, recusa: recusa(400, { error: completo.error }) };
+  if (!completo.ok) return paraComRecusa(recusa(400, { error: completo.error }));
   avisarDoIdiomaDesconhecido(corpo, pedidoId);
-  const { chaveDoQueChegou, doc, grandeDemais } = prepararODocumento(completo.doc, corpo.idioma);
+  const { chaveDoQueChegou, doc, validUntil, grandeDemais } = prepararODocumento(
+    completo.doc,
+    corpo.idioma,
+  );
   if (grandeDemais) {
-    return {
-      ok: false,
-      recusa: recusa(413, { error: "Proposta demasiado grande para ser guardada." }),
-    };
+    return paraComRecusa(recusa(413, { error: "Proposta demasiado grande para ser guardada." }));
   }
   observarOCorpo(corpo.cru, pedidoId);
-  return { ok: true, doc, chaveDoQueChegou };
+  return segue({ doc, chaveDoQueChegou, validUntil });
 }
 
 /**
@@ -81,5 +82,19 @@ function avisarDoIdiomaDesconhecido(corpo: CorpoLido, pedidoId: string): void {
   log.warn("proposta-doc: idioma desconhecido, a desenhar em português", {
     id: pedidoId,
     recebido: String(corpo.idiomaDesconhecido.recebido),
+  });
+}
+
+/**
+ * O texto escrito à mão recusa-se por tamanho ANTES de se desenhar o PDF:
+ * recusar depois é gastar o desenho por nada. O resto dele (o
+ * `{{link_proposta}}`) só se resolve depois de a proposta estar gravada.
+ */
+function recusaDoTextoGrandeDemais(textoDoEmail: string | null): Recusa | null {
+  if (!excedeOTecto(textoDoEmail)) return null;
+  return recusa(400, {
+    error:
+      `O texto do email é demasiado longo (o máximo são ${MAXIMO_CORPO_ESCRITO} caracteres). ` +
+      `Encurta-o e volta a enviar — não foi enviado nada.`,
   });
 }

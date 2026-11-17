@@ -1,4 +1,5 @@
 import type { Truncagens } from "./contrato";
+import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 
 /*
  * A resposta da PRÉ-VISUALIZAÇÃO: o PDF no corpo, e nos cabeçalhos o que o
@@ -12,7 +13,7 @@ import type { Truncagens } from "./contrato";
  * estúdio sabe o que o documento não leva.
  */
 export function cabecalhosDaPreVisualizacao(p: {
-  idioma: string;
+  idioma: IdiomaDaProposta;
   rascunho: boolean;
   missingImages: number;
   truncations: Truncagens;

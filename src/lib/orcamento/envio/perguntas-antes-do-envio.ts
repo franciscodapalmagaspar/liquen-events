@@ -2,7 +2,7 @@ import "server-only";
 import type { Truncagens } from "./contrato";
 import { log } from "@/lib/logger";
 import { recusa } from "./recusa";
-import type { Recusa } from "./contrato";
+import { paraComRecusa, SEGUE, type Passo } from "./passo";
 
 /**
  * Etapa 6 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): as duas perguntas
@@ -46,20 +46,22 @@ export function perguntaDasFotos(
   pedidoId: string,
   missingImages: number,
   confirmadas: number | null,
-): Recusa | null {
-  if (fotosEmFaltaAceites(missingImages, confirmadas)) return null;
+): Passo {
+  if (fotosEmFaltaAceites(missingImages, confirmadas)) return SEGUE;
   log.warn("proposta-doc: envio parado para confirmar as fotos em falta", {
     id: pedidoId,
     emFalta: missingImages,
   });
-  return recusa(409, {
-    error:
-      missingImages === 1
-        ? "Falta 1 fotografia no documento."
-        : `Faltam ${missingImages} fotografias no documento.`,
-    precisaConfirmarFotos: true,
-    missingImages,
-  });
+  return paraComRecusa(
+    recusa(409, {
+      error:
+        missingImages === 1
+          ? "Falta 1 fotografia no documento."
+          : `Faltam ${missingImages} fotografias no documento.`,
+      precisaConfirmarFotos: true,
+      missingImages,
+    }),
+  );
 }
 
 /**
@@ -86,19 +88,21 @@ export function perguntaDosCortes(
   pedidoId: string,
   truncations: Truncagens,
   confirmados: boolean,
-): Recusa | null {
-  if (truncations.length === 0 || confirmados) return null;
+): Passo {
+  if (truncations.length === 0 || confirmados) return SEGUE;
   log.warn("proposta-doc: envio parado para confirmar o que ficou cortado", {
     id: pedidoId,
     cortado: truncations.map((t) => `${t.where}: -${t.dropped} ${t.unit}`),
   });
-  return recusa(409, {
-    error: "O documento sai com conteúdo cortado.",
-    // O nome do campo é a pergunta: quem chama esta rota à mão percebe o
-    // que lhe falta sem ter de ler o código.
-    precisaConfirmarCortes: true,
-    truncations,
-  });
+  return paraComRecusa(
+    recusa(409, {
+      error: "O documento sai com conteúdo cortado.",
+      // O nome do campo é a pergunta: quem chama esta rota à mão percebe o
+      // que lhe falta sem ter de ler o código.
+      precisaConfirmarCortes: true,
+      truncations,
+    }),
+  );
 }
 
 /**

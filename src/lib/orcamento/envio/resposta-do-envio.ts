@@ -14,7 +14,7 @@ export function respostaDoEnvio(r: {
   acceptUrl: string;
   saida: ResultadoDoEmail;
   depois: DepoisDoEmail;
-  gravada: Extract<PropostaGravada, { ok: true }>;
+  gravada: PropostaGravada;
   relatorio: Pick<RelatorioDoPdf, "missingImages" | "truncations" | "pdf">;
   pdfDaMemoria: boolean;
 }): RespostaDoEnvio {

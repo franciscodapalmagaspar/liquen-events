@@ -3,6 +3,7 @@ import type { Proposal } from "@/lib/orcamento/types";
 import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
 import { listarEnvios } from "@/lib/envios-de-proposta";
 import type { RespostaDoEnvio } from "./contrato";
+import { paraComResposta, SEGUE, type Passo } from "./passo";
 import { enderecoDaProposta } from "@/lib/proposta-link-curto";
 import { log } from "@/lib/logger";
 
@@ -45,15 +46,14 @@ export interface ParaVerSeRepete {
   irmasAnteriores: Proposal[];
   /** `false` só quando ela escolheu o WhatsApp (`ler-o-corpo.ts`). */
   porEmail: boolean;
-  relatorio: Pick<RelatorioDoPdf, "missingImages" | "truncations">;
-  pdfBytes: number;
+  relatorio: Pick<RelatorioDoPdf, "missingImages" | "truncations" | "pdf">;
 }
 
 /**
- * O corpo da resposta 200 de uma repetição, ou `null` quando o envio é a
- * sério e segue.
+ * Pára com a resposta 200 de uma repetição, ou SEGUE quando o envio é a
+ * sério.
  */
-export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<RespostaDoEnvio | null> {
+export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<Passo> {
   const { pedidoId, proposal } = r;
   /** O registo de envios, lido UMA vez e só se for preciso (as duas travas
    *  abaixo consultam-no; antes liam-no cada uma, duas idas à base). */
@@ -136,54 +136,60 @@ export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<RespostaDoEn
       id: pedidoId,
       proposta: proposal.id,
     });
-    return respostaRepetida(r, proposal.id, {
-      porEmail: true,
-      aviso:
-        "O cliente JÁ recebeu esta proposta há instantes — o email saiu, e o que tinha " +
-        "falhado foi só a marcação do estado deste lado. Não se enviou outra vez, e o " +
-        "link é o mesmo que ele tem.",
-    });
+    return paraComResposta(
+      await respostaRepetida(r, proposal.id, {
+        emailSaiu: true,
+        aviso:
+          "O cliente JÁ recebeu esta proposta há instantes — o email saiu, e o que tinha " +
+          "falhado foi só a marcação do estado deste lado. Não se enviou outra vez, e o " +
+          "link é o mesmo que ele tem.",
+      }),
+    );
   }
   if (jaSeguiu && !r.porEmail) {
     // A mesma proposta marcada duas vezes pelo WhatsApp: não se cria outra,
     // e não se diz que saiu um email que ninguém mandou.
-    return respostaRepetida(r, jaSeguiu.id, {
-      porEmail: false,
-      aviso:
-        "Esta proposta já tinha sido marcada como enviada pelo WhatsApp há instantes. " +
-        "O link é o mesmo.",
-    });
+    return paraComResposta(
+      await respostaRepetida(r, jaSeguiu.id, {
+        emailSaiu: false,
+        aviso:
+          "Esta proposta já tinha sido marcada como enviada pelo WhatsApp há instantes. " +
+          "O link é o mesmo.",
+      }),
+    );
   }
   if (jaSeguiu) {
     log.warn("proposta-doc: envio repetido do mesmo documento — não se enviou outra vez", {
       id: pedidoId,
       proposta: jaSeguiu.id,
     });
-    return respostaRepetida(r, jaSeguiu.id, {
-      porEmail: true,
-      aviso:
-        "Esta proposta já tinha seguido para o cliente há instantes, com este mesmo " +
-        "documento. Não foi enviada outra vez — o link é o mesmo que ele recebeu.",
-    });
+    return paraComResposta(
+      await respostaRepetida(r, jaSeguiu.id, {
+        emailSaiu: true,
+        aviso:
+          "Esta proposta já tinha seguido para o cliente há instantes, com este mesmo " +
+          "documento. Não foi enviada outra vez — o link é o mesmo que ele recebeu.",
+      }),
+    );
   }
-  return null;
+  return SEGUE;
 }
 
 /**
  * A resposta 200 de uma repetição — a mesma forma nos três casos, e o
- * `semEmailPorEscolha` só quando foi pelo WhatsApp. A ordem dos campos é a
+ * `semEmailPorEscolha` só quando foi pelo WhatsApp (o email não saiu). A ordem dos campos é a
  * da rota antiga (o retrato da rota prende-a).
  */
 async function respostaRepetida(
   r: ParaVerSeRepete,
   propostaId: string,
-  { porEmail, aviso }: { porEmail: boolean; aviso: string },
+  { emailSaiu, aviso }: { emailSaiu: boolean; aviso: string },
 ): Promise<RespostaDoEnvio> {
   return {
     ok: true,
     id: propostaId,
-    emailed: porEmail,
-    ...(porEmail ? {} : { semEmailPorEscolha: true }),
+    emailed: emailSaiu,
+    ...(emailSaiu ? {} : { semEmailPorEscolha: true }),
     estado: "enviada",
     /** O link que o casal RECEBEU — não um segundo, que ninguém tem. É
      *  literalmente o mesmo: o código curto de uma proposta é cunhado uma vez
@@ -191,7 +197,7 @@ async function respostaRepetida(
     acceptUrl: await enderecoDaProposta(propostaId, r.pedidoId),
     missingImages: r.relatorio.missingImages,
     truncations: r.relatorio.truncations,
-    pdfBytes: r.pdfBytes,
+    pdfBytes: r.relatorio.pdf.byteLength,
     /** Para o ecrã poder dizer o que aconteceu em vez de fingir um envio. */
     repetido: true,
     repetidoAviso: aviso,

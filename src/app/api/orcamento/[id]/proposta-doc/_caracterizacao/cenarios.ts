@@ -7,7 +7,8 @@ import { vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { fecharTrinco } from "@/lib/trinco";
 import { dominioRecebeEmail } from "@/lib/dominio-do-email";
-import { ctl, doc, envio, pedido, relogio } from "./palco";
+import { ctl, relogio } from "./duplos";
+import { doc, envio, pedido } from "./palco";
 
 const colunaEmFalta = (coluna: string) =>
   Object.assign(

@@ -17,6 +17,8 @@ export interface DocumentoDoEnvio {
   chaveDoQueChegou: string;
   /** O documento com os textos da casa e a validade já escrita lá dentro. */
   doc: ProposalDoc;
+  /** A validade que ficou ESCRITA no documento (a data que o PDF mostra). */
+  validUntil: string;
   /** `true` quando passa o tecto de {@link MAX_PROPOSAL_DOC_BYTES} (→ 413). */
   grandeDemais: boolean;
 }
@@ -67,7 +69,8 @@ export function prepararODocumento(raw: ProposalDoc, idioma: IdiomaDaProposta): 
    * segue no email e o documento que fica guardado são o mesmo, por
    * construção, e não por coincidência de terem sido feitos no mesmo minuto.
    */
-  doc.validUntil = resolveValidUntil(doc);
+  const validUntil = resolveValidUntil(doc);
+  doc.validUntil = validUntil;
 
   // O documento passou a ser GUARDADO (coluna `proposals.doc`), por isso o
   // tamanho deixou de ser um detalhe do pedido e passou a ser uma linha na
@@ -77,5 +80,5 @@ export function prepararODocumento(raw: ProposalDoc, idioma: IdiomaDaProposta): 
   // documento absurdo não vale o trabalho de sharp/pdf-lib.
   const grandeDemais = JSON.stringify(doc).length > MAX_PROPOSAL_DOC_BYTES;
 
-  return { chaveDoQueChegou, doc, grandeDemais };
+  return { chaveDoQueChegou, doc, validUntil, grandeDemais };
 }
