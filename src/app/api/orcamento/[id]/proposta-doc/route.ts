@@ -211,6 +211,17 @@ const ORCAMENTO_MS = maxDuration * 1000;
  */
 const paragrafosDaMensagem = paragrafosDeTexto;
 
+/**
+ * A resposta «envia assim mesmo» às fotos em falta (17/11) é o NÚMERO de fotos
+ * que ela viu a faltar. Vale enquanto o PDF do envio não tiver MAIS em falta do
+ * que esse: um «sim» a 3 não pode mandar um documento com 9 (revisão de 17/11).
+ * Um booleano, ou qualquer outra coisa que não um número, não conta.
+ */
+function fotosEmFaltaAceites(emFalta: number, confirmadas: unknown): boolean {
+  if (emFalta <= 0) return true;
+  return typeof confirmadas === "number" && Number.isFinite(confirmadas) && emFalta <= confirmadas;
+}
+
 async function POST_semMedida(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -249,7 +260,8 @@ async function POST_semMedida(
        *  não respondeu». */
       cortesConfirmados?: unknown;
       /** «Já sei que faltam N fotografias, envia à mesma» — ver a pergunta
-       *  das fotos em falta, mais abaixo. Só `true` conta. */
+       *  das fotos em falta, mais abaixo. É o NÚMERO que ela viu: um PDF com
+       *  mais em falta do que esse pergunta outra vez (`fotosEmFaltaAceites`). */
       fotosEmFaltaConfirmadas?: unknown;
       /**
        * ── POR ONDE É QUE A PROPOSTA SEGUE ────────────────────────────────
@@ -637,14 +649,6 @@ async function POST_semMedida(
       const segunda = await renderStoredEditorialPdfWithReport(doc, idioma);
       if (segunda.missingImages < relatorio.missingImages) relatorio = segunda;
     }
-    // Só é «segue com fotos a menos» quando ela o confirmou: sem resposta, o
-    // envio pára já a seguir e pergunta.
-    if (mode === "send" && relatorio.missingImages > 0 && body?.fotosEmFaltaConfirmadas === true) {
-      log.warn("proposta-doc: a proposta segue com fotos a menos, confirmado por ela", {
-        id,
-        emFalta: relatorio.missingImages,
-      });
-    }
 
     const { pdf: pdfBuffer, missingImages, truncations } = relatorio;
 
@@ -664,8 +668,7 @@ async function POST_semMedida(
      * troca as fotos, ou responde «envia assim mesmo» (`fotosEmFaltaConfirmadas`)
      * e segue — sabendo.
      */
-    const fotosEmFaltaConfirmadas = body?.fotosEmFaltaConfirmadas === true;
-    if (mode === "send" && missingImages > 0 && !fotosEmFaltaConfirmadas) {
+    if (mode === "send" && !fotosEmFaltaAceites(missingImages, body?.fotosEmFaltaConfirmadas)) {
       log.warn("proposta-doc: envio parado para confirmar as fotos em falta", {
         id,
         emFalta: missingImages,
@@ -758,6 +761,14 @@ async function POST_semMedida(
         },
         { status: 409 },
       );
+    }
+    // Só aqui é «segue com fotos a menos»: ela respondeu às duas perguntas
+    // (fotos e cortes). Antes disso, o envio ainda podia parar (revisão de 17/11).
+    if (mode === "send" && missingImages > 0) {
+      log.warn("proposta-doc: a proposta segue com fotos a menos, confirmado por ela", {
+        id,
+        emFalta: missingImages,
+      });
     }
 
     // ── Send ──
