@@ -231,13 +231,14 @@ async function retrato(res: Response): Promise<string> {
   const corpo = ct.includes("pdf")
     ? `<pdf ${(await res.arrayBuffer()).byteLength} bytes>`
     : await res.text();
+  // O modo de observar da fronteira (fase 6) é uma linha NOVA no registo, e
+  // de propósito: fica fora do retrato, e tem os seus testes em
+  // `lib/fronteira/observar.test.ts` e `lib/orcamento/envio/corpo-do-pedido.test.ts`.
   const registo = (["info", "warn", "error"] as const).flatMap((nivel) =>
     vi
       .mocked(log[nivel])
-      .mock.calls.map((c) => [
-        nivel,
-        ...c.map((x) => (x instanceof Error ? `Error(${x.message})` : x)),
-      ]),
+      .mock.calls.filter((c) => !String(c[0]).startsWith("fronteira:"))
+      .map((c) => [nivel, ...c.map((x) => (x instanceof Error ? `Error(${x.message})` : x))]),
   );
   const mail = vi.mocked(sendMail).mock.calls.map(([m]) => ({
     to: m.to,

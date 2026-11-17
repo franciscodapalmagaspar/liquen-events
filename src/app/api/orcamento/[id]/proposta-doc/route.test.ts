@@ -2097,11 +2097,15 @@ describe("POST /api/orcamento/[id]/proposta-doc — o que vem do ecrã de envio"
    * nenhum caminho que a fixture consiga montar, e um teste que só mede o que a
    * fixture alcança deixava um por medir — que é como ele chegou aos 39.
    */
+  /** O email saiu da rota na fase 5 (`docs/ESTRUTURA-DO-CODIGO.md`): o botão
+   *  vive em `email-da-proposta.ts`, o cartão do PDF em `cartao-do-pdf.ts`. */
+  const fonteDoEmail = () =>
+    ["email-da-proposta.ts", "cartao-do-pdf.ts"]
+      .map((f) => fs.readFileSync(path.join(process.cwd(), "src/lib/orcamento/envio", f), "utf8"))
+      .join("\n");
+
   it("o botão e o link do email têm os 44 px de alvo", () => {
-    const fonte = fs.readFileSync(
-      path.join(process.cwd(), "src/app/api/orcamento/[id]/proposta-doc/route.ts"),
-      "utf8",
-    );
+    const fonte = fonteDoEmail();
     const alvos = [
       ...fonte.matchAll(/padding:(\d+)px [^";]*;font-size:(\d+)px;line-height:(\d+)px/g),
     ].map(([, pad, letra, lh]) => ({
@@ -2119,10 +2123,7 @@ describe("POST /api/orcamento/[id]/proposta-doc — o que vem do ecrã de envio"
   });
 
   it("e há UM só botão cheio — o segundo virou link", () => {
-    const fonte = fs.readFileSync(
-      path.join(process.cwd(), "src/app/api/orcamento/[id]/proposta-doc/route.ts"),
-      "utf8",
-    );
+    const fonte = fonteDoEmail();
     const cheios = [...fonte.matchAll(/background:#4c6350;border-radius/g)];
     expect(
       cheios.length,
