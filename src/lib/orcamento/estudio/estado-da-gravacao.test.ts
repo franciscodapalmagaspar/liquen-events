@@ -98,8 +98,16 @@ describe("o indicador tem alguma coisa a dizer?", () => {
     ["há alterações por gravar", null, true, GRAVACAO_INICIAL, true],
     ["um alarme sem gravação nesta sessão", null, false, correr({ tipo: "ficou-so-aqui" }), true],
     ["o deploy apaga", null, false, correr({ tipo: "nao-dura" }), true],
-    // Igual ao de antes da máquina: uma gravação a caminho, sozinha, não acende.
-    ["só uma gravação a caminho", null, false, correr({ tipo: "partiu" }), false],
+    // A primeira gravação da sessão, com o «por gravar» já apagado pelo
+    // debounce: numa rede lenta ela tem de ver «A guardar…».
+    ["só a primeira gravação a caminho", null, false, correr({ tipo: "partiu" }), true],
+    [
+      "a primeira gravação voltou",
+      null,
+      false,
+      correr({ tipo: "partiu" }, { tipo: "voltou" }),
+      false,
+    ],
   ])("%s", (_, gravadoEm, porGravar, g, esperado) => {
     expect(haQueMostrar(gravadoEm, porGravar, g)).toBe(esperado);
   });

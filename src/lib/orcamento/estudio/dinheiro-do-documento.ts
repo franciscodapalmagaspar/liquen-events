@@ -15,6 +15,22 @@ import { eur } from "@/lib/money";
 import type { StudioDoc } from "./documento-inicial";
 
 /**
+ * O modo de IVA em que o estúdio mostra e escreve o total.
+ *
+ * O `detectVatMode` devolve "incluido" quando não há texto nenhum para ler —
+ * é a retrocompatibilidade com propostas antigas só com «3.000,00 €». Mas um
+ * documento ACABADO DE COMEÇAR também não tem texto, e caía nessa mesma porta:
+ * nascia em «IVA incluído», que é o modo que a casa deixou de usar. A detecção
+ * fica onde serve — havendo texto livre, é ele que manda.
+ */
+export function modoDeIvaDoDocumento(
+  d: Pick<StudioDoc, "totalVatMode" | "totalText" | "totalEstimatedText">,
+): VatMode {
+  const texto = d.totalText || d.totalEstimatedText;
+  return d.totalVatMode ?? (texto ? detectVatMode(texto) : "acrescer");
+}
+
+/**
  * Põe a BASE (o "Preço final (sem IVA)" do pedido) no documento, respeitando o
  * modo de IVA em vigor.
  *
@@ -23,7 +39,7 @@ import type { StudioDoc } from "./documento-inicial";
  * base ser sempre o número do pedido nos dois modos.
  */
 export function aplicarBase(d: StudioDoc, base: number): StudioDoc {
-  const mode: VatMode = d.totalVatMode ?? detectVatMode(d.totalText || d.totalEstimatedText);
+  const mode = modoDeIvaDoDocumento(d);
   const rate = d.vatRate ?? DEFAULT_VAT_RATE;
   // A conta é a partilhada, e não uma cópia: arredondar a base ANTES de a
   // multiplicar é o que faz base → bruto → base devolver o mesmo número. Feita

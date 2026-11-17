@@ -27,7 +27,6 @@ import {
   DEFAULT_CONDICOES_GERAIS,
   resolveProposalMoney,
   totalAmountParaBase,
-  detectVatMode,
   parseMoneyText,
   normaliseCoverImages,
   countPendingImages,
@@ -110,7 +109,8 @@ import {
 } from "@/lib/proposal-ortografia";
 import { fotosQueDestoam, ordemPorCor } from "@/lib/cor-dominante";
 import { tempoEstimado } from "@/lib/custo-do-pdf";
-import { type VersaoEnviada } from "./Versoes";
+import { useConferenciaComOEnviado } from "./estudio/versoes/useConferenciaComOEnviado";
+import type { DivergenciaDoEnviado } from "@/lib/orcamento/estudio/conferencia-com-o-enviado";
 import { comoSeDiz, noMesmoEspaco, type FotoRepetida } from "@/lib/orcamento/fotos-repetidas";
 import { marcarExtra, opcionaisDe, totaisDasVersoes } from "@/lib/orcamento/versoes-da-proposta";
 import { custosDe } from "@/lib/orcamento/margem";
@@ -185,7 +185,14 @@ import {
   dinheiroDaProposta,
   asDuasFormas,
 } from "@/lib/proposal-budget";
-import { eur, eurDocumento, montanteNaLingua, round2, SINAL_POR_OMISSAO } from "@/lib/money";
+import {
+  eur,
+  eurDocumento,
+  mesmoValorAoCentimo,
+  montanteNaLingua,
+  round2,
+  SINAL_POR_OMISSAO,
+} from "@/lib/money";
 import { resumoDaPropostaParaCopiar } from "@/lib/email-proposta-textos";
 import { linkDoWhatsApp } from "@/lib/whatsapp";
 import { randomId } from "./util";
@@ -305,6 +312,7 @@ import { SeccaoDoCronograma } from "./estudio/passos/inspiracao/SeccaoDoCronogra
 import { dataDoEnvioPorExtenso } from "@/lib/orcamento/estudio/data-do-envio";
 import {
   aplicarBase,
+  modoDeIvaDoDocumento,
   baseDoDoc,
   dinheiroDoDocumento,
 } from "@/lib/orcamento/estudio/dinheiro-do-documento";
@@ -1367,35 +1375,11 @@ export default function ProposalStudio({
    * dois números ganha sem ela saber: estão os dois no ecrã, com as datas, e o
    * botão de repor é dela.
    */
-  const [divergenciaDoEnviado, setDivergenciaDoEnviado] = useState<{
-    /** Quando é que a proposta seguiu para o cliente. */
-    enviadaEm: string;
-    /** O total a pagar (com IVA) que ia no PDF que ele recebeu. */
-    aPagarEnviado: number;
-    /** O total a pagar que este ecrã mostra agora. */
-    aPagarAqui: number;
-    /** O identificador da versão, para ir buscar o documento ao repor. */
-    versaoId: string;
-    /**
-     * ── A ÚNICA PERGUNTA QUE INTERESSA: FOI ELA? ──────────────────────────
-     *
-     * Palavras dela: «ISTO E SIMPLES, O VALOR NAO ALTERA CASO EU NAO MUDO».
-     *
-     * `false` — não há registo de ninguém ter mexido no preço depois do envio,
-     * portanto o número mexeu-se SOZINHO. Não há nada a perguntar: repõe-se o
-     * que seguiu para o cliente, com aviso e com dez segundos para anular.
-     *
-     * `true` — há um `price_set` no histórico do pedido posterior ao envio.
-     * Ela corrigiu o preço de propósito depois de a proposta ter saído, e esse
-     * é trabalho dela: repor por cima apagava-o em silêncio. Só nesse caso é
-     * que os dois números vão ao ecrã com a escolha.
-     */
-    elaMudou: boolean;
-  } | null>(null);
+  const [divergenciaDoEnviado, setDivergenciaDoEnviado] = useState<DivergenciaDoEnviado | null>(
+    null,
+  );
   /** A ir buscar o documento que seguiu, para o repor. */
   const [aReporOEnviado, setAReporOEnviado] = useState(false);
-  /** A conferência com o enviado corre UMA vez por abertura. */
-  const conferidoComOEnviado = useRef(false);
   /** A abertura assentou (o rascunho local e o do servidor já foram lidos)?
    *  Sem isto a conferência olhava para um ecrã a meio de ser montado. */
   const [aberturaAssente, setAberturaAssente] = useState(false);
@@ -2687,23 +2671,9 @@ export default function ProposalStudio({
   };
 
   // ── Total estruturado + IVA ──
-  // O modo efetivo: explícito no doc, senão detetado a partir do texto livre
-  // (retrocompatibilidade com propostas antigas só com "3.000,00 € + IVA").
-  /**
-   * ── E UM DOCUMENTO NOVO NASCE EM «ACRESCE» ────────────────────────────
-   *
-   * O `detectVatMode` devolve "incluido" quando não há texto nenhum para ler —
-   * é a retrocompatibilidade com propostas antigas só com «3.000,00 €». Mas um
-   * documento ACABADO DE COMEÇAR também não tem texto, e caía nessa mesma
-   * porta: nascia em «IVA incluído», que é o modo que a casa deixou de usar.
-   *
-   * A detecção fica onde serve — havendo texto livre, é ele que manda.
-   */
-  const vatMode: VatMode =
-    doc.totalVatMode ??
-    (doc.totalText || doc.totalEstimatedText
-      ? detectVatMode(doc.totalText || doc.totalEstimatedText)
-      : "acrescer");
+  // O modo efetivo: explícito no doc, senão detetado a partir do texto livre, e
+  // «acresce» num documento novo — ver `modoDeIvaDoDocumento`.
+  const vatMode = modoDeIvaDoDocumento(doc);
 
   /** Compõe o texto de DISPLAY do PDF a partir do valor + modo estruturados,
    *  no formato do estúdio ("3.000,00 € + IVA" ou "3.000,00 €"). */
@@ -3618,7 +3588,6 @@ export default function ProposalStudio({
     if (doPedido === precoEnviado.current) return;
     precoEnviado.current = doPedido;
     setDoc((d) => {
-      const mode: VatMode = d.totalVatMode ?? detectVatMode(d.totalText || d.totalEstimatedText);
       // O pedido guarda o que o casal paga sem IVA; o campo do estúdio mostra
       // só a parte dos serviços quando os adicionais somam. Ver o par de
       // conversões acima.
@@ -3628,14 +3597,12 @@ export default function ProposalStudio({
       // lá está. Antes, o campo esvaziava-se e o total do documento ia com ele.
       if (paraOEcra == null && typeof doPedido === "number" && doPedido > 0) return d;
       setTotalInput(paraOEcra != null ? textoDoTotal(paraOEcra) : "");
-      const amount =
-        paraOEcra != null
-          ? totalAmountParaBase(paraOEcra, mode, d.vatRate ?? DEFAULT_VAT_RATE)
-          : undefined;
-      const text = amount == null ? "" : mode === "acrescer" ? `${eur(amount)} + IVA` : eur(amount);
+      if (paraOEcra != null) return aplicarBase(d, paraOEcra);
+      // O pedido ficou sem preço: o documento fica sem total, no mesmo modo.
+      const mode = modoDeIvaDoDocumento(d);
       return d.template === "organizacao"
-        ? { ...d, totalAmount: amount, totalVatMode: mode, totalEstimatedText: text }
-        : { ...d, totalAmount: amount, totalVatMode: mode, totalText: text };
+        ? { ...d, totalAmount: undefined, totalVatMode: mode, totalEstimatedText: "" }
+        : { ...d, totalAmount: undefined, totalVatMode: mode, totalText: "" };
     });
   }, [quote.quotedPrice]);
 
@@ -3643,7 +3610,7 @@ export default function ProposalStudio({
     setDoc((d) => {
       // Recompõe o texto de display do total para o campo do template ativo, para
       // que o PDF nunca fique com o total em branco após uma troca de template.
-      const mode: VatMode = d.totalVatMode ?? detectVatMode(d.totalText || d.totalEstimatedText);
+      const mode = modoDeIvaDoDocumento(d);
       const text = composeTotalText(d.totalAmount, mode);
       return {
         ...d,
@@ -4200,7 +4167,7 @@ export default function ProposalStudio({
     // saltar o histórico todo.
     const anterior = parseMoneyText(totalInput);
     const novo = typeof base === "number" && base > 0 ? base : 0;
-    if (Math.abs(novo - anterior) > 0.01) {
+    if (!mesmoValorAoCentimo(novo, anterior)) {
       registarNoHistorico(
         `Versão anterior reposta no estúdio: preço final de ${eur(anterior)} para ${eur(novo)}.`,
       );
@@ -4499,7 +4466,7 @@ export default function ProposalStudio({
     // dava um «de 140,00 € para 0,00 €» numa proposta que nunca teve preço.
     const anterior = escritoAntes > 0 ? baseDoEcraParaOPedido(escritoAntes, doc) : 0;
     const doPedido = typeof quote.quotedPrice === "number" ? quote.quotedPrice : 0;
-    if (Math.abs(doPedido - anterior) > 0.01) {
+    if (!mesmoValorAoCentimo(doPedido, anterior)) {
       registarNoHistorico(
         `Rascunho da proposta limpo: preço final de ${eur(anterior)} para ${eur(doPedido)}.`,
       );
@@ -6988,82 +6955,18 @@ export default function ProposalStudio({
     };
   }, [quote.id]);
 
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * A CONFERÊNCIA COM O QUE SEGUIU PARA O CLIENTE
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * Ver o bloco `divergenciaDoEnviado`, que conta o porquê. Aqui é a mecânica,
-   * e ela é de propósito barata: a LISTA das versões traz o total de cada
-   * envio (`total`, o bruto que ia no PDF) e mais nada. Quando bate certo — que
-   * é o caso normal — não se descarrega documento nenhum.
-   *
-   * `versoes[0]` é a mais recente: a rota devolve da mais nova para a mais
-   * velha, e está escrito lá.
-   */
+  /** A conferência com o que seguiu para o cliente: ver o bloco
+   *  `divergenciaDoEnviado`, que conta o porquê, e `useConferenciaComOEnviado`. */
   const chaveDoEnviadoVisto = `${DRAFT_KEY}:enviado-visto`;
-  /** Esta MESMA diferença já lhe foi mostrada e ela ficou com o que tem? */
-  function divergenciaJaVista(aPagarAqui: number): boolean {
-    try {
-      const cru = localStorage.getItem(chaveDoEnviadoVisto);
-      return cru != null && Math.abs(Number(cru) - aPagarAqui) <= 0.01;
-    } catch {
-      // Sem `localStorage` a pergunta volta na abertura seguinte. É o lado
-      // certo para falhar: repetir uma pergunta custa um clique, calá-la custa
-      // o número que o casal recebeu.
-      return false;
-    }
-  }
-
-  useEffect(() => {
-    if (!aberturaAssente || conferidoComOEnviado.current) return;
-    // Enviar NESTA sessão põe no ecrã exactamente o documento que seguiu — não
-    // há nada para conferir, e a lista de versões ainda nem o conhece.
-    if (sent) return;
-    // Uma proposta a meio de ser escrita não tem total nenhum para comparar.
-    if (!(totais.aPagar > 0)) return;
-    conferidoComOEnviado.current = true;
-    let vivo = true;
-    const aPagarAqui = round2(totais.aPagar);
-    (async () => {
-      try {
-        const r = await lerPartilhado(`/api/orcamento/${quote.id}/versoes`, { cache: "no-store" });
-        if (!r.ok || !vivo) return;
-        const dados = (await r.json()) as { versoes?: VersaoEnviada[] } | null;
-        const ultima = dados?.versoes?.[0];
-        if (!ultima || !(Number(ultima.total) > 0)) return;
-        const enviado = round2(Number(ultima.total));
-        // Um cêntimo de tolerância, a mesma do resto da casa: os dois lados
-        // passaram por arredondamentos, e um cêntimo não é uma divergência.
-        if (Math.abs(enviado - aPagarAqui) <= 0.01) return;
-        if (divergenciaJaVista(aPagarAqui)) return;
-        if (!vivo) return;
-        /**
-         * O histórico do pedido é quem sabe. Cada alteração de preço feita à
-         * mão deixa lá um `price_set` (ver `registarNoHistorico`) — no estúdio
-         * e na Gestão do pedido. Uma posterior ao envio quer dizer que a
-         * mudança foi decidida; não havendo nenhuma, o número mexeu-se
-         * sozinho, e aí não há escolha nenhuma a oferecer-lhe.
-         */
-        const elaMudou = (quote.activityLog ?? []).some(
-          (e) => e.kind === "price_set" && e.at > ultima.enviadaEm,
-        );
-        setDivergenciaDoEnviado({
-          enviadaEm: ultima.enviadaEm,
-          aPagarEnviado: enviado,
-          aPagarAqui,
-          versaoId: ultima.id,
-          elaMudou,
-        });
-      } catch {
-        /* sem rede: o estúdio abre como sempre abriu, só sem a rede por baixo */
-      }
-    })();
-    return () => {
-      vivo = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aberturaAssente, sent, totais.aPagar, quote.id]);
+  useConferenciaComOEnviado({
+    quoteId: quote.id,
+    historico: quote.activityLog,
+    aberturaAssente,
+    enviadaNestaSessao: sent,
+    aPagar: totais.aPagar,
+    chaveDoVisto: chaveDoEnviadoVisto,
+    aoDivergir: setDivergenciaDoEnviado,
+  });
 
   /**
    * Repõe no ecrã os VALORES que seguiram para o cliente — e só os valores.
@@ -7229,7 +7132,7 @@ export default function ProposalStudio({
       e.fotosPartilhadas > 0
         ? ` ${e.fotosPartilhadas} foto(s) ficaram na pasta da proposta antiga.`
         : "";
-    if (Math.abs((temValor ? base! : 0) - anterior) > 0.01) {
+    if (!mesmoValorAoCentimo(temValor ? base! : 0, anterior)) {
       registarNoHistorico(
         `Proposta copiada de ${e.nomeDaOrigem} no estúdio: preço final de ${eur(anterior)} para ${eur(temValor ? base! : 0)}.`,
       );
@@ -10585,7 +10488,7 @@ export default function ProposalStudio({
                   );
                   // Sem diferença nenhuma no dinheiro (a mesma deslocação outra
                   // vez) não há nada a confirmar: aplica-se e cala-se.
-                  if (Math.abs(depois - antes) <= 0.01) {
+                  if (mesmoValorAoCentimo(depois, antes)) {
                     definirExtras(extras);
                     return;
                   }

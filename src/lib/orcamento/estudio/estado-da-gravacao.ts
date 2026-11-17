@@ -98,15 +98,20 @@ export function estadoNoEcra(porGravar: boolean, g: EstadoDaGravacao): EstadoDaG
  * nem há nada por gravar — e sempre que houver um alarme, mesmo sem gravação
  * nesta sessão. Lê a mesma máquina que o `estadoNoEcra`.
  *
- * É a regra que o estúdio já tinha, tal e qual: uma gravação a caminho, sozinha
- * (a primeira da sessão, com o «por gravar» já apagado pelo debounce), não
- * acende o indicador. Mudar isso é mudar o que ela vê — fica escrito, e não
- * feito, em `docs/ESTRUTURA-DO-CODIGO.md`.
+ * Uma gravação a caminho também acende, mesmo sozinha: a primeira da sessão
+ * parte com o «por gravar» já apagado pelo debounce, e numa rede lenta passava
+ * sem «A guardar…» — o `estadoNoEcra` já dizia «a-guardar», mas ninguém o via.
  */
 export function haQueMostrar(
   gravadoEm: Date | null,
   porGravar: boolean,
   g: EstadoDaGravacao,
 ): boolean {
-  return !!gravadoEm || porGravar || g.destino.onde === "so-neste-computador" || !g.duracao.dura;
+  return (
+    !!gravadoEm ||
+    porGravar ||
+    g.aCaminho > 0 ||
+    g.destino.onde === "so-neste-computador" ||
+    !g.duracao.dura
+  );
 }
