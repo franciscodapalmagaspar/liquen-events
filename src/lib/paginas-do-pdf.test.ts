@@ -62,4 +62,32 @@ describe("as páginas do PDF como imagens", () => {
       /"\/api\/proposta\/\*\/paginas": \["\.\/node_modules\/pdfjs-dist\/legacy\/build\/pdf\.worker\.mjs"\]/,
     );
   });
+  it("um documento a ser desenhado não é fechado por outro que chega (registos de 16/11)", async () => {
+    // «Rendering cancelled, page 1», quatro vezes em 16/11. O estúdio pede
+    // várias páginas ao mesmo tempo (a que está a ser editada e as vizinhas),
+    // e cada uma é um documento com chave própria. Só ficam TRÊS abertos: o
+    // quarto a chegar fechava o mais velho — que ainda estava a ser desenhado —
+    // e o pdf.js cancelava esse desenho. O pedido respondia 500.
+    const bytes = await umPdf();
+    const obter = async () => bytes;
+    const pedidos = Array.from({ length: 8 }, (_, i) =>
+      imagemDaPagina(`corrida-${i}`, obter, 1 + (i % 2), 800),
+    );
+    const feitos = await Promise.allSettled(pedidos);
+    const recusados = feitos.filter((r) => r.status === "rejected");
+    expect(recusados.map((r) => String((r as PromiseRejectedResult).reason))).toEqual([]);
+    for (const r of feitos) {
+      const webp = (r as PromiseFulfilledResult<Buffer | null>).value;
+      expect(webp!.subarray(8, 12).toString()).toBe("WEBP");
+    }
+  });
+
+  it("e um documento posto de parte enquanto não é usado é fechado (a memória não cresce)", async () => {
+    const bytes = await umPdf();
+    for (let i = 0; i < 6; i += 1) await formasDasPaginas(`sequencia-${i}`, async () => bytes);
+    // O sétimo volta a abrir o primeiro: já não estava guardado.
+    const obter = vi.fn(async () => bytes);
+    await formasDasPaginas("sequencia-0", obter);
+    expect(obter).toHaveBeenCalledTimes(1);
+  });
 });

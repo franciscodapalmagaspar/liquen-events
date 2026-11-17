@@ -47,9 +47,27 @@ const DOCUMENTOS_ABERTOS = 3;
 const TECTO_IMAGENS = 64 * 1024 * 1024;
 
 type Aberto = { doc: PDFDocumentProxy; proporcoes: number[] };
-const abertos = new Map<string, Promise<Aberto>>();
+/**
+ * ── UM DOCUMENTO EM USO NÃO SE FECHA (registos de 16/11) ─────────────────
+ *
+ * «Rendering cancelled, page 1», quatro vezes numa tarde. O estúdio pede
+ * várias páginas ao mesmo tempo, e no rascunho cada página é um documento com
+ * chave própria. Só ficam `DOCUMENTOS_ABERTOS`: o que chegava a seguir fechava
+ * o mais velho com `destroy()` — que ainda estava a ser desenhado —, e o pdf.js
+ * cancelava esse desenho. Não era o browser a desistir: era o servidor a
+ * cancelar-se a si próprio, e o pedido respondia 500.
+ *
+ * Cada entrada conta quem a está a usar. Posta de parte, só se fecha quando o
+ * último acabar; a memória continua com o mesmo tecto, só que o fecho espera.
+ */
+type Entrada = { promessa: Promise<Aberto>; emUso: number; despejada: boolean };
+const abertos = new Map<string, Entrada>();
 const imagens = new Map<string, Buffer>();
 let bytesEmImagens = 0;
+
+function fechar(entrada: Entrada): void {
+  void entrada.promessa.then((a) => a.doc.loadingTask.destroy()).catch(() => undefined);
+}
 
 function carregarPdfjs() {
   // A versão «legacy», como o `proposta-de-pdf/leitura.ts`: é a que corre em
@@ -64,7 +82,7 @@ function carregarPdfjs() {
  */
 const LETRAS_PADRAO = path.join(process.cwd(), "node_modules/pdfjs-dist/standard_fonts/");
 
-function abrir(chave: string, obterBytes: () => Promise<Uint8Array>): Promise<Aberto> {
+function entrada(chave: string, obterBytes: () => Promise<Uint8Array>): Entrada {
   const ja = abertos.get(chave);
   if (ja) {
     abertos.delete(chave);
@@ -85,15 +103,39 @@ function abrir(chave: string, obterBytes: () => Promise<Uint8Array>): Promise<Ab
     }
     return { doc, proporcoes };
   })();
-  abertos.set(chave, promessa);
+  const nova: Entrada = { promessa, emUso: 0, despejada: false };
+  abertos.set(chave, nova);
   // Uma abertura falhada não fica guardada: o pedido seguinte tenta de novo.
-  promessa.catch(() => abertos.delete(chave));
+  promessa.catch(() => {
+    if (abertos.get(chave) === nova) abertos.delete(chave);
+  });
   while (abertos.size > DOCUMENTOS_ABERTOS) {
-    const [maisVelha, p] = abertos.entries().next().value!;
+    const [maisVelha, velha] = abertos.entries().next().value!;
     abertos.delete(maisVelha);
-    void p.then((a) => a.doc.loadingTask.destroy()).catch(() => undefined);
+    velha.despejada = true;
+    if (velha.emUso === 0) fechar(velha);
   }
-  return promessa;
+  return nova;
+}
+
+/**
+ * Usa o documento de `chave` durante `trabalho`. A contagem sobe ANTES de se
+ * esperar pela abertura — senão um despejo entre a abertura e o uso fechava-o
+ * debaixo de quem o ia usar.
+ */
+async function comDocumento<T>(
+  chave: string,
+  obterBytes: () => Promise<Uint8Array>,
+  trabalho: (a: Aberto) => Promise<T>,
+): Promise<T> {
+  const e = entrada(chave, obterBytes);
+  e.emUso += 1;
+  try {
+    return await trabalho(await e.promessa);
+  } finally {
+    e.emUso -= 1;
+    if (e.despejada && e.emUso === 0) fechar(e);
+  }
 }
 
 /** Quantas páginas, e a forma de cada uma (largura ÷ altura). */
@@ -101,7 +143,7 @@ export async function formasDasPaginas(
   chave: string,
   obterBytes: () => Promise<Uint8Array>,
 ): Promise<number[]> {
-  return (await abrir(chave, obterBytes)).proporcoes;
+  return comDocumento(chave, obterBytes, async (a) => a.proporcoes);
 }
 
 /** O texto de cada página, para o leitor de ecrã — a imagem é só imagem. */
@@ -109,19 +151,20 @@ export async function textoDasPaginas(
   chave: string,
   obterBytes: () => Promise<Uint8Array>,
 ): Promise<string[]> {
-  const { doc } = await abrir(chave, obterBytes);
-  const textos: string[] = [];
-  for (let i = 1; i <= doc.numPages; i++) {
-    const conteudo = await (await doc.getPage(i)).getTextContent();
-    textos.push(
-      conteudo.items
-        .map((x) => ("str" in x ? x.str : ""))
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim(),
-    );
-  }
-  return textos;
+  return comDocumento(chave, obterBytes, async ({ doc }) => {
+    const textos: string[] = [];
+    for (let i = 1; i <= doc.numPages; i++) {
+      const conteudo = await (await doc.getPage(i)).getTextContent();
+      textos.push(
+        conteudo.items
+          .map((x) => ("str" in x ? x.str : ""))
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim(),
+      );
+    }
+    return textos;
+  });
 }
 
 /** A página `n` (a contar de 1) em WebP, ou `null` se não existir. */
@@ -138,19 +181,22 @@ export async function imagemDaPagina(
     imagens.set(id, feita);
     return feita;
   }
-  const { doc } = await abrir(chave, obterBytes);
-  if (!Number.isInteger(n) || n < 1 || n > doc.numPages) return null;
-  const pagina = await doc.getPage(n);
-  const vista = pagina.getViewport({ scale: largura / pagina.getViewport({ scale: 1 }).width });
-  // Em Node a fábrica do pdf.js dá telas do `@napi-rs/canvas`, que sabem
-  // codificar WebP sozinhas (e fora da linha principal).
-  const fabrica = doc.canvasFactory as {
-    create(w: number, h: number): { canvas: { encode(f: "webp", q: number): Promise<Buffer> } };
-  };
-  const { canvas } = fabrica.create(Math.floor(vista.width), Math.floor(vista.height));
-  await pagina.render({ canvas: canvas as unknown as HTMLCanvasElement, viewport: vista }).promise;
-  pagina.cleanup();
-  const webp = await canvas.encode("webp", QUALIDADE);
+  const webp = await comDocumento(chave, obterBytes, async ({ doc }) => {
+    if (!Number.isInteger(n) || n < 1 || n > doc.numPages) return null;
+    const pagina = await doc.getPage(n);
+    const vista = pagina.getViewport({ scale: largura / pagina.getViewport({ scale: 1 }).width });
+    // Em Node a fábrica do pdf.js dá telas do `@napi-rs/canvas`, que sabem
+    // codificar WebP sozinhas (e fora da linha principal).
+    const fabrica = doc.canvasFactory as {
+      create(w: number, h: number): { canvas: { encode(f: "webp", q: number): Promise<Buffer> } };
+    };
+    const { canvas } = fabrica.create(Math.floor(vista.width), Math.floor(vista.height));
+    await pagina.render({ canvas: canvas as unknown as HTMLCanvasElement, viewport: vista })
+      .promise;
+    pagina.cleanup();
+    return canvas.encode("webp", QUALIDADE);
+  });
+  if (!webp) return null;
 
   imagens.set(id, webp);
   bytesEmImagens += webp.length;

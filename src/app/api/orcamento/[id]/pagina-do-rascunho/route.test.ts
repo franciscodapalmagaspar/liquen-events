@@ -52,6 +52,7 @@ vi.mock("@/lib/paginas-do-pdf", () => ({
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 
 import { POST } from "./route";
+import { log } from "@/lib/logger";
 
 const pedir = (body: unknown, qs = "") =>
   POST(
@@ -171,5 +172,37 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
     st.faltam = new Set();
     await pedir({ doc: DOC, n: 3 }, `?desde=${Date.now()}`);
     expect(st.render).toHaveBeenCalledTimes(2);
+  });
+  it("um pedido que o browser cancelou não conta como erro (registos de 16/11)", async () => {
+    // O estúdio desiste de uma página quando ela muda de página a meio. Isso
+    // é normal, e não pode aparecer no registo de erros como uma avaria.
+    const controlador = new AbortController();
+    st.render.mockImplementationOnce(async () => {
+      controlador.abort();
+      throw Object.assign(new Error("Rendering cancelled, page 1"), {
+        name: "RenderingCancelledException",
+      });
+    });
+    vi.mocked(log.error).mockClear();
+    const res = await POST(
+      new Request("http://x/api/orcamento/q1/pagina-do-rascunho", {
+        method: "POST",
+        body: JSON.stringify({ doc: DOC, n: 4 }),
+        signal: controlador.signal,
+      }) as unknown as NextRequest,
+      { params: Promise.resolve({ id: "q1" }) },
+    );
+    expect(res.status).toBe(499);
+    expect(log.error).not.toHaveBeenCalled();
+  });
+
+  it("uma falha verdadeira continua a contar como erro", async () => {
+    st.render.mockImplementationOnce(async () => {
+      throw new Error("sem memória");
+    });
+    vi.mocked(log.error).mockClear();
+    const res = await pedir({ doc: DOC, n: 5 });
+    expect(res.status).toBe(500);
+    expect(log.error).toHaveBeenCalledTimes(1);
   });
 });
