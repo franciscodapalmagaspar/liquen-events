@@ -6,15 +6,8 @@ import { type PedidoDeMenu } from "../MenuDeContexto";
 import { Button, Escolha, Toolbar, type AccaoDeItem } from "../ui";
 import { ESTADO, PRESSAO } from "../ui/movimento";
 import { PlusIcon, SearchIcon } from "./icones";
-import {
-  MENU_DA_BIBLIOTECA,
-  ORDENS,
-  ORDENS_DE_USO,
-  Ordem,
-  guardarDensidade,
-  guardarOrdem,
-  type Densidade,
-} from "./ordem-e-densidade";
+import { ORDENS, ORDENS_DE_USO, Ordem, type Densidade } from "@/lib/temas/ordem";
+import { MENU_DA_BIBLIOTECA, guardarDensidade, guardarOrdem } from "./preferencias-da-biblioteca";
 
 /** A barra da Biblioteca de Temas: procurar, as contas, a ordem, a
  *  densidade, o menu e «Novo tema». (Saiu da Biblioteca de Temas na fase 8 da

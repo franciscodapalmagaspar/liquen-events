@@ -27,11 +27,6 @@ export const FILTRO_CLASSES =
  *  grelha, portanto é ela que tem de poder encolher (ver `FILTRO_CLASSES`). */
 export const FILTRO_CAIXA = "min-w-0 max-lg:w-full";
 
-// Quantos pedidos a lista renderiza de cada vez ("Mostrar mais" carrega o resto).
-export const LIST_PAGE_SIZE = 50;
-/** Até quantos pedidos se arquivam de uma vez sem perguntar (revisão · 3). */
-export const ARQUIVAR_SEM_PERGUNTAR = 10;
-
 /**
  * ══════════════════════════════════════════════════════════════════════════
  * O LOTE QUE O «MOSTRAR MAIS» ACRESCENTA

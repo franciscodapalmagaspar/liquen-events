@@ -3,8 +3,8 @@
 import { type Dispatch, type SetStateAction } from "react";
 import { type ThemeCopyMode, type ThemeImage, type ThemeSummary } from "@/lib/theme-types";
 import { type AccaoEmBloco } from "@/lib/temas/listas-de-fotos";
-import { plural } from "@/lib/temas/textos-dos-temas";
 import { Button, EmCurso, Glass } from "../ui";
+import { plural } from "@/lib/plural";
 
 /** A barra da selecção da pasta (transferir, copiar, descarregar, remover)
  *  e a espera do que ela mandou fazer. (Saiu da pasta do tema na fase 8 da

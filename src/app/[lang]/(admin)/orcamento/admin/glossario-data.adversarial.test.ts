@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { STATUS_OPTIONS } from "./_pedidos/estado-do-pedido";
+import { STATUS_OPTIONS } from "./_pedidos/pastilha-do-estado";
 import { describe, expect, it } from "vitest";
 import { GLOSSARY, LIFECYCLE } from "./glossario-data";
 

@@ -3,12 +3,12 @@
 import { type Dispatch, type JSX, type RefObject, type SetStateAction } from "react";
 import { type LeituraFalhada } from "@/lib/porque-nao-leu";
 import { THEME_PAGE_SIZE, type ThemeImage, type ThemeSummary } from "@/lib/theme-types";
-import { plural } from "@/lib/temas/textos-dos-temas";
 import { Button } from "../ui";
 import { ESTADO } from "../ui/movimento";
 import { GRELHA_DE_FOTOS } from "./grelha-de-fotos";
 import { readDropEntries } from "./largar-pastas";
 import type { Pending } from "./tipos-da-pasta";
+import { plural } from "@/lib/plural";
 
 /** A grelha das fotografias de um tema — a carregar, vazia, ou cheia — com o
  *  arrasto para reordenar e para largar ficheiros. (Saiu da pasta do tema na

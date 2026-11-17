@@ -1,17 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { idUnico } from "@/lib/id-unico";
-import { PENDING_IMAGE_PREFIX } from "@/lib/proposal-doc";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   MAX_IMPORT_BATCH,
   THEME_PAGE_SIZE,
@@ -21,9 +10,8 @@ import {
 import { useToast } from "./Toast";
 import { MEDIDA_LG, MEDIDA_SM, useMedida } from "./useMedida";
 import { Button, FolhaOuDialogo } from "./ui";
-import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { porqueNaoLeu, porqueNaoLeuDoErro, type LeituraFalhada } from "@/lib/porque-nao-leu";
-import { ESTADO, PRESSAO, PROGRESSO } from "./ui/movimento";
+import { ESTADO, PRESSAO } from "./ui/movimento";
 import { rolarAteVer } from "@/lib/motion/rolar";
 import { PaginaEmConstrucao, type FotoDaPagina } from "./PaginaEmConstrucao";
 import { avaliarFoto, type LugarDaFoto } from "@/lib/qualidade-da-foto";
@@ -31,16 +19,44 @@ import {
   type PaginaTema,
   buscarPrimeiraPagina,
   buscarTemas,
-  esquecerBiblioteca,
   fotoEmCache,
   guardarPagina,
   paginaEmCache,
   temasEmCache,
   vaiRevalidar,
 } from "./theme-picker-cache";
-import { Preview, plural } from "./_temas/seletor/FotoDoSeletor";
-import { themeScroll } from "./_temas/seletor/posicao-do-rolo";
+import { Preview } from "./_temas/seletor/FotoDoSeletor";
+import { themeScroll } from "./_temas/seletor/biblioteca-do-seletor";
 import { FotosDoTema } from "./_temas/seletor/FotosDoTema";
+import { plural } from "@/lib/plural";
+import { desmontarPastilha } from "./_temas/seletor/PastilhaDasImportacoes";
+import { startImport } from "./_temas/seletor/lotes-de-importacao";
+import {
+  ImportedImage,
+  ReservedImage,
+  clearFailed,
+  failedFor,
+  importedSources,
+  pendingSources,
+  useImportRuntime,
+} from "./_temas/seletor/importacoes";
+import {
+  LAST_THEME_KEY,
+  cachedTheme,
+  guardarMiniaturas,
+  mergePage,
+  miniaturaDe,
+  preferredThemeId,
+  prefetchTheme,
+  temaMaisUsado,
+  themeButtonLabel,
+  themeCountLabel,
+} from "./_temas/seletor/biblioteca-do-seletor";
+import { esquecerImportacoes } from "./_temas/seletor/importacoes";
+import { esquecerSeletor, lembrarTema, temaLembrado } from "./_temas/seletor/biblioteca-do-seletor";
+
+// O estúdio (`ProposalStudio.tsx`) lê estes dois tipos daqui.
+export type { ImportedImage, ReservedImage } from "./_temas/seletor/importacoes";
 
 /**
  * Escolher fotos da Biblioteca de Temas para uma proposta.
@@ -106,524 +122,14 @@ import { FotosDoTema } from "./_temas/seletor/FotosDoTema";
  * estúdio limita-se a tirar o marcador do sítio, sem duplicar a mensagem.
  */
 
-/** Último tema usado, para abrir já no sítio certo na proposta seguinte. */
-const LAST_THEME_KEY = "liquen-tema-recente";
-
 /** A partir de quantas fotos o rodapé passa a contar "X de 40": a meio do
  *  caminho, cedo o suficiente para o teto não aparecer de surpresa. */
 const COUNTDOWN_FROM = MAX_IMPORT_BATCH / 2;
-
-/** Fotos por pedido de importação.
- *
- *  A rota aceita as 40 de uma assentada, mas isso são ~10 s de silêncio e um
- *  "falhou" que não diz quais. Em lotes de 8 o que falha fica circunscrito ao
- *  lote (as outras já entraram), as primeiras fotos aparecem no estúdio muito
- *  antes das últimas, e a ordem por que a Catarina tocou nas fotos mantém-se —
- *  os lotes são enviados em sequência e cada um preserva a ordem que lhe deram. */
-const IMPORT_CHUNK = 8;
-
-/**
- * A partir de quantas fotos é que a pastilha mostra uma BARRA.
- *
- * Abaixo disto a barra mentiria: um lote de 5 fotos é um pedido só, portanto
- * teria dois estados (0 % e 100 %). Acima disto há lotes que cheguem para a
- * barra andar de verdade — e um lote grande demora o suficiente para valer a
- * pena dizer por onde vai.
- */
-const BIG_BATCH = 16;
-
-/** Quanto tempo a pastilha fica no ecrã depois de correr tudo bem. O suficiente
- *  para se ler "8 fotos adicionadas", pouco para não virar mobília. */
-const DONE_LINGER_MS = 4000;
-
-/** Quantas miniaturas se aquecem ao adivinhar um tema (o rato passou por cima
- *  do separador, ou do botão que abre a biblioteca). É a primeira dobra e mais
- *  uma linha: o que ela vai VER antes de rolar. Só miniaturas — aquecer
- *  originais seria trocar 25 KB por 2,6 MB de palpite. */
-const WARM_THUMBS = 15;
 
 /** Quanto se espera, depois de a primeira página estar no ecrã, para ir
  *  buscar a seguinte. Ver `Temas.tsx`: a primeira página tem de chegar
  *  primeiro, senão estaríamos a repartir o canal outra vez. */
 const PREFETCH_DELAY_MS = 1500;
-
-/** O que a pastilha de um tema mostra a seguir ao nome. `imageCount` a `null` =
- *  a pasta não pôde ser lida — dizer "0" faria a equipa pensar que as fotos
- *  desapareceram; `truncated` = a contagem é um MÍNIMO ("500+"). */
-function themeCountLabel(theme: ThemeSummary): string {
-  // Com mais de 150 temas a lista chega sem a contagem dos últimos (9/11,
-  // `resumoPendente`): não é uma pasta ilegível, é uma pasta por perguntar.
-  if (theme.resumoPendente) return "";
-  if (theme.imageCount === null) return "Fotos indisponíveis";
-  return theme.truncated ? `${theme.imageCount}+` : `${theme.imageCount}`;
-}
-
-/**
- * O que um leitor de ecrã anuncia num separador de tema.
- *
- * No ecrã, o nome e a contagem são dois elementos com um `gap` entre eles — mas
- * no DOM não há espaço nenhum a separá-los, e o nome acessível saía colado:
- * «Tema 211» em vez de «Tema 2, 11 fotos». O `gap` é desenho; a vírgula é
- * língua.
- */
-function themeButtonLabel(theme: ThemeSummary): string {
-  if (theme.resumoPendente) return theme.name;
-  if (theme.imageCount === null) return `${theme.name}, fotos indisponíveis`;
-  const n = theme.imageCount;
-  const contagem = theme.truncated ? `mais de ${n} fotos` : n === 1 ? "1 foto" : `${n} fotos`;
-  return `${theme.name}, ${contagem}`;
-}
-
-/** Junta uma página nova ao que já se mostra, sem repetir. A chave é o `path`
- *  (estável), não a aritmética dos offsets: se entretanto subirem fotos ao
- *  tema, o pior que acontece é uma foto vir duas vezes do servidor — e aqui
- *  fica só uma. */
-function mergePage(prev: ThemeImage[], page: ThemeImage[]): ThemeImage[] {
-  const seen = new Set(prev.map((i) => i.path));
-  return [...prev, ...page.filter((i) => !seen.has(i.path))];
-}
-
-/**
- * Uma foto importada, com o caminho de ORIGEM na biblioteca.
- *
- * A cópia para a proposta nasce com um uuid novo, por isso o caminho de
- * destino não diz de onde veio. É este `sourcePath` que o estúdio guarda para
- * poder marcar "já nesta proposta" da próxima vez que o seletor abrir — sem
- * mexer na arrumação do Storage. Vem em falta quando não se consegue
- * emparelhar com segurança; nesse caso perde-se a marca, nada mais.
- */
-export interface ImportedImage extends ThemeImage {
-  sourcePath?: string;
-  /**
-   * O marcador provisório que esta cópia vem substituir, quando houve um.
-   *
-   * Com ele, o estúdio troca o marcador pelo caminho definitivo NO LUGAR (a
-   * mesma célula, a mesma ordem); sem ele — quem não reservou nada — a imagem
-   * é acrescentada, como sempre foi.
-   */
-  marcador?: string;
-}
-
-/** Uma foto RESERVADA: o lugar já é dela no documento, o caminho ainda não
- *  existe. É o que `onReserve` entrega no instante do clique. */
-export interface ReservedImage {
-  /** `pending:<uuid>` — nunca um caminho de Storage. */
-  marcador: string;
-  /** A miniatura que a grelha JÁ desenhou: mostrá-la não custa pedido nenhum. */
-  thumbUrl?: string;
-  /** A foto da BIBLIOTECA de onde esta vem — é o que deixa marcar "já nesta
-   *  proposta" enquanto a cópia ainda vai a caminho. */
-  sourcePath: string;
-}
-
-/**
- * Um marcador novo. Não é um segredo, só tem de ser único — mas o gerador vive
- * em `id-unico.ts` e não tem `Math.random()` nenhum lá dentro.
- *
- * ── PORQUE É QUE ISTO DEIXOU DE SE CHAMAR «TOKEN» ─────────────────────────
- * Chamava-se, e o resto do ficheiro chamava-lhe marcador — dois nomes para a
- * mesma coisa, que é o género de deriva que faz o próximo leitor procurar duas
- * coisas onde só há uma.
- *
- * E tinha custo a sério: a análise de segurança do GitHub trata um campo
- * chamado `token` como informação sensível, e via-o a ser gravado no
- * `localStorage` junto com o rascunho — «clear text storage of sensitive
- * information», severidade alta. O rascunho já filtra TODOS os marcadores antes
- * de gravar (`semProvisorios`), portanto o achado era falso; mas um aviso alto
- * que se explica de cada vez que aparece é um aviso que um dia se ignora quando
- * for verdadeiro. O nome passou a dizer o que a coisa é.
- */
-function novoMarcador(): string {
-  return `${PENDING_IMAGE_PREFIX}${idUnico()}`;
-}
-
-// ───────────────────────────────────────────────────────────────────────────
-// Cache da biblioteca (vive no módulo, sobrevive a fechar o diálogo)
-// ───────────────────────────────────────────────────────────────────────────
-
-/** A página guardada de um tema, tolerando "ainda não há tema escolhido" — que
- *  é o estado do diálogo antes de a lista chegar. */
-const cachedTheme = (themeId: string | null): PaginaTema | null =>
-  themeId ? paginaEmCache(themeId) : null;
-
-/** O tema em que o diálogo estava quando fechou (a memória curta; o
- *  `localStorage` é a longa, entre sessões). */
-let lastThemeId: string | null = null;
-/** O que ficou por entrar, por proposta: reabrir o seletor traz a seleção de
- *  volta em vez de a obrigar a escolher tudo outra vez. */
-const failedByQuote = new Map<string, string[]>();
-/** As fotos da biblioteca que JÁ foram copiadas para cada proposta nesta
- *  sessão — a marca "já nesta proposta" aparece sem esperar pelo estúdio. */
-const importedByQuote = new Map<string, Set<string>>();
-
-/**
- * A miniatura de cada foto já vista, por caminho.
- *
- * A seleção atravessa temas (é uma lista de caminhos, não de índices), mas a
- * grelha só tem em mãos as imagens do tema ABERTO. Sem esta memória, a página
- * em construção desenhava um quadrado cinzento para tudo o que tivesse sido
- * escolhido noutro separador — que é precisamente o caso em que ver o conjunto
- * interessa mais.
- *
- * Só guarda o `thumbUrl` (ou o `url` quando não há miniatura): são endereços,
- * não bytes, e o browser já tem as imagens em cache de ter desenhado a grelha.
- */
-const miniaturaDe = new Map<string, string>();
-
-function guardarMiniaturas(images: readonly ThemeImage[]): void {
-  for (const im of images) {
-    const u = im.thumbUrl || im.url;
-    if (u) miniaturaDe.set(im.path, u);
-  }
-}
-
-/**
- * Deita fora o que está guardado da biblioteca.
- *
- * O `theme-picker-cache` já se defende do que é velho sozinho, revalidando por
- * trás. Isto é para o caso em que esperar não serve: uma foto foi ADICIONADA
- * ou REMOVIDA num tema (o que acontece no ecrã `Temas`, não aqui) e a abertura
- * seguinte tem de ver isso já, não daqui a meio minuto.
- *
- * Fica à escuta do evento `liquen:biblioteca-alterada` para esse ecrã poder
- * avisar sem que este módulo precise de o conhecer. O que se limpa aqui a mais
- * do que lá é o rolo: a grelha vai mudar de tamanho, e devolver o scroll a uma
- * posição que já não existe deixava-a a olhar para o meio do nada.
- */
-export function invalidateThemeLibraryCache(): void {
-  esquecerBiblioteca();
-  themeScroll.clear();
-}
-
-if (typeof window !== "undefined") {
-  window.addEventListener("liquen:biblioteca-alterada", invalidateThemeLibraryCache);
-}
-
-/** Põe as miniaturas na cache do browser antes de a grelha as pedir. */
-function warmThumbs(images: readonly ThemeImage[]): void {
-  if (typeof window === "undefined" || typeof window.Image !== "function") return;
-  for (const im of images.slice(0, WARM_THUMBS)) {
-    // Só `thumbUrl`: uma foto sem miniatura custa ~2,6 MB e tem a sua própria
-    // fila (ver `HEAVY_IMAGE_CONCURRENCY`). Adivinhar não pode furar essa fila.
-    if (!im.thumbUrl) continue;
-    const img = new window.Image();
-    img.decoding = "async";
-    img.src = im.thumbUrl;
-  }
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * POR QUE TEMA É QUE O DIÁLOGO ABRE
- * ════════════════════════════════════════════════════════════════════════════
- *
- * Quatro respostas, por esta ordem — e a ordem é a decisão toda:
- *
- * 1. O tema que ela escolheu NESTA sessão. É o acto mais recente e mais
- *    explícito que existe: escolheu «Boho» há dois minutos, fechou, reabriu.
- *    Mandá-la de volta para outro sítio seria desfazer-lhe a escolha.
- *
- * 2. O tema de que ESTA PROPOSTA já está a beber. Palavras dela: «o seletor
- *    abre sem saber em que proposta estou». Quando se está a encher o quarto
- *    mood board de um casamento cujos três primeiros vieram todos de «Itália»,
- *    abrir em «Terracotta» — porque foi nisso que se tocou ONTEM, noutro
- *    casamento — é abrir no sítio errado com toda a informação para acertar.
- *
- *    Vem do que já foi importado para este pedido (`usadas`), e é o tema mais
- *    representado entre elas: uma foto solta de outro tema não muda o rumo.
- *
- * 3. O da sessão passada (`localStorage`). Continua a ser melhor do que nada,
- *    mas é o palpite mais fraco dos três — é memória de outro dia e, muitas
- *    vezes, de outro casamento. Por isso perde para o contexto.
- *
- * 4. O primeiro da lista.
- */
-function preferredThemeId(
-  list: readonly ThemeSummary[],
-  /** Caminhos da biblioteca já usados nesta proposta (`<tema>/<ficheiro>`). */
-  usadas?: readonly string[],
-): string | null {
-  if (lastThemeId && list.some((t) => t.id === lastThemeId)) return lastThemeId;
-
-  const doPedido = temaMaisUsado(usadas);
-  if (doPedido && list.some((t) => t.id === doPedido)) return doPedido;
-
-  let saved: string | null = null;
-  try {
-    saved = localStorage.getItem(LAST_THEME_KEY);
-  } catch {
-    /* localStorage indisponível — segue com o primeiro tema */
-  }
-  if (saved && list.some((t) => t.id === saved)) return saved;
-  return list[0]?.id ?? null;
-}
-
-/**
- * O tema mais representado numa lista de caminhos da biblioteca, ou `null`.
- *
- * Empate resolve-se pelo primeiro a chegar ao topo, e não interessa qual: um
- * empate quer dizer que a proposta bebe dos dois na mesma medida, e nesse caso
- * qualquer um deles é uma abertura defensável.
- */
-function temaMaisUsado(caminhos?: readonly string[]): string | null {
-  if (!caminhos || caminhos.length === 0) return null;
-  const conta = new Map<string, number>();
-  let melhor: string | null = null;
-  let maximo = 0;
-  for (const c of caminhos) {
-    const corte = c.indexOf("/");
-    if (corte <= 0) continue;
-    const tema = c.slice(0, corte);
-    const n = (conta.get(tema) ?? 0) + 1;
-    conta.set(tema, n);
-    if (n > maximo) {
-      maximo = n;
-      melhor = tema;
-    }
-  }
-  return melhor;
-}
-
-/** Adivinha um tema: metadados + miniaturas, sem nada no ecrã ainda. */
-export function prefetchTheme(themeId: string): void {
-  const have = cachedTheme(themeId);
-  if (have) {
-    warmThumbs(have.images);
-    return;
-  }
-  void buscarPrimeiraPagina(themeId)
-    .then((entry) => warmThumbs(entry.images))
-    .catch(() => {
-      /* adivinhar e falhar não é um erro que se mostre: quem abrir pede outra vez */
-    });
-}
-
-/**
- * Aquece a biblioteca ANTES de o diálogo abrir: a lista de temas e as
- * miniaturas do tema por onde ele vai abrir.
- *
- * Exportada para quem desenha o botão "Escolher da biblioteca de temas" a
- * poder chamar no `onPointerEnter`/`onFocus`. Como esse botão vive noutro
- * ficheiro, há também a rede de segurança abaixo, que apanha o gesto por
- * delegação. Idempotente e barata: com cache, não faz nada.
- */
-export function prefetchThemeLibrary(): void {
-  void buscarTemas()
-    .then((list) => {
-      const id = preferredThemeId(list);
-      if (id) prefetchTheme(id);
-    })
-    .catch(() => {});
-}
-
-/**
- * O gesto que abre a biblioteca começa a carregá-la.
- *
- * Por delegação no documento, e não por um `onPointerEnter` no botão, porque o
- * botão é do estúdio de propostas. Quem quiser ser explícito marca-o com
- * `data-biblioteca-temas`; sem marca, reconhece-se pelo nome ("Escolher da
- * biblioteca de temas"). Custa uma leitura de `textContent` no rato a passar e
- * o resultado é o diálogo abrir já com as fotos desenhadas.
- */
-const OPEN_HINT = /biblioteca de temas/i;
-let hintInstalled = false;
-function installOpenHint(): void {
-  if (hintInstalled || typeof document === "undefined") return;
-  hintInstalled = true;
-  const hint = (e: Event) => {
-    const el = e.target;
-    if (!(el instanceof Element)) return;
-    const trigger = el.closest("[data-biblioteca-temas],button,a");
-    if (!trigger) return;
-    if (
-      !trigger.hasAttribute("data-biblioteca-temas") &&
-      !OPEN_HINT.test(trigger.textContent ?? "")
-    )
-      return;
-    prefetchThemeLibrary();
-  };
-  document.addEventListener("pointerover", hint, { passive: true });
-  document.addEventListener("focusin", hint, { passive: true });
-}
-installOpenHint();
-
-// ───────────────────────────────────────────────────────────────────────────
-// A cópia, em segundo plano (fora do React, para sobreviver ao diálogo)
-// ───────────────────────────────────────────────────────────────────────────
-
-type PhotoState = "pending" | "done" | "failed";
-
-interface JobPhoto {
-  /** Caminho na BIBLIOTECA. */
-  path: string;
-  /** A imagem que a pastilha mostra — a miniatura que a grelha já desenhou,
-   *  portanto já está na cache do browser: vê-la não custa pedido nenhum. */
-  thumb?: string;
-  /** O lugar que esta foto já ocupa no documento (`pending:<uuid>`). Uma
-   *  segunda tentativa ganha um marcador NOVO: o anterior já saiu do
-   *  documento quando esta foto falhou. */
-  marcador: string;
-  state: PhotoState;
-}
-
-interface ImportJob {
-  id: number;
-  quoteId: string;
-  photos: JobPhoto[];
-  /** Onde entregar cada lote que chega. É o `onPicked` tal como estava no
-   *  instante do clique — e é isso que faz as fotos irem parar ao mood board
-   *  (ou à capa) de onde o diálogo foi aberto, mesmo já com ele fechado. */
-  deliver: (images: ImportedImage[]) => void;
-  /** Guardar o lugar no documento, no instante do clique. Opcional: quem não
-   *  o passa recebe as fotos só quando a cópia confirmar, como antes. */
-  reserve?: (reservas: ReservedImage[]) => void;
-  /** Estes marcadores já não vão ter foto — tira-os do documento. */
-  drop?: (marcadores: string[]) => void;
-  running: boolean;
-  /** Pediram para parar: o que ainda não saiu não sai. */
-  stopping: boolean;
-  stopped: boolean;
-  /** O pedido que está em voo AGORA, para o "Parar" o poder cortar.
-   *
-   *  Verificar `stopping` só ENTRE lotes não chegava: com `IMPORT_CHUNK` fotos
-   *  ou menos há um lote só, portanto a verificação já tinha passado quando o
-   *  botão aparecia, e carregar nele não fazia rigorosamente nada. Era
-   *  decorativo exactamente no caso mais comum. */
-  emVoo: AbortController | null;
-  /** A primeira mensagem de erro do servidor, para se poder dizer porquê. */
-  error: string | null;
-}
-
-const jobs: ImportJob[] = [];
-/** `quoteId\npath` de tudo o que está em voo — a rede contra o duplo clique. */
-const inFlight = new Set<string>();
-let jobSeq = 0;
-
-const flightKey = (quoteId: string, path: string) => `${quoteId}\n${path}`;
-
-// Um contador de versão como estado externo: quem depende disto (a pastilha e
-// o próprio diálogo) volta a desenhar; a informação verdadeira lê-se de `jobs`.
-let version = 0;
-const listeners = new Set<() => void>();
-function emit(): void {
-  version += 1;
-  for (const l of Array.from(listeners)) l();
-  syncOverlay();
-}
-function subscribe(l: () => void): () => void {
-  listeners.add(l);
-  return () => {
-    listeners.delete(l);
-  };
-}
-const snapshot = () => version;
-function useImportRuntime(): number {
-  return useSyncExternalStore(subscribe, snapshot, snapshot);
-}
-
-/** As fotos desta proposta que estão a ser copiadas AGORA. */
-function pendingSources(quoteId: string): Set<string> {
-  const out = new Set<string>();
-  for (const job of jobs) {
-    if (job.quoteId !== quoteId) continue;
-    for (const p of job.photos) if (p.state === "pending") out.add(p.path);
-  }
-  return out;
-}
-
-/** As fotos desta proposta que já foram copiadas nesta sessão. */
-function importedSources(quoteId: string): ReadonlySet<string> {
-  return importedByQuote.get(quoteId) ?? new Set<string>();
-}
-
-/** O que ficou por entrar nesta proposta, à espera de uma segunda tentativa. */
-function failedFor(quoteId: string): string[] {
-  return failedByQuote.get(quoteId) ?? [];
-}
-
-function clearFailed(quoteId: string): void {
-  if (failedByQuote.delete(quoteId)) emit();
-}
-
-function rememberImported(quoteId: string, path: string): void {
-  const set = importedByQuote.get(quoteId) ?? new Set<string>();
-  set.add(path);
-  importedByQuote.set(quoteId, set);
-}
-
-function mark(job: ImportJob, path: string, state: PhotoState): void {
-  const photo = job.photos.find((p) => p.path === path);
-  if (photo) photo.state = state;
-}
-
-/**
- * Põe a copiar as fotos escolhidas e devolve o número do lote (0 = não havia
- * nada por copiar).
- *
- * Tudo o que já vai a caminho é descartado aqui, em silêncio e de forma
- * síncrona — é isto que faz do duplo clique (ou do segundo clique numa rede
- * lenta) um não-acontecimento em vez de uma importação a dobrar.
- */
-function startImport(opts: {
-  quoteId: string;
-  images: readonly ThemeImage[];
-  deliver: (images: ImportedImage[]) => void;
-  reserve?: (reservas: ReservedImage[]) => void;
-  drop?: (marcadores: string[]) => void;
-}): number {
-  const photos: JobPhoto[] = [];
-  const seen = new Set<string>();
-  for (const im of opts.images) {
-    if (seen.has(im.path)) continue;
-    seen.add(im.path);
-    const key = flightKey(opts.quoteId, im.path);
-    if (inFlight.has(key)) continue;
-    inFlight.add(key);
-    photos.push({
-      path: im.path,
-      thumb: im.thumbUrl || im.url || undefined,
-      marcador: novoMarcador(),
-      state: "pending",
-    });
-  }
-  if (photos.length === 0) return 0;
-
-  const job: ImportJob = {
-    id: ++jobSeq,
-    quoteId: opts.quoteId,
-    photos,
-    deliver: opts.deliver,
-    reserve: opts.reserve,
-    drop: opts.drop,
-    running: true,
-    stopping: false,
-    stopped: false,
-    emVoo: null,
-    error: null,
-  };
-  jobs.push(job);
-  // O lugar é guardado AQUI, antes de qualquer viagem à rede: é isto que faz a
-  // foto aparecer no mood board no mesmo gesto em que o diálogo fecha.
-  reservePhotos(job, photos);
-  emit();
-  void runJob(job);
-  return job.id;
-}
-
-/** Anuncia os lugares destas fotos a quem abriu o seletor. */
-function reservePhotos(job: ImportJob, photos: readonly JobPhoto[]): void {
-  if (!job.reserve || photos.length === 0) return;
-  job.reserve(photos.map((p) => ({ marcador: p.marcador, thumbUrl: p.thumb, sourcePath: p.path })));
-}
-
-/**
- * Uma recusa do SERVIDOR com a frase já escolhida.
- *
- * Distingue-se do que a rede atira sozinha (um `TypeError: Failed to fetch`,
- * que é inglês de browser e não diz nada a ninguém): o que sai daqui vai
- * direito à pastilha, e o resto passa pelo `porqueRebentou`.
- */
-class RecusaDoLote extends Error {}
 
 /** O mesmo para as LEITURAS da grelha: leva a razão apurada até ao `catch`,
  *  em vez de lá chegar um «falhou» que não diz nem o estado nem o porquê. */
@@ -632,354 +138,6 @@ class ErroDaPagina extends Error {
     super(falha.mensagem);
     this.name = "ErroDaPagina";
   }
-}
-
-async function runJob(job: ImportJob): Promise<void> {
-  job.running = true;
-  job.error = null;
-  job.stopped = false;
-
-  const queue = job.photos.filter((p) => p.state === "pending").map((p) => p.path);
-  /** O marcador que uma foto da biblioteca ocupa neste lote. */
-  const marcadorDe = (path: string) => job.photos.find((p) => p.path === path)?.marcador;
-  /** Estes lugares ficaram sem foto: saem do documento (a pastilha é que
-   *  avisa; aqui só se desocupa o sítio). */
-  const largar = (paths: readonly string[]) => {
-    if (!job.drop) return;
-    const marcadores = paths.map(marcadorDe).filter((t): t is string => !!t);
-    if (marcadores.length > 0) job.drop(marcadores);
-  };
-
-  for (let i = 0; i < queue.length; i += IMPORT_CHUNK) {
-    if (job.stopping) {
-      job.stopped = true;
-      break;
-    }
-    const chunk = queue.slice(i, i + IMPORT_CHUNK);
-    try {
-      job.emVoo = new AbortController();
-      const res = await fetch(`/api/orcamento/${job.quoteId}/assets/importar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paths: chunk }),
-        signal: job.emVoo.signal,
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        /**
-         * A FRASE DO SERVIDOR GANHA AQUI, INCLUSIVE NUM 500.
-         *
-         * Esta rota não devolve rastos de pilha: devolve queixas escritas para
-         * ela ler («Não foi possível copiar as fotos», o tema que sumiu, o
-         * espaço que acabou). É a única coisa na resposta que diz o que se
-         * passou com ESTE lote. Quando não vem nenhuma, entra a classificação
-         * do `porqueFalhou` — que ao menos separa a sessão expirada (onde
-         * repetir não pode funcionar) do servidor em baixo.
-         */
-        const doServidor = typeof data?.error === "string" ? data.error.trim() : "";
-        throw new RecusaDoLote(
-          doServidor ||
-            porqueFalhou(
-              `adicionar ${chunk.length === 1 ? "1 foto" : `${chunk.length} fotos`} ao mood board`,
-              res,
-              data,
-            ).mensagem,
-        );
-      }
-      const copied: ImportedImage[] = Array.isArray(data?.images) ? data.images : [];
-      const failedHere: string[] = Array.isArray(data?.failed) ? data.failed : [];
-      // A ORIGEM de cada foto vem agora NA RESPOSTA (`sourcePath`), desde que a
-      // rota deixou de copiar bytes e passou a devolver referências à
-      // biblioteca: ela sabe-a de certeza e nós deixámos de a ter de deduzir
-      // pela posição.
-      //
-      // O emparelhamento posicional fica como plano B, para uma resposta antiga
-      // (um separador aberto durante um deploy) que chegue sem o campo. Se nem
-      // isso bater certo, prefere-se ficar sem a marca "já nesta proposta" a
-      // inventar uma origem errada.
-      const sources = chunk.filter((p) => !failedHere.includes(p));
-      const daResposta = copied.length > 0 && copied.every((im) => !!im.sourcePath);
-      const aligned = daResposta || sources.length === copied.length;
-      // Sem emparelhamento seguro não há troca no lugar: as fotos entram na
-      // mesma, pelo caminho de acrescentar, e os lugares reservados saem. Uma
-      // foto no fim do mood board é um contratempo; uma foto trocada com outra
-      // é uma proposta errada.
-      const picked: ImportedImage[] = copied.map((im, k) => {
-        const origem = im.sourcePath ?? sources[k];
-        return aligned && origem
-          ? { ...im, sourcePath: origem, marcador: marcadorDe(origem) }
-          : { ...im };
-      });
-      for (const p of sources) {
-        mark(job, p, "done");
-        if (aligned) rememberImported(job.quoteId, p);
-      }
-      for (const p of failedHere) mark(job, p, "failed");
-      largar(aligned ? failedHere : chunk);
-      if (picked.length > 0) job.deliver(picked);
-    } catch (err) {
-      // Um lote cortado pelo "Parar" não é uma avaria: ela mandou-o parar. Sem
-      // esta distinção a pastilha mostrava "The user aborted a request" como se
-      // fosse o servidor a queixar-se.
-      const abortado = err instanceof DOMException && err.name === "AbortError";
-      if (!job.error && !abortado) {
-        // Só a recusa do servidor traz frase pronta. Tudo o resto que rebenta
-        // aqui é a rede (ou um corpo ilegível), e aí o que importa dizer é que
-        // nada se perdeu e que repetir resolve — não «Failed to fetch».
-        job.error =
-          err instanceof RecusaDoLote
-            ? err.message
-            : porqueRebentou(
-                `adicionar ${chunk.length === 1 ? "1 foto" : `${chunk.length} fotos`} ao mood board`,
-              ).mensagem;
-      }
-      for (const p of chunk) mark(job, p, "failed");
-      largar(chunk);
-      // O `finally` faz a limpeza à mesma — sair daqui não a salta.
-      if (abortado) {
-        job.stopped = true;
-        break;
-      }
-    } finally {
-      for (const p of chunk) inFlight.delete(flightKey(job.quoteId, p));
-      job.emVoo = null;
-    }
-    emit();
-  }
-
-  // Parar é parar o que falta E o que ia a caminho (ver `stopJob`). O que aqui
-  // sobra são as fotos que nunca chegaram a sair: saem do documento pelo
-  // `largar`, senão ficavam lugares reservados à espera de uma foto que já
-  // ninguém foi buscar.
-  const abandonadas: string[] = [];
-  for (const p of job.photos) {
-    if (p.state !== "pending") continue;
-    p.state = "failed";
-    abandonadas.push(p.path);
-    inFlight.delete(flightKey(job.quoteId, p.path));
-  }
-  largar(abandonadas);
-
-  job.running = false;
-  // O que este lote deixou por entrar junta-se ao que já estava à espera (pode
-  // haver mais do que um lote a caminho da mesma proposta) e tira de lá o que
-  // este conseguiu.
-  const failed = job.photos.filter((p) => p.state === "failed").map((p) => p.path);
-  const done = new Set(job.photos.filter((p) => p.state === "done").map((p) => p.path));
-  const carried = failedFor(job.quoteId).filter((p) => !done.has(p) && !failed.includes(p));
-  const next = [...carried, ...failed];
-  if (next.length > 0) failedByQuote.set(job.quoteId, next);
-  else failedByQuote.delete(job.quoteId);
-  emit();
-
-  if (failed.length === 0) {
-    window.setTimeout(() => dismissJob(job.id), DONE_LINGER_MS);
-  }
-}
-
-function stopJob(id: number): void {
-  const job = jobs.find((j) => j.id === id);
-  if (!job) return;
-  job.stopping = true;
-  // Corta o pedido que está a decorrer, não só o lote seguinte — senão, no caso
-  // de um lote único, o "Parar" não parava nada. O servidor pode já ter copiado
-  // alguma coisa: essas fotos ficam no bucket sem entrar na proposta, que é
-  // exactamente o que acontece a qualquer falha de rede, e é preferível a
-  // deixá-la a olhar para um pedido que ela mandou parar.
-  job.emVoo?.abort();
-  emit();
-}
-
-function retryJob(id: number): void {
-  const job = jobs.find((j) => j.id === id);
-  if (!job || job.running) return;
-  job.stopping = false;
-  job.stopped = false;
-  const outra_vez: JobPhoto[] = [];
-  for (const p of job.photos) {
-    if (p.state !== "failed") continue;
-    p.state = "pending";
-    // Marcador NOVO: o de que esta foto era dona já saiu do documento quando
-    // ela falhou. Reaproveitá-lo seria pedir ao estúdio para trocar um lugar
-    // que já não existe.
-    p.marcador = novoMarcador();
-    outra_vez.push(p);
-    inFlight.add(flightKey(job.quoteId, p.path));
-  }
-  reservePhotos(job, outra_vez);
-  emit();
-  void runJob(job);
-}
-
-function dismissJob(id: number): void {
-  const i = jobs.findIndex((j) => j.id === id);
-  if (i < 0) return;
-  const [job] = jobs.splice(i, 1);
-  // Descartar esta pastilha esquece o que ELA tinha por entrar — nunca o que
-  // ficou de outro lote da mesma proposta.
-  const gone = new Set(job.photos.map((p) => p.path));
-  const rest = failedFor(job.quoteId).filter((p) => !gone.has(p));
-  if (rest.length > 0) failedByQuote.set(job.quoteId, rest);
-  else failedByQuote.delete(job.quoteId);
-  emit();
-}
-
-// ── A pastilha, na proposta e fora do diálogo ──────────────────────────────
-//
-// Vive na sua própria raiz de React, colada ao `body`: é o que lhe permite
-// continuar no ecrã depois de o diálogo (que é quem a manda começar)
-// desaparecer da árvore. Fixa no canto, sem fundo por cima de nada — não
-// bloqueia o estúdio nem o diálogo.
-
-let overlayRoot: Root | null = null;
-let overlayHost: HTMLElement | null = null;
-let overlayTeardown = 0;
-
-function syncOverlay(): void {
-  if (typeof document === "undefined" || !document.body) return;
-  if (jobs.length > 0) {
-    if (overlayTeardown) {
-      window.clearTimeout(overlayTeardown);
-      overlayTeardown = 0;
-    }
-    if (overlayRoot) return;
-    overlayHost = document.createElement("div");
-    overlayHost.setAttribute("data-importacoes", "");
-    document.body.appendChild(overlayHost);
-    overlayRoot = createRoot(overlayHost);
-    overlayRoot.render(<ImportOverlay />);
-    return;
-  }
-  if (!overlayRoot || overlayTeardown) return;
-  // Desmontar uma raiz a partir de dentro de uma renderização é proibido —
-  // isto chega sempre de um `emit()`, que pode vir de um evento. Sai do caminho.
-  overlayTeardown = window.setTimeout(() => {
-    overlayTeardown = 0;
-    if (jobs.length > 0) return;
-    overlayRoot?.unmount();
-    overlayRoot = null;
-    overlayHost?.remove();
-    overlayHost = null;
-  }, 0);
-}
-
-function ImportOverlay() {
-  useImportRuntime();
-  if (jobs.length === 0) return null;
-  return (
-    <div className="pointer-events-none fixed bottom-6 left-6 z-[70] flex max-w-[calc(100vw-3rem)] flex-col gap-2 sm:max-w-sm">
-      {jobs.map((job) => (
-        <ImportChip key={job.id} job={job} />
-      ))}
-    </div>
-  );
-}
-
-function ImportChip({ job }: { job: ImportJob }) {
-  const total = job.photos.length;
-  const done = job.photos.filter((p) => p.state === "done").length;
-  const failed = job.photos.filter((p) => p.state === "failed").length;
-  const settled = !job.running;
-  const withBar = total > BIG_BATCH && job.running;
-
-  const message = job.running
-    ? `A adicionar ${plural(total, "foto", "fotos")} à proposta…`
-    : failed === 0
-      ? `${plural(done, "foto adicionada", "fotos adicionadas")} à proposta.`
-      : job.stopped
-        ? `Parou — ${plural(failed, "foto ficou", "fotos ficaram")} por adicionar.`
-        : `${plural(failed, "foto não entrou", "fotos não entraram")} na proposta.`;
-
-  return (
-    <div
-      role="group"
-      aria-label="Fotos a caminho da proposta"
-      className={`pointer-events-auto rounded-xl border bg-[var(--bo-surface)] px-4 py-3 shadow-[var(--bo-sombra-suspensa)] ${
-        settled && failed > 0
-          ? "border-[var(--bo-perigo)]/25"
-          : "border-[var(--bo-hairline-strong)]"
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        {/* As mesmas miniaturas que a grelha desenhou: já estão na cache do
-            browser, portanto vê-las aqui não custa um pedido novo. */}
-        <div className="flex shrink-0 -space-x-2" aria-hidden="true">
-          {job.photos.slice(0, 4).map((p) => (
-            <span
-              key={p.path}
-              className={`block h-7 w-7 overflow-hidden rounded-md border-2 border-white bg-[var(--bo-tinta-6)] ${
-                p.state === "pending" ? "opacity-55" : ""
-              } ${p.state === "failed" ? "ring-2 ring-[var(--bo-perigo)]/60" : ""}`}
-            >
-              {p.thumb && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.thumb} alt="" decoding="async" className="h-full w-full object-cover" />
-              )}
-            </span>
-          ))}
-          {total > 4 && (
-            <span className="flex h-7 w-7 items-center justify-center rounded-md border-2 border-white bg-[var(--bo-tinta-10)] text-[10px] text-[var(--bo-tinta-72)]">
-              +{total - 4}
-            </span>
-          )}
-        </div>
-        <p
-          role="status"
-          aria-live="polite"
-          className="min-w-0 flex-1 text-sm text-[var(--bo-text)]"
-        >
-          {message}
-        </p>
-      </div>
-
-      {withBar && (
-        <div
-          role="progressbar"
-          aria-label="Progresso da importação"
-          aria-valuemin={0}
-          aria-valuemax={total}
-          aria-valuenow={done + failed}
-          className="mt-2 h-1 w-full overflow-hidden rounded-full bg-[var(--bo-tinta-10)]"
-        >
-          {/* Era `duration-elemento`: PEDE 250 ms e não gera regra nenhuma —
-              o Tailwind v4 lê `--transition-duration-*` para os utilitários
-              `duration-*` e a casa declarou `--duration-*` (ponto 3 de
-              `ui/movimento.ts`). Na prática a barra corria nos 150 ms de
-              omissão. O `PROGRESSO` escreve os mesmos 250 ms numa classe que
-              o Tailwind compila mesmo. */}
-          <div
-            className={`h-full w-full origin-left rounded-full bg-sage-600 ${PROGRESSO}`}
-            style={{ transform: `scaleX(${Math.round(((done + failed) / total) * 100) / 100})` }}
-          />
-        </div>
-      )}
-
-      {settled && failed > 0 && (
-        <>
-          <p className="bo-text-muted mt-1 text-xs">
-            {done > 0 ? `${done} entraram. ` : ""}
-            {job.error && !job.stopped ? job.error : "Continuam por adicionar — podes repetir."}
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={() => retryJob(job.id)}>
-              Repetir
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => dismissJob(job.id)}>
-              Descartar
-            </Button>
-          </div>
-        </>
-      )}
-
-      {job.running && (
-        <div className="mt-2 flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={() => stopJob(job.id)}>
-            Parar
-          </Button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 /** A página seguinte, pedida antes de ela a pedir. Guarda o tema e o offset com
@@ -1125,7 +283,8 @@ export default function ThemePicker({
     // chegava a ser usado: este palpite acerta quase sempre, e o efeito da
     // lista, lá em baixo, só o corrige quando aponta para um tema que já não
     // existe. Um palpite com outra ordem era outra ordem, disfarçada.
-    if (lastThemeId) return lastThemeId;
+    const lembrado = temaLembrado();
+    if (lembrado) return lembrado;
     const doPedido = temaMaisUsado(usedThemePaths);
     if (doPedido) return doPedido;
     try {
@@ -1205,7 +364,7 @@ export default function ThemePicker({
   /** A memória curta desta sessão acompanha o tema que está no ecrã: reabrir o
    *  diálogo volta a este, mesmo que ela nunca tenha trocado de separador. */
   useEffect(() => {
-    if (themeId) lastThemeId = themeId;
+    if (themeId) lembrarTema(themeId);
   }, [themeId]);
 
   /** A lista de temas, para LEITURA dentro de efeitos que não se devem repetir
@@ -1293,7 +452,7 @@ export default function ThemePicker({
   const showTheme = useCallback((id: string) => {
     const cached = cachedTheme(id);
     setThemeId(id);
-    lastThemeId = id;
+    lembrarTema(id);
     setImages(cached?.images ?? []);
     setTotal(cached?.total ?? null);
     setTruncated(cached?.truncated ?? false);
@@ -2538,19 +1697,7 @@ export default function ThemePicker({
  * precisamente o que faz o diálogo reabrir instantâneo.
  */
 export function __resetThemePickerState(): void {
-  invalidateThemeLibraryCache();
-  lastThemeId = null;
-  failedByQuote.clear();
-  importedByQuote.clear();
-  miniaturaDe.clear();
-  jobs.length = 0;
-  inFlight.clear();
-  if (overlayTeardown) {
-    clearTimeout(overlayTeardown);
-    overlayTeardown = 0;
-  }
-  overlayRoot?.unmount();
-  overlayRoot = null;
-  overlayHost?.remove();
-  overlayHost = null;
+  esquecerSeletor();
+  esquecerImportacoes();
+  desmontarPastilha();
 }

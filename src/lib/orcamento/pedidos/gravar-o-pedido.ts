@@ -1,6 +1,7 @@
 import { eur0 } from "@/lib/money";
 import { ROTULO_DO_ESTADO } from "@/lib/orcamento/estado-do-pedido";
 import type { ActivityEntry, Quote, QuoteStatus } from "@/lib/orcamento/types";
+import type { PainelEscrito } from "./painel-do-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -26,23 +27,6 @@ import type { ActivityEntry, Quote, QuoteStatus } from "@/lib/orcamento/types";
  *     local não escreve «Local: »).
  * Cada `if` abaixo é a regra que o componente já tinha, copiada sem a mudar.
  */
-
-/** O que está escrito no painel, já lido: o preço interpretado e os convidados
- *  resolvidos (o número escrito, se serve; senão o que está gravado). */
-export interface PainelEscrito {
-  estado: QuoteStatus;
-  /** `undefined` quando o campo do preço está vazio ou não se lê como número. */
-  preco: number | undefined;
-  notas: string;
-  responsavel: string;
-  motivoDePerda: string;
-  data: string;
-  convidados: number;
-  local: string;
-  nome: string;
-  email: string;
-  telefone: string;
-}
 
 /** Quem escreve as linhas, quando, e como se lhes dá um id. */
 export interface AutorDasLinhas {

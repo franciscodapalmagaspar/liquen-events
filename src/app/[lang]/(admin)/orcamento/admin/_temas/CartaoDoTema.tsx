@@ -2,15 +2,16 @@
 
 import { type Dispatch, type SetStateAction } from "react";
 import { type ThemeSummary } from "@/lib/theme-types";
-import { dataPorExtenso, desdeQuando, photoCountLabel, plural } from "@/lib/temas/textos-dos-temas";
+import { dataPorExtenso, desdeQuando, photoCountLabel } from "@/lib/temas/textos-dos-temas";
 import ImagemComPlanoB from "../ImagemComPlanoB";
 import { type PedidoDeMenu } from "../MenuDeContexto";
 import { adiantarTema } from "../prefetch-de-tema";
 import { EsqueletoDeCor, type AccaoDeItem } from "../ui";
 import { ESTADO, PRESSAO } from "../ui/movimento";
 import { FolderIcon } from "./icones";
-import { temPoucasFotos } from "./ordem-e-densidade";
-import { teclaDeMenu } from "./tecla-de-menu";
+import { temPoucasFotos } from "@/lib/temas/ordem";
+import { teclaDeMenu } from "../ui/tecla-de-menu";
+import { plural } from "@/lib/plural";
 
 /** O cartão de um tema na biblioteca: a capa, o nome, as contas e o uso, e
  *  o arrasto de fotografias para cima dele. (Saiu da lista da biblioteca na fase
@@ -19,7 +20,7 @@ export interface CartaoDoTemaProps {
   setOpenId: Dispatch<SetStateAction<string | null>>;
   usos: Record<string, number> | null;
   setMenu: Dispatch<SetStateAction<PedidoDeMenu | null>>;
-  accoesDoTema: (t: ThemeSummary, { naPasta }?: { naPasta?: boolean }) => AccaoDeItem[];
+  accoesDoTema: (t: ThemeSummary, opcoes?: { naPasta?: boolean }) => AccaoDeItem[];
   parecidos: Map<string, ThemeSummary[]>;
   t: ThemeSummary;
 }

@@ -5,6 +5,7 @@ import {
   type ProposalDoc,
 } from "@/lib/proposal-doc";
 import { dinheiroDaProposta, precosDe } from "@/lib/proposal-budget";
+import { plural } from "@/lib/plural";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -95,10 +96,6 @@ function gruposDe(doc: ProposalDoc): string[] {
 }
 
 /** "3 fotos" / "1 foto" — o plural certo, que é o que faz uma frase ser lida. */
-function plural(n: number, um: string, muitos: string): string {
-  return `${n} ${n === 1 ? um : muitos}`;
-}
-
 /** O que entrou e o que saiu entre duas listas, comparadas como conjuntos. */
 function entrouEsaiu(antes: readonly string[], depois: readonly string[]) {
   const a = new Set(antes);

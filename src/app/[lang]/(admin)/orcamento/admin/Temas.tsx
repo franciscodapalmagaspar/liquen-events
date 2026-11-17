@@ -56,17 +56,11 @@ import {
 import { vestirOArrasto } from "./_temas/arrasto";
 import { ABOVE_FOLD, Photo, objectUrl, revokeUrl } from "./_temas/FotoDaGrelha";
 import { MAX_DROP_FILES, expandDropEntries, isImageFile } from "./_temas/largar-pastas";
-import { AccaoEmBloco, mergePage, moveItem, pool, reinsertAt } from "@/lib/temas/listas-de-fotos";
-import { fraseDeEliminar, photoCountLabel, plural } from "@/lib/temas/textos-dos-temas";
-import {
-  COLUNAS,
-  Densidade,
-  Ordem,
-  contarFotosDaBiblioteca,
-  lerDensidade,
-  lerOrdem,
-  ordenarTemas,
-} from "./_temas/ordem-e-densidade";
+import { pool } from "@/lib/concorrencia";
+import { AccaoEmBloco, mergePage, moveItem, reinsertAt } from "@/lib/temas/listas-de-fotos";
+import { fraseDeEliminar, photoCountLabel } from "@/lib/temas/textos-dos-temas";
+import { Densidade, Ordem, contarFotosDaBiblioteca, ordenarTemas } from "@/lib/temas/ordem";
+import { COLUNAS, lerDensidade, lerOrdem } from "./_temas/preferencias-da-biblioteca";
 import {
   FolderIcon,
   ICONE_ABRIR,
@@ -88,10 +82,11 @@ import {
   Skipped,
   ThumbJob,
 } from "./_temas/tipos-da-pasta";
-import { teclaDeMenu } from "./_temas/tecla-de-menu";
+import { teclaDeMenu } from "./ui/tecla-de-menu";
 import { ListaDaBiblioteca } from "./_temas/ListaDaBiblioteca";
 import { NovoTema } from "./_temas/NovoTema";
 import { BarraDaBiblioteca } from "./_temas/BarraDaBiblioteca";
+import { plural } from "@/lib/plural";
 
 /**
  * Biblioteca de Temas — o sítio onde o estúdio guarda, uma vez, as fotos de

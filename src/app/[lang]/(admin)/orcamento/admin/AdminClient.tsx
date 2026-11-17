@@ -51,7 +51,7 @@ import {
 import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravacoes";
 import { onIdle } from "@/lib/onIdle";
 import { marcarSaidaDeProposito } from "./entrada-destino";
-import { parseMoney as parsePriceInput, randomId, todayKey } from "./util";
+import { randomId, todayKey } from "./util";
 import { useAnular } from "./ui/anular";
 import { useDepoisDeApagar, useDepoisDeApagarVarios } from "./ui/depois-de-apagar";
 import { reporEstadoDoPedido } from "./anular-estado";
@@ -117,16 +117,16 @@ import {
   corpoDaGravacao,
   corpoDoAnular,
   linhasDoHistorico,
-  type PainelEscrito,
 } from "@/lib/orcamento/pedidos/gravar-o-pedido";
 import { useEdicaoDoPedido } from "./_pedidos/useEdicaoDoPedido";
 import { useFiltrosDosPedidos } from "./_pedidos/useFiltrosDosPedidos";
 import { VIEW_WRAP } from "./_casca/moldura-da-vista";
 import { ACOES_DE_PEDIDOS } from "./_casca/titulos-das-vistas";
-import { STATUS_OPTIONS } from "./_pedidos/estado-do-pedido";
-import { ARQUIVAR_SEM_PERGUNTAR, LIST_PAGE_SIZE } from "./_pedidos/pele-da-lista";
+import { STATUS_OPTIONS } from "./_pedidos/pastilha-do-estado";
+import { ARQUIVAR_SEM_PERGUNTAR, LIST_PAGE_SIZE } from "@/lib/orcamento/pedidos/regras-da-lista";
 import { detailNextAction, type DetailTab } from "./_pedidos/separadores-do-painel";
 import { comPedidoAlterado, comPedidoSubstituido } from "@/lib/orcamento/pedidos/lista-de-pedidos";
+import { lerPainel } from "@/lib/orcamento/pedidos/painel-do-pedido";
 
 /** A chave da saída do painel do pedido — há um painel só, e a chave é uma. */
 const SAIDA_DO_PAINEL = "painel-do-pedido";
@@ -293,6 +293,7 @@ export default function AdminClient({
     editTelefone,
     setEditTelefone,
     preencherCom,
+    painel,
     convidadosEscritos,
     erroDeConvidados,
     motivoVaiComADecisao,
@@ -2840,22 +2841,7 @@ export default function AdminClient({
        * histórico. É assim que o email escrito na mesma gravação deixa de ser
        * arrastado abaixo por um sinal a menos.
        */
-      const escrito: PainelEscrito = {
-        estado: editStatus,
-        preco: parsePriceInput(editPrice),
-        notas: editNotes,
-        responsavel: editAssigned,
-        motivoDePerda: editLostReason,
-        data: editDate,
-        convidados:
-          convidadosEscritos.ok && convidadosEscritos.valor !== null
-            ? convidadosEscritos.valor
-            : selected.guests,
-        local: editLocation,
-        nome: editNome,
-        email: editEmail,
-        telefone: editTelefone,
-      };
+      const escrito = lerPainel(painel, convidadosEscritos, selected);
       const linhas = linhasDoHistorico(selected, escrito, {
         actor: userName,
         agora: new Date().toISOString(),

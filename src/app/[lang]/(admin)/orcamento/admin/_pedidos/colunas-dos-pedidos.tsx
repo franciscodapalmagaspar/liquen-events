@@ -10,7 +10,7 @@ import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
 import PerguntaDeDesfecho from "../PerguntaDeDesfecho";
 import type { Coluna } from "../ui";
 import { eventCountdown } from "../util";
-import { PastilhaDoEstado } from "./estado-do-pedido";
+import { PastilhaDoEstado } from "./pastilha-do-estado";
 
 /**
  * AS COLUNAS DOS PEDIDOS — a forma de computador da mesma lista.

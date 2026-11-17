@@ -5,8 +5,8 @@ import { contractedAmounts, effectiveVatRate } from "@/lib/orcamento/dossier";
 import { formatPrice } from "@/lib/orcamento/pricing";
 import { type QuoteStatus } from "@/lib/orcamento/types";
 import { EscolhaDoEstado } from "../../EscolhaDoEstado";
-import { eventCountdown, parseMoney as parsePriceInput } from "../../util";
-import { STATUS_OPTIONS } from "../estado-do-pedido";
+import { eventCountdown, parseMoney } from "../../util";
+import { STATUS_OPTIONS } from "../pastilha-do-estado";
 import { usePedidoAberto } from "./pedido-aberto";
 
 /** Os campos de trabalho do pedido: estado, preço, data, convidados,
@@ -124,7 +124,7 @@ export function CamposDoPedido({ ganhoSemProposta, escolherEstado }: CamposDoPed
              * dizia 5.934,96 €. A regra certa é a que o
              * `EventCosts` já aplica e explica.
              */
-            const escrito = parsePriceInput(editPrice);
+            const escrito = parseMoney(editPrice);
             const revenue = escrito != null ? escrito : contractedAmounts(selected).net;
             const taxa = effectiveVatRate(selected);
             const custosComIva = (selected.eventSuppliers ?? []).reduce(

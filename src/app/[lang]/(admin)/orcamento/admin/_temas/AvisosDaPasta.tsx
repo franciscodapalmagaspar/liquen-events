@@ -2,12 +2,12 @@
 
 import { type Dispatch, type SetStateAction } from "react";
 import { type ThemeCopyMode, type ThemeSummary } from "@/lib/theme-types";
-import { plural } from "@/lib/temas/textos-dos-temas";
 import { type ThemeCopyOutcome } from "../ThemeCopyDialog";
 import { Button, Card } from "../ui";
 import { PROGRESSO } from "../ui/movimento";
 import { SKIPPED_PREVIEWS, SkippedThumb } from "./FotoDaGrelha";
 import type { Failure, Skipped, ThumbJob } from "./tipos-da-pasta";
+import { plural } from "@/lib/plural";
 
 /** Os avisos da pasta: a verificar, a carregar, miniaturas em falta, o que
  *  falhou, o que já lá estava, e o que não foi levado para outro tema. (Saíram

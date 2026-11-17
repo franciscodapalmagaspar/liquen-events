@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { eur0 } from "@/lib/money";
 import type { Quote } from "@/lib/orcamento/types";
-import {
-  corpoDaGravacao,
-  corpoDoAnular,
-  linhasDoHistorico,
-  type PainelEscrito,
-} from "./gravar-o-pedido";
+import { corpoDaGravacao, corpoDoAnular, linhasDoHistorico } from "./gravar-o-pedido";
+import type { PainelEscrito } from "./painel-do-pedido";
 
 const ANTES = {
   id: "LQ-1",

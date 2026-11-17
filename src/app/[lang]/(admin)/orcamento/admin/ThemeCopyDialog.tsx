@@ -15,6 +15,7 @@ import { Button, FolhaOuDialogo } from "./ui";
    `elemento`, que é o degrau de «uma coisa a mover-se» e não de um estado a
    mudar. As três trazem `motion-safe:` — o `globals.css` não tem rede global. */
 import { ESTADO, PRESSAO, PROGRESSO } from "./ui/movimento";
+import { plural } from "@/lib/plural";
 
 /**
  * LEVAR AS FOTOS SELECIONADAS PARA OUTRO TEMA — copiar ou mover.
@@ -73,10 +74,6 @@ export interface ThemeCopyOutcome {
   thumbsMissing: number;
   /** Ela carregou em "Parar" — as que faltavam nem foram tentadas. */
   stopped: boolean;
-}
-
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
 }
 
 /** Quantas fotos tem o destino, sem mentir: `null` = pasta ilegível,

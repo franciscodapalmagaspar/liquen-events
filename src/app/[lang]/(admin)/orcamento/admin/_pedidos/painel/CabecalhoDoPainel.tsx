@@ -11,7 +11,7 @@ import { MoreMenu } from "../../MoreMenu";
 import { downloadEventIcs, printEventDossier, printRunSheet } from "../../export";
 import { Button } from "../../ui";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
-import { statusBadge } from "../estado-do-pedido";
+import { statusBadge } from "../pastilha-do-estado";
 import { usePedidoAberto } from "./pedido-aberto";
 
 /**
@@ -34,6 +34,7 @@ export function CabecalhoDoPainel({
   duplicateQuote,
 }: CabecalhoDoPainelProps) {
   const { selected, locale, toast, mostrarPedido } = usePedidoAberto();
+  const quem = quemPedeEOCasal(selected);
   return (
     <div className="sticky top-0 z-10 border-b border-[var(--bo-hairline)] bg-[var(--bo-surface)] px-3.5 pt-3.5 sm:px-7 sm:pt-5">
       <div className="flex items-start justify-between gap-4">
@@ -42,7 +43,7 @@ export function CabecalhoDoPainel({
             id="detail-drawer-title"
             ref={detailTitleRef}
             tabIndex={-1}
-            title={quemPedeEOCasal(selected).titulo}
+            title={quem.titulo}
             /* line-clamp (not truncate): a global `h1,h2,h3 {
              text-wrap: balance }` is unlayered and overrides
              Tailwind's layered `truncate`, so a long name would
@@ -50,14 +51,14 @@ export function CabecalhoDoPainel({
              Clamp to 2 lines with an ellipsis instead. */
             className="line-clamp-2 break-words font-display text-xl leading-tight text-[var(--bo-text)] focus:outline-none sm:text-2xl"
           >
-            {quemPedeEOCasal(selected).titulo}
+            {quem.titulo}
           </h2>
           {/* Quem escreveu, quando não é um dos noivos (14/10:
               «Maria Silva» em grande num pedido da Luana e do
               Afonso). Ver `quem-pede.ts`. */}
-          {quemPedeEOCasal(selected).feitoPor && (
+          {quem.feitoPor && (
             <p className="mt-0.5 text-xs text-[var(--bo-text-muted)]">
-              Pedido feito por {quemPedeEOCasal(selected).feitoPor}
+              Pedido feito por {quem.feitoPor}
             </p>
           )}
           <div className="mt-1.5 flex flex-wrap items-center gap-2.5">

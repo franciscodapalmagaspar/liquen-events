@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { lerNumero } from "@/lib/numero-escrito";
 import { oQueFaltaGravar } from "@/lib/orcamento/pedidos/o-que-falta-gravar";
+import type { PainelDoPedido } from "@/lib/orcamento/pedidos/painel-do-pedido";
 import { textoDoPreco } from "@/lib/orcamento/pedidos/textos-do-pedido";
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
 import { parseMoney } from "../util";
@@ -104,11 +105,9 @@ export function useEdicaoDoPedido(aberto: Quote | null) {
   });
   const erroDeConvidados = convidadosEscritos.ok ? null : convidadosEscritos.porque;
 
-  const {
-    motivoVaiComADecisao,
-    porConfirmar: alteracoesPorConfirmar,
-    porEscrever: escritoPorGravar,
-  } = oQueFaltaGravar(aberto, {
+  /** Os onze campos como estão no painel — a forma única, montada AQUI e
+   *  em mais lado nenhum (`lib/orcamento/pedidos/painel-do-pedido.ts`). */
+  const painel: PainelDoPedido = {
     estado: editStatus,
     preco: parseMoney(editPrice),
     notas: editNotes,
@@ -120,7 +119,13 @@ export function useEdicaoDoPedido(aberto: Quote | null) {
     nome: editNome,
     email: editEmail,
     telefone: editTelefone,
-  });
+  };
+
+  const {
+    motivoVaiComADecisao,
+    porConfirmar: alteracoesPorConfirmar,
+    porEscrever: escritoPorGravar,
+  } = oQueFaltaGravar(aberto, painel);
 
   return {
     editPrice,
@@ -146,6 +151,7 @@ export function useEdicaoDoPedido(aberto: Quote | null) {
     editTelefone,
     setEditTelefone,
     preencherCom,
+    painel,
     convidadosEscritos,
     erroDeConvidados,
     motivoVaiComADecisao,
