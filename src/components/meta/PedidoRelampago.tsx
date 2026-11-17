@@ -19,6 +19,7 @@ import {
 import { BOTAO_APPLE, CAMPO_APPLE, ROTULO_APPLE } from "@/lib/formulario-apple";
 import NotaDeProtecaoDeDados from "@/components/NotaDeProtecaoDeDados";
 import { useSeloDoFormulario } from "@/lib/anti-spam/useSeloDoFormulario";
+import { useJaHidratado } from "@/lib/useJaHidratado";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -175,6 +176,9 @@ export default function PedidoRelampago({
   // A armadilha de tempo do anti-spam: o selo de quando o formulário abriu.
   const seloParaEnviar = useSeloDoFormulario();
   const [aEnviar, setAEnviar] = useState(false);
+  // Desligado até hidratar: antes disso, «Enviar» seguia o GET nativo com os
+  // dados no endereço (`useJaHidratado.ts`).
+  const vivo = useJaHidratado();
   // A MENSAGEM a mostrar, e já não um código de erro. O 400 da rota diz o que
   // está mal («Email inválido», «Nome demasiado curto») e isso deitava-se fora:
   // quem escrevia um email sem TLD lia «Não foi possível enviar» e voltava a
@@ -538,7 +542,7 @@ export default function PedidoRelampago({
         </p>
       )}
 
-      <button type="submit" disabled={aEnviar} className={`${BOTAO_APPLE} mt-7 w-full`}>
+      <button type="submit" disabled={aEnviar || !vivo} className={`${BOTAO_APPLE} mt-7 w-full`}>
         {aEnviar ? textos.aSubmeter : textos.submeter}
       </button>
 

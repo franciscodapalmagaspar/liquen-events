@@ -10,6 +10,7 @@ import { clearSubmissionId, ensureSubmissionId } from "@/lib/orcamento/submissio
 import CampoTelefone from "@/components/CampoTelefone";
 import NotaDeProtecaoDeDados from "@/components/NotaDeProtecaoDeDados";
 import { useSeloDoFormulario } from "@/lib/anti-spam/useSeloDoFormulario";
+import { useJaHidratado } from "@/lib/useJaHidratado";
 import { carregarTelefones } from "@/lib/telefone-no-browser";
 import {
   BOTAO_APPLE,
@@ -168,6 +169,9 @@ export default function PedidoRapido({
   // A armadilha de tempo do anti-spam: o selo de quando o formulário abriu.
   const seloParaEnviar = useSeloDoFormulario();
   const [aEnviar, setAEnviar] = useState(false);
+  // Desligado até hidratar: antes disso, «Enviar» seguia o GET nativo com os
+  // dados no endereço (`useJaHidratado.ts`).
+  const vivo = useJaHidratado();
   // A MENSAGEM do erro, e já não um sim/não. O 400 da rota diz o que está mal
   // («Email inválido», «Nome demasiado curto») e era isso que se deitava fora:
   // quem escrevia o email sem TLD via «Não foi possível enviar» e voltava a
@@ -467,7 +471,7 @@ export default function PedidoRapido({
         </p>
       )}
 
-      <button type="submit" disabled={aEnviar} className={`${BOTAO_APPLE} mt-6 w-full`}>
+      <button type="submit" disabled={aEnviar || !vivo} className={`${BOTAO_APPLE} mt-6 w-full`}>
         {aEnviar ? textos.aSubmeter : textos.submeter}
       </button>
 

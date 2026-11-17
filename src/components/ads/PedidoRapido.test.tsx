@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderToString } from "react-dom/server";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import PedidoRapido, { TEXTOS_PT } from "./PedidoRapido";
 
@@ -97,6 +98,25 @@ describe("PedidoRapido — o erro que se lê", () => {
     const aviso = await screen.findByRole("alert");
     expect(aviso).toHaveTextContent(TEXTOS_PT.erro);
     expect(aviso).not.toHaveTextContent(/abort/i);
+  });
+});
+
+describe("PedidoRapido — um envio antes de a página ganhar vida", () => {
+  // Medido num browser a 17/11 (verificação do legal): a tocar «Enviar» antes
+  // da hidratação, o formulário seguia o caminho nativo, que é um GET — e o
+  // nome, a data e o contacto iam parar ao ENDEREÇO (`/s/comporta?nome=…&
+  // contacto=…`), ao histórico do browser e aos registos do servidor. O botão
+  // vem desligado no HTML do servidor e liga-se ao hidratar (`useJaHidratado`).
+  it("no HTML do servidor o «Enviar» vem desligado", () => {
+    const html = renderToString(
+      <PedidoRapido locale="pt" textos={TEXTOS_PT} contexto="polo:alentejo" />,
+    );
+    expect(html).toMatch(/<button type="submit" disabled=""/);
+  });
+
+  it("depois de hidratar o «Enviar» está ligado", () => {
+    const { container } = montar();
+    expect(container.querySelector('button[type="submit"]')).not.toBeDisabled();
   });
 });
 
