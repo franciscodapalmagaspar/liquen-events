@@ -61,7 +61,7 @@
   "src/app/[lang]/(admin)/orcamento/admin/Tarefas.tsx": 2387,
   "src/app/[lang]/(admin)/orcamento/admin/Temas.tsx": 3997,
   "src/app/[lang]/(admin)/orcamento/admin/ThemeCopyDialog.tsx": 452,
-  "src/app/[lang]/(admin)/orcamento/admin/ThemePicker.tsx": 2461,
+  "src/app/[lang]/(admin)/orcamento/admin/ThemePicker.tsx": 1941,
   "src/app/[lang]/(admin)/orcamento/admin/Toast.tsx": 837,
   "src/app/[lang]/(admin)/orcamento/admin/Versoes.tsx": 494,
   "src/app/[lang]/(admin)/orcamento/admin/VistasDeHoras.tsx": 691,
