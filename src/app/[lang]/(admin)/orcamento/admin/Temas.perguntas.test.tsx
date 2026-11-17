@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { fonteDe } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -42,12 +42,17 @@ import { readFileSync } from "node:fs";
  * próprio, não uma substituição.
  */
 
-const FONTE = readFileSync("src/app/[lang]/(admin)/orcamento/admin/Temas.tsx", "utf8");
+const FONTE = fonteDe("Temas.tsx", semComentarios);
 
 /** Comentários fora: as palavras que se procuram vivem nos comentários. */
 function semComentarios(fonte: string): string {
   const vazio = (m: string) => m.replace(/[^\n]/g, "");
+  // Uma string com «/*» dentro (o `accept="image/*,…"` do campo de ficheiros)
+  // abria um «comentário» que só fechava no `*/` seguinte — e desde que a pasta
+  // se partiu (fase 8) esse `*/` mudou de casa e o resto do ficheiro sumia.
+  // As strings de uma linha que trazem «/*» esvaziam-se primeiro.
   return fonte
+    .replace(/"[^"\n]*\/\*[^"\n]*"/g, '""')
     .replace(/\{\/\*[\s\S]*?\*\/\}/g, vazio)
     .replace(/\/\*[\s\S]*?\*\//g, vazio)
     .replace(/^[^\S\n]*\/\/.*$/gm, "");

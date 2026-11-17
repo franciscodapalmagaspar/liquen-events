@@ -242,7 +242,7 @@ describe("a escada da tinta do back office", () => {
       "ProductionPlan.tsx", // ícone com `sem-rato:`
       "Tarefas.tsx", // ícone com `sem-rato:` (×2)
       "Fornecedores.tsx", // ícone com `sem-rato:` (×3)
-      "AdminClient.tsx", // lupa do campo de procura
+      "ControlosDaLista.tsx", // lupa do campo de procura (veio do `AdminClient.tsx`)
     ];
     const padrao = /\btext-foreground\/(\[[0-9.]+\]|[0-9]+)/g;
     const novos: string[] = [];

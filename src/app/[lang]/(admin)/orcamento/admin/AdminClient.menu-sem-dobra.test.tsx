@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { readFileSync } from "node:fs";
 import type { Quote } from "@/lib/orcamento/types";
 import { ToastProvider } from "./Toast";
 import AdminClient from "./AdminClient";
 import { CORE_NAV, MORE_NAV, NAV } from "./nav";
+import { fonteDe } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -77,7 +77,7 @@ vi.mock("next/image", () => ({
   ),
 }));
 
-const FONTE = readFileSync("src/app/[lang]/(admin)/orcamento/admin/AdminClient.tsx", "utf8");
+const FONTE = fonteDe("AdminClient.tsx");
 
 /** Comentários fora: a prosa desta casa cita o que foi apagado, de propósito. */
 function semComentarios(fonte: string): string {

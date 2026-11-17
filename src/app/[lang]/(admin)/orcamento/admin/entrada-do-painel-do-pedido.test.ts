@@ -37,7 +37,6 @@ import { fonteDoAdmin } from "./fonte-do-admin.testkit";
  * `AdminClient.saida-da-gaveta.test.tsx`.
  */
 
-const RAIZ = "src/app/[lang]/(admin)/orcamento/admin/";
 // O `AdminClient.tsx` e as casas para onde ele se partiu (ver o testkit).
 const FONTE = fonteDoAdmin();
 // O CSS do back office escrito à mão saiu do `globals.css` (que vai embutido em
@@ -259,7 +258,12 @@ describe("2 · os dois «mais campos» do painel", () => {
      * desta casa e que ninguém escolheu. A `SETA_DA_GAVETA` traz-lha, e traz a
      * mesma a todas as setas do back office.
      */
-    expect(CODIGO.match(/SETA_DA_GAVETA/g)?.length).toBe(3); // o import e as duas setas
+    // As duas setas, fora das importações (desde a fase 7 da estrutura do
+    // código as duas gavetas vivem em ficheiros diferentes, e cada um importa).
+    const usosDaPeca = CODIGO.split("\n").filter(
+      (l) => l.includes("SETA_DA_GAVETA") && !/^\s*(import\b|SETA_DA_GAVETA,$)/.test(l),
+    );
+    expect(usosDaPeca.length).toBe(2);
     const rodam = CODIGO.match(/group-open:rotate/g)?.length ?? 0;
     expect(rodam, "uma seta a rodar sem a peça").toBe(2);
     // E a guarda é sobre a LISTA DE CLASSES da seta, não sobre o ficheiro: há
@@ -340,7 +344,10 @@ describe("4 · o lote do «Mostrar mais»", () => {
   it("e a lista continua SEM `key` — um `key` remonta e perde o rolo", () => {
     const i = CODIGO.indexOf("<TabelaOuCartoes");
     expect(i, "a lista de Pedidos mudou de componente").toBeGreaterThan(-1);
-    const chamada = CODIGO.slice(i, CODIGO.indexOf("\n                  />", i));
+    // Até ao primeiro «/>» ao nível da chamada (a indentação mudou quando a
+    // lista saiu para `_pedidos/ListaDosPedidos.tsx`, na fase 7).
+    const fim = CODIGO.slice(i).search(/\n\s*\/>/);
+    const chamada = CODIGO.slice(i, i + fim);
     expect(chamada, "o instrumento não apanhou a chamada inteira").toContain('legenda="Pedidos"');
     expect(chamada, "a lista de Pedidos ganhou um `key`").not.toMatch(/\bkey=/);
   });

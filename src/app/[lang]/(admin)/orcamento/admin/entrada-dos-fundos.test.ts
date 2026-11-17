@@ -95,7 +95,9 @@ describe("o fundo vem com a caixa que ele traz", () => {
   it("o instrumento encontra mesmo os véus que existem", () => {
     const todos = veusEscuros();
     expect(todos.length, "véus escuros no back office").toBeGreaterThanOrEqual(7);
-    expect(todos.some((v) => v.ficheiro.endsWith("AdminClient.tsx"))).toBe(true);
+    // O véu do painel do pedido continua no `AdminClient.tsx`; o da gaveta do
+    // menu mudou-se para `_casca/MenuLateral.tsx` na fase 7 da estrutura do código.
+    expect(todos.some((v) => v.ficheiro.endsWith("MenuLateral.tsx"))).toBe(true);
     expect(todos.some((v) => v.ficheiro.endsWith("FolhaOuDialogo.tsx"))).toBe(true);
   });
 

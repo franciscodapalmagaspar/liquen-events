@@ -85,40 +85,101 @@ interface Vez {
   relogio: ReturnType<typeof setTimeout> | null;
 }
 
-const aEsperar: Vez[] = [];
-/** As que estão mesmo a descarregar. Um conjunto e não um contador: é dele que
- *  sai o `size` (nunca pode ficar negativo) e são deles os relógios a desarmar. */
-const emVoo = new Set<Vez>();
-
-function largarVez(vez: Vez): void {
-  if (vez.largada) return;
-  vez.largada = true;
-  if (vez.relogio !== null) {
-    clearTimeout(vez.relogio);
-    vez.relogio = null;
-  }
-  if (vez.arrancou) {
-    emVoo.delete(vez);
-    despachar();
-    return;
-  }
-  const i = aEsperar.indexOf(vez);
-  if (i >= 0) aEsperar.splice(i, 1);
+/** Uma fila: pede-se vez, e larga-se a vez com a função que o pedido devolve. */
+export interface FilaDeImagens {
+  /**
+   * Pede vez para descarregar um original. Devolve a função de LARGAR a vez —
+   * serve para os dois casos (acabou / desistiu) e é idempotente, porque a
+   * desmontagem de uma célula e o `onLoad` da sua imagem chegam os dois.
+   */
+  pedirVez: (arrancar: () => void) => () => void;
+  /** Só para os testes: a fila é de módulo e sobrevive entre casos. */
+  limpar: () => void;
 }
 
-function despachar() {
-  while (emVoo.size < LIMITE_DE_PESADAS && aEsperar.length > 0) {
-    const vez = aEsperar.shift();
-    if (!vez || vez.largada) continue;
-    vez.arrancou = true;
-    emVoo.add(vez);
-    // O relógio arranca AQUI, e é este o ponto inteiro deste módulo: a partir
-    // de agora conta tempo de DOWNLOAD. Antes disto a célula estava em fila, e
-    // estar em fila não é estar a falhar.
-    vez.relogio = setTimeout(() => largarVez(vez), ESPERA_MAXIMA_MS);
-    vez.arrancar();
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * UMA FILA, COM O SEU TECTO — O MESMO CÓDIGO PARA AS TRÊS GRELHAS
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Havia três cópias deste mecanismo: esta, a da Biblioteca de Temas
+ * (`Temas.tsx`) e a do seletor de temas do estúdio (`ThemePicker.tsx`). As duas
+ * de lá eram o desenho original, copiado à mão. Passam a ser instâncias desta
+ * fábrica (fase 8 de `docs/ESTRUTURA-DO-CODIGO.md`) — **cada uma com o SEU
+ * tecto de 3, exactamente como antes**. Juntar as três numa só fila mudaria
+ * quantos originais se descarregam ao mesmo tempo no separador (hoje até 9, aí
+ * 3): é uma mudança de comportamento, e espera pela aprovação dela. Quando vier,
+ * é trocar as duas instâncias por `pedirVezDeImagemPesada`.
+ *
+ * `esperaMaximaMs`: o relógio armado na concessão da vaga (ver acima). As duas
+ * cópias antigas não o tinham — armavam o seu de 30 s do lado da célula — e
+ * continuam assim (`null`), para não mudar nada.
+ */
+export function criarFilaDeImagens({
+  limite,
+  esperaMaximaMs,
+}: {
+  limite: number;
+  esperaMaximaMs: number | null;
+}): FilaDeImagens {
+  const aEsperar: Vez[] = [];
+  /** As que estão mesmo a descarregar. Um conjunto e não um contador: é dele
+   *  que sai o `size` (nunca pode ficar negativo) e são deles os relógios a
+   *  desarmar. */
+  const emVoo = new Set<Vez>();
+
+  function largarVez(vez: Vez): void {
+    if (vez.largada) return;
+    vez.largada = true;
+    if (vez.relogio !== null) {
+      clearTimeout(vez.relogio);
+      vez.relogio = null;
+    }
+    if (vez.arrancou) {
+      emVoo.delete(vez);
+      despachar();
+      return;
+    }
+    const i = aEsperar.indexOf(vez);
+    if (i >= 0) aEsperar.splice(i, 1);
   }
+
+  function despachar() {
+    while (emVoo.size < limite && aEsperar.length > 0) {
+      const vez = aEsperar.shift();
+      if (!vez || vez.largada) continue;
+      vez.arrancou = true;
+      emVoo.add(vez);
+      // O relógio arranca AQUI, e é este o ponto inteiro deste módulo: a partir
+      // de agora conta tempo de DOWNLOAD. Antes disto a célula estava em fila,
+      // e estar em fila não é estar a falhar.
+      if (esperaMaximaMs !== null) {
+        vez.relogio = setTimeout(() => largarVez(vez), esperaMaximaMs);
+      }
+      vez.arrancar();
+    }
+  }
+
+  return {
+    pedirVez(arrancar) {
+      const vez: Vez = { arrancar, arrancou: false, largada: false, relogio: null };
+      aEsperar.push(vez);
+      despachar();
+      return () => largarVez(vez);
+    },
+    limpar() {
+      for (const vez of emVoo) if (vez.relogio !== null) clearTimeout(vez.relogio);
+      aEsperar.length = 0;
+      emVoo.clear();
+    },
+  };
 }
+
+/** A fila do estúdio de propostas (a partilhada), com o relógio de 60 s. */
+const FILA_PARTILHADA = criarFilaDeImagens({
+  limite: LIMITE_DE_PESADAS,
+  esperaMaximaMs: ESPERA_MAXIMA_MS,
+});
 
 /**
  * Pede vez para descarregar um original. Devolve a função de LARGAR a vez —
@@ -126,15 +187,10 @@ function despachar() {
  * desmontagem de uma célula e o `onLoad` da sua imagem chegam os dois.
  */
 export function pedirVezDeImagemPesada(arrancar: () => void): () => void {
-  const vez: Vez = { arrancar, arrancou: false, largada: false, relogio: null };
-  aEsperar.push(vez);
-  despachar();
-  return () => largarVez(vez);
+  return FILA_PARTILHADA.pedirVez(arrancar);
 }
 
 /** Só para os testes: a fila é de módulo e sobrevive entre casos. */
 export function limparFilaDeImagens(): void {
-  for (const vez of emVoo) if (vez.relogio !== null) clearTimeout(vez.relogio);
-  aEsperar.length = 0;
-  emVoo.clear();
+  FILA_PARTILHADA.limpar();
 }

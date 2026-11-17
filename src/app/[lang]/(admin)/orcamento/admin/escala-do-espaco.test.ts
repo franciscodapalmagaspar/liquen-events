@@ -124,8 +124,9 @@ describe("a escala do espaço do back office", () => {
 
 describe("quem precisa da medida lê o token", () => {
   it("o invólucro de todas as vistas", () => {
-    const admin = ler("AdminClient.tsx");
-    expect(admin).toMatch(/const VIEW_WRAP =[\s\S]{0,200}py-\[var\(--bo-p-vista\)\]/);
+    // A moldura das vistas saiu do `AdminClient.tsx` para `_casca/` (fase 7).
+    const moldura = ler("_casca/moldura-da-vista.ts");
+    expect(moldura).toMatch(/const VIEW_WRAP =[\s\S]{0,200}py-\[var\(--bo-p-vista\)\]/);
   });
 
   it("o cartão, que é o degrau que apanha quinze ecrãs de uma vez", () => {

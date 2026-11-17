@@ -7,18 +7,15 @@ import type { ThemeCopyMode, ThemeImage, ThemeSummary } from "@/lib/theme-types"
 import PhotoLightbox from "./PhotoLightbox";
 import ThemeCopyDialog, { type ThemeCopyOutcome } from "./ThemeCopyDialog";
 import FundirTemas, { type ThemeMergeOutcome } from "./FundirTemas";
-import { avisoDeTemaParecido, temasParecidos } from "@/lib/temas-parecidos";
+import { temasParecidos } from "@/lib/temas-parecidos";
 import { downloadMany, downloadName } from "./photo-download";
 import { guardarBlob, useDescarga } from "./ui/descarregar";
 import {
   CHECK_CHUNK,
   MAX_PHOTO_ORDER,
-  MAX_THEME_NAME,
-  MAX_THEME_NOTES,
   THEME_COPY_CHUNK,
   THEME_PAGE_SIZE,
   normalizedThemeName,
-  type SkipReason,
   type ThemeDuplicate,
 } from "@/lib/theme-types";
 import { fingerprintBlob } from "@/lib/theme-fingerprint";
@@ -27,29 +24,13 @@ import { useToast } from "./Toast";
 import { useAnular } from "./ui/anular";
 import { useDepoisDeApagar, useDepoisDeApagarVarios } from "./ui/depois-de-apagar";
 import { prepareImageWithThumb } from "./image-prep";
-import {
-  Button,
-  Card,
-  EmCurso,
-  EmptyState,
-  Field,
-  MenuDeAccoes,
-  emGrupos,
-  PerguntaDestrutiva,
-  Toolbar,
-  type AccaoDeItem,
-  Escolha,
-  EsqueletoDeCor,
-  Glass,
-} from "./ui";
+import { Button, Card, EmptyState, emGrupos, PerguntaDestrutiva, type AccaoDeItem } from "./ui";
 import { esquecerBiblioteca } from "./theme-picker-cache";
 import BibliotecaRevisao from "./BibliotecaRevisao";
-import ImagemComPlanoB from "./ImagemComPlanoB";
 import { capaDaFoto, comCapa, type CapaDoCartao } from "./capa-do-cartao";
-import { ESTADO, PRESSAO, PROGRESSO } from "./ui/movimento";
+import { ESTADO, PRESSAO } from "./ui/movimento";
 import { useSaidaDeUmSo } from "./ui/saida";
-import { adiantarTema, paginaDaResposta, usarAdiantada } from "./prefetch-de-tema";
-import { SugestaoDeNome } from "./SugestaoDeNome";
+import { paginaDaResposta, usarAdiantada } from "./prefetch-de-tema";
 import { NomesPorArrumar } from "./NomesPorArrumar";
 import { MenuDeContexto, type PedidoDeMenu } from "./MenuDeContexto";
 import {
@@ -72,6 +53,55 @@ import {
   fraseDoRegresso,
   type CargaDeFotos,
 } from "@/lib/temas-arrasto";
+import { vestirOArrasto } from "./_temas/arrasto";
+import { ABOVE_FOLD, Photo, objectUrl, revokeUrl } from "./_temas/FotoDaGrelha";
+import { MAX_DROP_FILES, expandDropEntries, isImageFile } from "./_temas/largar-pastas";
+import {
+  AccaoEmBloco,
+  mergePage,
+  moveItem,
+  pool,
+  reinsertAt,
+} from "../../../../../lib/temas/listas-de-fotos";
+import {
+  fraseDeEliminar,
+  photoCountLabel,
+  plural,
+} from "../../../../../lib/temas/textos-dos-temas";
+import {
+  COLUNAS,
+  Densidade,
+  Ordem,
+  contarFotosDaBiblioteca,
+  lerDensidade,
+  lerOrdem,
+  ordenarTemas,
+} from "./_temas/ordem-e-densidade";
+import {
+  FolderIcon,
+  ICONE_ABRIR,
+  ICONE_ADICIONAR,
+  ICONE_CAPA,
+  ICONE_RENOMEAR,
+} from "./_temas/icones";
+import { GrelhaDaPasta } from "./_temas/GrelhaDaPasta";
+import { BarraDaSeleccaoDaPasta } from "./_temas/BarraDaSeleccaoDaPasta";
+import { AvisosDaPasta } from "./_temas/AvisosDaPasta";
+import { CabecalhoDaPasta } from "./_temas/CabecalhoDaPasta";
+import {
+  Ahead,
+  Failure,
+  FolderState,
+  PedidoAPasta,
+  Pending,
+  Screening,
+  Skipped,
+  ThumbJob,
+} from "./_temas/tipos-da-pasta";
+import { teclaDeMenu } from "./_temas/tecla-de-menu";
+import { ListaDaBiblioteca } from "./_temas/ListaDaBiblioteca";
+import { NovoTema } from "./_temas/NovoTema";
+import { BarraDaBiblioteca } from "./_temas/BarraDaBiblioteca";
 
 /**
  * Biblioteca de Temas — o sítio onde o estúdio guarda, uma vez, as fotos de
@@ -128,772 +158,7 @@ const DELETE_CONCURRENCY = 6;
  */
 const FINGERPRINT_CONCURRENCY = 4;
 
-/** Quantas fotos saltadas mostram miniatura no relatório. As restantes
- *  aparecem só pelo nome: desenhar 150 pré-visualizações de fotos que NÃO
- *  foram adicionadas custaria mais do que a informação vale. */
-const SKIPPED_PREVIEWS = 12;
-
-/**
- * QUANTOS ORIGINAIS A GRELHA DESCARREGA AO MESMO TEMPO — o número que decide
- * se a primeira foto aparece a 1 segundo ou aos 26.
- *
- * Isto só se aplica às fotos SEM miniatura (a biblioteca anterior às
- * miniaturas). Uma célula dessas puxa o original: ~2,6 MB para desenhar 150 px.
- *
- * Medido em Chromium, HTTP/2 (é o que o Storage fala), 60 fotos, 50 Mbit/s
- * partilhados, TTFB de 60 ms — mediana de 2 corridas:
- *
- *   como estava (60 pedidos ao mesmo tempo) → 1ª foto aos 26 351 ms
- *   tecto de 6 em voo                       → 1ª foto aos  2 634 ms
- *   tecto de 3 em voo                       → 1ª foto aos  1 405 ms
- *   tecto de 2 em voo                       → 1ª foto aos    928 ms
- *
- * A última foto chega ao mesmo tempo em todos (~26 s): o canal está cheio de
- * qualquer maneira. O que muda é a ORDEM — sem tecto, os 60 downloads
- * repartem o canal e acabam todos no fim, ou seja, a foto que está no ecrã
- * espera pelas 59 que não estão.
- *
- * Três e não dois: a mesma medição a 300 Mbit/s (fibra) mostra que um tecto de
- * 2 deixa de encher o canal — a última foto passa de 5316 ms (como estava)
- * para 5389 ms, enquanto com 3 fica em 4936 ms. Com 3, a primeira foto aparece
- * aos 297 ms a 300 Mbit/s e aos 1405 ms a 50 Mbit/s, e a última NUNCA chega
- * depois do que chegava.
- *
- * As fotos COM miniatura não passam por aqui: são ~25 KB e medir mostrou que
- * pôr-lhes um tecto PIORA (60 × 25 KB em ondas de 6 = 1019 ms contra 350 ms
- * sem tecto). O que é caro é o byte, não o pedido.
- */
-const HEAVY_IMAGE_CONCURRENCY = 3;
-
-/** Quantas células entram na primeira dobra — carregam já, e com prioridade.
- *  Doze cobre duas linhas em ecrã largo (a grelha faz 6 colunas). */
-const ABOVE_FOLD = 12;
-
-/** Teto de ficheiros aceites de uma pasta largada — trava um engano
- *  ("larguei a pasta Fotos toda") antes de ele encher a memória do browser. */
-const MAX_DROP_FILES = 5000;
-
-/** Teto de entradas percorridas ao expandir pastas largadas (anel de segurança
- *  contra árvores patológicas / atalhos circulares). */
-const MAX_DROP_ENTRIES = 20_000;
-
-const PlusIcon = (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    aria-hidden="true"
-  >
-    <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-  </svg>
-);
-
-const FolderIcon = (
-  <svg
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.4"
-    aria-hidden="true"
-  >
-    <path
-      d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-      strokeLinejoin="round"
-    />
-    <circle cx="9.5" cy="12.5" r="1.5" />
-    <path d="m6 17 3.5-3 3 2.5L16 13l3 4" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-/* ── OS ÍCONES DO MENU DO TEMA ───────────────────────────────────────────
-   «Dentro de um grupo, ou todos têm ícone ou nenhum tem» (Parte 9.7). O menu
-   já os tinha todos; os quatro itens novos da Fase 2 vêm no mesmo traço
-   (15 px, 1,7) para os grupos não ficarem mistos. */
-const svgDoMenu = (filhos: React.ReactNode) => (
-  <svg
-    width="15"
-    height="15"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.7"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    {filhos}
-  </svg>
-);
-const ICONE_ABRIR = svgDoMenu(
-  <>
-    <path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v3" />
-    <path d="M13 19h7m0 0-3-3m3 3-3 3" />
-    <path d="M20 14v-1M4 6v10a2 2 0 0 0 2 2h4" />
-  </>,
-);
-/** Uma fotografia com um «+». */
-const ICONE_ADICIONAR = svgDoMenu(
-  <>
-    <path d="M13 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" />
-    <path d="m4 16 4.5-4 3.5 3 2.5-2 5.5 4.5" />
-    <path d="M19 2v6M16 5h6" />
-  </>,
-);
-/** Um lápis. */
-const ICONE_RENOMEAR = svgDoMenu(
-  <>
-    <path d="M14.5 5.5 18.5 9.5" />
-    <path d="M4 20l1-4.5L16 4.5a2.1 2.1 0 0 1 3 0l.5.5a2.1 2.1 0 0 1 0 3L8.5 19 4 20Z" />
-  </>,
-);
-/** Uma fotografia com a estrela da capa. */
-const ICONE_CAPA = svgDoMenu(
-  <>
-    <rect x="3.5" y="5" width="17" height="14" rx="2" />
-    <path d="m12 8.6 1.1 2.2 2.4.3-1.8 1.7.5 2.4-2.2-1.2-2.2 1.2.5-2.4-1.8-1.7 2.4-.3Z" />
-  </>,
-);
-
-/**
- * O que a pergunta de eliminar um tema diz, com os números.
- *
- * As FOTOGRAFIAS: a contagem pode ser desconhecida (pasta ilegível —
- * `imageCount === null`), um mínimo (`truncated`, «500+») ou zero (a pasta
- * está vazia), e as três versões têm de fazer sentido.
- *
- * As PROPOSTAS: `propostas` é o número que o cartão mostra (`usos`, sem os
- * rascunhos). Com zero não há nada a dizer; sem número (a contagem ainda não
- * chegou, ou falhou) fica a frase de antes, que continua verdadeira: ao
- * eliminar, o servidor copia para cada proposta as fotos que ela usa
- * (`theme-materializar.ts`), e é por isso que elas não mudam.
- */
-export function fraseDeEliminar(
-  t: Pick<ThemeSummary, "imageCount" | "truncated">,
-  propostas: number | null,
-): { fotos: string; propostas: string | null } {
-  const n = t.imageCount;
-  const fotos =
-    t.imageCount === null
-      ? "As fotografias que estiverem lá dentro vão com ele."
-      : n === 0
-        ? "A pasta está vazia: não leva nenhuma fotografia."
-        : n === 1 && !t.truncated
-          ? "Leva 1 fotografia com ele."
-          : `Leva ${n}${t.truncated ? "+" : ""} fotografias com ele.`;
-  const frasePropostas =
-    propostas === null
-      ? "As propostas já feitas com estas fotos não são afectadas."
-      : propostas === 0
-        ? null
-        : propostas === 1
-          ? "Está em 1 proposta — essa guarda as fotos que usa e não muda."
-          : `Está em ${propostas} propostas — essas guardam as fotos que usam e não mudam.`;
-  return { fotos, propostas: frasePropostas };
-}
-
-/** A tecla que pede o menu de contexto: a tecla de menu, ou Shift+F10. */
-function teclaDeMenu(e: React.KeyboardEvent): boolean {
-  return e.key === "ContextMenu" || (e.shiftKey && e.key === "F10");
-}
-
-/** Um pedido do menu do tema que só a PASTA sabe servir — ver `pedirAPasta`. */
-interface PedidoAPasta {
-  temaId: string;
-  accao: "adicionar" | "renomear" | "capa";
-}
-
-const SearchIcon = (
-  <svg
-    className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/25"
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    aria-hidden="true"
-  >
-    <circle cx="11" cy="11" r="7" />
-    <path d="m21 21-4.3-4.3" strokeLinecap="round" />
-  </svg>
-);
-
 /** "1 foto" / "7 fotos" — o plural aparece em meia dúzia de frases. */
-/** Por que ordem os temas aparecem. */
-export type Ordem = "alfabetica" | "recentes" | "fotos" | "mais-usados" | "menos-usados";
-
-/**
- * ── OS NOMES DIZEM O CRITÉRIO, E NÃO A DIRECÇÃO ────────────────────────────
- *
- * «A–Z» e «Recentes» eram o que estava. O `docs/APPLE-TEMAS.md` (Parte 6) pede
- * «Ordenar: Nome», com «Nome · Mais recentes · Mais usados · Menos usados» — a
- * lista escreve-se com o critério à frente, para o controlo dizer por que
- * ordem a grelha está sem ser preciso adivinhar o que «A–Z» quer dizer numa
- * biblioteca com acentos.
- *
- * «Com mais fotos» fica, e não é um quinto por gosto: já cá estava, é o que
- * responde a «qual é o tema que dá para montar um mood board hoje», e tirá-lo
- * seria desfazer trabalho para chegar ao número quatro do documento.
- *
- * As duas do USO só se OFERECEM quando a contagem de propostas chegou (vem
- * noutro pedido, ver `usos`) — e se a preferência guardada for uma delas antes
- * de ela chegar, a `ordenarTemas` cai no nome, que é a ordem de repouso.
- */
-export const ORDENS: readonly { valor: Ordem; rotulo: string }[] = [
-  { valor: "alfabetica", rotulo: "Nome" },
-  { valor: "recentes", rotulo: "Mais recentes" },
-  { valor: "fotos", rotulo: "Com mais fotos" },
-  { valor: "mais-usados", rotulo: "Mais usados" },
-  { valor: "menos-usados", rotulo: "Menos usados" },
-];
-
-/** As ordens que precisam da contagem de propostas para significarem alguma
- *  coisa. Sem ela não se mostram — ver `ORDENS`. */
-export const ORDENS_DE_USO: readonly Ordem[] = ["mais-usados", "menos-usados"];
-
-/** O que o «⋯» da barra de topo governa, para o rótulo acessível — «Acções de
- *  Biblioteca de Temas». Sem isto ele chamava-se «Acções» como os dos cartões,
- *  e numa grelha de 28 haveria 29 botões com o mesmo nome. */
-const MENU_DA_BIBLIOTECA = "Biblioteca de Temas";
-
-const ORDEM_KEY = "liquen-temas-ordem";
-
-export function lerOrdem(): Ordem | null {
-  try {
-    const v = window.localStorage.getItem(ORDEM_KEY);
-    return ORDENS.some((o) => o.valor === v) ? (v as Ordem) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function guardarOrdem(o: Ordem): void {
-  try {
-    window.localStorage.setItem(ORDEM_KEY, o);
-  } catch {
-    // Ver `guardarDensidade`.
-  }
-}
-
-/**
- * Ordena os temas — puro, para se poder testar sem desenhar nada.
- *
- * OS FAVORITOS VÊM SEMPRE À FRENTE, seja qual for a ordem escolhida. É o que
- * fixar significa: um tema que se usa em quase todas as propostas não pode
- * andar a mudar de sítio porque se ordenou por data. Dentro de cada grupo é
- * que a ordem escolhida manda.
- *
- * Uma pasta ilegível (`imageCount: null`) fica no fim de "com mais fotos", em
- * vez de valer zero e passar à frente de um tema com uma foto — não sabemos
- * quantas tem, e adivinhar para baixo seria esconder o tema.
- *
- * `usos` é a contagem de propostas por tema, e chega depois dos cartões. Sem
- * ela, as duas ordens do USO não têm por onde ordenar e a lista fica pelo nome
- * — a ordem de repouso desta biblioteca. Um empate (dois temas com três
- * propostas cada) também desce ao nome, para a grelha não trocar de arrumação
- * entre dois desenhos.
- */
-export function ordenarTemas(
-  temas: readonly ThemeSummary[],
-  ordem: Ordem,
-  usos?: Record<string, number> | null,
-): ThemeSummary[] {
-  const porOrdem = (a: ThemeSummary, b: ThemeSummary): number => {
-    if (ordem === "recentes") return (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "");
-    if (ordem === "fotos") {
-      const na = a.imageCount ?? -1;
-      const nb = b.imageCount ?? -1;
-      if (na !== nb) return nb - na;
-    }
-    if (usos && (ordem === "mais-usados" || ordem === "menos-usados")) {
-      const na = usos[a.id] ?? 0;
-      const nb = usos[b.id] ?? 0;
-      if (na !== nb) return ordem === "mais-usados" ? nb - na : na - nb;
-    }
-    return a.name.localeCompare(b.name, "pt");
-  };
-  return [...temas].sort((a, b) => Number(!!b.favorito) - Number(!!a.favorito) || porOrdem(a, b));
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * OS NÚMEROS DA BIBLIOTECA
- * ════════════════════════════════════════════════════════════════════════════
- *
- * A biblioteca é o activo mais valioso do back office e não dizia o seu próprio
- * tamanho: era preciso somar 18 cartões à mão para responder a «quantas fotos
- * temos?».
- *
- * Uma pasta ILEGÍVEL (`imageCount: null`) não conta como zero — conta como
- * desconhecida, e o total di-lo. Somar zero calado transformava uma falha de
- * leitura numa biblioteca mais pequena do que é, que é a maneira mais fácil de
- * alguém concluir que faltam fotos e ir carregá-las outra vez.
- */
-export function contarFotosDaBiblioteca(temas: readonly ThemeSummary[]): {
-  fotos: number;
-  temas: number;
-  ilegiveis: number;
-  /** Temas cuja contagem ainda não veio (`resumoPendente`, 9/11). */
-  porContar: number;
-} {
-  let fotos = 0;
-  let ilegiveis = 0;
-  let porContar = 0;
-  for (const t of temas) {
-    if (t.resumoPendente) porContar += 1;
-    else if (typeof t.imageCount === "number") fotos += t.imageCount;
-    else ilegiveis += 1;
-  }
-  return { fotos, temas: temas.length, ilegiveis, porContar };
-}
-
-/**
- * Abaixo de quantas fotos um tema não serve para montar uma página.
- *
- * Um mood board enche-se com 6 a 8 fotografias (ver `proposal-moodboard.ts`).
- * Um tema com menos de três não dá para escolher: dá para usar o que lá está,
- * que é outra coisa. O aviso não julga o tema — diz que ele ainda está a meio.
- */
-export const POUCAS_FOTOS = 3;
-
-/** O tema tem poucas fotos para o que serve? `null` (ilegível) não é «poucas»:
- *  não se sabe, e um aviso a partir do que não se sabe é um aviso errado. */
-export function temPoucasFotos(t: Pick<ThemeSummary, "imageCount">): boolean {
-  return typeof t.imageCount === "number" && t.imageCount < POUCAS_FOTOS;
-}
-
-/** Quão apertada é a grelha de temas. */
-export type Densidade = "confortavel" | "compacto";
-
-const DENSIDADE_KEY = "liquen-temas-densidade";
-
-/** Lê a preferência guardada. Nunca lança — um `localStorage` indisponível
- *  (janela privada, política do browser) vale como "não há preferência". */
-export function lerDensidade(): Densidade | null {
-  try {
-    const v = window.localStorage.getItem(DENSIDADE_KEY);
-    return v === "confortavel" || v === "compacto" ? v : null;
-  } catch {
-    return null;
-  }
-}
-
-export function guardarDensidade(d: Densidade): void {
-  try {
-    window.localStorage.setItem(DENSIDADE_KEY, d);
-  } catch {
-    // Perder a preferência é um incómodo; deitar o ecrã abaixo por causa dela
-    // não tem desculpa nenhuma.
-  }
-}
-
-/**
- * As colunas de cada densidade.
- *
- * DUAS no telemóvel nas duas: uma coluna com cartões enormes obrigava a
- * percorrer a biblioteca inteira de baixo para cima.
- *
- * "Compacto" chega a seis colunas porque é exactamente o número de temas de
- * hoje — o pedido era vê-los todos de uma vez, sem scroll.
- */
-/**
- * ── AS COLUNAS, E PORQUE É QUE A FOLGA NÃO É QUADRADA ─────────────────────
- *
- * Pedido dela, na Fase 3: «mais folga entre os cartões».
- *
- * A folga VERTICAL é maior do que a horizontal, e não por gosto: desde que um
- * cartão pode ter uma linha pendurada por baixo dele — «Lê-se como "italia" ·
- * Juntar» —, uma folga igual nos dois sentidos punha essa linha à mesma
- * distância do cartão a que pertence e do cartão de baixo. Lia-se como sendo
- * do outro.
- *
- * Horizontalmente muda pouco: a 390 px são duas colunas, e cada píxel de folga
- * sai da fotografia. É o lado onde a folga custa e o lado onde não fazia falta.
- */
-export const COLUNAS: Record<Densidade, string> = {
-  confortavel: "grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4",
-  compacto: "grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-4 lg:grid-cols-6",
-};
-
-/**
- * AS COLUNAS DA GRELHA DE FOTOS DE UM TEMA — e porque são DUAS no telemóvel.
- *
- * Medido a 375 px (iPhone SE) com três colunas: cada célula ficava com
- * 97,7×97,7 px, e a 320 px com 79×79. Dentro dessa célula vivem TRÊS botões de
- * 28×28 — ampliar, mover para o início e remover — que onde não há rato estão
- * sempre visíveis (hoje `com-rato:opacity-0`; era um `@media (hover: none)`,
- * que deixava de fora o portátil com ecrã táctil), porque sem passar o rato
- * não há outra forma de lá chegar. Três alvos de 28 px, ou seja dois
- * terços do mínimo de 44, e o × que APAGA a foto é um deles.
- *
- * Pô-los nos 44 px que a casa exige (`.alvo-toque`) não cabia em 98 px: os
- * dois de baixo ficariam a 2 px um do outro e a foto desaparecia debaixo dos
- * botões. Por isso a grelha passa a duas colunas onde o telemóvel é estreito —
- * célula de 150,5 px a 375 e 123 px a 320, com 54 px e 27 px de folga entre os
- * botões de baixo — e volta às três colunas a partir de 26rem (416 px), que é
- * onde a célula (111 px) ainda as comporta.
- *
- * A biblioteca não fica mais curta de percorrer: são as mesmas fotos, maiores.
- * É a mesma decisão que o `COLUNAS` acima já tinha tomado para os cartões.
- *
- * O degrau seguinte passou de cinco colunas para quatro pela mesma conta, um
- * andar acima: num tablet de 640 px as cinco davam células de 105 px, e aí os
- * dois botões de baixo ficavam a 7 px um do outro — abaixo dos 8 px de
- * intervalo mínimo entre alvos. Com quatro são 133,5 px de célula e 37 px de
- * intervalo.
- *
- * ── E PORQUE É QUE OS DEGRAUS MEDEM O CONTENTOR, NÃO A JANELA ─────────────
- *
- * Toda a aritmética acima é sobre a largura da CÉLULA, e a célula não sabe o
- * tamanho do ecrã: sabe o tamanho da zona de largar onde vive. Os dois números
- * andaram juntos enquanto a navegação foi uma gaveta por cima da página — e
- * separaram-se exactamente em `lg`, que é onde ela deixa de ser gaveta e passa
- * a ser uma coluna `sticky` de 256 px em fluxo (`AdminClient.tsx`).
- *
- * A conta a 1024 px de janela: sobram 654 px para esta grelha — 1024 − 256 da
- * barra lateral − 80 do `lg:px-10` da vista − 34 da moldura e do `p-4` da zona
- * de largar. Seis colunas com `gap-2` davam células de 102,3 px, MENOS do que
- * os 111 px que o parágrafo acima fixa como o piso onde os três botões ainda
- * cabem. E num iPad Pro deitado — 1024 px de janela, e dedo — eram três alvos
- * de 44 px dentro de uma célula de 102. Era o caso do `MOBILE-AUDIT.md` («e
- * `sm:` não servia para o resolver») com a barra lateral no papel da gaveta.
- *
- * Por isso os degraus são `@container`: medem a zona de largar, que é o que
- * decide mesmo a célula. Cada limiar é a largura mínima a que aquele número de
- * colunas ainda dá os 111 px — `111·n + 8·(n−1)`, arredondado para cima ao rem
- * par seguinte:
- *
- *     colunas    mínimo    limiar
- *        3       349 px    22rem (352)
- *        4       468 px    30rem (480)
- *        5       587 px    38rem (608)
- *        6       706 px    46rem (736)
- *
- * A zona de largar mede 309 px a 375 de janela, 558 a 640, 654 a 1024 e 1070 a
- * 1440 — ou seja células de 150,5 px (2 colunas), 133,5 (4), 124,4 (5) e 171,7
- * (6). São as mesmas de hoje em todas as larguras onde hoje já estavam certas;
- * só o portátil a 1024 muda, e muda para cima.
- *
- * (O `md:grid-cols-5` que aqui vivia era a última infracção deste ficheiro ao
- * contrato dos cortes. Nunca tinha sido uma pergunta sobre a janela.)
- *
- * ══════════════════════════════════════════════════════════════════════════
- * FASE 07 — A ESCADA DE DEGRAUS PASSA A `auto-fill`, E O PISO DE 2 FICA
- * ══════════════════════════════════════════════════════════════════════════
- *
- * `docs/APPLE-TEMAS.md`, ponto 21: «grelha `repeat(auto-fill, minmax(180px,
- * 1fr))`, RÁCIO FIXO 4:3 com `object-fit: cover`, gap de 12».
- *
- * A escada de cinco degraus acima fazia o trabalho de um `auto-fill` à mão —
- * e fazia-o com um número diferente do do documento. `auto-fill` diz a mesma
- * coisa numa linha e nunca desafina: a célula não desce de 180 px, aconteça o
- * que acontecer à zona de largar, e não há degrau nenhum para alguém esquecer
- * de acertar quando a coluna do split view lhe tirar 272 px de largura.
- *
- * ── MAS O PISO DE DUAS COLUNAS NÃO SE DEITA FORA ──────────────────────────
- *
- * `minmax(180px, 1fr)` sozinho dá UMA coluna abaixo de 372 px de contentor —
- * ou seja, uma fotografia por linha nos 309 px que um telemóvel de 375 dá a
- * esta grelha. A decisão medida que este comentário conta (duas colunas, 150,5
- * px de célula, três alvos de 44 px lá dentro) não é uma preferência: é o que
- * torna a pasta percorrível ao dedo. Por isso o `auto-fill` só entra a partir
- * de 24rem (384 px), que é a primeira largura onde ele próprio já dá duas
- * (2 × 180 + 12 = 372); abaixo disso mandam as duas colunas de sempre.
- *
- * A tabela que sai daqui, com o `gap-3` do documento:
- *
- *     zona de largar   colunas   célula
- *     309 (janela 375)    2       148,5
- *     558 (janela 640)    2       273
- *     654 (janela 1024)   3       210
- *     798 (1440, split)   4       190,5
- *    1070 (janela 1440)   5       204,4
- *
- * Menos fotos por linha do que antes, e maiores — é o que 180 px de mínimo
- * quer dizer. O piso dos 111 px continua garantido por construção em toda a
- * gama do `auto-fill`, e à mão nos 240–384 px que sobram (a 240, 114 px).
- */
-/**
- * ── O PISO DE ALTURA DA CÉLULA, E PORQUE É QUE O 4:3 O OBRIGOU ────────────
- *
- * A célula era `aspect-square`; a fase 07 do `docs/APPLE-TEMAS.md` põe-na a
- * 4:3. Uma célula 4:3 é 25% MAIS BAIXA do que a quadrada com a mesma largura —
- * e a altura desta célula não é decoração: dentro dela vivem TRÊS alvos de
- * 44 px, um encostado ao topo (o `×`, que APAGA a foto) e dois encostados ao
- * fundo.
- *
- * A conta do que eles precisam, de cima para baixo:
- *
- *     4 (top-1) + 44 + 8 (intervalo mínimo entre alvos) + 44 + 4 (bottom-1)
- *   = 104 px
- *
- * MEDIDO com a grelha nova, à altura de cada janela:
- *
- *     janela   célula          folga entre o alvo de cima e o de baixo
- *      320     121,0 × 90,8    −5,2 px   ← SOBREPOSTOS
- *      375     148,5 × 111,4   +15,4 px
- *      390     156,0 × 117,0   +21,0 px
- *     1024     185,0 × 138,8   +42,8 px
- *     1440     190,5 × 142,9   +46,9 px
- *
- * A 320 px o `×` e o `↑` sobrepunham-se em 5 px, e quem ganha um toque na
- * zona sobreposta é o que vem depois no DOM — o `×`. Ou seja: o dedo ia a
- * «mover para o início» e apagava a fotografia.
- *
- * O piso corrige isso e não desfaz o 4:3: a partir de 138,7 px de célula (que
- * é toda a gama de 375 para cima) o rácio é exactamente 4:3 e este mínimo
- * nunca chega a pegar. Só nos últimos ~55 px antes dos 320 é que a célula fica
- * um pouco mais alta do que 4:3 — e a alternativa ali era dois alvos por cima
- * um do outro. «Onde este documento e a acessibilidade discordarem, ganha a
- * acessibilidade» (`docs/DESIGN-SYSTEM.md`, Parte −1, ponto 5).
- */
-export const PISO_DA_CELULA_PX = 104;
-
-export const GRELHA_DE_FOTOS =
-  "grid grid-cols-2 gap-3 @min-[24rem]:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]";
-
-/**
- * "há 3 dias", "hoje" — a data como se fala, para o cartão poder dizer o que
- * está vivo e o que está parado sem gastar uma linha inteira com um formato
- * completo. Datas futuras (relógios trocados) contam como hoje, em vez de
- * dizerem "há -2 dias".
- */
-/**
- * Quando foi mexido, como se diz — até um mês. Depois disso, a data.
- *
- * Ponto 13 da auditoria do `docs/APPLE-TEMAS.md`: «mantém o relativo e
- * acrescenta `title` com a data completa; a partir de 30 dias mostra a data».
- * «Há 2 meses» já não responde à pergunta de trabalho («foi antes ou depois do
- * casamento dos Ferreira?»), e dois temas com «há 1 ano» podem estar onze
- * meses afastados. Abaixo dos 30 dias o relativo é mais preciso do que a data
- * de relance; a partir daí é ao contrário.
- *
- * A data vai no formato da casa, `DD/MM/AAAA` (Parte 9.6 do sistema de
- * design), e não por extenso: está no fim de uma linha que trunca, e a
- * versão longa continua no `title` (`dataPorExtenso`).
- */
-export function desdeQuando(iso: string | undefined, agora = Date.now()): string {
-  if (!iso) return "";
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return "";
-  const dias = Math.floor((agora - t) / 86_400_000);
-  if (dias <= 0) return "hoje";
-  if (dias === 1) return "ontem";
-  if (dias < 30) return `há ${dias} dias`;
-  return new Date(t).toLocaleDateString("pt-PT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
-/**
- * A data inteira, para o `title` de uma data relativa.
- *
- * «há 1 mês» é o que se lê de relance; «12 de agosto de 2026» é o que responde
- * quando a pergunta é «foi antes ou depois do casamento dos Ferreira?». As
- * duas, e não uma — é o ponto 13 da auditoria do `docs/APPLE-TEMAS.md` e a
- * última linha das proibições da Parte 9.
- *
- * Devolve `undefined` quando não há data ou ela não se deixa ler: um `title`
- * vazio é uma dica que aparece sem nada escrito.
- */
-export function dataPorExtenso(iso: string | undefined): string | undefined {
-  if (!iso) return undefined;
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return undefined;
-  return new Date(t).toLocaleDateString("pt-PT", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
-/**
- * Quantas fotos tem o tema, em português e sem mentir:
- * `null` = a pasta NÃO pôde ser lida (dizer "0 fotos" leria-se como "as minhas
- * fotos desapareceram"); `truncated` = a contagem bateu no teto do servidor,
- * portanto é um MÍNIMO ("500+ fotos").
- */
-function photoCountLabel(count: number | null, truncated?: boolean): string {
-  if (count === null) return "Fotos indisponíveis";
-  if (truncated) return `${count}+ fotos`;
-  return plural(count, "foto", "fotos");
-}
-
-/**
- * Corre `worker` sobre `items` com no máximo `limit` em voo, pela ordem em que
- * vêm. `worker` NUNCA deve lançar — quem chama trata cada falha dentro dele e
- * guarda-a, para que um ficheiro mau não deite fora os 299 que faltam.
- * `stop` é consultado antes de cada item: é assim que sair da pasta trava o
- * que ainda não começou, sem cortar o que já vai a caminho.
- */
-/**
- * O retrato de uma ação em bloco a decorrer, para o `EmCurso` da barra de
- * seleção. Transferir 40 fotos e remover 40 fotos são 40 coisas cada uma: há
- * sempre contagem, por isso a barra diz a verdade e nunca é uma estimativa.
- */
-type AccaoEmBloco = { tipo: "transferir" | "remover"; feito: number; total: number };
-
-async function pool<T>(
-  items: T[],
-  limit: number,
-  worker: (item: T) => Promise<void>,
-  stop: () => boolean = () => false,
-): Promise<void> {
-  let next = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    for (;;) {
-      const i = next++;
-      if (i >= items.length || stop()) return;
-      await worker(items[i]);
-    }
-  });
-  await Promise.all(runners);
-}
-
-/**
- * Repõe fotos numa lista, cada uma no índice onde estava (puro — testado).
- *
- * É o que uma remoção falhada precisa: repor a lista inteira (o "snapshot" de
- * antes) deitava fora as fotos que um lote a decorrer tivesse entretanto
- * acrescentado. Insere-se de trás para a frente para que os índices guardados
- * continuem a valer à medida que a lista cresce.
- */
-export function reinsertAt(
-  list: ThemeImage[],
-  items: ThemeImage[],
-  positions: Map<string, number>,
-): ThemeImage[] {
-  const next = [...list];
-  const ordered = [...items].sort(
-    (a, b) => (positions.get(b.path) ?? 0) - (positions.get(a.path) ?? 0),
-  );
-  for (const im of ordered) {
-    if (next.some((x) => x.path === im.path)) continue;
-    next.splice(Math.min(positions.get(im.path) ?? next.length, next.length), 0, im);
-  }
-  return next;
-}
-
-/** Junta uma página nova ao que já está, sem duplicar (puro — testado).
- *  A ordem do servidor desloca-se enquanto se carregam fotos; a defesa é a
- *  chave estável (`path`), não a aritmética de offsets. */
-export function mergePage(prev: ThemeImage[], page: ThemeImage[]): ThemeImage[] {
-  const seen = new Set(prev.map((i) => i.path));
-  return [...prev, ...page.filter((i) => i.path && !seen.has(i.path))];
-}
-
-/**
- * Move um item de `from` para `to` (puro — testado).
- *
- * É a operação por trás do arrasto e das setas: tirar a foto de onde está e
- * enfiá-la onde deve ficar, sem perder nem duplicar nada. Índices fora da
- * lista devolvem-na intacta.
- */
-export function moveItem<T>(list: T[], from: number, to: number): T[] {
-  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return list;
-  const next = [...list];
-  const [item] = next.splice(from, 1);
-  next.splice(to, 0, item);
-  return next;
-}
-
-/** Um ficheiro largado que é (ou parece ser) uma imagem. HEIC e ficheiros de
- *  câmara chegam por vezes com `type` vazio — aceitar também por extensão em
- *  vez de os descartar em silêncio. */
-function isImageFile(f: File): boolean {
-  return f.type.startsWith("image/") || /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(f.name);
-}
-
-/**
- * As "entries" de um arrasto — TÊM de ser lidas de forma SÍNCRONA dentro do
- * handler do drop: o `DataTransfer` é esvaziado assim que ele retorna, e um
- * único `await` antes disto deixava a lista vazia. Devolve [] em ambientes
- * sem a API (é o caso do jsdom, e de browsers antigos): aí usa-se
- * `dataTransfer.files`, que só traz ficheiros soltos.
- */
-function readDropEntries(dt: DataTransfer | null): FileSystemEntry[] {
-  const items = dt?.items;
-  if (!items || typeof items.length !== "number") return [];
-  const out: FileSystemEntry[] = [];
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    if (typeof item?.webkitGetAsEntry !== "function") continue;
-    try {
-      const entry = item.webkitGetAsEntry();
-      if (entry) out.push(entry);
-    } catch {
-      // Um item que não é ficheiro (texto arrastado, por ex.) — ignora-se.
-    }
-  }
-  return out;
-}
-
-/**
- * Expande pastas largadas até aos ficheiros, em largura.
- *
- * Vale a complexidade: a Catarina tem as fotos organizadas em pastas no
- * computador, e a alternativa é abrir a pasta, marcar tudo e arrastar — ou,
- * pior, largar a pasta e não perceber porque não aconteceu nada.
- *
- * O detalhe que costuma passar despercebido: `readEntries` devolve no máximo
- * ~100 entradas por chamada e tem de ser repetido até vir vazio — uma pasta de
- * 300 fotos largada assim carregava só as primeiras 100.
- */
-async function expandDropEntries(entries: FileSystemEntry[]): Promise<{
-  files: File[];
-  capped: boolean;
-}> {
-  const files: File[] = [];
-  const queue = [...entries];
-  let seen = 0;
-  while (queue.length > 0 && files.length < MAX_DROP_FILES && seen < MAX_DROP_ENTRIES) {
-    const entry = queue.shift();
-    if (!entry) break;
-    seen += 1;
-    if (entry.isFile) {
-      const file = await new Promise<File | null>((resolve) => {
-        try {
-          (entry as FileSystemFileEntry).file(
-            (f) => resolve(f),
-            () => resolve(null),
-          );
-        } catch {
-          resolve(null);
-        }
-      });
-      if (file) files.push(file);
-    } else if (entry.isDirectory) {
-      const reader = (entry as FileSystemDirectoryEntry).createReader();
-      for (;;) {
-        const batch = await new Promise<FileSystemEntry[]>((resolve) => {
-          try {
-            reader.readEntries(
-              (e) => resolve(e),
-              () => resolve([]),
-            );
-          } catch {
-            resolve([]);
-          }
-        });
-        if (batch.length === 0) break;
-        queue.push(...batch);
-        if (queue.length + files.length > MAX_DROP_ENTRIES) break;
-      }
-    }
-  }
-  return { files, capped: files.length >= MAX_DROP_FILES || queue.length > 0 };
-}
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -2060,290 +1325,23 @@ export default function Temas({
         </Card>
       )}
 
-      {/* ── A ESCADA DESTA VISTA ────────────────────────────────────────────
-          QUATRO blocos, pela ordem de leitura: os controlos (0), os filtros
-          (1), o aviso dos nomes por arrumar (2) e a grelha dos temas (3). A
-          escada é a da casa (`.bo-cena` no `globals.css`) — 600 ms, degraus de
-          20 ms, tecto ao sexto, desligada em `prefers-reduced-motion`.
-
-          ── E O DEGRAU NOVO NÃO SE ACRESCENTA NO FIM ─────────────────────────
-          Os filtros nasceram com `--cena: 0`, a partilhar a vez com os
-          controlos, e o `vistas-que-se-compoem.test.ts` chumbou — «há blocos a
-          partilhar a mesma vez: 0, 0, 1, 2». Não é cosmético: dois blocos a
-          entrar no mesmo instante lêem-se como UM bloco, e a escada existe
-          justamente para o olho seguir a ordem de leitura.
-
-          Um bloco que entra a meio da página empurra os degraus abaixo dele.
-          Contar de cima e renumerar é o preço; pô-lo no fim, longe de onde se
-          lê, era pior — a entrada deixava de acompanhar os olhos. */}
-      <Toolbar
-        style={{ "--cena": 0 } as React.CSSProperties}
-        className="bo-cena mb-6"
-        start={
-          /* ── O CAMPO E O ESTADO DA VISTA, NA MESMA LINHA E NA MESMA BASE ──
-             Pedido dela, na Fase 3: «"395 fotos em 25 temas" está órfão». Era
-             filho da caixa `relative` que ancora a lupa — herdava a largura do
-             campo e lia-se como se descrevesse o que lá estava escrito.
-
-             Agora é IRMÃO do campo e ao LADO dele, não por baixo: o
-             `docs/APPLE-TEMAS.md` (ponto 4) manda que a contagem seja o estado
-             da vista, «ao lado do campo, em role="status" aria-live="polite"»,
-             e que mude ao filtrar. Um estado é uma coisa que se lê de relance
-             na mesma linha dos controlos; uma legenda pendurada por baixo é
-             uma nota de rodapé.
-
-             A DESCRIÇÃO DA SECÇÃO SAIU («Guarda aqui as fotos por tema…»):
-             ponto 3 da auditoria — quem entra na secção Temas sabe o que são
-             temas, e a descrição estava a ocupar a linha de maior destaque.
-
-             `basis-72 grow-0` no campo: a largura decide-se pela fila onde ele
-             está, não pela janela, e a `Toolbar` já é `flex flex-wrap`. A 375 px
-             a fila parte-se e o estado desce para baixo do campo sozinho.
-
-             E `w-72`, não `w-full`. MEDIDO num browser a 1440: com `w-full`, o
-             Chrome contava o campo pela largura natural do `input` (~245 px)
-             ao medir a fila, e depois desenhava-o com os 288 do `basis-72` —
-             a fila ficava 43 px mais curta do que o que lá cabia, e o estado
-             caía para baixo do campo com toda a largura da janela livre ao
-             lado. Com a largura dita, a fila mede 437 e o estado fica ao lado,
-             na mesma linha dos 40 px dos controlos da direita.
-
-             ── UMA ALTURA SÓ NA BARRA INTEIRA: 40 px ───────────────────────
-             Ponto 5 da auditoria: o campo «alinhado na mesma linha e na mesma
-             baseline dos outros controlos». CONTADO pelas classes, com rato
-             (não medido num browser): campo 42 px (`py-2.5` + `text-sm` +
-             fio), ordenação 34 a 38 (duas cadeias de `py` na mesma classe),
-             tamanho dos cartões 34, «⋯» 36, «Novo tema» 32 — cinco
-             controlos, quatro ou cinco alturas. Passam todos a `h-10`, que é
-             o degrau `md` do `ui/Button` (`h-10 pointer-coarse:h-11`) e o
-             tamanho por omissão da casa. Os 32 do `sm` seriam o outro degrau que existe,
-             e ficaram de fora por uma razão que ganha ao documento: «alvo
-             efetivo ≥ 40 px em desktop» (Parte 9.1 do sistema de design;
-             «Alvos ≥ 40 px» na Parte 7 do dos temas). No dedo continuam os 44
-             de sempre — o `input` pela regra do `globals.css`, a ordenação
-             pelo `pointer-coarse:min-h-11` do `Escolha`, os botões pelo
-             `.alvo-toque` e pelo `pointer-coarse:h-11` do `Button`. */
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            {searchable && (
-              // O campo só aparece quando há lista que chegue para justificar
-              // um controlo a mais — com três temas, procurar é mais trabalho
-              // do que ler.
-              <div className="relative w-72 max-w-full basis-72 grow-0">
-                {SearchIcon}
-                {/* ── «PROCURAR TEMAS», E NÃO «… E FOTOGRAFIAS» ─────────────
-                    A Parte 6 do documento propõe «Procurar temas e
-                    fotografias». Esta procura só lê o NOME e as NOTAS do tema
-                    (ver o `visible`, mais acima); uma fotografia não tem texto
-                    por onde se ache. Prometer fotografias era um campo que
-                    mente na primeira vez que se usa — fica a metade
-                    verdadeira, no plural, que é o que a lista mostra.
-
-                    ── E O RAIO DOS CONTROLOS, 10 px ────────────────────────
-                    Ponto 5: «campo de pesquisa a 10 px, como tudo o resto» —
-                    mini a medium são rectângulos arredondados, cápsula só em
-                    large. O `.bo-input` desenha o raio com `var(--bo-radius)`
-                    (8 px, o do CONTEÚDO) numa regra fora de camadas, que
-                    ganharia a qualquer `rounded-*`. Em vez de a vencer com um
-                    `!important`, redefine-se a variável que ela lê, só neste
-                    elemento, para o token do controlo (`--radius-control`,
-                    `tema.css`). A ordenação ao lado recebe o mesmo. */}
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Procurar temas"
-                  aria-label="Procurar tema por nome ou nota"
-                  disabled={loading}
-                  className="bo-input h-10 pl-10 pr-3 text-sm text-[var(--bo-text)] placeholder-foreground/30 [--bo-radius:var(--radius-control)]"
-                />
-              </div>
-            )}
-            {/* O ESTADO DA VISTA. `aria-live="polite"` e não `assertive`:
-                muda a cada tecla escrita na procura, e um leitor de ecrã a
-                interromper-se a si próprio a cada letra não deixa ouvir nem o
-                campo nem a contagem. */}
-            <p
-              role="status"
-              aria-live="polite"
-              // O nome distingue esta região da do `ToastProvider`, que também
-              // é um `role="status"` e vive na mesma página: sem ele, quem
-              // navega por regiões encontra duas «status» e não sabe qual é
-              // qual.
-              aria-label="Temas à vista"
-              className="bo-text-muted text-xs"
-            >
-              {estadoDaVista}
-            </p>
-          </div>
-        }
-        end={
-          /* SEM CAIXA À VOLTA, e é isso que corrige a vista no telemóvel.
-             Esta fila estava embrulhada num `div.flex items-center gap-2` —
-             uma cópia do que o `Toolbar` já põe à volta do `end`, mas SEM o
-             `flex-wrap` dele. Uma fila que não quebra não encolhe: pedia
-             591 px num ecrã de 390, esticava o documento para 607, e a barra
-             de navegação de baixo (que é `w-full`) nascia com 607 px de
-             largura e o topo 413 px abaixo do fundo do ecrã — nesta vista
-             ficava-se sem navegação nenhuma. Tirar a caixa devolve a fila ao
-             contentor que sabe quebrá-la; medido, o documento volta aos
-             390 px. Ver `e2e/geometria-dos-alvos.spec.ts` (D4). */
-          /* ══════════════════════════════════════════════════════════
-             OS CONTROLOS AGRUPADOS PELO QUE FAZEM
-             ══════════════════════════════════════════════════════════
-
-             Pedido dela, na Fase 3: «os controlos estão todos alinhados sem
-             agrupamento».
-
-             Estavam: cinco controlos em fila, todos com a mesma folga entre
-             si — a ordenação, «Rever etiquetas», «Arquivados», o tamanho dos
-             cartões e «Novo tema». Espaçamento igual quer dizer «isto é uma
-             lista de cinco coisas sem relação», e não era verdade: três deles
-             mudam COMO a lista se vê, um muda O QUE ela contém, e dois FAZEM
-             alguma coisa.
-
-             O agrupamento é feito com folga e não com linhas divisórias, de
-             propósito: uma linha vertical entre grupos parte-se assim que a
-             fila quebra no telemóvel — e ela quebra sempre. A folga quebra
-             bem. Dentro de um grupo `gap-1.5`; entre grupos, `gap-x-5`. A
-             razão entre as duas é o que se lê.
-
-             (A fila não leva caixa própria: o `Toolbar` já dá uma ao `end`, e
-             uma segunda por dentro custou-lhe uma vez a navegação inteira no
-             telemóvel — ver a nota acima e o `geometria-dos-alvos.spec.ts`.) */
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            {/* ── VER: como a lista se mostra ─────────────────────────── */}
-            {themes.length > 2 && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                {/* Era um `<label>` a embrulhar o `<select>`, com o nome num
-                    `sr-only` lá dentro. Um rótulo implícito nomeia um `<select>`
-                    porque ele é nativo; NÃO nomeia um `role="combobox"`, que
-                    recebe o nome do autor. Ficava um campo sem nome nenhum para
-                    quem ouve o ecrã — e sem ninguém dar por isso. */}
-                <div className="flex items-center">
-                  <Escolha
-                    aria-label="Ordenar os temas"
-                    valor={ordem}
-                    aoMudar={(v) => {
-                      const o = v as Ordem;
-                      setOrdem(o);
-                      guardarOrdem(o);
-                    }}
-                    containerClassName="w-auto"
-                    /* A altura e o raio da barra — ver a nota «UMA ALTURA SÓ»
-                       no campo de procura. `py-0` porque quem manda é o
-                       `h-10`, e o preenchimento da pele só tirava espaço ao
-                       texto. */
-                    className="h-10 py-0 pl-3 text-xs text-[var(--bo-tinta-72)] [--bo-radius:var(--radius-control)]"
-                  >
-                    {/* «Mais usados» e «Menos usados» só entram quando a
-                        contagem de propostas chegou — ver `ORDENS`. Oferecer
-                        uma ordem que ainda não sabe ordenar era pedir-lhe que
-                        carregasse e não visse mexer nada. */}
-                    {ORDENS.filter((o) => usos || !ORDENS_DE_USO.includes(o.valor)).map((o) => (
-                      <option key={o.valor} value={o.valor}>
-                        {o.rotulo}
-                      </option>
-                    ))}
-                  </Escolha>
-                </div>
-                <div
-                  role="group"
-                  aria-label="Tamanho dos cartões"
-                  /* `min-h-10`, e os botões esticam: a moldura de 1 px
-                     está DENTRO dos 40, como nos outros controlos da fila.
-
-                     `hidden sm:flex` (9/11): abaixo de 640 px as duas
-                     densidades dão a MESMA grelha de duas colunas (ver
-                     `COLUNAS`) — o botão não mudava nada no telemóvel, e
-                     empurrava o «⋯» e o «Novo tema» para uma terceira linha. */
-                  className="hidden min-h-10 sm:flex overflow-hidden rounded-lg border border-[var(--bo-hairline-strong)]"
-                >
-                  {(
-                    [
-                      ["compacto", "Compacto"],
-                      ["confortavel", "Confortável"],
-                    ] as const
-                  ).map(([valor, rotulo]) => (
-                    <button
-                      key={valor}
-                      type="button"
-                      aria-pressed={densidade === valor}
-                      onClick={() => {
-                        setDensidade(valor);
-                        guardarDensidade(valor);
-                      }}
-                      className={`alvo-toque px-3 text-[10px] uppercase tracking-[0.12em] ${ESTADO} ${PRESSAO} ${
-                        densidade === valor
-                          ? "bg-[var(--bo-tinta-6)] text-[var(--bo-tinta-72)]"
-                          : "text-foreground/40 hover:text-[var(--bo-text-muted)]"
-                      }`}
-                    >
-                      {rotulo}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ── FAZER ───────────────────────────────────────────────────
-                Era «Rever etiquetas» em `ghost` ao lado de «Novo tema»: um
-                link de texto entre botões de barra, que é a última linha das
-                proibições da Parte 9 do `docs/APPLE-TEMAS.md` — uma acção de
-                manutenção rara com o mesmo peso visual dos controlos de vista.
-
-                Passa para dentro do «⋯», que é onde a Apple põe o que se faz
-                de vez em quando («máximo três grupos de controlos numa
-                toolbar»). Fica com um item só, e é assim que se quer: é a
-                gaveta que espera pelo «Fundir temas…» e pelo «Exportar
-                biblioteca…» do documento, e um item numa gaveta é melhor do
-                que um item a competir com a acção que ela faz todos os dias.
-
-                ── E PORQUE É QUE NÃO É UM `MenuDeAccoes` ───────────────────
-                Porque esse esconde-se em repouso onde há rato
-                (`com-rato:opacity-0` + `group-hover`), que é exactamente o que
-                o torna certo EM CIMA DE UM CARTÃO e errado numa barra: sem um
-                `group` à volta, o «⋯» ficaria invisível e «Rever etiquetas»
-                deixava de ser encontrável. O painel é o mesmo — o mesmo
-                material, os mesmos itens, a mesma lista de `AccaoDeItem` —,
-                aberto no `MenuDeContexto`, que é o menu deste ecrã. */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                aria-haspopup="menu"
-                aria-expanded={menu?.de === "barra"}
-                aria-label={`Acções de ${MENU_DA_BIBLIOTECA}`}
-                onClick={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect();
-                  // Ancorado ao canto inferior esquerdo do botão: o painel
-                  // desce dele como desceria de um «⋯» de cartão, e o
-                  // `MenuDeContexto` encosta-o para dentro se não couber.
-                  setMenu({
-                    x: r.left,
-                    y: r.bottom + 4,
-                    de: "barra",
-                    sobre: MENU_DA_BIBLIOTECA,
-                    accoes: accoesDaBiblioteca,
-                  });
-                }}
-                className={`alvo-toque flex h-10 w-10 items-center justify-center rounded-lg text-[var(--bo-text-muted)] hover:text-[var(--bo-tinta-72)] active:bg-[var(--bo-tinta-10)] ${ESTADO} ${PRESSAO}`}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                  <circle cx="5" cy="12" r="1.6" />
-                  <circle cx="12" cy="12" r="1.6" />
-                  <circle cx="19" cy="12" r="1.6" />
-                </svg>
-              </button>
-              <Button
-                variant={adding ? "secondary" : "primary"}
-                // `md` e não `sm`: os 40 px da fila — ver «UMA ALTURA SÓ».
-                size="md"
-                iconLeft={adding ? undefined : PlusIcon}
-                onClick={() => setAdding(!adding)}
-              >
-                {adding ? "Cancelar" : "Novo tema"}
-              </Button>
-            </div>
-          </div>
-        }
+      <BarraDaBiblioteca
+        themes={themes}
+        loading={loading}
+        adding={adding}
+        setAdding={setAdding}
+        search={search}
+        setSearch={setSearch}
+        densidade={densidade}
+        setDensidade={setDensidade}
+        ordem={ordem}
+        setOrdem={setOrdem}
+        usos={usos}
+        menu={menu}
+        setMenu={setMenu}
+        accoesDaBiblioteca={accoesDaBiblioteca}
+        estadoDaVista={estadoDaVista}
+        searchable={searchable}
       />
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -2415,50 +1413,16 @@ export default function Temas({
         <NomesPorArrumar themes={themes} onRenomear={renomearDaLista} />
       </div>
 
-      {adding && (
-        <Card padding="sm" className="@container mb-6">
-          {/* Duas colunas quando o CARTÃO as comporta, não quando a janela as
-              comporta. Era `sm:grid-cols-2`, e o cartão não tem a largura da
-              janela: tira-lhe o `px` da vista e os 34 px da moldura e do `p-4`
-              dele, e a partir de `lg` mais os 256 px da barra lateral. O
-              limiar em contentor que reproduz o corte de hoje é 36rem — 576 px
-              de cartão dão duas colunas de 280 px, que é o que ele já dava a
-              640 px de janela —, com a diferença de continuar a valer se este
-              cartão alguma vez for para uma coluna estreita. */}
-          <div className="grid grid-cols-1 gap-4 @min-[36rem]:grid-cols-2">
-            <div ref={caixaDoNovoTema}>
-              <Field
-                label="Nome do tema"
-                required
-                maxLength={MAX_THEME_NAME}
-                value={newName}
-                disabled={saving}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Ex.: Terracotta, Itália, Branco & Verde"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") create();
-                }}
-              />
-              {/* A sugestão de grafia, no momento em que a atenção já está no
-                  campo. Depois de gravar é tarde: o nome fica no índice por
-                  onde ela procura. */}
-              <SugestaoDeNome valor={newName} onAceitar={setNewName} />
-            </div>
-            <Field
-              label="Nota (opcional)"
-              maxLength={MAX_THEME_NOTES}
-              value={newNotes}
-              onChange={(e) => setNewNotes(e.target.value)}
-              placeholder="Ex.: tons quentes, para espaços de pedra"
-            />
-          </div>
-          <div className="mt-5 flex justify-end">
-            <Button onClick={create} loading={saving} disabled={!newName.trim() || saving}>
-              Criar tema
-            </Button>
-          </div>
-        </Card>
-      )}
+      <NovoTema
+        adding={adding}
+        caixaDoNovoTema={caixaDoNovoTema}
+        newName={newName}
+        setNewName={setNewName}
+        newNotes={newNotes}
+        setNewNotes={setNewNotes}
+        saving={saving}
+        create={create}
+      />
 
       {loading ? (
         // Os esqueletos da espera NÃO levam degrau: um esqueleto é a espera, e
@@ -2527,474 +1491,20 @@ export default function Temas({
         /* Terceiro degrau na GRELHA e não em cada cartão: vinte e cinco temas a
            entrar um a um seria a lentidão que o tecto do sexto degrau existe
            para evitar. A grelha chega inteira. */
-        <div
-          style={{ "--cena": 3 } as React.CSSProperties}
-          /* ── O BOTÃO DIREITO NO VAZIO DA GRELHA ─────────────────────────
-             «Em área vazia da grelha, oferece "Novo tema".» (ponto 8 da
-             auditoria.) O `defaultPrevented` é o que distingue o vazio de um
-             cartão: o cartão trata o seu próprio menu e já chamou
-             `preventDefault` antes de o evento subir até aqui. Sem essa
-             pergunta, carregar com o botão direito num cartão abria dois
-             menus — o dele e este por cima. */
-          onContextMenu={(e) => {
-            if (e.defaultPrevented) return;
-            e.preventDefault();
-            setMenu({
-              x: e.clientX,
-              y: e.clientY,
-              sobre: MENU_DA_BIBLIOTECA,
-              accoes: [
-                {
-                  id: "novo-tema",
-                  rotulo: "Novo tema",
-                  icone: PlusIcon,
-                  onAccao: () => setAdding(true),
-                },
-                ...accoesDaBiblioteca,
-              ],
-            });
-          }}
-          className={`bo-cena grid ${COLUNAS[densidade]}`}
-        >
-          {cartoesADesenhar.map((t) => (
-            /* As acções são IRMÃS do botão do cartão, não filhas: um botão
-               dentro de outro botão é HTML inválido, e o resultado prático é
-               que fixar um tema abria-o a seguir. */
-            <div
-              key={t.id}
-              role="group"
-              aria-label={t.name}
-              /* ── O BOTÃO DIREITO ABRE O MESMO MENU DO «⋯» ────────────
-                 Ponto 8 da auditoria: «numa coleção, o botão direito é
-                 obrigatório». A lista é literalmente a mesma chamada —
-                 `accoesDoTema(t)` —, e é essa igualdade que o ponto 9 exige
-                 («abre o MESMO menu do botão direito»). Ver `MenuDeContexto`.
-
-                 No contentor e não no botão do cartão: o «⋯», a nota do tema
-                 parecido e a capa são todos deste tema, e carregar com o botão
-                 direito em qualquer um deles é a mesma pergunta. */
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setMenu({ x: e.clientX, y: e.clientY, sobre: t.name, accoes: accoesDoTema(t) });
-              }}
-              className="group relative"
-            >
-              {/* ══ UM BOTÃO SÓ SOBRE A FOTOGRAFIA ═══════════════════════
-                  Ponto 9 da auditoria do `docs/APPLE-TEMAS.md`: «três botões
-                  circulares cinzentos aparecem sobre a fotografia no hover…
-                  sem rótulo, com ícones ambíguos». A correcção é «UM botão
-                  discreto ⋯ no canto superior direito, que abre o mesmo menu
-                  do botão direito» — e a Parte 9 proíbe, à letra, «mais de um
-                  botão flutuante sobre uma miniatura».
-
-                  Aqui havia dois desenhos: com rato, a lista `accoesDoTema`
-                  percorrida em chips soltos; sem rato, um «⋯». Passa a ser o
-                  «⋯» nos dois — a mesma lista, um só desenho, e o cartão
-                  deixa de ter duas linguagens conforme o ponteiro.
-
-                  MEDIDO a 375×667 com dedo: os chips tapavam 55,6 % da largura
-                  de um cartão de 165,5 px (dois alvos de 44) e agora tapam
-                  26,6 % (um).
-
-                  ── E A ESTRELA NÃO SE PERDEU ────────────────────────────
-                  O chip do favorito ficava SEMPRE visível de propósito: aceso,
-                  era ele que dizia que o tema está fixado. Tirar o chip sem
-                  mais nada apagava essa informação — por isso ela desce para o
-                  rasto de números do cartão, como bandeira, que é onde o
-                  desenho do `ThemeCard` da Parte 3 do documento a põe («14
-                  fotos · 1 proposta · ⚑»). O que era um botão a dizer duas
-                  coisas passa a um botão (no menu) e um sinal (na linha).
-
-                  O «⋯» esconde-se em repouso só onde há rato — é o coração do
-                  `MenuDeAccoes` — e volta com o rato sobre o cartão ou com o
-                  foco de teclado nele. Onde não há rato está sempre visível. */}
-              {/* O `absolute` vai NESTA caixa e não no `MenuDeAccoes`: ele
-                  dá-se a si mesmo um `relative` (é o que ancora a gaveta) e,
-                  entre dois utilitários de `position` na mesma classe, quem
-                  ganha é a ordem do Tailwind e não a ordem em que estão
-                  escritos. MEDIDO antes de os separar: o menu esticava-se aos
-                  165,5 px do cartão inteiro. */}
-              {/* `right-1 top-1` e não `right-2 top-2`: o que se põe no
-                  canto é o ALVO de 40 px, e a pastilha de 28 fica 6 px para
-                  dentro dele — o círculo que se vê assenta a 10 px das
-                  arestas, dentro do arco do canto do cartão. */}
-              <div className="absolute right-1 top-1 z-10">
-                <MenuDeAccoes
-                  sobre={t.name}
-                  accoes={accoesDoTema(t)}
-                  /* ── 28 px À VISTA, 40 px DE ALVO ───────────────────────
-                     «Botão glass, 28px» (Parte 3) e «o `⋯` sobre a imagem tem
-                     28 px visuais e 40 px de alvo» (Parte 7). Era o «⋯» de
-                     linha, 44 × 44, com o vidro na caixa de fora — um círculo
-                     escuro de 44 px por cima da capa, um quarto da largura de
-                     um cartão compacto. O tamanho é uma opção do próprio
-                     `MenuDeAccoes` (`tamanho="pequeno"`), e não classes por
-                     cima das dele. No dedo o `.alvo-toque` leva o alvo aos 44.
-
-                     ── O VIDRO CLARO VIAJA DENTRO DO BOTÃO ────────────────
-                     O «⋯» pousa EM CIMA de uma fotografia, e o `MenuDeAccoes`
-                     traz tinta de texto normal (`--bo-text-muted`) — que sobre
-                     uma capa clara desaparece. A conta já estava feita para os
-                     chips que aqui estavam e não se refaz: `.bo-vidro-claro`,
-                     véu de 50% mais vidro a 10%, sem filtro, glifo a branco,
-                     3,35:1 sobre a pior fotografia (a conta inteira está no
-                     `globals.css`). Sem desfoque de propósito — um por cartão
-                     eram noventa numa biblioteca de trinta.
-
-                     Vivia na caixa de fora, que tinha de repetir à mão as
-                     variantes de esconder do botão (senão ficava um círculo
-                     escuro em repouso com o glifo invisível lá dentro). Agora
-                     é a `pastilha`, DENTRO do botão: esconde-se e mostra-se
-                     com o mesmo `opacity` do glifo, incluindo com o foco de
-                     teclado no cartão (o `group-focus-within` do
-                     `MenuDeAccoes`), e não há duas listas para manter
-                     iguais. */
-                  tamanho="pequeno"
-                  pastilha="bo-vidro-claro text-white"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => setOpenId(t.id)}
-                /* ── O RATO POUSA, AS FOTOS COMEÇAM A VIR ─────────────────
-                   «Prefetch on hover: passar o rato sobre um tema começa a
-                   carregar as suas fotos.» Abrir um tema são duas esperas em
-                   fila — a listagem da pasta e só DEPOIS as miniaturas —, e
-                   enquanto a primeira não volta a grelha nem tem endereços
-                   para pedir. O rato costuma pousar um segundo antes do
-                   clique, e esse segundo chega.
-
-                   Só com rato: num telemóvel não há «passar por cima», há
-                   tocar — e tocar já abre. Ver `adiantarTema`. */
-                onPointerEnter={(e) => {
-                  if (e.pointerType === "mouse") adiantarTema(t.id);
-                }}
-                onFocus={() => adiantarTema(t.id)}
-                /* ── O MENU SEM RATO: Shift+F10 E A TECLA DE MENU ─────────
-                   O botão direito tem o seu equivalente de teclado, e é este
-                   (o mesmo de qualquer sistema). Abre o MESMO menu, ancorado
-                   ao canto de baixo do cartão; ao fechar, o foco volta ao
-                   cartão (`MenuDeContexto`). */
-                onKeyDown={(e) => {
-                  if (!teclaDeMenu(e)) return;
-                  e.preventDefault();
-                  const r = e.currentTarget.getBoundingClientRect();
-                  setMenu({ x: r.left, y: r.bottom, sobre: t.name, accoes: accoesDoTema(t) });
-                }}
-                /* ── SOMBRA, E NÃO BORDA ──────────────────────────────────
-                   Ponto 11 da auditoria: «cartões delimitados por borda em vez
-                   de sombra. Em modo claro a elevação faz-se por sombra.» E a
-                   Parte 9 proíbe «borda a marcar elevação». Era um fio de 10 %
-                   em repouso que ganhava o acento sob o rato; passa a sombra de
-                   repouso que se ergue sob o rato — o único efeito de hover de
-                   um cartão (Parte 12.1 do sistema de design), sem `scale`. O
-                   `ESTADO` já anima `box-shadow` nos 150 ms do degrau
-                   interactivo, com a `--ease-interactive`: é a linha «Hover do
-                   cartão» da tabela da Parte 5, sem tempo novo nenhum. Os dois
-                   tokens e a razão de existirem estão no `globals.css`. Em
-                   escuro a sombra quase não se vê, e é a regra: lá quem separa
-                   é a luminosidade (`--bo-surface` sobre `--bo-chao`).
-
-                   O raio é o `--radius-tile`, 12 px: era `rounded-2xl` (os 20
-                   do degrau «painel»), o documento pedia 12 e o cartão da casa
-                   diz 16. A escolha não era deste ficheiro — foi dela: «sim à
-                   sombra, cantos a 12». O token e a razão estão no `tema.css`.
-
-                   `h-full`: a célula da grelha já estica à altura da fila
-                   (`align-items: stretch`), mas o cartão dentro dela não a
-                   seguia. Com o rasto de números a poder ocupar duas linhas,
-                   «todos os cartões da mesma fila têm a mesma altura»
-                   (critério 2 da Parte 8) só se cumpre se o cartão encher a
-                   célula — medido a 1440, a primeira fila tinha fundos a 508,
-                   523 e 525 px.
-
-                   `flex flex-col` (9/11): um `<button>` CENTRA o que tem dentro
-                   na vertical. Com o `h-full` a esticar todos à altura do mais
-                   alto da fila, os cartões mais baixos punham a fotografia uns
-                   9 px abaixo do topo — uma faixa branca por cima da capa em
-                   uns cartões e não noutros. Em coluna, o conteúdo fica
-                   encostado ao topo e a sobra vai para o fundo. */
-                className={`flex h-full w-full flex-col items-stretch justify-start overflow-hidden rounded-tile bg-[var(--bo-surface)] text-left shadow-[var(--bo-sombra-repouso)] hover:shadow-[var(--bo-sombra-erguida)] ${ESTADO} ${PRESSAO}`}
-              >
-                {/* A moldura é 4:3 SEMPRE, aconteça o que acontecer lá dentro: é
-                  ela que mantém a primeira linha alinhada quando as fotos têm
-                  proporções diferentes umas das outras. */}
-                {/* ══════════════════════════════════════════════════════
-                    UMA FOTOGRAFIA, INTEIRA
-                    ══════════════════════════════════════════════════════
-
-                    Decisão dela na Fase 2: uma imagem por cartão.
-
-                    Aqui havia a capa e, encostada à direita, uma tira com mais
-                    três fotos do tema — «uma capa só diz o que é a foto de
-                    capa; três fotos dizem o que é o TEMA». A ideia estava
-                    certa; o desenho é que não chegava lá: na grelha compacta a
-                    tira tinha 41 px de largura e cada foto ~41 × 33. Pequena de
-                    mais para se ler como uma fotografia — o que se via era
-                    textura no canto do cartão, e a capa ficava com três quartos
-                    do espaço.
-
-                    O conjunto continua dito, noutro sítio e melhor: «9 fotos»
-                    no rasto de números, que custa uma linha de texto em vez de
-                    um quarto da imagem, e a grelha inteira ao abrir o tema, que
-                    é onde se escolhe.
-
-                    A moldura é 4:3 SEMPRE: é ela que mantém a primeira linha
-                    alinhada quando as fotos têm proporções diferentes. */}
-                {/* ══════════════════════════════════════════════════════
-                    NUNCA UM CARTÃO VAZIO
-                    ══════════════════════════════════════════════════════
-
-                    T1 do `docs/PROPOSTAS-E-TEMAS-APPLE.md`: «muitos cartões
-                    sem capa ao fim de 5 s — a página parece partida».
-
-                    Por baixo da fotografia fica SEMPRE o lugar pintado com a
-                    cor dela (`EsqueletoDeCor`, com a `coverCor` que vem no
-                    resumo): enquanto a capa viaja, vê-se a cor certa; e se as
-                    duas fontes falharem, a imagem sai (`ImagemComPlanoB`) e a
-                    cor fica. Sem cor gravada é o esqueleto cinzento.
-
-                    Um tema COM fotos e SEM `coverUrl` — o Storage estourou os
-                    8 s da lista, ou a capa não se deixou assinar — já não
-                    mostra o ícone de pasta: mostra o lugar, com a cor quando
-                    a há e o fundo neutro da moldura quando não (sem o brilho
-                    a passar: aí não há nada a caminho, e o brilho diria que
-                    há). O ícone fica para o que ele diz, uma pasta vazia
-                    (`imageCount` 0).
-
-                    A fotografia leva `relative` para ficar POR CIMA do lugar,
-                    que é `absolute`; o `!` vence a `.bo-skeleton`, que está
-                    fora de camadas e traz o seu próprio `position` e raio. */}
-                <div
-                  data-capa-do-tema={t.id}
-                  className="relative aspect-[4/3] w-full overflow-hidden bg-[var(--bo-tinta-6)]"
-                >
-                  {t.imageCount === 0 ? (
-                    <div
-                      data-pasta-vazia
-                      className="flex h-full w-full items-center justify-center text-foreground/40"
-                    >
-                      {FolderIcon}
-                    </div>
-                  ) : t.coverUrl || t.coverCor || t.resumoPendente ? (
-                    <EsqueletoDeCor cor={t.coverCor} className="!absolute inset-0 !rounded-none" />
-                  ) : null}
-                  {t.coverUrl && t.imageCount !== 0 && (
-                    <ImagemComPlanoB
-                      src={t.coverUrl}
-                      avif={t.coverAvif}
-                      planoB={t.coverFallbackUrl}
-                      lqip={t.coverLqip}
-                      /* ── SEM `scale` NO HOVER ──────────────────────────
-                         Era `group-hover:scale-[1.02]` na capa. A Parte 9 do
-                         `docs/APPLE-TEMAS.md` proíbe `scale` no hover de
-                         cartões de grelha, e a Parte 3 repete-o com a razão
-                         («sobrepõe os vizinhos»). Aqui a capa está dentro de
-                         uma moldura `overflow-hidden`, portanto não chegava a
-                         tapar o vizinho — o que fazia era mexer a fotografia
-                         debaixo do ponteiro em cada passagem de rato, numa
-                         grelha de 28 cartões que se percorre com o rato.
-
-                         O que sinaliza o hover continua a ser a moldura a
-                         ganhar o acento, no botão aqui em baixo. */
-                      className="relative h-full w-full object-cover"
-                    />
-                  )}
-                </div>
-                <div className="px-3 py-2.5">
-                  {/* ══════════════════════════════════════════════════════
-                      O NOME NÃO SE CORTA
-                      ══════════════════════════════════════════════════════
-
-                      Palavras dela: «os títulos longos são cortados».
-
-                      Era `truncate`, ou seja uma linha e reticências. O nome é
-                      a ÚNICA coisa por que ela procura um tema — «Clássico
-                      Intemporal (Branco/dourado)» virava «Clássico Intempor…»,
-                      e dois temas parecidos ficavam indistinguíveis
-                      exactamente no sítio onde é preciso distingui-los.
-
-                      Duas linhas, e a altura reservada mesmo quando só se usa
-                      uma: sem isso, um cartão de nome curto ficava mais baixo
-                      do que o vizinho e a grelha perdia a linha de base. Ao
-                      fim de duas linhas ainda pode cortar — mas aí já se leu o
-                      que distingue. */}
-                  {/* O `title` é a dica que o ponto 10 pede para quando o
-                      nome corta ao fim das duas linhas: «título com altura
-                      reservada de duas linhas, com tooltip quando trunca».
-                      Vai sempre, e não só quando corta — saber SE corta exige
-                      medir o nó depois de desenhado, e uma dica que repete o
-                      nome que está à vista não incomoda ninguém. */}
-                  {/* ── O TIPO DA CASA, E NÃO UM NÚMERO ESCRITO À MÃO ──────
-                      Era `text-[14px] leading-snug`. O `ThemeCard` da Parte 3
-                      pede «headline/600», e o mapeamento da Parte 6.3 do
-                      sistema de design diz o mesmo de qualquer «nome em
-                      lista». O `text-headline` traz tamanho, entrelinha e
-                      peso de uma vez (15/22, 600). A altura reservada passa a
-                      ser DUAS ENTRELINHAS do token — `min-h-11` = 2,75rem =
-                      2 × 1,375rem —, e não 2,7em, que com a entrelinha nova
-                      já não chegava às duas linhas e voltava a desalinhar a
-                      fila. */}
-                  <p
-                    title={t.name}
-                    className="line-clamp-2 min-h-11 text-headline text-[var(--bo-text)]"
-                  >
-                    {t.name}
-                  </p>
-                  {/* ══════════════════════════════════════════════════════
-                      UMA LINHA DE NÚMEROS, E NÃO TRÊS
-                      ══════════════════════════════════════════════════════
-
-                      Palavras dela: «os metadados pesam mais do que a imagem».
-
-                      Pesavam: o cartão chegou a ter o nome, a contagem, a data,
-                      o uso, o aviso de poucas fotos e a nota — seis linhas de
-                      texto debaixo de uma fotografia, num cartão de 165 px.
-                      Nenhuma era falsa; juntas, nenhuma se lia.
-
-                      Agora os números são um só rasto, pela ordem em que
-                      respondem à pergunta «o que é este tema?»: quantas fotos
-                      tem, quantas vezes saiu, e há quanto tempo não lhe tocam.
-                      A data vai no fim por ser a menos decisiva das três.
-
-                      Era `truncate`, e com a data absoluta (a partir de 30
-                      dias, «15/08/2026») o rasto deixou de caber num cartão de
-                      seis colunas: lia-se «15/08/2…», que é uma data que não
-                      diz o ano. O desenho do cartão na Parte 3 do documento
-                      parte o rasto em DUAS linhas («14 fotos · / 1 proposta ·
-                      ⚑»), e é isso que fica: quebra entre palavras, nunca a
-                      meio de um número, e no máximo duas linhas. Os cartões
-                      da mesma fila continuam da mesma altura — a grelha estica
-                      cada célula à mais alta. */}
-                  {/* «caption, --fg-tertiary, tabular-nums» (Parte 3). Os
-                      algarismos com a mesma largura são o que deixa «9 fotos»
-                      e «14 fotos» alinharem de cartão para cartão, e a cor é
-                      o terceiro papel de texto da casa
-                      (`--bo-texto-terciario`, 4,7:1 sobre o cartão branco e
-                      5,7:1 sobre o escuro, os números da Parte 5.2). */}
-                  {/* ── DUAS LINHAS FIXAS (9/11) ──────────────────────────
-                      Era um rasto só, que partia onde calhava: «3 fotos · 2
-                      propostas · há 6 / dias · ★» num cartão, «10 fotos ·
-                      Nunca usado · / 09/10/2026» no vizinho, uma linha no
-                      terceiro — e a fila deixava de alinhar. Agora a primeira
-                      linha diz o que o tema TEM e quanto SAIU; a segunda,
-                      QUANDO lhe tocaram (e a estrela). Cada uma numa linha. */}
-                  <p className="mt-0.5 text-caption tabular-nums text-[var(--bo-texto-terciario)]">
-                    <span className="block truncate">
-                      {t.resumoPendente ? "A contar…" : photoCountLabel(t.imageCount, t.truncated)}
-                      {/* «7 propostas» ou «Nunca usado» — a segunda é a metade
-                        mais útil: é o que distingue um tema que a biblioteca
-                        TEM de um tema que o estúdio USA. Só entra quando a
-                        contagem chegou (vem de outro pedido, depois dos
-                        cartões).
-
-                        Era «por usar»; a Parte 6 do documento manda «Nunca
-                        usado», e a diferença não é de gosto: em minúsculas e
-                        sem verbo, «por usar» lia-se como mais um número da
-                        fila. Agora é também o nome de um âmbito da barra —
-                        «Por usar» —, e o rasto do cartão e o filtro dizem a
-                        mesma coisa com as mesmas palavras. */}
-                      {usos
-                        ? usos[t.id]
-                          ? ` · ${plural(usos[t.id], "proposta", "propostas")}`
-                          : " · Nunca usado"
-                        : ""}
-                    </span>
-                    <span className="block min-h-[1lh] truncate">
-                      {/* NÃO aparece quando a pasta não pôde ser lida: «Fotos
-                        indisponíveis · há 2 meses» mistura um aviso com uma
-                        informação de rotina, e é o aviso que tem de se ler.
-
-                        ── A DATA RELATIVA LEVA A ABSOLUTA ATRÁS ──────────
-                        Ponto 13 da auditoria: «"há 1 mês", "há 19 dias". Num
-                        contexto de trabalho não chega.» O relativo fica (é o
-                        que se lê de relance numa grelha de 28) e a data
-                        inteira vai no `title`, que é o que responde quando a
-                        pergunta passa a ser «isto foi antes ou depois do
-                        casamento dos Ferreira?». A partir dos 30 dias a
-                        própria linha passa a dizer a data — ver
-                        `desdeQuando`. */}
-                      {t.imageCount !== null && desdeQuando(t.updatedAt) ? (
-                        <span title={dataPorExtenso(t.updatedAt)}>{desdeQuando(t.updatedAt)}</span>
-                      ) : null}
-                      {/* A BANDEIRA DO FAVORITO (era «Fixado no topo»; a palavra
-                        passou a ser a do menu e do filtro), que era o chip aceso por cima da
-                        fotografia. Fica no fim da linha, como no desenho do
-                        `ThemeCard` (Parte 3), e leva nome escrito: um glifo
-                        sozinho não diz nada a quem ouve o ecrã. */}
-                      {t.favorito ? (
-                        <span className="text-[var(--bo-accent)]">
-                          {t.imageCount !== null && desdeQuando(t.updatedAt) ? " · " : ""}
-                          <span aria-hidden="true">★</span>
-                          <span className="sr-only">Favorito</span>
-                        </span>
-                      ) : null}
-                    </span>
-                  </p>
-                  {/* ── UMA RESSALVA DE CADA VEZ ────────────────────────
-                      Duas notas apagadas empilhadas leem-se como nenhuma. Este
-                      cartão tem três candidatas — o par quase igual (que vive
-                      por baixo, e é a única accionável), o «poucas fotos» e a
-                      nota escrita à mão — e mostra UMA.
-
-                      A ordem é a de quem pede acção: um tema repetido tem
-                      remédio a um toque, um tema com poucas fotos é uma nota de
-                      curadoria, e a nota é contexto.
-
-                      ── E A LINHA EXISTE MESMO QUANDO NÃO TEM NADA ───────
-                      Ponto 10 da auditoria: «cartões com altura desigual… a
-                      fila fica desalinhada». O nome já tinha as duas linhas
-                      reservadas; esta não tinha nenhuma — e bastava UM tema
-                      com nota escrita para o cartão dele ficar 17 px mais alto
-                      do que os quatro vizinhos. Uma caixa vazia com a altura
-                      de uma linha custa 17 px e resolve a fila inteira, e é o
-                      mesmo remédio (altura reservada) que já lá estava no
-                      nome. `aria-hidden` quando está vazia: é geometria, e não
-                      há nada para anunciar. */}
-                  <div className="min-h-[1.125rem]">
-                    {parecidos.get(t.id) ? null : temPoucasFotos(t) ? (
-                      <p className="mt-0.5 truncate text-xs text-[var(--bo-aviso)]">
-                        Ainda com poucas fotos para escolher
-                      </p>
-                    ) : t.notes ? (
-                      <p className="bo-text-muted mt-0.5 truncate text-xs opacity-70">{t.notes}</p>
-                    ) : null}
-                  </div>
-                </div>
-              </button>
-              {/* ── «ISTO JÁ EXISTE COM OUTRO NOME» ───────────────────────
-                  Palavras dela: «"Clássico Intemporal" aparece duas vezes com
-                  nomes quase iguais».
-
-                  IRMÃO do cartão e não filho, pela mesma razão que as acções:
-                  um botão dentro de outro botão é HTML inválido, e o resultado
-                  prático seria carregar aqui abrir o tema. Por baixo e não por
-                  cima da capa — é uma nota de arrumação, não um alarme, e não
-                  pode tapar a fotografia que faz o tema reconhecível.
-
-                  Cita o outro nome: «este tema está repetido» obrigava a
-                  procurar qual. E é um botão porque a saída existe agora — abre
-                  o «Juntar a outro tema…» já com este de origem. */}
-              {avisoDeTemaParecido(parecidos.get(t.id)) && (
-                <button
-                  type="button"
-                  onClick={() => setAFundir(t)}
-                  className={`alvo-toque mt-1 flex w-full items-center gap-1.5 rounded-lg px-2 text-left text-xs text-[var(--bo-aviso)] hover:bg-[var(--bo-aviso)]/[0.07] ${ESTADO} ${PRESSAO}`}
-                >
-                  <span className="truncate">{avisoDeTemaParecido(parecidos.get(t.id))}</span>
-                  <span className="shrink-0 underline decoration-dotted underline-offset-2">
-                    Juntar
-                  </span>
-                </button>
-              )}
-            </div>
-          ))}
-          {haMaisCartoes && (
-            /* A marca que pede mais cartões quando se aproxima do ecrã. Ocupa
-               a linha inteira para nunca ficar ao lado de um cartão. */
-            <div ref={sentinelaDosCartoes} aria-hidden className="col-span-full h-px" />
-          )}
-        </div>
+        <ListaDaBiblioteca
+          setAdding={setAdding}
+          setOpenId={setOpenId}
+          densidade={densidade}
+          usos={usos}
+          setAFundir={setAFundir}
+          setMenu={setMenu}
+          accoesDoTema={accoesDoTema}
+          accoesDaBiblioteca={accoesDaBiblioteca}
+          parecidos={parecidos}
+          cartoesADesenhar={cartoesADesenhar}
+          sentinelaDosCartoes={sentinelaDosCartoes}
+          haMaisCartoes={haMaisCartoes}
+        />
       )}
       {/* O menu do botão direito, um só para o ecrã inteiro. Fica no fim
           para se desenhar por cima de tudo o resto sem depender de quem tem
@@ -3003,94 +1513,6 @@ export default function Temas({
       {perguntaDeEliminar}
     </div>
   );
-}
-
-/** O que a pasta sabe e o cartão do tema precisa de saber. */
-interface FolderState {
-  total: number | null;
-  truncated: boolean;
-  /** A fotografia da capa, inteira — e não só o endereço: o cartão precisa
-   *  dos quatro campos dela (ver `capa-do-cartao.ts`). `undefined` = não se
-   *  sabe (deixar o cartão como está); `null` = pasta vazia. */
-  capa?: ThemeImage | null;
-}
-
-/** Uma foto que não subiu, com o ficheiro guardado para se poder repetir. */
-interface Failure {
-  file: File;
-  message: string;
-}
-
-/**
- * Uma foto do arrasto que NÃO foi adicionada por já lá estar.
- *
- * Guarda o `File` em memória (como o `Failure` acima) para o "Adicionar mesmo
- * assim" não obrigar a voltar a escolher nada — e para a miniatura do
- * relatório sair de graça, do ficheiro que já está no computador dela.
- *
- * ISTO NÃO É UM ERRO e não pode aparecer a vermelho: é o comportamento que ela
- * pediu, a acontecer.
- */
-interface Skipped {
-  file: File;
-  reason: SkipReason;
-  /** O resumo, para o "Adicionar mesmo assim" não ter de o recalcular. */
-  hash?: string;
-}
-
-/** O que a fase de verificação decidiu sobre um arrasto. */
-interface Screening {
-  /** As que devem mesmo subir, pela ordem em que ela as largou. */
-  keep: File[];
-  skipped: Skipped[];
-  /** `ficheiro → resumo`, para viajar no formulário do carregamento. */
-  hashOf: Map<File, string>;
-  /** A pasta foi mesmo lida e percorrida até ao fim. `false` = não se pode
-   *  anunciar poupança nenhuma (ver o painel de repetidas). */
-  verified: boolean;
-  /** O tema tem fotos sem impressão digital (a biblioteca anterior a isto). */
-  legacy: boolean;
-}
-
-/**
- * Uma foto que ela largou e que ainda vai a caminho do servidor.
- *
- * Existe para uma coisa só: a foto aparecer na grelha NO MOMENTO em que ela a
- * larga, a partir do ficheiro que já está no computador — em vez de o ecrã
- * ficar com um espaço vazio durante os segundos que a subida demora.
- */
-interface Pending {
-  /** Chave local da célula (a foto ainda não tem caminho no servidor). */
-  id: string;
-  name: string;
-  /** URL de objeto da foto local. `undefined` = ainda não há (ou o navegador
-   *  não sabe fazer URLs de objeto) e a célula fica um retângulo à espera. */
-  src?: string;
-}
-
-/** A página seguinte, pedida antes de ela a pedir. */
-interface Ahead {
-  /** O offset com que foi pedida: se a grelha entretanto mudou de tamanho
-   *  (subiu ou saiu uma foto), esta página deixou de encaixar e deita-se fora. */
-  offset: number;
-  images: ThemeImage[];
-  total: number | null;
-  truncated: boolean;
-  full: boolean;
-}
-
-/** O andamento da geração de miniaturas em falta. */
-interface ThumbJob {
-  running: boolean;
-  /** Por onde vai a passagem pela pasta (é o que a torna retomável). */
-  cursor: number;
-  scanned: number;
-  generated: number;
-  failed: number;
-  /** Fotos do tema, segundo o servidor. `null` = ainda não se sabe. */
-  total: number | null;
-  /** Acabou de percorrer a pasta toda. */
-  complete: boolean;
 }
 
 /**
@@ -3120,278 +1542,6 @@ const MAX_BAD_BATCHES = 3;
 /** Quantas páginas já mostradas se voltam a pedir no fim da geração de
  *  miniaturas, para a grelha passar a mostrar as novas. */
 const MAX_REFRESH_PAGES = 5;
-
-/** Um URL de objeto para a foto local, ou `undefined` onde o navegador não
- *  saiba fazê-los (é o caso do jsdom, nos testes). */
-function objectUrl(file: File): string | undefined {
-  try {
-    return typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
-      ? URL.createObjectURL(file)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function revokeUrl(url?: string) {
-  if (!url) return;
-  try {
-    URL.revokeObjectURL(url);
-  } catch {
-    /* nada a fazer — o URL já não existe */
-  }
-}
-
-/**
- * A FILA DOS ORIGINAIS.
- *
- * Uma célula que não tem miniatura puxa o original (~2,6 MB). Deixar o browser
- * pedir os 60 ao mesmo tempo — que é o que ele faz, e o `loading="lazy"` não
- * trava: medido, pediu os 60 na mesma — reparte o canal por todos e faz com
- * que TODOS acabem no fim. Esta fila deixa passar `HEAVY_IMAGE_CONCURRENCY` de
- * cada vez, pela ordem da grelha, que é a ordem por que ela olha.
- *
- * Vive fora do componente porque o canal também é um só: duas grelhas abertas
- * não têm o dobro da linha. É deliberadamente simples — sem estado partilhado
- * a manter, sem React: uma foto pede vez, e larga-a quando acaba (ou quando a
- * célula sai do ecrã).
- */
-interface HeavySlot {
-  start: () => void;
-  started: boolean;
-  released: boolean;
-}
-const heavyWaiting: HeavySlot[] = [];
-let heavyLive = 0;
-
-/** Se um download ficar pendurado (nem carrega nem falha), a vez volta ao fim
- *  deste tempo: uma foto encravada não pode fechar a grelha toda. */
-const HEAVY_SLOT_TIMEOUT_MS = 30_000;
-
-function pumpHeavy() {
-  while (heavyLive < HEAVY_IMAGE_CONCURRENCY && heavyWaiting.length > 0) {
-    const slot = heavyWaiting.shift();
-    if (!slot || slot.released) continue;
-    slot.started = true;
-    heavyLive += 1;
-    slot.start();
-  }
-}
-
-/** Pede vez para descarregar um original. Devolve a função de largar a vez —
- *  serve para os dois casos (acabou / desistiu) e é idempotente. */
-function queueHeavyImage(start: () => void): () => void {
-  const slot: HeavySlot = { start, started: false, released: false };
-  heavyWaiting.push(slot);
-  pumpHeavy();
-  return () => {
-    if (slot.released) return;
-    slot.released = true;
-    if (slot.started) {
-      heavyLive = Math.max(0, heavyLive - 1);
-      pumpHeavy();
-      return;
-    }
-    const i = heavyWaiting.indexOf(slot);
-    if (i >= 0) heavyWaiting.splice(i, 1);
-  };
-}
-
-/**
- * A miniatura de uma foto na grelha.
- *
- * Mostra, por esta ordem: a foto LOCAL (quando acabou de ser carregada nesta
- * sessão — já está no computador dela, não se vai buscar nada), a miniatura, e
- * só depois o original. As fotos carregadas ANTES de as miniaturas existirem
- * não têm nenhuma, e é o original que aparece — é para essas que existe o
- * botão "Gerar miniaturas em falta".
- *
- * O `onError` é a segunda rede: um URL assinado para um objeto que já lá não
- * está falha no browser, e sem isto ficava uma célula partida numa grelha
- * inteira que funciona.
- */
-function Photo({
-  image,
-  alt,
-  priority,
-  localSrc,
-}: {
-  image: ThemeImage;
-  alt: string;
-  /** Está na primeira dobra: não espera por nada. */
-  priority?: boolean;
-  /** URL de objeto da foto que está no disco dela (carregada agora). */
-  localSrc?: string;
-}) {
-  /** A imagem BARATA desta célula: a cópia local ou a miniatura (~25 KB). */
-  const light = localSrc || image.thumbUrl;
-  /** A barata falhou — miniatura apagada do bucket, ou cópia local já
-   *  libertada. Fica só o original, e esse entra na fila como qualquer outro. */
-  const [lightBroken, setLightBroken] = useState(false);
-  /** A fila deu a vez a esta célula. */
-  const [turn, setTurn] = useState(false);
-  /** A fotografia já chegou — é o que dispara o fade por cima do LQIP. */
-  const [pintada, setPintada] = useState(false);
-  /** Sem imagem barata, esta célula vai puxar ~2,6 MB: espera pela vez. */
-  const heavy = !light || lightBroken;
-  const release = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    if (!heavy) return;
-    let timer = 0;
-    const free = queueHeavyImage(() => {
-      setTurn(true);
-      // Rede de segurança: um pedido que nunca termina não pode ficar com a
-      // vez para sempre.
-      timer = window.setTimeout(() => release.current?.(), HEAVY_SLOT_TIMEOUT_MS);
-    });
-    release.current = () => {
-      window.clearTimeout(timer);
-      free();
-    };
-    return () => {
-      release.current?.();
-      release.current = null;
-    };
-    // `image.url` entra nas dependências para uma foto reassinada voltar a
-    // pedir vez em vez de ficar com um URL expirado.
-  }, [heavy, image.url]);
-
-  // Uma célula à espera de vez fica SEM `src` (e não com `src=""`, que é um
-  // pedido à própria página). É a única forma de a fila valer alguma coisa: um
-  // `src` posto é um download começado.
-  const src = heavy ? (turn ? image.url : undefined) : light;
-
-  const finished = () => {
-    release.current?.();
-    release.current = null;
-  };
-
-  return (
-    /* O LQIP É O FUNDO DA CÉLULA — mesma regra do seletor de temas, e pela
-       mesma razão: um `background-image` com um `data:` URI não é um pedido,
-       não entra na fila de descarregamentos, e está pintado no instante em que
-       este elemento existe.
-       Aqui há uma diferença: a célula pode já ter `localSrc` — a miniatura que
-       acabou de ser feita no browser, ainda em memória, de uma foto carregada
-       há segundos. Essa aparece na hora e não precisa de placeholder nenhum. */
-    <div
-      className="h-full w-full bg-[var(--bo-tinta-6)] bg-cover bg-center"
-      style={image.lqip && !localSrc ? { backgroundImage: `url("${image.lqip}")` } : undefined}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt={alt}
-        // As pesadas são geridas pela fila — pô-las também em `lazy` fazia uma
-        // célula fora do ecrã ficar com a vez sem chegar a pedir nada.
-        loading={heavy || priority ? "eager" : "lazy"}
-        fetchPriority={priority ? "high" : undefined}
-        decoding="async"
-        onLoad={() => {
-          finished();
-          setPintada(true);
-        }}
-        onError={() => {
-          finished();
-          if (!heavy) setLightBroken(true);
-        }}
-        className={`h-full w-full object-cover motion-safe:transition-opacity motion-safe:duration-elemento ${
-          pintada || localSrc || !image.lqip ? "opacity-100" : "opacity-0"
-        }`}
-      />
-    </div>
-  );
-}
-
-/**
- * A miniatura de uma foto SALTADA, desenhada do ficheiro que está no
- * computador dela.
- *
- * Custo zero de rede: o `File` já está em memória (é o mesmo que o "Adicionar
- * mesmo assim" vai usar). O URL de objeto é criado uma vez e registado para
- * ser libertado à saída da pasta, como todos os outros deste ecrã.
- */
-function SkippedThumb({ file, track }: { file: File; track: (file: File) => string | undefined }) {
-  const [src] = useState(() => track(file));
-  if (!src) return <div className="bo-skeleton h-full w-full" aria-hidden />;
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" decoding="async" className="h-full w-full object-cover" />;
-}
-
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * O CRACHÁ DO NÚMERO — o que se vê debaixo do ponteiro num arrasto múltiplo
- * ════════════════════════════════════════════════════════════════════════════
- *
- * «Arrasto múltiplo agrupado com BADGE OVAL DO NÚMERO.» [APPLE], Parte 4 do
- * `docs/APPLE-TEMAS.md`.
- *
- * Sem isto, pegar em quarenta fotografias arrasta a imagem de UMA — e o que se
- * vê debaixo do ponteiro é indistinguível de arrastar uma só. O número é a
- * única coisa que diz quantas vão a caminho antes de se largar.
- *
- * ── PORQUE É QUE O NÓ VIVE FORA DO ECRÃ E MORRE A SEGUIR ──────────────────
- *
- * O `setDragImage` tira uma FOTOGRAFIA do elemento no instante da chamada, mas
- * a especificação exige que ele ainda esteja no documento nesse instante —
- * `display: none` ou um nó solto dão um arrasto sem imagem nenhuma. Por isso
- * ele entra no documento, é fotografado, e sai no próximo turno da fila de
- * tarefas, que é o primeiro momento em que já não faz falta.
- *
- * `translate(-100%)` e não `left: -9999px`: em `rtl` o segundo empurra o
- * documento para o lado e o browser mostra uma barra de deslocamento durante
- * um fotograma.
- */
-function vestirOArrasto(e: React.DragEvent, quantas: number): void {
-  // Uma foto arrasta-se a si própria — a imagem que o browser faz da célula é
-  // melhor do que qualquer coisa que se desenhe aqui, e é a da Apple.
-  if (quantas <= 1) return;
-  const dt = e.dataTransfer;
-  if (typeof dt?.setDragImage !== "function" || typeof document === "undefined") return;
-  const celula = e.currentTarget as HTMLElement;
-  const cracha = document.createElement("div");
-  cracha.setAttribute("aria-hidden", "true");
-  cracha.style.cssText = [
-    "position:fixed",
-    "top:0",
-    "left:0",
-    "transform:translate(-100%,-100%)",
-    "pointer-events:none",
-    "z-index:-1",
-    `width:${Math.round(celula.offsetWidth || 120)}px`,
-    `height:${Math.round(celula.offsetHeight || 90)}px`,
-    "border-radius:8px",
-    "background:var(--bo-surface)",
-    "border:1px solid var(--bo-accent)",
-    "display:flex",
-    "align-items:center",
-    "justify-content:center",
-    "font:600 13px/1 system-ui,sans-serif",
-  ].join(";");
-  const oval = document.createElement("span");
-  oval.textContent = String(quantas);
-  // Cápsula, e não rectângulo: é um crachá de contagem, que é o único sítio
-  // onde a Parte 4 da tabela de formas do sistema de design pede cápsula num
-  // elemento pequeno.
-  oval.style.cssText = [
-    "min-width:28px",
-    "padding:4px 8px",
-    "border-radius:999px",
-    "background:var(--bo-accent)",
-    "color:#fff",
-    "text-align:center",
-  ].join(";");
-  cracha.appendChild(oval);
-  document.body.appendChild(cracha);
-  try {
-    dt.setDragImage(cracha, 12, 12);
-  } catch {
-    // Um browser que recuse a imagem faz o arrasto na mesma, com a dele.
-  }
-  window.setTimeout(() => cracha.remove(), 0);
-}
-
 /**
  * ── SAIR DA PASTA COM UM LOTE A MEIO ──────────────────────────────────────
  *
@@ -3582,6 +1732,19 @@ function ThemeFolder({
   /** Profundidade do arrasto: entrar numa foto dispara `dragleave` no
    *  contentor, e a moldura piscava a cada célula por baixo do ponteiro. */
   const dragDepth = useRef(0);
+  /** O que a grelha faz à profundidade do arrasto — ver `GrelhaDaPasta`. */
+  const arrasto = {
+    entrar: () => {
+      dragDepth.current += 1;
+    },
+    sair: () => {
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      return dragDepth.current;
+    },
+    zerar: () => {
+      dragDepth.current = 0;
+    },
+  };
   /**
    * ── O QUE O ARRASTO ENTRE TEMAS PRECISA DE GUARDAR ────────────────────
    *
@@ -5694,110 +3857,21 @@ function ThemeFolder({
 
   return (
     <div>
-      {/* ══════════════════════════════════════════════════════════════
-          O CABEÇALHO DO TEMA (9/11)
-          ══════════════════════════════════════════════════════════════
-
-          Ela: «melhora mesmo imenso essa parte dos temas. quero mesmo algo
-          incrível». O tema abria com o nome em `text-xl` e «3 fotos» em letra
-          de 12 px ao lado — o cabeçalho de uma pasta, não de uma colecção.
-
-          Agora é o título da vista, no degrau `title1` da casa, e por baixo
-          UMA linha que responde ao que se pergunta antes de escolher fotos:
-          quantas tem, quantas vezes já saiu numa proposta, e quando lhe
-          tocaram. A nota do tema, quando a há, vem logo a seguir — é a frase
-          que ela escreveu para se lembrar do que o tema é. */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-x-3 gap-y-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {/* ── «← TEMAS» DESAPARECE NO SPLIT VIEW ──────────────────────
-              Parte 6 do `docs/APPLE-TEMAS.md`, à letra: «← Temas →
-              (desaparece — split view)». A partir de `lg` o caminho de volta
-              é o «Todos os temas» da coluna da esquerda, e ter os dois seria
-              duas saídas com nomes diferentes para o mesmo sítio.
-
-              Abaixo de `lg` a coluna não existe, e este botão é o único
-              caminho — por isso não sai, esconde-se onde há substituto. */}
-            <Button variant="ghost" size="sm" onClick={leave} className="lg:hidden">
-              ← Temas
-            </Button>
-            {renaming ? (
-              <div>
-                <input
-                  autoFocus
-                  value={name}
-                  maxLength={MAX_THEME_NAME}
-                  onChange={(e) => setName(e.target.value)}
-                  onBlur={rename}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") rename();
-                    if (e.key === "Escape") {
-                      setName(theme.name);
-                      setRenaming(false);
-                    }
-                  }}
-                  aria-label="Nome do tema"
-                  className="bo-input px-3 py-1.5 text-sm text-[var(--bo-text)]"
-                />
-                <SugestaoDeNome valor={name} onAceitar={setName} />
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setRenaming(true)}
-                className={`alvo-toque text-left font-display text-title2 text-[var(--bo-text)] hover:text-sage-600 sm:text-title1 ${ESTADO} ${PRESSAO}`}
-                title="Renomear tema"
-              >
-                {theme.name}
-              </button>
-            )}
-          </div>
-          <p
-            className="mt-1 text-footnote tabular-nums text-[var(--bo-text-muted)]"
-            aria-live="polite"
-          >
-            {loading ? "A ler a pasta…" : countLine}
-            {usos && !loading
-              ? usos[theme.id]
-                ? ` · usado em ${plural(usos[theme.id], "proposta", "propostas")}`
-                : " · nunca usado numa proposta"
-              : ""}
-            {!loading && desdeQuando(theme.updatedAt) ? (
-              <span title={dataPorExtenso(theme.updatedAt)}>
-                {` · alterado ${/^\d/.test(desdeQuando(theme.updatedAt) ?? "") ? "a " : ""}${desdeQuando(theme.updatedAt)}`}
-              </span>
-            ) : null}
-            {theme.favorito ? (
-              <span className="text-[var(--bo-accent)]">
-                {" · "}
-                <span aria-hidden="true">★ </span>Favorito
-              </span>
-            ) : null}
-          </p>
-          {theme.notes?.trim() ? (
-            <p className="mt-2 max-w-prose text-callout text-[var(--bo-tinta-72)]">{theme.notes}</p>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            iconLeft={PlusIcon}
-            loading={uploadingCount > 0}
-            onClick={() => inputRef.current?.click()}
-          >
-            Adicionar fotos
-          </Button>
-          {/* ── «ELIMINAR TEMA» SAIU DAQUI ───────────────────────────────
-              T3 do `docs/PROPOSTAS-E-TEMAS-APPLE.md` e ponto 20 da auditoria
-              do `APPLE-TEMAS.md`: era um botão de texto encostado a
-              «Adicionar fotos» — uma acção destrutiva com o peso de um link,
-              ao lado da acção principal. Passa para o «⋯» das acções do
-              tema, a vermelho e no fim, com a confirmação que diz o custo.
-              O «⋯» está sempre à vista: aqui não há linha nenhuma a cujo
-              hover ele pudesse responder. */}
-          <MenuDeAccoes accoes={accoes} sobre={theme.name} sempreVisivel />
-        </div>
-      </div>
+      <CabecalhoDaPasta
+        theme={theme}
+        accoes={accoes}
+        usos={usos}
+        loading={loading}
+        uploadingCount={uploadingCount}
+        name={name}
+        setName={setName}
+        renaming={renaming}
+        setRenaming={setRenaming}
+        inputRef={inputRef}
+        rename={rename}
+        leave={leave}
+        countLine={countLine}
+      />
 
       <input
         ref={inputRef}
@@ -5811,415 +3885,52 @@ function ThemeFolder({
         }}
       />
 
-      {/* A VERIFICAR — a fase que acontece ANTES de preparar seja o que for.
-          Curta (medido: ~16 ms por foto, quatro em voo) mas não pode ser
-          silenciosa: sem isto, um arrasto de 300 fotos ficava um segundo e
-          meio aparentemente parado antes de a primeira entrar na grelha. */}
-      {verifying && (
-        <Card padding="sm" className="mb-4">
-          <p className="text-sm text-[var(--bo-text)]">
-            A verificar {plural(verifying.total, "foto", "fotos")} — {verifying.done} de{" "}
-            {verifying.total}…
-          </p>
-          <p className="bo-text-muted mt-1 text-xs">
-            A ver quais já estão neste tema, para não as carregar outra vez.
-          </p>
-        </Card>
-      )}
+      <AvisosDaPasta
+        theme={theme}
+        progress={progress}
+        failed={failed}
+        setFailed={setFailed}
+        skipped={skipped}
+        setSkipped={setSkipped}
+        legacyPhotos={legacyPhotos}
+        partialCheck={partialCheck}
+        verifying={verifying}
+        setCopyOpen={setCopyOpen}
+        setCopyMode={setCopyMode}
+        copyReport={copyReport}
+        setCopyReport={setCopyReport}
+        thumbJob={thumbJob}
+        pararMiniaturas={() => {
+          stopThumbs.current = true;
+        }}
+        trackUrl={trackUrl}
+        runThumbJob={runThumbJob}
+        retryFailed={retryFailed}
+        addSkippedAnyway={addSkippedAnyway}
+        unreadable={unreadable}
+        selectedCount={selectedCount}
+        pct={pct}
+        missingThumbs={missingThumbs}
+        thumbPct={thumbPct}
+      />
 
-      {progress && (
-        <Card padding="sm" className="mb-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm text-[var(--bo-text)]">
-              A carregar <strong className="font-medium">{progress.done}</strong> de{" "}
-              {plural(progress.total, "foto", "fotos")}…
-            </p>
-            <span className="bo-text-muted text-xs">{pct}%</span>
-          </div>
-          <div
-            role="progressbar"
-            aria-label="Progresso do carregamento"
-            aria-valuemin={0}
-            aria-valuemax={progress.total}
-            aria-valuenow={progress.done}
-            className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--bo-tinta-10)]"
-          >
-            {/* Era `duration-elemento`, que PEDE 250 ms e não gera regra
-                nenhuma: o espaço de nomes que o Tailwind v4 lê para os
-                utilitários `duration-*` é `--transition-duration-*`, e a casa
-                declarou `--duration-*` (ponto 3 de `ui/movimento.ts`). A barra
-                corria, na prática, nos 150 ms de omissão. O `PROGRESSO` escreve
-                os mesmos 250 ms num utilitário que compila mesmo. */}
-            <div
-              className={`h-full w-full origin-left rounded-full bg-sage-600 ${PROGRESSO}`}
-              style={{ transform: `scaleX(${pct / 100})` }}
-            />
-          </div>
-          <p className="bo-text-muted mt-2 text-xs">
-            Podes ir fazer outra coisa — enquanto este separador ficar aberto, as fotos continuam a
-            subir e vão aparecendo aqui.
-          </p>
-        </Card>
-      )}
-
-      {/* MINIATURAS EM FALTA — só aparece quando há mesmo fotos a ser
-          mostradas a partir do original, e desaparece quando deixa de haver. */}
-      {(missingThumbs || thumbJob) && !unreadable && (
-        <Card padding="sm" className="mb-4">
-          {thumbJob?.running ? (
-            <>
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="text-sm text-[var(--bo-text)]">
-                  A gerar miniaturas —{" "}
-                  <strong className="font-medium">
-                    {plural(thumbJob.generated, "criada", "criadas")}
-                  </strong>{" "}
-                  em {thumbJob.scanned} fotos vistas
-                  {thumbJob.total ? ` de ${thumbJob.total}` : ""}…
-                </p>
-                <span className="bo-text-muted text-xs">{thumbPct}%</span>
-              </div>
-              <div
-                role="progressbar"
-                aria-label="Progresso da geração de miniaturas"
-                aria-valuemin={0}
-                aria-valuemax={thumbJob.total ?? undefined}
-                aria-valuenow={thumbJob.cursor}
-                className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--bo-tinta-10)]"
-              >
-                <div
-                  className={`h-full w-full origin-left rounded-full bg-sage-600 ${PROGRESSO}`}
-                  style={{ transform: `scaleX(${thumbPct / 100})` }}
-                />
-              </div>
-              <div className="mt-3 flex items-center gap-3">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    stopThumbs.current = true;
-                  }}
-                >
-                  Parar
-                </Button>
-                <span className="bo-text-muted text-xs">
-                  Podes continuar a trabalhar — e parar a meio não perde nada: da próxima vez
-                  continua de onde ficou.
-                </span>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-[var(--bo-text)]">
-                {missingThumbs
-                  ? "Há fotos antigas sem miniatura — a grelha está a mostrar as fotos em tamanho real (uns 2,6 MB cada), e é por isso que este tema demora a abrir."
-                  : "As miniaturas deste tema estão feitas."}
-              </p>
-              {thumbJob && (
-                <p className="bo-text-muted mt-1 text-xs">
-                  {plural(thumbJob.generated, "miniatura criada", "miniaturas criadas")} ·{" "}
-                  {thumbJob.scanned} fotos vistas
-                  {thumbJob.failed > 0
-                    ? ` · ${plural(thumbJob.failed, "foto sem miniatura", "fotos sem miniatura")}`
-                    : ""}
-                  {thumbJob.complete ? " · concluído" : " · parado a meio"}
-                </p>
-              )}
-              {missingThumbs && (
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <Button size="sm" variant="secondary" onClick={() => void runThumbJob()}>
-                    {thumbJob ? "Continuar a gerar miniaturas" : "Gerar miniaturas em falta"}
-                  </Button>
-                  <span className="bo-text-muted text-xs">
-                    As fotos originais não são alteradas.
-                  </span>
-                </div>
-              )}
-            </>
-          )}
-        </Card>
-      )}
-
-      {failed.length > 0 && (
-        <Card
-          padding="sm"
-          className="mb-4 border-[var(--bo-perigo)]/25 bg-[var(--bo-perigo-lavagem)]/40"
-        >
-          <p className="text-sm text-[var(--bo-text)]">
-            {plural(failed.length, "foto não subiu", "fotos não subiram")}. Os ficheiros ficaram
-            guardados — não é preciso voltar a escolhê-los.
-          </p>
-          <p className="bo-text-muted mt-1 text-xs">{failed[0].message}</p>
-          <div className="mt-3 flex items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={retryFailed}>
-              Tentar novamente
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setFailed([])}>
-              Descartar
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* JÁ ESTAVAM NO TEMA — a caixa tem a forma da do "tentar novamente", mas
-          NEUTRA: isto não é uma avaria, é o que ela pediu a acontecer. Um só
-          botão, e por LOTE: nunca uma pergunta foto a foto. */}
-      {skipped.length > 0 && (
-        <Card padding="sm" className="mb-4">
-          <p className="text-sm text-[var(--bo-text)]">
-            {plural(skipped.length, "foto não foi adicionada", "fotos não foram adicionadas")} —{" "}
-            {skipped.some((s) => s.reason === "no-tema") &&
-            skipped.some((s) => s.reason === "no-lote")
-              ? "já estavam neste tema ou vinham repetidas no mesmo arrasto"
-              : skipped[0].reason === "no-lote"
-                ? "vinham repetidas dentro do mesmo arrasto"
-                : `já ${skipped.length === 1 ? "estava" : "estavam"} em “${theme.name}”`}
-            .
-          </p>
-          {legacyPhotos && (
-            <p className="bo-text-muted mt-1 text-xs">
-              As fotos carregadas antes desta funcionalidade nem sempre podem ser reconhecidas.
-            </p>
-          )}
-          {partialCheck && (
-            <p className="bo-text-muted mt-1 text-xs">
-              Não foi possível ver a pasta toda desta vez — pode ter escapado alguma repetida.
-            </p>
-          )}
-          <ul className="mt-3 flex flex-wrap gap-2">
-            {skipped.slice(0, SKIPPED_PREVIEWS).map((s, i) => (
-              <li
-                key={`${s.file.name}-${i}`}
-                title={`${s.file.name} — ${
-                  s.reason === "no-lote" ? "repetida neste arrasto" : "já estava no tema"
-                }`}
-                className="h-14 w-14 overflow-hidden rounded-lg border border-[var(--bo-hairline-strong)] bg-[var(--bo-tinta-6)]"
-              >
-                <SkippedThumb file={s.file} track={trackUrl} />
-              </li>
-            ))}
-          </ul>
-          {skipped.length > SKIPPED_PREVIEWS && (
-            <p className="bo-text-muted mt-2 text-xs">
-              …e mais {skipped.length - SKIPPED_PREVIEWS}.
-            </p>
-          )}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={addSkippedAnyway}>
-              Adicionar mesmo assim
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setSkipped([])}>
-              Descartar
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* O QUE NÃO FOI LEVADO para outro tema. Vermelho e persistente: é um
-          número em que ela tem de agir, e as fotos continuam aqui. */}
-      {copyReport && (
-        <Card
-          padding="sm"
-          className="mb-4 border-[var(--bo-perigo)]/25 bg-[var(--bo-perigo-lavagem)]/40"
-        >
-          <p className="text-sm text-[var(--bo-text)]">
-            {copyReport.failed.length > 0
-              ? `${copyReport.failed.length} de ${
-                  copyReport.copied.length + copyReport.existing.length + copyReport.failed.length
-                } ${
-                  copyReport.failed.length === 1
-                    ? copyReport.mode === "copiar"
-                      ? "não foi copiada"
-                      : "não foi movida"
-                    : copyReport.mode === "copiar"
-                      ? "não foram copiadas"
-                      : "não foram movidas"
-                } para “${copyReport.destName}”.`
-              : `Parou a meio — ${plural(copyReport.copied.length, "foto foi", "fotos foram")} para “${copyReport.destName}”.`}
-          </p>
-          <p className="bo-text-muted mt-1 text-xs">
-            {copyReport.failed.length > 0
-              ? "Continuam neste tema e ficaram selecionadas — podes tentar outra vez sem as escolher de novo."
-              : "As que faltavam continuam neste tema e ficaram selecionadas — podes retomar sem as escolher de novo."}
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {selectedCount > 0 && (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  // Repetir é repetir O MESMO: um lote de «mover» parado a
-                  // meio não pode ser retomado como cópia.
-                  setCopyMode(copyReport.mode);
-                  setCopyOpen(true);
-                }}
-              >
-                Tentar novamente
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={() => setCopyReport(null)}>
-              Descartar
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* A BARRA DA SELEÇÃO E A ESPERA DO QUE ELA MANDOU FAZER, no mesmo
-          bloco colado ao topo.
-
-          São dois cartões e não um: a remoção esvazia a seleção logo (é
-          otimista), a barra de ações desaparece nesse instante e o cartão da
-          espera tem de FICAR — os pedidos ainda vão a caminho. A "Transferir"
-          faz o contrário: a seleção mantém-se e os dois vêem-se juntos.
-
-          O `sticky` está no invólucro para que a espera acompanhe o scroll tal
-          como a barra acompanhava; a 390 px cada um ocupa a largura toda e
-          empilham. */}
-      {/* ── O QUE O ARRASTO DIZ A QUEM OUVE O ECRÃ ──────────────────────────
-          «Operações de arrasto anunciadas em `role="status"`» (Parte 7), e a
-          Parte 4 dá a frase: «3 fotografias movidas para Bouquets
-          Campestres.» O toast não serve para isto — flutua no canto, some ao
-          fim de quatro segundos e o «Anular» que ele carrega é para quem VÊ.
-
-          `aria-label` porque esta página tem outras duas regiões `status` (o
-          `ToastProvider` e o estado da vista da lista); sem nome, quem navega
-          por regiões encontra três iguais. Vazia em repouso — uma região viva
-          com texto lá dentro é lida outra vez a cada re-desenho. */}
-      <p role="status" aria-live="polite" aria-label="Movimento de fotografias" className="sr-only">
-        {anuncio}
-      </p>
-
-      {(selectedCount > 0 || emBloco || aMover) && (
-        <div className="sticky top-2 z-20 mb-4 flex flex-col gap-2">
-          {selectedCount > 0 && (
-            /* ── A PRIMEIRA SUPERFÍCIE DE VIDRO A SÉRIO DA CASA ──────────
-               «Aplica-o a uma superfície só — e olha para ela num ecrã com
-               fotografias por trás. É onde o efeito se prova.»
-               (`docs/LIQUID-GLASS.md`, Parte 7, ponto 3.)
-
-               É esta. A Parte 6 manda o vidro para «a barra de filtros» dos
-               Temas e deixa os cartões opacos, e esta é a barra que flutua
-               neste ecrã: fica colada ao topo enquanto a grelha de fotografias
-               lhe passa por baixo. O documento dela pedia a barra do portal do
-               cliente, e essa não existe — o portal é um documento que rola,
-               sem sub-navegação nem barra de preço. Trocá-la por esta mantém a
-               condição que interessa (fotografias a mexer por trás) e não
-               inventa um ecrã para provar um material.
-
-               O que estava aqui era `backdrop-blur` com o fundo a 95%: o
-               «frosted glass» que a Parte 1 diagnostica, e opaco ao ponto de o
-               desfoque não se ver.
-
-               ── E PORQUE É QUE O FUNDO É 78% E NÃO MENOS ──────────────────
-               Porque a Parte 5 diz que o texto sobre vidro precisa de fundo
-               próprio, e este texto não tem nenhum. MEDIDO, no pior caso de
-               cada tema — foto preta por baixo em claro, foto branca em
-               escuro:
-
-                   fundo   texto 82%        dica 72%
-                   70%     6,73 / 4,55      4,88 / 3,95   ← a dica reprova
-                   78%     7,97 / 5,86      6,03 / 4,95   ✓
-                   86%     9,27 / 7,56      —             (vidro por ver)
-
-               Os 78% são o ponto onde o vidro se vê E o pior caso continua
-               acima de 4,5:1. A dica sobe de 64% para 72% de tinta pela mesma
-               conta: a 64% reprovava a qualquer opacidade que deixasse ver o
-               material. Continua a ler-se como secundária — 72 contra 82. */
-            <Glass
-              superficie="barra"
-              className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-sage-600/25 bg-[var(--bo-surface)]/78 px-4 py-3"
-            >
-              <p className="text-sm text-[var(--bo-text)]">
-                {plural(selectedCount, "foto selecionada", "fotos selecionadas")}
-              </p>
-              <span className="hidden text-xs text-[var(--bo-tinta-72)] sm:inline">
-                Shift + clique seleciona tudo o que está pelo meio.
-              </span>
-              <div className="ml-auto flex flex-wrap items-center gap-2">
-                {selectedCount === 1 && (
-                  <Button
-                    size="sm"
-                    variant="subtle"
-                    onClick={() => {
-                      const one = images.find((i) => selected.has(i.path));
-                      if (one) setAsCover(one);
-                    }}
-                  >
-                    Definir como capa
-                  </Button>
-                )}
-                {/* ⚠️ "Transferir", aqui ao lado, já significa DESCARREGAR. Esta
-                ação chama-se "Copiar para…" — a palavra transferir está
-                proibida para ela, senão passam a existir dois significados no
-                mesmo sítio. Só aparece havendo outro tema para onde levar. */}
-                {otherThemes.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      setCopyMode("copiar");
-                      setCopyOpen(true);
-                    }}
-                  >
-                    Copiar para…
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  loading={downloading}
-                  onClick={downloadSelected}
-                >
-                  Transferir
-                </Button>
-                <Button size="sm" variant="secondary" onClick={clearSelection}>
-                  Limpar seleção
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  loading={bulkBusy}
-                  onClick={pedirParaRemoverAsSeleccionadas}
-                >
-                  Remover
-                </Button>
-              </div>
-            </Glass>
-          )}
-          {aMover && (
-            /* A espera do arrasto, no mesmo sítio e com o mesmo desenho da
-               transferência e da remoção. Um lote de quarenta fotografias
-               demora, e a única coisa que se via era a grelha parada. */
-            <div className="rounded-xl bg-[var(--bo-surface)]/95 backdrop-blur">
-              <EmCurso
-                titulo="A mover as fotos…"
-                feito={aMover.feito}
-                total={aMover.total}
-                nota="Podes continuar a usar o ecrã. Se te enganaste, o aviso no fim traz «Anular»."
-              />
-            </div>
-          )}
-          {emBloco && (
-            /* Fundo opaco por baixo: o cartão da espera é translúcido de
-               propósito (é um tom sobre o papel), e colado ao topo passava a
-               ter as fotos a rolar por trás. */
-            <div className="rounded-xl bg-[var(--bo-surface)]/95 backdrop-blur">
-              <EmCurso
-                titulo={
-                  emBloco.tipo === "transferir" ? "A transferir as fotos…" : "A remover as fotos…"
-                }
-                feito={emBloco.feito}
-                total={emBloco.total}
-                nota={
-                  emBloco.tipo === "transferir"
-                    ? "Uma de cada vez — é assim que o navegador as deixa passar todas. Podes continuar a usar o ecrã."
-                    : "As propostas já feitas com estas fotos não são afetadas."
-                }
-              />
-            </div>
-          )}
-        </div>
-      )}
+      <BarraDaSeleccaoDaPasta
+        images={images}
+        setCopyOpen={setCopyOpen}
+        setCopyMode={setCopyMode}
+        selected={selected}
+        bulkBusy={bulkBusy}
+        emBloco={emBloco}
+        aMover={aMover}
+        anuncio={anuncio}
+        clearSelection={clearSelection}
+        pedirParaRemoverAsSeleccionadas={pedirParaRemoverAsSeleccionadas}
+        setAsCover={setAsCover}
+        selectedCount={selectedCount}
+        otherThemes={otherThemes}
+        downloading={downloading}
+        downloadSelected={downloadSelected}
+      />
 
       {copiaNoEcra && (
         <ThemeCopyDialog
@@ -6271,165 +3982,27 @@ function ThemeFolder({
         </div>
       )}
 
-      <div
-        onDragEnter={(e) => {
-          e.preventDefault();
-          dragDepth.current += 1;
-          setDrag(true);
-        }}
-        onDragOver={(e) => e.preventDefault()}
-        onDragLeave={() => {
-          dragDepth.current = Math.max(0, dragDepth.current - 1);
-          if (dragDepth.current === 0) setDrag(false);
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          dragDepth.current = 0;
-          setDrag(false);
-          // As `entries` têm de sair do DataTransfer AGORA: ele é esvaziado
-          // assim que este handler retorna, e o resto do trabalho é `async`.
-          const entries = readDropEntries(e.dataTransfer);
-          const files = Array.from(e.dataTransfer?.files ?? []);
-          void handleDrop(entries, files);
-        }}
-        // A marca por onde os testes encontram esta caixa. Era a classe
-        // `border-dashed`, e deixou de servir no dia em que o tracejado passou
-        // a existir só durante um arrasto (fase 07) — um selector que depende
-        // de um estado transitório é um selector que encontra a zona de largar
-        // metade das vezes.
-        data-zona-de-largar=""
-        // `@container`: é ESTA caixa que o `GRELHA_DE_FOTOS` mede. A largura
-        // dela não acompanha a da janela a partir de `lg`, onde a navegação
-        // passa a ocupar 256 px em fluxo — a conta toda está no comentário do
-        // `GRELHA_DE_FOTOS`.
-        /* ══════════════════════════════════════════════════════════════════
-           O TRACEJADO SÓ EXISTE DURANTE UM ARRASTO — FASE 07
-           ══════════════════════════════════════════════════════════════════
-
-           Ponto 17 da auditoria, e o critério 8: «a área tracejada está sempre
-           visível… um tracejado permanente é ruído que ensina a ignorar o
-           sinal. A grelha é só a grelha.» [APPLE, Drag and drop: mostrar sinal
-           de aceitação SÓ sobre um destino válido, durante o arrasto.]
-
-           Três estados, e a moldura tem sempre 1 px para a geometria não
-           saltar (é ela que o `zonaDeLargar` do teste conta):
-
-             · a arrastar ficheiros por cima → tracejado no acento, e o realce
-               do contentor. É o sinal de aceitação, e só aqui;
-             · com fotografias na grelha → moldura TRANSPARENTE. A grelha é só
-               a grelha;
-             · sem fotografias nenhumas → um fio da casa, contínuo. Não é uma
-               zona de largar a anunciar-se: é a moldura da frase que ocupa o
-               lugar das fotografias, e sem ela o texto fica solto no meio da
-               página. Contínuo e não tracejado, que é a diferença entre uma
-               moldura e um convite.
-
-           A `bo-cena` não entra aqui: ver a nota do split view.
-
-           ── A GRELHA ALINHA COM O RESTO DA PÁGINA (9/11) ──────────────────
-           A moldura tem `p-4` para o realce do arrasto ter onde respirar, e
-           com isso as fotografias ficavam 17 px para dentro do título e da
-           margem — no telemóvel começavam aos 34 px quando tudo o resto
-           começa aos 16. `-mx-4 -mt-4` devolve esses 16 px: as fotografias
-           alinham com o título, e o realce do arrasto estende-se 16 px para
-           fora delas, como na app Fotografias. */
-        className={`@container -mx-4 -mt-4 rounded-2xl border p-4 ${ESTADO} ${
-          drag
-            ? "border-dashed border-sage-600/60 bg-sage-600/[0.06]"
-            : images.length === 0 && pending.length === 0
-              ? "border-[var(--bo-hairline-strong)]"
-              : "border-transparent"
-        }`}
-      >
-        {loading ? (
-          <div className={GRELHA_DE_FOTOS}>
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div
-                key={i}
-                className="bo-skeleton aspect-[4/3] min-h-[104px] rounded-lg"
-                aria-hidden
-              />
-            ))}
-          </div>
-        ) : unreadable ? (
-          // Falha de leitura NÃO é "tema sem fotos": dizer-lhe para arrastar
-          // fotos aqui seria convidá-la a duplicar o que já lá está.
-          <div className="py-12 text-center">
-            <p className="text-sm text-[var(--bo-tinta-72)]">
-              Não foi possível ler a pasta deste tema agora.
-            </p>
-            <p className="bo-text-muted mt-1 text-xs">
-              {/* A razão, quando se sabe qual foi. O texto de reserva é para a
-                  pasta que o SERVIDOR disse não ter conseguido ler (um 200 com
-                  `ok: false`): aí ele já respondeu, e o que se sabe é mesmo só
-                  que a falha é do lado de lá e passageira. */}
-              {falhaDaPasta?.mensagem ??
-                "É uma falha temporária — as fotos não desapareceram. Recarrega a página daqui a pouco."}
-            </p>
-          </div>
-        ) : images.length === 0 && pending.length === 0 ? (
-          <div className="py-12 text-center">
-            <p className="bo-text-muted text-sm">
-              Arrasta para aqui as fotos deste tema — ou uma pasta inteira —, ou usa “Adicionar
-              fotos”.
-            </p>
-            <p className="bo-text-muted mt-1 text-xs">JPG, PNG ou WEBP · também HEIC do iPhone</p>
-          </div>
-        ) : (
-          <>
-            {/* ── UMA SÓ `role="row"`, E A LINHA DITA EM CADA CÉLULA ──────
-                Agrupar as células em linhas a sério (um `<div role="row">`
-                por linha) era o óbvio, e foi o primeiro a ser feito. Partia
-                uma coisa: o número de colunas MEDE-SE, e muda — ao abrir (2
-                da classe → 5 medidas), ao alargar a janela, a cada foto que
-                sai e empurra as outras uma casa para trás. Uma célula que
-                muda de pai é, para o React, uma célula NOVA: desmontava-se, a
-                miniatura voltava a fazer o fade e o original perdia a vez na
-                fila dos descarregamentos (o teste «a foto que está no ecrã
-                não espera pelas que não estão» apanhou-o).
-
-                Fica uma linha só, que não muda nunca, e a posição de cada
-                foto vai no `aria-rowindex` / `aria-colindex` dela — é o que
-                deixa o leitor de ecrã dizer «linha 3, coluna 2» sem a árvore
-                mexer. A geometria é a do `GRELHA_DE_FOTOS`: a linha é
-                `display: contents`, não ocupa caixa nenhuma. */}
-            <div
-              ref={grelha}
-              role="grid"
-              aria-multiselectable="true"
-              aria-label={`Fotografias de ${theme.name}`}
-              aria-rowcount={Math.ceil((pending.length + images.length) / colunas)}
-              aria-colcount={colunas}
-              className={`select-none ${GRELHA_DE_FOTOS}`}
-            >
-              <div role="row" className="contents">
-                {pendentes}
-                {images.map((im, i) => celulaDaFoto(im, i))}
-              </div>
-            </div>
-
-            {hasMore ? (
-              <div className="mt-4 flex flex-col items-center gap-1">
-                <Button variant="secondary" size="sm" loading={loadingMore} onClick={loadMore}>
-                  {remaining && remaining > 0
-                    ? `Mostrar mais (faltam ${remaining}${truncated ? "+" : ""})`
-                    : "Mostrar mais"}
-                </Button>
-                <p className="bo-text-muted text-xs">
-                  As mais recentes aparecem primeiro. A grelha mostra {THEME_PAGE_SIZE} de cada vez
-                  para o tema abrir depressa.
-                </p>
-              </div>
-            ) : (
-              images.length > THEME_PAGE_SIZE && (
-                <p className="bo-text-muted mt-4 text-center text-xs">
-                  Fim do tema — {plural(images.length, "foto", "fotos")}.
-                </p>
-              )
-            )}
-          </>
-        )}
-      </div>
+      <GrelhaDaPasta
+        theme={theme}
+        images={images}
+        truncated={truncated}
+        falhaDaPasta={falhaDaPasta}
+        loading={loading}
+        loadingMore={loadingMore}
+        pending={pending}
+        setDrag={setDrag}
+        drag={drag}
+        arrasto={arrasto}
+        remaining={remaining}
+        hasMore={hasMore}
+        handleDrop={handleDrop}
+        loadMore={loadMore}
+        unreadable={unreadable}
+        grelha={grelha}
+        colunas={colunas}
+        pendentes={pendentes}
+        celulaDaFoto={celulaDaFoto}
+      />
 
       {/* ── A PERGUNTA É A DA CASA ────────────────────────────────────────
           Uma janela para os dois caminhos — a foto solta e o lote. Folha

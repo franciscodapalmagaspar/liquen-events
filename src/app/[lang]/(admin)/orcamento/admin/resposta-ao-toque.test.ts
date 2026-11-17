@@ -205,7 +205,8 @@ const SEM_AFUNDAR: { ficheiro: string; marca: string; porque: string }[] = [
   // Os dois primeiros são véus; os dois `<label>` só travam a bolha; os dois
   // `<summary>` e os dois `<a>` são comandos a sério e DEVEM levar `PRESSAO`.
   {
-    ficheiro: "orcamento/admin/AdminClient.tsx",
+    // Mudou-se com o menu para `_casca/` na fase 7 da estrutura do código.
+    ficheiro: "orcamento/admin/_casca/MenuLateral.tsx",
     marca: "pointer-events-auto absolute inset-0 bg-black/60",
     porque: "véu da gaveta — dono noutra ronda",
   },

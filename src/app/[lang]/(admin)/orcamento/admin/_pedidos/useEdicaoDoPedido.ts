@@ -153,3 +153,6 @@ export function useEdicaoDoPedido(aberto: Quote | null) {
     escritoPorGravar,
   };
 }
+
+/** O que o `useEdicaoDoPedido` devolve — o estado de edição do painel, inteiro. */
+export type EdicaoDoPedido = ReturnType<typeof useEdicaoDoPedido>;

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { fonteComposta } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -64,7 +65,11 @@ const VISTAS = [
 /** O modelo — tem escada desde antes desta passagem, e é o controlo positivo. */
 const MODELO = "Overview.tsx";
 
-const ler = (ficheiro: string) => readFileSync(`${RAIZ}/${ficheiro}`, "utf8");
+// Com os componentes das pastas privadas colados no sítio onde são chamados:
+// desde a fase 8 da estrutura do código, a escada do `Temas.tsx` atravessa a
+// barra e a lista da biblioteca (`_temas/`), e a régua lê pela ordem do ecrã.
+const ler = (ficheiro: string) =>
+  ficheiro === MODELO ? readFileSync(`${RAIZ}/${ficheiro}`, "utf8") : fonteComposta(ficheiro);
 
 /**
  * Comentários fora, com as linhas de pé — a regra da casa (`cascata-dos-pedidos`).
