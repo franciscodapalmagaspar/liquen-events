@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { log } from "@/lib/logger";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { blobConfigurado, chaveNoBlob } from "@/lib/armazenamento/baldes";
-import { conferirUrlEstavel } from "@/lib/armazenamento/url-estavel";
+import { conferirUrlEstavel, segredoDosEnderecos } from "@/lib/armazenamento/url-estavel";
 import { urlDoNavegadorNoBlob } from "@/lib/armazenamento/blob";
 import { getSupabase } from "@/lib/supabase";
 
@@ -52,12 +52,7 @@ export async function GET(
     return new NextResponse(null, { status: 404 });
   }
   const token = new URL(request.url).searchParams.get("token");
-  const ok = conferirUrlEstavel(
-    balde,
-    partes.join("/"),
-    token,
-    process.env.BLOB_READ_WRITE_TOKEN?.trim() ?? "",
-  );
+  const ok = conferirUrlEstavel(balde, partes.join("/"), token, segredoDosEnderecos());
   if (!ok.ok) {
     // 403 para a assinatura, 410 para o prazo: o estúdio volta a pedir um novo.
     return new NextResponse(null, { status: ok.motivo === "expirado" ? 410 : 403 });

@@ -49,6 +49,12 @@ import {
   ENVIOS_PREFIX,
 } from "./envios-de-proposta";
 import {
+  ehChaveDoIndice,
+  juntarIndiceDoBlob,
+  listIndiceDoBlob,
+  mapper as indiceDoBlobMapper,
+} from "./armazenamento/indice-na-copia";
+import {
   BACKUP_SCHEMA_MIN_VERSION,
   BACKUP_SCHEMA_VERSION,
   MAX_RESTORE_ROWS,
@@ -495,6 +501,14 @@ const envioDePropostaSchema = z.looseObject({
   envios: z.array(z.looseObject({})).max(100),
 });
 
+/** Uma linha do índice do Vercel Blob na cópia: a chave no espaço `blob:i:` e a linha. */
+const linhaDoIndiceSchema = z.looseObject({
+  key: z.string().max(700).refine(ehChaveDoIndice, {
+    message: "chave fora do índice do Vercel Blob (`blob:i:<balde>/<caminho>`)",
+  }),
+  value: z.looseObject({ t: z.number().min(0), c: z.string().max(64) }),
+});
+
 const counterSchema = z.object({
   year: z.number().int().min(1900).max(9999),
   n: z.number().int().min(0).max(1_000_000),
@@ -662,6 +676,19 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
       return typeof ultimo?.enviadoEm === "string" ? ultimo.enviadoEm : "";
     },
     replace: replaceEnviosDeProposta,
+  }),
+  // O índice do Vercel Blob (17/11). A reposição JUNTA e não apaga nada: uma
+  // cópia velha não conhece os ficheiros de ontem, e apagar-lhes a linha era
+  // escondê-los (ver `armazenamento/indice-na-copia.ts`).
+  asTarget({
+    key: "indiceDoBlob",
+    label: "Índice dos ficheiros no Vercel Blob",
+    table: indiceDoBlobMapper.table,
+    mapper: indiceDoBlobMapper,
+    schema: linhaDoIndiceSchema,
+    current: listIndiceDoBlob,
+    stamp: (l) => (typeof l.value?.c === "string" ? l.value.c : ""),
+    replace: juntarIndiceDoBlob,
   }),
   asTarget({
     key: "contracts",

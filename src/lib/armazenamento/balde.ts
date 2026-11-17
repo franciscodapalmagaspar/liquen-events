@@ -28,7 +28,7 @@ import {
   porNoBlob,
   urlDeLeituraDoBlob,
 } from "./blob";
-import { urlEstavel } from "./url-estavel";
+import { segredoDosEnderecos, urlEstavel } from "./url-estavel";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -119,8 +119,9 @@ function pareceNaoExiste(e: unknown): boolean {
   return typeof o.message === "string" && /not.?found|não existe|object not found/i.test(o.message);
 }
 
+/** O segredo próprio das assinaturas `/api/ficheiro` (não o token — ver `url-estavel.ts`). */
 function segredo(): string {
-  return process.env.BLOB_READ_WRITE_TOKEN?.trim() ?? "";
+  return segredoDosEnderecos();
 }
 
 /**

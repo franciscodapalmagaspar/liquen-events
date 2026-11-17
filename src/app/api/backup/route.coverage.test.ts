@@ -106,9 +106,10 @@ describe("cobertura do backup", () => {
       "tabelas repetidas em BACKUP_DATASETS (só a `app_state` pode, por ser partilhada)",
     ).toEqual([]);
     // Controlo positivo: a excepção não é uma porta aberta — a `app_state`
-    // está mesmo lá duas vezes, e é por isso que a lista acima não é vazia por
-    // não haver repetições nenhumas.
-    expect(tables.filter((t) => t === "app_state").length).toBe(2);
+    // está mesmo lá três vezes (rascunhos, envios e, desde 17/11, o índice do
+    // Vercel Blob), e é por isso que a lista acima não é vazia por não haver
+    // repetições nenhumas.
+    expect(tables.filter((t) => t === "app_state").length).toBe(3);
   });
 
   describe("contra db/schema.sql", () => {

@@ -179,9 +179,12 @@ beforeEach(() => {
   baldesFalsos.clear();
   vi.clearAllMocks();
   process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_Loja1234_segredo";
+  process.env.SESSION_SECRET = "segredo-das-sessoes-de-teste-com-32-caracteres";
 });
 afterEach(() => {
   delete process.env.BLOB_READ_WRITE_TOKEN;
+  delete process.env.SESSION_SECRET;
+  delete process.env.BLOB_URL_SECRET;
 });
 
 describe("balde(): sem o token do Blob, é o balde do Supabase TAL E QUAL", () => {
@@ -373,5 +376,23 @@ describe("balde(): modo `blob`", () => {
     estado.modo = "blob";
     estado.indice.set("theme-assets", new Map([["t/a.jpg", { t: 5, c: "x" }]]));
     expect((await balde("theme-assets", sb as never).exists("t/a.jpg")).data).toBe(true);
+  });
+
+  it("sem segredo para os endereços, assina no Supabase em vez de falhar (revisão 17/11, n.º 7)", async () => {
+    estado.modo = "blob";
+    delete process.env.SESSION_SECRET;
+    estado.indice.set("proposal-assets", new Map([["LIQ-1/nova.jpg", { t: 9, c: "x" }]]));
+    const { data } = await balde("proposal-assets", sb as never).createSignedUrls(
+      ["LIQ-1/nova.jpg"],
+      3600 * 24,
+    );
+    expect(data![0].signedUrl).toMatch(/supabase\.co/);
+  });
+
+  it("BLOB_URL_SECRET, quando existe, ganha ao SESSION_SECRET", async () => {
+    const { segredoDosEnderecos } = await import("./url-estavel");
+    expect(segredoDosEnderecos({ BLOB_URL_SECRET: "a", SESSION_SECRET: "b" })).toBe("a");
+    expect(segredoDosEnderecos({ SESSION_SECRET: "b", BLOB_READ_WRITE_TOKEN: "t" })).toBe("b");
+    expect(segredoDosEnderecos({ BLOB_READ_WRITE_TOKEN: "t" })).toBe("");
   });
 });

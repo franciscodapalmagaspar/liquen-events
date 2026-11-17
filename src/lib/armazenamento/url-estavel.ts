@@ -28,9 +28,9 @@ import { caminhoValido, ehBaldeDoBlob, type BaldeDoBlob } from "./baldes";
  * (`assinaturas-do-retrato.ts`) já sabem ler o prazo de um endereço assim, e
  * passam a saber ler o deste sem mudar uma linha.
  *
- * A chave da assinatura deriva do token do Blob (que só o servidor tem). Trocar
- * o token invalida os endereços guardados — o que se reassina sozinho em todo o
- * lado menos nos retratos, que se refazem (ver `assinaturas-do-retrato.ts`).
+ * A CHAVE DA ASSINATURA é um segredo PRÓPRIO e estável (revisão de 17/11,
+ * n.º 7) — derivada do token do Blob, trocar o token matava todos os
+ * endereços guardados. Ver `segredoDosEnderecos`.
  */
 
 const b64 = (b: Buffer | string) => Buffer.from(b).toString("base64url");
@@ -45,6 +45,18 @@ interface Carga {
   /** Balde e caminho: a assinatura só abre ESTE ficheiro. */
   b: string;
   c: string;
+}
+
+/**
+ * O segredo das assinaturas `/api/ficheiro`: `BLOB_URL_SECRET` se existir;
+ * senão o `SESSION_SECRET` (ou o antigo `ADMIN_SESSION_SECRET`) — o mesmo que
+ * assina as sessões, mas noutro CONTEXTO: a chave é o sha256 de
+ * `liquen:ficheiro:v1:<segredo>`, e uma sessão nunca serve de endereço nem
+ * o contrário. Vazio = não se emitem endereços (o `balde()` assina no
+ * Supabase e a rota responde 404).
+ */
+export function segredoDosEnderecos(env: Record<string, string | undefined> = process.env): string {
+  return (env.BLOB_URL_SECRET ?? env.SESSION_SECRET ?? env.ADMIN_SESSION_SECRET ?? "").trim();
 }
 
 function chave(segredo: string): Buffer {
@@ -85,6 +97,7 @@ export function urlEstavel(
   segredo: string,
   agoraMs: number = Date.now(),
 ): string {
+  if (!segredo) throw new Error("Sem segredo para os endereços do Blob.");
   const carga: Carga = {
     exp: expAlinhado(agoraMs, validadeSegundos),
     t: Math.max(0, Math.round(tamanho)),
@@ -110,7 +123,7 @@ export function conferirUrlEstavel(
 ):
   | { ok: true; balde: BaldeDoBlob; caminho: string; tamanho: number; expiraEm: number }
   | { ok: false; motivo: "mal-formado" | "assinatura" | "expirado" } {
-  if (!token || !ehBaldeDoBlob(balde) || !caminhoValido(caminho))
+  if (!segredo || !token || !ehBaldeDoBlob(balde) || !caminhoValido(caminho))
     return { ok: false, motivo: "mal-formado" };
   const partes = token.split(".");
   if (partes.length !== 3 || partes[0] !== CABECALHO) return { ok: false, motivo: "mal-formado" };
