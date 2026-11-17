@@ -100,6 +100,7 @@ import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravac
 import BotaoGuardarTudo from "./GuardarTudo";
 import { onIdle } from "@/lib/onIdle";
 import { marcarSaidaDeProposito } from "./entrada-destino";
+import { limparCachesAoSair } from "@/lib/limpar-caches-ao-sair";
 import { diasDesde, eventCountdown, parseMoney, randomId, eur, todayKey } from "./util";
 import { useAnular } from "./ui/anular";
 import { useDepoisDeApagar, useDepoisDeApagarVarios } from "./ui/depois-de-apagar";
@@ -3810,6 +3811,9 @@ export default function AdminClient({
   async function sairMesmo() {
     setASair(false);
     await fetch("/api/admin/logout", { method: "POST" });
+    // O que o service worker guardou do back office sai do aparelho com a
+    // sessão (n.º 6 de 16/11). Nunca atira e nunca prende mais de 1,5 s.
+    await limparCachesAoSair();
     // Sair é uma decisão, e tem de aguentar a chegada ao ecrã de entrada: sem
     // esta marca, a entrada automática pela passkey voltava a abrir a sessão
     // sozinha (ver `consumirMarcaDeSaida`).

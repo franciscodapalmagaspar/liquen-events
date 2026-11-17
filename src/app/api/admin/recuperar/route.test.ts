@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
+import { createHash } from "node:crypto";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -20,11 +21,38 @@ import bcrypt from "bcryptjs";
 const rl = vi.hoisted(() => ({
   porChave: new Map<string, { ok: boolean; retryAfter?: number }>(),
   chamadas: [] as string[],
+  contagens: new Map<string, number>(),
 }));
 vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: vi.fn(async (key: string) => {
+  // Conta a sério, com o tecto que a rota passar; `porChave` força um resultado.
+  rateLimit: vi.fn(async (key: string, limit: number) => {
     rl.chamadas.push(key);
-    return rl.porChave.get(key) ?? { ok: true };
+    const forcado = rl.porChave.get(key);
+    if (forcado) return forcado;
+    const n = (rl.contagens.get(key) ?? 0) + 1;
+    rl.contagens.set(key, n);
+    return n > limit ? { ok: false, retryAfter: 3600 } : { ok: true };
+  }),
+  // A reserva do tecto de emails: como a verdadeira, um recusado NÃO gasta.
+  reservarLugar: vi.fn(async (key: string, limit: number) => {
+    rl.chamadas.push(key);
+    const n = rl.contagens.get(key) ?? 0;
+    if (n >= limit)
+      return { ok: false, retryAfter: 3600, onde: "memoria", janela: "j", chave: key };
+    rl.contagens.set(key, n + 1);
+    return { ok: true, onde: "memoria", janela: "j", chave: key };
+  }),
+  // Devolve uma reserva que não chegou a dar um email.
+  devolverLugar: vi.fn(async (r: { ok: boolean; chave: string }) => {
+    if (!r.ok) return;
+    const n = rl.contagens.get(r.chave) ?? 0;
+    if (n > 0) rl.contagens.set(r.chave, n - 1);
+  }),
+  // Só pergunta, sem contar.
+  limiteEsgotado: vi.fn(async (key: string, limit: number) => {
+    const forcado = rl.porChave.get(key);
+    if (forcado) return forcado;
+    return (rl.contagens.get(key) ?? 0) >= limit ? { ok: false, retryAfter: 3600 } : { ok: true };
   }),
   clientIp: () => "test-ip",
   sweep: () => {},
@@ -77,6 +105,20 @@ vi.mock("@/lib/app-state", () => ({
     estado.mapa.set(k, JSON.parse(JSON.stringify(v)));
     return { gravado: true, duradouro: true, onde: "servidor" };
   }),
+  // A recuperação grava com escrita condicional (n.º 4 de 16/11).
+  lerEstadoComVersao: vi.fn(async (k: string) => {
+    const v = estado.mapa.get(k);
+    return v === undefined
+      ? { valor: null, versao: null }
+      : { valor: JSON.parse(JSON.stringify(v)), versao: JSON.stringify(v) };
+  }),
+  gravarEstadoSeNaoMudou: vi.fn(async (k: string, v: unknown, versao: string | null) => {
+    const atual = estado.mapa.get(k);
+    if ((atual === undefined ? null : JSON.stringify(atual)) !== versao) return "conflito";
+    if (estado.recusaEscrita) return "falhou";
+    estado.mapa.set(k, JSON.parse(JSON.stringify(v)));
+    return "gravado";
+  }),
 }));
 
 import { POST } from "./route";
@@ -89,12 +131,24 @@ function pedido(body: unknown): NextRequest {
   }) as unknown as NextRequest;
 }
 
+/** A chave do tecto de uma conta: pelo RESUMO do endereço, nunca o endereço. */
+function chaveDaConta(email: string): string {
+  const resumo = createHash("sha256").update(email.trim().toLowerCase(), "utf8").digest("hex");
+  return `recuperar-conta:${resumo.slice(0, 32)}`;
+}
+
+/** Quantos envios estão contados para esta conta. */
+function contaDaConta(email: string): number {
+  return rl.contagens.get(chaveDaConta(email)) ?? 0;
+}
+
 const KEYS = ["ADMIN_USERS", "SESSION_SECRET"];
 const guardado: Record<string, string | undefined> = {};
 
 beforeEach(() => {
   rl.porChave.clear();
   rl.chamadas = [];
+  rl.contagens.clear();
   depois.tarefas = [];
   correio.enviados = [];
   correio.resultado = { sent: true };
@@ -192,12 +246,107 @@ describe("POST /api/admin/recuperar — tectos", () => {
     expect(correio.enviados).toHaveLength(0);
   });
 
-  it("trava por conta — e a chave não leva o endereço de origem", async () => {
-    rl.porChave.set("recuperar-conta:catarina@liquen-events.com", { ok: false, retryAfter: 600 });
-    const res = await POST(pedido({ email: "Catarina@Liquen-Events.com" }));
-    expect(res.status).toBe(429);
-    expect(rl.chamadas).toContain("recuperar-conta:catarina@liquen-events.com");
-    expect(rl.chamadas.every((k) => !k.startsWith("recuperar-conta:test-ip"))).toBe(true);
+  /**
+   * O tecto POR CONTA (3 por hora) conta só os emails que saem, e acima dele a
+   * resposta continua a neutra: um 429 dizia a quem perguntasse que a conta
+   * existe e, pior, deixava um estranho fechar à dona o pedido da ligação.
+   */
+  it("acima de 3 envios por hora: resposta neutra, nenhum email, e a última ligação continua a servir", async () => {
+    const respostas = [];
+    for (let i = 0; i < 4; i++) {
+      respostas.push(await POST(pedido({ email: "Catarina@Liquen-Events.com" })));
+      await correrDepois();
+    }
+    expect(respostas.map((r) => r.status)).toEqual([200, 200, 200, 200]);
+    expect(await respostas[3].json()).toEqual(await respostas[0].json());
+    expect(correio.enviados).toHaveLength(3);
+    // A 4.ª não emitiu ligação nova: a do 3.º email continua a ser a que vale.
+    const ultima = correio.enviados[2].text!.match(/token=([^\s&"]+)/)![1];
+    const { definirPalavraPasseComToken } = await import("@/lib/admin-auth");
+    expect(
+      (await definirPalavraPasseComToken(decodeURIComponent(ultima), "frase-nova-comprida")).estado,
+    ).toBe("definida");
+    // A chave é a da conta, sem o endereço de origem. O 4.º pedido, recusado,
+    // não gasta nada (nos dois motores — ver `reservarLugar`).
+    expect(contaDaConta("catarina@liquen-events.com")).toBe(3);
+    expect([...rl.contagens.keys()].some((k) => k.includes("recuperar-conta:test-ip"))).toBe(false);
+  });
+
+  it("pedidos sem envio (endereço que não existe) não gastam o tecto de conta nenhuma", async () => {
+    for (let i = 0; i < 5; i++) {
+      await POST(pedido({ email: "ninguem@exemplo.pt" }));
+      await correrDepois();
+    }
+    expect(contaDaConta("ninguem@exemplo.pt")).toBe(0);
+  });
+
+  it("a MESMA ida ao Upstash para um endereço real e um inventado (revisão de 16/11, n.º 3)", async () => {
+    // Só com conta é que se ia ao Upstash, e essa ida separava as duas pelo
+    // tempo. Agora qualquer endereço com «@» faz a mesma reserva, numa chave
+    // pelo resumo do endereço; a de quem não existe volta depois da resposta.
+    const idasDentro = async (email: string) => {
+      rl.chamadas = [];
+      await POST(pedido({ email }));
+      const n = rl.chamadas.filter((k) => k.startsWith("recuperar-conta:")).length;
+      await correrDepois();
+      return n;
+    };
+    expect(await idasDentro("ninguem@exemplo.pt")).toBe(
+      await idasDentro("catarina@liquen-events.com"),
+    );
+    expect(await idasDentro("ninguem@exemplo.pt")).toBe(1);
+    // O endereço em claro não vai para o Upstash.
+    expect([...rl.contagens.keys()].some((k) => k.includes("@"))).toBe(false);
+  });
+
+  it("SMTP por configurar, ou em baixo: nada saiu, nada se conta", async () => {
+    correio.resultado = { sent: false };
+    for (let i = 0; i < 4; i++) {
+      await POST(pedido({ email: "catarina@liquen-events.com" }));
+      await correrDepois();
+    }
+    correio.resultado = { sent: true };
+    correio.rebenta = true;
+    await POST(pedido({ email: "catarina@liquen-events.com" }));
+    await correrDepois();
+    expect(contaDaConta("catarina@liquen-events.com")).toBe(0);
+  });
+
+  it("três falhas do Supabase não deixam a conta uma hora sem ligação (revisão de 16/11, n.º 2)", async () => {
+    estado.recusaEscrita = true;
+    for (let i = 0; i < 3; i++) {
+      expect((await POST(pedido({ email: "catarina@liquen-events.com" }))).status).toBe(503);
+    }
+    estado.recusaEscrita = false;
+    const res = await POST(pedido({ email: "catarina@liquen-events.com" }));
+    expect(res.status).toBe(200);
+    await correrDepois();
+    expect(correio.enviados).toHaveLength(1);
+  });
+
+  it("uma rajada AO MESMO TEMPO não passa do tecto: 3 emails, e só 3 ligações emitidas", async () => {
+    // A conta conta-se no momento da decisão, de forma atómica — e não depois
+    // do SMTP: senão N pedidos simultâneos passavam todos a pergunta, e cada um
+    // emitia uma ligação nova (que mata a anterior) e mandava um email.
+    const respostas = await Promise.all(
+      Array.from({ length: 5 }, () => POST(pedido({ email: "catarina@liquen-events.com" }))),
+    );
+    expect(respostas.map((r) => r.status)).toEqual([200, 200, 200, 200, 200]);
+    expect(depois.tarefas).toHaveLength(3);
+    await correrDepois();
+    expect(correio.enviados).toHaveLength(3);
+    // As duas de fora não tocaram no registo da conta: a ligação guardada é a
+    // de um dos três emails que saíram.
+    const guardado = estado.mapa.get("admin-recuperacao") as {
+      pedidos: Record<string, { resumo: string }>;
+    };
+    const { createHash } = await import("node:crypto");
+    const resumos = correio.enviados.map((m) =>
+      createHash("sha256")
+        .update(decodeURIComponent(m.text!.match(/token=([^\s&"]+)/)![1]), "utf8")
+        .digest("hex"),
+    );
+    expect(resumos).toContain(guardado.pedidos["catarina@liquen-events.com"].resumo);
   });
 });
 

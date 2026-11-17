@@ -11,6 +11,7 @@ import {
   contaExiste,
   createSession,
   duracaoDaSessao,
+  passkeyAindaVale,
 } from "@/lib/admin-auth";
 import { contadorRetrocedeu, getPasskey, marcarUso } from "@/lib/passkeys-store";
 import {
@@ -150,6 +151,26 @@ export async function POST(req: NextRequest) {
   if (!contaExiste(credencial.userName)) {
     log.warn("passkeys: conta já não existe", { ip, conta: credencial.userName });
     return gastandoODesafio(NextResponse.json({ error: RECUSA }, { status: 401 }));
+  }
+
+  // Redefinir a palavra-passe pela recuperação fecha os aparelhos que a conta
+  // tinha registado até ali — ver `passkeyAindaVale`. A mesma frase de recusa.
+  const estadoDaPasskey = await passkeyAindaVale(credencial.userName, credencial.createdAt);
+  if (estadoDaPasskey === "antiga") {
+    log.warn("passkeys: registada antes da última recuperação", { ip, conta: credencial.userName });
+    return gastandoODesafio(NextResponse.json({ error: RECUSA }, { status: 401 }));
+  }
+  if (estadoDaPasskey === "indisponivel") {
+    // Não entra (ver `passkeyAindaVale`), mas a frase diz o que se passa: não
+    // são credenciais erradas, é a confirmação que não chegou a tempo.
+    return gastandoODesafio(
+      NextResponse.json(
+        {
+          error: "Não foi possível confirmar agora. Tenta outra vez ou entra com a palavra-passe.",
+        },
+        { status: 503 },
+      ),
+    );
   }
 
   let verificacao;
