@@ -117,6 +117,16 @@ junto. Ela pediu a 4/11: **«passa a juntar as alterações em lotes»**.
   construção: fica no `main` e chega ao site com o lote seguinte. Sem
   mensagem, constrói (na dúvida, constrói). Os testes estão em
   `scripts/vercel-construir.test.ts`.
+- **Só a primeira linha da mensagem conta** (17/11). A Vercel diz que
+  `VERCEL_GIT_COMMIT_MESSAGE` é a mensagem do commit, cortada aos 2048 bytes —
+  pode vir com o corpo, e o corpo de um squash lista os commits do PR. Por
+  isso **o lote entra no `main` de uma de duas formas**, as duas com o sinal
+  no título:
+  1. **merge commit** — «Merge pull request #N from …/lote/AAAA-MM-DD» (vale
+     também para um lote com um só commit);
+  2. **squash** com o título do PR a começar por «Lote …».
+
+  Um `lote/…` ou um `[publicar]` que só apareça no corpo não publica.
 - **Para forçar uma publicação** fora do lote (ela pediu para ver, ou é uma
   das três urgências de cima): `[publicar]` (ou `[urgente]`, para as
   urgências) no título do PR que entra em squash, ou num commit vazio —

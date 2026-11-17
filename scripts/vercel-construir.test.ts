@@ -96,7 +96,6 @@ descrever("produção constrói só o lote", () => {
     esperar(prod("Merge pull request #453 from franciscodapalmagaspar/lote/2026-11-13b")).toBe(
       true,
     );
-    esperar(prod("Junta tudo (#480)\n\nramo lote/2026-11-16")).toBe(true);
   });
 
   caso("17/11: os urgentes e as reversões que já estão no main publicam", () => {
@@ -117,6 +116,21 @@ descrever("produção constrói só o lote", () => {
     esperar(prod("LOTE 17/11: maiúsculas também")).toBe(true);
     esperar(prod("Reverte a cor do botão")).toBe(false);
     esperar(prod("Urgentes da semana: lista")).toBe(false);
+  });
+
+  caso("17/11: só a primeira linha conta — o merge do lote casa, o corpo de um squash não", () => {
+    // Um lote com um só commit também entra por merge commit: a primeira linha
+    // traz o nome do ramo.
+    esperar(
+      prod(
+        "Merge pull request #480 from franciscodapalmagaspar/lote/2026-11-17\n\nLote 17/11: um só commit",
+      ),
+    ).toBe(true);
+    esperar(prod("Lote 17/11: correções (#481)\n\n* Propostas: x (#470)")).toBe(true);
+    // A Vercel pode mandar o corpo (até 2048 bytes): o que lá vier não publica.
+    esperar(prod("Propostas: x (#482)\n\nVai no lote/2026-11-17")).toBe(false);
+    esperar(prod("Propostas: x (#483)\n\n* commit antigo [publicar]")).toBe(false);
+    esperar(prod("Propostas: x (#484)\r\n\r\nUrgente: não é o título")).toBe(false);
   });
 
   caso("[publicar] e [urgente] forçam a construção", () => {

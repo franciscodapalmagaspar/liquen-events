@@ -249,7 +249,9 @@ frente. E um commit em `main` dá UM deployment: confirma em `list_deployments`.
 em produção só constrói o commit cuja mensagem começa por «Lote», «Urgente»
 ou «Revert» (sem distinguir maiúsculas), contém `lote/`, ou traz `[publicar]`
 ou `[urgente]`; os outros commits no `main`
-saltam a construção e chegam ao site com o lote seguinte. Para forçar uma
+saltam a construção e chegam ao site com o lote seguinte. Conta só a
+PRIMEIRA linha: o lote entra por merge commit («Merge pull request … /lote/…»)
+ou por squash com o título «Lote …». Para forçar uma
 publicação, põe `[publicar]` (ou `[urgente]`) no título do PR que entra em
 squash, ou num commit vazio no `main`.
 

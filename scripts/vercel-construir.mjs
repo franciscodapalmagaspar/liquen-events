@@ -30,8 +30,20 @@
  * saltar uma publicação de produção por engano é pior do que gastar uma.
  */
 
-/** O que, na mensagem de um commit no `main`, pede uma construção de produção. */
-export function mensagemPedePublicacao(mensagem) {
+/**
+ * O que, na mensagem de um commit no `main`, pede uma construção de produção.
+ *
+ * SÓ A PRIMEIRA LINHA (17/11). A documentação da Vercel diz que
+ * `VERCEL_GIT_COMMIT_MESSAGE` é «a mensagem do commit», cortada aos 2048
+ * bytes — ou seja, pode trazer o corpo. E o corpo de um squash lista os
+ * commits do PR: um que falasse em `lote/…` ou levasse um `[publicar]` antigo
+ * construía sem ninguém pedir. Olha-se só para o título, que é onde o lote
+ * já se escreve:
+ *   · com merge commit — «Merge pull request #N from …/lote/AAAA-MM-DD»;
+ *   · com squash — o título do PR, «Lote …».
+ */
+export function mensagemPedePublicacao(mensagemInteira) {
+  const mensagem = mensagemInteira.split(/\r?\n/)[0];
   // «Lote …», «Urgente: …» e as reversões («Revert "…"», «Revert «…»»): sem
   // distinguir maiúsculas, e só a palavra inteira («Lotes de fotos» não é).
   if (/^\s*(lote|urgente|revert)\b/i.test(mensagem)) return true;
