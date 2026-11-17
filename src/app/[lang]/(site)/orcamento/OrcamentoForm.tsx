@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import NotaDeProtecaoDeDados from "@/components/NotaDeProtecaoDeDados";
 import { useSeloDoFormulario } from "@/lib/anti-spam/useSeloDoFormulario";
+import { useJaHidratado } from "@/lib/useJaHidratado";
+import AvisoSemJavaScript from "@/components/AvisoSemJavaScript";
 import WhatsAppIcon from "@/components/WhatsAppIcon";
 import { waHref } from "@/data";
 import { useTranslations } from "@/components/LocaleProvider";
@@ -309,6 +311,10 @@ export default function OrcamentoForm({
   // A armadilha de tempo do anti-spam: o selo de quando o formulário abriu.
   const seloParaEnviar = useSeloDoFormulario();
   const [sending, setSending] = useState(false);
+  // Desligado até hidratar: antes disso, um toque em «Enviar» ou um Enter num
+  // campo faziam o GET nativo do <form>, a página recarregava e perdia-se tudo
+  // o que estava escrito (revisão de 17/11; `useJaHidratado.ts`).
+  const vivo = useJaHidratado();
   const [error, setError] = useState<string | null>(null);
   /**
    * A confirmação dos contactos está aberta: o formulário está pronto e falta
@@ -1670,6 +1676,7 @@ export default function OrcamentoForm({
                   already no-ops on re-entry. */}
               <button
                 type="submit"
+                disabled={!vivo}
                 aria-disabled={sending}
                 className={`${PRIMARY_BUTTON_CLASS} ${sending ? "opacity-30 cursor-wait" : ""}`}
               >
@@ -1703,6 +1710,12 @@ export default function OrcamentoForm({
                 <span className="sr-only"> ({t.common.newWindow})</span>
               </a>
             </div>
+
+            {/* Sem JavaScript o «Enviar» fica desligado: diz porquê e por onde. */}
+            <AvisoSemJavaScript
+              lingua={locale === "en" ? "en" : "pt"}
+              className="-mt-3 max-w-md text-[11px] leading-relaxed text-foreground/70"
+            />
 
             {/* A nota de proteção de dados logo por baixo do «Enviar»
                 (17/11, `docs/LEGAL-FORMULARIO.md`), a mesma de todos os
