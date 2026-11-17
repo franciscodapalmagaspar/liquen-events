@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { STATUS_OPTIONS } from "./_pedidos/estado-do-pedido";
+import { STATUS_OPTIONS } from "./_pedidos/PastilhaDoEstado";
 import { describe, expect, it } from "vitest";
 import { GLOSSARY, LIFECYCLE } from "./glossario-data";
 
@@ -60,7 +60,7 @@ describe("map-closing: every request status label is explained in the glossary",
   // a hand-copied list, so renaming a status label without updating the
   // glossary turns this red. It used to be read from the TEXT of AdminClient,
   // where it was trapped and unexported; since phase 7 of the code structure it
-  // lives in `_pedidos/estado-do-pedido.tsx` and is imported for real.
+  // lives in `_pedidos/PastilhaDoEstado.tsx` and is imported for real.
   const statusLabels = STATUS_OPTIONS.map((o) => o.label);
 
   it("finds all six QuoteStatus labels in AdminClient (guards the regex)", () => {

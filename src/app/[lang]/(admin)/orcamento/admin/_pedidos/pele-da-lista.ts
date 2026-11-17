@@ -1,8 +1,9 @@
 /**
- * A pele e os números da lista de pedidos: as classes dos filtros, quantos
- * pedidos se desenham de cada vez, quantos se arquivam sem perguntar, e a
- * entrada do lote que o «Mostrar mais» acrescenta. (Saíram do
- * `AdminClient.tsx` na fase 7 de `docs/ESTRUTURA-DO-CODIGO.md`, tal e qual.)
+ * A pele da lista de pedidos: as classes dos filtros e a entrada do lote que
+ * o «Mostrar mais» acrescenta. (Saíram do `AdminClient.tsx` na fase 7 de
+ * `docs/ESTRUTURA-DO-CODIGO.md`, tal e qual. Os números — quantos se desenham
+ * de cada vez, quantos se arquivam sem perguntar — são política, não pele, e
+ * vivem em `lib/orcamento/pedidos/lotes-da-lista.ts`.)
  */
 
 /**
@@ -26,11 +27,6 @@ export const FILTRO_CLASSES =
 /** A caixa da `Escolha` à volta de cada filtro: é ELA que ocupa a célula da
  *  grelha, portanto é ela que tem de poder encolher (ver `FILTRO_CLASSES`). */
 export const FILTRO_CAIXA = "min-w-0 max-lg:w-full";
-
-// Quantos pedidos a lista renderiza de cada vez ("Mostrar mais" carrega o resto).
-export const LIST_PAGE_SIZE = 50;
-/** Até quantos pedidos se arquivam de uma vez sem perguntar (revisão · 3). */
-export const ARQUIVAR_SEM_PERGUNTAR = 10;
 
 /**
  * ══════════════════════════════════════════════════════════════════════════

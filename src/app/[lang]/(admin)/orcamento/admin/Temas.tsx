@@ -94,7 +94,7 @@ import {
   Skipped,
   ThumbJob,
 } from "./_temas/tipos-da-pasta";
-import { teclaDeMenu } from "./_temas/tecla-de-menu";
+import { teclaDeMenu } from "./ui/tecla-de-menu";
 import { ListaDaBiblioteca } from "./_temas/ListaDaBiblioteca";
 import { NovoTema } from "./_temas/NovoTema";
 import { BarraDaBiblioteca } from "./_temas/BarraDaBiblioteca";

@@ -11,7 +11,7 @@ import { EsqueletoDeCor, type AccaoDeItem } from "../ui";
 import { ESTADO, PRESSAO } from "../ui/movimento";
 import { FolderIcon } from "./icones";
 import { temPoucasFotos } from "@/lib/temas/ordem";
-import { teclaDeMenu } from "./tecla-de-menu";
+import { teclaDeMenu } from "../ui/tecla-de-menu";
 
 /** O cartão de um tema na biblioteca: a capa, o nome, as contas e o uso, e
  *  o arrasto de fotografias para cima dele. (Saiu da lista da biblioteca na fase
@@ -20,7 +20,7 @@ export interface CartaoDoTemaProps {
   setOpenId: Dispatch<SetStateAction<string | null>>;
   usos: Record<string, number> | null;
   setMenu: Dispatch<SetStateAction<PedidoDeMenu | null>>;
-  accoesDoTema: (t: ThemeSummary, { naPasta }?: { naPasta?: boolean }) => AccaoDeItem[];
+  accoesDoTema: (t: ThemeSummary, opcoes?: { naPasta?: boolean }) => AccaoDeItem[];
   parecidos: Map<string, ThemeSummary[]>;
   t: ThemeSummary;
 }

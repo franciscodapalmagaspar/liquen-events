@@ -21,7 +21,7 @@ export interface ListaDaBibliotecaProps {
   usos: Record<string, number> | null;
   setAFundir: Dispatch<SetStateAction<ThemeSummary | null>>;
   setMenu: Dispatch<SetStateAction<PedidoDeMenu | null>>;
-  accoesDoTema: (t: ThemeSummary, { naPasta }?: { naPasta?: boolean }) => AccaoDeItem[];
+  accoesDoTema: (t: ThemeSummary, opcoes?: { naPasta?: boolean }) => AccaoDeItem[];
   accoesDaBiblioteca: AccaoDeItem[];
   parecidos: Map<string, ThemeSummary[]>;
   cartoesADesenhar: readonly ThemeSummary[];

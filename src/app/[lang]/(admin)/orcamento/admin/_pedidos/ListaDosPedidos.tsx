@@ -2,7 +2,8 @@
 
 import { type Dispatch, type SetStateAction } from "react";
 import { type Quote, type QuoteStatus } from "@/lib/orcamento/types";
-import { LIST_PAGE_SIZE, ENTRADA_DO_LOTE } from "./pele-da-lista";
+import { LIST_PAGE_SIZE } from "@/lib/orcamento/pedidos/lotes-da-lista";
+import { ENTRADA_DO_LOTE } from "./pele-da-lista";
 import { type FiltrosDaLista } from "./useFiltrosDosPedidos";
 import EmptyState from "../EmptyState";
 import { TabelaOuCartoes } from "../ui";

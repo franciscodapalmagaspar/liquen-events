@@ -51,7 +51,7 @@ import {
 import { useInscricaoNoRegisto, type ResultadoDoEcra } from "./registo-de-gravacoes";
 import { onIdle } from "@/lib/onIdle";
 import { marcarSaidaDeProposito } from "./entrada-destino";
-import { parseMoney as parsePriceInput, randomId, todayKey } from "./util";
+import { parseMoney, randomId, todayKey } from "./util";
 import { useAnular } from "./ui/anular";
 import { useDepoisDeApagar, useDepoisDeApagarVarios } from "./ui/depois-de-apagar";
 import { reporEstadoDoPedido } from "./anular-estado";
@@ -121,8 +121,8 @@ import { useEdicaoDoPedido } from "./_pedidos/useEdicaoDoPedido";
 import { useFiltrosDosPedidos } from "./_pedidos/useFiltrosDosPedidos";
 import { VIEW_WRAP } from "./_casca/moldura-da-vista";
 import { ACOES_DE_PEDIDOS } from "./_casca/titulos-das-vistas";
-import { STATUS_OPTIONS } from "./_pedidos/estado-do-pedido";
-import { ARQUIVAR_SEM_PERGUNTAR, LIST_PAGE_SIZE } from "./_pedidos/pele-da-lista";
+import { STATUS_OPTIONS } from "./_pedidos/PastilhaDoEstado";
+import { ARQUIVAR_SEM_PERGUNTAR, LIST_PAGE_SIZE } from "@/lib/orcamento/pedidos/lotes-da-lista";
 import { detailNextAction, type DetailTab } from "./_pedidos/separadores-do-painel";
 
 /** A chave da saída do painel do pedido — há um painel só, e a chave é uma. */
@@ -2839,7 +2839,7 @@ export default function AdminClient({
        */
       const escrito: PainelEscrito = {
         estado: editStatus,
-        preco: parsePriceInput(editPrice),
+        preco: parseMoney(editPrice),
         notas: editNotes,
         responsavel: editAssigned,
         motivoDePerda: editLostReason,

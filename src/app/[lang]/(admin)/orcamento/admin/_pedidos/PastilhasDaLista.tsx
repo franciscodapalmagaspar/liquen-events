@@ -1,6 +1,6 @@
 "use client";
 
-import { STATUS_OPTIONS } from "./estado-do-pedido";
+import { STATUS_OPTIONS } from "./PastilhaDoEstado";
 import { type FiltrosDaLista } from "./useFiltrosDosPedidos";
 import { ESTADO, PRESSAO } from "../ui/movimento";
 
