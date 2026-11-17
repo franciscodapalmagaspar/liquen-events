@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { NextRequest } from "next/server";
-import { clientIp, limiteEsgotado, rateLimit, sweep } from "./rate-limit";
+import { clientIp, devolverTentativa, limiteEsgotado, rateLimit, sweep } from "./rate-limit";
 
 function reqWith(headers: Record<string, string>): NextRequest {
   return { headers: new Headers(headers) } as unknown as NextRequest;
@@ -168,5 +168,40 @@ describe("sem `global`, o Redis nem se toca — mesmo configurado (10/11)", () =
     expect((await rateLimit(chave, 1)).ok).toBe(true);
     expect((await rateLimit(chave, 1)).ok).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("devolverTentativa — uma reserva que não chegou a ser usada (revisão de 16/11, n.º 2)", () => {
+  afterEach(() => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    vi.unstubAllGlobals();
+  });
+
+  it("na memória: devolve um lugar, e nunca desce abaixo de zero", async () => {
+    const k = "devolver-memoria";
+    for (let i = 0; i < 3; i++) expect((await rateLimit(k, 3, 60_000)).ok).toBe(true);
+    expect((await rateLimit(k, 3, 60_000)).ok).toBe(false);
+    await devolverTentativa(k);
+    expect((await rateLimit(k, 3, 60_000)).ok).toBe(true);
+    // Muitas devoluções seguidas não abrem lugares que nunca existiram.
+    for (let i = 0; i < 10; i++) await devolverTentativa(k);
+    for (let i = 0; i < 3; i++) expect((await rateLimit(k, 3, 60_000)).ok).toBe(true);
+    expect((await rateLimit(k, 3, 60_000)).ok).toBe(false);
+  });
+
+  it("no Redis: DECR, e repõe a zero se tiver descido abaixo", async () => {
+    process.env.UPSTASH_REDIS_REST_URL = "https://x.upstash.io";
+    process.env.UPSTASH_REDIS_REST_TOKEN = "tok";
+    const corpos: string[] = [];
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      corpos.push(String(init.body));
+      return { ok: true, json: async () => [{ result: -1 }] };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await devolverTentativa("k-redis", { global: true });
+    expect(corpos[0]).toContain('"DECR"');
+    expect(corpos[1]).toContain('"SET"');
+    expect(corpos[1]).toContain('"KEEPTTL"');
   });
 });

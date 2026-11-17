@@ -32,6 +32,11 @@ vi.mock("@/lib/rate-limit", () => ({
     rl.contagens.set(key, n);
     return n > limit ? { ok: false, retryAfter: 3600 } : { ok: true };
   }),
+  // Devolve uma reserva que não chegou a dar um email.
+  devolverTentativa: vi.fn(async (key: string) => {
+    const n = rl.contagens.get(key) ?? 0;
+    if (n > 0) rl.contagens.set(key, n - 1);
+  }),
   // Só pergunta, sem contar.
   limiteEsgotado: vi.fn(async (key: string, limit: number) => {
     const forcado = rl.porChave.get(key);
@@ -113,6 +118,14 @@ function pedido(body: unknown): NextRequest {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }) as unknown as NextRequest;
+}
+
+/** Quantos envios estão contados para esta conta (a chave é a da rota). */
+function contaDaConta(email: string): number {
+  const chave = [...rl.contagens.keys()].find(
+    (k) => k.startsWith("recuperar-conta:") && rl.chamadas.includes(k) && k.includes(email),
+  );
+  return chave ? (rl.contagens.get(chave) ?? 0) : 0;
 }
 
 const KEYS = ["ADMIN_USERS", "SESSION_SECRET"];
@@ -248,6 +261,31 @@ describe("POST /api/admin/recuperar — tectos", () => {
   it("pedidos sem envio (endereço que não existe) não gastam o tecto de conta nenhuma", async () => {
     for (let i = 0; i < 5; i++) await POST(pedido({ email: "ninguem@exemplo.pt" }));
     expect(rl.contagens.has("recuperar-conta:ninguem@exemplo.pt")).toBe(false);
+  });
+
+  it("SMTP por configurar, ou em baixo: nada saiu, nada se conta", async () => {
+    correio.resultado = { sent: false };
+    for (let i = 0; i < 4; i++) {
+      await POST(pedido({ email: "catarina@liquen-events.com" }));
+      await correrDepois();
+    }
+    correio.resultado = { sent: true };
+    correio.rebenta = true;
+    await POST(pedido({ email: "catarina@liquen-events.com" }));
+    await correrDepois();
+    expect(contaDaConta("catarina@liquen-events.com")).toBe(0);
+  });
+
+  it("três falhas do Supabase não deixam a conta uma hora sem ligação (revisão de 16/11, n.º 2)", async () => {
+    estado.recusaEscrita = true;
+    for (let i = 0; i < 3; i++) {
+      expect((await POST(pedido({ email: "catarina@liquen-events.com" }))).status).toBe(503);
+    }
+    estado.recusaEscrita = false;
+    const res = await POST(pedido({ email: "catarina@liquen-events.com" }));
+    expect(res.status).toBe(200);
+    await correrDepois();
+    expect(correio.enviados).toHaveLength(1);
   });
 
   it("uma rajada AO MESMO TEMPO não passa do tecto: 3 emails, e só 3 ligações emitidas", async () => {

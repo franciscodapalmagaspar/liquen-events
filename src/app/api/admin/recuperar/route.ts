@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { pedirRecuperacao, normalizarIdentificador } from "@/lib/admin-auth";
 import { VALIDADE_MS } from "@/lib/admin-recuperacao";
-import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
+import { rateLimit, clientIp, sweep, devolverTentativa } from "@/lib/rate-limit";
 import { sendMail } from "@/lib/mail";
 import { EMAIL_LOGO_CID, emailLogoAttachment } from "@/lib/email-logo";
 import {
@@ -136,9 +136,12 @@ export async function POST(request: NextRequest) {
   // perguntava-se aqui e contava-se depois do SMTP, e uma rajada de pedidos ao
   // mesmo tempo passava toda a pergunta (revisão de 16/11, n.º 1). Acima do
   // tecto não se emite ligação nem se envia; a resposta é a neutra.
+  // Um lugar reservado que não deu email volta (revisão de 16/11, n.º 2).
+  const devolverEnvio = () => devolverTentativa(CHAVE_DA_CONTA, { global: true });
   const resultado = await pedirRecuperacao(email, {
     reservarEnvio: async () =>
       (await rateLimit(CHAVE_DA_CONTA, TECTO_DA_CONTA, 60 * 60_000, { global: true })).ok,
+    devolverEnvio,
   });
   if (resultado.estado === "acima-do-tecto") {
     log.warn("recuperação: conta com o tecto de emails — nada enviado", { ip });
@@ -239,6 +242,7 @@ export async function POST(request: NextRequest) {
           headers: { "Auto-Submitted": "auto-generated" },
         });
         if (!sent) {
+          await devolverEnvio().catch(() => undefined);
           // SMTP por configurar. O token está guardado e válido, mas ninguém o
           // vai receber. Fica no registo como ERRO — é uma avaria de instalação,
           // não um caso normal — e a resposta continua a ser a neutra: mudar de
@@ -252,6 +256,7 @@ export async function POST(request: NextRequest) {
         // subir. Fica registada, e o token continua válido — a pessoa pede
         // outra ligação e ninguém fica preso a um erro que não viu.
         log.error("recuperação: envio do email falhou", err);
+        await devolverEnvio().catch(() => undefined);
       }
     });
   }

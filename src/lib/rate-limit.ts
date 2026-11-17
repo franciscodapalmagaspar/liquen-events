@@ -164,6 +164,39 @@ export async function rateLimit(
   return memoryRateLimit(key, limit, windowMs);
 }
 
+/**
+ * DEVOLVE uma tentativa que foi reservada e não chegou a ser usada (revisão de
+ * 16/11, n.º 2).
+ *
+ * O tecto de emails da recuperação reserva o lugar ANTES de saber se o envio
+ * vai acontecer — é o que o torna atómico numa rajada. Se a seguir a escrita
+ * ou o SMTP falham, nada saiu, e o lugar volta. Sem isto, três falhas do
+ * Supabase deixavam a conta uma hora sem poder receber a ligação.
+ *
+ * Só se devolve o que se reservou com `ok: true`. Nunca desce abaixo de zero:
+ * no Redis, um DECR que passe para negativo é reposto a 0 sem mexer no prazo
+ * (`KEEPTTL`). Falhar a devolução não é grave — a janela acaba na mesma.
+ */
+export async function devolverTentativa(
+  key: string,
+  opcoes: { global?: boolean } = {},
+): Promise<void> {
+  const { url, token } = opcoes.global ? credenciaisDoRedis() : {};
+  if (url && token) {
+    try {
+      const data = await pipeline(url, token, [["DECR", key]]);
+      if (Number(data?.[0]?.result ?? 0) < 0) {
+        await pipeline(url, token, [["SET", key, "0", "KEEPTTL"]]);
+      }
+      return;
+    } catch {
+      /* cai na memória, como o `rateLimit` */
+    }
+  }
+  const b = buckets.get(key);
+  if (b && b.count > 0) b.count--;
+}
+
 // Opportunistic cleanup so the in-memory map can't grow unbounded.
 /**
  * Só PERGUNTA se a chave já passou do limite — não gasta tentativa nenhuma.

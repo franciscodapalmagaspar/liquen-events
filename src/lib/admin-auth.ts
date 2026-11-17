@@ -738,6 +738,12 @@ export interface OpcoesDoPedido {
    * do tecto (n.º 1 da revisão de 16/11).
    */
   reservarEnvio?: () => Promise<boolean>;
+  /**
+   * Devolve a reserva quando, afinal, nada vai sair: a leitura ou a escrita do
+   * registo falharam (revisão de 16/11, n.º 2). Quem chama devolve também
+   * quando o SMTP não envia.
+   */
+  devolverEnvio?: () => Promise<void>;
 }
 
 /**
@@ -812,6 +818,9 @@ export async function pedirRecuperacao(
     log.error("recuperação: não foi possível guardar o pedido", undefined, {
       motivo: escrita.estado,
     });
+    // Nenhuma ligação ficou guardada, portanto nenhum email vai sair: o lugar
+    // reservado no tecto volta.
+    if (token) await opcoes.devolverEnvio?.();
     return { estado: "sem-persistencia" };
   }
 
