@@ -8,12 +8,17 @@ import { eur0 as eur } from "@/lib/money";
 import { useCachedList } from "./useCachedList";
 import { useDiaDeHoje } from "./useDiaDeHoje";
 import { ESTADO, PRESSAO } from "./ui/movimento";
+import { useEstadoDoArmazenamento } from "./AvisoDeArmazenamento";
 
 /**
  * O bloco «Hoje» do topo da Visão Geral (10/11, escolha dela). As regras vivem
  * em `lib/orcamento/hoje.ts`; aqui só se desenha. Lê o que a Visão Geral já
  * tem — os pedidos, as propostas e as tarefas pela chave partilhada
  * `"tarefas"` (a mesma dos Lembretes e da Agenda): nenhum pedido novo à rede.
+ *
+ * E os avisos do Vercel Blob (17/11): vêm da verificação do armazenamento que
+ * o back office já faz ao abrir (`useEstadoDoArmazenamento`), sem pedido novo.
+ * Não levam a lado nenhum — dizem, e mais nada.
  */
 
 type Destino = "tarefas" | "pagamentos";
@@ -35,7 +40,8 @@ type Linha = {
   tom: "urgente" | "normal" | "bom";
   rotulo: string;
   texto: string;
-  aoCarregar: () => void;
+  /** Sem destino (um aviso do armazenamento): desenha-se como texto, não botão. */
+  aoCarregar?: () => void;
 };
 
 const COR_DO_TOM: Record<Linha["tom"], string> = {
@@ -50,11 +56,27 @@ function Hoje({ quotes, propostas, onOpen, onGo }: Props) {
   });
   // Muda à meia-noite e ao voltar ao separador (ver `useDiaDeHoje`).
   const hoje = useDiaDeHoje();
+  const armazenamento = useEstadoDoArmazenamento();
   const h = useMemo(
     () => oQueHaHoje(quotes, propostas, tarefas, hoje),
     [quotes, propostas, tarefas, hoje],
   );
-  const total = quantasHoje(h);
+  const doBlob = useMemo<Linha[]>(() => {
+    const b = armazenamento?.blob;
+    if (!b) return [];
+    return [
+      ...(b.erro
+        ? [{ chave: "blob:erro", tom: "urgente" as const, rotulo: "Armazenamento", texto: b.erro }]
+        : []),
+      ...b.avisos.map((a) => ({
+        chave: `blob:${a}`,
+        tom: "normal" as const,
+        rotulo: "Armazenamento",
+        texto: a,
+      })),
+    ];
+  }, [armazenamento]);
+  const total = quantasHoje(h) + doBlob.length;
 
   const linhas = useMemo(() => {
     const porId = new Map(quotes.map((q) => [q.id, q]));
@@ -117,8 +139,8 @@ function Hoje({ quotes, propostas, onOpen, onGo }: Props) {
         aoCarregar: () => onGo("tarefas"),
       });
     }
-    return l;
-  }, [h, quotes, onOpen, onGo]);
+    return [...doBlob, ...l];
+  }, [h, quotes, onOpen, onGo, doBlob]);
 
   return (
     <section aria-labelledby="hoje-titulo" className="bo-card overflow-hidden">
@@ -138,25 +160,40 @@ function Hoje({ quotes, propostas, onOpen, onGo }: Props) {
         <ul className="divide-y divide-[var(--bo-hairline)]">
           {linhas.map((x) => (
             <li key={x.chave}>
-              <button
-                type="button"
-                onClick={x.aoCarregar}
-                className={`alvo-toque flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-[var(--bo-tinta-3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600/45 ${ESTADO} ${PRESSAO}`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`h-2 w-2 shrink-0 rounded-full ${COR_DO_TOM[x.tom]}`}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[11px] font-medium tracking-[0.04em] text-[var(--bo-tinta-72)]">
-                    {x.rotulo}
+              {x.aoCarregar ? (
+                <button
+                  type="button"
+                  onClick={x.aoCarregar}
+                  className={`alvo-toque flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-[var(--bo-tinta-3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600/45 ${ESTADO} ${PRESSAO}`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`h-2 w-2 shrink-0 rounded-full ${COR_DO_TOM[x.tom]}`}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-medium tracking-[0.04em] text-[var(--bo-tinta-72)]">
+                      {x.rotulo}
+                    </span>
+                    <span className="block truncate text-sm text-[var(--bo-text)]">{x.texto}</span>
                   </span>
-                  <span className="block truncate text-sm text-[var(--bo-text)]">{x.texto}</span>
-                </span>
-                <span aria-hidden="true" className="shrink-0 text-[var(--bo-text-muted)]">
-                  ›
-                </span>
-              </button>
+                  <span aria-hidden="true" className="shrink-0 text-[var(--bo-text-muted)]">
+                    ›
+                  </span>
+                </button>
+              ) : (
+                <div role="status" className="flex w-full items-center gap-3 px-5 py-3 text-left">
+                  <span
+                    aria-hidden="true"
+                    className={`h-2 w-2 shrink-0 rounded-full ${COR_DO_TOM[x.tom]}`}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-medium tracking-[0.04em] text-[var(--bo-tinta-72)]">
+                      {x.rotulo}
+                    </span>
+                    <span className="block text-sm text-[var(--bo-text)]">{x.texto}</span>
+                  </span>
+                </div>
+              )}
             </li>
           ))}
         </ul>

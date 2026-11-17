@@ -118,6 +118,12 @@ export interface Ocupacao {
   porBucket: Record<string, { bytes: number; medidoEm: string }>;
   /** Todos os buckets têm medição recente. */
   completo: boolean;
+  /**
+   * Algum balde está em modo `blob` (Vercel Blob, 17/11). Gravado pela
+   * medição da noite COM o token; sem o token mantém-se o anterior. É o que
+   * deixa dizer «há ficheiros no Blob e não há token» sem ler mais nada.
+   */
+  blobEmUso?: boolean;
 }
 
 export interface EspacoNoArmazenamento {
@@ -131,6 +137,11 @@ export interface EspacoNoArmazenamento {
   /** Até ao travão (nunca negativo). */
   sobra: number;
   medidoEm: string | null;
+  /**
+   * Os avisos do Vercel Blob (16/11), quando algum contador do mês passou do
+   * aviso — ver `armazenamento/tectos.ts`. Ausente sem Blob ou abaixo do aviso.
+   */
+  avisosBlob?: string[];
 }
 
 /** O que se carregou depois da medição: total de um contador por bucket. */

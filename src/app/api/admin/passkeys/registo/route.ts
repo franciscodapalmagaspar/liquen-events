@@ -13,12 +13,8 @@ import {
   readSession,
 } from "@/lib/admin-auth";
 import { isMissingTable, isPersistenceUnavailable } from "@/lib/repository";
-import {
-  MAX_DEVICE_LABEL,
-  MAX_PASSKEYS_POR_CONTA,
-  createPasskey,
-  listPasskeysFor,
-} from "@/lib/passkeys-store";
+import { MAX_DEVICE_LABEL, MAX_PASSKEYS_POR_CONTA, createPasskey } from "@/lib/passkeys-store";
+import { passkeysDaConta } from "@/lib/passkeys-da-conta";
 import {
   CHALLENGE_COOKIE,
   lerDesafio,
@@ -100,7 +96,9 @@ export async function GET(req: NextRequest) {
 
   let existentes;
   try {
-    existentes = await listPasskeysFor(conta);
+    // Sem as anteriores a uma recuperação: já não entram, e no
+    // `excludeCredentials` impediam o MESMO aparelho de se registar outra vez.
+    existentes = await passkeysDaConta(conta);
   } catch (err) {
     return respostaDeAvaria(err, "listagem para registo");
   }

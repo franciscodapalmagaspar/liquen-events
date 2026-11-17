@@ -9,6 +9,7 @@ import {
 import { getQuote } from "@/lib/quotes-store";
 import { isDatabaseConfigured } from "@/lib/supabase";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,7 +58,10 @@ async function body(request: NextRequest): Promise<Record<string, unknown> | nul
 }
 
 /** Emite os bilhetes. Corpo: `{ "contentTypes": ["image/jpeg", …] }`. */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function POST_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   if (!isDatabaseConfigured()) return unavailable();
   const { id } = await params;
@@ -102,7 +106,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
  * Confirma. Corpo: `{ "paths": ["<pedido>/<uuid>.jpg", …] }` → `{ images,
  * rejected }`. As recusadas já foram apagadas do bucket.
  */
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function PUT_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   if (!isDatabaseConfigured()) return unavailable();
   const { id } = await params;
@@ -126,3 +133,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+export const POST = comCpu("assets-url POST", POST_semMedida);
+export const PUT = comCpu("assets-url PUT", PUT_semMedida);

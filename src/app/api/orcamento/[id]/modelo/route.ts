@@ -4,6 +4,7 @@ import type { QuoteMessage } from "@/lib/orcamento/types";
 import { getQuote, updateQuoteWith } from "@/lib/quotes-store";
 import { sendMail, MAIL_TO } from "@/lib/mail";
 import { emailAoCliente } from "@/lib/email-assinatura";
+import { finalidadeDoModelo, linguaDoPedido } from "@/lib/email-rodape-legal";
 import { assinaturaDeQuemEnvia } from "@/lib/email-quem-assina";
 import {
   ehModeloAPedido,
@@ -164,6 +165,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       html: corpo,
       texto: textoDoCorpo(corpo),
       quem: { ...assinaturaDeQuemEnvia(request), destinatario: quote.name },
+      rodapeLegal: { lingua: linguaDoPedido(quote.locale), finalidade: finalidadeDoModelo(chave) },
     });
 
     /**

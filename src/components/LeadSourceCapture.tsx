@@ -46,8 +46,10 @@ export default function LeadSourceCapture() {
 
   useEffect(() => {
     if (semAnaliticos(pathname)) return;
-    // O identificador do clique pago é guardado SEMPRE, e antes de tudo o
-    // resto: vive em localStorage com a janela de 90 dias da Google, e não em
+    // O identificador do clique pago apanha-se SEMPRE, e antes de tudo o
+    // resto — mas, sem «Aceitar», só em memória (auditoria legal, 17/11; ver
+    // `lib/ads/click-id.ts`). Com consentimento vive em localStorage com a
+    // janela de 90 dias da Google, e não em
     // sessionStorage como a atribuição acima. São coisas diferentes com prazos
     // diferentes — a atribuição serve para a equipa perceber de onde vêm os
     // pedidos, o identificador serve para devolver o valor real do casamento

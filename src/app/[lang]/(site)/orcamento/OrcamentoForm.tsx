@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import NotaDeProtecaoDeDados from "@/components/NotaDeProtecaoDeDados";
+import { useSeloDoFormulario } from "@/lib/anti-spam/useSeloDoFormulario";
 import WhatsAppIcon from "@/components/WhatsAppIcon";
 import { waHref } from "@/data";
 import { useTranslations } from "@/components/LocaleProvider";
@@ -304,6 +306,8 @@ export default function OrcamentoForm({
   const alternarDecor = (id: string) =>
     setDecor((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]));
   const [website, setWebsite] = useState(""); // honeypot — fica vazio
+  // A armadilha de tempo do anti-spam: o selo de quando o formulário abriu.
+  const seloParaEnviar = useSeloDoFormulario();
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /**
@@ -770,6 +774,12 @@ export default function OrcamentoForm({
       adClick: lerAdClick(),
     };
 
+    // O selo da armadilha de tempo. Se ela carregou em «Enviar» antes dos 3 s,
+    // espera aqui o que falta, já com o «A enviar…» — e o pedido nunca chega
+    // ao servidor como «depressa» (`useSeloDoFormulario`). Antes do relógio
+    // dos 25 s, que é só para a rede.
+    const selo = await seloParaEnviar();
+
     // Abort a hung request instead of spinning forever on a stalled connection
     // (3G that opens the socket but never responds). Without this the submit
     // button spins with no error and no recovery — the worst failure mode on
@@ -784,7 +794,12 @@ export default function OrcamentoForm({
         // bots que preencham o campo (a guarda no cliente é contornável).
         // submissionId torna o envio idempotente (reenvio após resposta perdida
         // = um só lead + um só email).
-        body: JSON.stringify({ form, website, submissionId: ensureSubmissionId() }),
+        body: JSON.stringify({
+          form,
+          website,
+          selo,
+          submissionId: ensureSubmissionId(),
+        }),
         signal: controller.signal,
       });
       const json = await res.json().catch(() => null);
@@ -1689,20 +1704,17 @@ export default function OrcamentoForm({
               </a>
             </div>
 
-            {/* Reassurance + privacy at the point of decision — the moment
-                hesitation peaks. Reuses facts already shown up top. */}
-            <p className="mt-6 text-[11px] leading-relaxed text-foreground/70 max-w-md">
-              {to.submitReassure}
-              <br />
-              {to.privacyPre}
-              <Link
-                href={localizeHref("/privacidade", locale)}
-                className="underline underline-offset-2 hover:text-foreground/80 transition-colors"
-              >
-                {to.privacyLinkLabel}
-              </Link>
-              {to.privacyPost}
-            </p>
+            {/* A nota de proteção de dados logo por baixo do «Enviar»
+                (17/11, `docs/LEGAL-FORMULARIO.md`), a mesma de todos os
+                formulários; a seguir, a frase que tranquiliza no momento da
+                decisão. */}
+            <div className="mt-6 max-w-md text-[11px] leading-relaxed text-foreground/70">
+              <NotaDeProtecaoDeDados
+                lingua={locale === "en" ? "en" : "pt"}
+                classeDaLigacao="underline underline-offset-2 hover:text-foreground/80 transition-colors"
+              />
+              <p className="mt-2">{to.submitReassure}</p>
+            </div>
 
             {error && (
               // Failure state — deliberately NOT moss/green (that's the brand's

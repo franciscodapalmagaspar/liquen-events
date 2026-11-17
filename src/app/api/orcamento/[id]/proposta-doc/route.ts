@@ -215,12 +215,28 @@ const paragrafosDaMensagem = paragrafosDeTexto;
  * A resposta «envia assim mesmo» às fotos em falta (17/11) é o NÚMERO de fotos
  * que ela viu a faltar. Vale enquanto o PDF do envio não tiver MAIS em falta do
  * que esse: um «sim» a 3 não pode mandar um documento com 9 (revisão de 17/11).
- * Um booleano, ou qualquer outra coisa que não um número, não conta.
+ * Qualquer outra coisa que não um número não conta — com UMA exceção, por
+ * pouco tempo (ver abaixo).
  */
 function fotosEmFaltaAceites(emFalta: number, confirmadas: unknown): boolean {
   if (emFalta <= 0) return true;
+  if (confirmadas === true && Date.now() < FIM_DO_SIM_ANTIGO) return true;
   return typeof confirmadas === "number" && Number.isFinite(confirmadas) && emFalta <= confirmadas;
 }
+
+/**
+ * ── O «SIM» ANTIGO, ATÉ 18/11/2026 ÀS 23:59 EM LISBOA (2.ª revisão de 17/11) ──
+ *
+ * Antes da publicação de 17/11 a resposta era `fotosEmFaltaConfirmadas: true`.
+ * Um separador do estúdio aberto antes disso continua a mandá-la, e ficava sem
+ * conseguir enviar até ela recarregar a página. Até ao fim de 18/11 (hora de
+ * Lisboa; em novembro é UTC+0) o booleano vale como dantes; a partir daí, só
+ * o número.
+ *
+ * TIRAR depois de 18/11/2026: apagar esta constante e a linha do `true` em
+ * `fotosEmFaltaAceites` (e o teste «o «sim» antigo»).
+ */
+const FIM_DO_SIM_ANTIGO = Date.parse("2026-11-19T00:00:00Z");
 
 async function POST_semMedida(
   request: NextRequest,
@@ -1598,6 +1614,9 @@ async function POST_semMedida(
     // NOME da coisa, que é o que a etiqueta é.
     const pdfEmTexto = ["", `${t.anexoEtiqueta}: ${linkDoPdf}`];
 
+    // O rodapé legal (17/11): a língua da proposta, e a finalidade de quem
+    // recebe uma proposta — prepará-la e executá-la (`email-rodape-legal.ts`).
+    const rodapeLegal = { lingua: idioma === "en" ? "en" : "pt", finalidade: "proposta" } as const;
     const email = escrito
       ? emailAoCliente({
           /**
@@ -1629,15 +1648,18 @@ async function POST_semMedida(
            */
           texto: [escrito.texto, ...pdfEmTexto].join("\n"),
           quem,
+          rodapeLegal,
         })
       : corpoDoModelo
         ? emailAoCliente({
             html: `${corpoDoModelo}${cartaoDoPdf}`,
             texto: [textoDoCorpo(corpoDoModelo), ...pdfEmTexto].join("\n"),
             quem,
+            rodapeLegal,
           })
         : emailAoCliente({
             quem,
+            rodapeLegal,
             html: `<h2 style="font-size:18px;margin:0 0 12px">${esc(t.titulo)}</h2>
         <p style="font-size:14px;line-height:1.6">${esc(t.ola)} ${esc(doc.clientNames)},</p>
         ${mensagem ? `${paragrafosDaMensagem(mensagem)}\n        ` : ""}<p style="font-size:14px;line-height:1.6">${esc(t.intro)}</p>

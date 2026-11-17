@@ -16,6 +16,7 @@ import { downloadEventIcs, printEventDossier, printRunSheet } from "../../export
 import { Button } from "../../ui";
 import { useDesceu } from "../../ui/adaptativo";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
+import { EtiquetaPossivelSpam } from "../../EtiquetaPossivelSpam";
 
 /** yyyy-mm-dd (ou ISO) → "12 set 2026"; null se ausente/inválida. */
 function fmtDate(v?: string | null): string | null {
@@ -199,6 +200,9 @@ export default function DossierHeader({ data, stage, next, lang, onScrollTo }: P
                 {titleBits.join(" · ")}
               </p>
             )}
+            {/* «Possível spam» (17/11): discreta, ao pé da ficha. O pedido é
+                um pedido como os outros; isto é só uma nota para ela. */}
+            {!desceu && <EtiquetaPossivelSpam valor={quote.possivelSpam} className="mt-1.5" />}
 
             {/* Barra de ações — partilha / impressão / calendário. Só
                 ferramentas seguras e client-safe (export.ts + APIs do browser);

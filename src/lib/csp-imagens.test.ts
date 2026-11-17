@@ -110,3 +110,47 @@ describe("img-src × Storage do Supabase", () => {
     expect(permiteOrigem("img-src 'self' data: blob:", ASSINADO)).toBe(false);
   });
 });
+
+describe("o Vercel Blob na img-src (16/11)", () => {
+  const TOKEN = "vercel_blob_rw_AbC123xyz_oSegredoNuncaNaPolitica";
+
+  it("sem o token, a política fica exactamente como era", () => {
+    expect(origensDeImagem({ SUPABASE_URL: "https://abc.supabase.co" }).origens).toEqual([
+      "https://abc.supabase.co",
+    ]);
+  });
+
+  it("com o token, entra a origem EXACTA do store — e o segredo não", () => {
+    const o = origensDeImagem({
+      SUPABASE_URL: "https://abc.supabase.co",
+      BLOB_READ_WRITE_TOKEN: TOKEN,
+    });
+    expect(o.origens).toEqual([
+      "https://abc.supabase.co",
+      "https://abc123xyz.private.blob.vercel-storage.com",
+    ]);
+    expect(o.origens.join(" ")).not.toContain("Segredo");
+    expect(
+      permiteOrigem(
+        `img-src 'self' ${o.origens.join(" ")}`,
+        "https://AbC123xyz.private.blob.vercel-storage.com/proposal-assets/a/b.jpg?x=1",
+      ),
+    ).toBe(true);
+    // Outro store da Vercel não passa.
+    expect(
+      permiteOrigem(
+        `img-src 'self' ${o.origens.join(" ")}`,
+        "https://outra.private.blob.vercel-storage.com/x",
+      ),
+    ).toBe(false);
+  });
+
+  it("sem SUPABASE_URL, o curinga continua e o Blob junta-se", () => {
+    const o = origensDeImagem({ BLOB_READ_WRITE_TOKEN: TOKEN });
+    expect(o.usouCuringa).toBe(true);
+    expect(o.origens).toEqual([
+      CURINGA_SUPABASE,
+      "https://abc123xyz.private.blob.vercel-storage.com",
+    ]);
+  });
+});

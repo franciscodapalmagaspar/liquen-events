@@ -5,6 +5,7 @@ import { transicaoDoPedido } from "@/lib/orcamento/estado-do-pedido";
 import { getQuote, updateQuoteWith } from "@/lib/quotes-store";
 import { sendMail, esc, MAIL_TO } from "@/lib/mail";
 import { emailAoCliente } from "@/lib/email-assinatura";
+import { linguaDoPedido } from "@/lib/email-rodape-legal";
 import { assinaturaDeQuemEnvia } from "@/lib/email-quem-assina";
 import { isAuthed } from "@/lib/admin-auth";
 import { log } from "@/lib/logger";
@@ -141,6 +142,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       html: `<p style="font-size:14px;line-height:1.7;color:#2a2620;white-space:pre-wrap">${esc(message)}</p>`,
       texto: message,
       quem: { ...assinaturaDeQuemEnvia(request), destinatario: quote.name },
+      rodapeLegal: { lingua: linguaDoPedido(quote.locale), finalidade: "proposta" },
     });
 
     /**

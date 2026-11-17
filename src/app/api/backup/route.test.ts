@@ -40,6 +40,7 @@ const stores = vi.hoisted(() => ({
   // As cópias dos emails enviados vivem no mesmo espaço partilhado dos
   // rascunhos, e entram na cópia pelo mesmo caminho.
   proposalEmails: vi.fn(async () => [] as unknown[]),
+  indiceDoBlob: vi.fn(async () => [] as unknown[]),
 }));
 
 /** Estado do cliente Supabase falso que serve os contadores de numeração. */
@@ -116,6 +117,7 @@ vi.mock("@/lib/overview-settings-store", () => ({
 }));
 vi.mock("@/lib/proposal-drafts", () => ({ listProposalDrafts: stores.proposalDrafts }));
 vi.mock("@/lib/envios-de-proposta", () => ({ listEnviosDeProposta: stores.proposalEmails }));
+vi.mock("@/lib/armazenamento/indice-na-copia", () => ({ listIndiceDoBlob: stores.indiceDoBlob }));
 vi.mock("@/lib/supabase", () => ({
   getSupabase: () =>
     sb.configured

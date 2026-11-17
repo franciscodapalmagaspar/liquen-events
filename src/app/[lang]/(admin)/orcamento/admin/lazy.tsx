@@ -46,8 +46,19 @@ function ViewLoading() {
 // remontadas por `key={…-${selected.id}}` a cada pedido que se abre. Pôr doze
 // apresentações de 600 ms lá dentro é uma decisão de desenho sobre quanto
 // movimento cabe num separador, e não uma linha que falte.
+//
+// ── A MARCA `data-painel-a-carregar` ──────────────────────────────────────
+// É o irmão do `data-view-skeleton` (`Skeleton.tsx`), um nível abaixo: diz que
+// o que falta é o CÓDIGO da ferramenta, e não os dados dela. Os passeios do
+// telemóvel esperam que saia antes de medir um separador — sem ela, um painel
+// que ainda está a chegar e um painel que perdeu um controlo davam a mesma
+// falha («perdeu o controlo Já pago»), e era a primeira que acontecia: no
+// `next dev` do CI, com o estúdio a pedir dezenas de rotas ao mesmo tempo, o
+// pedaço do `PaymentsPanel` chegou a demorar 11 s (medido a 17/11). No build
+// de produção, com rede e processador de telemóvel lento simulados, são 0,6 a
+// 0,8 s. Não muda nada no ecrã nem no que se lê em voz alta.
 const PanelLoading = () => (
-  <div className="border-t border-[var(--bo-hairline-strong)] pt-5">
+  <div className="border-t border-[var(--bo-hairline-strong)] pt-5" data-painel-a-carregar="">
     <div className="bo-skeleton h-2.5 w-40 mb-4" aria-hidden />
     <div className="bo-skeleton h-9 w-full" aria-hidden />
   </div>

@@ -466,17 +466,57 @@ describe("POST /api/orcamento/[id]/proposta-doc — fotos em falta no ENVIO", ()
       { params },
     );
     expect(menos.status, "aceitou 9 em falta quando ela só aceitou 3").toBe(409);
-    const booleano = await POST(
-      sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: true }),
-      { params },
-    );
-    expect(booleano.status, "um «sim» sem número não diz quantas ela viu").toBe(409);
+    // Passada a transição (ver o teste a seguir), o booleano já não conta.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-19T00:00:00Z"));
+      const booleano = await POST(
+        sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: true }),
+        { params },
+      );
+      expect(booleano.status, "um «sim» sem número não diz quantas ela viu").toBe(409);
+    } finally {
+      vi.useRealTimers();
+    }
     expect(createProposal).not.toHaveBeenCalled();
     const iguais = await POST(
       sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: 9 }),
       { params },
     );
     expect(iguais.status).toBe(200);
+  });
+
+  /**
+   * 2.ª revisão de 17/11, n.º 4: um separador aberto antes da publicação ainda
+   * manda `true`. Até 18/11 às 23:59 (Lisboa) o booleano vale como dantes;
+   * depois, só o número.
+   */
+  it("o «sim» antigo (booleano) vale até 18/11 às 23:59 em Lisboa, e depois não", async () => {
+    renderMock.missing = 9;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-18T23:59:00Z")); // 23:59 em Lisboa (WET)
+      const aindaVale = await POST(
+        sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: true }),
+        { params },
+      );
+      expect(aindaVale.status, "o separador antigo ficou sem conseguir enviar").toBe(200);
+      vi.setSystemTime(new Date("2026-11-19T00:00:00Z"));
+      const jaNao = await POST(
+        sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: true }),
+        { params },
+      );
+      expect(jaNao.status).toBe(409);
+      // E «false» nunca foi um «sim».
+      vi.setSystemTime(new Date("2026-11-17T12:00:00Z"));
+      const falso = await POST(
+        sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: false }),
+        { params },
+      );
+      expect(falso.status).toBe(409);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("com fotos em falta e cortes por responder, não regista que «segue» (revisão de 17/11, n.º 5)", async () => {
@@ -1424,7 +1464,9 @@ describe("POST /api/orcamento/[id]/proposta-doc — assinatura", () => {
     // A faixa da casa viaja COM a mensagem — nada de imagens remotas.
     expect(env.attachments?.some((a) => a.cid === "liquen-banner")).toBe(true);
     expect(env.attachments?.some((a) => a.filename.endsWith(".pdf"))).toBe(true);
-    expect(env.html).not.toMatch(/<img[^>]+src="https?:/);
+    // A única imagem por URL é o ícone do Livro de Reclamações do rodapé legal
+    // (instrução do dono, 17/11: PNG com URL absoluto). Tudo o resto viaja por `cid:`.
+    expect(semIconeDoLivro(env.html)).not.toMatch(/<img[^>]+src="https?:/);
     expect(env.html).not.toContain("Líquen Events · ");
   });
 
@@ -3070,3 +3112,8 @@ describe("o domínio do email do cliente", () => {
     expect(dominioRecebeEmail).not.toHaveBeenCalled();
   });
 });
+
+/** O ícone do Livro de Reclamações do rodapé legal vai por URL, por instrução do dono (17/11). */
+function semIconeDoLivro(html: string): string {
+  return html.replace(/<img[^>]+livro-de-reclamacoes-sobre-(?:escuro|claro)\.png"[^>]*>/g, "");
+}

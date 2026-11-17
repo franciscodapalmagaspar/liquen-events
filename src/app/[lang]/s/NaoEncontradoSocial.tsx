@@ -4,6 +4,7 @@ import Link from "next/link";
 import { localizeHref } from "@/lib/i18n/config";
 import { useTranslations } from "@/components/LocaleProvider";
 import { waHref } from "@/data";
+import AvisoLegal from "@/components/AvisoLegal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -100,6 +101,15 @@ export default function NaoEncontradoSocial() {
           {t.common.voltarInicio}
         </Link>
       </div>
+
+      {/* O fim legal (17/11): este ramo não tem o rodapé do sítio, e o Livro
+          de Reclamações, as ligações legais e a resolução de litígios são
+          obrigatórios em todas as páginas. A mesma peça (`AvisoLegal.tsx`). */}
+      <AvisoLegal
+        lingua={locale}
+        className="mt-10 text-foreground/68"
+        classeDasLigacoes="alvo-toque hover:text-foreground transition-colors"
+      />
     </section>
   );
 }

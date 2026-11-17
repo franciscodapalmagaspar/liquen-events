@@ -17,6 +17,8 @@ import {
   fraseDoTelefoneInvalido,
 } from "@/lib/telefone-no-browser";
 import { BOTAO_APPLE, CAMPO_APPLE, ROTULO_APPLE } from "@/lib/formulario-apple";
+import NotaDeProtecaoDeDados from "@/components/NotaDeProtecaoDeDados";
+import { useSeloDoFormulario } from "@/lib/anti-spam/useSeloDoFormulario";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -74,8 +76,6 @@ export interface TextosRelampago {
   aSubmeter: string;
   erro: string;
   erroContacto: string;
-  privacidade: string;
-  privacidadeLink: string;
 }
 
 export const RELAMPAGO_PT: TextosRelampago = {
@@ -93,8 +93,6 @@ export const RELAMPAGO_PT: TextosRelampago = {
   aSubmeter: "A enviar",
   erro: "Não foi possível enviar. Tente novamente ou fale connosco por WhatsApp.",
   erroContacto: "Escreva um telemóvel ou um email para lhe podermos responder.",
-  privacidade: "Os dados servem apenas para responder ao pedido. Ver",
-  privacidadeLink: "política de privacidade",
 };
 
 export const RELAMPAGO_EN: TextosRelampago = {
@@ -112,8 +110,6 @@ export const RELAMPAGO_EN: TextosRelampago = {
   aSubmeter: "Sending",
   erro: "We could not send this. Please try again or message us on WhatsApp.",
   erroContacto: "Please give us a phone number or an email so we can reply.",
-  privacidade: "Your details are used only to answer this request. See our",
-  privacidadeLink: "privacy policy",
 };
 
 /**
@@ -176,6 +172,8 @@ export default function PedidoRelampago({
 }) {
   const router = useRouter();
   const id = useId();
+  // A armadilha de tempo do anti-spam: o selo de quando o formulário abriu.
+  const seloParaEnviar = useSeloDoFormulario();
   const [aEnviar, setAEnviar] = useState(false);
   // A MENSAGEM a mostrar, e já não um código de erro. O 400 da rota diz o que
   // está mal («Email inválido», «Nome demasiado curto») e isso deitava-se fora:
@@ -237,6 +235,12 @@ export default function PedidoRelampago({
     }
     setErro("");
     setAEnviar(true);
+
+    // O selo: antes dos 3 s, espera o que falta, já com o «A enviar…»
+    // (`useSeloDoFormulario`). ANTES do `Lead` do pixel: se ela fechar a
+    // janela durante a espera, a Meta não pode ficar com um Lead sem pedido.
+    // E antes do relógio dos 25 s, que é só da rede.
+    const selo = await seloParaEnviar();
 
     // O `event_id` é gerado AQUI e viaja com o pedido: o servidor reenvia o
     // mesmo `Lead` pela CAPI com este identificador, e a Meta conta uma vez.
@@ -325,6 +329,7 @@ export default function PedidoRelampago({
         body: JSON.stringify({
           form,
           website: s("website"),
+          selo,
           submissionId: ensureSubmissionId(),
         }),
         signal: controlador.signal,
@@ -539,17 +544,15 @@ export default function PedidoRelampago({
 
       {/*
         `/68` e não `/45`. MEDIDO com o axe: #9f9d9b sobre branco dá 2,7:1, e o
-        mínimo AA é 4,5:1. É a linha do consentimento — a que diz o que se faz
-        com os dados que a pessoa acabou de escrever, mesmo por baixo do botão
-        de enviar. Uma nota legal ilegível não é uma nota legal.
+        mínimo AA é 4,5:1. É a nota de proteção de dados (17/11,
+        `docs/LEGAL-FORMULARIO.md`), a mesma de todos os formulários, mesmo por
+        baixo do botão de enviar. Uma nota legal ilegível não é uma nota legal.
       */}
-      <p className="mt-4 text-[11px] leading-relaxed text-foreground/68">
-        {textos.privacidade}{" "}
-        <a href={localizeHref("/privacidade", locale)} className="underline hover:text-moss">
-          {textos.privacidadeLink}
-        </a>
-        .
-      </p>
+      <NotaDeProtecaoDeDados
+        lingua={locale === "en" ? "en" : "pt"}
+        className="mt-4 text-[11px] leading-relaxed text-foreground/68"
+        classeDaLigacao="underline hover:text-moss"
+      />
     </form>
   );
 }

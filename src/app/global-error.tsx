@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { log } from "@/lib/logger";
+import AvisoLegal from "@/components/AvisoLegal";
 
 /**
  * Global error boundary — catches failures in the root layout itself, which
@@ -98,6 +99,17 @@ export default function GlobalError({
           >
             {t.retry}
           </button>
+          {/* O fim legal (17/11): o Livro de Reclamações, a resolução de
+              litígios e as ligações legais são obrigatórios em todas as
+              páginas, e este ecrã substitui o layout inteiro, rodapé
+              incluído. A mesma peça do rodapé, com o desenho em `style`
+              porque aqui a folha do sítio pode não ter chegado. */}
+          <AvisoLegal
+            lingua={lang}
+            sobre="escuro"
+            navegacao="documento"
+            style={{ marginTop: 40, opacity: 0.7 }}
+          />
         </div>
       </body>
     </html>

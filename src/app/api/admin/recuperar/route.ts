@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse, after } from "next/server";
 import { pedirRecuperacao, normalizarIdentificador } from "@/lib/admin-auth";
 import { VALIDADE_MS } from "@/lib/admin-recuperacao";
-import { rateLimit, clientIp, sweep } from "@/lib/rate-limit";
+import { rateLimit, clientIp, sweep, reservarLugar, devolverLugar } from "@/lib/rate-limit";
 import { sendMail } from "@/lib/mail";
 import { EMAIL_LOGO_CID, emailLogoAttachment } from "@/lib/email-logo";
 import {
@@ -48,6 +49,32 @@ export const dynamic = "force-dynamic";
  *     registo, escreve-se o registo — e ainda assim espera-se até um PISO
  *     comum, para as diferenças pequenas (um `bcrypt` a mais, um ramo mais
  *     curto) também não se somarem a nada legível.
+ *
+ * ── O CUSTO (regra 7 e «O Upstash», em `docs/GASTAR-POUCO-DESDE-O-INICIO.md`) ─
+ *
+ * Esta rota é uma das portas autorizadas a usar o Upstash
+ * (`rate-limit.global.test.ts`). As três perguntas:
+ *
+ *  · QUANTAS VEZES CORRE: uma vez por pedido de recuperação, que é raro (a
+ *    dona esquece-se da palavra-passe). Quem a martele fica preso ao tecto de
+ *    5 pedidos por hora por endereço de origem; acima disso responde 429 logo
+ *    a seguir à primeira ida ao Upstash.
+ *  · QUANTO GASTA: no Upstash, cada pedido com «@» faz 2 a 5 comandos —
+ *    o tecto por origem (INCR + PTTL, mais um PEXPIRE quando a janela abre),
+ *    a reserva no tecto da conta (um EVAL) e, quando nenhum email sai (o
+ *    endereço não é de ninguém, a base de dados falhou, o SMTP não enviou),
+ *    a devolução (outro EVAL). Um pedido sem «@» faz só os 2 a 3 do tecto por
+ *    origem. Contado pelo pior caso, 5 comandos × 5 pedidos por hora × um
+ *    endereço de origem: 25 comandos por hora a quem insiste — muito abaixo
+ *    do plano gratuito. Guarda até duas chaves por endereço pedido (a da
+ *    conta e a irmã `:janela`), que morrem ao fim de uma hora. No processador
+ *    é nada: os scripts são de tamanho fixo, sem ciclos, e a resposta espera
+ *    sobretudo pelo piso de tempo.
+ *  · PODE SER GUARDADO, FEITO NO BUILD OU NO NAVEGADOR: não. O tecto tem de
+ *    ser o mesmo para todas as instâncias (senão cada instância nova dava
+ *    mais 3 emails), e no navegador quem pede é quem o contornava. Sem
+ *    Upstash configurado, cai sozinho para a memória de cada instância, sem
+ *    custo nenhum.
  */
 
 /** A ÚNICA frase que sai daqui quando o pedido foi processado. */
@@ -57,18 +84,22 @@ const NEUTRA =
 /**
  * Piso de tempo de resposta, em milissegundos.
  *
- * 300 ms cobre com folga o que sobrou dentro da resposta depois de o email ter
- * saído para o `after` — uma leitura e uma escrita no `app_state`, que numa
- * ligação normal ao Supabase andam pelos 40–120 ms. Era 900 ms enquanto o envio
- * do email era esperado aqui dentro; deixou de precisar de ser tão alto, e
- * baixar não custa nada a quem espera pelo ecrã.
+ * O que fica dentro da resposta depois de o email ter saído para o `after`:
+ * uma leitura e uma escrita no `app_state` (40–120 ms cada, numa ligação
+ * normal ao Supabase), a reserva no tecto da conta (um EVAL no Upstash,
+ * 20–80 ms — revisão de 16/11, n.º 3) e, quando a escrita falha, a devolução
+ * (outro pedido ao Upstash). Somado, o caso normal mais lento anda pelos
+ * 400 ms; 700 ms cobre-o com folga. (Era 900 ms enquanto o envio do email era
+ * esperado aqui dentro, e 300 ms antes de a reserva passar para cá.) Uma base
+ * de dados pendurada passa de qualquer piso — mas pendura-se para os dois
+ * casos por igual.
  *
  * O piso não é decoração: sem ele, o ramo com conta (que ainda gera um token e
  * escreve mais um campo) e o ramo sem conta separavam-se por alguns
  * milissegundos consistentes — pouco para um cronómetro de browser, suficiente
  * para uma média de mil pedidos.
  */
-const PISO_MS = 300;
+const PISO_MS = 700;
 
 async function esperarAtePiso(inicio: number): Promise<void> {
   const falta = PISO_MS - (Date.now() - inicio);
@@ -96,29 +127,34 @@ export async function POST(request: NextRequest) {
    *  • 5 pedidos por hora e por ENDEREÇO DE ORIGEM: impede que um sítio só
    *    ande a disparar pedidos para descobrir contas ou a encher caixas de
    *    correio;
-   *  • 3 pedidos por hora e por CONTA: é o tecto contra o bombardeamento da
+   *  • 3 EMAILS por hora e por CONTA: é o tecto contra o bombardeamento da
    *    caixa de correio de uma pessoa. Três chega para quem não recebeu o
    *    primeiro email e volta a tentar.
    *
-   * O tecto por conta tem um custo que se assume de olhos abertos: um estranho
-   * pode gastá-lo e deixar a própria sem poder pedir a ligação durante uma
-   * hora. Aqui — ao contrário do que acontecia na entrada — esse mal é pequeno:
-   * a pessoa continua a poder entrar com a palavra-passe ou com o aparelho
-   * registado, e o que se evita do outro lado (mil emails na caixa de correio
-   * de quem gere a empresa) é bem pior.
+   * O TECTO DA CONTA CONTA SÓ OS ENVIOS DECIDIDOS, E NÃO RESPONDE 429 (auditoria
+   * de 16/11, n.º 5). Antes, qualquer pedido o gastava e acima dele vinha um
+   * 429: três pedidos de um estranho deixavam a dona sem poder pedir a ligação
+   * durante uma hora. Agora conta-se, de forma atómica, só quando o endereço é
+   * de uma conta e antes de emitir a ligação; acima do tecto não sai email nem
+   * se emite ligação nova — a do último email continua a valer — e a resposta
+   * é a neutra de sempre. Os endereços que não são de ninguém não gastam nada.
+   *
+   * O tecto por ENDEREÇO DE ORIGEM continua a responder 429: é sobre quem está
+   * a pedir, não sobre a conta, e não deixa ninguém fechar a porta a outro.
    */
   const chaveConta = normalizarIdentificador(email);
-  const [porIp, porConta] = await Promise.all([
-    rateLimit(`recuperar-ip:${ip}`, 5, 60 * 60_000, { global: true }),
-    rateLimit(`recuperar-conta:${chaveConta}`, 3, 60 * 60_000, { global: true }),
-  ]);
-  const travado = !porIp.ok ? porIp : !porConta.ok ? porConta : null;
-  if (travado) {
+  // Pelo RESUMO do endereço: a chave existe para qualquer endereço com «@»
+  // (n.º 3 de 16/11), e um endereço escrito por quem quer que seja não vai em
+  // claro para o Upstash.
+  const CHAVE_DA_CONTA = `recuperar-conta:${createHash("sha256").update(chaveConta, "utf8").digest("hex").slice(0, 32)}`;
+  const TECTO_DA_CONTA = 3;
+  const porIp = await rateLimit(`recuperar-ip:${ip}`, 5, 60 * 60_000, { global: true });
+  if (!porIp.ok) {
     log.warn("recuperação: pedido com tecto de tentativas", { ip });
     await esperarAtePiso(inicio);
     return NextResponse.json(
       { error: "Demasiados pedidos. Tenta daqui a bocado." },
-      { status: 429, headers: { "Retry-After": String(travado.retryAfter ?? 3600) } },
+      { status: 429, headers: { "Retry-After": String(porIp.retryAfter ?? 3600) } },
     );
   }
 
@@ -129,7 +165,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, mensagem: NEUTRA });
   }
 
-  const resultado = await pedirRecuperacao(email);
+  // O tecto da conta conta-se NO MOMENTO DA DECISÃO, de forma atómica (um
+  // EVAL): uma rajada de pedidos ao mesmo tempo não passa dele (revisão de
+  // 16/11, n.º 1). E faz-se para QUALQUER endereço com «@», existindo ou não
+  // (n.º 3): se só as contas reais fossem ao Upstash, essa ida separava-as
+  // pelo tempo. Acima do tecto não se emite ligação nem se envia; a resposta é
+  // a neutra.
+  //
+  // Um lugar reservado que não deu email VOLTA (n.º 2): quando a leitura ou a
+  // escrita do registo falham (aqui, dentro da resposta, igual para os dois
+  // casos), quando o endereço não é de ninguém e quando o SMTP não envia (no
+  // `after`, fora da resposta).
+  // `reservarLugar`/`devolverLugar` (e não o `rateLimit`): a devolução vai só
+  // ao sítio e à janela da reserva, e um recusado não gasta — ver
+  // `rate-limit.ts`.
+  const reserva = await reservarLugar(CHAVE_DA_CONTA, TECTO_DA_CONTA, 60 * 60_000, {
+    global: true,
+  });
+  const devolverEnvio = () => devolverLugar(reserva);
+  const resultado = await pedirRecuperacao(email, { podeEmitir: reserva.ok });
+  if (resultado.estado === "acima-do-tecto") {
+    log.warn("recuperação: conta com o tecto de emails — nada enviado", { ip });
+  }
+  if (resultado.estado === "sem-persistencia" || resultado.estado === "sem-recuperacao") {
+    await devolverEnvio().catch(() => undefined);
+  }
+  if (resultado.estado === "sem-conta") {
+    after(() => devolverEnvio().catch(() => undefined));
+  }
 
   if (resultado.estado === "sem-recuperacao") {
     // Verdade sobre a INSTALAÇÃO, não sobre a pessoa: não há contas com email
@@ -226,6 +289,7 @@ export async function POST(request: NextRequest) {
           headers: { "Auto-Submitted": "auto-generated" },
         });
         if (!sent) {
+          await devolverEnvio().catch(() => undefined);
           // SMTP por configurar. O token está guardado e válido, mas ninguém o
           // vai receber. Fica no registo como ERRO — é uma avaria de instalação,
           // não um caso normal — e a resposta continua a ser a neutra: mudar de
@@ -239,6 +303,7 @@ export async function POST(request: NextRequest) {
         // subir. Fica registada, e o token continua válido — a pessoa pede
         // outra ligação e ninguém fica preso a um erro que não viu.
         log.error("recuperação: envio do email falhou", err);
+        await devolverEnvio().catch(() => undefined);
       }
     });
   }

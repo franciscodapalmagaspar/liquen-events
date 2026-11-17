@@ -587,6 +587,11 @@ test.describe("Back office — mobile", () => {
    * facturação passou a ser feita noutro programa.)
    */
   test("@movel phone: o painel de um pedido também se toca com o dedo", async ({ page }) => {
+    // Este passeio abre o estúdio DUAS vezes (o ecrã de fazer proposta, e o
+    // separador Comunicação do painel) antes de chegar ao Financeiro, e no
+    // `next dev` cada abertura são dezenas de rotas. Os 30 s de omissão
+    // chegavam à justa; ver a espera do Financeiro, mais abaixo.
+    test.slow();
     const errors = collectErrors(page);
     await garantirUmPedido(page);
     const loggedIn = await login(page);
@@ -651,6 +656,42 @@ test.describe("Back office — mobile", () => {
     const financeiro = page.getByRole("tab", { name: /Financeiro/i });
     await expect(financeiro, "O painel do pedido perdeu o separador «Financeiro».").toHaveCount(1);
     await financeiro.tap();
+
+    /**
+     * ── PRIMEIRO, QUE O CÓDIGO DO SEPARADOR TENHA CHEGADO ─────────────────
+     *
+     * O `PaymentsPanel` e o `EventCosts` são `dynamic()`: até o pedaço de JS
+     * chegar, o separador mostra o título «Pagamentos» e um esqueleto marcado
+     * `data-painel-a-carregar` (ver `PanelLoading`, em `lazy.tsx`). A medição
+     * só pode começar depois de ele sair.
+     *
+     * Sem esta espera o passeio era instável no CI, e mentia sobre a causa:
+     * dizia «perdeu o controlo Já pago» com o painel ainda a carregar. MEDIDO a
+     * 17/11, do toque no Financeiro até «Já pago» aparecer:
+     *   · `next dev`, dois passeios em paralelo (como o CI): 6,3 a 11,3 s — os
+     *     pedaços de JS, já compilados, levavam 10 a 12 s a descer, atrás das
+     *     ~60 rotas que as duas montagens do estúdio pedem (a dobrar no `dev`,
+     *     pelo StrictMode). Com os 5 s de omissão: 0 de 10;
+     *   · `next dev`, um passeio só: 1,6 a 3,8 s;
+     *   · build de produção, processador 4× mais lento, 150 ms de latência e
+     *     1,6 Mb/s: 0,6 a 0,8 s.
+     * Ou seja: é o servidor de DESENVOLVIMENTO, não o produto. Os 30 s são o
+     * tecto da espera por um sinal, não uma pausa — o passeio segue no
+     * instante em que o esqueleto sai.
+     *
+     * Se a marca desaparecer de `PanelLoading`, esta espera passa logo e a
+     * instabilidade volta — por isso `lazy.test.tsx` prende-a.
+     */
+    // Visível PRIMEIRO: o `hidden` sai no mesmo desenho em que o separador
+    // monta o que tem dentro (esqueleto ou painel), portanto daqui em diante
+    // «zero esqueletos» quer dizer «chegou», e não «ainda nem começou».
+    const separadorFinanceiro = page.locator("#detail-panel-financeiro");
+    await expect(separadorFinanceiro).toBeVisible();
+    await expect(
+      separadorFinanceiro.locator("[data-painel-a-carregar]"),
+      "O separador Financeiro não acabou de carregar: o código do registo de pagamentos " +
+        "não chegou ao telemóvel.",
+    ).toHaveCount(0, { timeout: 30_000 });
 
     for (const nome of [/^Já pago$/, /^Hoje$/, /^Ontem$/]) {
       const alvo = page

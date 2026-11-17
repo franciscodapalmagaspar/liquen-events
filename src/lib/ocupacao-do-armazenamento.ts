@@ -3,6 +3,9 @@ import { getStates, gravarEstadoSeNaoMudou, lerEstadoComVersao, setState } from 
 import { getSupabase } from "@/lib/supabase";
 import type { ManifestoDeFotografias } from "@/lib/manifesto-de-fotografias";
 import { log } from "@/lib/logger";
+import { blobConfigurado, ehBaldeDoBlob } from "@/lib/armazenamento/baldes";
+import { modosDosBaldes, modosLidosOuNull } from "@/lib/armazenamento/modos";
+import { alertarSemToken, estadoDoBlob, marcadorDoBlob } from "@/lib/armazenamento/saude";
 import {
   espacoQueSobra,
   medirPorOrdem,
@@ -41,9 +44,15 @@ export const CHAVE_DESDE = "armazenamento:desde-a-medicao";
 
 /** O espaço como está agora. `null` nunca: sem medição, `conhecido: false`. */
 export async function lerEspaco(): Promise<EspacoNoArmazenamento> {
-  const m = await getStates<unknown>([CHAVE_OCUPACAO, CHAVE_DESDE]);
+  const [m] = await Promise.all([getStates<unknown>([CHAVE_OCUPACAO, CHAVE_DESDE])]);
   const oc = m.get(CHAVE_OCUPACAO) as Ocupacao | undefined;
-  return espacoQueSobra(oc ?? null, m.get(CHAVE_DESDE) ?? null);
+  // Os avisos dos tectos (com token) e o ERRO de ficheiros no Blob sem o
+  // token, pelo marcador que vem nesta MESMA leitura — sem token, nenhuma
+  // leitura a mais (2.ª revisão de 17/11, n.º 4).
+  const blob = await estadoDoBlob(oc?.blobEmUso);
+  const espaco = espacoQueSobra(oc ?? null, m.get(CHAVE_DESDE) ?? null);
+  const avisosBlob = blob ? [...(blob.erro ? [blob.erro] : []), ...blob.avisos] : [];
+  return avisosBlob.length > 0 ? { ...espaco, avisosBlob } : espaco;
 }
 
 type Contador = Record<string, number>;
@@ -83,6 +92,45 @@ export async function somarCarregado(porBucket: Readonly<Record<string, number>>
     for (const [b, n] of somar) c[b] = (c[b] ?? 0) + Math.round(n);
     return c;
   });
+}
+
+/**
+ * Grava o marcador `blobEmUso` na linha da ocupação, AGORA (3.ª revisão de
+ * 17/11, n.º 3): quando um balde muda de modo, e não só à noite. Se a linha
+ * ainda não existe, nasce sem medição (`bytes: null` → `conhecido: false`).
+ * Compare-and-set, como o contador ao lado. Devolve se ficou gravado.
+ */
+export async function gravarMarcadorDoBlob(): Promise<boolean> {
+  /**
+   * Depois de gravar, relêem-se os modos e repete-se se a conclusão mudou
+   * (2.ª passagem de 17/11, n.º 2). A ordem que falhava: A muda X para
+   * `supabase` e conclui `false`; B põe Y em `blob`, vê `true === true` e sai
+   * sem gravar; o compare-and-set de A passa e deixa `false` com Y em `blob`.
+   * Com a releitura, A vê Y e grava `true`. Com um limite de voltas.
+   */
+  for (let t = 0; t < 6; t++) {
+    try {
+      const { valor, versao } = await lerEstadoComVersao<Ocupacao>(CHAVE_OCUPACAO, 3_000);
+      // Os modos relêem-se DENTRO do ciclo (4.ª revisão de 17/11, n.º 9).
+      const modos = await modosLidosOuNull();
+      if (!modos) return false;
+      const blobEmUso = marcadorDoBlob(undefined, modos, true) === true;
+      const linha =
+        valor ??
+        ({ medidoEm: "", bytes: null, porBucket: {}, completo: false } as unknown as Ocupacao);
+      if (linha.blobEmUso !== blobEmUso) {
+        const r = await gravarEstadoSeNaoMudou(CHAVE_OCUPACAO, { ...linha, blobEmUso }, versao);
+        if (r === "conflito") continue;
+        if (r === "falhou") return false;
+      }
+      const depois = await modosLidosOuNull();
+      if (!depois) return false;
+      if ((marcadorDoBlob(undefined, depois, true) === true) === blobEmUso) return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 /** Quanto ocupa um bucket inteiro, com várias listagens em paralelo e tecto de tempo. */
@@ -161,8 +209,14 @@ export async function medirOcupacao(
     const porBucket: Ocupacao["porBucket"] = { ...(antes?.porBucket ?? {}) };
     const iso = agora.toISOString();
     const originais = new Set<string>();
+    // Sem o token, todos `supabase` e sem ler nada (`modos.ts`).
+    const modos = await modosDosBaldes();
     if (manifesto?.completo) {
+      // O manifesto lista pelo `balde()`, que num balde em modo `espelho` ou
+      // `blob` também vê o que está no Vercel Blob. Aqui mede-se o SUPABASE:
+      // esses baldes medem-se pela listagem dele, como os outros.
       for (const b of manifesto.buckets) {
+        if (ehBaldeDoBlob(b.bucket) && modos[b.bucket] !== "supabase") continue;
         porBucket[b.bucket] = { bytes: b.bytes, medidoEm: iso };
         originais.add(b.bucket);
       }
@@ -193,12 +247,44 @@ export async function medirOcupacao(
       porBucket,
       completo,
     };
-    await setState(CHAVE_OCUPACAO, ocupacao);
+    // Os modos para o marcador lêem-se AGORA e só com o token: o `modos` de
+    // cima cai para «tudo no Supabase» quando a leitura falha, e isso não pode
+    // pôr o marcador a `false` (3.ª revisão de 17/11, n.º 3).
+    let marcador: boolean | undefined;
+    // A medição ficou gravada? Só então o «carregado desde» volta a zero (2.ª
+    // passagem de 17/11, n.º 1): zerá-lo com a medição por gravar era perder
+    // o que se carregou, e o importador via mais espaço do que há.
+    let gravou = true;
+    if (!blobConfigurado()) {
+      // Sem token, como em `main`: a escrita de sempre, com o marcador que
+      // estava (nunca se sabe mais sem token).
+      marcador = antes?.blobEmUso;
+      if (marcador !== undefined) ocupacao.blobEmUso = marcador;
+      await setState(CHAVE_OCUPACAO, ocupacao);
+    } else {
+      // Com token: compare-and-set, com o marcador decidido DENTRO do ciclo
+      // contra a linha relida (4.ª revisão, n.º 9) — uma mudança de modo
+      // gravada a meio da medição não é apagada pela conclusão velha.
+      for (let t = 0; t < 4; t++) {
+        const { valor: agoraNaLinha, versao } = await lerEstadoComVersao<Ocupacao>(
+          CHAVE_OCUPACAO,
+          4_000,
+        );
+        const modosLidos = await modosLidosOuNull();
+        marcador = marcadorDoBlob(agoraNaLinha?.blobEmUso, modosLidos, true);
+        const linha: Ocupacao = { ...ocupacao };
+        if (marcador !== undefined) linha.blobEmUso = marcador;
+        const r = await gravarEstadoSeNaoMudou(CHAVE_OCUPACAO, linha, versao);
+        gravou = r === "gravado";
+        if (r !== "conflito") break;
+      }
+    }
+    alertarSemToken(marcador);
     // Os buckets medidos esta noite já contam o que se carregou até agora.
     const medidos = Object.entries(porBucket)
       .filter(([, m]) => m.medidoEm === iso)
       .map(([b]) => b);
-    if (medidos.length > 0) {
+    if (gravou && medidos.length > 0) {
       await mudarContador((c) => {
         for (const b of medidos) delete c[b];
         return c;

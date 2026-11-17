@@ -33,7 +33,11 @@ type Fbq = ((...args: unknown[]) => void) & { loaded?: boolean };
 export interface DadosDoEvento {
   /** Que página gerou isto, por exemplo "s/comporta". */
   contexto?: string;
-  /** Só na submissão do formulário. Melhora a correspondência. */
+  /**
+   * Já NÃO saem do browser (auditoria de 16/11, n.º 8): a rota pública
+   * descarta-os, e o `Lead` com os dados vai pelo servidor, atrás do pedido
+   * gravado. Ficam no tipo para quem ainda os passa não ter de mudar.
+   */
   email?: string;
   telefone?: string;
   nome?: string;
@@ -83,9 +87,8 @@ export function dispararMeta(nome: NomeEvento, dados: DadosDoEvento = {}): strin
           contexto: dados.contexto,
           fbp: fbp || undefined,
           fbc: fbc || undefined,
-          email: dados.email || undefined,
-          telefone: dados.telefone || undefined,
-          nomeDaPessoa: dados.nome || undefined,
+          // Sem email, telefone nem nome: a rota descarta-os (n.º 8 de
+          // 16/11) — só os eventos que nascem no servidor os levam.
         },
       ],
     });

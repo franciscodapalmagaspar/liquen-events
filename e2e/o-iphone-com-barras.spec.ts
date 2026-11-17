@@ -91,12 +91,26 @@ async function tocar(page: Page, seletor: ReturnType<Page["locator"]>) {
  * que está debaixo do dedo.
  */
 async function tocarAoCentro(page: Page, seletor: ReturnType<Page["locator"]>) {
+  const { x, y } = await pontoAoCentro(page, seletor);
+  await page.touchscreen.tap(x, y);
+}
+
+/**
+ * Traz o alvo ao centro do ecrã e devolve o ponto onde o dedo vai pousar,
+ * depois de confirmar que é o alvo — e não uma barra fixa — que lá está.
+ * `alturaNoAlvo` escolhe a altura do toque dentro do alvo (por omissão o meio).
+ */
+async function pontoAoCentro(
+  page: Page,
+  seletor: ReturnType<Page["locator"]>,
+  alturaNoAlvo: (altura: number) => number = (h) => h / 2,
+): Promise<{ x: number; y: number }> {
   await seletor.evaluate((el) => el.scrollIntoView({ block: "center", inline: "center" }));
   await page.waitForTimeout(300);
   const b = await seletor.boundingBox();
   expect(b, "o alvo do toque não tem caixa").not.toBeNull();
   const x = b!.x + b!.width / 2;
-  const y = b!.y + b!.height / 2;
+  const y = b!.y + alturaNoAlvo(b!.height);
   expect(
     await seletor.evaluate(
       (el, [px, py]) => {
@@ -107,7 +121,7 @@ async function tocarAoCentro(page: Page, seletor: ReturnType<Page["locator"]>) {
     ),
     "o alvo está tapado (por uma barra fixa?) no sítio do toque",
   ).toBe(true);
-  await page.touchscreen.tap(x, y);
+  return { x, y };
 }
 
 /** O dedo pousado `ms` milissegundos sem se mexer — o que o rato não prova. */
@@ -208,6 +222,24 @@ async function garantirMarcacaoDeHoje(page: Page) {
     data: { title: MARCACAO, kind: "reuniao", time: "15:00", note: "", date: hojeISO() },
   });
   expect(r.ok(), `não gravou a marcação: ${r.status()}`).toBe(true);
+}
+
+/**
+ * O relógio da página parado às 12:00 de hoje — a pior hora para a marcação.
+ *
+ * A vista de dia abre com o «agora» a um terço do topo da caixa, por isso a
+ * marcação das 15:00 aparece num sítio diferente a cada hora. MEDIDO (17/11,
+ * 390 × 664): entre as ~11:30 e as ~13:45 o topo dela fica rente à barra de
+ * destinos (y 578–622, a barra começa em 580), o `scrollIntoViewIfNeeded`
+ * acha-a «à vista» e não mexe, e o dedo caía na barra — abria «Mais destinos»
+ * em vez do menu ou do detalhe da marcação. Fora dessa janela passava, e era
+ * por isso que o CI de manhã cedo estava verde e o do meio-dia vermelho.
+ * Com a hora parada no pior caso, o passeio prova sempre o caso difícil.
+ */
+async function pararORelogioAoMeioDia(page: Page) {
+  const meioDia = new Date();
+  meioDia.setHours(12, 0, 0, 0);
+  await page.clock.setFixedTime(meioDia);
 }
 
 async function garantirTarefas(page: Page, n: number) {
@@ -682,6 +714,7 @@ test.describe("o back office num iPhone com as barras do Safari", () => {
 
   test("6 · o toque longo numa marcação abre o menu DELA, e não o do dia", async ({ page }) => {
     const cdp = await page.context().newCDPSession(page);
+    await pararORelogioAoMeioDia(page);
     await garantirMarcacaoDeHoje(page);
     await vista(page, "calendario");
     const vistaDia = page
@@ -692,9 +725,9 @@ test.describe("o back office num iPhone com as barras do Safari", () => {
     await tocar(page, vistaDia);
     await page.waitForTimeout(1000);
     const chip = page.getByRole("button", { name: new RegExp(MARCACAO) }).first();
-    await chip.scrollIntoViewIfNeeded();
-    const c = (await chip.boundingBox())!;
-    await toqueLongo(cdp, c.x + c.width / 2, c.y + Math.min(c.height / 2, 10));
+    // Ao centro, e confirmado debaixo do dedo — ver `pararORelogioAoMeioDia`.
+    const p = await pontoAoCentro(page, chip, (h) => Math.min(h / 2, 10));
+    await toqueLongo(cdp, p.x, p.y);
     await page.waitForTimeout(600);
     const menu = page.getByRole("menu");
     await expect(menu).toHaveCount(1);
@@ -1330,11 +1363,13 @@ test.describe("10 · a marcação no iPhone", () => {
     page,
   }) => {
     const erros = errosDaConsola(page);
+    await pararORelogioAoMeioDia(page);
     await garantirMarcacaoDeHoje(page);
     await vista(page, "calendario");
     await verDia(page);
     const chip = page.getByRole("button", { name: new RegExp(`^Abrir Reunião: ${MARCACAO}`) });
-    await tocar(page, chip.first());
+    // Ao centro, e confirmado debaixo do dedo — ver `pararORelogioAoMeioDia`.
+    await tocarAoCentro(page, chip.first());
     await page.waitForTimeout(700);
 
     const detalhe = page.getByRole("dialog", { name: new RegExp(MARCACAO) });

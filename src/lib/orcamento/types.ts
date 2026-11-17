@@ -1,5 +1,6 @@
 import type { RespostaDeEscolha } from "../proposta-escolhas";
 import type { MapaDeMesas } from "./mapa-de-mesas";
+import type { PossivelSpam } from "../anti-spam/possivel-spam";
 
 export type EventCategory = "empresas" | "particulares";
 
@@ -522,6 +523,13 @@ export interface Quote extends QuoteFormData {
    * duplicado» deixa de aparecer para esse par e não volta.
    */
   naoDuplicados?: string[];
+  /**
+   * «Possível spam» (17/11): o filtro de conteúdo ou a armadilha de tempo
+   * acharam sinais de envio automático. O pedido grava-se na mesma e aparece
+   * na lista como os outros, com uma etiqueta discreta — nunca se deita fora.
+   * Só a rota a escreve, e só ao gravar. Ver `src/lib/anti-spam/possivel-spam.ts`.
+   */
+  possivelSpam?: PossivelSpam;
   /**
    * ════════════════════════════════════════════════════════════════════════
    * O QUE O CASAL ESCOLHEU NA PÁGINA DA PROPOSTA

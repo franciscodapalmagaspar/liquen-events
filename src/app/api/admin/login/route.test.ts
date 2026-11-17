@@ -105,7 +105,9 @@ describe("POST /api/admin/login", () => {
  * rodar endereços deixa de comprar tentativas.
  */
 describe("POST /api/admin/login — tecto por conta", () => {
-  const chaveConta = (n: string) => `login-conta:${n.toLowerCase()}`;
+  // Estes testes correm sem `ADMIN_USERS` (palavra-passe partilhada): qualquer
+  // nome serve, portanto há UMA escada só, seja qual for o nome escrito.
+  const chaveConta = (_n: string) => `login-conta:partilhada`;
 
   it("recusa com 429 uma tentativa FALHADA quando o contador está esgotado", async () => {
     rl.porChave.set(chaveConta("Catarina"), { ok: false, retryAfter: 900 });
@@ -131,11 +133,12 @@ describe("POST /api/admin/login — tecto por conta", () => {
     expect(rl.chamadas).toContain(chaveConta("nao-existe-de-certeza"));
   });
 
-  it("o mesmo nome com maiúsculas diferentes partilha o contador", async () => {
-    // Senão bastava alternar CATARINA / Catarina / catarina para multiplicar
-    // o tecto pelo número de combinações.
+  it("qualquer nome, com quaisquer maiúsculas, gasta o mesmo contador", async () => {
+    // Senão bastava alternar nomes (CATARINA / Catarina / Rui) para multiplicar
+    // o tecto pelo número de combinações — a palavra-passe é a mesma.
     await POST(postReq({ name: "CATARINA", password: "wrong" }));
-    expect(rl.chamadas).toContain("login-conta:catarina");
+    await POST(postReq({ name: "Rui", password: "wrong" }));
+    expect(rl.chamadas.filter((k) => k === "login-conta:partilhada")).toHaveLength(2);
   });
 
   it("o tecto por IP continua a valer, e é o primeiro a disparar", async () => {
@@ -161,7 +164,8 @@ describe("POST /api/admin/login — tecto por conta", () => {
  * sempre, logo é sempre contado) e devolve a porta a quem tem a chave.
  */
 describe("POST /api/admin/login — o tecto por conta não fecha a porta a quem sabe a palavra-passe", () => {
-  const chaveConta = (n: string) => `login-conta:${n.toLowerCase()}`;
+  // Sem `ADMIN_USERS`, a escada é uma só (ver acima).
+  const chaveConta = (_n: string) => `login-conta:partilhada`;
 
   it("depois de 20 falhas, nem a palavra-passe certa entra nessa hora (decisão dela, 10/11)", async () => {
     rl.tectoReal.set(chaveConta("Catarina"), 20);

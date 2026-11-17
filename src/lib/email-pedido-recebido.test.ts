@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { rodapeLegalDoEmail } from "./email-rodape-legal";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { emailPedidoRecebido, noSitio, type DadosDoPedidoRecebido } from "./email-pedido-recebido";
@@ -85,8 +86,28 @@ function comTextoJustificado(html: string): string {
     );
 }
 
-/** O ficheiro dela com os marcadores trocados e o texto justificado — e mais nada. */
-const ESPERADO = comTextoJustificado(semComentarioDeAutoria(ORIGINAL))
+/**
+ * A SEGUNDA mudança (17/11, `docs/LEGAL-EMAILS.md`): a linha «Recebeu este
+ * e-mail porque…» do fundo dá lugar ao rodapé legal de todo o correio ao
+ * cliente (`email-rodape-legal.ts`), que a traz junto com a proteção de dados,
+ * os litígios e o Livro de Reclamações. O filete passa a ser o dele.
+ */
+function comRodapeLegal(html: string, lingua: "pt" | "en" = "pt"): string {
+  const inicio = html.indexOf('  <tr><td class="pad" style="padding:28px 40px 48px;">');
+  const linha = html.indexOf('      <tr><td class="line"', inicio);
+  const fim = html.indexOf("      </td></tr>\n", linha) + "      </td></tr>\n".length;
+  expect(inicio > 0 && linha > inicio && fim > linha, "o rodapé da carta mudou").toBe(true);
+  return (
+    html.slice(0, inicio) +
+    '  <tr><td class="pad" style="padding:4px 40px 48px;">' +
+    html.slice(inicio + '  <tr><td class="pad" style="padding:28px 40px 48px;">'.length, linha) +
+    `      <tr><td>\n${rodapeLegalDoEmail({ lingua, finalidade: "pedido", base: "https://liquen-events.com", modoEscuro: true }).html}\n      </td></tr>\n` +
+    html.slice(fim)
+  );
+}
+
+/** O ficheiro dela com os marcadores trocados, o texto justificado e o rodapé legal — e mais nada. */
+const ESPERADO = comRodapeLegal(comTextoJustificado(semComentarioDeAutoria(ORIGINAL)))
   .replace('src="LOGO_URL"', 'src="cid:liquen-logo"')
   .replace('src="BANNER_URL"', 'src="cid:liquen-banner"')
   // Os ícones antes das ligações: `ICON_FACEBOOK_URL` contém `FACEBOOK_URL`.
@@ -294,7 +315,11 @@ describe("e em inglês, com o mesmo desenho", () => {
    */
   it("e o esqueleto é o mesmo do português", () => {
     const esqueleto = (h: string) =>
-      h.replace(/>[^<]*</g, "><").replace(/ (lang|alt)="[^"]*"/g, "");
+      h
+        .replace(/>[^<]*</g, "><")
+        .replace(/ (lang|alt|title)="[^"]*"/g, "")
+        // A política tem o endereço da língua (`/en/privacidade`).
+        .replace("/en/privacidade", "/privacidade");
     expect(esqueleto(emailPedidoRecebido(EN).html)).toBe(
       esqueleto(emailPedidoRecebido(EXEMPLO).html),
     );

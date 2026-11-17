@@ -14,6 +14,7 @@ import { log } from "@/lib/logger";
 import PaginasDoPdf from "./PaginasDoPdf";
 import EscolhasDoDocumento from "./EscolhasDoDocumento";
 import PropostaWeb from "./PropostaWeb";
+import AvisoLegal from "@/components/AvisoLegal";
 import { Bodoni_Moda, Jost } from "next/font/google";
 import "./proposta-web.css";
 
@@ -215,6 +216,8 @@ import { eurDocumento, montanteNaLingua } from "@/lib/money";
 import { FUSO_DO_ESTUDIO, hojeNoEstudio } from "@/lib/fuso";
 
 function Shell({ children, lang }: { children: React.ReactNode; lang: string }) {
+  // `lang` é o do HTML («pt-PT» ou «en»): «pt-PT» normaliza para «pt». Os
+  // textos são os da moldura da proposta, os mesmos do fecho da página nova.
   return (
     <section
       /* A língua do CONTEÚDO, que pode não ser a do `<html>` (esse vem do
@@ -241,6 +244,14 @@ function Shell({ children, lang }: { children: React.ReactNode; lang: string }) 
         className="object-contain h-16 w-auto mb-6 opacity-90"
       />
       {children}
+      {/* O fim legal (17/11), também nas páginas de erro e no quadro das
+          propostas sem documento: nenhuma monta o rodapé do sítio. A mesma
+          peça de todas as páginas (`AvisoLegal.tsx`), discreta, no fundo. */}
+      <AvisoLegal
+        lingua={normalizeLocale(lang)}
+        className="mt-12 text-foreground/68"
+        classeDasLigacoes="alvo-toque hover:text-foreground transition-colors"
+      />
     </section>
   );
 }

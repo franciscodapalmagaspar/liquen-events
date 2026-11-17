@@ -1538,3 +1538,49 @@ describe("nada falha em silêncio", () => {
     ).toEqual([]);
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// O índice do Vercel Blob (2.ª revisão de 17/11, n.os 4 e 8)
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("o índice do Vercel Blob na reposição", () => {
+  it("uma cópia antiga, sem o conjunto, não dá aviso nenhum a mais", async () => {
+    seedBusiness();
+    const payload = (await buildBackupPayload()) as Record<string, unknown>;
+    delete payload.indiceDoBlob;
+    if (payload.counts && typeof payload.counts === "object")
+      delete (payload.counts as Record<string, unknown>).indiceDoBlob;
+    const plan = await planRestore(mustValidate(payload));
+    expect(plan.warnings.map((w) => w.message).join("\n")).not.toMatch(/Vercel Blob/);
+  });
+
+  it("sem o token, nem se varre o índice (a cópia leva uma lista vazia)", async () => {
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    seedBusiness();
+    rowsOf("app_state").push({
+      key: "blob:i:proposal-assets/LIQ-AAA-1/foto-1.jpg",
+      value: { t: 1, c: ONTEM },
+      updated_at: ONTEM,
+    });
+    const payload = (await buildBackupPayload()) as Record<string, unknown>;
+    expect(payload.indiceDoBlob).toEqual([]);
+  });
+
+  it("o plano diz «junta», não conta apagados nem «mais recentes do que a cópia»", async () => {
+    process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_Loja1234_s";
+    try {
+      seedBusiness();
+      const payload = await buildBackupPayload();
+      rowsOf("app_state").push({
+        key: "blob:i:proposal-assets/LIQ-AAA-1/nova.jpg",
+        value: { t: 1, c: "2099-01-01T00:00:00.000Z" },
+        updated_at: ONTEM,
+      });
+      const plan = await planRestore(mustValidate(payload));
+      const d = plan.datasets.find((x) => x.key === "indiceDoBlob")!;
+      expect(d).toMatchObject({ removed: 0, newerThanBackup: 0, junta: true });
+    } finally {
+      delete process.env.BLOB_READ_WRITE_TOKEN;
+    }
+  });
+});

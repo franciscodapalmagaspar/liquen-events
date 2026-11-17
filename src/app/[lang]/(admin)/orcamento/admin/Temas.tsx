@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { servirUmaVez, type PedidoDaPaleta } from "./procura-em-tudo";
 import { useMaisAoDescer } from "./useMaisAoDescer";
 import type { ThemeCopyMode, ThemeImage, ThemeSummary } from "@/lib/theme-types";
 import PhotoLightbox from "./PhotoLightbox";
@@ -942,7 +943,12 @@ function useNoEcraAteSair<T>(aberto: boolean, aSair: boolean, valor: T | null): 
   return aSair ? ultimo : null;
 }
 
-export default function Temas() {
+export default function Temas({
+  pedidoDaPaleta,
+}: {
+  /** A paleta (⌘K) escolheu um tema: abre a pasta dele. */
+  pedidoDaPaleta?: PedidoDaPaleta;
+}) {
   const { toast } = useToast();
   const anular = useAnular();
   // Eliminar um tema deixa-o 30 dias na Reciclagem (R3b), com «Anular».
@@ -1080,6 +1086,15 @@ export default function Temas() {
     () => !aSubirFotos || window.confirm(AVISO_DE_LOTE_A_MEIO),
     [aSubirFotos],
   );
+  /* A paleta escolheu um tema (BO 4): abre-se a pasta dele pela mesma porta do
+     cartão — com a mesma pergunta se houver um lote a subir noutra pasta. Se a
+     lista ainda não chegou, a pasta abre quando ela chegar (o `open` lê-se do
+     `openId` contra a lista). */
+  useEffect(() => {
+    servirUmaVez(pedidoDaPaleta, (p) => {
+      if (p.id && podeTrocarDeTema()) setOpenId(p.id);
+    });
+  }, [pedidoDaPaleta, podeTrocarDeTema]);
   // Lidas depois do primeiro desenho, e não durante: o servidor não tem
   // `localStorage`, e ler ali daria um HTML diferente do que o browser desenha.
   useEffect(() => {

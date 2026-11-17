@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAuthed } from "@/lib/admin-auth";
 import { diagnosticarFotos } from "@/lib/diagnostico-de-fotos";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 // O diagnóstico carrega o `sharp` de propósito — é uma das nove causas.
 export const runtime = "nodejs";
@@ -50,7 +51,7 @@ export const maxDuration = 30;
  * que a rota do armazenamento: responder 503 a «falta uma variável no build»
  * troca a frase que resolve o problema por uma que não indica caminho nenhum.
  */
-export async function GET(request: NextRequest) {
+async function GET_semMedida(request: NextRequest) {
   if (!isAuthed(request)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
@@ -97,3 +98,5 @@ async function lerPoliticaServida(request: NextRequest): Promise<string | null> 
     return null;
   }
 }
+
+export const GET = comCpu("fotos-diagnostico GET", GET_semMedida);

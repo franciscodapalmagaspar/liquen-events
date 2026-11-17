@@ -271,14 +271,38 @@ describe("Pagamentos — filtro, procura e previsão", () => {
     expect(screen.queryByRole("article", { name: "TESTE Rui" })).not.toBeInTheDocument();
   });
 
-  it("a previsão mostra seis meses, com o que se espera em cada um", async () => {
+  it("a previsão mostra TODOS os meses até ao último pagamento (o saldo de setembro não some)", async () => {
+    // 16/11: «vai entrar esse dinheiro, mas depois em abril, então e o resto?».
+    // Relativo a hoje, para o teste não envelhecer: casamento a 10 meses, dia 18.
+    const h = new Date();
+    const evento = new Date(Date.UTC(h.getFullYear(), h.getMonth() + 10, 18));
+    const saldo = new Date(Date.UTC(h.getFullYear(), h.getMonth() + 9, 1));
+    const meses_pt = [
+      "janeiro",
+      "fevereiro",
+      "março",
+      "abril",
+      "maio",
+      "junho",
+      "julho",
+      "agosto",
+      "setembro",
+      "outubro",
+      "novembro",
+      "dezembro",
+    ];
     desenhar([
-      pedido("q2", {}, [{ id: "x", kind: "sinal", amount: 300, date: "2020-01-01", paid: false }]),
+      pedido("q2", { date: evento.toISOString().slice(0, 10) }, [
+        { id: "x", kind: "sinal", amount: 300, date: "2020-01-01", paid: false },
+      ]),
     ]);
     const lista = await screen.findByRole("list", { name: "Previsão por mês" });
     const meses = within(lista).getAllByRole("listitem");
-    expect(meses).toHaveLength(6);
     // O sinal em atraso conta já, no mês de hoje.
     expect(meses[0]).toHaveTextContent(/300/);
+    // E a fila só acaba no mês do saldo: um mês antes do casamento.
+    const ultimo = `${meses_pt[saldo.getUTCMonth()]} de ${saldo.getUTCFullYear()}`;
+    expect(meses.at(-1)).toHaveAccessibleName(new RegExp(`^${ultimo}: `));
+    expect(meses.at(-1)).not.toHaveAccessibleName(/nada previsto/);
   });
 });

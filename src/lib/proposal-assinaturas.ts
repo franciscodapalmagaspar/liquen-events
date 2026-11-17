@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { getSupabase } from "./supabase";
 import {
   THEME_AVIF_MID_BUCKET,
@@ -72,7 +73,7 @@ export async function assinarLote(
   const sb = getSupabase();
   if (!sb || paths.length === 0) return out;
   try {
-    const { data, error } = await sb.storage.from(bucket).createSignedUrls(paths, ttl);
+    const { data, error } = await balde(bucket, sb).createSignedUrls(paths, ttl);
     if (error && !silencioso)
       log.error("proposal-storage: assinatura em lote falhou", error, { bucket, n: paths.length });
     for (const row of data ?? []) {

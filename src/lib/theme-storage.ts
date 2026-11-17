@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { opcoesDeCarregamento } from "./cache-das-fotos";
 import { createHash, randomUUID } from "node:crypto";
 import { getSupabase } from "./supabase";
@@ -335,14 +336,16 @@ async function uploadThemeDerivada(
   if (!sb || !isThemePath(path)) return "";
   try {
     if (!(await ensureBucket(bucket))) return "";
-    const { error } = await sb.storage
-      .from(bucket)
-      .upload(path, thumb.bytes, opcoesDeCarregamento(thumb.contentType, true));
+    const { error } = await balde(bucket, sb).upload(
+      path,
+      thumb.bytes,
+      opcoesDeCarregamento(thumb.contentType, true),
+    );
     if (error) {
       log.warn("theme-storage: derivada não guardada", { bucket, path, erro: error.message });
       return "";
     }
-    const { data } = await sb.storage.from(bucket).createSignedUrl(path, SIGNED_TTL);
+    const { data } = await balde(bucket, sb).createSignedUrl(path, SIGNED_TTL);
     return data?.signedUrl ?? "";
   } catch (e) {
     log.warn("theme-storage: derivada não guardada", { bucket, path, erro: String(e) });
@@ -419,9 +422,11 @@ export async function uploadThemeImage(
     ? fileNameFor(fingerprint, options?.force ? forcedSuffix() : undefined)
     : randomUUID();
   const path = `${folder}/${name}.${extFor(contentType)}`;
-  const { error } = await sb.storage
-    .from(THEME_BUCKET)
-    .upload(path, bytes, opcoesDeCarregamento(contentType));
+  const { error } = await balde(THEME_BUCKET, sb).upload(
+    path,
+    bytes,
+    opcoesDeCarregamento(contentType),
+  );
   if (error) {
     // A foto já lá estava — o guarda atómico a fazer o seu trabalho. Não é uma
     // avaria e não pode sair daqui como uma.
@@ -437,7 +442,7 @@ export async function uploadThemeImage(
   // dependem umas das outras, e em série somavam-se quatro idas ao Storage por
   // foto num lote que pode ter 300.
   const [{ data }, thumbUrl, microUrl] = await Promise.all([
-    sb.storage.from(THEME_BUCKET).createSignedUrl(path, SIGNED_TTL),
+    balde(THEME_BUCKET, sb).createSignedUrl(path, SIGNED_TTL),
     thumb ? uploadThemeThumb(path, thumb) : Promise.resolve(""),
     micro ? uploadThemeMicro(path, micro) : Promise.resolve(""),
     // O URL desta não vai na resposta: a grelha do back office não a usa, e é
@@ -488,16 +493,14 @@ export interface ThemeUploadTicket {
 /** O Storage desta instalação sabe emitir URLs de carregamento? Um Supabase
  *  mais antigo não sabe — e aí a rota manda o cliente pelo multipart. */
 function canMintUploadUrls(sb: NonNullable<ReturnType<typeof getSupabase>>): boolean {
-  return typeof sb.storage.from(THEME_BUCKET).createSignedUploadUrl === "function";
+  return typeof balde(THEME_BUCKET, sb).createSignedUploadUrl === "function";
 }
 
 async function mintOne(bucket: string, path: string): Promise<UploadTicket | null> {
   const sb = getSupabase();
   if (!sb) return null;
   try {
-    const { data, error } = await sb.storage
-      .from(bucket)
-      .createSignedUploadUrl(path, { upsert: false });
+    const { data, error } = await balde(bucket, sb).createSignedUploadUrl(path, { upsert: false });
     if (error || !data) return null;
     return { path, uploadUrl: data.signedUrl, token: data.token };
   } catch {
@@ -674,7 +677,7 @@ export async function listThemeObjects(
   // Sem pasta segura não há nada que possamos afirmar sobre o conteúdo.
   if (!folder) return unreadable;
   try {
-    const { data, error } = await sb.storage.from(THEME_BUCKET).list(folder, {
+    const { data, error } = await balde(THEME_BUCKET, sb).list(folder, {
       limit,
       offset,
       sortBy: { column: "created_at", order: "desc" },
@@ -1143,7 +1146,7 @@ export async function signThemePaths(
           bucket,
         });
   try {
-    const { data, error } = await sb.storage.from(bucket).createSignedUrls(paths, SIGNED_TTL);
+    const { data, error } = await balde(bucket, sb).createSignedUrls(paths, SIGNED_TTL);
     if (error || !data) {
       report(error);
       return urls;
@@ -1347,7 +1350,7 @@ async function removeThumbs(paths: string[]): Promise<boolean> {
   const sb = getSupabase();
   if (!sb) return false;
   try {
-    const { error } = await sb.storage.from(THEME_THUMB_BUCKET).remove(paths);
+    const { error } = await balde(THEME_THUMB_BUCKET, sb).remove(paths);
     if (error) {
       log.warn("theme-storage: miniaturas não apagadas", { count: paths.length });
       return false;
@@ -1364,7 +1367,7 @@ async function removeThumbs(paths: string[]): Promise<boolean> {
 export async function deleteThemeImage(path: string): Promise<boolean> {
   const sb = getSupabase();
   if (!sb || !isThemePath(path) || !(await ensureBucket(THEME_BUCKET))) return false;
-  const { error } = await sb.storage.from(THEME_BUCKET).remove([path]);
+  const { error } = await balde(THEME_BUCKET, sb).remove([path]);
   if (error) {
     log.error("theme-storage: remove falhou", error, { path });
     return false;
@@ -1400,7 +1403,7 @@ export async function apagarDerivadasOrfas(path: string): Promise<void> {
       THEME_AVIF_MID_BUCKET,
     ].map(async (bucket) => {
       try {
-        const { error } = await sb.storage.from(bucket).remove([path]);
+        const { error } = await balde(bucket, sb).remove([path]);
         if (error && !isNotFound(error)) {
           log.warn("theme-storage: derivada órfã por apagar", { bucket, path });
         }
@@ -1440,7 +1443,7 @@ export async function levarFotoParaAReciclagem(path: string, destino: string): P
   if (!sb || !isThemePath(path) || !naReciclagemValido(destino)) return false;
   if (!(await ensureBucket(THEME_BUCKET))) return false;
   try {
-    const { error } = await sb.storage.from(THEME_BUCKET).move(path, destino);
+    const { error } = await balde(THEME_BUCKET, sb).move(path, destino);
     if (error) {
       log.error("theme-storage: foto não foi para a Reciclagem", error, { path });
       return false;
@@ -1468,7 +1471,7 @@ export async function trazerFotoDaReciclagem(
   const sb = getSupabase();
   if (!sb || !isThemePath(path) || !naReciclagemValido(origem)) return "falhou";
   try {
-    const { error } = await sb.storage.from(THEME_BUCKET).move(origem, path);
+    const { error } = await balde(THEME_BUCKET, sb).move(origem, path);
     if (error) {
       if (isAlreadyExists(error)) return "existe";
       log.error("theme-storage: foto não voltou da Reciclagem", error, { path });
@@ -1490,9 +1493,7 @@ export async function fotoExisteNoTema(path: string): Promise<boolean | null> {
   const pasta = path.slice(0, path.indexOf("/"));
   const nome = path.slice(path.indexOf("/") + 1);
   try {
-    const { data, error } = await sb.storage
-      .from(THEME_BUCKET)
-      .list(pasta, { limit: 100, search: nome });
+    const { data, error } = await balde(THEME_BUCKET, sb).list(pasta, { limit: 100, search: nome });
     if (error || !data) return null;
     return data.some((o) => o.name === nome);
   } catch {
@@ -1513,7 +1514,7 @@ export async function largarFotoDaReciclagem(path: string, guardada: string): Pr
   if (!sb) return true;
   if (!naReciclagemValido(guardada)) return false;
   try {
-    const { error } = await sb.storage.from(THEME_BUCKET).remove([guardada]);
+    const { error } = await balde(THEME_BUCKET, sb).remove([guardada]);
     if (error) {
       log.error("theme-storage: foto da Reciclagem não saiu", error, { guardada });
       return false;
@@ -1573,7 +1574,7 @@ export async function deleteThemeFolder(
   for (let i = 0; i < paths.length; i += PAGE) {
     const chunk = paths.slice(i, i + PAGE);
     try {
-      const { data, error } = await sb.storage.from(THEME_BUCKET).remove(chunk);
+      const { data, error } = await balde(THEME_BUCKET, sb).remove(chunk);
       if (error) {
         log.error("theme-storage: limpeza da pasta falhou", error, { themeId });
         return { ok: false, removed };
@@ -1608,7 +1609,7 @@ async function purgeThumbFolder(folder: string): Promise<void> {
   if (!sb || !folder) return;
   try {
     for (let page = 0; page < MAX_DELETE_PAGES; page++) {
-      const { data, error } = await sb.storage.from(THEME_THUMB_BUCKET).list(folder, {
+      const { data, error } = await balde(THEME_THUMB_BUCKET, sb).list(folder, {
         limit: PAGE,
         offset: 0, // apaga-se sempre a primeira página: a pasta encolhe a cada volta
         sortBy: { column: "created_at", order: "desc" },
@@ -1635,7 +1636,7 @@ export async function fetchThemeImageBytes(path: string): Promise<Buffer | null>
   const sb = getSupabase();
   if (!sb || !isThemePath(path)) return null;
   try {
-    const { data, error } = await sb.storage.from(THEME_BUCKET).download(path);
+    const { data, error } = await balde(THEME_BUCKET, sb).download(path);
     if (error || !data) return null;
     return Buffer.from(await data.arrayBuffer());
   } catch (e) {
@@ -1735,13 +1736,11 @@ export async function copyThemeImageToProposal(
   const contentType = contentTypeForPath(themePath);
   const dest = `${safeQuoteId}/${randomUUID()}.${extFor(contentType)}`;
   try {
-    const { error } = await sb.storage
-      .from(THEME_BUCKET)
-      .copy(themePath, dest, { destinationBucket: PROPOSAL_BUCKET });
+    const { error } = await balde(THEME_BUCKET, sb).copy(themePath, dest, {
+      destinationBucket: PROPOSAL_BUCKET,
+    });
     if (!error) {
-      const { data } = await sb.storage
-        .from(PROPOSAL_BUCKET)
-        .createSignedUrl(dest, PROPOSAL_COPY_TTL);
+      const { data } = await balde(PROPOSAL_BUCKET, sb).createSignedUrl(dest, PROPOSAL_COPY_TTL);
       const thumbUrl = await copiarMiniaturaParaProposta(themePath, dest);
       const copia = { path: dest, url: data?.signedUrl ?? "" };
       return thumbUrl ? { ...copia, thumbUrl } : copia;
@@ -1780,14 +1779,15 @@ async function copiarMiniaturaParaProposta(themePath: string, dest: string): Pro
   const sb = getSupabase();
   if (!sb) return "";
   try {
-    const { error } = await sb.storage
-      .from(THEME_THUMB_BUCKET)
-      .copy(themePath, dest, { destinationBucket: PROPOSAL_THUMB_BUCKET });
+    const { error } = await balde(THEME_THUMB_BUCKET, sb).copy(themePath, dest, {
+      destinationBucket: PROPOSAL_THUMB_BUCKET,
+    });
     // Sem miniatura no tema (foto anterior às miniaturas) não é avaria nenhuma.
     if (error) return "";
-    const { data } = await sb.storage
-      .from(PROPOSAL_THUMB_BUCKET)
-      .createSignedUrl(dest, PROPOSAL_COPY_TTL);
+    const { data } = await balde(PROPOSAL_THUMB_BUCKET, sb).createSignedUrl(
+      dest,
+      PROPOSAL_COPY_TTL,
+    );
     return data?.signedUrl ?? "";
   } catch {
     return "";
@@ -1855,7 +1855,7 @@ export async function transferThemeImage(
   if (!sb || !(await ensureBucket(THEME_BUCKET))) return nowhere;
 
   try {
-    const bucket = sb.storage.from(THEME_BUCKET);
+    const bucket = balde(THEME_BUCKET, sb);
     // `move` e não "copy + remove": é o que torna o mover ATÓMICO por foto —
     // nunca existe um instante em que a foto não esteja em lado nenhum.
     const { error } =
@@ -1904,7 +1904,7 @@ export async function transferThemeImage(
   // na origem, e o banner de reparação cobre-a).
   const levarDerivada = async (nomeDoBucket: string) => {
     try {
-      const derivadas = sb.storage.from(nomeDoBucket);
+      const derivadas = balde(nomeDoBucket, sb);
       const { error } =
         mode === "move" ? await derivadas.move(fromPath, to) : await derivadas.copy(fromPath, to);
       if (error && !isAlreadyExists(error) && !isNotFound(error)) {

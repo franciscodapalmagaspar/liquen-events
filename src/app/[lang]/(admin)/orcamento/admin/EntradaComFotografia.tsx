@@ -95,7 +95,8 @@ import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
  * `scripts/pregen-gallery.mjs` já produz para TODA a fotografia de
  * `public/imagens/` — este componente não gera ficheiro nenhum, serve os que
  * já existem em `/_img/g/`. O painel é 50vw: num ecrã de 1440 são 720 CSS px,
- * ou seja 768 a DPR 1 e 1280 (o tecto) a DPR 2.
+ * ou seja 768 a DPR 1 e 1280 (o tecto) a DPR 2. Em AVIF; o WebP de reserva
+ * só existe em 384 e 1280 (`GALLERY_WEBP_WIDTHS`).
  */
 export const ESCADA_PAINEL = [640, 768, 1024, 1280] as const;
 

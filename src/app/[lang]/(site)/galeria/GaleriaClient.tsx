@@ -2302,7 +2302,7 @@ function Lightbox({
         sizes={SIZES_DA_GRELHA}
       />
       <img
-        src={ficheiroDaGaleria(pool[i].src, 768, "webp")}
+        src={ficheiroDaGaleria(pool[i].src, 1280, "webp")}
         alt=""
         aria-hidden
         className="absolute inset-0 h-full w-full object-contain"

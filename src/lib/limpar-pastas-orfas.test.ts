@@ -138,6 +138,26 @@ describe("as fotografias de pedidos que já não existem (10/11)", () => {
     expect(st.apagadas).toEqual(["LIQ-APAGADO-1"]);
   });
 
+  it("as linhas do índice do Vercel Blob (`blob:i:`) não são menções: apaga na mesma (revisão 17/11, n.º 3)", async () => {
+    st.tabelas.app_state = [
+      ...(st.tabelas.app_state ?? []),
+      { key: "blob:i:proposal-assets/LIQ-APAGADO-1/b.jpg", value: { t: 1, c: "x" } },
+    ];
+    await limparPastasDePedidosApagados(dia1);
+    await limparPastasDePedidosApagados(dia9);
+    expect(st.apagadas).toEqual(["LIQ-APAGADO-1"]);
+  });
+
+  it("uma chave `foto-visual:` com o nome da pasta continua a protegê-la, como em main (2.ª revisão 17/11, n.º 3)", async () => {
+    st.tabelas.app_state = [
+      ...(st.tabelas.app_state ?? []),
+      { key: "foto-visual:LIQ-APAGADO-1", value: {} },
+    ];
+    await limparPastasDePedidosApagados(dia1);
+    await limparPastasDePedidosApagados(dia9);
+    expect(st.apagadas).toEqual([]);
+  });
+
   it("se uma leitura da base de dados falha, não apaga nem mexe na espera", async () => {
     await limparPastasDePedidosApagados(dia1);
     st.tabelas.invoices = null;

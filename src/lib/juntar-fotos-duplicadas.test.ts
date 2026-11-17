@@ -286,6 +286,16 @@ describe("as portas que prendem uma cópia", () => {
     expect(b.caminhosApagados).toEqual([`${PEDIDO}/nova.jpg`]);
   });
 
+  it("a linha do índice do Vercel Blob (`blob:i:`) não a segura: sai na mesma (revisão 17/11, n.º 3)", async () => {
+    st.estado[`blob:i:proposal-assets/${PEDIDO}/nova.jpg`] = {
+      value: { t: 1, c: "x", s: "a".repeat(64) },
+      updated_at: "x",
+    };
+    const { b } = await duasNoites();
+    expect(b).toMatchObject({ fase: "B", apagadas: 1 });
+    expect(st.apagados).toContain(`proposal-assets/${PEDIDO}/nova.jpg`);
+  });
+
   it("referida noutra chave do app_state: fica", async () => {
     st.estado["modelo:casamento"] = { value: { capa: `${PEDIDO}/nova.jpg` }, updated_at: "x" };
     st.tabelas.proposals = [{ id: "p1", doc: [`${PEDIDO}/velha.jpg`] }];

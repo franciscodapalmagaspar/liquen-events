@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { semProtegidos } from "@/lib/arquivo-de-pdfs/protegidos";
 import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
 import { lerTodasAsLinhas } from "./ler-todas-as-linhas";
@@ -227,7 +228,7 @@ async function listarTudo(
   const todas: Entrada[] = [];
   for (let offset = 0, paginas = 0; ; paginas++) {
     if (paginas >= TECTO_DE_PAGINAS) return { data: null, error: new Error("demasiadas páginas") };
-    const { data, error } = await sb.storage.from(BUCKET).list(pasta, {
+    const { data, error } = await balde(BUCKET, sb).list(pasta, {
       limit: PAGINA,
       offset,
       sortBy: { column: "name", order: "asc" },
@@ -743,7 +744,7 @@ export async function limparPdfsSubstituidos(
    */
   const shaDescarregado = async (f: Ficheiro, osSelos: readonly Selo[]): Promise<string | null> => {
     try {
-      const { data, error } = await sb.storage.from(BUCKET).download(f.caminho);
+      const { data, error } = await balde(BUCKET, sb).download(f.caminho);
       if (error || !data) return null;
       const buf = Buffer.from(await data.arrayBuffer());
       if (f.bytes !== null && buf.byteLength !== f.bytes) return null;
@@ -1027,7 +1028,7 @@ export async function limparPdfsSubstituidos(
   let apagados = 0;
   if (lote.length > 0) {
     const caminhos = lote.map((f) => f.caminho);
-    const { data, error } = await sb.storage.from(BUCKET).remove(caminhos);
+    const { data, error } = await balde(BUCKET, sb).remove(caminhos);
     if (!error) {
       // Conta-se o que o Storage DIZ que apagou, não o que se pediu (revisão
       // de 15/11, 2.ª passagem, n.º 4). Um que não venha fica na espera; se

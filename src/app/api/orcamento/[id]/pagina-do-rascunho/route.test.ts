@@ -21,6 +21,9 @@ const st = vi.hoisted(() => ({
   /** O que o armazenamento diz que já não existe (com a memória de 3 min). */
   faltam: new Set<string>(),
   perguntas: [] as unknown[],
+  /** O sinal que a rota passou à fila dos documentos. */
+  sinais: [] as (AbortSignal | undefined)[],
+  semVaga: false,
 }));
 
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => st.authed }));
@@ -33,6 +36,7 @@ vi.mock("@/lib/proposal-doc-render", () => ({
   },
 }));
 vi.mock("@/lib/paginas-do-pdf", () => ({
+  SemVagaParaDocumentos: class SemVagaParaDocumentos extends Error {},
   larguraPedida: (n: number) => (n <= 800 ? 800 : n <= 1200 ? 1200 : 1600),
   // Uma memória de verdade, como a do módulo: a chave e a página.
   imagemDaPagina: async (
@@ -40,7 +44,13 @@ vi.mock("@/lib/paginas-do-pdf", () => ({
     obter: () => Promise<Uint8Array>,
     n: number,
     largura: number,
+    opcoes?: { signal?: AbortSignal },
   ) => {
+    st.sinais.push(opcoes?.signal);
+    if (st.semVaga) {
+      const { SemVagaParaDocumentos } = await import("@/lib/paginas-do-pdf");
+      throw new SemVagaParaDocumentos();
+    }
     const id = `${chave}:${n}:${largura}`;
     if (!st.imagens.has(id)) {
       await obter();
@@ -72,6 +82,8 @@ beforeEach(() => {
   st.imagens.clear();
   st.faltam = new Set();
   st.perguntas = [];
+  st.sinais = [];
+  st.semVaga = false;
 });
 
 describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
@@ -215,5 +227,19 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
     const res = await pedir({ doc: DOC, n: 5 });
     expect(res.status).toBe(500);
     expect(log.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("a fila dos documentos recebe o sinal do pedido, e a fila cheia dá 503 (2.ª revisão de 17/11)", async () => {
+    vi.mocked(log.error).mockClear();
+    const res = await pedir({ doc: DOC, n: 6 });
+    expect(res.status).toBe(200);
+    expect(st.sinais[0]).toBeInstanceOf(AbortSignal);
+    st.semVaga = true;
+    const cheia = await pedir({ doc: DOC, n: 7 });
+    expect(cheia.status).toBe(503);
+    expect(cheia.headers.get("Retry-After")).toBe("2");
+    expect((await cheia.json()).error).toContain("tenta outra vez");
+    expect(log.error).not.toHaveBeenCalled();
+    expect(log.warn).toHaveBeenCalled();
   });
 });

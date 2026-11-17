@@ -35,6 +35,7 @@ vi.mock("@simplewebauthn/server", () => ({
 const store = vi.hoisted(() => ({
   existentes: [] as unknown[],
   criadas: [] as Record<string, unknown>[],
+  removidas: [] as string[],
 }));
 
 vi.mock("@/lib/passkeys-store", async (orig) => ({
@@ -43,6 +44,19 @@ vi.mock("@/lib/passkeys-store", async (orig) => ({
   createPasskey: vi.fn(async (p: Record<string, unknown>) => {
     store.criadas.push(p);
   }),
+  removePasskeyOwnedBy: vi.fn(async (id: string) => {
+    store.removidas.push(id);
+    return true;
+  }),
+}));
+
+/** O instante da última recuperação desta conta (`null`: nunca houve). */
+const corte = vi.hoisted(() => ({ desde: null as number | null, falha: false }));
+vi.mock("@/lib/admin-auth", async (orig) => ({
+  ...(await orig<typeof import("@/lib/admin-auth")>()),
+  cortePasskeys: vi.fn(async () =>
+    corte.falha ? { ok: false } : { ok: true, desde: corte.desde },
+  ),
 }));
 
 const { GET, POST } = await import("./route");
@@ -86,6 +100,9 @@ beforeEach(() => {
   wa.verificado = true;
   store.existentes = [];
   store.criadas = [];
+  store.removidas = [];
+  corte.desde = null;
+  corte.falha = false;
 });
 
 describe("GET — as opções", () => {
@@ -104,6 +121,42 @@ describe("GET — as opções", () => {
     store.existentes = Array.from({ length: 10 }, (_, i) => ({ id: `c${i}` }));
     const res = await GET(pedido({ desafioDe: null, metodo: "GET" }));
     expect(res.status).toBe(409);
+  });
+
+  it("depois de uma recuperação, o MESMO aparelho regista-se outra vez (revisão de 16/11, n.º 2)", async () => {
+    // As passkeys de antes da recuperação já não entram. Se continuassem no
+    // `excludeCredentials`, o aparelho recusava («já está registado»); se
+    // continuassem na contagem, enchiam o tecto. Saem das duas, e apagam-se.
+    corte.desde = Date.parse("2026-11-10T00:00:00.000Z");
+    const antiga = (i: number) => ({
+      id: `antiga-${i}`,
+      userName: "Catarina",
+      transports: ["internal"],
+      createdAt: "2026-08-01T10:00:00.000Z",
+    });
+    store.existentes = [
+      ...Array.from({ length: 9 }, (_, i) => antiga(i)),
+      { id: "nova", userName: "Catarina", transports: [], createdAt: "2026-11-12T10:00:00.000Z" },
+    ];
+    const { generateRegistrationOptions } = await import("@simplewebauthn/server");
+    vi.mocked(generateRegistrationOptions).mockClear();
+    const res = await GET(pedido({ desafioDe: null, metodo: "GET" }));
+    expect(res.status).toBe(200);
+    const opcoes = vi.mocked(generateRegistrationOptions).mock.calls[0][0];
+    expect(opcoes.excludeCredentials?.map((c) => c.id)).toEqual(["nova"]);
+    expect(store.removidas.sort()).toEqual(
+      Array.from({ length: 9 }, (_, i) => `antiga-${i}`).sort(),
+    );
+  });
+
+  it("sem conseguir ler o corte, não se apaga nada e a lista fica como está", async () => {
+    corte.falha = true;
+    store.existentes = [
+      { id: "a", userName: "Catarina", transports: [], createdAt: "2026-08-01T10:00:00.000Z" },
+    ];
+    const res = await GET(pedido({ desafioDe: null, metodo: "GET" }));
+    expect(res.status).toBe(200);
+    expect(store.removidas).toEqual([]);
   });
 });
 

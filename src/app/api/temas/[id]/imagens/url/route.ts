@@ -7,6 +7,7 @@ import { isDatabaseConfigured } from "@/lib/supabase";
 import { log } from "@/lib/logger";
 import { lqipsDoLote } from "@/lib/lqip";
 import { garantirFoto, updateFoto } from "@/lib/biblioteca-fotos-store";
+import { comCpu } from "@/lib/medir-cpu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,7 +69,10 @@ async function body(request: NextRequest): Promise<Record<string, unknown> | nul
  * 300 Mbit/s e 28 % a 1 Gbit/s. O tamanho do lote é a diferença entre esta
  * mudança valer a pena e não valer.
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function POST_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   if (!isDatabaseConfigured()) return unavailable();
   const { id } = await params;
@@ -119,7 +123,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
  * fonte de verdade e a listagem seguinte mostra-as na mesma; o que se perde é
  * só a verificação das dimensões e o URL imediato para a grelha.
  */
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function PUT_semMedida(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   if (!isDatabaseConfigured()) return unavailable();
   const { id } = await params;
@@ -179,3 +186,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+export const POST = comCpu("temas-imagens-url POST", POST_semMedida);
+export const PUT = comCpu("temas-imagens-url PUT", PUT_semMedida);

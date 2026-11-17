@@ -3,6 +3,10 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { TOKEN_PATH_PATTERN, TOKEN_PLACEHOLDER, semAnaliticos } from "@/lib/safe-path";
+import { CHAVE_CONSENTIMENTO, temConsentimento } from "@/lib/meta/consentimento";
+import { aoMudarConsentimento as aoMudarConsentimentoDoClique } from "@/lib/ads/click-id";
+import { aoMudarConsentimento as aoMudarConsentimentoDaMeta } from "@/lib/meta/click-id";
+import { apagarCookies } from "@/lib/apagar-cookies";
 
 // Google tag IDs for Líquen Events. PUBLIC identifiers — they ship in the page
 // source by design, so hard-coding them here is fine (no secret). We configure
@@ -107,16 +111,30 @@ export function bootstrapGtag(): void {
  * Everything is DENIED by default (no ad/analytics cookies) until the visitor
  * explicitly accepts via <ConsentBanner>. If they accepted on a previous visit
  * the choice is restored from localStorage before the tag loads, so consent
- * persists. Under "denied", gtag still sends cookieless pings so Google can
- * model conversions — but sets no cookies, which keeps us compliant without
- * re-asking on every page. The library loads after hydration (ver
- * `carregarGtag`, em baixo) so it never competes with first paint.
+ * persists. The library loads after hydration (ver `carregarGtag`, em baixo)
+ * so it never competes with first paint.
+ *
+ * ── SEM «ACEITAR», A BIBLIOTECA NÃO ENTRA (auditoria legal, 17/11) ─────────
+ * Até 17/11 o gtag.js carregava sempre, e com o consentimento negado mandava
+ * os pings «sem cookies» do Consent Mode avançado. MEDIDO num Chromium: depois
+ * de «Recusar», cada página continuava a pedir o gtag.js e a mandar um
+ * `google-analytics.com/g/collect` com `gcs=G100` — sem cookies, mas com o IP,
+ * o agente, o endereço da página e o momento. Ela pediu que «Recusar» não
+ * deixe sair NADA para a Google. Agora:
+ *   · sem escolha ou com «Recusar», só corre o bootstrap em linha (a fila
+ *     `dataLayer` e o `consent default`), que não faz pedido nenhum;
+ *   · com «Aceitar» (de uma visita anterior ou agora), a biblioteca entra —
+ *     no primeiro gesto se já estava aceite, logo a seguir se for aceite a
+ *     meio da visita (o toque no botão já é o gesto).
+ * O preço, dito: a Google deixa de poder modelar as conversões de quem
+ * recusou. É a escolha certa — modelar quem recusou é exactamente o que a
+ * recusa devia impedir.
  *
  * NÃO é montado nas rotas com token (/portal/<token>, /proposta/<token>) nem no
- * back office (/orcamento/admin). E a razão é precisamente aquela em que o
- * banner de consentimento NÃO ajuda: com o consentimento negado o gtag continua
- * a mandar pings sem cookies, ou seja o caminho da página sairia à mesma para a
- * Google. A única defesa que funciona é o tag não existir lá. Nem um lado nem o
+ * back office (/orcamento/admin). Aí nem o consentimento chega: quem ACEITOU
+ * no sítio mandaria à Google o caminho da página, com o token lá dentro. (Até
+ * 17/11 era pior — com o consentimento negado o gtag mandava à mesma pings sem
+ * cookies.) A única defesa que funciona é o tag não existir lá. Nem um lado nem o
  * outro têm valor analítico (não têm campanhas nem conversões), por isso não se
  * perde medição nenhuma — ver `semAnaliticos` em `safe-path.ts`.
  *
@@ -140,12 +158,113 @@ export default function GoogleTag() {
   useEffect(() => {
     if (suppressed) return;
     bootstrapGtag();
-    return agendarGtag();
+    // Com consentimento, a biblioteca entra no primeiro gesto (`agendarGtag`).
+    // Sem ele, nada se pede à Google; se ela aceitar a meio da visita, entra
+    // nessa altura (o toque no botão já é o gesto). E uma recusa a meio
+    // desarma a entrada que estivesse à espera de um gesto.
+    let desarmar: (() => void) | null = temConsentimento() ? agendarGtag() : null;
+    const seguirAEscolha = () => {
+      if (temConsentimento()) {
+        if (!desarmar) carregarGtag();
+      } else {
+        desarmar?.();
+        desarmar = null;
+      }
+    };
+    // Escolha feita noutro SEPARADOR: o `consent update`, as bandeiras e a
+    // limpeza só lá correram — repetem-se aqui antes de a biblioteca ler a
+    // fila, senão ela arrancava no estado antigo. E o mesmo para a Meta (o
+    // clique em memória, os cookies e o `fbq`): este componente está em todas
+    // as páginas do sítio, o `MetaPixel` só nas dos anúncios. Neste separador
+    // é o aviso de cookies que aplica tudo, no momento do toque.
+    // Sem «granted» (recusa, ou o armazenamento limpo noutro separador) é
+    // tratado como recusa, igual para as duas.
+    const noutroSeparador = (e: StorageEvent) => {
+      if (e.key !== null && e.key !== CHAVE_CONSENTIMENTO) return;
+      const aceitou = temConsentimento();
+      aplicarConsentimentoGoogle(aceitou);
+      aoMudarConsentimentoDaMeta(aceitou);
+      seguirAEscolha();
+    };
+    window.addEventListener("liquen:consent-changed", seguirAEscolha);
+    window.addEventListener("storage", noutroSeparador);
+    return () => {
+      desarmar?.();
+      window.removeEventListener("liquen:consent-changed", seguirAEscolha);
+      window.removeEventListener("storage", noutroSeparador);
+    };
   }, [suppressed, pathname]);
 
   if (suppressed) return null;
 
   return <script dangerouslySetInnerHTML={{ __html: CONSENT_BOOTSTRAP }} />;
+}
+
+/**
+ * Aplica à Google a escolha do aviso de cookies, NESTE separador:
+ *
+ *   · o `consent update` do Consent Mode;
+ *   · a bandeira oficial `ga-disable-<id>`, que cala a biblioteca por completo
+ *     se ela já tiver entrado nesta visita (aceitou antes e agora recusa) — o
+ *     `consent update` sozinho deixava-a a mandar pings «sem cookies»;
+ *   · numa recusa, apaga os cookies da Google (`_ga`, `_ga_*`, `_gid`,
+ *     `_gcl_*`) e o `_gcl_ls` que a biblioteca guarda no localStorage;
+ *   · e o clique pago (gclid): grava-se o da entrada, ou apaga-se.
+ *
+ * Chamado pelo aviso de cookies e, para escolhas feitas noutro separador, pelo
+ * próprio `GoogleTag`. Idempotente; nunca lança.
+ */
+export function aplicarConsentimentoGoogle(granted: boolean): void {
+  try {
+    const w = window as unknown as Record<string, unknown> & {
+      gtag?: (...a: unknown[]) => void;
+    };
+    w[`ga-disable-${GA4_ID}`] = !granted;
+    w[`ga-disable-${GOOGLE_ADS_ID}`] = !granted;
+    const valor = granted ? "granted" : "denied";
+    w.gtag?.("consent", "update", {
+      ad_storage: valor,
+      ad_user_data: valor,
+      ad_personalization: valor,
+      analytics_storage: valor,
+    });
+    filtrarFila(!granted);
+    if (!granted) {
+      apagarCookies((n) => /^(_ga|_ga_.+|_gid|_gat.*|_gcl_.+)$/.test(n));
+      try {
+        localStorage.removeItem("_gcl_ls");
+      } catch {
+        /* sem armazenamento — nada a apagar */
+      }
+    }
+  } catch {
+    /* a medição nunca parte a página */
+  }
+  aoMudarConsentimentoDoClique(granted);
+}
+
+/**
+ * A `ga-disable-<id>` só está documentada para o Analytics. Para o Ads não
+ * ficar a mandar pings «sem cookies» depois de uma recusa a meio da visita,
+ * a fila (`dataLayer.push`, que a biblioteca substitui pela sua) passa a só
+ * deixar entrar comandos `consent`; numa aceitação, volta a ser a de antes.
+ */
+type Fila = unknown[] & { push: (...a: unknown[]) => number; __liquenPush?: Fila["push"] };
+function filtrarFila(calar: boolean): void {
+  const fila = (window as unknown as { dataLayer?: Fila }).dataLayer;
+  if (!fila) return;
+  if (calar) {
+    if (fila.__liquenPush) return;
+    const original = fila.push;
+    fila.__liquenPush = original;
+    fila.push = (...itens: unknown[]) => {
+      const soConsent = itens.filter((a) => (a as IArguments | undefined)?.[0] === "consent");
+      return soConsent.length ? original.apply(fila, soConsent) : fila.length;
+    };
+  } else if (fila.__liquenPush) {
+    fila.push = fila.__liquenPush;
+    delete fila.__liquenPush;
+  }
 }
 
 /**
