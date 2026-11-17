@@ -10,22 +10,25 @@ import type { NextRequest } from "next/server";
 const st = vi.hoisted(() => ({
   ritmoOk: true,
   registado: [] as Array<{ mensagem: string; contexto: Record<string, unknown> }>,
-  erros: 0,
+  avisos: 0,
 }));
 
 vi.mock("@/lib/rate-limit", () => ({
   clientIp: () => "1.2.3.4",
   rateLimit: async () => ({ ok: st.ritmoOk }),
 }));
-vi.mock("@/lib/logger", () => ({
+vi.mock("@/lib/logger", async (orig) => ({
+  // A chave de travão é a verdadeira: é ela que faz destes erros UM alerta por
+  // janela, e não um por mensagem.
+  chaveDeTravao: (await orig<typeof import("@/lib/logger")>()).chaveDeTravao,
   log: {
-    // `log.error` é o que alerta (webhook, Sentry). Esta porta é anónima: o que
-    // ela escreve vai como aviso, e um `error` aqui é o defeito a apanhar.
-    error: () => {
-      st.erros += 1;
-    },
-    warn: (mensagem: string, contexto: Record<string, unknown>) =>
+    // `log.error` é o que avisa (webhook, Sentry) — revisão de 16/11, n.º 5: um
+    // erro no telemóvel de um visitante tem de chegar a quem o pode resolver.
+    error: (mensagem: string, _e: unknown, contexto: Record<string, unknown>) =>
       st.registado.push({ mensagem, contexto }),
+    warn: () => {
+      st.avisos += 1;
+    },
     info: vi.fn(),
   },
 }));
@@ -42,7 +45,7 @@ const req = (corpo: unknown) =>
 beforeEach(() => {
   st.ritmoOk = true;
   st.registado = [];
-  st.erros = 0;
+  st.avisos = 0;
 });
 
 describe("POST /api/erro-do-site", () => {
@@ -56,10 +59,16 @@ describe("POST /api/erro-do-site", () => {
     expect(st.registado[0]!.contexto.onde).toBe("/proposta/[token]");
   });
 
-  it("vai como aviso, que não chega ao canal de alertas nem ao Sentry", async () => {
-    await POST(req({ mensagem: "olhem para isto" }));
-    expect(st.erros).toBe(0);
-    expect(st.registado).toHaveLength(1);
+  it("vai como ERRO, para avisar — mas com a chave de travão partilhada", async () => {
+    const { chaveDeTravao } = await import("@/lib/logger");
+    await POST(req({ mensagem: "x is undefined" }));
+    await POST(req({ mensagem: "y is not a function" }));
+    expect(st.avisos).toBe(0);
+    expect(st.registado).toHaveLength(2);
+    // As duas mensagens diferentes partilham a MESMA chave: um alerta por
+    // janela, não um por mensagem que um browser invente.
+    const chaves = new Set(st.registado.map((r) => chaveDeTravao(r.mensagem)));
+    expect(chaves).toEqual(new Set(["site no browser:"]));
   });
 
   it("só leva os cinco campos, e cortados", async () => {

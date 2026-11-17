@@ -176,8 +176,8 @@ const recentAlerts = new Map<string, number>();
  * Origens cujo texto vem de FORA (um browser anónimo, por exemplo): todas as
  * mensagens com um destes prefixos partilham UMA chave de travão. Sem isto,
  * cada mensagem diferente abria a sua própria janela, e o travão não travava
- * nada. Hoje a rota `erro-do-site` já escreve como aviso (não alerta); a chave
- * fica aqui para o dia em que alguém a volte a pôr como erro.
+ * nada. A rota `erro-do-site` escreve como erro, para avisar (revisão de
+ * 16/11, n.º 5): é esta chave que faz disso um alerta por janela.
  */
 const ORIGENS_DE_FORA = ["site no browser:"];
 

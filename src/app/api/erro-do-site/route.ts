@@ -16,10 +16,13 @@ export const dynamic = "force-dynamic";
  * página do orçamento rebentar no telemóvel ia-se embora, e ninguém sabia.
  * (Veio da base de sites, onde nasceu ao mesmo tempo.)
  *
- * O erro sai daqui pelo `log.warn`, e por isso pela mesma redacção do RGPD
- * (emails, telefones, tokens). Vai como AVISO e não como erro: o `log.error`
- * reencaminha para o canal de alertas e para o Sentry, e o texto desta porta é
- * escrito por um browser anónimo. Fica no registo da Vercel.
+ * O erro sai daqui pelo `log.error`, e por isso pela mesma redacção do RGPD
+ * (emails, telefones, tokens) e para os mesmos sítios — é para avisar quem o
+ * pode resolver. Como o texto é escrito por um browser anónimo, duas coisas no
+ * `logger.ts` seguram o canal: todas as mensagens desta porta partilham UMA
+ * chave de travão (`chaveDeTravao`: um alerta por janela, não um por mensagem
+ * inventada), e o texto vai sem os caracteres que o Slack/Discord leem como
+ * menção, com `allowed_mentions` vazio.
  *
  * ── PORQUE É QUE NÃO PEDE SESSÃO, E O QUE A PROTEGE ───────────────────────
  *
@@ -50,10 +53,9 @@ export async function POST(request: NextRequest) {
 
     const mensagem = texto(corpo.mensagem, 300) ?? "erro sem mensagem";
     const onde = texto(corpo.onde, 300);
-    // AVISO, não erro: `log.error` acorda o canal de alertas e o Sentry, e o
-    // texto daqui é escrito por quem quer que abra o site. Fica no registo da
-    // Vercel, que é onde se vai ver — não chega a quem é avisado ao telemóvel.
-    log.warn(`site no browser: ${mensagem}`, {
+    // O prefixo «site no browser:» É a chave de travão partilhada — ver
+    // `chaveDeTravao` no `logger.ts`. Não se lhe muda o texto.
+    log.error(`site no browser: ${mensagem}`, null, {
       marca: texto(corpo.marca, 80),
       onde: onde ? sanitizeTelemetryPath(onde) : undefined,
       aparelho: texto(corpo.aparelho, 200),
