@@ -274,9 +274,10 @@ async function testemunhoValido(): Promise<NonNullable<typeof testemunho>> {
 }
 
 /**
- * Um endereço de leitura com prazo, direto ao Blob, para o SERVIDOR (prazos
- * curtos: ler um cabeçalho, confirmar um carregamento). Conta uma operação
- * simples e a transferência do tamanho do ficheiro — o pior caso.
+ * Um endereço de leitura com prazo, direto ao Blob. Cada endereço passa pelo
+ * travão e conta uma operação simples e o ficheiro inteiro — o pior caso, mas
+ * a medida verdadeira: a Vercel cobra cada entrega (2.ª revisão de 17/11,
+ * n.º 1). Nunca se guarda um para outro pedido.
  */
 export async function urlDeLeituraDoBlob(
   chave: string,
@@ -297,39 +298,7 @@ export async function urlDeLeituraDoBlob(
   });
 }
 
-/**
- * ── O ENDEREÇO DO NAVEGADOR, UM POR FICHEIRO E POR JANELA ─────────────────
- *
- * Revisão de 17/11, n.º 1: contar o ficheiro inteiro a CADA pedido deixava
- * qualquer pessoa gastar o tecto do mês repetindo o mesmo endereço. Agora o
- * tempo divide-se em janelas de 12 h alinhadas ao relógio; dentro de uma
- * janela, o mesmo ficheiro dá SEMPRE o mesmo endereço do Blob (em cache nesta
- * instância), válido até ao fim da janela seguinte. Conta-se só quando se
- * assina de novo: uma vez por ficheiro, por janela e por instância — que é,
- * no pior caso, quantas vezes a rede da Vercel o pode ir buscar à origem.
- * Repetir o pedido não gasta nada, e o navegador guarda o mesmo endereço.
- */
-export const JANELA_MS = 12 * 3600_000;
-const LIMITE_DA_CACHE = 5_000;
-const assinadosPorJanela = new Map<string, { url: string; ate: number; janela: number }>();
-
-export async function urlDoNavegadorNoBlob(
-  chave: string,
-  tamanho: number,
-  agoraMs: number = Date.now(),
-): Promise<{ url: string; ate: number; nova: boolean }> {
-  const janela = Math.floor(agoraMs / JANELA_MS);
-  const ja = assinadosPorJanela.get(chave);
-  if (ja && ja.janela === janela) return { url: ja.url, ate: ja.ate, nova: false };
-  const ate = (janela + 2) * JANELA_MS;
-  const url = await urlDeLeituraDoBlob(chave, ate, tamanho);
-  if (assinadosPorJanela.size >= LIMITE_DA_CACHE) assinadosPorJanela.clear();
-  assinadosPorJanela.set(chave, { url, ate, janela });
-  return { url, ate, nova: true };
-}
-
 /** Só para os testes. */
 export function esquecerTestemunho(): void {
   testemunho = null;
-  assinadosPorJanela.clear();
 }

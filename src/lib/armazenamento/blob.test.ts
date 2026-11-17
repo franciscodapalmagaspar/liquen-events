@@ -41,11 +41,9 @@ import {
   BlobRecusado,
   cabecalhoNoBlob,
   esquecerTestemunho,
-  JANELA_MS,
   lerDoBlob,
   porNoBlob,
   urlDeLeituraDoBlob,
-  urlDoNavegadorNoBlob,
 } from "./blob";
 import { travao } from "./uso";
 
@@ -205,26 +203,24 @@ describe("revisão de 17/11", () => {
     expect(travao).toHaveBeenCalledWith({ simples: 1, transferencia: 1 });
   });
 
-  it("n.º 1: o mesmo ficheiro na mesma janela dá o MESMO endereço e conta UMA vez", async () => {
+  it("2.ª revisão, n.º 1: cada endereço pedido passa pelo travão e conta o ficheiro inteiro", async () => {
     sdk.issueSignedToken.mockResolvedValue({
       delegationToken: "d",
       clientSigningToken: "c",
       validUntil: Date.now() + 6 * 24 * 3600_000,
     });
-    let n = 0;
-    sdk.presignUrl.mockImplementation(async () => ({ presignedUrl: `https://x/a?sig=${++n}` }));
-    const inicio = Math.floor(Date.now() / JANELA_MS) * JANELA_MS + 1000;
-    const a = await urlDoNavegadorNoBlob("p/a.jpg", 3_000_000, inicio);
-    const b = await urlDoNavegadorNoBlob("p/a.jpg", 3_000_000, inicio + 60_000);
-    expect(b.url).toBe(a.url);
-    expect(b.nova).toBe(false);
-    const transferencias = contador.registados.filter(
-      (g) => (g as { transferencia?: number }).transferencia,
-    );
-    expect(transferencias).toEqual([{ simples: 1, transferencia: 3_000_000 }]);
-    // O endereço vale até ao fim da janela SEGUINTE: nunca menos de 12 h.
-    expect(a.ate - inicio).toBeGreaterThanOrEqual(JANELA_MS);
-    const c = await urlDoNavegadorNoBlob("p/a.jpg", 3_000_000, inicio + JANELA_MS);
-    expect(c.nova).toBe(true);
+    sdk.presignUrl.mockResolvedValue({ presignedUrl: "https://x/a?sig" });
+    await urlDeLeituraDoBlob("p/a.jpg", Date.now() + 3600_000, 3_000_000);
+    await urlDeLeituraDoBlob("p/a.jpg", Date.now() + 3600_000, 3_000_000);
+    expect(
+      contador.registados.filter((g) => (g as { transferencia?: number }).transferencia),
+    ).toEqual([
+      { simples: 1, transferencia: 3_000_000 },
+      { simples: 1, transferencia: 3_000_000 },
+    ]);
+    contador.recusa = "transferencia";
+    await expect(
+      urlDeLeituraDoBlob("p/a.jpg", Date.now() + 3600_000, 3_000_000),
+    ).rejects.toBeInstanceOf(BlobRecusado);
   });
 });

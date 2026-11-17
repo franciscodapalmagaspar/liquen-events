@@ -530,9 +530,17 @@ o travão** (`contador-ilegivel`): tudo vai ao Supabase. Um gasto que não se
 grava fica na fila e continua a contar.
 
 Revisão de 17/11 (PR #479):
-- as leituras do navegador contam **uma vez por ficheiro e por janela de
-  12 h** (o mesmo endereço do Blob é reutilizado na janela), e a rota aceita
-  120 pedidos por minuto por IP — repetir um endereço já não gasta o tecto;
+- **cada 302 da rota `/api/ficheiro` conta o ficheiro inteiro** e passa
+  pelo travão antes de se assinar. A 1.ª revisão reutilizava o mesmo
+  endereço do Blob durante 12 h e contava-o uma vez — mas a Vercel cobra cada
+  entrega a cada navegador, e depois do tecto o endereço continuava a servir:
+  a medida deixava de ser verdadeira (2.ª revisão, n.º 1). Agora conta a
+  mais, nunca a menos. O que impede o exagero: o 302 vai com
+  `Cache-Control: private, max-age` até ao fim do destino (no máximo 24 h,
+  nunca além do prazo do nosso endereço), por isso o MESMO navegador não
+  volta a pedir; e a rota aceita 30 pedidos por minuto por IP. Acima do
+  tecto: o original do Supabase, se lá estiver; senão a média de 1200 px do
+  Supabase; senão 503;
 - o endereço `/api/ficheiro` tem o fim arredondado a uma grelha (o mesmo
   ficheiro dá o mesmo endereço) e o `urls-assinados.ts` guarda-o;
 - a assinatura usa `BLOB_URL_SECRET`, ou o `SESSION_SECRET` noutro contexto —
