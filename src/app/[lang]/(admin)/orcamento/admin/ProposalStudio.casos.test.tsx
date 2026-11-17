@@ -2101,6 +2101,43 @@ describe("aviso antes de a proposta seguir para o cliente", () => {
     expect(enviados.at(-2)?.cortesConfirmados).toBeUndefined();
   });
 
+  /**
+   * 17/11 — registos de 12/11: uma proposta seguiu com nove fotografias a
+   * menos, e o aviso só chegou com o email já fora. O servidor passa a parar
+   * e perguntar (409, `precisaConfirmarFotos`), como nos cortes.
+   */
+  it("com fotografias em falta, pergunta ANTES de enviar e só segue com a resposta", async () => {
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
+    await verEConfirmar();
+    propostaDoc = reply({
+      ok: false,
+      status: 409,
+      json: {
+        error: "Faltam 9 fotografias no documento.",
+        precisaConfirmarFotos: true,
+        missingImages: 9,
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: /Gerar e enviar ao cliente/ }));
+    await confirmarEnvio(user);
+
+    expect(await screen.findByText(/Faltam 9 fotografias no documento/)).toBeTruthy();
+    expect(screen.queryByText(/Não foi possível enviar/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Voltar ao evento/ })).toBeNull();
+
+    propostaDoc = reply({ json: { ok: true, emailed: true, missingImages: 9 } });
+    await user.click(await screen.findByRole("button", { name: /Enviar assim mesmo/ }));
+    await screen.findByRole("button", { name: /Voltar ao evento/ });
+    const enviados = corpos("proposta-doc", "POST").map((c) => JSON.parse(c || "{}"));
+    expect(enviados.at(-1)?.fotosEmFaltaConfirmadas, "o segundo envio não levou a resposta").toBe(
+      true,
+    );
+    expect(enviados.at(-2)?.fotosEmFaltaConfirmadas).toBeUndefined();
+  });
+
   it("«voltar e corrigir» leva ao passo do corte e não envia nada", async () => {
     seedDraft(2);
     renderStudio();

@@ -2268,6 +2268,19 @@ export default function ProposalStudio({
    */
   const [cortesPorConfirmar, setCortesPorConfirmar] = useState<Corte[] | null>(null);
   /**
+   * ── AS FOTOS EM FALTA, PERGUNTADAS ANTES DE SEGUIR (17/11) ──────────────
+   *
+   * Registos de 12/11: uma proposta seguiu para o casal com nove fotografias
+   * a menos, e o aviso só chegou depois do email. O servidor passou a parar e
+   * perguntar (409, `precisaConfirmarFotos`), como já fazia com os cortes:
+   * aqui fica QUANTAS faltam enquanto ela não responde.
+   *
+   * A resposta «envia assim mesmo» vale só para o documento que ela tinha à
+   * frente (o retrato do PDF): mudou uma foto, pergunta-se outra vez.
+   */
+  const [fotosEmFaltaPorConfirmar, setFotosEmFaltaPorConfirmar] = useState<number | null>(null);
+  const fotosConfirmadasPara = useRef<string | null>(null);
+  /**
    * ── O EMAIL QUE VAI SAIR ─────────────────────────────────────────────────
    *
    * O corpo, o assunto e o modelo de que eles partem vivem AQUI e não dentro do
@@ -2323,6 +2336,8 @@ export default function ProposalStudio({
     chave: string;
     retrato: string;
     confirmado: boolean;
+    /** As fotografias que esse PDF deixou de fora (`X-Fotos-Em-Falta`). */
+    emFalta?: number;
   } | null>(() => lerPdfVisto(quote.id));
   /**
    * Fica guardado nesta aba (`sessionStorage`), por pedido. Num telemóvel, o
@@ -7872,7 +7887,7 @@ export default function ProposalStudio({
       // Só o PDF FINAL conta como visto — o rascunho é o que ainda não pode
       // seguir. Um PDF novo pede uma confirmação nova.
       const chave = rascunho ? null : pdf.chave;
-      if (chave) setPdfVisto({ chave, retrato, confirmado: false });
+      if (chave) setPdfVisto({ chave, retrato, confirmado: false, emFalta: pdf.emFalta });
       const emFalta = pdf.emFalta;
       const cortes = cortesDoCabecalho(pdf.cortes);
       const aviso = avisoDeConteudoIncompleto(emFalta, cortes);
@@ -7988,7 +8003,7 @@ export default function ProposalStudio({
   useEffect(() => {
     if (step !== "enviar" || sent) cancelarEnvioAdiado();
   }, [step, sent, cancelarEnvioAdiado]);
-  async function send(cortesConfirmados = false) {
+  async function send(cortesConfirmados = false, fotosEmFaltaConfirmadas = false) {
     if (busy) return;
     // A trava do envio é o `canSend` (o botão nem chega a estar ligado), mas
     // repete-se aqui: entre carregar em "Enviar" e carregar em "Confirmar" pode
@@ -8028,6 +8043,8 @@ export default function ProposalStudio({
     // O retrato do que vai seguir: se o PDF desta versão já estiver à mão, é o
     // ficheiro que o «Descarregar PDF» de depois do envio entrega.
     const retratoDoEnvio = retratoDoPdf(stripPendingImages(doc), idiomaDoPdf);
+    if (fotosEmFaltaConfirmadas) fotosConfirmadasPara.current = retratoDoEnvio;
+    const fotosJaConfirmadas = fotosConfirmadasPara.current === retratoDoEnvio;
     // Se a resposta do servidor CHEGOU, um erro a seguir não é «a resposta não
     // chegou» — é outra coisa, e diz-se como tal (revisão de 13/11).
     let respondeu = false;
@@ -8080,6 +8097,7 @@ export default function ProposalStudio({
           // Só viaja quando é «sim»: um campo a dizer `false` em todos os
           // envios normais era um campo a mais a explicar a quem lesse a rota.
           ...(cortesConfirmados ? { cortesConfirmados: true } : {}),
+          ...(fotosJaConfirmadas ? { fotosEmFaltaConfirmadas: true } : {}),
           /* Só viaja quando é «não», pela mesma razão do `cortesConfirmados`
              aqui em cima — e porque a rota trata a AUSÊNCIA como «sim», para
              nenhum envio antigo deixar de sair por causa de um campo novo. */
@@ -8100,6 +8118,11 @@ export default function ProposalStudio({
        * e por isso não passa pelo `throw` (que pinta tudo de vermelho e diz
        * «não foi possível enviar»).
        */
+      if (res.status === 409 && data?.precisaConfirmarFotos) {
+        setFotosEmFaltaPorConfirmar(Math.max(1, Number(data.missingImages) || 1));
+        return;
+      }
+      setFotosEmFaltaPorConfirmar(null);
       if (res.status === 409 && data?.precisaConfirmarCortes) {
         setCortesPorConfirmar(normalizaCortes(data.truncations));
         return;
@@ -8108,6 +8131,7 @@ export default function ProposalStudio({
       // A proposta seguiu: a lista leve (fase do pedido, Pagamentos) relê-se.
       asPropostasMudaram();
       setCortesPorConfirmar(null);
+      fotosConfirmadasPara.current = null;
       // O envio também ensina a estimativa. Os bytes vêm do servidor: o PDF do
       // envio não passa pelo browser (segue em anexo), portanto sem esta linha
       // metade das gerações não ensinava nada.
@@ -8810,9 +8834,12 @@ export default function ProposalStudio({
    * rascunho ou o PDF final, e se o «ver o PDF» entrasse nele o PDF final
    * nunca se podia descarregar para ser visto.
    */
+  // E as fotos que o PDF final visto deixou de fora (17/11): uma linha na
+  // Conferência, para não ficarem só no aviso que passa.
+  const fotosEmFaltaNoPdf = pdfVistoAgora ? (pdfVisto?.emFalta ?? 0) : 0;
   const contextoDoBotao = useMemo(
-    () => ({ ...contextoDoEnvio, pdfVisto: pdfConfirmado }),
-    [contextoDoEnvio, pdfConfirmado],
+    () => ({ ...contextoDoEnvio, pdfVisto: pdfConfirmado, fotosEmFaltaNoPdf }),
+    [contextoDoEnvio, pdfConfirmado, fotosEmFaltaNoPdf],
   );
   const faltasDoEnvio = oQueFaltaParaEnviar(doc as ProposalDoc, money.gross, contextoDoBotao);
   /** O sinal de cada passo na barra de cima — das mesmas duas listas. */
@@ -13803,7 +13830,44 @@ export default function ProposalStudio({
                 — é o último instante em que voltar atrás não custa nada. A
                 frase de cada corte é a mesma que o aviso da pré-visualização
                 usa; o que muda é a altura em que aparece. */
-            cortesPorConfirmar ? (
+            fotosEmFaltaPorConfirmar !== null ? (
+              /* ── AS FOTOS EM FALTA, PERGUNTADAS ANTES DE SEGUIR (17/11) ──
+                 O mesmo desenho da pergunta dos cortes, logo abaixo. */
+              <div className="ml-auto flex flex-col items-end gap-2" role="alert">
+                <div className="max-w-lg rounded-xl border border-[var(--bo-aviso-tom)]/35 bg-[var(--bo-aviso-tom)]/[0.06] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]">
+                  <p className="font-medium">
+                    {fotosEmFaltaPorConfirmar === 1
+                      ? "Falta 1 fotografia no documento."
+                      : `Faltam ${fotosEmFaltaPorConfirmar} fotografias no documento.`}
+                  </p>
+                  <p className="mt-1.5 text-[var(--bo-text-muted)]">
+                    Não se conseguiram ir buscar ao armazenamento, e a proposta ainda não saiu.
+                    Volta atrás para as trocar, ou envia assim mesmo.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => void send(false, true)}
+                    disabled={busy !== null}
+                  >
+                    Enviar assim mesmo
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      fotosConfirmadasPara.current = null;
+                      setFotosEmFaltaPorConfirmar(null);
+                      irParaPasso("inspiracao");
+                    }}
+                  >
+                    Voltar e corrigir
+                  </Button>
+                </div>
+              </div>
+            ) : cortesPorConfirmar ? (
               <div className="ml-auto flex flex-col items-end gap-2">
                 <div className="max-w-lg rounded-xl border border-[var(--bo-aviso-tom)]/35 bg-[var(--bo-aviso-tom)]/[0.06] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]">
                   <p className="font-medium">O documento sai com conteúdo cortado:</p>
