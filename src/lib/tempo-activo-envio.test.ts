@@ -6,6 +6,7 @@ import {
   PASSO_DO_ECRA_MS,
   PASSO_DO_ENVIO_MS,
   type Enviar,
+  type Lote,
 } from "./tempo-activo-envio";
 
 /**
@@ -98,10 +99,12 @@ function esquemaAntigo() {
 
 /** Desfaz cada envio (um por lote) em pedaços por secção, e conta os pedidos. */
 function recolher(enviados: Pedaco[], pedidos?: { n: number }): Enviar {
-  return (lote, aFechar) => {
+  return (lotes, aFechar) => {
     if (pedidos) pedidos.n++;
-    for (const [seccao, ms] of Object.entries(lote)) {
-      enviados.push({ ms, seccao: seccao === "" ? null : seccao, aFechar });
+    for (const lote of lotes) {
+      for (const [seccao, ms] of Object.entries(lote.porSeccao)) {
+        enviados.push({ ms, seccao: seccao === "" ? null : seccao, aFechar });
+      }
     }
   };
 }
@@ -186,15 +189,24 @@ describe("o tempo activo sobe de 5 em 5 minutos, e conta o mesmo", () => {
  */
 describe("várias secções num só pedido", () => {
   it("três secções em cinco minutos dão UM envio, com as três", () => {
-    const lotes: Record<string, number>[] = [];
+    const pedidos: Lote[][] = [];
     const t0 = Date.now();
-    const envio = criarEnvioDoTempo((lote) => lotes.push(lote), t0);
+    const envio = criarEnvioDoTempo(
+      (lotes) => pedidos.push(lotes),
+      t0,
+      () => "id-1",
+    );
     envio.passo(60_000, "capa", t0 + 60_000);
     envio.passo(150_000, "mood-boards", t0 + 150_000);
     envio.passo(200_000, null, t0 + 200_000);
     envio.passo(300_000, "orcamento", t0 + 300_000);
-    expect(lotes).toEqual([
-      { capa: 60_000, "mood-boards": 90_000, "": 50_000, orcamento: 100_000 },
+    expect(pedidos).toEqual([
+      [
+        {
+          id: "id-1",
+          porSeccao: { capa: 60_000, "mood-boards": 90_000, "": 50_000, orcamento: 100_000 },
+        },
+      ],
     ]);
   });
 });
@@ -208,7 +220,7 @@ describe("um envio que falha volta aos pendentes", () => {
     ({ ok, json: async () => corpo }) as unknown as Response;
   const meios = (r: () => Promise<Response>) => ({ fetch: vi.fn(r) as unknown as typeof fetch });
   const URL_ = "/api/orcamento/LIQ-1/tempo-activo";
-  const LOTE = { capa: 60_000 };
+  const LOTE = [{ id: "id-lote-1", porSeccao: { capa: 60_000 } }];
 
   it("entregarTempo: só conta como entregue o que o servidor guardou", async () => {
     const guardou = meios(async () => resposta(true, { guardado: true }));
@@ -230,26 +242,52 @@ describe("um envio que falha volta aos pendentes", () => {
     expect(fetchFalso).not.toHaveBeenCalled();
     expect(await entregarTempo(URL_, LOTE, true, { fetch: f, sendBeacon: () => false })).toBe(true);
     expect(fetchFalso).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(fetchFalso.mock.calls[0][1].body as string)).toEqual({ porSeccao: LOTE });
+    expect(JSON.parse(fetchFalso.mock.calls[0][1].body as string)).toEqual({ lotes: LOTE });
   });
 
-  it("o pedaço devolvido vai no envio seguinte, e o total não perde nada", () => {
-    const lotes: Record<string, number>[] = [];
+  it("o lote devolvido volta no envio seguinte com o MESMO id, ao lado do novo", () => {
+    const pedidos: Lote[][] = [];
     const t0 = Date.now();
+    let n = 0;
     let falha = true;
-    const envio = criarEnvioDoTempo((lote) => {
-      if (falha) {
-        falha = false;
-        envio.devolver(lote); // a rede falhou neste
-        return;
-      }
-      lotes.push(lote);
-    }, t0);
+    const envio = criarEnvioDoTempo(
+      (lotes) => {
+        if (falha) {
+          falha = false;
+          envio.devolver(lotes); // a rede falhou neste
+          return;
+        }
+        pedidos.push(lotes);
+      },
+      t0,
+      () => `id-${++n}`,
+    );
     envio.passo(120_000, "capa", t0 + 120_000);
     envio.passo(300_000, "mood-boards", t0 + 300_000); // 1.º envio: falha
-    expect(lotes).toEqual([]);
-    envio.passo(600_000, "mood-boards", t0 + 600_000); // 2.º envio: leva tudo
-    expect(lotes).toEqual([{ capa: 120_000, "mood-boards": 480_000 }]);
-    expect(Object.values(lotes[0]).reduce((a, b) => a + b, 0)).toBe(600_000);
+    expect(pedidos).toEqual([]);
+    envio.passo(600_000, "mood-boards", t0 + 600_000); // 2.º: o devolvido e o novo
+    expect(pedidos).toEqual([
+      [
+        { id: "id-1", porSeccao: { capa: 120_000, "mood-boards": 180_000 } },
+        { id: "id-2", porSeccao: { "mood-boards": 300_000 } },
+      ],
+    ]);
+    const total = pedidos[0].flatMap((l) => Object.values(l.porSeccao)).reduce((a, b) => a + b, 0);
+    expect(total).toBe(600_000);
+  });
+
+  it("devolver o mesmo lote duas vezes não o duplica", () => {
+    const pedidos: Lote[][] = [];
+    const t0 = Date.now();
+    const envio = criarEnvioDoTempo(
+      (lotes) => pedidos.push(lotes),
+      t0,
+      () => "novo",
+    );
+    const lote = { id: "id-x", porSeccao: { capa: 5_000 } };
+    envio.devolver([lote]);
+    envio.devolver([lote]);
+    envio.despejar(0, null, t0 + 1);
+    expect(pedidos).toEqual([[lote]]);
   });
 });

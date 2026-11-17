@@ -26,8 +26,10 @@ vi.mock("./app-state", () => ({
 }));
 
 const {
+  acrescentarLotesDeTempo,
   acrescentarTempoActivo,
   acrescentarTempoActivoPorSeccao,
+  IDS_GUARDADOS,
   getTempoActivo,
   listTemposActivos,
   MAXIMO_POR_ENVIO,
@@ -198,5 +200,55 @@ describe("acrescentarTempoActivoPorSeccao", () => {
     const t = await getTempoActivo("LIQ-9");
     expect(t?.ms).toBe(40_000 + MAXIMO_POR_ENVIO);
     expect(t?.porSeccao?.nova).toBeUndefined();
+  });
+});
+
+/**
+ * 17/11: o servidor pode gravar e o browser ler uma falha (a escrita acaba
+ * depois de o pedido desistir, a resposta perde-se com o ecrã a bloquear). O
+ * lote volta a sair com o mesmo id, e o servidor não o soma outra vez.
+ */
+describe("acrescentarLotesDeTempo — o mesmo lote soma uma só vez", () => {
+  it("o mesmo lote enviado duas vezes soma uma só vez", async () => {
+    const lote = { id: "3f6c1a52-0000-4000-8000-000000000001", porSeccao: { capa: 60_000 } };
+    await acrescentarLotesDeTempo("LIQ-7", [lote]);
+    const { setState } = await import("./app-state");
+    const escritas = vi.mocked(setState).mock.calls.length;
+    const segunda = await acrescentarLotesDeTempo("LIQ-7", [lote]);
+    expect(segunda.persistencia).toBeNull(); // nada a escrever, e não é uma falha
+    expect(vi.mocked(setState).mock.calls.length).toBe(escritas);
+    const t = await getTempoActivo("LIQ-7");
+    expect(t?.ms).toBe(60_000);
+    expect(t?.porSeccao).toEqual({ capa: 60_000 });
+  });
+
+  it("o devolvido e o novo no mesmo pedido: só o novo soma", async () => {
+    const velho = { id: "id-velho-0001", porSeccao: { capa: 60_000 } };
+    const novo = { id: "id-novo-00001", porSeccao: { capa: 30_000 } };
+    await acrescentarLotesDeTempo("LIQ-7", [velho]);
+    await acrescentarLotesDeTempo("LIQ-7", [velho, novo]);
+    expect((await getTempoActivo("LIQ-7"))?.ms).toBe(90_000);
+  });
+
+  it("guarda só os últimos ids, e as respostas não os levam", async () => {
+    let ultima;
+    for (let i = 0; i < IDS_GUARDADOS + 5; i++) {
+      ultima = await acrescentarLotesDeTempo("LIQ-7", [
+        { id: `id-lote-${String(i).padStart(4, "0")}`, porSeccao: { capa: 1_000 } },
+      ]);
+    }
+    const guardado = gaveta.get(`${TEMPO_PREFIX}LIQ-7`) as { ids: string[] };
+    expect(guardado.ids).toHaveLength(IDS_GUARDADOS);
+    expect(guardado.ids.at(-1)).toBe(`id-lote-${String(IDS_GUARDADOS + 4).padStart(4, "0")}`);
+    expect(ultima?.tempo).not.toHaveProperty("ids");
+    expect(await getTempoActivo("LIQ-7")).not.toHaveProperty("ids");
+    expect((await listTemposActivos())["LIQ-7"]).not.toHaveProperty("ids");
+  });
+
+  it("sem id (o formato antigo), soma sempre, como antes", async () => {
+    await acrescentarLotesDeTempo("LIQ-7", [{ porSeccao: { capa: 1_000 } }]);
+    await acrescentarLotesDeTempo("LIQ-7", [{ porSeccao: { capa: 1_000 } }]);
+    await acrescentarTempoActivo("LIQ-7", 1_000, "capa");
+    expect((await getTempoActivo("LIQ-7"))?.ms).toBe(3_000);
   });
 });

@@ -32,11 +32,30 @@ export const PASSO_DO_ENVIO_MS = 5 * 60_000;
 const MINIMO_POR_ENVIO_MS = 1000;
 
 /**
- * Envia um pedaço: o tempo por secção (`""` é sem secção). Um envio só, com
- * todas as secções — o servidor soma-as numa escrita (17/11: um pedido por
- * secção ao mesmo tempo fazia o servidor perder todos menos o último).
+ * Um lote: o tempo por secção (`""` é sem secção) e um id. Um lote devolvido
+ * (envio falhado) volta a sair com o MESMO id, e o servidor ignora um id que
+ * já somou — o mesmo tempo nunca conta duas vezes (17/11).
  */
-export type Enviar = (porSeccao: Record<string, number>, aFechar: boolean) => void;
+export type Lote = { id: string; porSeccao: Record<string, number> };
+
+/**
+ * Envia os lotes num pedido só — o servidor soma-os numa escrita (17/11: um
+ * pedido por secção ao mesmo tempo fazia o servidor perder todos menos o
+ * último).
+ */
+export type Enviar = (lotes: Lote[], aFechar: boolean) => void;
+
+/** Quantos lotes devolvidos se guardam para reenviar (o servidor aceita 30
+ *  por pedido; mais do que isto é uma rede em baixo há duas horas). */
+const MAX_DEVOLVIDOS = 24;
+
+/** Um id para um lote: UUID quando o browser o sabe fazer. */
+export function novoIdDeLote(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `l-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 export type EnvioDoTempo = {
   /** Um passo do relógio do ecrã (de 30 em 30 s): anota e, se já passaram
@@ -44,17 +63,23 @@ export type EnvioDoTempo = {
   passo: (total: number, seccao: string | null, agora: number) => void;
   /** A página escondeu-se ou vai fechar: anota e envia JÁ o que houver. */
   despejar: (total: number, seccao: string | null, agora: number) => void;
-  /** Um envio falhou (rede, ou o servidor não guardou): o pedaço volta aos
-   *  pendentes e vai no envio seguinte. */
-  devolver: (porSeccao: Record<string, number>) => void;
+  /** Um envio falhou (rede, ou o servidor não guardou): os lotes voltam e
+   *  vão no envio seguinte, com os MESMOS ids. */
+  devolver: (lotes: Lote[]) => void;
 };
 
-export function criarEnvioDoTempo(enviar: Enviar, inicio: number): EnvioDoTempo {
+export function criarEnvioDoTempo(
+  enviar: Enviar,
+  inicio: number,
+  novoId: () => string = novoIdDeLote,
+): EnvioDoTempo {
   /** O total até ao último passo anotado. */
   let anotado = 0;
   let ultimoEnvio = inicio;
   /** Tempo por enviar, por secção (`""` é sem secção). */
   const pendentes = new Map<string, number>();
+  /** Lotes que falharam, à espera do envio seguinte, com o id de sempre. */
+  let devolvidos: Lote[] = [];
 
   function anotar(total: number, seccao: string | null) {
     const delta = total - anotado;
@@ -76,7 +101,10 @@ export function criarEnvioDoTempo(enviar: Enviar, inicio: number): EnvioDoTempo 
       else pendentes.delete(seccao);
       lote[seccao] = inteiro;
     }
-    if (Object.keys(lote).length > 0) enviar(lote, aFechar);
+    const lotes = [...devolvidos];
+    if (Object.keys(lote).length > 0) lotes.push({ id: novoId(), porSeccao: lote });
+    devolvidos = [];
+    if (lotes.length > 0) enviar(lotes, aFechar);
   }
 
   return {
@@ -88,11 +116,11 @@ export function criarEnvioDoTempo(enviar: Enviar, inicio: number): EnvioDoTempo 
       anotar(total, seccao);
       enviarPendentes(true, agora);
     },
-    devolver(porSeccao) {
-      for (const [seccao, ms] of Object.entries(porSeccao)) {
-        if (!(ms > 0)) continue;
-        pendentes.set(seccao, (pendentes.get(seccao) ?? 0) + ms);
+    devolver(lotes) {
+      for (const lote of lotes) {
+        if (!devolvidos.some((d) => d.id === lote.id)) devolvidos.push(lote);
       }
+      devolvidos = devolvidos.slice(-MAX_DEVOLVIDOS);
     },
   };
 }
@@ -114,15 +142,15 @@ export function criarEnvioDoTempo(enviar: Enviar, inicio: number): EnvioDoTempo 
  */
 export async function entregarTempo(
   url: string,
-  porSeccao: Record<string, number>,
+  lotes: Lote[],
   aFechar: boolean,
   meios: {
     fetch: typeof fetch;
     sendBeacon?: (url: string, dados: Blob) => boolean;
   },
 ): Promise<boolean> {
-  // UM pedido com todas as secções: o servidor soma-as numa só escrita.
-  const corpo = JSON.stringify({ porSeccao });
+  // UM pedido com todos os lotes: o servidor soma-os numa só escrita.
+  const corpo = JSON.stringify({ lotes });
   if (aFechar && meios.sendBeacon) {
     try {
       if (meios.sendBeacon(url, new Blob([corpo], { type: "application/json" }))) return true;

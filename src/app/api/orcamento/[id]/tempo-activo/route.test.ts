@@ -18,14 +18,16 @@ const st = vi.hoisted(() => ({
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => st.authed }));
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@/lib/tempo-activo-servidor", () => ({
-  acrescentarTempoActivoPorSeccao: vi.fn(async (id: string, p: Record<string, number>) => {
-    st.porSeccao(id, p);
-    st.acumulado += Object.values(p).reduce((a, b) => a + b, 0);
-    return {
-      tempo: { ms: st.acumulado, updatedAt: "2026-01-01T00:00:00.000Z" },
-      persistencia: { gravado: true, duradouro: true, onde: "supabase" },
-    };
-  }),
+  acrescentarLotesDeTempo: vi.fn(
+    async (id: string, lotes: { id?: string; porSeccao: Record<string, number> }[]) => {
+      st.porSeccao(id, lotes);
+      st.acumulado += lotes.flatMap((l) => Object.values(l.porSeccao)).reduce((a, b) => a + b, 0);
+      return {
+        tempo: { ms: st.acumulado, updatedAt: "2026-01-01T00:00:00.000Z" },
+        persistencia: { gravado: true, duradouro: true, onde: "supabase" },
+      };
+    },
+  ),
   getTempoActivo: vi.fn(async () => {
     if (st.rebenta) throw new Error("app_state em baixo");
     return { ms: st.acumulado, updatedAt: "2026-01-01T00:00:00.000Z" };
@@ -96,13 +98,41 @@ describe("POST /api/orcamento/[id]/tempo-activo", () => {
     );
     expect(res.status).toBe(200);
     expect(st.porSeccao).toHaveBeenCalledTimes(1);
-    expect(st.porSeccao).toHaveBeenCalledWith("LIQ-1", {
-      capa: 60_000,
-      "mood-boards": 90_000,
-      "": 30_000,
-    });
+    expect(st.porSeccao).toHaveBeenCalledWith("LIQ-1", [
+      { porSeccao: { capa: 60_000, "mood-boards": 90_000, "": 30_000 } },
+    ]);
     expect((await res.json()).tempo.ms).toBe(180_000);
     expect(st.acrescentar).not.toHaveBeenCalled();
+  });
+
+  it("17/11: vários lotes com id num só pedido, e um lote só com id", async () => {
+    const lotes = [
+      { id: "3f6c1a52-0000-4000-8000-000000000001", porSeccao: { capa: 60_000 } },
+      { id: "3f6c1a52-0000-4000-8000-000000000002", porSeccao: { "": 30_000 } },
+    ];
+    const res = await POST(post({ lotes }), { params });
+    expect(res.status).toBe(200);
+    expect(st.porSeccao).toHaveBeenCalledWith("LIQ-1", lotes);
+    const um = await POST(post(lotes[0]), { params });
+    expect(um.status).toBe(200);
+    expect(st.porSeccao).toHaveBeenLastCalledWith("LIQ-1", [lotes[0]]);
+  });
+
+  it("recusa lotes mal feitos", async () => {
+    const bom = { id: "3f6c1a52-0000-4000-8000-000000000001", porSeccao: { capa: 1_000 } };
+    for (const mau of [
+      [],
+      "x",
+      [{ ...bom, id: "curto" }],
+      [{ ...bom, id: "com espaço e acentos ç" }],
+      [{ ...bom, id: 12345678 }],
+      [{ id: bom.id }],
+      Array.from({ length: 31 }, () => bom),
+    ]) {
+      const res = await POST(post({ lotes: mau }), { params });
+      expect(res.status, JSON.stringify(mau).slice(0, 60)).toBe(400);
+    }
+    expect(st.porSeccao).not.toHaveBeenCalled();
   });
 
   it("recusa um `porSeccao` que não é tempo", async () => {

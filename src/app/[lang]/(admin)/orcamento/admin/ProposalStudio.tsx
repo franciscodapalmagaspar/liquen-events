@@ -81,6 +81,7 @@ import {
   entregarTempo,
   PASSO_DO_ECRA_MS,
   type EnvioDoTempo,
+  type Lote,
 } from "@/lib/tempo-activo-envio";
 import { ehRefDeTema } from "@/lib/theme-ref";
 import { linhasDeOrcamento } from "@/lib/orcamento/decoracao";
@@ -2483,9 +2484,9 @@ export default function ProposalStudio({
     quoteIdAgora.current = quote.id;
   }, [quote.id]);
   const enviarPedaco = useCallback(
-    (porSeccao: Record<string, number>, aFechar: boolean) => {
+    (lotes: Lote[], aFechar: boolean) => {
       const id = quote.id;
-      void entregarTempo(`/api/orcamento/${id}/tempo-activo`, porSeccao, aFechar, {
+      void entregarTempo(`/api/orcamento/${id}/tempo-activo`, lotes, aFechar, {
         fetch: (...a) => fetch(...a),
         sendBeacon:
           typeof navigator !== "undefined" && navigator.sendBeacon
@@ -2495,7 +2496,8 @@ export default function ProposalStudio({
         // Um envio falhado (rede, ou `guardado: false`) volta aos pendentes e
         // vai no envio seguinte — de cinco em cinco minutos, perdê-lo era
         // perder cinco minutos. Sem aviso nenhum: é uma MEDIÇÃO, não trabalho.
-        if (!entregue && quoteIdAgora.current === id) envioRef.current?.devolver(porSeccao);
+        // Volta com os mesmos ids: se o servidor afinal gravou, ignora-os.
+        if (!entregue && quoteIdAgora.current === id) envioRef.current?.devolver(lotes);
       });
     },
     [quote.id],
@@ -2515,7 +2517,7 @@ export default function ProposalStudio({
   }, [enviarPedaco]);
   useEffect(() => {
     envioRef.current ??= criarEnvioDoTempo(
-      (porSeccao, aFechar) => enviarPedacoRef.current(porSeccao, aFechar),
+      (lotes, aFechar) => enviarPedacoRef.current(lotes, aFechar),
       Date.now(),
     );
     const envio = envioRef.current;

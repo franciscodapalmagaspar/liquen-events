@@ -60,6 +60,22 @@ export interface TempoDaProposta {
   porSeccao?: Record<string, number>;
   /** Quando foi somado pela última vez (ISO). */
   updatedAt: string;
+  /**
+   * Os ids dos últimos lotes somados (17/11) — ver `acrescentarLotesDeTempo`.
+   * Só no armazenamento: as respostas não os levam.
+   */
+  ids?: string[];
+}
+
+/** Quantos ids de lote se guardam por proposta. Um lote devolvido volta a
+ *  sair no envio seguinte (cinco minutos depois); vinte cobre uma hora e meia
+ *  de envios falhados seguidos. */
+export const IDS_GUARDADOS = 20;
+
+/** Um lote do estúdio: o tempo por secção e, desde 17/11, um id. */
+export interface LoteDeTempo {
+  id?: string;
+  porSeccao: Record<string, number>;
 }
 
 /**
@@ -79,8 +95,16 @@ export const MAXIMO_POR_ENVIO = 10 * 60_000;
 const MAX_SECCOES = 40;
 
 /** O tempo desta proposta, ou `null` se ainda não foi medido nenhum. */
-export function getTempoActivo(quoteId: string): Promise<TempoDaProposta | null> {
-  return getState<TempoDaProposta>(chave(quoteId));
+export async function getTempoActivo(quoteId: string): Promise<TempoDaProposta | null> {
+  const t = await getState<TempoDaProposta>(chave(quoteId));
+  return t ? semIds(t) : t;
+}
+
+/** O tempo sem os ids dos lotes, que só servem ao armazenamento. */
+function semIds(t: TempoDaProposta): TempoDaProposta {
+  if (!("ids" in t)) return t;
+  const { ids: _ids, ...resto } = t;
+  return resto;
 }
 
 /**
@@ -122,6 +146,31 @@ export async function acrescentarTempoActivo(
 export async function acrescentarTempoActivoPorSeccao(
   quoteId: string,
   pedacos: Record<string, number>,
+  id?: string,
+): Promise<{ tempo: TempoDaProposta; persistencia: ResultadoDeEscrita | null }> {
+  return acrescentarLotesDeTempo(quoteId, [{ id, porSeccao: pedacos }]);
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O MESMO LOTE NUNCA CONTA DUAS VEZES (17/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Um envio que o estúdio leu como falhado volta a sair no seguinte. Mas
+ * «falhado» do lado do browser não quer dizer «não gravado»: a escrita pode
+ * acabar depois de o pedido desistir, ou a resposta perder-se com o ecrã a
+ * bloquear. Sem mais nada, esse tempo contava duas vezes.
+ *
+ * Cada lote traz um id, e um lote devolvido volta a sair com o MESMO id. Os
+ * últimos {@link IDS_GUARDADOS} ids ficam junto do tempo, na mesma escrita:
+ * um id que já lá está é ignorado (e responde-se «guardado», que é verdade).
+ * Os lotes sem id — o formato antigo — somam sempre, como antes.
+ *
+ * Vários lotes num pedido somam-se numa só escrita, cada um com o seu tecto.
+ */
+export async function acrescentarLotesDeTempo(
+  quoteId: string,
+  lotes: LoteDeTempo[],
 ): Promise<{ tempo: TempoDaProposta; persistencia: ResultadoDeEscrita | null }> {
   // Lido para somar e voltar a gravar: uma leitura falhada LANÇA (a rota
   // apanha e responde sem gravar) em vez de pôr o total a zero por cima do
@@ -132,11 +181,18 @@ export async function acrescentarTempoActivoPorSeccao(
   };
 
   const porSeccao = { ...(anterior.porSeccao ?? {}) };
-  const somado = somarComTecto(porSeccao, pedacos);
+  const ids = [...(anterior.ids ?? [])];
+  let somado = 0;
+  for (const lote of lotes) {
+    if (lote.id && ids.includes(lote.id)) continue;
+    somado += somarComTecto(porSeccao, lote.porSeccao);
+    if (lote.id) ids.push(lote.id);
+  }
 
   if (somado === 0) {
     // Nada a somar é nada a escrever: um envio de zero (a página esteve
-    // aberta e parada) não tem de gastar uma escrita nem mexer no `updatedAt`.
+    // aberta e parada), ou um lote que já tinha sido somado, não gasta uma
+    // escrita nem mexe no `updatedAt`.
     return {
       tempo: {
         ms: anterior.ms,
@@ -152,7 +208,11 @@ export async function acrescentarTempoActivoPorSeccao(
     ...(Object.keys(porSeccao).length > 0 ? { porSeccao } : {}),
     updatedAt: new Date().toISOString(),
   };
-  const persistencia = await setState(chave(quoteId), tempo);
+  const guardar: TempoDaProposta = {
+    ...tempo,
+    ...(ids.length > 0 ? { ids: ids.slice(-IDS_GUARDADOS) } : {}),
+  };
+  const persistencia = await setState(chave(quoteId), guardar);
   return { tempo, persistencia };
 }
 
@@ -194,7 +254,7 @@ export async function listTemposActivos(): Promise<Record<string, TempoDaPropost
     const { entradas } = await listStateByPrefix<TempoDaProposta>(TEMPO_PREFIX);
     for (const { key, value } of entradas) {
       if (!value || typeof value.ms !== "number") continue;
-      saida[key.slice(TEMPO_PREFIX.length)] = value;
+      saida[key.slice(TEMPO_PREFIX.length)] = semIds(value);
     }
   } catch {
     /* sem base de dados — ainda não há medições para mostrar */
