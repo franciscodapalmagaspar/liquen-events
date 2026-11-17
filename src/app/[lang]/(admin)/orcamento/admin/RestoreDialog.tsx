@@ -17,7 +17,6 @@ import { useTrincoDeScroll } from "./useTrincoDeScroll";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { Button, cn } from "./ui";
 import { SAIDA, SAIDA_FUNDO, useSaidaDeUmSo } from "./ui/saida";
-import { plural } from "@/lib/plural";
 
 /**
  * REPOR UMA CÓPIA DE SEGURANÇA — o ecrã da operação mais destrutiva da casa.
@@ -84,6 +83,10 @@ function descarregar(nome: string, conteudo: unknown): boolean {
     // guardada — quem chama mostra o botão manual.
     return false;
   }
+}
+
+function plural(n: number, um: string, muitos: string): string {
+  return `${n} ${n === 1 ? um : muitos}`;
 }
 
 /**
@@ -498,10 +501,7 @@ function RestoreDialogInner({ aSair, onClose, toast }: Omit<Props, "open"> & { a
                       >
                         Substituídos
                       </th>
-                      <th
-                        scope="col"
-                        className="px-3 py-2 text-right font-medium text-[var(--bo-perigo)]"
-                      >
+                      <th scope="col" className="px-3 py-2 text-right font-medium text-[var(--bo-perigo)]">
                         Apagados
                       </th>
                     </tr>
@@ -534,9 +534,7 @@ function RestoreDialogInner({ aSair, onClose, toast }: Omit<Props, "open"> & { a
                         </td>
                         <td
                           className={`px-3 py-2 text-right tabular-nums ${
-                            d.removed > 0
-                              ? "font-medium text-[var(--bo-perigo)]"
-                              : "text-foreground/40"
+                            d.removed > 0 ? "font-medium text-[var(--bo-perigo)]" : "text-foreground/40"
                           }`}
                         >
                           {d.skipped ? "—" : d.removed}
