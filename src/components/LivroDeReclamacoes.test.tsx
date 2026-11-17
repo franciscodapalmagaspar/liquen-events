@@ -28,6 +28,7 @@ import { LocaleProvider } from "./LocaleProvider";
 import { getDictionary } from "@/lib/i18n";
 import NaoEncontradoSocial from "@/app/[lang]/s/NaoEncontradoSocial";
 import GlobalError from "@/app/global-error";
+import OrcamentoLayout from "@/app/[lang]/(site)/orcamento/layout";
 
 afterEach(cleanup);
 
@@ -87,6 +88,31 @@ describe("as páginas sem o rodapé do sítio também o têm", () => {
       cleanup();
     }
   });
+
+  // Decisão do dono (17/11): o fluxo do orçamento esconde o rodapé de
+  // propósito (ecrã inteiro), e a ligação fica no fim dele, depois do
+  // formulário — no fluxo normal da página, nunca fixa por cima de nada.
+  it.each(["pt", "en"] as const)(
+    "o formulário de orçamento em ecrã inteiro (%s): no fim, depois do formulário",
+    async (lang) => {
+      const arvore = await OrcamentoLayout({
+        children: <form id="o-formulario" />,
+        params: Promise.resolve({ lang }),
+      });
+      const html = renderToStaticMarkup(arvore);
+      const dict = getDictionary(lang);
+      expect(html).toContain("data-orcamento-mode");
+      const iForm = html.indexOf('id="o-formulario"');
+      const iLivro = html.indexOf(ENDERECO);
+      expect(iLivro, "sem Livro de Reclamações no /orcamento").toBeGreaterThan(iForm);
+      expect(html).toContain(
+        `aria-label="${dict.footer.livroReclamacoes} (${dict.common.newWindow})"`,
+      );
+      expect(html).not.toMatch(
+        /class="[^"]*\b(fixed|sticky|absolute)\b[^"]*"[^>]*>\s*<a[^>]*livroreclamacoes/,
+      );
+    },
+  );
 
   it("o ecrã de erro global", () => {
     const { container } = render(<GlobalError error={new Error("x")} reset={() => {}} />);
