@@ -4,9 +4,10 @@
 > independente com a fasquia das empresas de topo, e o plano de trabalho para
 > chegar a **9 em todas** (e, onde for realista, ao 10).
 > **Sobre o quê:** o ramo `origin/lote/2026-11-17` em `ddead388` (segurança,
-> legal, estabilidade, BO 4, Next 16.4.5). Os dois commits que entraram depois
-> (`15cc732c`, `822cfcfc`) só mexem em `.claude/rules/` e não mudam nenhuma
-> medição.
+> legal, estabilidade, BO 4, Next 16.4.5). O que entrou depois, até
+> `f90bc663`, são duas regras em `.claude/rules/` e uma correção do CodeQL ao
+> filtro anti-spam (`src/lib/anti-spam/conteudo.ts`). Nada disso muda as
+> medições deste documento.
 > **Como se leu:** `CLAUDE.md`, `AGENTS.md`, `.claude/rules/*`, e os documentos
 > de `docs/` de cada área. O `graphify` não está instalado nesta máquina
 > (`command -v graphify` vazio), por isso a leitura foi direta aos ficheiros.
