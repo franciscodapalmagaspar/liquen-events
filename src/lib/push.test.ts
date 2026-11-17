@@ -66,7 +66,12 @@ vi.mock("web-push", () => ({
   },
 }));
 
-import { saveSubscription, removeSubscription, sendPushToAll } from "./push";
+import {
+  saveSubscription,
+  removeSubscription,
+  sendPushToAll,
+  _esquecerAvisoSemVapid,
+} from "./push";
 import { isPersistenceUnavailable } from "./repository";
 import { log } from "./logger";
 
@@ -221,6 +226,35 @@ describe("o que falha na entrega é contado e registado", () => {
     expect(r).toMatchObject({ sent: 0 });
     const dito = JSON.stringify((log.warn as unknown as { mock: { calls: unknown[] } }).mock.calls);
     expect(dito).toContain("VAPID");
+  });
+
+  /**
+   * Registos de 10–17/11: «push: sem chaves VAPID…» a cada envio (o resumo da
+   * manhã, cada pedido novo). A falta das chaves não muda entre envios: diz-se
+   * uma vez por arranque, e na Vercel nem isso — a construção já a disse
+   * (`scripts/variaveis-de-ambiente.mjs`).
+   */
+  it("sem chaves VAPID, diz-se UMA vez e não a cada envio", async () => {
+    _esquecerAvisoSemVapid();
+    vi.mocked(log.warn).mockClear();
+    vi.stubEnv("VAPID_PUBLIC_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "");
+    for (let i = 0; i < 3; i += 1) await sendPushToAll({ title: "Pedido novo", body: "…" });
+    const avisos = vi.mocked(log.warn).mock.calls.filter(([m]) => String(m).includes("VAPID"));
+    expect(avisos).toHaveLength(1);
+  });
+
+  it("na Vercel não é aviso nenhum: a construção já o disse", async () => {
+    _esquecerAvisoSemVapid();
+    vi.mocked(log.warn).mockClear();
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("VAPID_PUBLIC_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "");
+    const r = await sendPushToAll({ title: "Resumo Líquen · hoje", body: "…" });
+    expect(r).toMatchObject({ sent: 0 });
+    expect(vi.mocked(log.warn).mock.calls.some(([m]) => String(m).includes("VAPID"))).toBe(false);
   });
 });
 
