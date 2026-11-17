@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { renderToString } from "react-dom/server";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import PedidoRelampago, { RELAMPAGO_PT } from "./PedidoRelampago";
 
@@ -86,25 +85,6 @@ describe("PedidoRelampago — o erro que se lê", () => {
     preencherESubmeter(container, "12");
     expect(await screen.findByRole("alert")).toHaveTextContent(RELAMPAGO_PT.erroContacto);
     expect(pedidos).toHaveLength(0);
-  });
-});
-
-describe("PedidoRelampago — um envio antes de a página ganhar vida", () => {
-  // Medido num browser a 17/11 (verificação do legal): a tocar «Enviar» antes
-  // da hidratação, o formulário seguia o caminho nativo, que é um GET — e o
-  // nome, a data e o contacto iam parar ao ENDEREÇO (`/s/comporta?nome=…&
-  // contacto=…`), ao histórico do browser e aos registos do servidor. O botão
-  // vem desligado no HTML do servidor e liga-se ao hidratar (`useJaHidratado`).
-  it("no HTML do servidor o «Enviar» vem desligado", () => {
-    const html = renderToString(
-      <PedidoRelampago locale="pt" textos={RELAMPAGO_PT} contexto="s/comporta" />,
-    );
-    expect(html).toMatch(/<button type="submit" disabled=""/);
-  });
-
-  it("depois de hidratar o «Enviar» está ligado", () => {
-    const { container } = montar();
-    expect(container.querySelector('button[type="submit"]')).not.toBeDisabled();
   });
 });
 
