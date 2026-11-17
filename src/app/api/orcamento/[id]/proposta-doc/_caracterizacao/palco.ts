@@ -153,6 +153,7 @@ export function repor(): void {
     smtp: "ok",
     modelo: null,
     envios: [],
+    enviosRebentam: false,
   });
   ctl.linhas.clear();
   __limparTrincosEmMemoria();
@@ -176,4 +177,17 @@ export async function duplosEsquecidos(): Promise<string[]> {
     if (visto === verdadeiro) esquecidos.push(modulo);
   }
   return esquecidos;
+}
+
+/** Corre os pedidos de uma sequência, um a um, e tira o retrato de cada. */
+export async function retratosEmSequencia(
+  post: (pedido: NextRequest, ctx: { params: typeof params }) => Promise<Response>,
+  pedidos: Array<() => NextRequest>,
+): Promise<string[]> {
+  const retratos: string[] = [];
+  for (const fazer of pedidos) {
+    vi.clearAllMocks();
+    retratos.push(await retrato(await post(fazer(), { params })));
+  }
+  return retratos;
 }

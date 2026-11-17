@@ -5,7 +5,6 @@ import { MAX_PROPOSAL_DOC_BYTES } from "@/lib/proposal-doc";
 import { MAXIMO_CORPO_ESCRITO } from "@/lib/email-corpo-escrito";
 import { corpoLido } from "./ler-o-corpo";
 import { guardasBaratas } from "./guardas-baratas";
-import { recusaDe } from "./passo-nos-testes";
 
 /** Um corpo com UM desvio ao esquema (`mensagem` em número): se for observado, diz-se. */
 const comDesvio = (o: Record<string, unknown>) =>
@@ -26,22 +25,26 @@ beforeEach(() => {
 describe("as guardas baratas, pela ordem", () => {
   it("o que passa segue com o documento e a chave, e SÓ ENTÃO vai ao registo", () => {
     const r = guardasBaratas("q1", comDesvio({}));
-    expect(r.ok).toBe(true);
-    expect(r.ok && r.valor.doc.ref).toBe("R");
-    expect(r.ok && r.valor.chaveDoQueChegou).toMatch(/\S/);
+    expect(r.segue).toBe(true);
+    expect(r.segue && r.valor.doc.ref).toBe("R");
+    expect(r.segue && r.valor.chaveDoQueChegou).toMatch(/\S/);
     expect(observado()).toBe(true);
   });
 
   it("o texto do email grande demais é 400, e não vai ao registo", () => {
     const r = guardasBaratas("q1", comDesvio({ corpo: "a".repeat(MAXIMO_CORPO_ESCRITO + 1) }));
-    expect(recusaDe(r)?.status).toBe(400);
+    expect(r).toMatchObject({
+      segue: false,
+      desfecho: { tipo: "recusa", recusa: { status: 400 } },
+    });
     expect(observado()).toBe(false);
   });
 
   it("o documento incompleto é 400, não diz a língua e não vai ao registo", () => {
     const r = guardasBaratas("q1", comDesvio({ doc: { ref: "R" }, idioma: "fr" }));
-    expect(recusaDe(r)?.corpo).toEqual({
-      error: "Proposta incompleta: falta o nome dos clientes.",
+    expect(r).toMatchObject({
+      segue: false,
+      desfecho: { recusa: { corpo: { error: "Proposta incompleta: falta o nome dos clientes." } } },
     });
     expect(idiomaDito()).toBe(false);
     expect(observado()).toBe(false);
@@ -50,7 +53,10 @@ describe("as guardas baratas, pela ordem", () => {
   it("o documento grande demais é 413 — a língua já se disse, o registo não", () => {
     const enorme = { ref: "R", clientNames: "A", notes: "x".repeat(MAX_PROPOSAL_DOC_BYTES) };
     const r = guardasBaratas("q1", comDesvio({ doc: enorme, idioma: "fr" }));
-    expect(recusaDe(r)?.status).toBe(413);
+    expect(r).toMatchObject({
+      segue: false,
+      desfecho: { tipo: "recusa", recusa: { status: 413 } },
+    });
     expect(idiomaDito()).toBe(true);
     expect(observado()).toBe(false);
   });

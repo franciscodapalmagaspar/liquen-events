@@ -5,7 +5,6 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Proposal, Quote } from "@/lib/orcamento/types";
-import type { ProposalDoc } from "@/lib/proposal-doc";
 import { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { log } from "@/lib/logger";
 
@@ -39,7 +38,8 @@ import { desenharOPdf } from "./desenhar-o-pdf";
 import { escreverOEmail } from "./email-da-proposta";
 import { depoisDoEmail } from "./depois-do-email";
 import { esvaziarPdfsFinais } from "@/lib/proposal-preview-cache";
-import { recusaDe } from "./passo-nos-testes";
+import type { DocumentoPreparado } from "./documento-do-envio";
+import { SEGUE } from "./passo";
 
 const doc = {
   ref: "PO",
@@ -55,7 +55,7 @@ const doc = {
   totalVatMode: "acrescer",
   coverImages: [],
   validUntil: "2027-01-01",
-} as unknown as ProposalDoc;
+} as unknown as DocumentoPreparado;
 const quote = { id: "q", name: "Mãe da Noiva", email: "c@x.pt", status: "pendente" } as Quote;
 const envio = { pedidoId: "q", quote, doc, idioma: "pt" as const };
 
@@ -70,26 +70,26 @@ beforeEach(() => {
 
 describe("a trava do envio", () => {
   it("sem o PDF visto não segue (422, com as faltas); com a chave certa segue", async () => {
-    const sem = recusaDe(
-      await travaDoEnvio({
-        ...envio,
-        porEmail: true,
-        pdfVisto: null,
-        chaveDoQueChegou: "k",
-      }),
-    );
-    expect(sem?.status).toBe(422);
-    expect(sem && "faltas" in sem.corpo && sem.corpo.faltas.map((x) => x.id)).toEqual(["visto"]);
+    const sem = await travaDoEnvio({
+      ...envio,
+      porEmail: true,
+      pdfVisto: null,
+      chaveDoQueChegou: "k",
+    });
+    expect(sem).toMatchObject({
+      segue: false,
+      desfecho: { tipo: "recusa", recusa: { status: 422, corpo: { faltas: [{ id: "visto" }] } } },
+    });
     expect(
       await travaDoEnvio({ ...envio, porEmail: true, pdfVisto: "k", chaveDoQueChegou: "k" }),
-    ).toEqual({ ok: true, valor: undefined });
+    ).toEqual(SEGUE);
   });
 });
 
 describe("o desenho", () => {
   const pedir = (over: object = {}) => ({
     ...envio,
-    modo: "send" as const,
+    segundaPassagem: true,
     rascunho: false,
     chaveDoQueChegou: "k",
     resta: () => 60_000,
@@ -108,10 +108,10 @@ describe("o desenho", () => {
 
   it("a pré-visualização não repete; e a segunda do mesmo PDF final sai da memória", async () => {
     f.desenhos = [2, 0];
-    const primeira = await desenharOPdf(pedir({ modo: "preview" }));
+    const primeira = await desenharOPdf(pedir({ segundaPassagem: false }));
     expect(primeira.relatorio.missingImages).toBe(2);
     f.desenhos = [0];
-    const segunda = await desenharOPdf(pedir({ modo: "preview", chaveDoQueChegou: "k2" }));
+    const segunda = await desenharOPdf(pedir({ segundaPassagem: false, chaveDoQueChegou: "k2" }));
     expect(segunda.pdfDaMemoria).toBe(false);
   });
 });

@@ -4,7 +4,6 @@ import { oQueFaltaParaEnviar, type Impedimento } from "@/lib/proposal-progress";
 import { fotosEscolhidasQueFaltam } from "@/lib/proposta-fotos-verificacao";
 import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 import { log } from "@/lib/logger";
-import { recusa } from "./recusa";
 import { paraComRecusa, SEGUE, type Passo } from "./passo";
 import type { EnvioDaProposta } from "./envio-da-proposta";
 
@@ -125,12 +124,10 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Passo> {
       id: c.pedidoId,
       erros: travam.map((f) => f.id),
     });
-    return paraComRecusa(
-      recusa(422, {
-        error: `A proposta não pode seguir: ${travam.map(emMinuscula).join("; ")}.`,
-        faltas: travam,
-      }),
-    );
+    return paraComRecusa(422, {
+      error: `A proposta não pode seguir: ${travam.map(emMinuscula).join("; ")}.`,
+      faltas: travam,
+    });
   }
   /**
    * O domínio do email do cliente tem de receber correio (pedido dela,
@@ -143,7 +140,7 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Passo> {
       log.warn("proposta-doc: envio recusado, o domínio do email não recebe correio", {
         id: c.pedidoId,
       });
-      return paraComRecusa(recusa(422, { error: semDominio, campo: "email" }));
+      return paraComRecusa(422, { error: semDominio, campo: "email" });
     }
   }
   return SEGUE;
@@ -168,12 +165,10 @@ export async function travaDoPdfFinal(
   const soFotos = travam.every(
     (f) => f.id === "foto-escolhida-em-falta" || f.id === "fotos-a-mais",
   );
-  return paraComRecusa(
-    recusa(422, {
-      error: `O PDF final só sai com ${
-        soFotos ? "as fotografias todas" : "os valores todos"
-      }: ${travam.map(emMinuscula).join("; ")}. Até lá, descarrega o rascunho.`,
-      faltas: travam,
-    }),
-  );
+  return paraComRecusa(422, {
+    error: `O PDF final só sai com ${
+      soFotos ? "as fotografias todas" : "os valores todos"
+    }: ${travam.map(emMinuscula).join("; ")}. Até lá, descarrega o rascunho.`,
+    faltas: travam,
+  });
 }

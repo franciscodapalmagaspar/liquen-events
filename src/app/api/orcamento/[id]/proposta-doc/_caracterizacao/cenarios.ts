@@ -223,3 +223,68 @@ export const ESTRANHOS: Array<[string, () => NextRequest, (() => void)?]> = [
   ["clientNames lista", () => envio(doc({ clientNames: ["a"] }))],
   ["doc sem nada", () => envio({})],
 ];
+
+/**
+ * As SEQUÊNCIAS — vários pedidos seguidos ao mesmo pedido do cliente, onde
+ * vivem as irmãs, a versão, a proposta «por enviar» reaproveitada, a leitura
+ * do registo de envios e as três respostas de repetição. Cada pedido tira o
+ * seu retrato (com os duplos limpos antes), e a sequência inteira compara-se.
+ * Um pedido pode mudar o `ctl` antes de sair (o SMTP que volta, por exemplo).
+ */
+export const SEQUENCIAS: Array<[string, () => void, Array<() => NextRequest>]> = [
+  ["o mesmo envio duas vezes", () => {}, [() => envio(), () => envio()]],
+  [
+    "o WhatsApp duas vezes",
+    () => {},
+    [() => envio(doc(), { porEmail: false }), () => envio(doc(), { porEmail: false })],
+  ],
+  [
+    "a marcação falha, e ela reenvia",
+    () => (ctl.marcarEnviadaFalha = true),
+    [() => envio(), () => envio()],
+  ],
+  [
+    "o WhatsApp, e depois o email",
+    () => {},
+    [() => envio(doc(), { porEmail: false }), () => envio()],
+  ],
+  [
+    "duas pré-visualizações, e o envio",
+    () => {},
+    [
+      () => pedido({ mode: "preview", doc: doc() }),
+      () => pedido({ mode: "preview", doc: doc() }),
+      () => envio(),
+    ],
+  ],
+  [
+    "um documento, e depois outro: a versão sobe",
+    () => {},
+    [
+      () => envio(),
+      () => envio(doc({ ref: "PO Decoração Outra", totalAmount: 3500, budgetAmounts: [3500] })),
+    ],
+  ],
+  [
+    "o correio em baixo, e depois em cima: a «por enviar» reaproveita-se",
+    () => (ctl.smtp = "nao-configurado"),
+    [
+      () => envio(),
+      () => {
+        ctl.smtp = "ok";
+        return envio();
+      },
+    ],
+  ],
+  [
+    "o registo de envios não responde, com uma irmã que já seguiu",
+    () => {},
+    [
+      () => envio(),
+      () => {
+        ctl.enviosRebentam = true;
+        return envio();
+      },
+    ],
+  ],
+];

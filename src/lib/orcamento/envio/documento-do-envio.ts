@@ -12,13 +12,14 @@ import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
  * Etapa 3 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): do documento que
  * chegou ao documento que se desenha. Pura — não lê nem grava nada.
  */
+/** O documento depois de preparado: a validade já lá está ESCRITA. */
+export type DocumentoPreparado = ProposalDoc & { validUntil: string };
+
 export interface DocumentoDoEnvio {
   /** A chave do que foi visto — ver a nota longa em {@link prepararODocumento}. */
   chaveDoQueChegou: string;
   /** O documento com os textos da casa e a validade já escrita lá dentro. */
-  doc: ProposalDoc;
-  /** A validade que ficou ESCRITA no documento (a data que o PDF mostra). */
-  validUntil: string;
+  doc: DocumentoPreparado;
   /** `true` quando passa o tecto de {@link MAX_PROPOSAL_DOC_BYTES} (→ 413). */
   grandeDemais: boolean;
 }
@@ -69,8 +70,7 @@ export function prepararODocumento(raw: ProposalDoc, idioma: IdiomaDaProposta): 
    * segue no email e o documento que fica guardado são o mesmo, por
    * construção, e não por coincidência de terem sido feitos no mesmo minuto.
    */
-  const validUntil = resolveValidUntil(doc);
-  doc.validUntil = validUntil;
+  const preparado: DocumentoPreparado = Object.assign(doc, { validUntil: resolveValidUntil(doc) });
 
   // O documento passou a ser GUARDADO (coluna `proposals.doc`), por isso o
   // tamanho deixou de ser um detalhe do pedido e passou a ser uma linha na
@@ -78,7 +78,7 @@ export function prepararODocumento(raw: ProposalDoc, idioma: IdiomaDaProposta): 
   // fixo, 18,5 KB no tecto de 80 fotos — 512 KB é ~28× isso, e é o mesmo teto
   // que o rascunho já recusava. Recusa-se ANTES de desenhar o PDF: um
   // documento absurdo não vale o trabalho de sharp/pdf-lib.
-  const grandeDemais = JSON.stringify(doc).length > MAX_PROPOSAL_DOC_BYTES;
+  const grandeDemais = JSON.stringify(preparado).length > MAX_PROPOSAL_DOC_BYTES;
 
-  return { chaveDoQueChegou, doc, validUntil, grandeDemais };
+  return { chaveDoQueChegou, doc: preparado, grandeDemais };
 }

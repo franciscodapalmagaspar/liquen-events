@@ -57,7 +57,6 @@ export async function irmasDoPedido(
 
 export interface Montagem extends EnvioDaProposta {
   dinheiro: ReturnType<typeof dinheiroDaProposta>;
-  validUntil: string;
   pdf: Buffer;
   porEnviar: Proposal | null;
 }
@@ -75,7 +74,9 @@ export function montarAProposta(m: Montagem): Proposal {
     subtotal: m.dinheiro.base,
     vat: m.dinheiro.vat,
     total: m.dinheiro.gross,
-    validUntil: m.validUntil,
+    // A data escrita no doc (a que o PDF mostra) — o /proposta recusa aceitar
+    // uma proposta expirada.
+    validUntil: m.doc.validUntil,
     /**
      * ══════════════════════════════════════════════════════════════════════
      * O ESTADO NASCE «POR ENVIAR», E É O CORREIO QUE O FAZ SUBIR
@@ -202,4 +203,16 @@ export function versaoDaProposta(
  */
 export function propostasAnteriores(proposal: Proposal, irmas: readonly Proposal[]): Proposal[] {
   return irmas.filter((p) => p.id !== proposal.id).sort(maisRecentePrimeiro);
+}
+
+/**
+ * A proposta que se grava, com a versão carimbada, e as irmãs que vieram
+ * antes dela (a mais recente primeiro) — o que a repetição precisa de ver.
+ */
+export function comAVersao(
+  linha: Proposal,
+  irmas: readonly Proposal[],
+): { proposal: Proposal; anteriores: Proposal[] } {
+  const anteriores = propostasAnteriores(linha, irmas);
+  return { proposal: { ...linha, ...versaoDaProposta(linha, anteriores) }, anteriores };
 }

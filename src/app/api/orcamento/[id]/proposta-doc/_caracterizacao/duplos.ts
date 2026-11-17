@@ -34,6 +34,8 @@ export const ctl = {
   modelo: null as null | { assunto: string; corpo: string },
   linhas: new Map<string, Proposal>(),
   envios: [] as Array<Record<string, unknown>>,
+  /** A leitura do registo de envios falha (`listarEnvios` rejeita). */
+  enviosRebentam: false,
 };
 
 /** Módulo → a fábrica do duplo (a mesma forma que o `vi.mock` recebe). */
@@ -119,7 +121,10 @@ export const DUPLOS = {
       ctl.envios.push(envio);
       return { gravado: true };
     }),
-    listarEnvios: vi.fn(async () => ctl.envios),
+    listarEnvios: vi.fn(async () => {
+      if (ctl.enviosRebentam) throw new Error("app_state em baixo");
+      return ctl.envios;
+    }),
   }),
   "@/lib/proposta-fotos-verificacao": () => ({
     fotosEscolhidasQueFaltam: vi.fn(async () => []),

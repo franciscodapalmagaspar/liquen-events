@@ -5,7 +5,6 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import type { Proposal, Quote } from "@/lib/orcamento/types";
-import type { ProposalDoc } from "@/lib/proposal-doc";
 import { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { log } from "@/lib/logger";
 import { cabecalhosDaPreVisualizacao } from "./pre-visualizacao";
@@ -17,7 +16,8 @@ import {
 import { montarAProposta, propostasAnteriores, versaoDaProposta } from "./a-proposta-que-se-grava";
 import { prepararODocumento } from "./documento-do-envio";
 import type { EmailEmoldurado } from "./email-da-proposta";
-import { recusaDe } from "./passo-nos-testes";
+import type { DocumentoPreparado } from "./documento-do-envio";
+import { SEGUE } from "./passo";
 
 vi.spyOn(log, "warn").mockImplementation(() => {});
 
@@ -31,7 +31,8 @@ const doc = {
   coverImages: [],
   totalAmount: 1000,
   totalVatMode: "acrescer",
-} as unknown as ProposalDoc;
+  validUntil: "2027-01-01",
+} as unknown as DocumentoPreparado;
 
 describe("as perguntas antes do envio", () => {
   it("o «sim» às fotos vale para quantas ela viu, e só para um número", () => {
@@ -44,18 +45,27 @@ describe("as perguntas antes do envio", () => {
   });
 
   it("as fotos perguntam com 409 e dizem quantas; os cortes só com `true`", () => {
-    expect(recusaDe(perguntaDasFotos("q", 1, null))).toEqual({
-      status: 409,
-      corpo: {
-        error: "Falta 1 fotografia no documento.",
-        precisaConfirmarFotos: true,
-        missingImages: 1,
+    expect(perguntaDasFotos("q", 1, null)).toEqual({
+      segue: false,
+      desfecho: {
+        tipo: "recusa",
+        recusa: {
+          status: 409,
+          corpo: {
+            error: "Falta 1 fotografia no documento.",
+            precisaConfirmarFotos: true,
+            missingImages: 1,
+          },
+        },
       },
     });
     const corte = [{ where: "Capa", dropped: 1, unit: "linhas" as const }];
-    expect(recusaDe(perguntaDosCortes("q", corte, false))?.status).toBe(409);
-    expect(perguntaDosCortes("q", corte, true).ok).toBe(true);
-    expect(perguntaDosCortes("q", [], false).ok).toBe(true);
+    expect(perguntaDosCortes("q", corte, false)).toMatchObject({
+      segue: false,
+      desfecho: { recusa: { status: 409 } },
+    });
+    expect(perguntaDosCortes("q", corte, true)).toEqual(SEGUE);
+    expect(perguntaDosCortes("q", [], false)).toEqual(SEGUE);
   });
 
   it("os cabeçalhos: o rascunho não leva chave; o inglês muda o nome", () => {
@@ -103,7 +113,6 @@ describe("o documento e a linha que se grava", () => {
       doc,
       idioma: "en",
       dinheiro: dinheiroDaProposta(doc),
-      validUntil: "2027-01-01",
       pdf,
       porEnviar,
     });
@@ -127,7 +136,6 @@ describe("o documento e a linha que se grava", () => {
         doc,
         idioma: "pt",
         dinheiro: dinheiroDaProposta(doc),
-        validUntil: "2027-01-01",
         pdf: Buffer.from("x"),
         porEnviar: null,
       });

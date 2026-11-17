@@ -16,7 +16,9 @@ import type { EnvioDaProposta } from "./envio-da-proposta";
  * (`orcamento-de-tempo.ts`).
  */
 export interface ParaDesenhar extends Pick<EnvioDaProposta, "pedidoId" | "doc" | "idioma"> {
-  modo: "preview" | "send";
+  /** Pode desenhar uma segunda vez se faltarem fotos (só o envio: a
+   *  pré-visualização é para ser rápida). */
+  segundaPassagem: boolean;
   rascunho: boolean;
   chaveDoQueChegou: string;
   /** Quantos ms sobram do orçamento do pedido, agora. */
@@ -91,7 +93,7 @@ export async function desenharOPdf(p: ParaDesenhar): Promise<PdfDesenhado> {
   // segunda passagem: só as outras justificam desenhar outra vez (revisão
   // de 14/11, 2.ª, n.º 2). As escolhidas dessas já travaram o envio antes.
   if (
-    p.modo === "send" &&
+    p.segundaPassagem &&
     faltasPassageiras(relatorio) > 0 &&
     p.resta() > FOLGA_DO_EMAIL_MS + FOLGA_DA_SEGUNDA_PASSAGEM_MS
   ) {

@@ -8,10 +8,11 @@
  * caracterização), põe-na ao lado da nova, corre os mesmos cenários nas duas
  * com os mesmos duplos, e exige o mesmo retrato, letra a letra.
  *
- * Corre SEMPRE que o clone tem esse commit (aqui, e num clone inteiro feito
- * enquanto o ramo existir); num clone raso (o CI faz `fetch-depth: 1`), ou
- * depois de o ramo entrar por squash e desaparecer, não há rota antiga a
- * tirar, e salta — dito no nome do teste. `COMPARAR_COM_A_ROTA_ANTIGA=0`
+ * Corre SEMPRE que o clone tem esse commit: aqui, num clone inteiro feito
+ * enquanto o ramo existir, e no CI — o checkout lá é raso, mas o passo «A rota
+ * antiga da fase 5» (`.github/workflows/ci.yml`) traz só esse commit. Depois
+ * de o ramo entrar por squash e desaparecer, não há rota antiga a tirar, e
+ * salta — dito no nome do teste. `COMPARAR_COM_A_ROTA_ANTIGA=0`
  * desliga-o.
  *
  * TEM PRAZO, e está escrito: a rota antiga importa os módulos de HOJE, e um
@@ -26,9 +27,15 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
-import { duplosEsquecidos, params, repor, retrato } from "./_caracterizacao/palco";
+import {
+  duplosEsquecidos,
+  params,
+  repor,
+  retrato,
+  retratosEmSequencia,
+} from "./_caracterizacao/palco";
 import { POST } from "./route";
-import { CENARIOS, ESTRANHOS } from "./_caracterizacao/cenarios";
+import { CENARIOS, ESTRANHOS, SEQUENCIAS } from "./_caracterizacao/cenarios";
 
 // Os duplos (`_caracterizacao/duplos.ts`); o vitest sobe estes `vi.mock` para o topo.
 vi.mock("@/lib/admin-auth", async () =>
@@ -156,6 +163,16 @@ describe.skipIf(!HA_ROTA_ANTIGA)(
       const antiga = await correr(postAntigo);
       const nova = await correr(POST);
       expect(nova, SE_FALHAR).toBe(antiga);
+    });
+
+    it.each(SEQUENCIAS)("sequência: %s", async (_nome, preparar, pedidos) => {
+      repor();
+      preparar();
+      const antiga = await retratosEmSequencia(postAntigo, pedidos);
+      repor();
+      preparar();
+      const nova = await retratosEmSequencia(POST, pedidos);
+      expect(nova, SE_FALHAR).toEqual(antiga);
     });
   },
 );

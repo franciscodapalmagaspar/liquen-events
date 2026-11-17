@@ -1,11 +1,9 @@
 import "server-only";
 import { log } from "@/lib/logger";
-import type { ProposalDoc } from "@/lib/proposal-doc";
 import { documentoCompleto, type CorpoLido } from "./ler-o-corpo";
 import { observarOCorpo } from "./esquema-do-corpo";
-import { prepararODocumento } from "./documento-do-envio";
+import { prepararODocumento, type DocumentoPreparado } from "./documento-do-envio";
 import { excedeOTecto, MAXIMO_CORPO_ESCRITO } from "@/lib/email-corpo-escrito";
-import { recusa } from "./recusa";
 import { paraComRecusa, segue, type Passo } from "./passo";
 
 /**
@@ -25,35 +23,36 @@ import { paraComRecusa, segue, type Passo } from "./passo";
  * O 5 é o último de propósito: o que já foi recusado não vale o trabalho do
  * esquema, e o registo não se enche de corpos que nunca chegaram a contar — a
  * mesma regra da rota do rascunho. `guardas-baratas.test.ts` prende-o.
+ *
+ * E é ANTES das travas (`travas-do-envio.ts`), também de propósito, e é o que
+ * a rota antiga fazia: uma trava recusa o CONTEÚDO do documento (falta o
+ * preço, o email do cliente não recebe correio), não a forma do corpo. Um
+ * corpo que chega até ali está inteiro e foi mandado a sério — e é a forma
+ * dele que o registo quer conhecer.
  */
 export function guardasBaratas(
   pedidoId: string,
   corpo: CorpoLido,
-): Passo<{ doc: ProposalDoc; chaveDoQueChegou: string; validUntil: string }> {
+): Passo<{ doc: DocumentoPreparado; chaveDoQueChegou: string }> {
   // O texto escrito à mão recusa-se por tamanho ANTES de se desenhar o PDF:
   // recusar depois é gastar o desenho por nada. O resto dele (o
   // `{{link_proposta}}`) só se resolve depois de a proposta estar gravada.
   if (excedeOTecto(corpo.textoDoEmail)) {
-    return paraComRecusa(
-      recusa(400, {
-        error:
-          `O texto do email é demasiado longo (o máximo são ${MAXIMO_CORPO_ESCRITO} caracteres). ` +
-          `Encurta-o e volta a enviar — não foi enviado nada.`,
-      }),
-    );
+    return paraComRecusa(400, {
+      error:
+        `O texto do email é demasiado longo (o máximo são ${MAXIMO_CORPO_ESCRITO} caracteres). ` +
+        `Encurta-o e volta a enviar — não foi enviado nada.`,
+    });
   }
   const completo = documentoCompleto(corpo.doc);
-  if (!completo.ok) return paraComRecusa(recusa(400, { error: completo.error }));
+  if (!completo.ok) return paraComRecusa(400, { error: completo.error });
   avisarDoIdiomaDesconhecido(corpo, pedidoId);
-  const { chaveDoQueChegou, doc, validUntil, grandeDemais } = prepararODocumento(
-    completo.doc,
-    corpo.idioma,
-  );
+  const { chaveDoQueChegou, doc, grandeDemais } = prepararODocumento(completo.doc, corpo.idioma);
   if (grandeDemais) {
-    return paraComRecusa(recusa(413, { error: "Proposta demasiado grande para ser guardada." }));
+    return paraComRecusa(413, { error: "Proposta demasiado grande para ser guardada." });
   }
   observarOCorpo(corpo.cru, pedidoId);
-  return segue({ doc, chaveDoQueChegou, validUntil });
+  return segue({ doc, chaveDoQueChegou });
 }
 
 /**

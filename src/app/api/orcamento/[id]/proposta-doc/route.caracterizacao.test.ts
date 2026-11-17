@@ -20,7 +20,7 @@
  * `route.contra-a-antiga.test.ts`, que corre a rota antiga (do git) e a nova
  * lado a lado, com os mesmos cenários, e exige o mesmo retrato.
  *
- * O palco (os duplos, o pedido, o retrato) está em `_caracterizacao/palco.ts`
+ * Os duplos estão em `_caracterizacao/duplos.ts`, o palco (o pedido, o retrato) em `_caracterizacao/palco.ts`
  * e os cenários em `_caracterizacao/cenarios.ts`, partilhados pelos dois.
  *
  * Só se normaliza o que muda sozinho entre corridas: identificadores
@@ -37,9 +37,10 @@ import {
   pedido,
   repor,
   retrato,
+  retratosEmSequencia,
 } from "./_caracterizacao/palco";
 import { GET, POST } from "./route";
-import { CENARIOS, ESTRANHOS } from "./_caracterizacao/cenarios";
+import { CENARIOS, ESTRANHOS, SEQUENCIAS } from "./_caracterizacao/cenarios";
 
 // Os duplos (`_caracterizacao/duplos.ts`); o vitest sobe estes `vi.mock` para o topo.
 vi.mock("@/lib/admin-auth", async () =>
@@ -93,6 +94,11 @@ describe("o retrato de cada resposta da rota (fase 5)", () => {
   it.each(ESTRANHOS)("corpo estranho: %s", async (_nome, fazer, preparar) => {
     preparar?.();
     expect(await retrato(await POST(fazer(), { params }))).toMatchSnapshot();
+  });
+
+  it.each(SEQUENCIAS)("sequência: %s", async (_nome, preparar, pedidos) => {
+    preparar();
+    expect(await retratosEmSequencia(POST, pedidos)).toMatchSnapshot();
   });
 
   it("o segundo envio do mesmo documento é uma repetição", async () => {

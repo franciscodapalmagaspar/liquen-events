@@ -1,7 +1,6 @@
 import "server-only";
 import type { Truncagens } from "./contrato";
 import { log } from "@/lib/logger";
-import { recusa } from "./recusa";
 import { paraComRecusa, SEGUE, type Passo } from "./passo";
 
 /**
@@ -52,16 +51,14 @@ export function perguntaDasFotos(
     id: pedidoId,
     emFalta: missingImages,
   });
-  return paraComRecusa(
-    recusa(409, {
-      error:
-        missingImages === 1
-          ? "Falta 1 fotografia no documento."
-          : `Faltam ${missingImages} fotografias no documento.`,
-      precisaConfirmarFotos: true,
-      missingImages,
-    }),
-  );
+  return paraComRecusa(409, {
+    error:
+      missingImages === 1
+        ? "Falta 1 fotografia no documento."
+        : `Faltam ${missingImages} fotografias no documento.`,
+    precisaConfirmarFotos: true,
+    missingImages,
+  });
 }
 
 /**
@@ -94,15 +91,13 @@ export function perguntaDosCortes(
     id: pedidoId,
     cortado: truncations.map((t) => `${t.where}: -${t.dropped} ${t.unit}`),
   });
-  return paraComRecusa(
-    recusa(409, {
-      error: "O documento sai com conteúdo cortado.",
-      // O nome do campo é a pergunta: quem chama esta rota à mão percebe o
-      // que lhe falta sem ter de ler o código.
-      precisaConfirmarCortes: true,
-      truncations,
-    }),
-  );
+  return paraComRecusa(409, {
+    error: "O documento sai com conteúdo cortado.",
+    // O nome do campo é a pergunta: quem chama esta rota à mão percebe o
+    // que lhe falta sem ter de ler o código.
+    precisaConfirmarCortes: true,
+    truncations,
+  });
 }
 
 /**

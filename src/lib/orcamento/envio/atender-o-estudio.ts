@@ -2,33 +2,27 @@ import "server-only";
 import type { Quote } from "@/lib/orcamento/types";
 import { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { enderecoDaProposta } from "@/lib/proposta-link-curto";
-import { aquecerDerivadasDaCapa } from "@/lib/derivadas";
 import { comTrinco } from "@/lib/trinco";
 import type { CorpoLido } from "./ler-o-corpo";
 import { guardasBaratas } from "./guardas-baratas";
 import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
-import { paraComRecusa, SEGUE, segue, type Desfecho, type Passo } from "./passo";
+import { recusado, SEGUE, segue, type Desfecho, type Passo } from "./passo";
 import {
   avisarQueSegueComFotosAMenos,
   perguntaDasFotos,
   perguntaDosCortes,
 } from "./perguntas-antes-do-envio";
 import { cabecalhosDaPreVisualizacao } from "./pre-visualizacao";
-import {
-  irmasDoPedido,
-  montarAProposta,
-  propostasAnteriores,
-  versaoDaProposta,
-} from "./a-proposta-que-se-grava";
+import { irmasDoPedido, montarAProposta, comAVersao } from "./a-proposta-que-se-grava";
 import { repeticaoDoEnvio } from "./repeticao-do-envio";
 import { gravarAProposta } from "./gravar-a-proposta";
 import { escreverOEmail } from "./email-da-proposta";
 import { mandarOEmail } from "./mandar-o-email";
 import { depoisDoEmail } from "./depois-do-email";
 import { respostaDoEnvio } from "./resposta-do-envio";
+import { comecarAAquecerACapa, prepararAPaginaOnline } from "./visita-do-casal";
 import { TECTO_DO_ENVIO_S } from "./orcamento-de-tempo";
-import { recusa } from "./recusa";
 import type { EnvioDaProposta } from "./envio-da-proposta";
 
 /**
@@ -51,7 +45,7 @@ import type { EnvioDaProposta } from "./envio-da-proposta";
  *   9. a gravação ................... `gravar-a-proposta.ts`
  *  10. o email, escrito ............. `email-da-proposta.ts` (e `cartao-do-pdf.ts`)
  *  11. o email, mandado ............. `mandar-o-email.ts`
- *  12. o que fica depois ............ `depois-do-email.ts`
+ *  12. o que fica depois ............ `depois-do-email.ts` (e `visita-do-casal.ts`)
  *  13. a resposta ................... `resposta-do-envio.ts`
  *
  * A ordem é a regra: recusa-se tudo o que se pode recusar ANTES de desenhar
@@ -95,7 +89,7 @@ export interface Contexto {
  * mais uma margem — se ela morrer a meio, vence.
  */
 const VALIDADE_DO_TRINCO_MS = (TECTO_DO_ENVIO_S + 15) * 1000;
-const A_SER_ENVIADA = recusa(409, {
+const A_SER_ENVIADA = recusado(409, {
   error:
     "Esta proposta já está a ser enviada (carregou duas vezes, ou noutro separador). Espere uns segundos: se não aparecer como enviada, volte a carregar em enviar.",
   aEnviar: true,
@@ -110,13 +104,16 @@ export async function atenderOEstudio(c: Contexto): Promise<Desfecho> {
   const r = await comTrinco(`envio-da-proposta:${c.pedidoId}`, VALIDADE_DO_TRINCO_MS, () =>
     enviar(c),
   );
-  return r.ok ? r.valor : paraComRecusa(A_SER_ENVIADA).desfecho;
+  return r.ok ? r.valor : A_SER_ENVIADA;
 }
 
-/** Etapas 3 a 5, e o PDF como resposta. */
+/** Etapas 3 a 5, e o PDF como resposta. O rascunho não trava: é onde ela vê o que falta. */
 async function preVisualizar(c: Contexto): Promise<Desfecho> {
-  const preparado = await prepararEDesenhar(c);
-  if (!preparado.ok) return preparado.desfecho;
+  const preparado = await prepararEDesenhar(c, {
+    trava: (envio) => (c.corpo.rascunho ? SEGUE : travaDoPdfFinal(envio)),
+    segundaPassagem: false,
+  });
+  if (!preparado.segue) return preparado.desfecho;
   const { envio, desenho, chaveDoQueChegou } = preparado.valor;
   const { pdf, missingImages, truncations } = desenho.relatorio;
   return {
@@ -135,17 +132,27 @@ async function preVisualizar(c: Contexto): Promise<Desfecho> {
 
 /** Etapas 3 a 13, com o trinco fechado. */
 async function enviar(c: Contexto): Promise<Desfecho> {
-  const preparado = await prepararEDesenhar(c);
-  if (!preparado.ok) return preparado.desfecho;
-  const { envio, desenho, validUntil } = preparado.valor;
-  const { pedidoId, quote, doc } = envio;
   const { corpo } = c;
+  const preparado = await prepararEDesenhar(c, {
+    trava: (envio, chaveDoQueChegou) =>
+      travaDoEnvio({
+        ...envio,
+        porEmail: corpo.porEmail,
+        pdfVisto: corpo.pdfVisto,
+        chaveDoQueChegou,
+      }),
+    segundaPassagem: true,
+  });
+  if (!preparado.segue) return preparado.desfecho;
+  const { envio, desenho } = preparado.valor;
+  const { pedidoId, quote, doc } = envio;
   const { relatorio, pdfDaMemoria } = desenho;
   const { pdf, missingImages, truncations } = relatorio;
+
   const fotos = perguntaDasFotos(pedidoId, missingImages, corpo.fotosEmFaltaConfirmadas);
-  if (!fotos.ok) return fotos.desfecho;
+  if (!fotos.segue) return fotos.desfecho;
   const cortes = perguntaDosCortes(pedidoId, truncations, corpo.cortesConfirmados);
-  if (!cortes.ok) return cortes.desfecho;
+  if (!cortes.segue) return cortes.desfecho;
   avisarQueSegueComFotosAMenos(pedidoId, missingImages);
 
   // `dinheiroDaProposta` e não `resolveProposalMoney`: quando os valores
@@ -154,17 +161,9 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   // sobre 3.690 € — o documento e a cobrança a discordarem em silêncio.
   const dinheiro = dinheiroDaProposta(doc);
   const { irmas, porEnviar } = await irmasDoPedido(pedidoId);
-  const linha = montarAProposta({
-    ...envio,
-    dinheiro,
-    // A data que `prepararODocumento` escreveu no doc (e que o PDF mostra) —
-    // o /proposta recusa aceitar uma proposta expirada.
-    validUntil,
-    pdf,
-    porEnviar,
-  });
-  const anteriores = propostasAnteriores(linha, irmas);
-  const proposal = { ...linha, ...versaoDaProposta(linha, anteriores) };
+  const linha = montarAProposta({ ...envio, dinheiro, pdf, porEnviar });
+  const { proposal, anteriores } = comAVersao(linha, irmas);
+
   const repetido = await repeticaoDoEnvio({
     pedidoId,
     proposal,
@@ -172,11 +171,10 @@ async function enviar(c: Contexto): Promise<Desfecho> {
     porEmail: corpo.porEmail,
     relatorio,
   });
-  if (!repetido.ok) return repetido.desfecho;
+  if (!repetido.segue) return repetido.desfecho;
 
   const gravacao = await gravarAProposta(pedidoId, proposal, porEnviar);
-  if (!gravacao.ok) return gravacao.desfecho;
-  const gravada = gravacao.valor;
+  if (!gravacao.segue) return gravacao.desfecho;
 
   const acceptUrl = await enderecoDaProposta(proposal.id, pedidoId);
   const email = await escreverOEmail({
@@ -188,18 +186,7 @@ async function enviar(c: Contexto): Promise<Desfecho> {
     dinheiro,
     assinatura: c.assinatura(),
   });
-  /* ── A CAPA FABRICADA ENQUANTO O CORREIO SAI ──────────────────────────
-     «Esta foto demora imenso tempo a carregar.» A derivada de 1200 px da capa
-     era fabricada pela primeira visita — que numa proposta acabada de enviar é
-     a do casal a abrir o email, com um `sharp` a acontecer enquanto eles olham
-     para um rectângulo vazio.
-
-     Começa AQUI e é esperada depois do `sendMail`: corre em paralelo com a ida
-     ao servidor de correio, portanto não acrescenta praticamente nada ao
-     envio. O `.catch` é obrigatório — entre este ponto e o `await` lá em baixo
-     há um `await` pelo meio, e uma promessa rejeitada sem tratamento nesse
-     intervalo derrubaria o processo. */
-  const capaAQuecer = aquecerDerivadasDaCapa(doc.coverImages ?? []).catch(() => 0);
+  const capa = comecarAAquecerACapa(doc.coverImages);
   const saida = await mandarOEmail({
     pedidoId,
     propostaId: proposal.id,
@@ -209,9 +196,7 @@ async function enviar(c: Contexto): Promise<Desfecho> {
     pdf,
     resta: c.resta,
   });
-  // A capa, se ainda não estava pronta. Nunca lança e tem tecto próprio: se
-  // passou dele, fica para a visita, como era antes.
-  await capaAQuecer;
+  await capa;
   const depois = await depoisDoEmail({
     ...envio,
     proposal,
@@ -222,12 +207,8 @@ async function enviar(c: Contexto): Promise<Desfecho> {
     modelo: corpo.modelo,
     pdf,
   });
-  // A proposta online fica pronta já, depois da resposta: o primeiro clique
-  // do casal no email não espera pelo motor (`proposta-web/guardado.ts`).
-  c.depoisDaResposta("a página online não ficou preparada", async () => {
-    const { aquecerPropostaWeb } = await import("@/lib/proposta-web/modelo");
-    await aquecerPropostaWeb(proposal.id);
-  });
+  prepararAPaginaOnline(proposal.id, c.depoisDaResposta);
+
   return {
     tipo: "envio",
     resposta: respostaDoEnvio({
@@ -235,48 +216,40 @@ async function enviar(c: Contexto): Promise<Desfecho> {
       acceptUrl,
       saida,
       depois,
-      gravada,
+      gravada: gravacao.valor,
       relatorio,
       pdfDaMemoria,
     }),
   };
 }
 
+/** O que muda entre as duas portas: a trava, e se o desenho pode repetir. */
+interface Porta {
+  trava: (envio: EnvioDaProposta, chaveDoQueChegou: string) => Passo | Promise<Passo>;
+  segundaPassagem: boolean;
+}
+
 /** Etapas 3 a 5: o que recusa antes de desenhar, e o desenho. */
-async function prepararEDesenhar(c: Contexto): Promise<
-  Passo<{
-    envio: EnvioDaProposta;
-    desenho: PdfDesenhado;
-    chaveDoQueChegou: string;
-    validUntil: string;
-  }>
-> {
+async function prepararEDesenhar(
+  c: Contexto,
+  porta: Porta,
+): Promise<Passo<{ envio: EnvioDaProposta; desenho: PdfDesenhado; chaveDoQueChegou: string }>> {
   const { pedidoId, quote, corpo } = c;
   const guardas = guardasBaratas(pedidoId, corpo);
-  if (!guardas.ok) return guardas;
-  const { doc, chaveDoQueChegou, validUntil } = guardas.valor;
+  if (!guardas.segue) return guardas;
+  const { doc, chaveDoQueChegou } = guardas.valor;
   /** O envio, montado UMA vez — cada etapa lê dele o que precisa. */
   const envio: EnvioDaProposta = { pedidoId, quote, doc, idioma: corpo.idioma };
 
-  const trava =
-    corpo.modo === "send"
-      ? await travaDoEnvio({
-          ...envio,
-          porEmail: corpo.porEmail,
-          pdfVisto: corpo.pdfVisto,
-          chaveDoQueChegou,
-        })
-      : corpo.rascunho
-        ? SEGUE
-        : await travaDoPdfFinal(envio);
-  if (!trava.ok) return trava;
+  const trava = await porta.trava(envio, chaveDoQueChegou);
+  if (!trava.segue) return trava;
 
   const desenho = await desenharOPdf({
     ...envio,
-    modo: corpo.modo,
+    segundaPassagem: porta.segundaPassagem,
     rascunho: corpo.rascunho,
     chaveDoQueChegou,
     resta: c.resta,
   });
-  return segue({ envio, desenho, chaveDoQueChegou, validUntil });
+  return segue({ envio, desenho, chaveDoQueChegou });
 }
