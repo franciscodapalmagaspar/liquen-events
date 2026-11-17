@@ -166,7 +166,7 @@ const sb = {
 };
 vi.mock("@/lib/supabase", () => ({ getSupabase: () => sb }));
 
-import { balde } from "./balde";
+import { balde, esquecerTodasAsJuncoes } from "./balde";
 import * as blob from "./blob";
 
 const JPG = new Uint8Array([0xff, 0xd8, 1, 2, 3]);
@@ -181,6 +181,7 @@ beforeEach(() => {
   estado.indiceFalhaAoGravar = false;
   estado.falharApagar = false;
   baldesFalsos.clear();
+  esquecerTodasAsJuncoes();
   vi.clearAllMocks();
   process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_Loja1234_segredo";
   process.env.SESSION_SECRET = "segredo-das-sessoes-de-teste-com-32-caracteres";
@@ -447,5 +448,24 @@ describe("balde(): modo `blob`", () => {
       expect(estado.blob.has("theme-assets/t/a.jpg")).toBe(true);
       expect(estado.blob.has("theme-assets/u/a.jpg")).toBe(true);
     });
+  });
+
+  it("n.º 11: paginar não relê a pasta inteira a cada página; escrever esquece a junção", async () => {
+    estado.modo = "blob";
+    estado.supabase.set(
+      "proposal-assets",
+      new Map(
+        Array.from({ length: 5 }, (_, i) => [`LIQ-1/s${i}.jpg`, JPG] as [string, Uint8Array]),
+      ),
+    );
+    const b = balde("proposal-assets", sb as never);
+    const p1 = await b.list("LIQ-1", { limit: 2, offset: 0 });
+    const p2 = await b.list("LIQ-1", { limit: 2, offset: 2 });
+    const p3 = await b.list("LIQ-1", { limit: 2, offset: 4 });
+    expect([...p1.data!, ...p2.data!, ...p3.data!].map((e) => e.name)).toHaveLength(5);
+    expect(sb.storage.from("proposal-assets").list).toHaveBeenCalledTimes(1);
+    await b.upload("LIQ-1/nova.jpg", JPG);
+    const depois = await b.list("LIQ-1", { limit: 100 });
+    expect(depois.data!.map((e) => e.name)).toContain("nova.jpg");
   });
 });

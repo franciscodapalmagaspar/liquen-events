@@ -157,6 +157,26 @@ async function guardarNoBlob(
   return linha;
 }
 
+/**
+ * ── A JUNÇÃO DE UMA PASTA, GUARDADA UNS SEGUNDOS (revisão de 17/11, n.º 11) ──
+ *
+ * Em modo `blob`, listar é ler a pasta INTEIRA do Supabase e o índice, e só
+ * depois cortar a página. Quem pagina (`offset` 0, 200, 400…) relia tudo a
+ * cada página. A junção fica 30 s nesta instância — o tempo de uma listagem
+ * paginada ou de uma limpeza da noite —, e qualquer escrita no balde por esta
+ * instância a apaga. Outra instância pode ver a pasta com até 30 s de atraso,
+ * que é o mesmo que o Supabase já dá entre réplicas.
+ */
+const VIDA_DA_JUNCAO_MS = 30_000;
+const juncoes = new Map<string, { entradas: unknown[]; em: number }>();
+function esquecerJuncoes(balde: string): void {
+  for (const k of [...juncoes.keys()]) if (k.startsWith(`${balde}|`)) juncoes.delete(k);
+}
+/** Só para os testes. */
+export function esquecerTodasAsJuncoes(): void {
+  juncoes.clear();
+}
+
 type OpcoesDeEnvio = { upsert?: boolean; contentType?: string; cacheControl?: string };
 
 function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: SupabaseClient) {
@@ -176,6 +196,7 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
   }
 
   async function upload(caminho: string, corpo: unknown, opcoes?: OpcoesDeEnvio) {
+    esquecerJuncoes(nome);
     const o = opcoes ?? {};
     const m = await modo();
     // Os bytes para o Blob; o Supabase recebe o corpo ORIGINAL (um `Blob`
@@ -263,6 +284,7 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
   }
 
   async function remove(caminhos: string[]) {
+    esquecerJuncoes(nome);
     const m = await modo();
     if (m === "supabase") return base.remove(caminhos);
     const r = await base.remove(caminhos);
@@ -326,69 +348,79 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
       last_accessed_at: string | null;
       metadata: Record<string, unknown> | null;
     };
-    const doSupabase: Entrada[] = [];
-    for (let offset = 0, paginas = 0; paginas < 50; paginas++, offset += 1000) {
-      const { data, error } = await base.list(pasta, {
-        limit: 1000,
-        offset,
-        ...(opcoes?.search ? { search: opcoes.search } : {}),
-      });
-      if (error) return { data: null, error };
-      doSupabase.push(...((data ?? []) as Entrada[]));
-      if ((data ?? []).length < 1000) break;
-    }
-    // 2) O índice do Blob debaixo da mesma pasta (de graça: base de dados).
-    let indice: Map<string, LinhaDoIndice>;
-    try {
-      const r = await indiceDebaixoDe(nome, pasta ? `${pasta}/` : "");
-      if (!r.completa) throw new Error("índice incompleto");
-      indice = r.linhas;
-    } catch (e) {
-      // Sem índice, uma listagem do Supabase SÓ esconderia as fotos do Blob —
-      // e quem lista para apagar órfãos tomaria isso por «não existem».
-      return { data: null, error: erro(`Listagem incompleta: ${String((e as Error)?.message)}`) };
-    }
-    const porNome = new Map<string, Entrada>();
-    for (const e of doSupabase) porNome.set(e.name, e);
-    const procura = opcoes?.search?.toLowerCase() ?? "";
-    for (const [caminho, linha] of indice) {
-      const resto = pasta ? caminho.slice(pasta.length + 1) : caminho;
-      const barra = resto.indexOf("/");
-      const nomeDaEntrada = barra >= 0 ? resto.slice(0, barra) : resto;
-      if (!nomeDaEntrada || porNome.has(nomeDaEntrada)) continue;
-      if (procura && !nomeDaEntrada.toLowerCase().startsWith(procura)) continue;
-      porNome.set(
-        nomeDaEntrada,
-        barra >= 0
-          ? {
-              name: nomeDaEntrada,
-              id: null,
-              created_at: null,
-              updated_at: null,
-              last_accessed_at: null,
-              metadata: null,
-            }
-          : {
-              name: nomeDaEntrada,
-              id: `blob:${chaveNoBlob(nome, caminho)}`,
-              created_at: linha.c,
-              updated_at: linha.c,
-              last_accessed_at: linha.c,
-              metadata: {
-                size: linha.t,
-                contentLength: linha.t,
-                ...(linha.m ? { eTag: `"${linha.m}"` } : {}),
-                ...(linha.ct ? { mimetype: linha.ct } : {}),
-                ...(linha.cc ? { cacheControl: `max-age=${linha.cc}` } : {}),
-                lastModified: linha.c,
-                httpStatusCode: 200,
+    const chaveDaJuncao = `${nome}|${pasta}|${opcoes?.search ?? ""}`;
+    const guardada = juncoes.get(chaveDaJuncao);
+    let juntas: Entrada[];
+    if (guardada && Date.now() - guardada.em < VIDA_DA_JUNCAO_MS) {
+      juntas = guardada.entradas as Entrada[];
+    } else {
+      const doSupabase: Entrada[] = [];
+      for (let offset = 0, paginas = 0; paginas < 50; paginas++, offset += 1000) {
+        const { data, error } = await base.list(pasta, {
+          limit: 1000,
+          offset,
+          ...(opcoes?.search ? { search: opcoes.search } : {}),
+        });
+        if (error) return { data: null, error };
+        doSupabase.push(...((data ?? []) as Entrada[]));
+        if ((data ?? []).length < 1000) break;
+      }
+      // 2) O índice do Blob debaixo da mesma pasta (de graça: base de dados).
+      let indice: Map<string, LinhaDoIndice>;
+      try {
+        const r = await indiceDebaixoDe(nome, pasta ? `${pasta}/` : "");
+        if (!r.completa) throw new Error("índice incompleto");
+        indice = r.linhas;
+      } catch (e) {
+        // Sem índice, uma listagem do Supabase SÓ esconderia as fotos do Blob —
+        // e quem lista para apagar órfãos tomaria isso por «não existem».
+        return { data: null, error: erro(`Listagem incompleta: ${String((e as Error)?.message)}`) };
+      }
+      const porNome = new Map<string, Entrada>();
+      for (const e of doSupabase) porNome.set(e.name, e);
+      const procura = opcoes?.search?.toLowerCase() ?? "";
+      for (const [caminho, linha] of indice) {
+        const resto = pasta ? caminho.slice(pasta.length + 1) : caminho;
+        const barra = resto.indexOf("/");
+        const nomeDaEntrada = barra >= 0 ? resto.slice(0, barra) : resto;
+        if (!nomeDaEntrada || porNome.has(nomeDaEntrada)) continue;
+        if (procura && !nomeDaEntrada.toLowerCase().startsWith(procura)) continue;
+        porNome.set(
+          nomeDaEntrada,
+          barra >= 0
+            ? {
+                name: nomeDaEntrada,
+                id: null,
+                created_at: null,
+                updated_at: null,
+                last_accessed_at: null,
+                metadata: null,
+              }
+            : {
+                name: nomeDaEntrada,
+                id: `blob:${chaveNoBlob(nome, caminho)}`,
+                created_at: linha.c,
+                updated_at: linha.c,
+                last_accessed_at: linha.c,
+                metadata: {
+                  size: linha.t,
+                  contentLength: linha.t,
+                  ...(linha.m ? { eTag: `"${linha.m}"` } : {}),
+                  ...(linha.ct ? { mimetype: linha.ct } : {}),
+                  ...(linha.cc ? { cacheControl: `max-age=${linha.cc}` } : {}),
+                  lastModified: linha.c,
+                  httpStatusCode: 200,
+                },
               },
-            },
-      );
+        );
+      }
+      juntas = [...porNome.values()];
+      if (juncoes.size >= 200) juncoes.clear();
+      juncoes.set(chaveDaJuncao, { entradas: juntas, em: Date.now() });
     }
     const coluna = (opcoes?.sortBy?.column ?? "name") as "name" | "created_at" | "updated_at";
     const sentido = opcoes?.sortBy?.order === "desc" ? -1 : 1;
-    const todas = [...porNome.values()].sort((a, b) => {
+    const todas = [...juntas].sort((a, b) => {
       // Pastas primeiro, como no Supabase; depois pela coluna pedida.
       if (!a.id !== !b.id) return a.id ? 1 : -1;
       const va = String(a[coluna] ?? "");
@@ -463,6 +495,7 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
    */
   async function copy(de: string, para: string, opcoes?: { destinationBucket?: string }) {
     const destino = opcoes?.destinationBucket ?? nome;
+    esquecerJuncoes(destino);
     const modoDaOrigem = await modo();
     const modoDoDestino: ModoDoBalde = ehBaldeDoBlob(destino)
       ? await modoDoBalde(destino)
@@ -527,6 +560,7 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
    * fica a fotografia em dois sítios, nunca em nenhum.
    */
   async function move(de: string, para: string, opcoes?: unknown) {
+    esquecerJuncoes(nome);
     if ((await modo()) === "supabase") return base.move(de, para, opcoes as never);
     const linha = (await indiceOuVazio(nome, [de])).get(de);
     if (!linha) {
