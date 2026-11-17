@@ -645,7 +645,7 @@ export const pt = {
     submitReassure: "Uma proposta à medida, pensada ao detalhe.",
     privacyPre: "Ao enviar, aceita a nossa ",
     privacyLinkLabel: "Política de Privacidade",
-    privacyPost: ". Não partilhamos os seus dados.",
+    privacyPost: ". Não vendemos os seus dados.",
   },
 
   servicos: {

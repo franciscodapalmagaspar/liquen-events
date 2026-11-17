@@ -93,7 +93,7 @@ export const RELAMPAGO_PT: TextosRelampago = {
   aSubmeter: "A enviar",
   erro: "Não foi possível enviar. Tente novamente ou fale connosco por WhatsApp.",
   erroContacto: "Escreva um telemóvel ou um email para lhe podermos responder.",
-  privacidade: "Os dados servem apenas para responder ao pedido. Ver",
+  privacidade: "Não vendemos os seus dados. Ver",
   privacidadeLink: "política de privacidade",
 };
 
@@ -112,7 +112,7 @@ export const RELAMPAGO_EN: TextosRelampago = {
   aSubmeter: "Sending",
   erro: "We could not send this. Please try again or message us on WhatsApp.",
   erroContacto: "Please give us a phone number or an email so we can reply.",
-  privacidade: "Your details are used only to answer this request. See our",
+  privacidade: "We do not sell your data. See our",
   privacidadeLink: "privacy policy",
 };
 

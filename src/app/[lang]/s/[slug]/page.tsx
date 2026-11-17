@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import SafeImage from "@/components/SafeImage";
 import HeroImage from "@/components/HeroImage";
 import RatingBadge from "@/components/RatingBadge";
+import LivroDeReclamacoes from "@/components/LivroDeReclamacoes";
 import MetaPixel from "@/components/meta/MetaPixel";
 import BarraFixa from "@/components/meta/BarraFixa";
 import VideoCiclo from "@/components/meta/VideoCiclo";
@@ -380,6 +381,18 @@ export default async function PaginaSocial({
         <a href={localizeHref("/privacidade", locale)} className="alvo-toque underline">
           {en ? "Privacy" : "Privacidade"}
         </a>
+        {/* O Livro de Reclamações Eletrónico (auditoria legal, 17/11): esta
+            página não monta o rodapé do sítio, e a ligação é obrigatória em
+            todas. A mesma peça do rodapé, em silhueta escura e discreta. */}
+        <div className="mt-3 flex justify-center">
+          <LivroDeReclamacoes
+            rotulo={t.footer.livroReclamacoes}
+            novaJanela={t.common.newWindow}
+            sobre="claro"
+            altura={36}
+            className="alvo-toque opacity-55 hover:opacity-90 transition-opacity"
+          />
+        </div>
       </footer>
     </>
   );

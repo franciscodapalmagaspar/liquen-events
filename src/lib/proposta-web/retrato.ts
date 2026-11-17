@@ -86,7 +86,8 @@ type PropostaParaORetrato = { id: string; doc: ProposalDoc; sentAt?: string; cre
  * `capa-web.ts`, `tamanhos.ts`, `ponto-de-interesse.ts`). O
  * `retrato.test.ts` falha se um desses ficheiros mudar sem isto subir.
  */
-export const VERSAO_DO_RETRATO = 12;
+// 13 (17/11): o Livro de Reclamações no fecho da página (`textos-web.ts`).
+export const VERSAO_DO_RETRATO = 13;
 
 /** `proposta-web:retrato:<proposta>:<impressão>` — com a versão do retrato. */
 export function chaveDoRetrato(proposta: PropostaParaORetrato, idioma: IdiomaDaProposta): string {
