@@ -7,6 +7,7 @@ const H = vi.hoisted(() => ({
   lerFalha: false,
   gravarFalha: false,
   conflitos: 0,
+  pendurar: null as null | Promise<void>,
 }));
 vi.mock("@/lib/app-state", () => ({
   lerEstadoComVersao: vi.fn(async () => {
@@ -14,6 +15,7 @@ vi.mock("@/lib/app-state", () => ({
     return { valor: H.linha, versao: String(H.versao) };
   }),
   gravarEstadoSeNaoMudou: vi.fn(async (_k: string, v: unknown, versao: string) => {
+    if (H.pendurar) await H.pendurar;
     if (H.gravarFalha) return "falhou";
     if (H.conflitos > 0) {
       H.conflitos--;
@@ -27,7 +29,8 @@ vi.mock("@/lib/app-state", () => ({
   }),
 }));
 
-import { esquecerUso, registar, travao, usoAtual } from "./uso";
+import { esquecerUso, gravacoesPendentes, registar, travao, usoAtual } from "./uso";
+import { gravarEstadoSeNaoMudou } from "@/lib/app-state";
 import { GB, mesDe } from "./tectos";
 
 const mes = mesDe(new Date());
@@ -39,6 +42,8 @@ beforeEach(() => {
   H.lerFalha = false;
   H.gravarFalha = false;
   H.conflitos = 0;
+  H.pendurar = null;
+  vi.mocked(gravarEstadoSeNaoMudou).mockClear();
   esquecerUso();
 });
 
@@ -46,11 +51,13 @@ describe("o contador do Blob", () => {
   it("soma o que se gastou na linha guardada", async () => {
     await registar({ avancadas: 1, bytes: 100 });
     await registar({ simples: 2, transferencia: 50 });
+    await gravacoesPendentes();
     expect(H.linha).toEqual({ mes, avancadas: 1, simples: 2, transferencia: 50, bytes: 100 });
   });
 
   it("oito gastos em paralelo não se perdem (nem lutam pela mesma linha)", async () => {
     await Promise.all(Array.from({ length: 8 }, () => registar({ simples: 1 })));
+    await gravacoesPendentes();
     expect((H.linha as { simples: number }).simples).toBe(8);
     expect(H.gravacoes).toBeLessThanOrEqual(8);
   });
@@ -65,6 +72,7 @@ describe("o contador do Blob", () => {
     H.linha = { mes, avancadas: 0, simples: 0, transferencia: 0, bytes: 2 * GB - 10 };
     expect(await travao({ avancadas: 1, bytes: 5 })).toBeNull();
     await registar({ avancadas: 1, bytes: 5 });
+    await gravacoesPendentes();
     // A leitura está em cache (60 s); o gasto desta instância soma-se por cima.
     expect(await travao({ avancadas: 1, bytes: 6 })).toBe("armazenamento");
   });
@@ -88,6 +96,7 @@ describe("o contador do Blob", () => {
   it("um conflito no compare-and-set tenta outra vez antes de desistir", async () => {
     H.conflitos = 5;
     await registar({ simples: 5 });
+    await gravacoesPendentes();
     expect((H.linha as { simples: number }).simples).toBe(5);
   });
 
@@ -96,6 +105,7 @@ describe("o contador do Blob", () => {
     await usoAtual();
     H.gravarFalha = true;
     await registar({ avancadas: 1 });
+    await gravacoesPendentes();
     // A leitura seguinte (fresca) ainda não tem o gasto — mas a instância sabe dele.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Date.now() + 61_000);
@@ -103,6 +113,7 @@ describe("o contador do Blob", () => {
     vi.useRealTimers();
     H.gravarFalha = false;
     await registar({ simples: 1 });
+    await gravacoesPendentes();
     expect(H.linha).toMatchObject({ avancadas: 50_000, simples: 1 });
   });
 
@@ -116,5 +127,36 @@ describe("o contador do Blob", () => {
     };
     expect(await travao({ avancadas: 1, simples: 1, transferencia: 1 })).toBeNull();
     expect((await usoAtual())!.bytes).toBe(7);
+  });
+
+  it("2.ª revisão, n.º 5: registar NÃO prende o pedido — a gravação corre à parte", async () => {
+    let soltar!: () => void;
+    H.pendurar = new Promise((r) => (soltar = r));
+    const antes = Date.now();
+    await registar({ simples: 1 });
+    expect(Date.now() - antes).toBeLessThan(50);
+    // O travão desta instância já o vê, sem esperar pela gravação.
+    H.linha = { mes, avancadas: 0, simples: 300_000 - 1, transferencia: 0, bytes: 0 };
+    expect(await travao({ simples: 1 })).toBe("operacoes-simples");
+    soltar();
+    await gravacoesPendentes();
+  });
+
+  it("2.ª revisão, n.º 5: quando a gravação falha, só 2 tentativas", async () => {
+    H.gravarFalha = true;
+    await registar({ simples: 1 });
+    await gravacoesPendentes();
+    expect(vi.mocked(gravarEstadoSeNaoMudou)).toHaveBeenCalledTimes(2);
+  });
+
+  it("2.ª revisão, n.º 5: um gasto que chega a meio de uma gravação também se grava", async () => {
+    let soltar!: () => void;
+    H.pendurar = new Promise((r) => (soltar = r));
+    await registar({ simples: 1 });
+    await registar({ simples: 2 }); // chega com a primeira a meio
+    H.pendurar = null;
+    soltar();
+    await gravacoesPendentes();
+    expect((H.linha as { simples: number }).simples).toBe(3);
   });
 });

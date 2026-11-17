@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { gravarEstadoSeNaoMudou, lerEstadoComVersao } from "@/lib/app-state";
 import { log } from "@/lib/logger";
 import {
@@ -91,15 +92,19 @@ function juntar(a: Gasto, b: Gasto): Gasto {
   };
 }
 
-const TENTATIVAS = 8;
+/** Conflitos (outra instância gravou entretanto): várias, com pausas curtas. */
+const TENTATIVAS_POR_CONFLITO = 6;
+/** Avarias (a gravação lançou): só duas — a base de dados está em baixo. */
+const TENTATIVAS_POR_AVARIA = 2;
 
 /**
- * Grava um lote com compare-and-set. Um conflito (outra instância gravou
- * entretanto) tenta outra vez, com uma pausa a crescer; uma avaria também.
- * Devolve se ficou gravado.
+ * Grava um lote com compare-and-set. Devolve se ficou gravado.
+ * (2.ª revisão de 17/11, n.º 5: as avarias limitam-se a 2, com pausas curtas.)
  */
 async function gravar(g: Gasto): Promise<boolean> {
-  for (let t = 0; t < TENTATIVAS; t++) {
+  let conflitos = 0;
+  let avarias = 0;
+  while (conflitos < TENTATIVAS_POR_CONFLITO && avarias < TENTATIVAS_POR_AVARIA) {
     try {
       const agora = new Date();
       const { valor, versao } = await lerEstadoComVersao<unknown>(CHAVE_DO_USO, 3_000);
@@ -109,10 +114,12 @@ async function gravar(g: Gasto): Promise<boolean> {
         versao,
       );
       if (r === "gravado") return true;
+      if (r === "conflito") conflitos++;
+      else avarias++;
     } catch {
-      /* tenta outra vez */
+      avarias++;
     }
-    await new Promise((ok) => setTimeout(ok, Math.min(400, 25 * 2 ** t)));
+    await new Promise((ok) => setTimeout(ok, Math.min(200, 20 * 2 ** (conflitos + avarias))));
   }
   log.warn("blob: contador não gravado — o gasto fica na fila", { gasto: g });
   return false;
@@ -127,29 +134,55 @@ let porGravar: Gasto = {};
 let emVoo: Gasto = {};
 let aGravar: Promise<void> | null = null;
 
-/** Soma o gasto, em memória e na linha guardada. Nunca lança. */
+/**
+ * Grava a fila. Em ciclo, também por FORA (2.ª revisão, n.º 5): um gasto que
+ * chegue entre o fim do lote e o `finally` arranca outra gravação em vez de
+ * ficar pendurado. Pára num lote que não grava (a base em baixo) — o próximo
+ * gasto volta a tentar com ele lá dentro.
+ */
+function gravarAFila(): Promise<void> {
+  if (aGravar) return aGravar;
+  const esta = (async () => {
+    while (temGasto(porGravar)) {
+      emVoo = porGravar;
+      porGravar = {};
+      const ok = await gravar(emVoo);
+      if (!ok) porGravar = juntar(emVoo, porGravar);
+      emVoo = {};
+      if (!ok) return;
+    }
+  })();
+  aGravar = esta.finally(() => {
+    aGravar = null;
+  });
+  return aGravar;
+}
+
+/**
+ * Soma o gasto. O travão desta instância vê-o JÁ (em memória); a gravação na
+ * linha corre em SEGUNDO PLANO e não prende o pedido (2.ª revisão de 17/11,
+ * n.º 5): numa rota, com `after` (a função fica viva até acabar); fora de
+ * uma, solta. Nunca lança.
+ */
 export async function registar(g: Gasto): Promise<void> {
   if (!temGasto(g)) return;
   desdeALeitura = juntar(desdeALeitura, g);
   porGravar = juntar(porGravar, g);
-  if (!aGravar) {
-    aGravar = (async () => {
-      while (temGasto(porGravar)) {
-        emVoo = porGravar;
-        porGravar = {};
-        const ok = await gravar(emVoo);
-        // Não gravou: volta à fila (e continua em `desdeALeitura`). Pára aqui
-        // para não martelar uma base de dados em baixo; o próximo gasto volta
-        // a tentar com este lá dentro.
-        if (!ok) porGravar = juntar(emVoo, porGravar);
-        emVoo = {};
-        if (!ok) break;
-      }
-    })().finally(() => {
-      aGravar = null;
-    });
+  const correr = () => gravarAFila().catch(() => undefined);
+  try {
+    after(correr);
+  } catch {
+    // Fora de um pedido (testes, scripts): solta, sem esperar.
+    void correr();
   }
-  await aGravar;
+}
+
+/** Espera que a fila esteja gravada (para os testes e para a migração no fim). */
+export async function gravacoesPendentes(): Promise<void> {
+  while (aGravar || temGasto(porGravar)) {
+    await gravarAFila();
+    if (!aGravar && temGasto(porGravar)) return; // não grava agora — fica na fila
+  }
 }
 
 /**
