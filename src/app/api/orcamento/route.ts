@@ -51,6 +51,8 @@ import { desserializar as desserializarMeta } from "@/lib/meta/click-id";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
 import { quemPedeEOCasal } from "@/lib/orcamento/quem-pede";
 import { comCpu } from "@/lib/medir-cpu";
+import { vereditoDoPedido } from "@/lib/anti-spam/veredito";
+import { explicarPossivelSpam, type PossivelSpam } from "@/lib/anti-spam/possivel-spam";
 
 export const maxDuration = 30;
 
@@ -323,7 +325,12 @@ interface BuiltEmail {
  * (no "—" clutter), and a clear reminder that replying reaches the client
  * (the message sets Reply-To to form.email).
  */
-function buildEmail(id: string, form: QuoteFormData, breakdown?: PriceBreakdown): BuiltEmail {
+function buildEmail(
+  id: string,
+  form: QuoteFormData,
+  breakdown?: PriceBreakdown,
+  possivelSpam?: PossivelSpam | null,
+): BuiltEmail {
   const cat = form.category ? (CATEGORIES.find((c) => c.id === form.category)?.label ?? "") : "";
   const et =
     (form.category && form.eventType
@@ -439,12 +446,18 @@ function buildEmail(id: string, form: QuoteFormData, breakdown?: PriceBreakdown)
   const subjectLead = [et || cat, when, form.guests ? `${form.guests} pax` : ""]
     .filter(Boolean)
     .join(" · ");
+  // «[possível spam]» à cabeça (17/11): o pedido gravou-se e está na lista, e
+  // o assunto diz já à caixa de correio que pode não valer a chamada. Nunca
+  // se deita fora — ela decide (`anti-spam/veredito.ts`).
+  const marca = possivelSpam ? "[possível spam] " : "";
   const subject = subjectLead
-    ? `Pedido de orçamento · ${subjectLead} — ${titulo}`
-    : `Pedido de orçamento — ${titulo}`;
+    ? `${marca}Pedido de orçamento · ${subjectLead} — ${titulo}`
+    : `${marca}Pedido de orçamento — ${titulo}`;
+  const avisoDeSpam = possivelSpam ? `Possível spam (${explicarPossivelSpam(possivelSpam)}).` : "";
 
   // Hidden inbox-preview line — surfaces what the subject can't.
   const preheader = [
+    avisoDeSpam,
     feitoPor ? `${titulo} (pedido de ${feitoPor})` : titulo,
     dateHero + (isWeekend ? " (fim de semana)" : ""),
     subtitle,
@@ -552,7 +565,10 @@ function buildEmail(id: string, form: QuoteFormData, breakdown?: PriceBreakdown)
     preheader,
     whatsapp: waHref,
     mailto: mailtoHref,
-    lembrete: nudge,
+    // Um pedido marcado diz porquê no CORPO que ela lê, e não só no assunto
+    // (que o telemóvel corta) e no texto simples (que o Gmail não mostra).
+    // A urgência fica: um pedido urgente marcado continua a dizer que é urgente.
+    lembrete: avisoDeSpam ? `${avisoDeSpam} ${nudge}` : nudge,
     primeiroNome: firstName,
     respostaPara: form.email ?? "",
     pedido: linhasDoPedido,
@@ -610,7 +626,7 @@ function buildEmail(id: string, form: QuoteFormData, breakdown?: PriceBreakdown)
     .filter((line) => line !== null)
     .join("\n");
 
-  return { subject, html, text };
+  return { subject, html, text: avisoDeSpam ? `${avisoDeSpam}\n\n${text}` : text };
 }
 
 /**
@@ -779,6 +795,49 @@ async function POST_semMedida(request: NextRequest) {
     };
     const form: QuoteFormData = formLido;
 
+    // ── O ANTI-SPAM: A ARMADILHA DE TEMPO E O FILTRO DE CONTEÚDO (17/11) ──
+    // O isco já foi visto lá em cima, e é a ÚNICA camada que descarta. Estas
+    // duas NUNCA deitam um pedido fora: o suspeito grava-se como os outros,
+    // com a marca «possível spam», e a equipa é avisada com ela no assunto
+    // (`anti-spam/veredito.ts`). Um pedido verdadeiro perdido em silêncio — o
+    // cliente lê «enviado» e ninguém o recebe — é o pior erro possível.
+    const veredito = vereditoDoPedido({
+      selo: (body as Record<string, unknown>).selo,
+      texto: {
+        nome: form.name,
+        mensagem: form.notes,
+        // Os nomes dos noivos só contam para as ligações, nunca para o
+        // alfabeto: «Олена Шевченко» é uma noiva, não um robô.
+        nomes: [form.partnerA, form.partnerB].filter((v): v is string => typeof v === "string"),
+        outros: [form.eventName, form.location, form.company].filter(
+          (v): v is string => typeof v === "string",
+        ),
+      },
+    });
+    if (veredito.possivelSpam) {
+      // O `submissionId` (para achar o pedido) e o DOMÍNIO do e-mail — nunca o
+      // endereço, que é um dado pessoal e não faz falta no registo.
+      const sub = (body as Record<string, unknown>).submissionId;
+      log.warn("orcamento: possível spam — gravado com a marca", {
+        motivo: veredito.possivelSpam.motivo,
+        selo: veredito.selo,
+        submissionId: typeof sub === "string" ? sub.slice(0, 64) : null,
+        dominio: (form.email ?? "").split("@")[1]?.toLowerCase() || null,
+      });
+    } else if (veredito.selo !== "valido") {
+      // Sem selo (página antiga em cache, rede), selo inválido (o segredo
+      // rodou) ou sem segredo: passa sem marca — ver `selo.ts`. Fica
+      // registado para se ver quantos chegam assim.
+      log.info("orcamento: pedido sem selo de tempo válido — aceite", { selo: veredito.selo });
+    }
+
+    // O clique da Meta (fbp/fbc) só se GUARDA com consentimento (auditoria
+    // legal, 17/11). A prova que a rota tem é o `leadEventId`: o formulário só
+    // o manda depois de «Aceitar» (`PedidoRelampago.tsx`). Sem ele o clique
+    // não fica no pedido — e o que não fica não chega à Meta mais tarde, pela
+    // CAPI do fecho (`conversoes-fecho.ts`), que lê o que ficou gravado.
+    if (!(form.leadEventId ?? "").trim()) form.metaClick = "";
+
     // O telefone guarda-se já em E.164 (+351912345678): é a forma que o
     // WhatsApp, a Meta e o Google Ads esperam, e o esquema já garantiu que,
     // vindo, é um número que existe (`normalizarTelefone`). Em TODOS os
@@ -851,6 +910,9 @@ async function POST_semMedida(request: NextRequest) {
       submittedAt: new Date().toISOString(),
       status: "pendente",
       priceBreakdown: breakdown,
+      // A marca vem SÓ do veredito: o esquema do formulário não a deixa
+      // entrar, portanto quem envia não a consegue pôr nem tirar.
+      ...(veredito.possivelSpam ? { possivelSpam: veredito.possivelSpam } : {}),
       // A língua em que esta pessoa escreveu. Já se lia do cookie para escolher
       // a língua do email de confirmação e deitava-se fora a seguir; guardada,
       // permite meses depois saber que aquele casal escreveu em inglês — e a
@@ -896,7 +958,7 @@ async function POST_semMedida(request: NextRequest) {
     // read `sent` to know whether the lead actually reached the team's inbox.
     const avisarEquipa = async (): Promise<boolean> => {
       try {
-        const email = buildEmail(id, form, breakdown);
+        const email = buildEmail(id, form, breakdown, veredito.possivelSpam);
         const res = await sendMail({
           subject: email.subject,
           html: email.html,
@@ -984,8 +1046,13 @@ async function POST_semMedida(request: NextRequest) {
       // Sem `leadEventId` não se envia NADA. Um `event_id` inventado aqui nunca
       // encontraria o par do browser e a conversão passaria a contar a dobrar —
       // que é exactamente a avaria que a deduplicação existe para evitar.
+      //
+      // E um pedido com a marca «possível spam» não se reenvia pelo servidor:
+      // contá-lo à Meta como Lead ensinava os anúncios a trazer mais do mesmo.
+      // (O pixel do browser já disparou antes de o servidor decidir; isso só
+      // se fecha mudando o pixel para depois da resposta — fica por fazer.)
       try {
-        await reenviarLeadParaMeta(request, id, form);
+        if (!veredito.possivelSpam) await reenviarLeadParaMeta(request, id, form);
       } catch (metaErr) {
         log.error("orcamento: reenvio do Lead para a Meta falhou", metaErr, { id });
       }
@@ -997,7 +1064,9 @@ async function POST_semMedida(request: NextRequest) {
         // procurar (13/11, pedido do Francisco). A `tag` é por pedido — dois
         // pedidos seguidos não se apagam um ao outro no ecrã do telemóvel.
         await sendPushToAll({
-          title: "Novo pedido de orçamento",
+          title: veredito.possivelSpam
+            ? "Novo pedido de orçamento (possível spam)"
+            : "Novo pedido de orçamento",
           body: `${form.name}${form.guests ? ` · ${form.guests} convidados` : ""} — toca para responder`,
           url: `/orcamento/admin/evento/${encodeURIComponent(id)}`,
           tag: `novo-orcamento-${id}`,

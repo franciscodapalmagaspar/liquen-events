@@ -81,6 +81,8 @@ function paraOServico(sub: PushSub): webpush.PushSubscription {
 }
 
 const TABLE = "push_subscriptions";
+/** Quanto se espera por cada serviço de push (Google, Apple, Mozilla). */
+const PRAZO_POR_ENVIO_MS = 8_000;
 const DATA_FILE = path.join(process.cwd(), "data", "push-subscriptions.json");
 
 let configured = false;
@@ -211,6 +213,30 @@ interface PushPayload {
 }
 
 /**
+ * ── SEM CHAVES VAPID: DIZ-SE UMA VEZ, E NÃO A CADA ENVIO (17/11) ──────────
+ *
+ * Registos de 10–17/11: o aviso saía em cada envio — o resumo da manhã, cada
+ * pedido novo. A falta das chaves não muda de um envio para o outro: diz-se
+ * uma vez por arranque. Na Vercel fica como informação, porque a construção
+ * já a disse uma vez por implantação (`scripts/variaveis-de-ambiente.mjs`).
+ */
+let jaAvisouSemVapid = false;
+
+function avisarSemVapid(titulo: string): void {
+  if (jaAvisouSemVapid) return;
+  jaAvisouSemVapid = true;
+  const frase =
+    "push: sem chaves VAPID nenhuma notificação é enviada — defina VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY";
+  if (process.env.VERCEL) log.info(frase, { titulo });
+  else log.warn(frase, { titulo });
+}
+
+/** Só para os testes: volta a dizer o aviso das chaves. */
+export function _esquecerAvisoSemVapid(): void {
+  jaAvisouSemVapid = false;
+}
+
+/**
  * Sends a push to every subscriber. Never throws; prunes dead subs.
  *
  * ── E O QUE NÃO CHEGOU FICA DITO ──────────────────────────────────────────
@@ -237,10 +263,7 @@ export async function sendPushToAll(
   payload: PushPayload,
 ): Promise<{ sent: number; failed: number; semLista?: boolean }> {
   if (!pushConfigured()) {
-    log.warn(
-      "push: sem chaves VAPID nenhuma notificação é enviada — defina VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY",
-      { titulo: payload.title },
-    );
+    avisarSemVapid(payload.title);
     return { sent: 0, failed: 0 };
   }
 
@@ -277,7 +300,12 @@ export async function sendPushToAll(
         return;
       }
       try {
-        await webpush.sendNotification(paraOServico(sub), conta ? body : bodyGenerico);
+        // Um serviço de push que não responde não pode pendurar quem envia
+        // (a rotina da manhã tem prazo: ver `cron/reminders`). Conta como
+        // falha sem código, como um erro de rede.
+        await webpush.sendNotification(paraOServico(sub), conta ? body : bodyGenerico, {
+          timeout: PRAZO_POR_ENVIO_MS,
+        });
         sent++;
       } catch (err: unknown) {
         const code = (err as { statusCode?: number }).statusCode;

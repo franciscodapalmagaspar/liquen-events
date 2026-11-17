@@ -51,6 +51,8 @@
  * A família de hosts do Supabase alojado, para quando a origem exacta não se
  * sabe. Um só nível de subdomínio, que é o que a CSP entende por `*.`.
  */
+import { origemDoBlob } from "./armazenamento/baldes";
+
 export const CURINGA_SUPABASE = "https://*.supabase.co";
 
 /** As variáveis de onde a origem do Storage pode vir, por ordem de preferência. */
@@ -95,8 +97,19 @@ export function origensDeImagem(
     const origem = origemDe(env[nome]);
     if (origem && !derivadas.includes(origem)) derivadas.push(origem);
   }
-  if (derivadas.length > 0) return { origens: derivadas, derivadas, usouCuringa: false };
-  return { origens: [CURINGA_SUPABASE], derivadas, usouCuringa: true };
+  /**
+   * O Vercel Blob (16/11): com o token, os originais e os PDF podem vir de
+   * `https://<loja>.private.blob.vercel-storage.com` — directamente (endereços
+   * de prazo curto) ou pelo redireccionamento de `/api/ficheiro/…`, e a CSP
+   * vale também para o destino de um redireccionamento. Sem o token, nada
+   * muda. A origem é a EXACTA do store (o identificador vem do token, sem o
+   * segredo), nunca um curinga de todos os stores da Vercel.
+   */
+  const blob = origemDoBlob(env);
+  const extra = blob ? [blob] : [];
+  if (derivadas.length > 0)
+    return { origens: [...derivadas, ...extra], derivadas, usouCuringa: false };
+  return { origens: [CURINGA_SUPABASE, ...extra], derivadas, usouCuringa: true };
 }
 
 /**

@@ -27,6 +27,20 @@ vi.mock("@/lib/app-state", () => ({
     estado.mapa.set(k, JSON.parse(JSON.stringify(v)));
     return { gravado: true, duradouro: true, onde: "servidor" };
   }),
+  // A recuperação grava com escrita condicional (n.º 4 de 16/11).
+  lerEstadoComVersao: vi.fn(async (k: string) => {
+    const v = estado.mapa.get(k);
+    return v === undefined
+      ? { valor: null, versao: null }
+      : { valor: JSON.parse(JSON.stringify(v)), versao: JSON.stringify(v) };
+  }),
+  gravarEstadoSeNaoMudou: vi.fn(async (k: string, v: unknown, versao: string | null) => {
+    const atual = estado.mapa.get(k);
+    if ((atual === undefined ? null : JSON.stringify(atual)) !== versao) return "conflito";
+    if (estado.recusaEscrita) return "falhou";
+    estado.mapa.set(k, JSON.parse(JSON.stringify(v)));
+    return "gravado";
+  }),
 }));
 
 import { POST } from "./route";

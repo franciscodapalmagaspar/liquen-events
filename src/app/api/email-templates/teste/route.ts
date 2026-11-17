@@ -100,7 +100,12 @@ export async function POST(request: NextRequest) {
     if (!pronto.ok) return NextResponse.json({ error: pronto.motivo }, { status: 400 });
 
     const html = desmoldurar(pronto.html);
-    const email = emailAoCliente({ html, texto: textoDoCorpo(html) });
+    // Com o rodapé legal, como o cliente o recebe (17/11).
+    const email = emailAoCliente({
+      html,
+      texto: textoDoCorpo(html),
+      rodapeLegal: { lingua: idioma, finalidade: "proposta" },
+    });
     const { sent } = await sendMail({
       to: para,
       // O prefixo não é opcional nem configurável. Ver a tranca 1.

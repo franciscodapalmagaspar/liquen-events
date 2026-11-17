@@ -65,7 +65,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function montar(props: { pedidoDaPaleta?: PedidoDaPaleta; pedidoDeNova?: number } = {}) {
+function montar(
+  props: {
+    pedidoDaPaleta?: PedidoDaPaleta;
+    pedidoDeNova?: number;
+    pedidoDeNovaServido?: number;
+    onPedidoDeNovaServido?: (n: number) => void;
+  } = {},
+) {
   return render(
     <ToastProvider>
       <Tarefas {...props} />
@@ -146,6 +153,9 @@ describe("as três acções, com «Anular»", () => {
     montar();
     await screen.findByText(A.title);
     fireEvent.keyDown(document.body, { key: "a", metaKey: true });
+    // Com a máquina carregada (CI), a barra do lote desenha-se um ciclo depois
+    // do ⌘A: espera-se por ela em vez de a ler logo (falhou assim a 17/11).
+    await screen.findByRole("toolbar", { name: "Ações nas tarefas selecionadas" });
   }
 
   it("«Concluir (N)» marca as por fazer e «Anular» desmarca-as", async () => {
@@ -224,6 +234,19 @@ describe("o pedido da paleta", () => {
     montar({ pedidoDeNova: 3 });
     await screen.findByText(A.title);
     expect(screen.queryByLabelText("Nova tarefa")).toBeNull();
+  });
+
+  it("voltar com o pedido já servido (guardado por quem monta) também NÃO reabre", async () => {
+    montar({ pedidoDeNova: 3, pedidoDeNovaServido: 3 });
+    await screen.findByText(A.title);
+    expect(screen.queryByLabelText("Nova tarefa")).toBeNull();
+  });
+
+  it("um toque em «Nova tarefa» dado ANTES de as Tarefas montarem abre a linha quando montam (lote de 17/11)", async () => {
+    const servido = vi.fn();
+    montar({ pedidoDeNova: 1, pedidoDeNovaServido: 0, onPedidoDeNovaServido: servido });
+    expect(await screen.findByLabelText("Nova tarefa")).toBeTruthy();
+    expect(servido).toHaveBeenCalledWith(1);
   });
 });
 

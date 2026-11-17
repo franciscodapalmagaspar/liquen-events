@@ -1,4 +1,5 @@
 import "server-only";
+import { estadoDoBlob, type EstadoDoBlob } from "./armazenamento/saude";
 import { randomUUID } from "node:crypto";
 import { getSupabase } from "./supabase";
 import { getState, setState, oFicheiroEhEfemero, type MotivoDeFalha } from "./app-state";
@@ -127,6 +128,13 @@ export interface DiagnosticoDoArmazenamento {
   detalhe?: string;
   /** Quando esta resposta foi apurada (ISO). Com cache, pode não ser agora. */
   verificadoEm: string;
+  /**
+   * O Vercel Blob (17/11): os avisos dos tectos, ou o ERRO de ficheiros no
+   * Blob sem o token. Ausente quando não há nada a dizer. Não mexe no
+   * `avisar` (o painel do topo é sobre a base de dados e a cópia); quem o lê
+   * é o bloco «Hoje» e a janela da importação.
+   */
+  blob?: EstadoDoBlob;
 }
 
 /**
@@ -368,7 +376,8 @@ export async function verificarArmazenamento(opcoes?: {
 
   emCurso = (async () => {
     try {
-      return await apurar();
+      const [valor, blob] = await Promise.all([apurar(), estadoDoBlob()]);
+      return blob ? { ...valor, blob } : valor;
     } catch (e) {
       log.error("armazenamento: a própria verificação falhou", e);
       return {

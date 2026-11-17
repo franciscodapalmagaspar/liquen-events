@@ -22,6 +22,7 @@ import PerguntaDeDesfecho from "../PerguntaDeDesfecho";
 import { ESTADO, PRESSAO } from "../ui/movimento";
 import { diasDesde, eventCountdown } from "../util";
 import { statusBadge } from "./pastilha-do-estado";
+import { EtiquetaPossivelSpam } from "../EtiquetaPossivelSpam";
 
 // One quote card in the pedidos list. Extracted to MODULE scope and wrapped in
 // React.memo so that typing in the detail edit panel — which only changes
@@ -144,6 +145,7 @@ export const QuoteCard = memo(function QuoteCard({
             </p>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <p className="text-[13px] bo-text-muted truncate">{q.email}</p>
+              <EtiquetaPossivelSpam valor={q.possivelSpam} />
               {q.assignedTo && (
                 <span className="shrink-0 text-[9px] tracking-[0.08em] uppercase px-1.5 py-0.5 rounded bg-sage-600/10 text-sage-600 font-medium whitespace-nowrap">
                   {q.assignedTo}

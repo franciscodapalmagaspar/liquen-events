@@ -552,11 +552,28 @@ const nextConfig: NextConfig = {
     // `stats.g.doubleclick.net` — é a das audiências e dos dados demográficos
     // (os «sinais da Google»). A consola do sítio publicado mostrava-a recusada
     // em cada visita. Também só em `connect-src`, o host exacto.
+    //
+    // E a quinta (17/11): o GA4 manda o `/g/collect` para o servidor da REGIÃO
+    // de quem visita — `region1.analytics.google.com` para a Europa. Os
+    // registos da Vercel de 7 dias contavam 80 recusas, todas `connect-src`,
+    // todas com `gcs=G111` (consentimento dado): quem aceitou os cookies não
+    // chegava às estatísticas. A Google escolhe a região, não nós, e o nome
+    // pode mudar; por isso entram os dois curingas que a documentação da
+    // Google para o GA4 com CSP nomeia, e nenhum mais largo:
+    //   · `*.google-analytics.com` (substitui o `www.` e o `region1.`, que
+    //     cobre);
+    //   · `*.analytics.google.com` (as regiões do `/g/collect`).
+    // O `analytics.google.com` exacto fica: um curinga `*.` não apanha o
+    // domínio sem subdomínio. A página da Google (developers.google.com/
+    // tag-platform/security/guides/csp) chega a pôr `*.google.com` inteiro na
+    // `connect-src`; aqui fica só o ramo `analytics.`, que é o que se viu.
+    // Abrir isto NÃO muda quem envia: o gtag.js só carrega depois de «Aceitar»
+    // (GoogleTag.tsx) — a CSP deixa passar, o consentimento é que decide.
     const gaScript = " https://www.googletagmanager.com https://googleads.g.doubleclick.net";
     const gaImg =
       " https://www.googletagmanager.com https://www.google.com https://www.google.pt https://googleads.g.doubleclick.net https://pagead2.googlesyndication.com";
     const gaConnect =
-      " https://www.googletagmanager.com https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://googleads.g.doubleclick.net https://ad.doubleclick.net https://www.googleadservices.com https://www.google.com https://pagead2.googlesyndication.com";
+      " https://www.googletagmanager.com https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://stats.g.doubleclick.net https://googleads.g.doubleclick.net https://ad.doubleclick.net https://www.googleadservices.com https://www.google.com https://pagead2.googlesyndication.com";
     const gaFrame = "https://td.doubleclick.net https://www.googletagmanager.com";
 
     // ── Meta (Instagram/Facebook) ────────────────────────────────────────

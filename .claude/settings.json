@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "NotebookEdit",
+      "Agent",
+      "Skill",
+      "SendMessage",
+      "WebFetch",
+      "WebSearch",
+      "mcp__github",
+      "mcp__Claude_Code_Remote",
+      "mcp__Vercel",
+      "mcp__Supabase"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "mcp__Gmail__send_message",
+      "mcp__Gmail__reply",
+      "mcp__Gmail__forward"
+    ]
+  }
+}

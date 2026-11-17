@@ -27,6 +27,12 @@ e reabrir `/orcamento/admin` sem parâmetro cai na Visão Geral **e reescreve o
 cookie para `overview`**. A tabela vale na mesma, e as consequências práticas
 aqui em baixo também.
 
+**REMEDIDO outra vez na 16.4.5, a 17/11** (a subida que fecha a
+GHSA-mfr8-8qww-v76h, `'use cache'` dentro de `unstable_cache()` — que este
+site não usa): igual. Em `next dev`, `?v=temas` grava `liquen-admin-view=temas`;
+reabrir `/orcamento/admin` sem parâmetro cai na Visão Geral, o endereço passa a
+`?v=overview` e o cookie fica `overview`.
+
 A linha do SEM REDE não foi remedida: precisa de um service worker e de cortar a
 rede, e tem passeio próprio com guarda contra produção
 (`e2e/o-ecra-volta-vivo-sem-rede.spec.ts`). Fica por medir, e está dito.
@@ -61,3 +67,11 @@ corpo do pedido, antes do nosso código. Não temos streams próprios
 (`ReadableStream`, `.pipe`) nas rotas, e o `proxy.ts` não lê corpos. O
 `uncaughtException` só se viu no `dev`. Não há nada a corrigir do nosso lado:
 não se «trata» este erro nas rotas, porque nenhuma delas chega a vê-lo.
+
+**Remedido na 16.4.5, a 17/11**, nos dois servidores: quatro POSTs que anunciam
+8 MB e são cortados depois de 1 MB (JSON e multipart; `/api/calendario`,
+`/api/admin/imagem-falhou` e `/api/rota-que-nao-existe`) dão quatro
+`Error: aborted` / `ECONNRESET` — com `⨯` no `dev`, sem ele no `start` — e o
+servidor continua a responder 200. Respostas cortadas (`/`, `/galeria`,
+`/sobre`, `/_next/image`): nada no registo. O `uncaughtException` não
+apareceu, mas também não se provocou uma recompilação a meio do corte.

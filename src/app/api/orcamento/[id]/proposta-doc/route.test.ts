@@ -200,6 +200,7 @@ import { renderStoredEditorialPdfWithReport } from "@/lib/proposal-doc-render";
 import { esvaziarPdfsFinais } from "@/lib/proposal-preview-cache";
 import { createProposal, updateProposal } from "@/lib/proposals-store";
 import { textosDoEmailDaProposta } from "@/lib/email-proposta-textos";
+import { log } from "@/lib/logger";
 
 /** Minimal studio doc — only `ref` + `clientNames` are validated by the route;
  *  the money fields under test are added per-case. */
@@ -307,6 +308,12 @@ beforeEach(() => {
   // O PDF final de cada versão fica na memória do processo; entre casos
   // esquece-se, para cada um desenhar o seu.
   esvaziarPdfsFinais();
+  // Um caso que deixe fotos em falta não pode fazer o seguinte parar na
+  // pergunta das fotos (17/11) sem saber porquê.
+  renderMock.missing = 0;
+  renderMock.sequencia = [];
+  renderMock.sabidas = 0;
+  renderMock.chamadas = 0;
   created.last = null;
   updated.last = null;
   updated.estado = "pendente";
@@ -403,7 +410,10 @@ describe("POST /api/orcamento/[id]/proposta-doc — fotos em falta no ENVIO", ()
 
   it("o envio devolve a contagem, não só a pré-visualização", async () => {
     renderMock.missing = 3;
-    const res = await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    const res = await POST(
+      sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: 3 }),
+      { params },
+    );
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.missingImages).toBe(3);
@@ -418,13 +428,120 @@ describe("POST /api/orcamento/[id]/proposta-doc — fotos em falta no ENVIO", ()
     expect(body.ok).toBe(true);
   });
 
-  it("a proposta SEGUE à mesma, mesmo com fotos em falta", async () => {
+  it("a proposta SEGUE à mesma, mesmo com fotos em falta — depois de ela responder", async () => {
     // Recusar o envio seria pior: ela fica sem nada e sem perceber porquê. Sai,
-    // mas avisada.
+    // mas avisada ANTES (17/11) — ver «fotos a menos: uma pergunta».
     renderMock.missing = 5;
-    const res = await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    const res = await POST(
+      sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: 5 }),
+      { params },
+    );
     expect(res.status).toBe(200);
     expect(created.last).toBeTruthy();
+  });
+
+  /**
+   * Registos de 12/11: «a proposta segue com fotos a menos», nove em falta, e
+   * o casal recebeu-a assim. O aviso chegava DEPOIS de o email sair.
+   */
+  it("com fotos em falta, PÁRA antes de gravar e de enviar, e diz quantas (17/11)", async () => {
+    renderMock.missing = 9;
+    const res = await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    expect(res.status, "o envio seguiu sem perguntar nada").toBe(409);
+    const body = await res.json();
+    expect(body).toMatchObject({ precisaConfirmarFotos: true, missingImages: 9 });
+    expect(createProposal, "gravou uma proposta antes de perguntar").not.toHaveBeenCalled();
+    expect(sendMail, "o email saiu antes de perguntar").not.toHaveBeenCalled();
+  });
+
+  /**
+   * Revisão de 17/11, n.º 1: a resposta «envia assim mesmo» era um booleano, e
+   * valia para QUALQUER documento. Passa a dizer quantas ela aceitou: um PDF
+   * com mais fotos em falta do que as que ela viu volta a perguntar.
+   */
+  it("a resposta vale só para as fotos que ela viu: mais em falta, pergunta outra vez", async () => {
+    renderMock.missing = 9;
+    const menos = await POST(
+      sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: 3 }),
+      { params },
+    );
+    expect(menos.status, "aceitou 9 em falta quando ela só aceitou 3").toBe(409);
+    // Passada a transição (ver o teste a seguir), o booleano já não conta.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-19T00:00:00Z"));
+      const booleano = await POST(
+        sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: true }),
+        { params },
+      );
+      expect(booleano.status, "um «sim» sem número não diz quantas ela viu").toBe(409);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(createProposal).not.toHaveBeenCalled();
+    const iguais = await POST(
+      sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: 9 }),
+      { params },
+    );
+    expect(iguais.status).toBe(200);
+  });
+
+  /**
+   * 2.ª revisão de 17/11, n.º 4: um separador aberto antes da publicação ainda
+   * manda `true`. Até 18/11 às 23:59 (Lisboa) o booleano vale como dantes;
+   * depois, só o número.
+   */
+  it("o «sim» antigo (booleano) vale até 18/11 às 23:59 em Lisboa, e depois não", async () => {
+    renderMock.missing = 9;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-18T23:59:00Z")); // 23:59 em Lisboa (WET)
+      const aindaVale = await POST(
+        sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: true }),
+        { params },
+      );
+      expect(aindaVale.status, "o separador antigo ficou sem conseguir enviar").toBe(200);
+      vi.setSystemTime(new Date("2026-11-19T00:00:00Z"));
+      const jaNao = await POST(
+        sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: true }),
+        { params },
+      );
+      expect(jaNao.status).toBe(409);
+      // E «false» nunca foi um «sim».
+      vi.setSystemTime(new Date("2026-11-17T12:00:00Z"));
+      const falso = await POST(
+        sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: false }),
+        { params },
+      );
+      expect(falso.status).toBe(409);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("com fotos em falta e cortes por responder, não regista que «segue» (revisão de 17/11, n.º 5)", async () => {
+    const aviso = vi.spyOn(log, "warn");
+    try {
+      renderMock.missing = 2;
+      renderMock.truncations = [{ where: "Nome na capa", dropped: 1, unit: "linhas" }];
+      const res = await POST(
+        sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: 2 }),
+        { params },
+      );
+      expect(res.status).toBe(409);
+      expect((await res.json()).precisaConfirmarCortes).toBe(true);
+      const segue = aviso.mock.calls.filter(([m]) => /segue com fotos a menos/.test(String(m)));
+      expect(segue, "disse que seguia, e parou nos cortes").toHaveLength(0);
+    } finally {
+      aviso.mockRestore();
+      renderMock.truncations = [];
+    }
+  });
+
+  it("uma segunda tentativa que resolve tudo não pergunta nada", async () => {
+    renderMock.sequencia = [2, 0];
+    const res = await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    expect(res.status).toBe(200);
   });
 });
 
@@ -472,6 +589,8 @@ describe("POST /api/orcamento/[id]/proposta-doc — conteúdo CORTADO pelo desen
   beforeEach(() => {
     renderMock.missing = 0;
     renderMock.truncations = [];
+    renderMock.sequencia = [];
+    renderMock.chamadas = 0;
   });
 
   it("a pré-visualização leva o que foi cortado, com acentos intactos", async () => {
@@ -554,9 +673,12 @@ describe("POST /api/orcamento/[id]/proposta-doc — conteúdo CORTADO pelo desen
    * Uma foto que não resolveu é uma avaria com segunda tentativa; um texto
    * cortado é uma escolha de composição a morder o conteúdo.
    */
-  it("uma foto em falta não faz pergunta nenhuma — segue, como sempre seguiu", async () => {
+  it("uma foto em falta tem a SUA pergunta; respondida, segue sem a dos cortes", async () => {
     renderMock.missing = 2;
-    const res = await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    const res = await POST(
+      sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: 2 }),
+      { params },
+    );
     expect(res.status).toBe(200);
     expect((await res.json()).missingImages).toBe(2);
     expect(sendMail).toHaveBeenCalled();
@@ -698,7 +820,10 @@ describe("POST /api/orcamento/[id]/proposta-doc — a segunda tentativa do envio
   it("faltas que se SABE que faltam não se repetem; com passageiras à mistura, sim", async () => {
     renderMock.missing = 2;
     renderMock.sabidas = 2;
-    const res = await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    const res = await POST(
+      sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: 2 }),
+      { params },
+    );
     expect(res.status).toBe(200);
     expect(renderStoredEditorialPdfWithReport).toHaveBeenCalledTimes(1);
     expect((await res.json()).missingImages).toBe(2);
@@ -729,14 +854,20 @@ describe("POST /api/orcamento/[id]/proposta-doc — a segunda tentativa do envio
   it("se a segunda correr PIOR, fica-se com a primeira", async () => {
     // Repetir nunca pode deixar a proposta pior do que estava.
     renderMock.sequencia = [1, 4];
-    const res = await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    const res = await POST(
+      sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: 1 }),
+      { params },
+    );
     expect((await res.json()).missingImages).toBe(1);
   });
 
   it("e continua a seguir, mesmo quando as duas falham", async () => {
     // A decisão de produto mantém-se: sai, mas avisada.
     renderMock.sequencia = [3, 3];
-    const res = await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    const res = await POST(
+      sendReq(baseDoc({ totalAmount: 3000 }), { fotosEmFaltaConfirmadas: 3 }),
+      { params },
+    );
     expect(res.status).toBe(200);
     expect((await res.json()).missingImages).toBe(3);
     expect(created.last).toBeTruthy();
@@ -1333,7 +1464,9 @@ describe("POST /api/orcamento/[id]/proposta-doc — assinatura", () => {
     // A faixa da casa viaja COM a mensagem — nada de imagens remotas.
     expect(env.attachments?.some((a) => a.cid === "liquen-banner")).toBe(true);
     expect(env.attachments?.some((a) => a.filename.endsWith(".pdf"))).toBe(true);
-    expect(env.html).not.toMatch(/<img[^>]+src="https?:/);
+    // A única imagem por URL é o ícone do Livro de Reclamações do rodapé legal
+    // (instrução do dono, 17/11: PNG com URL absoluto). Tudo o resto viaja por `cid:`.
+    expect(semIconeDoLivro(env.html)).not.toMatch(/<img[^>]+src="https?:/);
     expect(env.html).not.toContain("Líquen Events · ");
   });
 
@@ -2979,3 +3112,8 @@ describe("o domínio do email do cliente", () => {
     expect(dominioRecebeEmail).not.toHaveBeenCalled();
   });
 });
+
+/** O ícone do Livro de Reclamações do rodapé legal vai por URL, por instrução do dono (17/11). */
+function semIconeDoLivro(html: string): string {
+  return html.replace(/<img[^>]+livro-de-reclamacoes-sobre-(?:escuro|claro)\.png"[^>]*>/g, "");
+}

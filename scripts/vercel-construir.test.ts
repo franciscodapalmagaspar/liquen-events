@@ -8,8 +8,22 @@ import { deveConstruir } from "./vercel-construir.mjs";
  * quando se pedem — ver `vercel-construir.mjs`.
  */
 describe("que publicações a Vercel constrói", () => {
-  it("produção constrói sempre", () => {
+  it("produção sem mensagem constrói — na dúvida, constrói", () => {
     expect(deveConstruir({ VERCEL_ENV: "production", VERCEL_GIT_COMMIT_REF: "main" })).toBe(true);
+    expect(
+      deveConstruir({
+        VERCEL_ENV: "production",
+        VERCEL_GIT_COMMIT_REF: "main",
+        VERCEL_GIT_COMMIT_MESSAGE: "",
+      }),
+    ).toBe(true);
+    expect(
+      deveConstruir({
+        VERCEL_ENV: "production",
+        VERCEL_GIT_COMMIT_REF: "main",
+        VERCEL_GIT_COMMIT_MESSAGE: "  \n ",
+      }),
+    ).toBe(true);
   });
 
   it("uma pré-visualização de um ramo qualquer é saltada", () => {
@@ -17,7 +31,9 @@ describe("que publicações a Vercel constrói", () => {
   });
 
   it("pede-se com um ramo preview/… ou [preview] no commit", () => {
-    expect(deveConstruir({ VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "preview/proxy" })).toBe(true);
+    expect(deveConstruir({ VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "preview/proxy" })).toBe(
+      true,
+    );
     expect(
       deveConstruir({
         VERCEL_ENV: "preview",
@@ -31,7 +47,7 @@ describe("que publicações a Vercel constrói", () => {
     expect(deveConstruir({})).toBe(true);
   });
 
-  it("o vercel.json usa este guião", () => {
+  it("o vercel.json usa este guião (só o lote constrói produção)", () => {
     const config = JSON.parse(readFileSync("vercel.json", "utf8")) as { ignoreCommand?: string };
     expect(config.ignoreCommand).toBe("node scripts/vercel-construir.mjs");
   });
@@ -52,8 +68,99 @@ import { describe as descrever, it as caso, expect as esperar } from "vitest";
 
 descrever("vercel.json — só o main e os preview/… arrancam construções", () => {
   const cfg = JSON.parse(lerFicheiro(new URL("../vercel.json", import.meta.url), "utf8"));
-  caso("o main constrói, os outros ramos não, e preview/… continua a ser a porta para pedir uma", () => {
-    esperar(cfg.git.deploymentEnabled).toEqual({ "**": false, main: true, "preview/**": true });
-    esperar(cfg.ignoreCommand).toBe("node scripts/vercel-construir.mjs");
+  caso(
+    "o main constrói, os outros ramos não, e preview/… continua a ser a porta para pedir uma",
+    () => {
+      esperar(cfg.git.deploymentEnabled).toEqual({ "**": false, main: true, "preview/**": true });
+      esperar(cfg.ignoreCommand).toBe("node scripts/vercel-construir.mjs");
+    },
+  );
+});
+
+/**
+ * ── O LOTE PASSA A ESTAR NO CÓDIGO (16/11) ─────────────────────────────────
+ * A regra 9 (publicar em lotes, uma vez por dia) só se cumpria de memória. A
+ * fatura de 3–15/11: construir ~2,8 $ e guardar publicações ~2,8 $, contra
+ * ~0,3 $ das funções. Em produção, agora só o lote constrói.
+ */
+descrever("produção constrói só o lote", () => {
+  const prod = (mensagem: string) =>
+    deveConstruir({
+      VERCEL_ENV: "production",
+      VERCEL_GIT_COMMIT_REF: "main",
+      VERCEL_GIT_COMMIT_MESSAGE: mensagem,
+    });
+
+  caso("o lote constrói: «Lote …» no início, ou lote/… em qualquer sítio", () => {
+    esperar(prod("Lote 15/11: lote de 14/11 + cabeçalho da biblioteca_fotos (#471)")).toBe(true);
+    esperar(prod("Merge pull request #453 from franciscodapalmagaspar/lote/2026-11-13b")).toBe(
+      true,
+    );
+  });
+
+  caso("17/11: os urgentes e as reversões que já estão no main publicam", () => {
+    esperar(
+      prod(
+        "Urgente: «Esqueci-me da palavra-passe» volta a funcionar + fotos já vistas guardadas no computador (#421)",
+      ),
+    ).toBe(true);
+    esperar(
+      prod('Revert "fix(back office): palavras inglesas da interface passam a português (n.º 16)"'),
+    ).toBe(true);
+    esperar(
+      prod(
+        "Revert «Site no telemóvel: troca de idioma suave, vídeo logo e sem barras…» (#326) (#329)",
+      ),
+    ).toBe(true);
+    esperar(prod("urgente: minúsculas também")).toBe(true);
+    esperar(prod("LOTE 17/11: maiúsculas também")).toBe(true);
+    esperar(prod("Reverte a cor do botão")).toBe(false);
+    esperar(prod("Urgentes da semana: lista")).toBe(false);
+  });
+
+  caso("17/11: só a primeira linha conta — o merge do lote casa, o corpo de um squash não", () => {
+    // Um lote com um só commit também entra por merge commit: a primeira linha
+    // traz o nome do ramo.
+    esperar(
+      prod(
+        "Merge pull request #480 from franciscodapalmagaspar/lote/2026-11-17\n\nLote 17/11: um só commit",
+      ),
+    ).toBe(true);
+    esperar(prod("Lote 17/11: correções (#481)\n\n* Propostas: x (#470)")).toBe(true);
+    // A Vercel pode mandar o corpo (até 2048 bytes): o que lá vier não publica.
+    esperar(prod("Propostas: x (#482)\n\nVai no lote/2026-11-17")).toBe(false);
+    esperar(prod("Propostas: x (#483)\n\n* commit antigo [publicar]")).toBe(false);
+    esperar(prod("Propostas: x (#484)\r\n\r\nUrgente: não é o título")).toBe(false);
+  });
+
+  caso("[publicar] e [urgente] forçam a construção", () => {
+    esperar(prod("Site: mostra a página nova [publicar]")).toBe(true);
+    esperar(prod("Segurança: fecha a porta X [urgente] (#481)")).toBe(true);
+    esperar(prod("Corrige [URGENTE]")).toBe(true);
+  });
+
+  caso("um commit normal no main salta a construção", () => {
+    esperar(prod("Propostas: a que segue depois do «Ganho» fica aceite, com contrato (#474)")).toBe(
+      false,
+    );
+    esperar(prod("Lotes de fotos: lê seis de cada vez")).toBe(false);
+    esperar(prod("Explica o lote no README")).toBe(false);
+  });
+
+  caso("as pré-visualizações ficam como estavam (o lote não as liga)", () => {
+    esperar(
+      deveConstruir({
+        VERCEL_ENV: "preview",
+        VERCEL_GIT_COMMIT_REF: "lote/2026-11-16",
+        VERCEL_GIT_COMMIT_MESSAGE: "Lote 16/11",
+      }),
+    ).toBe(false);
+    esperar(
+      deveConstruir({
+        VERCEL_ENV: "preview",
+        VERCEL_GIT_COMMIT_REF: "feat/x",
+        VERCEL_GIT_COMMIT_MESSAGE: "x [publicar]",
+      }),
+    ).toBe(false);
   });
 });

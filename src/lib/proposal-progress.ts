@@ -264,6 +264,11 @@ export interface ContextoDoEnvio {
    * chave do PDF visto contra a do documento que chega).
    */
   pdfVisto?: boolean;
+  /**
+   * Quantas fotografias o PDF FINAL que ela viu deixou de fora (o cabeçalho
+   * `X-Fotos-Em-Falta`). Só conta para o PDF desta versão do documento.
+   */
+  fotosEmFaltaNoPdf?: number;
 }
 
 /** O mesmo critério do passo do envio (`emailDoCliente` no estúdio). */
@@ -640,6 +645,26 @@ export function oQueFaltaParaEnviar(
       campo: "pdf-visto",
       texto: "Falta ver o PDF final e confirmar que está tudo certo",
       trava: true,
+    });
+  }
+  /**
+   * ── AS FOTOS QUE O PDF FINAL DEIXOU DE FORA (17/11) ───────────────────────
+   *
+   * Registos de 12/11: uma proposta seguiu com nove a menos. O PDF que ela viu
+   * já o dizia, mas num aviso que passa; aqui fica escrito na Conferência até
+   * se resolver. Não trava (a decisão dela: as fotos em falta não recusam o
+   * envio) — o servidor pergunta antes de seguir, com a proposta por gravar.
+   */
+  const emFaltaNoPdf = Math.max(0, Math.floor(ctx.fotosEmFaltaNoPdf ?? 0));
+  if (emFaltaNoPdf > 0) {
+    faltas.push({
+      id: "fotos-em-falta-no-pdf",
+      seccao: "moodboards",
+      texto:
+        emFaltaNoPdf === 1
+          ? "O PDF final tem 1 fotografia em falta: não se conseguiu ir buscar"
+          : `O PDF final tem ${emFaltaNoPdf} fotografias em falta: não se conseguiram ir buscar`,
+      trava: false,
     });
   }
   if (deco && capas.length === 0) {

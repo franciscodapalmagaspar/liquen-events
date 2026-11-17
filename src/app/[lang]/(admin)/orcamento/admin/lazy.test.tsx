@@ -249,3 +249,27 @@ describe("vista já aquecida desenha sem esqueleto", () => {
     expect(document.querySelector("[data-view-skeleton]")).toBeNull();
   });
 });
+
+describe("as ferramentas do painel do pedido dizem que estão a carregar", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    setConnection(undefined);
+  });
+
+  /**
+   * O passeio do telemóvel (`e2e/admin-mobile.spec.ts`, «o painel de um pedido
+   * também se toca com o dedo») espera que `data-painel-a-carregar` saia do
+   * separador Financeiro antes de medir «Já pago». Se a marca se perder, essa
+   * espera passa logo, sem esperar por nada, e o passeio volta a ser instável
+   * — e a acusar «perdeu o controlo» um painel que só estava a chegar.
+   */
+  it("o esqueleto do PaymentsPanel e do EventCosts traz a marca data-painel-a-carregar", async () => {
+    const mod3 = await import("./lazy");
+    for (const Ferramenta of [mod3.PaymentsPanel, mod3.EventCosts]) {
+      const Qualquer = Ferramenta as unknown as React.ComponentType;
+      const { unmount } = render(<Qualquer />);
+      expect(document.querySelector("[data-painel-a-carregar]")).not.toBeNull();
+      unmount();
+    }
+  });
+});

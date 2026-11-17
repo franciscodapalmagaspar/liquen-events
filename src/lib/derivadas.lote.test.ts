@@ -61,7 +61,7 @@ vi.mock("sharp", () => {
   return { default: falso };
 });
 
-import { gerarLoteDeDerivadas } from "./derivadas";
+import { gerarLoteDeDerivadas, type PosicaoDoLote, type Retoma } from "./derivadas";
 import { THEME_BUCKET, THEME_MID_BUCKET } from "./theme-ref";
 import { PROPOSAL_BUCKET, PROPOSAL_MID_BUCKET } from "./proposal-storage";
 
@@ -233,6 +233,239 @@ describe("um lote de derivadas", () => {
     expect(r.geradas).toBe(18);
     // E há por onde continuar — senão isto era uma geração que não avança.
     expect(r.retoma).not.toBeNull();
+  });
+
+  it("numa biblioteca já feita, o relógio também pára a TRAVESSIA das pastas (registos de 10–17/11)", async () => {
+    // Trinta temas, já com todas as essenciais: não há blocos de fotografias,
+    // só listagens. Antes o relógio só se lia entre blocos, e a travessia
+    // corria até ao fim por mais tarde que fosse — a apanha da rotina da manhã
+    // passava assim do tecto da função.
+    for (let i = 0; i < 30; i += 1) tema(`tema-${String(i).padStart(2, "0")}`, 1);
+    await gerarLoteDeDerivadas("essencial");
+    st.escritos = [];
+
+    const r = await gerarLoteDeDerivadas("essencial", { tectoMs: 5_000, agora: relogio(2_000) });
+
+    expect(r.fotografiasFeitas).toBe(0);
+    // Parou entre pastas, e diz em qual recomeçar.
+    expect(r.retoma).toMatchObject({ papel: "essencial", origem: THEME_BUCKET, caminho: "" });
+    expect(r.retoma!.pasta > "tema-00").toBe(true);
+    expect(r.retoma!.pasta < "tema-29").toBe(true);
+
+    // E a noite seguinte recomeça nessa pasta, sem voltar ao princípio, e
+    // chega ao fim.
+    const seguinte = await gerarLoteDeDerivadas("essencial", { retoma: r.retoma });
+    expect(seguinte.retoma).toBeNull();
+    expect(st.escritos).toHaveLength(0);
+  });
+
+  it("uma retoma deixada entre pastas gera a primeira fotografia dessa pasta", async () => {
+    tema("tema-a", 1);
+    tema("tema-b", 2);
+
+    const r = await gerarLoteDeDerivadas("essencial", {
+      retoma: { papel: "essencial", origem: THEME_BUCKET, pasta: "tema-b", caminho: "" },
+    });
+
+    // Só as duas de `tema-b`: a de `tema-a` fica para a volta seguinte.
+    expect(r.fotografiasFeitas).toBe(2);
+    expect(st.descarregados.every((c) => c.includes("/tema-b/"))).toBe(true);
+  });
+
+  /**
+   * Revisão de 17/11, n.º 2: o prazo da rotina deixava de ESPERAR pelo lote,
+   * mas o lote continuava em fundo, e a retoma não avançava. Com um sinal, o
+   * lote pára entre pastas e entre blocos, e devolve onde parou.
+   */
+  it("um sinal cancelado pára o lote entre pastas, e diz onde recomeçar", async () => {
+    tema("tema-a", 1);
+    tema("tema-b", 1);
+    tema("tema-c", 1);
+    const controlador = new AbortController();
+    const posicao: { atual: Retoma | null } = { atual: null };
+    const r = await gerarLoteDeDerivadas("essencial", {
+      sinal: controlador.signal,
+      posicao,
+      // O sinal chega depois da primeira pasta: o relógio não serve de nada.
+      agora: () => {
+        if (st.descarregados.length > 0) controlador.abort();
+        return 0;
+      },
+    });
+    expect(r.fotografiasFeitas).toBe(1);
+    expect(st.descarregados.every((c) => c.includes("/tema-a/"))).toBe(true);
+    expect(r.retoma).toMatchObject({ papel: "essencial", origem: THEME_BUCKET, pasta: "tema-b" });
+    // E a posição vai sendo dita, para quem chama saber onde pendurou.
+    expect(posicao.atual).toMatchObject({ pasta: "tema-b" });
+  });
+
+  it("um sinal já cancelado não começa nada", async () => {
+    tema("tema-a", 1);
+    const controlador = new AbortController();
+    controlador.abort();
+    const r = await gerarLoteDeDerivadas("essencial", { sinal: controlador.signal });
+    expect(st.descarregados).toHaveLength(0);
+    // Sem retoma e sem nada começado, «recomeça do princípio» é `null` — e não
+    // uma retoma com `pasta: ""`, que não aponta para pasta nenhuma (2.ª
+    // revisão de 17/11).
+    expect(r.retoma).toBeNull();
+  });
+
+  /**
+   * 2.ª revisão de 17/11, n.º 3: cancelado ainda a caminho da retoma, o lote
+   * devolvia-a sem as marcas — a `pendurada` e o `saltar` perdiam-se, e uma
+   * pasta que pendura nunca chegava a ser saltada.
+   */
+  it("cancelado antes de chegar à retoma, devolve-a com as marcas", async () => {
+    tema("tema-a", 1);
+    tema("tema-b", 1);
+    for (const marca of [{ pendurada: true }, { saltar: true }]) {
+      const retoma: Retoma = {
+        papel: "essencial",
+        origem: THEME_BUCKET,
+        pasta: "tema-b",
+        caminho: "",
+        ...marca,
+      };
+      const controlador = new AbortController();
+      controlador.abort();
+      const r = await gerarLoteDeDerivadas("essencial", { sinal: controlador.signal, retoma });
+      expect(r.retoma).toEqual(retoma);
+    }
+  });
+
+  it("cancelado já na pasta da retoma, antes de a começar, também guarda as marcas", async () => {
+    tema("tema-a", 1);
+    tema("tema-b", 1);
+    const controlador = new AbortController();
+    const base = storageFalso();
+    st.cliente = {
+      storage: {
+        ...base.storage,
+        from(bucket: string) {
+          const b = base.storage.from(bucket);
+          return {
+            ...b,
+            // O sinal chega enquanto se listam as pastas.
+            async list(prefixo: string, o?: { limit?: number; offset?: number }) {
+              if (prefixo === "") controlador.abort();
+              return b.list(prefixo, o);
+            },
+          };
+        },
+      },
+    };
+    const retoma: Retoma = {
+      papel: "essencial",
+      origem: THEME_BUCKET,
+      pasta: "tema-b",
+      caminho: "",
+      pendurada: true,
+    };
+    const r = await gerarLoteDeDerivadas("essencial", { sinal: controlador.signal, retoma });
+    expect(st.descarregados).toHaveLength(0);
+    expect(r.retoma).toEqual(retoma);
+  });
+
+  it("diz quando está à espera da listagem das pastas, e conta os passos", async () => {
+    tema("tema-a", 2);
+    const posicao: PosicaoDoLote = { atual: null };
+    const vistos: unknown[] = [];
+    const base = storageFalso();
+    st.cliente = {
+      storage: {
+        ...base.storage,
+        from(bucket: string) {
+          const b = base.storage.from(bucket);
+          return {
+            ...b,
+            async list(prefixo: string, o?: { limit?: number; offset?: number }) {
+              if (prefixo === "") vistos.push(posicao.listando);
+              return b.list(prefixo, o);
+            },
+          };
+        },
+      },
+    };
+    await gerarLoteDeDerivadas("essencial", { posicao });
+    expect(vistos[0]).toEqual({ papel: "essencial", origem: THEME_BUCKET });
+    expect(posicao.listando).toBeNull();
+    // As listagens, a pasta começada e as duas fotografias.
+    expect(posicao.passos).toBeGreaterThanOrEqual(3);
+  });
+
+  it("a caminho da retoma, as famílias antes da dela não se listam (revisão independente)", async () => {
+    tema("tema-a", 1);
+    st.conteudo[PROPOSAL_BUCKET] = new Set(["prop-1/f0.jpg"]);
+    const listados: string[] = [];
+    const base = storageFalso();
+    st.cliente = {
+      storage: {
+        ...base.storage,
+        from(bucket: string) {
+          const b = base.storage.from(bucket);
+          return {
+            ...b,
+            async list(prefixo: string, o?: { limit?: number; offset?: number }) {
+              if (prefixo === "") listados.push(bucket);
+              return b.list(prefixo, o);
+            },
+          };
+        },
+      },
+    };
+    await gerarLoteDeDerivadas("essencial", {
+      retoma: { papel: "essencial", origem: PROPOSAL_BUCKET, pasta: "prop-1", caminho: "" },
+    });
+    expect(listados).toEqual([PROPOSAL_BUCKET]);
+    expect(st.descarregados).toEqual([`${PROPOSAL_BUCKET}/prop-1/f0.jpg`]);
+  });
+
+  it("uma retoma para saltar a família não lista essa família e segue na seguinte", async () => {
+    tema("tema-a", 1);
+    st.conteudo[PROPOSAL_BUCKET] = new Set(["prop-1/f0.jpg"]);
+    const r = await gerarLoteDeDerivadas("essencial", {
+      retoma: {
+        papel: "essencial",
+        origem: THEME_BUCKET,
+        pasta: "",
+        caminho: "",
+        saltarFamilia: true,
+      },
+    });
+    expect(st.descarregados.some((c) => c.startsWith(`${THEME_BUCKET}/`))).toBe(false);
+    expect(st.descarregados).toContain(`${PROPOSAL_BUCKET}/prop-1/f0.jpg`);
+    expect(r.retoma).toBeNull();
+  });
+
+  it('uma retoma antiga com `pasta: ""` (sem saltar a família) recomeça do princípio', async () => {
+    tema("tema-a", 1);
+    const r = await gerarLoteDeDerivadas("essencial", {
+      retoma: { papel: "essencial", origem: THEME_BUCKET, pasta: "", caminho: "" },
+    });
+    expect(st.descarregados).toContain(`${THEME_BUCKET}/tema-a/f0.jpg`);
+    expect(r.retoma).toBeNull();
+  });
+
+  it("uma retoma marcada para SALTAR a pasta começa na seguinte", async () => {
+    tema("tema-a", 1);
+    tema("tema-b", 1);
+    tema("tema-c", 1);
+    const r = await gerarLoteDeDerivadas("essencial", {
+      retoma: {
+        papel: "essencial",
+        origem: THEME_BUCKET,
+        pasta: "tema-b",
+        caminho: "",
+        saltar: true,
+      },
+    });
+    expect(
+      st.descarregados.some((c) => c.includes("/tema-b/")),
+      "voltou à pasta pendurada",
+    ).toBe(false);
+    expect(st.descarregados.some((c) => c.includes("/tema-c/"))).toBe(true);
+    expect(r.retoma).toBeNull();
   });
 
   it("uma fotografia a que só falta metade das derivadas não regenera a outra metade", async () => {

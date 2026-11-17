@@ -7,6 +7,7 @@ import { nomeDoFicheiroDaProposta } from "@/lib/email-proposta-textos";
 import { respostaPdf } from "@/lib/pdf-resposta";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
+import { comCpu } from "@/lib/medir-cpu";
 
 // pdf-lib + sharp precisam do runtime Node.
 export const runtime = "nodejs";
@@ -47,7 +48,7 @@ export const maxDuration = 60;
  * recebe é sempre o documento DESTA proposta, nunca o de uma revisão mais
  * recente que ele não viu.
  */
-export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
+async function GET_semMedida(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
   // Desenhar re-codifica todas as fotos (pdf-lib + sharp) — é caro. O token
@@ -172,3 +173,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     return new NextResponse(null, { status: 500 });
   }
 }
+
+export const GET = comCpu("proposta-pdf GET", GET_semMedida);

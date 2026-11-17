@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import SafeImage from "@/components/SafeImage";
 import HeroImage from "@/components/HeroImage";
 import RatingBadge from "@/components/RatingBadge";
+import AvisoLegal from "@/components/AvisoLegal";
 import MetaPixel from "@/components/meta/MetaPixel";
 import BarraFixa from "@/components/meta/BarraFixa";
 import VideoCiclo from "@/components/meta/VideoCiclo";
@@ -370,16 +371,16 @@ export default async function PaginaSocial({
         textoFormulario={en ? "Form" : "Formulário"}
       />
 
-      {/* Um rodapé de uma linha. Não é o rodapé do sítio: é o mínimo legal —
-          quem somos e onde está a política de privacidade. */}
-      <footer className="px-5 pb-28 text-center text-[11px] text-foreground/40">
-        {SITE.name} ·{" "}
-        {/* `alvo-toque` pela mesma razão do telefone lá em cima. Aqui não muda
-            nada do que se lê: a caixa cresce à volta do texto, que fica no
-            mesmo sítio da linha. */}
-        <a href={localizeHref("/privacidade", locale)} className="alvo-toque underline">
-          {en ? "Privacy" : "Privacidade"}
-        </a>
+      {/* O rodapé destas páginas não é o do sítio: é o mínimo legal — quem
+          somos, e o fim legal de todas as páginas (17/11): o Livro de
+          Reclamações, as ligações Privacidade · Cookies · Termos e a
+          resolução de litígios (`AvisoLegal.tsx`). */}
+      <footer className="px-5 pb-28 text-center text-[11px] text-foreground/68">
+        <p className="mb-4">{SITE.name}</p>
+        <AvisoLegal
+          lingua={locale}
+          classeDasLigacoes="alvo-toque underline hover:text-foreground transition-colors"
+        />
       </footer>
     </>
   );

@@ -49,6 +49,12 @@ import {
   ENVIOS_PREFIX,
 } from "./envios-de-proposta";
 import {
+  ehChaveDoIndice,
+  juntarIndiceDoBlob,
+  listIndiceDoBlob,
+  mapper as indiceDoBlobMapper,
+} from "./armazenamento/indice-na-copia";
+import {
   BACKUP_SCHEMA_MIN_VERSION,
   BACKUP_SCHEMA_VERSION,
   MAX_RESTORE_ROWS,
@@ -495,6 +501,14 @@ const envioDePropostaSchema = z.looseObject({
   envios: z.array(z.looseObject({})).max(100),
 });
 
+/** Uma linha do índice do Vercel Blob na cópia: a chave no espaço `blob:i:` e a linha. */
+const linhaDoIndiceSchema = z.looseObject({
+  key: z.string().max(700).refine(ehChaveDoIndice, {
+    message: "chave fora do índice do Vercel Blob (`blob:i:<balde>/<caminho>`)",
+  }),
+  value: z.looseObject({ t: z.number().min(0), c: z.string().max(64) }),
+});
+
 const counterSchema = z.object({
   year: z.number().int().min(1900).max(9999),
   n: z.number().int().min(0).max(1_000_000),
@@ -550,6 +564,13 @@ export interface RestoreTarget<T = Record<string, unknown>> {
    * nome em `failed`) e não é chamado sequer para um conjunto saltado.
    */
   replace?: (rows: T[]) => Promise<void>;
+  /**
+   * A escrita à medida JUNTA e não apaga (o índice do Vercel Blob, 17/11). O
+   * plano mostra-o assim — nenhum «apagados», nenhum «mais recentes do que a
+   * cópia» —, e uma cópia que não traga o conjunto (as anteriores a ele) não
+   * dá aviso: não há nada a perder.
+   */
+  junta?: boolean;
   /** Perda conhecida ao repor este conjunto neste ambiente, se houver. */
   lossWarning?: (rows: T[]) => string | null;
   /**
@@ -662,6 +683,20 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
       return typeof ultimo?.enviadoEm === "string" ? ultimo.enviadoEm : "";
     },
     replace: replaceEnviosDeProposta,
+  }),
+  // O índice do Vercel Blob (17/11). A reposição JUNTA e não apaga nada: uma
+  // cópia velha não conhece os ficheiros de ontem, e apagar-lhes a linha era
+  // escondê-los (ver `armazenamento/indice-na-copia.ts`).
+  asTarget({
+    key: "indiceDoBlob",
+    label: "Índice dos ficheiros no Vercel Blob",
+    table: indiceDoBlobMapper.table,
+    mapper: indiceDoBlobMapper,
+    schema: linhaDoIndiceSchema,
+    current: listIndiceDoBlob,
+    stamp: (l) => (typeof l.value?.c === "string" ? l.value.c : ""),
+    replace: juntarIndiceDoBlob,
+    junta: true,
   }),
   asTarget({
     key: "contracts",
@@ -1066,7 +1101,7 @@ export function validateBackupFile(raw: unknown): ValidationResult {
   for (const target of RESTORE_TARGETS) {
     const value = file[target.key];
     if (value === undefined) {
-      missing.push(target.key);
+      if (!target.junta) missing.push(target.key);
       continue;
     }
     if (!Array.isArray(value)) {
@@ -1242,7 +1277,8 @@ export async function planRestore(file: ValidBackup): Promise<RestorePlan> {
     );
 
     let newerThanBackup = 0;
-    for (const row of currentRows) {
+    // Um conjunto que junta não apaga o que é mais recente: fica fora da conta.
+    for (const row of target.junta ? [] : currentRows) {
       const at = target.stamp(row);
       const ms = at ? Date.parse(at) : Number.NaN;
       if (Number.isNaN(ms)) continue;
@@ -1256,7 +1292,7 @@ export async function planRestore(file: ValidBackup): Promise<RestorePlan> {
     let created = 0;
     for (const key of incomingIds) if (!currentIds.has(key)) created++;
     let removed = 0;
-    for (const key of currentIds) if (!incomingIds.has(key)) removed++;
+    if (!target.junta) for (const key of currentIds) if (!incomingIds.has(key)) removed++;
 
     datasets.push({
       key: target.key,
@@ -1269,6 +1305,7 @@ export async function planRestore(file: ValidBackup): Promise<RestorePlan> {
       removed: skipped ? 0 : removed,
       newerThanBackup,
       skipped,
+      ...(target.junta ? { junta: true } : {}),
     });
 
     if (!skipped && incomingRows) {

@@ -121,3 +121,68 @@ describe("«Hoje» passa a meia-noite", () => {
     }
   });
 });
+
+describe("«Hoje» e o Vercel Blob (revisão de 17/11, n.os 6 e 7)", () => {
+  it("o erro e os avisos do armazenamento aparecem, sem pedido novo além da verificação", async () => {
+    const { esquecerEstadoDoArmazenamento } = await import("./AvisoDeArmazenamento");
+    esquecerEstadoDoArmazenamento();
+    const pedidos: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        pedidos.push(String(url));
+        if (String(url).startsWith("/api/admin/armazenamento"))
+          return resposta({
+            avisar: false,
+            blob: {
+              erro: "Há ficheiros no Vercel Blob mas o token não está configurado (BLOB_READ_WRITE_TOKEN): x",
+              avisos: ["Vercel Blob: guardado 1,6 GB de 2 GB — perto do tecto."],
+            },
+          });
+        return resposta([]);
+      }),
+    );
+    render(<Hoje quotes={[]} propostas={[]} onOpen={vi.fn()} onGo={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText(/o token não está configurado/)).toBeTruthy());
+    expect(screen.getByText(/perto do tecto/)).toBeTruthy();
+    expect(screen.getByText("2 coisas")).toBeTruthy();
+    // Não são botões: não levam a lado nenhum.
+    expect(screen.queryByRole("button", { name: /token/ })).toBeNull();
+    expect(pedidos.filter((p) => p.startsWith("/api/admin/armazenamento"))).toHaveLength(1);
+    esquecerEstadoDoArmazenamento();
+  });
+});
+
+describe("«Hoje» e o painel do armazenamento montados juntos (2.ª revisão de 17/11, n.º 4)", () => {
+  it("uma só pergunta ao servidor — e uma falha não se repete a cada vez que o «Hoje» volta", async () => {
+    const { AvisoDeArmazenamento, esquecerEstadoDoArmazenamento } =
+      await import("./AvisoDeArmazenamento");
+    esquecerEstadoDoArmazenamento();
+    const pedidos: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        pedidos.push(String(url));
+        if (String(url).startsWith("/api/admin/armazenamento"))
+          return { ok: false, status: 500, headers: new Headers(), json: async () => ({}) };
+        return resposta([]);
+      }),
+    );
+    const doArmazenamento = () => pedidos.filter((p) => p.startsWith("/api/admin/armazenamento"));
+    const { unmount } = render(
+      <>
+        <AvisoDeArmazenamento />
+        <Hoje quotes={[]} propostas={[]} onOpen={vi.fn()} onGo={vi.fn()} />
+      </>,
+    );
+    await waitFor(() => expect(doArmazenamento()).toHaveLength(1));
+    unmount();
+    render(<Hoje quotes={[]} propostas={[]} onOpen={vi.fn()} onGo={vi.fn()} />);
+    render(<Hoje quotes={[]} propostas={[]} onOpen={vi.fn()} onGo={vi.fn()} />);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(doArmazenamento()).toHaveLength(1);
+    esquecerEstadoDoArmazenamento();
+  });
+});

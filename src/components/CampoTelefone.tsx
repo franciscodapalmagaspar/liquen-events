@@ -10,6 +10,7 @@ import {
   type Ref,
 } from "react";
 import type { Locale } from "@/lib/i18n/config";
+import { useEscritoAntesDeHidratar } from "@/lib/useJaHidratado";
 import { useTranslationsSeHouver } from "@/components/LocaleProvider";
 import {
   TEXTOS_DE_RECURSO,
@@ -520,6 +521,15 @@ export default function CampoTelefone({
   const idDaLista = `${id}-paises`;
   const srcBandeira = srcDaBandeira(campo.pais, bandeiras);
   const descritoPor = [erroVisivel ? idDoErro : "", describedBy ?? ""].filter(Boolean).join(" ");
+
+  // Um número escrito ANTES de a página hidratar fica no DOM mas não no
+  // estado: o campo escondido (`name`) seguia vazio e o próximo desenho
+  // apagava-o do ecrã. Entrega-se como se tivesse acabado de ser escrito.
+  useEscritoAntesDeHidratar(numeroRef, (escrito) => {
+    if (escrito === campo.numero) return;
+    setQuer(true);
+    entregar(escrito, campo.pais, tel);
+  });
 
   // O pai recebe o número (para lhe levar o foco quando é o primeiro erro).
   useImperativeHandle(inputRef, () => numeroRef.current as HTMLInputElement, []);

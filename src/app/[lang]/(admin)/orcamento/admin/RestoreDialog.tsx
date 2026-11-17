@@ -501,7 +501,10 @@ function RestoreDialogInner({ aSair, onClose, toast }: Omit<Props, "open"> & { a
                       >
                         Substituídos
                       </th>
-                      <th scope="col" className="px-3 py-2 text-right font-medium text-[var(--bo-perigo)]">
+                      <th
+                        scope="col"
+                        className="px-3 py-2 text-right font-medium text-[var(--bo-perigo)]"
+                      >
                         Apagados
                       </th>
                     </tr>
@@ -534,10 +537,12 @@ function RestoreDialogInner({ aSair, onClose, toast }: Omit<Props, "open"> & { a
                         </td>
                         <td
                           className={`px-3 py-2 text-right tabular-nums ${
-                            d.removed > 0 ? "font-medium text-[var(--bo-perigo)]" : "text-foreground/40"
+                            d.removed > 0
+                              ? "font-medium text-[var(--bo-perigo)]"
+                              : "text-foreground/40"
                           }`}
                         >
-                          {d.skipped ? "—" : d.removed}
+                          {d.skipped ? "—" : d.junta ? "junta, não apaga" : d.removed}
                         </td>
                       </tr>
                     ))}

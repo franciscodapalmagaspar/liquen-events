@@ -86,6 +86,33 @@ describe("as fotografias reduzidas ficam guardadas fora da memória", () => {
     expect(segundo.missingImages).toBe(0);
   });
 
+  /**
+   * A limpeza da noite apaga esta cache pela idade e pelo tecto
+   * (`limpar-fotos-tratadas.ts`, 17/11). Só pode, porque o desenho a refaz
+   * sozinho quando falta: volta ao original, reduz, desenha o PDF sem faltar
+   * nada, e volta a guardar EXACTAMENTE os mesmos bytes.
+   */
+  it("a cache apagada (o que a limpeza faz) refaz-se sozinha, com os mesmos bytes", async () => {
+    fetchProposalImageBytes.mockResolvedValue(foto);
+    const d = doc(["proposal-assets/q1/a.jpg", "proposal-assets/q1/b.jpg"]);
+    await renderStoredEditorialPdfWithReport(d, "pt");
+    const antes = new Map(guardadas);
+    expect(antes.size).toBeGreaterThan(0);
+
+    // A noite apaga o balde todo; a instância seguinte começa sem memória.
+    guardadas.clear();
+    esvaziarFotosEditoriais();
+    fetchProposalImageBytes.mockClear();
+    const depois = await renderStoredEditorialPdfWithReport(d, "pt");
+
+    expect(depois.missingImages, "faltou uma fotografia depois de a cache sair").toBe(0);
+    expect(fetchProposalImageBytes, "não voltou ao original").toHaveBeenCalledTimes(2);
+    expect([...guardadas.keys()].sort()).toEqual([...antes.keys()].sort());
+    for (const [chave, bytes] of antes) {
+      expect(Buffer.compare(guardadas.get(chave)!, bytes), `${chave} saiu diferente`).toBe(0);
+    }
+  });
+
   it("uma imagem embutida (data:) não vai para o armazenamento", async () => {
     const embutida = `data:image/jpeg;base64,${foto.toString("base64")}`;
     const d = doc([embutida]);

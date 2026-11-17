@@ -1,6 +1,11 @@
 import "server-only";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { getState, setState, type ResultadoDeEscrita } from "./app-state";
+import {
+  getState,
+  gravarEstadoSeNaoMudou,
+  lerEstadoComVersao,
+  type VersaoDoEstado,
+} from "./app-state";
 import { log } from "./logger";
 
 /**
@@ -78,6 +83,32 @@ export interface RegistoDeRecuperacao {
   pedidos: Record<string, PedidoDeRecuperacao>;
   /** email normalizado → palavra-passe redefinida. */
   senhas: Record<string, SenhaRedefinida>;
+  /**
+   * email normalizado → instante da última redefinição pela recuperação. As
+   * passkeys dessa conta registadas ANTES dele deixam de abrir a porta.
+   *
+   * Separado da `senhas` de propósito: rodar o hash no `ADMIN_USERS` desliga a
+   * palavra-passe redefinida (ver `substituiu`), mas não pode ressuscitar um
+   * aparelho que se fechou por desconfiança.
+   */
+  passkeysDesde: Record<string, number>;
+  /**
+   * marcador do pedido → instante. Cada pedido de ligação — tenha o endereço
+   * conta ou não — deixa aqui um marcador ALEATÓRIO e único (revisão de 16/11,
+   * n.º 1). É o que uma escrita que respondeu tarde procura na releitura, e
+   * por ser igual nos dois casos o mesmo atraso dá a mesma resposta (e o mesmo
+   * número de idas à base de dados) a um endereço real e a um inventado. Vive
+   * {@link VIDA_DAS_MARCAS_MS} e nunca passa de {@link MAX_MARCAS}.
+   */
+  marcas: Record<string, number>;
+}
+
+export const VIDA_DAS_MARCAS_MS = 10 * 60_000;
+export const MAX_MARCAS = 50;
+
+/** Um marcador de pedido: 12 bytes aleatórios. Não abre nada, só se procura. */
+export function novaMarca(): string {
+  return randomBytes(12).toString("base64url");
 }
 
 /** 32 bytes de aleatoriedade criptográfica — 43 caracteres seguros num URL. */
@@ -140,31 +171,163 @@ function tabelaSemHeranca<T>(origem: unknown): Record<string, T> {
 }
 
 export function registoVazio(): RegistoDeRecuperacao {
-  return { pedidos: tabelaSemHeranca(null), senhas: tabelaSemHeranca(null) };
+  return {
+    pedidos: tabelaSemHeranca(null),
+    senhas: tabelaSemHeranca(null),
+    passkeysDesde: tabelaSemHeranca(null),
+    marcas: tabelaSemHeranca(null),
+  };
 }
 
-export async function lerRegisto(): Promise<RegistoDeRecuperacao> {
-  // Para MUDAR e voltar a gravar: uma leitura falhada lança em vez de dar um
-  // registo vazio — senão o pedido seguinte gravava-o vazio e as
-  // palavras-passe redefinidas desapareciam (auditoria de 13/11).
-  const guardado = await getState<Partial<RegistoDeRecuperacao>>(CHAVE_ESTADO, { ouFalha: true });
+/** Só os instantes que são números: o que vem da base não decide forma nenhuma. */
+function soInstantes(origem: unknown): Record<string, number> {
+  const limpa = tabelaSemHeranca<number>(null);
+  for (const [k, v] of Object.entries(tabelaSemHeranca<unknown>(origem))) {
+    if (typeof v === "number" && Number.isFinite(v)) limpa[k] = v;
+  }
+  return limpa;
+}
+
+function registoDe(guardado: Partial<RegistoDeRecuperacao> | null): RegistoDeRecuperacao {
   if (!guardado || typeof guardado !== "object") return registoVazio();
   return {
     pedidos: tabelaSemHeranca<PedidoDeRecuperacao>(guardado.pedidos),
     senhas: tabelaSemHeranca<SenhaRedefinida>(guardado.senhas),
+    passkeysDesde: soInstantes(guardado.passkeysDesde),
+    marcas: soInstantes(guardado.marcas),
   };
 }
 
+/** Só para LER (a entrada, as passkeys). Para mudar, {@link mudarRegisto}. */
+export async function lerRegisto(): Promise<RegistoDeRecuperacao> {
+  // Uma leitura falhada lança em vez de dar um registo vazio: quem lê tem de
+  // saber que não sabe (auditoria de 13/11).
+  const guardado = await getState<Partial<RegistoDeRecuperacao>>(CHAVE_ESTADO, { ouFalha: true });
+  return registoDe(guardado);
+}
+
 /**
- * Grava, e diz onde ficou.
- *
- * Quem chama TEM de olhar para o resultado: em produção sem Supabase a escrita
- * cai no disco efémero da função (`duradouro: false`) e um token que não
- * sobrevive ao pedido seguinte é um email que promete uma coisa que não existe.
- * Ver o comentário grande do `app-state.ts`.
+ * Uma leitura com TECTO, para quem está à espera numa entrada (as passkeys —
+ * revisão de 16/11, n.º 7). O `lerRegisto` usa as três tentativas do
+ * `getState`, que com o Supabase pendurado podiam deixar a pessoa ~24 s a
+ * olhar para o ecrã. Aqui é UMA leitura, cortada a `tectoMs`; passar do tecto
+ * lança, como uma leitura falhada.
  */
-export async function gravarRegisto(registo: RegistoDeRecuperacao): Promise<ResultadoDeEscrita> {
-  return setState(CHAVE_ESTADO, registo);
+export async function lerRegistoComTecto(tectoMs: number): Promise<RegistoDeRecuperacao> {
+  let relogio: ReturnType<typeof setTimeout> | undefined;
+  const leitura = lerEstadoComVersao<Partial<RegistoDeRecuperacao>>(CHAVE_ESTADO, tectoMs);
+  // Se perder a corrida e falhar depois, não fica uma rejeição sem dono.
+  leitura.catch(() => undefined);
+  try {
+    const { valor } = await Promise.race([
+      leitura,
+      new Promise<never>((_, recusa) => {
+        relogio = setTimeout(() => recusa(new Error("tecto da leitura")), tectoMs);
+      }),
+    ]);
+    return registoDe(valor);
+  } finally {
+    if (relogio) clearTimeout(relogio);
+  }
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * LER-MUDAR-GRAVAR, COM ESCRITA CONDICIONAL (auditoria de 16/11, n.º 4)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O registo é UM documento com todos os pedidos e todas as senhas. Gravá-lo
+ * inteiro sem olhar fazia com que dois pedidos ao mesmo tempo partissem do
+ * mesmo registo, e o segundo a gravar apagasse o que o primeiro escreveu: uma
+ * ligação que já ia no email deixava de abrir, ou uma palavra-passe acabada de
+ * definir desaparecia.
+ *
+ * Agora, como nas `sessoes-revogadas`: lê-se com a versão, aplica-se a
+ * mudança, e grava-se SÓ se ninguém tiver escrito entretanto. Se escreveu,
+ * relê-se e aplica-se a mudança outra vez, por cima do que lá está (até
+ * {@link TENTATIVAS_DE_ESCRITA}). Por isso `mudar` tem de poder correr mais de
+ * uma vez sobre registos diferentes — não guarda nada fora de si a não ser o
+ * que for igual em todas as voltas.
+ *
+ * `mudar` diz se há o que gravar. «falhou» quando a escrita não se fez ou não
+ * DURA (em produção sem Supabase, o disco efémero da função: um token que não
+ * sobrevive ao pedido seguinte é um email que promete o que não existe).
+ *
+ * ── UMA ESCRITA QUE CHEGA DEPOIS DO TECTO (revisão de 16/11, n.º 6) ─────────
+ * O tecto corta a ESPERA, não o UPDATE: com o Supabase lento, a escrita podia
+ * ficar feita depois de o tecto ter dito «falhou» — e a pessoa via «não foi
+ * possível guardar» com a palavra-passe nova já a valer, e sem as sessões
+ * antigas fechadas. Por isso o tecto subiu para 8 s, e quando a escrita dá
+ * «falhou» RELÊ-SE: se o que se queria gravar já lá está (`jaEsta`), conta
+ * como gravado e quem chama continua.
+ */
+const TENTATIVAS_DE_ESCRITA = 4;
+export const TECTO_DA_ESCRITA_MS = 8_000;
+
+export type ResultadoDaMudanca<T> =
+  | { estado: "gravado"; valor: T }
+  | { estado: "sem-escrita"; valor: T }
+  | { estado: "sem-leitura" }
+  | { estado: "falhou" };
+
+export interface Mudanca<T> {
+  gravar: boolean;
+  valor: T;
+  /**
+   * O que se queria gravar já está neste registo? Só se pergunta depois de
+   * uma escrita que deu «falhou». Sem ela, um «falhou» é sempre falha.
+   */
+  jaEsta?: (registo: RegistoDeRecuperacao) => boolean;
+}
+
+export async function mudarRegisto<T>(
+  mudar: (registo: RegistoDeRecuperacao, agora: number) => Mudanca<T>,
+): Promise<ResultadoDaMudanca<T>> {
+  for (let tentativa = 1; tentativa <= TENTATIVAS_DE_ESCRITA; tentativa++) {
+    let lido: { valor: Partial<RegistoDeRecuperacao> | null; versao: VersaoDoEstado };
+    try {
+      lido = await lerEstadoComVersao<Partial<RegistoDeRecuperacao>>(
+        CHAVE_ESTADO,
+        TECTO_DA_ESCRITA_MS,
+      );
+    } catch (err) {
+      // Sem ler, não se grava por cima: perder-se-iam as senhas que lá estão.
+      log.error("recuperação: não foi possível ler o registo — nada se grava", err);
+      return { estado: "sem-leitura" };
+    }
+    const registo = registoDe(lido.valor);
+    const agora = Date.now();
+    limparExpirados(registo, agora);
+    const { gravar, valor, jaEsta } = mudar(registo, agora);
+    if (!gravar) return { estado: "sem-escrita", valor };
+
+    const r = await gravarEstadoSeNaoMudou(CHAVE_ESTADO, registo, lido.versao, TECTO_DA_ESCRITA_MS);
+    if (r === "gravado") return { estado: "gravado", valor };
+    if (r === "falhou") {
+      if (jaEsta && (await ficouGravado(jaEsta))) {
+        log.warn("recuperação: a escrita respondeu tarde, mas ficou feita");
+        return { estado: "gravado", valor };
+      }
+      return { estado: "falhou" };
+    }
+    // Conflito: alguém escreveu entretanto. Pausa curta e desigual, e outra vez.
+    await new Promise((res) => setTimeout(res, tentativa * 10 + Math.random() * 20));
+  }
+  log.error("recuperação: o registo não parou de mudar — nada se gravou");
+  return { estado: "falhou" };
+}
+
+/** Relê o registo e pergunta se a escrita que «falhou» afinal ficou. */
+async function ficouGravado(jaEsta: (registo: RegistoDeRecuperacao) => boolean): Promise<boolean> {
+  try {
+    const { valor } = await lerEstadoComVersao<Partial<RegistoDeRecuperacao>>(
+      CHAVE_ESTADO,
+      TECTO_DA_ESCRITA_MS,
+    );
+    return jaEsta(registoDe(valor));
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -179,6 +342,15 @@ export function limparExpirados(registo: RegistoDeRecuperacao, agora = Date.now(
     if (!pedido || typeof pedido.expiraEm !== "number" || pedido.expiraEm <= agora) {
       delete registo.pedidos[email];
     }
+  }
+  // Os marcadores dos pedidos: só servem enquanto uma escrita pode responder
+  // tarde. Saem os velhos e, acima do tecto, os mais antigos.
+  for (const [marca, quando] of Object.entries(registo.marcas)) {
+    if (quando <= agora - VIDA_DAS_MARCAS_MS) delete registo.marcas[marca];
+  }
+  const vivas = Object.entries(registo.marcas).sort((a, b) => a[1] - b[1]);
+  for (const [marca] of vivas.slice(0, Math.max(0, vivas.length - MAX_MARCAS))) {
+    delete registo.marcas[marca];
   }
 }
 

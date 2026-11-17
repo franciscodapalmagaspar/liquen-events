@@ -4,6 +4,8 @@ import path from "node:path";
 import { esc, type Attachment } from "./mail";
 import { SITE } from "./site";
 import { log } from "./logger";
+import { rodapeLegalDoEmail, type Finalidade } from "./email-rodape-legal";
+import type { Lingua } from "./legal/textos-legais";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -464,23 +466,33 @@ export function emailAoCliente({
   html,
   texto,
   quem,
+  rodapeLegal,
 }: {
   html: string;
   texto: string;
   /** Quem envia (e quem recebe, para a protecção). Ausente → assina a casa. */
   quem?: QuemAssina;
+  /**
+   * O rodapé legal (`email-rodape-legal.ts`, pedido de 17/11): a língua do
+   * cliente e a finalidade deste e-mail. Obrigatório de propósito — quem
+   * escreve uma rota nova tem de decidir. `null` só quando quem recebe NÃO é
+   * o cliente (o mapa de mesas mandado à quinta ou ao catering).
+   */
+  rodapeLegal: { lingua: Lingua; finalidade: Finalidade } | null;
 }): {
   html: string;
   text: string;
   attachments: Attachment[];
 } {
   const assinatura = assinaturaDeEmail(quem);
+  const legal = rodapeLegal ? rodapeLegalDoEmail(rodapeLegal) : { html: "", texto: "" };
   return {
     html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:${TINTA}">
 ${html}
 ${assinatura.html}
+${legal.html}
 </div>`,
-    text: `${texto}\n\n${assinatura.texto}`,
+    text: `${texto}\n\n${assinatura.texto}${legal.texto ? `\n${legal.texto}` : ""}`,
     attachments: assinatura.anexos,
   };
 }

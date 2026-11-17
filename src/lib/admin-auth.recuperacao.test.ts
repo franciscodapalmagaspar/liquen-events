@@ -29,6 +29,15 @@ const estado = vi.hoisted(() => ({
   escritas: 0,
   recusaEscrita: false,
   duradouro: true,
+  falhaLeitura: false,
+  /** A leitura nunca responde (Supabase pendurado). */
+  leituraPendurada: false,
+  /** A escrita fica feita, mas a resposta chega depois do tecto («falhou»). */
+  gravaMasFalha: false,
+  leiturasComVersao: 0,
+  /** Quantas das próximas leituras com versão falham antes de responder. */
+  falhasSeguidas: 0,
+  tectos: [] as number[],
 }));
 
 vi.mock("./app-state", () => ({
@@ -37,10 +46,13 @@ vi.mock("./app-state", () => ({
   // referência guardada fazia uma escrita RECUSADA parecer aplicada — o
   // contrário exacto do que estes testes existem para provar.
   getState: vi.fn(async (k: string) => {
+    if (estado.leituraPendurada) return new Promise<never>(() => {});
+    if (estado.falhaLeitura) throw new Error("leitura falhou");
     const v = estado.mapa.get(k);
     return v === undefined ? null : JSON.parse(JSON.stringify(v));
   }),
   setState: vi.fn(async (k: string, v: unknown) => {
+    await new Promise((r) => process.nextTick(r));
     estado.escritas++;
     if (estado.recusaEscrita) {
       return { gravado: false, duradouro: false, onde: "nenhures", motivo: "escrita-recusada" };
@@ -53,18 +65,34 @@ vi.mock("./app-state", () => ({
   // A leitura com versão e a escrita condicional (o registo das sessões
   // revogadas). A versão é o valor em JSON, como no ficheiro.
   lerEstadoComVersao: vi.fn(async (k: string) => {
+    estado.leiturasComVersao++;
+    if (estado.falhasSeguidas > 0) {
+      estado.falhasSeguidas--;
+      throw new Error("falha passageira");
+    }
+    if (estado.leituraPendurada) return new Promise<never>(() => {});
+    if (estado.falhaLeitura) throw new Error("leitura falhou");
     const v = estado.mapa.get(k);
     return v === undefined
       ? { valor: null, versao: null }
       : { valor: JSON.parse(JSON.stringify(v)), versao: JSON.stringify(v) };
   }),
-  gravarEstadoSeNaoMudou: vi.fn(async (k: string, v: unknown, versao: string | null) => {
-    const atual = estado.mapa.get(k);
-    if ((atual === undefined ? null : JSON.stringify(atual)) !== versao) return "conflito";
-    if (estado.recusaEscrita) return "falhou";
-    estado.mapa.set(k, JSON.parse(JSON.stringify(v)));
-    return "gravado";
-  }),
+  // Como o verdadeiro: um disco que não DURA (o efémero da função) é «falhou».
+  gravarEstadoSeNaoMudou: vi.fn(
+    async (k: string, v: unknown, versao: string | null, tectoMs?: number) => {
+      if (tectoMs !== undefined) estado.tectos.push(tectoMs);
+      // Uma volta ao ciclo de eventos, como uma ida à base de dados: é o que
+      // deixa dois pedidos ao mesmo tempo lerem antes de qualquer um gravar.
+      await new Promise((r) => process.nextTick(r));
+      const atual = estado.mapa.get(k);
+      if ((atual === undefined ? null : JSON.stringify(atual)) !== versao) return "conflito";
+      estado.escritas++;
+      if (estado.recusaEscrita || !estado.duradouro) return "falhou";
+      estado.mapa.set(k, JSON.parse(JSON.stringify(v)));
+      if (estado.gravaMasFalha && k === "admin-recuperacao") return "falhou";
+      return "gravado";
+    },
+  ),
 }));
 
 import {
@@ -75,6 +103,7 @@ import {
   nomeVisivel,
   pedirRecuperacao,
   definirPalavraPasseComToken,
+  passkeyAindaVale,
   subKey,
 } from "./admin-auth";
 
@@ -101,6 +130,12 @@ beforeEach(() => {
   estado.escritas = 0;
   estado.recusaEscrita = false;
   estado.duradouro = true;
+  estado.falhaLeitura = false;
+  estado.gravaMasFalha = false;
+  estado.leiturasComVersao = 0;
+  estado.falhasSeguidas = 0;
+  estado.leituraPendurada = false;
+  estado.tectos = [];
   comContas(CONTAS);
 });
 
@@ -257,6 +292,40 @@ describe("recuperação — a ligação", () => {
     );
   });
 
+  it("dois pedidos ao mesmo tempo não se apagam um ao outro (escrita condicional)", async () => {
+    // Os dois leem o mesmo registo; sem escrita condicional, o segundo a gravar
+    // deitava fora o pedido do primeiro — e a ligação que já ia no email dele
+    // deixava de abrir, sem ninguém saber porquê.
+    const [a, b] = await Promise.all([
+      pedirRecuperacao("catarina@liquen-events.com"),
+      pedirRecuperacao("rui@liquen-events.com"),
+    ]);
+    if (a.estado !== "emitido" || b.estado !== "emitido") throw new Error("esperava dois tokens");
+    const guardado = estado.mapa.get("admin-recuperacao") as { pedidos: Record<string, unknown> };
+    expect(Object.keys(guardado.pedidos).sort()).toEqual([
+      "catarina@liquen-events.com",
+      "rui@liquen-events.com",
+    ]);
+  });
+
+  it("uma definição e um pedido ao mesmo tempo não se apagam um ao outro", async () => {
+    const r = await pedirRecuperacao("catarina@liquen-events.com");
+    if (r.estado !== "emitido") throw new Error("esperava um token");
+    const [definida, doRui] = await Promise.all([
+      definirPalavraPasseComToken(r.token, "a-minha-frase-nova"),
+      pedirRecuperacao("rui@liquen-events.com"),
+    ]);
+    expect(definida.estado).toBe("definida");
+    expect(doRui.estado).toBe("emitido");
+    expect(
+      await verifyCredentials("catarina@liquen-events.com", "a-minha-frase-nova"),
+    ).toMatchObject({ name: "Catarina" });
+    if (doRui.estado !== "emitido") return;
+    expect((await definirPalavraPasseComToken(doRui.token, "frase-nova-do-rui")).estado).toBe(
+      "definida",
+    );
+  });
+
   it("recusa uma palavra-passe curta antes de gravar seja o que for", async () => {
     const r = await pedirRecuperacao("catarina@liquen-events.com");
     if (r.estado !== "emitido") throw new Error("esperava um token");
@@ -294,6 +363,88 @@ describe("recuperação — a palavra-passe nova", () => {
     expect((await redefinir("a-minha-frase-nova")).estado).toBe("definida");
     expect(await sessaoValida(antiga)).toBeNull();
     expect(await sessaoValida(doRui)).toEqual({ name: "Rui" });
+  });
+
+  it("as passkeys da conta registadas ANTES deixam de valer; as outras continuam", async () => {
+    // Muda-se a palavra-passe pela recuperação quando se desconfia de quem a
+    // tem — e quem a teve pode ter registado um aparelho seu entretanto.
+    const antes = new Date(Date.now() - 60_000).toISOString();
+    expect(await passkeyAindaVale("Catarina", antes)).toBe("vale");
+    expect((await redefinir("a-minha-frase-nova")).estado).toBe("definida");
+    expect(await passkeyAindaVale("Catarina", antes)).toBe("antiga");
+    // A do Rui não é desta conta.
+    expect(await passkeyAindaVale("Rui", antes)).toBe("vale");
+    // Registada depois (ela volta a registar o aparelho): vale.
+    expect(await passkeyAindaVale("Catarina", new Date(Date.now() + 1000).toISOString())).toBe(
+      "vale",
+    );
+  });
+
+  it("sem conseguir ler o registo, a passkey de uma conta com recuperação não entra", async () => {
+    estado.falhaLeitura = true;
+    expect(await passkeyAindaVale("Catarina", new Date().toISOString())).toBe("indisponivel");
+  });
+
+  it("uma falha passageira na 1.ª leitura não fecha a passkey: há uma 2.ª tentativa (revisão de 16/11, n.º 5)", async () => {
+    expect((await redefinir("a-minha-frase-nova")).estado).toBe("definida");
+    estado.falhasSeguidas = 1;
+    expect(await passkeyAindaVale("Catarina", new Date(Date.now() + 1000).toISOString())).toBe(
+      "vale",
+    );
+    estado.falhasSeguidas = 2;
+    expect(await passkeyAindaVale("Catarina", new Date().toISOString())).toBe("indisponivel");
+  });
+
+  it("uma leitura pendurada não prende a entrada mais de ~2,5 s (revisão de 16/11, n.º 7)", async () => {
+    estado.leituraPendurada = true;
+    const inicio = Date.now();
+    expect(await passkeyAindaVale("Catarina", new Date().toISOString())).toBe("indisponivel");
+    expect(Date.now() - inicio).toBeLessThan(4_000);
+  }, 10_000);
+
+  it("o UPDATE que acaba depois do tecto conta como feito, se o que se queria lá está (revisão de 16/11, n.º 6)", async () => {
+    const { sessaoValida, esquecerRevogacoesEmMemoria } = await import("./sessoes-revogadas");
+    esquecerRevogacoesEmMemoria();
+    const antiga = createSession("Catarina");
+    await new Promise((r) => setTimeout(r, 2));
+    const r = await pedirRecuperacao("catarina@liquen-events.com");
+    if (r.estado !== "emitido") throw new Error("esperava um token");
+    // Só a escrita do REGISTO DA RECUPERAÇÃO chega tarde; a das sessões não.
+    estado.gravaMasFalha = true;
+    const feito = await definirPalavraPasseComToken(r.token, "a-minha-frase-nova");
+    expect(feito.estado).toBe("definida");
+    expect(
+      await verifyCredentials("catarina@liquen-events.com", "a-minha-frase-nova"),
+    ).toMatchObject({ name: "Catarina" });
+    // E continuou: as sessões antigas foram fechadas.
+    expect(await sessaoValida(antiga)).toBeNull();
+  });
+
+  it("uma escrita que responde tarde dá a MESMA resposta a um endereço real e a um inexistente (revisão de 16/11, n.º 1)", async () => {
+    estado.gravaMasFalha = true;
+    estado.leiturasComVersao = 0;
+    const real = await pedirRecuperacao("catarina@liquen-events.com");
+    const idasReal = estado.leiturasComVersao;
+    estado.leiturasComVersao = 0;
+    const inexistente = await pedirRecuperacao("ninguem@exemplo.pt");
+    const idasInexistente = estado.leiturasComVersao;
+    // O mesmo atraso não pode separar os dois casos: nem pelo desfecho que a
+    // rota transforma em 200/503, nem pelo número de idas à base de dados.
+    expect(real.estado === "sem-persistencia").toBe(inexistente.estado === "sem-persistencia");
+    expect(real.estado).not.toBe("sem-persistencia");
+    expect(idasReal).toBe(idasInexistente);
+  });
+
+  it("os marcadores dos pedidos não fazem crescer o registo", async () => {
+    for (let i = 0; i < 60; i++) await pedirRecuperacao(`inventado-${i}@exemplo.pt`);
+    const guardado = estado.mapa.get("admin-recuperacao") as { marcas: Record<string, number> };
+    // O tecto (50) aplica-se antes de cada pedido acrescentar o seu.
+    expect(Object.keys(guardado.marcas).length).toBeLessThanOrEqual(51);
+  });
+
+  it("o tecto da escrita do registo é de 8 s", async () => {
+    await pedirRecuperacao("catarina@liquen-events.com");
+    expect(estado.tectos).toContain(8_000);
   });
 
   it("não toca nas outras contas", async () => {

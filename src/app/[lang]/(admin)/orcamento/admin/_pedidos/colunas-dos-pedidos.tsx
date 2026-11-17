@@ -11,6 +11,7 @@ import PerguntaDeDesfecho from "../PerguntaDeDesfecho";
 import type { Coluna } from "../ui";
 import { eventCountdown } from "../util";
 import { PastilhaDoEstado } from "./pastilha-do-estado";
+import { EtiquetaPossivelSpam } from "../EtiquetaPossivelSpam";
 
 /**
  * AS COLUNAS DOS PEDIDOS — a forma de computador da mesma lista.
@@ -90,6 +91,7 @@ export function COLUNAS_DE_PEDIDOS(ctx: {
             {q.name}
           </span>
           <span className="block truncate text-[11px] text-foreground/45">{q.email}</span>
+          <EtiquetaPossivelSpam valor={q.possivelSpam} className="mt-1" />
         </span>
       ),
     },

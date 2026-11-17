@@ -6,14 +6,14 @@ import { semAnaliticos } from "@/lib/safe-path";
 import Link from "next/link";
 import { localizeHref, type Locale } from "@/lib/i18n/config";
 import { ALTURA_BARRA_FIXA_PX, ehRotaSocial } from "@/lib/meta/barra";
+import { aoMudarConsentimento } from "@/lib/meta/click-id";
+import { aplicarConsentimentoGoogle } from "@/components/GoogleTag";
 
 // Minimal RGPD cookie-consent bar. It only governs the Google tag's Consent
 // Mode signals (ad/analytics cookies) — the site's own first-party essentials
 // don't need consent. Shown once; the choice is stored in localStorage and
 // mirrored into gtag('consent','update',…). Denied by default (see GoogleTag),
 // so doing nothing = no ad cookies.
-type Gtag = (...args: unknown[]) => void;
-
 /**
  * ── PORQUE É QUE ESTE TEXTO ENCOLHEU ──────────────────────────────────────
  * Era o dobro disto, e a barra media 191 px num telemóvel de 390×844 — 23% do
@@ -150,17 +150,12 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
     } catch {
       /* ignore */
     }
-    const gtag = (window as unknown as { gtag?: Gtag }).gtag;
-    gtag?.("consent", "update", {
-      ad_storage: value,
-      ad_user_data: value,
-      ad_personalization: value,
-      analytics_storage: value,
-    });
-    // O pixel da Meta não tem Consent Mode: ou existe, ou não existe. Este
-    // aviso é o que o faz nascer no instante em que a pessoa aceita, sem ela
-    // ter de recarregar a página. O `storage` do browser só chega a OUTROS
-    // separadores, por isso não servia para isto.
+    // A Google (Consent Mode, `ga-disable`, cookies, o gclid) e a Meta (o
+    // fbclid em memória, os cookies do pixel, `fbq('consent', …)`), aplicados
+    // AGORA, neste separador. Os outros separadores apanham a mudança pelo
+    // evento `storage` (`GoogleTag`, `MetaPixel`). Auditoria legal, 17/11.
+    aplicarConsentimentoGoogle(granted);
+    aoMudarConsentimento(granted);
     try {
       window.dispatchEvent(new Event("liquen:consent-changed"));
     } catch {

@@ -48,4 +48,7 @@ export interface NavegacaoDasVistas {
   setPropostaPara: Dispatch<SetStateAction<string | null>>;
   setNewQuoteOpen: Dispatch<SetStateAction<boolean>>;
   pedidoDeNovaTarefa: number;
+  /** O último pedido de nova tarefa que as Tarefas já serviram. */
+  novaTarefaServida: number;
+  setNovaTarefaServida: Dispatch<SetStateAction<number>>;
 }

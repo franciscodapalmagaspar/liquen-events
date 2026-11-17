@@ -26,9 +26,11 @@ import { listarDefinicoes } from "@/lib/proposta-definicoes-store";
 import { listarServicos } from "@/lib/servicos-catalogo-store";
 import { listProposalDrafts } from "@/lib/proposal-drafts";
 import { listEnviosDeProposta } from "@/lib/envios-de-proposta";
+import { listIndiceDoBlob } from "@/lib/armazenamento/indice-na-copia";
 import { registarCopiaEnviada } from "@/lib/copia-de-seguranca-marcador";
 import { getSupabase } from "@/lib/supabase";
 import { log } from "@/lib/logger";
+import { eRelogioAdiantado } from "@/lib/repository";
 
 export const runtime = "nodejs";
 // Lê treze conjuntos de dados inteiros. O gémeo agendado já pedia 60.
@@ -188,6 +190,14 @@ export const BACKUP_DATASETS: readonly BackupDataset[] = [
     table: "app_state",
     list: listEnviosDeProposta,
   },
+  // O índice do Vercel Blob (`blob:i:…`, 17/11): a única lista do que está no
+  // Blob, que nunca se lista no dia a dia. Sem ele, uma base reposta deixava
+  // os ficheiros lá, pagos e invisíveis. Ver `armazenamento/indice-na-copia.ts`.
+  {
+    key: "indiceDoBlob",
+    table: "app_state",
+    list: listIndiceDoBlob,
+  },
 ] as const;
 
 /**
@@ -228,7 +238,7 @@ export const NOT_BACKED_UP: Readonly<Record<string, string>> = {
  */
 export const PARTIALLY_BACKED_UP: Readonly<Record<string, string>> = {
   app_state:
-    "Desta tabela vão na cópia APENAS dois espaços de nomes: os rascunhos do Estúdio de Propostas (chaves `proposal-draft:…`, conjunto `proposalDrafts`), porque as propostas por acabar são trabalho de horas que não existe em mais lado nenhum; e as cópias dos emails de proposta enviados (chaves `envio-de-proposta:…`, conjunto `proposalEmails`), porque o que foi escrito ao casal também não existe em mais lado nenhum — o modelo guardado é o ponto de partida e pode ter sido reescrito para aquele casal. Fica DE FORA todo o resto, que são marcadores de funcionamento — os fechos já enviados à Meta e o contador de faturas de DESENVOLVIMENTO (em produção a numeração está em `invoice_counters`, essa sim na cópia, e é a que tem valor legal). Fica de fora também o tempo activo por proposta (chaves `tempo-activo:…`, ver `tempo-activo-servidor.ts`): é uma MEDIÇÃO de como a casa trabalha, não trabalho da casa — perdida, volta a acumular-se a partir do zero na proposta seguinte, e nenhuma proposta fica pior por causa disso. Copiá-la obrigaria a repor números de esforço ao lado de dados de negócio numa reposição em que a atenção tem de estar toda nos segundos. Ficam de fora, por fim, os MODELOS reutilizáveis — os de proposta (chave `proposal-templates`) e os de guião do dia (chave `guiao-templates`): são pontos de partida e não trabalho de um cliente, e cada um deles refaz-se em segundos a partir de uma proposta ou de um guião reais, que esses vão na cópia. Não é esquecimento: repor marcadores de operação de há dois meses faz a Meta receber conversões repetidas — ruído numa reposição em que a atenção tem de estar toda nos dados. Perdidos, refazem-se sozinhos com um aviso repetido, no máximo.",
+    "Desta tabela vão na cópia APENAS três espaços de nomes: os rascunhos do Estúdio de Propostas (chaves `proposal-draft:…`, conjunto `proposalDrafts`), porque as propostas por acabar são trabalho de horas que não existe em mais lado nenhum; e as cópias dos emails de proposta enviados (chaves `envio-de-proposta:…`, conjunto `proposalEmails`), porque o que foi escrito ao casal também não existe em mais lado nenhum — o modelo guardado é o ponto de partida e pode ter sido reescrito para aquele casal; e o índice do Vercel Blob (chaves `blob:i:…`, conjunto `indiceDoBlob`), a única lista do que lá está — sem ele, os ficheiros ficavam no Blob, pagos e invisíveis. Fica DE FORA todo o resto, que são marcadores de funcionamento — os fechos já enviados à Meta e o contador de faturas de DESENVOLVIMENTO (em produção a numeração está em `invoice_counters`, essa sim na cópia, e é a que tem valor legal). Fica de fora também o tempo activo por proposta (chaves `tempo-activo:…`, ver `tempo-activo-servidor.ts`): é uma MEDIÇÃO de como a casa trabalha, não trabalho da casa — perdida, volta a acumular-se a partir do zero na proposta seguinte, e nenhuma proposta fica pior por causa disso. Copiá-la obrigaria a repor números de esforço ao lado de dados de negócio numa reposição em que a atenção tem de estar toda nos segundos. Ficam de fora, por fim, os MODELOS reutilizáveis — os de proposta (chave `proposal-templates`) e os de guião do dia (chave `guiao-templates`): são pontos de partida e não trabalho de um cliente, e cada um deles refaz-se em segundos a partir de uma proposta ou de um guião reais, que esses vão na cópia. Não é esquecimento: repor marcadores de operação de há dois meses faz a Meta receber conversões repetidas — ruído numa reposição em que a atenção tem de estar toda nos dados. Perdidos, refazem-se sozinhos com um aviso repetido, no máximo.",
 };
 
 /**
@@ -250,6 +260,69 @@ const README = [
   "PARA REPOR: back office → Backup → Repor cópia (POST /api/backup/restore). Carregar o ficheiro mostra primeiro um ENSAIO — o que aconteceria, sem escrever nada — e a reposição real exige uma frase escrita à mão. Repor SUBSTITUI o conteúdo de cada conjunto e faz antes uma cópia do estado actual, que é entregue para o caso de a reposição ter sido um engano. Os campos aqui estão como a aplicação os usa (`quoteId`, `clientName`), não como as colunas se chamam na base de dados (`quote_id`, `client_name`) — a conversão é a do `mapper` de cada store em src/lib. Guarda este ficheiro fora do computador de trabalho.",
   "Se `incomplete` não estiver vazio, ESTA CÓPIA ESTÁ INCOMPLETA — algum conjunto falhou a leitura e ficou vazio no ficheiro. Repete a exportação (a reposição recusa-se a repor esses conjuntos, para não trocar dados bons por um vazio de avaria).",
 ].join(" ");
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * UMA RECUSA PASSAGEIRA NÃO PODE DEIXAR A CÓPIA DA NOITE INCOMPLETA
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Registos: «backup: conjunto falhou a leitura — cópia INCOMPLETA» a 13/11
+ * (`eventMaterial`) e a 16/11 (`proposalEmails`), as duas com PGRST303 —
+ * «JWT issued at future», o relógio do PostgREST uns segundos atrás do nosso.
+ * Passa sozinho num segundo. O repositório já repetia CADA PÁGINA; a varredura
+ * do `app_state` não, e nenhum conjunto se repetia por inteiro.
+ *
+ * Aqui repete-se o CONJUNTO (duas vezes, com 1 s e 3 s de pausa) quando a
+ * falha é passageira: o relógio, um tempo esgotado, a rede, um 5xx. Uma falha
+ * que responde igual à terceira vez (tabela em falta, permissão, um erro do
+ * nosso código) não se repete — só atrasava a cópia.
+ *
+ * Paginação: cada `list` já lê às páginas de 1000 (`repository.list`,
+ * `listStateByPrefix`), e é isso que torna a repetição barata — uma tabela
+ * grande não é um pedido gigante que esgota o tempo, são vários pequenos.
+ */
+const PAUSAS_DO_CONJUNTO_MS = [1_000, 3_000];
+/**
+ * ── E NUNCA PARA LÁ DO TEMPO DA FUNÇÃO (revisão de 17/11) ─────────────────
+ *
+ * A rota tem `maxDuration` de 60 s, e depois de ler ainda tem de empacotar e
+ * entregar (o email da noite, a cópia de recuo da reposição). Uma nova
+ * tentativa só COMEÇA nos primeiros 20 s desde o início da cópia: o que ficar
+ * para lá disso sai como está, marcado incompleto — a cópia incompleta diz-se,
+ * a função morta a meio não diz nada.
+ */
+const ORCAMENTO_DAS_TENTATIVAS_MS = 20_000;
+
+function falhaPassageira(err: unknown): boolean {
+  if (eRelogioAdiantado(err)) return true;
+  const e = err as { status?: unknown; message?: unknown; code?: unknown } | null;
+  const texto = `${String(e?.message ?? "")} ${String(e?.code ?? "")}`;
+  // O «statement timeout» do Postgres (57014) é a consulta pesada de mais, não
+  // uma falha que passa: repeti-la pedia o mesmo esforço e gastava o tempo da
+  // função à espera da mesma resposta (revisão de 17/11).
+  if (e?.code === "57014" || /statement timeout/i.test(texto)) return false;
+  if (typeof e?.status === "number" && e.status >= 500) return true;
+  return /tempo esgotado|timeout|timed out|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|network|\b50[234]\b/i.test(
+    texto,
+  );
+}
+
+async function lerComNovasTentativas(
+  ler: () => Promise<unknown[]>,
+  ate: number,
+  esperar: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<unknown[]> {
+  for (let i = 0; ; i += 1) {
+    try {
+      return await ler();
+    } catch (err) {
+      const pausa = PAUSAS_DO_CONJUNTO_MS[i];
+      if (pausa === undefined || !falhaPassageira(err)) throw err;
+      if (Date.now() + pausa > ate) throw err;
+      await esperar(pausa);
+    }
+  }
+}
 
 /** Formato do ficheiro. Subir isto quando as chaves mudarem de forma incompatível.
  *  Exportado porque a REPOSIÇÃO tem de saber que versões sabe ler — e há um
@@ -275,10 +348,11 @@ export async function buildBackupPayload(): Promise<{
   // Um conjunto que falha degrada para [] para não levar a cópia inteira
   // atrás — mas fica REGISTADO em `incomplete`. Um vazio silencioso lê-se
   // como "não havia nada", que é exatamente a mentira que abre este ficheiro.
+  const tentativasAte = Date.now() + ORCAMENTO_DAS_TENTATIVAS_MS;
   const results = await Promise.all(
     BACKUP_DATASETS.map(async (d) => {
       try {
-        return { key: d.key, rows: await d.list(), ok: true };
+        return { key: d.key, rows: await lerComNovasTentativas(d.list, tentativasAte), ok: true };
       } catch (err) {
         log.error("backup: conjunto falhou a leitura — cópia INCOMPLETA", err, {
           dataset: d.key,

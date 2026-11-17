@@ -30,12 +30,22 @@
  * crédito faria a campanha de marca parecer brilhante e a campanha que faz o
  * trabalho real parecer inútil.
  *
- * ── RGPD ───────────────────────────────────────────────────────────────────
- * O GCLID é guardado no dispositivo e só sai daqui DENTRO de um formulário que
- * a própria pessoa submete, junto com os dados que ela escreveu. Não é enviado
- * para lado nenhum em segundo plano e não identifica ninguém por si só. É a
- * mesma base legal do resto da submissão do formulário.
+ * ── RGPD: NADA SE GRAVA SEM «ACEITAR» (auditoria legal, 17/11) ───────────
+ * O GCLID é um identificador de publicidade: gravá-lo no dispositivo é o
+ * acesso ao terminal que a ePrivacy sujeita a consentimento PRÉVIO, e mandá-lo
+ * à Google (no formulário e, quando o negócio fecha, na importação das
+ * conversões) é medir publicidade, que a política diz que só se faz com
+ * consentimento. Até 17/11 ia para o localStorage à chegada — MEDIDO num
+ * Chromium: `/?gclid=…` deixava `liquen-ad-click` antes de qualquer escolha.
+ *
+ * Agora é o mesmo desenho do `fbclid` (`src/lib/meta/click-id.ts`): sem
+ * consentimento fica SÓ EM MEMÓRIA; «Aceitar» na mesma visita grava-o
+ * (`aoMudarConsentimento`); «Recusar» apaga-o; e `lerClique` não devolve nada
+ * sem consentimento — portanto o formulário não o leva e ele não fica no
+ * pedido.
  */
+
+import { temConsentimento } from "@/lib/meta/consentimento";
 
 /** Chave no localStorage. Prefixo `liquen-` como o resto do armazenamento. */
 export const AD_CLICK_KEY = "liquen-ad-click";
@@ -76,6 +86,25 @@ const VALOR_VALIDO = /^[A-Za-z0-9_.-]{8,200}$/;
  * JSON corrompido, registo expirado. Nunca lança.
  */
 export function lerClique(agora: number = Date.now()): CliqueGuardado | null {
+  // Sem consentimento não há clique para ninguém — nem o guardado de uma
+  // aceitação anterior entretanto retirada, nem o que está em memória.
+  if (!temConsentimento()) return null;
+  return lerGuardado(agora) ?? daMemoria(agora);
+}
+
+/**
+ * O clique desta visita, em MEMÓRIA: o único sítio onde pode viver sem
+ * consentimento. Não toca no dispositivo e morre com a página.
+ */
+let cliqueDestaVisita: CliqueGuardado | null = null;
+
+function daMemoria(agora: number): CliqueGuardado | null {
+  const c = cliqueDestaVisita;
+  return c && agora - Date.parse(c.em) <= JANELA_MS ? c : null;
+}
+
+/** O que está no localStorage, se existir e estiver dentro da janela. */
+function lerGuardado(agora: number): CliqueGuardado | null {
   try {
     const cru = localStorage.getItem(AD_CLICK_KEY);
     if (!cru) return null;
@@ -115,7 +144,8 @@ export function capturarClique(
   pagina: string,
   agora: number = Date.now(),
 ): CliqueGuardado | null {
-  const existente = lerClique(agora);
+  const consentido = temConsentimento();
+  const existente = consentido ? lerGuardado(agora) : null;
   if (existente) return existente; // primeiro toque vence
 
   let params: URLSearchParams;
@@ -134,15 +164,46 @@ export function capturarClique(
       em: new Date(agora).toISOString(),
       pagina: pagina.slice(0, 200),
     };
-    try {
-      localStorage.setItem(AD_CLICK_KEY, JSON.stringify(registo));
-    } catch {
-      /* armazenamento cheio ou bloqueado — devolve à mesma, para o formulário
-         desta visita ainda conseguir levar o identificador consigo */
-    }
-    return registo;
+    // Primeiro toque vence também em memória.
+    if (!daMemoria(agora)) cliqueDestaVisita = registo;
+    if (!consentido) return null;
+    return gravar(cliqueDestaVisita ?? registo);
   }
   return null;
+}
+
+function gravar(registo: CliqueGuardado): CliqueGuardado {
+  try {
+    localStorage.setItem(AD_CLICK_KEY, JSON.stringify(registo));
+  } catch {
+    /* armazenamento cheio ou bloqueado — devolve à mesma, para o formulário
+       desta visita ainda conseguir levar o identificador consigo */
+  }
+  return registo;
+}
+
+/**
+ * A escolha do aviso de cookies mudou: «Aceitar» grava o clique que ficou em
+ * memória desde a entrada (se não houver já um guardado — primeiro toque
+ * vence); «Recusar» apaga-o da memória e do dispositivo. Nunca lança.
+ */
+export function aoMudarConsentimento(aceitou: boolean, agora: number = Date.now()): void {
+  if (!aceitou) {
+    esquecerClique();
+    return;
+  }
+  const c = daMemoria(agora);
+  if (c && !lerGuardado(agora)) gravar(c);
+}
+
+/** Apaga o clique da memória e do dispositivo. */
+export function esquecerClique(): void {
+  cliqueDestaVisita = null;
+  try {
+    localStorage.removeItem(AD_CLICK_KEY);
+  } catch {
+    /* sem armazenamento — nada a apagar */
+  }
 }
 
 /**

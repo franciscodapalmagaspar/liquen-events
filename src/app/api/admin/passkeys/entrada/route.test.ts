@@ -50,7 +50,12 @@ vi.mock("@/lib/passkeys-store", async (orig) => ({
   }),
 }));
 
-const contas = vi.hoisted(() => ({ existe: true, perguntados: [] as string[] }));
+const contas = vi.hoisted(() => ({
+  existe: true,
+  perguntados: [] as string[],
+  passkeyVale: "vale" as "vale" | "antiga" | "indisponivel",
+  passkeyPerguntada: [] as Array<[string, string]>,
+}));
 vi.mock("@/lib/admin-auth", async (orig) => ({
   ...(await orig<typeof import("@/lib/admin-auth")>()),
   // O NOME passa à frente e fica GUARDADO. Um duplo que o deitasse fora
@@ -61,6 +66,10 @@ vi.mock("@/lib/admin-auth", async (orig) => ({
   contaExiste: (nome: string) => {
     contas.perguntados.push(nome);
     return contas.existe;
+  },
+  passkeyAindaVale: async (nome: string, criadaEm: string) => {
+    contas.passkeyPerguntada.push([nome, criadaEm]);
+    return contas.passkeyVale;
   },
 }));
 
@@ -110,6 +119,8 @@ beforeEach(() => {
   store.usos = [];
   contas.existe = true;
   contas.perguntados = [];
+  contas.passkeyVale = "vale";
+  contas.passkeyPerguntada = [];
 });
 
 describe("GET — o desafio", () => {
@@ -157,6 +168,26 @@ describe("POST — as barreiras", () => {
       contas.perguntados,
       "a barreira tem de perguntar pelo `userName` da credencial guardada",
     ).toEqual(["Catarina"]);
+  });
+
+  it("uma passkey registada antes de uma recuperação de palavra-passe já não entra", async () => {
+    contas.passkeyVale = "antiga";
+    const res = await POST(pedido());
+    expect(res.status).toBe(401);
+    expect((await res.json()).error).toBe(RECUSA);
+    expect(res.cookies.get(ADMIN_COOKIE)?.value).toBeFalsy();
+    // Perguntou pela conta e pela data DA CREDENCIAL GUARDADA.
+    expect(contas.passkeyPerguntada).toEqual([["Catarina", "2026-08-01T10:00:00.000Z"]]);
+  });
+
+  it("sem conseguir confirmar a tempo, não entra — mas diz que é isso, e não credenciais erradas", async () => {
+    contas.passkeyVale = "indisponivel";
+    const res = await POST(pedido());
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toBe(
+      "Não foi possível confirmar agora. Tenta outra vez ou entra com a palavra-passe.",
+    );
+    expect(res.cookies.get(ADMIN_COOKIE)?.value).toBeFalsy();
   });
 
   it("assinatura inválida é recusada", async () => {

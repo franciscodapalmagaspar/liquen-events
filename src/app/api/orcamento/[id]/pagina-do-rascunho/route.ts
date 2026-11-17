@@ -7,7 +7,7 @@ import {
   fotosQueSeSabeQueFaltam,
   renderStoredEditorialPdfWithReport,
 } from "@/lib/proposal-doc-render";
-import { imagemDaPagina, larguraPedida } from "@/lib/paginas-do-pdf";
+import { imagemDaPagina, larguraPedida, SemVagaParaDocumentos } from "@/lib/paginas-do-pdf";
 import {
   ehIdiomaDaProposta,
   IDIOMA_POR_OMISSAO,
@@ -171,6 +171,8 @@ async function POST_semMedida(
           // O PDF devolvido tem SÓ a página pedida: é a primeira dele.
           1,
           largura,
+          // Um pedido cortado sai da fila dos documentos (2.ª revisão de 17/11).
+          { signal: request.signal },
         );
       })(),
     ]);
@@ -207,6 +209,39 @@ async function POST_semMedida(
       headers: { ...cabecalhos, "Content-Type": "image/webp" },
     });
   } catch (err) {
+    /**
+     * ── UM PEDIDO CANCELADO NÃO É UMA AVARIA (registos de 16/11) ──────────
+     *
+     * O estúdio desiste de uma página quando ela passa a outra a meio do
+     * desenho, e o browser corta o pedido. Isso é o funcionamento normal e
+     * não entra no registo de erros: responde-se 499 (o código que os
+     * servidores usam para «o cliente fechou») a ninguém, e segue-se.
+     *
+     * Os QUATRO «Rendering cancelled» de 16/11 não eram isto — eram o
+     * servidor a fechar um documento ainda a ser desenhado
+     * (`paginas-do-pdf.ts`, a contagem de uso). Esses continuam a contar.
+     */
+    if (request.signal.aborted) {
+      // Uma linha de informação, não um erro: se um dia os cancelamentos
+      // esconderem outra coisa, fica por onde começar (revisão de 17/11).
+      log.info("pagina-do-rascunho: pedido cancelado pelo browser", {
+        id,
+        n,
+        erro: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      });
+      return new NextResponse(null, { status: 499 });
+    }
+    if (err instanceof SemVagaParaDocumentos) {
+      // A fila dos documentos esteve cheia 15 s (2.ª revisão de 17/11). O
+      // estúdio trata-o como qualquer falha da página: tenta outra vez até
+      // `TENTATIVAS` (`usePaginaReal`, que não lê o `Retry-After`), e só
+      // depois a dá por falhada. O `Retry-After` fica para quem o ler.
+      log.warn("pagina-do-rascunho: sem vaga para abrir o documento", { id, n });
+      return NextResponse.json(
+        { error: "O servidor está ocupado: tenta outra vez." },
+        { status: 503, headers: { "Retry-After": "2" } },
+      );
+    }
     log.error("pagina-do-rascunho", err, { id, n });
     return NextResponse.json(
       { error: "Não foi possível desenhar a página agora." },

@@ -20,7 +20,10 @@ import { marcaDaRef } from "@/lib/proposta-fotos";
  * QUAL fotografia é — a `marca`, que muda quando a fotografia muda.
  */
 
-const H = vi.hoisted(() => ({ doc: null as Record<string, unknown> | null }));
+const H = vi.hoisted(() => ({
+  doc: null as Record<string, unknown> | null,
+  derivada: null as Buffer | null,
+}));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/proposta-do-link", () => ({
@@ -33,7 +36,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 // Sem derivada: serve-se o original. É o caminho da PRIMEIRA visita, e é
 // exactamente aquele em que o `immutable` fazia mais estragos.
-vi.mock("@/lib/derivadas", () => ({ derivadaMediaAPedido: async () => ({ bytes: null }) }));
+vi.mock("@/lib/derivadas", () => ({ derivadaMediaAPedido: async () => ({ bytes: H.derivada }) }));
 vi.mock("@/lib/proposal-storage", () => ({
   fetchProposalImageBytes: async () => Buffer.from("uns-bytes"),
 }));
@@ -95,5 +98,45 @@ describe("a fotografia da proposta, e o que a cache dela pode prometer", () => {
   it("fotografias diferentes têm marcas diferentes, e a mesma tem sempre a mesma", () => {
     expect(marcaDaRef(CAPA)).toBe(marcaDaRef(CAPA));
     expect(marcaDaRef(CAPA)).not.toBe(marcaDaRef(OUTRA));
+  });
+});
+
+/**
+ * A CDN da Vercel (16/11) só guarda a DERIVADA WebP identificada pela marca —
+ * nunca o original (que dá lugar à derivada na visita seguinte), nem um
+ * endereço que não diz qual fotografia é.
+ */
+describe("a fotografia da proposta na CDN da Vercel", () => {
+  it("derivada WebP com a marca certa: uma hora na CDN (a CDN não sabe quando um link é cortado), e o browser continua a ver `private`", async () => {
+    H.derivada = Buffer.from("webp");
+    try {
+      const res = await pedir(CAPA, marcaDaRef(CAPA));
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("image/webp");
+      expect(res.headers.get("Vercel-CDN-Cache-Control")).toBe("max-age=3600");
+      expect(res.headers.get("Cache-Control")).toBe("private, max-age=86400, must-revalidate");
+    } finally {
+      H.derivada = null;
+    }
+  });
+
+  it("derivada sem marca, ou com a marca de outra: nada na CDN", async () => {
+    H.derivada = Buffer.from("webp");
+    try {
+      for (const v of [undefined, marcaDaRef(OUTRA)]) {
+        const res = await pedir(CAPA, v);
+        expect(res.status).toBe(200);
+        expect(res.headers.get("Vercel-CDN-Cache-Control")).toBeNull();
+      }
+    } finally {
+      H.derivada = null;
+    }
+  });
+
+  it("o original (ainda sem derivada) nunca vai para a CDN, mesmo com a marca certa", async () => {
+    H.derivada = null;
+    const res = await pedir(CAPA, marcaDaRef(CAPA));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Vercel-CDN-Cache-Control")).toBeNull();
   });
 });

@@ -42,7 +42,8 @@ export function VistasDaOperacao({ pedidos, navegacao, userName }: VistasDaOpera
     abrirCliente,
     activeQuotes,
   } = pedidos;
-  const { view, setView, pedidoPara, pedidoDeNovaTarefa } = navegacao;
+  const { view, setView, pedidoPara, pedidoDeNovaTarefa, novaTarefaServida, setNovaTarefaServida } =
+    navegacao;
   return (
     <>
       {/* ── Biblioteca de serviços ── */}
@@ -86,6 +87,8 @@ export function VistasDaOperacao({ pedidos, navegacao, userName }: VistasDaOpera
           <Tarefas
             defaultAssignee={userName}
             pedidoDeNova={pedidoDeNovaTarefa}
+            pedidoDeNovaServido={novaTarefaServida}
+            onPedidoDeNovaServido={setNovaTarefaServida}
             pedidoDaPaleta={pedidoPara("tarefas")}
             nomesDosPedidos={nomesDosPedidos}
           />

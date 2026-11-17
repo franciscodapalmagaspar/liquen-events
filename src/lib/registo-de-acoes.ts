@@ -25,7 +25,14 @@ export const MESES = 12;
 const RUIDO = [
   /\/proposta-rascunho(\/|$)/,
   /\/orcamento-linhas(\/|$)/,
-  /^\/api\/(vitals|csp-report|erro-do-site|health|meta)(\/|$)/,
+  // Leituras que o estúdio faz por POST (levam o rascunho no corpo) e o
+  // relógio do tempo activo: nenhuma muda nada que alguém tenha de auditar,
+  // e o estúdio chama-as a cada tecla ou de 30 em 30 segundos (16/11).
+  /^\/api\/orcamento\/[^/]+\/(tempo-activo|pagina-do-rascunho|paleta-do-pdf|fotos-do-pdf|fotos-em-falta)(\/|$)/,
+  /^\/api\/temas\/resumos(\/|$)/,
+  // O caminho é `security/csp-report`: o padrão antigo (`csp-report` logo a
+  // seguir a `/api/`) nunca casava, e cada relatório do browser contava.
+  /^\/api\/(vitals|security\/csp-report|erro-do-site|health|meta)(\/|$)/,
   /^\/api\/admin\/(erro-do-cliente|imagem-falhou|aquecimento-pdf|derivadas|login|logout|recuperar)(\/|$)/,
   /^\/api\/cron\//,
   /^\/api\/proposta\//, // o casal, pelo link — não é o back office

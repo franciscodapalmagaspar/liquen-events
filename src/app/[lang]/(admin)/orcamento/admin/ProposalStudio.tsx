@@ -89,6 +89,14 @@ import PainelDoEstudio from "./PainelDoEstudio";
 import { useLarguraDaZona } from "./useMedida";
 import { useFotoComPlanoB } from "@/lib/useFotoComPlanoB";
 import AEnviarAProposta from "./AEnviarAProposta";
+import PerguntaAntesDoEnvio from "./PerguntaAntesDoEnvio";
+import { passoParaCorrigir, usePerguntasDoEnvio } from "./usePerguntasDoEnvio";
+import {
+  avisoDeConteudoIncompleto,
+  cortesDoCabecalho,
+  normalizaCortes,
+} from "@/lib/orcamento/estudio/conteudo-incompleto";
+import { guardarPdfVisto, lerPdfVisto, type PdfVisto } from "./pdf-visto";
 import { BotaoWhatsApp } from "./ui/BotaoWhatsApp";
 
 /** Por onde a proposta segue. Ver a nota longa no `canal`, dentro do estúdio. */
@@ -301,13 +309,8 @@ import {
   temasLevadosPelasLinhas,
 } from "@/lib/orcamento/estudio/temas-e-fotos";
 import {
-  avisoDeConteudoIncompleto,
-  cortesDoCabecalho,
-  fraseDeCorte,
-  normalizaCortes,
   textoDaGravacao,
   textoDoTotal,
-  type Corte,
   type EstadoDaGravacaoNoEcra,
 } from "@/lib/orcamento/estudio/textos-do-estudio";
 import {
@@ -1315,14 +1318,6 @@ export default function ProposalStudio({
     }
   }, []);
   /**
-   * O que a composição cortou no documento que estava a seguir — `null`
-   * enquanto ninguém perguntou nada.
-   *
-   * Não é um estado de erro: é uma pergunta que o servidor devolveu com o PDF
-   * já desenhado e nada ainda gravado nem enviado. Ver `send`.
-   */
-  const [cortesPorConfirmar, setCortesPorConfirmar] = useState<Corte[] | null>(null);
-  /**
    * ── O EMAIL QUE VAI SAIR ─────────────────────────────────────────────────
    *
    * O corpo, o assunto e o modelo de que eles partem vivem AQUI e não dentro do
@@ -1374,18 +1369,8 @@ export default function ProposalStudio({
    * envio leva de volta; `retrato` é o documento tal como foi descarregado —
    * mudar uma vírgula depois deixa de bater, e é preciso ver outra vez.
    */
-  const [pdfVisto, setPdfVisto] = useState<{
-    chave: string;
-    retrato: string;
-    confirmado: boolean;
-  } | null>(() => lerPdfVisto(quote.id));
-  /**
-   * Fica guardado nesta aba (`sessionStorage`), por pedido. Num telemóvel, o
-   * PDF aberto por cima do back office e o «voltar» recarregavam o estúdio, e
-   * o «já vi» perdia-se — o botão voltava a «Ver o PDF», sem fim (23/10). A
-   * regra continua a mesma: só vale para o documento EXACTO que foi visto
-   * (`retrato`), e o servidor confere a `chave`.
-   */
+  const [pdfVisto, setPdfVisto] = useState<PdfVisto | null>(() => lerPdfVisto(quote.id));
+  // Guardado nesta aba, por pedido (23/10) — ver `pdf-visto.ts`.
   useEffect(() => {
     guardarPdfVisto(quote.id, pdfVisto);
   }, [quote.id, pdfVisto]);
@@ -6927,7 +6912,7 @@ export default function ProposalStudio({
       // Só o PDF FINAL conta como visto — o rascunho é o que ainda não pode
       // seguir. Um PDF novo pede uma confirmação nova.
       const chave = rascunho ? null : pdf.chave;
-      if (chave) setPdfVisto({ chave, retrato, confirmado: false });
+      if (chave) setPdfVisto({ chave, retrato, confirmado: false, emFalta: pdf.emFalta });
       const emFalta = pdf.emFalta;
       const cortes = cortesDoCabecalho(pdf.cortes);
       const aviso = avisoDeConteudoIncompleto(emFalta, cortes);
@@ -7043,7 +7028,7 @@ export default function ProposalStudio({
   useEffect(() => {
     if (step !== "enviar" || sent) cancelarEnvioAdiado();
   }, [step, sent, cancelarEnvioAdiado]);
-  async function send(cortesConfirmados = false) {
+  async function send() {
     if (busy) return;
     // A trava do envio é o `canSend` (o botão nem chega a estar ligado), mas
     // repete-se aqui: entre carregar em "Enviar" e carregar em "Confirmar" pode
@@ -7134,7 +7119,9 @@ export default function ProposalStudio({
             : {}),
           // Só viaja quando é «sim»: um campo a dizer `false` em todos os
           // envios normais era um campo a mais a explicar a quem lesse a rota.
-          ...(cortesConfirmados ? { cortesConfirmados: true } : {}),
+          // As respostas às perguntas do envio, só as dadas A ESTE documento
+          // (`usePerguntasDoEnvio`): as fotos levam QUANTAS ela aceitou.
+          ...perguntas.respostasPara(retratoDoEnvio),
           /* Só viaja quando é «não», pela mesma razão do `cortesConfirmados`
              aqui em cima — e porque a rota trata a AUSÊNCIA como «sim», para
              nenhum envio antigo deixar de sair por causa de um campo novo. */
@@ -7155,14 +7142,21 @@ export default function ProposalStudio({
        * e por isso não passa pelo `throw` (que pinta tudo de vermelho e diz
        * «não foi possível enviar»).
        */
-      if (res.status === 409 && data?.precisaConfirmarCortes) {
-        setCortesPorConfirmar(normalizaCortes(data.truncations));
+      if (res.status === 409 && data?.precisaConfirmarFotos) {
+        const n = Math.max(1, Math.floor(Number(data.missingImages)) || 1);
+        perguntas.perguntar({ tipo: "fotos", n, retrato: retratoDoEnvio });
         return;
       }
+      if (res.status === 409 && data?.precisaConfirmarCortes) {
+        const cortes = normalizaCortes(data.truncations);
+        perguntas.perguntar({ tipo: "cortes", cortes, retrato: retratoDoEnvio });
+        return;
+      }
+      perguntas.fechar();
       if (!res.ok) throw new Error(data?.error || porqueFalhouOEnvio(res.status));
       // A proposta seguiu: a lista leve (fase do pedido, Pagamentos) relê-se.
       asPropostasMudaram();
-      setCortesPorConfirmar(null);
+      perguntas.esquecer();
       // O envio também ensina a estimativa. Os bytes vêm do servidor: o PDF do
       // envio não passa pelo browser (segue em anexo), portanto sem esta linha
       // metade das gerações não ensinava nada.
@@ -7829,6 +7823,7 @@ export default function ProposalStudio({
     [step, doc, idiomaDoPdf],
   );
   const pdfVistoAgora = !!pdfVisto && pdfVisto.retrato === retratoAgora;
+  const perguntas = usePerguntasDoEnvio(retratoAgora);
   const pdfConfirmado = pdfVistoAgora && !!pdfVisto?.confirmado;
   /**
    * ── PREPARADO ANTES DE ELA CARREGAR ──────────────────────────────────────
@@ -7865,9 +7860,12 @@ export default function ProposalStudio({
    * rascunho ou o PDF final, e se o «ver o PDF» entrasse nele o PDF final
    * nunca se podia descarregar para ser visto.
    */
+  // E as fotos que o PDF final visto deixou de fora (17/11): uma linha na
+  // Conferência, para não ficarem só no aviso que passa.
+  const fotosEmFaltaNoPdf = pdfVistoAgora ? (pdfVisto?.emFalta ?? 0) : 0;
   const contextoDoBotao = useMemo(
-    () => ({ ...contextoDoEnvio, pdfVisto: pdfConfirmado }),
-    [contextoDoEnvio, pdfConfirmado],
+    () => ({ ...contextoDoEnvio, pdfVisto: pdfConfirmado, fotosEmFaltaNoPdf }),
+    [contextoDoEnvio, pdfConfirmado, fotosEmFaltaNoPdf],
   );
   const faltasDoEnvio = oQueFaltaParaEnviar(doc as ProposalDoc, money.gross, contextoDoBotao);
   /** O sinal de cada passo na barra de cima — das mesmas duas listas. */
@@ -12852,62 +12850,25 @@ export default function ProposalStudio({
                   para={quote.email || undefined}
                 />
               </div>
-            ) : /* ── O QUE FICA DE FORA, PERGUNTADO ANTES DE SEGUIR ────────
-                O servidor desenhou o documento, viu o que a composição cortou e
-                parou. O email ainda não saiu e a proposta ainda não foi gravada
-                — é o último instante em que voltar atrás não custa nada. A
-                frase de cada corte é a mesma que o aviso da pré-visualização
-                usa; o que muda é a altura em que aparece. */
-            cortesPorConfirmar ? (
-              <div className="ml-auto flex flex-col items-end gap-2">
-                <div className="max-w-lg rounded-xl border border-[var(--bo-aviso-tom)]/35 bg-[var(--bo-aviso-tom)]/[0.06] px-3 py-2 text-xs leading-relaxed text-[var(--bo-tinta-72)]">
-                  <p className="font-medium">O documento sai com conteúdo cortado:</p>
-                  <ul className="mt-1 flex flex-col gap-0.5">
-                    {cortesPorConfirmar.map((c) => (
-                      <li key={`${c.where}:${c.unit}`}>· {fraseDeCorte(c)}</li>
-                    ))}
-                  </ul>
-                  <p className="mt-1.5 text-[var(--bo-text-muted)]">
-                    Volta atrás para encurtar o que ficou cortado, ou envia assim mesmo se for de
-                    propósito.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => void send(true)}
-                    disabled={busy !== null}
-                  >
-                    Enviar assim mesmo
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      // Leva ao passo onde o corte se corrige: as fotos a
-                      // mais estão nos mood boards, o nome comprido está na
-                      // capa (o passo do Evento), e as outras linhas cortadas
-                      // são de serviços.
-                      const corte = cortesPorConfirmar?.[0];
-                      // Pela mesma porta da barra dos passos: chega ao
-                      // INÍCIO do passo, não a meio dele (revisão de 14/11).
-                      irParaPasso(
-                        !corte
-                          ? "evento"
-                          : corte.unit === "fotos"
-                            ? "inspiracao"
-                            : /capa/i.test(corte.where)
-                              ? "evento"
-                              : "servicos",
-                      );
-                      setCortesPorConfirmar(null);
-                    }}
-                  >
-                    Voltar e corrigir
-                  </Button>
-                </div>
-              </div>
+            ) : /* O servidor parou e perguntou (fotos em falta ou cortes) —
+                ver `PerguntaAntesDoEnvio` e `usePerguntasDoEnvio`. */
+            perguntas.pergunta ? (
+              <PerguntaAntesDoEnvio
+                pergunta={perguntas.pergunta}
+                ocupado={busy !== null}
+                onEnviarAssimMesmo={() => {
+                  // Só vale para o documento que fez a pergunta: se mudou, a
+                  // pergunta fecha e o envio volta a pedir o PDF.
+                  if (perguntas.confirmar()) void send();
+                }}
+                onVoltarECorrigir={() => {
+                  const p = perguntas.pergunta;
+                  perguntas.fechar();
+                  // Pela porta da barra dos passos: chega ao INÍCIO do passo
+                  // onde se corrige, não a meio dele (revisão de 14/11).
+                  if (p) irParaPasso(passoParaCorrigir(p));
+                }}
+              />
             ) : envioAdiado.aEsperar ? (
               <div
                 className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-2"
@@ -15866,34 +15827,6 @@ function verPdfNoEcra(barraCompacta: boolean): boolean {
     return window.matchMedia?.("(pointer: coarse)").matches ?? false;
   } catch {
     return false;
-  }
-}
-
-const CHAVE_DO_PDF_VISTO = (quoteId: string) => `liquen-pdf-visto:${quoteId}`;
-
-/** O «já vi o PDF final» desta aba, se houver (ver `pdfVisto`). */
-function lerPdfVisto(
-  quoteId: string,
-): { chave: string; retrato: string; confirmado: boolean } | null {
-  try {
-    const v = JSON.parse(sessionStorage.getItem(CHAVE_DO_PDF_VISTO(quoteId)) ?? "null");
-    return v && typeof v.chave === "string" && typeof v.retrato === "string"
-      ? { chave: v.chave, retrato: v.retrato, confirmado: v.confirmado === true }
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function guardarPdfVisto(
-  quoteId: string,
-  v: { chave: string; retrato: string; confirmado: boolean } | null,
-): void {
-  try {
-    if (v) sessionStorage.setItem(CHAVE_DO_PDF_VISTO(quoteId), JSON.stringify(v));
-    else sessionStorage.removeItem(CHAVE_DO_PDF_VISTO(quoteId));
-  } catch {
-    /* sem armazenamento (modo privado cheio): vale só nesta página, como antes */
   }
 }
 

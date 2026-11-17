@@ -18,11 +18,18 @@ import {
 import { mesesDeEvento, plannersDe, regioesDe } from "@/lib/orcamento/espera";
 import { useToast } from "./Toast";
 import CommandPalette, { type Command } from "./CommandPalette";
-import ShortcutsModal from "./ShortcutsModal";
-import AjudaGlossario from "./AjudaGlossario";
+// Quatro janelas que só se abrem a pedido: fora do pacote inicial do painel,
+// aquecidas depois do `load` — ver `janela-a-pedido.tsx`.
+import {
+  AjudaGlossario,
+  aquecerJanelas,
+  PasskeysDialog,
+  RestoreDialog,
+  ShortcutsModal,
+} from "./janela-a-pedido";
+// O «Novo pedido» fica no pacote, como o ⌘K: abre-se com o «n» e ela escreve
+// logo a seguir — uma letra antes de a caixa existir perdia-se.
 import NewQuoteModal from "./NewQuoteModal";
-import RestoreDialog from "./RestoreDialog";
-import PasskeysDialog from "./PasskeysDialog";
 import SessaoExpirada from "./SessaoExpirada";
 import { downloadCsv, quotesToCsvRows, dateStamp } from "./export";
 import { lerDaCache, prefetchList } from "./useCachedList";
@@ -45,6 +52,7 @@ import {
 import { useInscricaoNoRegisto } from "./registo-de-gravacoes";
 import { onIdle } from "@/lib/onIdle";
 import { marcarSaidaDeProposito } from "./entrada-destino";
+import { limparCachesAoSair } from "@/lib/limpar-caches-ao-sair";
 import { randomId, todayKey } from "./util";
 import { useAnular } from "./ui/anular";
 import { useDepoisDeApagar, useDepoisDeApagarVarios } from "./ui/depois-de-apagar";
@@ -1397,6 +1405,9 @@ export default function AdminClient({
     return () => document.body.classList.remove("admin-mode");
   }, []);
 
+  // As janelas a pedido chegam antes de ela as pedir (ver `janela-a-pedido.tsx`).
+  useEffect(() => aquecerJanelas(), []);
+
   // Warm the caches of the high-traffic API views during idle after first
   // paint, so the first click on Propostas / Tarefas / Calendário is
   // instant instead of a cold round-trip. Uses the same shared cache the views
@@ -2311,6 +2322,9 @@ export default function AdminClient({
   async function sairMesmo() {
     setASair(false);
     await fetch("/api/admin/logout", { method: "POST" });
+    // O que o service worker guardou do back office sai do aparelho com a
+    // sessão (n.º 6 de 16/11). Nunca atira e nunca prende mais de 1,5 s.
+    await limparCachesAoSair();
     // Sair é uma decisão, e tem de aguentar a chegada ao ecrã de entrada: sem
     // esta marca, a entrada automática pela passkey voltava a abrir a sessão
     // sozinha (ver `consumirMarcaDeSaida`).
@@ -2476,6 +2490,16 @@ export default function AdminClient({
    */
   const [pedidoDeNovaTarefa, setPedidoDeNovaTarefa] = useState(0);
   const pedirNovaTarefa = useCallback(() => setPedidoDeNovaTarefa((n) => n + 1), []);
+  /* O último pedido que as Tarefas já serviram: um toque dado enquanto o
+     código delas ainda chega fica à espera e é servido quando montam. */
+  const [novaTarefaServida, setNovaTarefaServida] = useState(0);
+  /* Um toque que ficou à espera e a pessoa saiu das Tarefas antes de elas
+     montarem: dá-se por servido, para não abrir a linha de escrever horas
+     depois, ao voltar (revisão independente do lote de 17/11). Ajusta-se o
+     estado durante o desenho, que é o padrão do React para isto. */
+  if (view !== "tarefas" && novaTarefaServida !== pedidoDeNovaTarefa) {
+    setNovaTarefaServida(pedidoDeNovaTarefa);
+  }
 
   return (
     <>
@@ -2499,6 +2523,8 @@ export default function AdminClient({
             setRestoreOpen(false);
             void revalidarPedidos(true);
           }}
+          // Se o código da janela não chegou, nada foi reposto: fecha só.
+          aoNaoChegar={() => setRestoreOpen(false)}
           toast={toast}
         />
         {/* A cópia de segurança a chegar. Pedida da barra lateral OU da
@@ -2831,6 +2857,8 @@ export default function AdminClient({
               setPropostaPara,
               setNewQuoteOpen,
               pedidoDeNovaTarefa,
+              novaTarefaServida,
+              setNovaTarefaServida,
             }}
             userName={userName}
           />
