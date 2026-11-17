@@ -184,6 +184,7 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
       });
     });
     vi.mocked(log.error).mockClear();
+    vi.mocked(log.info).mockClear();
     const res = await POST(
       new Request("http://x/api/orcamento/q1/pagina-do-rascunho", {
         method: "POST",
@@ -194,6 +195,16 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
     );
     expect(res.status).toBe(499);
     expect(log.error).not.toHaveBeenCalled();
+    // Mas fica uma linha de informação, com o erro: se um dia os cancelamentos
+    // esconderem outra coisa, há por onde começar (revisão de 17/11, n.º 3).
+    expect(log.info).toHaveBeenCalledWith(
+      expect.stringContaining("pagina-do-rascunho"),
+      expect.objectContaining({
+        id: "q1",
+        n: 4,
+        erro: expect.stringContaining("Rendering cancelled"),
+      }),
+    );
   });
 
   it("uma falha verdadeira continua a contar como erro", async () => {

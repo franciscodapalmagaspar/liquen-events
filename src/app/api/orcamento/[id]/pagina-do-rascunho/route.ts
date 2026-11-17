@@ -220,6 +220,13 @@ async function POST_semMedida(
      * (`paginas-do-pdf.ts`, a contagem de uso). Esses continuam a contar.
      */
     if (request.signal.aborted) {
+      // Uma linha de informação, não um erro: se um dia os cancelamentos
+      // esconderem outra coisa, fica por onde começar (revisão de 17/11).
+      log.info("pagina-do-rascunho: pedido cancelado pelo browser", {
+        id,
+        n,
+        erro: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      });
       return new NextResponse(null, { status: 499 });
     }
     log.error("pagina-do-rascunho", err, { id, n });

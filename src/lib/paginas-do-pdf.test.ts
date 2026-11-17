@@ -4,7 +4,13 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 
 vi.mock("server-only", () => ({}));
 
-import { formasDasPaginas, imagemDaPagina, larguraPedida, textoDasPaginas } from "./paginas-do-pdf";
+import {
+  formasDasPaginas,
+  imagemDaPagina,
+  larguraPedida,
+  medidasDaMemoria,
+  textoDasPaginas,
+} from "./paginas-do-pdf";
 
 /**
  * As páginas do PDF desenhadas no servidor — ver `paginas-do-pdf.ts`. Um PDF
@@ -89,5 +95,44 @@ describe("as páginas do PDF como imagens", () => {
     const obter = vi.fn(async () => bytes);
     await formasDasPaginas("sequencia-0", obter);
     expect(obter).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Revisão de 17/11, n.º 8: um documento posto de parte enquanto é usado já
+   * não estava no mapa, e não contava para tecto nenhum. Uma rajada de pedidos
+   * lentos abria documentos sem fim. Passa a haver um tecto GLOBAL: quem chega
+   * a seguir espera que um deles feche.
+   */
+  it("os documentos postos de parte mas ainda em uso contam para um tecto global", async () => {
+    const bytes = await umPdf();
+    const portas: (() => void)[] = [];
+    const lento = () => new Promise<Uint8Array>((r) => portas.push(() => r(bytes)));
+    const pedidos = Array.from({ length: 6 }, (_, i) => formasDasPaginas(`tecto-${i}`, lento));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(portas).toHaveLength(6);
+    const setimo = vi.fn(async () => bytes);
+    const ultimo = formasDasPaginas("tecto-6", setimo);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(setimo, "abriu um sétimo documento com seis vivos").not.toHaveBeenCalled();
+    // O primeiro acaba (e, posto de parte, fecha): abre-se lugar para o sétimo.
+    portas[0]();
+    await pedidos[0];
+    await ultimo;
+    expect(setimo).toHaveBeenCalledTimes(1);
+    for (const abrir of portas) abrir();
+    await Promise.all(pedidos);
+  });
+
+  it("duas imagens iguais pedidas ao mesmo tempo contam UMA vez para o tecto de memória", async () => {
+    const bytes = await umPdf();
+    const antes = medidasDaMemoria();
+    const [a, b] = await Promise.all([
+      imagemDaPagina("dupla", async () => bytes, 1, 800),
+      imagemDaPagina("dupla", async () => bytes, 1, 800),
+    ]);
+    const depois = medidasDaMemoria();
+    expect(depois.bytesEmImagens - antes.bytesEmImagens).toBe(a!.length);
+    expect(depois.bytesEmImagens, "a conta e a soma real desencontraram-se").toBe(depois.somaReal);
+    expect(b).toBe(a);
   });
 });

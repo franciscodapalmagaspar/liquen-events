@@ -300,6 +300,38 @@ describe("GET /api/backup", () => {
     expect(json.counts.proposalEmails).toBe(1);
   });
 
+  /**
+   * Revisão de 17/11, n.º 7: o «statement timeout» do Postgres (57014) é a
+   * consulta pesada de mais — repeti-la é pedir o mesmo esforço outra vez, e
+   * esgotar o tempo da função. E as repetições respeitam um orçamento de
+   * tempo: a rota tem 60 s (`maxDuration`), e nunca pode passar deles.
+   */
+  it("um «statement timeout» (57014) não se repete", async () => {
+    const pesada = Object.assign(new Error("canceling statement due to statement timeout"), {
+      code: "57014",
+    });
+    stores.suppliers.mockRejectedValue(pesada);
+    const json = await (await GET(get())).json();
+    expect(stores.suppliers).toHaveBeenCalledTimes(1);
+    expect(json.incomplete).toEqual(["suppliers"]);
+  });
+
+  it("nenhuma nova tentativa começa depois de gasto o orçamento de tempo", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      stores.suppliers.mockImplementation(async () => {
+        // A primeira leitura demorou 40 s a falhar: já não há tempo para outra.
+        vi.setSystemTime(Date.now() + 40_000);
+        throw new Error("tempo esgotado");
+      });
+      const json = await (await GET(get())).json();
+      expect(stores.suppliers, "repetiu sem tempo para isso").toHaveBeenCalledTimes(1);
+      expect(json.incomplete).toEqual(["suppliers"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("uma avaria que NÃO é passageira não se repete às cegas", async () => {
     stores.suppliers.mockRejectedValue(new Error("db down"));
     await GET(get());

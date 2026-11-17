@@ -65,8 +65,51 @@ const abertos = new Map<string, Entrada>();
 const imagens = new Map<string, Buffer>();
 let bytesEmImagens = 0;
 
+/**
+ * ── E OS POSTOS DE PARTE TAMBÉM CONTAM (revisão de 17/11) ───────────────
+ *
+ * Um documento posto de parte enquanto é usado sai do mapa, mas continua
+ * aberto na memória até o último acabar. Sem contar esses, uma rajada de
+ * pedidos lentos abria documentos sem fim. O tecto é GLOBAL — os do mapa mais
+ * os postos de parte ainda em uso —, e quem chega com ele cheio espera que um
+ * feche. Nunca bloqueia para sempre: os que estão a ser usados acabam (ou
+ * falham) por conta própria, e cada fecho acorda quem espera.
+ */
+const TECTO_DE_DOCUMENTOS = DOCUMENTOS_ABERTOS * 2;
+let postosDeParteEmUso = 0;
+const aEsperarVaga: (() => void)[] = [];
+
+function documentosVivos(): number {
+  return abertos.size + postosDeParteEmUso;
+}
+
+async function vagaPara(chave: string): Promise<void> {
+  while (!abertos.has(chave) && documentosVivos() >= TECTO_DE_DOCUMENTOS) {
+    await new Promise<void>((acordar) => aEsperarVaga.push(acordar));
+  }
+}
+
 function fechar(entrada: Entrada): void {
   void entrada.promessa.then((a) => a.doc.loadingTask.destroy()).catch(() => undefined);
+}
+
+/** Abriu-se lugar: quem espera volta a ver se já cabe. */
+function acordarQuemEspera(): void {
+  for (const acordar of aEsperarVaga.splice(0)) acordar();
+}
+
+/** Um posto de parte que estava em uso acabou: fecha-se, e acorda quem espera. */
+function fecharPostoDeParte(entrada: Entrada): void {
+  postosDeParteEmUso -= 1;
+  fechar(entrada);
+  acordarQuemEspera();
+}
+
+/** Para os testes: o que a memória diz que tem, e o que tem de facto. */
+export function medidasDaMemoria(): { bytesEmImagens: number; somaReal: number; vivos: number } {
+  let somaReal = 0;
+  for (const b of imagens.values()) somaReal += b.length;
+  return { bytesEmImagens, somaReal, vivos: documentosVivos() };
 }
 
 function carregarPdfjs() {
@@ -107,13 +150,17 @@ function entrada(chave: string, obterBytes: () => Promise<Uint8Array>): Entrada 
   abertos.set(chave, nova);
   // Uma abertura falhada não fica guardada: o pedido seguinte tenta de novo.
   promessa.catch(() => {
-    if (abertos.get(chave) === nova) abertos.delete(chave);
+    if (abertos.get(chave) === nova) {
+      abertos.delete(chave);
+      acordarQuemEspera();
+    }
   });
   while (abertos.size > DOCUMENTOS_ABERTOS) {
     const [maisVelha, velha] = abertos.entries().next().value!;
     abertos.delete(maisVelha);
     velha.despejada = true;
     if (velha.emUso === 0) fechar(velha);
+    else postosDeParteEmUso += 1;
   }
   return nova;
 }
@@ -128,13 +175,15 @@ async function comDocumento<T>(
   obterBytes: () => Promise<Uint8Array>,
   trabalho: (a: Aberto) => Promise<T>,
 ): Promise<T> {
+  await vagaPara(chave);
+  // Sem `await` entre a vaga e a contagem: ninguém a toma entretanto.
   const e = entrada(chave, obterBytes);
   e.emUso += 1;
   try {
     return await trabalho(await e.promessa);
   } finally {
     e.emUso -= 1;
-    if (e.despejada && e.emUso === 0) fechar(e);
+    if (e.despejada && e.emUso === 0) fecharPostoDeParte(e);
   }
 }
 
@@ -167,6 +216,15 @@ export async function textoDasPaginas(
   });
 }
 
+/**
+ * Os desenhos a meio, por página: dois pedidos da mesma página ao mesmo tempo
+ * (o estúdio e a pré-carga das vizinhas) esperam pelo MESMO desenho. Desenhar
+ * duas vezes a mesma página do mesmo documento em paralelo punha o `cleanup()`
+ * de um debaixo do desenho do outro, e contava os bytes duas vezes para o
+ * tecto (revisão de 17/11).
+ */
+const aDesenhar = new Map<string, Promise<Buffer | null>>();
+
 /** A página `n` (a contar de 1) em WebP, ou `null` se não existir. */
 export async function imagemDaPagina(
   chave: string,
@@ -181,6 +239,24 @@ export async function imagemDaPagina(
     imagens.set(id, feita);
     return feita;
   }
+  const emCurso = aDesenhar.get(id);
+  if (emCurso) return emCurso;
+  const desenho = desenharPagina(chave, obterBytes, n, largura, id);
+  aDesenhar.set(id, desenho);
+  try {
+    return await desenho;
+  } finally {
+    if (aDesenhar.get(id) === desenho) aDesenhar.delete(id);
+  }
+}
+
+async function desenharPagina(
+  chave: string,
+  obterBytes: () => Promise<Uint8Array>,
+  n: number,
+  largura: Largura,
+  id: string,
+): Promise<Buffer | null> {
   const webp = await comDocumento(chave, obterBytes, async ({ doc }) => {
     if (!Number.isInteger(n) || n < 1 || n > doc.numPages) return null;
     const pagina = await doc.getPage(n);
@@ -198,6 +274,10 @@ export async function imagemDaPagina(
   });
   if (!webp) return null;
 
+  // Só se soma o que ainda lá não está: a mesma página guardada duas vezes
+  // deixava a conta acima do que a memória tem de facto.
+  const entretanto = imagens.get(id);
+  if (entretanto) return entretanto;
   imagens.set(id, webp);
   bytesEmImagens += webp.length;
   while (bytesEmImagens > TECTO_IMAGENS && imagens.size > 1) {

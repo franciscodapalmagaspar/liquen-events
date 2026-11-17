@@ -273,12 +273,26 @@ const README = [
  * grande não é um pedido gigante que esgota o tempo, são vários pequenos.
  */
 const PAUSAS_DO_CONJUNTO_MS = [1_000, 3_000];
+/**
+ * ── E NUNCA PARA LÁ DO TEMPO DA FUNÇÃO (revisão de 17/11) ─────────────────
+ *
+ * A rota tem `maxDuration` de 60 s, e depois de ler ainda tem de empacotar e
+ * entregar (o email da noite, a cópia de recuo da reposição). Uma nova
+ * tentativa só COMEÇA nos primeiros 20 s desde o início da cópia: o que ficar
+ * para lá disso sai como está, marcado incompleto — a cópia incompleta diz-se,
+ * a função morta a meio não diz nada.
+ */
+const ORCAMENTO_DAS_TENTATIVAS_MS = 20_000;
 
 function falhaPassageira(err: unknown): boolean {
   if (eRelogioAdiantado(err)) return true;
   const e = err as { status?: unknown; message?: unknown; code?: unknown } | null;
-  if (typeof e?.status === "number" && e.status >= 500) return true;
   const texto = `${String(e?.message ?? "")} ${String(e?.code ?? "")}`;
+  // O «statement timeout» do Postgres (57014) é a consulta pesada de mais, não
+  // uma falha que passa: repeti-la pedia o mesmo esforço e gastava o tempo da
+  // função à espera da mesma resposta (revisão de 17/11).
+  if (e?.code === "57014" || /statement timeout/i.test(texto)) return false;
+  if (typeof e?.status === "number" && e.status >= 500) return true;
   return /tempo esgotado|timeout|timed out|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|network|\b50[234]\b/i.test(
     texto,
   );
@@ -286,6 +300,7 @@ function falhaPassageira(err: unknown): boolean {
 
 async function lerComNovasTentativas(
   ler: () => Promise<unknown[]>,
+  ate: number,
   esperar: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
 ): Promise<unknown[]> {
   for (let i = 0; ; i += 1) {
@@ -294,6 +309,7 @@ async function lerComNovasTentativas(
     } catch (err) {
       const pausa = PAUSAS_DO_CONJUNTO_MS[i];
       if (pausa === undefined || !falhaPassageira(err)) throw err;
+      if (Date.now() + pausa > ate) throw err;
       await esperar(pausa);
     }
   }
@@ -323,10 +339,11 @@ export async function buildBackupPayload(): Promise<{
   // Um conjunto que falha degrada para [] para não levar a cópia inteira
   // atrás — mas fica REGISTADO em `incomplete`. Um vazio silencioso lê-se
   // como "não havia nada", que é exatamente a mentira que abre este ficheiro.
+  const tentativasAte = Date.now() + ORCAMENTO_DAS_TENTATIVAS_MS;
   const results = await Promise.all(
     BACKUP_DATASETS.map(async (d) => {
       try {
-        return { key: d.key, rows: await lerComNovasTentativas(d.list), ok: true };
+        return { key: d.key, rows: await lerComNovasTentativas(d.list, tentativasAte), ok: true };
       } catch (err) {
         log.error("backup: conjunto falhou a leitura — cópia INCOMPLETA", err, {
           dataset: d.key,
