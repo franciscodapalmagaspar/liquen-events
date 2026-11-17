@@ -59,6 +59,8 @@ export function esquecerRevogacoesEmMemoria(): void {
   emMemoria = null;
   falhouEm = null;
   leituraNoAr = null;
+  segundaNoAr = null;
+  segundaFalhouEm = null;
 }
 
 /** Só números, sem herança: o que vem da base de dados não decide forma nenhuma. */
@@ -141,6 +143,53 @@ async function lerRegisto(agora: number): Promise<RegistoDeRevogacoes | null> {
 }
 
 /**
+ * Antes de recusar uma gravação com 503, uma segunda leitura com mais folga
+ * (revisão de 17/11): o primeiro contacto de uma instância nova com o Supabase
+ * (DNS, TLS, cliente frio) passa às vezes de {@link TECTO_DA_LEITURA_MS}, e não
+ * se recusa o trabalho da Catarina por isso. Só o que muda dados com sessão
+ * chega aqui; pedidos simultâneos partilham a mesma leitura; e uma segunda
+ * leitura que falhou não se repete durante {@link ESPERA_DEPOIS_DE_FALHAR_MS}
+ * (com a base em baixo, não se martela). Pior caso: ~5,5 s antes do 503.
+ */
+export const TECTO_PARA_MUDAR_MS = 4_000;
+let segundaNoAr: Promise<RegistoDeRevogacoes | null> | null = null;
+let segundaFalhouEm: number | null = null;
+
+function segundaLeituraParaMudar(agora: number): Promise<RegistoDeRevogacoes | null> {
+  if (segundaNoAr) return segundaNoAr;
+  if (segundaFalhouEm !== null && agora - segundaFalhouEm < ESPERA_DEPOIS_DE_FALHAR_MS) {
+    return Promise.resolve(null);
+  }
+  const comecou = Date.now();
+  segundaNoAr = (async () => {
+    try {
+      const { valor } = await lerEstadoComVersao<RegistoDeRevogacoes>(
+        CHAVE_DAS_SESSOES_REVOGADAS,
+        TECTO_PARA_MUDAR_MS,
+      );
+      const registo = normalizar(valor);
+      // Uma gravação feita nesta instância enquanto se lia (um «Sair») é mais
+      // nova do que esta leitura: não se repõe o registo antigo por cima dela.
+      if (!emMemoria || emMemoria.lidoEm <= comecou) {
+        emMemoria = { registo, lidoEm: Date.now() };
+      }
+      falhouEm = null;
+      segundaFalhouEm = null;
+      return emMemoria.registo;
+    } catch (err) {
+      segundaFalhouEm = Date.now();
+      log.warn("sessões: a segunda leitura das revogações também falhou — gravações recusadas", {
+        erro: String(err),
+      });
+      return null;
+    } finally {
+      segundaNoAr = null;
+    }
+  })();
+  return segundaNoAr;
+}
+
+/**
  * ════════════════════════════════════════════════════════════════════════════
  * E QUANDO NÃO SE SABE? (auditoria de 16/11, n.º 7)
  * ════════════════════════════════════════════════════════════════════════════
@@ -174,7 +223,8 @@ export async function estadoDaSessao(
 ): Promise<EstadoDaSessao> {
   const s = lerSessao(token);
   if (!s || !token) return "valida";
-  const registo = await lerRegisto(agora);
+  let registo = await lerRegisto(agora);
+  if (!registo && opcoes.muda) registo = await segundaLeituraParaMudar(agora);
   if (!registo) return opcoes.muda ? "indisponivel" : "valida";
   const desde = registo.desde[chaveDaConta(s.name)];
   if (typeof desde === "number" && s.iat < desde) return "revogada";

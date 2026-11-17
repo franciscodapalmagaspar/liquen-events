@@ -218,7 +218,27 @@ describe("leitura falhada sem nada em memória (n.º 7 de 16/11)", () => {
     expect(await estadoDaSessao(t, { muda: true })).toBe("indisponivel");
     expect(await estadoDaSessao(t, { muda: false })).toBe("valida");
     expect(await sessaoValida(t)).toEqual({ name: "TESTE Ana" });
-  }, 10_000);
+  }, 20_000);
+
+  // Revisão de 17/11: o primeiro contacto de uma instância nova passa às vezes
+  // do tecto de 1,5 s; antes de recusar uma gravação, lê-se outra vez com folga.
+  it("com a base em baixo, a segunda leitura não se repete a cada gravação", async () => {
+    const t = createSession("TESTE Ana");
+    H.pendurado = true;
+    expect(await estadoDaSessao(t, { muda: true })).toBe("indisponivel");
+    const leituras = H.leituras;
+    const inicio = Date.now();
+    expect(await estadoDaSessao(t, { muda: true })).toBe("indisponivel");
+    expect(Date.now() - inicio).toBeLessThan(500);
+    expect(H.leituras).toBe(leituras);
+  }, 20_000);
+
+  it("uma base só LENTA (2,5 s) não recusa a gravação: a segunda leitura chega", async () => {
+    const t = createSession("TESTE Ana");
+    H.atrasoMs = 2_500;
+    expect(await estadoDaSessao(t, { muda: true })).toBe("valida");
+    H.atrasoMs = 0;
+  }, 20_000);
 
   it("com um registo já lido em memória, uma falha a seguir não fecha nada", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
