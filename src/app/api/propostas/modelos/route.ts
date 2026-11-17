@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { observar } from "@/lib/fronteira/observar";
+import { esquemaDoCorpoDoModeloDeProposta } from "@/lib/fronteira/corpos-das-rotas";
 import { isAuthed } from "@/lib/admin-auth";
 import {
   listarModelos,
@@ -42,6 +44,8 @@ export async function POST(request: NextRequest) {
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
   }
+  // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
+  observar(esquemaDoCorpoDoModeloDeProposta, body, "o corpo do POST propostas/modelos");
   const { nome, tipo, doc, grupo, moodboard, origem } = body as Partial<ModeloProposta>;
 
   const nomeLimpo = String(nome ?? "")

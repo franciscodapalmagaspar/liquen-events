@@ -9,6 +9,8 @@ import type { AcontecimentoDoPedido } from "@/lib/orcamento/estado-do-pedido";
 import { eur } from "@/lib/money";
 import { nascerContratoDoGanho } from "@/lib/contrato-do-ganho";
 import { log } from "@/lib/logger";
+import { observar } from "@/lib/fronteira/observar";
+import { esquemaDoCorpoDaProposta } from "@/lib/fronteira/corpos-das-rotas";
 
 export const runtime = "nodejs";
 
@@ -120,6 +122,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
     }
+    // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
+    observar(esquemaDoCorpoDaProposta, body, "o corpo do PATCH propostas/[id]", { id });
     const VALID_STATUS = ["rascunho", "enviada", "em_negociacao", "aceite", "rejeitada"];
     if ("status" in body && !VALID_STATUS.includes(body.status)) {
       return NextResponse.json({ error: "Estado inválido" }, { status: 400 });

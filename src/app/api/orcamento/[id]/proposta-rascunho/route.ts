@@ -12,6 +12,8 @@ import {
 import { log } from "@/lib/logger";
 import { juntarRascunhos } from "@/lib/rascunho-juntar";
 import { comCpu } from "@/lib/medir-cpu";
+import { observar } from "@/lib/fronteira/observar";
+import { esquemaDoCorpoDoRascunho } from "@/lib/fronteira/corpos-das-rotas";
 import { marcarPropostaEmPreparacao } from "@/lib/estado-do-pedido-servidor";
 
 export const runtime = "nodejs";
@@ -154,6 +156,8 @@ async function PUT_semMedida(
     if (!body || typeof body !== "object" || !("doc" in body)) {
       return NextResponse.json({ error: "Rascunho em falta." }, { status: 400 });
     }
+    // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
+    observar(esquemaDoCorpoDoRascunho, body, "o corpo do PUT proposta-rascunho", { id });
     const serialised = JSON.stringify(body.doc ?? null);
     if (serialised.length > MAX_DRAFT_BYTES) {
       return NextResponse.json({ error: "Rascunho demasiado grande." }, { status: 413 });

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { observar } from "@/lib/fronteira/observar";
+import { esquemaDoCorpoDoModeloDeEmail } from "@/lib/fronteira/corpos-das-rotas";
 import { isAuthed } from "@/lib/admin-auth";
 import { listTemplatesWithDefaults, upsertTemplate } from "@/lib/email-templates-store";
 import { log } from "@/lib/logger";
@@ -33,6 +35,8 @@ async function upsert(request: NextRequest) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   try {
     const body = await request.json().catch(() => null);
+    // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
+    observar(esquemaDoCorpoDoModeloDeEmail, body, "o corpo do upsert email-templates");
     const key = String(body?.key ?? "")
       .trim()
       .slice(0, MAX_KEY);
