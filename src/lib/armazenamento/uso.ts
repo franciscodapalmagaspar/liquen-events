@@ -2,7 +2,6 @@ import "server-only";
 import { gravarEstadoSeNaoMudou, lerEstadoComVersao } from "@/lib/app-state";
 import { log } from "@/lib/logger";
 import {
-  avisosDoBlob,
   podeGastar,
   somar,
   usoNormalizado,
@@ -174,12 +173,6 @@ export async function acertarBytes(bytes: number): Promise<void> {
       return;
     }
   }
-}
-
-/** Os avisos para o ecrã. Vazio sem Blob ou abaixo do aviso. Nunca lança. */
-export async function avisosDoUso(): Promise<string[]> {
-  const uso = await usoAtual().catch(() => null);
-  return uso ? avisosDoBlob(uso) : [];
 }
 
 /** Só para os testes: esquece a cópia em memória. */

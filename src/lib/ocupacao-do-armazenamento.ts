@@ -3,9 +3,9 @@ import { getStates, gravarEstadoSeNaoMudou, lerEstadoComVersao, setState } from 
 import { getSupabase } from "@/lib/supabase";
 import type { ManifestoDeFotografias } from "@/lib/manifesto-de-fotografias";
 import { log } from "@/lib/logger";
-import { blobConfigurado, ehBaldeDoBlob } from "@/lib/armazenamento/baldes";
+import { ehBaldeDoBlob } from "@/lib/armazenamento/baldes";
 import { modosDosBaldes } from "@/lib/armazenamento/modos";
-import { avisosDoUso } from "@/lib/armazenamento/uso";
+import { estadoDoBlob } from "@/lib/armazenamento/saude";
 import {
   espacoQueSobra,
   medirPorOrdem,
@@ -44,13 +44,15 @@ export const CHAVE_DESDE = "armazenamento:desde-a-medicao";
 
 /** O espaço como está agora. `null` nunca: sem medição, `conhecido: false`. */
 export async function lerEspaco(): Promise<EspacoNoArmazenamento> {
-  const [m, avisosBlob] = await Promise.all([
+  const [m, blob] = await Promise.all([
     getStates<unknown>([CHAVE_OCUPACAO, CHAVE_DESDE]),
-    // Sem o token do Blob não se lê nada (nem a linha do contador).
-    blobConfigurado() ? avisosDoUso().catch(() => []) : Promise.resolve([] as string[]),
+    // Os avisos dos tectos, e o ERRO de ficheiros no Blob sem o token
+    // (revisão de 17/11, n.º 7). Sem token e sem modos `blob`: uma leitura.
+    estadoDoBlob(),
   ]);
   const oc = m.get(CHAVE_OCUPACAO) as Ocupacao | undefined;
   const espaco = espacoQueSobra(oc ?? null, m.get(CHAVE_DESDE) ?? null);
+  const avisosBlob = blob ? [...(blob.erro ? [blob.erro] : []), ...blob.avisos] : [];
   return avisosBlob.length > 0 ? { ...espaco, avisosBlob } : espaco;
 }
 

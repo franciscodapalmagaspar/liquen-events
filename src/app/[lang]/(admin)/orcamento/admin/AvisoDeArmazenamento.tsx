@@ -78,6 +78,8 @@ export interface EstadoDoArmazenamentoLido {
     titulo?: string;
     oQueFazer?: string;
   };
+  /** O Vercel Blob (17/11): avisos dos tectos, ou o erro de ficheiros sem token. */
+  blob?: { avisos: string[]; erro?: string };
 }
 
 /** A última resposta, partilhada por todas as montagens deste processo. */
@@ -139,6 +141,25 @@ async function perguntar(forcar: boolean): Promise<EstadoDoArmazenamentoLido | n
 export function esquecerEstadoDoArmazenamento(): void {
   cache = null;
   emCurso = null;
+}
+
+/**
+ * A MESMA resposta, para quem mais a quiser ler (o bloco «Hoje»). Junta-se à
+ * pergunta que este painel já faz ao abrir o back office — nenhum pedido novo
+ * ao servidor (revisão de 17/11, n.º 6).
+ */
+export function useEstadoDoArmazenamento(): EstadoDoArmazenamentoLido | null {
+  const [estado, setEstado] = useState<EstadoDoArmazenamentoLido | null>(cache);
+  useEffect(() => {
+    let vivo = true;
+    void perguntar(false).then((r) => {
+      if (vivo && r) setEstado(r);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+  return estado;
 }
 
 export function AvisoDeArmazenamento() {
@@ -223,7 +244,9 @@ export function AvisoDeArmazenamento() {
           proposta. É a avaria mais cara que esta casa teve, e a mais calada. */}
       {(estado.colunasEmFalta?.length ?? 0) > 0 && (
         <>
-          <p className={`font-medium text-[var(--bo-perigo)] ${falarDoArmazenamento ? "mt-3" : ""}`}>
+          <p
+            className={`font-medium text-[var(--bo-perigo)] ${falarDoArmazenamento ? "mt-3" : ""}`}
+          >
             {estado.colunasTitulo}
           </p>
           <p className="bo-text-muted mt-1">{estado.colunasOQueFazer}</p>
