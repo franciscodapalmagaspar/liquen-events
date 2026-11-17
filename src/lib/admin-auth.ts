@@ -793,11 +793,11 @@ export async function pedirRecuperacao(
   // gravar», igual para qualquer endereço.
   const escrita = await mudarRegisto((registo, agora) => {
     if (conta?.email && token) {
-      registo.pedidos[normalizarIdentificador(conta.email)] = {
-        resumo: resumoDoToken(token),
-        expiraEm: agora + VALIDADE_MS,
-        pedidoEm: agora,
-      };
+      const chave = normalizarIdentificador(conta.email);
+      const resumo = resumoDoToken(token);
+      registo.pedidos[chave] = { resumo, expiraEm: agora + VALIDADE_MS, pedidoEm: agora };
+      // Uma escrita que respondeu tarde conta se ESTA ligação lá ficou.
+      return { gravar: true, valor: null, jaEsta: (r) => r.pedidos[chave]?.resumo === resumo };
     }
     return { gravar: true, valor: null };
   });
@@ -889,9 +889,14 @@ export async function definirPalavraPasseComToken(
     // ou nenhuma.
     registo.passkeysDesde[normalizarIdentificador(conta.email)] = agora;
     delete registo.pedidos[email];
+    const hashGravado = hashNovo;
+    const chaveDaSenha = normalizarIdentificador(conta.email);
     return {
       gravar: true,
       valor: { tipo: "definida", conta: { name: conta.name, email: conta.email } },
+      // Uma escrita que respondeu tarde (revisão de 16/11, n.º 6) conta se a
+      // palavra-passe nova lá está E a ligação já foi gasta.
+      jaEsta: (r) => r.senhas[chaveDaSenha]?.hash === hashGravado && !r.pedidos[email],
     };
   });
 

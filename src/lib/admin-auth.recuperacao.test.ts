@@ -30,6 +30,9 @@ const estado = vi.hoisted(() => ({
   recusaEscrita: false,
   duradouro: true,
   falhaLeitura: false,
+  /** A escrita fica feita, mas a resposta chega depois do tecto («falhou»). */
+  gravaMasFalha: false,
+  tectos: [] as number[],
 }));
 
 vi.mock("./app-state", () => ({
@@ -63,17 +66,21 @@ vi.mock("./app-state", () => ({
       : { valor: JSON.parse(JSON.stringify(v)), versao: JSON.stringify(v) };
   }),
   // Como o verdadeiro: um disco que não DURA (o efémero da função) é «falhou».
-  gravarEstadoSeNaoMudou: vi.fn(async (k: string, v: unknown, versao: string | null) => {
-    // Uma volta ao ciclo de eventos, como uma ida à base de dados: é o que
-    // deixa dois pedidos ao mesmo tempo lerem antes de qualquer um gravar.
-    await new Promise((r) => process.nextTick(r));
-    const atual = estado.mapa.get(k);
-    if ((atual === undefined ? null : JSON.stringify(atual)) !== versao) return "conflito";
-    estado.escritas++;
-    if (estado.recusaEscrita || !estado.duradouro) return "falhou";
-    estado.mapa.set(k, JSON.parse(JSON.stringify(v)));
-    return "gravado";
-  }),
+  gravarEstadoSeNaoMudou: vi.fn(
+    async (k: string, v: unknown, versao: string | null, tectoMs?: number) => {
+      if (tectoMs !== undefined) estado.tectos.push(tectoMs);
+      // Uma volta ao ciclo de eventos, como uma ida à base de dados: é o que
+      // deixa dois pedidos ao mesmo tempo lerem antes de qualquer um gravar.
+      await new Promise((r) => process.nextTick(r));
+      const atual = estado.mapa.get(k);
+      if ((atual === undefined ? null : JSON.stringify(atual)) !== versao) return "conflito";
+      estado.escritas++;
+      if (estado.recusaEscrita || !estado.duradouro) return "falhou";
+      estado.mapa.set(k, JSON.parse(JSON.stringify(v)));
+      if (estado.gravaMasFalha && k === "admin-recuperacao") return "falhou";
+      return "gravado";
+    },
+  ),
 }));
 
 import {
@@ -112,6 +119,8 @@ beforeEach(() => {
   estado.recusaEscrita = false;
   estado.duradouro = true;
   estado.falhaLeitura = false;
+  estado.gravaMasFalha = false;
+  estado.tectos = [];
   comContas(CONTAS);
 });
 
@@ -359,6 +368,29 @@ describe("recuperação — a palavra-passe nova", () => {
   it("sem conseguir ler o registo, a passkey de uma conta com recuperação não entra", async () => {
     estado.falhaLeitura = true;
     expect(await passkeyAindaVale("Catarina", new Date().toISOString())).toBe(false);
+  });
+
+  it("o UPDATE que acaba depois do tecto conta como feito, se o que se queria lá está (revisão de 16/11, n.º 6)", async () => {
+    const { sessaoValida, esquecerRevogacoesEmMemoria } = await import("./sessoes-revogadas");
+    esquecerRevogacoesEmMemoria();
+    const antiga = createSession("Catarina");
+    await new Promise((r) => setTimeout(r, 2));
+    const r = await pedirRecuperacao("catarina@liquen-events.com");
+    if (r.estado !== "emitido") throw new Error("esperava um token");
+    // Só a escrita do REGISTO DA RECUPERAÇÃO chega tarde; a das sessões não.
+    estado.gravaMasFalha = true;
+    const feito = await definirPalavraPasseComToken(r.token, "a-minha-frase-nova");
+    expect(feito.estado).toBe("definida");
+    expect(
+      await verifyCredentials("catarina@liquen-events.com", "a-minha-frase-nova"),
+    ).toMatchObject({ name: "Catarina" });
+    // E continuou: as sessões antigas foram fechadas.
+    expect(await sessaoValida(antiga)).toBeNull();
+  });
+
+  it("o tecto da escrita do registo é de 8 s", async () => {
+    await pedirRecuperacao("catarina@liquen-events.com");
+    expect(estado.tectos).toContain(8_000);
   });
 
   it("não toca nas outras contas", async () => {

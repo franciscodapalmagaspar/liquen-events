@@ -208,9 +208,17 @@ export async function lerRegisto(): Promise<RegistoDeRecuperacao> {
  * `mudar` diz se há o que gravar. «falhou» quando a escrita não se fez ou não
  * DURA (em produção sem Supabase, o disco efémero da função: um token que não
  * sobrevive ao pedido seguinte é um email que promete o que não existe).
+ *
+ * ── UMA ESCRITA QUE CHEGA DEPOIS DO TECTO (revisão de 16/11, n.º 6) ─────────
+ * O tecto corta a ESPERA, não o UPDATE: com o Supabase lento, a escrita podia
+ * ficar feita depois de o tecto ter dito «falhou» — e a pessoa via «não foi
+ * possível guardar» com a palavra-passe nova já a valer, e sem as sessões
+ * antigas fechadas. Por isso o tecto subiu para 8 s, e quando a escrita dá
+ * «falhou» RELÊ-SE: se o que se queria gravar já lá está (`jaEsta`), conta
+ * como gravado e quem chama continua.
  */
 const TENTATIVAS_DE_ESCRITA = 4;
-const TECTO_DA_ESCRITA_MS = 3_000;
+export const TECTO_DA_ESCRITA_MS = 8_000;
 
 export type ResultadoDaMudanca<T> =
   | { estado: "gravado"; valor: T }
@@ -218,8 +226,18 @@ export type ResultadoDaMudanca<T> =
   | { estado: "sem-leitura" }
   | { estado: "falhou" };
 
+export interface Mudanca<T> {
+  gravar: boolean;
+  valor: T;
+  /**
+   * O que se queria gravar já está neste registo? Só se pergunta depois de
+   * uma escrita que deu «falhou». Sem ela, um «falhou» é sempre falha.
+   */
+  jaEsta?: (registo: RegistoDeRecuperacao) => boolean;
+}
+
 export async function mudarRegisto<T>(
-  mudar: (registo: RegistoDeRecuperacao, agora: number) => { gravar: boolean; valor: T },
+  mudar: (registo: RegistoDeRecuperacao, agora: number) => Mudanca<T>,
 ): Promise<ResultadoDaMudanca<T>> {
   for (let tentativa = 1; tentativa <= TENTATIVAS_DE_ESCRITA; tentativa++) {
     let lido: { valor: Partial<RegistoDeRecuperacao> | null; versao: VersaoDoEstado };
@@ -236,17 +254,36 @@ export async function mudarRegisto<T>(
     const registo = registoDe(lido.valor);
     const agora = Date.now();
     limparExpirados(registo, agora);
-    const { gravar, valor } = mudar(registo, agora);
+    const { gravar, valor, jaEsta } = mudar(registo, agora);
     if (!gravar) return { estado: "sem-escrita", valor };
 
     const r = await gravarEstadoSeNaoMudou(CHAVE_ESTADO, registo, lido.versao, TECTO_DA_ESCRITA_MS);
     if (r === "gravado") return { estado: "gravado", valor };
-    if (r === "falhou") return { estado: "falhou" };
+    if (r === "falhou") {
+      if (jaEsta && (await ficouGravado(jaEsta))) {
+        log.warn("recuperação: a escrita respondeu tarde, mas ficou feita");
+        return { estado: "gravado", valor };
+      }
+      return { estado: "falhou" };
+    }
     // Conflito: alguém escreveu entretanto. Pausa curta e desigual, e outra vez.
     await new Promise((res) => setTimeout(res, tentativa * 10 + Math.random() * 20));
   }
   log.error("recuperação: o registo não parou de mudar — nada se gravou");
   return { estado: "falhou" };
+}
+
+/** Relê o registo e pergunta se a escrita que «falhou» afinal ficou. */
+async function ficouGravado(jaEsta: (registo: RegistoDeRecuperacao) => boolean): Promise<boolean> {
+  try {
+    const { valor } = await lerEstadoComVersao<Partial<RegistoDeRecuperacao>>(
+      CHAVE_ESTADO,
+      TECTO_DA_ESCRITA_MS,
+    );
+    return jaEsta(registoDe(valor));
+  } catch {
+    return false;
+  }
 }
 
 /**
