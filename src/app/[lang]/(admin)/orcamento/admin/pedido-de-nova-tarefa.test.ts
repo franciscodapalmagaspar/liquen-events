@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { usePedidoDeNovaTarefa } from "./pedido-de-nova-tarefa";
@@ -48,5 +49,30 @@ describe("usePedidoDeNovaTarefa", () => {
     act(() => result.current.pedir());
     rerender({ vista: "pedidos" });
     expect(result.current.pedir).toBe(antes);
+  });
+});
+
+/* A outra metade do contrato está no AdminClient, e um teste ao hook sozinho
+   não a prende: se alguém voltasse a pôr um `useState` local, ou chamasse o
+   hook com outra coisa que não a vista, os testes ficavam verdes e a linha
+   voltava a reabrir ao regressar às Tarefas (revisão independente, 17/11).
+   O AdminClient tem 7 mil linhas e não se monta num teste; lê-se a fonte. */
+describe("o AdminClient liga o contador à vista", () => {
+  const fonte = readFileSync(
+    `${process.cwd()}/src/app/[lang]/(admin)/orcamento/admin/AdminClient.tsx`,
+    "utf8",
+  );
+
+  it("o contador vem do hook, chamado com a `view`", () => {
+    expect(fonte).toMatch(
+      /const \{ pedido: pedidoDeNovaTarefa, pedir: pedirNovaTarefa \} = usePedidoDeNovaTarefa\(view\);/,
+    );
+    expect(fonte).not.toMatch(/setPedidoDeNovaTarefa|useState\(0\);\s*\n\s*const pedirNovaTarefa/);
+  });
+
+  it("as Tarefas recebem esse contador, e o botão e o ⌘N usam o mesmo `pedir`", () => {
+    expect(fonte).toMatch(/pedidoDeNova=\{pedidoDeNovaTarefa\}/);
+    expect(fonte).toMatch(/onClick=\{pedirNovaTarefa\}/);
+    expect(fonte).toMatch(/e\.preventDefault\(\);\s*\n\s*pedirNovaTarefa\(\);/);
   });
 });

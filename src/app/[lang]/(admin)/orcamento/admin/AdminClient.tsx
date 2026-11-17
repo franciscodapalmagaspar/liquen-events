@@ -2988,6 +2988,22 @@ export default function AdminClient({
     else setPaletteOpen(true);
   }, []);
 
+  /**
+   * ── A ACÇÃO PRIMÁRIA DAS TAREFAS VIVE NA BARRA, COMO NAS OUTRAS VISTAS ──
+   *
+   * «Não há ação primária na toolbar. Todos os outros ecrãs têm "+ Novo".
+   * Este não tem — porque a criação está num cartão permanente no conteúdo.»
+   *
+   * A regra é uma acção primária e uma só, sempre no fim da barra, e a
+   * consistência entre ecrãs é o que faz um produto ler-se como um produto.
+   *
+   * O que passa daqui para baixo é um CONTADOR e não uma função: a caixa de
+   * escrever vive dentro das `Tarefas` (é a última linha da lista, ver a fase
+   * 03 do documento dela), e o que a barra faz é pedir-lhe que abra. O
+   * contador e o contrato dele (volta a 0 ao sair, porque o pedido pode chegar
+   * antes de a vista carregar) estão em `pedido-de-nova-tarefa.ts`, e é
+   * declarado aqui, antes dos atalhos, porque o ⌘N também o usa.
+   */
   const { pedido: pedidoDeNovaTarefa, pedir: pedirNovaTarefa } = usePedidoDeNovaTarefa(view);
 
   // Global keyboard shortcuts. ⌘K works anywhere; the rest are ignored while
@@ -5164,23 +5180,6 @@ export default function AdminClient({
     "estatisticas",
   ]);
   const mostrarAccoesDePedidos = ACOES_DE_PEDIDOS.has(view);
-
-  /**
-   * ── A ACÇÃO PRIMÁRIA DAS TAREFAS VIVE NA BARRA, COMO NAS OUTRAS VISTAS ──
-   *
-   * «Não há ação primária na toolbar. Todos os outros ecrãs têm "+ Novo".
-   * Este não tem — porque a criação está num cartão permanente no conteúdo.»
-   *
-   * A regra é uma acção primária e uma só, sempre no fim da barra, e a
-   * consistência entre ecrãs é o que faz um produto ler-se como um produto.
-   *
-   * O que passa daqui para baixo é um CONTADOR e não uma função: a caixa de
-   * escrever vive dentro das `Tarefas` (é a última linha da lista, ver a fase
-   * 03 do documento dela), e o que a barra faz é pedir-lhe que abra. O
-   * contador e o contrato dele (volta a 0 ao sair, porque o pedido pode chegar
-   * antes de a vista carregar) estão em `pedido-de-nova-tarefa.ts`, e é
-   * declarado lá em cima, antes dos atalhos, porque o ⌘N também o usa.
-   */
 
   const VIEW_TITLES: Record<View, string> = {
     overview: "Visão Geral",
