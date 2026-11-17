@@ -55,7 +55,8 @@ import {
 } from "./orcamento/data";
 
 /** As línguas em que o documento se sabe desenhar. */
-export type IdiomaDaProposta = "pt" | "en";
+export type { IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
+import type { IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    O PRAZO DO SALDO — UM NÚMERO SÓ PARA AS DUAS LÍNGUAS
@@ -77,7 +78,6 @@ export const MESES_ANTES_DO_SALDO = 1;
 const mesesPt = (n: number) => `${n} ${n === 1 ? "mês" : "meses"}`;
 const mesesEn = (n: number) => `${n} ${n === 1 ? "month" : "months"}`;
 
-// `ehIdiomaDaProposta` vive ao lado da lista que lê (`orcamento/listas-fechadas.ts`).
 export { ehIdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /**

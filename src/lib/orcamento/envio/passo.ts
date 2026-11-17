@@ -48,12 +48,22 @@ export function paraComRecusa(status: Recusa["status"], corpo: CorpoDaRecusa): P
   return { segue: false, desfecho: recusa(status, corpo) };
 }
 
-/** Pára: a base não deixou (503). */
-export function paraComFalha(falha: Falha): Paragem {
-  return { segue: false, desfecho: { tipo: "falha", falha } };
+/** O desfecho de uma falha: a base não deixou (503). */
+export function falha(f: Falha): Desfecho {
+  return { tipo: "falha", falha: f };
 }
 
-/** Pára com a resposta já pronta — uma repetição: o envio já tinha seguido (200). */
+/** Pára com uma falha — a de {@link falha}, dentro de um passo. */
+export function paraComFalha(f: Falha): Paragem {
+  return { segue: false, desfecho: falha(f) };
+}
+
+/** O desfecho de um envio respondido (200). */
+export function respondido(resposta: RespostaDoEnvio): Desfecho {
+  return { tipo: "envio", resposta };
+}
+
+/** Pára com a resposta já pronta — uma repetição: o envio já tinha seguido. */
 export function paraComResposta(resposta: RespostaDoEnvio): Paragem {
-  return { segue: false, desfecho: { tipo: "envio", resposta } };
+  return { segue: false, desfecho: respondido(resposta) };
 }

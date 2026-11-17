@@ -1,6 +1,7 @@
 import "server-only";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { IDIOMA_POR_OMISSAO, ehIdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { IDIOMA_POR_OMISSAO } from "@/lib/proposal-doc-textos";
+import { ehIdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

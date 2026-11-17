@@ -23,6 +23,7 @@ import { prepararODocumento } from "./documento-do-envio";
 import type { EmailEmoldurado } from "./email-da-proposta";
 import type { DocumentoPreparado } from "./envio-da-proposta";
 import { SEGUE } from "./passo";
+import { resolveValidUntil, type ProposalDoc } from "@/lib/proposal-doc";
 
 vi.spyOn(log, "warn").mockImplementation(() => {});
 
@@ -100,6 +101,19 @@ describe("as perguntas antes do envio", () => {
 });
 
 describe("o documento e a linha que se grava", () => {
+  it("prepararODocumento: com o relógio fixo, a validade é a desse dia — e fica escrita no documento", () => {
+    const { validUntil: _semValidade, ...semValidade } = doc;
+    const agora = new Date("2026-11-17T12:00:00.000Z");
+    const depois = new Date("2026-12-17T12:00:00.000Z");
+    const a = prepararODocumento({ ...semValidade } as ProposalDoc, "pt", agora);
+    const b = prepararODocumento({ ...semValidade } as ProposalDoc, "pt", depois);
+    expect(a.doc.validUntil).toBe(resolveValidUntil(semValidade as ProposalDoc, agora));
+    expect(a.doc.validUntil).toMatch(/^2026-|^2027-/);
+    expect(b.doc.validUntil).not.toBe(a.doc.validUntil);
+    // Uma validade já escrita não se mexe, seja qual for o relógio.
+    expect(prepararODocumento({ ...doc }, "pt", depois).doc.validUntil).toBe("2027-01-01");
+  });
+
   it("a chave é do documento que CHEGOU, sem as fotos de biblioteca", () => {
     const a = prepararODocumento({ ...doc }, "pt");
     const b = prepararODocumento({ ...doc, fotosDeBiblioteca: ["x.jpg"] }, "pt");
@@ -193,12 +207,15 @@ describe("o documento e a linha que se grava", () => {
       };
       const { proposal, anteriores } = comAVersao(linha, [velha, linha, nova]);
       expect(anteriores.map((p) => p.id)).toEqual(["v2", "v1"]);
-      expect(proposal).toMatchObject({
-        id: linha.id,
+      // A linha INTEIRA, intacta, com os três campos da versão por cima — e o
+      // selo é o do conteúdo dela, não o de uma irmã.
+      expect(proposal).toEqual({
+        ...linha,
         versaoNumero: 3,
         versaoEm: "2026-11-17T12:00:00.000Z",
-        versaoSelo: expect.stringMatching(/\S/),
+        versaoSelo: versaoDaProposta(linha, []).versaoSelo,
       });
+      expect(proposal.versaoSelo).not.toBe(velha.versaoSelo);
       // Pura: a linha que entrou não ganhou a versão.
       expect(linha.versaoNumero).toBeUndefined();
     } finally {

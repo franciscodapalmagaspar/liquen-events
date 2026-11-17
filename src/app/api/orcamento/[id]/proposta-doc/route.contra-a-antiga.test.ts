@@ -140,7 +140,11 @@ const HA_ROTA_ANTIGA =
       temOCommit()));
 if (PASSOU_O_PRAZO) avisar(PEDIDO_DO_PRAZO);
 else if (!HA_ROTA_ANTIGA && process.env.CI && process.env.COMPARAR_COM_A_ROTA_ANTIGA !== "0") {
-  avisar(`não deu para trazer o commit ${COMMIT_DA_CARACTERIZACAO} — a comparação saltou`);
+  avisar(
+    RAIZ === ""
+      ? "não há git (ou isto não é um repositório) — a comparação saltou"
+      : `o commit ${COMMIT_DA_CARACTERIZACAO} não veio (o fetch falhou ou passou dos 30 s) — a comparação saltou`,
+  );
 }
 /** Uma pasta por corrida: duas corridas ao mesmo tempo não se pisam. */
 const CACHE = path.join(RAIZ, "node_modules", ".cache");

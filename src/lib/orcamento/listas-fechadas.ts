@@ -2,7 +2,6 @@ import { todosOsValores } from "@/lib/todos-os-valores";
 import type { MotivoDeRecusa, ProposalStatus, QuoteStatus } from "./types";
 import type { VersaoEscolhida } from "./versoes-da-proposta";
 import type { TipoModelo } from "@/lib/proposal-templates";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 
 /**
  * As listas fechadas do pedido e da proposta, UMA vez cada, presas aos tipos
@@ -49,11 +48,14 @@ export const VERSOES_ESCOLHIDAS = todosOsValores<VersaoEscolhida>()(["base", "ex
 
 export const TIPOS_DE_MODELO = todosOsValores<TipoModelo>()(["completo", "grupo", "moodboard"]);
 
-export const IDIOMAS_DA_PROPOSTA = todosOsValores<IdiomaDaProposta>()(["pt", "en"]);
+/** As línguas em que a proposta se desenha: o tipo SAI da lista, e a regra lê-a. */
+export const IDIOMAS_DA_PROPOSTA = ["pt", "en"] as const;
+export type IdiomaDaProposta = (typeof IDIOMAS_DA_PROPOSTA)[number];
 
 /** `true` para o que é mesmo uma das línguas — para validar o que chega de
- *  fora (o corpo do envio, o rascunho, o link do casal). Lê a lista acima: uma
- *  língua nova acrescenta-se uma vez. (`proposal-doc-textos.ts` reexporta-a.) */
+ *  fora (o corpo do envio, o rascunho, o link do casal). Uma língua nova
+ *  acrescenta-se UMA vez, na lista acima: o tipo e esta regra seguem-na.
+ *  (`proposal-doc-textos.ts` reexporta os dois, para quem já os lia de lá.) */
 export function ehIdiomaDaProposta(v: unknown): v is IdiomaDaProposta {
   return (IDIOMAS_DA_PROPOSTA as readonly unknown[]).includes(v);
 }

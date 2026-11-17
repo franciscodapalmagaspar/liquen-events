@@ -7,7 +7,7 @@ import type { CorpoLido } from "./ler-o-corpo";
 import { guardasBaratas } from "./guardas-baratas";
 import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
-import { recusa, SEGUE, segue, type Desfecho, type Passo } from "./passo";
+import { recusa, respondido, SEGUE, segue, type Desfecho, type Passo } from "./passo";
 import {
   avisarQueSegueComFotosAMenos,
   perguntaDasFotos,
@@ -215,9 +215,8 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   });
   prepararAPaginaOnline(proposal.id, c.depoisDaResposta);
 
-  return {
-    tipo: "envio",
-    resposta: respostaDoEnvio({
+  return respondido(
+    respostaDoEnvio({
       propostaId: proposal.id,
       acceptUrl,
       saida,
@@ -226,7 +225,7 @@ async function enviar(c: Contexto): Promise<Desfecho> {
       relatorio,
       pdfDaMemoria,
     }),
-  };
+  );
 }
 
 /**
