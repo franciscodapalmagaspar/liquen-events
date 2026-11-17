@@ -88,7 +88,7 @@ export default function LanguageToggle({ light = false }: { light?: boolean }) {
   // errar o PT e acertar no EN recarrega a página inteira noutro idioma.
   // Com rato o toggle fica exactamente como estava.
   const base =
-    "alvo-toque px-1.5 py-1.5 -my-1.5 text-[11px] tracking-[0.2em] uppercase transition-colors duration-300";
+    "alvo-toque px-1.5 py-1.5 -my-1.5 text-miuda tracking-[0.2em] uppercase transition-colors duration-300";
   const activeCls = light ? "text-white" : "text-moss";
   const idleCls = light
     ? "text-white/60 hover:text-white/90"

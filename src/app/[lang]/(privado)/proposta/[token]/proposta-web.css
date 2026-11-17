@@ -101,7 +101,7 @@ html:has(.pw) {
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: 0.32em;
-  font-size: 11px;
+  font-size: var(--text-miuda);
 }
 .pw-rule {
   width: 56px;
@@ -187,7 +187,7 @@ html:has(.pw) {
 }
 .pw-nav ul a {
   text-decoration: none;
-  font-size: 11px;
+  font-size: var(--text-miuda);
   letter-spacing: 0.26em;
   text-transform: uppercase;
   opacity: 0.8;
@@ -207,7 +207,7 @@ html:has(.pw) {
   min-height: 44px;
   padding: 0 22px;
   border: 1px solid currentColor;
-  font: 400 11px/1 var(--sans);
+  font: 400 var(--text-miuda)/1 var(--sans);
   letter-spacing: 0.28em;
   text-transform: uppercase;
   text-decoration: none;
@@ -315,7 +315,7 @@ html:has(.pw) {
   right: var(--gr);
   bottom: max(56px, calc(env(safe-area-inset-bottom) + 40px));
   writing-mode: vertical-rl;
-  font-size: 10px;
+  font-size: var(--text-miuda);
   letter-spacing: 0.4em;
   text-transform: uppercase;
   opacity: 0.75;
@@ -394,7 +394,7 @@ html:has(.pw) {
   padding-right: 16px;
 }
 .pw-facts dt {
-  font-size: 10px;
+  font-size: var(--text-miuda);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   opacity: 0.7;
@@ -537,9 +537,22 @@ html:has(.pw) {
   display: flex;
   align-items: flex-end;
   padding: 10px 8px;
-  font-size: 10px;
+  font-size: var(--text-miuda);
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  /* Sem isto, uma amostra estreita cresce para caber o código e empurra a
+     grelha para fora do ecrã. */
+  min-width: 0;
+}
+/* 17/11, a letra passou de 10 para 12 px (o chão do site). Medido com a Jost
+   a sério: o código de seis letras ocupa 51 px, e uma amostra a 360 px de
+   ecrã só tem 56 px menos os 16 da folga — a 320 px saía da página. No
+   telemóvel a folga e o espaçamento apertam, e o código cabe até aos 320. */
+@media (max-width: 479px) {
+  .pw-sw div {
+    padding-inline: 5px;
+    letter-spacing: 0.04em;
+  }
 }
 .pw-pal .pw-left {
   align-self: center;
@@ -843,7 +856,7 @@ html:has(.pw) {
   margin-top: 4px;
 }
 .pw-steps .pw-w {
-  font-size: 11px;
+  font-size: var(--text-miuda);
   letter-spacing: 0.24em;
   text-transform: uppercase;
   opacity: 0.75;
@@ -972,7 +985,7 @@ html:has(.pw) {
   border: 0;
   background: var(--on-dark);
   color: var(--dark);
-  font: 400 10px/1 var(--sans);
+  font: 400 var(--text-miuda)/1 var(--sans);
   letter-spacing: 0.24em;
   text-transform: uppercase;
   cursor: pointer;

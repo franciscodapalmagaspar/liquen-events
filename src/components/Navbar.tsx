@@ -50,7 +50,7 @@ const MENU_EASE = EASE_OUT;
  */
 const BOTAO_DA_BARRA =
   "toque alvo-toque inline-flex items-center justify-center gap-1.5 leading-none " +
-  "border px-5 py-2.5 text-[11px] tracking-[0.2em] uppercase";
+  "border px-5 py-2.5 text-miuda tracking-[0.2em] uppercase";
 
 const NAV_ORDER = ["/", "/sobre", "/servicos", "/galeria", "/clientes", "/contacto"];
 function orderIdx(path: string): number {
@@ -355,7 +355,7 @@ const MobileMenu = memo(function MobileMenu({
             SpaceX "Upcoming Launches", adaptado à Líquen). Imagens só montam com
             o menu aberto para não descarregarem em todas as páginas. */}
         <div className="mt-6" style={reveal(80 + 6 * 60)}>
-          <p className="mb-3 text-[11px] tracking-[0.26em] uppercase text-white/45">
+          <p className="mb-3 text-miuda tracking-[0.26em] uppercase text-white/45">
             {featuredHeader}
           </p>
           <div className="border-t border-white/12">
@@ -392,7 +392,7 @@ const MobileMenu = memo(function MobileMenu({
                   <span className="block text-base leading-snug text-white font-semibold uppercase tracking-display">
                     {s.title}
                   </span>
-                  <span className="mt-1 block text-[10px] tracking-[0.18em] uppercase text-white/45">
+                  <span className="mt-1 block text-miuda tracking-[0.18em] uppercase text-white/45">
                     {s.sub}
                   </span>
                 </span>
@@ -426,7 +426,7 @@ const MobileMenu = memo(function MobileMenu({
           href={localizeHref("/orcamento", locale)}
           onClick={() => track("CTAClick", { source: "nav-mobile" })}
           // 311×37 px medidos com o menu aberto — a acção principal do menu.
-          className="toque alvo-toque group flex items-center justify-between w-full border border-white/25 px-5 py-2.5 text-white text-[10px] tracking-[0.28em] uppercase transition-colors duration-300 hover:bg-white hover:text-[#0c0e0b] hover:border-white"
+          className="toque alvo-toque group flex items-center justify-between w-full border border-white/25 px-5 py-2.5 text-white text-miuda tracking-[0.28em] uppercase transition-colors duration-300 hover:bg-white hover:text-[#0c0e0b] hover:border-white"
         >
           <span>{t.nav.pedirOrcamento}</span>
           <span
@@ -840,7 +840,7 @@ export default function Navbar() {
                 //
                 // `alvo-toque` não lhes toca com rato — a densidade calma da
                 // barra no portátil fica exactamente como está.
-                className={`alvo-toque link-line py-1.5 -my-1.5 text-[11px] tracking-[0.2em] uppercase transition-colors duration-300 ${
+                className={`alvo-toque link-line py-1.5 -my-1.5 text-miuda tracking-[0.2em] uppercase transition-colors duration-300 ${
                   light
                     ? isActive(link.href)
                       ? "text-white nav-active-light"

@@ -352,7 +352,7 @@ export default function GaleriaDoServico({ fotos, spans, alt, textos }: Props) {
 
             <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-3 sm:px-6">
               <p
-                className="text-[11px] uppercase tracking-[0.2em] text-white/80 tabular-nums"
+                className="text-miuda uppercase tracking-[0.2em] text-white/80 tabular-nums"
                 aria-live="polite"
               >
                 {atual + 1} {textos.de} {lupa.ordem.length}

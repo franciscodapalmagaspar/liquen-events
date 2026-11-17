@@ -179,7 +179,7 @@ export default async function ServiceDetailPage({
               engines index, and gives the visitor two levels up, not just one. */}
           <nav
             aria-label={t.nav.breadcrumb}
-            className="text-[11px] tracking-[0.2em] uppercase text-cream/60 mb-8"
+            className="text-miuda tracking-[0.2em] uppercase text-cream/60 mb-8"
           >
             {/* `alvo-toque` nos dois degraus clicáveis: mediam 47×14 e 72×14 px
                 a 375 px com toque emulado — 14 px de altura, menos de um terço
@@ -249,7 +249,7 @@ export default async function ServiceDetailPage({
                 stay sentence case — uppercasing the long PT descriptions reads
                 shouty — but sit against the eyebrow's uppercase spec label. */}
             <div>
-              <p className="text-foreground/72 text-[10px] tracking-[0.4em] uppercase mb-2 flex items-center gap-3">
+              <p className="text-foreground/72 text-miuda tracking-[0.4em] uppercase mb-2 flex items-center gap-3">
                 <span className="w-8 h-px bg-gold flex-shrink-0" />
                 {t.servicoDetalhe.includesTitle}
               </p>
@@ -298,7 +298,7 @@ export default async function ServiceDetailPage({
             <div className="max-w-7xl mx-auto w-full px-6 lg:px-16 pb-12 lg:pb-16">
               <AnimateIn>
                 <div className="max-w-md">
-                  <p className="text-white/75 text-[10px] tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
+                  <p className="text-white/75 text-miuda tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
                     <span className="w-6 h-px bg-gold flex-shrink-0" />
                     {t.servicoDetalhe.viaturasEyebrow}
                   </p>
@@ -319,7 +319,7 @@ export default async function ServiceDetailPage({
       <section className="py-20 lg:py-28 bg-surface border-t border-foreground/8">
         <div className="max-w-7xl mx-auto px-6 lg:px-16 mb-10 lg:mb-14">
           <AnimateIn>
-            <p className="text-foreground/72 text-[10px] tracking-[0.5em] uppercase flex items-center gap-3">
+            <p className="text-foreground/72 text-miuda tracking-[0.5em] uppercase flex items-center gap-3">
               <span className="w-8 h-px bg-gold flex-shrink-0" />
               {t.servicoDetalhe.galleryEyebrow}
             </p>
@@ -388,7 +388,7 @@ export default async function ServiceDetailPage({
           />
           <div className="relative z-10 max-w-3xl mx-auto px-6 lg:px-16">
             <AnimateIn>
-              <h2 className="text-veil-shadow text-white/70 text-[10px] tracking-[0.4em] uppercase mb-10 flex items-center gap-3">
+              <h2 className="text-veil-shadow text-white/70 text-miuda tracking-[0.4em] uppercase mb-10 flex items-center gap-3">
                 <span className="w-8 h-px bg-gold flex-shrink-0" /> {t.servicoDetalhe.faqTitle}
               </h2>
             </AnimateIn>
@@ -414,7 +414,7 @@ export default async function ServiceDetailPage({
         <section className="py-20 lg:py-28 bg-surface border-t border-foreground/8">
           <div className="max-w-7xl mx-auto px-6 lg:px-16">
             <AnimateIn>
-              <h2 className="text-foreground/72 text-[10px] tracking-[0.4em] uppercase mb-10 flex items-center gap-3">
+              <h2 className="text-foreground/72 text-miuda tracking-[0.4em] uppercase mb-10 flex items-center gap-3">
                 <span className="w-8 h-px bg-gold flex-shrink-0" /> {t.servicoDetalhe.relatedTitle}
               </h2>
             </AnimateIn>

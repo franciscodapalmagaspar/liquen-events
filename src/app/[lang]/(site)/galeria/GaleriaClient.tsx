@@ -283,7 +283,7 @@ function HoverOverlay({ caption, sub }: { caption: string; sub?: string }) {
           {/* /70 (era /55): sobre a foto mais clara medida (luminância 0.535) a
               sub-legenda de 9px dava 4.25:1, abaixo do mínimo de 4.5:1. */}
           {sub && (
-            <span className="block text-white/70 text-[9px] tracking-[0.2em] uppercase mt-0.5">
+            <span className="block text-white/70 text-miuda tracking-[0.2em] uppercase mt-0.5">
               {sub}
             </span>
           )}
@@ -1267,7 +1267,7 @@ export default function GaleriaClient({
         <div className="flex items-center gap-4 mb-8 px-3 sm:px-4 lg:px-6">
           <button
             onClick={() => switchCat("Todos")}
-            className="flex-shrink-0 flex min-h-[44px] items-center gap-1.5 border border-white/25 px-4 py-2 text-[11px] tracking-[0.2em] uppercase text-white/70 hover:border-white/60 hover:text-white transition-colors duration-300"
+            className="flex-shrink-0 flex min-h-[44px] items-center gap-1.5 border border-white/25 px-4 py-2 text-miuda tracking-[0.2em] uppercase text-white/70 hover:border-white/60 hover:text-white transition-colors duration-300"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -1286,7 +1286,7 @@ export default function GaleriaClient({
             >
               {collectionFilter}
             </p>
-            <p className="text-white/55 text-[10px] tracking-[0.15em] uppercase mt-0.5">
+            <p className="text-white/55 text-miuda tracking-[0.15em] uppercase mt-0.5">
               {pool.length} {dict.photosLabel}
             </p>
           </div>
@@ -1405,7 +1405,7 @@ export default function GaleriaClient({
                 carrega o lote seguinte, em vez de ser expulso para o CTA. */}
             <button
               onClick={() => setShown((s) => Math.min(s + PAGE, pool.length))}
-              className={`group flex min-h-[44px] items-center gap-3 border border-white/70 px-10 py-3.5 text-[11px] uppercase tracking-[0.3em] text-white transition-colors duration-300 hover:border-white hover:bg-white hover:text-[#0c0e0b] ${
+              className={`group flex min-h-[44px] items-center gap-3 border border-white/70 px-10 py-3.5 text-miuda uppercase tracking-[0.3em] text-white transition-colors duration-300 hover:border-white hover:bg-white hover:text-[#0c0e0b] ${
                 ioSupported ? "sr-only focus:not-sr-only focus:relative" : ""
               }`}
             >
@@ -1428,7 +1428,7 @@ export default function GaleriaClient({
         {/* `shown` arranca em INITIAL_PAGE=12 mesmo quando o pool é menor, por
             isso encosta-se ao total: agora que o contador está sempre montado,
             sem isto lia-se "12 de 8". */}
-        <p role="status" className="text-[10px] tracking-widest text-white/55">
+        <p role="status" className="text-miuda tracking-widest text-white/55">
           {Math.min(shown, pool.length)} {dict.de} {pool.length}
         </p>
       </div>
@@ -2609,7 +2609,7 @@ function Lightbox({
                 <span className="text-white/20 mx-1.5">·</span>
               </span>
             )}
-            <span className="text-white/65 text-[10px] tracking-[0.15em] uppercase">
+            <span className="text-white/65 text-miuda tracking-[0.15em] uppercase">
               {labelText(pool[index].label)}
             </span>
           </div>
@@ -2629,7 +2629,7 @@ function Lightbox({
               ?
             </button>
             {dicasAbertas && (
-              <p className="lb-dica-caixa absolute right-0 top-full mt-1 whitespace-nowrap rounded-xl bg-black/80 px-3 py-2 text-[11px] tracking-widest text-white/80 ring-1 ring-white/10">
+              <p className="lb-dica-caixa absolute right-0 top-full mt-1 whitespace-nowrap rounded-xl bg-black/80 px-3 py-2 text-miuda tracking-widest text-white/80 ring-1 ring-white/10">
                 {dict.keyboardHint}
               </p>
             )}

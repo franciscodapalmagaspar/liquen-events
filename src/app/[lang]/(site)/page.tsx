@@ -148,9 +148,11 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                   ))}
                 </h1>
                 <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2">
-                  {/* Primary hero actions. Small 9px label on phones (the py-2
+                  {/* Primary hero actions. Era 9 px no telemóvel e 10 px do sm
+                    para cima; desde 17/11 é a letra miúda do site (12 px,
+                    `text-miuda`), o chão de todas as páginas públicas. O py-2
                     still keeps a ≥40px tap target and the underline keeps the
-                    minimal look); 10px from sm up.
+                    minimal look.
                     ── O comentário acima estava optimista, e foi MEDIDO ──
                     A 375 px com toque emulado davam 140×31 e 101×31 px: 31, não
                     40. São as duas primeiras acções do sítio, no primeiro ecrã.
@@ -172,7 +174,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                   <TrackedLink
                     href={localizeHref("/orcamento", locale)}
                     trackProps={{ source: "home-hero" }}
-                    className="alvo-toque group inline-flex items-center text-white text-[9px] sm:text-[10px] tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
+                    className="alvo-toque group inline-flex items-center text-white text-miuda tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
                   >
                     <span className="inline-flex items-center gap-1.5 border-b border-white/60 transition-colors group-hover:border-white">
                       {t.common.pedirOrcamento} <span aria-hidden>→</span>
@@ -180,7 +182,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                   </TrackedLink>
                   <Link
                     href={localizeHref("/galeria", locale)}
-                    className="alvo-toque group inline-flex items-center text-white/85 text-[9px] sm:text-[10px] tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
+                    className="alvo-toque group inline-flex items-center text-white/85 text-miuda tracking-[0.28em] uppercase py-2 sm:pb-1 sm:py-0 sm:pointer-fine:pt-1 sm:pointer-fine:-mt-1 transition-colors hover:text-white"
                   >
                     <span className="inline-flex items-center gap-1.5 border-b border-white/30 transition-colors group-hover:border-white">
                       {t.common.verGaleria} <span aria-hidden>→</span>
@@ -276,7 +278,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                     traço promete um alvo maior do que o que existe. */}
                 <Link
                   href={localizeHref(s.href, locale)}
-                  className="alvo-toque mt-6 sm:mt-8 inline-flex items-center gap-2 sm:gap-3 border border-white/70 text-white text-[10px] sm:text-[11px] tracking-[0.18em] sm:tracking-[0.3em] uppercase px-5 py-2.5 sm:px-8 sm:py-3.5 hover:bg-white hover:text-[#0c0e0b] hover:border-white transition-colors duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+                  className="alvo-toque mt-6 sm:mt-8 inline-flex items-center gap-2 sm:gap-3 border border-white/70 text-white text-miuda tracking-[0.18em] sm:tracking-[0.3em] uppercase px-5 py-2.5 sm:px-8 sm:py-3.5 hover:bg-white hover:text-[#0c0e0b] hover:border-white transition-colors duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
                 >
                   {t.common.verServicos}
                   <span aria-hidden>→</span>
@@ -329,7 +331,7 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
             0,50 no computador. Ficam 0,64 e 0,52, com folga. */}
         <div className="text-veil-shadow veu-texto veu-texto--centro [--veu-alfa:0.64] lg:[--veu-alfa:0.52] [--veu-recuo-cima:7rem] [--veu-recuo-baixo:7rem] lg:[--veu-recuo-cima:10rem] lg:[--veu-recuo-baixo:10rem] relative z-10 max-w-7xl mx-auto px-6 lg:px-16 py-28 lg:py-40 flex flex-col items-center text-center">
           <AnimateIn>
-            <p className="text-white/70 text-[10px] tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
+            <p className="text-white/70 text-miuda tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
               <span className="w-8 h-px bg-gold" />
               {t.home.ctaEyebrow}
             </p>

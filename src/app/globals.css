@@ -2157,7 +2157,7 @@ body[data-menu-open] .whatsapp-fixed {
 
 /* Eyebrow label — shared editorial micro-heading */
 .eyebrow {
-  font-size: 10px;
+  font-size: var(--text-miuda);
   letter-spacing: 0.35em;
   text-transform: uppercase;
   /* ~5:1 on white — a legible micro-heading, not a ghost. */

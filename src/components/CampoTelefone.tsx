@@ -199,7 +199,7 @@ export const APARENCIA_DO_SITE: AparenciaDoTelefone = {
   separador:
     "relative mt-2 before:absolute before:inset-x-2.5 before:-top-1 before:h-px before:bg-[var(--border)]",
   semResultados: "px-2.5 py-3 text-sm text-[var(--fg-secondary)]",
-  erro: "mt-2 text-[11px] tracking-wide text-gold-text",
+  erro: "mt-2 text-miuda tracking-wide text-gold-text",
 };
 
 type Campo = { pais: string; numero: string };
@@ -566,7 +566,7 @@ export default function CampoTelefone({
               className="h-3.5 w-5 shrink-0 rounded-[2px] object-cover shadow-[0_0_0_1px_rgb(0_0_0/0.12)]"
             />
           ) : (
-            <span aria-hidden="true" className="w-5 shrink-0 text-center text-[10px] font-medium">
+            <span aria-hidden="true" className="w-5 shrink-0 text-center text-miuda font-medium">
               {campo.pais}
             </span>
           )}
