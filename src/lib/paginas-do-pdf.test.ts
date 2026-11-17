@@ -9,6 +9,9 @@ import {
   imagemDaPagina,
   larguraPedida,
   medidasDaMemoria,
+  PedidoCortado,
+  PRAZO_DA_VAGA_MS,
+  SemVagaParaDocumentos,
   textoDasPaginas,
 } from "./paginas-do-pdf";
 
@@ -134,5 +137,88 @@ describe("as páginas do PDF como imagens", () => {
     expect(depois.bytesEmImagens - antes.bytesEmImagens).toBe(a!.length);
     expect(depois.bytesEmImagens, "a conta e a soma real desencontraram-se").toBe(depois.somaReal);
     expect(b).toBe(a);
+  });
+
+  /**
+   * 2.ª revisão de 17/11, n.º 1: a espera pela vaga não tinha prazo. Seis
+   * documentos pendurados seguravam todos os outros pedidos até a função
+   * morrer. Agora quem espera desiste aos 15 s, e um pedido cortado sai logo.
+   */
+  describe("a fila dos documentos tem prazo e larga os pedidos cortados", () => {
+    async function encherComPendurados(prefixo: string) {
+      const bytes = await umPdf();
+      const portas: (() => void)[] = [];
+      const pendurado = () => new Promise<Uint8Array>((r) => portas.push(() => r(bytes)));
+      const pedidos = Array.from({ length: 6 }, (_, i) =>
+        formasDasPaginas(`${prefixo}-${i}`, pendurado),
+      );
+      await new Promise((r) => setTimeout(r, 20));
+      expect(portas).toHaveLength(6);
+      return {
+        bytes,
+        async soltar() {
+          for (const abrir of portas) abrir();
+          await Promise.all(pedidos);
+        },
+      };
+    }
+
+    it("quem espera mais do que o prazo recebe «sem vaga» e não abre nada", async () => {
+      const cheia = await encherComPendurados("prazo");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+      try {
+        const obter = vi.fn(async () => cheia.bytes);
+        const espera = formasDasPaginas("prazo-7", obter);
+        const resultado = espera.then(
+          () => "abriu",
+          (e: unknown) => e,
+        );
+        await vi.advanceTimersByTimeAsync(PRAZO_DA_VAGA_MS - 100);
+        expect(obter).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(200);
+        expect(await resultado).toBeInstanceOf(SemVagaParaDocumentos);
+        expect(obter).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+        await cheia.soltar();
+      }
+    });
+
+    it("um pedido cortado enquanto espera sai logo da fila", async () => {
+      const cheia = await encherComPendurados("cortado");
+      try {
+        const corte = new AbortController();
+        const obter = vi.fn(async () => cheia.bytes);
+        const espera = imagemDaPagina("cortado-7", obter, 1, 800, { signal: corte.signal });
+        const resultado = espera.then(
+          () => "abriu",
+          (e: unknown) => e,
+        );
+        await new Promise((r) => setTimeout(r, 10));
+        corte.abort();
+        expect(await resultado).toBeInstanceOf(PedidoCortado);
+        expect(obter).not.toHaveBeenCalled();
+        // E um já cortado nem entra.
+        await expect(
+          formasDasPaginas("cortado-8", obter, { signal: corte.signal }),
+        ).rejects.toBeInstanceOf(PedidoCortado);
+      } finally {
+        await cheia.soltar();
+      }
+    });
+
+    it("o corte de um pedido não leva o desenho partilhado de quem ficou", async () => {
+      const cheia = await encherComPendurados("partilhado");
+      const corte = new AbortController();
+      const obter = async () => cheia.bytes;
+      const doQueSaiu = imagemDaPagina("partilhado-7", obter, 1, 800, { signal: corte.signal });
+      const doQueFicou = imagemDaPagina("partilhado-7", obter, 1, 800);
+      await new Promise((r) => setTimeout(r, 10));
+      corte.abort();
+      await expect(doQueSaiu).rejects.toBeInstanceOf(PedidoCortado);
+      await cheia.soltar();
+      const webp = await doQueFicou;
+      expect(webp!.subarray(8, 12).toString()).toBe("WEBP");
+    });
   });
 });

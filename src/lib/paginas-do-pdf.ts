@@ -72,8 +72,7 @@ let bytesEmImagens = 0;
  * aberto na memória até o último acabar. Sem contar esses, uma rajada de
  * pedidos lentos abria documentos sem fim. O tecto é GLOBAL — os do mapa mais
  * os postos de parte ainda em uso —, e quem chega com ele cheio espera que um
- * feche. Nunca bloqueia para sempre: os que estão a ser usados acabam (ou
- * falham) por conta própria, e cada fecho acorda quem espera.
+ * feche: cada fecho acorda quem espera, e a espera tem prazo (ver abaixo).
  */
 const TECTO_DE_DOCUMENTOS = DOCUMENTOS_ABERTOS * 2;
 let postosDeParteEmUso = 0;
@@ -83,9 +82,68 @@ function documentosVivos(): number {
   return abertos.size + postosDeParteEmUso;
 }
 
-async function vagaPara(chave: string): Promise<void> {
-  while (!abertos.has(chave) && documentosVivos() >= TECTO_DE_DOCUMENTOS) {
-    await new Promise<void>((acordar) => aEsperarVaga.push(acordar));
+/**
+ * ── E A ESPERA TEM PRAZO (2.ª revisão de 17/11) ─────────────────────────
+ *
+ * «Nunca bloqueia para sempre» era verdade só se cada documento em uso acabasse.
+ * Três postos de parte pendurados (um armazenamento que não responde, um
+ * desenho preso) seguravam a fila inteira, e todos os outros pedidos ficavam
+ * à espera até a função morrer aos 60 s. Agora quem espera desiste aos 15 s
+ * com `SemVagaParaDocumentos` (as rotas respondem 503, «tenta outra vez»), e
+ * um pedido cortado pelo browser sai logo da fila (`PedidoCortado`), sem abrir
+ * um documento para ninguém.
+ */
+export const PRAZO_DA_VAGA_MS = 15_000;
+
+/** A fila de documentos esteve cheia durante todo o prazo. */
+export class SemVagaParaDocumentos extends Error {
+  constructor() {
+    super("Sem vaga para abrir o documento: tenta outra vez.");
+    this.name = "SemVagaParaDocumentos";
+  }
+}
+
+/** Quem pediu foi-se embora enquanto esperava na fila. */
+export class PedidoCortado extends Error {
+  constructor() {
+    super("O pedido foi cortado enquanto esperava na fila.");
+    this.name = "PedidoCortado";
+  }
+}
+
+export type OpcoesDoPedido = { signal?: AbortSignal };
+
+function cabe(chave: string): boolean {
+  return abertos.has(chave) || documentosVivos() < TECTO_DE_DOCUMENTOS;
+}
+
+async function vagaPara(chave: string, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) throw new PedidoCortado();
+  if (cabe(chave)) return;
+  const fim = Date.now() + PRAZO_DA_VAGA_MS;
+  while (!cabe(chave)) {
+    const restante = fim - Date.now();
+    if (restante <= 0) throw new SemVagaParaDocumentos();
+    await new Promise<void>((seguir, desistir) => {
+      const acordar = () => {
+        limpar();
+        seguir();
+      };
+      const sair = (erro: Error) => {
+        limpar();
+        const i = aEsperarVaga.indexOf(acordar);
+        if (i >= 0) aEsperarVaga.splice(i, 1);
+        desistir(erro);
+      };
+      const cortado = () => sair(new PedidoCortado());
+      const relogio = setTimeout(() => sair(new SemVagaParaDocumentos()), restante);
+      function limpar() {
+        clearTimeout(relogio);
+        signal?.removeEventListener("abort", cortado);
+      }
+      aEsperarVaga.push(acordar);
+      signal?.addEventListener("abort", cortado, { once: true });
+    });
   }
 }
 
@@ -174,8 +232,9 @@ async function comDocumento<T>(
   chave: string,
   obterBytes: () => Promise<Uint8Array>,
   trabalho: (a: Aberto) => Promise<T>,
+  signal?: AbortSignal,
 ): Promise<T> {
-  await vagaPara(chave);
+  await vagaPara(chave, signal);
   // Sem `await` entre a vaga e a contagem: ninguém a toma entretanto.
   const e = entrada(chave, obterBytes);
   e.emUso += 1;
@@ -191,29 +250,36 @@ async function comDocumento<T>(
 export async function formasDasPaginas(
   chave: string,
   obterBytes: () => Promise<Uint8Array>,
+  { signal }: OpcoesDoPedido = {},
 ): Promise<number[]> {
-  return comDocumento(chave, obterBytes, async (a) => a.proporcoes);
+  return comDocumento(chave, obterBytes, async (a) => a.proporcoes, signal);
 }
 
 /** O texto de cada página, para o leitor de ecrã — a imagem é só imagem. */
 export async function textoDasPaginas(
   chave: string,
   obterBytes: () => Promise<Uint8Array>,
+  { signal }: OpcoesDoPedido = {},
 ): Promise<string[]> {
-  return comDocumento(chave, obterBytes, async ({ doc }) => {
-    const textos: string[] = [];
-    for (let i = 1; i <= doc.numPages; i++) {
-      const conteudo = await (await doc.getPage(i)).getTextContent();
-      textos.push(
-        conteudo.items
-          .map((x) => ("str" in x ? x.str : ""))
-          .join(" ")
-          .replace(/\s+/g, " ")
-          .trim(),
-      );
-    }
-    return textos;
-  });
+  return comDocumento(
+    chave,
+    obterBytes,
+    async ({ doc }) => {
+      const textos: string[] = [];
+      for (let i = 1; i <= doc.numPages; i++) {
+        const conteudo = await (await doc.getPage(i)).getTextContent();
+        textos.push(
+          conteudo.items
+            .map((x) => ("str" in x ? x.str : ""))
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim(),
+        );
+      }
+      return textos;
+    },
+    signal,
+  );
 }
 
 /**
@@ -231,23 +297,58 @@ export async function imagemDaPagina(
   obterBytes: () => Promise<Uint8Array>,
   n: number,
   largura: Largura,
+  { signal }: OpcoesDoPedido = {},
 ): Promise<Buffer | null> {
   const id = `${chave}:${n}:${largura}`;
-  const feita = imagens.get(id);
-  if (feita) {
-    imagens.delete(id);
-    imagens.set(id, feita);
-    return feita;
+  for (;;) {
+    const feita = imagens.get(id);
+    if (feita) {
+      imagens.delete(id);
+      imagens.set(id, feita);
+      return feita;
+    }
+    const emCurso = aDesenhar.get(id);
+    if (emCurso) {
+      try {
+        return await esperarComSinal(emCurso, signal);
+      } catch (erro) {
+        // O desenho partilhado era de outro pedido, que foi cortado na fila:
+        // este continua cá, e pede-o de novo.
+        if (erro instanceof PedidoCortado && !signal?.aborted) {
+          if (aDesenhar.get(id) === emCurso) aDesenhar.delete(id);
+          continue;
+        }
+        throw erro;
+      }
+    }
+    const desenho = desenharPagina(chave, obterBytes, n, largura, id, signal);
+    aDesenhar.set(id, desenho);
+    try {
+      return await desenho;
+    } finally {
+      if (aDesenhar.get(id) === desenho) aDesenhar.delete(id);
+    }
   }
-  const emCurso = aDesenhar.get(id);
-  if (emCurso) return emCurso;
-  const desenho = desenharPagina(chave, obterBytes, n, largura, id);
-  aDesenhar.set(id, desenho);
-  try {
-    return await desenho;
-  } finally {
-    if (aDesenhar.get(id) === desenho) aDesenhar.delete(id);
-  }
+}
+
+/** Espera pelo desenho de outro pedido, mas sai logo se ESTE for cortado. */
+function esperarComSinal<T>(promessa: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promessa;
+  if (signal.aborted) return Promise.reject(new PedidoCortado());
+  return new Promise<T>((seguir, desistir) => {
+    const cortado = () => desistir(new PedidoCortado());
+    signal.addEventListener("abort", cortado, { once: true });
+    promessa.then(
+      (v) => {
+        signal.removeEventListener("abort", cortado);
+        seguir(v);
+      },
+      (e) => {
+        signal.removeEventListener("abort", cortado);
+        desistir(e);
+      },
+    );
+  });
 }
 
 async function desenharPagina(
@@ -256,22 +357,28 @@ async function desenharPagina(
   n: number,
   largura: Largura,
   id: string,
+  signal: AbortSignal | undefined,
 ): Promise<Buffer | null> {
-  const webp = await comDocumento(chave, obterBytes, async ({ doc }) => {
-    if (!Number.isInteger(n) || n < 1 || n > doc.numPages) return null;
-    const pagina = await doc.getPage(n);
-    const vista = pagina.getViewport({ scale: largura / pagina.getViewport({ scale: 1 }).width });
-    // Em Node a fábrica do pdf.js dá telas do `@napi-rs/canvas`, que sabem
-    // codificar WebP sozinhas (e fora da linha principal).
-    const fabrica = doc.canvasFactory as {
-      create(w: number, h: number): { canvas: { encode(f: "webp", q: number): Promise<Buffer> } };
-    };
-    const { canvas } = fabrica.create(Math.floor(vista.width), Math.floor(vista.height));
-    await pagina.render({ canvas: canvas as unknown as HTMLCanvasElement, viewport: vista })
-      .promise;
-    pagina.cleanup();
-    return canvas.encode("webp", QUALIDADE);
-  });
+  const webp = await comDocumento(
+    chave,
+    obterBytes,
+    async ({ doc }) => {
+      if (!Number.isInteger(n) || n < 1 || n > doc.numPages) return null;
+      const pagina = await doc.getPage(n);
+      const vista = pagina.getViewport({ scale: largura / pagina.getViewport({ scale: 1 }).width });
+      // Em Node a fábrica do pdf.js dá telas do `@napi-rs/canvas`, que sabem
+      // codificar WebP sozinhas (e fora da linha principal).
+      const fabrica = doc.canvasFactory as {
+        create(w: number, h: number): { canvas: { encode(f: "webp", q: number): Promise<Buffer> } };
+      };
+      const { canvas } = fabrica.create(Math.floor(vista.width), Math.floor(vista.height));
+      await pagina.render({ canvas: canvas as unknown as HTMLCanvasElement, viewport: vista })
+        .promise;
+      pagina.cleanup();
+      return canvas.encode("webp", QUALIDADE);
+    },
+    signal,
+  );
   if (!webp) return null;
 
   // Só se soma o que ainda lá não está: a mesma página guardada duas vezes

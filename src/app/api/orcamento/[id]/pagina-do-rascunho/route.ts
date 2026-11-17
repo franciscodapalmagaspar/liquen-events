@@ -7,7 +7,7 @@ import {
   fotosQueSeSabeQueFaltam,
   renderStoredEditorialPdfWithReport,
 } from "@/lib/proposal-doc-render";
-import { imagemDaPagina, larguraPedida } from "@/lib/paginas-do-pdf";
+import { imagemDaPagina, larguraPedida, SemVagaParaDocumentos } from "@/lib/paginas-do-pdf";
 import {
   ehIdiomaDaProposta,
   IDIOMA_POR_OMISSAO,
@@ -171,6 +171,8 @@ async function POST_semMedida(
           // O PDF devolvido tem SÓ a página pedida: é a primeira dele.
           1,
           largura,
+          // Um pedido cortado sai da fila dos documentos (2.ª revisão de 17/11).
+          { signal: request.signal },
         );
       })(),
     ]);
@@ -228,6 +230,15 @@ async function POST_semMedida(
         erro: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
       });
       return new NextResponse(null, { status: 499 });
+    }
+    if (err instanceof SemVagaParaDocumentos) {
+      // A fila dos documentos esteve cheia 15 s: o estúdio tenta outra vez
+      // sozinho (`usePaginaReal`), e não é uma avaria (2.ª revisão de 17/11).
+      log.warn("pagina-do-rascunho: sem vaga para abrir o documento", { id, n });
+      return NextResponse.json(
+        { error: "O servidor está ocupado: tenta outra vez." },
+        { status: 503, headers: { "Retry-After": "2" } },
+      );
     }
     log.error("pagina-do-rascunho", err, { id, n });
     return NextResponse.json(
