@@ -98,6 +98,23 @@ seguinte. Ficaram feitos no mesmo ramo:
   `COLUNAS` e o `MENU_DA_BIBLIOTECA` em `_temas/pele-da-biblioteca.ts`. Nenhum
   valor mudou.
 
+**O resto do júri (17/11, a pedido dele: «faz tudo»).** Os onze pontos da
+secção 3 do parecer, no mesmo ramo, um commit por ponto (títulos «Júri, ponto N»):
+
+| Ponto | O que ficou |
+|---|---|
+| 1 · os filhos com os `setState` do pai | `lib/orcamento/pedidos/lista-de-pedidos.ts` (puras + `MudancasDosPedidos`) e `_pedidos/useMudancasDosPedidos.ts`; nenhum filho escreve `prev.map`. Uma diferença declarada: o pedido aberto só muda quando É o pedido mudado (teste do defeito em `useMudancasDosPedidos.test.tsx`). |
+| 2 · props a mais | nenhum componente das casas passa das 10: `FotosDoTema` 34 → 10, `Vistas` 24 → 3, `AvisosDaPasta` 24 → 5, `GrelhaDoSeletor` 24 → 4, `GrelhaDaPasta` 19 → 4, e mais nove. Agrupadas pelo que são, em objectos tipados; nenhum deles é `memo`. |
+| 3 · os donos gigantes | `AdminClient` 4 111 → 3 766: `useLoteDaLista`, `useGravacaoDoPedido` (máquina `ocioso · a-gravar · gravado · falhou`), `useLeituraDoPedido`. `Temas` 4 037 → 3 492: `useColunasDaGrelha`, `useLupaDaPasta`, `useDescargasDaPasta`, `useEnvioDeFotos` + `triagem-do-lote.ts`. `ThemePicker` 2 556 → 1 941: `_temas/seletor/estado-das-importacoes.ts` + `importacoes.tsx` (o runtime, com `limparImportacoes()`) e `PastilhaDaImportacao.tsx`. Todos chamados no mesmo sítio: a ordem dos efeitos não mudou. O que ainda lá está: a abertura e o fecho do painel e o histórico do navegador no `AdminClient`, e o carregamento das fotos e das miniaturas no `ThemeFolder` — estado e efeitos espalhados, para a fase seguinte, com caracterização própria. |
+| 4 · o painel descrito duas vezes | `lib/orcamento/pedidos/painel-do-pedido.ts`: `PainelDoPedido` e `painelParaGravar`. |
+| 5 · os temas em duas casas | `lib/temas-{arrasto,filtros,grelha,parecidos}.ts` e `tema-nome.ts` → `lib/temas/`; `temas-resumos` e `temas-uso` ficam (são server-only). O `pool` → `lib/concorrencia.ts`. |
+| 6 · testes em sítios que não os dizem | um `*.test.ts` ao lado de cada ficheiro puro; os de `lib/temas` saíram do `Temas.test.tsx` (203 casos antes e depois). |
+| 7 · fronteiras sem ferramenta | (já feito no passo anterior.) |
+| 8 · ficheiros-gaveta | `LIST_PAGE_SIZE` e `ARQUIVAR_SEM_PERGUNTAR` → `lib/orcamento/pedidos/lotes-da-lista.ts`; `teclaDeMenu` → `ui/`. |
+| 9 · nomes | `_pedidos/estado-do-pedido.tsx` → `PastilhaDoEstado.tsx`; `parseMoney` sem pseudónimo; `quemPedeEOCasal` uma vez. |
+| 10 · o tamanho do PR | é de processo: fica como lição 15 da Parte 4. |
+| 11 · testes de texto | os componentes novos e pequenos têm testes de render (`PastilhaDaImportacao`, a pastilha do estado, e os hooks com `renderHook`). Os quarenta testes de texto antigos ficam, e migram um a um. |
+
 **Desvios da fase 1 ao texto:** além do que a tabela da fase 1 nomeia, saíram
 com as funções as ajudantes privadas de que elas precisam (`eventTypeLabel`,
 `formatEventDate`, `buildRef`, `nomesDoCasal`, `baseDoPedidoParaOEcra`,
@@ -943,6 +960,11 @@ acerto medido aqui.
 14. **O porquê fica junto do código que explica**, com a data e a medição. É
     um dos pontos fortes desta casa; quando a função muda de ficheiro, o
     comentário vai com ela.
+15. **Um PR por casa.** As fases 7 e 8 foram 22 mil linhas num ramo só, e o júri
+    não as conseguia rever como um todo. Partir um gigante faz-se casa a casa
+    (`_casca`, `_pedidos/lista`, `_pedidos/painel`, `_temas`, `_temas/seletor`),
+    cada PR só com linhas movidas (`git diff --color-moved=dimmed-zebra` quase
+    todo cinzento), e os melhoramentos noutros PRs.
 
 15. **Partir um ficheiro gigante faz-se com o compilador, não à mão.** Nas
     fases 7 e 8, cada bloco de JSX saiu por um script que pergunta ao
