@@ -1,5 +1,6 @@
 "use client";
 
+import type { MudancasDosPedidos } from "@/lib/orcamento/pedidos/lista-de-pedidos";
 import { type Dispatch, type SetStateAction } from "react";
 import { type LeituraDoPedido } from "@/lib/orcamento/pedidos/leitura-do-pedido";
 import { type Quote } from "@/lib/orcamento/types";
@@ -34,9 +35,8 @@ import { VIEW_WRAP } from "./moldura-da-vista";
 export interface VistasDaOperacaoProps {
   userName: string;
   quotes: Quote[];
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
+  pedidos: MudancasDosPedidos;
   nomesDosPedidos: Map<string, string>;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
   view: View;
   setView: Dispatch<SetStateAction<View>>;
   pedidoPara: (v: View) => PedidoDaPaleta | undefined;
@@ -49,9 +49,8 @@ export interface VistasDaOperacaoProps {
 export function VistasDaOperacao({
   userName,
   quotes,
-  setQuotes,
+  pedidos,
   nomesDosPedidos,
-  setSelected,
   view,
   setView,
   pedidoPara,
@@ -91,8 +90,7 @@ export function VistasDaOperacao({
             onOpenQuote={abrirCliente}
             onFazerProposta={() => setView("fazer-proposta")}
             onQuoteAtualizado={(q) => {
-              setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-              setSelected((prev) => (prev?.id === q.id ? q : prev));
+              pedidos.substituir(q);
             }}
           />
         </div>
@@ -178,8 +176,7 @@ export function VistasDaOperacao({
                 : { ok: false as const, porque: r.porque };
             }}
             onQuoteAtualizado={(q) => {
-              setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-              setSelected((prev) => (prev?.id === q.id ? q : prev));
+              pedidos.substituir(q);
             }}
           />
         </div>
@@ -206,8 +203,7 @@ export function VistasDaOperacao({
                 : { ok: false as const, porque: r.porque };
             }}
             onQuoteAtualizado={(q) => {
-              setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-              setSelected((prev) => (prev?.id === q.id ? q : prev));
+              pedidos.substituir(q);
             }}
           />
         </div>

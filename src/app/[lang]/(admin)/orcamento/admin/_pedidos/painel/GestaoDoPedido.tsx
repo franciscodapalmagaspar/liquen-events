@@ -1,6 +1,7 @@
 "use client";
 
-import { type Dispatch, type RefObject, type SetStateAction } from "react";
+import type { MudancasDosPedidos } from "@/lib/orcamento/pedidos/lista-de-pedidos";
+import { type RefObject } from "react";
 import { formatPrice } from "@/lib/orcamento/pricing";
 import { type Quote, type QuoteStatus } from "@/lib/orcamento/types";
 import NotaDaProposta from "../../NotaDaProposta";
@@ -19,9 +20,8 @@ import { ContactosDoPedido } from "./ContactosDoPedido";
  */
 export interface GestaoDoPedidoProps {
   edicao: EdicaoDoPedido;
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
+  pedidos: MudancasDosPedidos;
   selected: Quote;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
   ganhoSemProposta: string | null;
   escolherEstado: (novo: QuoteStatus) => void;
   devolvidoAqui: { quoteId: string; endereco: string } | null;
@@ -32,9 +32,8 @@ export interface GestaoDoPedidoProps {
 
 export function GestaoDoPedido({
   edicao,
-  setQuotes,
+  pedidos,
   selected,
-  setSelected,
   ganhoSemProposta,
   escolherEstado,
   devolvidoAqui,
@@ -72,18 +71,14 @@ export function GestaoDoPedido({
                 quote={selected}
                 suggestions={allTags}
                 onChange={(tags) => {
-                  setQuotes((prev) => prev.map((q) => (q.id === selected.id ? { ...q, tags } : q)));
-                  setSelected((prev) => (prev ? { ...prev, tags } : prev));
+                  pedidos.mudar(selected.id, { tags });
                 }}
               />
               <FollowUpField
                 key={`fu-${selected.id}`}
                 quote={selected}
                 onChange={(followUpAt) => {
-                  setQuotes((prev) =>
-                    prev.map((q) => (q.id === selected.id ? { ...q, followUpAt } : q)),
-                  );
-                  setSelected((prev) => (prev ? { ...prev, followUpAt } : prev));
+                  pedidos.mudar(selected.id, { followUpAt });
                 }}
               />
             </div>

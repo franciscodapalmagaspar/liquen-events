@@ -1,6 +1,7 @@
 "use client";
 
-import { type Dispatch, type RefObject, type SetStateAction } from "react";
+import type { MudancasDosPedidos } from "@/lib/orcamento/pedidos/lista-de-pedidos";
+import { type RefObject } from "react";
 import { type SeparadorDoPedido } from "@/lib/orcamento/pedidos/proxima-accao";
 import { type ActivityEntry, type Quote, type QuoteStatus } from "@/lib/orcamento/types";
 import { type Gaveta } from "../../ui/gaveta";
@@ -20,9 +21,8 @@ import { SeparadoresDoPedido } from "./SeparadoresDoPedido";
 export interface FerramentasDoPedidoProps {
   edicao: EdicaoDoPedido;
   userName: string;
-  setQuotes: Dispatch<SetStateAction<Quote[]>>;
+  pedidos: MudancasDosPedidos;
   selected: Quote;
-  setSelected: Dispatch<SetStateAction<Quote | null>>;
   detailTab: SeparadorDoPedido;
   detailTabsVisitados: Set<SeparadorDoPedido>;
   abrirDetailTab: (tab: DetailTab) => void;
@@ -37,9 +37,8 @@ export interface FerramentasDoPedidoProps {
 export function FerramentasDoPedido({
   edicao,
   userName,
-  setQuotes,
+  pedidos,
   selected,
-  setSelected,
   detailTab,
   detailTabsVisitados,
   abrirDetailTab,
@@ -108,9 +107,8 @@ export function FerramentasDoPedido({
             {detailTabsVisitados.has("producao") && (
               <SeparadorDeProducao
                 userName={userName}
-                setQuotes={setQuotes}
+                pedidos={pedidos}
                 selected={selected}
-                setSelected={setSelected}
                 gavetaDoPlano={gavetaDoPlano}
               />
             )}
@@ -127,11 +125,7 @@ export function FerramentasDoPedido({
             }`}
           >
             {detailTabsVisitados.has("financeiro") && (
-              <SeparadorFinanceiro
-                setQuotes={setQuotes}
-                selected={selected}
-                setSelected={setSelected}
-              />
+              <SeparadorFinanceiro pedidos={pedidos} selected={selected} />
             )}
           </div>
 
@@ -149,9 +143,8 @@ export function FerramentasDoPedido({
               <SeparadorDaProposta
                 edicao={edicao}
                 userName={userName}
-                setQuotes={setQuotes}
+                pedidos={pedidos}
                 selected={selected}
-                setSelected={setSelected}
                 gavetaDoHistorico={gavetaDoHistorico}
                 appendActivity={appendActivity}
                 refletirEstadoDoEstudio={refletirEstadoDoEstudio}

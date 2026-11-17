@@ -118,6 +118,12 @@ import {
 } from "@/lib/orcamento/pedidos/gravar-o-pedido";
 import { painelParaGravar } from "@/lib/orcamento/pedidos/painel-do-pedido";
 import { useEdicaoDoPedido } from "./_pedidos/useEdicaoDoPedido";
+import { useMudancasDosPedidos } from "./_pedidos/useMudancasDosPedidos";
+import {
+  mudarNaLista,
+  substituirNaLista,
+  tirarDaLista,
+} from "@/lib/orcamento/pedidos/lista-de-pedidos";
 import { useFiltrosDosPedidos } from "./_pedidos/useFiltrosDosPedidos";
 import { VIEW_WRAP } from "./_casca/moldura-da-vista";
 import { ACOES_DE_PEDIDOS } from "./_casca/titulos-das-vistas";
@@ -247,6 +253,8 @@ export default function AdminClient({
     [quotes],
   );
   const [selected, setSelected] = useState<Quote | null>(null);
+  /** As mudanças aos pedidos pelo nome — o que os filhos recebem em vez dos dois `setState`. */
+  const pedidos = useMudancasDosPedidos(setQuotes, setSelected);
   // A lista leve de propostas, SÓ OUVIDA (sem pedido novo): a fase do pedido
   // aberto lê dela o total a pagar da proposta que conta, como o dossiê.
   const propostasLeves = usePropostasLevesSoOuvir();
@@ -979,8 +987,7 @@ export default function AdminClient({
   const absorverDoServidor = useCallback(
     (updated: Quote) => {
       const antes = selectedRef.current;
-      setQuotes((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
-      setSelected((prev) => (prev?.id === updated.id ? updated : prev));
+      pedidos.substituir(updated);
       if (!antes || antes.id !== updated.id) return;
       setEditStatus((v) => (v === antes.status ? updated.status : v));
       setEditPrice((v) => (v === textoDoPreco(antes) ? textoDoPreco(updated) : v));
@@ -1037,7 +1044,7 @@ export default function AdminClient({
    */
   const marcarDesfecho = useCallback(
     (actualizado: Quote) => {
-      setQuotes((prev) => prev.map((q) => (q.id === actualizado.id ? actualizado : q)));
+      setQuotes((prev) => substituirNaLista(prev, actualizado));
       if (selected?.id !== actualizado.id) return;
       setSelected(actualizado);
       setEditStatus(actualizado.status);
@@ -1073,7 +1080,7 @@ export default function AdminClient({
       if (q.status === status) return;
       const de = STATUS_OPTIONS.find((o) => o.id === q.status)?.label ?? q.status;
       const para = STATUS_OPTIONS.find((o) => o.id === status)?.label ?? status;
-      setQuotes((prev) => prev.map((x) => (x.id === q.id ? { ...x, status } : x)));
+      setQuotes((prev) => mudarNaLista(prev, q.id, { status }));
       const entrada: ActivityEntry = {
         id: randomId(),
         at: new Date().toISOString(),
@@ -1083,7 +1090,7 @@ export default function AdminClient({
       };
       const oQue = `mudar «${q.name}» para «${para}»`;
       const voltar = (mensagem: string) => {
-        setQuotes((prev) => prev.map((x) => (x.id === q.id ? { ...x, status: q.status } : x)));
+        setQuotes((prev) => mudarNaLista(prev, q.id, { status: q.status }));
         toast(`${mensagem} O estado ficou «${de}».`, "error");
       };
       let res: Response;
@@ -2263,7 +2270,7 @@ export default function AdminClient({
       return { ok: false, porque: `A resposta veio incompleta — não deu para ${oQue}. Repete.` };
     }
     completos.current.add(inteiro.id);
-    setQuotes((prev) => prev.map((x) => (x.id === inteiro.id ? inteiro : x)));
+    setQuotes((prev) => substituirNaLista(prev, inteiro));
     return { ok: true, quote: inteiro };
   }
 
@@ -2767,8 +2774,7 @@ export default function AdminClient({
     }
     const updated = corpo as Quote | null;
     if (updated?.id) {
-      setQuotes((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-      setSelected((prev) => (prev?.id === updated.id ? updated : prev));
+      pedidos.substituir(updated);
     }
     return true;
   }
@@ -2798,7 +2804,7 @@ export default function AdminClient({
    * estado novo ao gravar o resto.
    */
   function refletirEstadoDoEstudio(id: string, status: QuoteStatus) {
-    setQuotes((prev) => prev.map((x) => (x.id === id ? { ...x, status } : x)));
+    setQuotes((prev) => mudarNaLista(prev, id, { status }));
     const aberto = selectedRef.current;
     if (aberto?.id === id) {
       const anterior = aberto.status;
@@ -2808,8 +2814,7 @@ export default function AdminClient({
   }
 
   function refletirPedidoReposto(q: Quote) {
-    setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
-    setSelected((prev) => (prev?.id === q.id ? q : prev));
+    pedidos.substituir(q);
     preencherCom(q);
     escritoNoServidor.current = {
       id: q.id,
@@ -2935,7 +2940,7 @@ export default function AdminClient({
         dizer(porque, "error");
         return { ok: false, porque };
       }
-      setQuotes((prev) => prev.map((q) => (q.id === updated.id ? updated : q)));
+      setQuotes((prev) => substituirNaLista(prev, updated));
       setSelected(updated);
       // Re-sync EVERY edit field to what the server persisted, so the form can
       // never sit dirty on a value the user did not type (e.g. price formatting).
@@ -3099,8 +3104,7 @@ export default function AdminClient({
         if (u && typeof u === "object") updated.set(ids[i], { ...u, id: u.id ?? ids[i] });
       });
       if (updated.size > 0) {
-        setQuotes((prev) => prev.map((q) => updated.get(q.id) ?? q));
-        setSelected((prev) => (prev && updated.has(prev.id) ? updated.get(prev.id)! : prev));
+        pedidos.substituirVarios(updated);
       }
       const ok = updated.size;
       const failed = ids.length - ok;
@@ -3129,8 +3133,7 @@ export default function AdminClient({
           const porId = new Map(
             repostos.filter((q): q is Quote => !!q).map((q) => [q.id, q] as const),
           );
-          setQuotes((prev) => prev.map((q) => porId.get(q.id) ?? q));
-          setSelected((prev) => (prev && porId.has(prev.id) ? porId.get(prev.id)! : prev));
+          pedidos.substituirVarios(porId);
           const avisos: string[] = [];
           if (mudaramOutraVez.length > 0) {
             const n = mudaramOutraVez.length;
@@ -3210,8 +3213,7 @@ export default function AdminClient({
         if (u && typeof u === "object") updated.set(ids[i], { ...u, id: u.id ?? ids[i] });
       });
       if (updated.size > 0) {
-        setQuotes((prev) => prev.map((q) => updated.get(q.id) ?? q));
-        setSelected((prev) => (prev && updated.has(prev.id) ? updated.get(prev.id)! : prev));
+        pedidos.substituirVarios(updated);
       }
       const ok = updated.size;
       const failed = ids.length - ok;
@@ -3229,8 +3231,7 @@ export default function AdminClient({
               .filter((q): q is Quote => !!q && typeof q.id === "string")
               .map((q) => [q.id, q]),
           );
-          setQuotes((prev) => prev.map((q) => porId.get(q.id) ?? q));
-          setSelected((prev) => (prev && porId.has(prev.id) ? porId.get(prev.id)! : prev));
+          pedidos.substituirVarios(porId);
           if (porId.size < updated.size) {
             throw new Error(
               `${porId.size} de ${updated.size} voltaram. Tenta outra vez no painel de cada pedido.`,
@@ -3298,8 +3299,7 @@ export default function AdminClient({
       const apagados = results.filter((x): x is { id: string; corpo: unknown } => x !== null);
       const removed = new Set(apagados.map((x) => x.id));
       if (removed.size > 0) {
-        setQuotes((prev) => prev.filter((q) => !removed.has(q.id)));
-        setSelected((prev) => (prev && removed.has(prev.id) ? null : prev));
+        pedidos.tirar(removed);
       }
       const ok = removed.size;
       const failed = ids.length - ok;
@@ -3691,7 +3691,7 @@ export default function AdminClient({
                 toast(porqueFalhou(oQue, res, corpo).mensagem, "error");
                 return;
               }
-              setQuotes((prev) => prev.filter((q) => q.id !== alvo.id));
+              setQuotes((prev) => tirarDaLista(prev, new Set([alvo.id])));
               setSelected(null);
               setAApagar(null);
               depoisDeApagar(
@@ -3797,9 +3797,8 @@ export default function AdminClient({
             userName={userName}
             falhaDosPedidos={falhaDosPedidos}
             quotes={quotes}
-            setQuotes={setQuotes}
+            pedidos={pedidos}
             nomesDosPedidos={nomesDosPedidos}
-            setSelected={setSelected}
             setEditPrice={setEditPrice}
             view={view}
             setView={setView}
@@ -4000,9 +3999,8 @@ export default function AdminClient({
                   >
                     <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
                       <CabecalhoDoPainel
-                        setQuotes={setQuotes}
+                        pedidos={pedidos}
                         selected={selected}
-                        setSelected={setSelected}
                         setAApagar={setAApagar}
                         toast={toast}
                         detailTitleRef={detailTitleRef}
@@ -4037,9 +4035,8 @@ export default function AdminClient({
 
                         <GestaoDoPedido
                           edicao={edicao}
-                          setQuotes={setQuotes}
+                          pedidos={pedidos}
                           selected={selected}
-                          setSelected={setSelected}
                           ganhoSemProposta={ganhoSemProposta}
                           escolherEstado={escolherEstado}
                           devolvidoAqui={devolvidoAqui}
@@ -4053,9 +4050,8 @@ export default function AdminClient({
                         <FerramentasDoPedido
                           edicao={edicao}
                           userName={userName}
-                          setQuotes={setQuotes}
+                          pedidos={pedidos}
                           selected={selected}
-                          setSelected={setSelected}
                           detailTab={detailTab}
                           detailTabsVisitados={detailTabsVisitados}
                           abrirDetailTab={abrirDetailTab}
