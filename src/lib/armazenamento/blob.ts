@@ -204,23 +204,60 @@ export async function lerRespostaDoBlob(
   const recusa = await travao({ simples: 1, transferencia: Math.max(1, tamanhoPrevisto) });
   if (recusa) throw new BlobRecusado(recusa);
   let res: Response;
+  // O tecto de tempo vale até chegarem os CABEÇALHOS: um PDF a correr para um
+  // telemóvel lento pode demorar mais, e cortá-lo a meio era um ficheiro partido.
+  const corte = new AbortController();
+  const relogio = setTimeout(() => corte.abort(), TEMPO_MS);
   try {
     res = await fetch(enderecoPrivado(chave), {
       headers: { ...cabecalhos, Authorization: `Bearer ${token()}` },
       cache: "no-store",
-      signal: AbortSignal.timeout(TEMPO_MS),
+      signal: corte.signal,
     });
   } catch (e) {
     throw traduzir("get", e);
+  } finally {
+    clearTimeout(relogio);
   }
-  const lidos = Number(res.headers.get("content-length") ?? "0");
-  await registar({ simples: 1, transferencia: Number.isFinite(lidos) ? lidos : 0 });
-  if (res.status === 404) return null;
-  if (!res.ok && res.status !== 206 && res.status !== 304) {
+  if (res.status === 404 || (!res.ok && res.status !== 206 && res.status !== 304)) {
+    await registar({ simples: 1 });
+    if (res.status === 404) return null;
     log.warn("blob: leitura respondeu mal", { estado: res.status });
     throw new BlobAvariado("get", "avaria");
   }
-  return res;
+  /**
+   * A transferência conta-se EXACTA: o `content-length` quando o Blob o dá;
+   * senão, os bytes contados à medida que passam, somados no fim do fluxo
+   * (ou quando quem lê desiste a meio).
+   */
+  const declarado = Number(res.headers.get("content-length"));
+  if (res.headers.has("content-length") && Number.isFinite(declarado)) {
+    await registar({ simples: 1, transferencia: declarado });
+    return res;
+  }
+  await registar({ simples: 1 });
+  if (!res.body) return res;
+  let contados = 0;
+  let somado = false;
+  const somar = () => {
+    if (somado) return;
+    somado = true;
+    void registar({ transferencia: contados });
+  };
+  const contador = new TransformStream<Uint8Array, Uint8Array>({
+    transform(pedaco, c) {
+      contados += pedaco.byteLength;
+      c.enqueue(pedaco);
+    },
+    flush: somar,
+    // `cancel` (quem lê desistiu a meio) ainda não está nos tipos do TS.
+    cancel: somar,
+  } as Transformer<Uint8Array, Uint8Array>);
+  return new Response(res.body.pipeThrough(contador), {
+    status: res.status,
+    statusText: res.statusText,
+    headers: res.headers,
+  });
 }
 
 /** Lê os bytes todos. `null` = não existe. */

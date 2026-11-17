@@ -494,14 +494,13 @@ Supabase tal e qual e nada muda.
   `theme-assets` a 10/11). O que está no Blob fica num **índice** em
   `app_state` (`blob:i:<balde>/<caminho>`, ~150 B por ficheiro, ~0,5 MB para
   os ~3 000 de hoje), e a listagem junta o Supabase com o índice.
-- **Leitura pelo navegador:** o endereço assinado de uma fotografia no Blob é
+- **Leitura pelo navegador:** o endereço de uma fotografia no Blob é
   `/api/ficheiro/<balde>/<caminho>?token=…`, com o prazo de sempre (10 anos
-  numa proposta, 6 h na biblioteca) — o Blob só assina por 7 dias, e os
-  retratos da proposta online guardam endereços. A rota confere o token e
-  **redirecciona** (302, na cache do navegador até ~1 dia) para um endereço do
-  Blob assinado na hora: os bytes vão do Blob ao navegador sem passar pela
-  função (Blob Data Transfer, a tarifa mais barata). Só os **PDF** passam por
-  uma função, como já passavam (`pdf-do-armazenamento.ts`).
+  numa proposta, 6 h na biblioteca). A rota confere o token, **lê o ficheiro
+  do Blob no servidor e devolve-o em fluxo**, com `Range` (o leitor de PDF
+  pede aos pedaços), `ETag` e `Cache-Control: private, max-age=31536000,
+  immutable` (os caminhos nunca mudam de conteúdo). O navegador NUNCA recebe
+  um endereço do Blob (ver «3.ª revisão» abaixo).
 - **Quem lê originais no navegador:** o visualizador e a pré-visualização do
   seletor da biblioteca (118 MB/dia a 10/11, antes da cache do service
   worker) e, raramente, uma proposta sem média. A grelha lê miniaturas e
@@ -530,17 +529,9 @@ o travão** (`contador-ilegivel`): tudo vai ao Supabase. Um gasto que não se
 grava fica na fila e continua a contar.
 
 Revisão de 17/11 (PR #479):
-- **cada 302 da rota `/api/ficheiro` conta o ficheiro inteiro** e passa
-  pelo travão antes de se assinar. A 1.ª revisão reutilizava o mesmo
-  endereço do Blob durante 12 h e contava-o uma vez — mas a Vercel cobra cada
-  entrega a cada navegador, e depois do tecto o endereço continuava a servir:
-  a medida deixava de ser verdadeira (2.ª revisão, n.º 1). Agora conta a
-  mais, nunca a menos. O que impede o exagero: o 302 vai com
-  `Cache-Control: private, max-age` até ao fim do destino (no máximo 24 h,
-  nunca além do prazo do nosso endereço), por isso o MESMO navegador não
-  volta a pedir; e a rota aceita 30 pedidos por minuto por IP. Acima do
-  tecto: o original do Supabase, se lá estiver; senão a média de 1200 px do
-  Supabase; senão 503;
+- (2.ª revisão) cada leitura do navegador passava pelo travão; mas um
+  endereço do Blob entregue num 302 ainda se podia descarregar muitas vezes
+  sem passar por nós — resolvido na 3.ª revisão, abaixo;
 - o endereço `/api/ficheiro` tem o fim arredondado a uma grelha (o mesmo
   ficheiro dá o mesmo endereço) e o `urls-assinados.ts` guarda-o;
 - a assinatura usa `BLOB_URL_SECRET`, ou o `SESSION_SECRET` noutro contexto —
@@ -602,3 +593,31 @@ O que **não** se verificou (não há token neste ambiente): o Blob a sério —
 testes usam duplos do SDK e do `fetch`; que o 302 para o Blob passa a CSP num
 navegador; o tempo real de uma chamada `copiar` com 50 ficheiros; e se a
 Vercel conta o `issueSignedToken` como operação (aqui conta-se como avançada).
+
+### 3.ª revisão de 17/11: o navegador deixa de receber endereços do Blob
+
+Um endereço assinado do Blob entregue ao navegador descarrega-se as vezes que
+se quiser sem passar por nós: o leitor de PDF pede aos pedaços, a cache do
+navegador expira, alguém copia o `Location`. Nenhum prazo resolve isso, e um
+travão que não vê o gasto não cumpre a regra de custo. Por isso
+`/api/ficheiro` passou a **servir os bytes**: lê do Blob com o token
+(`lerRespostaDoBlob`) e conta a transferência EXACTA — o `content-length` do
+Blob, ou os bytes contados à medida que passam. Acima do tecto: o original do
+Supabase, depois a média de 1200 px do Supabase, depois 503. O limite por IP
+é 300 por minuto (o escritório inteiro está atrás do mesmo IP); quem protege o
+custo é o travão do mês. Os endereços directos do Blob só existem do lado do
+servidor (prazos de menos de 1 h: ler um cabeçalho, confirmar um
+carregamento).
+
+As três perguntas da regra 7:
+1. **Quantas vezes corre:** uma por ficheiro do Blob visto num navegador; a
+   resposta é imutável e fica na cache dele um ano (`ETag` + `immutable`),
+   e um `If-None-Match` responde 304 sem ir ao Blob. ~800 originais/dia no
+   pior caso medido a 10/11.
+2. **Quanto processador:** passar bytes em fluxo, sem os guardar em memória —
+   medido em produção pela linha `cpu-da-rota` «ficheiro GET» (`comCpu`).
+   O preço novo é a **Fast Data Transfer** da Vercel (função → navegador; o
+   Pro inclui 1 TB por mês, e o pior caso aqui são ~3–4 GB) além da Blob Data
+   Transfer (Blob → função), e algum tempo de função por ficheiro.
+3. **Guardado / build / navegador:** não. O navegador não tem o token, e um
+   endereço do Blob nas mãos dele é precisamente o que escapa ao travão.

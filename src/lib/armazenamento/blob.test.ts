@@ -42,6 +42,7 @@ import {
   cabecalhoNoBlob,
   esquecerTestemunho,
   lerDoBlob,
+  lerRespostaDoBlob,
   porNoBlob,
   urlDeLeituraDoBlob,
 } from "./blob";
@@ -222,5 +223,32 @@ describe("revisão de 17/11", () => {
     await expect(
       urlDeLeituraDoBlob("p/a.jpg", Date.now() + 3600_000, 3_000_000),
     ).rejects.toBeInstanceOf(BlobRecusado);
+  });
+
+  it("3.ª revisão, n.º 1: sem content-length, conta os bytes que passam (exacto)", async () => {
+    const corpo = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new Uint8Array(4));
+        c.enqueue(new Uint8Array(3));
+        c.close();
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(corpo, { status: 200 })),
+    );
+    const r = await lerRespostaDoBlob("a/b.pdf", {}, 100);
+    await r!.arrayBuffer();
+    await new Promise((ok) => setTimeout(ok, 0));
+    expect(contador.registados).toEqual([{ simples: 1 }, { transferencia: 7 }]);
+  });
+
+  it("3.ª revisão, n.º 1: um 404 conta a operação mas nenhum byte", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 404 })),
+    );
+    expect(await lerRespostaDoBlob("a/b.pdf", {}, 100)).toBeNull();
+    expect(contador.registados).toEqual([{ simples: 1 }]);
   });
 });
