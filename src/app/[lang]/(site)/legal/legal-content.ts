@@ -1,4 +1,4 @@
-import { SITE, identificacaoLegal } from "@/lib/site";
+import { SITE } from "@/lib/site";
 import type { Locale } from "@/lib/i18n";
 
 // Structured legal content (RGPD/GDPR privacy policy + terms) for both locales.
@@ -28,18 +28,6 @@ const UPDATED_EN = "Last updated: November 2026";
 const PRIVACIDADE_PT = "Última atualização: 17 de novembro de 2026";
 const PRIVACIDADE_EN = "Last updated: 17 November 2026";
 
-/**
- * A frase da identificação legal na secção 1, só se o dono a tiver preenchido
- * em `src/lib/site.ts` (`EMPRESA`). Vazia, a secção fica como estava.
- */
-function identificacao(locale: "pt" | "en"): string[] {
-  const linha = identificacaoLegal(locale);
-  if (!linha) return [];
-  // Sem ponto final duplicado quando a morada ou a firma acabam em ponto («Lda.»).
-  const frase = linha.endsWith(".") ? linha : `${linha}.`;
-  return [locale === "en" ? `Legal identification: ${frase}` : `Identificação legal: ${frase}`];
-}
-
 function privacyPt(): LegalDoc {
   return {
     title: "Política de Privacidade",
@@ -50,7 +38,6 @@ function privacyPt(): LegalDoc {
         heading: "1. Responsável pelo tratamento",
         body: [
           `${SITE.legalName}, com contacto através de ${SITE.email} e ${SITE.phoneDisplay}, é a entidade responsável pelo tratamento dos dados pessoais recolhidos neste site.`,
-          ...identificacao("pt"),
           "Para qualquer questão relacionada com os seus dados pessoais ou com esta política, pode contactar-nos por e-mail.",
         ],
       },
@@ -236,7 +223,6 @@ function privacyEn(): LegalDoc {
         heading: "1. Data controller",
         body: [
           `${SITE.legalName}, reachable at ${SITE.email} and ${SITE.phoneDisplay}, is the controller of the personal data collected on this website.`,
-          ...identificacao("en"),
           "For any question about your personal data or this policy, you can contact us by e-mail.",
         ],
       },
