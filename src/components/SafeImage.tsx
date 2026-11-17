@@ -266,7 +266,7 @@ export type SafeImageProps = Omit<ImageProps, "src" | "loader" | "onError" | "on
  *     onde um pré-gerador garante o ficheiro e falha o build se faltar);
  *   · que esse AVIF seja o gémeo do WebP que o `<img>` vai pedir — mesmo
  *     caminho, só a largura e a extensão podem diferir (o WebP da galeria só
- *     existe em 384 e 1280 — ver `semLarguraNemFormato`). É isto que torna seguro
+ *     existe em 384 e 1280 — ver `ehGemeoDoWebp`). É isto que torna seguro
  *     um `initialLoader` (o do herói): se um dia um carregador servir outro
  *     ficheiro, a comparação falha e a fotografia fica-se pelo WebP, inteira.
  * Basta UM candidato falhar para não haver `<source>` nenhuma.
@@ -283,15 +283,20 @@ export type SafeImageProps = Omit<ImageProps, "src" | "loader" | "onError" | "on
 type FonteAvif = { srcSet: string; sizes?: string; maior: string };
 
 /**
- * O caminho sem o `-<largura>.<formato>` do fim — o que um gémeo AVIF e o seu
- * WebP têm de ter igual. A LARGURA já não entra na comparação (16/11): o WebP
- * da galeria passou a existir só em 384 e 1280, como reserva para quem não lê
- * AVIF, e o carregador arredonda-o para cima; o AVIF continua com a escada
- * toda. Mesma fotografia, mesma pasta, larguras que podem diferir. Um
- * carregador que sirva OUTRO ficheiro continua a falhar a comparação.
+ * O AVIF é o gémeo do WebP que o `<img>` vai pedir?
+ *
+ * Em todo o lado, gémeo EXACTO: mesmo caminho, mesma largura, só a extensão
+ * diferente. A única excepção é a pasta da galeria (`/_img/g/`): aí o WebP só
+ * existe em 384 e 1280, como reserva para quem não lê AVIF (16/11), e o
+ * carregador arredonda-o para cima — a LARGURA pode diferir, a fotografia não.
+ * Um carregador que sirva outro ficheiro, ou outra largura fora da galeria
+ * (17/11: a regra larga valia para todos), falha a comparação.
  */
-function semLarguraNemFormato(url: string): string {
-  return url.replace(/-\d+\.(?:avif|webp)$/, "");
+export function ehGemeoDoWebp(avif: string, webp: string): boolean {
+  if (avif.replace(/\.avif$/, ".webp") === webp) return true;
+  const GALERIA = /^\/_img\/g\/[^/]+-\d+\.(?:avif|webp)$/;
+  if (!GALERIA.test(avif) || !GALERIA.test(webp)) return false;
+  return avif.replace(/-\d+\.avif$/, "") === webp.replace(/-\d+\.webp$/, "");
 }
 
 /** As duas caixas do `<picture>` — ver o porquê junto do `return`. Fora do
@@ -321,8 +326,7 @@ function fonteAvif(
     quality: p.quality,
     loader: (q) => {
       const avif = siteImageAvifUrl(q.src, q.width);
-      if (avif === null || semLarguraNemFormato(avif) !== semLarguraNemFormato(primeiro(q)))
-        gemeos = false;
+      if (avif === null || !ehGemeoDoWebp(avif, primeiro(q))) gemeos = false;
       return avif ?? q.src;
     },
   });

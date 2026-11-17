@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
-import SafeImage from "./SafeImage";
+import SafeImage, { ehGemeoDoWebp } from "./SafeImage";
 import HeroImage from "./HeroImage";
 import siteImageLoader from "@/lib/site-image-loader";
 import { heroAvifSrcSet } from "@/lib/hero-image-loader";
@@ -191,5 +191,26 @@ describe("HeroImage — o mesmo mecanismo, a mesma escada de sempre", () => {
         ),
       ),
     ).toBe(false);
+  });
+});
+
+/**
+ * 17/11 (revisão do PR #478): a comparação larga — «a largura pode diferir» —
+ * só vale para a pasta da galeria, onde o WebP de reserva só existe em 384 e
+ * 1280. Nos heróis, ou em qualquer outro carregador, o gémeo continua exacto.
+ */
+describe("ehGemeoDoWebp", () => {
+  it("fora da galeria: só o gémeo exacto (mesma largura)", () => {
+    expect(ehGemeoDoWebp("/_img/capa-1536.avif", "/_img/capa-1536.webp")).toBe(true);
+    expect(ehGemeoDoWebp("/_img/capa-1536.avif", "/_img/capa-2048.webp")).toBe(false);
+    expect(ehGemeoDoWebp("/outra/x-640.avif", "/outra/x-1280.webp")).toBe(false);
+  });
+
+  it("na galeria: a mesma fotografia, a largura pode diferir", () => {
+    expect(ehGemeoDoWebp("/_img/g/EW1-640.avif", "/_img/g/EW1-1280.webp")).toBe(true);
+    expect(ehGemeoDoWebp("/_img/g/EW1-384.avif", "/_img/g/EW1-384.webp")).toBe(true);
+    expect(ehGemeoDoWebp("/_img/g/EW1-640.avif", "/_img/g/OUTRA-1280.webp")).toBe(false);
+    // Um AVIF da galeria contra um WebP de outra pasta não é gémeo.
+    expect(ehGemeoDoWebp("/_img/g/EW1-640.avif", "/_img/EW1-1280.webp")).toBe(false);
   });
 });
