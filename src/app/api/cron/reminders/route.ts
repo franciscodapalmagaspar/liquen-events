@@ -150,6 +150,16 @@ const CHAVE_RETOMA = "cron-reminders:retoma-das-derivadas";
 /** Quanto se espera pelo lote depois de lhe dar o sinal para parar. */
 const FOLGA_DEPOIS_DO_SINAL_MS = 5_000;
 
+/** A noite anterior já tinha pendurado NESTA pasta? Uma regra só, para os dois casos. */
+function jaPenduradaAqui(anterior: Retoma | null, atual: Retoma): boolean {
+  return (
+    anterior?.pendurada === true &&
+    anterior.papel === atual.papel &&
+    anterior.origem === atual.origem &&
+    anterior.pasta === atual.pasta
+  );
+}
+
 /**
  * Onde recomeçar quando o lote nem ao sinal respondeu. A primeira vez numa
  * pasta, tenta-se outra vez (`pendurada`); se a noite anterior já tinha
@@ -167,12 +177,9 @@ function retomaDaPastaPendurada(anterior: Retoma | null, atual: Retoma | null): 
     pasta: atual.pasta,
     caminho: atual.caminho,
   };
-  const mesmaPasta =
-    anterior?.pendurada === true &&
-    anterior.papel === atual.papel &&
-    anterior.origem === atual.origem &&
-    anterior.pasta === atual.pasta;
-  return mesmaPasta ? { ...base, caminho: "", saltar: true } : { ...base, pendurada: true };
+  return jaPenduradaAqui(anterior, atual)
+    ? { ...base, caminho: "", saltar: true }
+    : { ...base, pendurada: true };
 }
 
 /**
@@ -204,11 +211,7 @@ function ondeRecomecarSemResposta(
   }
   const atual = posicao.atual;
   if ((posicao.passos ?? 0) > passosNoSinal && atual && !atual.saltar && !atual.saltarFamilia) {
-    const jaPendurada =
-      anterior?.pendurada === true &&
-      anterior.papel === atual.papel &&
-      anterior.origem === atual.origem &&
-      anterior.pasta === atual.pasta;
+    const jaPendurada = jaPenduradaAqui(anterior, atual);
     return {
       retoma: {
         papel: atual.papel,

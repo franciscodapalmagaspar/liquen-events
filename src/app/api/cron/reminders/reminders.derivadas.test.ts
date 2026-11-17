@@ -35,7 +35,9 @@ const H = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/lib/derivadas", () => ({
+vi.mock("@/lib/derivadas", async (importOriginal) => ({
+  // A regra verdadeira: a rotina usa-a para ler a retoma guardada.
+  retomaValida: (await importOriginal<typeof import("@/lib/derivadas")>()).retomaValida,
   gerarLoteDeDerivadas: vi.fn(async (papel?: string, opcoes?: { tectoMs?: number }) => {
     H.chamadas.push({ papel, tectoMs: opcoes?.tectoMs });
     if (H.rebenta) throw new Error("storage em baixo");

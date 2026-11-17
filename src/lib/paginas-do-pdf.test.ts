@@ -240,6 +240,27 @@ describe("as páginas do PDF como imagens", () => {
       await Promise.all(esperam);
     });
 
+    it("cortado no instante em que acorda, não abre o documento", async () => {
+      const cheia = await encherComPendurados("acordou-cortado");
+      // Um sinal cujo corte chega sem evento (o ouvinte já foi tirado ao acordar).
+      const sinal = {
+        aborted: false,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      } as unknown as AbortSignal;
+      const abrir = vi.fn(async () => cheia.bytes);
+      const espera = formasDasPaginas("acordou-cortado-7", abrir, { signal: sinal }).then(
+        () => "abriu",
+        (e: unknown) => e,
+      );
+      await new Promise((r) => setTimeout(r, 10));
+      (sinal as { aborted: boolean }).aborted = true;
+      cheia.soltarUm();
+      expect(await espera).toBeInstanceOf(PedidoCortado);
+      expect(abrir).not.toHaveBeenCalled();
+      await cheia.soltar();
+    });
+
     it("quem se junta ao desenho de outro tem o SEU prazo, não o do primeiro", async () => {
       const cheia = await encherComPendurados("prazo-proprio");
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });

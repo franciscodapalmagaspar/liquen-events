@@ -122,6 +122,7 @@ function cabe(chave: string): boolean {
  * acorda volta a ver se cabe: ver `comDocumento`.
  */
 function esperarUmFecho(fim: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(new PedidoCortado());
   return new Promise<void>((seguir, desistir) => {
     const acordar = () => {
       limpar();
@@ -244,6 +245,9 @@ async function comDocumento<T>(
   while (!cabe(chave)) {
     if (Date.now() >= fim) throw new SemVagaParaDocumentos();
     await esperarUmFecho(fim, signal);
+    // Cortado no mesmo instante em que acordou: o `acordar` já tirou o
+    // ouvinte do corte, e sem isto abria-se um documento para ninguém.
+    if (signal?.aborted) throw new PedidoCortado();
   }
   const e = entrada(chave, obterBytes);
   e.emUso += 1;

@@ -217,9 +217,12 @@ describe("pendurado é só o que deixou de andar", () => {
       setInterval(() => (posicao.passos = (posicao.passos ?? 0) + 1), 1_000);
       return nunca();
     };
-    await correr();
-    expect(H.gravado.at(-1)?.valor).toEqual(P);
-    vi.clearAllTimers();
+    try {
+      await correr();
+      expect(H.gravado.at(-1)?.valor).toEqual(P);
+    } finally {
+      vi.clearAllTimers();
+    }
   });
 
   it("pendurado a caminho de uma pasta a saltar, a marca fica", async () => {
@@ -278,8 +281,11 @@ describe("pendurado é só o que deixou de andar", () => {
       setInterval(() => (posicao.passos = (posicao.passos ?? 0) + 1), 1_000);
       return nunca();
     };
-    await correr();
-    expect(H.gravado.at(-1)?.valor).toEqual(A);
-    vi.clearAllTimers();
+    try {
+      await correr();
+      expect(H.gravado.at(-1)?.valor).toEqual(A);
+    } finally {
+      vi.clearAllTimers();
+    }
   });
 });
