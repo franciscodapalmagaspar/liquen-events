@@ -143,7 +143,7 @@ export async function apagarDoBlob(chaves: readonly string[], bytesQueSaem = 0):
 export async function copiarNoBlob(
   de: string,
   para: string,
-  opcoes: { tamanho: number; sobrescrever: boolean; contentType?: string },
+  opcoes: { tamanho: number; sobrescrever: boolean; contentType?: string; cacheSegundos?: number },
 ): Promise<void> {
   await comTravao({ avancadas: 1, bytes: opcoes.tamanho }, "copy", async () => {
     await copy(de, para, {
@@ -152,6 +152,9 @@ export async function copiarNoBlob(
       addRandomSuffix: false,
       allowOverwrite: opcoes.sobrescrever,
       contentType: opcoes.contentType,
+      // O mesmo `Cache-Control` do original (revisão de 17/11, n.º 9).
+      cacheControlMaxAge:
+        opcoes.cacheSegundos && opcoes.cacheSegundos >= 60 ? opcoes.cacheSegundos : undefined,
       abortSignal: AbortSignal.timeout(TEMPO_MS),
     });
   });

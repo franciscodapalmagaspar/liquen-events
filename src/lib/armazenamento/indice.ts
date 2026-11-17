@@ -40,6 +40,8 @@ export interface LinhaDoIndice {
   c: string;
   /** Tipo do conteúdo. */
   ct?: string;
+  /** O `Cache-Control: max-age` com que foi guardado, em segundos (para a cópia o repetir). */
+  cc?: number;
   /** Verificado pela migração: tamanho e sha256 relidos do Blob. */
   v?: boolean;
   /** Quando foi verificado (ISO). O `libertar` recusa um original mexido depois disto. */

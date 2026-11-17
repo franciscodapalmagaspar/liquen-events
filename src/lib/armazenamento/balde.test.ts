@@ -20,6 +20,7 @@ const estado = vi.hoisted(() => ({
   recusar: null as null | string,
   falharLeituraDoBlob: false,
   indiceFalhaAoGravar: false,
+  falharApagar: false,
 }));
 
 vi.mock("./modos", () => ({ modoDoBalde: async () => estado.modo }));
@@ -77,6 +78,7 @@ vi.mock("./blob", () => {
       return b ? { bytes: b, tipo: "image/jpeg" } : null;
     }),
     apagarDoBlob: vi.fn(async (chaves: string[]) => {
+      if (estado.falharApagar) throw new BlobAvariado("del", "avaria");
       for (const c of chaves) estado.blob.delete(c);
     }),
     copiarNoBlob: vi.fn(async (de: string, para: string) => {
@@ -145,6 +147,7 @@ function fakeBucket(nome: string) {
     })),
     copy: vi.fn(async () => ({ data: { path: "x" }, error: null })),
     move: vi.fn(async () => ({ data: { message: "ok" }, error: null })),
+    info: vi.fn(async () => ({ data: { cacheControl: "max-age=3600" }, error: null })),
     createSignedUploadUrl: vi.fn(async (p: string) => ({
       data: { signedUrl: `https://sb/${p}`, token: "t", path: p },
       error: null,
@@ -176,6 +179,7 @@ beforeEach(() => {
   estado.recusar = null;
   estado.falharLeituraDoBlob = false;
   estado.indiceFalhaAoGravar = false;
+  estado.falharApagar = false;
   baldesFalsos.clear();
   vi.clearAllMocks();
   process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_Loja1234_segredo";
@@ -394,5 +398,54 @@ describe("balde(): modo `blob`", () => {
     expect(segredoDosEnderecos({ BLOB_URL_SECRET: "a", SESSION_SECRET: "b" })).toBe("a");
     expect(segredoDosEnderecos({ SESSION_SECRET: "b", BLOB_READ_WRITE_TOKEN: "t" })).toBe("b");
     expect(segredoDosEnderecos({ BLOB_READ_WRITE_TOKEN: "t" })).toBe("");
+  });
+
+  describe("revisão de 17/11, n.º 9", () => {
+    it("copiar dentro do Blob leva o Cache-Control do original", async () => {
+      estado.modo = "blob";
+      await balde("theme-assets", sb as never).upload("t/a.jpg", JPG, { cacheControl: "31536000" });
+      await balde("theme-assets", sb as never).copy("t/a.jpg", "LIQ-1/a.jpg", {
+        destinationBucket: "proposal-assets",
+      });
+      expect(blob.copiarNoBlob).toHaveBeenCalledWith(
+        "theme-assets/t/a.jpg",
+        "proposal-assets/LIQ-1/a.jpg",
+        expect.objectContaining({ cacheSegundos: 31536000 }),
+      );
+    });
+
+    it("copiar do Supabase para o Blob leva o Cache-Control que o Supabase guardou", async () => {
+      estado.modo = "blob";
+      estado.supabase.set("theme-assets", new Map([["t/velha.jpg", JPG]]));
+      await balde("theme-assets", sb as never).copy("t/velha.jpg", "LIQ-1/v.jpg", {
+        destinationBucket: "proposal-assets",
+      });
+      expect(blob.porNoBlob).toHaveBeenCalledWith(
+        "proposal-assets/LIQ-1/v.jpg",
+        expect.anything(),
+        expect.objectContaining({ cacheSegundos: 3600 }),
+      );
+    });
+
+    it("apagar que falha no Blob devolve erro (não se dá por apagado)", async () => {
+      estado.modo = "blob";
+      const b = balde("proposal-assets", sb as never);
+      await b.upload("LIQ-1/a.jpg", JPG);
+      estado.falharApagar = true;
+      const r = await b.remove(["LIQ-1/a.jpg"]);
+      expect(r.error).toBeTruthy();
+      expect(estado.indice.get("proposal-assets")!.has("LIQ-1/a.jpg")).toBe(true);
+    });
+
+    it("mudar com a origem a não sair diz-o — e a fotografia fica nos dois sítios", async () => {
+      estado.modo = "blob";
+      const b = balde("theme-assets", sb as never);
+      await b.upload("t/a.jpg", JPG);
+      estado.falharApagar = true;
+      const r = await b.move("t/a.jpg", "u/a.jpg");
+      expect(r.error?.message).toMatch(/a origem não saiu/);
+      expect(estado.blob.has("theme-assets/t/a.jpg")).toBe(true);
+      expect(estado.blob.has("theme-assets/u/a.jpg")).toBe(true);
+    });
   });
 });

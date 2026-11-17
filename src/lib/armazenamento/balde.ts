@@ -148,6 +148,7 @@ async function guardarNoBlob(
     s: hex("sha256", bytes),
     c: opcoes.criadoEm ?? new Date().toISOString(),
     ...(opcoes.contentType ? { ct: opcoes.contentType } : {}),
+    ...(opcoes.cacheSegundos ? { cc: opcoes.cacheSegundos } : {}),
   };
   if (!(await gravarNoIndice(b, [{ caminho, linha }]))) {
     await apagarDoBlob([chave], bytes.byteLength).catch(() => undefined);
@@ -268,6 +269,7 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
     const linhas = await indiceOuVazio(nome, caminhos);
     const noBlob = caminhos.filter((c) => linhas.has(c));
     let saiuDoBlob: string[] = [];
+    let falhouNoBlob = false;
     if (noBlob.length > 0) {
       try {
         const bytes = noBlob.reduce((s, c) => s + (linhas.get(c)?.t ?? 0), 0);
@@ -277,7 +279,9 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
         );
         // Só sai do índice o que saiu do Blob: o índice nunca diz que falta o que lá está.
         if (await tirarDoIndice(nome, noBlob)) saiuDoBlob = noBlob;
+        else falhouNoBlob = true;
       } catch (e) {
+        falhouNoBlob = true;
         log.warn("blob: ficheiros não apagados do Blob", {
           balde: nome,
           n: noBlob.length,
@@ -286,6 +290,14 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
       }
     }
     if (r.error) return r;
+    // Uma falha no Blob é uma falha (revisão de 17/11, n.º 9): quem chama não
+    // pode dar por apagado o que lá ficou. Apagar outra vez é seguro.
+    if (falhouNoBlob) {
+      return {
+        data: null,
+        error: erro(`${noBlob.length} ficheiro(s) não saíram do Vercel Blob — volta a tentar.`),
+      };
+    }
     const doSupabase = (r.data ?? []) as { name?: string }[];
     const nomes = new Set(doSupabase.map((o) => o.name));
     const extra = saiuDoBlob
@@ -367,6 +379,7 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
                 contentLength: linha.t,
                 ...(linha.m ? { eTag: `"${linha.m}"` } : {}),
                 ...(linha.ct ? { mimetype: linha.ct } : {}),
+                ...(linha.cc ? { cacheControl: `max-age=${linha.cc}` } : {}),
                 lastModified: linha.c,
                 httpStatusCode: 200,
               },
@@ -467,6 +480,7 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
           tamanho: linhaDaOrigem.t,
           sobrescrever: false,
           contentType: linhaDaOrigem.ct,
+          cacheSegundos: linhaDaOrigem.cc,
         });
         if (
           await gravarNoIndice(destino, [
@@ -486,14 +500,32 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
     if (lido.error || !lido.data)
       return { data: null, error: lido.error ?? erro("Origem não lida", 404) };
     const bytes = new Uint8Array(await (lido.data as Blob).arrayBuffer());
+    // O `Cache-Control` do original: do índice, ou o que o Supabase guardou.
+    const cache = linhaDaOrigem?.cc ?? (await cacheDoSupabase(de));
     const r = await balde(destino, cliente).upload(para, bytes, {
       upsert: false,
       contentType: linhaDaOrigem?.ct ?? ((lido.data as Blob).type || undefined),
+      ...(cache ? { cacheControl: String(cache) } : {}),
     });
     return r.error ? { data: null, error: r.error } : { data: { path: para }, error: null };
   }
 
-  /** Muda de caminho dentro do mesmo balde. */
+  /** O `max-age` com que o Supabase guardou um ficheiro, se o disser. */
+  async function cacheDoSupabase(caminho: string): Promise<number | undefined> {
+    try {
+      const { data } = await base.info(caminho);
+      const n = Number(/max-age=(\d+)/.exec(String(data?.cacheControl ?? ""))?.[1]);
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Muda de caminho dentro do mesmo balde. A origem só sai DEPOIS de o destino
+   * se confirmar (revisão de 17/11, n.º 9); se a origem não sair, diz-se —
+   * fica a fotografia em dois sítios, nunca em nenhum.
+   */
   async function move(de: string, para: string, opcoes?: unknown) {
     if ((await modo()) === "supabase") return base.move(de, para, opcoes as never);
     const linha = (await indiceOuVazio(nome, [de])).get(de);
@@ -503,8 +535,17 @@ function metodosComBlob(nome: BaldeDoBlob, base: BaldeDoSupabase, cliente: Supab
     }
     const c = await copy(de, para);
     if (c.error) return { data: null, error: c.error };
+    if ((await exists(para)).data !== true) {
+      return { data: null, error: erro("A cópia não se confirmou: a origem fica onde estava.") };
+    }
     const r = await remove([de]);
-    if (r.error) log.warn("blob: origem de uma mudança não apagada", { balde: nome });
+    if (r.error) {
+      log.warn("blob: origem de uma mudança não apagada", { balde: nome });
+      return {
+        data: null,
+        error: erro(`A fotografia ficou em «${para}», mas a origem não saiu: ${r.error.message}`),
+      };
+    }
     return { data: { message: "Successfully moved" }, error: null };
   }
 

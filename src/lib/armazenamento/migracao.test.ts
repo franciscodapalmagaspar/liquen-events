@@ -78,7 +78,11 @@ const raiz = {
           : {
               name: primeiro,
               id: "id",
-              metadata: { size: o.bytes.byteLength, eTag: o.md5 ? `"${o.md5}"` : '"abc-2"' },
+              metadata: {
+                size: o.bytes.byteLength,
+                eTag: o.md5 ? `"${o.md5}"` : '"abc-2"',
+                cacheControl: "max-age=31536000",
+              },
               created_at: "2026-01-01T00:00:00Z",
               updated_at: o.atualizado,
             },
@@ -101,6 +105,7 @@ const raiz = {
 vi.mock("@/lib/supabase", () => ({ getSupabase: () => ({ storage: { from: () => raiz } }) }));
 
 import { compararCaminhos, copiar, ensaio, libertar } from "./migracao";
+import { porNoBlob } from "./blob";
 
 const md5 = (b: Uint8Array) => createHash("md5").update(b).digest("hex");
 function pôr(c: string, bytes: number[], comMd5 = true) {
@@ -256,5 +261,16 @@ describe("libertar", () => {
     e.modo = "blob";
     await libertar("proposal-pdfs", { n: 10, depois: null });
     expect(e.removidos).toEqual([]);
+  });
+
+  it("a cópia leva o Cache-Control do Supabase (revisão 17/11, n.º 9)", async () => {
+    pôr("p1/a.pdf", [1, 2, 3]);
+    await copiar("proposal-pdfs", { n: 10, depois: null });
+    expect(porNoBlob).toHaveBeenCalledWith(
+      "proposal-pdfs/p1/a.pdf",
+      expect.anything(),
+      expect.objectContaining({ cacheSegundos: 31536000 }),
+    );
+    expect(e.indice.get("p1/a.pdf")!.cc).toBe(31536000);
   });
 });

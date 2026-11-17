@@ -48,6 +48,8 @@ export interface ObjectoNoSupabase {
   criadoEm: string;
   atualizadoEm: string;
   tipo?: string;
+  /** O `max-age` do Supabase, em segundos (a cópia no Blob leva o mesmo). */
+  cacheSegundos?: number;
 }
 
 /** Compara caminhos pasta a pasta (`a/b` vem antes de `a-b/c`?), como o percurso os visita. */
@@ -120,6 +122,7 @@ export async function percorrerSupabase(
         criadoEm: e.created_at ?? new Date(0).toISOString(),
         atualizadoEm: e.updated_at ?? e.created_at ?? new Date(0).toISOString(),
         tipo: typeof m.mimetype === "string" ? m.mimetype : undefined,
+        cacheSegundos: Number(/max-age=(\d+)/.exec(String(m.cacheControl ?? ""))?.[1]) || undefined,
       });
       if (!continuar) return "parar";
     }
@@ -281,7 +284,11 @@ async function copiarUm(
   if (antes?.s && antes.s !== resumo) throw new Error("no Blob há uma versão diferente");
 
   const chave = chaveNoBlob(balde, o.caminho);
-  await porNoBlob(chave, bytes, { contentType: o.tipo, sobrescrever: true });
+  await porNoBlob(chave, bytes, {
+    contentType: o.tipo,
+    sobrescrever: true,
+    cacheSegundos: o.cacheSegundos,
+  });
   const relido = await lerDoBlob(chave, bytes.byteLength);
   if (!relido || relido.bytes.byteLength !== bytes.byteLength || sha256(relido.bytes) !== resumo) {
     await apagarDoBlob([chave], bytes.byteLength).catch(() => undefined);
@@ -293,6 +300,7 @@ async function copiarUm(
     s: resumo,
     c: o.criadoEm,
     ...(o.tipo ? { ct: o.tipo } : {}),
+    ...(o.cacheSegundos ? { cc: o.cacheSegundos } : {}),
     v: true,
     vEm: new Date().toISOString(),
   };
