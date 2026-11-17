@@ -77,10 +77,8 @@ export const MESES_ANTES_DO_SALDO = 1;
 const mesesPt = (n: number) => `${n} ${n === 1 ? "mês" : "meses"}`;
 const mesesEn = (n: number) => `${n} ${n === 1 ? "month" : "months"}`;
 
-/** `true` para o que é mesmo uma das línguas — para validar o que chega de fora. */
-export function ehIdiomaDaProposta(v: unknown): v is IdiomaDaProposta {
-  return v === "pt" || v === "en";
-}
+// `ehIdiomaDaProposta` vive ao lado da lista que lê (`orcamento/listas-fechadas.ts`).
+export { ehIdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * A língua por omissão.

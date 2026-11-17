@@ -38,8 +38,8 @@ export function corpoLido(cru: unknown) {
     cru && typeof cru === "object" && !Array.isArray(cru) ? (cru as Record<string, unknown>) : {};
   /** O que não se reconhece vale a pré-visualização — nunca um envio. */
   const modo: "preview" | "send" = corpo.mode === "send" ? "send" : "preview";
-  // A regra da casa (`ehIdiomaDaProposta`). O esquema lê a lista fechada; que
-  // as duas digam o mesmo prende-o `esquema-do-corpo.test.ts`.
+  // A regra da casa (`ehIdiomaDaProposta`), que lê a mesma lista fechada do
+  // esquema (`orcamento/listas-fechadas.ts`).
   const idiomaConhecido = ehIdiomaDaProposta(corpo.idioma) ? corpo.idioma : undefined;
   return {
     /** O corpo tal e qual chegou — só para o registo (`esquema-do-corpo.ts`). */

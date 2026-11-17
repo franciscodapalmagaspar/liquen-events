@@ -193,8 +193,14 @@ describe("o documento e a linha que se grava", () => {
       };
       const { proposal, anteriores } = comAVersao(linha, [velha, linha, nova]);
       expect(anteriores.map((p) => p.id)).toEqual(["v2", "v1"]);
-      expect(proposal).toEqual({ ...linha, ...versaoDaProposta(linha, anteriores) });
-      expect(proposal.versaoNumero).toBe(3);
+      expect(proposal).toMatchObject({
+        id: linha.id,
+        versaoNumero: 3,
+        versaoEm: "2026-11-17T12:00:00.000Z",
+        versaoSelo: expect.stringMatching(/\S/),
+      });
+      // Pura: a linha que entrou não ganhou a versão.
+      expect(linha.versaoNumero).toBeUndefined();
     } finally {
       vi.useRealTimers();
     }

@@ -7,7 +7,7 @@ import type { CorpoLido } from "./ler-o-corpo";
 import { guardasBaratas } from "./guardas-baratas";
 import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
-import { SEGUE, segue, type Desfecho, type Passo } from "./passo";
+import { recusa, SEGUE, segue, type Desfecho, type Passo } from "./passo";
 import {
   avisarQueSegueComFotosAMenos,
   perguntaDasFotos,
@@ -89,17 +89,11 @@ export interface Contexto {
  * mais uma margem — se ela morrer a meio, vence.
  */
 const VALIDADE_DO_TRINCO_MS = (TECTO_DO_ENVIO_S + 15) * 1000;
-const A_SER_ENVIADA: Desfecho = {
-  tipo: "recusa",
-  recusa: {
-    status: 409,
-    corpo: {
-      error:
-        "Esta proposta já está a ser enviada (carregou duas vezes, ou noutro separador). Espere uns segundos: se não aparecer como enviada, volte a carregar em enviar.",
-      aEnviar: true,
-    },
-  },
-};
+const A_SER_ENVIADA = recusa(409, {
+  error:
+    "Esta proposta já está a ser enviada (carregou duas vezes, ou noutro separador). Espere uns segundos: se não aparecer como enviada, volte a carregar em enviar.",
+  aEnviar: true,
+});
 
 /**
  * O estúdio pediu: pré-visualizar ou enviar. «Pedido», nesta pasta, é sempre o

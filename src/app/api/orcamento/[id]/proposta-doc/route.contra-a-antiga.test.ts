@@ -85,7 +85,17 @@ const PASSOU_O_PRAZO = new Date().toISOString().slice(0, 10) > PRAZO;
 const PEDIDO_DO_PRAZO =
   `o prazo desta prova (${PRAZO}) passou: aplicar o desvio 8 de ` +
   "docs/ESTRUTURA-DO-CODIGO.md (reduzir o retrato, apagar este ficheiro)";
-if (PASSOU_O_PRAZO) console.warn(`route.contra-a-antiga: ${PEDIDO_DO_PRAZO}`);
+/**
+ * Um salto que se VÊ: no GitHub Actions, uma anotação de aviso no PR (a linha
+ * `::warning` lida pelo runner); fora dele, um aviso no registo.
+ */
+function avisar(porque: string): void {
+  if (process.env.GITHUB_ACTIONS) {
+    console.log(`::warning title=A prova contra a rota antiga não correu::${porque}`);
+  } else {
+    console.warn(`route.contra-a-antiga: ${porque}`);
+  }
+}
 
 /** O commit de caracterização (a rota é a mesma no pai, `bfd82ccf`). */
 const COMMIT_DA_CARACTERIZACAO = "25180ccd";
@@ -105,6 +115,8 @@ function git(...args: string[]): string | null {
       cwd: import.meta.dirname,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
+      // Uma rede pendurada não pode prender a parte do CI (o job tem 20 min).
+      timeout: 30_000,
     }).trim();
   } catch {
     return null;
@@ -126,6 +138,10 @@ const HA_ROTA_ANTIGA =
     (!!process.env.CI &&
       git("fetch", "--no-tags", "--depth=1", "origin", COMMIT_COMPLETO) !== null &&
       temOCommit()));
+if (PASSOU_O_PRAZO) avisar(PEDIDO_DO_PRAZO);
+else if (!HA_ROTA_ANTIGA && process.env.CI && process.env.COMPARAR_COM_A_ROTA_ANTIGA !== "0") {
+  avisar(`não deu para trazer o commit ${COMMIT_DA_CARACTERIZACAO} — a comparação saltou`);
+}
 /** Uma pasta por corrida: duas corridas ao mesmo tempo não se pisam. */
 const CACHE = path.join(RAIZ, "node_modules", ".cache");
 
@@ -138,7 +154,7 @@ const SE_FALHAR =
 
 type Post = typeof POST;
 
-describe.skipIf(PASSOU_O_PRAZO || !HA_ROTA_ANTIGA)(
+describe.skipIf(!HA_ROTA_ANTIGA)(
   PASSOU_O_PRAZO
     ? `(SALTA) ${PEDIDO_DO_PRAZO}`
     : `a rota nova responde o mesmo que a antiga (${COMMIT_DA_CARACTERIZACAO}; salta sem o commit)`,

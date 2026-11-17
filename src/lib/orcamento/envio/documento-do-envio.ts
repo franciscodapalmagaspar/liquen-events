@@ -19,11 +19,16 @@ export interface DocumentoDoEnvio {
 }
 
 /**
- * Etapa 3 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): do documento que
- * chegou ao documento que se desenha. Não lê nem grava nada fora dele: escreve
- * NO documento a validade (que lê do relógio quando falta — ver a nota abaixo).
+ * Do documento que chegou ao documento que se desenha — uma das guardas
+ * baratas (`guardas-baratas.ts`, etapa 3 do envio). Não lê nem grava nada:
+ * escreve NO documento a validade, contada a partir de `agora` quando falta
+ * (ver a nota abaixo). Com `agora` fixo, é pura.
  */
-export function prepararODocumento(raw: ProposalDoc, idioma: IdiomaDaProposta): DocumentoDoEnvio {
+export function prepararODocumento(
+  raw: ProposalDoc,
+  idioma: IdiomaDaProposta,
+  agora: Date = new Date(),
+): DocumentoDoEnvio {
   /**
    * ── A CHAVE DO QUE FOI VISTO ─────────────────────────────────────────
    *
@@ -69,7 +74,9 @@ export function prepararODocumento(raw: ProposalDoc, idioma: IdiomaDaProposta): 
    * segue no email e o documento que fica guardado são o mesmo, por
    * construção, e não por coincidência de terem sido feitos no mesmo minuto.
    */
-  const preparado: DocumentoPreparado = Object.assign(doc, { validUntil: resolveValidUntil(doc) });
+  const preparado: DocumentoPreparado = Object.assign(doc, {
+    validUntil: resolveValidUntil(doc, agora),
+  });
 
   // O documento passou a ser GUARDADO (coluna `proposals.doc`), por isso o
   // tamanho deixou de ser um detalhe do pedido e passou a ser uma linha na

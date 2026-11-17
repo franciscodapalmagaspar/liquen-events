@@ -10,9 +10,10 @@ import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
  * compila).
  *
  * Lidas pelas rotas que decidem (`api/propostas/[id]`, `api/propostas/modelos`,
- * a análise das propostas) e pelos esquemas que observam (`lib/fronteira/`,
- * `orcamento/envio/ler-o-corpo.ts`): duas listas para o mesmo estado eram duas
- * regras à espera de discordar. AINDA têm cópias próprias `validation.ts` e
+ * a análise das propostas), pelos esquemas que observam (`lib/fronteira/`,
+ * `orcamento/envio/esquema-do-corpo.ts`) e pelas regras que validam o que
+ * chega (`ehIdiomaDaProposta`, que a leitura do corpo usa): duas listas para o
+ * mesmo estado eram duas regras à espera de discordar. AINDA têm cópias próprias `validation.ts` e
  * `backup-restore.ts` (ambos acima do tecto da catraca: partem-se primeiro —
  * `docs/ESTRUTURA-DO-CODIGO.md`, Parte −1, desvio 7). Quem acrescentar um
  * valor aqui acrescenta-o lá também, até lá.
@@ -49,3 +50,10 @@ export const VERSOES_ESCOLHIDAS = todosOsValores<VersaoEscolhida>()(["base", "ex
 export const TIPOS_DE_MODELO = todosOsValores<TipoModelo>()(["completo", "grupo", "moodboard"]);
 
 export const IDIOMAS_DA_PROPOSTA = todosOsValores<IdiomaDaProposta>()(["pt", "en"]);
+
+/** `true` para o que é mesmo uma das línguas — para validar o que chega de
+ *  fora (o corpo do envio, o rascunho, o link do casal). Lê a lista acima: uma
+ *  língua nova acrescenta-se uma vez. (`proposal-doc-textos.ts` reexporta-a.) */
+export function ehIdiomaDaProposta(v: unknown): v is IdiomaDaProposta {
+  return (IDIOMAS_DA_PROPOSTA as readonly unknown[]).includes(v);
+}
