@@ -1,4 +1,5 @@
 import "server-only";
+import { balde as abrirBalde } from "@/lib/armazenamento/balde";
 import { getSupabase } from "@/lib/supabase";
 import { BUCKET_EDITORIAL } from "@/lib/fotos-editoriais-guardadas";
 import { semProtegidos } from "@/lib/arquivo-de-pdfs/protegidos";
@@ -42,7 +43,7 @@ export async function limparFotosTratadasVelhas(
   if (!sb) return { apagadas: 0, pastas: 0, acabou: true };
   const fim = Date.now() + prazoMs;
   const limite = agora.getTime() - DIAS * 24 * 60 * 60_000;
-  const balde = sb.storage.from(BUCKET_EDITORIAL);
+  const balde = abrirBalde(BUCKET_EDITORIAL, sb);
 
   const { data: raiz } = await balde.list("", { limit: 1000 });
   const pastas = (raiz ?? []).filter((e) => !e.id).map((e) => e.name);

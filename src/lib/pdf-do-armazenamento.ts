@@ -1,5 +1,9 @@
 import "server-only";
 import { log } from "./logger";
+import { chaveNoBlob } from "./armazenamento/baldes";
+import { modoDoBalde } from "./armazenamento/modos";
+import { lerDoIndice } from "./armazenamento/indice";
+import { BlobRecusado, lerRespostaDoBlob } from "./armazenamento/blob";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -188,13 +192,44 @@ export async function pdfGuardadoEmFluxo(
 
   let doArmazenamento: Response;
   try {
-    doArmazenamento = await fetch(endereco, {
-      headers: {
-        Authorization: `Bearer ${servico}`,
-        ...(pedacoValido ? { Range: pedacoValido } : {}),
-      },
-      cache: "no-store",
-    });
+    /**
+     * ── COM O BALDE NO VERCEL BLOB (16/11) ───────────────────────────────────
+     * Em modo `blob`, o PDF lê-se primeiro do Blob, com o mesmo `Range`. Um
+     * 404 lá (ainda não copiado), o tecto do mês ou uma avaria caem para o
+     * Supabase como sempre — e um 404 também lá cai para o desenho. Sem o
+     * token do Blob, `modoDoBalde` diz `supabase` sem ir à base de dados.
+     */
+    // O tamanho vem do índice, para o tecto de transferência o ver ANTES de
+    // ler (revisão de 17/11, n.º 4). Sem linha no índice, o PDF não está no
+    // Blob: nem se pergunta lá (poupa uma operação).
+    const linha =
+      (await modoDoBalde(BUCKET)) === "blob"
+        ? await lerDoIndice(BUCKET, [caminho])
+            .then((m) => m.get(caminho) ?? null)
+            .catch(() => null)
+        : null;
+    const doBlob = linha
+      ? await lerRespostaDoBlob(
+          chaveNoBlob(BUCKET, caminho),
+          pedacoValido ? { Range: pedacoValido } : {},
+          linha.t,
+        ).catch((e) => {
+          log.warn("pdf da proposta: o Blob não deu, vai ao Supabase", {
+            proposalId,
+            motivo: e instanceof BlobRecusado ? e.motivo : "avaria",
+          });
+          return null;
+        })
+      : null;
+    doArmazenamento =
+      doBlob ??
+      (await fetch(endereco, {
+        headers: {
+          Authorization: `Bearer ${servico}`,
+          ...(pedacoValido ? { Range: pedacoValido } : {}),
+        },
+        cache: "no-store",
+      }));
   } catch (e) {
     // Uma avaria de rede não é um erro do casal: cai-se para o desenho.
     log.warn("pdf da proposta: não deu para ler o guardado, vai desenhar-se", {

@@ -108,3 +108,39 @@ describe("as fotos de tema saem do retrato e voltam a assinar-se", () => {
     expect(H.pedidos).toHaveLength(0);
   });
 });
+
+describe("as fotografias que moram no Vercel Blob (16/11)", () => {
+  const doBlob = (balde: string, caminho: string) =>
+    `/api/ficheiro/${balde}/${caminho}?token=aaa.VELHO.ccc`;
+
+  it("viram marcador — também as do pedido, que dependem do token do Blob", () => {
+    const sem = tirarAssinaturasDeTema(
+      JSON.stringify({
+        a: doBlob("theme-assets", "p/x.jpg"),
+        b: doBlob("proposal-assets", "LIQ-3/y.jpg"),
+        c: `${doBlob("theme-assets", "p/z.jpg")} 1200w`,
+      }),
+    );
+    expect(JSON.parse(sem)).toEqual({
+      a: "~LIQUEN-TEMA[theme-assets|p/x.jpg]~",
+      b: "~LIQUEN-TEMA[proposal-assets|LIQ-3/y.jpg]~",
+      c: "~LIQUEN-TEMA[theme-assets|p/z.jpg]~ 1200w",
+    });
+  });
+
+  it("um balde fora dos três não se toca", () => {
+    const json = JSON.stringify({ a: doBlob("proposal-thumbs", "p/x.jpg") });
+    expect(tirarAssinaturasDeTema(json)).toBe(json);
+  });
+
+  it("e voltam a assinar-se ao ler, pelo `balde()` (aqui, o duplo)", async () => {
+    const sem = tirarAssinaturasDeTema(
+      JSON.stringify({ b: doBlob("proposal-assets", "LIQ-3/y.jpg") }),
+    );
+    const com = await assinarFotosDeTema(sem);
+    expect(H.pedidos).toEqual([
+      { bucket: "proposal-assets", caminhos: ["LIQ-3/y.jpg"], ttl: THEME_SIGNED_TTL },
+    ]);
+    expect(com).toContain("a.NOVO.c");
+  });
+});

@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { getSupabase } from "./supabase";
 import { PROPOSAL_BUCKET } from "./proposal-storage";
 import { THEME_BUCKET } from "./theme-ref";
@@ -153,7 +154,7 @@ async function percorrer(
   const pastas: string[] = [];
 
   for (let offset = 0; ; offset += PAGINA) {
-    const { data, error } = await sb.storage.from(bucket).list(prefixo, { limit: PAGINA, offset });
+    const { data, error } = await balde(bucket, sb).list(prefixo, { limit: PAGINA, offset });
     if (error) throw new Error(error.message);
     const lote = data ?? [];
 

@@ -1,4 +1,5 @@
 import "server-only";
+import { balde } from "@/lib/armazenamento/balde";
 import { getSupabase } from "./supabase";
 import { PROPOSAL_BUCKET } from "./proposal-storage";
 import { THEME_BUCKET, ehRefDeTema, caminhoDoRefDeTema, themeIdOfPath } from "./theme-ref";
@@ -230,9 +231,10 @@ async function listarAPasta(bucket: string, pasta: string): Promise<Listagem | n
   const nomes = new Set<string>();
   let inteira = false;
   for (let p = 0; p < MAX_PAGINAS; p += 1) {
-    const { data, error } = await sb.storage
-      .from(bucket)
-      .list(pasta, { limit: PAGINA, offset: p * PAGINA });
+    const { data, error } = await balde(bucket, sb).list(pasta, {
+      limit: PAGINA,
+      offset: p * PAGINA,
+    });
     if (error || !data) {
       log.warn("verificação de fotos: não deu para listar a pasta", { bucket, pasta });
       return null;
@@ -278,9 +280,7 @@ async function existeNaPasta(bucket: string, pasta: string, nome: string): Promi
   if (!sb) return null;
   const LIMITE = 100;
   try {
-    const { data, error } = await sb.storage
-      .from(bucket)
-      .list(pasta, { limit: LIMITE, search: nome });
+    const { data, error } = await balde(bucket, sb).list(pasta, { limit: LIMITE, search: nome });
     if (error || !data) return null;
     if (data.some((o) => o.name === nome)) return true;
     return data.length < LIMITE ? false : null;
