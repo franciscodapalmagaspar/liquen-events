@@ -148,6 +148,46 @@ describe("as fotografias de pedidos que já não existem (10/11)", () => {
     expect(st.apagadas).toEqual(["LIQ-APAGADO-1"]);
   });
 
+  /**
+   * Medido em produção a 17/11: duas pastas de pedidos apagados (68 MB com as
+   * derivadas) nunca entravam na espera. A única «menção» era o registo da
+   * junção dos duplicados (`limpeza:fotos-duplicadas`, campo `feitos`: as
+   * cópias que ela própria já tinha tirado de DENTRO dessas pastas). Um
+   * registo de limpeza não usa fotografia nenhuma — e ficava a segurá-las 60
+   * dias.
+   */
+  it("o registo da junção dos duplicados (`limpeza:fotos-duplicadas`) não é menção: apaga na mesma (17/11)", async () => {
+    st.tabelas.app_state = [
+      ...(st.tabelas.app_state ?? []),
+      {
+        key: "limpeza:fotos-duplicadas",
+        value: {
+          feitos: { "LIQ-APAGADO-1/copia.jpg": "LIQ-APAGADO-1/b.jpg" },
+          feitosEm: { "LIQ-APAGADO-1/copia.jpg": "2026-11-14T04:01:22.881Z" },
+          trocas: [],
+          apagar: [],
+        },
+      },
+    ];
+    await limparPastasDePedidosApagados(dia1);
+    await limparPastasDePedidosApagados(dia9);
+    expect(st.apagadas).toEqual(["LIQ-APAGADO-1"]);
+  });
+
+  it("um rascunho continua a proteger a pasta, mesmo com o registo da junção ao lado", async () => {
+    st.tabelas.app_state = [
+      ...(st.tabelas.app_state ?? []),
+      {
+        key: "limpeza:fotos-duplicadas",
+        value: { feitos: { "LIQ-APAGADO-1/x.jpg": "LIQ-APAGADO-1/b.jpg" } },
+      },
+      { key: "proposal-draft:LIQ-VIVO-1", value: { capa: "LIQ-APAGADO-1/b.jpg" } },
+    ];
+    await limparPastasDePedidosApagados(dia1);
+    await limparPastasDePedidosApagados(dia9);
+    expect(st.apagadas).toEqual([]);
+  });
+
   it("uma chave `foto-visual:` com o nome da pasta continua a protegê-la, como em main (2.ª revisão 17/11, n.º 3)", async () => {
     st.tabelas.app_state = [
       ...(st.tabelas.app_state ?? []),

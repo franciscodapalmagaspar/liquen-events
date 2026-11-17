@@ -2,6 +2,7 @@ import "server-only";
 import { balde } from "@/lib/armazenamento/balde";
 import { semProtegidos } from "@/lib/arquivo-de-pdfs/protegidos";
 import { eChaveDeIndiceDeFotos } from "@/lib/indices-de-fotos";
+import { CHAVE_DOS_DUPLICADOS } from "@/lib/registos-das-limpezas";
 import { getSupabase } from "@/lib/supabase";
 import { getState, setState } from "@/lib/app-state";
 import { DRAFT_PREFIX, draftKey } from "@/lib/proposal-drafts";
@@ -116,7 +117,7 @@ import { log } from "@/lib/logger";
  * dezenas de KB) — e só escreve quando encontra um caminho que saiu. A releitura
  * da corrida, na Fase B, são duas leituras do mesmo género por lote de 6.
  */
-export const CHAVE = "limpeza:fotos-duplicadas";
+export const CHAVE = CHAVE_DOS_DUPLICADOS;
 export const ESPERA_HORAS = 24;
 export const INTERVALO_DIAS = 7;
 /** Quanto tempo depois de sair uma cópia se continua a vigiar, todas as
