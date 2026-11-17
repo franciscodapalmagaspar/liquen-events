@@ -80,6 +80,6 @@ function avisarDoIdiomaDesconhecido(corpo: CorpoLido, pedidoId: string): void {
   if (corpo.idiomaDesconhecido === null) return;
   log.warn("proposta-doc: idioma desconhecido, a desenhar em português", {
     id: pedidoId,
-    recebido: corpo.idiomaDesconhecido,
+    recebido: String(corpo.idiomaDesconhecido.recebido),
   });
 }

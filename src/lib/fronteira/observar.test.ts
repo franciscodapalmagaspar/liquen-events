@@ -66,34 +66,33 @@ describe("a fronteira em modo de observar", () => {
     // Os primeiros um a um, e UMA linha a dizer que o desvio continua.
     expect(aviso).toHaveBeenCalledTimes(CASOS_POR_DESVIO + 1);
     expect(aviso).toHaveBeenLastCalledWith(
-      `fronteira: teste — o mesmo desvio em mais de ${CASOS_POR_DESVIO} casos`,
-      { desvios: [{ campo: "nome", problema: "invalid_type" }], calados: 1 },
+      `fronteira: teste — o mesmo desvio em mais de ${CASOS_POR_DESVIO} casos; os seguintes já não se dizem um a um`,
+      { desvios: [{ campo: "nome", problema: "invalid_type" }] },
     );
   });
 
-  it("passado o tecto, o resumo volta de CASOS_POR_DESVIO em CASOS_POR_DESVIO — nunca finge que parou", () => {
+  it("o resumo diz-se uma vez — a lista de pedidos relida não o repete", () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
-    for (let i = 0; i < 3 * CASOS_POR_DESVIO; i++) {
-      observar(esquema, { nome: 1 }, "teste", { id: `q${i}` });
+    for (let leitura = 0; leitura < 5; leitura++) {
+      for (let i = 0; i < CASOS_POR_DESVIO + 3; i++) {
+        observar(esquema, { nome: 1 }, "teste", { id: `q${i}` });
+      }
     }
-    const resumos = aviso.mock.calls.filter((c) => String(c[0]).includes("o mesmo desvio em mais"));
-    expect(resumos.map((c) => (c[1] as { calados: number }).calados)).toEqual([
-      1,
-      CASOS_POR_DESVIO,
-      2 * CASOS_POR_DESVIO,
-    ]);
+    expect(aviso).toHaveBeenCalledTimes(CASOS_POR_DESVIO + 1);
   });
 
-  it("no tecto de desvios lembrados esquece-se só o mais antigo", () => {
+  it("no tecto de desvios lembrados esquece-se só o que não se vê há mais tempo", () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
     for (let i = 0; i < 500; i++) observar(esquema, { nome: 1 }, `sitio${i}`, { id: "q" });
-    // O 501.º empurra o primeiro para fora…
+    // O primeiro volta a ver-se: passa para o fim da fila.
+    observar(esquema, { nome: 1 }, "sitio0", { id: "q" });
+    // O 501.º empurra para fora o que não se vê há mais tempo — o segundo…
     observar(esquema, { nome: 1 }, "sitio500", { id: "q" });
     aviso.mockClear();
-    // …o segundo continua lembrado (calado), e o primeiro volta a dizer-se.
-    observar(esquema, { nome: 1 }, "sitio1", { id: "q" });
-    expect(aviso).not.toHaveBeenCalled();
+    // …o primeiro continua lembrado (calado), e o segundo volta a dizer-se.
     observar(esquema, { nome: 1 }, "sitio0", { id: "q" });
+    expect(aviso).not.toHaveBeenCalled();
+    observar(esquema, { nome: 1 }, "sitio1", { id: "q" });
     expect(aviso).toHaveBeenCalledTimes(1);
   });
 

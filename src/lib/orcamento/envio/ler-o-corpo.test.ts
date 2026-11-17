@@ -63,8 +63,17 @@ describe("o corpo do pedido à rota da proposta", () => {
     ] as const) {
       expect(corpoLido({ idioma: recebido })).toMatchObject({ idioma, idiomaDesconhecido: null });
     }
-    expect(corpoLido({ idioma: "fr" })).toMatchObject({ idioma: "pt", idiomaDesconhecido: "fr" });
-    expect(corpoLido({ idioma: null })).toMatchObject({ idioma: "pt", idiomaDesconhecido: "null" });
+    expect(corpoLido({ idioma: "fr" })).toMatchObject({
+      idioma: "pt",
+      idiomaDesconhecido: { recebido: "fr" },
+    });
+    expect(corpoLido({ idioma: null })).toMatchObject({
+      idioma: "pt",
+      idiomaDesconhecido: { recebido: null },
+    });
+    // Um valor que nem se converte em texto lê-se sem rebentar: só o aviso o
+    // converte, depois do documento (`guardas-baratas.test.ts`).
+    expect(() => corpoLido(JSON.parse('{"idioma":{"toString":1}}'))).not.toThrow();
   });
 
   it("as respostas e os textos só contam com a forma certa — o resto é «não veio»", () => {

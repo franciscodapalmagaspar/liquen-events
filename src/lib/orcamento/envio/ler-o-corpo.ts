@@ -1,6 +1,7 @@
 import "server-only";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { IDIOMA_POR_OMISSAO, ehIdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -22,6 +23,10 @@ import { IDIOMA_POR_OMISSAO, ehIdiomaDaProposta } from "@/lib/proposal-doc-texto
 /** Um texto, ou nada. */
 const texto = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
+/** Uma das línguas da proposta (a lista fechada, a mesma do esquema), ou nada. */
+const lingua = (v: unknown): IdiomaDaProposta | undefined =>
+  (IDIOMAS_DA_PROPOSTA as readonly unknown[]).includes(v) ? (v as IdiomaDaProposta) : undefined;
+
 /** Uma contagem que ela viu: um número finito, não negativo — ou nada. */
 const contagem = (v: unknown): number | undefined =>
   typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined;
@@ -38,7 +43,7 @@ export function corpoLido(cru: unknown) {
     cru && typeof cru === "object" && !Array.isArray(cru) ? (cru as Record<string, unknown>) : {};
   /** O que não se reconhece vale a pré-visualização — nunca um envio. */
   const modo: "preview" | "send" = corpo.mode === "send" ? "send" : "preview";
-  const idiomaConhecido = ehIdiomaDaProposta(corpo.idioma) ? corpo.idioma : undefined;
+  const idiomaConhecido = lingua(corpo.idioma);
   return {
     /** O corpo tal e qual chegou — só para o registo (`esquema-do-corpo.ts`). */
     cru,
@@ -53,9 +58,14 @@ export function corpoLido(cru: unknown) {
     rascunho: modo === "preview" && corpo.rascunho === true,
     /** A língua do desenho: o que não se reconhece vale português. */
     idioma: idiomaConhecido ?? IDIOMA_POR_OMISSAO,
-    /** O valor estranho que caiu em português, para o registo — ou `null`. */
+    /** O valor estranho que caiu em português, CRU, para o registo — ou
+     *  `null`. Cru de propósito: passa a texto só no aviso, depois de o
+     *  documento estar completo, como na rota antiga (um valor que nem se
+     *  converte em texto não pode rebentar antes do 400). */
     idiomaDesconhecido:
-      corpo.idioma !== undefined && idiomaConhecido === undefined ? String(corpo.idioma) : null,
+      corpo.idioma !== undefined && idiomaConhecido === undefined
+        ? { recebido: corpo.idioma }
+        : null,
     /** O corpo e o assunto do EMAIL escritos à mão (os campos `corpo` e
      *  `assunto` do protocolo); o assunto só conta com o corpo. */
     textoDoEmail: texto(corpo.corpo) ?? null,

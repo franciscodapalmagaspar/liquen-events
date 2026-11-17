@@ -183,6 +183,14 @@ export const ESTRANHOS: Array<[string, () => NextRequest, (() => void)?]> = [
   ["mode número", () => pedido({ mode: 1, doc: doc() })],
   ["idioma objecto", () => pedido({ mode: "preview", doc: doc(), idioma: { a: 1 } })],
   ["idioma null", () => pedido({ mode: "preview", doc: doc(), idioma: null })],
+  [
+    "idioma que nem se converte em texto, sem documento",
+    () => pedido(JSON.parse('{"mode":"send","idioma":{"toString":1}}')),
+  ],
+  [
+    "idioma que nem se converte em texto, com documento",
+    () => pedido({ ...JSON.parse('{"mode":"preview","idioma":{"toString":1}}'), doc: doc() }),
+  ],
   ["rascunho texto", () => pedido({ mode: "preview", doc: doc(), rascunho: "true" })],
   ["porEmail 0", () => envio(doc(), { porEmail: 0 })],
   ["porEmail null", () => envio(doc(), { porEmail: null })],

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { log } from "@/lib/logger";
 import { __esquecerDesviosDitos } from "@/lib/fronteira/observar";
 import { esquemaDoCorpo, observarOCorpo } from "./esquema-do-corpo";
+import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-fechadas";
 import { corpoLido } from "./ler-o-corpo";
 
 beforeEach(() => {
@@ -30,6 +31,9 @@ describe("o esquema do corpo, em modo de observar", () => {
 });
 
 /**
+ * Campo a campo, com o resto do corpo ausente — o `rascunho` só conta na
+ * pré-visualização, e é isso que um corpo sem `mode` é.
+ *
  * O esquema e a leitura são dois papéis (ver os cabeçalhos), e só os prende
  * ESTA regra, num sentido só: tudo o que o esquema aceita, a leitura lê tal e
  * qual. Se o esquema se ALARGASSE para lá da leitura, o registo calava-se
@@ -38,23 +42,10 @@ describe("o esquema do corpo, em modo de observar", () => {
  */
 describe("o que o esquema aceita, a leitura lê igual", () => {
   const VALORES: unknown[] = [
-    undefined,
-    null,
-    0,
-    3,
-    -1,
-    2.5,
-    "",
-    " x ",
-    "send",
-    "preview",
-    "en",
-    "pt",
-    "fr",
-    true,
-    false,
-    [],
-    {},
+    ...IDIOMAS_DA_PROPOSTA,
+    ...["es", "fr", "", " x ", "send", "preview", "SEND", "true"],
+    ...[0, -0, 3, -1, 2.5, 1e9, Number.MAX_SAFE_INTEGER],
+    ...[null, true, false, [], {}, { a: 1 }],
   ];
   const campos = Object.keys(esquemaDoCorpo.shape).filter((c) => c !== "doc");
   const LIDO_COMO: Record<string, (p: ReturnType<typeof corpoLido>) => unknown> = {
@@ -77,13 +68,12 @@ describe("o que o esquema aceita, a leitura lê igual", () => {
 
   it.each(campos)("%s", (campo) => {
     for (const v of VALORES) {
-      if (v === undefined) continue;
       const r = esquemaDoCorpo.shape[campo as keyof typeof esquemaDoCorpo.shape].safeParse(v);
       if (!r.success) continue;
       const lido = LIDO_COMO[campo](corpoLido({ [campo]: v }));
       // A mensagem lê-se aparada; o resto, tal e qual.
       expect(lido, `${campo} = ${JSON.stringify(v)}`).toEqual(
-        campo === "mensagem" ? String(v).trim() : v === "preview" ? "preview" : v,
+        campo === "mensagem" ? String(v).trim() : v,
       );
     }
   });

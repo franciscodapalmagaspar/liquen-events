@@ -2562,6 +2562,54 @@ exports[`o retrato de cada resposta da rota (fase 5) > corpo estranho: idioma ob
 }"
 `;
 
+exports[`o retrato de cada resposta da rota (fase 5) > corpo estranho: idioma que nem se converte em texto, com documento 1`] = `
+"{
+  "estado": 500,
+  "cabecalhos": {
+    "content-type": "application/json",
+    "content-disposition": null,
+    "x-fotos-em-falta": null,
+    "x-conteudo-cortado": null,
+    "x-chave-do-pdf": null,
+    "x-pdf-da-memoria": null
+  },
+  "corpo": "{\\"error\\":\\"Erro ao gerar a proposta: Cannot convert object to primitive value\\"}",
+  "mail": [],
+  "criadas": [],
+  "actualizadas": [],
+  "pedido": [],
+  "copias": [],
+  "registo": [
+    [
+      "error",
+      "proposta-doc POST falhou",
+      "Error(Cannot convert object to primitive value)"
+    ]
+  ]
+}"
+`;
+
+exports[`o retrato de cada resposta da rota (fase 5) > corpo estranho: idioma que nem se converte em texto, sem documento 1`] = `
+"{
+  "estado": 400,
+  "cabecalhos": {
+    "content-type": "application/json",
+    "content-disposition": null,
+    "x-fotos-em-falta": null,
+    "x-conteudo-cortado": null,
+    "x-chave-do-pdf": null,
+    "x-pdf-da-memoria": null
+  },
+  "corpo": "{\\"error\\":\\"Proposta incompleta: falta o documento.\\"}",
+  "mail": [],
+  "criadas": [],
+  "actualizadas": [],
+  "pedido": [],
+  "copias": [],
+  "registo": []
+}"
+`;
+
 exports[`o retrato de cada resposta da rota (fase 5) > corpo estranho: mensagem só espaços 1`] = `
 "{
   "estado": 200,

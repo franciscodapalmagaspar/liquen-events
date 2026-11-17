@@ -45,40 +45,44 @@ const TECTO_DE_DESVIOS_LEMBRADOS = 500;
 /** Quantos casos (ids) de um mesmo desvio se dizem, por processo. */
 export const CASOS_POR_DESVIO = 64;
 /** O que se lembra de um desvio: os casos já ditos (`""` quando o contexto
- *  não tem id), e quantas vezes se calou um caso novo depois do tecto. */
+ *  não tem id), e se já se disse que passou do tecto. */
 interface Lembrado {
   casos: Set<string>;
-  calados: number;
+  passouDoTecto: boolean;
 }
-/** Desvio → o que se lembra dele, do mais antigo para o mais recente. */
+/** Desvio → o que se lembra dele, do menos para o mais recentemente visto. */
 const jaDitos = new Map<string, Lembrado>();
 
 /**
  * O que fazer com este caso deste desvio — e lembra-o:
  *  · `dizer`, a primeira vez que o caso aparece (até {@link CASOS_POR_DESVIO});
- *  · `resumir`, quando passa do tecto: a 1.ª vez e de {@link CASOS_POR_DESVIO}
- *    em {@link CASOS_POR_DESVIO}, uma linha diz quantas vezes se calou — o
+ *  · `resumir`, UMA vez, no primeiro caso novo depois do tecto: uma linha diz
+ *    que o desvio continua noutros casos, que já não se dizem um a um — o
  *    registo nunca finge que o desvio parou;
  *  · `calar`, no resto.
- * No tecto de desvios lembrados esquece-se só o MAIS ANTIGO, nunca todos.
+ * No tecto de desvios lembrados esquece-se o que não se vê há mais tempo
+ * (cada visita põe o desvio no fim da fila), nunca todos.
  */
 function oQueFazer(assinatura: string, caso: string): "dizer" | "resumir" | "calar" {
   let lembrado = jaDitos.get(assinatura);
-  if (!lembrado) {
+  if (lembrado) {
+    jaDitos.delete(assinatura);
+  } else {
     if (jaDitos.size >= TECTO_DE_DESVIOS_LEMBRADOS) {
-      const maisAntigo = jaDitos.keys().next().value;
-      if (maisAntigo !== undefined) jaDitos.delete(maisAntigo);
+      const menosVisto = jaDitos.keys().next().value;
+      if (menosVisto !== undefined) jaDitos.delete(menosVisto);
     }
-    lembrado = { casos: new Set(), calados: 0 };
-    jaDitos.set(assinatura, lembrado);
+    lembrado = { casos: new Set(), passouDoTecto: false };
   }
+  jaDitos.set(assinatura, lembrado);
   if (lembrado.casos.has(caso)) return "calar";
   if (lembrado.casos.size < CASOS_POR_DESVIO) {
     lembrado.casos.add(caso);
     return "dizer";
   }
-  lembrado.calados += 1;
-  return lembrado.calados === 1 || lembrado.calados % CASOS_POR_DESVIO === 0 ? "resumir" : "calar";
+  if (lembrado.passouDoTecto) return "calar";
+  lembrado.passouDoTecto = true;
+  return "resumir";
 }
 
 /** Um desvio, sem o valor: o caminho do campo e o tipo do problema. */
@@ -126,10 +130,10 @@ export function observar(
   const fazer = oQueFazer(assinatura, caso);
   if (fazer === "calar") return false;
   if (fazer === "resumir") {
-    log.warn(`fronteira: ${onde} — o mesmo desvio em mais de ${CASOS_POR_DESVIO} casos`, {
-      desvios,
-      calados: jaDitos.get(assinatura)?.calados ?? 0,
-    });
+    log.warn(
+      `fronteira: ${onde} — o mesmo desvio em mais de ${CASOS_POR_DESVIO} casos; os seguintes já não se dizem um a um`,
+      { desvios },
+    );
     return false;
   }
   log.warn(`fronteira: ${onde} não bate com o esquema (modo de observar, segue tal e qual)`, {

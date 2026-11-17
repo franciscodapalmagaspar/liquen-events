@@ -83,13 +83,13 @@ export const TRAVAM_O_PDF_FINAL: ReadonlySet<string> = new Set([
   "fotos-a-mais",
 ]);
 
-/** «Falta o valor» → «falta o valor»: só a primeira letra desce — o resto
- *  leva os nomes dos serviços, que se escrevem como ela os escreveu. */
 /** Das faltas que a regra encontrou, as que travam E que esta lista recusa. */
 function queTravam(faltas: Impedimento[], lista: ReadonlySet<string>): Impedimento[] {
   return faltas.filter((f) => f.trava && lista.has(f.id));
 }
 
+/** «Falta o valor» → «falta o valor»: só a primeira letra desce — o resto
+ *  leva os nomes dos serviços, que se escrevem como ela os escreveu. */
 function emMinuscula(f: Impedimento): string {
   return f.texto.charAt(0).toLowerCase() + f.texto.slice(1);
 }
