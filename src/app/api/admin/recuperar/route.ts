@@ -49,6 +49,32 @@ export const dynamic = "force-dynamic";
  *     registo, escreve-se o registo — e ainda assim espera-se até um PISO
  *     comum, para as diferenças pequenas (um `bcrypt` a mais, um ramo mais
  *     curto) também não se somarem a nada legível.
+ *
+ * ── O CUSTO (regra 7 e «O Upstash», em `docs/GASTAR-POUCO-DESDE-O-INICIO.md`) ─
+ *
+ * Esta rota é uma das portas autorizadas a usar o Upstash
+ * (`rate-limit.global.test.ts`). As três perguntas:
+ *
+ *  · QUANTAS VEZES CORRE: uma vez por pedido de recuperação, que é raro (a
+ *    dona esquece-se da palavra-passe). Quem a martele fica preso ao tecto de
+ *    5 pedidos por hora por endereço de origem; acima disso responde 429 logo
+ *    a seguir à primeira ida ao Upstash.
+ *  · QUANTO GASTA: no Upstash, cada pedido com «@» faz 2 a 5 comandos —
+ *    o tecto por origem (INCR + PTTL, mais um PEXPIRE quando a janela abre),
+ *    a reserva no tecto da conta (um EVAL) e, quando nenhum email sai (o
+ *    endereço não é de ninguém, a base de dados falhou, o SMTP não enviou),
+ *    a devolução (outro EVAL). Um pedido sem «@» faz só os 2 a 3 do tecto por
+ *    origem. Contado pelo pior caso, 5 comandos × 5 pedidos por hora × um
+ *    endereço de origem: 25 comandos por hora a quem insiste — muito abaixo
+ *    do plano gratuito. Guarda até duas chaves por endereço pedido (a da
+ *    conta e a irmã `:janela`), que morrem ao fim de uma hora. No processador
+ *    é nada: os scripts são de tamanho fixo, sem ciclos, e a resposta espera
+ *    sobretudo pelo piso de tempo.
+ *  · PODE SER GUARDADO, FEITO NO BUILD OU NO NAVEGADOR: não. O tecto tem de
+ *    ser o mesmo para todas as instâncias (senão cada instância nova dava
+ *    mais 3 emails), e no navegador quem pede é quem o contornava. Sem
+ *    Upstash configurado, cai sozinho para a memória de cada instância, sem
+ *    custo nenhum.
  */
 
 /** A ÚNICA frase que sai daqui quando o pedido foi processado. */
@@ -60,7 +86,7 @@ const NEUTRA =
  *
  * O que fica dentro da resposta depois de o email ter saído para o `after`:
  * uma leitura e uma escrita no `app_state` (40–120 ms cada, numa ligação
- * normal ao Supabase), a reserva no tecto da conta (um INCR no Upstash,
+ * normal ao Supabase), a reserva no tecto da conta (um EVAL no Upstash,
  * 20–80 ms — revisão de 16/11, n.º 3) e, quando a escrita falha, a devolução
  * (outro pedido ao Upstash). Somado, o caso normal mais lento anda pelos
  * 400 ms; 700 ms cobre-o com folga. (Era 900 ms enquanto o envio do email era
@@ -140,7 +166,7 @@ export async function POST(request: NextRequest) {
   }
 
   // O tecto da conta conta-se NO MOMENTO DA DECISÃO, de forma atómica (um
-  // INCR): uma rajada de pedidos ao mesmo tempo não passa dele (revisão de
+  // EVAL): uma rajada de pedidos ao mesmo tempo não passa dele (revisão de
   // 16/11, n.º 1). E faz-se para QUALQUER endereço com «@», existindo ou não
   // (n.º 3): se só as contas reais fossem ao Upstash, essa ida separava-as
   // pelo tempo. Acima do tecto não se emite ligação nem se envia; a resposta é
