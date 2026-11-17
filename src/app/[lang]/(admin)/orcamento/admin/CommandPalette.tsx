@@ -4,6 +4,7 @@ import { casaComAProcura } from "@/lib/procura";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Quote } from "@/lib/orcamento/types";
 import { useFocusTrap } from "./useFocusTrap";
+import { procurarNosGrupos, type GrupoDaProcura } from "./procura-em-tudo";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
 /* A escala de movimento da casa — ver `ui/movimento.ts`. O `PRESSAO` são os
    20 ms do carregar. O `ESTADO` (120 ms) SAIU daqui de propósito: numa lista
@@ -34,11 +35,35 @@ interface Props {
   quotes: Quote[];
   onOpenQuote: (q: Quote) => void;
   recentQuotes?: RecentQuote[];
+  /**
+   * A procura «em tudo» (BO 4): propostas, tarefas, marcações, temas e, quando
+   * já estiverem na memória, contratos, fornecedores e material. Montados por
+   * quem abre a paleta a partir do que o browser já tem — ver
+   * `procura-em-tudo.ts`. Só entram com texto escrito, no máximo quatro por
+   * grupo.
+   */
+  grupos?: readonly GrupoDaProcura[];
 }
 
+/** Os grupos cujos resultados são PESSOAS (um casal, um cliente) — levam o
+ *  ícone de pessoa; os outros levam a seta de «ir para». */
+const GRUPOS_DE_PESSOAS: ReadonlySet<string> = new Set([
+  "Pedidos",
+  "Recentes",
+  "Propostas",
+  "Contratos",
+]);
+
 /**
- * ⌘K / Ctrl+K command palette: jump to any view or search a quote by name,
- * email or id. Keyboard-first, on-brand, minimal.
+ * ⌘K / Ctrl+K command palette: jump to any view, run a command, or search a
+ * quote by name, email or id — and, since BO 4, proposals, tasks, calendar
+ * entries, themes, contracts, suppliers and material too, from what the
+ * browser already holds (`procura-em-tudo.ts`; no new request). Keyboard-first,
+ * on-brand, minimal.
+ *
+ * As três decisões de movimento abaixo valem igual para os grupos novos: são
+ * mais linhas da mesma lista, com o mesmo realce sem esbatimento e o mesmo
+ * fecho a seco ao escolher.
  *
  * ════════════════════════════════════════════════════════════════════════════
  * O QUE AQUI SE ANIMA, E — SOBRETUDO — O QUE AQUI NÃO SE ANIMA
@@ -130,6 +155,7 @@ export default function CommandPalette({
   quotes,
   onOpenQuote,
   recentQuotes,
+  grupos,
 }: Props) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -222,8 +248,11 @@ export default function CommandPalette({
             .filter(Boolean) as Command[])
         : [];
 
-    return [...recentMatches, ...navMatches, ...quoteMatches];
-  }, [query, navCommands, quotes, onOpenQuote, recentQuotes]);
+    // O resto da casa, só do que já está na memória — ver `procura-em-tudo.ts`.
+    const emTudo: Command[] = grupos ? procurarNosGrupos(q, grupos) : [];
+
+    return [...recentMatches, ...navMatches, ...quoteMatches, ...emTudo];
+  }, [query, navCommands, quotes, onOpenQuote, recentQuotes, grupos]);
 
   useEffect(() => {
     if (active >= results.length) setActive(0);
@@ -442,7 +471,7 @@ export default function CommandPalette({
                         }`}
                         aria-hidden="true"
                       >
-                        {c.hint ? (
+                        {GRUPOS_DE_PESSOAS.has(c.group) ? (
                           <svg
                             width="14"
                             height="14"
