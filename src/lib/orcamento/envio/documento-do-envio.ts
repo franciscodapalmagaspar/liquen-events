@@ -6,7 +6,7 @@ import {
   MAX_PROPOSAL_DOC_BYTES,
 } from "@/lib/proposal-doc";
 import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import type { IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import type { DocumentoPreparado } from "./envio-da-proposta";
 
 export interface DocumentoDoEnvio {

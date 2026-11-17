@@ -116,7 +116,7 @@ function git(...args: string[]): string | null {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
       // Uma rede pendurada não pode prender a parte do CI (o job tem 20 min).
-      timeout: 30_000,
+      timeout: 15_000,
     }).trim();
   } catch {
     return null;
@@ -139,11 +139,13 @@ const HA_ROTA_ANTIGA =
       git("fetch", "--no-tags", "--depth=1", "origin", COMMIT_COMPLETO) !== null &&
       temOCommit()));
 if (PASSOU_O_PRAZO) avisar(PEDIDO_DO_PRAZO);
-else if (!HA_ROTA_ANTIGA && process.env.CI && process.env.COMPARAR_COM_A_ROTA_ANTIGA !== "0") {
+else if (!HA_ROTA_ANTIGA && process.env.COMPARAR_COM_A_ROTA_ANTIGA !== "0") {
   avisar(
     RAIZ === ""
       ? "não há git (ou isto não é um repositório) — a comparação saltou"
-      : `o commit ${COMMIT_DA_CARACTERIZACAO} não veio (o fetch falhou ou passou dos 30 s) — a comparação saltou`,
+      : process.env.CI
+        ? `o commit ${COMMIT_DA_CARACTERIZACAO} não veio (o fetch falhou ou passou dos 15 s) — a comparação saltou`
+        : `este clone não tem o commit ${COMMIT_DA_CARACTERIZACAO} (raso?) — a comparação saltou`,
   );
 }
 /** Uma pasta por corrida: duas corridas ao mesmo tempo não se pisam. */

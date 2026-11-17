@@ -1,6 +1,7 @@
 import type { Quote } from "@/lib/orcamento/types";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import type { IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import type { ProposalDoc } from "@/lib/proposal-doc";
+import type { dinheiroDaProposta } from "@/lib/proposal-budget";
 
 /** O documento depois de preparado (`documento-do-envio.ts`): a validade já
  *  lá está ESCRITA — é a data que o PDF mostra e a que a proposta grava. */
@@ -8,8 +9,8 @@ export type DocumentoPreparado = ProposalDoc & { validUntil: string };
 
 /**
  * O que todas as etapas do envio sabem: de que pedido é, o pedido, o
- * documento já preparado (`documento-do-envio.ts`) e a língua em que se
- * desenha. Monta-se UMA vez, no orquestrador (`atender-o-estudio.ts`), e cada
+ * documento já preparado (`documento-do-envio.ts`), a língua em que se
+ * desenha e o dinheiro dele. Monta-se UMA vez, no orquestrador (`atender-o-estudio.ts`), e cada
  * etapa diz o que mais precisa ao lado.
  */
 export interface EnvioDaProposta {
@@ -19,4 +20,6 @@ export interface EnvioDaProposta {
   /** Com a validade já escrita (`documento-do-envio.ts`). */
   doc: DocumentoPreparado;
   idioma: IdiomaDaProposta;
+  /** O dinheiro da proposta, contado UMA vez (`dinheiroDaProposta`). */
+  dinheiro: ReturnType<typeof dinheiroDaProposta>;
 }

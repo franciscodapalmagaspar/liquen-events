@@ -13,7 +13,7 @@ import { log } from "@/lib/logger";
 import { cartaoDoPdf } from "./cartao-do-pdf";
 import type { EnvioDaProposta } from "./envio-da-proposta";
 
-declare const emoldurado: unique symbol;
+declare const marcaDoEmoldurado: unique symbol;
 
 /**
  * Um email que passou pelo `emailAoCliente` — a assinatura de quem envia, a
@@ -21,7 +21,9 @@ declare const emoldurado: unique symbol;
  * seja mandada tenha isto sempre predefinido»). Só {@link emoldurar} o cria, e
  * `mandar-o-email.ts` só aceita este: um email montado à mão não compila.
  */
-export type EmailEmoldurado = ReturnType<typeof emailAoCliente> & { readonly [emoldurado]: true };
+export type EmailEmoldurado = ReturnType<typeof emailAoCliente> & {
+  readonly [marcaDoEmoldurado]: true;
+};
 
 function emoldurar(partes: Parameters<typeof emailAoCliente>[0]): EmailEmoldurado {
   return emailAoCliente(partes) as EmailEmoldurado;

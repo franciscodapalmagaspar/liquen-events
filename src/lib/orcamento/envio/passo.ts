@@ -1,4 +1,3 @@
-import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
 import type { CorpoDaRecusa, Falha, Recusa, RespostaDoEnvio } from "./contrato";
 
 /**
@@ -21,7 +20,7 @@ import type { CorpoDaRecusa, Falha, Recusa, RespostaDoEnvio } from "./contrato";
 export type Desfecho =
   | { tipo: "recusa"; recusa: Recusa }
   | { tipo: "falha"; falha: Falha }
-  | { tipo: "pdf"; pdf: RelatorioDoPdf["pdf"]; cabecalhos: Record<string, string> }
+  | { tipo: "pdf"; pdf: Buffer<ArrayBuffer>; cabecalhos: Record<string, string> }
   | { tipo: "envio"; resposta: RespostaDoEnvio };
 
 /** Uma etapa que pára o pedido — serve qualquer `Passo<T>`, porque não chega a produzir `T`. */
@@ -38,32 +37,35 @@ export function segue<T>(valor: T): Passo<T> {
   return { segue: true, valor };
 }
 
-/** O desfecho de uma recusa: a proposta não pode seguir assim (400, 409, 413, 422). */
-export function recusa(status: Recusa["status"], corpo: CorpoDaRecusa): Desfecho {
-  return { tipo: "recusa", recusa: { status, corpo } };
-}
+/**
+ * Os quatro desfechos, um construtor cada, com o nome do seu `tipo`
+ * (`desfecho.envio(…)` dá `{ tipo: "envio", … }`).
+ */
+export const desfecho = {
+  recusa: (status: Recusa["status"], corpo: CorpoDaRecusa): Desfecho => ({
+    tipo: "recusa",
+    recusa: { status, corpo },
+  }),
+  falha: (falha: Falha): Desfecho => ({ tipo: "falha", falha }),
+  pdf: (pdf: Buffer<ArrayBuffer>, cabecalhos: Record<string, string>): Desfecho => ({
+    tipo: "pdf",
+    pdf,
+    cabecalhos,
+  }),
+  envio: (resposta: RespostaDoEnvio): Desfecho => ({ tipo: "envio", resposta }),
+};
 
-/** Pára com uma recusa — a de {@link recusa}, dentro de um passo. */
+/** Pára com uma recusa: a proposta não pode seguir assim (400, 409, 413, 422). */
 export function paraComRecusa(status: Recusa["status"], corpo: CorpoDaRecusa): Paragem {
-  return { segue: false, desfecho: recusa(status, corpo) };
+  return { segue: false, desfecho: desfecho.recusa(status, corpo) };
 }
 
-/** O desfecho de uma falha: a base não deixou (503). */
-export function falha(f: Falha): Desfecho {
-  return { tipo: "falha", falha: f };
-}
-
-/** Pára com uma falha — a de {@link falha}, dentro de um passo. */
-export function paraComFalha(f: Falha): Paragem {
-  return { segue: false, desfecho: falha(f) };
-}
-
-/** O desfecho de um envio respondido (200). */
-export function respondido(resposta: RespostaDoEnvio): Desfecho {
-  return { tipo: "envio", resposta };
+/** Pára: a base não deixou (503). */
+export function paraComFalha(falha: Falha): Paragem {
+  return { segue: false, desfecho: desfecho.falha(falha) };
 }
 
 /** Pára com a resposta já pronta — uma repetição: o envio já tinha seguido. */
 export function paraComResposta(resposta: RespostaDoEnvio): Paragem {
-  return { segue: false, desfecho: respondido(resposta) };
+  return { segue: false, desfecho: desfecho.envio(resposta) };
 }

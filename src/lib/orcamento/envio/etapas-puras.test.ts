@@ -23,7 +23,8 @@ import { prepararODocumento } from "./documento-do-envio";
 import type { EmailEmoldurado } from "./email-da-proposta";
 import type { DocumentoPreparado } from "./envio-da-proposta";
 import { SEGUE } from "./passo";
-import { resolveValidUntil, type ProposalDoc } from "@/lib/proposal-doc";
+import type { ProposalDoc } from "@/lib/proposal-doc";
+import { seloDoConteudo } from "@/lib/proposta-versao";
 
 vi.spyOn(log, "warn").mockImplementation(() => {});
 
@@ -107,9 +108,9 @@ describe("o documento e a linha que se grava", () => {
     const depois = new Date("2026-12-17T12:00:00.000Z");
     const a = prepararODocumento({ ...semValidade } as ProposalDoc, "pt", agora);
     const b = prepararODocumento({ ...semValidade } as ProposalDoc, "pt", depois);
-    expect(a.doc.validUntil).toBe(resolveValidUntil(semValidade as ProposalDoc, agora));
-    expect(a.doc.validUntil).toMatch(/^2026-|^2027-/);
-    expect(b.doc.validUntil).not.toBe(a.doc.validUntil);
+    // 17/11/2026 + os dias da regra = 16/1/2027; um mês depois, 15/2/2027.
+    expect(a.doc.validUntil).toBe("2027-01-16");
+    expect(b.doc.validUntil).toBe("2027-02-15");
     // Uma validade já escrita não se mexe, seja qual for o relógio.
     expect(prepararODocumento({ ...doc }, "pt", depois).doc.validUntil).toBe("2027-01-01");
   });
@@ -193,6 +194,7 @@ describe("o documento e a linha que se grava", () => {
       });
       const velha = {
         ...linha,
+        versaoSelo: "selo-da-velha",
         id: "v1",
         createdAt: "2026-01-01T00:00:00.000Z",
         versaoNumero: 1,
@@ -200,6 +202,7 @@ describe("o documento e a linha que se grava", () => {
       };
       const nova = {
         ...linha,
+        versaoSelo: "selo-da-nova",
         id: "v2",
         createdAt: "2026-02-01T00:00:00.000Z",
         versaoNumero: 2,
@@ -213,9 +216,10 @@ describe("o documento e a linha que se grava", () => {
         ...linha,
         versaoNumero: 3,
         versaoEm: "2026-11-17T12:00:00.000Z",
-        versaoSelo: versaoDaProposta(linha, []).versaoSelo,
+        versaoSelo: seloDoConteudo(linha),
       });
-      expect(proposal.versaoSelo).not.toBe(velha.versaoSelo);
+      // O selo é o do CONTEÚDO dela — nunca o de uma irmã.
+      expect(proposal.versaoSelo).not.toBe("selo-da-nova");
       // Pura: a linha que entrou não ganhou a versão.
       expect(linha.versaoNumero).toBeUndefined();
     } finally {

@@ -57,7 +57,13 @@ const doc = {
   validUntil: "2027-01-01",
 } as unknown as DocumentoPreparado;
 const quote = { id: "q", name: "Mãe da Noiva", email: "c@x.pt", status: "pendente" } as Quote;
-const envio = { pedidoId: "q", quote, doc, idioma: "pt" as const };
+const envio = {
+  pedidoId: "q",
+  quote,
+  doc,
+  idioma: "pt" as const,
+  dinheiro: dinheiroDaProposta(doc),
+};
 
 beforeEach(() => {
   vi.clearAllMocks();

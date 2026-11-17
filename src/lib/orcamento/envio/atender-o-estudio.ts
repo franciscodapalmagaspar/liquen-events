@@ -7,7 +7,7 @@ import type { CorpoLido } from "./ler-o-corpo";
 import { guardasBaratas } from "./guardas-baratas";
 import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
-import { recusa, respondido, SEGUE, segue, type Desfecho, type Passo } from "./passo";
+import { desfecho, SEGUE, segue, type Desfecho, type Passo } from "./passo";
 import {
   avisarQueSegueComFotosAMenos,
   perguntaDasFotos,
@@ -89,11 +89,13 @@ export interface Contexto {
  * mais uma margem — se ela morrer a meio, vence.
  */
 const VALIDADE_DO_TRINCO_MS = (TECTO_DO_ENVIO_S + 15) * 1000;
-const A_SER_ENVIADA = recusa(409, {
-  error:
-    "Esta proposta já está a ser enviada (carregou duas vezes, ou noutro separador). Espere uns segundos: se não aparecer como enviada, volte a carregar em enviar.",
-  aEnviar: true,
-});
+/** Um objecto novo a cada pedido: ninguém partilha (nem muda) a resposta de outro. */
+const aSerEnviada = (): Desfecho =>
+  desfecho.recusa(409, {
+    error:
+      "Esta proposta já está a ser enviada (carregou duas vezes, ou noutro separador). Espere uns segundos: se não aparecer como enviada, volte a carregar em enviar.",
+    aEnviar: true,
+  });
 
 /**
  * O estúdio pediu: pré-visualizar ou enviar. «Pedido», nesta pasta, é sempre o
@@ -104,7 +106,7 @@ export async function atenderOEstudio(c: Contexto): Promise<Desfecho> {
   const r = await comTrinco(`envio-da-proposta:${c.pedidoId}`, VALIDADE_DO_TRINCO_MS, () =>
     enviar(c),
   );
-  return r.ok ? r.valor : A_SER_ENVIADA;
+  return r.ok ? r.valor : aSerEnviada();
 }
 
 /** Etapas 3 a 5, e o PDF como resposta. O rascunho não trava: é onde ela vê o que falta. */
@@ -121,10 +123,9 @@ async function preVisualizar(c: Contexto): Promise<Desfecho> {
   if (!preparado.segue) return preparado.desfecho;
   const { envio, desenho, chaveDoQueChegou } = preparado.valor;
   const { pdf, missingImages, truncations } = desenho.relatorio;
-  return {
-    tipo: "pdf",
+  return desfecho.pdf(
     pdf,
-    cabecalhos: cabecalhosDaPreVisualizacao({
+    cabecalhosDaPreVisualizacao({
       idioma: envio.idioma,
       rascunho,
       missingImages,
@@ -132,7 +133,7 @@ async function preVisualizar(c: Contexto): Promise<Desfecho> {
       chaveDoQueChegou,
       pdfDaMemoria: desenho.pdfDaMemoria,
     }),
-  };
+  );
 }
 
 /** Etapas 3 a 13, com o trinco fechado. */
@@ -151,7 +152,7 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   });
   if (!preparado.segue) return preparado.desfecho;
   const { envio, desenho } = preparado.valor;
-  const { pedidoId, quote, doc } = envio;
+  const { pedidoId, quote, doc, dinheiro } = envio;
   const { relatorio, pdfDaMemoria } = desenho;
   const { pdf, missingImages, truncations } = relatorio;
 
@@ -161,11 +162,6 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   if (!cortes.segue) return cortes.desfecho;
   avisarQueSegueComFotosAMenos(pedidoId, missingImages);
 
-  // `dinheiroDaProposta` e não `resolveProposalMoney`: quando os valores
-  // adicionais somam ao valor escrito, o bruto que fica GRAVADO tem de os
-  // trazer. Senão o PDF dizia 3.862,20 € e o sinal continuava a ser calculado
-  // sobre 3.690 € — o documento e a cobrança a discordarem em silêncio.
-  const dinheiro = dinheiroDaProposta(doc);
   const { irmas, porEnviar } = await irmasDoPedido(pedidoId);
   const linha = montarAProposta({ ...envio, dinheiro, pdf, porEnviar });
   const { proposal, anteriores } = comAVersao(linha, irmas);
@@ -215,7 +211,7 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   });
   prepararAPaginaOnline(proposal.id, c.depoisDaResposta);
 
-  return respondido(
+  return desfecho.envio(
     respostaDoEnvio({
       propostaId: proposal.id,
       acceptUrl,
@@ -250,7 +246,18 @@ async function prepararEDesenhar(
   if (!guardas.segue) return guardas;
   const { doc, chaveDoQueChegou } = guardas.valor;
   /** O envio, montado UMA vez — cada etapa lê dele o que precisa. */
-  const envio: EnvioDaProposta = { pedidoId, quote, doc, idioma: corpo.idioma };
+  const envio: EnvioDaProposta = {
+    pedidoId,
+    quote,
+    doc,
+    idioma: corpo.idioma,
+    // `dinheiroDaProposta` e não `resolveProposalMoney`: quando os valores
+    // adicionais somam ao valor escrito, o bruto que fica GRAVADO tem de os
+    // trazer. Senão o PDF dizia 3.862,20 € e o sinal continuava a ser
+    // calculado sobre 3.690 € — o documento e a cobrança a discordarem em
+    // silêncio. Calculado UMA vez: as travas, a linha e o email leem este.
+    dinheiro: dinheiroDaProposta(doc),
+  };
 
   const trava = await porta.trava(envio, chaveDoQueChegou);
   if (!trava.segue) return trava;

@@ -51,6 +51,8 @@ export const TIPOS_DE_MODELO = todosOsValores<TipoModelo>()(["completo", "grupo"
 /** As línguas em que a proposta se desenha: o tipo SAI da lista, e a regra lê-a. */
 export const IDIOMAS_DA_PROPOSTA = ["pt", "en"] as const;
 export type IdiomaDaProposta = (typeof IDIOMAS_DA_PROPOSTA)[number];
+/** A língua em que a proposta é ESCRITA, e a que vale quando nada a diz. */
+export const IDIOMA_POR_OMISSAO: IdiomaDaProposta = "pt";
 
 /** `true` para o que é mesmo uma das línguas — para validar o que chega de
  *  fora (o corpo do envio, o rascunho, o link do casal). Uma língua nova

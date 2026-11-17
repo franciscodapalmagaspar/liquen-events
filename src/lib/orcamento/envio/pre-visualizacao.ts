@@ -1,5 +1,5 @@
 import type { Truncagens } from "./contrato";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import type { IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /*
  * A resposta da PRÉ-VISUALIZAÇÃO: o PDF no corpo, e nos cabeçalhos o que o
