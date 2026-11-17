@@ -33,7 +33,6 @@ const ctl = vi.hoisted(() => ({
   estadoDoPedido: "pendente",
   /** Quantos ms «demora» cada desenho do PDF (o relógio da rota anda com ele). */
   desenhoDemora: 0,
-  trincoFechado: false,
   missing: 0,
   truncations: [] as { where: string; dropped: number; unit: "fotos" | "linhas" }[],
   gravarFalhaCom: null as unknown,
@@ -51,13 +50,7 @@ vi.mock("@/lib/admin-auth", () => ({
   isAuthed: () => ctl.autenticado,
   assinaturaConfigurada: () => ({}),
 }));
-vi.mock("@/lib/trinco", () => ({
-  fecharTrinco: vi.fn(async () =>
-    ctl.trincoFechado
-      ? { ok: false, ate: "2026-11-17T10:00:00.000Z" }
-      : { ok: true, soltar: async () => {} },
-  ),
-}));
+
 vi.mock("@/lib/quotes-store", () => ({
   getQuote: vi.fn(async (id: string) => {
     if (ctl.pedidoRebenta) throw new Error("a base caiu");
@@ -151,6 +144,7 @@ import { updateQuoteWith } from "@/lib/quotes-store";
 import { registarEnvio } from "@/lib/envios-de-proposta";
 import { esvaziarPdfsFinais } from "@/lib/proposal-preview-cache";
 import { log } from "@/lib/logger";
+import { __limparTrincosEmMemoria, fecharTrinco } from "@/lib/trinco";
 import { dominioRecebeEmail } from "@/lib/dominio-do-email";
 
 const params = Promise.resolve({ id: "q1" });
@@ -277,7 +271,6 @@ beforeEach(() => {
     emailDoPedido: "cliente@example.com",
     estadoDoPedido: "pendente",
     desenhoDemora: 0,
-    trincoFechado: false,
     missing: 0,
     truncations: [],
     gravarFalhaCom: null,
@@ -290,6 +283,7 @@ beforeEach(() => {
     envios: [],
   });
   ctl.linhas.clear();
+  __limparTrincosEmMemoria();
   esvaziarPdfsFinais();
   vi.clearAllMocks();
   for (const nivel of ["info", "warn", "error"] as const)
@@ -309,7 +303,12 @@ const CENARIOS: Array<[string, () => void, () => NextRequest]> = [
   ["401 sem sessão", () => (ctl.autenticado = false), () => envio()],
   ["404 sem pedido", () => (ctl.semPedido = true), () => envio()],
   ["500 a base cai a ler o pedido", () => (ctl.pedidoRebenta = true), () => envio()],
-  ["409 o trinco está fechado", () => (ctl.trincoFechado = true), () => envio()],
+  [
+    "409 o trinco está fechado",
+    // Outro pedido a enviar a mesma proposta (o trinco verdadeiro, em memória).
+    () => void fecharTrinco("envio-da-proposta:q1", 60_000),
+    () => envio(),
+  ],
   [
     "400 corpo do email acima do tecto",
     () => {},

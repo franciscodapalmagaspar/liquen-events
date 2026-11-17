@@ -95,36 +95,7 @@ export async function escreverOEmail(p: PedidoDoEmail): Promise<EmailDaProposta>
    */
   const assuntoDoEcra = escrito ? assuntoEscritoAMao(p.assunto) : null;
 
-  if (idioma !== "pt" && !mensagem && !escrito) {
-    log.warn(
-      "proposta-doc: proposta noutra língua — o modelo «proposta-enviada» não é consultado, sai o texto da casa",
-      { id: p.id, idioma },
-    );
-  }
-  const doModelo =
-    escrito || mensagem || idioma !== "pt"
-      ? null
-      : await modeloParaEnvioAutomatico(
-          "proposta-enviada",
-          marcadoresDoPedido(quote, {
-            // Quem este email saúda são os NOMES DO CASAL do documento do
-            // estúdio, e não o `quote.name` — que é quem escreveu o pedido e
-            // pode ser a mãe da noiva ou uma wedding planner.
-            //
-            // Fora de um casamento, o cliente é um restaurante ou uma empresa
-            // («Tasca do Pão e Vinho» virava «Tasca e Vinho» no `{cliente_nome}`):
-            // aí saúda-se a pessoa que escreveu o pedido.
-            nome: eCasamento(doc.eventType)
-              ? String(doc.clientNames ?? "").trim()
-              : String(quote.name ?? "").trim() || String(doc.clientNames ?? "").trim(),
-            link: acceptUrl,
-            valor: eurDocumento(p.money.gross),
-            ...(String(doc.eventDate ?? "").trim()
-              ? { data_evento: String(doc.eventDate).trim() }
-              : {}),
-            ...(String(doc.location ?? "").trim() ? { local: String(doc.location).trim() } : {}),
-          }),
-        );
+  const doModelo = await modeloDela(p, !!escrito);
 
   const t = textosDoEmailDaProposta(idioma, eCasamento(doc.eventType));
   /**
@@ -175,34 +146,7 @@ export async function escreverOEmail(p: PedidoDoEmail): Promise<EmailDaProposta>
           texto: [textoDoCorpo(corpoDoModelo), ...cartao.texto].join("\n"),
           quem,
         })
-      : emailAoCliente({
-          quem,
-          html: `<h2 style="font-size:18px;margin:0 0 12px">${esc(t.titulo)}</h2>
-        <p style="font-size:14px;line-height:1.6">${esc(t.ola)} ${esc(doc.clientNames)},</p>
-        ${mensagem ? `${paragrafosDeTexto(mensagem)}\n        ` : ""}<p style="font-size:14px;line-height:1.6">${esc(t.intro)}</p>
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;border-collapse:separate">
-          <tr><td style="background:#4c6350;border-radius:8px">
-            <!-- 48 px de altura (14+20+14) e letra de 16: é o outro botão deste
-                 mesmo email, e tinha 39 px com letra de 13. Dois botões lado a
-                 lado com alturas diferentes leem-se como dois produtos. -->
-            <a href="${acceptUrl}" style="display:block;padding:14px 26px;font-size:16px;line-height:20px;color:#f7f4ee;text-decoration:none;font-weight:600;white-space:nowrap">${esc(t.botao)}</a>
-          </td></tr>
-        </table>${cartao.html}`,
-          texto: [
-            t.titulo,
-            "",
-            `${t.ola} ${doc.clientNames},`,
-            "",
-            // Tal e qual, com as quebras dela: escapar é uma preocupação de HTML, e
-            // aqui só se lhe acrescenta a linha em branco que a separa do resto.
-            // A mensagem pessoal não se traduz em língua nenhuma — é dela, como
-            // os títulos e as legendas do documento.
-            ...(mensagem ? [mensagem, ""] : []),
-            t.introEmTexto,
-            `${t.verOnline} ${acceptUrl}`,
-            ...cartao.texto,
-          ].join("\n"),
-        });
+      : emailAoCliente({ quem, ...corpoDaCasa(t, doc.clientNames, mensagem, acceptUrl, cartao) });
 
   return {
     email,
@@ -215,5 +159,84 @@ export async function escreverOEmail(p: PedidoDoEmail): Promise<EmailDaProposta>
     textoDaCopia: escrito ? escrito.texto : email.text,
     nomeDoAnexo,
     quem,
+  };
+}
+
+/**
+ * O modelo «proposta-enviada» dela, com os marcadores deste pedido — ou
+ * `null` quando não é ele que sai: há corpo escrito à mão ou mensagem pessoal
+ * (ganha a mais específica), ou a proposta é noutra língua (o modelo é um
+ * texto português, e fica REGISTADO que não saiu).
+ */
+async function modeloDela(p: PedidoDoEmail, escritoAMao: boolean) {
+  const { doc, quote, idioma, mensagem, acceptUrl } = p;
+  if (idioma !== "pt" && !mensagem && !escritoAMao) {
+    log.warn(
+      "proposta-doc: proposta noutra língua — o modelo «proposta-enviada» não é consultado, sai o texto da casa",
+      { id: p.id, idioma },
+    );
+  }
+  if (escritoAMao || mensagem || idioma !== "pt") return null;
+  return modeloParaEnvioAutomatico(
+    "proposta-enviada",
+    marcadoresDoPedido(quote, {
+      // Quem este email saúda são os NOMES DO CASAL do documento do
+      // estúdio, e não o `quote.name` — que é quem escreveu o pedido e
+      // pode ser a mãe da noiva ou uma wedding planner.
+      //
+      // Fora de um casamento, o cliente é um restaurante ou uma empresa
+      // («Tasca do Pão e Vinho» virava «Tasca e Vinho» no `{cliente_nome}`):
+      // aí saúda-se a pessoa que escreveu o pedido.
+      nome: eCasamento(doc.eventType)
+        ? String(doc.clientNames ?? "").trim()
+        : String(quote.name ?? "").trim() || String(doc.clientNames ?? "").trim(),
+      link: acceptUrl,
+      valor: eurDocumento(p.money.gross),
+      ...(String(doc.eventDate ?? "").trim() ? { data_evento: String(doc.eventDate).trim() } : {}),
+      ...(String(doc.location ?? "").trim() ? { local: String(doc.location).trim() } : {}),
+    }),
+  );
+}
+
+/**
+ * O TEXTO DA CASA, na língua da proposta: o que sai sem corpo escrito à mão e
+ * sem modelo. O desenho é UM só — as PALAVRAS vivem no `email-proposta-textos`.
+ * A mensagem pessoal entra logo a seguir ao «Olá», ANTES da frase da casa e
+ * do botão: pô-la depois do botão era pô-la depois do sítio onde muita gente
+ * já carregou.
+ */
+function corpoDaCasa(
+  t: ReturnType<typeof textosDoEmailDaProposta>,
+  clientNames: string,
+  mensagem: string,
+  acceptUrl: string,
+  cartao: ReturnType<typeof cartaoDoPdf>,
+): { html: string; texto: string } {
+  return {
+    html: `<h2 style="font-size:18px;margin:0 0 12px">${esc(t.titulo)}</h2>
+        <p style="font-size:14px;line-height:1.6">${esc(t.ola)} ${esc(clientNames)},</p>
+        ${mensagem ? `${paragrafosDeTexto(mensagem)}\n        ` : ""}<p style="font-size:14px;line-height:1.6">${esc(t.intro)}</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;border-collapse:separate">
+          <tr><td style="background:#4c6350;border-radius:8px">
+            <!-- 48 px de altura (14+20+14) e letra de 16: é o outro botão deste
+                 mesmo email, e tinha 39 px com letra de 13. Dois botões lado a
+                 lado com alturas diferentes leem-se como dois produtos. -->
+            <a href="${acceptUrl}" style="display:block;padding:14px 26px;font-size:16px;line-height:20px;color:#f7f4ee;text-decoration:none;font-weight:600;white-space:nowrap">${esc(t.botao)}</a>
+          </td></tr>
+        </table>${cartao.html}`,
+    texto: [
+      t.titulo,
+      "",
+      `${t.ola} ${clientNames},`,
+      "",
+      // Tal e qual, com as quebras dela: escapar é uma preocupação de HTML, e
+      // aqui só se lhe acrescenta a linha em branco que a separa do resto.
+      // A mensagem pessoal não se traduz em língua nenhuma — é dela, como
+      // os títulos e as legendas do documento.
+      ...(mensagem ? [mensagem, ""] : []),
+      t.introEmTexto,
+      `${t.verOnline} ${acceptUrl}`,
+      ...cartao.texto,
+    ].join("\n"),
   };
 }

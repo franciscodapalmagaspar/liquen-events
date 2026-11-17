@@ -26,8 +26,8 @@ export interface PedidoDeEnvio {
   id: string;
   propostaId: string;
   para: string | undefined;
-  /** Ver `querEmail`: só um `false` EXPLÍCITO cala o email. */
-  querEmail: boolean;
+  /** `false` só quando ela escolheu o WhatsApp (`corpo-do-pedido.ts`). */
+  porEmail: boolean;
   /** O email inteiro, já com a moldura da casa (`email-da-proposta.ts`). */
   escrito: EmailDaProposta;
   pdf: Buffer;
@@ -37,7 +37,7 @@ export interface PedidoDeEnvio {
 
 export async function mandarOEmail(p: PedidoDeEnvio): Promise<DesfechoDoEmail> {
   const hasRecipient = !!p.para && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.para);
-  if (!p.querEmail) {
+  if (!p.porEmail) {
     /* Sem `emailError`: a diferença entre «não saiu» e «não saiu por culpa
        de alguma coisa» é a diferença entre um ecrã calmo e um ecrã que
        parece avariado. A proposta fica gravada e o link do casal nasce à

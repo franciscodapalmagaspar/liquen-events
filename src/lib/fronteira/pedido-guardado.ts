@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
 import { observar } from "./observar";
+import { todosOsValores } from "./todos-os-valores";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -32,19 +33,15 @@ import { observar } from "./observar";
  * (pagamentos, mapa de mesas…), e a fronteira aqui é a forma do pedido.
  */
 
-const ESTADOS = [
+/** Os seis estados do tipo — presos a ele (`todos-os-valores.ts`). */
+const ESTADOS = todosOsValores<QuoteStatus>()([
   "pendente",
   "em_revisao",
   "a_preparar",
   "cotado",
   "aceite",
   "rejeitado",
-] as const satisfies readonly QuoteStatus[];
-
-/** Prova, ao compilar, que a lista acima tem TODOS os estados do tipo. */
-type FaltaUmEstado = Exclude<QuoteStatus, (typeof ESTADOS)[number]>;
-const _todosOsEstados: FaltaUmEstado extends never ? true : false = true;
-void _todosOsEstados;
+]);
 
 const lista = z.array(z.unknown()).optional();
 const textoOuNulo = z.string().nullable().optional();

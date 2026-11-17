@@ -89,7 +89,7 @@ export interface ContextoDaTrava {
   doc: ProposalDoc;
   quote: Quote;
   idioma: IdiomaDaProposta;
-  /** `false` só quando ela escolheu o WhatsApp — ver `querEmail`. */
+  /** `false` só quando ela escolheu o WhatsApp (`corpo-do-pedido.ts`). */
   porEmail: boolean;
   /** A chave do PDF final visto, tal como o envio a trouxe. */
   pdfVisto: string | null;

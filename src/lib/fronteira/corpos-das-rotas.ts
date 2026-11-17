@@ -5,6 +5,10 @@ import {
   esquemaDoGrupoDeServicos,
   esquemaDoMoodBoard,
 } from "./documento-da-proposta";
+import { todosOsValores } from "./todos-os-valores";
+import type { MotivoDeRecusa, ProposalStatus } from "@/lib/orcamento/types";
+import type { VersaoEscolhida } from "@/lib/orcamento/versoes-da-proposta";
+import type { TipoModelo } from "@/lib/proposal-templates";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -38,6 +42,24 @@ export const esquemaDoCorpoDoRascunho = z.looseObject({
   base: z.looseObject({}).optional(),
 });
 
+/* As listas fechadas, presas aos tipos do domínio (`todos-os-valores.ts`). */
+const ESTADOS_DA_PROPOSTA = todosOsValores<ProposalStatus>()([
+  "rascunho",
+  "enviada",
+  "em_negociacao",
+  "aceite",
+  "rejeitada",
+]);
+const MOTIVOS = todosOsValores<MotivoDeRecusa>()([
+  "preco",
+  "data",
+  "escolheram-outro",
+  "sem-resposta",
+  "outro",
+]);
+const VERSOES = todosOsValores<VersaoEscolhida>()(["base", "extras"]);
+const TIPOS_DE_MODELO = todosOsValores<TipoModelo>()(["completo", "grupo", "moodboard"]);
+
 /** Um texto, ou o vazio/`null` com que o ecrã limpa o campo. */
 const textoOuLimpo = z.string().nullable().optional();
 
@@ -46,16 +68,19 @@ const textoOuLimpo = z.string().nullable().optional();
  * Acompanhamento, Quadro). As listas fechadas são as da rota; o vazio limpa.
  */
 export const esquemaDoCorpoDaProposta = z.looseObject({
-  status: z.enum(["rascunho", "enviada", "em_negociacao", "aceite", "rejeitada"]).optional(),
+  status: z.enum(ESTADOS_DA_PROPOSTA).optional(),
   respondedAt: textoOuLimpo,
   followUpAt: textoOuLimpo,
   followUpNote: textoOuLimpo,
   lostReason: z
-    .enum(["preco", "data", "escolheram-outro", "sem-resposta", "outro", ""])
+    .union([z.enum(MOTIVOS), z.literal("")])
     .nullable()
     .optional(),
   lostNote: textoOuLimpo,
-  versaoEscolhida: z.enum(["base", "extras", ""]).nullable().optional(),
+  versaoEscolhida: z
+    .union([z.enum(VERSOES), z.literal("")])
+    .nullable()
+    .optional(),
   actor: z.string().optional(),
 });
 
@@ -74,7 +99,7 @@ export const esquemaDoCorpoDoModeloDeEmail = z.looseObject({
 export const esquemaDoCorpoDoModeloDeProposta = z.looseObject({
   id: z.string().optional(),
   nome: z.string(),
-  tipo: z.enum(["completo", "grupo", "moodboard"]),
+  tipo: z.enum(TIPOS_DE_MODELO),
   origem: z.string().optional(),
   doc: esquemaDoDocumentoQueChega.partial({ ref: true, clientNames: true }).optional(),
   grupo: esquemaDoGrupoDeServicos.optional(),

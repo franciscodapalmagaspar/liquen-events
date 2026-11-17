@@ -21,7 +21,7 @@ para se poderem repetir e comparar.
 |---|---|
 | Parte 1, princípios com fontes | feito (17/11) |
 | Parte 2, raio-X medido | feito (17/11), commit `1f15511d` |
-| Parte 3, plano por fases | fases 0 e 1 feitas (17/11, ramo `codigo/fase-0-e-1`); da 2 em diante por começar |
+| Parte 3, plano por fases | fases 0 e 1 feitas (17/11, ramo `codigo/fase-0-e-1`); 5 e 6 feitas (17/11, ramo `codigo/rota-e-esquemas`, a 6 em modo de observar); 2–4 e 7–10 por começar |
 | Parte 4, lições para projetos futuros | feito; cresce com cada lição (regra de `codigo.md`) |
 
 Cada fase que se fizer acrescenta aqui uma linha: a data, o PR, e as medidas
@@ -31,6 +31,59 @@ antes e depois (linhas, complexidade, peso das rotas).
 |---|---|---|
 | 0 · guardas | 17/11 · `codigo/fase-0-e-1` | teste de ouro do PDF (`lib/pdf-editorial/ouro.test.ts`, três PDFs, `sha256` preso, Linux x64); catraca do tamanho (`test/tamanho-dos-ficheiros.test.ts` + `.json`, 193 ficheiros com tecto); `madge` só de valores no CI (`scripts/ci/ciclos-de-importacao.mjs`, os 3 ciclos de hoje na lista, ~14 s no job estático); `complexity` (30) e `max-lines-per-function` (400) em aviso no ESLint (137 avisos, 0 erros). Cada guarda foi vista a falhar de propósito: uma letra a mais na capa, um ciclo para o estúdio, o `ProposalStudio` a encolher sem descer o tecto. |
 | 1 · domínio do estúdio | 17/11 · `codigo/fase-0-e-1` | `ProposalStudio.tsx` 17 008 → 16 063 linhas; a função `ProposalStudio` fica igual (complexidade 279, 7 043 linhas de código — é a fase 3). Saíram para `lib/orcamento/estudio/` seis ficheiros (1 042 linhas, todos abaixo das 400). Peso das rotas igual (proposta 88 KB, painel 505 KB). Capturas do estúdio a 390/768/1440, claro e escuro: 0 píxeis diferentes. |
+| 5 · a rota da proposta | 17/11 · `codigo/rota-e-esquemas` | `proposta-doc/route.ts` 2 115 → 125 linhas; o `POST_semMedida` tinha **complexidade 168** e 723 linhas (163 no raio-X, +5 com os ramos `estabilidade/` e `legal/` juntados). Agora a rota só tem a sessão, o `comCpu` e a tradução para HTTP (complexidade máxima 5); o pedido vive em `lib/orcamento/envio/` — 17 ficheiros, o maior com 308 linhas, nenhuma função acima de 16 (o orquestrador `atenderOPedido` 4, `desenharOuRecusar` 9, `enviar` 7). Prova: 53 retratos da rota (estado, corpo em texto, cabeçalhos, email, gravações e registo) tirados ANTES de partir, iguais letra a letra depois; os 185 casos da rota verdes; teste de ouro do PDF verde. Peso das rotas 93 KB / 511 KB (o aumento desde a fase 1 vem dos dois ramos juntados: o diff desta fase não toca em código de browser — tudo o que é novo leva `server-only`). |
+| 6 · a fronteira dos dados | 17/11 · `codigo/rota-e-esquemas` | Modo de OBSERVAR em todo o lado (`lib/fronteira/observar.ts`): diz o sítio e o tipo do desvio, nunca o valor, uma vez por processo e por caso (até 20). `quotes-store.ts:48` deixou de ser `r.data as Quote` às cegas (`fronteira/pedido-guardado.ts`, contorno medido na base). **Cinco rotas** passaram a ter esquema: `POST proposta-doc`, `PUT proposta-rascunho`, `PATCH propostas/[id]`, `POST`/`PUT email-templates`, `POST propostas/modelos`. Custo medido: 30 µs a conferir o corpo de um envio grande (o PDF leva segundos), 5 µs por pedido guardado (0,2 ms para os 46); zod fora do browser (os módulos novos são `server-only`; o único pedaço com zod no browser já lá estava — o import dinâmico do `importar-proposta`). |
+
+**Desvios das fases 5 e 6 ao texto, e porquê:**
+
+1. **O tipo não sai do esquema nos tipos partilhados** (`ProposalDoc`, `Quote`). O
+   estúdio, que corre no browser, lê esses tipos, e o zod não pode ir no pacote do
+   browser. Ficou o contrário, preso pelo compilador: `fronteira/esquemas.test.ts`
+   prova que tudo o que o `ProposalDoc` aceita o esquema também aceita. No que é só
+   do servidor, o tipo sai: o pedido à rota da proposta é UM esquema
+   (`envio/corpo-do-pedido.ts`), e dele saem o registo, a leitura tolerante (cada
+   campo lido pelo seu pedaço do esquema) e o tipo `PedidoDeProposta`.
+2. **O contorno do `Quote` é o da base, não o do tipo.** Medido a 17/11 só por tipos
+   (`jsonb_typeof` de cada campo, nenhum valor lido): 24 dos 46 pedidos não têm os
+   campos do formulário do site que o `Quote` diz obrigatórios. Um esquema copiado do
+   tipo acusava metade dos pedidos que funcionam todos os dias. As 52 propostas
+   guardadas batem todas com o esquema do documento.
+3. **O ponto 2 da fase 6 (o `localStorage`) não se fez**: é código de browser, e o zod
+   não pode ir para lá. Fica para quando houver uma forma sem zod (um esquema à mão,
+   pequeno) — não é desta fase.
+4. **Os comentários longos mudaram de sítio com o código**; alguns encurtaram onde
+   repetiam o que outro módulo já diz. Nenhum foi apagado sem o seu porquê ficar
+   escrito noutro lado.
+5. **A catraca do tamanho subiu dez tectos**, todos de ficheiros que cresceram nos
+   ramos `estabilidade/erros-de-producao` e `legal/auditoria-17-11` (escritos antes de
+   a catraca existir) e que esta fase não tocou: `derivadas.ts` 1 209 → 1 304,
+   `proposal-progress.ts` 809 → 834, `app-state.ts`, `orcamento/route.ts`,
+   `PropostaWeb.tsx`, `proposta/[token]/page.tsx`, `GaleriaClient.tsx`, e três que
+   entram acima das 400 (`legal-content.ts` 419, `api/backup/route.ts` 443,
+   `cron/reminders/route.ts` 451). É contra a regra da catraca e está dito: **partem-se
+   nos PRs desses ramos**, não aqui (seria mexer em código que não é desta fase). A rota
+   da proposta saiu da lista.
+
+**Lições destas duas fases** (também na Parte 4):
+
+- **Retratar a resposta em TEXTO, não em objecto.** O `toMatchSnapshot` de um objecto
+  ordena as chaves; o de `res.text()` guarda a ordem dos campos, que é o que viaja. E
+  normalizar só o que muda sozinho (ids, datas, o relógio).
+- **Um orquestrador que não conhece o framework.** As etapas devolvem uma `Recusa` e o
+  pedido um `Desfecho` (recusa, PDF ou envio); a rota é um `switch` de seis linhas. Os
+  testes das etapas não precisam do Next.
+- **Fechar e soltar no mesmo sítio** (`comTrinco`): um trinco passado entre funções
+  como parâmetro de saída é um `finally` à espera de ser esquecido.
+- **Antes de escrever um esquema, medir a base** — por tipos, sem ler um único valor. O
+  tipo dizia uma coisa e metade dos dados dizia outra.
+- **O modo de observar tem de dizer QUAIS**, não só «algum»: deduplicar por desvio
+  escondia 23 de 24 pedidos com o mesmo defeito.
+- **As listas fechadas presas ao tipo** (`fronteira/todos-os-valores.ts`): um valor a
+  mais ou a menos não compila.
+- **Uma guarda que lê o texto do código engana-se a si própria** quando o código muda
+  de ficheiro. A da assinatura passou a saber quem escreve o email e quem o manda, em
+  vez de procurar uma palavra no ficheiro que manda.
+
 
 **Desvios da fase 1 ao texto:** além do que a tabela da fase 1 nomeia, saíram
 com as funções as ajudantes privadas de que elas precisam (`eventTypeLabel`,
@@ -862,7 +915,9 @@ acerto medido aqui.
 8. **Um componente faz uma coisa.** Se para o descrever se usa «e», parte-se.
    Um ecrã com passos tem um componente por passo desde o primeiro passo.
 9. **Rotas finas:** a rota lê, valida, chama o domínio, responde. A orquestração
-   vive em funções com nome, testáveis sem servidor.
+   vive em funções com nome, testáveis sem servidor, que devolvem um desfecho com
+   tipo (recusa, ficheiro, resposta) e não conhecem o framework.
+   *(Aqui: `lib/orcamento/envio/atender-o-pedido.ts`, fase 5.)*
 
 ### Ao crescer
 
@@ -877,6 +932,14 @@ acerto medido aqui.
 14. **O porquê fica junto do código que explica**, com a data e a medição. É
     um dos pontos fortes desta casa; quando a função muda de ficheiro, o
     comentário vai com ela.
+15. **Retratar antes de partir, em texto.** O retrato de uma rota é o estado, o
+    corpo como TEXTO (a ordem dos campos viaja), os cabeçalhos e os efeitos (o que
+    se gravou, o email, o registo). Tirado antes, comparado depois.
+16. **Esquema novo sobre dados velhos: observar primeiro, e medir a base antes.**
+    Por tipos, sem ler valores. O registo diz o sítio e o tipo do desvio — nunca o
+    valor — e diz QUAIS casos, com tecto.
+17. **Fechar e soltar no mesmo sítio** (um `comTrinco`, um `using`), nunca um
+    recurso passado entre funções para alguém soltar.
 
 ---
 

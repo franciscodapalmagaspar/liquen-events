@@ -2,6 +2,7 @@ import "server-only";
 import type { Proposal } from "@/lib/orcamento/types";
 import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
 import { listarEnvios } from "@/lib/envios-de-proposta";
+import type { RespostaDoEnvio } from "./resposta-do-envio";
 import { enderecoDaProposta } from "@/lib/proposta-link-curto";
 import { log } from "@/lib/logger";
 
@@ -41,8 +42,8 @@ export interface PedidoDeRepeticao {
   id: string;
   proposal: Proposal;
   irmasAnteriores: Proposal[];
-  /** Ver `querEmail`. */
-  pedeEmail: boolean;
+  /** `false` só quando ela escolheu o WhatsApp (`corpo-do-pedido.ts`). */
+  porEmail: boolean;
   relatorio: Pick<RelatorioDoPdf, "missingImages" | "truncations">;
   pdfBytes: number;
 }
@@ -51,10 +52,12 @@ export interface PedidoDeRepeticao {
  * O corpo da resposta 200 de uma repetição, ou `null` quando o envio é a
  * sério e segue.
  */
-export async function repeticaoDoEnvio(
-  r: PedidoDeRepeticao,
-): Promise<Record<string, unknown> | null> {
+export async function repeticaoDoEnvio(r: PedidoDeRepeticao): Promise<RespostaDoEnvio | null> {
   const { id, proposal } = r;
+  /** O registo de envios, lido UMA vez e só se for preciso (as duas travas
+   *  abaixo consultam-no; antes liam-no cada uma, duas idas à base). */
+  let registo: ReturnType<typeof listarEnvios> | undefined;
+  const envios = () => (registo ??= listarEnvios(id));
   let jaSeguiu = r.irmasAnteriores.find(
     (p) =>
       // «aceite» também: num pedido já ganho, a que acabou de seguir passa
@@ -76,11 +79,10 @@ export async function repeticaoDoEnvio(
    * de envios; sem essa linha, não houve email a repetir. (Se o registo não
    * responder, fica a trava de sempre: é o lado seguro.)
    */
-  if (jaSeguiu && r.pedeEmail) {
+  if (jaSeguiu && r.porEmail) {
     const alvo = jaSeguiu;
     try {
-      const envios = await listarEnvios(id);
-      if (!envios.some((e) => e.propostaId === alvo.id)) jaSeguiu = undefined;
+      if (!(await envios()).some((e) => e.propostaId === alvo.id)) jaSeguiu = undefined;
     } catch {
       /* sem registo, a trava fica — ver acima */
     }
@@ -115,7 +117,7 @@ export async function repeticaoDoEnvio(
   let jaSeguiuPeloRegisto: { enviadoEm: string; propostaId?: string } | undefined;
   if (!jaSeguiu) {
     try {
-      jaSeguiuPeloRegisto = (await listarEnvios(id)).find(
+      jaSeguiuPeloRegisto = (await envios()).find(
         (e) =>
           e.propostaId === proposal.id &&
           !!e.enviadoEm &&
@@ -147,7 +149,7 @@ export async function repeticaoDoEnvio(
         "link é o mesmo que ele tem.",
     };
   }
-  if (jaSeguiu && !r.pedeEmail) {
+  if (jaSeguiu && !r.porEmail) {
     // A mesma proposta marcada duas vezes pelo WhatsApp: não se cria outra,
     // e não se diz que saiu um email que ninguém mandou.
     return {

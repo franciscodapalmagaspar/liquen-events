@@ -160,18 +160,18 @@ export function montarAProposta(m: Montagem): Proposal {
  * cada gravação (medido: a pdf-lib carimba a data lá dentro). Sem essa
  * distinção, carregar duas vezes em enviar inventava uma versão nova.
  *
- * Melhor esforço declarado: se a leitura das irmãs falhou, `irmas` fica vazia
+ * Melhor esforço declarado: se a leitura das irmãs falhou, não há anteriores
  * e esta proposta entra na versão 1. É a única coisa que se pode dizer sem
  * inventar, e não trava o envio.
  *
- * Escreve a versão na `proposal` e devolve as irmãs ANTERIORES (as outras
- * linhas), que são também o que a trava de repetição consulta.
+ * Pura: devolve os três campos da versão, e quem chama junta-os à linha.
  */
-export function carimbarAVersao(proposal: Proposal, irmas: Proposal[]): Proposal[] {
-  const irmasAnteriores = irmas.filter((p) => p.id !== proposal.id);
-  const maisRecente =
-    irmasAnteriores.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0] ?? null;
-  const maiorNumero = irmasAnteriores.reduce(
+export function versaoDaProposta(
+  proposal: Proposal,
+  anteriores: readonly Proposal[],
+): Pick<Proposal, "versaoSelo" | "versaoNumero" | "versaoEm"> {
+  const maisRecente = anteriores[0] ?? null;
+  const maiorNumero = anteriores.reduce(
     (maior, p) =>
       Number.isFinite(p.versaoNumero) ? Math.max(maior, Number(p.versaoNumero)) : maior,
     0,
@@ -180,13 +180,25 @@ export function carimbarAVersao(proposal: Proposal, irmas: Proposal[]): Proposal
     { versaoSelo: maisRecente?.versaoSelo, versaoNumero: maiorNumero },
     seloDoConteudo(proposal),
   );
-  proposal.versaoSelo = versao.versaoSelo;
-  proposal.versaoNumero = versao.versaoNumero;
-  // A data é a do CONTEÚDO, não a da gravação: uma proposta reenviada sem
-  // uma vírgula mudada continua a dizer ao casal que foi actualizada no dia
-  // em que mudou mesmo.
-  proposal.versaoEm = versao.mudou
-    ? new Date().toISOString()
-    : (maisRecente?.versaoEm ?? new Date().toISOString());
-  return irmasAnteriores;
+  return {
+    versaoSelo: versao.versaoSelo,
+    versaoNumero: versao.versaoNumero,
+    // A data é a do CONTEÚDO, não a da gravação: uma proposta reenviada sem
+    // uma vírgula mudada continua a dizer ao casal que foi actualizada no dia
+    // em que mudou mesmo.
+    versaoEm: versao.mudou
+      ? new Date().toISOString()
+      : (maisRecente?.versaoEm ?? new Date().toISOString()),
+  };
+}
+
+/**
+ * As OUTRAS propostas do pedido, da mais recente para a mais antiga. É sobre
+ * elas que se conta a versão ({@link versaoDaProposta}, que lê a primeira
+ * como «a mais recente») e que a trava de repetição procura o mesmo envio.
+ */
+export function propostasAnteriores(proposal: Proposal, irmas: readonly Proposal[]): Proposal[] {
+  return irmas
+    .filter((p) => p.id !== proposal.id)
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
 }

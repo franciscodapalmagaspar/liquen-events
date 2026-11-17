@@ -14,7 +14,7 @@ import {
   perguntaDasFotos,
   perguntaDosCortes,
 } from "./perguntas-antes-do-envio";
-import { carimbarAVersao, montarAProposta } from "./a-proposta-que-se-grava";
+import { montarAProposta, propostasAnteriores, versaoDaProposta } from "./a-proposta-que-se-grava";
 import { prepararODocumento } from "./documento-do-envio";
 
 vi.spyOn(log, "warn").mockImplementation(() => {});
@@ -129,17 +129,29 @@ describe("o documento e a linha que se grava", () => {
         pdf: Buffer.from("x"),
         porEnviar: null,
       });
-    const primeira = novaLinha();
-    expect(carimbarAVersao(primeira, [])).toEqual([]);
+    const linha = novaLinha();
+    const primeira = { ...linha, ...versaoDaProposta(linha, []) };
     expect(primeira.versaoNumero).toBe(1);
+    // Pura: a linha que entrou não mudou.
+    expect(linha.versaoNumero).toBeUndefined();
 
-    const repetida = { ...primeira, id: "outra" } as Proposal;
-    const anteriores = carimbarAVersao(repetida, [primeira]);
+    const repetida = { ...linha, id: "outra" } as Proposal;
+    const anteriores = propostasAnteriores(repetida, [primeira]);
     expect(anteriores.map((p) => p.id)).toEqual([primeira.id]);
-    expect(repetida.versaoNumero).toBe(1);
+    expect(versaoDaProposta(repetida, anteriores).versaoNumero).toBe(1);
 
-    const mudada = { ...primeira, id: "terceira", total: 999 } as Proposal;
-    carimbarAVersao(mudada, [primeira, { ...primeira, id: "v4", versaoNumero: 4 }]);
-    expect(mudada.versaoNumero).toBe(5);
+    const mudada = { ...linha, id: "terceira", total: 999 } as Proposal;
+    const outras = propostasAnteriores(mudada, [
+      primeira,
+      { ...primeira, id: "v4", versaoNumero: 4 },
+    ]);
+    expect(versaoDaProposta(mudada, outras).versaoNumero).toBe(5);
+  });
+
+  it("as anteriores vêm da mais recente para a mais antiga, e sem a própria", () => {
+    const p = (id: string, createdAt: string) => ({ id, createdAt }) as Proposal;
+    const lista = [p("a", "2026-01-01"), p("eu", "2026-06-01"), p("c", "2026-03-01")];
+    expect(propostasAnteriores(p("eu", ""), lista).map((x) => x.id)).toEqual(["c", "a"]);
+    expect(lista.map((x) => x.id)).toEqual(["a", "eu", "c"]);
   });
 });

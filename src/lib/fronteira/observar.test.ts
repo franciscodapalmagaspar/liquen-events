@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { z } from "zod";
 import { log } from "@/lib/logger";
-import { __esquecerDesviosDitos, observar } from "./observar";
+import { __esquecerDesviosDitos, CASOS_POR_DESVIO, observar } from "./observar";
 import { esquemaDoDocumentoQueChega } from "./documento-da-proposta";
 import { esquemaDoPedidoGuardado } from "./pedido-guardado";
 
@@ -46,25 +46,24 @@ describe("a fronteira em modo de observar", () => {
     });
   });
 
-  it("o mesmo desvio diz-se uma vez por processo — a lista de pedidos lê todos a cada vez", () => {
+  it("o mesmo desvio diz-se uma vez por processo e por caso — a lista de pedidos lê todos a cada vez", () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
-    for (let i = 0; i < 50; i++) observar(esquema, { nome: 1 }, "teste");
+    for (let i = 0; i < 50; i++) observar(esquema, { nome: 1 }, "teste", { id: "q1" });
     expect(aviso).toHaveBeenCalledTimes(1);
-    observar(esquema, { nome: "ok", n: "x" }, "teste");
+    // Outro caso com o mesmo desvio também se diz: a fase seguinte precisa de saber QUAIS.
+    observar(esquema, { nome: 1 }, "teste", { id: "q2" });
     expect(aviso).toHaveBeenCalledTimes(2);
+    // Um desvio diferente no mesmo caso é outra linha.
+    observar(esquema, { nome: "ok", n: "x" }, "teste", { id: "q1" });
+    expect(aviso).toHaveBeenCalledTimes(3);
   });
 
-  it("a memória dos desvios tem tecto: passado ele, esquece e volta a contar", () => {
+  it("cada desvio diz no máximo CASOS_POR_DESVIO casos", () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
-    const muitos = z.looseObject(
-      Object.fromEntries(Array.from({ length: 600 }, (_, i) => [`c${i}`, z.string().optional()])),
-    );
-    for (let i = 0; i < 500; i++) observar(muitos, { [`c${i}`]: 1 }, "teste");
-    observar(muitos, { c0: 1 }, "teste");
-    expect(aviso, "ainda dentro do tecto, o repetido cala-se").toHaveBeenCalledTimes(500);
-    observar(muitos, { c500: 1 }, "teste"); // o 501.º: a memória esvazia
-    observar(muitos, { c0: 1 }, "teste");
-    expect(aviso).toHaveBeenCalledTimes(502);
+    for (let i = 0; i < CASOS_POR_DESVIO + 30; i++) {
+      observar(esquema, { nome: 1 }, "teste", { id: `q${i}` });
+    }
+    expect(aviso).toHaveBeenCalledTimes(CASOS_POR_DESVIO);
   });
 
   it("nunca muda o valor: quem chama continua com o objecto original", () => {
