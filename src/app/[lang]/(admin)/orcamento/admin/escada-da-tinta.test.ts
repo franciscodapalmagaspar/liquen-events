@@ -238,7 +238,7 @@ describe("a escada da tinta do back office", () => {
     const CHAO = new Set([25, 30, 35, 40, 45, 50, 55]);
     const CONHECIDOS = [
       "PaymentsPanel.tsx", // aria-hidden
-      "ProposalStudio.tsx", // aria-hidden
+      "StepNav.tsx", // aria-hidden (a seta entre os passos, que saiu do `ProposalStudio`)
       "ProductionPlan.tsx", // ícone com `sem-rato:`
       "Tarefas.tsx", // ícone com `sem-rato:` (×2)
       "Fornecedores.tsx", // ícone com `sem-rato:` (×3)

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { ficheirosDoEstudio } from "../../../../../../test/ficheiros-do-estudio";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -31,9 +32,10 @@ const RAIZ = new URL(".", import.meta.url).pathname;
 
 /** Os ficheiros que desenham o estúdio. O estado da gravação saiu do
  *  `ProposalStudio` para um ficheiro seu (2.ª revisão de 15/11) e continua
- *  a ser o estúdio: as perguntas dele contam aqui. */
+ *  a ser o estúdio: as perguntas dele contam aqui. E as peças que saíram para
+ *  `estudio/` (fase 2 de `docs/ESTRUTURA-DO-CODIGO.md`) também. */
 const FICHEIROS = [
-  "ProposalStudio.tsx",
+  ...ficheirosDoEstudio(),
   "NavEstudio.tsx",
   "PainelDoEstudio.tsx",
   "EstadoDaGravacaoNaBarra.tsx",
