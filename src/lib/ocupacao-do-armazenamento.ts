@@ -3,9 +3,9 @@ import { getStates, gravarEstadoSeNaoMudou, lerEstadoComVersao, setState } from 
 import { getSupabase } from "@/lib/supabase";
 import type { ManifestoDeFotografias } from "@/lib/manifesto-de-fotografias";
 import { log } from "@/lib/logger";
-import { ehBaldeDoBlob } from "@/lib/armazenamento/baldes";
+import { blobConfigurado, ehBaldeDoBlob } from "@/lib/armazenamento/baldes";
 import { modosDosBaldes } from "@/lib/armazenamento/modos";
-import { estadoDoBlob } from "@/lib/armazenamento/saude";
+import { estadoDoBlob, marcadorDoBlob } from "@/lib/armazenamento/saude";
 import {
   espacoQueSobra,
   medirPorOrdem,
@@ -44,13 +44,12 @@ export const CHAVE_DESDE = "armazenamento:desde-a-medicao";
 
 /** O espaço como está agora. `null` nunca: sem medição, `conhecido: false`. */
 export async function lerEspaco(): Promise<EspacoNoArmazenamento> {
-  const [m, blob] = await Promise.all([
-    getStates<unknown>([CHAVE_OCUPACAO, CHAVE_DESDE]),
-    // Os avisos dos tectos, e o ERRO de ficheiros no Blob sem o token
-    // (revisão de 17/11, n.º 7). Sem token e sem modos `blob`: uma leitura.
-    estadoDoBlob(),
-  ]);
+  const [m] = await Promise.all([getStates<unknown>([CHAVE_OCUPACAO, CHAVE_DESDE])]);
   const oc = m.get(CHAVE_OCUPACAO) as Ocupacao | undefined;
+  // Os avisos dos tectos (com token) e o ERRO de ficheiros no Blob sem o
+  // token, pelo marcador que vem nesta MESMA leitura — sem token, nenhuma
+  // leitura a mais (2.ª revisão de 17/11, n.º 4).
+  const blob = await estadoDoBlob(oc?.blobEmUso);
   const espaco = espacoQueSobra(oc ?? null, m.get(CHAVE_DESDE) ?? null);
   const avisosBlob = blob ? [...(blob.erro ? [blob.erro] : []), ...blob.avisos] : [];
   return avisosBlob.length > 0 ? { ...espaco, avisosBlob } : espaco;
@@ -171,11 +170,12 @@ export async function medirOcupacao(
     const porBucket: Ocupacao["porBucket"] = { ...(antes?.porBucket ?? {}) };
     const iso = agora.toISOString();
     const originais = new Set<string>();
+    // Sem o token, todos `supabase` e sem ler nada (`modos.ts`).
+    const modos = await modosDosBaldes();
     if (manifesto?.completo) {
       // O manifesto lista pelo `balde()`, que num balde em modo `espelho` ou
       // `blob` também vê o que está no Vercel Blob. Aqui mede-se o SUPABASE:
       // esses baldes medem-se pela listagem dele, como os outros.
-      const modos = await modosDosBaldes();
       for (const b of manifesto.buckets) {
         if (ehBaldeDoBlob(b.bucket) && modos[b.bucket] !== "supabase") continue;
         porBucket[b.bucket] = { bytes: b.bytes, medidoEm: iso };
@@ -208,6 +208,8 @@ export async function medirOcupacao(
       porBucket,
       completo,
     };
+    const marcador = marcadorDoBlob(antes?.blobEmUso, modos, blobConfigurado());
+    if (marcador !== undefined) ocupacao.blobEmUso = marcador;
     await setState(CHAVE_OCUPACAO, ocupacao);
     // Os buckets medidos esta noite já contam o que se carregou até agora.
     const medidos = Object.entries(porBucket)

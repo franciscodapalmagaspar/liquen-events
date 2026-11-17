@@ -90,22 +90,41 @@ let emCurso: Promise<EstadoDoArmazenamentoLido | null> | null = null;
 let emCursoBilhete = 0;
 let contador = 0;
 
+/**
+ * Quando a última pergunta FALHOU. Uma falha guarda-se um minuto como se fosse
+ * uma resposta (2.ª revisão de 17/11, n.º 4): sem isto, cada vez que o bloco
+ * «Hoje» volta a montar (mudar de vista e voltar) era um pedido novo ao
+ * servidor — com o servidor em baixo, precisamente quando menos ajuda. O
+ * «Verificar de novo» (`forcar`) não espera.
+ */
+let falhouEm = 0;
+const ESPERA_DEPOIS_DE_FALHAR_MS = 60_000;
+
 async function perguntar(forcar: boolean): Promise<EstadoDoArmazenamentoLido | null> {
   if (!forcar && cache) return cache;
   if (!forcar && emCurso) return emCurso;
+  if (!forcar && Date.now() - falhouEm < ESPERA_DEPOIS_DE_FALHAR_MS) return null;
 
   const viagem = (async () => {
     try {
       const res = await fetch(`/api/admin/armazenamento${forcar ? "?forcar=1" : ""}`, {
         cache: "no-store",
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        falhouEm = Date.now();
+        return null;
+      }
       const corpo = (await res.json()) as EstadoDoArmazenamentoLido;
-      if (!corpo || typeof corpo.avisar !== "boolean") return null;
+      if (!corpo || typeof corpo.avisar !== "boolean") {
+        falhouEm = Date.now();
+        return null;
+      }
       cache = corpo;
+      falhouEm = 0;
       return corpo;
     } catch {
       // Rede em baixo. Não se sabe — e não se sabe não se anuncia.
+      falhouEm = Date.now();
       return null;
     }
   })();
@@ -141,6 +160,7 @@ async function perguntar(forcar: boolean): Promise<EstadoDoArmazenamentoLido | n
 export function esquecerEstadoDoArmazenamento(): void {
   cache = null;
   emCurso = null;
+  falhouEm = 0;
 }
 
 /**

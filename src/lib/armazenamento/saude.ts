@@ -1,9 +1,6 @@
 import "server-only";
-import { getState } from "@/lib/app-state";
 import { log } from "@/lib/logger";
-import { BALDES_DO_BLOB, CHAVE_DOS_MODOS, blobConfigurado } from "./baldes";
-import { modosValidos } from "./modos";
-import { indiceDebaixoDe } from "./indice";
+import { BALDES_DO_BLOB, blobConfigurado } from "./baldes";
 import { avisosDoBlob } from "./tectos";
 import { usoAtual } from "./uso";
 
@@ -18,8 +15,8 @@ import { usoAtual } from "./uso";
  *
  *  - Com o token: os avisos dos tectos (`tectos.ts`), e um aviso se o
  *    contador não se lê (o travão está fechado e o Blob parado).
- *  - SEM o token: se algum balde ficou em modo `blob` com ficheiros no índice,
- *    é um ERRO — esses ficheiros só estão no Blob, e sem o token deixam de
+ *  - SEM o token: se a medição da noite registou um balde em modo `blob`, é
+ *    um ERRO — esses ficheiros só estão no Blob, e sem o token deixam de
  *    aparecer. Tirar ou trocar o token depois da migração faz isto.
  *
  * Cada situação vai também aos registos com `log.warn`, no máximo uma vez por
@@ -45,8 +42,17 @@ function registarComTravao(chave: string, mensagem: string, extra: Record<string
   log.warn(mensagem, extra);
 }
 
-/** `null` quando não há nada a dizer. Nunca lança. */
-export async function estadoDoBlob(): Promise<EstadoDoBlob | null> {
+/**
+ * `null` quando não há nada a dizer. Nunca lança.
+ *
+ * SEM o token não se lê NADA da base de dados (2.ª revisão de 17/11, n.º 4:
+ * desligado, tem de ser igual a `main`). O erro «há ficheiros no Blob e não há
+ * token» só se dá a partir de `blobEmUso`, um marcador que vem DENTRO de uma
+ * leitura que já se faz (a ocupação do armazenamento, ver
+ * `ocupacao-do-armazenamento.ts`): quem não o tiver à mão não o passa, e
+ * sem token isto devolve `null` sem perguntar nada.
+ */
+export async function estadoDoBlob(blobEmUso?: boolean): Promise<EstadoDoBlob | null> {
   try {
     if (blobConfigurado()) {
       const uso = await usoAtual();
@@ -63,22 +69,29 @@ export async function estadoDoBlob(): Promise<EstadoDoBlob | null> {
       });
       return { avisos };
     }
-    // Sem token: só a linha dos modos (uma leitura) e, para um balde em
-    // `blob`, uma linha do índice.
-    const modos = modosValidos(await getState<unknown>(CHAVE_DOS_MODOS));
-    for (const b of BALDES_DO_BLOB) {
-      if (modos[b] !== "blob") continue;
-      const { linhas, completa } = await indiceDebaixoDe(b, "", 1);
-      if (linhas.size > 0 || !completa) {
-        registarComTravao("sem-token", "blob: há ficheiros no Blob e não há token", { balde: b });
-        return { avisos: [], erro: ERRO_SEM_TOKEN };
-      }
+    if (blobEmUso === true) {
+      registarComTravao("sem-token", "blob: há ficheiros no Blob e não há token", {});
+      return { avisos: [], erro: ERRO_SEM_TOKEN };
     }
     return null;
   } catch (e) {
     log.warn("blob: estado não apurado", { erro: String(e) });
     return null;
   }
+}
+
+/**
+ * O marcador que a medição da noite guarda na ocupação: COM token, «algum
+ * balde está em modo `blob`»; SEM token não se sabe — fica o que estava (é
+ * precisamente o caso de alguém ter tirado o token depois da migração).
+ */
+export function marcadorDoBlob(
+  antes: boolean | undefined,
+  modos: Readonly<Record<string, string>>,
+  configurado: boolean,
+): boolean | undefined {
+  if (!configurado) return antes;
+  return BALDES_DO_BLOB.some((b) => modos[b] === "blob");
 }
 
 /** Só para os testes. */

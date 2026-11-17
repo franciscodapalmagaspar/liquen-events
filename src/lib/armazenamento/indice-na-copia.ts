@@ -2,7 +2,7 @@ import "server-only";
 import { listStateByPrefix } from "@/lib/app-state";
 import { getSupabase } from "@/lib/supabase";
 import type { Mapper } from "@/lib/repository";
-import { BALDES_DO_BLOB, caminhoValido, ehBaldeDoBlob } from "./baldes";
+import { BALDES_DO_BLOB, blobConfigurado, caminhoValido, ehBaldeDoBlob } from "./baldes";
 import { PREFIXO_DO_INDICE, linhaValida, type LinhaDoIndice } from "./indice";
 
 /**
@@ -47,8 +47,16 @@ export const mapper: Mapper<LinhaNaCopia> = {
 
 const LIMITE = 50_000;
 
-/** Todas as linhas. LANÇA se a varredura não ficou inteira (nada de cópias com ar de completas). */
+/**
+ * Todas as linhas. LANÇA se a varredura não ficou inteira (nada de cópias com
+ * ar de completas).
+ *
+ * SEM o token do Blob devolve `[]` SEM varrer (2.ª revisão de 17/11, n.º 4):
+ * desligado, a cópia e o plano da reposição não fazem leitura nenhuma a mais
+ * do que em `main`.
+ */
 export async function listIndiceDoBlob(): Promise<LinhaNaCopia[]> {
+  if (!blobConfigurado()) return [];
   const tudo: LinhaNaCopia[] = [];
   for (const b of BALDES_DO_BLOB) {
     const { entradas, completa } = await listStateByPrefix<unknown>(

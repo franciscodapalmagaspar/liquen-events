@@ -152,3 +152,37 @@ describe("«Hoje» e o Vercel Blob (revisão de 17/11, n.os 6 e 7)", () => {
     esquecerEstadoDoArmazenamento();
   });
 });
+
+describe("«Hoje» e o painel do armazenamento montados juntos (2.ª revisão de 17/11, n.º 4)", () => {
+  it("uma só pergunta ao servidor — e uma falha não se repete a cada vez que o «Hoje» volta", async () => {
+    const { AvisoDeArmazenamento, esquecerEstadoDoArmazenamento } =
+      await import("./AvisoDeArmazenamento");
+    esquecerEstadoDoArmazenamento();
+    const pedidos: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        pedidos.push(String(url));
+        if (String(url).startsWith("/api/admin/armazenamento"))
+          return { ok: false, status: 500, headers: new Headers(), json: async () => ({}) };
+        return resposta([]);
+      }),
+    );
+    const doArmazenamento = () => pedidos.filter((p) => p.startsWith("/api/admin/armazenamento"));
+    const { unmount } = render(
+      <>
+        <AvisoDeArmazenamento />
+        <Hoje quotes={[]} propostas={[]} onOpen={vi.fn()} onGo={vi.fn()} />
+      </>,
+    );
+    await waitFor(() => expect(doArmazenamento()).toHaveLength(1));
+    unmount();
+    render(<Hoje quotes={[]} propostas={[]} onOpen={vi.fn()} onGo={vi.fn()} />);
+    render(<Hoje quotes={[]} propostas={[]} onOpen={vi.fn()} onGo={vi.fn()} />);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(doArmazenamento()).toHaveLength(1);
+    esquecerEstadoDoArmazenamento();
+  });
+});

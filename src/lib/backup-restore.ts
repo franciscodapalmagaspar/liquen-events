@@ -564,6 +564,13 @@ export interface RestoreTarget<T = Record<string, unknown>> {
    * nome em `failed`) e não é chamado sequer para um conjunto saltado.
    */
   replace?: (rows: T[]) => Promise<void>;
+  /**
+   * A escrita à medida JUNTA e não apaga (o índice do Vercel Blob, 17/11). O
+   * plano mostra-o assim — nenhum «apagados», nenhum «mais recentes do que a
+   * cópia» —, e uma cópia que não traga o conjunto (as anteriores a ele) não
+   * dá aviso: não há nada a perder.
+   */
+  junta?: boolean;
   /** Perda conhecida ao repor este conjunto neste ambiente, se houver. */
   lossWarning?: (rows: T[]) => string | null;
   /**
@@ -689,6 +696,7 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
     current: listIndiceDoBlob,
     stamp: (l) => (typeof l.value?.c === "string" ? l.value.c : ""),
     replace: juntarIndiceDoBlob,
+    junta: true,
   }),
   asTarget({
     key: "contracts",
@@ -1093,7 +1101,7 @@ export function validateBackupFile(raw: unknown): ValidationResult {
   for (const target of RESTORE_TARGETS) {
     const value = file[target.key];
     if (value === undefined) {
-      missing.push(target.key);
+      if (!target.junta) missing.push(target.key);
       continue;
     }
     if (!Array.isArray(value)) {
@@ -1269,7 +1277,8 @@ export async function planRestore(file: ValidBackup): Promise<RestorePlan> {
     );
 
     let newerThanBackup = 0;
-    for (const row of currentRows) {
+    // Um conjunto que junta não apaga o que é mais recente: fica fora da conta.
+    for (const row of target.junta ? [] : currentRows) {
       const at = target.stamp(row);
       const ms = at ? Date.parse(at) : Number.NaN;
       if (Number.isNaN(ms)) continue;
@@ -1283,7 +1292,7 @@ export async function planRestore(file: ValidBackup): Promise<RestorePlan> {
     let created = 0;
     for (const key of incomingIds) if (!currentIds.has(key)) created++;
     let removed = 0;
-    for (const key of currentIds) if (!incomingIds.has(key)) removed++;
+    if (!target.junta) for (const key of currentIds) if (!incomingIds.has(key)) removed++;
 
     datasets.push({
       key: target.key,
@@ -1296,6 +1305,7 @@ export async function planRestore(file: ValidBackup): Promise<RestorePlan> {
       removed: skipped ? 0 : removed,
       newerThanBackup,
       skipped,
+      ...(target.junta ? { junta: true } : {}),
     });
 
     if (!skipped && incomingRows) {

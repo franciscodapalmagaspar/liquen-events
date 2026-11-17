@@ -31,6 +31,7 @@ vi.mock("@/lib/supabase", () => ({
 import { ehChaveDoIndice, juntarIndiceDoBlob, listIndiceDoBlob } from "./indice-na-copia";
 
 beforeEach(() => {
+  process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_Loja1234_s";
   H.linhas = new Map();
   H.completa = true;
   H.apagados = 0;
@@ -45,6 +46,13 @@ describe("o índice do Blob na cópia de segurança (revisão de 17/11, n.º 7)"
       "blob:i:proposal-pdfs/p/k.pdf",
       "blob:i:theme-assets/t/a.jpg",
     ]);
+  });
+
+  it("sem o token, devolve [] SEM varrer (2.ª revisão 17/11, n.º 4)", async () => {
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    H.completa = false; // se varresse, lançava
+    H.linhas.set("blob:i:proposal-pdfs/p/k.pdf", { t: 1, c: "x" });
+    expect(await listIndiceDoBlob()).toEqual([]);
   });
 
   it("uma varredura truncada LANÇA (não sai vazia com ar de completa)", async () => {

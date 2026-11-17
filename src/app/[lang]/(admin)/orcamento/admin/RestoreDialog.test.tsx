@@ -148,6 +148,35 @@ describe("RestoreDialog", () => {
     expect(screen.getByText(/não é reposto — a cópia não traz este conjunto/)).toBeInTheDocument();
   });
 
+  it("o índice do Vercel Blob diz «junta, não apaga» em vez de um número de apagados (2.ª revisão 17/11, n.º 8)", async () => {
+    const user = userEvent.setup();
+    const base = planoFalso();
+    fetchMock.mockResolvedValue(
+      respostaEnsaio({
+        ...base,
+        datasets: [
+          ...base.datasets,
+          {
+            key: "indiceDoBlob",
+            label: "Índice dos ficheiros no Vercel Blob",
+            table: "app_state",
+            incoming: 2,
+            current: 5,
+            created: 0,
+            replaced: 2,
+            removed: 0,
+            newerThanBackup: 0,
+            junta: true,
+          },
+        ],
+      }),
+    );
+    render(<RestoreDialog open onClose={() => {}} />);
+    await carregarFicheiro(user);
+    const linha = await screen.findByRole("row", { name: /Vercel Blob/ });
+    expect(within(linha).getByText("junta, não apaga")).toBeInTheDocument();
+  });
+
   it("mostra o aviso CRÍTICO de a cópia ser mais antiga do que os dados", async () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValue(respostaEnsaio());

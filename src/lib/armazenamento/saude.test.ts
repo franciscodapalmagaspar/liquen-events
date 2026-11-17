@@ -1,31 +1,45 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const H = vi.hoisted(() => ({
-  modos: null as unknown,
-  linhas: 0,
   uso: null as unknown,
   avisos: [] as string[],
+  leituras: 0,
 }));
-vi.mock("@/lib/app-state", () => ({ getState: async () => H.modos }));
+// Sem token, NENHUMA leitura à base de dados (2.ª revisão de 17/11, n.º 4):
+// qualquer chamada a estes duplos conta como uma.
+vi.mock("@/lib/app-state", () => ({
+  getState: async () => {
+    H.leituras++;
+    return null;
+  },
+  getStates: async () => {
+    H.leituras++;
+    return new Map();
+  },
+}));
 vi.mock("./indice", () => ({
-  indiceDebaixoDe: async () => ({
-    linhas: new Map(Array.from({ length: H.linhas }, (_, i) => [`x${i}`, {}])),
-    completa: true,
-  }),
+  indiceDebaixoDe: async () => {
+    H.leituras++;
+    return { linhas: new Map(), completa: true };
+  },
 }));
-vi.mock("./uso", () => ({ usoAtual: async () => H.uso }));
+vi.mock("./uso", () => ({
+  usoAtual: async () => {
+    H.leituras++;
+    return H.uso;
+  },
+}));
 vi.mock("@/lib/logger", () => ({
   log: { warn: (m: string) => H.avisos.push(m), info: vi.fn(), error: vi.fn() },
 }));
 
-import { ERRO_SEM_TOKEN, esquecerRegistos, estadoDoBlob } from "./saude";
+import { ERRO_SEM_TOKEN, esquecerRegistos, estadoDoBlob, marcadorDoBlob } from "./saude";
 import { GB, mesDe } from "./tectos";
 
 beforeEach(() => {
-  H.modos = null;
-  H.linhas = 0;
   H.uso = null;
   H.avisos = [];
+  H.leituras = 0;
   esquecerRegistos();
 });
 afterEach(() => {
@@ -33,21 +47,23 @@ afterEach(() => {
 });
 
 describe("o estado do Blob para o back office", () => {
-  it("sem token e sem nada no Blob: nada a dizer", async () => {
+  it("sem token: nada a dizer, e ZERO leituras (n.º 4)", async () => {
     expect(await estadoDoBlob()).toBeNull();
+    expect(await estadoDoBlob(false)).toBeNull();
+    expect(H.leituras).toBe(0);
   });
 
-  it("sem token, com um balde em modo blob e ficheiros no índice: ERRO (n.º 7)", async () => {
-    H.modos = { "proposal-pdfs": "blob" };
-    H.linhas = 1;
-    expect(await estadoDoBlob()).toEqual({ avisos: [], erro: ERRO_SEM_TOKEN });
+  it("sem token, com o marcador da noite a dizer que há um balde em blob: ERRO, sem ler nada", async () => {
+    expect(await estadoDoBlob(true)).toEqual({ avisos: [], erro: ERRO_SEM_TOKEN });
+    expect(H.leituras).toBe(0);
     expect(H.avisos).toHaveLength(1);
   });
 
-  it("sem token, em espelho: o Supabase tem tudo — não é erro", async () => {
-    H.modos = { "proposal-pdfs": "espelho" };
-    H.linhas = 5;
-    expect(await estadoDoBlob()).toBeNull();
+  it("o marcador: com token conta os modos; sem token fica o que estava", () => {
+    expect(marcadorDoBlob(undefined, { "theme-assets": "blob" }, true)).toBe(true);
+    expect(marcadorDoBlob(true, { "theme-assets": "espelho" }, true)).toBe(false);
+    expect(marcadorDoBlob(true, {}, false)).toBe(true);
+    expect(marcadorDoBlob(undefined, {}, false)).toBeUndefined();
   });
 
   it("com token, perto do tecto: avisa, e o registo tem travão (uma vez por hora)", async () => {

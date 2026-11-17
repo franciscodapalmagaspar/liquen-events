@@ -1,27 +1,47 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/** A janela da importação mostra o ERRO do Blob sem token (revisão de 17/11, n.º 7). */
+/**
+ * A janela da importação e o Blob (17/11). Sem token: a MESMA leitura de
+ * `main` (uma `getStates` com as duas chaves de sempre), e o erro «há
+ * ficheiros no Blob sem o token» vem do marcador que essa leitura já traz.
+ */
+const H = vi.hoisted(() => ({ chaves: [] as string[][], ocupacao: null as unknown }));
 vi.mock("@/lib/app-state", () => ({
-  getStates: async () => new Map(),
+  getStates: async (ks: string[]) => {
+    H.chaves.push(ks);
+    return new Map(H.ocupacao ? [["armazenamento:ocupacao", H.ocupacao]] : []);
+  },
   gravarEstadoSeNaoMudou: vi.fn(),
   lerEstadoComVersao: vi.fn(),
   setState: vi.fn(),
 }));
 vi.mock("@/lib/supabase", () => ({ getSupabase: () => null }));
-vi.mock("@/lib/armazenamento/saude", () => ({
-  estadoDoBlob: async () => ({
-    avisos: ["aviso de tecto"],
-    erro: "há ficheiros no Blob sem token",
-  }),
-}));
 
 import { lerEspaco } from "./ocupacao-do-armazenamento";
 
-describe("lerEspaco com o Blob", () => {
-  it("o erro vem primeiro, depois os avisos", async () => {
-    expect((await lerEspaco()).avisosBlob).toEqual([
-      "há ficheiros no Blob sem token",
-      "aviso de tecto",
-    ]);
+beforeEach(() => {
+  H.chaves = [];
+  H.ocupacao = null;
+  delete process.env.BLOB_READ_WRITE_TOKEN;
+});
+
+describe("lerEspaco com o Blob desligado", () => {
+  it("lê exactamente o que lia em main, e não diz nada do Blob", async () => {
+    const e = await lerEspaco();
+    expect(H.chaves).toEqual([["armazenamento:ocupacao", "armazenamento:desde-a-medicao"]]);
+    expect(e.avisosBlob).toBeUndefined();
+  });
+
+  it("com o marcador da noite e sem token: mostra o erro, sem ler mais nada", async () => {
+    H.ocupacao = {
+      medidoEm: new Date().toISOString(),
+      bytes: 1,
+      porBucket: {},
+      completo: true,
+      blobEmUso: true,
+    };
+    const e = await lerEspaco();
+    expect(e.avisosBlob?.[0]).toMatch(/token não está configurado/);
+    expect(H.chaves).toHaveLength(1);
   });
 });
