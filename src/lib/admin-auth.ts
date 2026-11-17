@@ -942,22 +942,41 @@ export async function definirPalavraPasseComToken(
  * em que a base de dados está lenta. A palavra-passe continua a servir.
  */
 export async function passkeyAindaVale(userName: string, criadaEm: string): Promise<boolean> {
-  const users = configuredUsers();
-  if (!users) return true;
-  const conta = encontrarConta(users, userName)?.user;
-  if (!conta?.email) return true;
+  const corte = await cortePasskeys(userName);
+  if (!corte.ok) return false;
+  return !registadaAntesDoCorte(criadaEm, corte.desde);
+}
 
-  let desde: number | undefined;
+/**
+ * O CORTE das passkeys de uma conta: o instante da última redefinição pela
+ * recuperação (`desde`), ou `null` quando nunca houve nenhuma — ou quando a
+ * conta não tem recuperação (sem `ADMIN_USERS`, ou sem email).
+ *
+ * `ok: false` quando o registo não se conseguiu ler: quem chama decide o que é
+ * seguro (a entrada recusa; a lista não apaga nada).
+ */
+export type CorteDasPasskeys = { ok: true; desde: number | null } | { ok: false };
+
+export async function cortePasskeys(userName: string): Promise<CorteDasPasskeys> {
+  const users = configuredUsers();
+  if (!users) return { ok: true, desde: null };
+  const conta = encontrarConta(users, userName)?.user;
+  if (!conta?.email) return { ok: true, desde: null };
   try {
     const { lerRegisto } = await import("./admin-recuperacao");
-    desde = (await lerRegisto()).passkeysDesde[normalizarIdentificador(conta.email)];
+    const desde = (await lerRegisto()).passkeysDesde[normalizarIdentificador(conta.email)];
+    return { ok: true, desde: typeof desde === "number" ? desde : null };
   } catch (err) {
-    log.error("passkeys: não foi possível ler o registo da recuperação — não entra", err);
-    return false;
+    log.error("passkeys: não foi possível ler o registo da recuperação", err);
+    return { ok: false };
   }
-  if (typeof desde !== "number") return true;
+}
+
+/** Uma passkey criada em `criadaEm` ficou para trás do corte? Uma data ilegível também. */
+export function registadaAntesDoCorte(criadaEm: string, desde: number | null): boolean {
+  if (desde === null) return false;
   const criada = Date.parse(criadaEm);
-  return Number.isFinite(criada) && criada >= desde;
+  return !Number.isFinite(criada) || criada < desde;
 }
 
 // --- Sessions -------------------------------------------------------------
