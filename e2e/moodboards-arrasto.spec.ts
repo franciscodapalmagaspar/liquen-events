@@ -1,5 +1,5 @@
 import { test, expect, devices, type Page } from "@playwright/test";
-import { entrarNoBackOffice } from "./semear-pedido";
+import { entrarNoBackOffice, garantirPedidoProprio } from "./semear-pedido";
 
 /**
  * O ARRASTO DOS MOOD BOARDS, PELO TECLADO.
@@ -42,29 +42,6 @@ async function login(page: Page): Promise<boolean> {
   // que deixa de aparecer assim que há sessão, e cada uma delas entrava outra
   // vez: era essa repetição que trancava a suite à porta a meio da passagem.
   return entrarNoBackOffice(page);
-}
-
-/** Um pedido novo, para o passeio não depender do que já lá está. */
-async function criarPedido(page: Page, nome: string): Promise<string> {
-  const res = await page.request.post("/api/orcamento", {
-    data: {
-      form: {
-        name: nome,
-        email: `${nome.replace(/\W/g, "").toLowerCase()}@example.pt`,
-        phone: "912345678",
-        category: "particulares",
-        eventType: "casamentos",
-        eventName: "Casamento",
-        date: "2099-06-10",
-        guests: 120,
-        location: "Herdade da Maridona, Glória",
-      },
-      website: "",
-      submissionId: `e2e-arrasto-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    },
-  });
-  expect(res.ok(), "o pedido de teste foi criado").toBe(true);
-  return (await res.json()).id as string;
 }
 
 /**
@@ -307,8 +284,15 @@ for (const { titulo, viewport } of [
       const entrou = await login(page);
       test.skip(!entrou, "Sem login de admin aqui (build de produção sem ADMIN_PASSWORD_HASH).");
 
-      const nome = `Arrasto ${Date.now().toString(36)}`;
-      const quoteId = await criarPedido(page, nome);
+      // Um pedido SÓ deste passeio, um por tamanho, criado uma vez e reaproveitado:
+      // criar um novo em cada corrida gastava o tecto de cinco pedidos por minuto
+      // do formulário público, e a 17/11 (lote de 18/11) o POST veio recusado nas
+      // três tentativas. O rascunho é semeado de novo a cada corrida.
+      const nome = `Arrasto E2E ${titulo}`;
+      const quoteId = await garantirPedidoProprio(page, {
+        nome,
+        submissionId: `e2e-arrasto-${viewport ? "telemovel" : "computador"}`,
+      });
       await semearRascunho(page, quoteId);
       await abrirEstudio(page, nome);
 
