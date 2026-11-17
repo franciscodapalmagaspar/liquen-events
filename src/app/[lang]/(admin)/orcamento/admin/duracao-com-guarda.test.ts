@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { fonteDe } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -96,9 +97,10 @@ describe("uma duração animada anda sempre com a sua guarda", () => {
   });
 
   it("o cabeçalho não anima disposição enquanto se rola", () => {
-    const fonte = semComentarios(
-      readFileSync(join(RAIZ, "orcamento/admin/AdminClient.tsx"), "utf8"),
-    );
+    // O `<header>` saiu para `_casca/Cabecalho.tsx` (fase 7): lê-se o
+    // `AdminClient.tsx` com as casas dele, sem comentários ficheiro a ficheiro.
+    const fonte = fonteDe("AdminClient.tsx", semComentarios);
+    expect(fonte, "o cabeçalho tem de estar no texto que se lê").toMatch(/<header\b/);
 
     // `padding` e `font-size` remedem a página a cada fotograma, e estas duas
     // corriam ligadas ao scroll — o pior sítio possível, no telemóvel dela.

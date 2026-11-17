@@ -45,12 +45,9 @@ export type FicheiroPartido = keyof typeof CASAS;
 
 /** Os ficheiros de produção de uma pasta, por ordem, relativos a `base`. */
 function daPasta(base: string, pasta: string, fora: readonly string[]): string[] {
-  let nomes: string[] = [];
-  try {
-    nomes = readdirSync(join(base, pasta), { recursive: true }) as string[];
-  } catch {
-    return [];
-  }
+  // Uma casa que não se encontra é um erro, e não uma lista vazia: com menos
+  // texto, cada `not.toMatch` ficava verde por não ler nada (revisão, 17/11).
+  const nomes = readdirSync(join(base, pasta), { recursive: true }) as string[];
   return nomes
     .map((n) => n.split("\\").join("/"))
     .filter((n) => /\.tsx?$/.test(n) && !/\.(test|testkit)\./.test(n))
@@ -112,7 +109,9 @@ export function fonteDaCasa(
  *
  * Só cola chamadas que se fecham sozinhas (`<Nome … />`) de componentes
  * importados de uma pasta privada (`./_casa/…`); é a forma de todas as que as
- * fases 7 e 8 criaram. `porFicheiro` corre em cada ficheiro antes de colar.
+ * fases 7 e 8 criaram. Uma prop com uma seta (`onX={() => …}`) não corta a
+ * chamada a meio: o `>` do `=>` não é o fim da etiqueta. `porFicheiro` corre em
+ * cada ficheiro antes de colar.
  */
 export function fonteComposta(
   rel: string,
@@ -129,7 +128,7 @@ export function fonteComposta(
       if (/^[A-Z]/.test(nome)) componentes.set(nome, `${destino}.tsx`);
     }
   }
-  return texto.replace(/<([A-Z]\w*)\b[^<>]*?\/>/g, (chamada, nome: string) => {
+  return texto.replace(/<([A-Z]\w*)\b(?:=>|[^<>])*?\/>/g, (chamada, nome: string) => {
     const ficheiro = componentes.get(nome);
     if (!ficheiro || vistos.has(ficheiro)) return chamada;
     return fonteComposta(ficheiro, porFicheiro, new Set([...vistos, rel, ficheiro]));

@@ -344,11 +344,18 @@ describe("4 · o lote do «Mostrar mais»", () => {
   it("e a lista continua SEM `key` — um `key` remonta e perde o rolo", () => {
     const i = CODIGO.indexOf("<TabelaOuCartoes");
     expect(i, "a lista de Pedidos mudou de componente").toBeGreaterThan(-1);
-    // Até ao primeiro «/>» ao nível da chamada (a indentação mudou quando a
-    // lista saiu para `_pedidos/ListaDosPedidos.tsx`, na fase 7).
-    const fim = CODIGO.slice(i).search(/\n\s*\/>/);
-    const chamada = CODIGO.slice(i, i + fim);
+    // Até ao «/>» com a MESMA indentação da chamada — o que a fecha. O primeiro
+    // «/>» que aparece é o do `<QuoteCard … />` de dentro de `cartao`, e cortar
+    // aí deixava de ver um `key` posto nas props de baixo (revisão, 17/11).
+    const inicioDaLinha = CODIGO.lastIndexOf("\n", i) + 1;
+    const indentacao = CODIGO.slice(inicioDaLinha, i);
+    expect(indentacao, "a chamada não começa a linha").toMatch(/^\s*$/);
+    const fim = CODIGO.indexOf(`\n${indentacao}/>`, i);
+    expect(fim, "a chamada da lista não se fecha onde devia").toBeGreaterThan(i);
+    const chamada = CODIGO.slice(i, fim);
     expect(chamada, "o instrumento não apanhou a chamada inteira").toContain('legenda="Pedidos"');
+    // A última prop da chamada tem de estar no recorte — senão ele parou cedo.
+    expect(chamada, "o instrumento parou antes do fim da chamada").toContain("colunas={");
     expect(chamada, "a lista de Pedidos ganhou um `key`").not.toMatch(/\bkey=/);
   });
 
