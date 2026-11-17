@@ -80,14 +80,20 @@ export async function POST(request: NextRequest) {
     estado,
     causa: causaDaFalha(d.expirada === true, estado),
   };
-  if (d.expirada === true) log.info("estúdio: imagem com assinatura expirada", contexto);
-  else log.warn("estúdio: imagem não desenhou no browser", contexto);
+  // Um 404 é um ficheiro que NÃO EXISTE, com a assinatura em dia ou não: o
+  // Storage não responde 404 a um token morto. Esse é sempre aviso (2.ª
+  // revisão de 17/11) — senão um ficheiro apagado escondia-se atrás do prazo.
+  if (d.expirada === true && estado !== 404) {
+    log.info("estúdio: imagem com assinatura expirada", contexto);
+  } else {
+    log.warn("estúdio: imagem não desenhou no browser", contexto);
+  }
   return NextResponse.json({ ok: true });
 }
 
 function causaDaFalha(expirada: boolean, estado: number | null): string {
-  if (expirada) return "assinatura expirada";
   if (estado === 404) return "ficheiro em falta";
+  if (expirada) return "assinatura expirada";
   // O Storage do Supabase responde 400 também a um objecto que não existe, e a
   // um token recusado; com o prazo em dia, não se sabe qual dos dois.
   if (estado === 400 || estado === 403) return "recusado pelo Storage";
