@@ -58,7 +58,7 @@
   "src/app/[lang]/(admin)/orcamento/admin/SessaoExpirada.tsx": 486,
   "src/app/[lang]/(admin)/orcamento/admin/StatsDashboard.tsx": 1212,
   "src/app/[lang]/(admin)/orcamento/admin/TarefaDetalhe.tsx": 498,
-  "src/app/[lang]/(admin)/orcamento/admin/Tarefas.tsx": 3261,
+  "src/app/[lang]/(admin)/orcamento/admin/Tarefas.tsx": 2387,
   "src/app/[lang]/(admin)/orcamento/admin/Temas.tsx": 4033,
   "src/app/[lang]/(admin)/orcamento/admin/ThemeCopyDialog.tsx": 452,
   "src/app/[lang]/(admin)/orcamento/admin/ThemePicker.tsx": 2556,
