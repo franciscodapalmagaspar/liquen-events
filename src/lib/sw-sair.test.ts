@@ -51,8 +51,13 @@ const CONTEUDO = {
   "liquen-fotos-v2": [`https://x.supabase.co/storage/v1/object/sign/theme-thumbs/a.jpg`],
   "liquen-originais-v1": [`https://x.supabase.co/storage/v1/object/sign/theme-assets/a.jpg`],
 };
+// As fotografias da biblioteca FICAM (revisão de 16/11, n.º 4): não
+// identificam ninguém, e voltar a descarregá-las gasta a saída do plano
+// gratuito do Supabase. Sai só o que é página do back office.
 const ESPERADO = {
   "liquen-cache-v5": [`${ORIGEM}/`, `${ORIGEM}/offline.html`, `${ORIGEM}/servicos`],
+  "liquen-fotos-v2": CONTEUDO["liquen-fotos-v2"],
+  "liquen-originais-v1": CONTEUDO["liquen-originais-v1"],
 };
 
 // ── O lado do service worker ───────────────────────────────────────────────
@@ -84,7 +89,7 @@ function constante(nome: string): string {
 }
 
 describe("o service worker, ao «Sair»", () => {
-  it("apaga o invólucro do back office e as fotografias, e deixa o site público", async () => {
+  it("apaga as páginas do back office, e deixa o site público e as fotografias", async () => {
     const { api, estado } = cacheStorageFalsa(CONTEUDO);
     const limpar = new Function(
       "caches",

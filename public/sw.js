@@ -383,9 +383,11 @@ self.addEventListener("fetch", (event) => {
 
 // ── «Sair» (auditoria de 16/11, n.º 6) ──────────────────────────────────────
 //
-// Ao sair, a página pede (`limpar-back-office`) que o que este guião guardou do
-// back office desapareça do aparelho: o invólucro da vista de carregamento e as
-// fotografias da biblioteca. O site público fica — é dele o modo sem rede. A
+// Ao sair, a página pede (`limpar-back-office`) que as PÁGINAS do back office
+// que este guião guardou (o invólucro da vista de carregamento) desapareçam do
+// aparelho. O site público fica — é dele o modo sem rede. As fotografias da
+// biblioteca também ficam (revisão de 16/11, n.º 4): não identificam ninguém,
+// e voltar a descarregá-las gastava a saída do plano gratuito do Supabase. A
 // página faz também a mesma limpeza directamente (`limpar-caches-ao-sair.ts`),
 // e um teste prende os dois ao mesmo resultado.
 
@@ -395,7 +397,6 @@ function ehDoBackOffice(url) {
 }
 
 async function limparCachesDoBackOffice() {
-  await Promise.all([caches.delete(CACHE_FOTOS), caches.delete(CACHE_ORIGINAIS)]);
   const cache = await caches.open(CACHE);
   const pedidos = await cache.keys();
   await Promise.all(

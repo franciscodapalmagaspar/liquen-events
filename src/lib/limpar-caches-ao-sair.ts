@@ -4,10 +4,9 @@
  * (auditoria de 16/11, n.º 6)
  * ════════════════════════════════════════════════════════════════════════════
  *
- * O `public/sw.js` guarda duas coisas do back office: o invólucro da vista de
- * carregamento (para abrir numa quinta sem rede) e as fotografias da biblioteca
- * de temas. Ficavam no aparelho depois de «Sair», à vista de quem pegasse nele
- * a seguir, já sem sessão.
+ * O `public/sw.js` guarda o invólucro da vista de carregamento (para abrir numa
+ * quinta sem rede). Ficava no aparelho depois de «Sair», à vista de quem
+ * pegasse nele a seguir, já sem sessão.
  *
  * Ao sair, a página faz DUAS coisas, e de propósito:
  *  · pede ao service worker que limpe (`limpar-back-office`) — é ele que é dono
@@ -16,7 +15,10 @@
  *    controlada por service worker nenhum (primeira visita, recarregamento
  *    forçado) e uma mensagem não tem garantia de chegar antes da navegação.
  *
- * O que fica: o site público, que é de quem não tem sessão. O modo sem rede de
+ * O que fica: o site público, que é de quem não tem sessão, e as fotografias
+ * da biblioteca de temas (revisão de 16/11, n.º 4): não identificam ninguém, e
+ * voltar a descarregá-las gastava a saída do plano gratuito do Supabase. Sai
+ * só o que é PÁGINA do back office (`/orcamento…`). O modo sem rede de
  * quem CONTINUA com sessão não é tocado — isto só corre em «Sair», e sair
  * termina a sessão neste browser inteiro.
  *
@@ -25,8 +27,8 @@
  * duas ao mesmo resultado (`sw-sair.test.ts`).
  */
 
-/** Gavetas que são SÓ do back office: apagam-se inteiras. */
-const GAVETAS_DO_BACK_OFFICE = ["liquen-fotos-", "liquen-originais-"];
+/** As gavetas das fotografias da biblioteca: não se tocam (nem se abrem). */
+const GAVETAS_DAS_FOTOS = ["liquen-fotos-", "liquen-originais-"];
 
 /** Um caminho do back office (o mesmo critério do `sw.js`). */
 export function ehCaminhoDoBackOffice(pathname: string): boolean {
@@ -62,12 +64,8 @@ async function limparDirectamente(caches: CacheStorageMinima): Promise<void> {
   const nomes = await caches.keys();
   await Promise.all(
     nomes
-      .filter((n) => n.startsWith("liquen-"))
+      .filter((n) => n.startsWith("liquen-") && !GAVETAS_DAS_FOTOS.some((p) => n.startsWith(p)))
       .map(async (nome) => {
-        if (GAVETAS_DO_BACK_OFFICE.some((p) => nome.startsWith(p))) {
-          await caches.delete(nome);
-          return;
-        }
         const cache = await caches.open(nome);
         const pedidos = await cache.keys();
         await Promise.all(
