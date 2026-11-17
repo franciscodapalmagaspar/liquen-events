@@ -464,7 +464,10 @@ export interface Retoma {
   papel: Papel;
   origem: string;
   pasta: string;
-  /** A fotografia onde parou — inclusive: é por ela que se recomeça. */
+  /**
+   * A fotografia onde parou — inclusive: é por ela que se recomeça. Vazio
+   * quando parou ENTRE pastas: recomeça-se na primeira fotografia de `pasta`.
+   */
   caminho: string;
 }
 
@@ -612,6 +615,8 @@ export async function gerarLoteDeDerivadas(
   let aSaltar = alvo !== null;
   /** O ponto de retoma foi encontrado? Se não, ele está velho — ver abaixo. */
   let encontrou = alvo === null;
+  /** Pastas percorridas NESTA chamada — ver o relógio na travessia. */
+  let pastasPercorridas = 0;
 
   // DUAS passagens, e não uma: primeiro tudo o que é essencial na biblioteca
   // inteira, e só depois o AVIF. Ver `Papel` — parar a meio tem de deixar as
@@ -639,6 +644,38 @@ export async function gerarLoteDeDerivadas(
         ) {
           continue;
         }
+        // Uma retoma deixada ENTRE pastas (`caminho: ""`, ver abaixo) começa
+        // na primeira fotografia desta.
+        if (aSaltar && alvo!.caminho === "") {
+          aSaltar = false;
+          encontrou = true;
+        }
+        /**
+         * ── O RELÓGIO TAMBÉM CONTA NA TRAVESSIA (registos de 10–17/11) ────
+         *
+         * O tecto só era lido entre blocos de fotografias. Numa biblioteca já
+         * quase toda feita não há blocos: há dezenas de pastas a LISTAR, cada
+         * uma três ou quatro idas ao Storage, e essas nunca olhavam para o
+         * relógio. A apanha das derivadas da rotina da manhã passava assim do
+         * tecto da função («Task timed out after 60 seconds», três vezes).
+         *
+         * Pára-se entre pastas, com a retoma a apontar para o princípio da
+         * pasta seguinte (`caminho: ""`). Só depois de se ter percorrido pelo
+         * menos uma — senão um tecto curto nunca saía do mesmo sítio.
+         */
+        if (!aSaltar && pastasPercorridas > 0 && agora() >= ate) {
+          return {
+            geradas,
+            falhas,
+            fotografiasFeitas,
+            retoma: { papel: passagem, origem: familia.origem, pasta, caminho: "" },
+            restantes: 0,
+            restantesEssenciais: 0,
+            fotografiasRestantes: 0,
+            papel,
+          };
+        }
+        if (!aSaltar) pastasPercorridas += 1;
         // AS LISTAGENS EM PARALELO — os originais e cada bucket de derivada não
         // dependem uns dos outros. Em série era a latência da rede vezes três,
         // por pasta, e a travessia tem dezenas de pastas.

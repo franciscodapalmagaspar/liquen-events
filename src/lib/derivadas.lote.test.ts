@@ -235,6 +235,43 @@ describe("um lote de derivadas", () => {
     expect(r.retoma).not.toBeNull();
   });
 
+  it("numa biblioteca já feita, o relógio também pára a TRAVESSIA das pastas (registos de 10–17/11)", async () => {
+    // Trinta temas, já com todas as essenciais: não há blocos de fotografias,
+    // só listagens. Antes o relógio só se lia entre blocos, e a travessia
+    // corria até ao fim por mais tarde que fosse — a apanha da rotina da manhã
+    // passava assim do tecto da função.
+    for (let i = 0; i < 30; i += 1) tema(`tema-${String(i).padStart(2, "0")}`, 1);
+    await gerarLoteDeDerivadas("essencial");
+    st.escritos = [];
+
+    const r = await gerarLoteDeDerivadas("essencial", { tectoMs: 5_000, agora: relogio(2_000) });
+
+    expect(r.fotografiasFeitas).toBe(0);
+    // Parou entre pastas, e diz em qual recomeçar.
+    expect(r.retoma).toMatchObject({ papel: "essencial", origem: THEME_BUCKET, caminho: "" });
+    expect(r.retoma!.pasta > "tema-00").toBe(true);
+    expect(r.retoma!.pasta < "tema-29").toBe(true);
+
+    // E a noite seguinte recomeça nessa pasta, sem voltar ao princípio, e
+    // chega ao fim.
+    const seguinte = await gerarLoteDeDerivadas("essencial", { retoma: r.retoma });
+    expect(seguinte.retoma).toBeNull();
+    expect(st.escritos).toHaveLength(0);
+  });
+
+  it("uma retoma deixada entre pastas gera a primeira fotografia dessa pasta", async () => {
+    tema("tema-a", 1);
+    tema("tema-b", 2);
+
+    const r = await gerarLoteDeDerivadas("essencial", {
+      retoma: { papel: "essencial", origem: THEME_BUCKET, pasta: "tema-b", caminho: "" },
+    });
+
+    // Só as duas de `tema-b`: a de `tema-a` fica para a volta seguinte.
+    expect(r.fotografiasFeitas).toBe(2);
+    expect(st.descarregados.every((c) => c.includes("/tema-b/"))).toBe(true);
+  });
+
   it("uma fotografia a que só falta metade das derivadas não regenera a outra metade", async () => {
     tema("tema-a", 2);
     await gerarLoteDeDerivadas("essencial");

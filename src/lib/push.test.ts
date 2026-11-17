@@ -148,6 +148,22 @@ describe("em desenvolvimento o ficheiro continua a ser um sítio", () => {
     const r = await sendPushToAll({ title: "Pedido novo", body: "…" });
     expect(r.sent).toBe(1);
   });
+
+  it("cada envio tem prazo: um serviço de push pendurado não pendura a rotina da manhã", async () => {
+    // Registos de 10–17/11: a rotina da manhã morreu três vezes ao fim de
+    // 60 s. Sem prazo, o `web-push` espera pelo serviço o tempo que ele quiser.
+    vi.stubEnv("NODE_ENV", "development");
+    st.lido = JSON.stringify([SUB]);
+    const webpush = (await import("web-push")).default as unknown as {
+      sendNotification: { mock: { calls: unknown[][] } };
+    };
+    await sendPushToAll({ title: "Pedido novo", body: "…" });
+    const opcoes = webpush.sendNotification.mock.calls.at(-1)?.[2] as
+      | { timeout?: number }
+      | undefined;
+    expect(opcoes?.timeout).toBeGreaterThan(0);
+    expect(opcoes?.timeout).toBeLessThanOrEqual(10_000);
+  });
 });
 
 /**

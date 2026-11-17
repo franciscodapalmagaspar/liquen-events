@@ -7,7 +7,10 @@ import { listCalendarEvents } from "@/lib/calendar-store";
 import { sendPushToAll } from "@/lib/push";
 import { isAuthed } from "@/lib/admin-auth";
 import { log } from "@/lib/logger";
-import { gerarLoteDeDerivadas } from "@/lib/derivadas";
+import { gerarLoteDeDerivadas, type Retoma } from "@/lib/derivadas";
+import { getState, setState } from "@/lib/app-state";
+import { getSupabase } from "@/lib/supabase";
+import { comPrazo } from "@/lib/prazo";
 import { eur0 as eur } from "@/lib/money";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
 import { comCpu } from "@/lib/medir-cpu";
@@ -18,7 +21,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // 300 e não 60 (auditoria de robustez de 13/11): a apanha das derivadas
 // passou dos 60 s em 6 dos 7 dias e a função era morta a meio. O ORÇAMENTO de
-// trabalho continua o de sempre (50 s, lá em baixo) — o tecto maior é só a
+// trabalho continua o de sempre (50 s, `ORCAMENTO_MS`, com um prazo por
+// passo desde 17/11) — o tecto maior é só a
 // folga para não ser cortada; o plano Pro permite-o, e o tempo à espera da
 // rede não conta como processador.
 export const maxDuration = 300;
@@ -108,18 +112,74 @@ function authorized(req: NextRequest): boolean {
  * muda a resposta nem a impede de sair. Uma avaria aqui é uma linha no
  * registo, não um dia sem notificação.
  */
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * O ORÇAMENTO DE TEMPO, PASSO A PASSO (registos de 10–17/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * «Task timed out after 60 seconds», três vezes. O `maxDuration` subiu para
+ * 300 (13/11), mas um tecto maior só adia o problema: nenhum passo tinha prazo
+ * próprio, e um que ficasse pendurado (uma leitura ao Supabase, um serviço de
+ * push que não responde, a travessia das derivadas) levava a função inteira
+ * até ser morta — sem resumo e sem linha no registo a dizer porquê.
+ *
+ * Agora cada passo tem o seu prazo e a função responde SEMPRE antes dos 50 s
+ * (os 60 de antes, com folga), seja qual for o `maxDuration`:
+ *
+ *  - as três leituras do resumo, 15 s (em paralelo): uma que não chegue conta
+ *    como leitura falhada — o resumo sai com o resto, marcado incompleto;
+ *  - o envio do push, 10 s;
+ *  - as derivadas, o que sobrar até aos 50 s. O que não couber fica para a
+ *    noite seguinte: a retoma guarda-se no `app_state` e a próxima volta
+ *    começa aí, em vez de reler a biblioteca do princípio todos os dias.
+ */
+const ORCAMENTO_MS = 50_000;
+const PRAZO_LEITURA_MS = 15_000;
+const PRAZO_PUSH_MS = 10_000;
+/** Um bloco de fotografias já começado acaba (ver `gerarLoteDeDerivadas`): é
+ *  esta a folga entre o tecto do lote e o prazo duro do passo. */
+const FOLGA_DO_BLOCO_MS = 10_000;
+/** Menos do que isto não chega para um bloco com folga. */
+const MINIMO_DERIVADAS_MS = 15_000;
+const CHAVE_RETOMA = "cron-reminders:retoma-das-derivadas";
+
+/** Onde a apanha da noite anterior parou. Sem Supabase não há onde guardar. */
+async function retomaDaNoiteAnterior(): Promise<Retoma | null> {
+  if (!getSupabase()) return null;
+  const r = await getState<Retoma>(CHAVE_RETOMA).catch(() => null);
+  return r && typeof r.pasta === "string" && typeof r.caminho === "string" ? r : null;
+}
+
+async function guardarRetoma(retoma: Retoma | null): Promise<void> {
+  if (!getSupabase()) return;
+  const r = await setState(CHAVE_RETOMA, retoma).catch(() => null);
+  if (r && !r.duradouro) {
+    log.warn(
+      "cron reminders: a retoma das derivadas não ficou guardada — amanhã recomeça do princípio",
+    );
+  }
+}
+
 async function apanharDerivadasEmAtraso(desdeMs: number): Promise<void> {
-  // O tecto da função é 60 s. Deixam-se 10 de folga para a resposta sair, e o
-  // que sobrar do resumo é o que a apanha tem para trabalhar.
-  const restante = 50_000 - (Date.now() - desdeMs);
-  // Menos de cinco segundos não chega para uma fotografia com folga, e um lote
-  // que não acaba nada é uma ida ao Storage para nada.
-  if (restante < 5_000) return;
+  const restante = ORCAMENTO_MS - (Date.now() - desdeMs);
+  // Pouco tempo não chega para um bloco com folga, e um lote que não acaba
+  // nada é uma ida ao Storage para nada.
+  if (restante < MINIMO_DERIVADAS_MS) return;
   try {
+    const retoma = await comPrazo(retomaDaNoiteAnterior(), 3_000, "retoma das derivadas").catch(
+      () => null,
+    );
     // Sem papel: faz as ESSENCIAIS primeiro em toda a biblioteca e só depois o
     // AVIF — a ordem está explicada no `gerarLoteDeDerivadas`, e é a que faz
     // parar a meio deixar as coisas melhores do que estavam.
-    const r = await gerarLoteDeDerivadas(undefined, { tectoMs: restante });
+    const tectoMs = ORCAMENTO_MS - (Date.now() - desdeMs) - FOLGA_DO_BLOCO_MS;
+    const prazo = ORCAMENTO_MS - (Date.now() - desdeMs) - 2_000;
+    const r = await comPrazo(
+      gerarLoteDeDerivadas(undefined, { tectoMs, retoma }),
+      prazo,
+      "derivadas em atraso",
+    );
+    await comPrazo(guardarRetoma(r.retoma), 3_000, "guardar a retoma").catch(() => undefined);
     if (r.fotografiasFeitas > 0 || r.falhas.length > 0) {
       log.info("cron reminders: derivadas apanhadas de caminho", {
         fotografias: r.fotografiasFeitas,
@@ -161,7 +221,7 @@ async function oResumoDeHoje(request: NextRequest) {
      */
     const faltou: string[] = [];
     const ler = <T>(nome: string, leitura: Promise<T[]>): Promise<T[]> =>
-      leitura.catch((err) => {
+      comPrazo(leitura, PRAZO_LEITURA_MS, `leitura de ${nome}`).catch((err) => {
         log.error("cron reminders: uma leitura falhou — o resumo de hoje está incompleto", err, {
           conjunto: nome,
         });
@@ -297,11 +357,20 @@ async function oResumoDeHoje(request: NextRequest) {
       return NextResponse.json({ sent: 0, reason: "nada a notificar" });
     }
 
-    const { sent, failed, semLista } = await sendPushToAll({
-      title: "Resumo Líquen · hoje",
-      body: lines.join(" · "),
-      url: "/orcamento/admin",
-      tag: "resumo-diario",
+    // Um serviço de push que não responde não pode levar a função atrás: ao
+    // fim do prazo conta como «não chegou» (`semLista`), e a resposta di-lo.
+    const { sent, failed, semLista } = await comPrazo(
+      sendPushToAll({
+        title: "Resumo Líquen · hoje",
+        body: lines.join(" · "),
+        url: "/orcamento/admin",
+        tag: "resumo-diario",
+      }),
+      PRAZO_PUSH_MS,
+      "envio do push",
+    ).catch((err: unknown) => {
+      log.error("cron reminders: o envio do push passou do prazo", err);
+      return { sent: 0, failed: 0, semLista: true };
     });
 
     // `falhados` sai na resposta porque HAVIA o que dizer e não chegou a

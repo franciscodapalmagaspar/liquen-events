@@ -81,6 +81,8 @@ function paraOServico(sub: PushSub): webpush.PushSubscription {
 }
 
 const TABLE = "push_subscriptions";
+/** Quanto se espera por cada serviço de push (Google, Apple, Mozilla). */
+const PRAZO_POR_ENVIO_MS = 8_000;
 const DATA_FILE = path.join(process.cwd(), "data", "push-subscriptions.json");
 
 let configured = false;
@@ -277,7 +279,12 @@ export async function sendPushToAll(
         return;
       }
       try {
-        await webpush.sendNotification(paraOServico(sub), conta ? body : bodyGenerico);
+        // Um serviço de push que não responde não pode pendurar quem envia
+        // (a rotina da manhã tem prazo: ver `cron/reminders`). Conta como
+        // falha sem código, como um erro de rede.
+        await webpush.sendNotification(paraOServico(sub), conta ? body : bodyGenerico, {
+          timeout: PRAZO_POR_ENVIO_MS,
+        });
         sent++;
       } catch (err: unknown) {
         const code = (err as { statusCode?: number }).statusCode;
