@@ -1,13 +1,11 @@
 "use client";
 
-import { type Dispatch, type KeyboardEvent, type RefObject, type SetStateAction } from "react";
-import { type LeituraFalhada } from "@/lib/porque-nao-leu";
-import { type AvaliacaoDaFoto } from "@/lib/qualidade-da-foto";
-import { type ThemeImage } from "@/lib/theme-types";
+import type { Dispatch, SetStateAction } from "react";
 import { CuradoriaDeFotos } from "../../CuradoriaDeFotos";
 import { PaginaEmConstrucao, type FotoDaPagina } from "../../PaginaEmConstrucao";
 import { Ajuda, Button } from "../../ui";
 import { GrelhaDoSeletor } from "./GrelhaDoSeletor";
+import type { FotosDoSeletor, NavegacaoDaGrelha, SeleccaoDoSeletor } from "./tipos-do-seletor";
 
 /** A coluna da direita do seletor: a barra da selecção e a grelha das
  *  fotografias do tema escolhido. (Saiu do `ThemePicker.tsx` na fase 8 da
@@ -18,75 +16,31 @@ export interface FotosDoTemaProps {
   paginaEmConstrucao:
     | { titulo?: string; fotos: readonly FotoDaPagina[]; maximo: number }
     | undefined;
-  themeId: string | null;
-  images: ThemeImage[];
-  truncated: boolean;
-  unreadable: boolean;
-  falhaFotos: LeituraFalhada | null;
-  loadingImages: boolean;
-  loadingMore: boolean;
-  selected: string[];
-  setSelected: Dispatch<SetStateAction<string[]>>;
-  focusIndex: number;
-  setFocusIndex: Dispatch<SetStateAction<number>>;
-  setPreviewIndex: Dispatch<SetStateAction<number | null>>;
-  gridRef: RefObject<HTMLDivElement | null>;
-  scrollRef: RefObject<HTMLDivElement | null>;
-  selectedSet: Set<string>;
-  pendingSet: Set<string>;
-  usedSet: Set<string>;
-  failedPaths: string[];
   aEntrar: FotoDaPagina[];
-  remaining: number | null;
-  hasMore: boolean;
-  loadMore: () => Promise<void>;
   setCuradoria: Dispatch<SetStateAction<boolean>>;
   curadoria: boolean;
   largoQueChegue: boolean;
-  toggleAt: (index: number, extend: boolean) => void;
-  selectAllVisible: () => void;
-  decidirNaCuradoria: (path: string, incluir: boolean) => void;
-  onGridKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
-  qualidadeDe: (im: ThemeImage) => AvaliacaoDaFoto | null;
-  atLimit: boolean;
+  fotos: FotosDoSeletor;
+  seleccao: SeleccaoDoSeletor;
+  navegacao: NavegacaoDaGrelha;
 }
 
 export function FotosDoTema({
   multiple,
   usadasNoutras,
   paginaEmConstrucao,
-  themeId,
-  images,
-  truncated,
-  unreadable,
-  falhaFotos,
-  loadingImages,
-  loadingMore,
-  selected,
-  setSelected,
-  focusIndex,
-  setFocusIndex,
-  setPreviewIndex,
-  gridRef,
-  scrollRef,
-  selectedSet,
-  pendingSet,
-  usedSet,
-  failedPaths,
   aEntrar,
-  remaining,
-  hasMore,
-  loadMore,
   setCuradoria,
   curadoria,
   largoQueChegue,
-  toggleAt,
-  selectAllVisible,
-  decidirNaCuradoria,
-  onGridKeyDown,
-  qualidadeDe,
-  atLimit,
+  fotos,
+  seleccao,
+  navegacao,
 }: FotosDoTemaProps) {
+  const { images, hasMore } = fotos;
+  const { selected, selectedSet, usedSet, atLimit, selectAllVisible, decidirNaCuradoria, limpar } =
+    seleccao;
+  const { setPreviewIndex } = navegacao;
   return (
     <>
       {/* A coluna da direita: a barra de selecção e a grelha. Um invólucro só,
@@ -115,7 +69,7 @@ export function FotosDoTema({
                 : `Escolher as ${images.length} deste tema`}
             </Button>
             {selected.length > 0 && (
-              <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
+              <Button size="sm" variant="ghost" onClick={limpar}>
                 Limpar seleção
               </Button>
             )}
@@ -194,29 +148,9 @@ export function FotosDoTema({
           ) : (
             <GrelhaDoSeletor
               usadasNoutras={usadasNoutras}
-              themeId={themeId}
-              images={images}
-              truncated={truncated}
-              unreadable={unreadable}
-              falhaFotos={falhaFotos}
-              loadingImages={loadingImages}
-              loadingMore={loadingMore}
-              focusIndex={focusIndex}
-              setFocusIndex={setFocusIndex}
-              setPreviewIndex={setPreviewIndex}
-              gridRef={gridRef}
-              scrollRef={scrollRef}
-              selectedSet={selectedSet}
-              pendingSet={pendingSet}
-              usedSet={usedSet}
-              failedPaths={failedPaths}
-              remaining={remaining}
-              hasMore={hasMore}
-              loadMore={loadMore}
-              toggleAt={toggleAt}
-              onGridKeyDown={onGridKeyDown}
-              qualidadeDe={qualidadeDe}
-              atLimit={atLimit}
+              fotos={fotos}
+              seleccao={seleccao}
+              navegacao={navegacao}
             />
           )}
 

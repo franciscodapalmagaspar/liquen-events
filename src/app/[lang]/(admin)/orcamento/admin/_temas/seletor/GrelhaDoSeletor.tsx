@@ -1,13 +1,11 @@
 "use client";
 
-import { type Dispatch, type KeyboardEvent, type RefObject, type SetStateAction } from "react";
-import { type LeituraFalhada } from "@/lib/porque-nao-leu";
-import { type AvaliacaoDaFoto } from "@/lib/qualidade-da-foto";
-import { THEME_PAGE_SIZE, type ThemeImage } from "@/lib/theme-types";
+import { THEME_PAGE_SIZE } from "@/lib/theme-types";
 import { Button } from "../../ui";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
 import { plural } from "@/lib/plural";
 import { ABOVE_FOLD, GRELHA_DE_FOTOS, Photo } from "./FotoDoSeletor";
+import type { FotosDoSeletor, NavegacaoDaGrelha, SeleccaoDoSeletor } from "./tipos-do-seletor";
 import { themeScroll } from "./posicao-do-rolo";
 
 /** A grelha das fotografias do tema no seletor — a carregar, vazia, com erro,
@@ -15,57 +13,33 @@ import { themeScroll } from "./posicao-do-rolo";
  *  seletor na fase 8 da estrutura do código, tal e qual.) */
 export interface GrelhaDoSeletorProps {
   usadasNoutras: Readonly<Record<string, string>> | undefined;
-  themeId: string | null;
-  images: ThemeImage[];
-  truncated: boolean;
-  unreadable: boolean;
-  falhaFotos: LeituraFalhada | null;
-  loadingImages: boolean;
-  loadingMore: boolean;
-  focusIndex: number;
-  setFocusIndex: Dispatch<SetStateAction<number>>;
-  setPreviewIndex: Dispatch<SetStateAction<number | null>>;
-  gridRef: RefObject<HTMLDivElement | null>;
-  scrollRef: RefObject<HTMLDivElement | null>;
-  selectedSet: Set<string>;
-  pendingSet: Set<string>;
-  usedSet: Set<string>;
-  failedPaths: string[];
-  remaining: number | null;
-  hasMore: boolean;
-  loadMore: () => Promise<void>;
-  toggleAt: (index: number, extend: boolean) => void;
-  onGridKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
-  qualidadeDe: (im: ThemeImage) => AvaliacaoDaFoto | null;
-  atLimit: boolean;
+  fotos: FotosDoSeletor;
+  seleccao: SeleccaoDoSeletor;
+  navegacao: NavegacaoDaGrelha;
 }
 
 export function GrelhaDoSeletor({
   usadasNoutras,
-  themeId,
-  images,
-  truncated,
-  unreadable,
-  falhaFotos,
-  loadingImages,
-  loadingMore,
-  focusIndex,
-  setFocusIndex,
-  setPreviewIndex,
-  gridRef,
-  scrollRef,
-  selectedSet,
-  pendingSet,
-  usedSet,
-  failedPaths,
-  remaining,
-  hasMore,
-  loadMore,
-  toggleAt,
-  onGridKeyDown,
-  qualidadeDe,
-  atLimit,
+  fotos,
+  seleccao,
+  navegacao,
 }: GrelhaDoSeletorProps) {
+  const {
+    themeId,
+    images,
+    truncated,
+    unreadable,
+    falhaFotos,
+    loadingImages,
+    loadingMore,
+    failedPaths,
+    remaining,
+    hasMore,
+    loadMore,
+  } = fotos;
+  const { selectedSet, pendingSet, usedSet, toggleAt, qualidadeDe, atLimit } = seleccao;
+  const { focusIndex, setFocusIndex, setPreviewIndex, gridRef, scrollRef, onGridKeyDown } =
+    navegacao;
   return (
     <>
       {/* Fotos */}
