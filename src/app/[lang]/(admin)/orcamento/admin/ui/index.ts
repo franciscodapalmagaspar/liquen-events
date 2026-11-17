@@ -105,5 +105,5 @@ export { ESTADO, PRESSAO, PROGRESSO, TOQUE_MS, ESTADO_MS, PROGRESSO_MS } from ".
  * A superfície de vidro. Uma por ecrã — vidro sobre vidro duplica o custo e
  * transforma o fundo em papa cinzenta (`docs/LIQUID-GLASS.md`, Parte 5).
  */
-export { Glass } from "./Glass";
-export type { GlassProps, SuperficieDeVidro } from "./Glass";
+export { Glass } from "@/components/Glass";
+export type { GlassProps, SuperficieDeVidro } from "@/components/Glass";

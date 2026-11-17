@@ -8,6 +8,7 @@ import { localizeHref, type Locale } from "@/lib/i18n/config";
 import { ALTURA_BARRA_FIXA_PX, ehRotaSocial } from "@/lib/meta/barra";
 import { aoMudarConsentimento } from "@/lib/meta/click-id";
 import { aplicarConsentimentoGoogle } from "@/components/GoogleTag";
+import { Glass } from "@/components/Glass";
 
 // Minimal RGPD cookie-consent bar. It only governs the Google tag's Consent
 // Mode signals (ad/analytics cookies) — the site's own first-party essentials
@@ -175,7 +176,10 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
   const acimaDaBarra = ehRotaSocial(pathname);
 
   return (
-    <div
+    <Glass
+      superficie="painel"
+      quando="(pointer: fine)"
+      adiar
       // role="region" (a labelled landmark), NOT "dialog": the bar is
       // non-modal — it doesn't trap focus or block the page, so a dialog role
       // would be a false modal claim. It also kept colliding with the real
@@ -267,8 +271,30 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
        * da entrada: o browser volta a desfocar o vídeo em cada fotograma. É o
        * mesmo custo que já o tinha tirado dos ecrãs de toque. Fica igual em
        * todo o lado: 75 % sem desfoque, o mínimo para o texto passar 4,5:1.
+       *
+       * ── LIQUID GLASS, COMO NO IPHONE (17/11) ──────────────────────────
+       * Ele: «os cookies eu quero colocar transparente iphone». A barra é um
+       * `<Glass>` — o MESMO motor do back office (`lib/liquid-glass.ts`), e não
+       * um segundo vidro — na linha «painel, cartão» da tabela da Parte 3 do
+       * `docs/LIQUID-GLASS.md` (bisel 16, força 12, desfoque 2, saturação
+       * 1,5): o fundo dobra na aresta em vez de só se desfocar.
+       *
+       *  · Só com rato (`quando`). No toque fica a tinta e o rebordo, que
+       *    são CSS: o desfoque num `fixed` já engasgou o deslize do iPhone
+       *    (globals.css, «NO TOQUE, O AVISO NÃO DESFOCA»).
+       *  · `adiar`: o motor chega quando o browser fica livre, por `import()`.
+       *    Na primeira pintura (o LCP de várias páginas é ESTE texto) só há
+       *    CSS, e o JavaScript do arranque não cresce.
+       *  · A tinta passa ao `sage-800` a 72 %: o `sage-700` a 75 % dava 4,39:1
+       *    sobre uma página branca (MEDIDO na captura; a conta dava 4,44), e
+       *    o verde mais fundo deixa ver mais do fundo com mais contraste —
+       *    ~4,97:1 no pior caso, que é o branco liso (a refracção e o
+       *    desfoque não clareiam o branco). O teste refaz a conta pelos tokens.
+       *  · Sem transparência (`prefers-reduced-transparency`,
+       *    `prefers-contrast: more`) fica opaca; nas cores forçadas, as do
+       *    sistema (globals.css).
        */
-      className="barra-consentimento fixed inset-x-3 z-[70] rounded-2xl border border-white/12 bg-sage-700/75 px-4 py-3.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] sm:inset-x-auto sm:left-5 sm:w-[22rem]"
+      className="barra-consentimento fixed inset-x-3 z-[70] rounded-2xl border border-white/12 bg-sage-800/72 px-4 py-3.5 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] sm:inset-x-auto sm:left-5 sm:w-[22rem]"
       style={{
         // Fora das rotas sociais nada muda: `bottom: 0` (da classe) e o
         // preenchimento a respeitar a zona segura do iPhone.
@@ -322,6 +348,6 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
           </button>
         </div>
       </div>
-    </div>
+    </Glass>
   );
 }

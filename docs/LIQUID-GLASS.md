@@ -1,7 +1,7 @@
 # Liquid Glass a sério no back office da Líquen
 
 > Este documento é dela, e está aqui inteiro a partir da **Parte 1**. A
-> **Parte −1** é a única coisa acrescentada: as quatro decisões em que a
+> **Parte −1** é a única coisa acrescentada: as cinco decisões em que a
 > execução se afastou do que ele manda, e porquê. Quem vier a seguir lê essa
 > primeira e o resto tal como ela o escreveu.
 
@@ -42,6 +42,31 @@ prova: uma barra `position: fixed` com `left: 6%; right: 6%` passou de 1056 px
 para os 1200 px do ecrã inteiro, com o canto direito quadrado a sair fora da
 imagem. Quem trata disso é o `Glass.tsx`, e só quando o elemento é `static` —
 que é como o `cluster()` do ficheiro dela já o fazia.
+
+**5. O vidro saiu do back office para a barra de cookies do site (17/11).**
+Pedido dele: «os cookies eu quero colocar transparente iphone». O documento
+escreve-se para o back office; esta é a primeira superfície pública, e usa o
+MESMO motor — o `<Glass>` mudou-se para `src/components/Glass.tsx` e o rebordo
+`.lg` para o `globals.css`, a folha que as duas casas carregam. Quatro coisas
+que o documento não previa, porque o site paga o que o back office não paga:
+
+- **O motor chega por `import()`**, e na barra só quando o browser fica livre
+  (`adiar`). O JavaScript do arranque não cresce (o motor é um pedaço à parte,
+  5,6 KB / 2,5 KB comprimido, que nunca vem no HTML).
+- **No toque não se monta** (`quando="(pointer: fine)"`): um `backdrop-filter`
+  num elemento `fixed` já engasgou o deslize do iPhone uma vez
+  (`scroll-no-iphone.contrato.test.ts`, ponto 4). No telemóvel a barra leva a
+  tinta e o rebordo, que são CSS.
+- **Quem pede menos transparência, mais contraste ou cores forçadas não leva
+  vidro** — o `<Glass>` não monta o motor, e o CSS tira o `backdrop-filter`
+  com `!important` se a preferência mudar com a página aberta. Vale também no
+  back office.
+- **A tinta é o que segura o contraste**: a refracção não clareia uma página
+  branca lisa, que é o pior fundo para letra branca. `sage-800` a 72 % dá
+  4,9–5,0:1 medido na captura (`ConsentBanner.contraste.test.ts` refaz a conta
+  pelos tokens). E a regra da camada única conta-se por teste
+  (`vidro-do-site.test.ts`): enquanto a barra está no ecrã, os outros desfoques
+  do site levam `vidro-cede` e largam-no.
 
 ### O que ficou provado, e como
 

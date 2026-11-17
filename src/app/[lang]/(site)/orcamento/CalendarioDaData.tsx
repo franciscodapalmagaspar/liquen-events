@@ -300,7 +300,7 @@ export default function CalendarioDaData({
             aria-label={textos.calendario}
             onKeyDown={teclaNaCaixa}
             onBlur={aoSairDaCaixa}
-            className="fixed z-[65] w-[19.5rem] origin-top-left rounded-[18px] border border-foreground/10 bg-white/90 p-3.5 shadow-[0_18px_48px_-14px_rgba(42,38,32,0.32)] backdrop-blur-xl backdrop-saturate-150 transition-[opacity,scale] duration-elemento ease-snappy starting:scale-[0.96] starting:opacity-0 motion-reduce:transition-none"
+            className="vidro-cede fixed z-[65] w-[19.5rem] origin-top-left rounded-[18px] border border-foreground/10 bg-white/90 p-3.5 shadow-[0_18px_48px_-14px_rgba(42,38,32,0.32)] backdrop-blur-xl backdrop-saturate-150 transition-[opacity,scale] duration-elemento ease-snappy starting:scale-[0.96] starting:opacity-0 motion-reduce:transition-none"
           >
             <div className="mb-2 flex items-center justify-between pl-1.5">
               <button
