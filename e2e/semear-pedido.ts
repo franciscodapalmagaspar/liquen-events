@@ -42,7 +42,7 @@ import { expect, test, type Page } from "@playwright/test";
 const SUBMISSION_ID = "e2e-semente-de-pedido";
 
 /** O que o formulário público envia. Os campos são os mínimos do schema. */
-function payload(nome: string) {
+function payload(nome: string, submissionId = SUBMISSION_ID) {
   return {
     form: {
       name: nome,
@@ -57,7 +57,7 @@ function payload(nome: string) {
     },
     // O honeypot vazio — um visitante verdadeiro nunca o preenche.
     website: "",
-    submissionId: SUBMISSION_ID,
+    submissionId,
   };
 }
 
@@ -374,5 +374,87 @@ export async function garantirPedido(page: Page, nome = "Semente E2E"): Promise<
       `A causa habitual é o servidor ser um build de PRODUÇÃO sem Supabase: o ` +
       `Repository recusa toda a escrita (assertWritableInProd, src/lib/repository.ts). ` +
       `Estes passeios correm com servidor próprio — ver playwright.dados.config.ts.`,
+  );
+}
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * UM PEDIDO SÓ DESTE PASSEIO — PROCURADO PELO NOME, E NUNCA «O PRIMEIRO»
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O `garantirPedido` reaproveita o PRIMEIRO pedido da lista, e no CI esse é de
+ * outra suite. A 17/11 o `o-total-nunca-sai` (390 px) ficou vermelho três vezes
+ * seguidas por isso: o primeiro pedido do «Fazer proposta» era uma «Rita e
+ * Tomás» do `o-iphone-com-barras`, que grava um rascunho com UMA linha de
+ * 3000 € COM PREÇO. Com serviços com preço, o «Valor (sem IVA)» é a soma e fica
+ * só de leitura — de propósito (`somarOTotal` no estúdio). O rascunho do
+ * servidor chega 2 a 6 s depois de o estúdio abrir (no `next dev`); quando
+ * chegava antes do `fill`, o campo já era só de leitura e o passeio esperava
+ * 150 s por um campo que nunca ia deixar de o ser. Medido nas duas cabeças do
+ * lote (5e262f96 e aadfc89d): o mesmo, com ou sem as janelas a pedido.
+ *
+ * Quem precisa de ESCREVER num campo que depende do que o pedido já tem usa um
+ * pedido seu. O `submissionId` fixo torna a criação idempotente — corre mil
+ * vezes, fica um — e só se cria quando não existe, para não gastar o tecto de
+ * cinco pedidos por minuto da rota.
+ */
+export async function garantirPedidoProprio(
+  page: Page,
+  { nome, submissionId }: { nome: string; submissionId: string },
+): Promise<string> {
+  const procurar = async (): Promise<string | null> => {
+    for (let tentativa = 0; tentativa < 10; tentativa += 1) {
+      const res = await page.request.get("/api/orcamento");
+      if (res.status() === 401) {
+        await page.waitForTimeout(300);
+        continue;
+      }
+      expect(res.ok(), `GET /api/orcamento respondeu ${res.status()}`).toBe(true);
+      const lista: unknown = await res.json();
+      if (!Array.isArray(lista)) return null;
+      const meu = lista.find(
+        (q: { name?: unknown; archived?: unknown }) => q?.name === nome && !q?.archived,
+      ) as { id?: unknown } | undefined;
+      return typeof meu?.id === "string" && meu.id ? meu.id : null;
+    }
+    throw new Error(
+      "GET /api/orcamento respondeu 401 dez vezes seguidas — a sessão do back office não chegou ao contexto de pedidos.",
+    );
+  };
+
+  const existente = await procurar();
+  if (existente) return existente;
+
+  const res = await page.request.post("/api/orcamento", { data: payload(nome, submissionId) });
+  if (res.ok()) {
+    const id = (await res.json())?.id;
+    expect(typeof id === "string" && id.length > 0, "o POST /api/orcamento devolveu um id").toBe(
+      true,
+    );
+    // A lista do back office lê-se ao montar: sem recarregar, não sabe deste.
+    if (!page.url().startsWith("about:")) await page.reload();
+    return id as string;
+  }
+
+  // O tecto da rota (cinco por minuto): espera-se que a janela passe — a ver,
+  // entretanto, se outro trabalhador já o criou — e tenta-se UMA vez mais.
+  // Insistir a cada segundo gastava o próprio tecto que se está a esperar.
+  const corpo = await res.text().catch(() => "");
+  for (let segundo = 0; segundo < 62; segundo += 1) {
+    await page.waitForTimeout(1000);
+    const tardio = await procurar();
+    if (tardio) return tardio;
+  }
+  const outra = await page.request.post("/api/orcamento", { data: payload(nome, submissionId) });
+  if (outra.ok()) {
+    const id = (await outra.json())?.id;
+    if (typeof id === "string" && id) {
+      if (!page.url().startsWith("about:")) await page.reload();
+      return id;
+    }
+  }
+  throw new Error(
+    `Não foi possível criar o pedido «${nome}»: POST /api/orcamento respondeu ${res.status()}.\n` +
+      `Resposta: ${corpo.slice(0, 300)}`,
   );
 }
