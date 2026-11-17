@@ -86,7 +86,15 @@ import {
   printEventDossier,
   downloadEventIcs,
 } from "./export";
-import { prefetchList } from "./useCachedList";
+import { lerDaCache, prefetchList } from "./useCachedList";
+import { temasEmCache } from "./theme-picker-cache";
+import {
+  montarGruposDaProcura,
+  type GrupoDaProcura,
+  type PedidoDaPaleta,
+  type PropostaDaProcura,
+} from "./procura-em-tudo";
+import { aEscrever, procuraDaVista, VIEW_KEYS } from "./atalhos";
 import { separadorQuandoAPropostaChega, type SeparadorPorDecidir } from "./separador-por-decidir";
 import {
   useGravacaoAutomatica,
@@ -454,18 +462,8 @@ function detailNextAction(
   }
 }
 
-// Single-key destinations for the "g then <key>" navigation chord.
-const VIEW_KEYS: Record<string, View> = {
-  o: "overview",
-  p: "pedidos",
-  k: "kanban",
-  c: "clientes",
-  a: "calendario",
-  r: "propostas",
-  t: "tarefas",
-  f: "fornecedores",
-  e: "estatisticas",
-};
+// The "g then <key>" navigation chord lives in `atalhos.ts` (VIEW_KEYS), so the
+// shortcuts sheet reads the same table the listener does.
 const VIEW_STORAGE_KEY = "liquen-admin-view";
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -1582,6 +1580,21 @@ export default function AdminClient({
   /** A procura com que «Propostas» abre quando se chega lá a partir de outra
    *  vista («Ver em Propostas» do Fazer proposta). */
   const [procuraEmPropostas, setProcuraEmPropostas] = useState("");
+  /**
+   * O que a paleta pediu a uma vista (BO 4): abrir uma tarefa, uma marcação, um
+   * tema, ou abrir a vista já filtrada. Um objecto novo por escolha — a vista
+   * serve-o uma vez (`servirUmaVez`), e voltar a ela mais tarde não o repete.
+   */
+  const [pedidoDaPaleta, setPedidoDaPaleta] = useState<{
+    vista: View;
+    pedido: PedidoDaPaleta;
+  } | null>(null);
+  const pedidoPara = (v: View): PedidoDaPaleta | undefined =>
+    pedidoDaPaleta?.vista === v ? pedidoDaPaleta.pedido : undefined;
+  const irComPedido = useCallback((vista: View, pedido: PedidoDaPaleta) => {
+    setPedidoDaPaleta({ vista, pedido: { ...pedido } });
+    setView(vista);
+  }, []);
   const [navOpen, setNavOpen] = useState(false);
   // A gaveta é modal: com ela aberta, o Tab passeava pelo fundo desfocado
   // (Ajuda → Tudo guardado → Pesquisar → Novo) e o foco ficava no botão que a
@@ -1709,6 +1722,7 @@ export default function AdminClient({
   const [passkeysOpen, setPasskeysOpen] = useState(false);
   const [ajudaOpen, setAjudaOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const haSeleccao = selectedIds.size > 0;
   /**
    * O LOTE QUE ESTÁ A CORRER, E QUANTOS JÁ LÁ VÃO.
    *
@@ -2876,12 +2890,6 @@ export default function AdminClient({
     }
   }, [filterStatus, sort]);
 
-  // Jump straight to Pedidos and focus the search box.
-  const focusSearch = useCallback(() => {
-    setView("pedidos");
-    requestAnimationFrame(() => searchRef.current?.focus());
-  }, []);
-
   /**
    * ── UMA JANELA À FRENTE CALA OS ATALHOS DE UMA TECLA ──────────────────────
    *
@@ -2903,11 +2911,39 @@ export default function AdminClient({
      desenho. Sem isto, o ⌘N das Tarefas ou nunca disparava ou disparava em
      todas as vistas — conforme a que estivesse aberta ao montar. */
   const viewRef = useRef(view);
+  /** Os pedidos À VISTA (filtrados), para o ⌘A — ver o ouvinte de teclado. */
+  const filtradosRef = useRef<string[]>([]);
   useEffect(() => {
     janelaAbertaRef.current = janelaAberta;
     paletteAbertaRef.current = paletteOpen;
     viewRef.current = view;
   }, [janelaAberta, paletteOpen, view]);
+
+  /**
+   * ── O `/` FOCA A PROCURA DA VISTA ONDE SE ESTÁ (BO 4) ─────────────────────
+   *
+   * Era sempre o `focusSearch`: ia para os Pedidos e focava a procura deles,
+   * estivesse ela onde estivesse. Agora foca o campo de procura da vista aberta
+   * (`procuraDaVista`, em `atalhos.ts`); nos Pedidos continua a ser o mesmo
+   * campo de sempre. Numa vista sem procura — ou com ela fora do ecrã, como
+   * dentro de uma pasta de tema — abre a procura em tudo, que é a que serve
+   * qualquer sítio.
+   */
+  const focarProcuraDaVista = useCallback(() => {
+    const vista = viewRef.current;
+    if (vista === "pedidos" && searchRef.current) {
+      searchRef.current.focus();
+      return;
+    }
+    const seletor = procuraDaVista(vista);
+    const campo = seletor
+      ? [...document.querySelectorAll<HTMLInputElement>(seletor)].find(
+          (c) => !c.disabled && !c.closest("[inert], [aria-hidden='true']"),
+        )
+      : undefined;
+    if (campo) campo.focus();
+    else setPaletteOpen(true);
+  }, []);
 
   // Global keyboard shortcuts. ⌘K works anywhere; the rest are ignored while
   // typing so they never fight with form fields.
@@ -2944,13 +2980,30 @@ export default function AdminClient({
         return;
       }
 
-      const el = e.target as HTMLElement | null;
-      const typing =
-        !!el &&
-        (el.tagName === "INPUT" ||
-          el.tagName === "TEXTAREA" ||
-          el.tagName === "SELECT" ||
-          el.isContentEditable);
+      const typing = aEscrever(e.target);
+
+      /* ── ⌘A NOS PEDIDOS SELECIONA O QUE ESTÁ À VISTA (BO 4) ──────────────
+         O que está FILTRADO, e não a lista inteira: é o mesmo conjunto que o
+         «Selecionar todos (N)» da barra do lote já selecciona, e o mesmo sobre
+         que os botões do lote agem (`seleccionadosAVista`). Num campo o ⌘A é
+         do campo — seleccionar o texto que se escreveu —, e com uma janela à
+         frente é dela. Noutras vistas é do browser, ou da vista (os Temas e as
+         Tarefas têm o seu). */
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === "a" &&
+        viewRef.current === "pedidos"
+      ) {
+        if (typing || janelaAbertaRef.current || paletteAbertaRef.current) return;
+        const ids = filtradosRef.current;
+        if (ids.length === 0) return;
+        e.preventDefault();
+        setSelectedIds(new Set(ids));
+        return;
+      }
+
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
       if (janelaAbertaRef.current || paletteAbertaRef.current) return;
 
@@ -2974,7 +3027,7 @@ export default function AdminClient({
         setNewQuoteOpen(true);
       } else if (e.key === "/") {
         e.preventDefault();
-        focusSearch();
+        focarProcuraDaVista();
       } else if (e.key === "?") {
         e.preventDefault();
         setShortcutsOpen(true);
@@ -2985,7 +3038,7 @@ export default function AdminClient({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focusSearch]);
+  }, [focarProcuraDaVista]);
 
   // Escape dismisses the open drawer/nav — but only when no modal is capturing
   // it (the palette / new-quote / shortcuts dialogs handle their own Escape).
@@ -3012,6 +3065,10 @@ export default function AdminClient({
           // pisca no outro lê-se como duas coisas diferentes.
           sairDoPainel(selected.id);
         }
+      } else if (viewRef.current === "pedidos" && haSeleccao && aApagarLote === null) {
+        // A camada de topo, quando não há painel nem gaveta, é a selecção do
+        // lote: o Esc limpa-a (BO 4), como nos Temas e nas Tarefas.
+        setSelectedIds(new Set());
       }
     };
     window.addEventListener("keydown", onEsc);
@@ -3025,6 +3082,8 @@ export default function AdminClient({
     navOpen,
     selected,
     sairDoPainel,
+    haSeleccao,
+    aApagarLote,
   ]);
 
   // Lock background scroll while the mobile nav drawer is open. O trinco é o
@@ -3206,6 +3265,48 @@ export default function AdminClient({
     };
   }, [selected, isDetailOverlay]);
 
+  /**
+   * ── A PROCURA EM TUDO, LIDA DA MEMÓRIA NO INSTANTE EM QUE A PALETA ABRE ──
+   *
+   * BO 4. Cada grupo vem de uma lista que o back office JÁ tem — as que o
+   * aquecimento em ociosidade traz (propostas leves, tarefas, calendário), a
+   * dos temas, e as dos contratos, fornecedores e material quando alguém já as
+   * abriu. `lerDaCache` só lê o `Map`: a paleta não faz pedido nenhum ao
+   * servidor nem leitura nenhuma ao Supabase. O que não está na memória não
+   * aparece — e não se vai buscar só para isto (ver `procura-em-tudo.ts`).
+   *
+   * Lido ao ABRIR (e não a cada render): a cache não avisa este ecrã quando
+   * muda, e uma paleta aberta é um instante. Reabrir lê outra vez.
+   */
+  const gruposDaProcura: GrupoDaProcura[] = useMemo(() => {
+    if (!paletteOpen) return [];
+    return montarGruposDaProcura(
+      {
+        propostas: lerDaCache<PropostaDaProcura[]>("propostas-leves"),
+        tarefas: lerDaCache("tarefas"),
+        calendario: lerDaCache("calendario"),
+        temas: temasEmCache(),
+        contratos: lerDaCache("contratos"),
+        fornecedores: lerDaCache("fornecedores"),
+        material: lerDaCache("material"),
+      },
+      {
+        // As Propostas não têm detalhe próprio: abrem filtradas pelo nome do
+        // casal, pela mesma porta do «Ver em Propostas» do Fazer proposta.
+        proposta: (p) => {
+          setProcuraEmPropostas(p.clientName ?? "");
+          irComPedido("propostas", { procura: p.clientName ?? "" });
+        },
+        tarefa: (t) => irComPedido("tarefas", { id: t.id }),
+        marcacao: (e) => irComPedido("calendario", { id: e.id }),
+        tema: (t) => irComPedido("temas", { id: t.id }),
+        contrato: (c) => irComPedido("contratos", { procura: c.clientName ?? "" }),
+        fornecedor: (f) => irComPedido("fornecedores", { procura: f.name }),
+        material: (m) => irComPedido("material", { procura: m.name }),
+      },
+    );
+  }, [paletteOpen, irComPedido]);
+
   const paletteCommands: Command[] = useMemo(
     () => [
       {
@@ -3240,14 +3341,45 @@ export default function AdminClient({
         group: "Ações",
         run: () => setRestoreOpen(true),
       },
-      ...NAV.map((item) => ({
+      /* ── OS QUATRO COMANDOS DE BO 4 ──────────────────────────────────────
+         Cada um faz o que o botão da sua vista faz, pela mesma porta: a
+         tarefa abre a linha de escrever das Tarefas, o evento abre o «Novo no
+         calendário», a proposta leva ao Fazer proposta, e os atalhos abrem a
+         folha que o «?» abre. */
+      {
+        id: "action-new-task",
+        label: "Nova tarefa",
+        group: "Ações",
+        run: () => irComPedido("tarefas", { novo: true }),
+      },
+      {
+        id: "action-new-event",
+        label: "Novo evento",
+        group: "Ações",
+        run: () => irComPedido("calendario", { novo: true }),
+      },
+      {
+        id: "action-fazer-proposta",
+        label: "Fazer proposta",
+        group: "Ações",
+        run: () => setView("fazer-proposta"),
+      },
+      {
+        id: "action-shortcuts",
+        label: "Atalhos de teclado",
+        group: "Ações",
+        run: () => setShortcutsOpen(true),
+      },
+      // O «Fazer proposta» já está nas Ações, por cima: no Navegar seria a
+      // mesma linha duas vezes.
+      ...NAV.filter((item) => item.id !== "fazer-proposta").map((item) => ({
         id: `nav-${item.id}`,
         label: item.label,
         group: "Navegar",
         run: () => setView(item.id),
       })),
     ],
-    [quotes, toast, descarregarCopia],
+    [quotes, toast, descarregarCopia, irComPedido],
   );
 
   /**
@@ -4408,6 +4540,83 @@ export default function AdminClient({
     }
   }
 
+  /**
+   * ── ARQUIVAR E RESTAURAR EM LOTE (BO 4) ────────────────────────────────────
+   *
+   * O mesmo gesto do «Arquivar pedido» do painel, a N pedidos de uma vez: o
+   * mesmo `PATCH { archived }`, o mesmo contador do lote (`EmCurso`, a subir a
+   * cada um que responde — ver `applyBulkStatus`), e o «Anular» da casa, que
+   * devolve ao estado de antes só os que mudaram.
+   *
+   * Sem pergunta antes, ao contrário do painel: aqui o «Anular» está no aviso
+   * durante 10 s e repõe os N, e arquivar não perde nada — tira da lista e
+   * mais nada. Uma pergunta e um «Anular» para o mesmo gesto é um a mais.
+   */
+  async function applyBulkArchive(arquivar: boolean, ids: string[]) {
+    if (ids.length === 0 || bulkBusy) return;
+    setLote({
+      titulo: arquivar ? "A arquivar os pedidos…" : "A restaurar os pedidos…",
+      feito: 0,
+      total: ids.length,
+    });
+    const mudar = (id: string, archived: boolean) =>
+      fetch(`/api/orcamento/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived }),
+      })
+        .then((r) => (r.ok ? (r.json() as Promise<Quote>) : null))
+        .catch(() => null);
+    try {
+      const results = await Promise.all(
+        ids.map((id) =>
+          mudar(id, arquivar).then((v) => {
+            contarMaisUmNoLote();
+            return v;
+          }),
+        ),
+      );
+      const updated = new Map<string, Quote>(
+        results.filter((u): u is Quote => !!u && typeof u.id === "string").map((u) => [u.id, u]),
+      );
+      if (updated.size > 0) {
+        setQuotes((prev) => prev.map((q) => updated.get(q.id) ?? q));
+        setSelected((prev) => (prev && updated.has(prev.id) ? updated.get(prev.id)! : prev));
+      }
+      const ok = updated.size;
+      const failed = ids.length - ok;
+      const nome = `pedido${ok !== 1 ? "s" : ""}`;
+      const feito = arquivar
+        ? `arquivado${ok !== 1 ? "s" : ""}`
+        : `restaurado${ok !== 1 ? "s" : ""}`;
+      if (failed === 0) {
+        anular(`${ok} ${nome} ${feito}.`, async () => {
+          const voltaram = await Promise.all([...updated.keys()].map((id) => mudar(id, !arquivar)));
+          const porId = new Map(
+            voltaram
+              .filter((q): q is Quote => !!q && typeof q.id === "string")
+              .map((q) => [q.id, q]),
+          );
+          setQuotes((prev) => prev.map((q) => porId.get(q.id) ?? q));
+          setSelected((prev) => (prev && porId.has(prev.id) ? porId.get(prev.id)! : prev));
+          if (porId.size < updated.size) {
+            throw new Error(
+              `${porId.size} de ${updated.size} voltaram. Tenta outra vez no painel de cada pedido.`,
+            );
+          }
+        });
+      } else {
+        toast(
+          `${ok} ${feito}, ${failed} falhou(ram). Verifica a ligação e tenta outra vez.`,
+          "error",
+        );
+      }
+      esquecerDaSeleccao(ids);
+    } finally {
+      setLote(null);
+    }
+  }
+
   /** Tira do lote os pedidos sobre que se acabou de agir, e só esses: o resto
    *  da selecção é dela e não se apaga por causa de um gesto sobre outros. */
   function esquecerDaSeleccao(ids: string[]) {
@@ -4666,6 +4875,9 @@ export default function AdminClient({
     () => filtered.filter((q) => selectedIds.has(q.id)).map((q) => q.id),
     [filtered, selectedIds],
   );
+  useEffect(() => {
+    filtradosRef.current = filtered.map((q) => q.id);
+  }, [filtered]);
 
   // «Por responder» inclui a proposta que se está a preparar: o casal ainda
   // não recebeu nada, portanto a bola continua do nosso lado.
@@ -4987,6 +5199,7 @@ export default function AdminClient({
           quotes={quotes}
           onOpenQuote={abrirCliente}
           recentQuotes={recentQuotes}
+          grupos={gruposDaProcura}
         />
         <NewQuoteModal
           open={newQuoteOpen}
@@ -6538,6 +6751,7 @@ export default function AdminClient({
                 quotes={activeQuotes}
                 onOpen={abrirCliente}
                 onFazerProposta={abrirCliente}
+                pedidoDaPaleta={pedidoPara("calendario")}
               />
             </div>
           )}
@@ -6589,6 +6803,7 @@ export default function AdminClient({
                 quotes={quotes}
                 userName={userName}
                 procuraInicial={procuraEmPropostas}
+                pedidoDaPaleta={pedidoPara("propostas")}
                 onOpenQuote={abrirCliente}
                 onQuoteUpdated={(q) => {
                   setQuotes((prev) => prev.map((x) => (x.id === q.id ? q : x)));
@@ -6654,6 +6869,7 @@ export default function AdminClient({
               <Tarefas
                 defaultAssignee={userName}
                 pedidoDeNova={pedidoDeNovaTarefa}
+                pedidoDaPaleta={pedidoPara("tarefas")}
                 nomesDosPedidos={nomesDosPedidos}
               />
             </div>
@@ -6662,7 +6878,7 @@ export default function AdminClient({
           {/* ── Fornecedores ── */}
           {view === "fornecedores" && (
             <div className={`${VIEW_WRAP} view-in`}>
-              <Fornecedores />
+              <Fornecedores pedidoDaPaleta={pedidoPara("fornecedores")} />
             </div>
           )}
 
@@ -6692,14 +6908,14 @@ export default function AdminClient({
           {/* ── Material de logística ── */}
           {view === "material" && (
             <div className={`${VIEW_WRAP} view-in`}>
-              <Material />
+              <Material pedidoDaPaleta={pedidoPara("material")} />
             </div>
           )}
 
           {/* ── Biblioteca de temas ── */}
           {view === "temas" && (
             <div className={`${VIEW_WRAP} view-in`}>
-              <Temas />
+              <Temas pedidoDaPaleta={pedidoPara("temas")} />
             </div>
           )}
 
@@ -6765,7 +6981,11 @@ export default function AdminClient({
           {/* ── Contratos ── */}
           {view === "contratos" && (
             <div className={`${VIEW_WRAP} view-in`}>
-              <Contratos quotes={quotes} onOpenQuote={abrirCliente} />
+              <Contratos
+                quotes={quotes}
+                onOpenQuote={abrirCliente}
+                pedidoDaPaleta={pedidoPara("contratos")}
+              />
             </div>
           )}
 
@@ -7191,7 +7411,7 @@ export default function AdminClient({
                       quotesToCsvRows(filtered.filter((q) => selectedIds.has(q.id))),
                     )
                   }
-                  className={`flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bo-surface)] border border-[var(--bo-hairline-strong)] text-foreground/45 text-[10px] tracking-[0.12em] uppercase rounded-lg hover:text-sage-600 ${ESTADO} ${PRESSAO} `}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bo-surface)] border border-[var(--bo-hairline-strong)] text-[var(--bo-text-muted)] text-[10px] tracking-[0.12em] uppercase rounded-lg hover:text-sage-600 ${ESTADO} ${PRESSAO} `}
                 >
                   Exportar seleção
                 </button>
@@ -7203,13 +7423,22 @@ export default function AdminClient({
                   return (
                     <a
                       href={`mailto:?bcc=${encodeURIComponent(emails.join(","))}`}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bo-surface)] border border-[var(--bo-hairline-strong)] text-foreground/45 text-[10px] tracking-[0.12em] uppercase rounded-lg hover:text-sage-600 ${ESTADO} ${PRESSAO} `}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bo-surface)] border border-[var(--bo-hairline-strong)] text-[var(--bo-text-muted)] text-[10px] tracking-[0.12em] uppercase rounded-lg hover:text-sage-600 ${ESTADO} ${PRESSAO} `}
                       title={`Compor email para ${emails.length} cliente(s) (em bcc)`}
                     >
                       Email ({emails.length})
                     </a>
                   );
                 })()}
+                {/* Arquivar ou restaurar, conforme a lista que está à frente:
+                    na dos arquivados só faz sentido trazê-los de volta (BO 4). */}
+                <button
+                  onClick={() => applyBulkArchive(!showArchived, seleccionadosAVista)}
+                  disabled={bulkBusy}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bo-surface)] border border-[var(--bo-hairline-strong)] text-[var(--bo-text-muted)] text-[10px] tracking-[0.12em] uppercase rounded-lg hover:text-sage-600 ${ESTADO} ${PRESSAO} disabled:opacity-50`}
+                >
+                  {showArchived ? "Restaurar" : "Arquivar"} ({seleccionadosAVista.length})
+                </button>
                 {/* Hard delete for the whole selection — restrained terracotta,
                     always behind a single confirm; disabled while a batch runs. */}
                 <button
