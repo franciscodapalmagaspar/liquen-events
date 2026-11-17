@@ -166,7 +166,7 @@ export default function PedidoRapido({
   const router = useRouter();
   const id = useId();
   // A armadilha de tempo do anti-spam: o selo de quando o formulário abriu.
-  const lerSelo = useSeloDoFormulario();
+  const seloParaEnviar = useSeloDoFormulario();
   const [aEnviar, setAEnviar] = useState(false);
   // A MENSAGEM do erro, e já não um sim/não. O 400 da rota diz o que está mal
   // («Email inválido», «Nome demasiado curto») e era isso que se deitava fora:
@@ -246,6 +246,9 @@ export default function PedidoRapido({
     // Mesmo tratamento de ligação pendurada que o formulário completo: sem
     // isto, uma rede que abre o socket e nunca responde deixa o botão a rodar
     // para sempre, que é o pior desfecho possível na conversão principal.
+    // O selo: antes dos 3 s, espera o que falta, já com o «A enviar…»
+    // (`useSeloDoFormulario`). Antes do relógio dos 25 s, que é só da rede.
+    const selo = await seloParaEnviar();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);
     try {
@@ -259,7 +262,7 @@ export default function PedidoRapido({
         body: JSON.stringify({
           form,
           website: s("website"),
-          selo: lerSelo(),
+          selo,
           submissionId: ensureSubmissionId(),
         }),
         signal: controller.signal,

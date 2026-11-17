@@ -639,5 +639,5 @@ describe("POST /api/orcamento/[id]/mensagem — uma mensagem que não saiu não 
 
 /** O ícone do Livro de Reclamações do rodapé legal vai por URL, por instrução do dono (17/11). */
 function semIconeDoLivro(html: string): string {
-  return html.replace(/<img[^>]+livro-de-reclamacoes-(?:escuro|claro)\.png"[^>]*>/g, "");
+  return html.replace(/<img[^>]+livro-de-reclamacoes-sobre-(?:escuro|claro)\.png"[^>]*>/g, "");
 }

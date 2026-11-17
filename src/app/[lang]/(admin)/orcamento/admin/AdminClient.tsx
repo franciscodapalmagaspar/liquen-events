@@ -232,6 +232,7 @@ import { linkDaConversa } from "@/lib/whatsapp";
 import { dominiosConhecidos, sugerirEmail } from "@/lib/dominio-parecido";
 import CampoTelefone from "@/components/CampoTelefone";
 import { APARENCIA_DO_BACK_OFFICE, TELEFONE_EM_CAIXA } from "./ui/aparencia-do-telefone";
+import { EtiquetaPossivelSpam } from "./EtiquetaPossivelSpam";
 
 // Quantos pedidos a lista renderiza de cada vez ("Mostrar mais" carrega o resto).
 const LIST_PAGE_SIZE = 50;
@@ -715,6 +716,11 @@ function COLUNAS_DE_PEDIDOS(ctx: {
             {q.name}
           </span>
           <span className="block truncate text-[11px] text-foreground/45">{q.email}</span>
+          {q.possivelSpam && (
+            <span className="mt-1 block">
+              <EtiquetaPossivelSpam valor={q.possivelSpam} />
+            </span>
+          )}
         </span>
       ),
     },
@@ -970,6 +976,7 @@ const QuoteCard = memo(function QuoteCard({
             </p>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <p className="text-[13px] bo-text-muted truncate">{q.email}</p>
+              <EtiquetaPossivelSpam valor={q.possivelSpam} />
               {q.assignedTo && (
                 <span className="shrink-0 text-[9px] tracking-[0.08em] uppercase px-1.5 py-0.5 rounded bg-sage-600/10 text-sage-600 font-medium whitespace-nowrap">
                   {q.assignedTo}

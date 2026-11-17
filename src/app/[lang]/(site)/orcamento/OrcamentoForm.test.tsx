@@ -38,7 +38,7 @@ vi.mock("next/image", () => ({ default: () => null }));
 // Estes testes contam os `fetch` do ENVIO; o selo prova-se em
 // `anti-spam/selo.test.ts` e na rota.
 vi.mock("@/lib/anti-spam/useSeloDoFormulario", () => ({
-  useSeloDoFormulario: () => () => "SELO-DE-TESTE",
+  useSeloDoFormulario: () => async () => "SELO-DE-TESTE",
 }));
 
 const dict = getDictionary("pt");

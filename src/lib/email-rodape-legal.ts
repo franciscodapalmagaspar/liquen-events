@@ -17,7 +17,14 @@ import {
  * e-mails automáticos a clientes, a proteção de dados (RGPD, art. 13.º), a
  * resolução de litígios (Lei 144/2015, art. 18.º), o Livro de Reclamações
  * (DL 156/2005, art. 5.º-B) e «Recebeu este e-mail porque…». PT e EN, HTML e
- * texto simples. A finalidade muda com o e-mail (ver {@link Finalidade}).
+ * texto simples. A finalidade muda com o e-mail (ver {@link Finalidade}), e o
+ * «porque» também: «foi submetido um pedido em liquen-events.com» só é
+ * verdade na confirmação do pedido feito no site; a proposta, a faturação,
+ * as mensagens e as mesas dizem «porque pediu uma proposta à Líquen Events».
+ *
+ * Sem «apenas»/«solely» na finalidade (decisão do dono, 17/11): com
+ * consentimento, há envios cifrados para a Google e a Meta, e a política
+ * di-lo. O texto não pode prometer mais do que ela.
  *
  * Os textos do CNIACC e do Livro são os do sítio (`textos-legais.ts`). Sem a
  * identificação legal da empresa: decisão do dono (`.claude/rules/legal.md`).
@@ -29,20 +36,26 @@ import {
  * `alt` lê-se no lugar do ícone e a ligação continua lá — e há sempre a
  * linha de texto com o nome e o endereço por extenso, ao lado.
  *
- * Duas versões, para contrastar: a oficial (vermelha) em fundo claro, e a
- * silhueta branca em modo escuro, trocadas por `prefers-color-scheme` onde o
- * cliente o entende — só nas molduras que têm modo escuro (`modoEscuro`).
- * Onde não entende, fica a oficial.
+ * Duas versões, para contrastar, com o nome do FUNDO onde vão (a mesma
+ * convenção do `sobre` do `LivroDeReclamacoes.tsx`): a oficial (vermelha)
+ * `-sobre-claro`, e a silhueta branca `-sobre-escuro`, trocadas por
+ * `prefers-color-scheme` onde o cliente o entende — só nas molduras que têm
+ * modo escuro (`modoEscuro`). Onde não entende, fica a oficial.
  */
 
 /** Para que se tratam os dados, consoante o e-mail. */
 export type Finalidade = "pedido" | "proposta" | "faturacao";
 
-const ICONE_ESCURO = "/email/livro-de-reclamacoes-escuro.png";
-const ICONE_CLARO = "/email/livro-de-reclamacoes-claro.png";
-/** O tamanho em que se mostra (os ficheiros têm o dobro, 240×97). */
+/** A oficial, vermelha: para o fundo claro (o de sempre). */
+const ICONE_SOBRE_CLARO = "/email/livro-de-reclamacoes-sobre-claro.png";
+/** A silhueta branca: só para o fundo escuro do modo escuro. */
+const ICONE_SOBRE_ESCURO = "/email/livro-de-reclamacoes-sobre-escuro.png";
+/**
+ * O tamanho em que se mostra. Os ficheiros têm o dobro, 240×97: metade dá
+ * 120×48,5, e arredonda-se a 49 (com 48 o ícone oficial ficava achatado).
+ */
 const ICONE_L = 120;
-const ICONE_A = 48;
+const ICONE_A = 49;
 
 const TEXTOS: Record<
   Lingua,
@@ -52,31 +65,35 @@ const TEXTOS: Record<
     resto: string;
     politica: string;
     litigios: string;
-    porque: (dominio: string) => string;
+    /** «Recebeu este e-mail porque…», que depende do e-mail (ver o cabeçalho). */
+    porque: (dominio: string, finalidade: Finalidade) => string;
   }
 > = {
   pt: {
     protecao: "Proteção de dados.",
     finalidade: {
       pedido:
-        "A Líquen Events trata os dados deste pedido apenas para lhe responder e preparar a proposta, a pedido do titular (artigo 6.º, n.º 1, alínea b), do RGPD).",
+        "A Líquen Events trata os dados deste pedido para lhe responder e preparar a proposta, a pedido do titular (artigo 6.º, n.º 1, alínea b), do RGPD).",
       proposta:
-        "A Líquen Events trata os dados deste pedido apenas para preparar e executar a proposta, a pedido do titular (artigo 6.º, n.º 1, alínea b), do RGPD).",
+        "A Líquen Events trata os dados deste pedido para preparar e executar a proposta, a pedido do titular (artigo 6.º, n.º 1, alínea b), do RGPD).",
       faturacao:
         "A Líquen Events trata os dados deste pedido para preparar e executar a proposta, a pedido do titular (artigo 6.º, n.º 1, alínea b), do RGPD), e para cumprir as obrigações legais de faturação (alínea c) do mesmo número).",
     },
     resto: "Os prazos de conservação, os direitos do titular e a forma de os exercer constam da",
     politica: "Política de Privacidade",
     litigios: "Resolução de litígios.",
-    porque: (d) => `Recebeu este e-mail porque foi submetido um pedido em ${d} com este endereço.`,
+    porque: (d, f) =>
+      f === "pedido"
+        ? `Recebeu este e-mail porque foi submetido um pedido em ${d} com este endereço.`
+        : "Recebeu este e-mail porque pediu uma proposta à Líquen Events.",
   },
   en: {
     protecao: "Data protection.",
     finalidade: {
       pedido:
-        "Líquen Events processes the data in this request solely to reply and prepare the proposal, at the data subject's request (Article 6(1)(b) GDPR).",
+        "Líquen Events processes the data in this request to reply and prepare the proposal, at the data subject's request (Article 6(1)(b) GDPR).",
       proposta:
-        "Líquen Events processes the data in this request solely to prepare and carry out the proposal, at the data subject's request (Article 6(1)(b) GDPR).",
+        "Líquen Events processes the data in this request to prepare and carry out the proposal, at the data subject's request (Article 6(1)(b) GDPR).",
       faturacao:
         "Líquen Events processes the data in this request to prepare and carry out the proposal, at the data subject's request (Article 6(1)(b) GDPR), and to comply with its legal invoicing obligations (Article 6(1)(c) GDPR).",
     },
@@ -84,8 +101,10 @@ const TEXTOS: Record<
       "Retention periods, the data subject's rights and how to exercise them are set out in the",
     politica: "Privacy Policy",
     litigios: "Dispute resolution.",
-    porque: (d) =>
-      `You are receiving this e-mail because a request was submitted at ${d} with this address.`,
+    porque: (d, f) =>
+      f === "pedido"
+        ? `You are receiving this e-mail because a request was submitted at ${d} with this address.`
+        : "You are receiving this e-mail because you requested a proposal from Líquen Events.",
   },
 };
 
@@ -138,12 +157,19 @@ export function rodapeLegalDoEmail({
   finalidade,
   base = SITE.url,
   modoEscuro = false,
+  filete = true,
 }: {
   lingua: Lingua;
   finalidade: Finalidade;
   base?: string;
   /** A moldura escurece o fundo em modo escuro? (Ver {@link ESTILO}.) */
   modoEscuro?: boolean;
+  /**
+   * O filete que o separa do corpo. Sai quando a moldura já pôs um logo por
+   * cima (a confirmação do pedido): dois filetes seguidos liam-se como uma
+   * secção vazia.
+   */
+  filete?: boolean;
 }): { html: string; texto: string } {
   const t = TEXTOS[lingua];
   const raiz = base.replace(/\/$/, "");
@@ -154,20 +180,20 @@ export function rodapeLegalDoEmail({
     `<p class="rl-t" style="margin:0 0 10px;font-family:${LETRA};font-size:11px;line-height:17px;mso-line-height-rule:exactly;color:${COR_TEXTO}${extra}">${conteudo}</p>`;
 
   const iconeClaro = modoEscuro
-    ? `<!--[if !mso]><!--><img class="rl-ic" src="${esc(raiz + ICONE_CLARO)}" alt="${esc(livro.nome)}" width="${ICONE_L}" height="${ICONE_A}" style="display:none;max-height:0;width:${ICONE_L}px;height:${ICONE_A}px;border:0"><!--<![endif]-->`
+    ? `<!--[if !mso]><!--><img class="rl-ic" src="${esc(raiz + ICONE_SOBRE_ESCURO)}" alt="${esc(livro.nome)}" width="${ICONE_L}" height="${ICONE_A}" style="display:none;max-height:0;width:${ICONE_L}px;height:${ICONE_A}px;border:0"><!--<![endif]-->`
     : "";
   const html = `${modoEscuro ? ESTILO : ""}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" data-rodape-legal="" style="border-collapse:collapse;margin-top:24px">
-  <tr><td class="rl-f" style="border-top:1px solid ${COR_FILETE};padding-top:16px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" data-rodape-legal="" style="border-collapse:collapse;margin-top:${filete ? 24 : 12}px">
+  <tr><td${filete ? ` class="rl-f" style="border-top:1px solid ${COR_FILETE};padding-top:16px"` : ""}>
     ${p(`<strong>${esc(t.protecao)}</strong> ${esc(t.finalidade[finalidade])} ${esc(t.resto)} ${ligacaoHtml(t.politica, politica)}.`)}
     ${p(`<strong>${esc(t.litigios)}</strong> ${trocosHtml(RESOLUCAO_DE_LITIGIOS[lingua])}`)}
     <p style="margin:4px 0 10px;font-size:0;line-height:0">
       <a href="${esc(SITE.livroReclamacoes)}" title="${esc(livro.nome)}" style="display:inline-block;text-decoration:none">
-        <img class="rl-ie" src="${esc(raiz + ICONE_ESCURO)}" alt="${esc(livro.nome)}" width="${ICONE_L}" height="${ICONE_A}" style="display:inline-block;width:${ICONE_L}px;height:${ICONE_A}px;border:0;font-family:${LETRA};font-size:11px;line-height:${ICONE_A}px;color:${COR_TEXTO}">
+        <img class="rl-ie" src="${esc(raiz + ICONE_SOBRE_CLARO)}" alt="${esc(livro.nome)}" width="${ICONE_L}" height="${ICONE_A}" style="display:inline-block;width:${ICONE_L}px;height:${ICONE_A}px;border:0;font-family:${LETRA};font-size:11px;line-height:${ICONE_A}px;color:${COR_TEXTO}">
         ${iconeClaro}
       </a>
     </p>
-    ${p(esc(t.porque(dominio)), ";margin-bottom:0")}
+    ${p(esc(t.porque(dominio, finalidade)), ";margin-bottom:0")}
   </td></tr>
 </table>`;
 
@@ -180,7 +206,7 @@ export function rodapeLegalDoEmail({
     "",
     `${livro.nome}: ${SITE.livroReclamacoes}`,
     "",
-    t.porque(dominio),
+    t.porque(dominio, finalidade),
   ].join("\n");
 
   return { html, texto };

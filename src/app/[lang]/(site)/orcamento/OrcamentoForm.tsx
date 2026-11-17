@@ -307,7 +307,7 @@ export default function OrcamentoForm({
     setDecor((atual) => (atual.includes(id) ? atual.filter((x) => x !== id) : [...atual, id]));
   const [website, setWebsite] = useState(""); // honeypot — fica vazio
   // A armadilha de tempo do anti-spam: o selo de quando o formulário abriu.
-  const lerSelo = useSeloDoFormulario();
+  const seloParaEnviar = useSeloDoFormulario();
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /**
@@ -774,6 +774,12 @@ export default function OrcamentoForm({
       adClick: lerAdClick(),
     };
 
+    // O selo da armadilha de tempo. Se ela carregou em «Enviar» antes dos 3 s,
+    // espera aqui o que falta, já com o «A enviar…» — e o pedido nunca chega
+    // ao servidor como «depressa» (`useSeloDoFormulario`). Antes do relógio
+    // dos 25 s, que é só para a rede.
+    const selo = await seloParaEnviar();
+
     // Abort a hung request instead of spinning forever on a stalled connection
     // (3G that opens the socket but never responds). Without this the submit
     // button spins with no error and no recovery — the worst failure mode on
@@ -791,7 +797,7 @@ export default function OrcamentoForm({
         body: JSON.stringify({
           form,
           website,
-          selo: lerSelo(),
+          selo,
           submissionId: ensureSubmissionId(),
         }),
         signal: controller.signal,

@@ -3,28 +3,34 @@
  * O FILTRO DE CONTEÚDO DO FORMULÁRIO — A TERCEIRA CAMADA DO ANTI-SPAM
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Pedido do Francisco, 17/11 (`docs/LEGAL-FORMULARIO.md`, ponto 4): recusar
- * mensagens com várias ligações, palavras típicas de spam, alfabetos que não
- * são latinos e domínios de topo usados quase só por spam.
+ * Pedido do Francisco, 17/11 (`docs/LEGAL-FORMULARIO.md`, ponto 4): olhar para
+ * as ligações, as palavras típicas de spam, os alfabetos que não são latinos e
+ * os domínios de topo usados quase só por spam.
  *
- * ── O ERRO QUE AQUI NÃO SE PODE COMETER ───────────────────────────────────
- * Quando isto diz «spam», a rota FINGE sucesso e o pedido perde-se em
- * silêncio: ninguém da casa o vê, e a pessoa julga que foi enviado. Por isso
- * cada regra só dispara com sinais que um casal verdadeiro não dá, e na
- * dúvida deixa passar — um robô a mais na caixa custa um clique, um casamento
- * perdido não se recupera. Concretamente:
+ * ── ISTO NUNCA DEITA UM PEDIDO FORA (decisão de 17/11) ────────────────────
+ * A primeira versão fingia sucesso quando isto dizia «spam», e uma revisão
+ * independente achou pedidos VERDADEIROS deitados fora assim: três quintas
+ * `.com`, um quadro no OneDrive, uma noiva chamada Олена. O cliente lia
+ * «enviado» e a Catarina nunca recebia nada — o pior erro possível.
  *
- *   · as ligações a Pinterest, Instagram, Google Maps, YouTube, WeTransfer…
- *     não contam: é assim que os noivos mostram o que querem;
- *   · «casino» sozinho não é spam — o Casino Estoril é um sítio de
- *     casamentos. Só as expressões compostas («online casino», «casino
- *     bonus»);
- *   · «SEO», «traffic», «ranking» só contam aos pares;
- *   · um alfabeto não latino só conta quando é a maior parte das letras: um
- *     nome em grego ou um «谢谢» no fim não fazem de ninguém um robô.
+ * Agora o veredito daqui é só uma MARCA: o pedido grava-se e notifica-se
+ * como os outros, com «possível spam» (`veredito.ts`). Só o isco (o campo
+ * escondido `website`) descarta. Mesmo assim, a marca não deve sair a quem
+ * não é spam, por isso cada regra só dispara com sinais que um casal
+ * verdadeiro não dá:
+ *
+ *   · as ligações a Pinterest, Instagram, OneDrive, Zola, Canva… não contam;
+ *     das outras contam os DOMÍNIOS DISTINTOS, e só a partir de cinco;
+ *   · um domínio de topo de spam (`.ru`, `.xyz`…) sozinho, numa ligação só,
+ *     não conta — o fotógrafo do casal pode ser `ivanphoto.ru`;
+ *   · «casino» sozinho não é spam (o Casino Estoril é um sítio de casamentos),
+ *     e «bitcoin»/«crypto» só contam ao lado de uma ligação;
+ *   · «SEO», «ranking», «outsourcing» só contam aos pares;
+ *   · um alfabeto não latino nunca conta nos NOMES (Олена Шевченко é uma
+ *     noiva), e na mensagem só conta quando ela é longa E vem com outro sinal.
  *
  * Função pura, sem rede, sem estado: `conteudo.test.ts` tem os casos
- * verdadeiros e os falsos.
+ * verdadeiros (a tabela da revisão) e os falsos.
  */
 
 export type MotivoDeSpam =
@@ -36,8 +42,12 @@ export type MotivoDeSpam =
 
 /** Os campos de texto livre que um pedido traz (os que o robô enche). */
 export interface TextoDoPedido {
+  /** Quem escreve. Conta para as ligações; nunca para o alfabeto. */
   nome?: string;
   mensagem?: string;
+  /** Os nomes dos noivos (`partnerA/B`): só contam para as ligações. */
+  nomes?: string[];
+  /** Os outros campos de texto (o nome do evento, o local, a empresa). */
   outros?: string[];
 }
 
@@ -85,6 +95,12 @@ const DOMINIOS_DE_CONFIANCA = [
   "dropbox.com",
   "icloud.com",
   "canva.com",
+  "canva.site",
+  "1drv.ms",
+  "onedrive.live.com",
+  "zola.com",
+  "withjoy.com",
+  "notion.site",
   "liquen-events.com",
   "whatsapp.com",
   "wa.me",
@@ -97,12 +113,11 @@ const PALAVRAS_FORTES = [
   /\bbacklinks?\b/,
   /\bdofollow\b/,
   /\bguest ?posts?\b/,
-  /\bbitcoin\b/,
-  /\bcrypto(currency)?\b/,
   /\bforex\b/,
   /\bonline casino\b/,
   /\bcasino (bonus|online)\b/,
-  /\bporn/,
+  // Palavra inteira: «Pornic» é uma terra em França.
+  /\bporn(o|ography|ographic)?\b/,
   /\bescort service/,
   /\bseo (services?|agency|expert)\b/,
   /\bsearch engine optimi[sz]ation\b/,
@@ -112,12 +127,20 @@ const PALAVRAS_FORTES = [
   /\bpayday loans?\b/,
 ];
 
-/** Estas só contam aos pares (duas diferentes). */
+/**
+ * Estas só contam ao lado de uma ligação: um casal que se conheceu numa
+ * conferência de criptomoedas, ou que pergunta se pode pagar em bitcoin, não é
+ * um robô. O robô quer que se carregue em alguma coisa.
+ */
+const PALAVRAS_COM_LIGACAO = [/\bbitcoin\b/, /\bcrypto(currency)?\b/];
+
+/**
+ * Estas só contam aos pares (duas diferentes). «traffic» e «leads» saíram: um
+ * jantar de uma equipa comercial fala dos dois, e o trânsito de Lisboa também.
+ */
 const PALAVRAS_FRACAS = [
   /\bseo\b/,
-  /\btraffic\b/,
   /\branking\b/,
-  /\bleads?\b/,
   /\boutsourcing\b/,
   /\bmarketing services\b/,
   /\bweb ?design services\b/,
@@ -134,7 +157,8 @@ const LETRA = /\p{L}/gu;
 
 function dominioDe(ligacao: string): string {
   const semEsquema = ligacao.replace(/^https?:\/\//i, "");
-  return (semEsquema.split(/[/?#:]/)[0] ?? "").toLowerCase().replace(/\.+$/, "");
+  // A pontuação que fecha a frase não é do domínio («…quintadamalveira.com,»).
+  return (semEsquema.split(/[/?#:]/)[0] ?? "").toLowerCase().replace(/[.,;!?)\]]+$/, "");
 }
 
 function eDeConfianca(dominio: string): boolean {
@@ -144,34 +168,61 @@ function eDeConfianca(dominio: string): boolean {
   );
 }
 
+/** A partir de quantos domínios DISTINTOS e desconhecidos as ligações contam. */
+const LIGACOES_A_PARTIR_DE = 5;
+/** Quantas letras faz uma mensagem «longa», para o alfabeto poder contar. */
+const MENSAGEM_LONGA = 60;
+
+function proporcaoNaoLatina(texto: string): { letras: number; proporcao: number } {
+  const letras = texto.match(LETRA)?.length ?? 0;
+  const estranhas = texto.match(NAO_LATINO)?.length ?? 0;
+  return { letras, proporcao: letras ? estranhas / letras : 0 };
+}
+
 /**
- * O veredito. `null` = deixa passar. Um motivo = é spam (e a rota finge
- * sucesso). O motivo vai para o registo, nunca para a resposta.
+ * O veredito. `null` = sem sinais. Um motivo = POSSÍVEL spam: o pedido grava-se
+ * na mesma, com a marca (ver o cabeçalho). O motivo vai para a marca e para o
+ * registo, nunca para a resposta a quem enviou.
  */
 export function motivoDeSpam(texto: TextoDoPedido): MotivoDeSpam | null {
   const nome = (texto.nome ?? "").trim();
-  const tudo = [nome, texto.mensagem ?? "", ...(texto.outros ?? [])].join("\n");
+  const mensagem = texto.mensagem ?? "";
+  const nomes = texto.nomes ?? [];
+  const outros = texto.outros ?? [];
+  const tudo = [nome, mensagem, ...nomes, ...outros].join("\n");
   const minusculas = tudo.toLowerCase();
 
   // Um nome com uma ligação lá dentro é o robô a anunciar-se.
   if (/https?:\/\/|www\./i.test(nome)) return "ligacao-no-nome";
 
   const ligacoes = tudo.match(LIGACAO) ?? [];
-  const dominios = ligacoes.map(dominioDe).filter(Boolean);
-  if (dominios.some((d) => TLD_DE_SPAM.has(d.split(".").pop() ?? ""))) return "dominio-de-spam";
-  // Três ou mais ligações a sítios que não são de inspiração nem de ficheiros.
-  // Os `.pt` não contam: uns noivos a comparar três quintas mandam três
-  // ligações portuguesas, e o spam quase nunca vem de um domínio `.pt`.
-  if (dominios.filter((d) => !eDeConfianca(d) && !d.endsWith(".pt")).length >= 3) {
-    return "ligacoes";
-  }
+  const distintos = [...new Set(ligacoes.map(dominioDe).filter(Boolean))];
+  const desconhecidos = distintos.filter((d) => !eDeConfianca(d) && !d.endsWith(".pt"));
+  const deSpam = distintos.filter((d) => TLD_DE_SPAM.has(d.split(".").pop() ?? ""));
+  const fracas = PALAVRAS_FRACAS.filter((r) => r.test(minusculas)).length;
+
+  // Um domínio de topo de spam só conta acompanhado: de outra ligação a um
+  // sítio desconhecido, ou de uma palavra suspeita. Sozinho — ou ao lado do
+  // Pinterest e do OneDrive dos noivos — é o fotógrafo do casal.
+  if (deSpam.length > 0 && (desconhecidos.length >= 2 || fracas >= 1)) return "dominio-de-spam";
+  // Os `.pt` não contam: o spam quase nunca vem de um domínio `.pt`, e uns
+  // noivos a comparar quintas mandam muitos.
+  if (desconhecidos.length >= LIGACOES_A_PARTIR_DE) return "ligacoes";
 
   if (PALAVRAS_FORTES.some((r) => r.test(minusculas))) return "palavras-de-spam";
-  if (PALAVRAS_FRACAS.filter((r) => r.test(minusculas)).length >= 2) return "palavras-de-spam";
+  if (ligacoes.length > 0 && PALAVRAS_COM_LIGACAO.some((r) => r.test(minusculas))) {
+    return "palavras-de-spam";
+  }
+  if (fracas >= 2) return "palavras-de-spam";
 
-  const letras = tudo.match(LETRA)?.length ?? 0;
-  const estranhas = tudo.match(NAO_LATINO)?.length ?? 0;
-  if (letras >= 12 && estranhas / letras > 0.4) return "alfabeto";
+  // O alfabeto: só a MENSAGEM (e os outros campos), nunca os nomes; só quando
+  // é longa; e só com outro sinal ao lado — duas ligações a sítios
+  // desconhecidos, ou uma palavra suspeita. Uma ligação só (o fotógrafo do
+  // casal, mesmo que seja `.ru`) não é sinal: uma noiva ucraniana que escreve
+  // na língua dela e manda o portefólio do fotógrafo não leva marca nenhuma.
+  const { letras, proporcao } = proporcaoNaoLatina([mensagem, ...outros].join("\n"));
+  const outroSinal = desconhecidos.length >= 2 || fracas > 0;
+  if (letras >= MENSAGEM_LONGA && proporcao > 0.4 && outroSinal) return "alfabeto";
 
   return null;
 }

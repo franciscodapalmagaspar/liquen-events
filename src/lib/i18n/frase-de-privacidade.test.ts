@@ -41,9 +41,14 @@ describe("a nota de proteção de dados dos formulários (17/11)", () => {
     const pt = trocosEmTexto(NOTA_DO_FORMULARIO.pt);
     const en = trocosEmTexto(NOTA_DO_FORMULARIO.en);
     expect(pt).toContain("artigo 6.º, n.º 1, alínea b), do RGPD");
-    expect(pt).toContain("eliminados ao fim de 12 meses");
+    // O prazo diz-se como a política o diz (secção 4): conta do último
+    // contacto, não do pedido.
+    expect(pt).toContain("eliminados 12 meses após o último contacto");
     expect(en).toContain("Article 6(1)(b) GDPR");
-    expect(en).toContain("deleted after 12 months");
+    expect(en).toContain("deleted 12 months after the last contact");
+    // Sem «apenas»/«solely» (decisão do dono, 17/11).
+    expect(pt).not.toMatch(/\bapenas\b/);
+    expect(en).not.toMatch(/\bsolely\b/);
     expect(
       NOTA_DO_FORMULARIO.pt.some((t) => typeof t !== "string" && t.href === "/privacidade"),
     ).toBe(true);

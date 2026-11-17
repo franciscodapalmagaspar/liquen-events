@@ -42,31 +42,53 @@ describe("o selo da armadilha de tempo", () => {
   });
 });
 
-describe("o veredito", () => {
+describe("o veredito: nada descarta, só marca", () => {
   const texto = { nome: "Inês Gonçalves", mensagem: "Casamento em Évora, 90 pessoas." };
 
-  it("um pedido real sem selo (página antiga em cache) PASSA", () => {
-    expect(vereditoDoPedido({ selo: undefined, texto }).spam).toBe(false);
+  it("um pedido real sem selo (página antiga em cache) passa sem marca", () => {
+    expect(vereditoDoPedido({ selo: undefined, texto }).possivelSpam).toBeNull();
   });
 
-  it("um pedido real com o selo certo passa", () => {
+  it("um pedido real com o selo certo passa sem marca", () => {
     const selo = criarSelo(Date.now() - 20_000);
-    expect(vereditoDoPedido({ selo, texto })).toEqual({
-      spam: false,
-      motivo: null,
-      selo: "valido",
+    expect(vereditoDoPedido({ selo, texto })).toEqual({ possivelSpam: null, selo: "valido" });
+  });
+
+  it("um selo inválido (o segredo rodou) conta como sem selo: sem marca", () => {
+    expect(vereditoDoPedido({ selo: "123.abc", texto })).toEqual({
+      possivelSpam: null,
+      selo: "invalido",
+    });
+    const deOutroSegredo = criarSelo(Date.now() - 20_000, {
+      SESSION_SECRET: "y".repeat(40),
+      NODE_ENV: "production",
+    });
+    expect(vereditoDoPedido({ selo: deOutroSegredo, texto }).possivelSpam).toBeNull();
+  });
+
+  it("um envio relâmpago leva a marca, não é descartado", () => {
+    expect(vereditoDoPedido({ selo: criarSelo(Date.now()), texto })).toEqual({
+      possivelSpam: { motivo: "depressa" },
+      selo: "depressa",
     });
   });
 
-  it("selo adulterado ou envio relâmpago → spam", () => {
-    expect(vereditoDoPedido({ selo: "123.abc", texto }).motivo).toBe("selo-invalido");
-    expect(vereditoDoPedido({ selo: criarSelo(Date.now()), texto }).motivo).toBe("depressa");
-  });
-
-  it("conteúdo de spam com selo válido → spam", () => {
+  it("conteúdo de spam leva a marca com o motivo", () => {
     const selo = criarSelo(Date.now() - 20_000);
     expect(
-      vereditoDoPedido({ selo, texto: { nome: "X", mensagem: "cheap backlinks" } }).motivo,
-    ).toBe("palavras-de-spam");
+      vereditoDoPedido({ selo, texto: { nome: "X", mensagem: "cheap backlinks" } }).possivelSpam,
+    ).toEqual({ motivo: "palavras-de-spam" });
+  });
+
+  it("o veredito não tem maneira de dizer «descarta»", () => {
+    const v = vereditoDoPedido({ selo: "lixo", texto: { nome: "X", mensagem: "viagra" } });
+    expect(Object.keys(v).sort()).toEqual(["possivelSpam", "selo"]);
+  });
+});
+
+describe("o selo do futuro", () => {
+  it("um selo uns segundos no futuro (relógios desacertados) conta como depressa", () => {
+    const selo = criarSelo(T0 + 2_000, ENV)!;
+    expect(lerSelo(selo, T0, ENV)).toEqual({ estado: "depressa", ms: -2_000 });
   });
 });

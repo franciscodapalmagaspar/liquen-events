@@ -8,8 +8,8 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
  *
  * Segunda camada do anti-spam (`docs/LEGAL-FORMULARIO.md`, ponto 4). O
  * servidor assina, com HMAC, o instante em que o formulário abriu; o envio
- * traz o selo de volta. Um envio menos de {@link MINIMO_MS} depois de abrir,
- * ou com um selo adulterado, é de robô.
+ * traz o selo de volta. Um envio menos de {@link MINIMO_MS} depois de abrir
+ * leva a marca «possível spam» — e nunca é deitado fora (`veredito.ts`).
  *
  * ── O SEGREDO ─────────────────────────────────────────────────────────────
  * Nenhuma variável nova: deriva-se do `SESSION_SECRET` (o mesmo das sessões
@@ -17,19 +17,22 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
  * formulário nunca poder valer como outra coisa. Sem segredo, a camada
  * desliga-se (`criarSelo` dá `null`) em vez de assinar com uma chave
  * aleatória por instância — essa chave faria o selo de uma instância parecer
- * falso noutra, e o sucesso fingido apanhava pedidos verdadeiros.
+ * falso noutra.
  *
- * ── O SELO EM FALTA NÃO É SPAM SOZINHO (desvio ao documento) ──────────────
- * O documento diz que a assinatura em falta é de robô. Aqui não, e é de
- * propósito: o service worker serve páginas guardadas, e uma página aberta
- * antes desta versão manda o pedido sem selo durante dias. Contá-lo como spam
- * deitava fora, em silêncio, pedidos de casais verdadeiros. Sem selo, o
- * pedido passa às outras camadas (o isco e o filtro de conteúdo) e fica
- * registado no log. Ver `veredito.ts`.
+ * ── O SELO EM FALTA OU INVÁLIDO NÃO É SPAM (desvio ao documento) ──────────
+ * O documento diz que a assinatura em falta ou inválida é de robô. Aqui não,
+ * e é de propósito, nos dois casos:
+ *   · em falta: o service worker serve páginas guardadas, e uma página aberta
+ *     antes desta versão manda o pedido sem selo durante dias;
+ *   · inválido: rodar o `SESSION_SECRET` invalida os selos de todas as
+ *     páginas que estão abertas nesse momento.
+ * Nos dois, o pedido passa ao filtro de conteúdo sem marca nenhuma, e o estado
+ * do selo fica no registo. Ver `veredito.ts`.
  */
 
-/** Abaixo disto, entre abrir e enviar, ninguém preenche um formulário. */
-export const MINIMO_MS = 3_000;
+import { MINIMO_MS } from "./tempo-minimo";
+
+export { MINIMO_MS };
 const ROTULO = "liquen:selo-do-formulario:v1";
 
 /** A chave, derivada do segredo do servidor. `null` sem segredo. */
@@ -81,8 +84,10 @@ export function lerSelo(
     return { estado: "invalido" };
   }
   const ms = agora - Number(m[1]);
-  // Um selo do futuro (relógios entre instâncias desacertados por segundos) não
-  // é prova de nada: conta como «depressa» só se vier MESMO do futuro.
+  // Um selo do futuro (relógios entre instâncias desacertados) dá um `ms`
+  // negativo e conta como «depressa», como um envio de menos de 3 s. Só marca
+  // o pedido, não o perde; e os formulários esperam uma folga além dos 3 s
+  // (`useSeloDoFormulario`), que cobre um desacerto pequeno.
   if (ms < MINIMO_MS) return { estado: "depressa", ms };
   return { estado: "valido", ms };
 }

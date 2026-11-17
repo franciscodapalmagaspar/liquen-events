@@ -18,7 +18,9 @@
  * nem escondida.
  *
  * E a plataforma europeia ODR também não: o Reg. (UE) 2024/3228 extinguiu-a
- * a 20/07/2025. Um teste (`textos-legais.test.ts`) prende que não volta.
+ * a 20/07/2025. Os testes do rodapé dos e-mails (`email-rodape-legal.test.ts`)
+ * e do fim legal das páginas (`AvisoLegal`, `e2e/fim-legal.spec.ts`) prendem
+ * que não volta.
  */
 
 export type Lingua = "pt" | "en";
@@ -30,9 +32,10 @@ export const CNIACC_URL = "https://www.cniacc.pt/";
 export const PORTAL_DO_CONSUMIDOR_URL = "https://www.consumidor.gov.pt/";
 
 /**
- * O prazo de conservação dos pedidos sem evento, em meses. É o mesmo que a
- * política publica (secção 4) e o mesmo que `retencao.ts` cumpre (`PRAZO_MS`,
- * 365 dias); um teste confere os três.
+ * O prazo de conservação dos pedidos sem evento, em meses, contado do ÚLTIMO
+ * CONTACTO. É o mesmo que a política publica (secção 4) e o mesmo que
+ * `retencao.ts` cumpre (`PRAZO_MS`, 365 dias); o
+ * `i18n/frase-de-privacidade.test.ts` confere os três.
  */
 export const MESES_DE_CONSERVACAO = 12;
 
@@ -88,15 +91,21 @@ export const NOME_DAS_LIGACOES: Record<Lingua, string> = {
  * A nota por baixo do botão «Enviar» de todos os formulários de pedido.
  * Não leva caixa de «aceito»: a base legal é o pedido do próprio titular.
  * O último troço é a ligação à política (o caminho, por localizar).
+ *
+ * Dois desvios ao texto do documento, decididos a 17/11: sem «apenas» /
+ * «solely» (com consentimento há envios cifrados para a Google e a Meta, e a
+ * nota não pode prometer mais do que a política), e o prazo dito como a
+ * política o diz — «12 meses após o último contacto», e não «ao fim de 12
+ * meses», que se lia como contado do pedido.
  */
 export const NOTA_DO_FORMULARIO: Record<Lingua, Troco[]> = {
   pt: [
-    `A Líquen Events trata estes dados apenas para responder ao pedido e preparar a proposta, a pedido do titular (artigo 6.º, n.º 1, alínea b), do RGPD). Os pedidos que não resultem em evento são eliminados ao fim de ${MESES_DE_CONSERVACAO} meses. Os prestadores envolvidos, os direitos do titular e a forma de os exercer constam da `,
+    `A Líquen Events trata estes dados para responder ao pedido e preparar a proposta, a pedido do titular (artigo 6.º, n.º 1, alínea b), do RGPD). Os pedidos que não resultem em evento são eliminados ${MESES_DE_CONSERVACAO} meses após o último contacto. Os prestadores envolvidos, os direitos do titular e a forma de os exercer constam da `,
     { texto: "Política de privacidade", href: "/privacidade" },
     ".",
   ],
   en: [
-    `Líquen Events processes this data solely to respond to the request and prepare the proposal, at the request of the data subject (Article 6(1)(b) GDPR). Requests that do not lead to an event are deleted after ${MESES_DE_CONSERVACAO} months. The service providers involved, the rights of the data subject and how to exercise them are set out in the `,
+    `Líquen Events processes this data to respond to the request and prepare the proposal, at the request of the data subject (Article 6(1)(b) GDPR). Requests that do not lead to an event are deleted ${MESES_DE_CONSERVACAO} months after the last contact. The service providers involved, the rights of the data subject and how to exercise them are set out in the `,
     { texto: "Privacy policy", href: "/privacidade" },
     ".",
   ],

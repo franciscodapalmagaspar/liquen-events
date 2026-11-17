@@ -12,6 +12,19 @@ Tudo em registo formal e com textos verdadeiros. Nada entra no `main` sem a apro
 
 ---
 
+## Parte −1: onde a execução se afasta deste texto (17/11)
+
+Uma revisão independente achou pedidos VERDADEIROS deitados fora com sucesso fingido (três quintas `.com`, um quadro no OneDrive, uma noiva chamada Олена). O dono decidiu, e isto manda sobre o ponto 4:
+
+- **Só o isco descarta.** O filtro de conteúdo e a armadilha de tempo nunca deitam um pedido fora: o pedido grava-se com a marca «possível spam», a notificação à equipa leva «[possível spam]» no assunto, e o cliente recebe a confirmação normal. No back office há uma etiqueta discreta, sem avisos nem contadores.
+- **A armadilha dos 3 s:** o formulário espera o que falta antes de enviar (com o «A enviar…»); um selo inválido ou em falta conta como pedido normal (rodar o segredo não pode perder pedidos).
+- **O filtro foi afinado:** domínios distintos, a partir de cinco; OneDrive, Canva, Zola, Joy e Notion são de confiança; o alfabeto nunca conta nos nomes, e na mensagem só com outro sinal; um domínio de spam sozinho, numa ligação, não conta; «bitcoin»/«crypto» só com uma ligação.
+- **A nota do ponto 1** perde o «apenas»/«solely» e diz «12 meses após o último contacto», como a política.
+
+O código: `src/lib/anti-spam/` (`veredito.ts` explica as camadas).
+
+---
+
 ## 1. Por baixo do formulário: a nota de proteção de dados
 
 Vai logo por baixo do botão «Enviar», em letra pequena e cor suave, com ligação para a Política de Privacidade. Não leva caixa de «aceito»: a base legal é o pedido do próprio titular, por isso não se pede consentimento.

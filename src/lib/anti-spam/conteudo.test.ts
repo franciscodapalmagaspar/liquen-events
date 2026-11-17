@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { motivoDeSpam } from "./conteudo";
 
 /**
- * O filtro de conteúdo (17/11). Quando diz «spam», a rota finge sucesso e o
- * pedido perde-se em silêncio — por isso os casos VERDADEIROS (pedidos reais
- * de noivos, em português, com acentos e com ligações de inspiração) são a
- * metade que mais importa deste ficheiro.
+ * O filtro de conteúdo (17/11). Já não descarta nada: quando diz «spam», o
+ * pedido grava-se na mesma, com a marca «possível spam». Mesmo assim, a marca
+ * não deve sair a quem não é spam — por isso os casos VERDADEIROS (pedidos
+ * reais de noivos, em português, com acentos e com ligações de inspiração) são
+ * a metade que mais importa deste ficheiro.
  */
 
 describe("pedidos verdadeiros passam", () => {
@@ -84,6 +85,122 @@ describe("pedidos verdadeiros passam", () => {
   });
 });
 
+/**
+ * A tabela da revisão independente de 17/11: pedidos verdadeiros que a
+ * primeira versão do filtro apanhava (e deitava fora). Nenhum leva a marca.
+ */
+describe("a tabela da revisão: verdadeiros que a primeira versão apanhava", () => {
+  const casos: Array<[string, Parameters<typeof motivoDeSpam>[0]]> = [
+    [
+      "três quintas .com",
+      {
+        nome: "Carolina",
+        mensagem:
+          "Estamos a ver https://www.quintadamalveira.com, https://www.quintadotorneiro.com/eventos e https://www.casadosarcos.com/casamentos",
+      },
+    ],
+    [
+      "quatro sítios .com distintos, um deles repetido",
+      {
+        nome: "Rui",
+        mensagem:
+          "https://a-quinta.com/1 https://a-quinta.com/2 https://b-quinta.com/x https://fotografo-c.com/p https://dj-d.com/s",
+      },
+    ],
+    [
+      "OneDrive e zola",
+      {
+        nome: "Emma",
+        mensagem:
+          "Our board: https://1drv.ms/f/s!AbCdEf and https://onedrive.live.com/view?id=1 — website https://www.zola.com/wedding/emmaandtom and https://withjoy.com/emma-tom",
+      },
+    ],
+    [
+      "canva.site e notion.site",
+      {
+        nome: "Leonor",
+        mensagem:
+          "https://leonor-e-pedro.canva.site/ e https://pedro.notion.site/Casamento-123 e https://www.pinterest.com/x/ e https://exemplo.com/a",
+      },
+    ],
+    ["«Олена Шевченко» sozinha", { nome: "Олена Шевченко", mensagem: "" }],
+    [
+      "«Олена Шевченко» com uma mensagem curta em inglês",
+      { nome: "Олена Шевченко", mensagem: "Wedding in Lisbon, June 2027, 60 guests." },
+    ],
+    [
+      "os noivos com nomes em cirílico",
+      {
+        nome: "Olena",
+        mensagem: "Hello!",
+        nomes: ["Олена Шевченко", "Тарас Коваленко"],
+      },
+    ],
+    [
+      "uma mensagem inteira em ucraniano",
+      {
+        nome: "Олена Шевченко",
+        mensagem:
+          "Добрий день! Ми плануємо весілля в Сінтрі у червні 2027 року, приблизно 80 гостей. Хотіли б квіти в пастельних тонах. Дякуємо!",
+      },
+    ],
+    [
+      "ucraniano longo com o portefólio do fotógrafo",
+      {
+        nome: "Олена Шевченко",
+        mensagem:
+          "Добрий день! Плануємо весілля в Сінтрі у червні 2027 року, приблизно 80 гостей. Наш фотограф: https://ivanphoto.ru/portfolio",
+      },
+    ],
+    [
+      "uma mensagem inteira em chinês",
+      {
+        nome: "王芳",
+        mensagem:
+          "您好！我们计划明年六月在里斯本举行婚礼，大约一百位客人。我们希望用白色和绿色的花。请给我们报价。谢谢！",
+      },
+    ],
+    [
+      "Pornic (uma terra em França)",
+      { nome: "Claire", mensagem: "We live in Pornic, France, and want to marry in Portugal." },
+    ],
+    [
+      "traffic e leads num evento de empresa",
+      {
+        nome: "Mark",
+        mensagem:
+          "Corporate dinner for our sales team (we celebrate a record year in leads). Please consider traffic in Lisbon, the venue is downtown. SEO team included.",
+      },
+    ],
+    [
+      "bitcoin sem ligação",
+      { nome: "Satoshi", mensagem: "Can we pay in bitcoin? Wedding for 50 guests in Porto." },
+    ],
+    [
+      "crypto sem ligação",
+      {
+        nome: "Amy",
+        mensagem: "We met at a crypto conference, so a small nod to that would be fun.",
+      },
+    ],
+    [
+      "o fotógrafo ivanphoto.ru",
+      { nome: "Ivan", mensagem: "Our photographer: https://ivanphoto.ru/portfolio" },
+    ],
+    [
+      "o fotógrafo ivanphoto.ru ao lado do Pinterest e do OneDrive",
+      {
+        nome: "Olena",
+        mensagem:
+          "https://ivanphoto.ru/portfolio, https://pin.it/abc e https://1drv.ms/f/s!x — e de novo https://ivanphoto.ru/casamentos.",
+      },
+    ],
+  ];
+  it.each(casos)("%s", (_nome, texto) => {
+    expect(motivoDeSpam(texto)).toBeNull();
+  });
+});
+
 describe("spam é apanhado", () => {
   const falsos: Array<[string, Parameters<typeof motivoDeSpam>[0], string]> = [
     [
@@ -92,18 +209,27 @@ describe("spam é apanhado", () => {
       "ligacao-no-nome",
     ],
     [
-      "domínio de topo de spam",
-      { nome: "Mark", mensagem: "Check https://best-offer.xyz/now" },
+      "dois domínios de topo de spam",
+      { nome: "Mark", mensagem: "Check https://best-offer.xyz/now and https://more-offers.top/x" },
       "dominio-de-spam",
     ],
     [
-      "domínio .ru sem esquema",
-      { nome: "Ivan", mensagem: "visit www.cheap-pills.ru today" },
+      "um domínio .ru sem esquema, com outra ligação",
+      { nome: "Ivan", mensagem: "visit www.cheap-pills.ru today, or https://pills-shop.com/buy" },
       "dominio-de-spam",
     ],
     [
-      "três ligações a sítios desconhecidos",
-      { nome: "John", mensagem: "https://a-site.com/x https://b-site.com/y https://c-site.net/z" },
+      "um domínio de spam com uma palavra suspeita",
+      { nome: "Ivan", mensagem: "Best ranking for you: https://rank.xyz/now" },
+      "dominio-de-spam",
+    ],
+    [
+      "cinco ligações a sítios desconhecidos e distintos",
+      {
+        nome: "John",
+        mensagem:
+          "https://a-site.com/x https://b-site.com/y https://c-site.net/z https://d-site.org/w https://e-site.io/v",
+      },
       "ligacoes",
     ],
     [
@@ -112,10 +238,11 @@ describe("spam é apanhado", () => {
       "palavras-de-spam",
     ],
     [
-      "crypto",
-      { nome: "Amy", mensagem: "Invest in crypto and double your money." },
+      "crypto com uma ligação",
+      { nome: "Amy", mensagem: "Invest in crypto and double your money: https://coins-now.com/a" },
       "palavras-de-spam",
     ],
+    ["porno", { nome: "X", mensagem: "free porno videos" }, "palavras-de-spam"],
     [
       "online casino",
       { nome: "Bob", mensagem: "Best online casino bonus here" },
@@ -123,18 +250,25 @@ describe("spam é apanhado", () => {
     ],
     [
       "duas palavras fracas juntas",
-      { nome: "Sam", mensagem: "I can improve your SEO and bring more traffic to your site." },
+      {
+        nome: "Sam",
+        mensagem: "I can improve your SEO and your Google ranking, cheap outsourcing.",
+      },
       "palavras-de-spam",
     ],
     [
-      "cirílico",
-      { nome: "Анна", mensagem: "Здравствуйте, предлагаем услуги продвижения сайта недорого." },
+      "cirílico longo com duas ligações a sítios desconhecidos",
+      {
+        nome: "Анна",
+        mensagem:
+          "Здравствуйте, предлагаем услуги продвижения сайта недорого и быстро, подробнее здесь https://prodvizhenie-saitov.com/ceny и https://raskrutka.net/zakaz",
+      },
       "alfabeto",
     ],
     ["maiúsculas não escapam", { nome: "Tom", mensagem: "BUY VIAGRA NOW" }, "palavras-de-spam"],
     [
       "nos outros campos também",
-      { nome: "Ok", mensagem: "", outros: ["https://spam-site.top/promo"] },
+      { nome: "Ok", mensagem: "", outros: ["https://spam-site.top/promo https://spam2.click/x"] },
       "dominio-de-spam",
     ],
   ];

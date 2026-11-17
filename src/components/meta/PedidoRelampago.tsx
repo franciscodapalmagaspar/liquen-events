@@ -173,7 +173,7 @@ export default function PedidoRelampago({
   const router = useRouter();
   const id = useId();
   // A armadilha de tempo do anti-spam: o selo de quando o formulário abriu.
-  const lerSelo = useSeloDoFormulario();
+  const seloParaEnviar = useSeloDoFormulario();
   const [aEnviar, setAEnviar] = useState(false);
   // A MENSAGEM a mostrar, e já não um código de erro. O 400 da rota diz o que
   // está mal («Email inválido», «Nome demasiado curto») e isso deitava-se fora:
@@ -311,6 +311,9 @@ export default function PedidoRelampago({
     // isto, uma rede que abre o socket e nunca responde deixa o botão a rodar
     // para sempre — que no browser interno do Instagram, onde a rede é pior, é
     // um desfecho bem mais provável do que no Safari.
+    // O selo: antes dos 3 s, espera o que falta, já com o «A enviar…»
+    // (`useSeloDoFormulario`). Antes do relógio dos 25 s, que é só da rede.
+    const selo = await seloParaEnviar();
     const controlador = new AbortController();
     const limite = setTimeout(() => controlador.abort(), 25000);
     try {
@@ -323,7 +326,7 @@ export default function PedidoRelampago({
         body: JSON.stringify({
           form,
           website: s("website"),
-          selo: lerSelo(),
+          selo,
           submissionId: ensureSubmissionId(),
         }),
         signal: controlador.signal,

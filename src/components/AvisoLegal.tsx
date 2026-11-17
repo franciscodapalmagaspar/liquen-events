@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import Link from "next/link";
 import LivroDeReclamacoes from "@/components/LivroDeReclamacoes";
 import { localizeHref } from "@/lib/i18n/config";
 import {
@@ -29,8 +30,9 @@ import {
  * Entra no `global-error`, que não carrega a folha do sítio, e no 404 global.
  * O essencial (letra pequena, centrado, a medida da linha) vai em `style`, e
  * a COR herda-se de quem a monta: cada fundo já tem a sua tinta suave, com o
- * contraste medido lá. Sem componentes de cliente, sem pedidos: é uma ligação,
- * não fala com ninguém enquanto não for tocada.
+ * contraste medido lá. Sem pedidos: é uma ligação, não fala com ninguém
+ * enquanto não for tocada. O `<Link>` do Next serve no `global-error` e no 404
+ * global também — os dois já são desenhados pelo React do Next.
  *
  * `alinhar="fim"`: só no rodapé do sítio, que tem a folha de estilos — no
  * telemóvel centrado, a partir do `sm` encostado à direita.
@@ -105,17 +107,28 @@ export default function AvisoLegal({
               padding: 0,
             }}
           >
-            {LIGACOES_LEGAIS[lingua].map((l) => (
-              <li key={l.caminho}>
-                <a
-                  href={localizeHref(l.caminho, lingua)}
-                  className={classeDasLigacoes}
-                  style={{ color: "inherit" }}
-                >
-                  {l.texto}
-                </a>
-              </li>
-            ))}
+            {LIGACOES_LEGAIS[lingua].map((l) => {
+              const href = localizeHref(l.caminho, lingua);
+              const comum = { className: classeDasLigacoes, style: { color: "inherit" } };
+              // Privacidade e Termos são páginas do sítio: `<Link>`, para
+              // navegar sem recarregar e com o prefetch do Next (como estavam
+              // no rodapé antes desta peça). Os Cookies são uma âncora
+              // (`/privacidade#cookies`), e um `<a>` leva o browser direito à
+              // secção — inclusive quando já se está na política.
+              return (
+                <li key={l.caminho}>
+                  {href.includes("#") ? (
+                    <a href={href} {...comum}>
+                      {l.texto}
+                    </a>
+                  ) : (
+                    <Link href={href} {...comum}>
+                      {l.texto}
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
             {acoes ? <li>{acoes}</li> : null}
           </ul>
         </nav>
