@@ -19,4 +19,7 @@ paths = [
 regexes = [
   # RFC 6238 published TOTP test-vector secret (tests only).
   '''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''',
+  # Chaves do Vercel Blob a fingir, só nos testes (a «loja» Loja1234 não existe).
+  '''vercel_blob_rw_Loja1234_[A-Za-z]*''',
+  '''vercel_blob_rw_AbC123xyz_oSegredoNuncaNaPolitica''',
 ]
