@@ -19,6 +19,8 @@ import {
 import { BOTAO_APPLE, CAMPO_APPLE, ROTULO_APPLE } from "@/lib/formulario-apple";
 import NotaDeProtecaoDeDados from "@/components/NotaDeProtecaoDeDados";
 import { useSeloDoFormulario } from "@/lib/anti-spam/useSeloDoFormulario";
+import { useEscritoAntesDeHidratar, useJaHidratado } from "@/lib/useJaHidratado";
+import AvisoSemJavaScript from "@/components/AvisoSemJavaScript";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -175,6 +177,9 @@ export default function PedidoRelampago({
   // A armadilha de tempo do anti-spam: o selo de quando o formulário abriu.
   const seloParaEnviar = useSeloDoFormulario();
   const [aEnviar, setAEnviar] = useState(false);
+  // Desligado até hidratar: antes disso, «Enviar» seguia o GET nativo com os
+  // dados no endereço (`useJaHidratado.ts`).
+  const vivo = useJaHidratado();
   // A MENSAGEM a mostrar, e já não um código de erro. O 400 da rota diz o que
   // está mal («Email inválido», «Nome demasiado curto») e isso deitava-se fora:
   // quem escrevia um email sem TLD lia «Não foi possível enviar» e voltava a
@@ -182,6 +187,13 @@ export default function PedidoRelampago({
   const [erro, setErro] = useState("");
   // A data vazia diz «Escolher a data» no toque (ver o campo, lá em baixo).
   const [temData, setTemData] = useState(false);
+  // Uma data escolhida antes de hidratar não pode ficar invisível no toque.
+  const dataRef = useRef<HTMLInputElement>(null);
+  useEscritoAntesDeHidratar(dataRef, () => setTemData(true));
+  // O trinco do envio: posto ANTES do primeiro `await` (as regras do
+  // telefone), que chegava antes do `setAEnviar` — dois toques seguidos davam
+  // dois pedidos.
+  const trincoRef = useRef(false);
   const comecouRef = useRef(false);
   const textosDoTelefone = useTranslationsSeHouver()?.t.common.campoTelefone ?? TEXTOS_DE_RECURSO;
 
@@ -194,6 +206,17 @@ export default function PedidoRelampago({
 
   async function submeter(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (trincoRef.current) return;
+    trincoRef.current = true;
+    try {
+      // Corre até ao primeiro `await` ainda com o evento vivo (`currentTarget`).
+      await submeterDeVez(e);
+    } finally {
+      trincoRef.current = false;
+    }
+  }
+
+  async function submeterDeVez(e: React.FormEvent<HTMLFormElement>) {
     if (aEnviar) return;
 
     const dados = new FormData(e.currentTarget);
@@ -406,6 +429,7 @@ export default function PedidoRelampago({
           <div className="relative">
             <input
               id={`${id}-data`}
+              ref={dataRef}
               name="data"
               type="date"
               required
@@ -538,9 +562,10 @@ export default function PedidoRelampago({
         </p>
       )}
 
-      <button type="submit" disabled={aEnviar} className={`${BOTAO_APPLE} mt-7 w-full`}>
+      <button type="submit" disabled={aEnviar || !vivo} className={`${BOTAO_APPLE} mt-7 w-full`}>
         {aEnviar ? textos.aSubmeter : textos.submeter}
       </button>
+      <AvisoSemJavaScript lingua={locale === "en" ? "en" : "pt"} />
 
       {/*
         `/68` e não `/45`. MEDIDO com o axe: #9f9d9b sobre branco dá 2,7:1, e o

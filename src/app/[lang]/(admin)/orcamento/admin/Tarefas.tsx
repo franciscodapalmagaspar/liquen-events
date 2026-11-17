@@ -940,6 +940,8 @@ async function pedirEmSilencio(
 export default function Tarefas({
   defaultAssignee = "",
   pedidoDeNova = 0,
+  pedidoDeNovaServido,
+  onPedidoDeNovaServido,
   pedidoDaPaleta,
   nomesDosPedidos,
 }: {
@@ -955,6 +957,15 @@ export default function Tarefas({
    * booleano porque dois toques seguidos têm de pedir duas vezes.
    */
   pedidoDeNova?: number;
+  /**
+   * O último `pedidoDeNova` que este ecrã já serviu, guardado por quem o
+   * monta. Sem ele, conta como servido o valor com que o ecrã monta — e um
+   * toque em «Nova tarefa» dado ENQUANTO o código das Tarefas ainda chegava
+   * perdia-se (passeio do telemóvel, lote de 17/11).
+   */
+  pedidoDeNovaServido?: number;
+  /** Avisa quem monta que o pedido `n` foi servido. */
+  onPedidoDeNovaServido?: (n: number) => void;
   /**
    * A paleta (⌘K) pediu alguma coisa (BO 4): abrir uma tarefa no detalhe
    * (`id`) ou começar uma nova (`novo`). Servido uma vez — ver `servirUmaVez`.
@@ -1094,7 +1105,7 @@ export default function Tarefas({
    * cursor lá dentro, sem ninguém a ter pedido. Só conta o que mudar depois.
    * (A paleta, que chega com as Tarefas ainda fechadas, usa o `pedidoDaPaleta`.)
    */
-  const novaAoMontar = useRef(pedidoDeNova);
+  const novaAoMontar = useRef(pedidoDeNovaServido ?? pedidoDeNova);
   const abrirLinhaDeEscrever = useCallback(() => {
     if (campoDoTitulo.current) {
       campoDoTitulo.current.focus();
@@ -1105,8 +1116,10 @@ export default function Tarefas({
   }, []);
   useEffect(() => {
     if (!pedidoDeNova || pedidoDeNova === novaAoMontar.current) return;
+    novaAoMontar.current = pedidoDeNova;
     abrirLinhaDeEscrever();
-  }, [pedidoDeNova, abrirLinhaDeEscrever]);
+    onPedidoDeNovaServido?.(pedidoDeNova);
+  }, [pedidoDeNova, abrirLinhaDeEscrever, onPedidoDeNovaServido]);
   /* E se a lista ainda estiver a chegar (a paleta pode abrir as Tarefas pela
      primeira vez), o campo só existe quando ela chega: espera-se por ele em
      vez de gastar o pedido de foco num campo que ainda não está desenhado. */

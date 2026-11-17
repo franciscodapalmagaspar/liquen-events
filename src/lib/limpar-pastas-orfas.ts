@@ -5,6 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 import { apagarPastaDoPedido } from "@/lib/proposal-storage";
 import { getState, setState } from "@/lib/app-state";
 import { lerTodasAsLinhas } from "./ler-todas-as-linhas";
+import { CHAVE_DAS_PASTAS_ORFAS, eRegistoDeLimpeza } from "@/lib/registos-das-limpezas";
 import { log } from "@/lib/logger";
 
 /**
@@ -49,7 +50,7 @@ import { log } from "@/lib/logger";
 export const DIAS = 30;
 export const ESPERA_DIAS = 7;
 export const POR_NOITE = 10;
-export const CHAVE = "limpeza:pastas-de-pedidos-apagados";
+export const CHAVE = CHAVE_DAS_PASTAS_ORFAS;
 
 const BUCKET = "proposal-assets";
 const FORMA_DE_PEDIDO = /^LIQ-[A-Za-z0-9-]+$/;
@@ -136,8 +137,9 @@ export async function limparPastasDePedidosApagados(
       TABELAS_COM_CONTEUDO.map((t) => lerTodasAsLinhas(sb, t, "*")),
     );
     if (leituras.some((l) => l.error || !l.data)) return falhou;
-    // A própria lista de espera (porta 7) vive em `app_state` e nomeia as
-    // pastas: lida como «menção», nenhuma pasta sairia nunca.
+    // Os cadernos das limpezas (`registos-das-limpezas.ts`): a própria lista
+    // de espera (porta 7) e o plano da junção dos duplicados nomeiam as
+    // pastas — lidos como «menção», nenhuma dessas pastas sairia nunca.
     const texto = leituras
       .map((l, i) =>
         JSON.stringify(
@@ -145,7 +147,7 @@ export async function limparPastasDePedidosApagados(
             ? // E o índice dos resumos (`fotos-resumo.ts`): nomeia fotos de
               // pedidos apagados até alguém as procurar — não é uma menção.
               (l.data as { key?: string }[]).filter(
-                (r) => r.key !== CHAVE && !eChaveDeIndiceDeFotos(r.key),
+                (r) => !eRegistoDeLimpeza(r.key) && !eChaveDeIndiceDeFotos(r.key),
               )
             : l.data,
         ),

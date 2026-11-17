@@ -10,6 +10,8 @@ import { clearSubmissionId, ensureSubmissionId } from "@/lib/orcamento/submissio
 import CampoTelefone from "@/components/CampoTelefone";
 import NotaDeProtecaoDeDados from "@/components/NotaDeProtecaoDeDados";
 import { useSeloDoFormulario } from "@/lib/anti-spam/useSeloDoFormulario";
+import { useEscritoAntesDeHidratar, useJaHidratado } from "@/lib/useJaHidratado";
+import AvisoSemJavaScript from "@/components/AvisoSemJavaScript";
 import { carregarTelefones } from "@/lib/telefone-no-browser";
 import {
   BOTAO_APPLE,
@@ -168,6 +170,9 @@ export default function PedidoRapido({
   // A armadilha de tempo do anti-spam: o selo de quando o formulário abriu.
   const seloParaEnviar = useSeloDoFormulario();
   const [aEnviar, setAEnviar] = useState(false);
+  // Desligado até hidratar: antes disso, «Enviar» seguia o GET nativo com os
+  // dados no endereço (`useJaHidratado.ts`).
+  const vivo = useJaHidratado();
   // A MENSAGEM do erro, e já não um sim/não. O 400 da rota diz o que está mal
   // («Email inválido», «Nome demasiado curto») e era isso que se deitava fora:
   // quem escrevia o email sem TLD via «Não foi possível enviar» e voltava a
@@ -175,6 +180,13 @@ export default function PedidoRapido({
   const [erro, setErro] = useState("");
   // A data vazia diz «Escolher a data» no toque (ver o campo, lá em baixo).
   const [temData, setTemData] = useState(false);
+  // Uma data escolhida antes de hidratar não pode ficar invisível no toque.
+  const dataRef = useRef<HTMLInputElement>(null);
+  useEscritoAntesDeHidratar(dataRef, () => setTemData(true));
+  // O trinco do envio: posto ANTES do primeiro `await` (as regras do
+  // telefone), que chegava antes do `setAEnviar` — dois toques seguidos davam
+  // dois pedidos.
+  const trincoRef = useRef(false);
   const comecouRef = useRef(false);
   /**
    * O telemóvel, com a bandeira (pedido dela, 30/10: «números de telefone
@@ -197,6 +209,17 @@ export default function PedidoRapido({
 
   async function submeter(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (trincoRef.current) return;
+    trincoRef.current = true;
+    try {
+      // Corre até ao primeiro `await` ainda com o evento vivo (`currentTarget`).
+      await submeterDeVez(e);
+    } finally {
+      trincoRef.current = false;
+    }
+  }
+
+  async function submeterDeVez(e: React.FormEvent<HTMLFormElement>) {
     if (aEnviar) return;
     const formulario = e.currentTarget;
     // Um telemóvel escrito tem de existir no país da bandeira — conferido AQUI
@@ -336,6 +359,7 @@ export default function PedidoRapido({
           <div className="relative">
             <input
               id={`${id}-data`}
+              ref={dataRef}
               name="data"
               type="date"
               required
@@ -467,9 +491,10 @@ export default function PedidoRapido({
         </p>
       )}
 
-      <button type="submit" disabled={aEnviar} className={`${BOTAO_APPLE} mt-6 w-full`}>
+      <button type="submit" disabled={aEnviar || !vivo} className={`${BOTAO_APPLE} mt-6 w-full`}>
         {aEnviar ? textos.aSubmeter : textos.submeter}
       </button>
+      <AvisoSemJavaScript lingua={locale === "en" ? "en" : "pt"} />
 
       {/*
         `/68` e não `/45`. MEDIDO com o axe: #9f9d9b sobre branco dá 2,7:1, e o
