@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo, startTransition, memo } from "react";
 import { idCurto } from "@/lib/id-unico";
+import { semRecusa } from "@/lib/promessa-segura";
 import { useIsomorphicLayoutEffect } from "@/lib/motion/useIsomorphicLayoutEffect";
 import { createPortal } from "react-dom";
 import Image from "next/image";
@@ -2027,8 +2028,9 @@ function Lightbox({
         // «f» põe o visualizador em ecrã inteiro, e tira-o. O Esc do browser
         // também o tira (e esse Esc não chega aqui: o browser fica com ele).
         const d = dialogRef.current;
-        if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => {});
-        else if (d?.requestFullscreen) void d.requestFullscreen().catch(() => {});
+        // O Safari antes do 16.4 não devolve promessa: ver `promessa-segura`.
+        if (document.fullscreenElement) semRecusa(() => document.exitFullscreen?.());
+        else if (d?.requestFullscreen) semRecusa(() => d.requestFullscreen());
       } else if (e.key === "Tab" && !chromeVisivel) {
         // A barra está escondida (e `inert`): o primeiro Tab mostra-a, e é
         // o seguinte que entra nela.
@@ -2108,7 +2110,7 @@ function Lightbox({
     return () => {
       document.body.style.overflow = "";
       document.documentElement.classList.remove("lightbox-aberta");
-      if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => {});
+      if (document.fullscreenElement) semRecusa(() => document.exitFullscreen?.());
       window.clearTimeout(segurancaRef.current);
     };
   }, []);

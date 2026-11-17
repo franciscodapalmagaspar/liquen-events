@@ -286,6 +286,60 @@ describe("GET /api/backup", () => {
     expect(json.incomplete).toEqual(["suppliers"]);
   });
 
+  it("uma recusa PASSAGEIRA de um conjunto tenta outra vez, e a cópia sai COMPLETA (registos de 13 e 16/11)", async () => {
+    // «backup: conjunto falhou a leitura — cópia INCOMPLETA»: `eventMaterial`
+    // a 13/11 e `proposalEmails` a 16/11, ambos com PGRST303 («JWT issued at
+    // future» — o relógio do PostgREST uns segundos atrás). Passa sozinho num
+    // segundo; sem nova tentativa, a cópia da noite saía incompleta.
+    const relogio = Object.assign(new Error("JWT issued at future"), { code: "PGRST303" });
+    stores.eventMaterial.mockRejectedValueOnce(relogio).mockResolvedValue([{ id: "em1" }]);
+    stores.proposalEmails
+      .mockRejectedValueOnce(new Error("tempo esgotado"))
+      .mockResolvedValue([{ key: "envio-de-proposta:1" }]);
+    const json = await (await GET(get())).json();
+    expect(json.incomplete).toEqual([]);
+    expect(json.counts.eventMaterial).toBe(1);
+    expect(json.counts.proposalEmails).toBe(1);
+  });
+
+  /**
+   * Revisão de 17/11, n.º 7: o «statement timeout» do Postgres (57014) é a
+   * consulta pesada de mais — repeti-la é pedir o mesmo esforço outra vez, e
+   * esgotar o tempo da função. E as repetições respeitam um orçamento de
+   * tempo: a rota tem 60 s (`maxDuration`), e nunca pode passar deles.
+   */
+  it("um «statement timeout» (57014) não se repete", async () => {
+    const pesada = Object.assign(new Error("canceling statement due to statement timeout"), {
+      code: "57014",
+    });
+    stores.suppliers.mockRejectedValue(pesada);
+    const json = await (await GET(get())).json();
+    expect(stores.suppliers).toHaveBeenCalledTimes(1);
+    expect(json.incomplete).toEqual(["suppliers"]);
+  });
+
+  it("nenhuma nova tentativa começa depois de gasto o orçamento de tempo", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      stores.suppliers.mockImplementation(async () => {
+        // A primeira leitura demorou 40 s a falhar: já não há tempo para outra.
+        vi.setSystemTime(Date.now() + 40_000);
+        throw new Error("tempo esgotado");
+      });
+      const json = await (await GET(get())).json();
+      expect(stores.suppliers, "repetiu sem tempo para isso").toHaveBeenCalledTimes(1);
+      expect(json.incomplete).toEqual(["suppliers"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("uma avaria que NÃO é passageira não se repete às cegas", async () => {
+    stores.suppliers.mockRejectedValue(new Error("db down"));
+    await GET(get());
+    expect(stores.suppliers).toHaveBeenCalledTimes(1);
+  });
+
   it("contadores de numeração: erro do Supabase marca a cópia como incompleta", async () => {
     sb.fails = true;
     const json = await (await GET(get())).json();

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { pdfDoLink, versaoDaChave } from "@/lib/paginas-da-proposta";
-import { imagemDaPagina, larguraPedida } from "@/lib/paginas-do-pdf";
+import {
+  imagemDaPagina,
+  larguraPedida,
+  PedidoCortado,
+  SemVagaParaDocumentos,
+} from "@/lib/paginas-do-pdf";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
@@ -56,7 +61,9 @@ async function GET_semMedida(
   try {
     const pdf = await pdfDoLink(token);
     if (!pdf) return new NextResponse(null, { status: 404 });
-    const imagem = await imagemDaPagina(pdf.chave, pdf.obterBytes, numero, largura);
+    const imagem = await imagemDaPagina(pdf.chave, pdf.obterBytes, numero, largura, {
+      signal: request.signal,
+    });
     if (!imagem) return new NextResponse(null, { status: 404 });
     const certa = url.searchParams.get("v") === versaoDaChave(pdf.chave) && pdf.completo();
     return new NextResponse(new Uint8Array(imagem), {
@@ -69,6 +76,15 @@ async function GET_semMedida(
       },
     });
   } catch (err) {
+    // A fila dos documentos (2.ª revisão de 17/11): um pedido cortado não é
+    // avaria, e a fila cheia durante 15 s diz «tenta outra vez».
+    if (err instanceof PedidoCortado || request.signal.aborted) {
+      return new NextResponse(null, { status: 499 });
+    }
+    if (err instanceof SemVagaParaDocumentos) {
+      log.warn("proposta: sem vaga para abrir o documento", { pagina: numero });
+      return new NextResponse(null, { status: 503, headers: { "Retry-After": "2" } });
+    }
     log.error("proposta: página do PDF falhou", err, { pagina: numero });
     return new NextResponse(null, { status: 500 });
   }

@@ -286,7 +286,29 @@ if (typeof window !== "undefined") {
   });
 }
 
-class FalhaTemporaria extends Error {}
+class FalhaTemporaria extends Error {
+  /**
+   * Quanto esperar antes da próxima tentativa. Um 503 com `Retry-After` (a
+   * fila de documentos do servidor cheia, 2.ª revisão de 17/11) diz quanto:
+   * voltar aos 800 ms só ocupava outra função na mesma fila cheia.
+   */
+  constructor(
+    estado: number,
+    readonly esperaMs = ESPERA_DEPOIS_DE_FALHAR_MS,
+  ) {
+    super(String(estado));
+  }
+}
+
+const ESPERA_DEPOIS_DE_FALHAR_MS = 800;
+/** Um `Retry-After` maior do que isto não se segue: a página parecia presa. */
+const ESPERA_MAXIMA_MS = 10_000;
+
+function esperaDoServidor(res: Response): number {
+  const segundos = Number(res.headers.get("Retry-After"));
+  if (!Number.isFinite(segundos) || segundos <= 0) return ESPERA_DEPOIS_DE_FALHAR_MS;
+  return Math.min(ESPERA_MAXIMA_MS, Math.max(ESPERA_DEPOIS_DE_FALHAR_MS, segundos * 1000));
+}
 
 /**
  * ── O PREPARADOR DE UMA PROPOSTA ────────────────────────────────────────
@@ -304,6 +326,13 @@ class Preparador {
   private raio = Number.POSITIVE_INFINITY;
   private emCurso = new Map<number, AbortController>();
   private tentativas = new Map<number, number>();
+  /**
+   * Quando é que cada página que falhou pode voltar a ser pedida. Sem isto, a
+   * espera depois de uma falha só valia se nenhuma outra página acabasse
+   * entretanto: o fim de outra voltava a bombear, e a que falhou ia logo
+   * (2.ª revisão de 17/11, com o `Retry-After` do 503).
+   */
+  private naoAntesDe = new Map<number, number>();
   private espera: ReturnType<typeof setTimeout> | null = null;
   private parado = false;
   private ouvintes = new Set<() => void>();
@@ -350,6 +379,7 @@ class Preparador {
       for (const c of this.emCurso.values()) c.abort();
       this.emCurso.clear();
       this.tentativas.clear();
+      this.naoAntesDe.clear();
       if (this.espera) clearTimeout(this.espera);
       const entrar = () => {
         this.espera = null;
@@ -387,6 +417,7 @@ class Preparador {
     if (!this.doc) return null;
     for (const p of paginasAPreparar(this.aVer, this.total, this.raio)) {
       if (this.emCurso.has(p) || this.falhou(p)) continue;
+      if ((this.naoAntesDe.get(p) ?? 0) > Date.now()) continue;
       if (guardadas.has(this.chave(p))) continue;
       return p;
     }
@@ -405,6 +436,7 @@ class Preparador {
 
   private async desenhar(p: number, doc: ProposalDoc) {
     const controlo = new AbortController();
+    let espera = ESPERA_DEPOIS_DE_FALHAR_MS;
     this.emCurso.set(p, controlo);
     const chave = this.chave(p, doc);
     const corpo = corpoDe(doc, this.idioma, p, this.largura);
@@ -442,7 +474,7 @@ class Preparador {
           },
         );
         const paginas = Number(res.headers.get("X-Paginas")) || null;
-        if (!res.ok) throw new FalhaTemporaria(String(res.status));
+        if (!res.ok) throw new FalhaTemporaria(res.status, esperaDoServidor(res));
         const g: Guardada = { imagem: await res.blob(), paginas, rascunho: estaVersao };
         // Guarda-se mesmo que tenha ficado velho: está certa para AQUELE rascunho.
         guardar(chave, g);
@@ -450,16 +482,19 @@ class Preparador {
         guardarUltima(daPagina, g);
       }
       this.tentativas.delete(p);
-    } catch {
+      this.naoAntesDe.delete(p);
+    } catch (erro) {
       if (controlo.signal.aborted) return;
       this.tentativas.set(p, (this.tentativas.get(p) ?? 0) + 1);
+      espera = erro instanceof FalhaTemporaria ? erro.esperaMs : ESPERA_DEPOIS_DE_FALHAR_MS;
+      this.naoAntesDe.set(p, Date.now() + espera);
     } finally {
       if (this.emCurso.get(p) === controlo) this.emCurso.delete(p);
     }
     this.avisar();
     // Uma falha espera um pouco antes da próxima tentativa.
     if (!this.falhou(p) && this.tentativas.has(p)) {
-      setTimeout(() => this.bombear(), 800);
+      setTimeout(() => this.bombear(), espera);
     } else {
       this.bombear();
     }
@@ -472,6 +507,7 @@ class Preparador {
   /** Uma foto entrou ou saiu: as páginas à volta da que se vê pedem-se outra vez. */
   fotosMudaram() {
     this.tentativas.clear();
+    this.naoAntesDe.clear();
     this.raio = RAIO_DEPOIS_DE_MUDAR;
     this.avisar();
     this.bombear();

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { pdfDoLink, versaoDaChave } from "@/lib/paginas-da-proposta";
-import { formasDasPaginas, textoDasPaginas } from "@/lib/paginas-do-pdf";
+import {
+  formasDasPaginas,
+  PedidoCortado,
+  SemVagaParaDocumentos,
+  textoDasPaginas,
+} from "@/lib/paginas-do-pdf";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
@@ -21,8 +26,8 @@ async function GET_semMedida(request: Request, { params }: { params: Promise<{ t
     const pdf = await pdfDoLink(token);
     if (!pdf) return new NextResponse(null, { status: 404 });
     const [formas, textos] = await Promise.all([
-      formasDasPaginas(pdf.chave, pdf.obterBytes),
-      textoDasPaginas(pdf.chave, pdf.obterBytes),
+      formasDasPaginas(pdf.chave, pdf.obterBytes, { signal: request.signal }),
+      textoDasPaginas(pdf.chave, pdf.obterBytes, { signal: request.signal }),
     ]);
     return NextResponse.json(
       {
@@ -32,6 +37,14 @@ async function GET_semMedida(request: Request, { params }: { params: Promise<{ t
       { headers: { "Cache-Control": "private, no-cache", "X-Robots-Tag": "noindex" } },
     );
   } catch (err) {
+    // A fila dos documentos — ver a rota de cada página ao lado.
+    if (err instanceof PedidoCortado || request.signal.aborted) {
+      return new NextResponse(null, { status: 499 });
+    }
+    if (err instanceof SemVagaParaDocumentos) {
+      log.warn("proposta: sem vaga para abrir o documento (páginas)");
+      return new NextResponse(null, { status: 503, headers: { "Retry-After": "2" } });
+    }
     log.error("proposta: páginas do PDF falharam", err);
     return new NextResponse(null, { status: 500 });
   }

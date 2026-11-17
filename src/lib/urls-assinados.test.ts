@@ -186,6 +186,51 @@ describe("sem a coluna `urls` (42703 em produção)", () => {
     await urlsGuardados(["a/1.jpg"]);
     expect(H.chamadas).toEqual([]);
   });
+  it("a mensagem exacta dos registos (10–12/11) é a coluna em falta: um aviso só, nunca «não ficaram guardados»", async () => {
+    // As 11 «urls-assinados: não ficaram guardados» de /proposta/[token] eram
+    // esta: a migração por aplicar (já aplicada, verificado a 17/11).
+    H.linhas = [{ path: "a/1.jpg", urls: null }];
+    const guardados = await urlsGuardados(["a/1.jpg"]);
+    H.erroDaEscrita = {
+      code: "PGRST204",
+      message: "Could not find the 'urls' column of 'biblioteca_fotos' in the schema cache",
+    };
+    for (let i = 0; i < 3; i += 1) {
+      await guardarUrls(
+        new Map([["a/1.jpg", { original: assinado("theme-assets", "a/1.jpg") }]]),
+        guardados,
+      );
+    }
+    expect(H.avisos.filter((a) => a.includes("não ficaram guardados"))).toEqual([]);
+    expect(H.avisos.filter((a) => a.includes("biblioteca_fotos.urls"))).toHaveLength(1);
+  });
+
+  it("uma recusa passageira (PGRST303, rede) é esperada e não é aviso: assina-se de novo na visita seguinte", async () => {
+    H.linhas = [{ path: "a/1.jpg", urls: null }];
+    const guardados = await urlsGuardados(["a/1.jpg"]);
+    H.erroDaEscrita = { code: "PGRST303", message: "JWT issued at future" };
+    await guardarUrls(
+      new Map([["a/1.jpg", { original: assinado("theme-assets", "a/1.jpg") }]]),
+      guardados,
+    );
+    H.erroDaEscrita = { message: "TypeError: fetch failed" };
+    await guardarUrls(
+      new Map([["a/1.jpg", { original: assinado("theme-assets", "a/1.jpg") }]]),
+      guardados,
+    );
+    expect(H.avisos).toEqual([]);
+  });
+
+  it("uma recusa que não é passageira continua a ser aviso", async () => {
+    H.linhas = [{ path: "a/1.jpg", urls: null }];
+    const guardados = await urlsGuardados(["a/1.jpg"]);
+    H.erroDaEscrita = { code: "42501", message: "permission denied for table biblioteca_fotos" };
+    await guardarUrls(
+      new Map([["a/1.jpg", { original: assinado("theme-assets", "a/1.jpg") }]]),
+      guardados,
+    );
+    expect(H.avisos.some((a) => a.includes("não ficaram guardados"))).toBe(true);
+  });
 });
 
 describe("os endereços das fotografias no Vercel Blob (revisões de 17/11)", () => {

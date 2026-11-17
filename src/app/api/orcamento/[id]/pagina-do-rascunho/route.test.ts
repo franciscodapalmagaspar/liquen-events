@@ -21,6 +21,9 @@ const st = vi.hoisted(() => ({
   /** O que o armazenamento diz que já não existe (com a memória de 3 min). */
   faltam: new Set<string>(),
   perguntas: [] as unknown[],
+  /** O sinal que a rota passou à fila dos documentos. */
+  sinais: [] as (AbortSignal | undefined)[],
+  semVaga: false,
 }));
 
 vi.mock("@/lib/admin-auth", () => ({ isAuthed: () => st.authed }));
@@ -33,6 +36,7 @@ vi.mock("@/lib/proposal-doc-render", () => ({
   },
 }));
 vi.mock("@/lib/paginas-do-pdf", () => ({
+  SemVagaParaDocumentos: class SemVagaParaDocumentos extends Error {},
   larguraPedida: (n: number) => (n <= 800 ? 800 : n <= 1200 ? 1200 : 1600),
   // Uma memória de verdade, como a do módulo: a chave e a página.
   imagemDaPagina: async (
@@ -40,7 +44,13 @@ vi.mock("@/lib/paginas-do-pdf", () => ({
     obter: () => Promise<Uint8Array>,
     n: number,
     largura: number,
+    opcoes?: { signal?: AbortSignal },
   ) => {
+    st.sinais.push(opcoes?.signal);
+    if (st.semVaga) {
+      const { SemVagaParaDocumentos } = await import("@/lib/paginas-do-pdf");
+      throw new SemVagaParaDocumentos();
+    }
     const id = `${chave}:${n}:${largura}`;
     if (!st.imagens.has(id)) {
       await obter();
@@ -52,6 +62,7 @@ vi.mock("@/lib/paginas-do-pdf", () => ({
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 
 import { POST } from "./route";
+import { log } from "@/lib/logger";
 
 const pedir = (body: unknown, qs = "") =>
   POST(
@@ -71,6 +82,8 @@ beforeEach(() => {
   st.imagens.clear();
   st.faltam = new Set();
   st.perguntas = [];
+  st.sinais = [];
+  st.semVaga = false;
 });
 
 describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
@@ -171,5 +184,62 @@ describe("POST /api/orcamento/[id]/pagina-do-rascunho", () => {
     st.faltam = new Set();
     await pedir({ doc: DOC, n: 3 }, `?desde=${Date.now()}`);
     expect(st.render).toHaveBeenCalledTimes(2);
+  });
+  it("um pedido que o browser cancelou não conta como erro (registos de 16/11)", async () => {
+    // O estúdio desiste de uma página quando ela muda de página a meio. Isso
+    // é normal, e não pode aparecer no registo de erros como uma avaria.
+    const controlador = new AbortController();
+    st.render.mockImplementationOnce(async () => {
+      controlador.abort();
+      throw Object.assign(new Error("Rendering cancelled, page 1"), {
+        name: "RenderingCancelledException",
+      });
+    });
+    vi.mocked(log.error).mockClear();
+    vi.mocked(log.info).mockClear();
+    const res = await POST(
+      new Request("http://x/api/orcamento/q1/pagina-do-rascunho", {
+        method: "POST",
+        body: JSON.stringify({ doc: DOC, n: 4 }),
+        signal: controlador.signal,
+      }) as unknown as NextRequest,
+      { params: Promise.resolve({ id: "q1" }) },
+    );
+    expect(res.status).toBe(499);
+    expect(log.error).not.toHaveBeenCalled();
+    // Mas fica uma linha de informação, com o erro: se um dia os cancelamentos
+    // esconderem outra coisa, há por onde começar (revisão de 17/11, n.º 3).
+    expect(log.info).toHaveBeenCalledWith(
+      expect.stringContaining("pagina-do-rascunho"),
+      expect.objectContaining({
+        id: "q1",
+        n: 4,
+        erro: expect.stringContaining("Rendering cancelled"),
+      }),
+    );
+  });
+
+  it("uma falha verdadeira continua a contar como erro", async () => {
+    st.render.mockImplementationOnce(async () => {
+      throw new Error("sem memória");
+    });
+    vi.mocked(log.error).mockClear();
+    const res = await pedir({ doc: DOC, n: 5 });
+    expect(res.status).toBe(500);
+    expect(log.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("a fila dos documentos recebe o sinal do pedido, e a fila cheia dá 503 (2.ª revisão de 17/11)", async () => {
+    vi.mocked(log.error).mockClear();
+    const res = await pedir({ doc: DOC, n: 6 });
+    expect(res.status).toBe(200);
+    expect(st.sinais[0]).toBeInstanceOf(AbortSignal);
+    st.semVaga = true;
+    const cheia = await pedir({ doc: DOC, n: 7 });
+    expect(cheia.status).toBe(503);
+    expect(cheia.headers.get("Retry-After")).toBe("2");
+    expect((await cheia.json()).error).toContain("tenta outra vez");
+    expect(log.error).not.toHaveBeenCalled();
+    expect(log.warn).toHaveBeenCalled();
   });
 });

@@ -99,4 +99,36 @@ describe("relatarFalhaDeImagem", () => {
       relatarFalhaDeImagem({ onde: "capa-direita", url: ASSINADO }),
     ).resolves.toBeUndefined();
   });
+  it("uma assinatura que JÁ expirou diz-se como tal, e leva o código (registos de 10–13/11)", async () => {
+    // As ~30 «imagem não desenhou» de 10–13/11 eram TODAS 400 sobre ficheiros
+    // que existem (verificado no Storage): assinaturas de 6 h já mortas, que
+    // a hidratação troca sozinha. Diz-se `expirada`, para o registo as separar
+    // de um ficheiro em falta — e poupa-se a ida que só servia para o código.
+    const carga = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 })).toString(
+      "base64url",
+    );
+    const morto = `https://abc.supabase.co/storage/v1/object/sign/theme-assets/t/a.jpg?token=eyJhbGciOi.${carga}.xxx`;
+    await relatarFalhaDeImagem({ onde: "mood-board", ref: "tema:t/a.jpg", url: morto });
+    expect(pedidos).toHaveLength(1);
+    // E o código vai na mesma (revisão de 17/11, n.º 9): «expirou» diz-se pelo
+    // relógio do browser, que pode estar errado; o 400/404 é o que o Storage
+    // respondeu de facto, e é o que separa «expirou» de «não existe».
+    expect(pedidos[0].corpo).toMatchObject({ expirada: true, estado: 404 });
+  });
+
+  it("uma assinatura a menos de 5 minutos do fim já se diz expirada (revisão de 17/11, n.º 9)", async () => {
+    // O relógio do browser e o do Storage não batem ao segundo: uma assinatura
+    // que morre daqui a 2 minutos já pode ter morrido do lado de lá.
+    const carga = Buffer.from(
+      JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 120 }),
+    ).toString("base64url");
+    const quase = `https://abc.supabase.co/storage/v1/object/sign/theme-assets/t/b.jpg?token=eyJhbGciOi.${carga}.xxx`;
+    await relatarFalhaDeImagem({ onde: "mood-board", url: quase });
+    expect(pedidos[0].corpo).toMatchObject({ expirada: true, estado: 404 });
+  });
+
+  it("uma assinatura em dia não se diz expirada", async () => {
+    await relatarFalhaDeImagem({ onde: "capa", url: ASSINADO });
+    expect(pedidos[0].corpo.expirada).toBe(false);
+  });
 });
