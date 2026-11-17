@@ -92,6 +92,23 @@ export interface RegistoDeRecuperacao {
    * aparelho que se fechou por desconfiança.
    */
   passkeysDesde: Record<string, number>;
+  /**
+   * marcador do pedido → instante. Cada pedido de ligação — tenha o endereço
+   * conta ou não — deixa aqui um marcador ALEATÓRIO e único (revisão de 16/11,
+   * n.º 1). É o que uma escrita que respondeu tarde procura na releitura, e
+   * por ser igual nos dois casos o mesmo atraso dá a mesma resposta (e o mesmo
+   * número de idas à base de dados) a um endereço real e a um inventado. Vive
+   * {@link VIDA_DAS_MARCAS_MS} e nunca passa de {@link MAX_MARCAS}.
+   */
+  marcas: Record<string, number>;
+}
+
+export const VIDA_DAS_MARCAS_MS = 10 * 60_000;
+export const MAX_MARCAS = 50;
+
+/** Um marcador de pedido: 12 bytes aleatórios. Não abre nada, só se procura. */
+export function novaMarca(): string {
+  return randomBytes(12).toString("base64url");
 }
 
 /** 32 bytes de aleatoriedade criptográfica — 43 caracteres seguros num URL. */
@@ -158,6 +175,7 @@ export function registoVazio(): RegistoDeRecuperacao {
     pedidos: tabelaSemHeranca(null),
     senhas: tabelaSemHeranca(null),
     passkeysDesde: tabelaSemHeranca(null),
+    marcas: tabelaSemHeranca(null),
   };
 }
 
@@ -176,6 +194,7 @@ function registoDe(guardado: Partial<RegistoDeRecuperacao> | null): RegistoDeRec
     pedidos: tabelaSemHeranca<PedidoDeRecuperacao>(guardado.pedidos),
     senhas: tabelaSemHeranca<SenhaRedefinida>(guardado.senhas),
     passkeysDesde: soInstantes(guardado.passkeysDesde),
+    marcas: soInstantes(guardado.marcas),
   };
 }
 
@@ -323,6 +342,15 @@ export function limparExpirados(registo: RegistoDeRecuperacao, agora = Date.now(
     if (!pedido || typeof pedido.expiraEm !== "number" || pedido.expiraEm <= agora) {
       delete registo.pedidos[email];
     }
+  }
+  // Os marcadores dos pedidos: só servem enquanto uma escrita pode responder
+  // tarde. Saem os velhos e, acima do tecto, os mais antigos.
+  for (const [marca, quando] of Object.entries(registo.marcas)) {
+    if (quando <= agora - VIDA_DAS_MARCAS_MS) delete registo.marcas[marca];
+  }
+  const vivas = Object.entries(registo.marcas).sort((a, b) => a[1] - b[1]);
+  for (const [marca] of vivas.slice(0, Math.max(0, vivas.length - MAX_MARCAS))) {
+    delete registo.marcas[marca];
   }
 }
 

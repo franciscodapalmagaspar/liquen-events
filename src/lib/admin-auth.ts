@@ -763,7 +763,7 @@ export async function pedirRecuperacao(
   // sobre ninguém — é uma característica da instalação, não de uma pessoa.
   if (!users || !users.some((u) => u.email)) return { estado: "sem-recuperacao" };
 
-  const { mudarRegisto, novoToken, resumoDoToken, VALIDADE_MS } =
+  const { mudarRegisto, novoToken, novaMarca, resumoDoToken, VALIDADE_MS } =
     await import("./admin-recuperacao");
 
   const conta = contaPorEmail(email);
@@ -791,15 +791,22 @@ export async function pedirRecuperacao(
   // Escrita CONDICIONAL (n.º 4 de 16/11): ver `mudarRegisto`. Sem conseguir ler
   // o registo, ou sem a escrita durar, a mesma resposta de «não consegui
   // gravar», igual para qualquer endereço.
+  //
+  // TODOS os ramos deixam o mesmo marcador aleatório (`marcas`), e é ele que
+  // uma escrita que respondeu tarde procura na releitura (revisão de 16/11,
+  // n.º 1). Se só o ramo com conta soubesse confirmar-se, o mesmo atraso dava
+  // 200 a um endereço real e 503 a um inventado.
+  const marca = novaMarca();
   const escrita = await mudarRegisto((registo, agora) => {
     if (conta?.email && token) {
-      const chave = normalizarIdentificador(conta.email);
-      const resumo = resumoDoToken(token);
-      registo.pedidos[chave] = { resumo, expiraEm: agora + VALIDADE_MS, pedidoEm: agora };
-      // Uma escrita que respondeu tarde conta se ESTA ligação lá ficou.
-      return { gravar: true, valor: null, jaEsta: (r) => r.pedidos[chave]?.resumo === resumo };
+      registo.pedidos[normalizarIdentificador(conta.email)] = {
+        resumo: resumoDoToken(token),
+        expiraEm: agora + VALIDADE_MS,
+        pedidoEm: agora,
+      };
     }
-    return { gravar: true, valor: null };
+    registo.marcas[marca] = agora;
+    return { gravar: true, valor: null, jaEsta: (r) => marca in r.marcas };
   });
   if (escrita.estado !== "gravado") {
     log.error("recuperação: não foi possível guardar o pedido", undefined, {

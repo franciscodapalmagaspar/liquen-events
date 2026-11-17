@@ -34,6 +34,7 @@ const estado = vi.hoisted(() => ({
   leituraPendurada: false,
   /** A escrita fica feita, mas a resposta chega depois do tecto («falhou»). */
   gravaMasFalha: false,
+  leiturasComVersao: 0,
   tectos: [] as number[],
 }));
 
@@ -62,6 +63,7 @@ vi.mock("./app-state", () => ({
   // A leitura com versão e a escrita condicional (o registo das sessões
   // revogadas). A versão é o valor em JSON, como no ficheiro.
   lerEstadoComVersao: vi.fn(async (k: string) => {
+    estado.leiturasComVersao++;
     if (estado.leituraPendurada) return new Promise<never>(() => {});
     if (estado.falhaLeitura) throw new Error("leitura falhou");
     const v = estado.mapa.get(k);
@@ -124,6 +126,7 @@ beforeEach(() => {
   estado.duradouro = true;
   estado.falhaLeitura = false;
   estado.gravaMasFalha = false;
+  estado.leiturasComVersao = 0;
   estado.leituraPendurada = false;
   estado.tectos = [];
   comContas(CONTAS);
@@ -398,6 +401,28 @@ describe("recuperação — a palavra-passe nova", () => {
     ).toMatchObject({ name: "Catarina" });
     // E continuou: as sessões antigas foram fechadas.
     expect(await sessaoValida(antiga)).toBeNull();
+  });
+
+  it("uma escrita que responde tarde dá a MESMA resposta a um endereço real e a um inexistente (revisão de 16/11, n.º 1)", async () => {
+    estado.gravaMasFalha = true;
+    estado.leiturasComVersao = 0;
+    const real = await pedirRecuperacao("catarina@liquen-events.com");
+    const idasReal = estado.leiturasComVersao;
+    estado.leiturasComVersao = 0;
+    const inexistente = await pedirRecuperacao("ninguem@exemplo.pt");
+    const idasInexistente = estado.leiturasComVersao;
+    // O mesmo atraso não pode separar os dois casos: nem pelo desfecho que a
+    // rota transforma em 200/503, nem pelo número de idas à base de dados.
+    expect(real.estado === "sem-persistencia").toBe(inexistente.estado === "sem-persistencia");
+    expect(real.estado).not.toBe("sem-persistencia");
+    expect(idasReal).toBe(idasInexistente);
+  });
+
+  it("os marcadores dos pedidos não fazem crescer o registo", async () => {
+    for (let i = 0; i < 60; i++) await pedirRecuperacao(`inventado-${i}@exemplo.pt`);
+    const guardado = estado.mapa.get("admin-recuperacao") as { marcas: Record<string, number> };
+    // O tecto (50) aplica-se antes de cada pedido acrescentar o seu.
+    expect(Object.keys(guardado.marcas).length).toBeLessThanOrEqual(51);
   });
 
   it("o tecto da escrita do registo é de 8 s", async () => {
