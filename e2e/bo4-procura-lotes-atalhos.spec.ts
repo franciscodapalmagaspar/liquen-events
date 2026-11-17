@@ -1,6 +1,6 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { ESTADO_ADMIN } from "./estado-admin";
-import { entrarNoBackOffice, exigirLogin } from "./semear-pedido";
+import { entrarNoBackOffice, esperarQueACortinaSaia, exigirLogin } from "./semear-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -68,6 +68,7 @@ async function abrir(page: Page, vista: string) {
   await page.goto(`/orcamento/admin?v=${vista}`);
   // O sinal de que a página hidratou é a classe do `body` (ver o `AGENTS.md`).
   await page.waitForFunction(() => document.body.classList.contains("admin-mode"));
+  await esperarQueACortinaSaia(page);
 }
 
 async function semDeslocacaoHorizontal(page: Page, onde: string) {
@@ -221,7 +222,20 @@ test("os atalhos: «G»+letra, «/» na vista, e a folha mostra os escondidos", 
   await ctx.close();
 });
 
-test("Tarefas: ⌘+clique escolhe, «Adiar uma semana» e «Anular»", async ({ browser }, info) => {
+/** O que o servidor diz de uma tarefa — o ecrã não chega para provar uma gravação. */
+async function tarefaNoServidor(page: Page, id: string) {
+  const r = await page.request.get("/api/tarefas");
+  const lista = (await r.json()) as { id: string; dueDate?: string; done?: boolean }[];
+  return lista.find((t) => t.id === id);
+}
+async function pedidoNoServidor(page: Page, id: string) {
+  const r = await page.request.get(`/api/orcamento/${id}`);
+  return (await r.json()) as { archived?: boolean };
+}
+
+test("Tarefas: ⌘+clique escolhe, «Adiar uma semana» e «Anular» — no ecrã e no servidor", async ({
+  browser,
+}, info) => {
   const { ctx, page, erros } = await contexto(browser, {
     largura: 1440,
     altura: 900,
@@ -230,6 +244,7 @@ test("Tarefas: ⌘+clique escolhe, «Adiar uma semana» e «Anular»", async ({ 
   await abrir(page, "tarefas");
   const titulo = (n: number) => page.getByRole("button", { name: new RegExp(`«${T(n)}»`) });
   await expect(titulo(1)).toBeVisible();
+  const antes = (await tarefaNoServidor(page, semeado.tarefas[0]))?.dueDate;
   await titulo(1).click({ modifiers: [MOD] });
   await titulo(3).click({ modifiers: [MOD] });
   const barra = page.getByRole("toolbar", { name: "Ações nas tarefas selecionadas" });
@@ -237,10 +252,16 @@ test("Tarefas: ⌘+clique escolhe, «Adiar uma semana» e «Anular»", async ({ 
   await page.screenshot({ path: info.outputPath("tarefas-lote-1440.png") });
   await barra.getByRole("button", { name: "Adiar uma semana" }).click();
   await expect(page.getByText("2 tarefas adiadas uma semana.")).toBeVisible();
+  await expect
+    .poll(async () => (await tarefaNoServidor(page, semeado.tarefas[0]))?.dueDate?.slice(0, 10))
+    .toBe("2099-01-17");
   await page.getByRole("button", { name: "Anular" }).click();
   await expect(page.getByText("Anulado.")).toBeVisible();
-  // ⌘A e Esc.
-  await page.locator("h1").first().click();
+  await expect
+    .poll(async () => (await tarefaNoServidor(page, semeado.tarefas[0]))?.dueDate)
+    .toBe(antes);
+
+  // ⌘A e Esc com o foco onde ficou (sem clicar no título da página antes).
   await page.keyboard.press(`${MOD}+a`);
   await expect(barra).toBeVisible();
   await page.keyboard.press("Escape");
@@ -249,31 +270,108 @@ test("Tarefas: ⌘+clique escolhe, «Adiar uma semana» e «Anular»", async ({ 
   await ctx.close();
 });
 
-test("Pedidos: ⌘A, Esc e «Arquivar (N)» com «Anular»", async ({ browser }, info) => {
+test("Pedidos: caixa marcada → ⌘A e Esc, e «Arquivar (N)» com «Anular» — no ecrã e no servidor", async ({
+  browser,
+}, info) => {
   const { ctx, page, erros } = await contexto(browser, {
     largura: 1440,
     altura: 900,
     esquema: "light",
   });
   await abrir(page, "pedidos");
-  const procura = page.getByLabel("Procurar pedidos por nome, email, local ou ID");
-  await procura.fill(`TESTE BO4`);
+  await page.getByLabel("Procurar pedidos por nome, email, local ou ID").fill(MARCA);
   await expect(page.getByText(PEDIDO("Ana")).first()).toBeVisible();
-  await page.locator("h1").first().click();
+  // Marca uma caixa (o foco fica NELA) e é daí que vem o ⌘A — o gesto real.
+  await page.getByRole("checkbox", { name: `Selecionar pedido de ${PEDIDO("Ana")}` }).click();
+  await expect(page.getByText(/^1 selecionado$/)).toBeVisible();
   await page.keyboard.press(`${MOD}+a`);
-  await expect(page.getByText(/2 selecionados/)).toBeVisible();
+  await expect(page.getByText(/^2 selecionados$/)).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByText(/2 selecionados/)).toHaveCount(0);
+  await expect(page.getByText(/selecionados?$/)).toHaveCount(0);
+  await page.getByRole("checkbox", { name: `Selecionar pedido de ${PEDIDO("Bruno")}` }).click();
   await page.keyboard.press(`${MOD}+a`);
   await page.screenshot({ path: info.outputPath("pedidos-lote-1440.png") });
   await page.getByRole("button", { name: "Arquivar (2)" }).click();
   await expect(page.getByText("2 pedidos arquivados.")).toBeVisible();
   await expect(page.getByText(PEDIDO("Ana"))).toHaveCount(0);
+  for (const id of semeado.pedidos)
+    await expect.poll(async () => (await pedidoNoServidor(page, id)).archived).toBe(true);
   await page.getByRole("button", { name: "Anular" }).click();
+  await expect(page.getByText(PEDIDO("Ana")).first()).toBeVisible();
+  for (const id of semeado.pedidos)
+    await expect.poll(async () => (await pedidoNoServidor(page, id)).archived ?? false).toBe(false);
+  expect(erros).toEqual([]);
+  await ctx.close();
+});
+
+test("Pedidos: restaurar os arquivados volta à lista normal — no ecrã e no servidor", async ({
+  browser,
+}) => {
+  const { ctx, page, erros } = await contexto(browser, {
+    largura: 1440,
+    altura: 900,
+    esquema: "light",
+  });
+  for (const id of semeado.pedidos)
+    await page.request.patch(`/api/orcamento/${id}`, { data: { archived: true } });
+  await abrir(page, "pedidos");
+  const botao = page.getByRole("button", { name: /^Arquivados · \d+$/ });
+  const quantos = Number((await botao.textContent())?.match(/\d+/)?.[0] ?? 0);
+  await botao.click();
+  await page.getByLabel("Procurar pedidos por nome, email, local ou ID").fill(MARCA);
+  await page.getByRole("checkbox", { name: `Selecionar pedido de ${PEDIDO("Ana")}` }).click();
+  await page.keyboard.press(`${MOD}+a`);
+  await page.getByRole("button", { name: "Restaurar (2)" }).click();
+  await expect(page.getByText("2 pedidos restaurados.")).toBeVisible();
+  for (const id of semeado.pedidos)
+    await expect.poll(async () => (await pedidoNoServidor(page, id)).archived ?? false).toBe(false);
+  if (quantos === 2) {
+    // Eram os únicos: a lista volta à normal, com os dois lá e com saída.
+    await expect(page.getByRole("button", { name: /^Arquivados ·/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Todos · / })).toBeVisible();
+  }
   await expect(page.getByText(PEDIDO("Ana")).first()).toBeVisible();
   expect(erros).toEqual([]);
   await ctx.close();
 });
+
+for (const largura of [390, 1440]) {
+  for (const esquema of ["light", "dark"] as const) {
+    test(`o campo do ⌘K sem rectângulo de foco — ${largura} px, ${esquema}`, async ({
+      browser,
+    }, info) => {
+      const toque = largura < 1024;
+      const { ctx, page, erros } = await contexto(browser, {
+        largura,
+        altura: largura === 390 ? 844 : 900,
+        esquema,
+        toque,
+      });
+      await abrir(page, "pedidos");
+      // A procura dos Pedidos, focada: a moldura de acento segue os cantos.
+      const procura = page.getByLabel("Procurar pedidos por nome, email, local ou ID");
+      await procura.focus();
+      await page.screenshot({
+        path: info.outputPath(`procura-pedidos-foco-${largura}-${esquema}.png`),
+        clip: { x: 0, y: 0, width: largura, height: 220 },
+      });
+      if (toque) await page.getByRole("button", { name: "Pesquisar" }).tap();
+      else await page.keyboard.press(`${MOD}+k`);
+      const campo = page.getByRole("combobox", { name: "Pesquisar ou navegar" });
+      await expect(campo).toBeFocused();
+      await page.keyboard.type("tar");
+      await page.screenshot({ path: info.outputPath(`paleta-foco-${largura}-${esquema}.png`) });
+      const estilo = await campo.evaluate((el) => {
+        const c = getComputedStyle(el);
+        return { sombra: c.boxShadow, contorno: c.outlineStyle };
+      });
+      expect(estilo.sombra, "o rectângulo do foco voltou ao campo do ⌘K").toBe("none");
+      expect(estilo.contorno).toBe("none");
+      expect(erros).toEqual([]);
+      await ctx.close();
+    });
+  }
+}
 
 test("telemóvel com toque: «Selecionar» e tocar nas tarefas", async ({ browser }, info) => {
   const { ctx, page, erros } = await contexto(browser, {
@@ -338,7 +436,7 @@ for (const largura of [390, 768, 1440]) {
         await semDeslocacaoHorizontal(page, `${vista} ${largura} ${esquema}`);
       }
       // Pedidos com a barra do lote.
-      await page.getByLabel("Procurar pedidos por nome, email, local ou ID").fill("TESTE BO4");
+      await page.getByLabel("Procurar pedidos por nome, email, local ou ID").fill(MARCA);
       const caixa = page.getByRole("checkbox", {
         name: new RegExp(`Selecionar pedido de ${PEDIDO("Ana")}`),
       });

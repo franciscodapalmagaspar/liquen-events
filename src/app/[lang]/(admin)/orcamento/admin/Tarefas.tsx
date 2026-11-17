@@ -1309,11 +1309,10 @@ export default function Tarefas({
   const [seleccao, setSeleccao] = useState<ReadonlySet<string>>(() => new Set());
   const [modoDeSeleccao, setModoDeSeleccao] = useState(false);
   const ancoraRef = useRef<string | null>(null);
-  const aSeleccionar = modoDeSeleccao || seleccao.size > 0;
-  const aSeleccionarRef = useRef(aSeleccionar);
-  useEffect(() => {
-    aSeleccionarRef.current = aSeleccionar;
-  }, [aSeleccionar]);
+  /** Lido pelos manipuladores que se montam uma vez — ver `aSeleccionar`. */
+  const aSeleccionarRef = useRef(false);
+  /** A tarefa do detalhe, para o Esc saber qual é a camada de cima. */
+  const escolhidaRef = useRef<string | null>(null);
   const largarSeleccao = useCallback(() => {
     setSeleccao(new Set());
     setModoDeSeleccao(false);
@@ -1888,6 +1887,30 @@ export default function Tarefas({
       .filter((t): t is Task => !!t);
   }, [ordemDoEcra, seleccao, tasks]);
 
+  /* ── UM LOTE ESCONDIDO NÃO É UM LOTE (revisão · 5) ───────────────────────
+     O ecrã ficava preso a escolher quando a lista mudava e as escolhidas
+     saíam de vista: a barra dizia «Toca nas tarefas para as escolher» e os
+     toques somavam a um lote invisível. Agora o modo conta só o que se vê, e
+     as escondidas saem do lote quando a lista muda — ajustado no próprio
+     desenho, como o React deixa fazer sem um segundo passo. */
+  const aSeleccionar = modoDeSeleccao || seleccionadas.length > 0;
+  useEffect(() => {
+    aSeleccionarRef.current = aSeleccionar;
+    escolhidaRef.current = escolhida;
+  }, [aSeleccionar, escolhida]);
+  // Pelo CONTEÚDO e não pela identidade: enquanto a lista carrega, o
+  // `tasks = []` por omissão é um array novo a cada desenho, e comparar
+  // identidades dava um ciclo de desenhos sem fim.
+  const chaveDaOrdem = ordemDoEcra.join("\u0000");
+  const [ordemConhecida, setOrdemConhecida] = useState(chaveDaOrdem);
+  if (ordemConhecida !== chaveDaOrdem) {
+    setOrdemConhecida(chaveDaOrdem);
+    const vistas = new Set(ordemDoEcra);
+    if ([...seleccao].some((id) => !vistas.has(id))) {
+      setSeleccao(new Set([...seleccao].filter((id) => vistas.has(id))));
+    }
+  }
+
   /**
    * ── AS TRÊS ACÇÕES DO LOTE ──────────────────────────────────────────────
    *
@@ -1937,7 +1960,9 @@ export default function Tarefas({
   }, [seleccionadas, loteACorrer, setTasks, largarSeleccao, toast, anular]);
 
   const adiarLote = useCallback(async () => {
-    const alvo = seleccionadas;
+    // As concluídas não mudam de prazo (revisão · 6): adiar uma coisa feita
+    // não quer dizer nada, e o «Anular» teria de desfazer o que ela não viu.
+    const alvo = seleccionadas.filter((t) => !t.done);
     if (alvo.length === 0 || loteACorrer) return;
     setLoteACorrer(true);
     const antes = new Map(alvo.map((t) => [t.id, t.dueDate] as const));
@@ -2057,7 +2082,19 @@ export default function Tarefas({
         ancoraRef.current = ids[ids.length - 1] ?? null;
         return;
       }
-      if (e.key === "Escape" && aSeleccionarRef.current) largarSeleccao();
+      /* ── UM ESC, UMA CAMADA (revisão · 4) ───────────────────────────────
+         Com o detalhe aberto, o Esc fecha o detalhe e deixa o lote; só o
+         seguinte larga o lote. O contentor da lista também fecha o detalhe
+         (com o foco lá dentro) e marca o evento — aqui não se fecha duas
+         vezes nem se larga o lote por baixo. */
+      if (e.key === "Escape") {
+        if (e.defaultPrevented) return;
+        if (escolhidaRef.current) {
+          setEscolhida(null);
+          return;
+        }
+        if (aSeleccionarRef.current) largarSeleccao();
+      }
     };
     document.addEventListener("keydown", noTeclado);
     return () => document.removeEventListener("keydown", noTeclado);
@@ -2521,8 +2558,10 @@ export default function Tarefas({
          linha de escrever e a de editar já o usam. */
       onKeyDown={(e) => {
         if (e.key !== "Escape" || !escolhida) return;
-        const alvo = e.target as HTMLElement | null;
-        if (alvo && /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName)) return;
+        if (aEscreverEm(e.target)) return;
+        // Marcado: o ouvinte do lote, mais acima, não larga o lote com o mesmo
+        // Esc (revisão · 4).
+        e.preventDefault();
         setEscolhida(null);
       }}
     >
@@ -2700,7 +2739,7 @@ export default function Tarefas({
                       <Button
                         size="sm"
                         variant="secondary"
-                        disabled={loteACorrer}
+                        disabled={loteACorrer || seleccionadas.every((t) => t.done)}
                         onClick={() => void adiarLote()}
                       >
                         Adiar uma semana

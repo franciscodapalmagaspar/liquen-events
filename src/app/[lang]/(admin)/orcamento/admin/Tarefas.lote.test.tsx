@@ -225,3 +225,56 @@ describe("o pedido da paleta", () => {
     expect(screen.queryByLabelText("Nova tarefa")).toBeNull();
   });
 });
+
+/* ══════════════════════════════════════════════════════════════════════════
+   REVISÃO INDEPENDENTE DO BO 4 (PR #480)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const listas = () => screen.getByRole("navigation", { name: "Listas de tarefas" });
+
+describe("revisão · 4 — um Esc fecha só a camada de cima", () => {
+  it("com o detalhe aberto e um lote escolhido, o Esc fecha o detalhe e deixa o lote", async () => {
+    montar();
+    await screen.findByText(A.title);
+    fireEvent.click(titulo(A.title)); // abre o detalhe
+    fireEvent.click(titulo(B.title), { metaKey: true }); // começa um lote
+    expect(within(barra()!).getByText("1 selecionada")).toBeTruthy();
+    fireEvent.keyDown(titulo(B.title), { key: "Escape" });
+    await waitFor(() => expect(document.querySelector("[data-tarefa][aria-current]")).toBeNull());
+    expect(barra()).not.toBeNull();
+    // O segundo Esc já é do lote.
+    fireEvent.keyDown(titulo(B.title), { key: "Escape" });
+    await waitFor(() => expect(barra()).toBeNull());
+  });
+});
+
+describe("revisão · 5 — um lote escondido não deixa o ecrã preso a escolher", () => {
+  it("mudar para uma lista onde as escolhidas não estão larga-as", async () => {
+    montar();
+    await screen.findByText(A.title);
+    fireEvent.click(titulo(A.title), { metaKey: true }); // A tem prazo
+    expect(barra()).not.toBeNull();
+    fireEvent.click(within(listas()).getByRole("button", { name: /Sem data/ }));
+    await waitFor(() => expect(barra()).toBeNull());
+    expect(titulo(B.title)).toHaveAccessibleName(`Abrir «${B.title}»`);
+  });
+});
+
+describe("revisão · 6 — «Adiar uma semana» deixa as concluídas de fora", () => {
+  it("as feitas não mudam de prazo", async () => {
+    montar();
+    await screen.findByText(A.title);
+    // C passa a feita, e as concluídas abrem-se para entrarem no ⌘A.
+    fireEvent.click(screen.getByRole("checkbox", { name: C.title }));
+    await waitFor(() => expect(escritas).toHaveLength(1));
+    escritas = [];
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Concluídas \(1\)/ }, { timeout: 4000 }),
+    );
+    fireEvent.keyDown(document.body, { key: "a", metaKey: true });
+    expect(within(barra()!).getByText("3 selecionadas")).toBeTruthy();
+    fireEvent.click(within(barra()!).getByRole("button", { name: "Adiar uma semana" }));
+    await waitFor(() => expect(escritas).toHaveLength(2));
+    expect(escritas.some((e) => e.url.endsWith("t3"))).toBe(false);
+  });
+});

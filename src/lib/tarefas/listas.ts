@@ -104,7 +104,10 @@ export function fimDaSemana(hoje: string): string {
  * seria deixá-la atrasada com outra data.
  */
 export function adiarUmaSemana(prazo: string | undefined, hoje: string): string {
-  const base = prazo && /^\d{4}-\d{2}-\d{2}$/.test(prazo) && prazo >= hoje ? prazo : hoje;
+  // Pelo DIA: um prazo gravado com hora («2026-11-20T10:00…») conta pelo
+  // dia dele, e não como estragado (revisão · 6).
+  const dia = prazo?.slice(0, 10);
+  const base = dia && /^\d{4}-\d{2}-\d{2}$/.test(dia) && dia >= hoje ? dia : hoje;
   const d = new Date(`${base}T12:00:00`);
   d.setDate(d.getDate() + 7);
   const pad = (n: number) => String(n).padStart(2, "0");

@@ -20,6 +20,11 @@ describe("adiarUmaSemana", () => {
     expect(adiarUmaSemana("2027-02-25", HOJE)).toBe("2027-03-04");
   });
 
+  it("um prazo com hora conta pelo dia (revisão · 6)", () => {
+    expect(adiarUmaSemana("2026-11-20T10:00:00.000Z", HOJE)).toBe("2026-11-27");
+    expect(adiarUmaSemana("2026-11-01T23:00", HOJE)).toBe("2026-11-24");
+  });
+
   it("um prazo estragado conta como sem prazo", () => {
     expect(adiarUmaSemana("amanhã", HOJE)).toBe("2026-11-24");
   });

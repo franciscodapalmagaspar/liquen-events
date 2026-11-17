@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import ShortcutsModal, { GROUPS } from "./ShortcutsModal";
+import ShortcutsModal, { GROUPS, gruposDosAtalhos } from "./ShortcutsModal";
 import { VIEW_KEYS } from "./atalhos";
 
 /**
@@ -45,5 +45,30 @@ describe("ShortcutsModal — o que existe, e só isso", () => {
       const r = g.items.map((i) => i.label);
       expect(new Set(r).size, g.title).toBe(r.length);
     }
+  });
+});
+
+describe("revisão · 9 — só o que o browser deixa chegar, e as teclas do sistema certo", () => {
+  const teclas = (g: ReturnType<typeof gruposDosAtalhos>) =>
+    g.flatMap((x) => x.items.map((i) => `${i.keys.join("+")} ${i.label}`));
+
+  it("num separador do browser não promete ⌘N nem ⌘T (o browser fica com eles)", () => {
+    const t = teclas(gruposDosAtalhos({ mac: true, app: false }));
+    expect(t.some((x) => x.startsWith("⌘+N"))).toBe(false);
+    expect(t.some((x) => x.startsWith("⌘+T"))).toBe(false);
+    // O «T» solto do Calendário continua lá.
+    expect(t).toContain("T Hoje");
+  });
+
+  it("aberto como aplicação instalada, mostra-os", () => {
+    const t = teclas(gruposDosAtalhos({ mac: true, app: true }));
+    expect(t).toContain("⌘+N Nova tarefa");
+    expect(t).toContain("⌘+N Novo evento");
+  });
+
+  it("fora do Mac, Ctrl em vez de ⌘", () => {
+    const t = teclas(gruposDosAtalhos({ mac: false, app: false }));
+    expect(t.some((x) => x.includes("⌘"))).toBe(false);
+    expect(t).toContain("Ctrl+K Procurar em tudo e comandos");
   });
 });

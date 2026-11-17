@@ -377,6 +377,9 @@ export default function CommandPalette({
             placeholder="Pesquisar ou navegar…"
             aria-label="Pesquisar ou navegar"
             role="combobox"
+            /* Sem o rectângulo do foco: o campo não tem moldura nem cantos —
+               ver `data-sem-anel` em `admin.css`. */
+            data-sem-anel
             aria-expanded={results.length > 0}
             aria-controls={listaId}
             aria-autocomplete="list"
