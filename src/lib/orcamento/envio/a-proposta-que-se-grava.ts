@@ -165,7 +165,8 @@ export function versaoDaProposta(
   proposal: Proposal,
   anteriores: readonly Proposal[],
 ): Pick<Proposal, "versaoSelo" | "versaoNumero" | "versaoEm"> {
-  const maisRecente = anteriores[0] ?? null;
+  const maisRecente =
+    [...anteriores].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))[0] ?? null;
   const maiorNumero = anteriores.reduce(
     (maior, p) =>
       Number.isFinite(p.versaoNumero) ? Math.max(maior, Number(p.versaoNumero)) : maior,
@@ -189,8 +190,8 @@ export function versaoDaProposta(
 
 /**
  * As OUTRAS propostas do pedido, da mais recente para a mais antiga. É sobre
- * elas que se conta a versão ({@link versaoDaProposta}, que lê a primeira
- * como «a mais recente») e que a trava de repetição procura o mesmo envio.
+ * elas que se conta a versão ({@link versaoDaProposta}) e que a trava de
+ * repetição procura o mesmo envio (a primeira que bate é a mais recente).
  */
 export function propostasAnteriores(proposal: Proposal, irmas: readonly Proposal[]): Proposal[] {
   return irmas

@@ -81,8 +81,8 @@ export const esquemaDoPedidoGuardado = z.looseObject({
  * esquema só observa (ver `observar.ts`). O id entra no registo para se
  * encontrar o pedido; nada mais dele sai.
  *
- * Confere-se a cada leitura, de propósito: medido, ~5 µs por pedido (0,2 ms
- * para os 46 da base). Uma memória «já conferi esta versão» poupava isso e
+ * Confere-se a cada leitura, de propósito: custa pouco (medido em
+ * `custo.bench.ts`; o número está no documento, Parte −1, fase 6). Uma memória «já conferi esta versão» poupava isso e
  * cegava o esquema a uma linha reposta com outra forma e o mesmo id; e o
  * registo já não se repete (`observar` diz cada desvio uma vez por processo).
  */

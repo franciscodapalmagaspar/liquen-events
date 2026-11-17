@@ -48,9 +48,12 @@ antes e depois (linhas, complexidade, peso das rotas).
    campos do formulário do site que o `Quote` diz obrigatórios. Um esquema copiado do
    tipo acusava metade dos pedidos que funcionam todos os dias. As 52 propostas
    guardadas batem todas com o esquema do documento.
-3. **O ponto 2 da fase 6 (o `localStorage`) não se fez**: é código de browser, e o zod
-   não pode ir para lá. Fica para quando houver uma forma sem zod (um esquema à mão,
-   pequeno) — não é desta fase.
+3. **A fase 6 começou, não acabou.** Ponto 1: feito (o `Quote` e o documento à
+   entrada). Ponto 2 (as 44 leituras `json() as` / `JSON.parse() as`): 1 de 44 — a
+   do `quotes-store`; o `localStorage` não se pode fazer com zod (é browser).
+   Ponto 3 (as 61 rotas sem esquema): 5 de 61, as que gravam o trabalho dela à mão.
+   O resto fica para as fases seguintes, pela mesma ordem de risco; e todas
+   continuam em modo de observar até haver uma semana sem registos.
 4. **Os comentários longos mudaram de sítio com o código**; alguns encurtaram onde
    repetiam o que outro módulo já diz. Os que contam um incidente medido (a língua
    do email, as fotos a menos que ninguém avisou, a capa fabricada pelo casal)
@@ -77,10 +80,15 @@ antes e depois (linhas, complexidade, peso das rotas).
    tecto da catraca — uma linha a mais para importar a lista partia-a, e a regra é
    partir primeiro), as etiquetas dos motivos no `Acompanhamento.tsx` (ecrã) e o
    `ehIdiomaDaProposta`. Tudo o que esta fase tocou lê `orcamento/listas-fechadas.ts`.
-8. **O contrato da rota (`envio/contrato.ts`) ainda não é lido pelo estúdio**: o
+8. **O retrato de 53 respostas (4,3 mil linhas) é andaime, não guarda permanente.**
+   Vive enquanto as fases seguintes mexerem no envio (a 3 e a 4 mexem no estúdio que
+   o chama); depois reduz-se a uma dúzia de casos de fronteira, e o resto fica com os
+   testes das etapas. Até lá, um `-u` neste ficheiro é uma mudança de comportamento
+   e diz-se no PR.
+9. **O contrato da rota (`envio/contrato.ts`) ainda não é lido pelo estúdio**: o
    `ProposalStudio.tsx` não se podia tocar nesta tarefa. É o primeiro passo da fase
    em que o estúdio se parte.
-9. **A garantia da assinatura está no `mandarOEmail`, não no `sendMail`.** Só um
+10. **A garantia da assinatura está no `mandarOEmail`, não no `sendMail`.** Só um
    `EmailEmoldurado` se pode mandar por ali; o `sendMail` (`lib/mail.ts`, de todo o
    correio da casa) continua a aceitar qualquer html, e a guarda de texto
    `todo-o-correio-leva-a-assinatura.test.ts` é que vigia os outros caminhos. Uma

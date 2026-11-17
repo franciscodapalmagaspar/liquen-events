@@ -35,14 +35,15 @@ import { log } from "@/lib/logger";
  * `docs/ESTRUTURA-DO-CODIGO.md`, Parte −1, fase 6. E um desvio repetido não pode encher o registo — cada
  * pedido da lista de pedidos passa por aqui a cada leitura. Por isso cada
  * desvio diz-se uma vez por processo POR CASO (o `id` do contexto), até
- * {@link CASOS_POR_DESVIO} casos: a fase seguinte precisa de saber QUAIS
+ * {@link CASOS_POR_DESVIO} casos (mais do que os 46 pedidos da base, a 17/11): a
+ * fase seguinte precisa de saber QUAIS
  * linhas não batem, não só que alguma não bate. Tudo com tecto de memória.
  */
 
 /** Quantos desvios diferentes se lembram, por processo. */
 const TECTO_DE_DESVIOS_LEMBRADOS = 500;
 /** Quantos casos (ids) de um mesmo desvio se dizem, por processo. */
-export const CASOS_POR_DESVIO = 20;
+export const CASOS_POR_DESVIO = 64;
 /** Desvio → os casos já ditos (`""` quando o contexto não tem id). */
 const jaDitos = new Map<string, Set<string>>();
 

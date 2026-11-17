@@ -2,10 +2,9 @@
  * O CUSTO DA FRONTEIRA, MEDIDO (regra 7) — `npx vitest bench src/lib/fronteira`.
  *
  * Fora do `vitest run` de propósito: um CI carregado não pode pôr um PR a
- * vermelho por uma pausa do GC. Os números de 17/11 (≈ 30 µs por corpo de
- * envio grande, ≈ 5 µs por pedido guardado) estão em
- * `docs/ESTRUTURA-DO-CODIGO.md`, Parte −1, fase 6; este ficheiro é como se
- * voltam a medir.
+ * vermelho por uma pausa do GC. Os números ficam num sítio só —
+ * `docs/ESTRUTURA-DO-CODIGO.md`, Parte −1, linha da fase 6 —, e este ficheiro
+ * é como se voltam a medir.
  */
 import { bench, describe } from "vitest";
 import { esquemaDoCorpo } from "@/lib/orcamento/envio/ler-o-corpo";

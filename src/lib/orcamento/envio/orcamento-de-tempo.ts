@@ -4,7 +4,7 @@
  * As três peças da mesma regra, num sítio só: o tecto da função, a folga do
  * email e a folga da segunda passagem do PDF. A rota declara o `maxDuration`
  * como número escrito à mão (o Next lê-o do ficheiro, não o calcula), e
- * `orcamento-de-tempo.test.ts` prende-o a {@link TECTO_DO_ENVIO_S}.
+ * `proposta-doc/orcamento-de-tempo.test.ts` prende-o a {@link TECTO_DO_ENVIO_S}.
  *
  * Tudo isto cabe nos 60 s da função — o desenho do PDF (até duas vezes, com
  * fotografias que podem demorar 8 s cada), e depois o email, com tempos de

@@ -19,6 +19,13 @@ import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
 export type Truncagens = RelatorioDoPdf["truncations"];
 
 /**
+ * ── DUAS CONVENÇÕES, E SÓ DUAS ───────────────────────────────────────────
+ *
+ *  · uma GUARDA devolve o que pára o envio, ou `null` para seguir
+ *    (`travaDoEnvio`, `perguntaDasFotos`, `repeticaoDoEnvio`…);
+ *  · um PASSO que produz alguma coisa devolve `{ ok: true, … }` ou
+ *    `{ ok: false, … }` (`documentoCompleto`, `gravarAProposta`, `comTrinco`).
+ *
  * O corpo de cada recusa, por forma. O estúdio distingue-as pelo campo que
  * cada uma traz (e pelo código HTTP, que vai ao lado na {@link Recusa}).
  */
@@ -43,8 +50,10 @@ export interface Recusa {
   corpo: CorpoDaRecusa;
 }
 
-/** Uma falha — a base ou outro serviço não deixou: não é uma decisão sobre
- *  a proposta, e conta-se à parte (métricas, alertas). */
+/** Uma falha — a base ou outro serviço não deixou: não é uma decisão sobre a
+ *  proposta. O estúdio lê o 503 como avaria («tenta outra vez»,
+ *  `porqueFalhouOEnvio`), e as recusas como respostas a dar — por isso o tipo
+ *  não deixa uma passar pela outra. */
 export interface Falha {
   status: 503;
   corpo: { error: string };

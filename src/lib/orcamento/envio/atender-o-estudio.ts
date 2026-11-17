@@ -15,11 +15,11 @@ import { prepararODocumento } from "./documento-do-envio";
 import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
 import {
-  cabecalhosDaPreVisualizacao,
   avisarQueSegueComFotosAMenos,
   perguntaDasFotos,
   perguntaDosCortes,
 } from "./perguntas-antes-do-envio";
+import { cabecalhosDaPreVisualizacao } from "./pre-visualizacao";
 import {
   irmasDoPedido,
   montarAProposta,
@@ -50,7 +50,7 @@ import type { OEnvio } from "./o-envio";
  *   3. o documento e a chave ........ `documento-do-envio.ts`
  *   4. o que trava .................. `travas-do-envio.ts`
  *   5. o desenho, e a 2.ª passagem .. `desenhar-o-pdf.ts` (e `orcamento-de-tempo.ts`)
- *   ── a pré-visualização acaba aqui: responde o PDF ──
+ *   ── a pré-visualização acaba aqui: responde o PDF (`pre-visualizacao.ts`) ──
  *   6. as duas perguntas ............ `perguntas-antes-do-envio.ts`
  *   7. a linha e a versão ........... `a-proposta-que-se-grava.ts`
  *   8. a repetição .................. `repeticao-do-envio.ts`

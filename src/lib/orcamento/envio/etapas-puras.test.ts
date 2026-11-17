@@ -8,8 +8,8 @@ import type { Proposal, Quote } from "@/lib/orcamento/types";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { log } from "@/lib/logger";
+import { cabecalhosDaPreVisualizacao } from "./pre-visualizacao";
 import {
-  cabecalhosDaPreVisualizacao,
   fotosEmFaltaAceites,
   perguntaDasFotos,
   perguntaDosCortes,

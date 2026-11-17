@@ -112,7 +112,8 @@ export function corpoLido(cru: unknown) {
     /** O corpo tal e qual chegou — só para {@link observarOCorpo}. */
     cru,
     modo,
-    doc: corpo.doc as ProposalDoc | undefined,
+    /** Ainda por conferir: só {@link documentoCompleto} diz que é um documento. */
+    doc: corpo.doc,
     mensagem: lerCampo(corpo, "mensagem")?.trim() ?? "",
     porEmail: lerCampo(corpo, "porEmail") !== false,
     rascunho: modo === "preview" && lerCampo(corpo, "rascunho") === true,
@@ -156,9 +157,12 @@ export function observarOCorpo(corpo: CorpoLido, pedidoId: string): void {
  * documento, quando está, ou a frase do 400.
  */
 export function documentoCompleto(
-  raw: ProposalDoc | undefined,
+  cru: unknown,
 ): { ok: true; doc: ProposalDoc } | { ok: false; error: string } {
-  if (raw && raw.ref && raw.clientNames) return { ok: true, doc: raw };
+  // O que se confere é o que sempre se conferiu (a referência e os nomes); o
+  // resto do documento passa como chegou — tolerar é a regra desta rota.
+  const raw = cru && typeof cru === "object" ? (cru as Partial<ProposalDoc>) : undefined;
+  if (raw && raw.ref && raw.clientNames) return { ok: true, doc: raw as ProposalDoc };
   // Dizer O QUE falta (auditoria de 13/11, estúdio n.º 19): «Proposta
   // incompleta.» sozinho deixava-a a adivinhar.
   const falta = !raw

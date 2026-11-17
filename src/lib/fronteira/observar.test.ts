@@ -97,8 +97,8 @@ describe("a fronteira em modo de observar", () => {
 /**
  * ── O CUSTO (regra 7) ─────────────────────────────────────────────────────
  *
- * Medido à parte e escrito em `docs/ESTRUTURA-DO-CODIGO.md` (Parte −1, fase 6):
- * ~30 µs por corpo de envio grande, ~5 µs por pedido guardado. Aqui não se
+ * O custo mede-se à parte (`docs/ESTRUTURA-DO-CODIGO.md`, Parte −1, fase 6),
+ * medido com `custo.bench.ts`, números no documento. Aqui não se
  * afirma com o relógio — um CI carregado não pode pôr um PR a vermelho por uma
  * pausa do GC. Prova-se o que não depende dele: um documento grande (80 fotos,
  * 12 grupos de 10 linhas, 20 linhas de orçamento) BATE com o esquema, para o
