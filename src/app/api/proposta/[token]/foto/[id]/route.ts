@@ -6,6 +6,7 @@ import { fetchProposalImageBytes } from "@/lib/proposal-storage";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
+import { CDN_DO_LINK_DO_CASAL } from "@/lib/cdn-do-link-do-casal";
 
 export const runtime = "nodejs";
 /** Um `sharp` sobre uma fotografia de 2200 px anda pelos 300–800 ms. */
@@ -132,12 +133,13 @@ async function GET_semMedida(
          * Cada pedido aqui pode custar um `sharp` e uma leitura do Storage.
          * Quando os bytes são a DERIVADA WebP (não o original, que muda para
          * a derivada na visita seguinte) e a marca identifica a fotografia,
-         * o endereço é estável: guarda-se um dia na CDN da Vercel. A chave da
+         * o endereço é estável: guarda-se uma hora na CDN da Vercel (não mais:
+         * a CDN não sabe quando um link é cortado — `cdn-do-link-do-casal.ts`). A chave da
          * CDN é o endereço inteiro, com o token do link — não serve a quem
          * não o tem — e o browser continua a ver só o `private` de cima.
          * O original nunca vai para a CDN.
          */
-        ...(identifica && bytes ? { "Vercel-CDN-Cache-Control": "max-age=86400" } : {}),
+        ...(identifica && bytes ? { "Vercel-CDN-Cache-Control": CDN_DO_LINK_DO_CASAL } : {}),
       },
     });
   } catch (err) {

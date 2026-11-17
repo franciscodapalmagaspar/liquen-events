@@ -55,8 +55,8 @@ describe("a cache da página do PDF do casal", () => {
     const res = await pedir();
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toContain("immutable");
-    // E a CDN da Vercel guarda-a um ano; o browser continua a ver `private`.
-    expect(res.headers.get("Vercel-CDN-Cache-Control")).toBe("max-age=31536000");
+    // E a CDN da Vercel guarda-a UMA HORA (17/11: não sabe quando um link é cortado); o browser continua a ver `private`.
+    expect(res.headers.get("Vercel-CDN-Cache-Control")).toBe("max-age=3600");
     expect(res.headers.get("Cache-Control")).toMatch(/^private,/);
   });
 

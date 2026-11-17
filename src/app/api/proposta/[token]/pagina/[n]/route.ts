@@ -4,6 +4,7 @@ import { imagemDaPagina, larguraPedida } from "@/lib/paginas-do-pdf";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
+import { CDN_DO_LINK_DO_CASAL } from "@/lib/cdn-do-link-do-casal";
 
 export const runtime = "nodejs";
 /** Abrir o PDF a frio (do armazenamento, ou desenhá-lo) e depois a página. */
@@ -29,8 +30,9 @@ export const maxDuration = 60;
  * Cada pedido aqui abre o PDF e desenha uma página — é das rotas que mais
  * processador gastam. Com a versão certa e o PDF completo, o endereço diz
  * exactamente que bytes são, para sempre (uma revisão muda o `?v=`); por isso
- * `Vercel-CDN-Cache-Control` guarda-a um ano na CDN e o pedido seguinte nem
- * acorda a função. O browser continua a ver só o `Cache-Control` (`private`):
+ * `Vercel-CDN-Cache-Control` guarda-a na CDN e o pedido seguinte nem acorda a
+ * função — UMA HORA, e não um ano: a CDN não sabe quando um link é cortado
+ * (ver `cdn-do-link-do-casal.ts`). O browser continua a ver só o `Cache-Control` (`private`):
  * a Vercel consome o cabeçalho dela e não o passa. A chave da CDN é o
  * endereço inteiro, com o token — só quem já tem o link chega lá.
  * Sem a versão certa ou com o PDF incompleto, nada se guarda, como antes.
@@ -62,7 +64,7 @@ async function GET_semMedida(
         "Content-Type": "image/webp",
         "Content-Length": String(imagem.length),
         "Cache-Control": certa ? "private, max-age=31536000, immutable" : "private, no-cache",
-        ...(certa ? { "Vercel-CDN-Cache-Control": "max-age=31536000" } : {}),
+        ...(certa ? { "Vercel-CDN-Cache-Control": CDN_DO_LINK_DO_CASAL } : {}),
         "X-Robots-Tag": "noindex",
       },
     });

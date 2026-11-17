@@ -107,13 +107,13 @@ describe("a fotografia da proposta, e o que a cache dela pode prometer", () => {
  * endereço que não diz qual fotografia é.
  */
 describe("a fotografia da proposta na CDN da Vercel", () => {
-  it("derivada WebP com a marca certa: um dia na CDN, e o browser continua a ver `private`", async () => {
+  it("derivada WebP com a marca certa: uma hora na CDN (a CDN não sabe quando um link é cortado), e o browser continua a ver `private`", async () => {
     H.derivada = Buffer.from("webp");
     try {
       const res = await pedir(CAPA, marcaDaRef(CAPA));
       expect(res.status).toBe(200);
       expect(res.headers.get("Content-Type")).toBe("image/webp");
-      expect(res.headers.get("Vercel-CDN-Cache-Control")).toBe("max-age=86400");
+      expect(res.headers.get("Vercel-CDN-Cache-Control")).toBe("max-age=3600");
       expect(res.headers.get("Cache-Control")).toBe("private, max-age=86400, must-revalidate");
     } finally {
       H.derivada = null;
