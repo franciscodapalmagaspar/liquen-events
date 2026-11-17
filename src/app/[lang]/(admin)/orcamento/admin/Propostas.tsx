@@ -24,7 +24,7 @@ import { contasDosPedidos } from "@/lib/orcamento/dinheiro-dos-pedidos";
 import { dataCurta } from "@/lib/data-curta";
 import { useAccoesDaPropostaEnviada } from "./accoesDaPropostaEnviada";
 import { useAnular } from "./ui/anular";
-import { dateStamp, downloadCsv, propostasToCsvRows } from "./export";
+import { dateStamp, downloadCsv, propostasToCsvRows } from "./exportar-em-csv";
 import { useDepoisDeApagar } from "./ui/depois-de-apagar";
 import { reporEstadoDoPedido } from "./anular-estado";
 

@@ -7,7 +7,7 @@ import { PROP_CATEGORIES } from "@/lib/inventory-types";
 import { useToast } from "./Toast";
 import { useAnular } from "./ui/anular";
 import { useDepoisDeApagar } from "./ui/depois-de-apagar";
-import { downloadCsv, dateStamp } from "./export";
+import { downloadCsv, dateStamp } from "./exportar-em-csv";
 import {
   Button,
   Card,

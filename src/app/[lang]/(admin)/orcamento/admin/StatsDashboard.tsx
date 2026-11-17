@@ -12,7 +12,7 @@ import {
   valorDoPedido,
   type PropostaParaContas,
 } from "@/lib/orcamento/dinheiro-dos-pedidos";
-import { downloadCsv, quotesToCsvRows, paymentsToCsvRows, dateStamp } from "./export";
+import { downloadCsv, quotesToCsvRows, paymentsToCsvRows, dateStamp } from "./exportar-em-csv";
 import { eur0 as eur } from "@/lib/money";
 import { Button, Card, EmptyState, Segmented } from "./ui";
 import AnalisePropostas from "./AnalisePropostas";

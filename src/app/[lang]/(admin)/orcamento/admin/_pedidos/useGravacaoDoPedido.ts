@@ -84,6 +84,14 @@ export function useGravacaoDoPedido({
     escritoPorGravar,
   } = edicao;
 
+  /**
+   * Confirma o que exige um clique.
+   *
+   * Devolve se ficou guardado, e sabe estar CALADO: quando é o gesto «Guardar
+   * tudo» a chamá-lo, quem dá a notícia é a resposta desse gesto — item a item,
+   * com o nome de cada um. Dois recados ao mesmo tempo sobre a mesma gravação
+   * seriam ruído, e o recado que sobra é sempre o menos exacto dos dois.
+   */
   async function saveChanges(
     opcoes: { silencioso?: boolean } = {},
   ): Promise<{ ok: boolean; porque?: string }> {

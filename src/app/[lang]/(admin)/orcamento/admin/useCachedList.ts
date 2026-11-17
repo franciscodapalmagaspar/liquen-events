@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { porqueNaoLeu, porqueNaoLeuDoErro, type LeituraFalhada } from "@/lib/porque-nao-leu";
+import {
+  ErroDeLeitura,
+  porqueNaoLeu,
+  porqueNaoLeuDoErro,
+  type LeituraFalhada,
+} from "@/lib/porque-nao-leu";
 
 /**
  * Stale-while-revalidate cache for the back-office list views.
@@ -105,25 +110,7 @@ const lidoEm = new Map<string, number>();
  */
 const REGRESSO_MIN_MS = 30_000;
 
-/**
- * A leitura falhou, e leva consigo a RAZÃO até quem desenha o ecrã.
- *
- * Antes ia um `Error` com o texto do servidor — ou, quando ele não dizia nada,
- * com o estado em cru: `new Error("500")`. Esse "500" não morria no `catch`,
- * era o que a vista mostrava à Catarina dentro do aviso, porque o
- * `AvisoDeFalha` só sabe pôr no ecrã a mensagem que lhe dão. Um número sozinho
- * não diz o que se passou nem o que fazer a seguir.
- *
- * O que viaja agora é a `LeituraFalhada` inteira: a frase, se vale a pena
- * oferecer um «Tentar de novo» (com a sessão caída, não vale — dá o mesmo 401)
- * e se foi a sessão que caiu.
- */
-class ErroDeLeitura extends Error {
-  constructor(readonly falha: LeituraFalhada) {
-    super(falha.mensagem);
-    this.name = "ErroDeLeitura";
-  }
-}
+// A razão de uma leitura falhada viaja num `ErroDeLeitura` (`lib/porque-nao-leu.ts`).
 
 function loadOnce(key: string, url: string): Promise<Entry | null> {
   const running = inFlight.get(key);

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { toCsv, quotesToCsvRows, paymentsToCsvRows, buildEventIcs } from "./export";
+import { buildEventIcs } from "./export";
+import { toCsv, quotesToCsvRows, paymentsToCsvRows } from "./exportar-em-csv";
 import type { Quote } from "@/lib/orcamento/types";
 
 describe("toCsv", () => {

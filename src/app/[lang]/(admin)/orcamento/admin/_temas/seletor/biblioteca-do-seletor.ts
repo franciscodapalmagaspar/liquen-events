@@ -1,5 +1,5 @@
 import { type ThemeImage, type ThemeSummary } from "@/lib/theme-types";
-import { type LeituraFalhada } from "@/lib/porque-nao-leu";
+import { type Ahead as AheadDaPasta } from "../tipos-da-pasta";
 import {
   type PaginaTema,
   buscarPrimeiraPagina,
@@ -279,26 +279,8 @@ export function esquecerSeletor(): void {
   miniaturaDe.clear();
 }
 
-// ───────────────────────────────────────────────────────────────────────────
-// As páginas da grelha
-// ───────────────────────────────────────────────────────────────────────────
-
-/** Uma LEITURA da grelha que falhou: leva a razão apurada até ao `catch`,
- *  em vez de lá chegar um «falhou» que não diz nem o estado nem o porquê. */
-export class ErroDaPagina extends Error {
-  constructor(readonly falha: LeituraFalhada) {
-    super(falha.mensagem);
-    this.name = "ErroDaPagina";
-  }
-}
-
-/** A página seguinte, pedida antes de ela a pedir. Guarda o tema e o offset com
- *  que foi buscada: só encaixa onde foi pedida. */
-export interface Ahead {
+/** A página seguinte da grelha do seletor: a mesma da pasta, e também o tema
+ *  com que foi buscada — só encaixa onde foi pedida. */
+export interface Ahead extends AheadDaPasta {
   themeId: string;
-  offset: number;
-  images: ThemeImage[];
-  total: number | null;
-  truncated: boolean;
-  full: boolean;
 }

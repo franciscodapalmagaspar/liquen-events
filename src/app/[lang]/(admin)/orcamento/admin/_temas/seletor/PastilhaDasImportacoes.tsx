@@ -179,9 +179,10 @@ function ImportChip({ job }: { job: ImportJob }) {
 
 /**
  * Liga a pastilha ao estado das importações: a partir daqui, cada mudança
- * desenha-a. Chamado UMA vez, à vista, por quem abre o seletor (`ThemePicker`)
- * — e não como efeito escondido de carregar este módulo, que um empacotador
- * podia deitar fora sem ninguém ver (revisão independente de 17/11).
+ * desenha-a. Chamado à vista pelo seletor (`ThemePicker`), ao montar — é dele
+ * que partem todas as cópias —, e não como efeito escondido de carregar este
+ * módulo, que um empacotador podia deitar fora sem ninguém ver (revisão
+ * independente de 17/11). Ligar outra vez não muda nada.
  */
 export function ligarAPastilhaDasImportacoes(): void {
   ligarAPastilha(syncOverlay);

@@ -89,20 +89,6 @@ export function useHistoricoDoPedido({
   }
 
   /**
-   * Confirma o que exige um clique.
-   *
-   * Devolve se ficou guardado, e sabe estar CALADO: quando é o gesto «Guardar
-   * tudo» a chamá-lo, quem dá a notícia é a resposta desse gesto — item a item,
-   * com o nome de cada um. Dois recados ao mesmo tempo sobre a mesma gravação
-   * seriam ruído, e o recado que sobra é sempre o menos exacto dos dois.
-   */
-  /**
-   * Põe no ecrã o pedido que o «Anular» repôs: a lista, a gaveta, cada campo de
-   * edição e a linha de base da gravação automática — como o «Guardar» faz com o
-   * que acabou de gravar. Sem isto, os campos ficavam com o valor anulado e o
-   * botão voltava a gravá-lo.
-   */
-  /**
    * O estúdio gravou o rascunho e o servidor pôs o pedido em «A preparar
    * proposta» (6/11). Muda-se SÓ o estado — o resto da cópia fica como está,
    * pela razão do `onEstadoDoPedido` do estúdio.
@@ -122,6 +108,13 @@ export function useHistoricoDoPedido({
     setSelected((prev) => (prev?.id === id ? { ...prev, status } : prev));
   }
 
+  /**
+   * Põe no ecrã o pedido que o «Anular» repôs: a lista, a gaveta, cada campo de
+   * edição e a linha de base da gravação automática — como o «Guardar» faz com o
+   * que acabou de gravar. Sem isto, os campos ficavam com o valor anulado e o
+   * botão voltava a gravá-lo. Os campos e a linha de base só se o pedido
+   * reposto ainda for o aberto (ver a nota lá dentro).
+   */
   function refletirPedidoReposto(q: Quote) {
     substituirPedido(q);
     // Os campos e a linha de base são do pedido ABERTO: um «Anular» que chega

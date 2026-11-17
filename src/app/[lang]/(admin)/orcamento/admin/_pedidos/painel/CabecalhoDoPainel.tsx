@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { localizeHref } from "@/lib/i18n/config";
 import { shortRef } from "@/lib/orcamento/pedidos/textos-do-pedido";
 import { quemPedeEOCasal } from "@/lib/orcamento/quem-pede";
 import { type Quote } from "@/lib/orcamento/types";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { MoreMenu } from "../../MoreMenu";
-import { downloadEventIcs, printEventDossier, printRunSheet } from "../../export";
+import { AVISO_SEM_LIGACAO } from "../../janela-a-pedido";
+import { moduloAPedido } from "@/lib/modulo-a-pedido";
 import { Button } from "../../ui";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
 import { statusBadge } from "../pastilha-do-estado";
@@ -27,6 +28,10 @@ export interface CabecalhoDoPainelProps {
   duplicateQuote: (q: Quote) => Promise<void>;
 }
 
+/** As folhas de impressão e o .ics do pedido: fora do pacote inicial do painel
+ *  (~18 KB), aquecidos quando o painel abre (ver `moduloAPedido`). */
+const impressao = moduloAPedido(() => import("../../export"));
+
 export function CabecalhoDoPainel({
   setAApagar,
   detailTitleRef,
@@ -35,6 +40,15 @@ export function CabecalhoDoPainel({
 }: CabecalhoDoPainelProps) {
   const { selected, locale, toast, mostrarPedido } = usePedidoAberto();
   const quem = quemPedeEOCasal(selected);
+  // Chega antes de ela abrir o «⋯»: a impressão abre uma janela, e o browser só
+  // a deixa abrir no instante do clique.
+  useEffect(() => {
+    void impressao.aquecer();
+  }, []);
+  const comAImpressao = (f: (m: typeof import("../../export")) => void) =>
+    void impressao.usar(f).then((chegou) => {
+      if (!chegou) toast(AVISO_SEM_LIGACAO, "error");
+    });
   return (
     <div className="sticky top-0 z-10 border-b border-[var(--bo-hairline)] bg-[var(--bo-surface)] px-3.5 pt-3.5 sm:px-7 sm:pt-5">
       <div className="flex items-start justify-between gap-4">
@@ -182,7 +196,7 @@ export function CabecalhoDoPainel({
               {
                 label: "Timeline",
                 hint: "Imprimir a folha de operações",
-                onClick: () => printRunSheet(selected),
+                onClick: () => comAImpressao((m) => m.printRunSheet(selected)),
                 icon: (
                   <svg
                     width="16"
@@ -205,7 +219,7 @@ export function CabecalhoDoPainel({
               {
                 label: "Dossier PDF",
                 hint: "Imprimir o dossier completo do evento",
-                onClick: () => printEventDossier(selected),
+                onClick: () => comAImpressao((m) => m.printEventDossier(selected)),
                 icon: (
                   <svg
                     width="16"
@@ -230,7 +244,7 @@ export function CabecalhoDoPainel({
                     {
                       label: "Adicionar ao calendário",
                       hint: "Descarregar .ics (Google/Apple/Outlook)",
-                      onClick: () => downloadEventIcs(selected),
+                      onClick: () => comAImpressao((m) => m.downloadEventIcs(selected)),
                       icon: (
                         <svg
                           width="16"

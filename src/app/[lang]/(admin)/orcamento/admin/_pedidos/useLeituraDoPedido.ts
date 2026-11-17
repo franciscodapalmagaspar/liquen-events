@@ -89,20 +89,34 @@ export function useLeituraDoPedido({
    * Quem pede um pedido que já vai a caminho recebe A MESMA promessa.
    */
   const leiturasEmCurso = useRef(new Map<string, Promise<LeituraDoPedido>>());
+  /**
+   * A leitura mais recente de cada pedido, mesmo depois de acabar. Um
+   * `recarregarPedido` lança outra por cima da que vai a caminho; quando a de
+   * BAIXO chega (às vezes depois da nova), traz o pedido de antes — não se
+   * grava, e quem a pediu recebe a nova (revisão independente de 17/11).
+   */
+  const maisRecente = useRef(new Map<string, Promise<LeituraDoPedido>>());
 
   async function comPedidoInteiro(q: Quote): Promise<LeituraDoPedido> {
     if (completos.current.has(q.id)) return { ok: true, quote: q };
     const aCaminho = leiturasEmCurso.current.get(q.id);
     if (aCaminho) return aCaminho;
-    const leitura: Promise<LeituraDoPedido> = lerPedidoInteiro(q).finally(() => {
-      // Só a sua: um `recarregarPedido` pode já ter posto outra leitura no lugar.
-      if (leiturasEmCurso.current.get(q.id) === leitura) leiturasEmCurso.current.delete(q.id);
-    });
+    const eAMaisRecente = () => maisRecente.current.get(q.id) === leitura;
+    const leitura: Promise<LeituraDoPedido> = lerPedidoInteiro(q, eAMaisRecente)
+      .then((lida) => (eAMaisRecente() ? lida : (maisRecente.current.get(q.id) ?? lida)))
+      .finally(() => {
+        // Só a sua: um `recarregarPedido` pode já ter posto outra no lugar.
+        if (leiturasEmCurso.current.get(q.id) === leitura) leiturasEmCurso.current.delete(q.id);
+      });
     leiturasEmCurso.current.set(q.id, leitura);
+    maisRecente.current.set(q.id, leitura);
     return leitura;
   }
 
-  async function lerPedidoInteiro(q: Quote): Promise<LeituraDoPedido> {
+  async function lerPedidoInteiro(
+    q: Quote,
+    eAMaisRecente: () => boolean,
+  ): Promise<LeituraDoPedido> {
     const oQue = `abrir o pedido de ${q.name || "este cliente"}`;
     let res: Response;
     try {
@@ -139,6 +153,8 @@ export function useLeituraDoPedido({
     if (!inteiro?.id) {
       return { ok: false, porque: `A resposta veio incompleta — não deu para ${oQue}. Repete.` };
     }
+    // Uma leitura que já foi substituída traz o pedido de antes: não se grava.
+    if (!eAMaisRecente()) return { ok: true, quote: inteiro };
     completos.current.add(inteiro.id);
     setQuotes((prev) => comPedidoSubstituido(prev, inteiro));
     return { ok: true, quote: inteiro };

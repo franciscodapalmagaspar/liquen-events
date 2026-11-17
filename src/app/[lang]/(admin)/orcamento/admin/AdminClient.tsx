@@ -29,7 +29,7 @@ import {
 // O «Novo pedido» fica no pacote, como o ⌘K: abre-se com o «n» e escreve-se logo.
 import NewQuoteModal from "./NewQuoteModal";
 import SessaoExpirada from "./SessaoExpirada";
-import { downloadCsv, quotesToCsvRows, dateStamp } from "./export";
+import { downloadCsv, quotesToCsvRows, dateStamp } from "./exportar-em-csv";
 import { lerDaCache, prefetchList } from "./useCachedList";
 import { temasEmCache } from "./theme-picker-cache";
 import {

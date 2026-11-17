@@ -4,7 +4,7 @@ import { casaComAProcura } from "@/lib/procura";
 import { useEffect, useMemo, useState, useDeferredValue } from "react";
 import type { Supplier } from "@/lib/orcamento/types";
 import { servirUmaVez, type PedidoDaPaleta } from "./procura-em-tudo";
-import { downloadCsv, dateStamp } from "./export";
+import { downloadCsv, dateStamp } from "./exportar-em-csv";
 import { SkeletonCard } from "./Skeleton";
 import {
   Button,

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { dateStamp, printEventDossier, printRunSheet } from "./export";
+import { printEventDossier, printRunSheet } from "./export";
+import { dateStamp } from "./exportar-em-csv";
 import { eur0 } from "@/lib/money";
 import type { Quote } from "@/lib/orcamento/types";
 

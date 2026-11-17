@@ -11,7 +11,7 @@ import type { Quote } from "@/lib/orcamento/types";
 import { servirUmaVez, type PedidoDaPaleta } from "./procura-em-tudo";
 import { TERMS_VERSION } from "@/lib/contract-terms";
 import { SkeletonList } from "./Skeleton";
-import { downloadCsv, dateStamp } from "./export";
+import { downloadCsv, dateStamp } from "./exportar-em-csv";
 import {
   Button,
   Card,

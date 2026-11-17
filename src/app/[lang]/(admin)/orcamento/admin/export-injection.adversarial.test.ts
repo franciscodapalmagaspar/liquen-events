@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toCsv, quotesToCsvRows } from "./export";
+import { toCsv, quotesToCsvRows } from "./exportar-em-csv";
 import type { Quote } from "@/lib/orcamento/types";
 
 // CSV formula injection (CWE-1236): a cell whose text starts with = + - @ (or a

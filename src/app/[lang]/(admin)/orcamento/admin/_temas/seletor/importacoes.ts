@@ -22,7 +22,7 @@ import { type ThemeImage } from "@/lib/theme-types";
 
 let aoMudarAPastilha: () => void = () => {};
 
-/** Chamado UMA vez, pela pastilha (`ligarAPastilhaDasImportacoes`, no `ThemePicker`). */
+/** Chamado pela pastilha (`ligarAPastilhaDasImportacoes`, ao montar o `ThemePicker`). */
 export function ligarAPastilha(sincronizar: () => void): void {
   aoMudarAPastilha = sincronizar;
 }

@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { quotesToCsvRows, paymentsToCsvRows, guestsToCsvRows } from "./export";
+import { quotesToCsvRows, paymentsToCsvRows, guestsToCsvRows } from "./exportar-em-csv";
 import type { Quote } from "@/lib/orcamento/types";
 
 /**
- * Adversarial coverage for the CSV/print DATA ROW BUILDERS in export.ts.
+ * Adversarial coverage for the CSV DATA ROW BUILDERS in exportar-em-csv.ts.
  * Focus: edge cases the existing happy-path suite (export.test.ts) does not
  * exercise — the untested guestsToCsvRows, missing/undefined optional fields,
  * 0-vs-undefined numeric handling, unknown label-map keys, and the invariant

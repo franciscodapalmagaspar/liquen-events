@@ -12,8 +12,8 @@ import Propostas from "./Propostas";
  */
 
 const descargas: { nome: string; linhas: (string | number)[][] }[] = [];
-vi.mock("./export", async (original) => {
-  const real = await original<typeof import("./export")>();
+vi.mock("./exportar-em-csv", async (original) => {
+  const real = await original<typeof import("./exportar-em-csv")>();
   return {
     ...real,
     downloadCsv: (nome: string, linhas: (string | number)[][]) => descargas.push({ nome, linhas }),

@@ -10,7 +10,12 @@ import {
 import { useToast } from "./Toast";
 import { MEDIDA_LG, MEDIDA_SM, useMedida } from "./useMedida";
 import { Button, FolhaOuDialogo } from "./ui";
-import { porqueNaoLeu, porqueNaoLeuDoErro, type LeituraFalhada } from "@/lib/porque-nao-leu";
+import {
+  ErroDeLeitura,
+  porqueNaoLeu,
+  porqueNaoLeuDoErro,
+  type LeituraFalhada,
+} from "@/lib/porque-nao-leu";
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { rolarAteVer } from "@/lib/motion/rolar";
 import { PaginaEmConstrucao, type FotoDaPagina } from "./PaginaEmConstrucao";
@@ -56,7 +61,6 @@ import {
   themeButtonLabel,
   themeCountLabel,
   themeScroll,
-  ErroDaPagina,
   type Ahead,
 } from "./_temas/seletor/biblioteca-do-seletor";
 import { mergePage } from "@/lib/temas/listas-de-fotos";
@@ -64,9 +68,6 @@ import { useSeleccaoDoSeletor } from "./_temas/seletor/useSeleccaoDoSeletor";
 
 // O estúdio (`ProposalStudio.tsx`) lê estes dois tipos daqui.
 export type { ImportedImage, ReservedImage } from "./_temas/seletor/importacoes";
-
-// A pastilha das importações desenha-se a cada mudança, desde já.
-ligarAPastilhaDasImportacoes();
 
 /**
  * Escolher fotos da Biblioteca de Temas para uma proposta.
@@ -217,6 +218,8 @@ export default function ThemePicker({
   aberto = true,
 }: Props) {
   const { toast } = useToast();
+  // Antes de a primeira cópia partir: a pastilha passa a desenhar cada mudança.
+  useEffect(() => ligarAPastilhaDasImportacoes(), []);
   /* A armadilha de foco, o trinco do scroll, o Escape, a pega que se arrasta, a
      CAMADA DE HISTÓRIA e a forma da caixa vêm todos do `FolhaOuDialogo`, lá em
      baixo no `return`. Estavam aqui escritos à mão, linha a linha — e os
@@ -649,7 +652,7 @@ export default function ThemePicker({
       );
       if (!res.ok) {
         const corpo = await res.json().catch(() => null);
-        throw new ErroDaPagina(porqueNaoLeu("mais fotos deste tema", res, corpo));
+        throw new ErroDeLeitura(porqueNaoLeu("mais fotos deste tema", res, corpo));
       }
       const data = await res.json();
       if (!alive.current) return;
@@ -665,7 +668,7 @@ export default function ThemePicker({
       // seguinte, e deitar fora o que já se vê seria trocar uma lista curta
       // por nenhuma. O que muda é o aviso: diz porquê e o que fazer.
       toast(
-        (e instanceof ErroDaPagina ? e.falha : porqueNaoLeuDoErro("mais fotos deste tema", e))
+        (e instanceof ErroDeLeitura ? e.falha : porqueNaoLeuDoErro("mais fotos deste tema", e))
           .mensagem,
         "error",
       );
