@@ -3,6 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getDictionary } from "@/lib/i18n";
 import { getLegal } from "@/app/[lang]/(site)/legal/legal-content";
+import { RELAMPAGO_EN, RELAMPAGO_PT } from "@/components/meta/PedidoRelampago";
+import { TEXTOS_EN as RAPIDO_EN, TEXTOS_PT as RAPIDO_PT } from "@/components/ads/PedidoRapido";
 
 /**
  * A frase por baixo do formulário de orçamento (auditoria legal, 17/11).
@@ -19,13 +21,24 @@ describe("a frase de privacidade do formulário", () => {
     expect(getDictionary("en").orcamento.privacyPost).toBe(". We do not sell your data.");
   });
 
+  it("os formulários dos anúncios (Meta e Google) dizem o mesmo", () => {
+    for (const t of [RELAMPAGO_PT, RAPIDO_PT])
+      expect(t.privacidade).toBe("Não vendemos os seus dados. Ver");
+    for (const t of [RELAMPAGO_EN, RAPIDO_EN])
+      expect(t.privacidade).toBe("We do not sell your data. See our");
+  });
+
   it("e a política diz o mesmo", () => {
     expect(JSON.stringify(getLegal("pt").privacy)).toContain("Não vendemos os seus dados");
     expect(JSON.stringify(getLegal("en").privacy)).toContain("We do not sell your data");
   });
 
   it("a frase falsa não volta a lado nenhum do código", () => {
-    const falsas = /não partilhamos os seus dados|we never share your details/i;
+    // E a dos formulários dos anúncios (17/11, decisão do dono): «Os dados
+    // servem apenas para responder ao pedido» também não era verdade com
+    // consentimento.
+    const falsas =
+      /não partilhamos os seus dados|we never share your details|servem apenas para responder|used only to answer this request/i;
     const encontradas: string[] = [];
     const percorrer = (dir: string) => {
       for (const e of readdirSync(join(process.cwd(), dir), { withFileTypes: true })) {
