@@ -42,7 +42,7 @@ antes e depois (linhas, complexidade, peso das rotas).
    prova que tudo o que o `ProposalDoc` aceita o esquema também aceita. No que é só
    do servidor, o tipo sai: o pedido à rota da proposta é UM esquema
    (`envio/ler-o-corpo.ts`), e dele saem o registo, a leitura tolerante (cada
-   campo lido pelo seu pedaço do esquema) e o tipo `PedidoDeProposta`.
+   campo lido pelo seu pedaço do esquema) e o tipo `CorpoLido` (`envio/ler-o-corpo.ts`).
 2. **O contorno do `Quote` é o da base, não o do tipo.** Medido a 17/11 só por tipos
    (`jsonb_typeof` de cada campo, nenhum valor lido): 24 dos 46 pedidos não têm os
    campos do formulário do site que o `Quote` diz obrigatórios. Um esquema copiado do
@@ -56,6 +56,15 @@ antes e depois (linhas, complexidade, peso das rotas).
    do email, as fotos a menos que ninguém avisou, a capa fabricada pelo casal)
    ficaram por inteiro — a segunda ronda do júri apanhou três encurtados e
    voltaram.
+5. **A catraca do tamanho subiu dez tectos**, todos de ficheiros que cresceram nos
+   ramos `estabilidade/erros-de-producao` e `legal/auditoria-17-11` (escritos antes de
+   a catraca existir) e que esta fase não tocou: `derivadas.ts` 1 209 → 1 304,
+   `proposal-progress.ts` 809 → 834, `app-state.ts`, `orcamento/route.ts`,
+   `PropostaWeb.tsx`, `proposta/[token]/page.tsx`, `GaleriaClient.tsx`, e três que
+   entram acima das 400 (`legal-content.ts` 419, `api/backup/route.ts` 443,
+   `cron/reminders/route.ts` 451). É contra a regra da catraca e está dito: **partem-se
+   nos PRs desses ramos**, não aqui (seria mexer em código que não é desta fase). A rota
+   da proposta saiu da lista.
 6. **Mover e melhorar foram no mesmo ramo** (contra o §3.0, regras 3 e 7: +9 mil
    linhas, das quais 4,3 mil são retratos). A prova de equivalência não é o
    `--color-moved`, é o retrato: 53 respostas tiradas antes de mexer e iguais
@@ -71,17 +80,14 @@ antes e depois (linhas, complexidade, peso das rotas).
 8. **O contrato da rota (`envio/contrato.ts`) ainda não é lido pelo estúdio**: o
    `ProposalStudio.tsx` não se podia tocar nesta tarefa. É o primeiro passo da fase
    em que o estúdio se parte.
-5. **A catraca do tamanho subiu dez tectos**, todos de ficheiros que cresceram nos
-   ramos `estabilidade/erros-de-producao` e `legal/auditoria-17-11` (escritos antes de
-   a catraca existir) e que esta fase não tocou: `derivadas.ts` 1 209 → 1 304,
-   `proposal-progress.ts` 809 → 834, `app-state.ts`, `orcamento/route.ts`,
-   `PropostaWeb.tsx`, `proposta/[token]/page.tsx`, `GaleriaClient.tsx`, e três que
-   entram acima das 400 (`legal-content.ts` 419, `api/backup/route.ts` 443,
-   `cron/reminders/route.ts` 451). É contra a regra da catraca e está dito: **partem-se
-   nos PRs desses ramos**, não aqui (seria mexer em código que não é desta fase). A rota
-   da proposta saiu da lista.
-
 **Lições destas duas fases** (também na Parte 4):
+9. **A garantia da assinatura está no `mandarOEmail`, não no `sendMail`.** Só um
+   `EmailEmoldurado` se pode mandar por ali; o `sendMail` (`lib/mail.ts`, de todo o
+   correio da casa) continua a aceitar qualquer html, e a guarda de texto
+   `todo-o-correio-leva-a-assinatura.test.ts` é que vigia os outros caminhos. Uma
+   porta única `enviarAoCliente(email: EmailEmoldurado)` para todo o correio a
+   clientes é o passo certo, e é de outra fase (mexe em todas as rotas que mandam
+   correio).
 
 - **Retratar a resposta em TEXTO, não em objecto.** O `toMatchSnapshot` de um objecto
   ordena as chaves; o de `res.text()` guarda a ordem dos campos, que é o que viaja. E
@@ -105,7 +111,7 @@ antes e depois (linhas, complexidade, peso das rotas).
   tipo dizia uma coisa e metade dos dados dizia outra.
 - **O modo de observar tem de dizer QUAIS**, não só «algum»: deduplicar por desvio
   escondia 23 de 24 pedidos com o mesmo defeito.
-- **As listas fechadas presas ao tipo** (`fronteira/todos-os-valores.ts`): um valor a
+- **As listas fechadas presas ao tipo** (`lib/todos-os-valores.ts`): um valor a
   mais ou a menos não compila.
 - **Uma guarda que lê o texto do código engana-se a si própria** quando o código muda
   de ficheiro. A da assinatura passou a saber quem escreve o email e quem o manda, em

@@ -35,8 +35,6 @@ async function upsert(request: NextRequest) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   try {
     const body = await request.json().catch(() => null);
-    // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
-    observar(esquemaDoCorpoDoModeloDeEmail, body, "o corpo do upsert email-templates");
     const key = String(body?.key ?? "")
       .trim()
       .slice(0, MAX_KEY);
@@ -52,6 +50,9 @@ async function upsert(request: NextRequest) {
       .slice(0, MAX_SUBJECT);
     if (!name) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
     if (!subject) return NextResponse.json({ error: "Assunto obrigatório" }, { status: 400 });
+    // A fronteira, em modo de observar (fase 6), depois das guardas; o caso é
+    // a chave do modelo (um nome interno, nunca dados de um cliente).
+    observar(esquemaDoCorpoDoModeloDeEmail, body, "o corpo do upsert email-templates", { id: key });
 
     const saved = await upsertTemplate({
       key,

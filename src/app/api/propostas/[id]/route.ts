@@ -127,8 +127,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
     }
-    // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
-    observar(esquemaDoCorpoDaProposta, body, "o corpo do PATCH propostas/[id]", { id });
     const VALID_STATUS: readonly string[] = ESTADOS_DA_PROPOSTA;
     if ("status" in body && !VALID_STATUS.includes(body.status)) {
       return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
@@ -173,6 +171,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: "Nota inválida" }, { status: 400 });
       }
     }
+    // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
+    // Depois das guardas: o que a rota já recusou não vale o trabalho.
+    observar(esquemaDoCorpoDaProposta, body, "o corpo do PATCH propostas/[id]", { id });
     const allowed = [
       "status",
       "respondedAt",

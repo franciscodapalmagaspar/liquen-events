@@ -77,6 +77,14 @@ describe("a fronteira em modo de observar", () => {
     });
   });
 
+  it("o mesmo defeito em uma ou em várias fotos é o mesmo desvio", () => {
+    const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
+    const lista = z.looseObject({ fotos: z.array(z.string()) });
+    observar(lista, { fotos: [1] }, "teste", { id: "q1" });
+    observar(lista, { fotos: [1, 2, 3] }, "teste", { id: "q1" });
+    expect(aviso).toHaveBeenCalledTimes(1);
+  });
+
   it("nunca muda o valor: quem chama continua com o objecto original", () => {
     vi.spyOn(log, "warn").mockImplementation(() => {});
     const original = { nome: 1, campoNovo: { a: 1 } };

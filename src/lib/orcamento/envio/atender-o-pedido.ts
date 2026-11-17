@@ -121,7 +121,7 @@ export async function atenderOPedido(c: Contexto): Promise<Desfecho> {
 /** Etapas 3 a 5, e o PDF como resposta. */
 async function preVisualizar(c: Contexto): Promise<Desfecho> {
   const preparado = await prepararEDesenhar(c);
-  if ("recusa" in preparado) return recusado(preparado.recusa);
+  if (!preparado.ok) return recusado(preparado.recusa);
   const { envio, desenho, chaveDoQueChegou } = preparado;
   const { pdf, missingImages, truncations } = desenho.relatorio;
   return {
@@ -141,7 +141,7 @@ async function preVisualizar(c: Contexto): Promise<Desfecho> {
 /** Etapas 3 a 13, com o trinco fechado. */
 async function enviar(c: Contexto): Promise<Desfecho> {
   const preparado = await prepararEDesenhar(c);
-  if ("recusa" in preparado) return recusado(preparado.recusa);
+  if (!preparado.ok) return recusado(preparado.recusa);
   const { envio, desenho } = preparado;
   const { pedidoId, quote, doc } = envio;
   const { corpo } = c;
@@ -258,7 +258,8 @@ async function enviar(c: Contexto): Promise<Desfecho> {
 async function prepararEDesenhar(
   c: Contexto,
 ): Promise<
-  { recusa: Recusa } | { envio: OEnvio; desenho: PdfDesenhado; chaveDoQueChegou: string }
+  | { ok: false; recusa: Recusa }
+  | { ok: true; envio: OEnvio; desenho: PdfDesenhado; chaveDoQueChegou: string }
 > {
   const { pedidoId, quote, corpo } = c;
   // O corpo escrito à mão recusa-se por tamanho ANTES de se desenhar o PDF:
@@ -266,6 +267,7 @@ async function prepararEDesenhar(
   // `{{link_proposta}}`) só se resolve depois de a proposta estar gravada.
   if (excedeOTecto(corpo.corpo)) {
     return {
+      ok: false,
       recusa: recusa(400, {
         error:
           `O texto do email é demasiado longo (o máximo são ${MAXIMO_CORPO_ESCRITO} caracteres). ` +
@@ -274,12 +276,15 @@ async function prepararEDesenhar(
     };
   }
   const completo = documentoCompleto(corpo.doc);
-  if (!completo.ok) return { recusa: recusa(400, { error: completo.error }) };
+  if (!completo.ok) return { ok: false, recusa: recusa(400, { error: completo.error }) };
   avisarDoIdiomaDesconhecido(corpo, pedidoId);
   const { idioma } = corpo;
   const { chaveDoQueChegou, doc, grandeDemais } = prepararODocumento(completo.doc, idioma);
   if (grandeDemais) {
-    return { recusa: recusa(413, { error: "Proposta demasiado grande para ser guardada." }) };
+    return {
+      ok: false,
+      recusa: recusa(413, { error: "Proposta demasiado grande para ser guardada." }),
+    };
   }
   // Só agora o esquema confere o corpo: o que já foi recusado (trinco, tecto,
   // documento incompleto ou grande demais) não vale o trabalho — a mesma
@@ -299,7 +304,7 @@ async function prepararEDesenhar(
       : corpo.rascunho
         ? null
         : await travaDoPdfFinal(envio);
-  if (trava) return { recusa: trava };
+  if (trava) return { ok: false, recusa: trava };
 
   const desenho = await desenharOPdf({
     ...envio,
@@ -308,5 +313,5 @@ async function prepararEDesenhar(
     chaveDoQueChegou,
     resta: c.resta,
   });
-  return { envio, desenho, chaveDoQueChegou };
+  return { ok: true, envio, desenho, chaveDoQueChegou };
 }

@@ -9,10 +9,13 @@ import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
  * do domínio (`lib/todos-os-valores.ts`: um valor a mais ou a menos não
  * compila).
  *
- * Lidas pelas rotas e esquemas que decidem (`validation.ts`,
- * `backup-restore.ts`, `api/propostas/[id]`, `api/propostas/modelos`) e pelos
- * que observam (`lib/fronteira/`, `orcamento/envio/ler-o-corpo.ts`): duas
- * listas para o mesmo estado eram duas regras à espera de discordar.
+ * Lidas pelas rotas que decidem (`api/propostas/[id]`, `api/propostas/modelos`,
+ * a análise das propostas) e pelos esquemas que observam (`lib/fronteira/`,
+ * `orcamento/envio/ler-o-corpo.ts`): duas listas para o mesmo estado eram duas
+ * regras à espera de discordar. AINDA têm cópias próprias `validation.ts` e
+ * `backup-restore.ts` (ambos acima do tecto da catraca: partem-se primeiro —
+ * `docs/ESTRUTURA-DO-CODIGO.md`, Parte −1, desvio 7). Quem acrescentar um
+ * valor aqui acrescenta-o lá também, até lá.
  * Sem zod e sem servidor — o browser pode lê-las.
  */
 export const ESTADOS_DO_PEDIDO = todosOsValores<QuoteStatus>()([

@@ -45,8 +45,6 @@ export async function POST(request: NextRequest) {
   if (!body || typeof body !== "object") {
     return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
   }
-  // A fronteira, em modo de observar (fase 6): diz o que não bate, não recusa.
-  observar(esquemaDoCorpoDoModeloDeProposta, body, "o corpo do POST propostas/modelos");
   const { nome, tipo, doc, grupo, moodboard, origem } = body as Partial<ModeloProposta>;
 
   const nomeLimpo = String(nome ?? "")
@@ -62,6 +60,11 @@ export async function POST(request: NextRequest) {
   if (!conteudo || typeof conteudo !== "object") {
     return NextResponse.json({ error: "O modelo vem vazio" }, { status: 400 });
   }
+  // A fronteira, em modo de observar (fase 6), depois das guardas; o caso é o
+  // nome do modelo (dela, nunca dados de um cliente).
+  observar(esquemaDoCorpoDoModeloDeProposta, body, "o corpo do POST propostas/modelos", {
+    id: nomeLimpo,
+  });
 
   try {
     const modelo: ModeloProposta = {

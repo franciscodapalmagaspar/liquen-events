@@ -81,11 +81,13 @@ export function observar(
   if (r.success) return true;
   const desvios = desviosDe(r.error);
   // Os índices das listas saem da assinatura (`moodBoards.3.images.2` →
-  // `moodBoards.*.images.*`): o mesmo defeito em fotos diferentes é UM desvio,
+  // `moodBoards.*.images.*`), e as repetições também: o mesmo defeito em uma,
+  // duas ou dez fotos diferentes é UM desvio,
   // e não quinhentos a esgotar a memória. O registo leva o caminho a sério.
-  const assinatura = `${onde}|${desvios
-    .map((d) => `${d.campo.replace(/\.\d+(?=\.|$)/g, ".*")}:${d.problema}`)
-    .join(",")}`;
+  const normalizados = new Set(
+    desvios.map((d) => `${d.campo.replace(/\.\d+(?=\.|$)/g, ".*")}:${d.problema}`),
+  );
+  const assinatura = `${onde}|${[...normalizados].sort().join(",")}`;
   const caso = typeof contexto.id === "string" ? contexto.id : "";
   if (!aindaPorDizer(assinatura, caso)) return false;
   log.warn(`fronteira: ${onde} não bate com o esquema (modo de observar, segue tal e qual)`, {
