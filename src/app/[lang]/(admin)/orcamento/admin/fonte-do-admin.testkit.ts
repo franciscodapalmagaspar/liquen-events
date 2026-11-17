@@ -48,8 +48,11 @@ function daPasta(base: string, pasta: string, fora: readonly string[]): string[]
   let nomes: string[] = [];
   try {
     nomes = readdirSync(join(base, pasta), { recursive: true }) as string[];
-  } catch {
-    return [];
+  } catch (erro) {
+    // Uma pasta que desaparece (renomeada, apagada) NÃO pode ler-se como
+    // vazia: os `not.toMatch` sobre a fonte junta ficavam verdes por lerem
+    // menos. Falha alto, com o nome da pasta.
+    throw new Error(`fonte-do-admin: não consegui ler a pasta «${pasta}»`, { cause: erro });
   }
   return nomes
     .map((n) => n.split("\\").join("/"))
@@ -129,7 +132,7 @@ export function fonteComposta(
       if (/^[A-Z]/.test(nome)) componentes.set(nome, `${destino}.tsx`);
     }
   }
-  return texto.replace(/<([A-Z]\w*)\b[^<>]*?\/>/g, (chamada, nome: string) => {
+  return texto.replace(/<([A-Z]\w*)\b(?:[^<>]|=>)*?\/>/g, (chamada, nome: string) => {
     const ficheiro = componentes.get(nome);
     if (!ficheiro || vistos.has(ficheiro)) return chamada;
     return fonteComposta(ficheiro, porFicheiro, new Set([...vistos, rel, ficheiro]));

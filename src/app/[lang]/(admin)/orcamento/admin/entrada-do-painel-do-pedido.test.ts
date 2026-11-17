@@ -344,11 +344,13 @@ describe("4 · o lote do «Mostrar mais»", () => {
   it("e a lista continua SEM `key` — um `key` remonta e perde o rolo", () => {
     const i = CODIGO.indexOf("<TabelaOuCartoes");
     expect(i, "a lista de Pedidos mudou de componente").toBeGreaterThan(-1);
-    // Até ao primeiro «/>» ao nível da chamada (a indentação mudou quando a
-    // lista saiu para `_pedidos/ListaDosPedidos.tsx`, na fase 7).
-    const fim = CODIGO.slice(i).search(/\n\s*\/>/);
-    const chamada = CODIGO.slice(i, i + fim);
+    // Até ao «/>» que fecha a PRÓPRIA `TabelaOuCartoes`: conta-se a fundura de
+    // `{}` e `()`, porque o `cartao={…}` lá dentro tem um `<QuoteCard … />`
+    // cujo fecho não é o dela — e um `key` depois dele passava sem ser visto.
+    const chamada = CODIGO.slice(i, fimDaChamada(CODIGO, i));
     expect(chamada, "o instrumento não apanhou a chamada inteira").toContain('legenda="Pedidos"');
+    expect(chamada, "o instrumento parou antes das colunas").toContain("colunas={");
+    expect(chamada, "o instrumento parou antes do fim").toContain("aoAbrir={");
     expect(chamada, "a lista de Pedidos ganhou um `key`").not.toMatch(/\bkey=/);
   });
 
@@ -359,3 +361,16 @@ describe("4 · o lote do «Mostrar mais»", () => {
     expect(constante, "apareceu um atraso por linha no lote").not.toMatch(/--cena|animation-delay/);
   });
 });
+
+/** O índice logo depois do «/>» que fecha a etiqueta aberta em `inicio`, ao
+ *  nível dela (fora de `{}` e `()`). Devolve o fim do texto se não fechar. */
+function fimDaChamada(texto: string, inicio: number): number {
+  let fundura = 0;
+  for (let k = inicio; k < texto.length; k++) {
+    const c = texto[k];
+    if (c === "{" || c === "(") fundura++;
+    else if (c === "}" || c === ")") fundura--;
+    else if (fundura === 0 && c === "/" && texto[k + 1] === ">") return k + 2;
+  }
+  return texto.length;
+}

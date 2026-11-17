@@ -5,7 +5,7 @@ import type { Quote } from "@/lib/orcamento/types";
 import { ToastProvider } from "./Toast";
 import AdminClient from "./AdminClient";
 import { CORE_NAV, MORE_NAV, NAV } from "./nav";
-import { fonteDe } from "./fonte-do-admin.testkit";
+import { fonteComposta, fonteDe } from "./fonte-do-admin.testkit";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -77,7 +77,6 @@ vi.mock("next/image", () => ({
   ),
 }));
 
-const FONTE = fonteDe("AdminClient.tsx");
 
 /** Comentários fora: a prosa desta casa cita o que foi apagado, de propósito. */
 function semComentarios(fonte: string): string {
@@ -88,7 +87,9 @@ function semComentarios(fonte: string): string {
     .replace(/^[^\S\n]*\/\/.*$/gm, "");
 }
 
-const CODIGO = semComentarios(FONTE);
+// Os comentários saem ficheiro a ficheiro, ANTES de colar: um `/*` dentro de
+// uma string de um ficheiro não pode engolir o ficheiro seguinte.
+const CODIGO = fonteDe("AdminClient.tsx", semComentarios);
 
 const pedido = (): Quote =>
   ({
@@ -233,15 +234,24 @@ describe("e o estado do grupo não ficou pendurado", () => {
     // o fim. Os destinos são o que ela vem cá buscar; o rodapé vem a seguir a
     // eles, no mesmo rolo, e num ecrã alto continua colado ao fundo (`mt-auto`).
     // O passeio que o mede é o `e2e/o-iphone-com-barras.spec.ts`.
-    const nav = CODIGO.match(/aria-label="Mais destinos"[\s\S]{0,300}?className="([^"]+)"/);
+    // Lê-se a GAVETA, e só ela: o `MenuLateral` com o `RodapeDoMenu` colado no
+    // sítio onde é chamado. Na fonte junta do AdminClient o primeiro «Mais
+    // destinos» é o ⋯ da barra de baixo (`BarraDeDestinos`), e a ordem entre
+    // ficheiros é a alfabética — não diz nada sobre a ordem na gaveta.
+    const GAVETA = fonteComposta("_casca/MenuLateral.tsx", semComentarios);
+    expect(GAVETA, "o rodapé da conta deixou de ser colado na gaveta").toContain(
+      'className="mt-auto shrink-0 px-2.5 pb-5 pt-3',
+    );
+    const nav = GAVETA.match(/<nav\b[\s\S]{0,300}?aria-label="Mais destinos"[\s\S]{0,300}?className="([^"]+)"/);
     expect(nav, "a lista de destinos da gaveta mudou de forma").not.toBeNull();
     expect(nav![1]).not.toContain("overflow-y-auto");
     expect(nav![1]).not.toContain("flex-1");
-    const gaveta = CODIGO.split("\n").find((l) => l.includes("fixed top-0") && l.includes("w-64"));
+    const gaveta = GAVETA.split("\n").find((l) => l.includes("fixed top-0") && l.includes("w-64"));
     expect(gaveta).toContain("overflow-y-auto");
     expect(gaveta).toContain("h-dvh");
-    const destinos = CODIGO.indexOf('aria-label="Mais destinos"');
-    const conta = CODIGO.indexOf('className="mt-auto shrink-0 px-2.5 pb-5 pt-3');
+    const destinos = GAVETA.indexOf('aria-label="Mais destinos"');
+    const conta = GAVETA.indexOf('className="mt-auto shrink-0 px-2.5 pb-5 pt-3');
+    expect(destinos, "a lista de destinos saiu da gaveta").toBeGreaterThan(-1);
     expect(conta, "o rodapé da conta deixou de se colar ao fundo").toBeGreaterThan(0);
     expect(conta, "o rodapé da conta passou para antes dos destinos").toBeGreaterThan(destinos);
   });
