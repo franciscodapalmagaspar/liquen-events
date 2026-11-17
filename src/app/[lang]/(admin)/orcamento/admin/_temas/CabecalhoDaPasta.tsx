@@ -2,7 +2,8 @@
 
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
 import { MAX_THEME_NAME, type ThemeSummary } from "@/lib/theme-types";
-import { dataPorExtenso, desdeQuando, plural } from "../../../../../../lib/temas/textos-dos-temas";
+import { plural } from "@/lib/plural";
+import { dataPorExtenso, desdeQuando } from "@/lib/temas/textos-dos-temas";
 import { SugestaoDeNome } from "../SugestaoDeNome";
 import { Button, MenuDeAccoes, type AccaoDeItem } from "../ui";
 import { ESTADO, PRESSAO } from "../ui/movimento";

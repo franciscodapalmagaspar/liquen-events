@@ -38,7 +38,8 @@ import {
   temasEmCache,
   vaiRevalidar,
 } from "./theme-picker-cache";
-import { Preview, plural } from "./_temas/seletor/FotoDoSeletor";
+import { plural } from "@/lib/plural";
+import { Preview } from "./_temas/seletor/FotoDoSeletor";
 import { themeScroll } from "./_temas/seletor/posicao-do-rolo";
 import { FotosDoTema } from "./_temas/seletor/FotosDoTema";
 

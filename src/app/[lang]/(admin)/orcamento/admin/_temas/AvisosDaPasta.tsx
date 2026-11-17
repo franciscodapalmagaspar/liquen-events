@@ -2,7 +2,7 @@
 
 import { type Dispatch, type SetStateAction } from "react";
 import { type ThemeCopyMode, type ThemeSummary } from "@/lib/theme-types";
-import { plural } from "../../../../../../lib/temas/textos-dos-temas";
+import { plural } from "@/lib/plural";
 import { type ThemeCopyOutcome } from "../ThemeCopyDialog";
 import { Button, Card } from "../ui";
 import { PROGRESSO } from "../ui/movimento";

@@ -2,19 +2,15 @@
 
 import { type Dispatch, type SetStateAction } from "react";
 import { type ThemeSummary } from "@/lib/theme-types";
-import {
-  dataPorExtenso,
-  desdeQuando,
-  photoCountLabel,
-  plural,
-} from "../../../../../../lib/temas/textos-dos-temas";
+import { dataPorExtenso, desdeQuando, photoCountLabel } from "@/lib/temas/textos-dos-temas";
+import { plural } from "@/lib/plural";
 import ImagemComPlanoB from "../ImagemComPlanoB";
 import { type PedidoDeMenu } from "../MenuDeContexto";
 import { adiantarTema } from "../prefetch-de-tema";
 import { EsqueletoDeCor, type AccaoDeItem } from "../ui";
 import { ESTADO, PRESSAO } from "../ui/movimento";
 import { FolderIcon } from "./icones";
-import { temPoucasFotos } from "./ordem-e-densidade";
+import { temPoucasFotos } from "@/lib/temas/ordem";
 import { teclaDeMenu } from "./tecla-de-menu";
 
 /** O cartão de um tema na biblioteca: a capa, o nome, as contas e o uso, e

@@ -71,10 +71,6 @@ export const FILA_DO_SELETOR = criarFilaDeImagens({
  *  (acabou ou desistiu — é idempotente). */
 export const queueHeavyImage = FILA_DO_SELETOR.pedirVez;
 
-export function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
 /**
  * A miniatura de uma célula da grelha.
  *

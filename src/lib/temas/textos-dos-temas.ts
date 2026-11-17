@@ -1,4 +1,5 @@
 import type { ThemeSummary } from "@/lib/theme-types";
+import { plural } from "@/lib/plural";
 
 /**
  * As frases da Biblioteca de Temas que dependem de números e datas — puras.
@@ -76,10 +77,6 @@ export function desdeQuando(iso: string | undefined, agora = Date.now()): string
     month: "2-digit",
     year: "numeric",
   });
-}
-
-export function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
 }
 
 /**

@@ -2,6 +2,90 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+/** A guarda do server-only (ver o bloco de `src/app/**`), escrita uma vez. */
+const SERVER_ONLY = {
+  group: ["@/lib/*-store", "@/lib/repository", "server-only"],
+  allowTypeImports: true,
+  message:
+    "Módulo server-only importado por valor num componente de cliente — puxa fs/Supabase para o bundle e parte o build. Use `import type` (para tipos) ou desloque o acesso a dados para um componente/rota de servidor.",
+};
+
+/** Os ecrãs que se partiram: uma casa nunca os importa (seria uma seta para cima). */
+const OS_DONOS = {
+  group: ["**/AdminClient", "**/Temas", "**/ThemePicker"],
+  caseSensitive: true,
+  message:
+    "Uma casa (`_casca/`, `_pedidos/`, `_temas/`) não importa o ecrã que a monta — as setas só descem. Passe o que precisa por props, ou leve a peça para a casa ou para `lib/`.",
+};
+
+const CASAS = ["_casca", "_pedidos", "_temas"];
+const TESTES = ["**/*.test.ts", "**/*.test.tsx", "**/*.testkit.ts"];
+
+/**
+ * As regras das fronteiras (ver o comentário no sítio onde entram):
+ *   · a lógica pura de `lib/orcamento/pedidos/` e `lib/temas/` não importa
+ *     React, Next, o Supabase, nem nada de `app/`;
+ *   · uma casa não importa o `AdminClient`, o `Temas` nem o `ThemePicker`;
+ *   · uma casa não importa o interior de outra.
+ * Os testes ficam de fora: provar uma casa pode precisar de montar o ecrã.
+ */
+function fronteirasDasCasas() {
+  const puro = {
+    files: ["src/lib/orcamento/pedidos/**/*.ts", "src/lib/temas/**/*.ts"],
+    ignores: TESTES,
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "react",
+                "react-dom",
+                "react/*",
+                "react-dom/*",
+                "next",
+                "next/*",
+                "@supabase/*",
+                "@/lib/supabase",
+                "@/app/*",
+                "server-only",
+              ],
+              message:
+                "Lógica pura (`lib/orcamento/pedidos/`, `lib/temas/`): sem React, sem Next, sem Supabase e sem nada de `app/`. Leia e escreva na casca (o hook ou o componente) e passe aqui só os dados.",
+            },
+            {
+              group: ["**/_casca/**", "**/_pedidos/**", "**/_temas/**", "**/admin/**"],
+              message:
+                "Lógica pura não importa o back office: as setas descem de `lib/` para as casas, nunca ao contrário.",
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const casas = CASAS.map((casa) => ({
+    files: [`src/app/**/admin/${casa}/**/*.ts`, `src/app/**/admin/${casa}/**/*.tsx`],
+    ignores: TESTES,
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            SERVER_ONLY,
+            OS_DONOS,
+            {
+              group: CASAS.filter((c) => c !== casa).flatMap((c) => [`**/${c}`, `**/${c}/**`]),
+              message: `\`${casa}/\` não importa o interior de outra casa. O que é preciso nas duas sobe para \`lib/\` (se for regra) ou para \`ui/\` (se for peça de interface).`,
+            },
+          ],
+        },
+      ],
+    },
+  }));
+  return [puro, ...casas];
+}
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -74,6 +158,18 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // ── AS FRONTEIRAS DAS CASAS DO BACK OFFICE (júri das fases 7 e 8) ─────────
+  //
+  // As fases 7 e 8 de `docs/ESTRUTURA-DO-CODIGO.md` partiram o `AdminClient`,
+  // o `Temas` e o `ThemePicker` em casas privadas (`_casca/`, `_pedidos/`,
+  // `_temas/`) e em lógica pura (`lib/orcamento/pedidos/`, `lib/temas/`). As
+  // setas só descem: `lib/…` ← casa ← o ecrã que a monta. Uma fronteira que
+  // nenhuma ferramenta verifica acaba atravessada (Parte 1, §1.2) — esta é a
+  // ferramenta.
+  //
+  // ATENÇÃO à forma do ESLint: um bloco que volta a pôr a mesma regra SUBSTITUI
+  // a de cima, não se soma. Por isso cada bloco repete a guarda do server-only.
+  ...fronteirasDasCasas(),
   // Server entry points (page/layout/template) and tests run on the server and
   // legitimately value-import the stores — lift the client-boundary guard there.
   {

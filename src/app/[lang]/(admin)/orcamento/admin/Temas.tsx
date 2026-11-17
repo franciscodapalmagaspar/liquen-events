@@ -63,20 +63,16 @@ import {
   pool,
   reinsertAt,
 } from "../../../../../lib/temas/listas-de-fotos";
+import { fraseDeEliminar, photoCountLabel } from "../../../../../lib/temas/textos-dos-temas";
+import { plural } from "@/lib/plural";
 import {
-  fraseDeEliminar,
-  photoCountLabel,
-  plural,
-} from "../../../../../lib/temas/textos-dos-temas";
-import {
-  COLUNAS,
-  Densidade,
-  Ordem,
   contarFotosDaBiblioteca,
-  lerDensidade,
-  lerOrdem,
   ordenarTemas,
-} from "./_temas/ordem-e-densidade";
+  type Densidade,
+  type Ordem,
+} from "@/lib/temas/ordem";
+import { COLUNAS } from "./_temas/pele-da-biblioteca";
+import { lerDensidade, lerOrdem } from "./_temas/preferencias-guardadas";
 import {
   FolderIcon,
   ICONE_ABRIR,

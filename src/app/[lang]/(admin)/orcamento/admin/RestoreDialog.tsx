@@ -10,6 +10,7 @@ import {
 } from "@/lib/backup-restore-types";
 import { useFocusTrap } from "./useFocusTrap";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
+import { plural } from "@/lib/plural";
 /* A escala de movimento da casa — ver `ui/movimento.ts` para o censo que a
    motivou. `ESTADO` são os 120 ms do degrau `micro` numa lista fechada de
    propriedades (nenhuma delas força *layout*); `PRESSAO` é o toque a 20 ms.
@@ -83,10 +84,6 @@ function descarregar(nome: string, conteudo: unknown): boolean {
     // guardada — quem chama mostra o botão manual.
     return false;
   }
-}
-
-function plural(n: number, um: string, muitos: string): string {
-  return `${n} ${n === 1 ? um : muitos}`;
 }
 
 /**
@@ -501,7 +498,10 @@ function RestoreDialogInner({ aSair, onClose, toast }: Omit<Props, "open"> & { a
                       >
                         Substituídos
                       </th>
-                      <th scope="col" className="px-3 py-2 text-right font-medium text-[var(--bo-perigo)]">
+                      <th
+                        scope="col"
+                        className="px-3 py-2 text-right font-medium text-[var(--bo-perigo)]"
+                      >
                         Apagados
                       </th>
                     </tr>
@@ -534,7 +534,9 @@ function RestoreDialogInner({ aSair, onClose, toast }: Omit<Props, "open"> & { a
                         </td>
                         <td
                           className={`px-3 py-2 text-right tabular-nums ${
-                            d.removed > 0 ? "font-medium text-[var(--bo-perigo)]" : "text-foreground/40"
+                            d.removed > 0
+                              ? "font-medium text-[var(--bo-perigo)]"
+                              : "text-foreground/40"
                           }`}
                         >
                           {d.skipped ? "—" : d.removed}

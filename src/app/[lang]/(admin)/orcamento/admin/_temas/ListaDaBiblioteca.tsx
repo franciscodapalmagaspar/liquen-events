@@ -7,7 +7,8 @@ import { type PedidoDeMenu } from "../MenuDeContexto";
 import { MenuDeAccoes, type AccaoDeItem } from "../ui";
 import { ESTADO, PRESSAO } from "../ui/movimento";
 import { PlusIcon } from "./icones";
-import { COLUNAS, MENU_DA_BIBLIOTECA, type Densidade } from "./ordem-e-densidade";
+import type { Densidade } from "@/lib/temas/ordem";
+import { COLUNAS, MENU_DA_BIBLIOTECA } from "./pele-da-biblioteca";
 import { CartaoDoTema } from "./CartaoDoTema";
 
 /** A lista dos temas da biblioteca — os cartões (ou linhas), com a pasta

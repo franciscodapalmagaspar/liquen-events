@@ -49,12 +49,8 @@ import { fonteDe } from "./fonte-do-admin.testkit";
 import { mergePage, moveItem, reinsertAt } from "@/lib/temas/listas-de-fotos";
 import { desdeQuando, fraseDeEliminar } from "@/lib/temas/textos-dos-temas";
 import { GRELHA_DE_FOTOS, PISO_DA_CELULA_PX } from "./_temas/grelha-de-fotos";
-import {
-  COLUNAS,
-  contarFotosDaBiblioteca,
-  ordenarTemas,
-  temPoucasFotos,
-} from "./_temas/ordem-e-densidade";
+import { contarFotosDaBiblioteca, ordenarTemas, temPoucasFotos } from "@/lib/temas/ordem";
+import { COLUNAS } from "./_temas/pele-da-biblioteca";
 
 /**
  * Rede de segurança da Biblioteca de Temas.

@@ -68,6 +68,35 @@ antes e depois (linhas, complexidade, peso das rotas).
   fotografia do dia, não um crescimento novo); o do `AdminClient.tsx`, o do
   `Temas.tsx` e o do `ThemePicker.tsx` desceram para o tamanho de agora.
 
+**O júri das fases 7 e 8 (17/11).** Um júri de arquitetura independente
+deu 6/10 («ainda não»; o parecer está no ramo `revisao/admin-e-temas-juri`,
+em `juri.md`) e nomeou quatro pontos que não podiam esperar pela fase
+seguinte. Ficaram feitos no mesmo ramo:
+
+- **As fronteiras passaram a ser verificadas.** `eslint.config.mjs`
+  (`fronteirasDasCasas`): a lógica pura de `lib/orcamento/pedidos/` e
+  `lib/temas/` não importa React, Next, Supabase nem nada de `app/`; uma casa
+  (`_casca/`, `_pedidos/`, `_temas/`) não importa o `AdminClient`, o `Temas` nem
+  o `ThemePicker`, nem o interior de outra casa. Vista a falhar de propósito:
+  onze importações proibidas numa sonda, onze erros. Os testes ficam de fora.
+  Atenção ao ESLint: um bloco que repete a regra substitui a de cima, por isso
+  cada bloco repete a guarda do server-only.
+- **Testes para a lógica que tinha saído sem eles:** `_temas/largar-pastas.test.ts`
+  (os tectos de 5 000 ficheiros e de 20 000 entradas, um atalho circular, o
+  `readEntries` lido até vir vazio — visto a falhar quando se lê só o primeiro
+  lote), `_temas/arrasto.test.ts`, `_temas/preferencias-guardadas.test.ts`
+  (lixo guardado, `localStorage` que rebenta), `lib/temas/ordem.test.ts` e
+  `lib/temas/textos-dos-temas.test.ts` (`photoCountLabel`).
+- **Um `plural` só** (`lib/plural.ts`, com teste). Havia sete cópias iguais
+  letra a letra, duas delas exportadas por ficheiros novos desta fase.
+- **A ordem dos temas separada do `localStorage` e da pele.**
+  `_temas/ordem-e-densidade.ts` deixou de existir: a regra (`ordenarTemas`,
+  `contarFotosDaBiblioteca`, `temPoucasFotos`, e a leitura do que vem guardado,
+  `lerOrdemGuardada`/`lerDensidadeGuardada`) está em `lib/temas/ordem.ts`; a
+  leitura e escrita no `localStorage` em `_temas/preferencias-guardadas.ts`; o
+  `COLUNAS` e o `MENU_DA_BIBLIOTECA` em `_temas/pele-da-biblioteca.ts`. Nenhum
+  valor mudou.
+
 **Desvios da fase 1 ao texto:** além do que a tabela da fase 1 nomeia, saíram
 com as funções as ajudantes privadas de que elas precisam (`eventTypeLabel`,
 `formatEventDate`, `buildRef`, `nomesDoCasal`, `baseDoPedidoParaOEcra`,

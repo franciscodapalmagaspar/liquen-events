@@ -6,7 +6,8 @@ import { type AvaliacaoDaFoto } from "@/lib/qualidade-da-foto";
 import { THEME_PAGE_SIZE, type ThemeImage } from "@/lib/theme-types";
 import { Button } from "../../ui";
 import { ESTADO, PRESSAO } from "../../ui/movimento";
-import { ABOVE_FOLD, GRELHA_DE_FOTOS, Photo, plural } from "./FotoDoSeletor";
+import { plural } from "@/lib/plural";
+import { ABOVE_FOLD, GRELHA_DE_FOTOS, Photo } from "./FotoDoSeletor";
 import { themeScroll } from "./posicao-do-rolo";
 
 /** A grelha das fotografias do tema no seletor — a carregar, vazia, com erro,

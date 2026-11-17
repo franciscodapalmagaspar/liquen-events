@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { normalizedThemeName, type ThemeSummary } from "@/lib/theme-types";
 import { Button, FolhaOuDialogo } from "./ui";
 import { ESTADO, PRESSAO } from "./ui/movimento";
+import { plural } from "@/lib/plural";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -76,10 +77,6 @@ export interface ThemeMergeOutcome {
  * sempre.
  */
 const MAX_VOLTAS = 400;
-
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
 
 /** Quantas fotos tem o tema, sem mentir — a mesma regra do `ThemeCopyDialog`. */
 function countLabel(t: ThemeSummary): string {
