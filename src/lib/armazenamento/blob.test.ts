@@ -251,4 +251,48 @@ describe("revisão de 17/11", () => {
     expect(await lerRespostaDoBlob("a/b.pdf", {}, 100)).toBeNull();
     expect(contador.registados).toEqual([{ simples: 1 }]);
   });
+
+  it("4.ª revisão, n.º 2: um corpo parado não pendura a função — lerDoBlob corta ao fim do tecto", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (_u: string, init: RequestInit) => {
+          const corpo = new ReadableStream<Uint8Array>({
+            start(c) {
+              c.enqueue(new Uint8Array(1)); // e depois pára
+              init.signal?.addEventListener("abort", () => c.error(new Error("aborted")));
+            },
+          });
+          return new Response(corpo, { status: 200, headers: { "content-length": "100" } });
+        }),
+      );
+      const leitura = lerDoBlob("a/b.jpg", 100).catch((e) => e);
+      await vi.advanceTimersByTimeAsync(26_000);
+      expect(await leitura).toBeInstanceOf(BlobAvariado);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("4.ª revisão, n.º 3: um 416 é uma resposta (com content-range), não uma avaria", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () => new Response(null, { status: 416, headers: { "content-range": "bytes */10" } }),
+      ),
+    );
+    const r = await lerRespostaDoBlob("a/b.pdf", { Range: "bytes=50-60" }, 10);
+    expect(r!.status).toBe(416);
+    expect(r!.headers.get("content-range")).toBe("bytes */10");
+    expect(contador.registados).toEqual([{ simples: 1 }]);
+  });
+
+  it("4.ª revisão, n.º 4: pede os bytes sem compressão (Accept-Encoding: identity)", async () => {
+    const fetchFalso = vi.fn(async () => new Response("x", { status: 200 }));
+    vi.stubGlobal("fetch", fetchFalso);
+    await lerRespostaDoBlob("a/b.pdf");
+    const init = (fetchFalso.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect((init.headers as Record<string, string>)["Accept-Encoding"]).toBe("identity");
+  });
 });

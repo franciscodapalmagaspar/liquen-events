@@ -198,30 +198,63 @@ export async function lerRespostaDoBlob(
   cabecalhos: Record<string, string> = {},
   tamanhoPrevisto = 0,
 ): Promise<Response | null> {
+  return (await pedirAoBlob(chave, cabecalhos, tamanhoPrevisto, false)).res;
+}
+
+/**
+ * O pedido em si. `cortarNoCorpo`: o tecto de tempo vale também para o CORPO
+ * (4.ª revisão de 17/11, n.º 2) — para quem lê tudo de uma vez no servidor
+ * (`lerDoBlob`: o `download()` do `balde()` e a migração); um corpo parado
+ * pendurava a função até ao `maxDuration`. Sem ele, o tecto vale só até aos
+ * cabeçalhos: um PDF a correr para um telemóvel lento pode demorar mais, e
+ * cortá-lo a meio era um ficheiro partido. `parar` desliga o relógio.
+ */
+async function pedirAoBlob(
+  chave: string,
+  cabecalhos: Record<string, string>,
+  tamanhoPrevisto: number,
+  cortarNoCorpo: boolean,
+): Promise<{ res: Response | null; parar: () => void }> {
   // Tamanho desconhecido conta 1 byte na pergunta: com o tecto já passado,
   // recusa (revisão de 17/11, n.º 4) — sem isto, uma leitura sem tamanho
   // passava sempre, mesmo com a transferência do mês esgotada.
   const recusa = await travao({ simples: 1, transferencia: Math.max(1, tamanhoPrevisto) });
   if (recusa) throw new BlobRecusado(recusa);
   let res: Response;
-  // O tecto de tempo vale até chegarem os CABEÇALHOS: um PDF a correr para um
-  // telemóvel lento pode demorar mais, e cortá-lo a meio era um ficheiro partido.
   const corte = new AbortController();
   const relogio = setTimeout(() => corte.abort(), TEMPO_MS);
+  const parar = () => clearTimeout(relogio);
   try {
     res = await fetch(enderecoPrivado(chave), {
-      headers: { ...cabecalhos, Authorization: `Bearer ${token()}` },
+      headers: {
+        ...cabecalhos,
+        // Os bytes TAL COMO ESTÃO (4.ª revisão, n.º 4): o `fetch` do Node pede
+        // gzip/br por omissão e descomprime, mas deixa ficar o
+        // `content-length` comprimido — a rota copiava-o e a resposta saía
+        // cortada, e o contador contava outra coisa.
+        "Accept-Encoding": "identity",
+        Authorization: `Bearer ${token()}`,
+      },
       cache: "no-store",
       signal: corte.signal,
     });
   } catch (e) {
+    parar();
     throw traduzir("get", e);
   } finally {
-    clearTimeout(relogio);
+    if (!cortarNoCorpo) parar();
+  }
+  // 416 (pedaço fora do ficheiro) é uma RESPOSTA, não uma avaria (4.ª revisão,
+  // n.º 3): conta a operação e segue, com o `content-range` dela.
+  if (res.status === 416) {
+    parar();
+    await registar({ simples: 1 });
+    return { res, parar };
   }
   if (res.status === 404 || (!res.ok && res.status !== 206 && res.status !== 304)) {
+    parar();
     await registar({ simples: 1 });
-    if (res.status === 404) return null;
+    if (res.status === 404) return { res: null, parar };
     log.warn("blob: leitura respondeu mal", { estado: res.status });
     throw new BlobAvariado("get", "avaria");
   }
@@ -233,12 +266,21 @@ export async function lerRespostaDoBlob(
   const declarado = Number(res.headers.get("content-length"));
   if (res.headers.has("content-length") && Number.isFinite(declarado)) {
     await registar({ simples: 1, transferencia: declarado });
-    return res;
+    return { res, parar };
   }
   await registar({ simples: 1 });
-  if (!res.body) return res;
+  if (!res.body) return { res, parar };
   let contados = 0;
   let somado = false;
+  /**
+   * Corre no fim do fluxo — já DEPOIS de a resposta ter saído, e aí o `after()`
+   * pode já não estar disponível (4.ª revisão, n.º 7). Não faz mal: o
+   * `registar` põe o gasto na fila EM MEMÓRIA antes de tentar gravar (e com
+   * o `after` indisponível, tenta solto). Se a função for congelada antes de
+   * gravar, o gasto fica na fila desta instância e grava-se com o próximo
+   * `registar` dela; se a instância morrer, perde-se esse — o único caso em
+   * que se conta a menos, e só sem `content-length` (o Blob costuma dá-lo).
+   */
   const somar = () => {
     if (somado) return;
     somado = true;
@@ -253,27 +295,32 @@ export async function lerRespostaDoBlob(
     // `cancel` (quem lê desistiu a meio) ainda não está nos tipos do TS.
     cancel: somar,
   } as Transformer<Uint8Array, Uint8Array>);
-  return new Response(res.body.pipeThrough(contador), {
-    status: res.status,
-    statusText: res.statusText,
-    headers: res.headers,
-  });
+  return {
+    res: new Response(res.body.pipeThrough(contador), {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+    }),
+    parar,
+  };
 }
 
-/** Lê os bytes todos. `null` = não existe. */
+/** Lê os bytes todos, com tecto de tempo também no corpo. `null` = não existe. */
 export async function lerDoBlob(
   chave: string,
   tamanhoPrevisto = 0,
 ): Promise<{ bytes: Uint8Array; tipo: string } | null> {
-  const res = await lerRespostaDoBlob(chave, {}, tamanhoPrevisto);
-  if (!res) return null;
+  const { res, parar } = await pedirAoBlob(chave, {}, tamanhoPrevisto, true);
   try {
+    if (!res) return null;
     return {
       bytes: new Uint8Array(await res.arrayBuffer()),
       tipo: res.headers.get("content-type") ?? "application/octet-stream",
     };
   } catch (e) {
     throw traduzir("get", e);
+  } finally {
+    parar();
   }
 }
 

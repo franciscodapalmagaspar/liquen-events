@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  */
 
 const H = vi.hoisted(() => ({
-  falhar: null as null | "recusa" | "nao-existe",
+  falhar: null as null | "recusa" | "nao-existe" | "416" | "html",
   chamadas: [] as unknown[][],
   noSupabase: true,
   mediaNoSupabase: false,
@@ -16,6 +16,13 @@ vi.mock("@/lib/armazenamento/blob", () => ({
     H.chamadas.push(a);
     if (H.falhar === "recusa") throw new Error("recusado pelo tecto");
     if (H.falhar === "nao-existe") return null;
+    if (H.falhar === "416")
+      return new Response(null, { status: 416, headers: { "content-range": "bytes */10" } });
+    if (H.falhar === "html")
+      return new Response("<script>alert(1)</script>", {
+        status: 200,
+        headers: { "content-type": "text/html", "content-length": "25" },
+      });
     const pedaco = (a[1] as Record<string, string>).Range;
     return pedaco
       ? new Response("ABC", {
@@ -50,7 +57,7 @@ vi.mock("@/lib/supabase", () => ({
   }),
 }));
 
-import { GET } from "./route";
+import { GET, HEAD } from "./route";
 import { urlEstavel } from "@/lib/armazenamento/url-estavel";
 
 const TOKEN = "vercel_blob_rw_Loja1234_segredo";
@@ -161,5 +168,38 @@ describe("/api/ficheiro", () => {
     const u = url();
     process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_Loja1234_OUTRO";
     expect((await pedir(u)).status).toBe(200);
+  });
+
+  it("4.ª revisão, n.º 3: um 416 do Blob segue como 416, com o content-range — nem aviso, nem Supabase", async () => {
+    H.falhar = "416";
+    const r = await pedir(url(), { range: "bytes=50-60" });
+    expect(r.status).toBe(416);
+    expect(r.headers.get("content-range")).toBe("bytes */10");
+  });
+
+  it("4.ª revisão, n.º 5: HEAD não vai ao Blob (nem conta), mas diz o tamanho, o tipo e o ETag", async () => {
+    const u = new URL(url(), "https://liquen.pt");
+    const [, , , balde, ...caminho] = u.pathname.split("/");
+    const r = await HEAD(new Request(u, { method: "HEAD" }), {
+      params: Promise.resolve({ balde, caminho }),
+    });
+    expect(r.status).toBe(200);
+    expect(H.chamadas).toEqual([]);
+    expect(r.headers.get("content-length")).toBe("10");
+    expect(r.headers.get("content-type")).toBe("image/jpeg");
+    expect(r.headers.get("etag")).toMatch(/^"[0-9a-f]{32}"$/);
+  });
+
+  it("4.ª revisão, n.º 8: sai sempre com nosniff e CSP sandbox", async () => {
+    const r = await pedir(url());
+    expect(r.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(r.headers.get("content-security-policy")).toBe("sandbox; default-src 'none'");
+  });
+
+  it("4.ª revisão, n.º 8: um tipo fora da lista (HTML) vai como octet-stream e em anexo", async () => {
+    H.falhar = "html";
+    const r = await pedir(url());
+    expect(r.headers.get("content-type")).toBe("application/octet-stream");
+    expect(r.headers.get("content-disposition")).toBe("attachment");
   });
 });

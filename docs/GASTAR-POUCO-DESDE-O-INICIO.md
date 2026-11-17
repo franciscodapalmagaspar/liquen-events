@@ -614,10 +614,20 @@ As três perguntas da regra 7:
    resposta é imutável e fica na cache dele um ano (`ETag` + `immutable`),
    e um `If-None-Match` responde 304 sem ir ao Blob. ~800 originais/dia no
    pior caso medido a 10/11.
-2. **Quanto processador:** passar bytes em fluxo, sem os guardar em memória —
-   medido em produção pela linha `cpu-da-rota` «ficheiro GET» (`comCpu`).
+2. **Quanto processador:** passar bytes em fluxo, sem os guardar em memória.
+   A linha `cpu-da-rota` «ficheiro GET» (`comCpu`) mede só até a resposta
+   começar a sair (conferir, pedir ao Blob, os cabeçalhos) — o fluxo que
+   corre depois não entra nela.
    O preço novo é a **Fast Data Transfer** da Vercel (função → navegador; o
    Pro inclui 1 TB por mês, e o pior caso aqui são ~3–4 GB) além da Blob Data
    Transfer (Blob → função), e algum tempo de função por ficheiro.
 3. **Guardado / build / navegador:** não. O navegador não tem o token, e um
    endereço do Blob nas mãos dele é precisamente o que escapa ao travão.
+
+Notas da 4.ª revisão (17/11): o `HEAD` não vai ao Blob (responde com o que o
+endereço já traz); um `416` do Blob segue como `416`; a leitura pede os bytes
+sem compressão (`Accept-Encoding: identity`) para o `content-length` bater
+certo; e o que sai da nossa origem leva `nosniff`, uma CSP `sandbox` e só
+imagens e PDF com o tipo deles. **O leitor de PDF do Chrome pede o ficheiro
+mais do que uma vez (aos pedaços e por inteiro), e conta-se ~2× o tamanho de
+um PDF aberto** — fica assim: é o lado seguro do travão.

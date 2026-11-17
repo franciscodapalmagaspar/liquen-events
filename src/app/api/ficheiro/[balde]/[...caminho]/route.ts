@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { log } from "@/lib/logger";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { blobConfigurado, chaveNoBlob } from "@/lib/armazenamento/baldes";
+import { blobConfigurado, chaveNoBlob, type BaldeDoBlob } from "@/lib/armazenamento/baldes";
 import { conferirUrlEstavel, segredoDosEnderecos } from "@/lib/armazenamento/url-estavel";
 import { lerRespostaDoBlob } from "@/lib/armazenamento/blob";
 import { comCpu } from "@/lib/medir-cpu";
@@ -43,41 +43,104 @@ export const dynamic = "force-dynamic";
  *
  * As três perguntas da regra 7 (custo): corre uma vez por ficheiro do Blob
  * visto num navegador (depois disso, a cache dele); o processador é o de
- * passar bytes em fluxo, sem os guardar em memória (medido em produção por
- * `comCpu`, linha `cpu-da-rota` «ficheiro GET»); e não pode ser guardado nem
- * feito no navegador, porque o navegador não tem o token — o preço é a Fast
- * Data Transfer da Vercel (o Pro inclui 1 TB por mês) e a Blob Data Transfer.
+ * passar bytes em fluxo, sem os guardar em memória; e não pode ser guardado
+ * nem feito no navegador, porque o navegador não tem o token — o preço é a
+ * Fast Data Transfer da Vercel (o Pro inclui 1 TB por mês) e a Blob Data
+ * Transfer. O `comCpu` («ficheiro GET») mede só até a resposta COMEÇAR a sair
+ * — conferir, pedir ao Blob, os cabeçalhos — e não o fluxo que corre depois
+ * (4.ª revisão, n.º 6).
+ *
+ * E o que sai da NOSSA origem é tratado como conteúdo não confiável (4.ª
+ * revisão, n.º 8): só imagens e PDF com o tipo deles; tudo o resto vai como
+ * `application/octet-stream` e em anexo; sempre com `nosniff` e uma CSP
+ * `sandbox; default-src 'none'`, para um ficheiro nunca correr como página.
  */
-async function GET_semMedida(
+type Contexto = { params: Promise<{ balde: string; caminho: string[] }> };
+
+/** Limite, assinatura e ETag — o que o GET e o HEAD fazem igual. */
+async function conferir(
   request: Request,
-  { params }: { params: Promise<{ balde: string; caminho: string[] }> },
-) {
-  if (!blobConfigurado()) return new NextResponse(null, { status: 404 });
+  { params }: Contexto,
+): Promise<
+  | { resposta: NextResponse }
+  | { resposta: null; ok: { balde: BaldeDoBlob; caminho: string; tamanho: number }; etag: string }
+> {
+  if (!blobConfigurado()) return { resposta: new NextResponse(null, { status: 404 }) };
   // 300 por minuto por IP (3.ª revisão, n.º 2): uma proposta com muitas
   // fotografias e o escritório inteiro atrás do mesmo IP. O custo é o travão
   // do mês que o protege, não isto.
   const limitado = await rateLimit(`ficheiro:${clientIp(request)}`, 300, 60_000);
-  if (!limitado.ok) return new NextResponse(null, { status: 429 });
+  if (!limitado.ok) return { resposta: new NextResponse(null, { status: 429 }) };
 
   const { balde, caminho } = await params;
   let partes: string[];
   try {
     partes = (caminho ?? []).map((p) => decodeURIComponent(p));
   } catch {
-    return new NextResponse(null, { status: 404 });
+    return { resposta: new NextResponse(null, { status: 404 }) };
   }
   const token = new URL(request.url).searchParams.get("token");
   const ok = conferirUrlEstavel(balde, partes.join("/"), token, segredoDosEnderecos());
   if (!ok.ok) {
     // 403 para a assinatura, 410 para o prazo: o estúdio volta a pedir um novo.
-    return new NextResponse(null, { status: ok.motivo === "expirado" ? 410 : 403 });
+    return {
+      resposta: new NextResponse(null, { status: ok.motivo === "expirado" ? 410 : 403 }),
+    };
   }
-
   const etag = `"${createHash("sha256").update(`${ok.balde}/${ok.caminho}`).digest("hex").slice(0, 32)}"`;
   // O mesmo ficheiro, já no navegador: nem se vai ao Blob.
   if (jaTemEste(request, etag)) {
-    return new NextResponse(null, { status: 304, headers: { ETag: etag, "Cache-Control": CACHE } });
+    return {
+      resposta: new NextResponse(null, {
+        status: 304,
+        headers: { ETag: etag, "Cache-Control": CACHE },
+      }),
+    };
   }
+  return { resposta: null, ok, etag };
+}
+
+/** Os cabeçalhos de segurança e de cache de tudo o que sai daqui com bytes. */
+function cabecalhosSeguros(tipo: string | null, etag: string): Headers {
+  const permitido = tipo && TIPOS_PERMITIDOS.has(tipo.split(";")[0].trim().toLowerCase());
+  const h = new Headers({
+    "Content-Type": permitido ? tipo! : "application/octet-stream",
+    "Cache-Control": CACHE,
+    ETag: etag,
+    "Accept-Ranges": "bytes",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "sandbox; default-src 'none'",
+  });
+  if (!permitido) h.set("Content-Disposition", "attachment");
+  return h;
+}
+
+const TIPOS_PERMITIDOS = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+  "application/pdf",
+]);
+
+/** O tipo pelo nome do ficheiro — para o HEAD, que não vai ao Blob. */
+function tipoPelaExtensao(caminho: string): string | null {
+  const ext = caminho.slice(caminho.lastIndexOf(".") + 1).toLowerCase();
+  const tipos: Record<string, string> = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    avif: "image/avif",
+    pdf: "application/pdf",
+  };
+  return tipos[ext] ?? null;
+}
+
+async function GET_semMedida(request: Request, contexto: Contexto) {
+  const c = await conferir(request, contexto);
+  if (c.resposta) return c.resposta;
+  const { ok, etag } = c;
   // Um `If-Range` que não bate certo anula o pedaço: manda-se o ficheiro todo.
   const pedaco = request.headers.get("range");
   const seRange = request.headers.get("if-range");
@@ -93,14 +156,18 @@ async function GET_semMedida(
   } catch {
     doBlob = null; // tecto, contador ilegível ou avaria: segue para o Supabase
   }
-  if (doBlob && doBlob.body) {
-    const cabecalhos = new Headers({
-      "Content-Type": doBlob.headers.get("content-type") ?? "application/octet-stream",
-      "Cache-Control": CACHE,
-      ETag: etag,
-      "Accept-Ranges": "bytes",
+  // Um pedaço fora do ficheiro (4.ª revisão, n.º 3): a resposta do Blob, tal
+  // e qual — nem é avaria, nem vai ao Supabase.
+  if (doBlob && doBlob.status === 416) {
+    const h = new Headers({
+      "Content-Range": doBlob.headers.get("content-range") ?? `bytes */${ok.tamanho}`,
       "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox; default-src 'none'",
     });
+    return new NextResponse(null, { status: 416, headers: h });
+  }
+  if (doBlob && doBlob.body) {
+    const cabecalhos = cabecalhosSeguros(doBlob.headers.get("content-type"), etag);
     for (const k of ["content-length", "content-range"]) {
       const v = doBlob.headers.get(k);
       if (v) cabecalhos.set(k, v);
@@ -127,8 +194,22 @@ async function GET_semMedida(
   });
 }
 
-// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`.
+// Quanto processador gasta cada pedido (3/11) — ver `medir-cpu.ts`. Mede até
+// a resposta começar a sair, não o fluxo (ver o cabeçalho deste ficheiro).
 export const GET = comCpu("ficheiro GET", GET_semMedida);
+
+/**
+ * O HEAD não vai ao Blob (4.ª revisão, n.º 5): sem isto, o Next respondia-lhe
+ * com o GET, que descarregava o ficheiro inteiro e o contava. Só a
+ * assinatura, o ETag, e o tamanho e o tipo que o próprio endereço já traz.
+ */
+export async function HEAD(request: Request, contexto: Contexto) {
+  const c = await conferir(request, contexto);
+  if (c.resposta) return c.resposta;
+  const h = cabecalhosSeguros(tipoPelaExtensao(c.ok.caminho), c.etag);
+  if (c.ok.tamanho > 0) h.set("Content-Length", String(c.ok.tamanho));
+  return new NextResponse(null, { status: 200, headers: h });
+}
 
 const CACHE = "private, max-age=31536000, immutable";
 
