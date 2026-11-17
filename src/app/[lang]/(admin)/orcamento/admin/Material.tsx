@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useDeferredValue, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useDeferredValue, useRef, type ReactNode } from "react";
+import { servirUmaVez, type PedidoDaPaleta } from "./procura-em-tudo";
 import type { MaterialItem, MaterialKind } from "@/lib/material-types";
 import {
   MATERIAL_CATEGORIES,
@@ -164,11 +165,27 @@ function KindChip({ kind }: { kind: MaterialKind }) {
   );
 }
 
-export default function Material() {
+export default function Material({
+  pedidoDaPaleta,
+}: {
+  /** A paleta (⌘K) escolheu um material: abre o catálogo filtrado por ele. */
+  pedidoDaPaleta?: PedidoDaPaleta;
+}) {
   // Catálogo e listas são a mesma matéria vista de dois ângulos — o que existe,
   // e o que costuma ir junto — por isso vivem no mesmo sítio em vez de
   // ocuparem duas entradas do menu.
   const [aba, setAba] = useState<"catalogo" | "listas" | "regras">("catalogo");
+  /* O material vive no CATÁLOGO: um pedido da paleta leva-o para lá, e é o
+     catálogo que o serve (a procura é dele). Guardado aqui para sobreviver à
+     troca de aba, que remonta o catálogo. */
+  const [procuraDaPaleta, setProcuraDaPaleta] = useState<PedidoDaPaleta | undefined>();
+  useEffect(() => {
+    servirUmaVez(pedidoDaPaleta, (p) => {
+      if (p.procura === undefined) return;
+      setAba("catalogo");
+      setProcuraDaPaleta({ procura: p.procura });
+    });
+  }, [pedidoDaPaleta]);
   return (
     <Card>
       <Segmented
@@ -206,7 +223,7 @@ export default function Material() {
           Com `prefers-reduced-motion` a `.view-in` não anima (globals.css). */}
       <div key={aba} className="view-in mt-5">
         {aba === "catalogo" ? (
-          <Catalogo />
+          <Catalogo pedidoDaPaleta={procuraDaPaleta} />
         ) : aba === "listas" ? (
           <MaterialListas />
         ) : (
@@ -217,7 +234,7 @@ export default function Material() {
   );
 }
 
-function Catalogo() {
+function Catalogo({ pedidoDaPaleta }: { pedidoDaPaleta?: PedidoDaPaleta }) {
   const { toast } = useToast();
   const anular = useAnular();
   const depoisDeApagar = useDepoisDeApagar();
@@ -235,6 +252,16 @@ function Catalogo() {
   const [kind, setKind] = useState<"Todos" | MaterialKind>("Todos");
   /** Só o que está abaixo do mínimo — o atalho para a lista de compras. */
   const [soEmFalta, setSoEmFalta] = useState(false);
+  // A escolha da paleta ganha aos filtros que lá estavam (BO 4).
+  useEffect(() => {
+    servirUmaVez(pedidoDaPaleta, (p) => {
+      if (p.procura === undefined) return;
+      setSearch(p.procura);
+      setCat("Todas");
+      setKind("Todos");
+      setSoEmFalta(false);
+    });
+  }, [pedidoDaPaleta]);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);

@@ -1,0 +1,752 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { Quote } from "@/lib/orcamento/types";
+import { ToastProvider } from "./Toast";
+import { escolherJa } from "./ui/escolher.testkit";
+import { __resetListCache, prefetchList } from "./useCachedList";
+import AdminClient from "./AdminClient";
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * BO 4 — ATALHOS, ACÇÕES EM VÁRIOS PEDIDOS E A PROCURA ⌘K «EM TUDO»
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * O que se prende aqui, ao nível do back office inteiro:
+ *  · o ⌘K procura nas listas que já estão na memória, SEM pedido nenhum, e
+ *    cada resultado abre a vista certa com o pedido certo;
+ *  · os comandos novos (Nova tarefa, Novo evento, Fazer proposta, Atalhos);
+ *  · o acorde «G» leva aos destinos novos e deixou de levar aos escondidos;
+ *  · o «/» foca a procura da vista onde se está (ou abre o ⌘K);
+ *  · nos Pedidos: ⌘A, Esc, «Arquivar (N)» e «Restaurar (N)», com «Anular».
+ */
+
+/** As vistas preguiçosas viram uma etiqueta que diz o que lhes chegou. */
+vi.mock("./lazy", () => {
+  const VISTAS = new Set([
+    "overview",
+    "kanban",
+    "clientes",
+    "calendario",
+    "fazerproposta",
+    "propostas",
+    "pagamentos",
+    "acompanhamento",
+    "definicoesproposta",
+    "servicos",
+    "reciclagem",
+    "tarefas",
+    "fornecedores",
+    "statsdashboard",
+    "fechosmeta",
+    "emailtemplates",
+    "contratos",
+    "inventario",
+    "material",
+    "temas",
+    "guioes",
+    "mapademesas",
+  ]);
+  const stub = (name: string) => {
+    const C = (props: Record<string, unknown>) => (
+      <div
+        data-testid={`view-${name}`}
+        data-pedido={JSON.stringify(props.pedidoDaPaleta ?? null)}
+        data-procura-inicial={String(props.procuraInicial ?? "")}
+      >
+        {name} stub
+        {name === "propostas" && <input aria-label="Procurar propostas" />}
+        {/* As peças do painel do pedido trazem uma caixa: é sobre ela que se
+            prova o Esc dentro do painel (segunda revisão · 1). */}
+        {!VISTAS.has(name) && <input type="checkbox" aria-label={`caixa ${name}`} />}
+        {typeof props.onAbrirPedido === "function" && Array.isArray(props.quotes) && (
+          <button
+            type="button"
+            onClick={() =>
+              (props.onAbrirPedido as (q: unknown) => void)((props.quotes as unknown[])[0])
+            }
+          >
+            Abrir o pedido (stub)
+          </button>
+        )}
+        {typeof props.onIrParaPropostas === "function" && (
+          <button
+            type="button"
+            onClick={() => (props.onIrParaPropostas as (p?: string) => void)("Casal Exemplo")}
+          >
+            Ver em Propostas (stub)
+          </button>
+        )}
+      </div>
+    );
+    C.displayName = `Lazy(${name})`;
+    return C;
+  };
+  const nomes = [
+    "Overview",
+    "Kanban",
+    "Clientes",
+    "Calendario",
+    "FazerProposta",
+    "Propostas",
+    "Pagamentos",
+    "Acompanhamento",
+    "DefinicoesProposta",
+    "Servicos",
+    "Reciclagem",
+    "Tarefas",
+    "Fornecedores",
+    "StatsDashboard",
+    "FechosMeta",
+    "EmailTemplates",
+    "Contratos",
+    "Inventario",
+    "Material",
+    "Temas",
+    "Guioes",
+    "MapaDeMesas",
+    "ImportarProposta",
+    "ProposalStudio",
+    "ClientMessenger",
+    "EventChecklist",
+    "EventMaterial",
+    "ProductionPlan",
+    "EventTimeline",
+    "PaymentsPanel",
+    "EventCosts",
+    "GuestList",
+    "TagsField",
+    "FollowUpField",
+    "ActivityLog",
+    "EventTasks",
+  ];
+  return {
+    ...Object.fromEntries(nomes.map((n) => [n, stub(n.toLowerCase())])),
+    WARM_ORDER: [],
+  };
+});
+
+vi.mock("next/image", () => ({
+  default: ({ src, alt }: { src: string; alt: string }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={typeof src === "string" ? src : ""} alt={alt} />
+  ),
+}));
+
+let seq = 0;
+function makeQuote(over: Partial<Quote> = {}): Quote {
+  seq += 1;
+  return {
+    id: `LQ-${String(seq).padStart(3, "0")}`,
+    submittedAt: "2026-05-01T10:00:00.000Z",
+    lastUpdated: "2026-05-01T10:00:00.000Z",
+    status: "cotado",
+    name: `Cliente ${seq}`,
+    email: `cliente${seq}@example.com`,
+    category: "particulares",
+    eventType: "casamentos",
+    date: "2026-09-20",
+    location: "Évora",
+    guests: 80,
+    quotedPrice: 4600,
+    acceptTerms: true,
+    ...over,
+  } as Quote;
+}
+
+const resposta = (body: unknown, ok = true) =>
+  ({ ok, status: ok ? 200 : 500, headers: new Headers(), json: async () => body }) as Response;
+
+const TAREFAS = [
+  { id: "t1", title: "Ligar ao florista do Sado", done: false, priority: "normal", createdAt: "" },
+];
+const PROPOSTAS_LEVES = [
+  { id: "p1", quoteId: "LQ-900", clientName: "Joana e Pedro", status: "enviada" },
+];
+
+let fetchMock: ReturnType<typeof vi.fn>;
+let escritas: { url: string; metodo: string; corpo: Record<string, unknown> }[] = [];
+let arquivados = new Map<string, boolean>();
+/** Os pedidos como o servidor os tem — a resposta de um PATCH é o pedido inteiro. */
+let noServidor = new Map<string, Quote>();
+/** Ids cujo PATCH o servidor recusa — para os testes de falha parcial. */
+let recusar = new Set<string>();
+/** Quantos PATCH/DELETE estão no ar ao mesmo tempo, e o máximo que se viu. */
+let noAr = 0;
+let maximoNoAr = 0;
+/** Atraso artificial das escritas, para a concorrência se poder medir. */
+let atrasoMs = 0;
+
+beforeEach(() => {
+  seq = 0;
+  escritas = [];
+  arquivados = new Map();
+  noServidor = new Map();
+  recusar = new Set();
+  noAr = 0;
+  maximoNoAr = 0;
+  atrasoMs = 0;
+  localStorage.clear();
+  __resetListCache();
+  fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const u = String(url);
+    const metodo = init?.method ?? "GET";
+    if (metodo !== "GET") {
+      const corpo = JSON.parse(String(init?.body ?? "{}"));
+      escritas.push({ url: u, metodo, corpo });
+      const m = /^\/api\/orcamento\/(.+)$/.exec(u);
+      if (m) {
+        const id = decodeURIComponent(m[1]);
+        noAr++;
+        maximoNoAr = Math.max(maximoNoAr, noAr);
+        if (atrasoMs) await new Promise((r) => setTimeout(r, atrasoMs));
+        noAr--;
+        if (recusar.has(id)) return resposta({ error: "recusado" }, false);
+        if (typeof corpo.status === "string")
+          noServidor.set(id, { ...noServidor.get(id)!, status: corpo.status });
+        if (typeof corpo.archived === "boolean") arquivados.set(id, corpo.archived);
+        return resposta({ ...noServidor.get(id)!, archived: arquivados.get(id) ?? false });
+      }
+      return resposta({ ok: true });
+    }
+    const um = /^\/api\/orcamento\/([^/?]+)$/.exec(u);
+    if (um && noServidor.has(decodeURIComponent(um[1])))
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers({ "x-pedido": "completo" }),
+        json: async () => noServidor.get(decodeURIComponent(um[1])),
+      } as Response;
+    if (u.startsWith("/api/tarefas")) return resposta(TAREFAS);
+    if (u.startsWith("/api/propostas")) return resposta(PROPOSTAS_LEVES);
+    return resposta([]);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+function renderAdmin(quotes: Quote[] = []) {
+  for (const q of quotes) noServidor.set(q.id, q);
+  return render(
+    <ToastProvider>
+      <AdminClient initialQuotes={quotes} userName="Catarina" />
+    </ToastProvider>,
+  );
+}
+
+const tecla = (key: string, extra: Partial<KeyboardEventInit> = {}) =>
+  fireEvent.keyDown(document.body, { key, ...extra });
+
+function abrirPaleta() {
+  tecla("k", { metaKey: true });
+  return screen.findByRole("combobox", { name: "Pesquisar ou navegar" });
+}
+
+describe("⌘K — os comandos novos", () => {
+  it("Nova tarefa, Novo evento, Fazer proposta e Atalhos estão nas Ações; o «Fazer proposta» só uma vez", async () => {
+    renderAdmin();
+    await abrirPaleta();
+    const accoes = screen.getByRole("group", { name: "Ações" });
+    for (const nome of ["Nova tarefa", "Novo evento", "Fazer proposta", "Atalhos de teclado"]) {
+      expect(within(accoes).getByRole("option", { name: new RegExp(nome) })).toBeTruthy();
+    }
+    expect(screen.getAllByRole("option", { name: /Fazer proposta/ })).toHaveLength(1);
+  });
+
+  it("«Novo evento» leva ao Calendário com o pedido de uma marcação nova", async () => {
+    renderAdmin();
+    await abrirPaleta();
+    fireEvent.click(screen.getByRole("option", { name: /Novo evento/ }));
+    const vista = await screen.findByTestId("view-calendario");
+    expect(JSON.parse(vista.dataset.pedido!)).toEqual({ novo: true });
+  });
+
+  it("«Atalhos de teclado» abre a folha dos atalhos", async () => {
+    renderAdmin();
+    await abrirPaleta();
+    fireEvent.click(screen.getByRole("option", { name: /Atalhos de teclado/ }));
+    expect(await screen.findByRole("dialog", { name: "Atalhos de teclado" })).toBeTruthy();
+  });
+});
+
+describe("⌘K — procura em tudo, só com o que está na memória", () => {
+  it("encontra uma tarefa e uma proposta já em cache, sem pedido nenhum, e abre-as no sítio", async () => {
+    prefetchList("tarefas", "/api/tarefas");
+    prefetchList("propostas-leves", "/api/propostas?semDoc=1");
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    renderAdmin();
+    // O aquecimento em ociosidade do back office (propostas leves, tarefas,
+    // calendário) corre por si, com ou sem paleta. Espera-se por ele para a
+    // conta de baixo medir só a procura.
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some((c) => String(c[0]) === "/api/calendario")).toBe(true),
+    );
+    await act(async () => {});
+
+    const antes = fetchMock.mock.calls.length;
+    const campo = await abrirPaleta();
+    fireEvent.change(campo, { target: { value: "florista" } });
+    const opcao = within(screen.getByRole("group", { name: "Tarefas" })).getByRole("option", {
+      name: /Ligar ao florista do Sado/,
+    });
+    fireEvent.change(campo, { target: { value: "joana" } });
+    expect(
+      within(screen.getByRole("group", { name: "Propostas" })).getByRole("option", {
+        name: /Joana e Pedro/,
+      }),
+    ).toBeTruthy();
+    expect(
+      fetchMock.mock.calls.slice(antes).map((c) => String(c[0])),
+      "procurar não pode pedir nada ao servidor",
+    ).toEqual([]);
+    expect(opcao).toBeTruthy();
+
+    fireEvent.change(campo, { target: { value: "florista" } });
+    fireEvent.click(screen.getByRole("option", { name: /Ligar ao florista do Sado/ }));
+    const vista = await screen.findByTestId("view-tarefas");
+    expect(JSON.parse(vista.dataset.pedido!)).toEqual({ id: "t1" });
+  });
+
+  it("o que não está na memória não aparece — e não se vai buscar", async () => {
+    renderAdmin();
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some((c) => String(c[0]) === "/api/calendario")).toBe(true),
+    );
+    await act(async () => {});
+    const antes = fetchMock.mock.calls.length;
+    const campo = await abrirPaleta();
+    fireEvent.change(campo, { target: { value: "escadote" } });
+    expect(screen.queryByRole("group", { name: "Material" })).toBeNull();
+    expect(fetchMock.mock.calls.length).toBe(antes);
+  });
+});
+
+describe("o acorde «G»", () => {
+  it.each([
+    ["d", "pagamentos"],
+    ["i", "temas"],
+    ["m", "material"],
+    ["c", "contratos"],
+    ["f", "fazerproposta"],
+    ["k", "kanban"],
+  ])("G, %s leva a %s", async (letra, vista) => {
+    renderAdmin();
+    tecla("g");
+    tecla(letra);
+    expect(await screen.findByTestId(`view-${vista}`)).toBeTruthy();
+  });
+
+  it("deixou de levar aos Fornecedores escondidos", async () => {
+    renderAdmin();
+    tecla("g");
+    tecla("p"); // vai aos Pedidos primeiro, para haver de onde não sair
+    tecla("g");
+    tecla("f");
+    expect(await screen.findByTestId("view-fazerproposta")).toBeTruthy();
+    expect(screen.queryByTestId("view-fornecedores")).toBeNull();
+  });
+});
+
+describe("o «/»", () => {
+  it("nas Propostas foca a procura das Propostas, e não salta para os Pedidos", async () => {
+    renderAdmin();
+    tecla("g");
+    tecla("r");
+    await screen.findByTestId("view-propostas");
+    tecla("/");
+    expect(screen.getByLabelText("Procurar propostas")).toHaveFocus();
+    expect(screen.getByTestId("view-propostas")).toBeTruthy();
+  });
+
+  it("numa vista sem procura abre a procura em tudo", async () => {
+    renderAdmin();
+    tecla("g");
+    tecla("e");
+    await screen.findByTestId("view-statsdashboard");
+    tecla("/");
+    expect(await screen.findByRole("combobox", { name: "Pesquisar ou navegar" })).toBeTruthy();
+  });
+
+  it("a escrever num campo, o «/» é uma barra e não um atalho", async () => {
+    renderAdmin([makeQuote()]);
+    tecla("g");
+    tecla("p");
+    const procura = await screen.findByLabelText("Procurar pedidos por nome, email, local ou ID");
+    fireEvent.keyDown(procura, { key: "/" });
+    expect(screen.queryByRole("combobox", { name: "Pesquisar ou navegar" })).toBeNull();
+  });
+});
+
+describe("Pedidos — o lote", () => {
+  const tres = () => [
+    makeQuote({ id: "LQ-101", name: "Ana Marques" }),
+    makeQuote({ id: "LQ-102", name: "Bruno Dias" }),
+    makeQuote({ id: "LQ-103", name: "Carla Nunes" }),
+  ];
+
+  it("⌘A selecciona os que estão à vista e Esc limpa", async () => {
+    renderAdmin(tres());
+    tecla("g");
+    tecla("p");
+    await screen.findByText("Ana Marques");
+    tecla("a", { metaKey: true });
+    expect(await screen.findByText(/3 selecionados/)).toBeTruthy();
+    tecla("Escape");
+    await waitFor(() => expect(screen.queryByText(/3 selecionados/)).toBeNull());
+  });
+
+  it("⌘A noutra vista não mexe na selecção dos Pedidos", async () => {
+    renderAdmin(tres());
+    tecla("g");
+    tecla("t");
+    await screen.findByTestId("view-tarefas");
+    tecla("a", { metaKey: true });
+    tecla("g");
+    tecla("p");
+    await screen.findByText("Ana Marques");
+    expect(screen.queryByText(/selecionados/)).toBeNull();
+  });
+
+  it("«Arquivar (N)» arquiva os escolhidos e «Anular» devolve-os", async () => {
+    renderAdmin(tres());
+    tecla("g");
+    tecla("p");
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Selecionar pedido de Ana Marques" }),
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar pedido de Bruno Dias" }));
+    fireEvent.click(screen.getByRole("button", { name: "Arquivar (2)" }));
+
+    await waitFor(() => expect(escritas.filter((e) => e.corpo.archived === true)).toHaveLength(2));
+    await waitFor(() => expect(screen.queryByText("Ana Marques")).toBeNull());
+    expect(await screen.findByText("2 pedidos arquivados.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anular" }));
+    await waitFor(() => expect(escritas.filter((e) => e.corpo.archived === false)).toHaveLength(2));
+    expect(await screen.findByText("Ana Marques")).toBeTruthy();
+  });
+
+  it("na lista dos arquivados o botão é «Restaurar (N)»", async () => {
+    renderAdmin([
+      makeQuote({ id: "LQ-201", name: "Dora Arquivada", archived: true }),
+      makeQuote({ id: "LQ-202", name: "Eva Activa" }),
+    ]);
+    tecla("g");
+    tecla("p");
+    fireEvent.click(await screen.findByRole("button", { name: /Arquivados · 1/ }));
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Selecionar pedido de Dora Arquivada" }),
+    );
+    expect(screen.queryByRole("button", { name: /^Arquivar \(/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Restaurar (1)" }));
+    await waitFor(() => expect(escritas.filter((e) => e.corpo.archived === false)).toHaveLength(1));
+    expect(await screen.findByText("1 pedido restaurado.")).toBeTruthy();
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   REVISÃO INDEPENDENTE DO BO 4 (PR #480) — um teste por achado
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const muitos = (n: number, prefixo = "Cliente Lote") =>
+  Array.from({ length: n }, (_, i) =>
+    makeQuote({ id: `LQ-${500 + i}`, name: `${prefixo} ${String(i + 1).padStart(2, "0")}` }),
+  );
+
+async function irAosPedidos() {
+  tecla("g");
+  tecla("p");
+  await screen.findByLabelText("Procurar pedidos por nome, email, local ou ID");
+}
+
+describe("revisão · 1 — restaurar o último arquivado não deixa os Pedidos vazios", () => {
+  it("ao restaurar o último, volta à lista normal", async () => {
+    renderAdmin([
+      makeQuote({ id: "LQ-201", name: "Dora Arquivada", archived: true }),
+      makeQuote({ id: "LQ-202", name: "Eva Activa" }),
+    ]);
+    await irAosPedidos();
+    fireEvent.click(await screen.findByRole("button", { name: /Arquivados · 1/ }));
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Selecionar pedido de Dora Arquivada" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Restaurar (1)" }));
+    expect(await screen.findByText("Eva Activa")).toBeTruthy();
+    expect(screen.getByText("Dora Arquivada")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Arquivados ·/ })).toBeNull();
+  });
+
+  it("«Limpar tudo e ver todos» também sai dos arquivados", async () => {
+    renderAdmin([
+      makeQuote({ id: "LQ-201", name: "Dora Arquivada", archived: true }),
+      makeQuote({ id: "LQ-202", name: "Eva Activa" }),
+    ]);
+    await irAosPedidos();
+    fireEvent.click(await screen.findByRole("button", { name: /Arquivados · 1/ }));
+    fireEvent.change(screen.getByLabelText("Procurar pedidos por nome, email, local ou ID"), {
+      target: { value: "zzz" },
+    });
+    expect(await screen.findByText(/os arquivados/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Limpar tudo e ver todos" }));
+    expect(await screen.findByText("Eva Activa")).toBeTruthy();
+    expect(screen.queryByText("Dora Arquivada")).toBeNull();
+  });
+});
+
+describe("revisão · 2 — ⌘A e Esc com o foco numa caixa de seleção", () => {
+  it("depois de marcar uma caixa, ⌘A selecciona e Esc limpa", async () => {
+    renderAdmin([
+      makeQuote({ id: "LQ-101", name: "Ana Marques" }),
+      makeQuote({ id: "LQ-102", name: "Bruno Dias" }),
+    ]);
+    await irAosPedidos();
+    const caixa = await screen.findByRole("checkbox", {
+      name: "Selecionar pedido de Ana Marques",
+    });
+    fireEvent.click(caixa);
+    caixa.focus();
+    fireEvent.keyDown(caixa, { key: "a", metaKey: true });
+    expect(await screen.findByText(/2 selecionados/)).toBeTruthy();
+    fireEvent.keyDown(caixa, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByText(/2 selecionados/)).toBeNull());
+    expect(caixa).not.toBeChecked();
+  });
+});
+
+describe("revisão · 3 — «Arquivar (N)» com pergunta, ⌘A no que se vê, e N de cada vez", () => {
+  it("com mais de 10, pergunta primeiro, com o número, e só depois arquiva", async () => {
+    renderAdmin(muitos(12));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (12)" }));
+    const caixa = await screen.findByRole("dialog", { name: "Arquivar 12 pedidos?" });
+    expect(escritas).toHaveLength(0);
+    fireEvent.click(within(caixa).getByRole("button", { name: "Arquivar 12 pedidos" }));
+    await waitFor(() => expect(escritas.filter((e) => e.corpo.archived === true)).toHaveLength(12));
+  });
+
+  it("com 10 ou menos, arquiva logo (o «Anular» chega)", async () => {
+    renderAdmin(muitos(3));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (3)" }));
+    await waitFor(() => expect(escritas).toHaveLength(3));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("⌘A selecciona o que está desenhado, e oferece todos os filtrados à parte", async () => {
+    renderAdmin(muitos(60));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    expect(await screen.findByText(/50 selecionados/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Selecionar todos os 60 filtrados" }));
+    expect(await screen.findByText(/60 selecionados/)).toBeTruthy();
+  });
+
+  it("nunca mais de 4 pedidos no ar ao mesmo tempo", async () => {
+    atrasoMs = 5;
+    renderAdmin(muitos(9));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (9)" }));
+    await waitFor(() => expect(escritas).toHaveLength(9));
+    await waitFor(() => expect(screen.queryByText(/A arquivar os pedidos/)).toBeNull());
+    expect(maximoNoAr).toBeLessThanOrEqual(4);
+    expect(maximoNoAr).toBeGreaterThan(1);
+  });
+
+  it("se alguns falham, só esses ficam escolhidos, e os outros têm «Anular»", async () => {
+    renderAdmin(muitos(3));
+    recusar = new Set(["LQ-501"]);
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (3)" }));
+    expect(await screen.findByText(/^1 selecionado$/)).toBeTruthy();
+    expect(
+      screen.getByRole("checkbox", { name: "Selecionar pedido de Cliente Lote 02" }),
+    ).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Anular" }));
+    await waitFor(() => expect(escritas.filter((e) => e.corpo.archived === false)).toHaveLength(2));
+  });
+
+  it("a mesma regra no «Marcar como»", async () => {
+    renderAdmin(muitos(3));
+    recusar = new Set(["LQ-501"]);
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    escolherJa(screen.getByLabelText("Marcar pedidos selecionados como"), "Aguardar resposta");
+    expect(await screen.findByText(/^1 selecionado$/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Anular" })).toBeTruthy();
+  });
+});
+
+describe("revisão · 7 — a proposta escolhida no ⌘K não fica presa na procura", () => {
+  it("ir e voltar pelo menu deixa as Propostas sem procura", async () => {
+    prefetchList("propostas-leves", "/api/propostas?semDoc=1");
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    renderAdmin();
+    const campo = await abrirPaleta();
+    fireEvent.change(campo, { target: { value: "joana" } });
+    fireEvent.click(await screen.findByRole("option", { name: /Joana e Pedro/ }));
+    const vista = await screen.findByTestId("view-propostas");
+    expect(JSON.parse(vista.dataset.pedido!)).toEqual({ procura: "Joana e Pedro" });
+    tecla("g");
+    tecla("o");
+    await screen.findByTestId("view-overview");
+    tecla("g");
+    tecla("r");
+    expect((await screen.findByTestId("view-propostas")).dataset.procuraInicial).toBe("");
+  });
+
+  it("«Ver em Propostas» continua a abrir filtrado", async () => {
+    renderAdmin();
+    tecla("g");
+    tecla("f");
+    fireEvent.click(await screen.findByRole("button", { name: "Ver em Propostas (stub)" }));
+    const vista = await screen.findByTestId("view-propostas");
+    const pedido = JSON.parse(vista.dataset.pedido!) as { procura?: string } | null;
+    expect(pedido?.procura ?? vista.dataset.procuraInicial).toBe("Casal Exemplo");
+  });
+});
+
+describe("revisão · 8 — ⌘A e Esc dos Pedidos nunca agem atrás de uma janela", () => {
+  it("⌘A dentro da pergunta de apagar não mexe na selecção", async () => {
+    renderAdmin([
+      makeQuote({ id: "LQ-101", name: "Ana Marques" }),
+      makeQuote({ id: "LQ-102", name: "Bruno Dias" }),
+    ]);
+    await irAosPedidos();
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Selecionar pedido de Ana Marques" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Apagar (1)" }));
+    const caixa = await screen.findByRole("dialog");
+    fireEvent.keyDown(within(caixa).getByRole("button", { name: "Cancelar" }), {
+      key: "a",
+      metaKey: true,
+    });
+    fireEvent.click(within(caixa).getByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByText(/^1 selecionado$/)).toBeTruthy();
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SEGUNDA REVISÃO (às correções c0f34d81 / 175c7ad2) — um teste por achado
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/** Abre o painel do primeiro pedido (no jsdom o painel fica AO LADO da lista). */
+async function abrirOPainelDoPrimeiro() {
+  tecla("g");
+  tecla("f");
+  fireEvent.click(await screen.findByRole("button", { name: "Abrir o pedido (stub)" }));
+  await screen.findByRole("button", { name: "Fechar" });
+}
+
+describe("2.ª revisão · 1 — o Esc numa caixa DENTRO do painel não o fecha", () => {
+  it("a caixa perde o foco e o painel fica", async () => {
+    renderAdmin([makeQuote({ id: "LQ-101", name: "Ana Marques" })]);
+    await abrirOPainelDoPrimeiro();
+    const caixa = screen.getAllByRole("checkbox", { name: /^caixa / })[0];
+    caixa.focus();
+    fireEvent.keyDown(caixa, { key: "Escape" });
+    await act(async () => {});
+    expect(screen.getByRole("button", { name: "Fechar" })).toBeTruthy();
+    expect(caixa).not.toHaveFocus();
+  });
+});
+
+describe("2.ª revisão · 2 — o «Anular» do «Marcar como» com uma falha a meio", () => {
+  it("aplica os que voltaram e diz «X de Y voltaram»", async () => {
+    renderAdmin(muitos(3));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    escolherJa(screen.getByLabelText("Marcar pedidos selecionados como"), "Aguardar resposta");
+    expect(await screen.findByRole("button", { name: /Aguardar resposta · 3/ })).toBeTruthy();
+    recusar = new Set(["LQ-501"]);
+    fireEvent.click(screen.getByRole("button", { name: "Anular" }));
+    expect(await screen.findByText(/2 de 3 voltaram/)).toBeTruthy();
+    // O ecrã mostra os dois que voltaram — e o que não voltou como está.
+    expect(await screen.findByRole("button", { name: /Proposta enviada · 2/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Aguardar resposta · 1/ })).toBeTruthy();
+  });
+});
+
+describe("2.ª revisão · 4 — ⌘A com o painel AO LADO escolhe a lista", () => {
+  it("selecciona o que se vê e não deixa o browser escolher a página inteira", async () => {
+    renderAdmin([
+      makeQuote({ id: "LQ-101", name: "Ana Marques" }),
+      makeQuote({ id: "LQ-102", name: "Bruno Dias" }),
+    ]);
+    await abrirOPainelDoPrimeiro();
+    tecla("g");
+    tecla("p");
+    const ev = new KeyboardEvent("keydown", {
+      key: "a",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      document.body.dispatchEvent(ev);
+    });
+    expect(ev.defaultPrevented).toBe(true);
+    expect(await screen.findByText(/2 selecionados/)).toBeTruthy();
+  });
+});
+
+describe("2.ª revisão · 5 — a pergunta de arquivar não diz «0» enquanto fecha", () => {
+  it("o título guarda o número do lote até sair", async () => {
+    renderAdmin(muitos(12));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (12)" }));
+    const caixa = await screen.findByRole("dialog", { name: "Arquivar 12 pedidos?" });
+    fireEvent.click(within(caixa).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByText("Arquivar 0 pedidos?")).toBeNull();
+    expect(screen.queryByText(/0 pedidos/)).toBeNull();
+  });
+});
+
+describe("2.ª revisão · 6 — um «Anular» antigo salta os pedidos que já mudaram outra vez", () => {
+  it("não repõe quem já não está no estado que o gesto pôs, e diz quantos saltou", async () => {
+    renderAdmin(muitos(3));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    escolherJa(screen.getByLabelText("Marcar pedidos selecionados como"), "Aguardar resposta");
+    await screen.findByRole("button", { name: /Aguardar resposta · 3/ });
+    // Um deles muda OUTRA VEZ, por outro gesto.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar pedido de Cliente Lote 01" }));
+    escolherJa(screen.getByLabelText("Marcar pedidos selecionados como"), "Novo");
+    await screen.findByRole("button", { name: /Novo · 1/ });
+    escritas = [];
+    // O «Anular» do PRIMEIRO gesto.
+    fireEvent.click(screen.getAllByRole("button", { name: "Anular" })[0]);
+    expect(await screen.findByText(/1 pedido já tinha mudado/)).toBeTruthy();
+    expect(escritas.map((e) => e.url).sort()).toEqual([
+      "/api/orcamento/LQ-501",
+      "/api/orcamento/LQ-502",
+    ]);
+  });
+});
+
+describe("2.ª revisão · 7 — o Esc a meio de um lote não larga a selecção", () => {
+  it("os que falham ficam mesmo selecionados", async () => {
+    // Lento o bastante para o Esc chegar com o lote a meio.
+    atrasoMs = 400;
+    renderAdmin(muitos(3));
+    recusar = new Set(["LQ-501"]);
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (3)" }));
+    await screen.findByText("A arquivar os pedidos…");
+    tecla("Escape");
+    await waitFor(() => expect(screen.queryByText("A arquivar os pedidos…")).toBeNull());
+    expect(await screen.findByText(/^1 selecionado$/)).toBeTruthy();
+  });
+});

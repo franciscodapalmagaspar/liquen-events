@@ -2118,6 +2118,18 @@ body:is(.bo, .admin-mode) :is(.text-foreground\/50, .text-foreground\/55) {
    `outline` de cima — que é o que a Apple também faz. E o `forced-colors`
    mais abaixo repõe um `outline` de sistema em toda a gente, porque nesse modo
    o browser deita fora cores e sombras nossas.
+
+   ── E O CAMPO DO ⌘K, QUE NÃO TEM MOLDURA (`data-sem-anel`) ──────────────
+
+   A regra muda a MOLDURA do campo. O campo da paleta não tem moldura nem
+   cantos: é texto transparente dentro de uma caixa de 18 px de raio. Ali a
+   regra desenhava um rectângulo de cantos vivos por dentro da caixa redonda —
+   o anel que ela pediu para tirar dos campos de procura, e a Parte 12.2 do
+   sistema de design a pedir o foco adaptado aos cantos. O foco já se vê sem
+   ele: a janela aberta à frente de tudo e o cursor a piscar. O campo sai daqui
+   pela marca `data-sem-anel`; o `forced-colors` de baixo NÃO abre excepções.
+   (Os outros campos de procura do back office têm moldura e cantos: a moldura
+   de acento segue-lhes o raio, e ficam como estão.)
    ══════════════════════════════════════════════════════════════════════════ */
 
 body:is(.bo, .admin-mode)
@@ -2126,7 +2138,7 @@ body:is(.bo, .admin-mode)
     select,
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
         [type="file"]
-      ):not([type="submit"]):not([type="button"]):not([type="reset"])
+      ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([data-sem-anel])
   ):focus-visible {
   outline: none;
   border-color: var(--bo-accent);
@@ -2135,8 +2147,22 @@ body:is(.bo, .admin-mode)
   box-shadow: inset 0 0 0 1px var(--bo-accent);
 }
 
+/* O campo do ⌘K: sem a moldura de acento (que lhe desenhava um rectângulo de
+   cantos vivos) E sem o anel global do `globals.css`, que de outro modo
+   voltava a apanhá-lo. `outline-color: transparent` e não `outline: none`, e
+   fora de qualquer media (2.ª revisão · 8): o contorno continua a existir, só
+   sem cor — o `forced-colors` de baixo repõe-lhe a do sistema, e um browser
+   que não conheça o `forced-colors` já não volta ao rectângulo. */
+body:is(.bo, .admin-mode) input[data-sem-anel]:focus-visible {
+  outline-color: transparent;
+  box-shadow: none;
+}
+
 @media (forced-colors: active) {
-  body:is(.bo, .admin-mode) :is(textarea, select, input):focus-visible {
+  /* O `input[data-sem-anel]` dentro do `:is` não abre excepção nenhuma: dá a
+     esta regra o mesmo peso da do campo do ⌘K, que está acima, e assim o
+     contorno do sistema ganha-lhe também. */
+  body:is(.bo, .admin-mode) :is(textarea, select, input, input[data-sem-anel]):focus-visible {
     outline: 2px solid CanvasText;
     outline-offset: 0;
   }
@@ -3268,8 +3294,8 @@ body:is(.admin-mode, .bo) :is(:disabled, [aria-disabled="true"]) {
 @media (prefers-reduced-motion: no-preference) {
   html[data-barras] [data-barra-do-topo] {
     transition-property: border-color, translate;
-    transition-duration: var(--transition-duration-interactive),
-      var(--transition-duration-reposition);
+    transition-duration:
+      var(--transition-duration-interactive), var(--transition-duration-reposition);
     transition-timing-function: var(--ease-interactive), var(--ease-reposition);
   }
 

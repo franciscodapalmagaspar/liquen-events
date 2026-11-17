@@ -185,6 +185,22 @@ function loadOnce(key: string, url: string): Promise<Entry | null> {
   return run;
 }
 
+/**
+ * ── LER O QUE JÁ ESTÁ NA MEMÓRIA, E NADA MAIS ──────────────────────────────
+ *
+ * Para quem precisa de uma lista mas NÃO pode pagar uma leitura por ela — a
+ * procura do ⌘K, que procura «em tudo» com o que o browser já trouxe. Só lê o
+ * `Map`: não pede ao servidor, não se inscreve, não marca nada. Uma chave que
+ * ainda ninguém pediu devolve `undefined`, e quem chama trata isso como «esta
+ * lista não entra na procura», não como «está vazia».
+ *
+ * Regra de custo (BO 4): a procura em tudo não faz pedido nenhum ao servidor
+ * nem leitura nenhuma ao Supabase. Um teste prende isto.
+ */
+export function lerDaCache<T>(key: string): T | undefined {
+  return cache.get(key)?.data as T | undefined;
+}
+
 /** Warm the cache for a view without rendering it (idle prefetch). No-op if
  *  already cached or in flight. */
 export function prefetchList(key: string, url: string): void {
