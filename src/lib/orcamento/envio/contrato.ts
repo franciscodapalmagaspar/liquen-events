@@ -1,19 +1,36 @@
 /**
  * ════════════════════════════════════════════════════════════════════════════
- * O CONTRATO DA ROTA DA PROPOSTA — O QUE ELA RESPONDE, EM TIPOS
+ * O CONTRATO DA ROTA DA PROPOSTA — O QUE ELA RESPONDE
  * ════════════════════════════════════════════════════════════════════════════
  *
- * Só tipos, de propósito: este ficheiro não importa nada que corra (nem o zod,
- * nem o servidor), por isso o estúdio, que corre no browser, pode lê-lo sem
- * levar um byte a mais. É o que prende os dois lados: renomear
- * `precisaConfirmarFotos` aqui parte a compilação do lado que o lê.
+ * Tipos, e os nomes dos cabeçalhos — mais nada: este ficheiro não importa
+ * nada que corra (nem o zod, nem o servidor), por isso o estúdio, que corre no
+ * browser, lê-o sem levar um byte a mais.
  *
- * (O `ProposalStudio.tsx` ainda lê as respostas à mão; passar a importá-las
- * daqui é da fase em que o estúdio se parte — ver `docs/ESTRUTURA-DO-CODIGO.md`.)
+ * Os CABEÇALHOS já prendem os dois lados: a rota escreve-os e o estúdio lê-os
+ * pelos mesmos nomes ({@link CABECALHOS_DA_PRE_VISUALIZACAO}), e um nome mudado
+ * aqui muda dos dois lados. Os CORPOS ainda não: o `ProposalStudio.tsx` lê-os
+ * à mão (`data?.precisaConfirmarFotos`), e passar a tipá-los daqui é da fase
+ * em que o estúdio se parte — `docs/ESTRUTURA-DO-CODIGO.md`, Parte −1, desvio 9.
  */
 import type { Proposal } from "@/lib/orcamento/types";
 import type { Impedimento } from "@/lib/proposal-progress";
 import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
+
+/**
+ * Os cabeçalhos da PRÉ-VISUALIZAÇÃO (o corpo é o PDF): escritos por
+ * `pre-visualizacao.ts`, lidos pelo estúdio (`pedirOPdf`, no `ProposalStudio`).
+ */
+export const CABECALHOS_DA_PRE_VISUALIZACAO = {
+  /** Quantas fotografias não entraram. */
+  fotosEmFalta: "X-Fotos-Em-Falta",
+  /** O que o desenho cortou — JSON em base64 (`Truncagens`). */
+  conteudoCortado: "X-Conteudo-Cortado",
+  /** A chave do PDF FINAL que se está a ver (o rascunho não a leva). */
+  chaveDoPdf: "X-Chave-Do-Pdf",
+  /** `"1"` quando o PDF saiu da memória e não foi desenhado agora. */
+  pdfDaMemoria: "X-Pdf-Da-Memoria",
+} as const;
 
 /** O que o desenho deixou de fora (a sétima foto de um mood board…). */
 export type Truncagens = RelatorioDoPdf["truncations"];

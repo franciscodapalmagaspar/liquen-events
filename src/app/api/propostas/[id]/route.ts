@@ -15,6 +15,7 @@ import {
   VERSOES_ESCOLHIDAS,
 } from "@/lib/orcamento/listas-fechadas";
 import { observar } from "@/lib/fronteira/observar";
+import { ehUmDe } from "@/lib/todos-os-valores";
 import { esquemaDoCorpoDaProposta } from "@/lib/fronteira/corpos-das-rotas";
 
 export const runtime = "nodejs";
@@ -127,15 +128,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
     }
-    const VALID_STATUS: readonly string[] = ESTADOS_DA_PROPOSTA;
-    if ("status" in body && !VALID_STATUS.includes(body.status)) {
+    if ("status" in body && !ehUmDe(ESTADOS_DA_PROPOSTA, body.status)) {
       return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
     }
     // Lista fechada e contável — a razão está em `MotivoDeRecusa`. Aceitar
     // texto livre aqui esvaziava a única pergunta que isto serve para
     // responder: perdemos por preço quantas vezes?
-    const VALID_MOTIVO: readonly string[] = MOTIVOS_DE_RECUSA;
-    if ("lostReason" in body && body.lostReason && !VALID_MOTIVO.includes(body.lostReason)) {
+    if ("lostReason" in body && body.lostReason && !ehUmDe(MOTIVOS_DE_RECUSA, body.lostReason)) {
       return NextResponse.json({ error: "Motivo inválido" }, { status: 400 });
     }
     // O seguimento é uma data do calendário, não um carimbo de tempo. Uma
@@ -149,7 +148,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (
       "versaoEscolhida" in body &&
       body.versaoEscolhida &&
-      !(VERSOES_ESCOLHIDAS as readonly string[]).includes(body.versaoEscolhida)
+      !ehUmDe(VERSOES_ESCOLHIDAS, body.versaoEscolhida)
     ) {
       return NextResponse.json({ error: "Versão inválida" }, { status: 400 });
     }

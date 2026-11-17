@@ -190,6 +190,9 @@ async function respostaRepetida(
     id: propostaId,
     emailed: emailSaiu,
     ...(emailSaiu ? {} : { semEmailPorEscolha: true }),
+    // A rota antiga diz sempre «enviada», mesmo quando a irmã reconhecida já
+    // ficou «aceite» (pedido Ganho). Fica igual de propósito: esta fase não
+    // muda respostas. Corrige-se num PR próprio (desvio 11).
     estado: "enviada",
     /** O link que o casal RECEBEU — não um segundo, que ninguém tem. É
      *  literalmente o mesmo: o código curto de uma proposta é cunhado uma vez

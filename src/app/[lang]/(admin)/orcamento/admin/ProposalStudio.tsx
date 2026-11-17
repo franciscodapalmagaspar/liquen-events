@@ -90,6 +90,7 @@ import { useLarguraDaZona } from "./useMedida";
 import { useFotoComPlanoB } from "@/lib/useFotoComPlanoB";
 import AEnviarAProposta from "./AEnviarAProposta";
 import PerguntaAntesDoEnvio from "./PerguntaAntesDoEnvio";
+import { CABECALHOS_DA_PRE_VISUALIZACAO as CABECALHO } from "@/lib/orcamento/envio/contrato";
 import { passoParaCorrigir, usePerguntasDoEnvio } from "./usePerguntasDoEnvio";
 import { guardarPdfVisto, lerPdfVisto, type PdfVisto } from "./pdf-visto";
 import { BotaoWhatsApp } from "./ui/BotaoWhatsApp";
@@ -6827,14 +6828,13 @@ export default function ProposalStudio({
     const blob = await res.blob();
     // A geração que acabou de acontecer ensina a próxima estimativa: quantas
     // fotos, quanto tempo, quantos bytes. Medido, não estimado.
-    if (res.headers.get("X-Pdf-Da-Memoria") !== "1") {
+    if (res.headers.get(CABECALHO.pdfDaMemoria) !== "1")
       apontarGeracao(totalDeFotos, Date.now() - comecou, blob.size);
-    }
     return {
       blob,
-      chave: rascunho ? null : res.headers.get("X-Chave-Do-Pdf"),
-      emFalta: Number(res.headers.get("X-Fotos-Em-Falta") ?? "0"),
-      cortes: res.headers.get("X-Conteudo-Cortado"),
+      chave: rascunho ? null : res.headers.get(CABECALHO.chaveDoPdf),
+      emFalta: Number(res.headers.get(CABECALHO.fotosEmFalta) ?? "0"),
+      cortes: res.headers.get(CABECALHO.conteudoCortado),
     };
   }
 

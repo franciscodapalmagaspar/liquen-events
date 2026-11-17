@@ -48,18 +48,30 @@ describe("o que o esquema aceita, a leitura lê igual", () => {
     ...[null, true, false, [], {}, { a: 1 }],
   ];
   const campos = Object.keys(esquemaDoCorpo.shape).filter((c) => c !== "doc");
-  const LIDO_COMO: Record<string, (p: ReturnType<typeof corpoLido>) => unknown> = {
-    mode: (p) => p.modo,
-    idioma: (p) => p.idioma,
-    mensagem: (p) => p.mensagem,
-    corpo: (p) => p.textoDoEmail,
-    assunto: (p) => p.assuntoDoEmail,
-    modelo: (p) => p.modelo,
-    cortesConfirmados: (p) => p.cortesConfirmados,
-    fotosEmFaltaConfirmadas: (p) => p.fotosEmFaltaConfirmadas,
-    porEmail: (p) => p.porEmail,
-    rascunho: (p) => p.rascunho,
-    pdfVisto: (p) => p.pdfVisto,
+  type Cru = Record<string, unknown>;
+  /** A leitura de uma pré-visualização, e a de um envio (os campos de cada porta). */
+  const naPreVisualizacao = (cru: Cru) => {
+    const p = corpoLido(cru);
+    if (p.modo !== "preview") throw new Error("sem «send», é uma pré-visualização");
+    return p;
+  };
+  const noEnvio = (cru: Cru) => {
+    const p = corpoLido({ ...cru, mode: "send" });
+    if (p.modo !== "send") throw new Error("com «send», é um envio");
+    return p;
+  };
+  const LIDO_COMO: Record<string, (cru: Cru) => unknown> = {
+    mode: (c) => corpoLido(c).modo,
+    idioma: (c) => corpoLido(c).idioma,
+    corpo: (c) => corpoLido(c).textoDoEmail,
+    rascunho: (c) => naPreVisualizacao(c).rascunho,
+    mensagem: (c) => noEnvio(c).mensagem,
+    assunto: (c) => noEnvio(c).assuntoDoEmail,
+    modelo: (c) => noEnvio(c).modelo,
+    cortesConfirmados: (c) => noEnvio(c).cortesConfirmados,
+    fotosEmFaltaConfirmadas: (c) => noEnvio(c).fotosEmFaltaConfirmadas,
+    porEmail: (c) => noEnvio(c).porEmail,
+    pdfVisto: (c) => noEnvio(c).pdfVisto,
   };
 
   it("cada campo do esquema tem a sua leitura", () => {
@@ -70,7 +82,7 @@ describe("o que o esquema aceita, a leitura lê igual", () => {
     for (const v of VALORES) {
       const r = esquemaDoCorpo.shape[campo as keyof typeof esquemaDoCorpo.shape].safeParse(v);
       if (!r.success) continue;
-      const lido = LIDO_COMO[campo](corpoLido({ [campo]: v }));
+      const lido = LIDO_COMO[campo]({ [campo]: v });
       // A mensagem lê-se aparada; o resto, tal e qual.
       expect(lido, `${campo} = ${JSON.stringify(v)}`).toEqual(
         campo === "mensagem" ? String(v).trim() : v,

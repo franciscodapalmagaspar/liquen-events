@@ -1,8 +1,9 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import type { Quote } from "@/lib/orcamento/types";
 import { enderecoDaProposta } from "@/lib/proposta-link-curto";
 import { comTrinco } from "@/lib/trinco";
-import type { CorpoLido } from "./ler-o-corpo";
+import type { CorpoDaPreVisualizacao, CorpoDoEnvio, CorpoLido } from "./ler-o-corpo";
 import { guardasBaratas } from "./guardas-baratas";
 import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
@@ -22,7 +23,7 @@ import { depoisDoEmail } from "./depois-do-email";
 import { respostaDoEnvio } from "./resposta-do-envio";
 import { comecarAAquecerACapa, prepararAPaginaOnline } from "./visita-do-casal";
 import { TECTO_DO_ENVIO_S } from "./orcamento-de-tempo";
-import type { EnvioDaProposta } from "./envio-da-proposta";
+import { envioDaProposta, type EnvioDaProposta } from "./envio-da-proposta";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -101,19 +102,20 @@ const aSerEnviada = (): Desfecho =>
  * pedido do CLIENTE (`pedidoId`, o `Quote`); o pedido HTTP do estúdio é o `corpo`.
  */
 export async function atenderOEstudio(c: Contexto): Promise<Desfecho> {
-  if (c.corpo.modo === "preview") return preVisualizar(c);
+  const { corpo } = c;
+  if (corpo.modo === "preview") return preVisualizar(c, corpo);
   const r = await comTrinco(`envio-da-proposta:${c.pedidoId}`, VALIDADE_DO_TRINCO_MS, () =>
-    enviar(c),
+    enviar(c, corpo),
   );
   return r.ok ? r.valor : aSerEnviada();
 }
 
 /** Etapas 3 a 5, e o PDF como resposta. O rascunho não trava: é onde ela vê o que falta. */
-async function preVisualizar(c: Contexto): Promise<Desfecho> {
+async function preVisualizar(c: Contexto, corpo: CorpoDaPreVisualizacao): Promise<Desfecho> {
   // Se é rascunho, decide-o a LEITURA (`corpoLido`: só na pré-visualização, e
   // só com `true`). Daqui em diante é um valor só, para a trava, o desenho e
   // os cabeçalhos.
-  const { rascunho } = c.corpo;
+  const { rascunho } = corpo;
   const preparado = await prepararEDesenhar(c, {
     trava: (envio) => (rascunho ? SEGUE : travaDoPdfFinal(envio)),
     segundaPassagem: false,
@@ -136,8 +138,7 @@ async function preVisualizar(c: Contexto): Promise<Desfecho> {
 }
 
 /** Etapas 3 a 13, com o trinco fechado. */
-async function enviar(c: Contexto): Promise<Desfecho> {
-  const { corpo } = c;
+async function enviar(c: Contexto, corpo: CorpoDoEnvio): Promise<Desfecho> {
   const preparado = await prepararEDesenhar(c, {
     trava: (envio, chaveDoQueChegou) =>
       travaDoEnvio({
@@ -155,15 +156,22 @@ async function enviar(c: Contexto): Promise<Desfecho> {
   const { relatorio, pdfDaMemoria } = desenho;
   const { pdf, missingImages, truncations } = relatorio;
 
-  const fotos = perguntaDasFotos(pedidoId, missingImages, corpo.fotosEmFaltaConfirmadas);
+  const fotos = perguntaDasFotos(
+    pedidoId,
+    missingImages,
+    corpo.fotosEmFaltaConfirmadas,
+    Date.now(),
+  );
   if (!fotos.segue) return fotos.desfecho;
   const cortes = perguntaDosCortes(pedidoId, truncations, corpo.cortesConfirmados);
   if (!cortes.segue) return cortes.desfecho;
   avisarQueSegueComFotosAMenos(pedidoId, missingImages);
 
   const { irmas, porEnviar } = await irmasDoPedido(pedidoId);
-  const linha = montarAProposta({ ...envio, pdf, porEnviar });
-  const { proposal, anteriores } = comAVersao(linha, irmas);
+  // O instante e o id novo nascem aqui, na casca: a montagem e o carimbo são puros.
+  const agora = new Date();
+  const linha = montarAProposta({ ...envio, pdf, porEnviar, agora, idNovo: randomUUID() });
+  const { proposal, anteriores } = comAVersao(linha, irmas, agora);
 
   const repetido = await repeticaoDoEnvio({
     pedidoId,
@@ -243,12 +251,7 @@ async function prepararEDesenhar(
   if (!guardas.segue) return guardas;
   const { doc, chaveDoQueChegou } = guardas.valor;
   /** O envio, montado UMA vez — cada etapa lê dele o que precisa. */
-  const envio: EnvioDaProposta = {
-    pedidoId,
-    quote,
-    doc,
-    idioma: corpo.idioma,
-  };
+  const envio = envioDaProposta({ pedidoId, quote, doc, idioma: corpo.idioma });
 
   const trava = await porta.trava(envio, chaveDoQueChegou);
   if (!trava.segue) return trava;

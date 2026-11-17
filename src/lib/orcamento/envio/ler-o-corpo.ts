@@ -1,6 +1,10 @@
 import "server-only";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { ehIdiomaDaProposta, IDIOMA_POR_OMISSAO } from "@/lib/orcamento/listas-fechadas";
+import {
+  ehIdiomaDaProposta,
+  IDIOMA_POR_OMISSAO,
+  type IdiomaDaProposta,
+} from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -26,6 +30,60 @@ const texto = (v: unknown): string | undefined => (typeof v === "string" ? v : u
 const contagem = (v: unknown): number | undefined =>
   typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined;
 
+/** O que as DUAS portas leem do corpo. */
+interface OQueAsDuasPortasLeem {
+  /** O corpo tal e qual chegou — só para o registo (`esquema-do-corpo.ts`). */
+  cru: unknown;
+  /** Ainda por conferir: só {@link documentoCompleto} diz que é um documento. */
+  doc: unknown;
+  /** A língua do desenho: o que não se reconhece vale português. */
+  idioma: IdiomaDaProposta;
+  /** O valor estranho que caiu em português, CRU, para o registo — ou `null`.
+   *  Cru de propósito: passa a texto só no aviso, depois de o documento estar
+   *  completo, como na rota antiga (um valor que nem se converte em texto não
+   *  pode rebentar antes do 400). */
+  idiomaDesconhecido: { recebido: unknown } | null;
+  /** O corpo do EMAIL escrito à mão (o campo `corpo` do protocolo). Lido nas
+   *  duas portas: o tecto recusa-o ANTES de desenhar, também na
+   *  pré-visualização, como na rota antiga (`guardas-baratas.ts`). */
+  textoDoEmail: string | null;
+}
+
+/** O corpo de uma PRÉ-VISUALIZAÇÃO. */
+export interface CorpoDaPreVisualizacao extends OQueAsDuasPortasLeem {
+  modo: "preview";
+  /** O PDF sai marcado «RASCUNHO» (B1). Só existe aqui: um envio nunca manda
+   *  um rascunho ao casal, e o tipo não o deixa dizer. */
+  rascunho: boolean;
+}
+
+/** O corpo de um ENVIO. */
+export interface CorpoDoEnvio extends OQueAsDuasPortasLeem {
+  modo: "send";
+  /** A nota pessoal do passo «Enviar»: um envio nunca pára por ela. */
+  mensagem: string;
+  /** Só um `false` explícito cala o email (`canal.test.ts`). */
+  porEmail: boolean;
+  /** O assunto escrito à mão (o campo `assunto`): só conta com o corpo. */
+  assuntoDoEmail: string | null;
+  /** A chave do modelo de que o corpo partiu, só para a CÓPIA do envio. */
+  modelo: string;
+  /** A chave do PDF final visto — a que a pré-visualização devolveu. */
+  pdfVisto: string | null;
+  /** «Já sei que faltam N fotografias»: o NÚMERO que ela viu — ou o `true`
+   *  de um separador aberto antes de 17/11, que só vale até ao fim de 18/11
+   *  (`fotosEmFaltaAceites`). Qualquer outra coisa é «ainda não respondeu». */
+  fotosEmFaltaConfirmadas: number | true | null;
+  /** «Já vi o que fica cortado»: só `true` conta. */
+  cortesConfirmados: boolean;
+}
+
+/**
+ * O corpo lido, por porta: o que só o envio lê não existe numa
+ * pré-visualização, e o rascunho não existe num envio.
+ */
+export type CorpoLido = CorpoDaPreVisualizacao | CorpoDoEnvio;
+
 /**
  * A leitura (ver o cabeçalho). Pura.
  *
@@ -33,57 +91,40 @@ const contagem = (v: unknown): number | undefined =>
  * cópia — a chave do PDF visto calcula-se sobre o documento tal como chegou
  * (`documento-do-envio.ts`), e uma cópia reordenada mudava-a.
  */
-export function corpoLido(cru: unknown) {
+export function corpoLido(cru: unknown): CorpoLido {
   const corpo: Record<string, unknown> =
     cru && typeof cru === "object" && !Array.isArray(cru) ? (cru as Record<string, unknown>) : {};
-  /** O que não se reconhece vale a pré-visualização — nunca um envio. */
-  const modo: "preview" | "send" = corpo.mode === "send" ? "send" : "preview";
   // A regra da casa (`ehIdiomaDaProposta`), que lê a mesma lista fechada do
   // esquema (`orcamento/listas-fechadas.ts`).
   const idiomaConhecido = ehIdiomaDaProposta(corpo.idioma) ? corpo.idioma : undefined;
-  return {
-    /** O corpo tal e qual chegou — só para o registo (`esquema-do-corpo.ts`). */
+  const comum: OQueAsDuasPortasLeem = {
     cru,
-    modo,
-    /** Ainda por conferir: só {@link documentoCompleto} diz que é um documento. */
     doc: corpo.doc,
-    /** A nota pessoal do passo «Enviar»: um envio nunca pára por ela. */
-    mensagem: texto(corpo.mensagem)?.trim() ?? "",
-    /** Só um `false` explícito cala o email (`canal.test.ts`). */
-    porEmail: corpo.porEmail !== false,
-    /** Só na pré-visualização: o PDF sai marcado «RASCUNHO» (B1). */
-    rascunho: modo === "preview" && corpo.rascunho === true,
-    /** A língua do desenho: o que não se reconhece vale português. */
     idioma: idiomaConhecido ?? IDIOMA_POR_OMISSAO,
-    /** O valor estranho que caiu em português, CRU, para o registo — ou
-     *  `null`. Cru de propósito: passa a texto só no aviso, depois de o
-     *  documento estar completo, como na rota antiga (um valor que nem se
-     *  converte em texto não pode rebentar antes do 400). */
     idiomaDesconhecido:
       corpo.idioma !== undefined && idiomaConhecido === undefined
         ? { recebido: corpo.idioma }
         : null,
-    /** O corpo e o assunto do EMAIL escritos à mão (os campos `corpo` e
-     *  `assunto` do protocolo); o assunto só conta com o corpo. */
     textoDoEmail: texto(corpo.corpo) ?? null,
+  };
+  // O que não se reconhece vale a pré-visualização — nunca um envio.
+  if (corpo.mode !== "send") {
+    return { ...comum, modo: "preview", rascunho: corpo.rascunho === true };
+  }
+  return {
+    ...comum,
+    modo: "send",
+    mensagem: texto(corpo.mensagem)?.trim() ?? "",
+    porEmail: corpo.porEmail !== false,
     assuntoDoEmail: texto(corpo.assunto) ?? null,
-    /** A chave do modelo de que o corpo partiu, só para a CÓPIA do envio. */
     modelo: texto(corpo.modelo) ?? "",
-    /** A chave do PDF final visto — a que a pré-visualização devolveu. */
     pdfVisto: texto(corpo.pdfVisto) ?? null,
-    /** «Já sei que faltam N fotografias»: o NÚMERO que ela viu — ou o `true`
-     *  de um separador aberto antes de 17/11, que só vale até ao fim de 18/11
-     *  (`fotosEmFaltaAceites`). Qualquer outra coisa é «ainda não respondeu». */
     fotosEmFaltaConfirmadas:
       contagem(corpo.fotosEmFaltaConfirmadas) ??
-      (corpo.fotosEmFaltaConfirmadas === true ? (true as const) : null),
-    /** «Já vi o que fica cortado»: só `true` conta. */
+      (corpo.fotosEmFaltaConfirmadas === true ? true : null),
     cortesConfirmados: corpo.cortesConfirmados === true,
   };
 }
-
-/** O corpo já lido — o tipo sai da leitura. */
-export type CorpoLido = ReturnType<typeof corpoLido>;
 
 /**
  * Lê o corpo do pedido HTTP. Um corpo que não é JSON vale `null`, como sempre

@@ -94,12 +94,14 @@ describe("a porta do envio", () => {
     );
   });
 
-  it("nunca desenha um rascunho, mesmo que o corpo lido o traga", async () => {
-    // Montado à mão: a leitura (`corpoLido`) já não deixa sair um rascunho no
-    // envio, e é a PORTA que este teste prova — tirada a regra da leitura, o
-    // envio continua a não desenhar rascunhos.
-    const c = contexto({ mode: "send", doc });
-    await atenderOEstudio({ ...c, corpo: { ...c.corpo, rascunho: true } });
+  it("nunca desenha um rascunho — e um corpo de envio nem o pode dizer", async () => {
+    const c = contexto({ mode: "send", doc, rascunho: true });
+    if (c.corpo.modo !== "send") throw new Error("com «send», é um envio");
+    // O TIPO fecha a porta: um `CorpoDoEnvio` não tem `rascunho`.
+    // @ts-expect-error — o rascunho só existe na pré-visualização.
+    const comRascunho: typeof c.corpo = { ...c.corpo, rascunho: true };
+    await atenderOEstudio({ ...c, corpo: comRascunho });
+    // E mesmo forçado à mão, a porta do envio desenha sempre o PDF final.
     expect(espias.desenharOPdf).toHaveBeenCalledWith(expect.objectContaining({ rascunho: false }));
   });
 });

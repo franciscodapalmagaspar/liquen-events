@@ -10,7 +10,7 @@ import { guardarPdfDaProposta } from "@/lib/proposal-pdf-guardado";
 import { chaveDoPdf } from "@/lib/proposal-pdf-cache";
 import { log } from "@/lib/logger";
 import type { EmailDaProposta } from "./email-da-proposta";
-import { dinheiroDe, type BytesDoPdf, type EnvioDaProposta } from "./envio-da-proposta";
+import type { BytesDoPdf, EnvioDaProposta } from "./envio-da-proposta";
 
 /**
  * Etapa 12 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): as escritas
@@ -93,7 +93,7 @@ async function guardarACopia(p: ParaDepoisDoEmail, sentAt: string): Promise<stri
       // A chave do modelo de onde o corpo partiu, para se saber de que
       // texto se partiu. Vazia quando o envio não passou pelo ecrã novo.
       modelo: p.modelo,
-      idioma: p.idioma === "en" ? "en" : "pt",
+      idioma: p.idioma,
       assunto: p.email.assunto,
       texto: p.email.textoDaCopia,
       anexo: { nome: p.email.nomeDoAnexo, bytes: p.pdf.byteLength },
@@ -177,12 +177,12 @@ async function actualizarOPedido(
         ? transicaoDoPedido({
             acontecimento: "proposta_enviada",
             estadoActual: actual.status,
-            detalhe: eur(dinheiroDe(p).gross),
+            detalhe: eur(p.dinheiro().gross),
           })
         : null;
       return {
         ...actual,
-        quotedPrice: dinheiroDe(p).base,
+        quotedPrice: p.dinheiro().base,
         ...(transicao
           ? {
               status: transicao.status,

@@ -4,7 +4,7 @@ import { fotosEscolhidasQueFaltam } from "@/lib/proposta-fotos-verificacao";
 import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 import { log } from "@/lib/logger";
 import { paraComRecusa, SEGUE, type Passo } from "./passo";
-import { dinheiroDe, type EnvioDaProposta } from "./envio-da-proposta";
+import type { EnvioDaProposta } from "./envio-da-proposta";
 
 /**
  * ══════════════════════════════════════════════════════════════════════
@@ -110,7 +110,7 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Passo> {
   // A MESMA conta do estúdio (`fotosEscolhidasQueFaltam`). Uma pasta que
   // não responde deixa por acusar só as fotos dela; as outras contam.
   const escolhidasEmFalta = await fotosEscolhidasQueFaltam(c.doc);
-  const faltas = oQueFaltaParaEnviar(c.doc, dinheiroDe(c).gross, {
+  const faltas = oQueFaltaParaEnviar(c.doc, c.dinheiro().gross, {
     idioma: c.idioma,
     fotosEscolhidasQueFaltam: escolhidasEmFalta,
     canal: c.porEmail ? "email" : "whatsapp",
@@ -150,9 +150,9 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Passo> {
  * vê o que falta). `SEGUE` quando pode sair.
  */
 export async function travaDoPdfFinal(
-  c: Pick<EnvioDaProposta, "doc" | "quote" | "idioma">,
+  c: Pick<EnvioDaProposta, "doc" | "quote" | "idioma" | "dinheiro">,
 ): Promise<Passo> {
-  const faltas = oQueFaltaParaEnviar(c.doc, dinheiroDe(c).gross, {
+  const faltas = oQueFaltaParaEnviar(c.doc, c.dinheiro().gross, {
     idioma: c.idioma,
     fotosEscolhidasQueFaltam: await fotosEscolhidasQueFaltam(c.doc),
     canal: "email",

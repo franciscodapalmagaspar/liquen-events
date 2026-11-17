@@ -6,6 +6,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Proposal, Quote } from "@/lib/orcamento/types";
 import { log } from "@/lib/logger";
+import { dinheiroDaProposta } from "@/lib/proposal-budget";
 import { cabecalhosDaPreVisualizacao } from "./pre-visualizacao";
 import {
   fotosEmFaltaAceites,
@@ -21,7 +22,7 @@ import {
 } from "./a-proposta-que-se-grava";
 import { prepararODocumento } from "./documento-do-envio";
 import type { EmailEmoldurado } from "./email-da-proposta";
-import type { DocumentoPreparado } from "./envio-da-proposta";
+import { envioDaProposta, type DocumentoPreparado } from "./envio-da-proposta";
 import { SEGUE } from "./passo";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { seloDoConteudo } from "@/lib/proposta-versao";
@@ -41,14 +42,18 @@ const doc = {
   validUntil: "2027-01-01",
 } as unknown as DocumentoPreparado;
 
+/** Um instante qualquer: as etapas puras recebem o relógio de quem as chama. */
+const AGORA = Date.parse("2026-11-17T12:00:00.000Z");
+const AGORA_DATA = new Date(AGORA);
+
 describe("as perguntas antes do envio", () => {
   it("o «sim» às fotos vale para quantas ela viu, e só para um número", () => {
-    expect(fotosEmFaltaAceites(0, null)).toBe(true);
-    expect(fotosEmFaltaAceites(3, 3)).toBe(true);
-    expect(fotosEmFaltaAceites(3, 9)).toBe(true);
-    expect(fotosEmFaltaAceites(9, 3)).toBe(false);
+    expect(fotosEmFaltaAceites(0, null, AGORA)).toBe(true);
+    expect(fotosEmFaltaAceites(3, 3, AGORA)).toBe(true);
+    expect(fotosEmFaltaAceites(3, 9, AGORA)).toBe(true);
+    expect(fotosEmFaltaAceites(9, 3, AGORA)).toBe(false);
     // Um «sim» que não era número chega como `null` (ler-o-corpo.test.ts).
-    expect(fotosEmFaltaAceites(1, null)).toBe(false);
+    expect(fotosEmFaltaAceites(1, null, AGORA)).toBe(false);
   });
 
   it("o «sim» antigo (`true`) vale até 18/11 às 23:59 em Lisboa, e depois não", () => {
@@ -58,7 +63,7 @@ describe("as perguntas antes do envio", () => {
   });
 
   it("as fotos perguntam com 409 e dizem quantas; os cortes só com `true`", () => {
-    expect(perguntaDasFotos("q", 1, null)).toEqual({
+    expect(perguntaDasFotos("q", 1, null, AGORA)).toEqual({
       segue: false,
       desfecho: {
         tipo: "recusa",
@@ -107,6 +112,23 @@ describe("as perguntas antes do envio", () => {
   });
 });
 
+describe("o envio e o seu dinheiro", () => {
+  const quote = { id: "q", email: "c@x.pt" } as Quote;
+  it("o dinheiro deriva do documento: só se conta quando é pedido, e uma vez", () => {
+    // Um adicional nulo parte a conta — e um envio que não a pede não parte.
+    const partido = { ...doc, budgetExtrasSomam: true, budgetExtras: [null] } as never;
+    const envio = envioDaProposta({ pedidoId: "q", quote, doc: partido, idioma: "pt" });
+    expect(envio.pedidoId).toBe("q");
+    expect(() => envio.dinheiro()).toThrow();
+
+    const bom = envioDaProposta({ pedidoId: "q", quote, doc, idioma: "pt" });
+    const primeiro = bom.dinheiro();
+    expect(primeiro).toEqual(dinheiroDaProposta(doc));
+    expect(bom.dinheiro()).toBe(primeiro);
+    expect(Object.isFrozen(primeiro)).toBe(true);
+  });
+});
+
 describe("o documento e a linha que se grava", () => {
   it("prepararODocumento: com o relógio fixo, a validade é a desse dia — e fica escrita no documento", () => {
     const { validUntil: _semValidade, ...semValidade } = doc;
@@ -134,12 +156,11 @@ describe("o documento e a linha que se grava", () => {
     const porEnviar = { id: "p-antiga", createdAt: "2026-01-01T00:00:00.000Z" } as Proposal;
     const pdf = Buffer.from("%PDF");
     const p = montarAProposta({
-      pedidoId: "q",
-      quote,
-      doc,
-      idioma: "en",
+      ...envioDaProposta({ pedidoId: "q", quote, doc, idioma: "en" }),
       pdf,
       porEnviar,
+      agora: AGORA_DATA,
+      idNovo: "nunca-usado",
     });
     expect(p).toMatchObject({
       id: "p-antiga",
@@ -156,15 +177,21 @@ describe("o documento e a linha que se grava", () => {
   it("a versão: o mesmo conteúdo não sobe; mudar sobe sobre o maior número", () => {
     const novaLinha = () =>
       montarAProposta({
-        pedidoId: "q",
-        quote: { id: "q", email: "" } as Quote,
-        doc,
-        idioma: "pt",
+        ...envioDaProposta({
+          pedidoId: "q",
+          quote: { id: "q", email: "" } as Quote,
+          doc,
+          idioma: "pt",
+        }),
         pdf: Buffer.from("x"),
         porEnviar: null,
+        agora: AGORA_DATA,
+        idNovo: "p-nova",
       });
     const linha = novaLinha();
-    const primeira = { ...linha, ...versaoDaProposta(linha, []) };
+    // Uma proposta nova: o id e o instante são os que quem chama lhe deu.
+    expect(linha).toMatchObject({ id: "p-nova", createdAt: AGORA_DATA.toISOString() });
+    const primeira = { ...linha, ...versaoDaProposta(linha, [], AGORA_DATA) };
     expect(primeira.versaoNumero).toBe(1);
     // Pura: a linha que entrou não mudou.
     expect(linha.versaoNumero).toBeUndefined();
@@ -172,72 +199,70 @@ describe("o documento e a linha que se grava", () => {
     const repetida = { ...linha, id: "outra" } as Proposal;
     const anteriores = propostasAnteriores(repetida, [primeira]);
     expect(anteriores.map((p) => p.id)).toEqual([primeira.id]);
-    expect(versaoDaProposta(repetida, anteriores).versaoNumero).toBe(1);
+    expect(versaoDaProposta(repetida, anteriores, AGORA_DATA).versaoNumero).toBe(1);
 
     const mudada = { ...linha, id: "terceira", total: 999 } as Proposal;
     const outras = propostasAnteriores(mudada, [
       primeira,
       { ...primeira, id: "v4", versaoNumero: 4 },
     ]);
-    expect(versaoDaProposta(mudada, outras).versaoNumero).toBe(5);
+    expect(versaoDaProposta(mudada, outras, AGORA_DATA).versaoNumero).toBe(5);
   });
 
   it("comAVersao: a linha carimbada, e as irmãs anteriores (sem ela, a mais recente primeiro)", () => {
-    // O `versaoEm` é o instante do carimbo: com o relógio parado, duas
-    // chamadas dão o mesmo.
-    vi.useFakeTimers({ now: new Date("2026-11-17T12:00:00.000Z") });
-    try {
-      const linha = montarAProposta({
+    // O `versaoEm` é o instante que quem chama dá ao carimbo.
+    const linha = montarAProposta({
+      ...envioDaProposta({
         pedidoId: "q",
         quote: { id: "q", email: "" } as Quote,
         doc,
         idioma: "pt",
-        pdf: Buffer.from("x"),
-        porEnviar: null,
-      });
-      const velha = {
-        ...linha,
-        versaoSelo: "selo-da-velha",
-        id: "v1",
-        createdAt: "2026-01-01T00:00:00.000Z",
-        versaoNumero: 1,
-        total: 1,
-      };
-      const nova = {
-        ...linha,
-        versaoSelo: "selo-da-nova",
-        id: "v2",
-        createdAt: "2026-02-01T00:00:00.000Z",
-        versaoNumero: 2,
-        total: 2,
-      };
-      const { proposal, anteriores } = comAVersao(linha, [velha, linha, nova]);
-      expect(anteriores.map((p) => p.id)).toEqual(["v2", "v1"]);
-      // A linha INTEIRA, intacta, com os três campos da versão por cima — e o
-      // selo é o do conteúdo dela, não o de uma irmã.
-      expect(proposal).toEqual({
-        ...linha,
-        versaoNumero: 3,
-        versaoEm: "2026-11-17T12:00:00.000Z",
-        versaoSelo: seloDoConteudo(linha),
-      });
-      // E o selo COMPARA-SE com o da irmã mais recente: com o mesmo conteúdo,
-      // a versão não sobe e a data fica a do conteúdo (a dela).
-      const igual = {
-        ...nova,
-        versaoSelo: seloDoConteudo(linha),
-        versaoEm: "2026-02-01T00:00:00.000Z",
-      };
-      expect(comAVersao(linha, [velha, igual]).proposal).toMatchObject({
-        versaoNumero: 2,
-        versaoEm: "2026-02-01T00:00:00.000Z",
-        versaoSelo: seloDoConteudo(linha),
-      });
-      // Pura: a linha que entrou não ganhou a versão.
-      expect(linha.versaoNumero).toBeUndefined();
-    } finally {
-      vi.useRealTimers();
-    }
+      }),
+      pdf: Buffer.from("x"),
+      porEnviar: null,
+      agora: AGORA_DATA,
+      idNovo: "p-nova",
+    });
+    const velha = {
+      ...linha,
+      versaoSelo: "selo-da-velha",
+      id: "v1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      versaoNumero: 1,
+      total: 1,
+    };
+    const nova = {
+      ...linha,
+      versaoSelo: "selo-da-nova",
+      id: "v2",
+      createdAt: "2026-02-01T00:00:00.000Z",
+      versaoNumero: 2,
+      total: 2,
+    };
+    const { proposal, anteriores } = comAVersao(linha, [velha, linha, nova], AGORA_DATA);
+    expect(anteriores.map((p) => p.id)).toEqual(["v2", "v1"]);
+    // A linha INTEIRA, intacta, com os três campos da versão por cima — e o
+    // selo é o do conteúdo dela, não o de uma irmã.
+    expect(proposal).toEqual({
+      ...linha,
+      versaoNumero: 3,
+      versaoEm: "2026-11-17T12:00:00.000Z",
+      versaoSelo: seloDoConteudo(linha),
+    });
+    // E o selo COMPARA-SE com o da irmã mais recente: com o mesmo conteúdo,
+    // a versão não sobe e a data fica a do conteúdo (a dela).
+    const igual = {
+      ...nova,
+      versaoSelo: seloDoConteudo(linha),
+      versaoEm: "2026-02-01T00:00:00.000Z",
+    };
+    expect(comAVersao(linha, [velha, igual], AGORA_DATA).proposal).toMatchObject({
+      versaoNumero: 2,
+      versaoEm: "2026-02-01T00:00:00.000Z",
+      versaoSelo: seloDoConteudo(linha),
+    });
+    // Pura: a linha que entrou não ganhou a versão.
+    expect(linha.versaoNumero).toBeUndefined();
   });
 
   it("as anteriores vêm da mais recente para a mais antiga, e sem a própria", () => {

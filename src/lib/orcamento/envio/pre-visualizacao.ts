@@ -1,11 +1,11 @@
-import type { Truncagens } from "./contrato";
+import { CABECALHOS_DA_PRE_VISUALIZACAO as CABECALHO, type Truncagens } from "./contrato";
 import type { IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 /*
  * A resposta da PRÉ-VISUALIZAÇÃO: o PDF no corpo, e nos cabeçalhos o que o
  * estúdio precisa de saber sobre ele. Os nomes dos cabeçalhos são parte do
- * contrato com o estúdio (lidos no `ProposalStudio.tsx`), por isso vivem com o
- * domínio e não na rota — que só os passa ao `NextResponse`.
+ * contrato com o estúdio (`contrato.ts`, que o `ProposalStudio.tsx` também lê),
+ * por isso vivem com o domínio e não na rota — que só os passa ao `NextResponse`.
  */
 
 /**
@@ -33,15 +33,17 @@ export function cabecalhosDaPreVisualizacao(p: {
     // Quantas fotos não entraram. O gerador salta a que não resolve, por
     // isso sem este cabeçalho o PDF sai com fotos a menos e o estúdio não
     // tem como saber. É lido em ProposalStudio para avisar antes de enviar.
-    "X-Fotos-Em-Falta": String(p.missingImages),
+    [CABECALHO.fotosEmFalta]: String(p.missingImages),
     // O que o DESENHO deixou de fora (a sétima foto de um mood board, a
     // terceira linha do "Local"…) — a mesma perda, por outro caminho.
     // Vai em base64 porque o corpo desta resposta é o PDF e um cabeçalho
     // HTTP não transporta com segurança os acentos dos nomes dos campos.
-    "X-Conteudo-Cortado": Buffer.from(JSON.stringify(p.truncations), "utf8").toString("base64"),
+    [CABECALHO.conteudoCortado]: Buffer.from(JSON.stringify(p.truncations), "utf8").toString(
+      "base64",
+    ),
     // A chave do que se está a ver — só no PDF FINAL. O rascunho não
     // conta como visto: é o PDF que ainda não pode seguir.
-    ...(p.rascunho ? {} : { "X-Chave-Do-Pdf": p.chaveDoQueChegou }),
-    ...(p.pdfDaMemoria ? { "X-Pdf-Da-Memoria": "1" } : {}),
+    ...(p.rascunho ? {} : { [CABECALHO.chaveDoPdf]: p.chaveDoQueChegou }),
+    ...(p.pdfDaMemoria ? { [CABECALHO.pdfDaMemoria]: "1" } : {}),
   };
 }

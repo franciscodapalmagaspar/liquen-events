@@ -10,7 +10,7 @@ import { textosDoEmailDaProposta } from "@/lib/email-proposta-textos";
 import { eCasamento } from "@/lib/proposal-evento";
 import { log } from "@/lib/logger";
 import { cartaoDoPdf } from "./cartao-do-pdf";
-import { dinheiroDe, type EnvioDaProposta } from "./envio-da-proposta";
+import type { EnvioDaProposta } from "./envio-da-proposta";
 
 declare const marcaDoEmoldurado: unique symbol;
 
@@ -138,7 +138,7 @@ export async function escreverOEmail(p: ParaEscrever): Promise<EmailDaProposta> 
    * O rodapé legal (17/11): a língua da proposta, e a finalidade de quem
    * recebe uma proposta — prepará-la e executá-la (`email-rodape-legal.ts`).
    */
-  const rodapeLegal = { lingua: idioma === "en" ? "en" : "pt", finalidade: "proposta" } as const;
+  const rodapeLegal = { lingua: idioma, finalidade: "proposta" } as const;
 
   const emoldurado = escrito
     ? emoldurar({
@@ -210,7 +210,7 @@ async function modeloDela(p: ParaEscrever, escritoAMao: boolean) {
         ? String(doc.clientNames ?? "").trim()
         : String(quote.name ?? "").trim() || String(doc.clientNames ?? "").trim(),
       link: acceptUrl,
-      valor: eurDocumento(dinheiroDe(p).gross),
+      valor: eurDocumento(p.dinheiro().gross),
       ...(String(doc.eventDate ?? "").trim() ? { data_evento: String(doc.eventDate).trim() } : {}),
       ...(String(doc.location ?? "").trim() ? { local: String(doc.location).trim() } : {}),
     }),

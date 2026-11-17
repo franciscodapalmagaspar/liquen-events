@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { observar } from "@/lib/fronteira/observar";
 import { TIPOS_DE_MODELO } from "@/lib/orcamento/listas-fechadas";
+import { ehUmDe } from "@/lib/todos-os-valores";
 import { esquemaDoCorpoDoModeloDeProposta } from "@/lib/fronteira/corpos-das-rotas";
 import { isAuthed } from "@/lib/admin-auth";
 import {
@@ -11,7 +12,6 @@ import {
   DemasiadosModelos,
   MAX_MODELOS,
   type ModeloProposta,
-  type TipoModelo,
 } from "@/lib/proposal-templates";
 import { log } from "@/lib/logger";
 
@@ -24,8 +24,6 @@ export const dynamic = "force-dynamic";
  * Tudo aqui é só para a equipa: um modelo tem a estrutura e os preços das
  * propostas dela, e não tem nada que ser lido por quem não entrou.
  */
-
-const TIPOS: readonly TipoModelo[] = TIPOS_DE_MODELO;
 
 export async function GET(request: NextRequest) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
@@ -51,7 +49,7 @@ export async function POST(request: NextRequest) {
     .trim()
     .slice(0, 80);
   if (!nomeLimpo) return NextResponse.json({ error: "Dê um nome ao modelo" }, { status: 400 });
-  if (!tipo || !TIPOS.includes(tipo)) {
+  if (!ehUmDe(TIPOS_DE_MODELO, tipo)) {
     return NextResponse.json({ error: "Tipo de modelo desconhecido" }, { status: 400 });
   }
   // Um modelo sem conteúdo aparecia na lista e não fazia nada ao ser escolhido

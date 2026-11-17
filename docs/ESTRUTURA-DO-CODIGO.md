@@ -73,7 +73,12 @@ antes e depois (linhas, complexidade, peso das rotas).
    entram acima das 400 (`legal-content.ts` 419, `api/backup/route.ts` 443,
    `cron/reminders/route.ts` 451). É contra a regra da catraca e está dito: **partem-se
    nos PRs desses ramos**, não aqui (seria mexer em código que não é desta fase). A rota
-   da proposta saiu da lista.
+   da proposta saiu da lista. **E subiu outra vez ao juntar o `main` de 17/11**: o
+   lote entrou no `main` sem a catraca (que é da fase 0, e o `main` tirou-a), e
+   quarenta e três ficheiros que esta fase não toca cresceram lá (`AdminClient.tsx`
+   9 129 → 9 536, `Tarefas.tsx`, `admin-auth.ts`, cinco novos acima das 400 —
+   `armazenamento/balde.ts`, `armazenamento/migracao.ts`…). Os tectos ficaram com o
+   tamanho do `main`; os cinco que desceram, desceram.
 6. **Mover e melhorar foram no mesmo ramo** (contra o §3.0, regras 3 e 7: +9 mil
    linhas, das quais 4,3 mil são retratos). A prova de equivalência não é o
    `--color-moved`, é o retrato: 53 respostas tiradas antes de mexer e iguais
@@ -88,15 +93,20 @@ antes e depois (linhas, complexidade, peso das rotas).
    tecto da catraca — uma linha a mais para importar a lista partia-a, e a regra é
    partir primeiro) e as etiquetas dos motivos no `Acompanhamento.tsx` (ecrã). Tudo o
    que esta fase tocou lê `orcamento/listas-fechadas.ts` — o `ehIdiomaDaProposta`
-   também, desde a última ronda do júri.
-8. **O retrato de 79 respostas e 8 sequências (≈ 8 mil linhas de `.snap`) é andaime, não guarda
+   também, desde a última ronda do júri, e (júri de 17/11, à noite) a língua da
+   cópia do envio (`envios-de-proposta.ts`), o rodapé legal e os tipos de modelo
+   (`proposal-templates.ts`). Os `z.enum(["pt","en"])` de `validation.ts` (a língua do
+   FORMULÁRIO do site) e de `backup-restore.ts` (a do contrato) não são a língua da
+   proposta: são outras listas, que hoje calham ter os mesmos valores.
+8. **O retrato de 80 respostas e 8 sequências (≈ 8 mil linhas de `.snap`) é andaime, não guarda
    permanente.** Vive enquanto as fases seguintes mexerem no envio (a 3 e a 4 mexem
    no estúdio que o chama). O critério para o reduzir é este: **no PR em que o
    estúdio passar a ler `envio/contrato.ts`** (desvio 9), o retrato fica só com os
    casos de fronteira — um por estado HTTP, os corpos estranhos e as repetições —, e
    o resto passa a viver nos testes das etapas. Até lá, um `-u` neste ficheiro é uma
    mudança de comportamento e diz-se no PR. No mesmo PR apaga-se
-   `route.contra-a-antiga.test.ts`. **Prazo: 31/1/2027** (escrito no teste, `PRAZO`):
+   `route.contra-a-antiga.test.ts`, que compara com a rota do `main` (`e8a4a94b`, a
+   que está em produção). **Prazo: 31/12/2026** (escrito no teste, `PRAZO`):
    depois disso a comparação deixa de correr e o CI põe uma anotação de aviso a
    pedir este desvio — sem bloquear ninguém — em cada corrida que carregue o teste:
    as completas, depois de juntar, e os PRs que mexam no grafo da rota (os outros
@@ -107,9 +117,11 @@ antes e depois (linhas, complexidade, peso das rotas).
    para o Next, não vira rota), e os `vi.mock` ficam em cada teste, a ir buscar os
    duplos dentro da fábrica — a ordem dos imports não conta, e um teste em cada ficheiro
    confere que nenhum duplo ficou por declarar (`duplosEsquecidos`).
-9. **O contrato da rota (`envio/contrato.ts`) ainda não é lido pelo estúdio**: o
-   `ProposalStudio.tsx` não se podia tocar nesta tarefa. É o primeiro passo da fase
-   em que o estúdio se parte.
+9. **O contrato da rota (`envio/contrato.ts`) só em parte é lido pelo estúdio**: os
+   NOMES dos cabeçalhos da pré-visualização já são um só, escritos e lidos pelas mesmas
+   constantes (`CABECALHOS_DA_PRE_VISUALIZACAO`); os CORPOS das respostas o
+   `ProposalStudio.tsx` ainda os lê à mão (`data?.precisaConfirmarFotos`). Tipá-los é
+   o primeiro passo da fase em que o estúdio se parte.
 10. **A garantia da assinatura está no `mandarOEmail`, não no `sendMail`.** Só um
    `EmailEmoldurado` se pode mandar por ali; o `sendMail` (`lib/mail.ts`, de todo o
    correio da casa) continua a aceitar qualquer html, e a guarda de texto
@@ -117,6 +129,11 @@ antes e depois (linhas, complexidade, peso das rotas).
    porta única `enviarAoCliente(email: EmailEmoldurado)` para todo o correio a
    clientes é o passo certo, e é de outra fase (mexe em todas as rotas que mandam
    correio).
+11. **Um defeito antigo ficou como estava, porque esta fase não muda respostas.** Uma
+   repetição reconhecida (`repeticao-do-envio.ts`) responde sempre `estado: "enviada"`,
+   mesmo quando a irmã que reconheceu já ficou «aceite» (o pedido estava Ganho). O
+   contrato diz «o estado em que a proposta FICOU». Corrige-se num PR próprio, com o
+   retrato desse caso a mudar e dito.
 
 **Lições destas duas fases** (também na Parte 4):
 

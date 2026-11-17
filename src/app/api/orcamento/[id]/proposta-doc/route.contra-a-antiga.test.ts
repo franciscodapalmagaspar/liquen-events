@@ -8,13 +8,11 @@
  * põe-na ao lado da nova, corre os mesmos cenários nas duas com os mesmos
  * duplos, e exige o mesmo retrato, letra a letra.
  *
- * Corre SEMPRE que o clone tem esse commit: aqui, num clone inteiro feito
- * enquanto o ramo existir, e no CI — o checkout lá é raso, e o próprio teste
- * vai buscar só esse commit ({@link HA_ROTA_ANTIGA}). Depois
- * de o ramo entrar por squash, o GitHub continua a servir o commit (pelo
- * `refs/pull/…`): é por isso que o fim vem do prazo, e não da falta do commit.
- * Num clone sem o commit, salta — dito no nome do teste. `COMPARAR_COM_A_ROTA_ANTIGA=0`
- * desliga-o.
+ * Corre SEMPRE que o clone tem esse commit — é um commit do `main`, por isso
+ * qualquer clone inteiro o tem — e no CI, onde o checkout é raso e o próprio
+ * teste vai buscar só esse commit ({@link HA_ROTA_ANTIGA}). O fim vem do
+ * prazo, e não da falta do commit. Num clone sem o commit, salta — dito no
+ * nome do teste. `COMPARAR_COM_A_ROTA_ANTIGA=0` desliga-o.
  *
  * TEM PRAZO, e cumpre-se sozinho ({@link PRAZO}): depois desse dia o teste
  * deixa de correr e o nome e o registo pedem o desvio 8. Antes disso pode acabar mais cedo — a rota antiga
@@ -80,7 +78,7 @@ vi.mock("@/lib/proposal-pdf-guardado", async () =>
  * bloqueia — um PR urgente não pode ficar vermelho por causa de um andaime —,
  * mas também não se cala. Mudá-lo é uma decisão, e diz-se no PR.
  */
-const PRAZO = "2027-01-31";
+const PRAZO = "2026-12-31";
 const PASSOU_O_PRAZO = new Date().toISOString().slice(0, 10) > PRAZO;
 const PEDIDO_DO_PRAZO =
   `o prazo desta prova (${PRAZO}) passou: aplicar o desvio 8 de ` +

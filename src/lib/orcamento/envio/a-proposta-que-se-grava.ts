@@ -1,10 +1,10 @@
 import "server-only";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { Proposal } from "@/lib/orcamento/types";
 import { listProposalsForQuote } from "@/lib/proposals-store";
 import { proximaVersao, seloDoConteudo } from "@/lib/proposta-versao";
 import { log } from "@/lib/logger";
-import { dinheiroDe, type BytesDoPdf, type EnvioDaProposta } from "./envio-da-proposta";
+import type { BytesDoPdf, EnvioDaProposta } from "./envio-da-proposta";
 
 /** A ordem das irmãs de um pedido, em todo este ficheiro: a mais recente primeiro. */
 const maisRecentePrimeiro = (a: Proposal, b: Proposal): number =>
@@ -12,7 +12,8 @@ const maisRecentePrimeiro = (a: Proposal, b: Proposal): number =>
 
 /**
  * Etapa 7 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): a linha que se
- * vai gravar, com o seu número de versão. A montagem e o carimbo são puros; só
+ * vai gravar, com o seu número de versão. A montagem e o carimbo são puros —
+ * o instante e o id novo chegam de quem chama (`atender-o-estudio.ts`); só
  * {@link irmasDoPedido} lê a base.
  */
 
@@ -57,13 +58,17 @@ export async function irmasDoPedido(
 export interface Montagem extends EnvioDaProposta {
   pdf: BytesDoPdf;
   porEnviar: Proposal | null;
+  /** O instante da montagem: a data de criação de uma proposta nova. */
+  agora: Date;
+  /** O id de uma proposta nova — só se usa quando não há uma por enviar. */
+  idNovo: string;
 }
 
 /** A linha da proposta, como se grava ANTES de o email sair. */
 export function montarAProposta(m: Montagem): Proposal {
-  const dinheiro = dinheiroDe(m);
+  const dinheiro = m.dinheiro();
   return {
-    id: m.porEnviar?.id ?? randomUUID(),
+    id: m.porEnviar?.id ?? m.idNovo,
     quoteId: m.pedidoId,
     clientName: m.doc.clientNames,
     clientEmail: m.quote.email,
@@ -101,7 +106,7 @@ export function montarAProposta(m: Montagem): Proposal {
      * fantasma.
      */
     status: "rascunho",
-    createdAt: m.porEnviar?.createdAt ?? new Date().toISOString(),
+    createdAt: m.porEnviar?.createdAt ?? m.agora.toISOString(),
     doc: m.doc, // stored with Storage paths so it can be re-opened + edited
     /**
      * ── O SELO DO DOCUMENTO ────────────────────────────────────────────────
@@ -169,6 +174,7 @@ export function montarAProposta(m: Montagem): Proposal {
 export function versaoDaProposta(
   proposal: Proposal,
   anteriores: readonly Proposal[],
+  agora: Date,
 ): Pick<Proposal, "versaoSelo" | "versaoNumero" | "versaoEm"> {
   const maisRecente =
     // Não confia na ordem de quem chama: é pura, e ordenar meia dúzia de linhas
@@ -189,9 +195,7 @@ export function versaoDaProposta(
     // A data é a do CONTEÚDO, não a da gravação: uma proposta reenviada sem
     // uma vírgula mudada continua a dizer ao casal que foi actualizada no dia
     // em que mudou mesmo.
-    versaoEm: versao.mudou
-      ? new Date().toISOString()
-      : (maisRecente?.versaoEm ?? new Date().toISOString()),
+    versaoEm: versao.mudou ? agora.toISOString() : (maisRecente?.versaoEm ?? agora.toISOString()),
   };
 }
 
@@ -211,7 +215,8 @@ export function propostasAnteriores(proposal: Proposal, irmas: readonly Proposal
 export function comAVersao(
   linha: Proposal,
   irmas: readonly Proposal[],
+  agora: Date,
 ): { proposal: Proposal; anteriores: Proposal[] } {
   const anteriores = propostasAnteriores(linha, irmas);
-  return { proposal: { ...linha, ...versaoDaProposta(linha, anteriores) }, anteriores };
+  return { proposal: { ...linha, ...versaoDaProposta(linha, anteriores, agora) }, anteriores };
 }

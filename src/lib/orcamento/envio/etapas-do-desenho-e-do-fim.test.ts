@@ -37,7 +37,7 @@ import { desenharOPdf } from "./desenhar-o-pdf";
 import { escreverOEmail } from "./email-da-proposta";
 import { depoisDoEmail } from "./depois-do-email";
 import { esvaziarPdfsFinais } from "@/lib/proposal-preview-cache";
-import type { DocumentoPreparado } from "./envio-da-proposta";
+import { envioDaProposta, type DocumentoPreparado } from "./envio-da-proposta";
 import { SEGUE } from "./passo";
 
 const doc = {
@@ -56,12 +56,7 @@ const doc = {
   validUntil: "2027-01-01",
 } as unknown as DocumentoPreparado;
 const quote = { id: "q", name: "Mãe da Noiva", email: "c@x.pt", status: "pendente" } as Quote;
-const envio = {
-  pedidoId: "q",
-  quote,
-  doc,
-  idioma: "pt" as const,
-};
+const envio = envioDaProposta({ pedidoId: "q", quote, doc, idioma: "pt" });
 
 beforeEach(() => {
   vi.clearAllMocks();

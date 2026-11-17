@@ -15,3 +15,11 @@ export function todosOsValores<T extends string>() {
     lista: L & ([T] extends [L[number]] ? unknown : { falta: Exclude<T, L[number]> }),
   ): L => lista;
 }
+
+/**
+ * `true` quando `v` é um dos valores da lista — e o tipo estreita-se para ele.
+ * A pergunta que as rotas fazem a uma lista fechada, sem cópia nem `as`.
+ */
+export function ehUmDe<const L extends readonly string[]>(lista: L, v: unknown): v is L[number] {
+  return (lista as readonly unknown[]).includes(v);
+}

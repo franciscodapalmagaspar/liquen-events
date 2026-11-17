@@ -24,7 +24,7 @@ import { paraComRecusa, SEGUE, type Passo } from "./passo";
 export function fotosEmFaltaAceites(
   emFalta: number,
   confirmadas: number | true | null,
-  agora: number = Date.now(),
+  agora: number,
 ): boolean {
   if (emFalta <= 0) return true;
   if (confirmadas === true) return agora < FIM_DO_SIM_ANTIGO;
@@ -66,8 +66,9 @@ export function perguntaDasFotos(
   pedidoId: string,
   missingImages: number,
   confirmadas: number | true | null,
+  agora: number,
 ): Passo {
-  if (fotosEmFaltaAceites(missingImages, confirmadas)) return SEGUE;
+  if (fotosEmFaltaAceites(missingImages, confirmadas, agora)) return SEGUE;
   log.warn("proposta-doc: envio parado para confirmar as fotos em falta", {
     id: pedidoId,
     emFalta: missingImages,
