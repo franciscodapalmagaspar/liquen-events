@@ -689,10 +689,9 @@ async function runJob(job: ImportJob): Promise<void> {
       }
       const copied: ImportedImage[] = Array.isArray(data?.images) ? data.images : [];
       const failedHere: string[] = Array.isArray(data?.failed) ? data.failed : [];
-      // A ORIGEM de cada foto vem agora NA RESPOSTA (`sourcePath`), desde que a
-      // rota deixou de copiar bytes e passou a devolver referências à
-      // biblioteca: ela sabe-a de certeza e nós deixámos de a ter de deduzir
-      // pela posição.
+      // A ORIGEM de cada foto vem agora NA RESPOSTA (`sourcePath`), desde que a rota deixou de
+      // copiar bytes e passou a devolver referências à biblioteca: ela sabe-a de certeza e nós
+      // deixámos de a ter de deduzir pela posição.
       //
       // O emparelhamento posicional fica como plano B, para uma resposta antiga
       // (um separador aberto durante um deploy) que chegue sem o campo. Se nem

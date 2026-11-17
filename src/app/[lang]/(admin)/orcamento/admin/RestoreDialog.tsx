@@ -11,10 +11,9 @@ import {
 import { useFocusTrap } from "./useFocusTrap";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
 import { plural } from "@/lib/plural";
-/* A escala de movimento da casa — ver `ui/movimento.ts` para o censo que a
-   motivou. `ESTADO` são os 120 ms do degrau `micro` numa lista fechada de
-   propriedades (nenhuma delas força *layout*); `PRESSAO` é o toque a 20 ms.
-   As duas trazem `motion-safe:` — não há rede global no `globals.css`. */
+/* A escala de movimento da casa — ver `ui/movimento.ts` para o censo que a motivou. `ESTADO` são os
+   120 ms do degrau `micro` numa lista fechada de propriedades (nenhuma delas força *layout*);
+   `PRESSAO` é o toque a 20 ms. As duas trazem `motion-safe:` — não há rede global no `globals.css`. */
 import { ESTADO, PRESSAO } from "./ui/movimento";
 import { Button, cn } from "./ui";
 import { SAIDA, SAIDA_FUNDO, useSaidaDeUmSo } from "./ui/saida";
@@ -245,9 +244,8 @@ function RestoreDialogInner({ aSair, onClose, toast }: Omit<Props, "open"> & { a
       // ENSAIO: sem `confirm`, o servidor lê tudo e não escreve nada.
       const res = await enviar({ backup: json });
       if (res.status === 413) {
-        // O ficheiro nem chegou ao servidor: foi recusado pelo alojamento por
-        // ser grande demais para um pedido. Dizer "erro de ligação" aqui era
-        // mandar procurar no sítio errado.
+        // O ficheiro nem chegou ao servidor: foi recusado pelo alojamento por ser grande demais
+        // para um pedido. Dizer "erro de ligação" aqui era mandar procurar no sítio errado.
         setErros([
           "A cópia é grande demais para ser enviada pelo browser (o alojamento recusa pedidos acima de alguns MB). Esta reposição tem de ser feita a partir do servidor.",
         ]);
