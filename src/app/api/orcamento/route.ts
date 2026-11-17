@@ -51,6 +51,7 @@ import { desserializar as desserializarMeta } from "@/lib/meta/click-id";
 import { FUSO_DO_ESTUDIO } from "@/lib/fuso";
 import { quemPedeEOCasal } from "@/lib/orcamento/quem-pede";
 import { comCpu } from "@/lib/medir-cpu";
+import { vereditoDoPedido } from "@/lib/anti-spam/veredito";
 
 export const maxDuration = 30;
 
@@ -778,6 +779,34 @@ async function POST_semMedida(request: NextRequest) {
       breakdown: PriceBreakdown;
     };
     const form: QuoteFormData = formLido;
+
+    // ── O ANTI-SPAM: A ARMADILHA DE TEMPO E O FILTRO DE CONTEÚDO (17/11) ──
+    // O isco já foi visto lá em cima. Spam → o MESMO «ok» de um envio
+    // verdadeiro, sem gravar nem enviar nada (`anti-spam/veredito.ts`). Antes
+    // do DNS do email e de tudo o que custa: um robô não gasta mais nada.
+    const veredito = vereditoDoPedido({
+      selo: (body as Record<string, unknown>).selo,
+      texto: {
+        nome: form.name,
+        mensagem: form.notes,
+        outros: [form.eventName, form.location, form.partnerA, form.partnerB, form.company].filter(
+          (v): v is string => typeof v === "string",
+        ),
+      },
+    });
+    if (veredito.spam) {
+      log.warn("orcamento: anti-spam — pedido descartado com sucesso fingido", {
+        motivo: veredito.motivo,
+        selo: veredito.selo,
+      });
+      return NextResponse.json({ id: generateQuoteId(), status: "ok" });
+    }
+    if (veredito.selo !== "valido") {
+      // Sem selo (página antiga em cache, rede) ou sem segredo: passa — ver
+      // `selo.ts`. Fica registado para se ver quantos chegam assim.
+      log.info("orcamento: pedido sem selo de tempo válido — aceite", { selo: veredito.selo });
+    }
+
     // O clique da Meta (fbp/fbc) só se GUARDA com consentimento (auditoria
     // legal, 17/11). A prova que a rota tem é o `leadEventId`: o formulário só
     // o manda depois de «Aceitar» (`PedidoRelampago.tsx`). Sem ele o clique

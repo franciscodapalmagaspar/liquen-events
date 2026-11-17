@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { log } from "@/lib/logger";
-import LivroDeReclamacoes from "@/components/LivroDeReclamacoes";
+import AvisoLegal from "@/components/AvisoLegal";
 
 /**
  * Global error boundary — catches failures in the root layout itself, which
@@ -22,10 +22,6 @@ const STRINGS = {
     title: "Esta página não chegou a carregar.",
     body: "Foi o desenho da página que falhou, não uma gravação: nada do que já tinha enviado se perdeu. Tente carregar outra vez e, se voltar a acontecer, recarregue a página.",
     retry: "Tentar carregar outra vez",
-    // Os mesmos de `pt.ts` (footer.livroReclamacoes, common.newWindow): este
-    // ecrã não importa o dicionário — ver o cabeçalho.
-    livro: "Livro de Reclamações Eletrónico",
-    novaJanela: "abre em nova janela",
   },
   en: {
     lang: "en",
@@ -33,8 +29,6 @@ const STRINGS = {
     title: "This page did not load.",
     body: "The page failed to render, not a save: nothing you had already sent was lost. Try loading it again and, if it happens again, reload the page.",
     retry: "Try loading it again",
-    livro: "Complaints Book (Livro de Reclamações)",
-    novaJanela: "opens in a new window",
   },
 } as const;
 
@@ -105,18 +99,12 @@ export default function GlobalError({
           >
             {t.retry}
           </button>
-          {/* O Livro de Reclamações Eletrónico (auditoria legal, 17/11): é
-              obrigatório em todas as páginas, e este ecrã substitui o layout
-              inteiro, rodapé incluído. A mesma peça do rodapé, com o desenho
-              em `style` porque aqui a folha do sítio pode não ter chegado. */}
-          <div style={{ marginTop: 40, display: "flex", justifyContent: "center" }}>
-            <LivroDeReclamacoes
-              rotulo={t.livro}
-              novaJanela={t.novaJanela}
-              altura={36}
-              style={{ opacity: 0.6 }}
-            />
-          </div>
+          {/* O fim legal (17/11): o Livro de Reclamações, a resolução de
+              litígios e as ligações legais são obrigatórios em todas as
+              páginas, e este ecrã substitui o layout inteiro, rodapé
+              incluído. A mesma peça do rodapé, com o desenho em `style`
+              porque aqui a folha do sítio pode não ter chegado. */}
+          <AvisoLegal lingua={lang} sobre="escuro" style={{ marginTop: 40, opacity: 0.7 }} />
         </div>
       </body>
     </html>

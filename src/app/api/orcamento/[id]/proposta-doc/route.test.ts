@@ -1464,7 +1464,9 @@ describe("POST /api/orcamento/[id]/proposta-doc — assinatura", () => {
     // A faixa da casa viaja COM a mensagem — nada de imagens remotas.
     expect(env.attachments?.some((a) => a.cid === "liquen-banner")).toBe(true);
     expect(env.attachments?.some((a) => a.filename.endsWith(".pdf"))).toBe(true);
-    expect(env.html).not.toMatch(/<img[^>]+src="https?:/);
+    // A única imagem por URL é o ícone do Livro de Reclamações do rodapé legal
+    // (instrução do dono, 17/11: PNG com URL absoluto). Tudo o resto viaja por `cid:`.
+    expect(semIconeDoLivro(env.html)).not.toMatch(/<img[^>]+src="https?:/);
     expect(env.html).not.toContain("Líquen Events · ");
   });
 
@@ -3110,3 +3112,8 @@ describe("o domínio do email do cliente", () => {
     expect(dominioRecebeEmail).not.toHaveBeenCalled();
   });
 });
+
+/** O ícone do Livro de Reclamações do rodapé legal vai por URL, por instrução do dono (17/11). */
+function semIconeDoLivro(html: string): string {
+  return html.replace(/<img[^>]+livro-de-reclamacoes-email-(?:escuro|claro)\.png"[^>]*>/g, "");
+}

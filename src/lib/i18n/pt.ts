@@ -643,9 +643,6 @@ export const pt = {
      */
     requiredNote: "Todos os campos são obrigatórios, exceto o telemóvel.",
     submitReassure: "Uma proposta à medida, pensada ao detalhe.",
-    privacyPre: "Ao enviar, aceita a nossa ",
-    privacyLinkLabel: "Política de Privacidade",
-    privacyPost: ". Não vendemos os seus dados.",
   },
 
   servicos: {
@@ -915,7 +912,6 @@ export const pt = {
     legal: "Legal",
     privacidade: "Privacidade",
     termos: "Termos",
-    livroReclamacoes: "Livro de Reclamações Eletrónico",
   },
 };
 

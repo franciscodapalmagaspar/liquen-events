@@ -14,8 +14,7 @@ import { log } from "@/lib/logger";
 import PaginasDoPdf from "./PaginasDoPdf";
 import EscolhasDoDocumento from "./EscolhasDoDocumento";
 import PropostaWeb from "./PropostaWeb";
-import LivroDeReclamacoes from "@/components/LivroDeReclamacoes";
-import { textosWeb } from "@/lib/proposta-web/textos-web";
+import AvisoLegal from "@/components/AvisoLegal";
 import { Bodoni_Moda, Jost } from "next/font/google";
 import "./proposta-web.css";
 
@@ -219,7 +218,6 @@ import { FUSO_DO_ESTUDIO, hojeNoEstudio } from "@/lib/fuso";
 function Shell({ children, lang }: { children: React.ReactNode; lang: string }) {
   // `lang` é o do HTML («pt-PT» ou «en»): «pt-PT» normaliza para «pt». Os
   // textos são os da moldura da proposta, os mesmos do fecho da página nova.
-  const livro = textosWeb(normalizeLocale(lang)).livroReclamacoes;
   return (
     <section
       /* A língua do CONTEÚDO, que pode não ser a do `<html>` (esse vem do
@@ -246,15 +244,13 @@ function Shell({ children, lang }: { children: React.ReactNode; lang: string }) 
         className="object-contain h-16 w-auto mb-6 opacity-90"
       />
       {children}
-      {/* O Livro de Reclamações Eletrónico (auditoria legal, 17/11), também
-          nas páginas de erro e no quadro das propostas sem documento: nenhuma
-          monta o rodapé do sítio. A mesma peça do rodapé, discreta, no fundo. */}
-      <LivroDeReclamacoes
-        rotulo={livro.nome}
-        novaJanela={livro.novaJanela}
-        sobre="claro"
-        altura={36}
-        className="alvo-toque mt-12 opacity-55 hover:opacity-90 transition-opacity"
+      {/* O fim legal (17/11), também nas páginas de erro e no quadro das
+          propostas sem documento: nenhuma monta o rodapé do sítio. A mesma
+          peça de todas as páginas (`AvisoLegal.tsx`), discreta, no fundo. */}
+      <AvisoLegal
+        lingua={normalizeLocale(lang)}
+        className="mt-12 text-foreground/68"
+        classeDasLigacoes="alvo-toque hover:text-foreground transition-colors"
       />
     </section>
   );

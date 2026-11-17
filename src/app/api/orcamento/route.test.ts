@@ -532,6 +532,53 @@ describe("POST /api/orcamento", () => {
     expect(sendMailMock).not.toHaveBeenCalled();
   });
 
+  // ── O anti-spam de 17/11: armadilha de tempo e filtro de conteúdo ──────────
+  describe("anti-spam (selo de tempo e conteúdo)", () => {
+    it("um envio relâmpago (selo de agora) finge sucesso e não grava nem envia", async () => {
+      const { criarSelo } = await import("@/lib/anti-spam/selo");
+      const res = await enviarTudo({ form: validForm, website: "", selo: criarSelo(Date.now()) });
+      expect(res.status).toBe(200);
+      expect((await res.json()).status).toBe("ok");
+      expect(store.create).not.toHaveBeenCalled();
+      expect(sendMailMock).not.toHaveBeenCalled();
+    });
+
+    it("um selo adulterado finge sucesso", async () => {
+      const res = await enviarTudo({ form: validForm, selo: "1700000000000.forjado" });
+      expect((await res.json()).status).toBe("ok");
+      expect(store.create).not.toHaveBeenCalled();
+    });
+
+    it("conteúdo de spam finge sucesso", async () => {
+      const res = await enviarTudo({
+        form: { ...validForm, notes: "We sell cheap backlinks, visit https://x.xyz/now" },
+      });
+      expect((await res.json()).status).toBe("ok");
+      expect(store.create).not.toHaveBeenCalled();
+      expect(sendMailMock).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["com selo de há 40 s", -40_000],
+      ["sem selo (página antiga em cache)", null],
+    ])("um pedido português verdadeiro, com Pinterest, é GRAVADO — %s", async (_n, desvio) => {
+      const { criarSelo } = await import("@/lib/anti-spam/selo");
+      const selo = desvio === null ? undefined : criarSelo(Date.now() + desvio);
+      const res = await enviarTudo({
+        form: {
+          ...validForm,
+          name: "Inês Conceição Gonçalves",
+          notes:
+            "Olá! Casamos em junho, na Quinta da Aveleda, ~120 convidados. A nossa inspiração: https://pin.it/3xYz9AbC e https://www.pinterest.pt/ines/casamento/ — tons de pêssego. Obrigada!",
+        },
+        selo,
+      });
+      expect(res.status).toBe(200);
+      expect(store.create).toHaveBeenCalledTimes(1);
+      expect(sendMailMock).toHaveBeenCalled();
+    });
+  });
+
   it("rejects an invalid payload (name too short) with 400", async () => {
     const res = await POST(req("POST", { form: { name: "A", email: "bad" } }));
     expect(res.status).toBe(400);

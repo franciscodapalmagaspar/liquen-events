@@ -34,6 +34,12 @@ import OrcamentoForm from "./OrcamentoForm";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("next/image", () => ({ default: () => null }));
+// O selo do anti-spam (17/11) pede-se ao montar, com o seu próprio `fetch`.
+// Estes testes contam os `fetch` do ENVIO; o selo prova-se em
+// `anti-spam/selo.test.ts` e na rota.
+vi.mock("@/lib/anti-spam/useSeloDoFormulario", () => ({
+  useSeloDoFormulario: () => () => "SELO-DE-TESTE",
+}));
 
 const dict = getDictionary("pt");
 const to = dict.orcamento;
