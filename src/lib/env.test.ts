@@ -127,4 +127,29 @@ describe("validateEnv", () => {
     validateEnv();
     expect(logSpy.mock.calls.length + errSpy.mock.calls.length).toBe(before);
   });
+  /**
+   * Registos de 10–17/11: «Optional environment variables not set» 1688 vezes,
+   * uma por arranque de função, a afogar os erros verdadeiros. Na Vercel as
+   * opcionais dizem-se UMA vez por implantação, na construção
+   * (`scripts/variaveis-de-ambiente.mjs`); no arranque, só as críticas.
+   */
+  it("na Vercel, as opcionais em falta NÃO se repetem a cada arranque de função", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL", "1");
+    for (const k of VARS) process.env[k] = "x";
+    process.env.SESSION_SECRET = "um-segredo-de-sessao-com-mais-de-32-caracteres"; // gitleaks:allow — segredo de teste
+    delete process.env.VAPID_PUBLIC_KEY;
+    delete process.env.VAPID_PRIVATE_KEY;
+    delete process.env.SENTRY_DSN;
+    (await freshValidate())();
+    expect(joined(errSpy)).not.toContain("Optional environment variables");
+  });
+
+  it("na Vercel, uma CRÍTICA em falta continua a gritar em cada arranque", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL", "1");
+    for (const k of VARS) if (!k.startsWith("SUPABASE")) process.env[k] = "x";
+    (await freshValidate())();
+    expect(joined(errSpy)).toContain("Missing critical environment variables");
+  });
 });

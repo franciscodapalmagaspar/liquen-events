@@ -29,9 +29,15 @@
  * pode ser mais uma falha.
  */
 
+import { assinaturaExpirada } from "./assinatura";
+
 /** Não mais do que isto por sessão: uma grelha inteira a falhar são 60 células,
  *  e 60 relatórios iguais não dizem mais do que os primeiros. */
 const MAX_POR_SESSAO = 12;
+
+/** Uma assinatura a menos disto do fim já conta como expirada: os relógios do
+ *  browser e do Storage não batem ao segundo. */
+const MARGEM_DA_EXPIRADA_MS = 5 * 60_000;
 let relatados = 0;
 
 /** Os que já foram, para uma célula que volta a tentar não relatar duas vezes. */
@@ -94,6 +100,21 @@ export async function relatarFalhaDeImagem(f: FalhaDeImagem): Promise<void> {
   jaFoi.add(chave);
   relatados += 1;
   try {
+    /**
+     * ── A CAUSA MAIS COMUM SABE-SE AQUI, SEM PERGUNTAR (registos de 10–13/11) ──
+     *
+     * As ~30 «imagem não desenhou» desses dias eram TODAS 400 sobre ficheiros
+     * que existem no Storage (verificado um a um): assinaturas de 6 h já
+     * mortas, vindas do rascunho guardado (corrigido em #460) — e que a
+     * hidratação troca sozinha. O prazo está no próprio token: com ele
+     * vencido, diz-se `expirada`, e o registo passa a separar «expirou» de
+     * «não existe».
+     *
+     * Com 5 minutos de margem e o código na mesma (revisão de 17/11): o relógio
+     * do browser não bate ao segundo com o do Storage, e o `expirada` é só o
+     * que ele acha; o 400/404 é o que o Storage respondeu de facto.
+     */
+    const expirada = assinaturaExpirada(f.url, Date.now(), MARGEM_DA_EXPIRADA_MS);
     const estado = await estadoDe(f.url);
     await fetch("/api/admin/imagem-falhou", {
       method: "POST",
@@ -103,6 +124,7 @@ export async function relatarFalhaDeImagem(f: FalhaDeImagem): Promise<void> {
         ref: f.ref?.slice(0, 200) ?? "",
         url: semSegredo(f.url),
         estado,
+        expirada,
       }),
       keepalive: true,
     });

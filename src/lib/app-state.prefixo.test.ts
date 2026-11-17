@@ -11,6 +11,8 @@ const TODAS = Array.from({ length: 2500 }, (_, i) => ({
   value: i,
 }));
 
+const H = vi.hoisted(() => ({ recusasDoRelogio: 0 }));
+
 vi.mock("./logger", () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("./supabase", () => ({
   getSupabase: () => ({
@@ -30,7 +32,16 @@ vi.mock("./supabase", () => ({
             ate = n - 1;
             return b;
           },
-          then(resolve: (v: { data: unknown[]; error: null }) => unknown) {
+          then(resolve: (v: { data: unknown[] | null; error: unknown }) => unknown) {
+            if (H.recusasDoRelogio > 0) {
+              H.recusasDoRelogio -= 1;
+              return Promise.resolve(
+                resolve({
+                  data: null,
+                  error: { code: "PGRST303", message: "JWT issued at future" },
+                }),
+              );
+            }
             // O tecto do servidor: nunca mais de 1000 por resposta.
             const fim = Math.min(ate + 1, desde + 1000);
             return Promise.resolve(resolve({ data: TODAS.slice(desde, fim), error: null }));
@@ -56,5 +67,14 @@ describe("listStateByPrefix no Supabase", () => {
     const r = await listStateByPrefix("draft:", 2000);
     expect(r.entradas).toHaveLength(2000);
     expect(r.completa).toBe(false);
+  });
+  it("um PGRST303 passageiro a meio tenta outra vez — a cópia de 16/11 saiu sem os emails", async () => {
+    // «app-state: varredura por prefixo falhou» com PGRST303 às 04:00 de 16/11,
+    // e a cópia da noite saiu sem `proposalEmails`. O repositório já repetia
+    // este erro; a varredura por prefixo não.
+    H.recusasDoRelogio = 1;
+    const r = await listStateByPrefix("draft:", 10_000);
+    expect(r.completa).toBe(true);
+    expect(r.entradas).toHaveLength(2500);
   });
 });
