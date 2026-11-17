@@ -76,7 +76,12 @@ import {
   totalAte,
   type Contagem,
 } from "@/lib/tempo-activo";
-import { criarEnvioDoTempo, PASSO_DO_ECRA_MS, type EnvioDoTempo } from "@/lib/tempo-activo-envio";
+import {
+  criarEnvioDoTempo,
+  entregarTempo,
+  PASSO_DO_ECRA_MS,
+  type EnvioDoTempo,
+} from "@/lib/tempo-activo-envio";
 import { ehRefDeTema } from "@/lib/theme-ref";
 import { linhasDeOrcamento } from "@/lib/orcamento/decoracao";
 import {
@@ -2471,30 +2476,26 @@ export default function ProposalStudio({
   const anotarSeccao = useCallback((id: string | null) => {
     seccaoActivaRef.current = id;
   }, []);
+  /** O cliente aberto AGORA — um pedaço que falhou só volta aos pendentes se
+   *  ainda for o mesmo cliente (senão subia para o cliente novo). */
+  const quoteIdAgora = useRef(quote.id);
+  useEffect(() => {
+    quoteIdAgora.current = quote.id;
+  }, [quote.id]);
   const enviarPedaco = useCallback(
     (porSeccao: Record<string, number>, aFechar: boolean) => {
-      // UM pedido com todas as secções: o servidor soma-as numa só escrita.
-      const corpo = JSON.stringify({ porSeccao });
-      const url = `/api/orcamento/${quote.id}/tempo-activo`;
-      if (aFechar && typeof navigator !== "undefined" && navigator.sendBeacon) {
-        // O beacon sobrevive à página; um `fetch` não.
-        try {
-          navigator.sendBeacon(url, new Blob([corpo], { type: "application/json" }));
-          return;
-        } catch {
-          /* sem beacon — tenta pelo caminho normal, que ainda pode chegar */
-        }
-      }
-      void fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: corpo,
-        keepalive: aFechar,
-      }).catch(() => {
-        // Sem rede o pedaço perde-se, e isso é aceitável: é uma MEDIÇÃO, não
-        // trabalho. Interromper quem está a montar uma proposta para lhe falar
-        // de um número que ela não pediu seria trocar o essencial pelo
-        // acessório.
+      const id = quote.id;
+      void entregarTempo(`/api/orcamento/${id}/tempo-activo`, porSeccao, aFechar, {
+        fetch: (...a) => fetch(...a),
+        sendBeacon:
+          typeof navigator !== "undefined" && navigator.sendBeacon
+            ? (u, d) => navigator.sendBeacon(u, d)
+            : undefined,
+      }).then((entregue) => {
+        // Um envio falhado (rede, ou `guardado: false`) volta aos pendentes e
+        // vai no envio seguinte — de cinco em cinco minutos, perdê-lo era
+        // perder cinco minutos. Sem aviso nenhum: é uma MEDIÇÃO, não trabalho.
+        if (!entregue && quoteIdAgora.current === id) envioRef.current?.devolver(porSeccao);
       });
     },
     [quote.id],

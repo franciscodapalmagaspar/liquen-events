@@ -33,9 +33,10 @@ import { getState, listStateByPrefix, setState, type ResultadoDeEscrita } from "
  * ── O que isto NÃO garante, dito antes de alguém descobrir ─────────────────
  * A soma é um ler-somar-escrever, e o `app_state` não tem incremento atómico.
  * Dois envios que se cruzem no mesmo instante podem perder um deles. O prejuízo
- * está limitado pelo tamanho do passo: o cliente reporta de meio em meio
- * minuto, portanto o pior caso é perder meio minuto de uma proposta, num número
- * que se lê em horas. Trocar isto por uma tabela com `update ... set ms = ms +
+ * está limitado pelo tamanho do passo: o cliente reporta de cinco em cinco
+ * minutos (17/11), com todas as secções num só pedido — o mesmo separador
+ * nunca cruza envios consigo próprio; o pior caso são dois aparelhos na mesma
+ * proposta no mesmo instante, num número que se lê em horas. Trocar isto por uma tabela com `update ... set ms = ms +
  * $1` seria mais correcto e custava uma migração — o sítio dessa decisão é o
  * dia em que estes números começarem a ser usados para faturar, e não hoje.
  */
@@ -65,7 +66,7 @@ export interface TempoDaProposta {
  * Um tecto por envio, para um cliente avariado (ou um relógio que saltou) não
  * conseguir inflacionar a medição.
  *
- * Meia hora é muito acima do passo normal de reporte (meio minuto) e ainda
+ * Meia hora é muito acima do passo normal de reporte (cinco minutos) e ainda
  * assim é um número que uma pessoa pode mesmo ter trabalhado sem que o
  * navegador reportasse — um separador que esteve a ser usado enquanto a rede
  * estava em baixo, e que descarrega tudo de uma vez quando ela volta.

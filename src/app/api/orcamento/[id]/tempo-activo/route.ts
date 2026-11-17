@@ -101,7 +101,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch (err) {
     // Mesma política, agora também para o que o armazenamento atira em vez de
     // devolver: um 500 anónimo aqui punha um aviso no estúdio por causa de
-    // meio minuto de medição.
+    // uma medição. O `guardado: false` faz o estúdio guardar o pedaço e
+    // mandá-lo no envio seguinte.
     log.warn("tempo-activo: escrita rebentou", { id, erro: String(err) });
     return NextResponse.json({ ok: true, tempo: { ms: 0, updatedAt: null }, guardado: false });
   }

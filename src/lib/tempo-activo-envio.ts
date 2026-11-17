@@ -96,3 +96,51 @@ export function criarEnvioDoTempo(enviar: Enviar, inicio: number): EnvioDoTempo 
     },
   };
 }
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * UM ENVIO QUE FALHA NÃO PERDE OS CINCO MINUTOS (17/11)
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Quando o envio era de 30 em 30 s, perder um pedido era perder 30 s. De
+ * cinco em cinco minutos, era perder cinco. Esta função diz se o pedaço
+ * chegou e ficou guardado; se não (rede em baixo, resposta de erro, ou o
+ * servidor a responder `guardado: false`), quem chama devolve-o aos
+ * pendentes (`devolver`) e ele vai no envio seguinte.
+ *
+ * O beacon (ao esconder e ao fechar) não diz se ficou guardado — só se o
+ * browser o aceitou para enviar. Aceite conta como entregue; recusado cai
+ * para o `fetch`, que diz.
+ */
+export async function entregarTempo(
+  url: string,
+  porSeccao: Record<string, number>,
+  aFechar: boolean,
+  meios: {
+    fetch: typeof fetch;
+    sendBeacon?: (url: string, dados: Blob) => boolean;
+  },
+): Promise<boolean> {
+  // UM pedido com todas as secções: o servidor soma-as numa só escrita.
+  const corpo = JSON.stringify({ porSeccao });
+  if (aFechar && meios.sendBeacon) {
+    try {
+      if (meios.sendBeacon(url, new Blob([corpo], { type: "application/json" }))) return true;
+    } catch {
+      /* sem beacon — tenta pelo caminho normal, que ainda pode chegar */
+    }
+  }
+  try {
+    const res = await meios.fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: corpo,
+      keepalive: aFechar,
+    });
+    if (!res.ok) return false;
+    const dados = (await res.json().catch(() => null)) as { guardado?: unknown } | null;
+    return dados?.guardado !== false;
+  } catch {
+    return false;
+  }
+}

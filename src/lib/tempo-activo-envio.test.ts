@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CONTAGEM_VAZIA, comAcontecimento, totalAte, type Contagem } from "./tempo-activo";
 import {
   criarEnvioDoTempo,
+  entregarTempo,
   PASSO_DO_ECRA_MS,
   PASSO_DO_ENVIO_MS,
   type Enviar,
@@ -195,5 +196,60 @@ describe("várias secções num só pedido", () => {
     expect(lotes).toEqual([
       { capa: 60_000, "mood-boards": 90_000, "": 50_000, orcamento: 100_000 },
     ]);
+  });
+});
+
+/**
+ * 17/11: de cinco em cinco minutos, um envio perdido era perder cinco minutos.
+ * Agora o que falha volta aos pendentes e vai no envio seguinte.
+ */
+describe("um envio que falha volta aos pendentes", () => {
+  const resposta = (ok: boolean, corpo: unknown) =>
+    ({ ok, json: async () => corpo }) as unknown as Response;
+  const meios = (r: () => Promise<Response>) => ({ fetch: vi.fn(r) as unknown as typeof fetch });
+  const URL_ = "/api/orcamento/LIQ-1/tempo-activo";
+  const LOTE = { capa: 60_000 };
+
+  it("entregarTempo: só conta como entregue o que o servidor guardou", async () => {
+    const guardou = meios(async () => resposta(true, { guardado: true }));
+    const naoGuardou = meios(async () => resposta(true, { guardado: false }));
+    const erro = meios(async () => resposta(false, {}));
+    const semRede = meios(async () => Promise.reject(new Error("rede")));
+    expect(await entregarTempo(URL_, LOTE, false, guardou)).toBe(true);
+    expect(await entregarTempo(URL_, LOTE, false, naoGuardou)).toBe(false);
+    expect(await entregarTempo(URL_, LOTE, false, erro)).toBe(false);
+    expect(await entregarTempo(URL_, LOTE, false, semRede)).toBe(false);
+  });
+
+  it("entregarTempo: o beacon aceite basta; recusado, tenta o fetch", async () => {
+    const fetchFalso = vi.fn(async (_u: string, _i: RequestInit) =>
+      resposta(true, { guardado: true }),
+    );
+    const f = fetchFalso as unknown as typeof fetch;
+    expect(await entregarTempo(URL_, LOTE, true, { fetch: f, sendBeacon: () => true })).toBe(true);
+    expect(fetchFalso).not.toHaveBeenCalled();
+    expect(await entregarTempo(URL_, LOTE, true, { fetch: f, sendBeacon: () => false })).toBe(true);
+    expect(fetchFalso).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchFalso.mock.calls[0][1].body as string)).toEqual({ porSeccao: LOTE });
+  });
+
+  it("o pedaço devolvido vai no envio seguinte, e o total não perde nada", () => {
+    const lotes: Record<string, number>[] = [];
+    const t0 = Date.now();
+    let falha = true;
+    const envio = criarEnvioDoTempo((lote) => {
+      if (falha) {
+        falha = false;
+        envio.devolver(lote); // a rede falhou neste
+        return;
+      }
+      lotes.push(lote);
+    }, t0);
+    envio.passo(120_000, "capa", t0 + 120_000);
+    envio.passo(300_000, "mood-boards", t0 + 300_000); // 1.º envio: falha
+    expect(lotes).toEqual([]);
+    envio.passo(600_000, "mood-boards", t0 + 600_000); // 2.º envio: leva tudo
+    expect(lotes).toEqual([{ capa: 120_000, "mood-boards": 480_000 }]);
+    expect(Object.values(lotes[0]).reduce((a, b) => a + b, 0)).toBe(600_000);
   });
 });
