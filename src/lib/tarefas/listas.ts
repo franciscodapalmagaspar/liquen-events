@@ -97,6 +97,20 @@ export function fimDaSemana(hoje: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/**
+ * «Adiar uma semana» (BO 4, ações em várias tarefas): sete dias a partir do
+ * PRAZO — ou de hoje, quando a tarefa não tem prazo ou ele já passou. Adiar uma
+ * tarefa com dez dias de atraso para três dias ATRÁS de hoje não seria adiá-la;
+ * seria deixá-la atrasada com outra data.
+ */
+export function adiarUmaSemana(prazo: string | undefined, hoje: string): string {
+  const base = prazo && /^\d{4}-\d{2}-\d{2}$/.test(prazo) && prazo >= hoje ? prazo : hoje;
+  const d = new Date(`${base}T12:00:00`);
+  d.setDate(d.getDate() + 7);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 /** O dia seguinte a `hoje`, em `YYYY-MM-DD`. */
 export function amanha(hoje: string): string {
   const d = new Date(`${hoje}T12:00:00`);
