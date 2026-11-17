@@ -94,11 +94,28 @@ export function procuraDaVista(view: View): string | null {
  */
 export function aEscrever(alvo: EventTarget | null): boolean {
   const el = alvo as HTMLElement | null;
-  return (
-    !!el &&
-    (el.tagName === "INPUT" ||
-      el.tagName === "TEXTAREA" ||
-      el.tagName === "SELECT" ||
-      el.isContentEditable === true)
-  );
+  if (!el) return false;
+  /* Uma caixa de seleção, um rádio ou um botão em forma de `<input>` não
+     recebem texto: depois de marcar a caixa de um pedido, o foco fica NELA, e
+     o ⌘A e o Esc que vêm a seguir são do lote, não de um campo (revisão · 2). */
+  if (el.tagName === "INPUT") return !INPUTS_QUE_NAO_SAO_ESCRITA.has((el as HTMLInputElement).type);
+  return el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable === true;
+}
+
+const INPUTS_QUE_NAO_SAO_ESCRITA: ReadonlySet<string> = new Set([
+  "checkbox",
+  "radio",
+  "button",
+  "submit",
+  "reset",
+]);
+
+/**
+ * O alvo da tecla está dentro de uma janela aberta (diálogo ou alerta)? Os
+ * atalhos de lote — ⌘A, Esc — nunca agem por trás de uma (revisão · 8). É a
+ * regra que as Tarefas já seguiam, agora num sítio só.
+ */
+export function dentroDeUmaJanela(alvo: EventTarget | null): boolean {
+  const el = alvo as Element | null;
+  return !!el?.closest?.('[role="dialog"], [role="alertdialog"]');
 }

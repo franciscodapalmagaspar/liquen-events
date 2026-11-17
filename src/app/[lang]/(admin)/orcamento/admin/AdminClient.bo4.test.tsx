@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { Quote } from "@/lib/orcamento/types";
 import { ToastProvider } from "./Toast";
+import { escolherJa } from "./ui/escolher.testkit";
 import { __resetListCache, prefetchList } from "./useCachedList";
 import AdminClient from "./AdminClient";
 
@@ -24,9 +25,21 @@ import AdminClient from "./AdminClient";
 vi.mock("./lazy", () => {
   const stub = (name: string) => {
     const C = (props: Record<string, unknown>) => (
-      <div data-testid={`view-${name}`} data-pedido={JSON.stringify(props.pedidoDaPaleta ?? null)}>
+      <div
+        data-testid={`view-${name}`}
+        data-pedido={JSON.stringify(props.pedidoDaPaleta ?? null)}
+        data-procura-inicial={String(props.procuraInicial ?? "")}
+      >
         {name} stub
         {name === "propostas" && <input aria-label="Procurar propostas" />}
+        {typeof props.onIrParaPropostas === "function" && (
+          <button
+            type="button"
+            onClick={() => (props.onIrParaPropostas as (p?: string) => void)("Casal Exemplo")}
+          >
+            Ver em Propostas (stub)
+          </button>
+        )}
       </div>
     );
     C.displayName = `Lazy(${name})`;
@@ -119,12 +132,23 @@ let escritas: { url: string; metodo: string; corpo: Record<string, unknown> }[] 
 let arquivados = new Map<string, boolean>();
 /** Os pedidos como o servidor os tem — a resposta de um PATCH é o pedido inteiro. */
 let noServidor = new Map<string, Quote>();
+/** Ids cujo PATCH o servidor recusa — para os testes de falha parcial. */
+let recusar = new Set<string>();
+/** Quantos PATCH/DELETE estão no ar ao mesmo tempo, e o máximo que se viu. */
+let noAr = 0;
+let maximoNoAr = 0;
+/** Atraso artificial das escritas, para a concorrência se poder medir. */
+let atrasoMs = 0;
 
 beforeEach(() => {
   seq = 0;
   escritas = [];
   arquivados = new Map();
   noServidor = new Map();
+  recusar = new Set();
+  noAr = 0;
+  maximoNoAr = 0;
+  atrasoMs = 0;
   localStorage.clear();
   __resetListCache();
   fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
@@ -136,6 +160,13 @@ beforeEach(() => {
       const m = /^\/api\/orcamento\/(.+)$/.exec(u);
       if (m) {
         const id = decodeURIComponent(m[1]);
+        noAr++;
+        maximoNoAr = Math.max(maximoNoAr, noAr);
+        if (atrasoMs) await new Promise((r) => setTimeout(r, atrasoMs));
+        noAr--;
+        if (recusar.has(id)) return resposta({ error: "recusado" }, false);
+        if (typeof corpo.status === "string")
+          noServidor.set(id, { ...noServidor.get(id)!, status: corpo.status });
         if (typeof corpo.archived === "boolean") arquivados.set(id, corpo.archived);
         return resposta({ ...noServidor.get(id)!, archived: arquivados.get(id) ?? false });
       }
@@ -370,5 +401,192 @@ describe("Pedidos — o lote", () => {
     fireEvent.click(screen.getByRole("button", { name: "Restaurar (1)" }));
     await waitFor(() => expect(escritas.filter((e) => e.corpo.archived === false)).toHaveLength(1));
     expect(await screen.findByText("1 pedido restaurado.")).toBeTruthy();
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════════
+   REVISÃO INDEPENDENTE DO BO 4 (PR #480) — um teste por achado
+   ══════════════════════════════════════════════════════════════════════════ */
+
+const muitos = (n: number, prefixo = "Cliente Lote") =>
+  Array.from({ length: n }, (_, i) =>
+    makeQuote({ id: `LQ-${500 + i}`, name: `${prefixo} ${String(i + 1).padStart(2, "0")}` }),
+  );
+
+async function irAosPedidos() {
+  tecla("g");
+  tecla("p");
+  await screen.findByLabelText("Procurar pedidos por nome, email, local ou ID");
+}
+
+describe("revisão · 1 — restaurar o último arquivado não deixa os Pedidos vazios", () => {
+  it("ao restaurar o último, volta à lista normal", async () => {
+    renderAdmin([
+      makeQuote({ id: "LQ-201", name: "Dora Arquivada", archived: true }),
+      makeQuote({ id: "LQ-202", name: "Eva Activa" }),
+    ]);
+    await irAosPedidos();
+    fireEvent.click(await screen.findByRole("button", { name: /Arquivados · 1/ }));
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Selecionar pedido de Dora Arquivada" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Restaurar (1)" }));
+    expect(await screen.findByText("Eva Activa")).toBeTruthy();
+    expect(screen.getByText("Dora Arquivada")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Arquivados ·/ })).toBeNull();
+  });
+
+  it("«Limpar tudo e ver todos» também sai dos arquivados", async () => {
+    renderAdmin([
+      makeQuote({ id: "LQ-201", name: "Dora Arquivada", archived: true }),
+      makeQuote({ id: "LQ-202", name: "Eva Activa" }),
+    ]);
+    await irAosPedidos();
+    fireEvent.click(await screen.findByRole("button", { name: /Arquivados · 1/ }));
+    fireEvent.change(screen.getByLabelText("Procurar pedidos por nome, email, local ou ID"), {
+      target: { value: "zzz" },
+    });
+    expect(await screen.findByText(/os arquivados/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Limpar tudo e ver todos" }));
+    expect(await screen.findByText("Eva Activa")).toBeTruthy();
+    expect(screen.queryByText("Dora Arquivada")).toBeNull();
+  });
+});
+
+describe("revisão · 2 — ⌘A e Esc com o foco numa caixa de seleção", () => {
+  it("depois de marcar uma caixa, ⌘A selecciona e Esc limpa", async () => {
+    renderAdmin([
+      makeQuote({ id: "LQ-101", name: "Ana Marques" }),
+      makeQuote({ id: "LQ-102", name: "Bruno Dias" }),
+    ]);
+    await irAosPedidos();
+    const caixa = await screen.findByRole("checkbox", {
+      name: "Selecionar pedido de Ana Marques",
+    });
+    fireEvent.click(caixa);
+    caixa.focus();
+    fireEvent.keyDown(caixa, { key: "a", metaKey: true });
+    expect(await screen.findByText(/2 selecionados/)).toBeTruthy();
+    fireEvent.keyDown(caixa, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByText(/2 selecionados/)).toBeNull());
+    expect(caixa).not.toBeChecked();
+  });
+});
+
+describe("revisão · 3 — «Arquivar (N)» com pergunta, ⌘A no que se vê, e N de cada vez", () => {
+  it("com mais de 10, pergunta primeiro, com o número, e só depois arquiva", async () => {
+    renderAdmin(muitos(12));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (12)" }));
+    const caixa = await screen.findByRole("dialog", { name: "Arquivar 12 pedidos?" });
+    expect(escritas).toHaveLength(0);
+    fireEvent.click(within(caixa).getByRole("button", { name: "Arquivar 12 pedidos" }));
+    await waitFor(() => expect(escritas.filter((e) => e.corpo.archived === true)).toHaveLength(12));
+  });
+
+  it("com 10 ou menos, arquiva logo (o «Anular» chega)", async () => {
+    renderAdmin(muitos(3));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (3)" }));
+    await waitFor(() => expect(escritas).toHaveLength(3));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("⌘A selecciona o que está desenhado, e oferece todos os filtrados à parte", async () => {
+    renderAdmin(muitos(60));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    expect(await screen.findByText(/50 selecionados/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Selecionar todos os 60 filtrados" }));
+    expect(await screen.findByText(/60 selecionados/)).toBeTruthy();
+  });
+
+  it("nunca mais de 4 pedidos no ar ao mesmo tempo", async () => {
+    atrasoMs = 5;
+    renderAdmin(muitos(9));
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (9)" }));
+    await waitFor(() => expect(escritas).toHaveLength(9));
+    await waitFor(() => expect(screen.queryByText(/A arquivar os pedidos/)).toBeNull());
+    expect(maximoNoAr).toBeLessThanOrEqual(4);
+    expect(maximoNoAr).toBeGreaterThan(1);
+  });
+
+  it("se alguns falham, só esses ficam escolhidos, e os outros têm «Anular»", async () => {
+    renderAdmin(muitos(3));
+    recusar = new Set(["LQ-501"]);
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "Arquivar (3)" }));
+    expect(await screen.findByText(/^1 selecionado$/)).toBeTruthy();
+    expect(
+      screen.getByRole("checkbox", { name: "Selecionar pedido de Cliente Lote 02" }),
+    ).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Anular" }));
+    await waitFor(() => expect(escritas.filter((e) => e.corpo.archived === false)).toHaveLength(2));
+  });
+
+  it("a mesma regra no «Marcar como»", async () => {
+    renderAdmin(muitos(3));
+    recusar = new Set(["LQ-501"]);
+    await irAosPedidos();
+    tecla("a", { metaKey: true });
+    escolherJa(screen.getByLabelText("Marcar pedidos selecionados como"), "Aguardar resposta");
+    expect(await screen.findByText(/^1 selecionado$/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Anular" })).toBeTruthy();
+  });
+});
+
+describe("revisão · 7 — a proposta escolhida no ⌘K não fica presa na procura", () => {
+  it("ir e voltar pelo menu deixa as Propostas sem procura", async () => {
+    prefetchList("propostas-leves", "/api/propostas?semDoc=1");
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    renderAdmin();
+    const campo = await abrirPaleta();
+    fireEvent.change(campo, { target: { value: "joana" } });
+    fireEvent.click(await screen.findByRole("option", { name: /Joana e Pedro/ }));
+    const vista = await screen.findByTestId("view-propostas");
+    expect(JSON.parse(vista.dataset.pedido!)).toEqual({ procura: "Joana e Pedro" });
+    tecla("g");
+    tecla("o");
+    await screen.findByTestId("view-overview");
+    tecla("g");
+    tecla("r");
+    expect((await screen.findByTestId("view-propostas")).dataset.procuraInicial).toBe("");
+  });
+
+  it("«Ver em Propostas» continua a abrir filtrado", async () => {
+    renderAdmin();
+    tecla("g");
+    tecla("f");
+    fireEvent.click(await screen.findByRole("button", { name: "Ver em Propostas (stub)" }));
+    const vista = await screen.findByTestId("view-propostas");
+    const pedido = JSON.parse(vista.dataset.pedido!) as { procura?: string } | null;
+    expect(pedido?.procura ?? vista.dataset.procuraInicial).toBe("Casal Exemplo");
+  });
+});
+
+describe("revisão · 8 — ⌘A e Esc dos Pedidos nunca agem atrás de uma janela", () => {
+  it("⌘A dentro da pergunta de apagar não mexe na selecção", async () => {
+    renderAdmin([
+      makeQuote({ id: "LQ-101", name: "Ana Marques" }),
+      makeQuote({ id: "LQ-102", name: "Bruno Dias" }),
+    ]);
+    await irAosPedidos();
+    fireEvent.click(
+      await screen.findByRole("checkbox", { name: "Selecionar pedido de Ana Marques" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Apagar (1)" }));
+    const caixa = await screen.findByRole("dialog");
+    fireEvent.keyDown(within(caixa).getByRole("button", { name: "Cancelar" }), {
+      key: "a",
+      metaKey: true,
+    });
+    fireEvent.click(within(caixa).getByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByText(/^1 selecionado$/)).toBeTruthy();
   });
 });

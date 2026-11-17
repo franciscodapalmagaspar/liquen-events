@@ -91,6 +91,17 @@ describe("aEscrever", () => {
     expect(aEscrever(el("textarea"))).toBe(true);
     expect(aEscrever(el("select"))).toBe(true);
     expect(aEscrever(el("button"))).toBe(false);
+  });
+
+  it("uma caixa de seleção, um rádio ou um botão-input não são escrita (revisão · 2)", () => {
+    for (const tipo of ["checkbox", "radio", "button", "submit", "reset"]) {
+      const i = document.createElement("input");
+      i.type = tipo;
+      expect(aEscrever(i), tipo).toBe(false);
+    }
+    const texto = document.createElement("input");
+    texto.type = "search";
+    expect(aEscrever(texto)).toBe(true);
     expect(aEscrever(null)).toBe(false);
   });
 });
