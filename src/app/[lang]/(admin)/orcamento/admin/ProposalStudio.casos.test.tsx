@@ -2101,6 +2101,134 @@ describe("aviso antes de a proposta seguir para o cliente", () => {
     expect(enviados.at(-2)?.cortesConfirmados).toBeUndefined();
   });
 
+  /**
+   * 17/11 — registos de 12/11: uma proposta seguiu com nove fotografias a
+   * menos, e o aviso só chegou com o email já fora. O servidor passa a parar
+   * e perguntar (409, `precisaConfirmarFotos`), como nos cortes.
+   */
+  it("com fotografias em falta, pergunta ANTES de enviar e só segue com a resposta", async () => {
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
+    await verEConfirmar();
+    propostaDoc = reply({
+      ok: false,
+      status: 409,
+      json: {
+        error: "Faltam 9 fotografias no documento.",
+        precisaConfirmarFotos: true,
+        missingImages: 9,
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: /Gerar e enviar ao cliente/ }));
+    await confirmarEnvio(user);
+
+    expect(await screen.findByText(/Faltam 9 fotografias no documento/)).toBeTruthy();
+    expect(screen.queryByText(/Não foi possível enviar/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Voltar ao evento/ })).toBeNull();
+
+    propostaDoc = reply({ json: { ok: true, emailed: true, missingImages: 9 } });
+    await user.click(await screen.findByRole("button", { name: /Enviar assim mesmo/ }));
+    await screen.findByRole("button", { name: /Voltar ao evento/ });
+    const enviados = corpos("proposta-doc", "POST").map((c) => JSON.parse(c || "{}"));
+    // A resposta diz QUANTAS ela aceitou: o servidor só segue com essas ou menos.
+    expect(enviados.at(-1)?.fotosEmFaltaConfirmadas, "o segundo envio não levou a resposta").toBe(
+      9,
+    );
+    expect(enviados.at(-2)?.fotosEmFaltaConfirmadas).toBeUndefined();
+  });
+
+  /**
+   * Revisão de 17/11, n.º 1: o «sim» às fotos guardava o retrato no momento do
+   * CLIQUE. Mudado o documento com a pergunta aberta, o «Enviar assim mesmo»
+   * confirmava o documento novo — que ela nunca tinha visto.
+   */
+  it("409 das fotos → editar → a pergunta fecha; ver o PDF e enviar volta a perguntar", async () => {
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
+    await verEConfirmar();
+    const faltam9 = {
+      ok: false,
+      status: 409,
+      json: {
+        error: "Faltam 9 fotografias no documento.",
+        precisaConfirmarFotos: true,
+        missingImages: 9,
+      },
+    };
+    propostaDoc = reply(faltam9);
+    await user.click(await screen.findByRole("button", { name: /Gerar e enviar ao cliente/ }));
+    await confirmarEnvio(user);
+    await screen.findByRole("button", { name: /Enviar assim mesmo/ });
+
+    // Muda o documento: outro local, no passo do Evento.
+    await user.click(screen.getByRole("button", { name: /^1\s*Evento/ }));
+    const local = await screen.findByLabelText("Local");
+    fireEvent.change(local, { target: { value: "Quinta Nova" } });
+    await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
+    expect(
+      screen.queryByRole("button", { name: /Enviar assim mesmo/ }),
+      "a pergunta de outro documento continuou aberta",
+    ).toBeNull();
+
+    // O documento novo pede o PDF outra vez; enviado, a pergunta volta.
+    propostaDoc = reply({ headers: {}, json: { ok: true, emailed: true } });
+    await verEConfirmar();
+    propostaDoc = reply(faltam9);
+    await user.click(await screen.findByRole("button", { name: /Gerar e enviar ao cliente/ }));
+    await confirmarEnvio(user);
+    expect(await screen.findByText(/Faltam 9 fotografias no documento/)).toBeTruthy();
+    const enviados = corpos("proposta-doc", "POST").map((c) => JSON.parse(c || "{}"));
+    expect(
+      enviados.at(-1)?.fotosEmFaltaConfirmadas,
+      "a resposta do documento velho foi com o novo",
+    ).toBeUndefined();
+  }, 60_000);
+
+  /**
+   * Revisão de 17/11, n.º 6: a pergunta das fotos vem antes da dos cortes. Com
+   * a dos cortes respondida, um envio do MESMO documento (depois de uma falha
+   * de rede, por exemplo) não a volta a fazer — fica lembrada por retrato.
+   */
+  it("as duas respostas ficam lembradas para o mesmo documento: não pergunta duas vezes", async () => {
+    seedDraft(2);
+    renderStudio();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^5\s*Rever e enviar/ }));
+    await verEConfirmar();
+    propostaDoc = reply({
+      ok: false,
+      status: 409,
+      json: { precisaConfirmarFotos: true, missingImages: 2 },
+    });
+    await user.click(await screen.findByRole("button", { name: /Gerar e enviar ao cliente/ }));
+    await confirmarEnvio(user);
+    propostaDoc = reply({
+      ok: false,
+      status: 409,
+      json: {
+        precisaConfirmarCortes: true,
+        truncations: [{ where: "Nome na capa", dropped: 1, unit: "linhas" }],
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: /Enviar assim mesmo/ }));
+    await screen.findByText(/O documento sai com conteúdo cortado/);
+    // Respondida a dos cortes, o envio falha por outra razão (o servidor em baixo).
+    propostaDoc = reply({ ok: false, status: 502, json: { error: "Servidor em baixo." } });
+    await user.click(await screen.findByRole("button", { name: /Enviar assim mesmo/ }));
+    await waitFor(() => expect(corpos("proposta-doc", "POST")).toHaveLength(3));
+    // E tenta outra vez, com o mesmo documento: as duas respostas vão com ele.
+    propostaDoc = reply({ json: { ok: true, emailed: true, missingImages: 2 } });
+    await user.click(await screen.findByRole("button", { name: /Gerar e enviar ao cliente/ }));
+    await confirmarEnvio(user);
+    await screen.findByRole("button", { name: /Voltar ao evento/ });
+    const enviados = corpos("proposta-doc", "POST").map((c) => JSON.parse(c || "{}"));
+    expect(enviados.at(-1)).toMatchObject({ fotosEmFaltaConfirmadas: 2, cortesConfirmados: true });
+  }, 60_000);
+
   it("«voltar e corrigir» leva ao passo do corte e não envia nada", async () => {
     seedDraft(2);
     renderStudio();

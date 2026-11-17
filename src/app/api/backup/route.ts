@@ -29,6 +29,7 @@ import { listEnviosDeProposta } from "@/lib/envios-de-proposta";
 import { registarCopiaEnviada } from "@/lib/copia-de-seguranca-marcador";
 import { getSupabase } from "@/lib/supabase";
 import { log } from "@/lib/logger";
+import { eRelogioAdiantado } from "@/lib/repository";
 
 export const runtime = "nodejs";
 // Lê treze conjuntos de dados inteiros. O gémeo agendado já pedia 60.
@@ -251,6 +252,69 @@ const README = [
   "Se `incomplete` não estiver vazio, ESTA CÓPIA ESTÁ INCOMPLETA — algum conjunto falhou a leitura e ficou vazio no ficheiro. Repete a exportação (a reposição recusa-se a repor esses conjuntos, para não trocar dados bons por um vazio de avaria).",
 ].join(" ");
 
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * UMA RECUSA PASSAGEIRA NÃO PODE DEIXAR A CÓPIA DA NOITE INCOMPLETA
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * Registos: «backup: conjunto falhou a leitura — cópia INCOMPLETA» a 13/11
+ * (`eventMaterial`) e a 16/11 (`proposalEmails`), as duas com PGRST303 —
+ * «JWT issued at future», o relógio do PostgREST uns segundos atrás do nosso.
+ * Passa sozinho num segundo. O repositório já repetia CADA PÁGINA; a varredura
+ * do `app_state` não, e nenhum conjunto se repetia por inteiro.
+ *
+ * Aqui repete-se o CONJUNTO (duas vezes, com 1 s e 3 s de pausa) quando a
+ * falha é passageira: o relógio, um tempo esgotado, a rede, um 5xx. Uma falha
+ * que responde igual à terceira vez (tabela em falta, permissão, um erro do
+ * nosso código) não se repete — só atrasava a cópia.
+ *
+ * Paginação: cada `list` já lê às páginas de 1000 (`repository.list`,
+ * `listStateByPrefix`), e é isso que torna a repetição barata — uma tabela
+ * grande não é um pedido gigante que esgota o tempo, são vários pequenos.
+ */
+const PAUSAS_DO_CONJUNTO_MS = [1_000, 3_000];
+/**
+ * ── E NUNCA PARA LÁ DO TEMPO DA FUNÇÃO (revisão de 17/11) ─────────────────
+ *
+ * A rota tem `maxDuration` de 60 s, e depois de ler ainda tem de empacotar e
+ * entregar (o email da noite, a cópia de recuo da reposição). Uma nova
+ * tentativa só COMEÇA nos primeiros 20 s desde o início da cópia: o que ficar
+ * para lá disso sai como está, marcado incompleto — a cópia incompleta diz-se,
+ * a função morta a meio não diz nada.
+ */
+const ORCAMENTO_DAS_TENTATIVAS_MS = 20_000;
+
+function falhaPassageira(err: unknown): boolean {
+  if (eRelogioAdiantado(err)) return true;
+  const e = err as { status?: unknown; message?: unknown; code?: unknown } | null;
+  const texto = `${String(e?.message ?? "")} ${String(e?.code ?? "")}`;
+  // O «statement timeout» do Postgres (57014) é a consulta pesada de mais, não
+  // uma falha que passa: repeti-la pedia o mesmo esforço e gastava o tempo da
+  // função à espera da mesma resposta (revisão de 17/11).
+  if (e?.code === "57014" || /statement timeout/i.test(texto)) return false;
+  if (typeof e?.status === "number" && e.status >= 500) return true;
+  return /tempo esgotado|timeout|timed out|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|network|\b50[234]\b/i.test(
+    texto,
+  );
+}
+
+async function lerComNovasTentativas(
+  ler: () => Promise<unknown[]>,
+  ate: number,
+  esperar: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+): Promise<unknown[]> {
+  for (let i = 0; ; i += 1) {
+    try {
+      return await ler();
+    } catch (err) {
+      const pausa = PAUSAS_DO_CONJUNTO_MS[i];
+      if (pausa === undefined || !falhaPassageira(err)) throw err;
+      if (Date.now() + pausa > ate) throw err;
+      await esperar(pausa);
+    }
+  }
+}
+
 /** Formato do ficheiro. Subir isto quando as chaves mudarem de forma incompatível.
  *  Exportado porque a REPOSIÇÃO tem de saber que versões sabe ler — e há um
  *  teste que cruza este número com o `BACKUP_SCHEMA_VERSION` do lado de lá. */
@@ -275,10 +339,11 @@ export async function buildBackupPayload(): Promise<{
   // Um conjunto que falha degrada para [] para não levar a cópia inteira
   // atrás — mas fica REGISTADO em `incomplete`. Um vazio silencioso lê-se
   // como "não havia nada", que é exatamente a mentira que abre este ficheiro.
+  const tentativasAte = Date.now() + ORCAMENTO_DAS_TENTATIVAS_MS;
   const results = await Promise.all(
     BACKUP_DATASETS.map(async (d) => {
       try {
-        return { key: d.key, rows: await d.list(), ok: true };
+        return { key: d.key, rows: await lerComNovasTentativas(d.list, tentativasAte), ok: true };
       } catch (err) {
         log.error("backup: conjunto falhou a leitura — cópia INCOMPLETA", err, {
           dataset: d.key,

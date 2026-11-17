@@ -34,4 +34,30 @@ describe("ErrosDoSite", () => {
     for (let i = 0; i < 20; i++) window.dispatchEvent(erro(`${location.origin}/a.js`));
     expect(relatar).toHaveBeenCalledTimes(5);
   });
+  it("ignora o que o browser do Instagram ou o Chrome do iPad injectam na página", () => {
+    render(<ErrosDoSite />);
+    const injectado = new Error("ra");
+    injectado.stack = "qh@\nph@\nPr@\nps@\n@\nanonymous@\n@" + location.origin + "/galeria:415:45";
+    window.dispatchEvent(
+      new ErrorEvent("error", {
+        message: "ra",
+        filename: `${location.origin}/galeria`,
+        error: injectado,
+      }),
+    );
+    window.dispatchEvent(
+      new ErrorEvent("error", {
+        message: "ResizeObserver loop limit exceeded",
+        filename: `${location.origin}/servicos`,
+      }),
+    );
+    const ponte = new TypeError(
+      "undefined is not an object (evaluating 'window.webkit.messageHandlers')",
+    );
+    ponte.stack = `setupIosCallbackHandler@${location.origin}/:1:7358`;
+    const recusa = new Event("unhandledrejection") as PromiseRejectionEvent;
+    Object.defineProperty(recusa, "reason", { value: ponte });
+    window.dispatchEvent(recusa);
+    expect(relatar).not.toHaveBeenCalled();
+  });
 });

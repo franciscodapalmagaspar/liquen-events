@@ -1,6 +1,7 @@
 import "server-only";
 import { getSupabase } from "./supabase";
 import { log } from "./logger";
+import { eRelogioAdiantado } from "./repository";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -317,10 +318,36 @@ export async function guardarUrls(
       linhas.map(({ path, urls }) => sb.from("biblioteca_fotos").update({ urls }).eq("path", path)),
     );
     const erro = respostas.find((r) => r.error)?.error;
-    if (erro && !seForAColunaEmFalta(erro)) {
-      log.warn("urls-assinados: não ficaram guardados", { erro: erro.message });
-    }
+    if (erro && !seForAColunaEmFalta(erro)) avisarSeNaoForPassageira(erro);
   } catch (e) {
-    log.warn("urls-assinados: não ficaram guardados", { erro: String(e) });
+    avisarSeNaoForPassageira(e);
   }
+}
+
+/**
+ * ── UMA ESCRITA DE CACHE QUE FALHA DE PASSAGEM É ESPERADA (17/11) ─────────
+ *
+ * Registos de 10–12/11: 11 «urls-assinados: não ficaram guardados» em
+ * `/proposta/[token]`. Eram um problema REAL — a coluna `urls` por criar (a
+ * migração de 14/11, já aplicada: verificado a 17/11) — e esse já se diz uma
+ * vez só, em `seForAColunaEmFalta`.
+ *
+ * O que fica é o esperado: isto é uma CACHE, e uma escrita que falha de
+ * passagem (o relógio do PostgREST, a rede, um tempo esgotado) custa uma
+ * assinatura repetida na visita seguinte e mais nada. Não é aviso; uma recusa
+ * que se repetiria (permissão, outra coisa) continua a ser.
+ */
+function avisarSeNaoForPassageira(erro: unknown): void {
+  const e = erro as { code?: unknown; message?: unknown } | null;
+  const texto = `${String(e?.code ?? "")} ${String(e?.message ?? erro)}`;
+  if (
+    eRelogioAdiantado(erro) ||
+    /PGRST002|fetch failed|timeout|timed out|tempo esgotado|ECONNRESET|socket hang up/i.test(texto)
+  ) {
+    log.info("urls-assinados: não ficaram guardados desta vez (passageiro)", { erro: texto });
+    return;
+  }
+  log.warn("urls-assinados: não ficaram guardados", {
+    erro: typeof e?.message === "string" ? e.message : String(erro),
+  });
 }

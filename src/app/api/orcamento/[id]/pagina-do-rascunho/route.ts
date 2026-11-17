@@ -207,6 +207,28 @@ async function POST_semMedida(
       headers: { ...cabecalhos, "Content-Type": "image/webp" },
     });
   } catch (err) {
+    /**
+     * ── UM PEDIDO CANCELADO NÃO É UMA AVARIA (registos de 16/11) ──────────
+     *
+     * O estúdio desiste de uma página quando ela passa a outra a meio do
+     * desenho, e o browser corta o pedido. Isso é o funcionamento normal e
+     * não entra no registo de erros: responde-se 499 (o código que os
+     * servidores usam para «o cliente fechou») a ninguém, e segue-se.
+     *
+     * Os QUATRO «Rendering cancelled» de 16/11 não eram isto — eram o
+     * servidor a fechar um documento ainda a ser desenhado
+     * (`paginas-do-pdf.ts`, a contagem de uso). Esses continuam a contar.
+     */
+    if (request.signal.aborted) {
+      // Uma linha de informação, não um erro: se um dia os cancelamentos
+      // esconderem outra coisa, fica por onde começar (revisão de 17/11).
+      log.info("pagina-do-rascunho: pedido cancelado pelo browser", {
+        id,
+        n,
+        erro: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      });
+      return new NextResponse(null, { status: 499 });
+    }
     log.error("pagina-do-rascunho", err, { id, n });
     return NextResponse.json(
       { error: "Não foi possível desenhar a página agora." },

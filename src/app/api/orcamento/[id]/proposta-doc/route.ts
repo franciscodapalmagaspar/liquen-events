@@ -211,6 +211,17 @@ const ORCAMENTO_MS = maxDuration * 1000;
  */
 const paragrafosDaMensagem = paragrafosDeTexto;
 
+/**
+ * A resposta «envia assim mesmo» às fotos em falta (17/11) é o NÚMERO de fotos
+ * que ela viu a faltar. Vale enquanto o PDF do envio não tiver MAIS em falta do
+ * que esse: um «sim» a 3 não pode mandar um documento com 9 (revisão de 17/11).
+ * Um booleano, ou qualquer outra coisa que não um número, não conta.
+ */
+function fotosEmFaltaAceites(emFalta: number, confirmadas: unknown): boolean {
+  if (emFalta <= 0) return true;
+  return typeof confirmadas === "number" && Number.isFinite(confirmadas) && emFalta <= confirmadas;
+}
+
 async function POST_semMedida(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -248,6 +259,10 @@ async function POST_semMedida(
        *  envio, mais abaixo. Só `true` conta: qualquer outra coisa é «ainda
        *  não respondeu». */
       cortesConfirmados?: unknown;
+      /** «Já sei que faltam N fotografias, envia à mesma» — ver a pergunta
+       *  das fotos em falta, mais abaixo. É o NÚMERO que ela viu: um PDF com
+       *  mais em falta do que esse pergunta outra vez (`fotosEmFaltaAceites`). */
+      fotosEmFaltaConfirmadas?: unknown;
       /**
        * ── POR ONDE É QUE A PROPOSTA SEGUE ────────────────────────────────
        *
@@ -633,15 +648,43 @@ async function POST_semMedida(
       // apanhar uma foto que não resolveu, não para mudar o que sai.
       const segunda = await renderStoredEditorialPdfWithReport(doc, idioma);
       if (segunda.missingImages < relatorio.missingImages) relatorio = segunda;
-      if (relatorio.missingImages > 0) {
-        log.error("proposta-doc: a proposta segue com fotos a menos", null, {
-          id,
-          emFalta: relatorio.missingImages,
-        });
-      }
     }
 
     const { pdf: pdfBuffer, missingImages, truncations } = relatorio;
+
+    /**
+     * ════════════════════════════════════════════════════════════════════════
+     * FOTOS A MENOS: UMA PERGUNTA ANTES DE SEGUIR, NÃO UM AVISO DEPOIS (17/11)
+     * ════════════════════════════════════════════════════════════════════════
+     *
+     * Registos de 12/11: «proposta-doc: a proposta segue com fotos a menos»,
+     * nove em falta, e o casal recebeu-a assim. O aviso do estúdio chegava
+     * DENTRO da resposta do envio — com o email já na caixa do casal.
+     *
+     * A decisão dela continua de pé: o envio NÃO se recusa («recusar seria
+     * pior — ela fica sem nada e sem perceber porquê»). O que muda é a ordem:
+     * como nos cortes, aqui em baixo, o servidor pára e PERGUNTA, com a
+     * proposta ainda por gravar e o email ainda por sair. Ela volta atrás e
+     * troca as fotos, ou responde «envia assim mesmo» (`fotosEmFaltaConfirmadas`)
+     * e segue — sabendo.
+     */
+    if (mode === "send" && !fotosEmFaltaAceites(missingImages, body?.fotosEmFaltaConfirmadas)) {
+      log.warn("proposta-doc: envio parado para confirmar as fotos em falta", {
+        id,
+        emFalta: missingImages,
+      });
+      return NextResponse.json(
+        {
+          error:
+            missingImages === 1
+              ? "Falta 1 fotografia no documento."
+              : `Faltam ${missingImages} fotografias no documento.`,
+          precisaConfirmarFotos: true,
+          missingImages,
+        },
+        { status: 409 },
+      );
+    }
 
     if (mode === "preview") {
       return new NextResponse(pdfBuffer, {
@@ -699,9 +742,8 @@ async function POST_semMedida(
      * todo — o que falta é uma decisão de quem envia. É o código que o estúdio
      * distingue de uma avaria (ver `porqueFalhouOEnvio`).
      *
-     * As FOTOS EM FALTA não passam por aqui, e é de propósito: essas são uma
-     * AVARIA (a foto devia estar e não está), já têm segunda tentativa aqui em
-     * cima, e a decisão escrita é que o envio não trava por causa delas.
+     * As FOTOS EM FALTA têm a sua própria pergunta, aqui em cima (17/11), com
+     * a segunda tentativa à frente dela.
      */
     const cortesConfirmados = body?.cortesConfirmados === true;
     if (mode === "send" && truncations.length > 0 && !cortesConfirmados) {
@@ -719,6 +761,14 @@ async function POST_semMedida(
         },
         { status: 409 },
       );
+    }
+    // Só aqui é «segue com fotos a menos»: ela respondeu às duas perguntas
+    // (fotos e cortes). Antes disso, o envio ainda podia parar (revisão de 17/11).
+    if (mode === "send" && missingImages > 0) {
+      log.warn("proposta-doc: a proposta segue com fotos a menos, confirmado por ela", {
+        id,
+        emFalta: missingImages,
+      });
     }
 
     // ── Send ──

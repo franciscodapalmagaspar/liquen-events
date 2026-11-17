@@ -2,7 +2,7 @@ import "server-only";
 import { promises as fs } from "fs";
 import path from "path";
 import { getSupabase } from "./supabase";
-import { eRelogioAdiantado, isMissingTable } from "./repository";
+import { eRelogioAdiantado, isMissingTable, lerComNovaTentativa } from "./repository";
 import { log } from "./logger";
 
 /**
@@ -372,14 +372,19 @@ export async function listStateByPrefix<T>(
       const linhas: { key: string; value: T }[] = [];
       for (let desde = 0; linhas.length <= limite; desde += PAGINA_DO_ESTADO) {
         const ate = Math.min(desde + PAGINA_DO_ESTADO, limite + 1) - 1;
-        const { data, error } = await sb
-          .from("app_state")
-          .select("key, value")
-          // `%` e `_` são curingas do LIKE: escapá-los impede que um prefixo com
-          // um deles varra mais do que devia.
-          .like("key", `${prefix.replace(/([%_\\])/g, "\\$1")}%`)
-          .order("key", { ascending: true })
-          .range(desde, ate);
+        // Com nova tentativa no PGRST303 («JWT issued at future»), como o
+        // repositório: a 16/11 uma recusa passageira deixou a cópia da noite
+        // sem os emails das propostas (`proposalEmails`).
+        const { data, error } = await lerComNovaTentativa(() =>
+          sb
+            .from("app_state")
+            .select("key, value")
+            // `%` e `_` são curingas do LIKE: escapá-los impede que um prefixo
+            // com um deles varra mais do que devia.
+            .like("key", `${prefix.replace(/([%_\\])/g, "\\$1")}%`)
+            .order("key", { ascending: true })
+            .range(desde, ate),
+        );
         if (error) throw error;
         const pagina = (data ?? []) as { key: string; value: T }[];
         linhas.push(...pagina);

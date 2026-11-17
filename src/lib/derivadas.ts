@@ -464,8 +464,19 @@ export interface Retoma {
   papel: Papel;
   origem: string;
   pasta: string;
-  /** A fotografia onde parou — inclusive: é por ela que se recomeça. */
+  /**
+   * A fotografia onde parou — inclusive: é por ela que se recomeça. Vazio
+   * quando parou ENTRE pastas: recomeça-se na primeira fotografia de `pasta`.
+   */
   caminho: string;
+  /**
+   * A rotina da manhã deixou de ter resposta do lote nesta pasta (nem o sinal
+   * o parou): a noite seguinte tenta outra vez, e se pendurar no mesmo sítio
+   * passa a `saltar` (revisão de 17/11). Quem a escreve é a rotina.
+   */
+  pendurada?: boolean;
+  /** Recomeça na pasta A SEGUIR a `pasta`, que pendurou duas noites seguidas. */
+  saltar?: boolean;
 }
 
 export interface ResultadoDoLote {
@@ -573,6 +584,17 @@ export async function gerarLoteDeDerivadas(
     agora?: () => number;
     /** Onde o lote anterior parou. Ausente = começar do princípio. */
     retoma?: Retoma | null;
+    /**
+     * Quem chama já não pode esperar (revisão de 17/11): o lote pára entre
+     * pastas e entre blocos, como pelo relógio, e devolve a retoma. Um bloco
+     * a meio acaba — abortá-lo deixava trabalho pago por metade.
+     */
+    sinal?: AbortSignal;
+    /**
+     * Onde o lote vai, escrito à medida que avança: se nem o sinal o parar (uma
+     * ida ao Storage que nunca responde), quem chama sabe em que pasta ficou.
+     */
+    posicao?: { atual: Retoma | null };
   },
 ): Promise<ResultadoDoLote> {
   const sb = getSupabase();
@@ -591,6 +613,16 @@ export async function gerarLoteDeDerivadas(
   const agora = opcoes?.agora ?? Date.now;
   const ate = agora() + (opcoes?.tectoMs ?? TECTO_DO_LOTE_MS);
   const alvo = opcoes?.retoma ?? null;
+  const sinal = opcoes?.sinal;
+  const cancelado = () => sinal?.aborted === true;
+  /** Por onde se vai — o que se devolve se o sinal chegar fora de uma pasta. */
+  let ultima: Retoma | null = alvo
+    ? { papel: alvo.papel, origem: alvo.origem, pasta: alvo.pasta, caminho: alvo.caminho }
+    : null;
+  const dizer = (r: Retoma) => {
+    ultima = r;
+    if (opcoes?.posicao) opcoes.posicao.atual = r;
+  };
 
   const falhas: string[] = [];
   let geradas = 0;
@@ -612,6 +644,8 @@ export async function gerarLoteDeDerivadas(
   let aSaltar = alvo !== null;
   /** O ponto de retoma foi encontrado? Se não, ele está velho — ver abaixo. */
   let encontrou = alvo === null;
+  /** Pastas percorridas NESTA chamada — ver o relógio na travessia. */
+  let pastasPercorridas = 0;
 
   // DUAS passagens, e não uma: primeiro tudo o que é essencial na biblioteca
   // inteira, e só depois o AVIF. Ver `Papel` — parar a meio tem de deixar as
@@ -625,6 +659,21 @@ export async function gerarLoteDeDerivadas(
     for (const familia of FAMILIAS) {
       const doPapel = familia.derivadas.filter((d) => d.papel === passagem);
       if (doPapel.length === 0) continue;
+      // Cancelado antes de chegar a uma pasta desta família: devolve-se o
+      // último sítio por onde se passou (ou a retoma recebida), e a próxima
+      // volta refaz só as listagens desse.
+      if (cancelado()) {
+        return {
+          geradas,
+          falhas,
+          fotografiasFeitas,
+          retoma: ultima ?? { papel: passagem, origem: familia.origem, pasta: "", caminho: "" },
+          restantes: 0,
+          restantesEssenciais: 0,
+          fotografiasRestantes: 0,
+          papel,
+        };
+      }
       let asPastas: string[];
       try {
         // Ordenadas: a retoma só funciona se a travessia for sempre a mesma.
@@ -639,6 +688,47 @@ export async function gerarLoteDeDerivadas(
         ) {
           continue;
         }
+        // Uma pasta que pendurou duas noites seguidas fica para a volta
+        // seguinte da biblioteca: recomeça-se na pasta a seguir.
+        if (aSaltar && alvo!.saltar) {
+          aSaltar = false;
+          encontrou = true;
+          continue;
+        }
+        // Uma retoma deixada ENTRE pastas (`caminho: ""`, ver abaixo) começa
+        // na primeira fotografia desta.
+        if (aSaltar && alvo!.caminho === "") {
+          aSaltar = false;
+          encontrou = true;
+        }
+        /**
+         * ── O RELÓGIO TAMBÉM CONTA NA TRAVESSIA (registos de 10–17/11) ────
+         *
+         * O tecto só era lido entre blocos de fotografias. Numa biblioteca já
+         * quase toda feita não há blocos: há dezenas de pastas a LISTAR, cada
+         * uma três ou quatro idas ao Storage, e essas nunca olhavam para o
+         * relógio. A apanha das derivadas da rotina da manhã passava assim do
+         * tecto da função («Task timed out after 60 seconds», três vezes).
+         *
+         * Pára-se entre pastas, com a retoma a apontar para o princípio da
+         * pasta seguinte (`caminho: ""`). Só depois de se ter percorrido pelo
+         * menos uma — senão um tecto curto nunca saía do mesmo sítio.
+         */
+        if (!aSaltar && (cancelado() || (pastasPercorridas > 0 && agora() >= ate))) {
+          return {
+            geradas,
+            falhas,
+            fotografiasFeitas,
+            retoma: { papel: passagem, origem: familia.origem, pasta, caminho: "" },
+            restantes: 0,
+            restantesEssenciais: 0,
+            fotografiasRestantes: 0,
+            papel,
+          };
+        }
+        // Esta pasta vai ser percorrida (a da retoma também conta).
+        pastasPercorridas += 1;
+        if (!aSaltar) dizer({ papel: passagem, origem: familia.origem, pasta, caminho: "" });
         // AS LISTAGENS EM PARALELO — os originais e cada bucket de derivada não
         // dependem uns dos outros. Em série era a latência da rede vezes três,
         // por pasta, e a travessia tem dezenas de pastas.
@@ -700,7 +790,11 @@ export async function gerarLoteDeDerivadas(
           // `fotografiasFeitas > 0` e não um corte seco: um lote que não gera
           // nada não faz a travessia avançar, e a geração ficava presa. Um
           // bloco é o mínimo que garante que a coisa anda.
-          if (fotografiasFeitas >= LOTE_FOTOS || (fotografiasFeitas > 0 && agora() >= ate)) {
+          if (
+            fotografiasFeitas >= LOTE_FOTOS ||
+            cancelado() ||
+            (fotografiasFeitas > 0 && agora() >= ate)
+          ) {
             return {
               geradas,
               falhas,
@@ -719,6 +813,7 @@ export async function gerarLoteDeDerivadas(
           }
 
           papel = passagem;
+          dizer({ papel: passagem, origem: familia.origem, pasta, caminho: trabalho[i].caminho });
           const bloco = trabalho.slice(i, i + A_MESMA_HORA);
           // `Promise.all` sem medo: o `gerarAsDeUmaFoto` nunca lança — uma
           // fotografia que falhe devolve os caminhos dela em `falhas` e deixa

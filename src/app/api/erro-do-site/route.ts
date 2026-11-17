@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { sanitizeTelemetryPath } from "@/lib/safe-path";
+import { eRuidoDeFora } from "@/lib/ruido-do-browser";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,12 +48,16 @@ export async function POST(request: NextRequest) {
     if (!corpo || typeof corpo !== "object") return vazio();
 
     const mensagem = texto(corpo.mensagem, 300) ?? "erro sem mensagem";
+    const rasto = texto(corpo.rasto, 2000);
+    // O browser já filtra isto; a rota volta a filtrar pelas páginas antigas
+    // que ainda estão em cache nos telemóveis (ver `ruido-do-browser`).
+    if (eRuidoDeFora(mensagem, rasto)) return vazio();
     const onde = texto(corpo.onde, 300);
     log.error(`site no browser: ${mensagem}`, null, {
       marca: texto(corpo.marca, 80),
       onde: onde ? sanitizeTelemetryPath(onde) : undefined,
       aparelho: texto(corpo.aparelho, 200),
-      rasto: texto(corpo.rasto, 2000),
+      rasto,
     });
   } catch {
     // Um relato malformado não merece um registo: seria transformar o erro de
