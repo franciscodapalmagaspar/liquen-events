@@ -4,7 +4,8 @@ import { oQueFaltaParaEnviar, type Impedimento } from "@/lib/proposal-progress";
 import { fotosEscolhidasQueFaltam } from "@/lib/proposta-fotos-verificacao";
 import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 import { log } from "@/lib/logger";
-import { recusa, type Recusa } from "./recusa";
+import { recusa } from "./recusa";
+import type { Recusa } from "./contrato";
 import type { OEnvio } from "./o-envio";
 
 /**
@@ -83,7 +84,7 @@ function emMinuscula(f: Impedimento): string {
 
 /** O que ENVIAR precisa, com o que o pedido diz. */
 export interface ContextoDaTrava extends OEnvio {
-  /** `false` só quando ela escolheu o WhatsApp (`corpo-do-pedido.ts`). */
+  /** `false` só quando ela escolheu o WhatsApp (`ler-o-corpo.ts`). */
   porEmail: boolean;
   /** A chave do PDF final visto, tal como o envio a trouxe. */
   pdfVisto: string | null;

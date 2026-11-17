@@ -4,11 +4,12 @@ import { __esquecerDesviosDitos } from "@/lib/fronteira/observar";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import {
   avisarDoIdiomaDesconhecido,
-  lerOPedido,
-  pedidoDoCorpo,
+  lerOCorpo,
+  observarOCorpo,
+  corpoLido,
   documentoCompleto,
   type CorpoDoPedido,
-} from "./corpo-do-pedido";
+} from "./ler-o-corpo";
 
 const pedir = (corpo: string) =>
   new Request("https://liquen.test/x", { method: "POST", body: corpo });
@@ -20,7 +21,7 @@ beforeEach(() => {
 
 describe("o corpo do pedido à rota da proposta", () => {
   it("cada tolerância de sempre, aplicada uma vez", () => {
-    const p = pedidoDoCorpo({
+    const p = corpoLido({
       mode: "send",
       mensagem: 42,
       porEmail: "não",
@@ -36,7 +37,7 @@ describe("o corpo do pedido à rota da proposta", () => {
   });
 
   it("um corpo nulo é uma pré-visualização sem documento", () => {
-    const p = pedidoDoCorpo(null);
+    const p = corpoLido(null);
     expect(p).toMatchObject({ modo: "preview", doc: undefined, porEmail: true, rascunho: false });
     expect(documentoCompleto(p.doc)).toEqual({
       ok: false,
@@ -45,7 +46,7 @@ describe("o corpo do pedido à rota da proposta", () => {
   });
 
   it("a mensagem perde os espaços das pontas, e o modo desconhecido é pré-visualização", () => {
-    const p = pedidoDoCorpo({ mode: "outro", mensagem: "  olá  " } as unknown as CorpoDoPedido);
+    const p = corpoLido({ mode: "outro", mensagem: "  olá  " } as unknown as CorpoDoPedido);
     expect(p.modo).toBe("preview");
     expect(p.mensagem).toBe("olá");
   });
@@ -72,12 +73,12 @@ describe("o corpo do pedido à rota da proposta", () => {
       ["en", "en"],
       ["pt", "pt"],
     ] as const) {
-      const p = pedidoDoCorpo(corpo(recebido));
+      const p = corpoLido(corpo(recebido));
       expect(p.idioma).toBe(idioma);
       avisarDoIdiomaDesconhecido(p, "q1");
     }
     expect(aviso).not.toHaveBeenCalled();
-    const estranho = pedidoDoCorpo(corpo("fr"));
+    const estranho = corpoLido(corpo("fr"));
     expect(estranho.idioma).toBe("pt");
     avisarDoIdiomaDesconhecido(estranho, "q1");
     expect(aviso).toHaveBeenCalledWith(
@@ -90,7 +91,7 @@ describe("o corpo do pedido à rota da proposta", () => {
   });
 
   it("as respostas e os textos só contam com a forma certa — o resto é «não veio»", () => {
-    const p = pedidoDoCorpo({
+    const p = corpoLido({
       corpo: 42,
       assunto: ["x"],
       modelo: 7,
@@ -107,10 +108,9 @@ describe("o corpo do pedido à rota da proposta", () => {
       cortesConfirmados: false,
     });
     expect(
-      pedidoDoCorpo({ fotosEmFaltaConfirmadas: Number.NaN } as CorpoDoPedido)
-        .fotosEmFaltaConfirmadas,
+      corpoLido({ fotosEmFaltaConfirmadas: Number.NaN } as CorpoDoPedido).fotosEmFaltaConfirmadas,
     ).toBeNull();
-    const bom = pedidoDoCorpo({
+    const bom = corpoLido({
       corpo: "Olá",
       assunto: "A proposta",
       modelo: "registo-formal",
@@ -132,17 +132,20 @@ describe("o corpo do pedido à rota da proposta", () => {
 describe("o esquema do corpo, em modo de observar", () => {
   it("o corpo que o estúdio manda passa calado", async () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
-    await lerOPedido(
+    const corpo = await lerOCorpo(
       pedir(JSON.stringify({ mode: "preview", doc: { ref: "R", clientNames: "A" }, idioma: "pt" })),
-      "q1",
     );
+    observarOCorpo(corpo, "q1");
     expect(aviso).not.toHaveBeenCalled();
   });
 
   it("um corpo estranho é DITO e segue tal e qual — nada se recusa", async () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
     const corpo = { mode: "send", doc: { ref: "R", clientNames: "Ana Secreta" }, mensagem: 7 };
-    const p = await lerOPedido(pedir(JSON.stringify(corpo)), "q1");
+    const p = await lerOCorpo(pedir(JSON.stringify(corpo)));
+    // Ler não diz nada; observar (depois das guardas) é que diz.
+    expect(aviso).not.toHaveBeenCalled();
+    observarOCorpo(p, "q1");
     expect(p.doc).toEqual(corpo.doc);
     expect(aviso).toHaveBeenCalledTimes(1);
     expect(aviso.mock.calls[0][1]).toEqual({
@@ -154,7 +157,7 @@ describe("o esquema do corpo, em modo de observar", () => {
 
   it("um corpo que não é JSON vale nulo, como sempre", async () => {
     vi.spyOn(log, "warn").mockImplementation(() => {});
-    const p = await lerOPedido(pedir("{não é json"), "q1");
+    const p = await lerOCorpo(pedir("{não é json"));
     expect(p.doc).toBeUndefined();
     expect(p.modo).toBe("preview");
   });

@@ -4,7 +4,7 @@ import type { ProposalDoc } from "@/lib/proposal-doc";
 import { IDIOMA_POR_OMISSAO } from "@/lib/proposal-doc-textos";
 import { esquemaDoDocumentoQueChega } from "@/lib/fronteira/documento-da-proposta";
 import { observar } from "@/lib/fronteira/observar";
-import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-da-proposta";
+import { IDIOMAS_DA_PROPOSTA } from "@/lib/orcamento/listas-fechadas";
 import { log } from "@/lib/logger";
 
 /**
@@ -17,9 +17,9 @@ import { log } from "@/lib/logger";
  * UM esquema só, {@link esquemaDoCorpo}, diz o que o estúdio manda. Dele saem
  * as duas coisas que a rota precisa:
  *
- *  · o REGISTO (modo de observar, `fronteira/observar.ts`): o que não bate
- *    diz-se, e não se recusa nada;
- *  · a LEITURA ({@link pedidoDoCorpo}): cada campo é lido pelo SEU pedaço do
+ *  · o REGISTO (modo de observar, `fronteira/observar.ts`, em
+ *    {@link observarOCorpo}): o que não bate diz-se, e não se recusa nada;
+ *  · a LEITURA ({@link corpoLido}): cada campo é lido pelo SEU pedaço do
  *    esquema, e o que não bate vale «não veio» — a tolerância de sempre, «uma
  *    proposta que não segue é um negócio parado». Daqui para dentro ninguém
  *    volta a perguntar `typeof` (§1.7, «parse, don't validate»).
@@ -101,12 +101,14 @@ function lerCampo<K extends keyof Campos>(
  * cópia do zod — a chave do PDF visto calcula-se sobre o documento tal como
  * chegou (`documento-do-envio.ts`), e uma cópia reordenada mudava-a.
  */
-export function pedidoDoCorpo(cru: unknown) {
+export function corpoLido(cru: unknown) {
   const corpo =
     cru && typeof cru === "object" && !Array.isArray(cru) ? (cru as Record<string, unknown>) : {};
   const modo: "preview" | "send" = lerCampo(corpo, "mode") === "send" ? "send" : "preview";
   const idioma = lerCampo(corpo, "idioma");
   return {
+    /** O corpo tal e qual chegou — só para {@link observarOCorpo}. */
+    cru,
     modo,
     doc: corpo.doc as ProposalDoc | undefined,
     mensagem: lerCampo(corpo, "mensagem")?.trim() ?? "",
@@ -126,16 +128,23 @@ export function pedidoDoCorpo(cru: unknown) {
 }
 
 /** O pedido já lido — o tipo sai da leitura, que sai do esquema. */
-export type PedidoDeProposta = ReturnType<typeof pedidoDoCorpo>;
+export type CorpoLido = ReturnType<typeof corpoLido>;
 
 /**
- * Lê o corpo. Um corpo que não é JSON vale `null`, como sempre valeu (a
- * resposta é o «falta o documento» de {@link documentoCompleto}).
+ * Lê o corpo do pedido HTTP. Um corpo que não é JSON vale `null`, como sempre
+ * valeu (a resposta é o «falta o documento» de {@link documentoCompleto}).
  */
-export async function lerOPedido(request: Request, id: string): Promise<PedidoDeProposta> {
-  const cru: unknown = await request.json().catch(() => null);
-  observar(esquemaDoCorpo, cru, ONDE_O_CORPO_E_OBSERVADO, { id });
-  return pedidoDoCorpo(cru);
+export async function lerOCorpo(request: Request): Promise<CorpoLido> {
+  return corpoLido(await request.json().catch(() => null));
+}
+
+/**
+ * Confere o corpo contra o esquema, em modo de observar. Chama-se DEPOIS das
+ * guardas baratas (trinco, tecto, documento incompleto ou grande demais): o
+ * que já vai ser recusado não vale o trabalho — a mesma regra do rascunho.
+ */
+export function observarOCorpo(corpo: CorpoLido, pedidoId: string): void {
+  observar(esquemaDoCorpo, corpo.cru, ONDE_O_CORPO_E_OBSERVADO, { id: pedidoId });
 }
 
 /**
@@ -162,9 +171,17 @@ export function documentoCompleto(
  * ══════════════════════════════════════════════════════════════════════
  *
  * O documento guardado (`doc`) continua a ser um só, em português: a língua
- * é a moldura com que ele é DESENHADO (`proposal-doc-textos`). No ENVIO fica
- * GRAVADA com a proposta (`proposals.idioma`), e é dela que vivem o email, a
- * página do aceite, o portal e as rotas que voltam a desenhar o PDF.
+ * não entra lá dentro, é a moldura com que ele é DESENHADO — ver o cabeçalho
+ * de `proposal-doc-textos`.
+ *
+ * Era um parâmetro de desenho e mais nada: desenhava o PDF, nomeava o ficheiro
+ * e morria no fim do pedido. Com isso, uma proposta gerada em inglês seguia
+ * dentro de um email português, abria numa página de aceite na língua do
+ * VISITANTE, e voltava a descarregar-se em português — pelo link do casal e
+ * pelo portal. Agora, no ENVIO, fica GRAVADA com a proposta
+ * (`proposals.idioma`), e é dela que vivem o email, a página do aceite, o
+ * portal e as duas rotas que voltam a desenhar o PDF. Na PRÉ-VISUALIZAÇÃO não
+ * se grava nada, porque não há proposta nenhuma.
  *
  * ── PORQUE É QUE UM VALOR ESTRANHO NÃO É UM 400 ───────────────────────
  *
@@ -178,7 +195,7 @@ export function documentoCompleto(
  * pedido sem documento não chega a ser desenhado em língua nenhuma. Um
  * pedido SEM o campo é o caminho de sempre, e não regista nada.
  */
-export function avisarDoIdiomaDesconhecido(pedido: PedidoDeProposta, id: string): void {
+export function avisarDoIdiomaDesconhecido(pedido: CorpoLido, id: string): void {
   if (pedido.idiomaDesconhecido === null) return;
   log.warn("proposta-doc: idioma desconhecido, a desenhar em português", {
     id,

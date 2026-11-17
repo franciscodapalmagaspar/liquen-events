@@ -5,7 +5,7 @@ import { log } from "@/lib/logger";
 import { comCpu } from "@/lib/medir-cpu";
 import { getQuote } from "@/lib/quotes-store";
 import { atenderOPedido, type Desfecho } from "@/lib/orcamento/envio/atender-o-pedido";
-import { lerOPedido } from "@/lib/orcamento/envio/corpo-do-pedido";
+import { lerOCorpo } from "@/lib/orcamento/envio/ler-o-corpo";
 import { relogioDoEnvio } from "@/lib/orcamento/envio/orcamento-de-tempo";
 import { linkDaUltimaEnviada } from "@/lib/orcamento/envio/ultima-enviada";
 
@@ -75,16 +75,16 @@ function emHttp(d: Desfecho): NextResponse {
 
 /**
  * Corre trabalho depois de a resposta sair. Nunca pode estragar um envio: se
- * falhar, diz-se; se não houver onde o deixar a correr (fora de um pedido), a
- * primeira visita faz o trabalho, como antes.
+ * falhar, diz-se — com o nome do trabalho; se não houver onde o deixar a
+ * correr (fora de um pedido), a primeira visita faz o trabalho, como antes.
  */
-function depoisDaResposta(trabalho: () => Promise<void>): void {
+function depoisDaResposta(nome: string, trabalho: () => Promise<void>): void {
   try {
     after(async () => {
       try {
         await trabalho();
       } catch (e) {
-        log.warn("proposta-doc: a página online não ficou preparada", { erro: String(e) });
+        log.warn(`proposta-doc: ${nome}`, { erro: String(e) });
       }
     });
   } catch {
@@ -108,7 +108,7 @@ async function POST_semMedida(
       await atenderOPedido({
         pedidoId: id,
         quote,
-        pedido: await lerOPedido(request, id),
+        corpo: await lerOCorpo(request),
         resta,
         assinatura: () => assinaturaDeQuemEnvia(request),
         depoisDaResposta,

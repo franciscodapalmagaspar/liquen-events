@@ -10,7 +10,7 @@ import {
   MOTIVOS_DE_RECUSA,
   TIPOS_DE_MODELO,
   VERSOES_ESCOLHIDAS,
-} from "@/lib/orcamento/listas-da-proposta";
+} from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -21,7 +21,7 @@ import {
  * ordem de risco (as que escrevem primeiro)». Estas são as que gravam o que a
  * Catarina faz à mão — o rascunho do estúdio, o estado de uma proposta, os
  * modelos de email e os modelos de proposta. (O corpo do envio da proposta
- * vive com a sua etapa, em `orcamento/envio/corpo-do-pedido.ts`.)
+ * vive com a sua etapa, em `orcamento/envio/ler-o-corpo.ts`.)
  *
  * Todas em MODO DE OBSERVAR (`observar.ts`): a rota continua a decidir com as
  * verificações que já tinha, e o esquema só diz o que não bate. Cada esquema

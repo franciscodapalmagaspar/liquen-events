@@ -38,7 +38,7 @@ describe("as perguntas antes do envio", () => {
     expect(fotosEmFaltaAceites(3, 3)).toBe(true);
     expect(fotosEmFaltaAceites(3, 9)).toBe(true);
     expect(fotosEmFaltaAceites(9, 3)).toBe(false);
-    // Um «sim» que não era número chega como `null` (corpo-do-pedido.test.ts).
+    // Um «sim» que não era número chega como `null` (ler-o-corpo.test.ts).
     expect(fotosEmFaltaAceites(1, null)).toBe(false);
   });
 
@@ -101,7 +101,7 @@ describe("o documento e a linha que se grava", () => {
       quote,
       doc,
       idioma: "en",
-      money: dinheiroDaProposta(doc),
+      dinheiro: dinheiroDaProposta(doc),
       validUntil: "2027-01-01",
       pdf,
       porEnviar,
@@ -125,7 +125,7 @@ describe("o documento e a linha que se grava", () => {
         quote: { id: "q", email: "" } as Quote,
         doc,
         idioma: "pt",
-        money: dinheiroDaProposta(doc),
+        dinheiro: dinheiroDaProposta(doc),
         validUntil: "2027-01-01",
         pdf: Buffer.from("x"),
         porEnviar: null,

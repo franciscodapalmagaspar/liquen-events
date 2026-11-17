@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { observar } from "@/lib/fronteira/observar";
+import { TIPOS_DE_MODELO } from "@/lib/orcamento/listas-fechadas";
 import { esquemaDoCorpoDoModeloDeProposta } from "@/lib/fronteira/corpos-das-rotas";
 import { isAuthed } from "@/lib/admin-auth";
 import {
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
  * propostas dela, e não tem nada que ser lido por quem não entrou.
  */
 
-const TIPOS: TipoModelo[] = ["completo", "grupo", "moodboard"];
+const TIPOS: readonly TipoModelo[] = TIPOS_DE_MODELO;
 
 export async function GET(request: NextRequest) {
   if (!isAuthed(request)) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });

@@ -51,7 +51,7 @@ export async function irmasDoPedido(
 }
 
 export interface Montagem extends OEnvio {
-  money: ReturnType<typeof dinheiroDaProposta>;
+  dinheiro: ReturnType<typeof dinheiroDaProposta>;
   validUntil: string;
   pdf: Buffer;
   porEnviar: Proposal | null;
@@ -66,10 +66,10 @@ export function montarAProposta(m: Montagem): Proposal {
     clientEmail: m.quote.email,
     currency: "EUR",
     lineItems: [],
-    vatRate: m.money.vatRate,
-    subtotal: m.money.base,
-    vat: m.money.vat,
-    total: m.money.gross,
+    vatRate: m.dinheiro.vatRate,
+    subtotal: m.dinheiro.base,
+    vat: m.dinheiro.vat,
+    total: m.dinheiro.gross,
     validUntil: m.validUntil,
     /**
      * ══════════════════════════════════════════════════════════════════════

@@ -15,7 +15,7 @@ import type { OEnvio } from "./o-envio";
  * e a segunda passagem quando uma foto não resolveu e ainda há tempo
  * (`orcamento-de-tempo.ts`).
  */
-export interface PedidoDeDesenho extends Pick<OEnvio, "pedidoId" | "doc" | "idioma"> {
+export interface ParaDesenhar extends Pick<OEnvio, "pedidoId" | "doc" | "idioma"> {
   modo: "preview" | "send";
   rascunho: boolean;
   chaveDoQueChegou: string;
@@ -31,7 +31,7 @@ export interface PdfDesenhado {
   pdfDaMemoria: boolean;
 }
 
-export async function desenharOPdf(p: PedidoDeDesenho): Promise<PdfDesenhado> {
+export async function desenharOPdf(p: ParaDesenhar): Promise<PdfDesenhado> {
   /**
    * O PDF FINAL de uma versão desenha-se uma vez: o «Descarregar o PDF
    * final», o que o estúdio prepara em segundo plano e o envio a seguir são

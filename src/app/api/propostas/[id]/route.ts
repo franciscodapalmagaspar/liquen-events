@@ -13,7 +13,7 @@ import {
   ESTADOS_DA_PROPOSTA,
   MOTIVOS_DE_RECUSA,
   VERSOES_ESCOLHIDAS,
-} from "@/lib/orcamento/listas-da-proposta";
+} from "@/lib/orcamento/listas-fechadas";
 import { observar } from "@/lib/fronteira/observar";
 import { esquemaDoCorpoDaProposta } from "@/lib/fronteira/corpos-das-rotas";
 

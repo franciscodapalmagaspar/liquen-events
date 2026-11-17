@@ -1,8 +1,8 @@
 import "server-only";
 import { z } from "zod";
-import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
+import type { Quote } from "@/lib/orcamento/types";
 import { observar } from "./observar";
-import { todosOsValores } from "./todos-os-valores";
+import { ESTADOS_DO_PEDIDO } from "@/lib/orcamento/listas-fechadas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -27,28 +27,21 @@ import { todosOsValores } from "./todos-os-valores";
  *  · `status` só com os seis estados do tipo (a base tem quatro deles);
  *  · `category`, `eventType`, `budgetRange`, `assignedTo`, `lostReason`
  *    aparecem a `null`; `guests` aparece como número e, num pedido, como texto;
- *  · as listas (histórico, pagamentos, tarefas…) são listas quando existem.
+ *  · as listas (histórico, pagamentos, tarefas…) são listas quando existem;
+ *  · e o que a ESCRITA aceita a `null` (`quoteUpdateSchema`, em `validation.ts`:
+ *    o «Anular» de um «Ganho» repõe `quotedPrice: null`), a leitura aceita
+ *    também — `esquemas.test.ts` cruza os dois esquemas campo a campo.
  *
  * Não se desce ao detalhe de cada item das listas: cada uma tem o seu dono
  * (pagamentos, mapa de mesas…), e a fronteira aqui é a forma do pedido.
  */
-
-/** Os seis estados do tipo — presos a ele (`todos-os-valores.ts`). */
-const ESTADOS = todosOsValores<QuoteStatus>()([
-  "pendente",
-  "em_revisao",
-  "a_preparar",
-  "cotado",
-  "aceite",
-  "rejeitado",
-]);
 
 const lista = z.array(z.unknown()).optional();
 const textoOuNulo = z.string().nullable().optional();
 
 export const esquemaDoPedidoGuardado = z.looseObject({
   id: z.string(),
-  status: z.enum(ESTADOS),
+  status: z.enum(ESTADOS_DO_PEDIDO),
   submittedAt: z.string(),
   name: z.string(),
   email: z.string(),
@@ -62,7 +55,10 @@ export const esquemaDoPedidoGuardado = z.looseObject({
   assignedTo: textoOuNulo,
   lostReason: textoOuNulo,
   guests: z.union([z.number(), z.string()]).nullable().optional(),
-  quotedPrice: z.number().optional(),
+  quotedPrice: z.number().nullish(),
+  adminNotes: textoOuNulo,
+  followUpAt: textoOuNulo,
+  contractRef: textoOuNulo,
   archived: z.boolean().optional(),
   priceBreakdown: z.looseObject({}).optional(),
   mapaDeMesas: z.looseObject({}).optional(),

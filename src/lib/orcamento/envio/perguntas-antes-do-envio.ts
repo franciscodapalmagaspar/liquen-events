@@ -1,7 +1,8 @@
 import "server-only";
-import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
+import type { Truncagens } from "./contrato";
 import { log } from "@/lib/logger";
-import { recusa, type Recusa } from "./recusa";
+import { recusa } from "./recusa";
+import type { Recusa } from "./contrato";
 
 /**
  * Etapa 6 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): as duas perguntas
@@ -13,14 +14,12 @@ import { recusa, type Recusa } from "./recusa";
  * de uma avaria (ver `porqueFalhouOEnvio`).
  */
 
-type Truncagens = RelatorioDoPdf["truncations"];
-
 /**
  * A resposta «envia assim mesmo» às fotos em falta (17/11) é o NÚMERO de fotos
  * que ela viu a faltar. Vale enquanto o PDF do envio não tiver MAIS em falta do
  * que esse: um «sim» a 3 não pode mandar um documento com 9 (revisão de 17/11).
  * Um booleano, ou qualquer outra coisa que não um número, já chega aqui como
- * `null` (`corpo-do-pedido.ts`) — e não conta.
+ * `null` (`ler-o-corpo.ts`) — e não conta.
  */
 export function fotosEmFaltaAceites(emFalta: number, confirmadas: number | null): boolean {
   if (emFalta <= 0) return true;

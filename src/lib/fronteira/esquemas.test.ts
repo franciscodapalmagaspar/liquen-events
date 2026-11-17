@@ -17,6 +17,7 @@ import { mapper } from "@/lib/quotes-store";
 import { __esquecerDesviosDitos } from "./observar";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { esquemaDoPedidoGuardado } from "./pedido-guardado";
+import { quoteUpdateSchema } from "@/lib/validation";
 import { esquemaDoDocumentoQueChega } from "./documento-da-proposta";
 import {
   esquemaDoCorpoDaProposta,
@@ -24,7 +25,7 @@ import {
   esquemaDoCorpoDoModeloDeProposta,
   esquemaDoCorpoDoRascunho,
 } from "./corpos-das-rotas";
-import { esquemaDoCorpo } from "@/lib/orcamento/envio/corpo-do-pedido";
+import { esquemaDoCorpo } from "@/lib/orcamento/envio/ler-o-corpo";
 
 const desvios = (r: { success: boolean; error?: z.ZodError }) =>
   r.success ? [] : r.error!.issues.map((i) => `${i.path.join(".")}:${i.code}`);
@@ -79,6 +80,24 @@ describe("o pedido guardado (quotes.data)", () => {
       archived: true,
     });
     expect(desvios(r)).toEqual([]);
+  });
+
+  /**
+   * A base não é a única fonte das formas: o que a ESCRITA aceita, a leitura
+   * tem de aceitar também (o «Anular» de um «Ganho» repõe `quotedPrice: null`).
+   * Cruza-se o esquema de escrita (`quoteUpdateSchema`) com o de leitura,
+   * campo a campo, para os `null` — sem isto, a leitura acusaria o que a
+   * própria aplicação grava.
+   */
+  it("o que a escrita aceita a `null`, a leitura aceita também", () => {
+    const escrita = quoteUpdateSchema.shape as Record<string, z.ZodType>;
+    const leitura = esquemaDoPedidoGuardado.shape as Record<string, z.ZodType>;
+    const nulos = Object.keys(escrita).filter((c) => escrita[c].safeParse(null).success);
+    expect(nulos).toContain("quotedPrice");
+    for (const campo of nulos) {
+      if (!leitura[campo]) continue; // um campo que a leitura não descreve passa (`looseObject`)
+      expect(leitura[campo].safeParse(null).success, campo).toBe(true);
+    }
   });
 
   it("os estados que a base tem passam todos; um estado inventado não", () => {

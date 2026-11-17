@@ -4,7 +4,8 @@ import { createProposal, updateProposal } from "@/lib/proposals-store";
 import { isMissingTable, nomeDaColunaEmFalta } from "@/lib/repository";
 import { avisoDeColunasPerdidas } from "@/lib/estado-das-colunas";
 import { log } from "@/lib/logger";
-import { recusa, type Recusa } from "./recusa";
+import { recusa } from "./recusa";
+import type { Recusa } from "./contrato";
 
 /**
  * Etapa 9 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): a proposta fica
@@ -15,7 +16,7 @@ import { recusa, type Recusa } from "./recusa";
  * sai o botão "ver a proposta em PDF" do link do cliente. `docSaved` diz se
  * isso aconteceu mesmo.
  */
-export type ProposalGravada =
+export type PropostaGravada =
   | { ok: true; docSaved: boolean; docError?: string }
   | { ok: false; recusa: Recusa };
 
@@ -178,7 +179,7 @@ export async function gravarAProposta(
   id: string,
   proposal: Proposal,
   porEnviar: Proposal | null,
-): Promise<ProposalGravada> {
+): Promise<PropostaGravada> {
   try {
     const colunasPerdidas = await gravarTirandoOQueFalta(id, proposal, porEnviar);
     if (colunasPerdidas.length === 0) return { ok: true, docSaved: true };

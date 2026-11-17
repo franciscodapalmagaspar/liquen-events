@@ -24,13 +24,13 @@ import { enderecoDaProposta } from "@/lib/proposta-link-curto";
  * pedido novo, por exemplo. O botão sabe ler isso: o resumo sai sem o link em
  * vez de sair com um link partido.
  */
-export async function linkDaUltimaEnviada(quoteId: string): Promise<string | null> {
-  const propostas = await listProposalsForQuote(quoteId);
+export async function linkDaUltimaEnviada(pedidoId: string): Promise<string | null> {
+  const propostas = await listProposalsForQuote(pedidoId);
   const enviadas = propostas.filter((p): p is Proposal & { sentAt: string } => !!p.sentAt);
   // A mais recente pelo momento em que SEGUIU, não pela criação: uma
   // proposta reenviada (o "rascunho" que a gravação reaproveita) pode ter
   // sido criada há dias e enviada agora mesmo.
   enviadas.sort((a, b) => +new Date(b.sentAt) - +new Date(a.sentAt));
   const ultima = enviadas[0];
-  return ultima ? enderecoDaProposta(ultima.id, quoteId) : null;
+  return ultima ? enderecoDaProposta(ultima.id, pedidoId) : null;
 }

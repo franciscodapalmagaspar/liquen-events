@@ -2,7 +2,7 @@ import "server-only";
 import type { Proposal } from "@/lib/orcamento/types";
 import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
 import { listarEnvios } from "@/lib/envios-de-proposta";
-import type { RespostaDoEnvio } from "./resposta-do-envio";
+import type { RespostaDoEnvio } from "./contrato";
 import { enderecoDaProposta } from "@/lib/proposta-link-curto";
 import { log } from "@/lib/logger";
 
@@ -38,12 +38,12 @@ import { log } from "@/lib/logger";
  */
 export const JANELA_DE_REPETICAO_MS = 3 * 60_000;
 
-export interface PedidoDeRepeticao {
+export interface ParaVerSeRepete {
   /** O id do PEDIDO. */
   pedidoId: string;
   proposal: Proposal;
   irmasAnteriores: Proposal[];
-  /** `false` só quando ela escolheu o WhatsApp (`corpo-do-pedido.ts`). */
+  /** `false` só quando ela escolheu o WhatsApp (`ler-o-corpo.ts`). */
   porEmail: boolean;
   relatorio: Pick<RelatorioDoPdf, "missingImages" | "truncations">;
   pdfBytes: number;
@@ -53,7 +53,7 @@ export interface PedidoDeRepeticao {
  * O corpo da resposta 200 de uma repetição, ou `null` quando o envio é a
  * sério e segue.
  */
-export async function repeticaoDoEnvio(r: PedidoDeRepeticao): Promise<RespostaDoEnvio | null> {
+export async function repeticaoDoEnvio(r: ParaVerSeRepete): Promise<RespostaDoEnvio | null> {
   const { pedidoId: id, proposal } = r;
   /** O registo de envios, lido UMA vez e só se for preciso (as duas travas
    *  abaixo consultam-no; antes liam-no cada uma, duas idas à base). */

@@ -1,7 +1,5 @@
 import type { CorpoDaRecusa, Recusa } from "./contrato";
 
-export type { CorpoDaRecusa, Recusa };
-
 /**
  * O que uma etapa do envio devolve quando o envio PÁRA ali: o código HTTP e
  * o corpo, com o tipo do contrato (`contrato.ts`).

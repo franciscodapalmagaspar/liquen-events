@@ -26,9 +26,9 @@ export interface DepoisDoEmail {
   pedidoError?: string;
 }
 
-export interface PedidoDepoisDoEmail extends OEnvio {
+export interface ParaDepoisDoEmail extends OEnvio {
   proposal: Proposal;
-  money: ReturnType<typeof dinheiroDaProposta>;
+  dinheiro: ReturnType<typeof dinheiroDaProposta>;
   /** `true` quando o correio saiu. */
   emailed: boolean;
   /** `true` quando ela escolheu o WhatsApp. */
@@ -51,7 +51,7 @@ export interface PedidoDepoisDoEmail extends OEnvio {
  * resposta para o estúdio abrir o WhatsApp com ele. A cópia do email
  * (`registarEnvio`) continua só para o email: não houve email a copiar.
  */
-export async function depoisDoEmail(p: PedidoDepoisDoEmail): Promise<DepoisDoEmail> {
+export async function depoisDoEmail(p: ParaDepoisDoEmail): Promise<DepoisDoEmail> {
   const seguiu = p.emailed || p.semEmailPorEscolha;
   /** (Uma variável e não `proposal.status`: o objecto já foi entregue à camada
    *  de gravação, e mudá-lo por baixo dela seria mentir a quem o guardou.) */
@@ -86,7 +86,7 @@ export async function depoisDoEmail(p: PedidoDepoisDoEmail): Promise<DepoisDoEma
  * pergunta «o que é que nós lhes escrevemos?», que não existe em mais lado
  * nenhum.
  */
-async function guardarACopia(p: PedidoDepoisDoEmail, sentAt: string): Promise<string | undefined> {
+async function guardarACopia(p: ParaDepoisDoEmail, sentAt: string): Promise<string | undefined> {
   try {
     await registarEnvio(p.pedidoId, {
       enviadoEm: sentAt,
@@ -127,7 +127,7 @@ async function guardarACopia(p: PedidoDepoisDoEmail, sentAt: string): Promise<st
  * envio pelo registo de envios (`repeticao-do-envio.ts`), e o que ela
  * precisa de saber é que o cliente JÁ recebeu.
  */
-async function marcarEnviada(p: PedidoDepoisDoEmail, sentAt: string): Promise<string | undefined> {
+async function marcarEnviada(p: ParaDepoisDoEmail, sentAt: string): Promise<string | undefined> {
   try {
     const gravado = await updateProposal(p.proposal.id, { status: "enviada", sentAt });
     if (!gravado) throw new Error("proposta não encontrada ao marcar como enviada");
@@ -151,7 +151,7 @@ async function marcarEnviada(p: PedidoDepoisDoEmail, sentAt: string): Promise<st
  * O PREÇO GRAVA-SE SEMPRE; O ESTADO SÓ SOBE
  * ══════════════════════════════════════════════════════════════════════
  *
- * `money.base` (SEM IVA) e não `money.gross`. O campo chama-se "Preço
+ * `dinheiro.base` (SEM IVA) e não `dinheiro.gross`. O campo chama-se "Preço
  * final (sem IVA)" no ecrã, e o `contractedAmounts` (dossier.ts) trata-o
  * como líquido. Gravar o valor COM IVA punha a margem do evento cerca de
  * 23% melhor do que a real, e a proposta seguinte marcava "+ IVA" por cima.
@@ -169,7 +169,7 @@ async function marcarEnviada(p: PedidoDepoisDoEmail, sentAt: string): Promise<st
  * dele que vivem a margem e a proposta seguinte. Melhor esforço, mas dito.
  */
 async function actualizarOPedido(
-  p: PedidoDepoisDoEmail,
+  p: ParaDepoisDoEmail,
   seguiu: boolean,
   estado: Proposal["status"],
 ): Promise<string | undefined> {
@@ -179,12 +179,12 @@ async function actualizarOPedido(
         ? transicaoDoPedido({
             acontecimento: "proposta_enviada",
             estadoActual: actual.status,
-            detalhe: eur(p.money.gross),
+            detalhe: eur(p.dinheiro.gross),
           })
         : null;
       return {
         ...actual,
-        quotedPrice: p.money.base,
+        quotedPrice: p.dinheiro.base,
         ...(transicao
           ? {
               status: transicao.status,
@@ -229,7 +229,7 @@ async function actualizarOPedido(
  * falhar, o botão volta a desenhar como sempre fez — é memória, não é a
  * verdade. Por isso não há `throw`, e o desfecho vai só no registo.
  */
-async function guardarOPdf(p: PedidoDepoisDoEmail): Promise<void> {
+async function guardarOPdf(p: ParaDepoisDoEmail): Promise<void> {
   try {
     const guardou = await guardarPdfDaProposta(p.proposal.id, chaveDoPdf(p.doc, p.idioma), p.pdf);
     if (!guardou) {

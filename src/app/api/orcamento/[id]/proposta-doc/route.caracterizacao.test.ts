@@ -227,7 +227,7 @@ async function retrato(res: Response): Promise<string> {
     : await res.text();
   // O modo de observar da fronteira (fase 6) é uma linha NOVA no registo, e
   // de propósito: fica fora do retrato, e tem os seus testes em
-  // `lib/fronteira/observar.test.ts` e `lib/orcamento/envio/corpo-do-pedido.test.ts`.
+  // `lib/fronteira/observar.test.ts` e `lib/orcamento/envio/ler-o-corpo.test.ts`.
   const registo = (["info", "warn", "error"] as const).flatMap((nivel) =>
     vi
       .mocked(log[nivel])

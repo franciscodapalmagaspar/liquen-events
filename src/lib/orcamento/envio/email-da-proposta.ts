@@ -63,13 +63,13 @@ function emoldurar(partes: Parameters<typeof emailAoCliente>[0]): EmailEmoldurad
   return emailAoCliente(partes) as EmailEmoldurado;
 }
 
-export interface PedidoDoEmail extends OEnvio {
+export interface ParaEscrever extends OEnvio {
   mensagem: string;
-  /** O `corpo` e o `assunto` escritos à mão, quando vieram (`corpo-do-pedido.ts`). */
+  /** O `corpo` e o `assunto` escritos à mão, quando vieram (`ler-o-corpo.ts`). */
   corpo: string | null;
   assunto: string | null;
   acceptUrl: string;
-  money: ReturnType<typeof dinheiroDaProposta>;
+  dinheiro: ReturnType<typeof dinheiroDaProposta>;
   /** Quem carregou em «Enviar» (`assinaturaDeQuemEnvia`). */
   assinatura: { nome: string; cargo: string };
 }
@@ -83,7 +83,7 @@ export interface EmailDaProposta {
   quem: { nome: string; cargo: string; destinatario: string };
 }
 
-export async function escreverOEmail(p: PedidoDoEmail): Promise<EmailDaProposta> {
+export async function escreverOEmail(p: ParaEscrever): Promise<EmailDaProposta> {
   const { doc, quote, idioma, mensagem, acceptUrl } = p;
   /**
    * O MARCADOR DA LIGAÇÃO, TROCADO PELO ENDEREÇO QUE JÁ EXISTE. O corpo do
@@ -176,7 +176,7 @@ export async function escreverOEmail(p: PedidoDoEmail): Promise<EmailDaProposta>
  * (ganha a mais específica), ou a proposta é noutra língua (o modelo é um
  * texto português, e fica REGISTADO que não saiu).
  */
-async function modeloDela(p: PedidoDoEmail, escritoAMao: boolean) {
+async function modeloDela(p: ParaEscrever, escritoAMao: boolean) {
   const { doc, quote, idioma, mensagem, acceptUrl } = p;
   if (idioma !== "pt" && !mensagem && !escritoAMao) {
     log.warn(
@@ -199,7 +199,7 @@ async function modeloDela(p: PedidoDoEmail, escritoAMao: boolean) {
         ? String(doc.clientNames ?? "").trim()
         : String(quote.name ?? "").trim() || String(doc.clientNames ?? "").trim(),
       link: acceptUrl,
-      valor: eurDocumento(p.money.gross),
+      valor: eurDocumento(p.dinheiro.gross),
       ...(String(doc.eventDate ?? "").trim() ? { data_evento: String(doc.eventDate).trim() } : {}),
       ...(String(doc.location ?? "").trim() ? { local: String(doc.location).trim() } : {}),
     }),

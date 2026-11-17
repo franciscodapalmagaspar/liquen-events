@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pedidoDoCorpo, type CorpoDoPedido } from "@/lib/orcamento/envio/corpo-do-pedido";
+import { corpoLido, type CorpoDoPedido } from "@/lib/orcamento/envio/ler-o-corpo";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -19,9 +19,9 @@ import { pedidoDoCorpo, type CorpoDoPedido } from "@/lib/orcamento/envio/corpo-d
  */
 
 /** A leitura que a rota faz — a VERDADEIRA, e não uma cópia dela
- *  (`lib/orcamento/envio/corpo-do-pedido.ts`, desde a fase 5). */
+ *  (`lib/orcamento/envio/ler-o-corpo.ts`, desde a fase 5). */
 const querEmail = (corpo: { porEmail?: unknown } | null) =>
-  pedidoDoCorpo(corpo as CorpoDoPedido | null).porEmail;
+  corpoLido(corpo as CorpoDoPedido | null).porEmail;
 
 describe("por onde a proposta segue", () => {
   it("sem o campo, envia — como sempre enviou", () => {

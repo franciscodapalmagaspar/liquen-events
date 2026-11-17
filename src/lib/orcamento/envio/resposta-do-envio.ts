@@ -1,10 +1,8 @@
 import type { RelatorioDoPdf } from "@/lib/proposal-preview-cache";
 import type { RespostaDoEnvio } from "./contrato";
-
-export type { RespostaDoEnvio };
 import type { DepoisDoEmail } from "./depois-do-email";
-import type { ProposalGravada } from "./gravar-a-proposta";
-import type { DesfechoDoEmail } from "./mandar-o-email";
+import type { PropostaGravada } from "./gravar-a-proposta";
+import type { ResultadoDoEmail } from "./mandar-o-email";
 
 /**
  * Etapa 13, a última (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o que o envio
@@ -14,23 +12,23 @@ import type { DesfechoDoEmail } from "./mandar-o-email";
 export function respostaDoEnvio(r: {
   propostaId: string;
   acceptUrl: string;
-  desfecho: DesfechoDoEmail;
+  email: ResultadoDoEmail;
   depois: DepoisDoEmail;
-  gravada: Extract<ProposalGravada, { ok: true }>;
+  gravada: Extract<PropostaGravada, { ok: true }>;
   relatorio: Pick<RelatorioDoPdf, "missingImages" | "truncations" | "pdf">;
   pdfDaMemoria: boolean;
 }): RespostaDoEnvio {
-  const { desfecho, depois, gravada } = r;
+  const { email, depois, gravada } = r;
   return {
     ok: true,
     id: r.propostaId,
-    emailed: desfecho.emailed,
-    emailError: desfecho.emailError,
+    emailed: email.emailed,
+    emailError: email.emailError,
     /* «Não saiu email» tem duas causas muito diferentes, e o ecrã tem de as
        separar: uma é uma avaria (o `emailError`), a outra é a escolha dela.
        Sem esta linha, escolher «só WhatsApp» dava um aviso cor de laranja a
        dizer que alguma coisa correu mal. */
-    ...(desfecho.semEmailPorEscolha ? { semEmailPorEscolha: true as const } : {}),
+    ...(email.semEmailPorEscolha ? { semEmailPorEscolha: true as const } : {}),
     /**
      * O estado em que a proposta FICOU. Vai na resposta porque é a resposta a
      * «e agora, o que é que ela vê no quadro?»: com o email fora, é
@@ -49,11 +47,15 @@ export function respostaDoEnvio(r: {
      * link que ela manda.
      */
     acceptUrl: depois.estado === "enviada" ? r.acceptUrl : null,
-    // `missingImages` VAI TAMBÉM NO ENVIO, não só na pré-visualização: os
-    // passos do estúdio são clicáveis, e dá para ir do Conteúdo direito ao
-    // Enviar sem passar por lá — a proposta seguia com fotos a menos, em
-    // silêncio. `truncations` pelo mesmo motivo: é a mesma perda vista do
-    // outro lado.
+    // `missingImages` VAI TAMBÉM NO ENVIO, não só na pré-visualização.
+    //
+    // A contagem foi acrescentada quando a Catarina recebeu um PDF com fotos a
+    // menos e ninguém a avisou. Mas ficou só no caminho da pré-visualização — e
+    // os passos do estúdio são clicáveis, portanto dá para ir do Conteúdo
+    // direito ao Enviar sem passar por lá. Nesse caminho o número era calculado
+    // e deitado fora, o que deixava a porta aberta exactamente para o caso que
+    // a magoou: a proposta segue para o noivo com fotos a menos, em silêncio.
+    // `truncations` pelo mesmo motivo: é a mesma perda vista do outro lado.
     missingImages: r.relatorio.missingImages,
     truncations: r.relatorio.truncations,
     // Quanto pesou este documento. O estúdio guarda-o com o tempo que a

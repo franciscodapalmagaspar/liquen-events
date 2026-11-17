@@ -1,18 +1,29 @@
-import { todosOsValores } from "@/lib/fronteira/todos-os-valores";
-import type { MotivoDeRecusa, ProposalStatus } from "./types";
+import { todosOsValores } from "@/lib/todos-os-valores";
+import type { MotivoDeRecusa, ProposalStatus, QuoteStatus } from "./types";
 import type { VersaoEscolhida } from "./versoes-da-proposta";
 import type { TipoModelo } from "@/lib/proposal-templates";
 import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
 
 /**
- * As listas fechadas da proposta, UMA vez cada, presas aos tipos do domínio
- * (`fronteira/todos-os-valores.ts`: um valor a mais ou a menos não compila).
+ * As listas fechadas do pedido e da proposta, UMA vez cada, presas aos tipos
+ * do domínio (`lib/todos-os-valores.ts`: um valor a mais ou a menos não
+ * compila).
  *
- * Lidas pelas rotas que decidem (`api/propostas/[id]`) e pelos esquemas que
- * observam (`fronteira/corpos-das-rotas.ts`, `orcamento/envio/corpo-do-pedido.ts`):
- * duas listas para o mesmo estado eram duas regras à espera de discordar.
+ * Lidas pelas rotas e esquemas que decidem (`validation.ts`,
+ * `backup-restore.ts`, `api/propostas/[id]`, `api/propostas/modelos`) e pelos
+ * que observam (`lib/fronteira/`, `orcamento/envio/ler-o-corpo.ts`): duas
+ * listas para o mesmo estado eram duas regras à espera de discordar.
  * Sem zod e sem servidor — o browser pode lê-las.
  */
+export const ESTADOS_DO_PEDIDO = todosOsValores<QuoteStatus>()([
+  "pendente",
+  "em_revisao",
+  "a_preparar",
+  "cotado",
+  "aceite",
+  "rejeitado",
+]);
+
 export const ESTADOS_DA_PROPOSTA = todosOsValores<ProposalStatus>()([
   "rascunho",
   "enviada",

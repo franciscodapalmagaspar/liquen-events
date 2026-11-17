@@ -15,19 +15,19 @@ import type { EmailDaProposta } from "./email-da-proposta";
  * email devolve 200 com emailed:false + motivo, para a UI explicar o que
  * aconteceu.
  */
-export interface DesfechoDoEmail {
+export interface ResultadoDoEmail {
   emailed: boolean;
   emailError?: string;
   /** Não saiu email porque ela ESCOLHEU que não saísse — e não porque falhou. */
   semEmailPorEscolha: boolean;
 }
 
-export interface PedidoDeEnvio {
+export interface ParaMandar {
   /** O id do PEDIDO. */
   pedidoId: string;
   propostaId: string;
   para: string | undefined;
-  /** `false` só quando ela escolheu o WhatsApp (`corpo-do-pedido.ts`). */
+  /** `false` só quando ela escolheu o WhatsApp (`ler-o-corpo.ts`). */
   porEmail: boolean;
   /** O email inteiro, já com a moldura da casa (`email-da-proposta.ts`). */
   escrito: EmailDaProposta;
@@ -36,8 +36,8 @@ export interface PedidoDeEnvio {
   resta: () => number;
 }
 
-export async function mandarOEmail(p: PedidoDeEnvio): Promise<DesfechoDoEmail> {
-  const hasRecipient = !!p.para && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.para);
+export async function mandarOEmail(p: ParaMandar): Promise<ResultadoDoEmail> {
+  const temDestinatario = !!p.para && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.para);
   if (!p.porEmail) {
     /* Sem `emailError`: a diferença entre «não saiu» e «não saiu por culpa
        de alguma coisa» é a diferença entre um ecrã calmo e um ecrã que
@@ -49,7 +49,7 @@ export async function mandarOEmail(p: PedidoDeEnvio): Promise<DesfechoDoEmail> {
     });
     return { emailed: false, semEmailPorEscolha: true };
   }
-  if (!hasRecipient) {
+  if (!temDestinatario) {
     return {
       emailed: false,
       emailError: "O pedido não tem um email de cliente válido.",

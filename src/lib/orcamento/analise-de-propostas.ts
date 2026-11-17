@@ -1,5 +1,6 @@
 import type { MotivoDeRecusa, Proposal } from "./types";
 import { opcionaisDe } from "./versoes-da-proposta";
+import { MOTIVOS_DE_RECUSA } from "./listas-fechadas";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -70,7 +71,7 @@ export interface AnaliseDeExtras {
   taxa: number | null;
 }
 
-const MOTIVOS: MotivoDeRecusa[] = ["preco", "data", "escolheram-outro", "sem-resposta", "outro"];
+const MOTIVOS: readonly MotivoDeRecusa[] = MOTIVOS_DE_RECUSA;
 
 export const NOME_DO_MOTIVO: Record<MotivoDeRecusa, string> = {
   preco: "Preço",
