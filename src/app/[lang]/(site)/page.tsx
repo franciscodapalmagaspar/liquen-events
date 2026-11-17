@@ -147,6 +147,16 @@ export default async function Home({ params }: { params: Promise<{ lang: string 
                     </span>
                   ))}
                 </h1>
+                {/* O quê e o onde (17/11). O primeiro ecrã dizia a promessa e
+                    não dizia o que a Líquen faz nem onde; um júri apontou-o e
+                    o dono aprovou uma frase curta, tirada só do que o site já
+                    diz (a origem de cada palavra está no dicionário). Letra
+                    corrida, em caixa normal, por baixo do título em
+                    maiúsculas: a hierarquia continua a ser a do título, e o
+                    texto vai na mesma sombra que já o protege da floresta. */}
+                <p className="mt-4 max-w-md text-sm sm:text-base leading-relaxed text-white/85">
+                  {t.home.heroLead}
+                </p>
                 <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2">
                   {/* Primary hero actions. Small 9px label on phones (the py-2
                     still keeps a ≥40px tap target and the underline keeps the

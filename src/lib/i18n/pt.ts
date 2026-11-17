@@ -188,6 +188,11 @@ export const pt = {
       words: string[];
       moss?: boolean;
     }[],
+    // O quê e o onde, no primeiro ecrã (17/11, aprovado pelo dono). Nada
+    // inventado: «Decoração e coordenação» (meta.sobreTitle e
+    // meta.sobreDescription), «casamentos e eventos» (meta.homeTitle), «em todo
+    // o país» (meta.homeDescription e meta.sobreDescription).
+    heroLead: "Decoração e coordenação de casamentos e eventos, em todo o país.",
     scroll: "Scroll",
     wallEyebrow: "O nosso trabalho",
     wallTitle: "O que fica para sempre",

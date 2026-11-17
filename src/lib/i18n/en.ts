@@ -174,6 +174,9 @@ export const en: Dict = {
   home: {
     eyebrow: "Event decoration",
     heroLines: [{ words: ["We", "make", "memories"] }, { words: ["last"], moss: true }],
+    // See `pt.ts`: «Decoration & Coordination» (meta.sobreTitle), «weddings»
+    // and «events» (meta.homeTitle), «across Portugal» (meta.homeDescription).
+    heroLead: "Decoration and coordination for weddings and events, across Portugal.",
     scroll: "Scroll",
     wallEyebrow: "Our work",
     wallTitle: "What stays with you",
