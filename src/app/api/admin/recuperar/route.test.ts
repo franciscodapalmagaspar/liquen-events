@@ -33,10 +33,20 @@ vi.mock("@/lib/rate-limit", () => ({
     rl.contagens.set(key, n);
     return n > limit ? { ok: false, retryAfter: 3600 } : { ok: true };
   }),
-  // Devolve uma reserva que não chegou a dar um email.
-  devolverTentativa: vi.fn(async (key: string) => {
+  // A reserva do tecto de emails: como a verdadeira, um recusado NÃO gasta.
+  reservarLugar: vi.fn(async (key: string, limit: number) => {
+    rl.chamadas.push(key);
     const n = rl.contagens.get(key) ?? 0;
-    if (n > 0) rl.contagens.set(key, n - 1);
+    if (n >= limit)
+      return { ok: false, retryAfter: 3600, onde: "memoria", janela: "j", chave: key };
+    rl.contagens.set(key, n + 1);
+    return { ok: true, onde: "memoria", janela: "j", chave: key };
+  }),
+  // Devolve uma reserva que não chegou a dar um email.
+  devolverLugar: vi.fn(async (r: { ok: boolean; chave: string }) => {
+    if (!r.ok) return;
+    const n = rl.contagens.get(r.chave) ?? 0;
+    if (n > 0) rl.contagens.set(r.chave, n - 1);
   }),
   // Só pergunta, sem contar.
   limiteEsgotado: vi.fn(async (key: string, limit: number) => {
@@ -256,9 +266,9 @@ describe("POST /api/admin/recuperar — tectos", () => {
     expect(
       (await definirPalavraPasseComToken(decodeURIComponent(ultima), "frase-nova-comprida")).estado,
     ).toBe("definida");
-    // A chave é a da conta, sem o endereço de origem. O 4.º pedido também
-    // incrementa (a reserva é atómica: é o INCR que diz que já não cabe).
-    expect(contaDaConta("catarina@liquen-events.com")).toBe(4);
+    // A chave é a da conta, sem o endereço de origem. O 4.º pedido, recusado,
+    // não gasta nada (nos dois motores — ver `reservarLugar`).
+    expect(contaDaConta("catarina@liquen-events.com")).toBe(3);
     expect([...rl.contagens.keys()].some((k) => k.includes("recuperar-conta:test-ip"))).toBe(false);
   });
 

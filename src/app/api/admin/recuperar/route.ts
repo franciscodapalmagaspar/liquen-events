@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse, after } from "next/server";
 import { pedirRecuperacao, normalizarIdentificador } from "@/lib/admin-auth";
 import { VALIDADE_MS } from "@/lib/admin-recuperacao";
-import { rateLimit, clientIp, sweep, devolverTentativa } from "@/lib/rate-limit";
+import { rateLimit, clientIp, sweep, reservarLugar, devolverLugar } from "@/lib/rate-limit";
 import { sendMail } from "@/lib/mail";
 import { EMAIL_LOGO_CID, emailLogoAttachment } from "@/lib/email-logo";
 import {
@@ -150,9 +150,13 @@ export async function POST(request: NextRequest) {
   // escrita do registo falham (aqui, dentro da resposta, igual para os dois
   // casos), quando o endereço não é de ninguém e quando o SMTP não envia (no
   // `after`, fora da resposta).
-  const reserva = await rateLimit(CHAVE_DA_CONTA, TECTO_DA_CONTA, 60 * 60_000, { global: true });
-  const devolverEnvio = () =>
-    reserva.ok ? devolverTentativa(CHAVE_DA_CONTA, { global: true }) : Promise.resolve();
+  // `reservarLugar`/`devolverLugar` (e não o `rateLimit`): a devolução vai só
+  // ao sítio e à janela da reserva, e um recusado não gasta — ver
+  // `rate-limit.ts`.
+  const reserva = await reservarLugar(CHAVE_DA_CONTA, TECTO_DA_CONTA, 60 * 60_000, {
+    global: true,
+  });
+  const devolverEnvio = () => devolverLugar(reserva);
   const resultado = await pedirRecuperacao(email, { podeEmitir: reserva.ok });
   if (resultado.estado === "acima-do-tecto") {
     log.warn("recuperação: conta com o tecto de emails — nada enviado", { ip });

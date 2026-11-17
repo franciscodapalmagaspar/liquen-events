@@ -58,6 +58,7 @@ async function pipeline(
   token: string,
   comandos: string[][],
 ): Promise<Array<{ result?: number }>> {
+  // (O `EVAL` da reserva devolve uma lista; quem o chama lê-a como `unknown`.)
   const res = await fetch(`${url.replace(/\/$/, "")}/pipeline`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -165,36 +166,150 @@ export async function rateLimit(
 }
 
 /**
- * DEVOLVE uma tentativa que foi reservada e não chegou a ser usada (revisão de
- * 16/11, n.º 2).
+ * ════════════════════════════════════════════════════════════════════════════
+ * RESERVAR UM LUGAR, E DEVOLVÊ-LO SE NÃO FOR USADO (revisões de 16/11)
+ * ════════════════════════════════════════════════════════════════════════════
  *
  * O tecto de emails da recuperação reserva o lugar ANTES de saber se o envio
- * vai acontecer — é o que o torna atómico numa rajada. Se a seguir a escrita
- * ou o SMTP falham, nada saiu, e o lugar volta. Sem isto, três falhas do
- * Supabase deixavam a conta uma hora sem poder receber a ligação.
+ * vai acontecer — é o que o torna atómico numa rajada — e devolve-o quando
+ * nada sai (a base de dados falhou, o SMTP não enviou). Sem a devolução, três
+ * falhas do Supabase deixavam a conta uma hora sem poder receber a ligação.
  *
- * Só se devolve o que se reservou com `ok: true`. Nunca desce abaixo de zero:
- * no Redis, um DECR que passe para negativo é reposto a 0 sem mexer no prazo
- * (`KEEPTTL`). Falhar a devolução não é grave — a janela acaba na mesma.
+ * Não se usa o `rateLimit` para isto porque uma devolução tem de saber três
+ * coisas que ele não guarda:
+ *
+ *  · ONDE ficou a reserva (`onde`): uma reserva feita na memória, por o Redis
+ *    ter falhado, só se devolve na memória, e vice-versa;
+ *  · de QUE JANELA era (`janela`): uma devolução que chega depois de a janela
+ *    acabar não pode recriar a chave (no Redis, um DECR numa chave que já não
+ *    existe criava-a a -1 e SEM PRAZO) nem tirar um lugar à janela nova que
+ *    entretanto abriu. No Redis, a janela tem um identificador aleatório numa
+ *    chave irmã (`<chave>:janela`) com o mesmo prazo; na memória, é o fim da
+ *    janela (`resetAt`);
+ *  · e que os dois motores contem o MESMO: um pedido RECUSADO não gasta nada,
+ *    em nenhum dos dois. Na memória isto já era assim; no Redis o INCR contava
+ *    também os recusados. Aqui, no Redis, tudo — ler, decidir, incrementar e
+ *    pôr o prazo — é UM script (`EVAL`), atómico: recusa sem incrementar.
+ *    Assim, «o lugar volta» quer dizer o mesmo nos dois motores.
+ *
+ * O `rateLimit` de sempre (entrada, passkeys, orçamento) não mudou: nenhum
+ * desses devolve lugares.
  */
-export async function devolverTentativa(
+export interface Reserva {
+  ok: boolean;
+  retryAfter?: number;
+  onde: "redis" | "memoria";
+  /** Identificador da janela onde a reserva foi feita. */
+  janela: string;
+  chave: string;
+}
+
+/** Reservar: lê, decide e incrementa numa só ida, sem incrementar ao recusar. */
+export const SCRIPT_RESERVAR = `
+local limite = tonumber(ARGV[1])
+local janelaMs = tonumber(ARGV[2])
+local irma = KEYS[1] .. ':janela'
+local pttl = redis.call('PTTL', KEYS[1])
+local contagem = 0
+if pttl == -2 then
+  redis.call('SET', KEYS[1], 0, 'PX', janelaMs)
+  redis.call('SET', irma, ARGV[3], 'PX', janelaMs)
+  pttl = janelaMs
+else
+  contagem = tonumber(redis.call('GET', KEYS[1])) or 0
+  if pttl == -1 then
+    redis.call('PEXPIRE', KEYS[1], janelaMs)
+    pttl = janelaMs
+  end
+end
+local janela = redis.call('GET', irma)
+if not janela then
+  redis.call('SET', irma, ARGV[3], 'PX', pttl)
+  janela = ARGV[3]
+end
+if contagem >= limite then
+  return {0, pttl, janela}
+end
+redis.call('INCR', KEYS[1])
+return {1, pttl, janela}
+`;
+
+/** Devolver: só na mesma janela, só se a chave existir, nunca abaixo de zero. */
+export const SCRIPT_DEVOLVER = `
+if redis.call('GET', KEYS[1] .. ':janela') ~= ARGV[1] then
+  return 0
+end
+local valor = redis.call('GET', KEYS[1])
+if not valor or tonumber(valor) <= 0 then
+  return 0
+end
+redis.call('DECR', KEYS[1])
+return 1
+`;
+
+function reservarNaMemoria(key: string, limit: number, windowMs: number): Reserva {
+  const r = memoryRateLimit(key, limit, windowMs);
+  const b = buckets.get(key);
+  return { ...r, onde: "memoria", janela: String(b?.resetAt ?? 0), chave: key };
+}
+
+/**
+ * Reserva um lugar. Com `{ global: true }` e Redis configurado, no Redis (um
+ * comando `EVAL`); senão, ou se o Redis falhar, na memória da instância.
+ */
+export async function reservarLugar(
   key: string,
+  limit: number,
+  windowMs: number,
   opcoes: { global?: boolean } = {},
-): Promise<void> {
+): Promise<Reserva> {
   const { url, token } = opcoes.global ? credenciaisDoRedis() : {};
   if (url && token) {
     try {
-      const data = await pipeline(url, token, [["DECR", key]]);
-      if (Number(data?.[0]?.result ?? 0) < 0) {
-        await pipeline(url, token, [["SET", key, "0", "KEEPTTL"]]);
+      const novaJanela = globalThis.crypto.randomUUID();
+      const data = await pipeline(url, token, [
+        ["EVAL", SCRIPT_RESERVAR, "1", key, String(limit), String(windowMs), novaJanela],
+      ]);
+      const r = (data?.[0] as { result?: unknown } | undefined)?.result;
+      if (Array.isArray(r) && r.length === 3) {
+        const ok = Number(r[0]) === 1;
+        const faltaMs = Number(r[1]);
+        return {
+          ok,
+          ...(ok ? {} : { retryAfter: Math.ceil((faltaMs > 0 ? faltaMs : windowMs) / 1000) }),
+          onde: "redis",
+          janela: String(r[2]),
+          chave: key,
+        };
       }
-      return;
+      throw new Error("resposta inesperada do Redis");
     } catch {
-      /* cai na memória, como o `rateLimit` */
+      /* cai na memória, como o `rateLimit` — e a reserva diz que ficou lá */
     }
   }
-  const b = buckets.get(key);
-  if (b && b.count > 0) b.count--;
+  return reservarNaMemoria(key, limit, windowMs);
+}
+
+/**
+ * Devolve um lugar reservado que não chegou a ser usado. Só uma reserva com
+ * `ok: true`, só ao sítio onde ficou, só na mesma janela, nunca abaixo de
+ * zero. Falhar a devolução não é grave — a janela acaba na mesma.
+ */
+export async function devolverLugar(reserva: Reserva): Promise<void> {
+  if (!reserva.ok) return;
+  if (reserva.onde === "redis") {
+    const { url, token } = credenciaisDoRedis();
+    if (!url || !token) return;
+    try {
+      await pipeline(url, token, [["EVAL", SCRIPT_DEVOLVER, "1", reserva.chave, reserva.janela]]);
+    } catch {
+      /* não se devolve noutro sítio: a reserva não estava lá */
+    }
+    return;
+  }
+  const b = buckets.get(reserva.chave);
+  if (!b || Date.now() > b.resetAt || String(b.resetAt) !== reserva.janela) return;
+  if (b.count > 0) b.count--;
 }
 
 // Opportunistic cleanup so the in-memory map can't grow unbounded.
