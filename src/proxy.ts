@@ -63,8 +63,20 @@ export async function proxy(req: NextRequest, event?: NextFetchEvent) {
     let sessao = readSession(token);
     let revogada = false;
     if (sessao) {
-      const { sessaoRevogada } = await import("@/lib/sessoes-revogadas");
-      if (await sessaoRevogada(token)) {
+      const { estadoDaSessao, MENSAGEM_REVOGACAO_INDISPONIVEL } =
+        await import("@/lib/sessoes-revogadas");
+      // Auditoria de 16/11, n.º 7: sem o registo das revogações (instância nova
+      // e Supabase lento), o que MUDA dados não passa em nome de uma sessão que
+      // pode já ter sido fechada — 503, e tenta-se daí a uns segundos. O que só
+      // lê continua a passar.
+      const estado = await estadoDaSessao(token, { muda: MUTATING.has(req.method) });
+      if (estado === "indisponivel") {
+        const r = NextResponse.json({ error: MENSAGEM_REVOGACAO_INDISPONIVEL }, { status: 503 });
+        r.headers.set("Retry-After", "5");
+        r.headers.set("X-Request-ID", requestId);
+        return r;
+      }
+      if (estado === "revogada") {
         revogada = true;
         sessao = null;
         requestHeaders.set("cookie", semCookie(req.headers.get("cookie") ?? "", ADMIN_COOKIE));
