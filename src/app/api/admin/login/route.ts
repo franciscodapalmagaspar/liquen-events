@@ -145,8 +145,9 @@ export async function POST(request: NextRequest) {
   // A chave é a da CONTA, e não o que foi escrito (ver `chaveDaEscadaDeEntrada`):
   // o nome e o email da mesma pessoa gastam a mesma escada; sem `ADMIN_USERS`
   // há uma só escada, porque qualquer nome serve; e um identificador que não é
-  // de ninguém cai numa chave comum, sem abrir escadas novas. É a mesma chave
-  // no degrau da palavra-passe e no do código de 6 dígitos.
+  // de ninguém tem a sua, como uma conta — é isso que mantém «não existe» igual
+  // a «palavra-passe errada». É a mesma chave no degrau da palavra-passe e no
+  // do código de 6 dígitos.
   const conta = chaveDaEscadaDeEntrada(identificador);
 
   /** 429 do degrau mais alto que a conta já pisou, gastando uma tentativa. */

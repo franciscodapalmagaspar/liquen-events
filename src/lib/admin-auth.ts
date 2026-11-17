@@ -454,23 +454,23 @@ function encontrarConta(users: AdminUser[], identificador: string): ContaEncontr
  *    escreveu, cada nome novo trazia tentativas novas à mesma palavra-passe;
  *  · com contas, a conta RESOLVIDA (o email dela, ou o nome se não o tiver): o
  *    nome e o email da mesma pessoa gastam a mesma escada;
- *  · um identificador que não é de ninguém vai para uma chave fixa comum,
- *    `desconhecida` — não abre uma escada nova por cada endereço inventado.
+ *  · um identificador que não é de ninguém tem a SUA escada, pelo que foi
+ *    escrito (em minúsculas), exactamente como uma conta.
  *
- * Uma conta chamada «desconhecida» (sem email) partilharia a escada com os
- * identificadores inexistentes. Isso só aperta, nunca alarga.
- *
- * O QUE ISTO DEIXA À VISTA: com a escada comum cheia, um identificador que não
- * existe leva 429 onde uma conta real, com a escada vazia, leva 401. É o preço
- * de não abrir uma escada por cada endereço inventado; as contas da casa são
- * duas ou três, e o caminho que importa — adivinhar a palavra-passe — fica
- * mais apertado, não menos.
+ * O último ponto é o que mantém «não existe» igual a «palavra-passe errada»
+ * (revisão de 16/11, n.º 3). Uma escada COMUM a todos os inexistentes ficava
+ * cheia com quem tentasse endereços inventados, e a partir daí um inexistente
+ * levava 429 onde uma conta real levava 401; sem escada nenhuma, era o
+ * contrário (a conta real levava 429 à 6.ª falha e o inexistente nunca). Nos
+ * dois casos, a resposta dizia quais endereços existem. Um inexistente não
+ * entra de maneira nenhuma, e quem roda identificadores inventados continua
+ * preso aos tectos por endereço de origem (8/minuto, 60/hora).
  */
 export function chaveDaEscadaDeEntrada(identificador: string): string {
   const users = configuredUsers();
   if (!users) return "partilhada";
   const achada = encontrarConta(users, identificador);
-  if (!achada) return "desconhecida";
+  if (!achada) return normalizarIdentificador(identificador);
   return normalizarIdentificador(achada.user.email ?? achada.user.name);
 }
 

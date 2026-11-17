@@ -280,13 +280,25 @@ describe("a escada é da conta, não do que se escreveu", () => {
     expect(rl.contagens.get("login-conta-curto:catarina@liquen-events.com")).toBe(2);
   }, 60_000);
 
-  it("identificadores que não existem partilham uma chave, e não abrem escadas novas", async () => {
-    for (let i = 0; i < 6; i++) {
+  it("«não existe» responde como «palavra-passe errada», mesmo com outros inexistentes a tentar", async () => {
+    // Uma escada COMUM para os inexistentes (revisão de 16/11, n.º 3) fazia o
+    // contrário: cheia por quem tentasse endereços inventados, um inexistente
+    // novo levava 429 onde uma conta real, com a escada vazia, levava 401 — e
+    // a diferença dizia quais endereços existem.
+    for (let i = 0; i < 20; i++) {
       await POST(entrar({ email: `inventado-${i}@exemplo.pt`, password: "x" }));
     }
-    expect(new Set(chavesDaEscada().map((k) => k.split(":").slice(1).join(":")))).toEqual(
-      new Set(["desconhecida"]),
-    );
+    const sequencia = async (email: string) => {
+      const estados: number[] = [];
+      for (let i = 0; i < 6; i++) {
+        estados.push((await POST(entrar({ email, password: `errada-${i}` }))).status);
+      }
+      return estados;
+    };
+    const real = await sequencia("catarina@liquen-events.com");
+    const inexistente = await sequencia("outro-inventado@exemplo.pt");
+    expect(inexistente).toEqual(real);
+    expect(real).toEqual([401, 401, 401, 401, 401, 429]);
   }, 60_000);
 
   it("sem ADMIN_USERS, a escada é uma só — mudar de nome não compra tentativas", async () => {
