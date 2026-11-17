@@ -10,20 +10,11 @@ import FundirTemas, { type ThemeMergeOutcome } from "./FundirTemas";
 import { temasParecidos } from "@/lib/temas-parecidos";
 import { downloadMany, downloadName } from "./photo-download";
 import { guardarBlob, useDescarga } from "./ui/descarregar";
-import {
-  CHECK_CHUNK,
-  MAX_PHOTO_ORDER,
-  THEME_COPY_CHUNK,
-  THEME_PAGE_SIZE,
-  normalizedThemeName,
-  type ThemeDuplicate,
-} from "@/lib/theme-types";
-import { fingerprintBlob } from "@/lib/theme-fingerprint";
+import { THEME_PAGE_SIZE, normalizedThemeName } from "@/lib/theme-types";
 import { textoDaRecusa, tituloDaRecusa } from "@/lib/erro-do-servidor";
 import { useToast } from "./Toast";
 import { useAnular } from "./ui/anular";
 import { useDepoisDeApagar, useDepoisDeApagarVarios } from "./ui/depois-de-apagar";
-import { prepareImageWithThumb } from "./image-prep";
 import { Button, Card, EmptyState, emGrupos, PerguntaDestrutiva, type AccaoDeItem } from "./ui";
 import { esquecerBiblioteca } from "./theme-picker-cache";
 import BibliotecaRevisao from "./BibliotecaRevisao";
@@ -44,20 +35,11 @@ import { porqueFalhou, porqueRebentou, type Falha } from "@/lib/porque-falhou";
 import { porqueNaoLeu, porqueNaoLeuDoErro, type LeituraFalhada } from "@/lib/porque-nao-leu";
 import ListaDeTemas from "./ListaDeTemas";
 import { fotoPelaTecla } from "@/lib/temas-grelha";
-import { bibliotecaAlterada, bibliotecaAlteradaEmLote } from "./biblioteca-alterada";
-import {
-  escreverCarga,
-  fotosQueViajam,
-  fraseDeMovimentoFalhado,
-  fraseDoMovimento,
-  fraseDoRegresso,
-  type CargaDeFotos,
-} from "@/lib/temas-arrasto";
+import { bibliotecaAlterada } from "./biblioteca-alterada";
+import { escreverCarga, fotosQueViajam, type CargaDeFotos } from "@/lib/temas-arrasto";
 import { vestirOArrasto } from "./_temas/arrasto";
 import { ABOVE_FOLD, Photo, objectUrl, revokeUrl } from "./_temas/FotoDaGrelha";
-import { MAX_DROP_FILES, expandDropEntries, isImageFile } from "./_temas/largar-pastas";
-import { pool } from "@/lib/concorrencia";
-import { AccaoEmBloco, mergePage, moveItem, reinsertAt } from "@/lib/temas/listas-de-fotos";
+import { AccaoEmBloco, mergePage } from "@/lib/temas/listas-de-fotos";
 import { fraseDeEliminar, photoCountLabel } from "@/lib/temas/textos-dos-temas";
 import { Densidade, Ordem, contarFotosDaBiblioteca, ordenarTemas } from "@/lib/temas/ordem";
 import { COLUNAS, lerDensidade, lerOrdem } from "./_temas/preferencias-da-biblioteca";
@@ -78,7 +60,6 @@ import {
   FolderState,
   PedidoAPasta,
   Pending,
-  Screening,
   Skipped,
   ThumbJob,
 } from "./_temas/tipos-da-pasta";
@@ -87,6 +68,13 @@ import { ListaDaBiblioteca } from "./_temas/ListaDaBiblioteca";
 import { NovoTema } from "./_temas/NovoTema";
 import { BarraDaBiblioteca } from "./_temas/BarraDaBiblioteca";
 import { plural } from "@/lib/plural";
+import { useArrumacaoDaPasta } from "./_temas/useArrumacaoDaPasta";
+import { useMoverEApagarFotos } from "./_temas/useMoverEApagarFotos";
+import { PREFETCH_DELAY_MS } from "./_temas/tectos-da-pasta";
+import { useSeleccaoDaPasta } from "./_temas/useSeleccaoDaPasta";
+import { useRepeticaoDoEnvio } from "./_temas/useRepeticaoDoEnvio";
+import { useMiniaturasDaPasta } from "./_temas/useMiniaturasDaPasta";
+import { useEnvioDeFotos } from "./_temas/useEnvioDeFotos";
 
 /**
  * Biblioteca de Temas — o sítio onde o estúdio guarda, uma vez, as fotos de
@@ -110,38 +98,6 @@ import { plural } from "@/lib/plural";
  *  3. Nada acontece em silêncio: há sempre uma contagem verdadeira à vista
  *     ("47 de 312"), e o que falha fica no ecrã com forma de voltar a tentar.
  */
-
-/**
- * Quantos carregamentos em voo ao mesmo tempo.
- *
- * Quatro, e não mais: cada pedido leva um JPEG de ~3 MB, por isso o gargalo é
- * o canal de SUBIDA (uma ligação doméstica sobe ~10–20 Mbit/s). Mais ligações
- * não somam largura de banda — repartem a mesma —, e cada uma paga o seu pico
- * de memória (a bitmap descodificada + os canvas). Quatro, e não menos:
- * preparar a foto seguinte (descodificar + redimensionar + codificar) é
- * trabalho de CPU no fio principal, e é durante essa preparação que as outras
- * três mantêm o canal cheio. O browser abre ~6 ligações por servidor em
- * HTTP/1.1; deixar duas de fora mantém a grelha e as miniaturas a responder
- * enquanto um lote de 300 fotos sobe.
- */
-const UPLOAD_CONCURRENCY = 4;
-
-/** Remoções em voo ao mesmo tempo (pedidos vazios: mais folga do que a subida). */
-const DELETE_CONCURRENCY = 6;
-
-/**
- * Quantos ficheiros são lidos ao mesmo tempo para lhes calcular a impressão
- * digital.
- *
- * O `crypto.subtle.digest` não bloqueia o fio principal (o browser resolve-o
- * fora dele) e é barato ao lado do resto — MEDIDO em Chromium nesta caixa:
- * 42,9 ms numa foto de 8,1 MB (181 MB/s), contra 337 ms para PREPARAR a mesma
- * foto. O que aqui se limita não é o CPU, é a MEMÓRIA: cada ficheiro tem de
- * estar inteiro em `ArrayBuffer` para ser resumido, e um arrasto de 300 fotos
- * de 8 MB lidas de uma vez seriam 2,4 GB. Quatro em voo são ~32 MB de pico — o
- * mesmo teto de quatro que os carregamentos já usam, pela mesma razão.
- */
-const FINGERPRINT_CONCURRENCY = 4;
 
 /** "1 foto" / "7 fotos" — o plural aparece em meia dúzia de frases. */
 
@@ -1501,33 +1457,6 @@ export default function Temas({
 }
 
 /**
- * Quanto tempo se espera antes de ir buscar a página seguinte.
- *
- * A primeira página tem de chegar primeiro — pedir as duas ao mesmo tempo era
- * fazer exatamente o que este trabalho todo veio corrigir. Medido, uma página
- * de miniaturas fica no ecrã em ~350 ms; um segundo e meio é depois disso com
- * folga, e continua a ser muito antes de ela chegar ao fundo da grelha.
- */
-const PREFETCH_DELAY_MS = 1500;
-
-/** Quantas fotos do lote entram na grelha já com a imagem local à vista.
- *  Mostrar as 300 de uma vez obrigava o navegador a descodificar 300 fotos de
- *  12 MP para desenhar quadrados de 150 px; as restantes ganham a
- *  pré-visualização quando a sua miniatura é gerada (que é logo a seguir). */
-const PREVIEW_EAGER = 12;
-
-/** Teto de lotes de uma passagem de miniaturas (8 fotos por lote): trava um
- *  ciclo infinito se o servidor devolver sempre o mesmo cursor. */
-const MAX_THUMB_BATCHES = 2000;
-
-/** Lotes seguidos sem gerar nada (e com falhas) antes de desistir: a esta
- *  altura o problema é o Storage, não as fotos. */
-const MAX_BAD_BATCHES = 3;
-
-/** Quantas páginas já mostradas se voltam a pedir no fim da geração de
- *  miniaturas, para a grelha passar a mostrar as novas. */
-const MAX_REFRESH_PAGES = 5;
-/**
  * ── SAIR DA PASTA COM UM LOTE A MEIO ──────────────────────────────────────
  *
  * A pergunta vive aqui, e não dentro do `leave()`, porque desde o split view
@@ -1912,549 +1841,45 @@ function ThemeFolder({
     return () => window.removeEventListener("beforeunload", warn);
   }, [uploadingCount]);
 
-  /**
-   * FASE 1 a 3 — quais destas fotos JÁ estão no tema.
-   *
-   * A ordem é o que faz a diferença de tempo, e é deliberada: o resumo é
-   * calculado ANTES de preparar a imagem. MEDIDO em Chromium nesta caixa, numa
-   * foto 4032×3024 de 8,1 MB: 42,9 ms para resumir contra 337 ms para
-   * preparar. Nesta ordem, cada repetida apanhada poupa a preparação E o
-   * upload; ao contrário, poupava só o upload.
-   *
-   * Num arrasto de 300 com metade repetidas: ~4,3 s de resumos (4 em voo) e
-   * ~0,5 s a construir o índice do lado do servidor, contra ~16,9 s de CPU
-   * poupados e ~160 MB que deixam de subir (≈67 s a 20 Mbit/s).
-   *
-   * NUNCA falha o carregamento. Sem `crypto.subtle` (contexto inseguro), com a
-   * pasta ilegível ou com a rota em baixo, isto devolve "sobe tudo" e o
-   * `upsert: false` do servidor continua a ser o guarda que não falha.
-   */
-  async function screenBatch(files: File[]): Promise<Screening> {
-    const nothingKnown: Screening = {
-      keep: files,
-      skipped: [],
-      hashOf: new Map(),
-      verified: false,
-      legacy: false,
-    };
-    setVerifying({ done: 0, total: files.length });
-    try {
-      // ── 1) Impressão digital do ficheiro que está no disco dela ──────────
-      const hashes = new Array<string | null>(files.length).fill(null);
-      await pool(
-        files.map((file, i) => ({ file, i })),
-        FINGERPRINT_CONCURRENCY,
-        async ({ file, i }) => {
-          hashes[i] = await fingerprintBlob(file);
-          if (alive.current) setVerifying((v) => (v ? { ...v, done: v.done + 1 } : v));
-        },
-        () => !alive.current,
-      );
-      if (!alive.current) return nothingKnown;
-      // Nenhum resumo: este ambiente não sabe fazê-los (sem contexto seguro) e
-      // a funcionalidade DESLIGA-SE — não parte, não avisa, não muda nada.
-      if (hashes.every((h) => h === null)) return nothingKnown;
+  const { upload } = useEnvioDeFotos({
+    theme,
+    toast,
+    setImages,
+    setTotal,
+    setUploadingCount,
+    setProgress,
+    setFailed,
+    setSkipped,
+    setLegacyPhotos,
+    setPartialCheck,
+    setVerifying,
+    setPending,
+    setLocalSrc,
+    alive,
+    trackUrl,
+  });
 
-      const hashOf = new Map<File, string>();
-      files.forEach((f, i) => {
-        const h = hashes[i];
-        if (h) hashOf.set(f, h);
-      });
+  const { runThumbJob } = useMiniaturasDaPasta({
+    theme,
+    toast,
+    setImages,
+    images,
+    total,
+    thumbJob,
+    setThumbJob,
+    alive,
+    stopThumbs,
+  });
 
-      // ── 2) Pré-verificação contra a pasta, em pedaços ────────────────────
-      // Em pedaços de CHECK_CHUNK e não o lote todo: assim a primeira foto
-      // começa a subir ao fim de ~0,3 s em vez de ~2 s num arrasto de 300. Do
-      // segundo pedaço em diante o índice do servidor já está em memória.
-      const known = new Set<string>();
-      let verified = true;
-      let legacy = false;
-      for (let i = 0; i < files.length && alive.current; i += CHECK_CHUNK) {
-        const chunk = [...new Set(hashes.slice(i, i + CHECK_CHUNK).filter((h) => h !== null))];
-        if (chunk.length === 0) continue;
-        try {
-          const res = await fetch(`/api/temas/${theme.id}/repetidas`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hashes: chunk }),
-          });
-          if (!res.ok) throw new Error("falhou");
-          const data = await res.json();
-          for (const h of Array.isArray(data?.known) ? data.known : []) {
-            if (typeof h === "string") known.add(h);
-          }
-          // `read: false` = a pasta não pôde ser lida; `complete: false` = a
-          // pasta é maior do que o teto. Nos dois casos não se anuncia
-          // poupança nenhuma, mesmo que alguma repetida tenha sido apanhada.
-          if (data?.read === false || data?.complete === false) verified = false;
-          if (data?.legacy) legacy = true;
-        } catch {
-          // Falhar a VERIFICAR nunca pode travar o carregamento: sobe tudo, e
-          // o guarda da escrita apanha o que houver.
-          verified = false;
-        }
-      }
-      if (!alive.current) return nothingKnown;
-
-      // ── 3) Repetidas dentro do PRÓPRIO arrasto ───────────────────────────
-      // A pré-verificação nunca as apanharia: ainda não estão na pasta. Sem
-      // isto, largar a mesma pasta duas vezes de seguida num só gesto entrava
-      // a dobrar.
-      const seen = new Set<string>();
-      const keep: File[] = [];
-      const out: Skipped[] = [];
-      files.forEach((file, i) => {
-        const hash = hashes[i];
-        if (hash && known.has(hash)) {
-          out.push({ file, reason: "no-tema", hash });
-          return;
-        }
-        if (hash && seen.has(hash)) {
-          out.push({ file, reason: "no-lote", hash });
-          return;
-        }
-        if (hash) seen.add(hash);
-        keep.push(file);
-      });
-
-      return { keep, skipped: out, hashOf, verified, legacy };
-    } finally {
-      if (alive.current) setVerifying(null);
-    }
-  }
-
-  /**
-   * Carrega um lote de fotos, SALTANDO as que já estão no tema.
-   *
-   * `force` é o "Adicionar mesmo assim": salta a verificação toda e manda o
-   * servidor guardar com um sufixo. É a marcha-atrás de um clique — e a
-   * recuperação de todos os modos de falha do índice (memo velho noutra
-   * instância do servidor, resumo errado, colisão).
-   */
-  async function upload(files: File[], force?: { hashOf: Map<File, string> }) {
-    if (files.length === 0) return;
-    // O contador entra JÁ: a fase de verificação também é trabalho em curso, e
-    // fechar o separador a meio dela perde o arrasto todo.
-    setUploadingCount((n) => n + 1);
-    try {
-      const screened: Screening = force
-        ? // A FORÇAR, os resumos já são conhecidos e VÃO na mesma: sem eles o
-          // servidor cunharia um UUID e a foto forçada deixava de contar como
-          // "está no tema" — um buraco permanente no índice, por cada clique
-          // em "Adicionar mesmo assim".
-          { keep: files, skipped: [], hashOf: force.hashOf, verified: false, legacy: false }
-        : await screenBatch(files);
-      if (!alive.current) return;
-      if (screened.legacy) setLegacyPhotos(true);
-      if (!force) setPartialCheck(!screened.verified);
-      if (screened.skipped.length > 0) setSkipped((prev) => [...prev, ...screened.skipped]);
-      if (screened.keep.length === 0) {
-        // SEM ISTO ela vê uma barra a andar e nada a acontecer, e conclui que
-        // o site está avariado.
-        toast(
-          `Estas ${files.length} fotos já estavam todas em "${theme.name}". Não foi adicionada nenhuma.`,
-          "info",
-        );
-        return;
-      }
-      await sendBatch(screened.keep, screened.hashOf, Boolean(force), screened.skipped.length);
-    } finally {
-      if (alive.current) setUploadingCount((n) => Math.max(0, n - 1));
-    }
-  }
-
-  /**
-   * Envia o lote com até `UPLOAD_CONCURRENCY` em voo.
-   *
-   * Um ficheiro por pedido: o limite de corpo do alojamento (~4,5 MB) rebenta
-   * com um lote inteiro de fotos de telemóvel. Cada pedido leva o original
-   * preparado, a sua miniatura (`thumbs`, na mesma ordem) e o `hashes` — como
-   * vai um só ficheiro de cada vez, "a mesma ordem" é trivialmente respeitada.
-   *
-   * Nada aqui deita fora o lote: cada falha é apanhada, guardada COM o
-   * ficheiro (para se poder repetir sem voltar a escolher nada) e o lote
-   * continua.
-   */
-  async function sendBatch(
-    files: File[],
-    hashOf: Map<File, string>,
-    force: boolean,
-    /** Quantas já foram saltadas antes de chegar aqui — entra na mensagem. */
-    preSkipped: number,
-  ) {
-    // Os totais somam-se: dois lotes a decorrer mostram um só "47 de 312".
-    setProgress((p) => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + files.length }));
-    let added = 0;
-    const errors: Failure[] = [];
-    /** As que o SERVIDOR recusou por já lá estarem — a corrida apanhada pelo
-     *  `upsert: false`, e a foto antiga apanhada pelo eTag. Contam-se aqui, e
-     *  não na previsão, para o relatório dizer o que ACONTECEU. */
-    const serverSkipped: Skipped[] = [];
-
-    // AS FOTOS ENTRAM NA GRELHA AGORA, do ficheiro que está no computador —
-    // não daqui a três segundos, quando o servidor responder. As primeiras
-    // levam já o URL de objeto; as outras recebem-no quando lhes chegar a vez
-    // de serem preparadas (aí já é a MINIATURA, que é barata de desenhar).
-    const batch = files.map((file, i) => ({
-      file,
-      item: {
-        id: `${Date.now().toString(36)}-${i}-${Math.random().toString(36).slice(2, 8)}`,
-        name: file.name,
-        src: i < PREVIEW_EAGER ? trackUrl(file) : undefined,
-      } as Pending,
-    }));
-    setPending((prev) => [...batch.map((b) => b.item), ...prev]);
-
-    /** Tira a célula provisória da grelha. `keepUrl` fica com o URL de objeto
-     *  (passou a ser a imagem da foto verdadeira); senão é revogado aqui. */
-    const dropPending = (item: Pending, keepUrl: boolean) => {
-      setPending((prev) => prev.filter((p) => p.id !== item.id));
-      if (!keepUrl) revokeUrl(item.src);
-    };
-
-    try {
-      await pool(
-        batch,
-        UPLOAD_CONCURRENCY,
-        async ({ file: f, item }) => {
-          try {
-            // Preset "cover" e não "board": uma foto da biblioteca tem DOIS
-            // destinos possíveis — uma célula de mood board ou uma imagem de
-            // CAPA, impressa em grande. Guardá-la com 1600 px degradava-a para
-            // sempre (o original nunca mais existe). A miniatura sai da MESMA
-            // descodificação, para um lote de 300 fotos não custar o dobro.
-            const { file, thumb, micro, mid, lqip, cor } = await prepareImageWithThumb(f, "cover");
-            // A miniatura acabada de fazer é a melhor pré-visualização que há:
-            // 400 px, ~25 KB, e já está em memória. As células que ainda não
-            // tinham imagem ganham-na aqui; as que já tinham ficam com a que
-            // têm (trocar era piscar por nada).
-            if (!item.src) {
-              const preview = trackUrl(thumb ?? file);
-              if (preview) {
-                item.src = preview;
-                if (alive.current) {
-                  setPending((prev) =>
-                    prev.map((p) => (p.id === item.id ? { ...p, src: preview } : p)),
-                  );
-                }
-              }
-            }
-            const form = new FormData();
-            form.append("files", file);
-            if (thumb) form.append("thumbs", thumb);
-            // A de 1200 px — a que a PÁGINA DO CASAL mostra. Sai da mesma
-            // descodificação que fez a miniatura, portanto não custa tempo
-            // nenhum. Sem ela, esta fotografia só a ganha quando ALGUÉM OLHAR
-            // para ela numa proposta — com o servidor a fabricá-la enquanto o
-            // casal espera.
-            if (mid) form.append("medias", mid);
-            // A micro de 96 px, para as tiras do cartão de tema. Vai no mesmo
-            // pedido — já está feita, do mesmo canvas.
-            if (micro) form.append("micros", micro);
-            // O LQIP viaja no MESMO pedido que a foto — é trabalho do
-            // carregamento, e o carregamento já está a falar com o servidor.
-            // Emparelhado pela ORDEM, como o `thumbs` e o `hashes`.
-            if (lqip) form.append("lqips", lqip);
-            // A cor dominante, pela mesma boleia e pela mesma razão: é aqui
-            // que a fotografia existe em bruto e sem origem cruzada (ver
-            // `corDe` em `image-worker.ts`). Emparelhada pela ORDEM.
-            if (cor) form.append("cores", cor);
-            // O resumo do ficheiro ORIGINAL (não do preparado): é ele que vira
-            // o nome no Storage e torna a garantia de "não repetir" atómica.
-            const hash = hashOf.get(f);
-            if (hash) form.append("hashes", hash);
-            if (force) form.append("force", "1");
-            const res = await fetch(`/api/temas/${theme.id}/imagens`, {
-              method: "POST",
-              body: form,
-            });
-            const data = await res.json().catch(() => null);
-            if (!res.ok) throw new Error(data?.error || `Falha ao carregar "${f.name}".`);
-            // O servidor recusou-a por já lá estar. NÃO é um erro: sai da
-            // grelha em silêncio e entra no painel neutro das repetidas.
-            const dup: ThemeDuplicate | undefined = data?.duplicates?.[0];
-            if (dup) {
-              dropPending(item, false);
-              serverSkipped.push({ file: f, reason: "no-tema", ...(hash ? { hash } : {}) });
-              return;
-            }
-            const im: ThemeImage | undefined = data?.images?.[0];
-            if (!im?.path) throw new Error(`Falha ao carregar "${f.name}".`);
-            if (!alive.current) return;
-            // A célula provisória dá lugar à foto verdadeira SEM piscar: o URL
-            // de objeto passa a ser a imagem desta foto na grelha, por isso não
-            // se vai buscar ao Storage uma miniatura que já cá está.
-            if (item.src) setLocalSrc((prev) => new Map(prev).set(im.path, item.src as string));
-            dropPending(item, Boolean(item.src));
-            // Cada foto entra na grelha assim que chega. Juntar o lote todo e no
-            // fim fazer `[...lote, ...images]` lia um `images` velho: dois lotes
-            // em paralelo perdiam fotos e uma foto removida entretanto voltava.
-            setImages((prev) => (prev.some((x) => x.path === im.path) ? prev : [im, ...prev]));
-            setTotal((t) => (t === null ? null : t + 1));
-            // Um aviso por LOTE, não por foto (revisão de 14/11, menor n.º 5).
-            bibliotecaAlteradaEmLote();
-            added += 1;
-          } catch (e) {
-            // A foto não subiu: a célula provisória sai (a caixa vermelha do
-            // "tentar novamente" é que passa a contar a história) e o URL de
-            // objeto é libertado.
-            dropPending(item, false);
-            errors.push({
-              file: f,
-              message: e instanceof Error ? e.message : `Falha ao carregar "${f.name}".`,
-            });
-          } finally {
-            if (alive.current) setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
-          }
-        },
-        () => !alive.current,
-      );
-      if (!alive.current) return;
-      // O RELATÓRIO É CONSTRUÍDO DO QUE ACONTECEU, não do que a verificação
-      // previu: assim uma corrida apanhada pelo 409, uma repetida antiga
-      // apanhada pelo eTag e uma repetida prevista contam todas da mesma
-      // maneira, e o número que ela lê é sempre verdadeiro.
-      if (serverSkipped.length > 0) setSkipped((prev) => [...prev, ...serverSkipped]);
-      const jaLaEstavam = preSkipped + serverSkipped.length;
-      const cauda =
-        jaLaEstavam > 0
-          ? ` ${jaLaEstavam} já ${jaLaEstavam === 1 ? "estava" : "estavam"} no tema.`
-          : "";
-      if (errors.length > 0) {
-        setFailed((prev) => [...prev, ...errors]);
-        toast(
-          errors.length === files.length
-            ? `Nenhuma foto subiu. ${errors[0].message}`
-            : `${added} de ${files.length} carregadas — ${plural(errors.length, "falhou", "falharam")}.`,
-          "error",
-        );
-      } else if (added === 0 && jaLaEstavam > 0) {
-        toast(`Nada a adicionar —${cauda}`, "info");
-      } else {
-        toast(
-          `${plural(added, "foto adicionada", "fotos adicionadas")} a "${theme.name}".${cauda}`,
-          "success",
-        );
-      }
-    } finally {
-      if (alive.current) {
-        // Só o último lote apaga o contador: `done === total` só acontece
-        // quando já não falta nenhum ficheiro de nenhum dos lotes.
-        setProgress((p) => (p && p.done >= p.total ? null : p));
-      }
-    }
-  }
-
-  /**
-   * Volta a pedir as páginas que estão à vista, para a grelha passar a mostrar
-   * as miniaturas acabadas de gerar em vez dos originais.
-   *
-   * Substitui cada foto pela mesma foto (a chave é o `path`), por isso não
-   * mexe na ordem, na seleção, nem no que subiu entretanto. Só as primeiras
-   * `MAX_REFRESH_PAGES`: quem tiver aberto mais do que 300 fotos vê o resto
-   * aliviado no próximo carregamento da página — e voltar a assinar 4000 URLs
-   * para isso seria trocar um problema por outro.
-   */
-  async function refreshVisibleThumbs(count: number) {
-    const pages = Math.min(Math.ceil(count / THEME_PAGE_SIZE), MAX_REFRESH_PAGES);
-    const fresh = new Map<string, ThemeImage>();
-    for (let p = 0; p < pages; p++) {
-      try {
-        const res = await fetch(
-          `/api/temas/${theme.id}/imagens?offset=${p * THEME_PAGE_SIZE}&limit=${THEME_PAGE_SIZE}`,
-          { cache: "no-store" },
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        for (const im of (Array.isArray(data?.images) ? data.images : []) as ThemeImage[]) {
-          if (im?.path) fresh.set(im.path, im);
-        }
-      } catch {
-        return;
-      }
-    }
-    if (!alive.current || fresh.size === 0) return;
-    setImages((prev) => prev.map((im) => fresh.get(im.path) ?? im));
-    // A cópia local deixa de ser precisa para as que passaram a ter miniatura:
-    // a partir daqui a grelha mostra a miniatura do servidor, como qualquer
-    // outra foto. (Os URLs de objeto são libertados à saída da pasta.)
-  }
-
-  /**
-   * GERAR AS MINIATURAS QUE FALTAM.
-   *
-   * Um pedido por lote, com o cursor que o servidor devolve. Parece
-   * complicado e é o que torna isto usável: cada pedido é curto (o ecrã nunca
-   * congela), fechar o separador não perde nada (recomeça-se do princípio e o
-   * que já está feito é saltado), e o que falha é contado à vista em vez de
-   * desaparecer.
-   */
-  async function runThumbJob() {
-    if (thumbJob?.running) return;
-    stopThumbs.current = false;
-    let cursor = 0;
-    let scanned = 0;
-    let generated = 0;
-    let failedCount = 0;
-    let badBatches = 0;
-    let complete = false;
-    setThumbJob({
-      running: true,
-      cursor,
-      scanned,
-      generated,
-      failed: failedCount,
-      total,
-      complete: false,
-    });
-    try {
-      for (let batch = 0; batch < MAX_THUMB_BATCHES; batch++) {
-        if (!alive.current || stopThumbs.current) break;
-        let data: {
-          scanned?: number;
-          generated?: number;
-          failed?: number;
-          nextCursor?: number | null;
-          total?: number | null;
-        } | null = null;
-        try {
-          const res = await fetch(`/api/temas/${theme.id}/miniaturas`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cursor }),
-          });
-          const body = await res.json().catch(() => null);
-          if (!res.ok) {
-            toast(
-              body?.error ||
-                "Não foi possível gerar as miniaturas agora. O que já foi feito fica guardado.",
-              "error",
-            );
-            break;
-          }
-          data = body;
-        } catch {
-          toast("Erro de ligação ao gerar as miniaturas. Podes continuar mais tarde.", "error");
-          break;
-        }
-        scanned += data?.scanned ?? 0;
-        generated += data?.generated ?? 0;
-        failedCount += data?.failed ?? 0;
-        // Lotes seguidos em que NADA se gerou e tudo falhou = o problema não é
-        // a foto, é o Storage. Continuar seria percorrer 4000 fotos a falhar
-        // em silêncio, com a barra a andar como se estivesse a fazer algo.
-        badBatches = (data?.generated ?? 0) === 0 && (data?.failed ?? 0) > 0 ? badBatches + 1 : 0;
-        if (badBatches >= MAX_BAD_BATCHES) {
-          toast(
-            "As miniaturas não estão a ser criadas. Deixa isto por agora e tenta mais tarde — as fotos não foram tocadas.",
-            "error",
-          );
-          break;
-        }
-        const next = data?.nextCursor;
-        cursor = typeof next === "number" ? next : cursor;
-        if (!alive.current) return;
-        setThumbJob({
-          running: true,
-          cursor,
-          scanned,
-          generated,
-          failed: failedCount,
-          total: typeof data?.total === "number" ? data.total : total,
-          complete: false,
-        });
-        if (next === null || next === undefined) {
-          complete = true;
-          break;
-        }
-      }
-    } finally {
-      if (alive.current) {
-        setThumbJob((j) =>
-          j ? { ...j, running: false, scanned, generated, failed: failedCount, complete } : j,
-        );
-      }
-    }
-    if (!alive.current) return;
-    if (generated > 0) {
-      toast(
-        `${plural(generated, "miniatura criada", "miniaturas criadas")}. O tema passa a abrir muito mais depressa.`,
-        "success",
-      );
-      await refreshVisibleThumbs(images.length);
-    } else if (complete) {
-      toast("Já não faltavam miniaturas neste tema.", "info");
-    }
-  }
-
-  /** Repete as que falharam. Os ficheiros ficaram guardados — não é preciso
-   *  voltar a abrir a pasta no computador nem lembrar-se de quais foram. */
-  function retryFailed() {
-    const again = failed.map((f) => f.file);
-    if (again.length === 0) return;
-    setFailed([]);
-    upload(again);
-  }
-
-  /**
-   * "ADICIONAR MESMO ASSIM" — a marcha-atrás de um clique.
-   *
-   * Sobe as saltadas com `force`, e o servidor guarda-as com `<resumo>-<4 hex>`.
-   * O sufixo é a razão pela qual o analisador de nomes o descarta: uma cópia
-   * forçada CONTINUA a contar como "esta foto está no tema" para o arrasto
-   * seguinte, em vez de abrir um buraco permanente no índice.
-   *
-   * É por LOTE, no relatório — nunca uma pergunta por foto. E é a recuperação
-   * de todos os modos de falha do índice, que é por isso que o relatório tem de
-   * ser accionável e não decorativo.
-   */
-  function addSkippedAnyway() {
-    if (skipped.length === 0) return;
-    // Os resumos já foram calculados na verificação — não se voltam a ler os
-    // ficheiros, e vão com as fotos para o nome forçado os preservar.
-    const hashOf = new Map<File, string>();
-    for (const s of skipped) if (s.hash) hashOf.set(s.file, s.hash);
-    const again = skipped.map((s) => s.file);
-    setSkipped([]);
-    upload(again, { hashOf });
-  }
-
-  function pick(list: FileList | File[] | null) {
-    if (!list) return;
-    const all = Array.from(list);
-    const files = all.filter(isImageFile);
-    const skipped = all.length - files.length;
-    if (files.length === 0) {
-      if (skipped > 0) toast("Nenhum dos ficheiros é uma imagem.", "error");
-      return;
-    }
-    if (skipped > 0) {
-      toast(
-        `${plural(skipped, "ficheiro ignorado", "ficheiros ignorados")} — não são imagens.`,
-        "info",
-      );
-    }
-    upload(files);
-  }
-
-  /** O drop já com as `entries` lidas de forma síncrona pelo handler. */
-  async function handleDrop(entries: FileSystemEntry[], files: File[]) {
-    // Sem pastas pelo meio, `dataTransfer.files` já traz tudo — e traz mais
-    // depressa do que percorrer a árvore entrada a entrada.
-    if (entries.length === 0 || !entries.some((e) => e.isDirectory)) {
-      pick(files);
-      return;
-    }
-    toast("A ler a pasta…", "info");
-    const { files: found, capped } = await expandDropEntries(entries);
-    if (!alive.current) return;
-    if (capped) {
-      toast(
-        `Foram lidas as primeiras ${MAX_DROP_FILES} fotos da pasta. Carrega as restantes num segundo arrasto.`,
-        "info",
-      );
-    }
-    pick(found);
-  }
+  const { pick, retryFailed, addSkippedAnyway, handleDrop } = useRepeticaoDoEnvio({
+    toast,
+    failed,
+    setFailed,
+    skipped,
+    setSkipped,
+    alive,
+    upload,
+  });
 
   /** Junta ao ecrã uma página que já veio do servidor (pedida agora ou de
    *  antemão). Um só sítio a mexer nestes quatro estados. */
@@ -2551,622 +1976,62 @@ function ThemeFolder({
     };
   }, [theme.id, loading, loadingMore, hasMore, aheadFits, images.length]);
 
-  /**
-   * ── OS TRÊS GESTOS DE SELECÇÃO ─────────────────────────────────────────
-   *
-   * «Suportar seleção; ⌘A; Shift+clique para intervalo; ⌘+clique para
-   * adicionar.» [APPLE, Collections + Focus and selection] — ponto 7 da
-   * auditoria do `docs/APPLE-TEMAS.md`.
-   *
-   * ── E PORQUE É QUE O CLIQUE SIMPLES NÃO SUBSTITUI A SELECÇÃO ───────────
-   *
-   * Num Finder, clicar numa foto desmarca as outras e o ⌘ é que acrescenta.
-   * Aqui a célula é um `role="checkbox"` com `aria-checked` — e num checkbox o
-   * clique ALTERNA, é o que o nome promete a quem ouve o ecrã e é o único
-   * gesto que existe num telemóvel, onde não há ⌘ nenhum. Trocar isso partia
-   * a semântica e obrigava a escolher quarenta fotos com uma tecla que metade
-   * dos dispositivos não tem.
-   *
-   * O que o ⌘ faz aqui, então, é uma coisa que o clique não fazia: GANHA ao
-   * Shift. Com os dois carregados, o Finder acrescenta um item ao intervalo em
-   * vez de o refazer — e é exactamente isso que se ganha em poder escolher a
-   * quadragésima primeira foto sem perder o intervalo de quarenta que estava
-   * feito.
-   */
-  function toggleAt(index: number, mods: { shift: boolean; somar: boolean }) {
-    // A âncora é lida AGORA e só depois movida: o React corre o `setSelected`
-    // preguiçosamente, já na renderização, e lá dentro `anchor.current` já
-    // valeria `index` — o Shift+clique passava a ser um clique normal.
-    const from = anchor.current;
-    anchor.current = index;
-    const extend = mods.shift && !mods.somar;
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (extend && from !== null && from !== index) {
-        // Shift+clique estende a partir da última foto tocada, e o sentido
-        // (marcar ou desmarcar) é o que a foto clicada vai passar a ser — é o
-        // que qualquer gestor de ficheiros faz.
-        const target = images[index];
-        const turnOn = target ? !prev.has(target.path) : true;
-        for (let i = Math.min(from, index); i <= Math.max(from, index); i++) {
-          const p = images[i]?.path;
-          if (!p) continue;
-          if (turnOn) next.add(p);
-          else next.delete(p);
-        }
-      } else {
-        const p = images[index]?.path;
-        if (p) {
-          if (next.has(p)) next.delete(p);
-          else next.add(p);
-        }
-      }
-      return next;
-    });
-  }
+  const { clearSelection, toggleAt, estenderPeloTeclado } = useSeleccaoDaPasta({
+    images,
+    setSelected,
+    anchor,
+  });
 
-  function clearSelection() {
-    setSelected(new Set());
-    anchor.current = null;
-  }
+  const { removeImages, moverParaTema, applyCopyOutcome } = useMoverEApagarFotos({
+    theme,
+    onCopiedTo,
+    toast,
+    anular,
+    depoisDeApagarVarios,
+    images,
+    setImages,
+    setTotal,
+    setCopyOpen,
+    setCopyReport,
+    setSelected,
+    setCoverPath,
+    alive,
+    setAMover,
+    setAnuncio,
+    setRecarga,
+    anchor,
+  });
 
-  /**
-   * `Shift` + setas: a selecção estende-se de `de` até `para`, como no Finder.
-   * Voltar para trás por cima do que já estava escolhido encolhe — tira a foto
-   * de onde se sai, e a de destino fica.
-   */
-  function estenderPeloTeclado(de: number, para: number) {
-    anchor.current = para;
-    setSelected((prev) => {
-      const caminho: string[] = [];
-      for (let k = Math.min(de, para); k <= Math.max(de, para); k++) {
-        const p = images[k]?.path;
-        if (p) caminho.push(p);
-      }
-      const destino = images[para]?.path;
-      const next = new Set(prev);
-      if (caminho.every((p) => prev.has(p))) {
-        for (const p of caminho) if (p !== destino) next.delete(p);
-      } else {
-        for (const p of caminho) next.add(p);
-      }
-      return next;
-    });
-  }
-
-  /** Remove um conjunto de fotos. Uma só confirmação para o conjunto todo, e
-   *  as que o servidor recusar voltam ao sítio onde estavam. */
-  async function removeImages(targets: ThemeImage[], aoProgredir?: (feitas: number) => void) {
-    if (targets.length === 0) return;
-    const positions = new Map(images.map((im, i) => [im.path, i]));
-    const gone = new Set(targets.map((t) => t.path));
-    setImages((prev) => prev.filter((i) => !gone.has(i.path)));
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const p of gone) next.delete(p);
-      return next;
-    });
-    anchor.current = null;
-    setTotal((t) => (t === null ? null : Math.max(0, t - targets.length)));
-    bibliotecaAlterada();
-
-    const errors: ThemeImage[] = [];
-    // As que saíram, e o que o servidor disse de cada uma: é daí que vem a
-    // entrada da Reciclagem para o «Anular».
-    const saidas: { im: ThemeImage; corpo: unknown }[] = [];
-    /**
-     * A primeira recusa que trouxe RESPOSTA — é ela que classifica a frase.
-     *
-     * As remoções vão em paralelo (ver `pool`) e não há uma resposta só para
-     * ler. Fica-se pela primeira: numa remoção em bloco o motivo é sempre o
-     * mesmo para todas (a sessão caiu, o servidor está em baixo), e é a
-     * diferença entre mandar voltar a entrar e mandar esperar. `null` quer
-     * dizer que nenhuma chegou a responder — a rede em baixo.
-     */
-    let primeiraRecusa: Response | null = null;
-    // As remoções correm com concorrência: a contagem é de quantas JÁ
-    // RESPONDERAM, e conta tanto as que foram como as que falharam — a barra
-    // retrata a espera, não o sucesso (o que falhou tem o seu próprio aviso).
-    let respondidas = 0;
-    await pool(targets, DELETE_CONCURRENCY, async (im) => {
-      try {
-        const res = await fetch(
-          `/api/temas/${theme.id}/imagens?path=${encodeURIComponent(im.path)}`,
-          { method: "DELETE" },
-        );
-        if (!res.ok) {
-          primeiraRecusa ??= res;
-          throw new Error("falhou");
-        }
-        saidas.push({ im, corpo: await res.json().catch(() => null) });
-      } catch {
-        errors.push(im);
-      } finally {
-        respondidas += 1;
-        aoProgredir?.(respondidas);
-      }
-    });
-    if (!alive.current) return;
-    if (errors.length > 0) {
-      // Repor SÓ as fotos cuja remoção falhou, no sítio onde estavam. Repor a
-      // lista inteira deitava fora as que um lote a decorrer tivesse
-      // entretanto acrescentado.
-      setImages((prev) => reinsertAt(prev, errors, positions));
-      setTotal((t) => (t === null ? null : t + errors.length));
-      // E a frase diz que elas VOLTARAM. A remoção é optimista: as fotos saem
-      // da grelha no instante do clique e reaparecem no lugar delas quando o
-      // servidor recusa. Com «Não foi possível remover 3 fotos» ela via três
-      // fotos ressuscitar sem perceber que era o aviso a acontecer.
-      const uma = errors.length === 1;
-      const oQue = `remover ${plural(errors.length, "foto", "fotos")} de "${theme.name}"`;
-      const falha = primeiraRecusa ? porqueFalhou(oQue, primeiraRecusa) : porqueRebentou(oQue);
-      toast(
-        `${falha.mensagem} ${uma ? "Voltou" : "Voltaram"} ao sítio onde ${
-          uma ? "estava" : "estavam"
-        }.`,
-        "error",
-      );
-    } else {
-      // TAMBÉM QUANDO É UMA SÓ. O `targets.length > 1` que aqui estava não era
-      // uma decisão — era o resto de uma frase escrita a pensar no bloco, e
-      // deixava o gesto mais comum de todos mudo.
-      //
-      // O buraco na grelha não serve de resposta: a remoção é OTIMISTA, a
-      // célula sai no instante do clique e o servidor só responde depois. Quem
-      // prova a diferença é o ramo de cima — quando ele recusa, a foto volta ao
-      // sítio onde estava. Sem esta frase, ver a foto sair não distingue «foi
-      // removida» de «ainda vai a caminho».
-      //
-      // E com «Anular» (R3b): as fotos ficam 30 dias na Reciclagem, e as que
-      // voltarem regressam ao sítio onde estavam na grelha.
-      depoisDeApagarVarios(
-        saidas.map((x) => x.corpo),
-        `${plural(targets.length, "foto removida", "fotos removidas")}.`,
-        (repostos) => {
-          if (!alive.current) return;
-          const voltaram = repostos.map((i) => saidas[i].im);
-          setImages((prev) => reinsertAt(prev, voltaram, positions));
-          setTotal((t) => (t === null ? null : t + voltaram.length));
-          bibliotecaAlterada();
-        },
-      );
-    }
-  }
-
-  /**
-   * O que fazer com a grelha depois de levar fotos para outro tema.
-   *
-   * SEM REMOÇÃO OTIMISTA, ao contrário do `removeImages`: aqui já houve barra
-   * de progresso a explicar a espera, por isso a grelha só perde as fotos que o
-   * servidor CONFIRMOU — e assim não é preciso código de reversão nenhum (o
-   * `reinsertAt` não entra nisto).
-   *
-   * As que falharam e as que já lá estavam ficam SELECIONADAS: é o padrão que o
-   * `ThemePicker` já usa ("o que falhou volta a ser a seleção"), e evita que
-   * repetir a operação obrigue a escolher tudo de novo.
-   */
-  function applyCopyOutcome(r: ThemeCopyOutcome) {
-    setCopyOpen(false);
-    if (r.copied.length > 0) onCopiedTo(r.destId, r.copied.length);
-    if (r.mode === "mover" && r.copied.length > 0) {
-      const gone = new Set(r.copied);
-      setImages((prev) => prev.filter((im) => !gone.has(im.path)));
-      setTotal((t) => (t === null ? null : Math.max(0, t - r.copied.length)));
-      // A capa que saiu deixa de o ser: o servidor já a limpou na origem.
-      setCoverPath((c) => (c && gone.has(c) ? undefined : c));
-      anchor.current = null;
-    }
-    // O que continua aqui: o que falhou, o que já lá estava, e — quando ela
-    // carregou em "Parar" — o que nem chegou a ser tentado. As três coisas têm
-    // o mesmo remédio (voltar a mandar), por isso ficam todas selecionadas.
-    const stuck = new Set([...r.failed, ...r.existing, ...r.untouched]);
-    setSelected((prev) => new Set([...prev].filter((p) => stuck.has(p))));
-
-    // O cartão vermelho fica no ecrã enquanto houver fotos por levar; um
-    // número em que ela precisa de agir não pode desaparecer como um aviso.
-    setCopyReport(r.failed.length > 0 || r.stopped ? r : null);
-    if (r.failed.length > 0 || r.stopped) return;
-
-    const verbo = r.mode === "copiar" ? "copiadas" : "movidas";
-    const cauda = r.existing.length > 0 ? ` — ${r.existing.length} já lá estavam.` : ".";
-    toast(
-      r.copied.length === 0
-        ? `Estas fotos já estavam todas em "${r.destName}".`
-        : `${plural(r.copied.length, `foto ${verbo.slice(0, -1)}`, `fotos ${verbo}`)} para "${r.destName}"${cauda}`,
-      "success",
-    );
-    // Sem miniatura, o tema de destino passa a puxar ORIGINAIS (medido: 164 MB
-    // por página de 60, contra 1,78 MB). Se acontecer em massa ela tem de saber
-    // porquê — senão vê o tema a arrastar-se e não faz ideia da razão.
-    if (r.thumbsMissing > 0) {
-      toast(
-        `${plural(r.thumbsMissing, "foto chegou", "fotos chegaram")} a "${r.destName}" sem miniatura. Abre esse tema e usa "Gerar miniaturas em falta".`,
-        "info",
-      );
-    }
-  }
-
-  /**
-   * ══════════════════════════════════════════════════════════════════════
-   * LARGAR UM LOTE NUM TEMA DA COLUNA — FASE 08
-   * ══════════════════════════════════════════════════════════════════════
-   *
-   * «Arrastar para um tema da lista lateral… dentro do mesmo tema reordena;
-   * para outro tema MOVE… sempre com Anular.» (Parte 4 do
-   * `docs/APPLE-TEMAS.md`.)
-   *
-   * ── PORQUE É QUE ISTO NÃO É UM SEGUNDO «COPIAR PARA…» ─────────────────
-   *
-   * Porque é o MESMO. O pedido que sai daqui é o que o `ThemeCopyDialog` já
-   * fazia — `POST /api/temas/{origem}/imagens/copiar` com `modo: "mover"`, em
-   * pedaços de `THEME_COPY_CHUNK` —, e o que chega de volta entra no
-   * `applyCopyOutcome`, que já sabe tirar da grelha só o que o servidor
-   * confirmou, corrigir a capa que saiu e deixar seleccionado o que ficou
-   * para trás. O arrasto é uma segunda PORTA para a operação, não uma segunda
-   * operação: é exactamente a alternativa obrigatória da Parte 4, lida ao
-   * contrário («Mover para… faz o mesmo sem arrastar»).
-   *
-   * O que é próprio do arrasto, e só dele, são as três coisas que este método
-   * acrescenta: a contagem enquanto espera, o anúncio em `role="status"`, e o
-   * «Anular» dentro do aviso.
-   */
-  async function moverParaTema(destino: ThemeSummary, paths: string[]) {
-    if (paths.length === 0 || destino.id === theme.id) return;
-    setAMover({ feito: 0, total: paths.length });
-    const copied: { from: string; to: string }[] = [];
-    const existing: string[] = [];
-    const failed: string[] = [];
-    let thumbsMissing = 0;
-    for (let i = 0; i < paths.length; i += THEME_COPY_CHUNK) {
-      const chunk = paths.slice(i, i + THEME_COPY_CHUNK);
-      try {
-        const res = await fetch(`/api/temas/${theme.id}/imagens/copiar`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ paths: chunk, destino: destino.id, modo: "mover" }),
-        });
-        const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(String(res.status));
-        for (const c of Array.isArray(data?.copied) ? data.copied : []) {
-          if (typeof c?.from === "string" && typeof c?.to === "string") copied.push(c);
-        }
-        existing.push(...(Array.isArray(data?.existing) ? data.existing : []));
-        failed.push(...(Array.isArray(data?.failed) ? data.failed : []));
-        thumbsMissing += typeof data?.thumbsMissing === "number" ? data.thumbsMissing : 0;
-      } catch {
-        // O pedaço que falha inteiro conta como falha das suas fotos: elas
-        // continuam aqui, e o `applyCopyOutcome` deixa-as seleccionadas para
-        // se poder repetir sem as escolher de novo.
-        failed.push(...chunk);
-      }
-      if (!alive.current) return;
-      setAMover({ feito: Math.min(i + THEME_COPY_CHUNK, paths.length), total: paths.length });
-    }
-    if (!alive.current) return;
-    setAMover(null);
-    applyCopyOutcome({
-      mode: "mover",
-      destId: destino.id,
-      destName: destino.name,
-      copied: copied.map((c) => c.from),
-      existing,
-      failed,
-      untouched: [],
-      thumbsMissing,
-      stopped: false,
-    });
-    if (copied.length === 0) {
-      setAnuncio(fraseDeMovimentoFalhado(paths.length, destino.name));
-      return;
-    }
-    setAnuncio(fraseDoMovimento(copied.length, destino.name));
-    /* ── E NENHUMA ACÇÃO A UM GESTO SEM ANULAR ──────────────────────────
-       Parte 9, e o critério 6 do documento. Um arrasto é o gesto mais fácil
-       de fazer sem querer que este ecrã tem — o ponteiro passa por cima da
-       coluna a caminho de outra coisa — e mover quarenta fotografias para o
-       tema errado sem saída era a versão em ponto grande do `×` a um clique
-       que o ponto 19 mandou tirar. */
-    //
-    // O «Anular» é o da casa (10 s, `ui/anular.ts`). O `anularMovimento` diz o
-    // resultado à sua maneira — quantas voltaram, e onde ficaram as outras —,
-    // por isso devolve `false` e não aparece um «Anulado.» por cima.
-    anular(fraseDoMovimento(copied.length, destino.name), async () => {
-      await anularMovimento(destino, copied);
-      return false;
-    });
-  }
-
-  /**
-   * Desfaz um arrasto: as fotografias voltam do destino para aqui.
-   *
-   * O caminho é o mesmo ao contrário — um `mover` a partir do tema de destino,
-   * com os caminhos NOVOS (o `to` que o servidor devolveu). E a seguir a pasta
-   * relê a primeira página em vez de repor de memória: ver a nota do `recarga`
-   * — o que volta tem caminhos e URLs assinados novos, e o objecto que estava
-   * na grelha já não descreve nenhum ficheiro.
-   */
-  async function anularMovimento(destino: ThemeSummary, movidas: { from: string; to: string }[]) {
-    const paths = movidas.map((m) => m.to);
-    setAMover({ feito: 0, total: paths.length });
-    let devolvidas = 0;
-    for (let i = 0; i < paths.length; i += THEME_COPY_CHUNK) {
-      const chunk = paths.slice(i, i + THEME_COPY_CHUNK);
-      try {
-        const res = await fetch(`/api/temas/${destino.id}/imagens/copiar`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ paths: chunk, destino: theme.id, modo: "mover" }),
-        });
-        const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(String(res.status));
-        devolvidas += Array.isArray(data?.copied) ? data.copied.length : 0;
-      } catch {
-        // Fica dito no fim, com o número certo: anular metade é uma coisa que
-        // ela tem de ver, não uma que se cale.
-      }
-      if (!alive.current) return;
-      setAMover({ feito: Math.min(i + THEME_COPY_CHUNK, paths.length), total: paths.length });
-    }
-    if (!alive.current) return;
-    setAMover(null);
-    // O cartão do destino perde o que devolveu (o `onCopiedTo` soma, e um
-    // número negativo subtrai — ver a prop). O desta pasta corrige-se sozinho
-    // quando a recarga trouxer o total novo.
-    if (devolvidas > 0) onCopiedTo(destino.id, -devolvidas);
-    bibliotecaAlterada();
-    setRecarga((n) => n + 1);
-    setAnuncio(fraseDoRegresso(devolvidas, theme.name));
-    toast(
-      devolvidas === paths.length
-        ? fraseDoRegresso(devolvidas, theme.name)
-        : `${fraseDoRegresso(devolvidas, theme.name)} As restantes ficaram em «${destino.name}».`,
-      devolvidas === paths.length ? "success" : "error",
-    );
-  }
-
-  /**
-   * Fixa a ordem que está à vista.
-   *
-   * Guarda-se o que ESTÁ carregado (cortado no teto do servidor): essas fotos
-   * passam a ser o prefixo arrumado do tema e tudo o resto continua a vir por
-   * data, atrás delas. É o que faz "pôr as boas à frente" custar meia dúzia de
-   * caminhos em vez de uma cópia do catálogo.
-   */
-  async function persistOrder(
-    next: ThemeImage[],
-    previous: ThemeImage[],
-    destino: number,
-    comAnular = true,
-  ): Promise<boolean> {
-    const oQue = `guardar a nova ordem das fotos de "${theme.name}"`;
-    // SÓ A ÚLTIMA ARRUMAÇÃO FALA. Cada Alt+seta é um PATCH seu, e cinco toques
-    // seguidos a empurrar a mesma foto davam cinco avisos iguais empilhados —
-    // ruído que ensina a não ler os avisos. O número diz qual é a arrumação
-    // mais recente; as que ficaram para trás guardam-se na mesma, caladas.
-    const minha = ++ordemMandada.current;
-    /** A ordem volta ao que estava — e a frase diz que voltou. Mostrar uma
-     *  arrumação que o servidor não guardou seria mentir-lhe até ao próximo
-     *  recarregamento; deixá-la voltar sem aviso é pior ainda, porque ela vê a
-     *  foto que arrastou saltar de novo para o sítio antigo. */
-    const reverter = (mensagem: string) => {
-      if (!alive.current) return;
-      setImages(previous);
-      toast(`${mensagem} A grelha voltou à ordem anterior.`, "error");
-    };
-    let res: Response;
-    try {
-      res = await fetch(`/api/temas/${theme.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photoOrder: next.slice(0, MAX_PHOTO_ORDER).map((im) => im.path) }),
-      });
-    } catch {
-      reverter(porqueRebentou(oQue).mensagem);
-      return false;
-    }
-    if (res.ok) {
-      // O QUE NÃO SE VÊ É O SERVIDOR. A foto salta para o lugar novo no
-      // instante do arrasto — o que ficava por dizer era se a arrumação lá
-      // ficou, e a única pista era a grelha saltar para trás quando falhava.
-      // Um ecrã que só fala quando corre mal é um ecrã em que o silêncio não
-      // quer dizer nada.
-      //
-      // E diz a POSIÇÃO: numa grelha de sessenta fotos iguais, «ordem
-      // guardada» não deixa reconhecer o gesto que foi mesmo guardado.
-      //
-      // E com «Anular»: a grelha volta à ordem de antes, gravada pelo mesmo
-      // PATCH. (O próprio «Anular» não traz outro — diz «Anulado.».)
-      if (comAnular && alive.current && minha === ordemMandada.current) {
-        anular(`Ordem guardada — a foto ficou na posição ${destino + 1} de ${next.length}.`, () => {
-          if (!alive.current) return false;
-          setImages(previous);
-          return persistOrder(previous, next, destino, false);
-        });
-      }
-      return true;
-    }
-    const data = await res.json().catch(() => null);
-    // A queixa da instalação por acabar (`db/schema.sql`) passa inteira: é uma
-    // instrução para quem monta isto, e nenhuma frase nossa a substitui.
-    const doServidor = typeof data?.error === "string" ? data.error : "";
-    reverter(
-      /db\/schema\.sql|base de dados/i.test(doServidor)
-        ? doServidor
-        : porqueFalhou(oQue, res, data).mensagem,
-    );
-    return false;
-  }
-
-  /** Move uma foto para outra posição da grelha (arrasto, setas ou "para o início"). */
-  function moveTo(from: number, to: number) {
-    if (from === to) return;
-    setImages((prev) => {
-      const next = moveItem(prev, from, to);
-      if (next === prev) return prev;
-      void persistOrder(next, prev, to);
-      return next;
-    });
-  }
-
-  /** Perguntar por uma foto solta. Quem age é o `removeImages`. */
-  function pedirParaRemoverUma(im: ThemeImage) {
-    setARemover({ alvos: [im], emBloco: false });
-  }
-
-  /**
-   * Perguntar pelo lote seleccionado.
-   *
-   * Sem selecção não há pergunta nenhuma: perguntar «remover 0 fotografias?»
-   * seria pedir uma decisão sobre nada.
-   */
-  function pedirParaRemoverAsSeleccionadas() {
-    const targets = images.filter((i) => selected.has(i.path));
-    if (targets.length === 0) return;
-    setARemover({ alvos: targets, emBloco: true });
-  }
-
-  async function removeSelected(targets: ThemeImage[]) {
-    if (targets.length === 0) return;
-    setBulkBusy(true);
-    // A remoção é otimista: a grelha e a seleção esvaziam-se já, e a barra de
-    // ações desaparece com elas. O cartão fica no lugar dela, no mesmo sítio
-    // colado ao topo — senão as fotos sumiam e mais nada dizia que ainda havia
-    // pedidos a caminho do servidor.
-    setEmBloco({ tipo: "remover", feito: 0, total: targets.length });
-    try {
-      await removeImages(targets, (feitas) => {
-        if (!alive.current) return;
-        setEmBloco((p) => (p && p.tipo === "remover" ? { ...p, feito: feitas } : p));
-      });
-    } finally {
-      if (alive.current) {
-        setBulkBusy(false);
-        setEmBloco(null);
-      }
-    }
-  }
-
-  /** Escolhe a foto que representa o tema na lista. */
-  async function setAsCover(im: ThemeImage, comAnular = true): Promise<boolean> {
-    const capaAntes = coverPath;
-    // Aqui não há nada a reverter: a capa só muda no ecrã depois de o servidor
-    // confirmar. O que faltava era a frase saber distinguir a sessão expirada
-    // do servidor em baixo — e nomear o tema, que é o que ela tem seis vezes
-    // aberto em separadores diferentes.
-    const oQue = `definir a capa de "${theme.name}"`;
-    let res: Response;
-    try {
-      res = await fetch(`/api/temas/${theme.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coverPath: im.path }),
-      });
-    } catch {
-      toast(porqueRebentou(oQue).mensagem, "error");
-      return false;
-    }
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      toast(porqueFalhou(oQue, res, data).mensagem, "error");
-      return false;
-    }
-    setCoverPath(im.path);
-    onCover(im.path, capaDaFoto(im));
-    clearSelection();
-    // Com «Anular» quando a capa de antes está à mão (carregada na grelha):
-    // volta a ser ela, pelo mesmo PATCH. Sem ela carregada não há os campos
-    // que o cartão da lista precisa (`capa-do-cartao.ts`), e não se oferece.
-    const fotoAntes = capaAntes ? images.find((i) => i.path === capaAntes) : undefined;
-    if (comAnular && fotoAntes && fotoAntes.path !== im.path) {
-      anular(`A capa de "${theme.name}" mudou.`, () => setAsCover(fotoAntes, false));
-    }
-    return true;
-    // AQUI NÃO SE DIZ NADA, e é de propósito. A capa só muda depois de o
-    // servidor confirmar, e o que ele confirmou aparece na própria foto que ela
-    // escolheu — a etiqueta «Capa» no canto da célula, mais a barra da seleção
-    // a desaparecer. Um aviso a dizer o que já está à frente dos olhos é ruído,
-    // e é a mesma decisão que a estrela dos temas já tinha: o `alternarMarca`
-    // avisa ao arquivar (o cartão sai da lista) e cala-se ao fixar (a estrela
-    // acende-se à vista).
-  }
-
-  async function rename() {
-    // O Enter fecha o campo e o onBlur dispara logo a seguir: sem esta guarda
-    // saíam dois PATCH iguais para o servidor.
-    if (renamingBusy.current) return;
-    const trimmed = name.trim();
-    if (!trimmed || trimmed === theme.name) {
-      setName(theme.name);
-      setRenaming(false);
-      return;
-    }
-    renamingBusy.current = true;
-    // O nome antigo fica guardado aqui: depois do `onRename` a lista lá fora já
-    // mudou, e a frase precisa dos DOIS nomes para dizer o que mudou.
-    const antigo = theme.name;
-    const oQue = `mudar "${antigo}" para "${trimmed}"`;
-    /** O campo volta ao nome antigo — e a frase diz que voltou, senão ela lê o
-     *  nome antigo no cabeçalho e julga que escreveu no sítio errado. */
-    const reverter = (falha: Falha) => {
-      setName(theme.name);
-      toast(`${falha.mensagem} O nome voltou a "${theme.name}".`, "error");
-    };
-    try {
-      let res: Response;
-      try {
-        res = await fetch(`/api/temas/${theme.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: trimmed }),
-        });
-      } catch {
-        reverter(porqueRebentou(oQue));
-        return;
-      }
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        reverter(porqueFalhou(oQue, res, data));
-        return;
-      }
-      onRename(trimmed);
-      // COM OS DOIS NOMES, como o renomear que se faz a partir da lista
-      // (`renomearDaLista`) já dizia. «Tema renomeado.» obrigava a ir conferir
-      // ao cabeçalho se o que lá ficou era mesmo o que ela escreveu — e com
-      // seis pastas abertas em separadores diferentes, nem dizia qual.
-      //
-      // Com «Anular»: o nome de antes, pelo mesmo PATCH. Um 409 (outro tema
-      // ficou entretanto com esse nome) diz-se e não aparece «Anulado.».
-      anular(`"${antigo}" passou a "${trimmed}"`, async () => {
-        const volta = `voltar a chamar "${antigo}" a "${trimmed}"`;
-        let r: Response;
-        try {
-          r = await fetch(`/api/temas/${theme.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: antigo }),
-          });
-        } catch {
-          toast(porqueRebentou(volta).mensagem, "error");
-          return false;
-        }
-        if (!r.ok) {
-          toast(
-            r.status === 409
-              ? `Já há um tema chamado "${antigo}".`
-              : porqueFalhou(volta, r, await r.json().catch(() => null)).mensagem,
-            "error",
-          );
-          return false;
-        }
-        onRename(antigo);
-        if (alive.current) setName(antigo);
-        return true;
-      });
-    } finally {
-      renamingBusy.current = false;
-      setRenaming(false);
-    }
-  }
+  const {
+    setAsCover,
+    moveTo,
+    pedirParaRemoverUma,
+    rename,
+    pedirParaRemoverAsSeleccionadas,
+    removeSelected,
+  } = useArrumacaoDaPasta({
+    theme,
+    onRename,
+    onCover,
+    toast,
+    anular,
+    setImages,
+    images,
+    selected,
+    setBulkBusy,
+    setARemover,
+    setEmBloco,
+    coverPath,
+    setCoverPath,
+    ordemMandada,
+    name,
+    setName,
+    setRenaming,
+    renamingBusy,
+    alive,
+    clearSelection,
+    removeImages,
+  });
 
   // O `aoSubir` é um `setState` do pai, portanto estável entre desenhos.
   useEffect(() => {
