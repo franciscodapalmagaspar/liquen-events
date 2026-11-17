@@ -79,9 +79,6 @@ export const esquemaDoCorpo = z.looseObject({
   pdfVisto: z.string().optional(),
 });
 
-/** O corpo como o estúdio o escreve (o protocolo; para os testes e os chamadores). */
-export type CorpoDoEstudio = z.input<typeof esquemaDoCorpo>;
-
 /** O sítio, tal como aparece no registo e na deduplicação. */
 export const ONDE_O_CORPO_E_OBSERVADO = "o corpo do POST proposta-doc";
 
@@ -163,13 +160,14 @@ export function documentoCompleto(
   // resto do documento passa como chegou — tolerar é a regra desta rota. Um
   // `doc` que não é objecto («x», 5, `true`) responde o que sempre respondeu:
   // «falta a referência e o nome dos clientes» (ler `.ref` de um texto dá nada).
-  const raw = cru ? (cru as Partial<ProposalDoc>) : undefined;
-  if (raw && raw.ref && raw.clientNames) return { ok: true, doc: raw as ProposalDoc };
+  const ref = cru ? (cru as { ref?: unknown }).ref : undefined;
+  const clientNames = cru ? (cru as { clientNames?: unknown }).clientNames : undefined;
+  if (cru && ref && clientNames) return { ok: true, doc: cru as ProposalDoc };
   // Dizer O QUE falta (auditoria de 13/11, estúdio n.º 19): «Proposta
   // incompleta.» sozinho deixava-a a adivinhar.
-  const falta = !raw
+  const falta = !cru
     ? "o documento"
-    : [!raw.ref ? "a referência" : null, !raw.clientNames ? "o nome dos clientes" : null]
+    : [!ref ? "a referência" : null, !clientNames ? "o nome dos clientes" : null]
         .filter(Boolean)
         .join(" e ");
   return { ok: false, error: `Proposta incompleta: falta ${falta}.` };

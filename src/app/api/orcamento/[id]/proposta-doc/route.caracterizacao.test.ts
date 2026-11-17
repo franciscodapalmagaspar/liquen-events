@@ -15,6 +15,13 @@
  * a rota ANTES de ser partida (commit de caracterização) e fica no
  * `__snapshots__`; depois disso, qualquer diferença é uma regressão.
  *
+ * EXCEPÇÃO, e dita: os retratos dos CORPOS ESTRANHOS (`ESTRANHOS`, mais
+ * abaixo) foram tirados depois de partir a rota. Foram comparados, um a um,
+ * com a rota antiga a correr ao lado no mesmo teste (a 17/11, com a rota
+ * antiga copiada de `bfd82ccf` para um ficheiro temporário) — e só depois
+ * guardados. Essa comparação não fica no repositório (precisava das 2 115
+ * linhas da rota antiga); repete-se com `git show bfd82ccf:<rota>`.
+ *
  * Só se normaliza o que muda sozinho entre corridas: identificadores
  * (`randomUUID`) e datas (o relógio).
  */
@@ -451,9 +458,9 @@ const CENARIOS: Array<[string, () => void, () => NextRequest]> = [
  * engana sem dar por isso (a revisão de 17/11 apanhou um: um `doc` que é texto
  * passou a responder «falta o documento»). Estes retratos foram tirados depois
  * de partir a rota, mas comparados um a um, nesse dia, com a rota ANTIGA a
- * correr lado a lado no mesmo teste (67 casos, todos iguais).
+ * correr lado a lado no mesmo teste (68 casos, todos iguais).
  */
-const ESTRANHOS: Array<[string, () => NextRequest]> = [
+const ESTRANHOS: Array<[string, () => NextRequest, (() => void)?]> = [
   ["doc texto", () => pedido({ mode: "send", doc: "x" })],
   ["doc número", () => pedido({ mode: "send", doc: 5 })],
   ["doc true", () => pedido({ mode: "preview", doc: true })],
@@ -470,10 +477,27 @@ const ESTRANHOS: Array<[string, () => NextRequest]> = [
   ["pdfVisto número", () => envio(doc(), { pdfVisto: 5 })],
   ["corpo número no email", () => envio(doc(), { corpo: 42 })],
   ["assunto sem corpo", () => envio(doc(), { assunto: "So o assunto" })],
-  ["modelo número", () => envio(doc(), { modelo: 3, corpo: "Olá" })],
+  [
+    "modelo número, com um modelo guardado",
+    () => envio(doc(), { modelo: 3 }),
+    () => (ctl.modelo = { assunto: "Proposta {cliente_nome}", corpo: "<p>Olá {link}</p>" }),
+  ],
   ["mensagem só espaços", () => envio(doc(), { mensagem: "   " })],
-  ["fotos negativas", () => envio(doc(), { fotosEmFaltaConfirmadas: -1 })],
-  ["cortes texto", () => envio(doc(), { cortesConfirmados: "true" })],
+  [
+    "fotos negativas, com fotos em falta",
+    () => envio(doc(), { fotosEmFaltaConfirmadas: -1 }),
+    () => (ctl.missing = 1),
+  ],
+  [
+    "fotos a true, com fotos em falta",
+    () => envio(doc(), { fotosEmFaltaConfirmadas: true }),
+    () => (ctl.missing = 1),
+  ],
+  [
+    "cortes em texto, com um corte",
+    () => envio(doc(), { cortesConfirmados: "true" }),
+    () => (ctl.truncations = [{ where: "Capa", dropped: 1, unit: "linhas" }]),
+  ],
   ["ref número", () => envio(doc({ ref: 7 }))],
   ["clientNames lista", () => envio(doc({ clientNames: ["a"] }))],
   ["doc sem nada", () => envio({})],
@@ -487,7 +511,8 @@ describe("o retrato de cada resposta da rota (fase 5)", () => {
     expect(await retrato(res)).toMatchSnapshot();
   });
 
-  it.each(ESTRANHOS)("corpo estranho: %s", async (_nome, fazer) => {
+  it.each(ESTRANHOS)("corpo estranho: %s", async (_nome, fazer, preparar) => {
+    preparar?.();
     expect(await retrato(await POST(fazer(), { params }))).toMatchSnapshot();
   });
 

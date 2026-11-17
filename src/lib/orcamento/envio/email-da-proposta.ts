@@ -21,43 +21,6 @@ import { log } from "@/lib/logger";
 import { cartaoDoPdf } from "./cartao-do-pdf";
 import type { OEnvio } from "./o-envio";
 
-/*
- * Etapa 10 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o email que vai
- * sair, inteiro, antes de sair. Não manda nada — isso é `mandar-o-email.ts`.
- *
- * ══════════════════════════════════════════════════════════════════════
- * QUAL É O CORPO: GANHA O MAIS ESPECÍFICO
- * ══════════════════════════════════════════════════════════════════════
- *
- * Corpo escrito à mão > mensagem pessoal > modelo > texto da casa.
- *
- * · O CORPO ESCRITO À MÃO: quem envia pode reescrever o corpo antes de
- *   carregar em Enviar, e é esse que sai. O tratamento — escape, tecto,
- *   parágrafos — está todo no `email-corpo-escrito`: é texto de uma caixa,
- *   não é marcação. Com ele, a mensagem pessoal fica de fora (quem escreve o
- *   corpo inteiro já lá põe a nota onde quiser).
- * · A MENSAGEM PESSOAL entra logo a seguir ao «Olá», ANTES da frase da casa e
- *   do botão: é a única parte que não se adivinha, e pô-la depois do botão
- *   era pô-la depois do sítio onde muita gente já carregou. O corpo de um
- *   modelo é markup opaco; não há onde lá dentro a enfiar sem adivinhar, por
- *   isso com mensagem o modelo fica de fora.
- * · O MODELO «proposta-enviada» do ecrã «Modelos de email» é o corpo nas
- *   DUAS rotas que mandam uma proposta (a irmã é `orcamento/[id]/proposta`).
- * · O TEXTO DA CASA, na língua da proposta: o desenho do email é UM só, e as
- *   PALAVRAS vivem no `email-proposta-textos`.
- *
- * E a MOLDURA fecha sempre no `emailAoCliente`: a assinatura é da casa e
- * entra uma só vez.
- *
- * ── O MODELO DELA É UM TEXTO PORTUGUÊS — E FICA DE FORA NUMA PROPOSTA INGLESA
- *
- * Não há versão inglesa do modelo, e não se inventa uma: traduzir à máquina
- * o que ela escreveu chegava ao casal sem ninguém o ter lido. Mandá-lo à
- * mesma era um assunto e um corpo portugueses com um PDF inglês em anexo.
- * Sai o texto da casa em inglês, e fica REGISTADO: ela guardou um modelo e o
- * email que saiu não foi o dela; isso tem de se poder ver.
- */
-
 /**
  * O texto escrito à mão recusa-se por tamanho ANTES de se desenhar o PDF:
  * recusar depois é gastar o desenho por nada. O resto dele (o
@@ -106,6 +69,42 @@ export interface EmailDaProposta {
   quem: { nome: string; cargo: string; destinatario: string };
 }
 
+/**
+ * Etapa 10 do envio (`docs/ESTRUTURA-DO-CODIGO.md`, fase 5): o email que vai
+ * sair, inteiro, antes de sair. Não manda nada — isso é `mandar-o-email.ts`.
+ *
+ * ══════════════════════════════════════════════════════════════════════
+ * QUAL É O CORPO: GANHA O MAIS ESPECÍFICO
+ * ══════════════════════════════════════════════════════════════════════
+ *
+ * Corpo escrito à mão > mensagem pessoal > modelo > texto da casa.
+ *
+ * · O CORPO ESCRITO À MÃO: quem envia pode reescrever o corpo antes de
+ *   carregar em Enviar, e é esse que sai. O tratamento — escape, tecto,
+ *   parágrafos — está todo no `email-corpo-escrito`: é texto de uma caixa,
+ *   não é marcação. Com ele, a mensagem pessoal fica de fora (quem escreve o
+ *   corpo inteiro já lá põe a nota onde quiser).
+ * · A MENSAGEM PESSOAL entra logo a seguir ao «Olá», ANTES da frase da casa e
+ *   do botão: é a única parte que não se adivinha, e pô-la depois do botão
+ *   era pô-la depois do sítio onde muita gente já carregou. O corpo de um
+ *   modelo é markup opaco; não há onde lá dentro a enfiar sem adivinhar, por
+ *   isso com mensagem o modelo fica de fora.
+ * · O MODELO «proposta-enviada» do ecrã «Modelos de email» é o corpo nas
+ *   DUAS rotas que mandam uma proposta (a irmã é `orcamento/[id]/proposta`).
+ * · O TEXTO DA CASA, na língua da proposta: o desenho do email é UM só, e as
+ *   PALAVRAS vivem no `email-proposta-textos`.
+ *
+ * E a MOLDURA fecha sempre no `emailAoCliente`: a assinatura é da casa e
+ * entra uma só vez.
+ *
+ * ── O MODELO DELA É UM TEXTO PORTUGUÊS — E FICA DE FORA NUMA PROPOSTA INGLESA
+ *
+ * Não há versão inglesa do modelo, e não se inventa uma: traduzir à máquina
+ * o que ela escreveu chegava ao casal sem ninguém o ter lido. Mandá-lo à
+ * mesma era um assunto e um corpo portugueses com um PDF inglês em anexo.
+ * Sai o texto da casa em inglês, e fica REGISTADO: ela guardou um modelo e o
+ * email que saiu não foi o dela; isso tem de se poder ver.
+ */
 export async function escreverOEmail(p: ParaEscrever): Promise<EmailDaProposta> {
   const { doc, quote, idioma, mensagem, acceptUrl } = p;
   /**
