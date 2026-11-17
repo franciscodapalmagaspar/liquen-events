@@ -5,6 +5,8 @@ const H = vi.hoisted(() => ({
   versao: 0,
   gravacoes: 0,
   lerFalha: false,
+  gravarFalha: false,
+  conflitos: 0,
 }));
 vi.mock("@/lib/app-state", () => ({
   lerEstadoComVersao: vi.fn(async () => {
@@ -12,6 +14,11 @@ vi.mock("@/lib/app-state", () => ({
     return { valor: H.linha, versao: String(H.versao) };
   }),
   gravarEstadoSeNaoMudou: vi.fn(async (_k: string, v: unknown, versao: string) => {
+    if (H.gravarFalha) return "falhou";
+    if (H.conflitos > 0) {
+      H.conflitos--;
+      return "conflito";
+    }
     if (versao !== String(H.versao)) return "conflito";
     H.linha = v;
     H.versao++;
@@ -30,6 +37,8 @@ beforeEach(() => {
   H.versao = 0;
   H.gravacoes = 0;
   H.lerFalha = false;
+  H.gravarFalha = false;
+  H.conflitos = 0;
   esquecerUso();
 });
 
@@ -60,10 +69,41 @@ describe("o contador do Blob", () => {
     expect(await travao({ avancadas: 1, bytes: 6 })).toBe("armazenamento");
   });
 
-  it("um contador ilegível não trava (o Blob é o plano B, não a avaria)", async () => {
+  it("um contador ilegível FECHA o travão (revisão 17/11, n.º 5)", async () => {
     H.lerFalha = true;
     expect(await usoAtual()).toBeNull();
-    expect(await travao({ avancadas: 1 })).toBeNull();
+    expect(await travao({ avancadas: 1 })).toBe("contador-ilegivel");
+    expect(await travao({ simples: 1 })).toBe("contador-ilegivel");
+  });
+
+  it("uma cópia velha em memória não serve de travão quando a leitura falha", async () => {
+    await usoAtual();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 61_000);
+    H.lerFalha = true;
+    expect(await travao({ simples: 1 })).toBe("contador-ilegivel");
+    vi.useRealTimers();
+  });
+
+  it("um conflito no compare-and-set tenta outra vez antes de desistir", async () => {
+    H.conflitos = 5;
+    await registar({ simples: 5 });
+    expect((H.linha as { simples: number }).simples).toBe(5);
+  });
+
+  it("um gasto que não se gravou não se perde: continua a contar e grava-se depois", async () => {
+    H.linha = { mes, avancadas: 49_999, simples: 0, transferencia: 0, bytes: 0 };
+    await usoAtual();
+    H.gravarFalha = true;
+    await registar({ avancadas: 1 });
+    // A leitura seguinte (fresca) ainda não tem o gasto — mas a instância sabe dele.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 61_000);
+    expect(await travao({ avancadas: 1 })).toBe("operacoes-avancadas");
+    vi.useRealTimers();
+    H.gravarFalha = false;
+    await registar({ simples: 1 });
+    expect(H.linha).toMatchObject({ avancadas: 50_000, simples: 1 });
   });
 
   it("o mês anterior não conta para este", async () => {

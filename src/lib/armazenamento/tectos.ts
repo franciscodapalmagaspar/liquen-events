@@ -95,7 +95,9 @@ export type Recusa =
   | "armazenamento"
   | "operacoes-avancadas"
   | "operacoes-simples"
-  | "transferencia";
+  | "transferencia"
+  /** O contador não se leu: sem saber quanto se gastou, não se gasta mais. */
+  | "contador-ilegivel";
 
 /**
  * Esta operação cabe? Recusa se, DEPOIS dela, algum contador que ela toca
