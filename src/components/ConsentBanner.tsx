@@ -309,14 +309,14 @@ export default function ConsentBanner({ locale }: { locale: Locale }) {
           <button
             type="button"
             onClick={() => choose(false)}
-            className="toque alvo-toque rounded-full border border-white/55 px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-sage-800"
+            className="toque alvo-toque rounded-full border border-white/55 px-4 py-1.5 text-miuda uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-sage-800"
           >
             {t.decline}
           </button>
           <button
             type="button"
             onClick={() => choose(true)}
-            className="toque alvo-toque rounded-full border border-white/55 px-4 py-1.5 text-[11px] uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-sage-800"
+            className="toque alvo-toque rounded-full border border-white/55 px-4 py-1.5 text-miuda uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-sage-800"
           >
             {t.accept}
           </button>

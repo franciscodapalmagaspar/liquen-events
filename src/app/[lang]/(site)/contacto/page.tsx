@@ -82,7 +82,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
         <div className="absolute inset-0 flex flex-col justify-end px-6 lg:px-16 pb-14 lg:pb-20">
           <div className="max-w-7xl mx-auto w-full">
             <div className="max-w-md">
-              <p className="text-white/70 text-[10px] tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
+              <p className="text-white/70 text-miuda tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
                 <span className="w-6 h-px bg-gold flex-shrink-0" />
                 {tf.heroEyebrow}
               </p>
@@ -115,7 +115,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
           <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr]">
             {/* ── Esquerda — canais diretos ── */}
             <div className="border-b border-foreground/8 lg:border-b-0 lg:border-r py-14 lg:py-24 lg:pr-20">
-              <p className="text-foreground/70 text-[10px] tracking-[0.5em] uppercase mb-12 flex items-center gap-3">
+              <p className="text-foreground/70 text-miuda tracking-[0.5em] uppercase mb-12 flex items-center gap-3">
                 <span className="w-6 h-px bg-gold flex-shrink-0" />
                 {tf.infoEyebrow}
               </p>
@@ -142,7 +142,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                   },
                 ].map((item) => (
                   <div key={item.label} className="py-6">
-                    <p className="text-foreground/70 text-[10px] tracking-[0.4em] uppercase mb-2.5">
+                    <p className="text-foreground/70 text-miuda tracking-[0.4em] uppercase mb-2.5">
                       {item.label}
                     </p>
                     {/* `alvo-toque` + `flex items-center` no lugar do `block`.
@@ -188,7 +188,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                 <span className="text-moss flex-shrink-0">
                   <WhatsAppIcon className="w-4 h-4" />
                 </span>
-                <span className="text-[11px] tracking-[0.25em] uppercase text-foreground/70 group-hover:text-foreground transition-colors">
+                <span className="text-miuda tracking-[0.25em] uppercase text-foreground/70 group-hover:text-foreground transition-colors">
                   {tf.whatsappLink}
                   <span className="sr-only"> ({t.common.newWindow})</span>
                 </span>
@@ -228,7 +228,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                     />
                   </svg>
                 </span>
-                <span className="text-[11px] tracking-[0.25em] uppercase text-foreground/70 group-hover:text-foreground transition-colors">
+                <span className="text-miuda tracking-[0.25em] uppercase text-foreground/70 group-hover:text-foreground transition-colors">
                   {tf.googleLink}
                   <span className="sr-only"> ({t.common.newWindow})</span>
                 </span>
@@ -261,7 +261,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                       href={s.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="alvo-toque group inline-flex items-center py-1.5 text-[11px] tracking-[0.25em] uppercase text-foreground/70 hover:text-foreground transition-colors"
+                      className="alvo-toque group inline-flex items-center py-1.5 text-miuda tracking-[0.25em] uppercase text-foreground/70 hover:text-foreground transition-colors"
                     >
                       <span className="border-b border-foreground/15 transition-colors group-hover:border-foreground/40">
                         {s.label}
@@ -302,7 +302,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
               </div>
               <AnimateIn>
                 <div className="relative">
-                  <p className="text-cream/70 text-[10px] tracking-[0.5em] uppercase mb-8 flex items-center gap-3">
+                  <p className="text-cream/70 text-miuda tracking-[0.5em] uppercase mb-8 flex items-center gap-3">
                     <span className="w-6 h-px bg-gold flex-shrink-0" />
                     {td.ctaEyebrow}
                   </p>
@@ -392,7 +392,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
         />
         <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-16">
           <AnimateIn>
-            <p className="text-white/70 text-[10px] tracking-[0.5em] uppercase mb-14 flex items-center gap-3">
+            <p className="text-white/70 text-miuda tracking-[0.5em] uppercase mb-14 flex items-center gap-3">
               <span className="w-6 h-px bg-gold flex-shrink-0" />
               {t.contacto.nextEyebrow}
             </p>
@@ -445,7 +445,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
           <AnimateIn>
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-20 items-start">
               <div className="text-veil-shadow lg:sticky" style={{ top: "6rem" }}>
-                <p className="text-white/70 text-[10px] tracking-[0.5em] uppercase mb-8 flex items-center gap-3">
+                <p className="text-white/70 text-miuda tracking-[0.5em] uppercase mb-8 flex items-center gap-3">
                   <span className="w-6 h-px bg-gold flex-shrink-0" />
                   {t.contacto.faqEyebrow}
                 </p>
@@ -491,7 +491,7 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
         />
         <div className="veu-texto veu-texto--esquerda [--veu-alfa:0.78] max-w-7xl mx-auto px-6 lg:px-16 relative">
           <AnimateIn>
-            <p className="text-cream/80 text-[10px] tracking-[0.5em] uppercase mb-10 flex items-center gap-3">
+            <p className="text-cream/80 text-miuda tracking-[0.5em] uppercase mb-10 flex items-center gap-3">
               <span className="w-5 h-px bg-cream/45 flex-shrink-0" />
               {t.contacto.whatsappEyebrow}
             </p>

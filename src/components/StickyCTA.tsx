@@ -154,7 +154,7 @@ export default function StickyCTA() {
         onClick={() => track("CTAClick", { source: "sticky" })}
         className="toque alvo-toque group flex items-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-6 sm:py-3 bg-black/20 border border-white shadow-[0_12px_40px_-12px_rgba(0,0,0,0.45)] hover:bg-white hover:border-white transition-colors duration-300 ease-expo"
       >
-        <span className="text-[9px] sm:text-[10px] tracking-[0.18em] sm:tracking-[0.28em] uppercase text-white group-hover:text-sage-800 transition-colors duration-300 ease-expo">
+        <span className="text-miuda tracking-[0.18em] sm:tracking-[0.28em] uppercase text-white group-hover:text-sage-800 transition-colors duration-300 ease-expo">
           {t.footer.pedirOrcamento}
         </span>
         <span

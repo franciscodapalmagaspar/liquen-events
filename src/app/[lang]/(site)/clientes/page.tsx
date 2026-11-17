@@ -36,8 +36,7 @@ export async function generateMetadata({
   });
 }
 
-const eyebrow =
-  "text-foreground/68 text-[10px] tracking-[0.48em] uppercase flex items-center gap-3";
+const eyebrow = "text-foreground/68 text-miuda tracking-[0.48em] uppercase flex items-center gap-3";
 
 // O mosaico sorteia 7 desta lista a cada entrada na página (ver
 // RotatingPhotoGrid). TODAS TÊM DE SER EM PAISAGEM, e isso não é preferência:
@@ -157,7 +156,7 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
         <div className="veu-texto veu-texto--esquerda [--veu-recuo-baixo:3.5rem] lg:[--veu-recuo-baixo:5rem] relative z-10 max-w-7xl mx-auto w-full px-6 lg:px-16 pb-14 lg:pb-20">
           <AnimateIn>
             <div className="max-w-md">
-              <p className="text-white/70 text-[10px] tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
+              <p className="text-white/70 text-miuda tracking-[0.5em] uppercase mb-3 flex items-center gap-3">
                 <span className="w-6 h-px bg-gold flex-shrink-0" />
                 {t.clientes.heroEyebrow}
               </p>
@@ -285,7 +284,7 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
                     <div className="w-6 h-px bg-gold flex-shrink-0" />
                     <div>
                       <p className="text-white text-sm font-semibold">{item.name}</p>
-                      <p className="text-moss-light text-[10px] mt-0.5 tracking-[0.18em] uppercase">
+                      <p className="text-moss-light text-miuda mt-0.5 tracking-[0.18em] uppercase">
                         {item.event}
                       </p>
                     </div>
@@ -303,7 +302,7 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
       <section className="pt-16 lg:pt-20 bg-[#0b0b0b]">
         <div className="max-w-7xl mx-auto px-6 lg:px-16">
           <AnimateIn className="mb-10">
-            <p className="text-white/70 text-[10px] tracking-[0.48em] uppercase flex items-center gap-3">
+            <p className="text-white/70 text-miuda tracking-[0.48em] uppercase flex items-center gap-3">
               <span className="w-5 h-px bg-gold/50 flex-shrink-0" />
               {t.clientes.mosaicEyebrow}
             </p>
@@ -374,7 +373,7 @@ export default async function ClientesPage({ params }: { params: Promise<{ lang:
 
         <div className="text-veil-shadow veu-texto veu-texto--centro relative z-10 max-w-7xl mx-auto px-6 lg:px-16 flex flex-col items-center text-center">
           <AnimateIn>
-            <p className="text-white/70 text-[10px] tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
+            <p className="text-white/70 text-miuda tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
               <span className="w-8 h-px bg-gold" />
               {t.clientes.ctaEyebrow}
             </p>

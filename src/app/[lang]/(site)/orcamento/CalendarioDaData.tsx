@@ -380,7 +380,7 @@ export default function CalendarioDaData({
                       key={d.nome}
                       role="columnheader"
                       aria-label={d.nome}
-                      className="py-1.5 text-center text-[11px] font-medium uppercase text-foreground/45"
+                      className="py-1.5 text-center text-miuda font-medium uppercase text-foreground/45"
                     >
                       {d.inicial}
                     </span>

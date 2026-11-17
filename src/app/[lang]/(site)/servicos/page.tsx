@@ -38,8 +38,7 @@ export async function generateMetadata({
   });
 }
 
-const eyebrowLight =
-  "text-white/70 text-[10px] tracking-[0.52em] uppercase flex items-center gap-3";
+const eyebrowLight = "text-white/70 text-miuda tracking-[0.52em] uppercase flex items-center gap-3";
 
 /* ── Mosaico editorial para categorias ── */
 type ServiceCard = {
@@ -376,7 +375,7 @@ export default async function ServicosPage({ params }: { params: Promise<{ lang:
 
         <div className="text-veil-shadow veu-texto veu-texto--centro [--veu-alfa:0.76] [--veu-recuo-cima:7rem] [--veu-recuo-baixo:7rem] lg:[--veu-recuo-cima:10rem] lg:[--veu-recuo-baixo:10rem] relative z-10 w-full max-w-7xl mx-auto px-6 lg:px-16 py-28 lg:py-40 flex flex-col items-center text-center">
           <AnimateIn>
-            <p className="text-white/70 text-[10px] tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
+            <p className="text-white/70 text-miuda tracking-[0.52em] uppercase flex items-center justify-center gap-4 mb-10">
               <span className="w-8 h-px bg-gold" />
               {ts.ctaEyebrow}
             </p>

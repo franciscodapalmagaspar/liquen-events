@@ -236,7 +236,7 @@ export default async function PaginaSocial({
               nada muda. É a mesma cura do resto do repositório. */}
           <a
             href={`tel:${SITE.phone}`}
-            className="alvo-toque text-[11px] tracking-[0.14em] text-white/80 underline underline-offset-4"
+            className="alvo-toque text-miuda tracking-[0.14em] text-white/80 underline underline-offset-4"
           >
             {SITE.phoneDisplay}
           </a>
@@ -333,7 +333,7 @@ export default async function PaginaSocial({
       {espacos.length > 0 && (
         <section className="border-y border-foreground/10 bg-surface px-5 py-10 sm:px-8">
           <div className="mx-auto max-w-2xl">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-foreground/45">
+            <p className="text-miuda uppercase tracking-[0.3em] text-foreground/45">
               {en ? "Venues we know" : "Espaços que conhecemos"}
             </p>
             <ul className="mt-4 flex flex-wrap gap-2">
@@ -375,7 +375,7 @@ export default async function PaginaSocial({
           somos, e o fim legal de todas as páginas (17/11): o Livro de
           Reclamações, as ligações Privacidade · Cookies · Termos e a
           resolução de litígios (`AvisoLegal.tsx`). */}
-      <footer className="px-5 pb-28 text-center text-[11px] text-foreground/68">
+      <footer className="px-5 pb-28 text-center text-miuda text-foreground/68">
         <p className="mb-4">{SITE.name}</p>
         <AvisoLegal
           lingua={locale}

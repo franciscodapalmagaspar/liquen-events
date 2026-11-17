@@ -16,7 +16,7 @@
 // volta com mola ao largar (`MolaAoLargar.tsx`). Com rato, sobe 2 px ao passar
 // por cima (`translate`, composto) — «Botões e cartões com mola», 22/10.
 const PRIMARY_BUTTON_BASE =
-  "toque inline-flex items-center gap-3 px-9 py-4 btn-shine bg-moss text-white font-medium hover:bg-moss-dark hover:gap-5 motion-safe:hover:-translate-y-0.5 transition-[gap,background-color,translate] duration-300 text-[11px] tracking-[0.3em] uppercase disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:gap-3";
+  "toque inline-flex items-center gap-3 px-9 py-4 btn-shine bg-moss text-white font-medium hover:bg-moss-dark hover:gap-5 motion-safe:hover:-translate-y-0.5 transition-[gap,background-color,translate] duration-300 text-miuda tracking-[0.3em] uppercase disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:gap-3";
 
 // On light / cream sections (form submits, service-intro CTA): soft moss lift.
 export const PRIMARY_BUTTON_CLASS = `${PRIMARY_BUTTON_BASE} shadow-lg shadow-moss/15`;
@@ -41,7 +41,7 @@ export const PRIMARY_BUTTON_DARK_CLASS = `${PRIMARY_BUTTON_BASE} shadow-xl shado
 // o `alvo-toque` da casa segura os 44 px de altura (antes eram ~47): o botão
 // fica mais fino e o toque continua a cumprir o mínimo.
 export const OUTLINE_LIGHT_BUTTON_CLASS =
-  "toque alvo-toque relative inline-flex items-center gap-3 px-6 py-3 sm:px-8 sm:py-3.5 border border-white/70 text-white text-[10px] sm:text-[11px] tracking-[0.24em] sm:tracking-[0.3em] uppercase hover:bg-white hover:text-[#0c0e0b] hover:border-white motion-safe:hover:-translate-y-0.5 transition-[color,background-color,border-color,translate] duration-300 ease-expo focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80";
+  "toque alvo-toque relative inline-flex items-center gap-3 px-6 py-3 sm:px-8 sm:py-3.5 border border-white/70 text-white text-miuda tracking-[0.24em] sm:tracking-[0.3em] uppercase hover:bg-white hover:text-[#0c0e0b] hover:border-white motion-safe:hover:-translate-y-0.5 transition-[color,background-color,border-color,translate] duration-300 ease-expo focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80";
 
 /**
  * O véu de um painel de fotografia — SÓ AS PONTAS (23/10).

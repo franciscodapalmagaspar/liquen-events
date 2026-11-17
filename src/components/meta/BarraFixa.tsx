@@ -83,7 +83,7 @@ export default function BarraFixa({
             rolarAteVer(alvo, { block: "start" });
             history.replaceState(null, "", "#pedido");
           }}
-          className="toque flex flex-1 items-center justify-center border border-white/60 px-4 py-3.5 text-[11px] uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-[#0c0e0b]"
+          className="toque flex flex-1 items-center justify-center border border-white/60 px-4 py-3.5 text-miuda uppercase tracking-[0.16em] text-white transition-colors hover:bg-white hover:text-[#0c0e0b]"
         >
           {textoFormulario}
         </a>

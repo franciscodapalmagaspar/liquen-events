@@ -177,6 +177,18 @@
   --text-display--line-height: 2.25rem;
   --text-display--letter-spacing: 0.013em;
 
+  /* A LETRA MIÚDA DO SITE PÚBLICO — e o chão dela (17/11).
+     Um júri contou 104 textos de 9 a 11 px nas páginas públicas (o rodapé
+     legal incluído), e as «Boas práticas» do Lighthouse desceram de 100 para
+     96 em seis páginas. O dono aprovou: no site, nada abaixo de 12 px.
+     Este é o degrau mais baixo do site, e é UM só: etiquetas, sobretítulos,
+     botões em maiúsculas, legendas e o fim legal leem-no daqui (`text-miuda`
+     nas classes, `var(--text-miuda)` no CSS e no `style`). Só o tamanho:
+     sem entrelinha nem espaçamento próprios, para cada sítio manter os que
+     já tinha (o `tracking-*` e o `leading-*` de quem o usa).
+     Preso por `src/app/letra-minima-do-site.contrato.test.ts`. */
+  --text-miuda: 0.75rem;
+
   /* ---------- ESPAÇO ----------
      Grelha de 4: 4 8 12 16 20 24 32 40 48 64. É já o valor por omissão do
      Tailwind v4; fica escrito para a grelha ser uma decisão e não um acaso. */
