@@ -44,20 +44,22 @@ import { log } from "@/lib/logger";
 const TECTO_DE_DESVIOS_LEMBRADOS = 500;
 /** Quantos casos (ids) de um mesmo desvio se dizem, por processo. */
 export const CASOS_POR_DESVIO = 64;
-/** O que se lembra de um desvio: os casos já ditos, e se já se disse que
- *  passou do tecto. */
+/** O que se lembra de um desvio: os casos (ids) já ditos, quantas ocorrências
+ *  SEM id já se disseram — contadas à parte, para não gastarem os lugares dos
+ *  casos com id —, e se já se disse que passou do tecto. */
 interface Lembrado {
   casos: Set<string>;
+  semId: number;
   passouDoTecto: boolean;
 }
 /** Desvio → o que se lembra dele, do menos para o mais recentemente visto. */
 const jaDitos = new Map<string, Lembrado>();
-/** Para dar a cada ocorrência sem id um caso seu. */
-let ocorrenciasSemId = 0;
 
 /**
  * O que fazer com este caso deste desvio — e lembra-o:
  *  · `dizer`, a primeira vez que o caso aparece (até {@link CASOS_POR_DESVIO});
+ *    sem id (`null`) não há como saber se é o mesmo, e cada ocorrência
+ *    diz-se, com o seu próprio tecto de {@link CASOS_POR_DESVIO};
  *  · `resumir`, UMA vez, no primeiro caso novo depois do tecto: uma linha diz
  *    que o desvio continua noutros casos, que já não se dizem um a um — o
  *    registo nunca finge que o desvio parou;
@@ -65,7 +67,7 @@ let ocorrenciasSemId = 0;
  * No tecto de desvios lembrados esquece-se o que não se vê há mais tempo
  * (cada visita põe o desvio no fim da fila), nunca todos.
  */
-function oQueFazer(assinatura: string, caso: string): "dizer" | "resumir" | "calar" {
+function oQueFazer(assinatura: string, caso: string | null): "dizer" | "resumir" | "calar" {
   let lembrado = jaDitos.get(assinatura);
   if (lembrado) {
     jaDitos.delete(assinatura);
@@ -74,11 +76,17 @@ function oQueFazer(assinatura: string, caso: string): "dizer" | "resumir" | "cal
       const menosVisto = jaDitos.keys().next().value;
       if (menosVisto !== undefined) jaDitos.delete(menosVisto);
     }
-    lembrado = { casos: new Set(), passouDoTecto: false };
+    lembrado = { casos: new Set(), semId: 0, passouDoTecto: false };
   }
   jaDitos.set(assinatura, lembrado);
-  if (lembrado.casos.has(caso)) return "calar";
-  if (lembrado.casos.size < CASOS_POR_DESVIO) {
+  if (caso === null) {
+    if (lembrado.semId < CASOS_POR_DESVIO) {
+      lembrado.semId += 1;
+      return "dizer";
+    }
+  } else if (lembrado.casos.has(caso)) {
+    return "calar";
+  } else if (lembrado.casos.size < CASOS_POR_DESVIO) {
     lembrado.casos.add(caso);
     return "dizer";
   }
@@ -128,10 +136,8 @@ export function observar(
     desvios.map((d) => `${d.campo.replace(/\.\d+(?=\.|$)/g, ".*")}:${d.problema}`),
   );
   const assinatura = `${onde}|${[...normalizados].sort().join(",")}`;
-  // Sem id (um modelo novo, ainda sem nome guardado), cada ocorrência é um
-  // caso: não há como saber se é o mesmo, e calar as seguintes escondia
-  // QUAIS. O tecto de casos continua a valer.
-  const caso = typeof contexto.id === "string" ? contexto.id : `sem-id:${++ocorrenciasSemId}`;
+  // Sem id (um modelo novo, ainda sem nome guardado): `null` — ver `oQueFazer`.
+  const caso = typeof contexto.id === "string" ? contexto.id : null;
   const fazer = oQueFazer(assinatura, caso);
   if (fazer === "calar") return false;
   if (fazer === "resumir") {

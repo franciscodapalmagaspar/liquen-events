@@ -39,11 +39,7 @@ import { desenharOPdf } from "./desenhar-o-pdf";
 import { escreverOEmail } from "./email-da-proposta";
 import { depoisDoEmail } from "./depois-do-email";
 import { esvaziarPdfsFinais } from "@/lib/proposal-preview-cache";
-import type { Passo } from "./passo";
-
-/** O que um `Passo` parado respondeu — a recusa, ou `null` se seguiu. */
-const recusaDe = (p: Passo<unknown>) =>
-  !p.ok && p.desfecho.tipo === "recusa" ? p.desfecho.recusa : null;
+import { recusaDe } from "./passo-nos-testes";
 
 const doc = {
   ref: "PO",

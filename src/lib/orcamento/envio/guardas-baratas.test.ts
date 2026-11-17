@@ -5,11 +5,7 @@ import { MAX_PROPOSAL_DOC_BYTES } from "@/lib/proposal-doc";
 import { MAXIMO_CORPO_ESCRITO } from "@/lib/email-corpo-escrito";
 import { corpoLido } from "./ler-o-corpo";
 import { guardasBaratas } from "./guardas-baratas";
-import type { Passo } from "./passo";
-
-/** O que um `Passo` parado respondeu — a recusa, ou `null` se seguiu. */
-const recusaDe = (p: Passo<unknown>) =>
-  !p.ok && p.desfecho.tipo === "recusa" ? p.desfecho.recusa : null;
+import { recusaDe } from "./passo-nos-testes";
 
 /** Um corpo com UM desvio ao esquema (`mensagem` em número): se for observado, diz-se. */
 const comDesvio = (o: Record<string, unknown>) =>

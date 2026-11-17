@@ -78,6 +78,15 @@ describe("a fronteira em modo de observar", () => {
     expect(aviso).toHaveBeenCalledTimes(2);
   });
 
+  it("as ocorrências sem id não gastam os lugares dos casos com id", () => {
+    const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
+    for (let i = 0; i < CASOS_POR_DESVIO + 5; i++) observar(esquema, { nome: 1 }, "teste");
+    aviso.mockClear();
+    observar(esquema, { nome: 1 }, "teste", { id: "q1" });
+    expect(aviso).toHaveBeenCalledTimes(1);
+    expect(String(aviso.mock.calls[0][0])).toContain("não bate com o esquema");
+  });
+
   it("o resumo diz-se uma vez — a lista de pedidos relida não o repete", () => {
     const aviso = vi.spyOn(log, "warn").mockImplementation(() => {});
     for (let leitura = 0; leitura < 5; leitura++) {

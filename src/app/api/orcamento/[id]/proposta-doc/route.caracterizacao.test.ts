@@ -29,7 +29,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { NextRequest } from "next/server";
 import { ctl } from "./_caracterizacao/duplos";
-import { doc, envio, params, pedido, repor, retrato } from "./_caracterizacao/palco";
+import {
+  doc,
+  duplosEsquecidos,
+  envio,
+  params,
+  pedido,
+  repor,
+  retrato,
+} from "./_caracterizacao/palco";
 import { GET, POST } from "./route";
 import { CENARIOS, ESTRANHOS } from "./_caracterizacao/cenarios";
 
@@ -71,6 +79,10 @@ vi.mock("@/lib/proposal-pdf-guardado", async () =>
 beforeEach(repor);
 
 describe("o retrato de cada resposta da rota (fase 5)", () => {
+  it("cada duplo está declarado neste teste", async () => {
+    expect(await duplosEsquecidos()).toEqual([]);
+  });
+
   it.each(CENARIOS)("%s", async (_nome, preparar, fazer) => {
     preparar();
     const res = await POST(fazer(), { params });

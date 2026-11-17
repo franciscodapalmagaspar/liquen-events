@@ -8,22 +8,25 @@
  * caracterização), põe-na ao lado da nova, corre os mesmos cenários nas duas
  * com os mesmos duplos, e exige o mesmo retrato, letra a letra.
  *
- * Corre SEMPRE que o histórico tem esse commit (aqui, e num clone inteiro);
- * num clone raso (o CI faz `fetch-depth: 1`) não há rota antiga a tirar, e
- * salta — dito no nome do teste. `COMPARAR_COM_A_ROTA_ANTIGA=0` desliga-o.
+ * Corre SEMPRE que o clone tem esse commit (aqui, e num clone inteiro feito
+ * enquanto o ramo existir); num clone raso (o CI faz `fetch-depth: 1`), ou
+ * depois de o ramo entrar por squash e desaparecer, não há rota antiga a
+ * tirar, e salta — dito no nome do teste. `COMPARAR_COM_A_ROTA_ANTIGA=0`
+ * desliga-o.
  *
  * TEM PRAZO, e está escrito: a rota antiga importa os módulos de HOJE, e um
- * dia um deles muda de forma e ela deixa de compilar. Esse dia é o sinal do
- * desvio 8 de `docs/ESTRUTURA-DO-CODIGO.md`: o retrato reduz-se aos casos de
- * fronteira e este ficheiro apaga-se no mesmo PR — não se «conserta» a rota
- * antiga.
+ * dia um deles muda de forma e ela deixa de carregar, ou responde diferente
+ * sem que a nova tenha mudado. A mensagem da falha di-lo ({@link SE_FALHAR}):
+ * esse dia é o do desvio 8 de `docs/ESTRUTURA-DO-CODIGO.md` — o retrato
+ * reduz-se aos casos de fronteira e este ficheiro apaga-se no mesmo PR; não se
+ * «conserta» a rota antiga.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
-import { params, repor, retrato } from "./_caracterizacao/palco";
+import { duplosEsquecidos, params, repor, retrato } from "./_caracterizacao/palco";
 import { POST } from "./route";
 import { CENARIOS, ESTRANHOS } from "./_caracterizacao/cenarios";
 
@@ -89,8 +92,15 @@ const HA_ROTA_ANTIGA =
   process.env.COMPARAR_COM_A_ROTA_ANTIGA !== "0" &&
   RAIZ !== "" &&
   git("cat-file", "-e", `${COMMIT_DA_CARACTERIZACAO}^{commit}`) !== null;
-const PASTA_DA_ANTIGA = path.join(RAIZ, "node_modules", ".cache", "rota-antiga");
-const FICHEIRO_DA_ANTIGA = path.join(PASTA_DA_ANTIGA, "route.ts");
+/** Uma pasta por corrida: duas corridas ao mesmo tempo não se pisam. */
+const CACHE = path.join(RAIZ, "node_modules", ".cache");
+
+/** O que dizer quando a comparação falha — pode não ser uma regressão. */
+const SE_FALHAR =
+  "A rota nova responde diferente da antiga. Se mudaste a resposta, é uma regressão. " +
+  "Se mudaste a FORMA de um módulo que a rota antiga importa, a comparação acabou: " +
+  "é o dia do desvio 8 de docs/ESTRUTURA-DO-CODIGO.md (reduzir o retrato e apagar " +
+  "este ficheiro). COMPARAR_COM_A_ROTA_ANTIGA=0 desliga-a até lá.";
 
 type Post = typeof POST;
 
@@ -98,18 +108,25 @@ describe.skipIf(!HA_ROTA_ANTIGA)(
   `a rota nova responde o mesmo que a antiga (${COMMIT_DA_CARACTERIZACAO}; salta num clone raso)`,
   () => {
     let postAntigo: Post;
+    let pasta = "";
 
     beforeAll(async () => {
       const antiga = execFileSync("git", ["show", `${COMMIT_DA_CARACTERIZACAO}:${ROTA}`], {
         cwd: RAIZ,
       });
-      mkdirSync(PASTA_DA_ANTIGA, { recursive: true });
-      writeFileSync(FICHEIRO_DA_ANTIGA, antiga);
-      ({ POST: postAntigo } = (await import(/* @vite-ignore */ FICHEIRO_DA_ANTIGA)) as {
-        POST: Post;
-      });
+      mkdirSync(CACHE, { recursive: true });
+      pasta = mkdtempSync(path.join(CACHE, "rota-antiga-"));
+      const ficheiro = path.join(pasta, "route.ts");
+      writeFileSync(ficheiro, antiga);
+      try {
+        ({ POST: postAntigo } = (await import(/* @vite-ignore */ ficheiro)) as { POST: Post });
+      } catch (e) {
+        throw new Error(`A rota antiga já não carrega (${String(e)}). ${SE_FALHAR}`);
+      }
     });
-    afterAll(() => rmSync(PASTA_DA_ANTIGA, { recursive: true, force: true }));
+    afterAll(() => {
+      if (pasta) rmSync(pasta, { recursive: true, force: true });
+    });
 
     const casos: Array<[string, () => void, () => NextRequest]> = [
       ...CENARIOS,
@@ -118,6 +135,10 @@ describe.skipIf(!HA_ROTA_ANTIGA)(
           [nome, preparar ?? (() => {}), fazer] as [string, () => void, () => NextRequest],
       ),
     ];
+
+    it("cada duplo está declarado neste teste", async () => {
+      expect(await duplosEsquecidos()).toEqual([]);
+    });
 
     it.each(casos)("%s", async (_nome, preparar, fazer) => {
       // O relógio que um cenário espia («sem tempo para o email») volta ao
@@ -134,7 +155,7 @@ describe.skipIf(!HA_ROTA_ANTIGA)(
       };
       const antiga = await correr(postAntigo);
       const nova = await correr(POST);
-      expect(nova).toBe(antiga);
+      expect(nova, SE_FALHAR).toBe(antiga);
     });
   },
 );

@@ -9,7 +9,7 @@ import type { NextRequest } from "next/server";
 import { chaveDoPdf } from "@/lib/proposal-pdf-chave";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 
-import { ctl } from "./duplos";
+import { ctl, DUPLOS } from "./duplos";
 
 import { sendMail } from "@/lib/mail";
 import { createProposal, updateProposal } from "@/lib/proposals-store";
@@ -160,4 +160,20 @@ export function repor(): void {
   vi.clearAllMocks();
   for (const nivel of ["info", "warn", "error"] as const)
     vi.spyOn(log, nivel).mockImplementation(() => {});
+}
+
+/**
+ * Os módulos de {@link DUPLOS} que o teste que chama NÃO substituiu — tem de
+ * ser nenhum. Os `vi.mock` vivem em cada teste (é lá que o vitest os sobe), e
+ * um duplo novo esquecido num deles deixava esse teste a usar o módulo
+ * verdadeiro (o correio, a base) sem ninguém dar por isso.
+ */
+export async function duplosEsquecidos(): Promise<string[]> {
+  const esquecidos: string[] = [];
+  for (const modulo of Object.keys(DUPLOS)) {
+    const verdadeiro = await vi.importActual(modulo);
+    const visto = await import(/* @vite-ignore */ modulo);
+    if (visto === verdadeiro) esquecidos.push(modulo);
+  }
+  return esquecidos;
 }

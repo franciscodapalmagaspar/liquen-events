@@ -17,11 +17,7 @@ import {
 import { montarAProposta, propostasAnteriores, versaoDaProposta } from "./a-proposta-que-se-grava";
 import { prepararODocumento } from "./documento-do-envio";
 import type { EmailEmoldurado } from "./email-da-proposta";
-import type { Passo } from "./passo";
-
-/** O que um `Passo` parado respondeu — a recusa, ou `null` se seguiu. */
-const recusaDe = (p: Passo<unknown>) =>
-  !p.ok && p.desfecho.tipo === "recusa" ? p.desfecho.recusa : null;
+import { recusaDe } from "./passo-nos-testes";
 
 vi.spyOn(log, "warn").mockImplementation(() => {});
 

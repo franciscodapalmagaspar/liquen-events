@@ -106,7 +106,7 @@ export interface ContextoDaTrava extends EnvioDaProposta {
 
 /**
  * A trava do ENVIO: o que o estúdio também recusa e, pelo email, o domínio
- * que não recebe correio. `null` quando pode seguir.
+ * que não recebe correio. `SEGUE` quando pode seguir.
  */
 export async function travaDoEnvio(c: ContextoDaTrava): Promise<Passo> {
   // A MESMA conta do estúdio (`fotosEscolhidasQueFaltam`). Uma pasta que
@@ -151,7 +151,7 @@ export async function travaDoEnvio(c: ContextoDaTrava): Promise<Passo> {
 
 /**
  * A trava do PDF FINAL na pré-visualização (o rascunho não trava: é onde ela
- * vê o que falta). `null` quando pode sair.
+ * vê o que falta). `SEGUE` quando pode sair.
  */
 export async function travaDoPdfFinal(
   c: Pick<EnvioDaProposta, "doc" | "quote" | "idioma">,

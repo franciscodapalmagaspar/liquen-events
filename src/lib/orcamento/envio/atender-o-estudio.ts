@@ -8,7 +8,7 @@ import type { CorpoLido } from "./ler-o-corpo";
 import { guardasBaratas } from "./guardas-baratas";
 import { travaDoEnvio, travaDoPdfFinal } from "./travas-do-envio";
 import { desenharOPdf, type PdfDesenhado } from "./desenhar-o-pdf";
-import { SEGUE, segue, type Desfecho, type Passo } from "./passo";
+import { paraComRecusa, SEGUE, segue, type Desfecho, type Passo } from "./passo";
 import {
   avisarQueSegueComFotosAMenos,
   perguntaDasFotos,
@@ -110,7 +110,7 @@ export async function atenderOEstudio(c: Contexto): Promise<Desfecho> {
   const r = await comTrinco(`envio-da-proposta:${c.pedidoId}`, VALIDADE_DO_TRINCO_MS, () =>
     enviar(c),
   );
-  return r.ok ? r.valor : { tipo: "recusa", recusa: A_SER_ENVIADA };
+  return r.ok ? r.valor : paraComRecusa(A_SER_ENVIADA).desfecho;
 }
 
 /** Etapas 3 a 5, e o PDF como resposta. */

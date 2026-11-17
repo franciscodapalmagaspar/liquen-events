@@ -23,11 +23,11 @@ export type Desfecho =
   | { tipo: "pdf"; pdf: RelatorioDoPdf["pdf"]; cabecalhos: Record<string, string> }
   | { tipo: "envio"; resposta: RespostaDoEnvio };
 
-/** O resultado de uma etapa: segue com `valor`, ou pára com o `desfecho`. */
-export type Passo<T = undefined> = { ok: true; valor: T } | { ok: false; desfecho: Desfecho };
-
-/** Uma etapa que pára o pedido — com qualquer `T`, porque não chega a produzi-lo. */
+/** Uma etapa que pára o pedido — serve qualquer `Passo<T>`, porque não chega a produzir `T`. */
 export type Paragem = { ok: false; desfecho: Desfecho };
+
+/** O resultado de uma etapa: segue com `valor`, ou pára com o `desfecho`. */
+export type Passo<T = undefined> = { ok: true; valor: T } | Paragem;
 
 /** Segue, sem nada a acrescentar (as travas e as perguntas que não travam). */
 export const SEGUE: Passo = { ok: true, valor: undefined };
