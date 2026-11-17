@@ -1,51 +1,4 @@
 /**
- * ── A IDENTIFICAÇÃO LEGAL DA EMPRESA — POR PREENCHER PELO DONO ─────────────
- *
- * A auditoria legal de 17/11 pediu a denominação, o NIF e a morada (sede) no
- * site: é a informação que a lei do comércio eletrónico (DL 7/2004, art. 10.º)
- * manda pôr à vista de quem compra, e o responsável pelo tratamento na
- * política de privacidade. NÃO se inventa: ficam vazios até o dono os dar.
- *
- * Basta escrever aqui os três valores. O rodapé (`Footer.tsx`) e a política
- * de privacidade (`legal-content.ts`, secção 1) mostram-nos sozinhos, com a
- * função `identificacaoLegal` abaixo — vazios, não aparece nada (nem um «NIF:»
- * sem número). Um teste prende os dois lados (`identificacao-legal.test.tsx`).
- *
- * Nota: a morada daqui é a da SEDE e passa a ser mostrada. Não confundir com o
- * `city`/`region` do `SITE`, que de propósito não saem para o texto.
- */
-export interface IdentificacaoLegal {
-  /** A firma tal como está registada (ex.: «… Unipessoal, Lda.»). */
-  denominacao: string;
-  /** O NIF / NIPC, só os algarismos. */
-  nif: string;
-  /** A morada da sede, numa linha. */
-  morada: string;
-}
-
-export const EMPRESA: IdentificacaoLegal = {
-  denominacao: "",
-  nif: "",
-  morada: "",
-};
-
-/**
- * A linha da identificação legal, com o que estiver preenchido, ou `null` se
- * não houver nada. Aceita outra identificação para os testes.
- */
-export function identificacaoLegal(
-  locale: "pt" | "en" = "pt",
-  e: IdentificacaoLegal = EMPRESA,
-): string | null {
-  const partes = [
-    e.denominacao.trim(),
-    e.nif.trim() ? `${locale === "en" ? "Tax ID (NIF)" : "NIF"} ${e.nif.trim()}` : "",
-    e.morada.trim(),
-  ].filter(Boolean);
-  return partes.length ? partes.join(" · ") : null;
-}
-
-/**
  * Single source of truth for site-wide SEO/identity values.
  * Keeping this centralized ensures the canonical domain, names and
  * keywords stay consistent across metadata, sitemap, robots and JSON-LD.
@@ -53,8 +6,6 @@ export function identificacaoLegal(
 export const SITE = {
   name: "Líquen Events",
   legalName: "Líquen Events",
-  /** A identificação legal (denominação, NIF, morada) — preenche-se em `EMPRESA`, acima. */
-  empresa: EMPRESA,
   url: "https://liquen-events.com",
   domain: "liquen-events.com",
   locale: "pt_PT",
