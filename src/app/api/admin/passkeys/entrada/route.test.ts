@@ -53,7 +53,7 @@ vi.mock("@/lib/passkeys-store", async (orig) => ({
 const contas = vi.hoisted(() => ({
   existe: true,
   perguntados: [] as string[],
-  passkeyVale: true,
+  passkeyVale: "vale" as "vale" | "antiga" | "indisponivel",
   passkeyPerguntada: [] as Array<[string, string]>,
 }));
 vi.mock("@/lib/admin-auth", async (orig) => ({
@@ -119,7 +119,7 @@ beforeEach(() => {
   store.usos = [];
   contas.existe = true;
   contas.perguntados = [];
-  contas.passkeyVale = true;
+  contas.passkeyVale = "vale";
   contas.passkeyPerguntada = [];
 });
 
@@ -171,13 +171,23 @@ describe("POST — as barreiras", () => {
   });
 
   it("uma passkey registada antes de uma recuperação de palavra-passe já não entra", async () => {
-    contas.passkeyVale = false;
+    contas.passkeyVale = "antiga";
     const res = await POST(pedido());
     expect(res.status).toBe(401);
     expect((await res.json()).error).toBe(RECUSA);
     expect(res.cookies.get(ADMIN_COOKIE)?.value).toBeFalsy();
     // Perguntou pela conta e pela data DA CREDENCIAL GUARDADA.
     expect(contas.passkeyPerguntada).toEqual([["Catarina", "2026-08-01T10:00:00.000Z"]]);
+  });
+
+  it("sem conseguir confirmar a tempo, não entra — mas diz que é isso, e não credenciais erradas", async () => {
+    contas.passkeyVale = "indisponivel";
+    const res = await POST(pedido());
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toBe(
+      "Não foi possível confirmar agora. Tenta outra vez ou entra com a palavra-passe.",
+    );
+    expect(res.cookies.get(ADMIN_COOKIE)?.value).toBeFalsy();
   });
 
   it("assinatura inválida é recusada", async () => {

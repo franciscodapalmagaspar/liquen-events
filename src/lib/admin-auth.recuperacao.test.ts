@@ -30,6 +30,8 @@ const estado = vi.hoisted(() => ({
   recusaEscrita: false,
   duradouro: true,
   falhaLeitura: false,
+  /** A leitura nunca responde (Supabase pendurado). */
+  leituraPendurada: false,
   /** A escrita fica feita, mas a resposta chega depois do tecto («falhou»). */
   gravaMasFalha: false,
   tectos: [] as number[],
@@ -41,6 +43,7 @@ vi.mock("./app-state", () => ({
   // referência guardada fazia uma escrita RECUSADA parecer aplicada — o
   // contrário exacto do que estes testes existem para provar.
   getState: vi.fn(async (k: string) => {
+    if (estado.leituraPendurada) return new Promise<never>(() => {});
     if (estado.falhaLeitura) throw new Error("leitura falhou");
     const v = estado.mapa.get(k);
     return v === undefined ? null : JSON.parse(JSON.stringify(v));
@@ -59,6 +62,7 @@ vi.mock("./app-state", () => ({
   // A leitura com versão e a escrita condicional (o registo das sessões
   // revogadas). A versão é o valor em JSON, como no ficheiro.
   lerEstadoComVersao: vi.fn(async (k: string) => {
+    if (estado.leituraPendurada) return new Promise<never>(() => {});
     if (estado.falhaLeitura) throw new Error("leitura falhou");
     const v = estado.mapa.get(k);
     return v === undefined
@@ -120,6 +124,7 @@ beforeEach(() => {
   estado.duradouro = true;
   estado.falhaLeitura = false;
   estado.gravaMasFalha = false;
+  estado.leituraPendurada = false;
   estado.tectos = [];
   comContas(CONTAS);
 });
@@ -354,21 +359,28 @@ describe("recuperação — a palavra-passe nova", () => {
     // Muda-se a palavra-passe pela recuperação quando se desconfia de quem a
     // tem — e quem a teve pode ter registado um aparelho seu entretanto.
     const antes = new Date(Date.now() - 60_000).toISOString();
-    expect(await passkeyAindaVale("Catarina", antes)).toBe(true);
+    expect(await passkeyAindaVale("Catarina", antes)).toBe("vale");
     expect((await redefinir("a-minha-frase-nova")).estado).toBe("definida");
-    expect(await passkeyAindaVale("Catarina", antes)).toBe(false);
+    expect(await passkeyAindaVale("Catarina", antes)).toBe("antiga");
     // A do Rui não é desta conta.
-    expect(await passkeyAindaVale("Rui", antes)).toBe(true);
+    expect(await passkeyAindaVale("Rui", antes)).toBe("vale");
     // Registada depois (ela volta a registar o aparelho): vale.
     expect(await passkeyAindaVale("Catarina", new Date(Date.now() + 1000).toISOString())).toBe(
-      true,
+      "vale",
     );
   });
 
   it("sem conseguir ler o registo, a passkey de uma conta com recuperação não entra", async () => {
     estado.falhaLeitura = true;
-    expect(await passkeyAindaVale("Catarina", new Date().toISOString())).toBe(false);
+    expect(await passkeyAindaVale("Catarina", new Date().toISOString())).toBe("indisponivel");
   });
+
+  it("uma leitura pendurada não prende a entrada mais de ~2,5 s (revisão de 16/11, n.º 7)", async () => {
+    estado.leituraPendurada = true;
+    const inicio = Date.now();
+    expect(await passkeyAindaVale("Catarina", new Date().toISOString())).toBe("indisponivel");
+    expect(Date.now() - inicio).toBeLessThan(4_000);
+  }, 10_000);
 
   it("o UPDATE que acaba depois do tecto conta como feito, se o que se queria lá está (revisão de 16/11, n.º 6)", async () => {
     const { sessaoValida, esquecerRevogacoesEmMemoria } = await import("./sessoes-revogadas");

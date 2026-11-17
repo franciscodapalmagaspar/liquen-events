@@ -188,6 +188,31 @@ export async function lerRegisto(): Promise<RegistoDeRecuperacao> {
 }
 
 /**
+ * Uma leitura com TECTO, para quem está à espera numa entrada (as passkeys —
+ * revisão de 16/11, n.º 7). O `lerRegisto` usa as três tentativas do
+ * `getState`, que com o Supabase pendurado podiam deixar a pessoa ~24 s a
+ * olhar para o ecrã. Aqui é UMA leitura, cortada a `tectoMs`; passar do tecto
+ * lança, como uma leitura falhada.
+ */
+export async function lerRegistoComTecto(tectoMs: number): Promise<RegistoDeRecuperacao> {
+  let relogio: ReturnType<typeof setTimeout> | undefined;
+  const leitura = lerEstadoComVersao<Partial<RegistoDeRecuperacao>>(CHAVE_ESTADO, tectoMs);
+  // Se perder a corrida e falhar depois, não fica uma rejeição sem dono.
+  leitura.catch(() => undefined);
+  try {
+    const { valor } = await Promise.race([
+      leitura,
+      new Promise<never>((_, recusa) => {
+        relogio = setTimeout(() => recusa(new Error("tecto da leitura")), tectoMs);
+      }),
+    ]);
+    return registoDe(valor);
+  } finally {
+    if (relogio) clearTimeout(relogio);
+  }
+}
+
+/**
  * ════════════════════════════════════════════════════════════════════════════
  * LER-MUDAR-GRAVAR, COM ESCRITA CONDICIONAL (auditoria de 16/11, n.º 4)
  * ════════════════════════════════════════════════════════════════════════════

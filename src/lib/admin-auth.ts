@@ -941,16 +941,27 @@ export async function definirPalavraPasseComToken(
  *
  * `userName` é o nome guardado com a credencial; `criadaEm` é a data dela.
  *
- * SE A LEITURA DO REGISTO FALHAR, NÃO ENTRA — numa conta que tenha email (as
- * outras não têm recuperação, portanto nada para ler). Deixar passar seria
- * abrir a porta precisamente ao aparelho que a recuperação fechou, no momento
- * em que a base de dados está lenta. A palavra-passe continua a servir.
+ *  · `"vale"` — entra;
+ *  · `"antiga"` — registada antes da última recuperação: não entra;
+ *  · `"indisponivel"` — o registo não se leu a tempo ({@link
+ *    TECTO_DA_LEITURA_DAS_PASSKEYS_MS}). NÃO ENTRA — deixar passar seria abrir
+ *    a porta precisamente ao aparelho que a recuperação fechou —, mas quem
+ *    chama diz que é isso, e não «credenciais erradas» (revisão de 16/11,
+ *    n.º 7): ela tenta outra vez, ou entra com a palavra-passe.
  */
-export async function passkeyAindaVale(userName: string, criadaEm: string): Promise<boolean> {
+export type EstadoDaPasskey = "vale" | "antiga" | "indisponivel";
+
+export async function passkeyAindaVale(
+  userName: string,
+  criadaEm: string,
+): Promise<EstadoDaPasskey> {
   const corte = await cortePasskeys(userName);
-  if (!corte.ok) return false;
-  return !registadaAntesDoCorte(criadaEm, corte.desde);
+  if (!corte.ok) return "indisponivel";
+  return registadaAntesDoCorte(criadaEm, corte.desde) ? "antiga" : "vale";
 }
+
+/** Tecto da leitura do corte: quem espera está à porta, com o telemóvel na mão. */
+export const TECTO_DA_LEITURA_DAS_PASSKEYS_MS = 2_500;
 
 /**
  * O CORTE das passkeys de uma conta: o instante da última redefinição pela
@@ -968,8 +979,9 @@ export async function cortePasskeys(userName: string): Promise<CorteDasPasskeys>
   const conta = encontrarConta(users, userName)?.user;
   if (!conta?.email) return { ok: true, desde: null };
   try {
-    const { lerRegisto } = await import("./admin-recuperacao");
-    const desde = (await lerRegisto()).passkeysDesde[normalizarIdentificador(conta.email)];
+    const { lerRegistoComTecto } = await import("./admin-recuperacao");
+    const registo = await lerRegistoComTecto(TECTO_DA_LEITURA_DAS_PASSKEYS_MS);
+    const desde = registo.passkeysDesde[normalizarIdentificador(conta.email)];
     return { ok: true, desde: typeof desde === "number" ? desde : null };
   } catch (err) {
     log.error("passkeys: não foi possível ler o registo da recuperação", err);
