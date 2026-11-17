@@ -978,6 +978,18 @@ acerto medido aqui.
     descarregam ao mesmo tempo); o passo sem risco foi primeiro dar-lhes O MESMO
     código, com uma instância cada uma. A decisão de as juntar passa a ser uma
     linha, e fica com quem a deve tomar.
+21. **O caderno de uma limpeza não é uma menção.** As limpezas que só apagam
+    o que «ninguém menciona» procuram em todas as tabelas — e o estado que
+    elas próprias guardam (a lista de espera, o que já tiraram) nomeia
+    fotografias. A 17/11, o caderno da junção dos duplicados segurava 65 MB
+    de pastas órfãs que outra limpeza devia levar. Os índices e os cadernos
+    ficam numa lista só (`indices-de-fotos.ts`, `registos-das-limpezas.ts`)
+    que todas as limpezas leem; um caderno novo entra lá no dia em que nasce.
+22. **Uma cache tem prazo E tecto.** Só a idade não chega: num dia de muito
+    trabalho a cache encheu 85 MB de uma vez. O tecto leva primeiro as mais
+    velhas, e só se aplica depois de ler o balde inteiro — sem saber o total
+    não se corta. E antes de pôr uma cache numa limpeza, um teste prova que o
+    código a refaz igual quando falta.
 
 ---
 

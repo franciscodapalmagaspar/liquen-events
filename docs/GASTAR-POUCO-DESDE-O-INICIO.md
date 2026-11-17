@@ -489,6 +489,119 @@ planos gratuitos. Nada se faz que obrigue a subir de plano.
   (`limpeza:pastas-de-pedidos-apagados`): só sai o que continuar candidato.
   As fotografias não têm cópia dos bytes — o que sai não volta.
 
+### As manhas grátis antes do Blob (17/11)
+
+Ele: «É o Vercel, nada mais» e «mesmo no Vercel é custo mínimo maior
+possível». Antes de o Blob (desligado) custar um cêntimo, esgotar o que liberta
+espaço no Supabase sem perder qualidade nem dados. Ramo `custo/supabase-espaco`.
+
+**Medido a 17/11 (SQL a `storage.objects`, só tamanhos; «MB» = MiB, como no
+painel):** **912,7 MB em 10 422 ficheiros** (957,0 MB decimais).
+
+| balde | ficheiros | MB | o que é |
+|---|---|---|---|
+| theme-assets | 1 565 | 300,9 | originais da Biblioteca (1 414 JPEG 253 MB, 129 PNG 44 MB, 22 WebP) |
+| proposal-pdfs | 75 | 147,1 | o PDF enviado/actual/aceite de cada proposta |
+| theme-medias | 1 564 | 127,8 | derivadas 1 200 px (1 192 WebP, 221 JPEG antigas) |
+| fotos-editoriais | 1 912 | 122,3 | **cache** do PDF (reduzidas e «preparadas») |
+| proposal-assets | 461 | 110,8 | originais das pastas dos pedidos |
+| proposal-medias | 464 | 35,7 | derivadas |
+| theme-thumbs | 1 565 | 31,9 | miniaturas |
+| theme-avif-medias | 228 | 13,7 | derivadas AVIF |
+| proposal-thumbs | 464 | 8,3 | miniaturas |
+| proposal-pdfs-arquivo | 156 | 6,0 | o arquivo desmontado (2 PDF, todos de 16/11) |
+| as outras 7 | 2 010 | 8,2 | micro, AVIF, capas |
+
+**O que se encontrou:**
+
+1. **68 MB de pastas de pedidos apagados presos por um registo de limpeza.**
+   De 10 pastas sem pedido, as 6 que ela autorizou a 10/11 deviam estar a
+   sair. Só 4 (10 MB) estavam na espera; as outras duas (50 + 4 MB de
+   originais, **65 MB com as derivadas**, 103 fotografias de julho) nunca lá
+   chegavam. Procurei a menção em todas as tabelas: era SÓ o caderno da junção
+   dos duplicados (`limpeza:fotos-duplicadas`, campo `feitos`) — as 58 cópias
+   que ela própria já tinha tirado de DENTRO dessas pastas a 14/11. Ficavam
+   presas 60 dias (`FEITOS_DIAS`) por uma limpeza a lembrar-se do que fez.
+   **Corrigido:** `registos-das-limpezas.ts` (irmão do `indices-de-fotos.ts`)
+   lista os cadernos das limpezas, e `limpar-pastas-orfas` não os conta como
+   menção. Um rascunho, uma proposta ou outra tabela continuam a proteger a
+   pasta (teste). As 7 portas e a espera de 7 dias ficam iguais.
+2. **A cache `fotos-editoriais` sem tecto.** 122 MB com a regra dos 7 dias, e
+   85 MB nasceram num só dia (16/11) — mais do que a folga de 40 MB que o
+   travão reserva por dia. Nas 24 h medidas: 1 342 leituras certas, 1 187 em
+   falta, 1 537 escritas — trabalha, e por isso não se esvazia. **Novo:** além
+   dos 7 dias, um tecto de **64 MB**; acima dele saem as mais VELHAS até caber
+   (`queSaiDaCache`, pura). Sem ter lido as 256 pastas (tempo esgotado), só a
+   idade conta — não se sabe o total. **Provado que se refaz**
+   (`proposal-doc-render.guardadas.test.ts`): a cache apagada inteira, o PDF
+   sai sem faltar nenhuma fotografia e volta a guardar os MESMOS bytes, as
+   reduzidas e as preparadas.
+3. **Já em curso, não mexi:** a limpeza dos PDF substituídos tem 13 PDF
+   (12,7 MB) em espera desde 17/11 → saem a 24–25/11. A junção dos duplicados
+   tirou 86 cópias (36,3 MB) a 14/11 e volta a calcular a 21/11.
+4. **Duplicados que restam** (eTag + tamanho): ~115 MB, quase tudo nas
+   categorias que a junção deixa de fora DE PROPÓSITO (ver acima): a mesma foto
+   em dois temas (originais 24 MB + médias 13 + miniaturas 3), cópias usadas
+   por propostas gravadas (14,2 MB — reescrever uma proposta enviada muda-lhe o
+   selo e a chave do PDF), a galeria de um pedido vivo (4 MB) e as pastas de
+   pedidos apagados com rascunho (ficam por regra). As 154 imagens iguais entre
+   `fotos-editoriais` e o arquivo (6 MB) são o arquivo a guardar a mesma JPEG
+   que a cache — saem com a cache.
+5. **Órfãos derivados** (média/miniatura/AVIF sem original): 40 ficheiros,
+   3,1 MB. Pequeno; fica proposto.
+
+**Antes e depois** (o «depois» é o que a tarefa da noite faz sozinha depois de
+o lote entrar no `main` — daqui não há chave do Storage, e o SQL não apaga
+ficheiros; nada se apagou à mão):
+
+| | MB | quando |
+|---|---|---|
+| antes (17/11) | **912,7** | |
+| tecto da cache `fotos-editoriais` (122 → ≤ 64) | −58 | a 1.ª noite depois do lote |
+| 4 pastas órfãs já em espera | −10 | 18/11 (já estava a correr) |
+| 2 pastas órfãs desbloqueadas | −65 | 7 noites depois do lote (a espera) |
+| 13 PDF substituídos | −13 | 24–25/11 (já estava a correr) |
+| **depois (esperado)** | **~766** | até ~26/11 |
+
+**O que se ganha por mês:** o tecto não abranda o crescimento dos originais —
+tira de vez ~60 MB à cache e impede os picos de um dia (85 MB a 16/11) de
+encherem o plano. O crescimento continua a ser o de antes: ~60 MB/mês de PDF
+enviados e ~50–70 MB/mês de originais da Biblioteca (out.–nov.). Com ~766 MB
+ficam ~258 MB livres até 1 GB, mas só ~92 MB até ao travão do importador (900 MB
+contados em 10⁹ = 858 MB): **~1 mês** de folga antes de o travão voltar a
+apertar — o que fica proposto abaixo é o passo seguinte.
+
+**As três perguntas da regra 7:** (1) as duas limpezas já corriam todas as
+noites; nada novo corre. (2) Processador: o tecto lê as mesmas 256 pastas que
+a idade já lia e ordena ~2 000 entradas (< 1 ms); a cache que sai refaz-se —
+um PDF de uma proposta com mais de ~5 dias sem uso volta a preparar as fotos
+uma vez (~5–10 s). (3) Guardar/build/navegador: é a própria regra de guardar
+menos.
+
+**Ficou só proposto, e porquê:**
+
+- **Recomprimir sem perda os PNG da Biblioteca** (129, 44 MB, ~14 bits por
+  píxel: fotografias guardadas em PNG). Medido aqui com 30 fotografias de
+  `public/imagens` passadas a PNG pelo `sharp`: o mesmo PNG com compressão 9 e
+  filtros adaptativos (sem paleta) fica **31,6% menor com os píxeis iguais em
+  30 de 30**; WebP sem perda, 51,7%. Os PNG reais vêm de outras ferramentas:
+  estimo 2–14 MB. Não feito: precisa da chave do Storage, e mexer nos bytes de
+  um original mexe no `md5`/`fingerprint` da `biblioteca_fotos`, no índice
+  `foto-resumo:` e no nome-resumo da Biblioteca. O mesmo, para as novas: hoje
+  um PNG até 1–1,5 MB guarda-se tal e qual (`keepOriginal`); o servidor podia
+  passá-lo pela compressão 9 antes de calcular o resumo.
+- **JPEG sem perda** (`jpegtran -optimize`, 359 MB de originais a 1,2 bits por
+  píxel): costuma dar 2–8%, mas o `sharp` não o faz e não há o binário aqui
+  nem na Vercel. Não medido.
+- **Os duplicados entre temas e os das propostas gravadas** (~60 MB com
+  derivadas): só com um «apelido» lido no servidor (o caminho antigo resolve
+  para a cópia que fica) sem reescrever o documento da proposta. Mexe em
+  todos os leitores de fotografias — trabalho à parte.
+- **As 221 médias JPEG antigas em WebP** (~10 MB): refazê-las do original
+  custava ~550 MB de saída do Supabase (11% do mês). Não compensa agora.
+- **As pastas de pedidos apagados com rascunho** (4 pastas, 17 MB de originais): ficam por
+  regra; saem se ela apagar esses rascunhos.
+
 
 ## O Blob (16/11)
 
