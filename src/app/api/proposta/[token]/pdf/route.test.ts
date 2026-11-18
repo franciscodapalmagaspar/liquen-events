@@ -59,10 +59,6 @@ vi.mock("@/lib/proposals-store", () => ({
 }));
 vi.mock("@/lib/contracts-store", () => ({ getAcceptedContractByQuote: async () => null }));
 vi.mock("@/lib/proposal-doc-render", () => ({
-  renderStoredProposalDocPdf: vi.fn(async (doc: unknown) => {
-    db.rendered.push(doc);
-    return new Uint8Array([37, 80, 68, 70]); // "%PDF"
-  }),
   /**
    * A cache do PDF passou a pedir o RELATÓRIO e não só os bytes: é assim que
    * uma proposta com fotos a menos deixa de sair calada para o cliente. O

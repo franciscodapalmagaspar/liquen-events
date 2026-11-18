@@ -7,7 +7,7 @@ import {
   type ProposalDoc,
 } from "@/lib/proposal-doc";
 import { docNaLingua } from "@/lib/proposal-doc-bilingue";
-import type { DocTruncation } from "@/lib/proposal-doc-pdf";
+import type { DocTruncation } from "./cortes";
 import {
   blocosFixosNaLingua,
   camposDoEventoNaLingua,
