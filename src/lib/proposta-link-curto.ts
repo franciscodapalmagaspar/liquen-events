@@ -12,6 +12,11 @@ import {
   nomesNoEndereco,
   pareceCodigoCurto,
 } from "./proposta-link-curto-forma";
+import {
+  codigoAtualDaTabela,
+  gravarLigacaoNaTabela,
+  lerLigacaoDaTabela,
+} from "./ligacoes-de-proposta-tabela";
 
 export {
   COMPRIMENTO_ANTIGO,
@@ -22,11 +27,6 @@ export {
   nomesNoEndereco,
   pareceCodigoCurto,
 } from "./proposta-link-curto-forma";
-import {
-  codigoAtualDaTabela,
-  gravarLigacaoNaTabela,
-  lerLigacaoDaTabela,
-} from "./ligacoes-de-proposta-tabela";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -132,9 +132,11 @@ export interface LigacaoCurta {
   /** ISO. Depois disto o código deixa de abrir, como o `exp` do token. */
   expiraEm: string;
   /** ISO, quando alguém a cortou. Não se apaga a linha: saber que um link
-   *  FOI cortado (e quando) vale mais do que a linha desaparecer. Desde o P7
-   *  escreve-se TAMBÉM na tabela (`revogada_em`), que a leitura consulta
-   *  primeiro — cortar só aqui deixava o link a abrir. */
+   *  FOI cortado (e quando) vale mais do que a linha desaparecer. HOJE NINGUÉM
+   *  O ESCREVE: a «alavanca» de cortar links ainda não existe, e só a leitura
+   *  o respeita. Quem a fizer tem de o escrever TAMBÉM na tabela
+   *  (`revogada_em`), que a leitura consulta primeiro — cortar só aqui deixava
+   *  o link a abrir. */
   revogadaEm?: string;
 }
 
@@ -318,14 +320,6 @@ async function codigoJaEmitido(propostaId: string): Promise<string | null> {
 }
 
 /**
- * O endereço da proposta para pôr num email — curto quando dá, o token quando
- * não dá.
- *
- * NUNCA atira e NUNCA devolve vazio. Um envio de proposta não pode falhar
- * porque o armazenamento de estado não respondeu: o casal fica com um link
- * comprido, que é feio, e não sem link, que é um negócio parado.
- */
-/**
  * O ENDEREÇO DO PDF QUE CORRESPONDE A UM ENDEREÇO DE PROPOSTA.
  *
  * As duas portas abrem com a mesma chave: o `propostaDoLink` aceita tanto o
@@ -342,6 +336,14 @@ export function enderecoDoPdfDaProposta(enderecoDaProposta: string): string {
   return `${enderecoDaProposta.replace(/\/proposta\/([^/]+)$/, "/api/proposta/$1")}/pdf`;
 }
 
+/**
+ * O endereço da proposta para pôr num email — curto quando dá, o token quando
+ * não dá.
+ *
+ * NUNCA atira e NUNCA devolve vazio. Um envio de proposta não pode falhar
+ * porque o armazenamento de estado não respondeu: o casal fica com um link
+ * comprido, que é feio, e não sem link, que é um negócio parado.
+ */
 export async function enderecoDaProposta(propostaId: string, pedidoId: string): Promise<string> {
   const id = String(propostaId ?? "").trim();
   const curto = id

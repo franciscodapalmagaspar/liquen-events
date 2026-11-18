@@ -12,7 +12,7 @@ import { randomInt } from "node:crypto";
 const ALFABETO = "0123456789abcdefghjkmnpqrstvwxyz";
 
 /**
- * Quantos símbolos tem um código NOVO: 8 × 5 bits = 40 bits.
+ * Quantos símbolos tem um código NOVO: 12 × 5 bits = 60 bits.
  *
  * ── PORQUE É QUE PASSOU DE 16 A 8 (pedido dela, 25/10) ────────────────────
  *
@@ -20,15 +20,10 @@ const ALFABETO = "0123456789abcdefghjkmnpqrstvwxyz";
  * manhosas.» O endereço passa a `/proposta/ana-e-joao-k7m2q9xd`: os nomes à
  * frente (só para o olho — não abrem nada) e o código no fim, que continua a
  * ser a chave. Ela escolheu isto depois de lhe dizer que só os nomes deixavam
- * qualquer pessoa abrir a proposta de um casal adivinhando-os.
+ * qualquer pessoa abrir a proposta de um casal adivinhando-os. Oito símbolos
+ * são 40 bits, que se adivinham com paciência — por isso têm um tecto de
+ * tentativas por IP (`TENTATIVAS_POR_MINUTO`) que os de 16 não precisam.
  *
- * Quarenta bits sozinhos adivinham-se com paciência; por isso os códigos de 8
- * têm um tecto de tentativas por IP (`TENTATIVAS_POR_MINUTO`) que os de 16 não
- * precisam. Com esse tecto, adivinhar fica fora do alcance de qualquer pessoa.
- */
-export const COMPRIMENTO_DO_CODIGO = 12;
-
-/**
  * ── E PORQUE É QUE PASSOU DE 8 A 12 (decisão dela, 10/11) ─────────────────
  *
  * Numa revisão de segurança: 40 bits com um tecto POR IP param uma pessoa,
@@ -36,7 +31,10 @@ export const COMPRIMENTO_DO_CODIGO = 12;
  * proposta inteira de um casal. Doze símbolos são 60 bits: um milhão de vezes
  * mais códigos, fora do alcance de qualquer busca, e o endereço continua curto
  * (os nomes à frente ficam). Ela escolheu «Sim, mais compridas».
- *
+ */
+export const COMPRIMENTO_DO_CODIGO = 12;
+
+/**
  * Os de 8 já enviados (25/10 a 10/11) continuam a abrir, com o tecto de
  * tentativas de sempre.
  */
