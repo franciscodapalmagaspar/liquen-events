@@ -94,4 +94,15 @@ describe("o custo: cada versão de um registo verifica-se uma vez", () => {
     // Versão nova: verifica-se outra vez.
     expect(registarSeForaDoEsquema("pedido", "LIQ-V", null, "2026-11-18T11:00:00Z")).toBe(false);
   });
+
+  it("uma versão que falhou continua a dizer que falhou (e só vai ao registo uma vez)", () => {
+    expect(registarSeForaDoEsquema("pedido", "LIQ-M", null, "v1")).toBe(false);
+    expect(registarSeForaDoEsquema("pedido", "LIQ-M", null, "v1")).toBe(false);
+    expect(avisos).toHaveLength(1);
+  });
+
+  it("sem id não se guarda nada: dois registos sem id com a mesma data verificam-se os dois", () => {
+    expect(registarSeForaDoEsquema("pedido", "", PEDIDO, "v1")).toBe(true);
+    expect(registarSeForaDoEsquema("pedido", "", null, "v1")).toBe(false);
+  });
 });

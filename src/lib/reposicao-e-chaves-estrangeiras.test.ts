@@ -110,12 +110,36 @@ describe("idsDosPedidosUmaVez", () => {
         }),
       }),
     } as unknown as SupabaseClient;
-    const pedidos = idsDosPedidosUmaVez(sb, "quotes");
+    const pedidos = idsDosPedidosUmaVez(sb, "quotes", "id");
     expect(leituras).toBe(0);
     const [a, b, c] = await Promise.all([pedidos(), pedidos(), pedidos()]);
     expect([...a]).toEqual(["Q1"]);
     expect(b).toBe(a);
     expect(c).toBe(a);
     expect(leituras).toBe(1);
+  });
+});
+
+describe("idsDosPedidosUmaVez — uma falha passageira não fica guardada", () => {
+  it("se a leitura falha, o conjunto seguinte volta a tentar", async () => {
+    let leituras = 0;
+    const sb = {
+      from: () => ({
+        select: () => ({
+          order: () => ({
+            range: async () => {
+              leituras++;
+              return leituras === 1
+                ? { data: null, error: new Error("503") }
+                : { data: [{ id: "Q1" }], error: null };
+            },
+          }),
+        }),
+      }),
+    } as unknown as SupabaseClient;
+    const pedidos = idsDosPedidosUmaVez(sb, "quotes", "id");
+    await expect(pedidos()).rejects.toThrow("503");
+    expect([...(await pedidos())]).toEqual(["Q1"]);
+    expect(leituras).toBe(2);
   });
 });

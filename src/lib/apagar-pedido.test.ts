@@ -309,6 +309,17 @@ describe("P5: as tarefas caem em cascata com o pedido", () => {
     expect(r.falhou).toContain("a tarefa t2 não foi apagada");
   });
 
+  it("e pára ANTES de apagar propostas, fotografias e rascunhos — nada fica a meio", async () => {
+    dados.propostas = [proposta("p1")];
+    dados.fotos = [{ path: "q1/a.jpg" }];
+    dados.tarefasRebentam = true;
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(false);
+    expect(dados.apagadas).toEqual([]);
+    expect(dados.removidas).toEqual([]);
+    expect(dados.rascunhosLimpos).toEqual([]);
+  });
+
   it("sem conseguir listar as tarefas, o pedido também fica", async () => {
     dados.tarefasRebentam = true;
     const r = await apagarPedidoSemContrato("q1");

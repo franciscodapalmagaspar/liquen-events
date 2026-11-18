@@ -6,8 +6,9 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
  *
  *  1. um código novo é escrito nos DOIS sítios;
  *  2. a leitura vem da tabela, e do `app_state` quando a tabela não sabe;
- *  3. o código a reaproveitar vem da tabela quando ainda abre, e do `app_state`
- *     quando o da tabela já não serve.
+ *  3. o código a reaproveitar é o MAIS RECENTE que ainda abre, entre o atual
+ *     da tabela e o inverso do `app_state` — qualquer um deles pode ter ficado
+ *     para trás quando uma das duas escritas falhou.
  */
 const gaveta = new Map<string, unknown>();
 const tabela = vi.hoisted(() => ({
@@ -152,6 +153,25 @@ describe("os códigos curtos na tabela (P7)", () => {
       criadaEm: "2026-11-17T00:00:00Z",
       expiraEm: daqui(30).toISOString(),
     });
+    expect(await enderecoDaProposta(PROPOSTA, "LIQ-1")).toMatch(/-recente00000$/);
+  });
+
+  it("e o contrário: se o inverso do app_state ficou para trás, vale o atual da tabela", async () => {
+    // O `setState` do inverso falhou quando se cunhou o código novo: o
+    // app_state ainda aponta para o antigo (válido); a tabela já tem o novo.
+    gaveta.set(`ligacao-de-proposta:${PROPOSTA}`, { codigo: "antigo000000" });
+    gaveta.set("ligacao-proposta:antigo000000", {
+      propostaId: PROPOSTA,
+      criadaEm: "2026-11-01T00:00:00Z",
+      expiraEm: daqui(10).toISOString(),
+    });
+    tabela.linhas.set("recente00000", {
+      codigo: "recente00000",
+      propostaId: PROPOSTA,
+      criadaEm: "2026-11-17T00:00:00Z",
+      expiraEm: daqui(30).toISOString(),
+    });
+    tabela.atual.set(PROPOSTA, "recente00000");
     expect(await enderecoDaProposta(PROPOSTA, "LIQ-1")).toMatch(/-recente00000$/);
   });
 });

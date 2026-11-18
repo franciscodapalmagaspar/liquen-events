@@ -1522,7 +1522,9 @@ export async function applyRestore(file: ValidBackup, plan: RestorePlan): Promis
   const sb = getSupabase();
   // Lidos uma vez, quando o primeiro conjunto com ligação ao pedido precisa
   // deles — já depois de os pedidos serem repostos, que vêm primeiro.
-  const pedidos = sb ? idsDosPedidosUmaVez(sb, quotesMapper.table) : null;
+  const pedidos = sb
+    ? idsDosPedidosUmaVez(sb, quotesMapper.table, quotesMapper.idColumn ?? "id")
+    : null;
 
   for (const target of RESTORE_TARGETS) {
     const rows = file.rows.get(target.key);
@@ -1560,7 +1562,8 @@ async function replaceAll(
   sb: SupabaseClient | null,
   target: RestoreTarget<AnyRow>,
   rows: AnyRow[],
-  pedidos: IdsDosPedidos | null = null,
+  /** Obrigatório com base de dados: sem ele, as ligações órfãs rebentavam a FK. */
+  pedidos: IdsDosPedidos | null,
 ): Promise<void> {
   // Sem Supabase: em produção isto é RECUSADO — gravar num ficheiro efémero
   // apagaria a base e diria que tinha reposto (a mesma recusa de

@@ -367,29 +367,30 @@ function aindaAbre(l: { revogadaEm?: string; expiraEm?: string }): boolean {
 async function codigoJaEmitido(propostaId: string): Promise<string | null> {
   const id = String(propostaId ?? "").trim();
   if (!id) return null;
-  // Até ao tempo (4) do P7, o inverso do app_state MANDA: é a última escrita, e
-  // a tabela pode ter ficado para trás (uma gravação nela que falhou). A tabela
-  // só responde quando o app_state não sabe — não tem inverso, ou não respondeu.
-  let inverso: string | null = null;
-  try {
-    const guardado = await getState<{ codigo?: string }>(`${PREFIXO_INVERSO}${id}`);
-    inverso = guardado?.codigo ? String(guardado.codigo) : null;
-  } catch {
-    inverso = null;
-  }
-  if (inverso) {
-    if (!pareceCodigoCurto(inverso)) return null;
+  // Até ao tempo (4) do P7 há duas respostas — o atual da tabela e o inverso
+  // do app_state —, e qualquer uma pode ter ficado para trás quando uma das
+  // escritas falhou. Fica a MAIS RECENTE que ainda abre. Lidas em paralelo.
+  const [daTabela, inverso] = await Promise.all([
+    codigoAtualDaTabela(id),
+    getState<{ codigo?: string }>(`${PREFIXO_INVERSO}${id}`)
+      .then((g) => (g?.codigo ? String(g.codigo) : null))
+      .catch(() => null),
+  ]);
+  const candidatos: { codigo: string; criadaEm?: string }[] = [];
+  if (daTabela && aindaAbre(daTabela)) candidatos.push(daTabela);
+  if (inverso && pareceCodigoCurto(inverso) && inverso !== daTabela?.codigo) {
+    // Uma leitura que falha não é «não há código», mas o desfecho é o mesmo:
+    // cunhar outro é melhor do que não haver endereço nenhum.
     const ligacao =
       (await lerLigacaoDaTabela(inverso)) ??
       (await getState<LigacaoCurta>(chave(inverso)).catch(() => null));
-    // Uma leitura que falha não é «não há código», mas o desfecho é o mesmo:
-    // cunhar outro é melhor do que não haver endereço nenhum.
-    return ligacao?.propostaId && aindaAbre(ligacao) ? inverso : null;
+    if (ligacao?.propostaId && aindaAbre(ligacao)) {
+      candidatos.push({ codigo: inverso, criadaEm: ligacao.criadaEm });
+    }
   }
-  const daTabela = await codigoAtualDaTabela(id);
-  return daTabela && aindaAbre(daTabela) && pareceCodigoCurto(daTabela.codigo)
-    ? daTabela.codigo
-    : null;
+  const quando = (c: { criadaEm?: string }) => Date.parse(c.criadaEm ?? "") || 0;
+  const maisRecente = candidatos.sort((a, b) => quando(b) - quando(a))[0];
+  return maisRecente && pareceCodigoCurto(maisRecente.codigo) ? maisRecente.codigo : null;
 }
 
 /**

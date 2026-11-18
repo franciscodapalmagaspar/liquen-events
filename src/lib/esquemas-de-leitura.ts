@@ -106,7 +106,7 @@ const TECTO_DE_REGISTADOS = 500;
  * verificar o mesmo pedido, sem mudanças, em cada pedido HTTP era processador
  * gasto para nada (regra 7). A `versao` é o carimbo de alteração do registo.
  */
-const jaVerificados = new Set<string>();
+const jaVerificados = new Map<string, boolean>();
 const TECTO_DE_VERIFICADOS = 5000;
 
 /**
@@ -120,13 +120,15 @@ export function registarSeForaDoEsquema(
   /** O carimbo de alteração; sem ele verifica-se sempre. */
   versao?: string,
 ): boolean {
-  const visto = versao ? `${tipo}|${id}|${versao}` : null;
-  if (visto && jaVerificados.has(visto)) return true;
+  // Sem id ou sem carimbo não há como saber se é o mesmo registo: verifica-se.
+  const visto = id && versao ? `${tipo}|${id}|${versao}` : null;
+  const antes = visto ? jaVerificados.get(visto) : undefined;
+  if (antes !== undefined) return antes;
   const schema = tipo === "pedido" ? pedidoLidoSchema : documentoLidoSchema;
   const r = schema.safeParse(valor);
   if (visto) {
     if (jaVerificados.size >= TECTO_DE_VERIFICADOS) jaVerificados.clear();
-    jaVerificados.add(visto);
+    jaVerificados.set(visto, r.success);
   }
   if (r.success) return true;
   const problemas = formaDosProblemas(r.error);

@@ -88,9 +88,21 @@ export type IdsDosPedidos = () => Promise<ReadonlySet<string>>;
  * mesmo conjunto. Só se lê quando o primeiro deles o pede — depois de os
  * pedidos terem sido repostos, porque vêm antes na ordem da reposição.
  */
-export function idsDosPedidosUmaVez(sb: SupabaseClient, tabela: string): IdsDosPedidos {
+export function idsDosPedidosUmaVez(
+  sb: SupabaseClient,
+  tabela: string,
+  coluna: string,
+): IdsDosPedidos {
   let lidos: Promise<ReadonlySet<string>> | null = null;
-  return () => (lidos ??= lerIds(sb, tabela, "id").then((ids) => new Set(ids)));
+  return () =>
+    (lidos ??= lerIds(sb, tabela, coluna).then(
+      (ids) => new Set(ids),
+      (erro: unknown) => {
+        // Uma falha passageira não fica guardada: o conjunto seguinte tenta outra vez.
+        lidos = null;
+        throw erro;
+      },
+    ));
 }
 
 /** Todos os valores de uma coluna, página a página. */
@@ -118,14 +130,13 @@ export async function lerIds(
  * estão nos dois lados (regra 1 do topo). O resultado final é o mesmo de
  * «apagar tudo e inserir», desde que `linhas` traga TODAS as colunas que a
  * inserção traria — quem chama acrescenta as que a base preencheria sozinha.
- * Devolve quantas linhas apagou.
  */
 export async function substituirSemApagarOsQueFicam(
   sb: SupabaseClient,
   tabela: string,
   coluna: string,
   linhas: readonly Record<string, unknown>[],
-): Promise<number> {
+): Promise<void> {
   const saem = idsQueSaem(
     await lerIds(sb, tabela, coluna),
     linhas.map((l) => String(l[coluna])),
@@ -145,5 +156,4 @@ export async function substituirSemApagarOsQueFicam(
       });
     if (error) throw error;
   }
-  return saem.length;
 }

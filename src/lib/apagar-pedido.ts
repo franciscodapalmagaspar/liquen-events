@@ -141,24 +141,6 @@ export async function apagarPedidoSemContrato(
     return { apagado: false, motivo: "tem-contrato", contou, falhou, saiu };
   }
 
-  // ── As propostas, que é onde estão os dados pessoais a mais ──────────────
-  try {
-    const propostas = await listProposalsForQuote(id);
-    for (const p of propostas) {
-      try {
-        await deleteProposal(p.id);
-        contou.propostas++;
-        saiu.propostas.push(p.id);
-      } catch (e) {
-        falhou.push(`a proposta ${p.id} não foi apagada`);
-        log.error("apagar-pedido: proposta não apagada", e, { pedido: id, proposta: p.id });
-      }
-    }
-  } catch (e) {
-    falhou.push("não consegui listar as propostas deste pedido");
-    log.error("apagar-pedido: listagem de propostas falhou", e, { pedido: id });
-  }
-
   // ── As tarefas do pedido (auditoria de 12/11, n.º 7) ─────────────────────
   //
   // Cada tarefa guarda uma cópia do nome do casal (`client_name`) e o id do
@@ -167,9 +149,11 @@ export async function apagarPedidoSemContrato(
   // as no retrato do pedido ANTES de chamar isto, e repõe-nas com ele.
   //
   // Desde o P5 (17/11) a base apaga-as sozinha com o pedido (`on delete
-  // cascade`). Por isso, se alguma ficou por apagar aqui, o pedido NÃO sai:
-  // senão a cascata levava-as sem que este relatório nem a Reciclagem o
-  // soubessem. Uma segunda tentativa sabe o que ainda falta.
+  // cascade`). Por isso vêm PRIMEIRO, antes de qualquer outra coisa sair: se
+  // alguma fica por apagar (ou nem se consegue listar), pára-se aqui — senão a
+  // cascata levava-as sem que este relatório nem a Reciclagem o soubessem, e o
+  // pedido ficava vivo sem as propostas e as fotografias. Uma segunda tentativa
+  // sabe o que ainda falta.
   let tarefasFicaram = false;
   try {
     const tarefas = (await listTasks()).filter((t) => (t.quoteId ?? "").trim() === id);
@@ -188,6 +172,30 @@ export async function apagarPedidoSemContrato(
     tarefasFicaram = true;
     falhou.push("não consegui listar as tarefas deste pedido");
     log.error("apagar-pedido: listagem de tarefas falhou", e, { pedido: id });
+  }
+  if (tarefasFicaram) {
+    log.warn("apagar-pedido: ficaram tarefas — não se apaga mais nada (a cascata levá-las-ia)", {
+      pedido: id,
+    });
+    return { apagado: false, contou, falhou, saiu };
+  }
+
+  // ── As propostas, que é onde estão os dados pessoais a mais ──────────────
+  try {
+    const propostas = await listProposalsForQuote(id);
+    for (const p of propostas) {
+      try {
+        await deleteProposal(p.id);
+        contou.propostas++;
+        saiu.propostas.push(p.id);
+      } catch (e) {
+        falhou.push(`a proposta ${p.id} não foi apagada`);
+        log.error("apagar-pedido: proposta não apagada", e, { pedido: id, proposta: p.id });
+      }
+    }
+  } catch (e) {
+    falhou.push("não consegui listar as propostas deste pedido");
+    log.error("apagar-pedido: listagem de propostas falhou", e, { pedido: id });
   }
 
   // ── As fotografias que ela carregou para este pedido ─────────────────────
@@ -244,12 +252,6 @@ export async function apagarPedidoSemContrato(
   }
 
   // ── E o pedido, por último ───────────────────────────────────────────────
-  if (tarefasFicaram) {
-    log.warn("apagar-pedido: ficaram tarefas — o pedido não sai (a cascata levá-las-ia)", {
-      pedido: id,
-    });
-    return { apagado: false, contou, falhou, saiu };
-  }
   try {
     await deleteQuote(id);
   } catch (e) {
