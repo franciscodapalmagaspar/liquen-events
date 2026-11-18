@@ -30,6 +30,7 @@
     "gen:favicons": "node scripts/gen-favicons.mjs",
     "gallery:sync": "node scripts/gallery-sync.mjs",
     "gen:totp": "node scripts/gen-totp.mjs",
+    "tipos:base": "node scripts/tipos-da-base.mjs",
     "analyze": "ANALYZE=true next build",
     "compress:images": "node scripts/compress-sources.mjs",
     "upload:images": "node scripts/upload-images-to-supabase.mjs",

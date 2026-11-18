@@ -44,7 +44,8 @@ describe("db/schema.sql ↔ src/lib/db/tipos-da-base.ts", () => {
     const ficheiro = esquemaDoSql(await ler("db", "schema.sql"));
     const base = esquemaDosTipos(await ler("src", "lib", "db", "tipos-da-base.ts"));
     expect([...ficheiro.keys()].sort()).toEqual([...base.keys()].sort());
-    expect(base.size).toBeGreaterThanOrEqual(31);
+    // Exato: uma tabela nova (ou apagada) muda este número no mesmo PR.
+    expect(base.size).toBe(31);
   });
 });
 

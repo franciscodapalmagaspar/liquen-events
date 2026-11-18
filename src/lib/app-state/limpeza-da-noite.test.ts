@@ -122,7 +122,7 @@ const registoDe = (primeiraNoite: string) => ({
     ultima: {
       dia: primeiraNoite,
       aSeco: true,
-      porMotivo: { lapide: 1 },
+      planeadasPorMotivo: { lapide: 1 },
       apagadas: 0,
       mudaram: 0,
       falharam: 0,
@@ -238,7 +238,7 @@ describe("aplicar o plano", () => {
         primeiraNoite: "2026-11-18",
         ultima: expect.objectContaining({
           aSeco: true,
-          porMotivo: { lapide: 1, "ligacao-sem-proposta": 1, "rascunho-sem-pedido": 1 },
+          planeadasPorMotivo: { lapide: 1, "ligacao-sem-proposta": 1, "rascunho-sem-pedido": 1 },
         }),
       },
     ]);

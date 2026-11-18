@@ -34,7 +34,7 @@ const dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const ultimaNoite = z.object({
   dia,
   aSeco: z.boolean(),
-  porMotivo: z.partialRecord(motivoDeSaida, contagem),
+  planeadasPorMotivo: z.partialRecord(motivoDeSaida, contagem),
   apagadas: contagem,
   mudaram: contagem,
   falharam: contagem,

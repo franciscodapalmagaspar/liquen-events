@@ -371,7 +371,7 @@ export async function aplicarLimpezaDoAppState(
   const ultima: RegistoDaLimpeza["ultima"] = {
     dia,
     aSeco,
-    porMotivo: contarPorMotivo(plano.saem),
+    planeadasPorMotivo: contarPorMotivo(plano.saem),
     ...feitas,
     ficam: plano.ficam + adiadas,
   };
