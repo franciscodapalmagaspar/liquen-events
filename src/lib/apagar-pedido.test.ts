@@ -39,6 +39,8 @@ const dados = vi.hoisted(() => ({
   tarefasApagadas: [] as string[],
   tarefasRebentam: false,
   leiturasDeContratos: 0,
+  faturas: [] as { id: string; quoteId: string }[],
+  faturasRebentam: false,
   tarefaQueFalha: null as string | null,
   /** As chaves de rascunho que existem (`draft:<chave>`). */
   estado: new Map<string, unknown>(),
@@ -57,6 +59,12 @@ vi.mock("@/lib/proposals-store", () => ({
     if (dados.propostaQueFalha === id) throw new Error("recusado");
     dados.apagadas.push(id);
     dados.propostas = dados.propostas.filter((p) => p.id !== id);
+  },
+}));
+vi.mock("@/lib/invoices-store", () => ({
+  listInvoicesForQuote: async (quoteId: string) => {
+    if (dados.faturasRebentam) throw new Error("base em baixo");
+    return dados.faturas.filter((f) => f.quoteId === quoteId);
   },
 }));
 vi.mock("@/lib/contracts-store", () => ({
@@ -140,6 +148,8 @@ beforeEach(() => {
   dados.tarefasApagadas = [];
   dados.tarefasRebentam = false;
   dados.leiturasDeContratos = 0;
+  dados.faturas = [];
+  dados.faturasRebentam = false;
   dados.tarefaQueFalha = null;
 });
 
@@ -274,7 +284,12 @@ describe("o que ficou por apagar é DITO", () => {
     // nome do casal, e uma segunda tentativa já não a encontrava.
     expect(r.apagado).toBe(false);
     expect(dados.pedidosApagados).toEqual([]);
-    expect(r.falhou).toContain("ficaram 1 proposta(s) neste pedido");
+    // E pára ANTES das fotografias e dos rascunhos, sem dizer a falha duas vezes.
+    expect(dados.removidas).toEqual([]);
+    expect(dados.rascunhosLimpos).toEqual([]);
+    expect(r.falhou.filter((f) => f.includes("proposta"))).toEqual([
+      "a proposta p2 não foi apagada",
+    ]);
   });
 
   it("uma fotografia que ficou no bucket aparece na lista", async () => {
@@ -371,5 +386,54 @@ describe("P5: um contrato que nasce a meio do apagar", () => {
     expect(r.falhou).toContain("nasceu um contrato neste pedido enquanto se apagava");
     expect(dados.pedidosApagados).toEqual([]);
     expect(dados.leiturasDeContratos).toBe(2);
+  });
+});
+
+describe("P5: uma fatura também manda parar (registo fiscal, chave `set null`)", () => {
+  it("um pedido com fatura não é apagado, e nada sai", async () => {
+    dados.faturas = [{ id: "f1", quoteId: "q1" }];
+    dados.propostas = [proposta("p1")];
+    dados.tarefas = [{ id: "t1", quoteId: "q1" }];
+    dados.fotos = [{ path: "q1/a.jpg" }];
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(false);
+    expect(r.motivo).toBe("tem-fatura");
+    expect(dados.apagadas).toEqual([]);
+    expect(dados.tarefasApagadas).toEqual([]);
+    expect(dados.removidas).toEqual([]);
+    expect(dados.rascunhosLimpos).toEqual([]);
+    expect(dados.pedidosApagados).toEqual([]);
+  });
+
+  it("sem conseguir ler as faturas, também não se apaga nada", async () => {
+    dados.faturasRebentam = true;
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(false);
+    expect(dados.pedidosApagados).toEqual([]);
+    expect(dados.rascunhosLimpos).toEqual([]);
+  });
+
+  it("a fatura de OUTRO pedido não trava este", async () => {
+    dados.faturas = [{ id: "f1", quoteId: "outro" }];
+    expect((await apagarPedidoSemContrato("q1")).apagado).toBe(true);
+  });
+});
+
+describe("P5: uma proposta que nasce a meio pára antes das fotografias", () => {
+  it("o pedido, as fotografias e os rascunhos ficam", async () => {
+    dados.propostas = [proposta("p1")];
+    dados.fotos = [{ path: "q1/a.jpg" }];
+    const original = dados.apagadas.push.bind(dados.apagadas);
+    dados.apagadas.push = (...p: string[]) => {
+      // Enquanto p1 sai, noutro ecrã nasce outra proposta para este pedido.
+      dados.propostas = [...dados.propostas, proposta("p-nova")];
+      return original(...p);
+    };
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(false);
+    expect(r.saiu.propostas).toEqual(["p1"]);
+    expect(dados.removidas).toEqual([]);
+    expect(dados.rascunhosLimpos).toEqual([]);
+    expect(r.falhou).toContain("ficaram 1 proposta(s) neste pedido");
   });
 });

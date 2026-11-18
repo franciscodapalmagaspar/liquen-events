@@ -3,7 +3,6 @@ import { isAuthed } from "@/lib/admin-auth";
 import { listTasks, createTask } from "@/lib/tasks-store";
 import { jsonWithEtag } from "@/lib/api-cache";
 import { taskUpdateSchema, firstError } from "@/lib/validation";
-import { eTarefaDeUmPedidoApagado, MENSAGEM_PEDIDO_APAGADO } from "@/lib/tarefas/pedido-apagado";
 import { log } from "@/lib/logger";
 import { tituloEPrazo } from "@/lib/tarefas/prazo";
 
@@ -46,9 +45,6 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(task);
   } catch (err) {
-    if (eTarefaDeUmPedidoApagado(err)) {
-      return NextResponse.json({ error: MENSAGEM_PEDIDO_APAGADO }, { status: 409 });
-    }
     log.error("tarefas POST falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }

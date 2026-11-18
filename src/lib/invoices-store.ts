@@ -90,6 +90,9 @@ const repo = createRepository(mapper);
 
 /** Só leitura — é o que a cópia de segurança precisa (ver o topo do módulo). */
 export const listInvoices = (): Promise<Invoice[]> => repo.list();
+/** As faturas de um pedido, pelo índice `invoices_quote_id_idx`. */
+export const listInvoicesForQuote = (quoteId: string): Promise<Invoice[]> =>
+  repo.where("quote_id", quoteId, (i) => (i.quoteId ?? "").trim() === quoteId);
 
 /**
  * Reconhece uma violação de unicidade do Postgres (SQLSTATE 23505) vinda do

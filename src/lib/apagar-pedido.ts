@@ -2,6 +2,7 @@ import "server-only";
 import { getQuote, deleteQuote } from "./quotes-store";
 import { listProposalsForQuote, deleteProposal } from "./proposals-store";
 import { listContractsForQuote } from "./contracts-store";
+import { listInvoicesForQuote } from "./invoices-store";
 import { clearProposalDraft, draftKey } from "./proposal-drafts";
 import { getState } from "./app-state";
 import { listProposalImages, removeStoredObject, PROPOSAL_BUCKET } from "./proposal-storage";
@@ -58,7 +59,7 @@ import { log } from "@/lib/logger";
 export interface ResultadoDoApagamento {
   apagado: boolean;
   /** Só quando `apagado` é falso. */
-  motivo?: "tem-contrato" | "nao-existe";
+  motivo?: "tem-contrato" | "tem-fatura" | "nao-existe";
   contou: {
     propostas: number;
     fotos: number;
@@ -140,6 +141,22 @@ export async function apagarPedidoSemContrato(
     return { apagado: false, motivo: "tem-contrato", contou, falhou, saiu };
   }
 
+  // ── A FATURA TAMBÉM MANDA PARAR (P5, 17/11) ─────────────────────────────
+  //
+  // Uma fatura é um registo fiscal como o contrato, e desde o P5 a chave dela
+  // é `set null`: apagar o pedido apagava-lhe a origem de vez. Pára-se ANTES
+  // de qualquer coisa sair — e na dúvida (leitura falhada) também. O ecrã diz
+  // a frase genérica de sempre («Não consegui apagar este pedido.»).
+  try {
+    if ((await listInvoicesForQuote(id)).length > 0) {
+      return { apagado: false, motivo: "tem-fatura", contou, falhou, saiu };
+    }
+  } catch (e) {
+    falhou.push("não consegui verificar se este pedido tem faturas");
+    log.error("apagar-pedido: leitura das faturas falhou — não se apaga nada", e, { pedido: id });
+    return { apagado: false, motivo: "tem-fatura", contou, falhou, saiu };
+  }
+
   // ── As tarefas do pedido (auditoria de 12/11, n.º 7) ─────────────────────
   //
   // Cada tarefa guarda uma cópia do nome do casal (`client_name`) e o id do
@@ -195,6 +212,22 @@ export async function apagarPedidoSemContrato(
   } catch (e) {
     falhou.push("não consegui listar as propostas deste pedido");
     log.error("apagar-pedido: listagem de propostas falhou", e, { pedido: id });
+  }
+  // Uma proposta que ficou (não saiu, ou nasceu noutro ecrã) faz parar AQUI,
+  // antes de as fotografias e os rascunhos saírem sem volta: o pedido e essa
+  // proposta ficam inteiros, e uma segunda tentativa sabe o que falta.
+  try {
+    const ficaram = await listProposalsForQuote(id);
+    if (ficaram.length > 0) {
+      if (!falhou.some((f) => f.startsWith("a proposta "))) {
+        falhou.push(`ficaram ${ficaram.length} proposta(s) neste pedido`);
+      }
+      return { apagado: false, contou, falhou, saiu };
+    }
+  } catch (e) {
+    falhou.push("não consegui confirmar as propostas deste pedido");
+    log.error("apagar-pedido: confirmação das propostas falhou", e, { pedido: id });
+    return { apagado: false, contou, falhou, saiu };
   }
 
   // ── As fotografias que ela carregou para este pedido ─────────────────────

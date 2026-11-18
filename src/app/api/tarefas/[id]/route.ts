@@ -5,7 +5,6 @@ import { enviarParaAReciclagem, quemApagou } from "@/lib/reciclagem";
 import { updateTask } from "@/lib/tasks-store";
 import { taskUpdateSchema, firstError } from "@/lib/validation";
 import { respostaDeConflito, respostaDeMigracaoEmFalta } from "@/lib/resposta-de-conflito";
-import { eTarefaDeUmPedidoApagado, MENSAGEM_PEDIDO_APAGADO } from "@/lib/tarefas/pedido-apagado";
 import { log } from "@/lib/logger";
 import { diaDoPrazo } from "@/lib/tarefas/prazo";
 
@@ -66,9 +65,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (conflito) return conflito;
     const migracao = respostaDeMigracaoEmFalta(err, "As tarefas");
     if (migracao) return migracao;
-    if (eTarefaDeUmPedidoApagado(err)) {
-      return NextResponse.json({ error: MENSAGEM_PEDIDO_APAGADO }, { status: 409 });
-    }
     log.error("tarefas PATCH falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
