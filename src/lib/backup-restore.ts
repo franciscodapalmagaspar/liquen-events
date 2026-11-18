@@ -7,6 +7,7 @@ import { getSupabase } from "./supabase";
 import { getState, setState } from "./app-state";
 import { log } from "./logger";
 import { MAX_PROPOSAL_DOC_BYTES } from "./proposal-doc";
+import { CHAVE_NA_COPIA, errosDaListaQueSai } from "./app-state/formas-da-limpeza";
 import { isMissingTable, type Mapper } from "./repository";
 import { mapper as quotesMapper, listQuotes } from "./quotes-store";
 import { mapper as proposalsMapper, listAllProposals } from "./proposals-store";
@@ -1183,6 +1184,10 @@ export function validateBackupFile(raw: unknown): ValidationResult {
   } else {
     missing.push("invoiceCounters");
   }
+
+  // A lista do que a limpeza da noite tirou não se repõe, mas tem de ter a
+  // forma que a limpeza escreve: uma lista estranha é uma cópia alterada.
+  errors.push(...errosDaListaQueSai(file[CHAVE_NA_COPIA]));
 
   if (total > MAX_RESTORE_ROWS) {
     errors.push(

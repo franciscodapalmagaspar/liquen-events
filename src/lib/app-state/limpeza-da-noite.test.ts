@@ -68,14 +68,14 @@ vi.mock("@/lib/reciclagem-store", () => ({
 }));
 
 import { ESPACOS, espacoDaChave } from "@/lib/app-state/espacos";
-import { registoDaLimpeza } from "@/lib/app-state/registo-da-limpeza";
+import { registoDaLimpeza } from "./formas-da-limpeza";
 import {
   CHAVE_DO_REGISTO,
   aplicarLimpezaDoAppState,
   planearNaCopia,
   TECTO_DE_BYTES_NA_COPIA,
   TEMPO_DO_PLANO_MS,
-} from "./limpar-app-state";
+} from "./limpeza-da-noite";
 
 const P1 = "11111111-1111-4111-8111-111111111111";
 const P_APAGADA = "22222222-2222-4222-8222-222222222222";

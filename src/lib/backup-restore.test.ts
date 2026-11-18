@@ -480,7 +480,7 @@ function seedBusiness(): void {
     updated_at: ONTEM,
   });
   // Uma lápide de um rascunho apagado antes de 17/11: a linha ficou, o trabalho
-  // não. Não é trabalho, não vai na cópia (ver `limpar-app-state.ts`).
+  // não. Não é trabalho, não vai na cópia (ver `app-state/limpeza-da-noite.ts`).
   rowsOf("app_state").push({
     key: "proposal-draft:LIQ-ZZZ-9",
     value: null,
@@ -1291,6 +1291,26 @@ describe("validação do ficheiro", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("impossível");
     expect(result.errors[0]).toMatch(/não parece uma cópia de segurança da Líquen/i);
+  });
+
+  it("a lista do que a limpeza da noite tirou: na forma certa passa, fora dela recusa", async () => {
+    seedBusiness();
+    const copia = (await buildBackupPayload()) as Record<string, unknown>;
+    copia.saiDoAppState = [
+      { key: "proposal-draft:q1", motivo: "lapide", value: null },
+      { key: "ligacao-proposta:abc", motivo: "ligacao-sem-proposta", value: { propostaId: "p" } },
+    ];
+    expect(validateBackupFile(copia).ok).toBe(true);
+    for (const estranha of [
+      "não é lista",
+      [{ key: "proposal-draft:q1", motivo: "inventado", value: null }],
+      [{ motivo: "lapide", value: null }],
+    ]) {
+      const result = validateBackupFile({ ...copia, saiDoAppState: estranha });
+      expect(result.ok, JSON.stringify(estranha)).toBe(false);
+      if (result.ok) throw new Error("impossível");
+      expect(result.errors.join(" ")).toMatch(/saiDoAppState/);
+    }
   });
 
   it("recusa o que nem sequer é um objeto", () => {

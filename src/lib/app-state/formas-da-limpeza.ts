@@ -2,10 +2,13 @@ import { z } from "zod";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
- * O REGISTO DA LIMPEZA DO `app_state` — A FORMA, NUM SÍTIO SÓ
+ * AS FORMAS DA LIMPEZA DO `app_state`, NUM SÍTIO SÓ
  * ════════════════════════════════════════════════════════════════════════════
  *
- * É este registo que decide se a noite APAGA ou fica a seco (a primeira noite
+ * Duas formas que atravessam fronteiras: o REGISTO da limpeza (lido da base)
+ * e a LISTA do que sai (escrita na cópia da noite, lida pela reposição).
+ *
+ * O registo que decide se a noite APAGA ou fica a seco (a primeira noite
  * só conta). Lê-se da base, por isso valida-se na fronteira: um valor que não
  * tenha esta forma conta como «não há registo», e a noite fica A SECO — nunca
  * o contrário. É o mesmo esquema do espaço no registo (`espacos.ts`), para a
@@ -45,3 +48,33 @@ export const registoDaLimpeza = z.object({
 });
 
 export type RegistoDaLimpeza = z.infer<typeof registoDaLimpeza>;
+
+/**
+ * Onde a lista do que sai vai no ficheiro da cópia: as linhas que a limpeza
+ * dessa noite tira, com o valor que tinham, para se poderem repor à mão.
+ */
+export const CHAVE_NA_COPIA = "saiDoAppState";
+
+/** Uma linha que sai, como vai na cópia: o valor cru, tal como estava. */
+export const linhaQueSai = z.object({
+  key: z.string().min(1),
+  motivo: motivoDeSaida,
+  /** `null` numa lápide. */
+  value: z.unknown(),
+});
+
+export type LinhaQueSai = z.infer<typeof linhaQueSai>;
+
+/**
+ * Os erros da lista do que sai num ficheiro de cópia, para o validador da
+ * reposição (`validateBackupFile`). Ausente é válido (cópias manuais e as de
+ * antes de 18/11 não a têm).
+ */
+export function errosDaListaQueSai(valor: unknown): string[] {
+  if (valor === undefined) return [];
+  const r = z.array(linhaQueSai).safeParse(valor);
+  if (r.success) return [];
+  const problema = r.error.issues[0];
+  const onde = problema?.path?.length ? ` (${problema.path.join(".")})` : "";
+  return [`A lista do que saiu do app_state (${CHAVE_NA_COPIA}) tem a forma errada${onde}.`];
+}

@@ -171,7 +171,7 @@ vi.mock("@/lib/mail", () => ({
   ),
 }));
 /**
- * A limpeza do `app_state` (P3): o plano e o apagar são da `limpar-app-state`,
+ * A limpeza do `app_state` (P3): o plano e o apagar são da `app-state/limpeza-da-noite`,
  * que tem os seus testes; aqui prova-se só a PORTA — quando a rota deixa
  * apagar, e que a lista do que sai vai dentro da cópia.
  */
@@ -180,7 +180,8 @@ const limpeza = vi.hoisted(() => ({
   aplicadas: [] as { plano: unknown; dia: string }[],
   prazos: [] as number[],
 }));
-vi.mock("@/lib/limpar-app-state", () => ({
+vi.mock("@/lib/app-state/limpeza-da-noite", () => ({
+  CHAVE_NA_COPIA: "saiDoAppState",
   planearNaCopia: vi.fn(async () => limpeza.planeada),
   aplicarLimpezaDoAppState: vi.fn(async (plano: unknown, dia: string, prazo: number) => {
     limpeza.aplicadas.push({ plano, dia });

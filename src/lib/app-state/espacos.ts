@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { registoDaLimpeza } from "./registo-da-limpeza";
+import { registoDaLimpeza } from "./formas-da-limpeza";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -73,7 +73,7 @@ export const ESPACOS = {
     tipo: "prefixo",
     dono: "proposal-drafts.ts",
     valor: z.looseObject({ doc: objeto, updatedAt: iso, savedBy: z.string().optional() }),
-    prazo: { tipo: "limpeza-da-noite", quem: "limpar-app-state.ts (lápides e órfãos)" },
+    prazo: { tipo: "limpeza-da-noite", quem: "app-state/limpeza-da-noite.ts (lápides e órfãos)" },
     copia: { leva: true, conjunto: "proposalDrafts" },
   },
   enviosDeProposta: {
@@ -81,7 +81,10 @@ export const ESPACOS = {
     tipo: "prefixo",
     dono: "envios-de-proposta.ts",
     valor: z.looseObject({ envios: z.array(z.unknown()) }),
-    prazo: { tipo: "limpeza-da-noite", quem: "limpar-app-state.ts (de pedidos apagados)" },
+    prazo: {
+      tipo: "limpeza-da-noite",
+      quem: "app-state/limpeza-da-noite.ts (de pedidos apagados)",
+    },
     copia: { leva: true, conjunto: "proposalEmails" },
     mencionaPdfs: false,
   },
@@ -105,7 +108,7 @@ export const ESPACOS = {
     valor: z.union([objeto, z.array(z.unknown())]),
     prazo: {
       tipo: "limpeza-da-noite",
-      quem: "limpar-app-state.ts (retratos expirados; de propostas apagadas)",
+      quem: "app-state/limpeza-da-noite.ts (retratos expirados; de propostas apagadas)",
     },
     copia: FORA,
     mencionaFotos: false,
@@ -151,7 +154,10 @@ export const ESPACOS = {
       expiraEm: iso,
       revogadaEm: iso.optional(),
     }),
-    prazo: { tipo: "limpeza-da-noite", quem: "limpar-app-state.ts (de propostas apagadas)" },
+    prazo: {
+      tipo: "limpeza-da-noite",
+      quem: "app-state/limpeza-da-noite.ts (de propostas apagadas)",
+    },
     copia: FORA,
     mencionaPdfs: false,
   },
@@ -160,7 +166,10 @@ export const ESPACOS = {
     tipo: "prefixo",
     dono: "proposta-link-curto.ts",
     valor: z.looseObject({ codigo: z.string() }),
-    prazo: { tipo: "limpeza-da-noite", quem: "limpar-app-state.ts (de propostas apagadas)" },
+    prazo: {
+      tipo: "limpeza-da-noite",
+      quem: "app-state/limpeza-da-noite.ts (de propostas apagadas)",
+    },
     copia: FORA,
     mencionaPdfs: false,
   },
@@ -195,7 +204,7 @@ export const ESPACOS = {
   registoDaLimpezaDoAppState: {
     chave: "limpeza:app-state",
     tipo: "chave",
-    dono: "limpar-app-state.ts",
+    dono: "app-state/limpeza-da-noite.ts",
     valor: registoDaLimpeza,
     prazo: SUBSTITUI,
     copia: FORA,

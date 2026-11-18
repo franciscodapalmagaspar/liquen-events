@@ -16,7 +16,11 @@ import { preencherImpressoes } from "@/lib/fotos-parecidas";
 import { medirOcupacao } from "@/lib/ocupacao-do-armazenamento";
 import { limparRegistoAntigo } from "@/lib/registo-de-acoes";
 import { limparDiagnosticosDoVideo } from "@/lib/limpar-diagnosticos-video";
-import { aplicarLimpezaDoAppState, planearNaCopia } from "@/lib/limpar-app-state";
+import {
+  CHAVE_NA_COPIA,
+  aplicarLimpezaDoAppState,
+  planearNaCopia,
+} from "@/lib/app-state/limpeza-da-noite";
 import { isMissingTable } from "@/lib/repository";
 import type { Quote } from "@/lib/orcamento/types";
 import { log } from "@/lib/logger";
@@ -190,17 +194,17 @@ async function GET_semMedida(request: NextRequest) {
      * A limpeza do `app_state` (lápides, caches velhas, órfãos — P3) decide-se
      * AQUI, antes de a cópia se fechar, e o que vai sair segue DENTRO dela
      * (`saiDoAppState`). Só se apaga lá em baixo, com a cópia enviada e
-     * completa. Ver `limpar-app-state.ts`.
+     * completa. Ver `app-state/limpeza-da-noite.ts`.
      */
     let limpezaPlaneada = await planearNaCopia(payload, new Date());
     // Comprime-se uma vez com a lista (o caso de todas as noites) e só se
     // volta a comprimir, sem ela, quando não cabe: a mesma decisão que medir
     // primeiro sem a lista, sem pagar duas compressões em todas as noites.
     let comprimido = comprimirCopia(
-      limpezaPlaneada ? { ...payload, saiDoAppState: limpezaPlaneada.naCopia } : payload,
+      limpezaPlaneada ? { ...payload, [CHAVE_NA_COPIA]: limpezaPlaneada.naCopia } : payload,
     );
     if (limpezaPlaneada && comprimido.byteLength <= TECTO_ANEXO) {
-      payload.saiDoAppState = limpezaPlaneada.naCopia;
+      payload[CHAVE_NA_COPIA] = limpezaPlaneada.naCopia;
     } else if (limpezaPlaneada) {
       // A cópia nunca deixa de sair por causa da lista: a lista sai, e sem
       // ela dentro da cópia esta noite não se apaga nada do app_state.

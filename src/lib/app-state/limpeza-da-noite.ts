@@ -12,11 +12,10 @@ import {
   ESPACOS_LIMPOS,
   contarPorMotivo,
   oQueSaiDoAppState,
-  type MotivoDeSaida,
   type QuemExiste,
   type Saida,
 } from "@/lib/app-state/limpeza";
-import { registoDaLimpeza, type RegistoDaLimpeza } from "@/lib/app-state/registo-da-limpeza";
+import { registoDaLimpeza, type LinhaQueSai, type RegistoDaLimpeza } from "./formas-da-limpeza";
 import { comTecto } from "@/lib/app-state/tecto";
 import { varrerPrefixo, type LinhaVarrida } from "@/lib/app-state/varrer";
 import { lerTodasAsLinhas } from "@/lib/ler-todas-as-linhas";
@@ -65,16 +64,16 @@ const LOTE_DE_VALORES = 20;
 
 export const CHAVE_DO_REGISTO = ESPACOS.registoDaLimpezaDoAppState.chave;
 
+/**
+ * A PORTA da limpeza para a rota da noite: `planearNaCopia` (antes de a cópia
+ * se fechar), `aplicarLimpezaDoAppState` (depois de ela sair) e a chave onde a
+ * lista vai na cópia. O resto deste módulo é interno.
+ */
+export { CHAVE_NA_COPIA } from "./formas-da-limpeza";
+
 export interface PlanoDaNoite {
   saem: Saida[];
   ficam: number;
-}
-
-/** Uma linha que sai, como vai na cópia: o valor cru, tal como estava. */
-export interface LinhaQueSai {
-  key: string;
-  motivo: MotivoDeSaida;
-  value: unknown;
 }
 
 const linhaDaReciclagem = z.looseObject({
@@ -117,7 +116,7 @@ async function idsNaReciclagem(): Promise<string[] | null> {
  * Lê e decide. `null` quando alguma leitura falhou ou ficou truncada: aí não
  * sai nada, nem a parte que se conseguiu ler.
  */
-export async function planearLimpezaDoAppState(
+async function planearLimpezaDoAppState(
   vivos: { pedidos: readonly string[]; propostas: readonly string[] },
   agora: Date,
 ): Promise<PlanoDaNoite | null> {
@@ -164,7 +163,7 @@ export async function planearLimpezaDoAppState(
  * tudo) — e o plano reduzido ao que se conseguiu copiar: uma linha cujo valor
  * não se leu, ou que já não cabe no tecto de bytes, fica para a noite seguinte.
  */
-export async function prepararCopia(
+async function prepararCopia(
   plano: PlanoDaNoite,
 ): Promise<{ plano: PlanoDaNoite; naCopia: LinhaQueSai[] }> {
   const saem: Saida[] = [];
@@ -193,16 +192,12 @@ export async function prepararCopia(
   return { plano: { saem, ficam: plano.ficam + plano.saem.length - saem.length }, naCopia };
 }
 
+const linhasComId = z.array(z.looseObject({ id: z.string() }));
+
 /** Os ids de uma lista da cópia; `null` se a lista não tem a forma esperada. */
 function idsDe(linhas: unknown): string[] | null {
-  if (!Array.isArray(linhas)) return null;
-  const ids: string[] = [];
-  for (const l of linhas) {
-    const id: unknown = l && typeof l === "object" ? Reflect.get(l, "id") : undefined;
-    if (typeof id !== "string") return null;
-    ids.push(id);
-  }
-  return ids;
+  const r = linhasComId.safeParse(linhas);
+  return r.success ? r.data.map((l) => l.id) : null;
 }
 
 /**

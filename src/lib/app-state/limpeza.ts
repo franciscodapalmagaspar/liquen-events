@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { ESPACOS, espacoDaChave, type NomeDoEspaco } from "./espacos";
-import type { motivoDeSaida } from "./registo-da-limpeza";
+import type { motivoDeSaida } from "./formas-da-limpeza";
 import type { LinhaVarrida } from "./varrer";
 
 /**
