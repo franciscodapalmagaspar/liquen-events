@@ -1,3 +1,4 @@
+import { IconeFacebook, IconeInstagram, IconeLinkedIn } from "@/components/IconesDasRedes";
 import type { Metadata } from "next";
 import TrackedLink from "@/components/TrackedLink";
 import FAQ from "./FAQ";
@@ -14,7 +15,7 @@ import RatingBadge from "@/components/RatingBadge";
 import { waHref } from "@/data";
 import { SITE } from "@/lib/site";
 import { getDictionary, normalizeLocale, localizeHref } from "@/lib/i18n";
-import { OUTLINE_LIGHT_BUTTON_CLASS, VEU_DAS_PONTAS } from "@/lib/ui-classes";
+import { OUTLINE_LIGHT_BUTTON_CLASS } from "@/lib/ui-classes";
 import TituloPalavraAPalavra from "@/components/TituloPalavraAPalavra";
 import RevealText from "@/components/motion/RevealText";
 
@@ -45,7 +46,6 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
   const heroImg = "/imagens/DJI_20250913190635_0120_D.jpg";
   // Fundos de foto para os dois CTA (com véu por cima para manter o contraste).
   const orcamentoCtaImg = "/imagens/DaniGui_JantarFesta_130.jpg";
-  const whatsappCtaImg = "/imagens/Natalia e Jonathan-198.jpg";
   const stepsBgImg = "/imagens/stephanie-mizio-555.jpg";
   return (
     <>
@@ -240,33 +240,26 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                 </span>
               </a>
 
-              {/* Redes */}
-              <div className="flex gap-7">
+              {/* Redes — os ícones do rodapé (pedido do dono, 18/11: «em vez de
+                  estar Instagram, LinkedIn, Facebook, coloca os logos»). O nome
+                  vai no `aria-label`; `alvo-toque` dá os 44 px ao dedo. */}
+              <div className="flex items-center gap-6">
                 {[
-                  { label: "Instagram", href: SITE.instagram },
-                  { label: "Facebook", href: SITE.facebook },
-                  { label: "LinkedIn", href: SITE.linkedin },
+                  { label: "Instagram", href: SITE.instagram, Icone: IconeInstagram },
+                  { label: "Facebook", href: SITE.facebook, Icone: IconeFacebook },
+                  { label: "LinkedIn", href: SITE.linkedin, Icone: IconeLinkedIn },
                 ]
                   .filter((s) => s.href)
-                  .map((s) => (
-                    /* `min-h-[24px]` era o mínimo da WCAG 2.5.8 e ficava-se por
-                     lá: medidos a 375 px com toque emulado, 89×30 e 81×30 px.
-                     `alvo-toque` leva-os aos 44 das Human Interface Guidelines,
-                     que é o que este repositório fixou. O filete vai para um
-                     `<span>` por dentro pela mesma razão do herói da página
-                     inicial: um `border-b` desenha no fundo da caixa, e uma
-                     caixa de 44 px deixava-o a pairar 7 px abaixo da palavra. */
+                  .map(({ label, href, Icone }) => (
                     <a
-                      key={s.label}
-                      href={s.href}
+                      key={label}
+                      href={href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="alvo-toque group inline-flex items-center py-1.5 text-miuda tracking-[0.25em] uppercase text-foreground/70 hover:text-foreground transition-colors"
+                      aria-label={`${label} (${t.common.newWindow})`}
+                      className="alvo-toque inline-flex items-center justify-center p-2 -m-2 text-foreground/60 hover:text-foreground transition-colors duration-300"
                     >
-                      <span className="border-b border-foreground/15 transition-colors group-hover:border-foreground/40">
-                        {s.label}
-                        <span className="sr-only"> ({t.common.newWindow})</span>
-                      </span>
+                      <Icone />
                     </a>
                   ))}
               </div>
@@ -459,69 +452,6 @@ export default async function ContactoPage({ params }: { params: Promise<{ lang:
                 </p>
               </div>
               <FAQ faqs={t.contacto.faqs} light />
-            </div>
-          </AnimateIn>
-        </div>
-      </section>
-
-      {/* ── WhatsApp CTA ──
-          Foto de evento com um escurecimento cinematográfico (preto) — o mesmo
-          tratamento das restantes secções finais do site, para a imagem
-          respirar em vez de ficar lavada de verde. Véu totalmente neutro (o
-          antigo brilho verde de canto saiu no redesign SpaceX); o texto cream
-          continua a garantir contraste AA sobre o véu escuro. */}
-      <section className="py-20 sm:py-32 bg-[#0c0e0b] relative overflow-hidden border-t border-white/10">
-        <SafeImage
-          src={whatsappCtaImg}
-          {...blurFor(whatsappCtaImg)}
-          alt=""
-          aria-hidden
-          fill
-          sizes="100vw"
-          quality={75}
-          className="object-cover"
-        />
-        {/* Só as pontas: o escuro que o texto pede está atrás do próprio texto
-            (`.veu-texto`, globals.css). Pedido dela, 23/10: «coloca mais brilho». */}
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: VEU_DAS_PONTAS,
-          }}
-        />
-        <div className="veu-texto veu-texto--esquerda [--veu-alfa:0.78] max-w-7xl mx-auto px-6 lg:px-16 relative">
-          <AnimateIn>
-            <p className="text-cream/80 text-miuda tracking-[0.5em] uppercase mb-10 flex items-center gap-3">
-              <span className="w-5 h-px bg-cream/45 flex-shrink-0" />
-              {t.contacto.whatsappEyebrow}
-            </p>
-            <RevealText
-              className="text-cream font-bold uppercase tracking-display leading-tight mb-6"
-              style={{ fontSize: "clamp(28px, 4.2vw, 52px)" }}
-            >
-              {t.contacto.whatsappTitleLine1}
-              <br />
-              {t.contacto.whatsappTitleLine2}
-            </RevealText>
-            <p className="text-cream/85 text-base leading-relaxed max-w-md mb-12">
-              {t.contacto.whatsappText}
-            </p>
-            <div className="flex flex-wrap gap-4">
-              {/* Par de ghosts brancos (idioma SpaceX): ambos preenchem a
-                  branco no hover com o texto a inverter para escuro — o ícone
-                  distingue o canal principal. */}
-              <a
-                href={waHref(t.common.whatsappPrefill)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={OUTLINE_LIGHT_BUTTON_CLASS}
-              >
-                <WhatsAppIcon className="w-4 h-4 flex-shrink-0" />
-                {t.common.abrirWhatsApp} →<span className="sr-only"> ({t.common.newWindow})</span>
-              </a>
-              <a href={`mailto:${SITE.email}`} className={OUTLINE_LIGHT_BUTTON_CLASS}>
-                {t.common.enviarEmail}
-              </a>
             </div>
           </AnimateIn>
         </div>
