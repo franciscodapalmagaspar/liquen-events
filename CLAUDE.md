@@ -133,8 +133,9 @@ outra coisa nesta casa.
 `docs/PDF-EDITORIAL.md` é o documento dela para o redesenho do PDF (o desenho
 escuro do exemplo «Mafalda & João»). O código novo está em
 `src/lib/pdf-editorial/`, e **ela aprovou-o**: é o do envio, do link do casal e
-do estúdio. O gerador antigo (`proposal-doc-pdf.ts`) fica sem uso nas rotas até
-um PR à parte o apagar. O estúdio conta e mostra as páginas pelo `plano.ts`
+do estúdio. O gerador antigo (`proposal-doc-pdf.ts`) foi apagado a 18/11; as
+propostas antigas que ele imprimiu continuam a ler-se (`lib/proposta-de-pdf/`,
+contra as amostras guardadas em `amostras/`). O estúdio conta e mostra as páginas pelo `plano.ts`
 (um teste prende-o ao PDF) — não voltes a contar páginas noutro sítio. Lê a
 **Parte −1** antes de seguir o texto à letra: lá está a tabela do que já está
 feito, e os sítios onde a execução se afastou do texto (uma só cor de

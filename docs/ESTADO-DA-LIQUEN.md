@@ -254,7 +254,7 @@ Tudo com CI verde e junto (estado a 2/11, 09h).
 ### 7.3 Riscos e dívida técnica
 - **Repositório público** (SEG-1/S1) — a decisão é dela.
 - Ficheiros muito grandes (§1) — custo de manutenção e de revisão.
-- O gerador antigo do PDF (`proposal-doc-pdf.ts`) continua no código, sem uso.
+- O gerador antigo do PDF (`proposal-doc-pdf.ts`) foi apagado a 18/11.
 - O medidor do back office (`scripts/bench-back-office.mjs`) procura uma vista
   que já não existe.
 - `/orcamento/confirmacao/<qualquer coisa>` responde 200 para referências

@@ -1,7 +1,7 @@
 import "server-only";
 import type { ProposalDoc } from "@/lib/proposal-doc";
 import { renderStoredEditorialPdfWithReport } from "@/lib/proposal-doc-render";
-import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { IDIOMA_POR_OMISSAO, type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import { guardarPdfDaProposta, lerPdfDaProposta } from "@/lib/proposal-pdf-guardado";
 import { log } from "@/lib/logger";
 import { faltasPassageiras } from "@/lib/proposal-preview-cache";

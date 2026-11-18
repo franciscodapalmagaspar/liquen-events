@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, memo } from "react";
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import {
   chavesDasPaginas,
   formasDosLugares,

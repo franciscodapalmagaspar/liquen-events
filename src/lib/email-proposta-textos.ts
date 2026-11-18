@@ -1,9 +1,9 @@
+import { isoDaDataPorExtenso } from "./proposal-doc-textos";
 import {
   ehIdiomaDaProposta,
   IDIOMA_POR_OMISSAO,
-  isoDaDataPorExtenso,
   type IdiomaDaProposta,
-} from "./proposal-doc-textos";
+} from "@/lib/orcamento/listas-fechadas";
 import type { Mudanca } from "./orcamento/diferencas";
 import type { ProposalMoney } from "./proposal-doc";
 import { eurDocumento, montanteNaLingua, round2 } from "./money";

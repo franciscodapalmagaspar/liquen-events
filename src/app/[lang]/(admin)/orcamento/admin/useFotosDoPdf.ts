@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { stripPendingImages, type ProposalDoc } from "@/lib/proposal-doc";
-import type { IdiomaDaProposta } from "@/lib/proposal-doc-textos";
+import { type IdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 import type { FotosDoPdf } from "@/lib/pdf-editorial/fotos-do-pdf";
 
 /** Quanto se espera depois do último gesto antes de perguntar. */

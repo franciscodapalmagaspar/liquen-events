@@ -5,9 +5,7 @@ import { splitThirtySeventy } from "@/lib/money";
 import { resolveValidUntil, type ProposalDoc } from "@/lib/proposal-doc";
 import { chaveDoPdf } from "@/lib/proposal-pdf-chave";
 import { desalinhamento, dinheiroDaProposta } from "@/lib/proposal-budget";
-import { ehIdiomaDaProposta } from "@/lib/proposal-doc-textos";
-import fs from "node:fs";
-import path from "node:path";
+import { ehIdiomaDaProposta } from "@/lib/orcamento/listas-fechadas";
 
 // ── Mock the auth + data layer + heavy PDF/mail side effects; keep the money
 //    math (proposal-doc) and the route logic real ──
@@ -108,7 +106,6 @@ vi.mock("@/lib/contracts-store", () => ({
 }));
 // The real renderer is server-only + rasterises a PDF; stub it to a byte or two.
 vi.mock("@/lib/proposal-doc-render", () => ({
-  renderStoredProposalDocPdf: vi.fn(async () => Buffer.from("%PDF-1.4")),
   // A rota passou a usar a variante que também conta as fotos que não
   // resolveram, para poder avisar antes de a proposta seguir para o cliente.
   renderStoredEditorialPdfWithReport: vi.fn(async () => {
@@ -2139,33 +2136,39 @@ describe("POST /api/orcamento/[id]/proposta-doc — o que vem do ecrã de envio"
    * nenhum caminho que a fixture consiga montar, e um teste que só mede o que a
    * fixture alcança deixava um por medir — que é como ele chegou aos 39.
    */
-  it("o botão e o link do email têm os 44 px de alvo", () => {
-    const fonte = fs.readFileSync(
-      path.join(process.cwd(), "src/app/api/orcamento/[id]/proposta-doc/route.ts"),
-      "utf8",
-    );
+  /**
+   * Medido no EMAIL que sai, e não no texto do código (fase 5 de
+   * `docs/ESTRUTURA-DO-CODIGO.md`: uma guarda que lê o código engana-se quando
+   * ele muda de ficheiro). O texto da casa — o que sai sem modelo nem corpo
+   * escrito — é o caminho que leva os dois alvos juntos: o botão da página e o
+   * link do PDF.
+   */
+  const corpoDoEmailDaCasa = async () => {
+    modelo.get.mockResolvedValue(null);
+    await POST(sendReq(baseDoc({ totalAmount: 3000 })), { params });
+    return enviado().html;
+  };
+
+  it("o botão e o link do email têm os 44 px de alvo", async () => {
+    const corpo = await corpoDoEmailDaCasa();
     const alvos = [
-      ...fonte.matchAll(/padding:(\d+)px [^";]*;font-size:(\d+)px;line-height:(\d+)px/g),
+      ...corpo.matchAll(/<a [^>]*padding:(\d+)px [^";]*;font-size:(\d+)px;line-height:(\d+)px/g),
     ].map(([, pad, letra, lh]) => ({
       altura: Number(pad) * 2 + Number(lh),
       letra: Number(letra),
     }));
-    expect(
-      alvos.length,
-      "não encontrei o botão e o link do PDF na fonte da rota",
-    ).toBeGreaterThanOrEqual(2);
+    expect(alvos.length, "não encontrei o botão e o link do PDF no email").toBeGreaterThanOrEqual(
+      2,
+    );
     for (const a of alvos) {
       expect(a.altura, `um alvo do email tem ${a.altura} px de altura`).toBeGreaterThanOrEqual(44);
       expect(a.letra, `um alvo do email tem letra de ${a.letra} px`).toBeGreaterThanOrEqual(16);
     }
   });
 
-  it("e há UM só botão cheio — o segundo virou link", () => {
-    const fonte = fs.readFileSync(
-      path.join(process.cwd(), "src/app/api/orcamento/[id]/proposta-doc/route.ts"),
-      "utf8",
-    );
-    const cheios = [...fonte.matchAll(/background:#4c6350;border-radius/g)];
+  it("e há UM só botão cheio — o segundo virou link", async () => {
+    const corpo = await corpoDoEmailDaCasa();
+    const cheios = [...corpo.matchAll(/background:#4c6350;border-radius/g)];
     expect(
       cheios.length,
       "voltou a haver dois rectângulos verdes iguais no mesmo email — não se distinguem",
@@ -2895,6 +2898,23 @@ describe("POST /api/orcamento/[id]/proposta-doc — B1: o envio recusa uma propo
     const rascunho = await POST(req({ mode: "preview", rascunho: true, doc: semPreco }), {
       params,
     });
+    expect(rascunho.status).toBe(200);
+  });
+
+  /**
+   * 2.ª passagem à fase 5 (17/11): o dinheiro passou a ser contado antes da
+   * trava, também no rascunho — que nunca o lia. Um `budgetExtras` meio escrito
+   * (uma linha nula na lista) partia a pré-visualização do rascunho com
+   * um 500, quando a rota antiga a desenhava. O dinheiro conta-se só quando é
+   * pedido (`dinheiroDe`), como antes.
+   */
+  it("um rascunho com os adicionais meio escritos desenha-se, como na rota antiga", async () => {
+    const doc = {
+      ...baseDoc({ totalAmount: 3000 }),
+      budgetExtrasSomam: true,
+      budgetExtras: [null],
+    };
+    const rascunho = await POST(req({ mode: "preview", rascunho: true, doc }), { params });
     expect(rascunho.status).toBe(200);
   });
 
