@@ -6,6 +6,7 @@ import { comTecto } from "./tecto";
 import { TEMPO_POR_TENTATIVA_MS } from "./tentativas";
 import { readFileState } from "./ficheiro";
 import { comoPrefixo } from "./like";
+import { lerAsPaginas } from "./paginas";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -49,7 +50,6 @@ export type Varredura =
 const FALHOU: Varredura = { estado: "falhou" };
 const TRANSBORDOU: Varredura = { estado: "transbordou" };
 
-const PAGINA = 1000;
 const CAMPO = /^[a-zA-Z][a-zA-Z0-9]*$/;
 
 const linhaDaBase = z.looseObject({ key: z.string(), updated_at: z.string() });
@@ -70,16 +70,14 @@ export async function varrerPrefixo(
   const linhas: LinhaVarrida[] = [];
   const select = ["key", "updated_at", ...campos.map((c) => `${c}:value->${c}`)].join(", ");
   // Duas passagens: as nulas (só a chave e a versão) e as com valor. O
-  // PostgREST não sabe devolver «o valor é nulo?» sem devolver o valor.
+  // PostgREST não sabe devolver «o valor é nulo?» sem devolver o valor. O
+  // limite é das duas juntas.
   for (const nulas of [true, false]) {
-    // Avança pelo que VEIO e só pára numa página vazia: não depende de o
-    // `max-rows` do PostgREST ser 1000 (o mesmo que o `lerTodasAsLinhas`).
-    for (let desde = 0; ; ) {
-      const ate = desde + PAGINA - 1;
-      try {
+    const lidas = await lerAsPaginas(
+      (desde, ate) =>
         // A consulta monta-se DENTRO de cada tentativa: um construtor reusado
         // repetia os filtros na segunda.
-        const { data, error } = await lerComNovaTentativa(() => {
+        lerComNovaTentativa(() => {
           const base = sb.from("app_state").select(nulas ? "key, updated_at" : select);
           const filtrada = nulas ? base.is("value", null) : base.not("value", "is", null);
           return comTecto(
@@ -89,27 +87,24 @@ export async function varrerPrefixo(
               .range(desde, ate),
             TEMPO_POR_TENTATIVA_MS,
           );
-        });
-        if (error || !Array.isArray(data)) return FALHOU;
-        for (const crua of data) {
-          const r = linhaDaBase.safeParse(crua);
-          if (!r.success) return FALHOU;
-          const { key, updated_at, ...resto } = r.data;
-          linhas.push({
-            key,
-            versao: updated_at,
-            escritaEm: updated_at,
-            nula: nulas,
-            campos: nulas ? {} : resto,
-          });
-        }
-        if (linhas.length > opcoes.limite) return TRANSBORDOU;
-        if (data.length === 0) break;
-        desde += data.length;
-      } catch {
-        return FALHOU;
-      }
-    }
+        }),
+      (crua): LinhaVarrida | null => {
+        const r = linhaDaBase.safeParse(crua);
+        if (!r.success) return null;
+        const { key, updated_at, ...resto } = r.data;
+        return {
+          key,
+          versao: updated_at,
+          escritaEm: updated_at,
+          nula: nulas,
+          campos: nulas ? {} : resto,
+        };
+      },
+      opcoes.limite - linhas.length,
+    );
+    if (lidas.estado === "falhou") return FALHOU;
+    if (lidas.estado === "transbordou") return TRANSBORDOU;
+    linhas.push(...lidas.linhas);
   }
   return { estado: "completa", linhas };
 }

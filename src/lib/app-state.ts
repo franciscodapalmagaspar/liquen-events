@@ -1,4 +1,5 @@
 import "server-only";
+import { z } from "zod";
 import { getSupabase } from "./supabase";
 import { lerComNovaTentativa } from "./repository";
 import { log } from "./logger";
@@ -14,6 +15,7 @@ import {
 } from "./app-state/ficheiro";
 import type { ResultadoDeEscrita } from "./app-state/resultado";
 import { comoPrefixo } from "./app-state/like";
+import { lerAsPaginas } from "./app-state/paginas";
 export { oFicheiroEhEfemero } from "./app-state/ficheiro";
 export type { MotivoDeFalha, OndeFicou, ResultadoDeEscrita } from "./app-state/resultado";
 
@@ -169,6 +171,9 @@ export async function getStates<T>(keys: readonly string[]): Promise<Map<string,
   }
 }
 
+/** Uma linha do `app_state` como a base a devolve: a chave e o valor (qualquer). */
+const linhaDoEstado = z.object({ key: z.string(), value: z.unknown() });
+
 /**
  * Todas as entradas cuja chave começa por `prefix`.
  *
@@ -183,8 +188,6 @@ export async function getStates<T>(keys: readonly string[]): Promise<Map<string,
  * chama em vez de ser escondido — uma varredura truncada não pode passar por
  * uma varredura completa numa decisão sobre perder fotos.
  */
-/** O tecto do PostgREST por resposta (`max-rows`, 1000 no Supabase). */
-const PAGINA_DO_ESTADO = 1000;
 
 export async function listStateByPrefix<T>(
   prefix: string,
@@ -194,36 +197,37 @@ export async function listStateByPrefix<T>(
   if (sb) {
     try {
       /**
-       * Às páginas de {@link PAGINA_DO_ESTADO}: o PostgREST corta CADA resposta
-       * nas 1000 linhas sem avisar, e um `.limit(limite + 1)` maior do que isso
-       * voltava com 1000 e dizia-se «completa» (revisão de 13/11, n.º 1). Ordem
-       * pela chave, que é única: as páginas não se repetem nem saltam linhas.
+       * Às páginas, até à página VAZIA (`app-state/paginas.ts`): o PostgREST
+       * corta CADA resposta no `max-rows` sem avisar, e um `.limit(limite + 1)`
+       * maior do que isso voltava com 1000 e dizia-se «completa» (revisão de
+       * 13/11, n.º 1). Ordem pela chave, que é única: as páginas não se repetem
+       * nem saltam linhas.
        */
-      const linhas: { key: string; value: T }[] = [];
-      for (let desde = 0; linhas.length <= limite; desde += PAGINA_DO_ESTADO) {
-        const ate = Math.min(desde + PAGINA_DO_ESTADO, limite + 1) - 1;
-        // Com nova tentativa no PGRST303 («JWT issued at future»), como o
-        // repositório: a 16/11 uma recusa passageira deixou a cópia da noite
-        // sem os emails das propostas (`proposalEmails`).
-        const { data, error } = await lerComNovaTentativa(() =>
-          sb
-            .from("app_state")
-            .select("key, value")
-            // `%` e `_` são curingas do LIKE: escapá-los impede que um prefixo
-            // com um deles varra mais do que devia.
-            .like("key", comoPrefixo(prefix))
-            .order("key", { ascending: true })
-            .range(desde, ate),
-        );
-        if (error) throw error;
-        const pagina = data ?? [];
-        for (const l of pagina) {
-          vigiarValor(l.key, l.value);
-          linhas.push({ key: l.key, value: l.value as T });
-        }
-        if (pagina.length < ate - desde + 1) break;
-      }
-      return { entradas: linhas.slice(0, limite), completa: linhas.length <= limite };
+      const lidas = await lerAsPaginas(
+        (desde, ate) =>
+          // Com nova tentativa no PGRST303 («JWT issued at future»), como o
+          // repositório: a 16/11 uma recusa passageira deixou a cópia da noite
+          // sem os emails das propostas (`proposalEmails`).
+          lerComNovaTentativa(() =>
+            sb
+              .from("app_state")
+              .select("key, value")
+              // `%` e `_` são curingas do LIKE: escapá-los impede que um prefixo
+              // com um deles varra mais do que devia.
+              .like("key", comoPrefixo(prefix))
+              .order("key", { ascending: true })
+              .range(desde, ate),
+          ),
+        (crua) => {
+          const l = linhaDoEstado.safeParse(crua);
+          if (!l.success) return null;
+          vigiarValor(l.data.key, l.data.value);
+          return { key: l.data.key, value: l.data.value as T };
+        },
+        limite,
+      );
+      if (lidas.estado === "falhou") throw lidas.erro;
+      return { entradas: lidas.linhas, completa: lidas.estado === "completa" };
     } catch (err) {
       log.error("app-state: varredura por prefixo falhou", err, { prefix });
       // Devolver "vazio e completo" faria quem chama concluir que ninguém usa a

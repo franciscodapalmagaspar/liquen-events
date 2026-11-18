@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 
 /**
  * O PostgREST corta CADA resposta nas 1000 linhas sem avisar (revisão de
@@ -11,7 +11,7 @@ const TODAS = Array.from({ length: 2500 }, (_, i) => ({
   value: i,
 }));
 
-const H = vi.hoisted(() => ({ recusasDoRelogio: 0 }));
+const H = vi.hoisted(() => ({ recusasDoRelogio: 0, maxRows: 1000 }));
 
 vi.mock("./logger", () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("./supabase", () => ({
@@ -42,8 +42,8 @@ vi.mock("./supabase", () => ({
                 }),
               );
             }
-            // O tecto do servidor: nunca mais de 1000 por resposta.
-            const fim = Math.min(ate + 1, desde + 1000);
+            // O tecto do servidor (`max-rows`): nunca mais do que isto por resposta.
+            const fim = Math.min(ate + 1, desde + H.maxRows);
             return Promise.resolve(resolve({ data: TODAS.slice(desde, fim), error: null }));
           },
         };
@@ -54,6 +54,11 @@ vi.mock("./supabase", () => ({
 }));
 
 import { listStateByPrefix } from "./app-state";
+
+beforeEach(() => {
+  H.recusasDoRelogio = 0;
+  H.maxRows = 1000;
+});
 
 describe("listStateByPrefix no Supabase", () => {
   it("lê tudo, por páginas, quando cabe no limite", async () => {
@@ -73,6 +78,14 @@ describe("listStateByPrefix no Supabase", () => {
     // e a cópia da noite saiu sem `proposalEmails`. O repositório já repetia
     // este erro; a varredura por prefixo não.
     H.recusasDoRelogio = 1;
+    const r = await listStateByPrefix("draft:", 10_000);
+    expect(r.completa).toBe(true);
+    expect(r.entradas).toHaveLength(2500);
+  });
+
+  it("um `max-rows` mais baixo do que a página não passa por fim da leitura", async () => {
+    // Com 500, a primeira página «curta» parecia o fim: 500 de 2500, «completa».
+    H.maxRows = 500;
     const r = await listStateByPrefix("draft:", 10_000);
     expect(r.completa).toBe(true);
     expect(r.entradas).toHaveLength(2500);
