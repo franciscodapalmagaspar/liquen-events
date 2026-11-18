@@ -144,7 +144,7 @@ function fakeSupabase() {
               return builder;
             },
             gt(column: string, value: unknown) {
-              // A leitura por chave (`reposicao-e-chaves-estrangeiras.ts`).
+              // A leitura por chave (`reposicao/chaves-estrangeiras.ts`).
               filtered = (filtered ?? rowsOf(table)).filter(
                 (r) => String(r[column] ?? "") > String(value),
               );
@@ -247,7 +247,7 @@ function fakeSupabase() {
             not: (column: string) => run(column),
             eq: (column: string) => run(column),
             // Só os ids pedidos: é o «apagar só o que a cópia não traz» dos
-            // pedidos (P5, `reposicao-e-chaves-estrangeiras.ts`).
+            // pedidos (P5, `reposicao/chaves-estrangeiras.ts`).
             in: async (column: string, ids: unknown[]) => {
               if (shouldFail(table, "write"))
                 return { error: new Error(`${table} recusa escritas`) };

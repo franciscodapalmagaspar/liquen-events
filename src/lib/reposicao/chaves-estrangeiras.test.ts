@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-vi.mock("./logger", () => ({ log: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock("@/lib/logger", () => ({ log: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 const {
   comDependentesGuardados,
@@ -10,7 +10,7 @@ const {
   lerIds,
   soltarLigacoesOrfas,
   substituirSemApagarOsQueFicam,
-} = await import("./reposicao-e-chaves-estrangeiras");
+} = await import("./chaves-estrangeiras");
 
 type Linha = Record<string, unknown>;
 

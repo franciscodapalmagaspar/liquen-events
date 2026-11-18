@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { log } from "./logger";
-import { isMissingTable } from "./repository";
+import { log } from "@/lib/logger";
+import { isMissingTable } from "@/lib/repository";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

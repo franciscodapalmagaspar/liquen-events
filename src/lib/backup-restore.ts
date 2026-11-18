@@ -9,15 +9,8 @@ import { getState, setState } from "./app-state";
 import { log } from "./logger";
 import { MAX_PROPOSAL_DOC_BYTES } from "./proposal-doc";
 import { isMissingTable, type Mapper } from "./repository";
-import {
-  idsDosPedidosUmaVez,
-  semLigacoesAPedidosQueNaoExistem,
-  substituirSemApagarOsQueFicam,
-  comDependentesGuardados,
-  type DependenteEmCascata,
-  type IdsDosPedidos,
-  type LigacaoAoPedido,
-} from "./reposicao-e-chaves-estrangeiras";
+import { idsDosPedidosUmaVez, type IdsDosPedidos } from "./reposicao/chaves-estrangeiras";
+import { escreverConjuntoNaBase, type EstrategiaDeEscrita } from "./reposicao/escrever-conjunto";
 import { mapper as quotesMapper, listQuotes } from "./quotes-store";
 import { mapper as proposalsMapper, listAllProposals } from "./proposals-store";
 import { mapper as suppliersMapper, listSuppliers } from "./suppliers-store";
@@ -527,7 +520,7 @@ const counterSchema = z.object({
 // ── Conjuntos que se sabem repor ────────────────────────────────────────────
 
 /** Um conjunto que a reposição sabe apagar e reescrever. */
-export interface RestoreTarget<T = Record<string, unknown>> {
+export interface RestoreTarget<T = Record<string, unknown>> extends EstrategiaDeEscrita {
   /** Chave no ficheiro — a MESMA de `BACKUP_DATASETS`. */
   key: string;
   /** Nome em português, para o ecrã. */
@@ -594,25 +587,6 @@ export interface RestoreTarget<T = Record<string, unknown>> {
    * tocado sequer: fica como está, e a razão sai no ecrã pelo nome.
    */
   preflight?: (rows: T[]) => Promise<string | null>;
-  /**
-   * Repor SEM apagar as linhas que estão na cópia e na base (só sai o que a
-   * cópia não traz). Só os pedidos: são o alvo das chaves estrangeiras das
-   * tarefas, faturas e contratos, e apagá-los todos levava-as atrás. Ver
-   * `reposicao-e-chaves-estrangeiras.ts`.
-   */
-  semApagarOsQueFicam?: true;
-  /**
-   * A chave estrangeira para o pedido (o campo do domínio) e o que a base faz
-   * quando o pedido sai: uma linha da cópia cujo pedido não existe leva o
-   * mesmo destino — `soltar` (`on delete set null`) ou `descartar` (`on
-   * delete cascade`) —, em vez de rebentar a inserção do conjunto inteiro.
-   */
-  ligacaoAoPedido?: LigacaoAoPedido;
-  /**
-   * Uma tabela que não vai na cópia e cai em cascata quando este conjunto é
-   * apagado: guarda-se antes e volta depois (`comDependentesGuardados`).
-   */
-  dependenteEmCascata?: DependenteEmCascata;
 }
 
 // Os `as unknown as` abaixo: o `Mapper<T>` de cada store é tipado com o tipo de
@@ -1609,53 +1583,8 @@ async function replaceAll(
   if (target.replace) return target.replace(rows);
 
   if (sb) {
-    // PostgREST exige um filtro num delete: `<chave> is not null` é verdade
-    // para toda a linha (é chave primária, não pode ser nula) e apaga a tabela
-    // inteira.
-    //
-    // A coluna é a que o `mapper` DECLARA, nunca `id` à letra. Onze das doze
-    // tabelas chamam-lhe mesmo `id`, mas a `biblioteca_fotos` tem `path text
-    // primary key` e nenhuma coluna `id` (ver `Mapper.idColumn`) — e o Postgres
-    // respondia `42703 — column does not exist` a um delete escrito à mão.
-    // O estrago não ficava por não repor as fotos: as ETIQUETAS das fotos são
-    // apagadas ANTES, por cascata da chave estrangeira, portanto a reposição
-    // apagava o trabalho de etiquetar e depois não conseguia repor as fotos que
-    // as etiquetas apontavam.
-    const colunaDaChave = target.mapper.idColumn ?? "id";
-    const linhas =
-      target.ligacaoAoPedido && pedidos
-        ? semLigacoesAPedidosQueNaoExistem(
-            rows,
-            target.ligacaoAoPedido,
-            await pedidos(),
-            target.key,
-          )
-        : rows;
-    // `toRow` primeiro (é a tradução oficial do store) e por cima as colunas
-    // que ele deixa à base de dados preencher — ver `extraColumns`.
-    const convertidas = linhas.map((r) => ({
-      ...target.mapper.toRow(r as never),
-      ...(target.extraColumns?.(r) ?? {}),
-    }));
-    if (target.semApagarOsQueFicam) {
-      await substituirSemApagarOsQueFicam(sb, target.table, colunaDaChave, convertidas);
-      return;
-    }
-    const apagarEInserir = async (): Promise<ReadonlySet<string>> => {
-      const del = await sb.from(target.table).delete().not(colunaDaChave, "is", null);
-      if (del.error) throw del.error;
-      const CHUNK = 500;
-      for (let i = 0; i < convertidas.length; i += CHUNK) {
-        const { error } = await sb.from(target.table).insert(convertidas.slice(i, i + CHUNK));
-        if (error) throw error;
-      }
-      return new Set(convertidas.map((r) => String(r[colunaDaChave])));
-    };
-    if (target.dependenteEmCascata) {
-      await comDependentesGuardados(sb, target.dependenteEmCascata, apagarEInserir);
-    } else {
-      await apagarEInserir();
-    }
+    // A escrita na base, com as chaves estrangeiras: `reposicao/escrever-conjunto.ts`.
+    await escreverConjuntoNaBase(sb, target, rows, pedidos);
     return;
   }
 
