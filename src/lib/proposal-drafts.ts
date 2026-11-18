@@ -283,8 +283,8 @@ export const mapper: Mapper<RascunhoNaCopia> = {
  * número escolhido noutro contexto.
  *
  * A conta que importa: há uma chave por pedido alguma vez aberto no estúdio, e
- * ela NÃO desaparece quando a equipa limpa o rascunho — `clearProposalDraft`
- * grava `null`, a linha fica, e continua a ocupar orçamento da varredura. Ou
+ * até 18/11 ela NÃO desaparecia quando a equipa limpava o rascunho (ficava uma
+ * lápide a `null`; hoje apaga-se, e a noite tira as antigas — P3). Ou
  * seja, o número a comparar não é «quantos rascunhos por acabar existem» (uma
  * mão cheia) mas «quantas propostas já se começaram desde sempre», que só
  * cresce. A 200 pedidos por ano, 2000 chegavam dez anos depois — e chegavam
@@ -358,7 +358,7 @@ export async function listProposalDrafts(): Promise<RascunhoNaCopia[]> {
  * Por isso só se toca no espaço de nomes dos rascunhos:
  *  · cada rascunho do ficheiro é gravado (e a chave é verificada — ver
  *    `ehChaveDeRascunho`: uma cópia adulterada não escreve fora daqui);
- *  · um rascunho que existe AGORA e não vem no ficheiro é apagado, a `null`,
+ *  · um rascunho que existe AGORA e não vem no ficheiro é apagado (a linha sai),
  *    que é como o estúdio já diz "não há rascunho";
  *  · tudo o resto do `app_state` fica exactamente como estava.
  *

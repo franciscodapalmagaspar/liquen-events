@@ -27,8 +27,8 @@ import { log } from "@/lib/logger";
  * as travas que o plano pede:
  *
  *  1. **Primeiro a cópia.** O plano faz-se ANTES de a cópia da noite se fechar,
- *     e o que vai sair segue DENTRO dela (`saiDoAppState`): com o valor, ou a
- *     dizer em que conjunto da mesma cópia ele já está. Só se apaga depois de
+ *     e o que vai sair segue DENTRO dela (`saiDoAppState`), com o valor cru
+ *     que tinha. Só se apaga depois de
  *     o email ter saído e com a cópia completa — a regra da retenção e da
  *     Reciclagem, em `api/cron/backup`. O que não se conseguiu copiar não sai.
  *  2. **Uma leitura falhada não apaga nada.** Se a Reciclagem, ou um dos cinco
@@ -44,8 +44,7 @@ import { log } from "@/lib/logger";
  * valor, ou uma ligação reescrita, ficam.
  *
  * Custo: a varredura traz a chave, a versão e um ou dois campos de topo, não os
- * valores (`varrer.ts`); os valores só se leem para as linhas que saem e não
- * estão já na cópia. Medido a 18/11: ~180 linhas na primeira noite.
+ * valores (`varrer.ts`); os valores só se leem para as linhas que saem. Medido a 18/11: ~180 linhas na primeira noite.
  */
 
 export const TECTO_POR_NOITE = 200;
@@ -63,10 +62,12 @@ export interface PlanoDaNoite {
   ficam: number;
 }
 
-/** Uma linha que sai, como vai na cópia: o valor, ou onde ele já está nela. */
-export type LinhaQueSai =
-  | { key: string; motivo: MotivoDeSaida; value: unknown }
-  | { key: string; motivo: MotivoDeSaida; naCopia: string };
+/** Uma linha que sai, como vai na cópia: o valor cru, tal como estava. */
+export interface LinhaQueSai {
+  key: string;
+  motivo: MotivoDeSaida;
+  value: unknown;
+}
 
 export interface RegistoDaLimpeza {
   /** O dia da primeira noite (a seco). */
@@ -82,20 +83,35 @@ export interface RegistoDaLimpeza {
   };
 }
 
-const linhaDaReciclagem = z.looseObject({ origem_id: z.string() });
+const linhaDaReciclagem = z.looseObject({
+  origem_id: z.string(),
+  propostas: z.array(z.looseObject({ id: z.string() })).nullable(),
+});
 
-/** Os ids que estão na Reciclagem (só a coluna, nunca os retratos). */
+/**
+ * Os ids que estão na Reciclagem: o que se apagou e as propostas que foram com
+ * um pedido (`retrato.propostas`, só o caminho, não o retrato inteiro).
+ */
 async function idsNaReciclagem(): Promise<string[] | null> {
   try {
     const sb = getSupabase();
-    if (!sb) return (await listarReciclagem()).map((e) => e.origemId);
-    const { data, error } = await lerTodasAsLinhas<unknown>(sb, "reciclagem", "id, origem_id");
+    if (!sb) {
+      return (await listarReciclagem()).flatMap((e) => [
+        e.origemId,
+        ...(idsDe(e.retrato.propostas ?? []) ?? []),
+      ]);
+    }
+    const { data, error } = await lerTodasAsLinhas<unknown>(
+      sb,
+      "reciclagem",
+      "id, origem_id, propostas:retrato->propostas",
+    );
     if (error || !data) return null;
     const ids: string[] = [];
     for (const linha of data) {
       const r = linhaDaReciclagem.safeParse(linha);
       if (!r.success) return null;
-      ids.push(r.data.origem_id);
+      ids.push(r.data.origem_id, ...(r.data.propostas ?? []).map((p) => p.id));
     }
     return ids;
   } catch {
@@ -116,20 +132,22 @@ export async function planearLimpezaDoAppState(
     log.warn("limpeza do app_state: a Reciclagem não se leu — nada sai esta noite");
     return null;
   }
-  const linhas: LinhaVarrida[] = [];
-  for (const prefixo of ESPACOS_LIMPOS) {
-    const lido = await varrerPrefixo(prefixo, {
-      campos: CAMPOS_POR_ESPACO[prefixo] ?? [],
-      limite: LIMITE_POR_ESPACO,
+  const lidos = await Promise.all(
+    ESPACOS_LIMPOS.map((prefixo) =>
+      varrerPrefixo(prefixo, {
+        campos: CAMPOS_POR_ESPACO[prefixo] ?? [],
+        limite: LIMITE_POR_ESPACO,
+      }),
+    ),
+  );
+  const incompleto = lidos.findIndex((l) => !l.completa);
+  if (incompleto >= 0) {
+    log.warn("limpeza do app_state: um espaço não se leu inteiro — nada sai esta noite", {
+      prefixo: ESPACOS_LIMPOS[incompleto],
     });
-    if (!lido.completa) {
-      log.warn("limpeza do app_state: um espaço não se leu inteiro — nada sai esta noite", {
-        prefixo,
-      });
-      return null;
-    }
-    linhas.push(...lido.linhas);
+    return null;
   }
+  const linhas: LinhaVarrida[] = lidos.flatMap((l) => l.linhas);
   const existe = {
     pedidos: new Set([...vivos.pedidos, ...reciclados]),
     propostas: new Set([...vivos.propostas, ...reciclados]),
@@ -137,31 +155,16 @@ export async function planearLimpezaDoAppState(
   return oQueSaiDoAppState(linhas, existe, agora.getTime(), TECTO_POR_NOITE);
 }
 
-/** As chaves de um conjunto da cópia (os rascunhos e os envios trazem `key`). */
-function chavesDoConjunto(conjunto: unknown): Set<string> {
-  const chaves = new Set<string>();
-  if (!Array.isArray(conjunto)) return chaves;
-  for (const l of conjunto) {
-    const k: unknown = l && typeof l === "object" ? Reflect.get(l, "key") : undefined;
-    if (typeof k === "string") chaves.add(k);
-  }
-  return chaves;
-}
-
 /**
- * O que segue na cópia, e o plano reduzido ao que se conseguiu copiar: uma
- * linha cujo valor não se leu, ou que já não cabe no tecto de bytes, fica para
- * a noite seguinte — nunca sai sem ter ido na cópia.
+ * O que segue na cópia — o valor CRU de cada linha, lido agora (os conjuntos
+ * `proposalDrafts`/`proposalEmails` da cópia são normalizados e podiam não ter
+ * tudo) — e o plano reduzido ao que se conseguiu copiar: uma linha cujo valor
+ * não se leu, ou que já não cabe no tecto de bytes, fica para a noite seguinte.
  */
 export async function prepararCopia(
   plano: PlanoDaNoite,
-  copia: { proposalDrafts?: unknown; proposalEmails?: unknown },
 ): Promise<{ plano: PlanoDaNoite; naCopia: LinhaQueSai[] }> {
-  const jaNaCopia = new Map<string, string>();
-  for (const k of chavesDoConjunto(copia.proposalDrafts)) jaNaCopia.set(k, "proposalDrafts");
-  for (const k of chavesDoConjunto(copia.proposalEmails)) jaNaCopia.set(k, "proposalEmails");
-
-  const porLer = plano.saem.filter((s) => !s.nula && !jaNaCopia.has(s.key)).map((s) => s.key);
+  const porLer = plano.saem.filter((s) => !s.nula).map((s) => s.key);
   const valores = porLer.length > 0 ? await getStates<unknown>(porLer) : new Map<string, unknown>();
 
   const saem: Saida[] = [];
@@ -169,19 +172,14 @@ export async function prepararCopia(
   let bytes = 0;
   let ficam = plano.ficam;
   for (const s of plano.saem) {
-    const conjunto = jaNaCopia.get(s.key);
-    if (s.nula) naCopia.push({ key: s.key, motivo: s.motivo, value: null });
-    else if (conjunto) naCopia.push({ key: s.key, motivo: s.motivo, naCopia: conjunto });
-    else {
-      const valor = valores.get(s.key);
-      const tamanho = valor === undefined ? Infinity : JSON.stringify(valor).length;
-      if (bytes + tamanho > TECTO_DE_BYTES_NA_COPIA) {
-        ficam++;
-        continue;
-      }
-      bytes += tamanho;
-      naCopia.push({ key: s.key, motivo: s.motivo, value: valor });
+    const valor = s.nula ? null : valores.get(s.key);
+    const tamanho = valor === undefined ? Infinity : JSON.stringify(valor).length;
+    if (bytes + tamanho > TECTO_DE_BYTES_NA_COPIA) {
+      ficam++;
+      continue;
     }
+    bytes += tamanho;
+    naCopia.push({ key: s.key, motivo: s.motivo, value: valor });
     saem.push(s);
   }
   return { plano: { saem, ficam }, naCopia };
@@ -208,13 +206,7 @@ function idsDe(linhas: unknown): string[] | null {
  * ou quando o plano passa do seu tempo. Nunca lança.
  */
 export async function planearNaCopia(
-  copia: {
-    incomplete?: unknown;
-    quotes?: unknown;
-    proposals?: unknown;
-    proposalDrafts?: unknown;
-    proposalEmails?: unknown;
-  },
+  copia: { incomplete?: unknown; quotes?: unknown; proposals?: unknown },
   agora: Date,
 ): Promise<{ plano: PlanoDaNoite; naCopia: LinhaQueSai[] } | null> {
   if (!Array.isArray(copia.incomplete) || copia.incomplete.length > 0) return null;
@@ -225,7 +217,7 @@ export async function planearNaCopia(
     return await comTecto(
       (async () => {
         const plano = await planearLimpezaDoAppState({ pedidos, propostas }, agora);
-        return plano ? prepararCopia(plano, copia) : null;
+        return plano ? prepararCopia(plano) : null;
       })(),
       TEMPO_DO_PLANO_MS,
     );

@@ -21,12 +21,14 @@ const linha = (
 ): LinhaVarrida => ({
   key,
   versao,
+  escritaEm: versao,
   nula: false,
   campos,
 });
 const lapide = (key: string, versao = ANTIGA): LinhaVarrida => ({
   key,
   versao,
+  escritaEm: versao,
   nula: true,
   campos: {},
 });
@@ -43,7 +45,6 @@ describe("o que sai do app_state esta noite", () => {
         lapide("envio-de-proposta:q1"),
         linha("proposal-draft:q1--sobreposto"),
         linha("proposal-draft:q1--orcamento-linhas--sobreposto"),
-        linha("proposal-draft:q1"),
       ]),
     ).toEqual({ "proposal-draft:q1": "lapide", "envio-de-proposta:q1": "lapide" });
   });
@@ -82,15 +83,15 @@ describe("o que sai do app_state esta noite", () => {
     ).toEqual({});
   });
 
-  it("as ligações de propostas apagadas saem, nos dois sentidos; a do pedido vivo fica", () => {
+  it("as ligações de propostas apagadas saem, nos dois sentidos; as da Reciclagem ficam", () => {
     expect(
       saem([
         linha("ligacao-proposta:abc", { propostaId: P_APAGADA, pedidoId: "q-apagado" }),
         linha("ligacao-de-proposta:" + P_APAGADA, { codigo: "abc" }),
         linha("ligacao-proposta:def", { propostaId: P1, pedidoId: "q1" }),
         linha("ligacao-de-proposta:" + P1, { codigo: "def" }),
-        // A proposta saiu com o pedido para a Reciclagem: o pedido existe.
-        linha("ligacao-proposta:ghi", { propostaId: P_APAGADA, pedidoId: "q-reciclado" }),
+        // A proposta está na Reciclagem: pode voltar, e o link com ela.
+        linha("ligacao-proposta:ghi", { propostaId: P_RECICLADA, pedidoId: "q1" }),
         linha("ligacao-de-proposta:44444444-4444-4444-8444-444444444444", { codigo: "ghi" }),
         // Sem `propostaId` legível não se sabe de quem é: fica.
         linha("ligacao-proposta:xyz", { outra: 1 }),
@@ -155,9 +156,30 @@ describe("o que sai do app_state esta noite", () => {
     expect(s).toEqual({
       key: "proposal-draft:q2",
       versao: "2026-11-17T01:02:03Z",
+      escritaEm: "2026-11-17T01:02:03Z",
       nula: true,
       campos: {},
       motivo: "lapide",
     });
+  });
+
+  it("uma chave vista como lápide E com valor mudou durante a varredura: fica", () => {
+    expect(saem([lapide("proposal-draft:q-apagado"), linha("proposal-draft:q-apagado")])).toEqual(
+      {},
+    );
+  });
+
+  it("sem base de dados não há data: o órfão sai sem esperar as 24 h", () => {
+    expect(
+      saem([
+        {
+          key: "envio-de-proposta:q-apagado",
+          versao: "{}",
+          escritaEm: null,
+          nula: false,
+          campos: {},
+        },
+      ]),
+    ).toEqual({ "envio-de-proposta:q-apagado": "envio-sem-pedido" });
   });
 });

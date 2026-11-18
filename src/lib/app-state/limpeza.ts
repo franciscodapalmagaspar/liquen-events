@@ -25,8 +25,8 @@ import type { LinhaVarrida } from "./varrer";
  * atual (revisão de 18/11): apagar a errada era pagar o cálculo outra vez.
  *
  * «Existe» inclui a Reciclagem: um pedido apagado há menos de 30 dias pode
- * voltar, e volta com o que tinha (uma ligação conta como viva se o pedido
- * dela existir). E nada com menos de {@link IDADE_MINIMA_HORAS} horas sai por
+ * voltar, e volta com o que tinha (as propostas que foram com o pedido também
+ * contam). E nada com menos de {@link IDADE_MINIMA_HORAS} horas sai por
  * ser órfão: quem existe lê-se no início da noite, e uma proposta enviada a
  * meio da limpeza não pode ver o link que acabou de seguir ser apagado.
  *
@@ -99,12 +99,11 @@ function partesDaPropostaWeb(chave: string): { tipo: string; proposta: string | 
   return { tipo, proposta: UUID.test(proposta) ? proposta : null };
 }
 
-/** Uma ligação está viva se a proposta OU o pedido dela existirem. */
+/** Uma ligação está viva se a proposta dela existir (ou estiver na Reciclagem). */
 function ligacaoViva(campos: LinhaVarrida["campos"], existe: QuemExiste): boolean | null {
   const proposta = texto(campos.propostaId);
   if (proposta === null) return null; // não se sabe de quem é: fica
-  const pedido = texto(campos.pedidoId);
-  return existe.propostas.has(proposta) || (pedido !== null && existe.pedidos.has(pedido));
+  return existe.propostas.has(proposta);
 }
 
 /** Órfã: a regra de cada espaço, sem a idade (que se vê à parte). */
@@ -152,9 +151,11 @@ function motivoDaLinha(
   }
   const motivo = orfa(l, existe, ligacoes);
   if (!motivo) return null;
-  // Uma versão ilegível ou recente: não se sabe se nasceu depois de se ler
+  // Sem base de dados (desenvolvimento) não há data, e não há noite a meio.
+  if (l.escritaEm === null) return motivo;
+  // Uma data ilegível ou recente: não se sabe se nasceu depois de se ler
   // quem existe. Fica para outra noite.
-  const escrita = Date.parse(l.versao);
+  const escrita = Date.parse(l.escritaEm);
   return Number.isFinite(escrita) && escrita < agora - IDADE_MINIMA_HORAS * HORA_MS ? motivo : null;
 }
 
@@ -163,11 +164,16 @@ function motivoDaLinha(
  * `ficam` diz quantas ficaram para a noite seguinte por causa do tecto.
  */
 export function oQueSaiDoAppState(
-  linhas: readonly LinhaVarrida[],
+  todas: readonly LinhaVarrida[],
   existe: QuemExiste,
   agora: number,
   tecto: number,
 ): { saem: Saida[]; ficam: number } {
+  // Uma chave vista nas duas passagens (lápide e com valor) mudou durante a
+  // varredura: não se decide nada sobre ela esta noite.
+  const vistas = new Map<string, number>();
+  for (const l of todas) vistas.set(l.key, (vistas.get(l.key) ?? 0) + 1);
+  const linhas = todas.filter((l) => vistas.get(l.key) === 1);
   const ligacoes = new Map<string, boolean | null>();
   for (const l of linhas) {
     if (l.key.startsWith(ESPACOS.ligacoes.chave) && !l.nula) {

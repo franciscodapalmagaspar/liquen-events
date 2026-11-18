@@ -23,10 +23,11 @@ vi.mock("@/lib/supabase", () => ({
           not: (c: string, op: string, v: null) => (pedido.filtros.push(`${c} not ${op} ${v}`), q),
           like: (c: string, v: string) => (pedido.filtros.push(`${c} like ${v}`), q),
           order: () => q,
-          range: async () => ({
-            data: pedido.filtros.includes("value is null")
+          range: async (desde: number, ate: number) => ({
+            data: (pedido.filtros.includes("value is null")
               ? st.respostas.nulas
-              : st.respostas.comValor,
+              : st.respostas.comValor
+            ).slice(desde, ate + 1),
             error: st.erro,
           }),
         };
@@ -54,19 +55,23 @@ describe("varrer um prefixo sem trazer os valores", () => {
       campos: ["propostaId", "pedidoId"],
       limite: 100,
     });
+    // Uma página com o que há e uma vazia, em cada passagem.
     expect(st.pedidos.map((p) => p.select)).toEqual([
       "key, updated_at",
+      "key, updated_at",
+      "key, updated_at, propostaId:value->propostaId, pedidoId:value->pedidoId",
       "key, updated_at, propostaId:value->propostaId, pedidoId:value->pedidoId",
     ]);
-    expect(st.pedidos[1].filtros).toContain("value not is null");
+    expect(st.pedidos[2].filtros).toContain("value not is null");
     expect(st.pedidos[0].filtros).toContain("key like ligacao-proposta:%");
     expect(r).toEqual({
       completa: true,
       linhas: [
-        { key: "ligacao-proposta:a", versao: "v1", nula: true, campos: {} },
+        { key: "ligacao-proposta:a", versao: "v1", escritaEm: "v1", nula: true, campos: {} },
         {
           key: "ligacao-proposta:b",
           versao: "v2",
+          escritaEm: "v2",
           nula: false,
           campos: { propostaId: "p", pedidoId: null },
         },
@@ -97,5 +102,15 @@ describe("varrer um prefixo sem trazer os valores", () => {
   it("o `%` e o `_` do prefixo não viram curingas", async () => {
     await varrerPrefixo("a_b%:", { limite: 10 });
     expect(st.pedidos[0].filtros).toContain("key like a\\_b\\%:%");
+  });
+
+  it("não depende de as páginas terem 1000: avança até vir uma vazia", async () => {
+    st.respostas.comValor = Array.from({ length: 1500 }, (_, i) => ({
+      key: `x:${String(i).padStart(4, "0")}`,
+      updated_at: "v",
+    }));
+    const r = await varrerPrefixo("x:", { limite: 5000 });
+    expect(r.completa).toBe(true);
+    expect(r.linhas).toHaveLength(1500);
   });
 });

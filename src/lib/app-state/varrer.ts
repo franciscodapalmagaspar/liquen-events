@@ -4,6 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 import { lerComNovaTentativa } from "@/lib/repository";
 import { comTecto, TEMPO_POR_TENTATIVA_MS } from "./tecto";
 import { readFileState } from "./ficheiro";
+import { comoPrefixo } from "./apagar";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -22,8 +23,10 @@ import { readFileState } from "./ficheiro";
 
 export interface LinhaVarrida {
   key: string;
-  /** O `updated_at` — a versão do apagar condicional. */
+  /** A versão do apagar condicional (o `updated_at`; sem base de dados, o valor em JSON). */
   versao: string;
+  /** Quando foi escrita (o `updated_at`); `null` sem base de dados, que não o sabe. */
+  escritaEm: string | null;
   /** O valor é `null` (uma lápide). */
   nula: boolean;
   /** Os campos de topo pedidos, tal como estão no valor. */
@@ -52,30 +55,43 @@ export async function varrerPrefixo(
   const falhou = { linhas: [], completa: false };
   const linhas: LinhaVarrida[] = [];
   const select = ["key", "updated_at", ...campos.map((c) => `${c}:value->${c}`)].join(", ");
-  const comoPrefixo = `${prefixo.replace(/([%_\\])/g, "\\$1")}%`;
   // Duas passagens: as nulas (só a chave e a versão) e as com valor. O
   // PostgREST não sabe devolver «o valor é nulo?» sem devolver o valor.
   for (const nulas of [true, false]) {
-    for (let desde = 0; ; desde += PAGINA) {
+    // Avança pelo que VEIO e só pára numa página vazia: não depende de o
+    // `max-rows` do PostgREST ser 1000 (o mesmo que o `lerTodasAsLinhas`).
+    for (let desde = 0; ; ) {
       const ate = desde + PAGINA - 1;
       try {
-        const base = sb.from("app_state").select(nulas ? "key, updated_at" : select);
-        const filtrada = nulas ? base.is("value", null) : base.not("value", "is", null);
-        const { data, error } = await comTecto(
-          lerComNovaTentativa(() =>
-            filtrada.like("key", comoPrefixo).order("key", { ascending: true }).range(desde, ate),
-          ),
-          TEMPO_POR_TENTATIVA_MS,
-        );
+        // A consulta monta-se DENTRO de cada tentativa: um construtor reusado
+        // repetia os filtros na segunda.
+        const { data, error } = await lerComNovaTentativa(() => {
+          const base = sb.from("app_state").select(nulas ? "key, updated_at" : select);
+          const filtrada = nulas ? base.is("value", null) : base.not("value", "is", null);
+          return comTecto(
+            filtrada
+              .like("key", comoPrefixo(prefixo))
+              .order("key", { ascending: true })
+              .range(desde, ate),
+            TEMPO_POR_TENTATIVA_MS,
+          );
+        });
         if (error || !Array.isArray(data)) return falhou;
         for (const crua of data) {
           const r = linhaDaBase.safeParse(crua);
           if (!r.success) return falhou;
           const { key, updated_at, ...resto } = r.data;
-          linhas.push({ key, versao: updated_at, nula: nulas, campos: nulas ? {} : resto });
+          linhas.push({
+            key,
+            versao: updated_at,
+            escritaEm: updated_at,
+            nula: nulas,
+            campos: nulas ? {} : resto,
+          });
         }
         if (linhas.length > opcoes.limite) return falhou;
-        if (data.length < PAGINA) break;
+        if (data.length === 0) break;
+        desde += data.length;
       } catch {
         return falhou;
       }
@@ -98,6 +114,7 @@ async function varrerFicheiro(
         key,
         // Sem base de dados, a versão é o próprio valor (como no `lerEstadoComVersao`).
         versao: JSON.stringify(value),
+        escritaEm: null,
         nula: value === null,
         campos: Object.fromEntries(
           campos.map((c) => [c, objeto ? Reflect.get(objeto, c) : undefined]),

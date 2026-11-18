@@ -17,7 +17,7 @@ import { emFila, escreverFicheiro, mudarFicheiro, readFileState } from "./fichei
  */
 
 /** O `%` e o `_` são curingas do LIKE: escapá-los impede um prefixo de varrer mais. */
-const comoPrefixo = (prefixo: string) => `${prefixo.replace(/([%_\\])/g, "\\$1")}%`;
+export const comoPrefixo = (prefixo: string) => `${prefixo.replace(/([%_\\])/g, "\\$1")}%`;
 
 /** Lotes do `in (…)`: o endereço do PostgREST tem tecto de tamanho. */
 const LOTE = 100;

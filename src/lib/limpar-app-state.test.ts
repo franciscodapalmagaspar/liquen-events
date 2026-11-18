@@ -10,7 +10,7 @@ import type { LinhaVarrida } from "@/lib/app-state/varrer";
 const st = vi.hoisted(() => ({
   espacos: {} as Record<string, LinhaVarrida[]>,
   incompletos: new Set<string>(),
-  reciclagem: [] as { origemId: string }[] | Error,
+  reciclagem: [] as { origemId: string; retrato: Record<string, unknown> }[] | Error,
   valores: new Map<string, unknown>(),
   registo: { valor: null as unknown, versao: null as string | null } as
     | { valor: unknown; versao: string | null }
@@ -74,12 +74,11 @@ const copia = {
   incomplete: [],
   quotes: [{ id: "q1" }],
   proposals: [{ id: P1 }],
-  proposalDrafts: [{ key: "proposal-draft:q-apagado" }],
-  proposalEmails: [],
 };
 const l = (key: string, campos = {}, nula = false): LinhaVarrida => ({
   key,
   versao: ANTIGA,
+  escritaEm: ANTIGA,
   nula,
   campos,
 });
@@ -91,7 +90,10 @@ beforeEach(() => {
   };
   st.incompletos = new Set();
   st.reciclagem = [];
-  st.valores = new Map([[`ligacao-de-proposta:${P_APAGADA}`, { codigo: "abc" }]]);
+  st.valores = new Map<string, unknown>([
+    [`ligacao-de-proposta:${P_APAGADA}`, { codigo: "abc" }],
+    ["proposal-draft:q-apagado", { doc: { cru: true } }],
+  ]);
   st.registo = { valor: null, versao: null };
   st.gravados = [];
   st.lapides = [];
@@ -107,7 +109,7 @@ const planear = async () => {
 };
 
 describe("o plano da noite", () => {
-  it("decide a partir da cópia; o que sai vai nela, com o valor ou o conjunto onde já está", async () => {
+  it("decide a partir da cópia; o que sai vai nela com o valor CRU", async () => {
     const { plano, naCopia } = await planear();
     expect(plano.saem.map((s) => s.motivo)).toEqual([
       "lapide",
@@ -121,12 +123,16 @@ describe("o plano da noite", () => {
         motivo: "ligacao-sem-proposta",
         value: { codigo: "abc" },
       },
-      { key: "proposal-draft:q-apagado", motivo: "rascunho-sem-pedido", naCopia: "proposalDrafts" },
+      {
+        key: "proposal-draft:q-apagado",
+        motivo: "rascunho-sem-pedido",
+        value: { doc: { cru: true } },
+      },
     ]);
   });
 
   it("uma linha cujo valor não se leu não vai na cópia — e por isso não sai", async () => {
-    st.valores = new Map();
+    st.valores = new Map([["proposal-draft:q-apagado", { doc: {} }]]);
     const { plano, naCopia } = await planear();
     expect(plano.saem.map((s) => s.key)).not.toContain(`ligacao-de-proposta:${P_APAGADA}`);
     expect(naCopia.map((c) => c.key)).not.toContain(`ligacao-de-proposta:${P_APAGADA}`);
@@ -134,8 +140,9 @@ describe("o plano da noite", () => {
   });
 
   it("o que passa do tecto de bytes da cópia fica para a noite seguinte", async () => {
-    st.valores = new Map([
+    st.valores = new Map<string, unknown>([
       [`ligacao-de-proposta:${P_APAGADA}`, { codigo: "x".repeat(TECTO_DE_BYTES_NA_COPIA) }],
+      ["proposal-draft:q-apagado", { doc: {} }],
     ]);
     const { plano } = await planear();
     expect(plano.saem.map((s) => s.motivo)).toEqual(["lapide", "rascunho-sem-pedido"]);
@@ -173,8 +180,8 @@ describe("o plano da noite", () => {
     ).toBeNull();
   });
 
-  it("o que está na Reciclagem conta como existente", async () => {
-    st.reciclagem = [{ origemId: "q-apagado" }, { origemId: P_APAGADA }];
+  it("o que está na Reciclagem — e as propostas que foram com o pedido — conta como existente", async () => {
+    st.reciclagem = [{ origemId: "q-apagado", retrato: { propostas: [{ id: P_APAGADA }] } }];
     const { plano } = await planear();
     expect(plano.saem.map((s) => s.key)).toEqual(["proposal-draft:q1"]);
   });
