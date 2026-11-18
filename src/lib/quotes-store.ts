@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes, createHmac } from "node:crypto";
 import type { Quote, QuoteSummary } from "@/lib/orcamento/types";
 import { CAMPOS_SO_DO_DETALHE } from "@/lib/orcamento/types";
+import { registarSeForaDoEsquema } from "./esquemas-de-leitura";
 import { createRepository, lerComNovaTentativa, type Mapper } from "./repository";
 import { getSupabase } from "./supabase";
 
@@ -45,7 +46,13 @@ export const mapper: Mapper<Quote> = {
   selectColumns: "data",
   getId: (q) => q.id,
   toRow: (q) => ({ id: q.id, status: q.status, name: q.name, email: q.email, data: q }),
-  fromRow: (r) => r.data as Quote,
+  // P6: verificado com esquema, em modo de só registar (`esquemas-de-leitura.ts`).
+  fromRow: (r) => {
+    // A leitura só pede `data` (`selectColumns`): o id vem de lá.
+    const id = (r.data as { id?: unknown } | null)?.id;
+    registarSeForaDoEsquema("pedido", typeof id === "string" ? id : "", r.data);
+    return r.data as Quote;
+  },
   order: { column: "created_at", ascending: false },
   fileCompare: (a, b) => +new Date(b.submittedAt) - +new Date(a.submittedAt),
   touch: true,
