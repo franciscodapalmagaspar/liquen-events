@@ -132,10 +132,21 @@ async function planearLimpezaDoAppState(
   );
   // Uma leitura FALHADA: não sai nada. Um espaço que passou do limite fica
   // de fora (não se decide sobre metade dele) e os outros limpam-se — senão o
-  // espaço que mais cresce desligava a limpeza de todos.
+  // espaço que mais cresce desligava a limpeza de todos. Quem depende dele
+  // (`dependeDe`) fica de fora também.
+  const deFora = new Set(
+    lidos.flatMap((l, i) => (l.estado === "transbordou" ? [ESPACOS_LIMPOS[i].prefixo] : [])),
+  );
   const linhas: LinhaVarrida[] = [];
   for (const [i, varredura] of lidos.entries()) {
-    const { prefixo } = ESPACOS_LIMPOS[i];
+    const { prefixo, dependeDe } = ESPACOS_LIMPOS[i];
+    if (varredura.estado === "completa" && dependeDe !== null && deFora.has(dependeDe)) {
+      log.warn("limpeza do app_state: um espaço depende de outro que ficou de fora", {
+        prefixo,
+        dependeDe,
+      });
+      continue;
+    }
     switch (varredura.estado) {
       case "falhou":
         log.warn("limpeza do app_state: um espaço não se leu — nada sai esta noite", { prefixo });

@@ -71,11 +71,29 @@ type EspacoLimpo = keyof typeof CAMPOS_DOS_ESPACOS_LIMPOS;
 const ehEspacoLimpo = (nome: string | null): nome is EspacoLimpo =>
   nome !== null && Object.hasOwn(CAMPOS_DOS_ESPACOS_LIMPOS, nome);
 
+/**
+ * Um espaço cujas regras leem OUTRO: o inverso de uma ligação só sai se a
+ * ligação para que aponta estiver morta, e isso só se sabe com as ligações
+ * lidas inteiras. Se esse outro ficar de fora, este fica também.
+ */
+const DEPENDE_DE: Partial<Record<EspacoLimpo, EspacoLimpo>> = { ligacoesInversas: "ligacoes" };
+
 /** Os prefixos dos espaços limpos, com os campos a ler de cada um. */
-export const ESPACOS_LIMPOS: readonly { prefixo: string; campos: readonly string[] }[] =
-  Object.keys(CAMPOS_DOS_ESPACOS_LIMPOS)
-    .filter(ehEspacoLimpo)
-    .map((nome) => ({ prefixo: ESPACOS[nome].chave, campos: CAMPOS_DOS_ESPACOS_LIMPOS[nome] }));
+export const ESPACOS_LIMPOS: readonly {
+  prefixo: string;
+  campos: readonly string[];
+  /** O prefixo do espaço de que as regras deste dependem. */
+  dependeDe: string | null;
+}[] = Object.keys(CAMPOS_DOS_ESPACOS_LIMPOS)
+  .filter(ehEspacoLimpo)
+  .map((nome) => {
+    const outro = DEPENDE_DE[nome];
+    return {
+      prefixo: ESPACOS[nome].chave,
+      campos: CAMPOS_DOS_ESPACOS_LIMPOS[nome],
+      dependeDe: outro ? ESPACOS[outro].chave : null,
+    };
+  });
 
 export interface QuemExiste {
   /** Os pedidos, os vivos e os da Reciclagem. */

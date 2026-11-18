@@ -194,6 +194,14 @@ describe("o plano da noite", () => {
     expect(plano.saem.map((s) => s.key)).toEqual(["proposal-draft:q1", "proposal-draft:q-apagado"]);
   });
 
+  it("as ligações passaram do limite: os inversos ficam também (não se sabe se a ligação vive)", async () => {
+    st.espacos["ligacao-proposta:"] = [];
+    st.transbordados.add("ligacao-proposta:");
+    const { plano } = await planear();
+    expect(plano.saem.map((s) => s.key)).not.toContain(`ligacao-de-proposta:${P_APAGADA}`);
+    expect(plano.saem.map((s) => s.key)).toEqual(["proposal-draft:q1", "proposal-draft:q-apagado"]);
+  });
+
   it("a Reciclagem que não se lê: não sai nada", async () => {
     st.reciclagem = new Error("em baixo");
     expect(await planearNaCopia(copia, AGORA)).toBeNull();
