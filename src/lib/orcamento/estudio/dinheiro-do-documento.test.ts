@@ -26,6 +26,28 @@ describe("a base do documento", () => {
     expect(baseDoDoc(doc({ totalAmount: undefined }))).toBeUndefined();
   });
 
+  it("sem modo e sem texto do total, fica «+ IVA», como o resto do estúdio (e não «IVA incluído»)", () => {
+    const virgem = doc({
+      totalVatMode: undefined,
+      totalText: undefined,
+      totalEstimatedText: undefined,
+    });
+    const d = aplicarBase(virgem, 8100);
+    expect(d.totalVatMode).toBe("acrescer");
+    expect(d.totalAmount).toBe(8100);
+    expect(d.totalText).toMatch(/\+ IVA$/);
+  });
+
+  it("havendo texto sem modo, é o texto que manda (a regra de sempre)", () => {
+    expect(
+      aplicarBase(doc({ totalVatMode: undefined, totalText: "3.000,00 €" }), 100).totalVatMode,
+    ).toBe("incluido");
+    expect(
+      aplicarBase(doc({ totalVatMode: undefined, totalText: "3.000,00 € + IVA" }), 100)
+        .totalVatMode,
+    ).toBe("acrescer");
+  });
+
   it("numa organização escreve o texto estimado, e não o do total", () => {
     const d = aplicarBase(doc({ template: "organizacao", totalVatMode: "acrescer" }), 100);
     expect(d.totalEstimatedText).toMatch(/\+ IVA$/);

@@ -41,6 +41,16 @@ export function round2(n: number): number {
 }
 
 /**
+ * Os dois valores são o MESMO dinheiro, ao cêntimo? Compara-se em cêntimos
+ * inteiros, sem folga nenhuma (`.claude/rules/dinheiro.md`): 0,01 € de
+ * diferença é uma diferença. O `round2` antes da conta tira só o ruído da
+ * vírgula flutuante (`0.1 + 0.2`), nunca um cêntimo a sério.
+ */
+export function mesmoValorAoCentimo(a: number, b: number): boolean {
+  return Math.round(round2(a) * 100) === Math.round(round2(b) * 100);
+}
+
+/**
  * A percentagem de sinal da casa, quando a proposta não diz outra coisa.
  *
  * Era uma constante escondida dentro de `splitThirtySeventy` e dentro de um

@@ -1,11 +1,12 @@
 "use client";
+import { useConferirComOEnviado } from "./useConferirComOEnviado";
 
-import { lerPartilhado } from "@/lib/leitura-partilhada";
-import { useEffect, useRef, useState } from "react";
+import { type DivergenciaDoEnviado } from "@/lib/orcamento/estudio/conferencia-com-o-enviado";
+import { useEffect, useState } from "react";
 import { useToast } from "../../Toast";
-import { type VersaoEnviada } from "../../Versoes";
+
 import type { ProposalDoc } from "@/lib/proposal-doc";
-import { eur, round2 } from "@/lib/money";
+import { eur } from "@/lib/money";
 import type { Quote } from "@/lib/orcamento/types";
 import { type StudioDoc } from "@/lib/orcamento/estudio/documento-inicial";
 import { textoDoTotal } from "@/lib/orcamento/estudio/textos-do-estudio";
@@ -77,35 +78,12 @@ export function useConferenciaComOEnviado({
    * dois números ganha sem ela saber: estão os dois no ecrã, com as datas, e o
    * botão de repor é dela.
    */
-  const [divergenciaDoEnviado, setDivergenciaDoEnviado] = useState<{
-    /** Quando é que a proposta seguiu para o cliente. */
-    enviadaEm: string;
-    /** O total a pagar (com IVA) que ia no PDF que ele recebeu. */
-    aPagarEnviado: number;
-    /** O total a pagar que este ecrã mostra agora. */
-    aPagarAqui: number;
-    /** O identificador da versão, para ir buscar o documento ao repor. */
-    versaoId: string;
-    /**
-     * ── A ÚNICA PERGUNTA QUE INTERESSA: FOI ELA? ──────────────────────────
-     *
-     * Palavras dela: «ISTO E SIMPLES, O VALOR NAO ALTERA CASO EU NAO MUDO».
-     *
-     * `false` — não há registo de ninguém ter mexido no preço depois do envio,
-     * portanto o número mexeu-se SOZINHO. Não há nada a perguntar: repõe-se o
-     * que seguiu para o cliente, com aviso e com dez segundos para anular.
-     *
-     * `true` — há um `price_set` no histórico do pedido posterior ao envio.
-     * Ela corrigiu o preço de propósito depois de a proposta ter saído, e esse
-     * é trabalho dela: repor por cima apagava-o em silêncio. Só nesse caso é
-     * que os dois números vão ao ecrã com a escolha.
-     */
-    elaMudou: boolean;
-  } | null>(null);
+  const [divergenciaDoEnviado, setDivergenciaDoEnviado] = useState<DivergenciaDoEnviado | null>(
+    null,
+  );
   /** A ir buscar o documento que seguiu, para o repor. */
   const [aReporOEnviado, setAReporOEnviado] = useState(false);
   /** A conferência com o enviado corre UMA vez por abertura. */
-  const conferidoComOEnviadoRef = useRef(false);
 
   /**
    * ════════════════════════════════════════════════════════════════════════
@@ -121,68 +99,18 @@ export function useConferenciaComOEnviado({
    * velha, e está escrito lá.
    */
   const chaveDoEnviadoVisto = `${DRAFT_KEY}:enviado-visto`;
-  /** Esta MESMA diferença já lhe foi mostrada e ela ficou com o que tem? */
-  function divergenciaJaVista(aPagarAqui: number): boolean {
-    try {
-      const cru = localStorage.getItem(chaveDoEnviadoVisto);
-      return cru != null && Math.abs(Number(cru) - aPagarAqui) <= 0.01;
-    } catch {
-      // Sem `localStorage` a pergunta volta na abertura seguinte. É o lado
-      // certo para falhar: repetir uma pergunta custa um clique, calá-la custa
-      // o número que o casal recebeu.
-      return false;
-    }
-  }
 
-  useEffect(() => {
-    if (!aberturaAssente || conferidoComOEnviadoRef.current) return;
+  useConferirComOEnviado({
+    quoteId: quote.id,
+    historico: quote.activityLog,
+    aberturaAssente,
     // Enviar NESTA sessão põe no ecrã exactamente o documento que seguiu — não
     // há nada para conferir, e a lista de versões ainda nem o conhece.
-    if (sent) return;
-    // Uma proposta a meio de ser escrita não tem total nenhum para comparar.
-    if (!(totais.aPagar > 0)) return;
-    conferidoComOEnviadoRef.current = true;
-    let vivo = true;
-    const aPagarAqui = round2(totais.aPagar);
-    (async () => {
-      try {
-        const r = await lerPartilhado(`/api/orcamento/${quote.id}/versoes`, { cache: "no-store" });
-        if (!r.ok || !vivo) return;
-        const dados = (await r.json()) as { versoes?: VersaoEnviada[] } | null;
-        const ultima = dados?.versoes?.[0];
-        if (!ultima || !(Number(ultima.total) > 0)) return;
-        const enviado = round2(Number(ultima.total));
-        // Um cêntimo de tolerância, a mesma do resto da casa: os dois lados
-        // passaram por arredondamentos, e um cêntimo não é uma divergência.
-        if (Math.abs(enviado - aPagarAqui) <= 0.01) return;
-        if (divergenciaJaVista(aPagarAqui)) return;
-        if (!vivo) return;
-        /**
-         * O histórico do pedido é quem sabe. Cada alteração de preço feita à
-         * mão deixa lá um `price_set` (ver `registarNoHistorico`) — no estúdio
-         * e na Gestão do pedido. Uma posterior ao envio quer dizer que a
-         * mudança foi decidida; não havendo nenhuma, o número mexeu-se
-         * sozinho, e aí não há escolha nenhuma a oferecer-lhe.
-         */
-        const elaMudou = (quote.activityLog ?? []).some(
-          (e) => e.kind === "price_set" && e.at > ultima.enviadaEm,
-        );
-        setDivergenciaDoEnviado({
-          enviadaEm: ultima.enviadaEm,
-          aPagarEnviado: enviado,
-          aPagarAqui,
-          versaoId: ultima.id,
-          elaMudou,
-        });
-      } catch {
-        /* sem rede: o estúdio abre como sempre abriu, só sem a rede por baixo */
-      }
-    })();
-    return () => {
-      vivo = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aberturaAssente, sent, totais.aPagar, quote.id]);
+    enviadaNestaSessao: sent,
+    aPagar: totais.aPagar,
+    chaveDoVisto: chaveDoEnviadoVisto,
+    aoDivergir: setDivergenciaDoEnviado,
+  });
 
   /**
    * Repõe no ecrã os VALORES que seguiram para o cliente — e só os valores.

@@ -4,6 +4,7 @@ import {
   eur,
   eur0,
   eurDocumento,
+  mesmoValorAoCentimo,
   milharesComPonto,
   round2,
   splitSinal,
@@ -184,6 +185,20 @@ describe("splitThirtySeventy — adversarial reconciliation (integer cents, ruth
     const inf = splitThirtySeventy(Infinity);
     expect(inf.sinal).toBe(Infinity);
     expect(Number.isNaN(inf.saldo)).toBe(true);
+  });
+});
+
+describe("mesmoValorAoCentimo — folga zero", () => {
+  it("um cêntimo é uma diferença, mesmo quando a vírgula flutuante dá 0,00999…", () => {
+    expect(mesmoValorAoCentimo(1000.01, 1000)).toBe(false);
+    expect(mesmoValorAoCentimo(1234.57, 1234.56)).toBe(false);
+    expect(mesmoValorAoCentimo(10.01, 10)).toBe(false);
+  });
+
+  it("o ruído da vírgula flutuante não é um cêntimo", () => {
+    expect(mesmoValorAoCentimo(0.1 + 0.2, 0.3)).toBe(true);
+    expect(mesmoValorAoCentimo(13257.85, 13257.85)).toBe(true);
+    expect(mesmoValorAoCentimo(0, -0)).toBe(true);
   });
 });
 

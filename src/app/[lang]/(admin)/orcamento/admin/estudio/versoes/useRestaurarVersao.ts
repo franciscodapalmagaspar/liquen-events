@@ -1,4 +1,5 @@
 "use client";
+import { mesmoValorAoCentimo } from "@/lib/money";
 import { useToast } from "../../Toast";
 import { parseMoneyText } from "@/lib/proposal-doc";
 import type { ProposalDoc } from "@/lib/proposal-doc";
@@ -97,7 +98,7 @@ export function useRestaurarVersao({
     // saltar o histórico todo.
     const anterior = parseMoneyText(totalInput);
     const novo = typeof base === "number" && base > 0 ? base : 0;
-    if (Math.abs(novo - anterior) > 0.01) {
+    if (!mesmoValorAoCentimo(novo, anterior)) {
       registarNoHistorico(
         `Versão anterior reposta no estúdio: preço final de ${eur(anterior)} para ${eur(novo)}.`,
       );

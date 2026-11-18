@@ -1,4 +1,5 @@
 "use client";
+import { mesmoValorAoCentimo } from "@/lib/money";
 import { useToast } from "../../Toast";
 import { parseMoneyText } from "@/lib/proposal-doc";
 import { linhasDe } from "@/lib/proposal-budget";
@@ -218,7 +219,7 @@ export function useLimparORascunho({
     // dava um «de 140,00 € para 0,00 €» numa proposta que nunca teve preço.
     const anterior = escritoAntes > 0 ? baseDoEcraParaOPedido(escritoAntes, doc) : 0;
     const doPedido = typeof quote.quotedPrice === "number" ? quote.quotedPrice : 0;
-    if (Math.abs(doPedido - anterior) > 0.01) {
+    if (!mesmoValorAoCentimo(doPedido, anterior)) {
       registarNoHistorico(
         `Rascunho da proposta limpo: preço final de ${eur(anterior)} para ${eur(doPedido)}.`,
       );

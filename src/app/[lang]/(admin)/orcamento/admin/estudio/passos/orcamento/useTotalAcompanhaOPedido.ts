@@ -1,12 +1,7 @@
 "use client";
+import { aplicarBase, modoDeIvaDoDocumento } from "@/lib/orcamento/estudio/dinheiro-do-documento";
 import { useEffect } from "react";
-import {
-  totalAmountParaBase,
-  detectVatMode,
-  DEFAULT_VAT_RATE,
-  type VatMode,
-} from "@/lib/proposal-doc";
-import { eur } from "@/lib/money";
+
 import type { Quote } from "@/lib/orcamento/types";
 import { baseDoPedidoParaOEcra } from "@/lib/orcamento/estudio/documento-inicial";
 import { textoDoTotal } from "@/lib/orcamento/estudio/textos-do-estudio";
@@ -48,7 +43,6 @@ export function useTotalAcompanhaOPedido({
     if (doPedido === precoEnviadoRef.current) return;
     precoEnviadoRef.current = doPedido;
     setDoc((d) => {
-      const mode: VatMode = d.totalVatMode ?? detectVatMode(d.totalText || d.totalEstimatedText);
       // O pedido guarda o que o casal paga sem IVA; o campo do estúdio mostra
       // só a parte dos serviços quando os adicionais somam. Ver o par de
       // conversões acima.
@@ -58,14 +52,12 @@ export function useTotalAcompanhaOPedido({
       // lá está. Antes, o campo esvaziava-se e o total do documento ia com ele.
       if (paraOEcra == null && typeof doPedido === "number" && doPedido > 0) return d;
       setTotalInput(paraOEcra != null ? textoDoTotal(paraOEcra) : "");
-      const amount =
-        paraOEcra != null
-          ? totalAmountParaBase(paraOEcra, mode, d.vatRate ?? DEFAULT_VAT_RATE)
-          : undefined;
-      const text = amount == null ? "" : mode === "acrescer" ? `${eur(amount)} + IVA` : eur(amount);
+      // A mesma conta da abertura (`aplicarBase`), e não uma cópia à mão.
+      if (paraOEcra != null) return aplicarBase(d, paraOEcra);
+      const mode = modoDeIvaDoDocumento(d);
       return d.template === "organizacao"
-        ? { ...d, totalAmount: amount, totalVatMode: mode, totalEstimatedText: text }
-        : { ...d, totalAmount: amount, totalVatMode: mode, totalText: text };
+        ? { ...d, totalAmount: undefined, totalVatMode: mode, totalEstimatedText: "" }
+        : { ...d, totalAmount: undefined, totalVatMode: mode, totalText: "" };
     });
   }, [quote.quotedPrice, doPedidoVistoRef, hydratedRef, precoEnviadoRef, setDoc, setTotalInput]);
 }

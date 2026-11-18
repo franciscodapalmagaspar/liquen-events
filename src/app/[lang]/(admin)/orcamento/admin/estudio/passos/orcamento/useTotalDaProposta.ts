@@ -1,9 +1,9 @@
 "use client";
+import { modoDeIvaDoDocumento } from "@/lib/orcamento/estudio/dinheiro-do-documento";
 import { useRef, useState } from "react";
 import {
   resolveProposalMoney,
   totalAmountParaBase,
-  detectVatMode,
   parseMoneyText,
   DEFAULT_VAT_RATE,
   type VatMode,
@@ -67,11 +67,7 @@ export function useTotalDaProposta({ documento, onQuoteUpdated, quote }: Entrada
    *
    * A detecção fica onde serve — havendo texto livre, é ele que manda.
    */
-  const vatMode: VatMode =
-    doc.totalVatMode ??
-    (doc.totalText || doc.totalEstimatedText
-      ? detectVatMode(doc.totalText || doc.totalEstimatedText)
-      : "acrescer");
+  const vatMode = modoDeIvaDoDocumento(doc);
 
   /** Compõe o texto de DISPLAY do PDF a partir do valor + modo estruturados,
    *  no formato do estúdio ("3.000,00 € + IVA" ou "3.000,00 €"). */

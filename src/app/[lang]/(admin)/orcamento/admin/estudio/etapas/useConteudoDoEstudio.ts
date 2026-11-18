@@ -1,4 +1,5 @@
 "use client";
+import { modoDeIvaDoDocumento } from "@/lib/orcamento/estudio/dinheiro-do-documento";
 
 import { type ResultadoDoEcra, useInscricaoNoRegisto } from "../../registo-de-gravacoes";
 import { resumoDaPropostaParaCopiar } from "@/lib/email-proposta-textos";
@@ -8,7 +9,7 @@ import { useSomarOTotal } from "../passos/orcamento/useSomarOTotal";
 import { useContasDoOrcamento } from "../passos/orcamento/useContasDoOrcamento";
 import { useMemo } from "react";
 import { ordemDeSaida } from "@/lib/proposal-ordem";
-import { detectVatMode, type ProposalDoc, type VatMode } from "@/lib/proposal-doc";
+import { type ProposalDoc } from "@/lib/proposal-doc";
 import { usePaginasDaProposta } from "../pdf/usePaginasDaProposta";
 import { useAnular } from "../../ui/anular";
 import { useRepeticoesDasFotos } from "../fotos/useRepeticoesDasFotos";
@@ -174,7 +175,7 @@ export function useConteudoDoEstudio({
     setDoc((d) => {
       // Recompõe o texto de display do total para o campo do template ativo, para
       // que o PDF nunca fique com o total em branco após uma troca de template.
-      const mode: VatMode = d.totalVatMode ?? detectVatMode(d.totalText || d.totalEstimatedText);
+      const mode = modoDeIvaDoDocumento(d);
       const text = composeTotalText(d.totalAmount, mode);
       return {
         ...d,

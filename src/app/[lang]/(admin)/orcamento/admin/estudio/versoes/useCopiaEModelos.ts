@@ -1,4 +1,5 @@
 "use client";
+import { mesmoValorAoCentimo } from "@/lib/money";
 import { useState } from "react";
 import { useToast } from "../../Toast";
 import { parseMoneyText } from "@/lib/proposal-doc";
@@ -93,7 +94,7 @@ export function useCopiaEModelos({
       e.fotosPartilhadas > 0
         ? ` ${e.fotosPartilhadas} foto(s) ficaram na pasta da proposta antiga.`
         : "";
-    if (Math.abs((temValor ? base! : 0) - anterior) > 0.01) {
+    if (!mesmoValorAoCentimo(temValor ? base! : 0, anterior)) {
       registarNoHistorico(
         `Proposta copiada de ${e.nomeDaOrigem} no estúdio: preço final de ${eur(anterior)} para ${eur(temValor ? base! : 0)}.`,
       );
