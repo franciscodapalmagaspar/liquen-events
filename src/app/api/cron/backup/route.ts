@@ -104,6 +104,10 @@ const TECTO_ANEXO = 20 * 1024 * 1024;
 
 const MB = (bytes: number) => (bytes / 1048576).toFixed(1);
 
+/** O anexo dos dados: o JSON da cópia, comprimido. */
+const comprimirCopia = (copia: object): Buffer =>
+  gzipSync(Buffer.from(JSON.stringify(copia), "utf8"));
+
 /**
  * ── AS CACHES, QUE SE LIMPAM SEMPRE ─────────────────────────────────────────
  *
@@ -180,10 +184,26 @@ async function GET_semMedida(request: NextRequest) {
      * (`saiDoAppState`). Só se apaga lá em baixo, com a cópia enviada e
      * completa. Ver `limpar-app-state.ts`.
      */
-    const limpezaPlaneada = await planearNaCopia(payload, new Date());
-    if (limpezaPlaneada) payload.saiDoAppState = limpezaPlaneada.naCopia;
-    const cru = Buffer.from(JSON.stringify(payload), "utf8");
-    const comprimido = gzipSync(cru);
+    let limpezaPlaneada = await planearNaCopia(payload, new Date());
+    // Comprime-se uma vez com a lista (o caso de todas as noites) e só se
+    // volta a comprimir, sem ela, quando não cabe: a mesma decisão que medir
+    // primeiro sem a lista, sem pagar duas compressões em todas as noites.
+    let comprimido = comprimirCopia(
+      limpezaPlaneada ? { ...payload, saiDoAppState: limpezaPlaneada.naCopia } : payload,
+    );
+    if (limpezaPlaneada && comprimido.byteLength <= TECTO_ANEXO) {
+      payload.saiDoAppState = limpezaPlaneada.naCopia;
+    } else if (limpezaPlaneada) {
+      // A cópia nunca deixa de sair por causa da lista: a lista sai, e sem
+      // ela dentro da cópia esta noite não se apaga nada do app_state.
+      const comLista = comprimido.byteLength;
+      comprimido = comprimirCopia(payload);
+      log.warn("cron backup: a lista do app_state não cabe no anexo — nada sai esta noite", {
+        comLista,
+        semLista: comprimido.byteLength,
+      });
+      limpezaPlaneada = null;
+    }
 
     /**
      * O ASSUNTO DIZ O ESTADO, PORQUE É O QUE ELA VÊ SEM ABRIR.

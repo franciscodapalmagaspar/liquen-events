@@ -57,6 +57,8 @@ const st = vi.hoisted(() => ({
   carimbos: [] as unknown[],
   /** A cópia comprimida passa dos 20 MB do anexo. */
   anexoGigante: false,
+  /** Só a cópia COM a lista do app_state passa do tecto do anexo. */
+  giganteComLista: false,
   /** As opções que o aquecimento recebeu. */
   aquecimentoOpcoes: [] as Record<string, unknown>[],
   fotosTratadasLimpezas: 0,
@@ -68,7 +70,10 @@ vi.mock("node:zlib", async (original) => {
   const real = await original<typeof import("node:zlib")>();
   return {
     ...real,
-    gzipSync: (b: Buffer) => (st.anexoGigante ? Buffer.alloc(21 * 1024 * 1024) : real.gzipSync(b)),
+    gzipSync: (b: Buffer) =>
+      st.anexoGigante || (st.giganteComLista && b.includes("saiDoAppState"))
+        ? Buffer.alloc(21 * 1024 * 1024)
+        : real.gzipSync(b),
   };
 });
 vi.mock("@/lib/quotes-store", () => ({
@@ -216,6 +221,7 @@ beforeEach(() => {
   st.retencoes = 0;
   st.retencaoRecebeu = null;
   st.anexoGigante = false;
+  st.giganteComLista = false;
   st.aquecimentoOpcoes = [];
   st.fotosTratadasLimpezas = 0;
   st.diagnosticosLimpezas = 0;
@@ -533,6 +539,16 @@ describe("a limpeza do app_state só apaga com a cópia enviada e completa (P3)"
     st.anexoGigante = true;
     const res = await GET(req("Bearer segredo"));
     expect(res.status).toBe(507);
+    expect(limpeza.aplicadas).toHaveLength(0);
+  });
+
+  it("com a lista o anexo não cabe: a cópia sai sem ela, e a noite não apaga nada", async () => {
+    st.giganteComLista = true;
+    const res = await GET(req("Bearer segredo"));
+    expect(res.status).toBe(200);
+    expect(st.enviados).toHaveLength(1);
+    expect(st.carimbos).toHaveLength(1);
+    expect(anexoDosDados()).not.toHaveProperty("saiDoAppState");
     expect(limpeza.aplicadas).toHaveLength(0);
   });
 
