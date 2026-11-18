@@ -6,6 +6,7 @@ import { getQuote, updateQuote, updateQuoteWith } from "@/lib/quotes-store";
 import { respostaDeConflito } from "@/lib/resposta-de-conflito";
 import type { ResultadoDoApagamento } from "@/lib/apagar-pedido";
 import { NaoDeuParaApagar, enviarComDetalhe, quemApagou } from "@/lib/reciclagem";
+import { respostaAoApagarPedido } from "@/lib/resposta-ao-apagar-pedido";
 import {
   semearProducaoAoGanhar,
   preverGeracaoDoEvento,
@@ -782,37 +783,15 @@ export async function DELETE(
     const r = detalhe as ResultadoDoApagamento;
     return NextResponse.json({ ok: true, contou: r.contou, falhou: r.falhou, reciclagem });
   } catch (err) {
-    const r = err instanceof NaoDeuParaApagar ? (err.detalhe as ResultadoDoApagamento) : null;
-    if (r?.motivo === "nao-existe") {
-      return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
-    }
-    if (r?.motivo === "tem-contrato") {
+    if (err instanceof NaoDeuParaApagar && err.detalhe !== undefined) {
+      // A frase e o estado vêm da Reciclagem, que os tirou de
+      // `respostaAoApagarPedido` (a regra é uma só) — ou trazem a frase de
+      // quando o que já saiu ficou lá guardado (revisão de 13/11, n.º 9).
+      const r = err.detalhe as ResultadoDoApagamento;
+      const { comRelatorio } = respostaAoApagarPedido(r);
       return NextResponse.json(
-        {
-          error:
-            "Este pedido deu origem a contrato, e um contrato é um registo fiscal " +
-            "que tem de ser conservado. Nada foi apagado.",
-        },
-        { status: 409 },
-      );
-    }
-    // Uma fatura (P5) recusa como o contrato — é conflito, não avaria —, com a
-    // frase genérica de sempre (um texto próprio é decisão do dono).
-    if (r?.motivo === "tem-fatura") {
-      return NextResponse.json(
-        { error: "Não consegui apagar este pedido.", falhou: r.falhou },
-        { status: 409 },
-      );
-    }
-    if (r) {
-      return NextResponse.json(
-        {
-          // A frase da Reciclagem quando o que já saiu ficou lá guardado
-          // (revisão de 13/11, n.º 9) — senão, a de sempre.
-          error: (err as Error).message || "Não consegui apagar este pedido.",
-          falhou: r.falhou,
-        },
-        { status: 500 },
+        { error: err.message, ...(comRelatorio ? { falhou: r.falhou } : {}) },
+        { status: err.status },
       );
     }
     log.error("orcamento DELETE falhou", err);

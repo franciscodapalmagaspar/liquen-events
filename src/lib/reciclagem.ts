@@ -38,7 +38,8 @@ import {
   listProposalsForQuote,
   reporProposta,
 } from "./proposals-store";
-import { apagarPedidoSemContrato, type ResultadoDoApagamento } from "./apagar-pedido";
+import { apagarPedidoSemContrato } from "./apagar-pedido";
+import { respostaAoApagarPedido } from "./resposta-ao-apagar-pedido";
 import { draftKey } from "./proposal-drafts";
 import { getState, setState } from "./app-state";
 import { getEventMaterial, getForQuote, reporEventMaterial } from "./event-material-store";
@@ -339,7 +340,10 @@ export const TIPOS = {
     },
     async apagar(id, entradaId) {
       const r = await apagarPedidoSemContrato(id, { fotos: !entradaId });
-      if (!r.apagado) throw new NaoDeuParaApagar(fraseDoPedido(r), estadoDoPedido(r), r);
+      if (!r.apagado) {
+        const { frase, estado } = respostaAoApagarPedido(r);
+        throw new NaoDeuParaApagar(frase, estado, r);
+      }
       return r;
     },
     async conflito(r) {
@@ -581,21 +585,6 @@ function nomeDoPedido(q: Quote): string {
   if (noivos.length === 1) return noivos[0];
   return (q.name ?? "").trim();
 }
-
-/** As frases e os estados que a rota do pedido já dava. */
-function fraseDoPedido(r: ResultadoDoApagamento): string {
-  if (r.motivo === "nao-existe") return "Não encontrado";
-  if (r.motivo === "tem-contrato") {
-    return "Este pedido deu origem a contrato, e um contrato é um registo fiscal que tem de ser conservado. Nada foi apagado.";
-  }
-  return "Não consegui apagar este pedido.";
-}
-const estadoDoPedido = (r: ResultadoDoApagamento) =>
-  r.motivo === "nao-existe"
-    ? 404
-    : r.motivo === "tem-contrato" || r.motivo === "tem-fatura"
-      ? 409
-      : 500;
 
 export type TipoNaReciclagem = keyof typeof TIPOS;
 

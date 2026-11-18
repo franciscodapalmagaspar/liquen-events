@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ResultadoDoApagamento } from "@/lib/apagar-pedido";
 import type { NextRequest } from "next/server";
 
 const authed = vi.hoisted(() => ({ ok: false }));
@@ -171,7 +172,7 @@ vi.mock("@/lib/contracts-store", () => ({
 const apagamento = vi.hoisted(() => ({
   correr: vi.fn(async () => ({
     apagado: true as boolean,
-    motivo: undefined as string | undefined,
+    motivo: undefined as ResultadoDoApagamento["motivo"],
     contou: { propostas: 2, fotos: 3, rascunhos: 1 },
     falhou: [] as string[],
   })),
@@ -197,7 +198,12 @@ vi.mock("@/lib/reciclagem", () => ({
   quemApagou: () => undefined,
   enviarComDetalhe: async (_tipo: string, id: string) => {
     const r = await (apagamento.correr as (id: string) => ReturnType<typeof apagamento.correr>)(id);
-    if (!r.apagado) throw new reciclagem.NaoDeuParaApagar("não", 0, r);
+    if (!r.apagado) {
+      // Como a Reciclagem: a frase e o estado saem da regra única.
+      const { respostaAoApagarPedido } = await import("@/lib/resposta-ao-apagar-pedido");
+      const { frase, estado } = respostaAoApagarPedido(r);
+      throw new reciclagem.NaoDeuParaApagar(frase, estado, r);
+    }
     return { reciclagem: { id: "r1" }, detalhe: r };
   },
 }));
