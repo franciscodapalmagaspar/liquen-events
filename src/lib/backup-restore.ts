@@ -8,6 +8,11 @@ import { getState, setState } from "./app-state";
 import { log } from "./logger";
 import { MAX_PROPOSAL_DOC_BYTES } from "./proposal-doc";
 import { isMissingTable, type Mapper } from "./repository";
+import {
+  lerIds,
+  soltarLigacoesOrfas,
+  substituirSemApagarOsQueFicam,
+} from "./reposicao-e-chaves-estrangeiras";
 import { mapper as quotesMapper, listQuotes } from "./quotes-store";
 import { mapper as proposalsMapper, listAllProposals } from "./proposals-store";
 import { mapper as suppliersMapper, listSuppliers } from "./suppliers-store";
@@ -584,6 +589,19 @@ export interface RestoreTarget<T = Record<string, unknown>> {
    * tocado sequer: fica como está, e a razão sai no ecrã pelo nome.
    */
   preflight?: (rows: T[]) => Promise<string | null>;
+  /**
+   * Repor SEM apagar as linhas que estão na cópia e na base (só sai o que a
+   * cópia não traz). Só os pedidos: são o alvo das chaves estrangeiras das
+   * tarefas, faturas e contratos, e apagá-los todos levava-as atrás. Ver
+   * `reposicao-e-chaves-estrangeiras.ts`.
+   */
+  semApagarOsQueFicam?: true;
+  /**
+   * O campo (do domínio) com a chave estrangeira para o pedido. Uma linha da
+   * cópia cujo pedido não existe entra sem a ligação — o que o `on delete set
+   * null` lhe faria —, em vez de rebentar a inserção do conjunto inteiro.
+   */
+  ligacaoAoPedido?: string;
 }
 
 // Os `as unknown as` abaixo: o `Mapper<T>` de cada store é tipado com o tipo de
@@ -615,8 +633,11 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
     stamp: (q) => q.lastUpdated ?? q.submittedAt,
     // `quotes.created_at` é `default now()` e o `toRow` não a escreve: sem
     // isto, todos os pedidos repostos ficavam com a data de hoje e a lista
-    // deixava de estar por ordem de chegada.
-    extraColumns: (q) => ({ created_at: q.submittedAt }),
+    // deixava de estar por ordem de chegada. O `updated_at` vai a null porque
+    // é o que a inserção lhe deixava (não tem valor por omissão): escrito por
+    // cima (`semApagarOsQueFicam`), o pedido fica igual ao de uma inserção.
+    extraColumns: (q) => ({ created_at: q.submittedAt, updated_at: null }),
+    semApagarOsQueFicam: true,
   }),
   asTarget({
     key: "proposals",
@@ -706,6 +727,7 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
     schema: contractSchema,
     current: listContracts,
     stamp: (c) => c.acceptedAt ?? c.createdAt,
+    ligacaoAoPedido: "quoteId",
   }),
   asTarget({
     key: "invoices",
@@ -715,6 +737,7 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
     schema: invoiceSchema,
     current: listInvoices,
     stamp: (i) => i.issuedAt,
+    ligacaoAoPedido: "quoteId",
   }),
   asTarget({
     key: "suppliers",
@@ -735,6 +758,7 @@ export const RESTORE_TARGETS: readonly RestoreTarget<AnyRow>[] = [
     current: listTasks,
     stamp: (t) => t.createdAt,
     extraColumns: (t) => ({ created_at: t.createdAt }),
+    ligacaoAoPedido: "quoteId",
   }),
   asTarget({
     key: "calendarEvents",
@@ -1562,16 +1586,25 @@ async function replaceAll(
     // apagava o trabalho de etiquetar e depois não conseguia repor as fotos que
     // as etiquetas apontavam.
     const colunaDaChave = target.mapper.idColumn ?? "id";
+    // Lido ANTES de apagar: um pedido que falta à base não aparece a meio.
+    const linhas = target.ligacaoAoPedido
+      ? await soltarOrfas(sb, target, rows, target.ligacaoAoPedido)
+      : rows;
+    // `toRow` primeiro (é a tradução oficial do store) e por cima as colunas
+    // que ele deixa à base de dados preencher — ver `extraColumns`.
+    const convertidas = linhas.map((r) => ({
+      ...target.mapper.toRow(r as never),
+      ...(target.extraColumns?.(r) ?? {}),
+    }));
+    if (target.semApagarOsQueFicam) {
+      await substituirSemApagarOsQueFicam(sb, target.table, colunaDaChave, convertidas);
+      return;
+    }
     const del = await sb.from(target.table).delete().not(colunaDaChave, "is", null);
     if (del.error) throw del.error;
     const CHUNK = 500;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows
-        .slice(i, i + CHUNK)
-        // `toRow` primeiro (é a tradução oficial do store) e por cima as
-        // colunas que ele deixa à base de dados preencher — ver `extraColumns`.
-        .map((r) => ({ ...target.mapper.toRow(r as never), ...(target.extraColumns?.(r) ?? {}) }));
-      const { error } = await sb.from(target.table).insert(chunk);
+    for (let i = 0; i < convertidas.length; i += CHUNK) {
+      const { error } = await sb.from(target.table).insert(convertidas.slice(i, i + CHUNK));
       if (error) throw error;
     }
     return;
@@ -1582,6 +1615,24 @@ async function replaceAll(
   const file = path.join(process.cwd(), "data", target.mapper.fileName);
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, JSON.stringify(rows, null, 2));
+}
+
+/** Ver `RestoreTarget.ligacaoAoPedido`. Os pedidos já foram repostos (vêm antes). */
+async function soltarOrfas(
+  sb: SupabaseClient,
+  target: RestoreTarget<AnyRow>,
+  rows: AnyRow[],
+  campo: string,
+): Promise<AnyRow[]> {
+  const pedidos = new Set(await lerIds(sb, quotesMapper.table, quotesMapper.idColumn ?? "id"));
+  const { linhas, soltas } = soltarLigacoesOrfas(rows, campo, pedidos);
+  if (soltas > 0) {
+    log.warn("restauro: linhas da cópia com um pedido que já não existe entram sem a ligação", {
+      dataset: target.key,
+      soltas,
+    });
+  }
+  return linhas;
 }
 
 /** Grava os contadores no valor planeado e CONFIRMA que ficaram lá. */

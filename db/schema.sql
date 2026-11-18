@@ -761,7 +761,9 @@ end $$;
 alter table public.contracts add column if not exists proposta_pdf_sha256 text;
 alter table public.contracts add column if not exists proposta_pdf_bytes integer;
 
-create index if not exists contracts_proposal_id_idx on public.contracts (proposal_id);
+-- (O `contracts_proposal_id_idx` que estava aqui saiu a 17/11, no P4: a chave
+-- única `contracts_proposal_id_uk`, logo abaixo, é sobre a mesma coluna.)
+drop index if exists public.contracts_proposal_id_idx;
 
 -- Um contrato por proposta — garantia de unicidade na própria base de dados.
 -- É o lock do aceite: dois aceites concorrentes passam ambos o
@@ -1255,3 +1257,41 @@ create index if not exists registo_de_acoes_quando_idx on public.registo_de_acoe
 alter table public.registo_de_acoes enable row level security;
 revoke all on public.registo_de_acoes from anon, authenticated;
 
+
+-- ── P4 (17/11): os CHECK validados ─────────────────────────────────────────
+-- Os CHECK deste ficheiro nascem `not valid` (para não varrer tabelas numa
+-- instalação antiga), e cinco deles são trocados em cada execução. Este bloco,
+-- no fim, volta a validá-los: numa base nova é instantâneo, e numa base onde já
+-- estavam validados não faz nada. Ver db/migracoes/20261117_p4_validar_checks_e_indices.sql.
+do $$
+declare r record;
+begin
+  for r in
+    select conrelid::regclass as tabela, conname
+    from pg_constraint
+    where connamespace = 'public'::regnamespace and contype = 'c' and not convalidated
+  loop
+    execute format('alter table %s validate constraint %I', r.tabela, r.conname);
+  end loop;
+end $$;
+
+-- ── P5 (17/11): as chaves estrangeiras para `quotes` que faltavam ──────────
+-- Tarefas saem com o pedido (o que `apagar-pedido.ts` já fazia à mão); faturas e
+-- contratos ficam, sem a ligação. Ver
+-- db/migracoes/20261117_p5_chaves_estrangeiras_para_quotes.sql.
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'tasks_quote_id_fkey') then
+    alter table public.tasks add constraint tasks_quote_id_fkey foreign key (quote_id)
+      references public.quotes (id) on delete cascade;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'invoices_quote_id_fkey') then
+    alter table public.invoices add constraint invoices_quote_id_fkey foreign key (quote_id)
+      references public.quotes (id) on delete set null;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'contracts_quote_id_fkey') then
+    alter table public.contracts add constraint contracts_quote_id_fkey foreign key (quote_id)
+      references public.quotes (id) on delete set null;
+  end if;
+end $$;
+create index if not exists tasks_quote_id_idx     on public.tasks (quote_id);
+create index if not exists contracts_quote_id_idx on public.contracts (quote_id);

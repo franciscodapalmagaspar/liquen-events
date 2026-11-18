@@ -25,7 +25,9 @@ export const mapper: Mapper<Contract> = {
   getId: (c) => c.id,
   toRow: (c) => ({
     id: c.id,
-    quote_id: c.quoteId,
+    // Vazio é «sem pedido»: desde o P5 a coluna tem chave estrangeira, e '' não
+    // é o id de pedido nenhum (a inserção falhava). O `fromRow` lê null como ''.
+    quote_id: c.quoteId || null,
     proposal_id: c.proposalId,
     client_name: c.clientName,
     client_email: c.clientEmail,

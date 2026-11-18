@@ -3,7 +3,22 @@
 Pergunta do dono (17/11): «como está a estrutura dos dados?». A fasquia é a dele
 (regra `codigo.md`): código e dados ao nível da Vercel, da Linear e da Stripe.
 
-Este documento é **só análise e plano**. Nada mudou na base de dados.
+Este documento começou por ser **só análise e plano** (17/11). A tabela a seguir
+diz o que já se fez dele; o resto do documento ficou como estava, para se ver
+de onde se partiu.
+
+## Parte −1 — O que está feito
+
+Ramo `dados/migracoes` (as migrações; o P1–P3 vive no ramo `dados/p1-a-p3`).
+«Produção» quer dizer aplicada no projeto `fvbafdezhslqojjsjgwi`, sempre depois
+de uma consulta de contagens a dar 0 linhas contra a regra nova, e testada antes
+numa base Postgres 16 local criada do `db/schema.sql`.
+
+| Passo | Estado | Onde | Volta |
+|---|---|---|---|
+| **P4** — os 20 `CHECK` validados, os 5 índices da b4, `contracts_proposal_id_idx` (redundante) fora | ✔ **produção**, 17/11 23:52 UTC; o aconselhador deixou de apontar «FK sem índice» | `db/migracoes/20261117_p4_validar_checks_e_indices.sql`; o fim do `db/schema.sql` volta a validar os `CHECK` que ele recria `not valid` | `….volta.sql` ao lado |
+| **P5** — `tasks`, `invoices` e `contracts` → `quotes` | ✔ **produção**, 17/11 23:55 UTC. Tarefas `on delete cascade` (o que `apagar-pedido.ts` já fazia à mão); faturas e contratos `on delete set null` (decisão do dono: o apagar continua como hoje; o código continua a recusar apagar um pedido com contrato) | `db/migracoes/20261117_p5_chaves_estrangeiras_para_quotes.sql`; no código: a reposição de uma cópia já não apaga os pedidos todos (`reposicao-e-chaves-estrangeiras.ts`), uma linha da cópia com um pedido que já não existe entra sem a ligação, uma tarefa ligada a um pedido apagado grava-se sem a ligação (`tasks-store.ts`), e contratos/faturas sem pedido gravam `null` em vez de `''` | `….volta.sql` ao lado |
+| **P5** — `contracts.proposal_id` `text` → `uuid` + FK | **proposto, não feito.** A conversão está provada (0 valores fora da forma, ida e volta numa base local), mas com a coluna `uuid` um id estragado num link passava de «não há contrato» a erro 22P02, e o `toRow` escreve `''` sem proposta. Precisa dessas duas guardas primeiro | o SQL está no fim da migração do P5 | idem |
 
 **Como se mediu** (17/11, projeto `fvbafdezhslqojjsjgwi`): só consultas de
 leitura, só de estrutura e de contagens (nomes de tabelas e colunas, tamanhos,

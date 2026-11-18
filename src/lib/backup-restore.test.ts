@@ -237,6 +237,18 @@ function fakeSupabase() {
           return {
             not: (column: string) => run(column),
             eq: (column: string) => run(column),
+            // Só os ids pedidos: é o «apagar só o que a cópia não traz» dos
+            // pedidos (P5, `reposicao-e-chaves-estrangeiras.ts`).
+            in: async (column: string, ids: unknown[]) => {
+              if (shouldFail(table, "write"))
+                return { error: new Error(`${table} recusa escritas`) };
+              db.writes.push(`delete-in:${table}:${ids.length}`);
+              db.tables.set(
+                table,
+                rowsOf(table).filter((r) => !ids.includes(r[column])),
+              );
+              return { error: null };
+            },
             then: (resolve: (v: unknown) => unknown) => run().then(resolve),
           };
         },
@@ -1582,5 +1594,62 @@ describe("o índice do Vercel Blob na reposição", () => {
     } finally {
       delete process.env.BLOB_READ_WRITE_TOKEN;
     }
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// P5 (17/11): as chaves estrangeiras das tarefas, faturas e contratos para os
+// pedidos. A reposição não pode apagar os pedidos todos (levava as tarefas em
+// cascata) nem rebentar com uma linha cujo pedido já não existe.
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("reposição com as chaves estrangeiras para os pedidos (P5)", () => {
+  it("os pedidos repõem-se sem apagar a tabela inteira: só sai o que a cópia não traz", async () => {
+    seedBusiness();
+    const antes = await buildBackupPayload();
+    // Um pedido que entrou DEPOIS da cópia: é o único que pode sair.
+    rowsOf("quotes").push({
+      id: "LIQ-NOVO",
+      status: "pendente",
+      created_at: ONTEM,
+      data: { id: "LIQ-NOVO" },
+    });
+    db.writes.length = 0;
+
+    const file = mustValidate(antes);
+    const result = await applyRestore(file, await planRestore(file));
+
+    expect(result.failed).toEqual([]);
+    expect(db.writes).not.toContain("delete:quotes");
+    expect(db.writes).toContain("delete-in:quotes:1");
+    expect(rowsOf("quotes").map((q) => q.id)).toEqual(["LIQ-AAA-1"]);
+    // Igual a uma inserção: o `updated_at` fica como a inserção o deixava.
+    expect(rowsOf("quotes")[0].updated_at).toBeNull();
+  });
+
+  it("uma tarefa, fatura ou contrato da cópia com um pedido que já não existe entra SEM a ligação", async () => {
+    seedBusiness();
+    const antes = await buildBackupPayload();
+    for (const key of ["tasks", "invoices", "contracts"]) {
+      (antes[key] as { quoteId?: string }[])[0].quoteId = "LIQ-QUE-JA-SAIU";
+    }
+    const file = mustValidate(antes);
+    const result = await applyRestore(file, await planRestore(file));
+
+    expect(result.failed).toEqual([]);
+    expect(rowsOf("tasks")[0].quote_id).toBeNull();
+    expect(rowsOf("invoices")[0].quote_id).toBeNull();
+    expect(rowsOf("contracts")[0].quote_id).toBeNull();
+  });
+
+  it("as ligações a pedidos que existem ficam intactas", async () => {
+    seedBusiness();
+    const antes = await buildBackupPayload();
+    wipeEverything();
+    const file = mustValidate(antes);
+    await applyRestore(file, await planRestore(file));
+    expect(rowsOf("tasks")[0].quote_id).toBe("LIQ-AAA-1");
+    expect(rowsOf("invoices")[0].quote_id).toBe("LIQ-AAA-1");
+    expect(rowsOf("contracts")[0].quote_id).toBe("LIQ-AAA-1");
   });
 });

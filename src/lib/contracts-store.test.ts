@@ -208,3 +208,17 @@ describe("mapper (row ↔ domain)", () => {
     expect(back.acceptedAt).toBeUndefined();
   });
 });
+
+describe("P5: a chave estrangeira contracts.quote_id → quotes", () => {
+  it("um contrato sem pedido grava quote_id null, nunca '' (que a chave recusa)", () => {
+    const c = {
+      id: "c",
+      quoteId: "",
+      proposalId: "p",
+      status: "pendente",
+      createdAt: "2026-01-01",
+    } as Contract;
+    expect(mapper.toRow(c).quote_id).toBeNull();
+    expect(mapper.fromRow(mapper.toRow(c)).quoteId).toBe("");
+  });
+});

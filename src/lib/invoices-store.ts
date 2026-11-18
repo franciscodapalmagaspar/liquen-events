@@ -43,7 +43,8 @@ export const mapper: Mapper<Invoice> = {
   toRow: (i) => ({
     id: i.id,
     number: i.number,
-    quote_id: i.quoteId,
+    // Vazio é «sem pedido» (chave estrangeira desde o P5; ver contracts-store).
+    quote_id: i.quoteId || null,
     client_name: i.clientName,
     client_email: i.clientEmail,
     kind: i.kind,
