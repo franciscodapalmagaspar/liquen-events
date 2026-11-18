@@ -181,44 +181,51 @@ vi.mock("@/lib/apagar-pedido", () => ({ apagarPedido: apagamento.correr }));
 // Apagar passa pela Reciclagem (R3b, `src/lib/reciclagem.ts`, com testes
 // próprios). Aqui interessa a rota: a guarda, e as respostas de cada desfecho
 // do `apagarPedido` — que a Reciclagem devolve tal e qual.
-const RESPOSTAS_DA_RECICLAGEM = vi.hoisted(
-  () =>
-    ({
-      "nao-existe": [404, "Não encontrado"],
-      "tem-contrato": [
-        409,
-        "Este pedido deu origem a contrato, e um contrato é um registo fiscal que tem de ser conservado. Nada foi apagado.",
-      ],
-      "tem-fatura": [409, "Não consegui apagar este pedido."],
-      "nao-verificado": [500, "Não consegui apagar este pedido."],
-      parou: [500, "Não consegui apagar este pedido."],
-    }) as const,
-);
+const FRASE_DO_CONTRATO =
+  "Este pedido deu origem a contrato, e um contrato é um registo fiscal que tem de ser conservado. Nada foi apagado.";
 const reciclagem = vi.hoisted(() => {
+  // A resposta escrita à mão, como a Reciclagem a dá — e não pela regra
+  // (`respostaAoApagarPedido`): assim estes testes prendem a forma dos corpos
+  // sem depender dela.
+  const generica = "Não consegui apagar este pedido.";
+  const RESPOSTAS = {
+    "nao-existe": { estado: 404, frase: "Não encontrado", comRelatorio: false },
+    "tem-contrato": {
+      estado: 409,
+      frase:
+        "Este pedido deu origem a contrato, e um contrato é um registo fiscal que tem de ser conservado. Nada foi apagado.",
+      comRelatorio: false,
+    },
+    "tem-fatura": { estado: 409, frase: generica, comRelatorio: true },
+    "nao-verificado": { estado: 500, frase: generica, comRelatorio: true },
+    parou: { estado: 500, frase: generica, comRelatorio: true },
+  } as const;
   class NaoDeuParaApagar extends Error {
     constructor(
       m: string,
       readonly status: number,
-      readonly detalhe?: unknown,
     ) {
       super(m);
     }
   }
-  return { NaoDeuParaApagar };
+  class PedidoQueNaoSaiu extends NaoDeuParaApagar {
+    readonly resposta: (typeof RESPOSTAS)[keyof typeof RESPOSTAS];
+    constructor(readonly resultado: { motivo?: keyof typeof RESPOSTAS; falhou: string[] }) {
+      const resposta = RESPOSTAS[resultado.motivo ?? "parou"];
+      super(resposta.frase, resposta.estado);
+      this.resposta = resposta;
+    }
+  }
+  return { NaoDeuParaApagar, PedidoQueNaoSaiu };
 });
 vi.mock("@/lib/reciclagem", () => ({
   NaoDeuParaApagar: reciclagem.NaoDeuParaApagar,
+  PedidoQueNaoSaiu: reciclagem.PedidoQueNaoSaiu,
   quemApagou: () => undefined,
-  enviarComDetalhe: async (_tipo: string, id: string) => {
+  enviarPedidoParaAReciclagem: async (id: string) => {
     const r = await (apagamento.correr as (id: string) => ReturnType<typeof apagamento.correr>)(id);
-    if (!r.apagado) {
-      // A frase e o estado escritos à mão, como a Reciclagem os dá — e não
-      // pela regra (`respostaAoApagarPedido`): assim estes testes prendem a
-      // forma das respostas sem depender dela.
-      const [estado, frase] = RESPOSTAS_DA_RECICLAGEM[r.motivo ?? "parou"];
-      throw new reciclagem.NaoDeuParaApagar(frase, estado, r);
-    }
-    return { reciclagem: { id: "r1" }, detalhe: r };
+    if (!r.apagado) throw new reciclagem.PedidoQueNaoSaiu(r);
+    return { reciclagem: { id: "r1" }, resultado: r };
   },
 }));
 
@@ -543,10 +550,7 @@ describe("DELETE /api/orcamento/[id]", () => {
     expect(res.status).toBe(409);
     // A forma inteira: a frase do registo fiscal, e SEM a lista do que ficou
     // (nada saiu, não há nada a contar) — revisão de 18/11, R4.
-    expect(await res.json()).toEqual({
-      error:
-        "Este pedido deu origem a contrato, e um contrato é um registo fiscal que tem de ser conservado. Nada foi apagado.",
-    });
+    expect(await res.json()).toEqual({ error: FRASE_DO_CONTRATO });
   });
 
   it("um pedido COM fatura responde 409 (conflito, não avaria), com a frase genérica", async () => {

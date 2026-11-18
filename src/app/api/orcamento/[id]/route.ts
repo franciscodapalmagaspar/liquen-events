@@ -4,9 +4,7 @@ import { transicaoDoPedido, type AcontecimentoDoPedido } from "@/lib/orcamento/e
 import { ehMotivoDeRecusa } from "@/lib/orcamento/desfecho";
 import { getQuote, updateQuote, updateQuoteWith } from "@/lib/quotes-store";
 import { respostaDeConflito } from "@/lib/resposta-de-conflito";
-import type { ResultadoDoApagamento } from "@/lib/apagar-pedido";
-import { NaoDeuParaApagar, enviarComDetalhe, quemApagou } from "@/lib/reciclagem";
-import { respostaAoApagarPedido } from "@/lib/resposta-ao-apagar-pedido";
+import { PedidoQueNaoSaiu, enviarPedidoParaAReciclagem, quemApagou } from "@/lib/reciclagem";
 import {
   semearProducaoAoGanhar,
   preverGeracaoDoEvento,
@@ -779,18 +777,16 @@ export async function DELETE(
     // Pela Reciclagem (fase R3b de `docs/TUDO-REVERSIVEL.md`): o pedido fica lá
     // 30 dias, com as propostas, os rascunhos e o material — e a pasta das
     // fotografias espera no Storage. Sem a tabela, é o apagar de sempre.
-    const { reciclagem, detalhe } = await enviarComDetalhe("pedido", id, quemApagou(request));
-    const r = detalhe as ResultadoDoApagamento;
+    const { reciclagem, resultado: r } = await enviarPedidoParaAReciclagem(id, quemApagou(request));
     return NextResponse.json({ ok: true, contou: r.contou, falhou: r.falhou, reciclagem });
   } catch (err) {
-    if (err instanceof NaoDeuParaApagar && err.detalhe !== undefined) {
-      // A frase e o estado vêm da Reciclagem, que os tirou de
-      // `respostaAoApagarPedido` (a regra é uma só) — ou trazem a frase de
-      // quando o que já saiu ficou lá guardado (revisão de 13/11, n.º 9).
-      const r = err.detalhe as ResultadoDoApagamento;
-      const { comRelatorio } = respostaAoApagarPedido(r);
+    if (err instanceof PedidoQueNaoSaiu) {
+      // A frase, o estado e se leva o relatório vêm da regra, pela Reciclagem.
       return NextResponse.json(
-        { error: err.message, ...(comRelatorio ? { falhou: r.falhou } : {}) },
+        {
+          error: err.message,
+          ...(err.resposta.comRelatorio ? { falhou: err.resultado.falhou } : {}),
+        },
         { status: err.status },
       );
     }

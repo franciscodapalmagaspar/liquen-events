@@ -38,8 +38,8 @@ import {
   listProposalsForQuote,
   reporProposta,
 } from "./proposals-store";
-import { apagarPedido } from "./apagar-pedido";
-import { respostaAoApagarPedido } from "./resposta-ao-apagar-pedido";
+import { apagarPedido, type ResultadoDoApagamento } from "./apagar-pedido";
+import { respostaAoApagarPedido, type RespostaAoApagarPedido } from "./resposta-ao-apagar-pedido";
 import { draftKey } from "./proposal-drafts";
 import { chavesDoRascunhoDoPedido } from "./chaves-do-rascunho";
 import { getState, setState } from "./app-state";
@@ -155,11 +155,25 @@ interface DefinicaoDoTipo {
  */
 export class NaoDeuParaApagar extends Error {
   readonly status: number;
-  readonly detalhe?: unknown;
-  constructor(mensagem: string, status: number, detalhe?: unknown) {
+  constructor(mensagem: string, status: number) {
     super(mensagem);
     this.status = status;
-    this.detalhe = detalhe;
+  }
+}
+
+/**
+ * Um PEDIDO que não saiu (inteiro): leva o resultado do apagar e a resposta
+ * que a regra dá (`respostaAoApagarPedido`) — a rota devolve-os tal e qual,
+ * sem voltar a perguntar à regra. A frase pode ser outra (a de quando o que
+ * já saiu ficou guardado na Reciclagem); o estado e o relatório, não.
+ */
+export class PedidoQueNaoSaiu extends NaoDeuParaApagar {
+  constructor(
+    readonly resultado: ResultadoDoApagamento,
+    readonly resposta: RespostaAoApagarPedido = respostaAoApagarPedido(resultado),
+    frase: string = resposta.frase,
+  ) {
+    super(frase, resposta.estado);
   }
 }
 
@@ -341,10 +355,7 @@ export const TIPOS = {
     },
     async apagar(id, entradaId) {
       const r = await apagarPedido(id, { fotos: !entradaId });
-      if (!r.apagado) {
-        const { frase, estado } = respostaAoApagarPedido(r);
-        throw new NaoDeuParaApagar(frase, estado, r);
-      }
+      if (!r.apagado) throw new PedidoQueNaoSaiu(r);
       return r;
     },
     async conflito(r) {
@@ -606,6 +617,19 @@ export async function enviarParaAReciclagem(
 }
 
 /**
+ * Um pedido para a Reciclagem, com o resultado do apagar com tipo — o que a
+ * rota devolve. O `apagar` do pedido (em `TIPOS`) devolve sempre um
+ * `ResultadoDoApagamento`; o mapa dos tipos é que não o sabe dizer.
+ */
+export async function enviarPedidoParaAReciclagem(
+  id: string,
+  quem?: string,
+): Promise<{ reciclagem: ResultadoDeApagar; resultado: ResultadoDoApagamento }> {
+  const { reciclagem, detalhe } = await enviarComDetalhe("pedido", id, quem);
+  return { reciclagem, resultado: detalhe as ResultadoDoApagamento };
+}
+
+/**
  * O mesmo, mais o que o apagar devolveu — o pedido conta o que apagou, e a
  * rota continua a dizê-lo. Lança `NaoDeuParaApagar` quando o apagar recusa
  * (e então nada fica na Reciclagem).
@@ -671,22 +695,15 @@ export async function enviarComDetalhe(
     // ficam como estavam.
     let reduziu = tipo !== "pedido";
     const parouAMeio =
-      err instanceof NaoDeuParaApagar &&
-      !(err.detalhe as { motivo?: unknown } | undefined)?.motivo &&
-      (saiuAlgo(err.detalhe) || talvezSaiuAlgo(err.detalhe) || anteriores.length > 0);
+      err instanceof PedidoQueNaoSaiu &&
+      !err.resultado.motivo &&
+      (saiuAlgo(err.resultado) || anteriores.length > 0);
     if (parouAMeio && tipo === "pedido") {
       // A entrada fica — mas só com o que saiu (desta vez e das anteriores).
-      const d = err.detalhe as {
-        saiu?: Parameters<typeof soOQueSaiu>[1];
-        talvezSaiu?: { propostas: string[] };
-      };
-      const certo = d.saiu ?? { propostas: [], tarefas: [], rascunhos: [] };
+      const { saiu: certo, talvezSaiu } = err.resultado;
       // As que talvez tenham saído guardam-se como as que saíram: o «Repor» só
       // repõe o que falta, e sem a cópia uma que saiu perdia-se de vez.
-      const saiu = {
-        ...certo,
-        propostas: [...certo.propostas, ...(d.talvezSaiu?.propostas ?? [])],
-      };
+      const saiu = { ...certo, propostas: [...certo.propostas, ...talvezSaiu.propostas] };
       const reduzido = juntarRetratos(
         soOQueSaiu(retratoNovo, saiu, entrada.apagadoEm),
         anteriores.map((e) => e.retrato as Retrato),
@@ -702,14 +719,14 @@ export async function enviarComDetalhe(
         },
       );
     }
-    if (parouAMeio && err instanceof NaoDeuParaApagar) {
+    if (parouAMeio && err instanceof PedidoQueNaoSaiu) {
       // As anteriores só saem se a nova ficou com tudo (reduzida e marcada):
       // senão, ficam como estavam — repostáveis.
       if (reduziu) await largarAnteriores();
-      throw new NaoDeuParaApagar(
+      throw new PedidoQueNaoSaiu(
+        err.resultado,
+        err.resposta,
         "O pedido não foi apagado por completo. O que já saiu está guardado na Reciclagem — tenta de novo.",
-        err.status,
-        err.detalhe,
       );
     }
     await tirarDaReciclagem(entrada.id).catch(() => {});
@@ -805,17 +822,9 @@ function juntarRetratos(novo: Retrato, antigos: Retrato[]): Retrato {
   return out;
 }
 
-/** O apagar devolveu propostas que talvez tenham saído (sem confirmação)? */
-function talvezSaiuAlgo(detalhe: unknown): boolean {
-  const t = (detalhe as { talvezSaiu?: { propostas?: unknown[] } } | undefined)?.talvezSaiu;
-  return (t?.propostas?.length ?? 0) > 0;
-}
-
-/** O apagar devolveu uma contagem com alguma coisa já apagada? */
-function saiuAlgo(detalhe: unknown): boolean {
-  const contou = (detalhe as { contou?: Record<string, unknown> } | undefined)?.contou;
-  if (!contou || typeof contou !== "object") return false;
-  return Object.values(contou).some((n) => typeof n === "number" && n > 0);
+/** O apagar levou alguma coisa — ou talvez tenha levado (sem confirmação)? */
+function saiuAlgo(r: ResultadoDoApagamento): boolean {
+  return Object.values(r.contou).some((n) => n > 0) || r.talvezSaiu.propostas.length > 0;
 }
 
 /** O porquê de um «Repor» não poder acontecer — a rota responde 409. */
