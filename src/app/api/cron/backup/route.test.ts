@@ -178,11 +178,13 @@ vi.mock("@/lib/mail", () => ({
 const limpeza = vi.hoisted(() => ({
   planeada: null as null | { plano: { saem: unknown[]; ficam: number }; naCopia: unknown[] },
   aplicadas: [] as { plano: unknown; dia: string }[],
+  prazos: [] as number[],
 }));
 vi.mock("@/lib/limpar-app-state", () => ({
   planearNaCopia: vi.fn(async () => limpeza.planeada),
-  aplicarLimpezaDoAppState: vi.fn(async (plano: unknown, dia: string) => {
+  aplicarLimpezaDoAppState: vi.fn(async (plano: unknown, dia: string, prazo: number) => {
     limpeza.aplicadas.push({ plano, dia });
+    limpeza.prazos.push(prazo);
     return { dia, aSeco: false, apagadas: 1, mudaram: 0, falharam: 0, ficam: 0 };
   }),
 }));
@@ -228,6 +230,7 @@ beforeEach(() => {
   st.leiturasDosPedidos = 0;
   limpeza.planeada = null;
   limpeza.aplicadas = [];
+  limpeza.prazos = [];
   vi.stubEnv("CRON_SECRET", "segredo");
   vi.clearAllMocks();
 });
@@ -517,6 +520,10 @@ describe("a limpeza do app_state só apaga com a cópia enviada e completa (P3)"
     const res = await GET(req("Bearer segredo"));
     expect(res.status).toBe(200);
     expect(limpeza.aplicadas).toEqual([{ plano, dia: "2026-08-11" }]);
+    // Com prazo: daqui a no máximo 20 s, e nunca além dos 200 s do arranque.
+    const [prazo] = limpeza.prazos;
+    expect(prazo).toBeGreaterThan(Date.now());
+    expect(prazo).toBeLessThanOrEqual(Date.now() + 20_000);
     expect(anexoDosDados().saiDoAppState).toEqual(naCopia);
     expect(await res.json()).toMatchObject({ limpezaDoAppState: { apagadas: 1 } });
   });

@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const st = vi.hoisted(() => ({
   filtros: [] as string[][],
   resposta: { data: [] as { key: string }[], error: null as unknown },
+  sinais: [] as AbortSignal[],
 }));
 
 vi.mock("@/lib/logger", () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
@@ -23,7 +24,8 @@ vi.mock("@/lib/supabase", () => ({
       eq: (c: string, v: string) => (filtros.push(`${c} = ${v}`), q),
       like: (c: string, v: string) => (filtros.push(`${c} like ${v}`), q),
       lt: (c: string, v: string) => (filtros.push(`${c} < ${v}`), q),
-      select: async () => st.resposta,
+      select: () => q,
+      abortSignal: async (sinal: AbortSignal) => (st.sinais.push(sinal), st.resposta),
     };
     return { from: () => q };
   },
@@ -34,6 +36,7 @@ import { apagarEstadoSeNaoMudou, apagarLapides } from "./apagar";
 beforeEach(() => {
   st.filtros = [];
   st.resposta = { data: [], error: null };
+  st.sinais = [];
 });
 
 describe("apagar lápides", () => {
@@ -72,6 +75,9 @@ describe("apagar só se não mudou", () => {
       "key = ligacao-proposta:abc",
       "updated_at = 2026-11-17T00:00:00Z",
     ]);
+    // E parte com o sinal do prazo: no tempo esgotado o pedido é cortado.
+    expect(st.sinais).toHaveLength(1);
+    expect(st.sinais[0].aborted).toBe(false);
   });
 
   it("nenhuma linha apagada é «mudou»; um erro é «falhou»", async () => {

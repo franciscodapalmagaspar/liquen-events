@@ -23,12 +23,18 @@ vi.mock("@/lib/supabase", () => ({
           not: (c: string, op: string, v: null) => (pedido.filtros.push(`${c} not ${op} ${v}`), q),
           like: (c: string, v: string) => (pedido.filtros.push(`${c} like ${v}`), q),
           order: () => q,
-          range: async (desde: number, ate: number) => ({
-            data: (pedido.filtros.includes("value is null")
-              ? st.respostas.nulas
-              : st.respostas.comValor
-            ).slice(desde, ate + 1),
-            error: st.erro,
+          range: (desde: number, ate: number) => ({
+            // O pedido só parte com o sinal do prazo (`comTecto`).
+            abortSignal: async (sinal: AbortSignal) => {
+              if (!(sinal instanceof AbortSignal)) throw new Error("sem sinal");
+              return {
+                data: (pedido.filtros.includes("value is null")
+                  ? st.respostas.nulas
+                  : st.respostas.comValor
+                ).slice(desde, ate + 1),
+                error: st.erro,
+              };
+            },
           }),
         };
         return q;

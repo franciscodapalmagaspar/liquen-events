@@ -104,6 +104,14 @@ const TECTO_ANEXO = 20 * 1024 * 1024;
 
 const MB = (bytes: number) => (bytes / 1048576).toFixed(1);
 
+/**
+ * O apagar do `app_state` tem até {@link TEMPO_DO_APAGAR_MS} e nunca passa dos
+ * {@link FIM_DO_APAGAR_MS} desde o arranque da rota (de 300 s): o que não
+ * couber sai na noite seguinte. Ver `aplicarLimpezaDoAppState`.
+ */
+const TEMPO_DO_APAGAR_MS = 20_000;
+const FIM_DO_APAGAR_MS = 200_000;
+
 /** O anexo dos dados: o JSON da cópia, comprimido. */
 const comprimirCopia = (copia: object): Buffer =>
   gzipSync(Buffer.from(JSON.stringify(copia), "utf8"));
@@ -549,7 +557,10 @@ async function GET_semMedida(request: NextRequest) {
     let limpezaDoAppState: Awaited<ReturnType<typeof aplicarLimpezaDoAppState>> | null = null;
     if (!parcial && limpezaPlaneada) {
       try {
-        limpezaDoAppState = await aplicarLimpezaDoAppState(limpezaPlaneada.plano, dia);
+        // O prazo conta do ARRANQUE: o que as outras limpezas já gastaram sai
+        // do tempo desta, e o aquecimento lá em baixo fica com o resto.
+        const prazo = Math.min(Date.now() + TEMPO_DO_APAGAR_MS, arrancou + FIM_DO_APAGAR_MS);
+        limpezaDoAppState = await aplicarLimpezaDoAppState(limpezaPlaneada.plano, dia, prazo);
       } catch (e) {
         log.error("cron backup: a limpeza do app_state falhou (a cópia seguiu na mesma)", e, {
           dia,

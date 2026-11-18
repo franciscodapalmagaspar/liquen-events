@@ -132,6 +132,9 @@ const registoDe = (primeiraNoite: string) => ({
   versao: ANTIGA,
 });
 
+/** Um prazo que não chega durante o teste. */
+const LONGE = Date.now() + 3_600_000;
+
 const planear = async () => {
   const r = await planearNaCopia(copia, AGORA);
   if (!r) throw new Error("o plano devia existir");
@@ -226,7 +229,7 @@ describe("o plano da noite", () => {
 
 describe("aplicar o plano", () => {
   it("a primeira noite é a seco: conta, regista, e não apaga nada", async () => {
-    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
+    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18", LONGE);
     expect(r).toMatchObject({ aSeco: true, apagadas: 0 });
     expect(st.lapides).toEqual([]);
     expect(st.condicionais).toEqual([]);
@@ -243,14 +246,14 @@ describe("aplicar o plano", () => {
 
   it("a mesma noite, a correr outra vez, continua a seco", async () => {
     st.registo = registoDe("2026-11-18");
-    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
+    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18", LONGE);
     expect(r?.aSeco).toBe(true);
     expect(st.lapides).toEqual([]);
   });
 
   it("da segunda noite em diante apaga: as lápides num lote, o resto com a versão lida", async () => {
     st.registo = registoDe("2026-11-17");
-    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
+    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18", LONGE);
     expect(st.lapides).toEqual([["proposal-draft:q1"]]);
     expect(st.condicionais).toEqual([
       [`ligacao-de-proposta:${P_APAGADA}`, ANTIGA],
@@ -262,7 +265,7 @@ describe("aplicar o plano", () => {
   it("uma linha que mudou entretanto fica, e conta-se", async () => {
     st.registo = registoDe("2026-11-17");
     st.respostaCondicional = "mudou";
-    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
+    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18", LONGE);
     expect(r).toMatchObject({ apagadas: 1, mudaram: 2 });
   });
 
@@ -279,7 +282,7 @@ describe("aplicar o plano", () => {
     ["que nem é um objeto", "2026-11-17"],
   ])("um registo fora da forma (%s): a noite fica a seco e escreve um novo", async (_n, valor) => {
     st.registo = { valor, versao: ANTIGA };
-    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
+    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18", LONGE);
     expect(r).toMatchObject({ aSeco: true, apagadas: 0 });
     expect(st.lapides).toEqual([]);
     expect(st.condicionais).toEqual([]);
@@ -287,14 +290,22 @@ describe("aplicar o plano", () => {
   });
 
   it("o registo que se escreve é lido de volta pelo mesmo esquema", async () => {
-    await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
+    await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18", LONGE);
     expect(registoDaLimpeza.safeParse(st.gravados[0]).success).toBe(true);
     expect(ESPACOS[espacoDaChave(CHAVE_DO_REGISTO) ?? "rascunhos"].valor).toBe(registoDaLimpeza);
   });
 
+  it("com o prazo passado não se apaga nada, e o que ficou por fazer conta em `ficam`", async () => {
+    st.registo = registoDe("2026-11-17");
+    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18", Date.now() - 1);
+    expect(st.lapides).toEqual([]);
+    expect(st.condicionais).toEqual([]);
+    expect(r).toMatchObject({ aSeco: false, apagadas: 0, ficam: 3 });
+  });
+
   it("o registo que não se lê: não se apaga nada", async () => {
     st.registo = new Error("em baixo");
-    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18");
+    const r = await aplicarLimpezaDoAppState((await planear()).plano, "2026-11-18", LONGE);
     expect(r).toBeNull();
     expect(st.lapides).toEqual([]);
     expect(st.condicionais).toEqual([]);
@@ -309,7 +320,7 @@ describe("aplicar o plano", () => {
       proposals: [{ id: P1 }],
       reciclagem: [],
     };
-    const r = await aplicarLimpezaDoAppState(plano, "2026-11-18");
+    const r = await aplicarLimpezaDoAppState(plano, "2026-11-18", LONGE);
     expect(st.condicionais.map(([k]) => k)).not.toContain("proposal-draft:q-apagado");
     expect(r).toMatchObject({ apagadas: 2, mudaram: 1 });
   });
@@ -318,7 +329,7 @@ describe("aplicar o plano", () => {
     st.registo = registoDe("2026-11-17");
     const { plano } = await planear();
     st.agora = { quotes: [{ id: "q1" }] }; // propostas e Reciclagem falham
-    expect(await aplicarLimpezaDoAppState(plano, "2026-11-18")).toBeNull();
+    expect(await aplicarLimpezaDoAppState(plano, "2026-11-18", LONGE)).toBeNull();
     expect(st.lapides).toEqual([]);
     expect(st.condicionais).toEqual([]);
   });

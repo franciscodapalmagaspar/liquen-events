@@ -51,12 +51,14 @@ export async function apagarEstadoPorPrefixo(
   if (sb) {
     try {
       const { data, error } = await comTecto(
-        sb
-          .from("app_state")
-          .delete()
-          .like("key", comoPrefixo(prefix))
-          .lt("key", chaveAntesDe)
-          .select("key"),
+        (sinal) =>
+          sb
+            .from("app_state")
+            .delete()
+            .like("key", comoPrefixo(prefix))
+            .lt("key", chaveAntesDe)
+            .select("key")
+            .abortSignal(sinal),
         TEMPO_POR_TENTATIVA_MS,
       );
       if (error) throw error;
@@ -109,12 +111,14 @@ export async function apagarLapides(
   try {
     for (let i = 0; i < chaves.length; i += LOTE) {
       const { data, error } = await comTecto(
-        sb
-          .from("app_state")
-          .delete()
-          .in("key", chaves.slice(i, i + LOTE))
-          .is("value", null)
-          .select("key"),
+        (sinal) =>
+          sb
+            .from("app_state")
+            .delete()
+            .in("key", chaves.slice(i, i + LOTE))
+            .is("value", null)
+            .select("key")
+            .abortSignal(sinal),
         TEMPO_POR_TENTATIVA_MS,
       );
       if (error) throw error;
@@ -156,7 +160,14 @@ export async function apagarEstadoSeNaoMudou(
   }
   try {
     const { data, error } = await comTecto(
-      sb.from("app_state").delete().eq("key", chave).eq("updated_at", versao).select("key"),
+      (sinal) =>
+        sb
+          .from("app_state")
+          .delete()
+          .eq("key", chave)
+          .eq("updated_at", versao)
+          .select("key")
+          .abortSignal(sinal),
       TEMPO_POR_TENTATIVA_MS,
     );
     if (error) throw error;

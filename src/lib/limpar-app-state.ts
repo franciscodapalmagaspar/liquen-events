@@ -235,9 +235,14 @@ export async function planearNaCopia(
   }
 }
 
-async function emLotes<T, R>(itens: readonly T[], f: (t: T) => Promise<R>): Promise<R[]> {
+/** Em lotes de {@link EM_PARALELO}; no `prazo` não começa outro lote. */
+async function emLotes<T, R>(
+  itens: readonly T[],
+  f: (t: T) => Promise<R>,
+  prazo: number,
+): Promise<R[]> {
   const out: R[] = [];
-  for (let i = 0; i < itens.length; i += EM_PARALELO) {
+  for (let i = 0; i < itens.length && Date.now() < prazo; i += EM_PARALELO) {
     out.push(...(await Promise.all(itens.slice(i, i + EM_PARALELO).map(f))));
   }
   return out;
@@ -266,8 +271,10 @@ async function quemExisteAgora(): Promise<QuemExiste | "sem-base" | null> {
  * As linhas do plano que continuam a sair com quem existe agora: as MESMAS
  * regras (`oQueSaiDoAppState`), só que sobre o que se lê neste momento.
  */
-async function aindaSaem(plano: PlanoDaNoite, agora: Date): Promise<Saida[] | null> {
-  const existe = await quemExisteAgora();
+async function aindaSaem(plano: PlanoDaNoite, agora: Date, prazo: number): Promise<Saida[] | null> {
+  const existe = await comTecto(quemExisteAgora(), Math.max(0, prazo - Date.now())).catch(
+    () => null,
+  );
   if (existe === "sem-base") return plano.saem;
   if (!existe) return null;
   const confirmadas = new Set(
@@ -278,14 +285,71 @@ async function aindaSaem(plano: PlanoDaNoite, agora: Date): Promise<Saida[] | nu
   return plano.saem.filter((s) => confirmadas.has(s.key));
 }
 
+interface ContasDoApagar {
+  apagadas: number;
+  mudaram: number;
+  falharam: number;
+  /** Ficaram por fazer porque o prazo chegou: saem na noite seguinte. */
+  adiadas: number;
+}
+
+const SEM_CONTAS: ContasDoApagar = { apagadas: 0, mudaram: 0, falharam: 0, adiadas: 0 };
+
+/**
+ * Apaga as linhas do plano que AINDA saem (`aindaSaem`), até ao `prazo`.
+ * `null` quando quem existe não se leu — e então nada sai.
+ */
+async function apagarOQueAindaSai(
+  plano: PlanoDaNoite,
+  prazo: number,
+): Promise<ContasDoApagar | null> {
+  // Sem tempo nem para ler quem existe: tudo fica para amanhã.
+  if (Date.now() >= prazo) return { ...SEM_CONTAS, adiadas: plano.saem.length };
+  const saem = await aindaSaem(plano, new Date(), prazo);
+  if (!saem) {
+    log.warn("limpeza do app_state: quem existe não se leu agora — nada sai esta noite");
+    return null;
+  }
+  // As que deixaram de ser órfãs (um pedido que voltou) ficam, e contam como mudadas.
+  const contas = { ...SEM_CONTAS, mudaram: plano.saem.length - saem.length };
+  const todasAsLapides = saem.filter((s) => s.nula).map((s) => s.key);
+  const lapides = Date.now() < prazo ? todasAsLapides : [];
+  contas.adiadas += todasAsLapides.length - lapides.length;
+  const { sairam, falhou } = await apagarLapides(lapides);
+  contas.apagadas += sairam.length;
+  // Sem falha, as que não saíram deixaram de ser lápides (voltaram a ter
+  // valor); com falha, não se sabe: contam como falhadas.
+  if (falhou) contas.falharam += lapides.length - sairam.length;
+  else contas.mudaram += lapides.length - sairam.length;
+  const resto = saem.filter((s) => !s.nula);
+  const feitos = await emLotes(resto, (s) => apagarEstadoSeNaoMudou(s.key, s.versao), prazo);
+  contas.adiadas += resto.length - feitos.length;
+  for (const r of feitos) {
+    if (r === "apagado") contas.apagadas++;
+    else if (r === "mudou") contas.mudaram++;
+    else contas.falharam++;
+  }
+  if (contas.adiadas > 0) {
+    log.warn("limpeza do app_state: o prazo chegou — o resto sai amanhã", {
+      adiadas: contas.adiadas,
+    });
+  }
+  return contas;
+}
+
 /**
  * Apaga o que o plano diz — ou, na primeira noite, só conta. Nunca lança: o
  * que falhar fica para a noite seguinte, e o registo diz quantas. `null`
  * quando o registo não se leu (e então nada sai).
+ *
+ * `prazo` (em ms desde a época) vem do arranque da rota: chegando lá, não
+ * começa mais nenhum apagar, e o que ficou por fazer conta em `ficam` — sai
+ * na noite seguinte. Cada pedido tem ainda o seu tecto (`comTecto`).
  */
 export async function aplicarLimpezaDoAppState(
   plano: PlanoDaNoite,
   dia: string,
+  prazo: number,
 ): Promise<RegistoDaLimpeza["ultima"] | null> {
   let lido: { valor: unknown; versao: string | null };
   try {
@@ -305,40 +369,16 @@ export async function aplicarLimpezaDoAppState(
   const primeiraNoite = registo?.success ? registo.data.primeiraNoite : dia;
   const aSeco = primeiraNoite === dia;
 
-  let apagadas = 0;
-  let mudaram = 0;
-  let falharam = 0;
-  if (!aSeco) {
-    const saem = await aindaSaem(plano, new Date());
-    if (!saem) {
-      log.warn("limpeza do app_state: quem existe não se leu agora — nada sai esta noite");
-      return null;
-    }
-    // As que deixaram de ser órfãs (um pedido que voltou) ficam, e contam como mudadas.
-    mudaram += plano.saem.length - saem.length;
-    const lapides = saem.filter((s) => s.nula).map((s) => s.key);
-    const { sairam, falhou } = await apagarLapides(lapides);
-    apagadas += sairam.length;
-    // Sem falha, as que não saíram deixaram de ser lápides (voltaram a ter
-    // valor); com falha, não se sabe: contam como falhadas.
-    if (falhou) falharam += lapides.length - sairam.length;
-    else mudaram += lapides.length - sairam.length;
-    const resto = saem.filter((s) => !s.nula);
-    for (const r of await emLotes(resto, (s) => apagarEstadoSeNaoMudou(s.key, s.versao))) {
-      if (r === "apagado") apagadas++;
-      else if (r === "mudou") mudaram++;
-      else falharam++;
-    }
-  }
+  const contas = aSeco ? SEM_CONTAS : await apagarOQueAindaSai(plano, prazo);
+  if (!contas) return null;
+  const { adiadas, ...feitas } = contas;
 
   const ultima: RegistoDaLimpeza["ultima"] = {
     dia,
     aSeco,
     porMotivo: contarPorMotivo(plano.saem),
-    apagadas,
-    mudaram,
-    falharam,
-    ficam: plano.ficam,
+    ...feitas,
+    ficam: plano.ficam + adiadas,
   };
   const r = await gravarEstadoSeNaoMudou<RegistoDaLimpeza>(
     CHAVE_DO_REGISTO,
@@ -346,6 +386,8 @@ export async function aplicarLimpezaDoAppState(
     lido.versao,
   );
   if (r !== "gravado") log.warn("limpeza do app_state: o registo da noite não ficou", { r });
-  if (falharam > 0) log.warn("limpeza do app_state: há linhas que não saíram", { falharam });
+  if (feitas.falharam > 0) {
+    log.warn("limpeza do app_state: há linhas que não saíram", { falharam: feitas.falharam });
+  }
   return ultima;
 }

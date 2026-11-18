@@ -81,10 +81,12 @@ export async function varrerPrefixo(
           const base = sb.from("app_state").select(nulas ? "key, updated_at" : select);
           const filtrada = nulas ? base.is("value", null) : base.not("value", "is", null);
           return comTecto(
-            filtrada
-              .like("key", comoPrefixo(prefixo))
-              .order("key", { ascending: true })
-              .range(desde, ate),
+            (sinal) =>
+              filtrada
+                .like("key", comoPrefixo(prefixo))
+                .order("key", { ascending: true })
+                .range(desde, ate)
+                .abortSignal(sinal),
             TEMPO_POR_TENTATIVA_MS,
           );
         }),
