@@ -1,16 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const leituras = vi.hoisted(() => [] as string[]);
-const falha = vi.hoisted(() => ({ contratos: false, faturas: false, moloni: false as boolean }));
+const falha = vi.hoisted(() => ({
+  contratos: false,
+  faturas: false,
+  nContratos: 1,
+  moloni: undefined as unknown,
+}));
 vi.mock("./quotes-store", () => ({
-  getQuote: async (q: string) =>
-    falha.moloni ? { id: q, faturasMoloni: { sinal: { id: 1 } } } : { id: q },
+  getQuote: async (q: string) => {
+    leituras.push(`pedido:${q}`);
+    return { id: q, faturasMoloni: falha.moloni };
+  },
 }));
 vi.mock("./contracts-store", () => ({
   listContractsForQuote: async (q: string) => {
     if (falha.contratos) throw new Error("contratos em baixo");
     leituras.push(`contratos:${q}`);
-    return [{}];
+    return Array.from({ length: falha.nContratos }, () => ({}));
   },
 }));
 vi.mock("./invoices-store", () => ({
@@ -33,15 +40,16 @@ const {
   oQueAindaPrende,
   registoFiscalDoPedido,
   NaoSeiSeHaRegistoFiscal,
-  faturasNoMoloni,
 } = await import("./o-que-prende-o-pedido");
+const { faturasNoMoloni } = await import("./orcamento/fatura-no-moloni");
 
 const nada = { contratos: 0, faturas: 0, propostas: 0, tarefas: 0 };
 
 beforeEach(() => {
   falha.contratos = false;
   falha.faturas = false;
-  falha.moloni = false;
+  falha.moloni = undefined;
+  falha.nContratos = 1;
 });
 
 describe("o que prende o pedido", () => {
@@ -52,7 +60,13 @@ describe("o que prende o pedido", () => {
       propostas: 2,
       tarefas: 0,
     });
-    expect(leituras.sort()).toEqual(["contratos:q1", "faturas:q1", "propostas:q1", "tarefas:q1"]);
+    expect(leituras.sort()).toEqual([
+      "contratos:q1",
+      "faturas:q1",
+      "pedido:q1",
+      "propostas:q1",
+      "tarefas:q1",
+    ]);
   });
 
   it("contrato e fatura são registos fiscais: recusam", () => {
@@ -78,22 +92,24 @@ describe("registoFiscalDoPedido (a pergunta do início)", () => {
   beforeEach(() => {
     falha.contratos = false;
     falha.faturas = false;
-    falha.moloni = false;
+    falha.moloni = undefined;
+    falha.nContratos = 1;
   });
 
   it("só lê contratos e faturas — não as propostas (o doc é pesado) nem as tarefas", async () => {
     leituras.length = 0;
-    expect(await registoFiscalDoPedido("q2")).toBe("tem-contrato");
+    expect(await registoFiscalDoPedido({ id: "q2" })).toBe("tem-contrato");
+    // Nem o pedido: quem chama já o leu e passa-o.
     expect(leituras.sort()).toEqual(["contratos:q2", "faturas:q2"]);
   });
 
   it("um registo visto ganha a uma leitura falhada; sem nenhum visto, lança com a causa", async () => {
     // Contratos lidos (1) e faturas por ler: o contrato visto decide.
     falha.faturas = true;
-    expect(await registoFiscalDoPedido("q")).toBe("tem-contrato");
+    expect(await registoFiscalDoPedido({ id: "q" })).toBe("tem-contrato");
     // Nada visto e uma leitura falhada: «não sei», com o erro verdadeiro em `cause`.
     falha.contratos = true;
-    const e = await registoFiscalDoPedido("q").catch((x: unknown) => x);
+    const e = await registoFiscalDoPedido({ id: "q" }).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(NaoSeiSeHaRegistoFiscal);
     expect((e as Error).name).toBe("NaoSeiSeHaRegistoFiscal");
     expect(((e as Error).cause as Error).message).toBe("contratos em baixo");
@@ -101,23 +117,46 @@ describe("registoFiscalDoPedido (a pergunta do início)", () => {
 });
 
 describe("as faturas do Moloni também são registo fiscal", () => {
-  it("faturasNoMoloni conta o sinal e o saldo que lá estão", () => {
+  it("conta a fase com documento ou passada à mão; a marca de «a ser criado» não conta", () => {
     expect(faturasNoMoloni(null)).toBe(0);
     expect(faturasNoMoloni({})).toBe(0);
     expect(faturasNoMoloni({ faturasMoloni: { sinal: undefined } })).toBe(0);
-    expect(faturasNoMoloni({ faturasMoloni: { sinal: {} as never, saldo: {} as never } })).toBe(2);
+    expect(
+      faturasNoMoloni({
+        faturasMoloni: { sinal: { em: "x", aCriarDesde: "2026-11-18T00:00:00Z" } },
+      }),
+    ).toBe(0);
+    expect(
+      faturasNoMoloni({
+        faturasMoloni: { sinal: { em: "x", documentId: 9 }, saldo: { em: "x", manual: true } },
+      }),
+    ).toBe(2);
   });
 
-  it("um pedido sem contrato mas com fatura no Moloni recusa com tem-fatura", async () => {
-    falha.moloni = true;
-    // Os contratos do mock devolvem 1; para isolar a fatura, lê-se a regra pura.
+  it("sem contrato e com o sinal no Moloni, a guarda do início recusa com tem-fatura", async () => {
+    falha.nContratos = 0;
     expect(
-      registoFiscal({
-        contratos: 0,
-        faturas: faturasNoMoloni({ faturasMoloni: { sinal: {} as never } }),
+      await registoFiscalDoPedido({
+        id: "q",
+        faturasMoloni: { sinal: { em: "x", documentId: 9 } },
       }),
     ).toBe("tem-fatura");
-    falha.moloni = false;
+  });
+
+  it("e a do fim lê o pedido outra vez e vê o que nasceu entretanto", async () => {
+    falha.nContratos = 0;
+    falha.moloni = { saldo: { em: "x", documentId: 3 } };
+    expect((await ligacoesDoPedido("q")).faturas).toBe(1);
+  });
+
+  it("a marca de «a ser criado» sozinha não prende o pedido", async () => {
+    falha.nContratos = 0;
+    expect(
+      await registoFiscalDoPedido({
+        id: "q",
+        faturasMoloni: { sinal: { em: "x", aCriarDesde: "y" } },
+      }),
+    ).toBeNull();
   });
 });
 

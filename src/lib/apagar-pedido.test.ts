@@ -40,6 +40,7 @@ const dados = vi.hoisted(() => ({
   tarefasRebentam: false,
   leiturasDeContratos: 0,
   listagensDePropostasQueFalham: 0,
+  propostaQueApagaEFalha: null as string | null,
   faturas: [] as { id: string; quoteId: string }[],
   faturasRebentam: false,
   tarefaQueFalha: null as string | null,
@@ -63,6 +64,11 @@ vi.mock("@/lib/proposals-store", () => ({
     return dados.propostas.filter((p) => p.quoteId === q);
   },
   deleteProposal: async (id: string) => {
+    if (dados.propostaQueApagaEFalha === id) {
+      // O servidor apagou; só a resposta se perdeu pelo caminho.
+      dados.propostas = dados.propostas.filter((p) => p.id !== id);
+      throw new Error("resposta perdida");
+    }
     if (dados.propostaQueFalha === id) throw new Error("recusado");
     dados.apagadas.push(id);
     dados.propostas = dados.propostas.filter((p) => p.id !== id);
@@ -156,6 +162,7 @@ beforeEach(() => {
   dados.tarefasRebentam = false;
   dados.leiturasDeContratos = 0;
   dados.listagensDePropostasQueFalham = 0;
+  dados.propostaQueApagaEFalha = null;
   dados.faturas = [];
   dados.faturasRebentam = false;
   dados.tarefaQueFalha = null;
@@ -492,13 +499,16 @@ describe("P5: as propostas — contar o que nasceu, não repetir o que falhou", 
     const r = await apagarPedidoSemContrato("q1");
     expect(r.apagado).toBe(false);
     expect(r.falhou).toContain("a proposta p2 não foi apagada");
-    expect(r.falhou).toContain("ficaram 2 proposta(s) neste pedido");
+    // A que nasceu conta-se à parte da que falhou.
+    expect(r.falhou).toContain("ficaram 1 proposta(s) neste pedido");
   });
 });
 
 describe("P5: a fatura que vive no Moloni também manda parar", () => {
   it("um pedido com o sinal no Moloni não é apagado, e nada sai", async () => {
-    dados.pedidos = new Map([["q1", { id: "q1", faturasMoloni: { sinal: { id: 7 } } }]]);
+    dados.pedidos = new Map([
+      ["q1", { id: "q1", faturasMoloni: { sinal: { em: "x", documentId: 7 } } }],
+    ]);
     dados.propostas = [proposta("p1")];
     const r = await apagarPedidoSemContrato("q1");
     expect(r.motivo).toBe("tem-fatura");
@@ -513,5 +523,15 @@ describe("uma listagem de propostas que falha uma vez e depois prova que não h�
     const r = await apagarPedidoSemContrato("q1");
     expect(r.apagado).toBe(true);
     expect(r.falhou).not.toContain("não consegui listar as propostas deste pedido");
+  });
+});
+
+describe("uma proposta cuja resposta se perdeu mas que saiu mesmo", () => {
+  it("o pedido sai, e o relatório não diz que ela ficou", async () => {
+    dados.propostas = [proposta("p1")];
+    dados.propostaQueApagaEFalha = "p1";
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(true);
+    expect(r.falhou.join(" ")).not.toContain("p1");
   });
 });

@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(task);
   } catch (err) {
-    // Ligada a um pedido que outro ecrã acabou de apagar (P5): conflito.
+    // Ligada a um pedido que outro ecrã acabou de apagar (P5).
     const ligacao = respostaDeLigacaoQueJaSaiu(err);
     if (ligacao) return ligacao;
     log.error("tarefas POST falhou", err);

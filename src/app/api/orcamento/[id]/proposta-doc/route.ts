@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, after } from "next/server";
+import { respostaDeLigacaoQueJaSaiu } from "@/lib/resposta-de-conflito";
 import { porqueOEmailNaoSegue } from "@/lib/email-do-cliente";
 import { createHash, randomUUID } from "node:crypto";
 import type { Proposal } from "@/lib/orcamento/types";
@@ -2119,6 +2120,9 @@ async function POST_semMedida(
       ...(docSaved ? {} : { docSaved, docError }),
     });
   } catch (err) {
+    // O pedido saiu noutro ecrã enquanto a proposta se gravava (P5).
+    const ligacao = respostaDeLigacaoQueJaSaiu(err);
+    if (ligacao) return ligacao;
     log.error("proposta-doc POST falhou", err);
     // Rota só para administradores autenticados — incluir o motivo real ajuda a
     // equipa (e o suporte) a perceber a causa em vez de um erro genérico opaco.

@@ -3,6 +3,7 @@ import { listContractsForQuote } from "./contracts-store";
 import { listInvoicesForQuote } from "./invoices-store";
 import { getQuote } from "./quotes-store";
 import type { Quote } from "./orcamento/types";
+import { faturasNoMoloni } from "./orcamento/fatura-no-moloni";
 import { listProposalsForQuote } from "./proposals-store";
 import { listTasksForQuote } from "./tasks-store";
 
@@ -47,24 +48,21 @@ export class NaoSeiSeHaRegistoFiscal extends Error {
 export type RegistosFiscais = Pick<LigacoesDoPedido, "contratos" | "faturas">;
 
 /**
- * As faturas que o back office pôs no Moloni (`quote.faturasMoloni`, sinal e
- * saldo): é ONDE as faturas desta casa vivem hoje — a tabela `invoices` é o
- * livro antigo, só de leitura. Puro.
- */
-export function faturasNoMoloni(pedido: Pick<Quote, "faturasMoloni"> | null): number {
-  return Object.values(pedido?.faturasMoloni ?? {}).filter(Boolean).length;
-}
-
-/**
- * Contratos e faturas (as do livro antigo e as do Moloni), lidos em paralelo.
+ * Contratos e faturas — as do livro antigo (`invoices`, só de leitura) e as do
+ * Moloni (`quote.faturasMoloni`, onde as faturas vivem hoje; a regra do que
+ * conta está em `orcamento/fatura-no-moloni.ts`) —, lidos em paralelo.
  * Uma leitura que falha fica em `falhou`, e as que correram bem contam na
  * mesma: um registo que se VIU vale mais do que outro que não se pôde ver.
  */
-async function lerFiscais(pedidoId: string): Promise<RegistosFiscais & { falhou?: unknown }> {
+async function lerFiscais(
+  pedidoId: string,
+  /** O pedido, se quem chama já o leu (poupa uma leitura da linha inteira). */
+  jaLido?: Pick<Quote, "faturasMoloni">,
+): Promise<RegistosFiscais & { falhou?: unknown }> {
   const [contratos, livro, pedido] = await Promise.allSettled([
     listContractsForQuote(pedidoId),
     listInvoicesForQuote(pedidoId),
-    getQuote(pedidoId),
+    jaLido ?? getQuote(pedidoId),
   ]);
   const falhou = [contratos, livro, pedido].find((r) => r.status === "rejected") as
     | PromiseRejectedResult
@@ -85,9 +83,9 @@ async function lerFiscais(pedidoId: string): Promise<RegistosFiscais & { falhou?
  * visto e com uma leitura falhada, lança {@link NaoSeiSeHaRegistoFiscal}.
  */
 export async function registoFiscalDoPedido(
-  pedidoId: string,
+  pedido: Pick<Quote, "id" | "faturasMoloni">,
 ): Promise<"tem-contrato" | "tem-fatura" | null> {
-  const f = await lerFiscais(pedidoId);
+  const f = await lerFiscais(pedido.id, pedido);
   const visto = registoFiscal(f);
   if (visto) return visto;
   if (f.falhou !== undefined) throw new NaoSeiSeHaRegistoFiscal(f.falhou);
@@ -126,6 +124,24 @@ export function registoFiscal(l: RegistosFiscais): "tem-contrato" | "tem-fatura"
 /** A frase de quando ficaram propostas no pedido (no meio e no fim do apagar). */
 export const fraseDasPropostasQueFicaram = (n: number): string =>
   `ficaram ${n} proposta(s) neste pedido`;
+
+/**
+ * O relatório das propostas que a confirmação ainda encontrou: as que
+ * falharam ao apagar, uma a uma, e quantas nasceram entretanto (as que lá
+ * estão sem terem falhado). Pelos ids — as contagens enganavam quando uma que
+ * falhou saía por outro lado e nascia outra. Puro.
+ */
+export function oQueFicouDasPropostas(
+  ficaram: readonly string[],
+  falharam: ReadonlySet<string>,
+): string[] {
+  const linhas = ficaram
+    .filter((id) => falharam.has(id))
+    .map((id) => `a proposta ${id} não foi apagada`);
+  const novas = ficaram.filter((id) => !falharam.has(id)).length;
+  if (novas > 0) linhas.push(fraseDasPropostasQueFicaram(novas));
+  return linhas;
+}
 
 /**
  * O que, mesmo antes de apagar o pedido, ainda o prende — em linguagem de quem

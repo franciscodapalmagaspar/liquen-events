@@ -3,7 +3,7 @@ import { getQuote, deleteQuote } from "./quotes-store";
 import { listProposalsForQuote, deleteProposal } from "./proposals-store";
 import {
   ligacoesDoPedido,
-  fraseDasPropostasQueFicaram,
+  oQueFicouDasPropostas,
   oQueAindaPrende,
   registoFiscalDoPedido,
 } from "./o-que-prende-o-pedido";
@@ -95,6 +95,7 @@ const nadaSaiu = () => ({
 });
 
 const VAZIO = { propostas: 0, fotos: 0, rascunhos: 0, tarefas: 0 };
+const LISTAGEM_DAS_PROPOSTAS_FALHOU = "não consegui listar as propostas deste pedido";
 
 /**
  * Apaga um pedido e tudo o que é dele, quando ele não deu origem a contrato.
@@ -145,7 +146,7 @@ export async function apagarPedidoSemContrato(
   // ecrã diz a frase genérica de sempre. As guardas vivem em
   // `o-que-prende-o-pedido.ts` (esta é `registoFiscalDoPedido`).
   try {
-    const fiscal = await registoFiscalDoPedido(id);
+    const fiscal = await registoFiscalDoPedido(pedido);
     if (fiscal) return { apagado: false, motivo: fiscal, contou, falhou, saiu };
   } catch (e) {
     // Não saber se há contrato não é o mesmo que saber que não há: não se
@@ -195,8 +196,12 @@ export async function apagarPedidoSemContrato(
   }
 
   // ── As propostas, que é onde estão os dados pessoais a mais ──────────────
-  let propostasQueFalharam = 0;
-  let listagemDasPropostasFalhou = false;
+  //
+  // As falhas não vão logo para o relatório: quem decide o que é verdade é a
+  // confirmação que vem a seguir (uma proposta cuja resposta se perdeu pode
+  // ter saído na mesma, e uma listagem falhada pode não esconder nada).
+  const falharam = new Set<string>();
+  let listagemFalhou = false;
   try {
     const propostas = await listProposalsForQuote(id);
     for (const p of propostas) {
@@ -205,35 +210,27 @@ export async function apagarPedidoSemContrato(
         contou.propostas++;
         saiu.propostas.push(p.id);
       } catch (e) {
-        propostasQueFalharam++;
-        falhou.push(`a proposta ${p.id} não foi apagada`);
+        falharam.add(p.id);
         log.error("apagar-pedido: proposta não apagada", e, { pedido: id, proposta: p.id });
       }
     }
   } catch (e) {
-    listagemDasPropostasFalhou = true;
-    falhou.push("não consegui listar as propostas deste pedido");
+    listagemFalhou = true;
     log.error("apagar-pedido: listagem de propostas falhou", e, { pedido: id });
   }
   // Uma proposta que ficou (não saiu, ou nasceu noutro ecrã) faz parar AQUI,
   // antes de as fotografias e os rascunhos saírem sem volta: o pedido e essa
   // proposta ficam inteiros, e uma segunda tentativa sabe o que falta.
   try {
-    const ficaram = await listProposalsForQuote(id);
+    const ficaram = (await listProposalsForQuote(id)).map((p) => p.id);
     if (ficaram.length > 0) {
-      // As que falharam já estão ditas uma a uma; só se acrescenta a contagem
-      // quando há mais (nasceu alguma noutro ecrã).
-      if (ficaram.length > propostasQueFalharam) {
-        falhou.push(fraseDasPropostasQueFicaram(ficaram.length));
-      }
+      if (listagemFalhou) falhou.push(LISTAGEM_DAS_PROPOSTAS_FALHOU);
+      falhou.push(...oQueFicouDasPropostas(ficaram, falharam));
       return { apagado: false, contou, falhou, saiu };
     }
-    // A primeira listagem falhou mas esta prova que não há nenhuma: o aviso
-    // já não é verdade, e um pedido apagado por inteiro não leva pontas soltas.
-    if (listagemDasPropostasFalhou) {
-      falhou.splice(falhou.indexOf("não consegui listar as propostas deste pedido"), 1);
-    }
   } catch (e) {
+    if (listagemFalhou) falhou.push(LISTAGEM_DAS_PROPOSTAS_FALHOU);
+    falhou.push(...oQueFicouDasPropostas([...falharam], falharam));
     falhou.push("não consegui confirmar as propostas deste pedido");
     log.error("apagar-pedido: confirmação das propostas falhou", e, { pedido: id });
     return { apagado: false, contou, falhou, saiu };

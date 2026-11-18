@@ -148,13 +148,29 @@ describe("/api/propostas/[id] PATCH numa colisão", () => {
 });
 
 describe("respostaDeLigacaoQueJaSaiu (P5)", () => {
-  it("uma chave estrangeira recusada (23503) é conflito: 409 com a frase de sempre", async () => {
-    const r = respostaDeLigacaoQueJaSaiu({ code: "23503", message: "tasks_quote_id_fkey" });
-    expect(r?.status).toBe(409);
-    expect((await r!.json()).error).toBe(MENSAGEM_DE_CONFLITO);
+  const ligacaoQueSaiu = {
+    code: "23503",
+    message:
+      'insert or update on table "tasks" violates foreign key constraint "tasks_quote_id_fkey"',
+  };
+
+  it("uma escrita para um pedido que saiu é 404 «Não encontrado», não avaria nem «volta a aplicar»", async () => {
+    const r = respostaDeLigacaoQueJaSaiu(ligacaoQueSaiu);
+    expect(r?.status).toBe(404);
+    expect((await r!.json()).error).toBe("Não encontrado");
   });
 
-  it("outros erros não são conflito", () => {
+  it("o respostaDeConflito também a reconhece (as rotas que já o usam ficam cobertas)", () => {
+    expect(respostaDeConflito(ligacaoQueSaiu)?.status).toBe(404);
+  });
+
+  it("um apagar recusado por um filho (23503 no delete) não é isto, nem os outros erros", () => {
+    expect(
+      respostaDeLigacaoQueJaSaiu({
+        code: "23503",
+        message: 'update or delete on table "x" violates',
+      }),
+    ).toBeNull();
     expect(respostaDeLigacaoQueJaSaiu(new Error("rede"))).toBeNull();
     expect(respostaDeLigacaoQueJaSaiu({ code: "23505" })).toBeNull();
     expect(respostaDeLigacaoQueJaSaiu(null)).toBeNull();

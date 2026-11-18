@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { respostaDeLigacaoQueJaSaiu } from "@/lib/resposta-de-conflito";
 import { isAuthed } from "@/lib/admin-auth";
 import { getQuote } from "@/lib/quotes-store";
 import { listProposalsForQuote } from "@/lib/proposals-store";
@@ -51,6 +52,9 @@ export async function POST(request: NextRequest) {
     const { created, contract } = await nascerContratoDoGanho(quoteId, proposta);
     return NextResponse.json({ ok: true, criado: created, contrato: contract });
   } catch (err) {
+    // O pedido saiu noutro ecrã enquanto o contrato nascia (P5).
+    const ligacao = respostaDeLigacaoQueJaSaiu(err);
+    if (ligacao) return ligacao;
     log.error("contratos/criar falhou", err);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }

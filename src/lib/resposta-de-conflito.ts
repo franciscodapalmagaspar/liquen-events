@@ -39,7 +39,7 @@ import {
  *     }
  */
 export function respostaDeConflito(err: unknown): NextResponse | null {
-  if (!isConflictError(err)) return null;
+  if (!isConflictError(err)) return respostaDeLigacaoQueJaSaiu(err);
   const conflito = err as ConflictError;
   return NextResponse.json(
     {
@@ -85,14 +85,17 @@ export function respostaDeMigracaoEmFalta(err: unknown, oQueFalta: string): Next
 }
 
 /**
- * Uma escrita recusada por uma chave estrangeira (23503) — a linha aponta
- * para uma coisa que outro ecrã acabou de apagar (por exemplo, uma tarefa
- * para um pedido que saiu: P5). É um conflito, não uma avaria: 409 com a
- * frase de conflito de sempre (o ecrã manda recarregar), sem `log.error`.
+ * Uma escrita recusada por uma chave estrangeira (23503 em «insert or
+ * update»): a linha aponta para uma coisa que outro ecrã acabou de apagar —
+ * uma tarefa, uma proposta ou um contrato para um pedido que saiu (P5).
+ * Repetir não resolve, por isso não é a frase de conflito («volta a
+ * aplicar»): é 404 «Não encontrado», a frase de sempre de quando o que se
+ * procura já não existe. E não é avaria: sem `log.error`. O `respostaDeConflito`
+ * já a inclui; as rotas que não o usam chamam esta.
  */
 export function respostaDeLigacaoQueJaSaiu(err: unknown): NextResponse | null {
-  if (!err || typeof err !== "object" || (err as { code?: unknown }).code !== "23503") {
-    return null;
-  }
-  return NextResponse.json({ error: MENSAGEM_DE_CONFLITO }, { status: 409 });
+  if (!err || typeof err !== "object") return null;
+  const e = err as { code?: unknown; message?: unknown };
+  if (e.code !== "23503" || !/insert or update/i.test(String(e.message ?? ""))) return null;
+  return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { faturaJaEstaNoMoloni } from "@/lib/orcamento/fatura-no-moloni";
 import { isAuthed } from "@/lib/admin-auth";
 import { getQuote, updateQuoteWith } from "@/lib/quotes-store";
 import { listProposalsForQuote } from "@/lib/proposals-store";
@@ -161,8 +162,7 @@ async function POST_semMedida(
   // rascunhos iguais no Moloni é o caminho para faturar o sinal duas vezes.
   // (Lido aqui para responder depressa; a garantia é a marca, mais abaixo.)
   const anterior = quote.faturasMoloni?.[fase];
-  const jaLaEsta = (e?: { documentId?: number; manual?: boolean }) =>
-    !!(e?.documentId || e?.manual);
+  const jaLaEsta = faturaJaEstaNoMoloni;
   if (jaLaEsta(anterior) && body.denovo !== true) {
     return NextResponse.json(
       {
