@@ -18,6 +18,9 @@
  *   --vistas      lista separada por vírgulas (por omissão, todas as de `VISTAS`)
  *   --larguras    por omissão 390,768,1440
  *   --aparencias  por omissão claro,escuro
+ *   --ecra 1      só o ecrã à vista, sem a página inteira (para as folhas que
+ *                 flutuam: na página inteira o Chromium estica a janela, e o
+ *                 que está preso ao fundo dela muda de sítio)
  *
  * ── COMO SE TORNA COMPARÁVEL ──────────────────────────────────────────────
  *
@@ -254,7 +257,11 @@ async function capturar(contexto, base, caso) {
   page.on("pageerror", (e) => erros.push(String(e)));
   try {
     await abrirCaso(page, base, caso);
-    const png = await page.screenshot({ fullPage: true, animations: "disabled", caret: "hide" });
+    const png = await page.screenshot({
+      fullPage: !args.ecra,
+      animations: "disabled",
+      caret: "hide",
+    });
     return { png, erros };
   } finally {
     await page.close();
