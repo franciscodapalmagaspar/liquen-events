@@ -1,7 +1,8 @@
 -- P7, tempo (2): copiar os códigos do `app_state` para `ligacoes_de_proposta`.
 --
--- Corre dentro de 20261118_p7_ligacoes_de_proposta.sql e corre-se OUTRA VEZ
--- depois de o código do P7 chegar a produção: entre a migração e o deploy, o
+-- Corre LOGO A SEGUIR a 20261118_p7_ligacoes_de_proposta.sql (que cria a tabela
+-- e não copia nada) e corre-se OUTRA VEZ depois de o código do P7 chegar a
+-- produção: entre a migração e o deploy, o
 -- código antigo cunha códigos só no `app_state`. Pode correr-se quantas vezes
 -- se quiser: não muda nenhuma linha do `app_state`, não duplica códigos, e
 -- acerta a coluna `atual` pelo inverso do `app_state`, que até ao tempo (4)
@@ -12,6 +13,11 @@
 -- código fica de fora, e o app_state continua a decidir por ele). Um código sem inverso entra com `atual = false`: é o que
 -- o `app_state` diz dele, sem inventar. Uma linha que já cá está acerta a
 -- validade e o corte pelos do app_state, que até ao tempo (4) é a fonte.
+--
+-- Precisa de Postgres ≥ 16 (`pg_input_is_valid`): produção é-o (correu lá a 18/11).
+-- Numa versão mais antiga falha logo, sem copiar nada (está numa transação).
+-- VOLTA: não tem — só insere e acerta colunas da tabela nova; a volta do P7
+-- (`….volta.sql`) apaga a tabela inteira.
 
 begin;
 

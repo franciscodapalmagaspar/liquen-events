@@ -16,8 +16,18 @@
 --
 -- Só troca o corpo da função; não toca em nenhuma linha.
 --
--- VOLTA: voltar a correr o `create or replace function` de
--- 20261118_p7_ligacoes_de_proposta.sql (o corpo sem o `pg_advisory_xact_lock`).
+-- VOLTA (só de emergência): voltar a correr o `create or replace function` de
+-- 20261118_p7_ligacoes_de_proposta.sql — o corpo sem o `pg_advisory_xact_lock`,
+-- que devolve a corrida que este ficheiro fecha. Não há outra razão para o
+-- desfazer.
+--
+-- Precisa de Postgres ≥ 11 (`hashtextextended`); produção é ≥ 16 (a cópia do P7,
+-- que usa `pg_input_is_valid`, correu lá a 18/11).
+-- Numa transação: a função e as permissões mudam juntas ou não mudam.
+-- (Aplicado em produção a 18/11; o `begin`/`commit` entrou depois, no
+-- ficheiro, sem nada a reaplicar.)
+
+begin;
 
 create or replace function public.gravar_ligacao_de_proposta(
   p_codigo text,
@@ -48,3 +58,5 @@ revoke execute on function public.gravar_ligacao_de_proposta(text, uuid, timesta
   from public, anon, authenticated;
 grant execute on function public.gravar_ligacao_de_proposta(text, uuid, timestamptz, timestamptz)
   to service_role;
+
+commit;

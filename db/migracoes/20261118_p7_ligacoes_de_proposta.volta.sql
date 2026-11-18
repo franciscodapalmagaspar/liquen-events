@@ -1,4 +1,8 @@
--- VOLTA de 20261118_p7_ligacoes_de_proposta.sql
+-- VOLTA de 20261118_p7_ligacoes_de_proposta.sql — SÓ DE EMERGÊNCIA.
+--
+-- Apaga a tabela e a função (e com ela o P7b). Só se o código já tiver voltado
+-- a ler só do `app_state`: com o código do P7 no ar, a leitura cai para o
+-- `app_state` sozinha, mas as escritas novas deixam de ir para a tabela.
 --
 -- O `app_state` continua completo enquanto o tempo (4) do P7 não se fizer: o
 -- código lê de lá quando a tabela não responde. Por isso a volta é, primeiro,
