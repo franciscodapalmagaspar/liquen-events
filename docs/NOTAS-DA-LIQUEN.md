@@ -360,13 +360,12 @@ com `sha256` (no ramo `codigo/fase-0-e-1`), o desenho foi aprovado por ela
 (`docs/PROPOSTA-WEB.md:90-96`). A proposta pesa 98 KB de JavaScript (tecto 160).
 O que falta:
 
-- **O gerador antigo não saiu:** `src/lib/proposal-doc-pdf.ts` (3 469 linhas)
-  continua importado por 4 ficheiros de produção. Dois só levam o tipo
-  `DocTruncation` (`pdf-editorial/montar.ts:10`, `moldura.ts:3`), mas
-  `src/lib/proposal-doc-render.ts:12-18` ainda usa `caixasDaCapa`,
-  `caixasDoCollage` e `renderProposalDocPdfWithReport`, e é esse módulo que as
-  rotas do envio, da página do rascunho e das fotografias do PDF chamam. O
-  `CLAUDE.md` diz que o antigo só fica «até um PR à parte o apagar».
+- **O gerador antigo saiu (18/11):** `src/lib/proposal-doc-pdf.ts` (3 469
+  linhas) e os testes e guiões de medição que só a ele diziam respeito. O tipo
+  `DocTruncation` vive em `pdf-editorial/cortes.ts`, e o `proposal-doc-render.ts`
+  só tem o caminho editorial. Ficam por limpar, num PR à parte, as funções que
+  só ele usava em `proposal-geometria.ts`, `proposal-image.ts` e
+  `proposal-storage.ts` (derivada da capa, miniaturas, caixas do collage).
 - **Poucos testes para o peso:** `lib/pdf-editorial` tem rácio 0,42 linhas de
   teste por linha de código, `lib/proposta-de-pdf` 0,49 (§2.9 do documento de
   estrutura).
@@ -380,7 +379,7 @@ O que falta:
 
 | # | Ponto | Tipo | Impacto · esforço | Critério de aceitação |
 |---|---|---|---|---|
-| 6.1 | Tirar as funções vivas do `proposal-doc-pdf.ts` para um módulo próprio e apagar o resto | infraestrutura | alto · M | `grep proposal-doc-pdf src` só em testes ou vazio; o teste de ouro do PDF igual |
+| 6.1 | ~~Tirar as funções vivas do `proposal-doc-pdf.ts` para um módulo próprio e apagar o resto~~ feito a 18/11 | infraestrutura | alto · M | `grep proposal-doc-pdf src` só em testes ou vazio; o teste de ouro do PDF igual |
 | 6.2 | Juntar o teste de ouro (`codigo/fase-0-e-1`) ao lote | infraestrutura | alto · P | Três PDFs presos por `sha256` no CI do lote |
 | 6.3 | Subir os testes do motor do PDF: um teste por regra de capítulo, de paleta e de disposição | infraestrutura | médio · M | Rácio de `lib/pdf-editorial` ≥ 0,8 |
 | 6.4 | A proposta do casal sem o `sharp` no pacote da função | infraestrutura | médio · P | `peso-das-rotas.mjs` diz que a rota da proposta não leva bibliotecas de imagem |

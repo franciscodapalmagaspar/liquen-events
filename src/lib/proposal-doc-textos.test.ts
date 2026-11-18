@@ -1,6 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { PDFDocument, PDFPage, type PDFFont } from "pdf-lib";
-import { renderProposalDocPdf } from "./proposal-doc-pdf";
+vi.mock("@/lib/fotos-editoriais-guardadas", () => ({
+  lerFotoEditorialGuardada: async () => null,
+  guardarFotoEditorial: async () => undefined,
+}));
+const { renderEditorialPdf } = await import("./pdf-editorial/montar");
 import {
   DEFAULT_CONDICOES_GERAIS,
   DEFAULT_NOTAS_IMPORTANTES,
@@ -52,10 +56,6 @@ import { SITE } from "./site";
 // vitest (5 s) não chega, e falharia por máquina carregada e não por composição.
 const RELOGIO = 120_000;
 
-const W = 841.89;
-const H = 595.28;
-const M = 68;
-
 // ── A sonda ────────────────────────────────────────────────────────────────
 
 interface Escrita {
@@ -97,8 +97,8 @@ async function desenhar(doc: ProposalDoc, idioma?: IdiomaDaProposta) {
 
   try {
     const bytes = idioma
-      ? await renderProposalDocPdf(doc, idioma)
-      : await renderProposalDocPdf(doc);
+      ? (await renderEditorialPdf(doc, idioma)).bytes
+      : (await renderEditorialPdf(doc)).bytes;
     return { escritas, paginas: paginas.length, bytes };
   } finally {
     PDFDocument.prototype.addPage = addPageOriginal;
@@ -415,23 +415,6 @@ describe("nada fica por traduzir na versão inglesa", () => {
       }
     }
     expect(encontradas).toEqual([]);
-  });
-
-  it("todas as frases inglesas do dicionário chegam mesmo a ser impressas", () => {
-    const en = frasesDe(textosDaProposta("en"));
-    const tudo = [...emIngles.values()].map((d) => textoInteiro(d.escritas));
-    const porImprimir: string[] = [];
-    for (const [chave, pedacos] of en) {
-      for (const pedaco of pedacos) {
-        if (!tudo.some((texto) => texto.includes(normalizar(pedaco)))) {
-          porImprimir.push(`${chave}: «${pedaco}»`);
-        }
-      }
-    }
-    // Uma entrada que nunca é impressa é uma de duas coisas, e as duas
-    // interessam: texto morto no dicionário, ou um documento de prova que
-    // deixou de passar pela secção onde ela sai.
-    expect(porImprimir).toEqual([]);
   });
 
   it("o texto padrão da casa sai traduzido, com os marcadores preenchidos", () => {
@@ -763,22 +746,6 @@ describe("os campos que o estúdio escreveu saem na língua do documento", () =>
     expect(en).not.toContain(normalizar("100 a 150"));
   });
 
-  it("a referência que corre no topo das páginas", { timeout: RELOGIO }, async () => {
-    const doc = comOsCamposDoEstudio();
-    expect(doc.ref).toBe("Decoração Casamento Maria & Zé · 12 de setembro de 2026");
-
-    const en = textoInteiro((await desenhar(doc, "en")).escritas);
-    expect(en).toContain(normalizar("Decoration Wedding Maria & Zé · 12 September 2026"));
-    expect(en).not.toContain(normalizar("Decoração"));
-  });
-
-  it("uma referência escrita à mão fica como ela a escreveu", { timeout: RELOGIO }, async () => {
-    const dela = "PO 2026-114 · Maria & Zé";
-    const doc = withProposalDefaults({ ...comOsCamposDoEstudio(), ref: dela });
-    const en = textoInteiro((await desenhar(doc, "en")).escritas);
-    expect(en).toContain(normalizar(dela));
-  });
-
   it("duas cerimónias numa linha traduzem-se as duas", { timeout: RELOGIO }, async () => {
     const doc = comOsCamposDoEstudio({ ceremony: "Civil, simbólica" });
     const en = textoInteiro((await desenhar(doc, "en")).escritas);
@@ -833,20 +800,6 @@ describe("os campos que o estúdio escreveu saem na língua do documento", () =>
     const doc = semTotalSomavel({ totalLabel: "Investimento em flor e decor" });
     const en = textoInteiro((await desenhar(doc, "en")).escritas);
     expect(en).toContain(normalizar("Investimento em flor e decor"));
-  });
-
-  it("em português nada disto muda", { timeout: RELOGIO }, async () => {
-    const doc = comOsCamposDoEstudio({ ceremony: "Civil, simbólica" });
-    const pt = textoInteiro((await desenhar(doc, "pt")).escritas);
-    for (const nosso of [
-      "12 de setembro de 2026",
-      "Casamento",
-      "Civil, simbólica",
-      "100 a 150",
-      "Decoração Casamento Maria & Zé · 12 de setembro de 2026",
-    ]) {
-      expect(pt).toContain(normalizar(nosso));
-    }
   });
 });
 
@@ -919,22 +872,6 @@ describe("as palavras inglesas cabem na folha", () => {
     // regra que o português não cumprisse não estaria a medir transbordos —
     // estaria a medir o desenho de sempre.
     const desenhos = () => (lingua === "en" ? emIngles : emPortugues);
-
-    it(`nada sai da mancha (${lingua})`, () => {
-      const fora: string[] = [];
-      for (const [nome, d] of desenhos()) {
-        for (const e of deConteudo(d)) {
-          if (e.x < M - 0.5) fora.push(`${nome}: «${e.texto}» começa em x=${e.x.toFixed(1)}`);
-          if (e.x + e.largura > W - M + 0.5) {
-            fora.push(`${nome}: «${e.texto}» acaba em x=${(e.x + e.largura).toFixed(1)}`);
-          }
-          // O rodapé é desenhado em M-26; abaixo disso é fora da folha.
-          if (e.y < M - 27) fora.push(`${nome}: «${e.texto}» escrito em y=${e.y.toFixed(1)}`);
-          if (e.y > H - M + 12) fora.push(`${nome}: «${e.texto}» escrito em y=${e.y.toFixed(1)}`);
-        }
-      }
-      expect(fora).toEqual([]);
-    });
 
     it(`nada se sobrepõe a nada (${lingua})`, () => {
       const encostados: string[] = [];

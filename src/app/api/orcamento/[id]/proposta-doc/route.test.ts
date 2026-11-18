@@ -108,7 +108,6 @@ vi.mock("@/lib/contracts-store", () => ({
 }));
 // The real renderer is server-only + rasterises a PDF; stub it to a byte or two.
 vi.mock("@/lib/proposal-doc-render", () => ({
-  renderStoredProposalDocPdf: vi.fn(async () => Buffer.from("%PDF-1.4")),
   // A rota passou a usar a variante que também conta as fotos que não
   // resolveram, para poder avisar antes de a proposta seguir para o cliente.
   renderStoredEditorialPdfWithReport: vi.fn(async () => {
