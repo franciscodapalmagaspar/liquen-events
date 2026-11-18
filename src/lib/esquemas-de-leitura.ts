@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { MemoriaComTecto } from "./memoria-com-tecto";
 import { pedidoLidoSchema } from "./orcamento/pedido.esquema";
 import { documentoLidoSchema } from "./proposal-doc.esquema";
 import { log } from "./logger";
@@ -39,24 +40,30 @@ export function formaDosProblemas(erro: z.ZodError): string[] {
   ].sort();
 }
 
+/** Os registos lidos com esquema, e o esquema de cada um. */
+export type TipoLido = "pedido" | "documento-do-estudio";
+const ESQUEMAS: Record<TipoLido, z.ZodType> = {
+  pedido: pedidoLidoSchema,
+  "documento-do-estudio": documentoLidoSchema,
+};
+
 /** Já registados, para cada forma estragada ir ao registo uma vez por processo. */
-const jaRegistados = new Set<string>();
-const TECTO_DE_REGISTADOS = 500;
+const jaRegistados = new MemoriaComTecto<string, true>(500);
 
 /**
  * Já verificados nesta versão. Uma lista lê todos os pedidos de cada vez, e
  * verificar o mesmo pedido, sem mudanças, em cada pedido HTTP era processador
  * gasto para nada (regra 7). A `versao` é o carimbo de alteração do registo.
+ * Cheia, esquece o verificado há mais tempo (e não todos de uma vez).
  */
-const jaVerificados = new Map<string, boolean>();
-const TECTO_DE_VERIFICADOS = 5000;
+const jaVerificados = new MemoriaComTecto<string, boolean>(5000);
 
 /**
  * Verifica `valor` e, se não tiver a forma, regista-o. Nunca lança e nunca
  * muda o valor. Devolve se passou (para os testes; quem lê não precisa).
  */
 export function registarSeForaDoEsquema(
-  tipo: "pedido" | "documento-do-estudio",
+  tipo: TipoLido,
   id: string,
   valor: unknown,
   /** O carimbo de alteração; sem ele verifica-se sempre. */
@@ -64,20 +71,15 @@ export function registarSeForaDoEsquema(
 ): boolean {
   // Sem id ou sem carimbo não há como saber se é o mesmo registo: verifica-se.
   const visto = id && versao ? `${tipo}|${id}|${versao}` : null;
-  const antes = visto ? jaVerificados.get(visto) : undefined;
+  const antes = visto ? jaVerificados.ler(visto) : undefined;
   if (antes !== undefined) return antes;
-  const schema = tipo === "pedido" ? pedidoLidoSchema : documentoLidoSchema;
-  const r = schema.safeParse(valor);
-  if (visto) {
-    if (jaVerificados.size >= TECTO_DE_VERIFICADOS) jaVerificados.clear();
-    jaVerificados.set(visto, r.success);
-  }
+  const r = ESQUEMAS[tipo].safeParse(valor);
+  if (visto) jaVerificados.guardar(visto, r.success);
   if (r.success) return true;
   const problemas = formaDosProblemas(r.error);
   const chave = `${tipo}|${id}|${problemas.join(",")}`;
-  if (!jaRegistados.has(chave)) {
-    if (jaRegistados.size >= TECTO_DE_REGISTADOS) jaRegistados.clear();
-    jaRegistados.add(chave);
+  if (!jaRegistados.tem(chave)) {
+    jaRegistados.guardar(chave, true);
     log.warn("leitura fora do esquema (só registo, nada foi recusado)", {
       tipo,
       id,
