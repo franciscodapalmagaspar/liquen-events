@@ -140,8 +140,12 @@ antes e depois (linhas, complexidade, peso das rotas).
    `estado: "enviada"`, mesmo quando a irmã que reconheceu já ficou «aceite» (o pedido
    estava Ganho) — e o contrato diz «o estado em que a proposta FICOU». E o
    `pedidoError` de `depois-do-email.ts` começa por «O email seguiu para o cliente»
-   também quando o email não saiu (avaria ou WhatsApp). Corrigem-se num PR próprio, com
-   o retrato desses casos a mudar e dito.
+   também quando o email não saiu (avaria ou WhatsApp). A 5.ª ronda do júri achou mais
+   três do mesmo género: o endereço com um espaço no fim é válido para o aviso do
+   destinatário (que apara) e inválido para a trava (que não apara); o aviso de
+   colunas perdidas na gravação (`docError` com `docSaved: true`) não chega à resposta;
+   e um `ref`/`clientNames` que não é texto passa a fronteira e só rebenta depois de
+   gravar. Corrigem-se num PR próprio, com o retrato desses casos a mudar e dito.
 12. **O «sim» antigo às fotos (`FIM_DO_SIM_ANTIGO`, até 18/11) é andaime com data**:
    a pergunta, a leitura e o esquema aceitam o `true` e, a partir de 19/11, só a
    pergunta o recusa. Tira-se num PR logo a seguir (as três linhas e os testes do

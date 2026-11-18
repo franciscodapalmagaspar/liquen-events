@@ -13,7 +13,12 @@ const PODE_CORRER_NO_BROWSER = new Set(["@/lib/todos-os-valores"]);
 describe("o contrato da rota pode ir para o browser", () => {
   it("só importa tipos, e módulos sem zod nem servidor", () => {
     const fonte = readFileSync(path.join(import.meta.dirname, "contrato.ts"), "utf8");
-    const importacoes = [...fonte.matchAll(/^import\s+(type\s+)?[^;]*?from\s+"([^"]+)";/gm)];
+    // `import … from`, `export … from` e `import "x"` sem nada: tudo o que
+    // pode trazer um módulo para o pacote.
+    const importacoes = [
+      ...fonte.matchAll(/^(?:import|export)\s+(type\s+)?[^;]*?from\s+"([^"]+)";/gm),
+      ...fonte.matchAll(/^import\s+()"([^"]+)";/gm),
+    ];
     expect(importacoes.length).toBeGreaterThan(0);
     const queCorrem = importacoes.filter(([, soTipo]) => !soTipo).map(([, , modulo]) => modulo);
     expect(queCorrem.filter((m) => !PODE_CORRER_NO_BROWSER.has(m))).toEqual([]);

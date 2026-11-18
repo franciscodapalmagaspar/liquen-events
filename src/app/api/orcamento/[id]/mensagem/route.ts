@@ -9,6 +9,7 @@ import { linguaDoPedido } from "@/lib/email-rodape-legal";
 import { assinaturaDeQuemEnvia } from "@/lib/email-quem-assina";
 import { isAuthed } from "@/lib/admin-auth";
 import { log } from "@/lib/logger";
+import { pareceEmail } from "@/lib/parece-email";
 
 export const runtime = "nodejs";
 
@@ -187,7 +188,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
      * geração da proposta. A mensagem é gravada NOS DOIS casos — é o registo
      * de que ela respondeu, e é ele que lhe permite decidir se telefona.
      */
-    const temDestinatario = !!quote.email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(quote.email);
+    const temDestinatario = pareceEmail(quote.email);
     let mail = { sent: false };
     let emailError: string | undefined;
     if (!temDestinatario) {

@@ -168,6 +168,7 @@ import NotasInternas from "./NotasInternas";
 import { MenuDeAccoes } from "./ui/MenuDeAccoes";
 import AvisoDataOcupada from "./AvisoDataOcupada";
 import { estadoDasSeccoes, oQueFaltaParaEnviar, podeEnviar } from "@/lib/proposal-progress";
+import { pareceEmail } from "@/lib/parece-email";
 import { hojeNoEstudio } from "@/lib/fuso";
 import {
   FRASE_DO_ESTADO,
@@ -7309,12 +7310,11 @@ export default function ProposalStudio({
   /**
    * Há destinatário para esta proposta?
    *
-   * A MESMA regra do servidor (ver a rota do envio): um endereço com arroba e
-   * um ponto no domínio. Não é uma validação a sério — é a que distingue «não
-   * há email nenhum» de «há». Se as duas discordassem, o ecrã dizia que ia
-   * seguir e o servidor não o mandava.
+   * A MESMA regra do servidor (`pareceEmail`): distingue «não há email nenhum»
+   * de «há». Se as duas discordassem, o ecrã dizia que ia seguir e o servidor
+   * não o mandava.
    */
-  const emailDoCliente = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(quote.email ?? "");
+  const emailDoCliente = pareceEmail(quote.email);
 
   // Sugestões e a validade por omissão. Uma leitura só, ao abrir; se falhar,
   // o estúdio funciona como antes — nenhuma destas coisas é indispensável.

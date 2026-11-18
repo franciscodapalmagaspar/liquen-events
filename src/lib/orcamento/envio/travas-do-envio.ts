@@ -30,7 +30,40 @@ import type { EnvioDaProposta } from "./envio-da-proposta";
  */
 
 /**
- * Os erros do estúdio que a rota também recusa — ver «O QUE TRAVA NO ESTÚDIO».
+ * As travas das FOTOGRAFIAS (14/11). Uma foto que ela escolheu para uma página
+ * e que já não existe: o PDF deixava de a mostrar e punha outra em silêncio
+ * (confere-se no armazenamento, com `fotosEscolhidasQueFaltam`). E uma
+ * escolhida (ou a capa) que o tecto de fotos do PDF deixaria de fora: a mesma
+ * regra pura do motor, `fotosNoTectoDoPdf`.
+ */
+const DAS_FOTOGRAFIAS = ["foto-escolhida-em-falta", "fotos-a-mais"] as const;
+/** As travas que são das fotografias (a frase do PDF final di-lo). */
+const SAO_DAS_FOTOGRAFIAS: ReadonlySet<string> = new Set(DAS_FOTOGRAFIAS);
+
+/**
+ * O que trava também o PDF FINAL descarregado (5/11). Ela: «não quero que o
+ * sistema deixe enviar uma proposta sem colocar os valores todos». O PDF final
+ * descarregado é outra forma de a enviar (por email à mão, pelo WhatsApp), por
+ * isso sem o preço e o artigo de cada linha — ou com uma foto escolhida em
+ * falta — só sai o RASCUNHO, marcado como tal em cada página. O estúdio já não
+ * oferece o final nesse caso; isto é a mesma regra do lado do servidor, para
+ * um estúdio antigo noutra aba.
+ */
+const DO_PDF_FINAL = [
+  // O preço e o artigo do Moloni de cada linha, e as linhas a somar o total
+  // (5/11): sem isto a faturação não sai feita da proposta.
+  "linhas-do-orcamento",
+  "precos-das-linhas",
+  "artigos-moloni",
+  "soma",
+  ...DAS_FOTOGRAFIAS,
+] as const;
+export const TRAVAM_O_PDF_FINAL: ReadonlySet<string> = new Set(DO_PDF_FINAL);
+
+/**
+ * Os erros do estúdio que a rota também recusa no ENVIO — ver «O QUE TRAVA NO
+ * ESTÚDIO». Tudo o que trava o PDF final trava também o envio: por
+ * construção, e não por cópia.
  *
  * São ids da regra (`oQueFaltaParaEnviar`), e o tipo não os prende
  * (`Impedimento.id` é texto). Prende-os `travas-do-envio.test.ts`, pelo
@@ -47,44 +80,7 @@ export const TRAVAM_NO_SERVIDOR: ReadonlySet<string> = new Set([
   // «Ver o PDF primeiro» (14/10): o envio leva a chave do PDF final que ela
   // descarregou e confirmou — ver `chaveDoQueChegou`, em `documento-do-envio`.
   "visto",
-  // O preço e o artigo do Moloni de cada linha, e as linhas a somar o total
-  // (5/11): sem isto a faturação não sai feita da proposta.
-  "linhas-do-orcamento",
-  "precos-das-linhas",
-  "artigos-moloni",
-  "soma",
-  // Uma foto que ela escolheu para uma página e que já não existe (14/11): o
-  // PDF deixava de a mostrar e punha outra em silêncio. Confere-se aqui, no
-  // armazenamento, com `fotosEscolhidasQueFaltam`.
-  "foto-escolhida-em-falta",
-  // Uma escolhida (ou a capa) que o tecto de fotos do PDF deixaria de fora
-  // (14/11): a mesma regra pura do motor, `fotosNoTectoDoPdf`.
-  "fotos-a-mais",
-]);
-
-/**
- * O que trava também o PDF FINAL descarregado (5/11). Ela: «não quero que o
- * sistema deixe enviar uma proposta sem colocar os valores todos». O PDF final
- * descarregado é outra forma de a enviar (por email à mão, pelo WhatsApp), por
- * isso sem o preço e o artigo de cada linha só sai o RASCUNHO, marcado como
- * tal em cada página. O estúdio já não oferece o final nesse caso; isto é a
- * mesma regra do lado do servidor, para um estúdio antigo noutra aba.
- */
-export const TRAVAM_O_PDF_FINAL: ReadonlySet<string> = new Set([
-  "linhas-do-orcamento",
-  "precos-das-linhas",
-  "artigos-moloni",
-  "soma",
-  // A foto que ela escolheu e já não existe: o PDF final sairia com o lugar
-  // vazio. O estúdio já só oferece o rascunho nesse caso (a mesma lista).
-  "foto-escolhida-em-falta",
-  "fotos-a-mais",
-]);
-
-/** As travas que são das FOTOGRAFIAS (a frase do PDF final diz-lo). */
-const SAO_DAS_FOTOGRAFIAS: ReadonlySet<string> = new Set([
-  "foto-escolhida-em-falta",
-  "fotos-a-mais",
+  ...DO_PDF_FINAL,
 ]);
 
 /**
