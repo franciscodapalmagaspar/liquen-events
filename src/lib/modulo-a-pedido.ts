@@ -10,12 +10,14 @@
  *
  *   • `aquecer()` vai buscá-lo e guarda-o. Idempotente; uma falha de rede não
  *     fica — a próxima chamada tenta outra vez.
- *   • `usar(f)` chama `f` com o módulo: já, se ele já cá está; quando chegar,
- *     se não. O que precisa do gesto vivo (abrir uma janela) faz-se ANTES de
- *     chamar o `usar`, no clique — ver `imprimir-a-pedido.ts`.
+ *   • `usar(f)` chama `f` com o módulo, quando ele estiver cá. O que precisa do
+ *     gesto vivo (abrir uma janela) faz-se ANTES de chamar o `usar`, no
+ *     clique — ver `imprimir-a-pedido.ts`.
  *
- * Devolve se `f` chegou a correr: `false` é o código que não veio (sem rede, ou
- * um deploy que o apagou), e quem chamou diz-lho — com `AVISO_SEM_LIGACAO`.
+ * Devolve `false` se o código não veio; se `f` rebentar, a promessa rejeita.
+ *
+ * `false` é o código que não veio (sem rede, ou um deploy que o apagou), e quem
+ * chamou diz-lho — com `AVISO_SEM_LIGACAO`.
  *
  * O `janelaAPedido` (as janelas que desenham) constrói-se sobre este.
  */
@@ -49,17 +51,14 @@ export function moduloAPedido<M>(carregar: () => Promise<M>): ModuloAPedido<M> {
     return aCaminho;
   };
 
-  const usar = (f: (modulo: M) => void): Promise<boolean> => {
-    if (chegou) {
-      f(chegou);
-      return Promise.resolve(true);
-    }
-    return aquecer().then((modulo) => {
+  // Sempre por uma promessa, mesmo com o módulo já cá: um `f` que rebenta
+  // rejeita-a (e quem chama apanha), em vez de sair a meio de quem chamou.
+  const usar = (f: (modulo: M) => void): Promise<boolean> =>
+    aquecer().then((modulo) => {
       if (!modulo) return false;
       f(modulo);
       return true;
     });
-  };
 
   return { aquecer, usar, presente: () => chegou };
 }

@@ -1,5 +1,6 @@
 import type { Quote, QuoteStatus } from "@/lib/orcamento/types";
-import { comLimite, ESCRITAS_EM_SIMULTANEO } from "../com-limite";
+import { comLimite } from "@/lib/concorrencia";
+import { ESCRITAS_EM_SIMULTANEO } from "@/lib/orcamento/pedidos/regras-da-lista";
 import { reporEstadoDoPedido } from "../anular-estado";
 import { ARQUIVAR_SEM_PERGUNTAR } from "@/lib/orcamento/pedidos/regras-da-lista";
 import { type Dispatch, type RefObject, type SetStateAction } from "react";
@@ -99,7 +100,7 @@ export function useAccoesEmLote({
     // O estado de cada um ANTES — é para onde o «Anular» os leva de volta.
     const antes = new Map(quotes.filter((q) => ids.includes(q.id)).map((q) => [q.id, q.status]));
     try {
-      // N de cada vez (revisão · 3): ver `com-limite.ts`. A contagem sobe à
+      // N de cada vez (revisão · 3): ver `lib/concorrencia.ts`. A contagem sobe à
       // medida que cada pedido responde.
       const results = await comLimite(ids, ESCRITAS_EM_SIMULTANEO, (id) =>
         fetch(`/api/orcamento/${id}`, {
@@ -128,7 +129,7 @@ export function useAccoesEmLote({
       if (ok > 0) {
         // «Anular» repõe cada um no estado em que estava (e desfaz o Ganho dos
         // que lá foram por este gesto). Ver `anular-estado.ts`.
-        anular(plural(ok, "pedido atualizado", "pedidos atualizados"), async () => {
+        anular(`${ok} pedido${ok !== 1 ? "s" : ""} atualizado${ok !== 1 ? "s" : ""}`, async () => {
           /* Só volta quem AINDA está no estado que este gesto pôs, e tinha
              outro antes. Um «Anular» carregado depois de o pedido ter mudado
              outra vez repunha-o por cima do gesto novo — e desfazia um «Ganho»
@@ -153,7 +154,7 @@ export function useAccoesEmLote({
           if (mudaramOutraVez.length > 0) {
             const n = mudaramOutraVez.length;
             avisos.push(
-              `${plural(n, "pedido já tinha mudado outra vez e ficou como está", "pedidos já tinham mudado outra vez e ficaram como estão")}.`,
+              `${n} pedido${n !== 1 ? "s" : ""} já tinha${n !== 1 ? "m" : ""} mudado outra vez e ficou como está.`,
             );
           }
           if (porId.size < vaoVoltar.length) {
@@ -166,7 +167,7 @@ export function useAccoesEmLote({
       }
       if (failed > 0) {
         toast(
-          `${plural(failed, "pedido não mudou e fica selecionado", "pedidos não mudaram e ficam selecionados")}. Verifica a ligação e tenta outra vez.`,
+          `${failed} pedido${failed !== 1 ? "s" : ""} não mudaram e ficam selecionados. Verifica a ligação e tenta outra vez.`,
           "error",
         );
       }
@@ -253,7 +254,7 @@ export function useAccoesEmLote({
       }
       if (failed > 0) {
         toast(
-          `${plural(failed, `pedido não foi ${arquivar ? "arquivado" : "restaurado"} e fica selecionado`, `pedidos não foram ${arquivar ? "arquivados" : "restaurados"} e ficam selecionados`)}. Verifica a ligação e tenta outra vez.`,
+          `${failed} pedido${failed !== 1 ? "s" : ""} não ${arquivar ? "foram arquivados" : "foram restaurados"} e ficam selecionados. Verifica a ligação e tenta outra vez.`,
           "error",
         );
       }
@@ -319,14 +320,11 @@ export function useAccoesEmLote({
       if (failed === 0) {
         depoisDeApagarVarios(
           apagados.map((x) => x.corpo),
-          `${plural(ok, "pedido apagado", "pedidos apagados")}.`,
+          `${ok} pedido${ok !== 1 ? "s" : ""} apagado${ok !== 1 ? "s" : ""}.`,
           () => void revalidarPedidos(true),
         );
       } else {
-        toast(
-          `${plural(ok, "apagado", "apagados")}, ${plural(failed, "falhou", "falharam")}`,
-          "error",
-        );
+        toast(`${ok} apagado(s), ${failed} falhou(ram)`, "error");
       }
       esquecerDaSeleccao(ids);
     } finally {

@@ -94,9 +94,13 @@ function principal() {
     );
     process.exit(1);
   }
+  // A lista só encolhe — e encolhe NO PR que partiu o ciclo, como a catraca do
+  // tamanho: um conhecido que ficasse na lista depois de resolvido voltava a
+  // ser aceite em silêncio no dia em que reaparecesse.
   if (resolvidos.length) {
-    console.log("Estes ciclos já não existem — tira-os de CICLOS_CONHECIDOS:");
-    for (const c of resolvidos) console.log(`  · ${c}`);
+    console.error("Estes ciclos já não existem — tira-os de CICLOS_CONHECIDOS:");
+    for (const c of resolvidos) console.error(`  · ${c}`);
+    process.exit(1);
   }
   if (novos.length) {
     console.error("Ciclos de importação NOVOS (só valores):");
@@ -106,7 +110,7 @@ function principal() {
     );
     process.exit(1);
   }
-  console.log(`✓ nenhum ciclo novo (${CICLOS_CONHECIDOS.length - resolvidos.length} conhecidos)`);
+  console.log(`✓ nenhum ciclo novo (${CICLOS_CONHECIDOS.length} conhecidos)`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) principal();

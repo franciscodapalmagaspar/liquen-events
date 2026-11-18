@@ -57,6 +57,18 @@ export function lerPainel(
 }
 
 /**
+ * O texto de um campo mudou? APARADO DOS DOIS LADOS: um espaço a mais no fim —
+ * o que acontece a quem cola de um email, ou o que veio de uma importação —
+ * não é uma alteração dela (achado F-08 de uma auditoria em produção). A mesma
+ * pergunta para o «o que falta gravar» e para o corpo do «Guardar»: eram duas
+ * respostas, e um nome importado com um espaço no fim era reescrito no
+ * servidor, com uma linha no histórico, sem ela lhe ter tocado (júri, 17/11).
+ */
+export function textoMudou(escrito: string, gravado: string | null | undefined): boolean {
+  return escrito.trim() !== (gravado ?? "").trim();
+}
+
+/**
  * ════════════════════════════════════════════════════════════════════════════
  * O PEDIDO VOLTOU DO SERVIDOR — QUE CAMPOS DO PAINEL O SEGUEM
  * ════════════════════════════════════════════════════════════════════════════
@@ -66,13 +78,13 @@ export function lerPainel(
  * mostra o que o pedido tinha antes — segue o servidor; o que ela mexeu fica,
  * porque é trabalho dela à espera de «Guardar».
  */
-export function seguirOServidor(noEcra: string, antes: string, depois: string): string {
+export function seguirOServidor<T extends string>(noEcra: T, antes: T, depois: T): T {
   return noEcra === antes ? depois : noEcra;
 }
 
 /** Os campos do painel que seguem o servidor, como o painel os escreve. */
 export interface CamposQueSeguemOServidor {
-  status: string;
+  status: QuoteStatus;
   preco: string;
   responsavel: string;
   data: string;

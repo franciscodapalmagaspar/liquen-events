@@ -6,7 +6,8 @@ const printEventDossier = vi.fn();
 const downloadEventIcs = vi.fn();
 vi.mock("./export", () => ({ printRunSheet, printEventDossier, downloadEventIcs }));
 
-const { imprimirOPedido, descarregarOCalendario } = await import("./imprimir-a-pedido");
+const { imprimirOPedido, descarregarOCalendario, FOLHA_FALHOU } =
+  await import("./imprimir-a-pedido");
 
 const pedido = { id: "LQ-1", name: "Ana e Rui" } as Quote;
 
@@ -58,5 +59,17 @@ describe("imprimir o pedido com o código a pedido", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(printRunSheet).not.toHaveBeenCalled();
     expect(avisar).not.toHaveBeenCalled();
+  });
+
+  it("se a folha rebentar a escrever-se, a janela fecha-se e diz-se — e não «sem ligação»", async () => {
+    const janela = { closed: false, close: vi.fn() } as unknown as Window;
+    vi.stubGlobal("window", { open: vi.fn(() => janela) });
+    printEventDossier.mockImplementationOnce(() => {
+      throw new Error("dados estranhos");
+    });
+    const avisar = vi.fn();
+    expect(() => imprimirOPedido("dossier", pedido, avisar)).not.toThrow();
+    await vi.waitFor(() => expect(avisar).toHaveBeenCalledWith(FOLHA_FALHOU, "error"));
+    expect(janela.close).toHaveBeenCalled();
   });
 });

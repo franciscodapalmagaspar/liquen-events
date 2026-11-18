@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import type { Quote } from "@/lib/orcamento/types";
 import { LIST_PAGE_SIZE } from "@/lib/orcamento/pedidos/regras-da-lista";
 import { type FiltrosDaLista } from "./useFiltrosDosPedidos";
@@ -39,16 +39,21 @@ export function usePaginaDaLista({ filtros }: EntradasPaginaDaLista) {
    * verdades sobre a mesma coisa.
    */
   const [inicioDoLote, setInicioDoLote] = useState<number | null>(null);
-  useEffect(() => {
+  /*
+   * Qualquer filtro que mude (o `criterios` muda quando muda algum — ver
+   * `useFiltrosDosPedidos`) põe a página no princípio, e uma lista que voltou
+   * ao princípio não tem lote novo nenhum: sem isto, a marca antiga ficava
+   * pendurada e as primeiras linhas de uma procura nova entravam como se
+   * tivessem acabado de ser acrescentadas. Ajusta-se durante o desenho, que é
+   * o padrão do React para «repor quando uma chave muda» — sem um desenho a
+   * mais com a página velha por cima da lista nova.
+   */
+  const [criteriosDaPagina, setCriteriosDaPagina] = useState(criterios);
+  if (criteriosDaPagina !== criterios) {
+    setCriteriosDaPagina(criterios);
     setVisibleCount(LIST_PAGE_SIZE);
-    // Uma lista que voltou ao princípio não tem lote novo nenhum: sem isto, a
-    // marca antiga ficava pendurada e as primeiras linhas de uma procura nova
-    // entravam como se tivessem acabado de ser acrescentadas.
     setInicioDoLote(null);
-    // Qualquer filtro: o `criterios` muda quando muda algum (ver
-    // `useFiltrosDosPedidos`). Enumerados à mão, os quatro do BO 4 ficaram de
-    // fora, e escolher um mês depois de «Mostrar mais» deixava a página a meio.
-  }, [criterios]);
+  }
   const visibleQuotes = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   /**
    * Os ids do lote novo — e nada quando não há lote novo.

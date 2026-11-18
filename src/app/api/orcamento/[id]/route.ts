@@ -24,6 +24,7 @@ import { canonizar } from "@/lib/proposta-versao";
 import { normalizarTelefone } from "@/lib/contacto-do-pedido";
 import { dominioRecebeEmail } from "@/lib/dominio-do-email";
 import { getDictionary } from "@/lib/i18n";
+import { juntarAoHistorico } from "@/lib/orcamento/juntar-ao-historico";
 
 // The store is server-only and reaches for node:crypto — pin the Node runtime.
 export const runtime = "nodejs";
@@ -465,9 +466,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
         const proximo: Quote = { ...fresco, ...updates };
         if (querAppend) {
-          proximo.activityLog = [...(fresco.activityLog ?? []), ...(activityLogAppend ?? [])].slice(
-            -5000,
-          );
+          // Uma vez cada: o «Guardar» repete o PATCH quando a resposta não chega.
+          proximo.activityLog = juntarAoHistorico(fresco.activityLog, activityLogAppend ?? []);
         }
         if (podeMudarEstado) {
           try {

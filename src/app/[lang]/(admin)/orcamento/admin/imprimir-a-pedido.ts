@@ -32,15 +32,18 @@ export const aquecerImpressao = (): void => {
 
 export type FolhaDoPedido = "timeline" | "dossier";
 
+/** Quando o código chegou mas a folha não se conseguiu escrever. */
+export const FOLHA_FALHOU = "Não foi possível preparar a folha para imprimir.";
+
 export function imprimirOPedido(folha: FolhaDoPedido, q: Quote, avisar: Avisar): void {
   const janela = abrirJanelaDeImpressao(
     folha === "timeline" ? JANELA_DA_TIMELINE : JANELA_DO_DOSSIER,
   );
   // Bloqueada mesmo assim (um bloqueador de janelas): como antes, nada a fazer.
   if (!janela) return;
-  const falhou = () => {
+  const falhou = (porque: string) => {
     if (!janela.closed) janela.close();
-    avisar(AVISO_SEM_LIGACAO, "error");
+    avisar(porque, "error");
   };
   void impressao
     .usar((m) => {
@@ -50,16 +53,23 @@ export function imprimirOPedido(folha: FolhaDoPedido, q: Quote, avisar: Avisar):
       if (folha === "timeline") m.printRunSheet(q, janela);
       else m.printEventDossier(q, janela);
     })
-    .then((chegou) => {
-      if (!chegou) falhou();
-    }, falhou);
+    .then(
+      (chegou) => {
+        if (!chegou) falhou(AVISO_SEM_LIGACAO);
+      },
+      // O código chegou e a folha rebentou a escrever-se: não é a rede.
+      () => falhou(FOLHA_FALHOU),
+    );
 }
 
 /** O evento em .ics: um descarregamento, que não precisa do gesto vivo. */
 export function descarregarOCalendario(q: Quote, avisar: Avisar): void {
   void impressao
     .usar((m) => m.downloadEventIcs(q))
-    .then((chegou) => {
-      if (!chegou) avisar(AVISO_SEM_LIGACAO, "error");
-    });
+    .then(
+      (chegou) => {
+        if (!chegou) avisar(AVISO_SEM_LIGACAO, "error");
+      },
+      () => avisar(FOLHA_FALHOU, "error"),
+    );
 }

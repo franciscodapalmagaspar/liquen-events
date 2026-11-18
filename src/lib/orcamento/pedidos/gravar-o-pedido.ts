@@ -1,7 +1,7 @@
 import { eur0 } from "@/lib/money";
 import { ROTULO_DO_ESTADO } from "@/lib/orcamento/estado-do-pedido";
 import type { ActivityEntry, Quote, QuoteStatus } from "@/lib/orcamento/types";
-import type { PainelEscrito } from "./painel-do-pedido";
+import { textoMudou, type PainelEscrito } from "./painel-do-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -103,20 +103,20 @@ export function linhasDoHistorico(
   if (escrito.convidados !== antes.guests) {
     linha("note_added", `Convidados: ${antes.guests} → ${escrito.convidados}`);
   }
-  if ((escrito.local.trim() || "") !== (antes.location ?? "") && escrito.local.trim()) {
+  if (textoMudou(escrito.local, antes.location) && escrito.local.trim()) {
     linha("note_added", `Local: ${escrito.local.trim()}`);
   }
   // O que mudou nos contactos fica no registo, como tudo o resto que se altera
   // à mão: daqui a três meses ninguém se lembra de quem acrescentou o email.
-  if (escrito.email.trim() !== (antes.email ?? "")) {
+  if (textoMudou(escrito.email, antes.email)) {
     const novo = escrito.email.trim();
     linha("note_added", novo ? `Email do cliente: ${novo}` : "Email do cliente removido");
   }
-  if (escrito.telefone.trim() !== (antes.phone ?? "")) {
+  if (textoMudou(escrito.telefone, antes.phone)) {
     const novo = escrito.telefone.trim();
     linha("note_added", novo ? `Telefone do cliente: ${novo}` : "Telefone do cliente removido");
   }
-  if (escrito.nome.trim() !== (antes.name ?? "") && escrito.nome.trim()) {
+  if (textoMudou(escrito.nome, antes.name) && escrito.nome.trim()) {
     linha("note_added", `Nome do cliente: ${antes.name} → ${escrito.nome.trim()}`);
   }
   return linhas;
@@ -158,11 +158,11 @@ export function corpoDaGravacao(
   if (escrito.data !== (antes.date ?? "")) corpo.date = escrito.data;
   if (escrito.convidados !== antes.guests) corpo.guests = escrito.convidados;
   const local = escrito.local.trim();
-  if (local !== (antes.location ?? "")) corpo.location = local;
+  if (textoMudou(local, antes.location)) corpo.location = local;
   // Os contactos vão APARADOS e sempre que mudarem — incluindo para vazio.
-  if (escrito.nome.trim() !== (antes.name ?? "")) corpo.name = escrito.nome.trim();
-  if (escrito.email.trim() !== (antes.email ?? "")) corpo.email = escrito.email.trim();
-  if (escrito.telefone.trim() !== (antes.phone ?? "")) corpo.phone = escrito.telefone.trim();
+  if (textoMudou(escrito.nome, antes.name)) corpo.name = escrito.nome.trim();
+  if (textoMudou(escrito.email, antes.email)) corpo.email = escrito.email.trim();
+  if (textoMudou(escrito.telefone, antes.phone)) corpo.phone = escrito.telefone.trim();
   // Acrescentadas no servidor, nunca o histórico inteiro: duas ferramentas a
   // gravar ao mesmo tempo nunca se sobrescrevem.
   if (linhas.length > 0) corpo.activityLogAppend = linhas;

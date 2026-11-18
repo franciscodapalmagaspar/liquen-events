@@ -1,5 +1,5 @@
 import type { Quote } from "@/lib/orcamento/types";
-import type { PainelDoPedido } from "./painel-do-pedido";
+import { textoMudou, type PainelDoPedido } from "./painel-do-pedido";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════
@@ -44,13 +44,11 @@ export function oQueFaltaGravar(antes: Quote | null, e: PainelDoPedido): OQueFal
     (motivoVaiComADecisao && motivoMudou) ||
     e.data !== (antes.date ?? "") ||
     e.convidados !== String(antes.guests ?? "") ||
-    // APARADOS DOS DOIS LADOS, como o corpo do PATCH os compara: um espaço a
-    // mais no fim — o que acontece a quem cola de um email — não é uma
-    // alteração dela (achado F-08 de uma auditoria em produção).
-    e.local.trim() !== (antes.location ?? "").trim() ||
-    e.nome.trim() !== (antes.name ?? "").trim() ||
-    e.email.trim() !== (antes.email ?? "").trim() ||
-    e.telefone.trim() !== (antes.phone ?? "").trim();
+    // Aparados dos dois lados, como o corpo do PATCH os compara (`textoMudou`).
+    textoMudou(e.local, antes.location) ||
+    textoMudou(e.nome, antes.name) ||
+    textoMudou(e.email, antes.email) ||
+    textoMudou(e.telefone, antes.phone);
   const porEscrever =
     e.notas !== (antes.adminNotes ?? "") || (!motivoVaiComADecisao && motivoMudou);
   return { motivoVaiComADecisao, porConfirmar, porEscrever };

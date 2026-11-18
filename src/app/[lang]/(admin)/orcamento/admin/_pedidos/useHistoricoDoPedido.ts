@@ -104,7 +104,7 @@ export function useHistoricoDoPedido({
     const aberto = selectedRef.current;
     if (aberto?.id === id) {
       const anterior = aberto.status;
-      setEditStatus((e) => seguirOServidor(e, anterior, status) as QuoteStatus);
+      setEditStatus((e) => seguirOServidor(e, anterior, status));
     }
     setSelected((prev) => (prev?.id === id ? { ...prev, status } : prev));
   }

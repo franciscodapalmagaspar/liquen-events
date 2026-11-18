@@ -2,6 +2,16 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+/** O que nenhuma casa do back office (`_casca`, `_pedidos`, `_temas`) importa. */
+const fronteiraDaCasa = [
+  {
+    group: ["**/AdminClient", "**/Temas", "**/ThemePicker"],
+    caseSensitive: true,
+    message:
+      "Uma casa não importa o ficheiro que a compõe (fazia um ciclo): o que ela precisa desce por props, por contexto ou por um módulo próprio.",
+  },
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -123,73 +133,36 @@ const eslintConfig = defineConfig([
   },
   // 2. As casas não importam o ficheiro que as tem, nem o interior umas das
   //    outras — só a `_casca`, que compõe, olha para as acções dos pedidos.
-  {
-    files: [
-      "src/app/**/orcamento/admin/_pedidos/**/*.{ts,tsx}",
-      "src/app/**/orcamento/admin/_temas/**/*.{ts,tsx}",
-      "src/app/**/orcamento/admin/_casca/**/*.{ts,tsx}",
+  //    Num flat config, um bloco posterior SUBSTITUI as opções da mesma regra:
+  //    por isso a fronteira comum é UMA constante (`fronteiraDaCasa`), e cada
+  //    casa acrescenta-lhe as suas — um padrão novo ali vale para as três.
+  ...[
+    ["_casca", []],
+    [
+      "_pedidos",
+      [
+        {
+          group: ["**/_casca/**", "**/_temas/**"],
+          message: "Os pedidos não conhecem a casca nem os temas.",
+        },
+      ],
     ],
-    ignores: ["**/*.test.ts", "**/*.test.tsx"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
+    [
+      "_temas",
+      [
         {
-          patterns: [
-            {
-              group: ["**/AdminClient", "**/Temas", "**/ThemePicker"],
-              caseSensitive: true,
-              message:
-                "Uma casa não importa o ficheiro que a compõe (fazia um ciclo): o que ela precisa desce por props, por contexto ou por um módulo próprio.",
-            },
-          ],
+          group: ["**/_casca/**", "**/_pedidos/**"],
+          message: "Os temas não conhecem a casca nem os pedidos.",
         },
       ],
-    },
-  },
-  {
-    files: ["src/app/**/orcamento/admin/_pedidos/**/*.{ts,tsx}"],
+    ],
+  ].map(([casa, proprias]) => ({
+    files: [`src/app/**/orcamento/admin/${casa}/**/*.{ts,tsx}`],
     ignores: ["**/*.test.ts", "**/*.test.tsx"],
     rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: ["**/AdminClient", "**/Temas", "**/ThemePicker"],
-              caseSensitive: true,
-              message: "Ver a regra das casas, acima.",
-            },
-            {
-              group: ["**/_casca/**", "**/_temas/**"],
-              message: "Os pedidos não conhecem a casca nem os temas.",
-            },
-          ],
-        },
-      ],
+      "no-restricted-imports": ["error", { patterns: [...fronteiraDaCasa, ...proprias] }],
     },
-  },
-  {
-    files: ["src/app/**/orcamento/admin/_temas/**/*.{ts,tsx}"],
-    ignores: ["**/*.test.ts", "**/*.test.tsx"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: ["**/AdminClient", "**/Temas", "**/ThemePicker"],
-              caseSensitive: true,
-              message: "Ver a regra das casas, acima.",
-            },
-            {
-              group: ["**/_casca/**", "**/_pedidos/**"],
-              message: "Os temas não conhecem a casca nem os pedidos.",
-            },
-          ],
-        },
-      ],
-    },
-  },
+  })),
   // ── A COMPLEXIDADE À VISTA, EM AVISO (fase 0 de `docs/ESTRUTURA-DO-CODIGO.md`) ──
   //
   // Para se ver, não para parar: os gigantes de hoje (o `ProposalStudio`, com

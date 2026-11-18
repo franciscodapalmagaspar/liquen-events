@@ -8,13 +8,26 @@ describe("moduloAPedido", () => {
     expect(carregar).not.toHaveBeenCalled();
   });
 
-  it("aquecido, `usar` chama JÁ, no mesmo instante (o gesto ainda está vivo)", async () => {
-    const m = moduloAPedido(async () => ({ imprimir: vi.fn() }));
+  it("aquecido, `usar` chama com o módulo, sem o ir buscar outra vez", async () => {
+    const carregar = vi.fn(async () => ({ imprimir: vi.fn() }));
+    const m = moduloAPedido(carregar);
     const modulo = await m.aquecer();
     const f = vi.fn();
-    void m.usar(f);
-    // Síncrono: sem `await` pelo meio.
+    expect(await m.usar(f)).toBe(true);
     expect(f).toHaveBeenCalledWith(modulo);
+    expect(carregar).toHaveBeenCalledTimes(1);
+  });
+
+  it("um `f` que rebenta rejeita a promessa, em vez de sair a meio de quem chamou", async () => {
+    const m = moduloAPedido(async () => ({}));
+    await m.aquecer();
+    let promessa: Promise<boolean> | undefined;
+    expect(() => {
+      promessa = m.usar(() => {
+        throw new Error("rebentou");
+      });
+    }).not.toThrow();
+    await expect(promessa).rejects.toThrow("rebentou");
   });
 
   it("frio, `usar` vai buscá-lo, chama quando chega, e só uma vez busca", async () => {

@@ -178,7 +178,9 @@ export function useGravacaoDoPedido({
             porque: (await porqueRecusou(res)) ?? undefined,
           });
         }
-        guardado = (await res.json()) as Quote;
+        // Um 200 com corpo ilegível é um 200: gravou. Repetir mandava outra vez
+        // as linhas do histórico (lá em baixo diz-se que veio sem o pedido).
+        guardado = (await res.json().catch(() => null)) as Quote | null;
         // Um estado novo gravado pelo formulário («Ganho», «Perdido») arrasta
         // a proposta no servidor: a lista leve relê-se, depois do PATCH.
         if ("status" in body) asPropostasMudaram();

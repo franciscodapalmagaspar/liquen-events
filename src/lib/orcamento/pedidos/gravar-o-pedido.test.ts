@@ -1,3 +1,4 @@
+import { textoMudou } from "./painel-do-pedido";
 import { describe, expect, it } from "vitest";
 import { eur0 } from "@/lib/money";
 import type { Quote } from "@/lib/orcamento/types";
@@ -179,5 +180,29 @@ describe("corpoDoAnular", () => {
     } as unknown as Quote;
     const c = corpo({ preco: 5, responsavel: "Inês", data: "2027-01-01" }, antes);
     expect(corpoDoAnular(antes, c)).toEqual({ quotedPrice: null, assignedTo: null, date: "" });
+  });
+});
+
+describe("um espaço a mais no que veio gravado não é uma alteração dela (júri, 17/11)", () => {
+  const importado = {
+    ...ANTES,
+    name: "Ana Marques ",
+    email: " ana@example.com",
+    location: "Évora ",
+  } as Quote;
+
+  it("o «Guardar» não reescreve o nome, o email nem o local, e o histórico não ganha linhas", () => {
+    const c = corpo({ estado: "cotado" }, importado);
+    expect(c).not.toHaveProperty("name");
+    expect(c).not.toHaveProperty("email");
+    expect(c).not.toHaveProperty("location");
+    expect(
+      resumos({ estado: "cotado" }, importado).some((r) => /Nome do cliente|Email|Local/.test(r)),
+    ).toBe(false);
+  });
+
+  it("o «o que falta gravar» e o corpo respondem o mesmo: os dois lêem o `textoMudou`", () => {
+    expect(textoMudou("Ana Marques", "Ana Marques ")).toBe(false);
+    expect(textoMudou("Ana M.", "Ana Marques ")).toBe(true);
   });
 });

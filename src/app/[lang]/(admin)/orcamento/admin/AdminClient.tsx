@@ -974,7 +974,7 @@ export default function AdminClient({
       // `seguirOServidor`, em `lib/orcamento/pedidos/painel-do-pedido.ts`.
       const a = camposNoPainel(antes);
       const d = camposNoPainel(updated);
-      setEditStatus((v) => seguirOServidor(v, a.status, d.status) as QuoteStatus);
+      setEditStatus((v) => seguirOServidor(v, a.status, d.status));
       setEditPrice((v) => seguirOServidor(v, a.preco, d.preco));
       setEditAssigned((v) => seguirOServidor(v, a.responsavel, d.responsavel));
       setEditDate((v) => seguirOServidor(v, a.data, d.data));
