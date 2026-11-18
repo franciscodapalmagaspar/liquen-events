@@ -437,3 +437,20 @@ describe("P5: uma proposta que nasce a meio pára antes das fotografias", () => 
     expect(r.falhou).toContain("ficaram 1 proposta(s) neste pedido");
   });
 });
+
+describe("P5: uma fatura que nasce a meio do apagar", () => {
+  it("faz o pedido ficar — a mesma pergunta do início, repetida no fim", async () => {
+    dados.fotos = [{ path: "q1/a.jpg" }];
+    const original = dados.removidas.push.bind(dados.removidas);
+    dados.removidas.push = (...p: string[]) => {
+      // O Moloni grava uma fatura enquanto as fotografias saem.
+      dados.faturas = [...dados.faturas, { id: "f1", quoteId: "q1" }];
+      return original(...p);
+    };
+    const r = await apagarPedidoSemContrato("q1");
+    expect(r.apagado).toBe(false);
+    expect(r.motivo).toBeUndefined();
+    expect(dados.pedidosApagados).toEqual([]);
+    expect(r.falhou).toContain("nasceu uma fatura neste pedido enquanto se apagava");
+  });
+});

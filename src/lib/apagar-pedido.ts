@@ -1,8 +1,7 @@
 import "server-only";
 import { getQuote, deleteQuote } from "./quotes-store";
 import { listProposalsForQuote, deleteProposal } from "./proposals-store";
-import { listContractsForQuote } from "./contracts-store";
-import { listInvoicesForQuote } from "./invoices-store";
+import { ligacoesDoPedido, oQueAindaPrende, registoFiscal } from "./o-que-prende-o-pedido";
 import { clearProposalDraft, draftKey } from "./proposal-drafts";
 import { getState } from "./app-state";
 import { listProposalImages, removeStoredObject, PROPOSAL_BUCKET } from "./proposal-storage";
@@ -129,32 +128,20 @@ export async function apagarPedidoSemContrato(
    * contrato não é o mesmo que saber que não há — e aqui a diferença é entre
    * cumprir uma política e destruir contabilidade.
    */
+  //
+  // E a FATURA também (P5, 17/11): é um registo fiscal como o contrato, e a
+  // chave dela é `set null` — apagar o pedido apagava-lhe a origem de vez. O
+  // ecrã diz a frase genérica de sempre. As duas perguntas, e a do fim, são
+  // a mesma função: `o-que-prende-o-pedido.ts`.
   try {
-    if ((await listContractsForQuote(id)).length > 0) {
-      return { apagado: false, motivo: "tem-contrato", contou, falhou, saiu };
-    }
+    const fiscal = registoFiscal(await ligacoesDoPedido(id));
+    if (fiscal) return { apagado: false, motivo: fiscal, contou, falhou, saiu };
   } catch (e) {
-    falhou.push("não consegui verificar se este pedido tem contrato");
-    log.error("apagar-pedido: leitura dos contratos falhou — não se apaga nada", e, {
+    falhou.push("não consegui verificar se este pedido tem contrato ou faturas");
+    log.error("apagar-pedido: leitura dos contratos e faturas falhou — não se apaga nada", e, {
       pedido: id,
     });
     return { apagado: false, motivo: "tem-contrato", contou, falhou, saiu };
-  }
-
-  // ── A FATURA TAMBÉM MANDA PARAR (P5, 17/11) ─────────────────────────────
-  //
-  // Uma fatura é um registo fiscal como o contrato, e desde o P5 a chave dela
-  // é `set null`: apagar o pedido apagava-lhe a origem de vez. Pára-se ANTES
-  // de qualquer coisa sair — e na dúvida (leitura falhada) também. O ecrã diz
-  // a frase genérica de sempre («Não consegui apagar este pedido.»).
-  try {
-    if ((await listInvoicesForQuote(id)).length > 0) {
-      return { apagado: false, motivo: "tem-fatura", contou, falhou, saiu };
-    }
-  } catch (e) {
-    falhou.push("não consegui verificar se este pedido tem faturas");
-    log.error("apagar-pedido: leitura das faturas falhou — não se apaga nada", e, { pedido: id });
-    return { apagado: false, motivo: "tem-fatura", contou, falhou, saiu };
   }
 
   // ── As tarefas do pedido (auditoria de 12/11, n.º 7) ─────────────────────
@@ -285,34 +272,22 @@ export async function apagarPedidoSemContrato(
 
   // ── E o pedido, por último ───────────────────────────────────────────────
   //
-  // Antes, outra vez o que pode ter nascido entretanto noutro ecrã. Um
-  // CONTRATO (um aceite a meio do apagar) manda parar como lá em cima — a
-  // chave dele é `set null`, e o pedido saía deixando um registo fiscal sem
-  // origem. Uma TAREFA cairia pela cascata sem relatório nem Reciclagem. Nos
-  // dois casos o pedido fica, e a próxima tentativa sabe o que há.
+  // Antes, outra vez o que pode ter nascido entretanto noutro ecrã — a mesma
+  // pergunta do início (`ligacoesDoPedido`). Um contrato ou uma fatura ficavam
+  // sem origem pelo `set null`; uma proposta ficava solta com o nome do casal;
+  // uma tarefa caía pela cascata sem relatório nem Reciclagem. Em qualquer
+  // caso o pedido fica, e a próxima tentativa sabe o que há.
+  //
+  // SEM `motivo`: aqui já saiu muita coisa, e um motivo de recusa diria à
+  // Reciclagem «nada saiu» — e ela deitava fora a única cópia do que saiu.
   try {
-    // SEM `motivo`: aqui já saiu muita coisa, e um motivo de recusa diria à
-    // Reciclagem «nada saiu» — e ela deitava fora a única cópia do que saiu.
-    // Sem motivo é uma paragem a meio, e a entrada fica com o que saiu.
-    if ((await listContractsForQuote(id)).length > 0) {
-      falhou.push("nasceu um contrato neste pedido enquanto se apagava");
-      return { apagado: false, contou, falhou, saiu };
-    }
-    // E uma PROPOSTA (uma criada noutro ecrã, ou uma que não saiu lá em cima):
-    // o `set null` deixava-a solta, com o nome do casal, e uma segunda
-    // tentativa já não a encontrava pelo pedido.
-    const propostasVivas = await listProposalsForQuote(id);
-    if (propostasVivas.length > 0) {
-      falhou.push(`ficaram ${propostasVivas.length} proposta(s) neste pedido`);
-      return { apagado: false, contou, falhou, saiu };
-    }
-    const novas = await listTasksForQuote(id);
-    if (novas.length > 0) {
-      falhou.push(`apareceram ${novas.length} tarefa(s) novas neste pedido`);
+    const prende = oQueAindaPrende(await ligacoesDoPedido(id));
+    if (prende.length > 0) {
+      falhou.push(...prende);
       return { apagado: false, contou, falhou, saiu };
     }
   } catch (e) {
-    falhou.push("não consegui confirmar os contratos e as tarefas antes de apagar o pedido");
+    falhou.push("não consegui confirmar o que ainda está ligado ao pedido antes de o apagar");
     log.error("apagar-pedido: a segunda verificação falhou", e, { pedido: id });
     return { apagado: false, contou, falhou, saiu };
   }

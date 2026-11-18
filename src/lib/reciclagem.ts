@@ -591,7 +591,11 @@ function fraseDoPedido(r: ResultadoDoApagamento): string {
   return "Não consegui apagar este pedido.";
 }
 const estadoDoPedido = (r: ResultadoDoApagamento) =>
-  r.motivo === "nao-existe" ? 404 : r.motivo === "tem-contrato" ? 409 : 500;
+  r.motivo === "nao-existe"
+    ? 404
+    : r.motivo === "tem-contrato" || r.motivo === "tem-fatura"
+      ? 409
+      : 500;
 
 export type TipoNaReciclagem = keyof typeof TIPOS;
 

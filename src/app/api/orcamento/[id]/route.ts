@@ -796,6 +796,14 @@ export async function DELETE(
         { status: 409 },
       );
     }
+    // Uma fatura (P5) recusa como o contrato — é conflito, não avaria —, com a
+    // frase genérica de sempre (um texto próprio é decisão do dono).
+    if (r?.motivo === "tem-fatura") {
+      return NextResponse.json(
+        { error: "Não consegui apagar este pedido.", falhou: r.falhou },
+        { status: 409 },
+      );
+    }
     if (r) {
       return NextResponse.json(
         {

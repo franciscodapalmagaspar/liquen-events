@@ -102,7 +102,7 @@ export async function createTask(
     posicao: input.posicao,
   };
   // Um pedido que já não existe é recusado pela chave estrangeira (P5): a
-  // tarefa segue o pedido, como na cascata. A rota di-lo (`tarefas/pedido-apagado.ts`).
+  // tarefa segue o pedido, como na cascata. A rota responde com a mensagem genérica.
   await repo.create(task);
   return task;
 }
