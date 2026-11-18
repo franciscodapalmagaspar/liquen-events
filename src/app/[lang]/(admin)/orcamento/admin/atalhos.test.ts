@@ -2,7 +2,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { aEscrever, procuraDaVista, VIEW_KEYS } from "./atalhos";
+import { aEscrever, comComando, procuraDaVista, VIEW_KEYS } from "./atalhos";
 import { VIEWS, type View } from "./nav";
 
 /**
@@ -105,5 +105,33 @@ describe("aEscrever", () => {
     texto.type = "search";
     expect(aEscrever(texto)).toBe(true);
     expect(aEscrever(null)).toBe(false);
+  });
+});
+
+describe("comComando — ⌘/Ctrl + uma letra", () => {
+  const tecla = (
+    key: string,
+    mais: Partial<Record<"metaKey" | "ctrlKey" | "altKey" | "shiftKey", boolean>> = {},
+  ) => ({
+    key,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    shiftKey: false,
+    ...mais,
+  });
+
+  it("⌘ e Ctrl contam os dois, e a letra não depende das maiúsculas", () => {
+    expect(comComando(tecla("k", { metaKey: true }), "k")).toBe(true);
+    expect(comComando(tecla("K", { ctrlKey: true }), "k")).toBe(true);
+    expect(comComando(tecla("k"), "k")).toBe(false);
+    expect(comComando(tecla("j", { metaKey: true }), "k")).toBe(false);
+  });
+
+  it("com sozinho, ⌥ e ⇧ não podem vir juntos (o ⌘A não é o ⌘⇧A)", () => {
+    expect(comComando(tecla("a", { metaKey: true }), "a", true)).toBe(true);
+    expect(comComando(tecla("A", { metaKey: true, shiftKey: true }), "a", true)).toBe(false);
+    expect(comComando(tecla("a", { ctrlKey: true, altKey: true }), "a", true)).toBe(false);
+    expect(comComando(tecla("A", { metaKey: true, shiftKey: true }), "a")).toBe(true);
   });
 });

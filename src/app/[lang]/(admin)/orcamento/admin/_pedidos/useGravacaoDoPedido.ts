@@ -1,4 +1,5 @@
 import type { Quote } from "@/lib/orcamento/types";
+import { pedidoDaResposta } from "@/lib/orcamento/pedidos/pedido-da-resposta";
 import { esquecerRascunho, type RascunhoEncontrado } from "../rascunho-do-pedido";
 import {
   enviarComRepeticao,
@@ -180,8 +181,9 @@ export function useGravacaoDoPedido({
         }
         // Um 200 com corpo ilegível é um 200: GRAVOU. Não se repete (repetir
         // mandava outra vez as linhas do histórico) — relê-se o pedido.
-        const corpo = (await res.json().catch(() => null)) as Quote | null;
-        guardado = corpo?.id ? corpo : await lerOPedidoGravado(selected.id);
+        guardado =
+          pedidoDaResposta(await res.json().catch(() => null)) ??
+          (await lerOPedidoGravado(selected.id));
         // Um estado novo gravado pelo formulário («Ganho», «Perdido») arrasta
         // a proposta no servidor: a lista leve relê-se, depois do PATCH.
         if ("status" in body) asPropostasMudaram();
@@ -352,8 +354,7 @@ async function lerOPedidoGravado(id: string): Promise<Quote | null> {
     });
     // Sem o cabeçalho é a versão curta da rota pública (sessão caída): não serve.
     if (!res.ok || res.headers.get("x-pedido") !== "completo") return null;
-    const q = (await res.json().catch(() => null)) as Quote | null;
-    return q?.id ? q : null;
+    return pedidoDaResposta(await res.json().catch(() => null));
   } catch {
     return null;
   }

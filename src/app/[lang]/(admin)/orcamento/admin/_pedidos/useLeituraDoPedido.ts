@@ -1,6 +1,12 @@
 import { useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import type { Quote } from "@/lib/orcamento/types";
+import { pedidoDaResposta } from "@/lib/orcamento/pedidos/pedido-da-resposta";
+import {
+  CHAVE_DOS_VISTOS,
+  juntarAosVistos,
+  lerVistos,
+} from "@/lib/orcamento/pedidos/vistos-recentemente";
 import type { RecentQuote } from "../CommandPalette";
 import type { LeituraDoPedido } from "@/lib/orcamento/pedidos/leitura-do-pedido";
 import { type EdicaoDoPedido } from "./useEdicaoDoPedido";
@@ -155,8 +161,8 @@ export function useLeituraDoPedido({
         porque: `A sessão expirou — não deu para ${oQue}. Volta a entrar e tenta outra vez.`,
       };
     }
-    const inteiro = (await res.json().catch(() => null)) as Quote | null;
-    if (!inteiro?.id) {
+    const inteiro = pedidoDaResposta(await res.json().catch(() => null));
+    if (!inteiro) {
       return { ok: false, porque: `A resposta veio incompleta — não deu para ${oQue}. Repete.` };
     }
     // Uma leitura que já foi substituída traz o pedido de antes: não se grava.
@@ -204,9 +210,8 @@ export function useLeituraDoPedido({
   function lembrarRecente(q: Quote) {
     try {
       const entry: RecentQuote = { id: q.id, name: q.name, email: q.email, status: q.status };
-      const prev: RecentQuote[] = JSON.parse(localStorage.getItem("liquen-recent-quotes") ?? "[]");
-      const next = [entry, ...prev.filter((r) => r.id !== q.id)].slice(0, 6);
-      localStorage.setItem("liquen-recent-quotes", JSON.stringify(next));
+      const next = juntarAosVistos(lerVistos(localStorage.getItem(CHAVE_DOS_VISTOS)), entry);
+      localStorage.setItem(CHAVE_DOS_VISTOS, JSON.stringify(next));
       setRecentQuotes(next);
     } catch {
       /* ignore */

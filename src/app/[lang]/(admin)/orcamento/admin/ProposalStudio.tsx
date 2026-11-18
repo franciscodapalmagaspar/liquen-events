@@ -68,6 +68,7 @@ import {
 } from "@/lib/tempo-activo";
 import { ehRefDeTema } from "@/lib/theme-ref";
 import { log } from "@/lib/logger";
+import { aPaginaEstaASair } from "@/lib/a-sair-da-pagina";
 import { camposMudados, mesmoValor } from "@/lib/rascunho-juntar";
 import { EstadoDaGravacaoNaBarra } from "./EstadoDaGravacaoNaBarra";
 import {
@@ -2423,10 +2424,9 @@ export default function ProposalStudio({
           setEstadoDosUrls("pronto");
           return "pronto";
         } catch (e) {
-          // Offline, ou o Storage em baixo. O estúdio continua a servir para
-          // carregar fotos — o que não continua a servir é fingir que as que já
-          // lá estão simplesmente não existem.
-          log.warn("estúdio: não deu para ir buscar as fotografias", { erro: String(e) });
+          // Offline ou Storage em baixo: diz-se. A página a sair (recarregar) não.
+          if (!aPaginaEstaASair())
+            log.warn("estúdio: não deu para ir buscar as fotografias", { erro: String(e) });
           if (vivo()) setEstadoDosUrls("falhou");
           return "falhou";
         }

@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { ToastProvider } from "./Toast";
-import AdminClient, { VIEW_COOKIE } from "./AdminClient";
+import AdminClient from "./AdminClient";
+import { VIEW_COOKIE } from "./_casca/vista-guardada";
 
 /**
  * ════════════════════════════════════════════════════════════════════════════

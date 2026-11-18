@@ -39,8 +39,6 @@ import {
   type PedidoDaPaleta,
   type PropostaDaProcura,
 } from "./procura-em-tudo";
-import { aEscrever, dentroDeUmaJanela, procuraDaVista, VIEW_KEYS } from "./atalhos";
-import { separadorQuandoAPropostaChega, type SeparadorPorDecidir } from "./separador-por-decidir";
 import { useGravacaoAutomatica, useTravaoDeSaida } from "./useGravacaoAutomatica";
 import { fetchComTecto, respostaDeHttp, type RespostaDoEnvio } from "@/lib/gravar-com-tecto";
 import { useInscricaoNoRegisto } from "./registo-de-gravacoes";
@@ -54,11 +52,7 @@ import { reporEstadoDoPedido } from "./anular-estado";
 import { useFocusTrap } from "./useFocusTrap";
 import { useCamadaDeHistoria } from "./useCamadaDeHistoria";
 import { useTrincoDeScroll } from "./useTrincoDeScroll";
-import {
-  asPropostasMudaram,
-  propostaDaFaseDoPedido,
-  usePropostasLevesSoOuvir,
-} from "./percentagem-do-sinal";
+import { asPropostasMudaram, usePropostasLevesSoOuvir } from "./percentagem-do-sinal";
 import { NAV, type View } from "./nav";
 import { useDesceu } from "./ui/adaptativo";
 import { Button, EmCurso, FolhaOuDialogo, PerguntaDestrutiva } from "./ui";
@@ -102,7 +96,12 @@ import { BarraDeDestinos } from "./_casca/BarraDeDestinos";
 import { MenuLateral } from "./_casca/MenuLateral";
 import { Cabecalho } from "./_casca/Cabecalho";
 import { useNovaTarefa } from "./_casca/useNovaTarefa";
-import { dominiosConhecidos, sugerirEmail } from "@/lib/dominio-parecido";
+import { useAtalhosDoTeclado } from "./_casca/useAtalhosDoTeclado";
+import { useVistaNoEndereco } from "./_casca/useVistaNoEndereco";
+import { useFiltrosGuardados } from "./_pedidos/useFiltrosGuardados";
+import { useAvisosDoPedido } from "./_pedidos/painel/useAvisosDoPedido";
+import { useSeparadoresDoPainel } from "./_pedidos/painel/useSeparadoresDoPainel";
+import { CHAVE_DOS_VISTOS, lerVistos } from "@/lib/orcamento/pedidos/vistos-recentemente";
 /* O que é dos pedidos e já não vive neste ficheiro (fase 7 de
    `docs/ESTRUTURA-DO-CODIGO.md`): as regras puras em `lib/orcamento/pedidos/`,
    e as peças de interface da lista e do painel em `_pedidos/`. */
@@ -114,8 +113,8 @@ import { useFiltrosDosPedidos } from "./_pedidos/useFiltrosDosPedidos";
 import { VIEW_WRAP } from "./_casca/moldura-da-vista";
 import { ACOES_DE_PEDIDOS } from "./_casca/titulos-das-vistas";
 import { STATUS_OPTIONS } from "./_pedidos/pastilha-do-estado";
-import { detailNextAction, type DetailTab } from "./_pedidos/separadores-do-painel";
 import { comPedidoAlterado, comPedidoSubstituido } from "@/lib/orcamento/pedidos/lista-de-pedidos";
+import { pedidoDaResposta } from "@/lib/orcamento/pedidos/pedido-da-resposta";
 import { useAccoesEmLote, type LoteEmCurso } from "./_pedidos/useAccoesEmLote";
 import { useGravacaoDoPedido } from "./_pedidos/useGravacaoDoPedido";
 import { useHistoricoDoPedido } from "./_pedidos/useHistoricoDoPedido";
@@ -139,40 +138,6 @@ const SAIDA_DO_PAINEL = "painel-do-pedido";
  * outro, no mesmo ecrã.
  */
 const porqueNaoGravou = razaoDaRecusa;
-
-// The "g then <key>" navigation chord lives in `atalhos.ts` (VIEW_KEYS), so the
-// shortcuts sheet reads the same table the listener does.
-const VIEW_STORAGE_KEY = "liquen-admin-view";
-/**
- * ════════════════════════════════════════════════════════════════════════════
- * A MESMA SECÇÃO, MAS NUM COOKIE — PARA O SERVIDOR A PODER LER
- * ════════════════════════════════════════════════════════════════════════════
- *
- * MEDIDO por uma auditoria, em separador limpo: a ~1 s aparece a Visão Geral
- * (desenhada no servidor), a ~2 s a aplicação troca SOZINHA para a última
- * secção usada e o menu lateral fecha-se. Quem entrou para ver a Visão Geral
- * vê-a desaparecer-lhe da frente.
- *
- * A causa é a memória estar num sítio onde o servidor não chega: o
- * `localStorage` só existe depois de a página ter sido desenhada, portanto a
- * escolha dela só podia ser aplicada DEPOIS — como uma correcção, à vista.
- *
- * Um cookie é a mesma memória por aparelho, mas viaja com o pedido. O servidor
- * desenha logo a secção certa e não há salto nenhum para corrigir.
- *
- * O `localStorage` FICA, e não é redundância: é ele que continua a valer para
- * quem tenha os cookies restringidos, e é a ponte para quem já tem uma escolha
- * guardada e ainda não tem cookie nenhum.
- */
-export const VIEW_COOKIE = "liquen-admin-view";
-
-/**
- * O nome do parâmetro que leva a secção no endereço: `/orcamento/admin?v=pedidos`.
- *
- * Curto de propósito. Isto vai parar a favoritos e a mensagens («abre-me isto»),
- * e um endereço que se lê ao telefone vale mais do que um que se explica.
- */
-export const PARAM_VISTA = "v";
 
 interface Props {
   /**
@@ -294,146 +259,19 @@ export default function AdminClient({
     escritoPorGravar,
     absorver,
   } = edicao;
-  /**
-   * Achado n.º 19 da auditoria: pôr um pedido em «Ganho» à mão criava um
-   * contrato ligado a uma proposta que nunca tinha chegado ao cliente — sem
-   * nada no ecrã a dizê-lo. Ao escolher «Ganho», pergunta-se ao servidor se
-   * alguma proposta deste pedido seguiu (`acceptUrl` do GET do envio); se não,
-   * fica o aviso por baixo do seletor. Não trava: pode ter sido aceite de boca.
-   */
-  const [ganhoSemProposta, setGanhoSemProposta] = useState<string | null>(null);
-  const escolherEstado = (novo: QuoteStatus) => {
-    setEditStatus(novo);
-    setGanhoSemProposta(null);
-    if (novo !== "aceite" || !selected || selected.status === "aceite") return;
-    const id = selected.id;
-    void fetch(`/api/orcamento/${id}/proposta-doc`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (j && j.acceptUrl == null) setGanhoSemProposta(id);
-      })
-      .catch(() => {
-        /* sem resposta não se inventa um aviso */
-      });
-  };
-  /**
-   * «Querias dizer …@adecco.com?» (9/11): a proposta da Adecco foi para
-   * «addecco.com» e voltou. Os domínios dos OUTROS pedidos e os de correio
-   * comuns dizem que domínio se queria escrever. Só sugere — ver
-   * `lib/dominio-parecido.ts`.
-   */
-  /**
-   * O ÚLTIMO EMAIL AO CLIENTE VOLTOU PARA TRÁS? (9/11 — ela: «o sistema tem que
-   * perceber logo se o e-mail existe ou não», depois de a proposta da Adecco ir
-   * para «addecco.com»). Pergunta-se uma vez ao abrir o pedido; o servidor só
-   * lê a caixa da Líquen se houve um envio nos últimos dias (ver
-   * `lib/email-devolvido.ts`).
-   */
-  const [devolucao, setDevolucao] = useState<{ quoteId: string; endereco: string } | null>(null);
-  const idDoAberto = selected?.id ?? null;
-  // Só pergunta quando o histórico mostra mexidas nos últimos 7 dias (um envio
-  // muda o estado do pedido): um pedido parado não custa um pedido à Vercel.
-  const mexidoHaPouco = useMemo(() => {
-    const limite = Date.now() - 7 * 86_400_000;
-    return (selected?.activityLog ?? []).some(
-      (e) =>
-        (e.kind === "status_change" || e.kind === "proposal_sent" || e.kind === "message_sent") &&
-        Date.parse(e.at) >= limite,
-    );
-  }, [selected?.activityLog]);
-  useEffect(() => {
-    if (!idDoAberto || !mexidoHaPouco) return;
-    const ctl = new AbortController();
-    fetch(`/api/orcamento/${encodeURIComponent(idDoAberto)}/entrega`, { signal: ctl.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: { estado?: string; endereco?: string } | null) => {
-        setDevolucao(
-          j?.estado === "devolvido" && j.endereco
-            ? { quoteId: idDoAberto, endereco: j.endereco }
-            : null,
-        );
-      })
-      .catch(() => {});
-    return () => ctl.abort();
-  }, [idDoAberto, mexidoHaPouco]);
-  const devolvidoAqui = devolucao && devolucao.quoteId === idDoAberto ? devolucao : null;
-  const emailSugerido = useMemo(
-    () =>
-      sugerirEmail(
-        editEmail,
-        dominiosConhecidos(
-          quotes.map((q) => q.email),
-          editEmail,
-        ),
-      ),
-    [editEmail, quotes],
-  );
-  // Which tools section of the detail panel is showing. Everything is visible
-  // at once now — the management form always renders; only the heavier tool
-  // groups (Produção / Financeiro / Comunicação) are tabbed for organisation.
-  const [detailTab, setDetailTab] = useState<DetailTab>("comunicacao");
-  /**
-   * ════════════════════════════════════════════════════════════════════════
-   * QUE SEPARADORES JÁ FORAM ABERTOS NESTE PEDIDO
-   * ════════════════════════════════════════════════════════════════════════
-   *
-   * Abrir um pedido montava os três separadores AO MESMO TEMPO: os doze
-   * `dynamic()` lá dentro (Produção tem seis, Financeiro dois, Comunicação
-   * quatro, entre `ProposalStudio` e `ProposalBuilder`) eram todos
-   * descarregados e arrancados de uma vez, mesmo para quem só queria ver um
-   * telefone. Cada separador só monta a sua ferramenta a PRIMEIRA vez que é
-   * aberto: o resto do tempo os dois que ninguém tocou nem chegam a existir
-   * no DOM.
-   *
-   * Uma vez aberto, um separador NUNCA desmonta ao trocar de separador (só
-   * fica escondido por `hidden`, como já estava) — é a mesma garantia de
-   * sempre, escrita ao lado de cada painel: trocar de separador não pode
-   * perder uma mensagem por enviar ou uma proposta a meio de editar. Cada um
-   * dos doze componentes foi visto antes desta mudança: guardam campos de
-   * formulário por gravar (um título de tarefa a meio, um nome de convidado),
-   * e nenhum é seguro para desmontar sozinho ao trocar de separador. Montar
-   * só à primeira abertura, e nunca mais desmontar, resolve os dois lados:
-   * poupa o que a maioria dos pedidos nunca chega a tocar, sem arriscar o que
-   * a mudança para `hidden` já protegia.
-   */
-  const [detailTabsVisitados, setDetailTabsVisitados] = useState<Set<DetailTab>>(
-    () => new Set([detailTab]),
-  );
-  /** Abre um separador do detalhe DO PEDIDO JÁ ABERTO: primeira vez que se vê
-   *  é primeira vez que monta. Usar sempre em vez de `setDetailTab` directo
-   *  para uma troca de separador. Para ABRIR um pedido (novo `selected`), usa
-   *  antes `abrirPrimeiroDetailTab` — essa RECOMEÇA a lista de visitados, esta
-   *  ACRESCENTA-lhe. */
-  const abrirDetailTab = useCallback((tab: DetailTab) => {
-    setDetailTab(tab);
-    setDetailTabsVisitados((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)));
-  }, []);
-  /** O pedido MUDOU: os separadores visitados do pedido anterior não dizem
-   *  nada sobre este. Recomeça a lista só com o separador de abertura. */
-  const abrirPrimeiroDetailTab = useCallback((tab: DetailTab) => {
-    setDetailTab(tab);
-    setDetailTabsVisitados(new Set([tab]));
-  }, []);
-
-  // Ver `separador-por-decidir.ts`: o separador escolhido antes de a lista
-  // leve de propostas chegar volta a escolher-se quando ela chega.
-  const separadorPorDecidirRef = useRef<SeparadorPorDecidir<DetailTab> | null>(null);
-  useEffect(() => {
-    const porDecidir = separadorPorDecidirRef.current;
-    if (!porDecidir || !selected || propostasLeves === undefined) return;
-    separadorPorDecidirRef.current = null;
-    const alvo = detailNextAction(
-      selected,
-      propostaDaFaseDoPedido(propostasLeves, selected.id),
-    ).tab;
-    const novo = separadorQuandoAPropostaChega(
-      porDecidir,
-      { quoteId: selected.id, tab: detailTab, em: Date.now() },
-      alvo === "gestao" ? "comunicacao" : alvo,
-    );
-    // `abrirDetailTab` ACRESCENTA: o separador de antes não desmonta.
-    if (novo) abrirDetailTab(novo);
-  }, [propostasLeves, selected, detailTab, abrirDetailTab]);
+  const { ganhoSemProposta, escolherEstado, devolvidoAqui, emailSugerido } = useAvisosDoPedido({
+    selected,
+    setEditStatus,
+    editEmail,
+    quotes,
+  });
+  const {
+    detailTab,
+    detailTabsVisitados,
+    abrirDetailTab,
+    abrirPrimeiroDetailTab,
+    separadorPorDecidirRef,
+  } = useSeparadoresDoPainel(selected, propostasLeves);
 
   // Scroll targets for the "Próxima ação" shortcut: the always-visible
   // management form and the tools (tabs) section.
@@ -1068,7 +906,8 @@ export default function AdminClient({
         voltar(porqueFalhou(oQue, res, corpo).mensagem);
         return;
       }
-      marcarDesfecho(corpo as Quote);
+      const actualizado = pedidoDaResposta(corpo);
+      if (actualizado) marcarDesfecho(actualizado);
       // O PATCH acabou: o estado novo pode ter arrastado a proposta.
       asPropostasMudaram();
       anular(`${q.name}: ${de} → ${para}`, async () => {
@@ -1159,8 +998,11 @@ export default function AdminClient({
         if (res.status === 409) await acertarBaseDoConflito(v.id, res);
         return respostaDeHttp(res.status, { porque: porqueNaoGravou(res.status) });
       }
-      const updated = (await res.json()) as Quote;
+      const updated = pedidoDaResposta(await res.json().catch(() => null));
       if (primeiraNota) registouNotas.current = v.id;
+      // Um 200 é um 200: as notas GRAVARAM. Sem o pedido no corpo não há o
+      // que absorver, e não se repete (ver `pedidoDaResposta`).
+      if (!updated) return { estado: "guardado" };
       escritoNoServidor.current = {
         id: updated.id,
         adminNotes: updated.adminNotes ?? "",
@@ -1396,160 +1238,16 @@ export default function AdminClient({
     });
   }, []);
 
-  /**
-   * ── A PONTE, E SÓ A PONTE ────────────────────────────────────────────────
-   *
-   * A secção passou a vir DO SERVIDOR (ver `VIEW_COOKIE`): quando o cookie já
-   * existe, o primeiro desenho já é o certo e não há nada a restaurar aqui.
-   *
-   * O que fica é o caso de quem já tinha uma escolha guardada no
-   * `localStorage` e ainda não tem cookie — a primeira visita depois desta
-   * alteração. Aí ainda há um salto, uma vez, e a gravação seguinte escreve o
-   * cookie que o faz desaparecer para sempre.
-   *
-   * `vistaInicial` a dizer que já veio decidida é o que impede isto de voltar
-   * a pôr o salto no ecrã de quem já não precisa dele.
-   */
-  useEffect(() => {
-    if (vistaInicial) return;
-    try {
-      const saved = localStorage.getItem(VIEW_STORAGE_KEY) as View | null;
-      if (saved && NAV.some((n) => n.id === saved)) setView(saved);
-    } catch {
-      /* localStorage unavailable — keep default */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useVistaNoEndereco(view, setView, vistaInicial);
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("liquen-recent-quotes");
-      if (raw) setRecentQuotes(JSON.parse(raw));
+      const vistos = lerVistos(localStorage.getItem(CHAVE_DOS_VISTOS));
+      if (vistos.length) setRecentQuotes(vistos);
     } catch {
       /* ignore */
     }
   }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(VIEW_STORAGE_KEY, view);
-    } catch {
-      /* ignore */
-    }
-    /**
-     * E no cookie, que é o que o servidor lê no arranque seguinte. Um ano, o
-     * mesmo horizonte do `localStorage`; `SameSite=Lax` porque isto não é uma
-     * credencial — é a preferência de que separador abrir — e `Lax` é o que
-     * deixa o cookie viajar numa navegação normal sem o oferecer a terceiros.
-     * Sem `Secure` escrito à mão: em `localhost` ele impedia a gravação, e em
-     * produção o site é servido só por HTTPS.
-     */
-    try {
-      document.cookie = `${VIEW_COOKIE}=${encodeURIComponent(view)}; Path=/; Max-Age=31536000; SameSite=Lax`;
-    } catch {
-      /* sem cookies: fica o `localStorage`, e volta a haver o salto de uma vez */
-    }
-  }, [view]);
-
-  /**
-   * ══════════════════════════════════════════════════════════════════════════
-   * O BACK OFFICE INTEIRO TINHA UM ENDEREÇO SÓ
-   * ══════════════════════════════════════════════════════════════════════════
-   *
-   * Achado F-05 de uma auditoria em produção, e é dos que se sentem todos os
-   * dias: Visão Geral, Pedidos, Propostas, Temas, Definições — dezoito secções,
-   * e `/orcamento/admin` para todas. Quatro consequências, todas verdadeiras:
-   *
-   *  · **os favoritos não servem.** Guardar as Propostas guarda a aplicação, e
-   *    abrir o favorito leva ao que estivesse aberto da última vez;
-   *  · **não se manda um link a ninguém.** «Vê as Definições» é uma frase, não
-   *    um endereço;
-   *  · **o botão «voltar» sai da aplicação.** Não recua uma secção: sai. Num
-   *    telemóvel, onde o gesto de voltar é o mais usado que há, isso quer dizer
-   *    que o gesto natural a deita fora do back office;
-   *  · **dois separadores em secções diferentes é impossível** — partilham a
-   *    memória, e o segundo arrasta o primeiro.
-   *
-   * ── COMO, E PORQUE É QUE NÃO SÃO ROTAS ────────────────────────────────────
-   *
-   * `window.history.replaceState` com `?v=<secção>`. É o caminho que o guia de
-   * `single-page-applications` do próprio Next descreve para isto — «shallow
-   * routing on the client» —, e diz que estas chamadas se integram no Router,
-   * portanto o `usePathname`/`useSearchParams` continuam a ver a verdade.
-   *
-   * Rotas a sério (`/orcamento/admin/pedidos`) dariam um endereço mais bonito e
-   * custariam caro: cada troca de secção passava a ser uma navegação do Next,
-   * com o `AdminClient` inteiro a remontar — e com ele os pedidos carregados, o
-   * pedido aberto, o rascunho por gravar. Trocar de secção é uma coisa que ela
-   * faz dezenas de vezes por dia, e é instantânea. Fica assim.
-   *
-   * ── TRÊS DOS QUATRO, E O QUARTO RECUSADO COM RAZÃO ────────────────────────
-   *
-   * Dos quatro estragos que a auditoria enumera, este bloco resolve três — os
-   * favoritos, o link que se manda a alguém, os dois separadores. O quarto — «o
-   * botão voltar sai da aplicação em vez de recuar uma secção» — fica por
-   * resolver, DE PROPÓSITO, e vale a pena dizer porquê.
-   *
-   * O gesto de voltar já tem dono neste back office. O `useCamadaDeHistoria`
-   * põe uma ENTRADA MARCADA por cada camada aberta — gaveta, folha, diálogo —
-   * para que o deslizar da esquerda no iPhone feche o que está aberto em vez de
-   * sair. Foi o primeiro dos oito bloqueios do registo do audit, e o ficheiro
-   * dele é uma lista de armadilhas que essa contabilidade tem: uma entrada a
-   * mais no sítio errado e uma camada conclui que foi consumida e fecha-se
-   * sozinha.
-   *
-   * Eu escrevi a primeira versão disto com `pushState`, para o «voltar» andar
-   * pelas secções. Chumbou três testes do painel de detalhe, e a causa era
-   * exactamente essa: as minhas entradas sem marca entravam no meio das
-   * marcadas e desalinhavam a contagem. Não é um defeito dos testes — é o
-   * mesmo desalinhamento que aconteceria no telemóvel dela, onde o gesto de
-   * voltar é o mais usado que há.
-   *
-   * Dar duas leituras ao mesmo gesto («fecha o que está aberto» E «recua uma
-   * secção») era pedir-lhe que adivinhasse qual delas ia acontecer. Fica com a
-   * que já tinha, que é a que importa num telemóvel. `replaceState`: o endereço
-   * acompanha sempre a secção, e o histórico fica exactamente como estava.
-   *
-   * ── E O ESTADO QUE JÁ LÁ ESTÁ VIAJA SEMPRE ────────────────────────────────
-   *
-   * `replaceState(window.history.state, …)` e nunca `null`. `null` APAGA o
-   * `history.state`, e com ele a marca da camada aberta — que é, palavra por
-   * palavra, o acidente que o `useCamadaDeHistoria` descreve vindo do router do
-   * Next: «reescreve o estado do topo e leva a nossa marca com ele».
-   */
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const url = new URL(window.location.href);
-      if (url.searchParams.get(PARAM_VISTA) === view) return;
-      url.searchParams.set(PARAM_VISTA, view);
-      window.history.replaceState(window.history.state, "", url);
-    } catch {
-      /* sem `history` (embutidos antigos) a aplicação funciona como sempre
-         funcionou: o endereço é que deixa de acompanhar. */
-    }
-  }, [view]);
-
-  /**
-   * ── E PORQUE É QUE NÃO HÁ AQUI UM OUVINTE DE `popstate` ───────────────────
-   *
-   * Havia. Escutava o «voltar» e punha a secção que o endereço passasse a
-   * dizer. Saiu, e a razão é a mesma do `replaceState` acima, vista do outro
-   * lado: com as secções a substituir e nunca a empilhar, ESTE componente nunca
-   * cria uma entrada de história com um `?v=` diferente. Um `popstate` que
-   * chegue aqui é sempre de outra pessoa — quase sempre do `useCamadaDeHistoria`
-   * a consumir a entrada de uma camada que fechou.
-   *
-   * E segui-lo tinha custo: o `back()` de limpeza de uma camada é ADIADO (o
-   * próprio ficheiro dela conta que já «aterrou a meio do que vinha a seguir»),
-   * portanto o ouvinte apanhava um endereço de outro momento e trocava a secção
-   * debaixo dos pés de quem estava a trabalhar. Foi o que dois testes do apagar
-   * mostraram, com o painel a desaparecer sozinho.
-   *
-   * O `?v=` é uma PORTA DE ENTRADA — favorito, link, separador novo —, e quem a
-   * lê é o servidor, no arranque. Não é uma dimensão do histórico, e fingir que
-   * era custava mais do que valia.
-   */
 
   /**
    * ── O MENU RECOLHIDO SAIU DAQUI, E O PEDIDO DELE FICOU CUMPRIDO ─────────
@@ -1571,266 +1269,31 @@ export default function AdminClient({
    * está guardado noutro sítio — `a-barra-e-o-menu.test.tsx`.
    */
 
-  // Restore the Pedidos status filter + sort the team last used (per device).
-  useEffect(() => {
-    try {
-      const f = localStorage.getItem("liquen-admin-filter");
-      if (f === "all" || STATUS_OPTIONS.some((s) => s.id === f))
-        setFilterStatus(f as QuoteStatus | "all");
-      const so = localStorage.getItem("liquen-admin-sort");
-      if (
-        so === "espera" ||
-        so === "recent" ||
-        so === "old" ||
-        so === "value" ||
-        so === "followup" ||
-        so === "eventdate"
-      )
-        setSort(so);
-    } catch {
-      /* ignore */
-    }
-    // Os `set*` vêm do `useFiltrosDosPedidos` e são os do `useState` — estáveis:
-    // o efeito continua a correr uma vez, à montagem.
-  }, [setFilterStatus, setSort]);
-  useEffect(() => {
-    try {
-      localStorage.setItem("liquen-admin-filter", filterStatus);
-      localStorage.setItem("liquen-admin-sort", sort);
-    } catch {
-      /* ignore */
-    }
-  }, [filterStatus, sort]);
-
-  /**
-   * ── UMA JANELA À FRENTE CALA OS ATALHOS DE UMA TECLA ──────────────────────
-   *
-   * «Está a escrever num campo» não chegava. Com uma destas janelas aberta o
-   * foco está quase sempre num BOTÃO — a armadilha de foco leva-o para o «×» de
-   * fechar — e um botão não é um campo: o «n» passava, e o «Novo pedido» abria
-   * POR BAIXO da janela que ela tinha à frente. O mesmo com o «/» (saltava para
-   * os Pedidos) e com o acorde «g»+destino (trocava a vista por trás).
-   *
-   * A regra é uma só: enquanto houver uma janela à frente, uma tecla solta não
-   * muda o que está por trás dela. O Escape não passa por aqui — cada janela é
-   * dona do seu, e é assim que continua a fechar-se com uma tecla.
-   */
-  const janelaAberta = newQuoteOpen || shortcutsOpen || ajudaOpen || restoreOpen;
-  const janelaAbertaRef = useRef(false);
-  const paletteAbertaRef = useRef(false);
-  /* A vista, num ref, pela mesma razão que as outras duas aqui em cima: o
-     ouvinte de teclado monta-se uma vez e fecharia sobre a vista do primeiro
-     desenho. Sem isto, o ⌘N das Tarefas ou nunca disparava ou disparava em
-     todas as vistas — conforme a que estivesse aberta ao montar. */
-  const viewRef = useRef(view);
-  /** Os pedidos DESENHADOS (filtrados e já paginados), para o ⌘A — ver o
-   *  ouvinte de teclado e a revisão · 3. */
-  const filtradosRef = useRef<string[]>([]);
-  /** O painel de um pedido está POR CIMA da lista (gaveta) — o ⌘A não escolhe
-   *  por trás dele. Ao lado (xl), a lista vê-se e o ⌘A é dela. */
-  const painelPorCimaRef = useRef(false);
-  useEffect(() => {
-    janelaAbertaRef.current = janelaAberta;
-    paletteAbertaRef.current = paletteOpen;
-    viewRef.current = view;
-  }, [janelaAberta, paletteOpen, view]);
-
-  /**
-   * ── O `/` FOCA A PROCURA DA VISTA ONDE SE ESTÁ (BO 4) ─────────────────────
-   *
-   * Era sempre o `focusSearch`: ia para os Pedidos e focava a procura deles,
-   * estivesse ela onde estivesse. Agora foca o campo de procura da vista aberta
-   * (`procuraDaVista`, em `atalhos.ts`); nos Pedidos continua a ser o mesmo
-   * campo de sempre. Numa vista sem procura — ou com ela fora do ecrã, como
-   * dentro de uma pasta de tema — abre a procura em tudo, que é a que serve
-   * qualquer sítio.
-   */
-  const focarProcuraDaVista = useCallback(() => {
-    const vista = viewRef.current;
-    if (vista === "pedidos" && searchRef.current) {
-      searchRef.current.focus();
-      return;
-    }
-    const seletor = procuraDaVista(vista);
-    const campo = seletor
-      ? [...document.querySelectorAll<HTMLInputElement>(seletor)].find(
-          (c) => !c.disabled && !c.closest("[inert], [aria-hidden='true']"),
-        )
-      : undefined;
-    if (campo) campo.focus();
-    else setPaletteOpen(true);
-  }, []);
+  useFiltrosGuardados({ filterStatus, setFilterStatus, sort, setSort });
 
   // O «+ Nova tarefa» da barra, servido pelas Tarefas (ver `useNovaTarefa`).
   const { pedirNovaTarefa, novaTarefa } = useNovaTarefa(view);
-  // Global keyboard shortcuts. ⌘K works anywhere; the rest are ignored while
-  // typing so they never fight with form fields.
-  useEffect(() => {
-    let lastG = 0; // timestamp of the last "g" press, for the "g then key" chord
-    const onKey = (e: KeyboardEvent) => {
-      /* ── ⌘N NAS TAREFAS ────────────────────────────────────────────────
-         Antes do teste do «a escrever», e de propósito: ⌘N é um atalho com
-         modificador, e um atalho com modificador não colide com o que se está
-         a escrever num campo — é para isso que o modificador serve. Quem está
-         a escrever uma tarefa e faz ⌘N quer a seguinte, que é exactamente o
-         que isto faz.
-
-         Só nas Tarefas: noutra vista o ⌘N do browser (janela nova) continua a
-         ser dela. */
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        e.key.toLowerCase() === "n" &&
-        viewRef.current === "tarefas"
-      ) {
-        if (janelaAbertaRef.current || paletteAbertaRef.current) return;
-        e.preventDefault();
-        pedirNovaTarefa();
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        // A paleta também não se abre por baixo de outra janela; fechá-la com o
-        // mesmo atalho continua a valer, que é o que ⌘K faz quando ela é a que
-        // está à frente.
-        if (janelaAbertaRef.current) return;
-        e.preventDefault();
-        setPaletteOpen((o) => !o);
-        return;
-      }
-
-      const typing = aEscrever(e.target);
-
-      /* ── ⌘A NOS PEDIDOS SELECIONA O QUE ESTÁ À VISTA (BO 4) ──────────────
-         O que está FILTRADO, e não a lista inteira: é o mesmo conjunto que o
-         «Selecionar todos (N)» da barra do lote já selecciona, e o mesmo sobre
-         que os botões do lote agem (`seleccionadosAVista`). Num campo o ⌘A é
-         do campo — seleccionar o texto que se escreveu —, e com uma janela à
-         frente é dela. Noutras vistas é do browser, ou da vista (os Temas e as
-         Tarefas têm o seu). */
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        !e.altKey &&
-        !e.shiftKey &&
-        e.key.toLowerCase() === "a" &&
-        viewRef.current === "pedidos"
-      ) {
-        if (typing || janelaAbertaRef.current || paletteAbertaRef.current) return;
-        // A mesma regra das Tarefas (revisão · 8): nunca atrás de uma janela
-        // aberta, nem com o painel de um pedido POR CIMA da lista. Com o painel
-        // AO LADO (xl) a lista está à vista e o ⌘A escolhe-a — e o
-        // `preventDefault` de baixo impede o browser de escolher a página
-        // inteira (2.ª revisão · 4).
-        if (dentroDeUmaJanela(e.target) || painelPorCimaRef.current) return;
-        const ids = filtradosRef.current;
-        if (ids.length === 0) return;
-        e.preventDefault();
-        setSelectedIds(new Set(ids));
-        return;
-      }
-
-      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (janelaAbertaRef.current || paletteAbertaRef.current) return;
-
-      const k = e.key.toLowerCase();
-
-      // "g" arms the chord; the next key within 900ms picks a destination.
-      if (k === "g") {
-        lastG = Date.now();
-        return;
-      }
-      if (Date.now() - lastG < 900 && VIEW_KEYS[k]) {
-        e.preventDefault();
-        setView(VIEW_KEYS[k]);
-        lastG = 0;
-        return;
-      }
-      lastG = 0;
-
-      if (k === "n") {
-        e.preventDefault();
-        setNewQuoteOpen(true);
-      } else if (e.key === "/") {
-        e.preventDefault();
-        focarProcuraDaVista();
-      } else if (e.key === "?") {
-        e.preventDefault();
-        setShortcutsOpen(true);
-      }
-      // O Escape saiu daqui: com a janela aberta esta linha já não é alcançada
-      // (ver a guarda acima) e sem ela não havia nada para fechar. Quem o trata
-      // é a própria janela, que é onde ele tem de continuar a valer.
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [focarProcuraDaVista, pedirNovaTarefa]);
-
-  // Escape dismisses the open drawer/nav — but only when no modal is capturing
-  // it (the palette / new-quote / shortcuts dialogs handle their own Escape).
-  useEffect(() => {
-    if (paletteOpen || newQuoteOpen || shortcutsOpen || ajudaOpen || restoreOpen) return;
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      // Escape dentro de um campo de texto sai do CAMPO (dispensa autocomplete/
-      // IME, tira o foco), nunca fecha o painel inteiro — fechar o detalhe a
-      // meio da escrita descartava trabalho (ex.: um contractRef por gravar).
-      const t = e.target as HTMLElement | null;
-      /* Com um pedido aberto, QUALQUER controlo de formulário — uma caixa
-         como o «Já pago» incluída — só perde o foco: fechar o painel a meio
-         deitava fora o que ela estava a preencher (2.ª revisão · 1). Sem
-         painel, a caixa não é escrita e o Esc é do lote (revisão · 2). */
-      const controlo = !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
-      if (t && (selected ? controlo : aEscrever(t))) {
-        t.blur();
-        return;
-      }
-      // Uma janela aberta POR CIMA do painel (uma pergunta, um menu) é dona do
-      // seu Esc; o próprio painel em gaveta também é uma janela, e esse não.
-      const janela = t?.closest?.('[role="dialog"], [role="alertdialog"]') ?? null;
-      const outraJanela = !!janela && janela !== drawerRef.current;
-      if (navOpen) setNavOpen(false);
-      else if (selected && !outraJanela) {
-        if (
-          !dirtyRef.current ||
-          window.confirm("Tem alterações por guardar neste pedido. Descartar?")
-        ) {
-          // Pela mesma porta do «×» e do véu: fechar por Escape não é um
-          // fecho de segunda classe, e um painel que sai por um caminho e
-          // pisca no outro lê-se como duas coisas diferentes.
-          sairDoPainel(selected.id);
-        }
-      } else if (
-        viewRef.current === "pedidos" &&
-        haSeleccao &&
-        aApagarLote === null &&
-        aArquivarLote === null &&
-        // Com o lote a correr, os que falharem vão ficar selecionados: limpar
-        // agora fazia o aviso mentir (2.ª revisão · 7).
-        !bulkBusy &&
-        // Nunca atrás de uma janela aberta (revisão · 8): o Esc é dela.
-        !dentroDeUmaJanela(t)
-      ) {
-        // A camada de topo, quando não há painel nem gaveta, é a selecção do
-        // lote: o Esc limpa-a (BO 4), como nos Temas e nas Tarefas.
-        setSelectedIds(new Set());
-      }
-    };
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [
-    paletteOpen,
-    newQuoteOpen,
-    shortcutsOpen,
-    ajudaOpen,
-    restoreOpen,
+  const { filtradosRef, painelPorCimaRef } = useAtalhosDoTeclado({
+    view,
+    setView,
+    janelas: { paletteOpen, newQuoteOpen, shortcutsOpen, ajudaOpen, restoreOpen },
+    setPaletteOpen,
+    setNewQuoteOpen,
+    setShortcutsOpen,
+    searchRef,
+    pedirNovaTarefa,
+    setSelectedIds,
     navOpen,
+    setNavOpen,
     selected,
     sairDoPainel,
+    dirtyRef,
     haSeleccao,
     aApagarLote,
     aArquivarLote,
     bulkBusy,
     drawerRef,
-  ]);
+  });
 
   // Lock background scroll while the mobile nav drawer is open. O trinco é o
   // mesmo dos diálogos (`useTrincoDeScroll`), agora num sítio só: era daqui que
@@ -2413,10 +1876,10 @@ export default function AdminClient({
     // Os DESENHADOS, e não a lista filtrada inteira (revisão · 3): o ⌘A não
     // escolhe o que ela não vê. Os outros oferecem-se à parte, na barra.
     filtradosRef.current = visibleQuotes.map((q) => q.id);
-  }, [visibleQuotes]);
+  }, [visibleQuotes, filtradosRef]);
   useEffect(() => {
     painelPorCimaRef.current = !!selected && isDetailOverlay;
-  }, [selected, isDetailOverlay]);
+  }, [selected, isDetailOverlay, painelPorCimaRef]);
 
   // «Por responder» inclui a proposta que se está a preparar: o casal ainda
   // não recebeu nada, portanto a bola continua do nosso lado.

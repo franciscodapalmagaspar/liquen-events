@@ -1,5 +1,6 @@
 "use client";
 
+import type { PedidoVistoRecentemente } from "@/lib/orcamento/pedidos/vistos-recentemente";
 import { casaComAProcura } from "@/lib/procura";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Quote } from "@/lib/orcamento/types";
@@ -21,12 +22,8 @@ export interface Command {
   run: () => void;
 }
 
-export interface RecentQuote {
-  id: string;
-  name: string;
-  email: string;
-  status: string;
-}
+/** A forma e as regras vivem em `lib/orcamento/pedidos/vistos-recentemente.ts`. */
+export type RecentQuote = PedidoVistoRecentemente;
 
 interface Props {
   open: boolean;

@@ -34,6 +34,7 @@ antes e depois (linhas, complexidade, peso das rotas).
 | 7 · `AdminClient` por secções | 17/11 · `codigo/admin-e-temas` | `AdminClient.tsx` 9 505 → 4 111 linhas (9 129 antes do merge do BO 4, que lhe juntou 376). A função `AdminClient`: complexidade 223 → 62, linhas de código 4 877 → 2 048. O `saveChanges`: complexidade 105 → abaixo de 30 (três passos puros em `lib/orcamento/pedidos/gravar-o-pedido.ts` e uma casca). O `QuoteCard`: 43 → 39. Saíram 25 ficheiros para `admin/_pedidos/` (a lista e o painel, este em `_pedidos/painel/`), 11 para `admin/_casca/` (menu, cabeçalho, barra de baixo, vistas) e 8 para `lib/orcamento/pedidos/` — todos abaixo das 400 linhas. Dois hooks de domínio: `useEdicaoDoPedido` (os onze campos do painel) e `useFiltrosDosPedidos` (os doze filtros e a lista filtrada). |
 | 8 · Temas e ThemePicker (sem a fila) | 17/11 · `codigo/admin-e-temas` | `Temas.tsx` 6 464 → 4 037 linhas; `ThemeFolder` complexidade 93 → abaixo de 30, linhas de código 2 020 → 1 599; `Temas` 38 → abaixo de 30, 1 121 → 823. `ThemePicker.tsx` 3 181 → 2 556 linhas; a função 72 → 50, 1 093 → 876. Saíram 20 ficheiros para `admin/_temas/` (com `_temas/seletor/`) e 2 para `lib/temas/`. A fila das fotografias pesadas passou a UM código (`criarFilaDeImagens`) com TRÊS instâncias, cada uma com o seu tecto de 3 — exactamente como antes; juntá-las numa só espera pela aprovação dela. |
 | 7 e 8, junto ao lote · medidas finais | 18/11 · `codigo/admin-e-temas-local` | `AdminClient.tsx` 9 536 (main) → 3 061 linhas; `Temas.tsx` 6 464 → 2 887; `ThemePicker.tsx` 3 181 → 1 520. Painel 509 KB (main) → 502 KB crus (tecto 520). As linhas 7 e 8 acima são as medidas a meio do caminho (antes das rondas do júri). |
+| 7, 7.ª ronda · efeitos por domínio | 18/11 · `codigo/admin-e-temas-local` | `AdminClient.tsx` 3 062 → 2 528 linhas. Saíram, cada bloco inteiro e pela mesma ordem, cinco hooks: `_casca/useAtalhosDoTeclado` (⌘K, ⌘N, ⌘A, «g»+destino, «n», «/», «?» e o Escape), `_casca/useVistaNoEndereco` (o `?v=`, o cookie e a ponte do `localStorage`; as constantes em `_casca/vista-guardada.ts`, que o `page.tsx` lê sem React), `_pedidos/useFiltrosGuardados`, `_pedidos/painel/useAvisosDoPedido` e `_pedidos/painel/useSeparadoresDoPainel`. Fronteiras validadas num sítio: `pedidoDaResposta` (o corpo do PATCH e da leitura do pedido; sai o `as Quote` de cinco sítios), `lerVistos`/`juntarAosVistos` (o «vistos recentemente» do `localStorage`), `filtroGuardado`/`ordemGuardada` (as seis ordens escritas à mão passam a vir de `ORDENS_DOS_PEDIDOS`), `comComando` (⌘/Ctrl + letra). Capturas ao píxel com `scripts/capturas/comparar-o-back-office.mjs`. |
 
 **Desvios das fases 7 e 8 ao texto:**
 
@@ -1037,6 +1038,21 @@ acerto medido aqui.
     movido com olhos novos: três erros antigos apareceram assim. Corrigem-se em
     commits próprios, cada um com o seu teste, e nunca misturados com o
     movimento.
+24. **Tirar efeitos de um componente sem mudar a ordem.** O React corre os
+    efeitos de um componente pela ordem em que são declarados, e os de um hook
+    no sítio onde o hook é chamado. Um bloco CONTÍGUO de estado e efeitos passa
+    a um hook chamado no mesmo sítio, e a ordem fica igual; dois blocos
+    separados por outros efeitos só se juntam se forem independentes (cada um
+    escreve no seu `localStorage`, cookie ou `ref`). Os `set*` de `useState`
+    passam a ir nas dependências do hook: são estáveis, e o linter deixa de os
+    poder adivinhar quando chegam por argumento.
+25. **Capturas ao píxel com servidores de produção, em portas próprias.** O
+    `scripts/capturas/comparar-o-back-office.mjs` compara dois `next start`
+    com os MESMOS `data/*.json`. Antes de confiar numa captura, confirma que a
+    porta é tua: noutra sessão, um servidor já a ocupar a porta fez o «main»
+    mostrar os dados de outra pessoa — e o `next start` novo morreu em silêncio
+    com `EADDRINUSE`. As respostas que dependem do relógio ou do ambiente (o
+    aviso do armazenamento) fixam-se nos dois lados por igual.
 
 ---
 

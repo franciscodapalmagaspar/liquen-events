@@ -2,6 +2,7 @@
 
 import { type Dispatch, type SetStateAction } from "react";
 import { type Quote } from "@/lib/orcamento/types";
+import { pedidoDaResposta } from "@/lib/orcamento/pedidos/pedido-da-resposta";
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import { MoreMenu } from "../../MoreMenu";
 import { descarregarOCalendario, imprimirOPedido } from "../../imprimir-a-pedido";
@@ -84,8 +85,8 @@ export function MenuDoPedido({ setAApagar, duplicateQuote }: MenuDoPedidoProps) 
                 toast(porqueFalhou(oQue, res, corpo).mensagem, "error");
                 return;
               }
-              const updated = corpo as Quote;
-              mostrarPedido(updated);
+              const updated = pedidoDaResposta(corpo);
+              if (updated) mostrarPedido(updated);
               toast(next ? "Pedido arquivado" : "Pedido restaurado", "success");
             },
             icon: (

@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "./Toast";
-import AdminClient, { PARAM_VISTA } from "./AdminClient";
+import AdminClient from "./AdminClient";
+import { PARAM_VISTA } from "./_casca/vista-guardada";
 import { VIEWS, vistaValida } from "./nav";
 
 /**

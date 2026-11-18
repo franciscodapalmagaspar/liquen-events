@@ -119,3 +119,16 @@ export function dentroDeUmaJanela(alvo: EventTarget | null): boolean {
   const el = alvo as Element | null;
   return !!el?.closest?.('[role="dialog"], [role="alertdialog"]');
 }
+
+/** A parte da tecla que interessa a um atalho com ⌘/Ctrl. */
+type Tecla = Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">;
+
+/**
+ * É ⌘ (Mac) ou Ctrl (resto) mais `letra`? Com `sozinho`, nem ⌥ nem ⇧ podem vir
+ * juntos — o ⌘A dos Pedidos não é o ⌘⇧A. A regra estava escrita à mão em cada
+ * atalho do `useAtalhosDoTeclado`.
+ */
+export function comComando(e: Tecla, letra: string, sozinho = false): boolean {
+  if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== letra) return false;
+  return !sozinho || (!e.altKey && !e.shiftKey);
+}

@@ -1,5 +1,6 @@
 import { porqueFalhou, porqueRebentou } from "@/lib/porque-falhou";
 import type { Quote, QuoteStatus, ActivityEntry } from "@/lib/orcamento/types";
+import { pedidoDaResposta } from "@/lib/orcamento/pedidos/pedido-da-resposta";
 import { type NotasAutomaticas } from "@/lib/orcamento/pedidos/notas-automaticas";
 import { comPedidoAlterado } from "@/lib/orcamento/pedidos/lista-de-pedidos";
 import { seguirOServidor } from "@/lib/orcamento/pedidos/painel-do-pedido";
@@ -82,8 +83,8 @@ export function useHistoricoDoPedido({
       toast(porqueFalhou(oQue, res, corpo).mensagem, "error");
       return false;
     }
-    const updated = corpo as Quote | null;
-    if (updated?.id) {
+    const updated = pedidoDaResposta(corpo);
+    if (updated) {
       substituirPedido(updated);
     }
     return true;
